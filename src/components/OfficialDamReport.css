@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Inter:wght@400;700&display=swap');
+
+/* Screen Preview Styles */
+.report-page-container {
+    background-color: #0f172a;
+    min-height: 100vh;
+    padding: 2rem;
+}
+
+.report-paper {
+    background-color: white;
+    width: 210mm;
+    /* A4 Width */
+    min-height: 297mm;
+    /* A4 Height */
+    margin: 0 auto;
+    padding: 10mm;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    color: #1e293b;
+    font-family: 'Inter', sans-serif;
+}
+
+.font-mono {
+    font-family: 'Courier Prime', monospace;
+    /* Typewriter look for data */
+}
+
+/* Print Specific Styles */
+@media print {
+    @page {
+        size: A4;
+        margin: 0;
+    }
+
+    body {
+        margin: 0;
+        background-color: white;
+    }
+
+    .report-page-container {
+        background-color: white;
+        padding: 0;
+        min-height: 0;
+    }
+
+    .report-paper {
+        width: 100%;
+        min-height: 100vh;
+        margin: 0;
+        padding: 10mm;
+        /* Keep padding for the border */
+        box-shadow: none;
+    }
+
+    .hide-on-print {
+        display: none !important;
+    }
+
+    /* Ensure specific colors print */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+}
+
+/* Custom Grid Borders to match "Form" look */
+.report-grid {
+    border: 2px solid #1e293b;
+}
+
+.col-header {
+    background-color: #f1f5f9;
+    border-bottom: 1px solid #1e293b;
+}
+
+.data-row {
+    border-bottom: 1px dotted #cbd5e1;
+}
+
+/* Signatures */
+.signature-box {
+    margin-top: 2rem;
+    border-top: 1px solid #1e293b;
+    padding-top: 0.5rem;
+    width: 200px;
+}

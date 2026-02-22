@@ -1,0 +1,139 @@
+/* AlertList.css */
+.alert-list-container {
+    background-color: var(--color-bg-card);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.alert-list-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+}
+
+.alert-list-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.alert-badge {
+    background-color: var(--color-danger);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.alert-list-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    overflow-y: auto;
+    flex: 1;
+}
+
+.alert-item {
+    display: flex;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    border-left: 3px solid transparent;
+    transition: all 0.2s ease;
+    animation: fadeSlideIn 0.3s ease-out both;
+}
+
+.alert-item:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.alert-item:nth-child(2) {
+    animation-delay: 0.05s;
+}
+
+.alert-item:nth-child(3) {
+    animation-delay: 0.05s;
+}
+
+.alert-item:nth-child(4) {
+    animation-delay: 0.1s;
+}
+
+.alert-item:hover {
+    transform: translateX(2px);
+}
+
+.alert-icon {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.alert-content {
+    flex: 1;
+}
+
+.alert-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.alert-message {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    line-height: 1.4;
+    margin-bottom: 4px;
+}
+
+.alert-time {
+    font-size: 0.625rem;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+}
+
+/* Alert Types — Background tint + left border */
+.alert-warning {
+    background-color: rgba(245, 158, 11, 0.06);
+    border-left-color: var(--color-warning);
+}
+
+.alert-warning .alert-icon {
+    color: var(--color-warning);
+}
+
+.alert-warning .alert-title {
+    color: var(--color-warning);
+}
+
+.alert-critical {
+    background-color: rgba(239, 68, 68, 0.08);
+    border-left-color: var(--color-danger);
+}
+
+.alert-critical .alert-icon {
+    color: var(--color-danger);
+}
+
+.alert-critical .alert-title {
+    color: var(--color-danger);
+}
+
+.alert-info {
+    background-color: rgba(59, 130, 246, 0.06);
+    border-left-color: var(--color-primary);
+}
+
+.alert-info .alert-icon {
+    color: var(--color-primary);
+}
+
+.alert-info .alert-title {
+    color: var(--color-primary);
+}

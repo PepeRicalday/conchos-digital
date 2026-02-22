@@ -1,0 +1,231 @@
+/* CanalSchematic.css */
+.schematic-container {
+    background-color: var(--color-bg-card);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-xl);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    overflow-x: auto;
+    /* Allow horizontal scroll if needed */
+}
+
+.schematic-title {
+    font-size: 1rem;
+    color: var(--color-text-primary);
+    margin-bottom: 3rem;
+    /* Space for labels */
+}
+
+.canal-line-wrapper {
+    position: relative;
+    height: 120px;
+    margin: 0 40px;
+    /* Padding for end labels */
+    min-width: 800px;
+}
+
+.canal-line-bg {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 12px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-full);
+    transform: translateY(-50%);
+}
+
+.canal-water-flow {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 8px;
+    background: linear-gradient(90deg,
+            var(--color-water-deep) 0%,
+            var(--color-water) 50%,
+            var(--color-water-deep) 100%);
+    background-size: 50px 100%;
+    border-radius: var(--radius-full);
+    transform: translateY(-50%);
+    animation: flowAnimation 2s linear infinite;
+    opacity: 0.8;
+}
+
+@keyframes flowAnimation {
+    0% {
+        background-position: 0 0;
+    }
+
+    100% {
+        background-position: 50px 0;
+    }
+}
+
+.schematic-point {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    z-index: 10;
+    transition: transform 0.2s;
+}
+
+.schematic-point:hover {
+    transform: translate(-50%, -50%) scale(1.1);
+    z-index: 20;
+}
+
+.schematic-point.active-pin {
+    z-index: 30;
+}
+
+.schematic-point.active-pin .pin-head {
+    transform: scale(1.2);
+    border-color: white;
+    box-shadow: 0 0 15px var(--color-primary);
+}
+
+.point-marker {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* Visual adjustments to align correctly with the canal line */
+    margin-bottom: 4px;
+}
+
+.pin-head {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: var(--color-bg-card);
+    border: 2px solid var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s;
+}
+
+.schematic-point.open .pin-head {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+    color: white;
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+}
+
+.schematic-point.lateral .pin-head {
+    border-radius: 4px;
+    /* Square for Laterals */
+}
+
+.schematic-point.carcamo .pin-head {
+    border-radius: 0;
+    transform: rotate(45deg);
+    /* Diamond for Carcamo */
+}
+
+.schematic-point.carcamo .pin-head svg {
+    transform: rotate(-45deg);
+}
+
+/* Connecting line to the canal flow */
+.pin-line {
+    width: 2px;
+    height: 10px;
+    background-color: var(--color-text-muted);
+    transition: all 0.2s;
+}
+
+.schematic-point.open .pin-line {
+    background-color: var(--color-primary);
+}
+
+.point-label {
+    position: absolute;
+    top: 100%;
+    /* Below the marker */
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    white-space: nowrap;
+    margin-top: 8px;
+    pointer-events: none;
+}
+
+.km-tag {
+    font-size: 0.625rem;
+    color: var(--color-text-muted);
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 1px 4px;
+    border-radius: 4px;
+    margin-bottom: 2px;
+}
+
+.name-tag {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    background-color: var(--color-bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.schematic-point.open .name-tag {
+    color: var(--color-text-primary);
+    border-color: var(--color-primary);
+}
+
+.flow-tag {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    margin-top: 2px;
+}
+
+/* Legend */
+.schematic-legend {
+    display: flex;
+    gap: var(--spacing-lg);
+    margin-top: var(--spacing-lg);
+    justify-content: center;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+}
+
+.legend-item .dot {
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--color-text-muted);
+}
+
+.legend-item .dot.lateral {
+    border-radius: 2px;
+}
+
+.legend-item .dot.toma {
+    border-radius: 50%;
+}
+
+.legend-item .dot.carcamo {
+    transform: rotate(45deg);
+}
+
+.legend-item .dot.open {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.legend-item .dot.closed {
+    background-color: transparent;
+}

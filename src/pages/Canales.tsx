@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { X, Zap, Droplets, Calendar, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 import CanalSchematic from '../components/CanalSchematic';
 import { useHydraEngine, type ModuleData } from '../hooks/useHydraEngine';
@@ -24,6 +24,14 @@ const Canales = () => {
         setSelectedPointId(null);
     };
 
+    // Live tick for "Dashboard Vivo" volume interpolation
+    const [now, setNow] = useState<number>(Date.now());
+    useEffect(() => {
+        // Update every 3 seconds to keep UI alive without killing performance
+        const interval = setInterval(() => setNow(Date.now()), 3000);
+        return () => clearInterval(interval);
+    }, []);
+
     // 1. Flatten Points and Filter by Date (Open and Captured)
     const allPoints = useMemo(() => {
         const dateString = selectedDate.toLocaleDateString('sv-SE', { timeZone: 'America/Mexico_City' }); // YYYY-MM-DD
@@ -35,11 +43,18 @@ const Canales = () => {
             const currentQDate = isCaptured ? Number(medicionDate.valor_q) : 0;
             const isOpenDate = currentQDate > 0;
 
+            // Dashboard Vivo Interpolation
+            const isToday = new Date().toDateString() === selectedDate.toDateString();
+            const elapsedSeconds = p.last_update_time ? Math.max(0, (now - new Date(p.last_update_time).getTime()) / 1000) : 0;
+            const interpolatedVol = (isToday && isOpenDate) ? (currentQDate * elapsedSeconds) / 1000000 : 0;
+
             return {
                 ...p,
                 flow: currentQDate,
                 current_q: currentQDate,
                 current_q_lps: currentQDate * 1000,
+                daily_vol: (p.daily_vol || 0) + interpolatedVol,
+                accumulated: (p.accumulated || 0) + interpolatedVol,
                 moduleId: m.id,
                 moduleName: m.name,
                 isOpen: isOpenDate,

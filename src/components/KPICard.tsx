@@ -14,7 +14,7 @@ interface KPICardProps {
     trend?: 'rising' | 'falling' | 'stable';
 }
 
-const KPICard: React.FC<KPICardProps> = ({
+const KPICard: React.FC<KPICardProps> = React.memo(({
     title,
     value,
     unit,
@@ -49,6 +49,6 @@ const KPICard: React.FC<KPICardProps> = ({
             </div>
         </div>
     );
-};
+});
 
 export default KPICard;

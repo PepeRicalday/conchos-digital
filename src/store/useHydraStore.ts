@@ -23,6 +23,7 @@ export interface DeliveryPoint {
     zone: string;
     section: string;
     section_data?: SectionData;
+    last_update_time?: string;
     mediciones?: any[];
     reportes?: any[];
 }
@@ -43,6 +44,7 @@ export interface ModuleData {
 
 interface HydraState {
     modules: ModuleData[];
+    pointIndexMap: Record<string, { mIndex: number, pIndex: number }>;
     loading: boolean;
     error: string | null;
     isInitialized: boolean;
@@ -61,6 +63,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
         } catch { /* ignore */ }
         return [];
     })(),
+    pointIndexMap: {},
     loading: true,
     error: null,
     isInitialized: false,
@@ -110,9 +113,12 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                 reporteByModulo[r.modulo_id] = (reporteByModulo[r.modulo_id] || 0) + Number(r.volumen_total_mm3 || 0);
             });
 
-            // 3. Transform Map
-            const fullModules: ModuleData[] = modulosDB.map((mod: any) => {
-                const points = (mod.puntos_entrega || []).map((p: any) => {
+            // 3. Transform Map & Build O(1) Index Lookup
+            const indexMap: Record<string, { mIndex: number, pIndex: number }> = {};
+
+            const fullModules: ModuleData[] = modulosDB.map((mod: any, mIdx: number) => {
+                const points = (mod.puntos_entrega || []).map((p: any, pIdx: number) => {
+                    indexMap[p.id] = { mIndex: mIdx, pIndex: pIdx };
                     const measurements = (p.mediciones || []).sort((a: any, b: any) =>
                         new Date(b.fecha_hora).getTime() - new Date(a.fecha_hora).getTime()
                     );
@@ -147,6 +153,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                         coordinates: { x: Number(p.coords_x), y: Number(p.coords_y) },
                         zone: p.zona || 'General',
                         section: sectionInfo?.nombre || 'Sin Sección',
+                        last_update_time: latest?.fecha_hora,
                         section_data: sectionInfo ? {
                             id: sectionInfo.id,
                             nombre: sectionInfo.nombre,
@@ -175,7 +182,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                 };
             });
 
-            set({ modules: fullModules, loading: false, error: null });
+            set({ modules: fullModules, pointIndexMap: indexMap, loading: false, error: null });
             localStorage.setItem('hydra_modules_cache', JSON.stringify(fullModules));
             localStorage.setItem('hydra_cache_version', '2026-02-16-v2');
 
@@ -197,43 +204,34 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                 if (!newMeasurement || !newMeasurement.punto_id) return;
 
                 set(state => {
+                    const indices = state.pointIndexMap[newMeasurement.punto_id];
+                    if (!indices) return state; // Ignore unknown points
+
+                    const { mIndex, pIndex } = indices;
                     const newModules = [...state.modules];
-                    let pointUpdated = false;
+                    const m = { ...newModules[mIndex] };
+                    const p = { ...m.delivery_points[pIndex] };
 
-                    for (let mIndex = 0; mIndex < newModules.length; mIndex++) {
-                        const m = { ...newModules[mIndex] };
-                        const pIndex = m.delivery_points.findIndex(pt => pt.id === newMeasurement.punto_id);
+                    const qM3s = Number(newMeasurement.valor_q || 0);
+                    const volMm3 = Number(newMeasurement.valor_vol || 0);
 
-                        if (pIndex !== -1) {
-                            pointUpdated = true;
-                            const p = { ...m.delivery_points[pIndex] };
+                    p.current_q = qM3s;
+                    p.current_q_lps = qM3s * 1000;
+                    p.accumulated += volMm3;
+                    p.is_open = qM3s > 0;
+                    p.last_update_time = newMeasurement.fecha_hora || new Date().toISOString();
 
-                            const qM3s = Number(newMeasurement.valor_q || 0);
-                            const volMm3 = Number(newMeasurement.valor_vol || 0);
+                    m.delivery_points = [...m.delivery_points];
+                    m.delivery_points[pIndex] = p;
+                    m.current_flow = m.delivery_points.reduce((acc, pt) => acc + pt.current_q, 0);
 
-                            p.current_q = qM3s;
-                            p.current_q_lps = qM3s * 1000;
-                            p.accumulated += volMm3;
-                            p.is_open = qM3s > 0;
+                    newModules[mIndex] = m;
+                    localStorage.setItem('hydra_modules_cache', JSON.stringify(newModules));
 
-                            m.delivery_points = [...m.delivery_points];
-                            m.delivery_points[pIndex] = p;
-                            m.current_flow = m.delivery_points.reduce((acc, pt) => acc + pt.current_q, 0);
-
-                            newModules[mIndex] = m;
-                            break;
-                        }
-                    }
-
-                    if (pointUpdated) {
-                        localStorage.setItem('hydra_modules_cache', JSON.stringify(newModules));
-                        return { modules: newModules };
-                    }
-
-                    return state;
+                    return { modules: newModules };
                 });
             })
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'lecturas_escalas' }, (payload) => {
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'lecturas_escalas' }, (_payload) => {
                 console.log('🔄 Nueva escala detectada. Sincronizando dashboard...');
                 get().fetchHydraulicData();
             })

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { Droplets, Waves, Activity, AlertTriangle, TrendingUp, TrendingDown, ArrowRight, Loader } from 'lucide-react';
 import KPICard from '../components/KPICard';
@@ -34,8 +34,22 @@ const Dashboard = () => {
 
     const loading = loadingModules || loadingPresas;
 
-    // 3. Aggregate Data
-    const totalDailyVol = useMemo(() => modules.reduce((acc, m) => acc + m.daily_vol, 0), [modules]);
+    // Dashboard Vivo - Live tick
+    const [now, setNow] = useState<number>(Date.now());
+    useEffect(() => {
+        const interval = setInterval(() => setNow(Date.now()), 3000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // 3. Aggregate Data with Interpolation
+    const totalDailyVol = useMemo(() => modules.reduce((acc, m) => {
+        const mDailyVol = m.delivery_points.reduce((ptAcc, pt) => {
+            const elapsedSeconds = pt.last_update_time ? Math.max(0, (now - new Date(pt.last_update_time).getTime()) / 1000) : 0;
+            const interpolated = (esHoy && pt.current_q > 0) ? (pt.current_q * elapsedSeconds) / 1000000 : 0;
+            return ptAcc + (pt.daily_vol || 0) + interpolated;
+        }, 0);
+        return acc + mDailyVol;
+    }, 0), [modules, now, esHoy]);
 
     // Extraction trend from data
     const extractionTrend = useMemo(() => totalExtraccion > 30 ? 'rising' : totalExtraccion > 0 ? 'stable' : 'falling', [totalExtraccion]);

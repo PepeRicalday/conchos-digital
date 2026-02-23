@@ -56,36 +56,42 @@
 }
 
 .brand-icon {
-    width: 80px;
-    height: 80px;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    border-radius: 20px;
+    width: 240px;
+    height: auto;
     display: flex;
     align-items: center;
     justify-content: center;
     margin: 0 auto 20px;
-    box-shadow: 0 10px 20px -5px rgba(37, 99, 235, 0.5);
+    background: white;
+    /* Contrast for the logo */
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: 0 10px 20px -5px rgba(120, 53, 15, 0.3);
+    /* Terracota shadow */
 }
 
-.water-icon {
-    color: white;
-    width: 44px;
-    height: 44px;
+.brand-logo-login {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
 }
+
+/* Removed water-icon */
 
 .login-brand h1 {
     font-size: 2.2rem;
     font-weight: 800;
     margin: 0;
     letter-spacing: -0.025em;
-    background: linear-gradient(to right, #fff, #94a3b8);
+    background: linear-gradient(to right, #ffffff, #d1d5db);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
 .login-brand p {
-    color: #60a5fa;
+    color: #fdba74;
+    /* Orange/terracota light hint */
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -166,14 +172,15 @@
 
 .input-wrapper input:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: #f97316;
+    /* Orange border */
     background: rgba(15, 23, 42, 0.8);
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
 }
 
 .input-wrapper input:focus+.input-icon,
 .input-wrapper:focus-within .input-icon {
-    color: #3b82f6;
+    color: #f97316;
 }
 
 .login-error {
@@ -188,7 +195,8 @@
 
 .login-submit {
     margin-top: 10px;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    background: linear-gradient(135deg, #b45309 0%, #78350f 100%);
+    /* Terracota gradient */
     color: white;
     border: none;
     border-radius: 12px;
@@ -201,12 +209,12 @@
     gap: 10px;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+    box-shadow: 0 4px 15px rgba(120, 53, 15, 0.3);
 }
 
 .login-submit:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(37, 99, 235, 0.4);
+    box-shadow: 0 8px 25px rgba(120, 53, 15, 0.5);
     filter: brightness(1.1);
 }
 

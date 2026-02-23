@@ -30,11 +30,11 @@ const Sidebar = () => {
         <aside className="sidebar">
             <div className="sidebar-header">
                 <div className="brand-logo-container">
-                    <img src="/logos/SICA005.png" alt="SICA 005" className="brand-logo" />
+                    <img src="/logos/logo-srl.png" alt="S.R.L. Unidad Conchos" className="brand-logo" />
                 </div>
                 <div className="brand-text">
-                    <h1>Conchos-Digital</h1>
-                    <p>Distrito 005</p>
+                    <h1>S.R.L. Unidad Conchos</h1>
+                    <p>Distrito 005 Delicias</p>
                 </div>
             </div>
 
@@ -87,7 +87,7 @@ const Sidebar = () => {
                     <div className="status-indicator">
                         <SupabaseStatus />
                     </div>
-                    <div className="footer-version">v1.2.0 — SICA 005 Delicias</div>
+                    <div className="footer-version">v1.2.0 — Sist. Control Integrado</div>
                 </div>
             </div>
         </aside>

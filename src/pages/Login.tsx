@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, Lock, Mail, ShieldCheck, Droplets } from 'lucide-react';
+import { LogIn, Lock, Mail, ShieldCheck } from 'lucide-react';
 import './Login.css';
 
 const Login: React.FC = () => {
@@ -40,11 +40,11 @@ const Login: React.FC = () => {
             <div className="login-card">
                 <div className="login-brand">
                     <div className="brand-icon">
-                        <Droplets className="water-icon" />
+                        <img src="/logos/logo-srl.png" alt="S.R.L. Unidad Conchos" className="brand-logo-login" />
                     </div>
-                    <h1>SICA 005</h1>
+                    <h1>Unidad Conchos</h1>
                     <p>Hidro-Sincronía Digital</p>
-                    <div className="srl-tag">Sociedad de Asociaciones de Usuarios Unidad Conchos S. de R.L.</div>
+                    <div className="srl-tag">Sociedad de Asociaciones de Usuarios Unidad Conchos S.R.L. De I.P. y C.V.</div>
                 </div>
 
                 <div className="login-content">

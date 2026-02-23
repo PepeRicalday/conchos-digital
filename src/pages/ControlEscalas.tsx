@@ -305,7 +305,23 @@ const ControlEscalas = () => {
         }
 
         fetchData();
-        return () => { cancelled = true; };
+
+        // 2. Realtime Subscription for Live Updates
+        const channel = supabase.channel('realtime_escalas')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'lecturas_escalas' },
+                () => {
+                    console.log('🔄 Cambio detectado en lecturas_escalas. Refrescando...');
+                    fetchData();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            cancelled = true;
+            supabase.removeChannel(channel);
+        };
     }, [fechaSeleccionada]);
 
     // Calculate overall stats

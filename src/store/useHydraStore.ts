@@ -233,6 +233,10 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                     return state;
                 });
             })
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'lecturas_escalas' }, (payload) => {
+                console.log('🔄 Nueva escala detectada. Sincronizando dashboard...');
+                get().fetchHydraulicData();
+            })
             .subscribe();
     }
 }));

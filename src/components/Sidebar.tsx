@@ -19,7 +19,7 @@ const Sidebar = () => {
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
         { icon: Waves, label: 'Presas', path: '/presas' },
         { icon: Droplets, label: 'Distribución', path: '/canales' },
-        { icon: Activity, label: 'Control de Escalas', path: '/escalas' },
+        { icon: Activity, label: 'Control de Niveles', path: '/escalas' },
         { icon: Activity, label: 'Hidrometría', path: '/hidrometria' },
         { icon: Cloud, label: 'Clima', path: '/clima' },
         { icon: Map, label: 'Geo-Monitor', path: '/geo-monitor' },

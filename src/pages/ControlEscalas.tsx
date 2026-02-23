@@ -353,7 +353,7 @@ const ControlEscalas = () => {
         <div className="escalas-container">
             <header className="page-header">
                 <div>
-                    <h2 className="text-2xl font-bold text-white">Control de Escalas</h2>
+                    <h2 className="text-2xl font-bold text-white">Control de Niveles</h2>
                     <p className="text-slate-400 text-sm">Monitoreo de Niveles Operativos por Zona (Km 0 - Km 104)</p>
                 </div>
 

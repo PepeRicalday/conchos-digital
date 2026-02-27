@@ -40,7 +40,7 @@ function buildConditions(climaRecords: ClimaPresaData[]): WeatherCondition[] {
     const conditions: WeatherCondition[] = [];
 
     if (primary.temp_maxima_c != null) {
-        const tempMax = primary.temp_maxima_c;
+        const tempMax = Number(primary.temp_maxima_c);
         conditions.push({
             variable: 'Temperatura Máxima',
             current: `${tempMax}°C`,
@@ -52,7 +52,7 @@ function buildConditions(climaRecords: ClimaPresaData[]): WeatherCondition[] {
     }
 
     if (primary.temp_minima_c != null) {
-        const tempMin = primary.temp_minima_c;
+        const tempMin = Number(primary.temp_minima_c);
         conditions.push({
             variable: 'Temperatura Mínima',
             current: `${tempMin}°C`,
@@ -81,7 +81,7 @@ function buildConditions(climaRecords: ClimaPresaData[]): WeatherCondition[] {
             forecast: primary.dir_viento_24h ? `${primary.dir_viento_24h} — Int: ${primary.intensidad_24h ?? 0}` : '—',
             impact: 'Afecta la uniformidad del riego por aspersión',
             icon: <Wind size={18} />,
-            status: (primary.intensidad_viento ?? 0) > 3 ? 'warning' : 'normal'
+            status: Number(primary.intensidad_viento ?? 0) > 3 ? 'warning' : 'normal'
         });
     }
 
@@ -115,7 +115,7 @@ function buildConditions(climaRecords: ClimaPresaData[]): WeatherCondition[] {
             forecast: '—',
             impact: 'Capacidad de supervisión en campo',
             icon: <Sun size={18} />,
-            status: primary.visibilidad < 5 ? 'warning' : 'normal'
+            status: Number(primary.visibilidad ?? 99) < 5 ? 'warning' : 'normal'
         });
     }
 
@@ -199,7 +199,7 @@ const Clima = () => {
     const irrigationAlerts = [];
     if (clima.length > 0) {
         const c = clima[0];
-        if ((c.intensidad_viento ?? 0) > 3) {
+        if (Number(c.intensidad_viento ?? 0) > 3) {
             irrigationAlerts.push({
                 active: true,
                 message: `Viento fuerte (Int: ${c.intensidad_viento}): Suspender riego por aspersión`,

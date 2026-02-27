@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { toDateString, isToday } from '../utils/dateHelpers';
+import { calculateEfficiency } from '../utils/hydraulics';
 import { X, Zap, Droplets, Calendar, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
 import CanalSchematic from '../components/CanalSchematic';
 import { useHydraEngine, type ModuleData } from '../hooks/useHydraEngine';
@@ -34,7 +36,7 @@ const Canales = () => {
 
     // 1. Flatten Points and Filter by Date (Open and Captured)
     const allPoints = useMemo(() => {
-        const dateString = selectedDate.toLocaleDateString('sv-SE', { timeZone: 'America/Mexico_City' }); // YYYY-MM-DD
+        const dateString = toDateString(selectedDate);
 
         return modules.flatMap(m => m.delivery_points.map(p => {
             // Find measurement for selected date
@@ -44,9 +46,9 @@ const Canales = () => {
             const isOpenDate = currentQDate > 0;
 
             // Dashboard Vivo Interpolation
-            const isToday = new Date().toDateString() === selectedDate.toDateString();
+            const isTodaySelected = isToday(selectedDate);
             const elapsedSeconds = p.last_update_time ? Math.max(0, (now - new Date(p.last_update_time).getTime()) / 1000) : 0;
-            const interpolatedVol = (isToday && isOpenDate) ? (currentQDate * elapsedSeconds) / 1000000 : 0;
+            const interpolatedVol = (isTodaySelected && isOpenDate) ? (currentQDate * elapsedSeconds) / 1000000 : 0;
 
             return {
                 ...p,
@@ -61,11 +63,8 @@ const Canales = () => {
                 isCaptured: isCaptured,
                 schedule: undefined
             };
-        })).filter(p => !p.type || p.type !== 'toma' || p.isCaptured || !p.isCaptured);
-        // Note: The previous requirement was "solo aparesca desglosado en la grafica en base a la fecha las tomas que esten abiertas solo si estas estan capturado". 
-        // This means we should visually hide them OR filter them. If we filter them out of the array completely, the Sections (which are generated dynamically from Points) will disappear!
-        // To fix this: Let's keep all points so sections don't disappear. BUT we can hide them in the schematic. 
-        // A better approach: The prompt literally says "solo aparesca desglosado en la grafica". So they should be filtered out of the schematic, but the sections must remain.
+        }));
+        // All points kept so sections don't disappear. Real filter for schematic is in filteredPoints (L72).
     }, [modules, selectedDate]);
 
     // Apply the strict filter requested by user for the points to show in schematic
@@ -99,7 +98,12 @@ const Canales = () => {
         totalTargetVol: modules.reduce((acc, m) => acc + m.authorized_vol, 0) || 1
     }), [modules]);
 
-    const globalEfficiency = 88.5;
+    // Eficiencia real: (Σ caudal entregado / Σ caudal objetivo) × 100
+    const globalEfficiency = useMemo(() => {
+        const totalDelivered = modules.reduce((acc, m) => acc + m.current_flow, 0);
+        const totalTarget = modules.reduce((acc, m) => acc + m.target_flow, 0);
+        return calculateEfficiency(totalTarget, totalDelivered);
+    }, [modules]);
 
     if (loading && modules.length === 0) return <div className="text-white p-10 flex items-center gap-3"><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> Cargando Centro de Control...</div>;
 
@@ -178,8 +182,13 @@ const Canales = () => {
                                     <span className="text-white font-mono">{(activeSectionId === 'all' ? modules.reduce((a, m) => a + m.current_flow, 0) * 1000 : sectionFlow * 1000).toFixed(0)} L/s</span>
                                 </div>
                                 <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                                    {/* Mock % for visualizations */}
-                                    <div className="h-full bg-blue-500" style={{ width: '65%' }}></div>
+                                    <div className="h-full bg-blue-500" style={{
+                                        width: `${(() => {
+                                            const totalFlow = activeSectionId === 'all' ? modules.reduce((a, m) => a + m.current_flow, 0) : sectionFlow;
+                                            const totalTarget = activeSectionId === 'all' ? modules.reduce((a, m) => a + m.target_flow, 0) : visiblePoints.reduce((a, p) => a + (p.capacity || 0), 0);
+                                            return totalTarget > 0 ? Math.min((totalFlow / totalTarget) * 100, 100) : 0;
+                                        })()}%`
+                                    }}></div>
                                 </div>
                             </div>
                             <div>

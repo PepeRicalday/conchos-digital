@@ -3,17 +3,23 @@ export const formatVol = (num: number | null | undefined) => {
     return (num ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-// Map based on known IDs or names from the file list
-export const getLogoPath = (moduleName: string | null | undefined, moduleId: string) => {
-    const safeName = moduleName || '';
-    const nameLower = safeName.toLowerCase();
-    if (nameLower.includes('modulo 1') || moduleId === 'm1') return '/logos/Modulo 1.jpg';
-    if (nameLower.includes('modulo 2') || moduleId === 'm2') return '/logos/modulo_2.jpg';
-    if (nameLower.includes('modulo 3') || moduleId === 'm3') return '/logos/modulo_3.jpg';
-    if (nameLower.includes('modulo 4') || moduleId === 'm4') return '/logos/modulo_4.jpg';
-    if (nameLower.includes('modulo 5') || moduleId === 'm5') return '/logos/modulo_5.jpg';
-    if (nameLower.includes('modulo 12') || moduleId === 'm12') return '/logos/modulo_12.jpg';
-    return '/logos/srl_logo.jpg'; // Fallback
+// A-07: Prefer logo_url from DB, fallback to local assets by short_code
+export const getLogoPath = (_moduleName: string | null | undefined, shortCode: string, logoUrl?: string | null) => {
+    // 1. DB logo_url takes priority (source of truth)
+    if (logoUrl) return logoUrl;
+
+    // 2. Local assets fallback by short code
+    const codeLower = (shortCode || '').toLowerCase();
+    const localLogos: Record<string, string> = {
+        m1: '/logos/modulo_1.jpg',
+        m2: '/logos/modulo_2.jpg',
+        m3: '/logos/modulo_3.jpg',
+        m4: '/logos/modulo_4.jpg',
+        m5: '/logos/modulo_5.jpg',
+        m12: '/logos/modulo_12.jpg',
+    };
+
+    return localLogos[codeLower] || '/logos/srl_logo.png';
 };
 
 // Default Sections (Hardcoded from Business Rules "4 Zonas")

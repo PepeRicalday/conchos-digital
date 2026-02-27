@@ -1,4 +1,4 @@
-import React from 'react';
+import type { ReactNode } from 'react';
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
@@ -25,7 +25,7 @@ function ErrorFallback({ error, resetErrorBoundary }: any) {
     );
 }
 
-export function ErrorBoundary({ children }: { children: React.ReactNode }) {
+export function ErrorBoundary({ children }: { children: ReactNode }) {
     return (
         <ReactErrorBoundary
             FallbackComponent={ErrorFallback}

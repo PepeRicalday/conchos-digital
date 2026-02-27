@@ -15,7 +15,7 @@ export const ModuleDetailModal = ({ module, onClose }: { module: ModuleData, onC
         { name: 'Cárcamos', value: module.delivery_points.filter(p => p.type === 'carcamo').reduce((a, b) => a + b.accumulated, 0) }
     ].filter(d => d.value > 0);
 
-    const logoSrc = getLogoPath(module.name, module.id);
+    const logoSrc = getLogoPath(module.name, module.short_code || '', module.logo_url);
 
     return (
         <div className="modal-overlay backdrop-blur-sm bg-black/80" onClick={onClose}>
@@ -23,7 +23,7 @@ export const ModuleDetailModal = ({ module, onClose }: { module: ModuleData, onC
                 <header className="modal-header bg-slate-800">
                     <div className="flex items-center gap-4">
                         <div className="logo-container">
-                            <img src={logoSrc} alt={module.name} className="module-logo w-10 h-10 rounded-full border-2 border-slate-600" />
+                            <img src={logoSrc} alt={module.name} className="module-logo w-12 h-12 rounded-full border-2 border-slate-600 object-contain bg-slate-900" />
                         </div>
                         <div>
                             <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">{module.short_code || module.id.substring(0, 6)}</span>
@@ -140,7 +140,7 @@ export const ModuleCard = ({ data }: { data: ModuleData }) => {
     const available = Math.max(authorized - consumed, 0);
     const percentConsumed = authorized > 0 ? (consumed / authorized) * 100 : 0;
     const isOperating = data.current_flow > 0.1;
-    const logoSrc = getLogoPath(data.name, data.id);
+    const logoSrc = getLogoPath(data.name, data.short_code || '', data.logo_url);
 
     const consumedColor = percentConsumed > 90 ? '#ef4444' : percentConsumed > 70 ? '#f59e0b' : '#3b82f6';
     const displayPercent = consumed > 0 ? Math.max(percentConsumed, 5) : 0;

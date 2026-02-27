@@ -1,117 +1,31 @@
 import { useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import { Printer, CloudSun, Thermometer } from 'lucide-react';
-// TODO: Integrate with usePresas hook for real data
+import { useAforos } from '../hooks/useAforos';
+import { usePresas } from '../hooks/usePresas';
 import './OfficialDamReport.css'; // Will create this next
 
-// --- Mock Data Interface (Matches proposed DB schema) ---
-interface WeatherData {
-    tempMax: number;
-    tempMin: number;
-    tempAmb: number;
-    precip: number;
-    evap: number;
-    windDir: string;
-    windSpeed: string; // "Moderado", "40 km/h"
-    visibility: string; // "4T"?
-    weatherState: 'Soleado' | 'Nublado' | 'Lluvia' | 'Frio' | 'Caluroso';
-}
-
-interface HydroData {
-    scale: number; // msnm
-    storage: number; // Mm3
-    extraction: number; // m3/s
-    percent: number; // %
-    // Specifics
-    tBaja?: number; // Boquilla
-    cfe?: number;   // Boquilla
-    tomaIzq?: number; // Madero
-    tomaDer?: number; // Madero
-    spillway?: number;
-}
-
-interface ReportData {
-    date: string;
-    boquilla: HydroData & WeatherData;
-    madero: HydroData & WeatherData;
-    delicias: WeatherData; // Only weather
-    prev24h: {
-        boquilla: { weatherState: string; windDir: string; windSpeed: string };
-        madero: { weatherState: string; windDir: string; windSpeed: string };
-        delicias: { weatherState: string; windDir: string; windSpeed: string };
-    };
-    aforos: {
-        km0_580: { scale: number; flow: number }; // Canal Principal
-        km106: { scale: number; flow: number }; // Saucillo?
-        km104: { scale: number; flow: number }; // Fin?
-    };
-}
-
-// --- MOCKED DATA (To be replaced by DB fetch) ---
-const MOCK_REPORT: ReportData = {
-    date: new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
-    boquilla: {
-        scale: 1302.68,
-        storage: 1089.653,
-        extraction: 45.3,
-        percent: 38.277,
-        tBaja: 0,
-        cfe: 45.3,
-        spillway: 0,
-        // Weather
-        tempMax: 24,
-        tempMin: 7,
-        tempAmb: 8,
-        precip: 0,
-        evap: 4.70,
-        windDir: 'SE',
-        windSpeed: 'Moderado',
-        visibility: '4T',
-        weatherState: 'Frio'
-    },
-    madero: {
-        scale: 1236.00,
-        storage: 232.02,
-        extraction: 12.5,
-        percent: 69.61,
-        tomaIzq: 12.5,
-        tomaDer: 0,
-        spillway: 0,
-        // Weather
-        tempMax: 26,
-        tempMin: 7,
-        tempAmb: 8,
-        precip: 0,
-        evap: 3.98,
-        windDir: 'SW',
-        windSpeed: 'Moderado',
-        visibility: '4T',
-        weatherState: 'Frio'
-    },
-    delicias: {
-        tempMax: 24,
-        tempMin: 6,
-        tempAmb: 7,
-        precip: 0,
-        evap: 5.30,
-        windDir: 'NE',
-        windSpeed: 'Ligero',
-        visibility: '5T',
-        weatherState: 'Frio'
-    },
-    prev24h: {
-        boquilla: { weatherState: 'Caluroso', windDir: 'SE', windSpeed: 'Moderado' },
-        madero: { weatherState: 'Caluroso', windDir: 'SW', windSpeed: 'Moderado' },
-        delicias: { weatherState: 'Caluroso', windDir: 'SE', windSpeed: 'Ligero' }
-    },
-    aforos: {
-        km0_580: { scale: 1.20, flow: 45.3 },
-        km106: { scale: 0.85, flow: 12.1 },
-        km104: { scale: 0.50, flow: 5.2 }
-    }
-};
-
 const OfficialDamReport = () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const { aforosReporte } = useAforos(todayStr);
+    const { presas, clima } = usePresas(todayStr);
+
+    const boquilla = presas.find(p => p.codigo === 'PLB');
+    const madero = presas.find(p => p.codigo === 'PFM');
+
+    // Delicias climate is tied to Boquilla's ID in this mocked setup, 
+    // or we might need a distinct station ID if it existed.
+    // For now we assume Boquilla, Madero, and one specifically for Delicias.
+    const climaBoquilla = clima.find(c => c.presa_id === boquilla?.id);
+    const climaMadero = clima.find(c => c.presa_id === madero?.id);
+    // TODO: Create an actual Station record for Delicias. For now, we fallback to Boquilla's weather.
+    const climaDelicias = clima.find(c => c.presa_id === 'estacion-delicias') || climaBoquilla;
+
+    // Detect if data is historical (not from today)
+    const boquillaDate = boquilla?.lectura?.fecha || todayStr;
+    const isHistorical = boquillaDate !== todayStr;
+    const reportDateLabel = new Date(boquillaDate + 'T12:00:00Z').toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
     const componentRef = useRef<HTMLDivElement>(null);
     const handlePrint = useReactToPrint({
         contentRef: componentRef,
@@ -145,9 +59,14 @@ const OfficialDamReport = () => {
                                 <h3 className="text-sm font-bold uppercase text-slate-500">Dirección Local Chihuahua</h3>
                                 <h3 className="text-sm font-bold uppercase text-slate-500">Distrito de Riego 005</h3>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right flex flex-col items-end">
                                 <span className="block text-xs font-bold uppercase text-slate-400">Fecha</span>
-                                <span className="text-lg font-serif font-bold text-slate-800 uppercase">{MOCK_REPORT.date}</span>
+                                <span className="text-lg font-serif font-bold text-slate-800 uppercase">{reportDateLabel}</span>
+                                {isHistorical && (
+                                    <span className="text-[10px] font-bold uppercase text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full mt-1 border border-amber-300 print:hidden shadow-sm animate-pulse">
+                                        ⚠ Mostrando Lectura Guardada de Ayer
+                                    </span>
+                                )}
                             </div>
                         </div>
                         <div className="mt-4 bg-slate-800 text-white py-1 uppercase font-bold text-sm tracking-wider">
@@ -164,21 +83,21 @@ const OfficialDamReport = () => {
 
                         {/* ROW 1: Hydro Data */}
                         <div className="col-boquilla border-r border-slate-400 p-2 space-y-1">
-                            <DataRow label="Escala (msnm)" value={MOCK_REPORT.boquilla.scale.toFixed(2)} />
-                            <DataRow label="Almacenamiento (Mm³)" value={MOCK_REPORT.boquilla.storage.toFixed(3)} highlight />
-                            <DataRow label="T. Baja" value={MOCK_REPORT.boquilla.tBaja === 0 ? "---" : MOCK_REPORT.boquilla.tBaja} />
-                            <DataRow label="C.F.E." value={MOCK_REPORT.boquilla.cfe === 0 ? "---" : MOCK_REPORT.boquilla.cfe} />
-                            <DataRow label="Extracción Total (m³/s)" value={MOCK_REPORT.boquilla.extraction.toFixed(2)} bold />
-                            <DataRow label="% Llenado" value={`${MOCK_REPORT.boquilla.percent.toFixed(2)}%`} />
+                            <DataRow label="Escala (msnm)" value={boquilla?.lectura?.escala_msnm?.toFixed(2) || '---'} />
+                            <DataRow label="Almacenamiento (Mm³)" value={boquilla?.lectura?.almacenamiento_mm3?.toFixed(3) || '---'} highlight />
+                            <DataRow label="T. Baja" value={boquilla?.lectura?.gasto_toma_baja_m3s?.toString() || '---'} />
+                            <DataRow label="C.F.E." value={boquilla?.lectura?.gasto_cfe_m3s?.toString() || '---'} />
+                            <DataRow label="Extracción Total (m³/s)" value={boquilla?.lectura?.extraccion_total_m3s?.toFixed(2) || '---'} bold />
+                            <DataRow label="% Llenado" value={boquilla?.lectura?.porcentaje_llenado ? `${boquilla.lectura.porcentaje_llenado.toFixed(2)}%` : '---'} />
                         </div>
 
                         <div className="col-madero border-r border-slate-400 p-2 space-y-1">
-                            <DataRow label="Escala (msnm)" value={MOCK_REPORT.madero.scale.toFixed(2)} />
-                            <DataRow label="Almacenamiento (Mm³)" value={MOCK_REPORT.madero.storage.toFixed(2)} highlight />
-                            <DataRow label="Toma Izq. #1" value={MOCK_REPORT.madero.tomaIzq?.toFixed(2)} />
-                            <DataRow label="Toma Der. #2" value={MOCK_REPORT.madero.tomaDer?.toFixed(2)} />
-                            <DataRow label="Extracción Total (m³/s)" value={MOCK_REPORT.madero.extraction.toFixed(2)} bold />
-                            <DataRow label="% Llenado" value={`${MOCK_REPORT.madero.percent.toFixed(2)}%`} />
+                            <DataRow label="Escala (msnm)" value={madero?.lectura?.escala_msnm?.toFixed(2) || '---'} />
+                            <DataRow label="Almacenamiento (Mm³)" value={madero?.lectura?.almacenamiento_mm3?.toFixed(2) || '---'} highlight />
+                            <DataRow label="Toma Izq. #1" value={madero?.lectura?.gasto_toma_izq_m3s?.toFixed(2) || '---'} />
+                            <DataRow label="Toma Der. #2" value={madero?.lectura?.gasto_toma_der_m3s?.toFixed(2) || '---'} />
+                            <DataRow label="Extracción Total (m³/s)" value={madero?.lectura?.extraccion_total_m3s?.toFixed(2) || '---'} bold />
+                            <DataRow label="% Llenado" value={madero?.lectura?.porcentaje_llenado ? `${madero.lectura.porcentaje_llenado.toFixed(2)}%` : '---'} />
                         </div>
 
                         <div className="col-delicias p-4 flex flex-col justify-center items-center text-slate-500 italic text-sm text-center bg-slate-50/50">
@@ -194,9 +113,9 @@ const OfficialDamReport = () => {
                         </div>
 
                         {/* ROW 3: Weather Data Body */}
-                        <WeatherColumn data={MOCK_REPORT.boquilla} location="boquilla" />
-                        <WeatherColumn data={MOCK_REPORT.madero} location="madero" />
-                        <WeatherColumn data={MOCK_REPORT.delicias} location="delicias" last />
+                        <WeatherColumn data={climaBoquilla} location="boquilla" />
+                        <WeatherColumn data={climaMadero} location="madero" />
+                        <WeatherColumn data={climaDelicias} location="delicias" last />
 
                         {/* ROW 4: Previous 24h Header */}
                         <div className="col-span-3 bg-slate-200 border-y border-slate-800 text-center font-bold text-xs uppercase py-1 tracking-wider text-slate-600">
@@ -204,9 +123,9 @@ const OfficialDamReport = () => {
                         </div>
 
                         {/* ROW 5: Previous 24h Body */}
-                        <Prev24hColumn data={MOCK_REPORT.prev24h.boquilla} />
-                        <Prev24hColumn data={MOCK_REPORT.prev24h.madero} />
-                        <Prev24hColumn data={MOCK_REPORT.prev24h.delicias} last />
+                        <Prev24hColumn data={climaBoquilla} />
+                        <Prev24hColumn data={climaMadero} />
+                        <Prev24hColumn data={climaDelicias} last />
 
                         {/* ROW 6: Aforos Header */}
                         <div className="col-span-3 bg-slate-800 text-white text-center font-bold text-xs uppercase py-1 tracking-wider">
@@ -217,18 +136,18 @@ const OfficialDamReport = () => {
                         <div className="col-span-3 grid grid-cols-3 divide-x divide-slate-400 border-b border-slate-800">
                             <div className="p-2">
                                 <h4 className="font-bold text-center text-xs uppercase mb-1">Km 0+580 (Canal Principal)</h4>
-                                <DataRow label="Escala" value={MOCK_REPORT.aforos.km0_580.scale.toFixed(2)} />
-                                <DataRow label="Gasto (m³/s)" value={MOCK_REPORT.aforos.km0_580.flow.toFixed(3)} bold />
+                                <DataRow label="Escala" value={aforosReporte.km0_580 ? aforosReporte.km0_580.nivel_escala_fin_m?.toFixed(2) : '---'} />
+                                <DataRow label="Gasto (m³/s)" value={aforosReporte.km0_580 ? aforosReporte.km0_580.gasto_calculado_m3s?.toFixed(3) : '---'} bold />
                             </div>
                             <div className="p-2">
                                 <h4 className="font-bold text-center text-xs uppercase mb-1">Km 106</h4>
-                                <DataRow label="Escala" value={MOCK_REPORT.aforos.km106.scale.toFixed(2)} />
-                                <DataRow label="Gasto (m³/s)" value={MOCK_REPORT.aforos.km106.flow.toFixed(3)} bold />
+                                <DataRow label="Escala" value={aforosReporte.km106 ? aforosReporte.km106.nivel_escala_fin_m?.toFixed(2) : '---'} />
+                                <DataRow label="Gasto (m³/s)" value={aforosReporte.km106 ? aforosReporte.km106.gasto_calculado_m3s?.toFixed(3) : '---'} bold />
                             </div>
                             <div className="p-2">
                                 <h4 className="font-bold text-center text-xs uppercase mb-1">Km 104 (Fin)</h4>
-                                <DataRow label="Escala" value={MOCK_REPORT.aforos.km104.scale.toFixed(2)} />
-                                <DataRow label="Gasto (m³/s)" value={MOCK_REPORT.aforos.km104.flow.toFixed(3)} bold />
+                                <DataRow label="Escala" value={aforosReporte.km104 ? aforosReporte.km104.nivel_escala_fin_m?.toFixed(2) : '---'} />
+                                <DataRow label="Gasto (m³/s)" value={aforosReporte.km104 ? aforosReporte.km104.gasto_calculado_m3s?.toFixed(3) : '---'} bold />
                             </div>
                         </div>
 
@@ -240,7 +159,7 @@ const OfficialDamReport = () => {
                             </div>
                             <div className="p-2 flex justify-between">
                                 <span>Almacenamiento Conjunto:</span>
-                                <span>{(MOCK_REPORT.boquilla.storage + MOCK_REPORT.madero.storage).toFixed(3)} Mm³</span>
+                                <span>{((boquilla?.lectura?.almacenamiento_mm3 || 0) + (madero?.lectura?.almacenamiento_mm3 || 0)).toFixed(3)} Mm³</span>
                             </div>
                         </div>
                     </div>
@@ -268,37 +187,37 @@ const DataRow = ({ label, value, bold = false, highlight = false }: { label: str
     </div>
 );
 
-const WeatherColumn = ({ data, last = false }: { data: WeatherData, location: string, last?: boolean }) => (
+const WeatherColumn = ({ data, last = false }: { data?: any, location: string, last?: boolean }) => (
     <div className={`${!last ? 'border-r border-slate-400' : ''} p-2 space-y-1`}>
-        <DataRow label="Temp. Ambiente" value={`${data.tempAmb} °C`} />
-        <DataRow label="Temp. Máxima" value={`${data.tempMax} °C`} />
-        <DataRow label="Temp. Mínima" value={`${data.tempMin} °C`} />
-        <DataRow label="Precipitación" value={`${data.precip} mm`} />
-        <DataRow label="Evaporación" value={`${data.evap.toFixed(2)} mm`} />
-        <DataRow label="Dir. Viento" value={data.windDir} />
-        <DataRow label="Intensidad" value={data.windSpeed} />
-        <DataRow label="Visibilidad" value={data.visibility} />
+        <DataRow label="Temp. Ambiente" value={data?.temp_ambiente_c != null ? `${data.temp_ambiente_c} °C` : '---'} />
+        <DataRow label="Temp. Máxima" value={data?.temp_maxima_c != null ? `${data.temp_maxima_c} °C` : '---'} />
+        <DataRow label="Temp. Mínima" value={data?.temp_minima_c != null ? `${data.temp_minima_c} °C` : '---'} />
+        <DataRow label="Precipitación" value={data?.precipitacion_mm != null ? `${data.precipitacion_mm} mm` : '---'} />
+        <DataRow label="Evaporación" value={data?.evaporacion_mm != null ? `${data.evaporacion_mm.toFixed(2)} mm` : '---'} />
+        <DataRow label="Dir. Viento" value={data?.dir_viento || '---'} />
+        <DataRow label="Intensidad (km/h)" value={data?.intensidad_viento?.toString() || '---'} />
+        <DataRow label="Visibilidad (km)" value={data?.visibilidad?.toString() || '---'} />
         <div className="flex justify-between items-center mt-2 pt-1 border-t border-slate-200">
             <span className="text-xs text-slate-500 uppercase">Edo. Tiempo</span>
             <div className="flex items-center gap-1 font-bold text-sm">
-                <WeatherIcon state={data.weatherState} />
-                {data.weatherState}
+                <WeatherIcon state={data?.edo_tiempo || 'Soleado'} />
+                {data?.edo_tiempo || '---'}
             </div>
         </div>
     </div>
 );
 
-const Prev24hColumn = ({ data, last = false }: { data: any, last?: boolean }) => (
+const Prev24hColumn = ({ data, last = false }: { data?: any, last?: boolean }) => (
     <div className={`${!last ? 'border-r border-slate-400' : ''} p-2 space-y-1`}>
         <div className="flex justify-between items-center">
             <span className="text-xs text-slate-500 uppercase">Edo. Tiempo</span>
             <div className="flex items-center gap-1 font-bold text-xs text-slate-400">
-                <WeatherIcon state={data.weatherState} size={12} />
-                {data.weatherState}
+                <WeatherIcon state={data?.edo_tiempo_24h || 'Soleado'} size={12} />
+                {data?.edo_tiempo_24h || '---'}
             </div>
         </div>
-        <DataRow label="Dir. Viento" value={data.windDir} />
-        <DataRow label="Intensidad" value={data.windSpeed} />
+        <DataRow label="Dir. Viento" value={data?.dir_viento_24h || '---'} />
+        <DataRow label="Intensidad (km/h)" value={data?.intensidad_24h?.toString() || '---'} />
     </div>
 );
 

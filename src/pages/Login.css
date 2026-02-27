@@ -1,269 +1,321 @@
-.login-container {
-    height: 100vh;
-    width: 100vw;
+/* Login Styles - Hidro-Sincronía Digital Premium */
+
+.login-page {
+    min-height: 100dvh;
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
     background-color: #0b1120;
-    background-image:
-        radial-gradient(circle at 20% 30%, rgba(59, 130, 246, 0.15) 0%, transparent 40%),
-        radial-gradient(circle at 80% 70%, rgba(16, 185, 129, 0.1) 0%, transparent 40%),
-        linear-gradient(to bottom, #0f172a 0%, #020617 100%);
     position: relative;
     overflow: hidden;
-    color: #f8fafc;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    padding: 1rem;
+    font-family: system-ui, -apple-system, sans-serif;
 }
 
-.login-overlay {
+.login-bg-glow {
     position: absolute;
     inset: 0;
-    background: url('https://www.transparenttextures.com/patterns/carbon-fibre.png');
-    opacity: 0.1;
+    background: radial-gradient(circle at 50% 0%, rgba(30, 58, 138, 0.3) 0%, transparent 60%);
     pointer-events: none;
 }
 
 .login-card {
     width: 100%;
-    max-width: 450px;
-    background: rgba(30, 41, 59, 0.7);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 24px;
+    max-width: 420px;
+    background: rgba(17, 24, 39, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid #1e293b;
+    border-radius: 1.5rem;
+    padding: 2.5rem 2rem;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    overflow: hidden;
     z-index: 10;
-    animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateY(40px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.login-brand {
-    padding: 40px 40px 20px;
-    text-align: center;
-    background: linear-gradient(to bottom, rgba(59, 130, 246, 0.1), transparent);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.brand-icon {
-    width: 240px;
-    height: auto;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    margin: 0 auto 20px;
-    background: white;
-    /* Contrast for the logo */
-    border-radius: 8px;
-    padding: 10px;
-    box-shadow: 0 10px 20px -5px rgba(120, 53, 15, 0.3);
-    /* Terracota shadow */
+    margin: 1rem 0;
 }
 
-.brand-logo-login {
+.logo-container {
+    background: transparent;
+    padding: 0;
+    padding-bottom: 2rem;
     width: 100%;
-    height: auto;
-    object-fit: contain;
+    text-align: center;
+    /* Para centrar el img como elemento inline-block */
 }
 
-/* Removed water-icon */
+.logo-srl {
+    /* Imagen SRL: casi cuadrada. Ancho controlado, altura libre automática */
+    display: inline-block;
+    /* No 'block' para que respete text-align:center del padre */
+    width: 190px;
+    height: auto !important;
+    /* !important para asegurarse de que NADA lo sobrescriba */
+    max-height: none !important;
+    border-radius: 1rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    flex-shrink: 0;
+}
 
-.login-brand h1 {
-    font-size: 2.2rem;
+.login-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    width: 100%;
+}
+
+.login-title {
+    font-size: 1.75rem;
     font-weight: 800;
-    margin: 0;
+    color: white;
     letter-spacing: -0.025em;
-    background: linear-gradient(to right, #ffffff, #d1d5db);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
 }
 
-.login-brand p {
-    color: #fdba74;
-    /* Orange/terracota light hint */
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-size: 0.8rem;
-    margin: 5px 0 15px;
-}
-
-.srl-tag {
-    font-size: 0.65rem;
-    color: #94a3b8;
-    line-height: 1.4;
-    max-width: 250px;
-    margin: 0 auto;
-    font-weight: 500;
-}
-
-.login-content {
-    padding: 30px 40px 40px;
-}
-
-.login-content h2 {
-    font-size: 1.25rem;
+.login-subtitle {
+    color: #f59e0b;
+    font-size: 0.625rem;
     font-weight: 700;
-    margin-bottom: 8px;
-    text-align: center;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+    display: block;
 }
 
-.subtitle {
-    font-size: 0.875rem;
-    color: #94a3b8;
-    text-align: center;
-    margin-bottom: 30px;
-}
-
-.login-form {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.form-group label {
-    font-size: 0.75rem;
-    font-weight: 600;
+.login-description {
     color: #cbd5e1;
+    font-size: 0.6875rem;
+    line-height: 1.625;
+    padding: 0 1rem;
+}
+
+.divider {
+    width: 100%;
+    height: 1px;
+    background: rgba(51, 65, 85, 0.5);
+    margin: 1.5rem 0;
+}
+
+.login-section-title {
+    color: white;
+    font-size: 1.0625rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
 
+.login-section-desc {
+    color: #94a3b8;
+    font-size: 0.8125rem;
+}
+
+.form-group {
+    width: 100%;
+    margin-bottom: 1.25rem;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.625rem;
+    font-weight: 700;
+    color: #cbd5e1;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+    margin-left: 0.25rem;
+}
+
 .input-wrapper {
     position: relative;
-    display: flex;
-    align-items: center;
+    width: 100%;
 }
 
 .input-icon {
     position: absolute;
-    left: 14px;
-    color: #64748b;
-    transition: color 0.3s ease;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
 }
 
-.input-wrapper input {
+.login-input {
     width: 100%;
-    background: rgba(15, 23, 42, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 12px 12px 12px 44px;
+    background: #1e293b;
+    border: 1px solid #334155;
     color: white;
-    font-size: 0.95rem;
-    transition: all 0.3s ease;
+    border-radius: 1rem;
+    padding: 1rem 1rem 1rem 2.75rem;
+    font-size: 0.9375rem;
+    transition: all 0.2s ease;
 }
 
-.input-wrapper input:focus {
+.login-input:focus {
     outline: none;
     border-color: #f97316;
-    /* Orange border */
-    background: rgba(15, 23, 42, 0.8);
-    box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
+    box-shadow: 0 0 0 1px #f97316;
 }
 
-.input-wrapper input:focus+.input-icon,
-.input-wrapper:focus-within .input-icon {
-    color: #f97316;
-}
-
-.login-error {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.2);
-    color: #f87171;
-    padding: 12px;
-    border-radius: 8px;
-    font-size: 0.875rem;
-    text-align: center;
-}
-
-.login-submit {
-    margin-top: 10px;
-    background: linear-gradient(135deg, #b45309 0%, #78350f 100%);
-    /* Terracota gradient */
+.login-button {
+    width: 100%;
+    background: #ea580c;
     color: white;
-    border: none;
-    border-radius: 12px;
-    padding: 14px;
     font-weight: 700;
-    font-size: 1rem;
+    padding: 1.125rem;
+    border-radius: 1rem;
+    border: none;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
+    gap: 0.75rem;
     cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(120, 53, 15, 0.3);
+    transition: all 0.2s ease;
+    margin-top: 1rem;
+    box-shadow: 0 10px 15px -3px rgba(124, 45, 18, 0.2);
+    font-size: 1rem;
 }
 
-.login-submit:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(120, 53, 15, 0.5);
-    filter: brightness(1.1);
+.login-button:hover {
+    background: #c2410c;
 }
 
-.login-submit:active:not(:disabled) {
-    transform: translateY(0);
+.login-button:active {
+    transform: scale(0.98);
 }
 
-.login-submit:disabled {
+.login-button:disabled {
     opacity: 0.7;
     cursor: not-allowed;
 }
 
-.spinner {
-    width: 20px;
-    height: 20px;
+.loading-spinner {
+    width: 1.25rem;
+    height: 1.25rem;
     border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top: 2px solid white;
     border-radius: 50%;
-    border-top-color: white;
-    animation: spin 0.8s linear infinite;
+    animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
     to {
         transform: rotate(360deg);
     }
 }
 
-.login-footer {
-    margin-top: 30px;
-    display: flex;
-    justify-content: center;
+.error-message {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    font-size: 0.875rem;
+    text-align: center;
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+    margin-top: 1rem;
 }
 
-.security-badge {
+.footer-logo-section {
+    margin-top: 2.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    gap: 1.25rem;
+}
+
+.footer-tagline {
+    font-size: 0.5625rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.125em;
+    font-weight: 700;
+}
+
+.sica-badge {
+    width: 80px;
+    /* Tamaño grande y equilibrado */
+    height: 80px;
+    background: white;
+    border-radius: 50%;
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 100px;
-    font-size: 0.7rem;
-    color: #64748b;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    justify-content: center;
+    padding: 4px;
+    /* Un pequeñísimo margen blanco al logo interno */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    opacity: 0.9;
+    transition: all 0.3s ease;
+    overflow: hidden;
 }
 
-.login-background-info {
-    position: absolute;
-    bottom: 30px;
-    font-size: 0.8rem;
-    color: #475569;
-    font-weight: 500;
+.footer-logo-section:hover .sica-badge {
+    opacity: 1;
+    transform: scale(1.05);
+    /* Escala suave al hover */
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+.logo-sica {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    /* 'contain' para asegurar que el engranaje esté completo dentro del círculo */
+    border-radius: 50%;
+}
+
+
+.version-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.version-label {
+    font-size: 0.625rem;
+    color: rgba(255, 255, 255, 0.4);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nuke-button {
+    background: none;
+    border: none;
+    font-size: 0.625rem;
+    color: rgba(249, 115, 22, 0.6);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.nuke-button:hover {
+    color: #f97316;
+}
+
+@media (max-width: 480px) {
+    .login-card {
+        padding: 2rem 1.5rem;
+        border-radius: 0;
+        border: none;
+        background: transparent;
+        backdrop-filter: none;
+        box-shadow: none;
+    }
+
+    .logo-container {
+        padding: 0;
+        min-height: auto;
+    }
 }

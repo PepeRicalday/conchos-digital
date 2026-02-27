@@ -1,12 +1,13 @@
 import { useMemo, useState, useEffect } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
-import { Droplets, Waves, Activity, AlertTriangle, TrendingUp, TrendingDown, ArrowRight, Loader } from 'lucide-react';
+import { Droplets, Waves, Activity, AlertTriangle, TrendingUp, TrendingDown, ArrowRight, Loader, ShieldCheck, Smartphone, Monitor as MonitorIcon } from 'lucide-react';
 import KPICard from '../components/KPICard';
 import ChartWidget from '../components/ChartWidget';
 import AlertList, { type Alert } from '../components/AlertList';
 import { useHydraEngine } from '../hooks/useHydraEngine';
 import { usePresas } from '../hooks/usePresas';
 import { useFecha } from '../context/FechaContext';
+import { supabase } from '../lib/supabase';
 import './Dashboard.css';
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -32,6 +33,16 @@ const Dashboard = () => {
         loading: loadingPresas
     } = usePresas(fechaSeleccionada);
 
+    // 2.1. Version Info for Dashboard
+    const [appVersions, setAppVersions] = useState<any[]>([]);
+    useEffect(() => {
+        const fetchVersions = async () => {
+            const { data } = await supabase.from('app_versions').select('*');
+            if (data) setAppVersions(data);
+        };
+        fetchVersions();
+    }, []);
+
     const loading = loadingModules || loadingPresas;
 
     // Dashboard Vivo - Live tick
@@ -45,7 +56,9 @@ const Dashboard = () => {
     const totalDailyVol = useMemo(() => modules.reduce((acc, m) => {
         const mDailyVol = m.delivery_points.reduce((ptAcc, pt) => {
             const elapsedSeconds = pt.last_update_time ? Math.max(0, (now - new Date(pt.last_update_time).getTime()) / 1000) : 0;
-            const interpolated = (esHoy && pt.current_q > 0) ? (pt.current_q * elapsedSeconds) / 1000000 : 0;
+            // M-07: Cap interpolation at 30 min to prevent drift when measurements stop
+            const cappedSeconds = Math.min(elapsedSeconds, 30 * 60);
+            const interpolated = (esHoy && pt.current_q > 0) ? (pt.current_q * cappedSeconds) / 1000000 : 0;
             return ptAcc + (pt.daily_vol || 0) + interpolated;
         }, 0);
         return acc + mDailyVol;
@@ -111,18 +124,46 @@ const Dashboard = () => {
     }
 
     return (
-        <div className="dashboard-container">
-            <header className="dashboard-header">
-                <div>
-                    <h2 className="text-2xl font-bold text-white tracking-tight">Centro de Control</h2>
-                    <p className="text-slate-400 text-sm font-medium">
-                        Distrito de Riego 005 Delicias — {esHoy ? 'Hoy' : formatFechaCorta(fechaSeleccionada)}
-                    </p>
+        <div className="dashboard-container" style={{ marginTop: '-24px' }}>
+            {/* Header Wrapper to negate dashboard-container grid gap */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {/* Encabezado Oficial SRL */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', paddingTop: '4px' }}>
+                    <div style={{
+                        flexShrink: 0,
+                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                        padding: '10px',
+                        borderRadius: '16px',
+                        border: '1px solid rgba(255,255,255,0.05)',
+                        boxShadow: '0 8px 20px -5px rgba(0, 0, 0, 0.3)'
+                    }}>
+                        <img src="/logos/logo-srl.png" alt="SRL Unidad Conchos" style={{ height: '54px', width: 'auto', objectFit: 'contain' }} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        <h3 style={{ fontSize: '0.75rem', color: '#93c5fd', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '2px' }}>
+                            Sociedad de Asociaciones de Usuarios
+                        </h3>
+                        <h1 style={{ fontSize: '1.75rem', color: '#ffffff', fontWeight: '900', letterSpacing: '0.05em', textTransform: 'uppercase', lineHeight: '1', marginBottom: '4px' }}>
+                            Unidad Conchos
+                        </h1>
+                        <h4 style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: '500', letterSpacing: '0.2em', textTransform: 'uppercase' }}>
+                            S. de R.L. de I.P. y C.V.
+                        </h4>
+                    </div>
                 </div>
-                <div className="flex gap-4">
-                    <button className="btn btn-primary shadow-lg shadow-blue-500/20" onClick={() => window.print()}>Generar Reporte Digital</button>
-                </div>
-            </header>
+
+                <header className="dashboard-header" style={{ marginBottom: '8px' }}>
+                    <div>
+                        <h2 className="text-2xl font-bold text-white tracking-tight">Centro de Control</h2>
+                        <p className="text-slate-400 text-sm font-medium">
+                            Distrito de Riego 005 Delicias — {esHoy ? 'Hoy' : formatFechaCorta(fechaSeleccionada)}
+                        </p>
+                    </div>
+                    <div className="flex gap-4">
+                        <button className="btn btn-primary shadow-lg shadow-blue-500/20" onClick={() => window.print()}>Generar Reporte Digital</button>
+                    </div>
+                </header>
+            </div>
 
             {/* KPI Section */}
             <section className="dashboard-grid-kpi">
@@ -328,6 +369,31 @@ const Dashboard = () => {
                                 Ver Matriz Completa <ArrowRight size={14} />
                             </button>
                         </div>
+                    </div>
+
+                    {/* Version Control Widget */}
+                    <div className="card">
+                        <div className="flex items-center gap-2 mb-4">
+                            <ShieldCheck size={18} className="text-emerald-400" />
+                            <h3 className="font-bold text-white">SICA "Source of Truth"</h3>
+                        </div>
+                        <div className="space-y-3">
+                            {appVersions.map(v => (
+                                <div key={v.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-900/50 border border-slate-700/30">
+                                    <div className="flex items-center gap-2">
+                                        {v.app_id === 'capture' ? <Smartphone size={14} className="text-slate-400" /> : <MonitorIcon size={14} className="text-slate-400" />}
+                                        <span className="text-xs font-medium text-slate-200 capitalize">{v.app_id.replace('-', ' ')}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300">v{v.version}</span>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-4 leading-tight italic">
+                            Los dispositivos con versiones inferiores a la mínima requerida son bloqueados automáticamente por seguridad.
+                        </p>
                     </div>
                 </div>
             </section>

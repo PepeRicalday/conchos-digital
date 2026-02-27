@@ -16,7 +16,7 @@ const ChartWidget: React.FC<ChartWidgetProps> = ({ title, children, height = 300
             </div>
             <div className="chart-body" style={{ height }}>
                 <ResponsiveContainer width="100%" height="100%">
-                    {children as React.ReactElement}
+                    {React.isValidElement(children) ? children : <>{children}</>}
                 </ResponsiveContainer>
             </div>
         </div>

@@ -50,18 +50,26 @@ export interface ClimaPresaData {
     precipitacion_mm: number | null;
     evaporacion_mm: number | null;
     dir_viento: string | null;
-    intensidad_viento: number | null;
-    visibilidad: number | null;
+    intensidad_viento: string | null;
+    visibilidad: string | null;
     edo_tiempo: string | null;
     edo_tiempo_24h: string | null;
     dir_viento_24h: string | null;
-    intensidad_24h: number | null;
+    intensidad_24h: string | null;
+}
+
+export interface AforoDiarioData {
+    estacion: string;
+    fecha: string;
+    escala: number | null;
+    gasto_m3s: number | null;
 }
 
 // ─── Hook ────────────────────────────────────────────
 export function usePresas(fecha: string) {
     const [presas, setPresas] = useState<PresaData[]>([]);
     const [clima, setClima] = useState<ClimaPresaData[]>([]);
+    const [aforos, setAforos] = useState<AforoDiarioData[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -84,6 +92,7 @@ export function usePresas(fecha: string) {
                             area_ha
                         )
                     `)
+                    .neq('id', 'PRE-003') // Ignore Delicias pseudo-presa visually in list
                     .order('nombre');
 
                 if (errP) throw errP;
@@ -124,9 +133,17 @@ export function usePresas(fecha: string) {
                         .select('*')
                         .lte('fecha', fecha)
                         .order('fecha', { ascending: false })
-                        .limit(2);
+                        .limit(3);
                     climaDB = climaFb;
                 }
+
+                // 4. Aforos para la fecha
+                const { data: aforosDB, error: errA } = await supabase
+                    .from('aforos_principales_diarios')
+                    .select('*')
+                    .eq('fecha', fecha);
+
+                if (errA) throw errA;
 
                 if (cancelled) return;
 
@@ -187,12 +204,18 @@ export function usePresas(fecha: string) {
                     precipitacion_mm: c.precipitacion_mm != null ? Number(c.precipitacion_mm) : null,
                     evaporacion_mm: c.evaporacion_mm != null ? Number(c.evaporacion_mm) : null,
                     dir_viento: c.dir_viento,
-                    intensidad_viento: c.intensidad_viento != null ? Number(c.intensidad_viento) : null,
-                    visibilidad: c.visibilidad != null ? Number(c.visibilidad) : null,
+                    intensidad_viento: c.intensidad_viento,
+                    visibilidad: c.visibilidad,
                     edo_tiempo: c.edo_tiempo,
                     edo_tiempo_24h: c.edo_tiempo_24h,
                     dir_viento_24h: c.dir_viento_24h,
-                    intensidad_24h: c.intensidad_24h != null ? Number(c.intensidad_24h) : null,
+                    intensidad_24h: c.intensidad_24h,
+                })));
+                setAforos((aforosDB || []).map((a: any) => ({
+                    estacion: a.estacion,
+                    fecha: a.fecha,
+                    escala: a.escala != null ? Number(a.escala) : null,
+                    gasto_m3s: a.gasto_m3s != null ? Number(a.gasto_m3s) : null
                 })));
 
             } catch (err: any) {
@@ -206,7 +229,26 @@ export function usePresas(fecha: string) {
         }
 
         fetchData();
-        return () => { cancelled = true; };
+
+        // C-3: Realtime subscription for lecturas_presas changes
+        const channel = supabase.channel('presas_realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'lecturas_presas' }, () => {
+                console.log('🏔️ Lectura de presa actualizada. Refrescando...');
+                fetchData();
+            })
+            .subscribe();
+
+        // C-5: Refetch when tab becomes visible again
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') fetchData();
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+
+        return () => {
+            cancelled = true;
+            supabase.removeChannel(channel);
+            document.removeEventListener('visibilitychange', handleVisibility);
+        };
     }, [fecha]);
 
     // Derived values
@@ -218,6 +260,7 @@ export function usePresas(fecha: string) {
     return {
         presas,
         clima,
+        aforos,
         loading,
         error,
         // Aggregates

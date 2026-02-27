@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, Lock, Mail, ShieldCheck } from 'lucide-react';
+import { LogIn, Lock, Mail } from 'lucide-react';
 import './Login.css';
+
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
+const BUILD_HASH = typeof __BUILD_HASH__ !== 'undefined' ? __BUILD_HASH__ : 'dev';
 
 const Login: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -34,83 +37,122 @@ const Login: React.FC = () => {
     };
 
     return (
-        <div className="login-container">
-            <div className="login-overlay"></div>
+        <div className="login-page">
+            <div className="login-bg-glow"></div>
 
             <div className="login-card">
-                <div className="login-brand">
-                    <div className="brand-icon">
-                        <img src="/logos/logo-srl.png" alt="S.R.L. Unidad Conchos" className="brand-logo-login" />
-                    </div>
-                    <h1>Unidad Conchos</h1>
-                    <p>Hidro-Sincronía Digital</p>
-                    <div className="srl-tag">Sociedad de Asociaciones de Usuarios Unidad Conchos S.R.L. De I.P. y C.V.</div>
+                <div className="logo-container">
+                    <img
+                        src="/logos/logo-srl.png"
+                        alt="SRL Unidad Conchos"
+                        className="logo-srl"
+                        style={{
+                            width: '190px',
+                            height: 'auto',
+                            maxHeight: 'none',
+                            minHeight: '0',
+                            display: 'block',
+                            objectFit: 'contain',
+                            flexShrink: 0
+                        }}
+                    />
                 </div>
 
-                <div className="login-content">
-                    <h2>Centro de Control Operativo</h2>
-                    <p className="subtitle">Ingresa tus credenciales para acceder al sistema</p>
+                <div className="login-header">
+                    <h1 className="login-title">Unidad Conchos</h1>
+                    <span className="login-subtitle">HIDRO-SINCRONÍA DIGITAL</span>
+                    <p className="login-description">
+                        Sociedad de Asociaciones de Usuarios Unidad Conchos S.R.L. De I.P. y C.V.
+                    </p>
+                </div>
 
-                    <form onSubmit={handleLogin} className="login-form">
-                        <div className="form-group">
-                            <label htmlFor="email">Correo Electrónico</label>
-                            <div className="input-wrapper">
-                                <Mail className="input-icon" />
-                                <input
-                                    id="email"
-                                    type="email"
-                                    placeholder="correo@srlconchos.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                />
-                            </div>
+                <div className="divider"></div>
+
+                <div className="login-header">
+                    <h3 className="login-section-title">
+                        CONTROL DIGITAL
+                    </h3>
+                    <p className="login-section-desc">
+                        Ingresa tus credenciales para acceder al sistema
+                    </p>
+                </div>
+
+                <form onSubmit={handleLogin} style={{ width: '100%' }}>
+                    <div className="form-group">
+                        <label className="form-label">CORREO ELECTRÓNICO</label>
+                        <div className="input-wrapper">
+                            <Mail className="input-icon" size={18} />
+                            <input
+                                type="email"
+                                placeholder="correo@srlconchos.com"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                                className="login-input"
+                            />
                         </div>
+                    </div>
 
-                        <div className="form-group">
-                            <label htmlFor="password">Contraseña</label>
-                            <div className="input-wrapper">
-                                <Lock className="input-icon" />
-                                <input
-                                    id="password"
-                                    type="password"
-                                    placeholder="••••••••"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                />
-                            </div>
+                    <div className="form-group">
+                        <label className="form-label">CONTRASEÑA</label>
+                        <div className="input-wrapper">
+                            <Lock className="input-icon" size={18} />
+                            <input
+                                type="password"
+                                placeholder="••••••••"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                className="login-input"
+                            />
                         </div>
+                    </div>
 
-                        {error && <div className="login-error">{error}</div>}
+                    {error && (
+                        <div className="error-message">
+                            {error}
+                        </div>
+                    )}
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="login-button"
+                    >
+                        {loading ? (
+                            <div className="loading-spinner"></div>
+                        ) : (
+                            <>
+                                <LogIn size={20} />
+                                <span>Iniciar Sesión</span>
+                            </>
+                        )}
+                    </button>
+                </form>
+
+                <div className="footer-logo-section">
+                    <span className="footer-tagline">Respaldo Tecnológico</span>
+                    <div className="sica-badge">
+                        <img src="/logos/SICA005.png" alt="SICA 005" className="logo-sica" />
+                    </div>
+
+                    <div className="version-info">
+                        <span className="version-label">
+                            SICA v{APP_VERSION} • {BUILD_HASH}
+                        </span>
 
                         <button
-                            type="submit"
-                            className={`login-submit ${loading ? 'loading' : ''}`}
-                            disabled={loading}
+                            onClick={() => {
+                                if (window.confirm('¿Deseas FORZAR la limpieza de la aplicación? Se borrará el caché y tendrás que volver a iniciar sesión.')) {
+                                    window.location.href = "/nuke";
+                                }
+                            }}
+                            className="nuke-button"
                         >
-                            {loading ? (
-                                <span className="spinner"></span>
-                            ) : (
-                                <>
-                                    <LogIn size={20} />
-                                    <span>Iniciar Sesión</span>
-                                </>
-                            )}
+                            Limpiar Caché y Actualizar
                         </button>
-                    </form>
-
-                    <div className="login-footer">
-                        <div className="security-badge">
-                            <ShieldCheck size={14} />
-                            <span>Acceso restringido a personal autorizado</span>
-                        </div>
                     </div>
                 </div>
-            </div>
-
-            <div className="login-background-info">
-                <span>Distrito de Riego 005 - Delicias, Chihuahua</span>
             </div>
         </div>
     );

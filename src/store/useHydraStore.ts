@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { getTodayString } from '../utils/dateHelpers';
 
 export interface SectionData {
     id: string;
@@ -57,7 +58,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
         try {
             const cached = localStorage.getItem('hydra_modules_cache');
             const version = localStorage.getItem('hydra_cache_version');
-            if (cached && version === '2026-02-16-v2') {
+            if (cached && version === __APP_VERSION__) {
                 return JSON.parse(cached);
             }
         } catch { /* ignore */ }
@@ -94,12 +95,8 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             if (modError) throw modError;
             if (!modulosDB) return;
 
-            // 2. Fetch reportes
-            const now = new Date();
-            const y = now.getFullYear();
-            const m = String(now.getMonth() + 1).padStart(2, '0');
-            const d = String(now.getDate()).padStart(2, '0');
-            const today = `${y}-${m}-${d}`;
+            // 2. Fetch reportes — A-08: Use timezone-safe getTodayString()
+            const today = getTodayString();
 
             const { data: reportesHoy } = await supabase
                 .from('reportes_diarios')
@@ -126,8 +123,13 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                     const qM3s = Number(latest?.valor_q || 0);
 
                     const totalAccum = measurements.reduce((acc: number, med: any) => acc + Number(med.valor_vol || 0), 0);
+
+                    const todayStr = getTodayString();
+                    const todayMeasurements = measurements.filter((m: any) => m.fecha_hora && m.fecha_hora.startsWith(todayStr));
+                    const calculatedDailyVol = todayMeasurements.reduce((acc: number, med: any) => acc + Number(med.valor_vol || 0), 0);
+
                     const dailyReport = reporteByPunto[p.id];
-                    const dailyVolPt = dailyReport ? Number(dailyReport.volumen_total_mm3 || 0) : 0;
+                    const dailyVolPt = dailyReport ? Number(dailyReport.volumen_total_mm3 || 0) : calculatedDailyVol;
 
                     let sectionInfo = p.secciones;
                     if (!sectionInfo && p.km !== null) {
@@ -165,7 +167,8 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                 });
 
                 const currentFlow = points.reduce((acc: number, pt: any) => acc + pt.current_q, 0);
-                const dailyVol = reporteByModulo[mod.id] || 0;
+                const calcDailyVol = points.reduce((acc: number, pt: any) => acc + pt.daily_vol, 0);
+                const dailyVol = reporteByModulo[mod.id] || calcDailyVol;
 
                 return {
                     id: mod.id,
@@ -182,9 +185,18 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                 };
             });
 
+            // Sort modules logically: m1, m2 ... m12
+            fullModules.sort((a, b) => {
+                const codeA = a.short_code || '';
+                const codeB = b.short_code || '';
+                const numA = parseInt(codeA.replace(/\D/g, '')) || 0;
+                const numB = parseInt(codeB.replace(/\D/g, '')) || 0;
+                return numA - numB;
+            });
+
             set({ modules: fullModules, pointIndexMap: indexMap, loading: false, error: null });
             localStorage.setItem('hydra_modules_cache', JSON.stringify(fullModules));
-            localStorage.setItem('hydra_cache_version', '2026-02-16-v2');
+            localStorage.setItem('hydra_cache_version', __APP_VERSION__);
 
         } catch (err: any) {
             console.error('Zustand HydraEngine Error:', err);
@@ -198,43 +210,67 @@ export const useHydraStore = create<HydraState>((set, get) => ({
 
         get().fetchHydraulicData();
 
+        // --- Realtime handler for mediciones (INSERT + UPDATE) ---
+        const handleMedicionUpsert = (payload: any) => {
+            const record = payload.new;
+            if (!record || !record.punto_id) return;
+
+            set(state => {
+                const indices = state.pointIndexMap[record.punto_id];
+                if (!indices) return state; // Unknown point — ignore
+
+                const { mIndex, pIndex } = indices;
+                const newModules = [...state.modules];
+                const m = { ...newModules[mIndex] };
+                const p = { ...m.delivery_points[pIndex] };
+
+                const qM3s = Number(record.valor_q || 0);
+                const volMm3 = Number(record.valor_vol || 0);
+
+                p.current_q = qM3s;
+                p.current_q_lps = qM3s * 1000;
+                p.accumulated += volMm3;
+                p.is_open = qM3s > 0;
+                p.last_update_time = record.fecha_hora || new Date().toISOString();
+
+                m.delivery_points = [...m.delivery_points];
+                m.delivery_points[pIndex] = p;
+                m.current_flow = m.delivery_points.reduce((acc, pt) => acc + pt.current_q, 0);
+
+                newModules[mIndex] = m;
+                localStorage.setItem('hydra_modules_cache', JSON.stringify(newModules));
+
+                return { modules: newModules };
+            });
+        };
+
         supabase.channel('hydra_realtime_global')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mediciones' }, (payload) => {
-                const newMeasurement = payload.new;
-                if (!newMeasurement || !newMeasurement.punto_id) return;
-
-                set(state => {
-                    const indices = state.pointIndexMap[newMeasurement.punto_id];
-                    if (!indices) return state; // Ignore unknown points
-
-                    const { mIndex, pIndex } = indices;
-                    const newModules = [...state.modules];
-                    const m = { ...newModules[mIndex] };
-                    const p = { ...m.delivery_points[pIndex] };
-
-                    const qM3s = Number(newMeasurement.valor_q || 0);
-                    const volMm3 = Number(newMeasurement.valor_vol || 0);
-
-                    p.current_q = qM3s;
-                    p.current_q_lps = qM3s * 1000;
-                    p.accumulated += volMm3;
-                    p.is_open = qM3s > 0;
-                    p.last_update_time = newMeasurement.fecha_hora || new Date().toISOString();
-
-                    m.delivery_points = [...m.delivery_points];
-                    m.delivery_points[pIndex] = p;
-                    m.current_flow = m.delivery_points.reduce((acc, pt) => acc + pt.current_q, 0);
-
-                    newModules[mIndex] = m;
-                    localStorage.setItem('hydra_modules_cache', JSON.stringify(newModules));
-
-                    return { modules: newModules };
-                });
+            // Mediciones: INSERT + UPDATE (O(1) patch) + DELETE (full refetch)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mediciones' }, handleMedicionUpsert)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'mediciones' }, handleMedicionUpsert)
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'mediciones' }, () => {
+                console.log('🗑️ Medición eliminada. Refrescando datos completos...');
+                get().fetchHydraulicData();
             })
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'lecturas_escalas' }, (_payload) => {
-                console.log('🔄 Nueva escala detectada. Sincronizando dashboard...');
+            // Escalas: full refetch on any change
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'lecturas_escalas' }, () => {
+                console.log('🔄 Cambio en escalas detectado. Sincronizando...');
+                get().fetchHydraulicData();
+            })
+            // Presas: full refetch (consumed by usePresas indirectly via page-level refresh)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'lecturas_presas' }, () => {
+                console.log('🏔️ Cambio en lecturas de presas detectado. Sincronizando...');
                 get().fetchHydraulicData();
             })
             .subscribe();
+
+        // --- C-5a: Visibility change — refetch when user returns to tab ---
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                console.log('👁️ Pestaña visible. Refrescando datos...');
+                get().fetchHydraulicData();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
     }
 }));

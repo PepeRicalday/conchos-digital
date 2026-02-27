@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Actualizando SICA...</title>
+    <style>
+        body {
+            background: #020617;
+            color: white;
+            font-family: sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            flex-direction: column;
+        }
+
+        .loader {
+            border: 4px solid #1e293b;
+            border-top: 4px solid #ea580c;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="loader"></div>
+    <div style="text-align: center; padding: 20px;">
+        <h2 style="margin: 0 0 10px 0;">Limpiando Caché...</h2>
+        <p style="color: #94a3b8; font-size: 14px;">Estamos forzando la descarga de la nueva versión.<br>Serás
+            redirigido en un momento.</p>
+    </div>
+    <script>
+        // Double check SW removal just in case
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (regs) {
+                for (let reg of regs) reg.unregister();
+            });
+        }
+        // Clear caches
+        if ('caches' in window) {
+            caches.keys().then(function(names) {
+                for (let name of names) caches.delete(name);
+            });
+        }
+        // Redirect back to home after 1.5 seconds to ensure headers were processed
+        setTimeout(function () {
+            window.location.href = "/?v=" + Date.now();
+        }, 1500);
+    </script>
+</body>
+
+</html>

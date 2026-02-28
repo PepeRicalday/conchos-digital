@@ -41,25 +41,8 @@ const Login: React.FC = () => {
             <div className="login-bg-glow"></div>
 
             <div className="login-card">
-                <div className="logo-container">
-                    <img
-                        src="/logos/logo-srl.png"
-                        alt="SRL Unidad Conchos"
-                        className="logo-srl"
-                        style={{
-                            width: '190px',
-                            height: 'auto',
-                            maxHeight: 'none',
-                            minHeight: '0',
-                            display: 'block',
-                            objectFit: 'contain',
-                            flexShrink: 0
-                        }}
-                    />
-                </div>
-
                 <div className="login-header">
-                    <h1 className="login-title">Unidad Conchos</h1>
+                    <h1 className="login-title">SRL UNIDAD CONCHOS</h1>
                     <span className="login-subtitle">HIDRO-SINCRONÍA DIGITAL</span>
                     <p className="login-description">
                         Sociedad de Asociaciones de Usuarios Unidad Conchos S.R.L. De I.P. y C.V.

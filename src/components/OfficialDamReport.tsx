@@ -3,10 +3,11 @@ import { useReactToPrint } from 'react-to-print';
 import { Printer, CloudSun, Thermometer } from 'lucide-react';
 import { useAforos } from '../hooks/useAforos';
 import { usePresas } from '../hooks/usePresas';
+import { useFecha } from '../context/FechaContext';
 import './OfficialDamReport.css'; // Will create this next
 
 const OfficialDamReport = () => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const { fechaSeleccionada: todayStr } = useFecha();
     const { aforosReporte } = useAforos(todayStr);
     const { presas, clima } = usePresas(todayStr);
 
@@ -138,16 +139,22 @@ const OfficialDamReport = () => {
                                 <h4 className="font-bold text-center text-xs uppercase mb-1">Km 0+580 (Canal Principal)</h4>
                                 <DataRow label="Escala" value={aforosReporte.km0_580 ? aforosReporte.km0_580.nivel_escala_fin_m?.toFixed(2) : '---'} />
                                 <DataRow label="Gasto (m³/s)" value={aforosReporte.km0_580 ? aforosReporte.km0_580.gasto_calculado_m3s?.toFixed(3) : '---'} bold />
+                                <DataRow label="Vel. (m/s)" value={aforosReporte.km0_580?.velocidad_media_ms?.toFixed(2) || '---'} />
+                                <DataRow label="Régimen" value={aforosReporte.km0_580?.froude != null ? (aforosReporte.km0_580.froude < 1 ? 'Subcrítico' : 'Supercrítico') : '---'} highlight />
                             </div>
                             <div className="p-2">
                                 <h4 className="font-bold text-center text-xs uppercase mb-1">Km 106</h4>
                                 <DataRow label="Escala" value={aforosReporte.km106 ? aforosReporte.km106.nivel_escala_fin_m?.toFixed(2) : '---'} />
                                 <DataRow label="Gasto (m³/s)" value={aforosReporte.km106 ? aforosReporte.km106.gasto_calculado_m3s?.toFixed(3) : '---'} bold />
+                                <DataRow label="Vel. (m/s)" value={aforosReporte.km106?.velocidad_media_ms?.toFixed(2) || '---'} />
+                                <DataRow label="Régimen" value={aforosReporte.km106?.froude != null ? (aforosReporte.km106.froude < 1 ? 'Subcrítico' : 'Supercrítico') : '---'} highlight />
                             </div>
                             <div className="p-2">
                                 <h4 className="font-bold text-center text-xs uppercase mb-1">Km 104 (Fin)</h4>
                                 <DataRow label="Escala" value={aforosReporte.km104 ? aforosReporte.km104.nivel_escala_fin_m?.toFixed(2) : '---'} />
                                 <DataRow label="Gasto (m³/s)" value={aforosReporte.km104 ? aforosReporte.km104.gasto_calculado_m3s?.toFixed(3) : '---'} bold />
+                                <DataRow label="Vel. (m/s)" value={aforosReporte.km104?.velocidad_media_ms?.toFixed(2) || '---'} />
+                                <DataRow label="Régimen" value={aforosReporte.km104?.froude != null ? (aforosReporte.km104.froude < 1 ? 'Subcrítico' : 'Supercrítico') : '---'} highlight />
                             </div>
                         </div>
 

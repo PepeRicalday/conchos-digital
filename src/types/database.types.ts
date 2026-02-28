@@ -16,43 +16,61 @@ export type Database = {
         Tables: {
             aforos: {
                 Row: {
+                    area_hidraulica_m2: number | null
                     creado_en: string | null
                     dobelas_data: Json | null
                     espejo_agua_m: number | null
                     fecha: string
+                    froude: number | null
                     gasto_calculado_m3s: number | null
                     hora_fin: string | null
                     hora_inicio: string | null
                     id: string
                     nivel_escala_fin_m: number | null
                     nivel_escala_inicio_m: number | null
+                    plantilla_m: number | null
                     punto_control_id: string
+                    talud_z: number | null
+                    tirante_calculo_m: number | null
+                    velocidad_media_ms: number | null
                 }
                 Insert: {
+                    area_hidraulica_m2?: number | null
                     creado_en?: string | null
                     dobelas_data?: Json | null
                     espejo_agua_m?: number | null
                     fecha: string
+                    froude?: number | null
                     gasto_calculado_m3s?: number | null
                     hora_fin?: string | null
                     hora_inicio?: string | null
                     id?: string
                     nivel_escala_fin_m?: number | null
                     nivel_escala_inicio_m?: number | null
+                    plantilla_m?: number | null
                     punto_control_id: string
+                    talud_z?: number | null
+                    tirante_calculo_m?: number | null
+                    velocidad_media_ms?: number | null
                 }
                 Update: {
+                    area_hidraulica_m2?: number | null
                     creado_en?: string | null
                     dobelas_data?: Json | null
                     espejo_agua_m?: number | null
                     fecha?: string
+                    froude?: number | null
                     gasto_calculado_m3s?: number | null
                     hora_fin?: string | null
                     hora_inicio?: string | null
                     id?: string
                     nivel_escala_fin_m?: number | null
                     nivel_escala_inicio_m?: number | null
+                    plantilla_m?: number | null
                     punto_control_id?: string
+                    talud_z?: number | null
+                    tirante_calculo_m?: number | null
+                    velocidad_media_ms?: number | null
                 }
                 Relationships: []
             }

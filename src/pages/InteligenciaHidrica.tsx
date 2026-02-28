@@ -8,40 +8,8 @@ import { useAuth } from '../context/AuthContext';
 import { useHydricChat, type ChatMessage } from '../hooks/useHydricChat';
 import './HydricChat.css';
 
-// Simple markdown renderer — handles bold, italic, headers, code, lists, tables
-function renderMarkdown(text: string): string {
-    let html = text
-        // Code blocks
-        .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-        // Inline code
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        // Headers
-        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-        // Bold
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        // Italic
-        .replace(/\*(.+?)\*/g, '<em>$1</em>')
-        // Blockquotes
-        .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-        // Unordered lists
-        .replace(/^- (.+)$/gm, '<li>$1</li>')
-        // Ordered lists
-        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-        // Line breaks
-        .replace(/\n\n/g, '</p><p>')
-        .replace(/\n/g, '<br/>');
-
-    // Wrap in paragraph
-    html = `<p>${html}</p>`;
-
-    // Clean up list items
-    html = html.replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
-    html = html.replace(/<\/ul>\s*<ul>/g, '');
-
-    return html;
-}
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 function formatTime(dateStr: string): string {
     const d = new Date(dateStr);
@@ -95,6 +63,11 @@ const InteligenciaHidrica = () => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+    // Auto-scroll to bottom
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages, isSending]);
+
     // Access guard: only SRL
     if (profile?.rol !== 'SRL') {
         return (
@@ -110,11 +83,6 @@ const InteligenciaHidrica = () => {
             </div>
         );
     }
-
-    // Auto-scroll to bottom
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, isSending]);
 
     // Auto-resize textarea
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -154,14 +122,15 @@ const InteligenciaHidrica = () => {
                 )}
             </div>
             <div>
-                <div
-                    className="msg-bubble"
-                    dangerouslySetInnerHTML={{
-                        __html: msg.role === 'assistant'
-                            ? renderMarkdown(msg.content)
-                            : msg.content.replace(/</g, '&lt;').replace(/>/g, '&gt;'),
-                    }}
-                />
+                <div className="msg-bubble">
+                    {msg.role === 'assistant' ? (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {msg.content}
+                        </ReactMarkdown>
+                    ) : (
+                        msg.content
+                    )}
+                </div>
                 <div className="msg-time">{formatTime(msg.created_at)}</div>
             </div>
         </div>

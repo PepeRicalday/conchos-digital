@@ -47,15 +47,15 @@
 }
 
 .logo-srl {
-    /* Imagen SRL: casi cuadrada. Ancho controlado, altura libre automática */
     display: inline-block;
-    /* No 'block' para que respete text-align:center del padre */
-    width: 190px;
+    width: 130px;
     height: auto !important;
-    /* !important para asegurarse de que NADA lo sobrescriba */
     max-height: none !important;
-    border-radius: 1rem;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    border-radius: 0 !important;
+    /* Evita que herede bordes ovalados */
+    box-shadow: none !important;
+    /* Se retira para logo con fondo transparente */
+    object-fit: contain;
     flex-shrink: 0;
 }
 

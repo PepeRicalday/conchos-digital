@@ -66,21 +66,7 @@ function DonutRing({ pct, label, color = '#60a5fa', size = 110 }: {
     );
 }
 
-/* ─── Custom Tooltip ──────────────────────────────────────────── */
-function CustomTooltip({ active, payload, label, unit = '' }: any) {
-    if (!active || !payload?.length) return null;
-    return (
-        <div className="chart-tooltip">
-            <p className="tooltip-label">{label}</p>
-            {payload.map((p: any, i: number) => (
-                <p key={i} className="tooltip-value" style={{ color: p.color || '#fff' }}>
-                    {typeof p.value === 'number' ? p.value.toFixed(1) : p.value}
-                    <span style={{ fontSize: '0.65rem', color: '#94a3b8', marginLeft: 4 }}>{unit || p.unit || ''}</span>
-                </p>
-            ))}
-        </div>
-    );
-}
+
 
 /* ─── Module Efficiency Bar (custom, no recharts) ──────────────── */
 function ModuleBar({ name, pct, rank }: { name: string; pct: number; rank: number }) {
@@ -149,12 +135,20 @@ const Dashboard = () => {
     } = usePresas(fechaSeleccionada);
 
     const [appVersions, setAppVersions] = useState<any[]>([]);
+    const [tomasVaradas, setTomasVaradas] = useState<any[]>([]);
+
     useEffect(() => {
         const fetchVersions = async () => {
             const { data } = await supabase.from('app_versions').select('*');
             if (data) setAppVersions(data);
         };
         fetchVersions();
+
+        const fetchVaradas = async () => {
+            const { data } = await supabase.from('vw_alertas_tomas_varadas').select('*');
+            if (data) setTomasVaradas(data);
+        };
+        fetchVaradas();
     }, []);
 
     const loading = loadingModules || loadingPresas;
@@ -212,6 +206,18 @@ const Dashboard = () => {
     /* ── Alerts ── */
     const realAlerts: Alert[] = useMemo(() => {
         const alerts: Alert[] = [];
+
+        // Alerts for stranded gates (Anomalías de continuidad)
+        tomasVaradas.forEach(tv => {
+            alerts.push({
+                id: `varada-${tv.punto_id}`,
+                type: 'critical',
+                title: 'Toma Varada (Falla de Continuidad)',
+                message: `${tv.punto_nombre}: Quedó en estado "${tv.ultimo_estado}" hace ${tv.dias_varada} días. Se requiere intervención diagnóstica.`,
+                timestamp: 'Crítico'
+            });
+        });
+
         modules.forEach(m => {
             if (m.current_flow > m.target_flow * 1.1 && m.target_flow > 0) {
                 alerts.push({ id: `ovf-${m.id}`, type: 'critical', title: 'Sobregiro Detectado', message: `${m.name}: Gasto ${(m.current_flow * 1000).toFixed(0)} L/s excede autorizado.`, timestamp: 'Ahora' });
@@ -226,7 +232,7 @@ const Dashboard = () => {
             alerts.push({ id: 'ok', type: 'info', title: 'Sistema Estable', message: 'Operando dentro de parámetros normales.', timestamp: 'Ahora' });
         }
         return alerts;
-    }, [modules, presas]);
+    }, [modules, presas, tomasVaradas]);
 
     if (loading && presas.length === 0) {
         return (

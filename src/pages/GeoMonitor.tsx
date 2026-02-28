@@ -1,4 +1,4 @@
-import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, Zap, ShieldCheck } from 'lucide-react';
+import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import clsx from 'clsx';
 import './GeoMonitor.css';
+import { supabase } from '../lib/supabase';
 
 // Fix para los iconos de leaflet en react
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -34,15 +35,35 @@ const GeoMonitor = () => {
     // Simulando datos en tiempo real
     const [currentTime, setCurrentTime] = useState(new Date());
     const [mapReady, setMapReady] = useState(false);
+    const [tomasVaradas, setTomasVaradas] = useState<any[]>([]);
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         // Pequeño delay para asegurar que el DOM del mapa toma las dimensiones correctas
         setTimeout(() => setMapReady(true), 100);
+
+        // Buscar Tomas Varadas en la BD (Anomalías Críticas)
+        const fetchVaradas = async () => {
+            try {
+                const { data } = await supabase.from('vw_alertas_tomas_varadas').select('*');
+                if (data) setTomasVaradas(data);
+            } catch (e) {
+                console.error("Error fetching varadas", e);
+            }
+        };
+        fetchVaradas();
+
         return () => clearInterval(timer);
     }, []);
 
     const mockEvents = [
+        ...tomasVaradas.map(tv => ({
+            time: `Hace ${tv.dias_varada} ${tv.dias_varada === 1 ? 'día' : 'días'}`,
+            type: 'ANOMALÍA (TOMA VARADA)',
+            title: `Toma sin continuidad detectada (${tv.ultimo_estado})`,
+            location: tv.punto_nombre,
+            status: 'status-critical'
+        })),
         { time: 'Hace 2 min', type: 'Alarma', title: 'Anomalía de Flujo detectada', location: 'Canal Principal, Km 42+100', status: 'status-critical' },
         { time: 'Hace 15 min', type: 'Ajuste', title: 'Escala Recalibrada por OP-07', location: 'Toma Lateral 12', status: 'status-info' },
         { time: 'Hace 38 min', type: 'Estable', title: 'Sincronización Satelital OK', location: 'Red Mayor General', status: 'status-success' },

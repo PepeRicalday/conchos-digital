@@ -1,4 +1,4 @@
-/* Canales.css */
+﻿/* Canales.css */
 .canales-container {
     display: flex;
     flex-direction: column;
@@ -921,3 +921,61 @@
     border-radius: 50%;
     flex-shrink: 0;
 }
+/* --- HIDRO-SINCRON�A PREMIUM REDESIGN --- */
+.technical-panel-glass { background: linear-gradient(165deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%); backdrop-filter: blur(12px) saturate(180%); border: 1px solid rgba(255, 255, 255, 0.08); shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 15px 35px -10px rgba(0, 0, 0, 0.4); } .metric-entry { position: relative; padding: 2px 0; } .metric-entry .text-white, .metric-entry .text-blue-400, .metric-entry .text-emerald-400 { font-family: 'JetBrains Mono', monospace !important; text-shadow: 0 0 15px currentColor; } .scrollbar-thin::-webkit-scrollbar { width: 4px; } .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+
+
+/*  RECONSTRUCCIÓN PREMIUM DASHBOARD - UNIDAD CONCHOS */
+.conchos-dashboard-v-layout { display: flex; flex-direction: column; gap: 20px; padding: 20px; overflow-y: auto; height: 100%; }
+.conchos-top-row { display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch; }
+.conchos-balance-card { flex: 0 0 320px; background: rgba(13, 20, 34, 0.85); backdrop-filter: blur(20px); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 20px; padding: 24px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
+.conchos-efficiency-center { flex: 1; display: flex; justify-content: center; align-items: center; }
+.conchos-map-section { background: rgba(2, 6, 23, 0.4); border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.05); min-height: 400px; position: relative; overflow: hidden; }
+.conchos-modules-header { font-size: 14px; font-weight: 800; color: white; text-transform: uppercase; letter-spacing: 2px; margin-top: 24px; margin-bottom: 12px; }
+.conchos-modules-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); gap: 16px; }
+@media (max-width: 1200px) { .conchos-modules-grid { grid-template-columns: 1fr; } }
+
+.conchos-module-card { display: flex; gap: 16px; background: rgba(13, 20, 34, 0.95); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 16px; transition: all 0.3s ease; cursor: pointer; position: relative; }
+.conchos-module-card:hover { background: rgba(21, 31, 51, 1); transform: translateY(-3px); border-color: rgba(59, 130, 246, 0.4); }
+.conchos-logo-container { flex: 0 0 64px; display: flex; flex-direction: column; align-items: center; gap: 8px; justify-content: center; }
+.conchos-logo-circle { width: 44px; height: 44px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 4px; border: 2px solid rgba(59, 130, 246, 0.3); overflow: hidden; }
+.conchos-logo-img { width: 100%; height: 100%; object-fit: contain; }
+.conchos-module-badge { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 10px; padding: 2px 8px; border-radius: 4px; color: white; text-transform: uppercase; }
+.conchos-metrics-center { flex: 1; border-right: 1px solid rgba(255, 255, 255, 0.05); padding-right: 16px; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+.conchos-vol-header { display: flex; justify-content: space-between; align-items: center; }
+.conchos-vol-label { font-size: 10px; font-weight: 800; color: rgba(148, 163, 184, 0.6); text-transform: uppercase; letter-spacing: 2px; }
+.conchos-vol-percent { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 800; color: white; }
+.conchos-vol-main-row { display: flex; align-items: center; gap: 12px; }
+.conchos-vol-val-stack { display: flex; flex-direction: column; min-width: 60px; }
+.conchos-vol-huge { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 800; color: white; line-height: 1; }
+.conchos-unit-small { font-size: 9px; font-weight: 800; color: #475569; margin-top: 4px; }
+.conchos-prog-container { flex: 1; height: 14px; background: rgba(0, 0, 0, 0.4); border-radius: 7px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3); }
+.conchos-prog-bar { height: 100%; border-radius: 7px; transition: width 1s ease; }
+.conchos-disp-stack { border-top: 1px solid rgba(255, 255, 255, 0.03); padding-top: 8px; }
+.conchos-disp-label { font-size: 9px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 1.5px; }
+.conchos-disp-val { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 800; color: #cbd5e1; }
+
+.conchos-gauge-section { flex: 0 0 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
+.conchos-gauge-header { font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 2px; }
+.conchos-gauge-wrapper { width: 64px; height: 64px; position: relative; }
+.conchos-gauge-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: 4px; }
+.conchos-gauge-val { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 900; color: white; line-height: 1; }
+.conchos-legend-col { display: flex; flex-direction: column; gap: 4px; margin-left: 8px; }
+.conchos-legend-item { display: flex; align-items: center; gap: 6px; font-size: 8px; font-weight: 800; text-transform: uppercase; color: #64748b; }
+.conchos-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+.conchos-online-led { position: absolute; top: 10px; right: 10px; width: 6px; height: 6px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+.conchos-pulse { animation: conchos-pulse 2s infinite; }
+@keyframes conchos-pulse { 0% { opacity: 1; box-shadow: 0 0 4px currentColor; } 50% { opacity: 0.4; box-shadow: 0 0 10px currentColor; } 100% { opacity: 1; box-shadow: 0 0 4px currentColor; } }
+
+
+
+/*  PREMIUM ZONE SELECTOR TABS */
+.conchos-tabs-area { padding: 12px 24px; background: rgba(2, 6, 23, 0.85); border-bottom: 1px solid rgba(255, 255, 255, 0.05); display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; backdrop-filter: blur(10px); }
+.conchos-tabs-area::-webkit-scrollbar { display: none; }
+.conchos-section-tab { padding: 8px 18px; border-radius: 100px; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.5px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid rgba(255, 255, 255, 0.05); background: rgba(15, 23, 42, 0.5); color: #94a3b8; white-space: nowrap; cursor: pointer; display: flex; align-items: center; gap: 8px; position: relative; overflow: hidden; }
+.conchos-section-tab:hover { background: rgba(30, 41, 59, 0.8); color: white; border-color: rgba(255, 255, 255, 0.1); transform: translateY(-1px); }
+.conchos-section-tab.active { background: #3b82f6; color: white; border-color: #60a5fa; box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4); }
+.conchos-section-tab.active .conchos-tab-indicator { background: white; box-shadow: 0 0 8px white; }
+.conchos-tab-indicator { width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.2); transition: all 0.3s ease; }
+

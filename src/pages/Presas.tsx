@@ -278,6 +278,37 @@ const DamCard = ({ presa, climaObj, aforoObj }: { presa: PresaData, climaObj?: C
                     )}
                 </div>
 
+                {/* Variation Parsing for "Hidro-Sincronía 2.0" */}
+                {(() => {
+                    const difElev = lect?.notas?.match(/Dif Elev: ([-\d.]+)m/)?.[1];
+                    const difVol = lect?.notas?.match(/Dif Vol: ([-\d.]+)Mm3/)?.[1];
+
+                    if (!difElev && !difVol) return null;
+
+                    return (
+                        <div className="variations-banner flex gap-4 mb-4 p-3 bg-blue-500/5 rounded-xl border border-blue-500/20">
+                            {difElev && (
+                                <div className="flex-1 flex flex-col items-center border-r border-blue-500/10">
+                                    <span className="text-[8px] font-black uppercase text-slate-500 tracking-widest mb-1">Δ Variación Elevación (24h)</span>
+                                    <div className={`flex items-center gap-1 font-mono font-black text-xs ${Number(difElev) > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                        {Number(difElev) > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                                        {difElev} m
+                                    </div>
+                                </div>
+                            )}
+                            {difVol && (
+                                <div className="flex-1 flex flex-col items-center">
+                                    <span className="text-[8px] font-black uppercase text-slate-500 tracking-widest mb-1">Δ Variación Volumen (24h)</span>
+                                    <div className={`flex items-center gap-1 font-mono font-black text-xs ${Number(difVol) > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                        {Number(difVol) > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                                        {difVol} Mm³
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
+
                 <div className="status-grid">
                     <div className="status-metric">
                         <span className="metric-label flex items-center gap-1"><Gauge size={12} /> Elevación Actual</span>

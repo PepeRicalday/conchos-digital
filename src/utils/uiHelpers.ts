@@ -19,7 +19,7 @@ export const getLogoPath = (_moduleName: string | null | undefined, shortCode: s
         m12: '/logos/modulo_12.jpg',
     };
 
-    return localLogos[codeLower] || '/logos/srl_logo.png';
+    return localLogos[codeLower] || '/logos/logo-srl.png';
 };
 
 // Default Sections (Hardcoded from Business Rules "4 Zonas")

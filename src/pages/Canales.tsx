@@ -1,13 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { toDateString, isToday } from '../utils/dateHelpers';
 import { calculateEfficiency } from '../utils/hydraulics';
-import { X, Zap, Droplets, Calendar, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
+import { X, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import CanalSchematic from '../components/CanalSchematic';
 import { useHydraEngine, type ModuleData } from '../hooks/useHydraEngine';
 import EfficiencyGauge from '../components/EfficiencyGauge';
-import AnomalyMatrix from '../components/AnomalyMatrix';
+
 import OfflineIndicator from '../components/OfflineIndicator';
-import { formatVol, defaultSections } from '../utils/uiHelpers';
+import { formatVol, defaultSections, getLogoPath } from '../utils/uiHelpers';
 import { ModuleCard, ModuleDetailModal } from '../components/ModuleCards';
 import './Canales.css';
 
@@ -92,10 +92,9 @@ const Canales = () => {
         sectionFlow: visiblePoints.reduce((acc, p) => acc + (p.current_q || 0), 0)
     }), [visiblePoints]);
 
-    const { totalDailyVolMm3, totalAccumulatedVol, totalTargetVol } = useMemo(() => ({
+    const { totalDailyVolMm3, totalAccumulatedVol } = useMemo(() => ({
         totalDailyVolMm3: modules.reduce((acc, m) => acc + m.daily_vol, 0),
         totalAccumulatedVol: modules.reduce((acc, m) => acc + m.accumulated_vol, 0),
-        totalTargetVol: modules.reduce((acc, m) => acc + m.authorized_vol, 0) || 1
     }), [modules]);
 
     // Eficiencia real: (Σ caudal entregado / Σ caudal objetivo) × 100
@@ -115,74 +114,82 @@ const Canales = () => {
         <div className="canales-container relative flex flex-col h-screen overflow-hidden">
             <OfflineIndicator />
 
-            <header className="page-header dashboard-header shrink-0">
-                <div className="header-left">
-                    <img src="/logos/srl_logo.jpg" alt="SRL Logo" className="srl-logo" />
+            <header className="px-6 py-4 bg-slate-900/50 border-b border-slate-800 backdrop-blur-md flex justify-between items-center shrink-0 z-20">
+                <div className="flex items-center gap-6">
+                    <img src={getLogoPath('SRL', 'SRL')} alt="SRL Logo" style={{ height: '36px', width: 'auto' }} className="brightness-110 contrast-110 drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]" />
+                    <div>
+                        <h1 className="text-white text-base font-black uppercase tracking-widest leading-none mb-1">Centro de Control Operativo</h1>
+                        <p className="text-slate-500 text-[10px] font-bold tracking-widest uppercase">Distrito de Riego 005 - Unidad de Manejo</p>
+                    </div>
                 </div>
 
-                <div className="header-center">
-                    <h1 className="srl-title">SOCIEDAD DE ASOCIACIONES DE USUARIOS UNIDAD CONCHOS S. DE R.L. DE I.P. Y C.V.</h1>
-                    <p className="srl-subtitle">Centro de Control Operativo - Distrito 005</p>
-                </div>
-
-                <div className="header-right">
-                    <div className="date-navigator">
-                        <button onClick={() => handleDateChange(-1)} className="nav-btn"><ChevronLeft size={20} /></button>
-                        <div className="current-date">
-                            <Calendar size={16} />
-                            <span>{selectedDate.toLocaleDateString('es-MX', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
+                <div className="flex items-center gap-4">
+                    <div className="date-nav flex items-center bg-slate-950/50 backdrop-blur rounded-full border border-slate-800 p-0.5 shadow-inner">
+                        <button onClick={() => handleDateChange(-1)} className="nav-btn p-2 hover:text-white transition-colors"><ChevronLeft size={18} /></button>
+                        <div className="current-date px-4 flex items-center gap-2 text-white font-black font-mono text-xs">
+                            <Calendar size={14} className="text-blue-400" />
+                            <span>{selectedDate.toLocaleDateString('es-MX', { weekday: 'short', day: '2-digit', month: 'short' }).toUpperCase()}</span>
                         </div>
                         <button
                             onClick={() => handleDateChange(1)}
-                            className="nav-btn"
+                            className="nav-btn p-2 hover:text-white transition-colors"
                             disabled={selectedDate.toDateString() === new Date().toDateString()}
-                        ><ChevronRight size={20} /></button>
+                        ><ChevronRight size={18} /></button>
                     </div>
                 </div>
             </header>
 
-            {/* SECTION SELECTOR TABS */}
-            <div className="px-4 py-2 bg-slate-900 border-b border-slate-800 flex gap-2 overflow-x-auto shrink-0">
+            {/* SECTION SELECTOR TABS (PREMIUM REDESIGN) */}
+            <div className="conchos-tabs-area">
                 <button
                     onClick={() => setActiveSectionId('all')}
-                    className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all ${activeSectionId === 'all' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                    className={`conchos-section-tab ${activeSectionId === 'all' ? 'active' : ''}`}
                 >
-                    Vista General (Todas)
+                    Vista General
                 </button>
                 {sections.map((sec: any) => (
                     <button
                         key={sec.id}
                         onClick={() => setActiveSectionId(sec.id)}
-                        className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 ${activeSectionId === sec.id ? 'text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
-                        style={activeSectionId === sec.id ? { backgroundColor: sec.color, boxShadow: `0 4px 12px -2px ${sec.color}40` } : {}}
+                        className={`conchos-section-tab ${activeSectionId === sec.id ? 'active' : ''}`}
+                        style={activeSectionId === sec.id ? {
+                            backgroundColor: sec.color,
+                            borderColor: `${sec.color}40`,
+                            boxShadow: `0 6px 20px -4px ${sec.color}80`
+                        } : {}}
                     >
-                        <span className="w-2 h-2 rounded-full bg-white/50"></span>
+                        <div className="conchos-tab-indicator" />
                         {sec.nombre}
                     </button>
                 ))}
             </div>
 
-            {/* DASHBOARD GRID LAYOUT */}
-            <div className="grid grid-cols-12 gap-4 p-4 flex-1 min-h-0">
+            {/* MAIN DASHBOARD SCROLLABLE AREA */}
+            <div className="conchos-dashboard-v-layout scrollbar-none">
 
-                {/* COL 1: KPIs & ANOMALIES */}
-                <aside className="col-span-3 flex flex-col gap-4 overflow-hidden">
-                    <EfficiencyGauge value={globalEfficiency} />
+                {/* ROW 1: KPIs & EFFICIENCY */}
+                <div className="conchos-top-row">
+                    {/* LEFT PANEL: BALANCE */}
+                    <div className="conchos-balance-card">
+                        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                            <h3 style={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '2px', color: '#60a5fa', margin: 0 }}>
+                                {activeSectionId === 'all' ? 'Balance Distrito 005' : 'Balance Seccional'}
+                            </h3>
+                            <div className="conchos-online-led conchos-pulse" style={{ backgroundColor: '#22d3ee', color: '#22d3ee' }} />
+                        </header>
 
-                    {/* DYNAMIC SECTION KPI */}
-                    <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-                        <h3 className="text-slate-400 text-xs font-bold uppercase mb-3 flex items-center gap-2">
-                            <Droplets size={14} className="text-blue-400" />
-                            {activeSectionId === 'all' ? 'Balance Distrito' : 'Balance Sección'}
-                        </h3>
-                        <div className="space-y-4">
-                            <div>
-                                <div className="flex justify-between text-sm mb-1">
-                                    <span className="text-slate-400">Entrega Actual (Q)</span>
-                                    <span className="text-white font-mono">{(activeSectionId === 'all' ? modules.reduce((a, m) => a + m.current_flow, 0) * 1000 : sectionFlow * 1000).toFixed(0)} L/s</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                            <div className="metric-entry">
+                                <span className="conchos-vol-label">Entrega Actual (Q)</span>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '4px' }}>
+                                    <span className="conchos-vol-huge">
+                                        {(activeSectionId === 'all' ? modules.reduce((a, m) => a + m.current_flow, 0) * 1000 : sectionFlow * 1000).toFixed(0)}
+                                    </span>
+                                    <span className="conchos-unit-small">L/s</span>
                                 </div>
-                                <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                                    <div className="h-full bg-blue-500" style={{
+                                <div className="conchos-prog-container" style={{ marginTop: '10px', height: '4px' }}>
+                                    <div className="conchos-prog-bar" style={{
+                                        backgroundColor: '#3b82f6',
                                         width: `${(() => {
                                             const totalFlow = activeSectionId === 'all' ? modules.reduce((a, m) => a + m.current_flow, 0) : sectionFlow;
                                             const totalTarget = activeSectionId === 'all' ? modules.reduce((a, m) => a + m.target_flow, 0) : visiblePoints.reduce((a, p) => a + (p.capacity || 0), 0);
@@ -191,44 +198,46 @@ const Canales = () => {
                                     }}></div>
                                 </div>
                             </div>
-                            <div>
-                                <div className="flex justify-between text-sm mb-1">
-                                    <span className="text-slate-400">Vol. del Día</span>
-                                    <span className="text-blue-400 font-mono">{formatVol(activeSectionId === 'all' ? totalDailyVolMm3 : visiblePoints.reduce((a, p) => a + (p.daily_vol || 0), 0))} Mm³</span>
-                                </div>
-                                <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                                    <div className="h-full bg-blue-500 animate-pulse" style={{ width: `${totalDailyVolMm3 > 0 ? Math.min((totalDailyVolMm3 / (totalTargetVol * 0.003)) * 100, 100) : 5}%` }}></div>
+
+                            <div className="metric-entry">
+                                <span className="conchos-vol-label">Volumen del Día</span>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '4px' }}>
+                                    <span style={{ fontSize: '24px', fontWeight: 900, color: '#60a5fa', fontFamily: 'JetBrains Mono' }}>
+                                        {formatVol(activeSectionId === 'all' ? totalDailyVolMm3 : visiblePoints.reduce((a, p) => a + (p.daily_vol || 0), 0))}
+                                    </span>
+                                    <span className="conchos-unit-small">Mm³</span>
                                 </div>
                             </div>
-                            <div>
-                                <div className="flex justify-between text-sm mb-1">
-                                    <span className="text-slate-400">Acumulado Ciclo</span>
-                                    <span className="text-emerald-400 font-mono">{formatVol(activeSectionId === 'all' ? totalAccumulatedVol : sectionVol)} Mm³</span>
-                                </div>
-                                <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                                    <div className="h-full bg-emerald-500" style={{ width: `${(totalAccumulatedVol / totalTargetVol) * 100}%` }}></div>
+
+                            <div className="metric-entry">
+                                <span className="conchos-vol-label">Acumulado Ciclo</span>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '4px' }}>
+                                    <span style={{ fontSize: '24px', fontWeight: 900, color: '#10b981', fontFamily: 'JetBrains Mono' }}>
+                                        {formatVol(activeSectionId === 'all' ? totalAccumulatedVol : sectionVol)}
+                                    </span>
+                                    <span className="conchos-unit-small">Mm³</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex-1 min-h-0">
-                        <AnomalyMatrix modules={modules} onSelectModule={(id) => {
-                            const mod = modules.find(m => m.id === id);
-                            if (mod) setViewingModule(mod);
-                        }} />
-                    </div>
-                </aside>
-
-                {/* COL 2: MAP */}
-                <section className="col-span-6 bg-slate-900/50 rounded-xl border border-slate-700/50 relative overflow-hidden group flex flex-col">
-                    {/* Map Overlay Info */}
-                    <div className="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-300 pointer-events-none">
-                        <span className="w-2 h-2 bg-emerald-500 rounded-full inline-block mr-2"></span>
-                        {activeSectionId === 'all' ? 'Red Completa' : sections.find((s: any) => s.id === activeSectionId)?.nombre}
+                    {/* CENTER: EFFICIENCY */}
+                    <div className="conchos-efficiency-center">
+                        <EfficiencyGauge value={globalEfficiency} />
                     </div>
 
-                    <div className="flex-1 relative">
+                    {/* RIGHT: MARGEN BALANCE */}
+                    <div style={{ flex: '0 0 320px' }} className="hidden lg:block"></div>
+                </div>
+
+                {/* ROW 2: MAP */}
+                <section className="conchos-map-section">
+                    <div style={{ position: 'absolute', top: '16px', left: '16px', zIndex: 10, background: 'rgba(2, 6, 23, 0.9)', padding: '8px 16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.08)', fontSize: '10px', color: '#94a3b8', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', marginRight: '8px', boxShadow: '0 0 8px #10b981' }}></span>
+                        {activeSectionId === 'all' ? 'Red Completa del Distrito' : `Tramo Seccional: ${sections.find((s: any) => s.id === activeSectionId)?.nombre}`}
+                    </div>
+
+                    <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
                         <CanalSchematic
                             points={visiblePoints}
                             activePointId={selectedPointId}
@@ -236,62 +245,47 @@ const Canales = () => {
                         />
                     </div>
 
-                    {/* Popover Logic Integrated */}
+                    {/* Popover */}
                     {activePoint && (
-                        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-slate-800/90 backdrop-blur-md border border-slate-600 p-4 rounded-xl shadow-2xl w-80 z-20">
-                            <div className="flex justify-between items-start mb-2">
+                        <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(13, 20, 34, 0.98)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '20px', padding: '20px', width: '340px', zIndex: 30, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
                                 <div>
-                                    <span className="text-xs text-blue-400 font-bold uppercase">{activePoint.type}</span>
-                                    <h3 className="text-lg font-bold text-white leading-tight">{activePoint.name}</h3>
-                                    <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
-                                        <MapPin size={10} /> {activePoint.moduleName} • Km {activePoint.km}
-                                    </div>
+                                    <span style={{ fontSize: '9px', color: '#3b82f6', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1.5px' }}>{activePoint.type}</span>
+                                    <h3 style={{ fontSize: '20px', fontWeight: 900, color: 'white', margin: '4px 0', fontFamily: 'Inter' }}>{activePoint.name}</h3>
+                                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Km {activePoint.km} • <span style={{ color: '#94a3b8' }}>{activePoint.moduleName}</span></div>
                                 </div>
-                                <button onClick={() => setSelectedPointId(null)} className="text-slate-400 hover:text-white bg-slate-700 rounded-full p-1"><X size={14} /></button>
+                                <button onClick={() => setSelectedPointId(null)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94a3b8 hover:text-white transition-colors' }}><X size={16} /></button>
                             </div>
-
-                            <div className="grid grid-cols-2 gap-2 mt-3">
-                                <div className="bg-slate-900/50 p-2 rounded border border-slate-700">
-                                    <span className="text-[10px] text-slate-500 block uppercase">Gasto Actual</span>
-                                    <span className="text-lg font-mono text-emerald-400 font-bold">{activePoint.current_q_lps.toFixed(0)} <span className="text-xs text-slate-500">L/s</span></span>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                <div style={{ background: 'rgba(0,0,0,0.4)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                                    <span style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Gasto</span>
+                                    <div style={{ color: '#10b981', fontWeight: 900, fontSize: '16px', fontFamily: 'JetBrains Mono' }}>{activePoint.current_q_lps.toFixed(0)} <span style={{ fontSize: '10px', opacity: 0.5 }}>L/s</span></div>
                                 </div>
-                                <div className="bg-slate-900/50 p-2 rounded border border-slate-700">
-                                    <span className="text-[10px] text-slate-500 block uppercase">Capacidad</span>
-                                    <span className="text-lg font-mono text-slate-300">{(activePoint.capacity * 1000).toFixed(0)} <span className="text-xs text-slate-500">L/s</span></span>
-                                </div>
-                                <div className="bg-slate-900/50 p-2 rounded border border-slate-700">
-                                    <span className="text-[10px] text-slate-500 block uppercase">Vol. Día</span>
-                                    <span className="text-lg font-mono text-blue-400 font-bold">{activePoint.daily_vol.toFixed(4)} <span className="text-xs text-slate-500">Mm³</span></span>
+                                <div style={{ background: 'rgba(0,0,0,0.4)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                                    <span style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Vol. Día</span>
+                                    <div style={{ color: '#3b82f6', fontWeight: 900, fontSize: '16px', fontFamily: 'JetBrains Mono' }}>{activePoint.daily_vol.toFixed(4)} <span style={{ fontSize: '10px', opacity: 0.5 }}>Mm³</span></div>
                                 </div>
                             </div>
-
-                            {activePoint.current_q > activePoint.capacity && (
-                                <div className="mt-2 bg-red-500/20 border border-red-500/50 text-red-200 text-xs px-2 py-1.5 rounded flex items-center gap-2 font-bold animate-pulse">
-                                    <Zap size={12} /> ALERTA DE CAPACIDAD
-                                </div>
-                            )}
                         </div>
                     )}
                 </section>
 
-                {/* COL 3: LIST & DETAILS - REDESIGNED */}
-                <aside className="col-span-3 flex flex-col h-full bg-slate-800/20 border-l border-slate-700/50">
-                    <div className="p-3 border-b border-slate-700/50">
-                        <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Operación por Módulo</h3>
-                    </div>
+                {/* ROW 3: MODULES */}
+                <div className="conchos-modules-header">Operación por Módulo</div>
+                <div className="conchos-modules-grid">
+                    {modules.map(mod => (
+                        <div key={mod.id} onClick={() => setViewingModule(mod)}>
+                            <ModuleCard data={mod} />
+                        </div>
+                    ))}
+                </div>
 
-                    <div className="flex-1 overflow-y-auto p-2 space-y-3 scrollbar-thin">
-                        {modules.map(mod => (
-                            <div key={mod.id} onClick={() => setViewingModule(mod)}>
-                                <ModuleCard data={mod} />
-                            </div>
-                        ))}
-                    </div>
-                </aside>
+                {/* Spacer for scroll */}
+                <div style={{ height: '40px' }} />
             </div>
 
             {viewingModule && (
-                <ModuleDetailModal module={viewingModule} onClose={() => setViewingModule(null)} />
+                <ModuleDetailModal module={viewingModule as ModuleData} onClose={() => setViewingModule(null)} />
             )}
         </div>
     );

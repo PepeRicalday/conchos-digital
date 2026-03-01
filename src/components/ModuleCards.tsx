@@ -1,5 +1,5 @@
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { Activity, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { ModuleData } from '../store/useHydraStore';
 import { formatVol, getLogoPath } from '../utils/uiHelpers';
 
@@ -20,17 +20,32 @@ export const ModuleDetailModal = ({ module, onClose }: { module: ModuleData, onC
     return (
         <div className="modal-overlay backdrop-blur-sm bg-black/80" onClick={onClose}>
             <div className="modal-content border border-slate-600 shadow-2xl" onClick={e => e.stopPropagation()}>
-                <header className="modal-header bg-slate-800">
-                    <div className="flex items-center gap-4">
-                        <div className="logo-container">
-                            <img src={logoSrc} alt={module.name} className="module-logo w-12 h-12 rounded-full border-2 border-slate-600 object-contain bg-slate-900" />
-                        </div>
-                        <div>
-                            <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">{module.short_code || module.id.substring(0, 6)}</span>
-                            <h2 className="text-2xl font-bold text-white">{module.acu_name}</h2>
+                <header className="relative bg-slate-800/80 backdrop-blur border-b border-slate-700/50 pt-6 pb-8 px-6 flex flex-col items-center text-center">
+                    <button
+                        onClick={onClose}
+                        className="close-btn"
+                        style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 50 }}
+                    >
+                        <X size={24} />
+                    </button>
+
+                    <div className="mb-4 mt-2" style={{ display: 'flex', justifyContent: 'center' }}>
+                        <div
+                            className="rounded-xl border border-slate-600/50 bg-[#0f172a] shadow-md flex items-center justify-center overflow-hidden"
+                            style={{ width: '52px', height: '52px' }}
+                        >
+                            <img
+                                src={logoSrc}
+                                alt={module.name}
+                                style={{ width: '40px', height: '40px', objectFit: 'contain' }}
+                            />
                         </div>
                     </div>
-                    <button onClick={onClose} className="close-btn hover:bg-red-500/20 hover:text-red-400 transition-colors"><X /></button>
+
+                    <div className="flex flex-col items-center">
+                        <span className="text-[11px] font-black text-blue-500 uppercase tracking-[0.2em] mb-2">{module.short_code || module.id.substring(0, 6)}</span>
+                        <h2 className="text-xl sm:text-2xl font-black text-white leading-tight uppercase max-w-2xl">{module.acu_name}</h2>
+                    </div>
                 </header>
 
                 <div className="modal-body bg-slate-900">
@@ -109,7 +124,7 @@ export const ModuleDetailModal = ({ module, onClose }: { module: ModuleData, onC
                                 </tr>
                             </thead>
                             <tbody>
-                                {module.delivery_points.map(p => (
+                                {module.delivery_points.filter(p => p.is_open || p.current_q_lps > 0 || p.daily_vol > 0).map(p => (
                                     <tr key={p.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
                                         <td>
                                             <div className="flex flex-col">
@@ -142,79 +157,98 @@ export const ModuleCard = ({ data }: { data: ModuleData }) => {
     const isOperating = data.current_flow > 0.1;
     const logoSrc = getLogoPath(data.name, data.short_code || '', data.logo_url);
 
+    // Dynamic colors
     const consumedColor = percentConsumed > 90 ? '#ef4444' : percentConsumed > 70 ? '#f59e0b' : '#3b82f6';
-    const displayPercent = consumed > 0 ? Math.max(percentConsumed, 5) : 0;
+    const currentLps = data.current_flow * 1000;
 
-    const pieData = [
-        { name: 'Consumido', value: displayPercent, fill: consumedColor },
-        { name: 'Disponible', value: 100 - displayPercent, fill: '#1e293b' }
-    ];
+    // Gauge Logic
+    const maxFlowLps = 1000;
+    const flowPercent = currentLps > 0 ? Math.min((currentLps / maxFlowLps) * 100, 100) : 0;
+    const flowColor = isOperating ? '#22d3ee' : '#334155';
+
+    // Badge styling
+    const shortCode = data.short_code || `#${data.id.toString().substring(0, 2)}`;
+    const badgeBg = shortCode.includes('A') ? '#ef4444cc' : '#3b82f6cc';
 
     return (
-        <div className="module-card-premium">
-            <div className={`status-pill ${isOperating ? 'active' : ''}`} title={isOperating ? 'Operando' : 'Sin Flujo'}></div>
+        <div className="conchos-module-card">
+            {/* Status indicator LED */}
+            <div
+                className={isOperating ? 'conchos-online-led conchos-pulse' : 'conchos-online-led'}
+                style={{ backgroundColor: isOperating ? '#10b981' : '#334155', color: isOperating ? '#10b981' : '#334155' }}
+            ></div>
 
-            <div className="card-content">
-                <div className="identity-section">
-                    <img src={logoSrc} alt={data.name} className="module-logo-large" />
-                    <span className="module-badge-tech">{data.short_code || 'MOD'}</span>
+            {/* SECTION 1: Identity */}
+            <div className="conchos-logo-container">
+                <div className="conchos-logo-circle">
+                    <img src={logoSrc} alt={data.name} className="conchos-logo-img" />
                 </div>
+                <div className="conchos-module-badge" style={{ backgroundColor: badgeBg }}>
+                    {shortCode}
+                </div>
+            </div>
 
-                <div className="stats-section">
-                    <div className="stat-item">
-                        <span className="stat-label">Vol. Consumido</span>
-                        <span className="stat-value stat-value-blue">{formatVol(consumed)}</span>
-                        <span className="stat-sub">Mm³</span>
+            {/* SECTION 2: Volumetric Metrics */}
+            <div className="conchos-metrics-center">
+                <div>
+                    <div className="conchos-vol-header">
+                        <span className="conchos-vol-label">Vol. Consumido</span>
+                        <span className="conchos-vol-percent">{percentConsumed.toFixed(1)}%</span>
                     </div>
-                    <div className="stat-item">
-                        <span className="stat-label">Q. Instantáneo</span>
-                        <div className="stat-flow-row">
-                            <span className="stat-value stat-value-emerald">{(data.current_flow * 1000).toFixed(0)}</span>
-                            {isOperating && <Activity size={10} className="stat-pulse-icon" />}
+
+                    <div className="conchos-vol-main-row">
+                        <div className="conchos-vol-val-stack">
+                            <span className="conchos-vol-huge">{consumed > 0 ? consumed.toFixed(2) : '-'}</span>
+                            <span className="conchos-unit-small">Mm³</span>
                         </div>
-                        <span className="stat-sub">L/s</span>
-                    </div>
-                    <div className="stat-item stat-disponible">
-                        <span className="stat-label">Disponible</span>
-                        <span className="stat-value stat-value-muted">{formatVol(available)} <small className="stat-unit-small">Mm³</small></span>
+                        {/* Progress Bar Container */}
+                        <div className="conchos-prog-container">
+                            <div
+                                className="conchos-prog-bar"
+                                style={{ width: `${Math.min(percentConsumed, 100)}%`, backgroundColor: consumedColor, boxShadow: `0 0 12px ${consumedColor}80` }}
+                            ></div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="progress-section">
-                    <div className="vol-chart-wrapper">
+                <div className="conchos-disp-stack">
+                    <div className="conchos-disp-label">Disponible</div>
+                    <div className="conchos-disp-val">
+                        {available.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style={{ fontSize: '9px', opacity: 0.5 }}>Mm³</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* SECTION 3: Gauge Section */}
+            <div className="conchos-gauge-section">
+                <span className="conchos-gauge-header">Q. Instantáneo</span>
+
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <div className="conchos-gauge-wrapper">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
-                                    data={pieData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={20}
-                                    outerRadius={28}
-                                    paddingAngle={2}
-                                    dataKey="value"
-                                    stroke="none"
-                                    startAngle={90}
-                                    endAngle={-270}
+                                    data={[{ value: flowPercent }, { value: Math.max(0, 100 - flowPercent) }]}
+                                    cx="50%" cy="50%"
+                                    startAngle={225} endAngle={-45}
+                                    innerRadius="75%" outerRadius="100%"
+                                    dataKey="value" stroke="none"
                                 >
-                                    {pieData.map((entry, index) => (
-                                        <Cell key={index} fill={entry.fill} />
-                                    ))}
+                                    <Cell fill={flowColor} />
+                                    <Cell fill="rgba(30, 41, 59, 0.5)" />
                                 </Pie>
                             </PieChart>
                         </ResponsiveContainer>
-                        <div className="vol-chart-center">
-                            <span className="vol-chart-percent">{percentConsumed.toFixed(0)}%</span>
+                        <div className="conchos-gauge-text">
+                            <span className="conchos-gauge-val">{currentLps.toFixed(0)}</span>
+                            <span className="conchos-unit-small" style={{ color: '#64748b', marginTop: 0 }}>L/s</span>
                         </div>
                     </div>
-                    <div className="vol-chart-legend">
-                        <span className="vol-legend-item">
-                            <span className="vol-legend-dot" style={{ backgroundColor: consumedColor }}></span>
-                            Usado
-                        </span>
-                        <span className="vol-legend-item">
-                            <span className="vol-legend-dot" style={{ backgroundColor: '#334155' }}></span>
-                            Libre
-                        </span>
+
+                    <div className="conchos-legend-col">
+                        <span style={{ color: 'white', fontSize: '10px', marginBottom: '2px', fontWeight: 800 }}>{flowPercent.toFixed(1)}%</span>
+                        <div className="conchos-legend-item"><div className="conchos-dot" style={{ backgroundColor: '#22d3ee' }}></div>Usado</div>
+                        <div className="conchos-legend-item"><div className="conchos-dot" style={{ backgroundColor: '#1e293b' }}></div>Libre</div>
                     </div>
                 </div>
             </div>

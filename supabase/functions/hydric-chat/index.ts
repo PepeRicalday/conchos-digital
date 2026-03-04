@@ -117,28 +117,50 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
+        // ─── Validar configuración del servidor ───
+        if (!GEMINI_API_KEY) {
+            console.error("GEMINI_API_KEY secret not configured!");
+            return new Response(JSON.stringify({ error: "Servicio de IA no configurado. Contacta al administrador." }), {
+                status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+        }
+        if (!SUPABASE_SERVICE_ROLE_KEY) {
+            console.error("SUPABASE_SERVICE_ROLE_KEY not available!");
+            return new Response(JSON.stringify({ error: "Configuración del servidor incompleta." }), {
+                status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+        }
+
+        // ─── Validar Authorization header ───
         const authHeader = req.headers.get("Authorization");
-        if (!authHeader) {
-            return new Response(JSON.stringify({ error: "No authorization header" }), {
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            return new Response(JSON.stringify({ error: "Se requiere autenticación. Inicia sesión." }), {
                 status: 401,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
         }
 
-        const supabaseUser = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
-            global: { headers: { Authorization: authHeader } },
-        });
-
-        const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-        if (authError || !user) {
-            console.error("Error validando session:", authError, "User:", user);
-            return new Response(JSON.stringify({ error: authError?.message || "Unauthorized" }), {
-                status: 401,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-        }
-
+        // ─── Validar el usuario con el token JWT ───
+        const token = authHeader.replace("Bearer ", "");
         const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+        // Usar admin client con getUser(token) para validar el JWT directamente
+        // Esto es más confiable que crear un client con el anon key
+        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+
+        if (authError || !user) {
+            console.error("Auth validation failed:", authError?.message || "No user found for token");
+            return new Response(JSON.stringify({
+                error: authError?.message?.includes("expired")
+                    ? "Tu sesión ha expirado. Refresca la página."
+                    : "Sesión inválida. Vuelve a iniciar sesión."
+            }), {
+                status: 401,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+        }
+
+        // ─── Verificar rol SRL ───
         const { data: profile } = await supabaseAdmin
             .from("perfiles_usuario")
             .select("rol")
@@ -146,7 +168,7 @@ Deno.serve(async (req: Request) => {
             .single();
 
         if (!profile || profile.rol !== "SRL") {
-            return new Response(JSON.stringify({ error: "Acceso denegado. Solo usuarios SRL." }), {
+            return new Response(JSON.stringify({ error: "Acceso denegado. Solo usuarios con rol Gerente (SRL) pueden usar el asistente." }), {
                 status: 403,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
             });

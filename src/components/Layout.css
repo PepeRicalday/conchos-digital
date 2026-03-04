@@ -3,18 +3,34 @@
 .layout-container {
     display: flex;
     min-height: 100vh;
-    background-color: var(--color-bg-primary);
+    background: radial-gradient(circle at 50% -20%, rgba(15, 23, 42, 1) 0%, rgba(2, 6, 23, 1) 100%);
     color: var(--color-text-primary);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Base Ambient Glow */
+.layout-container::before {
+    content: '';
+    position: absolute;
+    top: -20vh;
+    left: 20vw;
+    width: 60vw;
+    height: 60vh;
+    background: radial-gradient(circle, rgba(56, 189, 248, 0.05) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
 }
 
 .main-content {
     flex: 1;
     margin-left: 280px;
-    /* Increased for breathing room */
     padding: var(--spacing-xl);
     padding-top: var(--spacing-lg);
     max-width: 1800px;
     min-height: 100vh;
+    position: relative;
+    z-index: 10;
 }
 
 .top-bar {

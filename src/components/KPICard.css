@@ -1,22 +1,69 @@
-/* KPICard.css */
+/* KPICard.css - Hydro-Synchrony Premium 2.0 */
+
+@property --angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+
+@keyframes spin-border {
+    to {
+        --angle: 360deg;
+    }
+}
 
 .kpi-card {
-    background-color: var(--color-bg-card);
-    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.7) 0%, rgba(2, 6, 23, 0.9) 100%);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-radius: var(--radius-xl);
     padding: var(--spacing-lg);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease;
+    animation: fadeSlideIn 0.5s ease-out both;
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
-    animation: fadeSlideIn 0.4s ease-out both;
+    z-index: 1;
+}
+
+/* Animated Aurora Border */
+.kpi-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-xl);
+    padding: 2px;
+    background: linear-gradient(var(--angle), rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0.1));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    transition: background 0.3s ease;
+}
+
+/* Inner Glow Core */
+.kpi-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    background: radial-gradient(800px circle at top left, rgba(255, 255, 255, 0.05), transparent 40%);
+    pointer-events: none;
+    z-index: -1;
 }
 
 .kpi-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-lg);
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.8);
+}
+
+.kpi-card:hover::before {
+    animation: spin-border 4s linear infinite;
 }
 
 .kpi-header {
@@ -26,28 +73,51 @@
 }
 
 .kpi-title {
-    font-size: 0.875rem;
-    font-weight: 600;
+    font-size: 0.8rem;
+    font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.15em;
     color: var(--color-text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.kpi-title::before {
+    content: '';
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 10px currentColor;
 }
 
 .kpi-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius-md);
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-lg);
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: rgba(255, 255, 255, 0.05);
-    color: var(--color-text-primary);
+    position: relative;
+    /* Soft neumorphic inset */
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.3), 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.kpi-icon::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .kpi-value-container {
     display: flex;
     align-items: baseline;
-    gap: 4px;
+    gap: 6px;
+    margin-top: auto;
 }
 
 .kpi-body {
@@ -64,149 +134,165 @@
 }
 
 .kpi-value {
-    font-size: 2.25rem;
-    font-weight: 700;
+    font-size: 2.75rem;
+    font-weight: 900;
     color: var(--color-text-primary);
     line-height: 1;
     font-family: var(--font-mono);
+    letter-spacing: -0.05em;
+    text-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
 }
 
 .kpi-unit {
-    font-size: 1rem;
-    font-weight: 600;
+    font-size: 1.1rem;
+    font-weight: 700;
     color: var(--color-text-muted);
+    font-family: var(--font-mono);
 }
 
 .kpi-subtext {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--color-text-muted);
-    margin-top: var(--spacing-xs);
+    margin-top: 6px;
+    font-weight: 500;
 }
 
-/* Trend indicators */
+/* Trend indicators (Capsule style) */
 .kpi-trend {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     font-size: 0.75rem;
-    font-weight: 700;
-    margin-bottom: 2px;
+    font-weight: 800;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .kpi-trend.trend-rising {
     color: var(--color-success);
+    border-color: rgba(16, 185, 129, 0.2);
+    background: rgba(16, 185, 129, 0.1);
 }
 
 .kpi-trend.trend-falling {
     color: var(--color-danger);
+    border-color: rgba(244, 63, 94, 0.2);
+    background: rgba(244, 63, 94, 0.1);
 }
 
 .kpi-trend.trend-stable {
     color: var(--color-text-muted);
 }
 
-/* Color Variants — Icon */
-.kpi-blue .kpi-icon {
-    background-color: rgba(59, 130, 246, 0.1);
+/* -------------------------------------------
+   HYDRO-THEMES 
+------------------------------------------- */
+
+/* BLUE */
+.kpi-blue .kpi-title::before {
     color: var(--color-primary);
 }
 
-.kpi-cyan .kpi-icon {
-    background-color: rgba(6, 182, 212, 0.1);
+.kpi-blue .kpi-icon {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(56, 189, 248, 0.02));
+    color: var(--color-primary);
+}
+
+.kpi-card.kpi-blue:hover::before {
+    background: linear-gradient(var(--angle), var(--color-primary), transparent, var(--color-primary));
+}
+
+.kpi-blue .kpi-value {
+    text-shadow: 0 0 30px rgba(56, 189, 248, 0.4);
+}
+
+/* CYAN */
+.kpi-cyan .kpi-title::before {
     color: var(--color-accent);
 }
 
-.kpi-emerald .kpi-icon {
-    background-color: rgba(16, 185, 129, 0.1);
-    color: var(--color-success);
+.kpi-cyan .kpi-icon {
+    background: linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(34, 211, 238, 0.02));
+    color: var(--color-accent);
 }
 
-.kpi-amber .kpi-icon {
-    background-color: rgba(245, 158, 11, 0.1);
-    color: var(--color-warning);
-}
-
-.kpi-rose .kpi-icon {
-    background-color: rgba(244, 63, 94, 0.1);
-    color: var(--color-danger);
-}
-
-/* Color Variants — Accent border left */
-.kpi-blue {
-    border-left: 3px solid var(--color-primary);
-}
-
-.kpi-cyan {
-    border-left: 3px solid var(--color-accent);
-}
-
-.kpi-emerald {
-    border-left: 3px solid var(--color-success);
-}
-
-.kpi-amber {
-    border-left: 3px solid var(--color-warning);
-}
-
-.kpi-rose {
-    border-left: 3px solid var(--color-danger);
-}
-
-/* Color Variants — Value text glow */
-.kpi-blue .kpi-value {
-    text-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+.kpi-card.kpi-cyan:hover::before {
+    background: linear-gradient(var(--angle), var(--color-accent), transparent, var(--color-accent));
 }
 
 .kpi-cyan .kpi-value {
-    text-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+    text-shadow: 0 0 30px rgba(34, 211, 238, 0.4);
+}
+
+/* EMERALD */
+.kpi-emerald .kpi-title::before {
+    color: var(--color-success);
+}
+
+.kpi-emerald .kpi-icon {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.02));
+    color: var(--color-success);
+}
+
+.kpi-card.kpi-emerald:hover::before {
+    background: linear-gradient(var(--angle), var(--color-success), transparent, var(--color-success));
 }
 
 .kpi-emerald .kpi-value {
-    text-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+    text-shadow: 0 0 30px rgba(16, 185, 129, 0.4);
+}
+
+/* AMBER */
+.kpi-amber .kpi-title::before {
+    color: var(--color-warning);
+}
+
+.kpi-amber .kpi-icon {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.02));
+    color: var(--color-warning);
+}
+
+.kpi-card.kpi-amber:hover::before {
+    background: linear-gradient(var(--angle), var(--color-warning), transparent, var(--color-warning));
 }
 
 .kpi-amber .kpi-value {
-    text-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+    text-shadow: 0 0 30px rgba(245, 158, 11, 0.4);
+}
+
+/* ROSE */
+.kpi-rose .kpi-title::before {
+    color: var(--color-danger);
+}
+
+.kpi-rose .kpi-icon {
+    background: linear-gradient(135deg, rgba(244, 63, 94, 0.15), rgba(244, 63, 94, 0.02));
+    color: var(--color-danger);
+}
+
+.kpi-card.kpi-rose:hover::before {
+    background: linear-gradient(var(--angle), var(--color-danger), transparent, var(--color-danger));
 }
 
 .kpi-rose .kpi-value {
-    text-shadow: 0 0 20px rgba(244, 63, 94, 0.3);
+    text-shadow: 0 0 30px rgba(244, 63, 94, 0.4);
 }
 
-/* Color Variants — Hover glow */
-.kpi-blue:hover {
-    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
-}
-
-.kpi-cyan:hover {
-    box-shadow: 0 8px 24px rgba(6, 182, 212, 0.15);
-}
-
-.kpi-emerald:hover {
-    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.15);
-}
-
-.kpi-amber:hover {
-    box-shadow: 0 8px 24px rgba(245, 158, 11, 0.15);
-}
-
-.kpi-rose:hover {
-    box-shadow: 0 8px 24px rgba(244, 63, 94, 0.15);
-}
-
-/* Staggered animation for grid items */
+/* Grid stagger animations */
 .kpi-card:nth-child(1) {
     animation-delay: 0s;
 }
 
 .kpi-card:nth-child(2) {
-    animation-delay: 0.05s;
-}
-
-.kpi-card:nth-child(3) {
     animation-delay: 0.1s;
 }
 
+.kpi-card:nth-child(3) {
+    animation-delay: 0.2s;
+}
+
 .kpi-card:nth-child(4) {
-    animation-delay: 0.15s;
+    animation-delay: 0.3s;
 }

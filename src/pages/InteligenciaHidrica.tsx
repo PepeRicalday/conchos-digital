@@ -275,7 +275,26 @@ const InteligenciaHidrica = () => {
                         <div className="ih-error">
                             <AlertTriangle size={14} />
                             <span>{error}</span>
-                            <button onClick={clearError}>Cerrar</button>
+                            <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', flexShrink: 0 }}>
+                                {error.includes('sesión') && (
+                                    <button
+                                        onClick={() => window.location.reload()}
+                                        style={{
+                                            background: 'rgba(239,68,68,0.2)',
+                                            border: '1px solid rgba(239,68,68,0.3)',
+                                            color: '#fca5a5',
+                                            padding: '2px 10px',
+                                            borderRadius: '999px',
+                                            fontSize: '0.7rem',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        Recargar
+                                    </button>
+                                )}
+                                <button onClick={clearError}>Cerrar</button>
+                            </div>
                         </div>
                     )}
 

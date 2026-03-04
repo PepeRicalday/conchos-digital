@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Gauge, Clock, ArrowUp, ArrowDown, Minus, AlertTriangle, Droplets, Activity, Loader } from 'lucide-react';
+import { Gauge, Clock, ArrowUp, ArrowDown, Minus, AlertTriangle, Droplets, Activity, Loader, Settings, Waves } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useFecha } from '../context/FechaContext';
 import './ControlEscalas.css';
@@ -25,6 +25,29 @@ interface ResumenEscala {
     estado: string;
 }
 
+interface EscalaConfig {
+    id: string;
+    pzas_radiales: number;
+    ancho: number;
+    alto: number;
+}
+
+interface RadialApertura {
+    index: number;
+    apertura_m: number;
+}
+
+interface LecturaRadial {
+    escala_id: string;
+    nivel_m: number;
+    nivel_abajo_m: number;
+    apertura_radiales_m: number;
+    radiales_json: RadialApertura[] | null;
+    gasto_calculado_m3s: number;
+    hora_lectura: string;
+    fecha: string;
+}
+
 interface ScaleReading {
     id: string;
     name: string;
@@ -35,6 +58,14 @@ interface ScaleReading {
     minOperational: number;
     maxOperational: number;
     maxCapacity: number;
+    // Radial gate data
+    pzasRadiales: number;
+    anchoRadial: number;
+    altoRadial: number;
+    radialAperturas: RadialApertura[];
+    nivelAbajo: number;
+    gastoCalculado: number;
+    horaLectura: string;
 }
 
 interface Zone {
@@ -44,7 +75,11 @@ interface Zone {
     scales: ScaleReading[];
 }
 
-function mapResumenToZones(data: ResumenEscala[]): Zone[] {
+function mapResumenToZones(
+    data: ResumenEscala[],
+    configs: Map<string, EscalaConfig>,
+    lecturas: Map<string, LecturaRadial>
+): Zone[] {
     const zonesMap = new Map<string, Zone>();
 
     for (const row of data) {
@@ -57,6 +92,10 @@ function mapResumenToZones(data: ResumenEscala[]): Zone[] {
                 scales: [],
             });
         }
+
+        const cfg = configs.get(row.escala_id);
+        const lect = lecturas.get(row.escala_id);
+
         zonesMap.get(secId)!.scales.push({
             id: row.escala_id,
             name: row.nombre,
@@ -67,15 +106,21 @@ function mapResumenToZones(data: ResumenEscala[]): Zone[] {
             minOperational: row.nivel_min_operativo,
             maxOperational: row.nivel_max_operativo,
             maxCapacity: row.capacidad_max,
+            // Radial gate enrichment
+            pzasRadiales: cfg?.pzas_radiales ?? 0,
+            anchoRadial: cfg?.ancho ?? 0,
+            altoRadial: cfg?.alto ?? 0,
+            radialAperturas: lect?.radiales_json ?? [],
+            nivelAbajo: lect?.nivel_abajo_m ?? 0,
+            gastoCalculado: lect?.gasto_calculado_m3s ?? 0,
+            horaLectura: lect?.hora_lectura ?? '',
         });
     }
 
-    // Sort scales within each zone by km
     for (const zone of zonesMap.values()) {
         zone.scales.sort((a, b) => a.km - b.km);
     }
 
-    // Sort zones by the first scale's km
     return Array.from(zonesMap.values()).sort((a, b) => {
         const aKm = a.scales[0]?.km ?? 0;
         const bKm = b.scales[0]?.km ?? 0;
@@ -83,7 +128,147 @@ function mapResumenToZones(data: ResumenEscala[]): Zone[] {
     });
 }
 
-// Component: Scale Gauge (Vertical)
+// ─── COMPONENTE: Mini Diagrama de Radiales (SVG inline) ───
+const RadialGateDiagram = ({ scale }: { scale: ScaleReading }) => {
+    const { pzasRadiales, anchoRadial, altoRadial, radialAperturas, currentLevel } = scale;
+    if (pzasRadiales <= 0) return null;
+
+    const W = 140;
+    const H = 80;
+    const baseLine = 70;
+    const pxPerMeter = 45 / Math.max(altoRadial * 1.3, currentLevel * 1.3, 2);
+    const gateWidth = (W - 20) / pzasRadiales;
+    const pillarW = 4;
+    const effectiveGW = gateWidth - pillarW;
+    const startX = 10;
+
+    const waterY = baseLine - (currentLevel * pxPerMeter);
+
+    const openCount = radialAperturas.filter(r => r.apertura_m > 0).length;
+
+    return (
+        <div className="radial-diagram-section">
+            <div className="radial-diagram-header">
+                <Settings size={10} />
+                <span>{pzasRadiales} Radiales ({anchoRadial}m × {altoRadial}m)</span>
+            </div>
+            <svg viewBox={`0 0 ${W} ${H}`} className="radial-svg">
+                <defs>
+                    <linearGradient id="wGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.2" />
+                        <stop offset="100%" stopColor="#0284c7" stopOpacity="0.5" />
+                    </linearGradient>
+                </defs>
+
+                {/* Water body */}
+                {currentLevel > 0 && (
+                    <rect x={startX} y={Math.max(8, waterY)} width={pzasRadiales * gateWidth + pillarW} height={baseLine - Math.max(8, waterY)} fill="url(#wGrad)" />
+                )}
+
+                {/* Water line */}
+                <line x1={0} y1={waterY} x2={W} y2={waterY} stroke="#38bdf8" strokeWidth="1" strokeDasharray="3 2" opacity={0.5} />
+
+                {/* Base */}
+                <line x1={0} y1={baseLine} x2={W} y2={baseLine} stroke="#475569" strokeWidth="2" />
+
+                {/* Pillars + Gates */}
+                {Array.from({ length: pzasRadiales + 1 }).map((_, i) => {
+                    const px = startX + i * gateWidth;
+                    return (
+                        <g key={i}>
+                            <rect x={px} y={12} width={pillarW} height={baseLine - 12} fill="#334155" stroke="#0f172a" strokeWidth="0.5" />
+                            {i < pzasRadiales && (() => {
+                                const ap = radialAperturas[i]?.apertura_m ?? 0;
+                                const gx = px + pillarW;
+                                const gatePxH = altoRadial * pxPerMeter;
+                                const liftPx = ap * pxPerMeter;
+                                const isOpen = ap > 0;
+
+                                return (
+                                    <g>
+                                        {/* Flow through aperture */}
+                                        {isOpen && (
+                                            <rect x={gx + 1} y={baseLine - liftPx} width={effectiveGW - 2} height={liftPx} fill="#0ea5e9" opacity="0.7" rx="1" />
+                                        )}
+
+                                        {/* Gate plate */}
+                                        <rect
+                                            x={gx}
+                                            y={baseLine - gatePxH - liftPx}
+                                            width={effectiveGW}
+                                            height={gatePxH}
+                                            fill={isOpen ? '#fbbf24' : '#64748b'}
+                                            stroke={isOpen ? '#f59e0b' : '#475569'}
+                                            strokeWidth="1"
+                                            rx="2"
+                                        />
+
+                                        {/* Cross bracing */}
+                                        <line x1={gx} y1={baseLine - gatePxH - liftPx} x2={gx + effectiveGW} y2={baseLine - liftPx} stroke="#0f172a" strokeWidth="0.5" opacity="0.3" />
+
+                                        {/* Label */}
+                                        <text x={gx + effectiveGW / 2} y={baseLine - gatePxH - liftPx + gatePxH / 2 + 3} textAnchor="middle" fill={isOpen ? '#0f172a' : '#94a3b8'} fontSize="7" fontWeight="bold">
+                                            R{i + 1}
+                                        </text>
+
+                                        {/* Apertura label */}
+                                        {isOpen && (
+                                            <text x={gx + effectiveGW / 2} y={baseLine - liftPx / 2 + 3} textAnchor="middle" fill="#fff" fontSize="6" fontWeight="bold">
+                                                {ap.toFixed(2)}
+                                            </text>
+                                        )}
+                                    </g>
+                                );
+                            })()}
+                        </g>
+                    );
+                })}
+            </svg>
+            <div className="radial-status-row">
+                <span className={`radial-badge ${openCount > 0 ? 'open' : 'closed'}`}>
+                    {openCount > 0 ? `${openCount}/${pzasRadiales} Abiertas` : 'Todas Cerradas'}
+                </span>
+            </div>
+        </div>
+    );
+};
+
+// ─── COMPONENTE: Barra de Gasto / Volumen en Caja ───
+const GastoVolumeBar = ({ scale }: { scale: ScaleReading }) => {
+    const volumePercent = scale.maxCapacity > 0 ? Math.min((scale.currentLevel / scale.maxCapacity) * 100, 100) : 0;
+    const isHigh = volumePercent > 85;
+    const isLow = volumePercent < 30;
+
+    return (
+        <div className="gasto-volume-section">
+            {scale.gastoCalculado > 0 && (
+                <div className="gasto-row">
+                    <Waves size={12} />
+                    <span className="gasto-label">Q =</span>
+                    <span className="gasto-value">{scale.gastoCalculado.toFixed(3)}</span>
+                    <span className="gasto-unit">m³/s</span>
+                </div>
+            )}
+            {scale.nivelAbajo > 0 && (
+                <div className="nivel-abajo-row">
+                    <ArrowDown size={10} />
+                    <span>Abajo: {scale.nivelAbajo.toFixed(2)}m</span>
+                </div>
+            )}
+            <div className="volume-bar-container">
+                <div className="volume-bar-track">
+                    <div
+                        className={`volume-bar-fill ${isHigh ? 'high' : isLow ? 'low' : 'normal'}`}
+                        style={{ width: `${volumePercent}%` }}
+                    />
+                </div>
+                <span className="volume-percent">{volumePercent.toFixed(0)}%</span>
+            </div>
+        </div>
+    );
+};
+
+// ─── COMPONENTE: Scale Gauge (Vertical) — Expandido ───
 const ScaleGauge = ({ scale, zoneColor }: { scale: ScaleReading; zoneColor: string }) => {
     const levelPercent = (scale.currentLevel / scale.maxCapacity) * 100;
     const minPercent = (scale.minOperational / scale.maxCapacity) * 100;
@@ -94,62 +279,71 @@ const ScaleGauge = ({ scale, zoneColor }: { scale: ScaleReading; zoneColor: stri
     const isFalling = delta < -0.02;
 
     const isWarning = scale.currentLevel < scale.minOperational || scale.currentLevel > scale.maxOperational;
+    const hasRadiales = scale.pzasRadiales > 0;
 
     return (
-        <div className={`scale-gauge-card ${isWarning ? 'warning' : ''}`}>
+        <div className={`scale-gauge-card ${isWarning ? 'warning' : ''} ${hasRadiales ? 'has-radiales' : ''}`}>
             <div className="gauge-header">
                 <span className="gauge-name">{scale.name}</span>
                 <span className="gauge-km">Km {scale.km}</span>
             </div>
 
-            <div className="gauge-container">
-                {/* Vertical Gauge */}
-                <div className="gauge-bar">
-                    {/* Background zones */}
-                    <div
-                        className="gauge-zone operational"
-                        style={{
-                            bottom: `${minPercent}%`,
-                            height: `${maxPercent - minPercent}%`,
-                            backgroundColor: `${zoneColor}20`
-                        }}
-                    />
+            <div className="gauge-body-row">
+                <div className="gauge-container">
+                    {/* Vertical Gauge */}
+                    <div className="gauge-bar">
+                        {/* Background zones */}
+                        <div
+                            className="gauge-zone operational"
+                            style={{
+                                bottom: `${minPercent}%`,
+                                height: `${maxPercent - minPercent}%`,
+                                backgroundColor: `${zoneColor}20`
+                            }}
+                        />
 
-                    {/* Min/Max markers */}
-                    <div className="gauge-marker min" style={{ bottom: `${minPercent}%` }}>
-                        <span>Min</span>
-                    </div>
-                    <div className="gauge-marker max" style={{ bottom: `${maxPercent}%` }}>
-                        <span>Max</span>
-                    </div>
-
-                    {/* Water level fill */}
-                    <div
-                        className="gauge-fill"
-                        style={{
-                            height: `${levelPercent}%`,
-                            backgroundColor: isWarning ? '#ef4444' : zoneColor
-                        }}
-                    />
-
-                    {/* Level indicator */}
-                    <div
-                        className="level-indicator"
-                        style={{ bottom: `${levelPercent}%`, borderColor: zoneColor }}
-                    >
-                        <span className="level-value">{scale.currentLevel.toFixed(2)}m</span>
-                    </div>
-                </div>
-
-                {/* Scale markings (0-4m) */}
-                <div className="gauge-scale">
-                    {[4, 3, 2, 1, 0].map(m => (
-                        <div key={m} className="scale-tick">
-                            <span>{m}m</span>
+                        {/* Min/Max markers */}
+                        <div className="gauge-marker min" style={{ bottom: `${minPercent}%` }}>
+                            <span>Min</span>
                         </div>
-                    ))}
+                        <div className="gauge-marker max" style={{ bottom: `${maxPercent}%` }}>
+                            <span>Max</span>
+                        </div>
+
+                        {/* Water level fill */}
+                        <div
+                            className="gauge-fill"
+                            style={{
+                                height: `${levelPercent}%`,
+                                backgroundColor: isWarning ? '#ef4444' : zoneColor
+                            }}
+                        />
+
+                        {/* Level indicator */}
+                        <div
+                            className="level-indicator"
+                            style={{ bottom: `${levelPercent}%`, borderColor: zoneColor }}
+                        >
+                            <span className="level-value">{scale.currentLevel.toFixed(2)}m</span>
+                        </div>
+                    </div>
+
+                    {/* Scale markings (0-4m) */}
+                    <div className="gauge-scale">
+                        {[4, 3, 2, 1, 0].map(m => (
+                            <div key={m} className="scale-tick">
+                                <span>{m}m</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
+
+                {/* Radial Gate Diagram (alongside gauge vertically) */}
+                {hasRadiales && <RadialGateDiagram scale={scale} />}
             </div>
+
+            {/* Gasto + Volumen en Caja */}
+            {hasRadiales && <GastoVolumeBar scale={scale} />}
 
             {/* 12-Hour Movement */}
             <div className="movement-section">
@@ -183,6 +377,8 @@ const ScaleGauge = ({ scale, zoneColor }: { scale: ScaleReading; zoneColor: stri
 const ZoneCard = ({ zone }: { zone: Zone }) => {
     const avgLevel = zone.scales.reduce((sum, s) => sum + s.currentLevel, 0) / zone.scales.length;
     const hasWarning = zone.scales.some(s => s.currentLevel < s.minOperational || s.currentLevel > s.maxOperational);
+    const totalGasto = zone.scales.reduce((sum, s) => sum + s.gastoCalculado, 0);
+    const radialScales = zone.scales.filter(s => s.pzasRadiales > 0);
 
     return (
         <div className="zone-card" style={{ borderColor: zone.color }}>
@@ -191,6 +387,12 @@ const ZoneCard = ({ zone }: { zone: Zone }) => {
                     <div className="zone-dot" style={{ backgroundColor: zone.color }} />
                     <h3>{zone.name}</h3>
                     <span className="zone-count">{zone.scales.length} escalas</span>
+                    {radialScales.length > 0 && (
+                        <span className="zone-radial-count">
+                            <Settings size={12} />
+                            {radialScales.length} represos
+                        </span>
+                    )}
                 </div>
                 <div className="zone-summary">
                     <div className="summary-stat">
@@ -198,6 +400,13 @@ const ZoneCard = ({ zone }: { zone: Zone }) => {
                         <span className="stat-value">{avgLevel.toFixed(2)}m</span>
                         <span className="stat-label">Promedio</span>
                     </div>
+                    {totalGasto > 0 && (
+                        <div className="summary-stat">
+                            <Waves size={16} style={{ color: '#0ea5e9' }} />
+                            <span className="stat-value" style={{ color: '#0ea5e9' }}>{totalGasto.toFixed(2)}</span>
+                            <span className="stat-label">m³/s Total</span>
+                        </div>
+                    )}
                     {hasWarning && (
                         <div className="zone-warning">
                             <AlertTriangle size={14} />
@@ -229,6 +438,47 @@ const ControlEscalas = () => {
             setLoading(true);
             setError(null);
 
+            // 1. Fetch scale configs (radial gate dimensions)
+            const { data: escalasCfg } = await supabase
+                .from('escalas')
+                .select('id, pzas_radiales, ancho, alto')
+                .eq('activa', true);
+
+            const configMap = new Map<string, EscalaConfig>();
+            (escalasCfg || []).forEach((e: any) => {
+                configMap.set(e.id, {
+                    id: e.id,
+                    pzas_radiales: Number(e.pzas_radiales) || 0,
+                    ancho: Number(e.ancho) || 0,
+                    alto: Number(e.alto) || 0,
+                });
+            });
+
+            // 2. Fetch latest radial readings for the selected date
+            const { data: lecturasRaw } = await supabase
+                .from('lecturas_escalas')
+                .select('escala_id, nivel_m, nivel_abajo_m, apertura_radiales_m, radiales_json, gasto_calculado_m3s, hora_lectura, fecha')
+                .eq('fecha', fechaSeleccionada)
+                .order('hora_lectura', { ascending: false });
+
+            const lecturasMap = new Map<string, LecturaRadial>();
+            (lecturasRaw || []).forEach((l: any) => {
+                // Keep only most recent per escala_id
+                if (!lecturasMap.has(l.escala_id)) {
+                    lecturasMap.set(l.escala_id, {
+                        escala_id: l.escala_id,
+                        nivel_m: Number(l.nivel_m) || 0,
+                        nivel_abajo_m: Number(l.nivel_abajo_m) || 0,
+                        apertura_radiales_m: Number(l.apertura_radiales_m) || 0,
+                        radiales_json: l.radiales_json || null,
+                        gasto_calculado_m3s: Number(l.gasto_calculado_m3s) || 0,
+                        hora_lectura: l.hora_lectura || '',
+                        fecha: l.fecha,
+                    });
+                }
+            });
+
+            // 3. Fetch view resumen
             const { data, error: err } = await supabase
                 .from('resumen_escalas_diario')
                 .select('*')
@@ -243,7 +493,6 @@ const ControlEscalas = () => {
             }
 
             if (!data || data.length === 0) {
-                // No readings for this date: fetch escalas alone to show empty gauges
                 const { data: escalas } = await supabase
                     .from('escalas')
                     .select('id, nombre, km, seccion_id, nivel_min_operativo, nivel_max_operativo, capacidad_max, secciones(id, nombre, color)')
@@ -272,7 +521,7 @@ const ControlEscalas = () => {
                         delta_12h: null,
                         estado: 'sin_datos',
                     }));
-                    setZones(mapResumenToZones(mapped));
+                    setZones(mapResumenToZones(mapped, configMap, lecturasMap));
                 } else {
                     setZones([]);
                 }
@@ -300,13 +549,13 @@ const ControlEscalas = () => {
                 estado: r.estado || 'normal',
             }));
 
-            setZones(mapResumenToZones(mapped));
+            setZones(mapResumenToZones(mapped, configMap, lecturasMap));
             setLoading(false);
         }
 
         fetchData();
 
-        // 2. Realtime Subscription for Live Updates
+        // Realtime Subscription for Live Updates
         const channel = supabase.channel('realtime_escalas')
             .on(
                 'postgres_changes',
@@ -331,6 +580,8 @@ const ControlEscalas = () => {
     const avgDelta = totalScales > 0
         ? allScales.reduce((sum, s) => sum + (s.pmReading - s.amReading), 0) / totalScales
         : 0;
+    const totalRadiales = allScales.filter(s => s.pzasRadiales > 0).length;
+    const totalGasto = allScales.reduce((sum, s) => sum + s.gastoCalculado, 0);
 
     if (loading) {
         return (
@@ -353,8 +604,8 @@ const ControlEscalas = () => {
         <div className="escalas-container">
             <header className="page-header">
                 <div>
-                    <h2 className="text-2xl font-bold text-white">Control de Niveles</h2>
-                    <p className="text-slate-400 text-sm">Monitoreo de Niveles Operativos por Zona (Km 0 - Km 104)</p>
+                    <h2 className="text-2xl font-bold text-white">Control de Niveles y Represos</h2>
+                    <p className="text-slate-400 text-sm">Monitoreo de Niveles Operativos y Compuertas Radiales (Km 0 - Km 104)</p>
                 </div>
 
                 {/* Quick Stats */}
@@ -362,6 +613,10 @@ const ControlEscalas = () => {
                     <div className="stat-chip">
                         <Gauge size={16} />
                         <span>{totalScales} Escalas</span>
+                    </div>
+                    <div className="stat-chip" style={{ color: '#0ea5e9', borderColor: 'rgba(14,165,233,0.3)', backgroundColor: 'rgba(14,165,233,0.1)' }}>
+                        <Settings size={16} />
+                        <span>{totalRadiales} Represos</span>
                     </div>
                     <div className={`stat-chip ${warningCount > 0 ? 'warning' : 'success'}`}>
                         <Activity size={16} />
@@ -371,6 +626,12 @@ const ControlEscalas = () => {
                         {avgDelta >= 0 ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
                         <span>Δ {avgDelta >= 0 ? '+' : ''}{avgDelta.toFixed(2)}m (12h)</span>
                     </div>
+                    {totalGasto > 0 && (
+                        <div className="stat-chip" style={{ color: '#0ea5e9', borderColor: 'rgba(14,165,233,0.3)', backgroundColor: 'rgba(14,165,233,0.1)' }}>
+                            <Waves size={16} />
+                            <span>Q Total: {totalGasto.toFixed(2)} m³/s</span>
+                        </div>
+                    )}
                 </div>
             </header>
 

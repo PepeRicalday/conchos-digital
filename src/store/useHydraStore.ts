@@ -51,6 +51,7 @@ interface HydraState {
     isInitialized: boolean;
     fetchHydraulicData: () => Promise<void>;
     initSubscription: () => void;
+    destroySubscription: () => void;
 }
 
 export const useHydraStore = create<HydraState>((set, get) => ({
@@ -238,13 +239,12 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                 m.current_flow = m.delivery_points.reduce((acc, pt) => acc + pt.current_q, 0);
 
                 newModules[mIndex] = m;
-                localStorage.setItem('hydra_modules_cache', JSON.stringify(newModules));
 
                 return { modules: newModules };
             });
         };
 
-        supabase.channel('hydra_realtime_global')
+        const channel = supabase.channel('hydra_realtime_global')
             // Mediciones: INSERT + UPDATE (O(1) patch) + DELETE (full refetch)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mediciones' }, handleMedicionUpsert)
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'mediciones' }, handleMedicionUpsert)
@@ -272,5 +272,21 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             }
         };
         document.addEventListener('visibilitychange', handleVisibility);
+
+        // --- Store cleanup reference for proper teardown ---
+        (useHydraStore as any)._cleanup = () => {
+            document.removeEventListener('visibilitychange', handleVisibility);
+            supabase.removeChannel(channel);
+        };
+    },
+
+    destroySubscription: () => {
+        const cleanup = (useHydraStore as any)._cleanup;
+        if (cleanup) {
+            cleanup();
+            (useHydraStore as any)._cleanup = null;
+        }
+        set({ isInitialized: false });
     }
 }));
+

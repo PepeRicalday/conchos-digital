@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain } from 'lucide-react';
+import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
+import { useHydraStore } from '../store/useHydraStore';
 
 import './Layout.css';
 import SupabaseStatus from './SupabaseStatus';
@@ -11,6 +12,15 @@ const Sidebar = () => {
     const { profile, signOut } = useAuth();
     const navigate = useNavigate();
     const [isAdminOpen, setIsAdminOpen] = useState(false);
+    const modules = useHydraStore(s => s.modules);
+
+    // ── Live micro-indicators from HydraStore ──
+    const liveStats = useMemo(() => {
+        const totalPoints = modules.reduce((acc, m) => acc + m.delivery_points.length, 0);
+        const activePoints = modules.reduce((acc, m) => acc + m.delivery_points.filter(p => p.is_open).length, 0);
+        const totalFlow = modules.reduce((acc, m) => acc + m.current_flow, 0);
+        return { totalPoints, activePoints, totalFlow };
+    }, [modules]);
 
     const handleLogout = async () => {
         await signOut();
@@ -20,8 +30,8 @@ const Sidebar = () => {
     const navItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
         { icon: Waves, label: 'Presas', path: '/presas' },
-        { icon: Droplets, label: 'Distribución', path: '/canales' },
-        { icon: Activity, label: 'Control de Niveles', path: '/escalas' },
+        { icon: Droplets, label: 'Distribución', path: '/canales', badge: liveStats.activePoints > 0 ? `${liveStats.activePoints}` : undefined },
+        { icon: Gauge, label: 'Control de Niveles', path: '/escalas' },
         { icon: Activity, label: 'Hidrometría', path: '/hidrometria' },
         { icon: Cloud, label: 'Clima', path: '/clima' },
         { icon: Map, label: 'Geo-Monitor', path: '/geo-monitor' },
@@ -53,6 +63,44 @@ const Sidebar = () => {
                 </div>
             )}
 
+            {/* ── Live System Pulse ── */}
+            {liveStats.totalFlow > 0 && (
+                <div style={{
+                    margin: '0 var(--spacing-md)',
+                    marginBottom: 'var(--spacing-sm)',
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                }}>
+                    <div style={{
+                        width: '6px',
+                        height: '6px',
+                        borderRadius: '50%',
+                        background: '#10b981',
+                        boxShadow: '0 0 8px rgba(16, 185, 129, 0.6)',
+                        animation: 'pulse-glow 2s infinite',
+                    }} />
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '0.65rem', color: '#94a3b8', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                            Caudal Total
+                        </div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#10b981', fontFamily: 'var(--font-mono)' }}>
+                            {liveStats.totalFlow.toFixed(2)} m³/s
+                        </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Tomas</div>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f8fafc', fontFamily: 'var(--font-mono)' }}>
+                            {liveStats.activePoints}/{liveStats.totalPoints}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <nav className="sidebar-nav">
                 {navItems.map((item) => (
                     <NavLink
@@ -64,6 +112,21 @@ const Sidebar = () => {
                     >
                         <item.icon size={20} />
                         <span>{item.label}</span>
+                        {item.badge && (
+                            <span style={{
+                                marginLeft: 'auto',
+                                fontSize: '0.6rem',
+                                fontWeight: 800,
+                                padding: '2px 6px',
+                                borderRadius: '9999px',
+                                background: 'rgba(16, 185, 129, 0.15)',
+                                color: '#10b981',
+                                fontFamily: 'var(--font-mono)',
+                                border: '1px solid rgba(16, 185, 129, 0.2)',
+                                minWidth: '22px',
+                                textAlign: 'center',
+                            }}>{item.badge}</span>
+                        )}
                     </NavLink>
                 ))}
             </nav>
@@ -122,10 +185,6 @@ const Sidebar = () => {
                     </NavLink>
                 )}
 
-
-
-
-
                 <button onClick={handleLogout} className="nav-item logout-button mx-4" style={{
                     background: 'none',
                     border: 'none',
@@ -149,3 +208,4 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
+

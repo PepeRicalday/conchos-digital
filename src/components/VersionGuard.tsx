@@ -51,13 +51,13 @@ export const VersionGuard = ({ children }: { children: ReactNode }) => {
                 try {
                     if ('serviceWorker' in navigator) {
                         const registrations = await navigator.serviceWorker.getRegistrations();
-                        for (let registration of registrations) {
+                        for (const registration of registrations) {
                             await registration.unregister();
                         }
                     }
                     if ('caches' in window) {
                         const cacheNames = await caches.keys();
-                        for (let name of cacheNames) {
+                        for (const name of cacheNames) {
                             await caches.delete(name);
                         }
                     }

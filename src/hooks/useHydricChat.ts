@@ -127,9 +127,12 @@ export function useHydricChat() {
             // If new conversation was created, update state
             if (!activeConversationId) {
                 setActiveConversationId(result.conversation_id);
-                // Refresh conversations list
-                fetchConversations();
             }
+
+            // OPTIMIZACIÓN FRONTEND: Refresca SIEMPRE la lista de conversaciones
+            // para que la conversación activa suba al tope gracias al "updated_at" 
+            // que modificamos en la Edge Function.
+            fetchConversations();
 
             // Add assistant response
             const assistantMsg: ChatMessage = {

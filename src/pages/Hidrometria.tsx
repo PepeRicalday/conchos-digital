@@ -21,7 +21,10 @@ const Hidrometria = () => {
     // 2. Prepare Chart Data (Aggregated by Module for "Sectors")
     const balanceData = modules.map(m => {
         const accVol = m.accumulated_vol ?? 0;
-        const volIn = accVol * 1.12;
+        // Deterministic mock loss per module (seeded by index to avoid Math.random in render)
+        const seed = (m.short_code || m.name).length;
+        const mockLossFactor = 0.05 + (seed % 10) * 0.015; // 5% to 18.5% deterministic
+        const volIn = accVol === 0 ? 0 : accVol * (1 + mockLossFactor);
         const volOut = accVol;
         const eff = calculateEfficiency(volIn, volOut);
 
@@ -88,17 +91,23 @@ const Hidrometria = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-700/50">
-                                    {balanceData.map((row) => (
-                                        <tr key={row.zone} className="hover:bg-slate-700/30 transition-colors">
-                                            <td className="py-3 font-medium">{row.zone}</td>
-                                            <td className="text-right font-mono text-blue-300">{row.efficiency}%</td>
-                                            <td className="text-center">
-                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${row.efficiency < 85 ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                                                    {row.efficiency < 85 ? 'Pérdidas' : 'Óptimo'}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {balanceData.map((row) => {
+                                        const isCriticalLoss = row.efficiency < 90 && row.volOut > 0; // Pérdida mayor al 10%
+                                        return (
+                                            <tr key={row.zone} className={`transition-colors ${isCriticalLoss ? 'bg-red-950/40 hover:bg-red-900/40' : 'hover:bg-slate-700/30'}`}>
+                                                <td className="py-3 font-medium flex items-center gap-2">
+                                                    {isCriticalLoss && <AlertTriangle size={14} className="text-red-500 animate-pulse" />}
+                                                    {row.zone}
+                                                </td>
+                                                <td className={`text-right font-mono font-bold ${isCriticalLoss ? 'text-red-400' : 'text-blue-300'}`}>{row.efficiency}%</td>
+                                                <td className="text-center">
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-black tracking-widest ${isCriticalLoss ? 'bg-red-600/30 text-rose-300 ring-1 ring-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                                                        {isCriticalLoss ? 'FUGA >10%' : 'Óptimo'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>

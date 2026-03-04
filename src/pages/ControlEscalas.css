@@ -1,4 +1,4 @@
-/* ControlEscalas.css - Zone-Based Scale Monitoring */
+/* ControlEscalas.css - Zone-Based Scale Monitoring + Radial Gate Visualization */
 
 .escalas-container {
     padding: var(--spacing-lg);
@@ -245,6 +245,19 @@
     border-radius: var(--radius-full);
 }
 
+.zone-radial-count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.7rem;
+    color: #0ea5e9;
+    padding: 2px 8px;
+    background-color: rgba(14, 165, 233, 0.1);
+    border: 1px solid rgba(14, 165, 233, 0.2);
+    border-radius: var(--radius-full);
+    font-weight: 600;
+}
+
 .zone-summary {
     display: flex;
     align-items: center;
@@ -294,7 +307,7 @@
     padding: var(--spacing-lg);
 }
 
-/* Scale Gauge Card */
+/* Scale Gauge Card — Expanded for radiales */
 .scale-gauge-card {
     background-color: var(--color-bg-secondary);
     border-radius: var(--radius-md);
@@ -304,10 +317,22 @@
     position: relative;
 }
 
+.scale-gauge-card.has-radiales {
+    min-width: 280px;
+    grid-column: span 2;
+    border-color: rgba(14, 165, 233, 0.15);
+    background: linear-gradient(135deg, var(--color-bg-secondary) 0%, rgba(14, 165, 233, 0.03) 100%);
+}
+
 .scale-gauge-card:hover {
     transform: translateY(-2px);
     border-color: rgba(255, 255, 255, 0.1);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.scale-gauge-card.has-radiales:hover {
+    border-color: rgba(14, 165, 233, 0.3);
+    box-shadow: 0 8px 24px rgba(14, 165, 233, 0.15);
 }
 
 .scale-gauge-card.warning {
@@ -333,17 +358,26 @@
     color: var(--color-text-muted);
 }
 
+/* NEW: Gauge body row — side by side layout for gauge + radial diagram */
+.gauge-body-row {
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: stretch;
+}
+
 /* Gauge Container */
 .gauge-container {
     display: flex;
     gap: var(--spacing-xs);
     height: 150px;
     margin-bottom: var(--spacing-md);
+    flex-shrink: 0;
 }
 
 /* Vertical Gauge Bar */
 .gauge-bar {
     flex: 1;
+    min-width: 40px;
     background: linear-gradient(to top,
             rgba(255, 255, 255, 0.02) 0%,
             rgba(255, 255, 255, 0.05) 100%);
@@ -438,6 +472,151 @@
     padding-left: 2px;
 }
 
+/* ══════════════════════════════════════════════════════════
+   RADIAL GATE DIAGRAM STYLES
+   ══════════════════════════════════════════════════════════ */
+
+.radial-diagram-section {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.radial-diagram-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.6rem;
+    color: #0ea5e9;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.radial-svg {
+    width: 100%;
+    max-height: 90px;
+    flex: 1;
+}
+
+.radial-status-row {
+    display: flex;
+    justify-content: center;
+}
+
+.radial-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.radial-badge.open {
+    color: #fbbf24;
+    background-color: rgba(251, 191, 36, 0.15);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.radial-badge.closed {
+    color: #64748b;
+    background-color: rgba(100, 116, 139, 0.1);
+    border: 1px solid rgba(100, 116, 139, 0.2);
+}
+
+/* ══════════════════════════════════════════════════════════
+   GASTO / VOLUME BAR STYLES
+   ══════════════════════════════════════════════════════════ */
+
+.gasto-volume-section {
+    border-top: 1px solid rgba(14, 165, 233, 0.15);
+    padding-top: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.gasto-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8rem;
+    margin-bottom: 4px;
+    color: #0ea5e9;
+}
+
+.gasto-label {
+    font-weight: 600;
+    color: #64748b;
+    font-size: 0.7rem;
+}
+
+.gasto-value {
+    font-weight: 800;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: #0ea5e9;
+    text-shadow: 0 0 8px rgba(14, 165, 233, 0.4);
+}
+
+.gasto-unit {
+    font-weight: 500;
+    font-size: 0.65rem;
+    color: #64748b;
+}
+
+.nivel-abajo-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.65rem;
+    color: #94a3b8;
+    margin-bottom: 4px;
+}
+
+.volume-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.volume-bar-track {
+    flex: 1;
+    height: 6px;
+    background-color: rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.volume-bar-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    transition: width 0.5s ease;
+}
+
+.volume-bar-fill.normal {
+    background: linear-gradient(90deg, #10b981, #0ea5e9);
+}
+
+.volume-bar-fill.high {
+    background: linear-gradient(90deg, #f59e0b, #ef4444);
+}
+
+.volume-bar-fill.low {
+    background: linear-gradient(90deg, #64748b, #94a3b8);
+}
+
+.volume-percent {
+    font-size: 0.65rem;
+    font-weight: 700;
+    font-family: monospace;
+    color: var(--color-text-secondary);
+    min-width: 28px;
+    text-align: right;
+}
+
 /* Movement Section */
 .movement-section {
     border-top: 1px solid rgba(255, 255, 255, 0.05);
@@ -507,9 +686,23 @@
 }
 
 /* Responsive */
+@media (max-width: 1200px) {
+    .scale-gauge-card.has-radiales {
+        grid-column: span 2;
+    }
+}
+
 @media (max-width: 768px) {
     .zone-gauges {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    .scale-gauge-card.has-radiales {
+        grid-column: span 2;
+    }
+
+    .gauge-body-row {
+        flex-direction: column;
     }
 
     .escalas-container .page-header {
@@ -520,5 +713,9 @@
 @media (max-width: 480px) {
     .zone-gauges {
         grid-template-columns: 1fr;
+    }
+
+    .scale-gauge-card.has-radiales {
+        grid-column: span 1;
     }
 }

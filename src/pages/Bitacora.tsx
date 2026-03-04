@@ -25,21 +25,6 @@ export default function Bitacora() {
     const [evaporacion, setEvaporacion] = useState('');
     const [precipitacion, setPrecipitacion] = useState('');
 
-    // Access Control
-    if (profile?.rol !== 'SRL') {
-        return (
-            <div className="flex h-full items-center justify-center p-8">
-                <div className="card text-center max-w-md">
-                    <AlertTriangle size={48} className="mx-auto text-yellow-500 mb-4" />
-                    <h2 className="text-xl font-bold mb-2">Acceso Denegado</h2>
-                    <p className="text-slate-400">
-                        La captura de Bitácora Hidrometeorológica es exclusiva para el personal administrativo de la S.R.L. Unidad Conchos.
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
     const loadData = async () => {
         // Load Today's Presas
         const { data: presasData } = await supabase
@@ -84,8 +69,26 @@ export default function Bitacora() {
     };
 
     useEffect(() => {
-        loadData();
-    }, [fechaSeleccionada]);
+        if (profile?.rol === 'SRL') {
+            loadData();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fechaSeleccionada, profile?.rol]);
+
+    // Access Control — MUST be after all hooks
+    if (profile?.rol !== 'SRL') {
+        return (
+            <div className="flex h-full items-center justify-center p-8">
+                <div className="card text-center max-w-md">
+                    <AlertTriangle size={48} className="mx-auto text-yellow-500 mb-4" />
+                    <h2 className="text-xl font-bold mb-2">Acceso Denegado</h2>
+                    <p className="text-slate-400">
+                        La captura de Bitácora Hidrometeorológica es exclusiva para el personal administrativo de la S.R.L. Unidad Conchos.
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     const handleSave = async () => {
         setLoading(true);

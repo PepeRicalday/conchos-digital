@@ -153,7 +153,7 @@ const Dashboard = () => {
 
     const loading = loadingModules || loadingPresas;
 
-    const [now, setNow] = useState<number>(Date.now());
+    const [now, setNow] = useState<number>(() => Date.now());
     useEffect(() => {
         const interval = setInterval(() => setNow(Date.now()), 3000);
         return () => clearInterval(interval);

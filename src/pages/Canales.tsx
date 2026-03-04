@@ -11,6 +11,8 @@ import { formatVol, defaultSections, getLogoPath } from '../utils/uiHelpers';
 import { ModuleCard, ModuleDetailModal } from '../components/ModuleCards';
 import './Canales.css';
 
+const INITIAL_NOW = Date.now();
+
 const Canales = () => {
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const { modules, loading, error } = useHydraEngine();
@@ -27,7 +29,7 @@ const Canales = () => {
     };
 
     // Live tick for "Dashboard Vivo" volume interpolation
-    const [now, setNow] = useState<number>(Date.now());
+    const [now, setNow] = useState<number>(INITIAL_NOW);
     useEffect(() => {
         // Update every 3 seconds to keep UI alive without killing performance
         const interval = setInterval(() => setNow(Date.now()), 3000);
@@ -65,7 +67,7 @@ const Canales = () => {
             };
         }));
         // All points kept so sections don't disappear. Real filter for schematic is in filteredPoints (L72).
-    }, [modules, selectedDate]);
+    }, [modules, selectedDate, now]);
 
     // Apply the strict filter requested by user for the points to show in schematic
     const filteredPoints = useMemo(() => {
@@ -111,7 +113,7 @@ const Canales = () => {
     const activePoint = visiblePoints.find(p => p.id === selectedPointId);
 
     return (
-        <div className="canales-container relative flex flex-col h-screen overflow-hidden">
+        <div className="canales-container relative flex flex-col animate-fade-in" style={{ marginTop: '-24px' }}>
             <OfflineIndicator />
 
             <header className="px-6 py-4 bg-slate-900/50 border-b border-slate-800 backdrop-blur-md flex justify-between items-center shrink-0 z-20">
@@ -165,7 +167,7 @@ const Canales = () => {
             </div>
 
             {/* MAIN DASHBOARD SCROLLABLE AREA */}
-            <div className="conchos-dashboard-v-layout scrollbar-none">
+            <div className="conchos-dashboard-v-layout">
 
                 {/* ROW 1: KPIs & EFFICIENCY */}
                 <div className="conchos-top-row">

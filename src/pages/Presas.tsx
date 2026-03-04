@@ -54,6 +54,7 @@ const HydroFlowDiagram = ({ presa }: { presa: PresaData }) => {
 };
 
 const ExtractionStreamgraph = ({ presa: _presa }: { presa: PresaData }) => {
+    void _presa; // referenced for future real data integration
     // Generate dummy historical trend for "Streamgraph" visualization effect
     const data = [
         { name: '00:00', baja: 10, cfe: 5, izq: 8, der: 12 },
@@ -96,7 +97,7 @@ const EfficiencyHeatmap = () => {
             </div>
             <div className="grid grid-cols-7 gap-1 mt-1">
                 {Array.from({ length: 42 }).map((_, i) => {
-                    const intensity = Math.random(); // Dummy intensity for Heatmap effect
+                    const intensity = ((i * 7 + 3) % 11) / 10; // Deterministic pattern for heatmap
                     return (
                         <div
                             key={i}

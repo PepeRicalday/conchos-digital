@@ -12,6 +12,12 @@
     box-sizing: border-box;
 }
 
+.geo-monitor-container.geo-fullscreen {
+    height: 100vh;
+    padding: var(--spacing-sm);
+    background: #020617;
+}
+
 .geo-background-grid {
     position: absolute;
     inset: 0;
@@ -25,10 +31,10 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    margin-bottom: var(--spacing-lg);
+    margin-bottom: var(--spacing-sm);
     position: relative;
     z-index: 10;
-    padding: var(--spacing-md) var(--spacing-lg);
+    padding: var(--spacing-sm) var(--spacing-lg);
     border-radius: var(--radius-xl);
     border-bottom: 1px solid rgba(34, 211, 238, 0.3);
 }
@@ -64,11 +70,11 @@
 
 .geo-subtitle {
     color: rgba(34, 211, 238, 0.8);
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     font-family: var(--font-mono);
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    margin-top: 0.25rem;
+    margin-top: 0.1rem;
 }
 
 .geo-header-right {
@@ -83,14 +89,14 @@
 }
 
 .geo-time {
-    font-size: 1.5rem;
+    font-size: 1.3rem;
     font-weight: 700;
     color: white;
     letter-spacing: 0.1em;
 }
 
 .geo-date {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     color: var(--color-text-secondary);
     text-transform: uppercase;
 }
@@ -104,17 +110,17 @@
 .geo-status-badges {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.35rem;
 }
 
 .geo-badge {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.625rem;
+    font-size: 0.575rem;
     font-weight: 700;
     letter-spacing: 0.1em;
-    padding: 0.25rem 0.75rem;
+    padding: 0.2rem 0.6rem;
     border-radius: var(--radius-full);
 }
 
@@ -126,8 +132,8 @@
 }
 
 .geo-badge .pulse-dot {
-    width: 0.5rem;
-    height: 0.5rem;
+    width: 0.45rem;
+    height: 0.45rem;
     border-radius: 50%;
     background-color: var(--color-emerald-neon);
     box-shadow: 0 0 8px rgba(52, 211, 153, 0.8);
@@ -138,6 +144,23 @@
     background-color: rgba(8, 51, 68, 0.4);
     color: var(--color-accent);
     border: 1px solid rgba(34, 211, 238, 0.3);
+}
+
+/* Fullscreen Button (Prioridad 4.3) */
+.geo-fullscreen-btn {
+    padding: 0.4rem;
+    border-radius: var(--radius-md);
+    background: rgba(8, 51, 68, 0.5);
+    border: 1px solid rgba(34, 211, 238, 0.3);
+    color: var(--color-accent);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.geo-fullscreen-btn:hover {
+    background: rgba(34, 211, 238, 0.15);
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.3);
+    transform: scale(1.1);
 }
 
 @keyframes pulse {
@@ -155,18 +178,18 @@
 .geo-main-content {
     flex: 1;
     display: flex;
-    gap: var(--spacing-lg);
+    gap: var(--spacing-md);
     position: relative;
     z-index: 10;
     overflow: hidden;
-    padding-bottom: 20px;
+    min-height: 0;
 }
 
 .geo-sidebar-controls {
-    width: 4rem;
+    width: 3.5rem;
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--spacing-sm);
 }
 
 .geo-control-btn {
@@ -203,13 +226,31 @@
 
 .geo-indicator-dot {
     position: absolute;
-    top: -4px;
-    right: -4px;
-    width: 12px;
-    height: 12px;
+    top: -3px;
+    right: -3px;
+    width: 10px;
+    height: 10px;
     background-color: var(--color-accent);
     border-radius: 50%;
     border: 2px solid var(--color-bg-primary);
+}
+
+.geo-alert-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    width: 16px;
+    height: 16px;
+    background: #ef4444;
+    border-radius: 50%;
+    border: 2px solid var(--color-bg-primary);
+    color: white;
+    font-size: 9px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pulse 2s infinite;
 }
 
 .geo-control-btn.shield {
@@ -250,17 +291,17 @@
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: var(--spacing-md);
+    padding: var(--spacing-sm);
 }
 
 .geo-map-tag {
     align-self: flex-end;
-    background-color: rgba(15, 23, 42, 0.8);
+    background-color: rgba(15, 23, 42, 0.85);
     backdrop-filter: blur(4px);
     border: 1px solid rgba(51, 65, 85, 0.5);
     border-radius: var(--radius-sm);
-    padding: 0.375rem 0.75rem;
-    font-size: 0.75rem;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.625rem;
     font-family: var(--font-mono);
     color: var(--color-accent);
 }
@@ -270,18 +311,17 @@
     justify-content: center;
     align-items: center;
     flex: 1;
-    opacity: 0.2;
     color: var(--color-accent);
 }
 
 .geo-map-coords {
     align-self: flex-start;
-    background-color: rgba(15, 23, 42, 0.8);
+    background-color: rgba(15, 23, 42, 0.85);
     backdrop-filter: blur(4px);
     border: 1px solid rgba(51, 65, 85, 0.5);
     border-radius: var(--radius-sm);
-    padding: 0.375rem 0.75rem;
-    font-size: 0.75rem;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.625rem;
     font-family: var(--font-mono);
     color: var(--color-text-secondary);
     display: flex;
@@ -295,16 +335,144 @@
     background-color: rgba(51, 65, 85, 1);
 }
 
+/* Stats Panel & KPIs (Prioridad 3) */
 .geo-stats-panel {
-    width: 24rem;
+    width: 22rem;
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--spacing-sm);
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
 }
 
+.geo-stats-panel::-webkit-scrollbar {
+    width: 4px;
+}
+
+.geo-stats-panel::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.geo-stats-panel::-webkit-scrollbar-thumb {
+    background: rgba(51, 65, 85, 0.6);
+    border-radius: 10px;
+}
+
+/* KPI Grid (Prioridad 3.1) */
+.geo-kpi-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+}
+
+.geo-kpi-card {
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9));
+    border: 1px solid rgba(51, 65, 85, 0.5);
+    border-radius: var(--radius-md);
+    padding: 0.5rem 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.geo-kpi-label {
+    font-size: 0.575rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-secondary);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.geo-kpi-value {
+    font-size: 1.25rem;
+    font-weight: 900;
+    font-family: var(--font-mono);
+    color: white;
+}
+
+.geo-kpi-value small {
+    font-size: 0.65rem;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+
+.geo-kpi-value.cyan {
+    color: #22d3ee;
+}
+
+.geo-kpi-value.green {
+    color: #10b981;
+}
+
+.geo-kpi-value.red {
+    color: #ef4444;
+}
+
+/* Tomas Status Bar */
+.geo-tomas-bar {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.geo-tomas-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.35rem 0;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+}
+
+.geo-tomas-item.open {
+    background: rgba(2, 44, 34, 0.4);
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.geo-tomas-item.closed {
+    background: rgba(30, 41, 59, 0.6);
+    border-color: rgba(51, 65, 85, 0.3);
+}
+
+.geo-tomas-item.alert {
+    background: rgba(69, 10, 10, 0.3);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.geo-tomas-count {
+    font-size: 1.15rem;
+    font-weight: 900;
+    font-family: var(--font-mono);
+}
+
+.geo-tomas-item.open .geo-tomas-count {
+    color: #10b981;
+}
+
+.geo-tomas-item.closed .geo-tomas-count {
+    color: #64748b;
+}
+
+.geo-tomas-item.alert .geo-tomas-count {
+    color: #ef4444;
+}
+
+.geo-tomas-label {
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    color: var(--color-text-secondary);
+}
+
+/* Chart Cards */
 .geo-chart-card {
     border-radius: var(--radius-lg);
-    padding: var(--spacing-md);
+    padding: var(--spacing-sm);
     border: 1px solid rgba(51, 65, 85, 0.5);
     background: linear-gradient(to bottom right, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.8));
     backdrop-filter: blur(var(--glass-blur));
@@ -314,11 +482,11 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
 }
 
 .geo-stat-title {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     color: var(--color-text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -332,9 +500,9 @@
 .geo-chart-wrapper {
     width: 100%;
     position: relative;
-    /* Height will be controlled by ECharts React Component inline or specific css */
 }
 
+/* Registry / Bitácora */
 .geo-registry-box {
     flex: 1;
     border-radius: var(--radius-lg);
@@ -344,10 +512,11 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    min-height: 120px;
 }
 
 .geo-registry-header {
-    padding: var(--spacing-md);
+    padding: var(--spacing-sm);
     border-bottom: 1px solid rgba(30, 41, 59, 1);
     background-color: rgba(30, 41, 59, 0.5);
     display: flex;
@@ -356,7 +525,7 @@
 }
 
 .geo-registry-title {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-weight: 700;
@@ -381,15 +550,14 @@
 .geo-registry-list {
     flex: 1;
     overflow-y: auto;
-    padding: var(--spacing-md);
+    padding: var(--spacing-sm);
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-sm);
+    gap: 0.35rem;
 }
 
-/* Custom scrollbar for geo registry */
 .geo-registry-list::-webkit-scrollbar {
-    width: 6px;
+    width: 4px;
 }
 
 .geo-registry-list::-webkit-scrollbar-track {
@@ -405,7 +573,7 @@
     position: relative;
     padding-left: 1rem;
     border-left: 1px solid rgba(51, 65, 85, 1);
-    padding-bottom: 0.5rem;
+    padding-bottom: 0.35rem;
 }
 
 .geo-event-item:last-child {
@@ -415,17 +583,17 @@
 
 .geo-event-node {
     position: absolute;
-    left: -6px;
-    top: 0.5rem;
-    width: 11px;
-    height: 11px;
+    left: -5px;
+    top: 0.4rem;
+    width: 9px;
+    height: 9px;
     border-radius: 50%;
     border: 2px solid var(--color-bg-primary);
     z-index: 10;
 }
 
 .geo-event-card {
-    padding: 0.75rem;
+    padding: 0.5rem;
     border-radius: var(--radius-md);
     border: 1px solid rgba(51, 65, 85, 0.3);
     background-color: rgba(2, 6, 23, 0.4);
@@ -441,11 +609,11 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.15rem;
 }
 
 .geo-event-time {
-    font-size: 0.5625rem;
+    font-size: 0.5rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-weight: 700;
@@ -458,25 +626,25 @@
 }
 
 .geo-event-type {
-    font-size: 0.5625rem;
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
+    font-size: 0.5rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 0.2rem;
     font-family: var(--font-mono);
     border: 1px solid transparent;
 }
 
 .geo-event-title {
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     font-weight: 700;
     color: #e2e8f0;
-    margin-top: 0.25rem;
+    margin-top: 0.15rem;
 }
 
 .geo-event-location {
-    font-size: 0.75rem;
+    font-size: 0.625rem;
     color: var(--color-text-muted);
     font-family: var(--font-mono);
-    margin-top: 0.25rem;
+    margin-top: 0.15rem;
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -524,23 +692,23 @@
     border-color: rgba(14, 165, 233, 0.3);
 }
 
-.geo-registry-footer {
-    padding: 0.5rem;
-    border-top: 1px solid rgba(30, 41, 59, 1);
-    text-align: center;
+/* Custom Leaflet marker cleanup */
+.geo-custom-marker {
+    background: none !important;
+    border: none !important;
 }
 
-.geo-registry-expand-btn {
-    background: none;
-    border: none;
-    font-size: 0.625rem;
-    color: var(--color-accent);
-    cursor: pointer;
-    font-family: var(--font-mono);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+/* Leaflet tooltip override for dark theme */
+.leaflet-tooltip {
+    background: rgba(15, 23, 42, 0.95) !important;
+    border: 1px solid rgba(51, 65, 85, 0.6) !important;
+    color: #e2e8f0 !important;
+    border-radius: 6px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+    padding: 6px 10px !important;
+    font-size: 11px !important;
 }
 
-.geo-registry-expand-btn:hover {
-    color: var(--color-primary);
+.leaflet-tooltip-top:before {
+    border-top-color: rgba(15, 23, 42, 0.95) !important;
 }

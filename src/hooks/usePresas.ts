@@ -98,7 +98,7 @@ export function usePresas(fecha: string) {
                 if (errP) throw errP;
 
                 // 2. Lecturas para la fecha seleccionada
-                let { data: lecturasDB, error: errL } = await supabase
+                const { data: lecturasDB, error: errL } = await supabase
                     .from('lecturas_presas')
                     .select('*')
                     .eq('fecha', fecha);
@@ -106,7 +106,8 @@ export function usePresas(fecha: string) {
                 if (errL) throw errL;
 
                 // Si no hay lecturas para esa fecha, buscar la más reciente
-                if (!lecturasDB || lecturasDB.length === 0) {
+                let finalLecturas = lecturasDB;
+                if (!finalLecturas || finalLecturas.length === 0) {
                     const { data: fallback, error: errFb } = await supabase
                         .from('lecturas_presas')
                         .select('*')
@@ -115,11 +116,11 @@ export function usePresas(fecha: string) {
                         .limit(2); // una por presa max
 
                     if (errFb) throw errFb;
-                    lecturasDB = fallback;
+                    finalLecturas = fallback;
                 }
 
                 // 3. Clima para la fecha
-                let { data: climaDB, error: errC } = await supabase
+                const { data: climaDB, error: errC } = await supabase
                     .from('clima_presas')
                     .select('*')
                     .eq('fecha', fecha);
@@ -127,14 +128,15 @@ export function usePresas(fecha: string) {
                 if (errC) throw errC;
 
                 // Fallback clima
-                if (!climaDB || climaDB.length === 0) {
+                let finalClima = climaDB;
+                if (!finalClima || finalClima.length === 0) {
                     const { data: climaFb } = await supabase
                         .from('clima_presas')
                         .select('*')
                         .lte('fecha', fecha)
                         .order('fecha', { ascending: false })
                         .limit(3);
-                    climaDB = climaFb;
+                    finalClima = climaFb || [];
                 }
 
                 // 4. Aforos para la fecha
@@ -149,7 +151,7 @@ export function usePresas(fecha: string) {
 
                 // Index lecturas by presa_id
                 const lecturaMap: Record<string, any> = {};
-                (lecturasDB || []).forEach((l: any) => {
+                (finalLecturas || []).forEach((l: any) => {
                     lecturaMap[l.presa_id] = l;
                 });
 
@@ -195,7 +197,7 @@ export function usePresas(fecha: string) {
                 });
 
                 setPresas(result);
-                setClima((climaDB || []).map((c: any) => ({
+                setClima((finalClima || []).map((c: any) => ({
                     presa_id: c.presa_id,
                     fecha: c.fecha,
                     temp_ambiente_c: c.temp_ambiente_c != null ? Number(c.temp_ambiente_c) : null,

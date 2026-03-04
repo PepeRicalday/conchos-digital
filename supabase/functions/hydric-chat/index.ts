@@ -21,12 +21,14 @@ interface ChatRequest {
 }
 
 async function fetchSystemData(supabaseAdmin: any) {
-    const [presasRes, modulosRes, escalasRes, cicloRes, knowledgeRes] = await Promise.all([
+    const today = new Date().toISOString().split("T")[0];
+    const [presasRes, modulosRes, escalasRes, cicloRes, knowledgeRes, operacionRes] = await Promise.all([
         supabaseAdmin.from("lecturas_presas").select("*, presas(nombre, nombre_corto, capacidad_max)").order("fecha", { ascending: false }).limit(9),
         supabaseAdmin.from("modulos").select("*, autorizaciones_ciclo(vol_autorizado, caudal_max)"),
         supabaseAdmin.from("lecturas_escalas").select("*, escalas(nombre, km)").order("fecha", { ascending: false }).limit(30),
         supabaseAdmin.from("ciclos_agricolas").select("*").eq("activo", true).maybeSingle(),
         supabaseAdmin.from("hydric_knowledge_base").select("titulo, contenido, categoria").eq("activo", true),
+        supabaseAdmin.from("reportes_operacion").select("*, puntos_entrega(nombre, km)").eq("fecha", today).in("estado", ["inicio", "continua", "reabierto", "modificacion"]),
     ]);
 
     return {
@@ -35,6 +37,7 @@ async function fetchSystemData(supabaseAdmin: any) {
         escalas: escalasRes.data || [],
         ciclo_activo: cicloRes.data,
         knowledge: knowledgeRes.data || [],
+        tomas_activas: operacionRes.data || [],
     };
 }
 
@@ -52,16 +55,29 @@ function buildSystemPrompt(data: any): string {
         return `${m.nombre} (${m.codigo_corto}): Vol. Acumulado ${m.vol_acumulado} m³, Vol. Autorizado ${auth?.vol_autorizado || m.vol_autorizado} m³, Caudal Máx ${auth?.caudal_max || m.caudal_objetivo} m³/s`;
     }).join("\n");
 
+    const escalasText = data.escalas.map((e: any) => {
+        let radialInfo = "";
+        if (e.apertura_radiales_m > 0 || (e.radiales_json && e.radiales_json.length > 0)) {
+            const aperturas = e.radiales_json ? e.radiales_json.map((r: any) => `R${r.index + 1}:${r.apertura_m}m`).join(', ') : `Máx ${e.apertura_radiales_m}m`;
+            radialInfo = ` | Compuertas Radiales: [${aperturas}]`;
+        }
+        return `${e.escalas?.nombre || "Escala"} (Km ${e.escalas?.km || 0}): Nivel Arriba ${e.nivel_m}m, Nivel Abajo ${e.nivel_abajo_m || 0}m | Gasto Detectado: ${e.gasto_calculado_m3s || 0} m³/s${radialInfo}`;
+    }).join("\n");
+
+    const tomasActivasText = (data.tomas_activas || []).map((t: any) =>
+        `Km ${t.puntos_entrega?.km || '?'} - ${t.puntos_entrega?.nombre || "Toma"}: Estado ${t.estado}, Gasto Promedio ${t.caudal_promedio} L/s`
+    ).join("\n");
+
     const cicloText = data.ciclo_activo
         ? `Ciclo Activo: ${data.ciclo_activo.nombre} (${data.ciclo_activo.fecha_inicio} a ${data.ciclo_activo.fecha_fin}), Vol. Autorizado Global: ${data.ciclo_activo.volumen_autorizado_mm3} Mm³`
         : "No hay ciclo agrícola activo.";
 
     return `Eres el Asistente de Inteligencia Hídrica del Distrito de Riego 005 Delicias, operado por la S.R.L. Unidad Conchos en Chihuahua, México.
 
-Tu rol es ser un especialista técnico en:
-1. **Hidrometría**: Medición de caudales, niveles, volúmenes. Curvas de calibración Q = Cd × H^n.
-2. **Gestión de Datos**: Análisis estadístico, tendencias, anomalías en los datos capturados.
-3. **Modelado de Escenarios**: Proyecciones de disponibilidad hídrica, eficiencia de distribución.
+Tu rol es ser un especialista técnico y estratégico en:
+1. **Hidrometría y Represos**: Medición de caudales, niveles, volúmenes. Estructuras de Represos, Compuertas Radiales y curvas de calibración (Q = Cd × H^n).
+2. **Gestión de Datos y Distribución**: Análisis estadístico, estado de tomas laterales activas a lo largo del canal principal.
+3. **Modelado de Escenarios**: Proyecciones de disponibilidad hídrica, eficiencia de conducción (Entrada vs Salida) y pérdidas de conducción.
 4. **Normativa**: Ley de Aguas Nacionales, requerimientos CONAGUA, bitácoras oficiales.
 
 === BASE DE CONOCIMIENTO EXPERTO ===
@@ -72,6 +88,12 @@ ${knowledgeText}
 📊 ESTADO DE PRESAS (Últimas lecturas):
 ${presasText || "Sin lecturas recientes"}
 
+💧 NIVELES Y GASTOS EN ESCALAS/REPRESOS DEL CANAL PRINCIPAL:
+${escalasText || "Sin lecturas recientes del canal"}
+
+🌊 TOMAS LATERALES ACTUALMENTE ABIERTAS (Distribución en vivo):
+${tomasActivasText || "No hay tomas laterales activas reportadas hoy."}
+
 📊 ESTADO DE MÓDULOS DE RIEGO:
 ${modulosText || "Sin datos de módulos"}
 
@@ -80,16 +102,13 @@ ${cicloText}
 
 === INSTRUCCIONES ===
 - Responde siempre en español.
-- Usa datos reales del sistema cuando estén disponibles.
-- Incluye cálculos y fórmulas cuando sea pertinente.
-- Si te piden tendencias, analiza los datos históricos disponibles.
-- Si te piden proyecciones, basa tus cálculos en los datos reales y explica tus supuestos.
-- Cuando cites valores numéricos, incluye las unidades (m³/s, Mm³, msnm, %, etc.).
-- Si detectas anomalías (ej: pérdidas >10%), destácalas proactivamente.
-- Para eficiencias usa: η = (Σ Qentregado / Qentrada) × 100.
-- Sé técnico pero accesible. El usuario es el Gerente del Distrito.
-- Puedes usar emojis técnicos para mejorar la lectura (📊 📈 ⚠️ 💧 🔍).
-- Formatea tu respuesta en markdown para mejor visualización.`;
+- Usa EXHAUSTIVAMENTE los datos reales del sistema provistos arriba.
+- Si el usuario te pregunta por las aperturas de los represos, analiza "NIVELES Y GASTOS EN ESCALAS" y dales las medidas exactas de cada compuerta.
+- Si detectas diferencias significativas de gasto entre las escalas de aguas arriba y aguas abajo, resáltalo como posible pérdida o toma no contabilizada.
+- Incluye cálculos y fórmulas (Q = Cd × A × √(2gh) para radiales) cuando se te pregunte la comprobación del gasto.
+- Sé técnico pero directo. El usuario es el Gerente de la Red Mayor.
+- Puedes usar emojis técnicos para mejorar la lectura (📊 📈 ⚠️ 💧 🔍 ⚙️).
+- Formatea tu respuesta en markdown con tablas si es necesario.`;
 }
 
 Deno.serve(async (req: Request) => {

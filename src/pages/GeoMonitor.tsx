@@ -1,6 +1,6 @@
 import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload } from 'lucide-react';
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON } from 'react-leaflet';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
 import 'leaflet/dist/leaflet.css';
@@ -71,6 +71,18 @@ interface SeccionData {
 }
 interface OperStats {
     tomas_abiertas: number; tomas_cerradas: number; gasto_distribuido_m3s: number;
+}
+
+// Distancia en KM entre dos puntos (Haversine)
+function haversineDist(lon1: number, lat1: number, lon2: number, lat2: number) {
+    const R = 6371; // Radio de la tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
 }
 
 const GeoMonitor = () => {
@@ -267,6 +279,37 @@ const GeoMonitor = () => {
         document.addEventListener('fullscreenchange', handler);
         return () => document.removeEventListener('fullscreenchange', handler);
     }, []);
+    // Convertir el Shapefile real del Canal (geoCanal) en Secciones Coloreadas
+    const canalSegmentsGeoref = useMemo(() => {
+        if (!geoCanal || !secciones.length) return [];
+        const feature = geoCanal.features?.[0];
+        if (!feature || feature.geometry.type !== 'LineString') return [];
+
+        const coords = feature.geometry.coordinates as [number, number][]; // [lng, lat]
+        if (!coords || coords.length === 0) return [];
+
+        let totalDist = 0;
+        const distData = [{ lat: coords[0][1], lng: coords[0][0], dist: 0 }];
+        for (let i = 1; i < coords.length; i++) {
+            const p1 = coords[i - 1]; // [lng, lat]
+            const p2 = coords[i];     // [lng, lat]
+            const d = haversineDist(p1[0], p1[1], p2[0], p2[1]);
+            totalDist += d;
+            distData.push({ lat: p2[1], lng: p2[0], dist: totalDist });
+        }
+
+        // Ajuste contra la longitud oficial de 104 km para alinear escalas (Regla de 3)
+        const corrFactor = totalDist > 0 ? 104 / totalDist : 1;
+        distData.forEach(d => d.dist *= corrFactor);
+
+        return secciones.map(sec => {
+            const segPoints = distData
+                .filter(d => d.dist >= sec.km_inicio && d.dist <= sec.km_fin)
+                .map(d => [d.lat, d.lng] as [number, number]);
+
+            return { ...sec, points: segPoints };
+        });
+    }, [geoCanal, secciones]);
 
     // KPIs vinculados a datos reales de SICA
     // Nivel de entrada: K-23 (primera escala)
@@ -591,7 +634,25 @@ const GeoMonitor = () => {
                                     />
                                 ))}
 
-
+                                {/* Secciones del Canal Georreferenciado (Shapefile dividido por km) */}
+                                {layers.canal && canalSegmentsGeoref.map(seg => (
+                                    seg.points.length > 0 && (
+                                        <Polyline
+                                            key={seg.id}
+                                            positions={seg.points}
+                                            color={seg.color}
+                                            weight={5}
+                                            opacity={0.85}
+                                        >
+                                            <Tooltip sticky>
+                                                <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
+                                                    <b style={{ color: seg.color }}>{seg.nombre}</b><br />
+                                                    Km {seg.km_inicio} → {seg.km_fin}
+                                                </span>
+                                            </Tooltip>
+                                        </Polyline>
+                                    )
+                                ))}
 
                                 {/* Escalas del Canal (solo con coordenadas) */}
                                 {layers.escalas && escalas.filter(e => e.latitud && e.longitud).map(esc => (

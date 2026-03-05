@@ -1,0 +1,458 @@
+/* BalanceHidraulico.css — Operational Modeling View */
+
+.balance-page {
+    padding: 1.5rem;
+    min-height: 100vh;
+    background: var(--bg-primary);
+}
+
+.balance-header {
+    margin-bottom: 2rem;
+}
+
+.balance-title-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.balance-icon {
+    color: var(--accent);
+}
+
+.balance-title-group h1 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+    letter-spacing: -0.5px;
+}
+
+.balance-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.balance-kpi-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.balance-kpi {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 100px;
+}
+
+.balance-kpi.highlight {
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.05);
+}
+
+.kpi-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+}
+
+.balance-kpi.highlight .kpi-value {
+    color: #ef4444;
+}
+
+.kpi-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+/* Content Grid */
+.balance-content {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+    .balance-content {
+        grid-template-columns: 1fr;
+    }
+}
+
+.balance-gauge-card,
+.balance-table-card,
+.balance-schematic-card,
+.balance-manning-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+}
+
+.balance-formula {
+    text-align: center;
+    margin-top: 0.75rem;
+    padding: 0.5rem;
+    background: rgba(96, 165, 250, 0.05);
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(96, 165, 250, 0.1);
+}
+
+.balance-formula code {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: #60a5fa;
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Table */
+.balance-table-card {
+    grid-column: 1 / -1;
+}
+
+.balance-table-wrapper {
+    overflow-x: auto;
+}
+
+.balance-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+
+.balance-table th {
+    background: rgba(15, 23, 42, 0.6);
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 0.6rem 0.75rem;
+    text-align: left;
+    font-weight: 700;
+    border-bottom: 1px solid var(--border);
+}
+
+.balance-table td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+}
+
+.balance-row.critico {
+    background: rgba(239, 68, 68, 0.04);
+}
+
+.balance-row.alerta {
+    background: rgba(249, 115, 22, 0.04);
+}
+
+.tramo-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tramo-km {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+}
+
+.q-value {
+    font-family: var(--font-mono);
+    font-weight: 600;
+}
+
+.q-value.entrada {
+    color: #60a5fa;
+}
+
+.q-value.salida {
+    color: #34d399;
+}
+
+.q-value.tomas {
+    color: #fbbf24;
+}
+
+.q-value.perdidas {
+    color: #f87171;
+}
+
+.efficiency-cell {
+    min-width: 120px;
+}
+
+.efficiency-bar-container {
+    position: relative;
+    height: 20px;
+    background: rgba(51, 65, 85, 0.3);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.efficiency-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s ease;
+}
+
+.efficiency-text {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 800;
+}
+
+.status-badge {
+    font-size: 0.6rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 9999px;
+    border: 1px solid;
+    white-space: nowrap;
+}
+
+/* Canal Schematic */
+.balance-schematic-card {
+    grid-column: 1 / -1;
+}
+
+.canal-schematic {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+    padding: 1rem 0;
+}
+
+.schematic-section {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.schematic-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 80px;
+}
+
+.node-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.node-label {
+    font-size: 0.6rem;
+    color: var(--text-secondary);
+    text-align: center;
+    max-width: 80px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+}
+
+.node-q {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.schematic-pipe {
+    position: relative;
+    width: 100px;
+    height: 8px;
+    background: rgba(51, 65, 85, 0.4);
+    border-radius: 4px;
+    overflow: visible;
+}
+
+.pipe-flow {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s ease;
+}
+
+.pipe-tomas {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.55rem;
+    color: #fbbf24;
+    font-family: var(--font-mono);
+    font-weight: 700;
+}
+
+.pipe-loss {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.55rem;
+    color: #f87171;
+    font-family: var(--font-mono);
+    font-weight: 700;
+}
+
+.pipe-efficiency {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.5rem;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    background: var(--bg-secondary);
+    padding: 0 4px;
+    border-radius: 2px;
+}
+
+/* Manning Grid */
+.balance-manning-card {
+    grid-column: 1 / -1;
+}
+
+.manning-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.75rem;
+}
+
+.manning-item {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.75rem;
+}
+
+.manning-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+}
+
+.manning-tramo {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    max-width: 130px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.manning-km {
+    font-size: 0.55rem;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+}
+
+.manning-values {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.manning-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.65rem;
+}
+
+.manning-row span {
+    color: var(--text-secondary);
+}
+
+.manning-row strong {
+    font-family: var(--font-mono);
+    color: #60a5fa;
+}
+
+.manning-row strong.supercrit {
+    color: #f87171;
+}
+
+/* Loading */
+.balance-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    gap: 1rem;
+    color: var(--text-secondary);
+}
+
+.balance-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(96, 165, 250, 0.2);
+    border-top-color: #60a5fa;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.balance-empty {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary);
+}
+
+.balance-empty-hint {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    margin-top: 0.5rem;
+}

@@ -22,7 +22,7 @@ interface ChatRequest {
 
 async function fetchSystemData(supabaseAdmin: any) {
     const today = new Date().toISOString().split("T")[0];
-    const [presasRes, modulosRes, escalasRes, cicloRes, knowledgeRes, operacionRes, aforosRes] = await Promise.all([
+    const [presasRes, modulosRes, escalasRes, cicloRes, knowledgeRes, operacionRes, aforosRes, perfilRes] = await Promise.all([
         supabaseAdmin.from("lecturas_presas").select("*, presas(nombre, nombre_corto, capacidad_max)").order("fecha", { ascending: false }).limit(9),
         supabaseAdmin.from("modulos").select("*, autorizaciones_ciclo(vol_autorizado, caudal_max)"),
         supabaseAdmin.from("lecturas_escalas").select("*, escalas(nombre, km)").order("fecha", { ascending: false }).limit(30),
@@ -30,6 +30,7 @@ async function fetchSystemData(supabaseAdmin: any) {
         supabaseAdmin.from("hydric_knowledge_base").select("titulo, contenido, categoria").eq("activo", true),
         supabaseAdmin.from("reportes_operacion").select("*, puntos_entrega(nombre, km)").eq("fecha", today).in("estado", ["inicio", "continua", "reabierto", "modificacion"]),
         supabaseAdmin.from("aforos_control").select("*"),
+        supabaseAdmin.from("perfil_hidraulico_canal").select("*").order("km_inicio", { ascending: true }),
     ]);
 
     return {
@@ -40,6 +41,7 @@ async function fetchSystemData(supabaseAdmin: any) {
         knowledge: knowledgeRes.data || [],
         tomas_activas: operacionRes.data || [],
         aforos_control: aforosRes.data || [],
+        perfil_canal: perfilRes.data || [],
     };
 }
 
@@ -78,6 +80,10 @@ function buildSystemPrompt(data: any): string {
         `Ubicación: ${a.nombre_punto} | Coord: ${a.latitud}, ${a.longitud} | Geometría: ${JSON.stringify(a.caracteristicas_hidraulicas)}`
     ).join("\n");
 
+    const perfilCanalText = (data.perfil_canal || []).map((t: any) =>
+        `KM ${t.km_inicio}-${t.km_fin} | ${t.nombre_tramo} | b=${t.plantilla_m}m, z=${t.talud_z}, S₀=${t.pendiente_s0}, Qmax=${t.capacidad_diseno_m3s}m³/s, V=${t.velocidad_diseno_ms}m/s, dn=${t.tirante_diseno_m}m, BL=${t.bordo_libre_m}m`
+    ).join("\n");
+
     return `Eres el Asistente de Inteligencia Hídrica del Distrito de Riego 005 Delicias, operado por la S.R.L. Unidad Conchos en Chihuahua, México.
 
 Tu rol es ser un especialista técnico y estratégico en:
@@ -85,6 +91,7 @@ Tu rol es ser un especialista técnico y estratégico en:
 2. **Gestión de Datos y Distribución**: Análisis estadístico, estado de tomas laterales activas a lo largo del canal principal.
 3. **Modelado de Escenarios**: Proyecciones de disponibilidad hídrica, eficiencia de conducción (Entrada vs Salida) y pérdidas de conducción.
 4. **Normativa**: Ley de Aguas Nacionales, requerimientos CONAGUA, bitácoras oficiales.
+5. **Perfil Hidráulico del Canal**: Análisis de capacidades de diseño, ecuación de Manning (Q = 1/n × A × R^{2/3} × S^{1/2}), comparación medido vs teórico.
 
 === BASE DE CONOCIMIENTO EXPERTO ===
 ${knowledgeText}
@@ -109,12 +116,17 @@ ${cicloText}
 📏 PUNTOS DE AFORO OFICIALES (CALIBRACIÓN):
 ${aforosControlText || "No hay puntos de aforo definidos."}
 
+🌊 PERFIL HIDRÁULICO DEL CANAL PRINCIPAL (DISEÑO DE INGENIERÍA):
+${perfilCanalText || "No hay datos de perfil hidráulico cargados."}
+
 === INSTRUCCIONES ===
 - Responde siempre en español.
 - Usa EXHAUSTIVAMENTE los datos reales del sistema provistos arriba.
 - Si el usuario te pregunta por las aperturas de los represos, analiza "NIVELES Y GASTOS EN ESCALAS" y dales las medidas exactas de cada compuerta.
 - Si detectas diferencias significativas de gasto entre las escalas de aguas arriba y aguas abajo, resáltalo como posible pérdida o toma no contabilizada.
 - Incluye cálculos y fórmulas (Q = Cd × A × √(2gh) para radiales) cuando se te pregunte la comprobación del gasto.
+- Cuando el usuario pregunte sobre la capacidad del canal, usa los datos del PERFIL HIDRÁULICO para calcular con Manning.
+- Compara siempre los datos medidos contra los de diseño del perfil hidráulico cuando sea relevante.
 - Sé técnico pero directo. El usuario es el Gerente de la Red Mayor.
 - Puedes usar emojis técnicos para mejorar la lectura (📊 📈 ⚠️ 💧 🔍 ⚙️).
 - Formatea tu respuesta en markdown con tablas si es necesario.`;

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge } from 'lucide-react';
+import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge, BarChart3 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useHydraStore } from '../store/useHydraStore';
@@ -33,6 +33,7 @@ const Sidebar = () => {
         { icon: Droplets, label: 'Distribución', path: '/canales', badge: liveStats.activePoints > 0 ? `${liveStats.activePoints}` : undefined },
         { icon: Gauge, label: 'Control de Niveles', path: '/escalas' },
         { icon: Activity, label: 'Hidrometría', path: '/hidrometria' },
+        { icon: BarChart3, label: 'Balance Hidráulico', path: '/balance' },
         { icon: Cloud, label: 'Clima', path: '/clima' },
         { icon: Map, label: 'Geo-Monitor', path: '/geo-monitor' },
         { icon: Bell, label: 'Alertas', path: '/alertas' },

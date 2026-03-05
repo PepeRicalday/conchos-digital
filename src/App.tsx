@@ -8,8 +8,6 @@ import { FechaProvider } from './context/FechaContext';
 import { Toaster } from 'sonner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { VersionGuard } from './components/VersionGuard';
-import { UpdateBanner } from './components/UpdateBanner';
-import { useRegisterSW } from 'virtual:pwa-register/react';
 
 // ── Lazy-loaded pages (Code Splitting) ───────────────────────── //
 // Each page is loaded on-demand, reducing initial bundle by ~60%.
@@ -154,18 +152,21 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
 };
 
 function App() {
-  const {
-    needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
-  } = useRegisterSW({
-    onRegistered(r: any) {
-      console.log('SW Registered: ' + r);
-      if (r) { setInterval(() => { r.update(); }, 5 * 60 * 1000); } // A-02: Check every 5 min
-    },
-    onRegisterError(error: any) {
-      console.log('SW registration error', error);
-    },
-  });
+  // --- PWA SERVICE WORKER: Registro silencioso v3 ---
+  if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(registration => {
+      setInterval(() => {
+        registration.update().catch(() => { });
+      }, 10 * 60 * 1000);
+    });
+
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    });
+  }
 
   return (
     <ErrorBoundary>
@@ -197,12 +198,6 @@ function App() {
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
-              {needRefresh && (
-                <UpdateBanner
-                  onUpdate={() => updateServiceWorker(true)}
-                  onClose={() => setNeedRefresh(false)}
-                />
-              )}
               <Toaster position="top-right" theme="dark" />
             </FechaProvider>
           </VersionGuard>

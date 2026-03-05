@@ -125,7 +125,6 @@ const GeoMonitor = () => {
     // GeoJSON Layers (Shapes)
     const [geoModulos, setGeoModulos] = useState<GeoJSON.FeatureCollection | null>(null);
     const [geoPresas, setGeoPresas] = useState<GeoJSON.FeatureCollection | null>(null);
-    const [geoCanal, setGeoCanal] = useState<GeoJSON.FeatureCollection | null>(null);
     const [customLayers, setCustomLayers] = useState<GeoLayer[]>([]);
     const [showImporter, setShowImporter] = useState(false);
     const [geoKey, setGeoKey] = useState(0); // Force re-render on geojson change
@@ -148,14 +147,12 @@ const GeoMonitor = () => {
     useEffect(() => {
         const loadGeoFiles = async () => {
             try {
-                const [modRes, preRes, canRes] = await Promise.all([
+                const [modRes, preRes] = await Promise.all([
                     fetch('/geo/modulos.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
                     fetch('/geo/presas.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
-                    fetch('/geo/canal_conchos.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
                 ]);
                 if (modRes) setGeoModulos(modRes);
                 if (preRes) setGeoPresas(preRes);
-                if (canRes) setGeoCanal(canRes);
                 setGeoKey(k => k + 1);
             } catch (e) {
                 console.warn('GeoJSON load warning:', e);
@@ -170,8 +167,6 @@ const GeoMonitor = () => {
             setGeoModulos(layer.geojson);
         } else if (layer.type === 'presas') {
             setGeoPresas(layer.geojson);
-        } else if (layer.type === 'canal') {
-            setGeoCanal(layer.geojson);
         } else {
             setCustomLayers(prev => [...prev, layer]);
         }
@@ -596,23 +591,6 @@ const GeoMonitor = () => {
                                     />
                                 )}
 
-                                {/* GeoJSON: Canal Principal (línea gruesa) */}
-                                {layers.canal && geoCanal && (
-                                    <GeoJSON
-                                        key={`can-${geoKey}`}
-                                        data={geoCanal}
-                                        style={() => ({
-                                            color: '#22d3ee',
-                                            weight: 4,
-                                            opacity: 0.8,
-                                        })}
-                                        onEachFeature={(feature, layer) => {
-                                            if (feature.properties) {
-                                                layer.bindTooltip(`Canal Principal Conchos (${feature.properties.longitud_km} km)`, { sticky: true });
-                                            }
-                                        }}
-                                    />
-                                )}
 
                                 {/* Capas personalizadas importadas */}
                                 {customLayers.filter(cl => cl.visible).map(cl => (

@@ -1,6 +1,6 @@
 import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, Tooltip, GeoJSON } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
 import 'leaflet/dist/leaflet.css';
@@ -73,38 +73,6 @@ interface OperStats {
     tomas_abiertas: number; tomas_cerradas: number; gasto_distribuido_m3s: number;
 }
 
-// Secciones del canal - coordenadas reales interpoladas por Km
-const CANAL_COORDS: { km: number; lat: number; lng: number }[] = [
-    { km: 0, lat: 27.5517, lng: -105.4375 },     // Presa La Boquilla (Inicio)
-    { km: 23, lat: 27.860086, lng: -105.208822 },  // K-23
-    { km: 29, lat: 27.903903, lng: -105.221764 },  // K-29
-    { km: 34, lat: 27.946850, lng: -105.237536 },  // K-34
-    { km: 44, lat: 27.989253, lng: -105.311261 },  // K-44
-    { km: 54, lat: 28.050447, lng: -105.349306 },  // K-54
-    { km: 62, lat: 28.088461, lng: -105.394119 },  // K-62
-    { km: 68, lat: 28.132917, lng: -105.400694 },  // K-68
-    { km: 79, lat: 28.098992, lng: -105.480831 },  // K-79
-    { km: 87, lat: 28.094761, lng: -105.535933 },  // K-87
-    { km: 94, lat: 28.129917, lng: -105.581244 },  // K-94
-    { km: 104, lat: 28.160111, lng: -105.619620 }, // K-104 (Fin)
-];
-
-function interpCoord(km: number): [number, number] {
-    if (km <= CANAL_COORDS[0].km) return [CANAL_COORDS[0].lat, CANAL_COORDS[0].lng];
-    if (km >= CANAL_COORDS[CANAL_COORDS.length - 1].km) {
-        const last = CANAL_COORDS[CANAL_COORDS.length - 1];
-        return [last.lat, last.lng];
-    }
-    for (let i = 0; i < CANAL_COORDS.length - 1; i++) {
-        const a = CANAL_COORDS[i], b = CANAL_COORDS[i + 1];
-        if (km >= a.km && km <= b.km) {
-            const t = (km - a.km) / (b.km - a.km);
-            return [a.lat + t * (b.lat - a.lat), a.lng + t * (b.lng - a.lng)];
-        }
-    }
-    return [CANAL_COORDS[0].lat, CANAL_COORDS[0].lng];
-}
-
 const GeoMonitor = () => {
     const { profile } = useAuth();
     const isGerente = profile?.rol === 'SRL';
@@ -125,6 +93,7 @@ const GeoMonitor = () => {
     // GeoJSON Layers (Shapes)
     const [geoModulos, setGeoModulos] = useState<GeoJSON.FeatureCollection | null>(null);
     const [geoPresas, setGeoPresas] = useState<GeoJSON.FeatureCollection | null>(null);
+    const [geoCanal, setGeoCanal] = useState<GeoJSON.FeatureCollection | null>(null);
     const [customLayers, setCustomLayers] = useState<GeoLayer[]>([]);
     const [showImporter, setShowImporter] = useState(false);
     const [geoKey, setGeoKey] = useState(0); // Force re-render on geojson change
@@ -147,12 +116,14 @@ const GeoMonitor = () => {
     useEffect(() => {
         const loadGeoFiles = async () => {
             try {
-                const [modRes, preRes] = await Promise.all([
+                const [modRes, preRes, canRes] = await Promise.all([
                     fetch('/geo/modulos.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
                     fetch('/geo/presas.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch('/geo/canal_conchos.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
                 ]);
                 if (modRes) setGeoModulos(modRes);
                 if (preRes) setGeoPresas(preRes);
+                if (canRes) setGeoCanal(canRes);
                 setGeoKey(k => k + 1);
             } catch (e) {
                 console.warn('GeoJSON load warning:', e);
@@ -167,6 +138,8 @@ const GeoMonitor = () => {
             setGeoModulos(layer.geojson);
         } else if (layer.type === 'presas') {
             setGeoPresas(layer.geojson);
+        } else if (layer.type === 'canal') {
+            setGeoCanal(layer.geojson);
         } else {
             setCustomLayers(prev => [...prev, layer]);
         }
@@ -294,19 +267,6 @@ const GeoMonitor = () => {
         document.addEventListener('fullscreenchange', handler);
         return () => document.removeEventListener('fullscreenchange', handler);
     }, []);
-
-    // Build canal segments by section (Prioridad 2)
-    const canalSegments = secciones.map(sec => {
-        const points: [number, number][] = [];
-        // Start point
-        points.push(interpCoord(sec.km_inicio));
-        // Intermediate points from escalas in this section
-        CANAL_COORDS.filter(c => c.km > sec.km_inicio && c.km < sec.km_fin)
-            .forEach(c => points.push([c.lat, c.lng]));
-        // End point
-        points.push(interpCoord(sec.km_fin));
-        return { ...sec, points };
-    });
 
     // KPIs vinculados a datos reales de SICA
     // Nivel de entrada: K-23 (primera escala)
@@ -591,6 +551,23 @@ const GeoMonitor = () => {
                                     />
                                 )}
 
+                                {/* GeoJSON: Canal Principal (línea gruesa) */}
+                                {layers.canal && geoCanal && (
+                                    <GeoJSON
+                                        key={`can-${geoKey}`}
+                                        data={geoCanal}
+                                        style={() => ({
+                                            color: '#22d3ee',
+                                            weight: 4,
+                                            opacity: 0.8,
+                                        })}
+                                        onEachFeature={(feature, layer) => {
+                                            if (feature.properties) {
+                                                layer.bindTooltip(`Canal Principal Conchos (${feature.properties.longitud_km || 104} km)`, { sticky: true });
+                                            }
+                                        }}
+                                    />
+                                )}
 
                                 {/* Capas personalizadas importadas */}
                                 {customLayers.filter(cl => cl.visible).map(cl => (
@@ -614,23 +591,7 @@ const GeoMonitor = () => {
                                     />
                                 ))}
 
-                                {/* Secciones del Canal (Polylines coloreadas) */}
-                                {layers.canal && canalSegments.map(seg => (
-                                    <Polyline
-                                        key={seg.id}
-                                        positions={seg.points}
-                                        color={seg.color}
-                                        weight={5}
-                                        opacity={0.85}
-                                    >
-                                        <Tooltip sticky>
-                                            <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
-                                                <b style={{ color: seg.color }}>{seg.nombre}</b><br />
-                                                Km {seg.km_inicio} → {seg.km_fin}
-                                            </span>
-                                        </Tooltip>
-                                    </Polyline>
-                                ))}
+
 
                                 {/* Escalas del Canal (solo con coordenadas) */}
                                 {layers.escalas && escalas.filter(e => e.latitud && e.longitud).map(esc => (

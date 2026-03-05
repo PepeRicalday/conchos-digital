@@ -1,0 +1,240 @@
+{
+    "type": "FeatureCollection",
+    "name": "Módulos de Riego DR-005 Delicias",
+    "features": [
+        {
+            "type": "Feature",
+            "properties": {
+                "id": "MOD-1",
+                "nombre": "Módulo 1 - La Boquilla",
+                "numero_modulo": 1,
+                "superficie_ha": 8500,
+                "color": "#3b82f6",
+                "fill_opacity": 0.15
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            -105.50,
+                            27.82
+                        ],
+                        [
+                            -105.38,
+                            27.81
+                        ],
+                        [
+                            -105.30,
+                            27.85
+                        ],
+                        [
+                            -105.28,
+                            27.93
+                        ],
+                        [
+                            -105.35,
+                            27.97
+                        ],
+                        [
+                            -105.45,
+                            27.95
+                        ],
+                        [
+                            -105.52,
+                            27.90
+                        ],
+                        [
+                            -105.50,
+                            27.82
+                        ]
+                    ]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "id": "MOD-2",
+                "nombre": "Módulo 2 - Rosales",
+                "numero_modulo": 2,
+                "superficie_ha": 7200,
+                "color": "#10b981",
+                "fill_opacity": 0.15
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            -105.38,
+                            27.93
+                        ],
+                        [
+                            -105.25,
+                            27.92
+                        ],
+                        [
+                            -105.20,
+                            27.98
+                        ],
+                        [
+                            -105.22,
+                            28.05
+                        ],
+                        [
+                            -105.32,
+                            28.06
+                        ],
+                        [
+                            -105.40,
+                            28.01
+                        ],
+                        [
+                            -105.38,
+                            27.93
+                        ]
+                    ]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "id": "MOD-3",
+                "nombre": "Módulo 3 - Delicias Norte",
+                "numero_modulo": 3,
+                "superficie_ha": 9100,
+                "color": "#f59e0b",
+                "fill_opacity": 0.15
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            -105.45,
+                            28.02
+                        ],
+                        [
+                            -105.32,
+                            28.02
+                        ],
+                        [
+                            -105.28,
+                            28.10
+                        ],
+                        [
+                            -105.30,
+                            28.16
+                        ],
+                        [
+                            -105.42,
+                            28.18
+                        ],
+                        [
+                            -105.50,
+                            28.12
+                        ],
+                        [
+                            -105.45,
+                            28.02
+                        ]
+                    ]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "id": "MOD-4",
+                "nombre": "Módulo 4 - Meoqui",
+                "numero_modulo": 4,
+                "superficie_ha": 6800,
+                "color": "#8b5cf6",
+                "fill_opacity": 0.15
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            -105.55,
+                            28.08
+                        ],
+                        [
+                            -105.45,
+                            28.06
+                        ],
+                        [
+                            -105.42,
+                            28.14
+                        ],
+                        [
+                            -105.44,
+                            28.20
+                        ],
+                        [
+                            -105.55,
+                            28.22
+                        ],
+                        [
+                            -105.60,
+                            28.16
+                        ],
+                        [
+                            -105.55,
+                            28.08
+                        ]
+                    ]
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "properties": {
+                "id": "MOD-5",
+                "nombre": "Módulo 5 - Julimes",
+                "numero_modulo": 5,
+                "superficie_ha": 5400,
+                "color": "#ef4444",
+                "fill_opacity": 0.15
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [
+                            -105.48,
+                            28.00
+                        ],
+                        [
+                            -105.55,
+                            27.95
+                        ],
+                        [
+                            -105.62,
+                            27.98
+                        ],
+                        [
+                            -105.64,
+                            28.06
+                        ],
+                        [
+                            -105.58,
+                            28.10
+                        ],
+                        [
+                            -105.50,
+                            28.06
+                        ],
+                        [
+                            -105.48,
+                            28.00
+                        ]
+                    ]
+                ]
+            }
+        }
+    ]
+}

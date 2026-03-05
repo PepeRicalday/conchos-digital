@@ -1,6 +1,6 @@
-import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize } from 'lucide-react';
+import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, Tooltip, GeoJSON } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
 import 'leaflet/dist/leaflet.css';
@@ -8,6 +8,7 @@ import L from 'leaflet';
 import clsx from 'clsx';
 import './GeoMonitor.css';
 import { supabase } from '../lib/supabase';
+import { ShapefileImporter, type GeoLayer } from '../components/ShapefileImporter';
 
 // Fix for Leaflet icons in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -118,16 +119,60 @@ const GeoMonitor = () => {
     const [tomasVaradas, setTomasVaradas] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Layer Toggles (Prioridad 2)
+    // GeoJSON Layers (Shapes)
+    const [geoModulos, setGeoModulos] = useState<GeoJSON.FeatureCollection | null>(null);
+    const [geoPresas, setGeoPresas] = useState<GeoJSON.FeatureCollection | null>(null);
+    const [geoCanal, setGeoCanal] = useState<GeoJSON.FeatureCollection | null>(null);
+    const [customLayers, setCustomLayers] = useState<GeoLayer[]>([]);
+    const [showImporter, setShowImporter] = useState(false);
+    const [geoKey, setGeoKey] = useState(0); // Force re-render on geojson change
+
+    // Layer Toggles
     const [layers, setLayers] = useState({
-        canal: true,      // Layers btn
-        escalas: true,    // Crosshair btn
-        tomas: true,      // Activity btn
-        alertas: true,    // Shield btn
+        canal: true,
+        escalas: true,
+        tomas: true,
+        alertas: true,
+        modulos: true,
+        presasShape: true,
     });
 
     const toggleLayer = (key: keyof typeof layers) => {
         setLayers(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    // Cargar GeoJSON estáticos desde /public/geo/
+    useEffect(() => {
+        const loadGeoFiles = async () => {
+            try {
+                const [modRes, preRes, canRes] = await Promise.all([
+                    fetch('/geo/modulos.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch('/geo/presas.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch('/geo/canal_conchos.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
+                ]);
+                if (modRes) setGeoModulos(modRes);
+                if (preRes) setGeoPresas(preRes);
+                if (canRes) setGeoCanal(canRes);
+                setGeoKey(k => k + 1);
+            } catch (e) {
+                console.warn('GeoJSON load warning:', e);
+            }
+        };
+        loadGeoFiles();
+    }, []);
+
+    const handleLayerImported = (layer: GeoLayer) => {
+        // Si es un tipo predefinido, reemplazar la capa correspondiente
+        if (layer.type === 'modulos') {
+            setGeoModulos(layer.geojson);
+        } else if (layer.type === 'presas') {
+            setGeoPresas(layer.geojson);
+        } else if (layer.type === 'canal') {
+            setGeoCanal(layer.geojson);
+        } else {
+            setCustomLayers(prev => [...prev, layer]);
+        }
+        setGeoKey(k => k + 1);
     };
 
     // Data Fetching (Prioridad 1)
@@ -415,6 +460,22 @@ const GeoMonitor = () => {
                         {layers.tomas && <span className="geo-indicator-dot"></span>}
                     </button>
                     <button
+                        className={clsx('geo-control-btn', layers.modulos ? 'active' : 'default')}
+                        onClick={() => toggleLayer('modulos')}
+                        title="Polígonos de Módulos de Riego"
+                    >
+                        <MapIcon size={22} />
+                        {layers.modulos && <span className="geo-indicator-dot" style={{ background: '#8b5cf6' }}></span>}
+                    </button>
+                    <button
+                        className={clsx('geo-control-btn', layers.presasShape ? 'active' : 'default')}
+                        onClick={() => toggleLayer('presasShape')}
+                        title="Polígonos de Vasos de Presas"
+                    >
+                        <Droplets size={22} />
+                        {layers.presasShape && <span className="geo-indicator-dot" style={{ background: '#1d4ed8' }}></span>}
+                    </button>
+                    <button
                         className={clsx('geo-control-btn', layers.alertas ? 'shield' : 'default')}
                         onClick={() => toggleLayer('alertas')}
                         title="Alertas y Anomalías"
@@ -423,6 +484,15 @@ const GeoMonitor = () => {
                         {layers.alertas && tomasVaradas.length > 0 && (
                             <span className="geo-alert-badge">{tomasVaradas.length}</span>
                         )}
+                    </button>
+                    {/* Botón de Importar Shapefile */}
+                    <button
+                        className="geo-control-btn default"
+                        onClick={() => setShowImporter(true)}
+                        title="Importar Shapefile / GeoJSON"
+                        style={{ borderTop: '1px solid rgba(100,116,139,0.3)', marginTop: 4, paddingTop: 12 }}
+                    >
+                        <Upload size={20} />
                     </button>
                 </div>
 
@@ -440,7 +510,101 @@ const GeoMonitor = () => {
                                     maxZoom={19}
                                 />
 
-                                {/* Prioridad 2.2: Canal por Secciones con colores */}
+                                {/* GeoJSON: Polígonos de Módulos */}
+                                {layers.modulos && geoModulos && (
+                                    <GeoJSON
+                                        key={`mod-${geoKey}`}
+                                        data={geoModulos}
+                                        style={(feature) => ({
+                                            color: feature?.properties?.color || '#3b82f6',
+                                            weight: 2,
+                                            fillColor: feature?.properties?.color || '#3b82f6',
+                                            fillOpacity: feature?.properties?.fill_opacity || 0.15,
+                                            dashArray: '5, 5',
+                                        })}
+                                        onEachFeature={(feature, layer) => {
+                                            if (feature.properties) {
+                                                const p = feature.properties;
+                                                layer.bindPopup(`
+                                                    <div style="font-family:monospace;min-width:180px">
+                                                        <strong style="font-size:13px;color:${p.color}">${p.nombre}</strong>
+                                                        <div style="font-size:11px;color:#666;margin:4px 0">Módulo ${p.numero_modulo}</div>
+                                                        <div style="font-size:11px">Superficie: <b>${p.superficie_ha?.toLocaleString()} ha</b></div>
+                                                    </div>
+                                                `);
+                                                layer.bindTooltip(p.nombre, { sticky: true, className: 'geo-tooltip-custom' });
+                                            }
+                                        }}
+                                    />
+                                )}
+
+                                {/* GeoJSON: Polígonos de Presas */}
+                                {layers.presasShape && geoPresas && (
+                                    <GeoJSON
+                                        key={`pre-${geoKey}`}
+                                        data={geoPresas}
+                                        style={(feature) => ({
+                                            color: feature?.properties?.color || '#1d4ed8',
+                                            weight: 2,
+                                            fillColor: feature?.properties?.color || '#1d4ed8',
+                                            fillOpacity: feature?.properties?.fill_opacity || 0.25,
+                                        })}
+                                        onEachFeature={(feature, layer) => {
+                                            if (feature.properties) {
+                                                const p = feature.properties;
+                                                layer.bindPopup(`
+                                                    <div style="font-family:monospace;min-width:180px">
+                                                        <strong style="font-size:13px;color:${p.color}">${p.nombre}</strong>
+                                                        <div style="font-size:11px;margin-top:4px">Capacidad: <b>${p.capacidad_mm3} Mm³</b></div>
+                                                    </div>
+                                                `);
+                                                layer.bindTooltip(p.nombre, { sticky: true });
+                                            }
+                                        }}
+                                    />
+                                )}
+
+                                {/* GeoJSON: Canal Principal (línea gruesa) */}
+                                {layers.canal && geoCanal && (
+                                    <GeoJSON
+                                        key={`can-${geoKey}`}
+                                        data={geoCanal}
+                                        style={() => ({
+                                            color: '#22d3ee',
+                                            weight: 4,
+                                            opacity: 0.8,
+                                        })}
+                                        onEachFeature={(feature, layer) => {
+                                            if (feature.properties) {
+                                                layer.bindTooltip(`Canal Principal Conchos (${feature.properties.longitud_km} km)`, { sticky: true });
+                                            }
+                                        }}
+                                    />
+                                )}
+
+                                {/* Capas personalizadas importadas */}
+                                {customLayers.filter(cl => cl.visible).map(cl => (
+                                    <GeoJSON
+                                        key={cl.id}
+                                        data={cl.geojson}
+                                        style={() => ({
+                                            color: cl.color,
+                                            weight: 2,
+                                            fillColor: cl.color,
+                                            fillOpacity: cl.fillOpacity,
+                                        })}
+                                        onEachFeature={(feature, layer) => {
+                                            if (feature.properties) {
+                                                const html = Object.entries(feature.properties)
+                                                    .map(([k, v]) => `<div style="font-size:10px"><b>${k}:</b> ${v}</div>`)
+                                                    .join('');
+                                                layer.bindPopup(`<div style="font-family:monospace;max-width:250px">${html}</div>`);
+                                            }
+                                        }}
+                                    />
+                                ))}
+
+                                {/* Secciones del Canal (Polylines coloreadas) */}
                                 {layers.canal && canalSegments.map(seg => (
                                     <Polyline
                                         key={seg.id}
@@ -670,6 +834,14 @@ const GeoMonitor = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Shapefile Importer Modal */}
+            {showImporter && (
+                <ShapefileImporter
+                    onLayerImported={handleLayerImported}
+                    onClose={() => setShowImporter(false)}
+                />
+            )}
         </div>
     );
 };

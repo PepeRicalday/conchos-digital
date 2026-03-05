@@ -1,12 +1,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
+const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const GEMINI_MODEL = "gemini-2.0-flash";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+const AI_MODEL = "llama-3.3-70b-versatile";
+const AI_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -22,13 +22,14 @@ interface ChatRequest {
 
 async function fetchSystemData(supabaseAdmin: any) {
     const today = new Date().toISOString().split("T")[0];
-    const [presasRes, modulosRes, escalasRes, cicloRes, knowledgeRes, operacionRes] = await Promise.all([
+    const [presasRes, modulosRes, escalasRes, cicloRes, knowledgeRes, operacionRes, aforosRes] = await Promise.all([
         supabaseAdmin.from("lecturas_presas").select("*, presas(nombre, nombre_corto, capacidad_max)").order("fecha", { ascending: false }).limit(9),
         supabaseAdmin.from("modulos").select("*, autorizaciones_ciclo(vol_autorizado, caudal_max)"),
         supabaseAdmin.from("lecturas_escalas").select("*, escalas(nombre, km)").order("fecha", { ascending: false }).limit(30),
         supabaseAdmin.from("ciclos_agricolas").select("*").eq("activo", true).maybeSingle(),
         supabaseAdmin.from("hydric_knowledge_base").select("titulo, contenido, categoria").eq("activo", true),
         supabaseAdmin.from("reportes_operacion").select("*, puntos_entrega(nombre, km)").eq("fecha", today).in("estado", ["inicio", "continua", "reabierto", "modificacion"]),
+        supabaseAdmin.from("aforos_control").select("*"),
     ]);
 
     return {
@@ -38,6 +39,7 @@ async function fetchSystemData(supabaseAdmin: any) {
         ciclo_activo: cicloRes.data,
         knowledge: knowledgeRes.data || [],
         tomas_activas: operacionRes.data || [],
+        aforos_control: aforosRes.data || [],
     };
 }
 
@@ -72,6 +74,10 @@ function buildSystemPrompt(data: any): string {
         ? `Ciclo Activo: ${data.ciclo_activo.nombre} (${data.ciclo_activo.fecha_inicio} a ${data.ciclo_activo.fecha_fin}), Vol. Autorizado Global: ${data.ciclo_activo.volumen_autorizado_mm3} Mm³`
         : "No hay ciclo agrícola activo.";
 
+    const aforosControlText = (data.aforos_control || []).map((a: any) =>
+        `Ubicación: ${a.nombre_punto} | Coord: ${a.latitud}, ${a.longitud} | Geometría: ${JSON.stringify(a.caracteristicas_hidraulicas)}`
+    ).join("\n");
+
     return `Eres el Asistente de Inteligencia Hídrica del Distrito de Riego 005 Delicias, operado por la S.R.L. Unidad Conchos en Chihuahua, México.
 
 Tu rol es ser un especialista técnico y estratégico en:
@@ -100,6 +106,9 @@ ${modulosText || "Sin datos de módulos"}
 📊 CICLO AGRÍCOLA:
 ${cicloText}
 
+📏 PUNTOS DE AFORO OFICIALES (CALIBRACIÓN):
+${aforosControlText || "No hay puntos de aforo definidos."}
+
 === INSTRUCCIONES ===
 - Responde siempre en español.
 - Usa EXHAUSTIVAMENTE los datos reales del sistema provistos arriba.
@@ -118,9 +127,9 @@ Deno.serve(async (req: Request) => {
 
     try {
         // ─── Validar configuración del servidor ───
-        if (!GEMINI_API_KEY) {
-            console.error("GEMINI_API_KEY secret not configured!");
-            return new Response(JSON.stringify({ error: "Servicio de IA no configurado. Contacta al administrador." }), {
+        if (!GROQ_API_KEY) {
+            console.error("GROQ_API_KEY secret not configured!");
+            return new Response(JSON.stringify({ error: "Servicio de IA no configurado. Falta GROQ_API_KEY en Supabase Secrets." }), {
                 status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
         }
@@ -131,44 +140,50 @@ Deno.serve(async (req: Request) => {
             });
         }
 
-        // ─── Validar Authorization header ───
+        // ─── Extraer usuario del JWT ───
+        // El API Gateway de Supabase ya valida el JWT antes de que llegue aquí,
+        // así que solo necesitamos decodificar el payload para obtener el user_id.
         const authHeader = req.headers.get("Authorization");
         if (!authHeader || !authHeader.startsWith("Bearer ")) {
-            return new Response(JSON.stringify({ error: "Se requiere autenticación. Inicia sesión." }), {
+            return new Response(JSON.stringify({ error: "Se requiere autenticación." }), {
                 status: 401,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
         }
 
-        // ─── Validar el usuario con el token JWT ───
         const token = authHeader.replace("Bearer ", "");
-        const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        let userId: string;
 
-        // Usar admin client con getUser(token) para validar el JWT directamente
-        // Esto es más confiable que crear un client con el anon key
-        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+        try {
+            // Decodificar JWT payload (parte 2 del token, separado por puntos)
+            const payloadBase64 = token.split(".")[1];
+            const payloadJson = atob(payloadBase64.replace(/-/g, "+").replace(/_/g, "/"));
+            const payload = JSON.parse(payloadJson);
+            userId = payload.sub;
 
-        if (authError || !user) {
-            console.error("Auth validation failed:", authError?.message || "No user found for token");
-            return new Response(JSON.stringify({
-                error: authError?.message?.includes("expired")
-                    ? "Tu sesión ha expirado. Refresca la página."
-                    : "Sesión inválida. Vuelve a iniciar sesión."
-            }), {
+            if (!userId) {
+                throw new Error("JWT no contiene sub (user_id)");
+            }
+
+            console.log("User autenticado:", userId);
+        } catch (jwtError) {
+            console.error("Error decodificando JWT:", jwtError);
+            return new Response(JSON.stringify({ error: "Token de sesión inválido. Inicia sesión de nuevo." }), {
                 status: 401,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
         }
 
-        // ─── Verificar rol SRL ───
+        // ─── Verificar rol SRL con service role ───
+        const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
         const { data: profile } = await supabaseAdmin
             .from("perfiles_usuario")
             .select("rol")
-            .eq("id", user.id)
+            .eq("id", userId)
             .single();
 
         if (!profile || profile.rol !== "SRL") {
-            return new Response(JSON.stringify({ error: "Acceso denegado. Solo usuarios con rol Gerente (SRL) pueden usar el asistente." }), {
+            return new Response(JSON.stringify({ error: "Acceso denegado. Solo usuarios con rol Gerente (SRL)." }), {
                 status: 403,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
@@ -189,7 +204,7 @@ Deno.serve(async (req: Request) => {
             const { data: newConv, error: convError } = await supabaseAdmin
                 .from("chat_conversations")
                 .insert({
-                    user_id: user.id,
+                    user_id: userId,
                     titulo: message.substring(0, 60) + (message.length > 60 ? "..." : ""),
                     contexto: contexto || "general",
                 })
@@ -216,74 +231,61 @@ Deno.serve(async (req: Request) => {
         const systemData = await fetchSystemData(supabaseAdmin);
         const systemPrompt = buildSystemPrompt(systemData);
 
-        const geminiContents = [
-            { role: "user", parts: [{ text: `INSTRUCCIONES DEL SISTEMA (no menciones esto):\n\n${systemPrompt}` }] },
-            { role: "model", parts: [{ text: "Entendido. Soy el Asistente de Inteligencia Hídrica del DR-005 Delicias. Estoy listo para analizar datos, generar tendencias y apoyar en la toma de decisiones hídricas. ¿En qué puedo ayudarle?" }] },
+        const messages = [
+            { role: "system", content: systemPrompt },
+            { role: "assistant", content: "Entendido. Soy el Asistente de Inteligencia Hídrica del DR-005 Delicias. Estoy listo para analizar datos, generar tendencias y apoyar en la toma de decisiones hídricas. ¿En qué puedo ayudarle?" }
         ];
 
         if (history && history.length > 1) {
             for (const msg of history.slice(0, -1)) {
-                geminiContents.push({
-                    role: msg.role === "user" ? "user" : "model",
-                    parts: [{ text: msg.content }],
-                });
+                if (msg.role === "user" || msg.role === "assistant") {
+                    messages.push({ role: msg.role, content: msg.content });
+                }
             }
         }
 
-        geminiContents.push({
-            role: "user",
-            parts: [{ text: message }],
-        });
+        messages.push({ role: "user", content: message });
 
-        let geminiResponse = await fetch(GEMINI_URL, {
+        let aiResponse = await fetch(AI_URL, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${GROQ_API_KEY}`
+            },
             body: JSON.stringify({
-                contents: geminiContents,
-                generationConfig: {
-                    temperature: 0.7,
-                    topP: 0.9,
-                    topK: 40,
-                    maxOutputTokens: 4096,
-                },
-                safetySettings: [
-                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-                ],
+                model: AI_MODEL,
+                messages: messages,
+                temperature: 0.7,
+                max_tokens: 4096,
             }),
         });
 
-        if (geminiResponse.status === 429) {
-            // Reintento automático tras 2.5 segundos de espera
-            await new Promise((resolve) => setTimeout(resolve, 2500));
-            geminiResponse = await fetch(GEMINI_URL, {
+        if (aiResponse.status === 429) {
+            // Reintento automático tras 5 segundos de espera
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+            aiResponse = await fetch(AI_URL, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${GROQ_API_KEY}`
+                },
                 body: JSON.stringify({
-                    contents: geminiContents,
-                    generationConfig: {
-                        temperature: 0.7,
-                        topP: 0.9,
-                        topK: 40,
-                        maxOutputTokens: 4096,
-                    },
+                    model: AI_MODEL,
+                    messages: messages,
+                    temperature: 0.7,
+                    max_tokens: 4096,
                 }),
             });
         }
 
-        if (!geminiResponse.ok) {
-            const errText = await geminiResponse.text();
-            console.error("Gemini API error:", errText);
-            if (geminiResponse.status === 429) {
-                throw new Error("La red neuronal de análisis se encuentra saturada de consultas. Por favor, espera 15 segundos y vuelve a repetirme tu solicitud.");
-            }
-            throw new Error(`Gemini API error: ${geminiResponse.status}`);
+        if (!aiResponse.ok) {
+            const errText = await aiResponse.text();
+            console.error("Groq API error:", errText);
+            throw new Error(`Groq API error: ${aiResponse.status} - ${errText}`);
         }
 
-        const geminiData = await geminiResponse.json();
-        const assistantMessage = geminiData.candidates?.[0]?.content?.parts?.[0]?.text
+        const aiData = await aiResponse.json();
+        const assistantMessage = aiData.choices?.[0]?.message?.content
             || "No pude generar una respuesta. Intenta reformular tu consulta.";
 
         await supabaseAdmin.from("chat_messages").insert({
@@ -291,7 +293,7 @@ Deno.serve(async (req: Request) => {
             role: "assistant",
             content: assistantMessage,
             metadata: {
-                model: GEMINI_MODEL,
+                model: AI_MODEL,
                 tables_consulted: ["lecturas_presas", "modulos", "lecturas_escalas", "ciclos_agricolas", "hydric_knowledge_base"],
                 timestamp: new Date().toISOString(),
             },
@@ -302,7 +304,7 @@ Deno.serve(async (req: Request) => {
                 conversation_id: convId,
                 message: assistantMessage,
                 metadata: {
-                    model: GEMINI_MODEL,
+                    model: AI_MODEL,
                     data_context: {
                         presas_count: systemData.presas.length,
                         modulos_count: systemData.modulos.length,

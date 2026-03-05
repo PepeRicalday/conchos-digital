@@ -14,7 +14,7 @@ import './Canales.css';
 const INITIAL_NOW = Date.now();
 
 const Canales = () => {
-    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+    const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
     const { modules, loading, error } = useHydraEngine();
 
     const [viewingModule, setViewingModule] = useState<ModuleData | null>(null);

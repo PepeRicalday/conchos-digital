@@ -120,6 +120,35 @@ function ModuleBar({ name, pct, rank }: { name: string; pct: number; rank: numbe
     );
 }
 
+/* ─── Tooltip renderers ── */
+const StorageTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+        <div className="chart-tooltip">
+            <p className="tooltip-label">{label}</p>
+            {payload.map((p: any, i: number) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.fill || p.stroke }} />
+                    <span className="tooltip-value" style={{ fontSize: '0.8rem' }}>
+                        {Number(p.value).toFixed(1)} <span style={{ fontSize: '0.6rem', color: '#94a3b8' }}>Mm³</span>
+                    </span>
+                    <span style={{ fontSize: '0.65rem', color: '#64748b' }}>{p.name}</span>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+const ExtraccionTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+        <div className="chart-tooltip">
+            <p className="tooltip-label">{label}</p>
+            <p className="tooltip-value">{Number(payload[0].value).toFixed(2)} <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>m³/s</span></p>
+        </div>
+    );
+};
+
 /* ═══════════════════════════════════════════════════════════════ */
 const Dashboard = () => {
     const { fechaSeleccionada, esHoy } = useFecha();
@@ -246,34 +275,6 @@ const Dashboard = () => {
     }
 
     /* ── Tooltip renderers ── */
-    const StorageTooltip = ({ active, payload, label }: any) => {
-        if (!active || !payload?.length) return null;
-        return (
-            <div className="chart-tooltip">
-                <p className="tooltip-label">{label}</p>
-                {payload.map((p: any, i: number) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.fill || p.stroke }} />
-                        <span className="tooltip-value" style={{ fontSize: '0.8rem' }}>
-                            {Number(p.value).toFixed(1)} <span style={{ fontSize: '0.6rem', color: '#94a3b8' }}>Mm³</span>
-                        </span>
-                        <span style={{ fontSize: '0.65rem', color: '#64748b' }}>{p.name}</span>
-                    </div>
-                ))}
-            </div>
-        );
-    };
-
-    const ExtraccionTooltip = ({ active, payload, label }: any) => {
-        if (!active || !payload?.length) return null;
-        return (
-            <div className="chart-tooltip">
-                <p className="tooltip-label">{label}</p>
-                <p className="tooltip-value">{Number(payload[0].value).toFixed(2)} <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>m³/s</span></p>
-            </div>
-        );
-    };
-
     /* ──────────── RENDER ──────────────────────────────────────── */
     return (
         <div className="dashboard-container" style={{ marginTop: '-24px' }}>

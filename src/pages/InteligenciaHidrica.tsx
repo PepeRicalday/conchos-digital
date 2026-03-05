@@ -153,7 +153,7 @@ const InteligenciaHidrica = () => {
                 </div>
                 <div className="header-badge">
                     <Sparkles size={12} />
-                    Gemini AI
+                    SICA AI Engine
                 </div>
             </div>
 

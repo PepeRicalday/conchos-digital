@@ -24,28 +24,20 @@ interface SendMessageResult {
 }
 
 /**
- * Obtiene un token de acceso válido, refrescando la sesión si es necesario.
+ * Obtiene el token de acceso de la sesión actual.
+ * Si el usuario puede ver el dashboard, tiene una sesión válida.
  */
 async function getFreshAccessToken(): Promise<string> {
-    // Primero intenta obtener la sesión existente
     const { data: { session } } = await supabase.auth.getSession();
-
     if (session?.access_token) {
-        // Verificar si el token está por expirar (menos de 60 segundos)
-        const expiresAt = session.expires_at ?? 0;
-        const nowSecs = Math.floor(Date.now() / 1000);
-        if (expiresAt - nowSecs > 60) {
-            return session.access_token;
-        }
+        return session.access_token;
     }
-
-    // Token expirado o por expirar — forzar refresh
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    if (refreshError || !refreshData.session) {
-        throw new Error('Tu sesión ha expirado. Por favor, cierra sesión e inicia de nuevo.');
+    // Si no hay sesión cacheada, intentar refresh una vez
+    const { data } = await supabase.auth.refreshSession();
+    if (data.session?.access_token) {
+        return data.session.access_token;
     }
-
-    return refreshData.session.access_token;
+    throw new Error('No hay sesión activa. Inicia sesión.');
 }
 
 /**

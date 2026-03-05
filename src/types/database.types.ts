@@ -76,27 +76,39 @@ export type Database = {
             }
             aforos_control: {
                 Row: {
+                    caracteristicas_hidraulicas: Json | null
                     creado_en: string | null
                     escala: number | null
                     fecha: string
+                    foto_url: string | null
                     gasto_m3s: number | null
                     id: string
+                    latitud: number | null
+                    longitud: number | null
                     nombre_punto: string
                 }
                 Insert: {
+                    caracteristicas_hidraulicas?: Json | null
                     creado_en?: string | null
                     escala?: number | null
                     fecha: string
+                    foto_url?: string | null
                     gasto_m3s?: number | null
                     id: string
+                    latitud?: number | null
+                    longitud?: number | null
                     nombre_punto: string
                 }
                 Update: {
+                    caracteristicas_hidraulicas?: Json | null
                     creado_en?: string | null
                     escala?: number | null
                     fecha?: string
+                    foto_url?: string | null
                     gasto_m3s?: number | null
                     id?: string
+                    latitud?: number | null
+                    longitud?: number | null
                     nombre_punto?: string
                 }
                 Relationships: []

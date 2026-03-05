@@ -27,6 +27,7 @@ export function FechaProvider({ children }: { children: ReactNode }) {
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useFecha() {
     const context = useContext(FechaContext);
     if (context === undefined) {

@@ -1088,6 +1088,60 @@ export type Database = {
                 }
                 Relationships: []
             }
+            perfil_hidraulico_canal: {
+                Row: {
+                    actualizado_en: string | null
+                    ancho_corona_m: number | null
+                    bordo_libre_m: number | null
+                    capacidad_diseno_m3s: number | null
+                    creado_en: string | null
+                    id: string
+                    km_fin: number
+                    km_inicio: number
+                    nombre_tramo: string | null
+                    pendiente_s0: number | null
+                    plantilla_m: number | null
+                    rugosidad_n: number | null
+                    talud_z: number | null
+                    tirante_diseno_m: number | null
+                    velocidad_diseno_ms: number | null
+                }
+                Insert: {
+                    actualizado_en?: string | null
+                    ancho_corona_m?: number | null
+                    bordo_libre_m?: number | null
+                    capacidad_diseno_m3s?: number | null
+                    creado_en?: string | null
+                    id?: string
+                    km_fin: number
+                    km_inicio: number
+                    nombre_tramo?: string | null
+                    pendiente_s0?: number | null
+                    plantilla_m?: number | null
+                    rugosidad_n?: number | null
+                    talud_z?: number | null
+                    tirante_diseno_m?: number | null
+                    velocidad_diseno_ms?: number | null
+                }
+                Update: {
+                    actualizado_en?: string | null
+                    ancho_corona_m?: number | null
+                    bordo_libre_m?: number | null
+                    capacidad_diseno_m3s?: number | null
+                    creado_en?: string | null
+                    id?: string
+                    km_fin?: number
+                    km_inicio?: number
+                    nombre_tramo?: string | null
+                    pendiente_s0?: number | null
+                    plantilla_m?: number | null
+                    rugosidad_n?: number | null
+                    talud_z?: number | null
+                    tirante_diseno_m?: number | null
+                    velocidad_diseno_ms?: number | null
+                }
+                Relationships: []
+            }
         }
         Views: {
             reportes_diarios: {

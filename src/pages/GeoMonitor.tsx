@@ -9,6 +9,7 @@ import clsx from 'clsx';
 import './GeoMonitor.css';
 import { supabase } from '../lib/supabase';
 import { ShapefileImporter, type GeoLayer } from '../components/ShapefileImporter';
+import { useAuth } from '../context/AuthContext';
 
 // Fix for Leaflet icons in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -105,6 +106,8 @@ function interpCoord(km: number): [number, number] {
 }
 
 const GeoMonitor = () => {
+    const { profile } = useAuth();
+    const isGerente = profile?.rol === 'SRL';
     const [currentTime, setCurrentTime] = useState(new Date());
     const [mapReady, setMapReady] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -485,15 +488,17 @@ const GeoMonitor = () => {
                             <span className="geo-alert-badge">{tomasVaradas.length}</span>
                         )}
                     </button>
-                    {/* Botón de Importar Shapefile */}
-                    <button
-                        className="geo-control-btn default"
-                        onClick={() => setShowImporter(true)}
-                        title="Importar Shapefile / GeoJSON"
-                        style={{ borderTop: '1px solid rgba(100,116,139,0.3)', marginTop: 4, paddingTop: 12 }}
-                    >
-                        <Upload size={20} />
-                    </button>
+                    {/* Botón de Importar Shapefile (Solo Gerente SRL) */}
+                    {isGerente && (
+                        <button
+                            className="geo-control-btn default"
+                            onClick={() => setShowImporter(true)}
+                            title="Importar Shapefile / GeoJSON"
+                            style={{ borderTop: '1px solid rgba(100,116,139,0.3)', marginTop: 4, paddingTop: 12 }}
+                        >
+                            <Upload size={20} />
+                        </button>
+                    )}
                 </div>
 
                 {/* CENTER: MAP (Prioridad 1 + 2) */}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Gauge, Clock, ArrowUp, ArrowDown, Minus, AlertTriangle, Droplets, Activity, Loader, Settings, Waves } from 'lucide-react';
+import { Gauge, Clock, ArrowUp, ArrowDown, Minus, AlertTriangle, Droplets, Activity, Loader, Settings, Waves, Calculator, X, Info } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useFecha } from '../context/FechaContext';
 import './ControlEscalas.css';
@@ -128,8 +128,106 @@ function mapResumenToZones(
     });
 }
 
+// ─── COMPONENTE: Modal de Cálculo de Radiales ───
+const RadialModal = ({ scale, onClose }: { scale: ScaleReading; onClose: () => void }) => {
+    if (!scale) return null;
+
+    const { pzasRadiales, anchoRadial, altoRadial, currentLevel, nivelAbajo, gastoCalculado, radialAperturas } = scale;
+    const openRadiales = radialAperturas.filter(r => r.apertura_m > 0);
+    const totalAperturaXAncho = openRadiales.reduce((acc, r) => acc + (Math.min(r.apertura_m, altoRadial) * anchoRadial), 0);
+    const cargaH = currentLevel > 0 ? Math.max(0, currentLevel - (nivelAbajo || 0)) : 0;
+
+    return (
+        <div className="radial-modal-overlay" onClick={onClose} style={{
+            position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+            backgroundColor: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+            <div className="radial-modal-content" onClick={e => e.stopPropagation()} style={{
+                backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px',
+                width: '90%', maxWidth: '600px', padding: '24px', position: 'relative',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+            }}>
+                <button onClick={onClose} style={{ position: 'absolute', top: '16px', right: '16px', color: '#94a3b8', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                    <X size={20} />
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: '1px solid #1e293b', paddingBottom: '16px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'rgba(14, 165, 233, 0.1)', borderRadius: '8px' }}>
+                        <Calculator size={24} color="#0ea5e9" />
+                    </div>
+                    <div>
+                        <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '18px' }}>Cálculo Hidráulico de Represo</h3>
+                        <p style={{ margin: 0, color: '#94a3b8', fontSize: '12px' }}>{scale.name} — Km {scale.km}</p>
+                    </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                    <div style={{ backgroundColor: '#1e293b', padding: '16px', borderRadius: '8px', border: '1px solid #334155' }}>
+                        <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '4px', textTransform: 'uppercase' }}>Carga Hidrostática (H)</div>
+                        <div style={{ color: '#0ea5e9', fontSize: '24px', fontWeight: 'bold' }}>{cargaH.toFixed(2)} <small style={{ fontSize: '14px' }}>m</small></div>
+                        <div style={{ color: '#64748b', fontSize: '11px', marginTop: '4px' }}>Tirante arriba ({currentLevel.toFixed(2)}m) - Tirante abajo ({nivelAbajo.toFixed(2)}m)</div>
+                    </div>
+
+                    <div style={{ backgroundColor: '#1e293b', padding: '16px', borderRadius: '8px', border: '1px solid #334155' }}>
+                        <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '4px', textTransform: 'uppercase' }}>Gasto Total Calculado (Q)</div>
+                        <div style={{ color: '#10b981', fontSize: '24px', fontWeight: 'bold' }}>{gastoCalculado.toFixed(3)} <small style={{ fontSize: '14px' }}>m³/s</small></div>
+                        <div style={{ color: '#64748b', fontSize: '11px', marginTop: '4px' }}>Aforo procesado desde lectura móvil</div>
+                    </div>
+                </div>
+
+                <div style={{ marginBottom: '16px', color: '#f8fafc', fontSize: '14px', fontWeight: 'bold' }}>
+                    Desglose Operativo por Compuerta <span style={{ color: '#0ea5e9', fontWeight: 'normal', fontSize: '12px' }}>({anchoRadial}m x {altoRadial}m)</span>
+                </div>
+
+                <div style={{ border: '1px solid #334155', borderRadius: '8px', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                        <thead style={{ backgroundColor: '#0b1120', color: '#94a3b8' }}>
+                            <tr>
+                                <th style={{ padding: '10px 12px', fontWeight: 'bold' }}>Radial</th>
+                                <th style={{ padding: '10px 12px', fontWeight: 'bold' }}>Apertura (a)</th>
+                                <th style={{ padding: '10px 12px', fontWeight: 'bold' }}>Área Expuesta (A)</th>
+                                <th style={{ padding: '10px 12px', fontWeight: 'bold' }}>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Array.from({ length: pzasRadiales }).map((_, i) => {
+                                const ap = radialAperturas[i]?.apertura_m ?? 0;
+                                const area = Math.min(ap, altoRadial) * anchoRadial;
+                                return (
+                                    <tr key={i} style={{ borderTop: '1px solid #334155', backgroundColor: ap > 0 ? 'rgba(14, 165, 233, 0.05)' : 'transparent' }}>
+                                        <td style={{ padding: '10px 12px', color: '#e2e8f0', fontWeight: 'bold' }}>R{i + 1}</td>
+                                        <td style={{ padding: '10px 12px', color: ap > 0 ? '#38bdf8' : '#64748b' }}>{ap.toFixed(2)} m</td>
+                                        <td style={{ padding: '10px 12px', color: '#e2e8f0' }}>{area.toFixed(2)} m²</td>
+                                        <td style={{ padding: '10px 12px' }}>
+                                            {ap > 0 ? (
+                                                <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', border: '1px solid rgba(16,185,129,0.2)' }}>ABIERTA</span>
+                                            ) : (
+                                                <span style={{ backgroundColor: 'rgba(100, 116, 139, 0.1)', color: '#94a3b8', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', border: '1px solid rgba(100,116,139,0.2)' }}>CERRADA</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+                {totalAperturaXAncho > 0 && (
+                    <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'rgba(14, 165, 233, 0.1)', border: '1px solid rgba(14, 165, 233, 0.2)', borderRadius: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <Info size={18} color="#0ea5e9" style={{ flexShrink: 0 }} />
+                        <span style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: 1.4 }}>
+                            Área total de sección destapada: <b style={{ color: '#fff' }}>{totalAperturaXAncho.toFixed(2)} m²</b>.
+                            El gasto (<b>Q</b>) se calcula a partir de la velocidad dependiente de la carga hidrostática, aproximada localmente durante la bitácora móvil.
+                        </span>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 // ─── COMPONENTE: Mini Diagrama de Radiales (SVG inline) ───
-const RadialGateDiagram = ({ scale }: { scale: ScaleReading }) => {
+const RadialGateDiagram = ({ scale, onOpenModal }: { scale: ScaleReading; onOpenModal: () => void }) => {
     const { pzasRadiales, anchoRadial, altoRadial, radialAperturas, currentLevel } = scale;
     if (pzasRadiales <= 0) return null;
 
@@ -147,7 +245,7 @@ const RadialGateDiagram = ({ scale }: { scale: ScaleReading }) => {
     const openCount = radialAperturas.filter(r => r.apertura_m > 0).length;
 
     return (
-        <div className="radial-diagram-section">
+        <div className="radial-diagram-section hover-effect" onClick={onOpenModal} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} title="Ver Cálculo Hidráulico">
             <div className="radial-diagram-header">
                 <Settings size={10} />
                 <span>{pzasRadiales} Radiales ({anchoRadial}m × {altoRadial}m)</span>
@@ -269,7 +367,7 @@ const GastoVolumeBar = ({ scale }: { scale: ScaleReading }) => {
 };
 
 // ─── COMPONENTE: Scale Gauge (Vertical) — Expandido ───
-const ScaleGauge = ({ scale, zoneColor }: { scale: ScaleReading; zoneColor: string }) => {
+const ScaleGauge = ({ scale, zoneColor, onOpenModal }: { scale: ScaleReading; zoneColor: string; onOpenModal: (scale: ScaleReading) => void }) => {
     const levelPercent = (scale.currentLevel / scale.maxCapacity) * 100;
     const minPercent = (scale.minOperational / scale.maxCapacity) * 100;
     const maxPercent = (scale.maxOperational / scale.maxCapacity) * 100;
@@ -339,7 +437,7 @@ const ScaleGauge = ({ scale, zoneColor }: { scale: ScaleReading; zoneColor: stri
                 </div>
 
                 {/* Radial Gate Diagram (alongside gauge vertically) */}
-                {hasRadiales && <RadialGateDiagram scale={scale} />}
+                {hasRadiales && <RadialGateDiagram scale={scale} onOpenModal={() => onOpenModal(scale)} />}
             </div>
 
             {/* Gasto + Volumen en Caja */}
@@ -374,7 +472,7 @@ const ScaleGauge = ({ scale, zoneColor }: { scale: ScaleReading; zoneColor: stri
 };
 
 // Component: Zone Card
-const ZoneCard = ({ zone }: { zone: Zone }) => {
+const ZoneCard = ({ zone, onOpenModal }: { zone: Zone; onOpenModal: (scale: ScaleReading) => void }) => {
     const avgLevel = zone.scales.reduce((sum, s) => sum + s.currentLevel, 0) / zone.scales.length;
     const hasWarning = zone.scales.some(s => s.currentLevel < s.minOperational || s.currentLevel > s.maxOperational);
     const totalGasto = zone.scales.reduce((sum, s) => sum + s.gastoCalculado, 0);
@@ -417,7 +515,7 @@ const ZoneCard = ({ zone }: { zone: Zone }) => {
 
             <div className="zone-gauges">
                 {zone.scales.map(scale => (
-                    <ScaleGauge key={scale.id} scale={scale} zoneColor={zone.color} />
+                    <ScaleGauge key={scale.id} scale={scale} zoneColor={zone.color} onOpenModal={onOpenModal} />
                 ))}
             </div>
         </div>
@@ -430,6 +528,7 @@ const ControlEscalas = () => {
     const [zones, setZones] = useState<Zone[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [selectedScaleModal, setSelectedScaleModal] = useState<ScaleReading | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -686,7 +785,7 @@ const ControlEscalas = () => {
             {/* Zones Grid */}
             <div className="zones-grid">
                 {zones.map(zone => (
-                    <ZoneCard key={zone.id} zone={zone} />
+                    <ZoneCard key={zone.id} zone={zone} onOpenModal={setSelectedScaleModal} />
                 ))}
             </div>
 
@@ -696,6 +795,11 @@ const ControlEscalas = () => {
                     <p>No hay lecturas de escalas para esta fecha.</p>
                     <p style={{ fontSize: '0.8rem' }}>Selecciona otra fecha o captura nuevas lecturas.</p>
                 </div>
+            )}
+
+            {/* Modal de Radiales */}
+            {selectedScaleModal && (
+                <RadialModal scale={selectedScaleModal} onClose={() => setSelectedScaleModal(null)} />
             )}
         </div>
     );

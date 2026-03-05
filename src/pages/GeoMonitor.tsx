@@ -183,24 +183,35 @@ const GeoMonitor = () => {
         try {
             const todayStr = new Date().toISOString().split('T')[0];
 
-            // 1. Escalas + Resumen Diario
-            const [{ data: escData }, { data: resData }] = await Promise.all([
-                supabase.from('escalas')
-                    .select('id, nombre, km, latitud, longitud, nivel_min_operativo, nivel_max_operativo, capacidad_max, seccion_id, ancho, alto, pzas_radiales, coeficiente_descarga, exponente_n')
-                    .eq('activa', true).order('km'),
-                supabase.from('resumen_escalas_diario')
-                    .select('escala_id, nivel_actual, delta_12h, estado')
-                    .eq('fecha', todayStr),
-            ]);
+            // 1. Escalas base
+            const { data: escData } = await supabase.from('escalas')
+                .select('id, nombre, km, latitud, longitud, nivel_min_operativo, nivel_max_operativo, capacidad_max, seccion_id, ancho, alto, pzas_radiales, coeficiente_descarga, exponente_n')
+                .eq('activa', true).order('km');
 
+            // 2. Resumen diario — traer los más recientes por cada escala (sin filtrar por fecha)
+            const { data: resData } = await supabase.from('resumen_escalas_diario')
+                .select('escala_id, nivel_actual, delta_12h, estado, fecha, lectura_am, lectura_pm')
+                .order('fecha', { ascending: false });
+
+            // Tomar solo el registro más reciente por escala_id
             const resMap = new Map<string, any>();
-            resData?.forEach((r: any) => resMap.set(r.escala_id, r));
-
-            const merged = (escData || []).filter((e: any) => e.latitud && e.longitud).map((e: any) => {
-                const r = resMap.get(e.id);
-                return { ...e, nivel_actual: r?.nivel_actual ? parseFloat(r.nivel_actual) : undefined, delta_12h: r?.delta_12h ? parseFloat(r.delta_12h) : undefined, estado: r?.estado || 'sin_datos' };
+            resData?.forEach((r: any) => {
+                if (!resMap.has(r.escala_id)) resMap.set(r.escala_id, r);
             });
-            setEscalas(merged);
+
+            // Merge: todas las escalas para el perfil long., solo las con coords para el mapa
+            const allMerged = (escData || []).map((e: any) => {
+                const r = resMap.get(e.id);
+                return {
+                    ...e,
+                    nivel_actual: r?.nivel_actual !== null && r?.nivel_actual !== undefined ? parseFloat(r.nivel_actual) : undefined,
+                    delta_12h: r?.delta_12h !== null && r?.delta_12h !== undefined ? parseFloat(r.delta_12h) : undefined,
+                    estado: r?.estado || 'sin_datos',
+                    fecha_lectura: r?.fecha || null,
+                };
+            });
+            // Solo las que tienen coordenadas van al mapa
+            setEscalas(allMerged);
 
             // 2. Presas
             const { data: lpData } = await supabase
@@ -302,27 +313,40 @@ const GeoMonitor = () => {
         return { ...sec, points };
     });
 
-    // Gauge conectado a datos reales (Prioridad 1.4)
-    const gastoEntrada = escalas.find(e => e.km <= 30)?.nivel_actual;
-    const gastoSalida = escalas.find(e => e.km >= 94)?.nivel_actual;
-    const gaugeValue = gastoEntrada ?? 0;
+    // KPIs vinculados a datos reales de SICA
+    // Nivel de entrada: K-23 (primera escala)
+    const escalaEntrada = escalas.find(e => e.km <= 30 && e.nivel_actual !== undefined);
+    const escalaSalida = [...escalas].reverse().find(e => e.km >= 87 && e.nivel_actual !== undefined);
+    const nivelEntrada = escalaEntrada?.nivel_actual;
+    const nivelSalida = escalaSalida?.nivel_actual;
+
+    // Gasto calculado Q = Cd * H^n (fórmula de garganta larga)
+    const calcGasto = (esc: EscalaData | undefined): number | undefined => {
+        if (!esc || esc.nivel_actual === undefined) return undefined;
+        const Cd = (esc as any).coeficiente_descarga || 1.84;
+        const n = (esc as any).exponente_n || 1.52;
+        return Cd * Math.pow(esc.nivel_actual, n);
+    };
+    const gastoEntrada = calcGasto(escalaEntrada);
+    const gastoSalida = calcGasto(escalaSalida);
+    const gaugeValue = nivelEntrada ?? 0;
 
     const chartGaugeOptions = {
         series: [{
             type: 'gauge', center: ['50%', '55%'],
-            startAngle: 200, endAngle: -20, min: 0, max: 60, splitNumber: 6,
+            startAngle: 200, endAngle: -20, min: 0, max: 4, splitNumber: 8,
             progress: {
                 show: true, width: 12,
                 itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#0ea5e9' }, { offset: 1, color: '#3b82f6' }]) }
             },
-            pointer: { show: false },
-            axisLine: { lineStyle: { width: 12, color: [[1, 'rgba(15, 23, 42, 0.8)']] } },
+            pointer: { show: true, length: '60%', width: 4, itemStyle: { color: '#22d3ee' } },
+            axisLine: { lineStyle: { width: 12, color: [[0.6, '#1e40af'], [0.8, '#f59e0b'], [1, '#ef4444']] } },
             axisTick: { show: false },
             splitLine: { distance: -18, length: 12, lineStyle: { color: 'rgba(51, 65, 85, 0.8)', width: 2 } },
             axisLabel: { distance: 12, color: '#94a3b8', fontSize: 10, fontFamily: 'monospace' },
             detail: { valueAnimation: true, formatter: '{value}', color: '#fff', fontSize: 28, fontWeight: 900, offsetCenter: [0, '10%'] },
-            data: [{ value: gaugeValue, name: 'Nivel m' }],
-            title: { offsetCenter: [0, '65%'], color: '#22d3ee', fontSize: 12, fontFamily: 'monospace' }
+            data: [{ value: parseFloat(gaugeValue.toFixed(2)), name: `${escalaEntrada?.nombre || 'K-23'} — Nivel (m)` }],
+            title: { offsetCenter: [0, '70%'], color: '#22d3ee', fontSize: 10, fontFamily: 'monospace' }
         }]
     };
 
@@ -370,11 +394,14 @@ const GeoMonitor = () => {
         },
     };
 
-    // KPI calculations (Prioridad 3.1)
+    // KPI calculations vinculados a SICA
     const perdidaPct = (gastoEntrada && gastoSalida && gastoEntrada > 0)
         ? ((gastoEntrada - gastoSalida) / gastoEntrada * 100).toFixed(1)
-        : null;
+        : (nivelEntrada && nivelSalida && nivelEntrada > 0)
+            ? ((nivelEntrada - nivelSalida) / nivelEntrada * 100).toFixed(1)
+            : null;
     const eficiencia = perdidaPct ? (100 - parseFloat(perdidaPct)).toFixed(1) : null;
+    const gastoDistribuido = operStats.gasto_distribuido_m3s;
 
     // Events
     const liveEvents = [
@@ -627,8 +654,8 @@ const GeoMonitor = () => {
                                     </Polyline>
                                 ))}
 
-                                {/* Prioridad 1.3: Escalas del Canal */}
-                                {layers.escalas && escalas.map(esc => (
+                                {/* Escalas del Canal (solo con coordenadas) */}
+                                {layers.escalas && escalas.filter(e => e.latitud && e.longitud).map(esc => (
                                     <CircleMarker
                                         key={esc.id}
                                         center={[esc.latitud, esc.longitud]}
@@ -720,7 +747,7 @@ const GeoMonitor = () => {
                     {/* Map UI Overlay */}
                     <div className="geo-map-overlay-layer">
                         <div className="geo-map-tag">
-                            <span>SECCIONES: {secciones.length} | ESCALAS: {escalas.length} | PRESAS: {presas.length}</span>
+                            <span>SECCIONES: {secciones.length} | ESCALAS: {escalas.filter(e => e.nivel_actual !== undefined).length}/{escalas.length} | MÓDULOS: {geoModulos?.features?.length || 0} | PRESAS: {presas.length}</span>
                         </div>
                         <div className="geo-map-crosshair" style={{ opacity: 0.1 }}>
                             <Crosshair size={40} />
@@ -736,25 +763,31 @@ const GeoMonitor = () => {
                 {/* RIGHT: KPIs + CHARTS + FEED (Prioridad 3) */}
                 <div className="geo-stats-panel">
 
-                    {/* KPI Cards (Prioridad 3.1) */}
+                    {/* KPI Cards vinculados a SICA */}
                     <div className="geo-kpi-grid">
                         <div className="geo-kpi-card">
                             <div className="geo-kpi-label">
-                                <Gauge size={12} /> Gasto Entrada
+                                <Gauge size={12} /> Nivel Entrada ({escalaEntrada?.nombre || 'K-23'})
                             </div>
-                            <div className="geo-kpi-value cyan">{gastoEntrada?.toFixed(2) ?? '—'} <small>m</small></div>
+                            <div className="geo-kpi-value cyan">
+                                {nivelEntrada?.toFixed(2) ?? '—'} <small>m</small>
+                            </div>
+                            {gastoEntrada && <div style={{ fontSize: 9, color: '#64748b', marginTop: 2, fontFamily: 'monospace' }}>Q: {gastoEntrada.toFixed(2)} m³/s</div>}
                         </div>
                         <div className="geo-kpi-card">
                             <div className="geo-kpi-label">
-                                <Gauge size={12} /> Gasto Salida
+                                <Gauge size={12} /> Nivel Salida ({escalaSalida?.nombre || 'K-94'})
                             </div>
-                            <div className="geo-kpi-value">{gastoSalida?.toFixed(2) ?? '—'} <small>m</small></div>
+                            <div className="geo-kpi-value">
+                                {nivelSalida?.toFixed(2) ?? '—'} <small>m</small>
+                            </div>
+                            {gastoSalida && <div style={{ fontSize: 9, color: '#64748b', marginTop: 2, fontFamily: 'monospace' }}>Q: {gastoSalida.toFixed(2)} m³/s</div>}
                         </div>
                         <div className="geo-kpi-card">
                             <div className="geo-kpi-label">
                                 <TrendingUp size={12} /> Eficiencia
                             </div>
-                            <div className={clsx('geo-kpi-value', eficiencia && parseFloat(eficiencia) >= 90 ? 'green' : 'red')}>
+                            <div className={clsx('geo-kpi-value', eficiencia && parseFloat(eficiencia) >= 90 ? 'green' : eficiencia ? 'red' : '')}>
                                 {eficiencia ?? '—'}<small>%</small>
                             </div>
                         </div>
@@ -778,6 +811,12 @@ const GeoMonitor = () => {
                             <span className="geo-tomas-count">{operStats.tomas_cerradas}</span>
                             <span className="geo-tomas-label">Cerradas</span>
                         </div>
+                        <div className="geo-tomas-item" style={{ background: 'rgba(34, 211, 238, 0.1)' }}>
+                            <span className="geo-tomas-count" style={{ color: '#22d3ee' }}>
+                                {gastoDistribuido.toFixed(1)} <small style={{ fontSize: '10px' }}>m³/s</small>
+                            </span>
+                            <span className="geo-tomas-label">Distribuido</span>
+                        </div>
                         <div className="geo-tomas-item alert">
                             <span className="geo-tomas-count">{tomasVaradas.length}</span>
                             <span className="geo-tomas-label">Varadas</span>
@@ -787,7 +826,7 @@ const GeoMonitor = () => {
                     {/* Gauge Chart */}
                     <div className="geo-chart-card">
                         <div className="geo-stat-header">
-                            <span className="geo-stat-title">Nivel Entrada (K-23)</span>
+                            <span className="geo-stat-title">Nivel: {escalaEntrada?.nombre || 'K-23'}</span>
                             <TrendingUp size={14} className="geo-stat-icon" />
                         </div>
                         <div className="geo-chart-wrapper">

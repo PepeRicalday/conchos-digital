@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import './ReservoirViz.css';
 
 interface ReservoirVizProps {
@@ -50,26 +50,24 @@ const BOQUILLA_FULL_PATH =
  * At lower %, the reservoir contracts from the shallow edges inward.
  */
 function getWaterPath(percent: number): string {
-    if (percent >= 95) return BOQUILLA_FULL_PATH;
+    const PATH_TO_USE = BOQUILLA_TECNICA_PATH;
+    if (percent >= 98) return PATH_TO_USE;
 
-    // Calculate contraction factor: at 0% everything contracts to center
     const t = Math.max(0, Math.min(100, percent)) / 100;
+    const cx = 450, cy = 200; // Centro de masa hídrica (más hacia el este que antes)
+    const scale = 0.2 + t * 0.8;
+    const yShift = (1 - t) * 15;
 
-    // Center of the reservoir (approximate)
-    const cx = 420, cy = 200;
-
-    // Scale factor: at 100% = 1.0, at 0% = 0.15 (tiny puddle)
-    const scale = 0.15 + t * 0.85;
-
-    // Also shift the vertical center down slightly at low levels
-    // (water settles into the deepest channel)
-    const yShift = (1 - t) * 30;
-
-    return `${BOQUILLA_FULL_PATH.replace(/Z$/, '')} Z`.replace(
+    return `${PATH_TO_USE.replace(/Z$/, '')} Z`.replace(
         /(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/g,
         (_, xStr, yStr) => {
             const x = parseFloat(xStr);
             const y = parseFloat(yStr);
+            // La cortina (puntos X > 750) no debe moverse lateralmente
+            if (x > 750) {
+                const ny = cy + (y - cy) * scale + yShift;
+                return `${x},${ny.toFixed(1)}`;
+            }
             const nx = cx + (x - cx) * scale;
             const ny = cy + (y - cy) * scale + yShift;
             return `${nx.toFixed(1)},${ny.toFixed(1)}`;
@@ -143,24 +141,24 @@ const ReservoirViz = ({
                             <stop offset="100%" stopColor="#111827" />
                         </radialGradient>
 
-                        {/* Water gradient */}
+                        {/* Water gradient — Más intenso estilo Digital Twin */}
                         <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={waterColor} stopOpacity={0.9} />
-                            <stop offset="100%" stopColor={waterColor} stopOpacity={0.6} />
+                            <stop offset="0%" stopColor="#2563eb" stopOpacity={0.85} />
+                            <stop offset="100%" stopColor="#1e3a8a" stopOpacity={0.7} />
                         </linearGradient>
 
-                        {/* Exposed lakebed */}
+                        {/* Exposed lakebed — Violeta neón */}
                         <linearGradient id="driedGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#d946ef" stopOpacity={0.35} />
-                            <stop offset="100%" stopColor="#a855f7" stopOpacity={0.15} />
+                            <stop offset="0%" stopColor="#d946ef" stopOpacity={0.4} />
+                            <stop offset="100%" stopColor="#701a75" stopOpacity={0.2} />
                         </linearGradient>
 
                         {/* Water shimmer animation */}
                         <filter id="waterShimmer">
-                            <feTurbulence type="fractalNoise" baseFrequency="0.015 0.06" numOctaves="3" seed="3">
-                                <animate attributeName="seed" from="0" to="100" dur="12s" repeatCount="indefinite" />
+                            <feTurbulence type="fractalNoise" baseFrequency="0.02 0.08" numOctaves="3" seed="3">
+                                <animate attributeName="seed" from="0" to="100" dur="15s" repeatCount="indefinite" />
                             </feTurbulence>
-                            <feDisplacementMap in="SourceGraphic" scale="4" />
+                            <feDisplacementMap in="SourceGraphic" scale="5" />
                         </filter>
 
                         {/* Glow effect */}
@@ -179,8 +177,7 @@ const ReservoirViz = ({
                             href="/boquilla_5marzo.png"
                             x="0" y="0" width="810" height="400"
                             preserveAspectRatio="xMidYMid slice"
-                            opacity={0.7}
-                            clipPath="inset(0% round 12px)"
+                            style={{ clipPath: 'inset(0% round 12px)' }}
                         />
                     ) : (
                         <rect x="0" y="0" width="810" height="400" fill="url(#terrainGrad)" rx="12" />
@@ -205,14 +202,14 @@ const ReservoirViz = ({
                     })}
 
                     {/* Max capacity outline (exposed lakebed when below 100%) */}
-                    {clampedPercent < 95 && (
+                    {clampedPercent < 98 && (
                         <path
-                            d={BOQUILLA_FULL_PATH}
+                            d={BOQUILLA_TECNICA_PATH}
                             fill="url(#driedGrad)"
                             stroke="#d946ef"
-                            strokeWidth="1"
-                            strokeDasharray="4 3"
-                            opacity={0.6}
+                            strokeWidth="1.5"
+                            strokeDasharray="5 4"
+                            opacity={0.7}
                         />
                     )}
 

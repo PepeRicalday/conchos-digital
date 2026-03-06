@@ -1,5 +1,5 @@
 import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload } from 'lucide-react';
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
@@ -664,11 +664,21 @@ const GeoMonitor = () => {
                             if (baseLayer === 'eos') {
                                 // Si ya estamos en EOS, preguntar si quiere cambiar la URL
                                 const url = prompt("Cambiar WMS URL de EOS LandViewer (deja vacío para mantener la actual):", eosUrl);
-                                if (url) setEosUrl(url);
+                                if (url) {
+                                    if (url.includes('landviewer/es?') || url.includes('landviewer/en?')) {
+                                        alert("¡Atención! Has pegado la URL del navegador. Para que el mapa funcione, necesitas la 'URL de Integración WMS' que se encuentra en el menú de integración de EOS.");
+                                    }
+                                    setEosUrl(url);
+                                }
                             } else {
                                 if (!eosUrl) {
                                     const url = prompt("Introduce tu WMS URL de EOS LandViewer:", eosUrl);
-                                    if (url) setEosUrl(url);
+                                    if (url) {
+                                        if (url.includes('landviewer/es?') || url.includes('landviewer/en?')) {
+                                            alert("¡Atención! Has pegado la URL del navegador. Para que el mapa funcione, necesitas la 'URL de Integración WMS' que se encuentra en el menú de integración de EOS.");
+                                        }
+                                        setEosUrl(url);
+                                    }
                                 }
                                 setBaseLayer('eos');
                             }
@@ -702,28 +712,40 @@ const GeoMonitor = () => {
                                     />
                                 )}
                                 {baseLayer === 'eos' && eosUrl && (
-                                    <>
-                                        {eosUrl.toLowerCase().includes('service=wms') || eosUrl.toLowerCase().includes('/wms/') ? (
-                                            <WMSTileLayer
-                                                url={eosUrl.split('?')[0]}
-                                                params={{
-                                                    layers: new URL(eosUrl).searchParams.get('layers') || '',
-                                                    format: 'image/png',
-                                                    transparent: true,
-                                                    version: '1.1.1',
-                                                    ...Object.fromEntries(new URL(eosUrl).searchParams.entries())
-                                                } as any}
-                                                maxZoom={19}
-                                                attribution="© EOS LandViewer"
-                                            />
-                                        ) : (
-                                            <TileLayer
-                                                url={eosUrl}
-                                                maxZoom={19}
-                                                attribution="© EOS LandViewer"
-                                            />
-                                        )}
-                                    </>
+                                    <React.Fragment>
+                                        {(() => {
+                                            try {
+                                                const isWms = eosUrl.toLowerCase().includes('service=wms') || eosUrl.toLowerCase().includes('/wms/');
+                                                if (isWms) {
+                                                    const urlObj = new URL(eosUrl);
+                                                    return (
+                                                        <WMSTileLayer
+                                                            url={eosUrl.split('?')[0]}
+                                                            params={{
+                                                                layers: urlObj.searchParams.get('layers') || '',
+                                                                format: 'image/png',
+                                                                transparent: true,
+                                                                version: '1.1.1',
+                                                                ...Object.fromEntries(urlObj.searchParams.entries())
+                                                            } as any}
+                                                            maxZoom={19}
+                                                            attribution="© EOS LandViewer"
+                                                        />
+                                                    );
+                                                }
+                                                return (
+                                                    <TileLayer
+                                                        url={eosUrl}
+                                                        maxZoom={19}
+                                                        attribution="© EOS LandViewer"
+                                                    />
+                                                );
+                                            } catch (e) {
+                                                console.error("Invalid EOS URL", e);
+                                                return null;
+                                            }
+                                        })()}
+                                    </React.Fragment>
                                 )}
 
                                 {/* GeoJSON: Polígonos de Módulos */}

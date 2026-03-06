@@ -141,7 +141,7 @@ BEGIN
     -- 1. Actualizar reporte de Ayer
     IF vol_prev_m3 > 0 THEN
         UPDATE public.reportes_operacion
-        SET volumen_acumulado = COALESCE(volumen_acumulado, 0) + vol_prev_m3,
+        SET volumen_acumulado = COALESCE(volumen_acumulado, 0) + (vol_prev_m3 / 1000000.0),
             estado = 'cierre',
             hora_cierre = midnight_timestamp
         WHERE punto_id = NEW.punto_id AND fecha = fecha_prev;
@@ -160,7 +160,7 @@ BEGIN
             NEW.punto_id, 
             fecha_hoy, 
             CASE WHEN NEW.valor_q > 0 THEN 'inicio' ELSE 'suspension' END, 
-            vol_hoy_m3, 
+            (vol_hoy_m3 / 1000000.0), 
             NEW.valor_q, 
             1,
             NEW.fecha_hora
@@ -169,7 +169,7 @@ BEGIN
         -- Actualizar reporte existente
         UPDATE public.reportes_operacion
         SET 
-            volumen_acumulado = COALESCE(volumen_acumulado, 0) + vol_hoy_m3,
+            volumen_acumulado = COALESCE(volumen_acumulado, 0) + (vol_hoy_m3 / 1000000.0),
             caudal_promedio = NEW.valor_q,
             num_mediciones = num_mediciones + 1,
             estado = CASE 

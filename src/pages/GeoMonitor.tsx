@@ -1,6 +1,6 @@
 import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
 import 'leaflet/dist/leaflet.css';
@@ -133,8 +133,20 @@ const GeoMonitor = () => {
         presasShape: true,
     });
 
-    const [baseLayer, setBaseLayer] = useState<'standard' | 'satellite' | 'eos'>('satellite');
-    const [eosUrl, setEosUrl] = useState<string>(''); // Para almacenar la URL WMS de EOS
+    const [baseLayer, setBaseLayer] = useState<'standard' | 'satellite' | 'eos'>(() => {
+        return (localStorage.getItem('geo_base_layer') as any) || 'satellite';
+    });
+    const [eosUrl, setEosUrl] = useState<string>(() => {
+        return localStorage.getItem('geo_eos_url') || '';
+    }); // Para almacenar la URL WMS de EOS
+
+    useEffect(() => {
+        localStorage.setItem('geo_base_layer', baseLayer);
+    }, [baseLayer]);
+
+    useEffect(() => {
+        if (eosUrl) localStorage.setItem('geo_eos_url', eosUrl);
+    }, [eosUrl]);
 
     const toggleLayer = (key: keyof typeof layers) => {
         setLayers(prev => ({ ...prev, [key]: !prev[key] }));
@@ -649,13 +661,19 @@ const GeoMonitor = () => {
                     <button
                         className={clsx('geo-control-btn', baseLayer === 'eos' ? 'active' : 'default')}
                         onClick={() => {
-                            if (!eosUrl && baseLayer !== 'eos') {
-                                const url = prompt("Introduce tu WMS URL de EOS LandViewer:", eosUrl);
+                            if (baseLayer === 'eos') {
+                                // Si ya estamos en EOS, preguntar si quiere cambiar la URL
+                                const url = prompt("Cambiar WMS URL de EOS LandViewer (deja vacío para mantener la actual):", eosUrl);
                                 if (url) setEosUrl(url);
+                            } else {
+                                if (!eosUrl) {
+                                    const url = prompt("Introduce tu WMS URL de EOS LandViewer:", eosUrl);
+                                    if (url) setEosUrl(url);
+                                }
+                                setBaseLayer('eos');
                             }
-                            setBaseLayer('eos');
                         }}
-                        title="Satélite EOS LandViewer (Requiere WMS URL)"
+                        title={eosUrl ? "Cambiar / Activar EOS LandViewer" : "Activar EOS LandViewer (Requiere WMS URL)"}
                     >
                         <Wifi size={20} className={baseLayer === 'eos' ? 'text-amber-400' : ''} />
                         {baseLayer === 'eos' && <span className="geo-indicator-dot" style={{ background: '#f59e0b' }}></span>}
@@ -684,11 +702,28 @@ const GeoMonitor = () => {
                                     />
                                 )}
                                 {baseLayer === 'eos' && eosUrl && (
-                                    <TileLayer
-                                        url={eosUrl}
-                                        maxZoom={19}
-                                        attribution="© EOS LandViewer"
-                                    />
+                                    <>
+                                        {eosUrl.toLowerCase().includes('service=wms') || eosUrl.toLowerCase().includes('/wms/') ? (
+                                            <WMSTileLayer
+                                                url={eosUrl.split('?')[0]}
+                                                params={{
+                                                    layers: new URL(eosUrl).searchParams.get('layers') || '',
+                                                    format: 'image/png',
+                                                    transparent: true,
+                                                    version: '1.1.1',
+                                                    ...Object.fromEntries(new URL(eosUrl).searchParams.entries())
+                                                } as any}
+                                                maxZoom={19}
+                                                attribution="© EOS LandViewer"
+                                            />
+                                        ) : (
+                                            <TileLayer
+                                                url={eosUrl}
+                                                maxZoom={19}
+                                                attribution="© EOS LandViewer"
+                                            />
+                                        )}
+                                    </>
                                 )}
 
                                 {/* GeoJSON: Polígonos de Módulos */}

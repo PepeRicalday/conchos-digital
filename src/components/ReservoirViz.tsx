@@ -14,10 +14,23 @@ interface ReservoirVizProps {
 const clsx = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
 /**
- * SVG path of the La Boquilla reservoir shape at 100% capacity.
- * Artistic interpretation based on satellite imagery.
- * The path is designed in a 800×400 viewBox with the dam wall on the right.
+ * Silueta técnica detallada de La Boquilla (SICA 005 - 5 Marzo)
  */
+const BOQUILLA_TECNICA_PATH =
+    'M 35,200 ' +
+    'L 60,192 L 95,185 L 130,178 L 175,170 ' +
+    'Q 200,145 230,138 L 265,128 ' +
+    'Q 295,110 330,120 L 370,135 ' +
+    'Q 410,105 455,95 L 505,88 ' +
+    'Q 540,75 585,82 L 635,95 ' +
+    'L 685,115 L 725,145 L 755,175 ' +
+    'L 760,175 L 760,225 ' +
+    'L 745,255 L 710,275 L 670,292 L 620,310 ' +
+    'Q 580,325 535,308 L 485,295 ' +
+    'Q 445,275 405,285 L 360,300 ' +
+    'Q 315,315 270,290 L 225,275 ' +
+    'L 185,265 L 140,250 L 95,235 L 35,200 Z';
+
 const BOQUILLA_FULL_PATH =
     'M 50,200 ' +
     'C 60,180 75,160 100,155 ' +      // Western arm starts

@@ -148,6 +148,50 @@
     border: 1px dashed rgba(217, 70, 239, 0.5);
 }
 
+
+/* Simulation Panel */
+.reservoir-interactive-panel {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sim-slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.sim-slider {
+    flex: 1;
+    height: 4px;
+    accent-color: #3b82f6;
+    cursor: pointer;
+}
+
+.reset-sim-btn {
+    padding: 2px 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.reset-sim-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+    color: #ef4444;
+}
+
+.res-stat-value.text-blue-400 {
+    color: #60a5fa !important;
+    text-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .reservoir-stats {

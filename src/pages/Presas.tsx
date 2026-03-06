@@ -616,6 +616,7 @@ const Presas = () => {
                         areaHa={currentDam.lectura?.area_ha || 0}
                         elevationMsnm={currentDam.lectura?.escala_msnm || 0}
                         damName={currentDam.nombre_corto}
+                        presaId={currentDam.id}
                     />
                 </div>
 

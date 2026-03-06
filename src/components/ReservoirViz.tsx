@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import './ReservoirViz.css';
 
 interface ReservoirVizProps {
@@ -8,7 +8,10 @@ interface ReservoirVizProps {
     areaHa?: number;      // Área actual ha
     elevationMsnm?: number;
     damName: string;
+    presaId?: string;
 }
+
+const clsx = (...classes: any[]) => classes.filter(Boolean).join(' ');
 
 /**
  * SVG path of the La Boquilla reservoir shape at 100% capacity.
@@ -81,10 +84,23 @@ const ReservoirViz = ({
     areaHa,
     elevationMsnm,
     damName,
+    presaId,
 }: ReservoirVizProps) => {
-    const clampedPercent = Math.max(0, Math.min(100, percent));
+    // Estado para simulación interactiva
+    const [simPercent, setSimPercent] = useState<number | null>(null);
+    const currentPercent = simPercent !== null ? simPercent : percent;
+
+    const clampedPercent = Math.max(0, Math.min(100, currentPercent));
 
     const waterPath = useMemo(() => getWaterPath(clampedPercent), [clampedPercent]);
+
+    // Cálculo dinámico de almacenamiento basado en el porcentaje simulado
+    const displayStorage = useMemo(() => {
+        if (simPercent === null) return storageMm3;
+        return (clampedPercent / 100) * maxStorageMm3;
+    }, [simPercent, clampedPercent, storageMm3, maxStorageMm3]);
+
+    const isBoquilla = presaId === 'PRE-001' || damName.toUpperCase().includes('BOQUILLA');
 
     // Color ramps based on percentage
     const waterColor = useMemo(() => {
@@ -157,8 +173,18 @@ const ReservoirViz = ({
                         </filter>
                     </defs>
 
-                    {/* Background terrain */}
-                    <rect x="0" y="0" width="810" height="400" fill="url(#terrainGrad)" rx="12" />
+                    {/* Background terrain or Satellite */}
+                    {isBoquilla ? (
+                        <image
+                            href="/boquilla_5marzo.png"
+                            x="0" y="0" width="810" height="400"
+                            preserveAspectRatio="xMidYMid slice"
+                            opacity={0.7}
+                            clipPath="inset(0% round 12px)"
+                        />
+                    ) : (
+                        <rect x="0" y="0" width="810" height="400" fill="url(#terrainGrad)" rx="12" />
+                    )}
 
                     {/* Terrain texture dots (deterministic) */}
                     {Array.from({ length: 40 }, (_, i) => {
@@ -226,19 +252,42 @@ const ReservoirViz = ({
                     </text>
                     <text
                         x="420" y="230"
-                        fill="rgba(255,255,255,0.5)" fontSize="11"
+                        fill="rgba(255,255,255,0.7)" fontSize="11" fontWeight="bold"
                         textAnchor="middle" fontFamily="sans-serif"
                     >
-                        Capacidad NAMO
+                        {simPercent !== null ? 'SIMULACIÓN DE VOLUMEN' : 'Capacidad NAMO'}
                     </text>
                 </svg>
+            </div>
+
+            {/* Simulation Slider Control */}
+            <div className="reservoir-interactive-panel">
+                <div className="sim-slider-wrap">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">Ajustar Nivel Interactivo (%):</span>
+                    <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={clampedPercent}
+                        onChange={(e) => setSimPercent(parseFloat(e.target.value))}
+                        className="sim-slider"
+                    />
+                    {simPercent !== null && (
+                        <button className="reset-sim-btn" onClick={() => setSimPercent(null)}>
+                            Reset
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Stats row */}
             <div className="reservoir-stats">
                 <div className="res-stat">
                     <span className="res-stat-label">Almacenamiento</span>
-                    <span className="res-stat-value">{storageMm3.toLocaleString('es-MX', { maximumFractionDigits: 1 })}</span>
+                    <span className={clsx("res-stat-value", simPercent !== null && "text-blue-400")}>
+                        {displayStorage.toLocaleString('es-MX', { maximumFractionDigits: 1 })}
+                    </span>
                     <span className="res-stat-unit">Mm³</span>
                 </div>
                 <div className="res-stat-divider" />

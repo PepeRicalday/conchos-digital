@@ -152,41 +152,36 @@ Deno.serve(async (req: Request) => {
             });
         }
 
-        // ─── Extraer usuario del JWT ───
-        // El API Gateway de Supabase ya valida el JWT antes de que llegue aquí,
-        // así que solo necesitamos decodificar el payload para obtener el user_id.
+        // ─── Extraer y validar usuario con el cliente de Supabase (Método recomendado) ───
         const authHeader = req.headers.get("Authorization");
-        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        if (!authHeader) {
             return new Response(JSON.stringify({ error: "Se requiere autenticación." }), {
                 status: 401,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
         }
 
-        const token = authHeader.replace("Bearer ", "");
-        let userId: string;
+        // Crear un cliente con el token del usuario para validar la sesión automáticamente
+        const supabaseUserClient = createClient(
+            SUPABASE_URL,
+            Deno.env.get("SUPABASE_ANON_KEY")!,
+            { global: { headers: { Authorization: authHeader } } }
+        );
 
-        try {
-            // Decodificar JWT payload (parte 2 del token, separado por puntos)
-            const payloadBase64 = token.split(".")[1];
-            const payloadJson = atob(payloadBase64.replace(/-/g, "+").replace(/_/g, "/"));
-            const payload = JSON.parse(payloadJson);
-            userId = payload.sub;
+        const { data: { user }, error: authError } = await supabaseUserClient.auth.getUser();
 
-            if (!userId) {
-                throw new Error("JWT no contiene sub (user_id)");
-            }
-
-            console.log("User autenticado:", userId);
-        } catch (jwtError) {
-            console.error("Error decodificando JWT:", jwtError);
-            return new Response(JSON.stringify({ error: "Token de sesión inválido. Inicia sesión de nuevo." }), {
+        if (authError || !user) {
+            console.error("Auth error:", authError);
+            return new Response(JSON.stringify({ error: "Token de sesión inválido o expirado. Inicia sesión de nuevo." }), {
                 status: 401,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
         }
 
-        // ─── Verificar rol SRL con service role ───
+        const userId = user.id;
+        console.log("User autenticado:", userId);
+
+        // Mantener el cliente admin para consultas privilegiadas
         const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
         const { data: profile } = await supabaseAdmin
             .from("perfiles_usuario")

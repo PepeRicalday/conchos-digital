@@ -15,7 +15,7 @@ import ReservoirViz from '../components/ReservoirViz';
 import { useFecha } from '../context/FechaContext';
 import { usePresas, type PresaData, type PuntoCurva, type ClimaPresaData, type AforoDiarioData } from '../hooks/usePresas';
 
-// --- Hidro-Sincronía 2.0: Advanced Analytics Components ---
+// --- Hidro-Sincronía 2.1: Advanced Analytics & Interactive Simulation ---
 
 const HydroFlowDiagram = ({ presa }: { presa: PresaData }) => {
     return (

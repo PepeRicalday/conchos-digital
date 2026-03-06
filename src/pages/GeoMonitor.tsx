@@ -66,6 +66,16 @@ interface PresaData {
 interface AforoData {
     id: string; nombre_punto: string; latitud: number; longitud: number;
 }
+interface TomaData {
+    id: string;
+    nombre: string;
+    latitud: number;
+    longitud: number;
+    estado: string;
+    caudal?: number;
+    km?: number;
+    modulo?: string;
+}
 interface SeccionData {
     id: string; nombre: string; km_inicio: number; km_fin: number; color: string;
 }
@@ -97,6 +107,7 @@ const GeoMonitor = () => {
     const [escalas, setEscalas] = useState<EscalaData[]>([]);
     const [presas, setPresas] = useState<PresaData[]>([]);
     const [aforos, setAforos] = useState<AforoData[]>([]);
+    const [tomas, setTomas] = useState<TomaData[]>([]);
     const [secciones, setSecciones] = useState<SeccionData[]>([]);
     const [operStats, setOperStats] = useState<OperStats>({ tomas_abiertas: 0, tomas_cerradas: 0, gasto_distribuido_m3s: 0 });
     const [tomasVaradas, setTomasVaradas] = useState<any[]>([]);
@@ -246,6 +257,31 @@ const GeoMonitor = () => {
             // 6. Tomas Varadas
             const { data: tvData } = await supabase.from('vw_alertas_tomas_varadas').select('*');
             if (tvData) setTomasVaradas(tvData);
+
+            // 7. Puntos de Entrega (Tomas) y su estado actual
+            const { data: peData } = await supabase.from('puntos_entrega')
+                .select('id, nombre, km, coords_x, coords_y, modulo_id');
+
+            const { data: roData } = await supabase.from('reportes_operacion')
+                .select('punto_id, estado, caudal_promedio')
+                .eq('fecha', todayStr);
+
+            const roMap = new Map();
+            roData?.forEach(r => roMap.set(r.punto_id, r));
+
+            const mergedTomas = (peData || [])
+                .filter(p => p.coords_x && p.coords_y)
+                .map(p => ({
+                    id: p.id,
+                    nombre: p.nombre,
+                    latitud: parseFloat(p.coords_y as any),
+                    longitud: parseFloat(p.coords_x as any),
+                    km: p.km ? parseFloat(p.km as any) : undefined,
+                    modulo: p.modulo_id,
+                    estado: roMap.get(p.id)?.estado || 'cierre',
+                    caudal: roMap.get(p.id)?.caudal_promedio ? parseFloat(roMap.get(p.id).caudal_promedio) : 0
+                }));
+            setTomas(mergedTomas);
 
         } catch (e) {
             console.error('GeoMonitor fetch error:', e);
@@ -739,6 +775,41 @@ const GeoMonitor = () => {
                                             </div>
                                         </Popup>
                                     </Marker>
+                                ))}
+
+                                {/* Puntos de Entrega (Tomas) */}
+                                {layers.tomas && tomas.map(t => (
+                                    <CircleMarker
+                                        key={t.id}
+                                        center={[t.latitud, t.longitud]}
+                                        radius={t.estado !== 'cierre' ? 5 : 4}
+                                        fillColor={t.estado === 'cierre' ? '#64748b' : '#22c55e'}
+                                        color="white"
+                                        weight={1}
+                                        fillOpacity={0.8}
+                                    >
+                                        <Tooltip direction="top" offset={[0, -5]}>
+                                            <div style={{ fontFamily: 'monospace', fontSize: 10 }}>
+                                                <b>{t.nombre}</b><br />
+                                                Estado: <span style={{ color: t.estado === 'cierre' ? '#94a3b8' : '#4ade80' }}>
+                                                    {t.estado === 'cierre' ? 'CERRADA' : 'ABIERTA'}
+                                                </span><br />
+                                                {t.estado !== 'cierre' && <span>Q: {t.caudal?.toFixed(1)} LPS</span>}
+                                            </div>
+                                        </Tooltip>
+                                        <Popup>
+                                            <div style={{ fontFamily: 'monospace', minWidth: 160 }}>
+                                                <strong style={{ fontSize: 13 }}>{t.nombre}</strong>
+                                                <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>
+                                                    Modulo: {t.modulo} | Km: {t.km?.toFixed(3)}
+                                                </div>
+                                                <div style={{ padding: '4px 8px', borderRadius: 4, background: t.estado === 'cierre' ? '#f1f5f9' : '#f0fdf4', fontSize: 11 }}>
+                                                    Estado: <b>{t.estado.toUpperCase()}</b><br />
+                                                    {t.estado !== 'cierre' && <div>Caudal: <b>{t.caudal?.toFixed(1)} LPS</b></div>}
+                                                </div>
+                                            </div>
+                                        </Popup>
+                                    </CircleMarker>
                                 ))}
                             </MapContainer>
                         )}

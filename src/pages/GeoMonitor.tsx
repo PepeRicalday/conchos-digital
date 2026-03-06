@@ -133,6 +133,9 @@ const GeoMonitor = () => {
         presasShape: true,
     });
 
+    const [baseLayer, setBaseLayer] = useState<'standard' | 'satellite' | 'eos'>('satellite');
+    const [eosUrl, setEosUrl] = useState<string>(''); // Para almacenar la URL WMS de EOS
+
     const toggleLayer = (key: keyof typeof layers) => {
         setLayers(prev => ({ ...prev, [key]: !prev[key] }));
     };
@@ -625,6 +628,38 @@ const GeoMonitor = () => {
                             <Upload size={20} />
                         </button>
                     )}
+
+                    <div className="geo-layer-divider" style={{ height: '1px', background: 'rgba(51,65,85,0.3)', margin: '8px 4px' }}></div>
+
+                    {/* Base Layer Selector */}
+                    <button
+                        className={clsx('geo-control-btn', baseLayer === 'standard' ? 'active' : 'default')}
+                        onClick={() => setBaseLayer('standard')}
+                        title="Mapa Estándar"
+                    >
+                        <MapIcon size={20} />
+                    </button>
+                    <button
+                        className={clsx('geo-control-btn', baseLayer === 'satellite' ? 'active' : 'default')}
+                        onClick={() => setBaseLayer('satellite')}
+                        title="Satélite ArcGIS"
+                    >
+                        <Layers size={20} />
+                    </button>
+                    <button
+                        className={clsx('geo-control-btn', baseLayer === 'eos' ? 'active' : 'default')}
+                        onClick={() => {
+                            if (!eosUrl && baseLayer !== 'eos') {
+                                const url = prompt("Introduce tu WMS URL de EOS LandViewer:", eosUrl);
+                                if (url) setEosUrl(url);
+                            }
+                            setBaseLayer('eos');
+                        }}
+                        title="Satélite EOS LandViewer (Requiere WMS URL)"
+                    >
+                        <Wifi size={20} className={baseLayer === 'eos' ? 'text-amber-400' : ''} />
+                        {baseLayer === 'eos' && <span className="geo-indicator-dot" style={{ background: '#f59e0b' }}></span>}
+                    </button>
                 </div>
 
                 {/* CENTER: MAP (Prioridad 1 + 2) */}
@@ -636,10 +671,25 @@ const GeoMonitor = () => {
                                 style={{ height: '100%', width: '100%', background: '#0f172a' }}
                                 zoomControl={false} attributionControl={false}
                             >
-                                <TileLayer
-                                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                                    maxZoom={19}
-                                />
+                                {baseLayer === 'satellite' && (
+                                    <TileLayer
+                                        url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                                        maxZoom={19}
+                                    />
+                                )}
+                                {baseLayer === 'standard' && (
+                                    <TileLayer
+                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                        maxZoom={19}
+                                    />
+                                )}
+                                {baseLayer === 'eos' && eosUrl && (
+                                    <TileLayer
+                                        url={eosUrl}
+                                        maxZoom={19}
+                                        attribution="© EOS LandViewer"
+                                    />
+                                )}
 
                                 {/* GeoJSON: Polígonos de Módulos */}
                                 {layers.modulos && geoModulos && (

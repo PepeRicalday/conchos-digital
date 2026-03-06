@@ -226,6 +226,7 @@ export const validateAforoVsDesign = (
 export const getEfficiencyStatus = (eficiencia: number): { color: string; label: string; bg: string } => {
   if (eficiencia >= 95) return { color: '#10b981', label: 'Óptimo', bg: 'rgba(16, 185, 129, 0.1)' };
   if (eficiencia >= 90) return { color: '#f59e0b', label: 'Atención', bg: 'rgba(245, 158, 11, 0.1)' };
-  if (eficiencia >= 80) return { color: '#f97316', label: 'Alerta', bg: 'rgba(249, 115, 22, 0.1)' };
-  return { color: '#ef4444', label: 'Crítico', bg: 'rgba(239, 68, 68, 0.1)' };
+  // A partir de 10% de pérdidas (eficiencia < 90%), se considera alerta crítica (Rojo) por directiva técnica.
+  if (eficiencia >= 85) return { color: '#ef4444', label: 'Alerta Roja', bg: 'rgba(239, 68, 68, 0.1)' };
+  return { color: '#991b1b', label: 'Crítico (Fuga)', bg: 'rgba(153, 27, 27, 0.1)' };
 };

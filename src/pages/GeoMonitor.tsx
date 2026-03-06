@@ -169,6 +169,32 @@ const GeoMonitor = () => {
         setGeoKey(k => k + 1);
     };
 
+    // Selection & Filter States
+    const [selectedPoint, setSelectedPoint] = useState<{ type: 'escala' | 'toma' | 'presa'; data: any } | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [activeFilter, setActiveFilter] = useState<'all' | 'open' | 'closed' | 'alert'>('all');
+
+    // Filtered data
+    const filteredTomas = useMemo(() => {
+        let list = tomas;
+        if (activeFilter === 'open') list = list.filter(t => t.estado !== 'cierre');
+        if (activeFilter === 'closed') list = list.filter(t => t.estado === 'cierre');
+        if (activeFilter === 'alert') {
+            const varadasIds = new Set(tomasVaradas.map(tv => tv.punto_id));
+            list = list.filter(t => varadasIds.has(t.id));
+        }
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            list = list.filter(t => t.nombre.toLowerCase().includes(q) || (t.km?.toString().includes(q)));
+        }
+        return list;
+    }, [tomas, activeFilter, searchQuery, tomasVaradas]);
+
+    // Selection Handler Helper
+    const handleSelect = (type: 'escala' | 'toma' | 'presa', data: any) => {
+        setSelectedPoint({ type, data });
+    };
+
     // Data Fetching (Prioridad 1)
     const fetchAllData = useCallback(async () => {
         try {
@@ -414,6 +440,14 @@ const GeoMonitor = () => {
                     { offset: 1, color: 'rgba(34, 211, 238, 0.02)' }
                 ])
             },
+            markLine: {
+                silent: true,
+                symbol: ['none', 'none'],
+                data: [
+                    { yAxis: 2.8, lineStyle: { color: '#f59e0b', type: 'dashed', opacity: 0.6 }, label: { show: true, position: 'end', formatter: 'Min 2.8m', color: '#f59e0b', fontSize: 8 } },
+                    { yAxis: 3.4, lineStyle: { color: '#ef4444', type: 'dashed', opacity: 0.6 }, label: { show: true, position: 'end', formatter: 'Max 3.4m', color: '#ef4444', fontSize: 8 } }
+                ]
+            }
         }],
         tooltip: {
             trigger: 'axis' as const,
@@ -428,6 +462,19 @@ const GeoMonitor = () => {
         },
     };
 
+    const miniHistoryOptions = {
+        backgroundColor: 'transparent',
+        grid: { left: 5, right: 5, top: 5, bottom: 5 },
+        xAxis: { type: 'category', show: false },
+        yAxis: { type: 'value', show: false },
+        series: [{
+            data: [2.1, 2.3, 2.2, 2.5, 2.4, 2.6, 2.5],
+            type: 'line', smooth: true, symbol: 'none',
+            lineStyle: { color: '#22d3ee', width: 2 },
+            areaStyle: { color: 'rgba(34, 211, 238, 0.1)' }
+        }]
+    };
+
     // KPI calculations vinculados a SICA
     const perdidaPct = (gastoEntrada && gastoSalida && gastoEntrada > 0)
         ? ((gastoEntrada - gastoSalida) / gastoEntrada * 100).toFixed(1)
@@ -438,20 +485,22 @@ const GeoMonitor = () => {
     const gastoDistribuido = operStats.gasto_distribuido_m3s;
 
     // Events
-    const liveEvents = [
+    const liveEvents = useMemo(() => [
         ...tomasVaradas.map((tv: any) => ({
             time: `Hace ${tv.dias_varada} ${tv.dias_varada === 1 ? 'día' : 'días'}`,
             type: 'TOMA VARADA', title: `Sin continuidad (${tv.ultimo_estado})`,
-            location: tv.punto_nombre, status: 'status-critical'
+            location: tv.punto_nombre, status: 'status-critical',
+            point: { type: 'toma' as const, id: tv.punto_id }
         })),
         ...presas.filter(p => p.porcentaje_llenado < 40).map(p => ({
             time: p.fecha, type: 'ALMACENAMIENTO',
             title: `${p.nombre} al ${p.porcentaje_llenado.toFixed(1)}%`,
-            location: 'Red Mayor', status: 'status-warning'
+            location: 'Red Mayor', status: 'status-warning',
+            point: { type: 'presa' as const, id: p.presa_id }
         })),
-        { time: 'En Vivo', type: 'SYNC', title: `${escalas.length} Escalas enlazadas`, location: 'Sistema General', status: 'status-success' },
-        { time: 'Tiempo Real', type: 'DISTRIBUCIÓN', title: `${operStats.tomas_abiertas} tomas operando`, location: 'Canal Principal', status: 'status-info' },
-    ];
+        { time: 'En Vivo', type: 'SYNC', title: `${escalas.length} Escalas enlazadas`, location: 'Sistema General', status: 'status-success', point: null },
+        { time: 'Tiempo Real', type: 'DISTRIBUCIÓN', title: `${operStats.tomas_abiertas} tomas operando`, location: 'Canal Principal', status: 'status-info', point: null },
+    ], [tomasVaradas, presas, escalas, operStats]);
 
     const mapCenter: [number, number] = [28.02, -105.42];
 
@@ -472,6 +521,20 @@ const GeoMonitor = () => {
                         <p className="geo-subtitle">
                             Canal Principal Conchos — DR-005
                         </p>
+                    </div>
+                </div>
+                <div className="geo-search-container">
+                    <div className="geo-search-bar">
+                        <Activity size={14} className="geo-search-icon" />
+                        <input
+                            type="text"
+                            placeholder="Buscar dispositivo (Escala, KM, Toma)..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                        {searchQuery && (
+                            <button className="geo-search-clear" onClick={() => setSearchQuery('')}>×</button>
+                        )}
                     </div>
                 </div>
                 <div className="geo-header-right">
@@ -700,6 +763,9 @@ const GeoMonitor = () => {
                                         color="rgba(255,255,255,0.8)"
                                         weight={2}
                                         fillOpacity={0.9}
+                                        eventHandlers={{
+                                            click: () => handleSelect('escala', esc)
+                                        }}
                                     >
                                         <Tooltip direction="top" offset={[0, -8]}>
                                             <div style={{ fontFamily: 'monospace', fontSize: 11, minWidth: 140 }}>
@@ -717,22 +783,6 @@ const GeoMonitor = () => {
                                                 )}
                                             </div>
                                         </Tooltip>
-                                        <Popup>
-                                            <div style={{ fontFamily: 'monospace', minWidth: 160 }}>
-                                                <strong style={{ fontSize: 13 }}>{esc.nombre}</strong>
-                                                <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Km {esc.km} | Sección {esc.seccion_id}</div>
-                                                <table style={{ fontSize: 11, width: '100%' }}>
-                                                    <tbody>
-                                                        <tr><td>Nivel Actual:</td><td style={{ fontWeight: 'bold', color: '#0ea5e9' }}>{esc.nivel_actual ?? '—'} m</td></tr>
-                                                        <tr><td>Rango Oper.:</td><td>{esc.nivel_min_operativo}–{esc.nivel_max_operativo} m</td></tr>
-                                                        <tr><td>Δ12h:</td><td style={{ color: (esc.delta_12h ?? 0) >= 0 ? '#16a34a' : '#dc2626' }}>{esc.delta_12h ?? '—'} m</td></tr>
-                                                        {esc.pzas_radiales > 0 && (
-                                                            <tr><td>Radiales:</td><td>{esc.pzas_radiales} pzas ({esc.ancho}×{esc.alto}m)</td></tr>
-                                                        )}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </Popup>
                                     </CircleMarker>
                                 ))}
 
@@ -778,7 +828,7 @@ const GeoMonitor = () => {
                                 ))}
 
                                 {/* Puntos de Entrega (Tomas) */}
-                                {layers.tomas && tomas.map(t => (
+                                {layers.tomas && filteredTomas.map(t => (
                                     <CircleMarker
                                         key={t.id}
                                         center={[t.latitud, t.longitud]}
@@ -787,6 +837,9 @@ const GeoMonitor = () => {
                                         color="white"
                                         weight={1}
                                         fillOpacity={0.8}
+                                        eventHandlers={{
+                                            click: () => handleSelect('toma', t)
+                                        }}
                                     >
                                         <Tooltip direction="top" offset={[0, -5]}>
                                             <div style={{ fontFamily: 'monospace', fontSize: 10 }}>
@@ -834,6 +887,81 @@ const GeoMonitor = () => {
                 {/* RIGHT: KPIs + CHARTS + FEED (Prioridad 3) */}
                 <div className="geo-stats-panel">
 
+                    {/* Element Detail Panel (Selected Element) */}
+                    {selectedPoint && (
+                        <div className="geo-detail-panel animate-in">
+                            <div className="geo-detail-header">
+                                <div className="geo-detail-title-group">
+                                    {selectedPoint.type === 'escala' && <Gauge size={16} className="cyan" />}
+                                    {selectedPoint.type === 'toma' && <Droplets size={16} className="green" />}
+                                    {selectedPoint.type === 'presa' && <Droplets size={16} className="blue" />}
+                                    <h3>{selectedPoint.data.nombre}</h3>
+                                </div>
+                                <button className="geo-detail-close" onClick={() => setSelectedPoint(null)}>×</button>
+                            </div>
+
+                            <div className="geo-detail-content">
+                                <div className="geo-detail-id-tag">
+                                    <span>UID: {selectedPoint.data.id?.substring(0, 8).toUpperCase() || selectedPoint.data.presa_id?.substring(0, 8).toUpperCase()}</span>
+                                    <span>KM: {selectedPoint.data.km?.toFixed(3) || '0.000'}</span>
+                                </div>
+
+                                <div className="geo-detail-stats">
+                                    {selectedPoint.type === 'escala' && (
+                                        <>
+                                            <div className="detail-stat">
+                                                <label>Nivel Actual</label>
+                                                <strong>{selectedPoint.data.nivel_actual ?? '—'} <small>m</small></strong>
+                                            </div>
+                                            <div className="detail-stat">
+                                                <label>Gasto Calc.</label>
+                                                <strong>{calcGasto(selectedPoint.data)?.toFixed(2) ?? '—'} <small>m³/s</small></strong>
+                                            </div>
+                                        </>
+                                    )}
+                                    {selectedPoint.type === 'toma' && (
+                                        <>
+                                            <div className="detail-stat">
+                                                <label>Estado</label>
+                                                <strong className={selectedPoint.data.estado === 'cierre' ? 'muted' : 'green'}>
+                                                    {selectedPoint.data.estado.toUpperCase()}
+                                                </strong>
+                                            </div>
+                                            <div className="detail-stat">
+                                                <label>Caudal</label>
+                                                <strong>{selectedPoint.data.caudal?.toFixed(1) ?? '0.0'} <small>LPS</small></strong>
+                                            </div>
+                                        </>
+                                    )}
+                                    {selectedPoint.type === 'presa' && (
+                                        <>
+                                            <div className="detail-stat">
+                                                <label>Llenado</label>
+                                                <strong>{selectedPoint.data.porcentaje_llenado.toFixed(1)} <small>%</small></strong>
+                                            </div>
+                                            <div className="detail-stat">
+                                                <label>Extracción</label>
+                                                <strong>{selectedPoint.data.extraccion_total_m3s.toFixed(2)} <small>m³/s</small></strong>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                <div className="geo-detail-chart">
+                                    <label>Tendencia Reciente (12h)</label>
+                                    <div style={{ height: '40px' }}>
+                                        <ReactECharts option={miniHistoryOptions} style={{ height: '100%', width: '100%' }} />
+                                    </div>
+                                </div>
+
+                                <div className="geo-detail-actions">
+                                    <button className="geo-action-btn primary">Ver historial completo</button>
+                                    <button className="geo-action-btn">Reportar anomalía</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* KPI Cards vinculados a SICA */}
                     <div className="geo-kpi-grid">
                         <div className="geo-kpi-card">
@@ -872,23 +1000,32 @@ const GeoMonitor = () => {
                         </div>
                     </div>
 
-                    {/* Tomas Status Mini (Prioridad 3.1) */}
+                    {/* Tomas Status Mini (Prioridad 3.1) con Filtros */}
                     <div className="geo-tomas-bar">
-                        <div className="geo-tomas-item open">
+                        <div
+                            className={clsx('geo-tomas-item open filter-btn', activeFilter === 'open' && 'active')}
+                            onClick={() => setActiveFilter(activeFilter === 'open' ? 'all' : 'open')}
+                        >
                             <span className="geo-tomas-count">{operStats.tomas_abiertas}</span>
                             <span className="geo-tomas-label">Abiertas</span>
                         </div>
-                        <div className="geo-tomas-item closed">
+                        <div
+                            className={clsx('geo-tomas-item closed filter-btn', activeFilter === 'closed' && 'active')}
+                            onClick={() => setActiveFilter(activeFilter === 'closed' ? 'all' : 'closed')}
+                        >
                             <span className="geo-tomas-count">{operStats.tomas_cerradas}</span>
                             <span className="geo-tomas-label">Cerradas</span>
                         </div>
-                        <div className="geo-tomas-item" style={{ background: 'rgba(34, 211, 238, 0.1)' }}>
+                        <div className="geo-tomas-item glass" style={{ background: 'rgba(34, 211, 238, 0.05)' }}>
                             <span className="geo-tomas-count" style={{ color: '#22d3ee' }}>
                                 {gastoDistribuido.toFixed(1)} <small style={{ fontSize: '10px' }}>m³/s</small>
                             </span>
                             <span className="geo-tomas-label">Distribuido</span>
                         </div>
-                        <div className="geo-tomas-item alert">
+                        <div
+                            className={clsx('geo-tomas-item alert filter-btn', activeFilter === 'alert' && 'active')}
+                            onClick={() => setActiveFilter(activeFilter === 'alert' ? 'all' : 'alert')}
+                        >
                             <span className="geo-tomas-count">{tomasVaradas.length}</span>
                             <span className="geo-tomas-label">Varadas</span>
                         </div>
@@ -907,9 +1044,12 @@ const GeoMonitor = () => {
 
                     {/* Perfil Longitudinal (Prioridad 3.2) */}
                     <div className="geo-chart-card">
-                        <div className="geo-stat-header">
-                            <span className="geo-stat-title">Perfil Longitudinal</span>
-                            <Activity size={14} className="geo-stat-icon" />
+                        <div className="geo-stat-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                                <span className="geo-stat-title">Perfil Hidráulico Red Mayor</span>
+                                <Activity size={14} className="geo-stat-icon" />
+                            </div>
+                            <span style={{ fontSize: '9px', color: '#64748b', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Comportamiento del Canal Principal Conchos</span>
                         </div>
                         <div className="geo-chart-wrapper">
                             <ReactECharts
@@ -933,7 +1073,14 @@ const GeoMonitor = () => {
                             {liveEvents.map((ev, idx) => (
                                 <div key={idx} className={clsx('geo-event-item', ev.status)}>
                                     <div className="geo-event-node"></div>
-                                    <div className="geo-event-card">
+                                    <div className="geo-event-card" onClick={() => {
+                                        if (ev.point) {
+                                            const point: any = ev.point;
+                                            const list = point.type === 'toma' ? tomas : point.type === 'escala' ? escalas : presas;
+                                            const d = (list as any[]).find(x => (x.id || x.presa_id) === point.id);
+                                            if (d) handleSelect(point.type, d);
+                                        }
+                                    }}>
                                         <div className="geo-event-card-header">
                                             <span className="geo-event-time">{ev.time}</span>
                                             <span className="geo-event-type">{ev.type}</span>

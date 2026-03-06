@@ -23,45 +23,6 @@ interface SendMessageResult {
     metadata?: Record<string, any>;
 }
 
-/**
- * Obtiene el token de acceso de la sesión actual.
- * Si el usuario puede ver el dashboard, tiene una sesión válida.
- */
-async function getFreshAccessToken(): Promise<string> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-        return session.access_token;
-    }
-    // Si no hay sesión cacheada, intentar refresh una vez
-    const { data } = await supabase.auth.refreshSession();
-    if (data.session?.access_token) {
-        return data.session.access_token;
-    }
-    throw new Error('No hay sesión activa. Inicia sesión.');
-}
-
-/**
- * Traduce códigos HTTP a mensajes amigables para el usuario
- */
-function friendlyErrorMessage(status: number, serverMsg?: string): string {
-    switch (status) {
-        case 401:
-            return 'Tu sesión expiró. Refresca la página o vuelve a iniciar sesión.';
-        case 403:
-            return serverMsg || 'No tienes permisos para usar el Asistente Hídrico (solo rol SRL).';
-        case 429:
-            return 'El servicio de IA está saturado. Espera 15 segundos e intenta de nuevo.';
-        case 500:
-            return serverMsg || 'Error interno del servidor. Verifica que la Edge Function esté desplegada y los secrets configurados.';
-        case 502:
-        case 503:
-        case 504:
-            return 'El servicio de IA está temporalmente fuera de línea. Intenta en unos segundos.';
-        default:
-            return serverMsg || `Error inesperado (${status}). Intenta de nuevo.`;
-    }
-}
-
 export function useHydricChat() {
     const [conversations, setConversations] = useState<ChatConversation[]>([]);
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -83,7 +44,6 @@ export function useHydricChat() {
             setConversations(data || []);
         } catch (err: any) {
             console.error('Error fetching conversations:', err);
-            // No mostrar error ruidoso si la tabla no existe aún
             if (!err.message?.includes('does not exist')) {
                 setError(err.message);
             }
@@ -105,7 +65,7 @@ export function useHydricChat() {
             setMessages(data || []);
         } catch (err: any) {
             console.error('Error fetching messages:', err);
-            setError(err.message);
+            setError(err.message || 'Error al cargar mensajes');
         }
     }, []);
 
@@ -122,33 +82,14 @@ export function useHydricChat() {
         setError(null);
     }, []);
 
-    // ─── Core: call Edge Function with retry ─────────
-    const callEdgeFunction = useCallback(async (
-        accessToken: string,
-        body: Record<string, any>
-    ): Promise<Response> => {
-        return fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/hydric-chat`,
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`,
-                    'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-                },
-                body: JSON.stringify(body),
-            }
-        );
-    }, []);
-
-    // ─── Send a message (with auto-retry on 401) ────
+    // ─── Send a message (Using Supabase Invoke) ─────
     const sendMessage = useCallback(async (content: string, contexto?: string): Promise<void> => {
         if (!content.trim() || isSending) return;
 
         setIsSending(true);
         setError(null);
 
-        // Optimistic UI: add user message immediately
+        // Optimistic UI
         const optimisticUserMsg: ChatMessage = {
             id: `temp-${Date.now()}`,
             role: 'user',
@@ -158,68 +99,62 @@ export function useHydricChat() {
         setMessages(prev => [...prev, optimisticUserMsg]);
 
         try {
-            let accessToken = await getFreshAccessToken();
-
-            const requestBody = {
-                message: content,
-                conversation_id: activeConversationId,
-                contexto: contexto || 'general',
-            };
-
-            let response = await callEdgeFunction(accessToken, requestBody);
-
-            // ─── Auto-retry: si da 401, refrescar token y reintentar ───
-            if (response.status === 401) {
-                console.warn('Token rechazado (401). Refrescando sesión y reintentando...');
-                const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-                if (refreshError || !refreshData.session) {
-                    throw new Error('Tu sesión ha expirado. Cierra sesión e inicia de nuevo.');
+            // Invocamos la función de forma nativa
+            const { data, error: invokeError } = await supabase.functions.invoke('hydric-chat', {
+                body: {
+                    message: content,
+                    conversation_id: activeConversationId,
+                    contexto: contexto || 'general',
                 }
-                accessToken = refreshData.session.access_token;
-                response = await callEdgeFunction(accessToken, requestBody);
-            }
+            });
 
-            // ─── Manejar errores finales ───
-            if (!response.ok) {
-                let serverMsg: string | undefined;
-                try {
-                    const errData = await response.json();
-                    serverMsg = errData.error;
-                } catch {
-                    // response body wasn't JSON
+            if (invokeError) {
+                console.error('Invoke error details:', invokeError);
+                // Si es un error de JWT expirado, intentamos forzar un refresh
+                if (invokeError.message?.toLowerCase().includes('expired') || invokeError.message?.toLowerCase().includes('unauthorized')) {
+                    const { error: refreshErr } = await supabase.auth.refreshSession();
+                    if (refreshErr) throw new Error('Tu sesión ha expirado totalmente. Inicia sesión de nuevo.');
+                    // Reintentar una vez tras el refresh
+                    const { data: retryData, error: retryError } = await supabase.functions.invoke('hydric-chat', {
+                        body: { message: content, conversation_id: activeConversationId, contexto: contexto || 'general' }
+                    });
+                    if (retryError) throw retryError;
+                    handleSuccess(retryData);
+                } else {
+                    throw invokeError;
                 }
-                throw new Error(friendlyErrorMessage(response.status, serverMsg));
+            } else {
+                handleSuccess(data);
             }
 
-            const result: SendMessageResult = await response.json();
+            function handleSuccess(result: SendMessageResult) {
+                if (!activeConversationId) {
+                    setActiveConversationId(result.conversation_id);
+                }
+                fetchConversations();
 
-            // If new conversation was created, update state
-            if (!activeConversationId) {
-                setActiveConversationId(result.conversation_id);
+                const assistantMsg: ChatMessage = {
+                    id: `assistant-${Date.now()}`,
+                    role: 'assistant',
+                    content: result.message,
+                    metadata: result.metadata,
+                    created_at: new Date().toISOString(),
+                };
+                setMessages(prev => [...prev, assistantMsg]);
             }
-
-            // Refrescar lista de conversaciones
-            fetchConversations();
-
-            // Add assistant response
-            const assistantMsg: ChatMessage = {
-                id: `assistant-${Date.now()}`,
-                role: 'assistant',
-                content: result.message,
-                metadata: result.metadata,
-                created_at: new Date().toISOString(),
-            };
-            setMessages(prev => [...prev, assistantMsg]);
 
         } catch (err: any) {
             console.error('Error sending message:', err);
-            setError(err.message);
-            // Remove optimistic message on failure
+            let msg = err.message || 'Error desconocido';
+            if (msg.includes('401') || msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('expired')) {
+                msg = 'Tu sesión expiró. Refresca la página o vuelve a iniciar sesión.';
+            }
+            setError(msg);
             setMessages(prev => prev.filter(m => m.id !== optimisticUserMsg.id));
         } finally {
             setIsSending(false);
         }
-    }, [activeConversationId, isSending, fetchConversations, callEdgeFunction]);
+    }, [activeConversationId, isSending, fetchConversations]);
 
     // ─── Delete conversation ─────────────────────────
     const deleteConversation = useCallback(async (conversationId: string) => {
@@ -230,18 +165,14 @@ export function useHydricChat() {
                 .eq('id', conversationId);
 
             if (deleteError) throw deleteError;
-
             setConversations(prev => prev.filter(c => c.id !== conversationId));
-            if (activeConversationId === conversationId) {
-                startNewConversation();
-            }
+            if (activeConversationId === conversationId) startNewConversation();
         } catch (err: any) {
             console.error('Error deleting conversation:', err);
             setError(err.message);
         }
     }, [activeConversationId, startNewConversation]);
 
-    // ─── Load conversations on mount ─────────────────
     useEffect(() => {
         fetchConversations();
     }, [fetchConversations]);
@@ -259,4 +190,5 @@ export function useHydricChat() {
         deleteConversation,
         clearError: () => setError(null),
     };
+
 }

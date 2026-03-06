@@ -1,12 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY")!;
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GROQ_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const AI_MODEL = "llama-3.3-70b-versatile";
-const AI_URL = "https://api.groq.com/openai/v1/chat/completions";
+// El último modelo funcional reportado era Gemini (Gema/Jama)
+// Corregimos 'gemini-pro' por 'gemini-1.5-pro' que es la versión estable actual
+const GEMINI_MODEL = "gemini-1.5-pro";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -22,27 +24,32 @@ interface ChatRequest {
 
 async function fetchSystemData(supabaseAdmin: any) {
     const today = new Date().toISOString().split("T")[0];
-    const [presasRes, modulosRes, escalasRes, cicloRes, knowledgeRes, operacionRes, aforosRes, perfilRes] = await Promise.all([
-        supabaseAdmin.from("lecturas_presas").select("*, presas(nombre, nombre_corto, capacidad_max)").order("fecha", { ascending: false }).limit(9),
-        supabaseAdmin.from("modulos").select("*, autorizaciones_ciclo(vol_autorizado, caudal_max)"),
-        supabaseAdmin.from("lecturas_escalas").select("*, escalas(nombre, km)").order("fecha", { ascending: false }).limit(30),
-        supabaseAdmin.from("ciclos_agricolas").select("*").eq("activo", true).maybeSingle(),
-        supabaseAdmin.from("hydric_knowledge_base").select("titulo, contenido, categoria").eq("activo", true),
-        supabaseAdmin.from("reportes_operacion").select("*, puntos_entrega(nombre, km)").eq("fecha", today).in("estado", ["inicio", "continua", "reabierto", "modificacion"]),
-        supabaseAdmin.from("aforos_control").select("*"),
-        supabaseAdmin.from("perfil_hidraulico_canal").select("*").order("km_inicio", { ascending: true }),
-    ]);
+    try {
+        const [presasRes, modulosRes, escalasRes, cicloRes, knowledgeRes, operacionRes, aforosRes, perfilRes] = await Promise.all([
+            supabaseAdmin.from("lecturas_presas").select("*, presas(nombre, nombre_corto, capacidad_max)").order("fecha", { ascending: false }).limit(9),
+            supabaseAdmin.from("modulos").select("*, autorizaciones_ciclo(vol_autorizado, caudal_max)"),
+            supabaseAdmin.from("lecturas_escalas").select("*, escalas(nombre, km)").order("fecha", { ascending: false }).limit(30),
+            supabaseAdmin.from("ciclos_agricolas").select("*").eq("activo", true).maybeSingle(),
+            supabaseAdmin.from("hydric_knowledge_base").select("titulo, contenido, categoria").eq("activo", true),
+            supabaseAdmin.from("reportes_operacion").select("*, puntos_entrega(nombre, km)").eq("fecha", today).in("estado", ["inicio", "continua", "reabierto", "modificacion"]),
+            supabaseAdmin.from("aforos_control").select("*"),
+            supabaseAdmin.from("perfil_hidraulico_canal").select("*").order("km_inicio", { ascending: true }),
+        ]);
 
-    return {
-        presas: presasRes.data || [],
-        modulos: modulosRes.data || [],
-        escalas: escalasRes.data || [],
-        ciclo_activo: cicloRes.data,
-        knowledge: knowledgeRes.data || [],
-        tomas_activas: operacionRes.data || [],
-        aforos_control: aforosRes.data || [],
-        perfil_canal: perfilRes.data || [],
-    };
+        return {
+            presas: presasRes.data || [],
+            modulos: modulosRes.data || [],
+            escalas: escalasRes.data || [],
+            ciclo_activo: cicloRes.data,
+            knowledge: knowledgeRes.data || [],
+            tomas_activas: operacionRes.data || [],
+            aforos_control: aforosRes.data || [],
+            perfil_canal: perfilRes.data || [],
+        };
+    } catch (e) {
+        console.error("Error fetching system data:", e);
+        return { presas: [], modulos: [], escalas: [], knowledge: [], tomas_activas: [], aforos_control: [], perfil_canal: [] };
+    }
 }
 
 function buildSystemPrompt(data: any): string {
@@ -84,249 +91,131 @@ function buildSystemPrompt(data: any): string {
         `KM ${t.km_inicio}-${t.km_fin} | ${t.nombre_tramo} | b=${t.plantilla_m}m, z=${t.talud_z}, S₀=${t.pendiente_s0}, Qmax=${t.capacidad_diseno_m3s}m³/s, V=${t.velocidad_diseno_ms}m/s, dn=${t.tirante_diseno_m}m, BL=${t.bordo_libre_m}m`
     ).join("\n");
 
-    return `Eres el Asistente de Inteligencia Hídrica del Distrito de Riego 005 Delicias, operado por la S.R.L. Unidad Conchos en Chihuahua, México.
-
+    return `Eres el Asistente de Inteligencia Hídrica del Distrito de Riego 005 Delicias, operado por la S.R.L. Unidad Conchos.
 Tu rol es ser un especialista técnico y estratégico en:
-1. **Hidrometría y Represos**: Medición de caudales, niveles, volúmenes. Estructuras de Represos, Compuertas Radiales y curvas de calibración (Q = Cd × H^n).
-2. **Gestión de Datos y Distribución**: Análisis estadístico, estado de tomas laterales activas a lo largo del canal principal.
-3. **Modelado de Escenarios**: Proyecciones de disponibilidad hídrica, eficiencia de conducción (Entrada vs Salida) y pérdidas de conducción.
-4. **Normativa**: Ley de Aguas Nacionales, requerimientos CONAGUA, bitácoras oficiales.
-5. **Perfil Hidráulico del Canal**: Análisis de capacidades de diseño, ecuación de Manning (Q = 1/n × A × R^{2/3} × S^{1/2}), comparación medido vs teórico.
-
-=== BASE DE CONOCIMIENTO EXPERTO ===
-${knowledgeText}
+1. **Hidrometría y Represos**: Medición de caudales, niveles, volúmenes. Estructuras de Represos, Compuertas Radiales.
+2. **Gestión de Datos y Distribución**: Análisis estadístico, estado de tomas laterales activas.
+3. **Modelado de Escenarios**: Proyecciones de disponibilidad hídrica, eficiencia de conducción.
+4. **Perfil Hidráulico del Canal**: Análisis de capacidades de diseño, ecuación de Manning.
 
 === DATOS OPERATIVOS EN TIEMPO REAL ===
-
-📊 ESTADO DE PRESAS (Últimas lecturas):
+ESTADO DE PRESAS:
 ${presasText || "Sin lecturas recientes"}
 
-💧 NIVELES Y GASTOS EN ESCALAS/REPRESOS DEL CANAL PRINCIPAL:
-${escalasText || "Sin lecturas recientes del canal"}
+NIVELES Y GASTOS EN ESCALAS:
+${escalasText || "Sin lecturas recientes"}
 
-🌊 TOMAS LATERALES ACTUALMENTE ABIERTAS (Distribución en vivo):
-${tomasActivasText || "No hay tomas laterales activas reportadas hoy."}
+TOMAS ABIERTAS:
+${tomasActivasText || "No hay tomas laterales activas hoy."}
 
-📊 ESTADO DE MÓDULOS DE RIEGO:
+ESTADO DE MÓDULOS:
 ${modulosText || "Sin datos de módulos"}
 
-📊 CICLO AGRÍCOLA:
-${cicloText}
+CICLO AGRÍCOLA: ${cicloText}
 
-📏 PUNTOS DE AFORO OFICIALES (CALIBRACIÓN):
-${aforosControlText || "No hay puntos de aforo definidos."}
+PERFIL HIDRÁULICO DEL CANAL:
+${perfilCanalText || "No hay datos de perfil hidráulico."}
 
-🌊 PERFIL HIDRÁULICO DEL CANAL PRINCIPAL (DISEÑO DE INGENIERÍA):
-${perfilCanalText || "No hay datos de perfil hidráulico cargados."}
-
-=== INSTRUCCIONES ===
-- Responde siempre en español.
-- Usa EXHAUSTIVAMENTE los datos reales del sistema provistos arriba.
-- Si el usuario te pregunta por las aperturas de los represos, analiza "NIVELES Y GASTOS EN ESCALAS" y dales las medidas exactas de cada compuerta.
-- Si detectas diferencias significativas de gasto entre las escalas de aguas arriba y aguas abajo, resáltalo como posible pérdida o toma no contabilizada.
-- Incluye cálculos y fórmulas (Q = Cd × A × √(2gh) para radiales) cuando se te pregunte la comprobación del gasto.
-- Cuando el usuario pregunte sobre la capacidad del canal, usa los datos del PERFIL HIDRÁULICO para calcular con Manning.
-- Compara siempre los datos medidos contra los de diseño del perfil hidráulico cuando sea relevante.
-- Sé técnico pero directo. El usuario es el Gerente de la Red Mayor.
-- Puedes usar emojis técnicos para mejorar la lectura (📊 📈 ⚠️ 💧 🔍 ⚙️).
-- Formatea tu respuesta en markdown con tablas si es necesario.`;
+INSTRUCCIONES:
+- Responde en español.
+- Usa los datos reales provistos arriba.
+- Sé técnico pero directo.
+- Formatea en markdown.`;
 }
 
 Deno.serve(async (req: Request) => {
-    if (req.method === "OPTIONS") {
-        return new Response("ok", { headers: corsHeaders });
-    }
+    if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
     try {
-        // 1. Validar configuracion base
-        if (!GROQ_API_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
-            throw new Error("Servidor no configurado. Faltan secrets (GROQ_API_KEY o SUPABASE_SERVICE_ROLE_KEY).");
-        }
+        console.log("--- Inicio Procesamiento Inteligencia Hídrica ---");
 
-        // 2. Extraer y validar usuario (Bearer token)
+        // 1. Auth check
         const authHeader = req.headers.get("Authorization");
-        if (!authHeader) {
-            return new Response(JSON.stringify({ error: "No se encontró el encabezado de autorización." }), { status: 401, headers: corsHeaders });
-        }
-
-        // Extraer token de forma segura
+        if (!authHeader) throw new Error("Falta encabezado Authorization");
         const token = authHeader.split(/\s+/)[1];
-        if (!token) {
-            return new Response(JSON.stringify({ error: "Token de acceso no válido." }), { status: 401, headers: corsHeaders });
-        }
 
         const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
         const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+        if (authError || !user) throw new Error(`Autenticación fallida: ${authError?.message || "Token inválido"}`);
 
-        if (authError || !user) {
-            console.error("Auth error:", authError);
-            return new Response(JSON.stringify({ error: `Sesión inválida: ${authError?.message || "Usuario no encontrado"}` }), {
-                status: 401,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-        }
+        console.log(`Usuario autenticado: ${user.id}`);
 
-        const userId = user.id;
-        console.log("User autenticado:", userId);
-
-        // 3. Validacion de Rol (Permisiva si no hay perfiles creados)
-        const { data: profile } = await supabaseAdmin
-            .from("perfiles_usuario")
-            .select("rol")
-            .eq("id", userId)
-            .maybeSingle(); // Usar maybeSingle para evitar que lance error si no hay nada
-
-        // Si la tabla perfiles_usuario esta vacia o el usuario no esta registrado, revisamos profiles
-        let userRole = profile?.rol;
-        if (!userRole) {
-            const { data: profileBase } = await supabaseAdmin.from("profiles").select("role").eq("id", userId).maybeSingle();
-            userRole = profileBase?.role || "authenticated";
-        }
-
-        // Permitir temporalmente a admin o SRL mientras se re-configura el ciclo
-        const allowedRoles = ["SRL", "admin", "operator"];
-        if (!allowedRoles.includes(userRole) && userRole !== "authenticated") {
-            return new Response(JSON.stringify({ error: `Acceso restringido: El rol '${userRole}' no tiene permisos para Inteligencia Hídrica.` }), {
-                status: 403,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-        }
-
-        const body: ChatRequest = await req.json();
-        const { message, conversation_id, contexto } = body;
-
-        if (!message?.trim()) {
-            return new Response(JSON.stringify({ error: "Mensaje vacío" }), {
-                status: 400,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-        }
-
-        let convId = conversation_id;
-        if (!convId) {
-            const { data: newConv, error: convError } = await supabaseAdmin
-                .from("chat_conversations")
-                .insert({
-                    user_id: userId,
-                    titulo: message.substring(0, 60) + (message.length > 60 ? "..." : ""),
-                    contexto: contexto || "general",
-                })
-                .select("id")
-                .single();
-
-            if (convError) throw convError;
-            convId = newConv.id;
-        }
-
-        await supabaseAdmin.from("chat_messages").insert({
-            conversation_id: convId,
-            role: "user",
-            content: message,
-        });
-
-        const { data: history } = await supabaseAdmin
-            .from("chat_messages")
-            .select("role, content")
-            .eq("conversation_id", convId)
-            .order("created_at", { ascending: true })
-            .limit(20);
-
+        // 2. Fetch data
         const systemData = await fetchSystemData(supabaseAdmin);
         const systemPrompt = buildSystemPrompt(systemData);
 
-        const messages = [
-            { role: "system", content: systemPrompt },
-            { role: "assistant", content: "Entendido. Soy el Asistente de Inteligencia Hídrica del DR-005 Delicias. Estoy listo para analizar datos, generar tendencias y apoyar en la toma de decisiones hídricas. ¿En qué puedo ayudarle?" }
-        ];
+        const body: ChatRequest = await req.json();
+        const { message, conversation_id } = body;
 
-        if (history && history.length > 1) {
-            for (const msg of history.slice(0, -1)) {
-                if (msg.role === "user" || msg.role === "assistant") {
-                    messages.push({ role: msg.role, content: msg.content });
-                }
-            }
+        // 3. Obtener Historial
+        let convId = conversation_id;
+        if (!convId) {
+            const { data: newConv } = await supabaseAdmin.from("chat_conversations")
+                .insert({ user_id: user.id, titulo: message.substring(0, 50), contexto: "general" })
+                .select("id").single();
+            convId = newConv?.id;
         }
 
-        messages.push({ role: "user", content: message });
+        await supabaseAdmin.from("chat_messages").insert({ conversation_id: convId, role: "user", content: message });
 
-        let aiResponse = await fetch(AI_URL, {
+        const { data: history } = await supabaseAdmin.from("chat_messages")
+            .select("role, content").eq("conversation_id", convId).order("created_at", { ascending: true }).limit(10);
+
+        // 4. Llamar a GEMINI 1.5 PRO
+        console.log(`Llamando a Gemini 1.5 Pro (${GEMINI_MODEL})...`);
+
+        const geminiMessages = [
+            { role: "user", parts: [{ text: systemPrompt }] },
+            { role: "model", parts: [{ text: "Entendido, soy el Asistente Hídrico del DR-005. Tengo acceso a los datos de presas, escalas y perfil hidráulico. ¿En qué puedo apoyarle hoy?" }] }
+        ];
+
+        (history || []).forEach(msg => {
+            geminiMessages.push({
+                role: msg.role === "assistant" ? "model" : "user",
+                parts: [{ text: msg.content }]
+            });
+        });
+
+        const geminiResponse = await fetch(GEMINI_URL, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${GROQ_API_KEY}`
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: AI_MODEL,
-                messages: messages,
-                temperature: 0.7,
-                max_tokens: 4096,
+                contents: geminiMessages,
+                generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
+                safetySettings: [
+                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                ]
             }),
         });
 
-        if (aiResponse.status === 429) {
-            // Reintento automático tras 5 segundos de espera
-            await new Promise((resolve) => setTimeout(resolve, 5000));
-            aiResponse = await fetch(AI_URL, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${GROQ_API_KEY}`
-                },
-                body: JSON.stringify({
-                    model: AI_MODEL,
-                    messages: messages,
-                    temperature: 0.7,
-                    max_tokens: 4096,
-                }),
-            });
+        if (!geminiResponse.ok) {
+            const errText = await geminiResponse.text();
+            console.error("Gemini Error:", errText);
+            throw new Error(`Error de Motor IA: ${geminiResponse.status} - ${errText}`);
         }
 
-        if (!aiResponse.ok) {
-            const errText = await aiResponse.text();
-            console.error("Groq API error:", errText);
-            throw new Error(`Groq API error: ${aiResponse.status} - ${errText}`);
-        }
+        const gData = await geminiResponse.json();
+        const finalMessage = gData.candidates?.[0]?.content?.parts?.[0]?.text
+            || "Lo siento, no pude procesar la respuesta en este momento.";
 
-        const aiData = await aiResponse.json();
-        const assistantMessage = aiData.choices?.[0]?.message?.content
-            || "No pude generar una respuesta. Intenta reformular tu consulta.";
-
+        // 5. Guardar respuesta
         await supabaseAdmin.from("chat_messages").insert({
             conversation_id: convId,
             role: "assistant",
-            content: assistantMessage,
-            metadata: {
-                model: AI_MODEL,
-                tables_consulted: ["lecturas_presas", "modulos", "lecturas_escalas", "ciclos_agricolas", "hydric_knowledge_base"],
-                timestamp: new Date().toISOString(),
-            },
+            content: finalMessage
         });
 
-        return new Response(
-            JSON.stringify({
-                conversation_id: convId,
-                message: assistantMessage,
-                metadata: {
-                    model: AI_MODEL,
-                    data_context: {
-                        presas_count: systemData.presas.length,
-                        modulos_count: systemData.modulos.length,
-                        knowledge_entries: systemData.knowledge.length,
-                    },
-                },
-            }),
-            {
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-        );
-    } catch (error) {
-        console.error("Edge Function error:", error);
-        return new Response(
-            JSON.stringify({ error: error instanceof Error ? error.message : "Error interno del servidor" }),
-            {
-                status: 500,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-        );
+        return new Response(JSON.stringify({ conversation_id: convId, message: finalMessage }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+
+    } catch (e) {
+        console.error("FALLO CRITICO:", e);
+        return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Error desconocido" }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
     }
 });

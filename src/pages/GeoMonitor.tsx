@@ -1232,7 +1232,8 @@ const GeoMonitor = () => {
                         porcentaje: selectedPoint.data.porcentaje_llenado,
                         extraccion_m3s: selectedPoint.data.extraccion_total_m3s,
                         nivel_nma: (selectedPoint.data.presa_id === 'BOQUILLA' ? 1317.0 : 1242.0),
-                        capacidad_total: 2893.5 // Mm3
+                        capacidad_total: 2893.5, // Mm3
+                        presa_id: selectedPoint.data.presa_id
                     }}
                     onClose={() => setShowVaso(false)}
                 />

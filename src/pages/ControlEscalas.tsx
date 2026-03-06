@@ -592,6 +592,7 @@ const ControlEscalas = () => {
             }
 
             if (!data || data.length === 0) {
+                // FALLBACK: Si no hay resumen para hoy, traer la lista de escalas y sus ÚLTIMOS niveles conocidos
                 const { data: escalas } = await supabase
                     .from('escalas')
                     .select('id, nombre, km, seccion_id, nivel_min_operativo, nivel_max_operativo, capacidad_max, secciones(id, nombre, color)')
@@ -601,6 +602,20 @@ const ControlEscalas = () => {
                 if (cancelled) return;
 
                 if (escalas && escalas.length > 0) {
+                    // Traer las últimas lecturas de CUALQUIER fecha para estas escalas
+                    const { data: lastReadings } = await supabase
+                        .from('lecturas_escalas')
+                        .select('escala_id, nivel_m, fecha, hora_lectura')
+                        .order('fecha', { ascending: false })
+                        .order('hora_lectura', { ascending: false });
+
+                    const lastKnownLevels = new Map<string, number>();
+                    (lastReadings || []).forEach(lr => {
+                        if (!lastKnownLevels.has(lr.escala_id)) {
+                            lastKnownLevels.set(lr.escala_id, Number(lr.nivel_m));
+                        }
+                    });
+
                     const mapped: ResumenEscala[] = escalas.map((e: any) => ({
                         escala_id: e.id,
                         nombre: e.nombre,
@@ -612,13 +627,13 @@ const ControlEscalas = () => {
                         nivel_max_operativo: Number(e.nivel_max_operativo),
                         capacidad_max: Number(e.capacidad_max),
                         fecha: fechaSeleccionada,
-                        lectura_am: null,
+                        lectura_am: lastKnownLevels.get(e.id) || null,
                         lectura_pm: null,
                         hora_am: null,
                         hora_pm: null,
-                        nivel_actual: null,
+                        nivel_actual: lastKnownLevels.get(e.id) || null,
                         delta_12h: null,
-                        estado: 'sin_datos',
+                        estado: 'continuidad_histórica',
                     }));
                     setZones(mapResumenToZones(mapped, configMap, lecturasMap));
                 } else {

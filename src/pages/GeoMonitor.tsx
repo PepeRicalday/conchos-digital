@@ -10,6 +10,7 @@ import './GeoMonitor.css';
 import { supabase } from '../lib/supabase';
 import { ShapefileImporter, type GeoLayer } from '../components/ShapefileImporter';
 import { useAuth } from '../context/AuthContext';
+import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
 
 // Fix for Leaflet icons in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -112,6 +113,7 @@ const GeoMonitor = () => {
     const [operStats, setOperStats] = useState<OperStats>({ tomas_abiertas: 0, tomas_cerradas: 0, gasto_distribuido_m3s: 0 });
     const [tomasVaradas, setTomasVaradas] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [showVaso, setShowVaso] = useState(false);
 
     // GeoJSON Layers (Shapes)
     const [geoModulos, setGeoModulos] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -955,6 +957,14 @@ const GeoMonitor = () => {
                                 </div>
 
                                 <div className="geo-detail-actions">
+                                    {selectedPoint.type === 'presa' && (
+                                        <button
+                                            className="geo-action-btn primary"
+                                            onClick={() => setShowVaso(true)}
+                                        >
+                                            <Maximize size={14} /> Analizar Vaso Satelital
+                                        </button>
+                                    )}
                                     <button className="geo-action-btn primary">Ver historial completo</button>
                                     <button className="geo-action-btn">Reportar anomalía</button>
                                 </div>
@@ -1102,6 +1112,22 @@ const GeoMonitor = () => {
                 <ShapefileImporter
                     onLayerImported={handleLayerImported}
                     onClose={() => setShowImporter(false)}
+                />
+            )}
+
+            {/* Vaso Monitor Overlay */}
+            {showVaso && selectedPoint?.type === 'presa' && (
+                <PresaVasoMonitor
+                    data={{
+                        nombre: selectedPoint.data.nombre,
+                        nivel_msnm: (selectedPoint.data.presa_id === 'BOQUILLA' ? 1317.40 : 1240.20), // Mock data or from actual readings
+                        almacenamiento_mm3: selectedPoint.data.almacenamiento_mm3,
+                        porcentaje: selectedPoint.data.porcentaje_llenado,
+                        extraccion_m3s: selectedPoint.data.extraccion_total_m3s,
+                        nivel_nma: (selectedPoint.data.presa_id === 'BOQUILLA' ? 1317.0 : 1242.0),
+                        capacidad_total: 2893.5 // Mm3
+                    }}
+                    onClose={() => setShowVaso(false)}
                 />
             )}
         </div>

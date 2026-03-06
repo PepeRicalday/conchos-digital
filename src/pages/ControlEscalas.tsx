@@ -23,6 +23,7 @@ interface ResumenEscala {
     nivel_actual: number | null;
     delta_12h: number | null;
     estado: string;
+    confirmada: boolean;
 }
 
 interface EscalaConfig {
@@ -46,6 +47,7 @@ interface LecturaRadial {
     gasto_calculado_m3s: number;
     hora_lectura: string;
     fecha: string;
+    confirmada: boolean;
 }
 
 interface ScaleReading {
@@ -66,6 +68,7 @@ interface ScaleReading {
     nivelAbajo: number;
     gastoCalculado: number;
     horaLectura: string;
+    confirmada: boolean;
 }
 
 interface Zone {
@@ -114,6 +117,7 @@ function mapResumenToZones(
             nivelAbajo: lect?.nivel_abajo_m ?? 0,
             gastoCalculado: lect?.gasto_calculado_m3s ?? 0,
             horaLectura: lect?.hora_lectura ?? '',
+            confirmada: lect?.confirmada ?? true,
         });
     }
 
@@ -467,6 +471,13 @@ const ScaleGauge = ({ scale, zoneColor, onOpenModal }: { scale: ScaleReading; zo
                     <span>Fuera de rango</span>
                 </div>
             )}
+
+            {!scale.confirmada && (
+                <div className="warning-badge" style={{ backgroundColor: '#f59e0b20', color: '#f59e0b', borderColor: '#f59e0b40', bottom: '120px' }}>
+                    <Clock size={12} />
+                    <span>Falta Confirmar</span>
+                </div>
+            )}
         </div>
     );
 };
@@ -556,7 +567,7 @@ const ControlEscalas = () => {
             // 2. Fetch latest radial readings for the selected date
             const { data: lecturasRaw } = await supabase
                 .from('lecturas_escalas')
-                .select('escala_id, nivel_m, nivel_abajo_m, apertura_radiales_m, radiales_json, gasto_calculado_m3s, hora_lectura, fecha')
+                .select('escala_id, nivel_m, nivel_abajo_m, apertura_radiales_m, radiales_json, gasto_calculado_m3s, hora_lectura, fecha, confirmada')
                 .eq('fecha', fechaSeleccionada)
                 .order('hora_lectura', { ascending: false });
 
@@ -573,6 +584,7 @@ const ControlEscalas = () => {
                         gasto_calculado_m3s: Number(l.gasto_calculado_m3s) || 0,
                         hora_lectura: l.hora_lectura || '',
                         fecha: l.fecha,
+                        confirmada: l.confirmada !== false,
                     });
                 }
             });
@@ -605,14 +617,17 @@ const ControlEscalas = () => {
                     // Traer las últimas lecturas de CUALQUIER fecha para estas escalas
                     const { data: lastReadings } = await supabase
                         .from('lecturas_escalas')
-                        .select('escala_id, nivel_m, fecha, hora_lectura')
+                        .select('escala_id, nivel_m, fecha, hora_lectura, confirmada')
                         .order('fecha', { ascending: false })
                         .order('hora_lectura', { ascending: false });
 
                     const lastKnownLevels = new Map<string, number>();
+                    const lastKnownConfirm = new Map<string, boolean>();
+
                     (lastReadings || []).forEach(lr => {
                         if (!lastKnownLevels.has(lr.escala_id)) {
                             lastKnownLevels.set(lr.escala_id, Number(lr.nivel_m));
+                            lastKnownConfirm.set(lr.escala_id, lr.confirmada !== false);
                         }
                     });
 
@@ -634,6 +649,7 @@ const ControlEscalas = () => {
                         nivel_actual: lastKnownLevels.get(e.id) || null,
                         delta_12h: null,
                         estado: 'continuidad_histórica',
+                        confirmada: lastKnownConfirm.get(e.id) ?? false,
                     }));
                     setZones(mapResumenToZones(mapped, configMap, lecturasMap));
                 } else {
@@ -661,6 +677,7 @@ const ControlEscalas = () => {
                 nivel_actual: r.nivel_actual != null ? Number(r.nivel_actual) : null,
                 delta_12h: r.delta_12h != null ? Number(r.delta_12h) : null,
                 estado: r.estado || 'normal',
+                confirmada: lecturasMap.get(r.escala_id)?.confirmada ?? true,
             }));
 
             setZones(mapResumenToZones(mapped, configMap, lecturasMap));

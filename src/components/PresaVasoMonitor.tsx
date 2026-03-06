@@ -29,8 +29,8 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, onClos
                 {/* Background Stylized Image */}
                 <div className="vaso-map-bg">
                     <img
-                        src="/boquilla_reservoir_stylized.png"
-                        alt="Vaso de la Presa"
+                        src="/boquilla_5marzo.png"
+                        alt="Vaso de la Presa - Situación 5 de Marzo 2026"
                         className="vaso-base-img"
                     />
                     <div className="vaso-water-overlay" style={{ opacity: nivelVisual / 100 }}></div>

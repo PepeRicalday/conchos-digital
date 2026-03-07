@@ -879,6 +879,12 @@
     color: #ef4444;
 }
 
+.event-status.ANOMALIA_BAJA {
+    color: #a78bfa;
+    text-shadow: 0 0 15px rgba(167, 139, 250, 0.4);
+    animation: pulse-glow 2s infinite;
+}
+
 .event-meta {
     font-size: 0.75rem;
     color: var(--color-text-secondary);

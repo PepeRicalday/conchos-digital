@@ -460,6 +460,7 @@ const InteligenciaHidrica = () => {
                                     { id: 'ESTABILIZACION', icon: Droplets, label: 'Evento 2: Estabilización', color: '#10b981', desc: 'Flujo permanente. Distribución a tomas y laterales.' },
                                     { id: 'CONTINGENCIA_LLUVIA', icon: AlertTriangle, label: 'Evento 3: Contingencia', color: '#f59e0b', desc: 'Maniobras de desfogue y control de excedentes.' },
                                     { id: 'VACIADO', icon: Shield, label: 'Evento 4: Vaciado', color: '#ef4444', desc: 'Cierre de ciclo. Control de subpresiones (máx 30cm/día).' },
+                                    { id: 'ANOMALIA_BAJA', icon: AlertTriangle, label: 'Anomalía: Baja súbita', color: '#7c3aed', desc: 'Caída de nivel no programada. Posible robo o falla estructural (CONAGUA).' },
                                 ].map((evt) => (
                                     <button
                                         key={evt.id}

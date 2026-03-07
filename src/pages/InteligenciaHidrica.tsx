@@ -253,7 +253,7 @@ const InteligenciaHidrica = () => {
 
                 {/* Main Chat Area */}
                 <div className="ih-main">
-                    {activeTab === 'chat' ? (
+                    {activeTab === 'chat' && (
                         <>
                             {/* Chat Header */}
                             <div className="ih-chat-header">
@@ -349,7 +349,9 @@ const InteligenciaHidrica = () => {
                                 </div>
                             </div>
                         </>
-                    ) : (
+                    )}
+
+                    {activeTab === 'knowledge' && (
                         <div className="ih-knowledge-panel">
                             {/* Knowledge Header */}
                             <div className="ih-chat-header" style={{ margin: '-24px -24px 0 -24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>

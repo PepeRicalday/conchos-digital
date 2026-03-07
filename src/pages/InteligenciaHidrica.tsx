@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useHydricChat, type ChatMessage } from '../hooks/useHydricChat';
 import { useHydricKnowledge } from '../hooks/useHydricKnowledge';
+import { useHydricEvents, type HydraulicEvent } from '../hooks/useHydricEvents';
 import './HydricChat.css';
 
 import ReactMarkdown from 'react-markdown';
@@ -69,7 +70,13 @@ const InteligenciaHidrica = () => {
         error: knowledgeError
     } = useHydricKnowledge();
 
-    const [activeTab, setActiveTab] = useState<'chat' | 'knowledge'>('chat');
+    const {
+        activeEvent,
+        isLoading: isLoadingEvents,
+        activateEvent
+    } = useHydricEvents();
+
+    const [activeTab, setActiveTab] = useState<'chat' | 'knowledge' | 'control'>('chat');
     const [inputValue, setInputValue] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -177,6 +184,13 @@ const InteligenciaHidrica = () => {
                     >
                         <Library size={14} />
                         Base de Conocimiento
+                    </button>
+                    <button
+                        className={`ih-tool-btn ${activeTab === 'control' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('control')}
+                    >
+                        <Shield size={14} />
+                        Control de Mando
                     </button>
                 </div>
 
@@ -412,6 +426,59 @@ const InteligenciaHidrica = () => {
                                         </div>
                                     ))
                                 )}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'control' && (
+                        <div className="ih-control-panel">
+                            <div className="ih-control-header">
+                                <h2>Control de Mando Hidráulico (SRL)</h2>
+                                <p>Selecciona el evento operativo oficial para sincronizar la IA y las reglas de seguridad.</p>
+                            </div>
+
+                            <div className="ih-active-event-card">
+                                <div className="event-label">Protocolo Oficial Vigente</div>
+                                <div className={`event-status ${activeEvent?.evento_tipo || 'ESTABILIZACION'}`}>
+                                    {activeEvent?.evento_tipo || 'ESTABILIZACION'}
+                                </div>
+                                <div className="event-meta">
+                                    {activeEvent ? (
+                                        <>Dictado el {formatDate(activeEvent.fecha_inicio)}</>
+                                    ) : (
+                                        <>Sin evento oficial registrado</>
+                                    )}
+                                </div>
+                                {activeEvent?.notas && (
+                                    <div className="event-notes">"{activeEvent.notas}"</div>
+                                )}
+                            </div>
+
+                            <div className="ih-control-grid">
+                                {[
+                                    { id: 'LLENADO', icon: Waves, label: 'Evento 1: Llenado', color: '#3b82f6', desc: 'Apertura de obra de toma. Seguimiento de onda positiva.' },
+                                    { id: 'ESTABILIZACION', icon: Droplets, label: 'Evento 2: Estabilización', color: '#10b981', desc: 'Flujo permanente. Distribución a tomas y laterales.' },
+                                    { id: 'CONTINGENCIA_LLUVIA', icon: AlertTriangle, label: 'Evento 3: Contingencia', color: '#f59e0b', desc: 'Maniobras de desfogue y control de excedentes.' },
+                                    { id: 'VACIADO', icon: Shield, label: 'Evento 4: Vaciado', color: '#ef4444', desc: 'Cierre de ciclo. Control de subpresiones (máx 30cm/día).' },
+                                ].map((evt) => (
+                                    <button
+                                        key={evt.id}
+                                        className={`protocol-btn ${activeEvent?.evento_tipo === evt.id ? 'active' : ''}`}
+                                        onClick={() => {
+                                            const notas = prompt(`Notas operativas para ${evt.label}:`);
+                                            if (notas !== null) activateEvent(evt.id as HydraulicEvent, notas);
+                                        }}
+                                        disabled={isLoadingEvents}
+                                    >
+                                        <div className="p-btn-icon" style={{ backgroundColor: evt.color }}>
+                                            <evt.icon size={24} />
+                                        </div>
+                                        <div className="p-btn-info">
+                                            <div className="p-btn-label">{evt.label}</div>
+                                            <div className="p-btn-desc">{evt.desc}</div>
+                                        </div>
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     )}

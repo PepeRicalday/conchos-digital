@@ -24,7 +24,11 @@ interface ChatRequest {
 async function fetchSystemData(supabaseAdmin: any) {
     const today = new Date().toISOString().split("T")[0];
     try {
-        const [presasRes, modulosRes, escalasRes, cicloRes, knowledgeRes, operacionRes, aforosRes, perfilRes] = await Promise.all([
+        const [
+            presasRes, modulosRes, escalasRes, cicloRes,
+            knowledgeRes, operacionRes, aforosRes, perfilRes,
+            canalStatusRes, eventoLogRes
+        ] = await Promise.all([
             supabaseAdmin.from("lecturas_presas").select("*, presas(nombre, nombre_corto, capacidad_max)").order("fecha", { ascending: false }).limit(9),
             supabaseAdmin.from("modulos").select("*, autorizaciones_ciclo(vol_autorizado, caudal_max)"),
             supabaseAdmin.from("lecturas_escalas").select("*, escalas(nombre, km)").order("fecha", { ascending: false }).limit(30),
@@ -33,6 +37,8 @@ async function fetchSystemData(supabaseAdmin: any) {
             supabaseAdmin.from("reportes_operacion").select("*, puntos_entrega(nombre, km)").eq("fecha", today).in("estado", ["inicio", "continua", "reabierto", "modificacion"]),
             supabaseAdmin.from("aforos_control").select("*"),
             supabaseAdmin.from("perfil_hidraulico_canal").select("*").order("km_inicio", { ascending: true }),
+            supabaseAdmin.from("sica_canal_status").select("*").maybeSingle(),
+            supabaseAdmin.from("sica_eventos_log").select("*").eq("esta_activo", true).maybeSingle(),
         ]);
 
         return {
@@ -44,10 +50,12 @@ async function fetchSystemData(supabaseAdmin: any) {
             tomas_activas: operacionRes.data || [],
             aforos_control: aforosRes.data || [],
             perfil_canal: perfilRes.data || [],
+            canal_status: canalStatusRes.data,
+            evento_oficial: eventoLogRes.data,
         };
     } catch (e) {
         console.error("Error fetching system data:", e);
-        return { presas: [], modulos: [], escalas: [], knowledge: [], tomas_activas: [], aforos_control: [], perfil_canal: [] };
+        return { presas: [], modulos: [], escalas: [], knowledge: [], tomas_activas: [], aforos_control: [], perfil_canal: [], canal_status: null, evento_oficial: null };
     }
 }
 
@@ -112,6 +120,15 @@ ${modulosText || "Sin datos de módulos"}
 
 PERFIL HIDRÁULICO DEL CANAL PRINCIPAL:
 ${perfilCanalText.substring(0, 3000) || "No hay datos de perfil hidráulico."}
+
+=== ESTATUS HIDRÁULICO ACTUAL DEL SISTEMA ===
+EVENTO OFICIAL (DICTADO POR SRL): ${data.evento_oficial?.evento_tipo || 'ESTABILIZACION'}
+Activado el: ${data.evento_oficial?.fecha_inicio || 'N/A'}
+Notas Operativas: ${data.evento_oficial?.notas || 'Sin notas especiales.'}
+
+DETECCIÓN AUTOMÁTICA (SENSÓRICA): ${data.canal_status?.estado_hidraulico || 'ESTABLE'}
+Extracción Boquilla: ${data.canal_status?.qe_boquilla || 0} m3/s
+Alerta Estructural: ${data.canal_status?.alerta_activa ? 'SÍ - ' + data.canal_status.mensaje_alerta : 'Ninguna'}
 
 INSTRUCCIONES CRÍTICAS:
 - Responde siempre en Español.

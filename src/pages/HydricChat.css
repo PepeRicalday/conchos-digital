@@ -796,8 +796,210 @@
     gap: var(--spacing-md);
 }
 
-.ih-doc-card {
+/* ── CONTROL DE MANDO PANEL ───────────────── */
+.ih-control-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    animation: fadeSlideIn 0.3s ease-out;
+    padding: var(--spacing-lg);
+    gap: var(--spacing-lg);
+    overflow-y: auto;
+}
+
+.ih-control-header {
+    text-align: center;
+    margin-bottom: var(--spacing-md);
+}
+
+.ih-control-header h2 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--color-text-primary);
+    letter-spacing: -0.02em;
+}
+
+.ih-control-header p {
+    font-size: 0.82rem;
+    color: var(--color-text-secondary);
+    margin-top: 4px;
+}
+
+.ih-active-event-card {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.4), rgba(15, 23, 42, 0.6));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.ih-active-event-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--color-primary);
+}
+
+.event-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--color-text-muted);
+    margin-bottom: 8px;
+}
+
+.event-status {
+    font-size: 1.8rem;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    margin-bottom: 12px;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+}
+
+.event-status.LLENADO {
+    color: #3b82f6;
+}
+
+.event-status.ESTABILIZACION {
+    color: #10b981;
+}
+
+.event-status.CONTINGENCIA_LLUVIA {
+    color: #f59e0b;
+}
+
+.event-status.VACIADO {
+    color: #ef4444;
+}
+
+.event-meta {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+}
+
+.event-notes {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    font-style: italic;
+    font-size: 0.85rem;
+    color: var(--color-text-primary);
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* ── CONTROL GRID ─────────────────────────── */
+.ih-control-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-md);
+}
+
+.protocol-btn {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
     background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: left;
+}
+
+.protocol-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.protocol-btn.active {
+    background: rgba(56, 189, 248, 0.1);
+    border-color: rgba(56, 189, 248, 0.3);
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.1);
+}
+
+.p-btn-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.p-btn-info {
+    flex: 1;
+}
+
+.p-btn-label {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.p-btn-desc {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+/* Tool Tab Buttons overrides */
+.ih-view-tools {
+    display: flex;
+    gap: var(--spacing-sm);
+    background: rgba(0, 0, 0, 0.2);
+    padding: 4px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.ih-tool-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: none;
+    color: var(--color-text-secondary);
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ih-tool-btn:hover {
+    color: var(--color-text-primary);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.ih-tool-btn.active {
+    color: var(--color-primary);
+    background: rgba(56, 189, 248, 0.1);
+}
+
+@media (max-width: 600px) {
+    .ih-control-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.ih-doc-card {
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--radius-md);
     padding: var(--spacing-md);

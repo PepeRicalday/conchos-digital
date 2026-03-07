@@ -2,10 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import {
     Brain, Send, Plus, MessageSquare, Trash2,
     Droplets, BarChart3, TrendingUp, Shield,
-    AlertTriangle, ShieldOff, Sparkles, Waves
+    AlertTriangle, ShieldOff, Sparkles, Waves,
+    Library, Upload, FileText, Loader2, Database
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useHydricChat, type ChatMessage } from '../hooks/useHydricChat';
+import { useHydricKnowledge } from '../hooks/useHydricKnowledge';
 import './HydricChat.css';
 
 import ReactMarkdown from 'react-markdown';
@@ -59,6 +61,15 @@ const InteligenciaHidrica = () => {
         clearError,
     } = useHydricChat();
 
+    const {
+        documents,
+        isUploading: isUploadingKnowledge,
+        uploadDocument,
+        deleteDocument,
+        error: knowledgeError
+    } = useHydricKnowledge();
+
+    const [activeTab, setActiveTab] = useState<'chat' | 'knowledge'>('chat');
     const [inputValue, setInputValue] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -151,6 +162,24 @@ const InteligenciaHidrica = () => {
                         </p>
                     </div>
                 </div>
+
+                <div className="ih-view-tools">
+                    <button
+                        className={`ih-tool-btn ${activeTab === 'chat' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('chat')}
+                    >
+                        <MessageSquare size={14} />
+                        Consultoría Chat
+                    </button>
+                    <button
+                        className={`ih-tool-btn ${activeTab === 'knowledge' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('knowledge')}
+                    >
+                        <Library size={14} />
+                        Base de Conocimiento
+                    </button>
+                </div>
+
                 <div className="header-badge">
                     <Sparkles size={12} />
                     SICA AI Engine
@@ -210,116 +239,182 @@ const InteligenciaHidrica = () => {
 
                 {/* Main Chat Area */}
                 <div className="ih-main">
-                    {/* Chat Header */}
-                    <div className="ih-chat-header">
-                        <div className="header-avatar">
-                            <Brain size={20} />
-                        </div>
-                        <div className="header-info">
-                            <h2>Asistente Hídrico</h2>
-                            <p>
-                                <span className="status-dot-live" />
-                                Conectado — Datos en tiempo real
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Messages or Welcome */}
-                    {messages.length === 0 ? (
-                        <div className="ih-welcome">
-                            <div className="ih-welcome-icon">
-                                <Brain size={32} />
+                    {activeTab === 'chat' ? (
+                        <>
+                            {/* Chat Header */}
+                            <div className="ih-chat-header">
+                                <div className="header-avatar">
+                                    <Brain size={20} />
+                                </div>
+                                <div className="header-info">
+                                    <h2>Asistente Hídrico</h2>
+                                    <p>
+                                        <span className="status-dot-live" />
+                                        Conectado — Datos en tiempo real
+                                    </p>
+                                </div>
                             </div>
-                            <h2>Asistente de Inteligencia Hídrica</h2>
-                            <p>
-                                Especialista en hidrometría, análisis de datos y modelado de escenarios
-                                para el Distrito de Riego 005 Delicias.
-                                Consulta el estado real del sistema, genera tendencias y proyecciones.
-                            </p>
 
-                            <div className="ih-suggestions">
-                                {QUICK_SUGGESTIONS.map((s, i) => (
-                                    <button
-                                        key={i}
-                                        className="ih-suggestion-btn"
-                                        onClick={() => handleSuggestion(s.text, s.contexto)}
-                                        disabled={isSending}
-                                    >
-                                        <s.icon size={16} />
-                                        <span>{s.text}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="ih-messages">
-                            {messages.map(renderMessage)}
-
-                            {isSending && (
-                                <div className="ih-typing">
-                                    <div className="typing-dots">
-                                        <div className="typing-dot" />
-                                        <div className="typing-dot" />
-                                        <div className="typing-dot" />
+                            {/* Messages or Welcome */}
+                            {messages.length === 0 ? (
+                                <div className="ih-welcome">
+                                    <div className="ih-welcome-icon">
+                                        <Brain size={32} />
                                     </div>
-                                    <span className="ih-typing-text">Analizando datos del sistema...</span>
+                                    <h2>Asistente de Inteligencia Hídrica</h2>
+                                    <p>
+                                        Especialista en hidrometría, análisis de datos y modelado de escenarios
+                                        para el Distrito de Riego 005 Delicias.
+                                        Consulta el estado real del sistema, genera tendencias y proyecciones.
+                                    </p>
+
+                                    <div className="ih-suggestions">
+                                        {QUICK_SUGGESTIONS.map((s, i) => (
+                                            <button
+                                                key={i}
+                                                className="ih-suggestion-btn"
+                                                onClick={() => handleSuggestion(s.text, s.contexto)}
+                                                disabled={isSending}
+                                            >
+                                                <s.icon size={16} />
+                                                <span>{s.text}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="ih-messages">
+                                    {messages.map(renderMessage)}
+
+                                    {isSending && (
+                                        <div className="ih-typing">
+                                            <div className="typing-dots">
+                                                <div className="typing-dot" />
+                                                <div className="typing-dot" />
+                                                <div className="typing-dot" />
+                                            </div>
+                                            <span className="ih-typing-text">Analizando datos del sistema...</span>
+                                        </div>
+                                    )}
+
+                                    <div ref={messagesEndRef} />
                                 </div>
                             )}
 
-                            <div ref={messagesEndRef} />
-                        </div>
-                    )}
+                            {/* Error */}
+                            {(error || knowledgeError) && (
+                                <div className="ih-error">
+                                    <AlertTriangle size={14} />
+                                    <span>{error || knowledgeError}</span>
+                                    <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', flexShrink: 0 }}>
+                                        <button onClick={clearError}>Cerrar</button>
+                                    </div>
+                                </div>
+                            )}
 
-                    {/* Error */}
-                    {error && (
-                        <div className="ih-error">
-                            <AlertTriangle size={14} />
-                            <span>{error}</span>
-                            <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', flexShrink: 0 }}>
-                                {error.includes('sesión') && (
+                            {/* Input */}
+                            <div className="ih-input-area">
+                                <div className="ih-input-wrapper">
+                                    <textarea
+                                        ref={textareaRef}
+                                        value={inputValue}
+                                        onChange={handleInputChange}
+                                        onKeyDown={handleKeyDown}
+                                        placeholder="Consulta sobre hidrometría, eficiencias, proyecciones..."
+                                        rows={1}
+                                        disabled={isSending}
+                                    />
                                     <button
-                                        onClick={() => window.location.reload()}
-                                        style={{
-                                            background: 'rgba(239,68,68,0.2)',
-                                            border: '1px solid rgba(239,68,68,0.3)',
-                                            color: '#fca5a5',
-                                            padding: '2px 10px',
-                                            borderRadius: '999px',
-                                            fontSize: '0.7rem',
-                                            fontWeight: 700,
-                                            cursor: 'pointer',
-                                        }}
+                                        className={`ih-send-btn ${isSending ? 'sending' : ''}`}
+                                        onClick={handleSend}
+                                        disabled={!inputValue.trim() || isSending}
+                                        title="Enviar consulta"
                                     >
-                                        Recargar
+                                        <Send size={16} />
                                     </button>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="ih-knowledge-panel">
+                            {/* Knowledge Header */}
+                            <div className="ih-chat-header" style={{ margin: '-24px -24px 0 -24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                <div className="header-avatar" style={{ background: 'rgba(56, 189, 248, 0.1)', color: 'var(--color-primary)', boxShadow: 'none' }}>
+                                    <Database size={20} />
+                                </div>
+                                <div className="header-info">
+                                    <h2>Biblioteca de Referencia Hidráulica</h2>
+                                    <p>Sube documentos para ampliar el conocimiento de la IA</p>
+                                </div>
+                            </div>
+
+                            {/* Dropzone */}
+                            <label className={`ih-dropzone ${isUploadingKnowledge ? 'active' : ''}`}>
+                                <input
+                                    type="file"
+                                    hidden
+                                    accept=".pdf,.xlsx,.csv,.txt,.docx"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) uploadDocument(file);
+                                    }}
+                                    disabled={isUploadingKnowledge}
+                                />
+                                <div className="ih-dropzone-icon">
+                                    {isUploadingKnowledge ? <Loader2 size={24} className="animate-spin" /> : <Upload size={24} />}
+                                </div>
+                                <h4>{isUploadingKnowledge ? 'Procesando Documento...' : 'Sube archivos técnicos (.pdf, .xlsx)'}</h4>
+                                <p>Arrastra un archivo o haz clic para seleccionar</p>
+                            </label>
+
+                            {/* Stats */}
+                            <div style={{ display: 'flex', gap: '20px', padding: '0 4px' }}>
+                                <div className="ih-doc-meta" style={{ fontSize: '0.75rem' }}>
+                                    <Shield size={12} className="text-primary" />
+                                    <span>Seguridad: Almacenamiento Cifrado</span>
+                                </div>
+                                <div className="ih-doc-meta" style={{ fontSize: '0.75rem' }}>
+                                    <Sparkles size={12} className="text-accent" />
+                                    <span>Auto-Indexación: pgvector habilitado</span>
+                                </div>
+                            </div>
+
+                            {/* Document List */}
+                            <div className="ih-docs-grid">
+                                {documents.length === 0 ? (
+                                    <div className="ih-empty-state" style={{ gridColumn: '1/-1', padding: '40px' }}>
+                                        <FileText size={48} />
+                                        <h3>Sin documentos</h3>
+                                        <p>Agrega manuales, normas técnicas o series estadísticas para mejorar las respuestas de la IA.</p>
+                                    </div>
+                                ) : (
+                                    documents.map(doc => (
+                                        <div key={doc.id} className="ih-doc-card">
+                                            <div className="ih-doc-icon">
+                                                <FileText size={20} />
+                                            </div>
+                                            <div className="ih-doc-info">
+                                                <div className="ih-doc-title" title={doc.titulo}>{doc.titulo}</div>
+                                                <div className="ih-doc-meta">
+                                                    <span className="ih-doc-status" />
+                                                    Ready for RAG
+                                                    <span style={{ opacity: 0.3 }}>|</span>
+                                                    {(doc.metadata?.size / 1024).toFixed(0)} KB
+                                                </div>
+                                            </div>
+                                            <button
+                                                className="ih-doc-delete"
+                                                onClick={() => deleteDocument(doc.id, doc.url_storage)}
+                                                title="Eliminar documento"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    ))
                                 )}
-                                <button onClick={clearError}>Cerrar</button>
                             </div>
                         </div>
                     )}
-
-                    {/* Input */}
-                    <div className="ih-input-area">
-                        <div className="ih-input-wrapper">
-                            <textarea
-                                ref={textareaRef}
-                                value={inputValue}
-                                onChange={handleInputChange}
-                                onKeyDown={handleKeyDown}
-                                placeholder="Consulta sobre hidrometría, eficiencias, proyecciones..."
-                                rows={1}
-                                disabled={isSending}
-                            />
-                            <button
-                                className={`ih-send-btn ${isSending ? 'sending' : ''}`}
-                                onClick={handleSend}
-                                disabled={!inputValue.trim() || isSending}
-                                title="Enviar consulta"
-                            >
-                                <Send size={16} />
-                            </button>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>

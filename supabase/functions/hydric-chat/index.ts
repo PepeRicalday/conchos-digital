@@ -145,12 +145,30 @@ Deno.serve(async (req: Request) => {
 
         console.log(`Usuario ID: ${user?.id || 'Public/Operator'}`);
 
-        // 3. Obtener datos del sistema y preparar prompt
-        const systemData = await fetchSystemData(supabaseAdmin);
-        const systemPrompt = buildSystemPrompt(systemData);
+        // 3. Búsqueda de Conocimiento (RAG)
+        const { message, conversation_id } = await req.json();
 
-        const body: ChatRequest = await req.json();
-        const { message, conversation_id } = body;
+        let contextText = "";
+        try {
+            // Intentar buscar fragmentos relacionados (Búsqueda básica por texto por ahora)
+            // En una versión completa, aquí generaríamos el embedding del mensaje
+            const { data: chunks } = await supabaseAdmin
+                .from("hydric_document_chunks")
+                .select("content, metadata")
+                .ilike("content", `%${message.substring(0, 20)}%`)
+                .limit(3);
+
+            if (chunks && chunks.length > 0) {
+                contextText = "\n\n=== INFORMACIÓN EXTRAÍDA DE DOCUMENTOS TÉCNICOS ===\n" +
+                    chunks.map((c: any) => `[Fuente: ${c.metadata?.source || 'Documento'}] ${c.content}`).join("\n---\n");
+            }
+        } catch (e) {
+            console.error("Error fetching RAG context:", e);
+        }
+
+        // 4. Obtener datos del sistema y preparar prompt
+        const systemData = await fetchSystemData(supabaseAdmin);
+        const systemPrompt = buildSystemPrompt(systemData) + contextText;
 
         // 4. Gestión de Historial
         let convId = conversation_id;
@@ -171,11 +189,11 @@ Deno.serve(async (req: Request) => {
 
         const messages = [
             { role: "system", content: systemPrompt },
-            ...(history || []).map(m => ({ role: m.role, content: m.content })),
+            ...(history || []).map((m: any) => ({ role: m.role, content: m.content })),
         ];
 
         // Evitar duplicar el último mensaje si ya se guardó
-        if (!history?.some(h => h.content === message)) {
+        if (!history?.some((h: any) => h.content === message)) {
             messages.push({ role: "user", content: message });
         }
 

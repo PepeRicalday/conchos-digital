@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import './ReservoirViz.css';
 
 interface ReservoirVizProps {
@@ -31,32 +31,6 @@ const BOQUILLA_TECNICA_PATH =
     'Q 315,315 270,290 L 225,275 ' +
     'L 185,265 L 140,250 L 95,235 L 35,200 Z';
 
-const BOQUILLA_FULL_PATH =
-    'M 50,200 ' +
-    'C 60,180 75,160 100,155 ' +      // Western arm starts
-    'C 130,148 150,140 170,130 ' +     // NW branch up
-    'C 185,122 195,118 210,120 ' +     // NW branch peak
-    'C 225,125 230,135 240,142 ' +     // Back down from NW
-    'C 255,152 270,148 290,140 ' +     // Central north bulge
-    'C 320,128 350,120 380,115 ' +     // North shore runs east
-    'C 420,108 460,100 500,95 ' +      // Approaching main body
-    'C 540,88 570,82 600,80 ' +        // Widest north point
-    'C 630,78 660,82 680,88 ' +        // NE arm
-    'C 700,94 720,105 730,115 ' +      // NE arm bends
-    'C 740,128 745,140 750,155 ' +     // East end approaches dam
-    'L 760,175 ' +                      // Dam wall top
-    'L 760,225 ' +                      // Dam wall bottom
-    'C 750,245 745,260 730,275 ' +     // SE arm
-    'C 720,288 700,295 680,300 ' +     // SE arm continues
-    'C 660,308 630,312 600,310 ' +     // South shore wide
-    'C 570,308 540,302 500,295 ' +     // South shore runs west
-    'C 460,285 420,280 380,275 ' +     // Approaching SW
-    'C 350,268 320,262 290,255 ' +     // Central south
-    'C 270,248 255,245 240,250 ' +     // SW indent
-    'C 225,258 210,265 195,270 ' +     // SW branch
-    'C 180,278 165,275 150,268 ' +     // SW branch peak
-    'C 130,258 110,250 100,242 ' +     // Back toward west
-    'C 75,232 60,220 50,200 Z';        // Close west tip
 
 /**
  * Generates concentric paths for lower water levels.

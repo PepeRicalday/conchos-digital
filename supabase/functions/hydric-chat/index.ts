@@ -190,14 +190,18 @@ Deno.serve(async (req: Request) => {
         // 4. Gestión de Historial
         let convId = conversation_id;
         if (!convId && user) {
-            const { data: newConv } = await supabaseAdmin.from("chat_conversations")
+            const { data: newConv, error: convError } = await supabaseAdmin.from("chat_conversations")
                 .insert({ user_id: user.id, titulo: message.substring(0, 50), contexto: "general" })
                 .select("id").single();
+
+            if (convError) throw new Error(`DB Error (chat_conversations): ${convError.message}`);
+
             convId = newConv?.id;
         }
 
         if (convId) {
-            await supabaseAdmin.from("chat_messages").insert({ conversation_id: convId, role: "user", content: message });
+            const { error: msgError } = await supabaseAdmin.from("chat_messages").insert({ conversation_id: convId, role: "user", content: message });
+            if (msgError) throw new Error(`DB Error (chat_messages): ${msgError.message}`);
         }
 
         const { data: history } = convId
@@ -261,12 +265,23 @@ Deno.serve(async (req: Request) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
 
-    } catch (e) {
-        console.error("DEBUG CRITICO:", e);
+    } catch (e: any) {
+        console.error("DEBUG CRITICO (Edge Function):", e);
+
+        // Determinar un mensaje amigable
+        let errorMessage = e.message || "Error desconocido en el motor de IA";
+        if (errorMessage.includes("401") || errorMessage.includes("Unauthorized")) {
+            errorMessage = "Falta de autorización en la API de Groq. Verifica el GROQ_API_KEY en Supabase Secrets.";
+        } else if (errorMessage.includes("404")) {
+            errorMessage = `Modelo ${AI_MODEL} no encontrado en Groq. Usando configuración base.`;
+        }
+
         return new Response(JSON.stringify({
-            error: e instanceof Error ? e.message : "Error desconocido en el motor de IA"
+            error: true,
+            message: errorMessage,
+            details: e.toString()
         }), {
-            status: 500,
+            status: 400, // Usamos 400 en lugar de 500 para evitar el 'non-2xx' por defecto de Supabase si queremos personalizarlo en el hook
             headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
     }

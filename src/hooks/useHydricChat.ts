@@ -145,10 +145,26 @@ export function useHydricChat() {
 
         } catch (err: any) {
             console.error('Error sending message:', err);
-            let msg = err.message || 'Error desconocido';
+
+            let msg = 'Error desconocido';
+
+            // Si es un error de Supabase Functions, intentamos extraer el mensaje del cuerpo
+            if (err.context && typeof err.context === 'object') {
+                try {
+                    // Algunos SDKs de Supabase exponen el cuerpo en err.context
+                    const body = await err.context.json?.() || err.context.message;
+                    msg = body?.message || body?.error || err.message || msg;
+                } catch {
+                    msg = err.message || msg;
+                }
+            } else {
+                msg = err.message || msg;
+            }
+
             if (msg.includes('401') || msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('expired')) {
                 msg = 'Tu sesión expiró. Refresca la página o vuelve a iniciar sesión.';
             }
+
             setError(msg);
             setMessages(prev => prev.filter(m => m.id !== optimisticUserMsg.id));
         } finally {

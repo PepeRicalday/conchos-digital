@@ -417,13 +417,13 @@ const GeoMonitor = () => {
                 itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#0ea5e9' }, { offset: 1, color: '#3b82f6' }]) }
             },
             pointer: { show: true, length: '60%', width: 4, itemStyle: { color: '#22d3ee' } },
-            axisLine: { lineStyle: { width: 12, color: [[0.6, '#1e40af'], [0.8, '#f59e0b'], [1, '#ef4444']] } },
+            axisLine: { lineStyle: { width: 12, color: [[0.6, '#0ea5e9'], [0.8, '#f59e0b'], [1, '#ef4444']] } },
             axisTick: { show: false },
-            splitLine: { distance: -18, length: 12, lineStyle: { color: 'rgba(51, 65, 85, 0.8)', width: 2 } },
-            axisLabel: { distance: 12, color: '#94a3b8', fontSize: 10, fontFamily: 'monospace' },
-            detail: { valueAnimation: true, formatter: '{value}', color: '#fff', fontSize: 28, fontWeight: 900, offsetCenter: [0, '10%'] },
+            splitLine: { distance: -18, length: 12, lineStyle: { color: 'rgba(255, 255, 255, 0.2)', width: 2 } },
+            axisLabel: { distance: 12, color: '#94a3b8', fontSize: 10, fontFamily: 'var(--geo-font-mono)' },
+            detail: { valueAnimation: true, formatter: '{value}', color: '#fff', fontSize: 26, fontWeight: 900, offsetCenter: [0, '10%'], fontFamily: 'var(--geo-font-mono)' },
             data: [{ value: parseFloat(gaugeValue.toFixed(2)), name: `${escalaEntrada?.nombre || 'K-23'} — Nivel (m)` }],
-            title: { offsetCenter: [0, '70%'], color: '#22d3ee', fontSize: 10, fontFamily: 'monospace' }
+            title: { offsetCenter: [0, '70%'], color: '#22d3ee', fontSize: 10, fontFamily: 'var(--geo-font-sans)', fontWeight: 600 }
         }]
     };
 
@@ -468,13 +468,13 @@ const GeoMonitor = () => {
         }],
         tooltip: {
             trigger: 'axis' as const,
-            backgroundColor: '#0f172a',
-            borderColor: '#334155',
-            textStyle: { color: '#e2e8f0', fontSize: 11 },
+            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+            borderColor: 'rgba(34, 211, 238, 0.3)',
+            textStyle: { color: '#e2e8f0', fontSize: 11, fontFamily: 'var(--geo-font-sans)' },
             formatter: (params: any) => {
                 const p = params[0];
                 const esc = escalas[p.dataIndex];
-                return `<b>${esc?.nombre}</b><br/>Nivel: <span style="color:#22d3ee;font-weight:bold">${p.value} m</span><br/>Km: ${esc?.km}`;
+                return `<b style="font-weight:800">${esc?.nombre}</b><br/><span style="color:#94a3b8;font-size:10px;text-transform:uppercase">Nivel</span> <span style="color:#22d3ee;font-weight:800;font-family:var(--geo-font-mono)">${p.value} m</span><br/><span style="color:#64748b;font-size:10px">Km: ${esc?.km}</span>`;
             }
         },
     };
@@ -635,13 +635,13 @@ const GeoMonitor = () => {
                             className="geo-control-btn default"
                             onClick={() => setShowImporter(true)}
                             title="Importar Shapefile / GeoJSON"
-                            style={{ borderTop: '1px solid rgba(100,116,139,0.3)', marginTop: 4, paddingTop: 12 }}
+                            style={{ borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: 4, paddingTop: 12 }}
                         >
                             <Upload size={20} />
                         </button>
                     )}
 
-                    <div className="geo-layer-divider" style={{ height: '1px', background: 'rgba(51,65,85,0.3)', margin: '8px 4px' }}></div>
+                    <div className="geo-layer-divider" style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '8px 4px' }}></div>
 
                     {/* Base Layer Selector */}
                     <button
@@ -764,10 +764,10 @@ const GeoMonitor = () => {
                                             if (feature.properties) {
                                                 const p = feature.properties;
                                                 layer.bindPopup(`
-                                                    <div style="font-family:monospace;min-width:180px">
-                                                        <strong style="font-size:13px;color:${p.color}">${p.nombre}</strong>
-                                                        <div style="font-size:11px;color:#666;margin:4px 0">Módulo ${p.numero_modulo}</div>
-                                                        <div style="font-size:11px">Superficie: <b>${p.superficie_ha?.toLocaleString()} ha</b></div>
+                                                    <div style="font-family:var(--geo-font-sans);min-width:180px">
+                                                        <strong style="font-size:14px;font-weight:800;color:${p.color}">${p.nombre}</strong>
+                                                        <div style="font-size:11px;color:#cbd5e1;margin:4px 0;text-transform:uppercase;letter-spacing:0.05em">Módulo ${p.numero_modulo}</div>
+                                                        <div style="font-size:12px;font-family:var(--geo-font-mono)">Superficie: <b style="color:#fff">${p.superficie_ha?.toLocaleString()} ha</b></div>
                                                     </div>
                                                 `);
                                                 layer.bindTooltip(p.nombre, { sticky: true, className: 'geo-tooltip-custom' });
@@ -791,9 +791,9 @@ const GeoMonitor = () => {
                                             if (feature.properties) {
                                                 const p = feature.properties;
                                                 layer.bindPopup(`
-                                                    <div style="font-family:monospace;min-width:180px">
-                                                        <strong style="font-size:13px;color:${p.color}">${p.nombre}</strong>
-                                                        <div style="font-size:11px;margin-top:4px">Capacidad: <b>${p.capacidad_mm3} Mm³</b></div>
+                                                    <div style="font-family:var(--geo-font-sans);min-width:180px">
+                                                        <strong style="font-size:14px;font-weight:800;color:${p.color}">${p.nombre}</strong>
+                                                        <div style="font-size:12px;margin-top:4px;color:#94a3b8">Capacidad: <b style="color:#fff;font-family:var(--geo-font-mono)">${p.capacidad_mm3} Mm³</b></div>
                                                     </div>
                                                 `);
                                                 layer.bindTooltip(p.nombre, { sticky: true });

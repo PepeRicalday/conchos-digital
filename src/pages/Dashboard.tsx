@@ -43,23 +43,23 @@ function DonutRing({ pct, label, color = '#60a5fa', size = 110 }: {
                 </filter>
             </defs>
             {/* Track */}
-            <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="10" />
+            <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="8" />
             {/* Fill */}
             <circle
                 cx="50" cy="50" r={r}
                 fill="none"
                 stroke={`url(#donut-grad-${label})`}
-                strokeWidth="10"
+                strokeWidth="8"
                 strokeDasharray={`${stroke} ${circ}`}
                 strokeLinecap="round"
                 transform="rotate(-90 50 50)"
-                style={{ filter: `drop-shadow(0 0 6px ${color}99)`, transition: 'stroke-dasharray 1.2s ease' }}
+                style={{ filter: `drop-shadow(0 0 8px ${color}B3)`, transition: 'stroke-dasharray 1.5s cubic-bezier(0.4, 0, 0.2, 1)' }}
             />
             {/* Center text */}
-            <text x="50" y="46" textAnchor="middle" fill="#fff" fontSize="14" fontWeight="800" fontFamily="JetBrains Mono, monospace">
+            <text x="50" y="46" textAnchor="middle" fill="#fff" fontSize="16" fontWeight="900" fontFamily="var(--font-mono)">
                 {pct.toFixed(0)}%
             </text>
-            <text x="50" y="60" textAnchor="middle" fill="#94a3b8" fontSize="7.5" fontWeight="500" letterSpacing="0.5">
+            <text x="50" y="62" textAnchor="middle" fill="#94a3b8" fontSize="8" fontWeight="600" letterSpacing="0.1em" style={{ textTransform: 'uppercase' }}>
                 {label}
             </text>
         </svg>
@@ -91,28 +91,29 @@ function ModuleBar({ name, pct, rank }: { name: string; pct: number; rank: numbe
             }}>{rank}</span>
 
             {/* Name */}
-            <span style={{ width: '52px', fontSize: '0.7rem', color: '#94a3b8', fontWeight: '600', flexShrink: 0, fontFamily: 'JetBrains Mono, monospace' }}>
+            <span style={{ width: '55px', fontSize: '0.75rem', color: '#cbd5e1', fontWeight: '700', flexShrink: 0, fontFamily: 'var(--font-mono)' }}>
                 {name}
             </span>
 
             {/* Bar track */}
-            <div style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.04)', borderRadius: '999px', overflow: 'hidden' }}>
+            <div style={{ flex: 1, height: '10px', background: 'rgba(255,255,255,0.04)', borderRadius: '999px', overflow: 'hidden', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
                 <div style={{
                     width: `${Math.min(pct, 100)}%`,
                     height: '100%',
                     background: barColor,
                     borderRadius: '999px',
-                    boxShadow: `0 0 8px ${glowColor}66`,
-                    transition: 'width 1s cubic-bezier(.4,0,.2,1)'
+                    boxShadow: `0 0 12px ${glowColor}B3, inset 0 1px 1px rgba(255,255,255,0.3)`,
+                    transition: 'width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
                 }} />
             </div>
 
             {/* Value */}
             <span style={{
-                width: '42px', textAlign: 'right',
-                fontSize: '0.72rem', fontWeight: '800', flexShrink: 0,
+                width: '45px', textAlign: 'right',
+                fontSize: '0.8rem', fontWeight: '800', flexShrink: 0,
                 color: isHigh ? '#fb923c' : pct >= 60 ? '#60a5fa' : '#34d399',
-                fontFamily: 'JetBrains Mono, monospace'
+                fontFamily: 'var(--font-mono)',
+                textShadow: `0 0 10px ${glowColor}80`
             }}>
                 {pct.toFixed(1)}%
             </span>

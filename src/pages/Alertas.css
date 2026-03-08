@@ -1,0 +1,357 @@
+.alertas-container {
+    padding: 1.5rem;
+    height: 100vh;
+    overflow-y: auto;
+    background: transparent;
+    color: #f8fafc;
+    font-family: var(--font-base), sans-serif;
+}
+
+.al-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+}
+
+.al-header-title {
+    font-size: 1.2rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #f8fafc;
+}
+
+.al-header-subtitle {
+    font-weight: 400;
+    color: #94a3b8;
+    margin-left: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.al-header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
+.al-logos {
+    height: 30px;
+}
+
+.al-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1rem;
+}
+
+.al-left-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.al-right-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* Filters */
+.al-filters-row {
+    display: flex;
+    justify-content: space-between;
+}
+
+.al-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.al-filter-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #94a3b8;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.al-filter-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.al-combo-box {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #f8fafc;
+    padding: 0.4rem 1rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    outline: none;
+    cursor: pointer;
+}
+
+.al-combo-box:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* KPI Cards */
+.al-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.al-kpi-card {
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 8px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+    height: 120px;
+}
+
+.al-kpi-card.red {
+    border: 1px solid rgba(244, 63, 94, 0.5);
+    box-shadow: 0 0 15px rgba(244, 63, 94, 0.1) inset, 0 0 10px rgba(244, 63, 94, 0.1);
+}
+
+.al-kpi-card.amber {
+    border: 1px solid rgba(245, 158, 11, 0.5);
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.1) inset, 0 0 10px rgba(245, 158, 11, 0.1);
+}
+
+.al-kpi-card.blue {
+    border: 1px solid rgba(56, 189, 248, 0.5);
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.1) inset, 0 0 10px rgba(56, 189, 248, 0.1);
+}
+
+.al-kpi-title {
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #f8fafc;
+}
+
+.al-kpi-value {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.al-kpi-card.red .al-kpi-value {
+    color: #f43f5e;
+}
+
+.al-kpi-card.amber .al-kpi-value {
+    color: #f59e0b;
+}
+
+.al-kpi-card.blue .al-kpi-value {
+    color: #38bdf8;
+}
+
+.al-kpi-subtext {
+    font-size: 0.65rem;
+    color: #94a3b8;
+    margin-top: 0.2rem;
+    line-height: 1.2;
+}
+
+.al-kpi-chart {
+    position: absolute;
+    bottom: 5px;
+    left: 10px;
+    right: 10px;
+    height: 40px;
+    opacity: 0.8;
+}
+
+/* Map Card */
+.al-map-card {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    position: relative;
+    min-height: 400px;
+}
+
+.al-card-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #f8fafc;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+}
+
+/* Right Cards */
+.al-side-card {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    height: 50%;
+}
+
+/* Log Section */
+.al-log-section {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+
+.al-log-container {
+    min-height: 100px;
+}
+
+.al-log-loading,
+.al-log-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 2rem;
+    color: #64748b;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.al-log-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.al-log-item {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    transition: all 0.3s ease;
+}
+
+.al-log-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.al-log-indicator {
+    width: 4px;
+    height: 30px;
+    border-radius: 2px;
+    margin-right: 1.5rem;
+}
+
+.al-log-item.critical .al-log-indicator {
+    background: #f43f5e;
+    box-shadow: 0 0 10px #f43f5e;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.al-log-item.warning .al-log-indicator {
+    background: #f59e0b;
+    box-shadow: 0 0 10px #f59e0b;
+}
+
+.al-log-item.info .al-log-indicator {
+    background: #38bdf8;
+    box-shadow: 0 0 10px #38bdf8;
+}
+
+.al-log-content {
+    flex: 1;
+}
+
+.al-log-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.25rem;
+}
+
+.al-log-tag {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: #64748b;
+    letter-spacing: 1px;
+}
+
+.al-log-time {
+    font-size: 0.75rem;
+    color: #475569;
+}
+
+.al-log-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 0.2rem;
+}
+
+.al-log-msg {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
+.al-log-action {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 1.5rem;
+}
+
+.al-log-action:hover {
+    background: white;
+    color: black;
+    border-color: white;
+}
+
+.al-side-card-top {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}

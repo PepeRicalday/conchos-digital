@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, FileText, Save, Wifi, WifiOff, Loader, Table as TableIcon, AlertCircle, FileSpreadsheet, Trash2 } from 'lucide-react';
+import { Upload, FileText, Save, Wifi, WifiOff, Loader, Table as TableIcon, FileSpreadsheet, Trash2, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
@@ -12,6 +12,7 @@ const ImportReport = () => {
     const [saving, setSaving] = useState(false);
     const [excelData, setExcelData] = useState<any[]>([]);
     const [importLog, setImportLog] = useState<{ type: 'success' | 'error', message: string }[]>([]);
+    const [excelMonthYear, setExcelMonthYear] = useState<{ mesStr: string, year: number } | null>(null);
 
     // Initial constants
     const AREAS = {
@@ -96,17 +97,73 @@ const ImportReport = () => {
                     const wsname = wb.SheetNames[0];
                     const ws = wb.Sheets[wsname];
 
-                    let data: any[] = XLSX.utils.sheet_to_json(ws);
+                    // Read as an array of arrays to handle the complex visual layout
+                    const rawData: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-                    // Cleanup row if it's the header repeat row (common in some exports)
-                    if (data.length > 0 && String(Object.values(data[0])[0]).toLowerCase().includes('fecha')) {
-                        data = data.slice(1);
+                    // 1. Find the Month and Year from the Main Title (e.g. "Datos Hidrológicos de Presas ENERO 2020")
+                    let detectedMonth = '';
+                    let detectedYear = new Date().getFullYear();
+
+                    for (let i = 0; i < Math.min(10, rawData.length); i++) {
+                        const rowStr = rawData[i]?.join(' ').toUpperCase() || '';
+                        if (rowStr.includes('DATOS HIDROL') || rowStr.includes('PRESAS')) {
+                            // Extract Year
+                            const yearMatch = rowStr.match(/\b(20\d{2})\b/);
+                            if (yearMatch) detectedYear = parseInt(yearMatch[1]);
+
+                            // Extract Month
+                            const meses = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+                            const foundMonth = meses.find(m => rowStr.includes(m));
+                            if (foundMonth) detectedMonth = foundMonth;
+                            break;
+                        }
                     }
 
-                    setExcelData(data);
+                    if (!detectedMonth) {
+                        toast.error('No se detectó el MES en el título del archivo. Verifica el formato.');
+                        return;
+                    }
+
+                    setExcelMonthYear({ mesStr: detectedMonth, year: detectedYear });
+
+                    // 2. Find the header row where "DIA" and "ESCALA" are defined
+                    let headerRowIndex = -1;
+                    for (let i = 0; i < Math.min(30, rawData.length); i++) {
+                        const row = rawData[i] || [];
+                        const rowString = row.join(' ').toLowerCase();
+                        if (rowString.includes('dia') || rowString.includes('día')) {
+                            headerRowIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (headerRowIndex === -1) {
+                        toast.error('No se encontró la fila principal de encabezados (DIA, ESCALA).');
+                        return;
+                    }
+
+                    // 3. Extract purely the numeric rows for days 1 to 31
+                    const extractedData: any[] = [];
+                    for (let i = headerRowIndex + 1; i < rawData.length; i++) {
+                        const row = rawData[i];
+                        if (!row || row.length === 0) continue;
+
+                        // Check if the first column is a number between 1 and 31 (the DAY)
+                        const rawDay = row[0];
+                        const dayNum = parseInt(rawDay);
+
+                        if (!isNaN(dayNum) && dayNum >= 1 && dayNum <= 31) {
+                            extractedData.push(row);
+                        }
+
+                        // Stop parsing if we hit day 31
+                        if (dayNum === 31) break;
+                    }
+
+                    setExcelData(extractedData);
                     setImportMode('excel');
                     setImagePreview(null);
-                    toast.success(`Excel cargado: ${data.length} registros encontrados.`);
+                    toast.success(`Tablero Histórico SRL detectado: ${detectedMonth} ${detectedYear}. ${extractedData.length} días extraídos.`);
                 } catch (err) {
                     toast.error('Error procesando Excel: Formato no válido.');
                 }
@@ -116,92 +173,96 @@ const ImportReport = () => {
     };
 
     const handleSaveExcelData = async () => {
-        if (excelData.length === 0) return;
+        if (excelData.length === 0 || !excelMonthYear) return;
         setSaving(true);
         setImportLog([]);
 
         const logs: { type: 'success' | 'error', message: string }[] = [];
 
-        // Helper to find value by multiple possible keys
-        const getVal = (row: any, keys: string[]) => {
-            // First try direct match
-            for (const key of keys) {
-                if (row[key] !== undefined) return row[key];
-            }
-            // Then try case insensitive and partial match
-            const entry = Object.entries(row).find(([k]) =>
-                keys.some(target => k.toLowerCase().trim() === target.toLowerCase().trim() ||
-                    (target.length > 3 && k.toLowerCase().includes(target.toLowerCase())))
-            );
-            return entry ? entry[1] : undefined;
-        };
-
         try {
+            const mesesMap: { [key: string]: string } = {
+                'ENERO': '01', 'FEBRERO': '02', 'MARZO': '03', 'ABRIL': '04',
+                'MAYO': '05', 'JUNIO': '06', 'JULIO': '07', 'AGOSTO': '08',
+                'SEPTIEMBRE': '09', 'OCTUBRE': '10', 'NOVIEMBRE': '11', 'DICIEMBRE': '12'
+            };
+
+            const targetMonth = mesesMap[excelMonthYear.mesStr];
+
             for (const row of excelData) {
-                // 1. Determine Presa ID (Map __EMPTY to Presa)
-                const rawPresa = getVal(row, ['__EMPTY', 'Presa', 'presa', 'Nombre', 'PRESA']) || '';
-                const presaName = rawPresa.toString().toLowerCase();
-                let presaId = '';
-                if (presaName.includes('boquilla') || presaName.includes('plb')) presaId = 'PRE-001';
-                else if (presaName.includes('madero') || presaName.includes('pfm')) presaId = 'PRE-002';
-                else if (presaName.includes('delicias')) presaId = 'PRE-003';
+                // Determine Date
+                const dayStr = row[0].toString().padStart(2, '0');
+                const dateStr = `${excelMonthYear.year}-${targetMonth}-${dayStr}`;
 
-                if (!presaId) {
-                    logs.push({ type: 'error', message: `Fila ignorada: No se reconoció la presa "${rawPresa}"` });
-                    continue;
+                // --- BOQUILLA EXTRACTION --- (Columns 1 to 5 conceptually in SRL Excel)
+                // Note: The exact array indexes depend on merged cells, but typically:
+                // 0: Dia, 1: Escala Boquilla, 2: Dif, 3: Almacen, 4: Dif Mm3, 5: %
+
+                const boqEscala = parseFloat(row[1]) || null;
+                const boqAlmacen = parseFloat(row[3]) || null;
+                const boqPct = parseFloat(row[5]) || null;
+                // Extraction typically in col 10 (total) or 6 if different merge
+                const boqExtraccion = parseFloat(row[10]) || parseFloat(row[6]) || 0;
+
+                let boqNotes = '';
+                if (row[2]) boqNotes += `Dif Elev: ${row[2]}m. `;
+                if (row[4]) boqNotes += `Dif Vol: ${row[4]}Mm3. `;
+
+                if (boqEscala && boqAlmacen) {
+                    const { error: err1 } = await supabase.from('lecturas_presas').upsert({
+                        presa_id: 'PRE-001',
+                        fecha: dateStr,
+                        escala_msnm: boqEscala,
+                        almacenamiento_mm3: boqAlmacen,
+                        porcentaje_llenado: boqPct,
+                        extraccion_total_m3s: boqExtraccion,
+                        notas: boqNotes
+                    }, { onConflict: 'presa_id, fecha' });
+
+                    if (err1) logs.push({ type: 'error', message: `Boquilla Día ${dayStr}: ${err1.message}` });
                 }
 
-                // 2. Format date 
-                // In some specific files the date key is a long description header
-                const dateKeys = ['Base de Datos', 'Fecha', 'fecha', 'FECHA', 'Date'];
-                const rawFecha = getVal(row, dateKeys);
-                let dateStr = '';
+                // --- MADERO EXTRACTION --- (Right Side of the Excel)
+                // Looking for Madero specific numerical scale > 1200
 
-                if (rawFecha instanceof Date) {
-                    dateStr = rawFecha.toISOString().split('T')[0];
-                } else if (typeof rawFecha === 'number') {
-                    // Excel serial date conversion
-                    const date = new Date((rawFecha - 25569) * 86400 * 1000);
-                    dateStr = date.toISOString().split('T')[0];
-                } else if (typeof rawFecha === 'string' && rawFecha.includes('-')) {
-                    dateStr = rawFecha.split('T')[0];
-                } else if (typeof rawFecha === 'string') {
-                    const parsed = new Date(rawFecha);
-                    if (!isNaN(parsed.getTime())) dateStr = parsed.toISOString().split('T')[0];
-                    else dateStr = new Date().toISOString().split('T')[0];
-                } else {
-                    dateStr = new Date().toISOString().split('T')[0];
+                let madEscalaIndex = -1;
+                for (let col = 6; col < row.length; col++) {
+                    const val = parseFloat(row[col]);
+                    // Madero typical scales: 1230.XX
+                    if (!isNaN(val) && val > 1200 && val < 1250 && col !== 1) {
+                        madEscalaIndex = col;
+                        break;
+                    }
                 }
 
-                // 3. Extract core values
-                // Mappings for 'BD_Conjunta' format: __EMPTY_1=Escala, __EMPTY_3=Almacen, __EMPTY_5=Porcentaje
-                const escala = Number(getVal(row, ['__EMPTY_1', 'Escala', 'escala', 'Escala_m'])) || null;
-                const almacen = Number(getVal(row, ['__EMPTY_3', 'Almacenamiento', 'almacenamiento', 'Almacen_Mm3'])) || null;
-                const porcentaje = Number(getVal(row, ['__EMPTY_5', 'Porcentaje', 'porcentaje', '% Llenado'])) || null;
-                const extraccion = Number(getVal(row, ['Extraccion', 'extraccion', 'EXTRACCION', 'Gasto', 'm3/s'])) || 0;
+                if (madEscalaIndex !== -1) {
+                    const madEscala = parseFloat(row[madEscalaIndex]) || null;
+                    const madAlmacen = parseFloat(row[madEscalaIndex + 2]) || null;
+                    const madPct = parseFloat(row[madEscalaIndex + 4]) || null;
+                    const madExtraccion = parseFloat(row[madEscalaIndex + 5]) || parseFloat(row[madEscalaIndex + 4]) || 0;
 
-                // Capture differences in notes if available
-                let notes = '';
-                if (row.__EMPTY_2) notes += `Dif Elev: ${row.__EMPTY_2}m. `;
-                if (row.__EMPTY_4) notes += `Dif Vol: ${row.__EMPTY_4}Mm3. `;
+                    let madNotes = '';
+                    if (row[madEscalaIndex + 1]) madNotes += `Dif Elev: ${row[madEscalaIndex + 1]}m. `;
+                    if (row[madEscalaIndex + 3]) madNotes += `Dif Vol: ${row[madEscalaIndex + 3]}Mm3. `;
 
-                // 4. Save to Supabase
-                const { error: errP } = await supabase.from('lecturas_presas').upsert({
-                    presa_id: presaId,
-                    fecha: dateStr,
-                    escala_msnm: escala,
-                    almacenamiento_mm3: almacen,
-                    porcentaje_llenado: porcentaje,
-                    extraccion_total_m3s: extraccion,
-                    notas: notes || null
-                }, { onConflict: 'presa_id, fecha' });
+                    if (madEscala && madAlmacen) {
+                        const { error: err2 } = await supabase.from('lecturas_presas').upsert({
+                            presa_id: 'PRE-002',
+                            fecha: dateStr,
+                            escala_msnm: madEscala,
+                            almacenamiento_mm3: madAlmacen,
+                            porcentaje_llenado: madPct,
+                            extraccion_total_m3s: madExtraccion,
+                            notas: madNotes
+                        }, { onConflict: 'presa_id, fecha' });
 
-                if (errP) logs.push({ type: 'error', message: `Error en ${presaName} (${dateStr}): ${errP.message}` });
-                else logs.push({ type: 'success', message: `${presaName} (${dateStr}) guardado correctamente.` });
+                        if (err2) logs.push({ type: 'error', message: `Madero Día ${dayStr}: ${err2.message}` });
+                    }
+                }
             }
 
+            logs.push({ type: 'success', message: `Procesamiento SRL Finalizado for ${excelMonthYear.mesStr} ${excelMonthYear.year}` });
             setImportLog(logs);
-            toast.success('Proceso de importación finalizado.');
+            toast.success('Inyección Histórica Completada');
         } catch (error: any) {
             toast.error('Error crítico durante la importación: ' + error.message);
         } finally {
@@ -308,8 +369,11 @@ const ImportReport = () => {
                     {importMode === 'excel' && excelData.length > 0 ? (
                         <div className="w-full h-full bg-slate-900 rounded-xl border border-slate-700 flex flex-col overflow-hidden">
                             <div className="p-3 bg-slate-800 flex justify-between items-center border-b border-slate-700">
-                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{excelData.length} Filas Cargadas</span>
-                                <button onClick={() => { setExcelData([]); setImportMode('manual'); }} className="text-rose-400 hover:text-rose-300 transition-colors">
+                                <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                                    <FileSpreadsheet size={16} />
+                                    Formato Oficial SRL ({excelMonthYear?.mesStr} {excelMonthYear?.year}) — {excelData.length} Tableros Diarios
+                                </span>
+                                <button onClick={() => { setExcelData([]); setImportMode('manual'); setExcelMonthYear(null); }} className="text-rose-400 hover:text-rose-300 transition-colors">
                                     <Trash2 size={16} />
                                 </button>
                             </div>
@@ -317,33 +381,55 @@ const ImportReport = () => {
                                 <table className="w-full text-left text-[10px] border-collapse">
                                     <thead className="bg-slate-950 sticky top-0 shadow-lg">
                                         <tr>
-                                            {Object.keys(excelData[0]).map(k => (
-                                                <th key={k} className="p-2.5 border-b border-slate-800 text-slate-500 font-bold truncate max-w-[120px] uppercase tracking-tighter">{k}</th>
-                                            ))}
+                                            <th className="p-2.5 border-b border-r border-slate-800 text-slate-500 font-bold uppercase tracking-tighter">Día</th>
+                                            <th className="p-2.5 border-b border-blue-900 bg-blue-500/10 text-blue-400 font-bold uppercase">Boq (Escala)</th>
+                                            <th className="p-2.5 border-b border-blue-900 bg-blue-500/10 text-blue-400 font-bold uppercase">Boq (Mm³)</th>
+                                            <th className="p-2.5 border-b border-cyan-900 bg-cyan-500/10 text-cyan-400 font-bold uppercase">Boq (m³/s)</th>
+                                            <th className="p-2.5 border-b border-amber-900 bg-amber-500/10 text-amber-400 font-bold uppercase">Mad (Escala)</th>
+                                            <th className="p-2.5 border-b border-amber-900 bg-amber-500/10 text-amber-400 font-bold uppercase">Mad (Mm³)</th>
+                                            <th className="p-2.5 border-b border-emerald-900 bg-emerald-500/10 text-emerald-400 font-bold uppercase">Mad (m³/s)</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800/50">
-                                        {excelData.slice(0, 50).map((row, i) => (
-                                            <tr key={i} className="hover:bg-blue-500/5 transition-colors group">
-                                                {Object.values(row).map((v: any, j) => (
-                                                    <td key={j} className="p-2.5 truncate max-w-[120px] font-mono text-slate-300 group-hover:text-white">
-                                                        {v instanceof Date ? v.toLocaleDateString() : v?.toString()}
-                                                    </td>
-                                                ))}
-                                            </tr>
-                                        ))}
+                                        {excelData.slice(0, 31).map((row, i) => {
+                                            // Extract for preview
+                                            const dia = row[0];
+                                            const boqEscala = parseFloat(row[1]) ? parseFloat(row[1]).toFixed(2) : '--';
+                                            const boqVol = parseFloat(row[3]) ? parseFloat(row[3]).toFixed(2) : '--';
+                                            const boqExtValor = parseFloat(row[10]) || parseFloat(row[6]);
+                                            const boqExt = boqExtValor ? boqExtValor.toFixed(2) : '--';
+
+                                            // Find Madero roughly
+                                            let madEscalaIndex = -1;
+                                            for (let col = 6; col < row.length; col++) {
+                                                const val = parseFloat(row[col]);
+                                                if (!isNaN(val) && val > 1200 && val < 1250) {
+                                                    madEscalaIndex = col; break;
+                                                }
+                                            }
+                                            const madEscala = madEscalaIndex !== -1 && parseFloat(row[madEscalaIndex]) ? parseFloat(row[madEscalaIndex]).toFixed(2) : '--';
+                                            const madVol = madEscalaIndex !== -1 && parseFloat(row[madEscalaIndex + 2]) ? parseFloat(row[madEscalaIndex + 2]).toFixed(2) : '--';
+                                            const madExt = madEscalaIndex !== -1 && parseFloat(row[madEscalaIndex + 5]) ? parseFloat(row[madEscalaIndex + 5]).toFixed(2) : '--';
+
+                                            return (
+                                                <tr key={i} className="hover:bg-slate-800/50 transition-colors group font-mono text-slate-300">
+                                                    <td className="p-2.5 border-r border-slate-800 font-black">{dia}</td>
+                                                    <td className="p-2.5 bg-blue-500/5">{boqEscala}</td>
+                                                    <td className="p-2.5 bg-blue-500/5">{boqVol}</td>
+                                                    <td className="p-2.5 bg-cyan-500/5 text-cyan-400">{boqExt}</td>
+                                                    <td className="p-2.5 bg-amber-500/5">{madEscala}</td>
+                                                    <td className="p-2.5 bg-amber-500/5">{madVol}</td>
+                                                    <td className="p-2.5 bg-emerald-500/5 text-emerald-400">{madExt}</td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
-                                {excelData.length > 50 && (
-                                    <div className="p-4 text-center text-slate-500 text-[10px] italic bg-slate-900/50 font-mono">
-                                        ... mostrando solo los primeros 50 registros de {excelData.length}
-                                    </div>
-                                )}
                             </div>
                             <div className="p-4 border-t border-slate-700 bg-slate-950 flex flex-col gap-3">
-                                <div className="flex items-center gap-3 text-amber-400 text-[10px] bg-amber-400/5 p-3 rounded-lg border border-amber-400/20 leading-relaxed font-mono">
-                                    <AlertCircle size={14} className="flex-shrink-0" />
-                                    <span>Mapeo automático: <b>Presa, Fecha, Escala, Almacenamiento, Extracción.</b> Asegúrate de que tu Excel use estos encabezados.</span>
+                                <div className="flex items-center gap-3 text-emerald-400 text-[10px] bg-emerald-400/5 p-3 rounded-lg border border-emerald-400/20 leading-relaxed font-mono">
+                                    <CheckCircle size={14} className="flex-shrink-0" />
+                                    <span>Sistema de mapeo visual activo. Los datos de Boquilla (Izquierda) y Madero (Derecha) se inyectarán de forma concurrente para los 31 días.</span>
                                 </div>
                                 <button onClick={handleSaveExcelData} disabled={saving} className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-3 transition-all shadow-xl shadow-emerald-900/20 active:scale-[0.98]">
                                     {saving ? <Loader className="animate-spin" size={18} /> : <Save size={18} />}

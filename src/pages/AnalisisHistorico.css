@@ -1,0 +1,366 @@
+.analisis-historico-container {
+    padding: 2rem;
+    max-width: 1600px;
+    margin: 0 auto;
+    min-height: 100vh;
+    color: #f8fafc;
+    font-family: var(--font-base), sans-serif;
+    background-color: transparent;
+}
+
+/* Header Area */
+.ah-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+}
+
+.ah-title {
+    font-size: 2rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 0;
+    line-height: 1.2;
+    background: linear-gradient(to right, #ffffff, #94a3b8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.ah-controls-row {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    margin-top: 1rem;
+}
+
+.ah-control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ah-control-label {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #94a3b8;
+}
+
+.ah-select {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 0.6rem 2.5rem 0.6rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394A3B8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.9z%22%2F%3E%3C%2Fsvg%3E");
+    background-repeat: no-repeat, repeat;
+    background-position: right .7em top 50%, 0 0;
+    background-size: .65em auto, 100%;
+    backdrop-filter: blur(10px);
+    transition: all 0.2s ease;
+}
+
+.ah-select:focus,
+.ah-select:hover {
+    border-color: rgba(56, 189, 248, 0.5);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.1);
+}
+
+.ah-auto-detect-info {
+    font-size: 0.75rem;
+    color: #64748b;
+    max-width: 250px;
+    line-height: 1.4;
+    font-style: italic;
+    border-left: 2px solid #38bdf8;
+    padding-left: 0.75rem;
+}
+
+.ah-logos {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.ah-logos img {
+    height: 48px;
+    object-fit: contain;
+}
+
+/* Grid Layout */
+.ah-top-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.ah-main-grid {
+    display: grid;
+    grid-template-columns: 3fr 1.8fr;
+    grid-template-rows: auto auto;
+    gap: 1.5rem;
+}
+
+/* Neon Top Cards */
+.ah-neon-card {
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(12px);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+    height: 140px;
+    transition: transform 0.3s ease;
+}
+
+.ah-neon-card:hover {
+    transform: translateY(-2px);
+}
+
+.ah-neon-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    padding: 2px;
+    /* Border thickness */
+    background: inherit;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+}
+
+/* Gradients for the glowing neon borders */
+.ah-neon-card.blue::after {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.8), rgba(56, 189, 248, 0.1));
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.4) inset;
+}
+
+.ah-neon-card.yellow::after {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.8), rgba(245, 158, 11, 0.1));
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.4) inset;
+}
+
+.ah-neon-card.green::after {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.8), rgba(16, 185, 129, 0.1));
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.4) inset;
+}
+
+.ah-card-title {
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #e2e8f0;
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+}
+
+.ah-card-value {
+    font-size: 2.2rem;
+    font-weight: 900;
+    font-family: var(--font-mono);
+    display: flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    line-height: 1;
+}
+
+.ah-card-unit {
+    font-size: 0.9rem;
+    font-family: var(--font-base);
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.ah-neon-card.blue .ah-card-value {
+    color: #38bdf8;
+    text-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+
+.ah-neon-card.yellow .ah-card-value {
+    color: #fbbf24;
+    text-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+}
+
+.ah-neon-card.green .ah-card-value {
+    color: #34d399;
+    text-shadow: 0 0 10px rgba(52, 211, 153, 0.3);
+}
+
+/* Tiny Sparklines */
+.ah-sparkline-container {
+    height: 40px;
+    width: 60%;
+    margin-top: auto;
+    /* Align bottom right for cool effect */
+    align-self: flex-end;
+    opacity: 0.8;
+}
+
+.ah-extraction-icon {
+    align-self: flex-end;
+    margin-top: auto;
+    opacity: 0.8;
+}
+
+/* Charts Containers */
+.ah-chart-card {
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(12px);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.ah-main-chart-area {
+    /* Span 2 rows in the right column if not careful, actually we want it to span the entire left col height */
+    grid-row: span 2;
+    min-height: 400px;
+    /* Minimum height to look good */
+}
+
+.ah-sub-chart {
+    height: 240px;
+}
+
+.ah-chart-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.ah-chart-title {
+    font-size: 0.9rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #f8fafc;
+    margin: 0;
+}
+
+.ah-chart-legend {
+    display: flex;
+    gap: 1rem;
+}
+
+.ah-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+}
+
+.ah-legend-color {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+}
+
+.ah-legend-color.blue {
+    background-color: #38bdf8;
+    box-shadow: 0 0 5px #38bdf8;
+}
+
+.ah-legend-color.yellow {
+    background-color: #fbbf24;
+    box-shadow: 0 0 5px #fbbf24;
+}
+
+.ah-legend-color.cyan {
+    background-color: #22d3ee;
+    box-shadow: 0 0 5px #22d3ee;
+}
+
+.ah-legend-color.green {
+    background-color: #34d399;
+    box-shadow: 0 0 5px #34d399;
+}
+
+/* Loader and Error States */
+.ah-loader-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 400px;
+}
+
+.ah-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 400px;
+    background: rgba(15, 23, 42, 0.3);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: #64748b;
+    text-align: center;
+}
+
+/* Tooltip Customize - global enough but scope to recharts */
+.ah-custom-tooltip {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+.ah-custom-tooltip-title {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #e2e8f0;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 0.25rem;
+}
+
+.ah-custom-tooltip-item {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    margin: 0.25rem 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+@media (max-width: 1024px) {
+    .ah-top-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .ah-main-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+    }
+
+    .ah-main-chart-area {
+        grid-row: auto;
+    }
+}

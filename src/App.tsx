@@ -26,6 +26,7 @@ const Infraestructura = lazy(() => import('./pages/Infraestructura'));
 const Alertas = lazy(() => import('./pages/Alertas'));
 const InteligenciaHidrica = lazy(() => import('./pages/InteligenciaHidrica'));
 const BalanceHidraulico = lazy(() => import('./pages/BalanceHidraulico'));
+const AnalisisHistorico = lazy(() => import('./pages/AnalisisHistorico'));
 
 // ── Premium Loading Fallback ─────────────────────────────────── //
 const PageLoader = () => (
@@ -194,6 +195,7 @@ function App() {
                 <Route path="/infraestructura" element={<ProtectedRoute><SafePage><Infraestructura /></SafePage></ProtectedRoute>} />
                 <Route path="/inteligencia-hidrica" element={<ProtectedRoute><SafePage><InteligenciaHidrica /></SafePage></ProtectedRoute>} />
                 <Route path="/balance" element={<ProtectedRoute><SafePage><BalanceHidraulico /></SafePage></ProtectedRoute>} />
+                <Route path="/analisis-historico" element={<ProtectedRoute><SafePage><AnalisisHistorico /></SafePage></ProtectedRoute>} />
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />

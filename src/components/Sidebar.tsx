@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge, BarChart3, Database } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useHydraStore } from '../store/useHydraStore';
+import { supabase } from '../lib/supabase';
 
 import './Layout.css';
 import SupabaseStatus from './SupabaseStatus';
@@ -22,6 +23,32 @@ const Sidebar = () => {
         return { totalPoints, activePoints, totalFlow };
     }, [modules]);
 
+    // ── Realtime Alertas Badge ──
+    const [criticalAlertsCount, setCriticalAlertsCount] = useState(0);
+
+    useEffect(() => {
+        const fetchAlerts = async () => {
+            const { count } = await supabase
+                .from('registro_alertas')
+                .select('*', { count: 'exact', head: true })
+                .eq('resuelta', false)
+                .in('tipo_riesgo', ['critical', 'warning']);
+            setCriticalAlertsCount(count || 0);
+        };
+        fetchAlerts();
+
+        const alertsSub = supabase
+            .channel('sidebar_alertas')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'registro_alertas' }, () => {
+                fetchAlerts();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(alertsSub);
+        };
+    }, []);
+
     const handleLogout = async () => {
         await signOut();
         navigate('/login');
@@ -34,9 +61,10 @@ const Sidebar = () => {
         { icon: Gauge, label: 'Control de Niveles', path: '/escalas' },
         { icon: Activity, label: 'Hidrometría', path: '/hidrometria' },
         { icon: BarChart3, label: 'Balance Hidráulico', path: '/balance' },
+        { icon: Database, label: 'Análisis Histórico', path: '/analisis-historico' },
         { icon: Cloud, label: 'Clima', path: '/clima' },
         { icon: Map, label: 'Geo-Monitor', path: '/geo-monitor' },
-        { icon: Bell, label: 'Alertas', path: '/alertas' },
+        { icon: Bell, label: 'Alertas', path: '/alertas', badge: criticalAlertsCount > 0 ? `${criticalAlertsCount}` : undefined, badgeColor: criticalAlertsCount > 0 ? '#f43f5e' : undefined },
     ];
 
     return (
@@ -120,12 +148,13 @@ const Sidebar = () => {
                                 fontWeight: 800,
                                 padding: '2px 6px',
                                 borderRadius: '9999px',
-                                background: 'rgba(16, 185, 129, 0.15)',
-                                color: '#10b981',
+                                background: item.badgeColor ? `color-mix(in srgb, ${item.badgeColor} 15%, transparent)` : 'rgba(16, 185, 129, 0.15)',
+                                color: item.badgeColor || '#10b981',
                                 fontFamily: 'var(--font-mono)',
-                                border: '1px solid rgba(16, 185, 129, 0.2)',
+                                border: `1px solid ${item.badgeColor ? `color-mix(in srgb, ${item.badgeColor} 40%, transparent)` : 'rgba(16, 185, 129, 0.2)'}`,
                                 minWidth: '22px',
                                 textAlign: 'center',
+                                boxShadow: item.badgeColor ? `0 0 10px color-mix(in srgb, ${item.badgeColor} 20%, transparent)` : 'none'
                             }}>{item.badge}</span>
                         )}
                     </NavLink>

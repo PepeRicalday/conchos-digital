@@ -1,168 +1,321 @@
-import { useMemo } from 'react';
-import { AlertTriangle, CheckCircle, Info, TrendingUp, Droplets, Activity, Clock } from 'lucide-react';
-import { useHydraEngine } from '../hooks/useHydraEngine';
-import { usePresas } from '../hooks/usePresas';
-import { useFecha } from '../context/FechaContext';
+import { useState, useEffect } from 'react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line, Cell, Legend } from 'recharts';
+import { AlertTriangle, MapPin, CheckCircle } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
-interface Alert {
-    id: string;
-    type: 'critical' | 'warning' | 'info';
-    title: string;
-    message: string;
-    timestamp: string;
-    icon?: typeof AlertTriangle;
-}
+import './Alertas.css';
 
 const Alertas = () => {
-    const { fechaSeleccionada } = useFecha();
-    const { modules, loading: loadingModules } = useHydraEngine();
-    const { presas, loading: loadingPresas } = usePresas(fechaSeleccionada);
+    const [riesgo, setRiesgo] = useState('Alto');
+    const [periodo, setPeriodo] = useState('Última Semana');
+    const [alertasActivas, setAlertasActivas] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const loading = loadingModules || loadingPresas;
+    useEffect(() => {
+        const fetchAlertas = async () => {
+            setLoading(true);
+            try {
+                // Fetch real alerts from Supabase
+                const { data, error } = await supabase
+                    .from('registro_alertas')
+                    .select('*')
+                    .eq('resuelta', false)
+                    .order('fecha_deteccion', { ascending: false });
 
-    const alerts: Alert[] = useMemo(() => {
-        const result: Alert[] = [];
-
-        // Módulos con sobregiro
-        modules.forEach(m => {
-            if (m.current_flow > m.target_flow * 1.1 && m.target_flow > 0) {
-                result.push({
-                    id: `ovf-${m.id}`,
-                    type: 'critical',
-                    title: 'Sobregiro Detectado',
-                    message: `${m.name}: Gasto ${(m.current_flow * 1000).toFixed(0)} L/s excede el autorizado (${(m.target_flow * 1000).toFixed(0)} L/s).`,
-                    timestamp: 'Tiempo Real',
-                    icon: Activity,
-                });
-            }
-        });
-
-        // Puntos con alto caudal (>90% capacidad)
-        modules.forEach(m => {
-            m.delivery_points.forEach(pt => {
-                if (pt.current_q > pt.capacity * 0.9 && pt.capacity > 0) {
-                    result.push({
-                        id: `cap-${pt.id}`,
-                        type: 'warning',
-                        title: 'Cerca de Capacidad Máxima',
-                        message: `${pt.name} (${m.short_code}): ${(pt.current_q * 1000).toFixed(0)} L/s de ${(pt.capacity * 1000).toFixed(0)} L/s máximo.`,
-                        timestamp: pt.last_update_time ? new Date(pt.last_update_time).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
-                        icon: TrendingUp,
-                    });
+                if (!error && data) {
+                    setAlertasActivas(data);
                 }
-            });
-        });
-
-        // Presas con alto llenado
-        presas.forEach(p => {
-            if (p.lectura && p.lectura.porcentaje_llenado > 90) {
-                result.push({
-                    id: `dam-high-${p.id}`,
-                    type: 'warning',
-                    title: 'Alto Nivel de Presa',
-                    message: `${p.nombre}: ${p.lectura.porcentaje_llenado.toFixed(1)}% de llenado (${p.lectura.almacenamiento_mm3.toFixed(1)} Mm³).`,
-                    timestamp: p.lectura.fecha,
-                    icon: Droplets,
-                });
+            } catch (err) {
+                console.error("No se pudo cargar la matriz de alertas");
+            } finally {
+                setLoading(false);
             }
-        });
+        };
+        fetchAlertas();
 
-        // Si todo está bien
-        if (result.length === 0) {
-            result.push({
-                id: 'ok',
-                type: 'info',
-                title: 'Sistema Estable',
-                message: 'Todos los indicadores operan dentro de los parámetros normales. Sin alertas activas.',
-                timestamp: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-                icon: CheckCircle,
-            });
-        }
+        // Channel for real-time alerts
+        const alertsSubscription = supabase
+            .channel('public:registro_alertas')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'registro_alertas' }, () => {
+                fetchAlertas(); // Reload on insert/update
+            })
+            .subscribe();
 
-        return result.sort((a, b) => {
-            const priority = { critical: 0, warning: 1, info: 2 };
-            return priority[a.type] - priority[b.type];
-        });
-    }, [modules, presas]);
+        return () => {
+            supabase.removeChannel(alertsSubscription);
+        };
+    }, []);
 
-    const typeStyles = {
-        critical: { bg: 'bg-red-500/10', border: 'border-red-500/30', icon: 'text-red-400', badge: 'bg-red-500/20 text-red-300' },
-        warning: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', icon: 'text-amber-400', badge: 'bg-amber-500/20 text-amber-300' },
-        info: { bg: 'bg-blue-500/10', border: 'border-blue-500/30', icon: 'text-blue-400', badge: 'bg-blue-500/20 text-blue-300' },
-    };
+    // Conteo Dinámico basado en Supabase
+    const countCritical = alertasActivas.filter(a => a.tipo_riesgo === 'critical').length;
+    const countWarning = alertasActivas.filter(a => a.tipo_riesgo === 'warning').length;
 
-    const criticals = alerts.filter(a => a.type === 'critical').length;
-    const warnings = alerts.filter(a => a.type === 'warning').length;
+    // Datos simulados
+    const sparkData = Array.from({ length: 15 }, () => ({ val: Math.random() * 10 }));
+
+    const barData = [
+        { name: 'CaudaL', uv: 17, pv: 2400, color: '#f43f5e' },
+        { name: 'Evap', uv: 7, pv: 1398, color: '#38bdf8' },
+        { name: 'Infra', uv: 12, pv: 9800, color: '#fbbf24' },
+        { name: 'Infra2', uv: 17, pv: 3908, color: '#a78bfa' },
+        { name: 'Evap2', uv: 7, pv: 4800, color: '#f59e0b' },
+        { name: 'Caudal2', uv: 17, pv: 3800, color: '#10b981' },
+    ];
+
+    const lineData = Array.from({ length: 30 }, (_, i) => ({
+        day: i + 1,
+        spei1: (Math.sin(i / 5) * 0.5) + (Math.random() * 0.2) - 0.2,
+        spi3: (Math.cos(i / 6) * 0.4) + (Math.random() * 0.2) - 0.1,
+    }));
 
     return (
-        <div className="page-transition" style={{ padding: 'var(--spacing-lg)' }}>
-            <header className="flex justify-between items-center mb-6">
+        <div className="alertas-container">
+            <header className="al-header">
                 <div>
-                    <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
-                        <div className="bg-amber-500/10 p-2 rounded-xl">
-                            <AlertTriangle className="text-amber-400" size={24} />
-                        </div>
-                        Centro de Alertas
-                    </h2>
-                    <p className="text-slate-400 text-sm font-medium mt-1">
-                        Monitoreo de anomalías y condiciones críticas en tiempo real
-                    </p>
+                    <h1 className="al-header-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        SICA DE ALERTAS: <span className="al-header-subtitle">MONITOREO HIDROLÓGICO CRÍTICO - DR 005 DELICIAS</span>
+                    </h1>
                 </div>
-
-                <div className="flex gap-3">
-                    {criticals > 0 && (
-                        <span className="px-3 py-1.5 rounded-full bg-red-500/20 text-red-300 text-xs font-bold border border-red-500/30">
-                            {criticals} Crítica{criticals > 1 ? 's' : ''}
-                        </span>
-                    )}
-                    {warnings > 0 && (
-                        <span className="px-3 py-1.5 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold border border-amber-500/30">
-                            {warnings} Advertencia{warnings > 1 ? 's' : ''}
-                        </span>
-                    )}
-                    {criticals === 0 && warnings === 0 && (
-                        <span className="px-3 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
-                            Todo Normal
-                        </span>
-                    )}
+                <div className="al-header-right">
+                    <span>PANEL DE CONTROL DE RIESGOS</span>
+                    <img src="/logos/SICA005.png" alt="SICA 005" className="al-logos" />
                 </div>
             </header>
 
-            {loading ? (
-                <div className="card flex items-center justify-center py-20">
-                    <div className="flex flex-col items-center gap-3 text-slate-400">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-                        <span className="text-sm font-medium">Evaluando condiciones del sistema...</span>
+            <div className="al-filters-row" style={{ marginBottom: '1rem' }}>
+                <div className="al-filter-group">
+                    <span className="al-filter-label">NIVEL DE RIESGO</span>
+                    <div className="al-filter-controls">
+                        <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(15,23,42,0.6)', padding: '0.2rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            {['Muy Alto', 'Alto', 'Medio', 'Bajo'].map(r => (
+                                <button
+                                    key={r}
+                                    onClick={() => setRiesgo(r)}
+                                    style={{
+                                        background: riesgo === r ? 'rgba(255,255,255,0.1)' : 'transparent',
+                                        color: riesgo === r ? (r === 'Alto' ? '#fbbf24' : '#f8fafc') : '#94a3b8',
+                                        border: 'none',
+                                        padding: '0.3rem 1rem',
+                                        borderRadius: '4px',
+                                        fontSize: '0.8rem',
+                                        fontWeight: riesgo === r ? 700 : 500,
+                                        cursor: 'pointer'
+                                    }}>
+                                    {r}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
-            ) : (
-                <div className="space-y-3">
-                    {alerts.map(alert => {
-                        const styles = typeStyles[alert.type];
-                        const Icon = alert.icon || Info;
-                        return (
-                            <div key={alert.id} className={`card ${styles.bg} ${styles.border} border flex items-start gap-4 p-4`}>
-                                <div className={`p-2 rounded-xl ${styles.bg}`}>
-                                    <Icon size={20} className={styles.icon} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full ${styles.badge}`}>
-                                            {alert.type === 'critical' ? 'Crítico' : alert.type === 'warning' ? 'Advertencia' : 'Info'}
-                                        </span>
-                                        <h4 className="text-white font-bold text-sm">{alert.title}</h4>
-                                    </div>
-                                    <p className="text-slate-300 text-sm leading-relaxed">{alert.message}</p>
-                                </div>
-                                <div className="flex items-center gap-1.5 text-slate-500 text-xs whitespace-nowrap">
-                                    <Clock size={12} />
-                                    <span>{alert.timestamp}</span>
-                                </div>
-                            </div>
-                        );
-                    })}
+
+                <div className="al-filter-group">
+                    <span className="al-filter-label" style={{ textAlign: 'right' }}>PERÍODO</span>
+                    <div className="al-filter-controls">
+                        <select className="al-combo-box" value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+                            <option value="Última Semana">Última Semana</option>
+                            <option value="Este Mes">Este Mes</option>
+                        </select>
+                        <select className="al-combo-box">
+                            <option>Este Mes</option>
+                        </select>
+                    </div>
                 </div>
-            )}
+            </div>
+
+            <div className="al-grid">
+                {/* Left Column (KPIs + Map) */}
+                <div className="al-left-col">
+                    <div className="al-kpi-row">
+                        {/* Red Card */}
+                        <div className="al-kpi-card red">
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span className="al-kpi-title">ALERTAS CRÍTICAS ACTIVAS</span>
+                                {countCritical === 0 ? <CheckCircle size={18} color="#10b981" /> : <AlertTriangle size={18} color="#f43f5e" opacity={0.8} />}
+                            </div>
+                            <span className="al-kpi-value">{loading ? '...' : countCritical}</span>
+                            <div className="al-kpi-chart">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={sparkData}>
+                                        <defs>
+                                            <linearGradient id="gRed" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f43f5e" stopOpacity={0.4} /><stop offset="95%" stopColor="#f43f5e" stopOpacity={0} /></linearGradient>
+                                        </defs>
+                                        <Area type="monotone" dataKey="val" stroke="#f43f5e" fill="url(#gRed)" strokeWidth={2} isAnimationActive={false} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* Amber Card */}
+                        <div className="al-kpi-card amber">
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span className="al-kpi-title">ALMACENAMIENTO BAJO EL MÍNIMO</span>
+                            </div>
+                            <span className="al-kpi-value">{loading ? '...' : `${countWarning} ZONAS`}</span>
+                            <div className="al-kpi-subtext">
+                                {countWarning > 0 ? 'Focos de alerta por bajo nivel en reservorios.' : 'Niveles operativos dentro de lo normal.'}
+                            </div>
+                        </div>
+
+                        {/* Blue Card */}
+                        <div className="al-kpi-card blue">
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span className="al-kpi-title">PREVISIÓN DE ESCASEZ</span>
+                            </div>
+                            <span className="al-kpi-value">+18% RIESGO</span>
+                            <div className="al-kpi-subtext">
+                                para los próximos 30 días
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="al-map-card">
+                        <div className="al-card-title">MAPA DE CALOR DE ALERTAS GEO-REFERENCIADAS (Recharts)</div>
+                        <div style={{ flex: 1, position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                            {/* Visual simulation of the contour heatmap */}
+                            <div style={{ position: 'relative', width: '80%', height: '80%', background: 'url(/logos/SICA005.png) center/contain no-repeat', filter: 'blur(1px) opacity(0.1)' }} />
+
+                            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={sparkData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                        <defs>
+                                            <radialGradient id="mapGlow" cx="50%" cy="50%" r="50%">
+                                                <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.8} />
+                                                <stop offset="50%" stopColor="#f59e0b" stopOpacity={0.4} />
+                                                <stop offset="100%" stopColor="#38bdf8" stopOpacity={0} />
+                                            </radialGradient>
+                                        </defs>
+                                        <Area type="monotone" dataKey="val" stroke="none" fill="url(#mapGlow)" strokeWidth={0} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                            <div style={{ position: 'absolute', zIndex: 20, width: '100%', height: '100%', pointerEvents: 'none' }}>
+                                {alertasActivas.filter(al => al.coordenadas).map((alerta) => (
+                                    <div
+                                        key={alerta.id}
+                                        style={{
+                                            position: 'absolute',
+                                            left: `${((Number(alerta.coordenadas.lng) + 106) * 50) % 80 + 10}%`,
+                                            top: `${((Number(alerta.coordenadas.lat) - 27) * 40) % 70 + 15}%`,
+                                            transform: 'translate(-50%, -100%)',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center'
+                                        }}
+                                    >
+                                        <MapPin
+                                            color={alerta.tipo_riesgo === 'critical' ? '#f43f5e' : alerta.tipo_riesgo === 'warning' ? '#f59e0b' : '#38bdf8'}
+                                            size={24}
+                                            style={{
+                                                filter: `drop-shadow(0 0 8px ${alerta.tipo_riesgo === 'critical' ? '#f43f5e' : alerta.tipo_riesgo === 'warning' ? '#f59e0b' : '#38bdf8'})`,
+                                            }}
+                                        />
+                                        <div style={{
+                                            fontSize: '8px',
+                                            background: 'rgba(0,0,0,0.8)',
+                                            padding: '2px 4px',
+                                            borderRadius: '4px',
+                                            marginTop: '2px',
+                                            color: '#fff',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            whiteSpace: 'nowrap'
+                                        }}>
+                                            {alerta.origen_id}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right Column (Charts) */}
+                <div className="al-right-col">
+                    <div className="al-side-card">
+                        <div className="al-side-card-top">
+                            <span className="al-card-title" style={{ color: '#cbd5e1', letterSpacing: '0px', textTransform: 'none' }}>Desglose Técnico Separado</span>
+                        </div>
+                        <span className="al-card-title">HISTÓRICO DE ALERTAS POR TIPO</span>
+
+                        <div style={{ flex: 1, minHeight: '150px' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={barData} margin={{ top: 20, right: 0, left: -25, bottom: 25 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                    <XAxis dataKey="name" stroke="none" tick={{ fill: '#64748b', fontSize: 9, textAnchor: 'end' }} dy={10} />
+                                    <YAxis stroke="none" tick={{ fill: '#64748b', fontSize: 10 }} />
+                                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} contentStyle={{ backgroundColor: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.1)' }} />
+                                    <Legend wrapperStyle={{ fontSize: '10px', top: -30 }} iconType="plainline" />
+                                    <Bar dataKey="uv" name="Alertas" radius={[4, 4, 0, 0]} maxBarSize={20}>
+                                        {barData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill="transparent" stroke={entry.color} strokeWidth={2} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    <div className="al-side-card">
+                        <span className="al-card-title">EVOLUCIÓN DEL ÍNDICE DE SEQUÍA</span>
+
+                        <div style={{ flex: 1, minHeight: '150px', marginTop: '1rem' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={lineData} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                    <XAxis dataKey="day" stroke="none" tick={{ fill: '#64748b', fontSize: 10 }} dy={5} />
+                                    <YAxis stroke="none" tick={{ fill: '#64748b', fontSize: 10 }} domain={['dataMin - 0.2', 'dataMax + 0.2']} />
+                                    <Tooltip contentStyle={{ backgroundColor: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.1)' }} />
+                                    <Legend wrapperStyle={{ fontSize: '10px', top: -20 }} iconType="plainline" />
+                                    <Line type="monotone" dataKey="spei1" name="SPEI-1" stroke="#38bdf8" strokeWidth={2} dot={false} />
+                                    <Line type="monotone" dataKey="spi3" name="SPI-3" stroke="#fbbf24" strokeWidth={2} dot={false} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            {/* FASE 5: Listado Detallado de Alertas (Log) */}
+            <div className="al-log-section" style={{ marginTop: '1.5rem' }}>
+                <div className="al-card-title" style={{ marginBottom: '1rem' }}>CENTRO DE DESPACHO: LOG DE EVENTOS CRÍTICOS</div>
+                <div className="al-log-container">
+                    {loading ? (
+                        <div className="al-log-loading">Sincronizando con Hydra Engine...</div>
+                    ) : alertasActivas.length === 0 ? (
+                        <div className="al-log-empty">
+                            <CheckCircle size={20} color="#10b981" />
+                            <span>SISTEMA ÓPTIMO: No se detectan anomalías en la red de canales ni presas.</span>
+                        </div>
+                    ) : (
+                        <div className="al-log-grid">
+                            {alertasActivas.map((alerta) => (
+                                <div key={alerta.id} className={`al-log-item ${alerta.tipo_riesgo}`}>
+                                    <div className="al-log-indicator"></div>
+                                    <div className="al-log-content">
+                                        <div className="al-log-header">
+                                            <span className="al-log-tag">{alerta.categoria.toUpperCase()}</span>
+                                            <span className="al-log-time">{new Date(alerta.fecha_deteccion).toLocaleTimeString()}</span>
+                                        </div>
+                                        <h3 className="al-log-title">{alerta.titulo}</h3>
+                                        <p className="al-log-msg">{alerta.mensaje}</p>
+                                    </div>
+                                    <button
+                                        className="al-log-action"
+                                        onClick={async () => {
+                                            await supabase
+                                                .from('registro_alertas')
+                                                .update({ resuelta: true, fecha_resolucion: new Date().toISOString() })
+                                                .eq('id', alerta.id);
+                                        }}
+                                    >
+                                        ATENDER
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };

@@ -65,6 +65,21 @@ export const useHydricEvents = () => {
 
     useEffect(() => {
         fetchActiveEvent();
+
+        const channel = supabase.channel('sica_eventos_realtime')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'sica_eventos_log'
+            }, () => {
+                console.log('🔄 Cambio en protocolo detectado. Actualizando...');
+                fetchActiveEvent();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     return {

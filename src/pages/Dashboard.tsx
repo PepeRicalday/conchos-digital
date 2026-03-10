@@ -10,6 +10,7 @@ import {
 import KPICard from '../components/KPICard';
 import ChartWidget from '../components/ChartWidget';
 import AlertList, { type Alert } from '../components/AlertList';
+import WaterLossMonitor from '../components/WaterLossMonitor';
 import { useHydraEngine } from '../hooks/useHydraEngine';
 import { usePresas } from '../hooks/usePresas';
 import { useFecha } from '../context/FechaContext';
@@ -519,6 +520,7 @@ const Dashboard = () => {
 
                 <div className="grid-col-right space-y-4">
                     <AlertList alerts={realAlerts} />
+                    <WaterLossMonitor />
 
                     {/* ── Chart 3: Cumplimiento Módulos — Modern Lollipop Bars ── */}
                     <div className="card h-full flex flex-col">

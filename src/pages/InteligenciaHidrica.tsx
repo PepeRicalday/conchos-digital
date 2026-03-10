@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useHydricChat, type ChatMessage } from '../hooks/useHydricChat';
 import { useHydricKnowledge } from '../hooks/useHydricKnowledge';
 import { useHydricEvents, type HydraulicEvent } from '../hooks/useHydricEvents';
+import WaterLossMonitor from '../components/WaterLossMonitor';
 import './HydricChat.css';
 
 import ReactMarkdown from 'react-markdown';
@@ -454,6 +455,10 @@ const InteligenciaHidrica = () => {
                                 {activeEvent?.notas && (
                                     <div className="event-notes">"{activeEvent.notas}"</div>
                                 )}
+                            </div>
+
+                            <div style={{ marginBottom: '24px' }}>
+                                <WaterLossMonitor />
                             </div>
 
                             <div className="ih-control-grid">

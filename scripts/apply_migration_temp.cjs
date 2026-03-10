@@ -12,7 +12,7 @@ async function executeMigration() {
         await client.connect();
         console.log('Conectado a Supabase PostgreSQL con éxito.');
 
-        const sql = fs.readFileSync('supabase/migrations/20260309221500_fix_protocol_exclusivity.sql', 'utf8');
+        const sql = fs.readFileSync('supabase/migrations/20260309222000_mejor_4_predictor_arribo.sql', 'utf8');
         console.log('Ejecutando Mejora 2: Micro-Balances...');
 
         await client.query(sql);

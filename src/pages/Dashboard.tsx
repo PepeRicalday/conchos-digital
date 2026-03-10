@@ -11,6 +11,7 @@ import KPICard from '../components/KPICard';
 import ChartWidget from '../components/ChartWidget';
 import AlertList, { type Alert } from '../components/AlertList';
 import WaterLossMonitor from '../components/WaterLossMonitor';
+import ArrivalPredictor from '../components/ArrivalPredictor';
 import { useHydraEngine } from '../hooks/useHydraEngine';
 import { usePresas } from '../hooks/usePresas';
 import { useFecha } from '../context/FechaContext';
@@ -316,6 +317,10 @@ const Dashboard = () => {
                         <button className="btn btn-primary shadow-lg shadow-blue-500/20" onClick={() => window.print()}>Generar Reporte Digital</button>
                     </div>
                 </header>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+                <ArrivalPredictor />
             </div>
 
             {/* KPI Section */}

@@ -202,7 +202,7 @@ const GeoMonitor = () => {
         }
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
-            list = list.filter(t => t.nombre.toLowerCase().includes(q) || (t.km?.toString().includes(q)));
+            list = list.filter(t => t.nombre.toLowerCase().includes(q) || (t.km?.toString()?.includes(q) || false));
         }
         return list;
     }, [tomas, activeFilter, searchQuery, tomasVaradas]);
@@ -665,7 +665,7 @@ const GeoMonitor = () => {
                                 // Si ya estamos en EOS, preguntar si quiere cambiar la URL
                                 const url = prompt("Cambiar WMS URL de EOS LandViewer (deja vacío para mantener la actual):", eosUrl);
                                 if (url) {
-                                    if (url.includes('landviewer/es?') || url.includes('landviewer/en?')) {
+                                    if (url && (url.includes('landviewer/es?') || url.includes('landviewer/en?'))) {
                                         alert("¡Atención! Has pegado la URL del navegador. Para que el mapa funcione, necesitas la 'URL de Integración WMS' que se encuentra en el menú de integración de EOS.");
                                     }
                                     setEosUrl(url);
@@ -715,7 +715,7 @@ const GeoMonitor = () => {
                                     <React.Fragment>
                                         {(() => {
                                             try {
-                                                const isWms = eosUrl.toLowerCase().includes('service=wms') || eosUrl.toLowerCase().includes('/wms/');
+                                                const isWms = (eosUrl || '').toLowerCase().includes('service=wms') || (eosUrl || '').toLowerCase().includes('/wms/');
                                                 if (isWms) {
                                                     const urlObj = new URL(eosUrl);
                                                     return (
@@ -1011,7 +1011,7 @@ const GeoMonitor = () => {
 
                             <div className="geo-detail-content">
                                 <div className="geo-detail-id-tag">
-                                    <span>UID: {selectedPoint.data.id?.substring(0, 8).toUpperCase() || selectedPoint.data.presa_id?.substring(0, 8).toUpperCase()}</span>
+                                    <span>UID: {(selectedPoint.data.id || '').substring(0, 8).toUpperCase() || (selectedPoint.data.presa_id || '').substring(0, 8).toUpperCase()}</span>
                                     <span>KM: {selectedPoint.data.km?.toFixed(3) || '0.000'}</span>
                                 </div>
 

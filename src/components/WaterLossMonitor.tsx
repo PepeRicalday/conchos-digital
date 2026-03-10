@@ -28,15 +28,16 @@ const WaterLossMonitor: React.FC = () => {
 
             <div className="p-4 overflow-y-auto space-y-3 flex-1 scrollbar-hide">
                 {segments.map((s, idx) => {
-                    const isCritical = s.estatus.includes('CRÍTICA');
-                    const isWarning = s.estatus.includes('PREVENTIVA');
+                    const estatus = s.estatus || '';
+                    const isCritical = estatus.includes('CRÍTICA');
+                    const isWarning = estatus.includes('PREVENTIVA');
 
                     return (
                         <div
                             key={idx}
                             className={`group relative p-4 rounded-2xl border transition-all duration-500 ${isCritical ? 'bg-red-500/5 border-red-500/20 hover:bg-red-500/10' :
-                                    isWarning ? 'bg-amber-500/5 border-amber-500/20 hover:bg-amber-500/10' :
-                                        'bg-emerald-500/5 border-emerald-500/10 hover:bg-emerald-500/10'
+                                isWarning ? 'bg-amber-500/5 border-amber-500/20 hover:bg-amber-500/10' :
+                                    'bg-emerald-500/5 border-emerald-500/10 hover:bg-emerald-500/10'
                                 }`}
                         >
                             <div className="flex justify-between items-start mb-3">
@@ -50,8 +51,8 @@ const WaterLossMonitor: React.FC = () => {
                                     </span>
                                 </div>
                                 <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-[9px] font-black uppercase tracking-tighter ${isCritical ? 'bg-red-500/20 border-red-500/30 text-red-400' :
-                                        isWarning ? 'bg-amber-500/20 border-amber-500/30 text-amber-400' :
-                                            'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                                    isWarning ? 'bg-amber-500/20 border-amber-500/30 text-amber-400' :
+                                        'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
                                     }`}>
                                     <Activity size={10} className={isCritical ? 'animate-pulse' : ''} />
                                     {s.estatus}
@@ -96,8 +97,8 @@ const WaterLossMonitor: React.FC = () => {
 
                             {/* Glow effect on hover */}
                             <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-700 bg-gradient-to-br ${isCritical ? 'from-red-500/5 via-transparent to-transparent' :
-                                    isWarning ? 'from-amber-500/5 via-transparent to-transparent' :
-                                        'from-emerald-500/5 via-transparent to-transparent'
+                                isWarning ? 'from-amber-500/5 via-transparent to-transparent' :
+                                    'from-emerald-500/5 via-transparent to-transparent'
                                 }`} />
                         </div>
                     );

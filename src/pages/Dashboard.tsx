@@ -207,7 +207,7 @@ const Dashboard = () => {
     /* ── Chart Data ── */
     const moduleChartData = useMemo(() =>
         modules.map(m => ({
-            name: m.short_code || m.name.substring(0, 10),
+            name: m.short_code || (m.name || '').substring(0, 10),
             full_name: m.name,
             efficiency: Math.min(((m.accumulated_vol / (m.authorized_vol || 1)) * 100), 100),
             flow: m.current_flow * 1000

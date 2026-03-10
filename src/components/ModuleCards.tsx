@@ -43,7 +43,7 @@ export const ModuleDetailModal = ({ module, onClose }: { module: ModuleData, onC
                     </div>
 
                     <div className="flex flex-col items-center">
-                        <span className="text-[11px] font-black text-blue-500 uppercase tracking-[0.2em] mb-2">{module.short_code || module.id.substring(0, 6)}</span>
+                        <span className="text-[11px] font-black text-blue-500 uppercase tracking-[0.2em] mb-2">{module.short_code || (module.id || '').substring(0, 6)}</span>
                         <h2 className="text-xl sm:text-2xl font-black text-white leading-tight uppercase max-w-2xl">{module.acu_name}</h2>
                     </div>
                 </header>
@@ -167,8 +167,8 @@ export const ModuleCard = ({ data }: { data: ModuleData }) => {
     const flowColor = isOperating ? '#22d3ee' : '#334155';
 
     // Badge styling
-    const shortCode = data.short_code || `#${data.id.toString().substring(0, 2)}`;
-    const badgeBg = shortCode.includes('A') ? '#ef4444cc' : '#3b82f6cc';
+    const shortCode = data.short_code || `#${(data.id || '').toString().substring(0, 2)}`;
+    const badgeBg = (shortCode || '').includes('A') ? '#ef4444cc' : '#3b82f6cc';
 
     return (
         <div className="conchos-module-card">

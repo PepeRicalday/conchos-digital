@@ -161,7 +161,8 @@ export function useHydricChat() {
                 msg = err.message || msg;
             }
 
-            if (msg.includes('401') || msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('expired')) {
+            const lowerMsg = (msg || '').toLowerCase();
+            if ((msg || '').includes('401') || lowerMsg.includes('unauthorized') || lowerMsg.includes('expired')) {
                 msg = 'Tu sesión expiró. Refresca la página o vuelve a iniciar sesión.';
             }
 

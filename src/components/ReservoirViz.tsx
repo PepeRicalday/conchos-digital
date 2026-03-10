@@ -85,7 +85,7 @@ const ReservoirViz = ({
         return (clampedPercent / 100) * maxStorageMm3;
     }, [simPercent, clampedPercent, storageMm3, maxStorageMm3]);
 
-    const isBoquilla = presaId === 'PRE-001' || damName.toUpperCase().includes('BOQUILLA');
+    const isBoquilla = presaId === 'PRE-001' || (damName || '').toUpperCase().includes('BOQUILLA');
 
     // Color ramps based on percentage
     const waterColor = useMemo(() => {

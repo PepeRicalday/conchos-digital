@@ -1,0 +1,146 @@
+.protocol-guide {
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 2.5rem;
+    padding: 2.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.7);
+    animation: ap-fade-in 0.8s ease-out;
+}
+
+.pg-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 2.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 1.5rem;
+}
+
+.pg-icon-ring {
+    padding: 1rem;
+    background: rgba(59, 130, 246, 0.1);
+    border: 2px solid rgba(59, 130, 246, 0.3);
+    border-radius: 1.5rem;
+    color: #3b82f6;
+    box-shadow: 0 0 30px rgba(59, 130, 246, 0.2);
+}
+
+.pg-title-group h2 {
+    font-size: 1.25rem;
+    font-weight: 950;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 0;
+}
+
+.pg-title-group p {
+    font-size: 10px;
+    font-weight: 900;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-top: 0.4rem;
+}
+
+.pg-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.pg-step-item {
+    display: flex;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 1.75rem;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.pg-step-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(59, 130, 246, 0.3);
+    transform: translateX(8px);
+}
+
+.pg-step-number {
+    font-size: 2.5rem;
+    font-weight: 950;
+    color: rgba(255, 255, 255, 0.03);
+    position: absolute;
+    right: 1.5rem;
+    top: 0;
+    line-height: 1;
+    font-family: var(--font-mono, monospace);
+}
+
+.pg-step-icon-box {
+    width: 3rem;
+    height: 3rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    flex-shrink: 0;
+    transition: all 0.4s;
+}
+
+.pg-step-item:hover .pg-step-icon-box {
+    color: #3b82f6;
+    border-color: #3b82f6;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+}
+
+.pg-step-content {
+    flex: 1;
+}
+
+.pg-step-title {
+    font-size: 1rem;
+    font-weight: 900;
+    color: #f8fafc;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.pg-step-desc {
+    font-size: 0.825rem;
+    color: #64748b;
+    line-height: 1.5;
+    max-width: 500px;
+}
+
+.pg-step-badge {
+    font-size: 9px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 0.25rem 0.625rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 2rem;
+    color: #475569;
+}
+
+@keyframes ap-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

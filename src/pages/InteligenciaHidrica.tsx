@@ -11,6 +11,7 @@ import { useHydricKnowledge } from '../hooks/useHydricKnowledge';
 import { useHydricEvents, type HydraulicEvent } from '../hooks/useHydricEvents';
 import WaterLossMonitor from '../components/WaterLossMonitor';
 import ArrivalPredictor from '../components/ArrivalPredictor';
+import ProtocolGuide from '../components/ProtocolGuide';
 import './HydricChat.css';
 
 import ReactMarkdown from 'react-markdown';
@@ -484,6 +485,12 @@ const InteligenciaHidrica = () => {
                                     </>
                                 )}
                             </div>
+
+                            {activeEvent && (
+                                <div style={{ marginBottom: '32px' }}>
+                                    <ProtocolGuide type={activeEvent.evento_tipo} />
+                                </div>
+                            )}
 
                             {activeEvent?.evento_tipo === 'LLENADO' && (
                                 <div style={{ marginBottom: '32px' }}>

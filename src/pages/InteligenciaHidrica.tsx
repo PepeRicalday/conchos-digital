@@ -471,20 +471,35 @@ const InteligenciaHidrica = () => {
                                 ].map((evt) => (
                                     <button
                                         key={evt.id}
-                                        className={`protocol-btn ${activeEvent?.evento_tipo === evt.id ? 'active' : ''}`}
+                                        className={`protocol-btn group border-2 ${activeEvent?.evento_tipo === evt.id ? 'active scale-[1.02] bg-white/[0.05]' : ''}`}
                                         onClick={() => {
                                             const notas = prompt(`Notas operativas para ${evt.label}:`);
                                             if (notas !== null) activateEvent(evt.id as HydraulicEvent, notas);
                                         }}
                                         disabled={isLoadingEvents}
+                                        style={{
+                                            borderColor: activeEvent?.evento_tipo === evt.id ? evt.color : 'transparent',
+                                            boxShadow: activeEvent?.evento_tipo === evt.id ? `0 0 30px ${evt.color}22` : 'none'
+                                        }}
                                     >
-                                        <div className="p-btn-icon" style={{ backgroundColor: evt.color }}>
-                                            <evt.icon size={24} />
+                                        <div className="relative">
+                                            <div
+                                                className="absolute inset-0 blur-xl opacity-20 group-hover:opacity-40 transition-opacity rounded-full"
+                                                style={{ backgroundColor: evt.color }}
+                                            />
+                                            <div className="p-btn-icon relative z-10 w-14 h-14 rounded-2xl shadow-2xl transition-transform group-hover:scale-110" style={{ backgroundColor: evt.color }}>
+                                                <evt.icon size={28} />
+                                            </div>
                                         </div>
                                         <div className="p-btn-info">
-                                            <div className="p-btn-label">{evt.label}</div>
-                                            <div className="p-btn-desc">{evt.desc}</div>
+                                            <div className="p-btn-label text-base font-black tracking-tight">{evt.label}</div>
+                                            <div className="p-btn-desc text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1.5 opacity-80">{evt.desc}</div>
                                         </div>
+                                        {activeEvent?.evento_tipo === evt.id && (
+                                            <div className="absolute top-4 right-4 animate-bounce">
+                                                <Sparkles size={14} className="text-white/40" />
+                                            </div>
+                                        )}
                                     </button>
                                 ))}
                             </div>

@@ -10,6 +10,7 @@ import { useHydricChat, type ChatMessage } from '../hooks/useHydricChat';
 import { useHydricKnowledge } from '../hooks/useHydricKnowledge';
 import { useHydricEvents, type HydraulicEvent } from '../hooks/useHydricEvents';
 import WaterLossMonitor from '../components/WaterLossMonitor';
+import ArrivalPredictor from '../components/ArrivalPredictor';
 import './HydricChat.css';
 
 import ReactMarkdown from 'react-markdown';
@@ -442,20 +443,53 @@ const InteligenciaHidrica = () => {
 
                             <div className="ih-active-event-card">
                                 <div className="event-label">Protocolo Oficial Vigente</div>
-                                <div className={`event-status ${activeEvent?.evento_tipo || 'ESTABILIZACION'}`}>
-                                    {activeEvent?.evento_tipo || 'ESTABILIZACION'}
-                                </div>
-                                <div className="event-meta">
-                                    {activeEvent ? (
-                                        <>Dictado el {formatDate(activeEvent.fecha_inicio)}</>
-                                    ) : (
-                                        <>Sin evento oficial registrado</>
-                                    )}
-                                </div>
-                                {activeEvent?.notas && (
-                                    <div className="event-notes">"{activeEvent.notas}"</div>
+                                {activeEvent ? (
+                                    <>
+                                        <div className="flex items-center justify-center gap-6 mb-4">
+                                            {(() => {
+                                                const icons: Record<string, any> = {
+                                                    LLENADO: Waves,
+                                                    ESTABILIZACION: Droplets,
+                                                    CONTINGENCIA_LLUVIA: AlertTriangle,
+                                                    VACIADO: Shield,
+                                                    ANOMALIA_BAJA: AlertTriangle
+                                                };
+                                                const Icon = icons[activeEvent.evento_tipo] || Waves;
+                                                return (
+                                                    <div className="p-4 bg-white/5 rounded-full border border-white/10 shadow-2xl">
+                                                        <Icon size={40} className={`event-status ${activeEvent.evento_tipo}`} style={{ filter: 'none' }} />
+                                                    </div>
+                                                );
+                                            })()}
+                                            <div className={`event-status ${activeEvent.evento_tipo}`}>
+                                                {activeEvent.evento_tipo}
+                                            </div>
+                                        </div>
+                                        <div className="event-meta">
+                                            Dictado el {formatDate(activeEvent.fecha_inicio)}
+                                        </div>
+                                        {activeEvent.notas && (
+                                            <div className="event-notes">{activeEvent.notas}</div>
+                                        )}
+                                    </>
+                                ) : isLoadingEvents ? (
+                                    <div className="flex flex-col items-center gap-4 animate-pulse py-10">
+                                        <Loader2 className="animate-spin text-primary" size={40} />
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Sincronizando estado oficial...</span>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="event-status ESTABILIZACION">ESTABILIZACION</div>
+                                        <div className="event-meta">Sin evento oficial registrado</div>
+                                    </>
                                 )}
                             </div>
+
+                            {activeEvent?.evento_tipo === 'LLENADO' && (
+                                <div style={{ marginBottom: '32px' }}>
+                                    <ArrivalPredictor />
+                                </div>
+                            )}
 
                             <div style={{ marginBottom: '24px' }}>
                                 <WaterLossMonitor />

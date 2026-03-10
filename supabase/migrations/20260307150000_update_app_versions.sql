@@ -4,16 +4,16 @@
 -- 1. Actualizar Dashboard (conchos-digital)
 UPDATE public.app_versions 
 SET 
-  version = '1.5.0',
-  min_supported_version = '1.5.0',
+  version = '1.5.1',
+  min_supported_version = '1.5.1',
   actualizado_en = now() 
 WHERE app_id = 'control-digital';
 
 -- 2. Actualizar Capture (sica-capture)
 UPDATE public.app_versions 
 SET 
-  version = '1.4.0', 
-  min_supported_version = '1.4.0',
+  version = '1.4.1', 
+  min_supported_version = '1.4.1',
   actualizado_en = now() 
 WHERE app_id = 'capture';
 

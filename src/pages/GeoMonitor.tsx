@@ -423,6 +423,33 @@ const GeoMonitor = () => {
         });
     }, [geoCanal, secciones]);
 
+    // Calcular la onda visible de llenado para el Digital Twin (MEJ-3)
+    const llenadoWaveGeoref = useMemo(() => {
+        if (!geoCanal || activeEvent?.evento_tipo !== 'LLENADO' || maxKmLlenado < 0) return [];
+        const feature = geoCanal.features?.[0];
+        if (!feature || feature.geometry.type !== 'LineString') return [];
+
+        const coords = feature.geometry.coordinates as [number, number][]; // [lng, lat]
+        if (!coords || coords.length === 0) return [];
+
+        let totalDist = 0;
+        const distData = [{ lat: coords[0][1], lng: coords[0][0], dist: 0 }];
+        for (let i = 1; i < coords.length; i++) {
+            const p1 = coords[i - 1]; 
+            const p2 = coords[i];     
+            const d = haversineDist(p1[0], p1[1], p2[0], p2[1]);
+            totalDist += d;
+            distData.push({ lat: p2[1], lng: p2[0], dist: totalDist });
+        }
+
+        const corrFactor = totalDist > 0 ? 104 / totalDist : 1;
+        distData.forEach(d => d.dist *= corrFactor);
+        
+        return distData
+            .filter(d => d.dist <= maxKmLlenado)
+            .map(d => [d.lat, d.lng] as [number, number]);
+    }, [geoCanal, activeEvent, maxKmLlenado]);
+
     // KPIs vinculados a datos reales de SICA
     // Nivel de entrada: K-23 (primera escala)
     const escalaEntrada = escalas.find(e => e.km <= 30 && e.nivel_actual !== undefined);
@@ -931,6 +958,28 @@ const GeoMonitor = () => {
                                         </Polyline>
                                     )
                                 ))}
+
+                                {/* MEJ-3: Onda de Llenado en Digital Twin */}
+                                {layers.canal && llenadoWaveGeoref.length > 0 && (
+                                    <Polyline
+                                        positions={llenadoWaveGeoref}
+                                        color="#06b6d4" // cyan-500
+                                        weight={8}
+                                        opacity={0.9}
+                                        className="animate-pulse"
+                                        pathOptions={{ 
+                                            lineCap: 'round', 
+                                            lineJoin: 'round'
+                                        }}
+                                    >
+                                        <Tooltip sticky>
+                                            <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold', color: '#06b6d4' }}>
+                                                🌊 FRENTE DE AGUA<br />
+                                                Arribo actual: Km {maxKmLlenado.toFixed(1)}
+                                            </span>
+                                        </Tooltip>
+                                    </Polyline>
+                                )}
 
                                 {/* Escalas del Canal (solo con coordenadas) */}
                                 {layers.escalas && escalas.filter(e => e.latitud && e.longitud).map(esc => (

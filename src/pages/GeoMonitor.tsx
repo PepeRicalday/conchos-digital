@@ -1008,7 +1008,7 @@ const GeoMonitor = () => {
 
                                 {/* Puntos de Entrega (Tomas) */}
                                 {layers.tomas && filteredTomas.map(t => {
-                                    const isBlocked = activeEvent?.evento_tipo === 'LLENADO' && (t.km || 0) > maxKmLlenado;
+                                    const isBlocked = activeEvent?.evento_tipo === 'LLENADO' && (t.km === undefined || t.km > maxKmLlenado);
                                     const lockFillColor = '#64748b'; // Gray for empty/locked logic
                                     
                                     return (

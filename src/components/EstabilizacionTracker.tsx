@@ -44,14 +44,28 @@ const EstabilizacionTracker: React.FC = () => {
             const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
 
             const { data: tomasData, error: tomasErr } = await supabase
-                .from('reportes_diarios')
-                .select('id, punto_nombre, modulo_nombre, caudal_promedio_m3s')
+                .from('reportes_operacion')
+                .select(`
+                    id, 
+                    punto_id, 
+                    caudal_promedio,
+                    puntos_entrega!inner ( nombre, modulo_id )
+                `)
                 .eq('fecha', today)
-                .not('estado', 'in', '("cierre", "suspension")')
-                .order('modulo_nombre');
+                .not('estado', 'in', '("cierre", "suspension")');
 
             if (tomasErr) throw tomasErr;
-            setTomasActivas(tomasData || []);
+
+            const tomasActivasList: TomaActiva[] = (tomasData || []).map((r: any) => ({
+                id: r.punto_id,
+                punto_nombre: r.puntos_entrega?.nombre || r.punto_id,
+                modulo_nombre: 'MOD-' + (r.puntos_entrega?.modulo_id || 'GENERAL'),
+                caudal_promedio_m3s: parseFloat(r.caudal_promedio || 0)
+            }));
+            
+            tomasActivasList.sort((a, b) => a.modulo_nombre.localeCompare(b.modulo_nombre));
+            
+            setTomasActivas(tomasActivasList);
 
         } catch (error) {
             console.error('Error fetching estabilizacion data:', error);

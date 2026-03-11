@@ -9,7 +9,6 @@ import { useAuth } from '../context/AuthContext';
 import { useHydricChat, type ChatMessage } from '../hooks/useHydricChat';
 import { useHydricKnowledge } from '../hooks/useHydricKnowledge';
 import { useHydricEvents, type HydraulicEvent } from '../hooks/useHydricEvents';
-import WaterLossMonitor from '../components/WaterLossMonitor';
 import ArrivalPredictor from '../components/ArrivalPredictor';
 import ProtocolGuide from '../components/ProtocolGuide';
 import './HydricChat.css';
@@ -508,13 +507,9 @@ const InteligenciaHidrica = () => {
                                 </div>
                             )}
 
-                            {activeEvent?.evento_tipo === 'LLENADO' ? (
+                            {activeEvent?.evento_tipo === 'LLENADO' && (
                                 <div style={{ marginBottom: '32px' }}>
                                     <ArrivalPredictor />
-                                </div>
-                            ) : (
-                                <div style={{ marginBottom: '24px' }}>
-                                    <WaterLossMonitor />
                                 </div>
                             )}
 

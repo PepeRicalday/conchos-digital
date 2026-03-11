@@ -60,7 +60,6 @@ const WaterLossMonitor: React.FC = () => {
                         >
                             <div className="wlm-segment-header">
                                 <div className="wlm-km-group">
-                                    <span className="wlm-label">Segmento</span>
                                     <div className="wlm-km-values">
                                         <span className="wlm-km-pill">
                                             KM {s.km_inicio}

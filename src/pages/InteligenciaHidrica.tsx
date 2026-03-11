@@ -11,6 +11,7 @@ import { useHydricKnowledge } from '../hooks/useHydricKnowledge';
 import { useHydricEvents, type HydraulicEvent } from '../hooks/useHydricEvents';
 import ArrivalPredictor from '../components/ArrivalPredictor';
 import ProtocolGuide from '../components/ProtocolGuide';
+import { toast } from 'sonner';
 import './HydricChat.css';
 
 import ReactMarkdown from 'react-markdown';
@@ -524,7 +525,7 @@ const InteligenciaHidrica = () => {
                                     <button
                                         key={evt.id}
                                         className={`protocol-btn group border-2 ${activeEvent?.evento_tipo === evt.id ? 'active scale-[1.02] bg-white/[0.05]' : ''}`}
-                                        onClick={() => {
+                                        onDoubleClick={() => {
                                             if (evt.id === 'LLENADO') {
                                                 const q = prompt('Gasto solicitado (m3/s):', '60');
                                                 const aps = prompt('Porcentaje apertura presa (%):', '100');
@@ -544,6 +545,12 @@ const InteligenciaHidrica = () => {
                                                 const notas = prompt(`Notas operativas para ${evt.label}:`);
                                                 if (notas !== null) activateEvent(evt.id as HydraulicEvent, { notas });
                                             }
+                                        }}
+                                        onClick={() => {
+                                            // El click sencillo ahora sirve para pre-visualizar o alertar si se desea, 
+                                            // pero mantenemos la lógica de prompt para asegurar la captura de datos.
+                                            // Al ser un Dashboard crítico, el doble clic confirma la acción "oficial".
+                                            toast.info(`Haz doble clic para confirmar la activación de ${evt.label}`);
                                         }}
                                         disabled={isLoadingEvents}
                                         style={{

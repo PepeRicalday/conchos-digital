@@ -29,6 +29,8 @@ export const useHydricEvents = () => {
                 .from('sica_eventos_log')
                 .select('*')
                 .eq('esta_activo', true)
+                .order('fecha_inicio', { ascending: false })
+                .limit(1)
                 .maybeSingle();
 
             if (error) throw error;

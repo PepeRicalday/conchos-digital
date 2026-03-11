@@ -10,6 +10,7 @@ import { useHydricChat, type ChatMessage } from '../hooks/useHydricChat';
 import { useHydricKnowledge } from '../hooks/useHydricKnowledge';
 import { useHydricEvents, type HydraulicEvent } from '../hooks/useHydricEvents';
 import LlenadoTracker from '../components/LlenadoTracker';
+import EstabilizacionTracker from '../components/EstabilizacionTracker';
 import ProtocolGuide from '../components/ProtocolGuide';
 import { toast } from 'sonner';
 import './HydricChat.css';
@@ -566,6 +567,12 @@ const InteligenciaHidrica = () => {
                                         horaApertura={horaAperturaConfirmada}
                                         onConfirmarApertura={openConfirmarApertura}
                                     />
+                                </div>
+                            )}
+
+                            {activeEvent?.evento_tipo === 'ESTABILIZACION' && (
+                                <div style={{ marginBottom: '32px' }}>
+                                    <EstabilizacionTracker />
                                 </div>
                             )}
 

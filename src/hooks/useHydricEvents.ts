@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 
@@ -22,10 +22,10 @@ export const useHydricEvents = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchActiveEvent = async () => {
-        setIsLoading(true);
+    const fetchActiveEvent = useCallback(async () => {
         try {
-            const { data, error } = await supabase
+            console.log('📡 [HydricEvents] Consultando evento activo...');
+            const { data, error: fetchError } = await supabase
                 .from('sica_eventos_log')
                 .select('*')
                 .eq('esta_activo', true)
@@ -33,59 +33,99 @@ export const useHydricEvents = () => {
                 .limit(1)
                 .maybeSingle();
 
-            if (error) throw error;
+            if (fetchError) {
+                console.error('❌ [HydricEvents] Error en consulta:', fetchError);
+                throw fetchError;
+            }
+            
+            console.log('📡 [HydricEvents] Resultado:', data ? `${data.evento_tipo} (ID: ${data.id})` : 'NULL - Sin evento activo');
             setActiveEvent(data);
+            setError(null);
         } catch (err: any) {
-            console.error('Error fetching hydraulic event:', err);
+            console.error('❌ [HydricEvents] Error fatal en fetch:', err);
             setError(err.message);
-        } finally {
-            setIsLoading(false);
         }
-    };
+    }, []);
 
-    const activateEvent = async (tipo: HydraulicEvent, extras: Partial<SICAEventLog> = {}) => {
+    const activateEvent = useCallback(async (tipo: HydraulicEvent, extras: Partial<SICAEventLog> = {}) => {
         setIsLoading(true);
-        console.log(`🚀 Iniciando activación de protocolo: ${tipo}`, extras);
+        setError(null);
+        console.log(`🚀 [HydricEvents] ===== ACTIVANDO PROTOCOLO: ${tipo} =====`);
+        console.log('🚀 [HydricEvents] Datos extras:', JSON.stringify(extras));
+        
         try {
-            const { data: userData } = await supabase.auth.getUser();
+            // 1. Obtener usuario actual
+            const { data: userData, error: authError } = await supabase.auth.getUser();
+            if (authError) {
+                console.error('❌ [HydricEvents] Error de autenticación:', authError);
+                throw new Error('Sin autenticación: ' + authError.message);
+            }
+            console.log('✅ [HydricEvents] Usuario autenticado:', userData.user?.email);
 
-            // 1. Insertar el nuevo protocolo. 
-            // La exclusividad (esta_activo = false para otros) la maneja el TRIGGER tr_ensure_single_active_event
-            const { error, data } = await supabase
+            // 2. Desactivar TODOS los eventos anteriores manualmente
+            console.log('🔄 [HydricEvents] Desactivando eventos anteriores...');
+            const { error: updateError, count } = await supabase
                 .from('sica_eventos_log')
-                .insert({
-                    evento_tipo: tipo,
-                    notas: extras.notas || '',
-                    esta_activo: true,
-                    autorizado_por: userData.user?.id,
-                    gasto_solicitado_m3s: extras.gasto_solicitado_m3s,
-                    porcentaje_apertura_presa: extras.porcentaje_apertura_presa,
-                    valvulas_activas: extras.valvulas_activas,
-                    hora_apertura_real: extras.hora_apertura_real,
-                    fecha_inicio: new Date().toISOString() // Asegurar fecha para ordenamiento
-                })
+                .update({ esta_activo: false })
+                .eq('esta_activo', true);
+            
+            if (updateError) {
+                console.warn('⚠️ [HydricEvents] Error al desactivar anteriores (puede ser normal si no hay):', updateError);
+                // No lanzamos error aquí, continuamos
+            } else {
+                console.log(`✅ [HydricEvents] Desactivados ${count ?? '?'} eventos anteriores`);
+            }
+
+            // 3. Insertar nuevo protocolo
+            console.log('📝 [HydricEvents] Insertando nuevo protocolo...');
+            const insertPayload = {
+                evento_tipo: tipo,
+                notas: extras.notas || '',
+                esta_activo: true,
+                autorizado_por: userData.user?.id || null,
+                gasto_solicitado_m3s: extras.gasto_solicitado_m3s || null,
+                porcentaje_apertura_presa: extras.porcentaje_apertura_presa || null,
+                valvulas_activas: extras.valvulas_activas || null,
+                hora_apertura_real: extras.hora_apertura_real || null
+            };
+            console.log('📝 [HydricEvents] Payload:', JSON.stringify(insertPayload));
+
+            const { data: insertedData, error: insertError } = await supabase
+                .from('sica_eventos_log')
+                .insert(insertPayload)
                 .select()
                 .single();
 
-            if (error) throw error;
+            if (insertError) {
+                console.error('❌ [HydricEvents] ERROR DE INSERT:', insertError);
+                console.error('❌ [HydricEvents] Código:', insertError.code);
+                console.error('❌ [HydricEvents] Detalle:', insertError.details);
+                console.error('❌ [HydricEvents] Hint:', insertError.hint);
+                throw insertError;
+            }
 
-            console.log('✅ Protocolo registrado en DB:', data);
-            toast.success(`Protocolo ${tipo} activado exitosamente`);
+            console.log('✅ [HydricEvents] PROTOCOLO REGISTRADO:', insertedData);
             
-            // Forzar actualización de estado local
-            setActiveEvent(data);
-            
-            // Pequeño delay para dejar que el trigger termine y el realtime fluya, 
-            // aunque ya seteamos el estado local arriba.
-            setTimeout(() => fetchActiveEvent(), 500);
-            
+            // 4. Actualizar estado local inmediatamente
+            setActiveEvent(insertedData);
+            toast.success(`✅ Protocolo ${tipo} activado`);
+
+            // 5. Re-fetch de seguridad después de medio segundo
+            setTimeout(() => {
+                console.log('🔄 [HydricEvents] Re-fetch de confirmación...');
+                fetchActiveEvent();
+            }, 800);
+
         } catch (err: any) {
-            console.error('❌ Error fatal al activar protocolo:', err);
-            toast.error('Error al activar protocolo: ' + err.message);
+            console.error('💀 [HydricEvents] ===== ERROR COMPLETO =====');
+            console.error('💀 [HydricEvents] Mensaje:', err.message);
+            console.error('💀 [HydricEvents] Objeto completo:', err);
+            setError(err.message);
+            toast.error(`❌ Error: ${err.message}`);
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [fetchActiveEvent]);
 
     useEffect(() => {
         fetchActiveEvent();
@@ -95,16 +135,18 @@ export const useHydricEvents = () => {
                 event: '*',
                 schema: 'public',
                 table: 'sica_eventos_log'
-            }, () => {
-                console.log('🔄 Cambio en protocolo detectado. Actualizando...');
+            }, (payload) => {
+                console.log('🔴 [Realtime] Cambio detectado:', payload);
                 fetchActiveEvent();
             })
-            .subscribe();
+            .subscribe((status) => {
+                console.log('📡 [Realtime] Estado de suscripción:', status);
+            });
 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, []);
+    }, [fetchActiveEvent]);
 
     return {
         activeEvent,

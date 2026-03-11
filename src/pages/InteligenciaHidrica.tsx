@@ -76,13 +76,23 @@ const InteligenciaHidrica = () => {
     const {
         activeEvent,
         isLoading: isLoadingEvents,
-        activateEvent
+        activateEvent,
+        error: eventError
     } = useHydricEvents();
 
     const [activeTab, setActiveTab] = useState<'chat' | 'knowledge' | 'control'>('chat');
     const [inputValue, setInputValue] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // --- Modal de Activación de Protocolo ---
+    const [showActivationModal, setShowActivationModal] = useState(false);
+    const [pendingEventId, setPendingEventId] = useState<string>('');
+    const [pendingEventLabel, setPendingEventLabel] = useState('');
+    const [formGasto, setFormGasto] = useState('60');
+    const [formApertura, setFormApertura] = useState('100');
+    const [formValvulas, setFormValvulas] = useState('V1, V2');
+    const [formNotas, setFormNotas] = useState('');
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -526,32 +536,11 @@ const InteligenciaHidrica = () => {
                                         key={evt.id}
                                         className={`protocol-btn group border-2 ${activeEvent?.evento_tipo === evt.id ? 'active scale-[1.02] bg-white/[0.05]' : ''}`}
                                         onClick={() => {
-                                            // Confirmación de seguridad antes de cambiar protocolo
-                                            const confirmChange = window.confirm(
-                                                `¿Confirmas la activación del protocolo "${evt.label}"?\n\nEsto desactivará cualquier protocolo vigente.`
-                                            );
-                                            if (!confirmChange) return;
-
-                                            if (evt.id === 'LLENADO') {
-                                                const q = prompt('Gasto solicitado (m3/s):', '60');
-                                                if (!q) return;
-                                                const aps = prompt('Porcentaje apertura presa (%):', '100');
-                                                if (!aps) return;
-                                                const valves = prompt('Válvulas activas (separadas por coma):', 'V1, V2');
-                                                const notas = prompt('Notas adicionales:', '');
-                                                
-                                                activateEvent('LLENADO', {
-                                                    gasto_solicitado_m3s: parseFloat(q),
-                                                    porcentaje_apertura_presa: parseFloat(aps),
-                                                    valvulas_activas: valves?.split(',').map(s => s.trim()) || ['V1'],
-                                                    notas: notas || '',
-                                                    hora_apertura_real: new Date().toISOString()
-                                                });
-                                            } else {
-                                                const notas = prompt(`Notas operativas para ${evt.label}:`, '');
-                                                if (notas === null) return;
-                                                activateEvent(evt.id as HydraulicEvent, { notas });
-                                            }
+                                            console.log('🖱️ Click en protocolo:', evt.id);
+                                            setPendingEventId(evt.id);
+                                            setPendingEventLabel(evt.label);
+                                            setFormNotas('');
+                                            setShowActivationModal(true);
                                         }}
                                         disabled={isLoadingEvents}
                                         style={{
@@ -580,6 +569,90 @@ const InteligenciaHidrica = () => {
                                     </button>
                                 ))}
                             </div>
+                            {/* === MODAL DE ACTIVACIÓN DE PROTOCOLO === */}
+                            {showActivationModal && (
+                                <div style={{
+                                    position: 'fixed', inset: 0, zIndex: 9999,
+                                    background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }} onClick={() => setShowActivationModal(false)}>
+                                    <div onClick={e => e.stopPropagation()} style={{
+                                        background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '16px', padding: '32px', width: '480px', maxWidth: '95vw',
+                                        boxShadow: '0 25px 50px rgba(0,0,0,0.5)'
+                                    }}>
+                                        <h3 style={{ color: '#22d3ee', fontSize: '1.25rem', fontWeight: 900, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            Activar: {pendingEventLabel}
+                                        </h3>
+                                        <p style={{ color: '#94a3b8', fontSize: '0.8rem', marginBottom: '24px' }}>
+                                            Esto desactivará cualquier protocolo vigente.
+                                        </p>
+
+                                        {pendingEventId === 'LLENADO' && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                                                <label style={{ color: '#e2e8f0', fontSize: '0.75rem', fontWeight: 700 }}>
+                                                    Gasto solicitado (m³/s)
+                                                    <input type="number" value={formGasto} onChange={e => setFormGasto(e.target.value)}
+                                                        style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '1rem' }} />
+                                                </label>
+                                                <label style={{ color: '#e2e8f0', fontSize: '0.75rem', fontWeight: 700 }}>
+                                                    Apertura de presa (%)
+                                                    <input type="number" value={formApertura} onChange={e => setFormApertura(e.target.value)}
+                                                        style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '1rem' }} />
+                                                </label>
+                                                <label style={{ color: '#e2e8f0', fontSize: '0.75rem', fontWeight: 700 }}>
+                                                    Válvulas activas
+                                                    <input type="text" value={formValvulas} onChange={e => setFormValvulas(e.target.value)}
+                                                        style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '1rem' }} />
+                                                </label>
+                                            </div>
+                                        )}
+
+                                        <label style={{ color: '#e2e8f0', fontSize: '0.75rem', fontWeight: 700, display: 'block', marginBottom: '16px' }}>
+                                            Notas operativas
+                                            <textarea value={formNotas} onChange={e => setFormNotas(e.target.value)}
+                                                rows={2} placeholder="Notas adicionales..."
+                                                style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '0.9rem', resize: 'none' }} />
+                                        </label>
+
+                                        {eventError && (
+                                            <div style={{ background: '#7f1d1d', color: '#fca5a5', padding: '10px', borderRadius: '8px', marginBottom: '12px', fontSize: '0.8rem', fontWeight: 600 }}>
+                                                ❌ Error: {eventError}
+                                            </div>
+                                        )}
+
+                                        <div style={{ display: 'flex', gap: '12px' }}>
+                                            <button
+                                                onClick={() => setShowActivationModal(false)}
+                                                style={{ flex: 1, padding: '12px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button
+                                                disabled={isLoadingEvents}
+                                                onClick={async () => {
+                                                    console.log('🔥 [Modal] Ejecutando activación...');
+                                                    if (pendingEventId === 'LLENADO') {
+                                                        await activateEvent('LLENADO', {
+                                                            gasto_solicitado_m3s: parseFloat(formGasto) || 60,
+                                                            porcentaje_apertura_presa: parseFloat(formApertura) || 100,
+                                                            valvulas_activas: formValvulas.split(',').map(s => s.trim()),
+                                                            notas: formNotas,
+                                                            hora_apertura_real: new Date().toISOString()
+                                                        });
+                                                    } else {
+                                                        await activateEvent(pendingEventId as HydraulicEvent, { notas: formNotas });
+                                                    }
+                                                    setShowActivationModal(false);
+                                                }}
+                                                style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 900, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                                            >
+                                                {isLoadingEvents ? '⏳ Procesando...' : '⚡ Activar Protocolo'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

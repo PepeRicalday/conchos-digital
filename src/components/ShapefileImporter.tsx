@@ -8,7 +8,7 @@
  */
 import { useState, useCallback } from 'react';
 import { Upload, FileJson, Check, AlertTriangle, Layers, X } from 'lucide-react';
-// @ts-ignore
+// @ts-expect-error
 import shp from 'shpjs';
 
 export interface GeoLayer {

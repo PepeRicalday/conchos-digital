@@ -33,7 +33,7 @@ const BalanceHidraulico = () => {
         fetchData();
     }, [fechaSeleccionada]);
 
-    const fetchData = async () => {
+    async function fetchData() {
         setLoading(true);
         const dateStr = fechaSeleccionada;
 
@@ -76,7 +76,7 @@ const BalanceHidraulico = () => {
         }
 
         setLoading(false);
-    };
+    }
 
     // Calculate balance between consecutive escalas
     const balanceData = useMemo((): BalanceTramo[] => {

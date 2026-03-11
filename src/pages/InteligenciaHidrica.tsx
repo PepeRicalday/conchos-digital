@@ -472,6 +472,22 @@ const InteligenciaHidrica = () => {
                                         {activeEvent.notas && (
                                             <div className="event-notes">{activeEvent.notas}</div>
                                         )}
+                                        {activeEvent.evento_tipo === 'LLENADO' && activeEvent.gasto_solicitado_m3s && (
+                                            <div className="event-tech-data mt-4 flex flex-wrap gap-3 justify-center">
+                                                <div className="tech-item bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 flex flex-col items-center">
+                                                    <span className="text-[9px] uppercase font-black text-slate-500 opacity-70">Gasto Solicitado</span>
+                                                    <span className="text-sm font-black text-blue-400">{activeEvent.gasto_solicitado_m3s} m³/s</span>
+                                                </div>
+                                                <div className="tech-item bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 flex flex-col items-center">
+                                                    <span className="text-[9px] uppercase font-black text-slate-500 opacity-70">Apertura</span>
+                                                    <span className="text-sm font-black text-blue-400">{activeEvent.porcentaje_apertura_presa}%</span>
+                                                </div>
+                                                <div className="tech-item bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 flex flex-col items-center">
+                                                    <span className="text-[9px] uppercase font-black text-slate-500 opacity-70">Válvulas</span>
+                                                    <span className="text-sm font-black text-blue-400">{activeEvent.valvulas_activas?.join(', ')}</span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </>
                                 ) : isLoadingEvents ? (
                                     <div className="flex flex-col items-center gap-4 animate-pulse py-10">
@@ -488,19 +504,19 @@ const InteligenciaHidrica = () => {
 
                             {activeEvent && (
                                 <div style={{ marginBottom: '32px' }}>
-                                    <ProtocolGuide type={activeEvent.evento_tipo} />
+                                    <ProtocolGuide type={activeEvent.evento_tipo} eventData={activeEvent} />
                                 </div>
                             )}
 
-                            {activeEvent?.evento_tipo === 'LLENADO' && (
+                            {activeEvent?.evento_tipo === 'LLENADO' ? (
                                 <div style={{ marginBottom: '32px' }}>
                                     <ArrivalPredictor />
                                 </div>
+                            ) : (
+                                <div style={{ marginBottom: '24px' }}>
+                                    <WaterLossMonitor />
+                                </div>
                             )}
-
-                            <div style={{ marginBottom: '24px' }}>
-                                <WaterLossMonitor />
-                            </div>
 
                             <div className="ih-control-grid">
                                 {[
@@ -514,8 +530,25 @@ const InteligenciaHidrica = () => {
                                         key={evt.id}
                                         className={`protocol-btn group border-2 ${activeEvent?.evento_tipo === evt.id ? 'active scale-[1.02] bg-white/[0.05]' : ''}`}
                                         onClick={() => {
-                                            const notas = prompt(`Notas operativas para ${evt.label}:`);
-                                            if (notas !== null) activateEvent(evt.id as HydraulicEvent, notas);
+                                            if (evt.id === 'LLENADO') {
+                                                const q = prompt('Gasto solicitado (m3/s):', '60');
+                                                const aps = prompt('Porcentaje apertura presa (%):', '100');
+                                                const valves = prompt('Válvulas activas (separadas por coma):', 'V1, V2');
+                                                const notas = prompt('Notas adicionales:');
+                                                
+                                                if (q && aps) {
+                                                    activateEvent('LLENADO', {
+                                                        gasto_solicitado_m3s: parseFloat(q),
+                                                        porcentaje_apertura_presa: parseFloat(aps),
+                                                        valvulas_activas: valves?.split(',').map(s => s.trim()),
+                                                        notas: notas || '',
+                                                        hora_apertura_real: new Date().toISOString()
+                                                    });
+                                                }
+                                            } else {
+                                                const notas = prompt(`Notas operativas para ${evt.label}:`);
+                                                if (notas !== null) activateEvent(evt.id as HydraulicEvent, { notas });
+                                            }
                                         }}
                                         disabled={isLoadingEvents}
                                         style={{

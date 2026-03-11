@@ -1,5 +1,6 @@
 import React from 'react';
-import { Waves, Clock, ShieldCheck, Activity, Search, Droplets, Zap } from 'lucide-react';
+import { Waves, CheckCircle2, ShieldCheck, Activity, Search, Droplets, Zap } from 'lucide-react';
+import { type SICAEventLog } from '../hooks/useHydricEvents';
 import './ProtocolGuide.css';
 
 interface ProtocolStep {
@@ -13,36 +14,36 @@ interface ProtocolStep {
 const LLENADO_PROTOCOL: ProtocolStep[] = [
     {
         id: 1,
-        title: "Apertura de Obra de Toma",
-        desc: "Incremeto progresivo del gasto Q en pasos de 5 m³/s cada 30 min. No exceder 60 m³/s de diseño.",
+        title: "Apertura de Presa (Obra de Toma)",
+        desc: "Apertura inicial programada. Registro de válvulas, gasto Q solicitado y hora exacta de maniobra.",
         icon: Waves,
-        badge: "Gasto Q"
+        badge: "Válvulas"
     },
     {
         id: 2,
-        title: "Sincronización de Aforos",
-        desc: "Sincronizar relojes con SICA Capture. Registro de carga estática inicial en escala principal.",
-        icon: Clock,
-        badge: "SICA Sync"
+        title: "Tránsito en Río (36 KM)",
+        desc: "Seguimiento de la onda en el cauce natural previo a KM 0. Tiempo estimado: ~7-10 horas según Q.",
+        icon: Droplets,
+        badge: "Río Conchos"
     },
     {
         id: 3,
-        title: "Seguimiento de Onda Positiva",
-        desc: "Monitoreo del arribo en puntos de control (KM 23, KM 29, KM 34, KM 44) según predictor.",
+        title: "Arribo a Boca-Toma (KM 0)",
+        desc: "Confirmación visual y registro manual de llegada al canal principal para ajuste de estadística SICA.",
+        icon: CheckCircle2,
+        badge: "Sincronía"
+    },
+    {
+        id: 4,
+        title: "Seguimiento de Predictor",
+        desc: "Monitoreo del arribo en escalas de control. Validar tiempos reales vs modelo hidráulico.",
         icon: Activity,
         badge: "Predictor"
     },
     {
-        id: 4,
-        title: "Inspección de Bordo Libre",
-        desc: "Verificación visual de filtraciones y niveles de revancha en taludes del tramo inicial.",
-        icon: Search,
-        badge: "Seguridad"
-    },
-    {
         id: 5,
-        title: "Validación de Balance Hídrico",
-        desc: "Cierre de bitácora en Hydra Engine con cálculo de flujo estabilizado vs solicitado.",
+        title: "Balance Hídrico Inicial",
+        desc: "Verificación de gasto estabilizado en Hydra Engine vs dotación autorizada a módulos.",
         icon: ShieldCheck,
         badge: "Auditoría"
     }
@@ -116,7 +117,7 @@ const ANOMALIA_BAJA_PROTOCOL: ProtocolStep[] = [
     }
 ];
 
-const ProtocolGuide: React.FC<{ type: string }> = ({ type }) => {
+const ProtocolGuide: React.FC<{ type: string; eventData?: SICAEventLog }> = ({ type, eventData }) => {
     const getProtocol = () => {
         switch (type) {
             case 'LLENADO': return LLENADO_PROTOCOL;
@@ -143,9 +144,13 @@ const ProtocolGuide: React.FC<{ type: string }> = ({ type }) => {
                     <h2>Protocolo de {type}</h2>
                     <p>Guía de Operación Estándar (SRL Conchos Digital)</p>
                 </div>
-                <div style={{ marginLeft: 'auto' }}>
-                    <div className="pg-step-badge" style={{ background: '#3b82f6', color: 'white' }}>Oficial</div>
-                </div>
+                {eventData?.gasto_solicitado_m3s && (
+                    <div style={{ marginLeft: 'auto' }}>
+                        <div className="pg-step-badge" style={{ background: 'var(--color-primary)', color: 'white' }}>
+                            {eventData.gasto_solicitado_m3s} m³/s Activo
+                        </div>
+                    </div>
+                )}
             </header>
 
             <div className="pg-steps">
@@ -160,7 +165,11 @@ const ProtocolGuide: React.FC<{ type: string }> = ({ type }) => {
                                 {step.title}
                                 {step.badge && <span className="pg-step-badge">{step.badge}</span>}
                             </div>
-                            <p className="pg-step-desc">{step.desc}</p>
+                            <p className="pg-step-desc">
+                                {step.id === 1 && eventData?.valvulas_activas ? 
+                                    `Apertura con válvulas ${eventData.valvulas_activas.join(', ')}.` : 
+                                    step.desc}
+                            </p>
                         </div>
                     </div>
                 ))}

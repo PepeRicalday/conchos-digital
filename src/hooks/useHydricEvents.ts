@@ -11,6 +11,10 @@ export interface SICAEventLog {
     notas: string;
     esta_activo: boolean;
     autorizado_por?: string;
+    gasto_solicitado_m3s?: number;
+    porcentaje_apertura_presa?: number;
+    valvulas_activas?: string[];
+    hora_apertura_real?: string;
 }
 
 export const useHydricEvents = () => {
@@ -37,7 +41,7 @@ export const useHydricEvents = () => {
         }
     };
 
-    const activateEvent = async (tipo: HydraulicEvent, notas: string = '') => {
+    const activateEvent = async (tipo: HydraulicEvent, extras: Partial<SICAEventLog> = {}) => {
         setIsLoading(true);
         try {
             const { data: userData } = await supabase.auth.getUser();
@@ -46,9 +50,13 @@ export const useHydricEvents = () => {
                 .from('sica_eventos_log')
                 .insert({
                     evento_tipo: tipo,
-                    notas,
+                    notas: extras.notas || '',
                     esta_activo: true,
-                    autorizado_por: userData.user?.id
+                    autorizado_por: userData.user?.id,
+                    gasto_solicitado_m3s: extras.gasto_solicitado_m3s,
+                    porcentaje_apertura_presa: extras.porcentaje_apertura_presa,
+                    valvulas_activas: extras.valvulas_activas,
+                    hora_apertura_real: extras.hora_apertura_real
                 });
 
             if (error) throw error;

@@ -1,13 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Timer, MapPin, Clock } from 'lucide-react';
+import { Timer, MapPin, Clock, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { toast } from 'sonner';
 import './ArrivalPredictor.css';
 
 interface ArrivalInfo {
+    id: string;
     nombre: string;
     km: number;
     hora_arribo_estimada: string;
     seconds_remaining: number;
+    segundos_rio?: number;
+    segundos_canal?: number;
+    hora_real?: string;
 }
 
 const ArrivalPredictor: React.FC = () => {
@@ -17,9 +22,9 @@ const ArrivalPredictor: React.FC = () => {
     const fetchPredictions = async () => {
         const { data, error } = await supabase
             .from('vw_prediccion_arribo_escalas')
-            .select('nombre, km, hora_arribo_estimada')
+            .select('*')
             .order('km', { ascending: true })
-            .limit(4);
+            .limit(5);
 
         if (!error && data) {
             const processed = data.map(d => ({
@@ -42,8 +47,32 @@ const ArrivalPredictor: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
+    const markRealArrival = async (item: ArrivalInfo) => {
+        const now = new Date();
+        const estim = new Date(item.hora_arribo_estimada);
+        const diff = Math.round((now.getTime() - estim.getTime()) / 60000);
+        
+        try {
+            const { data: event } = await supabase.from('sica_eventos_log').select('id').eq('esta_activo', true).single();
+            if (event) {
+                await supabase.from('sica_eventos_arribos').insert({
+                    evento_id: event.id,
+                    punto_control_nombre: item.nombre,
+                    km: item.km,
+                    hora_estimada: item.hora_arribo_estimada,
+                    hora_real: now.toISOString(),
+                    diferencia_minutos: diff
+                });
+                toast.success(`Arribo en ${item.nombre} registrado con éxito`);
+                fetchPredictions();
+            }
+        } catch (err: any) {
+            toast.error('Error al registrar: ' + err.message);
+        }
+    };
+
     const formatTime = (seconds: number) => {
-        if (seconds <= 0) return "Llegó";
+        if (seconds <= 0) return "Arribado";
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
         const s = Math.floor(seconds % 60);
@@ -54,7 +83,6 @@ const ArrivalPredictor: React.FC = () => {
 
     return (
         <div className="arrival-predictor">
-            {/* Ambient background glows */}
             <div className="ap-glow-top" />
             <div className="ap-glow-bottom" />
 
@@ -67,10 +95,10 @@ const ArrivalPredictor: React.FC = () => {
                         </div>
                     </div>
                     <div className="ap-header-info">
-                        <h3>Predictor de Tránsito</h3>
+                        <h3>Tránsito de Onda Positiva</h3>
                         <div className="ap-model-tag">
                             <div className="ap-model-line" />
-                            <span className="ap-model-text">Modelo Hidráulico DR-005</span>
+                            <span className="ap-model-text">Incluye 36km de Río (Obra de Toma → KM 0)</span>
                         </div>
                     </div>
                 </div>
@@ -80,20 +108,20 @@ const ArrivalPredictor: React.FC = () => {
                         <div className="ap-indicator-glow" />
                         <div className="ap-indicator-dot" />
                     </div>
-                    <span className="ap-status-text">En Llenado</span>
+                    <span className="ap-status-text">Seguimiento en Vivo</span>
                 </div>
             </header>
 
             <div className="ap-grid">
                 {predictions.map((p, i) => (
-                    <div key={i} className="ap-point-card">
+                    <div key={i} className={`ap-point-card ${p.seconds_remaining === 0 ? 'arrived' : ''}`}>
                         <div className="ap-card-inner">
                             <div className="ap-card-shimmer" />
 
                             <div className="ap-card-header">
                                 <div className="ap-km-tag">
                                     <div className="ap-km-dot" />
-                                    <span className="ap-km-text">KM {p.km}</span>
+                                    <span className="ap-km-text">{p.km === 0 ? 'ENTRADA CANAL' : `KM ${p.km}`}</span>
                                 </div>
                                 <div className="ap-pin-box">
                                     <MapPin size={14} />
@@ -102,24 +130,42 @@ const ArrivalPredictor: React.FC = () => {
 
                             <h4 className="ap-point-name">
                                 {p.nombre}
+                                {p.km === 0 && <span className="block text-[10px] text-primary opacity-70 mt-1 uppercase font-black">Transferencia Río-Canal</span>}
                             </h4>
 
                             <div className="ap-time-group">
-                                <span className="ap-countdown">
+                                <span className={`ap-countdown ${p.seconds_remaining === 0 ? 'text-accent' : ''}`}>
                                     {formatTime(p.seconds_remaining)}
                                 </span>
                                 <div className="ap-arrival-meta">
                                     <Clock size={10} style={{ color: '#60a5fa' }} />
                                     <span className="ap-arrival-text">
-                                        Arribo: <span className="ap-arrival-time">{new Date(p.hora_arribo_estimada).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                        ETA: <span className="ap-arrival-time">{new Date(p.hora_arribo_estimada).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                     </span>
                                 </div>
                             </div>
 
+                            {p.seconds_remaining < 600 && p.seconds_remaining > 0 && (
+                                <button 
+                                    className="ap-manual-fix-btn"
+                                    onClick={() => markRealArrival(p)}
+                                >
+                                    <CheckCircle2 size={12} />
+                                    Confirmar Arribo
+                                </button>
+                            )}
+
+                            {p.seconds_remaining === 0 && (
+                                <div className="ap-arrival-confirmed">
+                                    <CheckCircle2 size={14} />
+                                    <span>Registrado</span>
+                                </div>
+                            )}
+
                             <div className="ap-progress-container">
                                 <div
                                     className="ap-progress-bar"
-                                    style={{ width: `${60 - (i * 10)}%` }}
+                                    style={{ width: `${Math.max(5, 100 - (p.seconds_remaining / (3600 * 12)) * 100)}%` }}
                                 >
                                     <div className="ap-progress-shimmer" />
                                 </div>

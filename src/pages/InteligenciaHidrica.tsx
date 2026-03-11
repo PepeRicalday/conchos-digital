@@ -629,9 +629,17 @@ const InteligenciaHidrica = () => {
                                         <h3 style={{ color: '#22d3ee', fontSize: '1.25rem', fontWeight: 900, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                             Activar: {pendingEventLabel}
                                         </h3>
-                                        <p style={{ color: '#94a3b8', fontSize: '0.8rem', marginBottom: '24px' }}>
-                                            Esto desactivará cualquier protocolo vigente.
-                                        </p>
+                                        <div style={{ display: 'flex', gap: '8px', padding: '12px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '12px', marginBottom: '24px' }}>
+                                            <Shield size={16} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                                            <div>
+                                                <p style={{ color: '#fca5a5', fontSize: '0.75rem', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    Acción Gerencial (SRL)
+                                                </p>
+                                                <p style={{ color: '#94a3b8', fontSize: '0.7rem', margin: 0, lineHeight: 1.4 }}>
+                                                    Esta maniobra desactivará el protocolo actual y alterará la métrica de toda la cuenca. Operación auditada bajo su firma digital.
+                                                </p>
+                                            </div>
+                                        </div>
 
                                         {pendingEventId === 'LLENADO' && (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
@@ -725,9 +733,16 @@ const InteligenciaHidrica = () => {
                                         <h3 style={{ color: '#f1f5f9', fontSize: '1.25rem', fontWeight: 900, marginBottom: '8px' }}>
                                             Confirmar Apertura
                                         </h3>
-                                        <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '24px' }}>
+                                        <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '16px' }}>
                                             Establezca el <b>Día y Hora</b> exactos en que se realizó la maniobra en la Obra de Toma.
                                         </p>
+
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '10px', marginBottom: '24px', textAlign: 'left' }}>
+                                            <Shield size={14} style={{ color: '#10b981', flexShrink: 0 }} />
+                                            <span style={{ color: '#10b981', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                Autorizado por Gerencia SRL
+                                            </span>
+                                        </div>
 
                                         <div style={{ marginBottom: '24px', textAlign: 'left' }}>
                                             <label style={{ color: '#e2e8f0', fontSize: '0.75rem', fontWeight: 700, display: 'block', marginBottom: '8px' }}>

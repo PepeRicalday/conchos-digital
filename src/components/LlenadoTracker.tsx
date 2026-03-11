@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Timer, MapPin, Clock, CheckCircle2, AlertTriangle, Lock } from 'lucide-react';
+import { Timer, MapPin, Clock, CheckCircle2, AlertTriangle, Lock, Shield } from 'lucide-react';
 import { useLlenadoTracker } from '../hooks/useLlenadoTracker';
 import type { PuntoControl, LlenadoEstado } from '../hooks/useLlenadoTracker';
 import TransicionProtocolo from './TransicionProtocolo';
@@ -394,9 +394,21 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                         <h3 style={{ color: '#22d3ee', fontSize: '1.1rem', fontWeight: 900, marginBottom: '4px' }}>
                             📍 Confirmar Arribo
                         </h3>
-                        <p style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '20px' }}>
+                        <p style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '16px' }}>
                             {selectedPunto.punto_nombre} — KM {selectedPunto.km}
                         </p>
+
+                        <div style={{ display: 'flex', gap: '8px', padding: '10px 12px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '10px', marginBottom: '20px' }}>
+                            <Shield size={14} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                            <div>
+                                <p style={{ color: '#fca5a5', fontSize: '0.65rem', fontWeight: 800, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Acción Auditada (SRL)
+                                </p>
+                                <p style={{ color: '#94a3b8', fontSize: '0.6rem', margin: 0, lineHeight: 1.4 }}>
+                                    Confirmar este arribo recalculará la cronometría de toda la cuenca aguas abajo.
+                                </p>
+                            </div>
+                        </div>
 
                         <div style={{ marginBottom: '12px' }}>
                             <label style={{ color: '#e2e8f0', fontSize: '0.7rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>

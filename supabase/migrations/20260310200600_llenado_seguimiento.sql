@@ -108,12 +108,19 @@ ORDER BY ca.fecha_inicio DESC, ls.orden_secuencial ASC;
 ALTER TABLE public.sica_llenado_seguimiento ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sica_eventos_arribos ENABLE ROW LEVEL SECURITY;
 
+-- Políticas RLS (Seguridad de Fila)
+DROP POLICY IF EXISTS "Lectura pública seguimiento llenado" ON public.sica_llenado_seguimiento;
+DROP POLICY IF EXISTS "Inserción autenticada seguimiento llenado" ON public.sica_llenado_seguimiento;
+DROP POLICY IF EXISTS "Actualización autenticada seguimiento llenado" ON public.sica_llenado_seguimiento;
+
 CREATE POLICY "Lectura pública seguimiento llenado" 
     ON public.sica_llenado_seguimiento FOR SELECT USING (true);
-CREATE POLICY "Inserción autenticada seguimiento llenado" 
-    ON public.sica_llenado_seguimiento FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "Actualización autenticada seguimiento llenado" 
-    ON public.sica_llenado_seguimiento FOR UPDATE USING (auth.uid() IS NOT NULL);
+    ON public.sica_llenado_seguimiento FOR ALL USING (auth.role() = 'authenticated');
+
+-- Políticas para arribos históricos
+DROP POLICY IF EXISTS "Lectura pública arribos" ON public.sica_eventos_arribos;
+DROP POLICY IF EXISTS "Inserción autenticada arribos" ON public.sica_eventos_arribos;
 
 CREATE POLICY "Lectura pública arribos" 
     ON public.sica_eventos_arribos FOR SELECT USING (true);

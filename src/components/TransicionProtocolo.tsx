@@ -225,6 +225,18 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
                         de flujo permanente y distribución a tomas.
                     </p>
 
+                    <div style={{ display: 'flex', gap: '8px', padding: '10px 12px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '10px', marginBottom: '12px' }}>
+                        <Shield size={14} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                        <div>
+                            <p style={{ color: '#fca5a5', fontSize: '0.65rem', fontWeight: 800, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Cambio de Mando (Gerencia SRL)
+                            </p>
+                            <p style={{ color: '#94a3b8', fontSize: '0.6rem', margin: 0, lineHeight: 1.4 }}>
+                                La transición de protocolo quedará auditada permanentemente bajo su usuario como responsable operativo.
+                            </p>
+                        </div>
+                    </div>
+
                     <textarea
                         value={motivoTransicion}
                         onChange={e => setMotivoTransicion(e.target.value)}

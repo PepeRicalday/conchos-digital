@@ -3,7 +3,7 @@ import {
     Brain, Send, Plus, MessageSquare, Trash2,
     Droplets, BarChart3, TrendingUp, Shield,
     AlertTriangle, ShieldOff, Sparkles, Waves,
-    Library, Upload, FileText, Loader2, Database
+    Library, Upload, FileText, Loader2, Database, Clock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useHydricChat, type ChatMessage } from '../hooks/useHydricChat';
@@ -94,6 +94,8 @@ const InteligenciaHidrica = () => {
     const [formValvulas, setFormValvulas] = useState('V1, V2');
     const [formNotas, setFormNotas] = useState('');
     const [horaAperturaConfirmada, setHoraAperturaConfirmada] = useState<string | null>(null);
+    const [showAperturaModal, setShowAperturaModal] = useState(false);
+    const [tempAperturaDatetime, setTempAperturaDatetime] = useState('');
 
     // Cargar hora_apertura_real del evento activo si ya existe
     useEffect(() => {
@@ -104,17 +106,21 @@ const InteligenciaHidrica = () => {
         }
     }, [activeEvent]);
 
+    const openConfirmarApertura = () => {
+        // Inicializar con la fecha/hora actual en formato para input datetime-local
+        const now = new Date();
+        const offset = now.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(now.getTime() - offset)).toISOString().slice(0, 16);
+        setTempAperturaDatetime(localISOTime);
+        setShowAperturaModal(true);
+    };
+
     const handleConfirmarApertura = async () => {
-        const horaStr = prompt('Hora exacta de apertura (HH:MM) o deja vacío para usar la hora actual:');
-        let horaFinal: string;
-        if (horaStr && /^\d{1,2}:\d{2}$/.test(horaStr.trim())) {
-            const [h, m] = horaStr.trim().split(':').map(Number);
-            const d = new Date();
-            d.setHours(h, m, 0, 0);
-            horaFinal = d.toISOString();
-        } else {
-            horaFinal = new Date().toISOString();
-        }
+        if (!tempAperturaDatetime) return;
+        
+        const selectedDate = new Date(tempAperturaDatetime);
+        const horaFinal = selectedDate.toISOString();
+        
         // Guardar en DB
         if (activeEvent) {
             const { supabase } = await import('../lib/supabase');
@@ -123,7 +129,8 @@ const InteligenciaHidrica = () => {
                 .update({ hora_apertura_real: horaFinal })
                 .eq('id', activeEvent.id);
             setHoraAperturaConfirmada(horaFinal);
-            toast.success(`✅ Apertura confirmada: ${new Date(horaFinal).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+            setShowAperturaModal(false);
+            toast.success(`✅ Apertura confirmada: ${selectedDate.toLocaleDateString()} ${selectedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
         }
     };
 
@@ -557,7 +564,7 @@ const InteligenciaHidrica = () => {
                                         eventoId={activeEvent.id}
                                         qSolicitado={activeEvent.gasto_solicitado_m3s || 60}
                                         horaApertura={horaAperturaConfirmada}
-                                        onConfirmarApertura={handleConfirmarApertura}
+                                        onConfirmarApertura={openConfirmarApertura}
                                     />
                                 </div>
                             )}
@@ -687,6 +694,76 @@ const InteligenciaHidrica = () => {
                                                 style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #06b6d4, #3b82f6)', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 900, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}
                                             >
                                                 {isLoadingEvents ? '⏳ Procesando...' : '⚡ Activar Protocolo'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* === MODAL DE CONFIRMACIÓN DE APERTURA (DÍA Y HORA) === */}
+                            {showAperturaModal && (
+                                <div style={{
+                                    position: 'fixed', inset: 0, zIndex: 9999,
+                                    background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }} onClick={() => setShowAperturaModal(false)}>
+                                    <div onClick={e => e.stopPropagation()} style={{
+                                        background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '20px', padding: '32px', width: '400px', maxWidth: '95vw',
+                                        boxShadow: '0 25px 50px rgba(0,0,0,0.6)',
+                                        textAlign: 'center'
+                                    }}>
+                                        <div style={{
+                                            width: '64px', height: '64px', background: 'rgba(245,158,11,0.1)',
+                                            borderRadius: '50%', display: 'flex', alignItems: 'center',
+                                            justifyContent: 'center', margin: '0 auto 20px',
+                                            border: '1px solid rgba(245,158,11,0.2)'
+                                        }}>
+                                            <Clock size={32} style={{ color: '#f59e0b' }} />
+                                        </div>
+                                        
+                                        <h3 style={{ color: '#f1f5f9', fontSize: '1.25rem', fontWeight: 900, marginBottom: '8px' }}>
+                                            Confirmar Apertura
+                                        </h3>
+                                        <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '24px' }}>
+                                            Establezca el <b>Día y Hora</b> exactos en que se realizó la maniobra en la Obra de Toma.
+                                        </p>
+
+                                        <div style={{ marginBottom: '24px', textAlign: 'left' }}>
+                                            <label style={{ color: '#e2e8f0', fontSize: '0.75rem', fontWeight: 700, display: 'block', marginBottom: '8px' }}>
+                                                Fecha y Hora de Apertura
+                                            </label>
+                                            <input 
+                                                type="datetime-local" 
+                                                value={tempAperturaDatetime} 
+                                                onChange={e => setTempAperturaDatetime(e.target.value)}
+                                                style={{ 
+                                                    display: 'block', width: '100%', padding: '12px', 
+                                                    background: '#1e293b', border: '1px solid #334155', 
+                                                    borderRadius: '10px', color: '#f1f5f9', fontSize: '1rem',
+                                                    outline: 'none'
+                                                }} 
+                                            />
+                                        </div>
+
+                                        <div style={{ display: 'flex', gap: '12px' }}>
+                                            <button
+                                                onClick={() => setShowAperturaModal(false)}
+                                                style={{ flex: 1, padding: '12px', background: 'transparent', color: '#94a3b8', border: '1px solid #334155', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button
+                                                onClick={handleConfirmarApertura}
+                                                style={{ 
+                                                    flex: 1, padding: '12px', 
+                                                    background: 'linear-gradient(135deg, #f59e0b, #d97706)', 
+                                                    color: '#0f172a', border: 'none', borderRadius: '12px', 
+                                                    cursor: 'pointer', fontWeight: 900, fontSize: '0.9rem', 
+                                                    textTransform: 'uppercase', letterSpacing: '0.05em' 
+                                                }}
+                                            >
+                                                Confirmar
                                             </button>
                                         </div>
                                     </div>

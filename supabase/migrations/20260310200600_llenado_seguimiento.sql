@@ -9,7 +9,7 @@
 CREATE TABLE IF NOT EXISTS public.sica_llenado_seguimiento (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     evento_id UUID NOT NULL REFERENCES public.sica_eventos_log(id) ON DELETE CASCADE,
-    ciclo_id UUID REFERENCES public.ciclos_agricolas(id),
+    ciclo_id TEXT REFERENCES public.ciclos_agricolas(id),
     
     -- Punto de control (ligado a escalas reales)
     escala_id TEXT REFERENCES public.escalas(id),

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Timer, MapPin, Clock, CheckCircle2, AlertTriangle, Lock } from 'lucide-react';
 import { useLlenadoTracker } from '../hooks/useLlenadoTracker';
 import type { PuntoControl, LlenadoEstado } from '../hooks/useLlenadoTracker';
+import TransicionProtocolo from './TransicionProtocolo';
 import './LlenadoTracker.css';
 
 interface Props {
@@ -220,20 +221,30 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
     const [confirNivel, setConfirNivel] = useState('');
     const [confirGasto, setConfirGasto] = useState('');
     const [confirNotas, setConfirNotas] = useState('');
+    const [confirDatetime, setConfirDatetime] = useState('');
 
     const handleConfirmar = (punto: PuntoControl) => {
         setSelectedPunto(punto);
         setConfirNivel('');
         setConfirGasto('');
         setConfirNotas('');
+        
+        // Inicializar con la fecha/hora actual local
+        const now = new Date();
+        const offset = now.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(now.getTime() - offset)).toISOString().slice(0, 16);
+        setConfirDatetime(localISOTime);
+        
         setShowConfirmModal(true);
     };
 
     const ejecutarConfirmacion = async () => {
-        if (!selectedPunto?.id) return;
+        if (!selectedPunto?.id || !confirDatetime) return;
+        
+        const selectedDate = new Date(confirDatetime);
         await confirmarArribo(
             selectedPunto.id,
-            new Date().toISOString(),
+            selectedDate.toISOString(),
             confirNivel ? parseFloat(confirNivel) : undefined,
             confirGasto ? parseFloat(confirGasto) : undefined,
             confirNotas || undefined
@@ -256,6 +267,15 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
 
     const confirmados = puntos.filter(p => p.hora_real).length;
     const total = puntos.length;
+
+    // Calcular día operacional del llenado
+    const diaLlenado = (() => {
+        if (!horaApertura) return 0;
+        const apertura = new Date(horaApertura);
+        const hoy = new Date();
+        const diffMs = hoy.getTime() - apertura.getTime();
+        return Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    })();
 
     return (
         <div style={{ position: 'relative' }}>
@@ -282,7 +302,18 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                             </p>
                         </div>
                     </div>
-                    <EstadoBadge estado={estadoGeneral} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {diaLlenado > 0 && (
+                            <span style={{
+                                padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem',
+                                fontWeight: 800, color: '#22d3ee',
+                                background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.2)'
+                            }}>
+                                📅 Día {diaLlenado}
+                            </span>
+                        )}
+                        <EstadoBadge estado={estadoGeneral} />
+                    </div>
                 </div>
 
                 {/* Info de apertura */}
@@ -340,6 +371,14 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                 ))}
             </div>
 
+            {/* Panel de Transición LLENADO → ESTABILIZACIÓN */}
+            {eventoId && estadoGeneral !== 'PREPARACION' && (
+                <TransicionProtocolo
+                    eventoId={eventoId}
+                    onTransicionCompletada={() => window.location.reload()}
+                />
+            )}
+
             {/* Modal de confirmación de arribo */}
             {showConfirmModal && selectedPunto && (
                 <div style={{
@@ -358,6 +397,22 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                         <p style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '20px' }}>
                             {selectedPunto.punto_nombre} — KM {selectedPunto.km}
                         </p>
+
+                        <div style={{ marginBottom: '12px' }}>
+                            <label style={{ color: '#e2e8f0', fontSize: '0.7rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                                Fecha y Hora Real de Arribo
+                            </label>
+                            <input 
+                                type="datetime-local" 
+                                value={confirDatetime} 
+                                onChange={e => setConfirDatetime(e.target.value)}
+                                style={{ 
+                                    display: 'block', width: '100%', padding: '10px', 
+                                    background: '#1e293b', border: '1px solid #334155', 
+                                    borderRadius: '8px', color: '#f1f5f9', fontSize: '0.9rem' 
+                                }} 
+                            />
+                        </div>
 
                         <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                             <label style={{ flex: 1, color: '#e2e8f0', fontSize: '0.7rem', fontWeight: 700 }}>

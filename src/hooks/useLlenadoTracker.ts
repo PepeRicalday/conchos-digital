@@ -164,8 +164,16 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
             return;
         }
 
+        // Deduplicar por km (quedarse con el primero de cada km)
+        const seen = new Set<number>();
+        const deduped = (data || []).filter(d => {
+            if (seen.has(d.km)) return false;
+            seen.add(d.km);
+            return true;
+        });
+
         const now = Date.now();
-        const mapped: PuntoControl[] = (data || []).map(d => ({
+        const mapped: PuntoControl[] = deduped.map(d => ({
             ...d,
             seconds_remaining: d.hora_estimada_actual
                 ? Math.max(0, (new Date(d.hora_estimada_actual).getTime() - now) / 1000)

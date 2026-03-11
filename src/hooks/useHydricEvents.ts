@@ -76,35 +76,57 @@ export const useHydricEvents = () => {
                 console.log(`✅ [HydricEvents] Desactivados ${count ?? '?'} eventos anteriores`);
             }
 
-            // 3. Insertar nuevo protocolo
-            console.log('📝 [HydricEvents] Insertando nuevo protocolo...');
-            const insertPayload = {
-                evento_tipo: tipo,
-                notas: extras.notas || '',
-                esta_activo: true,
-                autorizado_por: userData.user?.id || null,
-                gasto_solicitado_m3s: extras.gasto_solicitado_m3s || null,
-                porcentaje_apertura_presa: extras.porcentaje_apertura_presa || null,
-                valvulas_activas: extras.valvulas_activas || null,
-                hora_apertura_real: extras.hora_apertura_real || null
-            };
-            console.log('📝 [HydricEvents] Payload:', JSON.stringify(insertPayload));
-
+            // 3. Insertar nuevo protocolo (solo campos base garantizados)
+            console.log('📝 [HydricEvents] Insertando nuevo protocolo (campos base)...');
             const { data: insertedData, error: insertError } = await supabase
                 .from('sica_eventos_log')
-                .insert(insertPayload)
+                .insert({
+                    evento_tipo: tipo,
+                    notas: extras.notas || '',
+                    esta_activo: true,
+                    autorizado_por: userData.user?.id || null
+                })
                 .select()
                 .single();
 
             if (insertError) {
                 console.error('❌ [HydricEvents] ERROR DE INSERT:', insertError);
-                console.error('❌ [HydricEvents] Código:', insertError.code);
-                console.error('❌ [HydricEvents] Detalle:', insertError.details);
-                console.error('❌ [HydricEvents] Hint:', insertError.hint);
                 throw insertError;
             }
 
-            console.log('✅ [HydricEvents] PROTOCOLO REGISTRADO:', insertedData);
+            console.log('✅ [HydricEvents] Protocolo base registrado:', insertedData);
+
+            // 4. Intentar actualizar con campos técnicos (pueden no existir en la tabla)
+            if (extras.gasto_solicitado_m3s || extras.porcentaje_apertura_presa || extras.valvulas_activas || extras.hora_apertura_real) {
+                console.log('📝 [HydricEvents] Intentando agregar datos técnicos...');
+                const techUpdate: Record<string, any> = {};
+                if (extras.gasto_solicitado_m3s) techUpdate.gasto_solicitado_m3s = extras.gasto_solicitado_m3s;
+                if (extras.porcentaje_apertura_presa) techUpdate.porcentaje_apertura_presa = extras.porcentaje_apertura_presa;
+                if (extras.valvulas_activas) techUpdate.valvulas_activas = extras.valvulas_activas;
+                if (extras.hora_apertura_real) techUpdate.hora_apertura_real = extras.hora_apertura_real;
+
+                const { error: techError } = await supabase
+                    .from('sica_eventos_log')
+                    .update(techUpdate)
+                    .eq('id', insertedData.id);
+
+                if (techError) {
+                    console.warn('⚠️ [HydricEvents] Columnas técnicas no disponibles en DB (ejecutar migración):', techError.message);
+                    // NO lanzamos error - el protocolo base ya se registró exitosamente
+                } else {
+                    console.log('✅ [HydricEvents] Datos técnicos agregados');
+                    // Re-leer el registro con los datos técnicos
+                    const { data: updated } = await supabase
+                        .from('sica_eventos_log')
+                        .select('*')
+                        .eq('id', insertedData.id)
+                        .single();
+                    if (updated) {
+                        setActiveEvent(updated);
+                        return; // Ya seteamos, salimos antes del setActiveEvent de abajo
+                    }
+                }
+            }
             
             // 4. Actualizar estado local inmediatamente
             setActiveEvent(insertedData);

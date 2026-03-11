@@ -101,20 +101,13 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
 
             if (escErr) throw escErr;
 
-            // Obtener ciclo activo
-            const { data: cicloData } = await supabase
-                .from('ciclos_agricolas')
-                .select('id')
-                .eq('activo', true)
-                .limit(1)
-                .maybeSingle();
+
+
 
             // Construir lista de puntos: KM 0 + todas las escalas
             const puntosInsert = [
                 {
                     evento_id: eventoId,
-                    ciclo_id: cicloData?.id || null,
-                    escala_id: null,
                     punto_nombre: 'KM 0+000',
                     km: 0,
                     orden_secuencial: 0,
@@ -122,8 +115,6 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
                 },
                 ...(escalas || []).map((esc, i) => ({
                     evento_id: eventoId,
-                    ciclo_id: cicloData?.id || null,
-                    escala_id: esc.id,
                     punto_nombre: esc.nombre,
                     km: esc.km,
                     orden_secuencial: i + 1,

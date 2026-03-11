@@ -525,32 +525,33 @@ const InteligenciaHidrica = () => {
                                     <button
                                         key={evt.id}
                                         className={`protocol-btn group border-2 ${activeEvent?.evento_tipo === evt.id ? 'active scale-[1.02] bg-white/[0.05]' : ''}`}
-                                        onDoubleClick={() => {
+                                        onClick={() => {
+                                            // Confirmación de seguridad antes de cambiar protocolo
+                                            const confirmChange = window.confirm(
+                                                `¿Confirmas la activación del protocolo "${evt.label}"?\n\nEsto desactivará cualquier protocolo vigente.`
+                                            );
+                                            if (!confirmChange) return;
+
                                             if (evt.id === 'LLENADO') {
                                                 const q = prompt('Gasto solicitado (m3/s):', '60');
+                                                if (!q) return;
                                                 const aps = prompt('Porcentaje apertura presa (%):', '100');
+                                                if (!aps) return;
                                                 const valves = prompt('Válvulas activas (separadas por coma):', 'V1, V2');
-                                                const notas = prompt('Notas adicionales:');
+                                                const notas = prompt('Notas adicionales:', '');
                                                 
-                                                if (q && aps) {
-                                                    activateEvent('LLENADO', {
-                                                        gasto_solicitado_m3s: parseFloat(q),
-                                                        porcentaje_apertura_presa: parseFloat(aps),
-                                                        valvulas_activas: valves?.split(',').map(s => s.trim()),
-                                                        notas: notas || '',
-                                                        hora_apertura_real: new Date().toISOString()
-                                                    });
-                                                }
+                                                activateEvent('LLENADO', {
+                                                    gasto_solicitado_m3s: parseFloat(q),
+                                                    porcentaje_apertura_presa: parseFloat(aps),
+                                                    valvulas_activas: valves?.split(',').map(s => s.trim()) || ['V1'],
+                                                    notas: notas || '',
+                                                    hora_apertura_real: new Date().toISOString()
+                                                });
                                             } else {
-                                                const notas = prompt(`Notas operativas para ${evt.label}:`);
-                                                if (notas !== null) activateEvent(evt.id as HydraulicEvent, { notas });
+                                                const notas = prompt(`Notas operativas para ${evt.label}:`, '');
+                                                if (notas === null) return;
+                                                activateEvent(evt.id as HydraulicEvent, { notas });
                                             }
-                                        }}
-                                        onClick={() => {
-                                            // El click sencillo ahora sirve para pre-visualizar o alertar si se desea, 
-                                            // pero mantenemos la lógica de prompt para asegurar la captura de datos.
-                                            // Al ser un Dashboard crítico, el doble clic confirma la acción "oficial".
-                                            toast.info(`Haz doble clic para confirmar la activación de ${evt.label}`);
                                         }}
                                         disabled={isLoadingEvents}
                                         style={{

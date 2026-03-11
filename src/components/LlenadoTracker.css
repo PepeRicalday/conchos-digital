@@ -1,0 +1,22 @@
+/* LlenadoTracker.css — Estilos para el panel de tránsito de llenado */
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.85; transform: scale(1.02); }
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+@keyframes arriboGlow {
+    0%, 100% { box-shadow: 0 0 6px rgba(16,185,129,0.2); }
+    50% { box-shadow: 0 0 20px rgba(16,185,129,0.4); }
+}
+
+/* Animación del ancla */
+@keyframes anclaRing {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34,211,238,0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(34,211,238,0); }
+}

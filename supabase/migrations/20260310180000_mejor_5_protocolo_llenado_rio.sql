@@ -47,6 +47,8 @@ $$ LANGUAGE plpgsql STABLE;
 -- 4. Actualizar vistas de predicción para incluir el "Offset de Río"
 -- Si el evento activo tiene gasto_solicitado, sumamos el tiempo del río.
 
+DROP VIEW IF EXISTS public.vw_prediccion_arribo_escalas;
+
 CREATE OR REPLACE VIEW public.vw_prediccion_arribo_escalas AS
 WITH evento_actual AS (
     SELECT 

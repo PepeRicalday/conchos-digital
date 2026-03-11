@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useHydricChat, type ChatMessage } from '../hooks/useHydricChat';
 import { useHydricKnowledge } from '../hooks/useHydricKnowledge';
 import { useHydricEvents, type HydraulicEvent } from '../hooks/useHydricEvents';
-import ArrivalPredictor from '../components/ArrivalPredictor';
+import LlenadoTracker from '../components/LlenadoTracker';
 import ProtocolGuide from '../components/ProtocolGuide';
 import { toast } from 'sonner';
 import './HydricChat.css';
@@ -93,6 +93,39 @@ const InteligenciaHidrica = () => {
     const [formApertura, setFormApertura] = useState('100');
     const [formValvulas, setFormValvulas] = useState('V1, V2');
     const [formNotas, setFormNotas] = useState('');
+    const [horaAperturaConfirmada, setHoraAperturaConfirmada] = useState<string | null>(null);
+
+    // Cargar hora_apertura_real del evento activo si ya existe
+    useEffect(() => {
+        if (activeEvent?.hora_apertura_real) {
+            setHoraAperturaConfirmada(activeEvent.hora_apertura_real);
+        } else {
+            setHoraAperturaConfirmada(null);
+        }
+    }, [activeEvent]);
+
+    const handleConfirmarApertura = async () => {
+        const horaStr = prompt('Hora exacta de apertura (HH:MM) o deja vacío para usar la hora actual:');
+        let horaFinal: string;
+        if (horaStr && /^\d{1,2}:\d{2}$/.test(horaStr.trim())) {
+            const [h, m] = horaStr.trim().split(':').map(Number);
+            const d = new Date();
+            d.setHours(h, m, 0, 0);
+            horaFinal = d.toISOString();
+        } else {
+            horaFinal = new Date().toISOString();
+        }
+        // Guardar en DB
+        if (activeEvent) {
+            const { supabase } = await import('../lib/supabase');
+            await supabase
+                .from('sica_eventos_log')
+                .update({ hora_apertura_real: horaFinal })
+                .eq('id', activeEvent.id);
+            setHoraAperturaConfirmada(horaFinal);
+            toast.success(`✅ Apertura confirmada: ${new Date(horaFinal).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+        }
+    };
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -520,7 +553,12 @@ const InteligenciaHidrica = () => {
 
                             {activeEvent?.evento_tipo === 'LLENADO' && (
                                 <div style={{ marginBottom: '32px' }}>
-                                    <ArrivalPredictor />
+                                    <LlenadoTracker
+                                        eventoId={activeEvent.id}
+                                        qSolicitado={activeEvent.gasto_solicitado_m3s || 60}
+                                        horaApertura={horaAperturaConfirmada}
+                                        onConfirmarApertura={handleConfirmarApertura}
+                                    />
                                 </div>
                             )}
 
@@ -638,7 +676,8 @@ const InteligenciaHidrica = () => {
                                                             porcentaje_apertura_presa: parseFloat(formApertura) || 100,
                                                             valvulas_activas: formValvulas.split(',').map(s => s.trim()),
                                                             notas: formNotas,
-                                                            hora_apertura_real: new Date().toISOString()
+                                                            // hora_apertura_real se confirma DESPUÉS en el LlenadoTracker
+                                                            // No cronometrar sin saber si la presa abrió realmente
                                                         });
                                                     } else {
                                                         await activateEvent(pendingEventId as HydraulicEvent, { notas: formNotas });

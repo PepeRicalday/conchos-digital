@@ -46,6 +46,13 @@ export const useHydricEvents = () => {
         try {
             const { data: userData } = await supabase.auth.getUser();
 
+            // 1. Desactivar cualquier protocolo anterior (Garantizar "Un dato, una sola verdad")
+            await supabase
+                .from('sica_eventos_log')
+                .update({ esta_activo: false })
+                .eq('esta_activo', true);
+
+            // 2. Insertar el nuevo protocolo
             const { error } = await supabase
                 .from('sica_eventos_log')
                 .insert({

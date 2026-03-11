@@ -45,17 +45,13 @@ export const useHydricEvents = () => {
 
     const activateEvent = async (tipo: HydraulicEvent, extras: Partial<SICAEventLog> = {}) => {
         setIsLoading(true);
+        console.log(`🚀 Iniciando activación de protocolo: ${tipo}`, extras);
         try {
             const { data: userData } = await supabase.auth.getUser();
 
-            // 1. Desactivar cualquier protocolo anterior (Garantizar "Un dato, una sola verdad")
-            await supabase
-                .from('sica_eventos_log')
-                .update({ esta_activo: false })
-                .eq('esta_activo', true);
-
-            // 2. Insertar el nuevo protocolo
-            const { error } = await supabase
+            // 1. Insertar el nuevo protocolo. 
+            // La exclusividad (esta_activo = false para otros) la maneja el TRIGGER tr_ensure_single_active_event
+            const { error, data } = await supabase
                 .from('sica_eventos_log')
                 .insert({
                     evento_tipo: tipo,
@@ -65,15 +61,26 @@ export const useHydricEvents = () => {
                     gasto_solicitado_m3s: extras.gasto_solicitado_m3s,
                     porcentaje_apertura_presa: extras.porcentaje_apertura_presa,
                     valvulas_activas: extras.valvulas_activas,
-                    hora_apertura_real: extras.hora_apertura_real
-                });
+                    hora_apertura_real: extras.hora_apertura_real,
+                    fecha_inicio: new Date().toISOString() // Asegurar fecha para ordenamiento
+                })
+                .select()
+                .single();
 
             if (error) throw error;
 
+            console.log('✅ Protocolo registrado en DB:', data);
             toast.success(`Protocolo ${tipo} activado exitosamente`);
-            await fetchActiveEvent();
+            
+            // Forzar actualización de estado local
+            setActiveEvent(data);
+            
+            // Pequeño delay para dejar que el trigger termine y el realtime fluya, 
+            // aunque ya seteamos el estado local arriba.
+            setTimeout(() => fetchActiveEvent(), 500);
+            
         } catch (err: any) {
-            console.error('Error activating event:', err);
+            console.error('❌ Error fatal al activar protocolo:', err);
             toast.error('Error al activar protocolo: ' + err.message);
         } finally {
             setIsLoading(false);

@@ -1,4 +1,4 @@
-import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload } from 'lucide-react';
+import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
@@ -10,6 +10,7 @@ import './GeoMonitor.css';
 import { supabase } from '../lib/supabase';
 import { ShapefileImporter, type GeoLayer } from '../components/ShapefileImporter';
 import { useAuth } from '../context/AuthContext';
+import { useHydricEvents } from '../hooks/useHydricEvents';
 import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
 
 // Fix for Leaflet icons in React
@@ -114,6 +115,38 @@ const GeoMonitor = () => {
     const [tomasVaradas, setTomasVaradas] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showVaso, setShowVaso] = useState(false);
+
+    // Eventos Hidro-Sincrónicos
+    const { activeEvent } = useHydricEvents();
+    const [maxKmLlenado, setMaxKmLlenado] = useState<number>(1000);
+
+    // Fetch Max KM for LLENADO
+    useEffect(() => {
+        if (activeEvent?.evento_tipo === 'LLENADO') {
+            const fetchMaxKm = async () => {
+                const { data } = await supabase
+                    .from('sica_llenado_seguimiento')
+                    .select('km')
+                    .eq('evento_id', activeEvent.id)
+                    .not('hora_real', 'is', null)
+                    .order('km', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                if (data) setMaxKmLlenado(data.km || 0);
+                else setMaxKmLlenado(0); // If no confirms yet, wave is at KM 0
+            };
+            fetchMaxKm();
+
+            // Realtime tracking of the wave
+            const channel = supabase.channel('geo_monitor_wave_tracking')
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sica_llenado_seguimiento' }, fetchMaxKm)
+                .subscribe();
+            
+            return () => { supabase.removeChannel(channel); };
+        } else {
+            setMaxKmLlenado(1000); // Allow all KM if not filling
+        }
+    }, [activeEvent]);
 
     // GeoJSON Layers (Shapes)
     const [geoModulos, setGeoModulos] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -691,8 +724,45 @@ const GeoMonitor = () => {
                 </div>
 
                 {/* CENTER: MAP (Prioridad 1 + 2) */}
-                <div className="geo-map-container">
+                <div className="geo-map-container" style={{ position: 'relative' }}>
                     <div className="geo-map-inner">
+                        {/* Protocol HUD Banner */}
+                        {activeEvent && (
+                            <div style={{
+                                position: 'absolute',
+                                top: 0, left: 0, right: 0, zIndex: 1000,
+                                background: activeEvent.evento_tipo === 'LLENADO' ? 'rgba(59, 130, 246, 0.9)' :
+                                           activeEvent.evento_tipo === 'ESTABILIZACION' ? 'rgba(16, 185, 129, 0.9)' :
+                                           activeEvent.evento_tipo === 'CONTINGENCIA_LLUVIA' ? 'rgba(245, 158, 11, 0.9)' :
+                                           activeEvent.evento_tipo === 'ANOMALIA_BAJA' ? 'rgba(124, 58, 237, 0.9)' : 'rgba(239, 68, 68, 0.9)',
+                                color: 'white',
+                                padding: '10px 20px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                backdropFilter: 'blur(8px)',
+                                borderBottom: '1px solid rgba(255,255,255,0.2)'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    {activeEvent.evento_tipo === 'LLENADO' ? <Droplets size={20} /> : <AlertTriangle size={20} />}
+                                    <div>
+                                        <div style={{ fontSize: '13px', fontWeight: '900', letterSpacing: '2px', textTransform: 'uppercase' }}>
+                                            PROTOCOLO: {activeEvent.evento_tipo.replace('_', ' ')}
+                                        </div>
+                                        <div style={{ fontSize: '11px', opacity: 0.9 }}>
+                                            Sincronizando directivas con la aplicación Vía Móvil de Canaleros.
+                                        </div>
+                                    </div>
+                                </div>
+                                {activeEvent.evento_tipo === 'LLENADO' && (
+                                    <div style={{ textAlign: 'right' }}>
+                                        <div style={{ fontSize: '10px', textTransform: 'uppercase', opacity: 0.9 }}>Avance de Onda (Frente)</div>
+                                        <div style={{ fontSize: '16px', fontWeight: 'bold', fontFamily: 'monospace' }}>KM {maxKmLlenado.toFixed(3)}</div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {mapReady && (
                             <MapContainer
                                 center={mapCenter} zoom={10}
@@ -937,26 +1007,30 @@ const GeoMonitor = () => {
                                 ))}
 
                                 {/* Puntos de Entrega (Tomas) */}
-                                {layers.tomas && filteredTomas.map(t => (
+                                {layers.tomas && filteredTomas.map(t => {
+                                    const isBlocked = activeEvent?.evento_tipo === 'LLENADO' && (t.km || 0) > maxKmLlenado;
+                                    const lockFillColor = '#64748b'; // Gray for empty/locked logic
+                                    
+                                    return (
                                     <CircleMarker
                                         key={t.id}
                                         center={[t.latitud, t.longitud]}
-                                        radius={t.estado !== 'cierre' ? 5 : 4}
-                                        fillColor={t.estado === 'cierre' ? '#64748b' : '#22c55e'}
-                                        color="white"
+                                        radius={t.estado !== 'cierre' && !isBlocked ? 5 : 4}
+                                        fillColor={isBlocked ? lockFillColor : (t.estado === 'cierre' ? '#64748b' : '#22c55e')}
+                                        color={isBlocked ? '#cbd5e1' : 'white'}
                                         weight={1}
-                                        fillOpacity={0.8}
+                                        fillOpacity={isBlocked ? 0.3 : 0.8}
                                         eventHandlers={{
                                             click: () => handleSelect('toma', t)
                                         }}
                                     >
                                         <Tooltip direction="top" offset={[0, -5]}>
                                             <div style={{ fontFamily: 'monospace', fontSize: 10 }}>
-                                                <b>{t.nombre}</b><br />
-                                                Estado: <span style={{ color: t.estado === 'cierre' ? '#94a3b8' : '#4ade80' }}>
-                                                    {t.estado === 'cierre' ? 'CERRADA' : 'ABIERTA'}
+                                                <b>{isBlocked ? '🔒 ' : ''}{t.nombre}</b><br />
+                                                Estado: <span style={{ color: isBlocked ? '#94a3b8' : (t.estado === 'cierre' ? '#94a3b8' : '#4ade80') }}>
+                                                    {isBlocked ? '🔒 SIN FLUJO' : (t.estado === 'cierre' ? 'CERRADA' : 'ABIERTA')}
                                                 </span><br />
-                                                {t.estado !== 'cierre' && <span>Q: {t.caudal?.toFixed(1)} LPS</span>}
+                                                {!isBlocked && t.estado !== 'cierre' && <span>Q: {t.caudal?.toFixed(1)} LPS</span>}
                                             </div>
                                         </Tooltip>
                                         <Popup>
@@ -965,14 +1039,14 @@ const GeoMonitor = () => {
                                                 <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>
                                                     Modulo: {t.modulo} | Km: {t.km?.toFixed(3)}
                                                 </div>
-                                                <div style={{ padding: '4px 8px', borderRadius: 4, background: t.estado === 'cierre' ? '#f1f5f9' : '#f0fdf4', fontSize: 11 }}>
-                                                    Estado: <b>{t.estado.toUpperCase()}</b><br />
-                                                    {t.estado !== 'cierre' && <div>Caudal: <b>{t.caudal?.toFixed(1)} LPS</b></div>}
+                                                <div style={{ padding: '4px 8px', borderRadius: 4, background: isBlocked ? '#f8fafc' : (t.estado === 'cierre' ? '#f1f5f9' : '#f0fdf4'), fontSize: 11 }}>
+                                                    Estado: <b className={isBlocked ? 'text-slate-500' : ''}>{isBlocked ? 'ESPERANDO ARRIBO' : t.estado.toUpperCase()}</b><br />
+                                                    {!isBlocked && t.estado !== 'cierre' && <div>Caudal: <b>{t.caudal?.toFixed(1)} LPS</b></div>}
                                                 </div>
                                             </div>
                                         </Popup>
                                     </CircleMarker>
-                                ))}
+                                )})}
                             </MapContainer>
                         )}
                     </div>

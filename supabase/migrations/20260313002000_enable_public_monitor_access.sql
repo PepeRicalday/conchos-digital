@@ -35,4 +35,4 @@ CREATE POLICY "Public read access for tracking"
 ON public.sica_llenado_seguimiento
 FOR SELECT
 TO anon
-USING (true);
+USING (true); (true);

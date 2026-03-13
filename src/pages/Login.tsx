@@ -111,6 +111,18 @@ const Login: React.FC = () => {
                             </>
                         )}
                     </button>
+
+                    <div className="public-access-divider">
+                        <span>O accede como observador</span>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={() => navigate('/monitor-publico')}
+                        className="public-monitor-link-button"
+                    >
+                        Ver Monitor Público
+                    </button>
                 </form>
 
                 <div className="footer-logo-section">

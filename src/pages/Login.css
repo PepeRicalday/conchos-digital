@@ -319,3 +319,49 @@
         min-height: auto;
     }
 }
+
+/* Public Access Section */
+.public-access-divider {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin: 1.5rem 0 1rem;
+    gap: 1rem;
+}
+
+.public-access-divider::before,
+.public-access-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.public-access-divider span {
+    font-size: 0.65rem;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+}
+
+.public-monitor-link-button {
+    width: 100%;
+    background: rgba(56, 189, 248, 0.05);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    color: #38bdf8;
+    padding: 0.875rem;
+    border-radius: 1rem;
+    font-weight: 700;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.public-monitor-link-button:hover {
+    background: rgba(56, 189, 248, 0.1);
+    border-color: #38bdf8;
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+}

@@ -146,8 +146,12 @@ const ProtocolGuide: React.FC<{ type: string; eventData?: SICAEventLog }> = ({ t
                 </div>
                 {eventData?.gasto_solicitado_m3s && (
                     <div style={{ marginLeft: 'auto' }}>
-                        <div className="pg-step-badge" style={{ background: 'var(--color-primary)', color: 'white' }}>
-                            {eventData.gasto_solicitado_m3s} m³/s Activo
+                        <div className="pg-step-badge" style={{ 
+                            background: eventData.hora_apertura_real ? 'var(--color-primary)' : 'rgba(245,158,11,0.15)', 
+                            color: eventData.hora_apertura_real ? 'white' : '#f59e0b',
+                            border: eventData.hora_apertura_real ? 'none' : '1px solid rgba(245,158,11,0.3)'
+                        }}>
+                            {eventData.gasto_solicitado_m3s} m³/s {eventData.hora_apertura_real ? 'Activo' : 'Programado'}
                         </div>
                     </div>
                 )}

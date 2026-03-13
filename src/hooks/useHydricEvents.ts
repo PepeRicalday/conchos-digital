@@ -149,6 +149,27 @@ export const useHydricEvents = () => {
         }
     }, [fetchActiveEvent]);
 
+    const updateEvent = useCallback(async (eventId: string, updates: Partial<SICAEventLog>) => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const { error: updateError } = await supabase
+                .from('sica_eventos_log')
+                .update(updates)
+                .eq('id', eventId);
+            
+            if (updateError) throw updateError;
+            
+            await fetchActiveEvent();
+            toast.success('✅ Protocolo actualizado');
+        } catch (err: any) {
+            setError(err.message);
+            toast.error(`❌ Error al actualizar: ${err.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [fetchActiveEvent]);
+
     useEffect(() => {
         fetchActiveEvent();
 
@@ -175,6 +196,7 @@ export const useHydricEvents = () => {
         isLoading,
         error,
         activateEvent,
+        updateEvent,
         refresh: fetchActiveEvent
     };
 };

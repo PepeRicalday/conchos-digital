@@ -59,6 +59,7 @@ interface EscalaData {
     capacidad_max: number; seccion_id: string;
     ancho: number; alto: number; pzas_radiales: number;
     nivel_actual?: number; delta_12h?: number; estado?: string;
+    apertura_radiales_m?: number;
 }
 interface PresaData {
     presa_id: string; nombre: string; latitud: number; longitud: number;
@@ -113,6 +114,8 @@ const GeoMonitor = () => {
     const [secciones, setSecciones] = useState<SeccionData[]>([]);
     const [operStats, setOperStats] = useState<OperStats>({ tomas_abiertas: 0, tomas_cerradas: 0, gasto_distribuido_m3s: 0 });
     const [tomasVaradas, setTomasVaradas] = useState<any[]>([]);
+    const [latestAforos, setLatestAforos] = useState<Record<string, any>>({});
+    const [totalDemandaProgramada, setTotalDemandaProgramada] = useState(0);
     const [loading, setLoading] = useState(true);
     const [showVaso, setShowVaso] = useState(false);
 
@@ -164,6 +167,8 @@ const GeoMonitor = () => {
         alertas: true,
         modulos: true,
         presasShape: true,
+        mostrarAforosQ: true,
+        mostrarAperturas: true,
     });
 
     const [baseLayer, setBaseLayer] = useState<'standard' | 'satellite' | 'eos'>(() => {
@@ -248,7 +253,8 @@ const GeoMonitor = () => {
     // Data Fetching (Prioridad 1)
     const fetchAllData = useCallback(async () => {
         try {
-            const todayStr = new Date().toISOString().split('T')[0];
+            // Sincronía Técnica: Usar fecha local del Distrito de Riego (Chihuahua)
+            const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Chihuahua' });
 
             // 1. Escalas base
             const { data: escData } = await supabase.from('escalas')
@@ -266,6 +272,16 @@ const GeoMonitor = () => {
                 if (!resMap.has(r.escala_id)) resMap.set(r.escala_id, r);
             });
 
+            // 1.1 Extraer aperturas de compuertas recientes
+            const { data: lecData } = await supabase.from('lecturas_escalas')
+                .select('escala_id, apertura_radiales_m, fecha, hora_lectura')
+                .order('fecha', { ascending: false }).order('hora_lectura', { ascending: false });
+            
+            const apMap = new Map<string, number>();
+            lecData?.forEach(l => {
+                if (!apMap.has(l.escala_id)) apMap.set(l.escala_id, parseFloat(l.apertura_radiales_m || 0));
+            });
+
             // Merge: todas las escalas para el perfil long., solo las con coords para el mapa
             const allMerged = (escData || []).map((e: any) => {
                 const r = resMap.get(e.id);
@@ -275,6 +291,7 @@ const GeoMonitor = () => {
                     delta_12h: r?.delta_12h !== null && r?.delta_12h !== undefined ? parseFloat(r.delta_12h) : undefined,
                     estado: r?.estado || 'sin_datos',
                     fecha_lectura: r?.fecha || null,
+                    apertura_radiales_m: apMap.get(e.id) || 0,
                 };
             });
             // Solo las que tienen coordenadas van al mapa
@@ -301,9 +318,19 @@ const GeoMonitor = () => {
                 }
             });
             setPresas(Array.from(presasMap.values()));
-
-            // 3. Puntos de Aforo
+            
+            // 3. Puntos de Aforo y sus últimas lecturas
             const { data: afData } = await supabase.from('aforos_control').select('id, nombre_punto, latitud, longitud');
+            const { data: afMedData } = await supabase.from('aforos')
+                .select('punto_control_id, gasto_calculado_m3s, fecha, hora_inicio')
+                .order('fecha', { ascending: false }).order('hora_inicio', { ascending: false });
+            
+            const afResult: Record<string, any> = {};
+            afMedData?.forEach(m => {
+                if (!afResult[m.punto_control_id]) afResult[m.punto_control_id] = m;
+            });
+            setLatestAforos(afResult);
+
             setAforos((afData || []).filter((a: any) => a.latitud && a.longitud).map((a: any) => ({
                 ...a, latitud: parseFloat(a.latitud), longitud: parseFloat(a.longitud)
             })));
@@ -314,19 +341,26 @@ const GeoMonitor = () => {
                 ...s, km_inicio: parseFloat(s.km_inicio), km_fin: parseFloat(s.km_fin)
             })));
 
-            // 5. Operación del día
-            const { data: opData } = await supabase.rpc('get_today_operation_stats').maybeSingle();
-            if (opData) setOperStats(opData as OperStats);
-            else {
-                // Fallback manual query
+            // 5. Operación del día (Metrics Sidebar)
+            try {
+                const { data: opData, error: rpcError } = await supabase.rpc('get_today_operation_stats', { p_fecha: todayStr }).maybeSingle();
+                if (opData && !rpcError) {
+                    setOperStats(opData as OperStats);
+                } else {
+                    throw new Error(rpcError?.message || 'RPC fallback needed');
+                }
+            } catch (rpcErr) {
+                // Fallback manual query si el RPC falla o no existe aún
                 const { data: rData } = await supabase.from('reportes_operacion').select('estado, caudal_promedio').eq('fecha', todayStr);
-                if (rData) {
+                if (rData && rData.length > 0) {
                     const open = rData.filter((r: any) => ['inicio', 'continua', 'reabierto', 'modificacion'].includes(r.estado));
                     setOperStats({
                         tomas_abiertas: open.length,
                         tomas_cerradas: rData.length - open.length,
                         gasto_distribuido_m3s: open.reduce((s: number, r: any) => s + parseFloat(r.caudal_promedio || 0), 0)
                     });
+                } else {
+                    setOperStats({ tomas_abiertas: 0, tomas_cerradas: 0, gasto_distribuido_m3s: 0 });
                 }
             }
 
@@ -358,6 +392,11 @@ const GeoMonitor = () => {
                     caudal: roMap.get(p.id)?.caudal_promedio ? parseFloat(roMap.get(p.id).caudal_promedio) : 0
                 }));
             setTomas(mergedTomas);
+
+            // 8. Demanda Total (Suma de caudales objetivos de los módulos)
+            const { data: modData } = await supabase.from('modulos').select('caudal_objetivo');
+            const totalDemanda = (modData || []).reduce((acc, curr) => acc + (parseFloat(curr.caudal_objetivo) || 0), 0);
+            setTotalDemandaProgramada(totalDemanda);
 
         } catch (e) {
             console.error('GeoMonitor fetch error:', e);
@@ -466,75 +505,159 @@ const GeoMonitor = () => {
     };
     const gastoEntrada = calcGasto(escalaEntrada);
     const gastoSalida = calcGasto(escalaSalida);
-    const gaugeValue = nivelEntrada ?? 0;
+    
+    // Cálculo de Salud Operativa Global (MEJ-5)
+    // Eficiencia = Gasto Distribuido / Gasto Entrada
+    // Si no hay gasto de entrada, usamos el balance vs demanda programada
+    const eficienciaReal = (gastoEntrada && gastoEntrada > 0) 
+        ? (operStats.gasto_distribuido_m3s / gastoEntrada) * 100 
+        : (totalDemandaProgramada > 0) 
+            ? (operStats.gasto_distribuido_m3s / totalDemandaProgramada) * 100
+            : 0;
 
     const chartGaugeOptions = {
         series: [{
-            type: 'gauge', center: ['50%', '55%'],
-            startAngle: 200, endAngle: -20, min: 0, max: 4, splitNumber: 8,
+            type: 'gauge', 
+            center: ['50%', '60%'],
+            startAngle: 210, 
+            endAngle: -30, 
+            min: 0, 
+            max: 120, 
+            splitNumber: 6,
             progress: {
-                show: true, width: 12,
-                itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#0ea5e9' }, { offset: 1, color: '#3b82f6' }]) }
+                show: true, width: 14, roundCap: true,
+                itemStyle: { 
+                    color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                        { offset: 0, color: '#06b6d4' }, 
+                        { offset: 1, color: '#22d3ee' }
+                    ]) 
+                }
             },
-            pointer: { show: true, length: '60%', width: 4, itemStyle: { color: '#22d3ee' } },
-            axisLine: { lineStyle: { width: 12, color: [[0.6, '#0ea5e9'], [0.8, '#f59e0b'], [1, '#ef4444']] } },
+            pointer: { 
+                show: true, length: '65%', width: 5, 
+                itemStyle: { color: '#0ea5e9' } 
+            },
+            axisLine: { 
+                lineStyle: { 
+                    width: 14, 
+                    color: [[0.7, '#ef4444'], [0.85, '#f59e0b'], [1, '#10b981']] 
+                } 
+            },
             axisTick: { show: false },
-            splitLine: { distance: -18, length: 12, lineStyle: { color: 'rgba(255, 255, 255, 0.2)', width: 2 } },
-            axisLabel: { distance: 12, color: '#94a3b8', fontSize: 10, fontFamily: 'var(--geo-font-mono)' },
-            detail: { valueAnimation: true, formatter: '{value}', color: '#fff', fontSize: 26, fontWeight: 900, offsetCenter: [0, '10%'], fontFamily: 'var(--geo-font-mono)' },
-            data: [{ value: parseFloat(gaugeValue.toFixed(2)), name: `${escalaEntrada?.nombre || 'K-23'} — Nivel (m)` }],
-            title: { offsetCenter: [0, '70%'], color: '#22d3ee', fontSize: 10, fontFamily: 'var(--geo-font-sans)', fontWeight: 600 }
+            splitLine: { distance: -18, length: 12, lineStyle: { color: 'rgba(255, 255, 255, 0.1)', width: 2 } },
+            axisLabel: { distance: 18, color: '#475569', fontSize: 10, fontFamily: 'var(--geo-font-mono)' },
+            detail: { 
+                valueAnimation: true, 
+                formatter: '{value}%', 
+                color: '#fff', 
+                fontSize: 28, 
+                fontWeight: 900, 
+                offsetCenter: [0, '25%'], 
+                fontFamily: 'var(--geo-font-mono)' 
+            },
+            data: [{ 
+                value: parseFloat(eficienciaReal.toFixed(1)), 
+                name: 'Salud Operacional' 
+            }],
+            title: { 
+                offsetCenter: [0, '75%'], 
+                color: '#94a3b8', 
+                fontSize: 10, 
+                fontFamily: 'var(--geo-font-sans)', 
+                fontWeight: 700,
+                textTransform: 'uppercase'
+            }
         }]
     };
 
-    // Perfil Longitudinal (Prioridad 3.2)
+    // Perfil Longitudinal Premium (Prioridad 3.2)
     const profileOptions = {
         backgroundColor: 'transparent',
-        grid: { left: 35, right: 10, top: 10, bottom: 22 },
+        grid: { left: 35, right: 15, top: 20, bottom: 25 },
         xAxis: {
             type: 'category' as const,
             data: escalas.map(e => `K${Math.round(e.km)}`),
-            axisLabel: { color: '#64748b', fontSize: 8, rotate: 45 },
-            axisLine: { lineStyle: { color: '#334155' } },
+            axisLabel: { color: '#475569', fontSize: 8, rotate: 0, fontWeight: 700 },
+            axisLine: { lineStyle: { color: 'rgba(51, 65, 85, 0.3)' } },
+            axisTick: { show: false }
         },
         yAxis: {
             type: 'value' as const,
-            axisLabel: { color: '#64748b', fontSize: 9, formatter: '{value}m' },
+            min: 0,
+            max: 4.5,
+            axisLabel: { color: '#475569', fontSize: 9, formatter: '{value}m', fontFamily: 'var(--geo-font-mono)' },
             axisLine: { show: false },
-            splitLine: { lineStyle: { color: '#1e293b' } },
+            splitLine: { lineStyle: { color: 'rgba(51, 65, 85, 0.1)', type: 'dashed' } },
         },
-        series: [{
-            data: escalas.map(e => e.nivel_actual ?? 0),
-            type: 'line' as const,
-            smooth: true,
-            symbol: 'circle',
-            symbolSize: 6,
-            lineStyle: { color: '#22d3ee', width: 2 },
-            itemStyle: { color: '#22d3ee', borderColor: '#0f172a', borderWidth: 2 },
-            areaStyle: {
-                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                    { offset: 0, color: 'rgba(34, 211, 238, 0.25)' },
-                    { offset: 1, color: 'rgba(34, 211, 238, 0.02)' }
-                ])
+        series: [
+            {
+                name: 'Nivel Óptimo',
+                type: 'line',
+                data: escalas.map(() => 3.2), // Línea Ideal
+                symbol: 'none',
+                lineStyle: { color: 'rgba(16, 185, 129, 0.2)', width: 1, type: 'dashed' },
+                markArea: {
+                    silent: true,
+                    itemStyle: { color: 'rgba(16, 185, 129, 0.03)' },
+                    data: [[{ yAxis: 2.8 }, { yAxis: 3.4 }]]
+                }
             },
-            markLine: {
-                silent: true,
-                symbol: ['none', 'none'],
-                data: [
-                    { yAxis: 2.8, lineStyle: { color: '#f59e0b', type: 'dashed', opacity: 0.6 }, label: { show: true, position: 'end', formatter: 'Min 2.8m', color: '#f59e0b', fontSize: 8 } },
-                    { yAxis: 3.4, lineStyle: { color: '#ef4444', type: 'dashed', opacity: 0.6 }, label: { show: true, position: 'end', formatter: 'Max 3.4m', color: '#ef4444', fontSize: 8 } }
-                ]
+            {
+                data: escalas.map(e => e.nivel_actual ?? 0),
+                type: 'line' as const,
+                smooth: true,
+                symbol: 'circle',
+                symbolSize: 8,
+                lineStyle: { 
+                    color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                        { offset: 0, color: '#06b6d4' },
+                        { offset: 1, color: '#3b82f6' }
+                    ]), 
+                    width: 4,
+                    shadowBlur: 10,
+                    shadowColor: 'rgba(6, 182, 212, 0.4)'
+                },
+                itemStyle: { 
+                    color: '#fff', 
+                    borderColor: '#22d3ee', 
+                    borderWidth: 2,
+                    shadowBlur: 5,
+                    shadowColor: 'rgba(0,0,0,0.5)'
+                },
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: 'rgba(6, 182, 212, 0.3)' },
+                        { offset: 1, color: 'rgba(6, 182, 212, 0)' }
+                    ])
+                }
             }
-        }],
+        ],
         tooltip: {
             trigger: 'axis' as const,
-            backgroundColor: 'rgba(15, 23, 42, 0.85)',
-            borderColor: 'rgba(34, 211, 238, 0.3)',
-            textStyle: { color: '#e2e8f0', fontSize: 11, fontFamily: 'var(--geo-font-sans)' },
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            borderColor: '#22d3ee',
+            padding: [10, 15],
+            textStyle: { color: '#f8fafc', fontSize: 12, fontFamily: 'var(--geo-font-sans)' },
             formatter: (params: any) => {
-                const p = params[0];
-                const esc = escalas[p.dataIndex];
-                return `<b style="font-weight:800">${esc?.nombre}</b><br/><span style="color:#94a3b8;font-size:10px;text-transform:uppercase">Nivel</span> <span style="color:#22d3ee;font-weight:800;font-family:var(--geo-font-mono)">${p.value} m</span><br/><span style="color:#64748b;font-size:10px">Km: ${esc?.km}</span>`;
+                const dataIndex = params[0].dataIndex;
+                const esc = escalas[dataIndex];
+                const level = esc?.nivel_actual;
+                const status = (level ?? 0) > 3.4 ? 'CRÍTICO (+)' : (level ?? 0) < 2.8 ? 'CRÍTICO (-)' : 'ÓPTIMO';
+                const statusColor = status === 'ÓPTIMO' ? '#10b981' : '#ef4444';
+                
+                return `
+                    <div style="min-width: 140px">
+                        <div style="font-weight: 800; font-size: 14px; margin-bottom: 4px; color: #fff">${esc?.nombre} <small style="color: #64748b">KM ${esc?.km}</small></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+                            <span style="color: #94a3b8; font-size: 10px; font-weight: 700">ESTADO</span>
+                            <span style="color: ${statusColor}; font-size: 10px; font-weight: 900">${status}</span>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; display: flex; align-items: baseline; gap: 4px">
+                            <span style="color: #22d3ee; font-size: 20px; font-weight: 900; font-family: var(--geo-font-mono)">${level ?? '—'}</span>
+                            <span style="color: #64748b; font-size: 12px; font-weight: 600">metros</span>
+                        </div>
+                    </div>
+                `;
             }
         },
     };
@@ -700,6 +823,28 @@ const GeoMonitor = () => {
                             <Upload size={20} />
                         </button>
                     )}
+
+                    <div className="geo-layer-divider" style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '8px 4px' }}></div>
+
+                    {/* Visual Toggles (User Request Improvements) */}
+                    <button
+                        className={clsx('geo-control-btn', layers.mostrarAforosQ ? 'active' : 'default')}
+                        onClick={() => toggleLayer('mostrarAforosQ')}
+                        title="Ver Gastos de Aforos de Control"
+                        style={{ color: layers.mostrarAforosQ ? '#f59e0b' : '' }}
+                    >
+                        <TrendingUp size={20} />
+                        {layers.mostrarAforosQ && <span className="geo-indicator-dot" style={{ background: '#f59e0b' }}></span>}
+                    </button>
+                    <button
+                        className={clsx('geo-control-btn', layers.mostrarAperturas ? 'active' : 'default')}
+                        onClick={() => toggleLayer('mostrarAperturas')}
+                        title="Ver Apertura de Compuertas"
+                        style={{ color: layers.mostrarAperturas ? '#22d3ee' : '' }}
+                    >
+                        <Gauge size={20} />
+                        {layers.mostrarAperturas && <span className="geo-indicator-dot" style={{ background: '#22d3ee' }}></span>}
+                    </button>
 
                     <div className="geo-layer-divider" style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '8px 4px' }}></div>
 
@@ -1006,25 +1151,40 @@ const GeoMonitor = () => {
                                                 ) : (
                                                     <span style={{ color: '#64748b' }}>Sin lectura hoy</span>
                                                 )}
-                                                {esc.pzas_radiales > 0 && (
-                                                    <span style={{ fontSize: 9, color: '#94a3b8' }}>{esc.pzas_radiales} radiales ({esc.ancho}×{esc.alto}m)</span>
+                                                {layers.mostrarAperturas && esc.pzas_radiales > 0 && (
+                                                    <div style={{ marginTop: 4, padding: '4px 6px', background: 'rgba(34, 211, 238, 0.1)', border: '1px solid rgba(34, 211, 238, 0.2)', borderRadius: 4 }}>
+                                                        <span style={{ fontSize: 9, color: '#94a3b8' }}>Apertura Compuertas:</span><br />
+                                                        <b style={{ color: '#fff', fontSize: 13 }}>{(esc.apertura_radiales_m || 0) > 0 ? `${(esc.apertura_radiales_m || 0).toFixed(2)} m` : 'CERRADAS'}</b>
+                                                        <div style={{ fontSize: 8, color: '#64748b' }}>{esc.pzas_radiales} radiales ({esc.ancho}×{esc.alto}m)</div>
+                                                    </div>
                                                 )}
                                             </div>
                                         </Tooltip>
                                     </CircleMarker>
                                 ))}
 
-                                {/* Prioridad 1.2: Puntos de Aforo */}
-                                {layers.escalas && aforos.map(af => (
-                                    <Marker key={af.id} position={[af.latitud, af.longitud]} icon={aforoIcon}>
-                                        <Tooltip direction="top" offset={[0, -12]}>
-                                            <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
-                                                <b>📐 {af.nombre_punto}</b><br />
-                                                Punto de Aforo Oficial
-                                            </span>
-                                        </Tooltip>
-                                    </Marker>
-                                ))}
+                                 {/* Prioridad 1.2: Puntos de Aforo */}
+                                {layers.escalas && aforos.map(af => {
+                                    const m = latestAforos[af.id];
+                                    return (
+                                        <Marker key={af.id} position={[af.latitud, af.longitud]} icon={aforoIcon}>
+                                            <Tooltip direction="top" offset={[0, -12]}>
+                                                <div style={{ fontFamily: 'monospace', fontSize: 11, minWidth: 160 }}>
+                                                    <b style={{ color: '#f59e0b' }}>📐 {af.nombre_punto}</b><br />
+                                                    <span style={{ fontSize: 9 }}>Histórico de Aforo de Control</span><br />
+                                                    {layers.mostrarAforosQ && m ? (
+                                                        <div style={{ marginTop: 4, padding: '4px 6px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: 4 }}>
+                                                            Gasto: <b style={{ color: '#fff', fontSize: 14 }}>{m.gasto_calculado_m3s?.toFixed(2)} <small>m³/s</small></b><br />
+                                                            <span style={{ fontSize: 8 }}>{m.fecha} @ {m.hora_inicio}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span style={{ color: '#64748b', fontSize: 9 }}>{layers.mostrarAforosQ ? 'Sin mediciones recientes' : ''}</span>
+                                                    )}
+                                                </div>
+                                            </Tooltip>
+                                        </Marker>
+                                    );
+                                })}
 
                                 {/* Prioridad 1.1: Presas */}
                                 {layers.tomas && presas.map(p => (
@@ -1064,11 +1224,11 @@ const GeoMonitor = () => {
                                     <CircleMarker
                                         key={t.id}
                                         center={[t.latitud, t.longitud]}
-                                        radius={t.estado !== 'cierre' && !isBlocked ? 5 : 4}
-                                        fillColor={isBlocked ? lockFillColor : (t.estado === 'cierre' ? '#64748b' : '#22c55e')}
-                                        color={isBlocked ? '#cbd5e1' : 'white'}
-                                        weight={1}
-                                        fillOpacity={isBlocked ? 0.3 : 0.8}
+                                        radius={t.estado !== 'cierre' && !isBlocked ? 7 : 5}
+                                        fillColor={isBlocked ? lockFillColor : (t.estado === 'cierre' ? '#475569' : '#22c55e')}
+                                        color={isBlocked ? '#cbd5e1' : (t.estado === 'cierre' ? 'rgba(255,255,255,0.4)' : '#fff')}
+                                        weight={t.estado !== 'cierre' ? 2 : 1}
+                                        fillOpacity={isBlocked ? 0.3 : (t.estado === 'cierre' ? 0.6 : 0.9)}
                                         eventHandlers={{
                                             click: () => handleSelect('toma', t)
                                         }}
@@ -1127,7 +1287,7 @@ const GeoMonitor = () => {
                                     {selectedPoint.type === 'escala' && <Gauge size={16} className="cyan" />}
                                     {selectedPoint.type === 'toma' && <Droplets size={16} className="green" />}
                                     {selectedPoint.type === 'presa' && <Droplets size={16} className="blue" />}
-                                    <h3>{selectedPoint.data.nombre}</h3>
+                                    <h3>{selectedPoint.data?.nombre || 'Elemento sin nombre'}</h3>
                                 </div>
                                 <button className="geo-detail-close" onClick={() => setSelectedPoint(null)}>×</button>
                             </div>
@@ -1149,6 +1309,20 @@ const GeoMonitor = () => {
                                                 <label>Gasto Calc.</label>
                                                 <strong>{calcGasto(selectedPoint.data)?.toFixed(2) ?? '—'} <small>m³/s</small></strong>
                                             </div>
+                                            {selectedPoint.data?.pzas_radiales > 0 && (
+                                                <div className="detail-stat full" style={{ marginTop: 8, padding: 8, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                                                    <label>Control de Represa ({selectedPoint.data.pzas_radiales} Compuertas)</label>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                            <span style={{ fontSize: 10, color: '#94a3b8' }}>Apertura Promedio</span>
+                                                            <span style={{ fontSize: 18, fontWeight: 800, color: '#22d3ee' }}>{selectedPoint.data.apertura_radiales_m || '0.00'} <small>m</small></span>
+                                                        </div>
+                                                        <div style={{ height: 32, width: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: '1px solid rgba(34, 211, 238, 0.2)', background: 'rgba(34, 211, 238, 0.05)' }}>
+                                                            <Gauge size={16} className="cyan" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </>
                                     )}
                                     {selectedPoint.type === 'toma' && (
@@ -1204,7 +1378,7 @@ const GeoMonitor = () => {
 
                     {/* KPI Cards vinculados a SICA */}
                     <div className="geo-kpi-grid">
-                        <div className="geo-kpi-card">
+                        <div className="geo-kpi-card" onClick={() => escalaEntrada && handleSelect('escala', escalaEntrada)}>
                             <div className="geo-kpi-label">
                                 <Gauge size={12} /> Nivel Entrada ({escalaEntrada?.nombre || 'K-23'})
                             </div>
@@ -1213,7 +1387,7 @@ const GeoMonitor = () => {
                             </div>
                             {gastoEntrada && <div style={{ fontSize: 9, color: '#64748b', marginTop: 2, fontFamily: 'monospace' }}>Q: {gastoEntrada.toFixed(2)} m³/s</div>}
                         </div>
-                        <div className="geo-kpi-card">
+                        <div className="geo-kpi-card" onClick={() => escalaSalida && handleSelect('escala', escalaSalida)}>
                             <div className="geo-kpi-label">
                                 <Gauge size={12} /> Nivel Salida ({escalaSalida?.nombre || 'K-94'})
                             </div>
@@ -1222,7 +1396,7 @@ const GeoMonitor = () => {
                             </div>
                             {gastoSalida && <div style={{ fontSize: 9, color: '#64748b', marginTop: 2, fontFamily: 'monospace' }}>Q: {gastoSalida.toFixed(2)} m³/s</div>}
                         </div>
-                        <div className="geo-kpi-card">
+                        <div className="geo-kpi-card" onClick={() => setActiveFilter(activeFilter === 'alert' ? 'all' : 'alert')}>
                             <div className="geo-kpi-label">
                                 <TrendingUp size={12} /> Eficiencia
                             </div>
@@ -1230,7 +1404,7 @@ const GeoMonitor = () => {
                                 {eficiencia ?? '—'}<small>%</small>
                             </div>
                         </div>
-                        <div className="geo-kpi-card">
+                        <div className="geo-kpi-card" onClick={() => setActiveFilter(activeFilter === 'alert' ? 'all' : 'alert')}>
                             <div className="geo-kpi-label">
                                 <TriangleAlert size={12} /> Pérdida
                             </div>
@@ -1271,30 +1445,33 @@ const GeoMonitor = () => {
                         </div>
                     </div>
 
-                    {/* Gauge Chart */}
+                    {/* Global Operational Health (MEJ-5) */}
                     <div className="geo-chart-card">
                         <div className="geo-stat-header">
-                            <span className="geo-stat-title">Nivel: {escalaEntrada?.nombre || 'K-23'}</span>
-                            <TrendingUp size={14} className="geo-stat-icon" />
+                            <div>
+                                <span className="geo-stat-title">SALUD OPERACIONAL GLOBAL</span>
+                                <p style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', marginTop: '2px' }}>Eficiencia Hidráulica del Sistema</p>
+                            </div>
+                            <Activity size={14} className="geo-stat-icon" style={{ color: eficienciaReal >= 90 ? '#10b981' : '#f59e0b' }} />
                         </div>
-                        <div className="geo-chart-wrapper">
-                            <ReactECharts option={chartGaugeOptions} style={{ height: '140px', width: '100%' }} opts={{ renderer: 'svg' }} />
+                        <div className="geo-chart-wrapper" style={{ marginTop: '-15px' }}>
+                            <ReactECharts option={chartGaugeOptions} style={{ height: '180px', width: '100%' }} opts={{ renderer: 'svg' }} />
                         </div>
                     </div>
 
-                    {/* Perfil Longitudinal (Prioridad 3.2) */}
+                    {/* Perfil Longitudinal Premium (Prioridad 3.2) */}
                     <div className="geo-chart-card">
-                        <div className="geo-stat-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                                <span className="geo-stat-title">Perfil Hidráulico Red Mayor</span>
-                                <Activity size={14} className="geo-stat-icon" />
+                        <div className="geo-stat-header" style={{ marginBottom: '12px' }}>
+                            <div>
+                                <span className="geo-stat-title">PERFIL HIDRÁULICO DIGITAL</span>
+                                <p style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', marginTop: '2px' }}>Comportamiento Dinámico del Canal</p>
                             </div>
-                            <span style={{ fontSize: '9px', color: '#64748b', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Comportamiento del Canal Principal Conchos</span>
+                            <TrendingUp size={14} className="geo-stat-icon" />
                         </div>
                         <div className="geo-chart-wrapper">
                             <ReactECharts
                                 option={profileOptions}
-                                style={{ height: '120px', width: '100%' }}
+                                style={{ height: '150px', width: '100%' }}
                                 opts={{ renderer: 'svg' }}
                             />
                         </div>

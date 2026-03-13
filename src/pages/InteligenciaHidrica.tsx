@@ -3,7 +3,8 @@ import {
     Brain, Send, Plus, MessageSquare, Trash2,
     Droplets, BarChart3, TrendingUp, Shield,
     AlertTriangle, ShieldOff, Sparkles, Waves,
-    Library, Upload, FileText, Loader2, Database, Clock
+    Library, Upload, FileText, Loader2, Database, Clock,
+    CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useHydricChat, type ChatMessage } from '../hooks/useHydricChat';
@@ -78,6 +79,7 @@ const InteligenciaHidrica = () => {
         activeEvent,
         isLoading: isLoadingEvents,
         activateEvent,
+        updateEvent,
         error: eventError
     } = useHydricEvents();
 
@@ -97,6 +99,8 @@ const InteligenciaHidrica = () => {
     const [horaAperturaConfirmada, setHoraAperturaConfirmada] = useState<string | null>(null);
     const [showAperturaModal, setShowAperturaModal] = useState(false);
     const [tempAperturaDatetime, setTempAperturaDatetime] = useState('');
+    const [isEditingGasto, setIsEditingGasto] = useState(false);
+    const [editGastoValue, setEditGastoValue] = useState('');
 
     // Cargar hora_apertura_real del evento activo si ya existe
     useEffect(() => {
@@ -124,15 +128,19 @@ const InteligenciaHidrica = () => {
         
         // Guardar en DB
         if (activeEvent) {
-            const { supabase } = await import('../lib/supabase');
-            await supabase
-                .from('sica_eventos_log')
-                .update({ hora_apertura_real: horaFinal })
-                .eq('id', activeEvent.id);
+            await updateEvent(activeEvent.id, { hora_apertura_real: horaFinal });
             setHoraAperturaConfirmada(horaFinal);
             setShowAperturaModal(false);
-            toast.success(`✅ Apertura confirmada: ${selectedDate.toLocaleDateString()} ${selectedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
         }
+    };
+
+    const handleUpdateGasto = async (newValue?: number) => {
+        if (!activeEvent) return;
+        const newGasto = newValue ?? parseFloat(editGastoValue);
+        if (isNaN(newGasto)) return;
+
+        await updateEvent(activeEvent.id, { gasto_solicitado_m3s: newGasto });
+        setIsEditingGasto(false);
     };
 
     // Auto-scroll to bottom
@@ -525,9 +533,41 @@ const InteligenciaHidrica = () => {
                                         )}
                                         {activeEvent.evento_tipo === 'LLENADO' && activeEvent.gasto_solicitado_m3s && (
                                             <div className="event-tech-data mt-4 flex flex-wrap gap-3 justify-center">
-                                                <div className="tech-item bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 flex flex-col items-center">
+                                                <div className="tech-item bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 flex flex-col items-center group relative">
                                                     <span className="text-[9px] uppercase font-black text-slate-500 opacity-70">Gasto Solicitado</span>
-                                                    <span className="text-sm font-black text-blue-400">{activeEvent.gasto_solicitado_m3s} m³/s</span>
+                                                    {isEditingGasto ? (
+                                                        <div className="flex items-center gap-1 mt-1">
+                                                            <input 
+                                                                type="number" 
+                                                                value={editGastoValue} 
+                                                                onChange={e => setEditGastoValue(e.target.value)}
+                                                                className="w-16 bg-slate-800 border border-blue-500 rounded px-1.5 py-0.5 text-xs text-white"
+                                                                autoFocus
+                                                            />
+                                                            <button onClick={() => handleUpdateGasto()} className="p-1 bg-emerald-500 rounded hover:bg-emerald-400">
+                                                                <CheckCircle2 size={10} className="text-white" />
+                                                            </button>
+                                                            <button onClick={() => setIsEditingGasto(false)} className="p-1 bg-rose-500 rounded hover:bg-rose-400">
+                                                                <Trash2 size={10} className="text-white" />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-sm font-black text-blue-400">{activeEvent.gasto_solicitado_m3s} m³/s</span>
+                                                            {!activeEvent.hora_apertura_real && (
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        setEditGastoValue(activeEvent.gasto_solicitado_m3s?.toString() || '');
+                                                                        setIsEditingGasto(true);
+                                                                    }}
+                                                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-white/10 rounded hover:bg-white/20"
+                                                                    title="Editar gasto"
+                                                                >
+                                                                    <Plus size={10} className="text-blue-400" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="tech-item bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 flex flex-col items-center">
                                                     <span className="text-[9px] uppercase font-black text-slate-500 opacity-70">Apertura</span>
@@ -566,6 +606,7 @@ const InteligenciaHidrica = () => {
                                         qSolicitado={activeEvent.gasto_solicitado_m3s || 60}
                                         horaApertura={horaAperturaConfirmada}
                                         onConfirmarApertura={openConfirmarApertura}
+                                        onUpdateGasto={(newGasto) => handleUpdateGasto(newGasto)}
                                     />
                                 </div>
                             )}

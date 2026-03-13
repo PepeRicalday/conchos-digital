@@ -208,11 +208,14 @@ const ImportReport = () => {
                 if (row[4]) boqNotes += `Dif Vol: ${row[4]}Mm3. `;
 
                 if (boqEscala && boqAlmacen) {
+                    // SRL Excel stores in 'Millares de m³'. We convert to 'Mm³'.
+                    const boqAlmacenMm3 = boqAlmacen > 10000 ? boqAlmacen / 1000 : boqAlmacen;
+                    
                     const { error: err1 } = await supabase.from('lecturas_presas').upsert({
                         presa_id: 'PRE-001',
                         fecha: dateStr,
                         escala_msnm: boqEscala,
-                        almacenamiento_mm3: boqAlmacen,
+                        almacenamiento_mm3: boqAlmacenMm3,
                         porcentaje_llenado: boqPct,
                         extraccion_total_m3s: boqExtraccion,
                         notas: boqNotes
@@ -245,11 +248,14 @@ const ImportReport = () => {
                     if (row[madEscalaIndex + 3]) madNotes += `Dif Vol: ${row[madEscalaIndex + 3]}Mm3. `;
 
                     if (madEscala && madAlmacen) {
+                        // SRL Excel stores in 'Millares de m³'. We convert to 'Mm³'.
+                        const madAlmacenMm3 = madAlmacen > 10000 ? madAlmacen / 1000 : madAlmacen;
+
                         const { error: err2 } = await supabase.from('lecturas_presas').upsert({
                             presa_id: 'PRE-002',
                             fecha: dateStr,
                             escala_msnm: madEscala,
-                            almacenamiento_mm3: madAlmacen,
+                            almacenamiento_mm3: madAlmacenMm3,
                             porcentaje_llenado: madPct,
                             extraccion_total_m3s: madExtraccion,
                             notas: madNotes
@@ -281,11 +287,16 @@ const ImportReport = () => {
             // 1. Save Hydraulic Data (Only for dams)
             if (activeTab !== 'delicias') {
                 const extraccion = isNaN(Number(data.extraccion_total)) ? 0 : Number(data.extraccion_total);
+                let almacenamiento = Number(data.almacenamiento) || 0;
+                
+                // If user enters a value in 'Miles de m³' (e.g. 47,787), convert to Mm³
+                if (almacenamiento > 10000) almacenamiento = almacenamiento / 1000;
+
                 const { error: errPresa } = await supabase.from('lecturas_presas').upsert({
                     presa_id: presaId,
                     fecha: today,
                     escala_msnm: Number(data.escala) || null,
-                    almacenamiento_mm3: Number(data.almacenamiento) || null,
+                    almacenamiento_mm3: almacenamiento || null,
                     porcentaje_llenado: Number(data.porcentaje) || null,
                     extraccion_total_m3s: extraccion,
                     gasto_toma_baja_m3s: activeTab === 'boquilla' ? (Number(data.t_baja) || null) : null,

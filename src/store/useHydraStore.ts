@@ -179,8 +179,10 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                     logo_url: mod.logo_url,
                     current_flow: currentFlow,
                     daily_vol: dailyVol,
-                    accumulated_vol: Number(mod.vol_acumulado || 0),
-                    authorized_vol: Number(mod.vol_autorizado || 0),
+                    // DB module volumes are stored in 'Millares de m³' (Miles de metros cúbicos)
+                    // The UI always renders in 'Mm³' (Millones de metros cúbicos). Div by 1000.
+                    accumulated_vol: (Number(mod.vol_acumulado || 0) / 1000),
+                    authorized_vol: (Number(mod.vol_autorizado || 0) / 1000),
                     target_flow: Number(mod.caudal_objetivo || 0),
                     delivery_points: points
                 };

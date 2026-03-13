@@ -37,12 +37,11 @@
 @keyframes fadeInGeo {
     from {
         opacity: 0;
-        transform: scale(0.98);
+        transform: scale(0.99) translateY(10px);
     }
-
     to {
         opacity: 1;
-        transform: scale(1);
+        transform: scale(1) translateY(0);
     }
 }
 
@@ -367,21 +366,28 @@
     flex-direction: column;
     max-height: calc(100% - 2rem);
     overflow: hidden;
+    transform: translateX(120%);
+    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.geo-detail-panel.active {
+    transform: translateX(0);
 }
 
 .animate-in {
-    animation: slideInRightGeo 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+    animation: portalIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes slideInRightGeo {
-    from {
-        transform: translateX(30px);
+@keyframes portalIn {
+    0% {
+        transform: translateX(100%) scaleX(0.5);
         opacity: 0;
+        filter: blur(10px);
     }
-
-    to {
-        transform: translateX(0);
+    100% {
+        transform: translateX(0) scaleX(1);
         opacity: 1;
+        filter: blur(0);
     }
 }
 
@@ -570,19 +576,48 @@
     gap: 0.75rem;
 }
 
-.geo-kpi-card {
-    background: var(--geo-glass-bg);
-    border: 1px solid var(--geo-glass-border);
-    padding: 1rem;
-    border-radius: 1rem;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    transition: transform 0.3s ease;
-}
-
 .geo-kpi-card:hover {
     transform: translateY(-2px);
+    border-color: rgba(34, 211, 238, 0.4);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(34, 211, 238, 0.1);
+}
+
+.geo-chart-card {
+    background: var(--geo-glass-bg);
+    border: 1px solid var(--geo-glass-border);
+    padding: 1.25rem;
+    border-radius: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    transition: all 0.3s ease;
+    backdrop-filter: blur(12px);
+}
+
+.geo-chart-card:hover {
+    border-color: rgba(34, 211, 238, 0.25);
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);
+}
+
+.geo-stat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+.geo-stat-title {
+    font-size: 0.75rem;
+    font-weight: 900;
+    color: #f8fafc;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    display: block;
+}
+
+.geo-stat-icon {
+    opacity: 0.8;
+    filter: drop-shadow(0 0 5px currentColor);
 }
 
 .geo-tomas-item {
@@ -644,4 +679,59 @@
     left: -6px;
     top: 6px;
     border: 2px solid var(--geo-bg-main);
+}
+
+/* ── LEAFLET UI OVERRIDES (HIDRO-SINCRONÍA) ── */
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    background: rgba(15, 23, 42, 0.85) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    color: white !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+}
+
+.leaflet-tooltip {
+    background: rgba(15, 23, 42, 0.9) !important;
+    backdrop-filter: blur(8px) !important;
+    color: white !important;
+    border: 1px solid var(--geo-neon-cyan) !important;
+    border-radius: 8px !important;
+    font-family: var(--geo-font-sans) !important;
+    font-size: 11px !important;
+    padding: 6px 10px !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4) !important;
+    animation: tooltipAppear 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes tooltipAppear {
+    from { opacity: 0; transform: translateY(5px) scale(0.9); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.leaflet-popup {
+    animation: popupPortal 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes popupPortal {
+    from { opacity: 0; transform: scale(0.5) translateY(-20px); filter: blur(4px); }
+    to { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+}
+
+/* Custom indicator dots for map markers */
+.geo-indicator-dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid #020617;
+    animation: pulsateScale 2s infinite;
+}
+
+@keyframes pulsateScale {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
 }

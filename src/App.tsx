@@ -27,6 +27,7 @@ const Alertas = lazy(() => import('./pages/Alertas'));
 const InteligenciaHidrica = lazy(() => import('./pages/InteligenciaHidrica'));
 const BalanceHidraulico = lazy(() => import('./pages/BalanceHidraulico'));
 const AnalisisHistorico = lazy(() => import('./pages/AnalisisHistorico'));
+const PublicMonitor = lazy(() => import('./pages/PublicMonitor'));
 
 // ── Premium Loading Fallback ─────────────────────────────────── //
 const PageLoader = () => (
@@ -176,8 +177,9 @@ function App() {
           <VersionGuard>
             <FechaProvider>
               <Routes>
-                {/* Ruta Pública */}
+                {/* Rutas Públicas */}
                 <Route path="/login" element={<Login />} />
+                <Route path="/monitor-publico" element={<SafePage><PublicMonitor /></SafePage>} />
 
                 {/* Rutas Protegidas — cada una con su propio Error Boundary */}
                 <Route path="/" element={<ProtectedRoute><SafePage><Dashboard /></SafePage></ProtectedRoute>} />

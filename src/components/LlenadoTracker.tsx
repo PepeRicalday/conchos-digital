@@ -10,6 +10,7 @@ interface Props {
     qSolicitado: number;
     horaApertura: string | null;
     onConfirmarApertura: () => void;
+    onUpdateGasto?: (newGasto: number) => void;
 }
 
 const formatCountdown = (seconds: number): string => {
@@ -214,8 +215,10 @@ const PuntoCard: React.FC<{
 };
 
 // === Componente Principal ===
-const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, onConfirmarApertura }) => {
+const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, onConfirmarApertura, onUpdateGasto }) => {
     const { puntos, estadoGeneral, puntoAncla, loading, confirmarArribo } = useLlenadoTracker(eventoId, qSolicitado, horaApertura);
+    const [isEditingGasto, setIsEditingGasto] = useState(false);
+    const [tempGasto, setTempGasto] = useState(qSolicitado.toString());
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [selectedPunto, setSelectedPunto] = useState<PuntoControl | null>(null);
     const [confirNivel, setConfirNivel] = useState('');
@@ -297,9 +300,45 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                             <h3 style={{ color: '#f1f5f9', fontSize: '1rem', fontWeight: 900, margin: 0 }}>
                                 Tránsito de Onda Positiva
                             </h3>
-                            <p style={{ color: '#64748b', fontSize: '0.7rem', margin: 0 }}>
-                                36km Río + 104km Canal | Q={qSolicitado} m³/s
-                            </p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <p style={{ color: '#64748b', fontSize: '0.7rem', margin: 0 }}>
+                                    36km Río + 104km Canal | Q=
+                                </p>
+                                {isEditingGasto ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <input 
+                                            type="number" 
+                                            value={tempGasto} 
+                                            onChange={e => setTempGasto(e.target.value)}
+                                            style={{ width: '50px', background: 'rgba(30,41,59,0.8)', border: '1px solid #3b82f6', color: 'white', fontSize: '0.7rem', borderRadius: '4px', padding: '0 4px' }}
+                                        />
+                                        <button onClick={() => {
+                                            if (onUpdateGasto) onUpdateGasto(parseFloat(tempGasto));
+                                            setIsEditingGasto(false);
+                                        }} style={{ background: '#10b981', border: 'none', borderRadius: '4px', padding: '2px' }}>
+                                            <CheckCircle2 size={10} color="white" />
+                                        </button>
+                                        <button onClick={() => setIsEditingGasto(false)} style={{ background: '#ef4444', border: 'none', borderRadius: '4px', padding: '2px' }}>
+                                            <Shield size={10} color="white" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <span style={{ color: '#22d3ee', fontSize: '0.7rem', fontWeight: 900 }}>{qSolicitado} m³/s</span>
+                                        {!horaApertura && onUpdateGasto && (
+                                            <button 
+                                                onClick={() => {
+                                                    setTempGasto(qSolicitado.toString());
+                                                    setIsEditingGasto(true);
+                                                }}
+                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', opacity: 0.5 }}
+                                            >
+                                                <Clock size={10} style={{ color: '#22d3ee' }} />
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

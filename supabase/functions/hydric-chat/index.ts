@@ -70,7 +70,11 @@ function buildSystemPrompt(data: any): string {
 
     const modulosText = data.modulos.map((m: any) => {
         const auth = m.autorizaciones_ciclo?.[0];
-        return `${m.nombre} (${m.codigo_corto}): Vol. Acumulado ${m.vol_acumulado} m³, Vol. Autorizado ${auth?.vol_autorizado || m.vol_autorizado} m³, Caudal Máx ${auth?.caudal_max || m.caudal_objetivo} m³/s`;
+        const volAcum = parseFloat(m.vol_acumulado || "0").toLocaleString('en-US');
+        const volAuth = parseFloat(auth?.vol_autorizado || m.vol_autorizado || "0");
+        const volAuthMm3 = (volAuth / 1000).toFixed(2);
+        
+        return `${m.nombre} (${m.codigo_corto}): Vol. Acumulado ${volAcum} millares de m³, Vol. Autorizado ${volAuth.toLocaleString('en-US')} millares de m³ (${volAuthMm3} Millones de m³), Caudal Máx ${auth?.caudal_max || m.caudal_objetivo || 0} m³/s`;
     }).join("\n");
 
     const escalasText = data.escalas.map((e: any) => {

@@ -12,20 +12,20 @@ async function force() {
     // Actualizar versión para conchos-digital
     const { error: err1 } = await supabase
         .from('app_versions')
-        .update({ version: '1.6.2', actualizado_en: new Date().toISOString() })
+        .update({ version: '1.6.3', actualizado_en: new Date().toISOString() })
         .eq('app_id', 'control_digital');
     
     if (err1) console.error('Error actualizando control_digital:', err1);
-    else console.log('OK: control_digital -> 1.6.2');
+    else console.log('OK: control_digital -> 1.6.3');
 
     // Actualizar versión para sica-capture
     const { error: err2 } = await supabase
         .from('app_versions')
-        .update({ version: '1.4.6', actualizado_en: new Date().toISOString() })
+        .update({ version: '1.4.7', actualizado_en: new Date().toISOString() })
         .eq('app_id', 'capture');
 
     if (err2) console.error('Error actualizando capture:', err2);
-    else console.log('OK: capture -> 1.4.6');
+    else console.log('OK: capture -> 1.4.7');
 }
 
 force();

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, ZoomControl, Marker } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, ZoomControl, Marker, useMap, Popup } from 'react-leaflet';
 import { supabase } from '../lib/supabase';
 import { useHydricEvents } from '../hooks/useHydricEvents';
 import { Droplets, Timer, Activity } from 'lucide-react';
@@ -45,6 +45,20 @@ function haversineDist(lon1: number, lat1: number, lon2: number, lat2: number) {
     return R * c;
 }
 
+// Map Controller to handle dynamic centering with offset for mobile UI
+const MapController = ({ center, zoom, active }: { center: [number, number], zoom: number, active: boolean }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (active && center) {
+            // Apply a slight vertical offset for mobile if dock is likely covering the bottom
+            const isMobile = window.innerWidth <= 900;
+            const finalCenter: [number, number] = isMobile ? [center[0] - 0.05, center[1]] : center;
+            map.setView(finalCenter, zoom, { animate: true });
+        }
+    }, [center, zoom, active, map]);
+    return null;
+};
+
 const PublicMonitor: React.FC = () => {
     const { activeEvent } = useHydricEvents();
     const [escalas, setEscalas] = useState<EscalaData[]>([]);
@@ -53,8 +67,9 @@ const PublicMonitor: React.FC = () => {
     const [realMaxKm, setRealMaxKm] = useState<number>(-36);
     const [presasData, setPresasData] = useState<any[]>([]);
     
-    // Panel Visibility States - Start deactivated for professional clean view
-    const [isDockVisible, setIsDockVisible] = useState(true); 
+    // Panel Visibility States - Start minimized on mobile for total map priority
+    const isMobile = typeof window !== 'undefined' ? window.innerWidth <= 900 : false;
+    const [isDockVisible, setIsDockVisible] = useState(!isMobile); 
     const [isPredictionVisible, setIsPredictionVisible] = useState(false);
     const [currentTime, setCurrentTime] = useState(() => Date.now());
 
@@ -416,46 +431,38 @@ const PublicMonitor: React.FC = () => {
 
     return (
         <div className="public-monitor-container">
-            {/* Header */}
-            <div className="public-header animate-in">
-                <div className="header-top-row">
-                    <button 
-                        className="back-to-dashboard-btn" 
-                        onClick={() => window.location.href = '/'}
-                        title="Regresar a Conchos Digital"
-                    >
-                        <Activity size={16} /> REGRESAR A SISTEMA
-                    </button>
-                    <span className="cycle-top-label">CICLO AGRÍCOLA 2026</span>
-                </div>
-                
-                <div className="protocol-badge-premium">
-                    <img src="/logos/logo-srl.png" alt="SRL Conchos" className="logo-srl-header" />
+            {/* Compact Header Badge - Floating over map */}
+            <div className="public-header-badge animate-in">
+                <div className="phb-main">
+                    <div className="phb-logos">
+                        <img src="/logos/logo-srl.png" alt="SRL" className="phb-logo" />
+                    </div>
                     
-                    <div className="status-dot-container">
-                        <div className="status-dot-pulse" style={{ borderColor: statusColor }}></div>
-                        <div className="status-dot-inner" style={{ background: statusColor }}></div>
-                    </div>
-
-                    <div className="protocol-text-container">
-                        <span className="protocol-subtitle">Seguimiento de Suministro Público · SICA Telemetría v3.1</span>
-                        <span className="protocol-title">ESTADO DEL CANAL: <span className="protocol-status-label" style={{ color: statusColor }}>{protocolLabel}</span></span>
-                    </div>
-
-                    <div className="executive-vitals-divider"></div>
-
-                    <div className="executive-vitals">
-                        <div className="vital-item">
-                            <span className="vital-label">EFICIENCIA</span>
-                            <span className="vital-value" style={{ color: executiveMetrics.healthColor }}>{executiveMetrics.efficiency.toFixed(1)}%</span>
+                    <div className="phb-status">
+                        <div className="status-dot-container-mini">
+                            <div className="status-dot-pulse-mini" style={{ borderColor: statusColor }}></div>
+                            <div className="status-dot-inner-mini" style={{ background: statusColor }}></div>
                         </div>
-                        <div className="vital-item">
-                            <span className="vital-label">STATUS</span>
-                            <span className="vital-value">{executiveMetrics.healthStatus}</span>
+                        <div className="phb-text">
+                            <span className="phb-label">ESTADO:</span>
+                            <span className="phb-value" style={{ color: statusColor }}>{protocolLabel}</span>
                         </div>
                     </div>
 
-                    <img src="/logos/SICA005.png" alt="SICA 005" className="logo-sica-header" />
+                    <div className="phb-divider"></div>
+
+                    <div className="phb-efficiency">
+                        <span className="phb-label">EFICIENCIA:</span>
+                        <span className="phb-val" style={{ color: executiveMetrics.healthColor }}>{executiveMetrics.efficiency.toFixed(1)}%</span>
+                    </div>
+
+                    <button 
+                        className="phb-system-btn" 
+                        onClick={() => window.location.href = '/'}
+                        title="Ir al sistema completo"
+                    >
+                        <Activity size={12} />
+                    </button>
                 </div>
             </div>
 
@@ -479,6 +486,11 @@ const PublicMonitor: React.FC = () => {
                     zoomControl={false}
                     style={{ height: "100%", width: "100%" }}
                 >
+                    <MapController 
+                        center={frontCoords as [number, number]} 
+                        zoom={11} 
+                        active={activeEvent?.evento_tipo === 'LLENADO'} 
+                    />
                     <TileLayer
                         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                         attribution='&copy; CARTO'
@@ -509,11 +521,23 @@ const PublicMonitor: React.FC = () => {
 
                     {/* Front de Agua Marker - Solo visible si hay avance real confirmado */}
                     {activeEvent?.evento_tipo === 'LLENADO' && typeof frontCoords[0] === 'number' && typeof frontCoords[1] === 'number' && (
-                        <Marker position={frontCoords as any} icon={waterFrontIcon} />
+                        <Marker position={frontCoords as any} icon={waterFrontIcon}>
+                            <Popup className="custom-popup">
+                                <div className="tooltip-content">
+                                    <div className="tooltip-km">{displayMaxKm.toFixed(1)} KM</div>
+                                    <b className="tooltip-name">FRENTE DE FLUJO ACTIVO</b>
+                                    <div className="tooltip-payload">
+                                        <Timer size={12} color={statusColor} />
+                                        <span className="tooltip-value">AVANCE ESTIMADO</span>
+                                    </div>
+                                    <div className="tooltip-footer">SICA INTELIGENCIA v3.2</div>
+                                </div>
+                            </Popup>
+                        </Marker>
                     )}
 
-                    {/* Escalas Relevantes */}
-                    {escalas.filter(esc => typeof esc.latitud === 'number' && typeof esc.longitud === 'number' && esc.km <= displayMaxKm + 20).map(esc => (
+                    {/* Escalas de Puntos - Mostramos todas nuevamente */}
+                    {escalas.filter(esc => typeof esc.latitud === 'number' && typeof esc.longitud === 'number').map(esc => (
                         <CircleMarker
                             key={esc.id}
                             center={[esc.latitud!, esc.longitud!]}
@@ -523,7 +547,7 @@ const PublicMonitor: React.FC = () => {
                             weight={1.5}
                             fillOpacity={1}
                         >
-                            <Tooltip className="custom-tooltip" direction="top" offset={[0, -10]}>
+                            <Popup className="custom-popup">
                                 <div className="tooltip-content">
                                     <div className="tooltip-km">{esc.km.toFixed(1)} KM</div>
                                     <b className="tooltip-name">{esc.nombre}</b>
@@ -535,7 +559,11 @@ const PublicMonitor: React.FC = () => {
                                             </span>
                                         </div>
                                     )}
+                                    <div className="tooltip-footer">SICA TELEMETRÍA v3.2</div>
                                 </div>
+                            </Popup>
+                            <Tooltip className="custom-tooltip" direction="top" offset={[0, -10]} opacity={0.9}>
+                                <span>{esc.nombre}</span>
                             </Tooltip>
                         </CircleMarker>
                     ))}
@@ -594,10 +622,10 @@ const PublicMonitor: React.FC = () => {
                     </div>
 
                     {/* Section 2: Checkpoints Grid - Visualización compacta de toda la red de escalas */}
-                    <div className="dock-section" style={{ flex: 1, overflow: 'hidden' }}>
+                    <div className="dock-section checkpoints-section">
                         <div className="dock-section-header">
                             <span className="card-label">RED DE PUNTOS DE CONTROL</span>
-                            <span className="telemetry-tag" style={{ color: statusColor }}>● MONITOREO TOTAL ACTIVO</span>
+                            <span className="telemetry-tag active-mon">● MONITOREO TOTAL ACTIVO</span>
                         </div>
                         <div className="checkpoints-scroll-container">
                             {escalas

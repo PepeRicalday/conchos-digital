@@ -44,7 +44,7 @@ Write-Host "Copia y pega este comando en el editor SQL de Supabase:" -Foreground
 Write-Host "---------------------------------------------------------"
 Write-Host "UPDATE app_versions "
 Write-Host "SET version = '$newVersion', actualizado_en = now() "
-Write-Host "WHERE app_id = 'control_digital';"  # O 'capture' segun el proyecto
+Write-Host "WHERE app_id = 'control-digital';"  # O 'capture' segun el proyecto
 Write-Host "---------------------------------------------------------"
 
 Write-Host "`nProceso Finalizado con Exito." -ForegroundColor Green

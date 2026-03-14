@@ -13,7 +13,6 @@ import { useHydricEvents, type HydraulicEvent } from '../hooks/useHydricEvents';
 import LlenadoTracker from '../components/LlenadoTracker';
 import EstabilizacionTracker from '../components/EstabilizacionTracker';
 import ProtocolGuide from '../components/ProtocolGuide';
-import { toast } from 'sonner';
 import './HydricChat.css';
 
 import ReactMarkdown from 'react-markdown';

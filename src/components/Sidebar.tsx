@@ -64,6 +64,7 @@ const Sidebar = () => {
         { icon: Database, label: 'Análisis Histórico', path: '/analisis-historico' },
         { icon: Cloud, label: 'Clima', path: '/clima' },
         { icon: Map, label: 'Geo-Monitor', path: '/geo-monitor' },
+        { icon: Activity, label: 'Monitor Público', path: '/monitor-publico' },
         { icon: Bell, label: 'Alertas', path: '/alertas', badge: criticalAlertsCount > 0 ? `${criticalAlertsCount}` : undefined, badgeColor: criticalAlertsCount > 0 ? '#f43f5e' : undefined },
     ];
 

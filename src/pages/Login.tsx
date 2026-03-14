@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, Lock, Mail } from 'lucide-react';
+import { LogIn, Lock, Mail, Activity } from 'lucide-react';
 import './Login.css';
 
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
@@ -53,10 +53,10 @@ const Login: React.FC = () => {
 
                 <div className="login-header">
                     <h3 className="login-section-title">
-                        CONTROL DIGITAL
+                        SISTEMA DE CONTROL
                     </h3>
                     <p className="login-section-desc">
-                        Ingresa tus credenciales para acceder al sistema
+                        Ingresa tus credenciales o accede al monitor público.
                     </p>
                 </div>
 
@@ -111,19 +111,20 @@ const Login: React.FC = () => {
                             </>
                         )}
                     </button>
-
-                    <div className="public-access-divider">
-                        <span>O accede como observador</span>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={() => navigate('/monitor-publico')}
-                        className="public-monitor-link-button"
-                    >
-                        Ver Monitor Público
-                    </button>
                 </form>
+
+                <div className="public-access-divider">
+                    <span>O accede sin cuenta</span>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={() => navigate('/monitor-publico')}
+                    className="public-monitor-link-button"
+                >
+                    <Activity size={18} style={{ marginRight: '8px' }} />
+                    ACCESO MONITOR PÚBLICO
+                </button>
 
                 <div className="footer-logo-section">
                     <span className="footer-tagline">Respaldo Tecnológico</span>

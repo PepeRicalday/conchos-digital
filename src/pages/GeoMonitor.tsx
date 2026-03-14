@@ -155,6 +155,7 @@ const GeoMonitor = () => {
     const [geoModulos, setGeoModulos] = useState<GeoJSON.FeatureCollection | null>(null);
     const [geoPresas, setGeoPresas] = useState<GeoJSON.FeatureCollection | null>(null);
     const [geoCanal, setGeoCanal] = useState<GeoJSON.FeatureCollection | null>(null);
+    const [geoRio, setGeoRio] = useState<GeoJSON.FeatureCollection | null>(null);
     const [customLayers, setCustomLayers] = useState<GeoLayer[]>([]);
     const [showImporter, setShowImporter] = useState(false);
     const [geoKey, setGeoKey] = useState(0); // Force re-render on geojson change
@@ -167,6 +168,7 @@ const GeoMonitor = () => {
         alertas: true,
         modulos: true,
         presasShape: true,
+        rioShape: true,
         mostrarAforosQ: true,
         mostrarAperturas: true,
     });
@@ -194,14 +196,16 @@ const GeoMonitor = () => {
     useEffect(() => {
         const loadGeoFiles = async () => {
             try {
-                const [modRes, preRes, canRes] = await Promise.all([
+                const [modRes, preRes, canRes, rioRes] = await Promise.all([
                     fetch('/geo/modulos.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
                     fetch('/geo/presas.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
                     fetch('/geo/canal_conchos.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch('/geo/rio_conchos.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
                 ]);
                 if (modRes) setGeoModulos(modRes);
                 if (preRes) setGeoPresas(preRes);
                 if (canRes) setGeoCanal(canRes);
+                if (rioRes) setGeoRio(rioRes);
                 setGeoKey(k => k + 1);
             } catch (e) {
                 console.warn('GeoJSON load warning:', e);
@@ -261,15 +265,23 @@ const GeoMonitor = () => {
                 .select('id, nombre, km, latitud, longitud, nivel_min_operativo, nivel_max_operativo, capacidad_max, seccion_id, ancho, alto, pzas_radiales, coeficiente_descarga, exponente_n')
                 .eq('activa', true).order('km');
 
-            // 2. Resumen diario — traer los más recientes por cada escala (sin filtrar por fecha)
+            // 2. Resumen diario — traer los más recientes por cada escala
             const { data: resData } = await supabase.from('resumen_escalas_diario')
                 .select('escala_id, nivel_actual, delta_12h, estado, fecha, lectura_am, lectura_pm')
                 .order('fecha', { ascending: false });
 
-            // Tomar solo el registro más reciente por escala_id
+            // Tomar solo el registro más reciente por escala_id (Validación Hidro-Sincrónica)
             const resMap = new Map<string, any>();
             resData?.forEach((r: any) => {
-                if (!resMap.has(r.escala_id)) resMap.set(r.escala_id, r);
+                if (!resMap.has(r.escala_id)) {
+                    // Solo aceptar si no hay evento activo o si el dato es posterior a la apertura real
+                    const isDataValid = !activeEvent?.hora_apertura_real || 
+                                       new Date(r.fecha + 'T00:00:00Z') >= new Date(activeEvent.hora_apertura_real.split('T')[0] + 'T00:00:00Z');
+                    
+                    if (isDataValid) {
+                        resMap.set(r.escala_id, r);
+                    }
+                }
             });
 
             // 1.1 Extraer aperturas de compuertas recientes
@@ -279,7 +291,14 @@ const GeoMonitor = () => {
             
             const apMap = new Map<string, number>();
             lecData?.forEach(l => {
-                if (!apMap.has(l.escala_id)) apMap.set(l.escala_id, parseFloat(l.apertura_radiales_m || 0));
+                if (!apMap.has(l.escala_id)) {
+                    const lecturaFull = new Date(`${l.fecha}T${l.hora_lectura}`);
+                    const aperturaFull = activeEvent?.hora_apertura_real ? new Date(activeEvent.hora_apertura_real) : new Date(0);
+                    
+                    if (!activeEvent?.hora_apertura_real || lecturaFull >= aperturaFull) {
+                        apMap.set(l.escala_id, parseFloat(l.apertura_radiales_m || 0));
+                    }
+                }
             });
 
             // Merge: todas las escalas para el perfil long., solo las con coords para el mapa
@@ -327,7 +346,14 @@ const GeoMonitor = () => {
             
             const afResult: Record<string, any> = {};
             afMedData?.forEach(m => {
-                if (!afResult[m.punto_control_id]) afResult[m.punto_control_id] = m;
+                if (!afResult[m.punto_control_id]) {
+                    const afTime = new Date(`${m.fecha}T${m.hora_inicio}`);
+                    const limitTime = activeEvent?.hora_apertura_real ? new Date(activeEvent.hora_apertura_real) : new Date(0);
+                    
+                    if (!activeEvent?.hora_apertura_real || afTime >= limitTime) {
+                         afResult[m.punto_control_id] = m;
+                    }
+                }
             });
             setLatestAforos(afResult);
 
@@ -403,7 +429,7 @@ const GeoMonitor = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [activeEvent]);
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -430,64 +456,81 @@ const GeoMonitor = () => {
         document.addEventListener('fullscreenchange', handler);
         return () => document.removeEventListener('fullscreenchange', handler);
     }, []);
-    // Convertir el Shapefile real del Canal (geoCanal) en Secciones Coloreadas
-    const canalSegmentsGeoref = useMemo(() => {
-        if (!geoCanal || !secciones.length) return [];
+    // Mapeo de distancias para el Río Conchos (36 km)
+    const rioDistData = useMemo(() => {
+        if (!geoRio) return [];
+        const feature = geoRio.features?.[0];
+        if (!feature || feature.geometry.type !== 'LineString') return [];
+
+        const coords = feature.geometry.coordinates as [number, number][];
+        if (!coords.length) return [];
+
+        let totalDist = 0;
+        const data = [{ lat: coords[0][1], lng: coords[0][0], dist: -36 }];
+        for (let i = 1; i < coords.length; i++) {
+            const d = haversineDist(coords[i-1][0], coords[i-1][1], coords[i][0], coords[i][1]);
+            totalDist += d;
+            data.push({ lat: coords[i][1], lng: coords[i][0], dist: -36 + totalDist });
+        }
+
+        const corrFactor = totalDist > 0 ? 36 / totalDist : 1;
+        data.forEach(d => {
+            const actualDist = (d.dist + 36) * corrFactor;
+            d.dist = -36 + actualDist;
+        });
+        return data;
+    }, [geoRio]);
+
+    // Mapeo de distancias para el Canal Conchos (104 km)
+    const canalDistData = useMemo(() => {
+        if (!geoCanal) return [];
         const feature = geoCanal.features?.[0];
         if (!feature || feature.geometry.type !== 'LineString') return [];
 
-        const coords = feature.geometry.coordinates as [number, number][]; // [lng, lat]
-        if (!coords || coords.length === 0) return [];
+        const coords = feature.geometry.coordinates as [number, number][];
+        if (!coords.length) return [];
 
         let totalDist = 0;
-        const distData = [{ lat: coords[0][1], lng: coords[0][0], dist: 0 }];
+        const data = [{ lat: coords[0][1], lng: coords[0][0], dist: 0 }];
         for (let i = 1; i < coords.length; i++) {
-            const p1 = coords[i - 1]; // [lng, lat]
-            const p2 = coords[i];     // [lng, lat]
-            const d = haversineDist(p1[0], p1[1], p2[0], p2[1]);
+            const d = haversineDist(coords[i-1][0], coords[i-1][1], coords[i][0], coords[i][1]);
             totalDist += d;
-            distData.push({ lat: p2[1], lng: p2[0], dist: totalDist });
+            data.push({ lat: coords[i][1], lng: coords[i][0], dist: totalDist });
         }
 
-        // Ajuste contra la longitud oficial de 104 km para alinear escalas (Regla de 3)
         const corrFactor = totalDist > 0 ? 104 / totalDist : 1;
-        distData.forEach(d => d.dist *= corrFactor);
+        data.forEach(d => d.dist *= corrFactor);
+        return data;
+    }, [geoCanal]);
 
+    const canalSegmentsGeoref = useMemo(() => {
+        if (!canalDistData.length || !secciones.length) return [];
         return secciones.map(sec => {
-            const segPoints = distData
+            const segPoints = canalDistData
                 .filter(d => d.dist >= sec.km_inicio && d.dist <= sec.km_fin)
                 .map(d => [d.lat, d.lng] as [number, number]);
-
             return { ...sec, points: segPoints };
         });
-    }, [geoCanal, secciones]);
+    }, [canalDistData, secciones]);
 
-    // Calcular la onda visible de llenado para el Digital Twin (MEJ-3)
+    // Calcular la onda visible de llenado (Río + Canal)
     const llenadoWaveGeoref = useMemo(() => {
-        if (!geoCanal || activeEvent?.evento_tipo !== 'LLENADO' || maxKmLlenado < 0) return [];
-        const feature = geoCanal.features?.[0];
-        if (!feature || feature.geometry.type !== 'LineString') return [];
+        if (activeEvent?.evento_tipo !== 'LLENADO') return [];
 
-        const coords = feature.geometry.coordinates as [number, number][]; // [lng, lat]
-        if (!coords || coords.length === 0) return [];
-
-        let totalDist = 0;
-        const distData = [{ lat: coords[0][1], lng: coords[0][0], dist: 0 }];
-        for (let i = 1; i < coords.length; i++) {
-            const p1 = coords[i - 1]; 
-            const p2 = coords[i];     
-            const d = haversineDist(p1[0], p1[1], p2[0], p2[1]);
-            totalDist += d;
-            distData.push({ lat: p2[1], lng: p2[0], dist: totalDist });
-        }
-
-        const corrFactor = totalDist > 0 ? 104 / totalDist : 1;
-        distData.forEach(d => d.dist *= corrFactor);
-        
-        return distData
+        // 1. Puntos del Río que han sido alcanzados
+        const rioWave = rioDistData
             .filter(d => d.dist <= maxKmLlenado)
             .map(d => [d.lat, d.lng] as [number, number]);
-    }, [geoCanal, activeEvent, maxKmLlenado]);
+
+        // 2. Puntos del Canal que han sido alcanzados (si maxKmLlenado > 0)
+        const canalWave = maxKmLlenado > 0 
+            ? canalDistData
+                .filter(d => d.dist <= maxKmLlenado)
+                .map(d => [d.lat, d.lng] as [number, number])
+            : [];
+
+        return [...rioWave, ...canalWave];
+    }, [rioDistData, canalDistData, activeEvent, maxKmLlenado]);
 
     // KPIs vinculados a datos reales de SICA
     // Nivel de entrada: K-23 (primera escala)
@@ -803,6 +846,14 @@ const GeoMonitor = () => {
                         {layers.presasShape && <span className="geo-indicator-dot" style={{ background: '#1d4ed8' }}></span>}
                     </button>
                     <button
+                        className={clsx('geo-control-btn', layers.rioShape ? 'active' : 'default')}
+                        onClick={() => toggleLayer('rioShape')}
+                        title="Trazado del Río Conchos"
+                    >
+                        <Activity size={22} style={{ color: '#3b82f6' }} />
+                        {layers.rioShape && <span className="geo-indicator-dot" style={{ background: '#3b82f6' }}></span>}
+                    </button>
+                    <button
                         className={clsx('geo-control-btn', layers.alertas ? 'shield' : 'default')}
                         onClick={() => toggleLayer('alertas')}
                         title="Alertas y Anomalías"
@@ -1058,6 +1109,22 @@ const GeoMonitor = () => {
                                             if (feature.properties) {
                                                 layer.bindTooltip(`Canal Principal Conchos (${feature.properties.longitud_km || 104} km)`, { sticky: true });
                                             }
+                                        }}
+                                    />
+                                )}
+
+                                {/* GeoJSON: Río Conchos (tramo de río natural) */}
+                                {layers.rioShape && geoRio && (
+                                    <GeoJSON
+                                        key={`rio-${geoKey}`}
+                                        data={geoRio}
+                                        style={() => ({
+                                            color: '#3b82f6', // azul primario (río)
+                                            weight: 6,
+                                            opacity: 0.9,
+                                        })}
+                                        onEachFeature={(_, layer) => {
+                                            layer.bindTooltip(`Río Conchos (Segmento Boquilla → K0)`, { sticky: true });
                                         }}
                                     />
                                 )}

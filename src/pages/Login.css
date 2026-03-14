@@ -347,21 +347,31 @@
 
 .public-monitor-link-button {
     width: 100%;
-    background: rgba(56, 189, 248, 0.05);
-    border: 1px solid rgba(56, 189, 248, 0.2);
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.3);
     color: #38bdf8;
-    padding: 0.875rem;
+    padding: 1rem;
     border-radius: 1rem;
-    font-weight: 700;
-    font-size: 0.875rem;
+    font-weight: 800;
+    font-size: 0.8125rem;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.1em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 0.5rem;
 }
 
 .public-monitor-link-button:hover {
-    background: rgba(56, 189, 248, 0.1);
+    background: rgba(56, 189, 248, 0.15);
     border-color: #38bdf8;
-    box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+    transform: translateY(-2px);
+}
+
+.public-monitor-link-button:active {
+    transform: translateY(0);
 }

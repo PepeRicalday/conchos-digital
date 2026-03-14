@@ -27,42 +27,59 @@ function formatFechaCorta(dateStr: string): string {
 function DonutRing({ pct, label, color = '#60a5fa', size = 110 }: {
     pct: number; label: string; color?: string; size?: number;
 }) {
-    const r = 40;
+    const r = 38;
     const circ = 2 * Math.PI * r;
     const stroke = circ * Math.min(pct, 100) / 100;
+    const ringId = `donut-grad-${label.replace(/\s+/g, '-')}`;
+    
     return (
-        <svg width={size} height={size} viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
-            <defs>
-                <linearGradient id={`donut-grad-${label}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor={color} stopOpacity="1" />
-                    <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.9" />
-                </linearGradient>
-                <filter id="glow-donut">
-                    <feGaussianBlur stdDeviation="2" result="blur" />
-                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                </filter>
-            </defs>
-            {/* Track */}
-            <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="8" />
-            {/* Fill */}
-            <circle
-                cx="50" cy="50" r={r}
-                fill="none"
-                stroke={`url(#donut-grad-${label})`}
-                strokeWidth="8"
-                strokeDasharray={`${stroke} ${circ}`}
-                strokeLinecap="round"
-                transform="rotate(-90 50 50)"
-                style={{ filter: `drop-shadow(0 0 8px ${color}B3)`, transition: 'stroke-dasharray 1.5s cubic-bezier(0.4, 0, 0.2, 1)' }}
-            />
-            {/* Center text */}
-            <text x="50" y="46" textAnchor="middle" fill="#fff" fontSize="16" fontWeight="900" fontFamily="var(--font-mono)">
-                {pct.toFixed(0)}%
-            </text>
-            <text x="50" y="62" textAnchor="middle" fill="#94a3b8" fontSize="8" fontWeight="600" letterSpacing="0.1em" style={{ textTransform: 'uppercase' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+            <svg width={size} height={size} viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
+                <defs>
+                    <linearGradient id={ringId} x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor={color} stopOpacity="1" />
+                        <stop offset="100%" stopColor={color} stopOpacity="0.6" />
+                    </linearGradient>
+                    <filter id="glow-donut-premium">
+                        <feGaussianBlur stdDeviation="3" result="blur" />
+                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    </filter>
+                </defs>
+                {/* Track */}
+                <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="10" />
+                {/* Fill */}
+                <circle
+                    cx="50" cy="50" r={r}
+                    fill="none"
+                    stroke={`url(#${ringId})`}
+                    strokeWidth="10"
+                    strokeDasharray={`${stroke} ${circ}`}
+                    strokeLinecap="round"
+                    transform="rotate(-90 50 50)"
+                    style={{ 
+                        filter: `drop-shadow(0 0 8px ${color}80)`, 
+                        transition: 'stroke-dasharray 1.5s cubic-bezier(0.4, 0, 0.2, 1)' 
+                    }}
+                />
+                {/* Center text */}
+                <text x="50" y="55" textAnchor="middle" fill="#fff" fontSize="18" fontWeight="900" fontFamily="var(--font-mono)">
+                    {pct.toFixed(0)}%
+                </text>
+            </svg>
+            <span style={{ 
+                fontSize: '0.6rem', 
+                fontWeight: '800', 
+                color: '#94a3b8', 
+                letterSpacing: '0.15em', 
+                textTransform: 'uppercase',
+                fontFamily: 'var(--font-sans)',
+                background: 'rgba(255,255,255,0.03)',
+                padding: '2px 8px',
+                borderRadius: '4px'
+            }}>
                 {label}
-            </text>
-        </svg>
+            </span>
+        </div>
     );
 }
 
@@ -84,10 +101,11 @@ function ModuleBar({ name, pct, rank }: { name: string; pct: number; rank: numbe
             {/* Rank badge */}
             <span style={{
                 width: '20px', height: '20px', borderRadius: '50%',
-                background: rank <= 2 ? 'linear-gradient(135deg,#fbbf24,#f59e0b)' : 'rgba(255,255,255,0.07)',
+                background: (rank <= 2 && pct > 0) ? 'linear-gradient(135deg,#fbbf24,#f59e0b)' : 'rgba(255,255,255,0.1)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '0.6rem', fontWeight: '800', color: rank <= 2 ? '#1c1400' : '#64748b',
-                flexShrink: 0
+                fontSize: '0.65rem', fontWeight: '800', color: (rank <= 2 && pct > 0) ? '#1c1400' : '#94a3b8',
+                flexShrink: 0,
+                border: (rank <= 2 && pct > 0) ? 'none' : '1px solid rgba(255,255,255,0.05)'
             }}>{rank}</span>
 
             {/* Name */}
@@ -209,7 +227,7 @@ const Dashboard = () => {
             full_name: m.name,
             efficiency: Math.min(((m.accumulated_vol / (m.authorized_vol || 1)) * 100), 100),
             flow: m.current_flow * 1000
-        })).sort((a, b) => b.efficiency - a.efficiency).slice(0, 8),
+        })).sort((a, b) => b.efficiency - a.efficiency),
         [modules]
     );
 
@@ -312,7 +330,20 @@ const Dashboard = () => {
                         </p>
                     </div>
                     <div className="flex gap-4">
-                        <button className="btn btn-primary shadow-lg shadow-blue-500/20" onClick={() => window.print()}>Generar Reporte Digital</button>
+                        <button 
+                            className="btn-premium btn-premium-glass" 
+                            onClick={() => window.open('/monitor-publico', '_blank')}
+                        >
+                            <Activity size={16} />
+                            Monitor Público
+                        </button>
+                        <button 
+                            className="btn-premium btn-premium-solid" 
+                            onClick={() => window.print()}
+                        >
+                            <Droplets size={16} />
+                            Generar Reporte Digital
+                        </button>
                     </div>
                 </header>
             </div>
@@ -546,7 +577,13 @@ const Dashboard = () => {
                             ))}
                         </div>
 
-                        <div className="flex-1">
+                        <div className="flex-1" style={{ 
+                            maxHeight: '260px', 
+                            overflowY: 'auto', 
+                            paddingRight: '4px',
+                            scrollbarWidth: 'thin',
+                            scrollbarColor: 'rgba(56, 189, 248, 0.3) transparent'
+                        }}>
                             {loadingModules ? (
                                 <div className="flex items-center justify-center h-full text-slate-500 animate-pulse">Cargando datos...</div>
                             ) : moduleChartData.length > 0 ? (
@@ -568,51 +605,64 @@ const Dashboard = () => {
                     </div>
 
                     {/* ── Donut Summary + Version Control ── */}
-                    <div className="card">
-                        <div className="flex items-center gap-2 mb-4">
-                            <Database size={18} className="text-violet-400" />
-                            <h3 className="font-bold text-white">Balance Hídrico Global</h3>
+                    <div className="card" style={{ background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%)' }}>
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                                <Database size={18} className="text-violet-400" />
+                            </div>
+                            <h3 className="font-bold text-white tracking-wide">Balance Hídrico Global</h3>
                         </div>
-
+                        
                         {/* Donut rings row */}
-                        <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '0 0 1rem' }}>
-                            <DonutRing pct={porcentajeLlenado} label="Almac." color="#60a5fa" size={100} />
-                            <DonutRing
-                                pct={totalExtraccion > 0 ? Math.min((totalExtraccion / 80) * 100, 100) : 0}
-                                label="Extrac."
-                                color="#a78bfa"
-                                size={100}
+                        <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-around', 
+                            alignItems: 'center', 
+                            padding: '0.5rem 0 2rem',
+                            borderBottom: '1px solid rgba(255,255,255,0.05)',
+                            marginBottom: '1rem'
+                        }}>
+                            <DonutRing pct={porcentajeLlenado} label="ALMAC." color="#38bdf8" size={85} />
+                            <DonutRing 
+                                pct={totalExtraccion > 0 ? Math.min((totalExtraccion / 80) * 100, 100) : 0} 
+                                label="EXTRAC." 
+                                color="#a78bfa" 
+                                size={85} 
                             />
-                            <DonutRing
-                                pct={moduleChartData.length > 0 ? moduleChartData.reduce((a, m) => a + m.efficiency, 0) / moduleChartData.length : 0}
-                                label="Eficiencia"
-                                color="#34d399"
-                                size={100}
+                            <DonutRing 
+                                pct={moduleChartData.length > 0 ? moduleChartData.reduce((a, m) => a + m.efficiency, 0) / moduleChartData.length : 0} 
+                                label="EFICIEN." 
+                                color="#10b981" 
+                                size={85} 
                             />
                         </div>
 
-                        <div className="pt-3 border-t border-slate-700/30">
+                        <div className="pt-2">
                             <div className="flex items-center gap-2 mb-3">
                                 <ShieldCheck size={14} className="text-emerald-400" />
-                                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">SICA Source of Truth</span>
+                                <span className="text-[0.6rem] font-black text-slate-500 uppercase tracking-[0.2em]">SICA Source of Truth</span>
                             </div>
                             <div className="space-y-2">
                                 {appVersions.map(v => (
-                                    <div key={v.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-900/50 border border-slate-700/30">
-                                        <div className="flex items-center gap-2">
-                                            {v.app_id === 'capture' ? <Smartphone size={13} className="text-slate-400" /> : <MonitorIcon size={13} className="text-slate-400" />}
-                                            <span className="text-xs font-medium text-slate-200 capitalize">{v.app_id.replace('-', ' ')}</span>
+                                    <div key={v.id} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors group">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-1 px-2 rounded-lg bg-slate-800 border border-slate-700 group-hover:border-blue-500/30 transition-colors flex items-center gap-2">
+                                                {v.app_id === 'capture' ? <Smartphone size={11} className="text-slate-400" /> : <MonitorIcon size={11} className="text-slate-400" />}
+                                                <span className="text-[9px] font-black text-slate-300 uppercase tracking-tight">{v.app_id.replace('-', ' ')}</span>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300">v{v.version}</span>
-                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-[10px] font-black font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">v{v.version}</span>
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse"></div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                            <p className="text-[10px] text-slate-500 mt-3 leading-tight italic">
-                                Los dispositivos con versiones inferiores a la mínima requerida son bloqueados automáticamente.
-                            </p>
+                            <div className="mt-4 p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/10">
+                                <p className="text-[9px] text-amber-500/60 leading-tight italic font-medium">
+                                    Seguridad Activa: Dispositivos obsoletos son bloqueados por el núcleo SICA.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>

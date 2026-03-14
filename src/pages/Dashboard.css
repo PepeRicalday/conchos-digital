@@ -66,8 +66,8 @@
 .card,
 .presa-status-card {
     background: var(--card-glass-bg);
-    backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
     border: 1px solid var(--card-glass-border);
     box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     border-radius: 1.25rem;
@@ -196,8 +196,8 @@
 /* Tooltips Chart Premium */
 .chart-tooltip {
     background: rgba(15, 23, 42, 0.85);
-    backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
     padding: 10px 14px;
@@ -212,6 +212,55 @@
     margin-bottom: 6px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+}
+
+/* Premium Buttons */
+.btn-premium {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.btn-premium-glass {
+    background: rgba(56, 189, 248, 0.08);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.2);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.btn-premium-glass:hover {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: rgba(56, 189, 248, 0.4);
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+    transform: translateY(-2px);
+    color: #ffffff;
+}
+
+.btn-premium-solid {
+    background: linear-gradient(135deg, #3b82f6, #06b6d4);
+    color: #ffffff;
+    box-shadow: 0 8px 20px -5px rgba(59, 130, 246, 0.5);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.btn-premium-solid:hover {
+    background: linear-gradient(135deg, #2563eb, #0891b2);
+    box-shadow: 0 0 25px rgba(6, 182, 212, 0.4);
+    transform: translateY(-2px) scale(1.02);
+}
+
+.btn-premium-solid:active {
+    transform: translateY(0) scale(0.98);
 }
 
 /* Responsive */

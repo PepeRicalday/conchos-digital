@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, ZoomControl, Marker } from 'react-leaflet';
 import { supabase } from '../lib/supabase';
 import { useHydricEvents } from '../hooks/useHydricEvents';
-import { Droplets, TrendingUp, Timer, Clock, AlertCircle, Activity } from 'lucide-react';
+import { Droplets, Timer, Clock, AlertCircle, Activity } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PublicMonitor.css';
@@ -34,21 +34,43 @@ interface EscalaData {
     ultima_telemetria?: number | null;
 }
 
+// Distancia en KM entre dos puntos (Haversine)
+function haversineDist(lon1: number, lat1: number, lon2: number, lat2: number) {
+    const R = 6371; // Radio de la tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
 const PublicMonitor: React.FC = () => {
     const { activeEvent } = useHydricEvents();
     const [escalas, setEscalas] = useState<EscalaData[]>([]);
     const [geoCanal, setGeoCanal] = useState<any>(null);
-    const [realMaxKm, setRealMaxKm] = useState<number>(0);
-    const [estMaxKm, setEstMaxKm] = useState<number>(0);
+    const [geoRio, setGeoRio] = useState<any>(null);
+    const [realMaxKm, setRealMaxKm] = useState<number>(-36);
+    const [presasData, setPresasData] = useState<any[]>([]);
+    
+    // Panel Visibility States - Start deactivated for professional clean view
+    const [isTelemetryVisible, setIsTelemetryVisible] = useState(false);
+    const [isDockVisible, setIsDockVisible] = useState(false);
+    const [isPredictionVisible, setIsPredictionVisible] = useState(false);
+
 
     // 1. Fetch Canal Geometry
     useEffect(() => {
-        fetch('/geo/canal_conchos.geojson')
-            .then(r => r.json())
-            .then(data => {
-                setGeoCanal(data);
-            })
-            .catch(err => console.error("Error loading canal geojson", err));
+        const loadGeo = async () => {
+            const [canRes, rioRes] = await Promise.all([
+                fetch('/geo/canal_conchos.geojson').then(r => r.json()).catch(() => null),
+                fetch('/geo/rio_conchos.geojson').then(r => r.json()).catch(() => null)
+            ]);
+            if (canRes) setGeoCanal(canRes);
+            if (rioRes) setGeoRio(rioRes);
+        };
+        loadGeo();
     }, []);
 
     // 2. Fetch Escalas & Wave Data
@@ -60,7 +82,19 @@ const PublicMonitor: React.FC = () => {
                 .select('id, nombre, km, latitud, longitud')
                 .order('km');
             
-            // Latest Readings for today
+            // 2. Fetch Presas (Dams) Telemetry
+            const { data: pData } = await supabase
+                .from('registros_presas')
+                .select(`
+                    *,
+                    presas:presa_id (nombre, nombre_corto)
+                `)
+                .order('fecha', { ascending: false })
+                .limit(4); // Ultimos registros de Boquilla y Madero
+
+            setPresasData(pData || []);
+
+            // 3. Latest Readings for today
             const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Chihuahua' });
             const { data: readings } = await supabase
                 .from('lecturas_escalas')
@@ -68,85 +102,84 @@ const PublicMonitor: React.FC = () => {
                 .eq('fecha', today)
                 .order('hora_lectura', { ascending: false });
 
+            // Anchor of Truth: Only show water if the dam has actually opened (hora_apertura_real)
+            // If not opened, everything is ZERO.
+            const flowStartTime = activeEvent?.hora_apertura_real ? new Date(activeEvent.hora_apertura_real).getTime() : null;
+            
             const readingsMap = new Map();
-            readings?.forEach(r => {
-                if (!readingsMap.has(r.escala_id)) {
-                    readingsMap.set(r.escala_id, {
-                        nivel: r.nivel_m,
-                        hora: r.hora_lectura,
-                        fecha: r.fecha
-                    });
-                }
-            });
+            if (flowStartTime) {
+                readings?.forEach(r => {
+                    const readingTime = new Date(`${r.fecha}T${r.hora_lectura}-06:00`).getTime();
+                    // Only accept if it's within the CURRENT active flow window
+                    if (readingTime >= flowStartTime) {
+                        if (!readingsMap.has(r.escala_id)) {
+                            readingsMap.set(r.escala_id, {
+                                nivel: r.nivel_m,
+                                hora: r.hora_lectura,
+                                fecha: r.fecha,
+                                timestamp: readingTime
+                            });
+                        }
+                    }
+                });
+            }
 
-            // Highest KM based on telemetry
-            let maxTelemetryKm = 0;
-            (escData || []).forEach(e => {
-                const reading = readingsMap.get(e.id);
-                if (reading?.nivel !== undefined && reading.nivel > 0 && e.km > maxTelemetryKm) {
-                    maxTelemetryKm = e.km;
-                }
-            });
-
-            // Calculate estimated KM based on velocity (aprox 4.2 km/h)
-            let calculatedEstKm = 0;
-            let finalRealMax = 0;
-            if (activeEvent?.evento_tipo === 'LLENADO' && activeEvent.fecha_inicio) {
-                const startTime = new Date(activeEvent.fecha_inicio).getTime();
-                const now = Date.now();
-                const elapsedHours = (now - startTime) / (1000 * 3600);
-                const velocity = 4.2; // km/h (standard for Conchos filling)
-                calculatedEstKm = Math.min(113, elapsedHours * velocity);
-
-                    // Get Real Data (from tracking logs, if any)
-                    const { data: waveData } = await supabase
-                        .from('sica_llenado_seguimiento')
-                        .select('km')
-                        .eq('evento_id', activeEvent.id)
-                        .not('hora_real', 'is', null)
-                        .order('km', { ascending: false })
-                        .limit(1)
-                        .maybeSingle();
-                    
-                    finalRealMax = Math.max(waveData?.km || 0, maxTelemetryKm);
-                    setRealMaxKm(finalRealMax);
-                } else if (activeEvent?.evento_tipo === 'ESTABILIZACION') {
-                    finalRealMax = 113;
-                    setRealMaxKm(113);
-                    calculatedEstKm = 113;
-                } else {
-                    finalRealMax = 113;
-                    setRealMaxKm(113);
-                    calculatedEstKm = 113;
-                }
+            // 4. Fetch confirmed progress from Llenado Tracker
+            if (activeEvent?.evento_tipo === 'LLENADO') {
+                const { data: trackData } = await supabase
+                    .from('sica_llenado_seguimiento')
+                    .select('km')
+                    .eq('evento_id', activeEvent.id)
+                    .not('hora_real', 'is', null)
+                    .order('km', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
                 
-                // If telemetry max is somehow further ahead than the time calculation, use it.
-                // This forces the "Avance del Frente" to snap to the latest confirmed field reading
-                setEstMaxKm(Math.max(calculatedEstKm, finalRealMax));
+                if (trackData) {
+                    setRealMaxKm(trackData.km);
+                } else if (activeEvent.hora_apertura_real) {
+                    setRealMaxKm(-36); // Started at dam
+                } else {
+                    setRealMaxKm(-36); // Default start
+                }
+            } else {
+                setRealMaxKm(113); // Full flow if not in filling
+            }
 
-            setEscalas((escData || []).map(e => {
+            const baseEscalas = (escData || []).map(e => {
                 const reading = readingsMap.get(e.id);
                 const nivel = reading?.nivel;
                 let estado: any = 'ESPERANDO';
                 
-                // Prioritize real telemetry: if there's a level reading, water has arrived.
                 if (nivel !== undefined && nivel > 0) estado = 'OPERANDO';
-                else if (e.km <= realMaxKm) estado = 'OPERANDO';
-                else if (e.km <= estMaxKm) estado = 'LLENADO';
+                else if (realMaxKm !== undefined && e.km <= realMaxKm) estado = 'OPERANDO';
 
-                // Parse exact telemetry timestamp
-                let timestamp = null;
-                if (reading?.fecha && reading?.hora) {
-                    timestamp = new Date(`${reading.fecha}T${reading.hora}-06:00`).getTime();
-                }
+                let timestamp = reading?.timestamp || null;
 
                 return {
                     ...e,
                     nivel_actual: nivel,
                     estado: estado,
-                    ultima_telemetria: timestamp
+                    ultima_telemetria: timestamp,
+                    fuente: e.km === 0 ? 'BOQUILLA' : e.km > 100 ? 'MADERO' : null
                 };
-            }));
+            });
+
+            if (activeEvent?.evento_tipo === 'LLENADO') {
+                const presaReading = (pData || []).find((p: any) => p.presas?.nombre_corto === 'PLB');
+                baseEscalas.unshift({
+                    id: 'presa-boquilla',
+                    nombre: 'PRESA LA BOQUILLA',
+                    km: -36,
+                    nivel_actual: presaReading?.extraccion_total || 0,
+                    estado: activeEvent.hora_apertura_real ? 'OPERANDO' : 'ESPERANDO',
+                    ultima_telemetria: presaReading ? new Date(presaReading.fecha).getTime() : null,
+                    latitud: 27.545,
+                    longitud: -105.414
+                } as any);
+            }
+
+            setEscalas(baseEscalas);
             
         } catch (err) {
             console.error("PublicMonitor fetch error", err);
@@ -159,93 +192,65 @@ const PublicMonitor: React.FC = () => {
         return () => clearInterval(interval);
     }, [fetchData]);
 
-    // Constant tick for smooth estimate animation (respecting real data gaps)
+    // SIMULACIÓN ELIMINADA: El cronómetro y el avance están congelados hasta registrar datos reales.
     useEffect(() => {
-        if (activeEvent?.evento_tipo === 'LLENADO' && activeEvent.fecha_inicio) {
-            const tick = setInterval(() => {
-                const startTime = new Date(activeEvent.fecha_inicio!).getTime();
-                const elapsedHours = (Date.now() - startTime) / (1000 * 3600);
-                const velocity = 4.2;
-                const calculated = Math.min(113, elapsedHours * velocity);
-                // We use function state update to ensure we always have the latest 'estMaxKm'
-                // and we will NEVER drop below what was already established. 
-                setEstMaxKm(prevEst => Math.max(prevEst, calculated, realMaxKm));
-            }, 10000); // Update estimate every 10s
-            return () => clearInterval(tick);
+        // No se realiza ninguna acción de estimación temporal. 
+        // El avance ahora es puramente reactivo a la telemetría field-confirmed.
+    }, []);
+
+    // El avance del frente depende exclusivamente de telemetría confirmada o tracking de llenado
+    const displayMaxKm = useMemo(() => {
+        if (!activeEvent || activeEvent.evento_tipo !== 'LLENADO') return 113;
+        return realMaxKm;
+    }, [realMaxKm, activeEvent]);
+
+    // Mapeo de distancias para el Río (GeoMonitor style)
+    const rioDistData = useMemo(() => {
+        if (!geoRio) return [];
+        const coords = geoRio.features?.[0]?.geometry?.coordinates as [number, number][];
+        if (!coords) return [];
+        let total = 0;
+        const data = [{ lat: coords[0][1], lng: coords[0][0], dist: -36 }];
+        for (let i = 1; i < coords.length; i++) {
+            const d = haversineDist(coords[i-1][0], coords[i-1][1], coords[i][0], coords[i][1]);
+            total += d;
+            data.push({ lat: coords[i][1], lng: coords[i][0], dist: -36 + total });
         }
-    }, [activeEvent, realMaxKm]);
+        const factor = total > 0 ? 36 / total : 1;
+        data.forEach(d => d.dist = -36 + (d.dist + 36) * factor);
+        return data;
+    }, [geoRio]);
 
-    const displayMaxKm = useMemo(() => Math.max(realMaxKm, estMaxKm), [realMaxKm, estMaxKm]);
-
-    // 3. Map Geometry Helpers
-    const getPathSegment = useCallback((maxKm: number) => {
-        if (!geoCanal || !geoCanal.features?.[0] || !escalas.length) return [];
-        const coords = geoCanal.features[0].geometry.coordinates;
-
-        // Use the official scales as physical anchors on the map
-        const sortedEscalas = [...escalas]
-            .filter(e => typeof e.latitud === 'number' && typeof e.longitud === 'number')
-            .sort((a,b) => a.km - b.km);
-            
-        if (sortedEscalas.length === 0) return [];
-
-        let prevScale = sortedEscalas[0];
-        let nextScale = sortedEscalas[sortedEscalas.length - 1];
-
-        // Find which two checkpoints the current advance is between
-        for (let i = 0; i < sortedEscalas.length - 1; i++) {
-             if (maxKm >= sortedEscalas[i].km && maxKm <= sortedEscalas[i+1].km) {
-                 prevScale = sortedEscalas[i];
-                 nextScale = sortedEscalas[i+1];
-                 break;
-             }
+    const canalDistData = useMemo(() => {
+        if (!geoCanal) return [];
+        const coords = geoCanal.features?.[0]?.geometry?.coordinates as [number, number][];
+        if (!coords) return [];
+        let total = 0;
+        const data = [{ lat: coords[0][1], lng: coords[0][0], dist: 0 }];
+        for (let i = 1; i < coords.length; i++) {
+            const d = haversineDist(coords[i-1][0], coords[i-1][1], coords[i][0], coords[i][1]);
+            total += d;
+            data.push({ lat: coords[i][1], lng: coords[i][0], dist: total });
         }
-        if (maxKm >= nextScale.km) {
-            prevScale = nextScale;
-        }
+        const factor = total > 0 ? 104 / total : 1;
+        data.forEach(d => d.dist *= factor);
+        return data;
+    }, [geoCanal]);
 
-        // Helper to find the closest vertex on the canal polyline to a specific geo-coordinate
-        const getClosestIndex = (lat: number, lon: number) => {
-             let minD = Infinity;
-             let idx = 0;
-             for (let i = 0; i < coords.length; i++) {
-                 const [clon, clat] = coords[i];
-                 if (typeof clon === 'number' && typeof clat === 'number') {
-                     // Fast euclidean distance approximation is enough for vertex matching
-                     const d = Math.pow(clat - lat, 2) + Math.pow(clon - lon, 2);
-                     if (d < minD) { minD = d; idx = i; }
-                 }
-             }
-             return idx;
-        };
-
-        const prevIdx = getClosestIndex(prevScale.latitud!, prevScale.longitud!);
-        let targetIdx = prevIdx;
-
-        // Interpolate the exact array index between the two closest real-world checkpoints
-        if (prevScale !== nextScale) {
-             const nextIdx = getClosestIndex(nextScale.latitud!, nextScale.longitud!);
-             const fraction = (maxKm - prevScale.km) / (nextScale.km - prevScale.km);
-             targetIdx = prevIdx + Math.floor((nextIdx - prevIdx) * Math.max(0, Math.min(1, fraction)));
-        } else if (maxKm > prevScale.km) {
-             // If advancing past the final known scale, extrapolate to end of geometry
-             const fraction = (maxKm - prevScale.km) / (113 - prevScale.km);
-             targetIdx = prevIdx + Math.floor((coords.length - 1 - prevIdx) * fraction);
-        }
-
-        return coords.slice(0, Math.max(1, targetIdx)) // Give at least 1 point
-            .filter((c: any) => c && typeof c[0] === 'number' && typeof c[1] === 'number')
-            .map((c: any) => [c[1], c[0]]); // Leaflet uses [lat, lng]
-    }, [geoCanal, escalas]);
-
-    const canalFullLength = useMemo(() => getPathSegment(113), [getPathSegment]);
-    const hydratedPath = useMemo(() => getPathSegment(displayMaxKm), [getPathSegment, displayMaxKm]);
+    const rioFullLength = useMemo(() => rioDistData.map(d => [d.lat, d.lng] as [number, number]), [rioDistData]);
+    const canalFullLength = useMemo(() => canalDistData.map(d => [d.lat, d.lng] as [number, number]), [canalDistData]);
+    
+    const hydratedPath = useMemo(() => {
+        const rioPart = rioDistData.filter(d => d.dist <= displayMaxKm).map(d => [d.lat, d.lng] as [number, number]);
+        const canalPart = displayMaxKm > 0 ? canalDistData.filter(d => d.dist <= displayMaxKm).map(d => [d.lat, d.lng] as [number, number]) : [];
+        return [...rioPart, ...canalPart];
+    }, [rioDistData, canalDistData, displayMaxKm]);
     
     // Position for the Pulse Marker
     const frontCoords = useMemo(() => {
-        if (hydratedPath.length === 0) return [28.530, -105.655]; // Boquilla approx start
+        if (hydratedPath.length === 0) return [27.545, -105.414]; // Presa approx start
         const last = hydratedPath[hydratedPath.length - 1];
-        if (!last || typeof last[0] !== 'number' || typeof last[1] !== 'number') return [28.530, -105.655];
+        if (!last || typeof last[0] !== 'number' || typeof last[1] !== 'number') return [27.545, -105.414];
         return last;
     }, [hydratedPath]);
 
@@ -265,7 +270,7 @@ const PublicMonitor: React.FC = () => {
 
     // 4. Calculate Dynamic Target Estimation
     const nextTargetInfo = useMemo(() => {
-        if (!escalas || escalas.length === 0) return { name: "LA CRUZ", hours: 0, mins: 0 };
+        if (!escalas || escalas.length === 0) return { name: "Buscando...", hours: 0, mins: 0 };
         
         // Find the first scale that is geographically ahead of our current water front
         const sorted = [...escalas].sort((a,b) => a.km - b.km);
@@ -288,16 +293,34 @@ const PublicMonitor: React.FC = () => {
         };
     }, [escalas, displayMaxKm]);
 
-    // 5. Calculate Time Elapsed
+    // 5. Elapsed Time since Effective Start
     const elapsedTimeInfo = useMemo(() => {
-        if (!activeEvent?.fecha_inicio) return { hours: 0, mins: 0 };
-        const startTime = new Date(activeEvent.fecha_inicio).getTime();
-        const diffMs = Date.now() - startTime;
+        if (!activeEvent?.hora_apertura_real) return { hours: 0, mins: 0 };
+        const start = new Date(activeEvent.hora_apertura_real).getTime();
+        const diffMs = Date.now() - start;
         const totalHours = Math.max(0, diffMs / (1000 * 3600));
         const hr = Math.floor(totalHours);
         const min = Math.floor((totalHours - hr) * 60);
         return { hours: hr, mins: min };
-    }, [activeEvent, estMaxKm]); // estMaxKm updates every 10s, ensuring this re-renders
+    }, [activeEvent, displayMaxKm]);
+
+    // 6. Executive/Managerial Metrics
+    const executiveMetrics = useMemo(() => {
+        const totalRequested = activeEvent?.gasto_solicitado_m3s || 0;
+        let totalReal = 0;
+        presasData.forEach(p => { totalReal += (p.extraccion_total || 0); });
+        
+        const efficiency = totalRequested > 0 ? (totalReal / totalRequested) * 100 : 0;
+        const healthStatus = efficiency > 95 ? 'OPTIMO' : efficiency > 85 ? 'PRECAUCIÓN' : 'REVISIÓN';
+        const healthColor = efficiency > 95 ? '#22c55e' : efficiency > 85 ? '#eab308' : '#ef4444';
+
+        return {
+            totalReal,
+            efficiency,
+            healthStatus,
+            healthColor
+        };
+    }, [activeEvent, presasData]);
 
     return (
         <div className="public-monitor-container">
@@ -305,60 +328,118 @@ const PublicMonitor: React.FC = () => {
             <div className="public-header animate-in">
                 <span className="cycle-top-label">CICLO AGRÍCOLA 2026</span>
                 <div className="protocol-badge-premium">
-                    <img src="/logos/logo-srl.png" alt="SRL Conchos" style={{ height: '45px', objectFit: 'contain' }} />
+                    <img src="/logos/logo-srl.png" alt="SRL Conchos" className="logo-srl-header" />
                     
-                    <div className="status-dot-outer" style={{ marginLeft: '10px', marginRight: '5px' }}>
+                    <div className="status-dot-container">
                         <div className="status-dot-pulse" style={{ borderColor: statusColor }}></div>
                         <div className="status-dot-inner" style={{ background: statusColor }}></div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', paddingRight: '15px', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div className="protocol-text-container">
                         <span className="protocol-subtitle">Seguimiento de Suministro Público · SICA Telemetría v3.1</span>
-                        <span className="protocol-title">ESTADO DEL CANAL: <span style={{ color: statusColor }}>{protocolLabel}</span></span>
+                        <span className="protocol-title">ESTADO DEL CANAL: <span className="protocol-status-label" style={{ color: statusColor }}>{protocolLabel}</span></span>
                     </div>
 
-                    <img src="/logos/SICA005.png" alt="SICA 005" style={{ height: '45px', width: '45px', objectFit: 'cover', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.1)' }} />
+                    <div className="executive-vitals-divider"></div>
+
+                    <div className="executive-vitals">
+                        <div className="vital-item">
+                            <span className="vital-label">EFICIENCIA</span>
+                            <span className="vital-value" style={{ color: executiveMetrics.healthColor }}>{executiveMetrics.efficiency.toFixed(1)}%</span>
+                        </div>
+                        <div className="vital-item">
+                            <span className="vital-label">STATUS</span>
+                            <span className="vital-value">{executiveMetrics.healthStatus}</span>
+                        </div>
+                    </div>
+
+                    <img src="/logos/SICA005.png" alt="SICA 005" className="logo-sica-header" />
                 </div>
             </div>
 
             {/* Prediction Info Badge */}
-            {activeEvent?.evento_tipo === 'LLENADO' && (
-                <div className="prediction-badge animate-in" style={{ animationDelay: '0.2s' }}>
+            {activeEvent?.evento_tipo === 'LLENADO' && isPredictionVisible && (
+                <div className="prediction-badge animate-in">
                     <div className="pulse-mini"></div>
-                    <span>
-                        <span style={{ opacity: 0.7 }}>AVANCE DEL FRENTE: </span> 
-                        {((displayMaxKm/113)*100).toFixed(0)}% 
-                        <span style={{ margin: '0 10px', opacity: 0.3 }}>|</span> 
-                        <span style={{ opacity: 0.7 }}>PRÓXIMO A {nextTargetInfo.name}: </span>
+                    <span className="prediction-text">
+                        <span className="prediction-label">AVANCE DEL FRENTE: </span> 
+                        {(((displayMaxKm + 36) / (113 + 36)) * 100).toFixed(0)}% 
+                        <span className="prediction-divider">|</span> 
+                        <span className="prediction-label">PRÓXIMO A {nextTargetInfo.name}: </span>
                         {nextTargetInfo.hours > 0 ? `${nextTargetInfo.hours}H ` : ''}{nextTargetInfo.mins}M
                     </span>
+                    <button className="panel-toggle-mini" onClick={() => setIsPredictionVisible(false)} title="Ocultar avance">×</button>
                 </div>
             )}
 
-            {/* Right Side Info Floating Card */}
-            {activeEvent?.evento_tipo === 'LLENADO' && (
+            {/* Right Side Info Floating Card - Analítica de Seguimiento Agrupada */}
+            {activeEvent?.evento_tipo === 'LLENADO' && isTelemetryVisible && (
                 <div className="telemetry-floating-card animate-in" style={{ animationDelay: '0.6s' }}>
-                    <div className="telemetry-floating-title">
-                        <Activity size={14} color="#06b6d4" /> Análitica de Seguimiento
+                    <div className="telemetry-floating-header">
+                        <div className="telemetry-floating-title">
+                            <Activity size={14} color="#06b6d4" /> Resumen de Fuentes (Presas)
+                        </div>
+                        <button className="panel-toggle-mini" onClick={() => setIsTelemetryVisible(false)} title="Ocultar resumen">×</button>
                     </div>
                     
+                    {/* Agrupación de Fuentes: Boquilla y Madero */}
+                    <div className="fuentes-summary-grid">
+                        {presasData.length > 0 ? (
+                            presasData.map(p => (
+                                <div className="fuente-item-premium" key={p.id}>
+                                    <div className="fuente-dot" style={{ backgroundColor: p.presas?.nombre_corto === 'PLB' ? '#3b82f6' : '#a78bfa' }}></div>
+                                    <div className="fuente-info">
+                                        <span className="fuente-name">{p.presas?.nombre?.toUpperCase()}</span>
+                                        <span className="fuente-status">{p.extraccion_total > 0 ? 'SUMINISTRO ACTIVO' : 'CERRADA'}</span>
+                                    </div>
+                                    <span className="fuente-val">{p.extraccion_total?.toFixed(2) || '0.00'} <small className="fuente-val-unit">m³/s</small></span>
+                                </div>
+                            ))
+                        ) : (
+                            <>
+                                <div className="fuente-item-premium">
+                                    <div className="fuente-dot" style={{ background: '#3b82f6' }}></div>
+                                    <div className="fuente-info">
+                                        <span className="fuente-name">LA BOQUILLA</span>
+                                        <span className="fuente-status">SIN TELEMETRÍA</span>
+                                    </div>
+                                    <span className="fuente-val">0.00 <small>m³/s</small></span>
+                                </div>
+                                <div className="fuente-item-premium">
+                                    <div className="fuente-dot" style={{ background: '#a78bfa' }}></div>
+                                    <div className="fuente-info">
+                                        <span className="fuente-name">FR. I. MADERO</span>
+                                        <span className="fuente-status">SIN TELEMETRÍA</span>
+                                    </div>
+                                    <span className="fuente-val">0.00 <small>m³/s</small></span>
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="tf-divider"></div>
+
                     <div className="tf-stat-row">
-                        <span className="tf-stat-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Timer size={14}/> T. Transcurrido</span>
-                        <span className="tf-stat-value">{elapsedTimeInfo.hours}H {elapsedTimeInfo.mins}M</span>
+                        <span className="tf-stat-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Timer size={14}/> Suministro Efectivo</span>
+                        <span className="tf-stat-value">{displayMaxKm > 0 ? `${elapsedTimeInfo.hours}H ${elapsedTimeInfo.mins}M` : 'EN ESPERA'}</span>
                     </div>
 
                     <div className="tf-stat-row">
-                        <span className="tf-stat-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14}/> Llegada a {nextTargetInfo.name}</span>
-                        <span className="tf-stat-value" style={{ color: '#fbbf24', textShadow: '0 0 10px rgba(251, 191, 36, 0.4)' }}>
-                            {nextTargetInfo.hours > 0 ? `${nextTargetInfo.hours}H ` : ''}{nextTargetInfo.mins}M
+                        <span className="tf-stat-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14}/> {displayMaxKm > 0 ? `Estimado a ${nextTargetInfo.name}` : 'A la espera de Obra de Toma'}</span>
+                        <span className="tf-stat-value" style={{ color: '#fbbf24' }}>
+                            {displayMaxKm > 0 ? (
+                                <>
+                                    {nextTargetInfo.hours > 0 ? `${nextTargetInfo.hours}H ` : ''}{nextTargetInfo.mins}M
+                                </>
+                            ) : '--:--'}
                         </span>
                     </div>
 
                     <div className="tf-alert-box">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', fontWeight: 'bold' }}>
-                            <AlertCircle size={12} color="#06b6d4" /> RECEPCIÓN ACTIVA
+                            <AlertCircle size={12} color="#06b6d4" /> ACTUALIZACIÓN TÉCNICA
                         </div>
-                        Las escalas iniciales como el K-0 continúan recibiendo actualizaciones de nivel posteriores a la llegada del agua para evaluar la curva de estabilización y tirante volumétrico.
+                        Los puntos de control se actualizan automáticamente al recibir validación de los inspectores en campo vía SICA Capture.
                     </div>
                 </div>
             )}
@@ -376,7 +457,12 @@ const PublicMonitor: React.FC = () => {
                         attribution='&copy; CARTO'
                     />
                     
-                    {/* Canal Inactivo */}
+                    {/* Río y Canal Inactivo */}
+                    <Polyline 
+                        positions={rioFullLength} 
+                        color="rgba(255,255,255,0.08)" 
+                        weight={4} 
+                    />
                     <Polyline 
                         positions={canalFullLength} 
                         color="rgba(255,255,255,0.08)" 
@@ -384,15 +470,17 @@ const PublicMonitor: React.FC = () => {
                         className="canal-path-base"
                     />
 
-                    {/* Canal Activo (Animated Stream) */}
-                    <Polyline 
-                        positions={hydratedPath} 
-                        color={statusColor} 
-                        weight={6} 
-                        className="canal-path-active"
-                    />
+                    {/* Canal Activo (Stream) - Solo visible si hay avance real confirmado */}
+                    {activeEvent?.evento_tipo === 'LLENADO' && (
+                        <Polyline 
+                            positions={hydratedPath} 
+                            color={statusColor} 
+                            weight={6} 
+                            className="canal-path-active"
+                        />
+                    )}
 
-                    {/* Front de Agua Marker */}
+                    {/* Front de Agua Marker - Solo visible si hay avance real confirmado */}
                     {activeEvent?.evento_tipo === 'LLENADO' && typeof frontCoords[0] === 'number' && typeof frontCoords[1] === 'number' && (
                         <Marker position={frontCoords as any} icon={waterFrontIcon} />
                     )}
@@ -409,13 +497,13 @@ const PublicMonitor: React.FC = () => {
                             fillOpacity={1}
                         >
                             <Tooltip className="custom-tooltip" direction="top" offset={[0, -10]}>
-                                <div style={{ minWidth: '120px' }}>
-                                    <div style={{ fontSize: '10px', textTransform: 'uppercase', opacity: 0.7 }}>{esc.km.toFixed(1)} KM</div>
-                                    <b style={{ fontSize: '12px' }}>{esc.nombre}</b>
+                                <div className="tooltip-content">
+                                    <div className="tooltip-km">{esc.km.toFixed(1)} KM</div>
+                                    <b className="tooltip-name">{esc.nombre}</b>
                                     {esc.nivel_actual && (
-                                        <div style={{ marginTop: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <div className="tooltip-payload">
                                             <Droplets size={12} color={statusColor} />
-                                            <span style={{ fontSize: '14px', fontWeight: 800 }}>{esc.nivel_actual.toFixed(2)} m</span>
+                                            <span className="tooltip-value">{esc.nivel_actual.toFixed(2)} m</span>
                                         </div>
                                     )}
                                 </div>
@@ -428,65 +516,99 @@ const PublicMonitor: React.FC = () => {
             </div>
 
             {/* Bottom Dock */}
-            <div className="info-cards-dock animate-in" style={{ animationDelay: '0.4s' }}>
-                {/* Section 1: Inflow Info */}
-                <div className="dock-section summary-card-large">
-                    <span className="card-label">SUMINISTRO ACTUAL</span>
-                    <div className="summary-gasto">
-                        <span className="gasto-value">
-                            {activeEvent?.gasto_solicitado_m3s?.toFixed(2) || '45.00'}
-                            <span className="gasto-unit">m³/s</span>
-                        </span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
-                            <span className="card-title" style={{ fontSize: '1.3rem', fontWeight: 600 }}>Avance de Llenado: <span style={{ color: statusColor, fontWeight: 800 }}>{((displayMaxKm/113)*100).toFixed(1)}%</span></span>
+            {isDockVisible ? (
+                <div className="info-cards-dock animate-in" style={{ animationDelay: '0.4s' }}>
+                    <button className="dock-close-btn" onClick={() => setIsDockVisible(false)} title="Cerrar tablero">×</button>
+                    {/* Section 1: Inflow Info */}
+                    <div className="dock-section summary-card-large">
+                        <div className="managerial-card-header">
+                            <span className="card-label">SUMINISTRO Y BALANCE HÍDRICO</span>
+                            <div className="health-badge-premium" style={{ borderColor: executiveMetrics.healthColor }}>
+                                <div className="health-dot" style={{ background: executiveMetrics.healthColor }}></div>
+                                {executiveMetrics.healthStatus}
+                            </div>
+                        </div>
+                        <div className="summary-gasto">
+                            <span className="gasto-value">
+                                {executiveMetrics.totalReal.toFixed(2)}
+                                <span className="gasto-unit">m³/s REAL</span>
+                            </span>
+                            <div className="summary-info-row">
+                                <span className="summary-info-title">📊 PROGRESO TOTAL (RED GLOBAL): <span className="summary-info-value" style={{ color: statusColor }}>{(((displayMaxKm + 36) / (113 + 36)) * 100).toFixed(1)}%</span></span>
+                            </div>
+                        </div>
+                        {/* Mini Chart Mockup with Hydro-Sync Context */}
+                        <div className="mini-chart-bars-gerencial">
+                            {[40, 45, 52, 58, 62, 70, 75, 82, 88, 92, 95, 100].map((h, i) => {
+                                const isAnomaly = executiveMetrics.efficiency < 85 && i > 8;
+                                return (
+                                    <div 
+                                        key={i} 
+                                        className={`mini-bar ${isAnomaly ? 'anomaly' : ''}`}
+                                        style={{ 
+                                            height: `${(h * ((displayMaxKm + 36)/(113 + 36)))}%`, 
+                                            opacity: i/12 + 0.3,
+                                            background: isAnomaly ? '#ef4444' : (i > 8 ? 'var(--neon-cyan)' : 'rgba(6, 182, 212, 0.4)')
+                                        }}
+                                    ></div>
+                                );
+                            })}
                         </div>
                     </div>
-                    {/* Mini Chart Mockup */}
-                    <div className="mini-chart-bars">
-                        {[40, 45, 52, 58, 62, 70, 75, 82, 88, 92, 95, 100].map((h, i) => (
-                            <div 
-                                key={i} 
-                                className="mini-bar" 
-                                style={{ 
-                                    height: `${(h * (displayMaxKm/113))}%`, 
-                                    opacity: i/12 + 0.2,
-                                    background: i > 8 ? 'var(--neon-cyan)' : 'rgba(6, 182, 212, 0.4)'
-                                }}
-                            ></div>
-                        ))}
-                    </div>
-                </div>
 
-                {/* Section 2: Checkpoints Grid */}
-                <div className="dock-section" style={{ flex: 1 }}>
-                    <span className="card-label">CHECKPOINTS RECIENTES (ÚLTIMOS 3)</span>
-                    <div className="checkpoints-grid">
-                        {escalas
-                            .filter(e => e.km <= displayMaxKm + 10)
-                            .slice(0, 3) // Show the first 3 relevant checkpoints from left to right
-                            .map((e, idx) => (
-                            <div className="checkpoint-card-premium" key={e.id}>
-                                <div className="cp-header">
-                                    <span className="cp-title">{idx + 1}. {e.nombre}</span>
-                                    <span className={`cp-status-tag status-${e.estado?.toLowerCase()}`}>
-                                        {e.estado}
-                                    </span>
-                                </div>
-                                <div className="cp-data-row">
-                                    <span className="cp-label">Nivel Actual</span>
-                                    <span className="cp-value">{e.nivel_actual?.toFixed(2) || '0.00'}<span style={{ fontSize: '0.9rem', color: '#64748b', marginLeft: '4px' }}>m</span></span>
-                                </div>
-                                <div className="cp-trend-box">
-                                    <TrendingUp size={14} color={e.nivel_actual ? statusColor : '#475569'} />
-                                    <div style={{ flex: 1, height: '2px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px' }}>
-                                        <div style={{ width: e.nivel_actual ? '70%' : '0%', height: '100%', background: statusColor }}></div>
+                    {/* Section 2: Checkpoints Grid - Visualización compacta de toda la red de escalas */}
+                    <div className="dock-section" style={{ flex: 1, overflow: 'hidden' }}>
+                        <div className="dock-section-header">
+                            <span className="card-label">RED DE PUNTOS DE CONTROL (SINCRO-ESTADÍSTICA)</span>
+                            <span className="telemetry-tag" style={{ color: statusColor }}>● MONITOREO TOTAL ACTIVO</span>
+                        </div>
+                        <div className="checkpoints-scroll-container">
+                            {escalas
+                                .sort((a, b) => a.km - b.km) // Orden natural del canal para lectura fluida
+                                .map((e) => (
+                                <div className={`checkpoint-card-compact ${e.km <= displayMaxKm ? 'active' : ''}`} key={e.id}>
+                                    <div className="cpc-km">{e.km.toFixed(1)} <small>KM</small></div>
+                                    <div className="cpc-body">
+                                        <span className="cpc-name">{e.nombre}</span>
+                                        <div className="cpc-data">
+                                            <span className="cpc-value">{e.nivel_actual?.toFixed(2) || '0.00'}</span>
+                                            <small className="cpc-unit">m</small>
+                                        </div>
                                     </div>
-                                    <span className="telemetry-tag">TELEMETRÍA: {formatTimeAgo(e.ultima_telemetria)}</span>
+                                    <div className="cpc-status-bar">
+                                        <div 
+                                            className="cpc-progress" 
+                                            style={{ 
+                                                width: e.km <= displayMaxKm ? '100%' : '0%',
+                                                background: e.estado === 'OPERANDO' ? '#22c55e' : statusColor
+                                            }}
+                                        ></div>
+                                    </div>
+                                    <div className="cpc-time">{formatTimeAgo(e.ultima_telemetria)}</div>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
                 </div>
+            ) : (
+                <div className="dock-minimized animate-in" onClick={() => setIsDockVisible(true)}>
+                    <Activity size={20} />
+                    <span>VER TABLERO TÉCNICO</span>
+                </div>
+            )}
+
+            {/* Floating Re-open buttons for mobile */}
+            <div className="floating-ui-controls">
+                {!isPredictionVisible && (
+                    <button className="control-btn-mini" onClick={() => setIsPredictionVisible(true)} title="Mostrar avance">
+                        <Timer size={16} />
+                    </button>
+                )}
+                {!isTelemetryVisible && (
+                    <button className="control-btn-mini" onClick={() => setIsTelemetryVisible(true)} title="Mostrar resumen">
+                        <Activity size={16} />
+                    </button>
+                )}
             </div>
         </div>
     );

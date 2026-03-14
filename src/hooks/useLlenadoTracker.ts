@@ -71,76 +71,6 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
         return confirmados[0] || null;
     })();
 
-    // --- Generar puntos de control al activar llenado ---
-    const generarPuntos = useCallback(async () => {
-        if (!eventoId) return;
-        setLoading(true);
-        console.log('🏗️ [LlenadoTracker] Generando puntos de control...');
-
-        try {
-            // Verificar si ya existen puntos para este evento
-            const { data: existing } = await supabase
-                .from('sica_llenado_seguimiento')
-                .select('id')
-                .eq('evento_id', eventoId)
-                .limit(1);
-
-            if (existing && existing.length > 0) {
-                console.log('✅ [LlenadoTracker] Puntos ya existen, cargando...');
-                await fetchPuntos();
-                setLoading(false);
-                return;
-            }
-
-            // Obtener escalas activas del sistema
-            const { data: escalas, error: escErr } = await supabase
-                .from('escalas')
-                .select('id, nombre, km')
-                .eq('activa', true)
-                .order('km', { ascending: true });
-
-            if (escErr) throw escErr;
-
-
-
-
-            // Construir lista de puntos: KM 0 + todas las escalas
-            const puntosInsert = [
-                {
-                    evento_id: eventoId,
-                    punto_nombre: 'KM 0+000',
-                    km: 0,
-                    orden_secuencial: 0,
-                    estado: 'PENDIENTE'
-                },
-                ...(escalas || []).map((esc, i) => ({
-                    evento_id: eventoId,
-                    punto_nombre: esc.nombre,
-                    km: esc.km,
-                    orden_secuencial: i + 1,
-                    estado: 'PENDIENTE' as const
-                }))
-            ];
-
-            const { error: insertErr } = await supabase
-                .from('sica_llenado_seguimiento')
-                .insert(puntosInsert);
-
-            if (insertErr) {
-                console.error('❌ [LlenadoTracker] Error al generar puntos:', insertErr);
-                throw insertErr;
-            }
-
-            console.log(`✅ [LlenadoTracker] ${puntosInsert.length} puntos generados`);
-            await fetchPuntos();
-        } catch (err: any) {
-            console.error('💀 [LlenadoTracker]', err);
-            toast.error('Error generando puntos: ' + err.message);
-        } finally {
-            setLoading(false);
-        }
-    }, [eventoId]);
-
     // --- Fetch puntos existentes ---
     const fetchPuntos = useCallback(async () => {
         if (!eventoId) return;
@@ -173,6 +103,103 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
         setPuntos(mapped);
     }, [eventoId]);
 
+    // --- Generar puntos de control al activar llenado ---
+    const generarPuntos = useCallback(async () => {
+        if (!eventoId) return;
+        setLoading(true);
+        console.log('🏗️ [LlenadoTracker] Generando puntos de control...');
+
+        try {
+            // Verificar si ya existen puntos para este evento
+            const { data: existing } = await supabase
+                .from('sica_llenado_seguimiento')
+                .select('id')
+                .eq('evento_id', eventoId)
+                .limit(1);
+
+            if (existing && existing.length > 0) {
+                console.log('✅ [LlenadoTracker] Puntos ya existen, cargando...');
+                await fetchPuntos();
+                setLoading(false);
+                return;
+            }
+
+            // Obtener el ciclo_id del evento
+            const { data: evento } = await supabase
+                .from('sica_eventos_log')
+                .select('ciclo_id')
+                .eq('id', eventoId)
+                .maybeSingle();
+
+            // Obtener escalas activas del sistema
+            const { data: escalas, error: escErr } = await supabase
+                .from('escalas')
+                .select('id, nombre, km')
+                .eq('activa', true)
+                .order('km', { ascending: true });
+
+            if (escErr) throw escErr;
+
+            // Construir lista de puntos: Presa + KM 0 + todas las escalas
+            const uniquePuntos = new Map<number, any>();
+            
+            // 1. ORIGEN: Presa (KM -36)
+            uniquePuntos.set(-36, {
+                evento_id: eventoId,
+                ciclo_id: evento?.ciclo_id || null,
+                punto_nombre: 'Presa La Boquilla / San Fco.',
+                km: -36,
+                orden_secuencial: -1,
+                estado: horaApertura ? 'CONFIRMADO' : 'PENDIENTE',
+                hora_real: horaApertura || null
+            });
+
+            // 2. KM 0 (Obra de Toma)
+            uniquePuntos.set(0, {
+                evento_id: eventoId,
+                ciclo_id: evento?.ciclo_id || null,
+                punto_nombre: 'KM 0+000 (Obra de Toma)',
+                km: 0,
+                orden_secuencial: 0,
+                estado: 'PENDIENTE'
+            });
+
+            // 3. Escalas
+            (escalas || []).forEach((esc, i) => {
+                if (!uniquePuntos.has(esc.km)) {
+                    uniquePuntos.set(esc.km, {
+                        evento_id: eventoId,
+                        ciclo_id: evento?.ciclo_id || null,
+                        punto_nombre: esc.nombre,
+                        km: esc.km,
+                        orden_secuencial: i + 1,
+                        estado: 'PENDIENTE'
+                    });
+                }
+            });
+
+            const puntosInsert = Array.from(uniquePuntos.values());
+
+            const { error: insertErr } = await supabase
+                .from('sica_llenado_seguimiento')
+                .insert(puntosInsert);
+
+            if (insertErr) {
+                console.error('❌ [LlenadoTracker] Error al generar puntos:', insertErr);
+                throw insertErr;
+            }
+
+            console.log(`✅ [LlenadoTracker] ${puntosInsert.length} puntos generados`);
+            await fetchPuntos();
+        } catch (err) {
+            const error = err as Error;
+            console.error('💀 [LlenadoTracker]', error);
+            toast.error('Error generando puntos: ' + error.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [eventoId, fetchPuntos]);
+
     // --- Calcular ETAs cuando se confirma hora de apertura ---
     const calcularETAs = useCallback(async () => {
         if (!eventoId || !horaApertura || puntos.length === 0) return;
@@ -183,10 +210,12 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
 
         const updates = puntos.map(p => {
             let segTotales: number;
-            if (p.km === 0) {
-                segTotales = segRio; // Solo río
+            if (p.km === -36) {
+                segTotales = 0; // Origen en Presa
+            } else if (p.km === 0) {
+                segTotales = segRio; // Tránsito por Río
             } else {
-                segTotales = segRio + calcSegundosCanal(p.km); // Río + canal
+                segTotales = segRio + calcSegundosCanal(p.km); // Río + Canal
             }
 
             const eta = new Date(apertura + segTotales * 1000).toISOString();
@@ -215,7 +244,7 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
 
         console.log('✅ [LlenadoTracker] ETAs calculadas');
         await fetchPuntos();
-    }, [eventoId, horaApertura, qSolicitado, puntos.length]);
+    }, [eventoId, horaApertura, qSolicitado, puntos, fetchPuntos]);
 
     // --- Confirmar arribo real + recálculo en cascada ---
     const confirmarArribo = useCallback(async (puntoId: string, horaReal: string, nivelM?: number, gastoM3s?: number, notas?: string) => {
@@ -261,9 +290,10 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
 
         // Calcular velocidad real medida
         let velocidadReal: number;
-        if (kmAncla === 0 && horaApertura) {
-            // Velocidad medida en el río
-            const tRealRio = (horaAncla - new Date(horaApertura).getTime()) / 1000;
+        if (kmAncla === 0 && (puntos.find(p => p.km === -36)?.hora_real || horaApertura)) {
+            // Velocidad medida en el río (desde Presa hasta KM 0)
+            const horaInicio = new Date(puntos.find(p => p.km === -36)?.hora_real || horaApertura || '').getTime();
+            const tRealRio = (horaAncla - horaInicio) / 1000;
             velocidadReal = DISTANCIA_RIO_M / Math.max(tRealRio, 1);
             console.log(`📐 Velocidad real río: ${velocidadReal.toFixed(2)} m/s (teórica: ${calcVelocidadRio(qSolicitado).toFixed(2)} m/s)`);
         } else {
@@ -307,7 +337,7 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
 
         toast.success(`✅ Arribo en ${puntoConfirmado.punto_nombre} → ${posteriores.length} puntos recalculados`);
         await fetchPuntos();
-    }, [puntos, horaApertura, qSolicitado]);
+    }, [puntos, horaApertura, qSolicitado, fetchPuntos]);
 
     // --- Countdown en vivo ---
     useEffect(() => {
@@ -328,7 +358,7 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
         if (eventoId) {
             generarPuntos();
         }
-    }, [eventoId]);
+    }, [eventoId, generarPuntos]);
 
     // --- Calcular ETAs cuando se confirma apertura ---
     useEffect(() => {
@@ -338,7 +368,7 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
                 calcularETAs();
             }
         }
-    }, [horaApertura, puntos.length]);
+    }, [horaApertura, puntos, calcularETAs]);
 
     return {
         puntos,

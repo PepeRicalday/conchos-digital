@@ -54,8 +54,15 @@ const PublicMonitor: React.FC = () => {
     const [presasData, setPresasData] = useState<any[]>([]);
     
     // Panel Visibility States - Start deactivated for professional clean view
-    const [isDockVisible, setIsDockVisible] = useState(true); // Open by default for better data exposure
+    const [isDockVisible, setIsDockVisible] = useState(true); 
     const [isPredictionVisible, setIsPredictionVisible] = useState(false);
+    const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+    // 0. Update internal clock for reactive calculations
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(Date.now()), 15000);
+        return () => clearInterval(timer);
+    }, []);
 
 
     // 1. Fetch Canal Geometry
@@ -184,7 +191,7 @@ const PublicMonitor: React.FC = () => {
                 if (nivel !== undefined && nivel > 0) estado = 'OPERANDO';
                 else if (realMaxKm !== undefined && e.km <= realMaxKm) estado = 'OPERANDO';
 
-                let timestamp = reading?.timestamp || null;
+                const timestamp = reading?.timestamp || null;
 
                 return {
                     ...e,
@@ -206,7 +213,7 @@ const PublicMonitor: React.FC = () => {
                     km: -36,
                     nivel_actual: extraccionReal > 0 ? extraccionReal : extraccionFallback,
                     estado: activeEvent.hora_apertura_real ? 'OPERANDO' : 'ESPERANDO',
-                    ultima_telemetria: extraccionReal > 0 ? new Date(presaReading!.fecha).getTime() : Date.now(),
+                    ultima_telemetria: extraccionReal > 0 ? new Date(presaReading!.fecha).getTime() : currentTime,
                     latitud: 27.545,
                     longitud: -105.414
                 } as any);
@@ -217,7 +224,7 @@ const PublicMonitor: React.FC = () => {
         } catch (err) {
             console.error("PublicMonitor fetch error", err);
         }
-    }, [activeEvent]);
+    }, [activeEvent, currentTime]);
 
     useEffect(() => {
         fetchData();
@@ -245,7 +252,7 @@ const PublicMonitor: React.FC = () => {
             }
         }
 
-        const elapsedHours = (Date.now() - startTime) / (1000 * 3600);
+        const elapsedHours = (currentTime - startTime) / (1000 * 3600);
         if (elapsedHours <= 0) return startKm;
 
         // 2. Velocity Calculation (Reference: 12 Hours for 36KM = 3 KM/H for the river)
@@ -276,7 +283,7 @@ const PublicMonitor: React.FC = () => {
         }
 
         return Math.min(currentKm, 113);
-    }, [activeEvent, realMaxKm, escalas]);
+    }, [activeEvent, realMaxKm, escalas, currentTime]);
 
     // El avance del frente depende de telemetría confirmada O el modelado de travesía (Hidro-Sincronía)
     const displayMaxKm = useMemo(() => {
@@ -338,10 +345,10 @@ const PublicMonitor: React.FC = () => {
     const protocolLabel = activeEvent?.evento_tipo || 'OPERACIÓN NORMAL';
     const statusColor = activeEvent?.evento_tipo === 'LLENADO' ? '#06b6d4' : '#22c55e';
 
-    // Helper to format exact time ago for telemetry
-    const formatTimeAgo = (timestamp?: number | null) => {
+    // Helper to format exact time ago for telemetry (Pure version using explicit now)
+    const formatTimeAgo = (timestamp?: number | null, now: number = currentTime) => {
         if (!timestamp) return 'SIN DATOS';
-        const diffSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+        const diffSeconds = Math.max(0, Math.floor((now - timestamp) / 1000));
         if (diffSeconds < 60) return `HACE ${diffSeconds}s`;
         const diffMins = Math.floor(diffSeconds / 60);
         if (diffMins < 60) return `HACE ${diffMins}m`;

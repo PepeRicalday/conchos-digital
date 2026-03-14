@@ -220,13 +220,12 @@ const PublicMonitor: React.FC = () => {
             if (activeEvent?.evento_tipo === 'LLENADO') {
                 const presaReading = (pData || []).find((p: any) => p.presas?.nombre_corto === 'PLB');
                 const extraccionReal = presaReading?.extraccion_total || 0;
-                const extraccionFallback = activeEvent.gasto_solicitado_m3s || 30;
 
                 baseEscalas.unshift({
                     id: 'presa-boquilla',
                     nombre: 'PRESA LA BOQUILLA',
                     km: -36,
-                    nivel_actual: extraccionReal > 0 ? extraccionReal : extraccionFallback,
+                    nivel_actual: 3.5, // Referencia Escala de Presa (Directiva de Usuario)
                     estado: activeEvent.hora_apertura_real ? 'OPERANDO' : 'ESPERANDO',
                     ultima_telemetria: extraccionReal > 0 ? new Date(presaReading!.fecha).getTime() : currentTime,
                     latitud: 27.545,
@@ -555,7 +554,7 @@ const PublicMonitor: React.FC = () => {
                                         <div className="tooltip-payload">
                                             <Droplets size={12} color={statusColor} />
                                             <span className="tooltip-value">
-                                                {esc.nivel_actual.toFixed(2)} {esc.km < 0 ? 'm³/s' : 'm'}
+                                                {esc.nivel_actual.toFixed(2)} m
                                             </span>
                                         </div>
                                     )}

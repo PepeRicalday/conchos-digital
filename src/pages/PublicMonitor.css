@@ -45,14 +45,51 @@
     pointer-events: auto; /* Make UI interactive */
 }
 
+.header-top-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 12px;
+}
+
+.back-to-dashboard-btn {
+    background: rgba(34, 211, 238, 0.1);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(34, 211, 238, 0.3);
+    color: #22d3ee;
+    padding: 8px 18px;
+    border-radius: 40px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.back-to-dashboard-btn:hover {
+    background: rgba(34, 211, 238, 0.2);
+    border-color: rgba(34, 211, 238, 0.6);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(34, 211, 238, 0.3);
+}
+
+.back-to-dashboard-btn:active {
+    transform: translateY(0);
+}
+
 .cycle-top-label {
     font-size: 0.65rem;
     font-weight: 800;
     letter-spacing: 4px;
     color: #94a3b8;
     text-transform: uppercase;
-    margin-bottom: 8px;
-    padding: 2px 12px;
+    padding: 4px 16px;
     background: rgba(15, 23, 42, 0.5);
     border-radius: 20px;
     border: 1px solid rgba(255, 255, 255, 0.05);
@@ -886,41 +923,60 @@
     box-shadow: 0 0 30px rgba(6, 182, 212, 0.6);
 }
 
-/* Floating Re-open buttons */
-.floating-ui-controls {
+/* Panel Toggle Controls - Premium v2 */
+.floating-ui-controls-v2 {
     position: fixed;
-    right: 20px;
-    top: 50%;
-    transform: translateY(-50%);
+    bottom: 250px; /* Suficiente espacio arriba de los paneles expandidos */
+    right: 25px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    z-index: 1005;
+    gap: 15px;
+    z-index: 1050;
     pointer-events: auto;
 }
 
-.control-btn-mini {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
+.control-btn-premium {
     background: rgba(15, 23, 42, 0.9);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    border: 1px solid var(--neon-cyan);
-    color: var(--neon-cyan);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(34, 211, 238, 0.3);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 12px;
     cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    min-width: 130px;
 }
 
-.control-btn-mini:hover {
-    transform: scale(1.1) rotate(5deg);
-    background: var(--neon-cyan);
-    color: #0f172a;
+.control-btn-premium .btn-label {
+    font-size: 0.75rem;
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    color: #94a3b8;
+    text-transform: uppercase;
 }
+
+.control-btn-premium:hover {
+    background: #1e293b;
+    border-color: #22d3ee;
+    transform: translateX(-8px);
+    box-shadow: 0 15px 40px rgba(6, 182, 212, 0.3);
+}
+
+.control-btn-premium:hover .btn-label {
+    color: #22d3ee;
+}
+
+.control-btn-premium svg {
+    color: #22d3ee;
+    filter: drop-shadow(0 0 5px rgba(34, 211, 238, 0.5));
+}
+
 
 @keyframes slideUp {
     from { transform: translate(-50%, 50px); opacity: 0; }
@@ -964,10 +1020,15 @@
         z-index: 1001;
     }
     
-    .floating-ui-controls {
+    .floating-ui-controls-v2 {
         right: 15px;
-        top: 160px;
+        bottom: 120px;
         transform: none;
+    }
+    
+    .control-btn-premium {
+        padding: 8px 12px;
+        min-width: 100px;
     }
 
     .cycle-top-label { display: none; }
@@ -1013,15 +1074,17 @@
     .gasto-value { font-size: 1.5rem; }
     .summary-info-title { font-size: 1rem; }
 
-    .floating-ui-controls {
+    .floating-ui-controls-v2 {
         right: 10px;
-        top: 140px;
+        bottom: 100px;
     }
 
-    .control-btn-mini {
-        width: 40px;
-        height: 40px;
+    .control-btn-premium {
+        padding: 6px 10px;
+        min-width: 40px;
     }
+    
+    .control-btn-premium .btn-label { display: none; }
     
     .dock-minimized {
         padding: 8px 16px;

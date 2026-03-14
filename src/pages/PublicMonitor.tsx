@@ -326,7 +326,17 @@ const PublicMonitor: React.FC = () => {
         <div className="public-monitor-container">
             {/* Header */}
             <div className="public-header animate-in">
-                <span className="cycle-top-label">CICLO AGRÍCOLA 2026</span>
+                <div className="header-top-row">
+                    <button 
+                        className="back-to-dashboard-btn" 
+                        onClick={() => window.location.href = '/'}
+                        title="Regresar a Conchos Digital"
+                    >
+                        <Activity size={16} /> REGRESAR A SISTEMA
+                    </button>
+                    <span className="cycle-top-label">CICLO AGRÍCOLA 2026</span>
+                </div>
+                
                 <div className="protocol-badge-premium">
                     <img src="/logos/logo-srl.png" alt="SRL Conchos" className="logo-srl-header" />
                     
@@ -597,16 +607,18 @@ const PublicMonitor: React.FC = () => {
                 </div>
             )}
 
-            {/* Floating Re-open buttons for mobile */}
-            <div className="floating-ui-controls">
-                {!isPredictionVisible && (
-                    <button className="control-btn-mini" onClick={() => setIsPredictionVisible(true)} title="Mostrar avance">
-                        <Timer size={16} />
+            {/* Floating UI Controls grouped and cleaned */}
+            <div className="floating-ui-controls-v2">
+                {!isPredictionVisible && activeEvent?.evento_tipo === 'LLENADO' && (
+                    <button className="control-btn-premium" onClick={() => setIsPredictionVisible(true)} title="Mostrar avance del frente">
+                        <Timer size={18} />
+                        <span className="btn-label">AVANCE</span>
                     </button>
                 )}
-                {!isTelemetryVisible && (
-                    <button className="control-btn-mini" onClick={() => setIsTelemetryVisible(true)} title="Mostrar resumen">
-                        <Activity size={16} />
+                {!isTelemetryVisible && activeEvent?.evento_tipo === 'LLENADO' && (
+                    <button className="control-btn-premium" onClick={() => setIsTelemetryVisible(true)} title="Mostrar resumen de presas">
+                        <Activity size={18} />
+                        <span className="btn-label">FUENTES</span>
                     </button>
                 )}
             </div>

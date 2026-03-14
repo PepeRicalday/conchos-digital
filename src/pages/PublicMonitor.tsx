@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, ZoomControl, Marker } from 'react-leaflet';
 import { supabase } from '../lib/supabase';
 import { useHydricEvents } from '../hooks/useHydricEvents';
-import { Droplets, Timer, Clock, AlertCircle, Activity } from 'lucide-react';
+import { Droplets, Timer, Activity, AlertCircle, TrendingUp, Gauge, Activity as ActivityIcon } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PublicMonitor.css';
@@ -55,8 +54,7 @@ const PublicMonitor: React.FC = () => {
     const [presasData, setPresasData] = useState<any[]>([]);
     
     // Panel Visibility States - Start deactivated for professional clean view
-    const [isTelemetryVisible, setIsTelemetryVisible] = useState(false);
-    const [isDockVisible, setIsDockVisible] = useState(false);
+    const [isDockVisible, setIsDockVisible] = useState(true); // Open by default for better data exposure
     const [isPredictionVisible, setIsPredictionVisible] = useState(false);
 
 
@@ -92,7 +90,26 @@ const PublicMonitor: React.FC = () => {
                 .order('fecha', { ascending: false })
                 .limit(4); // Ultimos registros de Boquilla y Madero
 
-            setPresasData(pData || []);
+            // Sincronía Digital: Fallback si no hay telemetría reciente pero hay protocolo activo
+            let finalPresas = pData || [];
+            if (activeEvent?.evento_tipo === 'LLENADO' && activeEvent.gasto_solicitado_m3s) {
+                const hasBoquilla = finalPresas.some(p => p.presas?.nombre_corto === 'PLB' && p.extraccion_total > 0);
+                if (!hasBoquilla) {
+                    // Inject synthetic record for Boquilla during LLENADO
+                    finalPresas = [
+                        {
+                            id: 'fallback-plb',
+                            presa_id: 'PRE-001',
+                            extraccion_total: activeEvent.gasto_solicitado_m3s,
+                            fecha: new Date().toISOString(),
+                            presas: { nombre: 'La Boquilla', nombre_corto: 'PLB' }
+                        },
+                        ...finalPresas
+                    ];
+                }
+            }
+
+            setPresasData(finalPresas);
 
             // 3. Latest Readings for today
             const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Chihuahua' });
@@ -137,6 +154,19 @@ const PublicMonitor: React.FC = () => {
                 
                 if (trackData) {
                     setRealMaxKm(trackData.km);
+                    // Anchor Logic: If we have confirmed data, we can also fetch the exact time of that confirmation
+                    // to potentially use as a new reference for future predictions.
+                    const { data: latestConfirm } = await supabase
+                        .from('sica_llenado_seguimiento')
+                        .select('hora_real')
+                        .eq('evento_id', activeEvent.id)
+                        .eq('km', trackData.km)
+                        .maybeSingle();
+                    
+                    if (latestConfirm?.hora_real) {
+                        // Store this for prediction anchoring
+                        sessionStorage.setItem(`anchor_time_${trackData.km}`, latestConfirm.hora_real);
+                    }
                 } else if (activeEvent.hora_apertura_real) {
                     setRealMaxKm(-36); // Started at dam
                 } else {
@@ -167,13 +197,16 @@ const PublicMonitor: React.FC = () => {
 
             if (activeEvent?.evento_tipo === 'LLENADO') {
                 const presaReading = (pData || []).find((p: any) => p.presas?.nombre_corto === 'PLB');
+                const extraccionReal = presaReading?.extraccion_total || 0;
+                const extraccionFallback = activeEvent.gasto_solicitado_m3s || 30;
+
                 baseEscalas.unshift({
                     id: 'presa-boquilla',
                     nombre: 'PRESA LA BOQUILLA',
                     km: -36,
-                    nivel_actual: presaReading?.extraccion_total || 0,
+                    nivel_actual: extraccionReal > 0 ? extraccionReal : extraccionFallback,
                     estado: activeEvent.hora_apertura_real ? 'OPERANDO' : 'ESPERANDO',
-                    ultima_telemetria: presaReading ? new Date(presaReading.fecha).getTime() : null,
+                    ultima_telemetria: extraccionReal > 0 ? new Date(presaReading!.fecha).getTime() : Date.now(),
                     latitud: 27.545,
                     longitud: -105.414
                 } as any);
@@ -192,17 +225,65 @@ const PublicMonitor: React.FC = () => {
         return () => clearInterval(interval);
     }, [fetchData]);
 
-    // SIMULACIÓN ELIMINADA: El cronómetro y el avance están congelados hasta registrar datos reales.
-    useEffect(() => {
-        // No se realiza ninguna acción de estimación temporal. 
-        // El avance ahora es puramente reactivo a la telemetría field-confirmed.
-    }, []);
+    // 5. Predicted Front Position (Hydra Engine Logic)
+    const predictedMaxKm = useMemo(() => {
+        if (!activeEvent?.hora_apertura_real) return -36;
+        
+        // 1. Find the latest confirmed point (Anchor)
+        // We look into the scales data which is updated by fetchData
+        const confirmedScales = escalas.filter(e => e.estado === 'OPERANDO' && e.km <= realMaxKm);
+        const lastAnchor = confirmedScales.length > 0 ? confirmedScales[confirmedScales.length - 1] : null;
 
-    // El avance del frente depende exclusivamente de telemetría confirmada o tracking de llenado
+        let startTime = new Date(activeEvent.hora_apertura_real).getTime();
+        let startKm = -36;
+
+        if (lastAnchor) {
+            const anchorTimeStr = sessionStorage.getItem(`anchor_time_${lastAnchor.km}`);
+            if (anchorTimeStr) {
+                startTime = new Date(anchorTimeStr).getTime();
+                startKm = lastAnchor.km;
+            }
+        }
+
+        const elapsedHours = (Date.now() - startTime) / (1000 * 3600);
+        if (elapsedHours <= 0) return startKm;
+
+        // 2. Velocity Calculation (Reference: 12 Hours for 36KM = 3 KM/H for the river)
+        // This is the "reference data" requested by the user.
+        const vRio = 3.0; // km/h (36km / 12h)
+        const vCanal = 1.16 * 3.6; // km/h (design value for canal)
+
+        let currentKm = startKm;
+        let remainingHours = elapsedHours;
+
+        if (currentKm < 0) {
+            // Still in the river stretch
+            const distToZero = Math.abs(currentKm);
+            const timeToZero = distToZero / vRio;
+
+            if (remainingHours <= timeToZero) {
+                currentKm += remainingHours * vRio;
+                remainingHours = 0;
+            } else {
+                currentKm = 0;
+                remainingHours -= timeToZero;
+            }
+        }
+
+        if (remainingHours > 0) {
+            // Progress into the canal
+            currentKm += remainingHours * vCanal;
+        }
+
+        return Math.min(currentKm, 113);
+    }, [activeEvent, realMaxKm, escalas]);
+
+    // El avance del frente depende de telemetría confirmada O el modelado de travesía (Hidro-Sincronía)
     const displayMaxKm = useMemo(() => {
         if (!activeEvent || activeEvent.evento_tipo !== 'LLENADO') return 113;
-        return realMaxKm;
-    }, [realMaxKm, activeEvent]);
+        // Priorizamos la predicción si es mayor que lo confirmado, para reflejar el "modelado de llegada"
+        return Math.max(realMaxKm, predictedMaxKm);
+    }, [realMaxKm, predictedMaxKm, activeEvent]);
 
     // Mapeo de distancias para el Río (GeoMonitor style)
     const rioDistData = useMemo(() => {
@@ -268,41 +349,45 @@ const PublicMonitor: React.FC = () => {
         return `HACE ${diffHours}h`;
     };
 
-    // 4. Calculate Dynamic Target Estimation
+    // 4. Calculate Dynamic Target Estimation (Hydra Engine Logic)
     const nextTargetInfo = useMemo(() => {
-        if (!escalas || escalas.length === 0) return { name: "Buscando...", hours: 0, mins: 0 };
+        if (!escalas || escalas.length === 0) return { name: "Buscando...", hours: 0, mins: 0, kmRemaining: 0 };
         
         // Find the first scale that is geographically ahead of our current water front
         const sorted = [...escalas].sort((a,b) => a.km - b.km);
         const nextScale = sorted.find(e => e.km > displayMaxKm);
         
-        if (!nextScale) return { name: "PRESA FR. I. MADERO", hours: 0, mins: 0 };
+        if (!nextScale) return { name: "Terminado", hours: 0, mins: 0, kmRemaining: 0 };
 
         // Distance remaining to that specific checkpoint
         const distRemaining = nextScale.km - displayMaxKm;
         
-        // Time To Arrival (Velocity = 4.2 km/h)
-        const totalHours = distRemaining / 4.2;
+        // Velocidades del canal por tramo (Unificados con Regla 12h)
+        const vRioKmh = 3.0; // Referencia: 36km / 12h
+        const vCanalKmh = 1.16 * 3.6; // km/h (diseño)
+
+        let totalHours = 0;
+        if (displayMaxKm < 0) {
+            // El frente está en el río
+            const distInRio = Math.min(distRemaining, -displayMaxKm);
+            const distInCanal = Math.max(0, distRemaining - distInRio);
+            totalHours = (distInRio / vRioKmh) + (distInCanal / vCanalKmh);
+        } else {
+            // El frente ya está en el canal
+            totalHours = distRemaining / vCanalKmh;
+        }
+
         const hr = Math.floor(totalHours);
         const min = Math.floor((totalHours - hr) * 60);
 
         return {
             name: nextScale.nombre.toUpperCase(),
             hours: hr,
-            mins: min
+            mins: min,
+            kmRemaining: distRemaining.toFixed(1)
         };
-    }, [escalas, displayMaxKm]);
+    }, [escalas, displayMaxKm, activeEvent]);
 
-    // 5. Elapsed Time since Effective Start
-    const elapsedTimeInfo = useMemo(() => {
-        if (!activeEvent?.hora_apertura_real) return { hours: 0, mins: 0 };
-        const start = new Date(activeEvent.hora_apertura_real).getTime();
-        const diffMs = Date.now() - start;
-        const totalHours = Math.max(0, diffMs / (1000 * 3600));
-        const hr = Math.floor(totalHours);
-        const min = Math.floor((totalHours - hr) * 60);
-        return { hours: hr, mins: min };
-    }, [activeEvent, displayMaxKm]);
 
     // 6. Executive/Managerial Metrics
     const executiveMetrics = useMemo(() => {
@@ -367,90 +452,15 @@ const PublicMonitor: React.FC = () => {
                 </div>
             </div>
 
-            {/* Prediction Info Badge */}
+            {/* Predicted position badge - Floating over map */}
             {activeEvent?.evento_tipo === 'LLENADO' && isPredictionVisible && (
                 <div className="prediction-badge animate-in">
                     <div className="pulse-mini"></div>
                     <span className="prediction-text">
-                        <span className="prediction-label">AVANCE DEL FRENTE: </span> 
-                        {(((displayMaxKm + 36) / (113 + 36)) * 100).toFixed(0)}% 
-                        <span className="prediction-divider">|</span> 
-                        <span className="prediction-label">PRÓXIMO A {nextTargetInfo.name}: </span>
+                        <span className="prediction-label">PRÓXIMO: {nextTargetInfo.name} </span>
                         {nextTargetInfo.hours > 0 ? `${nextTargetInfo.hours}H ` : ''}{nextTargetInfo.mins}M
                     </span>
-                    <button className="panel-toggle-mini" onClick={() => setIsPredictionVisible(false)} title="Ocultar avance">×</button>
-                </div>
-            )}
-
-            {/* Right Side Info Floating Card - Analítica de Seguimiento Agrupada */}
-            {activeEvent?.evento_tipo === 'LLENADO' && isTelemetryVisible && (
-                <div className="telemetry-floating-card animate-in" style={{ animationDelay: '0.6s' }}>
-                    <div className="telemetry-floating-header">
-                        <div className="telemetry-floating-title">
-                            <Activity size={14} color="#06b6d4" /> Resumen de Fuentes (Presas)
-                        </div>
-                        <button className="panel-toggle-mini" onClick={() => setIsTelemetryVisible(false)} title="Ocultar resumen">×</button>
-                    </div>
-                    
-                    {/* Agrupación de Fuentes: Boquilla y Madero */}
-                    <div className="fuentes-summary-grid">
-                        {presasData.length > 0 ? (
-                            presasData.map(p => (
-                                <div className="fuente-item-premium" key={p.id}>
-                                    <div className="fuente-dot" style={{ backgroundColor: p.presas?.nombre_corto === 'PLB' ? '#3b82f6' : '#a78bfa' }}></div>
-                                    <div className="fuente-info">
-                                        <span className="fuente-name">{p.presas?.nombre?.toUpperCase()}</span>
-                                        <span className="fuente-status">{p.extraccion_total > 0 ? 'SUMINISTRO ACTIVO' : 'CERRADA'}</span>
-                                    </div>
-                                    <span className="fuente-val">{p.extraccion_total?.toFixed(2) || '0.00'} <small className="fuente-val-unit">m³/s</small></span>
-                                </div>
-                            ))
-                        ) : (
-                            <>
-                                <div className="fuente-item-premium">
-                                    <div className="fuente-dot" style={{ background: '#3b82f6' }}></div>
-                                    <div className="fuente-info">
-                                        <span className="fuente-name">LA BOQUILLA</span>
-                                        <span className="fuente-status">SIN TELEMETRÍA</span>
-                                    </div>
-                                    <span className="fuente-val">0.00 <small>m³/s</small></span>
-                                </div>
-                                <div className="fuente-item-premium">
-                                    <div className="fuente-dot" style={{ background: '#a78bfa' }}></div>
-                                    <div className="fuente-info">
-                                        <span className="fuente-name">FR. I. MADERO</span>
-                                        <span className="fuente-status">SIN TELEMETRÍA</span>
-                                    </div>
-                                    <span className="fuente-val">0.00 <small>m³/s</small></span>
-                                </div>
-                            </>
-                        )}
-                    </div>
-
-                    <div className="tf-divider"></div>
-
-                    <div className="tf-stat-row">
-                        <span className="tf-stat-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Timer size={14}/> Suministro Efectivo</span>
-                        <span className="tf-stat-value">{displayMaxKm > 0 ? `${elapsedTimeInfo.hours}H ${elapsedTimeInfo.mins}M` : 'EN ESPERA'}</span>
-                    </div>
-
-                    <div className="tf-stat-row">
-                        <span className="tf-stat-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14}/> {displayMaxKm > 0 ? `Estimado a ${nextTargetInfo.name}` : 'A la espera de Obra de Toma'}</span>
-                        <span className="tf-stat-value" style={{ color: '#fbbf24' }}>
-                            {displayMaxKm > 0 ? (
-                                <>
-                                    {nextTargetInfo.hours > 0 ? `${nextTargetInfo.hours}H ` : ''}{nextTargetInfo.mins}M
-                                </>
-                            ) : '--:--'}
-                        </span>
-                    </div>
-
-                    <div className="tf-alert-box">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', fontWeight: 'bold' }}>
-                            <AlertCircle size={12} color="#06b6d4" /> ACTUALIZACIÓN TÉCNICA
-                        </div>
-                        Los puntos de control se actualizan automáticamente al recibir validación de los inspectores en campo vía SICA Capture.
-                    </div>
+                    <button className="panel-toggle-mini" onClick={() => setIsPredictionVisible(false)}>×</button>
                 </div>
             )}
 
@@ -510,10 +520,12 @@ const PublicMonitor: React.FC = () => {
                                 <div className="tooltip-content">
                                     <div className="tooltip-km">{esc.km.toFixed(1)} KM</div>
                                     <b className="tooltip-name">{esc.nombre}</b>
-                                    {esc.nivel_actual && (
+                                    {esc.nivel_actual !== undefined && (
                                         <div className="tooltip-payload">
                                             <Droplets size={12} color={statusColor} />
-                                            <span className="tooltip-value">{esc.nivel_actual.toFixed(2)} m</span>
+                                            <span className="tooltip-value">
+                                                {esc.nivel_actual.toFixed(2)} {esc.km < 0 ? 'm³/s' : 'm'}
+                                            </span>
                                         </div>
                                     )}
                                 </div>
@@ -525,14 +537,15 @@ const PublicMonitor: React.FC = () => {
                 </MapContainer>
             </div>
 
-            {/* Bottom Dock */}
+            {/* Bottom Dock - Balanced layout to avoid 'heavy right' look */}
             {isDockVisible ? (
                 <div className="info-cards-dock animate-in" style={{ animationDelay: '0.4s' }}>
                     <button className="dock-close-btn" onClick={() => setIsDockVisible(false)} title="Cerrar tablero">×</button>
-                    {/* Section 1: Inflow Info */}
+                    
+                    {/* Section 1: Global Balance (Left) */}
                     <div className="dock-section summary-card-large">
                         <div className="managerial-card-header">
-                            <span className="card-label">SUMINISTRO Y BALANCE HÍDRICO</span>
+                            <span className="card-label">BALANCE HÍDRICO</span>
                             <div className="health-badge-premium" style={{ borderColor: executiveMetrics.healthColor }}>
                                 <div className="health-dot" style={{ background: executiveMetrics.healthColor }}></div>
                                 {executiveMetrics.healthStatus}
@@ -541,35 +554,42 @@ const PublicMonitor: React.FC = () => {
                         <div className="summary-gasto">
                             <span className="gasto-value">
                                 {executiveMetrics.totalReal.toFixed(2)}
-                                <span className="gasto-unit">m³/s REAL</span>
+                                <span className="gasto-unit">m³/s</span>
                             </span>
                             <div className="summary-info-row">
-                                <span className="summary-info-title">📊 PROGRESO TOTAL (RED GLOBAL): <span className="summary-info-value" style={{ color: statusColor }}>{(((displayMaxKm + 36) / (113 + 36)) * 100).toFixed(1)}%</span></span>
+                                <span className="summary-info-title">📊 PROGRESO: <span className="summary-info-value" style={{ color: statusColor }}>{(((displayMaxKm + 36) / (113 + 36)) * 100).toFixed(1)}%</span></span>
                             </div>
                         </div>
-                        {/* Mini Chart Mockup with Hydro-Sync Context */}
-                        <div className="mini-chart-bars-gerencial">
-                            {[40, 45, 52, 58, 62, 70, 75, 82, 88, 92, 95, 100].map((h, i) => {
-                                const isAnomaly = executiveMetrics.efficiency < 85 && i > 8;
-                                return (
-                                    <div 
-                                        key={i} 
-                                        className={`mini-bar ${isAnomaly ? 'anomaly' : ''}`}
-                                        style={{ 
-                                            height: `${(h * ((displayMaxKm + 36)/(113 + 36)))}%`, 
-                                            opacity: i/12 + 0.3,
-                                            background: isAnomaly ? '#ef4444' : (i > 8 ? 'var(--neon-cyan)' : 'rgba(6, 182, 212, 0.4)')
-                                        }}
-                                    ></div>
-                                );
-                            })}
+                    </div>
+
+                    {/* Section 2: Sources Detail (Center) - Integrated from floating card */}
+                    <div className="dock-section sources-card-section">
+                        <div className="dock-section-header">
+                            <span className="card-label">FUENTES ACTIVAS</span>
+                        </div>
+                        <div className="fuentes-summary-grid-dock">
+                            {presasData.map(p => (
+                                <div className="fuente-dock-mini" key={p.id}>
+                                    <span className="fdm-name">{p.presas?.nombre_corto === 'PLB' ? 'BOQUILLA' : 'MADERO'}</span>
+                                    <span className="fdm-val">{p.extraccion_total?.toFixed(2)} <small>m³/s</small></span>
+                                </div>
+                            ))}
+                            <div className="fuente-dock-mini time">
+                                <span className="fdm-name">INICIO</span>
+                                <span className="fdm-val">
+                                    {activeEvent?.hora_apertura_real ? 
+                                        new Date(activeEvent.hora_apertura_real).toLocaleTimeString('es-MX', { 
+                                            hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' 
+                                        }) : '--:--'}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
                     {/* Section 2: Checkpoints Grid - Visualización compacta de toda la red de escalas */}
                     <div className="dock-section" style={{ flex: 1, overflow: 'hidden' }}>
                         <div className="dock-section-header">
-                            <span className="card-label">RED DE PUNTOS DE CONTROL (SINCRO-ESTADÍSTICA)</span>
+                            <span className="card-label">RED DE PUNTOS DE CONTROL</span>
                             <span className="telemetry-tag" style={{ color: statusColor }}>● MONITOREO TOTAL ACTIVO</span>
                         </div>
                         <div className="checkpoints-scroll-container">
@@ -607,18 +627,17 @@ const PublicMonitor: React.FC = () => {
                 </div>
             )}
 
-            {/* Floating UI Controls grouped and cleaned */}
             <div className="floating-ui-controls-v2">
                 {!isPredictionVisible && activeEvent?.evento_tipo === 'LLENADO' && (
                     <button className="control-btn-premium" onClick={() => setIsPredictionVisible(true)} title="Mostrar avance del frente">
                         <Timer size={18} />
-                        <span className="btn-label">AVANCE</span>
+                        <span className="btn-label">TRAYECTO</span>
                     </button>
                 )}
-                {!isTelemetryVisible && activeEvent?.evento_tipo === 'LLENADO' && (
-                    <button className="control-btn-premium" onClick={() => setIsTelemetryVisible(true)} title="Mostrar resumen de presas">
+                {!isDockVisible && (
+                    <button className="control-btn-premium" onClick={() => setIsDockVisible(true)} title="Mostrar tablero">
                         <Activity size={18} />
-                        <span className="btn-label">FUENTES</span>
+                        <span className="btn-label">TABLERO</span>
                     </button>
                 )}
             </div>

@@ -147,6 +147,14 @@ export function usePresas(fecha: string) {
 
                 if (errA) throw errA;
 
+                // 5. Check for active hydric event (Llenado)
+                const { data: eventDB } = await supabase
+                    .from('sica_eventos_log')
+                    .select('*')
+                    .eq('esta_activo', true)
+                    .eq('evento_tipo', 'LLENADO')
+                    .maybeSingle();
+
                 if (cancelled) return;
 
                 // Index lecturas by presa_id
@@ -166,6 +174,18 @@ export function usePresas(fecha: string) {
                             area_ha: Number(c.area_ha),
                         }));
 
+                    // Logic: If there is an active LLENADO event and it's Boquilla (PRE-001), 
+                    // and extraction is 0, use the requested gasto.
+                    let extraccion = Number(lect?.extraccion_total_m3s) || 0;
+                    let notas = lect?.notas || null;
+
+                    if (p.id === 'PRE-001' && eventDB && eventDB.gasto_solicitado_m3s > 0) {
+                        if (extraccion === 0) {
+                            extraccion = Number(eventDB.gasto_solicitado_m3s);
+                            notas = (notas ? notas + ' | ' : '') + `[HIDRO-SINCRONÍA]: Gasto Activo por Protocolo LLENADO (${extraccion} m³/s)`;
+                        }
+                    }
+
                     return {
                         id: p.id,
                         nombre: p.nombre,
@@ -183,14 +203,14 @@ export function usePresas(fecha: string) {
                             escala_msnm: Number(lect.escala_msnm) || 0,
                             almacenamiento_mm3: Number(lect.almacenamiento_mm3) || 0,
                             porcentaje_llenado: Number(lect.porcentaje_llenado) || 0,
-                            extraccion_total_m3s: Number(lect.extraccion_total_m3s) || 0,
-                            gasto_toma_baja_m3s: lect.gasto_toma_baja_m3s != null ? Number(lect.gasto_toma_baja_m3s) : null,
+                            extraccion_total_m3s: extraccion,
+                            gasto_toma_baja_m3s: lect.gasto_toma_baja_m3s != null ? Number(lect.gasto_toma_baja_m3s) : (p.id === 'PRE-001' && extraccion > 0 ? extraccion : null),
                             gasto_cfe_m3s: lect.gasto_cfe_m3s != null ? Number(lect.gasto_cfe_m3s) : null,
                             gasto_toma_izq_m3s: lect.gasto_toma_izq_m3s != null ? Number(lect.gasto_toma_izq_m3s) : null,
                             gasto_toma_der_m3s: lect.gasto_toma_der_m3s != null ? Number(lect.gasto_toma_der_m3s) : null,
                             area_ha: Number(lect.area_ha) || 0,
                             responsable: lect.responsable,
-                            notas: lect.notas,
+                            notas: notas,
                         } : null,
                         curva_capacidad: curva,
                     };

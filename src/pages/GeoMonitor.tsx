@@ -135,8 +135,21 @@ const GeoMonitor = () => {
                     .order('km', { ascending: false })
                     .limit(1)
                     .maybeSingle();
-                if (data) setMaxKmLlenado(data.km || 0);
-                else setMaxKmLlenado(0); // If no confirms yet, wave is at KM 0
+                if (data) {
+                    setMaxKmLlenado(data.km || 0);
+                    // Anchor Logic: Save confirmation time for prediction
+                    const { data: latestConfirm } = await supabase
+                        .from('sica_llenado_seguimiento')
+                        .select('hora_real')
+                        .eq('evento_id', activeEvent.id)
+                        .eq('km', data.km)
+                        .maybeSingle();
+                    if (latestConfirm?.hora_real) {
+                        sessionStorage.setItem(`anchor_time_${data.km}`, latestConfirm.hora_real);
+                    }
+                }
+                else if (activeEvent.hora_apertura_real) setMaxKmLlenado(-36); // Started at dam
+                else setMaxKmLlenado(-36);
             };
             fetchMaxKm();
 
@@ -150,6 +163,56 @@ const GeoMonitor = () => {
             setMaxKmLlenado(1000); // Allow all KM if not filling
         }
     }, [activeEvent]);
+
+    // 5. Predicted Front Position (Hydra Engine Logic)
+    const predictedMaxKm = useMemo(() => {
+        if (activeEvent?.evento_tipo !== 'LLENADO' || !activeEvent.hora_apertura_real) return -36;
+        
+        // Anchor logic
+        let startTime = new Date(activeEvent.hora_apertura_real).getTime();
+        let startKm = -36;
+
+        if (maxKmLlenado > -36 && maxKmLlenado < 1000) {
+            const anchorTimeStr = sessionStorage.getItem(`anchor_time_${maxKmLlenado}`);
+            if (anchorTimeStr) {
+                startTime = new Date(anchorTimeStr).getTime();
+                startKm = maxKmLlenado;
+            }
+        }
+
+        const elapsedHours = (currentTime.getTime() - startTime) / (1000 * 3600);
+        if (elapsedHours <= 0) return startKm;
+
+        // User Reference: 36km in 12h = 3km/h
+        const vRio = 3.0; // km/h
+        const vCanal = 1.16 * 3.6; // km/h
+
+        let currentKm = startKm;
+        let remainingHours = elapsedHours;
+
+        if (currentKm < 0) {
+            const distToZero = Math.abs(currentKm);
+            const timeToZero = distToZero / vRio;
+            if (remainingHours <= timeToZero) {
+                currentKm += remainingHours * vRio;
+                remainingHours = 0;
+            } else {
+                currentKm = 0;
+                remainingHours -= timeToZero;
+            }
+        }
+
+        if (remainingHours > 0) {
+            currentKm += remainingHours * vCanal;
+        }
+
+        return Math.min(currentKm, 113);
+    }, [activeEvent, maxKmLlenado, currentTime]);
+
+    const effectiveMaxKm = useMemo(() => {
+        if (activeEvent?.evento_tipo !== 'LLENADO') return 1000;
+        return Math.max(maxKmLlenado, predictedMaxKm);
+    }, [activeEvent, maxKmLlenado, predictedMaxKm]);
 
     // GeoJSON Layers (Shapes)
     const [geoModulos, setGeoModulos] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -326,12 +389,19 @@ const GeoMonitor = () => {
             const presasMap = new Map<string, PresaData>();
             (lpData || []).forEach((lp: any) => {
                 if (!presasMap.has(lp.presa_id) && lp.presas?.latitud) {
+                    let extraccion = parseFloat(lp.extraccion_total_m3s || 0);
+                    
+                    // Fallback para Boquilla en Llenado
+                    if (lp.presa_id === 'PRE-001' && activeEvent?.evento_tipo === 'LLENADO' && extraccion === 0) {
+                        extraccion = activeEvent.gasto_solicitado_m3s || 30;
+                    }
+
                     presasMap.set(lp.presa_id, {
                         presa_id: lp.presa_id, nombre: lp.presas.nombre,
                         latitud: parseFloat(lp.presas.latitud), longitud: parseFloat(lp.presas.longitud),
                         almacenamiento_mm3: parseFloat(lp.almacenamiento_mm3 || 0),
                         porcentaje_llenado: parseFloat(lp.porcentaje_llenado || 0),
-                        extraccion_total_m3s: parseFloat(lp.extraccion_total_m3s || 0),
+                        extraccion_total_m3s: extraccion,
                         fecha: lp.fecha,
                     });
                 }
@@ -519,18 +589,18 @@ const GeoMonitor = () => {
 
         // 1. Puntos del Río que han sido alcanzados
         const rioWave = rioDistData
-            .filter(d => d.dist <= maxKmLlenado)
+            .filter(d => d.dist <= effectiveMaxKm)
             .map(d => [d.lat, d.lng] as [number, number]);
 
-        // 2. Puntos del Canal que han sido alcanzados (si maxKmLlenado > 0)
-        const canalWave = maxKmLlenado > 0 
+        // 2. Puntos del Canal que han sido alcanzados (si effectiveMaxKm > 0)
+        const canalWave = effectiveMaxKm > 0 
             ? canalDistData
-                .filter(d => d.dist <= maxKmLlenado)
+                .filter(d => d.dist <= effectiveMaxKm)
                 .map(d => [d.lat, d.lng] as [number, number])
             : [];
 
         return [...rioWave, ...canalWave];
-    }, [rioDistData, canalDistData, activeEvent, maxKmLlenado]);
+    }, [rioDistData, canalDistData, activeEvent, effectiveMaxKm]);
 
     // KPIs vinculados a datos reales de SICA
     // Nivel de entrada: K-23 (primera escala)
@@ -973,7 +1043,11 @@ const GeoMonitor = () => {
                                             PROTOCOLO: {activeEvent.evento_tipo.replace('_', ' ')}
                                         </div>
                                         <div style={{ fontSize: '11px', opacity: 0.9 }}>
-                                            Sincronizando directivas con la aplicación Vía Móvil de Canaleros.
+                                            Inicio: {activeEvent.hora_apertura_real ? 
+                                                new Date(activeEvent.hora_apertura_real).toLocaleTimeString('es-MX', { 
+                                                    hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' 
+                                                }) + ' (LOCAL)' 
+                                                : 'Procesando...'} | Sincronizando con Canaleros.
                                         </div>
                                     </div>
                                 </div>

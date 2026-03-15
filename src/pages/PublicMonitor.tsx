@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, ZoomControl, Marker, useMap, Popup } from 'react-leaflet';
 import { supabase } from '../lib/supabase';
 import { useHydricEvents } from '../hooks/useHydricEvents';
-import { Droplets, Timer, Activity } from 'lucide-react';
+import { Droplets, Timer, Activity, Clock, ArrowRightCircle, MapPin } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PublicMonitor.css';
@@ -401,13 +401,25 @@ const PublicMonitor: React.FC = () => {
         const hr = Math.floor(totalHours);
         const min = Math.floor((totalHours - hr) * 60);
 
+        const arrivalTimeUTC = currentTime + (totalHours * 3600 * 1000);
+        const arrivalTimeStr = new Date(arrivalTimeUTC).toLocaleTimeString('es-MX', { 
+            hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' 
+        });
+
+        const elapsedS = activeEvent?.hora_apertura_real ? 
+            Math.max(0, Math.floor((currentTime - new Date(activeEvent.hora_apertura_real).getTime()) / 1000)) : 0;
+        const elapsedH = Math.floor(elapsedS / 3600);
+        const elapsedM = Math.floor((elapsedS % 3600) / 60);
+
         return {
             name: nextScale.nombre.toUpperCase(),
             hours: hr,
             mins: min,
-            kmRemaining: distRemaining.toFixed(1)
+            kmRemaining: distRemaining.toFixed(1),
+            arrivalTime: arrivalTimeStr,
+            elapsed: `${elapsedH}h ${elapsedM}m`
         };
-    }, [escalas, displayMaxKm, activeEvent]);
+    }, [escalas, displayMaxKm, activeEvent, currentTime]);
 
 
     // 6. Executive/Managerial Metrics
@@ -465,15 +477,47 @@ const PublicMonitor: React.FC = () => {
                 </div>
             </div>
 
-            {/* Predicted position badge - Floating over map */}
+            {/* Predicted position badge - Managerial Transit Report */}
             {activeEvent?.evento_tipo === 'LLENADO' && isPredictionVisible && (
-                <div className="prediction-badge animate-in">
-                    <div className="pulse-mini"></div>
-                    <span className="prediction-text">
-                        <span className="prediction-label">PRÓXIMO: {nextTargetInfo.name} </span>
-                        {nextTargetInfo.hours > 0 ? `${nextTargetInfo.hours}H ` : ''}{nextTargetInfo.mins}M
-                    </span>
-                    <button className="panel-toggle-mini" onClick={() => setIsPredictionVisible(false)}>×</button>
+                <div className="prediction-badge managerial animate-in">
+                    <div className="mgr-header">
+                        <span className="mgr-title">ANÁLISIS DE TRÁNSITO</span>
+                        <button className="panel-toggle-mini" onClick={() => setIsPredictionVisible(false)}>×</button>
+                    </div>
+                    
+                    <div className="transit-summary">
+                        <div className="transit-row">
+                            <div className="tr-label">
+                                <Clock size={12} />
+                                TIEMPO TRANSCURRIDO
+                            </div>
+                            <div className="tr-value">{nextTargetInfo.elapsed}</div>
+                        </div>
+
+                        <div className="transit-row">
+                            <div className="tr-label">
+                                <ArrowRightCircle size={12} />
+                                SIGUIENTE CONTROL
+                            </div>
+                            <div className="tr-value">{nextTargetInfo.name}</div>
+                        </div>
+
+                        <div className="transit-row">
+                            <div className="tr-label">
+                                <MapPin size={12} />
+                                DISTANCIA RESTANTE
+                            </div>
+                            <div className="tr-value tr-value-accent">{nextTargetInfo.kmRemaining} KM</div>
+                        </div>
+
+                        <div className="transit-row">
+                            <div className="tr-label">
+                                <Timer size={12} />
+                                LLEGADA ESTIMADA
+                            </div>
+                            <div className="tr-value tr-value-accent">{nextTargetInfo.arrivalTime}</div>
+                        </div>
+                    </div>
                 </div>
             )}
 

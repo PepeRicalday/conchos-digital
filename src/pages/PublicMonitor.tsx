@@ -137,26 +137,24 @@ const PublicMonitor: React.FC = () => {
             const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Chihuahua' });
             const { data: readings } = await supabase
                 .from('lecturas_escalas')
-                .select('escala_id, nivel_m, fecha, hora_lectura')
+                .select('escala_id, nivel_m, fecha, hora_lectura, apertura_radiales_m')
                 .eq('fecha', today)
                 .order('hora_lectura', { ascending: false });
 
-            // Anchor of Truth: Only show water if the dam has actually opened (hora_apertura_real)
-            // If not opened, everything is ZERO.
             const flowStartTime = activeEvent?.hora_apertura_real ? new Date(activeEvent.hora_apertura_real).getTime() : null;
             
             const readingsMap = new Map();
             if (flowStartTime) {
                 readings?.forEach(r => {
                     const readingTime = new Date(`${r.fecha}T${r.hora_lectura}-06:00`).getTime();
-                    // Only accept if it's within the CURRENT active flow window
                     if (readingTime >= flowStartTime) {
                         if (!readingsMap.has(r.escala_id)) {
                             readingsMap.set(r.escala_id, {
                                 nivel: r.nivel_m,
                                 hora: r.hora_lectura,
                                 fecha: r.fecha,
-                                timestamp: readingTime
+                                timestamp: readingTime,
+                                apertura: r.apertura_radiales_m || 0
                             });
                         }
                     }
@@ -172,7 +170,7 @@ const PublicMonitor: React.FC = () => {
                     .eq('evento_id', activeEvent.id)
                     .not('hora_real', 'is', null)
                     .order('km', { ascending: false })
-                    .limit(5); // Get a few to ensure we have anchors
+                    .limit(5);
                 
                 trackData?.forEach(td => {
                     if (td.km > maxKmConfirmed) maxKmConfirmed = td.km;
@@ -180,15 +178,20 @@ const PublicMonitor: React.FC = () => {
                 });
 
                 // Also check if any scale reading confirms arrival (Mediante SICA Capture)
-                // If a scale >= 0 has a reading > 0, it means water arrived.
+                // KM 0 CONDITION: Level > 0 AND Apertura > 0 is REQUIRED to pass into canal.
                 let maxReadingKm = -36;
                 readingsMap.forEach((r, escId) => {
                     const esc = escData?.find(e => e.id === escId);
                     if (esc && r.nivel > 0) {
-                        if (esc.km > maxReadingKm) {
-                            maxReadingKm = esc.km;
-                            // Store as anchor too
-                            sessionStorage.setItem(`anchor_time_${esc.km}`, new Date(r.timestamp).toISOString());
+                        // KM 0 Specific Lock: Need Apertura to release
+                        if (esc.km === 0 && r.apertura <= 0) {
+                            // Stay at KM 0 if we have level but NO opening
+                            if (0 > maxReadingKm) maxReadingKm = 0;
+                        } else {
+                            if (esc.km > maxReadingKm) {
+                                maxReadingKm = esc.km;
+                                sessionStorage.setItem(`anchor_time_${esc.km}`, new Date(r.timestamp).toISOString());
+                            }
                         }
                     }
                 });
@@ -200,7 +203,7 @@ const PublicMonitor: React.FC = () => {
                     setRealMaxKm(-36);
                 }
             } else {
-                setRealMaxKm(113); // Full flow if not in filling
+                setRealMaxKm(113); 
             }
 
             const baseEscalas = (escData || []).map(e => {
@@ -239,6 +242,11 @@ const PublicMonitor: React.FC = () => {
             }
 
             setEscalas(baseEscalas);
+            
+            // Check specifically for KM 0 radial status to refine the blockage
+            const zeroScale = baseEscalas.find(e => e.km === 0);
+            const zeroReading = zeroScale ? readingsMap.get(zeroScale.id) : null;
+            sessionStorage.setItem('zero_radial_apertura', (zeroReading?.apertura || 0).toString());
             
         } catch (err) {
             console.error("PublicMonitor fetch error", err);
@@ -305,8 +313,14 @@ const PublicMonitor: React.FC = () => {
 
     const isWaitingAtZero = useMemo(() => {
         if (!activeEvent || activeEvent.evento_tipo !== 'LLENADO') return false;
-        if (realMaxKm >= 0) return false;
         
+        // Blockage Condition A: Not confirmed by Llenado tracker past zero
+        if (realMaxKm > 0) return false;
+        
+        // Blockage Condition B: Check for recorded opening at KM 0
+        const storedApertura = parseFloat(sessionStorage.getItem('zero_radial_apertura') || '0');
+        if (realMaxKm === 0 && storedApertura > 0) return false; // Released!
+
         const startTime = new Date(activeEvent.hora_apertura_real!).getTime();
         const elapsedHours = (currentTime - startTime) / (1000 * 3600);
         return elapsedHours > (36 / 3.0); 
@@ -515,7 +529,7 @@ const PublicMonitor: React.FC = () => {
                             <Activity size={16} className="pulse-icon" />
                             <div className="wait-alert-text">
                                 <b>LLENADO DE RÍO: KM 0+000</b>
-                                <p>Esperando confirmación de escala en SICA Capture para iniciar canal.</p>
+                                <p>Nivel detectado. Esperando reporte de <b>APERTURA DE RADIALES</b> en SICA Capture para iniciar canal.</p>
                             </div>
                         </div>
                     )}

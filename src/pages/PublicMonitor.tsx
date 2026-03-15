@@ -275,12 +275,23 @@ const PublicMonitor: React.FC = () => {
         let startKm = -36;
 
         // Check if there's a more advanced Tracking Point (Real Report)
-        const trackingAnchorTime = sessionStorage.getItem(`anchor_time_${realMaxKm}`);
+        let trackingAnchorTime = sessionStorage.getItem(`anchor_time_${realMaxKm}`);
         
+        // --- PARCHE DE EMERGENCIA: ANCLAJE FORZADO 15 DE MARZO ---
+        // Si la DB falla en sincronizar, forzamos el anclaje a los ultimos datos reales reportados
+        const todayStr = new Date().toLocaleDateString('sv-SE');
+        if (!trackingAnchorTime && todayStr === '2026-03-15') {
+            if (realMaxKm <= 12.92) {
+                trackingAnchorTime = '2026-03-15T10:55:00-06:00';
+                startKm = 12.92;
+            }
+        }
+
         if (trackingAnchorTime) {
             // Priority: The absolute maximum real progress reported
             startTime = new Date(trackingAnchorTime).getTime();
-            startKm = realMaxKm;
+            startKm = Math.max(startKm, realMaxKm < 0 ? startKm : realMaxKm);
+            if (todayStr === '2026-03-15' && startKm < 12.92) startKm = 12.92; // Re-force km
         } else if (lastScaleAnchor) {
             const anchorTimeStr = sessionStorage.getItem(`anchor_time_${lastScaleAnchor.km}`);
             if (anchorTimeStr) {

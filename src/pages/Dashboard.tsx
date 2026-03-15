@@ -12,6 +12,7 @@ import ChartWidget from '../components/ChartWidget';
 import AlertList, { type Alert } from '../components/AlertList';
 import { useHydraEngine } from '../hooks/useHydraEngine';
 import { usePresas } from '../hooks/usePresas';
+import { useHydricEvents } from '../hooks/useHydricEvents';
 import { useFecha } from '../context/FechaContext';
 import { supabase } from '../lib/supabase';
 import './Dashboard.css';
@@ -171,6 +172,7 @@ const ExtraccionTooltip = ({ active, payload, label }: any) => {
 /* ═══════════════════════════════════════════════════════════════ */
 const Dashboard = () => {
     const { fechaSeleccionada, esHoy } = useFecha();
+    const { activeEvent } = useHydricEvents();
 
     const { modules, loading: loadingModules } = useHydraEngine();
     const {
@@ -267,13 +269,19 @@ const Dashboard = () => {
         });
 
         modules.forEach(m => {
-            if (m.current_flow > m.target_flow * 1.1 && m.target_flow > 0) {
-                alerts.push({ id: `ovf-${m.id}`, type: 'critical', title: 'Sobregiro Detectado', message: `${m.name}: Gasto ${(m.current_flow * 1000).toFixed(0)} L/s excede autorizado.`, timestamp: 'Ahora' });
+            // Durante LLENADO, los gastos pueden ser erráticos o de purga, toleramos más (50%)
+            const tolerance = activeEvent?.evento_tipo === 'LLENADO' ? 1.5 : 1.1;
+            if (m.current_flow > m.target_flow * tolerance && m.target_flow > 0) {
+                alerts.push({ id: `ovf-${m.id}`, type: 'critical', title: 'Sobregiro Detectado', message: `${m.name}: Gasto ${(m.current_flow * 1000).toFixed(0)} L/s excede autorizado (+${((tolerance-1)*100).toFixed(0)}%).`, timestamp: 'Ahora' });
             }
         });
         presas.forEach(p => {
             if (p.lectura && p.lectura.porcentaje_llenado > 90) {
-                alerts.push({ id: `dam-high-${p.id}`, type: 'warning' as const, title: 'Alto Nivel', message: `${p.nombre}: ${p.lectura.porcentaje_llenado.toFixed(1)}% de llenado.`, timestamp: p.lectura.fecha });
+                alerts.push({ id: `dam-high-${p.id}`, type: 'warning' as const, title: 'Alto Nivel (NAMO)', message: `${p.nombre}: ${p.lectura.porcentaje_llenado.toFixed(1)}% de llenado.`, timestamp: p.lectura.fecha });
+            }
+            // Alerta de nivel bajo solo si NO estamos en protocolo de LLENADO (donde es sabido que estamos extrayendo)
+            if (p.lectura && p.lectura.porcentaje_llenado < 20 && activeEvent?.evento_tipo !== 'LLENADO') {
+                alerts.push({ id: `dam-low-${p.id}`, type: 'critical' as const, title: 'Almacenamiento Crítico', message: `${p.nombre}: Nivel por debajo del 20% (${p.lectura.porcentaje_llenado.toFixed(1)}%).`, timestamp: p.lectura.fecha });
             }
         });
         if (alerts.length === 0) {

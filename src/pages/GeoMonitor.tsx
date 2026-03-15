@@ -712,7 +712,9 @@ const GeoMonitor = () => {
                 markArea: {
                     silent: true,
                     itemStyle: { color: 'rgba(16, 185, 129, 0.03)' },
-                    data: [[{ yAxis: 2.8 }, { yAxis: 3.4 }]]
+                    data: activeEvent?.evento_tipo === 'LLENADO' 
+                        ? [[{ yAxis: 0.1 }, { yAxis: 3.4 }]] // Rango amplio en llenado
+                        : [[{ yAxis: 2.8 }, { yAxis: 3.4 }]]
                 }
             },
             {
@@ -755,8 +757,12 @@ const GeoMonitor = () => {
                 const dataIndex = params[0].dataIndex;
                 const esc = escalas[dataIndex];
                 const level = esc?.nivel_actual;
-                const status = (level ?? 0) > 3.4 ? 'CRÍTICO (+)' : (level ?? 0) < 2.8 ? 'CRÍTICO (-)' : 'ÓPTIMO';
-                const statusColor = status === 'ÓPTIMO' ? '#10b981' : '#ef4444';
+                const status = (level ?? 0) > 3.4 
+                    ? 'CRÍTICO (+)' 
+                    : (level ?? 0) < (activeEvent?.evento_tipo === 'LLENADO' ? 0.1 : 2.8) 
+                        ? 'CRÍTICO (-)' 
+                        : 'ÓPTIMO';
+                const statusColor = (status === 'ÓPTIMO' || (status === 'CRÍTICO (-)' && activeEvent?.evento_tipo === 'LLENADO')) ? '#10b981' : '#ef4444';
                 
                 return `
                     <div style="min-width: 140px">

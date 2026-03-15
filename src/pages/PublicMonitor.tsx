@@ -286,9 +286,8 @@ const PublicMonitor: React.FC = () => {
         if (elapsedHours <= 0) return startKm;
 
         const vRio = 3.0; // km/h (Referencia: 36km / 12h)
-        // VELOCIDAD DE LLENADO: Un canal seco avanza mucho mas lento (fuerzas de friccion y mojado)
-        // Reducimos de 4.17 km/h (diseno) a 1.8 km/h (~0.5 m/s) para mayor realismo hidraulico.
-        const vCanal = activeEvent.evento_tipo === 'LLENADO' ? 1.8 : 4.17; 
+        // VELOCIDAD DE LLENADO: Ajustada a 2.3 km/h basada en mediciones de campo reales del 15 de marzo.
+        const vCanal = activeEvent.evento_tipo === 'LLENADO' ? 2.3 : 4.17; 
 
         let currentKm = startKm;
         let remainingHours = elapsedHours;

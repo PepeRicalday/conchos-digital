@@ -1111,8 +1111,8 @@
 
     .fuente-dock-mini {
         flex: 1;
-        min-width: 110px;
-        padding: 4px 8px;
+        min-width: 90px;
+        padding: 4px 6px;
     }
 
     .gasto-value { font-size: 1.5rem; letter-spacing: -1px; }
@@ -1171,56 +1171,99 @@
     }
     
     .info-cards-dock {
-        max-height: 32vh;
-        gap: 6px;
-        padding: 8px 12px;
+        max-height: 24vh; /* Even more aggressive */
+        gap: 2px;
+        padding: 4px 10px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto;
+        overflow-y: hidden;
+        border-radius: 16px 16px 0 0;
+    }
+
+    .summary-card-large {
+        grid-column: 1;
+        border-right: 1px solid rgba(255,255,255,0.05);
+        padding-right: 8px;
+    }
+
+    .sources-card-section {
+        grid-column: 2;
+        padding-left: 4px;
+    }
+
+    .checkpoints-section {
+        grid-column: span 2;
+        margin-top: 0;
+        border-top: 1px solid rgba(255,255,255,0.05);
+        padding-top: 4px;
+    }
+
+    .managerial-card-header, .dock-section-header, .card-label {
+        display: none !important; /* Total removal of headers on mobile */
     }
 
     .summary-card-large, .sources-card-section {
-        padding-bottom: 4px;
-        margin-bottom: 2px;
+        padding-bottom: 0;
+        margin-bottom: 0;
     }
 
-    .gasto-value { font-size: 1.2rem; }
-    .card-label { font-size: 0.65rem; }
-    .summary-info-title { font-size: 0.8rem; }
+    .gasto-value { font-size: 1.0rem; letter-spacing: -0.5px; }
+    .gasto-unit { font-size: 0.55rem; }
+    .summary-info-title { font-size: 0.65rem; }
+    .summary-gasto { display: flex; flex-direction: column; gap: 0; }
+    
+    .dock-close-btn {
+        top: 4px;
+        right: 4px;
+        width: 22px;
+        height: 22px;
+        font-size: 12px;
+        background: rgba(0,0,0,0.5);
+    }
 
     .prediction-badge {
-        bottom: 34vh;
+        bottom: 27vh;
         left: 50%;
         transform: translateX(-50%);
-        width: 94%;
-        padding: 4px 10px;
-        font-size: 0.6rem;
+        width: 96%;
+        padding: 4px 8px;
+        font-size: 0.55rem;
     }
 
     .prediction-badge.managerial {
-        min-width: 94%;
-        padding: 10px 14px;
-        bottom: 34vh;
+        min-width: 96%;
+        padding: 6px 10px;
+        bottom: 27vh;
     }
 
-    .mgr-header { margin-bottom: 8px; }
-    .transit-summary { gap: 6px; }
-    .transit-row { padding-bottom: 4px; }
-    .tr-value { font-size: 0.75rem; }
+    .mgr-header { margin-bottom: 4px; }
+    .transit-summary { gap: 2px; }
+    .transit-row { padding-bottom: 2px; }
+    .tr-label { font-size: 0.50rem; gap: 4px; }
+    .tr-value { font-size: 0.65rem; }
+
+    .fdm-name { font-size: 0.50rem; }
+    .fdm-val { font-size: 0.70rem; }
+    .fdm-val small { font-size: 0.5rem; }
 
     .checkpoint-card-compact {
-        min-width: 115px;
-        max-width: 115px;
-        padding: 6px 8px;
-        gap: 4px;
+        min-width: 105px;
+        max-width: 105px;
+        padding: 4px 6px;
+        gap: 2px;
+        border-radius: 8px;
     }
 
-    .cpc-name { font-size: 0.65rem; }
-    .cpc-value { font-size: 0.8rem; }
-    .cpc-time { font-size: 0.5rem; }
-    .cpc-km { font-size: 0.6rem; padding: 1px 4px; }
+    .cpc-name { font-size: 0.6rem; }
+    .cpc-value { font-size: 0.75rem; }
+    .cpc-time { font-size: 0.45rem; }
+    .cpc-km { font-size: 0.55rem; padding: 0px 3px; }
 
     .floating-ui-controls-v2 {
-        bottom: 34vh;
-        right: 8px;
-        gap: 8px;
+        bottom: 27vh;
+        right: 6px;
+        gap: 6px;
     }
 
     .control-btn-premium {
@@ -1260,12 +1303,8 @@
     
     .prediction-divider { display: none; }
     
-    .info-cards-dock {
-        padding: 10px;
-    }
-    
-    .cpc-name { font-size: 0.7rem; }
-    .cpc-value { font-size: 0.9rem; }
+    .cpc-name { font-size: 0.6rem; }
+    .cpc-value { font-size: 0.8rem; }
 
     /* Forcing larger tooltips on extremely small screens */
     .custom-tooltip {

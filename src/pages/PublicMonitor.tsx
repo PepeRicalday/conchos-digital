@@ -264,6 +264,9 @@ const PublicMonitor: React.FC = () => {
     }, [fetchData]);
 
     // 5. Predicted Front Position (Hydra Engine Logic)
+    const vRio = 3.0; // km/h (Referencia: 36km / 12h)
+    const vCanalDefault = 4.17; // km/h (diseño)
+
     const predictedMaxKm = useMemo(() => {
         if (!activeEvent?.hora_apertura_real) return -36;
         
@@ -303,16 +306,13 @@ const PublicMonitor: React.FC = () => {
         const elapsedHours = (currentTime - startTime) / (1000 * 3600);
         if (elapsedHours <= 0) return startKm;
 
-        const vRio = 3.0; // km/h (Referencia: 36km / 12h)
-        // VELOCIDAD DE LLENADO: Ajustada a 2.3 km/h basada en mediciones de campo reales del 15 de marzo.
-        const vCanal = activeEvent.evento_tipo === 'LLENADO' ? 2.3 : 4.17; 
+        const vCanal = activeEvent.evento_tipo === 'LLENADO' ? 2.3 : vCanalDefault; 
 
         let currentKm = startKm;
         let remainingHours = elapsedHours;
 
         if (currentKm < 0) {
-            const distToZero = Math.abs(currentKm);
-            const timeToZero = distToZero / vRio;
+            const timeToZero = Math.abs(currentKm) / vRio;
 
             if (remainingHours <= timeToZero) {
                 currentKm += remainingHours * vRio;
@@ -348,27 +348,26 @@ const PublicMonitor: React.FC = () => {
         return Math.min(currentKm, 113);
     }, [activeEvent, realMaxKm, escalas, currentTime]);
 
-    const isWaitingAtZero = useMemo(() => {
-        if (!activeEvent || activeEvent.evento_tipo !== 'LLENADO') return false;
-        
-        // Blockage Condition A: Not confirmed by Llenado tracker past zero
-        if (realMaxKm > 0) return false;
-        
-        // Blockage Condition B: Check for recorded opening at KM 0
-        const storedApertura = parseFloat(sessionStorage.getItem('zero_radial_apertura') || '0');
-        const storedNivelAbajo = parseFloat(sessionStorage.getItem('zero_nivel_abajo') || '0');
-        if (realMaxKm === 0 && (storedApertura > 0 || storedNivelAbajo > 0)) return false; // Released!
-
-        const startTime = new Date(activeEvent.hora_apertura_real!).getTime();
-        const elapsedHours = (currentTime - startTime) / (1000 * 3600);
-        return elapsedHours > (36 / 3.0); 
-    }, [activeEvent, realMaxKm, currentTime]);
-
     // El avance del frente depende de telemetría confirmada O el modelado de travesía (Hidro-Sincronía)
     const displayMaxKm = useMemo(() => {
         if (!activeEvent || activeEvent.evento_tipo !== 'LLENADO') return 113;
         return Math.max(realMaxKm, predictedMaxKm);
     }, [realMaxKm, predictedMaxKm, activeEvent]);
+
+    const isWaitingAtZero = useMemo(() => {
+        if (!activeEvent || activeEvent.evento_tipo !== 'LLENADO') return false;
+        
+        // El bloqueo solo aplica si el frente estimado o real no han pasado la toma
+        if (displayMaxKm > 0.5) return false;
+        
+        // Si ya hay confirmación de apertura en SICA Capture para hoy
+        const storedApertura = parseFloat(sessionStorage.getItem('zero_radial_apertura') || '0');
+        if (storedApertura > 0) return false;
+
+        const startTime = new Date(activeEvent.hora_apertura_real!).getTime();
+        const elapsedHours = (currentTime - startTime) / (1000 * 3600);
+        return elapsedHours > (36 / vRio); // Tiempo mínimo para llegar de Boquilla a Toma
+    }, [activeEvent, displayMaxKm, currentTime, vRio]);
 
     // Mapeo de distancias para el Río (GeoMonitor style)
     const rioDistData = useMemo(() => {
@@ -446,9 +445,13 @@ const PublicMonitor: React.FC = () => {
                 kmRemaining: "0.0",
                 arrivalTime: "PENDIENTE",
                 elapsed: formatTimeAgo(activeEvent?.hora_apertura_real ? new Date(activeEvent.hora_apertura_real).getTime() : null),
-                status: "ESPERANDO CONFIRMACIÓN SICA"
+                status: "ESTADO: ESPERANDO APERTURA"
             };
         }
+
+        const anchorTimeStr = sessionStorage.getItem(`anchor_time_${realMaxKm}`);
+        const effectiveStartTime = anchorTimeStr ? new Date(anchorTimeStr).getTime() : (activeEvent?.hora_apertura_real ? new Date(activeEvent.hora_apertura_real).getTime() : currentTime);
+        const elapsedSinceAnchor = formatTimeAgo(effectiveStartTime);
 
         // Find the first scale that is geographically ahead of our current water front
         const sorted = [...escalas].sort((a,b) => a.km - b.km);
@@ -460,15 +463,14 @@ const PublicMonitor: React.FC = () => {
         const distRemaining = nextScale.km - displayMaxKm;
         
         // Velocidades del canal por tramo (Unificados con Regla 12h)
-        const vRioKmh = 3.0; // Referencia: 36km / 12h
-        const vCanalKmh = 1.16 * 3.6; // km/h (diseño)
+        const vCanalKmh = activeEvent?.evento_tipo === 'LLENADO' ? 2.3 : (1.16 * 3.6); 
 
         let totalHours = 0;
         if (displayMaxKm < 0) {
             // El frente está en el río
             const distInRio = Math.min(distRemaining, -displayMaxKm);
             const distInCanal = Math.max(0, distRemaining - distInRio);
-            totalHours = (distInRio / vRioKmh) + (distInCanal / vCanalKmh);
+            totalHours = (distInRio / vRio) + (distInCanal / vCanalKmh);
         } else {
             // El frente ya está en el canal
             totalHours = distRemaining / vCanalKmh;
@@ -478,24 +480,17 @@ const PublicMonitor: React.FC = () => {
         const min = Math.floor((totalHours - hr) * 60);
 
         const arrivalTimeUTC = currentTime + (totalHours * 3600 * 1000);
-        const arrivalTimeStr = new Date(arrivalTimeUTC).toLocaleTimeString('es-MX', { 
-            hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' 
-        });
-
-        const elapsedS = activeEvent?.hora_apertura_real ? 
-            Math.max(0, Math.floor((currentTime - new Date(activeEvent.hora_apertura_real).getTime()) / 1000)) : 0;
-        const elapsedH = Math.floor(elapsedS / 3600);
-        const elapsedM = Math.floor((elapsedS % 3600) / 60);
-
+        
         return {
             name: nextScale.nombre.toUpperCase(),
             hours: hr,
             mins: min,
             kmRemaining: distRemaining.toFixed(1),
-            arrivalTime: arrivalTimeStr,
-            elapsed: `${elapsedH}h ${elapsedM}m`
+            arrivalTime: new Date(arrivalTimeUTC).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' }),
+            elapsed: elapsedSinceAnchor,
+            status: "AVANCE EN CANAL"
         };
-    }, [escalas, displayMaxKm, activeEvent, currentTime, isWaitingAtZero]);
+    }, [escalas, isWaitingAtZero, displayMaxKm, activeEvent, currentTime, vRio, realMaxKm]);
 
 
     // 6. Executive/Managerial Metrics
@@ -576,9 +571,21 @@ const PublicMonitor: React.FC = () => {
                         <div className="transit-row">
                             <div className="tr-label">
                                 <Clock size={12} />
+                                REPORTE DE CAMPO
+                            </div>
+                            <div className="tr-value">
+                                {realMaxKm > 10 ? 'KM 12+920 (10:55 AM)' : realMaxKm > 5 ? 'KM 9+612 (09:28 AM)' : 'INICIO BOQUILLA'}
+                            </div>
+                        </div>
+
+                        <div className="transit-row">
+                            <div className="tr-label">
+                                <Timer size={12} />
                                 TIEMPO TRANSCURRIDO
                             </div>
-                            <div className="tr-value">{nextTargetInfo.elapsed}</div>
+                            <div className="tr-value">
+                                {nextTargetInfo.elapsed}
+                            </div>
                         </div>
 
                         <div className="transit-row">
@@ -655,7 +662,11 @@ const PublicMonitor: React.FC = () => {
                             <Popup className="custom-popup">
                                 <div className="tooltip-content">
                                     <div className="tooltip-km">{displayMaxKm.toFixed(1)} KM</div>
-                                    <b className="tooltip-name">{isWaitingAtZero ? 'LLENADO PTO CONTROL 0+000' : 'FRENTE DE FLUJO ACTIVO'}</b>
+                                    <b className="tooltip-name">
+                                        {isWaitingAtZero ? 'ESTADO: ESPERANDO TOMA 0+000' : 
+                                         displayMaxKm > 0 ? `FRENTE DE AVANCE: KM ${displayMaxKm.toFixed(1)}` : 
+                                         'TRÁNSITO: RÍO CONCHOS'}
+                                    </b>
                                     <div className="tooltip-payload">
                                         <Timer size={12} color={isWaitingAtZero ? '#f59e0b' : statusColor} />
                                         <span className="tooltip-value">{isWaitingAtZero ? 'ESPERANDO CAPTURA' : 'AVANCE ESTIMADO'}</span>

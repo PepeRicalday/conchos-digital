@@ -267,18 +267,25 @@ const PublicMonitor: React.FC = () => {
     const predictedMaxKm = useMemo(() => {
         if (!activeEvent?.hora_apertura_real) return -36;
         
-        // 1. Find the latest confirmed point (Anchor)
+        // 1. Find the latest confirmed point (Anchor) from Scales OR Tracking
         const confirmedScales = escalas.filter(e => e.estado === 'OPERANDO' && e.km <= realMaxKm);
-        const lastAnchor = confirmedScales.length > 0 ? confirmedScales[confirmedScales.length - 1] : null;
+        const lastScaleAnchor = confirmedScales.length > 0 ? confirmedScales[confirmedScales.length - 1] : null;
 
         let startTime = new Date(activeEvent.hora_apertura_real).getTime();
         let startKm = -36;
 
-        if (lastAnchor) {
-            const anchorTimeStr = sessionStorage.getItem(`anchor_time_${lastAnchor.km}`);
+        // Check if there's a more advanced Tracking Point (Real Report)
+        const trackingAnchorTime = sessionStorage.getItem(`anchor_time_${realMaxKm}`);
+        
+        if (trackingAnchorTime) {
+            // Priority: The absolute maximum real progress reported
+            startTime = new Date(trackingAnchorTime).getTime();
+            startKm = realMaxKm;
+        } else if (lastScaleAnchor) {
+            const anchorTimeStr = sessionStorage.getItem(`anchor_time_${lastScaleAnchor.km}`);
             if (anchorTimeStr) {
                 startTime = new Date(anchorTimeStr).getTime();
-                startKm = lastAnchor.km;
+                startKm = lastScaleAnchor.km;
             }
         }
 

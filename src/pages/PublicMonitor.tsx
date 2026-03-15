@@ -137,7 +137,7 @@ const PublicMonitor: React.FC = () => {
             const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Chihuahua' });
             const { data: readings } = await supabase
                 .from('lecturas_escalas')
-                .select('escala_id, nivel_m, fecha, hora_lectura, apertura_radiales_m')
+                .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m')
                 .eq('fecha', today)
                 .order('hora_lectura', { ascending: false });
 
@@ -151,6 +151,7 @@ const PublicMonitor: React.FC = () => {
                         if (!readingsMap.has(r.escala_id)) {
                             readingsMap.set(r.escala_id, {
                                 nivel: r.nivel_m,
+                                nivel_abajo: r.nivel_abajo_m || 0,
                                 hora: r.hora_lectura,
                                 fecha: r.fecha,
                                 timestamp: readingTime,
@@ -182,10 +183,12 @@ const PublicMonitor: React.FC = () => {
                 let maxReadingKm = -36;
                 readingsMap.forEach((r, escId) => {
                     const esc = escData?.find(e => e.id === escId);
-                    if (esc && r.nivel > 0) {
-                        // KM 0 Specific Lock: Need Apertura to release
-                        if (esc.km === 0 && r.apertura <= 0) {
-                            // Stay at KM 0 if we have level but NO opening
+                    if (esc && (r.nivel > 0 || r.nivel_abajo > 0)) {
+                        // KM 0 Specific Lock: Need Apertura OR Nivel Abajo to release
+                        const isK0ReachedButLocked = esc.km === 0 && r.apertura <= 0 && r.nivel_abajo <= 0;
+                        
+                        if (isK0ReachedButLocked) {
+                            // Stay at KM 0 if we have level but NO opening and NO water below
                             if (0 > maxReadingKm) maxReadingKm = 0;
                         } else {
                             if (esc.km > maxReadingKm) {
@@ -247,6 +250,7 @@ const PublicMonitor: React.FC = () => {
             const zeroScale = baseEscalas.find(e => e.km === 0);
             const zeroReading = zeroScale ? readingsMap.get(zeroScale.id) : null;
             sessionStorage.setItem('zero_radial_apertura', (zeroReading?.apertura || 0).toString());
+            sessionStorage.setItem('zero_nivel_abajo', (zeroReading?.nivel_abajo || 0).toString());
             
         } catch (err) {
             console.error("PublicMonitor fetch error", err);
@@ -335,7 +339,8 @@ const PublicMonitor: React.FC = () => {
         
         // Blockage Condition B: Check for recorded opening at KM 0
         const storedApertura = parseFloat(sessionStorage.getItem('zero_radial_apertura') || '0');
-        if (realMaxKm === 0 && storedApertura > 0) return false; // Released!
+        const storedNivelAbajo = parseFloat(sessionStorage.getItem('zero_nivel_abajo') || '0');
+        if (realMaxKm === 0 && (storedApertura > 0 || storedNivelAbajo > 0)) return false; // Released!
 
         const startTime = new Date(activeEvent.hora_apertura_real!).getTime();
         const elapsedHours = (currentTime - startTime) / (1000 * 3600);

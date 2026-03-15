@@ -163,36 +163,41 @@ const PublicMonitor: React.FC = () => {
                 });
             }
 
-            // 4. Fetch confirmed progress from Llenado Tracker
+            // 4. Fetch confirmed progress from Llenado Tracker + Readings
+            let maxKmConfirmed = -36;
             if (activeEvent?.evento_tipo === 'LLENADO') {
                 const { data: trackData } = await supabase
                     .from('sica_llenado_seguimiento')
-                    .select('km')
+                    .select('km, hora_real')
                     .eq('evento_id', activeEvent.id)
                     .not('hora_real', 'is', null)
                     .order('km', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
+                    .limit(5); // Get a few to ensure we have anchors
                 
-                if (trackData) {
-                    setRealMaxKm(trackData.km);
-                    // Anchor Logic: If we have confirmed data, we can also fetch the exact time of that confirmation
-                    // to potentially use as a new reference for future predictions.
-                    const { data: latestConfirm } = await supabase
-                        .from('sica_llenado_seguimiento')
-                        .select('hora_real')
-                        .eq('evento_id', activeEvent.id)
-                        .eq('km', trackData.km)
-                        .maybeSingle();
-                    
-                    if (latestConfirm?.hora_real) {
-                        // Store this for prediction anchoring
-                        sessionStorage.setItem(`anchor_time_${trackData.km}`, latestConfirm.hora_real);
+                trackData?.forEach(td => {
+                    if (td.km > maxKmConfirmed) maxKmConfirmed = td.km;
+                    sessionStorage.setItem(`anchor_time_${td.km}`, td.hora_real);
+                });
+
+                // Also check if any scale reading confirms arrival (Mediante SICA Capture)
+                // If a scale >= 0 has a reading > 0, it means water arrived.
+                let maxReadingKm = -36;
+                readingsMap.forEach((r, escId) => {
+                    const esc = escData?.find(e => e.id === escId);
+                    if (esc && r.nivel > 0) {
+                        if (esc.km > maxReadingKm) {
+                            maxReadingKm = esc.km;
+                            // Store as anchor too
+                            sessionStorage.setItem(`anchor_time_${esc.km}`, new Date(r.timestamp).toISOString());
+                        }
                     }
-                } else if (activeEvent.hora_apertura_real) {
-                    setRealMaxKm(-36); // Started at dam
-                } else {
-                    setRealMaxKm(-36); // Default start
+                });
+
+                maxKmConfirmed = Math.max(maxKmConfirmed, maxReadingKm);
+                setRealMaxKm(maxKmConfirmed);
+                
+                if (maxKmConfirmed < -36 && activeEvent.hora_apertura_real) {
+                    setRealMaxKm(-36);
                 }
             } else {
                 setRealMaxKm(113); // Full flow if not in filling
@@ -251,7 +256,6 @@ const PublicMonitor: React.FC = () => {
         if (!activeEvent?.hora_apertura_real) return -36;
         
         // 1. Find the latest confirmed point (Anchor)
-        // We look into the scales data which is updated by fetchData
         const confirmedScales = escalas.filter(e => e.estado === 'OPERANDO' && e.km <= realMaxKm);
         const lastAnchor = confirmedScales.length > 0 ? confirmedScales[confirmedScales.length - 1] : null;
 
@@ -269,16 +273,13 @@ const PublicMonitor: React.FC = () => {
         const elapsedHours = (currentTime - startTime) / (1000 * 3600);
         if (elapsedHours <= 0) return startKm;
 
-        // 2. Velocity Calculation (Reference: 12 Hours for 36KM = 3 KM/H for the river)
-        // This is the "reference data" requested by the user.
-        const vRio = 3.0; // km/h (36km / 12h)
-        const vCanal = 1.16 * 3.6; // km/h (design value for canal)
+        const vRio = 3.0; // km/h
+        const vCanal = 1.16 * 3.6; // km/h
 
         let currentKm = startKm;
         let remainingHours = elapsedHours;
 
         if (currentKm < 0) {
-            // Still in the river stretch
             const distToZero = Math.abs(currentKm);
             const timeToZero = distToZero / vRio;
 
@@ -286,23 +287,34 @@ const PublicMonitor: React.FC = () => {
                 currentKm += remainingHours * vRio;
                 remainingHours = 0;
             } else {
+                // Potential Block at KM 0: Waiting for scale confirmation at TOMA 0+000
+                if (realMaxKm < 0) {
+                    return 0; // System blocks at zero until confirmed in SICA Capture
+                }
                 currentKm = 0;
                 remainingHours -= timeToZero;
             }
         }
 
         if (remainingHours > 0) {
-            // Progress into the canal
             currentKm += remainingHours * vCanal;
         }
 
         return Math.min(currentKm, 113);
     }, [activeEvent, realMaxKm, escalas, currentTime]);
 
+    const isWaitingAtZero = useMemo(() => {
+        if (!activeEvent || activeEvent.evento_tipo !== 'LLENADO') return false;
+        if (realMaxKm >= 0) return false;
+        
+        const startTime = new Date(activeEvent.hora_apertura_real!).getTime();
+        const elapsedHours = (currentTime - startTime) / (1000 * 3600);
+        return elapsedHours > (36 / 3.0); 
+    }, [activeEvent, realMaxKm, currentTime]);
+
     // El avance del frente depende de telemetría confirmada O el modelado de travesía (Hidro-Sincronía)
     const displayMaxKm = useMemo(() => {
         if (!activeEvent || activeEvent.evento_tipo !== 'LLENADO') return 113;
-        // Priorizamos la predicción si es mayor que lo confirmado, para reflejar el "modelado de llegada"
         return Math.max(realMaxKm, predictedMaxKm);
     }, [realMaxKm, predictedMaxKm, activeEvent]);
 
@@ -374,6 +386,18 @@ const PublicMonitor: React.FC = () => {
     const nextTargetInfo = useMemo(() => {
         if (!escalas || escalas.length === 0) return { name: "Buscando...", hours: 0, mins: 0, kmRemaining: 0 };
         
+        if (isWaitingAtZero) {
+            return {
+                name: "TOMA 0+000 (ESPERA)",
+                hours: 0,
+                mins: 0,
+                kmRemaining: "0.0",
+                arrivalTime: "PENDIENTE",
+                elapsed: formatTimeAgo(activeEvent?.hora_apertura_real ? new Date(activeEvent.hora_apertura_real).getTime() : null),
+                status: "ESPERANDO CONFIRMACIÓN SICA"
+            };
+        }
+
         // Find the first scale that is geographically ahead of our current water front
         const sorted = [...escalas].sort((a,b) => a.km - b.km);
         const nextScale = sorted.find(e => e.km > displayMaxKm);
@@ -419,7 +443,7 @@ const PublicMonitor: React.FC = () => {
             arrivalTime: arrivalTimeStr,
             elapsed: `${elapsedH}h ${elapsedM}m`
         };
-    }, [escalas, displayMaxKm, activeEvent, currentTime]);
+    }, [escalas, displayMaxKm, activeEvent, currentTime, isWaitingAtZero]);
 
 
     // 6. Executive/Managerial Metrics
@@ -482,8 +506,19 @@ const PublicMonitor: React.FC = () => {
                 <div className="prediction-badge managerial animate-in">
                     <div className="mgr-header">
                         <span className="mgr-title">ANÁLISIS DE TRÁNSITO</span>
+                        {isWaitingAtZero && <span className="wait-badge-pulse">WAITING</span>}
                         <button className="panel-toggle-mini" onClick={() => setIsPredictionVisible(false)}>×</button>
                     </div>
+
+                    {isWaitingAtZero && (
+                        <div className="wait-alert-box">
+                            <Activity size={16} className="pulse-icon" />
+                            <div className="wait-alert-text">
+                                <b>LLENADO DE RÍO: KM 0+000</b>
+                                <p>Esperando confirmación de escala en SICA Capture para iniciar canal.</p>
+                            </div>
+                        </div>
+                    )}
                     
                     <div className="transit-summary">
                         <div className="transit-row">
@@ -568,12 +603,12 @@ const PublicMonitor: React.FC = () => {
                             <Popup className="custom-popup">
                                 <div className="tooltip-content">
                                     <div className="tooltip-km">{displayMaxKm.toFixed(1)} KM</div>
-                                    <b className="tooltip-name">FRENTE DE FLUJO ACTIVO</b>
+                                    <b className="tooltip-name">{isWaitingAtZero ? 'LLENADO PTO CONTROL 0+000' : 'FRENTE DE FLUJO ACTIVO'}</b>
                                     <div className="tooltip-payload">
-                                        <Timer size={12} color={statusColor} />
-                                        <span className="tooltip-value">AVANCE ESTIMADO</span>
+                                        <Timer size={12} color={isWaitingAtZero ? '#f59e0b' : statusColor} />
+                                        <span className="tooltip-value">{isWaitingAtZero ? 'ESPERANDO CAPTURA' : 'AVANCE ESTIMADO'}</span>
                                     </div>
-                                    <div className="tooltip-footer">SICA INTELIGENCIA v3.2</div>
+                                    <div className="tooltip-footer">{isWaitingAtZero ? 'ALERTA: PUNTO DE CONTROL CERRADO' : 'SICA INTELIGENCIA v3.2'}</div>
                                 </div>
                             </Popup>
                         </Marker>

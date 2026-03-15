@@ -7,37 +7,35 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 async function forceUpdate() {
-    console.log('Forzando actualización global a v1.6.5...');
+    console.log('Forzando actualización global (Jerarquía v1.6.4 / v1.4.8)...');
     
     // 1. Control Digital
-    const { data: d1, error: err1 } = await supabase
+    const { error: err1 } = await supabase
         .from('app_versions')
         .update({ 
-            version: '1.6.7', 
-            min_supported_version: '1.6.7',
+            version: '1.6.4', 
+            min_supported_version: '1.6.4',
             actualizado_en: new Date().toISOString(),
-            release_notes: 'OBLIGATORIO: v1.6.7 - Optimización Final UI Móvil (iPhone/High-End) y Control de Puntos en Plano.'
+            release_notes: 'OBLIGATORIO: Protocolo Llenado v3.2 - Regla 12h y Sincronía Hidro-Digital.'
         })
-        .eq('id', 'ef43acfc-5017-4a63-8b06-f5391c06f091')
-        .select();
+        .eq('app_id', 'control-digital');
     
     if (err1) console.error('Error control-digital:', err1);
-    else console.log('OK: control-digital actualizado:', d1);
+    else console.log('OK: control-digital forzado a v1.6.4');
 
-    // 2. SICA Capture (Update to Match)
-    const { data: d2, error: err2 } = await supabase
+    // 2. SICA Capture
+    const { error: err2 } = await supabase
         .from('app_versions')
         .update({ 
             version: '1.4.8', 
             min_supported_version: '1.4.8',
             actualizado_en: new Date().toISOString(),
-            release_notes: 'OBLIGATORIO: Sincronización con Protocolo de Llenado v1.6.5 (DR005).'
+            release_notes: 'OBLIGATORIO: Sincronización con Protocolo de Llenado DR005.'
         })
-        .eq('id', 'b754d93a-c562-4ed8-b075-63fbdcce90bd')
-        .select();
+        .eq('app_id', 'capture');
 
     if (err2) console.error('Error capture:', err2);
-    else console.log('OK: capture actualizado:', d2);
+    else console.log('OK: capture forzado a v1.4.8');
 }
 
 forceUpdate();

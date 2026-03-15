@@ -281,8 +281,10 @@ const PublicMonitor: React.FC = () => {
         const elapsedHours = (currentTime - startTime) / (1000 * 3600);
         if (elapsedHours <= 0) return startKm;
 
-        const vRio = 3.0; // km/h
-        const vCanal = 1.16 * 3.6; // km/h
+        const vRio = 3.0; // km/h (Referencia: 36km / 12h)
+        // VELOCIDAD DE LLENADO: Un canal seco avanza mucho mas lento (fuerzas de friccion y mojado)
+        // Reducimos de 4.17 km/h (diseno) a 1.8 km/h (~0.5 m/s) para mayor realismo hidraulico.
+        const vCanal = activeEvent.evento_tipo === 'LLENADO' ? 1.8 : 4.17; 
 
         let currentKm = startKm;
         let remainingHours = elapsedHours;
@@ -306,6 +308,20 @@ const PublicMonitor: React.FC = () => {
 
         if (remainingHours > 0) {
             currentKm += remainingHours * vCanal;
+        }
+
+        // --- REGLA DE FISICA: ANCLAJE A TELEMETRIA ---
+        // Si hay una escala adelante con lectura confirmada de 0.00m, el frente NO puede haber pasado por ahi.
+        const dryBlockedScale = escalas.find(e => 
+            e.km > realMaxKm && 
+            e.km < currentKm && 
+            e.nivel_actual === 0 && 
+            e.ultima_telemetria
+        );
+
+        if (dryBlockedScale) {
+            // El frente se queda 1km antes de la escala que reporta estar seca
+            return Math.max(realMaxKm, dryBlockedScale.km - 0.5);
         }
 
         return Math.min(currentKm, 113);

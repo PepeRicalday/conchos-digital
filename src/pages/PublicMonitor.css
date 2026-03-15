@@ -995,8 +995,7 @@
 }
 
 @media (max-width: 900px) {
-    .public-header { top: 15px; }
-    .prediction-badge { top: 95px; font-size: 0.7rem; padding: 4px 12px; width: 90%; }
+    .public-header-badge { top: 12px; left: 12px; }
     
     .info-cards-dock {
         bottom: 0;
@@ -1004,26 +1003,59 @@
         transform: none;
         width: 100%;
         border-radius: 20px 20px 0 0;
-        max-height: 35vh; /* Reduce height to show more map */
+        max-height: 40vh; 
         padding: 12px;
-        gap: 10px;
-        border-left: none;
-        border-right: none;
+        gap: 12px;
+        flex-direction: column;
+        overflow-y: auto;
+        border: 1px solid rgba(255, 255, 255, 0.15);
         border-bottom: none;
+        box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
     }
     
-    .summary-card-large {
+    .dock-close-btn {
+        top: 8px;
+        right: 8px;
+        z-index: 10;
+        background: rgba(255,255,255,0.1);
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+    }
+
+    .summary-card-large, .sources-card-section {
         min-width: 100%;
+        width: 100%;
         border-right: none;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        padding-bottom: 8px;
+        padding: 0 0 8px 0;
+        margin-bottom: 2px;
     }
     
-    .gasto-value { font-size: 1.6rem; margin-bottom: 0; }
-    .summary-info-row { margin-top: 0; }
-    .mini-chart-bars-gerencial { display: none; }
-    .summary-card-large { padding: 4px 10px 0 10px; }
-    .dock-section { gap: 2px; }
+    .fuentes-summary-grid-dock {
+        flex-direction: row;
+        gap: 6px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+    }
+
+    .fuente-dock-mini {
+        flex: 1;
+        min-width: 110px;
+        padding: 4px 8px;
+    }
+
+    .gasto-value { font-size: 1.5rem; letter-spacing: -1px; }
+    .gasto-unit { font-size: 0.7rem; }
+    .summary-info-row { margin-top: 2px; }
+    
+    .floating-ui-controls-v2 {
+        right: 12px;
+        bottom: 42vh; 
+    }
 
     .telemetry-floating-card {
         position: relative;
@@ -1066,21 +1098,45 @@
 
 /* --- ULTRA-COMPACT MOBILE OPTIMIZATION ( < 600px) --- */
 @media (max-width: 600px) {
-    .public-header-badge {
-        top: 10px;
-        left: 10px;
-        width: calc(100% - 20px);
+    .phb-main {
+        padding: 4px 10px;
+        gap: 6px;
     }
     
-    .phb-main {
-        width: 100%;
-        justify-content: space-between;
+    .info-cards-dock {
+        max-height: 38vh;
+        gap: 8px;
+        padding: 10px;
     }
 
+    .summary-card-large, .sources-card-section {
+        padding-bottom: 6px;
+    }
+
+    .gasto-value { font-size: 1.3rem; }
+    .card-label { font-size: 0.75rem; }
+
     .prediction-badge {
-        bottom: 36vh;
-        left: 10px;
-        transform: none;
+        bottom: 40vh;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 85%;
+        padding: 4px 10px;
+        font-size: 0.65rem;
+    }
+
+    .floating-ui-controls-v2 {
+        bottom: 40vh;
+        right: 10px;
+    }
+
+    .control-btn-premium {
+        padding: 6px 10px;
+        font-size: 0.7rem;
+    }
+    
+    .control-btn-premium .btn-label {
+        font-size: 0.65rem;
     }
 }
 

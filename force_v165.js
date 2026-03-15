@@ -13,10 +13,10 @@ async function forceUpdate() {
     const { data: d1, error: err1 } = await supabase
         .from('app_versions')
         .update({ 
-            version: '1.6.6', 
-            min_supported_version: '1.6.6',
+            version: '1.6.7', 
+            min_supported_version: '1.6.7',
             actualizado_en: new Date().toISOString(),
-            release_notes: 'OBLIGATORIO: v1.6.6 - Corrección Escala Presa Boquilla (Reference 3.5m) y Unidades Técnicas.'
+            release_notes: 'OBLIGATORIO: v1.6.7 - Optimización Final UI Móvil (iPhone/High-End) y Control de Puntos en Plano.'
         })
         .eq('app_id', 'control-digital')
         .select();

@@ -1171,35 +1171,56 @@
     }
     
     .info-cards-dock {
-        max-height: 38vh;
-        gap: 8px;
-        padding: 10px;
+        max-height: 32vh;
+        gap: 6px;
+        padding: 8px 12px;
     }
 
     .summary-card-large, .sources-card-section {
-        padding-bottom: 6px;
+        padding-bottom: 4px;
+        margin-bottom: 2px;
     }
 
-    .gasto-value { font-size: 1.3rem; }
-    .card-label { font-size: 0.75rem; }
+    .gasto-value { font-size: 1.2rem; }
+    .card-label { font-size: 0.65rem; }
+    .summary-info-title { font-size: 0.8rem; }
 
     .prediction-badge {
-        bottom: 40vh;
+        bottom: 34vh;
         left: 50%;
         transform: translateX(-50%);
-        width: 92%;
+        width: 94%;
         padding: 4px 10px;
-        font-size: 0.65rem;
+        font-size: 0.6rem;
     }
 
     .prediction-badge.managerial {
-        min-width: 92%;
-        padding: 14px;
+        min-width: 94%;
+        padding: 10px 14px;
+        bottom: 34vh;
     }
 
+    .mgr-header { margin-bottom: 8px; }
+    .transit-summary { gap: 6px; }
+    .transit-row { padding-bottom: 4px; }
+    .tr-value { font-size: 0.75rem; }
+
+    .checkpoint-card-compact {
+        min-width: 115px;
+        max-width: 115px;
+        padding: 6px 8px;
+        gap: 4px;
+    }
+
+    .cpc-name { font-size: 0.65rem; }
+    .cpc-value { font-size: 0.8rem; }
+    .cpc-time { font-size: 0.5rem; }
+    .cpc-km { font-size: 0.6rem; padding: 1px 4px; }
+
     .floating-ui-controls-v2 {
-        bottom: 40vh;
-        right: 10px;
+        bottom: 34vh;
+        right: 8px;
+        gap: 8px;
     }
 
     .control-btn-premium {

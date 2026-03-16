@@ -23,7 +23,6 @@ interface ResumenEscala {
     nivel_actual: number | null;
     delta_12h: number | null;
     estado: string;
-    confirmada: boolean;
 }
 
 interface EscalaConfig {
@@ -47,7 +46,6 @@ interface LecturaRadial {
     gasto_calculado_m3s: number;
     hora_lectura: string;
     fecha: string;
-    confirmada: boolean;
 }
 
 interface ScaleReading {
@@ -68,7 +66,6 @@ interface ScaleReading {
     nivelAbajo: number;
     gastoCalculado: number;
     horaLectura: string;
-    confirmada: boolean;
 }
 
 interface Zone {
@@ -118,7 +115,6 @@ function mapResumenToZones(
             nivelAbajo: lect?.nivel_abajo_m ?? 0,
             gastoCalculado: lect?.gasto_calculado_m3s ?? 0,
             horaLectura: lect?.hora_lectura ?? '',
-            confirmada: lect?.confirmada ?? true,
         });
     }
 
@@ -469,13 +465,6 @@ const ScaleGauge = ({ scale, zoneColor, onOpenModal }: { scale: ScaleReading; zo
                     <span>Fuera de rango</span>
                 </div>
             )}
-
-            {!scale.confirmada && (
-                <div className="warning-badge" style={{ backgroundColor: '#f59e0b20', color: '#f59e0b', borderColor: '#f59e0b40', bottom: '120px' }}>
-                    <Clock size={12} />
-                    <span>Falta Confirmar</span>
-                </div>
-            )}
         </div>
     );
 };
@@ -547,12 +536,13 @@ const ControlEscalas = () => {
             setError(null);
 
             // 1. Fetch Configs and Base Scales
-            const { data: escalasBase } = await supabase
+            const { data: escalasBase, error: e1 } = await supabase
                 .from('escalas')
                 .select('id, nombre, km, seccion_id, nivel_min_operativo, nivel_max_operativo, capacidad_max, pzas_radiales, ancho, alto, activa, secciones(id, nombre, color)')
                 .eq('activa', true)
                 .order('km');
 
+            if (e1) { console.error("Error escalasBase:", e1); setError(e1.message); setLoading(false); return; }
             if (cancelled) return;
 
             const configMap = new Map<string, EscalaConfig>();
@@ -566,12 +556,14 @@ const ControlEscalas = () => {
                 });
             });
 
-            // 2. Traer lecturas recientes (Últimos 500 para mayor cobertura de red)
-            const { data: lecturasRaw } = await supabase
+            // 2. Traer lecturas recientes (Últimos 1000 para asegurar continuidad amplia)
+            const { data: lecturasRaw, error: e2 } = await supabase
                 .from('lecturas_escalas')
-                .select('escala_id, nivel_m, nivel_abajo_m, apertura_radiales_m, radiales_json, gasto_calculado_m3s, hora_lectura, fecha, confirmada, creado_en')
+                .select('escala_id, nivel_m, nivel_abajo_m, apertura_radiales_m, radiales_json, gasto_calculado_m3s, hora_lectura, fecha, creado_en')
                 .order('creado_en', { ascending: false })
-                .limit(500);
+                .limit(1000);
+
+            if (e2) console.error("Error lecturasRaw:", e2);
 
             const lecturasMap = new Map<string, LecturaRadial>();
             (lecturasRaw || []).forEach((l: any) => {
@@ -591,17 +583,17 @@ const ControlEscalas = () => {
                         gasto_calculado_m3s: Number(l.gasto_calculado_m3s) || 0,
                         hora_lectura: l.hora_lectura || '',
                         fecha: l.fecha,
-                        confirmada: l.confirmada !== false,
                     });
                 }
             });
 
             // 3. Resumen diario para la fecha seleccionada
-            const { data: resumenData } = await supabase
+            const { data: resumenData, error: e3 } = await supabase
                 .from('resumen_escalas_diario')
                 .select('*')
                 .eq('fecha', fechaSeleccionada);
 
+            if (e3) console.error("Error resumenData:", e3);
             if (cancelled) return;
 
             const resumenMap = new Map<string, any>();
@@ -613,6 +605,7 @@ const ControlEscalas = () => {
                 const res = resumenMap.get(key);
                 const last = lecturasMap.get(key);
 
+                // Fallback prioritario: Si no hay resumen, usar el dato más reciente
                 return {
                     escala_id: e.id,
                     nombre: e.nombre,
@@ -624,14 +617,13 @@ const ControlEscalas = () => {
                     nivel_max_operativo: Number(e.nivel_max_operativo),
                     capacidad_max: Number(e.capacidad_max),
                     fecha: fechaSeleccionada,
-                    lectura_am: res?.lectura_am != null ? Number(res.lectura_am) : (last?.nivel_m || null),
+                    lectura_am: res?.lectura_am != null ? Number(res.lectura_am) : (last?.nivel_m ?? null),
                     lectura_pm: res?.lectura_pm != null ? Number(res.lectura_pm) : null,
                     hora_am: res?.hora_am || last?.hora_lectura || null,
                     hora_pm: res?.hora_pm || null,
-                    nivel_actual: res?.nivel_actual != null ? Number(res.nivel_actual) : (last?.nivel_m || null),
-                    delta_12h: res?.delta_12h != null ? Number(res.delta_12h) : null,
-                    estado: res?.estado || (last ? 'continuo' : 'sin_datos'),
-                    confirmada: last?.confirmada ?? true,
+                    nivel_actual: res?.nivel_actual != null ? Number(res.nivel_actual) : (last?.nivel_m ?? null),
+                    delta_12h: res?.delta_12h != null ? Number(res.delta_12h) : 0,
+                    estado: res?.estado || (last ? 'continuo' : 'sin_captura'),
                 };
             });
 

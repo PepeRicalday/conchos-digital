@@ -10,7 +10,7 @@
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShieldAlert, X, Activity } from 'lucide-react';
+import { ShieldAlert, Activity } from 'lucide-react';
 
 const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
 
@@ -56,11 +56,6 @@ export const VersionGuard = ({ children }: { children: ReactNode }) => {
         checkVersion();
     }, []);
 
-    const handleDismiss = () => {
-        // En modo forzado, ya no permitimos descartar si la versión es crítica
-        // setShowBanner(false);
-        // sessionStorage.setItem('cd_version_dismissed', CURRENT_VERSION);
-    };
 
     const handleUpdate = async () => {
         try {

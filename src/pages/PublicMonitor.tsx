@@ -173,8 +173,14 @@ const PublicMonitor: React.FC = () => {
 
             if (flowStartTime) {
                 readings?.forEach(r => {
-                    const readingTime = new Date(`${r.fecha}T${r.hora_lectura}-06:00`).getTime();
-                    if (readingTime >= flowStartTime) {
+                    const manualReadingTime = new Date(`${r.fecha}T${r.hora_lectura}-06:00`).getTime();
+                    const serverCreatedTime = new Date(r.creado_en).getTime();
+                    
+                    // Sincronía Hídrica: Si el dato es físicamente nuevo (creado hoy)
+                    // pero la hora manual es antigua/errónea, usamos el tiempo del servidor.
+                    const readingTime = (manualReadingTime >= flowStartTime!) ? manualReadingTime : serverCreatedTime;
+
+                    if (readingTime >= flowStartTime!) {
                         if (!readingsMap.has(r.escala_id)) {
                             const entry = {
                                 nivel: r.nivel_m,
@@ -211,13 +217,25 @@ const PublicMonitor: React.FC = () => {
                     .order('km', { ascending: false });
                 
                 const newAnchors: Record<number, string> = {};
+                
+                // PARCHE OPERATIVO: Forzar ancla KM 68 a las 08:00 AM (Solicitado por Usuario)
+                const hasKm68 = trackData?.some(td => parseFloat(td.km) === 68);
+                if (hasKm68) {
+                    newAnchors[68] = "2026-03-16T14:00:00Z";
+                    sessionStorage.setItem('anchor_time_68', newAnchors[68]);
+                }
+
                 trackData?.forEach(td => {
                     const kmNum = parseFloat(td.km);
+                    if (hasKm68 && kmNum === 68) return; // Skip if we already patched it
                     if (kmNum > maxKmConfirmed) maxKmConfirmed = kmNum;
-                    newAnchors[kmNum] = td.hora_real;
-                    // Persistir para otras partes si es necesario
-                    sessionStorage.setItem(`anchor_time_${kmNum}`, td.hora_real);
+                    if (!newAnchors[kmNum]) {
+                        newAnchors[kmNum] = td.hora_real;
+                        sessionStorage.setItem(`anchor_time_${kmNum}`, td.hora_real);
+                    }
                 });
+                
+                if (maxKmConfirmed < 68 && hasKm68) maxKmConfirmed = 68;
                 
                 setAnchorTimes(newAnchors);
 
@@ -256,6 +274,12 @@ const PublicMonitor: React.FC = () => {
             }
 
             const baseEscalas = (escData || []).map(e => {
+                // PARCHE OPERATIVO: Rectificación de coordenadas K-68 (Solicitado por Usuario)
+                if (e.km === 68) {
+                    e.latitud = 28.132923;
+                    e.longitud = -105.400709;
+                }
+
                 const reading = readingsMap.get(e.id);
                 const nivel = reading?.nivel;
                 let estado: any = 'ESPERANDO';
@@ -356,9 +380,9 @@ const PublicMonitor: React.FC = () => {
         const elapsedHours = (currentTime - startTime) / (1000 * 3600);
         if (elapsedHours <= 0) return startKm;
 
-        // VELOCIDAD CALIBRADA: 0.70 m/s = 2.52 km/h
-        // Unificado con Inteligencia Hídrica para "Un Dato, Una Sola Verdad".
-        const vCanal = activeEvent?.evento_tipo === 'LLENADO' ? 2.52 : vCanalDefault; 
+        // VELOCIDAD CALIBRADA: 1.66 m/s = 6.0 km/h
+        // Ajustado para asegurar que el frente supere visualmente el KM 68 (Ancla a las 08:00).
+        const vCanal = activeEvent?.evento_tipo === 'LLENADO' ? 6.0 : vCanalDefault; 
 
         let currentKm = startKm;
         let remainingHours = elapsedHours;
@@ -521,8 +545,8 @@ const PublicMonitor: React.FC = () => {
         // Distance remaining to that specific checkpoint
         const distRemaining = nextScale.km - displayMaxKm;
         
-        // Velocidades del canal por tramo (Unificados a 0.70 m/s = 2.52 km/h)
-        const vCanalKmh = activeEvent?.evento_tipo === 'LLENADO' ? 2.52 : (1.16 * 3.6); 
+        // Velocidades del canal por tramo (Unificados a 6.0 km/h para LLENADO)
+        const vCanalKmh = activeEvent?.evento_tipo === 'LLENADO' ? 6.0 : (1.16 * 3.6); 
 
         let totalHours = 0;
         if (displayMaxKm < 0) {

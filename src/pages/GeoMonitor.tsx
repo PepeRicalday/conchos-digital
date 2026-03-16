@@ -183,9 +183,10 @@ const GeoMonitor = () => {
         const elapsedHours = (currentTime.getTime() - startTime) / (1000 * 3600);
         if (elapsedHours <= 0) return startKm;
 
-        // User Reference: 36km in 12h = 3km/h
+        // VELOCIDAD CALIBRADA: 1.66 m/s = 6.0 km/h
+        // Ajustado para asegurar que el frente supere visualmente el KM 68 (Ancla a las 08:00).
         const vRio = 3.0; // km/h
-        const vCanal = 1.16 * 3.6; // km/h
+        const vCanal = activeEvent?.evento_tipo === 'LLENADO' ? 6.0 : (1.16 * 3.6); 
 
         let currentKm = startKm;
         let remainingHours = elapsedHours;

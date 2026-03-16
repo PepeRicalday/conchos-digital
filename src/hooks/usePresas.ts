@@ -164,12 +164,12 @@ export function usePresas(fecha: string) {
                     .eq('evento_tipo', 'LLENADO')
                     .maybeSingle();
 
-                // 6. Movimientos recientes
+                // 6. Movimientos recientes (Aumentamos el límite para asegurar capturar el último de cada presa)
                 const { data: movsDB } = await supabase
                     .from('movimientos_presas')
                     .select('*')
                     .order('fecha_hora', { ascending: false })
-                    .limit(10);
+                    .limit(50);
 
                 if (cancelled) return;
 
@@ -190,11 +190,25 @@ export function usePresas(fecha: string) {
                             area_ha: Number(c.area_ha),
                         }));
 
-                    // Logic: If there is an active LLENADO event and it's Boquilla (PRE-001), 
-                    // and extraction is 0, use the requested gasto.
+                    // ── LOGICA DE CONTINUIDAD (MOVIMIENTOS) ──
+                    // El gasto de una presa no cambia hasta que se reporta un nuevo movimiento.
+                    // Buscamos el movimiento más reciente para esta presa.
+                    const latestMov = (movsDB || []).find((m: any) => m.presa_id === p.id);
+                    
                     let extraccion = Number(lect?.extraccion_total_m3s) || 0;
                     let notas = lect?.notas || null;
 
+                    // Si hay un movimiento reciente, ese define el gasto actual por política de continuidad
+                    if (latestMov) {
+                        const movGasto = Number(latestMov.gasto_m3s);
+                        // Solo sobreescribimos si el movimiento es "significativo" o si la lectura del día es 0 pero hay un movimiento activo
+                        if (extraccion === 0 || Math.abs(extraccion - movGasto) > 0.01) {
+                            extraccion = movGasto;
+                            notas = (notas ? notas + ' | ' : '') + `[HIDRO-CONTINUIDAD]: Gasto activo según último movimiento (${extraccion} m³/s)`;
+                        }
+                    }
+
+                    // Sobreescritura especial por Protocolo LLENADO (Boquilla)
                     if (p.id === 'PRE-001' && eventDB && eventDB.gasto_solicitado_m3s > 0) {
                         if (extraccion === 0) {
                             extraccion = Number(eventDB.gasto_solicitado_m3s);

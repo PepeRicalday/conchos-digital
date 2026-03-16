@@ -1,120 +1,341 @@
-/* LlenadoTracker.css — Estilos para el panel de tránsito de llenado */
+/* LlenadoTracker.css — Estilos Premium para Inteligencia Hídrica */
 
 @keyframes pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.85; transform: scale(1.02); }
 }
 
-@keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-}
-
 @keyframes arriboGlow {
-    0%, 100% { box-shadow: 0 0 6px rgba(16,185,129,0.2); }
-    50% { box-shadow: 0 0 20px rgba(16,185,129,0.4); }
+    0%, 100% { box-shadow: 0 0 10px rgba(16,185,129,0.1); }
+    50% { box-shadow: 0 0 25px rgba(16,185,129,0.3); }
 }
 
-/* Animación del ancla */
-@keyframes anclaRing {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(34,211,238,0.4); }
-    50% { box-shadow: 0 0 0 6px rgba(34,211,238,0); }
+@keyframes blueGlow {
+    0%, 100% { box-shadow: 0 0 10px rgba(59,130,246,0.1); }
+    50% { box-shadow: 0 0 25px rgba(59,130,246,0.3); }
 }
 
-/* New Classes */
 .tracker-main-card {
-    background: rgba(15, 23, 42, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(13, 17, 28, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 20px;
     padding: 24px;
-    margin-bottom: 24px;
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
-    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    margin-bottom: 32px;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.6);
 }
 
 .punto-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.punto-header {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+.punto-status-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.punto-tag-ancla {
+    margin-left: 6px;
+    padding: 2px 6px;
+    background: rgba(34, 211, 238, 0.1);
+    border: 1px solid rgba(34, 211, 238, 0.2);
+    border-radius: 4px;
+    color: #22d3ee;
+    font-size: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .punto-card {
-    border-radius: 16px;
-    padding: 18px;
+    border-radius: 10px;
+    padding: 16px;
     position: relative;
     overflow: hidden;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(15, 23, 42, 0.6);
+    transition: all 0.4s ease;
+    border: 1px solid rgba(59, 130, 246, 0.1);
+    background: #0d121b; /* Exact target Navy */
+    display: flex;
+    flex-direction: column;
+    min-height: 240px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.punto-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(59, 130, 246, 0.3);
 }
 
 .punto-card.confirmed {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.04));
-    border-color: rgba(16, 185, 129, 0.4);
-    box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+    border-color: rgba(16, 185, 129, 0.5);
+    background: linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, #0d121b 100%);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
 }
 
 .punto-card.ancla {
-    background: linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(34, 211, 238, 0.05));
-    border-color: rgba(34, 211, 238, 0.4);
-    animation: anclaRing 2s infinite;
+    border-color: #22d3ee;
+    background: linear-gradient(180deg, rgba(34, 211, 238, 0.05) 0%, #0d121b 100%);
 }
 
 .punto-card.proximo {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.04));
-    border-color: rgba(245, 158, 11, 0.4);
+    border-color: rgba(59, 130, 246, 0.5);
 }
 
-.countdown-display {
-    font-size: 1.8rem;
+/* Status Dots */
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.status-dot.green {
+    background: #10b981;
+    box-shadow: 0 0 10px #10b981;
+}
+
+.status-dot.blue {
+    background: #3b82f6;
+    box-shadow: 0 0 10px #3b82f6;
+}
+
+.status-dot.gray {
+    background: #475569;
+}
+
+/* Central Numeric Displays */
+.display-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 10px;
+    margin: 10px 0;
+    background: #04070d; /* Pure Dark Void from image */
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.confirmed .display-block {
+    border-color: rgba(16, 185, 129, 0.1);
+}
+
+.countdown-text {
+    font-family: 'Inter', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    color: #3b82f6; /* Image match blue */
+}
+
+.arribo-text {
+    font-size: 1.2rem;
     font-weight: 900;
-    font-family: var(--font-mono);
-    text-align: center;
-    padding: 14px;
-    border-radius: 12px;
-    margin: 8px 0;
-    letter-spacing: -0.02em;
+    color: #10b981;
+    text-transform: uppercase;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
 }
 
-.countdown-display.active {
-    background: rgba(34, 211, 238, 0.1);
-    color: #22d3ee;
-    text-shadow: 0 0 20px rgba(34, 211, 238, 0.4);
+.tech-info-row {
+    margin-top: auto; /* Push to bottom */
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    width: 100%;
 }
 
-.countdown-display.delayed {
-    background: rgba(244, 63, 94, 0.1);
-    color: #fb7185;
-    text-shadow: 0 0 20px rgba(244, 63, 94, 0.4);
+.tech-tag {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
 }
 
+.tech-tag span:first-child {
+    font-size: 0.55rem;
+    font-weight: 950;
+    color: #475569; /* Darker gray from image */
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.tech-tag span:last-child {
+    font-size: 0.9rem;
+    font-weight: 1000; /* Max bold */
+    color: #f8fafc;
+}
+
+/* Buttons */
 .btn-confirmar-arribo {
     width: 100%;
-    padding: 12px;
-    background: linear-gradient(135deg, #0ea5e9, #2563eb);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    font-weight: 800;
-    font-size: 0.75rem;
+    margin-top: auto;
+    padding: 10px;
+    background: transparent;
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    color: #3b82f6;
+    border-radius: 8px;
+    font-weight: 900;
+    font-size: 0.65rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.1em;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     transition: all 0.2s ease;
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
-.btn-confirmar-arribo:active {
-    transform: scale(0.96);
+.btn-confirmar-arribo:hover {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: #3b82f6;
+    color: white;
 }
 
-.btn-confirmar-arribo.proximo {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+.recal-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 0.5rem;
+    font-weight: 1000;
+    color: #3b82f6; 
+    text-transform: uppercase;
+    margin-top: 8px;
+    letter-spacing: 0.02em;
+}
+
+.eta-label {
+    font-size: 0.6rem;
+    font-weight: 950;
+    color: #475569;
+    margin-top: 6px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.eta-value {
+    color: #475569;
+}
+
+/* Panel de Telemetría Avanzada */
+.telemetry-panel {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    padding-top: 20px;
+    margin-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+@media (max-width: 1024px) {
+    .telemetry-panel {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .telemetry-panel {
+        grid-template-columns: 1fr;
+    }
+}
+
+.telemetry-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.telemetry-label {
+    color: #64748b;
+    font-size: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.telemetry-value-group {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.telemetry-value {
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 900;
+    font-family: var(--font-mono);
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+.telemetry-unit {
+    color: #64748b;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.telemetry-accent {
+    color: #22d3ee;
+    font-size: 10px;
+    opacity: 0.7;
+}
+
+.telemetry-progress-container {
+    margin-top: 6px;
+}
+
+.progress-stats {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.progress-pct {
+    font-size: 10px;
+    font-weight: 900;
+    color: #22d3ee;
+}
+
+.progress-dist {
+    font-size: 9px;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.progress-track {
+    height: 6px;
+    background: #020617;
+    border-radius: 99px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #2563eb, #22d3ee);
+    box-shadow: 0 0 12px rgba(34, 211, 238, 0.4);
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Timer, MapPin, Clock, CheckCircle2, AlertTriangle, Lock, Shield } from 'lucide-react';
+import { Timer, MapPin, Clock, CheckCircle2, AlertTriangle, Shield } from 'lucide-react';
 import { useLlenadoTracker } from '../hooks/useLlenadoTracker';
 import type { PuntoControl, LlenadoEstado } from '../hooks/useLlenadoTracker';
 import TransicionProtocolo from './TransicionProtocolo';
@@ -62,112 +62,101 @@ const PuntoCard: React.FC<{
 
     return (
         <div className={cardClassName}>
-            {/* Cabecera */}
-            <div className="flex justify-between items-center mb-2.5">
-                <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${
-                        isConfirmado ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 
-                        isProximo ? 'bg-amber-500 shadow-[0_0_8px_#f59e0b]' : 
-                        isPendiente ? 'bg-slate-600' : 'bg-blue-500'
-                    }`} />
-                    <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
-                        {punto.km === 0 ? 'ENTRADA CANAL' : `KM ${punto.km}`}
+            {/* Header / Fila Superior: Status + KM + MapPin */}
+            <div className="punto-header">
+                <div className="punto-status-group">
+                    <div className={`status-dot ${isConfirmado ? 'green' : isPendiente ? 'gray' : 'blue'}`} />
+                    <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
+                        {punto.km === -36 ? 'KM -36' : punto.km === 0 ? 'ENTRADA CANAL' : `KM ${punto.km}`}
                     </span>
                     {isAncla && (
-                        <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 text-[9px] font-black border border-cyan-500/30">
+                        <span className="punto-tag-ancla">
                             ANCLA
                         </span>
                     )}
                 </div>
-                <MapPin size={14} className={isConfirmado ? 'text-emerald-500' : 'text-slate-600'} />
+                <MapPin size={10} className={isConfirmado ? 'text-emerald-500/60' : 'text-slate-800'} />
             </div>
 
-            {/* Nombre */}
-            <h4 className="text-white text-base font-black mb-2 leading-tight">
+            {/* Fila del Punto / Título Principal */}
+            <h4 className="text-white text-base font-[1000] mb-0.5 leading-tight tracking-tight uppercase">
                 {punto.punto_nombre}
-                {punto.km === 0 && (
-                    <span className="block text-[10px] text-cyan-400 opacity-80 mt-1 font-bold">
-                        Transferencia Río → Canal
-                    </span>
-                )}
             </h4>
+            
+            {punto.km === 0 ? (
+                <span className="text-[9px] text-[#3d85f6] font-black uppercase tracking-tighter mb-2">
+                    Transferencia Río → Canal
+                </span>
+            ) : <div className="h-4" />} {/* Spacer to maintain height consistency */}
 
-            {/* Countdown / Estado */}
-            {isPendiente ? (
-                <div className="p-3 bg-slate-800/50 rounded-xl text-center mb-2 border border-slate-700/30">
-                    <Lock size={16} className="text-slate-600 mx-auto mb-1" />
-                    <div className="text-slate-600 font-mono text-xl font-black tracking-tighter">--:--:--</div>
-                    <div className="text-slate-600 text-[10px] font-black uppercase tracking-wider">Esperando Apertura</div>
-                </div>
-            ) : isConfirmado ? (
-                <div className="p-3 bg-emerald-500/10 rounded-xl text-center mb-2 border border-emerald-500/20">
-                    <CheckCircle2 size={18} className="text-emerald-500 mx-auto mb-1" />
-                    <div className="text-emerald-400 text-sm font-black">
-                        ARRIBO: {formatHora(punto.hora_real)}
-                    </div>
-                    {punto.diferencia_minutos !== null && (
-                        <div className={`text-[10px] font-bold mt-0.5 ${punto.diferencia_minutos > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                            Δ {punto.diferencia_minutos > 0 ? '+' : ''}{punto.diferencia_minutos.toFixed(0)} min vs modelo
-                        </div>
-                    )}
-                </div>
-            ) : (
-                <div className={`p-3 rounded-xl text-center mb-2 border ${isProximo ? 'bg-amber-500/10 border-amber-500/30' : 'bg-blue-500/10 border-blue-500/30'}`}>
-                    <div className={`font-mono text-2xl font-black tracking-tighter ${isDelayed ? 'text-rose-500 animate-pulse' : isProximo ? 'text-amber-400' : 'text-blue-400'}`}>
-                        {formatCountdown(punto.seconds_remaining)}
-                    </div>
-                    <div className="flex items-center gap-1.5 justify-center mt-1">
-                        <Clock size={10} className="text-slate-400" />
-                        <span className="text-slate-400 text-[10px] font-bold">
-                            ETA: <strong className="text-slate-200">{formatHora(punto.hora_estimada_actual)}</strong>
+            {/* Central Display */}
+            <div className="display-block">
+                {isPendiente ? (
+                    <>
+                        <div className="text-slate-800 font-mono text-3xl font-black tracking-tighter">--:--:--</div>
+                        <div className="text-slate-800 text-[9px] font-black uppercase tracking-wider mt-1">ESPERANDO APERTURA</div>
+                    </>
+                ) : isConfirmado ? (
+                    <div className="arribo-text">
+                        <CheckCircle2 size={32} className="text-emerald-500 mb-3" />
+                        <span style={{ fontSize: '0.9rem', fontWeight: 900 }}>
+                            ARRIBO: {formatHora(punto.hora_real)}
                         </span>
                     </div>
-                    {punto.recalculado_desde && (
-                        <div className="text-cyan-400 text-[9px] mt-1 font-black flex items-center justify-center gap-1">
-                            <Timer size={10} /> Recalculado ({punto.recalculado_desde})
+                ) : (
+                    <>
+                        <div className={`countdown-text ${isDelayed ? 'text-rose-500 animate-pulse' : ''}`}>
+                            {formatCountdown(punto.seconds_remaining)}
+                        </div>
+                        <div className="eta-label">
+                            <Clock size={10} className="mr-1" /> ETA: <span className="eta-value">{formatHora(punto.hora_estimada_actual)}</span>
+                        </div>
+                        {punto.recalculado_desde && (
+                            <div className="recal-indicator">
+                                ↻ Recalculado desde {punto.recalculado_desde === 'CALIBRACION_REAL' ? 'CALIBRACION REAL' : punto.recalculado_desde}
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+
+            {/* Tech Info Row: Estilo Vertical Solicitado */}
+            {isConfirmado && (punto.nivel_arribo_m || punto.gasto_paso_m3s) && (
+                <div className="tech-info-row">
+                    {punto.nivel_arribo_m !== undefined && (
+                        <div className="tech-tag">
+                            <span>Nivel</span>
+                            <span>{punto.nivel_arribo_m?.toFixed(2)} m</span>
+                        </div>
+                    )}
+                    {punto.gasto_paso_m3s !== undefined && (
+                        <div className="tech-tag">
+                            <span>Gasto</span>
+                            <span>{punto.gasto_paso_m3s?.toFixed(2)} m³/s</span>
                         </div>
                     )}
                 </div>
             )}
 
-            {/* Datos técnicos (si confirmado) */}
-            {isConfirmado && (punto.nivel_arribo_m || punto.gasto_paso_m3s) && (
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                    {punto.nivel_arribo_m !== undefined && (
-                        <div className="p-1.5 bg-slate-800/80 rounded-lg text-center border border-slate-700/50">
-                            <div className="text-slate-500 text-[9px] font-black uppercase">Nivel</div>
-                            <div className="text-white text-xs font-black">{punto.nivel_arribo_m?.toFixed(2)} m</div>
-                        </div>
-                    )}
-                    {punto.gasto_paso_m3s !== undefined && (
-                        <div className="p-1.5 bg-slate-800/80 rounded-lg text-center border border-slate-700/50">
-                            <div className="text-slate-500 text-[9px] font-black uppercase">Gasto</div>
-                            <div className="text-cyan-400 text-xs font-black">{punto.gasto_paso_m3s?.toFixed(2)} m³/s</div>
-                        </div>
-                    )}
+            {/* Barra de progreso para tránsito */}
+            {!isPendiente && !isConfirmado && punto.segundos_modelo && (
+                <div className="mt-2 h-1 bg-slate-900 rounded-full overflow-hidden w-full">
+                    <div 
+                        className="h-full bg-gradient-to-r from-blue-600 to-blue-400"
+                        style={{ width: `${Math.max(5, 100 - (punto.seconds_remaining / (punto.segundos_modelo || 1)) * 100)}%` }}
+                    />
                 </div>
             )}
 
             {/* Botón de confirmar arribo */}
-            {!isConfirmado && !isPendiente && punto.seconds_remaining >= 0 && (
+            {!isConfirmado && !isPendiente && (
                 <button
                     onClick={() => onConfirmar(punto)}
-                    className={`btn-confirmar-arribo ${isProximo ? 'proximo' : ''}`}
-                    title={`Confirmar arribo en ${punto.punto_nombre}`}
+                    className="btn-confirmar-arribo"
                 >
                     <CheckCircle2 size={14} />
                     Confirmar Arribo
                 </button>
-            )}
-
-            {/* Barra de progreso */}
-            {!isPendiente && !isConfirmado && punto.segundos_modelo && (
-                <div className="mt-2.5 h-1 bg-slate-800 rounded-full overflow-hidden">
-                    <div 
-                        className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-1000 ease-linear"
-                        style={{ width: `${Math.max(5, 100 - (punto.seconds_remaining / (punto.segundos_modelo || 1)) * 100)}%` }}
-                    />
-                </div>
             )}
         </div>
     );
@@ -175,7 +164,7 @@ const PuntoCard: React.FC<{
 
 // === Componente Principal ===
 const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, onConfirmarApertura, onUpdateGasto }) => {
-    const { puntos, estadoGeneral, puntoAncla, loading, confirmarArribo } = useLlenadoTracker(eventoId, qSolicitado, horaApertura);
+    const { puntos, estadoGeneral, puntoAncla, telemetria, loading, confirmarArribo } = useLlenadoTracker(eventoId, qSolicitado, horaApertura);
     const [isEditingGasto, setIsEditingGasto] = useState(false);
     const [tempGasto, setTempGasto] = useState(qSolicitado.toString());
     const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -307,7 +296,7 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                 </div>
 
                 {/* Info de apertura */}
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-3 mb-4">
                     {horaApertura ? (
                         <>
                             <div className="flex-1 min-w-[120px] p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 shadow-inner">
@@ -336,6 +325,53 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                         </button>
                     )}
                 </div>
+
+                {/* Panel de Inteligencia de Datos (Telemetría Avanzada) */}
+                {horaApertura && (
+                    <div className="telemetry-panel">
+                        <div className="telemetry-item">
+                            <span className="telemetry-label">V. Promedio del Frente</span>
+                            <div className="telemetry-value-group">
+                                <span className="telemetry-value">{telemetria.velocidad_promedio_km_h.toFixed(2)}</span>
+                                <span className="telemetry-unit">km/h</span>
+                                <span className="telemetry-accent">({telemetria.velocidad_promedio_m_s.toFixed(2)} m/s)</span>
+                            </div>
+                        </div>
+                        <div className="telemetry-item">
+                            <span className="telemetry-label">Desde KM 0+000</span>
+                            <div className="telemetry-value-group">
+                                <span className="telemetry-value">
+                                    {telemetria.tiempo_desde_km0_s > 0 ? formatCountdown(telemetria.tiempo_desde_km0_s) : "--:--:--"}
+                                </span>
+                                <span className="telemetry-unit">Transcurrido</span>
+                            </div>
+                        </div>
+                        <div className="telemetry-item">
+                            <span className="telemetry-label">Volumen Inyectado</span>
+                            <div className="telemetry-value-group">
+                                <span className="telemetry-value" style={{ color: '#4ade80' }}>
+                                    {telemetria.volumen_estimado_inyectado_mm3.toFixed(4)}
+                                </span>
+                                <span className="telemetry-unit">Mm³</span>
+                            </div>
+                        </div>
+                        <div className="telemetry-item">
+                            <span className="telemetry-label">Progreso Total</span>
+                            <div className="telemetry-progress-container">
+                                <div className="progress-stats">
+                                    <span className="progress-pct">{telemetria.avance_porcentaje.toFixed(1)}%</span>
+                                    <span className="progress-dist">{telemetria.distancia_recorrida_km.toFixed(1)} / 140 km</span>
+                                </div>
+                                <div className="progress-track">
+                                    <div 
+                                        className="progress-fill"
+                                        style={{ width: `${telemetria.avance_porcentaje}%` }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Grid de puntos */}

@@ -153,6 +153,7 @@ const PublicMonitor: React.FC = () => {
             const { data: readings } = await supabase
                 .from('lecturas_escalas')
                 .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, radiales_json, gasto_calculado_m3s, creado_en')
+                .gte('creado_en', eventStart)
                 .order('creado_en', { ascending: false })
                 .limit(500);
 

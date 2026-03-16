@@ -33,6 +33,16 @@ export interface LlenadoState {
     puntos: PuntoControl[];
     punto_ancla: PuntoControl | null;
     tiempo_transcurrido_s: number;
+    telemetria: LlenadoTelemetry;
+}
+
+export interface LlenadoTelemetry {
+    velocidad_promedio_m_s: number;
+    velocidad_promedio_km_h: number;
+    tiempo_desde_km0_s: number;
+    distancia_recorrida_km: number;
+    avance_porcentaje: number;
+    volumen_estimado_inyectado_mm3: number;
 }
 
 // Velocidades del canal por tramo (de perfil_hidraulico_canal)
@@ -445,10 +455,38 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
         }
     }, [horaApertura, puntos, calcularETAs]);
 
+    // --- Telemetría Extendida (Modelación de Información) ---
+    const telemetria: LlenadoTelemetry = (() => {
+        const tTotal = horaApertura ? Math.max(1, (Date.now() - new Date(horaApertura).getTime()) / 1000) : 0;
+        const km0 = puntos.find(p => p.km === 0);
+        const tDesdeKm0 = (km0?.hora_real) ? Math.max(0, (Date.now() - new Date(km0.hora_real).getTime()) / 1000) : 0;
+        
+        // Distancia total desde el origen (KM -36)
+        const distTotalKm = puntoAncla ? (puntoAncla.km + 36) : 0;
+        const vPromMS = tTotal > 0 ? (distTotalKm * 1000) / tTotal : 0;
+        
+        // Porcentaje de avance (Río 36km + Canal 104km = 140km total)
+        const totalCuencaKm = 140;
+        const pctAvance = (distTotalKm / totalCuencaKm) * 100;
+
+        // Volumen inyectado (Q * t)
+        const volMm3 = (qSolicitado * tTotal) / 1000000;
+
+        return {
+            velocidad_promedio_m_s: vPromMS,
+            velocidad_promedio_km_h: vPromMS * 3.6,
+            tiempo_desde_km0_s: tDesdeKm0,
+            distancia_recorrida_km: distTotalKm,
+            avance_porcentaje: pctAvance,
+            volumen_estimado_inyectado_mm3: volMm3
+        };
+    })();
+
     return {
         puntos,
         estadoGeneral,
         puntoAncla,
+        telemetria,
         loading,
         confirmarArribo,
         calcularETAs,

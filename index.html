@@ -5,7 +5,18 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/png" href="/logos/logo-srl.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Conchos Digital | S.R.L. Unidad Conchos</title>
+  <title>SICA 005 v2.0.2 | UNIFICACIÓN TOTAL</title>
+  <script>
+    // CACHE BOUNCE v2.0.2
+    (function () {
+      const REQ_V = '202';
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('v') !== REQ_V) {
+        console.log("BOUNCING TO LATEST VERSION...");
+        window.location.replace(window.location.origin + window.location.pathname + '?v=' + REQ_V + '&t=' + Date.now());
+      }
+    })();
+  </script>
 </head>
 
 <body>

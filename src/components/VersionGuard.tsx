@@ -10,7 +10,7 @@
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShieldAlert, X } from 'lucide-react';
+import { ShieldAlert, X, Activity } from 'lucide-react';
 
 const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
 
@@ -57,8 +57,9 @@ export const VersionGuard = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const handleDismiss = () => {
-        setShowBanner(false);
-        sessionStorage.setItem('cd_version_dismissed', CURRENT_VERSION);
+        // En modo forzado, ya no permitimos descartar si la versión es crítica
+        // setShowBanner(false);
+        // sessionStorage.setItem('cd_version_dismissed', CURRENT_VERSION);
     };
 
     const handleUpdate = async () => {
@@ -80,21 +81,29 @@ export const VersionGuard = ({ children }: { children: ReactNode }) => {
     return (
         <>
             {showBanner && (
-                <div className="bg-red-600 text-white text-xs py-2 px-4 flex items-center justify-between font-bold uppercase tracking-wider sticky top-0 z-[9999] shadow-lg">
-                    <div className="flex items-center gap-2">
-                        <ShieldAlert size={14} />
-                        <span>Versión {CURRENT_VERSION} → Se requiere {serverVersion}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
+                <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-[99999] flex items-center justify-center p-6 text-center">
+                    <div className="max-w-sm w-full bg-slate-900 border border-red-500/30 rounded-2xl p-8 shadow-2xl animate-in zoom-in duration-300">
+                        <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <ShieldAlert size={32} className="text-red-500 animate-pulse" />
+                        </div>
+                        
+                        <h2 className="text-xl font-black text-white mb-2 tracking-tight">ACTUALIZACIÓN OBLIGATORIA</h2>
+                        <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+                            Detectamos una versión antigua ({CURRENT_VERSION}). <br/>
+                            Se requiere la <b>v{serverVersion}</b> para asegurar la integridad de los datos hidráulicos.
+                        </p>
+
                         <button
                             onClick={handleUpdate}
-                            className="bg-white text-red-600 px-3 py-1 rounded-full hover:bg-slate-100 transition-colors text-[10px]"
+                            className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-3"
                         >
-                            Actualizar
+                            <Activity size={18} />
+                            ACTUALIZAR AHORA
                         </button>
-                        <button onClick={handleDismiss} className="p-1 hover:bg-red-700 rounded">
-                            <X size={14} />
-                        </button>
+                        
+                        <div className="mt-6 text-[10px] text-slate-600 uppercase tracking-widest font-mono">
+                            SICA 005 — DIGITAL SYNCHRONY
+                        </div>
                     </div>
                 </div>
             )}

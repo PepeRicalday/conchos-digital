@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
   return {
     define: {
       '__APP_VERSION__': JSON.stringify(pkg.version),
-      '__BUILD_HASH__': JSON.stringify('initial-dev')
+      '__BUILD_HASH__': JSON.stringify('hash-v202-unification')
     },
     plugins: [
       react(),

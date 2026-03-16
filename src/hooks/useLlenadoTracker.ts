@@ -36,7 +36,7 @@ export interface LlenadoState {
 }
 
 // Velocidades del canal por tramo (de perfil_hidraulico_canal)
-const VELOCIDAD_CANAL_MS = 1.16; // m/s promedio de diseño
+const VELOCIDAD_CANAL_MS = 0.70; // m/s promedio ajustado para llenado (antes 1.16)
 const DISTANCIA_RIO_M = 36000;   // 36 km Obra de Toma → KM 0
 
 // Modelo empírico del río: v = 0.5 * Q^0.4 + 0.5
@@ -309,14 +309,14 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
                 velocidadReal = distTramo / Math.max(tTramo, 1);
                 console.log(`📐 Velocidad real canal (${puntoAnterior.punto_nombre} → ${puntoConfirmado.punto_nombre}): ${velocidadReal.toFixed(2)} m/s`);
             } else {
-                // Fallback: usar velocidad de diseño con factor de corrección
-                const etaOriginal = puntoConfirmado.hora_estimada_original 
-                    ? new Date(puntoConfirmado.hora_estimada_original).getTime() : horaAncla;
-                const factor = horaAncla / Math.max(etaOriginal, 1);
-                velocidadReal = VELOCIDAD_CANAL_MS / Math.max(factor, 0.5);
-                console.log(`📐 Velocidad estimada con factor: ${velocidadReal.toFixed(2)} m/s`);
+                // Fallback: usar velocidad conservadora de llenado (0.7 m/s)
+                velocidadReal = 0.7;
+                console.log(`📐 Velocidad estimada conservadora: ${velocidadReal.toFixed(2)} m/s`);
             }
         }
+
+        // Limitar velocidad para evitar modelos irreales (Min: 0.3, Max: 1.2)
+        velocidadReal = Math.max(0.3, Math.min(1.2, velocidadReal));
 
         // Recalcular ETAs posteriores
         console.log(`🔄 [Cascada] Recalculando ${posteriores.length} puntos desde ${puntoConfirmado.punto_nombre}`);
@@ -354,6 +354,82 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
     }, [estadoGeneral]);
 
     // --- Inicializar al montar ---
+    // --- Sincronización con Telemetría (SICA Capture) ---
+    const syncTelemetry = useCallback(async () => {
+        if (!eventoId || puntos.length === 0) return;
+        console.log('📡 [LlenadoTracker] Sincronizando con telemetría de campo...');
+        
+        try {
+            // 1. Obtener todas las escalas config para el mapeo
+            const { data: escalas } = await supabase.from('escalas').select('id, km').eq('activa', true);
+            if (!escalas) return;
+            const idToKm = new Map(escalas.map(e => [e.id, e.km]));
+
+            // 2. Obtener lecturas de hoy
+            const today = new Date().toISOString().split('T')[0];
+            const { data: readings } = await supabase
+                .from('lecturas_escalas')
+                .select('escala_id, nivel_m, creado_en')
+                .eq('fecha', today)
+                .gt('nivel_m', 0.1) 
+                .order('creado_en', { ascending: true });
+
+            if (!readings || readings.length === 0) return;
+
+            // 3. Buscar nuevos arribos
+            let huboCambios = false;
+            for (const r of readings) {
+                const readingKm = idToKm.get(r.escala_id);
+                if (readingKm === undefined) continue;
+
+                // Buscar punto en el tracker que coincida con el KM
+                const target = puntos.find(p => Math.abs(p.km - readingKm) < 0.1);
+                
+                if (target) {
+                    if (!target.hora_real) {
+                        // 3a. ARRIBO NUEVO: Confirmar por primera vez
+                        console.log(`✨ [LlenadoTracker] ¡Arribo detectado vía Telemetría! ${target.punto_nombre} (KM ${target.km})`);
+                        await confirmarArribo(target.id!, r.creado_en, r.nivel_m);
+                        huboCambios = true;
+                    } else {
+                        // 3b. PUNTO YA CONFIRMADO: Actualizar a nivel más reciente si es necesario
+                        // (Solo si la lectura es posterior a la hora de arribo real para reflejar estado actual)
+                        if (new Date(r.creado_en) > new Date(target.hora_real) && target.nivel_arribo_m !== r.nivel_m) {
+                            console.log(`🔄 [LlenadoTracker] Actualizando nivel en ${target.punto_nombre}: ${target.nivel_arribo_m}m -> ${r.nivel_m}m`);
+                            await supabase
+                                .from('sica_llenado_seguimiento')
+                                .update({ nivel_arribo_m: r.nivel_m })
+                                .eq('id', target.id);
+                            huboCambios = true;
+                        }
+                    }
+                }
+            }
+            if (huboCambios) await fetchPuntos();
+            if (!huboCambios) console.log('✅ [LlenadoTracker] Telemetría sincronizada (sin nuevos cambios).');
+        } catch (err) {
+            console.error('❌ [LlenadoTracker] Error en syncTelemetry:', err);
+        }
+    }, [eventoId, puntos, confirmarArribo]);
+
+    // --- Sincronización Automática (Cada 60s) ---
+    useEffect(() => {
+        if (!eventoId || estadoGeneral === 'PREPARACION' || estadoGeneral === 'COMPLETADO') return;
+        
+        // Ejecutar sync inicial
+        const timer = setTimeout(() => syncTelemetry(), 3000);
+
+        const interval = setInterval(() => {
+            syncTelemetry();
+        }, 60000);
+
+        return () => {
+            clearTimeout(timer);
+            clearInterval(interval);
+        };
+    }, [eventoId, estadoGeneral, syncTelemetry]);
+
+    // --- Inicializar al montar ---
     useEffect(() => {
         if (eventoId) {
             generarPuntos();
@@ -377,6 +453,7 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
         loading,
         confirmarArribo,
         calcularETAs,
-        refresh: fetchPuntos
+        refresh: fetchPuntos,
+        syncTelemetry
     };
 };

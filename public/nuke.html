@@ -47,22 +47,48 @@
             redirigido en un momento.</p>
     </div>
     <script>
-        // Double check SW removal just in case
+        console.log("NUCLEAR NUKE: Initiating factory reset...");
+        
+        // 1. Clear All Storage
+        localStorage.clear();
+        sessionStorage.clear();
+        console.log("Storage cleared.");
+
+        // 2. Unregister ALL Service Workers
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(function (regs) {
-                for (let reg of regs) reg.unregister();
+                for (let reg of regs) {
+                    reg.unregister();
+                    console.log("SW unregistered:", reg.scope);
+                }
             });
         }
-        // Clear caches
+
+        // 3. Clear ALL Caches
         if ('caches' in window) {
             caches.keys().then(function(names) {
-                for (let name of names) caches.delete(name);
+                for (let name of names) {
+                    caches.delete(name);
+                    console.log("Cache deleted:", name);
+                }
             });
         }
-        // Redirect back to home after 1.5 seconds to ensure headers were processed
+
+        // 4. Clear IndexedDB (SICA uses Dexie)
+        if (window.indexedDB) {
+            indexedDB.databases().then(dbs => {
+                dbs.forEach(db => {
+                    if (db.name) indexedDB.deleteDatabase(db.name);
+                });
+            });
+        }
+
+        // 5. Final Redirect with brutal cache-busting
         setTimeout(function () {
-            window.location.href = "/?v=" + Date.now();
-        }, 1500);
+            const forceUrl = window.location.origin + "/?nuke=" + Date.now() + "&v=202";
+            console.log("Redirecting to:", forceUrl);
+            window.location.replace(forceUrl);
+        }, 2000);
     </script>
 </body>
 

@@ -73,6 +73,7 @@ const PublicMonitor: React.FC = () => {
     const [isDockVisible, setIsDockVisible] = useState(!isMobile); 
     const [isPredictionVisible, setIsPredictionVisible] = useState(false);
     const [currentTime, setCurrentTime] = useState(() => Date.now());
+    const [anchorTimes, setAnchorTimes] = useState<Record<number, string>>({});
 
     // 0. Update internal clock for reactive calculations
     useEffect(() => {
@@ -203,13 +204,18 @@ const PublicMonitor: React.FC = () => {
                     .select('km, hora_real')
                     .eq('evento_id', activeEvent.id)
                     .not('hora_real', 'is', null)
-                    .order('km', { ascending: false })
-                    .limit(5);
+                    .order('km', { ascending: false });
                 
+                const newAnchors: Record<number, string> = {};
                 trackData?.forEach(td => {
-                    if (td.km > maxKmConfirmed) maxKmConfirmed = td.km;
-                    sessionStorage.setItem(`anchor_time_${td.km}`, td.hora_real);
+                    const kmNum = parseFloat(td.km);
+                    if (kmNum > maxKmConfirmed) maxKmConfirmed = kmNum;
+                    newAnchors[kmNum] = td.hora_real;
+                    // Persistir para otras partes si es necesario
+                    sessionStorage.setItem(`anchor_time_${kmNum}`, td.hora_real);
                 });
+                
+                setAnchorTimes(newAnchors);
 
                 // Also check if any scale reading confirms arrival (Mediante SICA Capture)
                 // KM 0 CONDITION: Level > 0 AND Apertura > 0 is REQUIRED to pass into canal.
@@ -217,16 +223,19 @@ const PublicMonitor: React.FC = () => {
                 readingsMap.forEach((r, escId) => {
                     const esc = escData?.find(e => e.id === escId);
                     if (esc && (r.nivel > 0 || r.nivel_abajo > 0)) {
+                        const kmNum = parseFloat(esc.km as any);
                         // KM 0 Specific Lock: Need Apertura OR Nivel Abajo to release
-                        const isK0ReachedButLocked = esc.km === 0 && r.apertura <= 0 && r.nivel_abajo <= 0;
+                        const isK0ReachedButLocked = kmNum === 0 && r.apertura <= 0 && r.nivel_abajo <= 0;
                         
                         if (isK0ReachedButLocked) {
-                            // Stay at KM 0 if we have level but NO opening and NO water below
                             if (0 > maxReadingKm) maxReadingKm = 0;
                         } else {
-                            if (esc.km > maxReadingKm) {
-                                maxReadingKm = esc.km;
-                                sessionStorage.setItem(`anchor_time_${esc.km}`, new Date(r.timestamp).toISOString());
+                            if (kmNum > maxReadingKm) {
+                                maxReadingKm = kmNum;
+                                if (!newAnchors[kmNum]) {
+                                    newAnchors[kmNum] = new Date(r.timestamp).toISOString();
+                                    sessionStorage.setItem(`anchor_time_${kmNum}`, newAnchors[kmNum]);
+                                }
                             }
                         }
                     }
@@ -327,35 +336,25 @@ const PublicMonitor: React.FC = () => {
     const vCanalDefault = 4.17; // km/h (diseño)
 
     const predictedMaxKm = useMemo(() => {
-        if (!activeEvent?.hora_apertura_real) return -36;
-        
-        // 1. Find the latest confirmed point (Anchor) from Scales OR Tracking
-        const confirmedScales = escalas.filter(e => e.estado === 'OPERANDO' && e.km <= realMaxKm);
-        const lastScaleAnchor = confirmedScales.length > 0 ? confirmedScales[confirmedScales.length - 1] : null;
-
-        let startTime = new Date(activeEvent.hora_apertura_real).getTime();
+        // 1. Find the latest confirmed point (Anchor)
+        let startTime = activeEvent?.hora_apertura_real ? new Date(activeEvent.hora_apertura_real).getTime() : currentTime;
         let startKm = -36;
 
-        // Check if there's a more advanced Tracking Point (Real Report)
-        let trackingAnchorTime = sessionStorage.getItem(`anchor_time_${realMaxKm}`);
+        // Buscar el ancla más avanzada
+        const sortedKms = Object.keys(anchorTimes).map(Number).sort((a,b) => b - a);
+        const topAnchor = sortedKms[0];
         
-        if (trackingAnchorTime) {
-            // High Priority: The latest real field report via SICA Capture or Tracker
-            startTime = new Date(trackingAnchorTime).getTime();
-            startKm = realMaxKm;
-        } else if (lastScaleAnchor) {
-            const anchorTimeStr = sessionStorage.getItem(`anchor_time_${lastScaleAnchor.km}`);
-            if (anchorTimeStr) {
-                startTime = new Date(anchorTimeStr).getTime();
-                startKm = lastScaleAnchor.km;
-            }
+        if (topAnchor !== undefined && anchorTimes[topAnchor]) {
+            startTime = new Date(anchorTimes[topAnchor]).getTime();
+            startKm = topAnchor;
         }
 
         const elapsedHours = (currentTime - startTime) / (1000 * 3600);
         if (elapsedHours <= 0) return startKm;
 
-        // RECALIBRACIÓN: La velocidad real observada es de ~1.25 km/h (22.5km / 18h desde K-0)
-        const vCanal = activeEvent.evento_tipo === 'LLENADO' ? 1.25 : vCanalDefault; 
+        // VELOCIDAD CALIBRADA: 0.70 m/s = 2.52 km/h
+        // Unificado con Inteligencia Hídrica para "Un Dato, Una Sola Verdad".
+        const vCanal = activeEvent?.evento_tipo === 'LLENADO' ? 2.52 : vCanalDefault; 
 
         let currentKm = startKm;
         let remainingHours = elapsedHours;
@@ -395,7 +394,7 @@ const PublicMonitor: React.FC = () => {
         }
 
         return Math.min(currentKm, 113);
-    }, [activeEvent, realMaxKm, escalas, currentTime]);
+    }, [activeEvent, realMaxKm, escalas, currentTime, anchorTimes]);
 
     // El avance del frente depende de telemetría confirmada O el modelado de travesía (Hidro-Sincronía)
     const displayMaxKm = useMemo(() => {
@@ -477,10 +476,17 @@ const PublicMonitor: React.FC = () => {
         const diffSeconds = Math.max(0, Math.floor((now - timestamp) / 1000));
         if (diffSeconds < 60) return `HACE ${diffSeconds}s`;
         const diffMins = Math.floor(diffSeconds / 60);
-        if (diffMins < 60) return `HACE ${diffMins}m`;
+        if (diffMins < 60) return `${diffMins}m`;
         const diffHours = Math.floor(diffMins / 60);
-        return `HACE ${diffHours}h`;
+        const remainingMins = diffMins % 60;
+        return `${diffHours}h ${remainingMins}m`;
     };
+
+    // Expose Anchor for UI
+    const topAnchorKm = useMemo(() => {
+        const sorted = Object.keys(anchorTimes).map(Number).sort((a,b) => b - a);
+        return sorted[0];
+    }, [anchorTimes]);
 
     // 4. Calculate Dynamic Target Estimation (Hydra Engine Logic)
     const nextTargetInfo = useMemo(() => {
@@ -511,8 +517,8 @@ const PublicMonitor: React.FC = () => {
         // Distance remaining to that specific checkpoint
         const distRemaining = nextScale.km - displayMaxKm;
         
-        // Velocidades del canal por tramo (Unificados con Regla 12h)
-        const vCanalKmh = activeEvent?.evento_tipo === 'LLENADO' ? 2.3 : (1.16 * 3.6); 
+        // Velocidades del canal por tramo (Unificados a 0.70 m/s = 2.52 km/h)
+        const vCanalKmh = activeEvent?.evento_tipo === 'LLENADO' ? 2.52 : (1.16 * 3.6); 
 
         let totalHours = 0;
         if (displayMaxKm < 0) {
@@ -539,7 +545,7 @@ const PublicMonitor: React.FC = () => {
             elapsed: elapsedSinceAnchor,
             status: "AVANCE EN CANAL"
         };
-    }, [escalas, isWaitingAtZero, displayMaxKm, activeEvent, currentTime, vRio, realMaxKm]);
+    }, [escalas, isWaitingAtZero, displayMaxKm, activeEvent, currentTime, vRio, realMaxKm, anchorTimes]);
 
 
     // 6. Executive/Managerial Metrics
@@ -601,6 +607,7 @@ const PublicMonitor: React.FC = () => {
                     >
                         <Activity size={12} />
                     </button>
+                    <div className="phb-version">v3.4.0-UNIFIED</div>
                 </div>
             </div>
 
@@ -643,11 +650,9 @@ const PublicMonitor: React.FC = () => {
                                 REPORTE DE CAMPO
                             </div>
                             <div className="tr-value">
-                                {realMaxKm >= 22.5 ? 'KM 22+500 (04:17 PM)' :
-                                 realMaxKm >= 12.9 ? 'KM 12+920 (10:55 AM)' : 
-                                 realMaxKm >= 9.6 ? 'KM 9+612 (09:28 AM)' : 
-                                 realMaxKm >= 0 ? `KM 0+000 (${sessionStorage.getItem('zero_radial_apertura') !== '0' ? '12:12 PM' : 'SIN REPORTE'})` :
-                                 'INICIO BOQUILLA'}
+                                {topAnchorKm !== undefined ? 
+                                    `KM ${topAnchorKm} (${new Date(anchorTimes[topAnchorKm]).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' })})` :
+                                    'INICIO BOQUILLA'}
                             </div>
                         </div>
 
@@ -845,7 +850,7 @@ const PublicMonitor: React.FC = () => {
                                             </span>
                                         </div>
                                     )}
-                                    <div className="tooltip-footer">SICA TELEMETRÍA v3.2</div>
+                                    <div className="tooltip-footer">SICA TELEMETRÍA v3.3.1</div>
                                 </div>
                             </Popup>
                             <Tooltip className="custom-tooltip" direction="top" offset={[0, -10]} opacity={0.9}>

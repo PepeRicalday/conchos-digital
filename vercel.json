@@ -1,7 +1,7 @@
 {
     "rewrites": [
         {
-            "source": "/(.*)",
+            "source": "/((?!nuke.html|nuke-cache.html|sw-.*\\.js|.*\\.png|.*\\.jpg|.*\\.geojson).*)",
             "destination": "/index.html"
         }
     ],

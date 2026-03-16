@@ -146,13 +146,15 @@ const PublicMonitor: React.FC = () => {
 
             setPresasData(finalPresas);
 
-            // 3. Latest Readings for today
-            const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Chihuahua' });
+            // 3. Latest Readings - Sincronía Hídrica: Traer lecturas recientes (últimas 24h o desde inicio de evento)
+            // Esto evita que al cruzar la medianoche los datos se pongan en 0.00m
+            const eventStart = activeEvent?.fecha_inicio || new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+            
             const { data: readings } = await supabase
                 .from('lecturas_escalas')
-                .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, gasto_calculado_m3s')
-                .eq('fecha', today)
-                .order('hora_lectura', { ascending: false });
+                .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, gasto_calculado_m3s, creado_en')
+                .gte('creado_en', eventStart)
+                .order('creado_en', { ascending: false });
 
             // 4. Dam Specific Movements
             const { data: mData } = await supabase

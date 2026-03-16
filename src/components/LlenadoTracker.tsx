@@ -28,19 +28,15 @@ const formatHora = (iso: string | null): string => {
 };
 
 const EstadoBadge: React.FC<{ estado: LlenadoEstado }> = ({ estado }) => {
-    const config: Record<LlenadoEstado, { label: string; color: string; bg: string }> = {
-        'PREPARACION': { label: '🔒 Esperando Apertura', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
-        'TRANSITO_RIO': { label: '🌊 Tránsito en Río', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
-        'TRANSITO_CANAL': { label: '⚡ Tránsito en Canal', color: '#22d3ee', bg: 'rgba(34,211,238,0.1)' },
-        'COMPLETADO': { label: '✅ Llenado Completo', color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+    const config: Record<LlenadoEstado, { label: string; class: string }> = {
+        'PREPARACION': { label: '🔒 Esperando Apertura', class: 'bg-amber-500/10 text-amber-500 border-amber-500/30' },
+        'TRANSITO_RIO': { label: '🌊 Tránsito en Río', class: 'bg-blue-500/10 text-blue-500 border-blue-500/30' },
+        'TRANSITO_CANAL': { label: '⚡ Tránsito en Canal', class: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' },
+        'COMPLETADO': { label: '✅ Llenado Completo', class: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' },
     };
     const c = config[estado];
     return (
-        <span style={{
-            padding: '6px 14px', borderRadius: '20px', fontSize: '0.7rem',
-            fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase',
-            color: c.color, background: c.bg, border: `1px solid ${c.color}30`
-        }}>
+        <span className={`px-3.5 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase border ${c.class}`}>
             {c.label}
         </span>
     );
@@ -55,55 +51,42 @@ const PuntoCard: React.FC<{
     const isPendiente = estadoGeneral === 'PREPARACION';
     const isConfirmado = punto.estado === 'CONFIRMADO' || punto.estado === 'ESTABILIZADO';
     const isProximo = !isConfirmado && punto.seconds_remaining > 0 && punto.seconds_remaining < 1800;
+    const isDelayed = !isConfirmado && !isPendiente && punto.seconds_remaining === 0;
 
-    const cardStyle: React.CSSProperties = {
-        background: isConfirmado
-            ? 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(16,185,129,0.02))'
-            : isAncla
-                ? 'linear-gradient(135deg, rgba(34,211,238,0.12), rgba(34,211,238,0.03))'
-                : isProximo
-                    ? 'linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.02))'
-                    : 'rgba(15,23,42,0.6)',
-        border: `1px solid ${isConfirmado ? 'rgba(16,185,129,0.3)' : isAncla ? 'rgba(34,211,238,0.3)' : 'rgba(255,255,255,0.06)'}`,
-        borderRadius: '12px',
-        padding: '16px',
-        position: 'relative',
-        overflow: 'hidden',
-        transition: 'all 0.3s ease'
-    };
+    const cardClassName = [
+        'punto-card',
+        isConfirmado ? 'confirmed' : '',
+        isAncla ? 'ancla' : '',
+        isProximo ? 'proximo' : ''
+    ].filter(Boolean).join(' ');
 
     return (
-        <div style={cardStyle}>
+        <div className={cardClassName}>
             {/* Cabecera */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{
-                        width: '8px', height: '8px', borderRadius: '50%',
-                        background: isConfirmado ? '#10b981' : isProximo ? '#f59e0b' : isPendiente ? '#475569' : '#3b82f6',
-                        boxShadow: isConfirmado ? '0 0 8px #10b981' : isProximo ? '0 0 8px #f59e0b' : 'none'
-                    }} />
-                    <span style={{ color: '#94a3b8', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            <div className="flex justify-between items-center mb-2.5">
+                <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${
+                        isConfirmado ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 
+                        isProximo ? 'bg-amber-500 shadow-[0_0_8px_#f59e0b]' : 
+                        isPendiente ? 'bg-slate-600' : 'bg-blue-500'
+                    }`} />
+                    <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
                         {punto.km === 0 ? 'ENTRADA CANAL' : `KM ${punto.km}`}
                     </span>
                     {isAncla && (
-                        <span style={{
-                            padding: '2px 6px', borderRadius: '4px', fontSize: '0.55rem',
-                            fontWeight: 900, color: '#22d3ee', background: 'rgba(34,211,238,0.15)',
-                            border: '1px solid rgba(34,211,238,0.3)'
-                        }}>ANCLA</span>
+                        <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 text-[9px] font-black border border-cyan-500/30">
+                            ANCLA
+                        </span>
                     )}
                 </div>
-                <MapPin size={14} style={{ color: isConfirmado ? '#10b981' : '#475569' }} />
+                <MapPin size={14} className={isConfirmado ? 'text-emerald-500' : 'text-slate-600'} />
             </div>
 
             {/* Nombre */}
-            <h4 style={{
-                color: '#f1f5f9', fontSize: '1rem', fontWeight: 800,
-                marginBottom: '8px', lineHeight: 1.2
-            }}>
+            <h4 className="text-white text-base font-black mb-2 leading-tight">
                 {punto.punto_nombre}
                 {punto.km === 0 && (
-                    <span style={{ display: 'block', fontSize: '0.6rem', color: '#22d3ee', opacity: 0.7, marginTop: '2px', fontWeight: 600 }}>
+                    <span className="block text-[10px] text-cyan-400 opacity-80 mt-1 font-bold">
                         Transferencia Río → Canal
                     </span>
                 )}
@@ -111,53 +94,37 @@ const PuntoCard: React.FC<{
 
             {/* Countdown / Estado */}
             {isPendiente ? (
-                <div style={{
-                    padding: '12px', background: 'rgba(71,85,105,0.2)', borderRadius: '8px',
-                    textAlign: 'center', marginBottom: '8px'
-                }}>
-                    <Lock size={16} style={{ color: '#64748b', margin: '0 auto 4px' }} />
-                    <div style={{ color: '#64748b', fontSize: '1.4rem', fontWeight: 900, fontFamily: 'monospace' }}>--:--:--</div>
-                    <div style={{ color: '#475569', fontSize: '0.6rem', fontWeight: 700 }}>PENDIENTE DE APERTURA</div>
+                <div className="p-3 bg-slate-800/50 rounded-xl text-center mb-2 border border-slate-700/30">
+                    <Lock size={16} className="text-slate-600 mx-auto mb-1" />
+                    <div className="text-slate-600 font-mono text-xl font-black tracking-tighter">--:--:--</div>
+                    <div className="text-slate-600 text-[10px] font-black uppercase tracking-wider">Esperando Apertura</div>
                 </div>
             ) : isConfirmado ? (
-                <div style={{
-                    padding: '12px', background: 'rgba(16,185,129,0.1)', borderRadius: '8px',
-                    textAlign: 'center', marginBottom: '8px', border: '1px solid rgba(16,185,129,0.2)'
-                }}>
-                    <CheckCircle2 size={18} style={{ color: '#10b981', margin: '0 auto 4px' }} />
-                    <div style={{ color: '#10b981', fontSize: '0.9rem', fontWeight: 900 }}>
+                <div className="p-3 bg-emerald-500/10 rounded-xl text-center mb-2 border border-emerald-500/20">
+                    <CheckCircle2 size={18} className="text-emerald-500 mx-auto mb-1" />
+                    <div className="text-emerald-400 text-sm font-black">
                         ARRIBO: {formatHora(punto.hora_real)}
                     </div>
                     {punto.diferencia_minutos !== null && (
-                        <div style={{
-                            color: punto.diferencia_minutos > 0 ? '#f59e0b' : '#10b981',
-                            fontSize: '0.65rem', fontWeight: 700, marginTop: '2px'
-                        }}>
+                        <div className={`text-[10px] font-bold mt-0.5 ${punto.diferencia_minutos > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
                             Δ {punto.diferencia_minutos > 0 ? '+' : ''}{punto.diferencia_minutos.toFixed(0)} min vs modelo
                         </div>
                     )}
                 </div>
             ) : (
-                <div style={{
-                    padding: '12px', background: 'rgba(59,130,246,0.1)', borderRadius: '8px',
-                    textAlign: 'center', marginBottom: '8px', border: '1px solid rgba(59,130,246,0.15)'
-                }}>
-                    <div style={{
-                        color: isProximo ? '#f59e0b' : '#60a5fa',
-                        fontSize: '1.6rem', fontWeight: 900, fontFamily: "'Courier New', monospace",
-                        textShadow: `0 0 20px ${isProximo ? 'rgba(245,158,11,0.3)' : 'rgba(96,165,250,0.3)'}`
-                    }}>
+                <div className={`p-3 rounded-xl text-center mb-2 border ${isProximo ? 'bg-amber-500/10 border-amber-500/30' : 'bg-blue-500/10 border-blue-500/30'}`}>
+                    <div className={`font-mono text-2xl font-black tracking-tighter ${isDelayed ? 'text-rose-500 animate-pulse' : isProximo ? 'text-amber-400' : 'text-blue-400'}`}>
                         {formatCountdown(punto.seconds_remaining)}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center', marginTop: '4px' }}>
-                        <Clock size={10} style={{ color: '#60a5fa' }} />
-                        <span style={{ color: '#94a3b8', fontSize: '0.65rem' }}>
-                            ETA: <strong style={{ color: '#e2e8f0' }}>{formatHora(punto.hora_estimada_actual)}</strong>
+                    <div className="flex items-center gap-1.5 justify-center mt-1">
+                        <Clock size={10} className="text-slate-400" />
+                        <span className="text-slate-400 text-[10px] font-bold">
+                            ETA: <strong className="text-slate-200">{formatHora(punto.hora_estimada_actual)}</strong>
                         </span>
                     </div>
                     {punto.recalculado_desde && (
-                        <div style={{ color: '#22d3ee', fontSize: '0.55rem', marginTop: '3px', fontWeight: 700 }}>
-                            ↻ Recalculado desde {punto.recalculado_desde}
+                        <div className="text-cyan-400 text-[9px] mt-1 font-black flex items-center justify-center gap-1">
+                            <Timer size={10} /> Recalculado ({punto.recalculado_desde})
                         </div>
                     )}
                 </div>
@@ -165,17 +132,17 @@ const PuntoCard: React.FC<{
 
             {/* Datos técnicos (si confirmado) */}
             {isConfirmado && (punto.nivel_arribo_m || punto.gasto_paso_m3s) && (
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                    {punto.nivel_arribo_m && (
-                        <div style={{ flex: 1, padding: '6px', background: 'rgba(30,41,59,0.5)', borderRadius: '6px', textAlign: 'center' }}>
-                            <div style={{ color: '#64748b', fontSize: '0.55rem', fontWeight: 700 }}>NIVEL</div>
-                            <div style={{ color: '#e2e8f0', fontSize: '0.8rem', fontWeight: 800 }}>{punto.nivel_arribo_m.toFixed(2)} m</div>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                    {punto.nivel_arribo_m !== undefined && (
+                        <div className="p-1.5 bg-slate-800/80 rounded-lg text-center border border-slate-700/50">
+                            <div className="text-slate-500 text-[9px] font-black uppercase">Nivel</div>
+                            <div className="text-white text-xs font-black">{punto.nivel_arribo_m?.toFixed(2)} m</div>
                         </div>
                     )}
-                    {punto.gasto_paso_m3s && (
-                        <div style={{ flex: 1, padding: '6px', background: 'rgba(30,41,59,0.5)', borderRadius: '6px', textAlign: 'center' }}>
-                            <div style={{ color: '#64748b', fontSize: '0.55rem', fontWeight: 700 }}>GASTO</div>
-                            <div style={{ color: '#0ea5e9', fontSize: '0.8rem', fontWeight: 800 }}>{punto.gasto_paso_m3s.toFixed(2)} m³/s</div>
+                    {punto.gasto_paso_m3s !== undefined && (
+                        <div className="p-1.5 bg-slate-800/80 rounded-lg text-center border border-slate-700/50">
+                            <div className="text-slate-500 text-[9px] font-black uppercase">Gasto</div>
+                            <div className="text-cyan-400 text-xs font-black">{punto.gasto_paso_m3s?.toFixed(2)} m³/s</div>
                         </div>
                     )}
                 </div>
@@ -185,15 +152,9 @@ const PuntoCard: React.FC<{
             {!isConfirmado && !isPendiente && punto.seconds_remaining >= 0 && (
                 <button
                     onClick={() => onConfirmar(punto)}
-                    style={{
-                        width: '100%', padding: '8px', border: 'none', borderRadius: '8px',
-                        background: isProximo ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'rgba(59,130,246,0.15)',
-                        color: isProximo ? '#0f172a' : '#93c5fd',
-                        fontWeight: 800, fontSize: '0.7rem', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                        textTransform: 'uppercase', letterSpacing: '0.05em',
-                        transition: 'all 0.2s ease'
-                    }}>
+                    className={`btn-confirmar-arribo ${isProximo ? 'proximo' : ''}`}
+                    title={`Confirmar arribo en ${punto.punto_nombre}`}
+                >
                     <CheckCircle2 size={14} />
                     Confirmar Arribo
                 </button>
@@ -201,13 +162,11 @@ const PuntoCard: React.FC<{
 
             {/* Barra de progreso */}
             {!isPendiente && !isConfirmado && punto.segundos_modelo && (
-                <div style={{ marginTop: '8px', height: '3px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
-                    <div style={{
-                        height: '100%', borderRadius: '4px',
-                        background: 'linear-gradient(90deg, #3b82f6, #22d3ee)',
-                        width: `${Math.max(5, 100 - (punto.seconds_remaining / (punto.segundos_modelo || 1)) * 100)}%`,
-                        transition: 'width 1s linear'
-                    }} />
+                <div className="mt-2.5 h-1 bg-slate-800 rounded-full overflow-hidden">
+                    <div 
+                        className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-1000 ease-linear"
+                        style={{ width: `${Math.max(5, 100 - (punto.seconds_remaining / (punto.segundos_modelo || 1)) * 100)}%` }}
+                    />
                 </div>
             )}
         </div>
@@ -281,59 +240,55 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
     })();
 
     return (
-        <div style={{ position: 'relative' }}>
+        <div className="relative">
             {/* Cabecera */}
-            <div style={{
-                background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '16px', padding: '20px', marginBottom: '16px',
-                backdropFilter: 'blur(10px)'
-            }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{
-                            padding: '8px', background: 'rgba(34,211,238,0.1)',
-                            borderRadius: '10px', border: '1px solid rgba(34,211,238,0.2)'
-                        }}>
-                            <Timer size={20} style={{ color: '#22d3ee' }} />
+            <div className="tracker-main-card">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]">
+                            <Timer size={20} className="text-cyan-400" />
                         </div>
                         <div>
-                            <h3 style={{ color: '#f1f5f9', fontSize: '1rem', fontWeight: 900, margin: 0 }}>
+                            <h3 className="text-white text-lg font-black tracking-tight leading-tight">
                                 Tránsito de Onda Positiva
                             </h3>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <p style={{ color: '#64748b', fontSize: '0.7rem', margin: 0 }}>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">
                                     36km Río + 104km Canal | Q=
                                 </p>
                                 {isEditingGasto ? (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <div className="flex items-center gap-1">
                                         <input 
                                             type="number" 
                                             value={tempGasto} 
                                             onChange={e => setTempGasto(e.target.value)}
-                                            style={{ width: '50px', background: 'rgba(30,41,59,0.8)', border: '1px solid #3b82f6', color: 'white', fontSize: '0.7rem', borderRadius: '4px', padding: '0 4px' }}
+                                            className="w-16 bg-slate-800 border-2 border-mobile-accent text-white text-[10px] font-black rounded px-1.5 py-0.5"
                                         />
                                         <button onClick={() => {
                                             if (onUpdateGasto) onUpdateGasto(parseFloat(tempGasto));
                                             setIsEditingGasto(false);
-                                        }} style={{ background: '#10b981', border: 'none', borderRadius: '4px', padding: '2px' }}>
-                                            <CheckCircle2 size={10} color="white" />
+                                        }} className="p-1 bg-emerald-500 text-white rounded hover:bg-emerald-600 transition-colors" title="Guardar gasto">
+                                            <CheckCircle2 size={12} />
                                         </button>
-                                        <button onClick={() => setIsEditingGasto(false)} style={{ background: '#ef4444', border: 'none', borderRadius: '4px', padding: '2px' }}>
-                                            <Shield size={10} color="white" />
+                                        <button onClick={() => setIsEditingGasto(false)} className="p-1 bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition-colors" title="Cancelar">
+                                            <Shield size={12} />
                                         </button>
                                     </div>
                                 ) : (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <span style={{ color: '#22d3ee', fontSize: '0.7rem', fontWeight: 900 }}>{qSolicitado} m³/s</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-cyan-400 text-[11px] font-black bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20 shadow-inner">
+                                            {qSolicitado} m³/s
+                                        </span>
                                         {!horaApertura && onUpdateGasto && (
                                             <button 
                                                 onClick={() => {
                                                     setTempGasto(qSolicitado.toString());
                                                     setIsEditingGasto(true);
                                                 }}
-                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', opacity: 0.5 }}
+                                                className="text-cyan-600 hover:text-cyan-400 hover:scale-110 transition-all"
+                                                title="Editar gasto solicitado"
                                             >
-                                                <Clock size={10} style={{ color: '#22d3ee' }} />
+                                                <Clock size={12} />
                                             </button>
                                         )}
                                     </div>
@@ -341,13 +296,9 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                             </div>
                         </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div className="flex items-center gap-3">
                         {diaLlenado > 0 && (
-                            <span style={{
-                                padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem',
-                                fontWeight: 800, color: '#22d3ee',
-                                background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.2)'
-                            }}>
+                            <span className="px-3 py-1.5 rounded-lg text-[10px] font-black text-white bg-slate-800 border border-slate-700 shadow-inner">
                                 📅 Día {diaLlenado}
                             </span>
                         )}
@@ -356,49 +307,39 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                 </div>
 
                 {/* Info de apertura */}
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <div className="flex flex-wrap gap-3">
                     {horaApertura ? (
                         <>
-                            <div style={{ padding: '8px 14px', background: 'rgba(16,185,129,0.1)', borderRadius: '8px', border: '1px solid rgba(16,185,129,0.2)' }}>
-                                <div style={{ color: '#64748b', fontSize: '0.55rem', fontWeight: 700 }}>APERTURA</div>
-                                <div style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: 900 }}>{formatHora(horaApertura)}</div>
+                            <div className="flex-1 min-w-[120px] p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 shadow-inner">
+                                <div className="text-slate-500 text-[9px] font-black uppercase mb-1">Hora de Apertura</div>
+                                <div className="text-emerald-400 text-lg font-black tracking-tight">{formatHora(horaApertura)}</div>
                             </div>
-                            <div style={{ padding: '8px 14px', background: 'rgba(59,130,246,0.1)', borderRadius: '8px', border: '1px solid rgba(59,130,246,0.2)' }}>
-                                <div style={{ color: '#64748b', fontSize: '0.55rem', fontWeight: 700 }}>TRANSCURRIDO</div>
-                                <div style={{ color: '#60a5fa', fontSize: '0.85rem', fontWeight: 900, fontFamily: 'monospace' }}>
+                            <div className="flex-1 min-w-[120px] p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20 shadow-inner">
+                                <div className="text-slate-500 text-[9px] font-black uppercase mb-1">Tiempo de Tránsito</div>
+                                <div className="text-blue-400 text-lg font-black font-mono tracking-tighter">
                                     {formatCountdown(tiempoTranscurrido)}
                                 </div>
                             </div>
-                            <div style={{ padding: '8px 14px', background: 'rgba(34,211,238,0.1)', borderRadius: '8px', border: '1px solid rgba(34,211,238,0.2)' }}>
-                                <div style={{ color: '#64748b', fontSize: '0.55rem', fontWeight: 700 }}>PROGRESO</div>
-                                <div style={{ color: '#22d3ee', fontSize: '0.85rem', fontWeight: 900 }}>{confirmados}/{total}</div>
+                            <div className="flex-1 min-w-[120px] p-3 bg-cyan-500/10 rounded-2xl border border-cyan-500/20 shadow-inner">
+                                <div className="text-slate-500 text-[9px] font-black uppercase mb-1">Checkpoints</div>
+                                <div className="text-cyan-400 text-lg font-black">{confirmados} <span className="text-slate-600 font-normal">/ {total}</span></div>
                             </div>
                         </>
                     ) : (
                         <button
                             onClick={onConfirmarApertura}
-                            style={{
-                                padding: '12px 24px', border: 'none', borderRadius: '10px',
-                                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                                color: '#0f172a', fontWeight: 900, fontSize: '0.8rem',
-                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                                textTransform: 'uppercase', letterSpacing: '0.05em',
-                                boxShadow: '0 4px 15px rgba(245,158,11,0.3)',
-                                animation: 'pulse 2s infinite'
-                            }}>
-                            <AlertTriangle size={16} />
-                            Confirmar Hora de Apertura de Obra de Toma
+                            className="w-full p-4 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-700 text-slate-950 font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl shadow-amber-900/40 hover:scale-[1.01] active:scale-[0.99] transition-all animate-pulse"
+                            title="Confirmar apertura de presa"
+                        >
+                            <AlertTriangle size={20} className="animate-bounce" />
+                            SICA: Confirmar Hora de Apertura (Obra de Toma)
                         </button>
                     )}
                 </div>
             </div>
 
             {/* Grid de puntos */}
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                gap: '12px'
-            }}>
+            <div className="punto-grid">
                 {puntos.map(p => (
                     <PuntoCard
                         key={p.id || p.km}

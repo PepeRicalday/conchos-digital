@@ -546,14 +546,17 @@ const ControlEscalas = () => {
             setLoading(true);
             setError(null);
 
-            // 1. Fetch scale configs (radial gate dimensions)
-            const { data: escalasCfg } = await supabase
+            // 1. Fetch Configs and Base Scales
+            const { data: escalasBase } = await supabase
                 .from('escalas')
-                .select('id, pzas_radiales, ancho, alto')
-                .eq('activa', true);
+                .select('id, nombre, km, seccion_id, nivel_min_operativo, nivel_max_operativo, capacidad_max, pzas_radiales, ancho, alto, activa, secciones(id, nombre, color)')
+                .eq('activa', true)
+                .order('km');
+
+            if (cancelled) return;
 
             const configMap = new Map<string, EscalaConfig>();
-            (escalasCfg || []).forEach((e: any) => {
+            (escalasBase || []).forEach((e: any) => {
                 const key = e.id.trim().toUpperCase();
                 configMap.set(key, {
                     id: e.id,
@@ -563,25 +566,21 @@ const ControlEscalas = () => {
                 });
             });
 
-            // 2. Fetch latest radial readings for the selected date - Robust Order
+            // 2. Traer lecturas recientes (Últimos 500 para mayor cobertura de red)
             const { data: lecturasRaw } = await supabase
                 .from('lecturas_escalas')
                 .select('escala_id, nivel_m, nivel_abajo_m, apertura_radiales_m, radiales_json, gasto_calculado_m3s, hora_lectura, fecha, confirmada, creado_en')
-                .eq('fecha', fechaSeleccionada)
-                .order('creado_en', { ascending: false }); // Timestamp is more reliable than time string
+                .order('creado_en', { ascending: false })
+                .limit(500);
 
             const lecturasMap = new Map<string, LecturaRadial>();
             (lecturasRaw || []).forEach((l: any) => {
                 const key = l.escala_id.trim().toUpperCase();
                 if (!lecturasMap.has(key)) {
-                    // Force parsing if radiales_json is somehow a string
                     let parsedRadiales = l.radiales_json;
                     if (typeof l.radiales_json === 'string') {
                         try { parsedRadiales = JSON.parse(l.radiales_json); } catch(e) { console.error("Error parsing radiales_json", e); }
                     }
-
-                    const openCount = Array.isArray(parsedRadiales) ? parsedRadiales.filter((x:any)=>Number(x.apertura_m) > 0).length : 0;
-                    console.log(`[Escala Sync] ${key} | Hora: ${l.hora_lectura} | Q: ${l.gasto_calculado_m3s} | Open: ${openCount}`);
 
                     lecturasMap.set(key, {
                         escala_id: l.escala_id,
@@ -597,106 +596,44 @@ const ControlEscalas = () => {
                 }
             });
 
-            // 3. Fetch view resumen
-            const { data, error: err } = await supabase
+            // 3. Resumen diario para la fecha seleccionada
+            const { data: resumenData } = await supabase
                 .from('resumen_escalas_diario')
                 .select('*')
                 .eq('fecha', fechaSeleccionada);
 
             if (cancelled) return;
 
-            if (err) {
-                setError(err.message);
-                setLoading(false);
-                return;
-            }
+            const resumenMap = new Map<string, any>();
+            (resumenData || []).forEach(r => resumenMap.set(r.escala_id.trim().toUpperCase(), r));
 
-            if (!data || data.length === 0) {
-                // FALLBACK: Si no hay resumen para hoy, traer la lista de escalas y sus ÚLTIMOS niveles conocidos
-                const { data: escalas } = await supabase
-                    .from('escalas')
-                    .select('id, nombre, km, seccion_id, nivel_min_operativo, nivel_max_operativo, capacidad_max, secciones(id, nombre, color)')
-                    .eq('activa', true)
-                    .order('km');
+            // 4. Merge Logic - Logica de CONTINUIDAD (Regla: "Un dato, una sola verdad")
+            const mapped: ResumenEscala[] = (escalasBase || []).map((e: any) => {
+                const key = e.id.trim().toUpperCase();
+                const res = resumenMap.get(key);
+                const last = lecturasMap.get(key);
 
-                if (cancelled) return;
-
-                if (escalas && escalas.length > 0) {
-                    // Traer las últimas lecturas de CUALQUIER fecha para estas escalas
-                    const { data: lastReadings } = await supabase
-                        .from('lecturas_escalas')
-                        .select('escala_id, nivel_m, fecha, hora_lectura, confirmada')
-                        .order('fecha', { ascending: false })
-                        .order('hora_lectura', { ascending: false });
-
-                    const lastKnownLevels = new Map<string, number>();
-                    const lastKnownConfirm = new Map<string, boolean>();
-
-                    (lastReadings || []).forEach(lr => {
-                        if (!lastKnownLevels.has(lr.escala_id)) {
-                            lastKnownLevels.set(lr.escala_id, Number(lr.nivel_m));
-                            lastKnownConfirm.set(lr.escala_id, lr.confirmada !== false);
-                        }
-                    });
-
-                    const mapped: ResumenEscala[] = escalas.map((e: any) => ({
-                        escala_id: e.id,
-                        nombre: e.nombre,
-                        km: Number(e.km),
-                        seccion_id: e.secciones?.id || '',
-                        seccion_nombre: e.secciones?.nombre || '',
-                        seccion_color: e.secciones?.color || '#6b7280',
-                        nivel_min_operativo: Number(e.nivel_min_operativo),
-                        nivel_max_operativo: Number(e.nivel_max_operativo),
-                        capacidad_max: Number(e.capacidad_max),
-                        fecha: fechaSeleccionada,
-                        lectura_am: lastKnownLevels.get(e.id) || null,
-                        lectura_pm: null,
-                        hora_am: null,
-                        hora_pm: null,
-                        nivel_actual: lastKnownLevels.get(e.id) || null,
-                        delta_12h: null,
-                        estado: 'continuidad_histórica',
-                        confirmada: lastKnownConfirm.get(e.id) ?? false,
-                    }));
-                    setZones(mapResumenToZones(mapped, configMap, lecturasMap));
-                } else {
-                    setZones([]);
-                }
-                setLoading(false);
-                return;
-            }
-
-            // Deduplicate data from view (Safety check even with DB fix)
-            const uniqueDataMap = new Map();
-            (data || []).forEach((r: any) => {
-                if (!uniqueDataMap.has(r.escala_id)) {
-                    uniqueDataMap.set(r.escala_id, r);
-                }
+                return {
+                    escala_id: e.id,
+                    nombre: e.nombre,
+                    km: Number(e.km),
+                    seccion_id: e.secciones?.id || '',
+                    seccion_nombre: e.secciones?.nombre || '',
+                    seccion_color: e.secciones?.color || '#6b7280',
+                    nivel_min_operativo: Number(e.nivel_min_operativo),
+                    nivel_max_operativo: Number(e.nivel_max_operativo),
+                    capacidad_max: Number(e.capacidad_max),
+                    fecha: fechaSeleccionada,
+                    lectura_am: res?.lectura_am != null ? Number(res.lectura_am) : (last?.nivel_m || null),
+                    lectura_pm: res?.lectura_pm != null ? Number(res.lectura_pm) : null,
+                    hora_am: res?.hora_am || last?.hora_lectura || null,
+                    hora_pm: res?.hora_pm || null,
+                    nivel_actual: res?.nivel_actual != null ? Number(res.nivel_actual) : (last?.nivel_m || null),
+                    delta_12h: res?.delta_12h != null ? Number(res.delta_12h) : null,
+                    estado: res?.estado || (last ? 'continuo' : 'sin_datos'),
+                    confirmada: last?.confirmada ?? true,
+                };
             });
-
-            const uniqueData = Array.from(uniqueDataMap.values());
-
-            const mapped: ResumenEscala[] = uniqueData.map((r: any) => ({
-                escala_id: r.escala_id,
-                nombre: r.nombre,
-                km: Number(r.km),
-                seccion_id: r.seccion_id || '',
-                seccion_nombre: r.seccion_nombre || '',
-                seccion_color: r.seccion_color || '#6b7280',
-                nivel_min_operativo: Number(r.nivel_min_operativo),
-                nivel_max_operativo: Number(r.nivel_max_operativo),
-                capacidad_max: Number(r.capacidad_max),
-                fecha: r.fecha,
-                lectura_am: r.lectura_am != null ? Number(r.lectura_am) : null,
-                lectura_pm: r.lectura_pm != null ? Number(r.lectura_pm) : null,
-                hora_am: r.hora_am,
-                hora_pm: r.hora_pm,
-                nivel_actual: r.nivel_actual != null ? Number(r.nivel_actual) : null,
-                delta_12h: r.delta_12h != null ? Number(r.delta_12h) : null,
-                estado: r.estado || 'normal',
-                confirmada: lecturasMap.get(r.escala_id)?.confirmada ?? true,
-            }));
 
             setZones(mapResumenToZones(mapped, configMap, lecturasMap));
             setLoading(false);

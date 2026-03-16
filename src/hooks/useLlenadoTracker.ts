@@ -365,14 +365,13 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
             if (!escalas) return;
             const idToKm = new Map(escalas.map(e => [e.id, e.km]));
 
-            // 2. Obtener lecturas de hoy
-            const today = new Date().toISOString().split('T')[0];
+            // 2. Obtener lecturas recientes (últimas 100 para cubrir todos los puntos si es necesario)
             const { data: readings } = await supabase
                 .from('lecturas_escalas')
                 .select('escala_id, nivel_m, creado_en')
-                .eq('fecha', today)
                 .gt('nivel_m', 0.1) 
-                .order('creado_en', { ascending: true });
+                .order('creado_en', { ascending: false })
+                .limit(100);
 
             if (!readings || readings.length === 0) return;
 

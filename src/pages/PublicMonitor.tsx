@@ -182,6 +182,7 @@ const PublicMonitor: React.FC = () => {
                                 fecha: r.fecha,
                                 timestamp: readingTime,
                                 apertura: r.apertura_radiales_m || 0,
+                                radiales_json: r.radiales_json,
                                 gasto_real: r.gasto_calculado_m3s || 0
                             };
                             readingsMap.set(r.escala_id, entry);

@@ -96,8 +96,9 @@ function mapResumenToZones(
             });
         }
 
-        const cfg = configs.get(row.escala_id);
-        const lect = lecturas.get(row.escala_id);
+        const escalaKey = row.escala_id.trim().toUpperCase();
+        const cfg = configs.get(escalaKey);
+        const lect = lecturas.get(escalaKey);
 
         zonesMap.get(secId)!.scales.push({
             id: row.escala_id,
@@ -337,9 +338,11 @@ const RadialGateDiagram = ({ scale, onOpenModal }: { scale: ScaleReading; onOpen
 
 // ─── COMPONENTE: Barra de Gasto / Volumen en Caja ───
 const GastoVolumeBar = ({ scale }: { scale: ScaleReading }) => {
-    const volumePercent = scale.maxCapacity > 0 ? Math.min((scale.currentLevel / scale.maxCapacity) * 100, 100) : 0;
-    const isHigh = volumePercent > 85;
-    const isLow = volumePercent < 30;
+    // La capacidad de la caja (volumen relativo) se basa en el nivel máximo físico (asumimos 4m si no hay dato)
+    const MAX_LEVEL_PHYSICAL = scale.maxOperational > 0 ? (scale.maxOperational * 1.2) : 4.0;
+    const volumePercent = Math.min((scale.currentLevel / MAX_LEVEL_PHYSICAL) * 100, 100);
+    const isHigh = scale.currentLevel > scale.maxOperational;
+    const isLow = scale.currentLevel < scale.minOperational;
 
     return (
         <div className="gasto-volume-section">
@@ -349,12 +352,6 @@ const GastoVolumeBar = ({ scale }: { scale: ScaleReading }) => {
                     <span className="gasto-label">Q =</span>
                     <span className="gasto-value">{scale.gastoCalculado.toFixed(3)}</span>
                     <span className="gasto-unit">m³/s</span>
-                </div>
-            )}
-            {scale.nivelAbajo > 0 && (
-                <div className="nivel-abajo-row">
-                    <ArrowDown size={10} />
-                    <span>Abajo: {scale.nivelAbajo.toFixed(2)}m</span>
                 </div>
             )}
             <div className="volume-bar-container">
@@ -372,9 +369,10 @@ const GastoVolumeBar = ({ scale }: { scale: ScaleReading }) => {
 
 // ─── COMPONENTE: Scale Gauge (Vertical) — Expandido ───
 const ScaleGauge = ({ scale, zoneColor, onOpenModal }: { scale: ScaleReading; zoneColor: string; onOpenModal: (scale: ScaleReading) => void }) => {
-    const levelPercent = (scale.currentLevel / scale.maxCapacity) * 100;
-    const minPercent = (scale.minOperational / scale.maxCapacity) * 100;
-    const maxPercent = (scale.maxOperational / scale.maxCapacity) * 100;
+    const MAX_H = 4.0; // Altura base visual de la escala
+    const levelPercent = (scale.currentLevel / MAX_H) * 100;
+    const minPercent = (scale.minOperational / MAX_H) * 100;
+    const maxPercent = (scale.maxOperational / MAX_H) * 100;
 
     const delta = scale.pmReading - scale.amReading;
     const isRising = delta > 0.02;
@@ -556,7 +554,8 @@ const ControlEscalas = () => {
 
             const configMap = new Map<string, EscalaConfig>();
             (escalasCfg || []).forEach((e: any) => {
-                configMap.set(e.id, {
+                const key = e.id.trim().toUpperCase();
+                configMap.set(key, {
                     id: e.id,
                     pzas_radiales: Number(e.pzas_radiales) || 0,
                     ancho: Number(e.ancho) || 0,
@@ -564,23 +563,32 @@ const ControlEscalas = () => {
                 });
             });
 
-            // 2. Fetch latest radial readings for the selected date
+            // 2. Fetch latest radial readings for the selected date - Robust Order
             const { data: lecturasRaw } = await supabase
                 .from('lecturas_escalas')
-                .select('escala_id, nivel_m, nivel_abajo_m, apertura_radiales_m, radiales_json, gasto_calculado_m3s, hora_lectura, fecha, confirmada')
+                .select('escala_id, nivel_m, nivel_abajo_m, apertura_radiales_m, radiales_json, gasto_calculado_m3s, hora_lectura, fecha, confirmada, creado_en')
                 .eq('fecha', fechaSeleccionada)
-                .order('hora_lectura', { ascending: false });
+                .order('creado_en', { ascending: false }); // Timestamp is more reliable than time string
 
             const lecturasMap = new Map<string, LecturaRadial>();
             (lecturasRaw || []).forEach((l: any) => {
-                // Keep only most recent per escala_id
-                if (!lecturasMap.has(l.escala_id)) {
-                    lecturasMap.set(l.escala_id, {
+                const key = l.escala_id.trim().toUpperCase();
+                if (!lecturasMap.has(key)) {
+                    // Force parsing if radiales_json is somehow a string
+                    let parsedRadiales = l.radiales_json;
+                    if (typeof l.radiales_json === 'string') {
+                        try { parsedRadiales = JSON.parse(l.radiales_json); } catch(e) { console.error("Error parsing radiales_json", e); }
+                    }
+
+                    const openCount = Array.isArray(parsedRadiales) ? parsedRadiales.filter((x:any)=>Number(x.apertura_m) > 0).length : 0;
+                    console.log(`[Escala Sync] ${key} | Hora: ${l.hora_lectura} | Q: ${l.gasto_calculado_m3s} | Open: ${openCount}`);
+
+                    lecturasMap.set(key, {
                         escala_id: l.escala_id,
                         nivel_m: Number(l.nivel_m) || 0,
                         nivel_abajo_m: Number(l.nivel_abajo_m) || 0,
                         apertura_radiales_m: Number(l.apertura_radiales_m) || 0,
-                        radiales_json: l.radiales_json || null,
+                        radiales_json: parsedRadiales || null,
                         gasto_calculado_m3s: Number(l.gasto_calculado_m3s) || 0,
                         hora_lectura: l.hora_lectura || '',
                         fecha: l.fecha,
@@ -659,7 +667,17 @@ const ControlEscalas = () => {
                 return;
             }
 
-            const mapped: ResumenEscala[] = data.map((r: any) => ({
+            // Deduplicate data from view (Safety check even with DB fix)
+            const uniqueDataMap = new Map();
+            (data || []).forEach((r: any) => {
+                if (!uniqueDataMap.has(r.escala_id)) {
+                    uniqueDataMap.set(r.escala_id, r);
+                }
+            });
+
+            const uniqueData = Array.from(uniqueDataMap.values());
+
+            const mapped: ResumenEscala[] = uniqueData.map((r: any) => ({
                 escala_id: r.escala_id,
                 nombre: r.nombre,
                 km: Number(r.km),

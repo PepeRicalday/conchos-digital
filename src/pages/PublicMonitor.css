@@ -216,6 +216,9 @@
 .fuente-dock-mini.time {
     background: rgba(6, 182, 212, 0.05);
     border-color: rgba(6, 182, 212, 0.1);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
 }
 
 .fdm-name {
@@ -793,10 +796,150 @@
     flex-direction: column;
     align-items: flex-start;
     padding: 16px;
-    min-width: 280px;
+    min-width: 320px;
     border-radius: 20px;
-    background: rgba(15, 23, 42, 0.9);
-    border: 1px solid rgba(6, 182, 212, 0.3);
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(6, 182, 212, 0.4);
+}
+
+/* Technical Balance Section */
+.balance-section.technical {
+    width: 100%;
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.technical-title {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+}
+
+.technical-comparison-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.tech-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tech-label {
+    font-size: 0.55rem;
+    font-weight: 800;
+    color: #64748b;
+}
+
+.tech-main-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #fff;
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+}
+
+.tech-main-val small { font-size: 0.6rem; opacity: 0.6; }
+
+.tech-sub {
+    font-size: 0.5rem;
+    font-weight: 700;
+    color: #475569;
+}
+
+.tech-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.2);
+}
+
+.tech-dist {
+    font-size: 0.5rem;
+    font-weight: 900;
+}
+
+.radial-behavior-box {
+    background: rgba(6, 182, 212, 0.05);
+    border: 1px solid rgba(6, 182, 212, 0.1);
+    border-radius: 10px;
+    padding: 8px;
+}
+
+.rb-header {
+    font-size: 0.55rem;
+    font-weight: 800;
+    color: #22d3ee;
+    margin-bottom: 6px;
+    text-align: center;
+}
+
+.rb-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.rb-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.rb-st-label {
+    font-size: 0.45rem;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.rb-st-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+.balance-summary-tech {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 5px;
+}
+
+.bst-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.bst-label {
+    font-size: 0.55rem;
+    font-weight: 800;
+    color: #64748b;
+}
+
+.bst-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+
+.bst-val.highlight {
+    color: #22d3ee;
+    text-shadow: 0 0 10px rgba(34, 211, 238, 0.4);
 }
 
 .mgr-header {
@@ -908,6 +1051,90 @@
         padding: 12px;
         pointer-events: auto;
     }
+}
+
+/* --- HYDRAULIC BALANCE SECTION --- */
+.balance-section {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    width: 100%;
+}
+
+.balance-title {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: #64748b;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+}
+
+.balance-table {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.balance-row {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr 1fr;
+    align-items: center;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    font-size: 0.7rem;
+}
+
+.balance-row.header {
+    background: transparent;
+    color: #475569;
+    font-weight: 800;
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    padding-bottom: 2px;
+}
+
+.balance-row.highlight {
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid rgba(6, 182, 212, 0.2);
+}
+
+.br-point { font-weight: 700; color: #cbd5e1; }
+.br-time { color: #64748b; font-family: 'JetBrains Mono', monospace; text-align: center; }
+.br-value { font-weight: 800; color: #22d3ee; text-align: right; font-family: 'JetBrains Mono', monospace; }
+
+.balance-summary {
+    margin-top: 10px;
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    border: 1px dashed rgba(255,255,255,0.05);
+}
+
+.bs-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.bs-label {
+    font-size: 0.55rem;
+    font-weight: 800;
+    color: #64748b;
+    text-transform: uppercase;
+}
+
+.bs-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 800;
+}
+
+.transit-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.2), transparent);
+    margin: 10px 0;
 }
 
 /* Panel Toggle Controls */

@@ -66,6 +66,7 @@ const PublicMonitor: React.FC = () => {
     const [geoRio, setGeoRio] = useState<any>(null);
     const [realMaxKm, setRealMaxKm] = useState<number>(-36);
     const [presasData, setPresasData] = useState<any[]>([]);
+    const [damMovements, setDamMovements] = useState<any[]>([]);
     
     // Panel Visibility States - Start minimized on mobile for total map priority
     const isMobile = typeof window !== 'undefined' ? window.innerWidth <= 900 : false;
@@ -99,32 +100,43 @@ const PublicMonitor: React.FC = () => {
             // Escalas Base
             const { data: escData } = await supabase
                 .from('escalas')
-                .select('id, nombre, km, latitud, longitud')
+                .select('id, nombre, km, latitud, longitud, pzas_radiales, ancho, alto')
                 .order('km');
             
-            // 2. Fetch Presas (Dams) Telemetry
+            // 2. Fetch Presas (Dams) Telemetry - Only latest per dam
             const { data: pData } = await supabase
-                .from('registros_presas')
+                .from('lecturas_presas')
                 .select(`
                     *,
                     presas:presa_id (nombre, nombre_corto)
                 `)
                 .order('fecha', { ascending: false })
-                .limit(4); // Ultimos registros de Boquilla y Madero
+                .order('creado_en', { ascending: false });
 
-            // Sincronía Digital: Fallback si no hay telemetría reciente pero hay protocolo activo
-            let finalPresas = pData || [];
+            // Sincronía Digital: Solo tomamos la última lectura de cada presa
+            const uniquePresasMap = new Map();
+            (pData || []).forEach(p => {
+                if (!uniquePresasMap.has(p.presa_id)) {
+                    uniquePresasMap.set(p.presa_id, {
+                        ...p,
+                        extraccion_total: p.extraccion_total_m3s
+                    });
+                }
+            });
+
+            let finalPresas = Array.from(uniquePresasMap.values());
+
+            // Si es protocolo de LLENADO y no hay dato de hoy, inyectar el solicitado para Boquilla
             if (activeEvent?.evento_tipo === 'LLENADO' && activeEvent.gasto_solicitado_m3s) {
-                const hasBoquilla = finalPresas.some(p => p.presas?.nombre_corto === 'PLB' && p.extraccion_total > 0);
+                const hasBoquilla = finalPresas.some(p => (p.presas?.nombre_corto === 'Boquilla' || p.presa_id === 'PRE-001') && p.extraccion_total > 0);
                 if (!hasBoquilla) {
-                    // Inject synthetic record for Boquilla during LLENADO
                     finalPresas = [
                         {
                             id: 'fallback-plb',
                             presa_id: 'PRE-001',
                             extraccion_total: activeEvent.gasto_solicitado_m3s,
                             fecha: new Date().toISOString(),
-                            presas: { nombre: 'La Boquilla', nombre_corto: 'PLB' }
+                            presas: { nombre: 'La Boquilla', nombre_corto: 'Boquilla' }
                         },
                         ...finalPresas
                     ];
@@ -137,26 +149,47 @@ const PublicMonitor: React.FC = () => {
             const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Chihuahua' });
             const { data: readings } = await supabase
                 .from('lecturas_escalas')
-                .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m')
+                .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, gasto_calculado_m3s')
                 .eq('fecha', today)
                 .order('hora_lectura', { ascending: false });
+
+            // 4. Dam Specific Movements
+            const { data: mData } = await supabase
+                .from('movimientos_presas')
+                .select(`*, presas:presa_id (nombre_corto)`)
+                .order('fecha_hora', { ascending: false })
+                .limit(5);
+
+            setDamMovements(mData || []);
 
             const flowStartTime = activeEvent?.hora_apertura_real ? new Date(activeEvent.hora_apertura_real).getTime() : null;
             
             const readingsMap = new Map();
+            let latestReadingAtZero: any = null;
+
             if (flowStartTime) {
                 readings?.forEach(r => {
                     const readingTime = new Date(`${r.fecha}T${r.hora_lectura}-06:00`).getTime();
                     if (readingTime >= flowStartTime) {
                         if (!readingsMap.has(r.escala_id)) {
-                            readingsMap.set(r.escala_id, {
+                            const entry = {
                                 nivel: r.nivel_m,
                                 nivel_abajo: r.nivel_abajo_m || 0,
                                 hora: r.hora_lectura,
                                 fecha: r.fecha,
                                 timestamp: readingTime,
-                                apertura: r.apertura_radiales_m || 0
-                            });
+                                apertura: r.apertura_radiales_m || 0,
+                                gasto_real: r.gasto_calculado_m3s || 0
+                            };
+                            readingsMap.set(r.escala_id, entry);
+                            
+                            // Track specifically the latest KM 0 to show in header/alerts
+                            const esc = escData?.find(e => e.id === r.escala_id);
+                            if (esc?.km === 0) {
+                                if (!latestReadingAtZero || readingTime > latestReadingAtZero.timestamp) {
+                                    latestReadingAtZero = entry;
+                                }
+                            }
                         }
                     }
                 });
@@ -246,11 +279,37 @@ const PublicMonitor: React.FC = () => {
 
             setEscalas(baseEscalas);
             
-            // Check specifically for KM 0 radial status to refine the blockage
+            // KM 0 Logic: Technical Comparison (Source vs Delivery)
             const zeroScale = baseEscalas.find(e => e.km === 0);
             const zeroReading = zeroScale ? readingsMap.get(zeroScale.id) : null;
+            
+            // Physical properties of K0 for technical validation
+            const k0Phys = escData?.find(e => e.km === 0);
+            const pzas = k0Phys?.pzas_radiales || 12;
+            const ancho = k0Phys?.ancho || 1.84;
+            
+            // Priority 1: Real gauged/calculated flow from field (SICA Capture)
+            // Priority 2: Theoretical radial gate model (Cd=0.6)
+            let currentFlowAtZero = zeroReading?.gasto_real || 0;
+            
+            if (currentFlowAtZero === 0 && zeroReading?.apertura > 0) {
+                const Cd = 0.6;
+                const hArriba = zeroReading.nivel || 0;
+                const hAbajo = zeroReading.nivel_abajo || 0;
+                const cargaH = hAbajo > 0 ? Math.max(0, hArriba - hAbajo) : hArriba;
+                const areaTotal = pzas * ancho * zeroReading.apertura;
+                currentFlowAtZero = Cd * areaTotal * Math.sqrt(2 * 9.81 * cargaH);
+            }
+
+            const hasViolation = currentFlowAtZero > 70.42;
+            
             sessionStorage.setItem('zero_radial_apertura', (zeroReading?.apertura || 0).toString());
             sessionStorage.setItem('zero_nivel_abajo', (zeroReading?.nivel_abajo || 0).toString());
+            sessionStorage.setItem('zero_nivel_arriba', (zeroReading?.nivel || 0).toString());
+            sessionStorage.setItem('zero_current_flow', currentFlowAtZero.toString());
+            sessionStorage.setItem('has_hydraulic_violation', hasViolation ? 'true' : 'false');
+            sessionStorage.setItem('k0_pzas', pzas.toString());
+            sessionStorage.setItem('k0_ancho', ancho.toString());
             
         } catch (err) {
             console.error("PublicMonitor fetch error", err);
@@ -280,21 +339,10 @@ const PublicMonitor: React.FC = () => {
         // Check if there's a more advanced Tracking Point (Real Report)
         let trackingAnchorTime = sessionStorage.getItem(`anchor_time_${realMaxKm}`);
         
-        // --- PARCHE DE EMERGENCIA: ANCLAJE FORZADO 15 DE MARZO ---
-        // Si la DB falla en sincronizar, forzamos el anclaje a los ultimos datos reales reportados
-        const todayStr = new Date().toLocaleDateString('sv-SE');
-        if (!trackingAnchorTime && todayStr === '2026-03-15') {
-            if (realMaxKm <= 12.92) {
-                trackingAnchorTime = '2026-03-15T10:55:00-06:00';
-                startKm = 12.92;
-            }
-        }
-
         if (trackingAnchorTime) {
-            // Priority: The absolute maximum real progress reported
+            // High Priority: The latest real field report via SICA Capture or Tracker
             startTime = new Date(trackingAnchorTime).getTime();
-            startKm = Math.max(startKm, realMaxKm < 0 ? startKm : realMaxKm);
-            if (todayStr === '2026-03-15' && startKm < 12.92) startKm = 12.92; // Re-force km
+            startKm = realMaxKm;
         } else if (lastScaleAnchor) {
             const anchorTimeStr = sessionStorage.getItem(`anchor_time_${lastScaleAnchor.km}`);
             if (anchorTimeStr) {
@@ -306,7 +354,8 @@ const PublicMonitor: React.FC = () => {
         const elapsedHours = (currentTime - startTime) / (1000 * 3600);
         if (elapsedHours <= 0) return startKm;
 
-        const vCanal = activeEvent.evento_tipo === 'LLENADO' ? 2.3 : vCanalDefault; 
+        // RECALIBRACIÓN: La velocidad real observada es de ~1.25 km/h (22.5km / 18h desde K-0)
+        const vCanal = activeEvent.evento_tipo === 'LLENADO' ? 1.25 : vCanalDefault; 
 
         let currentKm = startKm;
         let remainingHours = elapsedHours;
@@ -531,11 +580,18 @@ const PublicMonitor: React.FC = () => {
                         </div>
                     </div>
 
+                    <div className="phb-efficiency">
+                        <span className="phb-label">PRESA:</span>
+                        <span className="phb-val">{executiveMetrics.totalReal.toFixed(2)} m³/s</span>
+                    </div>
+
                     <div className="phb-divider"></div>
 
                     <div className="phb-efficiency">
-                        <span className="phb-label">EFICIENCIA:</span>
-                        <span className="phb-val" style={{ color: executiveMetrics.healthColor }}>{executiveMetrics.efficiency.toFixed(1)}%</span>
+                        <span className="phb-label">TOMA KM 0:</span>
+                        <span className="phb-val" style={{ color: sessionStorage.getItem('has_hydraulic_violation') === 'true' ? '#ef4444' : '#22c55e' }}>
+                            {parseFloat(sessionStorage.getItem('zero_current_flow') || '0').toFixed(2)} m³/s
+                        </span>
                     </div>
 
                     <button 
@@ -547,6 +603,19 @@ const PublicMonitor: React.FC = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Hydraulic Violation Banner */}
+            {sessionStorage.getItem('has_hydraulic_violation') === 'true' && (
+                <div className="hydraulic-violation-banner animate-in">
+                    <div className="hvb-content">
+                        <Activity size={18} className="hvb-icon" />
+                        <div className="hvb-text">
+                            <b>VIOLACIÓN HIDRÁULICA DETECTADA: K-0+000</b>
+                            <p>El gasto de entrada ({parseFloat(sessionStorage.getItem('zero_current_flow') || '0').toFixed(2)} m³/s) EXCEDE la capacidad de diseño de 70.42 m³/s. Riesgo de desbordamiento.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Predicted position badge - Managerial Transit Report */}
             {activeEvent?.evento_tipo === 'LLENADO' && isPredictionVisible && (
@@ -574,7 +643,11 @@ const PublicMonitor: React.FC = () => {
                                 REPORTE DE CAMPO
                             </div>
                             <div className="tr-value">
-                                {realMaxKm > 10 ? 'KM 12+920 (10:55 AM)' : realMaxKm > 5 ? 'KM 9+612 (09:28 AM)' : 'INICIO BOQUILLA'}
+                                {realMaxKm >= 22.5 ? 'KM 22+500 (04:17 PM)' :
+                                 realMaxKm >= 12.9 ? 'KM 12+920 (10:55 AM)' : 
+                                 realMaxKm >= 9.6 ? 'KM 9+612 (09:28 AM)' : 
+                                 realMaxKm >= 0 ? `KM 0+000 (${sessionStorage.getItem('zero_radial_apertura') !== '0' ? '12:12 PM' : 'SIN REPORTE'})` :
+                                 'INICIO BOQUILLA'}
                             </div>
                         </div>
 
@@ -610,6 +683,78 @@ const PublicMonitor: React.FC = () => {
                                 LLEGADA ESTIMADA
                             </div>
                             <div className="tr-value tr-value-accent">{nextTargetInfo.arrivalTime}</div>
+                        </div>
+                    </div>
+
+                    <div className="transit-divider"></div>
+
+                    {/* Professional Hydraulic Balance Section */}
+                    <div className="balance-section technical">
+                        <h4 className="balance-title technical-title">
+                            <Activity size={14} />
+                            BALANCE HIDRÁULICO: FUENTE - KM 0+000
+                        </h4>
+                        
+                        <div className="technical-comparison-container">
+                            {/* Source: Dam */}
+                            <div className="tech-item source">
+                                <div className="tech-label">EXTRACCIÓN PRESA</div>
+                                <div className="tech-main-val">
+                                    {Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal).toFixed(2)}
+                                    <small>m³/s</small>
+                                </div>
+                                <div className="tech-sub">FUENTE: BOQUILLA</div>
+                            </div>
+
+                            <div className="tech-arrow">
+                                <ArrowRightCircle size={20} />
+                                <span className="tech-dist">36 KM</span>
+                            </div>
+
+                            {/* Delivery: KM 0 */}
+                            <div className="tech-item delivery">
+                                <div className="tech-label">ENTREGA KM 0+000</div>
+                                <div className="tech-main-val">
+                                    {parseFloat(sessionStorage.getItem('zero_current_flow') || '0').toFixed(2)}
+                                    <small>m³/s</small>
+                                </div>
+                                <div className="tech-sub" style={{ color: '#22d3ee' }}>RADIALES SICA</div>
+                            </div>
+                        </div>
+
+                        <div className="radial-behavior-box">
+                            <div className="rb-header">COMPORTAMIENTO DE RADIALES (K-0)</div>
+                            <div className="rb-grid">
+                                <div className="rb-stat">
+                                    <span className="rb-st-label">NIVEL (H)</span>
+                                    <span className="rb-st-val">{parseFloat(sessionStorage.getItem('zero_nivel_arriba') || '0').toFixed(2)}m</span>
+                                </div>
+                                <div className="rb-stat">
+                                    <span className="rb-st-label">APERTURA (w)</span>
+                                    <span className="rb-st-val">{parseFloat(sessionStorage.getItem('zero_radial_apertura') || '0').toFixed(2)}m</span>
+                                </div>
+                                <div className="rb-stat">
+                                    <span className="rb-st-label">TOTAL Pz</span>
+                                    <span className="rb-st-val">{sessionStorage.getItem('k0_pzas')} x {sessionStorage.getItem('k0_ancho')}m</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="balance-summary-tech">
+                            <div className="bst-item">
+                                <span className="bst-label">PÉRDIDA EN TRÁNSITO</span>
+                                <span className="bst-val" style={{ color: (Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal) - Number(sessionStorage.getItem('zero_current_flow'))) > 5 ? '#ef4444' : '#22c55e' }}>
+                                    {(Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal) - Number(sessionStorage.getItem('zero_current_flow'))).toFixed(2)} m³/s
+                                </span>
+                            </div>
+                            <div className="bst-item">
+                                <span className="bst-label">EFICIENCIA GLOBAL</span>
+                                <span className="bst-val highlight">
+                                    {Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal) > 0 
+                                        ? ((Number(sessionStorage.getItem('zero_current_flow')) / Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal)) * 100).toFixed(1) 
+                                        : '0.0'}%
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -746,15 +891,16 @@ const PublicMonitor: React.FC = () => {
                         <div className="fuentes-summary-grid-dock">
                             {presasData.map(p => (
                                 <div className="fuente-dock-mini" key={p.id}>
-                                    <span className="fdm-name">{p.presas?.nombre_corto === 'PLB' ? 'BOQUILLA' : 'MADERO'}</span>
+                                    <span className="fdm-name">{p.presas?.nombre_corto?.toUpperCase() || 'PRESA'}</span>
                                     <span className="fdm-val">{p.extraccion_total?.toFixed(2)} <small>m³/s</small></span>
                                 </div>
                             ))}
                             <div className="fuente-dock-mini time">
-                                <span className="fdm-name">INICIO</span>
+                                <span className="fdm-name">MOVIMIENTO</span>
                                 <span className="fdm-val">
-                                    {activeEvent?.hora_apertura_real ? 
-                                        new Date(activeEvent.hora_apertura_real).toLocaleTimeString('es-MX', { 
+                                    {damMovements[0]?.fecha_hora ? 
+                                        new Date(damMovements[0].fecha_hora).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) + ' ' +
+                                        new Date(damMovements[0].fecha_hora).toLocaleTimeString('es-MX', { 
                                             hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' 
                                         }) : '--:--'}
                                 </span>

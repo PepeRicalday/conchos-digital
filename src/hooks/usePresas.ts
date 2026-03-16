@@ -65,11 +65,20 @@ export interface AforoDiarioData {
     gasto_m3s: number | null;
 }
 
+export interface MovimientoPresaData {
+    id: string;
+    presa_id: string;
+    fecha_hora: string;
+    gasto_m3s: number;
+    fuente_dato: string;
+}
+
 // ─── Hook ────────────────────────────────────────────
 export function usePresas(fecha: string) {
     const [presas, setPresas] = useState<PresaData[]>([]);
     const [clima, setClima] = useState<ClimaPresaData[]>([]);
     const [aforos, setAforos] = useState<AforoDiarioData[]>([]);
+    const [movimientos, setMovimientos] = useState<MovimientoPresaData[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -155,6 +164,13 @@ export function usePresas(fecha: string) {
                     .eq('evento_tipo', 'LLENADO')
                     .maybeSingle();
 
+                // 6. Movimientos recientes
+                const { data: movsDB } = await supabase
+                    .from('movimientos_presas')
+                    .select('*')
+                    .order('fecha_hora', { ascending: false })
+                    .limit(10);
+
                 if (cancelled) return;
 
                 // Index lecturas by presa_id
@@ -239,6 +255,7 @@ export function usePresas(fecha: string) {
                     escala: a.escala != null ? Number(a.escala) : null,
                     gasto_m3s: a.gasto_m3s != null ? Number(a.gasto_m3s) : null
                 })));
+                setMovimientos(movsDB || []);
 
             } catch (err: any) {
                 if (!cancelled) {
@@ -283,6 +300,7 @@ export function usePresas(fecha: string) {
         presas,
         clima,
         aforos,
+        movimientos,
         loading,
         error,
         // Aggregates

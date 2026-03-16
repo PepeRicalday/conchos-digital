@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { supabase } from '../lib/supabase';
 import {
     MapPin, Droplets, Activity, TrendingUp, TrendingDown, Minus,
     AlertTriangle, CheckCircle, Camera, Signature, ExternalLink,
-    Gauge, Waves, Settings, ThermometerSun, Clock, Printer, Upload, Loader,
-    Map
+    Gauge, Waves, Settings, ThermometerSun, Clock, Upload, Loader,
+    Map, PlusCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
@@ -13,7 +14,7 @@ import {
 import './Presas.css';
 import ReservoirViz from '../components/ReservoirViz';
 import { useFecha } from '../context/FechaContext';
-import { usePresas, type PresaData, type PuntoCurva, type ClimaPresaData, type AforoDiarioData } from '../hooks/usePresas';
+import { usePresas, type PresaData, type PuntoCurva, type ClimaPresaData, type AforoDiarioData, type MovimientoPresaData } from '../hooks/usePresas';
 
 // --- Hidro-Sincronía 2.1: Advanced Analytics & Interactive Simulation ---
 
@@ -112,6 +113,112 @@ const EfficiencyHeatmap = () => {
                         />
                     );
                 })}
+            </div>
+        </div>
+    );
+};
+
+// --- Modal de Registro de Movimiento (Gerente) ---
+const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: { 
+    isOpen: boolean, 
+    onClose: () => void, 
+    presa: PresaData,
+    onSourceUpdate: () => void
+}) => {
+    const [gasto, setGasto] = useState('');
+    const [fechaHora, setFechaHora] = useState(new Date().toISOString().slice(0, 16));
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!gasto || isNaN(Number(gasto))) return;
+
+        setIsSaving(true);
+        try {
+            const { error } = await supabase
+                .from('movimientos_presas')
+                .insert({
+                    presa_id: presa.id,
+                    fecha_hora: new Date(fechaHora).toISOString(),
+                    gasto_m3s: Number(gasto),
+                    fuente_dato: 'GERENCIA_ADMIN'
+                });
+
+            if (error) throw error;
+            onSourceUpdate();
+            onClose();
+        } catch (err) {
+            console.error('Error guardando movimiento:', err);
+            alert('Error al registrar el movimiento');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in duration-200">
+                <div className="p-6 border-b border-white/5 bg-gradient-to-r from-blue-600/20 to-emerald-600/20">
+                    <h3 className="text-xl font-black text-white flex items-center gap-2 uppercase tracking-tighter">
+                        <PlusCircle className="text-emerald-400" />
+                        Registrar Movimiento
+                    </h3>
+                    <p className="text-xs text-slate-400 font-bold mt-1">Órdenes de Operación - {presa.nombre_corto}</p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <div className="space-y-2">
+                        <label htmlFor="gasto-liberado" className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                            Gasto Liberado (Q)
+                        </label>
+                        <div className="relative">
+                            <input 
+                                id="gasto-liberado"
+                                type="number" 
+                                step="0.01"
+                                value={gasto}
+                                onChange={(e) => setGasto(e.target.value)}
+                                className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xl focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 outline-none transition-all"
+                                placeholder="0.00"
+                                required
+                            />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs uppercase">m³/s</span>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label htmlFor="fecha-hora-efectiva" className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                            Fecha y Hora Efectiva
+                        </label>
+                        <input 
+                            id="fecha-hora-efectiva"
+                            type="datetime-local" 
+                            value={fechaHora}
+                            onChange={(e) => setFechaHora(e.target.value)}
+                            className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-blue-500/50 outline-none"
+                            required
+                        />
+                    </div>
+
+                    <div className="pt-4 flex gap-3">
+                        <button 
+                            type="button" 
+                            onClick={onClose}
+                            className="flex-1 px-4 py-3 rounded-xl bg-white/5 text-xs font-black text-slate-400 uppercase tracking-widest hover:bg-white/10 transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button 
+                            type="submit" 
+                            disabled={isSaving}
+                            className="flex-1 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-900/40 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                            {isSaving ? 'Guardando...' : 'Confirmar Registro'}
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     );
@@ -515,8 +622,9 @@ const DamCard = ({ presa, climaObj, aforoObj }: { presa: PresaData, climaObj?: C
 // Main Component
 const Presas = () => {
     const { fechaSeleccionada } = useFecha();
-    const { presas, clima, aforos, loading, error } = usePresas(fechaSeleccionada);
+    const { presas, clima, aforos, movimientos, loading, error } = usePresas(fechaSeleccionada);
     const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
+    const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
 
     // Auto-select first dam when data arrives
     const currentDam = presas.find(p => p.id === selectedDamId) || presas[0];
@@ -577,14 +685,17 @@ const Presas = () => {
                         <div className="conagua-badge">
                             <CheckCircle size={12} /> Oficial
                         </div>
+                        <button 
+                            onClick={() => setIsMoveModalOpen(true)}
+                            className="btn-premium-action bg-emerald-600 hover:bg-emerald-500"
+                        >
+                            <PlusCircle size={14} />
+                            <span>Registrar Movimiento</span>
+                        </button>
                         <Link to="/importar" className="btn-premium-action">
                             <Upload size={14} />
                             <span>Capturar Documento</span>
                         </Link>
-                        <a href="#" className="btn-secondary-action">
-                            <Printer size={14} />
-                            <span>Imprimir</span>
-                        </a>
                     </div>
 
                     {/* Dam Selector Group */}
@@ -706,6 +817,57 @@ const Presas = () => {
                         </div>
                     </section>
 
+                    {/* Section: Historial de Movimientos (Gasto de Apertura) */}
+                    <section className="movimientos-historial chart-card mb-4">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="m-0">Historial de Movimientos</h3>
+                            <button 
+                                onClick={() => setIsMoveModalOpen(true)}
+                                className="text-[10px] font-black bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/20 hover:bg-emerald-500/20 transition-all uppercase tracking-widest"
+                            >
+                                Registrar
+                            </button>
+                        </div>
+                        <div className="overflow-hidden rounded-xl border border-white/5 bg-slate-900/50">
+                            <table className="w-full text-left text-xs font-mono">
+                                <thead className="bg-white/5 text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                                    <tr>
+                                        <th className="px-4 py-2">Fecha/Hora</th>
+                                        <th className="px-4 py-2 text-right">Gasto</th>
+                                        <th className="px-4 py-2">Origen</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {movimientos.filter((m: MovimientoPresaData) => m.presa_id === currentDam.id).length > 0 ? (
+                                        movimientos.filter((m: MovimientoPresaData) => m.presa_id === currentDam.id).map((m: MovimientoPresaData) => (
+                                            <tr key={m.id} className="hover:bg-white/5 transition-colors">
+                                                <td className="px-4 py-3 text-slate-300">
+                                                    {new Date(m.fecha_hora).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true })}
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-black text-emerald-400">
+                                                    {m.gasto_m3s.toFixed(2)} <span className="text-[9px] text-slate-500">m³/s</span>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <span className={`text-[8px] font-black px-2 py-1 rounded-md border ${
+                                                        m.fuente_dato === 'GERENCIA_ADMIN' 
+                                                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' 
+                                                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                    }`}>
+                                                        {m.fuente_dato}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={3} className="px-4 py-8 text-center text-slate-500 italic">No hay movimientos registrados recientes</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
                     {/* Section: Storage Comparative Analytic Chart */}
                     <section className="chart-card">
                         <h3>Comparativa de Almacenamiento</h3>
@@ -765,6 +927,14 @@ const Presas = () => {
                     </section>
                 </div>
             </div>
+
+            {/* Managerial Modals */}
+            <RegisterMovementModal 
+                isOpen={isMoveModalOpen} 
+                onClose={() => setIsMoveModalOpen(false)} 
+                presa={currentDam}
+                onSourceUpdate={() => window.location.reload()}
+            />
         </div>
     );
 };

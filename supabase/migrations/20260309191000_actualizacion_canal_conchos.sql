@@ -467,19 +467,5 @@ INSERT INTO public.perfil_hidraulico_canal (
             96, 98.951, 'Tramo Canal', 46.02623041167342, 7.7, 
             0.0001, 3.2, 1.75, 21, 0.6, 1.081443383732928
         );
-INSERT INTO public.perfil_hidraulico_canal (
-            km_inicio, km_fin, nombre_tramo, capacidad_diseno_m3s, plantilla_m, 
-            pendiente_s0, tirante_diseno_m, talud_z, ancho_corona_m, bordo_libre_m, 
-            velocidad_diseno_ms
-        ) VALUES (
-            0, 1.37, 'Tramo Canal', 16.723935963853112, 4, 
-            0.0001, 2.4, 1.75, 14.5, 0.6, 0.8497934940982272
-        );
-INSERT INTO public.perfil_hidraulico_canal (
-            km_inicio, km_fin, nombre_tramo, capacidad_diseno_m3s, plantilla_m, 
-            pendiente_s0, tirante_diseno_m, talud_z, ancho_corona_m, bordo_libre_m, 
-            velocidad_diseno_ms
-        ) VALUES (
-            1.37, 2.2800000000000002, 'Tramo Canal', 6.910511304436696, 3, 
-            0.0001, 1.7, 1.75, 10.700000000000001, 0.5, 0.6803358409487272
-        );
+
+-- Tramos eliminados por solapamiento e inconsistencia en KM 0

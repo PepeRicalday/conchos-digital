@@ -8,6 +8,7 @@ interface ChartWidgetProps {
     badge?: string;
     subtitle?: string;
     infoBar?: ReactNode;
+    className?: string;
 }
 
 const ChartWidget: React.FC<ChartWidgetProps> = ({
@@ -16,10 +17,11 @@ const ChartWidget: React.FC<ChartWidgetProps> = ({
     height = 300,
     badge,
     subtitle,
-    infoBar
+    infoBar,
+    className = ""
 }) => {
     return (
-        <div className="chart-widget">
+        <div className={`chart-widget ${className}`.trim()}>
             <div className="chart-header">
                 <div>
                     <h3 className="chart-title">{title}</h3>

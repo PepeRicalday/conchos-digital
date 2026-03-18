@@ -32,3 +32,36 @@ export const toDateString = (date: Date): string => {
 export const isToday = (date: Date): boolean => {
     return toDateString(date) === getTodayString();
 };
+
+/**
+ * Returns the date of the Monday for the current (or given) week.
+ * Follows the "Lunes a Domingo" directive.
+ */
+export const getStartOfWeek = (baseDate: Date = new Date()): string => {
+    // We use a copy set to noon to avoid UTC day shifts
+    const d = new Date(baseDate);
+    d.setHours(12, 0, 0, 0); 
+    
+    const day = d.getDay(); // 0 (Sun), 1 (Mon) ... 6 (Sat)
+    // Adjust to Monday: 
+    // Sun(0) -> -6, Mon(1) -> 0, Tue(2) -> -1, etc.
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    
+    return toDateString(d);
+};
+
+/**
+ * Returns the date of the Sunday for the current (or given) week.
+ * 7 days: Mon, Tue, Wed, Thu, Fri, Sat, Sun. (Start + 6 days)
+ */
+export const getEndOfWeek = (baseDate: Date = new Date()): string => {
+    // Start from the Monday string, but parse it safely
+    const startStr = getStartOfWeek(baseDate);
+    const parts = startStr.split('-').map(Number);
+    // Create date in local timezone to avoid UTC jump
+    const d = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
+    d.setDate(d.getDate() + 6);
+    
+    return toDateString(d);
+};

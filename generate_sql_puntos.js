@@ -48,14 +48,23 @@ async function generate() {
 
         excelRows.forEach(row => {
             const km = parseFloat(row.km) || 0;
-            const capacidad = row.capacidad_max ? (parseFloat(row.capacidad_max) / 1000) : 0;
+            // Sanitización de valores numéricos para SQL
+            const rawCapacidad = parseFloat(row.capacidad_max);
+            const capacidad = !isNaN(rawCapacidad) ? (rawCapacidad / 1000) : 0;
+            
+            const rawX = parseFloat(row.coords_x);
+            const x = !isNaN(rawX) ? rawX : null;
+            
+            const rawY = parseFloat(row.coords_y);
+            const y = !isNaN(rawY) ? rawY : null;
+
             const tipo = normalizeTipo(row.tipo);
             const seccionId = getSeccionId(km);
-            const id = row.id || `PE-${Math.random().toString(36).substr(2, 5)}`; // Fallback si no hay ID
+            const id = row.id || `PE-${Math.random().toString(36).substr(2, 5)}`; 
             excelIds.push(id);
 
             sql += `INSERT INTO public.puntos_entrega (id, modulo_id, seccion_id, nombre, km, tipo, capacidad_max, coords_x, coords_y, zona, seccion_texto)
-VALUES (${sqlVal(id)}, ${sqlVal(row.modulo_id)}, ${sqlVal(seccionId)}, ${sqlVal(row.nombre)}, ${km}, ${sqlVal(tipo)}, ${capacidad}, ${sqlVal(row.coords_x)}, ${sqlVal(row.coords_y)}, ${sqlVal(row.zona)}, ${sqlVal(row.seccion_texto)})
+VALUES (${sqlVal(id)}, ${sqlVal(row.modulo_id)}, ${sqlVal(seccionId)}, ${sqlVal(row.nombre)}, ${km}, ${sqlVal(tipo)}, ${capacidad}, ${sqlVal(x)}, ${sqlVal(y)}, ${sqlVal(row.zona)}, ${sqlVal(row.seccion_texto)})
 ON CONFLICT (id) DO UPDATE SET
     modulo_id = EXCLUDED.modulo_id,
     seccion_id = EXCLUDED.seccion_id,

@@ -26,18 +26,25 @@ async function sync() {
 
         const rowsToUpsert = excelRows.map(row => {
             const km = parseFloat(row.km);
-            // Capacidad en el Excel parece estar en LPS, convertimos a m3/s dividiendo por 1000
-            const capacidad = row.capacidad_max ? (parseFloat(row.capacidad_max) / 1000) : 0;
+            // Sanitización de valores numéricos
+            const rawCapacidad = parseFloat(row.capacidad_max);
+            const capacidad = !isNaN(rawCapacidad) ? (rawCapacidad / 1000) : 0;
+            
+            const rawX = parseFloat(row.coords_x);
+            const x = !isNaN(rawX) ? rawX : null;
+            
+            const rawY = parseFloat(row.coords_y);
+            const y = !isNaN(rawY) ? rawY : null;
 
             return {
                 id: row.id,
-                modulo_id: row.modulo_id, // Usamos el modulo_id del Excel (e.g. MOD-001, MOD-005)
+                modulo_id: row.modulo_id, 
                 nombre: row.nombre,
                 km: km,
                 tipo: row.tipo ? row.tipo.toLowerCase() : 'toma',
                 capacidad_max: capacidad,
-                coords_x: row.coords_x || null,
-                coords_y: row.coords_y || null,
+                coords_x: x,
+                coords_y: y,
                 zona: row.zona || null,
                 seccion_texto: row.seccion_texto || null,
                 seccion_id: getSeccionId(km)

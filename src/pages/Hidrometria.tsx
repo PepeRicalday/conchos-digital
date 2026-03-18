@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Upload, Download, AlertTriangle, Activity, Calendar, Plus, Save, TrendingUp, X, RefreshCw, ArrowLeft, ArrowRight, Droplet } from 'lucide-react';
+import { Upload, Download, Activity, Calendar, Save, X, RefreshCw, ArrowLeft, ArrowRight, Droplet } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { calculateEfficiency, getEfficiencyStatus } from '../utils/hydraulics';
+import { getEfficiencyStatus } from '../utils/hydraulics';
 import KPICard from '../components/KPICard';
 import ChartWidget from '../components/ChartWidget';
 import { useHydraEngine } from '../hooks/useHydraEngine';
@@ -46,7 +46,6 @@ const Hidrometria = () => {
     // Weekly Analysis State
     const [weeklyRequests, setWeeklyRequests] = useState<any[]>([]);
     const [weeklyDeliveries, setWeeklyDeliveries] = useState<any[]>([]);
-    const [loadingWeekly, setLoadingWeekly] = useState(false);
     const [showRequestModal, setShowRequestModal] = useState(false);
     const [savingRequest, setSavingRequest] = useState(false);
     const [bulkValues, setBulkValues] = useState<Record<string, number>>({});
@@ -90,7 +89,6 @@ const Hidrometria = () => {
     }
 
     const fetchWeeklyAnalysis = async () => {
-        setLoadingWeekly(true);
         try {
             const { data: requests } = await supabase
                 .from('solicitudes_riego_semanal')
@@ -125,8 +123,6 @@ const Hidrometria = () => {
             setWeeklyDeliveries(Object.entries(deliveryMap).map(([id, vol]) => ({ modulo_id: id, volumen_entregado: vol })));
         } catch (error) {
             console.error("Error fetching weekly analysis:", error);
-        } finally {
-            setLoadingWeekly(false);
         }
     }
 
@@ -173,35 +169,14 @@ const Hidrometria = () => {
         setBulkValues(prev => ({ ...prev, [id]: parseFloat(val) || 0 }));
     };
 
-    const { totalDeliveryFlow, seasonalVolume, totalAuthorizedVolume } = useMemo(() => {
-        let flow = 0;
-        let vol = 0;
-        let auth = 0;
-        modules.forEach(m => {
-            flow += m.current_flow || 0;
-            vol += m.accumulated_vol || 0;
-            auth += m.authorized_vol || 0;
-        });
-        return { totalDeliveryFlow: flow, seasonalVolume: vol, totalAuthorizedVolume: auth };
+    const totalDeliveryFlow = useMemo(() => {
+        return modules.reduce((acc, m) => acc + (m.current_flow || 0), 0);
     }, [modules]);
 
-    const globalLossesFlow = Math.max(0, entranceFlow - totalDeliveryFlow);
     const efficiencyGlobal = entranceFlow > 0 ? (totalDeliveryFlow / entranceFlow) * 100 : 0;
-    const cycleProgress = totalAuthorizedVolume > 0 ? (seasonalVolume / totalAuthorizedVolume) * 100 : 0;
 
-    const balanceData = useMemo(() => modules.map(m => {
-        const outFlow = m.current_flow || 0;
-        const mockLossFactor = 1.05 + (m.short_code?.length || 5) % 3 * 0.05; 
-        const inFlow = outFlow * mockLossFactor;
-        const eff = calculateEfficiency(inFlow, outFlow);
 
-        return {
-            zone: m.short_code || m.name,
-            volIn: Number(inFlow.toFixed(3)),
-            volOut: Number(outFlow.toFixed(3)),
-            efficiency: Number(eff.toFixed(1))
-        };
-    }), [modules]);
+
 
     if (storeLoading || loadingEntrance) return (
         <div className="flex-center" style={{ height: '80vh', flexDirection: 'column', gap: '2rem' }}>

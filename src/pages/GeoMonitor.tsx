@@ -1595,22 +1595,18 @@ const GeoMonitor = () => {
                                     {selectedPoint.type === 'toma' && (
                                         <>
                                             <div className="detail-stat">
-                                                <label>Estado</label>
-                                                <strong className={selectedPoint.data.estado === 'cierre' ? 'muted' : 'green'}>
-                                                    {selectedPoint.data.estado.toUpperCase()}
-                                                </strong>
-                                            </div>
-                                            <div className="detail-stat">
-                                                <label>Caudal</label>
+                                                <label>Gasto (m³/s)</label>
                                                 <strong>{selectedPoint.data.caudal?.toFixed(3) ?? '0.000'} <small className="text-slate-500 lowercase font-bold">m³/s</small></strong>
                                             </div>
                                             <div className="detail-stat full" style={{ marginTop: 8, padding: 8, background: 'rgba(34, 211, 238, 0.05)', borderRadius: 8, border: '1px solid rgba(34, 211, 238, 0.1)' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                        <span style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Volumen Acumulado</span>
+                                                        <span style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Volumen Entregado (m³)</span>
                                                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 2 }}>
-                                                            <span style={{ fontSize: 18, fontWeight: 900, color: '#22d3ee', fontFamily: 'monospace' }}>{(selectedPoint.data.volumen_acumulado || 0).toFixed(4)}</span>
-                                                            <span style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>Mm³</span>
+                                                            <span style={{ fontSize: 18, fontWeight: 900, color: '#22d3ee', fontFamily: 'monospace' }}>
+                                                                {Math.round((selectedPoint.data.volumen_acumulado || 0) * 1000000).toLocaleString()}
+                                                            </span>
+                                                            <span style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>m³</span>
                                                         </div>
                                                     </div>
                                                     <Layers size={16} className="text-cyan-600" opacity={0.5} />

@@ -621,14 +621,27 @@ const GeoMonitor = () => {
     const gastoEntrada = calcGasto(escalaEntrada);
     const gastoSalida = calcGasto(escalaSalida);
     
-    // Cálculo de Salud Operativa Global (MEJ-5)
-    // Eficiencia = Gasto Distribuido / Gasto Entrada
-    // Si no hay gasto de entrada, usamos el balance vs demanda programada
-    const eficienciaReal = (gastoEntrada && gastoEntrada > 0) 
-        ? (operStats.gasto_distribuido_m3s / gastoEntrada) * 100 
-        : (totalDemandaProgramada > 0) 
-            ? (operStats.gasto_distribuido_m3s / totalDemandaProgramada) * 100
-            : 0;
+    // Cálculo de Salud Operativa Global (MEJ-5) y Eficiencia/Pérdida
+    let eficienciaReal = 0;
+    let perdidaPct: string | null = null;
+    let eficienciaTxt: string | null = null;
+    const gastoDistribuido = operStats.gasto_distribuido_m3s;
+
+    if (gastoEntrada && gastoEntrada > 0) {
+        // Agua "Utilizada" = Lo que sale (K-104) + Lo que se entregó a las tomas
+        const sumaAprovechamiento = (gastoSalida || 0) + gastoDistribuido;
+        
+        // Eficiencia Técnica %
+        eficienciaReal = (sumaAprovechamiento / gastoEntrada) * 100;
+        
+        // Pérdida (Infiltración, evaporación, fugas)
+        const perdidaM3s = gastoEntrada - sumaAprovechamiento;
+        perdidaPct = ((perdidaM3s / gastoEntrada) * 100).toFixed(1);
+        eficienciaTxt = eficienciaReal.toFixed(1);
+    } else {
+        eficienciaReal = totalDemandaProgramada > 0 ? (gastoDistribuido / totalDemandaProgramada) * 100 : 0;
+        eficienciaTxt = eficienciaReal.toFixed(1);
+    }
 
     const chartGaugeOptions = {
         series: [{
@@ -811,15 +824,6 @@ const GeoMonitor = () => {
             areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(34, 211, 238, 0.3)' }, { offset: 1, color: 'rgba(34, 211, 238, 0.0)' }] } }
         }]
     };
-
-    // KPI calculations vinculados a SICA
-    const perdidaPct = (gastoEntrada && gastoSalida && gastoEntrada > 0)
-        ? ((gastoEntrada - gastoSalida) / gastoEntrada * 100).toFixed(1)
-        : (nivelEntrada && nivelSalida && nivelEntrada > 0)
-            ? ((nivelEntrada - nivelSalida) / nivelEntrada * 100).toFixed(1)
-            : null;
-    const eficiencia = perdidaPct ? (100 - parseFloat(perdidaPct)).toFixed(1) : null;
-    const gastoDistribuido = operStats.gasto_distribuido_m3s;
 
     // Events
     const liveEvents = useMemo(() => [
@@ -1621,15 +1625,15 @@ const GeoMonitor = () => {
                             </div>
                             {gastoSalida && <div style={{ fontSize: 9, color: '#64748b', marginTop: 2, fontFamily: 'monospace' }}>Q: {gastoSalida.toFixed(2)} m³/s</div>}
                         </div>
-                        <div className="geo-kpi-card" onClick={() => setActiveFilter(activeFilter === 'alert' ? 'all' : 'alert')}>
+                        <div className="geo-kpi-card">
                             <div className="geo-kpi-label">
                                 <TrendingUp size={12} /> Eficiencia
                             </div>
-                            <div className={clsx('geo-kpi-value', eficiencia && parseFloat(eficiencia) >= 90 ? 'green' : eficiencia ? 'red' : '')}>
-                                {eficiencia ?? '—'}<small>%</small>
+                            <div className={clsx('geo-kpi-value', eficienciaTxt && parseFloat(eficienciaTxt) >= 90 ? 'green' : eficienciaTxt ? 'red' : '')}>
+                                {eficienciaTxt ?? '—'}<small>%</small>
                             </div>
                         </div>
-                        <div className="geo-kpi-card" onClick={() => setActiveFilter(activeFilter === 'alert' ? 'all' : 'alert')}>
+                        <div className="geo-kpi-card">
                             <div className="geo-kpi-label">
                                 <TriangleAlert size={12} /> Pérdida
                             </div>
@@ -1655,11 +1659,17 @@ const GeoMonitor = () => {
                             <span className="geo-tomas-count">{operStats.tomas_cerradas}</span>
                             <span className="geo-tomas-label">Cerradas</span>
                         </div>
-                        <div className="geo-tomas-item glass" style={{ background: 'rgba(34, 211, 238, 0.05)' }}>
-                            <span className="geo-tomas-count" style={{ color: '#22d3ee' }}>
-                                {gastoDistribuido.toFixed(1)} <small style={{ fontSize: '10px' }}>m³/s</small>
-                            </span>
-                            <span className="geo-tomas-label">Distribuido</span>
+                        <div className="geo-tomas-item split-glass" style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '6px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+                                <span className="geo-tomas-count" style={{ color: '#22d3ee', fontFamily: 'monospace', fontSize: '1.2rem', lineHeight: 1.2 }}>
+                                    {gastoDistribuido.toFixed(1)} <small style={{ fontSize: '0.6rem', color: '#94a3b8' }}>m³/s</small>
+                                </span>
+                                <div style={{ height: '1px', width: '80%', background: 'rgba(255,255,255,0.1)', margin: '4px 0' }} />
+                                <span style={{ color: '#64748b', fontFamily: 'monospace', fontSize: '0.8rem', lineHeight: 1 }}>
+                                    {totalDemandaProgramada.toFixed(1)} <small style={{ fontSize: '0.55rem' }}>m³/s</small>
+                                </span>
+                            </div>
+                            <span className="geo-tomas-label" style={{ marginTop: '4px', fontSize: '9px', letterSpacing: '0.05em' }}>BALANCE (REAL / PROG)</span>
                         </div>
                         <div
                             className={clsx('geo-tomas-item alert filter-btn', activeFilter === 'alert' && 'active')}

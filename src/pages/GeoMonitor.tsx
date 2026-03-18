@@ -1385,9 +1385,8 @@ const GeoMonitor = () => {
                                             <div style={{ fontFamily: 'monospace', fontSize: 10 }}>
                                                 <b>{isBlocked ? '🔒 ' : ''}{t.nombre}</b><br />
                                                 Estado: <span style={{ color: isBlocked ? '#94a3b8' : (t.estado === 'cierre' ? '#94a3b8' : '#4ade80') }}>
-                                                    {isBlocked ? '🔒 SIN FLUJO' : (t.estado === 'cierre' ? 'CERRADA' : 'ABIERTA')}
                                                 </span><br />
-                                                {!isBlocked && t.estado !== 'cierre' && <span>Q: {t.caudal?.toFixed(1)} LPS</span>}
+                                                {!isBlocked && t.estado !== 'cierre' && <span>Q: {t.caudal?.toFixed(3)} m³/s</span>}
                                             </div>
                                         </Tooltip>
                                         <Popup>
@@ -1398,7 +1397,7 @@ const GeoMonitor = () => {
                                                 </div>
                                                 <div style={{ padding: '4px 8px', borderRadius: 4, background: isBlocked ? '#f8fafc' : (t.estado === 'cierre' ? '#f1f5f9' : '#f0fdf4'), fontSize: 11 }}>
                                                     Estado: <b className={isBlocked ? 'text-slate-500' : ''}>{isBlocked ? 'ESPERANDO ARRIBO' : t.estado.toUpperCase()}</b><br />
-                                                    {!isBlocked && t.estado !== 'cierre' && <div>Caudal: <b>{t.caudal?.toFixed(1)} LPS</b></div>}
+                                                    {!isBlocked && t.estado !== 'cierre' && <div>Caudal: <b>{t.caudal?.toFixed(3)} m³/s</b></div>}
                                                 </div>
                                             </div>
                                         </Popup>
@@ -1483,7 +1482,7 @@ const GeoMonitor = () => {
                                             </div>
                                             <div className="detail-stat">
                                                 <label>Caudal</label>
-                                                <strong>{selectedPoint.data.caudal?.toFixed(1) ?? '0.0'} <small>LPS</small></strong>
+                                                <strong>{selectedPoint.data.caudal?.toFixed(3) ?? '0.000'} <small className="text-slate-500 lowercase font-bold">m³/s</small></strong>
                                             </div>
                                         </>
                                     )}

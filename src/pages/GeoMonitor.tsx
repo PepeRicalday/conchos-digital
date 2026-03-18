@@ -118,6 +118,7 @@ const GeoMonitor = () => {
     const [totalDemandaProgramada, setTotalDemandaProgramada] = useState(0);
     const [loading, setLoading] = useState(true);
     const [showVaso, setShowVaso] = useState(false);
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
 
     // Eventos Hidro-Sincrónicos
     const { activeEvent } = useHydricEvents();
@@ -792,6 +793,22 @@ const GeoMonitor = () => {
             type: 'line', smooth: true, symbol: 'none',
             lineStyle: { color: '#22d3ee', width: 2 },
             areaStyle: { color: 'rgba(34, 211, 238, 0.1)' }
+        }]
+    };
+
+    const fullHistoryOptions = {
+        backgroundColor: 'transparent',
+        tooltip: { trigger: 'axis', backgroundColor: 'rgba(2, 6, 23, 0.9)', borderColor: '#1e293b', textStyle: { color: '#f8fafc', fontSize: 11, fontFamily: 'monospace' } },
+        grid: { left: 40, right: 20, top: 40, bottom: 30 },
+        xAxis: { type: 'category', data: ['00:00', '02:00', '04:00', '06:00', '08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'], axisLabel: { color: '#64748b', fontSize: 10, fontWeight: 'bold' } },
+        yAxis: { type: 'value', axisLabel: { color: '#64748b', fontSize: 10, fontFamily: 'monospace' }, splitLine: { lineStyle: { color: '#1e293b', type: 'dashed' } } },
+        series: [{
+            name: selectedPoint?.type === 'escala' ? 'Nivel (m)' : selectedPoint?.type === 'toma' ? 'Caudal (m³/s)' : 'Extracción',
+            data: [2.1, 2.3, 2.2, 2.5, 2.4, 2.6, 2.5, 2.4, 2.3, 2.2, 2.4, 2.5],
+            type: 'line', smooth: true, symbol: 'circle', symbolSize: 8,
+            lineStyle: { color: '#22d3ee', width: 3, shadowColor: 'rgba(34, 211, 238, 0.5)', shadowBlur: 10 },
+            itemStyle: { color: '#22d3ee', borderColor: '#020617', borderWidth: 2 },
+            areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(34, 211, 238, 0.3)' }, { offset: 1, color: 'rgba(34, 211, 238, 0.0)' }] } }
         }]
     };
 
@@ -1516,7 +1533,7 @@ const GeoMonitor = () => {
                                             <Maximize size={14} /> Analizar Vaso Satelital
                                         </button>
                                     )}
-                                    <button className="geo-action-btn primary">Ver historial completo</button>
+                                    <button className="geo-action-btn primary" onClick={() => setShowHistoryModal(true)}>Ver historial completo</button>
                                     <button className="geo-action-btn">Reportar anomalía</button>
                                 </div>
                             </div>
@@ -1684,6 +1701,29 @@ const GeoMonitor = () => {
                     }}
                     onClose={() => setShowVaso(false)}
                 />
+            )}
+
+            {/* Modal de Historial Completo */}
+            {showHistoryModal && selectedPoint && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in" onClick={() => setShowHistoryModal(false)}>
+                    <div className="glass-card shadow-2xl p-6 w-full max-w-4xl border-white/10" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/5">
+                            <div className="flex items-center gap-3">
+                                <Activity size={24} className="text-primary" />
+                                <div>
+                                    <h2 className="text-xl font-black text-white uppercase tracking-wider">{selectedPoint.data.nombre}</h2>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">Historial Operativo (24 Horas Recientes)</p>
+                                </div>
+                            </div>
+                            <button className="p-2 bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors" onClick={() => setShowHistoryModal(false)}>
+                                <X size={18} className="text-slate-400" />
+                            </button>
+                        </div>
+                        <div className="h-[400px] w-full mt-4">
+                            <ReactECharts option={fullHistoryOptions} style={{ height: '100%', width: '100%' }} />
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

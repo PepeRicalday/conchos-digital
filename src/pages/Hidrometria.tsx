@@ -12,21 +12,24 @@ import './Hidrometria.css';
 const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
         return (
-            <div className="glass-card p-4 border border-white/10 shadow-2xl rounded-xl bg-slate-950/95 backdrop-blur-xl min-w-[200px]">
-                <p className="font-black text-white text-[10px] uppercase tracking-[0.2em] mb-3 text-slate-400 border-b border-white/10 pb-2">
+            <div className="p-4 border border-slate-700 shadow-2xl rounded-xl bg-slate-950 min-w-[180px] z-50">
+                <p className="font-black text-white text-[10px] uppercase tracking-[0.2em] mb-3 text-slate-400 border-b border-slate-800 pb-2">
                     MÓDULO {label}
                 </p>
-                {payload.map((entry: any, index: number) => (
-                    <div key={index} className="flex justify-between items-center gap-6 mb-2 last:mb-0">
-                        <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-2" style={{ color: entry.color }}>
-                            <span className="w-1.5 h-1.5 rounded-full shadow-[0_0_5px_currentColor]" style={{ backgroundColor: entry.color }}></span>
-                            {entry.name}
-                        </span>
-                        <span className="font-mono font-black text-white text-sm">
-                            {entry.value} <span className="text-[9px] text-slate-500">m³/s</span>
-                        </span>
-                    </div>
-                ))}
+                {payload.map((entry: any, index: number) => {
+                    const shortName = entry.name.replace('Caudal ', '');
+                    return (
+                        <div key={index} className="flex justify-between items-center gap-4 mb-2 last:mb-0">
+                            <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-2" style={{ color: entry.color }}>
+                                <span className="w-1.5 h-1.5 rounded-full shadow-[0_0_5px_currentColor]" style={{ backgroundColor: entry.color }}></span>
+                                {shortName}
+                            </span>
+                            <span className="font-mono font-black text-white text-sm">
+                                {entry.value} <span className="text-[9px] text-slate-500">m³/s</span>
+                            </span>
+                        </div>
+                    );
+                })}
             </div>
         );
     }

@@ -78,6 +78,7 @@ interface TomaData {
     caudal?: number;
     km?: number;
     modulo?: string;
+    volumen_acumulado?: number;
 }
 interface SeccionData {
     id: string; nombre: string; km_inicio: number; km_fin: number; color: string;
@@ -474,8 +475,17 @@ const GeoMonitor = () => {
                 .select('punto_id, estado, caudal_promedio')
                 .eq('fecha', todayStr);
 
+            // Fetch volumenes acumulados
+            const { data: rdVolData } = await supabase.from('reportes_diarios')
+                .select('punto_id, volumen_total_mm3');
+
             const roMap = new Map();
             roData?.forEach(r => roMap.set(r.punto_id, r));
+
+            const ptVolMap = new Map();
+            rdVolData?.forEach(r => {
+                if (r.volumen_total_mm3) ptVolMap.set(r.punto_id, (ptVolMap.get(r.punto_id) || 0) + r.volumen_total_mm3);
+            });
 
             const mergedTomas = (peData || [])
                 .filter(p => p.coords_x && p.coords_y)
@@ -487,7 +497,8 @@ const GeoMonitor = () => {
                     km: p.km ? parseFloat(p.km as any) : undefined,
                     modulo: p.modulo_id,
                     estado: roMap.get(p.id)?.estado || 'cierre',
-                    caudal: roMap.get(p.id)?.caudal_promedio ? parseFloat(roMap.get(p.id).caudal_promedio) : 0
+                    caudal: roMap.get(p.id)?.caudal_promedio ? parseFloat(roMap.get(p.id).caudal_promedio) : 0,
+                    volumen_acumulado: ptVolMap.get(p.id) || 0
                 }));
             setTomas(mergedTomas);
 
@@ -1565,6 +1576,18 @@ const GeoMonitor = () => {
                                             <div className="detail-stat">
                                                 <label>Caudal</label>
                                                 <strong>{selectedPoint.data.caudal?.toFixed(3) ?? '0.000'} <small className="text-slate-500 lowercase font-bold">m³/s</small></strong>
+                                            </div>
+                                            <div className="detail-stat full" style={{ marginTop: 8, padding: 8, background: 'rgba(34, 211, 238, 0.05)', borderRadius: 8, border: '1px solid rgba(34, 211, 238, 0.1)' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <span style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Volumen Acumulado</span>
+                                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 2 }}>
+                                                            <span style={{ fontSize: 18, fontWeight: 900, color: '#22d3ee', fontFamily: 'monospace' }}>{(selectedPoint.data.volumen_acumulado || 0).toFixed(4)}</span>
+                                                            <span style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>Mm³</span>
+                                                        </div>
+                                                    </div>
+                                                    <Layers size={16} className="text-cyan-600" opacity={0.5} />
+                                                </div>
                                             </div>
                                         </>
                                     )}

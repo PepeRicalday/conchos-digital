@@ -500,18 +500,21 @@ const GeoMonitor = () => {
                 ptVolMap.set(r.punto_id, (ptVolMap.get(r.punto_id) || 0) + vol);
             });
 
-            // Agregamos el volumen del reporte ACTIVO de hoy (si no está ya en reportes_diarios)
+            // Agregamos el volumen del reporte ACTIVO de hoy solo si NO existe ya en los históricos
+            // para evitar duplicidad (mismo ID en reportes_operacion y reportes_diarios)
             roData?.forEach(r => {
-                let activeVol = parseFloat(r.volumen_acumulado || 0);
-                if (activeVol <= 0 && r.caudal_promedio > 0 && r.hora_apertura) {
-                    const tStart = new Date(r.hora_apertura);
-                    const diffHours = Math.max(0, (now.getTime() - tStart.getTime()) / (1000 * 3600));
-                    activeVol = (r.caudal_promedio * 3600 * diffHours) / 1000000.0;
+                // Si ya procesamos este punto hoy en rdVolData, no lo volvemos a sumar aquí
+                // a menos que queramos un diferencial, pero dado que rdVolData ya integra hasta 'now'
+                // si hora_cierre es null, ya está cubierto.
+                if (!ptVolMap.has(r.punto_id)) {
+                    let activeVol = parseFloat(r.volumen_acumulado || 0);
+                    if (activeVol <= 0 && r.caudal_promedio > 0 && r.hora_apertura) {
+                        const tStart = new Date(r.hora_apertura);
+                        const diffHours = Math.max(0, (now.getTime() - tStart.getTime()) / (1000 * 3600));
+                        activeVol = (r.caudal_promedio * 3600 * diffHours) / 1000000.0;
+                    }
+                    ptVolMap.set(r.punto_id, activeVol);
                 }
-                // Si el punto_id ya tiene volumen, le sumamos el diferencial activo si es mayor
-                // (O simplemente lo sumamos si consideramos que reportes_diarios no incluye el reporte activo de este instante)
-                // Usamos una lógica conservadora: sumamos el activo al histórico.
-                ptVolMap.set(r.punto_id, (ptVolMap.get(r.punto_id) || 0) + activeVol);
             });
 
             const mergedTomas = (peData || [])

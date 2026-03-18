@@ -472,19 +472,46 @@ const GeoMonitor = () => {
                 .select('id, nombre, km, coords_x, coords_y, modulo_id');
 
             const { data: roData } = await supabase.from('reportes_operacion')
-                .select('punto_id, estado, caudal_promedio')
+                .select('punto_id, estado, caudal_promedio, hora_apertura, volumen_acumulado')
                 .eq('fecha', todayStr);
 
-            // Fetch volumenes acumulados
+            // Fetch reporte histórico de volúmenes consolidados
             const { data: rdVolData } = await supabase.from('reportes_diarios')
-                .select('punto_id, volumen_total_mm3');
+                .select('punto_id, volumen_total_mm3, hora_apertura, hora_cierre, caudal_promedio_m3s');
 
             const roMap = new Map();
             roData?.forEach(r => roMap.set(r.punto_id, r));
 
             const ptVolMap = new Map();
+            const now = new Date();
+
+            // Sumamos históricos con integración dinámica si el valor es 0
             rdVolData?.forEach(r => {
-                if (r.volumen_total_mm3) ptVolMap.set(r.punto_id, (ptVolMap.get(r.punto_id) || 0) + r.volumen_total_mm3);
+                let vol = parseFloat(r.volumen_total_mm3 || 0);
+                
+                // Si el volumen almacenado es 0 pero hubo caudal, calculamos el volumen integrado
+                if (vol <= 0 && r.caudal_promedio_m3s > 0 && r.hora_apertura) {
+                    const tStart = new Date(r.hora_apertura);
+                    const tEnd = r.hora_cierre ? new Date(r.hora_cierre) : now;
+                    const diffHours = Math.max(0, (tEnd.getTime() - tStart.getTime()) / (1000 * 3600));
+                    vol = (r.caudal_promedio_m3s * 3600 * diffHours) / 1000000.0;
+                }
+                
+                ptVolMap.set(r.punto_id, (ptVolMap.get(r.punto_id) || 0) + vol);
+            });
+
+            // Agregamos el volumen del reporte ACTIVO de hoy (si no está ya en reportes_diarios)
+            roData?.forEach(r => {
+                let activeVol = parseFloat(r.volumen_acumulado || 0);
+                if (activeVol <= 0 && r.caudal_promedio > 0 && r.hora_apertura) {
+                    const tStart = new Date(r.hora_apertura);
+                    const diffHours = Math.max(0, (now.getTime() - tStart.getTime()) / (1000 * 3600));
+                    activeVol = (r.caudal_promedio * 3600 * diffHours) / 1000000.0;
+                }
+                // Si el punto_id ya tiene volumen, le sumamos el diferencial activo si es mayor
+                // (O simplemente lo sumamos si consideramos que reportes_diarios no incluye el reporte activo de este instante)
+                // Usamos una lógica conservadora: sumamos el activo al histórico.
+                ptVolMap.set(r.punto_id, (ptVolMap.get(r.punto_id) || 0) + activeVol);
             });
 
             const mergedTomas = (peData || [])

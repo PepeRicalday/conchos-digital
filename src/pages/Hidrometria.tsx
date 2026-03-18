@@ -113,7 +113,12 @@ const Hidrometria = () => {
             });
 
             const initialBulk: Record<string, number> = {};
-            requests?.forEach(r => initialBulk[r.modulo_id] = r.volumen_solicitado_mm3);
+            // Convertir Volumen DB (Mm³) a Caudal (m³/s) para la visualización del usuario
+            requests?.forEach(r => {
+                const mm3 = r.volumen_solicitado_mm3 || 0;
+                const flow = (mm3 * 1000000) / (7 * 24 * 3600);
+                initialBulk[r.modulo_id] = Number(flow.toFixed(3));
+            });
             
             setBulkValues(initialBulk);
             setWeeklyRequests(requests || []);
@@ -128,12 +133,16 @@ const Hidrometria = () => {
     const saveBulkRequests = async () => {
         setSavingRequest(true);
         try {
-            const updates = Object.entries(bulkValues).map(([id, vol]) => ({
-                modulo_id: id,
-                fecha_inicio: startOfWeek,
-                fecha_fin: endOfWeek,
-                volumen_solicitado_mm3: vol
-            }));
+            const updates = Object.entries(bulkValues).map(([id, flow]) => {
+                // Convertimos el Caudal del UI (m³/s) hacia Volumen requerido por DB (Mm³)
+                const volMm3 = (flow * 7 * 24 * 3600) / 1000000;
+                return {
+                    modulo_id: id,
+                    fecha_inicio: startOfWeek,
+                    fecha_fin: endOfWeek,
+                    volumen_solicitado_mm3: Number(volMm3.toFixed(6))
+                };
+            });
 
             if (updates.length === 0) {
                 setShowRequestModal(false);
@@ -373,8 +382,8 @@ const Hidrometria = () => {
                         <div className="p-8 overflow-auto flex-1 custom-scrollbar">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {modules.map(m => {
-                                    const vol = bulkValues[m.id] || 0;
-                                    const flow = (vol * 1000000) / (7 * 24 * 3600);
+                                    const flow = bulkValues[m.id] || 0;
+                                    const volMm3 = (flow * 7 * 24 * 3600) / 1000000;
                                     return (
                                         <div key={m.id} className="p-5 bg-slate-900/50 rounded-2xl border border-white/5 hover:border-primary/30 transition-all">
                                             <div className="flex justify-between items-center mb-3">
@@ -386,15 +395,15 @@ const Hidrometria = () => {
                                                     type="number" 
                                                     step="0.001"
                                                     placeholder="0.000"
-                                                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-white font-mono font-bold outline-none focus:border-primary/50 text-right pr-12 text-lg"
-                                                    value={vol || ''}
+                                                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-white font-mono font-bold outline-none focus:border-primary/50 text-right pr-14 text-lg"
+                                                    value={flow === 0 ? '' : flow}
                                                     onChange={(e) => handleBulkChange(m.id, e.target.value)}
                                                 />
-                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-600 font-black">Mm³</span>
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-primary font-black">m³/s</span>
                                             </div>
                                             <div className="flex justify-between items-center px-1">
-                                                <span className="text-[9px] text-slate-500 uppercase font-bold tracking-tighter">Gasto Equiv.</span>
-                                                <span className="text-xs font-mono font-bold text-primary">{flow.toFixed(3)} m³/s</span>
+                                                <span className="text-[9px] text-slate-500 uppercase font-bold tracking-tighter">Vol. Programado</span>
+                                                <span className="text-xs font-mono font-bold text-slate-400">{volMm3.toFixed(3)} Mm³</span>
                                             </div>
                                         </div>
                                     );

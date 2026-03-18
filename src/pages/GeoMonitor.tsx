@@ -440,28 +440,8 @@ const GeoMonitor = () => {
                 ...s, km_inicio: parseFloat(s.km_inicio), km_fin: parseFloat(s.km_fin)
             })));
 
-            // 5. Operación del día (Metrics Sidebar)
-            try {
-                const { data: opData, error: rpcError } = await supabase.rpc('get_today_operation_stats', { p_fecha: todayStr }).maybeSingle();
-                if (opData && !rpcError) {
-                    setOperStats(opData as OperStats);
-                } else {
-                    throw new Error(rpcError?.message || 'RPC fallback needed');
-                }
-            } catch (rpcErr) {
-                // Fallback manual query si el RPC falla o no existe aún
-                const { data: rData } = await supabase.from('reportes_operacion').select('estado, caudal_promedio').eq('fecha', todayStr);
-                if (rData && rData.length > 0) {
-                    const open = rData.filter((r: any) => ['inicio', 'continua', 'reabierto', 'modificacion'].includes(r.estado));
-                    setOperStats({
-                        tomas_abiertas: open.length,
-                        tomas_cerradas: rData.length - open.length,
-                        gasto_distribuido_m3s: open.reduce((s: number, r: any) => s + parseFloat(r.caudal_promedio || 0), 0)
-                    });
-                } else {
-                    setOperStats({ tomas_abiertas: 0, tomas_cerradas: 0, gasto_distribuido_m3s: 0 });
-                }
-            }
+            // El cálculo de operStats ahora se hará dinámicamente al construir 'mergedTomas' mas adelante
+            // para asegurar que lo que ves en el mapa coincida exactamente con los KPIs (37 vs 34 fix)
 
             // 6. Tomas Varadas
             const { data: tvData } = await supabase.from('vw_alertas_tomas_varadas').select('*');
@@ -519,18 +499,33 @@ const GeoMonitor = () => {
 
             const mergedTomas = (peData || [])
                 .filter(p => p.coords_x && p.coords_y)
-                .map(p => ({
-                    id: p.id,
-                    nombre: p.nombre,
-                    latitud: parseFloat(p.coords_y as any),
-                    longitud: parseFloat(p.coords_x as any),
-                    km: p.km ? parseFloat(p.km as any) : undefined,
-                    modulo: p.modulo_id,
-                    estado: roMap.get(p.id)?.estado || 'cierre',
-                    caudal: roMap.get(p.id)?.caudal_promedio ? parseFloat(roMap.get(p.id).caudal_promedio) : 0,
-                    volumen_acumulado: ptVolMap.get(p.id) || 0
-                }));
+                .map(p => {
+                    const statusObj = roMap.get(p.id);
+                    const flow = statusObj?.caudal_promedio ? parseFloat(statusObj.caudal_promedio) : 0;
+                    
+                    return {
+                        id: p.id,
+                        nombre: p.nombre,
+                        latitud: parseFloat(p.coords_y as any),
+                        longitud: parseFloat(p.coords_x as any),
+                        km: p.km ? parseFloat(p.km as any) : undefined,
+                        modulo: p.modulo_id,
+                        estado: statusObj?.estado || 'cierre',
+                        caudal: flow,
+                        volumen_acumulado: ptVolMap.get(p.id) || 0
+                    };
+                });
+            
             setTomas(mergedTomas);
+
+            // ACTUALIZACIÓN DE KPIS SIN DISCREPANCIAS (Principio: Un dato, una sola verdad)
+            // Usamos mergedTomas para que el conteo = lo que se ve en el Sidebar
+            const abiertas = mergedTomas.filter(t => t.caudal > 0);
+            setOperStats({
+                tomas_abiertas: abiertas.length,
+                tomas_cerradas: mergedTomas.length - abiertas.length,
+                gasto_distribuido_m3s: abiertas.reduce((s, t) => s + (t.caudal || 0), 0)
+            });
 
             // 8. Demanda Total (Suma de caudales objetivos de los módulos)
             const { data: modData } = await supabase.from('modulos').select('caudal_objetivo');

@@ -312,7 +312,6 @@ const Hidrometria = () => {
                                     <tr>
                                         <th className="pb-3 px-2 text-left">Módulo</th>
                                         <th className="pb-3 px-2 text-right">Prog. <span className="lowercase text-slate-600 font-bold">(m³/s)</span></th>
-                                        <th className="pb-3 px-2 text-right">Entr. <span className="lowercase text-slate-600 font-bold">(m³/s)</span></th>
                                         <th className="pb-3 px-2 text-right">Efic.</th>
                                     </tr>
                                 </thead>
@@ -353,11 +352,6 @@ const Hidrometria = () => {
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-2 text-right font-mono text-slate-400 font-bold align-middle">{reqFlow.toFixed(3)}</td>
-                                                <td className="py-3 px-2 text-right font-mono align-middle">
-                                                    <span className="bg-slate-950/80 px-2 py-1 rounded inline-block border border-white/5 font-black" style={{ color: status.color }}>
-                                                        {delFlow.toFixed(3)}
-                                                    </span>
-                                                </td>
                                                 <td className="py-3 px-2 text-right align-middle">
                                                     <span className="px-2 py-1 rounded-md text-[10px] font-black tracking-wider shadow-sm" style={{ color: status.color, backgroundColor: `${status.color}15`, border: `1px solid ${status.color}30` }}>
                                                         {eff.toFixed(1)}%

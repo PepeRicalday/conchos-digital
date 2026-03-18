@@ -9,6 +9,30 @@ import { useHydraEngine } from '../hooks/useHydraEngine';
 import { getStartOfWeek, getEndOfWeek } from '../utils/dateHelpers';
 import './Hidrometria.css';
 
+const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+        return (
+            <div className="glass-card p-4 border border-white/10 shadow-2xl rounded-xl bg-slate-950/95 backdrop-blur-xl min-w-[200px]">
+                <p className="font-black text-white text-[10px] uppercase tracking-[0.2em] mb-3 text-slate-400 border-b border-white/10 pb-2">
+                    MÓDULO {label}
+                </p>
+                {payload.map((entry: any, index: number) => (
+                    <div key={index} className="flex justify-between items-center gap-6 mb-2 last:mb-0">
+                        <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-2" style={{ color: entry.color }}>
+                            <span className="w-1.5 h-1.5 rounded-full shadow-[0_0_5px_currentColor]" style={{ backgroundColor: entry.color }}></span>
+                            {entry.name}
+                        </span>
+                        <span className="font-mono font-black text-white text-sm">
+                            {entry.value} <span className="text-[9px] text-slate-500">m³/s</span>
+                        </span>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+    return null;
+};
+
 const Hidrometria = () => {
     const { modules, loading: storeLoading } = useHydraEngine();
     const [entranceFlow, setEntranceFlow] = useState<number>(0);
@@ -260,7 +284,7 @@ const Hidrometria = () => {
                                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                                 <XAxis dataKey="name" stroke="#64748b" fontSize={11} fontWeight="bold" />
                                 <YAxis stroke="#64748b" fontSize={11} tickFormatter={(v) => `${v} m³/s`} />
-                                <Tooltip contentStyle={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '12px' }} itemStyle={{ color: '#f8fafc' }} formatter={(value) => [`${value} m³/s`]} />
+                                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.02)' }} content={<CustomTooltip />} />
                                 <Legend />
                                 <Bar dataKey="solicitado" name="Caudal Programado" fill="#38bdf8" radius={[4, 4, 0, 0]} barSize={20} />
                                 <Bar dataKey="entregado" name="Caudal Entregado" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
@@ -274,10 +298,10 @@ const Hidrometria = () => {
                             <table className="w-full text-left text-xs">
                                 <thead className="text-slate-600 font-bold border-b border-slate-800">
                                     <tr>
-                                        <th className="pb-3 text-left">Módulo</th>
-                                        <th className="pb-3 text-right">Prog. (m³/s)</th>
-                                        <th className="pb-3 text-right">Entr. (m³/s)</th>
-                                        <th className="pb-3 text-right">Efic.</th>
+                                        <th className="pb-3 px-2 text-left">Módulo</th>
+                                        <th className="pb-3 px-2 text-right">Prog. (m³/s)</th>
+                                        <th className="pb-3 px-2 text-right">Entr. (m³/s)</th>
+                                        <th className="pb-3 px-2 text-right">Efic.</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-800/40">
@@ -310,10 +334,10 @@ const Hidrometria = () => {
                                         const status = getEfficiencyStatus(eff);
                                         return (
                                             <tr key={m.id} className="hover:bg-white/5 transition-colors group">
-                                                <td className="py-4 font-black group-hover:text-primary transition-colors">{m.short_code}</td>
-                                                <td className="py-4 text-right font-mono text-slate-400">{reqFlow.toFixed(3)}</td>
-                                                <td className="py-4 text-right font-mono font-bold" style={{ color: status.color }}>{delFlow.toFixed(3)}</td>
-                                                <td className="py-4 text-right">
+                                                <td className="py-4 px-2 font-black group-hover:text-primary transition-colors">{m.short_code}</td>
+                                                <td className="py-4 px-2 text-right font-mono text-slate-400">{reqFlow.toFixed(3)}</td>
+                                                <td className="py-4 px-2 text-right font-mono font-bold" style={{ color: status.color }}>{delFlow.toFixed(3)}</td>
+                                                <td className="py-4 px-2 text-right">
                                                     <span className="font-black" style={{ color: status.color }}>{eff.toFixed(1)}%</span>
                                                 </td>
                                             </tr>

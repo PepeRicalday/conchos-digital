@@ -1474,15 +1474,76 @@ const GeoMonitor = () => {
                                                 <strong>{calcGasto(selectedPoint.data)?.toFixed(2) ?? '—'} <small>m³/s</small></strong>
                                             </div>
                                             {selectedPoint.data?.pzas_radiales > 0 && (
-                                                <div className="detail-stat full" style={{ marginTop: 8, padding: 8, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
-                                                    <label>Control de Represa ({selectedPoint.data.pzas_radiales} Compuertas)</label>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                                                <div className="detail-stat full" style={{ marginTop: 8, padding: '12px 10px', background: 'rgba(15, 23, 42, 0.6)', borderRadius: 8, border: '1px solid rgba(30, 41, 59, 1)' }}>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                                                        <Layers size={12} className="text-cyan-400" />
+                                                        Control de Represa ({selectedPoint.data.pzas_radiales} Compuertas)
+                                                    </label>
+                                                    
+                                                    {/* Representación Gráfica de Compuertas Radiales */}
+                                                    <div style={{ display: 'flex', gap: 6, marginBottom: 16, justifyContent: 'center', height: '44px' }}>
+                                                        {Array.from({ length: selectedPoint.data.pzas_radiales }).map((_, i) => {
+                                                            const apertura = parseFloat(selectedPoint.data.apertura_radiales_m || 0);
+                                                            const altoMax = parseFloat(selectedPoint.data.alto || 3);
+                                                            const fillPct = Math.min(100, Math.max(0, (apertura / altoMax) * 100));
+                                                            
+                                                            return (
+                                                                <div key={i} style={{ 
+                                                                    flex: 1, 
+                                                                    maxWidth: '28px',
+                                                                    background: '#020617', 
+                                                                    border: '1px solid #1e293b', 
+                                                                    borderRadius: '2px', 
+                                                                    position: 'relative', 
+                                                                    overflow: 'hidden',
+                                                                    boxShadow: 'inset 0 0 10px rgba(0,0,0,0.8)'
+                                                                }}>
+                                                                    {/* Background Agua */}
+                                                                    <div style={{ width: '100%', height: '100%', background: 'rgba(34, 211, 238, 0.05)', position: 'absolute' }}></div>
+                                                                    
+                                                                    {/* Cortina Mecánica (de arriba hacia abajo) */}
+                                                                    <div style={{
+                                                                        width: '100%',
+                                                                        height: `${100 - fillPct}%`,
+                                                                        background: 'linear-gradient(to bottom, #64748b, #334155)',
+                                                                        position: 'absolute',
+                                                                        top: 0,
+                                                                        borderBottom: '3px solid #94a3b8',
+                                                                        zIndex: 1,
+                                                                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)'
+                                                                    }}>
+                                                                        <div style={{ borderBottom: '1px solid rgba(0,0,0,0.2)', borderTop: '1px solid rgba(255,255,255,0.05)', height: '40%', width: '100%', marginTop: '30%' }}></div>
+                                                                    </div>
+                                                                    
+                                                                    {/* Flujo de Agua (la apertura por debajo) */}
+                                                                    <div className="water-flow-anim" style={{
+                                                                        width: '100%',
+                                                                        height: `${fillPct}%`,
+                                                                        background: fillPct > 0 ? 'linear-gradient(to bottom, rgba(34, 211, 238, 0.6), rgba(14, 165, 233, 0.9))' : 'transparent',
+                                                                        position: 'absolute',
+                                                                        bottom: 0,
+                                                                        zIndex: 2,
+                                                                        borderTop: fillPct > 0 ? '1px solid rgba(255,255,255,0.3)' : 'none'
+                                                                    }}></div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '0 4px' }}>
                                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                            <span style={{ fontSize: 10, color: '#94a3b8' }}>Apertura Promedio</span>
-                                                            <span style={{ fontSize: 18, fontWeight: 800, color: '#22d3ee' }}>{selectedPoint.data.apertura_radiales_m || '0.00'} <small>m</small></span>
+                                                            <span style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Apertura Prom.</span>
+                                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                                                                <span style={{ fontSize: 18, fontWeight: 900, color: '#22d3ee', lineHeight: 1 }}>{selectedPoint.data.apertura_radiales_m || '0.00'}</span>
+                                                                <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>m</span>
+                                                            </div>
                                                         </div>
-                                                        <div style={{ height: 32, width: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: '1px solid rgba(34, 211, 238, 0.2)', background: 'rgba(34, 211, 238, 0.05)' }}>
-                                                            <Gauge size={16} className="cyan" />
+                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                                            <span style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Descarga Est.</span>
+                                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                                                                <span style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc', lineHeight: 1 }}>{calcGasto(selectedPoint.data)?.toFixed(2) ?? '0.00'}</span>
+                                                                <span style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>m³/s</span>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>

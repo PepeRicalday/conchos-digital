@@ -308,11 +308,11 @@ const Hidrometria = () => {
                         <h3 className="text-white font-black text-[10px] uppercase tracking-[0.2em] mb-4 text-slate-500 italic">Desempeño Operativo del Sistema</h3>
                         <div className="flex-1 overflow-auto custom-scrollbar">
                             <table className="w-full text-left text-xs">
-                                <thead className="text-slate-600 font-bold border-b border-slate-800">
+                                <thead className="text-slate-500 font-black text-[10px] uppercase tracking-widest border-b border-slate-800">
                                     <tr>
                                         <th className="pb-3 px-2 text-left">Módulo</th>
-                                        <th className="pb-3 px-2 text-right">Prog. (m³/s)</th>
-                                        <th className="pb-3 px-2 text-right">Entr. (m³/s)</th>
+                                        <th className="pb-3 px-2 text-right">Prog. <span className="lowercase text-slate-600 font-bold">(m³/s)</span></th>
+                                        <th className="pb-3 px-2 text-right">Entr. <span className="lowercase text-slate-600 font-bold">(m³/s)</span></th>
                                         <th className="pb-3 px-2 text-right">Efic.</th>
                                     </tr>
                                 </thead>
@@ -345,12 +345,23 @@ const Hidrometria = () => {
                                         const eff = reqFlow > 0 ? (delFlow / reqFlow) * 100 : 0;
                                         const status = getEfficiencyStatus(eff);
                                         return (
-                                            <tr key={m.id} className="hover:bg-white/5 transition-colors group">
-                                                <td className="py-4 px-2 font-black group-hover:text-primary transition-colors">{m.short_code}</td>
-                                                <td className="py-4 px-2 text-right font-mono text-slate-400">{reqFlow.toFixed(3)}</td>
-                                                <td className="py-4 px-2 text-right font-mono font-bold" style={{ color: status.color }}>{delFlow.toFixed(3)}</td>
-                                                <td className="py-4 px-2 text-right">
-                                                    <span className="font-black" style={{ color: status.color }}>{eff.toFixed(1)}%</span>
+                                            <tr key={m.id} className="hover:bg-slate-800/30 transition-colors group">
+                                                <td className="py-3 px-2 align-middle">
+                                                    <div className="flex items-center gap-2 font-black group-hover:text-primary transition-colors text-slate-300">
+                                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: status.color, boxShadow: `0 0 5px ${status.color}` }}></div>
+                                                        {m.short_code}
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-2 text-right font-mono text-slate-400 font-bold align-middle">{reqFlow.toFixed(3)}</td>
+                                                <td className="py-3 px-2 text-right font-mono align-middle">
+                                                    <span className="bg-slate-950/80 px-2 py-1 rounded inline-block border border-white/5 font-black" style={{ color: status.color }}>
+                                                        {delFlow.toFixed(3)}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-2 text-right align-middle">
+                                                    <span className="px-2 py-1 rounded-md text-[10px] font-black tracking-wider shadow-sm" style={{ color: status.color, backgroundColor: `${status.color}15`, border: `1px solid ${status.color}30` }}>
+                                                        {eff.toFixed(1)}%
+                                                    </span>
                                                 </td>
                                             </tr>
                                         );

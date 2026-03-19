@@ -3,13 +3,15 @@ import { useReactToPrint } from 'react-to-print';
 import { Printer, CloudSun, Thermometer } from 'lucide-react';
 import { useAforos } from '../hooks/useAforos';
 import { usePresas } from '../hooks/usePresas';
+import { useDistribucionEvents } from '../hooks/useDistribucionEvents';
 import { useFecha } from '../context/FechaContext';
-import './OfficialDamReport.css'; // Will create this next
+import './OfficialDamReport.css'; 
 
 const OfficialDamReport = () => {
     const { fechaSeleccionada: todayStr } = useFecha();
     const { aforosReporte } = useAforos(todayStr);
     const { presas, clima } = usePresas(todayStr);
+    const { events: distEvents } = useDistribucionEvents(todayStr);
 
     const boquilla = presas.find(p => p.codigo === 'PLB');
     const madero = presas.find(p => p.codigo === 'PFM');
@@ -171,11 +173,62 @@ const OfficialDamReport = () => {
                         </div>
                     </div>
 
+                    {/* Distribution Events Section (Bitácora) */}
+                    {distEvents.length > 0 && (
+                        <div className="mt-6">
+                            <div className="bg-slate-800 text-white text-center font-bold text-xs uppercase py-1 tracking-wider mb-2">
+                                Bitácora de Distribución (Eventos Relevantes)
+                            </div>
+                            <div className="border-2 border-slate-800 overflow-hidden">
+                                <table className="w-full text-[10px] border-collapse">
+                                    <thead className="bg-slate-100 border-b border-slate-800">
+                                        <tr>
+                                            <th className="p-1 text-left border-r border-slate-400 uppercase">Hora</th>
+                                            <th className="p-1 text-left border-r border-slate-400 uppercase">Punto de Entrega</th>
+                                            <th className="p-1 text-center border-r border-slate-400 uppercase">Estado / Acción</th>
+                                            <th className="p-1 text-right border-r border-slate-400 uppercase">Gasto (m³/s)</th>
+                                            <th className="p-1 text-left uppercase">Observaciones / Notas</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-200">
+                                        {distEvents.map((evt, idx) => (
+                                            <tr key={evt.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                <td className="p-1 font-mono font-bold whitespace-nowrap border-r border-slate-300">
+                                                    {new Date(evt.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                                </td>
+                                                <td className="p-1 border-r border-slate-300">
+                                                    <span className="font-bold">{evt.nombre_punto}</span>
+                                                    <span className="text-slate-500 ml-1 text-[8px] italic">Km {evt.km.toFixed(3)}</span>
+                                                </td>
+                                                <td className="p-1 text-center border-r border-slate-300">
+                                                    <EventBadge status={evt.estado} />
+                                                </td>
+                                                <td className="p-1 text-right font-mono font-bold border-r border-slate-300">
+                                                    {evt.gasto_m3s.toFixed(3)}
+                                                </td>
+                                                <td className="p-1 text-[9px] text-slate-600 leading-tight">
+                                                    {evt.notas || '---'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p className="text-[8px] text-slate-500 mt-1 italic leading-none">
+                                * Nota: El volumen acumulado se recalcula en base a estas marcas de tiempo y gastos confirmados.
+                            </p>
+                        </div>
+                    )}
+
                     {/* Signatures */}
-                    <div className="mt-auto pt-8 flex justify-end">
-                        <div className="text-center w-64 border-t border-slate-800 pt-2">
-                            <p className="font-bold text-sm uppercase">Ing. Responsable de Operación</p>
-                            <p className="text-xs text-slate-500">Firma Digital / Autorización</p>
+                    <div className="mt-auto pt-8 flex justify-between items-end">
+                        <div className="text-center w-64 border-t border-slate-800 pt-2 opacity-30 print:opacity-100">
+                            <p className="font-bold text-[10px] uppercase">Control Escalas (Lecturísta)</p>
+                            <p className="text-[9px] text-slate-500">Firma / Sello</p>
+                        </div>
+                        <div className="text-center w-64 border-t border-slate-800 pt-2 print:opacity-100">
+                            <p className="font-bold text-[10px] uppercase">Ing. Responsable de Operación</p>
+                            <p className="text-[9px] text-slate-500">Firma Digital / Autorización S.R.L.</p>
                         </div>
                     </div>
 
@@ -236,6 +289,25 @@ const WeatherIcon = ({ state, size = 16 }: { state: string, size?: number }) => 
         case 'Caluroso': return <Thermometer size={size} className="text-red-500" />;
         default: return <CloudSun size={size} />;
     }
+};
+
+const EventBadge = ({ status }: { status: string }) => {
+    const s = status.toLowerCase();
+    let bg = 'bg-slate-100 text-slate-500';
+    let label = status.toUpperCase();
+
+    if (s.includes('inicio')) { bg = 'bg-emerald-100 text-emerald-700 border-emerald-300'; label = 'INICIO'; }
+    if (s.includes('modif')) { bg = 'bg-blue-100 text-blue-700 border-blue-300'; label = 'MODIFICACIÓN'; }
+    if (s.includes('continua')) { bg = 'bg-cyan-50 text-cyan-600 border-cyan-200'; label = 'CONTINUA'; }
+    if (s.includes('suspension')) { bg = 'bg-amber-100 text-amber-700 border-amber-300'; label = 'SUSPENSIÓN'; }
+    if (s.includes('cierre')) { bg = 'bg-red-100 text-red-700 border-red-300'; label = 'CIERRE'; }
+    if (s.includes('reabierto')) { bg = 'bg-indigo-100 text-indigo-700 border-indigo-300'; label = 'REABIERTO'; }
+
+    return (
+        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black border ${bg}`}>
+            {label}
+        </span>
+    );
 };
 
 export default OfficialDamReport;

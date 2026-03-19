@@ -2,9 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Settings, 
   Activity, 
-  Database, 
-  Map as MapIcon, 
-  Zap, 
   Layers, 
   AlertCircle,
   Download,
@@ -33,13 +30,12 @@ const ModelingDashboard: React.FC = () => {
   const [compareEnabled, setCompareEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isSimulation, setIsSimulation] = useState(true);
-  const [gateOpening, setGateOpening] = useState(85);
   
   // ── 1. Fetch Geometry from DB ──
   useEffect(() => {
     const fetchGeometry = async () => {
       setLoading(true);
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('perfil_hidraulico_canal')
         .select('*')
         .order('km_inicio', { ascending: true });
@@ -209,6 +205,7 @@ const ModelingDashboard: React.FC = () => {
                 value={q} 
                 onChange={e => setQ(parseFloat(e.target.value))}
                 className="modeling-slider"
+                title="Ajustar Gasto Principal"
               />
             </div>
 
@@ -220,6 +217,7 @@ const ModelingDashboard: React.FC = () => {
                     checked={compareEnabled} 
                     onChange={e => setCompareEnabled(e.target.checked)}
                     style={{ cursor: 'pointer' }}
+                    title="Habilitar Comparativa"
                 />
               </div>
               {compareEnabled && (
@@ -237,6 +235,7 @@ const ModelingDashboard: React.FC = () => {
                         onChange={e => setQRef(parseFloat(e.target.value))}
                         className="modeling-slider"
                         style={{ filter: 'grayscale(1)' }}
+                        title="Ajustar Gasto de Referencia"
                     />
                   </div>
               )}
@@ -251,8 +250,9 @@ const ModelingDashboard: React.FC = () => {
                 type="range" 
                 min="-10" 
                 max="10" 
-                value={0} 
+                defaultValue={0} 
                 className="modeling-slider"
+                title="Ajustar Sesgo de Rugosidad"
               />
             </div>
 

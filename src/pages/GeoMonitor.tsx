@@ -114,7 +114,7 @@ const GeoMonitor = () => {
     const [aforos, setAforos] = useState<AforoData[]>([]);
     const [tomas, setTomas] = useState<TomaData[]>([]);
     const [secciones, setSecciones] = useState<SeccionData[]>([]);
-    const [operStats, setOperStats] = useState<OperStats>({ tomas_abiertas: 0, tomas_cerradas: 0, gasto_distribuido_m3s: 0 });
+    const [operStats] = useState<OperStats>({ tomas_abiertas: 0, tomas_cerradas: 0, gasto_distribuido_m3s: 0 });
     const [tomasVaradas, setTomasVaradas] = useState<any[]>([]);
     const [latestAforos, setLatestAforos] = useState<Record<string, any>>({});
     const [totalDemandaProgramada, setTotalDemandaProgramada] = useState(0);

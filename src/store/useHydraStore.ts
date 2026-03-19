@@ -120,7 +120,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             const metaPuntos = metaStore.puntos_entrega;
 
             // Map dynamic data for easy lookup
-            const dynModMap = new Map(modulosDB.map(m => [m.id, m]));
+            // const dynModMap = new Map(modulosDB.map(m => [m.id, m]));
             const dynPtMap = new Map();
             modulosDB.forEach(m => {
                 (m.puntos_entrega || []).forEach((p: any) => dynPtMap.set(p.id, p));

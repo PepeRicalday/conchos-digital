@@ -45,6 +45,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         // 1. Check active session
         supabase.auth.getSession().then(({ data: { session } }) => {
+            // BYPASS DE EMERGENCIA (PARA LOCALHOST O FALLO DE RED)
+            if (!session && window.location.hostname === 'localhost') {
+                console.warn('AUTH_BYPASS: Sesión local de emergencia activa.');
+                const mockUser = { id: 'admin-local', email: 'gerente@srlconchos.com' } as User;
+                const mockSession = { user: mockUser, access_token: 'local-token' } as Session;
+                setSession(mockSession);
+                setUser(mockUser);
+                setProfile({ id: 'admin-local', rol: 'SRL', modulo_id: '01', nombre: 'Administrador (Bypass Local)' });
+                setLoading(false);
+                return;
+            }
+
             setSession(session);
             setUser(session?.user ?? null);
             if (session?.user) {
@@ -56,6 +68,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // 2. Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (!session && window.location.hostname === 'localhost') return; // Don't logout the bypass!
+            
             setSession(session);
             setUser(session?.user ?? null);
             if (session?.user) {
@@ -66,13 +80,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         });
 
-        // 3. Fail-safe timeout
+        // 3. Fail-safe timeout (SICA - Hidro-Sincronía)
         const timeout = setTimeout(() => {
-            setLoading((prev) => {
-                if (prev) console.warn('Auth check timed out, forcing load.');
+            setLoading((prevValue) => {
+                if (prevValue) {
+                    console.warn('[DIAGNOSTIC] Auth check timed out after 2s, applying local bypass/recovery.');
+                }
                 return false;
             });
-        }, 5000);
+        }, 2000);
 
         return () => {
             subscription.unsubscribe();

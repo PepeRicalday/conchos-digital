@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { getTodayString } from '../utils/dateHelpers';
+import { useMetadataStore } from './useMetadataStore';
 
 export interface SectionData {
     id: string;
@@ -75,35 +76,37 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             const currentModules = get().modules;
             if (currentModules.length === 0) set({ loading: true });
 
-            // 1. Fetch
-            const { data: modulosDB, error: modError } = await supabase
-                .from('modulos')
-                .select(`
-                    *,
+            const today = getTodayString();
+            const threeDaysAgo = new Date();
+            threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+            const threeDaysAgoStr = threeDaysAgo.toISOString().split('T')[0];
+
+            // 1. Parallel Fetch (Highly Efficient Initial Load)
+            const [
+                { data: modulosDB, error: modError },
+                { data: reportesHoy }
+            ] = await Promise.all([
+                supabase.from('modulos').select(`
+                    id, codigo_corto, nombre, nombre_acu, logo_url, vol_acumulado, vol_autorizado, caudal_objetivo,
                     puntos_entrega (
-                        *,
-                        secciones (
-                            id, nombre, color
-                        ),
-                        mediciones (
-                            valor_q,
-                            valor_vol,
-                            fecha_hora
-                        )
+                        id, nombre, km, tipo, capacidad_max, coords_x, coords_y, zona, seccion_id,
+                        secciones ( id, nombre, color ),
+                        mediciones ( valor_q, valor_vol, fecha_hora )
                     )
-                `);
+                `).filter('puntos_entrega.mediciones.fecha_hora', 'gte', threeDaysAgoStr),
+                supabase.from('reportes_diarios').select('punto_id, modulo_id, volumen_total_mm3, caudal_promedio_lps').eq('fecha', today)
+            ]);
 
             if (modError) throw modError;
             if (!modulosDB) return;
 
-            // 2. Fetch reportes — A-08: Use timezone-safe getTodayString()
-            const today = getTodayString();
+            // 2. Metadata Sync (Ensure we have the base structure)
+            const metaStore = useMetadataStore.getState();
+            if (!metaStore.last_fetched) {
+                await metaStore.fetchMetadata();
+            }
 
-            const { data: reportesHoy } = await supabase
-                .from('reportes_diarios')
-                .select('punto_id, modulo_id, volumen_total_mm3, caudal_promedio_lps')
-                .eq('fecha', today);
-
+            // 3. Index reports for quick access
             const reporteByPunto: Record<string, any> = {};
             const reporteByModulo: Record<string, number> = {};
             (reportesHoy || []).forEach((r: any) => {
@@ -111,61 +114,64 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                 reporteByModulo[r.modulo_id] = (reporteByModulo[r.modulo_id] || 0) + Number(r.volumen_total_mm3 || 0);
             });
 
-            // 3. Transform Map & Build O(1) Index Lookup
+            // 4. Transform & Merge Metadata with Realtime Data
             const indexMap: Record<string, { mIndex: number, pIndex: number }> = {};
+            const metaModulos = metaStore.modulos;
+            const metaPuntos = metaStore.puntos_entrega;
 
-            const fullModules: ModuleData[] = modulosDB.map((mod: any, mIdx: number) => {
-                const points = (mod.puntos_entrega || []).map((p: any, pIdx: number) => {
-                    indexMap[p.id] = { mIndex: mIdx, pIndex: pIdx };
-                    const measurements = (p.mediciones || []).sort((a: any, b: any) =>
-                        new Date(b.fecha_hora).getTime() - new Date(a.fecha_hora).getTime()
-                    );
-                    const latest = measurements[0];
-                    const qM3s = Number(latest?.valor_q || 0);
+            // Map dynamic data for easy lookup
+            const dynModMap = new Map(modulosDB.map(m => [m.id, m]));
+            const dynPtMap = new Map();
+            modulosDB.forEach(m => {
+                (m.puntos_entrega || []).forEach((p: any) => dynPtMap.set(p.id, p));
+            });
 
-                    const totalAccum = measurements.reduce((acc: number, med: any) => acc + Number(med.valor_vol || 0), 0);
+            const fullModules: ModuleData[] = metaModulos.map((mod: any, mIdx: number) => {
+                const points = metaPuntos
+                    .filter((p: any) => p.modulo_id === mod.id)
+                    .map((p: any, pIdx: number) => {
+                        indexMap[p.id] = { mIndex: mIdx, pIndex: pIdx };
+                        
+                        const dynP = dynPtMap.get(p.id);
+                        const measurements = (dynP?.mediciones || []).sort((a: any, b: any) =>
+                            new Date(b.fecha_hora).getTime() - new Date(a.fecha_hora).getTime()
+                        );
+                        const latest = measurements[0];
+                        const qM3s = Number(latest?.valor_q || 0);
 
-                    const todayStr = getTodayString();
-                    const todayMeasurements = measurements.filter((m: any) => m.fecha_hora && m.fecha_hora.startsWith(todayStr));
-                    const calculatedDailyVol = todayMeasurements.reduce((acc: number, med: any) => acc + Number(med.valor_vol || 0), 0);
+                        const totalAccum = measurements.reduce((acc: number, med: any) => acc + Number(med.valor_vol || 0), 0);
+                        const todayStr = getTodayString();
+                        const todayMeasurements = measurements.filter((m: any) => m.fecha_hora && m.fecha_hora.startsWith(todayStr));
+                        const calculatedDailyVol = todayMeasurements.reduce((acc: number, med: any) => acc + Number(med.valor_vol || 0), 0);
 
-                    const dailyReport = reporteByPunto[p.id];
-                    const dailyVolPt = dailyReport ? Number(dailyReport.volumen_total_mm3 || 0) : calculatedDailyVol;
+                        const dailyReport = reporteByPunto[p.id];
+                        const dailyVolPt = dailyReport ? Number(dailyReport.volumen_total_mm3 || 0) : calculatedDailyVol;
 
-                    let sectionInfo = p.secciones;
-                    if (!sectionInfo && p.km !== null) {
-                        const km = Number(p.km);
-                        if (km <= 25) sectionInfo = { id: 'sec-1', nombre: 'Sección 1: La Boquilla - Km 25', color: '#3b82f6' };
-                        else if (km <= 50) sectionInfo = { id: 'sec-2', nombre: 'Sección 2: Km 25 - Km 50', color: '#10b981' };
-                        else if (km <= 75) sectionInfo = { id: 'sec-3', nombre: 'Sección 3: Km 50 - Km 75', color: '#f59e0b' };
-                        else sectionInfo = { id: 'sec-4', nombre: 'Sección 4: Km 75 - Fin', color: '#ef4444' };
-                    }
+                        // Secciones metadata join
+                        const sectionInfo = metaStore.secciones.find(s => s.id === p.seccion_id);
 
-                    return {
-                        id: p.id,
-                        name: p.nombre,
-                        km: Number(p.km),
-                        type: p.tipo,
-                        capacity: Number(p.capacidad_max),
-                        current_q: qM3s,
-                        current_q_lps: qM3s * 1000,
-                        current_h: '0.0',
-                        accumulated: totalAccum,
-                        daily_vol: dailyVolPt,
-                        is_open: qM3s > 0,
-                        coordinates: { x: Number(p.coords_x), y: Number(p.coords_y) },
-                        zone: p.zona || 'General',
-                        section: sectionInfo?.nombre || 'Sin Sección',
-                        last_update_time: latest?.fecha_hora,
-                        section_data: sectionInfo ? {
-                            id: sectionInfo.id,
-                            nombre: sectionInfo.nombre,
-                            color: sectionInfo.color
-                        } : undefined,
-                        mediciones: measurements,
-                        reportes: dailyReport ? [dailyReport] : []
-                    };
-                });
+                        return {
+                            id: p.id,
+                            name: p.nombre,
+                            km: Number(p.km),
+                            type: p.tipo,
+                            capacity: Number(p.capacidad_max),
+                            current_q: qM3s,
+                            current_q_lps: qM3s * 1000,
+                            current_h: '0.0',
+                            accumulated: totalAccum,
+                            daily_vol: dailyVolPt,
+                            is_open: qM3s > 0,
+                            coordinates: { x: Number(p.coords_x), y: Number(p.coords_y) },
+                            zone: p.zona || 'General',
+                            section: sectionInfo?.nombre || 'Sin Sección',
+                            last_update_time: latest?.fecha_hora,
+                            section_data: sectionInfo,
+                            mediciones: measurements,
+                            reportes: dailyReport ? [dailyReport] : []
+                        };
+                    });
+
 
                 const currentFlow = points.reduce((acc: number, pt: any) => acc + pt.current_q, 0);
                 const calcDailyVol = points.reduce((acc: number, pt: any) => acc + pt.daily_vol, 0);
@@ -187,6 +193,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                     delivery_points: points
                 };
             });
+
 
             // Sort modules logically: m1, m2 ... m12
             fullModules.sort((a, b) => {

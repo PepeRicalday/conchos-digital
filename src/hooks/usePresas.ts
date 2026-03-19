@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useMetadataStore } from '../store/useMetadataStore';
 
 // ─── Types ───────────────────────────────────────────
 export interface PresaData {
@@ -90,31 +91,32 @@ export function usePresas(fecha: string) {
                 setLoading(true);
                 setError(null);
 
-                // 1. Presas base data + curvas de capacidad
-                const { data: presasDB, error: errP } = await supabase
-                    .from('presas')
-                    .select(`
-                        *,
-                        curvas_capacidad (
-                            elevacion_msnm,
-                            volumen_mm3,
-                            area_ha
-                        )
-                    `)
-                    .neq('id', 'PRE-003') // Ignore Delicias pseudo-presa visually in list
-                    .order('nombre');
+                const metaStore = useMetadataStore.getState();
+                if (!metaStore.last_fetched) await metaStore.fetchMetadata();
 
-                if (errP) throw errP;
-
-                // 2. Lecturas para la fecha seleccionada
-                const { data: lecturasDB, error: errL } = await supabase
-                    .from('lecturas_presas')
-                    .select('*')
-                    .eq('fecha', fecha);
+                // 1. Parallel Fetch of all primary dynamic data sources
+                const [
+                    { data: lecturasDB, error: errL },
+                    { data: climaDB, error: errC },
+                    { data: aforosDB, error: errA },
+                    { data: eventDB },
+                    { data: movsDB }
+                ] = await Promise.all([
+                    supabase.from('lecturas_presas').select('*').eq('fecha', fecha),
+                    supabase.from('clima_presas').select('*').eq('fecha', fecha),
+                    supabase.from('aforos_principales_diarios').select('*').eq('fecha', fecha),
+                    supabase.from('sica_eventos_log').select('*').eq('esta_activo', true).eq('evento_tipo', 'LLENADO').maybeSingle(),
+                    supabase.from('movimientos_presas').select('*').order('fecha_hora', { ascending: false }).limit(50)
+                ]);
 
                 if (errL) throw errL;
+                if (errC) throw errC;
+                if (errA) throw errA;
 
-                // Si no hay lecturas para esa fecha, buscar la más reciente
+                const presasDB = metaStore.presas;
+
+
+                // 2. Fallback logic for missing data (Sequential only if necessary)
                 let finalLecturas = lecturasDB;
                 if (!finalLecturas || finalLecturas.length === 0) {
                     const { data: fallback, error: errFb } = await supabase
@@ -122,21 +124,11 @@ export function usePresas(fecha: string) {
                         .select('*')
                         .lte('fecha', fecha)
                         .order('fecha', { ascending: false })
-                        .limit(2); // una por presa max
-
+                        .limit(2);
                     if (errFb) throw errFb;
                     finalLecturas = fallback;
                 }
 
-                // 3. Clima para la fecha
-                const { data: climaDB, error: errC } = await supabase
-                    .from('clima_presas')
-                    .select('*')
-                    .eq('fecha', fecha);
-
-                if (errC) throw errC;
-
-                // Fallback clima
                 let finalClima = climaDB;
                 if (!finalClima || finalClima.length === 0) {
                     const { data: climaFb } = await supabase
@@ -148,28 +140,6 @@ export function usePresas(fecha: string) {
                     finalClima = climaFb || [];
                 }
 
-                // 4. Aforos para la fecha
-                const { data: aforosDB, error: errA } = await supabase
-                    .from('aforos_principales_diarios')
-                    .select('*')
-                    .eq('fecha', fecha);
-
-                if (errA) throw errA;
-
-                // 5. Check for active hydric event (Llenado)
-                const { data: eventDB } = await supabase
-                    .from('sica_eventos_log')
-                    .select('*')
-                    .eq('esta_activo', true)
-                    .eq('evento_tipo', 'LLENADO')
-                    .maybeSingle();
-
-                // 6. Movimientos recientes (Aumentamos el límite para asegurar capturar el último de cada presa)
-                const { data: movsDB } = await supabase
-                    .from('movimientos_presas')
-                    .select('*')
-                    .order('fecha_hora', { ascending: false })
-                    .limit(50);
 
                 if (cancelled) return;
 

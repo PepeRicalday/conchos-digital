@@ -64,8 +64,8 @@
     z-index: 100;
     padding: 0.5rem 1rem;
     background: var(--geo-glass-bg);
-    backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
     border-radius: 1rem;
     border: 1px solid var(--geo-glass-border);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -310,6 +310,7 @@
     border-radius: 12px;
     cursor: pointer;
     background: var(--geo-glass-bg);
+    -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     border: 1px solid rgba(51, 65, 85, 0.6);
     color: #94a3b8;
@@ -358,8 +359,8 @@
     z-index: 200;
     border-radius: 1rem;
     background: var(--geo-glass-bg);
-    backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
     border: 1px solid var(--geo-glass-border);
     box-shadow: -10px 0 40px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     display: flex;
@@ -539,6 +540,7 @@
 /* ── OTHERS ── */
 .glass {
     background: var(--geo-glass-bg) !important;
+    -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     border: 1px solid var(--geo-glass-border) !important;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
@@ -591,6 +593,7 @@
     flex-direction: column;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
     transition: all 0.3s ease;
+    -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
 }
 
@@ -684,8 +687,8 @@
 /* ── LEAFLET UI OVERRIDES (HIDRO-SINCRONÍA) ── */
 .leaflet-popup-content-wrapper, .leaflet-popup-tip {
     background: rgba(15, 23, 42, 0.85) !important;
-    backdrop-filter: blur(12px) !important;
     -webkit-backdrop-filter: blur(12px) !important;
+    backdrop-filter: blur(12px) !important;
     color: white !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
     box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
@@ -693,6 +696,7 @@
 
 .leaflet-tooltip {
     background: rgba(15, 23, 42, 0.9) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
     backdrop-filter: blur(8px) !important;
     color: white !important;
     border: 1px solid var(--geo-neon-cyan) !important;
@@ -735,3 +739,145 @@
     50% { transform: scale(1.4); opacity: 0.7; }
     100% { transform: scale(1); opacity: 1; }
 }
+
+/* ── UTILITY CLASSES FOR REFACTORING INLINE STYLES ── */
+.geo-indicator-purple { background: #8b5cf6; }
+.geo-indicator-blue { background: #1d4ed8; }
+.geo-indicator-cyan { background: #3b82f6; }
+.geo-indicator-amber { background: #f59e0b; }
+.geo-indicator-teal { background: #22d3ee; }
+
+.geo-icon-blue { color: #3b82f6; }
+.geo-icon-amber { color: #f59e0b; }
+.geo-icon-teal { color: #22d3ee; }
+.geo-icon-white { color: white; }
+
+.geo-btn-import {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    margin-top: 4px;
+    padding-top: 12px;
+}
+
+.geo-divider-h {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.05);
+    margin: 8px 4px;
+}
+
+.geo-event-banner-info {
+    font-size: 11px;
+    opacity: 0.9;
+}
+
+.geo-event-banner-right {
+    text-align: right;
+}
+
+.geo-event-banner-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    opacity: 0.9;
+}
+
+.geo-event-banner-km {
+    font-size: 16px;
+    font-weight: bold;
+    font-family: var(--geo-font-mono);
+}
+
+.geo-map-leaflet {
+    height: 100%;
+    width: 100%;
+    background: #0f172a;
+}
+
+.geo-text-secondary {
+    font-size: 11px;
+    opacity: 0.9;
+}
+
+.geo-tooltip-content {
+    font-family: var(--geo-font-mono);
+    font-size: 11px;
+    min-width: 140px;
+}
+
+.geo-text-highlight {
+    color: var(--geo-neon-cyan);
+    font-weight: bold;
+}
+
+.geo-text-success { color: #10b981; }
+.geo-text-danger { color: #ef4444; }
+
+.geo-apertura-badge {
+    margin-top: 4px;
+    padding: 4px 6px;
+    background: rgba(34, 211, 238, 0.1);
+    border: 1px solid rgba(34, 211, 238, 0.2);
+    border-radius: 4px;
+}
+
+.geo-aforo-tooltip {
+    font-family: var(--geo-font-mono);
+    font-size: 11px;
+    min-width: 160px;
+}
+
+.geo-aforo-badge {
+    margin-top: 4px;
+    padding: 4px 6px;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: 4px;
+}
+
+.geo-presa-popup {
+    font-family: var(--geo-font-mono);
+    min-width: 180px;
+}
+
+.geo-presa-stat-box {
+    background: rgba(15, 23, 42, 0.8);
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 4px;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+.geo-progress-bg {
+    width: 100%;
+    height: 8px;
+    background: #1e293b;
+    border-radius: 4px;
+    margin-top: 4px;
+    overflow: hidden;
+}
+
+.geo-progress-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.geo-event-banner {
+    position: absolute;
+    top: 0; left: 0; right: 0; 
+    z-index: 1000;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255,255,255,0.2);
+    color: white;
+}
+
+.geo-event-bg-llenado { background: rgba(59, 130, 246, 0.9); }
+.geo-event-bg-estabilizacion { background: rgba(16, 185, 129, 0.9); }
+.geo-event-bg-contingencia { background: rgba(245, 158, 11, 0.9); }
+.geo-event-bg-anomalia { background: rgba(124, 58, 237, 0.9); }
+.geo-event-bg-alerta { background: rgba(239, 68, 68, 0.9); }
+
+

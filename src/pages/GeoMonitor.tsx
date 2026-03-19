@@ -12,6 +12,7 @@ import { ShapefileImporter, type GeoLayer } from '../components/ShapefileImporte
 import { useAuth } from '../context/AuthContext';
 import { useHydricEvents } from '../hooks/useHydricEvents';
 import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
+import { useMetadataStore } from '../store/useMetadataStore';
 
 // Fix for Leaflet icons in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -323,213 +324,132 @@ const GeoMonitor = () => {
     // Data Fetching (Prioridad 1)
     const fetchAllData = useCallback(async () => {
         try {
-            // Sincronía Técnica: Usar fecha local del Distrito de Riego (Chihuahua)
             const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Chihuahua' });
+            const fiveDaysAgo = new Date();
+            fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 7);
+            const fiveDaysAgoStr = fiveDaysAgo.toLocaleDateString('sv-SE', { timeZone: 'America/Chihuahua' });
+            
+            const metaStore = useMetadataStore.getState();
+            if (!metaStore.last_fetched) await metaStore.fetchMetadata();
 
-            // 1. Escalas base
-            const { data: escData } = await supabase.from('escalas')
-                .select('id, nombre, km, latitud, longitud, nivel_min_operativo, nivel_max_operativo, capacidad_max, seccion_id, ancho, alto, pzas_radiales, coeficiente_descarga, exponente_n')
-                .eq('activa', true).order('km');
+            const [
+                { data: resData },
+                { data: lecData },
+                { data: lpData },
+                { data: afData },
+                { data: tvData },
+                { data: roData },
+                { data: rdVolData },
+                { data: modStaticData }
+            ] = await Promise.all([
+                supabase.from('resumen_escalas_diario').select('escala_id, nivel_actual, delta_12h, estado, fecha, lectura_am, lectura_pm').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }),
+                supabase.from('lecturas_escalas').select('escala_id, apertura_radiales_m, fecha, hora_lectura').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_lectura', { ascending: false }),
+                supabase.from('lecturas_presas').select('presa_id, almacenamiento_mm3, porcentaje_llenado, extraccion_total_m3s, fecha').order('fecha', { ascending: false }).limit(3),
+                supabase.from('aforos').select('punto_control_id, gasto_calculado_m3s, fecha, hora_inicio').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_inicio', { ascending: false }),
+                supabase.from('vw_alertas_tomas_varadas').select('*'),
+                supabase.from('reportes_operacion').select('punto_id, estado, caudal_promedio, hora_apertura, volumen_acumulado', { count: 'exact' }).eq('fecha', todayStr),
+                supabase.from('reportes_diarios').select('punto_id, volumen_total_mm3, hora_apertura, hora_cierre, caudal_promedio_m3s').gte('fecha', fiveDaysAgoStr),
+                supabase.from('modulos').select('id, caudal_objetivo')
+            ]);
+            
+            const escData = metaStore.escalas;
+            const afMedData = metaStore.aforos_control;
+            const secData = metaStore.secciones;
+            const peData = metaStore.puntos_entrega;
 
-            // 2. Resumen diario — traer los más recientes por cada escala
-            const { data: resData } = await supabase.from('resumen_escalas_diario')
-                .select('escala_id, nivel_actual, delta_12h, estado, fecha, lectura_am, lectura_pm')
-                .order('fecha', { ascending: false });
-
-            // Tomar solo el registro más reciente por escala_id (Validación Hidro-Sincrónica)
-            const resMap = new Map<string, any>();
+            // 1. Process Escalas
+            const resMap = new Map();
             resData?.forEach((r: any) => {
                 if (!resMap.has(r.escala_id)) {
-                    // Solo aceptar si no hay evento activo o si el dato es posterior a la apertura real
                     const isDataValid = !activeEvent?.hora_apertura_real || 
                                        new Date(r.fecha + 'T00:00:00Z') >= new Date(activeEvent.hora_apertura_real.split('T')[0] + 'T00:00:00Z');
-                    
-                    if (isDataValid) {
-                        resMap.set(r.escala_id, r);
-                    }
+                    if (isDataValid) resMap.set(r.escala_id, r);
                 }
             });
 
-            // 1.1 Extraer aperturas de compuertas recientes
-            const { data: lecData } = await supabase.from('lecturas_escalas')
-                .select('escala_id, apertura_radiales_m, fecha, hora_lectura')
-                .order('fecha', { ascending: false }).order('hora_lectura', { ascending: false });
-            
             const apMap = new Map<string, number>();
             lecData?.forEach(l => {
                 if (!apMap.has(l.escala_id)) {
-                    const lecturaFull = new Date(`${l.fecha}T${l.hora_lectura}`);
-                    const aperturaFull = activeEvent?.hora_apertura_real ? new Date(activeEvent.hora_apertura_real) : new Date(0);
-                    
-                    if (!activeEvent?.hora_apertura_real || lecturaFull >= aperturaFull) {
-                        apMap.set(l.escala_id, parseFloat(l.apertura_radiales_m || 0));
-                    }
+                    const lTime = new Date(`${l.fecha}T${l.hora_lectura}`);
+                    const aTime = activeEvent?.hora_apertura_real ? new Date(activeEvent.hora_apertura_real) : new Date(0);
+                    if (lTime >= aTime) apMap.set(l.escala_id, parseFloat(l.apertura_radiales_m || 0));
                 }
             });
 
-            // Merge: todas las escalas para el perfil long., solo las con coords para el mapa
-            const allMerged = (escData || []).map((e: any) => {
-                const r = resMap.get(e.id);
-                return {
-                    ...e,
-                    nivel_actual: r?.nivel_actual !== null && r?.nivel_actual !== undefined ? parseFloat(r.nivel_actual) : undefined,
-                    delta_12h: r?.delta_12h !== null && r?.delta_12h !== undefined ? parseFloat(r.delta_12h) : undefined,
-                    estado: r?.estado || 'sin_datos',
-                    fecha_lectura: r?.fecha || null,
-                    apertura_radiales_m: apMap.get(e.id) || 0,
-                };
-            });
-            // Solo las que tienen coordenadas van al mapa
-            setEscalas(allMerged);
+            setEscalas((escData || []).map((e: any) => ({
+                ...e,
+                nivel_actual: resMap.get(e.id)?.nivel_actual !== undefined ? parseFloat(resMap.get(e.id).nivel_actual) : undefined,
+                delta_12h: resMap.get(e.id)?.delta_12h !== undefined ? parseFloat(resMap.get(e.id).delta_12h) : undefined,
+                estado: resMap.get(e.id)?.estado || 'sin_datos',
+                fecha_lectura: resMap.get(e.id)?.fecha || null,
+                apertura_radiales_m: apMap.get(e.id) || 0,
+            })));
 
-            // 2. Presas
-            const { data: lpData } = await supabase
-                .from('lecturas_presas')
-                .select('presa_id, almacenamiento_mm3, porcentaje_llenado, extraccion_total_m3s, fecha, presas(nombre, latitud, longitud)')
-                .order('fecha', { ascending: false })
-                .limit(3);
-
-            const presasMap = new Map<string, PresaData>();
+            // 2. Process Presas
+            const pMap = new Map<string, PresaData>();
             (lpData || []).forEach((lp: any) => {
-                if (!presasMap.has(lp.presa_id) && lp.presas?.latitud) {
+                const meta = metaStore.presas.find(p => p.id === lp.presa_id);
+                if (!pMap.has(lp.presa_id) && meta?.latitud) {
                     let extraccion = parseFloat(lp.extraccion_total_m3s || 0);
-                    
-                    // Fallback para Boquilla en Llenado
-                    if (lp.presa_id === 'PRE-001' && activeEvent?.evento_tipo === 'LLENADO' && extraccion === 0) {
-                        extraccion = activeEvent.gasto_solicitado_m3s || 30;
-                    }
-
-                    presasMap.set(lp.presa_id, {
-                        presa_id: lp.presa_id, nombre: lp.presas.nombre,
-                        latitud: parseFloat(lp.presas.latitud), longitud: parseFloat(lp.presas.longitud),
+                    if (lp.presa_id === 'PRE-001' && activeEvent?.evento_tipo === 'LLENADO' && extraccion === 0) extraccion = activeEvent.gasto_solicitado_m3s || 30;
+                    pMap.set(lp.presa_id, {
+                        presa_id: lp.presa_id, nombre: meta.nombre,
+                        latitud: parseFloat(meta.latitud), longitud: parseFloat(meta.longitud),
                         almacenamiento_mm3: parseFloat(lp.almacenamiento_mm3 || 0),
                         porcentaje_llenado: parseFloat(lp.porcentaje_llenado || 0),
-                        extraccion_total_m3s: extraccion,
-                        fecha: lp.fecha,
+                        extraccion_total_m3s: extraccion, fecha: lp.fecha
                     });
                 }
             });
-            setPresas(Array.from(presasMap.values()));
-            
-            // 3. Puntos de Aforo y sus últimas lecturas
-            const { data: afData } = await supabase.from('aforos_control').select('id, nombre_punto, latitud, longitud');
-            const { data: afMedData } = await supabase.from('aforos')
-                .select('punto_control_id, gasto_calculado_m3s, fecha, hora_inicio')
-                .order('fecha', { ascending: false }).order('hora_inicio', { ascending: false });
-            
+            setPresas(Array.from(pMap.values()));
+
+            // 3. Process Aforos (Merging meta coords with dynamic data)
             const afResult: Record<string, any> = {};
-            afMedData?.forEach(m => {
-                if (!afResult[m.punto_control_id]) {
-                    const afTime = new Date(`${m.fecha}T${m.hora_inicio}`);
-                    const limitTime = activeEvent?.hora_apertura_real ? new Date(activeEvent.hora_apertura_real) : new Date(0);
-                    
-                    if (!activeEvent?.hora_apertura_real || afTime >= limitTime) {
-                         afResult[m.punto_control_id] = m;
+            (afData || []).forEach((a: any) => {
+                if (!afResult[a.punto_control_id]) {
+                    const meta = afMedData.find(m => m.id === a.punto_control_id);
+                    if (meta) {
+                        afResult[a.punto_control_id] = { ...a, latitud: parseFloat(meta.latitud), longitud: parseFloat(meta.longitud) };
                     }
                 }
             });
             setLatestAforos(afResult);
+            setAforos(Object.values(afResult));
 
-            setAforos((afData || []).filter((a: any) => a.latitud && a.longitud).map((a: any) => ({
-                ...a, latitud: parseFloat(a.latitud), longitud: parseFloat(a.longitud)
-            })));
-
-            // 4. Secciones
-            const { data: secData } = await supabase.from('secciones').select('id, nombre, km_inicio, km_fin, color').order('km_inicio');
+            // 4. Process Secciones
             setSecciones((secData || []).map((s: any) => ({
                 ...s, km_inicio: parseFloat(s.km_inicio), km_fin: parseFloat(s.km_fin)
             })));
-
-            // El cálculo de operStats ahora se hará dinámicamente al construir 'mergedTomas' mas adelante
-            // para asegurar que lo que ves en el mapa coincida exactamente con los KPIs (37 vs 34 fix)
-
-            // 6. Tomas Varadas
-            const { data: tvData } = await supabase.from('vw_alertas_tomas_varadas').select('*');
             if (tvData) setTomasVaradas(tvData);
 
-            // 7. Puntos de Entrega (Tomas) y su estado actual
-            const { data: peData } = await supabase.from('puntos_entrega')
-                .select('id, nombre, km, coords_x, coords_y, modulo_id');
-
-            const { data: roData } = await supabase.from('reportes_operacion')
-                .select('punto_id, estado, caudal_promedio, hora_apertura, volumen_acumulado')
-                .eq('fecha', todayStr);
-
-            // Fetch reporte histórico de volúmenes consolidados
-            const { data: rdVolData } = await supabase.from('reportes_diarios')
-                .select('punto_id, volumen_total_mm3, hora_apertura, hora_cierre, caudal_promedio_m3s');
+            // 5. Process Tomas
+            const ptVolMap = new Map();
+            const now = new Date();
+            rdVolData?.forEach(r => {
+                let vol = parseFloat(r.volumen_total_mm3 || 0);
+                if (vol <= 0 && r.caudal_promedio_m3s > 0 && r.hora_apertura) {
+                    const tStart = new Date(r.hora_apertura);
+                    const diffHours = Math.max(0, (now.getTime() - tStart.getTime()) / (1000 * 3600));
+                    vol = (r.caudal_promedio_m3s * 3600 * diffHours) / 1000000.0;
+                }
+                ptVolMap.set(r.punto_id, (ptVolMap.get(r.punto_id) || 0) + vol);
+            });
 
             const roMap = new Map();
             roData?.forEach(r => roMap.set(r.punto_id, r));
 
-            const ptVolMap = new Map();
-            const now = new Date();
+            setTomas((peData || []).filter(p => p.coords_x && p.coords_y).map(p => {
+                const sObj = roMap.get(p.id);
+                const flow = sObj?.caudal_promedio ? parseFloat(sObj.caudal_promedio) : 0;
+                return {
+                    id: p.id, nombre: p.nombre, latitud: parseFloat(p.coords_y), longitud: parseFloat(p.coords_x),
+                    km: p.km ? parseFloat(p.km) : undefined, modulo: p.modulo_id, estado: sObj?.estado || 'cierre',
+                    caudal: flow, volumen_acumulado: ptVolMap.get(p.id) || 0
+                };
+            }));
 
-            // Sumamos históricos con integración dinámica si el valor es 0
-            rdVolData?.forEach(r => {
-                let vol = parseFloat(r.volumen_total_mm3 || 0);
-                
-                // Si el volumen almacenado es 0 pero hubo caudal, calculamos el volumen integrado
-                if (vol <= 0 && r.caudal_promedio_m3s > 0 && r.hora_apertura) {
-                    const tStart = new Date(r.hora_apertura);
-                    const tEnd = r.hora_cierre ? new Date(r.hora_cierre) : now;
-                    const diffHours = Math.max(0, (tEnd.getTime() - tStart.getTime()) / (1000 * 3600));
-                    vol = (r.caudal_promedio_m3s * 3600 * diffHours) / 1000000.0;
-                }
-                
-                ptVolMap.set(r.punto_id, (ptVolMap.get(r.punto_id) || 0) + vol);
-            });
-
-            // Agregamos el volumen del reporte ACTIVO de hoy solo si NO existe ya en los históricos
-            // para evitar duplicidad (mismo ID en reportes_operacion y reportes_diarios)
-            roData?.forEach(r => {
-                // Si ya procesamos este punto hoy en rdVolData, no lo volvemos a sumar aquí
-                // a menos que queramos un diferencial, pero dado que rdVolData ya integra hasta 'now'
-                // si hora_cierre es null, ya está cubierto.
-                if (!ptVolMap.has(r.punto_id)) {
-                    let activeVol = parseFloat(r.volumen_acumulado || 0);
-                    if (activeVol <= 0 && r.caudal_promedio > 0 && r.hora_apertura) {
-                        const tStart = new Date(r.hora_apertura);
-                        const diffHours = Math.max(0, (now.getTime() - tStart.getTime()) / (1000 * 3600));
-                        activeVol = (r.caudal_promedio * 3600 * diffHours) / 1000000.0;
-                    }
-                    ptVolMap.set(r.punto_id, activeVol);
-                }
-            });
-
-            const mergedTomas = (peData || [])
-                .filter(p => p.coords_x && p.coords_y)
-                .map(p => {
-                    const statusObj = roMap.get(p.id);
-                    const flow = statusObj?.caudal_promedio ? parseFloat(statusObj.caudal_promedio) : 0;
-                    
-                    return {
-                        id: p.id,
-                        nombre: p.nombre,
-                        latitud: parseFloat(p.coords_y as any),
-                        longitud: parseFloat(p.coords_x as any),
-                        km: p.km ? parseFloat(p.km as any) : undefined,
-                        modulo: p.modulo_id,
-                        estado: statusObj?.estado || 'cierre',
-                        caudal: flow,
-                        volumen_acumulado: ptVolMap.get(p.id) || 0
-                    };
-                });
-            
-            setTomas(mergedTomas);
-
-            // ACTUALIZACIÓN DE KPIS SIN DISCREPANCIAS (Principio: Un dato, una sola verdad)
-            // Usamos mergedTomas para que el conteo = lo que se ve en el Sidebar
-            const abiertas = mergedTomas.filter(t => t.caudal > 0);
-            setOperStats({
-                tomas_abiertas: abiertas.length,
-                tomas_cerradas: mergedTomas.length - abiertas.length,
-                gasto_distribuido_m3s: abiertas.reduce((s, t) => s + (t.caudal || 0), 0)
-            });
-
-            // 8. Demanda Total (Suma de caudales objetivos de los módulos)
-            const { data: modData } = await supabase.from('modulos').select('caudal_objetivo');
-            const totalDemanda = (modData || []).reduce((acc, curr) => acc + (parseFloat(curr.caudal_objetivo) || 0), 0);
+            // 6. Stats & Demand
+            const totalDemanda = (modStaticData || []).reduce((acc, curr) => acc + (parseFloat(curr.caudal_objetivo) || 0), 0);
             setTotalDemandaProgramada(totalDemanda);
 
         } catch (e) {
@@ -538,6 +458,7 @@ const GeoMonitor = () => {
             setLoading(false);
         }
     }, [activeEvent]);
+
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -969,7 +890,7 @@ const GeoMonitor = () => {
                         title="Polígonos de Módulos de Riego"
                     >
                         <MapIcon size={22} />
-                        {layers.modulos && <span className="geo-indicator-dot" style={{ background: '#8b5cf6' }}></span>}
+                        {layers.modulos && <span className="geo-indicator-dot geo-indicator-purple"></span>}
                     </button>
                     <button
                         className={clsx('geo-control-btn', layers.presasShape ? 'active' : 'default')}
@@ -977,15 +898,15 @@ const GeoMonitor = () => {
                         title="Polígonos de Vasos de Presas"
                     >
                         <Droplets size={22} />
-                        {layers.presasShape && <span className="geo-indicator-dot" style={{ background: '#1d4ed8' }}></span>}
+                        {layers.presasShape && <span className="geo-indicator-dot geo-indicator-blue"></span>}
                     </button>
                     <button
                         className={clsx('geo-control-btn', layers.rioShape ? 'active' : 'default')}
                         onClick={() => toggleLayer('rioShape')}
                         title="Trazado del Río Conchos"
                     >
-                        <Activity size={22} style={{ color: '#3b82f6' }} />
-                        {layers.rioShape && <span className="geo-indicator-dot" style={{ background: '#3b82f6' }}></span>}
+                        <Activity size={22} className="geo-icon-blue" />
+                        {layers.rioShape && <span className="geo-indicator-dot geo-indicator-blue"></span>}
                     </button>
                     <button
                         className={clsx('geo-control-btn', layers.alertas ? 'shield' : 'default')}
@@ -1000,35 +921,32 @@ const GeoMonitor = () => {
                     {/* Botón de Importar Shapefile (Solo Gerente SRL) */}
                     {isGerente && (
                         <button
-                            className="geo-control-btn default"
+                            className="geo-control-btn default geo-btn-import"
                             onClick={() => setShowImporter(true)}
                             title="Importar Shapefile / GeoJSON"
-                            style={{ borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: 4, paddingTop: 12 }}
                         >
                             <Upload size={20} />
                         </button>
                     )}
 
-                    <div className="geo-layer-divider" style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '8px 4px' }}></div>
+                    <div className="geo-divider-h"></div>
 
                     {/* Visual Toggles (User Request Improvements) */}
                     <button
                         className={clsx('geo-control-btn', layers.mostrarAforosQ ? 'active' : 'default')}
                         onClick={() => toggleLayer('mostrarAforosQ')}
                         title="Ver Gastos de Aforos de Control"
-                        style={{ color: layers.mostrarAforosQ ? '#f59e0b' : '' }}
                     >
-                        <TrendingUp size={20} />
-                        {layers.mostrarAforosQ && <span className="geo-indicator-dot" style={{ background: '#f59e0b' }}></span>}
+                        <TrendingUp size={20} className={layers.mostrarAforosQ ? 'geo-icon-amber' : ''} />
+                        {layers.mostrarAforosQ && <span className="geo-indicator-dot geo-indicator-amber"></span>}
                     </button>
                     <button
                         className={clsx('geo-control-btn', layers.mostrarAperturas ? 'active' : 'default')}
                         onClick={() => toggleLayer('mostrarAperturas')}
                         title="Ver Apertura de Compuertas"
-                        style={{ color: layers.mostrarAperturas ? '#22d3ee' : '' }}
                     >
-                        <Gauge size={20} />
-                        {layers.mostrarAperturas && <span className="geo-indicator-dot" style={{ background: '#22d3ee' }}></span>}
+                        <Gauge size={20} className={layers.mostrarAperturas ? 'geo-icon-teal' : ''} />
+                        {layers.mostrarAperturas && <span className="geo-indicator-dot geo-indicator-teal"></span>}
                     </button>
 
                     <div className="geo-layer-divider" style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '8px 4px' }}></div>
@@ -1085,28 +1003,21 @@ const GeoMonitor = () => {
                     <div className="geo-map-inner">
                         {/* Protocol HUD Banner */}
                         {activeEvent && (
-                            <div style={{
-                                position: 'absolute',
-                                top: 0, left: 0, right: 0, zIndex: 1000,
-                                background: activeEvent.evento_tipo === 'LLENADO' ? 'rgba(59, 130, 246, 0.9)' :
-                                           activeEvent.evento_tipo === 'ESTABILIZACION' ? 'rgba(16, 185, 129, 0.9)' :
-                                           activeEvent.evento_tipo === 'CONTINGENCIA_LLUVIA' ? 'rgba(245, 158, 11, 0.9)' :
-                                           activeEvent.evento_tipo === 'ANOMALIA_BAJA' ? 'rgba(124, 58, 237, 0.9)' : 'rgba(239, 68, 68, 0.9)',
-                                color: 'white',
-                                padding: '10px 20px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                backdropFilter: 'blur(8px)',
-                                borderBottom: '1px solid rgba(255,255,255,0.2)'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div className={clsx(
+                                'geo-event-banner',
+                                activeEvent.evento_tipo === 'LLENADO' && 'geo-event-bg-llenado',
+                                activeEvent.evento_tipo === 'ESTABILIZACION' && 'geo-event-bg-estabilizacion',
+                                activeEvent.evento_tipo === 'CONTINGENCIA_LLUVIA' && 'geo-event-bg-contingencia',
+                                activeEvent.evento_tipo === 'ANOMALIA_BAJA' && 'geo-event-bg-anomalia',
+                                !['LLENADO', 'ESTABILIZACION', 'CONTINGENCIA_LLUVIA', 'ANOMALIA_BAJA'].includes(activeEvent.evento_tipo) && 'geo-event-bg-alerta'
+                            )}>
+                                <div className="flex items-center gap-3">
                                     {activeEvent.evento_tipo === 'LLENADO' ? <Droplets size={20} /> : <AlertTriangle size={20} />}
                                     <div>
-                                        <div style={{ fontSize: '13px', fontWeight: '900', letterSpacing: '2px', textTransform: 'uppercase' }}>
+                                        <div className="text-[13px] font-black tracking-[2px] uppercase">
                                             PROTOCOLO: {activeEvent.evento_tipo.replace('_', ' ')}
                                         </div>
-                                        <div style={{ fontSize: '11px', opacity: 0.9 }}>
+                                        <div className="geo-event-banner-info">
                                             Inicio: {activeEvent.hora_apertura_real ? 
                                                 new Date(activeEvent.hora_apertura_real).toLocaleTimeString('es-MX', { 
                                                     hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' 
@@ -1116,9 +1027,9 @@ const GeoMonitor = () => {
                                     </div>
                                 </div>
                                 {activeEvent.evento_tipo === 'LLENADO' && (
-                                    <div style={{ textAlign: 'right' }}>
-                                        <div style={{ fontSize: '10px', textTransform: 'uppercase', opacity: 0.9 }}>Avance de Onda (Frente)</div>
-                                        <div style={{ fontSize: '16px', fontWeight: 'bold', fontFamily: 'monospace' }}>KM {maxKmLlenado.toFixed(3)}</div>
+                                    <div className="geo-event-banner-right">
+                                        <div className="geo-event-banner-label">Avance de Onda (Frente)</div>
+                                        <div className="geo-event-banner-km">KM {maxKmLlenado.toFixed(3)}</div>
                                     </div>
                                 )}
                             </div>
@@ -1127,7 +1038,7 @@ const GeoMonitor = () => {
                         {mapReady && (
                             <MapContainer
                                 center={mapCenter} zoom={10}
-                                style={{ height: '100%', width: '100%', background: '#0f172a' }}
+                                className="geo-map-leaflet"
                                 zoomControl={false} attributionControl={false}
                             >
                                 {baseLayer === 'satellite' && (
@@ -1346,21 +1257,21 @@ const GeoMonitor = () => {
                                         }}
                                     >
                                         <Tooltip direction="top" offset={[0, -8]}>
-                                            <div style={{ fontFamily: 'monospace', fontSize: 11, minWidth: 140 }}>
+                                            <div className="geo-tooltip-content">
                                                 <b>{esc.nombre}</b> (Km {esc.km})<br />
                                                 {esc.nivel_actual !== undefined ? (
                                                     <>
-                                                        Nivel: <span style={{ color: '#22d3ee', fontWeight: 'bold' }}>{esc.nivel_actual} m</span><br />
-                                                        Δ12h: <span style={{ color: (esc.delta_12h ?? 0) > 0 ? '#10b981' : '#ef4444' }}>{esc.delta_12h ?? 0} m</span><br />
+                                                        Nivel: <span className="geo-text-highlight">{esc.nivel_actual} m</span><br />
+                                                        Δ12h: <span className={(esc.delta_12h ?? 0) > 0 ? 'geo-text-success' : 'geo-text-danger'}>{esc.delta_12h ?? 0} m</span><br />
                                                     </>
                                                 ) : (
-                                                    <span style={{ color: '#64748b' }}>Sin lectura hoy</span>
+                                                    <span className="text-slate-500">Sin lectura hoy</span>
                                                 )}
                                                 {layers.mostrarAperturas && esc.pzas_radiales > 0 && (
-                                                    <div style={{ marginTop: 4, padding: '4px 6px', background: 'rgba(34, 211, 238, 0.1)', border: '1px solid rgba(34, 211, 238, 0.2)', borderRadius: 4 }}>
-                                                        <span style={{ fontSize: 9, color: '#94a3b8' }}>Apertura Compuertas:</span><br />
-                                                        <b style={{ color: '#fff', fontSize: 13 }}>{(esc.apertura_radiales_m || 0) > 0 ? `${(esc.apertura_radiales_m || 0).toFixed(2)} m` : 'CERRADAS'}</b>
-                                                        <div style={{ fontSize: 8, color: '#64748b' }}>{esc.pzas_radiales} radiales ({esc.ancho}×{esc.alto}m)</div>
+                                                    <div className="geo-apertura-badge">
+                                                        <span className="text-[9px] text-slate-400">Apertura Compuertas:</span><br />
+                                                        <b className="text-white text-[13px]">{(esc.apertura_radiales_m || 0) > 0 ? `${(esc.apertura_radiales_m || 0).toFixed(2)} m` : 'CERRADAS'}</b>
+                                                        <div className="text-[8px] text-slate-500">{esc.pzas_radiales} radiales ({esc.ancho}×{esc.alto}m)</div>
                                                     </div>
                                                 )}
                                             </div>
@@ -1374,16 +1285,16 @@ const GeoMonitor = () => {
                                     return (
                                         <Marker key={af.id} position={[af.latitud, af.longitud]} icon={aforoIcon}>
                                             <Tooltip direction="top" offset={[0, -12]}>
-                                                <div style={{ fontFamily: 'monospace', fontSize: 11, minWidth: 160 }}>
-                                                    <b style={{ color: '#f59e0b' }}>📐 {af.nombre_punto}</b><br />
-                                                    <span style={{ fontSize: 9 }}>Histórico de Aforo de Control</span><br />
+                                                <div className="geo-aforo-tooltip">
+                                                    <b className="geo-icon-amber">📐 {af.nombre_punto}</b><br />
+                                                    <span className="text-[9px]">Histórico de Aforo de Control</span><br />
                                                     {layers.mostrarAforosQ && m ? (
-                                                        <div style={{ marginTop: 4, padding: '4px 6px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: 4 }}>
-                                                            Gasto: <b style={{ color: '#fff', fontSize: 14 }}>{m.gasto_calculado_m3s?.toFixed(2)} <small>m³/s</small></b><br />
-                                                            <span style={{ fontSize: 8 }}>{m.fecha} @ {m.hora_inicio}</span>
+                                                        <div className="geo-aforo-badge">
+                                                            Gasto: <b className="text-white text-[14px]">{m.gasto_calculado_m3s?.toFixed(2)} <small>m³/s</small></b><br />
+                                                            <span className="text-[8px]">{m.fecha} @ {m.hora_inicio}</span>
                                                         </div>
                                                     ) : (
-                                                        <span style={{ color: '#64748b', fontSize: 9 }}>{layers.mostrarAforosQ ? 'Sin mediciones recientes' : ''}</span>
+                                                        <span className="text-slate-500 text-[9px]">{layers.mostrarAforosQ ? 'Sin mediciones recientes' : ''}</span>
                                                     )}
                                                 </div>
                                             </Tooltip>
@@ -1395,26 +1306,28 @@ const GeoMonitor = () => {
                                 {layers.tomas && presas.map(p => (
                                     <Marker key={p.presa_id} position={[p.latitud, p.longitud]} icon={presaIcon}>
                                         <Tooltip direction="top" offset={[0, -16]} permanent>
-                                            <span style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 'bold' }}>
+                                            <span className="font-mono text-[10px] font-bold">
                                                 {p.porcentaje_llenado.toFixed(0)}%
                                             </span>
                                         </Tooltip>
                                         <Popup>
-                                            <div style={{ fontFamily: 'monospace', minWidth: 180 }}>
-                                                <strong style={{ fontSize: 13, color: '#1d4ed8' }}>{p.nombre}</strong>
-                                                <div style={{ fontSize: 10, color: '#888', marginBottom: 6 }}>Última lectura: {p.fecha}</div>
-                                                <div style={{ background: '#f0f9ff', borderRadius: 6, padding: 8, marginBottom: 4 }}>
-                                                    <div style={{ fontSize: 11 }}>Almacenamiento: <b>{p.almacenamiento_mm3.toFixed(1)} Mm³</b></div>
-                                                    <div style={{ width: '100%', height: 8, background: '#e2e8f0', borderRadius: 4, marginTop: 4 }}>
-                                                        <div style={{
-                                                            width: `${Math.min(p.porcentaje_llenado, 100)}%`, height: '100%',
-                                                            background: p.porcentaje_llenado > 70 ? '#3b82f6' : p.porcentaje_llenado > 40 ? '#f59e0b' : '#ef4444',
-                                                            borderRadius: 4
-                                                        }}></div>
+                                            <div className="geo-presa-popup">
+                                                <strong className="text-[13px] geo-icon-blue">{p.nombre}</strong>
+                                                <div className="text-[10px] text-slate-400 mb-1.5">Última lectura: {p.fecha}</div>
+                                                <div className="geo-presa-stat-box">
+                                                    <div className="text-[11px]">Almacenamiento: <b>{p.almacenamiento_mm3.toFixed(1)} Mm³</b></div>
+                                                    <div className="geo-progress-bg">
+                                                        <div 
+                                                            className="geo-progress-bar"
+                                                            style={{
+                                                                width: `${Math.min(p.porcentaje_llenado, 100)}%`,
+                                                                background: p.porcentaje_llenado > 70 ? '#3b82f6' : p.porcentaje_llenado > 40 ? '#f59e0b' : '#ef4444',
+                                                            }}
+                                                        />
                                                     </div>
-                                                    <div style={{ fontSize: 11, marginTop: 4 }}>Llenado: <b>{p.porcentaje_llenado.toFixed(1)}%</b></div>
+                                                    <div className="text-[11px] mt-1">Llenado: <b>{p.porcentaje_llenado.toFixed(1)}%</b></div>
                                                 </div>
-                                                <div style={{ fontSize: 11 }}>Extracción: <b>{p.extraccion_total_m3s} m³/s</b></div>
+                                                <div className="text-[11px]">Extracción: <b>{p.extraccion_total_m3s} m³/s</b></div>
                                             </div>
                                         </Popup>
                                     </Marker>

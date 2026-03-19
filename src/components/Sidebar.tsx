@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge, BarChart3, Database } from 'lucide-react';
+import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge, BarChart3, Database, Box } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useHydraStore } from '../store/useHydraStore';
@@ -57,6 +57,7 @@ const Sidebar = () => {
     const navItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
         { icon: Waves, label: 'Presas', path: '/presas' },
+        { icon: Box, label: 'Modelación Hidráulica', path: '/modelacion-hidraulica' },
         { icon: Droplets, label: 'Distribución', path: '/canales', badge: liveStats.activePoints > 0 ? `${liveStats.activePoints}` : undefined },
         { icon: Gauge, label: 'Control de Niveles', path: '/escalas' },
         { icon: Activity, label: 'Hidrometría', path: '/hidrometria' },

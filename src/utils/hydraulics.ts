@@ -230,3 +230,109 @@ export const getEfficiencyStatus = (eficiencia: number): { color: string; label:
   if (eficiencia >= 85) return { color: '#ef4444', label: 'Alerta Roja', bg: 'rgba(239, 68, 68, 0.1)' };
   return { color: '#991b1b', label: 'Crítico (Fuga)', bg: 'rgba(153, 27, 27, 0.1)' };
 };
+
+/**
+ * Standard Step Method (Paso Estándar) for Gradually Varied Flow.
+ * Solves the energy equation between two sections (dx from 1 to 2).
+ * Note: For subcritical flow, we usually compute from downstream to upstream (negative dx).
+ */
+export const calculateStandardStep = (
+  y1: number,
+  Q: number,
+  dx: number,
+  b: number,
+  z: number,
+  n: number,
+  S0: number
+): number => {
+  const g = GRAVITY;
+  const alpha = 1.0; 
+
+  const getE = (y: number): number => {
+    if (y <= 0) return 0;
+    const A = (b + z * y) * y;
+    const v = Q / A;
+    return y + (alpha * Math.pow(v, 2)) / (2 * g);
+  };
+
+  const getSf = (y: number): number => {
+    if (y <= 0) return 1e-10;
+    const A = (b + z * y) * y;
+    const P = b + 2 * y * Math.sqrt(1 + z * z);
+    const R = A / P;
+    return Math.pow((Q * n) / (A * Math.pow(R, 2/3)), 2);
+  };
+
+  const E1 = getE(y1);
+  const Sf1 = getSf(y1);
+
+  let y2 = y1;
+  const maxIter = 15;
+  const tolerance = 0.001;
+
+  for (let i = 0; i < maxIter; i++) {
+    const E2 = getE(y2);
+    const Sf2 = getSf(y2);
+    // f(y2) = E2 - E1 + (Sf_avg - S0) * dx = 0 
+    // where dx is positive going downstream.
+    const f = E2 - E1 + ((Sf1 + Sf2) / 2 - S0) * dx;
+    
+    // Simple numerical derivative
+    const dy = 0.001;
+    const Sf_plus = getSf(y2 + dy);
+    const f_plus = getE(y2 + dy) - E1 + ((Sf1 + Sf_plus) / 2 - S0) * dx;
+    const df = (f_plus - f) / dy;
+
+    if (Math.abs(df) < 1e-8) break;
+    const step = f / df;
+    y2 = y2 - step;
+
+    if (Math.abs(step) < tolerance) break;
+    if (y2 < 0.05) { y2 = 0.05; break; }
+    if (y2 > 10) { y2 = 10; break; }
+  }
+
+  return Number(y2.toFixed(3));
+};
+
+/**
+ * Calculates Normal Depth (yn) using Manning Equation for trapezoidal sections.
+ * Uses iterative method (Maning: Q = (1/n) * A * R^(2/3) * S^(1/2))
+ */
+export const calculateNormalDepth = (
+  Q: number,
+  b: number,
+  z: number,
+  n: number,
+  S0: number
+): number => {
+  if (Q <= 0 || b <= 0 || S0 <= 0) return 0;
+  
+  let y = Math.pow((Q * n) / (b * Math.sqrt(S0)), 0.6); // Initial guess
+  const maxIter = 20;
+  
+  for (let i = 0; i < maxIter; i++) {
+    const A = (b + z * y) * y;
+    const P = b + 2 * y * Math.sqrt(1 + z * z);
+    const R = A / P;
+    const Q_calc = (1 / n) * A * Math.pow(R, 2/3) * Math.sqrt(S0);
+    
+    // Newton-Raphson-like step
+    const f = Q_calc - Q;
+    const dy = 0.001;
+    const A_plus = (b + z * (y + dy)) * (y + dy);
+    const P_plus = b + 2 * (y + dy) * Math.sqrt(1 + z * z);
+    const R_plus = A_plus / P_plus;
+    const Q_plus = (1 / n) * A_plus * Math.pow(R_plus, 2/3) * Math.sqrt(S0);
+    const df = (Q_plus - Q_calc) / dy;
+    
+    const step = f / df;
+    y = y - step;
+    if (Math.abs(step) < 0.001) break;
+    if (y < 0.01) { y = 0.01; break; }
+  }
+  
+  return Number(y.toFixed(3));
+};
+
+

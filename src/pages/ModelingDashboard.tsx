@@ -708,7 +708,7 @@ const ModelingDashboard: React.FC = () => {
                   q_base: q_real,
                   q_sim: q_sim,
                   isRiver: isRiverTransit,
-                  startTime: simTime,
+                  startTime: formatSimTime(simTime),
                   date: new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
                 }}
                 results={simResults}

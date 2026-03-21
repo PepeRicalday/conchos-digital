@@ -1,0 +1,204 @@
+.hydra-ai-trigger {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  border: 1px solid rgba(13, 148, 136, 0.5);
+  cursor: pointer;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 20px rgba(8, 145, 178, 0.4);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 1000;
+}
+
+.hydra-ai-trigger:hover {
+  transform: translateY(-5px) scale(1.05);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 30px rgba(8, 145, 178, 0.6);
+  filter: brightness(1.1);
+}
+
+.hydra-ai-trigger.active {
+  background: #1e293b;
+  transform: rotate(90deg);
+}
+
+.trigger-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 20px;
+  height: 20px;
+  background: #f59e0b;
+  color: #000;
+  border-radius: 50%;
+  font-size: 0.6rem;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #000;
+  animation: bounce 2s infinite;
+}
+
+.hydra-ai-window {
+  position: fixed;
+  bottom: 96px;
+  right: 24px;
+  width: 360px;
+  max-height: 600px;
+  height: 550px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(8, 145, 178, 0.3);
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  z-index: 1000;
+  animation: slideUp 0.3s ease-out;
+}
+
+.hydra-ai-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(8, 145, 178, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(to right, rgba(8, 145, 178, 0.1), transparent);
+}
+
+.hydra-ai-chat {
+  flex: 1;
+  padding: 24px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(6, 182, 212, 0.3) transparent;
+}
+
+.msg-container {
+  max-width: 85%;
+  display: flex;
+  flex-direction: column;
+}
+
+.msg-container.bot {
+  align-self: flex-start;
+}
+
+.msg-container.user {
+  align-self: flex-end;
+}
+
+.msg-bubble {
+  padding: 12px 14px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  border-radius: 12px;
+  position: relative;
+}
+
+.bot .msg-bubble {
+  background: rgba(30, 41, 59, 0.8);
+  color: #e2e8f0;
+  border: 1px solid rgba(8, 145, 178, 0.2);
+  border-top-left-radius: 4px;
+}
+
+.user .msg-bubble {
+  background: linear-gradient(135deg, #0ea5e9 0%, #0c4a6e 100%);
+  color: white;
+  border-top-right-radius: 4px;
+  box-shadow: 0 4px 15px rgba(14, 165, 233, 0.2);
+}
+
+.msg-time {
+  font-size: 0.5rem;
+  color: #64748b;
+  margin-top: 4px;
+  padding: 0 4px;
+}
+
+.user .msg-time {
+  align-self: flex-end;
+}
+
+.hydra-ai-footer {
+  padding: 15px;
+  background: rgba(15, 23, 42, 0.5);
+  border-top: 1px solid rgba(8, 145, 178, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chat-input {
+  flex: 1;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(8, 145, 178, 0.2);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.75rem;
+  color: white;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.chat-input:focus {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: rgba(6, 182, 212, 0.6);
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.15);
+}
+
+.send-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #0891b2;
+  color: white;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.send-btn:hover {
+  background: #0ea5e9;
+  transform: scale(1.1);
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+/* Custom Scrollbar */
+.hydra-ai-chat::-webkit-scrollbar {
+  width: 4px;
+}
+
+.hydra-ai-chat::-webkit-scrollbar-thumb {
+  background: rgba(8, 145, 178, 0.3);
+  border-radius: 10px;
+}
+
+.hydra-ai-chat::-webkit-scrollbar-thumb:hover {
+  background: rgba(8, 145, 178, 0.5);
+}

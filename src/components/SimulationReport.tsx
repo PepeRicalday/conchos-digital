@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
-import { Printer, X, ShieldCheck, Waves, Clock } from 'lucide-react';
+import { Printer, X, ShieldCheck, Waves } from 'lucide-react';
 import './SimulationReport.css';
 
 interface SimulationReportProps {
@@ -22,7 +22,9 @@ const SimulationReport: React.FC<SimulationReportProps> = ({ scenario, results, 
     documentTitle: `Reporte_Simulacion_${scenario.date.replace(/\//g, '-')}`,
   });
 
-  const arrivalK0 = results.find(d => d.km === 0);
+  // Remove arrivalK0 to avoid warnings/errors if unused
+  // const arrivalK0 = results.find(d => d.km === 0);
+
   const arrivalK104 = results[results.length - 1];
 
   return (

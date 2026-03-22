@@ -392,9 +392,9 @@ const GeoMonitor = () => {
                     if (lp.presa_id === 'PRE-001' && activeEvent?.evento_tipo === 'LLENADO' && extraccion === 0) extraccion = activeEvent.gasto_solicitado_m3s || 30;
                     pMap.set(lp.presa_id, {
                         presa_id: lp.presa_id, nombre: meta.nombre,
-                        latitud: parseFloat(meta.latitud), longitud: parseFloat(meta.longitud),
-                        almacenamiento_mm3: parseFloat(lp.almacenamiento_mm3 || 0),
-                        porcentaje_llenado: parseFloat(lp.porcentaje_llenado || 0),
+                        latitud: meta.latitud ?? 0, longitud: meta.longitud ?? 0,
+                        almacenamiento_mm3: Number(lp.almacenamiento_mm3 || 0),
+                        porcentaje_llenado: Number(lp.porcentaje_llenado || 0),
                         extraccion_total_m3s: extraccion, fecha: lp.fecha
                     });
                 }
@@ -407,7 +407,7 @@ const GeoMonitor = () => {
                 if (!afResult[a.punto_control_id]) {
                     const meta = afMedData.find(m => m.id === a.punto_control_id);
                     if (meta) {
-                        afResult[a.punto_control_id] = { ...a, latitud: parseFloat(meta.latitud), longitud: parseFloat(meta.longitud) };
+                        afResult[a.punto_control_id] = { ...a, latitud: meta.latitud ?? 0, longitud: meta.longitud ?? 0 };
                     }
                 }
             });
@@ -440,8 +440,8 @@ const GeoMonitor = () => {
                 const sObj = roMap.get(p.id);
                 const flow = sObj?.caudal_promedio ? parseFloat(sObj.caudal_promedio) : 0;
                 return {
-                    id: p.id, nombre: p.nombre, latitud: parseFloat(p.coords_y), longitud: parseFloat(p.coords_x),
-                    km: p.km ? parseFloat(p.km) : undefined, modulo: p.modulo_id, estado: sObj?.estado || 'cierre',
+                    id: p.id, nombre: p.nombre, latitud: p.coords_y ?? 0, longitud: p.coords_x ?? 0,
+                    km: p.km ?? undefined, modulo: p.modulo_id ?? undefined, estado: sObj?.estado || 'cierre',
                     caudal: flow, volumen_acumulado: ptVolMap.get(p.id) || 0
                 };
             }));

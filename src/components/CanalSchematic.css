@@ -115,6 +115,18 @@
     box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
 }
 
+/* Toma tuvo movimiento en el día pero ya cerró */
+.schematic-point.was-active .pin-head {
+    background-color: #92400e;
+    border-color: #f59e0b;
+    color: #fcd34d;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.35);
+}
+
+.schematic-point.was-active .pin-line {
+    background-color: #f59e0b;
+}
+
 .schematic-point.lateral .pin-head {
     border-radius: 4px;
     /* Square for Laterals */
@@ -187,6 +199,30 @@
     margin-top: 2px;
 }
 
+/* Km range markers at start/end of the visible canal line */
+.schematic-km-label {
+    position: absolute;
+    top: calc(50% + 14px);
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    background: rgba(0, 0, 0, 0.55);
+    padding: 1px 5px;
+    border-radius: 4px;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.schematic-km-start {
+    left: 0;
+    transform: translateX(0);
+}
+
+.schematic-km-end {
+    right: 0;
+    transform: translateX(0);
+}
+
 /* Legend */
 .schematic-legend {
     display: flex;
@@ -224,6 +260,11 @@
 .legend-item .dot.open {
     background-color: var(--color-primary);
     border-color: var(--color-primary);
+}
+
+.legend-item .dot.was-active {
+    background-color: #92400e;
+    border-color: #f59e0b;
 }
 
 .legend-item .dot.closed {

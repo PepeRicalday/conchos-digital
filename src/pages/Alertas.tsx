@@ -189,8 +189,8 @@ const Alertas = () => {
                                         key={alerta.id}
                                         style={{
                                             position: 'absolute',
-                                            left: `${((Number(alerta.coordenadas.lng) + 106) * 50) % 80 + 10}%`,
-                                            top: `${((Number(alerta.coordenadas.lat) - 27) * 40) % 70 + 15}%`,
+                                            left: `${((Number(alerta.coordenadas!.lng) + 106) * 50) % 80 + 10}%`,
+                                            top: `${((Number(alerta.coordenadas!.lat) - 27) * 40) % 70 + 15}%`,
                                             transform: 'translate(-50%, -100%)',
                                             display: 'flex',
                                             flexDirection: 'column',

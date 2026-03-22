@@ -171,7 +171,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                             zone: p.zona || 'General',
                             section: sectionInfo?.nombre || 'Sin Sección',
                             last_update_time: latest?.fecha_hora,
-                            section_data: sectionInfo,
+                            section_data: sectionInfo ? { ...sectionInfo, color: sectionInfo.color ?? '#64748b' } : undefined,
                             mediciones: measurements,
                             reportes: dailyReport ? [dailyReport] : []
                         };

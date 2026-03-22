@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Timer, MapPin, Clock, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-import { formatTime } from '../utils/dateHelpers';
+import { formatTime as formatTimeTZ } from '../utils/dateHelpers';
 import './ArrivalPredictor.css';
 
 interface ArrivalInfo {
@@ -141,7 +141,7 @@ const ArrivalPredictor: React.FC = () => {
                                 <div className="ap-arrival-meta">
                                     <Clock size={10} style={{ color: '#60a5fa' }} />
                                     <span className="ap-arrival-text">
-                                        ETA: <span className="ap-arrival-time">{formatTime(p.hora_arribo_estimada)}</span>
+                                        ETA: <span className="ap-arrival-time">{formatTimeTZ(p.hora_arribo_estimada)}</span>
                                     </span>
                                 </div>
                             </div>

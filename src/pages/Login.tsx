@@ -4,8 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { LogIn, Lock, Mail, Activity } from 'lucide-react';
 import './Login.css';
 
-const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
-const BUILD_HASH = typeof __BUILD_HASH__ !== 'undefined' ? __BUILD_HASH__ : 'dev';
+const APP_VERSION = typeof __V2_APP_VERSION__ !== 'undefined' ? __V2_APP_VERSION__ : '0.0.0';
+const BUILD_HASH = typeof __V2_BUILD_HASH__ !== 'undefined' ? __V2_BUILD_HASH__ : 'dev';
 
 const Login: React.FC = () => {
     const [email, setEmail] = useState('');

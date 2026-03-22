@@ -1,7 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import pkg from './package.json'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -14,14 +13,15 @@ export default defineConfig(({ mode }) => {
 
   return {
     define: {
-      '__APP_VERSION__': JSON.stringify(pkg.version),
-      '__BUILD_HASH__': JSON.stringify('v2.5.4-audit-p2')
+      '__V2_APP_VERSION__': JSON.stringify('2.5.8'),
+      '__V2_BUILD_HASH__': JSON.stringify('v2.5.8'),
+      '__BUILD_DATE__': JSON.stringify(new Date().toISOString())
     },
     plugins: [
       react(),
       VitePWA({
         registerType: 'autoUpdate',   // SW se actualiza sin prompt
-        filename: 'sw-v2.5.4.js',
+        filename: 'sw-v2.5.8.js',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
           name: 'SICA 005 - Conchos Digital',

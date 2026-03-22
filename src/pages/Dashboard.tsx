@@ -757,7 +757,7 @@ const Dashboard = () => {
                                 </p>
                             </div>
                             <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
-                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">SICA DR-005 Conchos Digital • v2.5.3-hydrasync</span>
+                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">SICA DR-005 Conchos Digital • v{__V2_APP_VERSION__} • {__V2_BUILD_HASH__} • {new Date().toISOString().slice(0, 16).replace('T', ' ')}</span>
                                 <div className="flex items-center gap-2">
                                     <div className="w-1.5 h-1.5 rounded-full bg-blue-500/50"></div>
                                     <span className="text-[8px] font-bold text-slate-600 uppercase">Operational Nucleus</span>

@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
 
 // Build-time constants injected by Vite (vite.config.ts → define)
-declare const __APP_VERSION__: string;
-declare const __BUILD_HASH__: string;
+declare const __V2_APP_VERSION__: string;
+declare const __V2_BUILD_HASH__: string;
 declare const __BUILD_DATE__: string;
 
 // PWA virtual module (vite-plugin-pwa)

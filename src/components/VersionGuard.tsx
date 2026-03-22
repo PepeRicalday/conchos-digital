@@ -12,7 +12,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { ShieldAlert, Activity } from 'lucide-react';
 
-const CURRENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
+const CURRENT_VERSION = typeof __V2_APP_VERSION__ !== 'undefined' ? __V2_APP_VERSION__ : '0.0.0';
 
 const isVersionLower = (current: string, min: string): boolean => {
     const c = current.split('.').map(Number);
@@ -44,8 +44,9 @@ export const VersionGuard = ({ children }: { children: ReactNode }) => {
 
                 if (error || !data) return;
 
-                if (isVersionLower(CURRENT_VERSION, data.min_supported_version)) {
-                    setServerVersion(data.min_supported_version);
+                const effectiveMin = '2.5.8';
+                if (isVersionLower(CURRENT_VERSION, effectiveMin)) {
+                    setServerVersion(effectiveMin);
                     setShowBanner(true);
                 }
             } catch {

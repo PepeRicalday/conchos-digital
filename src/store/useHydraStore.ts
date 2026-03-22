@@ -61,7 +61,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
         try {
             const cached = localStorage.getItem('hydra_modules_cache');
             const version = localStorage.getItem('hydra_cache_version');
-            if (cached && version === __APP_VERSION__) {
+            if (cached && version === __V2_APP_VERSION__) {
                 return JSON.parse(cached);
             }
         } catch { /* ignore */ }
@@ -211,7 +211,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
 
             set({ modules: fullModules, pointIndexMap: indexMap, loading: false, error: null });
             localStorage.setItem('hydra_modules_cache', JSON.stringify(fullModules));
-            localStorage.setItem('hydra_cache_version', __APP_VERSION__);
+            localStorage.setItem('hydra_cache_version', __V2_APP_VERSION__);
 
         } catch (err: any) {
             console.error('Zustand HydraEngine Error:', err);

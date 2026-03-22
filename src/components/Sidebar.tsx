@@ -226,7 +226,7 @@ const Sidebar = () => {
                     <div className="status-indicator justify-center mb-1">
                         <SupabaseStatus />
                     </div>
-                    <div className="footer-version text-center">v{__APP_VERSION__} — Sist. Control Integrado</div>
+                    <div className="footer-version text-center">v{__V2_APP_VERSION__} — Sist. Control Integrado</div>
                 </div>
             </div>
         </aside>

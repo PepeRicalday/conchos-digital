@@ -198,13 +198,13 @@ const OfficialDamReport = () => {
                                                 </td>
                                                 <td className="p-1 border-r border-slate-300">
                                                     <span className="font-bold">{evt.nombre_punto}</span>
-                                                    <span className="text-slate-500 ml-1 text-[8px] italic">Km {evt.km.toFixed(3)}</span>
+                                                    <span className="text-slate-500 ml-1 text-[8px] italic">Km {(evt.km ?? 0).toFixed(3)}</span>
                                                 </td>
                                                 <td className="p-1 text-center border-r border-slate-300">
                                                     <EventBadge status={evt.estado} />
                                                 </td>
                                                 <td className="p-1 text-right font-mono font-bold border-r border-slate-300">
-                                                    {evt.gasto_m3s.toFixed(3)}
+                                                    {(evt.gasto_m3s ?? 0).toFixed(3)}
                                                 </td>
                                                 <td className="p-1 text-[9px] text-slate-600 leading-tight">
                                                     {evt.notas || '---'}

@@ -1,7 +1,20 @@
 import React, { useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
-import { Printer, X, ShieldCheck, Waves } from 'lucide-react';
+import { Printer, X } from 'lucide-react';
 import './SimulationReport.css';
+
+// ── Tipado del resultado del motor hidráulico ───────────────────────────────
+interface CPResult {
+  id: string; nombre: string; km: number;
+  y_base: number; q_base: number; y_sim: number; q_sim: number;
+  delta_y: number; remanso_type: string; status: string;
+  transit_min: number; cumulative_min: number; arrival_time: string;
+  celerity_ms: number; velocity_ms: number; froude_n: number;
+  bordo_libre_pct: number; h_radial: number;
+  head_base: number; head_sim: number; head_delta: number;
+  cd_used: number; area_gate: number;
+  apertura_requerida: number;
+}
 
 interface SimulationReportProps {
   scenario: {
@@ -10,166 +23,582 @@ interface SimulationReportProps {
     isRiver: boolean;
     startTime: string;
     date: string;
+    eventType: string;
+    damFuente: string;
+    damBaseValue: number;
+    damCurrentValue: number;
+    damNivel: string;
+    totalExtractionM3s: number;
   };
-  results: any[];
+  results: CPResult[];
+  gateBase: Record<string, number>;
+  deliveryPoints: Array<{
+    punto_id: string; nombre: string; km: number; tipo: string;
+    caudal_m3s: number; volumen_mm3: number;
+    hora_apertura: string | null; estado: string;
+    modulo_nombre: string | null; is_active: boolean;
+  }>;
   onClose: () => void;
 }
 
-const SimulationReport: React.FC<SimulationReportProps> = ({ scenario, results, onClose }) => {
+// ── Helpers ─────────────────────────────────────────────────────────────────
+const sf = (v: unknown, fb = 0): number => {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
+  return Number.isFinite(n) ? n : fb;
+};
+
+// const FREEBOARD = 3.2;
+const DEFAULT_CD = 0.70;
+
+function statusClass(s: string) {
+  if (s === 'CRITICO') return 'rpt-badge-crit';
+  if (s === 'ALERTA')  return 'rpt-badge-alert';
+  return 'rpt-badge-ok';
+}
+
+function fmtDelta(dy: number): string {
+  const cm = Math.round(dy * 100);
+  return cm === 0 ? '0 cm' : `${cm > 0 ? '+' : ''}${cm} cm`;
+}
+
+function fmtAp(v: number): string {
+  return Math.min(3.0, Math.max(0.1, v)).toFixed(2);
+}
+
+function fmtMin(min: number): string {
+  if (min < 1) return '< 1 min';
+  const h = Math.floor(min / 60), m = Math.round(min % 60);
+  return h === 0 ? `${m} min` : `${h}h ${String(m).padStart(2, '0')}min`;
+}
+
+function apDelta(apReq: number, apSica: number): string {
+  const d = apReq - apSica;
+  if (Math.abs(d) < 0.03) return 'Sin ajuste';
+  return `${d > 0 ? '▲ ABRIR' : '▼ CERRAR'} ${Math.abs(d).toFixed(2)}m`;
+}
+
+// ── Componente Principal ─────────────────────────────────────────────────────
+const SimulationReport: React.FC<SimulationReportProps> = ({
+  scenario, results, gateBase, deliveryPoints, onClose,
+}) => {
   const componentRef = useRef<HTMLDivElement>(null);
   const handlePrint = useReactToPrint({
     contentRef: componentRef,
-    documentTitle: `Reporte_Simulacion_${scenario.date.replace(/\//g, '-')}`,
+    documentTitle: `SICA_Simulacion_${scenario.date.replace(/\//g, '-')}_${scenario.startTime.replace(':', '')}`,
   });
 
-  // Remove arrivalK0 to avoid warnings/errors if unused
-  // const arrivalK0 = results.find(d => d.km === 0);
+  if (!results.length) return null;
 
-  const arrivalK104 = results[results.length - 1];
+  const lastCP      = results[results.length - 1];
+  const qBase       = sf(scenario.q_base);
+  const qSim        = sf(scenario.q_sim);
+  const deltaQ      = qSim - qBase;
+  const globalEff   = qSim > 0 && lastCP ? (sf(lastCP.q_sim) / qSim) * 100 : 0;
+  const qLoss       = qSim - sf(lastCP?.q_sim);
+  const totalArrMin = sf(lastCP?.cumulative_min);
+  const critCount   = results.filter(r => r.status === 'CRITICO').length;
+  const alertCount  = results.filter(r => r.status === 'ALERTA').length;
+
+  // Evento
+  const eventLabel = scenario.eventType === 'INCREMENTO' ? `▲ INCREMENTO +${Math.abs(deltaQ).toFixed(1)} m³/s`
+    : scenario.eventType === 'DECREMENTO' ? `▼ DECREMENTO −${Math.abs(deltaQ).toFixed(1)} m³/s`
+    : scenario.eventType === 'CORTE' ? `✂ CORTE DE GASTO (−${Math.abs(deltaQ).toFixed(1)} m³/s)`
+    : `◯ LLENADO INICIAL (+${Math.abs(deltaQ).toFixed(1)} m³/s)`;
+
+  // Alertas automáticas por umbral hidráulico
+  const alerts: { level: 'CRITICO' | 'ALERTA' | 'INFO'; text: string }[] = [];
+  results.forEach(r => {
+    if (r.status === 'CRITICO') alerts.push({
+      level: 'CRITICO',
+      text: `${r.nombre} (K-${r.km}): Tirante simulado ${sf(r.y_sim).toFixed(2)}m — ${sf(r.bordo_libre_pct).toFixed(0)}% del bordo libre. RIESGO DE DESBORDAMIENTO.`,
+    });
+    else if (r.status === 'ALERTA') alerts.push({
+      level: 'ALERTA',
+      text: `${r.nombre} (K-${r.km}): Tirante simulado ${sf(r.y_sim).toFixed(2)}m — ${sf(r.bordo_libre_pct).toFixed(0)}% del bordo libre. Monitoreo estrecho requerido.`,
+    });
+    // Apertura
+    const apSica = gateBase[r.id] ?? sf(r.h_radial, 1.25);
+    const apReq  = Math.min(3.0, Math.max(0.1, sf(r.apertura_requerida)));
+    const apDiff = apReq - apSica;
+    if (Math.abs(apDiff) > 0.05 && Math.abs(deltaQ) > 0.5) {
+      alerts.push({
+        level: 'INFO',
+        text: `${r.nombre}: Para mantener escala en ${sf(r.y_base).toFixed(2)}m se requiere ajustar apertura de ${apSica.toFixed(2)}m → ${apReq.toFixed(2)}m (${apDiff > 0 ? 'ABRIR' : 'CERRAR'} ${Math.abs(apDiff).toFixed(2)}m).`,
+      });
+    }
+  });
+  if (sf(globalEff) < 90) alerts.push({
+    level: 'ALERTA',
+    text: `Eficiencia de conducción proyectada: ${sf(globalEff).toFixed(1)}% — Por debajo del umbral óptimo (90%). Revisar pérdidas en tramos intermedios.`,
+  });
+  if (alerts.length === 0) alerts.push({ level: 'INFO', text: 'Sistema hidráulico estable. Todos los puntos de control dentro de parámetros operativos.' });
+
+  // Recomendaciones operativas
+  const recs: string[] = [];
+  if (deltaQ > 0.5) {
+    recs.push(`Monitorear el arribo de la onda al tramo K-23 (estimado ${results.find(r => r.km >= 23)?.arrival_time ?? '—'}) antes de efectuar ajustes adicionales en compuertas aguas abajo.`);
+    recs.push(`Revisar y ajustar aperturas radiales según la columna "Apertura Requerida" del Cuadro de Maniobra para mantener niveles de escala estables.`);
+  }
+  if (deltaQ < -0.5) {
+    recs.push(`Con decremento de gasto, verificar tirantes aguas abajo de compuertas. Posible caída de presión de succión en tomas laterales.`);
+    recs.push(`Ajustar aperturas según apertura requerida para evitar vaciamiento prematuro del canal en tramos finales.`);
+  }
+  if (scenario.isRiver) recs.push(`Incluido tránsito de río Conchos (K−36 a K-0). El retardo adicional debe considerarse para la planificación de turnos.`);
+  recs.push(`Confirmar lecturas de escala en campo (miras) en las estructuras con estatus ALERTA/CRÍTICO al arribo de la onda.`);
+  recs.push(`Registrar cualquier desviación entre lo simulado y lo observado en el libro de maniobras para calibración del modelo.`);
+
+  // SVG Timeline: wave propagation diagram (horizontal, K-0 left, K-104 right)
+  const svgW = 520, svgH = 62;
+  const PAD = 24;
+  const kScale = (km: number) => PAD + (km / 104) * (svgW - 2 * PAD);
 
   return (
     <div className="sim-report-overlay">
       <div className="report-controls hide-on-print">
-        <button onClick={handlePrint} className="flex items-center gap-2 bg-emerald-600 px-6 py-2.5 rounded-full text-white font-bold hover:bg-emerald-500 shadow-lg transition-transform active:scale-95">
-          <Printer size={18} /> IMPRIMIR REPORTE OFICIAL (PDF)
+        <button onClick={handlePrint} className="rpt-btn-print">
+          <Printer size={16} /> IMPRIMIR / GUARDAR PDF
         </button>
-        <button onClick={onClose} className="flex items-center gap-2 bg-slate-800 px-4 py-2.5 rounded-full text-white font-bold hover:bg-slate-700 transition-colors">
-          <X size={18} /> CERRAR
+        <button onClick={onClose} className="rpt-btn-close">
+          <X size={16} /> CERRAR
         </button>
       </div>
 
       <div className="sim-report-paper" ref={componentRef}>
-        <div className="report-header-official">
-          <div className="header-left">
-            <img src="/logos/conagua_logo.png" alt="CONAGUA" onError={(e) => (e.currentTarget.style.display = 'none')} />
+
+        {/* ── ENCABEZADO INSTITUCIONAL ───────────────────────────────── */}
+        <header className="rpt-header">
+          <div className="rpt-header-logo">
+            <img src="/logos/conagua_logo.png" alt="CONAGUA"
+              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
           </div>
-          <div className="header-center">
-            <h1>Comisión Nacional del Agua</h1>
-            <h2>Dirección Local Chihuahua • Distrito de Riego 005</h2>
-            <div className="text-[9px] font-bold text-slate-400 mt-1 uppercase">Sistema de Información de Canales Autómatas (SICA)</div>
+          <div className="rpt-header-center">
+            <div className="rpt-org">Comisión Nacional del Agua</div>
+            <div className="rpt-sub">Dirección Local Chihuahua · Distrito de Riego No. 005 Delicias</div>
+            <div className="rpt-sys">Sistema de Información de Canales Autómatas — SICA 005</div>
           </div>
-          <div className="header-right text-right">
-            <div className="text-[10px] font-black">{scenario.date}</div>
-            <div className="text-[8px] text-slate-500 font-bold uppercase">Reporte Generado por Hydra AI</div>
+          <div className="rpt-header-right">
+            <div className="rpt-date">{scenario.date}</div>
+            <div className="rpt-time">T₀ {scenario.startTime} h</div>
+            <div className="rpt-folio">HYDRA ENGINE v1D</div>
           </div>
+        </header>
+
+        {/* ── BANDA DE TÍTULO ─────────────────────────────────────────── */}
+        <div className="rpt-title-band">
+          <div className="rpt-title-main">INFORME TÉCNICO DE SIMULACIÓN HIDRÁULICA</div>
+          <div className="rpt-title-sub">Canal Principal Conchos · Saint-Venant 1D · {eventLabel}</div>
         </div>
 
-        <div className="report-title-strip">
-          REPORTE DE SIMULACIÓN HIDRODINÁMICA (ENGINEERING 1D MODEL)
-        </div>
-
-        <section className="report-section">
-          <div className="section-title">
-            <span>1. Diagnóstico Situacional (Base: {scenario.startTime})</span>
-            <ShieldCheck size={14} className="text-emerald-600" />
+        {/* ── SECCIÓN 1: PARÁMETROS DE SIMULACIÓN ────────────────────── */}
+        <section className="rpt-section">
+          <div className="rpt-sec-title">1. Parámetros de Simulación y Estado de Telemetría</div>
+          <div className="rpt-kpi-grid rpt-kpi-grid-7">
+            <div className="rpt-kpi-box">
+              <div className="rpt-kpi-lbl">Q Base Presa</div>
+              <div className="rpt-kpi-val blue">{qBase.toFixed(1)}</div>
+              <div className="rpt-kpi-unit">m³/s</div>
+            </div>
+            <div className="rpt-kpi-box">
+              <div className="rpt-kpi-lbl">Q Simulado</div>
+              <div className="rpt-kpi-val amber">{qSim.toFixed(1)}</div>
+              <div className="rpt-kpi-unit">m³/s</div>
+            </div>
+            <div className="rpt-kpi-box">
+              <div className="rpt-kpi-lbl">ΔQ Maniobra</div>
+              <div className={`rpt-kpi-val ${deltaQ >= 0 ? 'green' : 'red'}`}>
+                {deltaQ >= 0 ? '+' : ''}{deltaQ.toFixed(1)}
+              </div>
+              <div className="rpt-kpi-unit">m³/s</div>
+            </div>
+            <div className="rpt-kpi-box">
+              <div className="rpt-kpi-lbl">Extracción Tomas</div>
+              <div className="rpt-kpi-val teal">−{sf(scenario.totalExtractionM3s).toFixed(2)}</div>
+              <div className="rpt-kpi-unit">m³/s activo</div>
+            </div>
+            <div className="rpt-kpi-box">
+              <div className="rpt-kpi-lbl">Eficiencia Conducción</div>
+              <div className={`rpt-kpi-val ${globalEff >= 90 ? 'green' : globalEff >= 85 ? 'amber' : 'red'}`}>
+                {sf(globalEff).toFixed(1)}
+              </div>
+              <div className="rpt-kpi-unit">%</div>
+            </div>
+            <div className="rpt-kpi-box">
+              <div className="rpt-kpi-lbl">Pérdida Canal</div>
+              <div className="rpt-kpi-val red">−{sf(qLoss).toFixed(2)}</div>
+              <div className="rpt-kpi-unit">m³/s</div>
+            </div>
+            <div className="rpt-kpi-box">
+              <div className="rpt-kpi-lbl">Arribo K-104</div>
+              <div className="rpt-kpi-val purple">{lastCP?.arrival_time ?? '—'}</div>
+              <div className="rpt-kpi-unit">{fmtMin(totalArrMin)}</div>
+            </div>
           </div>
-          <div className="bg-slate-50 p-4 border border-slate-200 rounded-lg text-[10px] leading-relaxed">
-            <p>¡Análisis de escenario completado! He ejecutado la simulación en el Hydra Engine tomando como base la telemetría real de hoy, {scenario.date}, situándonos en el punto de las {scenario.startTime}.</p>
-            <p className="mt-2 text-slate-600">Al revisar el tablero de escalas actual, detectamos que el canal opera con los siguientes parámetros base:</p>
-            <ul className="mt-1 list-disc list-inside space-y-1">
-              <li><strong>Gasto de base (K-0):</strong> ~{scenario.q_base.toFixed(2)} m³/s.</li>
-              <li><strong>Estado Inicial:</strong> Canal operando en régimen de estiaje/caudal bajo.</li>
-              <li><strong>Puntos Críticos:</strong> Las escalas iniciales se han sincronizado con el Digital Twin para {results.length} nodos de control.</li>
-            </ul>
+          <div className="rpt-meta-row">
+            <span><b>Fuente dato:</b> {scenario.damFuente === 'movimientos_presas' ? 'Movimientos Presa BD' : scenario.damFuente === 'lecturas_presas' ? 'Lecturas Presa BD' : 'Estimado (sin telemetría viva)'}</span>
+            <span><b>Presa Boquilla:</b> {scenario.damNivel !== '—' ? `${scenario.damNivel} msnm` : 'Sin nivel disponible'}</span>
+            <span><b>Secciones:</b> {results.length} nodos · <b>Tomas activas:</b> {deliveryPoints.filter(d => d.is_active).length}/{deliveryPoints.length}</span>
+            <span><b>Tránsito de río:</b> {scenario.isRiver ? 'Incluido (Presa → K-0)' : 'No incluido'}</span>
+            {critCount > 0 && <span className="rpt-meta-alert-crit">⚠ {critCount} sección(es) CRÍTICA(S)</span>}
+            {alertCount > 0 && <span className="rpt-meta-alert-warn">⚡ {alertCount} sección(es) en ALERTA</span>}
           </div>
         </section>
 
-        <section className="report-section">
-          <div className="section-title">
-            <span>2. Comportamiento tras el incremento de {Math.abs(scenario.q_sim - scenario.q_base).toFixed(1)} m³/s (Simulación a {scenario.q_sim.toFixed(1)} m³/s)</span>
-            <Waves size={14} className="text-sky-600" />
+        {/* ── SECCIÓN 2: CUADRO DE MANIOBRA ──────────────────────────── */}
+        <section className="rpt-section">
+          <div className="rpt-sec-title">2. Cuadro de Maniobra — Resultado Hidráulico por Sección</div>
+          <table className="rpt-table">
+            <thead>
+              <tr>
+                <th>Sección / Estructura</th>
+                <th className="rpt-th-center">KM</th>
+                <th className="rpt-th-center">Escala Base (m)</th>
+                <th className="rpt-th-center">Escala Sim. (m)</th>
+                <th className="rpt-th-center">Δ Escala</th>
+                <th className="rpt-th-center">Ap. SICA (m)</th>
+                <th className="rpt-th-center">Ap. Req. (m)</th>
+                <th className="rpt-th-center">Ajuste Oper.</th>
+                <th className="rpt-th-center">Arribo</th>
+                <th className="rpt-th-center">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {results.map((r, i) => {
+                const apSica = gateBase[r.id] ?? sf(r.h_radial, 1.25);
+                const apReq  = Math.min(3.0, Math.max(0.1, sf(r.apertura_requerida)));
+                const apD    = Math.abs(deltaQ) > 0.5 ? apDelta(apReq, apSica) : '—';
+                return (
+                  <tr key={r.id} className={i % 2 === 0 ? 'rpt-tr-even' : 'rpt-tr-odd'}>
+                    <td className="rpt-td-name">{r.nombre}</td>
+                    <td className="rpt-td-center">{sf(r.km).toFixed(0)}</td>
+                    <td className="rpt-td-center rpt-td-blue">{sf(r.y_base).toFixed(3)}</td>
+                    <td className="rpt-td-center rpt-td-bold"
+                      style={{ color: r.status === 'CRITICO' ? '#dc2626' : r.status === 'ALERTA' ? '#d97706' : '#059669' }}>
+                      {sf(r.y_sim).toFixed(3)}
+                    </td>
+                    <td className="rpt-td-center"
+                      style={{ color: r.delta_y > 0.01 ? '#b45309' : r.delta_y < -0.01 ? '#1d4ed8' : '#64748b' }}>
+                      {fmtDelta(sf(r.delta_y))}
+                    </td>
+                    <td className="rpt-td-center">{apSica.toFixed(3)}</td>
+                    <td className="rpt-td-center rpt-td-bold"
+                      style={{ color: Math.abs(sf(r.apertura_requerida) - apSica) > 0.05 ? '#92400e' : '#374151' }}>
+                      {Math.abs(deltaQ) > 0.5 ? fmtAp(sf(r.apertura_requerida)) : '—'}
+                    </td>
+                    <td className="rpt-td-center rpt-td-adj">{apD}</td>
+                    <td className="rpt-td-center">
+                      {r.km === 0
+                        ? <span className="rpt-origin">ORIGEN</span>
+                        : <><b>{r.arrival_time}</b><br /><span className="rpt-td-muted">{fmtMin(sf(r.cumulative_min))}</span></>}
+                    </td>
+                    <td className="rpt-td-center">
+                      <span className={`rpt-badge ${statusClass(r.status)}`}>{r.status}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="rpt-table-note">
+            * Apertura Requerida: apertura mínima de radiales para conducir Q simulado manteniendo la escala base sin variación.
+            Calculada por inversión de fórmula de orificio: h<sub>ap</sub> = Q / (Cd · A<sub>sección</sub> · √(2g · y<sub>base</sub>)).
           </div>
-          
-          <div className="analysis-sub-section mt-3">
-            <div className="font-bold text-[10px] text-slate-700 uppercase mb-1">A. Propagación de Onda y Tiempos de Retardo</div>
-            <p className="text-[10px] text-slate-600 leading-relaxed mb-2">El agua adicional no llega instantáneamente; se desplaza como una onda dinámica (Saint-Venant) con el siguiente cronograma de impacto estimado:</p>
-            <table className="report-table mini">
+        </section>
+
+        {/* ── SECCIÓN 3: VOLÚMENES ENTREGADOS — PUNTOS DE ENTREGA ─────── */}
+        {deliveryPoints.length > 0 && (
+          <section className="rpt-section">
+            <div className="rpt-sec-title">
+              3. Volúmenes Entregados — Puntos de Entrega del Día
+              <span className="rpt-sec-badge">
+                {deliveryPoints.filter(d => d.is_active).length} ACTIVAS · −{sf(scenario.totalExtractionM3s).toFixed(3)} m³/s
+              </span>
+            </div>
+            <table className="rpt-table rpt-table-sm">
               <thead>
                 <tr>
-                  <th>Estructura</th>
-                  <th>KM</th>
-                  <th>Impacto Estimado</th>
-                  <th>Hora de Arribo</th>
+                  <th>Punto de Entrega</th>
+                  <th className="rpt-th-center">KM</th>
+                  <th className="rpt-th-center">Tipo</th>
+                  <th className="rpt-th-center">Módulo</th>
+                  <th className="rpt-th-center">Caudal Promedio<br />(m³/s)</th>
+                  <th className="rpt-th-center">Volumen Hoy<br />(Mm³)</th>
+                  <th className="rpt-th-center">Apertura</th>
+                  <th className="rpt-th-center">Estado</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>{results.find(d => d.km >= 23)?.nombre || 'K-23'}</td>
-                  <td>23.0</td>
-                  <td>{results.find(d => d.km >= 23)?.travel_time || '—'}</td>
-                  <td className="font-bold">{results.find(d => d.km >= 23)?.arrival_time || '—'}</td>
-                </tr>
-                <tr>
-                  <td>{results.find(d => d.km >= 34)?.nombre || 'K-34'}</td>
-                  <td>34.0</td>
-                  <td>{results.find(d => d.km >= 34)?.travel_time || '—'}</td>
-                  <td className="font-bold">{results.find(d => d.km >= 34)?.arrival_time || '—'}</td>
-                </tr>
-                <tr>
-                  <td>{arrivalK104?.nombre || 'K-104'}</td>
-                  <td>104.0</td>
-                  <td>{arrivalK104?.travel_time || '—'}</td>
-                  <td className="font-bold">{arrivalK104?.arrival_time || '—'}</td>
+                {deliveryPoints.map((dp, i) => (
+                  <tr key={dp.punto_id} className={i % 2 === 0 ? 'rpt-tr-even' : 'rpt-tr-odd'}>
+                    <td className="rpt-td-name-sm">{dp.nombre}</td>
+                    <td className="rpt-td-center">{sf(dp.km).toFixed(1)}</td>
+                    <td className="rpt-td-center">
+                      <span className={`rpt-tipo-badge rpt-tipo-${dp.tipo}`}>
+                        {dp.tipo.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="rpt-td-center" style={{ fontSize: '7px', color: '#475569' }}>
+                      {dp.modulo_nombre ?? '—'}
+                    </td>
+                    <td className="rpt-td-center rpt-td-bold"
+                      style={{ color: dp.is_active ? '#0d9488' : '#94a3b8' }}>
+                      {dp.caudal_m3s > 0 ? dp.caudal_m3s.toFixed(4) : '—'}
+                    </td>
+                    <td className="rpt-td-center">
+                      {dp.volumen_mm3 > 0 ? dp.volumen_mm3.toFixed(4) : '—'}
+                    </td>
+                    <td className="rpt-td-center" style={{ color: '#64748b', fontSize: '7px' }}>
+                      {dp.hora_apertura ?? '—'}
+                    </td>
+                    <td className="rpt-td-center">
+                      <span className={`rpt-badge ${dp.is_active ? 'rpt-badge-ok' : 'rpt-estado-cerrada'}`}>
+                        {dp.estado.toUpperCase()}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {/* Fila de totales */}
+                <tr className="rpt-tr-total">
+                  <td colSpan={4} className="rpt-td-total-lbl">
+                    TOTALES DEL DÍA ({deliveryPoints.filter(d => d.is_active).length} tomas activas)
+                  </td>
+                  <td className="rpt-td-center rpt-td-bold" style={{ color: '#0d9488' }}>
+                    {deliveryPoints.filter(d => d.is_active).reduce((s, d) => s + d.caudal_m3s, 0).toFixed(4)}
+                  </td>
+                  <td className="rpt-td-center rpt-td-bold">
+                    {deliveryPoints.reduce((s, d) => s + d.volumen_mm3, 0).toFixed(4)}
+                  </td>
+                  <td colSpan={2} />
                 </tr>
               </tbody>
             </table>
-          </div>
-
-          <div className="analysis-sub-section mt-4">
-            <div className="font-bold text-[10px] text-slate-700 uppercase mb-1">B. Movimiento de Escalas y Alertas Operativas</div>
-            <div className="bg-amber-50 p-3 border border-amber-200 rounded-lg text-[10px] text-amber-900">
-               <p><strong>Efecto Proyectado:</strong> El movimiento de la escala subirá aproximadamente entre <strong>8 y 12 cm</strong> adicionales en los primeros 40km. Sin embargo, se mantiene vigilancia en los tramos centrales.</p>
-               <p className="mt-1"><strong>Alerta Hydra:</strong> Aunque el volumen aumenta, el tirante físico sigue siendo marginal para algunas tomas laterales. Se requiere monitoreo visual para asegurar la succión en el tramo Km 34.</p>
+            <div className="rpt-table-note">
+              * Fuente: <b>reportes_diarios</b> (Supabase) — Solo registros del día {scenario.date}.
+              Estados activos: INICIO / CONTINUA / REABIERTO / MODIFICACION sin hora de cierre.
+              El caudal extraído se incorpora al motor hidráulico: Q<sub>tramo_siguiente</sub> = Q<sub>entrada</sub> × k<sub>cond</sub> − Σ(Q<sub>tomas_activas</sub>).
             </div>
-          </div>
+          </section>
+        )}
 
-          <div className="analysis-sub-section mt-4">
-            <div className="font-bold text-[10px] text-slate-700 uppercase mb-1">C. Balance y Eficiencia</div>
-            <div className="params-grid compact">
-              <div className="param-item">
-                <span className="param-label">Eficiencia de Conducción</span>
-                <span className="param-value text-emerald-600">94.9%</span>
+        {/* ── SECCIÓN 4 (antes 3): PROPAGACIÓN DE ONDA ────────────────── */}
+        <section className="rpt-section">
+          <div className="rpt-sec-title">4. Diagrama de Propagación de Onda — Canal K-0 a K-104</div>
+          <div className="rpt-wave-wrap">
+            <svg viewBox={`0 0 ${svgW} ${svgH}`} className="rpt-wave-svg" preserveAspectRatio="xMidYMid meet">
+              {/* Canal axis */}
+              <line x1={PAD} y1={32} x2={svgW - PAD} y2={32} stroke="#cbd5e1" strokeWidth="2" />
+
+              {/* KM labels on top */}
+              {[0, 20, 40, 60, 80, 104].map(km => (
+                <text key={km} x={kScale(km)} y={12} textAnchor="middle"
+                  fontSize="7" fill="#94a3b8" fontFamily="monospace">K-{km}</text>
+              ))}
+              {/* Tick marks */}
+              {[0, 20, 40, 60, 80, 104].map(km => (
+                <line key={km} x1={kScale(km)} y1={28} x2={kScale(km)} y2={36}
+                  stroke="#94a3b8" strokeWidth="1" />
+              ))}
+
+              {/* CP markers + arrival labels */}
+              {results.map((r, i) => {
+                const x = kScale(sf(r.km));
+                const arrived = r.km === 0;
+                const clr = r.status === 'CRITICO' ? '#ef4444' : r.status === 'ALERTA' ? '#f59e0b' : '#10b981';
+                return (
+                  <g key={r.id}>
+                    <circle cx={x} cy={32} r={5} fill={clr} stroke="#fff" strokeWidth="1" />
+                    <text x={x} y={i % 2 === 0 ? 48 : 58} textAnchor="middle"
+                      fontSize="6.5" fill="#1e293b" fontWeight="bold" fontFamily="monospace">
+                      {arrived ? 'T₀' : r.arrival_time}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Wave line */}
+              <polyline
+                points={results.map(r => `${kScale(sf(r.km))},32`).join(' ')}
+                fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="5,3" opacity="0.5"
+              />
+
+              {/* Legend */}
+              <circle cx={PAD} cy={svgH - 6} r={4} fill="#10b981" />
+              <text x={PAD + 7} y={svgH - 3} fontSize="7" fill="#475569">ESTABLE</text>
+              <circle cx={PAD + 55} cy={svgH - 6} r={4} fill="#f59e0b" />
+              <text x={PAD + 62} y={svgH - 3} fontSize="7" fill="#475569">ALERTA</text>
+              <circle cx={PAD + 110} cy={svgH - 6} r={4} fill="#ef4444" />
+              <text x={PAD + 117} y={svgH - 3} fontSize="7" fill="#475569">CRÍTICO</text>
+              <text x={svgW - PAD} y={svgH - 3} textAnchor="end"
+                fontSize="7" fill="#94a3b8" fontFamily="monospace">
+                Tiempo total de propagación: {fmtMin(totalArrMin)}
+              </text>
+            </svg>
+          </div>
+        </section>
+
+        {/* ── SECCIÓN 4: PARÁMETROS HIDRÁULICOS DETALLADOS ───────────── */}
+        <section className="rpt-section">
+          <div className="rpt-sec-title">5. Parámetros Hidráulicos Detallados por Sección</div>
+          <table className="rpt-table rpt-table-sm">
+            <thead>
+              <tr>
+                <th>Sección</th>
+                <th className="rpt-th-center">Q sección<br />(m³/s)</th>
+                <th className="rpt-th-center">y_n normal<br />(m)</th>
+                <th className="rpt-th-center">y_sim<br />(m)</th>
+                <th className="rpt-th-center">V media<br />(m/s)</th>
+                <th className="rpt-th-center">Celeridad c<br />(m/s)</th>
+                <th className="rpt-th-center">Fr</th>
+                <th className="rpt-th-center">Cd</th>
+                <th className="rpt-th-center">Área<br />Comp. (m²)</th>
+                <th className="rpt-th-center">Bordo<br />L. %</th>
+                <th className="rpt-th-center">Remanso</th>
+              </tr>
+            </thead>
+            <tbody>
+              {results.map((r, i) => (
+                <tr key={r.id} className={i % 2 === 0 ? 'rpt-tr-even' : 'rpt-tr-odd'}>
+                  <td className="rpt-td-name-sm">{r.nombre}</td>
+                  <td className="rpt-td-center">{sf(r.q_sim).toFixed(2)}</td>
+                  <td className="rpt-td-center rpt-td-blue">
+                    {/* y_n = Manning normalDepth — no recalculated here, we show y_base as reference */}
+                    {sf(r.y_base).toFixed(3)}
+                  </td>
+                  <td className="rpt-td-center"
+                    style={{ color: r.status === 'CRITICO' ? '#dc2626' : r.status === 'ALERTA' ? '#d97706' : '#374151' }}>
+                    {sf(r.y_sim).toFixed(3)}
+                  </td>
+                  <td className="rpt-td-center">{sf(r.velocity_ms).toFixed(3)}</td>
+                  <td className="rpt-td-center">{sf(r.celerity_ms).toFixed(3)}</td>
+                  <td className="rpt-td-center"
+                    style={{ color: sf(r.froude_n) > 1 ? '#dc2626' : '#374151', fontWeight: sf(r.froude_n) > 1 ? 700 : 400 }}>
+                    {sf(r.froude_n).toFixed(4)}
+                    {sf(r.froude_n) > 1 ? ' ⚠' : ''}
+                  </td>
+                  <td className="rpt-td-center">{sf(r.cd_used, DEFAULT_CD).toFixed(3)}</td>
+                  <td className="rpt-td-center">{sf(r.area_gate).toFixed(2)}</td>
+                  <td className="rpt-td-center"
+                    style={{ color: sf(r.bordo_libre_pct) > 92 ? '#dc2626' : sf(r.bordo_libre_pct) > 75 ? '#d97706' : '#374151', fontWeight: sf(r.bordo_libre_pct) > 75 ? 700 : 400 }}>
+                    {sf(r.bordo_libre_pct).toFixed(1)}%
+                  </td>
+                  <td className="rpt-td-center">
+                    <span className={r.remanso_type === 'M1' ? 'rpt-rtype rpt-m1'
+                      : r.remanso_type === 'M2' ? 'rpt-rtype rpt-m2' : 'rpt-rtype rpt-m0'}>
+                      {r.remanso_type}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="rpt-table-note">
+            Fr &lt; 1 = Régimen subcrítico (normal en canal). Fr &gt; 1 = Régimen supercrítico (∞ riesgo de resalto hidráulico). M1 = Remanso positivo (escala sube). M2 = Remanso negativo (escala baja). NORMAL = sin variación significativa (&lt;8cm).
+          </div>
+        </section>
+
+        {/* ── SECCIÓN 5: BALANCE HÍDRICO ──────────────────────────────── */}
+        <section className="rpt-section rpt-section-half">
+          <div className="rpt-sec-title">6. Balance Hídrico del Sistema</div>
+          <div className="rpt-balance-grid">
+            <div className="rpt-bal-row">
+              <span className="rpt-bal-lbl">Entrada al canal (Presa Boquilla)</span>
+              <span className="rpt-bal-bar-wrap">
+                <span className="rpt-bal-bar rpt-bal-blue" style={{ width: '100%' }} />
+              </span>
+              <span className="rpt-bal-val">{qSim.toFixed(2)} m³/s</span>
+            </div>
+            <div className="rpt-bal-row">
+              <span className="rpt-bal-lbl">Caudal llegada K-104 (final)</span>
+              <span className="rpt-bal-bar-wrap">
+                <span className="rpt-bal-bar rpt-bal-green" style={{ width: `${Math.min(100, sf(globalEff))}%` }} />
+              </span>
+              <span className="rpt-bal-val">{sf(lastCP?.q_sim).toFixed(2)} m³/s</span>
+            </div>
+            <div className="rpt-bal-row">
+              <span className="rpt-bal-lbl">Pérdida total en conducción</span>
+              <span className="rpt-bal-bar-wrap">
+                <span className="rpt-bal-bar rpt-bal-red" style={{ width: `${Math.min(100, (1 - sf(globalEff) / 100) * 100)}%` }} />
+              </span>
+              <span className="rpt-bal-val">−{sf(qLoss).toFixed(2)} m³/s</span>
+            </div>
+            <div className="rpt-bal-summary">
+              <div className="rpt-bal-eff">
+                <span>Eficiencia global</span>
+                <strong style={{ color: sf(globalEff) >= 90 ? '#059669' : sf(globalEff) >= 85 ? '#d97706' : '#dc2626' }}>
+                  {sf(globalEff).toFixed(1)}%
+                </strong>
               </div>
-              <div className="param-item">
-                <span className="param-label">Merma Diaria Proyectada</span>
-                <span className="param-value text-rose-600">0.164 Mm³</span>
+              <div className="rpt-bal-eff">
+                <span>Merma diaria estimada</span>
+                <strong>{(sf(qLoss) * 86400 / 1e6).toFixed(3)} Mm³/día</strong>
+              </div>
+              <div className="rpt-bal-eff">
+                <span>Merma semanal estimada</span>
+                <strong>{(sf(qLoss) * 86400 * 7 / 1e6).toFixed(3)} Mm³/semana</strong>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="report-section">
-          <div className="section-title">
-            <span>3. Recomendación de la IA</span>
-            <ShieldCheck size={14} className="text-emerald-600" />
+        {/* ── SECCIÓN 6: ALERTAS Y RECOMENDACIONES ────────────────────── */}
+        <section className="rpt-section">
+          <div className="rpt-sec-title">7. Alertas Operativas y Recomendaciones</div>
+          <div className="rpt-alerts">
+            {alerts.map((a, i) => (
+              <div key={i} className={`rpt-alert-row rpt-alert-${a.level.toLowerCase()}`}>
+                <span className="rpt-alert-icon">
+                  {a.level === 'CRITICO' ? '⛔' : a.level === 'ALERTA' ? '⚠' : 'ℹ'}
+                </span>
+                <span>{a.text}</span>
+              </div>
+            ))}
           </div>
-          <div className="bg-emerald-50 p-4 border border-emerald-200 rounded-lg text-[10px] leading-relaxed text-emerald-900 italic">
-            "Sistema Estable bajo Vigilancia. Se recomienda no realizar ajustes adicionales en las radiales de aguas abajo hasta que la onda de las {results.find(d => d.km >= 23)?.arrival_time || 'impacto'} estabilice el tramo K-23. El incremento de gasto es positivo para garantizar el balance hídrico, pero el nivel de escala actual sigue siendo marginal para una distribución óptima en las tomas laterales centrales."
+          <div className="rpt-recs">
+            <div className="rpt-recs-title">Recomendaciones Operativas</div>
+            {recs.map((r, i) => (
+              <div key={i} className="rpt-rec-row">
+                <span className="rpt-rec-num">{i + 1}.</span>
+                <span>{r}</span>
+              </div>
+            ))}
           </div>
         </section>
 
-        <div className="bg-sky-50 border-sky-200 border-2 border-dashed p-3 rounded-xl mt-4 flex items-start gap-3">
-           <div className="bg-sky-500 text-white text-[8px] font-black p-1 rounded uppercase">Tip</div>
-           <p className="text-[9px] text-sky-800 leading-tight">Puedes observar en el gráfico central del tablero (Perfil Longitudinal) cómo la línea azul (onda dinámica) viaja lentamente hacia la derecha mientras el Timeline Slider avanza hacia las 8 horas de proyección.</p>
+        {/* ── NOTA TÉCNICA DEL MODELO ─────────────────────────────────── */}
+        <div className="rpt-model-note">
+          <b>Nota técnica:</b> Simulación generada con motor hidráulico Saint-Venant 1D (ecuación de onda cinemática + difusión).
+          Tirante normal por iteración Newton-Raphson (Manning: n={0.015}, b=20m, z=1.5:1, S₀=1.6×10⁻⁴).
+          Tiempos de arribo: celeridad dinámica c=√(gA/T) × 1.3 + V.
+          Variación de escala: Δy = ΔH orificio (Δy = Q²/(Cd²·A²·2g) − Q₀²/(Cd²·A²·2g)).
+          Base de datos: {scenario.damFuente} · {results.length} nodos de control sincronizados.
         </div>
 
-        <div className="signature-area mt-12">
-          <p className="text-center text-[8px] text-slate-400 mb-6 uppercase tracking-widest font-bold">Protocolo de Validación Digital SICA 005</p>
-          <div className="flex justify-between gap-4">
-            <div className="sig-box">
-              <div className="name">Ing. Jefe de Módulo de Riego</div>
-              <div>VALIDACIÓN OPERATIVA</div>
-            </div>
-            <div className="sig-box">
-              <div className="name">Hydra AI Digital Twin</div>
-              <div>VERIFICACIÓN HIDRODINÁMICA</div>
-            </div>
+        {/* ── FIRMAS ──────────────────────────────────────────────────── */}
+        <div className="rpt-sigs">
+          <div className="rpt-sig-box">
+            <div className="rpt-sig-line" />
+            <div className="rpt-sig-name">Ingeniero(a) Jefe de Módulo</div>
+            <div className="rpt-sig-role">VALIDACIÓN Y AUTORIZACIÓN OPERATIVA</div>
+            <div className="rpt-sig-date">Fecha: _____________ Turno: _______</div>
+          </div>
+          <div className="rpt-sig-box">
+            <div className="rpt-sig-line" />
+            <div className="rpt-sig-name">Técnico de Canal</div>
+            <div className="rpt-sig-role">EJECUCIÓN DE MANIOBRA</div>
+            <div className="rpt-sig-date">Fecha: _____________ Turno: _______</div>
+          </div>
+          <div className="rpt-sig-box">
+            <div className="rpt-sig-line" />
+            <div className="rpt-sig-name">SICA 005 · Hydra Engine</div>
+            <div className="rpt-sig-role">VERIFICACIÓN HIDRODINÁMICA DIGITAL</div>
+            <div className="rpt-sig-date">Auto-generado: {scenario.date} {scenario.startTime}</div>
           </div>
         </div>
 
-        <div className="mt-20 text-[8px] text-slate-400 text-center italic">
-          Documento generado electrónicamente por SICA Dashboard • Prohibida su alteración sin auditoría de base de datos.
+        <div className="rpt-footer">
+          SICA Dashboard DR-005 · Documento generado electrónicamente · Prohibida su alteración sin auditoría de base de datos ·
+          Folio: SIM-{scenario.date.replace(/\//g, '')}-{scenario.startTime.replace(':', '')}
         </div>
+
       </div>
     </div>
   );

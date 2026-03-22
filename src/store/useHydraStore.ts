@@ -126,7 +126,9 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                 (m.puntos_entrega || []).forEach((p: any) => dynPtMap.set(p.id, p));
             });
 
+            const dynModMap = new Map(modulosDB.map(m => [m.id, m]));
             const fullModules: ModuleData[] = metaModulos.map((mod: any, mIdx: number) => {
+                const freshMod = dynModMap.get(mod.id) || mod;
                 const points = metaPuntos
                     .filter((p: any) => p.modulo_id === mod.id)
                     .map((p: any, pIdx: number) => {
@@ -187,8 +189,8 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                     daily_vol: dailyVol,
                     // DB module volumes are stored in 'Millares de m³' (Miles de metros cúbicos)
                     // The UI always renders in 'Mm³' (Millones de metros cúbicos). Div by 1000.
-                    accumulated_vol: (Number(mod.vol_acumulado || 0) / 1000),
-                    authorized_vol: (Number(mod.vol_autorizado || 0) / 1000),
+                    accumulated_vol: (Number(freshMod.vol_acumulado || 0) / 1000),
+                    authorized_vol: (Number(freshMod.vol_autorizado || 0) / 1000),
                     target_flow: Number(mod.caudal_objetivo || 0),
                     delivery_points: points
                 };

@@ -593,11 +593,11 @@ const GeoMonitor = () => {
         
         // Pérdida (Infiltración, evaporación, fugas)
         const perdidaM3s = gastoEntrada - sumaAprovechamiento;
-        perdidaPct = ((perdidaM3s / gastoEntrada) * 100).toFixed(1);
-        eficienciaTxt = eficienciaReal.toFixed(1);
+        perdidaPct = (((perdidaM3s ?? 0) / gastoEntrada) * 100).toFixed(1);
+        eficienciaTxt = (eficienciaReal ?? 0).toFixed(1);
     } else {
         eficienciaReal = totalDemandaProgramada > 0 ? (gastoDistribuido / totalDemandaProgramada) * 100 : 0;
-        eficienciaTxt = eficienciaReal.toFixed(1);
+        eficienciaTxt = (eficienciaReal ?? 0).toFixed(1);
     }
 
     const chartGaugeOptions = {
@@ -792,7 +792,7 @@ const GeoMonitor = () => {
         })),
         ...presas.filter(p => p.porcentaje_llenado < 40).map(p => ({
             time: p.fecha, type: 'ALMACENAMIENTO',
-            title: `${p.nombre} al ${p.porcentaje_llenado.toFixed(1)}%`,
+            title: `${p.nombre} al ${(p.porcentaje_llenado ?? 0).toFixed(1)}%`,
             location: 'Red Mayor', status: 'status-warning',
             point: { type: 'presa' as const, id: p.presa_id }
         })),
@@ -1029,7 +1029,7 @@ const GeoMonitor = () => {
                                 {activeEvent.evento_tipo === 'LLENADO' && (
                                     <div className="geo-event-banner-right">
                                         <div className="geo-event-banner-label">Avance de Onda (Frente)</div>
-                                        <div className="geo-event-banner-km">KM {maxKmLlenado.toFixed(3)}</div>
+                                        <div className="geo-event-banner-km">KM {(maxKmLlenado ?? 0).toFixed(3)}</div>
                                     </div>
                                 )}
                             </div>
@@ -1236,7 +1236,7 @@ const GeoMonitor = () => {
                                         <Tooltip sticky>
                                             <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold', color: '#06b6d4' }}>
                                                 🌊 FRENTE DE AGUA<br />
-                                                Arribo actual: Km {maxKmLlenado.toFixed(1)}
+                                                Arribo actual: Km {(maxKmLlenado ?? 0).toFixed(1)}
                                             </span>
                                         </Tooltip>
                                     </Polyline>
@@ -1307,7 +1307,7 @@ const GeoMonitor = () => {
                                     <Marker key={p.presa_id} position={[p.latitud, p.longitud]} icon={presaIcon}>
                                         <Tooltip direction="top" offset={[0, -16]} permanent>
                                             <span className="font-mono text-[10px] font-bold">
-                                                {p.porcentaje_llenado.toFixed(0)}%
+                                                {(p.porcentaje_llenado ?? 0).toFixed(0)}%
                                             </span>
                                         </Tooltip>
                                         <Popup>
@@ -1315,7 +1315,7 @@ const GeoMonitor = () => {
                                                 <strong className="text-[13px] geo-icon-blue">{p.nombre}</strong>
                                                 <div className="text-[10px] text-slate-400 mb-1.5">Última lectura: {p.fecha}</div>
                                                 <div className="geo-presa-stat-box">
-                                                    <div className="text-[11px]">Almacenamiento: <b>{p.almacenamiento_mm3.toFixed(1)} Mm³</b></div>
+                                                    <div className="text-[11px]">Almacenamiento: <b>{(p.almacenamiento_mm3 ?? 0).toFixed(1)} Mm³</b></div>
                                                     <div className="geo-progress-bg">
                                                         <div 
                                                             className="geo-progress-bar"
@@ -1325,7 +1325,7 @@ const GeoMonitor = () => {
                                                             }}
                                                         />
                                                     </div>
-                                                    <div className="text-[11px] mt-1">Llenado: <b>{p.porcentaje_llenado.toFixed(1)}%</b></div>
+                                                    <div className="text-[11px] mt-1">Llenado: <b>{(p.porcentaje_llenado ?? 0).toFixed(1)}%</b></div>
                                                 </div>
                                                 <div className="text-[11px]">Extracción: <b>{p.extraccion_total_m3s} m³/s</b></div>
                                             </div>
@@ -1529,11 +1529,11 @@ const GeoMonitor = () => {
                                         <>
                                             <div className="detail-stat">
                                                 <label>Llenado</label>
-                                                <strong>{selectedPoint.data.porcentaje_llenado.toFixed(1)} <small>%</small></strong>
+                                                <strong>{(selectedPoint.data.porcentaje_llenado ?? 0).toFixed(1)} <small>%</small></strong>
                                             </div>
                                             <div className="detail-stat">
                                                 <label>Extracción</label>
-                                                <strong>{selectedPoint.data.extraccion_total_m3s.toFixed(2)} <small>m³/s</small></strong>
+                                                <strong>{(selectedPoint.data.extraccion_total_m3s ?? 0).toFixed(2)} <small>m³/s</small></strong>
                                             </div>
                                         </>
                                     )}
@@ -1571,7 +1571,7 @@ const GeoMonitor = () => {
                             <div className="geo-kpi-value cyan">
                                 {nivelEntrada?.toFixed(2) ?? '—'} <small>m</small>
                             </div>
-                            {gastoEntrada && <div style={{ fontSize: 9, color: '#64748b', marginTop: 2, fontFamily: 'monospace' }}>Q: {gastoEntrada.toFixed(2)} m³/s</div>}
+                            {gastoEntrada && <div style={{ fontSize: 9, color: '#64748b', marginTop: 2, fontFamily: 'monospace' }}>Q: {(gastoEntrada ?? 0).toFixed(2)} m³/s</div>}
                         </div>
                         <div className="geo-kpi-card" onClick={() => escalaSalida && handleSelect('escala', escalaSalida)}>
                             <div className="geo-kpi-label">
@@ -1580,7 +1580,7 @@ const GeoMonitor = () => {
                             <div className="geo-kpi-value">
                                 {nivelSalida?.toFixed(2) ?? '—'} <small>m</small>
                             </div>
-                            {gastoSalida && <div style={{ fontSize: 9, color: '#64748b', marginTop: 2, fontFamily: 'monospace' }}>Q: {gastoSalida.toFixed(2)} m³/s</div>}
+                            {gastoSalida && <div style={{ fontSize: 9, color: '#64748b', marginTop: 2, fontFamily: 'monospace' }}>Q: {(gastoSalida ?? 0).toFixed(2)} m³/s</div>}
                         </div>
                         <div className="geo-kpi-card">
                             <div className="geo-kpi-label">
@@ -1619,11 +1619,11 @@ const GeoMonitor = () => {
                         <div className="geo-tomas-item split-glass" style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '6px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
                                 <span className="geo-tomas-count" style={{ color: '#22d3ee', fontFamily: 'monospace', fontSize: '1.2rem', lineHeight: 1.2 }}>
-                                    {gastoDistribuido.toFixed(1)} <small style={{ fontSize: '0.6rem', color: '#94a3b8' }}>m³/s</small>
+                                    {(gastoDistribuido ?? 0).toFixed(1)} <small style={{ fontSize: '0.6rem', color: '#94a3b8' }}>m³/s</small>
                                 </span>
                                 <div style={{ height: '1px', width: '80%', background: 'rgba(255,255,255,0.1)', margin: '4px 0' }} />
                                 <span style={{ color: '#64748b', fontFamily: 'monospace', fontSize: '0.8rem', lineHeight: 1 }}>
-                                    {totalDemandaProgramada.toFixed(1)} <small style={{ fontSize: '0.55rem' }}>m³/s</small>
+                                    {(totalDemandaProgramada ?? 0).toFixed(1)} <small style={{ fontSize: '0.55rem' }}>m³/s</small>
                                 </span>
                             </div>
                             <span className="geo-tomas-label" style={{ marginTop: '4px', fontSize: '9px', letterSpacing: '0.05em' }}>BALANCE (REAL / PROG)</span>

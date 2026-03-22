@@ -185,7 +185,7 @@ const Canales = () => {
                                 <span className="conchos-vol-label">Entrega Actual (Q)</span>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '4px' }}>
                                     <span className="conchos-vol-huge">
-                                        {(activeSectionId === 'all' ? modules.reduce((a, m) => a + m.current_flow, 0) * 1000 : sectionFlow * 1000).toFixed(0)}
+                                        {(activeSectionId === 'all' ? modules.reduce((a, m) => a + (m.current_flow ?? 0), 0) * 1000 : (sectionFlow ?? 0) * 1000).toFixed(0)}
                                     </span>
                                     <span className="conchos-unit-small">L/s</span>
                                 </div>
@@ -261,11 +261,11 @@ const Canales = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                 <div style={{ background: 'rgba(0,0,0,0.4)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>
                                     <span style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Gasto</span>
-                                    <div style={{ color: '#10b981', fontWeight: 900, fontSize: '16px', fontFamily: 'JetBrains Mono' }}>{activePoint.current_q_lps.toFixed(0)} <span style={{ fontSize: '10px', opacity: 0.5 }}>L/s</span></div>
+                                    <div style={{ color: '#10b981', fontWeight: 900, fontSize: '16px', fontFamily: 'JetBrains Mono' }}>{(activePoint.current_q_lps ?? 0).toFixed(0)} <span style={{ fontSize: '10px', opacity: 0.5 }}>L/s</span></div>
                                 </div>
                                 <div style={{ background: 'rgba(0,0,0,0.4)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>
                                     <span style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Vol. Día</span>
-                                    <div style={{ color: '#3b82f6', fontWeight: 900, fontSize: '16px', fontFamily: 'JetBrains Mono' }}>{activePoint.daily_vol.toFixed(4)} <span style={{ fontSize: '10px', opacity: 0.5 }}>Mm³</span></div>
+                                    <div style={{ color: '#3b82f6', fontWeight: 900, fontSize: '16px', fontFamily: 'JetBrains Mono' }}>{(activePoint.daily_vol ?? 0).toFixed(4)} <span style={{ fontSize: '10px', opacity: 0.5 }}>Mm³</span></div>
                                 </div>
                             </div>
                         </div>

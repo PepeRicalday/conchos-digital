@@ -110,8 +110,8 @@ const EstabilizacionTracker: React.FC = () => {
                 {/* Global Metrics */}
                 <div style={{ display: 'flex', gap: '16px' }}>
                     <MetricBox title="Eficiencia Global" value={`${eficienciaGlobal}%`} icon={<Activity size={16} />} color="#10b981" />
-                    <MetricBox title="Gasto Derivado" value={`${totalDistribuido.toFixed(2)} m³/s`} icon={<LayoutDashboard size={16} />} color="#3b82f6" />
-                    <MetricBox title="Pérdidas Totales" value={`${totalPerdidas.toFixed(2)} m³/s`} icon={<AlertTriangle size={16} />} color="#ef4444" />
+                    <MetricBox title="Gasto Derivado" value={`${(totalDistribuido ?? 0).toFixed(2)} m³/s`} icon={<LayoutDashboard size={16} />} color="#3b82f6" />
+                    <MetricBox title="Pérdidas Totales" value={`${(totalPerdidas ?? 0).toFixed(2)} m³/s`} icon={<AlertTriangle size={16} />} color="#ef4444" />
                 </div>
             </div>
 
@@ -145,15 +145,15 @@ const EstabilizacionTracker: React.FC = () => {
                                         </div>
                                         <div style={{ color: statusColor, fontSize: '0.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                             {isCritico ? <AlertTriangle size={12} /> : isAdvertencia ? <AlertTriangle size={12} /> : <CheckCircle2 size={12} />}
-                                            {tramo.eficiencia_pct.toFixed(1)}% Efi.
+                                            {(tramo.eficiencia_pct ?? 0).toFixed(1)}% Efi.
                                         </div>
                                     </div>
                                     
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', paddingLeft: '8px' }}>
-                                        <MiniStat label="Entrada" value={`${tramo.q_entrada_m3s.toFixed(2)}`} color="#94a3b8" />
-                                        <MiniStat label="Salida" value={`${tramo.q_salida_m3s.toFixed(2)}`} color="#94a3b8" />
-                                        <MiniStat label="Tomas" value={`${tramo.q_extracciones_m3s.toFixed(2)}`} color="#3b82f6" />
-                                        <MiniStat label="Pérdida" value={`${tramo.q_perdida_m3s > 0 ? tramo.q_perdida_m3s.toFixed(2) : '0.00'}`} color={tramo.q_perdida_m3s > 0 ? '#fca5a5' : '#94a3b8'} />
+                                        <MiniStat label="Entrada" value={`${(tramo.q_entrada_m3s ?? 0).toFixed(2)}`} color="#94a3b8" />
+                                        <MiniStat label="Salida" value={`${(tramo.q_salida_m3s ?? 0).toFixed(2)}`} color="#94a3b8" />
+                                        <MiniStat label="Tomas" value={`${(tramo.q_extracciones_m3s ?? 0).toFixed(2)}`} color="#3b82f6" />
+                                        <MiniStat label="Pérdida" value={`${(tramo.q_perdida_m3s ?? 0) > 0 ? (tramo.q_perdida_m3s ?? 0).toFixed(2) : '0.00'}`} color={(tramo.q_perdida_m3s ?? 0) > 0 ? '#fca5a5' : '#94a3b8'} />
                                     </div>
                                     
                                     {isCritico && (
@@ -187,7 +187,7 @@ const EstabilizacionTracker: React.FC = () => {
                                             <div style={{ color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase' }}>{toma.modulo_nombre}</div>
                                         </div>
                                         <div style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa', padding: '4px 8px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900 }}>
-                                            {toma.caudal_promedio_m3s.toFixed(2)} <span style={{ fontSize: '0.65rem', color: '#475569' }}>m³/s</span>
+                                            {(toma.caudal_promedio_m3s ?? 0).toFixed(2)} <span style={{ fontSize: '0.65rem', color: '#475569' }}>m³/s</span>
                                         </div>
                                     </div>
                                 ))}

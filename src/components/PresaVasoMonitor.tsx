@@ -83,7 +83,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, onClos
                     <div className="vaso-title-group">
                         <div className="vaso-badge">SITUACIÓN E INTERACTIVIDAD DE VASO</div>
                         <h2>PRESA {data.nombre.toUpperCase()}</h2>
-                        <div className="vaso-coords">LECTURA OFICIAL: {data.nivel_msnm.toFixed(2)} msnm</div>
+                        <div className="vaso-coords">LECTURA OFICIAL: {(data.nivel_msnm ?? 0).toFixed(2)} msnm</div>
                     </div>
                     <button className="vaso-close" onClick={onClose}>×</button>
                 </header>
@@ -109,7 +109,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, onClos
                                 <button onClick={() => setSimNivel(s => s + 0.5)}><ChevronRight /></button>
                             </div>
                             <div className="sim-value-display">
-                                <strong>{simNivel.toFixed(2)}</strong> <small>msnm</small>
+                                <strong>{(simNivel ?? 0).toFixed(2)}</strong> <small>msnm</small>
                             </div>
                         </div>
                         {stats.isSimulated && (
@@ -139,7 +139,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, onClos
                             <Droplets size={14} /> PORCENTAJE LLENADO
                         </div>
                         <div className="vaso-stat-value">
-                            {stats.porcentaje.toFixed(1)} <small>%</small>
+                            {(stats.porcentaje ?? 0).toFixed(1)} <small>%</small>
                         </div>
                         <div className="vaso-stat-progress">
                             <div className="vaso-progress-bar">
@@ -171,14 +171,14 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, onClos
                             <AlertTriangle size={20} className={stats.porcentaje < 30 ? 'text-red-500' : 'text-amber-500'} />
                             <div className="vaso-alert-text">
                                 {stats.isSimulated ? (
-                                    <span>Simulando impacto de <strong>{(simNivel - data.nivel_msnm).toFixed(2)}m</strong> sobre la lectura base de hoy.</span>
+                                    <span>Simulando impacto de <strong>{((simNivel ?? 0) - (data.nivel_msnm ?? 0)).toFixed(2)}m</strong> sobre la lectura base de hoy.</span>
                                 ) : (
                                     <span>Situación operativa estable basada en el aforo de entrada de la SRL.</span>
                                 )}
                             </div>
                         </div>
                         <div className="vaso-prediction">
-                            Diferencia vs NMA: <strong>{(data.nivel_nma - simNivel).toFixed(2)}m</strong> de "anillo de sequía" expuesto.
+                            Diferencia vs NMA: <strong>{((data.nivel_nma ?? 0) - (simNivel ?? 0)).toFixed(2)}m</strong> de "anillo de sequía" expuesto.
                         </div>
                     </div>
                 </div>

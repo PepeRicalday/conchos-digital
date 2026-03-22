@@ -53,13 +53,13 @@ export const ModuleDetailModal = ({ module, onClose }: { module: ModuleData, onC
                         <div>
                             <span className="text-xs text-blue-300 font-bold uppercase tracking-wider">Volumen Entregado Hoy</span>
                             <div className="text-2xl font-mono font-bold text-white mt-1">
-                                {module.daily_vol.toFixed(4)} <span className="text-sm text-blue-400">Mm³</span>
+                                {(module.daily_vol ?? 0).toFixed(4)} <span className="text-sm text-blue-400">Mm³</span>
                             </div>
                         </div>
                         <div className="text-right">
                             <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Caudal Promedio</span>
                             <div className="text-xl font-mono font-bold text-emerald-400 mt-1">
-                                {(module.current_flow * 1000).toFixed(0)} <span className="text-sm text-slate-400">L/s</span>
+                                {((module.current_flow ?? 0) * 1000).toFixed(0)} <span className="text-sm text-slate-400">L/s</span>
                             </div>
                         </div>
                     </div>
@@ -132,9 +132,9 @@ export const ModuleDetailModal = ({ module, onClose }: { module: ModuleData, onC
                                                 <span className="text-[10px] text-slate-500">{p.type} • Km {p.km}</span>
                                             </div>
                                         </td>
-                                        <td className="text-right font-mono text-emerald-400 font-bold">{p.current_q_lps.toFixed(0)}</td>
-                                        <td className="text-right font-mono text-blue-400">{p.daily_vol.toFixed(4)}</td>
-                                        <td className="text-right font-mono text-slate-300">{p.accumulated.toFixed(4)}</td>
+                                        <td className="text-right font-mono text-emerald-400 font-bold">{(p.current_q_lps ?? 0).toFixed(0)}</td>
+                                        <td className="text-right font-mono text-blue-400">{(p.daily_vol ?? 0).toFixed(4)}</td>
+                                        <td className="text-right font-mono text-slate-300">{(p.accumulated ?? 0).toFixed(4)}</td>
                                         <td className="text-center">
                                             <span className={`status-dot ${p.is_open ? 'active' : 'inactive'}`}></span>
                                         </td>
@@ -193,7 +193,7 @@ export const ModuleCard = ({ data }: { data: ModuleData }) => {
                 <div>
                     <div className="conchos-vol-header">
                         <span className="conchos-vol-label">Vol. Consumido</span>
-                        <span className="conchos-vol-percent">{percentConsumed.toFixed(1)}%</span>
+                        <span className="conchos-vol-percent">{(percentConsumed ?? 0).toFixed(1)}%</span>
                     </div>
 
                     <div className="conchos-vol-main-row">
@@ -240,13 +240,13 @@ export const ModuleCard = ({ data }: { data: ModuleData }) => {
                             </PieChart>
                         </ResponsiveContainer>
                         <div className="conchos-gauge-text">
-                            <span className="conchos-gauge-val">{currentLps.toFixed(0)}</span>
+                            <span className="conchos-gauge-val">{(currentLps ?? 0).toFixed(0)}</span>
                             <span className="conchos-unit-small" style={{ color: '#64748b', marginTop: 0 }}>L/s</span>
                         </div>
                     </div>
 
                     <div className="conchos-legend-col">
-                        <span style={{ color: 'white', fontSize: '10px', marginBottom: '2px', fontWeight: 800 }}>{flowPercent.toFixed(1)}%</span>
+                        <span style={{ color: 'white', fontSize: '10px', marginBottom: '2px', fontWeight: 800 }}>{(flowPercent ?? 0).toFixed(1)}%</span>
                         <div className="conchos-legend-item"><div className="conchos-dot" style={{ backgroundColor: '#22d3ee' }}></div>Usado</div>
                         <div className="conchos-legend-item"><div className="conchos-dot" style={{ backgroundColor: '#1e293b' }}></div>Libre</div>
                     </div>

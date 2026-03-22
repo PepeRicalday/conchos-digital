@@ -1,203 +1,698 @@
+/* ═══════════════════════════════════════════════════════════════════
+   SICA 005 · INFORME TÉCNICO DE SIMULACIÓN HIDRÁULICA
+   Formato A4 · Impresión profesional
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── OVERLAY PANTALLA ───────────────────────────────────────────── */
 .sim-report-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(10px);
+  background: rgba(2, 8, 18, 0.92);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   z-index: 2000;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 40px;
+  padding: 32px 20px 60px;
   overflow-y: auto;
 }
 
+/* ── BOTONES DE CONTROL ─────────────────────────────────────────── */
+.report-controls {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  align-items: center;
+}
+
+.rpt-btn-print {
+  display: flex; align-items: center; gap: 8px;
+  background: #059669; color: white;
+  padding: 10px 24px;
+  border-radius: 999px;
+  font-weight: 700; font-size: 13px;
+  border: none; cursor: pointer;
+  box-shadow: 0 0 20px rgba(5, 150, 105, 0.4);
+  transition: background 0.15s, transform 0.1s;
+  font-family: inherit;
+}
+.rpt-btn-print:hover { background: #047857; }
+.rpt-btn-print:active { transform: scale(0.97); }
+
+.rpt-btn-close {
+  display: flex; align-items: center; gap: 8px;
+  background: #1e293b; color: #94a3b8;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-weight: 600; font-size: 13px;
+  border: 1px solid #334155; cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+.rpt-btn-close:hover { background: #293548; color: #e2e8f0; }
+
+/* ── PAPEL A4 ───────────────────────────────────────────────────── */
 .sim-report-paper {
-  background: white;
-  width: 210mm; /* A4 Width */
-  min-height: 297mm; /* A4 Height */
-  padding: 20mm;
-  box-shadow: 0 0 50px rgba(0,0,0,0.5);
-  color: #1e293b;
-  font-family: 'Inter', system-ui, sans-serif;
+  background: #ffffff;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 14mm 16mm 16mm;
+  box-shadow: 0 8px 60px rgba(0, 0, 0, 0.6);
+  color: #0f172a;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 9.5px;
+  line-height: 1.45;
   position: relative;
 }
 
-/* Header Styles */
-.report-header-official {
+/* ── ENCABEZADO ─────────────────────────────────────────────────── */
+.rpt-header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  border-bottom: 2px solid #000;
-  padding-bottom: 10px;
-  margin-bottom: 20px;
+  gap: 10px;
+  border-bottom: 2.5px solid #0f172a;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
 }
 
-.header-left img {
-  height: 60px;
+.rpt-header-logo img {
+  height: 52px;
+  object-fit: contain;
 }
 
-.header-center {
+.rpt-header-center {
   text-align: center;
   flex: 1;
 }
 
-.header-center h1 {
-  font-size: 14px;
+.rpt-org {
+  font-size: 12px;
   font-weight: 900;
-  margin: 0;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.06em;
+  color: #0f172a;
 }
 
-.header-center h2 {
-  font-size: 12px;
-  margin: 2px 0;
-  color: #64748b;
+.rpt-sub {
+  font-size: 9.5px;
+  color: #475569;
+  margin-top: 1px;
 }
 
-.report-title-strip {
-  background: #1e293b;
-  color: white;
-  text-align: center;
-  padding: 4px;
-  font-size: 12px;
+.rpt-sys {
+  font-size: 7.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #94a3b8;
+  margin-top: 3px;
+}
+
+.rpt-header-right {
+  text-align: right;
+  min-width: 70px;
+}
+
+.rpt-date {
+  font-size: 10px;
   font-weight: 800;
+  color: #0f172a;
+}
+
+.rpt-time {
+  font-size: 9px;
+  font-weight: 700;
+  color: #334155;
+  font-family: 'Courier New', monospace;
+}
+
+.rpt-folio {
+  font-size: 7px;
+  font-weight: 700;
+  color: #94a3b8;
   text-transform: uppercase;
-  margin-bottom: 20px;
+  letter-spacing: 0.06em;
+  margin-top: 3px;
 }
 
-/* Section Styles */
-.report-section {
-  margin-bottom: 25px;
+/* ── BANDA DE TÍTULO ────────────────────────────────────────────── */
+.rpt-title-band {
+  background: #0f172a;
+  color: white;
+  padding: 6px 12px;
+  margin-bottom: 10px;
+  border-radius: 3px;
 }
 
-.section-title {
+.rpt-title-main {
   font-size: 11px;
   font-weight: 900;
-  color: #0f172a;
   text-transform: uppercase;
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 4px;
-  margin-bottom: 10px;
-  display: flex;
-  justify-content: space-between;
+  letter-spacing: 0.05em;
 }
 
-/* Params Grid */
-.params-grid {
+.rpt-title-sub {
+  font-size: 8.5px;
+  color: #94a3b8;
+  margin-top: 1px;
+  letter-spacing: 0.02em;
+}
+
+/* ── SECCIONES ──────────────────────────────────────────────────── */
+.rpt-section {
+  margin-bottom: 10px;
+}
+
+.rpt-section-half {
+  margin-bottom: 8px;
+}
+
+.rpt-sec-title {
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #1e293b;
+  border-bottom: 1.5px solid #e2e8f0;
+  padding-bottom: 3px;
+  margin-bottom: 6px;
+  border-left: 3px solid #3b82f6;
+  padding-left: 6px;
+}
+
+/* ── KPI GRID (Sección 1) ───────────────────────────────────────── */
+.rpt-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 15px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin-bottom: 7px;
+}
+
+.rpt-kpi-box {
   background: #f8fafc;
-  padding: 15px;
-  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  padding: 5px 6px;
+  text-align: center;
+}
+
+.rpt-kpi-lbl {
+  font-size: 7px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.rpt-kpi-val {
+  font-size: 17px;
+  font-weight: 900;
+  font-family: 'Courier New', monospace;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.rpt-kpi-val.blue   { color: #1d4ed8; }
+.rpt-kpi-val.amber  { color: #b45309; }
+.rpt-kpi-val.green  { color: #059669; }
+.rpt-kpi-val.red    { color: #dc2626; }
+.rpt-kpi-val.purple { color: #7c3aed; }
+
+.rpt-kpi-unit {
+  font-size: 7.5px;
+  color: #94a3b8;
+  font-family: 'Courier New', monospace;
+  margin-top: 1px;
+}
+
+.rpt-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 8px;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 4px 8px;
+  border-radius: 3px;
   border: 1px solid #e2e8f0;
 }
 
-.params-grid.compact {
-  grid-template-columns: repeat(2, 1fr);
-  padding: 8px;
-  gap: 10px;
-}
+.rpt-meta-row b { color: #1e293b; }
 
-.param-item {
-  display: flex;
-  flex-direction: column;
-}
-
-.param-label {
-  font-size: 9px;
-  color: #64748b;
-  text-transform: uppercase;
-  font-weight: bold;
-}
-
-.param-value {
-  font-size: 14px;
+.rpt-meta-alert-crit {
+  color: #991b1b;
   font-weight: 800;
-  color: #0f172a;
+  background: #fee2e2;
+  padding: 1px 6px;
+  border-radius: 3px;
 }
 
-/* Table Styles */
-.report-table {
+.rpt-meta-alert-warn {
+  color: #92400e;
+  font-weight: 800;
+  background: #fef3c7;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+/* ── TABLAS ─────────────────────────────────────────────────────── */
+.rpt-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11px;
+  font-size: 8.5px;
+  margin-bottom: 4px;
 }
 
-.report-table th {
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
-  padding: 8px;
+.rpt-table-sm {
+  font-size: 7.5px;
+}
+
+.rpt-table th {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 4px 5px;
   text-align: left;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 7px;
+  border: 1px solid #334155;
+}
+
+.rpt-th-center { text-align: center !important; }
+
+.rpt-table td {
+  border: 1px solid #e2e8f0;
+  padding: 3px 5px;
+  vertical-align: middle;
+}
+
+.rpt-tr-even { background: #ffffff; }
+.rpt-tr-odd  { background: #f8fafc; }
+
+.rpt-td-name {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 8px;
+  min-width: 90px;
+}
+
+.rpt-td-name-sm {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 7.5px;
+  min-width: 70px;
+}
+
+.rpt-td-center {
+  text-align: center;
+  font-family: 'Courier New', monospace;
+  font-size: 8px;
+}
+
+.rpt-td-blue  { color: #1d4ed8; }
+.rpt-td-bold  { font-weight: 700; }
+
+.rpt-td-adj {
+  text-align: center;
+  font-size: 7.5px;
+  font-weight: 700;
+  color: #92400e;
+  white-space: nowrap;
+}
+
+.rpt-td-muted {
+  font-size: 7px;
+  color: #94a3b8;
+  font-family: 'Courier New', monospace;
+}
+
+.rpt-origin {
+  font-size: 7px;
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.rpt-table-note {
+  font-size: 7px;
+  color: #64748b;
+  font-style: italic;
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+/* ── BADGES DE ESTADO ───────────────────────────────────────────── */
+.rpt-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.report-table td {
+.rpt-badge-ok   { background: #dcfce7; color: #166534; }
+.rpt-badge-alert { background: #fef3c7; color: #92400e; }
+.rpt-badge-crit { background: #fee2e2; color: #991b1b; }
+
+/* ── TIPO DE REMANSO ────────────────────────────────────────────── */
+.rpt-rtype {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 7px;
+  font-weight: 700;
+}
+
+.rpt-m1 { background: #fff7ed; color: #9a3412; }
+.rpt-m2 { background: #eff6ff; color: #1e40af; }
+.rpt-m0 { background: #f1f5f9; color: #475569; }
+
+/* ── DIAGRAMA PROPAGACIÓN DE ONDA ───────────────────────────────── */
+.rpt-wave-wrap {
+  background: #f8fafc;
   border: 1px solid #e2e8f0;
-  padding: 8px;
+  border-radius: 5px;
+  padding: 6px 8px;
 }
 
-.report-table.mini {
-  font-size: 9px;
+.rpt-wave-svg {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 
-.report-table.mini td, .report-table.mini th {
+/* ── BALANCE HÍDRICO ────────────────────────────────────────────── */
+.rpt-balance-grid {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  padding: 8px 10px;
+}
+
+.rpt-bal-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.rpt-bal-lbl {
+  min-width: 170px;
+  font-size: 8px;
+  color: #374151;
+}
+
+.rpt-bal-bar-wrap {
+  flex: 1;
+  height: 10px;
+  background: #e2e8f0;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.rpt-bal-bar {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+}
+
+.rpt-bal-blue  { background: #3b82f6; }
+.rpt-bal-green { background: #10b981; }
+.rpt-bal-red   { background: #ef4444; }
+
+.rpt-bal-val {
+  min-width: 72px;
+  text-align: right;
+  font-family: 'Courier New', monospace;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.rpt-bal-summary {
+  display: flex;
+  gap: 20px;
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.rpt-bal-eff {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.rpt-bal-eff span {
+  font-size: 7px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rpt-bal-eff strong {
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  color: #0f172a;
+}
+
+/* ── ALERTAS Y RECOMENDACIONES ──────────────────────────────────── */
+.rpt-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 7px;
+}
+
+.rpt-alert-row {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
   padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 8px;
+  line-height: 1.4;
 }
 
-.row-even { background: #fff; }
-.row-odd { background: #f8fafc; }
+.rpt-alert-critico {
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #7f1d1d;
+}
 
-.status-badge {
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 900;
+.rpt-alert-alerta {
+  background: #fef9c3;
+  border: 1px solid #fde047;
+  color: #713f12;
+}
+
+.rpt-alert-info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+}
+
+.rpt-alert-icon {
+  flex-shrink: 0;
   font-size: 9px;
 }
 
-.status-stable { background: #dcfce7; color: #166534; }
-.status-backwater { background: #fee2e2; color: #991b1b; }
+.rpt-recs {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 5px;
+  padding: 7px 10px;
+}
 
-.text-teal { color: #0d9488; }
-.text-rose-600 { color: #e11d48; }
-.text-blue-600 { color: #2563eb; }
-.text-slate-500 { color: #64748b; }
+.rpt-recs-title {
+  font-size: 8px;
+  font-weight: 800;
+  color: #166534;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 5px;
+}
 
-/* Signatures */
-.signature-area {
-  margin-top: 50px;
+.rpt-rec-row {
+  display: flex;
+  gap: 5px;
+  font-size: 8px;
+  color: #14532d;
+  margin-bottom: 3px;
+  line-height: 1.4;
+}
+
+.rpt-rec-num {
+  flex-shrink: 0;
+  font-weight: 800;
+  min-width: 12px;
+}
+
+/* ── NOTA TÉCNICA DEL MODELO ────────────────────────────────────── */
+.rpt-model-note {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #64748b;
+  padding: 5px 8px;
+  font-size: 7px;
+  color: #64748b;
+  border-radius: 0 4px 4px 0;
+  line-height: 1.5;
+  margin-bottom: 12px;
+  margin-top: 8px;
+}
+
+.rpt-model-note b { color: #334155; }
+
+/* ── FIRMAS ─────────────────────────────────────────────────────── */
+.rpt-sigs {
   display: flex;
   justify-content: space-between;
+  gap: 20px;
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
-.sig-box {
-  width: 200px;
+.rpt-sig-box {
+  flex: 1;
   text-align: center;
-  border-top: 1px solid #000;
-  padding-top: 10px;
-  font-size: 10px;
 }
 
-.sig-box .name { font-weight: 800; }
-
-/* Buttons Overlay */
-.report-controls {
-  margin-bottom: 20px;
-  display: flex;
-  gap: 15px;
+.rpt-sig-line {
+  height: 1px;
+  background: #0f172a;
+  margin-bottom: 6px;
 }
 
+.rpt-sig-name {
+  font-size: 8.5px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.rpt-sig-role {
+  font-size: 7px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 1px;
+}
+
+.rpt-sig-date {
+  font-size: 7px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+/* ── PIE DE PÁGINA ──────────────────────────────────────────────── */
+.rpt-footer {
+  text-align: center;
+  font-size: 6.5px;
+  color: #94a3b8;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 6px;
+  letter-spacing: 0.04em;
+  font-style: italic;
+}
+
+/* ── IMPRESIÓN ──────────────────────────────────────────────────── */
 @media print {
   .sim-report-overlay {
     position: static;
     background: white;
     padding: 0;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
-  .report-controls, .hide-on-print {
+
+  .report-controls,
+  .hide-on-print {
     display: none !important;
   }
+
   .sim-report-paper {
     box-shadow: none;
     margin: 0;
+    padding: 12mm 14mm;
+    width: 100%;
+    min-height: unset;
   }
+
+  .rpt-section { page-break-inside: avoid; }
+
+  .rpt-table { page-break-inside: auto; }
+  .rpt-table tr { page-break-inside: avoid; }
 }
+
+/* ── SECCIÓN BADGE ──────────────────────────────────────────────── */
+.rpt-sec-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rpt-sec-badge {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #0d9488;
+  background: #ccfbf1;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #99f6e4;
+}
+
+/* ── TIPO BADGE (toma/lateral/carcamo) ──────────────────────────── */
+.rpt-tipo-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 6.5px;
+  font-weight: 700;
+}
+
+.rpt-tipo-toma    { background: #dbeafe; color: #1e40af; }
+.rpt-tipo-lateral { background: #ede9fe; color: #5b21b6; }
+.rpt-tipo-carcamo { background: #fce7f3; color: #9d174d; }
+
+/* ── ESTADO CERRADA ─────────────────────────────────────────────── */
+.rpt-estado-cerrada {
+  background: #f1f5f9;
+  color: #64748b;
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 7px;
+  font-weight: 700;
+}
+
+/* ── FILA TOTAL ─────────────────────────────────────────────────── */
+.rpt-tr-total {
+  background: #f0fdf4;
+  border-top: 2px solid #bbf7d0;
+}
+
+.rpt-td-total-lbl {
+  font-size: 8px;
+  font-weight: 800;
+  color: #166534;
+  padding: 4px 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── KPI GRID 7 COLUMNAS ────────────────────────────────────────── */
+.rpt-kpi-grid-7 {
+  grid-template-columns: repeat(7, 1fr) !important;
+}
+
+.rpt-kpi-val.teal { color: #0d9488; }

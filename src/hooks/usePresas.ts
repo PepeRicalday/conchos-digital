@@ -99,15 +99,20 @@ export function usePresas(fecha: string) {
                     { data: lecturasDB, error: errL },
                     { data: climaDB, error: errC },
                     { data: aforosDB, error: errA },
-                    { data: eventDB },
+                    { data: eventDBRaw },
                     { data: movsDB }
                 ] = await Promise.all([
                     supabase.from('lecturas_presas').select('*').eq('fecha', fecha),
                     supabase.from('clima_presas').select('*').eq('fecha', fecha),
                     supabase.from('aforos_principales_diarios').select('*').eq('fecha', fecha),
-                    supabase.from('sica_eventos_log').select('*').eq('esta_activo', true).eq('evento_tipo', 'LLENADO').maybeSingle(),
-                    supabase.from('movimientos_presas').select('*').order('fecha_hora', { ascending: false }).limit(50)
+                    supabase.from('sica_eventos_log').select('*').eq('esta_activo', true).order('creado_en', { ascending: false }).limit(1),
+                    supabase.from('movimientos_presas').select('*')
+                        .lte('fecha_hora', `${fecha}T23:59:59-06:00`)
+                        .order('fecha_hora', { ascending: false })
+                        .limit(100)
                 ]);
+
+                const eventDB = eventDBRaw && eventDBRaw.length > 0 ? eventDBRaw[0] : null;
 
                 if (errL) throw errL;
                 if (errC) throw errC;
@@ -161,30 +166,49 @@ export function usePresas(fecha: string) {
                         }));
 
                     // ── LOGICA DE CONTINUIDAD (MOVIMIENTOS) ──
-                    // El gasto de una presa no cambia hasta que se reporta un nuevo movimiento.
-                    // Buscamos el movimiento más reciente para esta presa.
+                    // El gasto de una presa se rige SIEMPRE por el último movimiento registrado.
                     const latestMov = (movsDB || []).find((m: any) => m.presa_id === p.id);
                     
+                    // ── LOGICA DE GASTO OPERATIVO (HIDRO-SINCRO) ──
                     let extraccion = Number(lect?.extraccion_total_m3s) || 0;
                     let notas = lect?.notas || null;
 
-                    // Si hay un movimiento reciente, ese define el gasto actual por política de continuidad
+                    // 1. Aplicar Continuidad (Último Movimiento)
                     if (latestMov) {
-                        const movGasto = Number(latestMov.gasto_m3s);
-                        // Solo sobreescribimos si el movimiento es "significativo" o si la lectura del día es 0 pero hay un movimiento activo
-                        if (extraccion === 0 || Math.abs(extraccion - movGasto) > 0.01) {
-                            extraccion = movGasto;
-                            notas = (notas ? notas + ' | ' : '') + `[HIDRO-CONTINUIDAD]: Gasto activo según último movimiento (${extraccion} m³/s)`;
+                        extraccion = Number(latestMov.gasto_m3s);
+                    }
+
+                    // 2. Sobreescritura especial por Protocolo Activo (Boquilla)
+                    const isBoquilla = p.id === 'PRE-001' || p.codigo === 'PLB' || 
+                                     p.nombre_corto?.toUpperCase().includes('BOQUILLA') ||
+                                     p.nombre?.toUpperCase().includes('BOQUILLA');
+
+                    if (isBoquilla && eventDB && eventDB.esta_activo) {
+                        const solicitado = Number(eventDB.gasto_solicitado_m3s);
+                        // Si es LLENADO o hay un gasto específico solicitado, lo forzamos
+                        if (eventDB.evento_tipo === 'LLENADO' || solicitado > 0) {
+                            const gastoFinal = solicitado > 0 ? solicitado : 34; // Default 34 si es LLENADO
+                            extraccion = gastoFinal;
+                            notas = (notas ? notas + ' | ' : '') + `[PROTOCOL-ACTIVE]: ${eventDB.evento_tipo} (${gastoFinal} m³/s)`;
                         }
                     }
 
-                    // Sobreescritura especial por Protocolo LLENADO (Boquilla)
-                    if (p.id === 'PRE-001' && eventDB && eventDB.gasto_solicitado_m3s > 0) {
-                        if (extraccion === 0) {
-                            extraccion = Number(eventDB.gasto_solicitado_m3s);
-                            notas = (notas ? notas + ' | ' : '') + `[HIDRO-SINCRONÍA]: Gasto Activo por Protocolo LLENADO (${extraccion} m³/s)`;
-                        }
-                    }
+                    // Construimos el objeto lectura garantizando que el gasto aparezca aunque no haya reporte diario
+                    // (Útil para fines de ciclo o días feriados donde no se captura escala pero sí hay gasto)
+                    const readingObject = (lect || latestMov) ? {
+                        fecha: lect?.fecha || latestMov?.fecha_hora?.split('T')[0] || fecha,
+                        escala_msnm: Number(lect?.escala_msnm) || 0,
+                        almacenamiento_mm3: Number(lect?.almacenamiento_mm3) || 0,
+                        porcentaje_llenado: Number(lect?.porcentaje_llenado) || 0,
+                        extraccion_total_m3s: extraccion,
+                        gasto_toma_baja_m3s: lect?.gasto_toma_baja_m3s != null ? Number(lect.gasto_toma_baja_m3s) : (p.id === 'PRE-001' && extraccion > 0 ? extraccion : null),
+                        gasto_cfe_m3s: lect?.gasto_cfe_m3s != null ? Number(lect.gasto_cfe_m3s) : null,
+                        gasto_toma_izq_m3s: lect?.gasto_toma_izq_m3s != null ? Number(lect.gasto_toma_izq_m3s) : null,
+                        gasto_toma_der_m3s: lect?.gasto_toma_der_m3s != null ? Number(lect.gasto_toma_der_m3s) : null,
+                        area_ha: Number(lect?.area_ha) || 0,
+                        responsable: lect?.responsable || (latestMov ? 'Sistema (Movimiento)' : null),
+                        notas: notas,
+                    } : null;
 
                     return {
                         id: p.id,
@@ -198,20 +222,7 @@ export function usePresas(fecha: string) {
                         longitud: Number(p.longitud) || 0,
                         elevacion_corona_msnm: Number(p.elevacion_corona_msnm) || 0,
                         capacidad_max_mm3: Number(p.capacidad_max),
-                        lectura: lect ? {
-                            fecha: lect.fecha,
-                            escala_msnm: Number(lect.escala_msnm) || 0,
-                            almacenamiento_mm3: Number(lect.almacenamiento_mm3) || 0,
-                            porcentaje_llenado: Number(lect.porcentaje_llenado) || 0,
-                            extraccion_total_m3s: extraccion,
-                            gasto_toma_baja_m3s: lect.gasto_toma_baja_m3s != null ? Number(lect.gasto_toma_baja_m3s) : (p.id === 'PRE-001' && extraccion > 0 ? extraccion : null),
-                            gasto_cfe_m3s: lect.gasto_cfe_m3s != null ? Number(lect.gasto_cfe_m3s) : null,
-                            gasto_toma_izq_m3s: lect.gasto_toma_izq_m3s != null ? Number(lect.gasto_toma_izq_m3s) : null,
-                            gasto_toma_der_m3s: lect.gasto_toma_der_m3s != null ? Number(lect.gasto_toma_der_m3s) : null,
-                            area_ha: Number(lect.area_ha) || 0,
-                            responsable: lect.responsable,
-                            notas: notas,
-                        } : null,
+                        lectura: readingObject,
                         curva_capacidad: curva,
                     };
                 });
@@ -253,10 +264,18 @@ export function usePresas(fecha: string) {
 
         fetchData();
 
-        // C-3: Realtime subscription for lecturas_presas changes
+        // C-3: Realtime subscription for lecturas_presas & movimientos_presas changes
         const channel = supabase.channel('presas_realtime')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'lecturas_presas' }, () => {
                 console.log('🏔️ Lectura de presa actualizada. Refrescando...');
+                fetchData();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'movimientos_presas' }, () => {
+                console.log('💧 Movimiento de presa detectado. Sincronizando gasto...');
+                fetchData();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'sica_eventos_log' }, () => {
+                console.log('📢 Protocolo hidráulico actualizado (EventLog). Refrescando...');
                 fetchData();
             })
             .subscribe();
@@ -277,6 +296,22 @@ export function usePresas(fecha: string) {
     // Derived values
     const totalAlmacenamiento = presas.reduce((acc, p) => acc + (p.lectura?.almacenamiento_mm3 || 0), 0);
     const totalCapacidad = presas.reduce((acc, p) => acc + p.capacidad_max_mm3, 0);
+    // Calculamos el volumen total extraído proyectado para el día (en Millores de m3)
+    const totalVolumenExtraidoMm3 = presas.reduce((acc, p) => {
+        const flow = p.lectura?.extraccion_total_m3s || 0;
+        // Si estamos viendo hoy, calculamos el volumen acumulado hasta este segundo
+        const isTodayReq = fecha === new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chihuahua' }).format(new Date());
+        
+        if (isTodayReq) {
+            const now = new Date();
+            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const secondsElapsed = (now.getTime() - startOfDay.getTime()) / 1000;
+            return acc + (flow * secondsElapsed / 1000000);
+        } else {
+            // Para días pasados, asumimos el gasto constante por 24h
+            return acc + (flow * 24 * 3600 / 1000000);
+        }
+    }, 0);
     const totalExtraccion = presas.reduce((acc, p) => acc + (p.lectura?.extraccion_total_m3s || 0), 0);
     const porcentajeLlenado = totalCapacidad > 0 ? (totalAlmacenamiento / totalCapacidad) * 100 : 0;
 
@@ -291,6 +326,7 @@ export function usePresas(fecha: string) {
         totalAlmacenamiento,
         totalCapacidad,
         totalExtraccion,
+        totalVolumenExtraidoMm3,
         porcentajeLlenado,
     };
-}
+};

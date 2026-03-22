@@ -26,9 +26,9 @@ const AlertList: React.FC<AlertListProps> = ({ alerts }) => {
                 {alerts.map((alert) => (
                     <div key={alert.id} className={clsx('alert-item', `alert-${alert.type}`)}>
                         <div className="alert-icon">
-                            {alert.type === 'warning' && <AlertTriangle size={18} />}
-                            {alert.type === 'critical' && <XCircle size={18} />}
-                            {alert.type === 'info' && <Info size={18} />}
+                            {alert.type === 'warning' && <AlertTriangle size={22} />}
+                            {alert.type === 'critical' && <XCircle size={22} />}
+                            {alert.type === 'info' && <Info size={22} />}
                         </div>
                         <div className="alert-content">
                             <h4 className="alert-title">{alert.title}</h4>

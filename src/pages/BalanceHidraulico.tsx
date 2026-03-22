@@ -204,22 +204,22 @@ const BalanceHidraulico = () => {
                                         return (
                                             <tr key={idx} className={`balance-row ${b.estado}`}>
                                                 <td className="tramo-name">{b.seccion_nombre}</td>
-                                                <td className="tramo-km">{b.km_inicio.toFixed(1)} - {b.km_fin.toFixed(1)}</td>
-                                                <td className="q-value entrada">{b.q_entrada.toFixed(3)}</td>
-                                                <td className="q-value salida">{b.q_salida.toFixed(3)}</td>
-                                                <td className="q-value tomas">{b.q_tomas.toFixed(3)}</td>
-                                                <td className="q-value perdidas">{b.q_perdidas.toFixed(3)}</td>
+                                                <td className="tramo-km">{(b.km_inicio ?? 0).toFixed(1)} - {(b.km_fin ?? 0).toFixed(1)}</td>
+                                                <td className="q-value entrada">{(b.q_entrada ?? 0).toFixed(3)}</td>
+                                                <td className="q-value salida">{(b.q_salida ?? 0).toFixed(3)}</td>
+                                                <td className="q-value tomas">{(b.q_tomas ?? 0).toFixed(3)}</td>
+                                                <td className="q-value perdidas">{(b.q_perdidas ?? 0).toFixed(3)}</td>
                                                 <td className="efficiency-cell">
                                                     <div className="efficiency-bar-container">
                                                         <div
                                                             className="efficiency-bar-fill"
                                                             style={{
-                                                                width: `${Math.min(100, b.eficiencia)}%`,
+                                                                width: `${Math.min(100, b.eficiencia ?? 0)}%`,
                                                                 background: status.color
                                                             }}
                                                         />
                                                         <span className="efficiency-text" style={{ color: status.color }}>
-                                                            {b.eficiencia.toFixed(1)}%
+                                                            {(b.eficiencia ?? 0).toFixed(1)}%
                                                         </span>
                                                     </div>
                                                 </td>
@@ -256,7 +256,7 @@ const BalanceHidraulico = () => {
                                     <div className="schematic-node">
                                         <div className="node-dot" style={{ background: status.color, boxShadow: `0 0 12px ${status.color}` }} />
                                         <span className="node-label">{b.seccion_nombre.split(' → ')[0]}</span>
-                                        <span className="node-q">{b.q_entrada.toFixed(2)} m³/s</span>
+                                        <span className="node-q">{(b.q_entrada ?? 0).toFixed(2)} m³/s</span>
                                     </div>
                                     <div className="schematic-pipe">
                                         <div
@@ -269,24 +269,24 @@ const BalanceHidraulico = () => {
                                         {b.q_tomas > 0 && (
                                             <div className="pipe-tomas">
                                                 <ArrowDown size={10} />
-                                                <span>{b.q_tomas.toFixed(2)}</span>
+                                                <span>{(b.q_tomas ?? 0).toFixed(2)}</span>
                                             </div>
                                         )}
                                         {b.q_perdidas > 0.01 && (
                                             <div className="pipe-loss">
                                                 <AlertTriangle size={10} />
-                                                <span>-{b.q_perdidas.toFixed(2)}</span>
+                                                <span>-{(b.q_perdidas ?? 0).toFixed(2)}</span>
                                             </div>
                                         )}
                                         <span className="pipe-efficiency" style={{ color: status.color }}>
-                                            {b.eficiencia.toFixed(1)}%
+                                            {(b.eficiencia ?? 0).toFixed(1)}%
                                         </span>
                                     </div>
                                     {idx === balanceData.length - 1 && (
                                         <div className="schematic-node">
                                             <div className="node-dot" style={{ background: status.color, boxShadow: `0 0 12px ${status.color}` }} />
                                             <span className="node-label">{b.seccion_nombre.split(' → ')[1]}</span>
-                                            <span className="node-q">{b.q_salida.toFixed(2)} m³/s</span>
+                                            <span className="node-q">{(b.q_salida ?? 0).toFixed(2)} m³/s</span>
                                         </div>
                                     )}
                                 </div>
@@ -314,24 +314,24 @@ const BalanceHidraulico = () => {
                                     <div key={idx} className="manning-item">
                                         <div className="manning-header">
                                             <span className="manning-tramo">{tramo.nombre_tramo}</span>
-                                            <span className="manning-km">KM {tramo.km_inicio.toFixed(1)}-{tramo.km_fin.toFixed(1)}</span>
+                                            <span className="manning-km">KM {(tramo.km_inicio ?? 0).toFixed(1)}-{(tramo.km_fin ?? 0).toFixed(1)}</span>
                                         </div>
                                         <div className="manning-values">
                                             <div className="manning-row">
                                                 <span>Q Manning:</span>
-                                                <strong>{manning.Q.toFixed(2)} m³/s</strong>
+                                                <strong>{(manning.Q ?? 0).toFixed(2)} m³/s</strong>
                                             </div>
                                             <div className="manning-row">
                                                 <span>Q Diseño:</span>
-                                                <strong>{tramo.capacidad_diseno_m3s.toFixed(2)} m³/s</strong>
+                                                <strong>{(tramo.capacidad_diseno_m3s ?? 0).toFixed(2)} m³/s</strong>
                                             </div>
                                             <div className="manning-row">
                                                 <span>V:</span>
-                                                <strong>{manning.V.toFixed(2)} m/s</strong>
+                                                <strong>{(manning.V ?? 0).toFixed(2)} m/s</strong>
                                             </div>
                                             <div className="manning-row">
                                                 <span>Fr:</span>
-                                                <strong className={manning.Fr > 1 ? 'supercrit' : ''}>{manning.Fr.toFixed(3)}</strong>
+                                                <strong className={(manning.Fr ?? 0) > 1 ? 'supercrit' : ''}>{(manning.Fr ?? 0).toFixed(3)}</strong>
                                             </div>
                                         </div>
                                     </div>

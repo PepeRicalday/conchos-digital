@@ -12,6 +12,7 @@ import ChartWidget from '../components/ChartWidget';
 import AlertList, { type Alert } from '../components/AlertList';
 import { useHydraEngine } from '../hooks/useHydraEngine';
 import { usePresas } from '../hooks/usePresas';
+import { useLeakMonitor } from '../hooks/useLeakMonitor';
 import { useHydricEvents } from '../hooks/useHydricEvents';
 import { useFecha } from '../context/FechaContext';
 import { supabase } from '../lib/supabase';
@@ -30,7 +31,8 @@ function DonutRing({ pct, label, color = '#60a5fa', size = 110 }: {
 }) {
     const r = 38;
     const circ = 2 * Math.PI * r;
-    const stroke = circ * Math.min(pct, 100) / 100;
+    const safePct = Number.isFinite(pct) ? Math.max(0, Math.min(pct, 100)) : 0;
+    const stroke = circ * safePct / 100;
     const ringId = `donut-grad-${label.replace(/\s+/g, '-')}`;
     
     return (
@@ -57,14 +59,14 @@ function DonutRing({ pct, label, color = '#60a5fa', size = 110 }: {
                     strokeDasharray={`${stroke} ${circ}`}
                     strokeLinecap="round"
                     transform="rotate(-90 50 50)"
-                    style={{ 
-                        filter: `drop-shadow(0 0 8px ${color}80)`, 
-                        transition: 'stroke-dasharray 1.5s cubic-bezier(0.4, 0, 0.2, 1)' 
+                    style={{
+                        filter: `drop-shadow(0 0 8px ${color}80)`,
+                        transition: 'stroke-dasharray 1.5s cubic-bezier(0.4, 0, 0.2, 1)'
                     }}
                 />
                 {/* Center text */}
                 <text x="50" y="55" textAnchor="middle" fill="#fff" fontSize="18" fontWeight="900" fontFamily="var(--font-mono)">
-                    {pct.toFixed(0)}%
+                    {safePct.toFixed(0)}%
                 </text>
             </svg>
             <span style={{ 
@@ -87,7 +89,7 @@ function DonutRing({ pct, label, color = '#60a5fa', size = 110 }: {
 
 
 /* ─── Module Efficiency Bar (custom, no recharts) ──────────────── */
-function ModuleBar({ name, pct, rank }: { name: string; pct: number; rank: number }) {
+function ModuleBar({ name, pct, rank, vol }: { name: string; pct: number; rank: number; vol: number }) {
     const isHigh = pct >= 90;
     const barColor = isHigh
         ? 'linear-gradient(90deg, #f43f5e, #fb923c)'
@@ -98,7 +100,7 @@ function ModuleBar({ name, pct, rank }: { name: string; pct: number; rank: numbe
     const glowColor = isHigh ? '#f43f5e' : pct >= 60 ? '#3b82f6' : '#10b981';
 
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
             {/* Rank badge */}
             <span style={{
                 width: '20px', height: '20px', borderRadius: '50%',
@@ -115,7 +117,7 @@ function ModuleBar({ name, pct, rank }: { name: string; pct: number; rank: numbe
             </span>
 
             {/* Bar track */}
-            <div style={{ flex: 1, height: '10px', background: 'rgba(255,255,255,0.04)', borderRadius: '999px', overflow: 'hidden', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
+            <div style={{ flex: 1, height: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '999px', overflow: 'hidden', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
                 <div style={{
                     width: `${Math.min(pct, 100)}%`,
                     height: '100%',
@@ -126,16 +128,24 @@ function ModuleBar({ name, pct, rank }: { name: string; pct: number; rank: numbe
                 }} />
             </div>
 
-            {/* Value */}
-            <span style={{
-                width: '45px', textAlign: 'right',
-                fontSize: '0.8rem', fontWeight: '800', flexShrink: 0,
-                color: isHigh ? '#fb923c' : pct >= 60 ? '#60a5fa' : '#34d399',
-                fontFamily: 'var(--font-mono)',
-                textShadow: `0 0 10px ${glowColor}80`
+            {/* Value & Volume */}
+            <div style={{
+                width: '85px', textAlign: 'right',
+                display: 'flex', flexDirection: 'column',
+                lineHeight: '1.1', flexShrink: 0
             }}>
-                {pct.toFixed(1)}%
-            </span>
+                <span style={{
+                    fontSize: '0.8rem', fontWeight: '800',
+                    color: isHigh ? '#fb923c' : pct >= 60 ? '#60a5fa' : '#34d399',
+                    fontFamily: 'var(--font-mono)',
+                    textShadow: `0 0 10px ${glowColor}80`
+                }}>
+                    {pct.toFixed(1)}%
+                </span>
+                <span style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: '600', fontFamily: 'var(--font-mono)' }}>
+                    {vol.toFixed(3)}<small style={{ fontSize: '0.5rem', marginLeft: '1px' }}>Mm³</small>
+                </span>
+            </div>
         </div>
     );
 }
@@ -180,12 +190,16 @@ const Dashboard = () => {
         totalAlmacenamiento,
         totalCapacidad,
         totalExtraccion,
+        totalVolumenExtraidoMm3,
         porcentajeLlenado,
         loading: loadingPresas
     } = usePresas(fechaSeleccionada);
 
+    const { segments, loading: loadingLeaks } = useLeakMonitor();
+
     const [appVersions, setAppVersions] = useState<any[]>([]);
     const [tomasVaradas, setTomasVaradas] = useState<any[]>([]);
+    const [rawExtractionHistory, setRawExtractionHistory] = useState<{ fecha: string; total: number }[]>([]);
 
     useEffect(() => {
         const fetchVersions = async () => {
@@ -199,9 +213,34 @@ const Dashboard = () => {
             if (data) setTomasVaradas(data);
         };
         fetchVaradas();
+
+        const fetchExtractionHistory = async () => {
+            const today = new Date();
+            const sevenDaysAgo = new Date(today);
+            sevenDaysAgo.setDate(today.getDate() - 6);
+            const from = sevenDaysAgo.toISOString().split('T')[0];
+            const to = today.toISOString().split('T')[0];
+            const { data } = await supabase
+                .from('lecturas_presa')
+                .select('fecha, extraccion_total_m3s')
+                .gte('fecha', from)
+                .lte('fecha', to)
+                .order('fecha', { ascending: true });
+            if (data && data.length > 0) {
+                const byDate = new Map<string, number>();
+                data.forEach((r: any) => {
+                    const v = byDate.get(r.fecha) || 0;
+                    byDate.set(r.fecha, v + (r.extraccion_total_m3s || 0));
+                });
+                setRawExtractionHistory(
+                    Array.from(byDate.entries()).map(([fecha, total]) => ({ fecha, total }))
+                );
+            }
+        };
+        fetchExtractionHistory();
     }, []);
 
-    const loading = loadingModules || loadingPresas;
+    const loading = loadingModules || loadingPresas || loadingLeaks;
 
     const [now, setNow] = useState<number>(() => Date.now());
     useEffect(() => {
@@ -220,13 +259,30 @@ const Dashboard = () => {
         return acc + mDailyVol;
     }, 0), [modules, now, esHoy]);
 
-    const extractionTrend = useMemo(() => totalExtraccion > 30 ? 'rising' : totalExtraccion > 0 ? 'stable' : 'falling', [totalExtraccion]);
+    const extractionTrend = useMemo(() => {
+        if (rawExtractionHistory.length >= 2) {
+            const last = rawExtractionHistory[rawExtractionHistory.length - 1].total;
+            const prev = rawExtractionHistory[rawExtractionHistory.length - 2].total;
+            if (prev > 0 && last > prev * 1.05) return 'rising';
+            if (prev > 0 && last < prev * 0.95) return 'falling';
+            return 'stable';
+        }
+        return totalExtraccion > 30 ? 'rising' : totalExtraccion > 0 ? 'stable' : 'falling';
+    }, [rawExtractionHistory, totalExtraccion]);
+
+    const deliveryTrend = useMemo(() => {
+        if (totalDailyVol > 0.001) return 'rising';
+        if (modules.length > 0) return 'stable';
+        return 'falling';
+    }, [totalDailyVol, modules]);
 
     /* ── Chart Data ── */
     const moduleChartData = useMemo(() =>
         modules.map(m => ({
             name: m.short_code || (m.name || '').substring(0, 10),
             full_name: m.name,
+            vol: m.accumulated_vol,
+            authorized: m.authorized_vol,
             efficiency: Math.min(((m.accumulated_vol / (m.authorized_vol || 1)) * 100), 100),
             flow: m.current_flow * 1000
         })).sort((a, b) => b.efficiency - a.efficiency),
@@ -243,52 +299,77 @@ const Dashboard = () => {
         [presas]
     );
 
-    /* Simulated extraction trend line — last 7 readings extrapolated */
+    /* Real extraction trend — 7-day historical from lecturas_presa */
     const extractionTrendData = useMemo(() => {
+        if (rawExtractionHistory.length > 0) {
+            return rawExtractionHistory.map(r => ({
+                label: formatFechaCorta(r.fecha).slice(0, 6),
+                extraccion: r.total
+            }));
+        }
+        // Fallback: flat line with current value while data loads
         const base = totalExtraccion || 0;
         const labels = ['−6d', '−5d', '−4d', '−3d', '−2d', 'Ayer', 'Hoy'];
-        return labels.map((label, i) => ({
-            label,
-            extraccion: Math.max(0, base * (0.75 + Math.sin(i * 0.9) * 0.18 + i * 0.015))
-        }));
-    }, [totalExtraccion]);
+        return labels.map(label => ({ label, extraccion: base }));
+    }, [rawExtractionHistory, totalExtraccion]);
 
     /* ── Alerts ── */
     const realAlerts: Alert[] = useMemo(() => {
         const alerts: Alert[] = [];
 
-        // Alerts for stranded gates (Anomalías de continuidad)
+        // 1. Anomalías de continuidad (Tomas Varadas)
         tomasVaradas.forEach(tv => {
             alerts.push({
                 id: `varada-${tv.punto_id}`,
                 type: 'critical',
                 title: 'Toma Varada (Falla de Continuidad)',
-                message: `${tv.punto_nombre}: Quedó en estado "${tv.ultimo_estado}" hace ${tv.dias_varada} días. Se requiere intervención diagnóstica.`,
+                message: `${tv.punto_nombre}: Estado "${tv.ultimo_estado}" hace ${tv.dias_varada} días. Se requiere intervención diagnóstica.`,
                 timestamp: 'Crítico'
             });
         });
 
+        // 2. Pérdidas Críticas / Fugas en Canales (Directiva 10%)
+        segments.filter(s => s.eficiencia_pct < 90).forEach(s => {
+            alerts.push({
+                id: `leak-${s.km_inicio}`,
+                type: 'critical',
+                title: 'Pérdida Crítica / Posible Fuga',
+                message: `Tramo ${s.tramo_inicio} KM ${(s.km_inicio ?? 0).toFixed(1)}: Eficiencia ${(s.eficiencia_pct ?? 0).toFixed(1)}% (Pérdida: ${(s.q_perdida ?? 0).toFixed(2)} m³/s).`,
+                timestamp: 'Ahora'
+            });
+        });
+
+        // 3. Sobregiros en Módulos
         modules.forEach(m => {
             // Durante LLENADO, los gastos pueden ser erráticos o de purga, toleramos más (50%)
             const tolerance = activeEvent?.evento_tipo === 'LLENADO' ? 1.5 : 1.1;
             if (m.current_flow > m.target_flow * tolerance && m.target_flow > 0) {
-                alerts.push({ id: `ovf-${m.id}`, type: 'critical', title: 'Sobregiro Detectado', message: `${m.name}: Gasto ${(m.current_flow * 1000).toFixed(0)} L/s excede autorizado (+${((tolerance-1)*100).toFixed(0)}%).`, timestamp: 'Ahora' });
+                alerts.push({ 
+                    id: `ovf-${m.id}`, 
+                    type: 'warning', 
+                    title: 'Sobregiro Detectado', 
+                    message: `${m.name}: Gasto ${((m.current_flow ?? 0) * 1000).toFixed(0)} L/s excede autorizado (+${(((m.current_flow ?? 0)/(m.target_flow || 1) - 1)*100).toFixed(0)}%).`,
+                    timestamp: 'Ahora' 
+                });
             }
         });
+
+        // 4. Estado de Presas
         presas.forEach(p => {
             if (p.lectura && p.lectura.porcentaje_llenado > 90) {
-                alerts.push({ id: `dam-high-${p.id}`, type: 'warning' as const, title: 'Alto Nivel (NAMO)', message: `${p.nombre}: ${p.lectura.porcentaje_llenado.toFixed(1)}% de llenado.`, timestamp: p.lectura.fecha });
+                alerts.push({ id: `dam-high-${p.id}`, type: 'warning' as const, title: 'Alto Nivel (NAMO)', message: `${p.nombre}: ${p.lectura.porcentaje_llenado.toFixed(1)}% de llenado.`, timestamp: p.lectura.fecha || 'Hoy' });
             }
             // Alerta de nivel bajo solo si NO estamos en protocolo de LLENADO (donde es sabido que estamos extrayendo)
             if (p.lectura && p.lectura.porcentaje_llenado < 20 && activeEvent?.evento_tipo !== 'LLENADO') {
-                alerts.push({ id: `dam-low-${p.id}`, type: 'critical' as const, title: 'Almacenamiento Crítico', message: `${p.nombre}: Nivel por debajo del 20% (${p.lectura.porcentaje_llenado.toFixed(1)}%).`, timestamp: p.lectura.fecha });
+                alerts.push({ id: `dam-low-${p.id}`, type: 'critical' as const, title: 'Almacenamiento Crítico', message: `${p.nombre}: Nivel por debajo del 20% (${p.lectura.porcentaje_llenado.toFixed(1)}%).`, timestamp: p.lectura.fecha || 'Hoy' });
             }
         });
+
         if (alerts.length === 0) {
             alerts.push({ id: 'ok', type: 'info', title: 'Sistema Estable', message: 'Operando dentro de parámetros normales.', timestamp: 'Ahora' });
         }
         return alerts;
-    }, [modules, presas, tomasVaradas]);
+    }, [modules, presas, tomasVaradas, segments, activeEvent]);
 
     if (loading && presas.length === 0) {
         return (
@@ -360,9 +441,9 @@ const Dashboard = () => {
 
             {/* KPI Section */}
             <section className="dashboard-grid-kpi">
-                <KPICard title="Almacenamiento Total" value={`${porcentajeLlenado.toFixed(1)}%`} subtext={`${totalAlmacenamiento.toFixed(1)} / ${totalCapacidad.toFixed(0)} Mm³`} icon={Waves} color="cyan" className="shadow-cyan-900/10" />
-                <KPICard title="Extracción Total (Presas)" value={totalExtraccion.toFixed(1)} unit="m³/s" subtext="Gasto combinado actual" icon={Droplets} color="blue" trend={extractionTrend as any} className="shadow-blue-900/10" />
-                <KPICard title="Entrega a Módulos" value={totalDailyVol.toFixed(4)} unit="Mm³" subtext="Volumen Real del Día (Mm³)" icon={Activity} color="emerald" trend="rising" className="shadow-emerald-900/10" />
+                <KPICard title="Almacenamiento Total" value={`${(porcentajeLlenado ?? 0).toFixed(1)}%`} subtext={`${(totalAlmacenamiento ?? 0).toFixed(1)} / ${(totalCapacidad ?? 0).toFixed(0)} Mm³`} icon={Waves} color="cyan" className="shadow-cyan-900/10" />
+                <KPICard title="Extracción Total (Presas)" value={(totalExtraccion ?? 0).toFixed(1)} unit="m³/s" subtext={`Volumen inyectado: ${(totalVolumenExtraidoMm3 ?? 0).toFixed(4)} Mm³`} icon={Droplets} color="blue" trend={extractionTrend as any} className="shadow-blue-900/10" />
+                <KPICard title="Entrega a Módulos" value={(totalDailyVol ?? 0).toFixed(4)} unit="Mm³" subtext="Volumen Real del Día (Mm³)" icon={Activity} color="emerald" trend={deliveryTrend as any} className="shadow-emerald-900/10" />
                 <KPICard title="Alertas Activas" value={realAlerts.length.toString()} subtext="Atención Requerida" icon={AlertTriangle} color={realAlerts.some(a => a.type === 'critical') ? 'rose' : 'amber'} className="shadow-rose-900/10" />
             </section>
 
@@ -413,29 +494,29 @@ const Dashboard = () => {
                                                     <span className="text-xs text-blue-300 uppercase font-bold tracking-wider">Extracción</span>
                                                     {extraccion > 0 ? <TrendingUp size={12} className="text-emerald-400" /> : <TrendingDown size={12} className="text-slate-500" />}
                                                 </div>
-                                                <span className="text-2xl font-mono font-bold text-blue-100">{extraccion.toFixed(1)} <span className="text-sm text-blue-400">m³/s</span></span>
+                                                <span className="text-2xl font-mono font-bold text-blue-100">{(extraccion ?? 0).toFixed(1)} <span className="text-sm text-blue-400">m³/s</span></span>
                                             </div>
                                         </div>
 
                                         <div className="presa-stats">
                                             <div className="stat border-r border-slate-700/50">
                                                 <span>Elevación Actual</span>
-                                                <strong>{elevacion.toFixed(2)} <small className="text-slate-500 text-[10px]">msnm</small></strong>
+                                                <strong>{(elevacion ?? 0).toFixed(2)} <small className="text-slate-500 text-[10px]">msnm</small></strong>
                                             </div>
                                             <div className="stat border-r border-slate-700/50">
                                                 <span>Almacenamiento</span>
-                                                <strong>{almacenamiento.toFixed(1)} <small className="text-slate-500 text-[10px]">Mm³</small></strong>
+                                                <strong>{(almacenamiento ?? 0).toFixed(1)} <small className="text-slate-500 text-[10px]">Mm³</small></strong>
                                             </div>
                                             <div className="stat">
                                                 <span>% Llenado</span>
-                                                <strong className={pctLlenado > 90 ? 'text-amber-400' : 'text-emerald-400'}>{pctLlenado.toFixed(1)}%</strong>
+                                                <strong className={pctLlenado > 90 ? 'text-amber-400' : 'text-emerald-400'}>{(pctLlenado ?? 0).toFixed(1)}%</strong>
                                             </div>
                                         </div>
 
                                         <div className="presa-level mt-2">
                                             <div className="flex justify-between text-xxs text-slate-400 mb-1 font-mono">
-                                                <span>NAMO ({presa.capacidad_max_mm3.toFixed(0)} Mm³)</span>
-                                                <span>{almacenamiento.toFixed(1)} / {presa.capacidad_max_mm3.toFixed(0)} Mm³</span>
+                                                <span>NAMO ({(presa.capacidad_max_mm3 ?? 0).toFixed(0)} Mm³)</span>
+                                                <span>{(almacenamiento ?? 0).toFixed(1)} / {(presa.capacidad_max_mm3 ?? 0).toFixed(0)} Mm³</span>
                                             </div>
                                             <div className="h-3 bg-slate-900/80 rounded-full overflow-hidden border border-slate-700/50 shadow-inner">
                                                 <div
@@ -485,6 +566,10 @@ const Dashboard = () => {
                                         <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.18} />
                                         <stop offset="100%" stopColor="#1e3a5f" stopOpacity={0.08} />
                                     </linearGradient>
+                                    <linearGradient id="gradAmber" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#fbbf24" stopOpacity={1} />
+                                        <stop offset="100%" stopColor="#d97706" stopOpacity={0.8} />
+                                    </linearGradient>
                                     <filter id="glow-bar">
                                         <feGaussianBlur stdDeviation="3" result="blur" />
                                         <feComposite in="SourceGraphic" in2="blur" operator="over" />
@@ -511,7 +596,7 @@ const Dashboard = () => {
                     {/* ── Chart 2: Tendencia de Extracción — Glowing AreaChart ── */}
                     <ChartWidget
                         title="Tendencia de Extracción"
-                        subtitle="Estimación histórica de la semana · m³/s"
+                        subtitle={rawExtractionHistory.length > 0 ? 'Datos históricos reales · m³/s' : 'Cargando datos históricos · m³/s'}
                         badge="7d"
                         infoBar={
                             <div style={{ display: 'flex', gap: '1.5rem', width: '100%', justifyContent: 'center' }}>
@@ -597,7 +682,7 @@ const Dashboard = () => {
                             ) : moduleChartData.length > 0 ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                     {moduleChartData.map((entry, i) => (
-                                        <ModuleBar key={entry.name} name={entry.name} pct={entry.efficiency} rank={i + 1} />
+                                        <ModuleBar key={entry.name} name={entry.name} pct={entry.efficiency} rank={i + 1} vol={entry.vol} />
                                     ))}
                                 </div>
                             ) : (

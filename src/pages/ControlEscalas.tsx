@@ -420,7 +420,7 @@ const ScaleGauge = ({ scale, zoneColor, onOpenModal }: { scale: ScaleReading; zo
                             className="level-indicator"
                             style={{ bottom: `${levelPercent}%`, borderColor: zoneColor }}
                         >
-                            <span className="level-value">{scale.currentLevel.toFixed(2)}m</span>
+                            <span className="level-value">{(scale.currentLevel ?? 0).toFixed(2)}m</span>
                         </div>
                     </div>
 
@@ -446,16 +446,16 @@ const ScaleGauge = ({ scale, zoneColor, onOpenModal }: { scale: ScaleReading; zo
                 <div className="reading-row">
                     <Clock size={12} className="text-slate-500" />
                     <span className="reading-label">06:00</span>
-                    <span className="reading-value">{scale.amReading.toFixed(2)}m</span>
+                    <span className="reading-value">{(scale.amReading ?? 0).toFixed(2)}m</span>
                 </div>
                 <div className="reading-row">
                     <Clock size={12} className="text-slate-500" />
                     <span className="reading-label">18:00</span>
-                    <span className="reading-value">{scale.pmReading.toFixed(2)}m</span>
+                    <span className="reading-value">{(scale.pmReading ?? 0).toFixed(2)}m</span>
                 </div>
                 <div className={`delta-row ${isRising ? 'rising' : isFalling ? 'falling' : 'stable'}`}>
                     {isRising ? <ArrowUp size={14} /> : isFalling ? <ArrowDown size={14} /> : <Minus size={14} />}
-                    <span>Δ {delta >= 0 ? '+' : ''}{delta.toFixed(2)}m</span>
+                    <span>Δ {(delta ?? 0) >= 0 ? '+' : ''}{(delta ?? 0).toFixed(2)}m</span>
                 </div>
             </div>
 
@@ -493,13 +493,13 @@ const ZoneCard = ({ zone, onOpenModal }: { zone: Zone; onOpenModal: (scale: Scal
                 <div className="zone-summary">
                     <div className="summary-stat">
                         <Droplets size={16} style={{ color: zone.color }} />
-                        <span className="stat-value">{avgLevel.toFixed(2)}m</span>
+                        <span className="stat-value">{(avgLevel ?? 0).toFixed(2)}m</span>
                         <span className="stat-label">Promedio</span>
                     </div>
                     {totalGasto > 0 && (
                         <div className="summary-stat">
                             <Waves size={16} style={{ color: '#0ea5e9' }} />
-                            <span className="stat-value" style={{ color: '#0ea5e9' }}>{totalGasto.toFixed(2)}</span>
+                            <span className="stat-value" style={{ color: '#0ea5e9' }}>{(totalGasto ?? 0).toFixed(2)}</span>
                             <span className="stat-label">m³/s Total</span>
                         </div>
                     )}
@@ -702,12 +702,12 @@ const ControlEscalas = () => {
                     </div>
                     <div className={`stat-chip ${avgDelta >= 0 ? 'rising' : 'falling'}`}>
                         {avgDelta >= 0 ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
-                        <span>Δ {avgDelta >= 0 ? '+' : ''}{avgDelta.toFixed(2)}m (12h)</span>
+                        <span>Δ {(avgDelta ?? 0) >= 0 ? '+' : ''}{(avgDelta ?? 0).toFixed(2)}m (12h)</span>
                     </div>
                     {totalGasto > 0 && (
                         <div className="stat-chip" style={{ color: '#0ea5e9', borderColor: 'rgba(14,165,233,0.3)', backgroundColor: 'rgba(14,165,233,0.1)' }}>
                             <Waves size={16} />
-                            <span>Q Total: {totalGasto.toFixed(2)} m³/s</span>
+                            <span>Q Total: {(totalGasto ?? 0).toFixed(2)} m³/s</span>
                         </div>
                     )}
                 </div>
@@ -753,7 +753,7 @@ const ControlEscalas = () => {
                                 <div key={zone.id} className="zone-avg-chip" style={{ borderColor: zone.color }}>
                                     <div className="chip-dot" style={{ backgroundColor: zone.color }} />
                                     <span className="chip-name">{zone.name}</span>
-                                    <span className="chip-value" style={{ color: zone.color }}>{zoneAvg.toFixed(2)}m</span>
+                                    <span className="chip-value" style={{ color: zone.color }}>{(zoneAvg ?? 0).toFixed(2)}m</span>
                                 </div>
                             );
                         })}

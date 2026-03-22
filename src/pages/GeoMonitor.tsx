@@ -8,6 +8,9 @@ import L from 'leaflet';
 import clsx from 'clsx';
 import './GeoMonitor.css';
 import { supabase } from '../lib/supabase';
+import { onTable } from '../lib/realtimeHub';
+import { getTodayString, addDays, formatTime, formatDate } from '../utils/dateHelpers';
+import type { VwAlertaTomaVaradaRow } from '../types/sica.types';
 import { ShapefileImporter, type GeoLayer } from '../components/ShapefileImporter';
 import { useAuth } from '../context/AuthContext';
 import { useHydricEvents } from '../hooks/useHydricEvents';
@@ -115,7 +118,7 @@ const GeoMonitor = () => {
     const [tomas, setTomas] = useState<TomaData[]>([]);
     const [secciones, setSecciones] = useState<SeccionData[]>([]);
     const [operStats] = useState<OperStats>({ tomas_abiertas: 0, tomas_cerradas: 0, gasto_distribuido_m3s: 0 });
-    const [tomasVaradas, setTomasVaradas] = useState<any[]>([]);
+    const [tomasVaradas, setTomasVaradas] = useState<VwAlertaTomaVaradaRow[]>([]);
     const [latestAforos, setLatestAforos] = useState<Record<string, any>>({});
     const [totalDemandaProgramada, setTotalDemandaProgramada] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -156,12 +159,8 @@ const GeoMonitor = () => {
             };
             fetchMaxKm();
 
-            // Realtime tracking of the wave
-            const channel = supabase.channel('geo_monitor_wave_tracking')
-                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sica_llenado_seguimiento' }, fetchMaxKm)
-                .subscribe();
-            
-            return () => { supabase.removeChannel(channel); };
+            const unsubWave = onTable('sica_llenado_seguimiento', 'UPDATE', fetchMaxKm);
+            return () => unsubWave();
         } else {
             setMaxKmLlenado(1000); // Allow all KM if not filling
         }
@@ -324,10 +323,9 @@ const GeoMonitor = () => {
     // Data Fetching (Prioridad 1)
     const fetchAllData = useCallback(async () => {
         try {
-            const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Chihuahua' });
-            const fiveDaysAgo = new Date();
-            fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 7);
-            const fiveDaysAgoStr = fiveDaysAgo.toLocaleDateString('sv-SE', { timeZone: 'America/Chihuahua' });
+            // P2-9: addDays usa noon-UTC como ancla — correcto durante cambio de horario
+            const todayStr = getTodayString();
+            const fiveDaysAgoStr = addDays(todayStr, -7);
             
             const metaStore = useMetadataStore.getState();
             if (!metaStore.last_fetched) await metaStore.fetchMetadata();
@@ -420,7 +418,7 @@ const GeoMonitor = () => {
             setSecciones((secData || []).map((s: any) => ({
                 ...s, km_inicio: parseFloat(s.km_inicio), km_fin: parseFloat(s.km_fin)
             })));
-            if (tvData) setTomasVaradas(tvData);
+            if (tvData) setTomasVaradas(tvData as VwAlertaTomaVaradaRow[]);
 
             // 5. Process Tomas
             const ptVolMap = new Map();
@@ -837,8 +835,8 @@ const GeoMonitor = () => {
                 </div>
                 <div className="geo-header-right">
                     <div className="geo-time-display">
-                        <div className="geo-time">{currentTime.toLocaleTimeString('es-MX', { hour12: false })}</div>
-                        <div className="geo-date">{currentTime.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}</div>
+                        <div className="geo-time">{formatTime(currentTime, 'es-MX')}</div>
+                        <div className="geo-date">{formatDate(currentTime, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}</div>
                     </div>
                     <div className="geo-divider"></div>
                     <div className="geo-status-badges">

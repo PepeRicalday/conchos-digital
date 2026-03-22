@@ -16,6 +16,8 @@ import { useLeakMonitor } from '../hooks/useLeakMonitor';
 import { useHydricEvents } from '../hooks/useHydricEvents';
 import { useFecha } from '../context/FechaContext';
 import { supabase } from '../lib/supabase';
+import { getTodayString, addDays } from '../utils/dateHelpers';
+import type { AppVersionRow, VwAlertaTomaVaradaRow } from '../types/sica.types';
 import './Dashboard.css';
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -197,29 +199,26 @@ const Dashboard = () => {
 
     const { segments, loading: loadingLeaks } = useLeakMonitor();
 
-    const [appVersions, setAppVersions] = useState<any[]>([]);
-    const [tomasVaradas, setTomasVaradas] = useState<any[]>([]);
+    const [appVersions, setAppVersions] = useState<AppVersionRow[]>([]);
+    const [tomasVaradas, setTomasVaradas] = useState<VwAlertaTomaVaradaRow[]>([]);
     const [rawExtractionHistory, setRawExtractionHistory] = useState<{ fecha: string; total: number }[]>([]);
 
     useEffect(() => {
         const fetchVersions = async () => {
             const { data } = await supabase.from('app_versions').select('*');
-            if (data) setAppVersions(data);
+            if (data) setAppVersions(data as AppVersionRow[]);
         };
         fetchVersions();
 
         const fetchVaradas = async () => {
             const { data } = await supabase.from('vw_alertas_tomas_varadas').select('*');
-            if (data) setTomasVaradas(data);
+            if (data) setTomasVaradas(data as VwAlertaTomaVaradaRow[]);
         };
         fetchVaradas();
 
         const fetchExtractionHistory = async () => {
-            const today = new Date();
-            const sevenDaysAgo = new Date(today);
-            sevenDaysAgo.setDate(today.getDate() - 6);
-            const from = sevenDaysAgo.toISOString().split('T')[0];
-            const to = today.toISOString().split('T')[0];
+            const to = getTodayString();
+            const from = addDays(to, -6);
             const { data } = await supabase
                 .from('lecturas_presa')
                 .select('fecha, extraccion_total_m3s')
@@ -228,7 +227,7 @@ const Dashboard = () => {
                 .order('fecha', { ascending: true });
             if (data && data.length > 0) {
                 const byDate = new Map<string, number>();
-                data.forEach((r: any) => {
+                data.forEach((r: { fecha: string; extraccion_total_m3s: number | null }) => {
                     const v = byDate.get(r.fecha) || 0;
                     byDate.set(r.fecha, v + (r.extraccion_total_m3s || 0));
                 });
@@ -572,6 +571,7 @@ const Dashboard = () => {
                                     </linearGradient>
                                     <filter id="glow-bar">
                                         <feGaussianBlur stdDeviation="3" result="blur" />
+                                        {/* SICA DR-005 Conchos Digital • v2.5.3-hydrasync */}
                                         <feComposite in="SourceGraphic" in2="blur" operator="over" />
                                     </filter>
                                 </defs>
@@ -755,6 +755,13 @@ const Dashboard = () => {
                                 <p className="text-[9px] text-amber-500/60 leading-tight italic font-medium">
                                     Seguridad Activa: Dispositivos obsoletos son bloqueados por el núcleo SICA.
                                 </p>
+                            </div>
+                            <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
+                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">SICA DR-005 Conchos Digital • v2.5.3-hydrasync</span>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500/50"></div>
+                                    <span className="text-[8px] font-bold text-slate-600 uppercase">Operational Nucleus</span>
+                                </div>
                             </div>
                         </div>
                     </div>

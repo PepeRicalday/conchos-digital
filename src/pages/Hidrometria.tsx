@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Upload, Download, Activity, Calendar, Save, X, RefreshCw, ArrowLeft, ArrowRight, Droplet } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getTodayString } from '../utils/dateHelpers';
+import type { SolicitudRiegoSemanalRow } from '../types/sica.types';
 import { getEfficiencyStatus } from '../utils/hydraulics';
 import KPICard from '../components/KPICard';
 import ChartWidget from '../components/ChartWidget';
@@ -44,8 +46,8 @@ const Hidrometria = () => {
     const [selectedDate, setSelectedDate] = useState(new Date());
     
     // Weekly Analysis State
-    const [weeklyRequests, setWeeklyRequests] = useState<any[]>([]);
-    const [weeklyDeliveries, setWeeklyDeliveries] = useState<any[]>([]);
+    const [weeklyRequests, setWeeklyRequests] = useState<SolicitudRiegoSemanalRow[]>([]);
+    const [weeklyDeliveries, setWeeklyDeliveries] = useState<{ modulo_id: string; volumen_entregado: number }[]>([]);
     const [showRequestModal, setShowRequestModal] = useState(false);
     const [savingRequest, setSavingRequest] = useState(false);
     const [bulkValues, setBulkValues] = useState<Record<string, number>>({});
@@ -64,7 +66,7 @@ const Hidrometria = () => {
     async function fetchEntranceData() {
         setLoadingEntrance(true);
         try {
-            const today = new Date().toISOString().split('T')[0];
+            const today = getTodayString();
             const [aforoRes, escalaRes] = await Promise.all([
                 supabase.from('aforos')
                     .select('gasto_calculado_m3s')
@@ -102,7 +104,7 @@ const Hidrometria = () => {
                 .lte('fecha', endOfWeek);
 
             const deliveryMap: Record<string, number> = {};
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = getTodayString();
             
             deliveries?.forEach(d => {
                 if (d.modulo_id && d.fecha !== todayStr) {
@@ -119,7 +121,7 @@ const Hidrometria = () => {
             });
             
             setBulkValues(initialBulk);
-            setWeeklyRequests(requests || []);
+            setWeeklyRequests((requests || []) as SolicitudRiegoSemanalRow[]);
             setWeeklyDeliveries(Object.entries(deliveryMap).map(([id, vol]) => ({ modulo_id: id, volumen_entregado: vol })));
         } catch (error) {
             console.error("Error fetching weekly analysis:", error);
@@ -237,7 +239,7 @@ const Hidrometria = () => {
                                     const reqMm3 = weeklyRequests.find(r => r.modulo_id === m.id)?.volumen_solicitado_mm3 || 0;
                                     let delMm3 = weeklyDeliveries.find(d => d.modulo_id === m.id)?.volumen_entregado || 0;
                                     
-                                    const todayStr = new Date().toISOString().split('T')[0];
+                                    const todayStr = getTodayString();
                                     if (todayStr >= startOfWeek && todayStr <= endOfWeek) {
                                         delMm3 += m.daily_vol || 0;
                                     }
@@ -295,7 +297,7 @@ const Hidrometria = () => {
                                         const reqMm3 = weeklyRequests.find(r => r.modulo_id === m.id)?.volumen_solicitado_mm3 || 0;
                                         let delMm3 = weeklyDeliveries.find(d => d.modulo_id === m.id)?.volumen_entregado || 0;
                                         
-                                        const todayStr = new Date().toISOString().split('T')[0];
+                                        const todayStr = getTodayString();
                                         if (todayStr >= startOfWeek && todayStr <= endOfWeek) {
                                             delMm3 += m.daily_vol || 0;
                                         }

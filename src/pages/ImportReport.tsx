@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, FileText, Save, Wifi, WifiOff, Loader, Table as TableIcon, FileSpreadsheet, Trash2, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getTodayString } from '../utils/dateHelpers';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 
@@ -282,7 +283,7 @@ const ImportReport = () => {
             const data = formData[activeTab];
             const presaIdMap: Record<string, string> = { boquilla: 'PRE-001', madero: 'PRE-002', delicias: 'PRE-003' };
             const presaId = presaIdMap[activeTab];
-            const today = new Date().toISOString().split('T')[0];
+            const today = getTodayString();
 
             // 1. Save Hydraulic Data (Only for dams)
             if (activeTab !== 'delicias') {

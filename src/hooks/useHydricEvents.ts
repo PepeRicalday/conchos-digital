@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { onTable } from '../lib/realtimeHub';
 import { toast } from 'sonner';
 
 export type HydraulicEvent = 'LLENADO' | 'ESTABILIZACION' | 'CONTINGENCIA_LLUVIA' | 'VACIADO' | 'ANOMALIA_BAJA';
@@ -50,98 +51,47 @@ export const useHydricEvents = () => {
     const activateEvent = useCallback(async (tipo: HydraulicEvent, extras: Partial<SICAEventLog> = {}) => {
         setIsLoading(true);
         setError(null);
-        console.log(`🚀 [HydricEvents] ===== ACTIVANDO PROTOCOLO: ${tipo} =====`);
-        console.log('🚀 [HydricEvents] Datos extras:', JSON.stringify(extras));
-        
+        console.log(`🚀 [HydricEvents] Activando protocolo: ${tipo}`);
+
         try {
-            // 1. Obtener usuario actual
+            // 1. Verificar autenticación
             const { data: userData, error: authError } = await supabase.auth.getUser();
-            if (authError) {
-                console.error('❌ [HydricEvents] Error de autenticación:', authError);
-                throw new Error('Sin autenticación: ' + authError.message);
-            }
-            console.log('✅ [HydricEvents] Usuario autenticado:', userData.user?.email);
-
-            // 2. Desactivar TODOS los eventos anteriores manualmente
-            console.log('🔄 [HydricEvents] Desactivando eventos anteriores...');
-            const { error: updateError, count } = await supabase
-                .from('sica_eventos_log')
-                .update({ esta_activo: false })
-                .eq('esta_activo', true);
-            
-            if (updateError) {
-                console.warn('⚠️ [HydricEvents] Error al desactivar anteriores (puede ser normal si no hay):', updateError);
-                // No lanzamos error aquí, continuamos
-            } else {
-                console.log(`✅ [HydricEvents] Desactivados ${count ?? '?'} eventos anteriores`);
+            if (authError || !userData.user) {
+                throw new Error('Sin autenticación: ' + (authError?.message ?? 'usuario nulo'));
             }
 
-            // 3. Insertar nuevo protocolo (solo campos base garantizados)
-            console.log('📝 [HydricEvents] Insertando nuevo protocolo (campos base)...');
-            const { data: insertedData, error: insertError } = await supabase
-                .from('sica_eventos_log')
-                .insert({
-                    evento_tipo: tipo,
-                    notas: extras.notas || '',
-                    esta_activo: true,
-                    autorizado_por: userData.user?.id || null
-                })
-                .select()
-                .single();
-
-            if (insertError) {
-                console.error('❌ [HydricEvents] ERROR DE INSERT:', insertError);
-                throw insertError;
-            }
-
-            console.log('✅ [HydricEvents] Protocolo base registrado:', insertedData);
-
-            // 4. Intentar actualizar con campos técnicos (pueden no existir en la tabla)
-            if (extras.gasto_solicitado_m3s || extras.porcentaje_apertura_presa || extras.valvulas_activas || extras.hora_apertura_real) {
-                console.log('📝 [HydricEvents] Intentando agregar datos técnicos...');
-                const techUpdate: Record<string, any> = {};
-                if (extras.gasto_solicitado_m3s) techUpdate.gasto_solicitado_m3s = extras.gasto_solicitado_m3s;
-                if (extras.porcentaje_apertura_presa) techUpdate.porcentaje_apertura_presa = extras.porcentaje_apertura_presa;
-                if (extras.valvulas_activas) techUpdate.valvulas_activas = extras.valvulas_activas;
-                if (extras.hora_apertura_real) techUpdate.hora_apertura_real = extras.hora_apertura_real;
-
-                const { error: techError } = await supabase
-                    .from('sica_eventos_log')
-                    .update(techUpdate)
-                    .eq('id', insertedData.id);
-
-                if (techError) {
-                    console.warn('⚠️ [HydricEvents] Columnas técnicas no disponibles en DB (ejecutar migración):', techError.message);
-                    // NO lanzamos error - el protocolo base ya se registró exitosamente
-                } else {
-                    console.log('✅ [HydricEvents] Datos técnicos agregados');
-                    // Re-leer el registro con los datos técnicos
-                    const { data: updated } = await supabase
-                        .from('sica_eventos_log')
-                        .select('*')
-                        .eq('id', insertedData.id)
-                        .single();
-                    if (updated) {
-                        setActiveEvent(updated);
-                        return; // Ya seteamos, salimos antes del setActiveEvent de abajo
-                    }
+            // 2. Llamada atómica a la RPC — desactiva anteriores e inserta nuevo
+            //    en UNA SOLA transacción PostgreSQL. Elimina condición de carrera
+            //    que existía en la secuencia UPDATE → INSERT → UPDATE anterior.
+            const { data: evento, error: rpcError } = await supabase.rpc(
+                'activar_protocolo_hidrico',
+                {
+                    p_tipo:                  tipo,
+                    p_notas:                 extras.notas ?? '',
+                    p_autorizado_por:        userData.user.id,
+                    p_gasto_solicitado_m3s:  extras.gasto_solicitado_m3s   ?? null,
+                    p_porcentaje_apertura:   extras.porcentaje_apertura_presa ?? null,
+                    p_valvulas_activas:      extras.valvulas_activas        ?? null,
+                    p_hora_apertura_real:    extras.hora_apertura_real      ?? null,
                 }
+            );
+
+            if (rpcError) {
+                // Conflicto de concurrencia: otro operador activó un protocolo al mismo tiempo
+                if (rpcError.message?.includes('PROTOCOL_CONFLICT')) {
+                    toast.error('⚠️ Conflicto: otro protocolo fue activado simultáneamente. Verifique el estado actual.');
+                    await fetchActiveEvent(); // Refrescar para mostrar el que ganó
+                    return;
+                }
+                throw rpcError;
             }
-            
-            // 4. Actualizar estado local inmediatamente
-            setActiveEvent(insertedData);
+
+            console.log('✅ [HydricEvents] Protocolo activado atómicamente:', evento?.evento_tipo);
+            setActiveEvent(evento);
             toast.success(`✅ Protocolo ${tipo} activado`);
 
-            // 5. Re-fetch de seguridad después de medio segundo
-            setTimeout(() => {
-                console.log('🔄 [HydricEvents] Re-fetch de confirmación...');
-                fetchActiveEvent();
-            }, 800);
-
         } catch (err: any) {
-            console.error('💀 [HydricEvents] ===== ERROR COMPLETO =====');
-            console.error('💀 [HydricEvents] Mensaje:', err.message);
-            console.error('💀 [HydricEvents] Objeto completo:', err);
+            console.error('❌ [HydricEvents] Error en activación:', err.message);
             setError(err.message);
             toast.error(`❌ Error: ${err.message}`);
         } finally {
@@ -173,22 +123,12 @@ export const useHydricEvents = () => {
     useEffect(() => {
         fetchActiveEvent();
 
-        const channel = supabase.channel('sica_eventos_realtime')
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'sica_eventos_log'
-            }, (payload) => {
-                console.log('🔴 [Realtime] Cambio detectado:', payload);
-                fetchActiveEvent();
-            })
-            .subscribe((status) => {
-                console.log('📡 [Realtime] Estado de suscripción:', status);
-            });
+        const unsub = onTable('sica_eventos_log', '*', (payload) => {
+            console.log('🔴 [Realtime] Cambio detectado:', payload);
+            fetchActiveEvent();
+        });
 
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        return () => unsub();
     }, [fetchActiveEvent]);
 
     return {

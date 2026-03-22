@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { toDateString, isToday } from '../utils/dateHelpers';
+import { isToday, isSameDay, formatDate } from '../utils/dateHelpers';
 import { calculateEfficiency } from '../utils/hydraulics';
 import { X, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import CanalSchematic from '../components/CanalSchematic';
@@ -38,19 +38,33 @@ const Canales = () => {
 
     // 1. Flatten Points and Filter by Date (Open and Captured)
     const allPoints = useMemo(() => {
-        const dateString = toDateString(selectedDate);
 
         return modules.flatMap(m => m.delivery_points.map(p => {
-            // Find measurement for selected date
-            const medicionDate = p.mediciones?.find(med => med.fecha_hora.startsWith(dateString));
-            const isCaptured = !!medicionDate;
-            const currentQDate = isCaptured ? Number(medicionDate.valor_q) : 0;
-            const isOpenDate = currentQDate > 0;
+            const isTodaySelected = isToday(selectedDate);
+
+            // Find ALL measurements for the selected date (array is already ordered DESC by fecha_hora)
+            const medicionesDate = p.mediciones?.filter(med => isSameDay(med.fecha_hora, selectedDate)) || [];
+            const latestMedDate = medicionesDate[0]; // Most recent of that day
+
+            // Fallback: use reportes_diarios if no mediciones for today
+            const dailyReport = p.reportes?.[0];
+            const hasDailyReport = isTodaySelected && !!dailyReport && Number(dailyReport.caudal_promedio_lps || 0) > 0;
+            const isCaptured = medicionesDate.length > 0 || hasDailyReport;
+
+            const latestQ = latestMedDate ? Number(latestMedDate.valor_q || 0) : 0;
+            const maxQDate = medicionesDate.reduce((max, med) => Math.max(max, Number(med.valor_q || 0)), 0);
+            const reportQ = hasDailyReport ? Number(dailyReport.caudal_promedio_lps || 0) / 1000 : 0;
+
+            // isOpen = actively flowing RIGHT NOW (latest Q > 0, or today's report confirms flow)
+            const isOpen = latestQ > 0 || (isTodaySelected && hasDailyReport && latestQ === 0 && maxQDate === 0);
+            // wasActive = had flow at some point on the selected date but is currently closed
+            const wasActive = !isOpen && (maxQDate > 0 || hasDailyReport);
+
+            const currentQDate = isOpen ? (latestQ > 0 ? latestQ : reportQ) : maxQDate;
 
             // Dashboard Vivo Interpolation
-            const isTodaySelected = isToday(selectedDate);
             const elapsedSeconds = p.last_update_time ? Math.max(0, (now - new Date(p.last_update_time).getTime()) / 1000) : 0;
-            const interpolatedVol = (isTodaySelected && isOpenDate) ? (currentQDate * elapsedSeconds) / 1000000 : 0;
+            const interpolatedVol = (isTodaySelected && isOpen) ? (currentQDate * elapsedSeconds) / 1000000 : 0;
 
             return {
                 ...p,
@@ -61,17 +75,18 @@ const Canales = () => {
                 accumulated: (p.accumulated || 0) + interpolatedVol,
                 moduleId: m.id,
                 moduleName: m.name,
-                isOpen: isOpenDate,
-                isCaptured: isCaptured,
+                isOpen,
+                wasActive,
+                isCaptured,
                 schedule: undefined
             };
         }));
         // All points kept so sections don't disappear. Real filter for schematic is in filteredPoints (L72).
     }, [modules, selectedDate, now]);
 
-    // Apply the strict filter requested by user for the points to show in schematic
+    // Show only tomas with activity: currently open (blue) or closed after movement today (amber)
     const filteredPoints = useMemo(() => {
-        return allPoints.filter(p => p.type !== 'toma' || (p.isCaptured && p.isOpen));
+        return allPoints.filter(p => p.isOpen || p.wasActive);
     }, [allPoints]);
 
     // 2. Extract Sections (Hybrid: Dynamic + Static Fallback) - Always use allPoints to keep the tabs!
@@ -83,10 +98,35 @@ const Canales = () => {
         return combined;
     }, [allPoints]);
 
-    // 3. Filter Points by Section
-    const visiblePoints = useMemo(() => activeSectionId === 'all'
-        ? filteredPoints
-        : filteredPoints.filter(p => p.section_data?.id === activeSectionId), [filteredPoints, activeSectionId]);
+    // 3. Filter Points by Section — robust: ID match first, then km-range fallback
+    const visiblePoints = useMemo(() => {
+        if (activeSectionId === 'all') return filteredPoints;
+
+        // Primary: match section_data.id (String() absorbs number/string type mismatch)
+        const byId = filteredPoints.filter(p =>
+            p.section_data != null && String(p.section_data.id) === String(activeSectionId)
+        );
+        if (byId.length > 0) return byId;
+
+        // Fallback: use km_inicio / km_fin stored in the section definition
+        // (covers points whose seccion_id is not set or outdated in cache)
+        const sec = sections.find((s: any) => String(s.id) === String(activeSectionId));
+        if (sec?.km_inicio != null && sec?.km_fin != null) {
+            return filteredPoints.filter(p =>
+                p.km >= Number(sec.km_inicio) && p.km <= Number(sec.km_fin)
+            );
+        }
+
+        return byId; // empty — no match by ID and no km range available
+    }, [filteredPoints, activeSectionId, sections]);
+
+    // 3b. Km range for the active section (used to zoom the schematic)
+    const [kmRangeStart, kmRangeEnd] = useMemo(() => {
+        if (activeSectionId === 'all' || visiblePoints.length === 0) return [0, 104];
+        const kms = visiblePoints.map(p => p.km);
+        const padding = 1.5;
+        return [Math.max(0, Math.min(...kms) - padding), Math.min(104, Math.max(...kms) + padding)];
+    }, [activeSectionId, visiblePoints]);
 
     // 4. Calculate Section KPIs
     const { sectionVol, sectionFlow } = useMemo(() => ({
@@ -127,12 +167,14 @@ const Canales = () => {
 
                 <div className="flex items-center gap-4">
                     <div className="date-nav flex items-center bg-slate-950/50 backdrop-blur rounded-full border border-slate-800 p-0.5 shadow-inner">
-                        <button onClick={() => handleDateChange(-1)} className="nav-btn p-2 hover:text-white transition-colors"><ChevronLeft size={18} /></button>
+                        <button type="button" title="Día anterior" onClick={() => handleDateChange(-1)} className="nav-btn p-2 hover:text-white transition-colors"><ChevronLeft size={18} /></button>
                         <div className="current-date px-4 flex items-center gap-2 text-white font-black font-mono text-xs">
                             <Calendar size={14} className="text-blue-400" />
-                            <span>{selectedDate.toLocaleDateString('es-MX', { weekday: 'short', day: '2-digit', month: 'short' }).toUpperCase()}</span>
+                            <span>{formatDate(selectedDate, { weekday: 'short', day: '2-digit', month: 'short' }).toUpperCase()}</span>
                         </div>
                         <button
+                            type="button"
+                            title="Día siguiente"
                             onClick={() => handleDateChange(1)}
                             className="nav-btn p-2 hover:text-white transition-colors"
                             disabled={selectedDate.toDateString() === new Date().toDateString()}
@@ -244,6 +286,8 @@ const Canales = () => {
                             points={visiblePoints}
                             activePointId={selectedPointId}
                             onPointClick={(p) => setSelectedPointId(p.id === selectedPointId ? null : p.id)}
+                            kmStart={kmRangeStart}
+                            kmEnd={kmRangeEnd}
                         />
                     </div>
 
@@ -256,7 +300,7 @@ const Canales = () => {
                                     <h3 style={{ fontSize: '20px', fontWeight: 900, color: 'white', margin: '4px 0', fontFamily: 'Inter' }}>{activePoint.name}</h3>
                                     <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Km {activePoint.km} • <span style={{ color: '#94a3b8' }}>{activePoint.moduleName}</span></div>
                                 </div>
-                                <button onClick={() => setSelectedPointId(null)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94a3b8 hover:text-white transition-colors' }}><X size={16} /></button>
+                                <button type="button" title="Cerrar" onClick={() => setSelectedPointId(null)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                 <div style={{ background: 'rgba(0,0,0,0.4)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)' }}>

@@ -6,6 +6,8 @@ import { Droplets, Timer, Activity, Clock, ArrowRightCircle, MapPin } from 'luci
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PublicMonitor.css';
+import { formatDate } from '../utils/dateHelpers';
+import type { MovimientoPresaConNombreRow } from '../types/sica.types';
 
 // Custom Marker for Water Front
 const waterFrontIcon = L.divIcon({
@@ -66,7 +68,7 @@ const PublicMonitor: React.FC = () => {
     const [geoRio, setGeoRio] = useState<any>(null);
     const [realMaxKm, setRealMaxKm] = useState<number>(-36);
     const [presasData, setPresasData] = useState<any[]>([]);
-    const [damMovements, setDamMovements] = useState<any[]>([]);
+    const [damMovements, setDamMovements] = useState<MovimientoPresaConNombreRow[]>([]);
     
     // Panel Visibility States - Start minimized on mobile for total map priority
     const isMobile = typeof window !== 'undefined' ? window.innerWidth <= 900 : false;
@@ -164,7 +166,7 @@ const PublicMonitor: React.FC = () => {
                 .order('fecha_hora', { ascending: false })
                 .limit(5);
 
-            setDamMovements(mData || []);
+            setDamMovements((mData || []) as MovimientoPresaConNombreRow[]);
 
             const flowStartTime = activeEvent?.hora_apertura_real ? new Date(activeEvent.hora_apertura_real).getTime() : null;
             
@@ -931,10 +933,10 @@ const PublicMonitor: React.FC = () => {
                             <div className="fuente-dock-mini time">
                                 <span className="fdm-name">MOVIMIENTO</span>
                                 <span className="fdm-val">
-                                    {damMovements[0]?.fecha_hora ? 
-                                        new Date(damMovements[0].fecha_hora).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) + ' ' +
-                                        new Date(damMovements[0].fecha_hora).toLocaleTimeString('es-MX', { 
-                                            hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' 
+                                    {damMovements[0]?.fecha_hora ?
+                                        formatDate(damMovements[0].fecha_hora, { day: '2-digit', month: 'short' }) + ' ' +
+                                        new Date(damMovements[0].fecha_hora).toLocaleTimeString('es-MX', {
+                                            hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua'
                                         }) : '--:--'}
                                 </span>
                             </div>

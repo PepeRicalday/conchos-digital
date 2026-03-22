@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Timer, MapPin, Clock, CheckCircle2, AlertTriangle, Shield } from 'lucide-react';
+import { getLocalDatetimeInput, formatTime } from '../utils/dateHelpers';
 import { useLlenadoTracker } from '../hooks/useLlenadoTracker';
 import type { PuntoControl, LlenadoEstado } from '../hooks/useLlenadoTracker';
 import TransicionProtocolo from './TransicionProtocolo';
@@ -24,7 +25,7 @@ const formatCountdown = (seconds: number): string => {
 
 const formatHora = (iso: string | null): string => {
     if (!iso) return '--:--';
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return formatTime(iso);
 };
 
 const EstadoBadge: React.FC<{ estado: LlenadoEstado }> = ({ estado }) => {
@@ -180,11 +181,8 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
         setConfirGasto('');
         setConfirNotas('');
         
-        // Inicializar con la fecha/hora actual local
-        const now = new Date();
-        const offset = now.getTimezoneOffset() * 60000;
-        const localISOTime = (new Date(now.getTime() - offset)).toISOString().slice(0, 16);
-        setConfirDatetime(localISOTime);
+        // P2-9: getLocalDatetimeInput() usa Intl en America/Chihuahua — seguro en DST
+        setConfirDatetime(getLocalDatetimeInput());
         
         setShowConfirmModal(true);
     };

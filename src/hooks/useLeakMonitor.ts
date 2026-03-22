@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { onTable } from '../lib/realtimeHub';
 
 export interface SegmentLoss {
     tramo_inicio: string;
@@ -39,14 +40,12 @@ export const useLeakMonitor = () => {
 
     useEffect(() => {
         fetchLeaks();
-        // Subscribe to changes in scales or reports to refresh
-        const channel = supabase.channel('leak-monitor')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'lecturas_escalas' }, () => fetchLeaks())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'reportes_operacion' }, () => fetchLeaks())
-            .subscribe();
+        const unsubEscalas  = onTable('lecturas_escalas',   '*', () => fetchLeaks());
+        const unsubReportes = onTable('reportes_operacion',  '*', () => fetchLeaks());
 
         return () => {
-            supabase.removeChannel(channel);
+            unsubEscalas();
+            unsubReportes();
         };
     }, []);
 

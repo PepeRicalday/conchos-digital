@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { getTodayString } from '../utils/dateHelpers';
 import { Droplets, Activity, AlertTriangle, CheckCircle2, Waves, LayoutDashboard } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import './LlenadoTracker.css'; // Reusing some base styles for consistency
@@ -41,7 +42,7 @@ const EstabilizacionTracker: React.FC = () => {
 
             // 2. Fetch Tomas Activas (Reportes Diarios en curso)
             // Obtener la fecha local (America/Chihuahua)
-            const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
+            const today = getTodayString();
 
             const { data: tomasData, error: tomasErr } = await supabase
                 .from('reportes_operacion')

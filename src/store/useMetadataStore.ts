@@ -1,25 +1,47 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import type {
+    EscalaRow, PresaConCurva, ModuloRow,
+    PuntoEntregaRow, AforoControlRow, SeccionRow,
+} from '../types/sica.types';
+
+/**
+ * P2-8: Safe localStorage parser.
+ * JSON.parse throws on corrupted/truncated values — if the app crashes mid-write
+ * or the browser truncates the entry, the entire store would fail to initialize.
+ * This helper returns an empty array and clears the corrupt key instead of throwing.
+ */
+function parseCached<T>(key: string): T[] {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return [];
+        return JSON.parse(raw) ?? [];
+    } catch {
+        console.warn(`[MetadataStore] Cache corrupta en "${key}". Descartando y forzando re-fetch.`);
+        localStorage.removeItem(key);
+        return [];
+    }
+}
 
 interface MetadataState {
-    escalas: any[];
-    presas: any[];
-    modulos: any[];
-    puntos_entrega: any[];
-    aforos_control: any[];
-    secciones: any[];
+    escalas: EscalaRow[];
+    presas: PresaConCurva[];
+    modulos: ModuloRow[];
+    puntos_entrega: PuntoEntregaRow[];
+    aforos_control: AforoControlRow[];
+    secciones: SeccionRow[];
     loading: boolean;
     last_fetched: number | null;
     fetchMetadata: (force?: boolean) => Promise<void>;
 }
 
 export const useMetadataStore = create<MetadataState>((set, get) => ({
-    escalas: JSON.parse(localStorage.getItem('metadata_escalas') || '[]'),
-    presas: JSON.parse(localStorage.getItem('metadata_presas') || '[]'),
-    modulos: JSON.parse(localStorage.getItem('metadata_modulos') || '[]'),
-    puntos_entrega: JSON.parse(localStorage.getItem('metadata_tomas') || '[]'),
-    aforos_control: JSON.parse(localStorage.getItem('metadata_aforos_control') || '[]'),
-    secciones: JSON.parse(localStorage.getItem('metadata_secciones') || '[]'),
+    escalas:        parseCached<EscalaRow>('metadata_escalas'),
+    presas:         parseCached<PresaConCurva>('metadata_presas'),
+    modulos:        parseCached<ModuloRow>('metadata_modulos'),
+    puntos_entrega: parseCached<PuntoEntregaRow>('metadata_tomas'),
+    aforos_control: parseCached<AforoControlRow>('metadata_aforos_control'),
+    secciones:      parseCached<SeccionRow>('metadata_secciones'),
     loading: false,
     last_fetched: Number(localStorage.getItem('metadata_last_fetched')) || null,
 
@@ -54,12 +76,12 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             ]);
 
             const metadata = {
-                escalas: esc || [],
-                presas: pre || [],
-                modulos: mod || [],
-                puntos_entrega: pe || [],
-                aforos_control: af || [],
-                secciones: sec || [],
+                escalas:        (esc || []) as EscalaRow[],
+                presas:         (pre || []) as PresaConCurva[],
+                modulos:        (mod || []) as ModuloRow[],
+                puntos_entrega: (pe  || []) as PuntoEntregaRow[],
+                aforos_control: (af  || []) as AforoControlRow[],
+                secciones:      (sec || []) as SeccionRow[],
                 last_fetched: now
             };
 

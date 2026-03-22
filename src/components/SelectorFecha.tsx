@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useFecha } from '../context/FechaContext';
+import { getTodayString } from '../utils/dateHelpers';
 import './SelectorFecha.css';
 
 const MESES = [
@@ -16,13 +17,7 @@ function formatFechaDisplay(dateStr: string): string {
     return `${parseInt(d, 10)} ${mes} ${y}`;
 }
 
-function getHoyISO(): string {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-}
+// P2-9: getHoyISO replaced by getTodayString() from dateHelpers (Chihuahua TZ-safe)
 
 function getDiasEnMes(year: number, month: number): number {
     return new Date(year, month + 1, 0).getDate();
@@ -54,7 +49,7 @@ const SelectorFecha = () => {
     }, []);
 
     const irHoy = () => {
-        const hoy = getHoyISO();
+        const hoy = getTodayString();
         setFechaSeleccionada(hoy);
         const [y, m] = hoy.split('-');
         setMesVista({ year: parseInt(y), month: parseInt(m) - 1 });
@@ -83,7 +78,7 @@ const SelectorFecha = () => {
 
     const diasEnMes = getDiasEnMes(mesVista.year, mesVista.month);
     const primerDia = getPrimerDiaSemana(mesVista.year, mesVista.month);
-    const hoyStr = getHoyISO();
+    const hoyStr = getTodayString();
 
     return (
         <div className="selector-fecha" ref={ref}>

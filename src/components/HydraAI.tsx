@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bot, Send, X, Sparkles, ChevronRight } from 'lucide-react';
+import { formatTime } from '../utils/dateHelpers';
 import './HydraAI.css';
 
 interface Message {
@@ -212,7 +213,7 @@ const HydraAI: React.FC<HydraAIProps> = ({ onUpdateParams, simData }) => {
                     </button>
                   )}
                 </div>
-                <div className="msg-time">{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                <div className="msg-time">{formatTime(msg.timestamp)}</div>
               </div>
             ))}
           </div>

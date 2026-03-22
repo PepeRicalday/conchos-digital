@@ -5,6 +5,7 @@ import { useAforos } from '../hooks/useAforos';
 import { usePresas } from '../hooks/usePresas';
 import { useDistribucionEvents } from '../hooks/useDistribucionEvents';
 import { useFecha } from '../context/FechaContext';
+import { formatTime, formatDate, getTodayString } from '../utils/dateHelpers';
 import './OfficialDamReport.css'; 
 
 const OfficialDamReport = () => {
@@ -27,12 +28,12 @@ const OfficialDamReport = () => {
     // Detect if data is historical (not from today)
     const boquillaDate = boquilla?.lectura?.fecha || todayStr;
     const isHistorical = boquillaDate !== todayStr;
-    const reportDateLabel = new Date(boquillaDate + 'T12:00:00Z').toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const reportDateLabel = formatDate(new Date(boquillaDate + 'T12:00:00Z'), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
     const componentRef = useRef<HTMLDivElement>(null);
     const handlePrint = useReactToPrint({
         contentRef: componentRef,
-        documentTitle: `Reporte_Presas_${new Date().toLocaleDateString('es-MX').replace(/\//g, '-')}`,
+        documentTitle: `Reporte_Presas_${getTodayString()}`,
     });
 
     return (
@@ -194,7 +195,7 @@ const OfficialDamReport = () => {
                                         {distEvents.map((evt, idx) => (
                                             <tr key={evt.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                                                 <td className="p-1 font-mono font-bold whitespace-nowrap border-r border-slate-300">
-                                                    {new Date(evt.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                                    {formatTime(evt.fecha_hora)}
                                                 </td>
                                                 <td className="p-1 border-r border-slate-300">
                                                     <span className="font-bold">{evt.nombre_punto}</span>

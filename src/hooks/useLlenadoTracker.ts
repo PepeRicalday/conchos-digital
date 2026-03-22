@@ -298,41 +298,78 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
             return;
         }
 
-        // Calcular velocidad real medida
-        let velocidadReal: number;
+        // ── P1-7: Validación de velocidad de propagación antes de cascada ────────
+        // Río y canal son medios hidráulicamente distintos con rangos físicos diferentes.
+        // La velocidad medida en el río NO debe usarse directamente para predecir el canal.
+        //
+        //  TRAMO RÍO   (Presa → KM 0, 36 km): rango esperado 0.8 – 4.0 m/s
+        //  TRAMO CANAL (KM 0 → KM 104):        rango esperado 0.3 – 1.2 m/s
+        //
+        // Cuando se activa el clamp se emite un toast para que el operador sepa
+        // que las ETAs usan un valor corregido, no el medido.
+        // ────────────────────────────────────────────────────────────────────────
+        const V_CANAL_MIN = 0.3, V_CANAL_MAX = 1.2;
+        const V_RIO_MIN   = 0.8, V_RIO_MAX   = 4.0;
+
+        let velocidadCascada: number;
+
         if (kmAncla === 0 && (puntos.find(p => p.km === -36)?.hora_real || horaApertura)) {
             // Velocidad medida en el río (desde Presa hasta KM 0)
             const horaInicio = new Date(puntos.find(p => p.km === -36)?.hora_real || horaApertura || '').getTime();
             const tRealRio = (horaAncla - horaInicio) / 1000;
-            velocidadReal = DISTANCIA_RIO_M / Math.max(tRealRio, 1);
-            console.log(`📐 Velocidad real río: ${velocidadReal.toFixed(2)} m/s (teórica: ${calcVelocidadRio(qSolicitado).toFixed(2)} m/s)`);
+            const vRioMedida = DISTANCIA_RIO_M / Math.max(tRealRio, 1);
+            const vRioTeorica = calcVelocidadRio(qSolicitado);
+
+            if (vRioMedida < V_RIO_MIN || vRioMedida > V_RIO_MAX) {
+                console.warn(`⚠️ [LlenadoTracker] Velocidad río fuera de rango: ${vRioMedida.toFixed(2)} m/s (esperado ${V_RIO_MIN}–${V_RIO_MAX} m/s). Verifique el timestamp de apertura.`);
+                toast.warning(`⚠️ Velocidad de onda en río (${vRioMedida.toFixed(2)} m/s) fuera del rango esperado ${V_RIO_MIN}–${V_RIO_MAX} m/s. Verifique el timestamp.`);
+            }
+            console.log(`📐 Velocidad real río: ${vRioMedida.toFixed(2)} m/s (teórica: ${vRioTeorica.toFixed(2)} m/s)`);
+
+            // IMPORTANTE: río y canal tienen dinámicas distintas — la velocidad del
+            // tránsito fluvial no es representativa de la onda en el canal.
+            // Para la cascada canal se usa la velocidad base calibrada (VELOCIDAD_CANAL_MS).
+            velocidadCascada = VELOCIDAD_CANAL_MS;
+            console.log(`📐 [Cascada canal] Usando velocidad de canal base: ${VELOCIDAD_CANAL_MS} m/s (no extrapolando velocidad del río)`);
+
         } else {
-            // Velocidad medida en el canal
-            // Buscar el punto confirmado anterior para calcular velocidad del tramo
-            const confirmadosAnteriores = puntos.filter(p => p.km < kmAncla && p.hora_real)
+            // Velocidad medida en el canal (tramo entre puntos confirmados)
+            const confirmadosAnteriores = puntos
+                .filter(p => p.km < kmAncla && p.hora_real)
                 .sort((a, b) => b.km - a.km);
-            
+
             const puntoAnterior = confirmadosAnteriores[0];
             if (puntoAnterior?.hora_real) {
                 const distTramo = (kmAncla - puntoAnterior.km) * 1000; // metros
                 const tTramo = (horaAncla - new Date(puntoAnterior.hora_real).getTime()) / 1000;
-                velocidadReal = distTramo / Math.max(tTramo, 1);
-                console.log(`📐 Velocidad real canal (${puntoAnterior.punto_nombre} → ${puntoConfirmado.punto_nombre}): ${velocidadReal.toFixed(2)} m/s`);
+                const vMedida = distTramo / Math.max(tTramo, 1);
+
+                // Advertir si el valor cae fuera del rango físico del canal
+                if (vMedida < V_CANAL_MIN || vMedida > V_CANAL_MAX) {
+                    console.warn(`⚠️ [LlenadoTracker] Velocidad canal fuera de rango: ${vMedida.toFixed(2)} m/s → corregida a [${V_CANAL_MIN}, ${V_CANAL_MAX}] m/s`);
+                    toast.warning(`⚠️ Velocidad de onda en canal (${vMedida.toFixed(2)} m/s) fuera del rango ${V_CANAL_MIN}–${V_CANAL_MAX} m/s. ETAs recalculadas con valor corregido.`);
+                }
+
+                // Advertir si la desviación respecto al modelo teórico es significativa
+                const desviacionPct = Math.abs(vMedida - VELOCIDAD_CANAL_MS) / VELOCIDAD_CANAL_MS * 100;
+                if (desviacionPct > 40) {
+                    console.warn(`⚠️ [LlenadoTracker] Velocidad medida (${vMedida.toFixed(2)} m/s) se desvía ${desviacionPct.toFixed(0)}% de la teórica (${VELOCIDAD_CANAL_MS} m/s). Posible error de captura.`);
+                }
+
+                velocidadCascada = Math.max(V_CANAL_MIN, Math.min(V_CANAL_MAX, vMedida));
+                console.log(`📐 Velocidad real canal (${puntoAnterior.punto_nombre} → ${puntoConfirmado.punto_nombre}): ${vMedida.toFixed(2)} m/s → usando ${velocidadCascada.toFixed(2)} m/s`);
             } else {
-                // Fallback: usar velocidad conservadora de llenado (0.7 m/s)
-                velocidadReal = 0.7;
-                console.log(`📐 Velocidad estimada conservadora: ${velocidadReal.toFixed(2)} m/s`);
+                // Sin punto anterior confirmado: usar velocidad conservadora de llenado
+                velocidadCascada = 0.7;
+                console.log(`📐 Velocidad estimada conservadora: ${velocidadCascada.toFixed(2)} m/s`);
             }
         }
 
-        // Limitar velocidad para evitar modelos irreales (Min: 0.3, Max: 1.2)
-        velocidadReal = Math.max(0.3, Math.min(1.2, velocidadReal));
-
         // Recalcular ETAs posteriores
-        console.log(`🔄 [Cascada] Recalculando ${posteriores.length} puntos desde ${puntoConfirmado.punto_nombre}`);
+        console.log(`🔄 [Cascada] Recalculando ${posteriores.length} puntos desde ${puntoConfirmado.punto_nombre} a ${velocidadCascada.toFixed(2)} m/s`);
         for (const p of posteriores) {
             const distRestante = (p.km - kmAncla) * 1000; // metros
-            const tRestante = distRestante / velocidadReal; // segundos
+            const tRestante = distRestante / velocidadCascada; // segundos
             const nuevaETA = new Date(horaAncla + tRestante * 1000).toISOString();
 
             await supabase

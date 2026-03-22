@@ -15,13 +15,13 @@ export default defineConfig(({ mode }) => {
   return {
     define: {
       '__APP_VERSION__': JSON.stringify(pkg.version),
-      '__BUILD_HASH__': JSON.stringify('v2.4.9-puntos-entrega-sync')
+      '__BUILD_HASH__': JSON.stringify('v2.5.4-audit-p2')
     },
     plugins: [
       react(),
       VitePWA({
         registerType: 'autoUpdate',   // SW se actualiza sin prompt
-        filename: 'sw-v2.5.0.js',
+        filename: 'sw-v2.5.4.js',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
           name: 'SICA 005 - Conchos Digital',

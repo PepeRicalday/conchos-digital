@@ -2,13 +2,16 @@ import { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line, Cell, Legend } from 'recharts';
 import { AlertTriangle, MapPin, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { onTable } from '../lib/realtimeHub';
+import { formatTime } from '../utils/dateHelpers';
+import type { RegistroAlertaRow } from '../types/sica.types';
 
 import './Alertas.css';
 
 const Alertas = () => {
     const [riesgo, setRiesgo] = useState('Alto');
     const [periodo, setPeriodo] = useState('Última Semana');
-    const [alertasActivas, setAlertasActivas] = useState<any[]>([]);
+    const [alertasActivas, setAlertasActivas] = useState<RegistroAlertaRow[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -23,7 +26,7 @@ const Alertas = () => {
                     .order('fecha_deteccion', { ascending: false });
 
                 if (!error && data) {
-                    setAlertasActivas(data);
+                    setAlertasActivas(data as RegistroAlertaRow[]);
                 }
             } catch (err) {
                 console.error("No se pudo cargar la matriz de alertas");
@@ -33,17 +36,9 @@ const Alertas = () => {
         };
         fetchAlertas();
 
-        // Channel for real-time alerts
-        const alertsSubscription = supabase
-            .channel('public:registro_alertas')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'registro_alertas' }, () => {
-                fetchAlertas(); // Reload on insert/update
-            })
-            .subscribe();
+        const unsubAlertas = onTable('registro_alertas', '*', () => fetchAlertas());
 
-        return () => {
-            supabase.removeChannel(alertsSubscription);
-        };
+        return () => unsubAlertas();
     }, []);
 
     // Conteo Dinámico basado en Supabase
@@ -294,7 +289,7 @@ const Alertas = () => {
                                     <div className="al-log-content">
                                         <div className="al-log-header">
                                             <span className="al-log-tag">{alerta.categoria.toUpperCase()}</span>
-                                            <span className="al-log-time">{new Date(alerta.fecha_deteccion).toLocaleTimeString()}</span>
+                                            <span className="al-log-time">{formatTime(alerta.fecha_deteccion)}</span>
                                         </div>
                                         <h3 className="al-log-title">{alerta.titulo}</h3>
                                         <p className="al-log-msg">{alerta.mensaje}</p>

@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useHydraStore } from '../store/useHydraStore';
 import { supabase } from '../lib/supabase';
+import { onTable } from '../lib/realtimeHub';
 
 import './Layout.css';
 import SupabaseStatus from './SupabaseStatus';
@@ -37,16 +38,9 @@ const Sidebar = () => {
         };
         fetchAlerts();
 
-        const alertsSub = supabase
-            .channel('sidebar_alertas')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'registro_alertas' }, () => {
-                fetchAlerts();
-            })
-            .subscribe();
+        const unsubAlertas = onTable('registro_alertas', '*', () => fetchAlerts());
 
-        return () => {
-            supabase.removeChannel(alertsSub);
-        };
+        return () => unsubAlertas();
     }, []);
 
     const handleLogout = async () => {

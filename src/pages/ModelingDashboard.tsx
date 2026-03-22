@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 import { supabase } from '../lib/supabase';
+import { getTodayString, addDays, formatTime, formatDate } from '../utils/dateHelpers';
 import SimulationReport from '../components/SimulationReport';
 import './ModelingDashboard.css';
 
@@ -247,8 +248,9 @@ const ModelingDashboard: React.FC = () => {
         .gt('pzas_radiales', 0)
         .order('km', { ascending: true });
 
-      const today    = new Date().toISOString().split('T')[0];
-      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      // P2-9: addDays usa noon-UTC — correcto en cambio de horario (86400000ms no cubre DST)
+      const today    = getTodayString();
+      const tomorrow = addDays(today, 1);
 
       // 2. Todas las fuentes en paralelo — 8 queries simultáneas
       const [
@@ -478,7 +480,7 @@ const ModelingDashboard: React.FC = () => {
         .reduce((s, d) => s + d.caudal_m3s, 0);
 
       // 8. ── GASTO PRESA — safeFloat + validación isFinite ─────────────
-      const ts = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+      const ts = formatTime(new Date());
       let qBaseVal = 62.4, qDamVal = 62.4;
       let damNivel = '—', damFuente = 'estimado';
       let damLive  = false;
@@ -492,7 +494,7 @@ const ModelingDashboard: React.FC = () => {
           damFuente = 'movimientos_presas';
           damLive   = true;
           damNivel  = firstMovPresa.fecha_hora
-            ? new Date(firstMovPresa.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+            ? formatTime(firstMovPresa.fecha_hora)
             : '—';
         }
       }
@@ -948,7 +950,7 @@ const ModelingDashboard: React.FC = () => {
             q_sim:           qDam,
             isRiver:         riverTransit,
             startTime:       fmtTime(simBaseMin, 0),
-            date:            new Date().toLocaleDateString('es-MX'),
+            date:            formatDate(new Date()),
             eventType:       eventType,
             damFuente:       dataStatus.damFuente,
             damBaseValue:    dataStatus.damBaseValue,

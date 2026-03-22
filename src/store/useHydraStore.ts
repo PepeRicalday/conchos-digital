@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import { getTodayString } from '../utils/dateHelpers';
+import { onTable } from '../lib/realtimeHub';
+import { getTodayString, getStartOfTodayISO } from '../utils/dateHelpers';
 import { useMetadataStore } from './useMetadataStore';
 
 export interface SectionData {
@@ -76,33 +77,46 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             const currentModules = get().modules;
             if (currentModules.length === 0) set({ loading: true });
 
-            const today = getTodayString();
-            const threeDaysAgo = new Date();
-            threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-            const threeDaysAgoStr = threeDaysAgo.toISOString().split('T')[0];
-
             // 1. Parallel Fetch (Highly Efficient Initial Load)
+            // Separate Modulos from Mediciones to avoid nested filtering issues in PostgREST
+            const today = getTodayString();
+            // P1-4: Query only today's mediciones (midnight Chihuahua → UTC) to reduce payload.
+            // Accumulated volumes come from reportes_diarios (authoritative), not from raw sums.
+            const startOfToday = getStartOfTodayISO();
+
             const [
                 { data: modulosDB, error: modError },
+                { data: allMediciones, error: medError },
                 { data: reportesHoy }
             ] = await Promise.all([
                 supabase.from('modulos').select(`
                     id, codigo_corto, nombre, nombre_acu, logo_url, vol_acumulado, vol_autorizado, caudal_objetivo,
                     puntos_entrega (
                         id, nombre, km, tipo, capacidad_max, coords_x, coords_y, zona, seccion_id,
-                        secciones ( id, nombre, color ),
-                        mediciones ( valor_q, valor_vol, fecha_hora )
+                        secciones ( id, nombre, color )
                     )
-                `).filter('puntos_entrega.mediciones.fecha_hora', 'gte', threeDaysAgoStr),
+                `),
+                supabase.from('mediciones')
+                    .select('punto_id, valor_q, valor_vol, fecha_hora')
+                    .gte('fecha_hora', startOfToday)
+                    .order('fecha_hora', { ascending: false }),
                 supabase.from('reportes_diarios').select('punto_id, modulo_id, volumen_total_mm3, caudal_promedio_lps').eq('fecha', today)
             ]);
 
             if (modError) throw modError;
+            if (medError) throw medError;
             if (!modulosDB) return;
 
-            // 2. Metadata Sync (Ensure we have the base structure)
+            // Map medications to points for easy lookup
+            const medicionMap = new Map<string, any[]>();
+            (allMediciones || []).forEach(m => {
+                if (!medicionMap.has(m.punto_id)) medicionMap.set(m.punto_id, []);
+                medicionMap.get(m.punto_id)?.push(m);
+            });
+
+            // 2. Metadata Sync — also force refresh if secciones is empty (avoids stale cache with no sections)
             const metaStore = useMetadataStore.getState();
-            if (!metaStore.last_fetched) {
+            if (!metaStore.last_fetched || metaStore.secciones.length === 0) {
                 await metaStore.fetchMetadata();
             }
 
@@ -119,13 +133,6 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             const metaModulos = metaStore.modulos;
             const metaPuntos = metaStore.puntos_entrega;
 
-            // Map dynamic data for easy lookup
-            // const dynModMap = new Map(modulosDB.map(m => [m.id, m]));
-            const dynPtMap = new Map();
-            modulosDB.forEach(m => {
-                (m.puntos_entrega || []).forEach((p: any) => dynPtMap.set(p.id, p));
-            });
-
             const dynModMap = new Map(modulosDB.map(m => [m.id, m]));
             const fullModules: ModuleData[] = metaModulos.map((mod: any, mIdx: number) => {
                 const freshMod = dynModMap.get(mod.id) || mod;
@@ -134,18 +141,14 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                     .map((p: any, pIdx: number) => {
                         indexMap[p.id] = { mIndex: mIdx, pIndex: pIdx };
                         
-                        const dynP = dynPtMap.get(p.id);
-                        const measurements = (dynP?.mediciones || []).sort((a: any, b: any) =>
-                            new Date(b.fecha_hora).getTime() - new Date(a.fecha_hora).getTime()
-                        );
+                        const measurements = medicionMap.get(p.id) || [];
                         const latest = measurements[0];
                         const qM3s = Number(latest?.valor_q || 0);
 
-                        const totalAccum = measurements.reduce((acc: number, med: any) => acc + Number(med.valor_vol || 0), 0);
-                        const todayStr = getTodayString();
-                        const todayMeasurements = measurements.filter((m: any) => m.fecha_hora && m.fecha_hora.startsWith(todayStr));
-                        const calculatedDailyVol = todayMeasurements.reduce((acc: number, med: any) => acc + Number(med.valor_vol || 0), 0);
-
+                        // P1-4: All measurements are today's — no JS date filter needed.
+                        // reportes_diarios is authoritative for daily/accumulated volumes;
+                        // fall back to live sum only when no report exists yet.
+                        const calculatedDailyVol = measurements.reduce((acc: number, med: any) => acc + Number(med.valor_vol || 0), 0);
                         const dailyReport = reporteByPunto[p.id];
                         const dailyVolPt = dailyReport ? Number(dailyReport.volumen_total_mm3 || 0) : calculatedDailyVol;
 
@@ -161,7 +164,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                             current_q: qM3s,
                             current_q_lps: qM3s * 1000,
                             current_h: '0.0',
-                            accumulated: totalAccum,
+                            accumulated: dailyVolPt,
                             daily_vol: dailyVolPt,
                             is_open: qM3s > 0,
                             coordinates: { x: Number(p.coords_x), y: Number(p.coords_y) },
@@ -255,25 +258,21 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             });
         };
 
-        const channel = supabase.channel('hydra_realtime_global')
-            // Mediciones: INSERT + UPDATE (O(1) patch) + DELETE (full refetch)
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mediciones' }, handleMedicionUpsert)
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'mediciones' }, handleMedicionUpsert)
-            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'mediciones' }, () => {
-                console.log('🗑️ Medición eliminada. Refrescando datos completos...');
-                get().fetchHydraulicData();
-            })
-            // Escalas: full refetch on any change
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'lecturas_escalas' }, () => {
-                console.log('🔄 Cambio en escalas detectado. Sincronizando...');
-                get().fetchHydraulicData();
-            })
-            // Presas: full refetch (consumed by usePresas indirectly via page-level refresh)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'lecturas_presas' }, () => {
-                console.log('🏔️ Cambio en lecturas de presas detectado. Sincronizando...');
-                get().fetchHydraulicData();
-            })
-            .subscribe();
+        // --- Register hub handlers (via realtimeHub — single shared channel) ---
+        const unsubMedicionInsert = onTable('mediciones', 'INSERT', handleMedicionUpsert);
+        const unsubMedicionUpdate = onTable('mediciones', 'UPDATE', handleMedicionUpsert);
+        const unsubMedicionDelete = onTable('mediciones', 'DELETE', () => {
+            console.log('🗑️ Medición eliminada. Refrescando datos completos...');
+            get().fetchHydraulicData();
+        });
+        const unsubEscalas = onTable('lecturas_escalas', '*', () => {
+            console.log('🔄 Cambio en escalas detectado. Sincronizando...');
+            get().fetchHydraulicData();
+        });
+        const unsubPreasas = onTable('lecturas_presas', '*', () => {
+            console.log('🏔️ Cambio en lecturas de presas detectado. Sincronizando...');
+            get().fetchHydraulicData();
+        });
 
         // --- C-5a: Visibility change — refetch when user returns to tab ---
         const handleVisibility = () => {
@@ -287,7 +286,11 @@ export const useHydraStore = create<HydraState>((set, get) => ({
         // --- Store cleanup reference for proper teardown ---
         (useHydraStore as any)._cleanup = () => {
             document.removeEventListener('visibilitychange', handleVisibility);
-            supabase.removeChannel(channel);
+            unsubMedicionInsert();
+            unsubMedicionUpdate();
+            unsubMedicionDelete();
+            unsubEscalas();
+            unsubPreasas();
         };
     },
 

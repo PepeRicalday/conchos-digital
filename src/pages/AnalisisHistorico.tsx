@@ -6,6 +6,7 @@ import { parseISO, endOfMonth, format } from 'date-fns';
 import { toast } from 'sonner';
 
 import './AnalisisHistorico.css';
+import type { LecturaPresaRow } from '../types/sica.types';
 
 // Tooltip personalizado para integrar los dos años
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -70,27 +71,27 @@ const AnalisisHistorico = () => {
             const madero1 = data1.filter(d => d.presa_id === 'PRE-002');
 
             // -- FETCH AÑO 2 (Opcional) --
-            let boquilla2: any[] = [];
-            let madero2: any[] = [];
+            let boquilla2: LecturaPresaRow[] = [];
+            let madero2: LecturaPresaRow[] = [];
 
             if (year2 !== 'none') {
                 const startDate2 = `${year2}-${month.toString().padStart(2, '0')}-01`;
                 const endDate2 = format(endOfMonth(parseISO(startDate2)), 'yyyy-MM-dd');
                 const { data: data2 } = await supabase.from('lecturas_presas').select('*').gte('fecha', startDate2).lte('fecha', endDate2).order('fecha', { ascending: true });
-                boquilla2 = (data2 || []).filter(d => d.presa_id === 'PRE-001');
-                madero2 = (data2 || []).filter(d => d.presa_id === 'PRE-002');
+                boquilla2 = ((data2 || []) as LecturaPresaRow[]).filter(d => d.presa_id === 'PRE-001');
+                madero2 = ((data2 || []) as LecturaPresaRow[]).filter(d => d.presa_id === 'PRE-002');
             }
 
             // -- FETCH AÑO 3 (Opcional) --
-            let boquilla3: any[] = [];
-            let madero3: any[] = [];
+            let boquilla3: LecturaPresaRow[] = [];
+            let madero3: LecturaPresaRow[] = [];
 
             if (year3 !== 'none') {
                 const startDate3 = `${year3}-${month.toString().padStart(2, '0')}-01`;
                 const endDate3 = format(endOfMonth(parseISO(startDate3)), 'yyyy-MM-dd');
                 const { data: data3 } = await supabase.from('lecturas_presas').select('*').gte('fecha', startDate3).lte('fecha', endDate3).order('fecha', { ascending: true });
-                boquilla3 = (data3 || []).filter(d => d.presa_id === 'PRE-001');
-                madero3 = (data3 || []).filter(d => d.presa_id === 'PRE-002');
+                boquilla3 = ((data3 || []) as LecturaPresaRow[]).filter(d => d.presa_id === 'PRE-001');
+                madero3 = ((data3 || []) as LecturaPresaRow[]).filter(d => d.presa_id === 'PRE-002');
             }
 
             // -- COMBINACIÓN DIARIA (1 a 31) --
@@ -145,7 +146,7 @@ const AnalisisHistorico = () => {
             setCombinedData(combined);
 
             // -- CÁLCULO DE ESTADÍSTICAS --
-            const calcStats = (boq: any[], mad: any[]) => {
+            const calcStats = (boq: LecturaPresaRow[], mad: LecturaPresaRow[]) => {
                 if (boq.length === 0 && mad.length === 0) return null;
                 const bStart = boq[0]?.almacenamiento_mm3 || 0;
                 const bEnd = boq[boq.length - 1]?.almacenamiento_mm3 || 0;

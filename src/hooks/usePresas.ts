@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useMetadataStore } from '../store/useMetadataStore';
+import { getStartOfDateISO, getTodayString } from '../utils/dateHelpers';
+import { onTable } from '../lib/realtimeHub';
 
 // ─── Types ───────────────────────────────────────────
 export interface PresaData {
@@ -107,7 +109,8 @@ export function usePresas(fecha: string) {
                     supabase.from('aforos_principales_diarios').select('*').eq('fecha', fecha),
                     supabase.from('sica_eventos_log').select('*').eq('esta_activo', true).order('creado_en', { ascending: false }).limit(1),
                     supabase.from('movimientos_presas').select('*')
-                        .lte('fecha_hora', `${fecha}T23:59:59-06:00`)
+                        // P1-6: end-of-day computed in America/Chihuahua to handle CDT↔CST transitions
+                        .lte('fecha_hora', new Date(new Date(getStartOfDateISO(fecha)).getTime() + 86400000 - 1).toISOString())
                         .order('fecha_hora', { ascending: false })
                         .limit(100)
                 ]);
@@ -154,6 +157,32 @@ export function usePresas(fecha: string) {
                     lecturaMap[l.presa_id] = l;
                 });
 
+                // ─── JERARQUÍA DE FUENTES DE DATOS (gasto / extracción) ──────────────
+                //
+                // El valor de extraccion_total_m3s que se muestra en UI sigue esta cascada
+                // de prioridad DESCENDENTE. Cada capa sobreescribe a la anterior:
+                //
+                //  CAPA 1 — lecturas_presas (LÍNEA BASE)
+                //    Reporte diario capturado por el operador de campo.
+                //    Fuente: tabla lecturas_presas, columna extraccion_total_m3s.
+                //    Limitación: se captura una vez al día; puede no reflejar cambios
+                //    intradía ni operaciones de fin de ciclo sin reporte formal.
+                //
+                //  CAPA 2 — movimientos_presas (CONTINUIDAD OPERATIVA)
+                //    Último movimiento registrado (INSERT reciente en movimientos_presas).
+                //    Sobreescribe el reporte diario si existe un movimiento más reciente.
+                //    Fundamento: el gasto de una presa no cambia hasta que hay un nuevo
+                //    movimiento explícito — principio de continuidad hidráulica.
+                //    Limitación: la query usa offset fijo -06:00 (CDT). Ver P1-6.
+                //
+                //  CAPA 3 — sica_eventos_log / Protocolo Activo (MÁXIMA PRIORIDAD)
+                //    Solo aplica a Presa La Boquilla (PRE-001 / PLB).
+                //    Si hay un protocolo LLENADO activo, el gasto toma el valor
+                //    gasto_solicitado_m3s del evento (o 34 m³/s por defecto).
+                //    Sobreescribe Capa 1 y Capa 2 — fuerza el gasto operativo del canal.
+                //
+                // ─────────────────────────────────────────────────────────────────────
+
                 // Transform
                 const result: PresaData[] = (presasDB || []).map((p: any) => {
                     const lect = lecturaMap[p.id];
@@ -165,21 +194,20 @@ export function usePresas(fecha: string) {
                             area_ha: Number(c.area_ha),
                         }));
 
-                    // ── LOGICA DE CONTINUIDAD (MOVIMIENTOS) ──
-                    // El gasto de una presa se rige SIEMPRE por el último movimiento registrado.
+                    // ── CAPA 1: Línea base del reporte diario ──
                     const latestMov = (movsDB || []).find((m: any) => m.presa_id === p.id);
-                    
-                    // ── LOGICA DE GASTO OPERATIVO (HIDRO-SINCRO) ──
                     let extraccion = Number(lect?.extraccion_total_m3s) || 0;
                     let notas = lect?.notas || null;
+                    let dataSource = lect ? 'lecturas_presas' : 'sin_lectura';
 
-                    // 1. Aplicar Continuidad (Último Movimiento)
+                    // ── CAPA 2: Continuidad operativa (último movimiento) ──
                     if (latestMov) {
                         extraccion = Number(latestMov.gasto_m3s);
+                        dataSource = `movimientos_presas (${latestMov.fuente_dato ?? 'manual'})`;
                     }
 
-                    // 2. Sobreescritura especial por Protocolo Activo (Boquilla)
-                    const isBoquilla = p.id === 'PRE-001' || p.codigo === 'PLB' || 
+                    // ── CAPA 3: Protocolo activo Hidro-Sincro (solo Boquilla) ──
+                    const isBoquilla = p.id === 'PRE-001' || p.codigo === 'PLB' ||
                                      p.nombre_corto?.toUpperCase().includes('BOQUILLA') ||
                                      p.nombre?.toUpperCase().includes('BOQUILLA');
 
@@ -190,8 +218,11 @@ export function usePresas(fecha: string) {
                             const gastoFinal = solicitado > 0 ? solicitado : 34; // Default 34 si es LLENADO
                             extraccion = gastoFinal;
                             notas = (notas ? notas + ' | ' : '') + `[PROTOCOL-ACTIVE]: ${eventDB.evento_tipo} (${gastoFinal} m³/s)`;
+                            dataSource = `sica_eventos_log (${eventDB.evento_tipo})`;
                         }
                     }
+
+                    console.debug(`[usePresas] ${p.nombre_corto ?? p.id} → fuente: ${dataSource} | extracción: ${extraccion} m³/s`);
 
                     // Construimos el objeto lectura garantizando que el gasto aparezca aunque no haya reporte diario
                     // (Útil para fines de ciclo o días feriados donde no se captura escala pero sí hay gasto)
@@ -264,21 +295,10 @@ export function usePresas(fecha: string) {
 
         fetchData();
 
-        // C-3: Realtime subscription for lecturas_presas & movimientos_presas changes
-        const channel = supabase.channel('presas_realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'lecturas_presas' }, () => {
-                console.log('🏔️ Lectura de presa actualizada. Refrescando...');
-                fetchData();
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'movimientos_presas' }, () => {
-                console.log('💧 Movimiento de presa detectado. Sincronizando gasto...');
-                fetchData();
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'sica_eventos_log' }, () => {
-                console.log('📢 Protocolo hidráulico actualizado (EventLog). Refrescando...');
-                fetchData();
-            })
-            .subscribe();
+        // C-3: Realtime via centralized hub (no direct channel — see realtimeHub.ts)
+        const unsubLecturas   = onTable('lecturas_presas',   '*', () => { console.log('🏔️ Lectura de presa actualizada. Refrescando...'); fetchData(); });
+        const unsubMovs       = onTable('movimientos_presas','*', () => { console.log('💧 Movimiento de presa detectado. Sincronizando gasto...'); fetchData(); });
+        const unsubEventos    = onTable('sica_eventos_log',  '*', () => { console.log('📢 Protocolo hidráulico actualizado (EventLog). Refrescando...'); fetchData(); });
 
         // C-5: Refetch when tab becomes visible again
         const handleVisibility = () => {
@@ -288,7 +308,9 @@ export function usePresas(fecha: string) {
 
         return () => {
             cancelled = true;
-            supabase.removeChannel(channel);
+            unsubLecturas();
+            unsubMovs();
+            unsubEventos();
             document.removeEventListener('visibilitychange', handleVisibility);
         };
     }, [fecha]);
@@ -300,12 +322,11 @@ export function usePresas(fecha: string) {
     const totalVolumenExtraidoMm3 = presas.reduce((acc, p) => {
         const flow = p.lectura?.extraccion_total_m3s || 0;
         // Si estamos viendo hoy, calculamos el volumen acumulado hasta este segundo
-        const isTodayReq = fecha === new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chihuahua' }).format(new Date());
+        const isTodayReq = fecha === getTodayString();
         
         if (isTodayReq) {
-            const now = new Date();
-            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const secondsElapsed = (now.getTime() - startOfDay.getTime()) / 1000;
+            // P1-6: startOfDay uses America/Chihuahua midnight, not browser-local midnight
+            const secondsElapsed = (Date.now() - new Date(getStartOfDateISO(fecha)).getTime()) / 1000;
             return acc + (flow * secondsElapsed / 1000000);
         } else {
             // Para días pasados, asumimos el gasto constante por 24h

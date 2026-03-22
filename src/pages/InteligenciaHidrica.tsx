@@ -17,16 +17,7 @@ import './HydricChat.css';
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-
-function formatTime(dateStr: string): string {
-    const d = new Date(dateStr);
-    return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatDate(dateStr: string): string {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-}
+import { getLocalDatetimeInput, formatTime, formatDate } from '../utils/dateHelpers';
 
 const QUICK_SUGGESTIONS = [
     {
@@ -112,10 +103,8 @@ const InteligenciaHidrica = () => {
 
     const openConfirmarApertura = () => {
         // Inicializar con la fecha/hora actual en formato para input datetime-local
-        const now = new Date();
-        const offset = now.getTimezoneOffset() * 60000;
-        const localISOTime = (new Date(now.getTime() - offset)).toISOString().slice(0, 16);
-        setTempAperturaDatetime(localISOTime);
+        // P2-9: getLocalDatetimeInput() usa Intl en America/Chihuahua — seguro en DST
+        setTempAperturaDatetime(getLocalDatetimeInput());
         setShowAperturaModal(true);
     };
 

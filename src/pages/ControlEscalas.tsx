@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Gauge, Clock, ArrowUp, ArrowDown, Minus, AlertTriangle, Droplets, Activity, Loader, Settings, Waves, Calculator, X, Info } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { onTable } from '../lib/realtimeHub';
 import { useFecha } from '../context/FechaContext';
 import './ControlEscalas.css';
 
@@ -633,21 +634,14 @@ const ControlEscalas = () => {
 
         fetchData();
 
-        // Realtime Subscription for Live Updates
-        const channel = supabase.channel('realtime_escalas')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'lecturas_escalas' },
-                () => {
-                    console.log('🔄 Cambio detectado en lecturas_escalas. Refrescando...');
-                    fetchData();
-                }
-            )
-            .subscribe();
+        const unsubEscalas = onTable('lecturas_escalas', '*', () => {
+            console.log('🔄 Cambio detectado en lecturas_escalas. Refrescando...');
+            fetchData();
+        });
 
         return () => {
             cancelled = true;
-            supabase.removeChannel(channel);
+            unsubEscalas();
         };
     }, [fechaSeleccionada]);
 

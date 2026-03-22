@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',   // SW se actualiza sin prompt
-        filename: 'sw-v2.4.9.js',
+        filename: 'sw-v2.5.0.js',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
           name: 'SICA 005 - Conchos Digital',

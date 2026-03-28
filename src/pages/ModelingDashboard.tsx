@@ -269,16 +269,16 @@ const CanalSection: React.FC<{
           {yBase.toFixed(2)}m
         </text>
       )}
-      {/* Borda libre restante */}
+      {/* Bordo libre (cota máxima del canal) */}
       <text x={W - 6} y={fbY - 4} fill="#ef4444" fontSize="7.5" fontFamily="monospace" textAnchor="end">
-        BL {freeboard}m
+        H={freeboard.toFixed(1)}m
       </text>
       <text x={W - 6} y={fbY + 9} fill={sc} fontSize="8" fontFamily="monospace" fontWeight="bold" textAnchor="end">
         ▲ {borda}m libre
       </text>
       {/* Info tramo */}
       <text x={CX} y={H - 4} fill="#334155" fontSize="7.5" fontFamily="monospace" textAnchor="middle">
-        b={plantilla}m · z={talud}:1 · BL={freeboard}m
+        b={plantilla}m · z={talud}:1 · H={freeboard.toFixed(1)}m
       </text>
       {/* Barra % bordo libre */}
       <rect x={bxL} y={BY + 3} width={bxR - bxL} height={3} fill="#0d1f38" rx="1" />
@@ -1100,6 +1100,7 @@ const ModelingDashboard: React.FC = () => {
       const p0 = params[0];
       // Grid 0 — perfil longitudinal (series indexadas por km)
       if (['Tirante Actual', 'Tirante Simulado', 'Caudal Q', 'Tirante Diseño', 'Bordo Libre'].includes(p0.seriesName)) {
+        if (!simResults.length) return '';
         const axisKm = p0.axisValue as number;
         const r = simResults.find(r2 => r2.km === axisKm) ?? simResults.reduce((best, r2) => Math.abs(r2.km - axisKm) < Math.abs(best.km - axisKm) ? r2 : best, simResults[0]);
         if (!r) return '';
@@ -1288,19 +1289,19 @@ const ModelingDashboard: React.FC = () => {
           z: 6,
         },
 
-        // Marcadores de puntos de entrega activos (tomas del día)
-        ...(deliveryPoints.filter(d => d.is_active).slice(0, 20).map(d => ({
-          name: `Toma ${d.nombre}`,
-          type: 'scatter' as const,
+        // Marcadores de puntos de entrega activos — UNA sola serie con todas las tomas
+        {
+          name: 'Tomas Activas', type: 'scatter',
           xAxisIndex: 0, yAxisIndex: 0,
-          data: [[d.km, 0.1]],
-          symbolSize: 6,
-          symbol: 'triangle',
+          data: deliveryPoints
+            .filter(d => d.is_active && Number.isFinite(d.km))
+            .slice(0, 40)
+            .map(d => ({ value: [d.km, 0.1], name: d.nombre })),
+          symbolSize: 6, symbol: 'triangle',
           itemStyle: { color: '#fbbf24', opacity: 0.7 },
-          label: { show: false },
-          z: 5,
+          label: { show: false }, z: 5,
           tooltip: { show: false },
-        }))),
+        },
 
         // ── GRID 1: Diagrama Espacio-Tiempo ──────────────────────────
         // NOTA: yAxis[2] = km canal (gridIndex:1) — yAxis[1] es Q en Grid 0

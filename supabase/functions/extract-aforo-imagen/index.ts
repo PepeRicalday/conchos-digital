@@ -57,16 +57,16 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return new Response(
       JSON.stringify({ error: "Método no permitido. Use POST." }),
-      { status: 405, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 
   try {
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) {
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) {
       return new Response(
-        JSON.stringify({ error: "OPENAI_API_KEY no configurada." }),
-        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "GEMINI_API_KEY no configurada." }),
+        { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
@@ -76,7 +76,7 @@ Deno.serve(async (req: Request) => {
     } catch {
       return new Response(
         JSON.stringify({ error: "Cuerpo de solicitud inválido. Se esperaba JSON." }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
@@ -85,7 +85,7 @@ Deno.serve(async (req: Request) => {
     if (!image_base64 || typeof image_base64 !== "string") {
       return new Response(
         JSON.stringify({ error: "Campo 'image_base64' requerido." }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
@@ -94,55 +94,51 @@ Deno.serve(async (req: Request) => {
       ? media_type
       : "image/jpeg";
 
-    const dataUrl = `data:${finalMediaType};base64,${image_base64}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-    const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+    const geminiResponse = await fetch(geminiUrl, {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-4o",
-        max_tokens: 2000,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image_url",
-                image_url: { url: dataUrl, detail: "high" }
-              },
-              {
-                type: "text",
-                text: EXTRACTION_PROMPT
+        contents: [{
+          parts: [
+            {
+              inline_data: {
+                mime_type: finalMediaType,
+                data: image_base64
               }
-            ]
-          }
-        ]
+            },
+            {
+              text: EXTRACTION_PROMPT
+            }
+          ]
+        }],
+        generationConfig: {
+          maxOutputTokens: 2000,
+          temperature: 0.1
+        }
       }),
     });
 
-    if (!openaiResponse.ok) {
-      const errorText = await openaiResponse.text();
-      console.error("Error OpenAI API:", openaiResponse.status, errorText);
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      console.error("Error Gemini API:", geminiResponse.status, errorText);
       return new Response(
-        JSON.stringify({ error: `Error OpenAI API: ${openaiResponse.status} - ${errorText}` }),
-        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        JSON.stringify({ error: `Gemini ${geminiResponse.status}: ${errorText}` }),
+        { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
-    const openaiData = await openaiResponse.json();
-    const rawText: string = openaiData?.choices?.[0]?.message?.content ?? "";
+    const geminiData = await geminiResponse.json();
+    const rawText: string = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
     if (!rawText) {
       return new Response(
-        JSON.stringify({ error: "OpenAI no devolvió contenido de texto." }),
-        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Gemini no devolvió contenido de texto." }),
+        { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
-    // Strip markdown code blocks if present
     let jsonText = rawText.trim();
     const codeBlockMatch = jsonText.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
     if (codeBlockMatch) {
@@ -156,7 +152,7 @@ Deno.serve(async (req: Request) => {
       console.error("Error al parsear JSON:", parseError, "\nTexto:", rawText);
       return new Response(
         JSON.stringify({ error: "No se pudo parsear la respuesta como JSON.", raw_response: rawText }),
-        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
@@ -170,7 +166,7 @@ Deno.serve(async (req: Request) => {
     const message = err instanceof Error ? err.message : String(err);
     return new Response(
       JSON.stringify({ error: `Error interno: ${message}` }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 });

@@ -185,54 +185,103 @@ function statusColor(s: CPStatus): string {
   return s === 'CRITICO' ? '#ef4444' : s === 'ALERTA' ? '#f59e0b' : '#10b981';
 }
 
-// ── SECCIÓN TRANSVERSAL SVG ─────────────────────────────────────────────
-const CanalSection: React.FC<{ yBase: number; ySim: number }> = ({ yBase, ySim }) => {
+// ── SECCIÓN TRANSVERSAL SVG — usa geometría real del tramo ──────────────
+const CanalSection: React.FC<{
+  yBase:     number;
+  ySim:      number;
+  plantilla?: number;
+  talud?:    number;
+  freeboard?: number;
+}> = ({ yBase, ySim, plantilla = PLANTILLA, talud = TALUD_Z, freeboard = FREEBOARD }) => {
   const W = 240, H = 130;
   const CX = W / 2, BY = H - 18;
-  const VPM = (H - 32) / FREEBOARD;
-  const HPM = (W - 40) / (PLANTILLA + 2 * TALUD_Z * FREEBOARD);
+  const VPM = (H - 32) / freeboard;
+  const HPM = (W - 40) / (plantilla + 2 * talud * freeboard);
 
-  const bxL = CX - (PLANTILLA / 2) * HPM;
-  const bxR = CX + (PLANTILLA / 2) * HPM;
-  const fbY  = BY - FREEBOARD * VPM;
-  const fbxL = bxL - TALUD_Z * FREEBOARD * HPM;
-  const fbxR = bxR + TALUD_Z * FREEBOARD * HPM;
+  const bxL  = CX - (plantilla / 2) * HPM;
+  const bxR  = CX + (plantilla / 2) * HPM;
+  const fbY  = BY - freeboard * VPM;
+  const fbxL = bxL - talud * freeboard * HPM;
+  const fbxR = bxR + talud * freeboard * HPM;
 
-  const sY   = Math.max(0.05, Math.min(ySim,  FREEBOARD));
-  const bY   = Math.max(0.05, Math.min(yBase, FREEBOARD));
+  // Zona alerta (75%) y crítico (92%)
+  const alertY = BY - (freeboard * 0.75) * VPM;
+  const critY  = BY - (freeboard * 0.92) * VPM;
+
+  const sY   = Math.max(0.05, Math.min(ySim,  freeboard));
+  const bY   = Math.max(0.05, Math.min(yBase, freeboard));
   const swY  = BY - sY * VPM;
-  const swxL = CX - (PLANTILLA / 2 + TALUD_Z * sY) * HPM;
-  const swxR = CX + (PLANTILLA / 2 + TALUD_Z * sY) * HPM;
+  const swxL = CX - (plantilla / 2 + talud * sY) * HPM;
+  const swxR = CX + (plantilla / 2 + talud * sY) * HPM;
   const bwY  = BY - bY * VPM;
-  const bwxL = CX - (PLANTILLA / 2 + TALUD_Z * bY) * HPM;
-  const bwxR = CX + (PLANTILLA / 2 + TALUD_Z * bY) * HPM;
+  const bwxL = CX - (plantilla / 2 + talud * bY) * HPM;
+  const bwxR = CX + (plantilla / 2 + talud * bY) * HPM;
 
-  const sc = statusColor(ySim / FREEBOARD > 0.92 ? 'CRITICO' : ySim / FREEBOARD > 0.75 ? 'ALERTA' : 'ESTABLE');
+  const pct = sY / freeboard;
+  const sc  = statusColor(pct > 0.92 ? 'CRITICO' : pct > 0.75 ? 'ALERTA' : 'ESTABLE');
+  const borda = (freeboard - sY).toFixed(2);
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxHeight: H }}>
+      <defs>
+        <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={sc} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={sc} stopOpacity="0.06" />
+        </linearGradient>
+      </defs>
       <rect width={W} height={H} fill="#050e1a" rx="6" />
+      {/* Zona crítica (92%) */}
+      <rect x={fbxL} y={critY} width={fbxR - fbxL} height={alertY - critY}
+        fill="rgba(239,68,68,0.06)" />
+      {/* Zona alerta (75%-92%) */}
+      <rect x={fbxL} y={alertY} width={fbxR - fbxL} height={BY - alertY - freeboard * 0.75 * VPM * 0.01}
+        fill="rgba(245,158,11,0.04)" />
       {/* Taludes */}
       <polygon points={`${fbxL},${fbY} ${bxL},${BY} ${bxR},${BY} ${fbxR},${fbY}`}
-        fill="none" stroke="#334155" strokeWidth="2" />
-      {/* Plantilla */}
+        fill="rgba(30,41,59,0.5)" stroke="#334155" strokeWidth="1.5" />
+      {/* Plantilla (fondo) */}
       <rect x={bxL} y={BY} width={bxR - bxL} height={5} fill="#1e293b" />
       {/* Agua simulada */}
       <polygon points={`${swxL},${swY} ${swxR},${swY} ${bxR},${BY} ${bxL},${BY}`}
-        fill="rgba(14,165,233,0.28)" />
+        fill="url(#waterGrad)" />
       {/* Superficie simulada */}
-      <line x1={swxL} y1={swY} x2={swxR} y2={swY} stroke={sc} strokeWidth="2.5" />
+      <line x1={swxL} y1={swY} x2={swxR} y2={swY} stroke={sc} strokeWidth="2.5"
+        style={{ filter: `drop-shadow(0 0 3px ${sc}66)` }} />
       {/* Nivel base (punteado) */}
-      <line x1={bwxL} y1={bwY} x2={bwxR} y2={bwY} stroke="#38bdf8" strokeWidth="1.5" strokeDasharray="5,3" opacity="0.6" />
+      {Math.abs(sY - bY) > 0.02 && (
+        <line x1={bwxL} y1={bwY} x2={bwxR} y2={bwY} stroke="#38bdf8"
+          strokeWidth="1.5" strokeDasharray="5,3" opacity="0.55" />
+      )}
+      {/* Línea alerta (75%) */}
+      <line x1={fbxL + 4} y1={alertY} x2={fbxR - 4} y2={alertY}
+        stroke="#d97706" strokeWidth="0.8" strokeDasharray="4,3" opacity="0.5" />
       {/* Bordo libre */}
-      <line x1={fbxL} y1={fbY} x2={fbxR} y2={fbY} stroke="#ef4444" strokeWidth="1" strokeDasharray="6,4" opacity="0.55" />
-      {/* Etiquetas */}
-      <text x={swxR + 3} y={swY + 4} fill={sc} fontSize="9" fontFamily="monospace">{ySim.toFixed(2)}m</text>
-      <text x={bwxR + 3} y={bwY + 4} fill="#38bdf8" fontSize="8" fontFamily="monospace">{yBase.toFixed(2)}m</text>
-      <text x={4} y={fbY + 9} fill="#ef4444" fontSize="8" fontFamily="monospace">BL {FREEBOARD}m</text>
-      <text x={CX} y={H - 4} fill="#475569" fontSize="8" fontFamily="monospace" textAnchor="middle">
-        Plantilla {PLANTILLA}m · Talud {TALUD_Z}:1
+      <line x1={fbxL} y1={fbY} x2={fbxR} y2={fbY}
+        stroke="#ef4444" strokeWidth="1" strokeDasharray="6,4" opacity="0.5" />
+      {/* Cota del agua */}
+      <text x={swxR + 4} y={swY + 4} fill={sc} fontSize="9.5" fontFamily="monospace" fontWeight="bold">
+        {ySim.toFixed(2)}m
       </text>
+      {Math.abs(sY - bY) > 0.02 && (
+        <text x={bwxR + 4} y={bwY + 4} fill="#38bdf8" fontSize="8" fontFamily="monospace">
+          {yBase.toFixed(2)}m
+        </text>
+      )}
+      {/* Borda libre restante */}
+      <text x={W - 6} y={fbY - 4} fill="#ef4444" fontSize="7.5" fontFamily="monospace" textAnchor="end">
+        BL {freeboard}m
+      </text>
+      <text x={W - 6} y={fbY + 9} fill={sc} fontSize="8" fontFamily="monospace" fontWeight="bold" textAnchor="end">
+        ▲ {borda}m libre
+      </text>
+      {/* Info tramo */}
+      <text x={CX} y={H - 4} fill="#334155" fontSize="7.5" fontFamily="monospace" textAnchor="middle">
+        b={plantilla}m · z={talud}:1 · BL={freeboard}m
+      </text>
+      {/* Barra % bordo libre */}
+      <rect x={bxL} y={BY + 3} width={bxR - bxL} height={3} fill="#0d1f38" rx="1" />
+      <rect x={bxL} y={BY + 3} width={(bxR - bxL) * Math.min(1, pct)} height={3}
+        fill={sc} rx="1" />
     </svg>
   );
 };
@@ -955,16 +1004,24 @@ const ModelingDashboard: React.FC = () => {
     return generateDecisions(simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType);
   }, [simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType]);
 
-  // ── CUADRO DE MANIOBRA: Barras de Escala + Diagrama Espacio-Tiempo ────
+  // ── CUADRO DE MANIOBRA: Perfil Longitudinal + Diagrama Espacio-Tiempo ──
   const opsChartOption = useMemo(() => {
     if (!simResults.length) return {};
 
-    // ── Datos gráfico superior (barras) ──────────────────────────────
-    const shortName = (n: string) => n.replace(/^(K-\d+)\s+/, '$1\n');
-    const names  = simResults.map(r => shortName(r.nombre));
-    const yBase  = simResults.map(r => +(r.y_base ?? 0).toFixed(2));
-    const ySim   = simResults.map(r => +(r.y_sim  ?? 0).toFixed(2));
-    const deltas = simResults.map(r => r.delta_y ?? 0);
+    // ── Datos Perfil Longitudinal (Grid 0) ────────────────────────────
+    // Canal como continuo: km en X, tirante en Y-izq, Q en Y-der
+    const kmData     = [0, ...simResults.map(r => r.km)];
+    const yBaseData  = [simResults[0].y_base, ...simResults.map(r => r.y_base)];
+    const ySimData   = [simResults[0].y_sim,  ...simResults.map(r => r.y_sim)];
+    const qSimData   = [qDam,                 ...simResults.map(r => r.q_sim)];
+    const bordoData  = kmData.map(km => {
+      const tr = findTramo(km, tramoGeom);
+      return tr.bordo_libre_m;
+    });
+    const capData    = kmData.map(km => {
+      const tr = findTramo(km, tramoGeom);
+      return tr.tirante_diseno_m;
+    });
     const colors = simResults.map(r => statusColor(r.status));
 
     // ── Ruta de onda: [tiempo_horas, km] — empieza en origen [0, 0] ──
@@ -1011,32 +1068,37 @@ const ModelingDashboard: React.FC = () => {
     }
     if (completedPath.length === 1 && timeDelta > 0) completedPath.push([tHr, curKm]);
 
-    // ── Tooltip ─────────────────────────────────────────────────────
+    // ── Tooltip unificado ────────────────────────────────────────────
     const fmtTooltip = (params: any[]) => {
       if (!params?.length) return '';
       const p0 = params[0];
-      // Grid superior: barras por índice de categoría
-      if (['Nivel Actual', 'Nivel Simulado'].includes(p0.seriesName)) {
-        const i = p0.dataIndex as number;
-        const r = simResults[i];
+      // Grid 0 — perfil longitudinal (series indexadas por km)
+      if (['Tirante Actual', 'Tirante Simulado', 'Caudal Q', 'Tirante Diseño', 'Bordo Libre'].includes(p0.seriesName)) {
+        const axisKm = p0.axisValue as number;
+        const r = simResults.find(r2 => r2.km === axisKm) ?? simResults.reduce((best, r2) => Math.abs(r2.km - axisKm) < Math.abs(best.km - axisKm) ? r2 : best, simResults[0]);
         if (!r) return '';
         const dCm = Math.round((r.delta_y ?? 0) * 100);
         const sign = dCm >= 0 ? '+' : '';
-        const movTxt = dCm > 2 ? '▲ INCREMENTO' : dCm < -2 ? '▼ DECREMENTO' : '● SIN CAMBIO';
         const movClr = dCm > 2 ? '#fbbf24' : dCm < -2 ? '#60a5fa' : '#94a3b8';
-        return `<div style="font-family:monospace;font-size:11px;line-height:1.9;min-width:185px">
-          <div style="color:#94a3b8;font-size:9px;border-bottom:1px solid #1e3a5f;padding-bottom:3px;margin-bottom:5px;letter-spacing:0.05em">${r.nombre}</div>
-          <div>Escala actual &nbsp;&nbsp;<b style="color:#38bdf8">${(r.y_base??0).toFixed(2)} m</b></div>
-          <div>Escala simulada <b style="color:${statusColor(r.status)}">${(r.y_sim??0).toFixed(2)} m</b></div>
-          <div>Variación &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b style="color:${movClr}">${sign}${dCm} cm &nbsp;${movTxt}</b></div>
+        return `<div style="font-family:monospace;font-size:11px;line-height:1.9;min-width:200px">
+          <div style="color:#94a3b8;font-size:9px;border-bottom:1px solid #1e3a5f;padding-bottom:3px;margin-bottom:5px">${r.nombre} · KM ${r.km}</div>
+          <div>Tirante actual &nbsp;&nbsp;<b style="color:#38bdf8">${(r.y_base??0).toFixed(2)} m</b></div>
+          <div>Tirante simulado<b style="color:${statusColor(r.status)}">&nbsp;${(r.y_sim??0).toFixed(2)} m</b></div>
+          <div>Variación &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b style="color:${movClr}">${sign}${dCm} cm</b></div>
+          <div>Q llegada &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b style="color:#a78bfa">${(r.q_sim??0).toFixed(1)} m³/s</b></div>
+          ${r.n_tomas_activas > 0 ? `<div style="color:#64748b;font-size:9px">−${r.q_extraido.toFixed(2)} m³/s · ${r.n_tomas_activas} tomas activas</div>` : ''}
           <div style="margin-top:3px;padding-top:3px;border-top:1px solid #1e3a5f">Arribo: <b style="color:#c084fc">${r.arrival_time} &nbsp;(T+${Math.round(r.cumulative_min??0)} min)</b></div>
         </div>`;
       }
       return '';
     };
 
+    // Tirante máximo dinámico (bordo libre del primer tramo u 4m mínimo)
+    const yMax = Math.max(4, ...bordoData) * 1.05;
+    const qMax = Math.max(10, ...qSimData) * 1.15;
+
     return {
-      animation: false,  // Sin animación → sin parpadeo al mover el slider
+      animation: false,
       backgroundColor: 'transparent',
       tooltip: {
         trigger: 'axis',
@@ -1044,24 +1106,27 @@ const ModelingDashboard: React.FC = () => {
         borderColor: '#1e3a5f', borderWidth: 1,
         textStyle: { color: '#e2e8f0', fontSize: 11 },
         formatter: fmtTooltip,
+        axisPointer: { type: 'cross', crossStyle: { color: '#1e3a5f' } },
       },
       grid: [
-        { top: 36, height: '40%', left: 68, right: 18 },
-        { top: '56%', bottom: 50, left: 68, right: 18 },
+        { top: 36, height: '40%', left: 68, right: 60 },
+        { top: '58%', bottom: 50, left: 68, right: 60 },
       ],
       xAxis: [
-        // Grid 0 — puntos de control (categorías)
+        // Grid 0 — km del canal (continuo 0→104)
         {
-          gridIndex: 0, type: 'category', data: names,
-          axisLabel: { color: '#64748b', fontSize: 8, interval: 0, lineHeight: 13 },
+          gridIndex: 0, type: 'value', min: 0, max: 110,
+          name: 'Km del canal', nameLocation: 'middle', nameGap: 22,
+          nameTextStyle: { color: '#334155', fontSize: 8 },
+          axisLabel: { color: '#64748b', fontSize: 8, formatter: 'K{value}' },
           axisLine: { lineStyle: { color: '#1e3a5f' } },
-          axisTick: { alignWithLabel: true, lineStyle: { color: '#1e3a5f' } },
-          splitLine: { show: false },
+          axisTick: { lineStyle: { color: '#1e3a5f' } },
+          splitLine: { lineStyle: { color: 'rgba(30,58,95,0.3)', type: 'dashed' } },
         },
         // Grid 1 — tiempo en horas
         {
           gridIndex: 1, type: 'value', min: 0, max: maxHr,
-          name: 'Tiempo desde el evento (horas)', nameLocation: 'middle', nameGap: 30,
+          name: 'Tiempo desde el evento (horas)', nameLocation: 'middle', nameGap: 28,
           nameTextStyle: { color: '#334155', fontSize: 8 },
           axisLabel: {
             color: '#64748b', fontSize: 9,
@@ -1073,15 +1138,24 @@ const ModelingDashboard: React.FC = () => {
         },
       ],
       yAxis: [
-        // Grid 0 — tirante en metros
+        // Grid 0 izq — tirante (m)
         {
-          gridIndex: 0, type: 'value', name: 'Tirante (m)', min: 0, max: 3.8,
+          gridIndex: 0, type: 'value', name: 'Tirante (m)', min: 0, max: +yMax.toFixed(1),
           nameTextStyle: { color: '#334155', fontSize: 8, padding: [0, 0, 0, -22] },
           axisLabel: { color: '#64748b', fontSize: 8, formatter: '{value}m' },
           splitLine: { lineStyle: { color: '#080f1c', type: 'dashed' } },
           axisLine: { lineStyle: { color: '#1e3a5f' } },
         },
-        // Grid 1 — kilómetro del canal, K-0 en la parte superior
+        // Grid 0 der — caudal (m³/s)
+        {
+          gridIndex: 0, type: 'value', name: 'Q (m³/s)', min: 0, max: +qMax.toFixed(0),
+          nameTextStyle: { color: '#7c3aed', fontSize: 8 },
+          axisLabel: { color: '#7c3aed', fontSize: 8, formatter: (v: number) => `${v}` },
+          splitLine: { show: false },
+          axisLine: { lineStyle: { color: '#3730a3' } },
+          position: 'right',
+        },
+        // Grid 1 — kilómetro del canal
         {
           gridIndex: 1, type: 'value', name: 'Kilómetro del Canal', min: 0, max: 110,
           nameTextStyle: { color: '#334155', fontSize: 8 },
@@ -1092,68 +1166,115 @@ const ModelingDashboard: React.FC = () => {
         },
       ],
       series: [
-        // ── GRID 0: Barras de escala ─────────────────────────────────
+        // ── GRID 0: Perfil Longitudinal Hidráulico ───────────────────
 
-        // Barra — Nivel Actual
+        // Franja bordo libre (capacidad total del canal por tramo)
         {
-          name: 'Nivel Actual', type: 'bar', xAxisIndex: 0, yAxisIndex: 0,
-          data: yBase, barMaxWidth: 22, z: 3,
-          itemStyle: {
+          name: 'Bordo Libre', type: 'line',
+          xAxisIndex: 0, yAxisIndex: 0,
+          data: kmData.map((km, i) => [km, bordoData[i]]),
+          smooth: false, showSymbol: false, z: 1,
+          lineStyle: { color: 'rgba(239,68,68,0.4)', width: 1, type: 'dashed' },
+          areaStyle: {
             color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
               colorStops: [
-                { offset: 0, color: 'rgba(56,189,248,0.65)' },
-                { offset: 1, color: 'rgba(56,189,248,0.10)' },
+                { offset: 0, color: 'rgba(239,68,68,0.0)' },
+                { offset: 1, color: 'rgba(239,68,68,0.0)' },
               ],
             },
-            borderColor: '#38bdf8', borderWidth: 1, borderRadius: [3, 3, 0, 0],
           },
-          label: {
-            show: true, position: 'top', fontSize: 8, color: '#64748b',
-            formatter: (p: any) => `${p.value}m`,
+          label: { show: false },
+        },
+
+        // Tirante de diseño (línea de capacidad de diseño)
+        {
+          name: 'Tirante Diseño', type: 'line',
+          xAxisIndex: 0, yAxisIndex: 0,
+          data: kmData.map((km, i) => [km, capData[i]]),
+          smooth: false, showSymbol: false, z: 2,
+          lineStyle: { color: 'rgba(71,85,105,0.5)', width: 1, type: 'dotted' },
+          label: { show: false },
+        },
+
+        // Área llenada — Tirante Actual (superficie de agua base)
+        {
+          name: 'Tirante Actual', type: 'line',
+          xAxisIndex: 0, yAxisIndex: 0,
+          data: kmData.map((km, i) => [km, yBaseData[i]]),
+          smooth: true, showSymbol: false, z: 3,
+          lineStyle: { color: '#38bdf8', width: 2, type: 'dashed', opacity: 0.7 },
+          areaStyle: {
+            color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [
+                { offset: 0, color: 'rgba(56,189,248,0.18)' },
+                { offset: 1, color: 'rgba(56,189,248,0.04)' },
+              ],
+            },
           },
         },
 
-        // Barra — Nivel Simulado (con colores por estatus)
+        // Área llenada — Tirante Simulado (superficie de agua simulada)
         {
-          name: 'Nivel Simulado', type: 'bar', xAxisIndex: 0, yAxisIndex: 0,
-          data: ySim.map((v, i) => ({
-            value: v,
-            itemStyle: {
-              color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                colorStops: [
-                  { offset: 0, color: colors[i] },
-                  { offset: 1, color: colors[i].replace(')', ',0.12)').replace('rgb', 'rgba') },
-                ],
-              },
-              borderColor: colors[i], borderWidth: 1.5, borderRadius: [3, 3, 0, 0],
+          name: 'Tirante Simulado', type: 'line',
+          xAxisIndex: 0, yAxisIndex: 0,
+          data: kmData.map((km, i) => [km, ySimData[i]]),
+          smooth: true, showSymbol: false, z: 4,
+          lineStyle: { color: '#2dd4bf', width: 2.5 },
+          areaStyle: {
+            color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [
+                { offset: 0, color: 'rgba(45,212,191,0.22)' },
+                { offset: 1, color: 'rgba(45,212,191,0.04)' },
+              ],
             },
-          })),
-          barMaxWidth: 22, barGap: '10%', z: 4,
-          label: {
-            show: true, position: 'top', fontSize: 8, fontWeight: 'bold',
-            formatter: (p: any) => {
-              const d = deltas[p.dataIndex] ?? 0;
-              const cm = Math.round(d * 100);
-              if (Math.abs(cm) < 2) return `${p.value}m`;
-              return `${p.value}m\n${cm > 0 ? '▲' : '▼'}${Math.abs(cm)}cm`;
-            },
-            color: (p: any) => colors[p.dataIndex] ?? '#2dd4bf',
-          },
-          markLine: {
-            silent: true, symbol: 'none', z: 10,
-            data: [
-              { yAxis: FREEBOARD * 0.75,
-                lineStyle: { color: '#d97706', width: 1, type: 'dashed', opacity: 0.6 },
-                label: { formatter: '⚠ ALERTA 75%', color: '#d97706', fontSize: 7, position: 'insideEndTop' } },
-              { yAxis: FREEBOARD * 0.92,
-                lineStyle: { color: '#dc2626', width: 1, type: 'dashed', opacity: 0.6 },
-                label: { formatter: '🔴 CRÍTICO 92%', color: '#dc2626', fontSize: 7, position: 'insideEndTop' } },
-              { yAxis: FREEBOARD,
-                lineStyle: { color: '#374151', width: 1, type: 'dotted', opacity: 0.5 },
-                label: { formatter: 'BORDO LIBRE', color: '#4b5563', fontSize: 7, position: 'insideEndTop' } },
-            ],
           },
         },
+
+        // Caudal Q (eje derecho, línea violeta)
+        {
+          name: 'Caudal Q', type: 'line',
+          xAxisIndex: 0, yAxisIndex: 1,
+          data: kmData.map((km, i) => [km, +(qSimData[i] ?? 0).toFixed(2)]),
+          smooth: true, showSymbol: false, z: 3,
+          lineStyle: { color: 'rgba(167,139,250,0.7)', width: 1.5, type: 'solid' },
+          label: { show: false },
+        },
+
+        // Puntos de control: scatter sobre la línea simulada
+        {
+          name: 'Puntos de Control', type: 'scatter',
+          xAxisIndex: 0, yAxisIndex: 0,
+          data: simResults.map((r, i) => ({
+            value: [r.km, r.y_sim],
+            symbolSize: r.status === 'CRITICO' ? 13 : r.status === 'ALERTA' ? 10 : 8,
+            itemStyle: {
+              color: colors[i],
+              borderColor: '#04080f', borderWidth: 1.5,
+              shadowColor: colors[i], shadowBlur: 5,
+            },
+            label: {
+              show: true,
+              formatter: () => `K-${r.km}`,
+              position: i % 2 === 0 ? 'top' : 'bottom',
+              distance: 5, fontSize: 7.5, color: colors[i],
+            },
+          })),
+          z: 6,
+        },
+
+        // Marcadores de puntos de entrega activos (tomas del día)
+        ...(deliveryPoints.filter(d => d.is_active).slice(0, 20).map(d => ({
+          name: `Toma ${d.nombre}`,
+          type: 'scatter' as const,
+          xAxisIndex: 0, yAxisIndex: 0,
+          data: [[d.km, 0.1]],
+          symbolSize: 6,
+          symbol: 'triangle',
+          itemStyle: { color: '#fbbf24', opacity: 0.7 },
+          label: { show: false },
+          z: 5,
+          tooltip: { show: false },
+        }))),
 
         // ── GRID 1: Diagrama Espacio-Tiempo ──────────────────────────
 
@@ -1244,7 +1365,7 @@ const ModelingDashboard: React.FC = () => {
         },
       ],
     };
-  }, [simResults, timeDelta]);
+  }, [simResults, timeDelta, qDam, tramoGeom, deliveryPoints]);
 
   // ── GLOBALS ──────────────────────────────────────────────────────────
   const firstCP      = simResults[0];
@@ -1571,11 +1692,13 @@ const ModelingDashboard: React.FC = () => {
             <div className="sim-profile-hdr">
               <span className="sim-profile-title">
                 <Waves size={12} />
-                {simpleMode ? 'Escalas y Llegada del Agua · Puntos de Control' : 'Cuadro de Maniobra · Escala y Tránsito de Onda'}
+                {simpleMode ? 'Perfil Hidráulico · Tirante a lo Largo del Canal' : 'Perfil Longitudinal Hidráulico · Tirante y Caudal por KM'}
               </span>
               <div className="sim-profile-legend">
-                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#38bdf8' }} /> Nivel Actual</span>
-                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#2dd4bf' }} /> Simulado</span>
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#38bdf8', borderRadius: 0 }} /> Tirante Actual</span>
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#2dd4bf' }} /> Tirante Simulado</span>
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#a78bfa', borderRadius: 0 }} /> Caudal Q</span>
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#ef4444', borderRadius: 0, opacity: 0.5 }} /> Bordo Libre</span>
                 <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#fbbf24', borderRadius: '50%' }} /> Frente de Onda</span>
                 {simResults.some(r => r.remanso_type === 'M1') && <span className="sim-leg-tag tag-m1">▲ Incremento</span>}
                 {simResults.some(r => r.remanso_type === 'M2') && <span className="sim-leg-tag tag-m2">▼ Decremento</span>}
@@ -1765,7 +1888,13 @@ const ModelingDashboard: React.FC = () => {
               {/* Sección transversal */}
               <div className="sim-section-wrap">
                 <div className="sim-section-lbl">Sección Transversal</div>
-                <CanalSection yBase={activeCPResult.y_base} ySim={activeCPResult.y_sim} />
+                <CanalSection
+                  yBase={activeCPResult.y_base}
+                  ySim={activeCPResult.y_sim}
+                  plantilla={activeCPResult.plantilla_m || PLANTILLA}
+                  talud={findTramo(activeCPResult.km, tramoGeom).talud_z}
+                  freeboard={activeCPResult.bordo_libre_m || FREEBOARD}
+                />
                 <div className="sim-section-leg">
                   <span><span style={{ display: 'inline-block', width: 10, height: 2, background: '#2dd4bf', verticalAlign: 'middle', marginRight: 4 }} />Simulado</span>
                   <span><span style={{ display: 'inline-block', width: 10, height: 2, background: '#38bdf8', opacity: 0.6, verticalAlign: 'middle', marginRight: 4 }} />Actual</span>

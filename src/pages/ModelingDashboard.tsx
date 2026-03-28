@@ -1277,11 +1277,12 @@ const ModelingDashboard: React.FC = () => {
         }))),
 
         // ── GRID 1: Diagrama Espacio-Tiempo ──────────────────────────
+        // NOTA: yAxis[2] = km canal (gridIndex:1) — yAxis[1] es Q en Grid 0
 
         // Línea de trayectoria PREVISTA (segmento pendiente, tenue)
         {
           name: 'Trayectoria Prevista', type: 'line',
-          xAxisIndex: 1, yAxisIndex: 1,
+          xAxisIndex: 1, yAxisIndex: 2,
           data: wavePath,
           smooth: false, z: 3, showSymbol: false,
           lineStyle: { color: 'rgba(56,189,248,0.18)', width: 1.5, type: 'dashed' },
@@ -1290,7 +1291,7 @@ const ModelingDashboard: React.FC = () => {
         // Línea de trayectoria COMPLETADA (segmento recorrido, brillante)
         {
           name: 'Recorrido Completado', type: 'line',
-          xAxisIndex: 1, yAxisIndex: 1,
+          xAxisIndex: 1, yAxisIndex: 2,
           data: completedPath,
           smooth: false, z: 5, showSymbol: false,
           lineStyle: {
@@ -1309,8 +1310,8 @@ const ModelingDashboard: React.FC = () => {
 
         // Puntos de control: relleno=llegó, borde=pendiente
         {
-          name: 'Puntos de Control', type: 'scatter',
-          xAxisIndex: 1, yAxisIndex: 1,
+          name: 'PuntosCP', type: 'scatter',
+          xAxisIndex: 1, yAxisIndex: 2,
           data: wavePath.slice(1).map((pt, i) => {
             const r = simResults[i];
             const arrived = (r.cumulative_min ?? 0) <= timeDelta;
@@ -1339,7 +1340,7 @@ const ModelingDashboard: React.FC = () => {
         // Sin shadowBlur → sin parpadeo
         {
           name: 'Frente de Onda', type: 'scatter',
-          xAxisIndex: 1, yAxisIndex: 1,
+          xAxisIndex: 1, yAxisIndex: 2,
           data: timeDelta > 0 ? [[tHr, curKm]] : [],
           symbolSize: 13, symbol: 'circle', z: 8,
           itemStyle: {

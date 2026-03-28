@@ -59,8 +59,10 @@ interface CPResult {
   q_extraido:      number;   // m³/s siendo extraídos en tomas activas de este tramo
   n_tomas_activas: number;   // cantidad de tomas activas en el tramo
   // Geometría de diseño del tramo (de perfil_hidraulico_canal)
-  plantilla_m:     number;
-  bordo_libre_m:   number;
+  plantilla_m:      number;
+  tirante_diseno_m: number;   // tirante de diseño (profundidad operativa)
+  bordo_libre_m:    number;   // margen de seguridad sobre el tirante de diseño
+  canal_depth_m:    number;   // profundidad total = tirante_diseno + bordo_libre
   capacidad_diseno_m3s: number;
   pct_capacidad_diseno: number;  // q_sim / capacidad_diseno × 100
 }
@@ -499,15 +501,21 @@ function runSimulation(
     // y_sim = tirante normal de Manning para Q simulado (flujo uniforme canal abierto).
     // El modelo gate anterior (y_base + head_delta) daba variaciones <5cm para cualquier Q
     // porque area_gate es grande (~60m²). Manning refleja correctamente el nivel del canal.
+    // Profundidad total del canal = tirante de diseño + margen de bordo libre.
+    // IMPORTANTE: bordo_libre_m en perfil_hidraulico_canal es el MARGEN (ej. 0.6m),
+    // NO la profundidad total. tirante_diseno_m es la lámina operativa de diseño (ej. 2.5m).
+    const td_tramo   = tramo.tirante_diseno_m;
+    const canal_depth = td_tramo + fb_tramo;   // ej. 2.5 + 0.6 = 3.1m
+
     const y_sim_mn   = normalDepth(qCur, s_tramo, b_tramo, z_tramo, n_tramo);
-    const y_sim      = Math.max(0.1, Math.min(y_sim_mn, fb_tramo - 0.08));
+    const y_sim      = Math.max(0.1, Math.min(y_sim_mn, canal_depth - 0.08));
 
     const sqrtHead           = Math.sqrt(2 * G * Math.max(0.01, y_base));
     const apertura_requerida = qCur / Math.max(0.001, cd_used * ancho * pzas * sqrtHead);
 
     const delta_y      = y_sim - y_base;
     const remanso_type: RemansoType = delta_y > 0.08 ? 'M1' : delta_y < -0.08 ? 'M2' : 'NORMAL';
-    const pct          = y_sim / fb_tramo;
+    const pct          = y_sim / canal_depth;  // % sobre profundidad total (no solo el margen)
     const status: CPStatus = pct > 0.92 ? 'CRITICO' : pct > 0.75 ? 'ALERTA' : 'ESTABLE';
 
     const travelSpd   = Math.max(0.5, v_n + c);
@@ -546,7 +554,9 @@ function runSimulation(
       apertura_requerida,
       q_extraido, n_tomas_activas,
       plantilla_m: b_tramo,
+      tirante_diseno_m: td_tramo,
       bordo_libre_m: fb_tramo,
+      canal_depth_m: canal_depth,
       capacidad_diseno_m3s: qdis,
       pct_capacidad_diseno: qdis > 0 ? Math.min(120, (q_sim_arribo / qdis) * 100) : 0,
     };
@@ -1910,7 +1920,7 @@ const ModelingDashboard: React.FC = () => {
                   ySim={activeCPResult.y_sim}
                   plantilla={activeCPResult.plantilla_m || PLANTILLA}
                   talud={findTramo(activeCPResult.km, tramoGeom).talud_z}
-                  freeboard={activeCPResult.bordo_libre_m || FREEBOARD}
+                  freeboard={activeCPResult.canal_depth_m || FREEBOARD}
                 />
                 <div className="sim-section-leg">
                   <span><span style={{ display: 'inline-block', width: 10, height: 2, background: '#2dd4bf', verticalAlign: 'middle', marginRight: 4 }} />Simulado</span>

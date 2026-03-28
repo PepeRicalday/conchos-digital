@@ -496,7 +496,11 @@ function runSimulation(
     const head_base  = Math.pow(Math.max(qBaseCur, 0.1) / (cd_used * area_gate), 2) / (2 * G);
     const head_sim   = Math.pow(Math.max(qCur,     0.1) / (cd_used * area_gate), 2) / (2 * G);
     const head_delta = head_sim - head_base;
-    const y_sim      = Math.max(0.1, Math.min(y_base + head_delta, fb_tramo - 0.08));
+    // y_sim = tirante normal de Manning para Q simulado (flujo uniforme canal abierto).
+    // El modelo gate anterior (y_base + head_delta) daba variaciones <5cm para cualquier Q
+    // porque area_gate es grande (~60m²). Manning refleja correctamente el nivel del canal.
+    const y_sim_mn   = normalDepth(qCur, s_tramo, b_tramo, z_tramo, n_tramo);
+    const y_sim      = Math.max(0.1, Math.min(y_sim_mn, fb_tramo - 0.08));
 
     const sqrtHead           = Math.sqrt(2 * G * Math.max(0.01, y_base));
     const apertura_requerida = qCur / Math.max(0.001, cd_used * ancho * pzas * sqrtHead);

@@ -892,6 +892,18 @@ const ModelingDashboard: React.FC = () => {
           qDamVal  = q0Corregido;
         }
         damFuente = 'estimado';
+
+        // Tier 4: si la extracción total medida en tomas supera en >40% al estimado
+        // de K-0, es más confiable usar la suma de tomas ÷ eficiencia de conducción.
+        // Esto ocurre cuando gasto_calculado_m3s en K-0 está mal calibrado o es nulo.
+        const totalExt = deliveries
+          .filter(d => d.is_active)
+          .reduce((s, d) => s + safeFloat(d.caudal_m3s, 0), 0);
+        if (totalExt > qDamVal * 1.4) {
+          const qFromTomas = totalExt / 0.88; // eficiencia conducción ~88%
+          qBaseVal = qFromTomas;
+          qDamVal  = qFromTomas;
+        }
       }
 
       setQBase(qBaseVal);

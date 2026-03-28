@@ -395,8 +395,8 @@ function generateDecisions(
 // ── MOTOR DE SIMULACIÓN PURO (reutilizable para multi-escenario) ─────────
 function runSimulation(
   controlPoints:  ControlPoint[],
-  qDam_:          number,
-  qBase_:         number,
+  qDamInit:       number,
+  qBaseInit:      number,
   baseReadings:   Record<string, number>,
   gateOverrides:  Record<string, number>,
   deliveryPoints: DeliveryData[],
@@ -404,11 +404,11 @@ function runSimulation(
   riverTransit:   boolean,
   simBaseMin:     number,
 ): CPResult[] {
-  let qCur     = qDam_,  cumMin = 0;
-  let qBaseCur = qBase_;
+  let qCur     = qDamInit,  cumMin = 0;
+  let qBaseCur = qBaseInit;
 
   if (riverTransit) {
-    const vRio = 0.5 * Math.pow(Math.max(qDam_, 1), 0.4) + 0.5;
+    const vRio = 0.5 * Math.pow(Math.max(qDamInit, 1), 0.4) + 0.5;
     cumMin += (RIVER_KM * 1000 / vRio) / 60;
   }
 
@@ -472,12 +472,18 @@ function runSimulation(
     const q_extraido      = tomasEnTramo.reduce((s, dp) => s + safeFloat(dp.caudal_m3s, 0), 0);
     const n_tomas_activas = tomasEnTramo.length;
 
+    // Capturar caudal de ARRIBO a esta sección (antes de extracciones y pérdidas aguas abajo).
+    // q_sim = flujo que llega al punto de control — el que mueve la escala y se usa en displays.
+    // qCur/qBaseCur se actualizan para propagar el flujo SALIENTE hacia la siguiente sección.
+    const q_sim_arribo  = qCur;
+    const q_base_arribo = qBaseCur;
+
     qCur     = Math.max(0.1, qCur     * conductionFactor - q_extraido);
     qBaseCur = Math.max(0.1, qBaseCur * conductionFactor - q_extraido);
 
     return {
       id: cp.id, nombre: cp.nombre, km: kmCp,
-      y_base, q_base: qBaseCur, y_sim, q_sim: qCur,
+      y_base, q_base: q_base_arribo, y_sim, q_sim: q_sim_arribo,
       delta_y, remanso_type, status,
       transit_min, cumulative_min: cumMin,
       arrival_time: fmtTime(simBaseMin, cumMin),
@@ -489,7 +495,7 @@ function runSimulation(
       plantilla_m: b_tramo,
       bordo_libre_m: fb_tramo,
       capacidad_diseno_m3s: qdis,
-      pct_capacidad_diseno: qdis > 0 ? Math.min(120, (qCur / qdis) * 100) : 0,
+      pct_capacidad_diseno: qdis > 0 ? Math.min(120, (q_sim_arribo / qdis) * 100) : 0,
     };
   });
 }
@@ -1816,6 +1822,11 @@ const ModelingDashboard: React.FC = () => {
                     <div className="sim-gate-req-note">
                       Para mantener escala {activeCPResult.y_base.toFixed(2)}m con Q={activeCPResult.q_sim.toFixed(1)}m³/s
                     </div>
+                    {activeCPResult.apertura_requerida > 3.0 && (
+                      <div className="sim-gate-req-overflow">
+                        <AlertOctagon size={9} /> Apertura calculada {activeCPResult.apertura_requerida.toFixed(2)}m excede límite físico (3.0m) — Q no puede mantenerse en esta escala
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1916,8 +1927,13 @@ const ModelingDashboard: React.FC = () => {
                   {/* Bloque 3: Resultado Hidráulico */}
                   <div className="sim-hyd-block">
                     <div className="sim-hyd-block-title">RESULTADO HIDRÁULICO</div>
-                    {[
-                      ['Tirante normal y_n',    `${(normalDepth(activeCPResult.q_sim??0)??0).toFixed(3)} m`, '#38bdf8'],
+                    {(() => {
+                      // Geometría real del tramo activo para cálculos en panel técnico
+                      const tr = findTramo(activeCPResult.km, tramoGeom);
+                      const yn = normalDepth(activeCPResult.q_sim ?? 0, tr.pendiente_s0, tr.plantilla_m, tr.talud_z, tr.rugosidad_n);
+                      return [
+                      ['Plantilla / Talud / n',  `${tr.plantilla_m}m · ${tr.talud_z}:1 · n=${tr.rugosidad_n}`, '#475569'],
+                      ['Tirante normal y_n',     `${yn.toFixed(3)} m`, '#38bdf8'],
                       ['Tirante simulado y_sim', `${(activeCPResult.y_sim??0).toFixed(3)} m`, statusColor(activeCPResult.status)],
                       ['Δy  (variación escala)', `${(activeCPResult.delta_y??0) >= 0 ? '+' : ''}${(activeCPResult.delta_y??0).toFixed(4)} m  (${Math.round((activeCPResult.delta_y??0)*100)} cm)`, Math.abs(activeCPResult.delta_y??0)*100 > 5 ? ((activeCPResult.delta_y??0) > 0 ? '#fbbf24' : '#60a5fa') : '#94a3b8'],
                       ['Curva hidráulica',       activeCPResult.remanso_type === 'M1' ? 'M1 — Remanso positivo' : activeCPResult.remanso_type === 'M2' ? 'M2 — Descenso (drawdown)' : 'Normal (sin remanso)', '#a78bfa'],
@@ -1927,9 +1943,10 @@ const ModelingDashboard: React.FC = () => {
                       ['% Bordo libre',          `${(activeCPResult.bordo_libre_pct??0).toFixed(1)}%`, statusColor(activeCPResult.status)],
                       ['Estado hidráulico',      activeCPResult.status, statusColor(activeCPResult.status)],
                       ['Arribo de onda',         `${activeCPResult.arrival_time}  (T+${Math.round(activeCPResult.cumulative_min??0)} min)`, '#c084fc'],
-                    ].map(([k, v, c]) => (
-                      <div key={k as string} className="sim-tech-row">
-                        <span>{k as string}</span><span style={{ color: c as string }}>{v as string}</span>
+                      ] as [string, string, string][];
+                    })().map(([k, v, c]) => (
+                      <div key={k} className="sim-tech-row">
+                        <span>{k}</span><span style={{ color: c }}>{v}</span>
                       </div>
                     ))}
                   </div>

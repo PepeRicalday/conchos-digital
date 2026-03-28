@@ -117,7 +117,7 @@ const GeoMonitor = () => {
     const [aforos, setAforos] = useState<AforoData[]>([]);
     const [tomas, setTomas] = useState<TomaData[]>([]);
     const [secciones, setSecciones] = useState<SeccionData[]>([]);
-    const [operStats] = useState<OperStats>({ tomas_abiertas: 0, tomas_cerradas: 0, gasto_distribuido_m3s: 0 });
+    const [operStats, setOperStats] = useState<OperStats>({ tomas_abiertas: 0, tomas_cerradas: 0, gasto_distribuido_m3s: 0 });
     const [tomasVaradas, setTomasVaradas] = useState<VwAlertaTomaVaradaRow[]>([]);
     const [latestAforos, setLatestAforos] = useState<Record<string, any>>({});
     const [totalDemandaProgramada, setTotalDemandaProgramada] = useState(0);
@@ -434,7 +434,19 @@ const GeoMonitor = () => {
             });
 
             const roMap = new Map();
-            roData?.forEach(r => roMap.set(r.punto_id, r));
+            const estadosAbiertos = new Set(['inicio', 'continua', 'reabierto', 'modificacion']);
+            let tomasAbiertas = 0, gastoDistribuido = 0;
+            roData?.forEach(r => {
+                roMap.set(r.punto_id, r);
+                if (estadosAbiertos.has(r.estado)) {
+                    tomasAbiertas++;
+                    gastoDistribuido += Number(r.caudal_promedio || 0);
+                }
+            });
+            // Cerradas = total puntos de entrega (tomas) − las que están abiertas hoy
+            const totalTomasPuntos = (peData || []).filter(p => p.coords_x && p.coords_y).length;
+            const tomasCerradas = Math.max(0, totalTomasPuntos - tomasAbiertas);
+            setOperStats({ tomas_abiertas: tomasAbiertas, tomas_cerradas: tomasCerradas, gasto_distribuido_m3s: gastoDistribuido });
 
             setTomas((peData || []).filter(p => p.coords_x && p.coords_y).map(p => {
                 const sObj = roMap.get(p.id);
@@ -582,20 +594,20 @@ const GeoMonitor = () => {
     let eficienciaTxt: string | null = null;
     const gastoDistribuido = operStats.gasto_distribuido_m3s;
 
-    if (gastoEntrada && gastoEntrada > 0) {
-        // Agua "Utilizada" = Lo que sale (K-104) + Lo que se entregó a las tomas
-        const sumaAprovechamiento = (gastoSalida || 0) + gastoDistribuido;
-        
-        // Eficiencia Técnica %
-        eficienciaReal = (sumaAprovechamiento / gastoEntrada) * 100;
-        
-        // Pérdida (Infiltración, evaporación, fugas)
-        const perdidaM3s = gastoEntrada - sumaAprovechamiento;
+    if (gastoEntrada && gastoEntrada > 0 && gastoSalida !== undefined) {
+        // Eficiencia de Conducción: basada solo en lecturas de escala (consistencia temporal)
+        // E = (Q_entrada - Q_salida) / Q_entrada — fracción del caudal que fue captada por el sistema
+        // Q_tomas no se usa aquí porque sus promedios diarios son temporalmente inconsistentes con Q instantáneo de escala
+        const captado = gastoEntrada - gastoSalida;
+        eficienciaReal = Math.min(100, Math.max(0, (captado / gastoEntrada) * 100));
+
+        // Pérdida real = Q_entrada - Q_salida - Q_tomas_instante_actual (sin datos confiables, se usa como referencia)
+        const perdidaM3s = Math.max(0, gastoEntrada - gastoSalida);
         perdidaPct = (((perdidaM3s ?? 0) / gastoEntrada) * 100).toFixed(1);
-        eficienciaTxt = (eficienciaReal ?? 0).toFixed(1);
-    } else {
-        eficienciaReal = totalDemandaProgramada > 0 ? (gastoDistribuido / totalDemandaProgramada) * 100 : 0;
-        eficienciaTxt = (eficienciaReal ?? 0).toFixed(1);
+        eficienciaTxt = eficienciaReal.toFixed(1);
+    } else if (gastoEntrada && gastoEntrada > 0) {
+        eficienciaReal = Math.min(100, totalDemandaProgramada > 0 ? (gastoDistribuido / totalDemandaProgramada) * 100 : 0);
+        eficienciaTxt = eficienciaReal.toFixed(1);
     }
 
     const chartGaugeOptions = {

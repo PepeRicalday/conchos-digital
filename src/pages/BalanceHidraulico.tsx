@@ -51,8 +51,34 @@ const BalanceHidraulico = () => {
                 .order('km_inicio', { ascending: true })
         ]);
 
-        if (escRes.data) {
-            setEscalas(escRes.data.map((e: any) => ({
+        let escalasData = escRes.data || [];
+
+        // Fallback: si resumen_escalas_diario no tiene suficientes datos, usar lecturas_escalas directamente
+        if (escalasData.length < 2) {
+            const { data: lecturas } = await supabase
+                .from('lecturas_escalas')
+                .select('escala_id, nivel_m, gasto_calculado_m3s, escalas(nombre, km)')
+                .eq('fecha', dateStr)
+                .order('hora_lectura', { ascending: false });
+
+            if (lecturas && lecturas.length >= 2) {
+                // Deduplicate by escala_id (keep latest)
+                const seen = new Set<string>();
+                escalasData = lecturas
+                    .filter((l: any) => { if (seen.has(l.escala_id)) return false; seen.add(l.escala_id); return true; })
+                    .map((l: any) => ({
+                        escala_id: l.escala_id,
+                        nombre: l.escalas?.nombre || l.escala_id,
+                        km: Number(l.escalas?.km || 0),
+                        nivel_actual: Number(l.nivel_m || 0),
+                        gasto_calculado_m3s: Number(l.gasto_calculado_m3s || 0),
+                        seccion_nombre: ''
+                    }));
+            }
+        }
+
+        if (escalasData.length > 0) {
+            setEscalas(escalasData.map((e: any) => ({
                 escala_id: e.escala_id,
                 nombre: e.nombre,
                 km: Number(e.km || 0),
@@ -114,12 +140,14 @@ const BalanceHidraulico = () => {
         return balances;
     }, [escalas, tomas, perfilTramos]);
 
-    // Global efficiency
-    const globalEfficiency = useMemo(() => {
-        if (balanceData.length === 0) return 100;
-        const totalEntrada = balanceData.reduce((acc, b) => acc + b.q_entrada, 0);
-        const totalSalida = balanceData.reduce((acc, b) => acc + b.q_salida + b.q_tomas, 0);
-        return totalEntrada > 0 ? (totalSalida / totalEntrada) * 100 : 100;
+    // Eficiencia global — excluir tramos anómalos (q_salida > q_entrada) por error de medición
+    const globalEfficiency = useMemo((): number | null => {
+        if (balanceData.length === 0) return null;
+        const validSections = balanceData.filter(b => b.q_salida + b.q_tomas <= b.q_entrada || b.q_entrada === 0);
+        if (validSections.length === 0) return null;
+        const totalEntrada = validSections.reduce((acc, b) => acc + b.q_entrada, 0);
+        const totalSalida = validSections.reduce((acc, b) => acc + b.q_salida + b.q_tomas, 0);
+        return totalEntrada > 0 ? Math.min(100, (totalSalida / totalEntrada) * 100) : null;
     }, [balanceData]);
 
     const criticalSections = balanceData.filter(b => b.estado === 'critico' || b.estado === 'alerta');
@@ -166,7 +194,14 @@ const BalanceHidraulico = () => {
             <div className="balance-content">
                 {/* Global Efficiency Gauge */}
                 <div className="balance-gauge-card">
-                    <EfficiencyGauge value={globalEfficiency} label="Eficiencia de Conducción Global" />
+                    {globalEfficiency !== null ? (
+                        <EfficiencyGauge value={globalEfficiency} label="Eficiencia de Conducción Global" />
+                    ) : (
+                        <div className="balance-empty balance-empty--gauge">
+                            <p>Eficiencia no disponible</p>
+                            <p className="balance-empty-hint">Se requieren datos de caudal en escalas para calcular la eficiencia real.</p>
+                        </div>
+                    )}
                     <div className="balance-formula">
                         <code>E<sub>c</sub> = (Q<sub>salida</sub> + Q<sub>tomas</sub>) / Q<sub>entrada</sub> × 100</code>
                     </div>
@@ -323,7 +358,7 @@ const BalanceHidraulico = () => {
                                             </div>
                                             <div className="manning-row">
                                                 <span>Q Diseño:</span>
-                                                <strong>{(tramo.capacidad_diseno_m3s ?? 0).toFixed(2)} m³/s</strong>
+                                                <strong>{((tramo.capacidad_diseno_m3s > 0 ? tramo.capacidad_diseno_m3s : manning.Q) ?? 0).toFixed(2)} m³/s</strong>
                                             </div>
                                             <div className="manning-row">
                                                 <span>V:</span>

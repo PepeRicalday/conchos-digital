@@ -95,12 +95,17 @@ export const calculateSectionBalance = (
   qTomas: number,
   perfil?: PerfilTramo
 ): BalanceTramo => {
-  const qPerdidas = Math.max(0, qEntrada - qSalida - qTomas);
   const qContabilizado = qSalida + qTomas;
-  const eficiencia = qEntrada > 0 ? (qContabilizado / qEntrada) * 100 : 100;
+  // Anómalo: más salidas que entradas (error de medición o aportación lateral)
+  const isAnomalous = qContabilizado > qEntrada && qEntrada > 0;
+  const qPerdidas = isAnomalous ? 0 : Math.max(0, qEntrada - qContabilizado);
+  const eficienciaRaw = qEntrada > 0 ? (qContabilizado / qEntrada) * 100 : 0;
+  // Limitar a 100% — valores > 100% indican anomalía de medición, no ganancia real
+  const eficiencia = Math.min(100, eficienciaRaw);
 
   let estado: BalanceTramo['estado'] = 'optimo';
-  if (eficiencia < 80) estado = 'critico';
+  if (isAnomalous) estado = 'alerta'; // Marcar tramos con datos anómalos
+  else if (eficiencia < 80) estado = 'critico';
   else if (eficiencia < 90) estado = 'alerta';
   else if (eficiencia < 95) estado = 'atencion';
 

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 import { supabase } from '../lib/supabase';
+import { onTable } from '../lib/realtimeHub';
 import { getTodayString, addDays, formatTime, formatDate } from '../utils/dateHelpers';
 import SimulationReport from '../components/SimulationReport';
 import './ModelingDashboard.css';
@@ -57,6 +58,11 @@ interface CPResult {
   // Extracción real por puntos de entrega en este tramo (de reportes_diarios)
   q_extraido:      number;   // m³/s siendo extraídos en tomas activas de este tramo
   n_tomas_activas: number;   // cantidad de tomas activas en el tramo
+  // Geometría de diseño del tramo (de perfil_hidraulico_canal)
+  plantilla_m:     number;
+  bordo_libre_m:   number;
+  capacidad_diseno_m3s: number;
+  pct_capacidad_diseno: number;  // q_sim / capacidad_diseno × 100
 }
 
 // Datos de telemetría base por punto de control (de SICA Capture)
@@ -98,6 +104,32 @@ interface DataStatus {
   totalExtractionM3s: number; // suma total de caudales activos en puntos de entrega hoy
 }
 
+// ── GEOMETRÍA POR TRAMO ──────────────────────────────────────────────────
+interface TramoGeom {
+  km_inicio:           number;
+  km_fin:              number;
+  plantilla_m:         number;
+  talud_z:             number;
+  rugosidad_n:         number;
+  pendiente_s0:        number;
+  tirante_diseno_m:    number;
+  capacidad_diseno_m3s: number;
+  bordo_libre_m:       number;
+}
+
+/** Devuelve la geometría del tramo que contiene el km dado.
+ *  Si no hay dato para ese km usa los fallbacks globales. */
+function findTramo(km: number, tramos: TramoGeom[]): TramoGeom {
+  const t = tramos.find(t => km >= t.km_inicio && km <= t.km_fin);
+  return t ?? {
+    km_inicio: 0, km_fin: 999,
+    plantilla_m: PLANTILLA, talud_z: TALUD_Z,
+    rugosidad_n: MANNING_N, pendiente_s0: S0_CANAL,
+    tirante_diseno_m: 2.5, capacidad_diseno_m3s: 62,
+    bordo_libre_m: FREEBOARD,
+  };
+}
+
 // ── HIDRÁULICA ──────────────────────────────────────────────────────────
 function normalDepth(Q: number, S = S0_CANAL, b = PLANTILLA, z = TALUD_Z, n = MANNING_N): number {
   if (Q <= 0) return 0.1;
@@ -113,7 +145,7 @@ function normalDepth(Q: number, S = S0_CANAL, b = PLANTILLA, z = TALUD_Z, n = MA
     const dR = (dA * P - A * dP) / (P * P);
     const dQ = (1 / n) * Math.sqrt(S) * (dA * R ** (2 / 3) + A * (2 / 3) * R ** (-1 / 3) * dR);
     if (Math.abs(dQ) < 1e-10) break;
-    y = Math.max(0.05, Math.min(y - (Qc - Q) / dQ, FREEBOARD - 0.1));
+    y = Math.max(0.05, y - (Qc - Q) / dQ);
   }
   return y;
 }
@@ -205,6 +237,263 @@ const CanalSection: React.FC<{ yBase: number; ySim: number }> = ({ yBase, ySim }
   );
 };
 
+// ── FASE 3: MOTOR DE DECISIÓN HIDRÁULICA ────────────────────────────────
+type DecisionPrioridad = 'URGENTE' | 'ALERTA' | 'INFO';
+type DecisionTipo      = 'APERTURA' | 'CIERRE' | 'CAUDAL_PRESA' | 'MONITOREO' | 'OPERATIVO';
+
+interface Decision {
+  prioridad:     DecisionPrioridad;
+  tipo:          DecisionTipo;
+  punto:         string;
+  km:            number;
+  accion:        string;
+  detalle:       string;
+  valor_actual:  string;
+  valor_meta:    string;
+}
+
+function generateDecisions(
+  simResults:   CPResult[],
+  qDam:         number,
+  qBase:        number,
+  gateBase:     Record<string, number>,
+  cpTelemetry:  Record<string, CPTelemetry>,
+  dataStatus:   DataStatus,
+  eventType:    EventType,
+): Decision[] {
+  const decisions: Decision[] = [];
+  const deltaQ = qDam - qBase;
+
+  // R1: Sin telemetría de presa — incertidumbre en la base de simulación
+  if (!dataStatus.dam) {
+    decisions.push({
+      prioridad: 'INFO', tipo: 'MONITOREO',
+      punto: 'Sistema', km: 0,
+      accion: 'Sin telemetría de Presa Boquilla',
+      detalle: 'Simulación basada en estimados de escala K-0. Verificar conexión de datos.',
+      valor_actual: dataStatus.damFuente, valor_meta: 'movimientos_presas',
+    });
+  }
+
+  // R8: CORTE total — alerta de ola negativa (prioridad máxima, va primero)
+  if (eventType === 'CORTE' && qDam < 5) {
+    decisions.push({
+      prioridad: 'URGENTE', tipo: 'OPERATIVO',
+      punto: 'Canal completo', km: 0,
+      accion: 'CORTE TOTAL — ola negativa en tránsito',
+      detalle: 'Cerrar gradualmente todas las tomas de cabeza a cola para evitar daño en estructuras.',
+      valor_actual: `${qDam.toFixed(1)} m³/s`,
+      valor_meta: 'Cierre escalonado',
+    });
+  }
+
+  simResults.forEach((r, idx) => {
+    const gateActual = gateBase[r.id] ?? r.h_radial;
+    const aperReq    = Math.min(3.0, Math.max(0.1, r.apertura_requerida));
+    const aperDelta  = aperReq - gateActual;
+    const tel        = cpTelemetry[r.id];
+
+    // R2: Nivel CRÍTICO — acción inmediata
+    if (r.status === 'CRITICO') {
+      decisions.push({
+        prioridad: 'URGENTE', tipo: deltaQ > 0 ? 'CAUDAL_PRESA' : 'APERTURA',
+        punto: r.nombre, km: r.km,
+        accion: deltaQ > 0
+          ? `REDUCIR gasto o ABRIR ${r.nombre}`
+          : `ABRIR compuerta ${r.nombre}`,
+        detalle: `Bordo libre al ${r.bordo_libre_pct.toFixed(0)}% — margen restante ${(r.bordo_libre_m - r.y_sim).toFixed(2)} m`,
+        valor_actual: `${r.y_sim.toFixed(2)} m`,
+        valor_meta:   `< ${(r.bordo_libre_m * 0.75).toFixed(2)} m`,
+      });
+    }
+
+    // R3: Nivel ALERTA
+    else if (r.status === 'ALERTA') {
+      decisions.push({
+        prioridad: 'ALERTA', tipo: 'MONITOREO',
+        punto: r.nombre, km: r.km,
+        accion: `Vigilar escala ${r.nombre}`,
+        detalle: `${r.bordo_libre_pct.toFixed(0)}% del bordo libre — tendencia ${r.delta_y > 0 ? 'ascendente' : 'descendente'}`,
+        valor_actual: `${r.y_sim.toFixed(2)} m`,
+        valor_meta:   `< ${(r.bordo_libre_m * 0.75).toFixed(2)} m`,
+      });
+    }
+
+    // R4: Ajuste de apertura significativo requerido
+    if (Math.abs(deltaQ) > 5 && Math.abs(aperDelta) > 0.15) {
+      decisions.push({
+        prioridad: Math.abs(aperDelta) > 0.40 ? 'ALERTA' : 'INFO',
+        tipo:      aperDelta > 0 ? 'APERTURA' : 'CIERRE',
+        punto: r.nombre, km: r.km,
+        accion: `${aperDelta > 0 ? 'ABRIR' : 'CERRAR'} radiales ${r.nombre}`,
+        detalle: `Para mantener escala ${r.y_base.toFixed(2)} m con Q = ${r.q_sim.toFixed(1)} m³/s`,
+        valor_actual: `${gateActual.toFixed(2)} m`,
+        valor_meta:   `${aperReq.toFixed(2)} m (${aperDelta > 0 ? '+' : ''}${aperDelta.toFixed(2)} m)`,
+      });
+    }
+
+    // R5: Tendencia 12h creciente sin incremento de presa
+    if (tel?.delta_12h != null && tel.delta_12h > 0.025 && deltaQ <= 0) {
+      decisions.push({
+        prioridad: 'ALERTA', tipo: 'MONITOREO',
+        punto: r.nombre, km: r.km,
+        accion: `Escala en ascenso — ${r.nombre}`,
+        detalle: `+${(tel.delta_12h * 100).toFixed(0)} cm en 12h sin incremento de gasto — posible restricción aguas abajo`,
+        valor_actual: `+${(tel.delta_12h * 100).toFixed(0)} cm/12h`,
+        valor_meta:   '< 1 cm/12h',
+      });
+    }
+
+    // R6: Número de Froude elevado
+    if (r.froude_n > 0.70) {
+      decisions.push({
+        prioridad: r.froude_n > 0.90 ? 'ALERTA' : 'INFO',
+        tipo: 'MONITOREO',
+        punto: r.nombre, km: r.km,
+        accion: `Flujo acelerado en ${r.nombre}`,
+        detalle: `Fr = ${r.froude_n.toFixed(3)} — riesgo de resalto hidráulico aguas abajo`,
+        valor_actual: `Fr ${r.froude_n.toFixed(3)}`,
+        valor_meta:   'Fr < 0.70',
+      });
+    }
+
+    // R7: Pérdida excesiva entre tramos consecutivos
+    if (idx > 0) {
+      const prev     = simResults[idx - 1];
+      const loss     = prev.q_sim - r.q_sim;
+      const lossPct  = prev.q_sim > 0 ? loss / prev.q_sim : 0;
+      if (lossPct > 0.20 && loss > 3) {
+        decisions.push({
+          prioridad: 'ALERTA', tipo: 'MONITOREO',
+          punto: `K${prev.km}–K${r.km}`, km: r.km,
+          accion: `Pérdida elevada tramo K${prev.km}–K${r.km}`,
+          detalle: `−${loss.toFixed(1)} m³/s (${(lossPct * 100).toFixed(0)}%) — verificar tomas no reportadas o infiltración`,
+          valor_actual: `−${(lossPct * 100).toFixed(0)}%`,
+          valor_meta:   '< 20%',
+        });
+      }
+    }
+  });
+
+  // R9: Sin decisiones — confirmar estabilidad del sistema
+  if (decisions.length === 0) {
+    decisions.push({
+      prioridad: 'INFO', tipo: 'OPERATIVO',
+      punto: 'Sistema', km: 0,
+      accion: 'Sistema hidráulico estable',
+      detalle: `Q = ${qDam.toFixed(1)} m³/s · Todos los puntos dentro de parámetros normales`,
+      valor_actual: 'ESTABLE', valor_meta: 'ESTABLE',
+    });
+  }
+
+  // Ordenar: URGENTE → ALERTA → INFO, luego por km
+  const order: Record<DecisionPrioridad, number> = { URGENTE: 0, ALERTA: 1, INFO: 2 };
+  decisions.sort((a, b) => order[a.prioridad] - order[b.prioridad] || a.km - b.km);
+  return decisions;
+}
+
+// ── MOTOR DE SIMULACIÓN PURO (reutilizable para multi-escenario) ─────────
+function runSimulation(
+  controlPoints:  ControlPoint[],
+  qDam_:          number,
+  qBase_:         number,
+  baseReadings:   Record<string, number>,
+  gateOverrides:  Record<string, number>,
+  deliveryPoints: DeliveryData[],
+  tramoGeom:      TramoGeom[],
+  riverTransit:   boolean,
+  simBaseMin:     number,
+): CPResult[] {
+  let qCur     = qDam_,  cumMin = 0;
+  let qBaseCur = qBase_;
+
+  if (riverTransit) {
+    const vRio = 0.5 * Math.pow(Math.max(qDam_, 1), 0.4) + 0.5;
+    cumMin += (RIVER_KM * 1000 / vRio) / 60;
+  }
+
+  return controlPoints.map((cp, idx) => {
+    const kmCp   = safeFloat(cp.km, idx * 17);
+    const kmPrev = idx === 0 ? 0 : safeFloat(controlPoints[idx - 1].km, (idx - 1) * 17);
+    const dist   = Math.max(1, idx === 0 ? kmCp : kmCp - kmPrev);
+
+    const kmMid    = idx === 0 ? kmCp : (kmPrev + kmCp) / 2;
+    const tramo    = findTramo(kmMid, tramoGeom);
+    const b_tramo  = tramo.plantilla_m;
+    const z_tramo  = tramo.talud_z;
+    const n_tramo  = tramo.rugosidad_n;
+    const s_tramo  = tramo.pendiente_s0;
+    const fb_tramo = tramo.bordo_libre_m;
+    const qdis     = tramo.capacidad_diseno_m3s;
+
+    const y_base = (baseReadings[cp.id] && baseReadings[cp.id] > 0.05)
+      ? baseReadings[cp.id]
+      : Math.max(0.3, 2.2 - idx * 0.04);
+
+    const y_n   = normalDepth(qCur, s_tramo, b_tramo, z_tramo, n_tramo);
+    const c     = waveCelerity(y_n, b_tramo, z_tramo) * WAVE_K;
+    const A_n   = (b_tramo + z_tramo * y_n) * y_n;
+    const v_n   = A_n > 0 ? qCur / A_n : 0;
+    const Fr    = v_n / Math.max(0.001, Math.sqrt(G * Math.max(0.01, y_n)));
+
+    const cd_used   = safeFloat(cp.coeficiente_descarga, CD_GATE) || CD_GATE;
+    const pzas      = Math.max(1, safeFloat(cp.pzas_radiales, 1));
+    const ancho     = Math.max(1, safeFloat(cp.ancho, 8));
+    const h_gate    = (safeFloat(gateOverrides[cp.id], 0) > 0)
+      ? safeFloat(gateOverrides[cp.id], 1.25)
+      : Math.max(0.3, pzas > 0 ? 1.25 : 1.0);
+    const area_gate = Math.max(0.01, ancho * pzas * h_gate);
+
+    const head_base  = Math.pow(Math.max(qBaseCur, 0.1) / (cd_used * area_gate), 2) / (2 * G);
+    const head_sim   = Math.pow(Math.max(qCur,     0.1) / (cd_used * area_gate), 2) / (2 * G);
+    const head_delta = head_sim - head_base;
+    const y_sim      = Math.max(0.1, Math.min(y_base + head_delta, fb_tramo - 0.08));
+
+    const sqrtHead           = Math.sqrt(2 * G * Math.max(0.01, y_base));
+    const apertura_requerida = qCur / Math.max(0.001, cd_used * ancho * pzas * sqrtHead);
+
+    const delta_y      = y_sim - y_base;
+    const remanso_type: RemansoType = delta_y > 0.08 ? 'M1' : delta_y < -0.08 ? 'M2' : 'NORMAL';
+    const pct          = y_sim / fb_tramo;
+    const status: CPStatus = pct > 0.92 ? 'CRITICO' : pct > 0.75 ? 'ALERTA' : 'ESTABLE';
+
+    const travelSpd   = Math.max(0.5, v_n + c);
+    const transit_min = (dist * 1000) / travelSpd / 60;
+    cumMin += transit_min;
+
+    const hasDelivData    = deliveryPoints.length > 0;
+    const conductionK     = hasDelivData ? 0.00012 : 0.00038;
+    const conductionFloor = hasDelivData ? 0.97 : 0.85;
+    const conductionFactor = Math.max(conductionFloor, 1 - dist * conductionK);
+
+    const tomasEnTramo = deliveryPoints.filter(
+      dp => dp.is_active && dp.caudal_m3s > 0 && dp.km > kmPrev && dp.km <= kmCp,
+    );
+    const q_extraido      = tomasEnTramo.reduce((s, dp) => s + safeFloat(dp.caudal_m3s, 0), 0);
+    const n_tomas_activas = tomasEnTramo.length;
+
+    qCur     = Math.max(0.1, qCur     * conductionFactor - q_extraido);
+    qBaseCur = Math.max(0.1, qBaseCur * conductionFactor - q_extraido);
+
+    return {
+      id: cp.id, nombre: cp.nombre, km: kmCp,
+      y_base, q_base: qBaseCur, y_sim, q_sim: qCur,
+      delta_y, remanso_type, status,
+      transit_min, cumulative_min: cumMin,
+      arrival_time: fmtTime(simBaseMin, cumMin),
+      celerity_ms: c, velocity_ms: v_n, froude_n: Fr,
+      bordo_libre_pct: pct * 100, h_radial: h_gate,
+      head_base, head_sim, head_delta, cd_used, area_gate,
+      apertura_requerida,
+      q_extraido, n_tomas_activas,
+      plantilla_m: b_tramo,
+      bordo_libre_m: fb_tramo,
+      capacidad_diseno_m3s: qdis,
+      pct_capacidad_diseno: qdis > 0 ? Math.min(120, (qCur / qdis) * 100) : 0,
+    };
+  });
+}
+
 // ── COMPONENTE PRINCIPAL ────────────────────────────────────────────────
 const ModelingDashboard: React.FC = () => {
   const [controlPoints, setControlPoints] = useState<ControlPoint[]>([]);
@@ -220,13 +509,17 @@ const ModelingDashboard: React.FC = () => {
   const [dataStatus,    setDataStatus]    = useState<DataStatus>({
     dam: false, gates: false, levels: false, deliveries: false,
     timestamp: '',
-    damBaseValue: 62.4, damCurrentValue: 62.4,
+    damBaseValue: 0, damCurrentValue: 0,
     damNivel: '—', damFuente: 'estimado',
     totalExtractionM3s: 0,
   });
+  // false hasta que fetchData complete al menos una carga exitosa
+  const [dataLoaded,   setDataLoaded]   = useState(false);
+  // Geometría real por tramo (perfil_hidraulico_canal)
+  const [tramoGeom,    setTramoGeom]    = useState<TramoGeom[]>([]);
 
-  const [qDam,         setQDam]         = useState(62.4);
-  const [qBase,        setQBase]        = useState(62.4);
+  const [qDam,         setQDam]         = useState(0);
+  const [qBase,        setQBase]        = useState(0);
   const [riverTransit, setRiverTransit] = useState(false);
   const [eventType,    setEventType]    = useState<EventType>('INCREMENTO');
 
@@ -252,7 +545,7 @@ const ModelingDashboard: React.FC = () => {
       const today    = getTodayString();
       const tomorrow = addDays(today, 1);
 
-      // 2. Todas las fuentes en paralelo — 8 queries simultáneas
+      // 2. Todas las fuentes en paralelo — 9 queries simultáneas
       const [
         { data: summary },
         { data: rawAM },        // turno AM de hoy = estado base del canal
@@ -262,6 +555,7 @@ const ModelingDashboard: React.FC = () => {
         { data: lecturaHoy },   // lecturas_presas hoy (respaldo)
         { data: rawReportes },  // reportes_diarios hoy → volúmenes puntos de entrega
         { data: rawPuntos },    // puntos_entrega → km de cada toma/lateral
+        { data: rawPerfil },    // perfil_hidraulico_canal → geometría real por tramo
       ] = await Promise.all([
         // Resumen diario con AM/PM y delta 12h
         supabase.from('resumen_escalas_diario')
@@ -319,6 +613,11 @@ const ModelingDashboard: React.FC = () => {
           .not('km', 'is', null)
           .order('km', { ascending: true })
           .limit(300),
+
+        // Geometría hidráulica real por tramo — Fase 1: reemplaza constantes globales
+        supabase.from('perfil_hidraulico_canal')
+          .select('km_inicio, km_fin, plantilla_m, talud_z, rugosidad_n, pendiente_s0, tirante_diseno_m, capacidad_diseno_m3s, bordo_libre_m')
+          .order('km_inicio', { ascending: true }),
       ]);
 
       // 3. Construir lista de puntos de control — safeFloat en todos los campos numéricos
@@ -475,6 +774,20 @@ const ModelingDashboard: React.FC = () => {
 
       setDeliveryPoints(deliveries);
       const hasDeliveries = deliveries.length > 0;
+
+      // 9. ── GEOMETRÍA POR TRAMO — perfil_hidraulico_canal ─────────────
+      const tramos: TramoGeom[] = (rawPerfil ?? []).map(t => ({
+        km_inicio:            safeFloat(t.km_inicio, 0),
+        km_fin:               safeFloat(t.km_fin, 999),
+        plantilla_m:          safeFloat(t.plantilla_m, PLANTILLA),
+        talud_z:              safeFloat(t.talud_z, TALUD_Z),
+        rugosidad_n:          safeFloat(t.rugosidad_n, MANNING_N),
+        pendiente_s0:         safeFloat(t.pendiente_s0, S0_CANAL),
+        tirante_diseno_m:     safeFloat(t.tirante_diseno_m, 2.5),
+        capacidad_diseno_m3s: safeFloat(t.capacidad_diseno_m3s, 62),
+        bordo_libre_m:        safeFloat(t.bordo_libre_m, FREEBOARD),
+      }));
+      setTramoGeom(tramos);
       const totalExtractionM3s = deliveries
         .filter(d => d.is_active)
         .reduce((s, d) => s + d.caudal_m3s, 0);
@@ -510,13 +823,21 @@ const ModelingDashboard: React.FC = () => {
         }
       }
       if (!damLive) {
-        const q0 = safeFloat(summary?.find(r => r.escala_id === cps[0]?.id)?.gasto_calculado_m3s, 0);
-        if (q0 > 0) { qBaseVal = q0; qDamVal = q0; }
+        // Tier 3: usar lectura más reciente de K-0 (la escala más cercana a la presa).
+        // NOTA: gasto de K-0 ya incluye pérdidas del tramo río (~36 km), por lo que
+        // se aplica corrección inversa ÷0.95 para estimar el gasto real en cabeza de presa.
+        const q0Escala = safeFloat(gastoMedidoMap.get(cps[0]?.id ?? ''), NaN);
+        if (Number.isFinite(q0Escala) && q0Escala > 0) {
+          const q0Corregido = q0Escala / 0.95;
+          qBaseVal = q0Corregido;
+          qDamVal  = q0Corregido;
+        }
         damFuente = 'estimado';
       }
 
       setQBase(qBaseVal);
       setQDam(qDamVal);
+      setDataLoaded(true);
       setDataStatus({
         dam: damLive, gates: hasGates, levels: hasLevels, deliveries: hasDeliveries,
         timestamp: ts,
@@ -527,6 +848,73 @@ const ModelingDashboard: React.FC = () => {
       });
     };
     fetchData();
+
+    // ── Refresh parcial cada 5 min: solo las 2 queries dinámicas ─────────
+    // reportes_diarios y puntos_entrega cambian con cada captura de SICA.
+    // El resto (presa, escalas, geometría) usa realtime o carga inicial.
+    const fetchDeliveries = async () => {
+      const today = getTodayString();
+      const ACTIVE_STATES = new Set(['inicio', 'continua', 'reabierto', 'modificacion']);
+      const [{ data: rawReportes }, { data: rawPuntos }] = await Promise.all([
+        supabase.from('reportes_diarios')
+          .select('punto_id, punto_nombre, caudal_promedio_m3s, volumen_total_mm3, hora_apertura, hora_cierre, estado, modulo_nombre')
+          .eq('fecha', today),
+        supabase.from('puntos_entrega')
+          .select('id, nombre, km, tipo')
+          .not('km', 'is', null)
+          .order('km', { ascending: true })
+          .limit(300),
+      ]);
+
+      const kmMap   = new Map<string, number>();
+      const tipoMap = new Map<string, string>();
+      rawPuntos?.forEach(p => {
+        const km = safeFloat(p.km, NaN);
+        if (Number.isFinite(km)) {
+          kmMap.set(p.id, km);
+          if (p.tipo) tipoMap.set(p.id, p.tipo);
+        }
+      });
+
+      const deliveries: DeliveryData[] = (rawReportes ?? [])
+        .map(r => {
+          const km     = kmMap.get(r.punto_id ?? '') ?? NaN;
+          const caudal = safeFloat(r.caudal_promedio_m3s, 0);
+          const volumen = safeFloat(r.volumen_total_mm3, 0);
+          const isActive = ACTIVE_STATES.has(r.estado ?? '') && !r.hora_cierre && caudal > 0;
+          return {
+            punto_id: r.punto_id ?? '', nombre: r.punto_nombre ?? r.punto_id ?? 'Toma s/n',
+            km, tipo: tipoMap.get(r.punto_id ?? '') ?? 'toma',
+            caudal_m3s: caudal, volumen_mm3: volumen,
+            hora_apertura: r.hora_apertura ?? null, estado: r.estado ?? 'desconocido',
+            modulo_nombre: r.modulo_nombre ?? null, is_active: isActive,
+          };
+        })
+        .filter(d => Number.isFinite(d.km))
+        .sort((a, b) => a.km - b.km);
+
+      setDeliveryPoints(deliveries);
+      const totalExtractionM3s = deliveries.filter(d => d.is_active).reduce((s, d) => s + d.caudal_m3s, 0);
+      setDataStatus(prev => ({
+        ...prev,
+        deliveries: deliveries.length > 0,
+        totalExtractionM3s,
+        timestamp: formatTime(new Date()),
+      }));
+    };
+
+    const deliveryInterval = setInterval(fetchDeliveries, 300_000);
+
+    // Suscripción realtime: cuando llega un nuevo movimiento de presa, recalcular
+    const unsubPresa = onTable('movimientos_presas', 'INSERT', () => {
+      console.log('🏔️ Nuevo movimiento de presa detectado. Recargando modelo...');
+      fetchData();
+    });
+
+    return () => {
+      unsubPresa();
+      clearInterval(deliveryInterval);
+    };
   }, []);
 
   // ── TIMELINE PLAYER ──────────────────────────────────────────────────
@@ -540,97 +928,26 @@ const ModelingDashboard: React.FC = () => {
 
   // ── MOTOR HIDRÁULICO ─────────────────────────────────────────────────
   const simResults = useMemo<CPResult[]>(() => {
-    if (!controlPoints.length) return [];
-    let qCur = qDam, cumMin = 0;
+    if (!controlPoints.length || !dataLoaded) return [];
+    return runSimulation(controlPoints, qDam, qBase, baseReadings, gateOverrides,
+      deliveryPoints, tramoGeom, riverTransit, simBaseMin);
+  }, [controlPoints, baseReadings, gateOverrides, qDam, qBase, riverTransit, simBaseMin, deliveryPoints, dataLoaded, tramoGeom]);
 
-    if (riverTransit) {
-      const vRio = 0.5 * Math.pow(Math.max(qDam, 1), 0.4) + 0.5;
-      cumMin += (RIVER_KM * 1000 / vRio) / 60;
-    }
+  // ── ESCENARIO B — segunda corrida del motor para comparación ─────────
+  const [showScenarioB, setShowScenarioB] = useState(false);
+  const [qDamB,         setQDamB]         = useState(0);
 
-    return controlPoints.map((cp, idx) => {
-      // ── safeFloat en todos los campos del CP — blindaje total contra NaN ──
-      // Si cp.km llega null de Supabase: null - number = NaN → dist = NaN → todo se rompe
-      const kmCp   = safeFloat(cp.km, idx * 17);   // fallback: espaciado uniforme estimado
-      const kmPrev = idx === 0 ? 0 : safeFloat(controlPoints[idx - 1].km, (idx - 1) * 17);
-      const dist   = Math.max(1, idx === 0 ? kmCp : kmCp - kmPrev);
+  const simResultsB = useMemo<CPResult[]>(() => {
+    if (!showScenarioB || !controlPoints.length || !dataLoaded) return [];
+    return runSimulation(controlPoints, qDamB, qBase, baseReadings, gateOverrides,
+      deliveryPoints, tramoGeom, riverTransit, simBaseMin);
+  }, [showScenarioB, controlPoints, baseReadings, gateOverrides, qDamB, qBase, riverTransit, simBaseMin, deliveryPoints, dataLoaded, tramoGeom]);
 
-      // y_base: nivel actual medido. || en vez de ?? para que 0 también use el fallback
-      const y_base = (baseReadings[cp.id] && baseReadings[cp.id] > 0.05)
-        ? baseReadings[cp.id]
-        : Math.max(0.3, 2.2 - idx * 0.04);
-
-      const y_n = normalDepth(qCur);
-      const c   = waveCelerity(y_n) * WAVE_K;
-      const A_n = (PLANTILLA + TALUD_Z * y_n) * y_n;
-      const v_n = A_n > 0 ? qCur / A_n : 0;
-      const Fr  = v_n / Math.max(0.001, Math.sqrt(G * Math.max(0.01, y_n)));
-
-      // ── Geometría de compuerta — safeFloat en campos que pueden venir null de BD ──
-      const cd_used  = safeFloat(cp.coeficiente_descarga, CD_GATE) || CD_GATE;
-      const pzas     = Math.max(1, safeFloat(cp.pzas_radiales, 1));
-      const ancho    = Math.max(1, safeFloat(cp.ancho, 8));
-      // apertura: usa override del slider (>0), o SICA Capture (gateOverrides), o default
-      const h_gate   = (safeFloat(gateOverrides[cp.id], 0) > 0)
-        ? safeFloat(gateOverrides[cp.id], 1.25)
-        : Math.max(0.3, pzas > 0 ? 1.25 : 1.0);
-      const area_gate = Math.max(0.01, ancho * pzas * h_gate);
-
-      // ── Fórmula de orificio: H = Q² / (Cd² · A² · 2g) ──────────────────
-      // Δy = ΔH → variación en tirante aguas arriba de la compuerta (backwater)
-      const head_base  = Math.pow(Math.max(qBase, 0.1) / (cd_used * area_gate), 2) / (2 * G);
-      const head_sim   = Math.pow(Math.max(qCur, 0.1)  / (cd_used * area_gate), 2) / (2 * G);
-      const head_delta = head_sim - head_base;
-      const y_sim      = Math.max(0.1, Math.min(y_base + head_delta, FREEBOARD - 0.08));
-
-      // ── Apertura REQUERIDA para pasar Q_sim al MISMO tirante actual ────────
-      // Principio operativo del canal: el operador ABRE la compuerta en vez de dejar subir la escala.
-      // Inv. fórmula orificio: Q = Cd · (ancho · pzas · h_ap) · √(2g·h)
-      //   → h_ap = Q / (Cd · ancho · pzas · √(2g·y_base))
-      const sqrtHead         = Math.sqrt(2 * G * Math.max(0.01, y_base));
-      const apertura_requerida = qCur / Math.max(0.001, cd_used * ancho * pzas * sqrtHead);
-
-      const delta_y      = y_sim - y_base;
-      const remanso_type: RemansoType = delta_y > 0.08 ? 'M1' : delta_y < -0.08 ? 'M2' : 'NORMAL';
-      const pct          = y_sim / FREEBOARD;
-      const status: CPStatus = pct > 0.92 ? 'CRITICO' : pct > 0.75 ? 'ALERTA' : 'ESTABLE';
-
-      const travelSpd   = Math.max(0.5, v_n + c);
-      const transit_min = (dist * 1000) / travelSpd / 60;
-      cumMin += transit_min;
-
-      // ── Extracción por puntos de entrega activos en este tramo ──────────
-      // Cuando hay datos reales de reportes_diarios, el motor usa:
-      //   k_conduccion = 0.00012/km (infiltración pura) + extracción real medida
-      // Sin datos reales: k = 0.00038/km (estimado total, incluye distribución típica)
-      const hasDelivData = deliveryPoints.length > 0;
-      const conductionK  = hasDelivData ? 0.00012 : 0.00038;
-      const conductionFloor = hasDelivData ? 0.97 : 0.85;
-      const conductionFactor = Math.max(conductionFloor, 1 - dist * conductionK);
-
-      // Tomas activas en el tramo (km_previo < km_toma ≤ km_actual)
-      const tomasEnTramo = deliveryPoints.filter(
-        dp => dp.is_active && dp.caudal_m3s > 0 && dp.km > kmPrev && dp.km <= kmCp,
-      );
-      const q_extraido     = tomasEnTramo.reduce((s, dp) => s + safeFloat(dp.caudal_m3s, 0), 0);
-      const n_tomas_activas = tomasEnTramo.length;
-
-      qCur = Math.max(0.1, qCur * conductionFactor - q_extraido);
-
-      return {
-        id: cp.id, nombre: cp.nombre, km: kmCp,
-        y_base, q_base: qBase, y_sim, q_sim: qCur,
-        delta_y, remanso_type, status,
-        transit_min, cumulative_min: cumMin,
-        arrival_time: fmtTime(simBaseMin, cumMin),
-        celerity_ms: c, velocity_ms: v_n, froude_n: Fr,
-        bordo_libre_pct: pct * 100, h_radial: h_gate,
-        head_base, head_sim, head_delta, cd_used, area_gate,
-        apertura_requerida,
-        q_extraido, n_tomas_activas,
-      };
-    });
-  }, [controlPoints, baseReadings, gateOverrides, qDam, qBase, riverTransit, simBaseMin, deliveryPoints]);
+  // ── FASE 3: MOTOR DE DECISIÓN ─────────────────────────────────────────
+  const decisions = useMemo<Decision[]>(() => {
+    if (!simResults.length) return [];
+    return generateDecisions(simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType);
+  }, [simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType]);
 
   // ── CUADRO DE MANIOBRA: Barras de Escala + Diagrama Espacio-Tiempo ────
   const opsChartOption = useMemo(() => {
@@ -940,6 +1257,17 @@ const ModelingDashboard: React.FC = () => {
     <CheckCircle size={14} />;
 
   // ── RENDER ───────────────────────────────────────────────────────────
+  if (!dataLoaded) {
+    return (
+      <div className="sim-loading">
+        <div>
+          <Waves size={32} opacity={0.5} />
+          <p>Cargando datos hidráulicos...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="sim-root">
 
@@ -1005,7 +1333,17 @@ const ModelingDashboard: React.FC = () => {
             {simpleMode ? <Eye size={12} /> : <EyeOff size={12} />}
             {simpleMode ? 'Operativo' : 'Técnico'}
           </button>
-          <button className="sim-report-btn" onClick={() => setShowReport(true)} disabled={simResults.length === 0}>
+          <button
+            type="button"
+            className={`sim-mode-btn ${showScenarioB ? 'active' : ''}`}
+            onClick={() => {
+              if (!showScenarioB) setQDamB(qDam);
+              setShowScenarioB(v => !v);
+            }}
+          >
+            <Activity size={12} /> Comparar
+          </button>
+          <button type="button" className="sim-report-btn" onClick={() => setShowReport(true)} disabled={simResults.length === 0}>
             <FileText size={12} /> Reporte PDF
           </button>
         </div>
@@ -1241,6 +1579,135 @@ const ModelingDashboard: React.FC = () => {
               <ReactECharts option={opsChartOption} style={{ height: '100%', width: '100%' }} notMerge={true} />
             </div>
           </div>
+
+          {/* ─── PANEL COMPARACIÓN DE ESCENARIOS (Fase 2) ────────── */}
+          {showScenarioB && (
+            <div className="sim-compare-card">
+              <div className="sim-compare-hdr">
+                <span className="sim-compare-title">
+                  <Activity size={12} /> ¿QUÉ PASA SI? · Comparación de Escenarios
+                </span>
+                <button type="button" className="sim-compare-close" onClick={() => setShowScenarioB(false)}>✕</button>
+              </div>
+
+              {/* Controles del escenario B */}
+              <div className="sim-compare-ctrl">
+                <div className="sim-compare-scenarios">
+                  <div className="sim-compare-scen scen-a">
+                    <span className="sim-compare-scen-lbl">A · ACTUAL</span>
+                    <span className="sim-compare-scen-val">{qDam.toFixed(1)} m³/s</span>
+                  </div>
+                  <span className="sim-compare-vs">VS</span>
+                  <div className="sim-compare-scen scen-b">
+                    <span className="sim-compare-scen-lbl">B · HIPOTÉTICO</span>
+                    <div className="sim-compare-b-ctrl">
+                      <span className="sim-compare-scen-val">{qDamB.toFixed(1)} m³/s</span>
+                      <input type="range" min={0} max={120} step={0.5} value={qDamB}
+                        onChange={e => setQDamB(+e.target.value)}
+                        className="sim-compare-slider" title="Gasto escenario B" />
+                      <div className={`sim-delta-chip ${qDamB > qDam ? 'pos' : qDamB < qDam ? 'neg' : 'neu'}`}>
+                        {qDamB === qDam ? '= A' : `${qDamB > qDam ? '+' : ''}${(qDamB - qDam).toFixed(1)} vs A`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabla de comparación por punto de control */}
+              <div className="sim-compare-table-wrap">
+                <table className="sim-compare-table">
+                  <thead>
+                    <tr>
+                      <th>Sección</th>
+                      <th className="scen-a-col">Q · Esc A</th>
+                      <th className="scen-b-col">Q · Esc B</th>
+                      <th className="scen-a-col">Escala A</th>
+                      <th className="scen-b-col">Escala B</th>
+                      <th>Δ Escala</th>
+                      <th className="scen-a-col">Arribo A</th>
+                      <th className="scen-b-col">Arribo B</th>
+                      <th>Estado A/B</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {simResults.map((rA, i) => {
+                      const rB = simResultsB[i];
+                      const dy  = rB ? rB.y_sim - rA.y_sim : 0;
+                      const dq  = rB ? rB.q_sim - rA.q_sim : 0;
+                      const scA = statusColor(rA.status);
+                      const scB = rB ? statusColor(rB.status) : '#94a3b8';
+                      const dyColor = Math.abs(dy) < 0.005 ? '#94a3b8' : dy > 0 ? '#fbbf24' : '#60a5fa';
+                      return (
+                        <tr key={rA.id} className={activeCP === rA.id ? 'active-row' : ''} onClick={() => setActiveCP(rA.id)}>
+                          <td className="sim-compare-name">{rA.nombre.replace(/^(K-\d+)\s+/, '$1 ')}</td>
+                          <td className="scen-a-col">{rA.q_sim.toFixed(1)}</td>
+                          <td className="scen-b-col">{rB ? rB.q_sim.toFixed(1) : '—'}
+                            {rB && Math.abs(dq) > 0.1 && (
+                              <span className={`sim-compare-diff ${dq > 0 ? 'pos' : 'neg'}`}> {dq > 0 ? '+' : ''}{dq.toFixed(1)}</span>
+                            )}
+                          </td>
+                          <td className="scen-a-col" style={{ color: scA }}>{rA.y_sim.toFixed(2)}m</td>
+                          <td className="scen-b-col" style={{ color: scB }}>{rB ? `${rB.y_sim.toFixed(2)}m` : '—'}</td>
+                          <td style={{ color: dyColor, fontWeight: 600 }}>
+                            {rB ? `${dy >= 0 ? '+' : ''}${Math.round(dy * 100)} cm` : '—'}
+                          </td>
+                          <td className="scen-a-col">{rA.arrival_time}</td>
+                          <td className="scen-b-col">{rB?.arrival_time ?? '—'}</td>
+                          <td>
+                            <span className="sim-compare-status" style={{ color: scA }}>{rA.status[0]}</span>
+                            {rB && <span className="sim-compare-status-sep">/</span>}
+                            {rB && <span className="sim-compare-status" style={{ color: scB }}>{rB.status[0]}</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Resumen ejecutivo comparativo */}
+              {simResultsB.length > 0 && (() => {
+                const lastA = simResults[simResults.length - 1];
+                const lastB = simResultsB[simResultsB.length - 1];
+                const arrDiff = lastB.cumulative_min - lastA.cumulative_min;
+                const effA = qDam > 0 ? (lastA.q_sim / qDam * 100) : 0;
+                const effB = qDamB > 0 ? (lastB.q_sim / qDamB * 100) : 0;
+                const critA = simResults.filter(r => r.status === 'CRITICO').length;
+                const critB = simResultsB.filter(r => r.status === 'CRITICO').length;
+                return (
+                  <div className="sim-compare-summary">
+                    <div className="sim-compare-sum-item">
+                      <span className="sim-compare-sum-lbl">Arribo K-104</span>
+                      <span className="sim-compare-sum-a">{lastA.arrival_time}</span>
+                      <span className="sim-compare-sum-sep">→</span>
+                      <span className="sim-compare-sum-b">{lastB.arrival_time}</span>
+                      <span className={`sim-compare-sum-diff ${arrDiff > 0 ? 'slower' : 'faster'}`}>
+                        {arrDiff >= 0 ? '+' : ''}{Math.round(arrDiff)} min
+                      </span>
+                    </div>
+                    <div className="sim-compare-sum-item">
+                      <span className="sim-compare-sum-lbl">Eficiencia conducción</span>
+                      <span className="sim-compare-sum-a">{effA.toFixed(1)}%</span>
+                      <span className="sim-compare-sum-sep">→</span>
+                      <span className="sim-compare-sum-b">{effB.toFixed(1)}%</span>
+                      <span className={`sim-compare-sum-diff ${effB >= effA ? 'better' : 'worse'}`}>
+                        {(effB - effA) >= 0 ? '+' : ''}{(effB - effA).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="sim-compare-sum-item">
+                      <span className="sim-compare-sum-lbl">Secciones críticas</span>
+                      <span className="sim-compare-sum-a">{critA}</span>
+                      <span className="sim-compare-sum-sep">→</span>
+                      <span className="sim-compare-sum-b">{critB}</span>
+                      <span className={`sim-compare-sum-diff ${critB <= critA ? 'better' : 'worse'}`}>
+                        {critB - critA >= 0 ? '+' : ''}{critB - critA}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Timeline de tránsito */}
           <div className="sim-timeline-card">
@@ -1493,6 +1960,64 @@ const ModelingDashboard: React.FC = () => {
             <div className="sim-no-sel">
               <Waves size={32} style={{ color: '#1e3a5f', marginBottom: 10 }} />
               <div>Selecciona un punto de control</div>
+            </div>
+          )}
+
+          {/* ── FASE 3: MOTOR DE DECISIÓN ──────────────────────────── */}
+          {decisions.length > 0 && (
+            <div className="sim-decision-panel">
+              <div className="sim-decision-hdr">
+                <span className="sim-decision-title">
+                  <Zap size={11} /> MOTOR DE DECISIÓN
+                </span>
+                <div className="sim-decision-badges">
+                  {decisions.filter(d => d.prioridad === 'URGENTE').length > 0 && (
+                    <span className="sim-dec-badge urgente">
+                      {decisions.filter(d => d.prioridad === 'URGENTE').length} URGENTE
+                    </span>
+                  )}
+                  {decisions.filter(d => d.prioridad === 'ALERTA').length > 0 && (
+                    <span className="sim-dec-badge alerta">
+                      {decisions.filter(d => d.prioridad === 'ALERTA').length} ALERTA
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="sim-decision-list">
+                {decisions.map((d, i) => {
+                  const isUrgente = d.prioridad === 'URGENTE';
+                  const isAlerta  = d.prioridad === 'ALERTA';
+                  const color = isUrgente ? '#ef4444' : isAlerta ? '#f59e0b' : '#10b981';
+                  const Icon  = isUrgente ? AlertOctagon : isAlerta ? AlertTriangle : CheckCircle;
+                  const TipoIcon =
+                    d.tipo === 'APERTURA'      ? ArrowUp    :
+                    d.tipo === 'CIERRE'        ? ArrowDown  :
+                    d.tipo === 'CAUDAL_PRESA'  ? Waves      :
+                    d.tipo === 'MONITOREO'     ? Eye        : Zap;
+                  return (
+                    <div key={i} className={`sim-dec-card ${d.prioridad.toLowerCase()}`}>
+                      <div className="sim-dec-card-top">
+                        <span className="sim-dec-icon"><Icon size={12} style={{ color }} /></span>
+                        <div className="sim-dec-content">
+                          <div className="sim-dec-accion" style={{ color }}>{d.accion}</div>
+                          <div className="sim-dec-punto">
+                            <TipoIcon size={8} /> {d.punto}{d.km > 0 ? ` · KM ${d.km}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="sim-dec-detalle">{d.detalle}</div>
+                      {(d.valor_actual !== d.valor_meta && d.tipo !== 'OPERATIVO') && (
+                        <div className="sim-dec-valores">
+                          <span className="sim-dec-val-actual">{d.valor_actual}</span>
+                          <span className="sim-dec-arrow">→</span>
+                          <span className="sim-dec-val-meta" style={{ color }}>{d.valor_meta}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </aside>

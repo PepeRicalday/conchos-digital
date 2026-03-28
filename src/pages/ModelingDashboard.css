@@ -2,6 +2,21 @@
    SIMULADOR HIDRÁULICO · CANAL PRINCIPAL CONCHOS · DR-005 · SICA
    ═══════════════════════════════════════════════════════════════════ */
 
+.sim-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  color: #64748b;
+  text-align: center;
+}
+
+.sim-loading p {
+  font-size: 14px;
+  margin-top: 12px;
+  opacity: 0.7;
+}
+
 .sim-root {
   --sim-bg:      #060d1a;
   --sim-surface: #0a1628;
@@ -536,9 +551,11 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: var(--sim-bg);
   min-width: 0;
+  gap: 0;
 }
 
 .sim-profile-card {
@@ -1049,6 +1066,338 @@
   padding: 3px 10px 5px;
   border-top: 1px solid rgba(251, 191, 36, 0.12);
   font-style: italic;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   FASE 2 — PANEL COMPARACIÓN DE ESCENARIOS
+   ══════════════════════════════════════════════════════════════════ */
+
+.sim-compare-card {
+  background: var(--sim-card);
+  border: 1px solid #1a3a60;
+  border-left: 3px solid #a78bfa;
+  border-radius: 8px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.sim-compare-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--sim-border);
+  background: rgba(167, 139, 250, 0.06);
+}
+
+.sim-compare-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #a78bfa;
+  letter-spacing: 0.08em;
+}
+
+.sim-compare-close {
+  background: none;
+  border: none;
+  color: var(--sim-muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 4px;
+  line-height: 1;
+}
+.sim-compare-close:hover { color: var(--sim-text); }
+
+/* ── Controles escenario B ─────────────────────────────────────── */
+.sim-compare-ctrl {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--sim-border);
+}
+
+.sim-compare-scenarios {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sim-compare-scen {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sim-compare-scen-lbl {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--sim-muted);
+}
+
+.scen-a .sim-compare-scen-lbl { color: #38bdf8; }
+.scen-b .sim-compare-scen-lbl { color: #a78bfa; }
+
+.sim-compare-scen-val {
+  font-size: 13px;
+  font-weight: 700;
+}
+.scen-a .sim-compare-scen-val { color: #38bdf8; }
+.scen-b .sim-compare-scen-val { color: #a78bfa; }
+
+.sim-compare-vs {
+  font-size: 9px;
+  font-weight: 900;
+  color: var(--sim-muted);
+  letter-spacing: 0.1em;
+  padding: 0 4px;
+}
+
+.sim-compare-b-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sim-compare-slider {
+  width: 120px;
+  height: 3px;
+  accent-color: #a78bfa;
+  cursor: pointer;
+}
+
+/* ── Tabla comparativa ─────────────────────────────────────────── */
+.sim-compare-table-wrap {
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.sim-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9px;
+}
+
+.sim-compare-table thead tr {
+  background: rgba(255,255,255,0.03);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.sim-compare-table th {
+  padding: 5px 8px;
+  text-align: right;
+  color: var(--sim-muted);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--sim-border);
+  white-space: nowrap;
+}
+
+.sim-compare-table th:first-child { text-align: left; }
+
+.sim-compare-table td {
+  padding: 4px 8px;
+  text-align: right;
+  border-bottom: 1px solid rgba(30, 58, 95, 0.4);
+  font-family: var(--sim-mono);
+}
+
+.sim-compare-table td:first-child { text-align: left; }
+
+.sim-compare-table tbody tr:hover { background: rgba(255,255,255,0.02); cursor: pointer; }
+.sim-compare-table tbody tr.active-row { background: rgba(167,139,250,0.06); }
+
+.sim-compare-name {
+  color: var(--sim-text);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.scen-a-col { color: rgba(56,189,248,0.85); }
+.scen-b-col { color: rgba(167,139,250,0.9); }
+
+.sim-compare-diff {
+  font-size: 8px;
+  font-weight: 700;
+}
+.sim-compare-diff.pos { color: #10b981; }
+.sim-compare-diff.neg { color: #ef4444; }
+
+.sim-compare-status { font-weight: 900; font-size: 9px; }
+.sim-compare-status-sep { color: var(--sim-muted); margin: 0 2px; }
+
+/* ── Resumen ejecutivo ─────────────────────────────────────────── */
+.sim-compare-summary {
+  display: flex;
+  gap: 0;
+  border-top: 1px solid var(--sim-border);
+  background: rgba(167,139,250,0.04);
+}
+
+.sim-compare-sum-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-right: 1px solid var(--sim-border);
+  flex-wrap: wrap;
+}
+.sim-compare-sum-item:last-child { border-right: none; }
+
+.sim-compare-sum-lbl {
+  font-size: 7.5px;
+  color: var(--sim-muted);
+  letter-spacing: 0.05em;
+  flex-basis: 100%;
+  margin-bottom: 2px;
+}
+
+.sim-compare-sum-a { color: #38bdf8; font-weight: 700; font-size: 10px; }
+.sim-compare-sum-sep { color: var(--sim-muted); font-size: 9px; }
+.sim-compare-sum-b { color: #a78bfa; font-weight: 700; font-size: 10px; }
+
+.sim-compare-sum-diff {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.sim-compare-sum-diff.better { color: #10b981; background: rgba(16,185,129,0.1); }
+.sim-compare-sum-diff.worse  { color: #ef4444; background: rgba(239,68,68,0.1); }
+.sim-compare-sum-diff.faster { color: #10b981; background: rgba(16,185,129,0.1); }
+.sim-compare-sum-diff.slower { color: #f59e0b; background: rgba(245,158,11,0.1); }
+
+/* ══════════════════════════════════════════════════════════════════
+   FASE 3 — MOTOR DE DECISIÓN HIDRÁULICA
+   ══════════════════════════════════════════════════════════════════ */
+
+.sim-decision-panel {
+  border-top: 2px solid rgba(239, 68, 68, 0.2);
+  flex-shrink: 0;
+}
+
+.sim-decision-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px 6px;
+  background: rgba(239, 68, 68, 0.04);
+  border-bottom: 1px solid var(--sim-border);
+}
+
+.sim-decision-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #f59e0b;
+}
+
+.sim-decision-badges {
+  display: flex;
+  gap: 4px;
+}
+
+.sim-dec-badge {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.sim-dec-badge.urgente { background: rgba(239,68,68,0.15);  color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+.sim-dec-badge.alerta  { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+
+.sim-decision-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Tarjeta de decisión individual ─────────────────────────────── */
+.sim-dec-card {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(30, 58, 95, 0.5);
+  transition: background 0.15s;
+}
+.sim-dec-card:last-child { border-bottom: none; }
+.sim-dec-card:hover      { background: rgba(255,255,255,0.02); }
+
+.sim-dec-card.urgente { border-left: 3px solid #ef4444; }
+.sim-dec-card.alerta  { border-left: 3px solid #f59e0b; }
+.sim-dec-card.info    { border-left: 3px solid #10b981; }
+
+.sim-dec-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-bottom: 4px;
+}
+
+.sim-dec-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.sim-dec-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.sim-dec-accion {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+}
+
+.sim-dec-punto {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 7.5px;
+  color: var(--sim-muted);
+  margin-top: 2px;
+}
+
+.sim-dec-detalle {
+  font-size: 8px;
+  color: #64748b;
+  line-height: 1.45;
+  padding-left: 19px;
+}
+
+.sim-dec-valores {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  padding-left: 19px;
+  font-size: 8.5px;
+  font-family: var(--sim-mono);
+}
+
+.sim-dec-val-actual {
+  color: #475569;
+  background: rgba(255,255,255,0.04);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.sim-dec-arrow { color: #334155; }
+
+.sim-dec-val-meta {
+  font-weight: 700;
+  background: rgba(255,255,255,0.04);
+  padding: 1px 5px;
+  border-radius: 3px;
 }
 
 /* ── DELIVERY CHIP: extracción en tarjeta CP ────────────────────── */

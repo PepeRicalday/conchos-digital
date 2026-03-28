@@ -87,7 +87,9 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             const [
                 { data: modulosDB, error: modError },
                 { data: allMediciones, error: medError },
-                { data: reportesHoy }
+                { data: reportesHoy },
+                { data: reportesOperacion },
+                { data: volDiarioModulo }
             ] = await Promise.all([
                 supabase.from('modulos').select(`
                     id, codigo_corto, nombre, nombre_acu, logo_url, vol_acumulado, vol_autorizado, caudal_objetivo,
@@ -100,18 +102,33 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                     .select('punto_id, valor_q, valor_vol, fecha_hora')
                     .gte('fecha_hora', startOfToday)
                     .order('fecha_hora', { ascending: false }),
-                supabase.from('reportes_diarios').select('punto_id, modulo_id, volumen_total_mm3, caudal_promedio_lps').eq('fecha', today)
+                supabase.from('reportes_diarios').select('punto_id, modulo_id, volumen_total_mm3, caudal_promedio_lps').eq('fecha', today),
+                // Fuente secundaria: estado operativo activo de hoy (inicio/continua/reabierto/modificacion)
+                supabase.from('reportes_operacion')
+                    .select('punto_id, caudal_promedio, volumen_acumulado, hora_apertura, estado, fecha')
+                    .eq('fecha', today)
+                    .in('estado', ['inicio', 'continua', 'reabierto', 'modificacion']),
+                // Volumen acumulado del ciclo activo por módulo (fuente authoritative)
+                supabase.from('resumen_ciclo')
+                    .select('modulo_id, volumen_entregado_mm3')
+                    .eq('activo', true)
             ]);
 
             if (modError) throw modError;
             if (medError) throw medError;
             if (!modulosDB) return;
 
-            // Map medications to points for easy lookup
+            // Map mediciones to points for easy lookup
             const medicionMap = new Map<string, any[]>();
             (allMediciones || []).forEach(m => {
                 if (!medicionMap.has(m.punto_id)) medicionMap.set(m.punto_id, []);
                 medicionMap.get(m.punto_id)?.push(m);
+            });
+
+            // Map reportes_operacion by punto_id (fallback when mediciones is empty)
+            const reporteOpMap = new Map<string, any>();
+            (reportesOperacion || []).forEach(r => {
+                if (!reporteOpMap.has(r.punto_id)) reporteOpMap.set(r.punto_id, r);
             });
 
             // 2. Metadata Sync — also force refresh if secciones is empty (avoids stale cache with no sections)
@@ -128,7 +145,13 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                 reporteByModulo[r.modulo_id] = (reporteByModulo[r.modulo_id] || 0) + Number(r.volumen_total_mm3 || 0);
             });
 
-            // 4. Transform & Merge Metadata with Realtime Data
+            // 4. Index resumen_ciclo por módulo (volumen acumulado ciclo activo)
+            const resumenCicloMap = new Map<string, number>();
+            (volDiarioModulo || []).forEach((v: any) => {
+                resumenCicloMap.set(v.modulo_id, Number(v.volumen_entregado_mm3 || 0));
+            });
+
+            // 5. Transform & Merge Metadata with Realtime Data
             const indexMap: Record<string, { mIndex: number, pIndex: number }> = {};
             const metaModulos = metaStore.modulos;
             const metaPuntos = metaStore.puntos_entrega;
@@ -143,14 +166,19 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                         
                         const measurements = medicionMap.get(p.id) || [];
                         const latest = measurements[0];
-                        const qM3s = Number(latest?.valor_q || 0);
+                        // Fallback: si no hay medicion para hoy, usar reportes_operacion (estado activo)
+                        const reporteOp = reporteOpMap.get(p.id);
+                        const qM3s = Number(latest?.valor_q || reporteOp?.caudal_promedio || 0);
 
                         // P1-4: All measurements are today's — no JS date filter needed.
                         // reportes_diarios is authoritative for daily/accumulated volumes;
-                        // fall back to live sum only when no report exists yet.
+                        // fall back to reportes_operacion.volumen_acumulado (already in Mm³) if no report exists.
                         const calculatedDailyVol = measurements.reduce((acc: number, med: any) => acc + Number(med.valor_vol || 0), 0);
                         const dailyReport = reporteByPunto[p.id];
-                        const dailyVolPt = dailyReport ? Number(dailyReport.volumen_total_mm3 || 0) : calculatedDailyVol;
+                        const opVol = reporteOp ? Number(reporteOp.volumen_acumulado || 0) : 0;
+                        const dailyVolPt = dailyReport
+                            ? Number(dailyReport.volumen_total_mm3 || 0)
+                            : (calculatedDailyVol > 0 ? calculatedDailyVol : opVol);
 
                         // Secciones metadata join
                         const sectionInfo = metaStore.secciones.find(s => s.id === p.seccion_id);
@@ -170,9 +198,14 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                             coordinates: { x: Number(p.coords_x), y: Number(p.coords_y) },
                             zone: p.zona || 'General',
                             section: sectionInfo?.nombre || 'Sin Sección',
-                            last_update_time: latest?.fecha_hora,
+                            last_update_time: latest?.fecha_hora || (reporteOp?.fecha ? `${reporteOp.fecha}T12:00:00` : undefined),
                             section_data: sectionInfo ? { ...sectionInfo, color: sectionInfo.color ?? '#64748b' } : undefined,
-                            mediciones: measurements,
+                            mediciones: measurements.length > 0 ? measurements : (reporteOp ? [{
+                                punto_id: p.id,
+                                valor_q: reporteOp.caudal_promedio || 0,
+                                valor_vol: reporteOp.volumen_acumulado || 0,
+                                fecha_hora: `${reporteOp.fecha}T12:00:00`
+                            }] : []),
                             reportes: dailyReport ? [dailyReport] : []
                         };
                     });
@@ -180,7 +213,15 @@ export const useHydraStore = create<HydraState>((set, get) => ({
 
                 const currentFlow = points.reduce((acc: number, pt: any) => acc + pt.current_q, 0);
                 const calcDailyVol = points.reduce((acc: number, pt: any) => acc + pt.daily_vol, 0);
-                const dailyVol = reporteByModulo[mod.id] || calcDailyVol;
+                // Volumen diario: suma de reportes_operacion.volumen_acumulado de los puntos del módulo (Mm³)
+                const opDailyVol = points.reduce((acc: number, pt: any) => {
+                    const op = reporteOpMap.get(pt.id);
+                    return acc + Number(op?.volumen_acumulado || 0);
+                }, 0);
+                const dailyVol = reporteByModulo[mod.id] || opDailyVol || calcDailyVol;
+
+                // Acumulado ciclo: resumen_ciclo.volumen_entregado_mm3 (ya en Mm³)
+                const accumulatedVol = resumenCicloMap.get(mod.id) ?? (Number(freshMod.vol_acumulado || 0) / 1000);
 
                 return {
                     id: mod.id,
@@ -190,9 +231,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                     logo_url: mod.logo_url,
                     current_flow: currentFlow,
                     daily_vol: dailyVol,
-                    // DB module volumes are stored in 'Millares de m³' (Miles de metros cúbicos)
-                    // The UI always renders in 'Mm³' (Millones de metros cúbicos). Div by 1000.
-                    accumulated_vol: (Number(freshMod.vol_acumulado || 0) / 1000),
+                    accumulated_vol: accumulatedVol,
                     authorized_vol: (Number(freshMod.vol_autorizado || 0) / 1000),
                     target_flow: Number(mod.caudal_objetivo || 0),
                     delivery_points: points

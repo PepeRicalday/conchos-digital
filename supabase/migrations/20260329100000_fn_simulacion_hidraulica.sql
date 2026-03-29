@@ -210,6 +210,10 @@ BEGIN
               AND e.activa = true
             ORDER BY le.hora_lectura DESC
             LIMIT 1;
+            -- Q=0 de compuerta no es válido — si geometría no encontrada devuelve 0, ignorar
+            IF v_q_base_entrada IS NOT NULL AND v_q_base_entrada <= 0 THEN
+                v_q_base_entrada := NULL;
+            END IF;
         END IF;
 
         -- Tier 3: Último movimiento de presa vigente (se mantiene hasta nuevo movimiento)

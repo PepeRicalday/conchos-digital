@@ -510,7 +510,7 @@ BEGIN
           AND pe.km BETWEEN 0 AND 2.0
         ORDER BY af.hora_inicio DESC
         LIMIT 1;
-        IF v_q_acum IS NOT NULL THEN v_fuente_q := 'AFORO K-1'; END IF;
+        IF v_q_acum IS NOT NULL AND v_q_acum > 0 THEN v_fuente_q := 'AFORO K-1'; ELSE v_q_acum := NULL; END IF;
 
         -- Tier 2: Compuerta K-0 con nivel arriba + abajo + apertura
         IF v_q_acum IS NULL THEN
@@ -527,7 +527,7 @@ BEGIN
               AND e.activa = true
             ORDER BY le.hora_lectura DESC
             LIMIT 1;
-            IF v_q_acum IS NOT NULL THEN v_fuente_q := 'COMPUERTA K-0'; END IF;
+            IF v_q_acum IS NOT NULL AND v_q_acum > 0 THEN v_fuente_q := 'COMPUERTA K-0'; ELSE v_q_acum := NULL; END IF;
         END IF;
 
         -- Tier 3: Último movimiento de presa vigente (comportamiento "continua")
@@ -540,7 +540,7 @@ BEGIN
               AND gasto_m3s > 0
             ORDER BY fecha_hora DESC
             LIMIT 1;
-            IF v_q_acum IS NOT NULL THEN v_fuente_q := 'PRESA'; END IF;
+            IF v_q_acum IS NOT NULL AND v_q_acum > 0 THEN v_fuente_q := 'PRESA'; ELSE v_q_acum := NULL; END IF;
         END IF;
 
         -- Tier 4: Última lectura_presas disponible (extraccion_total como proxy)
@@ -552,7 +552,7 @@ BEGIN
               AND extraccion_total_m3s > 0
             ORDER BY fecha DESC
             LIMIT 1;
-            IF v_q_acum IS NOT NULL THEN v_fuente_q := 'LECTURAS PRESA'; END IF;
+            IF v_q_acum IS NOT NULL AND v_q_acum > 0 THEN v_fuente_q := 'LECTURAS PRESA'; ELSE v_q_acum := NULL; END IF;
         END IF;
 
         -- Sin datos reales: no usar número arbitrario — señalar ausencia de datos

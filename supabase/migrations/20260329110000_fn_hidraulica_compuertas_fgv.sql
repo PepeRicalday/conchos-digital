@@ -395,7 +395,7 @@ BEGIN
         v_P  := v_seg.b + 2.0 * v_y * SQRT(1.0 + v_seg.z_val * v_seg.z_val);
         v_R  := v_A / GREATEST(v_P, 0.001);
         v_V  := p_Q / GREATEST(v_A, 0.001);
-        v_Fr := v_V / SQRT(9.81 * v_A / GREATEST(v_T, 0.001));
+        v_Fr := CASE WHEN v_A > 0.001 THEN v_V / GREATEST(SQRT(9.81 * v_A / GREATEST(v_T, 0.001)), 0.001) ELSE 0 END;
         v_E  := v_y + v_V * v_V / (2.0 * 9.81);
         v_Sf := POWER(v_seg.n_val * v_V / POWER(GREATEST(v_R, 0.001), 2.0/3.0), 2);
 
@@ -648,7 +648,7 @@ BEGIN
         v_A  := (v_tramo.b + v_tramo.z_val * v_y_fgv) * v_y_fgv;
         v_T  := v_tramo.b + 2.0 * v_tramo.z_val * v_y_fgv;
         v_V  := v_q_acum / GREATEST(v_A, 0.001);
-        v_Fr := v_V / SQRT(9.81 * v_A / GREATEST(v_T, 0.001));
+        v_Fr := CASE WHEN v_A > 0.001 THEN v_V / GREATEST(SQRT(9.81 * v_A / GREATEST(v_T, 0.001)), 0.001) ELSE 0 END;
 
         -- Tiempo tránsito
         v_tiempo_acum_s := v_tiempo_acum_s +

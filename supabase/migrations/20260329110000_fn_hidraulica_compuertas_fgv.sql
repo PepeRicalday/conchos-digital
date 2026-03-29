@@ -454,9 +454,14 @@ RETURNS TABLE (
     nivel_real_m    NUMERIC,
     delta_real_cm   NUMERIC,     -- (calculado - real) en cm
     estado_lectura  TEXT,        -- 'CONSISTENTE' | 'DESBORDAMIENTO' | 'EXCEDENTE' | 'DÉFICIT'
+    fecha_lectura   DATE,        -- Fecha de la lectura de escala (NULL = sin lectura hoy)
     -- Estado de la apertura de compuertas
     estado_apertura TEXT,        -- 'NO APLICA' | 'SIN LECTURA' | '⚠ SIN APERTURA' | 'COMPUERTA CERRADA' | 'APERTURA: Xm'
     apertura_m      NUMERIC,     -- Apertura reportada (NULL si no aplica o no reportada)
+    -- Frescura de reportes operativos en el tramo
+    puntos_tramo        INT,     -- Total de puntos de entrega en el tramo
+    puntos_con_reporte  INT,     -- Puntos con reporte del día
+    alerta_tomas    TEXT,        -- '✓ AL DÍA' | '⚠ SIN REPORTE HOY' | '⚠ PARCIAL X/Y' | 'SIN PUNTOS'
     -- Tiempo tránsito
     tiempo_acum_h   NUMERIC,
     hora_arribo     TEXT
@@ -468,6 +473,9 @@ DECLARE
     v_apertura       NUMERIC;   -- COALESCE(apertura_radiales_m, 0) para cálculos
     v_apertura_raw   NUMERIC;   -- Valor crudo: NULL = no reportado, 0 = cerrada
     v_ancho_escala   NUMERIC;   -- Ancho de compuerta (>0 indica estructura con compuerta)
+    v_fecha_lectura  DATE;      -- Fecha de la última lectura_escala en el tramo
+    v_puntos_total   INT;       -- Total puntos_entrega en el tramo
+    v_puntos_hoy     INT;       -- Puntos con reporte del día
     v_q_acum         NUMERIC;
     v_q_ext    NUMERIC;
     v_y_fgv    NUMERIC;
@@ -510,21 +518,32 @@ BEGIN
         FROM public.perfil_hidraulico_canal phc
         ORDER BY phc.km_inicio ASC
     LOOP
-        -- Extracciones con modificaciones de escenario (misma lógica que v1)
-        SELECT COALESCE(SUM(
-            CASE WHEN (p_modificaciones @> jsonb_build_array(jsonb_build_object('punto_id', ro.punto_id::text)))
-                 THEN (SELECT (elem->>'nuevo_caudal_m3s')::numeric
-                       FROM jsonb_array_elements(p_modificaciones) elem
-                       WHERE elem->>'punto_id' = ro.punto_id::text LIMIT 1)
-                 ELSE ro.caudal_promedio END
-        ), 0)
-        INTO v_q_ext
+        -- ── Extracciones del día + conteo de frescura de reportes ────────────────
+        -- Gasto extraído por tomas activas hoy + cuántas reportaron
+        SELECT
+            COALESCE(SUM(
+                CASE WHEN ro.estado::text NOT IN ('cierre', 'suspension')
+                     THEN CASE
+                         WHEN (p_modificaciones @> jsonb_build_array(jsonb_build_object('punto_id', ro.punto_id::text)))
+                         THEN (SELECT (elem->>'nuevo_caudal_m3s')::numeric
+                               FROM jsonb_array_elements(p_modificaciones) elem
+                               WHERE elem->>'punto_id' = ro.punto_id::text LIMIT 1)
+                         ELSE COALESCE(ro.caudal_promedio, 0) END
+                     ELSE 0 END
+            ), 0),
+            COUNT(DISTINCT ro.punto_id)   -- puntos con cualquier reporte hoy
+        INTO v_q_ext, v_puntos_hoy
         FROM public.reportes_operacion ro
         JOIN public.puntos_entrega pe ON pe.id = ro.punto_id
         WHERE pe.km >= v_tramo.km_inicio
           AND pe.km <  v_tramo.km_fin
-          AND ro.fecha = p_fecha
-          AND ro.estado::text NOT IN ('cierre', 'suspension');
+          AND ro.fecha = p_fecha;
+
+        -- Total de puntos de entrega registrados en el tramo
+        SELECT COUNT(*) INTO v_puntos_total
+        FROM public.puntos_entrega pe
+        WHERE pe.km >= v_tramo.km_inicio
+          AND pe.km <  v_tramo.km_fin;
 
         v_q_acum := GREATEST(v_q_acum - v_q_ext, 0);
 
@@ -537,8 +556,9 @@ BEGIN
                le.nivel_m,
                le.apertura_radiales_m,   -- raw: NULL = sin reporte, 0 = cerrada explícita
                e.nivel_max_operativo,
-               e.ancho                   -- >0 indica estructura con compuerta radial
-        INTO v_escala_id, v_nivel, v_apertura_raw, v_nivel_max, v_ancho_escala
+               e.ancho,                  -- >0 indica estructura con compuerta radial
+               le.fecha                  -- fecha real de la lectura (puede ser NULL si no hay)
+        INTO v_escala_id, v_nivel, v_apertura_raw, v_nivel_max, v_ancho_escala, v_fecha_lectura
         FROM public.escalas e
         LEFT JOIN public.lecturas_escalas le ON le.escala_id = e.id
             AND le.fecha = p_fecha
@@ -619,6 +639,19 @@ BEGIN
                               ELSE 'APERTURA: ' || ROUND(v_apertura_raw::numeric, 2) || 'm'
                           END;
         apertura_m     := CASE WHEN COALESCE(v_ancho_escala, 0) > 0 THEN v_apertura_raw ELSE NULL END;
+        -- Fecha de lectura de escala
+        fecha_lectura  := v_fecha_lectura;
+        -- Alertas de frescura de reportes operativos
+        puntos_tramo        := v_puntos_total;
+        puntos_con_reporte  := COALESCE(v_puntos_hoy, 0);
+        alerta_tomas   := CASE
+                              WHEN COALESCE(v_puntos_total, 0) = 0          THEN 'SIN PUNTOS'
+                              WHEN COALESCE(v_puntos_hoy, 0) = 0            THEN '⚠ SIN REPORTE HOY'
+                              WHEN v_puntos_hoy < v_puntos_total            THEN '⚠ PARCIAL '
+                                                                                  || v_puntos_hoy
+                                                                                  || '/' || v_puntos_total
+                              ELSE '✓ AL DÍA'
+                          END;
         tiempo_acum_h  := ROUND((v_tiempo_acum_s / 3600.0)::numeric, 2);
         hora_arribo    := TO_CHAR(
                               (v_hora_inicio + make_interval(secs => v_tiempo_acum_s::float8))
@@ -627,11 +660,14 @@ BEGIN
                           );
         RETURN NEXT;
 
-        v_escala_id   := NULL;
-        v_nivel       := NULL;
-        v_apertura    := 0;
+        v_escala_id    := NULL;
+        v_nivel        := NULL;
+        v_apertura     := 0;
         v_apertura_raw := NULL;
         v_ancho_escala := NULL;
+        v_fecha_lectura := NULL;
+        v_puntos_total  := 0;
+        v_puntos_hoy    := 0;
     END LOOP;
 END;
 $$ LANGUAGE plpgsql STABLE;
@@ -649,10 +685,11 @@ WHERE fecha >= CURRENT_DATE - 7
 ORDER BY fecha DESC, escala_id
 LIMIT 20;
 
--- 2. Perfil completo con FGV + compuertas + estado apertura
+-- 2. Perfil completo con FGV + compuertas + frescura de datos
 -- SELECT km_ref, nombre_tramo, q_m3s, y_m, y_normal_m, tipo_curva,
---        escala_id, nivel_real_m, delta_real_cm, estado_lectura,
+--        escala_id, nivel_real_m, fecha_lectura, delta_real_cm, estado_lectura,
 --        estado_apertura, apertura_m,
+--        puntos_tramo, puntos_con_reporte, alerta_tomas,
 --        tiempo_acum_h, hora_arribo
 -- FROM fn_perfil_canal_completo()
 -- ORDER BY km_ref;

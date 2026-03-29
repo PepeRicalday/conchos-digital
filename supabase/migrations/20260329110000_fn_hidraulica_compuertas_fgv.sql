@@ -454,16 +454,21 @@ RETURNS TABLE (
     nivel_real_m    NUMERIC,
     delta_real_cm   NUMERIC,     -- (calculado - real) en cm
     estado_lectura  TEXT,        -- 'CONSISTENTE' | 'DESBORDAMIENTO' | 'EXCEDENTE' | 'DÉFICIT'
+    -- Estado de la apertura de compuertas
+    estado_apertura TEXT,        -- 'NO APLICA' | 'SIN LECTURA' | '⚠ SIN APERTURA' | 'COMPUERTA CERRADA' | 'APERTURA: Xm'
+    apertura_m      NUMERIC,     -- Apertura reportada (NULL si no aplica o no reportada)
     -- Tiempo tránsito
     tiempo_acum_h   NUMERIC,
     hora_arribo     TEXT
 ) AS $$
 DECLARE
-    v_tramo         RECORD;
-    v_escala_id     TEXT;
-    v_nivel    NUMERIC;
-    v_apertura NUMERIC;
-    v_q_acum   NUMERIC;
+    v_tramo          RECORD;
+    v_escala_id      TEXT;
+    v_nivel          NUMERIC;
+    v_apertura       NUMERIC;   -- COALESCE(apertura_radiales_m, 0) para cálculos
+    v_apertura_raw   NUMERIC;   -- Valor crudo: NULL = no reportado, 0 = cerrada
+    v_ancho_escala   NUMERIC;   -- Ancho de compuerta (>0 indica estructura con compuerta)
+    v_q_acum         NUMERIC;
     v_q_ext    NUMERIC;
     v_y_fgv    NUMERIC;
     v_y_n      NUMERIC;
@@ -527,11 +532,13 @@ BEGIN
         v_y_n := public.fn_tirante_normal(v_q_acum, v_tramo.b, v_tramo.z_val, v_tramo.n_val, v_tramo.S0);
 
         -- Buscar escala en este tramo con lectura del día
+        -- apertura_radiales_m sin COALESCE para distinguir NULL (no reportado) de 0 (cerrada)
         SELECT e.id,
                le.nivel_m,
-               COALESCE(le.apertura_radiales_m, 0) AS apertura,
-               e.nivel_max_operativo
-        INTO v_escala_id, v_nivel, v_apertura, v_nivel_max
+               le.apertura_radiales_m,   -- raw: NULL = sin reporte, 0 = cerrada explícita
+               e.nivel_max_operativo,
+               e.ancho                   -- >0 indica estructura con compuerta radial
+        INTO v_escala_id, v_nivel, v_apertura_raw, v_nivel_max, v_ancho_escala
         FROM public.escalas e
         LEFT JOIN public.lecturas_escalas le ON le.escala_id = e.id
             AND le.fecha = p_fecha
@@ -540,6 +547,9 @@ BEGIN
           AND e.activa = true
         ORDER BY le.hora_lectura DESC NULLS LAST
         LIMIT 1;
+
+        -- Para cálculos hidráulicos usar 0 cuando no se reportó apertura
+        v_apertura := COALESCE(v_apertura_raw, 0);
 
         -- Determinar tirante a usar: FGV desde lectura real si existe, sino Manning
         v_nivel_max := COALESCE(
@@ -595,6 +605,20 @@ BEGIN
                               WHEN v_y_fgv > v_nivel   THEN 'EXCEDENTE'
                               ELSE                          'DÉFICIT'
                           END;
+        -- Estado de compuerta radial:
+        --   NO APLICA       → escala sin estructura de compuerta (ancho = 0 / NULL)
+        --   SIN LECTURA     → no hay lectura del día para esta escala
+        --   ⚠ SIN APERTURA  → hay nivel_m pero operador no reportó apertura (falta de reporte)
+        --   COMPUERTA CERRADA → apertura explícitamente = 0
+        --   APERTURA: X.XXm → operando con apertura medida
+        estado_apertura := CASE
+                              WHEN COALESCE(v_ancho_escala, 0) = 0  THEN 'NO APLICA'
+                              WHEN v_nivel IS NULL                   THEN 'SIN LECTURA'
+                              WHEN v_apertura_raw IS NULL            THEN '⚠ SIN APERTURA'
+                              WHEN v_apertura_raw = 0               THEN 'COMPUERTA CERRADA'
+                              ELSE 'APERTURA: ' || ROUND(v_apertura_raw::numeric, 2) || 'm'
+                          END;
+        apertura_m     := CASE WHEN COALESCE(v_ancho_escala, 0) > 0 THEN v_apertura_raw ELSE NULL END;
         tiempo_acum_h  := ROUND((v_tiempo_acum_s / 3600.0)::numeric, 2);
         hora_arribo    := TO_CHAR(
                               (v_hora_inicio + make_interval(secs => v_tiempo_acum_s::float8))
@@ -603,8 +627,11 @@ BEGIN
                           );
         RETURN NEXT;
 
-        v_escala_id := NULL;
-        v_nivel := NULL; v_apertura := 0;
+        v_escala_id   := NULL;
+        v_nivel       := NULL;
+        v_apertura    := 0;
+        v_apertura_raw := NULL;
+        v_ancho_escala := NULL;
     END LOOP;
 END;
 $$ LANGUAGE plpgsql STABLE;
@@ -622,9 +649,10 @@ WHERE fecha >= CURRENT_DATE - 7
 ORDER BY fecha DESC, escala_id
 LIMIT 20;
 
--- 2. Perfil completo con FGV + compuertas
--- SELECT km_ref, q_m3s, y_m, y_normal_m, tipo_curva,
+-- 2. Perfil completo con FGV + compuertas + estado apertura
+-- SELECT km_ref, nombre_tramo, q_m3s, y_m, y_normal_m, tipo_curva,
 --        escala_id, nivel_real_m, delta_real_cm, estado_lectura,
+--        estado_apertura, apertura_m,
 --        tiempo_acum_h, hora_arribo
 -- FROM fn_perfil_canal_completo()
 -- ORDER BY km_ref;

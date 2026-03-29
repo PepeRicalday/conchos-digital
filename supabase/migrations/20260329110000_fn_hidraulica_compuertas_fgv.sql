@@ -435,6 +435,9 @@ $$ LANGUAGE plpgsql STABLE;
 --      c. Perfil FGV upstream hasta la siguiente estructura
 --   3. Si no hay lectura: fallback a tirante normal (Manning)
 
+-- DROP necesario porque cambiamos RETURNS TABLE (nuevas columnas)
+DROP FUNCTION IF EXISTS public.fn_perfil_canal_completo(date, numeric, jsonb);
+
 CREATE OR REPLACE FUNCTION public.fn_perfil_canal_completo(
     p_fecha          DATE    DEFAULT CURRENT_DATE,
     p_q_entrada_m3s  NUMERIC DEFAULT NULL,
@@ -462,6 +465,8 @@ RETURNS TABLE (
     puntos_tramo        INT,     -- Total de puntos de entrega en el tramo
     puntos_con_reporte  INT,     -- Puntos con reporte del día
     alerta_tomas    TEXT,        -- '✓ AL DÍA' | '⚠ SIN REPORTE HOY' | '⚠ PARCIAL X/Y' | 'SIN PUNTOS'
+    -- Fuente del gasto de entrada
+    fuente_q_entrada TEXT,       -- 'AFORO K-1' | 'COMPUERTA K-0' | 'PRESA' | 'LECTURAS PRESA' | 'FALLBACK'
     -- Tiempo tránsito
     tiempo_acum_h   NUMERIC,
     hora_arribo     TEXT
@@ -476,6 +481,7 @@ DECLARE
     v_fecha_lectura  DATE;      -- Fecha de la última lectura_escala en el tramo
     v_puntos_total   INT;       -- Total puntos_entrega en el tramo
     v_puntos_hoy     INT;       -- Puntos con reporte del día
+    v_fuente_q       TEXT;      -- Fuente del Q de entrada (para auditoría)
     v_q_acum         NUMERIC;
     v_q_ext    NUMERIC;
     v_y_fgv    NUMERIC;
@@ -485,23 +491,70 @@ DECLARE
     v_hora_inicio   TIMESTAMP WITH TIME ZONE := now();
     v_nivel_max     NUMERIC;
 BEGIN
-    -- Obtener Q entrada (misma lógica que fn_simular_escenario_canal)
+    -- ── OBTENER GASTO DE ENTRADA K-0 ──────────────────────────────────────────
+    -- El Q en K-0 viene del río. Cascada de prioridad:
+    --   1. Aforo de campo K-1+000 (medición directa del día)
+    --   2. Compuerta K-0: nivel_arriba + nivel_abajo + apertura → fn_calcular_gasto_escala
+    --   3. Último movimiento de presa (vigente hasta nuevo movimiento, no solo hoy)
+    --   4. Última lectura_presas disponible
+    --   5. Fallback 37 m³/s (gasto base del sistema)
     IF p_q_entrada_m3s IS NOT NULL AND p_q_entrada_m3s > 0 THEN
-        v_q_acum := p_q_entrada_m3s;
+        v_q_acum   := p_q_entrada_m3s;
+        v_fuente_q := 'MANUAL';
     ELSE
-        SELECT gasto_m3s
-        INTO v_q_acum
-        FROM public.movimientos_presas
-        WHERE fecha_hora::date = p_fecha
-        ORDER BY fecha_hora DESC LIMIT 1;
+        -- Tier 1: Aforo medido en K-1+000 del día
+        SELECT af.gasto_calculado_m3s INTO v_q_acum
+        FROM public.aforos af
+        JOIN public.puntos_entrega pe ON pe.id = af.punto_control_id
+        WHERE af.fecha = p_fecha
+          AND pe.km BETWEEN 0 AND 2.0
+        ORDER BY af.hora_inicio DESC
+        LIMIT 1;
+        IF v_q_acum IS NOT NULL THEN v_fuente_q := 'AFORO K-1'; END IF;
 
+        -- Tier 2: Compuerta K-0 con nivel arriba + abajo + apertura
+        IF v_q_acum IS NULL THEN
+            SELECT public.fn_calcular_gasto_escala(
+                le.escala_id, le.nivel_m,
+                COALESCE(le.apertura_radiales_m, 0),
+                COALESCE(le.nivel_abajo_m, 0)
+            ) INTO v_q_acum
+            FROM public.lecturas_escalas le
+            JOIN public.escalas e ON e.id = le.escala_id
+            WHERE e.km BETWEEN 0 AND 1.5
+              AND le.fecha = p_fecha
+              AND le.apertura_radiales_m > 0
+              AND e.activa = true
+            ORDER BY le.hora_lectura DESC
+            LIMIT 1;
+            IF v_q_acum IS NOT NULL THEN v_fuente_q := 'COMPUERTA K-0'; END IF;
+        END IF;
+
+        -- Tier 3: Último movimiento de presa (se mantiene vigente hasta nuevo)
+        IF v_q_acum IS NULL THEN
+            SELECT gasto_m3s INTO v_q_acum
+            FROM public.movimientos_presas
+            WHERE fecha_hora::date <= p_fecha
+            ORDER BY fecha_hora DESC
+            LIMIT 1;
+            IF v_q_acum IS NOT NULL THEN v_fuente_q := 'PRESA'; END IF;
+        END IF;
+
+        -- Tier 4: Última lectura_presas disponible
         IF v_q_acum IS NULL THEN
             SELECT extraccion_total_m3s INTO v_q_acum
             FROM public.lecturas_presas
-            WHERE fecha = p_fecha
+            WHERE fecha <= p_fecha
+            ORDER BY fecha DESC
             LIMIT 1;
+            IF v_q_acum IS NOT NULL THEN v_fuente_q := 'LECTURAS PRESA'; END IF;
         END IF;
-        v_q_acum := COALESCE(v_q_acum, 50.0);
+
+        -- Tier 5: Fallback — gasto base conocido del sistema
+        IF v_q_acum IS NULL THEN
+            v_q_acum   := 37.0;
+            v_fuente_q := 'FALLBACK';
+        END IF;
     END IF;
 
     -- Recorrer tramos del perfil hidráulico
@@ -652,6 +705,7 @@ BEGIN
                                                                                   || '/' || v_puntos_total
                               ELSE '✓ AL DÍA'
                           END;
+        fuente_q_entrada := v_fuente_q;
         tiempo_acum_h  := ROUND((v_tiempo_acum_s / 3600.0)::numeric, 2);
         hora_arribo    := TO_CHAR(
                               (v_hora_inicio + make_interval(secs => v_tiempo_acum_s::float8))

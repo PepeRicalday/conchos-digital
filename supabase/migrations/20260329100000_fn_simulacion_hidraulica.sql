@@ -180,38 +180,59 @@ DECLARE
     v_nivel_real       NUMERIC;
 BEGIN
     -- ── 1. OBTENER GASTO DE ENTRADA (K-0) ─────────────────────────────────────
+    -- El gasto en K-0 viene del río, no directamente de la presa.
+    -- La presa mantiene su último gasto hasta que haya un nuevo movimiento.
     IF p_q_entrada_m3s IS NOT NULL AND p_q_entrada_m3s > 0 THEN
         v_q_base_entrada := p_q_entrada_m3s;
     ELSE
-        -- Tier 1: movimientos_presas del día
-        SELECT gasto_m3s
+        -- Tier 1: Aforo de campo en K-1+000 del día (medición directa más precisa)
+        SELECT af.gasto_calculado_m3s
         INTO v_q_base_entrada
-        FROM public.movimientos_presas
-        WHERE fecha_hora::date = p_fecha
-        ORDER BY fecha_hora DESC
+        FROM public.aforos af
+        JOIN public.puntos_entrega pe ON pe.id = af.punto_control_id
+        WHERE af.fecha = p_fecha
+          AND pe.km BETWEEN 0 AND 2.0
+        ORDER BY af.hora_inicio DESC
         LIMIT 1;
 
-        -- Tier 2: lecturas_presas
+        -- Tier 2: Compuerta K-0 (nivel_arriba + nivel_abajo + apertura → Q)
         IF v_q_base_entrada IS NULL THEN
-            SELECT extraccion_total_m3s INTO v_q_base_entrada
-            FROM public.lecturas_presas
-            WHERE fecha = p_fecha
-            LIMIT 1;
-        END IF;
-
-        -- Tier 3: lectura de escala K-0
-        IF v_q_base_entrada IS NULL THEN
-            SELECT le.nivel_m INTO v_q_base_entrada
+            SELECT public.fn_calcular_gasto_escala(
+                le.escala_id, le.nivel_m,
+                COALESCE(le.apertura_radiales_m, 0),
+                COALESCE(le.nivel_abajo_m, 0)
+            ) INTO v_q_base_entrada
             FROM public.lecturas_escalas le
             JOIN public.escalas e ON e.id = le.escala_id
-            WHERE e.km = 0 AND le.fecha = p_fecha
+            WHERE e.km BETWEEN 0 AND 1.5
+              AND le.fecha = p_fecha
+              AND le.apertura_radiales_m > 0
+              AND e.activa = true
             ORDER BY le.hora_lectura DESC
             LIMIT 1;
         END IF;
 
-        -- Tier 4: fallback conservador
+        -- Tier 3: Último movimiento de presa (no solo hoy — se mantiene vigente)
         IF v_q_base_entrada IS NULL THEN
-            v_q_base_entrada := 50.0;
+            SELECT gasto_m3s INTO v_q_base_entrada
+            FROM public.movimientos_presas
+            WHERE fecha_hora::date <= p_fecha
+            ORDER BY fecha_hora DESC
+            LIMIT 1;
+        END IF;
+
+        -- Tier 4: Última lectura_presas disponible
+        IF v_q_base_entrada IS NULL THEN
+            SELECT extraccion_total_m3s INTO v_q_base_entrada
+            FROM public.lecturas_presas
+            WHERE fecha <= p_fecha
+            ORDER BY fecha DESC
+            LIMIT 1;
+        END IF;
+
+        -- Tier 5: Fallback — gasto base del sistema
+        IF v_q_base_entrada IS NULL THEN
+            v_q_base_entrada := 37.0;
         END IF;
     END IF;
 

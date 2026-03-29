@@ -212,27 +212,33 @@ BEGIN
             LIMIT 1;
         END IF;
 
-        -- Tier 3: Último movimiento de presa (no solo hoy — se mantiene vigente)
+        -- Tier 3: Último movimiento de presa vigente (se mantiene hasta nuevo movimiento)
+        -- Comportamiento "continua": si no hubo cambio hoy, aplica el último registrado
         IF v_q_base_entrada IS NULL THEN
             SELECT gasto_m3s INTO v_q_base_entrada
             FROM public.movimientos_presas
             WHERE fecha_hora::date <= p_fecha
+              AND gasto_m3s IS NOT NULL
+              AND gasto_m3s > 0
             ORDER BY fecha_hora DESC
             LIMIT 1;
         END IF;
 
-        -- Tier 4: Última lectura_presas disponible
+        -- Tier 4: Última lectura_presas disponible (extraccion_total como proxy)
         IF v_q_base_entrada IS NULL THEN
             SELECT extraccion_total_m3s INTO v_q_base_entrada
             FROM public.lecturas_presas
             WHERE fecha <= p_fecha
+              AND extraccion_total_m3s IS NOT NULL
+              AND extraccion_total_m3s > 0
             ORDER BY fecha DESC
             LIMIT 1;
         END IF;
 
-        -- Tier 5: Fallback — gasto base del sistema
+        -- Sin datos reales: no usar número arbitrario
+        -- El perfil calculará con Q=0 y fuente_q señalará el problema
         IF v_q_base_entrada IS NULL THEN
-            v_q_base_entrada := 37.0;
+            v_q_base_entrada := 0;
         END IF;
     END IF;
 

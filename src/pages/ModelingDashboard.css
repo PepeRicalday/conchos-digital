@@ -665,12 +665,13 @@
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  height: 200px;
 }
 
 .sim-cross-chart {
-  flex: 1;
-  min-height: 0;
+  /* Altura explícita para que ECharts inicialice correctamente al montar */
+  height: 155px;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
 /* ── TIMELINE ───────────────────────────────────────────────────── */

@@ -1751,7 +1751,12 @@ const ModelingDashboard: React.FC = () => {
 
   // ── ETAPA 5: SECCIÓN TRANSVERSAL INTERACTIVA ─────────────────────────
   const crossSectionOption = useMemo(() => {
-    if (!activeCPResult) return {};
+    if (!activeCPResult) return {
+      backgroundColor: 'transparent', animation: false,
+      xAxis: { type: 'value', show: false },
+      yAxis: { type: 'value', show: false },
+      series: [],
+    };
 
     // Guardia > 0: safeFloat devuelve el valor de BD aunque sea 0 (no usa fallback).
     // Si BD tiene 0, usar constantes razonables para que el trapecio siempre se dibuje.
@@ -2245,7 +2250,7 @@ const ModelingDashboard: React.FC = () => {
                 </div>
               </div>
               <div className="sim-cross-chart">
-                <ReactECharts option={crossSectionOption} style={{ height: '100%', width: '100%' }} notMerge={true} />
+                <ReactECharts option={crossSectionOption} style={{ height: '155px', width: '100%' }} notMerge={true} lazyUpdate={false} />
               </div>
             </div>
           )}

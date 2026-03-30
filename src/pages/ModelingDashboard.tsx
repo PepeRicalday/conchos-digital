@@ -1680,6 +1680,10 @@ const ModelingDashboard: React.FC = () => {
     };
   }, [simResults, perfilRpc, deliveryPoints, qDam, balanceTramos]);
 
+  // ── GLOBALS (necesarios antes de crossSectionOption) ─────────────────
+  const activeCPResult = simResults.find(r => r.id === activeCP);
+  const activeCPData   = controlPoints.find(c => c.id === activeCP);
+
   // ── ETAPA 5: SECCIÓN TRANSVERSAL INTERACTIVA ─────────────────────────
   const crossSectionOption = useMemo(() => {
     if (!activeCPResult) return {};
@@ -1788,8 +1792,6 @@ const ModelingDashboard: React.FC = () => {
     ? 'CRITICO' : simResults.some(r => r.status === 'ALERTA') ? 'ALERTA' : 'ESTABLE';
   const riverLagMin  = riverTransit
     ? (RIVER_KM * 1000 / (0.5 * Math.pow(Math.max(qDam, 1), 0.4) + 0.5)) / 60 : 0;
-  const activeCPResult = simResults.find(r => r.id === activeCP);
-  const activeCPData   = controlPoints.find(c => c.id === activeCP);
 
   const StatusIcon = ({ s }: { s: CPStatus }) =>
     s === 'CRITICO' ? <AlertOctagon size={14} /> :

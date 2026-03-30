@@ -65,6 +65,9 @@ interface CPResult {
   canal_depth_m:    number;   // profundidad total = tirante_diseno + bordo_libre
   capacidad_diseno_m3s: number;
   pct_capacidad_diseno: number;  // q_sim / capacidad_diseno × 100
+  // Ancla de compuerta: Q real calculado por orificio con apertura SICA
+  q_gate_m3s:   number | null;  // null = sin dato de apertura en este punto
+  gate_anchored: boolean;        // true = qCur fue limitado por esta compuerta al propagar
 }
 
 // Datos de telemetría base por punto de control (de SICA Capture)
@@ -505,10 +508,18 @@ function runSimulation(
     const cd_used   = safeFloat(cp.coeficiente_descarga, CD_GATE) || CD_GATE;
     const pzas      = Math.max(1, safeFloat(cp.pzas_radiales, 1));
     const ancho     = Math.max(1, safeFloat(cp.ancho, 8));
-    const h_gate    = (safeFloat(gateOverrides[cp.id], 0) > 0)
+    const has_real_gate = safeFloat(gateOverrides[cp.id], 0) > 0;
+    const h_gate    = has_real_gate
       ? safeFloat(gateOverrides[cp.id], 1.25)
       : Math.max(0.3, pzas > 0 ? 1.25 : 1.0);
     const area_gate = Math.max(0.01, ancho * pzas * h_gate);
+
+    // Q máximo que puede pasar la compuerta (orificio sumergido): Q = Cd·b·n·h·√(2g·H)
+    // Solo se calcula cuando hay apertura real de SICA (has_real_gate),
+    // no cuando se usa el default 1.25m, para no crear anclas ficticias.
+    const q_gate_m3s: number | null = (has_real_gate && y_base > 0.05)
+      ? +(cd_used * ancho * pzas * h_gate * Math.sqrt(2 * G * y_base)).toFixed(3)
+      : null;
 
     const head_base  = Math.pow(Math.max(qBaseCur, 0.1) / (cd_used * area_gate), 2) / (2 * G);
     const head_sim   = Math.pow(Math.max(qCur,     0.1) / (cd_used * area_gate), 2) / (2 * G);
@@ -557,6 +568,20 @@ function runSimulation(
     qCur     = Math.max(0.1, qCur     * conductionFactor - q_extraido);
     qBaseCur = Math.max(0.1, qBaseCur * conductionFactor - q_extraido);
 
+    // Ancla de compuerta: la apertura real SICA limita el Q que pasa hacia aguas abajo.
+    // Si q_gate < qCur_post_extracción, la compuerta es el cuello de botella real.
+    // Esto corrige la propagación en cascada: lo que llega a K-34 no puede superar
+    // lo que K-23 dejó pasar con su apertura real.
+    let gate_anchored = false;
+    if (q_gate_m3s !== null && q_gate_m3s < qCur) {
+      qCur = Math.max(0.1, q_gate_m3s);
+      gate_anchored = true;
+    }
+    // qBaseCur sigue la misma proporción para mantener coherencia del escenario base
+    if (gate_anchored && q_gate_m3s !== null) {
+      qBaseCur = Math.min(qBaseCur, q_gate_m3s);
+    }
+
     return {
       id: cp.id, nombre: cp.nombre, km: kmCp,
       y_base, q_base: q_base_arribo, y_sim, q_sim: q_sim_arribo,
@@ -574,6 +599,7 @@ function runSimulation(
       canal_depth_m: canal_depth,
       capacidad_diseno_m3s: qdis,
       pct_capacidad_diseno: qdis > 0 ? Math.min(120, (q_sim_arribo / qdis) * 100) : 0,
+      q_gate_m3s, gate_anchored,
     };
   });
 }
@@ -1565,6 +1591,12 @@ const ModelingDashboard: React.FC = () => {
       ...simResults.map(r => [r.km, +r.q_sim.toFixed(3)] as [number, number]),
     ];
 
+    // Q por apertura SICA — orificio real en escalas con datos de compuerta
+    // Estos valores son la verdad física: lo que realmente pasa la compuerta
+    const gateQSerie: { value: [number, number]; anchored: boolean }[] = simResults
+      .filter(r => r.q_gate_m3s !== null)
+      .map(r => ({ value: [r.km, r.q_gate_m3s as number], anchored: r.gate_anchored }));
+
     // Extracciones activas — barras descendentes en km de cada toma
     const extSerie = deliveryPoints
       .filter(d => d.is_active && d.caudal_m3s > 0 && Number.isFinite(d.km))
@@ -1609,6 +1641,13 @@ const ModelingDashboard: React.FC = () => {
             if (p.seriesName === 'Q Real SQL' || p.seriesName === 'Q Simulado') {
               const val = Array.isArray(p.value) ? p.value[1] : p.value;
               html += `<div>${p.marker}${p.seriesName} <b>${(+val).toFixed(2)} m³/s</b></div>`;
+            }
+            if (p.seriesName === 'Q Apertura SICA') {
+              const val = Array.isArray(p.value) ? p.value[1] : p.value;
+              const r   = simResults.find(r2 => r2.km === (Array.isArray(p.value) ? p.value[0] : -1));
+              html += `<div>${p.marker}Q Apertura SICA <b style="color:#fb923c">${(+val).toFixed(2)} m³/s</b>`;
+              if (r?.gate_anchored) html += ` <span style="color:#ef4444;font-size:9px">⚠ limita cascada</span>`;
+              html += `</div>`;
             }
           });
           const tomas = deliveryPoints.filter(d => d.is_active && Math.abs(d.km - km) < 4);
@@ -1669,6 +1708,23 @@ const ModelingDashboard: React.FC = () => {
           name: 'Extracciones', type: 'bar', data: extSerie,
           barMaxWidth: 5, z: 2,
           itemStyle: { color: 'rgba(251,191,36,0.55)', borderRadius: [2, 2, 0, 0] },
+        },
+        // Q por apertura SICA — cuadrados naranjas: verdad física de la compuerta
+        {
+          name: 'Q Apertura SICA', type: 'scatter',
+          data: gateQSerie.map(g => ({
+            value: g.value,
+            itemStyle: {
+              color: g.anchored ? '#ef4444' : '#fb923c',
+              borderColor: '#04080f', borderWidth: 1.5,
+            },
+          })),
+          symbolSize: 11, symbol: 'rect', z: 7,
+          label: {
+            show: true, position: 'top', fontSize: 8, fontWeight: 'bold',
+            color: '#fb923c',
+            formatter: (p: any) => `${(+p.value[1]).toFixed(1)}`,
+          },
         },
         // Bandas de balance hídrico (markArea invisible, solo fondo coloreado)
         {

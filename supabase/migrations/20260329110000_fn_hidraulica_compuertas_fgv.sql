@@ -677,15 +677,12 @@ IF
           v_q_acum := NULL;
         END IF;
 
-        -- Tier 2: Compuerta K-0 con nivel arriba + abajo + apertura
+        -- Tier 2: Compuerta K-0 — usar gasto_calculado_m3s almacenado por sica-capture.
+        -- sica-capture itera sobre radiales_json (cada compuerta individual) y suma Q.
+        -- apertura_radiales_m es solo la apertura máxima (legacy), no la suma.
         IF v_q_acum IS NULL THEN
           SELECT
-            public.fn_calcular_gasto_escala(
-              le.escala_id
-              , le.nivel_m
-              , COALESCE(le.apertura_radiales_m, 0)
-              , COALESCE(le.nivel_abajo_m, 0)
-            )
+            le.gasto_calculado_m3s
           INTO
             v_q_acum
           FROM
@@ -695,7 +692,8 @@ IF
           WHERE
             e.km BETWEEN 0 AND 1.5
             AND le.fecha = p_fecha
-            AND le.apertura_radiales_m > 0
+            AND le.gasto_calculado_m3s IS NOT NULL
+            AND le.gasto_calculado_m3s > 0
             AND e.activa = true
           ORDER BY
             le.hora_lectura DESC

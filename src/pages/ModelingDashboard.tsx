@@ -468,6 +468,7 @@ function runSimulation(
   qBaseInit:      number,
   baseReadings:   Record<string, number>,
   gateOverrides:  Record<string, number>,
+  gastoMedido:    Record<string, number>,   // gasto_calculado_m3s de SICA Capture por escala
   deliveryPoints: DeliveryData[],
   tramoGeom:      TramoGeom[],
   riverTransit:   boolean,
@@ -514,12 +515,11 @@ function runSimulation(
       : Math.max(0.3, pzas > 0 ? 1.25 : 1.0);
     const area_gate = Math.max(0.01, ancho * pzas * h_gate);
 
-    // Q máximo que puede pasar la compuerta (orificio sumergido): Q = Cd·b·n·h·√(2g·H)
-    // Solo se calcula cuando hay apertura real de SICA (has_real_gate),
-    // no cuando se usa el default 1.25m, para no crear anclas ficticias.
-    const q_gate_m3s: number | null = (has_real_gate && y_base > 0.05)
-      ? +(cd_used * ancho * pzas * h_gate * Math.sqrt(2 * G * y_base)).toFixed(3)
-      : null;
+    // Q real medido por SICA Capture (gasto_calculado_m3s de lecturas_escalas).
+    // Este valor usa la geometría real de cada estructura — más confiable que
+    // cualquier fórmula de orificio genérica. Solo se usa cuando SICA tiene dato > 0.
+    const gm = safeFloat(gastoMedido[cp.id], 0);
+    const q_gate_m3s: number | null = (gm > 0) ? +gm.toFixed(3) : null;
 
     const head_base  = Math.pow(Math.max(qBaseCur, 0.1) / (cd_used * area_gate), 2) / (2 * G);
     const head_sim   = Math.pow(Math.max(qCur,     0.1) / (cd_used * area_gate), 2) / (2 * G);
@@ -1103,11 +1103,20 @@ const ModelingDashboard: React.FC = () => {
   }, [isPlaying]);
 
   // ── MOTOR HIDRÁULICO ─────────────────────────────────────────────────
+  // gastoMedidoRecord: gasto_calculado_m3s de SICA por escala_id (ancla de compuerta)
+  const gastoMedidoRecord = useMemo<Record<string, number>>(() => {
+    const rec: Record<string, number> = {};
+    Object.entries(cpTelemetry).forEach(([id, tel]) => {
+      if (tel.gasto_medido != null && tel.gasto_medido > 0) rec[id] = tel.gasto_medido;
+    });
+    return rec;
+  }, [cpTelemetry]);
+
   const simResults = useMemo<CPResult[]>(() => {
     if (!controlPoints.length || !dataLoaded) return [];
     return runSimulation(controlPoints, qDam, qBase, baseReadings, gateOverrides,
-      deliveryPoints, tramoGeom, riverTransit, simBaseMin);
-  }, [controlPoints, baseReadings, gateOverrides, qDam, qBase, riverTransit, simBaseMin, deliveryPoints, dataLoaded, tramoGeom]);
+      gastoMedidoRecord, deliveryPoints, tramoGeom, riverTransit, simBaseMin);
+  }, [controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDam, qBase, riverTransit, simBaseMin, deliveryPoints, dataLoaded, tramoGeom]);
 
   // ── ESCENARIO B — segunda corrida del motor para comparación ─────────
   const [showScenarioB, setShowScenarioB] = useState(false);
@@ -1116,8 +1125,8 @@ const ModelingDashboard: React.FC = () => {
   const simResultsB = useMemo<CPResult[]>(() => {
     if (!showScenarioB || !controlPoints.length || !dataLoaded) return [];
     return runSimulation(controlPoints, qDamB, qBase, baseReadings, gateOverrides,
-      deliveryPoints, tramoGeom, riverTransit, simBaseMin);
-  }, [showScenarioB, controlPoints, baseReadings, gateOverrides, qDamB, qBase, riverTransit, simBaseMin, deliveryPoints, dataLoaded, tramoGeom]);
+      gastoMedidoRecord, deliveryPoints, tramoGeom, riverTransit, simBaseMin);
+  }, [showScenarioB, controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDamB, qBase, riverTransit, simBaseMin, deliveryPoints, dataLoaded, tramoGeom]);
 
   // ── FASE 3: MOTOR DE DECISIÓN ─────────────────────────────────────────
   const decisions = useMemo<Decision[]>(() => {

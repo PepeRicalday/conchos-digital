@@ -785,6 +785,8 @@ IF
         , COALESCE(phc.bordo_libre_m, 0.6) AS bordo_libre
       FROM
         public.perfil_hidraulico_canal phc
+      WHERE
+        phc.nombre_tramo = 'CANAL PRINCIPAL CONCHOS'
       ORDER BY
         phc.km_inicio ASC
       LOOP
@@ -924,7 +926,7 @@ IF
         END;
 
         -- Estado de la lectura
-        km_ref := v_tramo.km_fin;
+        km_ref := ROUND(v_tramo.km_fin::numeric, 4);
         nombre_tramo := v_tramo.nombre_tramo || ' Km ' || v_tramo.km_inicio || '–' || v_tramo.km_fin;
         q_m3s := ROUND(v_q_acum::numeric, 3);
         y_m := v_y_fgv;

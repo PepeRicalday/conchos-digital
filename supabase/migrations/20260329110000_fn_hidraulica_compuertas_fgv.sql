@@ -787,6 +787,7 @@ IF
         public.perfil_hidraulico_canal phc
       WHERE
         phc.nombre_tramo = 'CANAL PRINCIPAL CONCHOS'
+        AND phc.km_fin > phc.km_inicio  -- excluir tramos con datos inválidos
       ORDER BY
         phc.km_inicio ASC
       LOOP
@@ -855,10 +856,17 @@ IF
         );
 
         -- Buscar escala en este tramo con lectura del día
+        -- K0+000 (entrada del canal): nivel_m es carga del río (aguas arriba de la compuerta).
+        --   → usar nivel_abajo_m como nivel real del canal (aguas abajo).
+        -- Resto del canal: nivel_m es directamente el nivel en el canal.
         -- apertura_radiales_m sin COALESCE para distinguir NULL (no reportado) de 0 (cerrada)
         SELECT
           e.id
-          , le.nivel_m
+          , CASE
+              WHEN e.km < 1.0 AND le.nivel_abajo_m IS NOT NULL
+                THEN le.nivel_abajo_m  -- K0+000: nivel en el canal (aguas abajo de la compuerta)
+              ELSE le.nivel_m           -- resto del canal: nivel directo
+            END
           , le.apertura_radiales_m
           , -- raw: NULL = sin reporte, 0 = cerrada explícita
             e.nivel_max_operativo

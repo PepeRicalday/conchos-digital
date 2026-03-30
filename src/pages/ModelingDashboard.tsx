@@ -1753,11 +1753,13 @@ const ModelingDashboard: React.FC = () => {
   const crossSectionOption = useMemo(() => {
     if (!activeCPResult) return {};
 
-    const b  = activeCPResult.plantilla_m;
-    const td = activeCPResult.tirante_diseno_m;
-    const fb = activeCPResult.bordo_libre_m;
-    const cd = activeCPResult.canal_depth_m;          // td + fb
-    const z  = findTramo(activeCPResult.km, tramoGeom).talud_z;
+    // Guardia > 0: safeFloat devuelve el valor de BD aunque sea 0 (no usa fallback).
+    // Si BD tiene 0, usar constantes razonables para que el trapecio siempre se dibuje.
+    const b  = activeCPResult.plantilla_m  > 0 ? activeCPResult.plantilla_m  : PLANTILLA;
+    const td = activeCPResult.tirante_diseno_m > 0 ? activeCPResult.tirante_diseno_m : 2.5;
+    const fb = activeCPResult.bordo_libre_m > 0 ? activeCPResult.bordo_libre_m : 0.5;
+    const cd = activeCPResult.canal_depth_m > 0 ? activeCPResult.canal_depth_m : (td + fb);
+    const z  = Math.max(0.5, findTramo(activeCPResult.km, tramoGeom).talud_z);
     const yB = Math.max(0, activeCPResult.y_base);    // nivel actual
     const yS = Math.max(0, activeCPResult.y_sim);     // nivel simulado
 
@@ -1780,8 +1782,8 @@ const ModelingDashboard: React.FC = () => {
     const waterPoly = (y: number): [number, number][] =>
       y > 0.05 ? [[xL(y), y], [xL(0), 0], [xR(0), 0], [xR(y), y]] : [];
 
-    const xMax = xR(cd) + 1;
-    const yMax = +(cd * 1.12).toFixed(2);
+    const xMax = Math.max(2, xR(cd) + 1);
+    const yMax = Math.max(1, +(cd * 1.12).toFixed(2));
 
     return {
       animation: false,

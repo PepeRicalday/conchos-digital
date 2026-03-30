@@ -571,7 +571,7 @@ IF
     EXISTS public.fn_perfil_canal_completo(date, numeric, jsonb);
 
     CREATE OR REPLACE FUNCTION public.fn_perfil_canal_completo(
-      p_fecha DATE DEFAULT CURRENT_DATE
+      p_fecha DATE DEFAULT NULL
       , p_q_entrada_m3s NUMERIC DEFAULT NULL
       , p_modificaciones JSONB DEFAULT '[]'::jsonb
     )
@@ -638,6 +638,9 @@ IF
     v_hora_inicio TIMESTAMP WITH TIME ZONE := now();
     v_nivel_max NUMERIC;
     BEGIN
+      IF p_fecha IS NULL THEN
+        p_fecha := (NOW() AT TIME ZONE 'America/Chihuahua')::date;
+      END IF;
       -- ── OBTENER GASTO DE ENTRADA K-0 ──────────────────────────────────────────
       -- El Q en K-0 viene del río. Cascada de prioridad:
       --   1. Aforo de campo K-1+000 (medición directa del día)
@@ -1028,7 +1031,7 @@ IF
   FROM
     public.lecturas_escalas
   WHERE
-    fecha >= CURRENT_DATE - 7
+    fecha >= (NOW() AT TIME ZONE 'America/Chihuahua')::date - 7
   ORDER BY
     fecha DESC
     , escala_id

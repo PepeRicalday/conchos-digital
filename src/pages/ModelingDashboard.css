@@ -615,6 +615,64 @@
 
 .sim-chart-wrap { flex: 1; min-height: 0; }
 
+/* ── PANEL B: HIDROGRAMA DE GASTO ───────────────────────────────── */
+.sim-qflow-card {
+  background: var(--sim-card);
+  border-top: 1px solid var(--sim-border);
+  border-bottom: 1px solid var(--sim-border);
+  border-left: 3px solid #f59e0b;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  height: 180px;
+}
+
+.sim-qflow-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px 5px;
+  border-bottom: 1px solid var(--sim-border);
+  flex-shrink: 0;
+}
+
+.sim-qflow-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  color: var(--sim-muted);
+  letter-spacing: 0.05em;
+}
+
+.sim-qflow-chart {
+  flex: 1;
+  min-height: 0;
+}
+
+.sim-leg-fuente      { color: #f59e0b; font-style: italic; }
+.sim-leg--muted      { color: #64748b; }
+.sim-leg-dot--amber  { background: #f59e0b; border-radius: 50%; }
+.sim-leg-dot--cyan-line { background: #38bdf8; border-radius: 0; }
+.sim-leg-dot--teal   { background: #2dd4bf; border-radius: 50%; }
+
+/* ── SECCIÓN TRANSVERSAL ────────────────────────────────────── */
+.sim-cross-card {
+  background: var(--sim-card);
+  border-top: 1px solid var(--sim-border);
+  border-bottom: 1px solid var(--sim-border);
+  border-left: 3px solid #38bdf8;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  height: 200px;
+}
+
+.sim-cross-chart {
+  flex: 1;
+  min-height: 0;
+}
+
 /* ── TIMELINE ───────────────────────────────────────────────────── */
 .sim-timeline-card {
   background: var(--sim-surface);

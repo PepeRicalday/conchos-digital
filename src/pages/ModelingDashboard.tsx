@@ -104,6 +104,21 @@ interface DataStatus {
   damNivel:         string;   // escala msnm de la presa (o hora del primer movimiento)
   damFuente:        string;   // 'movimientos_presas' | 'lecturas_presas' | 'estimado'
   totalExtractionM3s: number; // suma total de caudales activos en puntos de entrega hoy
+  perfilFuente?: string;  // fuente_q_entrada del perfil hidráulico RPC
+  perfilQ?:      number;  // q_m3s en K-0 del perfil hidráulico RPC
+}
+
+// Balance hídrico por tramo (fn_balance_hidrico_tramos)
+interface BalanceTramo {
+  km_inicio:           number;
+  km_fin:              number;
+  escala_entrada:      string;
+  escala_salida:       string;
+  q_entrada_m3s:       number;
+  q_salida_m3s:        number;
+  q_tomas_registradas: number;
+  q_fuga_detectada:    number;
+  estado_balance:      'FUGA_ALTA' | 'FUGA_MEDIA' | 'INCONSISTENCIA' | 'BALANCEADO';
 }
 
 // ── GEOMETRÍA POR TRAMO ──────────────────────────────────────────────────
@@ -586,6 +601,10 @@ const ModelingDashboard: React.FC = () => {
   const [dataLoaded,   setDataLoaded]   = useState(false);
   // Geometría real por tramo (perfil_hidraulico_canal)
   const [tramoGeom,    setTramoGeom]    = useState<TramoGeom[]>([]);
+  // Perfil hidráulico real del RPC (fn_perfil_canal_completo) para línea ámbar
+  const [perfilRpc,    setPerfilRpc]    = useState<any[]>([]);
+  // Balance hídrico por tramo (fn_balance_hidrico_tramos)
+  const [balanceTramos, setBalanceTramos] = useState<BalanceTramo[]>([]);
 
   const [qDam,         setQDam]         = useState(0);
   const [qBase,        setQBase]        = useState(0);
@@ -625,6 +644,8 @@ const ModelingDashboard: React.FC = () => {
         { data: rawReportes },  // reportes_diarios hoy → volúmenes puntos de entrega
         { data: rawPuntos },    // puntos_entrega → km de cada toma/lateral
         { data: rawPerfil },    // perfil_hidraulico_canal → geometría real por tramo
+        { data: rawPerfilRpc }, // fn_perfil_canal_completo → perfil hidráulico real
+        { data: rawBalance },   // fn_balance_hidrico_tramos → fugas detectadas por tramo
       ] = await Promise.all([
         // Resumen diario con AM/PM y delta 12h
         supabase.from('resumen_escalas_diario')
@@ -687,6 +708,12 @@ const ModelingDashboard: React.FC = () => {
         supabase.from('perfil_hidraulico_canal')
           .select('km_inicio, km_fin, plantilla_m, talud_z, rugosidad_n, pendiente_s0, tirante_diseno_m, capacidad_diseno_m3s, bordo_libre_m')
           .order('km_inicio', { ascending: true }),
+
+        // Perfil hidráulico real del canal (cascada Q + GVF SQL)
+        supabase.rpc('fn_perfil_canal_completo', { p_fecha: today }),
+
+        // Balance hídrico por tramo — fugas detectadas
+        supabase.rpc('fn_balance_hidrico_tramos', { p_fecha: today }),
       ]);
 
       // 3. Construir lista de puntos de control — safeFloat en todos los campos numéricos
@@ -745,7 +772,40 @@ const ModelingDashboard: React.FC = () => {
       });
       const rm: Record<string, number> = {};
       cps.forEach(cp => { if (lvlMap.has(cp.id)) rm[cp.id] = lvlMap.get(cp.id)!; });
+
+      // Overlay: RPC nivel_real_m es más preciso que lecturas_escalas raw
+      // (usa nivel_abajo_m en K0+000, aplica la misma lógica que el perfil SQL)
+      let rpcQ: number | null = null;
+      let rpcFuente: string | null = null;
+      if (rawPerfilRpc && rawPerfilRpc.length > 0) {
+        const firstRow = rawPerfilRpc[0] as any;
+        const fq = safeFloat(firstRow?.q_m3s, 0);
+        if (fq > 0) rpcQ = fq;
+        rpcFuente = firstRow?.fuente_q_entrada ?? null;
+        (rawPerfilRpc as any[]).forEach(row => {
+          const rpcKm   = safeFloat(row.km_ref, NaN);
+          const rpcNivel = safeFloat(row.nivel_real_m, NaN);
+          if (!Number.isFinite(rpcKm) || !Number.isFinite(rpcNivel) || rpcNivel <= 0.05) return;
+          const cp = cps.find(c => Math.abs(c.km - rpcKm) < 2.0);
+          if (cp) rm[cp.id] = rpcNivel;
+        });
+      }
+
       setBaseReadings(rm);
+      setPerfilRpc(rawPerfilRpc ?? []);
+      setBalanceTramos(
+        ((rawBalance ?? []) as any[]).map(r => ({
+          km_inicio:           safeFloat(r.km_inicio, 0),
+          km_fin:              safeFloat(r.km_fin, 0),
+          escala_entrada:      r.escala_entrada ?? '',
+          escala_salida:       r.escala_salida  ?? '',
+          q_entrada_m3s:       safeFloat(r.q_entrada_m3s, 0),
+          q_salida_m3s:        safeFloat(r.q_salida_m3s, 0),
+          q_tomas_registradas: safeFloat(r.q_tomas_registradas, 0),
+          q_fuga_detectada:    safeFloat(r.q_fuga_detectada, 0),
+          estado_balance:      r.estado_balance ?? 'BALANCEADO',
+        }))
+      );
       const hasLevels = Object.keys(rm).length > 0;
 
       // 5. Aperturas — safeFloat en todos los parseos
@@ -891,8 +951,15 @@ const ModelingDashboard: React.FC = () => {
           damNivel = Number.isFinite(nivelNum) ? nivelNum.toFixed(2) : '—';
         }
       }
+      // Tier 3: perfil hidráulico RPC — Q ya calculado con cascada completa (aforo → compuerta → presa)
+      if (!damLive && rpcQ && rpcQ > 0) {
+        qBaseVal  = rpcQ;
+        qDamVal   = rpcQ;
+        damFuente = 'fn_perfil_canal_completo';
+        damLive   = true;
+      }
       if (!damLive) {
-        // Tier 3: usar lectura más reciente de K-0 (la escala más cercana a la presa).
+        // Tier 4: lectura directa K-0 (respaldo si RPC no disponible).
         // NOTA: gasto de K-0 ya incluye pérdidas del tramo río (~36 km), por lo que
         // se aplica corrección inversa ÷0.95 para estimar el gasto real en cabeza de presa.
         const q0Escala = safeFloat(gastoMedidoMap.get(cps[0]?.id ?? ''), NaN);
@@ -926,6 +993,8 @@ const ModelingDashboard: React.FC = () => {
         damCurrentValue: qDamVal,
         damNivel, damFuente,
         totalExtractionM3s,
+        perfilFuente: rpcFuente ?? undefined,
+        perfilQ:      rpcQ     ?? undefined,
       });
     };
     fetchData();
@@ -1048,7 +1117,38 @@ const ModelingDashboard: React.FC = () => {
       const tr = findTramo(km, tramoGeom);
       return tr.tirante_diseno_m;
     });
-    const colors = simResults.map(r => statusColor(r.status));
+    // Colores por estado_lectura del RPC (reemplaza statusColor Manning para escalas)
+    const estadoColorMap: Record<string, string> = {
+      CONSISTENTE:           '#22c55e',   // verde
+      DESBORDAMIENTO:        '#ef4444',   // rojo
+      ALERTA_DESBORDAMIENTO: '#f59e0b',   // ámbar
+      SIN_LECTURA:           '#64748b',   // gris
+      SIN_DATOS:             '#64748b',
+    };
+    // Mapa km_ref → { nivel_real_m, estado_lectura } del RPC
+    const rpcByKm = new Map<number, { nivel: number; estado: string }>();
+    (perfilRpc as any[]).forEach(row => {
+      const km = safeFloat(row.km_ref, NaN);
+      const nv = safeFloat(row.nivel_real_m, NaN);
+      if (Number.isFinite(km)) rpcByKm.set(km, { nivel: nv, estado: row.estado_lectura ?? 'SIN_DATOS' });
+    });
+    // Serie ámbar: puntos [km_ref, nivel_real_m] del perfil SQL
+    const rpcNivelSerie = (perfilRpc as any[])
+      .map(row => {
+        const km = safeFloat(row.km_ref, NaN);
+        const nv = safeFloat(row.nivel_real_m, NaN);
+        return Number.isFinite(km) && Number.isFinite(nv) && nv > 0.05 ? [km, +nv.toFixed(3)] : null;
+      })
+      .filter(Boolean) as [number, number][];
+
+    // Color de cada punto de control: usa estado_lectura RPC si está disponible
+    const colors = simResults.map(r => {
+      const rpcRow = rpcByKm.get(r.km) ?? [...rpcByKm.entries()]
+        .filter(([k]) => Math.abs(k - r.km) < 2)
+        .sort((a, b) => Math.abs(a[0] - r.km) - Math.abs(b[0] - r.km))[0]?.[1];
+      if (rpcRow) return estadoColorMap[rpcRow.estado] ?? statusColor(r.status);
+      return statusColor(r.status);
+    });
 
     // ── Ruta de onda: [tiempo_horas, km] — empieza en origen [0, 0] ──
     // Usando tiempos de tránsito reales del motor hidráulico
@@ -1099,7 +1199,7 @@ const ModelingDashboard: React.FC = () => {
       if (!params?.length) return '';
       const p0 = params[0];
       // Grid 0 — perfil longitudinal (series indexadas por km)
-      if (['Tirante Actual', 'Tirante Simulado', 'Caudal Q', 'Tirante Diseño', 'Bordo Libre'].includes(p0.seriesName)) {
+      if (['Tirante Actual', 'Nivel Real SQL', 'Tirante Simulado', 'Caudal Q', 'Tirante Diseño', 'Bordo Libre'].includes(p0.seriesName)) {
         if (!simResults.length) return '';
         const axisKm = p0.axisValue as number;
         const r = simResults.find(r2 => r2.km === axisKm) ?? simResults.reduce((best, r2) => Math.abs(r2.km - axisKm) < Math.abs(best.km - axisKm) ? r2 : best, simResults[0]);
@@ -1107,8 +1207,14 @@ const ModelingDashboard: React.FC = () => {
         const dCm = Math.round((r.delta_y ?? 0) * 100);
         const sign = dCm >= 0 ? '+' : '';
         const movClr = dCm > 2 ? '#fbbf24' : dCm < -2 ? '#60a5fa' : '#94a3b8';
+        const rpcRow = rpcByKm.get(r.km) ?? [...rpcByKm.entries()]
+          .filter(([k]) => Math.abs(k - r.km) < 2)
+          .sort((a, b) => Math.abs(a[0] - r.km) - Math.abs(b[0] - r.km))[0]?.[1];
+        const estadoLabel = rpcRow?.estado ?? '—';
+        const estadoClr   = estadoColorMap[estadoLabel] ?? '#64748b';
         return `<div style="font-family:monospace;font-size:11px;line-height:1.9;min-width:200px">
           <div style="color:#94a3b8;font-size:9px;border-bottom:1px solid #1e3a5f;padding-bottom:3px;margin-bottom:5px">${r.nombre} · KM ${r.km}</div>
+          <div>Nivel real SQL&nbsp;&nbsp;<b style="color:#f59e0b">${rpcRow && Number.isFinite(rpcRow.nivel) ? rpcRow.nivel.toFixed(2)+' m' : '—'}</b>&nbsp;<span style="color:${estadoClr};font-size:9px">${estadoLabel}</span></div>
           <div>Tirante actual &nbsp;&nbsp;<b style="color:#38bdf8">${(r.y_base??0).toFixed(2)} m</b></div>
           <div>Tirante simulado<b style="color:${statusColor(r.status)}">&nbsp;${(r.y_sim??0).toFixed(2)} m</b></div>
           <div>Variación &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b style="color:${movClr}">${sign}${dCm} cm</b></div>
@@ -1195,6 +1301,40 @@ const ModelingDashboard: React.FC = () => {
       series: [
         // ── GRID 0: Perfil Longitudinal Hidráulico ───────────────────
 
+        // Bandas de fondo por estado_lectura del RPC (markArea por tramo)
+        // z=0 — debajo de todas las líneas para no tapar datos
+        {
+          name: 'Bandas Tramo', type: 'line',
+          xAxisIndex: 0, yAxisIndex: 0,
+          data: [], showSymbol: false, lineStyle: { opacity: 0 }, z: 0,
+          markArea: {
+            silent: true,
+            data: (() => {
+              if (!perfilRpc.length) return [];
+              const bandaColor: Record<string, string> = {
+                CONSISTENTE:           'rgba(34,197,94,0.06)',
+                DESBORDAMIENTO:        'rgba(239,68,68,0.11)',
+                ALERTA_DESBORDAMIENTO: 'rgba(245,158,11,0.09)',
+                SIN_LECTURA:           'rgba(100,116,139,0.04)',
+                SIN_DATOS:             'rgba(100,116,139,0.04)',
+              };
+              const rows = (perfilRpc as any[])
+                .filter(r => Number.isFinite(safeFloat(r.km_ref, NaN)))
+                .sort((a, b) => safeFloat(a.km_ref) - safeFloat(b.km_ref));
+              return rows.map((row, i) => {
+                const kmFin   = safeFloat(row.km_ref);
+                const kmIni   = i === 0 ? 0 : safeFloat(rows[i - 1].km_ref);
+                const estado  = row.estado_lectura ?? 'SIN_DATOS';
+                const color   = bandaColor[estado] ?? 'rgba(100,116,139,0.04)';
+                return [
+                  { xAxis: kmIni, itemStyle: { color } },
+                  { xAxis: kmFin },
+                ];
+              });
+            })(),
+          },
+        },
+
         // Franja bordo libre (capacidad total del canal por tramo)
         {
           name: 'Bordo Libre', type: 'line',
@@ -1238,6 +1378,19 @@ const ModelingDashboard: React.FC = () => {
               ],
             },
           },
+        },
+
+        // Nivel Real SQL — puntos medidos del perfil hidráulico RPC (fn_perfil_canal_completo)
+        // Línea ámbar: diferencia visible vs Tirante Actual (interpolado) y Simulado (Manning)
+        {
+          name: 'Nivel Real SQL', type: 'line',
+          xAxisIndex: 0, yAxisIndex: 0,
+          data: rpcNivelSerie,
+          smooth: false, showSymbol: true, z: 5,
+          symbol: 'diamond', symbolSize: 8,
+          lineStyle: { color: '#f59e0b', width: 2, type: 'solid' },
+          itemStyle: { color: '#f59e0b', borderColor: '#04080f', borderWidth: 1.5 },
+          label: { show: false },
         },
 
         // Área llenada — Tirante Simulado (superficie de agua simulada)
@@ -1393,7 +1546,239 @@ const ModelingDashboard: React.FC = () => {
         },
       ],
     };
-  }, [simResults, timeDelta, qDam, tramoGeom, deliveryPoints]);
+  }, [simResults, timeDelta, qDam, tramoGeom, deliveryPoints, perfilRpc]);
+
+  // ── PANEL B: HIDROGRAMA DE GASTO ─────────────────────────────────────
+  const qChartOption = useMemo(() => {
+    if (!simResults.length && !perfilRpc.length) return {};
+
+    // Q Real SQL (RPC) — ordenado por km_ref ascendente
+    const rpcQSerie: [number, number][] = (perfilRpc as any[])
+      .filter(r => safeFloat(r.km_ref, NaN) > 0 || r.km_ref === 0)
+      .filter(r => Number.isFinite(safeFloat(r.km_ref, NaN)) && safeFloat(r.q_m3s, 0) > 0)
+      .sort((a, b) => safeFloat(a.km_ref) - safeFloat(b.km_ref))
+      .map(r => [safeFloat(r.km_ref), +safeFloat(r.q_m3s).toFixed(3)]);
+
+    // Q Simulado Manning — origen en km=0 con qDam
+    const simQSerie: [number, number][] = [
+      [0, +qDam.toFixed(3)],
+      ...simResults.map(r => [r.km, +r.q_sim.toFixed(3)] as [number, number]),
+    ];
+
+    // Extracciones activas — barras descendentes en km de cada toma
+    const extSerie = deliveryPoints
+      .filter(d => d.is_active && d.caudal_m3s > 0 && Number.isFinite(d.km))
+      .map(d => ({ value: [d.km, +d.caudal_m3s.toFixed(3)], name: d.nombre }));
+
+    const allQ = [...rpcQSerie.map(p => p[1]), ...simQSerie.map(p => p[1])].filter(Boolean);
+    const qMax = Math.max(10, ...allQ) * 1.15;
+    const extMax = deliveryPoints.filter(d => d.is_active).reduce((s, d) => s + d.caudal_m3s, 0);
+    const yMin  = -(Math.max(0.5, extMax) * 1.8);
+
+    // Bandas de balance hídrico (markArea) sobre Panel B
+    const balanceMarkArea = balanceTramos.length > 0 ? {
+      silent: true,
+      data: balanceTramos.map(bt => {
+        const color = bt.estado_balance === 'FUGA_ALTA'    ? 'rgba(239,68,68,0.10)'
+                    : bt.estado_balance === 'FUGA_MEDIA'   ? 'rgba(251,191,36,0.07)'
+                    : bt.estado_balance === 'INCONSISTENCIA' ? 'rgba(96,165,250,0.07)'
+                    : 'transparent';
+        return [
+          { xAxis: bt.km_inicio, itemStyle: { color } },
+          { xAxis: bt.km_fin },
+        ];
+      }),
+    } : undefined;
+
+    return {
+      animation: false,
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(4,11,22,0.97)',
+        borderColor: '#1e3a5f', borderWidth: 1,
+        textStyle: { color: '#e2e8f0', fontSize: 11 },
+        axisPointer: { type: 'line', lineStyle: { color: '#1e3a5f' } },
+        formatter: (params: any[]) => {
+          if (!params?.length) return '';
+          const km = params[0].axisValue as number;
+          const bt = balanceTramos.find(b => km >= b.km_inicio && km <= b.km_fin);
+          let html = `<div style="font-family:monospace;font-size:11px;line-height:1.8;min-width:180px">
+            <div style="color:#94a3b8;font-size:9px;border-bottom:1px solid #1e3a5f;padding-bottom:2px;margin-bottom:4px">K-${km}</div>`;
+          params.forEach(p => {
+            if (p.seriesName === 'Q Real SQL' || p.seriesName === 'Q Simulado') {
+              const val = Array.isArray(p.value) ? p.value[1] : p.value;
+              html += `<div>${p.marker}${p.seriesName} <b>${(+val).toFixed(2)} m³/s</b></div>`;
+            }
+          });
+          const tomas = deliveryPoints.filter(d => d.is_active && Math.abs(d.km - km) < 4);
+          if (tomas.length) {
+            html += `<div style="color:#fbbf24;font-size:9px;margin-top:3px">`;
+            tomas.forEach(t => { html += `↓ ${t.nombre}: ${t.caudal_m3s.toFixed(3)} m³/s<br/>`; });
+            html += `</div>`;
+          }
+          if (bt && bt.q_fuga_detectada !== 0) {
+            const fClr = bt.estado_balance === 'FUGA_ALTA'    ? '#ef4444'
+                       : bt.estado_balance === 'FUGA_MEDIA'   ? '#f59e0b'
+                       : bt.estado_balance === 'INCONSISTENCIA' ? '#60a5fa'
+                       : '#22c55e';
+            html += `<div style="color:${fClr};font-size:9px;margin-top:3px;border-top:1px solid #1e3a5f;padding-top:2px">`;
+            html += `${bt.estado_balance}: ${bt.q_fuga_detectada > 0 ? '+' : ''}${bt.q_fuga_detectada.toFixed(2)} m³/s`;
+            html += `<br/>Tomas reg.: ${bt.q_tomas_registradas.toFixed(2)} m³/s</div>`;
+          }
+          html += '</div>';
+          return html;
+        },
+      },
+      grid: { top: 28, bottom: 36, left: 58, right: 16 },
+      xAxis: {
+        type: 'value', min: 0, max: 110,
+        axisLabel: { color: '#64748b', fontSize: 8, formatter: 'K{value}' },
+        axisLine: { lineStyle: { color: '#1e3a5f' } },
+        splitLine: { lineStyle: { color: 'rgba(30,58,95,0.3)', type: 'dashed' } },
+      },
+      yAxis: {
+        type: 'value', name: 'Q (m³/s)', min: +yMin.toFixed(1), max: +qMax.toFixed(0),
+        nameTextStyle: { color: '#334155', fontSize: 8 },
+        axisLabel: { color: '#64748b', fontSize: 8, formatter: (v: number) => v >= 0 ? `${v}` : '' },
+        splitLine: { lineStyle: { color: '#080f1c', type: 'dashed' } },
+        axisLine: { lineStyle: { color: '#1e3a5f' } },
+      },
+      series: [
+        // Referencia cero
+        {
+          name: 'Cero', type: 'line', data: [[0, 0], [110, 0]],
+          showSymbol: false, z: 1,
+          lineStyle: { color: 'rgba(100,116,139,0.25)', width: 1 },
+        },
+        // Q Simulado Manning (teal punteado)
+        {
+          name: 'Q Simulado', type: 'line', data: simQSerie,
+          smooth: true, showSymbol: false, z: 3,
+          lineStyle: { color: '#2dd4bf', width: 1.5, type: 'dashed' },
+        },
+        // Q Real SQL (ámbar sólido con diamantes)
+        {
+          name: 'Q Real SQL', type: 'line', data: rpcQSerie,
+          smooth: false, showSymbol: true, symbolSize: 8, symbol: 'diamond', z: 5,
+          lineStyle: { color: '#f59e0b', width: 2.5 },
+          itemStyle: { color: '#f59e0b', borderColor: '#04080f', borderWidth: 1.5 },
+        },
+        // Extracciones activas (barras ámbar descendentes)
+        {
+          name: 'Extracciones', type: 'bar', data: extSerie,
+          barMaxWidth: 5, z: 2,
+          itemStyle: { color: 'rgba(251,191,36,0.55)', borderRadius: [2, 2, 0, 0] },
+        },
+        // Bandas de balance hídrico (markArea invisible, solo fondo coloreado)
+        {
+          name: 'Balance', type: 'line', data: [], showSymbol: false,
+          lineStyle: { opacity: 0 }, z: 0,
+          ...(balanceMarkArea ? { markArea: balanceMarkArea } : {}),
+        },
+      ],
+    };
+  }, [simResults, perfilRpc, deliveryPoints, qDam, balanceTramos]);
+
+  // ── ETAPA 5: SECCIÓN TRANSVERSAL INTERACTIVA ─────────────────────────
+  const crossSectionOption = useMemo(() => {
+    if (!activeCPResult) return {};
+
+    const b  = activeCPResult.plantilla_m;
+    const td = activeCPResult.tirante_diseno_m;
+    const fb = activeCPResult.bordo_libre_m;
+    const cd = activeCPResult.canal_depth_m;          // td + fb
+    const z  = findTramo(activeCPResult.km, tramoGeom).talud_z;
+    const yB = Math.max(0, activeCPResult.y_base);    // nivel actual
+    const yS = Math.max(0, activeCPResult.y_sim);     // nivel simulado
+
+    // Nivel Real SQL del RPC para este punto de control
+    const rpcRow = (perfilRpc as any[]).find(r =>
+      Math.abs(safeFloat(r.km_ref, NaN) - activeCPResult.km) < 2.0
+    );
+    const yR = rpcRow ? safeFloat(rpcRow.nivel_real_m, NaN) : NaN;
+
+    // Coordenadas horizontales del trapecio a profundidad y
+    const xL = (y: number) => -(b / 2 + z * y);
+    const xR = (y: number) =>  (b / 2 + z * y);
+
+    // Contorno del canal (talud izq → fondo → talud der)
+    const canalContorno = [
+      [xL(cd), cd], [xL(0), 0], [xR(0), 0], [xR(cd), cd],
+    ];
+
+    // Relleno de agua a una profundidad dada
+    const waterPoly = (y: number): [number, number][] =>
+      y > 0.05 ? [[xL(y), y], [xL(0), 0], [xR(0), 0], [xR(y), y]] : [];
+
+    const xMax = xR(cd) + 1;
+    const yMax = +(cd * 1.12).toFixed(2);
+
+    return {
+      animation: false,
+      backgroundColor: 'transparent',
+      tooltip: { show: false },
+      grid: { top: 18, bottom: 28, left: 42, right: 12 },
+      xAxis: {
+        type: 'value', min: -xMax, max: xMax,
+        axisLabel: { color: '#64748b', fontSize: 7, formatter: (v: number) => `${v.toFixed(0)}m` },
+        axisLine: { lineStyle: { color: '#1e3a5f' } },
+        splitLine: { show: false },
+        axisTick: { lineStyle: { color: '#1e3a5f' } },
+      },
+      yAxis: {
+        type: 'value', name: 'm', min: 0, max: yMax,
+        nameTextStyle: { color: '#334155', fontSize: 7 },
+        axisLabel: { color: '#64748b', fontSize: 7, formatter: '{value}' },
+        splitLine: { lineStyle: { color: '#080f1c', type: 'dashed' } },
+        axisLine: { lineStyle: { color: '#1e3a5f' } },
+      },
+      series: [
+        // Terraplén (fondo del canal — relleno oscuro)
+        {
+          name: 'Canal', type: 'line', data: canalContorno,
+          smooth: false, showSymbol: false, z: 1,
+          lineStyle: { color: '#475569', width: 2 },
+          areaStyle: { color: 'rgba(15,23,42,0.55)' },
+        },
+        // Agua simulada Manning (teal, relleno)
+        {
+          name: 'Agua Simulada', type: 'line', data: waterPoly(yS),
+          smooth: false, showSymbol: false, z: 2,
+          lineStyle: { color: '#2dd4bf', width: 1.5 },
+          areaStyle: { color: 'rgba(45,212,191,0.15)' },
+        },
+        // Agua actual lecturas (cian punteado, relleno más tenue)
+        {
+          name: 'Agua Actual', type: 'line', data: waterPoly(yB),
+          smooth: false, showSymbol: false, z: 3,
+          lineStyle: { color: '#38bdf8', width: 1.5, type: 'dashed' },
+          areaStyle: { color: 'rgba(56,189,248,0.10)' },
+        },
+        // Nivel Real SQL (ámbar, línea horizontal)
+        ...(Number.isFinite(yR) && yR > 0.05 ? [{
+          name: 'Nivel Real SQL', type: 'line' as const,
+          data: [[xL(yR), yR], [xR(yR), yR]] as [number, number][],
+          smooth: false, showSymbol: false, z: 4,
+          lineStyle: { color: '#f59e0b', width: 2.5 },
+        }] : []),
+        // Tirante de diseño (gris punteado)
+        {
+          name: 'Diseño', type: 'line',
+          data: [[xL(td), td], [xR(td), td]],
+          smooth: false, showSymbol: false, z: 1,
+          lineStyle: { color: 'rgba(71,85,105,0.6)', width: 1, type: 'dotted' },
+        },
+        // Bordo libre / tope del canal (rojo tenue)
+        {
+          name: 'Bordo Libre', type: 'line',
+          data: [[xL(cd), cd], [xR(cd), cd]],
+          smooth: false, showSymbol: false, z: 1,
+          lineStyle: { color: 'rgba(239,68,68,0.45)', width: 1, type: 'dashed' },
+        },
+      ],
+    };
+  }, [activeCPResult, tramoGeom, perfilRpc]);
 
   // ── GLOBALS ──────────────────────────────────────────────────────────
   const firstCP      = simResults[0];
@@ -1619,6 +2004,15 @@ const ModelingDashboard: React.FC = () => {
               : 'Sin reporte del día'}
           </span>
         </div>
+        <div className={`sim-ds-pill ${dataStatus.perfilFuente ? 'live' : 'default'}`}>
+          <span className="sim-ds-dot" />
+          <span className="sim-ds-label">Q ENTRADA CANAL</span>
+          <span className="sim-ds-val">
+            {dataStatus.perfilFuente
+              ? `${(dataStatus.perfilQ ?? 0).toFixed(1)} m³/s · ${dataStatus.perfilFuente}`
+              : 'Sin perfil hidráulico'}
+          </span>
+        </div>
         {dataStatus.timestamp && (
           <div className="sim-ds-ts">
             <Clock size={9} /> Actualizado {dataStatus.timestamp}
@@ -1736,6 +2130,56 @@ const ModelingDashboard: React.FC = () => {
               <ReactECharts option={opsChartOption} style={{ height: '100%', width: '100%' }} notMerge={true} />
             </div>
           </div>
+
+          {/* ─── PANEL B: HIDROGRAMA DE GASTO ───────────────────── */}
+          <div className="sim-qflow-card">
+            <div className="sim-qflow-hdr">
+              <span className="sim-qflow-title">
+                <Droplets size={11} />
+                Hidrograma de Gasto · Q Real vs Q Simulado a lo Largo del Canal
+              </span>
+              <div className="sim-profile-legend">
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#f59e0b', borderRadius: 2 }} /> Q Real SQL</span>
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#2dd4bf', borderRadius: 0 }} /> Q Simulado</span>
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'rgba(251,191,36,0.55)', borderRadius: 1 }} /> Extracciones</span>
+                {dataStatus.perfilFuente && (
+                  <span className="sim-leg sim-leg-fuente">
+                    Fuente: {dataStatus.perfilFuente}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="sim-qflow-chart">
+              <ReactECharts option={qChartOption} style={{ height: '100%', width: '100%' }} notMerge={true} />
+            </div>
+          </div>
+
+          {/* ─── ETAPA 5: SECCIÓN TRANSVERSAL ──────────────────── */}
+          {activeCPResult && (
+            <div className="sim-cross-card">
+              <div className="sim-qflow-hdr">
+                <span className="sim-qflow-title">
+                  <Activity size={11} />
+                  Sección Transversal · {activeCPResult.nombre} · KM {activeCPResult.km}
+                  &nbsp;·&nbsp;
+                  Plantilla {activeCPResult.plantilla_m.toFixed(0)} m · Z {findTramo(activeCPResult.km, tramoGeom).talud_z}:1
+                </span>
+                <div className="sim-profile-legend">
+                  <span className="sim-leg"><span className="sim-leg-dot sim-leg-dot--amber" /> Nivel Real SQL</span>
+                  <span className="sim-leg"><span className="sim-leg-dot sim-leg-dot--cyan-line" /> Actual</span>
+                  <span className="sim-leg"><span className="sim-leg-dot sim-leg-dot--teal" /> Simulado</span>
+                  <span className="sim-leg sim-leg--muted">
+                    y_real {Number.isFinite(activeCPResult.y_base) ? activeCPResult.y_base.toFixed(2) : '—'} m ·
+                    y_sim {activeCPResult.y_sim.toFixed(2)} m ·
+                    Δ {((activeCPResult.y_sim - activeCPResult.y_base) * 100).toFixed(0)} cm
+                  </span>
+                </div>
+              </div>
+              <div className="sim-cross-chart">
+                <ReactECharts option={crossSectionOption} style={{ height: '100%', width: '100%' }} notMerge={true} />
+              </div>
+            </div>
+          )}
 
           {/* ─── PANEL COMPARACIÓN DE ESCENARIOS (Fase 2) ────────── */}
           {showScenarioB && (

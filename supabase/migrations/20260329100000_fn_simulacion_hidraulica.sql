@@ -114,7 +114,7 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 -- más filas de escalas intermedias y el punto final K-104.
 
 CREATE OR REPLACE FUNCTION public.fn_simular_escenario_canal(
-    p_fecha          DATE    DEFAULT CURRENT_DATE,
+    p_fecha          DATE    DEFAULT NULL,
     p_q_entrada_m3s  NUMERIC DEFAULT NULL,
     p_modificaciones JSONB   DEFAULT '[]'::jsonb
 )
@@ -179,6 +179,11 @@ DECLARE
     v_escala_nombre    TEXT;
     v_nivel_real       NUMERIC;
 BEGIN
+    -- Zona horaria: si no se pasa fecha, usar fecha local Chihuahua (no UTC)
+    IF p_fecha IS NULL THEN
+        p_fecha := (NOW() AT TIME ZONE 'America/Chihuahua')::date;
+    END IF;
+
     -- ── 1. OBTENER GASTO DE ENTRADA (K-0) ─────────────────────────────────────
     -- El gasto en K-0 viene del río, no directamente de la presa.
     -- La presa mantiene su último gasto hasta que haya un nuevo movimiento.
@@ -401,7 +406,7 @@ $$ LANGUAGE plpgsql STABLE;
 CREATE OR REPLACE FUNCTION public.fn_verificar_escala_km(
     p_km      NUMERIC,
     p_nivel_m NUMERIC,
-    p_fecha   DATE DEFAULT CURRENT_DATE
+    p_fecha   DATE DEFAULT NULL
 )
 RETURNS TABLE (
     escala_id       TEXT,
@@ -436,6 +441,9 @@ DECLARE
     v_tirante_diseno NUMERIC;
     v_bordo_libre    NUMERIC;
 BEGIN
+    IF p_fecha IS NULL THEN
+        p_fecha := (NOW() AT TIME ZONE 'America/Chihuahua')::date;
+    END IF;
     -- Buscar escala más cercana al km indicado (incluir límites operativos)
     SELECT e.id, e.nombre, e.km,
            e.nivel_max_operativo,
@@ -553,7 +561,7 @@ $$ LANGUAGE plpgsql STABLE;
 -- Útil para mostrar en dashboard sin sobrecargar la UI
 
 CREATE OR REPLACE FUNCTION public.fn_resumen_escenario_canal(
-    p_fecha          DATE    DEFAULT CURRENT_DATE,
+    p_fecha          DATE    DEFAULT NULL,
     p_q_entrada_m3s  NUMERIC DEFAULT NULL,
     p_modificaciones JSONB   DEFAULT '[]'::jsonb
 )
@@ -574,6 +582,9 @@ RETURNS TABLE (
     tomas_activas   INTEGER
 ) AS $$
 BEGIN
+    IF p_fecha IS NULL THEN
+        p_fecha := (NOW() AT TIME ZONE 'America/Chihuahua')::date;
+    END IF;
     RETURN QUERY
     SELECT
         s.km_ref,

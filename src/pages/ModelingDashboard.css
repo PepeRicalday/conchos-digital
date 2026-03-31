@@ -1343,6 +1343,154 @@
 .sim-compare-sum-diff.faster { color: #10b981; background: rgba(16,185,129,0.1); }
 .sim-compare-sum-diff.slower { color: #f59e0b; background: rgba(245,158,11,0.1); }
 
+/* ── Modificar Tomas — Escenario hipotético ──────────────────────── */
+.sim-mods-section {
+  border-top: 1px solid var(--sim-border);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sim-mods-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 8px;
+  font-weight: 700;
+  color: #a78bfa;
+  letter-spacing: 0.08em;
+}
+
+.sim-mods-clear {
+  background: none;
+  border: none;
+  color: var(--sim-muted);
+  cursor: pointer;
+  font-size: 9px;
+  padding: 1px 4px;
+}
+.sim-mods-clear:hover { color: #ef4444; }
+
+.sim-mods-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.sim-mod-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  padding: 3px 4px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid transparent;
+}
+.sim-mod-row.modified {
+  border-color: rgba(167,139,250,0.3);
+  background: rgba(167,139,250,0.04);
+}
+
+.sim-mod-km {
+  color: #38bdf8;
+  font-weight: 700;
+  min-width: 32px;
+  font-size: 8px;
+}
+
+.sim-mod-name {
+  flex: 1;
+  color: var(--sim-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.sim-mod-input {
+  width: 48px;
+  padding: 2px 4px;
+  background: var(--sim-bg);
+  border: 1px solid var(--sim-border);
+  border-radius: 3px;
+  color: #a78bfa;
+  font-size: 9px;
+  font-family: monospace;
+  text-align: right;
+}
+.sim-mod-input:focus { outline: none; border-color: #a78bfa; }
+
+.sim-mod-unit {
+  color: var(--sim-muted);
+  font-size: 8px;
+  min-width: 22px;
+}
+
+.sim-mod-close-btn {
+  background: none;
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 3px;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 9px;
+  padding: 1px 5px;
+  line-height: 1.4;
+}
+.sim-mod-close-btn.closed {
+  border-color: rgba(16,185,129,0.4);
+  color: #10b981;
+}
+.sim-mod-close-btn:hover { opacity: 0.8; }
+
+.sim-rpc-btn {
+  background: linear-gradient(135deg, rgba(167,139,250,0.15), rgba(99,102,241,0.1));
+  border: 1px solid rgba(167,139,250,0.4);
+  border-radius: 5px;
+  color: #a78bfa;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 6px 10px;
+  text-align: center;
+  transition: background 0.15s;
+}
+.sim-rpc-btn:hover:not(:disabled) { background: rgba(167,139,250,0.2); }
+.sim-rpc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Resultados RPC servidor ────────────────────────────────────── */
+.sim-rpc-results {
+  border-top: 1px solid var(--sim-border);
+}
+
+/* Tabla RPC — cabecera primera columna a la izquierda */
+.sim-rpc-th-left { text-align: left !important; }
+
+.sim-rpc-tramo-name {
+  text-align: left;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sim-rpc-q { color: #a78bfa; }
+
+.sim-rpc-dy        { color: #94a3b8; }
+.sim-rpc-dy.up     { color: #fbbf24; }
+.sim-rpc-dy.dn     { color: #60a5fa; }
+
+.sim-rpc-arribo { color: #38bdf8; font-size: 8px; }
+
+.sim-rpc-fr      { font-weight: 700; }
+.sim-rpc-fr.ok   { color: #10b981; }
+.sim-rpc-fr.warn { color: #f59e0b; }
+.sim-rpc-fr.crit { color: #ef4444; }
+
 /* ══════════════════════════════════════════════════════════════════
    FASE 3 — MOTOR DE DECISIÓN HIDRÁULICA
    ══════════════════════════════════════════════════════════════════ */

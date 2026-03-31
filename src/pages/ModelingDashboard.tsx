@@ -1122,17 +1122,41 @@ const ModelingDashboard: React.FC = () => {
   const [showScenarioB, setShowScenarioB] = useState(false);
   const [qDamB,         setQDamB]         = useState(0);
 
+  // Modificaciones de tomas para escenario hipotético
+  interface ScenarioMod { punto_id: string; nombre: string; km: number; nuevo_caudal: number; original: number; }
+  const [scenarioMods,      setScenarioMods]      = useState<ScenarioMod[]>([]);
+  const [scenarioRpcLoading, setScenarioRpcLoading] = useState(false);
+  const [scenarioRpcRows,    setScenarioRpcRows]    = useState<any[]>([]);
+
   const simResultsB = useMemo<CPResult[]>(() => {
     if (!showScenarioB || !controlPoints.length || !dataLoaded) return [];
+    // Aplicar overrides de tomas al motor cliente para feedback instantáneo
+    const modDeliveries = deliveryPoints.map(d => {
+      const mod = scenarioMods.find(m => m.punto_id === d.punto_id);
+      return mod ? { ...d, caudal_m3s: mod.nuevo_caudal, is_active: mod.nuevo_caudal > 0 } : d;
+    });
     return runSimulation(controlPoints, qDamB, qBase, baseReadings, gateOverrides,
-      gastoMedidoRecord, deliveryPoints, tramoGeom, riverTransit, simBaseMin);
-  }, [showScenarioB, controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDamB, qBase, riverTransit, simBaseMin, deliveryPoints, dataLoaded, tramoGeom]);
+      gastoMedidoRecord, modDeliveries, tramoGeom, riverTransit, simBaseMin);
+  }, [showScenarioB, controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDamB, qBase, riverTransit, simBaseMin, deliveryPoints, scenarioMods, dataLoaded, tramoGeom]);
 
   // ── FASE 3: MOTOR DE DECISIÓN ─────────────────────────────────────────
   const decisions = useMemo<Decision[]>(() => {
     if (!simResults.length) return [];
     return generateDecisions(simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType);
   }, [simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType]);
+
+  // ── RPC: Simulación de escenario en servidor ──────────────────────────
+  const runScenarioRpc = async () => {
+    setScenarioRpcLoading(true);
+    setScenarioRpcRows([]);
+    const mods = scenarioMods.map(m => ({ punto_id: m.punto_id, nuevo_caudal_m3s: m.nuevo_caudal }));
+    const { data, error } = await supabase.rpc('fn_simular_escenario_canal', {
+      p_q_entrada_m3s:  qDamB > 0 ? qDamB : null,
+      p_modificaciones: mods,
+    });
+    if (!error && data) setScenarioRpcRows(data as any[]);
+    setScenarioRpcLoading(false);
+  };
 
   // ── CUADRO DE MANIOBRA: Perfil Longitudinal + Diagrama Espacio-Tiempo ──
   const opsChartOption = useMemo(() => {
@@ -2340,6 +2364,122 @@ const ModelingDashboard: React.FC = () => {
                 </table>
               </div>
 
+              {/* ── Modificar tomas para el escenario ── */}
+              {deliveryPoints.filter(d => d.is_active).length > 0 && (
+                <div className="sim-mods-section">
+                  <div className="sim-mods-hdr">
+                    <span>MODIFICAR EXTRACCIONES · ESCENARIO B</span>
+                    {scenarioMods.length > 0 && (
+                      <button type="button" className="sim-mods-clear"
+                        onClick={() => { setScenarioMods([]); setScenarioRpcRows([]); }}>
+                        Limpiar todo
+                      </button>
+                    )}
+                  </div>
+                  <div className="sim-mods-list">
+                    {deliveryPoints.filter(d => d.is_active).map(d => {
+                      const mod = scenarioMods.find(m => m.punto_id === d.punto_id);
+                      const val = mod !== undefined ? mod.nuevo_caudal : d.caudal_m3s;
+                      const isClosed = val === 0;
+                      return (
+                        <div key={d.punto_id} className={`sim-mod-row ${mod ? 'modified' : ''}`}>
+                          <span className="sim-mod-km">K{d.km.toFixed(1)}</span>
+                          <span className="sim-mod-name">{d.nombre}</span>
+                          <input
+                            type="number" min={0} step={0.01}
+                            value={val}
+                            className="sim-mod-input"
+                            title="Nuevo caudal m³/s"
+                            onChange={e => {
+                              const nv = Math.max(0, parseFloat(e.target.value) || 0);
+                              setScenarioMods(prev => {
+                                const without = prev.filter(m => m.punto_id !== d.punto_id);
+                                if (Math.abs(nv - d.caudal_m3s) < 0.001) return without;
+                                return [...without, { punto_id: d.punto_id, nombre: d.nombre, km: d.km, nuevo_caudal: nv, original: d.caudal_m3s }];
+                              });
+                              setScenarioRpcRows([]);
+                            }}
+                          />
+                          <span className="sim-mod-unit">m³/s</span>
+                          <button
+                            type="button"
+                            className={`sim-mod-close-btn ${isClosed ? 'closed' : ''}`}
+                            title={isClosed ? 'Restaurar' : 'Cerrar toma'}
+                            onClick={() => {
+                              setScenarioMods(prev => {
+                                const without = prev.filter(m => m.punto_id !== d.punto_id);
+                                if (isClosed) return without;
+                                return [...without, { punto_id: d.punto_id, nombre: d.nombre, km: d.km, nuevo_caudal: 0, original: d.caudal_m3s }];
+                              });
+                              setScenarioRpcRows([]);
+                            }}
+                          >
+                            {isClosed ? '↺' : '✕'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    className="sim-rpc-btn"
+                    onClick={runScenarioRpc}
+                    disabled={scenarioRpcLoading}
+                  >
+                    {scenarioRpcLoading
+                      ? '⏳ Simulando...'
+                      : `▶ Simular en servidor${scenarioMods.length > 0 ? ` (${scenarioMods.length} modif.)` : ''}`
+                    }
+                  </button>
+                </div>
+              )}
+
+              {/* ── Resultados RPC servidor ── */}
+              {scenarioRpcRows.length > 0 && (
+                <div className="sim-rpc-results">
+                  <div className="sim-mods-hdr">
+                    <span>RESULTADO SERVIDOR · {scenarioRpcRows.length} TRAMOS</span>
+                    <button type="button" className="sim-mods-clear" onClick={() => setScenarioRpcRows([])}>✕</button>
+                  </div>
+                  <div className="sim-compare-table-wrap">
+                    <table className="sim-compare-table">
+                      <thead>
+                        <tr>
+                          <th className="sim-rpc-th-left">Tramo</th>
+                          <th>Q sal.</th>
+                          <th>Tirante</th>
+                          <th>Δ cm</th>
+                          <th>Arribo</th>
+                          <th>Fr</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scenarioRpcRows.map((row: any, i: number) => {
+                          const dy = row.delta_y_cm ?? 0;
+                          const fr = row.froude ?? 0;
+                          return (
+                            <tr key={i} className={row.tipo_punto === 'k104' ? 'active-row' : ''}>
+                              <td className="sim-rpc-tramo-name">
+                                {(row.nombre_tramo ?? '').split(' (')[0]}
+                              </td>
+                              <td className="sim-rpc-q">{(row.q_salida_m3s ?? 0).toFixed(1)}</td>
+                              <td>{(row.y_normal_m ?? 0).toFixed(2)}m</td>
+                              <td className={`sim-rpc-dy ${dy > 5 ? 'up' : dy < -5 ? 'dn' : ''}`}>
+                                {dy >= 0 ? '+' : ''}{row.delta_y_cm ?? '—'}
+                              </td>
+                              <td className="sim-rpc-arribo">{row.hora_arribo ?? '—'}</td>
+                              <td className={`sim-rpc-fr ${fr > 0.8 ? 'crit' : fr > 0.5 ? 'warn' : 'ok'}`}>
+                                {fr.toFixed(2)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               {/* Resumen ejecutivo comparativo */}
               {simResultsB.length > 0 && (() => {
                 const lastA = simResults[simResults.length - 1];
@@ -2388,7 +2528,7 @@ const ModelingDashboard: React.FC = () => {
           <div className="sim-timeline-card">
             <div className="sim-tl-header">
               <div className="sim-player">
-                <button className={`sim-play-btn ${isPlaying ? 'playing' : ''}`} onClick={() => setIsPlaying(!isPlaying)}>
+                <button type="button" className={`sim-play-btn ${isPlaying ? 'playing' : ''}`} onClick={() => setIsPlaying(!isPlaying)}>
                   {isPlaying ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}
                 </button>
                 <button type="button" title="Reiniciar animación" className="sim-reset-btn" onClick={() => { setTimeDelta(0); setIsPlaying(false); }}>

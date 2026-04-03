@@ -228,16 +228,8 @@ const PublicMonitor: React.FC = () => {
 
             // ESTABILIZACIÓN: si no hay evento LLENADO activo, poblar readingsMap
             // con la lectura más reciente de cada escala (sin filtro de tiempo de evento).
-            //
-            // Para compuertas: se usa la ÚLTIMA apertura registrada (aperturaMap),
-            // que puede estar en un registro anterior al nivel más reciente.
-            // Esto permite mostrar el gasto calculado incluso si el operador registró
-            // nivel sin apertura en su última lectura.
+            // Se toma el primer registro por escala_id (ya ordenado creado_en desc = más reciente).
             if (!flowStartTime) {
-                const aperturaMap = new Map<string, number>();   // escala_id → última apertura > 0
-                const aperturaAbajo = new Map<string, number>(); // escala_id → nivel_abajo cuando se registró apertura
-
-                // Primera pasada: nivel más reciente por escala
                 (readings || []).forEach(r => {
                     if (!readingsMap.has(r.escala_id)) {
                         readingsMap.set(r.escala_id, {
@@ -246,30 +238,13 @@ const PublicMonitor: React.FC = () => {
                             hora:         r.hora_lectura,
                             fecha:        r.fecha,
                             timestamp:    new Date(r.creado_en).getTime(),
-                            apertura:     0,   // se sobreescribe abajo si hay dato
+                            apertura:     r.apertura_radiales_m || 0,
                             radiales_json: r.radiales_json,
                             gasto_real:   r.gasto_calculado_m3s || 0,
                         });
                         const esc = escData?.find(e => e.id === r.escala_id);
                         if (esc?.km === 0 && !latestReadingAtZero) {
                             latestReadingAtZero = readingsMap.get(r.escala_id);
-                        }
-                    }
-                    // Segunda info: última apertura > 0 (puede estar en un registro más antiguo)
-                    if ((r.apertura_radiales_m || 0) > 0 && !aperturaMap.has(r.escala_id)) {
-                        aperturaMap.set(r.escala_id, Number(r.apertura_radiales_m));
-                        aperturaAbajo.set(r.escala_id, Number(r.nivel_abajo_m) || 0);
-                    }
-                });
-
-                // Combinar: inyectar la última apertura conocida en cada reading de nivel
-                aperturaMap.forEach((ap, escId) => {
-                    const entry = readingsMap.get(escId);
-                    if (entry && entry.apertura === 0) {
-                        entry.apertura = ap;
-                        // Si el nivel_abajo del reading de nivel es 0, usar el que acompañó la apertura
-                        if (entry.nivel_abajo === 0) {
-                            entry.nivel_abajo = aperturaAbajo.get(escId) || 0;
                         }
                     }
                 });
@@ -372,7 +347,11 @@ const PublicMonitor: React.FC = () => {
                     const hA = reading?.nivel       || 0;
                     const hB = reading?.nivel_abajo || 0;
                     const cH = hB > 0 ? Math.max(0, hA - hB) : hA;
-                    gastoEsc = 0.6 * pzasEsc * anchoEsc * aperturaEsc * Math.sqrt(2 * 9.81 * cH);
+                    const qCalc = 0.6 * pzasEsc * anchoEsc * aperturaEsc * Math.sqrt(2 * 9.81 * Math.max(0, cH));
+                    // Tope de coherencia física: Q calculado no puede superar
+                    // el caudal de presa × 1.5 (margen para distribución en ramales)
+                    const qPresaRef = Number(mData?.[0]?.gasto_m3s || finalPresas[0]?.extraccion_total || 0);
+                    gastoEsc = (qPresaRef > 0 && qCalc > qPresaRef * 1.5) ? null : qCalc;
                 } else if (!tieneCompuertas && (reading?.gasto_real || 0) > 0) {
                     // Punto sin compuertas → usar rating curve (aforo libre válido)
                     gastoEsc = reading!.gasto_real;

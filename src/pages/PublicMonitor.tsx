@@ -333,31 +333,52 @@ const PublicMonitor: React.FC = () => {
 
                 const timestamp = reading?.timestamp || null;
 
-                // Gasto por punto: si tiene compuertas radiales y apertura > 0,
-                // calcular por orificio (Q = Cd·A·√2gH) — no usar rating curve.
-                // Cuando apertura = 0 y la escala tiene compuertas definidas, el gasto
-                // calculado por nivel (gasto_calculado_m3s) es la curva de aforo libre
-                // y NO representa el gasto real controlado por compuerta. Se muestra null.
-                const aperturaEsc = reading?.apertura || 0;
-                const pzasEsc     = Number((e as any).pzas_radiales) || 0;
-                const anchoEsc    = Number((e as any).ancho) || 0;
+                // Gasto por punto — jerarquía de cálculo:
+                //
+                // SICA Capture guarda en gasto_calculado_m3s el flujo calculado desde
+                // las compuertas (radiales_json) cuando el operador usa la interfaz de
+                // compuertas individuales. En ese caso apertura_radiales_m puede quedar
+                // en 0 (campo legacy) pero gasto_calculado_m3s ya es el valor correcto.
+                //
+                // Prioridad 1: radiales_json con datos → usar gasto_calculado_m3s (SICA Capture)
+                // Prioridad 2: apertura_radiales_m > 0 → fórmula de orificio local
+                // Prioridad 3: sin compuertas → rating curve (aforo libre válido)
+                // Prioridad 4: compuertas sin apertura ni JSON → null
+                const aperturaEsc   = reading?.apertura || 0;
+                const pzasEsc       = Number((e as any).pzas_radiales) || 0;
+                const anchoEsc      = Number((e as any).ancho) || 0;
                 const tieneCompuertas = pzasEsc > 0 && anchoEsc > 0;
+
+                // Sumar apertura total desde radiales_json (formato {index, apertura_m})
+                const radialesArr = Array.isArray(reading?.radiales_json) ? reading!.radiales_json : [];
+                const totalRadiales = radialesArr.reduce((s: number, v: any) => {
+                    if (typeof v === 'object' && v !== null && v.apertura_m !== undefined)
+                        return s + Number(v.apertura_m);
+                    return s + (parseFloat(String(v)) || 0);
+                }, 0);
+
                 let gastoEsc: number | null = null;
-                if (tieneCompuertas && aperturaEsc > 0) {
-                    const hA = reading?.nivel       || 0;
-                    const hB = reading?.nivel_abajo || 0;
-                    const cH = hB > 0 ? Math.max(0, hA - hB) : hA;
-                    const qCalc = 0.6 * pzasEsc * anchoEsc * aperturaEsc * Math.sqrt(2 * 9.81 * Math.max(0, cH));
-                    // Tope de coherencia física: Q calculado no puede superar
-                    // el caudal de presa × 1.5 (margen para distribución en ramales)
-                    const qPresaRef = Number(mData?.[0]?.gasto_m3s || finalPresas[0]?.extraccion_total || 0);
-                    gastoEsc = (qPresaRef > 0 && qCalc > qPresaRef * 1.5) ? null : qCalc;
-                } else if (!tieneCompuertas && (reading?.gasto_real || 0) > 0) {
-                    // Punto sin compuertas → usar rating curve (aforo libre válido)
+                const qPresaRef = Number(mData?.[0]?.gasto_m3s || finalPresas[0]?.extraccion_total || 0);
+
+                if (tieneCompuertas) {
+                    if (totalRadiales > 0 && (reading?.gasto_real || 0) > 0) {
+                        // SICA Capture calculó desde radiales_json — valor ya correcto
+                        gastoEsc = reading!.gasto_real;
+                    } else if (aperturaEsc > 0) {
+                        // Campo legacy apertura_radiales_m — calcular por orificio
+                        const hA = reading?.nivel       || 0;
+                        const hB = reading?.nivel_abajo || 0;
+                        const cH = hB > 0 ? Math.max(0, hA - hB) : hA;
+                        gastoEsc = 0.6 * pzasEsc * anchoEsc * aperturaEsc * Math.sqrt(2 * 9.81 * Math.max(0, cH));
+                    }
+                    // Tope de coherencia física
+                    if (gastoEsc !== null && qPresaRef > 0 && gastoEsc > qPresaRef * 1.5) {
+                        gastoEsc = null;
+                    }
+                } else if ((reading?.gasto_real || 0) > 0) {
+                    // Sin compuertas → rating curve válida (aforo libre)
                     gastoEsc = reading!.gasto_real;
                 }
-                // Si tiene compuertas pero apertura = 0 → gastoEsc queda null
-                // (rating curve es irrelevante cuando la compuerta controla el gasto)
 
                 return {
                     ...e,

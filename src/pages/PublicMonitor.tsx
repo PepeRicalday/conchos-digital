@@ -420,52 +420,35 @@ const PublicMonitor: React.FC = () => {
             const pzas = k0Phys?.pzas_radiales || 12;
             const ancho = k0Phys?.ancho || 1.84;
 
-            // ── Lógica correcta de gasto en K0 ───────────────────────────────
-            // gasto_calculado_m3s en lecturas_escalas es una curva nivel→gasto
-            // (rating curve / Manning). Cuando la compuerta está parcialmente
-            // abierta el nivel aguas arriba sube pero el gasto REAL lo controla
-            // la apertura — no el nivel. Por eso la compuerta tiene prioridad.
-            //
-            // Prioridad 1: Cálculo por compuertas radiales (si apertura > 0)
-            //              Q = Cd × (pzas × ancho × apertura) × √(2g × carga)
-            //              Esto refleja el gasto REAL que pasa al canal.
-            //
-            // Prioridad 2: gasto_calculado_m3s del turno (aforo libre, sin compuerta)
-            //              Válido solo cuando apertura = 0 (sección completamente abierta)
-            //              o cuando no hay dato de apertura.
-            let currentFlowAtZero = 0;
-            const apertura0 = zeroReading?.apertura || 0;
+            // ── Gasto K0: misma jerarquía que baseEscalas ────────────────────
+            // 1. radiales_json con datos → gasto_calculado_m3s (ya calculado por SICA Capture)
+            // 2. apertura_radiales_m > 0  → fórmula de orificio
+            // 3. ninguno               → 0 (no mostrar rating curve)
+            const apertura0      = zeroReading?.apertura || 0;
+            const radiales0      = Array.isArray(zeroReading?.radiales_json) ? zeroReading!.radiales_json : [];
+            const totalRadiales0 = radiales0.reduce((s: number, v: any) => {
+                if (typeof v === 'object' && v !== null && v.apertura_m !== undefined)
+                    return s + Number(v.apertura_m);
+                return s + (parseFloat(String(v)) || 0);
+            }, 0);
 
-            if (apertura0 > 0) {
-                // Compuerta parcialmente abierta → cálculo por orificio sumergido
+            let currentFlowAtZero = 0;
+
+            if (totalRadiales0 > 0 && (zeroReading?.gasto_real || 0) > 0) {
+                // SICA Capture calculó desde radiales_json
+                currentFlowAtZero = zeroReading!.gasto_real;
+            } else if (apertura0 > 0) {
                 const Cd      = 0.6;
-                const hArriba = zeroReading?.nivel      || 0;
+                const hArriba = zeroReading?.nivel       || 0;
                 const hAbajo  = zeroReading?.nivel_abajo || 0;
-                const cargaH  = hAbajo > 0
-                    ? Math.max(0, hArriba - hAbajo)
-                    : hArriba;
-                const areaTotal = pzas * ancho * apertura0;
-                currentFlowAtZero = Cd * areaTotal * Math.sqrt(2 * 9.81 * cargaH);
-            } else {
-                // Sin apertura registrada: K0 tiene compuertas radiales, la rating curve
-                // (gasto_calculado_m3s) no es representativa del gasto real controlado.
-                // Usar 0 para evitar mostrar un valor físicamente incorrecto.
-                currentFlowAtZero = 0;
+                const cargaH  = hAbajo > 0 ? Math.max(0, hArriba - hAbajo) : hArriba;
+                currentFlowAtZero = Cd * pzas * ancho * apertura0 * Math.sqrt(2 * 9.81 * Math.max(0, cargaH));
             }
 
-            // Corrección de coherencia física: el gasto en K0 no puede superar
-            // el gasto de presa (con margen del 5% por error de medición)
-            // Usa mData (recién obtenido) en lugar de damMovements (estado React, puede estar stale)
-            const qPresa0 = Number(mData?.[0]?.gasto_m3s
-                || presasData[0]?.extraccion_total || 0);
-            if (qPresa0 > 0 && currentFlowAtZero > qPresa0 * 1.05) {
-                // Valor físicamente imposible — dato de curva de descarga incorrecto
-                // Usar cálculo por compuerta si hay apertura, si no limpiar
-                if (apertura0 > 0) {
-                    // Ya calculado arriba — no hacer nada, el valor es correcto
-                } else {
-                    currentFlowAtZero = 0; // Sin apertura y sin coherencia → sin dato
-                }
+            // Tope de coherencia física
+            const qPresa0 = Number(mData?.[0]?.gasto_m3s || finalPresas[0]?.extraccion_total || 0);
+            if (qPresa0 > 0 && currentFlowAtZero > qPresa0 * 1.5) {
+                currentFlowAtZero = 0;
             }
 
             const hasViolation = currentFlowAtZero > 70.42;

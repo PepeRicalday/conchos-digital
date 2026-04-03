@@ -324,10 +324,23 @@ const PublicMonitor: React.FC = () => {
 
                 const timestamp = reading?.timestamp || null;
 
+                // ── Coherencia física (solo ESTABILIZACIÓN) ───────────────────
+                // En ESTABILIZACIÓN el flujo en cualquier punto del canal no puede
+                // superar el gasto de presa. Si gasto_calculado_m3s (rating curve
+                // Manning a nivel lleno) supera presa × 1.1, es un artefacto del
+                // nivel alto residual del LLENADO — no representa flujo real.
+                let gastoFinal: number | null = reading?.gasto_real ?? null;
+                if (!flowStartTime && gastoFinal !== null) {
+                    const qPresaRef = Number(mData?.[0]?.gasto_m3s || finalPresas[0]?.extraccion_total || 0);
+                    if (qPresaRef > 0 && gastoFinal > qPresaRef * 1.1) {
+                        gastoFinal = null;
+                    }
+                }
+
                 return {
                     ...e,
                     nivel_actual:          nivel,
-                    gasto_actual:          reading?.gasto_real          ?? null,
+                    gasto_actual:          gastoFinal,
                     apertura_actual:       reading?.apertura            ?? null,
                     nivel_max_operativo:   (e as any).nivel_max_operativo ?? null,
                     capacidad_max:         (e as any).capacidad_max       ?? null,
@@ -367,7 +380,7 @@ const PublicMonitor: React.FC = () => {
             // Priority 1: Real gauged/calculated flow from field (SICA Capture)
             // Priority 2: Theoretical radial gate model (Cd=0.6)
             let currentFlowAtZero = zeroReading?.gasto_real || 0;
-            
+
             if (currentFlowAtZero === 0 && zeroReading?.apertura > 0) {
                 const Cd = 0.6;
                 const hArriba = zeroReading.nivel || 0;
@@ -375,6 +388,12 @@ const PublicMonitor: React.FC = () => {
                 const cargaH = hAbajo > 0 ? Math.max(0, hArriba - hAbajo) : hArriba;
                 const areaTotal = pzas * ancho * zeroReading.apertura;
                 currentFlowAtZero = Cd * areaTotal * Math.sqrt(2 * 9.81 * cargaH);
+            }
+
+            // Coherencia física: K0 no puede superar el gasto de presa × 1.1
+            const qPresaK0 = Number(mData?.[0]?.gasto_m3s || finalPresas[0]?.extraccion_total || 0);
+            if (!flowStartTime && qPresaK0 > 0 && currentFlowAtZero > qPresaK0 * 1.1) {
+                currentFlowAtZero = 0;
             }
 
             const hasViolation = currentFlowAtZero > 70.42;

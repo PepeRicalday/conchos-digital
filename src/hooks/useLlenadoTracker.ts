@@ -45,9 +45,23 @@ export interface LlenadoTelemetry {
     volumen_estimado_inyectado_mm3: number;
 }
 
-// Velocidades del canal por tramo (de perfil_hidraulico_canal)
-const VELOCIDAD_CANAL_MS = 0.70; // m/s promedio ajustado para llenado (antes 1.16)
-const DISTANCIA_RIO_M = 36000;   // 36 km Obra de Toma → KM 0
+// Rangos físicos de velocidad de onda por medio hidráulico
+const V_CANAL_MIN      = 0.3;   // m/s — canal revestido con baja carga
+const V_CANAL_MAX      = 1.2;   // m/s — canal a plena capacidad con onda positiva
+const V_CANAL_FALLBACK = 0.70;  // m/s — si perfil hidráulico no disponible aún
+const V_RIO_MIN        = 0.8;   // m/s — río a caudal mínimo operativo
+const V_RIO_MAX        = 4.0;   // m/s — río en avenida
+const DISTANCIA_RIO_M  = 36000; // 36 km Obra de Toma → KM 0
+const G                = 9.81;  // m/s²
+const WAVE_K           = 1.3;   // factor empírico para frentes de onda positivos
+
+interface PerfilTramo {
+    km_inicio: number;
+    km_fin: number;
+    plantilla_m: number;
+    talud_z: number;
+    tirante_diseno_m: number;
+}
 
 // Modelo empírico del río: v = 0.5 * Q^0.4 + 0.5
 function calcVelocidadRio(q: number): number {
@@ -59,13 +73,52 @@ function calcSegundosRio(q: number): number {
     return DISTANCIA_RIO_M / v;
 }
 
-function calcSegundosCanal(km: number): number {
-    return (km * 1000) / VELOCIDAD_CANAL_MS;
+// Velocidad de frente de onda en canal trapezoidal (celeridad real, no constante)
+// V_w = (Q/A + √(g·A/T)) · WAVE_K
+// A = (b + z·y)·y  |  T = b + 2·z·y  (sección trapezoidal)
+function calcVelocidadOndaCanal(km: number, q: number, perfil: PerfilTramo[]): number {
+    const tramo = perfil.find(t => km >= t.km_inicio && km <= t.km_fin) ?? perfil[0];
+    if (!tramo) return V_CANAL_FALLBACK;
+
+    const b = tramo.plantilla_m;
+    const z = tramo.talud_z;
+    const y = tramo.tirante_diseno_m;
+    const A = (b + z * y) * y;
+    const T = b + 2 * z * y;
+    if (A <= 0 || T <= 0) return V_CANAL_FALLBACK;
+
+    const V = q / A;                 // velocidad media del flujo
+    const c = Math.sqrt(G * A / T);  // celeridad de onda (sección irregular)
+    return Math.max(V_CANAL_MIN, Math.min(V_CANAL_MAX, (V + c) * WAVE_K));
+}
+
+function calcSegundosOndaCanal(km: number, q: number, perfil: PerfilTramo[]): number {
+    return (km * 1000) / calcVelocidadOndaCanal(km, q, perfil);
 }
 
 export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, horaApertura: string | null) => {
     const [puntos, setPuntos] = useState<PuntoControl[]>([]);
     const [loading, setLoading] = useState(false);
+    const [perfilCanal, setPerfilCanal] = useState<PerfilTramo[]>([]);
+
+    // Cargar geometría del canal una sola vez (para calcular celeridad por tramo)
+    useEffect(() => {
+        supabase
+            .from('perfil_hidraulico_canal')
+            .select('km_inicio, km_fin, plantilla_m, talud_z, tirante_diseno_m')
+            .order('km_inicio')
+            .then(({ data }) => {
+                if (data && data.length > 0) {
+                    setPerfilCanal(data.map(t => ({
+                        km_inicio: Number(t.km_inicio),
+                        km_fin:    Number(t.km_fin),
+                        plantilla_m:      Number(t.plantilla_m),
+                        talud_z:          Number(t.talud_z),
+                        tirante_diseno_m: Number(t.tirante_diseno_m),
+                    })));
+                }
+            });
+    }, []);
 
     const estadoGeneral: LlenadoEstado = (() => {
         if (!horaApertura) return 'PREPARACION';
@@ -225,7 +278,7 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
             } else if (p.km === 0) {
                 segTotales = segRio; // Tránsito por Río
             } else {
-                segTotales = segRio + calcSegundosCanal(p.km); // Río + Canal
+                segTotales = segRio + calcSegundosOndaCanal(p.km, qSolicitado, perfilCanal); // Río + Canal
             }
 
             const eta = new Date(apertura + segTotales * 1000).toISOString();
@@ -254,7 +307,7 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
 
         console.log('✅ [LlenadoTracker] ETAs calculadas');
         await fetchPuntos();
-    }, [eventoId, horaApertura, qSolicitado, puntos, fetchPuntos]);
+    }, [eventoId, horaApertura, qSolicitado, puntos, perfilCanal, fetchPuntos]);
 
     // --- Confirmar arribo real + recálculo en cascada ---
     const confirmarArribo = useCallback(async (puntoId: string, horaReal: string, nivelM?: number, gastoM3s?: number, notas?: string) => {
@@ -302,14 +355,12 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
         // Río y canal son medios hidráulicamente distintos con rangos físicos diferentes.
         // La velocidad medida en el río NO debe usarse directamente para predecir el canal.
         //
-        //  TRAMO RÍO   (Presa → KM 0, 36 km): rango esperado 0.8 – 4.0 m/s
-        //  TRAMO CANAL (KM 0 → KM 104):        rango esperado 0.3 – 1.2 m/s
+        //  TRAMO RÍO   (Presa → KM 0, 36 km): rango esperado V_RIO_MIN – V_RIO_MAX
+        //  TRAMO CANAL (KM 0 → KM 104):        rango esperado V_CANAL_MIN – V_CANAL_MAX
         //
         // Cuando se activa el clamp se emite un toast para que el operador sepa
         // que las ETAs usan un valor corregido, no el medido.
         // ────────────────────────────────────────────────────────────────────────
-        const V_CANAL_MIN = 0.3, V_CANAL_MAX = 1.2;
-        const V_RIO_MIN   = 0.8, V_RIO_MAX   = 4.0;
 
         let velocidadCascada: number;
 
@@ -328,9 +379,9 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
 
             // IMPORTANTE: río y canal tienen dinámicas distintas — la velocidad del
             // tránsito fluvial no es representativa de la onda en el canal.
-            // Para la cascada canal se usa la velocidad base calibrada (VELOCIDAD_CANAL_MS).
-            velocidadCascada = VELOCIDAD_CANAL_MS;
-            console.log(`📐 [Cascada canal] Usando velocidad de canal base: ${VELOCIDAD_CANAL_MS} m/s (no extrapolando velocidad del río)`);
+            // Para la cascada canal se usa la celeridad hidráulica calculada en KM 0.
+            velocidadCascada = calcVelocidadOndaCanal(0, qSolicitado, perfilCanal);
+            console.log(`📐 [Cascada canal] Velocidad de onda en KM 0: ${velocidadCascada.toFixed(2)} m/s (calculada con geometría real, no extrapolada del río)`);
 
         } else {
             // Velocidad medida en el canal (tramo entre puntos confirmados)
@@ -351,17 +402,18 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
                 }
 
                 // Advertir si la desviación respecto al modelo teórico es significativa
-                const desviacionPct = Math.abs(vMedida - VELOCIDAD_CANAL_MS) / VELOCIDAD_CANAL_MS * 100;
+                const vTeoricaTramo = calcVelocidadOndaCanal(kmAncla, qSolicitado, perfilCanal);
+                const desviacionPct = Math.abs(vMedida - vTeoricaTramo) / vTeoricaTramo * 100;
                 if (desviacionPct > 40) {
-                    console.warn(`⚠️ [LlenadoTracker] Velocidad medida (${vMedida.toFixed(2)} m/s) se desvía ${desviacionPct.toFixed(0)}% de la teórica (${VELOCIDAD_CANAL_MS} m/s). Posible error de captura.`);
+                    console.warn(`⚠️ [LlenadoTracker] Velocidad medida (${vMedida.toFixed(2)} m/s) se desvía ${desviacionPct.toFixed(0)}% de la teórica (${vTeoricaTramo.toFixed(2)} m/s en KM ${kmAncla}). Posible error de captura.`);
                 }
 
                 velocidadCascada = Math.max(V_CANAL_MIN, Math.min(V_CANAL_MAX, vMedida));
                 console.log(`📐 Velocidad real canal (${puntoAnterior.punto_nombre} → ${puntoConfirmado.punto_nombre}): ${vMedida.toFixed(2)} m/s → usando ${velocidadCascada.toFixed(2)} m/s`);
             } else {
-                // Sin punto anterior confirmado: usar velocidad conservadora de llenado
-                velocidadCascada = 0.7;
-                console.log(`📐 Velocidad estimada conservadora: ${velocidadCascada.toFixed(2)} m/s`);
+                // Sin punto anterior confirmado: calcular con geometría del tramo actual
+                velocidadCascada = calcVelocidadOndaCanal(kmAncla, qSolicitado, perfilCanal);
+                console.log(`📐 Velocidad de onda en KM ${kmAncla}: ${velocidadCascada.toFixed(2)} m/s (geometría hidráulica, sin confirmación anterior)`);
             }
         }
 
@@ -384,7 +436,7 @@ export const useLlenadoTracker = (eventoId: string | null, qSolicitado: number, 
 
         toast.success(`✅ Arribo en ${puntoConfirmado.punto_nombre} → ${posteriores.length} puntos recalculados`);
         await fetchPuntos();
-    }, [puntos, horaApertura, qSolicitado, fetchPuntos]);
+    }, [puntos, horaApertura, qSolicitado, perfilCanal, fetchPuntos]);
 
     // --- Countdown en vivo ---
     useEffect(() => {

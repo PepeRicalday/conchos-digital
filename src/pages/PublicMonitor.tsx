@@ -33,6 +33,13 @@ interface EscalaData {
     nivel_actual?: number;
     estado?: 'OPERANDO' | 'LLENADO' | 'ESPERANDO';
     ultima_telemetria?: number | null;
+    // Campos extendidos para ESTABILIZACIÓN
+    gasto_actual?: number | null;       // m³/s medido en campo
+    apertura_actual?: number | null;    // apertura radiales (m)
+    pzas_radiales?: number;
+    ancho?: number;
+    nivel_max_operativo?: number | null; // referencia de nivel máximo para la barra
+    capacidad_max?: number | null;       // caudal máximo de diseño (m³/s)
 }
 
 // Distancia en KM entre dos puntos (Haversine)
@@ -103,7 +110,7 @@ const PublicMonitor: React.FC = () => {
             // Escalas Base
             const { data: escData } = await supabase
                 .from('escalas')
-                .select('id, nombre, km, latitud, longitud, pzas_radiales, ancho, alto')
+                .select('id, nombre, km, latitud, longitud, pzas_radiales, ancho, alto, nivel_max_operativo, capacidad_max')
                 .order('km');
             
             // 2. Fetch Presas (Dams) Telemetry - Only latest per dam
@@ -148,9 +155,12 @@ const PublicMonitor: React.FC = () => {
 
             setPresasData(finalPresas);
 
-            // 3. Latest Readings - Sincronía Hídrica: Traer lecturas recientes (últimas 24h o desde inicio de evento)
-            // Esto evita que al cruzar la medianoche los datos se pongan en 0.00m
-            const eventStart = activeEvent?.fecha_inicio || new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+            // 3. Latest Readings — ventana de datos
+            // LLENADO:        desde hora_apertura_real del evento activo
+            // ESTABILIZACIÓN: desde medianoche del día actual (evita arrastre de lecturas
+            //                 del día anterior al cruzar las 00:00h)
+            const todayDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD Chihuahua
+            const eventStart = activeEvent?.fecha_inicio || `${todayDate}T00:00:00`;
             
             const { data: readings } = await supabase
                 .from('lecturas_escalas')
@@ -203,6 +213,29 @@ const PublicMonitor: React.FC = () => {
                                     latestReadingAtZero = entry;
                                 }
                             }
+                        }
+                    }
+                });
+            }
+
+            // ESTABILIZACIÓN: si no hay evento LLENADO activo, poblar readingsMap
+            // con la lectura más reciente de cada escala (sin filtro de tiempo de evento)
+            if (!flowStartTime) {
+                (readings || []).forEach(r => {
+                    if (!readingsMap.has(r.escala_id)) {
+                        readingsMap.set(r.escala_id, {
+                            nivel:        r.nivel_m,
+                            nivel_abajo:  r.nivel_abajo_m  || 0,
+                            hora:         r.hora_lectura,
+                            fecha:        r.fecha,
+                            timestamp:    new Date(r.creado_en).getTime(),
+                            apertura:     r.apertura_radiales_m || 0,
+                            radiales_json: r.radiales_json,
+                            gasto_real:   r.gasto_calculado_m3s || 0,
+                        });
+                        const esc = escData?.find(e => e.id === r.escala_id);
+                        if (esc?.km === 0 && !latestReadingAtZero) {
+                            latestReadingAtZero = readingsMap.get(r.escala_id);
                         }
                     }
                 });
@@ -293,9 +326,13 @@ const PublicMonitor: React.FC = () => {
 
                 return {
                     ...e,
-                    nivel_actual: nivel,
-                    estado: estado,
-                    ultima_telemetria: timestamp,
+                    nivel_actual:          nivel,
+                    gasto_actual:          reading?.gasto_real          ?? null,
+                    apertura_actual:       reading?.apertura            ?? null,
+                    nivel_max_operativo:   (e as any).nivel_max_operativo ?? null,
+                    capacidad_max:         (e as any).capacidad_max       ?? null,
+                    estado:                estado,
+                    ultima_telemetria:     timestamp,
                     fuente: e.km === 0 ? 'BOQUILLA' : e.km > 100 ? 'MADERO' : null
                 };
             });
@@ -596,6 +633,56 @@ const PublicMonitor: React.FC = () => {
         };
     }, [activeEvent, presasData]);
 
+    // ── Coherencia hidráulica K0→K104 (solo ESTABILIZACIÓN) ──────────────────
+    // Verifica que el gasto medido en cada escala sea consistente con
+    // la fuente (presa) considerando pérdidas esperadas por tramo.
+    const coherenciaCanal = useMemo(() => {
+        if (activeEvent?.evento_tipo === 'LLENADO') return null;
+
+        const qPresa = Number(damMovements[0]?.gasto_m3s || presasData[0]?.extraccion_total || 0);
+        const escOrdenadas = [...escalas]
+            .filter(e => e.km >= 0 && e.km <= 104 && e.gasto_actual !== null && (e.gasto_actual ?? 0) > 0)
+            .sort((a, b) => a.km - b.km);
+
+        if (escOrdenadas.length === 0) return null;
+
+        // Pérdida esperada en río (36 km): ~2-5% por km ≈ 8% total
+        const qK0Esperado = qPresa * 0.92;
+        const qK0Medido   = escOrdenadas.find(e => e.km === 0)?.gasto_actual ?? escOrdenadas[0]?.gasto_actual ?? 0;
+
+        // Verificación de coherencia por punto: cada Q debe ser ≤ Q del punto anterior
+        // tolerancia ±15% para lecturas de campo
+        const puntos = escOrdenadas.map((e, i) => {
+            const qRef = i === 0 ? qK0Medido : (escOrdenadas[i - 1].gasto_actual ?? 0);
+            const q    = e.gasto_actual ?? 0;
+            const delta = qRef > 0 ? ((q - qRef) / qRef) * 100 : 0;
+            // q puede subir si hay retorno o error de lectura — flagear si sube >15%
+            const coherente = delta <= 15 && delta >= -80;
+            return { ...e, q, qRef, delta, coherente };
+        });
+
+        const nCoherentes = puntos.filter(p => p.coherente).length;
+        const qFinal      = escOrdenadas[escOrdenadas.length - 1]?.gasto_actual ?? 0;
+        const eficiencia  = qK0Medido > 0 ? (qFinal / qK0Medido) * 100 : null;
+        const perdidaRio  = qPresa > 0 ? qPresa - qK0Medido : null;
+        const perdidaCanal = qK0Medido > 0 ? qK0Medido - qFinal : null;
+
+        return {
+            qPresa,
+            qK0Esperado,
+            qK0Medido,
+            qFinal,
+            eficiencia,
+            perdidaRio,
+            perdidaCanal,
+            puntos,
+            nCoherentes,
+            totalPuntos: puntos.length,
+        };
+    }, [activeEvent, damMovements, presasData, escalas]);
+
+    const isEstabilizacion = !activeEvent || activeEvent.evento_tipo !== 'LLENADO';
+
     return (
         <div className="public-monitor-container">
             {/* Compact Header Badge - Floating over map */}
@@ -868,20 +955,93 @@ const PublicMonitor: React.FC = () => {
                             weight={1.5}
                             fillOpacity={1}
                         >
-                            <Popup className="custom-popup">
-                                <div className="tooltip-content">
-                                    <div className="tooltip-km">{esc.km.toFixed(1)} KM</div>
-                                    <b className="tooltip-name">{esc.nombre}</b>
-                                    {esc.nivel_actual !== undefined && (
-                                        <div className="tooltip-payload">
-                                            <Droplets size={12} color={statusColor} />
-                                            <span className="tooltip-value">
-                                                {esc.nivel_actual.toFixed(2)} m
-                                            </span>
+                            <Popup className="custom-popup sica-cp-popup">
+                                {(() => {
+                                    const nivel      = esc.nivel_actual ?? 0;
+                                    const nivelMax   = esc.nivel_max_operativo && esc.nivel_max_operativo > 0 ? esc.nivel_max_operativo : null;
+                                    const nivelPct   = nivelMax ? Math.min(100, (nivel / nivelMax) * 100) : null;
+                                    const barColor   = nivelPct === null ? '#38bdf8' : nivelPct >= 95 ? '#ef4444' : nivelPct >= 80 ? '#f59e0b' : '#38bdf8';
+                                    const gasto      = esc.gasto_actual ?? 0;
+                                    const apertura   = esc.apertura_actual ?? 0;
+                                    const tsAge      = esc.ultima_telemetria ? (Date.now() - esc.ultima_telemetria) / 60000 : null; // minutos
+                                    const tsStale    = tsAge !== null && tsAge > 480; // > 8 horas
+                                    const tsColor    = tsStale ? '#f59e0b' : '#475569';
+
+                                    // Badge de estado legible para público
+                                    let badgeLabel = 'SIN DATOS';
+                                    let badgeColor = '#475569';
+                                    if (esc.estado === 'OPERANDO' && nivel > 0) {
+                                        if (gasto > 0) { badgeLabel = 'OPERANDO'; badgeColor = '#22c55e'; }
+                                        else           { badgeLabel = 'SIN FLUJO'; badgeColor = '#f59e0b'; }
+                                    } else if (esc.estado === 'LLENADO') {
+                                        badgeLabel = 'EN LLENADO'; badgeColor = '#06b6d4';
+                                    } else if (nivel > 0) {
+                                        badgeLabel = 'CON NIVEL'; badgeColor = '#38bdf8';
+                                    }
+
+                                    // Formato tiempo humano
+                                    const tiempoLectura = tsAge === null ? 'Sin datos'
+                                        : tsAge < 1    ? 'Hace menos de 1 min'
+                                        : tsAge < 60   ? `Hace ${Math.floor(tsAge)} min`
+                                        : tsAge < 1440 ? `Hace ${Math.floor(tsAge / 60)}h ${Math.floor(tsAge % 60)}min`
+                                        : 'Más de un día';
+
+                                    return (
+                                        <div className="scp-root">
+                                            {/* Header */}
+                                            <div className="scp-header">
+                                                <span className="scp-km">KM {esc.km.toFixed(1)}</span>
+                                                <span className="scp-badge" style={{ '--badge-color': badgeColor } as React.CSSProperties}>
+                                                    {badgeLabel}
+                                                </span>
+                                            </div>
+                                            <p className="scp-nombre">{esc.nombre}</p>
+
+                                            {/* Nivel con barra */}
+                                            <div className="scp-section">
+                                                <span className="scp-field-label">NIVEL DE AGUA</span>
+                                                <div className="scp-bar-row">
+                                                    <div className="scp-bar-track">
+                                                        <div className="scp-bar-fill" style={{ '--bar-w': nivelPct !== null ? `${nivelPct}%` : '0%', '--bar-color': barColor } as React.CSSProperties} />
+                                                    </div>
+                                                    <span className="scp-bar-val" style={{ '--bar-color': barColor } as React.CSSProperties}>{nivel.toFixed(2)} m</span>
+                                                </div>
+                                                {nivelMax && (
+                                                    <span className="scp-ref">capacidad {nivelMax.toFixed(2)} m</span>
+                                                )}
+                                            </div>
+
+                                            {/* Gasto y apertura en dos columnas */}
+                                            {(gasto > 0 || apertura > 0) && (
+                                                <div className="scp-metrics">
+                                                    {gasto > 0 && (
+                                                        <div className="scp-metric">
+                                                            <span className="scp-metric-label">FLUJO MEDIDO</span>
+                                                            <span className="scp-metric-val">{gasto.toFixed(2)}</span>
+                                                            <span className="scp-metric-unit">m³/s</span>
+                                                        </div>
+                                                    )}
+                                                    {apertura > 0 && (() => {
+                                                        const pzas = esc.pzas_radiales && esc.pzas_radiales > 0 ? esc.pzas_radiales : 1;
+                                                        const totalApertura = pzas * apertura;
+                                                        return (
+                                                            <div className="scp-metric">
+                                                                <span className="scp-metric-label">APERTURA TOTAL</span>
+                                                                <span className="scp-metric-val">{totalApertura.toFixed(2)}</span>
+                                                                <span className="scp-metric-unit">m ({pzas} × {apertura.toFixed(2)}m)</span>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            )}
+
+                                            {/* Timestamp */}
+                                            <div className="scp-footer">
+                                                <span className={`scp-footer-time${tsStale ? ' scp-footer-stale' : ''}`}>{tiempoLectura}</span>
+                                            </div>
                                         </div>
-                                    )}
-                                    <div className="tooltip-footer">SICA TELEMETRÍA v3.3.1</div>
-                                </div>
+                                    );
+                                })()}
                             </Popup>
                             <Tooltip className="custom-tooltip" direction="top" offset={[0, -10]} opacity={0.9}>
                                 <span>{esc.nombre}</span>
@@ -898,24 +1058,79 @@ const PublicMonitor: React.FC = () => {
                 <div className="info-cards-dock animate-in" style={{ animationDelay: '0.4s' }}>
                     <button className="dock-close-btn" onClick={() => setIsDockVisible(false)} title="Cerrar tablero">×</button>
                     
-                    {/* Section 1: Global Balance (Left) */}
+                    {/* Section 1: Global Balance — LLENADO mantiene vista original, ESTABILIZACIÓN muestra coherencia */}
                     <div className="dock-section summary-card-large">
-                        <div className="managerial-card-header">
-                            <span className="card-label">BALANCE HÍDRICO</span>
-                            <div className="health-badge-premium" style={{ borderColor: executiveMetrics.healthColor }}>
-                                <div className="health-dot" style={{ background: executiveMetrics.healthColor }}></div>
-                                {executiveMetrics.healthStatus}
-                            </div>
-                        </div>
-                        <div className="summary-gasto">
-                            <span className="gasto-value">
-                                {executiveMetrics.totalReal.toFixed(2)}
-                                <span className="gasto-unit">m³/s</span>
-                            </span>
-                            <div className="summary-info-row">
-                                <span className="summary-info-title">📊 PROGRESO: <span className="summary-info-value" style={{ color: statusColor }}>{(((displayMaxKm + 36) / (113 + 36)) * 100).toFixed(1)}%</span></span>
-                            </div>
-                        </div>
+                        {!isEstabilizacion ? (
+                            // ── Vista LLENADO (original, sin cambios) ──
+                            <>
+                                <div className="managerial-card-header">
+                                    <span className="card-label">BALANCE HÍDRICO</span>
+                                    <div className="health-badge-premium" style={{ borderColor: executiveMetrics.healthColor }}>
+                                        <div className="health-dot" style={{ background: executiveMetrics.healthColor }}></div>
+                                        {executiveMetrics.healthStatus}
+                                    </div>
+                                </div>
+                                <div className="summary-gasto">
+                                    <span className="gasto-value">
+                                        {executiveMetrics.totalReal.toFixed(2)}
+                                        <span className="gasto-unit">m³/s</span>
+                                    </span>
+                                    <div className="summary-info-row">
+                                        <span className="summary-info-title">📊 PROGRESO: <span className="summary-info-value" style={{ color: statusColor }}>{(((displayMaxKm + 36) / (113 + 36)) * 100).toFixed(1)}%</span></span>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            // ── Vista ESTABILIZACIÓN — Coherencia presa→K104 ──
+                            <>
+                                <div className="managerial-card-header">
+                                    <span className="card-label">PANORAMA DEL CANAL</span>
+                                    <div className="health-badge-premium" style={{ borderColor: coherenciaCanal ? (coherenciaCanal.eficiencia !== null && coherenciaCanal.eficiencia >= 88 ? '#22c55e' : coherenciaCanal.eficiencia !== null && coherenciaCanal.eficiencia >= 80 ? '#eab308' : '#ef4444') : '#475569' }}>
+                                        <div className="health-dot" style={{ background: coherenciaCanal ? (coherenciaCanal.eficiencia !== null && coherenciaCanal.eficiencia >= 88 ? '#22c55e' : '#eab308') : '#475569' }}></div>
+                                        {coherenciaCanal?.eficiencia !== null && coherenciaCanal?.eficiencia !== undefined ? `EF. ${coherenciaCanal.eficiencia.toFixed(1)}%` : 'SIN DATOS'}
+                                    </div>
+                                </div>
+                                {coherenciaCanal ? (
+                                    <div className="coherencia-flow-chain">
+                                        {/* Presa */}
+                                        <div className="cfc-node">
+                                            <span className="cfc-label">PRESA</span>
+                                            <span className="cfc-val">{coherenciaCanal.qPresa.toFixed(1)}</span>
+                                            <span className="cfc-unit">m³/s</span>
+                                        </div>
+                                        <div className="cfc-arrow">
+                                            <span className="cfc-loss">{coherenciaCanal.perdidaRio !== null ? `−${coherenciaCanal.perdidaRio.toFixed(1)}` : '—'}</span>
+                                            <span className="cfc-dist">36km río</span>
+                                        </div>
+                                        {/* K0 */}
+                                        <div className="cfc-node">
+                                            <span className="cfc-label">K0+000</span>
+                                            <span className="cfc-val">{coherenciaCanal.qK0Medido.toFixed(1)}</span>
+                                            <span className="cfc-unit">m³/s</span>
+                                        </div>
+                                        <div className="cfc-arrow">
+                                            <span className="cfc-loss">{coherenciaCanal.perdidaCanal !== null ? `−${coherenciaCanal.perdidaCanal.toFixed(1)}` : '—'}</span>
+                                            <span className="cfc-dist">104km canal</span>
+                                        </div>
+                                        {/* K104 */}
+                                        <div className="cfc-node">
+                                            <span className="cfc-label">K104</span>
+                                            <span className="cfc-val">{coherenciaCanal.qFinal.toFixed(1)}</span>
+                                            <span className="cfc-unit">m³/s</span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="coherencia-sin-datos">
+                                        Sin lecturas de gasto disponibles hoy
+                                    </div>
+                                )}
+                                {coherenciaCanal && (
+                                    <div className="coherencia-resumen">
+                                        <span>{coherenciaCanal.nCoherentes}/{coherenciaCanal.totalPuntos} puntos coherentes</span>
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
 
                     {/* Section 2: Sources Detail (Center) - Integrated from floating card */}
@@ -951,29 +1166,51 @@ const PublicMonitor: React.FC = () => {
                         </div>
                         <div className="checkpoints-scroll-container">
                             {escalas
-                                .sort((a, b) => a.km - b.km) // Orden natural del canal para lectura fluida
-                                .map((e) => (
-                                <div className={`checkpoint-card-compact ${e.km <= displayMaxKm ? 'active' : ''}`} key={e.id}>
-                                    <div className="cpc-km">{e.km.toFixed(1)} <small>KM</small></div>
-                                    <div className="cpc-body">
-                                        <span className="cpc-name">{e.nombre}</span>
-                                        <div className="cpc-data">
-                                            <span className="cpc-value">{e.nivel_actual?.toFixed(2) || '0.00'}</span>
-                                            <small className="cpc-unit">m</small>
+                                .sort((a, b) => a.km - b.km)
+                                .map((e) => {
+                                    // Coherencia individual: marcar punto incoherente
+                                    const puntoCoh = coherenciaCanal?.puntos.find(p => p.id === e.id);
+                                    const incoherente = puntoCoh && !puntoCoh.coherente;
+                                    const hasFlow = isEstabilizacion && (e.gasto_actual ?? 0) > 0;
+                                    return (
+                                    <div
+                                        className={`checkpoint-card-compact ${e.km <= displayMaxKm ? 'active' : ''} ${incoherente ? 'cpc-incoherente' : ''}`}
+                                        key={e.id}
+                                    >
+                                        <div className="cpc-km">{e.km.toFixed(1)} <small>KM</small></div>
+                                        <div className="cpc-body">
+                                            <span className="cpc-name">{e.nombre}</span>
+                                            <div className="cpc-data">
+                                                <span className="cpc-value">{e.nivel_actual?.toFixed(2) || '0.00'}</span>
+                                                <small className="cpc-unit">m</small>
+                                            </div>
+                                            {/* ESTABILIZACIÓN: mostrar gasto y apertura si disponibles */}
+                                            {isEstabilizacion && (
+                                                <div className="cpc-extra">
+                                                    {hasFlow && (
+                                                        <span className="cpc-gasto">{(e.gasto_actual ?? 0).toFixed(2)} m³/s</span>
+                                                    )}
+                                                    {(e.apertura_actual ?? 0) > 0 && (
+                                                        <span className="cpc-apertura">⊿ {(e.apertura_actual ?? 0).toFixed(2)}m</span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
+                                        <div className="cpc-status-bar">
+                                            <div
+                                                className="cpc-progress"
+                                                style={{
+                                                    width: isEstabilizacion
+                                                        ? (hasFlow ? `${Math.min(100, ((e.gasto_actual ?? 0) / Math.max(coherenciaCanal?.qK0Medido ?? 1, 1)) * 100)}%` : '0%')
+                                                        : (e.km <= displayMaxKm ? '100%' : '0%'),
+                                                    background: incoherente ? '#ef4444' : (e.estado === 'OPERANDO' ? '#22c55e' : statusColor)
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="cpc-time">{formatTimeAgo(e.ultima_telemetria)}</div>
                                     </div>
-                                    <div className="cpc-status-bar">
-                                        <div 
-                                            className="cpc-progress" 
-                                            style={{ 
-                                                width: e.km <= displayMaxKm ? '100%' : '0%',
-                                                background: e.estado === 'OPERANDO' ? '#22c55e' : statusColor
-                                            }}
-                                        ></div>
-                                    </div>
-                                    <div className="cpc-time">{formatTimeAgo(e.ultima_telemetria)}</div>
-                                </div>
-                            ))}
+                                    );
+                                })}
                         </div>
                     </div>
                 </div>

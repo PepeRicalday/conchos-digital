@@ -456,3 +456,61 @@
     color: var(--text-tertiary);
     margin-top: 0.5rem;
 }
+/* ── Reporte Ejecutivo — Impresión ──────────────────────────────── */
+@media print {
+    body {
+        background: #fff !important;
+        color: #000 !important;
+    }
+
+    /* Ocultar todo excepto el área de reporte */
+    body > * { display: none !important; }
+    .balance-container { display: block !important; }
+
+    /* Ocultar secciones no relevantes en impresión */
+    .no-print { display: none !important; }
+
+    /* Cabecera de impresión */
+    .print-header { display: block !important; }
+
+    .reporte-print-area {
+        padding: 0;
+        color: #000;
+    }
+
+    .reporte-print-area table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 10px;
+    }
+
+    .reporte-print-area th,
+    .reporte-print-area td {
+        border: 1px solid #ccc;
+        padding: 4px 8px;
+        color: #000;
+        background: #fff !important;
+    }
+
+    .reporte-print-area .rounded-xl,
+    .reporte-print-area .rounded-lg {
+        border: 1px solid #ccc !important;
+        background: #f9f9f9 !important;
+        border-radius: 0 !important;
+    }
+
+    .reporte-print-area p,
+    .reporte-print-area span,
+    .reporte-print-area div {
+        color: #000 !important;
+        background: transparent !important;
+    }
+
+    /* Evitar cortes de página en mitad de bloques */
+    .reporte-print-area > div { page-break-inside: avoid; }
+
+    @page {
+        margin: 15mm 12mm;
+        size: A4 portrait;
+    }
+}

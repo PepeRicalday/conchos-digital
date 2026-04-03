@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import {
     MapPin, Droplets, Activity, TrendingUp, TrendingDown, Minus,
@@ -15,6 +15,7 @@ import './Presas.css';
 import ReservoirViz from '../components/ReservoirViz';
 import { useFecha } from '../context/FechaContext';
 import { usePresas, type PresaData, type PuntoCurva, type ClimaPresaData, type AforoDiarioData, type MovimientoPresaData } from '../hooks/usePresas';
+import { useEfficiencyHistory, type EstadoBalance } from '../hooks/useEfficiencyHistory';
 
 // --- Hidro-Sincronía 2.1: Advanced Analytics & Interactive Simulation ---
 
@@ -54,65 +55,185 @@ const HydroFlowDiagram = ({ presa }: { presa: PresaData }) => {
     );
 };
 
-const ExtractionStreamgraph = ({ presa: _presa }: { presa: PresaData }) => {
-    void _presa; // referenced for future real data integration
-    // Generate dummy historical trend for "Streamgraph" visualization effect
-    const data = [
-        { name: '00:00', baja: 10, cfe: 5, izq: 8, der: 12 },
-        { name: '04:00', baja: 12, cfe: 4, izq: 10, der: 15 },
-        { name: '08:00', baja: 25, cfe: 2, izq: 22, der: 28 },
-        { name: '12:00', baja: 30, cfe: 2, izq: 25, der: 32 },
-        { name: '16:00', baja: 28, cfe: 3, izq: 20, der: 30 },
-        { name: '20:00', baja: 15, cfe: 8, izq: 12, der: 18 },
-    ];
+const FUENTE_COLOR: Record<string, string> = {
+    GERENCIA_ADMIN: '#f59e0b',
+    CAMPO:          '#10b981',
+    AUTOMATICO:     '#38bdf8',
+    DEFAULT:        '#6366f1',
+};
+
+const ExtractionStreamgraph = ({ movimientos }: { movimientos: MovimientoPresaData[] }) => {
+    // Build 48-hour step chart at 2-hour resolution (24 points)
+    // movimientos represent state changes — carry forward last known gasto
+    const data = useMemo(() => {
+        const now = Date.now();
+        const SLOTS = 24;
+        const INTERVAL_MS = 2 * 3600000;
+
+        return Array.from({ length: SLOTS }, (_, i) => {
+            const slotEnd = now - (SLOTS - 1 - i) * INTERVAL_MS;
+            const last = movimientos
+                .filter(m => new Date(m.fecha_hora).getTime() <= slotEnd)
+                .at(-1); // already sorted ascending from hook
+
+            const d = new Date(slotEnd);
+            const showDate = i === 0 || d.getHours() === 0;
+            const label = showDate
+                ? d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric' })
+                : d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+            return {
+                hora: label,
+                gasto: last?.gasto_m3s ?? 0,
+                fuente: last?.fuente_dato ?? 'DEFAULT',
+            };
+        });
+    }, [movimientos]);
+
+    const hasDatos = data.some(d => d.gasto > 0);
+
+    if (!hasDatos) {
+        return (
+            <div className="h-48 w-full mt-4 bg-black/20 rounded-xl flex items-center justify-center border border-white/5">
+                <p className="text-xs text-slate-600 font-bold uppercase tracking-widest">Sin movimientos en los últimos 7 días</p>
+            </div>
+        );
+    }
+
+    // Determine dominant fuente for color
+    const fuenteDominante = data.find(d => d.gasto > 0)?.fuente ?? 'DEFAULT';
+    const color = FUENTE_COLOR[fuenteDominante] ?? FUENTE_COLOR.DEFAULT;
 
     return (
         <div className="h-48 w-full mt-4 bg-black/20 rounded-xl p-4 border border-white/5">
             <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data} stackOffset="silhouette">
-                    <XAxis dataKey="name" hide />
+                <AreaChart data={data}>
+                    <defs>
+                        <linearGradient id="gastoGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={color} stopOpacity={0.4} />
+                            <stop offset="95%" stopColor={color} stopOpacity={0.02} />
+                        </linearGradient>
+                    </defs>
+                    <XAxis
+                        dataKey="hora"
+                        tick={{ fontFamily: 'JetBrains Mono', fontSize: 9, fill: '#475569' }}
+                        interval={3}
+                        axisLine={false}
+                        tickLine={false}
+                    />
+                    <YAxis hide domain={[0, 'auto']} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                     <Tooltip
                         contentStyle={{ backgroundColor: '#020617', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
-                        itemStyle={{ fontFamily: 'JetBrains Mono', fontSize: '12px' }}
+                        itemStyle={{ fontFamily: 'JetBrains Mono', fontSize: '11px', color: '#e2e8f0' }}
+                        formatter={(val: number, _: string, entry: any) => [
+                            `${val.toFixed(2)} m³/s`,
+                            entry.payload.fuente ?? 'Gasto'
+                        ]}
                     />
-                    <Area type="monotone" dataKey="baja" stackId="1" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.6} />
-                    <Area type="monotone" dataKey="cfe" stackId="1" stroke="#818cf8" fill="#818cf8" fillOpacity={0.6} />
-                    <Area type="monotone" dataKey="izq" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.6} />
-                    <Area type="monotone" dataKey="der" stackId="1" stroke="#fbbf24" fill="#fbbf24" fillOpacity={0.6} />
+                    <Area
+                        type="stepAfter"
+                        dataKey="gasto"
+                        stroke={color}
+                        strokeWidth={2}
+                        fill="url(#gastoGrad)"
+                        dot={false}
+                        isAnimationActive={false}
+                    />
                 </AreaChart>
             </ResponsiveContainer>
         </div>
     );
 };
 
+const ESTADO_COLOR: Record<EstadoBalance, string> = {
+    optimo:    '#10b981',
+    atencion:  '#f59e0b',
+    alerta:    '#ef4444',
+    critico:   '#7f1d1d',
+    sin_datos: '#0f172a',
+};
+
+const ESTADO_LABEL: Record<EstadoBalance, string> = {
+    optimo:    '≥95% Óptimo',
+    atencion:  '90-95% Atención',
+    alerta:    '85-90% Alerta',
+    critico:   '<85% Crítico',
+    sin_datos: 'Sin datos',
+};
+
 const EfficiencyHeatmap = () => {
-    // 7 days x 6 quadrants (approximate for layout)
-    const days = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+    const { tramos, dias, matrix, loading } = useEfficiencyHistory(7);
+
+    if (loading) {
+        return (
+            <div className="mt-4 h-24 flex items-center justify-center">
+                <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest animate-pulse">Calculando balance histórico...</span>
+            </div>
+        );
+    }
+
+    if (tramos.length === 0) {
+        return (
+            <div className="mt-4 h-24 flex items-center justify-center">
+                <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">Sin lecturas de escalas disponibles</span>
+            </div>
+        );
+    }
+
+    const dayLabels = dias.map(d => {
+        const [, , day] = d.split('-');
+        const date = new Date(d + 'T12:00:00');
+        return date.toLocaleDateString('es-MX', { weekday: 'short' }).slice(0, 1).toUpperCase() + day;
+    });
+
+    const cols = dias.length;
 
     return (
-        <div className="mt-4">
-            <div className="grid grid-cols-7 gap-1">
-                {days.map((d, i) => (
-                    <div key={i} className="text-[8px] font-black text-slate-600 text-center uppercase">{d}</div>
+        <div className="mt-4 overflow-x-auto">
+            {/* Header: días */}
+            <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: `120px repeat(${cols}, 1fr)` }}>
+                <div />
+                {dayLabels.map((label, i) => (
+                    <div key={i} className="text-[8px] font-black text-slate-500 text-center uppercase">{label}</div>
                 ))}
             </div>
-            <div className="grid grid-cols-7 gap-1 mt-1">
-                {Array.from({ length: 42 }).map((_, i) => {
-                    const intensity = ((i * 7 + 3) % 11) / 10; // Deterministic pattern for heatmap
-                    return (
-                        <div
-                            key={i}
-                            className="aspect-square rounded-[2px] border border-white/5 transition-colors hover:border-white/20"
-                            style={{
-                                backgroundColor: intensity > 0.8 ? '#10b981' :
-                                    intensity > 0.5 ? '#059669' :
-                                        intensity > 0.2 ? '#064e3b' : '#020617',
-                                opacity: 0.8
-                            }}
-                            title={`Nivel de Eficiencia: ${(intensity * 100).toFixed(0)}%`}
-                        />
-                    );
-                })}
+
+            {/* Filas: tramos */}
+            {tramos.map((tramo, ti) => (
+                <div key={ti} className="grid gap-1 mb-1" style={{ gridTemplateColumns: `120px repeat(${cols}, 1fr)` }}>
+                    {/* Etiqueta del tramo */}
+                    <div className="text-[8px] font-bold text-slate-500 truncate pr-1 flex items-center">
+                        K{tramo.km_inicio}→K{tramo.km_fin}
+                    </div>
+                    {/* Celdas por día */}
+                    {dias.map((_, di) => {
+                        const cell = matrix[ti]?.[di];
+                        if (!cell) return <div key={di} className="aspect-square rounded-[2px] bg-slate-900" />;
+                        const bg = ESTADO_COLOR[cell.estado];
+                        const tooltip = cell.estado === 'sin_datos'
+                            ? 'Sin datos'
+                            : `${cell.eficiencia?.toFixed(1)}% — ${ESTADO_LABEL[cell.estado]}\nEnt: ${cell.q_entrada.toFixed(2)} | Sal: ${cell.q_salida.toFixed(2)} | Tomas: ${cell.q_tomas.toFixed(2)} | Fuga: ${cell.q_fuga.toFixed(2)} m³/s`;
+                        return (
+                            <div
+                                key={di}
+                                className="aspect-square rounded-[2px] border border-white/5 transition-all hover:border-white/30 hover:scale-110 cursor-default"
+                                style={{ backgroundColor: bg, opacity: cell.estado === 'sin_datos' ? 0.3 : 0.85 }}
+                                title={tooltip}
+                            />
+                        );
+                    })}
+                </div>
+            ))}
+
+            {/* Leyenda */}
+            <div className="flex gap-3 mt-3 flex-wrap">
+                {(Object.keys(ESTADO_COLOR) as EstadoBalance[]).filter(k => k !== 'sin_datos').map(k => (
+                    <div key={k} className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-[1px]" style={{ backgroundColor: ESTADO_COLOR[k] }} />
+                        <span className="text-[8px] font-bold text-slate-500 uppercase">{ESTADO_LABEL[k]}</span>
+                    </div>
+                ))}
             </div>
         </div>
     );
@@ -297,7 +418,7 @@ const MiniMetricChart = ({ label, value, unit, color }: { label: string, value: 
 };
 
 // Component: Dam Card
-const DamCard = ({ presa, climaObj, aforoObj }: { presa: PresaData, climaObj?: ClimaPresaData, aforoObj?: AforoDiarioData }) => {
+const DamCard = ({ presa, climaObj, aforoObj, movimientosHistorial }: { presa: PresaData, climaObj?: ClimaPresaData, aforoObj?: AforoDiarioData, movimientosHistorial: MovimientoPresaData[] }) => {
     const lect = presa.lectura;
     const elevacion = lect?.escala_msnm || 0;
     const almacenamiento = lect?.almacenamiento_mm3 || 0;
@@ -576,7 +697,7 @@ const DamCard = ({ presa, climaObj, aforoObj }: { presa: PresaData, climaObj?: C
                         <Activity size={14} className="text-blue-400" /> Tendencia de Extracción (Streamgraph)
                     </h4>
                     <p className="text-[10px] text-slate-500 mb-4 uppercase tracking-[0.2em]">Balance dinámico de gasto por sección (24h).</p>
-                    <ExtractionStreamgraph presa={presa} />
+                    <ExtractionStreamgraph movimientos={movimientosHistorial.filter(m => m.presa_id === presa.id)} />
                 </div>
                 <div>
                     <h4 className="mini-chart-label mb-2 flex items-center gap-2">
@@ -622,7 +743,7 @@ const DamCard = ({ presa, climaObj, aforoObj }: { presa: PresaData, climaObj?: C
 // Main Component
 const Presas = () => {
     const { fechaSeleccionada } = useFecha();
-    const { presas, clima, aforos, movimientos, loading, error } = usePresas(fechaSeleccionada);
+    const { presas, clima, aforos, movimientos, movimientosHistorial, loading, error } = usePresas(fechaSeleccionada);
     const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
     const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
 
@@ -717,7 +838,7 @@ const Presas = () => {
             <div className="presas-layout">
                 {/* Main Dam Card */}
                 <div className="dam-main">
-                    <DamCard presa={currentDam} climaObj={currentClima} aforoObj={currentAforo} />
+                    <DamCard presa={currentDam} climaObj={currentClima} aforoObj={currentAforo} movimientosHistorial={movimientosHistorial} />
 
                     {/* Dynamic Reservoir Visualization */}
                     <ReservoirViz

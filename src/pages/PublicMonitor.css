@@ -1614,3 +1614,309 @@
         min-width: auto;
     }
 }
+
+/* ── ESTABILIZACIÓN: campos extra por punto de control ─────────── */
+.cpc-extra {
+    display: flex;
+    gap: 5px;
+    margin-top: 2px;
+    flex-wrap: wrap;
+}
+
+.cpc-gasto {
+    font-size: 0.62rem;
+    font-weight: 800;
+    color: #22d3ee;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+}
+
+.cpc-apertura {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #a78bfa;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Punto incoherente — delta de gasto fuera de rango esperado */
+.checkpoint-card-compact.cpc-incoherente {
+    border-color: rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.06);
+}
+
+.checkpoint-card-compact.cpc-incoherente .cpc-km {
+    color: #ef4444;
+}
+
+/* ── COHERENCIA: cadena de flujo presa→K0→K104 ─────────────────── */
+.coherencia-flow-chain {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+.cfc-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    min-width: 52px;
+}
+
+.cfc-label {
+    font-size: 0.6rem;
+    font-weight: 800;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.cfc-val {
+    font-size: 1rem;
+    font-weight: 900;
+    color: #e2e8f0;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+}
+
+.cfc-unit {
+    font-size: 0.58rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.cfc-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    min-width: 36px;
+    gap: 1px;
+}
+
+.cfc-arrow::before {
+    content: '→';
+    color: #334155;
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+.cfc-loss {
+    font-size: 0.6rem;
+    font-weight: 800;
+    color: #ef4444;
+    font-variant-numeric: tabular-nums;
+}
+
+.cfc-dist {
+    font-size: 0.55rem;
+    color: #334155;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.coherencia-resumen {
+    margin-top: 5px;
+    font-size: 0.6rem;
+    color: #475569;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.coherencia-sin-datos {
+    font-size: 0.65rem;
+    color: #334155;
+    font-weight: 600;
+    text-align: center;
+    padding: 8px 0;
+    font-style: italic;
+}
+
+/* ── POPUP PUNTO DE CONTROL — sica-cp-popup ──────────────────────── */
+.sica-cp-popup .leaflet-popup-content-wrapper {
+    background: #0c1524;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    padding: 0;
+    min-width: 210px;
+}
+
+.sica-cp-popup .leaflet-popup-content {
+    margin: 0;
+    width: auto !important;
+}
+
+.sica-cp-popup .leaflet-popup-tip-container {
+    display: none;
+}
+
+.scp-root {
+    padding: 12px 14px 10px;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Header: km + badge */
+.scp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 3px;
+}
+
+.scp-km {
+    font-size: 0.65rem;
+    font-weight: 900;
+    color: #475569;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.scp-badge {
+    font-size: 0.55rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid;
+    /* Color driven by --badge-color CSS variable */
+    background: color-mix(in srgb, var(--badge-color, #475569) 13%, transparent);
+    color: var(--badge-color, #475569);
+    border-color: color-mix(in srgb, var(--badge-color, #475569) 40%, transparent);
+}
+
+.scp-nombre {
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #e2e8f0;
+    margin: 0 0 10px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+}
+
+/* Sección con separador */
+.scp-section {
+    border-top: 1px solid rgba(255,255,255,0.05);
+    padding-top: 8px;
+    margin-bottom: 8px;
+}
+
+.scp-field-label {
+    display: block;
+    font-size: 0.58rem;
+    font-weight: 700;
+    color: #334155;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+/* Barra de nivel */
+.scp-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.scp-bar-track {
+    flex: 1;
+    height: 5px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.scp-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    width: var(--bar-w, 0%);
+    background: var(--bar-color, #38bdf8);
+    transition: width 0.4s ease;
+}
+
+.scp-bar-val {
+    font-size: 0.78rem;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--bar-color, #38bdf8);
+}
+
+.scp-ref {
+    display: block;
+    font-size: 0.58rem;
+    color: #334155;
+    font-weight: 600;
+    margin-top: 3px;
+}
+
+/* Métricas en dos columnas */
+.scp-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    padding-top: 8px;
+    margin-bottom: 8px;
+}
+
+.scp-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.scp-metric:first-child {
+    padding-right: 8px;
+    border-right: 1px solid rgba(255,255,255,0.05);
+}
+
+.scp-metric:last-child:not(:first-child) {
+    padding-left: 8px;
+}
+
+.scp-metric-label {
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: #334155;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.scp-metric-val {
+    font-size: 1rem;
+    font-weight: 900;
+    color: #e2e8f0;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+}
+
+.scp-metric-unit {
+    font-size: 0.58rem;
+    color: #475569;
+    font-weight: 600;
+}
+
+/* Footer timestamp */
+.scp-footer {
+    border-top: 1px solid rgba(255,255,255,0.04);
+    padding-top: 6px;
+}
+
+.scp-footer-time {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #475569;
+    color: var(--ts-color, #475569);
+}
+
+.scp-footer-stale {
+    color: #f59e0b;
+}

@@ -82,6 +82,7 @@ export function usePresas(fecha: string) {
     const [clima, setClima] = useState<ClimaPresaData[]>([]);
     const [aforos, setAforos] = useState<AforoDiarioData[]>([]);
     const [movimientos, setMovimientos] = useState<MovimientoPresaData[]>([]);
+    const [movimientosHistorial, setMovimientosHistorial] = useState<MovimientoPresaData[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -102,7 +103,8 @@ export function usePresas(fecha: string) {
                     { data: climaDB, error: errC },
                     { data: aforosDB, error: errA },
                     { data: eventDBRaw },
-                    { data: movsDB }
+                    { data: movsDB },
+                    { data: movsHistorialDB }
                 ] = await Promise.all([
                     supabase.from('lecturas_presas').select('*').eq('fecha', fecha),
                     supabase.from('clima_presas').select('*').eq('fecha', fecha),
@@ -112,7 +114,12 @@ export function usePresas(fecha: string) {
                         // P1-6: end-of-day computed in America/Chihuahua to handle CDT↔CST transitions
                         .lte('fecha_hora', new Date(new Date(getStartOfDateISO(fecha)).getTime() + 86400000 - 1).toISOString())
                         .order('fecha_hora', { ascending: false })
-                        .limit(100)
+                        .limit(100),
+                    // 7-day historial ascendente — para streamgraph, no afecta lógica Capa 2
+                    supabase.from('movimientos_presas').select('id, presa_id, fecha_hora, gasto_m3s, fuente_dato')
+                        .gte('fecha_hora', new Date(Date.now() - 7 * 86400000).toISOString())
+                        .order('fecha_hora', { ascending: true })
+                        .limit(500)
                 ]);
 
                 const eventDB = eventDBRaw && eventDBRaw.length > 0 ? eventDBRaw[0] : null;
@@ -282,6 +289,7 @@ export function usePresas(fecha: string) {
                     gasto_m3s: a.gasto_m3s != null ? Number(a.gasto_m3s) : null
                 })));
                 setMovimientos(movsDB || []);
+                setMovimientosHistorial(movsHistorialDB || []);
 
             } catch (err: any) {
                 if (!cancelled) {
@@ -341,6 +349,7 @@ export function usePresas(fecha: string) {
         clima,
         aforos,
         movimientos,
+        movimientosHistorial,
         loading,
         error,
         // Aggregates

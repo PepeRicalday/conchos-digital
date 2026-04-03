@@ -1,9 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
-import { BarChart3, AlertTriangle, Droplets, TrendingUp, ArrowDown } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { BarChart3, AlertTriangle, Droplets, TrendingUp, ArrowDown, FlaskConical, TrendingDown, FileText, Printer } from 'lucide-react';
+import ManningCalibrador from '../components/ManningCalibrador';
+import RatingCurve from '../components/RatingCurve';
 import { supabase } from '../lib/supabase';
 import { useFecha } from '../context/FechaContext';
 import { calculateSectionBalance, manningFlow, getEfficiencyStatus, type PerfilTramo, type BalanceTramo } from '../utils/hydraulics';
 import EfficiencyGauge from '../components/EfficiencyGauge';
+import { usePredictiveBalance } from '../hooks/usePredictiveBalance';
 import './BalanceHidraulico.css';
 
 interface EscalaData {
@@ -21,6 +24,180 @@ interface TomaActiva {
     km: number;
     caudal: number;
 }
+
+// ─── Reporte Ejecutivo Diario ─────────────────────────────────────────────────
+
+interface ReporteProps {
+    fecha: string;
+    balanceData: BalanceTramo[];
+}
+
+const ReporteEjecutivo = ({ fecha, balanceData }: ReporteProps) => {
+    const printRef = useRef<HTMLDivElement>(null);
+    const { alertas, tramos, loading: loadingPred } = usePredictiveBalance();
+
+    const efGlobal = useMemo(() => {
+        if (!balanceData.length) return null;
+        const first = balanceData[0];
+        const last  = balanceData[balanceData.length - 1];
+        if (!first?.q_entrada || first.q_entrada <= 0) return null;
+        const qSalida = last?.q_salida ?? 0;
+        const qTomas  = balanceData.reduce((s, t) => s + (t.q_tomas ?? 0), 0);
+        return Math.min(100, ((qSalida + qTomas) / first.q_entrada) * 100);
+    }, [balanceData]);
+
+    const anomalias = tramos.filter(t => t.estado === 'critico' || t.estado === 'alerta');
+    const alertasCrit = alertas.filter(a => a.type === 'critical');
+
+    const handlePrint = () => window.print();
+
+    return (
+        <div className="mt-8 pt-8 border-t border-white/5">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    <FileText size={16} className="text-indigo-400" />
+                    <h3 className="text-sm font-black text-white uppercase tracking-tight">
+                        Reporte Ejecutivo Diario
+                    </h3>
+                </div>
+                <button
+                    type="button"
+                    onClick={handlePrint}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-widest transition-all active:scale-95"
+                >
+                    <Printer size={11} /> Imprimir / PDF
+                </button>
+            </div>
+
+            <div ref={printRef} className="reporte-print-area space-y-4">
+                {/* Encabezado de impresión */}
+                <div className="print-header hidden print:block mb-4">
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                        Canal Principal Conchos — Reporte de Balance Hídrico
+                    </p>
+                    <p className="text-[10px] text-slate-600 font-mono">
+                        Fecha: {fecha} · Generado: {new Date().toLocaleString('es-MX')}
+                    </p>
+                </div>
+
+                {/* KPIs globales */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-slate-950/50 border border-white/5 rounded-xl p-3">
+                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Fecha</p>
+                        <p className="text-sm font-black text-white font-mono mt-1">{fecha}</p>
+                    </div>
+                    <div className={`rounded-xl p-3 border ${efGlobal !== null && efGlobal >= 90 ? 'bg-emerald-950/30 border-emerald-900/30' : efGlobal !== null && efGlobal >= 85 ? 'bg-amber-950/30 border-amber-900/30' : 'bg-red-950/30 border-red-900/30'}`}>
+                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Eficiencia Global</p>
+                        <p className={`text-2xl font-black font-mono mt-1 ${efGlobal !== null && efGlobal >= 90 ? 'text-emerald-400' : efGlobal !== null && efGlobal >= 85 ? 'text-amber-400' : 'text-red-400'}`}>
+                            {efGlobal !== null ? `${efGlobal.toFixed(1)}%` : '—'}
+                        </p>
+                    </div>
+                    <div className={`rounded-xl p-3 border ${alertasCrit.length === 0 ? 'bg-emerald-950/30 border-emerald-900/30' : 'bg-red-950/30 border-red-900/30'}`}>
+                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Alertas Críticas</p>
+                        <p className={`text-2xl font-black font-mono mt-1 ${alertasCrit.length === 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {alertasCrit.length}
+                        </p>
+                    </div>
+                    <div className="bg-slate-950/50 border border-white/5 rounded-xl p-3">
+                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Tramos analizados</p>
+                        <p className="text-2xl font-black text-white font-mono mt-1">{balanceData.length}</p>
+                    </div>
+                </div>
+
+                {/* Tabla de eficiencia por tramo */}
+                {balanceData.length > 0 && (
+                    <div className="overflow-x-auto rounded-xl border border-white/5">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="border-b border-white/10 bg-slate-950/80">
+                                    <th className="px-3 py-2 text-[8px] font-black text-slate-500 uppercase tracking-widest">Tramo</th>
+                                    <th className="px-3 py-2 text-[8px] font-black text-slate-500 uppercase tracking-widest text-right">Q Entrada</th>
+                                    <th className="px-3 py-2 text-[8px] font-black text-slate-500 uppercase tracking-widest text-right">Q Salida</th>
+                                    <th className="px-3 py-2 text-[8px] font-black text-slate-500 uppercase tracking-widest text-right">Q Tomas</th>
+                                    <th className="px-3 py-2 text-[8px] font-black text-slate-500 uppercase tracking-widest text-right">Pérdidas</th>
+                                    <th className="px-3 py-2 text-[8px] font-black text-slate-500 uppercase tracking-widest text-center">Eficiencia</th>
+                                    <th className="px-3 py-2 text-[8px] font-black text-slate-500 uppercase tracking-widest text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {balanceData.map((b, i) => {
+                                    const st = getEfficiencyStatus(b.eficiencia);
+                                    return (
+                                        <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
+                                            <td className="px-3 py-2 text-[10px] font-bold text-white">{b.seccion_nombre}</td>
+                                            <td className="px-3 py-2 text-[10px] font-mono text-slate-300 text-right">{(b.q_entrada ?? 0).toFixed(2)}</td>
+                                            <td className="px-3 py-2 text-[10px] font-mono text-slate-300 text-right">{(b.q_salida ?? 0).toFixed(2)}</td>
+                                            <td className="px-3 py-2 text-[10px] font-mono text-slate-300 text-right">{(b.q_tomas ?? 0).toFixed(2)}</td>
+                                            <td className="px-3 py-2 text-[10px] font-mono text-right" style={{ color: (b.q_perdidas ?? 0) > 0.5 ? '#ef4444' : '#94a3b8' }}>
+                                                {(b.q_perdidas ?? 0).toFixed(3)}
+                                            </td>
+                                            <td className="px-3 py-2 text-center">
+                                                <span className="text-[11px] font-black font-mono" style={{ color: st.color }}>
+                                                    {(b.eficiencia ?? 0).toFixed(1)}%
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-2 text-center">
+                                                <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded"
+                                                    style={{ color: st.color, background: `${st.color}18` }}>
+                                                    {st.label}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* Alertas predictivas activas */}
+                {!loadingPred && alertas.length > 0 && (
+                    <div className="space-y-1.5">
+                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                            Alertas de Balance Predictivo ({alertas.length})
+                        </p>
+                        {alertas.map(a => (
+                            <div key={a.id} className={`flex items-start gap-2 px-3 py-2 rounded-lg border text-[10px] ${a.type === 'critical' ? 'bg-red-950/30 border-red-900/30' : 'bg-amber-950/30 border-amber-900/30'}`}>
+                                <AlertTriangle size={11} className={a.type === 'critical' ? 'text-red-400 mt-0.5 flex-shrink-0' : 'text-amber-400 mt-0.5 flex-shrink-0'} />
+                                <div>
+                                    <p className={`font-black ${a.type === 'critical' ? 'text-red-300' : 'text-amber-300'}`}>{a.title}</p>
+                                    <p className="text-slate-400 text-[9px] mt-0.5">{a.message}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Top anomalías de tramos */}
+                {anomalias.length > 0 && (
+                    <div>
+                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                            Tramos con Anomalía de Balance
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {anomalias.slice(0, 4).map((t, i) => (
+                                <div key={i} className={`px-3 py-2 rounded-lg border text-[9px] ${t.estado === 'critico' ? 'bg-red-950/20 border-red-900/20' : 'bg-amber-950/20 border-amber-900/20'}`}>
+                                    <p className="font-black text-white">{t.label}</p>
+                                    <div className="flex gap-3 mt-1 font-mono text-slate-400">
+                                        {t.eficiencia_hoy !== null && <span>Hoy: <strong style={{ color: t.estado === 'critico' ? '#ef4444' : '#f59e0b' }}>{t.eficiencia_hoy.toFixed(1)}%</strong></span>}
+                                        {t.eficiencia_baseline !== null && <span>Base: {t.eficiencia_baseline.toFixed(1)}%</span>}
+                                        {t.delta_pp !== null && <span>Δ: {t.delta_pp.toFixed(1)} pp</span>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <p className="text-[8px] text-slate-700 text-right font-mono print:text-black">
+                    SICA · Canal Principal Conchos · {new Date().toLocaleString('es-MX')}
+                </p>
+            </div>
+        </div>
+    );
+};
+
+// ─── Componente principal ─────────────────────────────────────────────────────
 
 const BalanceHidraulico = () => {
     const { fechaSeleccionada } = useFecha();
@@ -376,6 +553,40 @@ const BalanceHidraulico = () => {
                     </div>
                 )}
             </div>
+
+            {/* ── Curvas Q-h por Escala ─────────────────────────────────────── */}
+            <div className="mt-8 pt-8 border-t border-white/5 no-print">
+                <div className="flex items-center gap-2 mb-1">
+                    <TrendingDown size={16} className="text-sky-400" />
+                    <h3 className="text-sm font-black text-white uppercase tracking-tight">
+                        Curvas Q-h por Punto de Aforo
+                    </h3>
+                </div>
+                <p className="text-[10px] text-slate-500 mb-4 uppercase tracking-[0.15em]">
+                    Scatter de campo vs curva teórica Manning · Detecta cambios de sección y desviaciones · Ventana 365 días
+                </p>
+                <RatingCurve diasAtras={365} />
+            </div>
+
+            {/* ── Calibración Automática de Manning ─────────────────────────── */}
+            <div className="mt-8 pt-8 border-t border-white/5 no-print">
+                <div className="flex items-center gap-2 mb-1">
+                    <FlaskConical size={16} className="text-amber-400" />
+                    <h3 className="text-sm font-black text-white uppercase tracking-tight">
+                        Calibración Automática — Rugosidad Manning (n)
+                    </h3>
+                </div>
+                <p className="text-[10px] text-slate-500 mb-4 uppercase tracking-[0.15em]">
+                    Comparativa diseño vs medición de campo · Ventana 90 días · Aforos sica-capture
+                </p>
+                <ManningCalibrador />
+            </div>
+
+            {/* ── Reporte Ejecutivo Diario ───────────────────────────────────── */}
+            <ReporteEjecutivo
+                fecha={fechaSeleccionada}
+                balanceData={balanceData}
+            />
         </div>
     );
 };

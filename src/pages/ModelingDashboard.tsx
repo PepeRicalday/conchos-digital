@@ -170,6 +170,23 @@ function normalDepth(Q: number, S = S0_CANAL, b = PLANTILLA, z = TALUD_Z, n = MA
   return y;
 }
 
+/** Tirante crítico (Fr=1) por Newton-Raphson.
+ *  F(y) = Q²·T(y) − g·A(y)³ = 0
+ *  F'(y) = Q²·2z − 3g·A²·(b+2zy) */
+function criticalDepth(Q: number, b = PLANTILLA, z = TALUD_Z): number {
+  if (Q <= 0) return 0.1;
+  let y = Math.max(0.1, Q / (b * 2));
+  for (let i = 0; i < 50; i++) {
+    const A = (b + z * y) * y;
+    const T = b + 2 * z * y;
+    const F = Q * Q * T - G * A * A * A;
+    const dF = Q * Q * 2 * z - 3 * G * A * A * (b + 2 * z * y);
+    if (Math.abs(F) < 0.001 || Math.abs(dF) < 1e-10) break;
+    y = Math.max(0.05, y - F / dF);
+  }
+  return y;
+}
+
 function waveCelerity(y: number, b = PLANTILLA, z = TALUD_Z): number {
   const A = (b + z * y) * y;
   const T = b + 2 * z * y;
@@ -1087,8 +1104,15 @@ const ModelingDashboard: React.FC = () => {
       fetchData();
     });
 
+    // Suscripción realtime: cuando se aplica calibración Manning, refrescar geometría
+    const unsubPerfil = onTable('perfil_hidraulico_canal', 'UPDATE', () => {
+      console.log('📐 Perfil hidráulico actualizado. Recargando geometría...');
+      fetchData();
+    });
+
     return () => {
       unsubPresa();
+      unsubPerfil();
       clearInterval(deliveryInterval);
     };
   }, []);
@@ -1176,6 +1200,11 @@ const ModelingDashboard: React.FC = () => {
       const tr = findTramo(km, tramoGeom);
       return tr.tirante_diseno_m;
     });
+    // Tirante crítico (Fr=1) por tramo: yc = criticalDepth(Q, b, z)
+    const ycData = kmData.map((km, i) => {
+      const tr = findTramo(km, tramoGeom);
+      return +criticalDepth(qSimData[i] ?? qDam, tr.plantilla_m, tr.talud_z).toFixed(3);
+    });
     // Colores por estado_lectura del RPC (reemplaza statusColor Manning para escalas)
     const estadoColorMap: Record<string, string> = {
       CONSISTENTE:           '#22c55e',   // verde
@@ -1258,7 +1287,7 @@ const ModelingDashboard: React.FC = () => {
       if (!params?.length) return '';
       const p0 = params[0];
       // Grid 0 — perfil longitudinal (series indexadas por km)
-      if (['Tirante Actual', 'Nivel Real SQL', 'Tirante Simulado', 'Caudal Q', 'Tirante Diseño', 'Bordo Libre'].includes(p0.seriesName)) {
+      if (['Tirante Actual', 'Nivel Real SQL', 'Tirante Simulado', 'Caudal Q', 'Tirante Diseño', 'Bordo Libre', 'Tirante Crítico'].includes(p0.seriesName)) {
         if (!simResults.length) return '';
         const axisKm = p0.axisValue as number;
         const r = simResults.find(r2 => r2.km === axisKm) ?? simResults.reduce((best, r2) => Math.abs(r2.km - axisKm) < Math.abs(best.km - axisKm) ? r2 : best, simResults[0]);
@@ -1276,6 +1305,7 @@ const ModelingDashboard: React.FC = () => {
           <div>Nivel real SQL&nbsp;&nbsp;<b style="color:#f59e0b">${rpcRow && Number.isFinite(rpcRow.nivel) ? rpcRow.nivel.toFixed(2)+' m' : '—'}</b>&nbsp;<span style="color:${estadoClr};font-size:9px">${estadoLabel}</span></div>
           <div>Tirante actual &nbsp;&nbsp;<b style="color:#38bdf8">${(r.y_base??0).toFixed(2)} m</b></div>
           <div>Tirante simulado<b style="color:${statusColor(r.status)}">&nbsp;${(r.y_sim??0).toFixed(2)} m</b></div>
+          <div>Tirante crítico &nbsp;<b style="color:rgba(251,146,60,0.9)">${criticalDepth(r.q_sim, findTramo(r.km, tramoGeom).plantilla_m, findTramo(r.km, tramoGeom).talud_z).toFixed(2)} m</b>&nbsp;<span style="color:#475569;font-size:9px">(Fr=1)</span></div>
           <div>Variación &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b style="color:${movClr}">${sign}${dCm} cm</b></div>
           <div>Q llegada &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b style="color:#a78bfa">${(r.q_sim??0).toFixed(1)} m³/s</b></div>
           ${r.n_tomas_activas > 0 ? `<div style="color:#64748b;font-size:9px">−${r.q_extraido.toFixed(2)} m³/s · ${r.n_tomas_activas} tomas activas</div>` : ''}
@@ -1409,6 +1439,16 @@ const ModelingDashboard: React.FC = () => {
               ],
             },
           },
+          label: { show: false },
+        },
+
+        // Tirante crítico (Fr=1) — umbral de régimen supercrítico
+        {
+          name: 'Tirante Crítico', type: 'line',
+          xAxisIndex: 0, yAxisIndex: 0,
+          data: kmData.map((km, i) => [km, ycData[i]]),
+          smooth: false, showSymbol: false, z: 2,
+          lineStyle: { color: 'rgba(251,146,60,0.65)', width: 1.5, type: [6, 3] },
           label: { show: false },
         },
 
@@ -2304,6 +2344,23 @@ const ModelingDashboard: React.FC = () => {
                       <input type="range" min={0} max={120} step={0.5} value={qDamB}
                         onChange={e => setQDamB(+e.target.value)}
                         className="sim-compare-slider" title="Gasto escenario B" />
+                      <div className="sim-preset-btns">
+                        {[-25, -10, 0, +10, +25].map(pct => {
+                          const target = Math.max(0, Math.min(120, Math.round((qDam * (1 + pct / 100)) * 2) / 2));
+                          const isActive = Math.abs(qDamB - target) < 0.1;
+                          return (
+                            <button
+                              key={pct}
+                              type="button"
+                              className={`sim-preset-btn ${isActive ? 'active' : ''}`}
+                              onClick={() => setQDamB(target)}
+                              title={`${target.toFixed(1)} m³/s`}
+                            >
+                              {pct === 0 ? '=A' : `${pct > 0 ? '+' : ''}${pct}%`}
+                            </button>
+                          );
+                        })}
+                      </div>
                       <div className={`sim-delta-chip ${qDamB > qDam ? 'pos' : qDamB < qDam ? 'neg' : 'neu'}`}>
                         {qDamB === qDam ? '= A' : `${qDamB > qDam ? '+' : ''}${(qDamB - qDam).toFixed(1)} vs A`}
                       </div>
@@ -2508,6 +2565,30 @@ const ModelingDashboard: React.FC = () => {
                       <span className={`sim-compare-sum-diff ${effB >= effA ? 'better' : 'worse'}`}>
                         {(effB - effA) >= 0 ? '+' : ''}{(effB - effA).toFixed(1)}%
                       </span>
+                    </div>
+                    <div className="sim-eff-bars">
+                      <div className="sim-eff-bar-row">
+                        <span className="sim-eff-bar-lbl scen-a-col">A</span>
+                        <div className="sim-eff-bar-track">
+                          <div
+                            className="sim-eff-bar-fill scen-a"
+                            style={{ '--bar-w': `${Math.min(100, effA)}%` } as React.CSSProperties}
+                            title={`Eficiencia A: ${effA.toFixed(1)}%`}
+                          />
+                        </div>
+                        <span className="sim-eff-bar-val scen-a-col">{effA.toFixed(1)}%</span>
+                      </div>
+                      <div className="sim-eff-bar-row">
+                        <span className="sim-eff-bar-lbl scen-b-col">B</span>
+                        <div className="sim-eff-bar-track">
+                          <div
+                            className={`sim-eff-bar-fill scen-b ${effB >= effA ? 'better' : 'worse'}`}
+                            style={{ '--bar-w': `${Math.min(100, effB)}%` } as React.CSSProperties}
+                            title={`Eficiencia B: ${effB.toFixed(1)}%`}
+                          />
+                        </div>
+                        <span className="sim-eff-bar-val scen-b-col">{effB.toFixed(1)}%</span>
+                      </div>
                     </div>
                     <div className="sim-compare-sum-item">
                       <span className="sim-compare-sum-lbl">Secciones críticas</span>

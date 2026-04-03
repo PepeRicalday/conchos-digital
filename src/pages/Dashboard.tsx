@@ -14,6 +14,7 @@ import { useHydraEngine } from '../hooks/useHydraEngine';
 import { usePresas } from '../hooks/usePresas';
 import { useLeakMonitor } from '../hooks/useLeakMonitor';
 import { useHydricEvents } from '../hooks/useHydricEvents';
+import { usePredictiveBalance } from '../hooks/usePredictiveBalance';
 import { useFecha } from '../context/FechaContext';
 import { supabase } from '../lib/supabase';
 import { getTodayString, addDays } from '../utils/dateHelpers';
@@ -198,6 +199,7 @@ const Dashboard = () => {
     } = usePresas(fechaSeleccionada);
 
     const { segments, loading: loadingLeaks } = useLeakMonitor();
+    const { alertas: predictiveAlerts } = usePredictiveBalance();
 
     const [appVersions, setAppVersions] = useState<AppVersionRow[]>([]);
     const [tomasVaradas, setTomasVaradas] = useState<VwAlertaTomaVaradaRow[]>([]);
@@ -364,11 +366,19 @@ const Dashboard = () => {
             }
         });
 
+        // 5. Alertas predictivas (balance hídrico proyectado)
+        // Deduplicar: si ya existe una alerta de fuga real para el mismo tramo,
+        // la predictiva no aporta información nueva → omitirla.
+        for (const pa of predictiveAlerts) {
+            const yaExiste = alerts.some(a => a.id.replace('pred-fuga-', 'leak-') === pa.id.replace('pred-fuga-', 'leak-'));
+            if (!yaExiste) alerts.push(pa);
+        }
+
         if (alerts.length === 0) {
             alerts.push({ id: 'ok', type: 'info', title: 'Sistema Estable', message: 'Operando dentro de parámetros normales.', timestamp: 'Ahora' });
         }
         return alerts;
-    }, [modules, presas, tomasVaradas, segments, activeEvent]);
+    }, [modules, presas, tomasVaradas, segments, activeEvent, predictiveAlerts]);
 
     if (loading && presas.length === 0) {
         return (

@@ -156,12 +156,10 @@ const PublicMonitor: React.FC = () => {
             setPresasData(finalPresas);
 
             // 3. Latest Readings — ventana de datos
-            // LLENADO:        desde hora_apertura_real del evento activo
-            // ESTABILIZACIÓN: desde medianoche del día actual (evita arrastre de lecturas
-            //                 del día anterior al cruzar las 00:00h)
-            const todayDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD Chihuahua
-            // LLENADO: filtra desde hora_apertura_real (campo creado_en, timestamp completo)
-            // ESTABILIZACIÓN: filtra por `fecha` (columna date pura YYYY-MM-DD), sin ambigüedad UTC
+            // LLENADO:        desde hora_apertura_real del evento activo (creado_en timestamp)
+            // ESTABILIZACIÓN: último registro por escala sin filtro de fecha — continuidad
+            //                 operativa. El operador registra de forma continua; el registro
+            //                 más reciente en la BD es el estado actual del canal.
             const isLlenado = !!activeEvent?.hora_apertura_real;
             const eventStart = activeEvent?.hora_apertura_real || null;
 
@@ -171,14 +169,13 @@ const PublicMonitor: React.FC = () => {
 
             if (isLlenado && eventStart) {
                 readingsQuery = readingsQuery.gte('creado_en', eventStart);
-            } else {
-                // ESTABILIZACIÓN: sólo registros cuya fecha (campo date) es hoy
-                readingsQuery = readingsQuery.gte('fecha', todayDate);
             }
+            // ESTABILIZACIÓN: sin filtro de fecha — se toma el último registro disponible
+            // por escala (order creado_en desc + map de primer aparición por escala_id)
 
             const { data: readings } = await readingsQuery
                 .order('creado_en', { ascending: false })
-                .limit(500);
+                .limit(600);
 
             // 4. Dam Specific Movements
             const { data: mData } = await supabase
@@ -337,18 +334,25 @@ const PublicMonitor: React.FC = () => {
 
                 // Gasto por punto: si tiene compuertas radiales y apertura > 0,
                 // calcular por orificio (Q = Cd·A·√2gH) — no usar rating curve.
+                // Cuando apertura = 0 y la escala tiene compuertas definidas, el gasto
+                // calculado por nivel (gasto_calculado_m3s) es la curva de aforo libre
+                // y NO representa el gasto real controlado por compuerta. Se muestra null.
                 const aperturaEsc = reading?.apertura || 0;
                 const pzasEsc     = Number((e as any).pzas_radiales) || 0;
                 const anchoEsc    = Number((e as any).ancho) || 0;
+                const tieneCompuertas = pzasEsc > 0 && anchoEsc > 0;
                 let gastoEsc: number | null = null;
-                if (pzasEsc > 0 && anchoEsc > 0 && aperturaEsc > 0) {
+                if (tieneCompuertas && aperturaEsc > 0) {
                     const hA = reading?.nivel       || 0;
                     const hB = reading?.nivel_abajo || 0;
                     const cH = hB > 0 ? Math.max(0, hA - hB) : hA;
                     gastoEsc = 0.6 * pzasEsc * anchoEsc * aperturaEsc * Math.sqrt(2 * 9.81 * cH);
-                } else if ((reading?.gasto_real || 0) > 0) {
+                } else if (!tieneCompuertas && (reading?.gasto_real || 0) > 0) {
+                    // Punto sin compuertas → usar rating curve (aforo libre válido)
                     gastoEsc = reading!.gasto_real;
                 }
+                // Si tiene compuertas pero apertura = 0 → gastoEsc queda null
+                // (rating curve es irrelevante cuando la compuerta controla el gasto)
 
                 return {
                     ...e,
@@ -417,8 +421,10 @@ const PublicMonitor: React.FC = () => {
                 const areaTotal = pzas * ancho * apertura0;
                 currentFlowAtZero = Cd * areaTotal * Math.sqrt(2 * 9.81 * cargaH);
             } else {
-                // Sin apertura registrada → usar medición de turno (sección libre)
-                currentFlowAtZero = zeroReading?.gasto_real || 0;
+                // Sin apertura registrada: K0 tiene compuertas radiales, la rating curve
+                // (gasto_calculado_m3s) no es representativa del gasto real controlado.
+                // Usar 0 para evitar mostrar un valor físicamente incorrecto.
+                currentFlowAtZero = 0;
             }
 
             // Corrección de coherencia física: el gasto en K0 no puede superar

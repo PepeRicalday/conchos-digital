@@ -324,11 +324,26 @@ const PublicMonitor: React.FC = () => {
 
                 const timestamp = reading?.timestamp || null;
 
+                // Gasto por punto: si tiene compuertas radiales y apertura > 0,
+                // calcular por orificio (Q = Cd·A·√2gH) — no usar rating curve.
+                const aperturaEsc = reading?.apertura || 0;
+                const pzasEsc     = Number((e as any).pzas_radiales) || 0;
+                const anchoEsc    = Number((e as any).ancho) || 0;
+                let gastoEsc: number | null = null;
+                if (pzasEsc > 0 && anchoEsc > 0 && aperturaEsc > 0) {
+                    const hA = reading?.nivel       || 0;
+                    const hB = reading?.nivel_abajo || 0;
+                    const cH = hB > 0 ? Math.max(0, hA - hB) : hA;
+                    gastoEsc = 0.6 * pzasEsc * anchoEsc * aperturaEsc * Math.sqrt(2 * 9.81 * cH);
+                } else if ((reading?.gasto_real || 0) > 0) {
+                    gastoEsc = reading!.gasto_real;
+                }
+
                 return {
                     ...e,
                     nivel_actual:          nivel,
-                    gasto_actual:          reading?.gasto_real          ?? null,
-                    apertura_actual:       reading?.apertura            ?? null,
+                    gasto_actual:          gastoEsc,
+                    apertura_actual:       aperturaEsc > 0 ? aperturaEsc : null,
                     nivel_max_operativo:   (e as any).nivel_max_operativo ?? null,
                     capacidad_max:         (e as any).capacidad_max       ?? null,
                     estado:                estado,
@@ -363,18 +378,50 @@ const PublicMonitor: React.FC = () => {
             const k0Phys = escData?.find(e => e.km === 0);
             const pzas = k0Phys?.pzas_radiales || 12;
             const ancho = k0Phys?.ancho || 1.84;
-            
-            // Priority 1: Real gauged/calculated flow from field (SICA Capture)
-            // Priority 2: Theoretical radial gate model (Cd=0.6)
-            let currentFlowAtZero = zeroReading?.gasto_real || 0;
-            
-            if (currentFlowAtZero === 0 && zeroReading?.apertura > 0) {
-                const Cd = 0.6;
-                const hArriba = zeroReading.nivel || 0;
-                const hAbajo = zeroReading.nivel_abajo || 0;
-                const cargaH = hAbajo > 0 ? Math.max(0, hArriba - hAbajo) : hArriba;
-                const areaTotal = pzas * ancho * zeroReading.apertura;
+
+            // ── Lógica correcta de gasto en K0 ───────────────────────────────
+            // gasto_calculado_m3s en lecturas_escalas es una curva nivel→gasto
+            // (rating curve / Manning). Cuando la compuerta está parcialmente
+            // abierta el nivel aguas arriba sube pero el gasto REAL lo controla
+            // la apertura — no el nivel. Por eso la compuerta tiene prioridad.
+            //
+            // Prioridad 1: Cálculo por compuertas radiales (si apertura > 0)
+            //              Q = Cd × (pzas × ancho × apertura) × √(2g × carga)
+            //              Esto refleja el gasto REAL que pasa al canal.
+            //
+            // Prioridad 2: gasto_calculado_m3s del turno (aforo libre, sin compuerta)
+            //              Válido solo cuando apertura = 0 (sección completamente abierta)
+            //              o cuando no hay dato de apertura.
+            let currentFlowAtZero = 0;
+            const apertura0 = zeroReading?.apertura || 0;
+
+            if (apertura0 > 0) {
+                // Compuerta parcialmente abierta → cálculo por orificio sumergido
+                const Cd      = 0.6;
+                const hArriba = zeroReading?.nivel      || 0;
+                const hAbajo  = zeroReading?.nivel_abajo || 0;
+                const cargaH  = hAbajo > 0
+                    ? Math.max(0, hArriba - hAbajo)
+                    : hArriba;
+                const areaTotal = pzas * ancho * apertura0;
                 currentFlowAtZero = Cd * areaTotal * Math.sqrt(2 * 9.81 * cargaH);
+            } else {
+                // Sin apertura registrada → usar medición de turno (sección libre)
+                currentFlowAtZero = zeroReading?.gasto_real || 0;
+            }
+
+            // Corrección de coherencia física: el gasto en K0 no puede superar
+            // el gasto de presa (con margen del 5% por error de medición)
+            const qPresa0 = Number(damMovements[0]?.gasto_m3s
+                || presasData[0]?.extraccion_total || 0);
+            if (qPresa0 > 0 && currentFlowAtZero > qPresa0 * 1.05) {
+                // Valor físicamente imposible — dato de curva de descarga incorrecto
+                // Usar cálculo por compuerta si hay apertura, si no limpiar
+                if (apertura0 > 0) {
+                    // Ya calculado arriba — no hacer nada, el valor es correcto
+                } else {
+                    currentFlowAtZero = 0; // Sin apertura y sin coherencia → sin dato
+                }
             }
 
             const hasViolation = currentFlowAtZero > 70.42;

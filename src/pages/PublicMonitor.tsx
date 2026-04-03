@@ -156,26 +156,18 @@ const PublicMonitor: React.FC = () => {
             setPresasData(finalPresas);
 
             // 3. Latest Readings — ventana de datos
-            // LLENADO:        desde hora_apertura_real del evento activo (creado_en timestamp)
-            // ESTABILIZACIÓN: último registro por escala sin filtro de fecha — continuidad
-            //                 operativa. El operador registra de forma continua; el registro
-            //                 más reciente en la BD es el estado actual del canal.
-            const isLlenado = !!activeEvent?.hora_apertura_real;
-            const eventStart = activeEvent?.hora_apertura_real || null;
-
-            let readingsQuery = supabase
+            // LLENADO:        desde hora_apertura_real del evento activo
+            // ESTABILIZACIÓN: desde medianoche del día actual (evita arrastre de lecturas
+            //                 del día anterior al cruzar las 00:00h)
+            const todayDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD Chihuahua
+            const eventStart = activeEvent?.fecha_inicio || `${todayDate}T00:00:00`;
+            
+            const { data: readings } = await supabase
                 .from('lecturas_escalas')
-                .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, radiales_json, gasto_calculado_m3s, creado_en');
-
-            if (isLlenado && eventStart) {
-                readingsQuery = readingsQuery.gte('creado_en', eventStart);
-            }
-            // ESTABILIZACIÓN: sin filtro de fecha — se toma el último registro disponible
-            // por escala (order creado_en desc + map de primer aparición por escala_id)
-
-            const { data: readings } = await readingsQuery
+                .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, radiales_json, gasto_calculado_m3s, creado_en')
+                .gte('creado_en', eventStart)
                 .order('creado_en', { ascending: false })
-                .limit(600);
+                .limit(500);
 
             // 4. Dam Specific Movements
             const { data: mData } = await supabase
@@ -227,8 +219,7 @@ const PublicMonitor: React.FC = () => {
             }
 
             // ESTABILIZACIÓN: si no hay evento LLENADO activo, poblar readingsMap
-            // con la lectura más reciente de cada escala (sin filtro de tiempo de evento).
-            // Se toma el primer registro por escala_id (ya ordenado creado_en desc = más reciente).
+            // con la lectura más reciente de cada escala (sin filtro de tiempo de evento)
             if (!flowStartTime) {
                 (readings || []).forEach(r => {
                     if (!readingsMap.has(r.escala_id)) {
@@ -333,58 +324,11 @@ const PublicMonitor: React.FC = () => {
 
                 const timestamp = reading?.timestamp || null;
 
-                // Gasto por punto — jerarquía de cálculo:
-                //
-                // SICA Capture guarda en gasto_calculado_m3s el flujo calculado desde
-                // las compuertas (radiales_json) cuando el operador usa la interfaz de
-                // compuertas individuales. En ese caso apertura_radiales_m puede quedar
-                // en 0 (campo legacy) pero gasto_calculado_m3s ya es el valor correcto.
-                //
-                // Prioridad 1: radiales_json con datos → usar gasto_calculado_m3s (SICA Capture)
-                // Prioridad 2: apertura_radiales_m > 0 → fórmula de orificio local
-                // Prioridad 3: sin compuertas → rating curve (aforo libre válido)
-                // Prioridad 4: compuertas sin apertura ni JSON → null
-                const aperturaEsc   = reading?.apertura || 0;
-                const pzasEsc       = Number((e as any).pzas_radiales) || 0;
-                const anchoEsc      = Number((e as any).ancho) || 0;
-                const tieneCompuertas = pzasEsc > 0 && anchoEsc > 0;
-
-                // Sumar apertura total desde radiales_json (formato {index, apertura_m})
-                const radialesArr = Array.isArray(reading?.radiales_json) ? reading!.radiales_json : [];
-                const totalRadiales = radialesArr.reduce((s: number, v: any) => {
-                    if (typeof v === 'object' && v !== null && v.apertura_m !== undefined)
-                        return s + Number(v.apertura_m);
-                    return s + (parseFloat(String(v)) || 0);
-                }, 0);
-
-                let gastoEsc: number | null = null;
-                const qPresaRef = Number(mData?.[0]?.gasto_m3s || finalPresas[0]?.extraccion_total || 0);
-
-                if (tieneCompuertas) {
-                    if (totalRadiales > 0 && (reading?.gasto_real || 0) > 0) {
-                        // SICA Capture calculó desde radiales_json — valor ya correcto
-                        gastoEsc = reading!.gasto_real;
-                    } else if (aperturaEsc > 0) {
-                        // Campo legacy apertura_radiales_m — calcular por orificio
-                        const hA = reading?.nivel       || 0;
-                        const hB = reading?.nivel_abajo || 0;
-                        const cH = hB > 0 ? Math.max(0, hA - hB) : hA;
-                        gastoEsc = 0.6 * pzasEsc * anchoEsc * aperturaEsc * Math.sqrt(2 * 9.81 * Math.max(0, cH));
-                    }
-                    // Tope de coherencia física
-                    if (gastoEsc !== null && qPresaRef > 0 && gastoEsc > qPresaRef * 1.5) {
-                        gastoEsc = null;
-                    }
-                } else if ((reading?.gasto_real || 0) > 0) {
-                    // Sin compuertas → rating curve válida (aforo libre)
-                    gastoEsc = reading!.gasto_real;
-                }
-
                 return {
                     ...e,
                     nivel_actual:          nivel,
-                    gasto_actual:          gastoEsc,
-                    apertura_actual:       aperturaEsc > 0 ? aperturaEsc : null,
+                    gasto_actual:          reading?.gasto_real          ?? null,
+                    apertura_actual:       reading?.apertura            ?? null,
                     nivel_max_operativo:   (e as any).nivel_max_operativo ?? null,
                     capacidad_max:         (e as any).capacidad_max       ?? null,
                     estado:                estado,
@@ -419,36 +363,18 @@ const PublicMonitor: React.FC = () => {
             const k0Phys = escData?.find(e => e.km === 0);
             const pzas = k0Phys?.pzas_radiales || 12;
             const ancho = k0Phys?.ancho || 1.84;
-
-            // ── Gasto K0: misma jerarquía que baseEscalas ────────────────────
-            // 1. radiales_json con datos → gasto_calculado_m3s (ya calculado por SICA Capture)
-            // 2. apertura_radiales_m > 0  → fórmula de orificio
-            // 3. ninguno               → 0 (no mostrar rating curve)
-            const apertura0      = zeroReading?.apertura || 0;
-            const radiales0      = Array.isArray(zeroReading?.radiales_json) ? zeroReading!.radiales_json : [];
-            const totalRadiales0 = radiales0.reduce((s: number, v: any) => {
-                if (typeof v === 'object' && v !== null && v.apertura_m !== undefined)
-                    return s + Number(v.apertura_m);
-                return s + (parseFloat(String(v)) || 0);
-            }, 0);
-
-            let currentFlowAtZero = 0;
-
-            if (totalRadiales0 > 0 && (zeroReading?.gasto_real || 0) > 0) {
-                // SICA Capture calculó desde radiales_json
-                currentFlowAtZero = zeroReading!.gasto_real;
-            } else if (apertura0 > 0) {
-                const Cd      = 0.6;
-                const hArriba = zeroReading?.nivel       || 0;
-                const hAbajo  = zeroReading?.nivel_abajo || 0;
-                const cargaH  = hAbajo > 0 ? Math.max(0, hArriba - hAbajo) : hArriba;
-                currentFlowAtZero = Cd * pzas * ancho * apertura0 * Math.sqrt(2 * 9.81 * Math.max(0, cargaH));
-            }
-
-            // Tope de coherencia física
-            const qPresa0 = Number(mData?.[0]?.gasto_m3s || finalPresas[0]?.extraccion_total || 0);
-            if (qPresa0 > 0 && currentFlowAtZero > qPresa0 * 1.5) {
-                currentFlowAtZero = 0;
+            
+            // Priority 1: Real gauged/calculated flow from field (SICA Capture)
+            // Priority 2: Theoretical radial gate model (Cd=0.6)
+            let currentFlowAtZero = zeroReading?.gasto_real || 0;
+            
+            if (currentFlowAtZero === 0 && zeroReading?.apertura > 0) {
+                const Cd = 0.6;
+                const hArriba = zeroReading.nivel || 0;
+                const hAbajo = zeroReading.nivel_abajo || 0;
+                const cargaH = hAbajo > 0 ? Math.max(0, hArriba - hAbajo) : hArriba;
+                const areaTotal = pzas * ancho * zeroReading.apertura;
+                currentFlowAtZero = Cd * areaTotal * Math.sqrt(2 * 9.81 * cargaH);
             }
 
             const hasViolation = currentFlowAtZero > 70.42;

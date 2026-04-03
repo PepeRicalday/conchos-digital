@@ -35,7 +35,8 @@ interface EscalaData {
     ultima_telemetria?: number | null;
     // Campos extendidos para ESTABILIZACIÓN
     gasto_actual?: number | null;       // m³/s medido en campo
-    apertura_actual?: number | null;    // apertura radiales (m)
+    apertura_actual?: number | null;    // apertura total acumulada (suma de radiales activas, m)
+    puertas_abiertas?: number;          // cuántas compuertas están abiertas
     pzas_radiales?: number;
     ancho?: number;
     nivel_max_operativo?: number | null; // referencia de nivel máximo para la barra
@@ -324,6 +325,21 @@ const PublicMonitor: React.FC = () => {
 
                 const timestamp = reading?.timestamp || null;
 
+                // ── Apertura real desde radiales_json ─────────────────────────
+                // apertura_radiales_m es legacy (queda en 0 cuando el operador usa
+                // la interfaz de compuertas individuales). La fuente real es radiales_json.
+                const radialesArr = Array.isArray(reading?.radiales_json) ? reading!.radiales_json : [];
+                const aperturaTotal = radialesArr.reduce((s: number, v: any) => {
+                    if (typeof v === 'object' && v !== null && v.apertura_m !== undefined)
+                        return s + Number(v.apertura_m);
+                    return s + (parseFloat(String(v)) || 0);
+                }, 0);
+                const puertasAbiertas = radialesArr.filter((v: any) => {
+                    const ap = typeof v === 'object' ? Number(v.apertura_m || 0) : parseFloat(String(v));
+                    return ap > 0;
+                }).length;
+                const aperturaFinal = aperturaTotal > 0 ? aperturaTotal : (reading?.apertura || null);
+
                 // ── Coherencia física (solo ESTABILIZACIÓN) ───────────────────
                 // En ESTABILIZACIÓN el flujo en cualquier punto del canal no puede
                 // superar el gasto de presa. Si gasto_calculado_m3s (rating curve
@@ -341,7 +357,8 @@ const PublicMonitor: React.FC = () => {
                     ...e,
                     nivel_actual:          nivel,
                     gasto_actual:          gastoFinal,
-                    apertura_actual:       reading?.apertura            ?? null,
+                    apertura_actual:       aperturaFinal,
+                    puertas_abiertas:      puertasAbiertas > 0 ? puertasAbiertas : undefined,
                     nivel_max_operativo:   (e as any).nivel_max_operativo ?? null,
                     capacidad_max:         (e as any).capacidad_max       ?? null,
                     estado:                estado,
@@ -1039,17 +1056,20 @@ const PublicMonitor: React.FC = () => {
                                                             <span className="scp-metric-unit">m³/s</span>
                                                         </div>
                                                     )}
-                                                    {apertura > 0 && (() => {
-                                                        const pzas = esc.pzas_radiales && esc.pzas_radiales > 0 ? esc.pzas_radiales : 1;
-                                                        const totalApertura = pzas * apertura;
-                                                        return (
-                                                            <div className="scp-metric">
-                                                                <span className="scp-metric-label">APERTURA TOTAL</span>
-                                                                <span className="scp-metric-val">{totalApertura.toFixed(2)}</span>
-                                                                <span className="scp-metric-unit">m ({pzas} × {apertura.toFixed(2)}m)</span>
-                                                            </div>
-                                                        );
-                                                    })()}
+                                                    {apertura > 0 && (
+                                                        <div className="scp-metric">
+                                                            <span className="scp-metric-label">APERTURA ACUM.</span>
+                                                            <span className="scp-metric-val">{apertura.toFixed(2)}</span>
+                                                            <span className="scp-metric-unit">
+                                                                m
+                                                                {esc.puertas_abiertas != null && esc.pzas_radiales != null
+                                                                    ? ` · ${esc.puertas_abiertas}/${esc.pzas_radiales} comp.`
+                                                                    : esc.pzas_radiales != null
+                                                                        ? ` · ${esc.pzas_radiales} comp.`
+                                                                        : ''}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
 
@@ -1209,7 +1229,12 @@ const PublicMonitor: React.FC = () => {
                                                         <span className="cpc-gasto">{(e.gasto_actual ?? 0).toFixed(2)} m³/s</span>
                                                     )}
                                                     {(e.apertura_actual ?? 0) > 0 && (
-                                                        <span className="cpc-apertura">⊿ {(e.apertura_actual ?? 0).toFixed(2)}m</span>
+                                                        <span className="cpc-apertura">
+                                                            ⊿ {(e.apertura_actual ?? 0).toFixed(2)}m
+                                                            {e.puertas_abiertas != null && e.pzas_radiales != null
+                                                                ? ` (${e.puertas_abiertas}/${e.pzas_radiales})`
+                                                                : ''}
+                                                        </span>
                                                     )}
                                                 </div>
                                             )}

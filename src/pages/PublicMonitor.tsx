@@ -160,12 +160,23 @@ const PublicMonitor: React.FC = () => {
             // ESTABILIZACIÓN: desde medianoche del día actual (evita arrastre de lecturas
             //                 del día anterior al cruzar las 00:00h)
             const todayDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD Chihuahua
-            const eventStart = activeEvent?.fecha_inicio || `${todayDate}T00:00:00`;
-            
-            const { data: readings } = await supabase
+            // LLENADO: filtra desde hora_apertura_real (campo creado_en, timestamp completo)
+            // ESTABILIZACIÓN: filtra por `fecha` (columna date pura YYYY-MM-DD), sin ambigüedad UTC
+            const isLlenado = !!activeEvent?.hora_apertura_real;
+            const eventStart = activeEvent?.hora_apertura_real || null;
+
+            let readingsQuery = supabase
                 .from('lecturas_escalas')
-                .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, radiales_json, gasto_calculado_m3s, creado_en')
-                .gte('creado_en', eventStart)
+                .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, radiales_json, gasto_calculado_m3s, creado_en');
+
+            if (isLlenado && eventStart) {
+                readingsQuery = readingsQuery.gte('creado_en', eventStart);
+            } else {
+                // ESTABILIZACIÓN: sólo registros cuya fecha (campo date) es hoy
+                readingsQuery = readingsQuery.gte('fecha', todayDate);
+            }
+
+            const { data: readings } = await readingsQuery
                 .order('creado_en', { ascending: false })
                 .limit(500);
 
@@ -412,7 +423,8 @@ const PublicMonitor: React.FC = () => {
 
             // Corrección de coherencia física: el gasto en K0 no puede superar
             // el gasto de presa (con margen del 5% por error de medición)
-            const qPresa0 = Number(damMovements[0]?.gasto_m3s
+            // Usa mData (recién obtenido) en lugar de damMovements (estado React, puede estar stale)
+            const qPresa0 = Number(mData?.[0]?.gasto_m3s
                 || presasData[0]?.extraccion_total || 0);
             if (qPresa0 > 0 && currentFlowAtZero > qPresa0 * 1.05) {
                 // Valor físicamente imposible — dato de curva de descarga incorrecto

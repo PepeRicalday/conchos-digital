@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, ZoomControl, Marker, useMap, Popup } from 'react-leaflet';
 import { supabase } from '../lib/supabase';
 import { useHydricEvents } from '../hooks/useHydricEvents';
-import { Droplets, Timer, Activity, Clock, ArrowRightCircle, MapPin } from 'lucide-react';
+import { Timer, Activity, Clock, ArrowRightCircle, MapPin } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PublicMonitor.css';
@@ -965,7 +965,6 @@ const PublicMonitor: React.FC = () => {
                                     const apertura   = esc.apertura_actual ?? 0;
                                     const tsAge      = esc.ultima_telemetria ? (Date.now() - esc.ultima_telemetria) / 60000 : null; // minutos
                                     const tsStale    = tsAge !== null && tsAge > 480; // > 8 horas
-                                    const tsColor    = tsStale ? '#f59e0b' : '#475569';
 
                                     // Badge de estado legible para público
                                     let badgeLabel = 'SIN DATOS';

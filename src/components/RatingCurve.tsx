@@ -8,8 +8,8 @@
 
 import { useState } from 'react';
 import {
-    ScatterChart, Scatter, LineChart, Line, XAxis, YAxis, CartesianGrid,
-    Tooltip, ResponsiveContainer, ReferenceLine, ComposedChart,
+    Scatter, Line, XAxis, YAxis, CartesianGrid,
+    Tooltip, ResponsiveContainer, ComposedChart,
 } from 'recharts';
 import { TrendingUp, AlertTriangle, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useRatingCurve, type RatingCurveData } from '../hooks/useRatingCurve';
@@ -98,10 +98,10 @@ const PuntoCard = ({ data }: { data: RatingCurveData }) => {
                                 contentStyle={{ background: 'rgba(4,11,22,0.97)', border: '1px solid #1e3a5f', borderRadius: 6 }}
                                 labelStyle={{ color: '#94a3b8', fontSize: 9 }}
                                 itemStyle={{ fontSize: 10 }}
-                                formatter={(v: number, name: string) => [
+                                formatter={(v: number | undefined, name: string | undefined) => [
                                     `${typeof v === 'number' ? v.toFixed(3) : v} m³/s`,
                                     name === 'gasto' ? 'Aforo campo' : 'Manning teórico',
-                                ]}
+                                ] as [string, string]}
                             />
                             {/* Curva teórica Manning */}
                             <Line

@@ -17,7 +17,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-const G = 9.81;
 const S0_FALLBACK = 0.00016; // pendiente media Canal Principal Conchos
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────

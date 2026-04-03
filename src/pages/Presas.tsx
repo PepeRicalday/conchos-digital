@@ -126,10 +126,10 @@ const ExtractionStreamgraph = ({ movimientos }: { movimientos: MovimientoPresaDa
                     <Tooltip
                         contentStyle={{ backgroundColor: '#020617', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
                         itemStyle={{ fontFamily: 'JetBrains Mono', fontSize: '11px', color: '#e2e8f0' }}
-                        formatter={(val: number, _: string, entry: any) => [
-                            `${val.toFixed(2)} m³/s`,
+                        formatter={(val: number | undefined, _: string | undefined, entry: any) => [
+                            `${(val ?? 0).toFixed(2)} m³/s`,
                             entry.payload.fuente ?? 'Gasto'
-                        ]}
+                        ] as [string, string]}
                     />
                     <Area
                         type="stepAfter"

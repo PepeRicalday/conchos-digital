@@ -239,38 +239,163 @@ const EfficiencyHeatmap = () => {
     );
 };
 
-// --- Modal de Registro de Movimiento (Gerente) ---
-const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: { 
-    isOpen: boolean, 
-    onClose: () => void, 
+// ─── P1: Panel KPI Ejecutivo ──────────────────────────────────────────────────
+type SemaforoEstado = 'optimo' | 'atencion' | 'alerta' | 'sin_datos';
+
+const KpiExecutivePanel = ({ presas, movimientosHistorial }: { presas: PresaData[], movimientosHistorial: MovimientoPresaData[] }) => {
+    if (presas.length === 0) return null;
+
+    const getSemaforo = (presa: PresaData): SemaforoEstado => {
+        const pct = presa.lectura?.porcentaje_llenado;
+        if (pct == null) return 'sin_datos';
+        if (pct >= 60) return 'optimo';
+        if (pct >= 30) return 'atencion';
+        return 'alerta';
+    };
+
+    const semaforoMeta: Record<SemaforoEstado, { color: string; label: string; bg: string; border: string }> = {
+        optimo:    { color: '#10b981', label: 'ÓPTIMO',    bg: 'rgba(16,185,129,0.07)',  border: 'rgba(16,185,129,0.25)' },
+        atencion:  { color: '#f59e0b', label: 'ATENCIÓN',  bg: 'rgba(245,158,11,0.07)',  border: 'rgba(245,158,11,0.25)' },
+        alerta:    { color: '#ef4444', label: 'ALERTA',    bg: 'rgba(239,68,68,0.07)',   border: 'rgba(239,68,68,0.25)'  },
+        sin_datos: { color: '#475569', label: 'SIN DATOS', bg: 'rgba(71,85,105,0.07)',   border: 'rgba(71,85,105,0.2)'   },
+    };
+
+    return (
+        <div className="presa-kpi-panel">
+            {presas.map(presa => {
+                const sem = getSemaforo(presa);
+                const meta = semaforoMeta[sem];
+                const lect = presa.lectura;
+                const lastMov = movimientosHistorial
+                    .filter(m => m.presa_id === presa.id)
+                    .at(-1);
+                const deltaQ = lastMov
+                    ? (lect?.extraccion_total_m3s ?? 0) - lastMov.gasto_m3s
+                    : null;
+                const pct = lect?.porcentaje_llenado ?? 0;
+
+                return (
+                    <div key={presa.id} className="presa-kpi-card" style={{ background: meta.bg, borderColor: meta.border }}>
+                        {/* Semáforo */}
+                        <div className="presa-kpi-header">
+                            <span className="presa-kpi-nombre">{presa.nombre_corto}</span>
+                            <span className="presa-kpi-badge" style={{ color: meta.color, borderColor: meta.border }}>
+                                <span className="presa-kpi-dot" style={{ background: meta.color }} />
+                                {meta.label}
+                            </span>
+                        </div>
+
+                        {/* Barra NAMO */}
+                        <div className="presa-kpi-namo">
+                            <div className="presa-kpi-namo-track">
+                                <div className="presa-kpi-namo-fill" style={{ width: `${Math.min(pct, 100)}%`, background: meta.color }} />
+                            </div>
+                            <span className="presa-kpi-namo-val" style={{ color: meta.color }}>{pct.toFixed(1)}% NAMO</span>
+                        </div>
+
+                        {/* Métricas */}
+                        <div className="presa-kpi-metrics">
+                            <div className="presa-kpi-metric">
+                                <span className="presa-kpi-mlabel">ELEVACIÓN</span>
+                                <span className="presa-kpi-mval">{lect?.escala_msnm?.toFixed(2) ?? '—'}</span>
+                                <span className="presa-kpi-munit">msnm</span>
+                            </div>
+                            <div className="presa-kpi-metric">
+                                <span className="presa-kpi-mlabel">ALMACENAMIENTO</span>
+                                <span className="presa-kpi-mval">{lect?.almacenamiento_mm3?.toFixed(1) ?? '—'}</span>
+                                <span className="presa-kpi-munit">Mm³</span>
+                            </div>
+                            <div className="presa-kpi-metric">
+                                <span className="presa-kpi-mlabel">EXTRACCIÓN</span>
+                                <span className="presa-kpi-mval" style={{ color: (lect?.extraccion_total_m3s ?? 0) > 0 ? '#38bdf8' : '#475569' }}>
+                                    {lect?.extraccion_total_m3s?.toFixed(1) ?? '0.0'}
+                                </span>
+                                <span className="presa-kpi-munit">m³/s</span>
+                            </div>
+                            {deltaQ !== null && (
+                                <div className="presa-kpi-metric">
+                                    <span className="presa-kpi-mlabel">Δ ÚLTIMO MOV.</span>
+                                    <span className="presa-kpi-mval" style={{ color: deltaQ > 0 ? '#10b981' : deltaQ < 0 ? '#ef4444' : '#94a3b8' }}>
+                                        {deltaQ > 0 ? '+' : ''}{deltaQ.toFixed(1)}
+                                    </span>
+                                    <span className="presa-kpi-munit">m³/s</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Último movimiento */}
+                        {lastMov && (
+                            <div className="presa-kpi-lastmov">
+                                <Clock size={9} />
+                                <span>Último mov: {new Date(lastMov.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' })} — {lastMov.gasto_m3s.toFixed(1)} m³/s · {lastMov.fuente_dato}</span>
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+// ─── P2: Modal de Registro de Movimiento mejorado ────────────────────────────
+type TipoMovimiento = 'INCREMENTO' | 'DECREMENTO' | 'CORTE' | 'APERTURA' | 'AJUSTE';
+
+const TIPO_MOV_META: Record<TipoMovimiento, { color: string; icon: string; desc: string }> = {
+    INCREMENTO: { color: '#10b981', icon: '↑', desc: 'Aumenta el gasto liberado' },
+    DECREMENTO: { color: '#f59e0b', icon: '↓', desc: 'Reduce el gasto liberado'  },
+    CORTE:      { color: '#ef4444', icon: '✕', desc: 'Cierre total de la obra'   },
+    APERTURA:   { color: '#38bdf8', icon: '⊙', desc: 'Apertura inicial de obra'  },
+    AJUSTE:     { color: '#a78bfa', icon: '≈', desc: 'Ajuste operativo menor'    },
+};
+
+const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
+    isOpen: boolean,
+    onClose: () => void,
     presa: PresaData,
     onSourceUpdate: () => void
 }) => {
-    const [gasto, setGasto] = useState('');
+    const [gasto, setGasto]         = useState('');
+    const [tipo, setTipo]           = useState<TipoMovimiento>('AJUSTE');
+    const [responsable, setResp]    = useState('');
+    const [notas, setNotas]         = useState('');
     const [fechaHora, setFechaHora] = useState(new Date().toISOString().slice(0, 16));
-    const [isSaving, setIsSaving] = useState(false);
+    const [isSaving, setIsSaving]   = useState(false);
+    const [validErr, setValidErr]   = useState<string | null>(null);
+
+    const gastoNum = Number(gasto);
+    const qMax = 100; // límite operativo máximo razonable para obra de toma
+
+    const validate = (): string | null => {
+        if (!gasto || isNaN(gastoNum) || gastoNum < 0) return 'Ingresa un gasto válido (≥ 0)';
+        if (gastoNum > qMax) return `El gasto no puede superar ${qMax} m³/s (límite obra de toma)`;
+        if (tipo !== 'CORTE' && gastoNum === 0) return 'Gasto 0 solo aplica para CORTE';
+        if (!responsable.trim()) return 'El nombre del responsable es requerido';
+        return null;
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!gasto || isNaN(Number(gasto))) return;
-
+        const err = validate();
+        if (err) { setValidErr(err); return; }
+        setValidErr(null);
         setIsSaving(true);
         try {
             const { error } = await supabase
                 .from('movimientos_presas')
                 .insert({
-                    presa_id: presa.id,
-                    fecha_hora: new Date(fechaHora).toISOString(),
-                    gasto_m3s: Number(gasto),
-                    fuente_dato: 'GERENCIA_ADMIN'
+                    presa_id:    presa.id,
+                    fecha_hora:  new Date(fechaHora).toISOString(),
+                    gasto_m3s:   tipo === 'CORTE' ? 0 : gastoNum,
+                    fuente_dato: 'GERENCIA_ADMIN',
+                    notas: `[${tipo}] ${responsable.trim()}${notas.trim() ? ' — ' + notas.trim() : ''}`,
                 });
-
             if (error) throw error;
             onSourceUpdate();
             onClose();
+            setGasto(''); setResp(''); setNotas(''); setTipo('AJUSTE');
         } catch (err) {
             console.error('Error guardando movimiento:', err);
-            alert('Error al registrar el movimiento');
+            setValidErr('Error al registrar. Intenta nuevamente.');
         } finally {
             setIsSaving(false);
         }
@@ -278,65 +403,120 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
 
     if (!isOpen) return null;
 
+    const tipoMeta = TIPO_MOV_META[tipo];
+
     return (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in duration-200">
-                <div className="p-6 border-b border-white/5 bg-gradient-to-r from-blue-600/20 to-emerald-600/20">
-                    <h3 className="text-xl font-black text-white flex items-center gap-2 uppercase tracking-tighter">
-                        <PlusCircle className="text-emerald-400" />
-                        Registrar Movimiento
-                    </h3>
-                    <p className="text-xs text-slate-400 font-bold mt-1">Órdenes de Operación - {presa.nombre_corto}</p>
+            <div className="bg-[#040b16] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+                {/* Header */}
+                <div className="px-6 py-5 border-b border-white/5 flex items-start justify-between"
+                    style={{ background: `linear-gradient(135deg, ${tipoMeta.color}18 0%, transparent 100%)` }}>
+                    <div>
+                        <h3 className="text-base font-black text-white uppercase tracking-tighter flex items-center gap-2">
+                            <span className="text-lg" style={{ color: tipoMeta.color }}>{tipoMeta.icon}</span>
+                            Orden de Operación — {presa.nombre_corto}
+                        </h3>
+                        <p className="text-[10px] text-slate-500 font-bold mt-0.5 uppercase tracking-widest">Movimientos Presa · Registro con Trazabilidad</p>
+                    </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <form onSubmit={handleSubmit} className="p-6 space-y-5">
+
+                    {/* Tipo de movimiento */}
                     <div className="space-y-2">
-                        <label htmlFor="gasto-liberado" className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tipo de Movimiento</label>
+                        <div className="grid grid-cols-5 gap-1.5">
+                            {(Object.keys(TIPO_MOV_META) as TipoMovimiento[]).map(t => {
+                                const m = TIPO_MOV_META[t];
+                                const active = tipo === t;
+                                return (
+                                    <button key={t} type="button" onClick={() => setTipo(t)}
+                                        className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border transition-all text-center"
+                                        style={{
+                                            borderColor: active ? m.color : 'rgba(255,255,255,0.07)',
+                                            background:  active ? `${m.color}18` : 'rgba(255,255,255,0.02)',
+                                            color:       active ? m.color : '#475569',
+                                        }}>
+                                        <span className="text-base font-black">{m.icon}</span>
+                                        <span className="text-[8px] font-black uppercase leading-none">{t}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <p className="text-[9px] text-slate-600 font-bold">{tipoMeta.desc}</p>
+                    </div>
+
+                    {/* Gasto */}
+                    <div className="space-y-2">
+                        <label htmlFor="rmm-gasto" className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                             Gasto Liberado (Q)
+                            {tipo === 'CORTE' && <span className="ml-2 text-red-400">→ se registrará como 0.00 m³/s</span>}
                         </label>
                         <div className="relative">
-                            <input 
-                                id="gasto-liberado"
-                                type="number" 
-                                step="0.01"
-                                value={gasto}
-                                onChange={(e) => setGasto(e.target.value)}
-                                className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xl focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 outline-none transition-all"
-                                placeholder="0.00"
-                                required
+                            <input id="rmm-gasto" type="number" step="0.01" min="0" max={qMax}
+                                value={tipo === 'CORTE' ? '' : gasto}
+                                disabled={tipo === 'CORTE'}
+                                onChange={e => { setGasto(e.target.value); setValidErr(null); }}
+                                className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-2xl font-black focus:outline-none transition-all disabled:opacity-30"
+                                style={{ borderColor: validErr && (!gasto || gastoNum > qMax) ? '#ef4444' : undefined }}
+                                placeholder={tipo === 'CORTE' ? '0.00' : '0.00'}
                             />
                             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs uppercase">m³/s</span>
                         </div>
+                        {gastoNum > 0 && gastoNum <= qMax && (
+                            <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                                <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((gastoNum / qMax) * 100, 100)}%`, background: tipoMeta.color }} />
+                            </div>
+                        )}
                     </div>
 
+                    {/* Fecha y hora */}
                     <div className="space-y-2">
-                        <label htmlFor="fecha-hora-efectiva" className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                            Fecha y Hora Efectiva
-                        </label>
-                        <input 
-                            id="fecha-hora-efectiva"
-                            type="datetime-local" 
-                            value={fechaHora}
-                            onChange={(e) => setFechaHora(e.target.value)}
-                            className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-blue-500/50 outline-none"
-                            required
+                        <label htmlFor="rmm-fecha" className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fecha y Hora Efectiva del Movimiento</label>
+                        <input id="rmm-fecha" type="datetime-local" value={fechaHora}
+                            onChange={e => setFechaHora(e.target.value)}
+                            className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-sm focus:outline-none"
+                            required />
+                    </div>
+
+                    {/* Responsable */}
+                    <div className="space-y-2">
+                        <label htmlFor="rmm-resp" className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Responsable de la Orden</label>
+                        <input id="rmm-resp" type="text" value={responsable}
+                            onChange={e => { setResp(e.target.value); setValidErr(null); }}
+                            className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm font-bold focus:outline-none transition-all"
+                            style={{ borderColor: validErr && !responsable.trim() ? '#ef4444' : undefined }}
+                            placeholder="Nombre completo del operador / gerente"
                         />
                     </div>
 
-                    <div className="pt-4 flex gap-3">
-                        <button 
-                            type="button" 
-                            onClick={onClose}
-                            className="flex-1 px-4 py-3 rounded-xl bg-white/5 text-xs font-black text-slate-400 uppercase tracking-widest hover:bg-white/10 transition-colors"
-                        >
+                    {/* Notas */}
+                    <div className="space-y-2">
+                        <label htmlFor="rmm-notas" className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Notas Operativas <span className="text-slate-700">(opcional)</span></label>
+                        <textarea id="rmm-notas" rows={2} value={notas}
+                            onChange={e => setNotas(e.target.value)}
+                            className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm resize-none focus:outline-none"
+                            placeholder="Causa del movimiento, condiciones del vaso, instrucción…"
+                        />
+                    </div>
+
+                    {/* Error */}
+                    {validErr && (
+                        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-950/40 border border-red-800/40 text-red-400 text-xs font-bold">
+                            <AlertTriangle size={13} /> {validErr}
+                        </div>
+                    )}
+
+                    {/* Acciones */}
+                    <div className="flex gap-3 pt-2">
+                        <button type="button" onClick={onClose}
+                            className="flex-1 px-4 py-3 rounded-xl bg-white/5 text-xs font-black text-slate-400 uppercase tracking-widest hover:bg-white/10 transition-colors">
                             Cancelar
                         </button>
-                        <button 
-                            type="submit" 
-                            disabled={isSaving}
-                            className="flex-1 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-900/40 transition-all active:scale-95 disabled:opacity-50"
-                        >
-                            {isSaving ? 'Guardando...' : 'Confirmar Registro'}
+                        <button type="submit" disabled={isSaving}
+                            className="flex-1 px-4 py-3 rounded-xl text-white text-xs font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 disabled:opacity-50"
+                            style={{ background: tipoMeta.color, boxShadow: `0 4px 20px ${tipoMeta.color}30` }}>
+                            {isSaving ? 'Registrando...' : `Confirmar ${tipo}`}
                         </button>
                     </div>
                 </form>
@@ -834,6 +1014,9 @@ const Presas = () => {
                     </div>
                 </div>
             </header>
+
+            {/* P1: Panel KPI Ejecutivo — visión de cuenca en 5 segundos */}
+            <KpiExecutivePanel presas={presas} movimientosHistorial={movimientosHistorial} />
 
             <div className="presas-layout">
                 {/* Main Dam Card */}

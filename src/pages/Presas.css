@@ -1,5 +1,130 @@
 /* Presas.css - Dam Management Styles */
 
+/* ── P1: Panel KPI Ejecutivo ─────────────────────────────────────────────── */
+.presa-kpi-panel {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.presa-kpi-card {
+    border-radius: 16px;
+    border: 1px solid;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: box-shadow 0.2s;
+}
+.presa-kpi-card:hover {
+    box-shadow: 0 0 24px rgba(56,189,248,0.07);
+}
+
+.presa-kpi-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.presa-kpi-nombre {
+    font-size: 11px;
+    font-weight: 900;
+    color: #f1f5f9;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+.presa-kpi-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    border: 1px solid;
+    border-radius: 999px;
+    padding: 2px 8px;
+}
+.presa-kpi-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+    animation: kpi-pulse 2s ease-in-out infinite;
+}
+@keyframes kpi-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+}
+
+.presa-kpi-namo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.presa-kpi-namo-track {
+    height: 4px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.presa-kpi-namo-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.6s ease;
+}
+.presa-kpi-namo-val {
+    font-size: 9px;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    text-align: right;
+}
+
+.presa-kpi-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.presa-kpi-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+.presa-kpi-mlabel {
+    font-size: 7px;
+    font-weight: 900;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+.presa-kpi-mval {
+    font-size: 18px;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    color: #f1f5f9;
+    line-height: 1;
+}
+.presa-kpi-munit {
+    font-size: 8px;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.presa-kpi-lastmov {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 8px;
+    color: #475569;
+    font-weight: 700;
+    border-top: 1px solid rgba(255,255,255,0.04);
+    padding-top: 8px;
+}
+
+/* ── P2: Modal de Movimiento mejorado ────────────────────────────────────── */
+/* (El modal usa clases de Tailwind + inline styles para los colores dinámicos
+   por tipo. Las clases estructurales reutilizan las existentes de Presas.css) */
+
 .presas-container {
     padding: var(--spacing-lg);
     max-width: 1800px;
@@ -572,6 +697,7 @@
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 1px;
+    -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
 }
 
@@ -624,6 +750,7 @@
     padding: 4px;
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.05);
+    -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
 }
 

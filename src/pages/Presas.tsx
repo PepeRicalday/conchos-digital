@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import {
     MapPin, Droplets, Activity, TrendingUp, TrendingDown, Minus,
@@ -9,7 +9,8 @@ import {
 import { Link } from 'react-router-dom';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    BarChart, Bar, Cell
+    BarChart, Bar, Cell, ReferenceLine, ReferenceArea, ReferenceDot,
+    ComposedChart,
 } from 'recharts';
 import './Presas.css';
 import ReservoirViz from '../components/ReservoirViz';
@@ -306,6 +307,15 @@ const KpiExecutivePanel = ({ presas, movimientosHistorial }: { presas: PresaData
                                 <span className="presa-kpi-munit">Mm³</span>
                             </div>
                             <div className="presa-kpi-metric">
+                                <span className="presa-kpi-mlabel">CAP. AMORTIG.</span>
+                                <span className="presa-kpi-mval presa-kpi-mval--amort">
+                                    {lect?.almacenamiento_mm3 != null
+                                        ? (presa.capacidad_max_mm3 - lect.almacenamiento_mm3).toFixed(1)
+                                        : '—'}
+                                </span>
+                                <span className="presa-kpi-munit">Mm³</span>
+                            </div>
+                            <div className="presa-kpi-metric">
                                 <span className="presa-kpi-mlabel">EXTRACCIÓN</span>
                                 <span className="presa-kpi-mval" style={{ color: (lect?.extraccion_total_m3s ?? 0) > 0 ? '#38bdf8' : '#475569' }}>
                                     {lect?.extraccion_total_m3s?.toFixed(1) ?? '0.0'}
@@ -597,6 +607,178 @@ const MiniMetricChart = ({ label, value, unit, color }: { label: string, value: 
     );
 };
 
+// ─── Nivel Histórico 30d ──────────────────────────────────────────────────────
+const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
+    const [histData, setHistData] = useState<{ fecha: string; nivel: number; vol: number; pct: number }[]>([]);
+    const [loadingHist, setLoadingHist] = useState(true);
+
+    useEffect(() => {
+        const desde = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+        supabase
+            .from('lecturas_presas')
+            .select('fecha, escala_msnm, almacenamiento_mm3, porcentaje_llenado')
+            .eq('presa_id', presaId)
+            .gte('fecha', desde)
+            .order('fecha', { ascending: true })
+            .then(({ data: rows }) => {
+                setHistData((rows ?? []).map(r => ({
+                    fecha: r.fecha,
+                    nivel: Number(r.escala_msnm),
+                    vol: Number(r.almacenamiento_mm3),
+                    pct: Number(r.porcentaje_llenado),
+                })));
+                setLoadingHist(false);
+            });
+    }, [presaId]);
+
+    if (loadingHist || histData.length < 2) return null;
+
+    const minNivel = Math.min(...histData.map(d => d.nivel)) - 0.5;
+    const maxNivel = Math.max(...histData.map(d => d.nivel)) + 0.5;
+    const ultimoPct = histData.at(-1)?.pct ?? 0;
+    const tendencia = histData.length >= 2
+        ? histData.at(-1)!.nivel - histData[0].nivel
+        : 0;
+    const tColor = tendencia > 0 ? '#10b981' : tendencia < 0 ? '#ef4444' : '#94a3b8';
+
+    return (
+        <section className="chart-card">
+            <div className="flex items-center justify-between mb-3">
+                <h3 className="m-0 flex items-center gap-2">
+                    <TrendingUp size={14} className="text-sky-400" /> Monitoreo de Niveles (30 días)
+                </h3>
+                <div className="flex items-center gap-3">
+                    <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md"
+                        style={{ color: tColor, background: `${tColor}18`, border: `1px solid ${tColor}40` }}>
+                        {tendencia > 0 ? '▲' : tendencia < 0 ? '▼' : '─'} {Math.abs(tendencia).toFixed(2)} m
+                    </span>
+                    <span className="text-[9px] font-black text-sky-400 font-mono">{ultimoPct.toFixed(1)}% NAMO</span>
+                </div>
+            </div>
+            <ResponsiveContainer width="100%" height={160}>
+                <AreaChart data={histData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <defs>
+                        <linearGradient id={`nivelGrad-${presaId}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%"  stopColor="#38bdf8" stopOpacity={0.35} />
+                            <stop offset="95%" stopColor="#38bdf8" stopOpacity={0.02} />
+                        </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                    <XAxis
+                        dataKey="fecha"
+                        tick={{ fill: '#475569', fontSize: 8 }}
+                        tickFormatter={v => v.slice(5)}
+                        interval="preserveStartEnd"
+                        axisLine={false}
+                        tickLine={false}
+                    />
+                    <YAxis
+                        domain={[minNivel, maxNivel]}
+                        tick={{ fill: '#475569', fontSize: 8 }}
+                        tickFormatter={v => `${v.toFixed(0)}`}
+                        width={38}
+                    />
+                    <Tooltip
+                        contentStyle={{ background: 'rgba(4,11,22,0.97)', border: '1px solid #1e3a5f', borderRadius: 6 }}
+                        labelStyle={{ color: '#94a3b8', fontSize: 9 }}
+                        itemStyle={{ fontSize: 10 }}
+                        formatter={(v: number | undefined) => [`${(v ?? 0).toFixed(3)} msnm`, 'Nivel']}
+                    />
+                    <Area
+                        type="monotone"
+                        dataKey="nivel"
+                        stroke="#38bdf8"
+                        strokeWidth={1.5}
+                        fill={`url(#nivelGrad-${presaId})`}
+                        dot={false}
+                        isAnimationActive={false}
+                    />
+                </AreaChart>
+            </ResponsiveContainer>
+        </section>
+    );
+};
+
+// ─── Gestión Hidráulica ───────────────────────────────────────────────────────
+const GestionHidraulicaPanel = ({ presa }: { presa: PresaData }) => {
+    const lect = presa.lectura;
+    const total = lect?.extraccion_total_m3s ?? 0;
+
+    const obras = [
+        { nombre: 'Toma Baja', clave: 'toma_baja', gasto: lect?.gasto_toma_baja_m3s ?? 0 },
+        { nombre: 'CFE',       clave: 'cfe',       gasto: lect?.gasto_cfe_m3s       ?? 0 },
+        { nombre: 'Toma Izq.', clave: 'izq',       gasto: lect?.gasto_toma_izq_m3s  ?? 0 },
+        { nombre: 'Toma Der.', clave: 'der',       gasto: lect?.gasto_toma_der_m3s  ?? 0 },
+    ].filter(o => o.gasto != null);
+
+    const hayDetalle = obras.some(o => o.gasto > 0);
+
+    return (
+        <div className="extraction-section">
+            <h3><Gauge size={16} /> Gestión Hidráulica y Extracción</h3>
+
+            {/* Total output */}
+            <div className="flex items-center gap-4 mb-4 p-3 rounded-xl border border-white/5 bg-white/[0.02]">
+                <div className="flex flex-col">
+                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Caudal Total de Salida</span>
+                    <span className="text-3xl font-black font-mono" style={{ color: total > 0 ? '#38bdf8' : '#475569' }}>
+                        {total > 0 ? total.toFixed(2) : '0.00'}
+                    </span>
+                    <span className="text-[9px] font-bold text-slate-500">m³/s</span>
+                </div>
+                <div className="flex-1">
+                    <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                        <div className="h-full rounded-full transition-all"
+                            style={{ width: `${Math.min((total / 100) * 100, 100)}%`, background: total > 0 ? '#38bdf8' : '#334155' }} />
+                    </div>
+                    <span className="text-[8px] text-slate-600 font-mono mt-1 block">
+                        Cap. extracción: {((total / 100) * 100).toFixed(1)}%
+                    </span>
+                </div>
+                <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-lg border ${total > 0 ? 'text-sky-400 bg-sky-500/10 border-sky-500/20' : 'text-slate-500 bg-white/5 border-white/10'}`}>
+                    {total > 0 ? 'OPERANDO' : 'CERRADA'}
+                </span>
+            </div>
+
+            {/* Gate cards */}
+            {hayDetalle && (
+                <div className="grid grid-cols-2 gap-2">
+                    {obras.map(o => {
+                        const abierta = o.gasto > 0;
+                        const pct = total > 0 ? (o.gasto / total) * 100 : 0;
+                        return (
+                            <div key={o.clave} className="rounded-xl p-3 border transition-all"
+                                style={{
+                                    background:     abierta ? 'rgba(56,189,248,0.05)' : 'rgba(255,255,255,0.02)',
+                                    borderColor:    abierta ? 'rgba(56,189,248,0.3)'  : 'rgba(255,255,255,0.06)',
+                                }}>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{o.nombre}</span>
+                                    <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded"
+                                        style={{ color: abierta ? '#38bdf8' : '#475569', background: abierta ? 'rgba(56,189,248,0.12)' : 'rgba(71,85,105,0.15)' }}>
+                                        {abierta ? 'ABIERTA' : 'CERRADA'}
+                                    </span>
+                                </div>
+                                <span className="text-xl font-black font-mono" style={{ color: abierta ? '#38bdf8' : '#334155' }}>
+                                    {o.gasto.toFixed(2)}
+                                </span>
+                                <span className="text-[8px] text-slate-600 font-bold ml-1">m³/s</span>
+                                {abierta && total > 0 && (
+                                    <div className="mt-2 h-1 rounded-full bg-white/5 overflow-hidden">
+                                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: '#38bdf8' }} />
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            <span className="destination-tag mt-3 block">→ Canal Principal Conchos</span>
+        </div>
+    );
+};
+
 // Component: Dam Card
 const DamCard = ({ presa, climaObj, aforoObj, movimientosHistorial }: { presa: PresaData, climaObj?: ClimaPresaData, aforoObj?: AforoDiarioData, movimientosHistorial: MovimientoPresaData[] }) => {
     const lect = presa.lectura;
@@ -609,14 +791,6 @@ const DamCard = ({ presa, climaObj, aforoObj, movimientosHistorial }: { presa: P
     const trend = extraccion > 30 ? 'rising' : extraccion > 0 ? 'stable' : 'falling';
     const TrendIcon = trend === 'rising' ? TrendingUp : trend === 'falling' ? TrendingDown : Minus;
     const trendColor = trend === 'rising' ? '#10b981' : trend === 'falling' ? '#ef4444' : '#94a3b8';
-
-    // Breakdown of extraction
-    const gastos = [
-        { name: 'Toma Baja', value: lect?.gasto_toma_baja_m3s },
-        { name: 'CFE', value: lect?.gasto_cfe_m3s },
-        { name: 'Toma Izq', value: lect?.gasto_toma_izq_m3s },
-        { name: 'Toma Der', value: lect?.gasto_toma_der_m3s },
-    ].filter(g => g.value != null && g.value > 0);
 
     return (
         <div className="dam-card">
@@ -746,36 +920,8 @@ const DamCard = ({ presa, climaObj, aforoObj, movimientosHistorial }: { presa: P
                 </div>
             </div>
 
-            {/* Section 4: Extraction Control */}
-            <div className="extraction-section">
-                <h3><Gauge size={16} /> Extracción de Presa</h3>
-
-                <div className="extraction-grid">
-                    <div className="extraction-main">
-                        <span className="extraction-label">Extracción Obra de Toma (Q)</span>
-                        <div className="extraction-value-box">
-                            <span className="extraction-value">{extraccion > 0 ? extraccion.toFixed(1) : lect?.notas?.includes('Cerrada') ? 'Cerrada' : '0'}</span>
-                            <span className="extraction-unit">{extraccion > 0 ? 'm³/s' : ''}</span>
-                        </div>
-                        <span className="destination-tag">→ Canal Principal</span>
-                    </div>
-
-                    {gastos.length > 0 && (
-                        <div className="valves-panel">
-                            <span className="valves-title">Desglose de Compuertas</span>
-                            {gastos.map(g => (
-                                <div key={g.name} className="valve-row">
-                                    <span className="valve-name">{g.name}</span>
-                                    <div className="valve-bar-container">
-                                        <div className="valve-bar" style={{ width: `${extraccion > 0 ? ((g.value! / extraccion) * 100) : 0}%` }} />
-                                    </div>
-                                    <span className="valve-percent">{g.value!.toFixed(1)} m³/s</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
+            {/* Section 4: Gestión Hidráulica */}
+            <GestionHidraulicaPanel presa={presa} />
 
             {/* Nuevo: Datos Climatológicos (CONAGUA Premium) */}
             {climaObj && (
@@ -1090,42 +1236,120 @@ const Presas = () => {
                         </section>
                     )}
 
-                    {/* Section 5: Elevation-Capacity Curve from Supabase curvas_capacidad */}
-                    <section className="chart-card">
-                        <h3>Curva Elevación-Capacidades</h3>
-                        <div className="chart-container">
-                            <ResponsiveContainer width="100%" height={200}>
-                                <AreaChart data={curvaData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="colorCapacity" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                                    <XAxis dataKey="volume" tick={{ fill: '#94a3b8', fontSize: 10 }} tickFormatter={(v) => `${v}`} />
-                                    <YAxis dataKey="elevation" tick={{ fill: '#94a3b8', fontSize: 10 }} domain={['dataMin', 'dataMax']} />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                                        labelFormatter={(v) => `Vol: ${v} Mm³`}
-                                        formatter={(v: any) => [`${Number(v).toFixed(2)} msnm`, 'Elevación']}
-                                    />
-                                    <Area type="monotone" dataKey="elevation" stroke="#3b82f6" fill="url(#colorCapacity)" />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                            {/* Current level marker */}
-                            <div className="current-marker">
-                                <div className="marker-dot" />
-                                <span>Nivel Actual: {(currentDam.lectura?.escala_msnm || 0).toFixed(2)} msnm</span>
-                            </div>
-                        </div>
-                    </section>
+                    {/* Monitoreo de Niveles 30d */}
+                    <NivelHistoricoChart presaId={currentDam.id} />
+
+                    {/* Section 5: Curva EAC con zonas */}
+                    {(() => {
+                        const volActual  = currentDam.lectura?.almacenamiento_mm3 ?? 0;
+                        const volNAMO    = currentDam.capacidad_max_mm3;
+                        const volMuerta  = curvaData.length > 0 ? curvaData[0].volume : 0;
+                        const elevActual = currentDam.lectura?.escala_msnm ?? 0;
+                        const amortiguamiento = volNAMO - volActual;
+                        return (
+                            <section className="chart-card">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="m-0 flex items-center gap-2">
+                                        <Waves size={14} className="text-blue-400" /> Curva Elevación-Área-Capacidad
+                                    </h3>
+                                    <div className="flex items-center gap-2 text-[8px] font-black font-mono">
+                                        <span className="text-violet-400">{amortiguamiento.toFixed(1)} Mm³ libre</span>
+                                    </div>
+                                </div>
+
+                                {/* Zone legend */}
+                                <div className="flex gap-3 mb-2 flex-wrap">
+                                    {[
+                                        { label: 'Cap. Muerta', color: '#334155' },
+                                        { label: 'Cap. Útil',   color: '#3b82f6' },
+                                        { label: 'Nivel actual', color: '#f59e0b' },
+                                        { label: 'NAMO',        color: '#ef4444' },
+                                    ].map(z => (
+                                        <div key={z.label} className="flex items-center gap-1">
+                                            <div className="w-2 h-2 rounded-sm" style={{ background: z.color }} />
+                                            <span className="text-[8px] text-slate-500 font-bold uppercase">{z.label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="chart-container">
+                                    <ResponsiveContainer width="100%" height={210}>
+                                        <ComposedChart data={curvaData} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="eacGrad" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.5} />
+                                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                                            <XAxis
+                                                dataKey="volume"
+                                                tick={{ fill: '#64748b', fontSize: 8 }}
+                                                tickFormatter={v => `${Number(v).toFixed(0)}`}
+                                                label={{ value: 'Volumen (Mm³)', position: 'insideBottom', offset: -4, fill: '#475569', fontSize: 8 }}
+                                            />
+                                            <YAxis
+                                                dataKey="elevation"
+                                                tick={{ fill: '#64748b', fontSize: 8 }}
+                                                domain={['dataMin - 1', 'dataMax + 1']}
+                                                tickFormatter={v => `${Number(v).toFixed(0)}`}
+                                                width={38}
+                                                label={{ value: 'Elev (msnm)', angle: -90, position: 'insideLeft', offset: 10, fill: '#475569', fontSize: 8 }}
+                                            />
+                                            <Tooltip
+                                                contentStyle={{ background: 'rgba(4,11,22,0.97)', border: '1px solid #1e3a5f', borderRadius: 6 }}
+                                                labelFormatter={v => `Vol: ${Number(v).toFixed(1)} Mm³`}
+                                                formatter={(v: any, name: any) => [`${Number(v).toFixed(2)} ${name === 'elevation' ? 'msnm' : 'ha'}`, name === 'elevation' ? 'Elevación' : 'Área']}
+                                            />
+                                            {/* Capacidad muerta zone */}
+                                            {volMuerta > 0 && (
+                                                <ReferenceArea x1={0} x2={volMuerta} fill="#1e293b" fillOpacity={0.5} />
+                                            )}
+                                            {/* Nivel actual */}
+                                            {volActual > 0 && (
+                                                <ReferenceLine x={volActual} stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5 3"
+                                                    label={{ value: `${elevActual.toFixed(1)}m`, position: 'top', fill: '#f59e0b', fontSize: 8, fontWeight: 'bold' }}
+                                                />
+                                            )}
+                                            {/* NAMO */}
+                                            {volNAMO > 0 && (
+                                                <ReferenceLine x={volNAMO} stroke="#ef4444" strokeWidth={1} strokeDasharray="4 2"
+                                                    label={{ value: 'NAMO', position: 'top', fill: '#ef4444', fontSize: 8 }}
+                                                />
+                                            )}
+                                            <Area type="monotone" dataKey="elevation" stroke="#3b82f6" strokeWidth={2} fill="url(#eacGrad)" dot={false} />
+                                            {/* Current point dot */}
+                                            {volActual > 0 && elevActual > 0 && (
+                                                <ReferenceDot x={volActual} y={elevActual} r={5} fill="#f59e0b" stroke="#040b16" strokeWidth={2} />
+                                            )}
+                                        </ComposedChart>
+                                    </ResponsiveContainer>
+                                </div>
+
+                                {/* Capacity breakdown */}
+                                <div className="grid grid-cols-3 gap-2 mt-3">
+                                    {[
+                                        { label: 'Almacenado',     value: volActual.toFixed(1),        unit: 'Mm³', color: '#3b82f6' },
+                                        { label: 'Amortiguamiento', value: amortiguamiento.toFixed(1),  unit: 'Mm³', color: '#a78bfa' },
+                                        { label: 'Capacidad Total', value: volNAMO.toFixed(1),          unit: 'Mm³', color: '#475569' },
+                                    ].map(m => (
+                                        <div key={m.label} className="flex flex-col items-center p-2 rounded-lg bg-white/[0.02] border border-white/5">
+                                            <span className="text-[7px] font-black text-slate-600 uppercase tracking-widest text-center leading-tight mb-1">{m.label}</span>
+                                            <span className="text-sm font-black font-mono" style={{ color: m.color }}>{m.value}</span>
+                                            <span className="text-[7px] text-slate-600 font-bold">{m.unit}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        );
+                    })()}
 
                     {/* Section: Historial de Movimientos (Gasto de Apertura) */}
                     <section className="movimientos-historial chart-card mb-4">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="m-0">Historial de Movimientos</h3>
-                            <button 
+                            <button
+                                type="button"
                                 onClick={() => setIsMoveModalOpen(true)}
                                 className="text-[10px] font-black bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/20 hover:bg-emerald-500/20 transition-all uppercase tracking-widest"
                             >

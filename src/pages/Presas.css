@@ -104,6 +104,9 @@
     color: #f1f5f9;
     line-height: 1;
 }
+.presa-kpi-mval--amort {
+    color: #a78bfa;
+}
 .presa-kpi-munit {
     font-size: 8px;
     font-weight: 700;

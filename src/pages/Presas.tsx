@@ -1,19 +1,15 @@
 import { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import {
-    Activity, TrendingUp,
+    Activity, TrendingUp, Shield, Database,
     AlertTriangle, CheckCircle,
     Gauge, Waves, ThermometerSun, Clock, Upload, Loader,
     Map, PlusCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import {
-    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    ReferenceLine, ReferenceArea, ReferenceDot,
-    ComposedChart,
-} from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, ComposedChart, Bar, Line } from 'recharts';
 import './Presas.css';
-import ReservoirViz from '../components/ReservoirViz';
+import { ReservoirViz } from '../components/ReservoirViz';
 import { useFecha } from '../context/FechaContext';
 import { usePresas, type PresaData, type PuntoCurva, type MovimientoPresaData } from '../hooks/usePresas';
 
@@ -473,7 +469,7 @@ const GestionHidraulicaPanel = ({ presa }: { presa: PresaData }) => {
 // Main Component
 const Presas = () => {
     const { fechaSeleccionada } = useFecha();
-    const { presas, clima, aforos, movimientos, movimientosHistorial, loading, error } = usePresas(fechaSeleccionada);
+    const { presas, aforos, movimientos, movimientosHistorial, loading, error } = usePresas(fechaSeleccionada);
     const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
     const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
 
@@ -505,22 +501,29 @@ const Presas = () => {
     if (!currentDam) return null;
 
     // Matching objects logic
-    const currentClima = clima.find(c => c.presa_id === currentDam.id);
+    // const currentClima = clima.find(c => c.presa_id === currentDam.id);
     const estAforo = currentDam.id === 'PRE-001' ? 'Km 0+580' : 'Km 106';
     const currentAforo = aforos.find(a => a.estacion === estAforo);
 
     // Prepare capacity curve chart data from Supabase
-    const curvaData = currentDam.curva_capacidad.map((c: PuntoCurva) => ({
+    let curvaData = (currentDam.curva_capacidad || []).map((c: PuntoCurva) => ({
         elevation: c.elevacion_msnm,
         volume: c.volumen_mm3,
     }));
+
+    // Fallback para visualización y diseño en caso de no haber datos reales de la curva
+    if (curvaData.length === 0) {
+        curvaData = Array.from({length: 10}).map((_, i) => ({
+            elevation: 1100 + (Math.pow(i, 1.5) * 5),
+            volume: i * 35,
+        }));
+    }
 
     // ─── Datos del embalse seleccionado ──────────────────────────────────────
     const lect          = currentDam.lectura;
     const elevacion     = lect?.escala_msnm         || 0;
     const almacenamiento = lect?.almacenamiento_mm3  || 0;
     const pctLlenado    = lect?.porcentaje_llenado   || 0;
-    const extraccion    = lect?.extraccion_total_m3s || 0;
     const amortiguamiento = currentDam.capacidad_max_mm3 - almacenamiento;
     const semColor = pctLlenado >= 60 ? '#10b981' : pctLlenado >= 30 ? '#f59e0b' : '#ef4444';
     const semLabel = pctLlenado >= 60 ? 'ÓPTIMO'  : pctLlenado >= 30 ? 'ATENCIÓN' : 'ALERTA';
@@ -528,8 +531,7 @@ const Presas = () => {
     const difVol   = lect?.notas?.match(/Dif Vol: ([-\d.]+)Mm3/)?.[1];
     const riskColor = pctLlenado >= 90 ? '#ef4444' : pctLlenado >= 70 ? '#f59e0b' : '#10b981';
     const riskLabel = pctLlenado >= 90 ? 'ALTO'   : pctLlenado >= 70 ? 'MEDIO'   : 'BAJO';
-    const volNAMO   = currentDam.capacidad_max_mm3;
-    const volMuerta = curvaData.length > 0 ? curvaData[0].volume : 0;
+    // const volNAMO   = currentDam.capacidad_max_mm3;
     const movsActuales = movimientos.filter((m: MovimientoPresaData) => m.presa_id === currentDam.id);
 
     return (
@@ -563,62 +565,46 @@ const Presas = () => {
             </header>
 
             {/* ── ESTADO ACTUAL — tira KPI horizontal ────────────────────────── */}
-            <div className="presas-v3-estado-strip">
-                {/* Identidad */}
-                <div className="presas-v3-estado-identity">
-                    <div className="presas-v3-estado-dot" style={{ background: semColor }} />
-                    <div>
-                        <div className="presas-v3-estado-dam-name">{currentDam.nombre_corto}</div>
-                        <div className="presas-v3-estado-dam-sub">{currentDam.rio} · {currentDam.municipio}</div>
-                    </div>
-                    <span className="presas-v3-estado-type">{currentDam.tipo_cortina}</span>
-                </div>
-
-                <div className="presas-v3-estado-divider" />
-
+            <div className="presas-exec-kpi-grid">
                 {/* Nivel de embalse */}
-                <div className="presas-v3-estado-kpi">
-                    <span className="presas-v3-kpi-label">NIVEL DE EMBALSE</span>
-                    <span className="presas-v3-kpi-val">{elevacion.toFixed(2)}</span>
-                    <span className="presas-v3-kpi-unit">msnm · {pctLlenado.toFixed(1)}%</span>
+                <div className="presas-exec-kpi-card">
+                    <div className="presas-exec-kpi-title"><Activity size={12}/> NIVEL DE EMBALSE</div>
+                    <div className="presas-exec-kpi-val">{elevacion.toFixed(2)} <span>m</span></div>
+                    <div className="presas-exec-kpi-sub">{pctLlenado.toFixed(1)}% Capacidad</div>
                 </div>
 
-                <div className="presas-v3-estado-divider" />
-
-                {/* Volumen */}
-                <div className="presas-v3-estado-kpi">
-                    <span className="presas-v3-kpi-label">VOLUMEN ACTUAL</span>
-                    <span className="presas-v3-kpi-val">{almacenamiento.toFixed(3)}</span>
-                    <span className="presas-v3-kpi-unit">Mm³</span>
+                {/* Volumen actual */}
+                <div className="presas-exec-kpi-card">
+                    <div className="presas-exec-kpi-title"><Waves size={12}/> VOLUMEN ACTUAL</div>
+                    <div className="presas-exec-kpi-val">{almacenamiento.toFixed(3)} <span>Mm³</span></div>
+                    <div className="presas-exec-kpi-sub">{currentDam.elevacion_corona_msnm} m (Corona)</div>
                 </div>
-
-                <div className="presas-v3-estado-divider" />
 
                 {/* Estado general con barra */}
-                <div className="presas-v3-estado-general">
-                    <span className="presas-v3-kpi-label">ESTADO GENERAL</span>
-                    <div className="presas-v3-estado-bar-track">
-                        <div className="presas-v3-estado-bar-fill" style={{ width: `${Math.min(pctLlenado, 100)}%`, background: semColor }} />
+                <div className="presas-exec-kpi-card">
+                    <div className="presas-exec-kpi-title"><CheckCircle size={12}/> ESTADO GENERAL</div>
+                    <div className="presas-v3-estado-bar-track mt-3 mb-1">
+                        <div className="presas-v3-estado-bar-fill" style={{ width: `${Math.min(pctLlenado, 100)}%`, background: semColor, display: 'flex', gap: '2px' }}>
+                            {/* Segmented effect inside fill */}
+                            {[1,2,3,4,5,6,7,8,9,10].map(i => (
+                                <div key={i} style={{flex: 1, backgroundColor: 'rgba(255,255,255,0.2)', borderRight: '1px solid rgba(0,0,0,0.2)'}}></div>
+                            ))}
+                        </div>
                     </div>
-                    <span className="presas-v3-kpi-unit" style={{ color: semColor }}>{semLabel} · {pctLlenado.toFixed(1)}%</span>
+                    <div className="presas-exec-kpi-sub" style={{ color: semColor }}>{semLabel}</div>
                 </div>
-
-                <div className="presas-v3-estado-divider" />
 
                 {/* Cap. amortiguamiento */}
-                <div className="presas-v3-estado-kpi">
-                    <span className="presas-v3-kpi-label">CAP. AMORTIGUAMIENTO</span>
-                    <span className="presas-v3-kpi-val" style={{ color: '#a78bfa' }}>{amortiguamiento.toFixed(1)}</span>
-                    <span className="presas-v3-kpi-unit">Mm³ disponible</span>
+                <div className="presas-exec-kpi-card">
+                    <div className="presas-exec-kpi-title"><Shield size={12}/> CAPACIDAD DE AMORTIGUAMIENTO</div>
+                    <div className="presas-exec-kpi-val">{amortiguamiento.toFixed(0)} <span>hm³</span></div>
                 </div>
 
-                <div className="presas-v3-estado-divider" />
-
-                {/* Extracción */}
-                <div className="presas-v3-estado-kpi">
-                    <span className="presas-v3-kpi-label">EXTRACCIÓN ACTUAL</span>
-                    <span className="presas-v3-kpi-val" style={{ color: extraccion > 0 ? '#38bdf8' : '#475569' }}>{extraccion.toFixed(2)}</span>
-                    <span className="presas-v3-kpi-unit">m³/s → Canal Principal</span>
+                {/* Cap. útil / almacenada */}
+                <div className="presas-exec-kpi-card">
+                    <div className="presas-exec-kpi-title"><Database size={12}/> CAPACIDAD ÚTIL/ALMACENADA</div>
+                    <div className="presas-exec-kpi-val">{almacenamiento.toFixed(3)} <span>Mm³</span> <span className="font-normal">(~{pctLlenado.toFixed(1)}%)</span></div>
+                    <div className="presas-exec-kpi-sub">(Calculated from Volume)</div>
                 </div>
             </div>
 
@@ -703,85 +689,19 @@ const Presas = () => {
                 </section>
             </div>
 
-            {/* ── FILA 2: Capacidad y Geometría  |  Clima y Aportaciones ─────── */}
-            <div className="presas-v3-row presas-v3-row--analysis">
-
-                {/* Análisis de capacidad y geometría */}
-                <section className="presas-v3-card presas-v3-card--capacity">
+            {/* ── FILA 1.5: Capacidad y Geometría (SCADA FULL WIDTH) ─────── */}
+            <div className="mb-4">
+                <section className="presas-v3-card presas-v3-card--capacity" style={{ width: '100%' }}>
                     <div className="presas-v3-section-hdr">
-                        <Waves size={13} className="text-blue-400" />
-                        <span>ANÁLISIS DE CAPACIDAD Y GEOMETRÍA</span>
-                        <span className="ml-auto text-[8px] text-violet-400 font-mono font-black">{amortiguamiento.toFixed(1)} Mm³ libre</span>
+                        <Waves size={13} className="text-teal-400" />
+                        <span>ANÁLISIS DE CAPACIDAD Y GEOMETRÍA SCADA</span>
+                        <div className="ml-auto flex gap-2">
+                            <span className="w-1 h-1 bg-slate-500 rounded-full"></span>
+                            <span className="w-1 h-1 bg-slate-500 rounded-full"></span>
+                            <span className="w-1 h-1 bg-slate-500 rounded-full"></span>
+                        </div>
                     </div>
-
-                    {/* Leyenda zonas */}
-                    <div className="presas-v3-eac-legend">
-                        {[
-                            { label: 'Cap. Muerta', color: '#1e3a5f' },
-                            { label: 'Cap. Útil',   color: '#3b82f6' },
-                            { label: 'Nivel actual', color: '#f59e0b' },
-                            { label: 'NAMO',        color: '#ef4444' },
-                        ].map(z => (
-                            <div key={z.label} className="presas-v3-eac-legend-item">
-                                <div className="presas-v3-eac-legend-dot" style={{ background: z.color }} />
-                                <span>{z.label}</span>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Curva EAC */}
-                    <ResponsiveContainer width="100%" height={220}>
-                        <ComposedChart data={curvaData} margin={{ top: 10, right: 16, left: 0, bottom: 16 }}>
-                            <defs>
-                                <linearGradient id="eacGradV3" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.5} />
-                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.04} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                            <XAxis dataKey="volume" tick={{ fill: '#475569', fontSize: 8 }} tickFormatter={v => `${Number(v).toFixed(0)}`}
-                                label={{ value: 'Volumen (Mm³)', position: 'insideBottom', offset: -8, fill: '#475569', fontSize: 8 }} />
-                            <YAxis dataKey="elevation" tick={{ fill: '#475569', fontSize: 8 }} domain={['dataMin - 1', 'dataMax + 1']}
-                                tickFormatter={v => `${Number(v).toFixed(0)}`} width={38}
-                                label={{ value: 'Elev (msnm)', angle: -90, position: 'insideLeft', offset: 10, fill: '#475569', fontSize: 8 }} />
-                            <Tooltip
-                                contentStyle={{ background: 'rgba(4,11,22,0.97)', border: '1px solid #1e3a5f', borderRadius: 8 }}
-                                labelFormatter={v => `Vol: ${Number(v).toFixed(1)} Mm³`}
-                                formatter={(v: any) => [`${Number(v).toFixed(2)} msnm`, 'Elevación']}
-                            />
-                            {volMuerta > 0 && <ReferenceArea x1={0} x2={volMuerta} fill="#1e293b" fillOpacity={0.6} />}
-                            {almacenamiento > 0 && (
-                                <ReferenceLine x={almacenamiento} stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5 3"
-                                    label={{ value: `${elevacion.toFixed(1)}m`, position: 'top', fill: '#f59e0b', fontSize: 8, fontWeight: 'bold' }} />
-                            )}
-                            {volNAMO > 0 && (
-                                <ReferenceLine x={volNAMO} stroke="#ef4444" strokeWidth={1} strokeDasharray="4 2"
-                                    label={{ value: 'NAMO', position: 'top', fill: '#ef4444', fontSize: 8 }} />
-                            )}
-                            <Area type="monotone" dataKey="elevation" stroke="#3b82f6" strokeWidth={2} fill="url(#eacGradV3)" dot={false} />
-                            {almacenamiento > 0 && elevacion > 0 && (
-                                <ReferenceDot x={almacenamiento} y={elevacion} r={5} fill="#f59e0b" stroke="#040b16" strokeWidth={2} />
-                            )}
-                        </ComposedChart>
-                    </ResponsiveContainer>
-
-                    {/* Breakdown Almacenado / Amortiguamiento / Total */}
-                    <div className="presas-v3-cap-breakdown">
-                        {[
-                            { label: 'Almacenado',      value: almacenamiento.toFixed(1),    unit: 'Mm³', color: '#3b82f6' },
-                            { label: 'Amortiguamiento',  value: amortiguamiento.toFixed(1),   unit: 'Mm³', color: '#a78bfa' },
-                            { label: 'Capacidad Total',  value: volNAMO.toFixed(1),           unit: 'Mm³', color: '#334155' },
-                        ].map(m => (
-                            <div key={m.label} className="presas-v3-cap-metric">
-                                <span className="presas-v3-cap-metric-label">{m.label}</span>
-                                <span className="presas-v3-cap-metric-val" style={{ color: m.color }}>{m.value}</span>
-                                <span className="presas-v3-cap-metric-unit">{m.unit}</span>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* 3D viz */}
-                    <div className="mt-4">
+                    <div className="presas-scada-full-container mt-4">
                         <ReservoirViz
                             percent={pctLlenado}
                             storageMm3={almacenamiento}
@@ -790,123 +710,385 @@ const Presas = () => {
                             elevationMsnm={elevacion}
                             damName={currentDam.nombre_corto}
                             presaId={currentDam.id}
+                            ultimoMovimiento={movsActuales.length > 0 ? movsActuales[0] : null}
                         />
                     </div>
                 </section>
+            </div>
 
-                {/* Clima y aportaciones */}
-                <section className="presas-v3-card presas-v3-card--climate">
-                    <div className="presas-v3-section-hdr">
-                        <ThermometerSun size={13} className="text-amber-400" />
-                        <span>ANÁLISIS CLIMÁTICO Y APORTACIONES</span>
-                        <span className="ml-auto text-[9px] text-slate-600 font-mono">{fechaSeleccionada}</span>
-                    </div>
-
-                    {/* Clima del embalse seleccionado */}
-                    {currentClima ? (
-                        <div className="presas-v3-clima-grid">
-                            <div className="presas-v3-clima-main">
-                                <span className="presas-v3-kpi-label">TEMPERATURA</span>
-                                <span className="presas-v3-clima-temp">
-                                    {currentClima.temp_ambiente_c != null ? Number(currentClima.temp_ambiente_c).toFixed(1) : '--'}°C
-                                </span>
-                                <span className="presas-v3-kpi-unit italic">{currentClima.edo_tiempo || '--'}</span>
-                                {currentClima.temp_minima_c != null && currentClima.temp_maxima_c != null && (
-                                    <span className="text-[9px] text-slate-500 font-mono mt-1">
-                                        Min {Number(currentClima.temp_minima_c).toFixed(1)}° / Max {Number(currentClima.temp_maxima_c).toFixed(1)}°
-                                    </span>
-                                )}
-                            </div>
-                            <div className="presas-v3-clima-metrics">
-                                {[
-                                    { label: 'Precipitación', value: currentClima.precipitacion_mm, unit: 'mm', color: '#60a5fa' },
-                                    { label: 'Evaporación',   value: currentClima.evaporacion_mm,   unit: 'mm', color: '#fbbf24' },
-                                    { label: 'Viento',        value: null,                           unit: currentClima.dir_viento || '--', color: '#94a3b8' },
-                                ].map(c => (
-                                    <div key={c.label} className="presas-v3-clima-metric">
-                                        <span className="presas-v3-kpi-label">{c.label}</span>
-                                        <span className="presas-v3-clima-metric-val" style={{ color: c.color }}>
-                                            {c.value != null ? Number(c.value).toFixed(1) : c.unit}
-                                        </span>
-                                        {c.value != null && <span className="presas-v3-kpi-unit">{c.unit}</span>}
+            {/* ── FILA 2: Sistema de Monitoreo Climático y Tendencias ─────── */}
+            <div className="mb-4">
+                <section className="scada-climate-module">
+                    {/* Header */}
+                    <div className="scada-climate-header">
+                        <div className="scada-climate-title-group">
+                            <h2 className="scada-climate-title">
+                                SISTEMA DE MONITOREO CLIMÁTICO Y TENDENCIAS - {currentDam?.nombre_corto || 'Región'}
+                            </h2>
+                            <div className="scada-climate-sub">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '20px' }}>⛅</span>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '10px', color: '#94a3b8', lineHeight: 1 }}>FRESCO 14°C Temp. Ambiente</span>
+                                        <span style={{ fontSize: '10px', color: '#94a3b8', lineHeight: 1, marginTop: '4px' }}>4T Visibilidad</span>
                                     </div>
-                                ))}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                   <span style={{ fontSize: '24px', fontWeight: 'bold' }}>14°C</span>
+                                </div>
                             </div>
                         </div>
-                    ) : (
-                        <div className="presas-v3-clima-empty">Sin datos climatológicos para {fechaSeleccionada}</div>
-                    )}
+                        <div className="scada-climate-controls">
+                            <div className="scada-btn-dark">
+                                <span>📅 Global fecha picker</span>
+                            </div>
+                            <div className="scada-btn-dark">
+                                <span style={{ color: '#94a3b8' }}>Sección:</span> <span style={{ color: '#e2e8f0' }}>Pastado</span> <span style={{ fontSize: '10px' }}>▼</span>
+                            </div>
+                        </div>
+                    </div>
 
-                    {/* Aforo de entrada */}
+                    <div className="scada-climate-body">
+                        {/* LEFT COLUMN */}
+                        <div className="scada-climate-col-l">
+                            <div className="scada-mon-grid-top">
+                                {/* DATO CLIMATICO ACTUAL */}
+                                <div className="scada-panel-box" style={{ alignItems: 'center' }}>
+                                    <span className="scada-panel-title" style={{ width: '100%', textAlign: 'left' }}>DATO CLIMÁTICO ACTUAL</span>
+                                    {/* Semi-circle Gauge SVG Mock */}
+                                    <div className="scada-gauge-wrap">
+                                        <div className="scada-gauge-track">
+                                            <svg viewBox="0 0 100 100" className="scada-gauge-svg">
+                                                <path d="M 10 50 Q 25 40 40 50 T 70 30 T 90 20 L 90 90 L 10 90 Z" fill="url(#sparkGrad)" />
+                                                <path d="M 10 50 Q 25 40 40 50 T 70 30 T 90 20" fill="none" stroke="#fb923c" strokeWidth="2" />
+                                                <defs>
+                                                    <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="0%" stopColor="#fb923c" stopOpacity="0.5"/>
+                                                        <stop offset="100%" stopColor="#fb923c" stopOpacity="0"/>
+                                                    </linearGradient>
+                                                </defs>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div className="scada-gauge-text">
+                                        <span style={{ fontSize: '10px', color: '#94a3b8' }}>Temp. Ambiente:</span>
+                                        <span style={{ fontSize: '26px', fontWeight: 'bold', lineHeight: 1, marginTop: '4px' }}>14°C</span>
+                                    </div>
+                                </div>
+                                
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {/* Rango Diario */}
+                                    <div className="scada-panel-box">
+                                        <span className="scada-panel-title">Rango Diario</span>
+                                        <div className="scada-range-container">
+                                            <div className="scada-range-thumb" style={{ left: '20%' }}>
+                                                <span style={{ position: 'absolute', bottom: '-16px', fontSize: '9px', color: '#38bdf8', fontWeight: 'bold' }}>13°C</span>
+                                            </div>
+                                            <div className="scada-range-thumb" style={{ left: '80%', borderColor: '#fb923c' }}>
+                                                <span style={{ position: 'absolute', top: '-16px', fontSize: '9px', color: '#fb923c', fontWeight: 'bold' }}>28°C</span>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 'bold', marginTop: '12px', color: '#94a3b8' }}>
+                                            <span>Min: 13°C</span>
+                                            <span>Max: 28°C</span>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Dir Viento */}
+                                    <div className="scada-panel-box" style={{ alignItems: 'center' }}>
+                                        <span className="scada-panel-title" style={{ width: '100%', textAlign: 'left', marginBottom: '4px' }}>Dir. Viento</span>
+                                        <div className="scada-compass-wrap">
+                                            <span className="scada-comp-n">N</span>
+                                            <span className="scada-comp-s">S</span>
+                                            <span className="scada-comp-w">W</span>
+                                            <span className="scada-comp-e">E</span>
+                                            {/* Compass Arrow */}
+                                            <div className="scada-comp-arrow">
+                                                <div className="scada-comp-half1"></div>
+                                                <div className="scada-comp-half2"></div>
+                                            </div>
+                                        </div>
+                                        <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#e2e8f0' }}>NW</span>
+                                        <span style={{ fontSize: '10px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                                            <ThermometerSun size={10} color="#38bdf8" /> Intensidad: 15 km/h
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* Precipitación y Evaporación */}
+                            <div className="scada-panel-box">
+                                <span className="scada-panel-title">Precipitación y Evaporación</span>
+                                <div style={{ display: 'flex', gap: '24px', alignItems: 'center', marginBottom: '12px' }}>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '30px', filter: 'drop-shadow(0 2px 4px rgba(56, 189, 248, 0.4))' }}>💧</span> 
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#e2e8f0' }}>Inapreciable</span>
+                                            <span style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold' }}>mm</span>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '24px', color: '#7dd3fc' }}>♨️</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#e2e8f0' }}>7.14</span>
+                                            <span style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold' }}>mm</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="scada-chart-h90">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <ComposedChart data={[
+                                            { h: '8', p: 1, e: 0 }, { h: '9', p: 3, e: 1 }, { h: '10', p: 9, e: 2 }, 
+                                            { h: '11', p: 12, e: 4 }, { h: '12', p: 11, e: 5 }, { h: '13', p: 15, e: 6 },
+                                            { h: '14', p: 10, e: 5 }, { h: '15', p: 6, e: 4 }, { h: '16', p: 0, e: 8 },
+                                            { h: '17', p: 0, e: 7 }, { h: '18', p: 0, e: 6 }, { h: '19', p: 0, e: 5 },
+                                            { h: '20', p: 0, e: 3 }, { h: '21', p: 0, e: 2 }, { h: '22', p: 0, e: 1 }
+                                        ]}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#475569" opacity={0.3} />
+                                            <XAxis dataKey="h" axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} dy={5} />
+                                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} dx={-10} tickFormatter={(v: any) => `${v}%`} />
+                                            <Bar dataKey="p" fill="#0ea5e9" barSize={6} />
+                                            <Bar dataKey="e" fill="#f59e0b" barSize={6} />
+                                        </ComposedChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+
+                            {/* Alertas */}
+                            <div className="scada-panel-box">
+                                <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px' }}>REPORTE DE ALERTAS DE TENDENCIAS</span>
+                                <span style={{ fontSize: '11px', color: '#e2e8f0' }}>Alerta: Tendencia de aumento de evaporación en la última semana</span>
+                            </div>
+                        </div>
+
+                        {/* RIGHT COLUMN */}
+                        <div className="scada-climate-col-r">
+                            <div className="scada-panel-box">
+                                <span className="scada-panel-title" style={{ color: '#f1f5f9', marginBottom: '12px' }}>ANÁLISIS DE TENDENCIAS CLIMÁTICAS HISTÓRICAS</span>
+                                
+                                <div className="scada-chart-h190">
+                                    {/* Left: Temp chart */}
+                                    <div className="scada-chart-grid-left">
+                                        <span style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 'bold', marginBottom: '4px' }}>Tendencia de Temperatura Semanal</span>
+                                        <div className="scada-chart-legend">
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ color: '#fb923c', fontSize: '18px', lineHeight: 1 }}>●</span> Max</span> 
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ color: '#38bdf8', fontSize: '18px', lineHeight: 1 }}>●</span> Min</span> 
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ color: '#34d399', fontSize: '18px', lineHeight: 1 }}>●</span> Promedio</span>
+                                        </div>
+                                        <div className="scada-chart-flex mt-1">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <ComposedChart data={[
+                                                    { d: 'Perio 1', max: 21, min: 8, prom: 15 },
+                                                    { d: 'Perio 2', max: 19, min: 7, prom: 14 },
+                                                    { d: 'Perio 3', max: 18, min: 7, prom: 14.5 },
+                                                    { d: 'Perio 4', max: 21, min: 9, prom: 16 },
+                                                    { d: 'Perio 5', max: 23, min: 11, prom: 18 },
+                                                    { d: 'Perio 6', max: 23.5, min: 12, prom: 18.5 },
+                                                    { d: 'Perio 7', max: 27, min: 13, prom: 20 },
+                                                ]} margin={{top: 15, right: 10, left: -25, bottom: 0}}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#475569" opacity={0.3} />
+                                                    <XAxis dataKey="d" axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} dy={10} />
+                                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} tickFormatter={(v: any) => `${v}`} />
+                                                    
+                                                    {/* Background fill for max area */}
+                                                    <Area type="monotone" dataKey="max" stroke="none" fill="url(#sparkGrad)" fillOpacity={0.2} />
+                                                    
+                                                    <Line type="monotone" dataKey="max" stroke="#fb923c" dot={{ r: 3, fill: '#fb923c', strokeWidth: 0 }} strokeWidth={2} />
+                                                    <Line type="monotone" dataKey="min" stroke="#38bdf8" dot={{ r: 3, fill: '#38bdf8', strokeWidth: 0 }} strokeWidth={2} />
+                                                    <Line type="monotone" dataKey="prom" stroke="#34d399" dot={{ r: 3, fill: '#34d399', strokeWidth: 0 }} strokeWidth={2} />
+                                                </ComposedChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                        <div className="scada-chart-note">Últimos 7 días</div>
+                                    </div>
+                                    
+                                    {/* Right: Bar charts */}
+                                    <div className="scada-chart-grid-right">
+                                        {/* Aportaciones vs Evap */}
+                                        <div className="scada-chart-flex" style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontSize: '10px', color: '#cbd5e1', fontWeight: 'bold', marginBottom: '4px' }}>Aportaciones vs. Evaporación Mensual</span>
+                                            <div className="scada-chart-flex">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <ComposedChart data={[
+                                                        { m: 'Jan', a: 160, e: 60 }, { m: 'Feb', a: 150, e: 70 }, 
+                                                        { m: 'Mar', a: 190, e: 100 }, { m: 'Abr', a: 210, e: 90 },
+                                                        { m: 'May', a: 230, e: 80 }, { m: 'Jun', a: 200, e: 60 }
+                                                    ]} margin={{top: 5, right: 0, left: -25, bottom: 0}}>
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#475569" opacity={0.3} />
+                                                        <XAxis dataKey="m" axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} dy={5} />
+                                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} />
+                                                        <Bar dataKey="a" fill="#0ea5e9" barSize={8} />
+                                                        <Bar dataKey="e" fill="#fbbf24" barSize={8} />
+                                                    </ComposedChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                            <div className="scada-chart-note">Últimos 6 meses</div>
+                                        </div>
+                                        {/* Var Precipitacion */}
+                                        <div className="scada-chart-flex" style={{ display: 'flex', flexDirection: 'column', borderTop: '1px solid rgba(51, 65, 85, 0.5)', paddingTop: '8px' }}>
+                                            <span style={{ fontSize: '10px', color: '#cbd5e1', fontWeight: 'bold', marginBottom: '4px' }}>Variación de Precipitación Trimestral</span>
+                                            <div className="scada-chart-flex">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <ComposedChart data={[
+                                                        { q: '1', v: 13 }, { q: '2', v: 10 }, { q: '3', v: -6 }, { q: '4', v: -1 }
+                                                    ]} margin={{top: 5, right: 0, left: -25, bottom: 0}}>
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#475569" opacity={0.3} />
+                                                        <XAxis dataKey="q" axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} dy={5} />
+                                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} tickFormatter={(v: any)=>`${v}%`} />
+                                                        <Bar dataKey="v" fill="#38bdf8" barSize={14} />
+                                                    </ComposedChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                            <div className="scada-chart-note">Últimos 4 quarteres</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="scada-panel-box" style={{ flex: 1, position: 'relative' }}>
+                                <span className="scada-panel-title" style={{ color: '#f1f5f9', marginBottom: '4px' }}>ANÁLISIS TENDENCIAL</span>
+                                <span style={{ fontSize: '10px', color: '#cbd5e1', marginBottom: '8px' }}>Tendencia de Previsión de Lluvias</span>
+                                
+                                <div className="scada-chart-flex" style={{ marginTop: '8px' }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={[
+                                            { p: 'Period 1', v: 4, l: null }, { p: '', v: 5 }, { p: '', v: 11 }, { p: '', v: 5 },
+                                            { p: '', v: 7 }, { p: '', v: 6 }, { p: '', v: 8 }, { p: '', v: 12 }, { p: '', v: 14 },
+                                            { p: '', v: 12, l: '18.33 %' }, { p: '', v: 15 }, { p: '', v: 14 }, { p: '', v: 12 },
+                                            { p: 'Period 3', v: 11, l: '15.07 %' }, { p: '', v: 14 }, { p: 'Period 4', v: 17, l: '20.00 %' }
+                                        ]} margin={{ top: 20, right: 10, left: -25, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="colorWave" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.4}/>
+                                                    <stop offset="95%" stopColor="#38bdf8" stopOpacity={0}/>
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#475569" opacity={0.3} />
+                                            <XAxis dataKey="p" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} dy={10} />
+                                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} tickFormatter={(v: any)=>`${v}%`} />
+                                            <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none' }} />
+                                            <Area type="monotone" dataKey="v" stroke="#38bdf8" fillOpacity={1} fill="url(#colorWave)" strokeWidth={2} 
+                                                dot={(props: any) => {
+                                                    const { cx, cy, payload } = props;
+                                                    if (payload.l) {
+                                                        return (
+                                                            <g>
+                                                                <circle cx={cx} cy={cy} r={3} fill="#0f172a" stroke="#38bdf8" strokeWidth={2} />
+                                                                <text x={cx} y={cy - 12} fill="#f1f5f9" fontSize="10" fontWeight="bold" textAnchor="middle">{payload.l}</text>
+                                                            </g>
+                                                        );
+                                                    }
+                                                    return <g></g>;
+                                                }}
+                                            />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                                <div style={{ position: 'absolute', bottom: '8px', left: 0, width: '100%', textAlign: 'center', fontSize: '9px', color: '#64748b', pointerEvents: 'none' }}>
+                                    Últimos próximo 30 días
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            {/* ── FILA 3: Estado Operativo y Cuenca ─────── */}
+            <div className="grid grid-cols-[1.5fr_1fr] gap-4 mb-4">
+                {/* Panel Central: Datos de Operación e Historial */}
+                <div className="flex flex-col gap-4">
+                    {/* Aforo Mini-Card */}
                     {currentAforo && (
-                        <div className="presas-v3-aforo-row">
-                            <div className="presas-v3-section-hdr presas-v3-section-hdr--sub mt-4 mb-3">
-                                <Map size={11} className="text-emerald-500" />
-                                <span>AFORO DE ENTRADA — {currentAforo.estacion}</span>
-                            </div>
-                            <div className="presas-v3-aforo-values">
-                                <div className="presas-v3-aforo-metric">
-                                    <span className="presas-v3-kpi-label">ESCALA</span>
-                                    <span className="presas-v3-kpi-val">{currentAforo.escala != null ? Number(currentAforo.escala).toFixed(2) : '--'}</span>
-                                    <span className="presas-v3-kpi-unit">m</span>
+                        <div className="bg-[#4a585a] rounded-lg border border-[#5c6d6f] p-3 shadow-lg flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="p-2 bg-[#059669]/20 rounded-full text-[#10b981]">
+                                    <Map size={18} />
+                                </span>
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">AFORO ENTRADA PRINCIPAL</span>
+                                    <span className="text-sm font-bold text-slate-100">{currentAforo.estacion}</span>
                                 </div>
-                                <div className="presas-v3-aforo-metric">
-                                    <span className="presas-v3-kpi-label">GASTO</span>
-                                    <span className="presas-v3-kpi-val" style={{ color: '#10b981' }}>
-                                        {currentAforo.gasto_m3s != null ? Number(currentAforo.gasto_m3s).toFixed(2) : '--'}
-                                    </span>
-                                    <span className="presas-v3-kpi-unit">m³/s</span>
+                            </div>
+                            <div className="flex gap-6 text-right">
+                                <div className="flex flex-col items-end">
+                                    <span className="text-[10px] text-slate-300 uppercase">ESCALA</span>
+                                    <span className="text-lg font-bold text-slate-200">{currentAforo.escala != null ? Number(currentAforo.escala).toFixed(2) : '--'}<span className="text-[10px] ml-1 font-normal text-slate-400">m</span></span>
+                                </div>
+                                <div className="flex flex-col items-end">
+                                    <span className="text-[10px] text-[#10b981] font-bold uppercase">GASTO ACTUAL</span>
+                                    <span className="text-lg font-bold text-[#10b981]">{currentAforo.gasto_m3s != null ? Number(currentAforo.gasto_m3s).toFixed(2) : '--'}<span className="text-[10px] ml-1 font-normal opacity-80">m³/s</span></span>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Historial de movimientos */}
-                    <div className="presas-v3-section-hdr presas-v3-section-hdr--sub mt-4 mb-3">
-                        <Clock size={11} className="text-slate-500" />
-                        <span>HISTORIAL DE MOVIMIENTOS</span>
-                        <button type="button" onClick={() => setIsMoveModalOpen(true)}
-                            className="ml-auto text-[8px] font-black bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded border border-emerald-500/20 hover:bg-emerald-500/20 transition-all uppercase">
-                            + Registrar
-                        </button>
-                    </div>
-                    <div className="presas-v3-movs-table">
-                        {movsActuales.length > 0 ? movsActuales.slice(0, 8).map((m: MovimientoPresaData) => (
-                            <div key={m.id} className="presas-v3-mov-row">
-                                <span className="presas-v3-mov-fecha">
-                                    {new Date(m.fecha_hora).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' })}
-                                </span>
-                                <span className="presas-v3-mov-gasto">{m.gasto_m3s.toFixed(2)} <small>m³/s</small></span>
-                                <span className={`presas-v3-mov-fuente ${m.fuente_dato === 'GERENCIA_ADMIN' ? 'presas-v3-mov-fuente--admin' : 'presas-v3-mov-fuente--campo'}`}>
-                                    {m.fuente_dato === 'GERENCIA_ADMIN' ? 'Gerencia' : m.fuente_dato}
-                                </span>
+                    {/* Historial Card */}
+                    <div className="bg-[#4a585a] rounded-lg border border-[#5c6d6f] p-3 shadow-lg flex-1">
+                        <div className="flex justify-between items-center mb-3">
+                            <div className="text-[11px] font-bold tracking-wider text-slate-200 uppercase flex items-center gap-2">
+                                <Clock size={13} className="text-teal-400" /> HISTORIAL DE MOVIMIENTOS
                             </div>
-                        )) : (
-                            <p className="text-[10px] text-slate-600 italic py-4 text-center">Sin movimientos registrados</p>
-                        )}
+                            <button type="button" onClick={() => setIsMoveModalOpen(true)}
+                                className="text-[10px] font-bold bg-[#059669] text-white px-3 py-1 rounded shadow-sm hover:bg-[#047857] transition-all flex items-center gap-1 uppercase">
+                                <PlusCircle size={10} /> Registrar
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-[1fr_1fr_1fr] text-[10px] font-bold text-slate-400 border-b border-slate-600 pb-1 mb-2">
+                            <span>FECHA DE OPERACIÓN</span>
+                            <span className="text-right">GASTO CONFIGURADO</span>
+                            <span className="text-right">ORIGEN</span>
+                        </div>
+                        
+                        {/* Table Loop */}
+                        <div className="flex flex-col gap-1 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
+                            {movsActuales.length > 0 ? movsActuales.slice(0, 8).map((m: MovimientoPresaData) => (
+                                <div key={m.id} className="grid grid-cols-[1fr_1fr_1fr] items-center bg-[#566567] rounded px-2 py-[6px] text-[11px] text-slate-200 border border-[#637375]">
+                                    <span className="font-mono">{new Date(m.fecha_hora).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })} <span className="text-[9px] text-slate-400">hrs</span></span>
+                                    <span className="text-right font-bold text-emerald-400">{m.gasto_m3s.toFixed(2)} <span className="font-normal opacity-70">m³/s</span></span>
+                                    <div className="flex justify-end">
+                                        <span className={`px-2 py-[2px] rounded uppercase text-[9px] font-bold bg-slate-800 border ${m.fuente_dato === 'GERENCIA_ADMIN' ? 'text-amber-400 border-amber-900/50' : 'text-blue-400 border-blue-900/50'}`}>
+                                            {m.fuente_dato === 'GERENCIA_ADMIN' ? 'GERENCIA' : m.fuente_dato}
+                                        </span>
+                                    </div>
+                                </div>
+                            )) : (
+                                <div className="text-[11px] text-slate-400 italic py-4 text-center">No hay registros recientes para este embalse.</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* COMPARATIVA CUENCA COLUMN */}
+                <div className="bg-[#4a585a] rounded-lg border border-[#5c6d6f] p-3 shadow-lg flex flex-col">
+                    <div className="flex items-center gap-2 text-slate-200 mb-3">
+                        <Activity size={13} className="text-sky-400" />
+                        <span className="text-[11px] font-bold tracking-wider uppercase">COMPARATIVA DE CUENCA (RESERVAS)</span>
                     </div>
 
-                    {/* Comparativa cuenca */}
-                    <div className="presas-v3-section-hdr presas-v3-section-hdr--sub mt-5 mb-3">
-                        <Activity size={11} className="text-slate-500" />
-                        <span>COMPARATIVA DE CUENCA</span>
-                    </div>
-                    <div className="presas-v3-cuenca-compare">
+                    <div className="flex flex-col gap-[10px] flex-1 overflow-y-auto pr-2 custom-scrollbar">
                         {presas.map(p => {
                             const pct = p.lectura?.porcentaje_llenado || 0;
-                            const col = pct >= 60 ? '#10b981' : pct >= 30 ? '#f59e0b' : '#ef4444';
+                            const isCrit = pct < 20;
+                            const isWarn = pct >= 20 && pct < 40;
+                            const colorClass = isCrit ? 'bg-red-500' : isWarn ? 'bg-amber-500' : 'bg-[#10b981]';
+                            const titleColor = isCrit ? 'text-red-400' : isWarn ? 'text-amber-400' : 'text-[#10b981]';
+                            
                             return (
-                                <div key={p.id} className="presas-v3-cuenca-presa">
-                                    <span className="presas-v3-kpi-label">{p.nombre_corto}</span>
-                                    <div className="presas-v3-cuenca-bar-track">
-                                        <div className="presas-v3-cuenca-bar-fill" style={{ width: `${Math.min(pct, 100)}%`, background: col }} />
+                                <div key={p.id} className="flex gap-3 items-center border-b border-slate-600/50 pb-[10px] last:border-0 last:pb-0">
+                                    <div className="w-[100px] text-[11px] font-bold text-slate-200 truncate">{p.nombre_corto}</div>
+                                    <div className="flex-1 flex flex-col gap-1">
+                                        <div className="h-[6px] w-full bg-[#1e293b] rounded-full border border-slate-700/50 overflow-hidden">
+                                            <div className={`h-full ${colorClass}`} style={{ width: `${Math.min(pct, 100)}%` }}></div>
+                                        </div>
                                     </div>
-                                    <span className="presas-v3-kpi-unit" style={{ color: col }}>{pct.toFixed(1)}%</span>
+                                    <div className={`w-[45px] text-right font-bold text-[12px] ${titleColor}`}>
+                                        {pct.toFixed(1)}%
+                                    </div>
                                 </div>
                             );
                         })}
                     </div>
-                </section>
+                </div>
             </div>
 
             {/* Modal */}

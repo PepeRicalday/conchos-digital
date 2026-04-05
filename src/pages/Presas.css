@@ -564,21 +564,58 @@
     border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
-/* Section: Audit */
-.audit-section {
-    padding: var(--spacing-lg);
-}
-
-.audit-grid {
+/* ── P3: Ejecutivo KPI Grid (Top Section) ────────────────────────────────── */
+.presas-exec-kpi-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--spacing-md);
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
 }
 
-@media (max-width: 768px) {
-    .audit-grid {
-        grid-template-columns: 1fr;
-    }
+.presas-exec-kpi-card {
+    background-color: #3f515e; /* Exact match to the image card background */
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border: 1px solid rgba(255,255,255,0.05);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.presas-exec-kpi-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: #e2e8f0;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+}
+
+.presas-exec-kpi-val {
+    font-size: 24px;
+    font-weight: 800;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
+    line-height: 1.1;
+    display: flex;
+    align-items:Baseline;
+    gap: 6px;
+}
+
+.presas-exec-kpi-val span {
+    font-size: 12px;
+    font-weight: 600;
+    color: #cbd5e1;
+}
+
+.presas-exec-kpi-sub {
+    font-size: 10px;
+    color: #94a3b8;
+    margin-top: 4px;
 }
 
 .photo-placeholder {
@@ -619,10 +656,64 @@
     color: var(--color-text-muted);
 }
 
-.signature-name {
-    font-size: 0.875rem;
+/* ── P4: Dashboard Layout ────────────────────────────────────────────────── */
+.presas-v3-container {
+    background-color: #2b3541; /* Dark industrial background */
+    padding: 16px;
+    border-radius: 12px;
+}
+
+.presas-v3-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.presas-v3-card {
+    background-color: #3f515e; /* Card background */
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+.presas-v3-section-hdr {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #e2e8f0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 8px;
+}
+
+.presas-capacity-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-top: 16px;
+}
+
+.presas-curve-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.presas-subsec-title {
+    font-size: 13px;
     font-weight: 600;
-    color: var(--color-text-primary);
+    color: #e2e8f0;
+}
+
+.presas-cylinder-section {
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 /* Charts Sidebar */
@@ -1442,3 +1533,210 @@
     text-align: right;
     font-family: 'JetBrains Mono', monospace;
 }
+
+/* ── SCADA CLIMATE MONITORING LAYOUT (SISTEMA DE MONITOREO CLIMÁTICO) ── */
+.scada-climate-module {
+    background-color: #1b252f;
+    border: 1px solid #2a3644;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    font-family: sans-serif;
+    color: #f1f5f9;
+}
+
+.scada-climate-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #2a3644;
+    padding-bottom: 12px;
+}
+
+.scada-climate-title-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.scada-climate-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #e2e8f0;
+    margin: 0;
+}
+
+.scada-climate-sub {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.scada-climate-controls {
+    display: flex;
+    gap: 12px;
+}
+
+.scada-btn-dark {
+    border: 1px solid #334155;
+    border-radius: 4px;
+    padding: 4px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    background-color: rgba(15, 23, 42, 0.8);
+    color: #cbd5e1;
+}
+
+.scada-climate-body {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 16px;
+}
+
+.scada-climate-col-l, .scada-climate-col-r {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.scada-mon-grid-top {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.scada-panel-box {
+    background-color: #242f3d;
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px solid #334155;
+    display: flex;
+    flex-direction: column;
+    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.2);
+    position: relative;
+}
+
+.scada-panel-title {
+    font-size: 10px;
+    color: #cbd5e1;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+    display: block;
+}
+
+/* Gauge */
+.scada-gauge-wrap {
+    width: 120px;
+    height: 60px;
+    position: relative;
+    overflow: hidden;
+    margin: 16px auto 0;
+    display: flex;
+    justify-content: center;
+}
+
+.scada-gauge-track {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 8px solid #334155;
+    border-top-color: #38bdf8;
+    border-left-color: #38bdf8;
+    transform: rotate(45deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.scada-gauge-svg {
+    width: 80px;
+    height: 80px;
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    transform: rotate(-45deg);
+}
+
+.scada-gauge-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: -10px;
+    padding-bottom: 8px;
+    z-index: 10;
+}
+
+/* Range Slider */
+.scada-range-container {
+    background: linear-gradient(to right, #a855f7, #38bdf8, #f97316);
+    height: 6px;
+    border-radius: 999px;
+    width: 100%;
+    position: relative;
+    margin-top: 16px;
+}
+
+.scada-range-thumb {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid #1e293b;
+    display: flex;
+    justify-content: center;
+    background-color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+/* Compass */
+.scada-compass-wrap {
+    position: relative;
+    width: 50px;
+    height: 50px;
+    border: 1px solid #475569;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    color: #94a3b8;
+    margin: 4px auto;
+}
+.scada-compass-wrap span { position: absolute; }
+.scada-comp-n { top: 2px; }
+.scada-comp-s { bottom: 2px; }
+.scada-comp-w { left: 2px; }
+.scada-comp-e { right: 2px; }
+
+.scada-comp-arrow {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    transform: rotate(-45deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.scada-comp-half1 { width: 6px; height: 100%; background: linear-gradient(to bottom, #38bdf8 50%, transparent 50%); clip-path: polygon(50% 0%, 100% 50%, 50% 50%, 0% 50%); }
+.scada-comp-half2 { position: absolute; width: 6px; height: 100%; background: linear-gradient(to top, #64748b 50%, transparent 50%); clip-path: polygon(50% 100%, 100% 50%, 50% 50%, 0% 50%); }
+
+/* Chart Heights */
+.scada-chart-h90 { height: 90px; width: 100%; position: relative; }
+.scada-chart-h190 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; height: 190px; width: 100%; }
+.scada-chart-grid-left { border-right: 1px solid #334155; padding-right: 16px; display: flex; flex-direction: column; }
+.scada-chart-grid-right { display: flex; flex-direction: column; gap: 12px; }
+.scada-chart-flex { flex: 1; min-height: 0; position: relative; }
+.scada-chart-legend { display: flex; align-items: center; gap: 12px; font-size: 9px; color: #94a3b8; margin: 4px 0 8px; }
+.scada-chart-note { text-align: center; width: 100%; font-size: 9px; color: #64748b; margin-top: 4px; }

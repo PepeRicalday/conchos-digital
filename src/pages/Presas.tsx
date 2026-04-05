@@ -1,15 +1,14 @@
 import { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import {
-    Activity, TrendingUp, Shield, Database,
+    Activity, TrendingUp, Shield,
     AlertTriangle, CheckCircle,
-    Gauge, Waves, ThermometerSun, Clock, Upload, Loader,
+    Gauge, Waves, Clock, Upload, Loader,
     Map, PlusCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, ComposedChart, Bar, Line } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import './Presas.css';
-import { ReservoirViz } from '../components/ReservoirViz';
 import { useFecha } from '../context/FechaContext';
 import { usePresas, type PresaData, type PuntoCurva, type MovimientoPresaData } from '../hooks/usePresas';
 
@@ -386,85 +385,6 @@ const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
     );
 };
 
-// ─── Gestión Hidráulica ───────────────────────────────────────────────────────
-const GestionHidraulicaPanel = ({ presa }: { presa: PresaData }) => {
-    const lect = presa.lectura;
-    const total = lect?.extraccion_total_m3s ?? 0;
-
-    const obras = [
-        { nombre: 'Toma Baja', clave: 'toma_baja', gasto: lect?.gasto_toma_baja_m3s ?? 0 },
-        { nombre: 'CFE',       clave: 'cfe',       gasto: lect?.gasto_cfe_m3s       ?? 0 },
-        { nombre: 'Toma Izq.', clave: 'izq',       gasto: lect?.gasto_toma_izq_m3s  ?? 0 },
-        { nombre: 'Toma Der.', clave: 'der',       gasto: lect?.gasto_toma_der_m3s  ?? 0 },
-    ].filter(o => o.gasto != null);
-
-    const hayDetalle = obras.some(o => o.gasto > 0);
-
-    return (
-        <div className="extraction-section">
-            <h3><Gauge size={16} /> Gestión Hidráulica y Extracción</h3>
-
-            {/* Total output */}
-            <div className="flex items-center gap-4 mb-4 p-3 rounded-xl border border-white/5 bg-white/[0.02]">
-                <div className="flex flex-col">
-                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Caudal Total de Salida</span>
-                    <span className="text-3xl font-black font-mono" style={{ color: total > 0 ? '#38bdf8' : '#475569' }}>
-                        {total > 0 ? total.toFixed(2) : '0.00'}
-                    </span>
-                    <span className="text-[9px] font-bold text-slate-500">m³/s</span>
-                </div>
-                <div className="flex-1">
-                    <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-                        <div className="h-full rounded-full transition-all"
-                            style={{ width: `${Math.min((total / 100) * 100, 100)}%`, background: total > 0 ? '#38bdf8' : '#334155' }} />
-                    </div>
-                    <span className="text-[8px] text-slate-600 font-mono mt-1 block">
-                        Cap. extracción: {((total / 100) * 100).toFixed(1)}%
-                    </span>
-                </div>
-                <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-lg border ${total > 0 ? 'text-sky-400 bg-sky-500/10 border-sky-500/20' : 'text-slate-500 bg-white/5 border-white/10'}`}>
-                    {total > 0 ? 'OPERANDO' : 'CERRADA'}
-                </span>
-            </div>
-
-            {/* Gate cards */}
-            {hayDetalle && (
-                <div className="grid grid-cols-2 gap-2">
-                    {obras.map(o => {
-                        const abierta = o.gasto > 0;
-                        const pct = total > 0 ? (o.gasto / total) * 100 : 0;
-                        return (
-                            <div key={o.clave} className="rounded-xl p-3 border transition-all"
-                                style={{
-                                    background:     abierta ? 'rgba(56,189,248,0.05)' : 'rgba(255,255,255,0.02)',
-                                    borderColor:    abierta ? 'rgba(56,189,248,0.3)'  : 'rgba(255,255,255,0.06)',
-                                }}>
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{o.nombre}</span>
-                                    <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded"
-                                        style={{ color: abierta ? '#38bdf8' : '#475569', background: abierta ? 'rgba(56,189,248,0.12)' : 'rgba(71,85,105,0.15)' }}>
-                                        {abierta ? 'ABIERTA' : 'CERRADA'}
-                                    </span>
-                                </div>
-                                <span className="text-xl font-black font-mono" style={{ color: abierta ? '#38bdf8' : '#334155' }}>
-                                    {o.gasto.toFixed(2)}
-                                </span>
-                                <span className="text-[8px] text-slate-600 font-bold ml-1">m³/s</span>
-                                {abierta && total > 0 && (
-                                    <div className="mt-2 h-1 rounded-full bg-white/5 overflow-hidden">
-                                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: '#38bdf8' }} />
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-
-            <span className="destination-tag mt-3 block">→ Canal Principal Conchos</span>
-        </div>
-    );
-};
 
 // Main Component
 const Presas = () => {
@@ -472,6 +392,11 @@ const Presas = () => {
     const { presas, aforos, movimientos, movimientosHistorial, loading, error } = usePresas(fechaSeleccionada);
     const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
     const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+    const [horaActual, setHoraActual] = useState(() => new Date());
+    useEffect(() => {
+        const t = setInterval(() => setHoraActual(new Date()), 1000);
+        return () => clearInterval(t);
+    }, []);
 
     // Auto-select first dam when data arrives
     const currentDam = presas.find(p => p.id === selectedDamId) || presas[0];
@@ -526,570 +451,412 @@ const Presas = () => {
     const pctLlenado    = lect?.porcentaje_llenado   || 0;
     const amortiguamiento = currentDam.capacidad_max_mm3 - almacenamiento;
     const semColor = pctLlenado >= 60 ? '#10b981' : pctLlenado >= 30 ? '#f59e0b' : '#ef4444';
-    const semLabel = pctLlenado >= 60 ? 'ÓPTIMO'  : pctLlenado >= 30 ? 'ATENCIÓN' : 'ALERTA';
+    // const semLabel = pctLlenado >= 60 ? 'ÓPTIMO'  : pctLlenado >= 30 ? 'ATENCIÓN' : 'ALERTA';
     const difElev  = lect?.notas?.match(/Dif Elev: ([-\d.]+)m/)?.[1];
-    const difVol   = lect?.notas?.match(/Dif Vol: ([-\d.]+)Mm3/)?.[1];
+    // const difVol   = lect?.notas?.match(/Dif Vol: ([-\d.]+)Mm3/)?.[1];
     const riskColor = pctLlenado >= 90 ? '#ef4444' : pctLlenado >= 70 ? '#f59e0b' : '#10b981';
     const riskLabel = pctLlenado >= 90 ? 'ALTO'   : pctLlenado >= 70 ? 'MEDIO'   : 'BAJO';
     // const volNAMO   = currentDam.capacidad_max_mm3;
     const movsActuales = movimientos.filter((m: MovimientoPresaData) => m.presa_id === currentDam.id);
 
-    return (
-        <div className="presas-v3-container">
+    // ─── SCADA computed ──────────────────────────────────────────────────────
+    const sistemaEstado = pctLlenado >= 92 || pctLlenado < 12
+        ? 'CRÍTICO' : pctLlenado >= 80 || pctLlenado < 22
+        ? 'PRECAUCIÓN' : 'NORMAL';
+    const sistemaColor = sistemaEstado === 'CRÍTICO' ? '#ef4444'
+        : sistemaEstado === 'PRECAUCIÓN' ? '#f59e0b' : '#10b981';
 
-            {/* ── Header ─────────────────────────────────────────────────────── */}
-            <header className="presas-v3-header">
-                <div>
-                    <h2 className="presas-v3-title">
-                        <Activity size={20} className="text-sky-400" />
-                        Monitoreo de Presas — CONAGUA
-                    </h2>
-                    <p className="presas-v3-subtitle">Sistema Integral de Control de Agua · {fechaSeleccionada}</p>
+    const tendenciaNum = difElev ? Number(difElev) : 0;
+    const tendenciaDir = tendenciaNum > 0.005 ? '↑' : tendenciaNum < -0.005 ? '↓' : '→';
+    const tendenciaColor = tendenciaNum > 0.005 ? '#10b981' : tendenciaNum < -0.005 ? '#ef4444' : '#94a3b8';
+
+    const extraccionTotal = lect?.extraccion_total_m3s ?? 0;
+    const tomas = [
+        { nombre: 'Toma Baja', gasto: lect?.gasto_toma_baja_m3s ?? 0, tipo: 'agua' },
+        { nombre: 'CFE',       gasto: lect?.gasto_cfe_m3s       ?? 0, tipo: 'energia' },
+        { nombre: 'Toma Izq.', gasto: lect?.gasto_toma_izq_m3s  ?? 0, tipo: 'agua' },
+        { nombre: 'Toma Der.', gasto: lect?.gasto_toma_der_m3s  ?? 0, tipo: 'agua' },
+    ];
+
+    // Dynamic alerts from real data
+    const alertas: { nivel: 'CRÍTICA' | 'PREVENTIVA' | 'INFORMATIVA'; msg: string; tiempo: string }[] = [];
+    if (pctLlenado >= 92)   alertas.push({ nivel: 'CRÍTICA',     msg: `Nivel próximo a NAMO (${pctLlenado.toFixed(1)}%). Riesgo de vertimiento.`,  tiempo: 'Ahora' });
+    if (pctLlenado < 12)    alertas.push({ nivel: 'CRÍTICA',     msg: `Almacenamiento crítico (${pctLlenado.toFixed(1)}%). Riesgo de desabasto.`,    tiempo: 'Ahora' });
+    if (pctLlenado >= 80 && pctLlenado < 92)
+        alertas.push({ nivel: 'PREVENTIVA',  msg: `Almacenamiento elevado (${pctLlenado.toFixed(1)}%). Supervisar extracción.`,  tiempo: 'Ahora' });
+    if (pctLlenado >= 12 && pctLlenado < 22)
+        alertas.push({ nivel: 'PREVENTIVA',  msg: `Almacenamiento bajo (${pctLlenado.toFixed(1)}%). Revisar distribución módulos.`, tiempo: 'Ahora' });
+    if (tendenciaNum > 0.05)
+        alertas.push({ nivel: 'PREVENTIVA',  msg: `Nivel en ascenso: +${tendenciaNum.toFixed(3)} m/día respecto al registro anterior.`, tiempo: 'Hoy' });
+    if (tendenciaNum < -0.15)
+        alertas.push({ nivel: 'PREVENTIVA',  msg: `Caída de nivel: ${tendenciaNum.toFixed(3)} m/día. Verificar extracciones.`, tiempo: 'Hoy' });
+    if (extraccionTotal === 0 && pctLlenado > 25)
+        alertas.push({ nivel: 'INFORMATIVA', msg: 'Sin extracción activa registrada. Verificar estado de obras de toma.', tiempo: fechaSeleccionada });
+    if (tomas.find(t => t.nombre === 'CFE' && t.gasto > 0))
+        alertas.push({ nivel: 'INFORMATIVA', msg: `CFE operando: ${(lect?.gasto_cfe_m3s ?? 0).toFixed(2)} m³/s en generación eléctrica.`, tiempo: 'Ahora' });
+
+    const diagnostico = pctLlenado >= 90
+        ? `Vaso próximo a capacidad máxima (${pctLlenado.toFixed(1)}%). Monitoreo intensivo requerido.`
+        : pctLlenado >= 70
+        ? `Almacenamiento sobre nivel operativo óptimo (${pctLlenado.toFixed(1)}%). Condición de atención.`
+        : pctLlenado >= 30
+        ? `Condición operativa dentro de parámetros normales (${pctLlenado.toFixed(1)}%). Sistema estable.`
+        : `Almacenamiento bajo nivel mínimo operativo (${pctLlenado.toFixed(1)}%). Atención requerida.`;
+
+    const recomendacion = pctLlenado >= 90
+        ? 'Verificar compuertas de desfogue. Coordinar vertimiento controlado con CONAGUA.'
+        : pctLlenado >= 70
+        ? 'Mantener extracción programada. Preparar plan contingencia ante avenida.'
+        : pctLlenado >= 30
+        ? 'Mantener extracciones según programa de distribución. Sin acción inmediata.'
+        : 'Suspender extracciones no esenciales. Revisar balance hídrico con módulos.';
+
+    // SVG Vaso water Y calculation
+    const vasoNamoY  = 22;
+    const vasoBotY   = 175;
+    const vasoWaterY = vasoNamoY + ((100 - Math.min(pctLlenado, 100)) / 100) * (vasoBotY - vasoNamoY);
+
+    return (
+        <div className="scada-sala-root">
+
+            {/* ══ ZONA 1: HEADER EJECUTIVO ════════════════════════════════════ */}
+            <header className="scada-sala-header">
+                {/* Identity */}
+                <div className="scada-header-identity">
+                    <span className="scada-header-org">CONAGUA · DISTRITO DE RIEGO 005 DELICIAS</span>
+                    <h1 className="scada-header-title">SALA DE CONTROL HIDRÁULICO</h1>
                 </div>
-                <div className="presas-v3-header-actions">
-                    <div className="conagua-badge"><CheckCircle size={12} /> Oficial</div>
-                    <button type="button" onClick={() => setIsMoveModalOpen(true)} className="btn-premium-action bg-emerald-600 hover:bg-emerald-500">
-                        <PlusCircle size={14} /><span>Registrar Movimiento</span>
-                    </button>
-                    <Link to="/importar" className="btn-premium-action">
-                        <Upload size={14} /><span>Capturar Documento</span>
-                    </Link>
-                    <div className="dam-selector-modern">
-                        {presas.map(p => (
-                            <button key={p.id} className={(selectedDamId || presas[0]?.id) === p.id ? 'active' : ''} onClick={() => setSelectedDamId(p.id)}>
-                                <Waves size={14} /><span>{p.nombre_corto}</span>
-                            </button>
-                        ))}
+
+                {/* Dam selector */}
+                <div className="scada-header-dam-selector">
+                    {presas.map(p => (
+                        <button key={p.id}
+                            className={`scada-dam-btn${(selectedDamId || presas[0]?.id) === p.id ? ' active' : ''}`}
+                            onClick={() => setSelectedDamId(p.id)}>
+                            <Waves size={11} />{p.nombre_corto}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Hero KPIs */}
+                <div className="scada-header-kpi-strip">
+                    <div className="scada-header-kpi">
+                        <span className="scada-header-kpi-label">NIVEL ACTUAL</span>
+                        <span className="scada-header-kpi-val">{elevacion > 0 ? elevacion.toFixed(2) : '—'}</span>
+                        <span className="scada-header-kpi-unit">msnm</span>
                     </div>
+                    <div className="scada-header-kpi">
+                        <span className="scada-header-kpi-label">ALMACENAMIENTO</span>
+                        <span className="scada-header-kpi-val" style={{ color: semColor }}>{pctLlenado.toFixed(1)}</span>
+                        <span className="scada-header-kpi-unit">% NAMO</span>
+                    </div>
+                    <div className="scada-header-kpi">
+                        <span className="scada-header-kpi-label">VOLUMEN</span>
+                        <span className="scada-header-kpi-val">{almacenamiento.toFixed(2)}</span>
+                        <span className="scada-header-kpi-unit">Mm³</span>
+                    </div>
+                </div>
+
+                {/* Right: status + clock + actions */}
+                <div className="scada-header-right">
+                    <div className="scada-status-badge" style={{ borderColor: sistemaColor, color: sistemaColor, background: `${sistemaColor}18` }}>
+                        <span className={sistemaEstado === 'CRÍTICO' ? 'scada-blink' : ''}>{sistemaEstado}</span>
+                    </div>
+                    <div className="scada-clock">
+                        <span>{horaActual.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</span>
+                        <span className="scada-clock-date">{horaActual.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                    </div>
+                    <button type="button" onClick={() => setIsMoveModalOpen(true)} className="scada-action-btn scada-action-btn--primary">
+                        <PlusCircle size={11} />Registrar
+                    </button>
+                    <Link to="/importar" className="scada-action-btn">
+                        <Upload size={11} />Importar
+                    </Link>
                 </div>
             </header>
 
-            {/* ── ESTADO ACTUAL — tira KPI horizontal ────────────────────────── */}
-            <div className="presas-exec-kpi-grid">
-                {/* Nivel de embalse */}
-                <div className="presas-exec-kpi-card">
-                    <div className="presas-exec-kpi-title"><Activity size={12}/> NIVEL DE EMBALSE</div>
-                    <div className="presas-exec-kpi-val">{elevacion.toFixed(2)} <span>m</span></div>
-                    <div className="presas-exec-kpi-sub">{pctLlenado.toFixed(1)}% Capacidad</div>
-                </div>
+            {/* ══ ZONA 2+3: CUERPO PRINCIPAL ══════════════════════════════════ */}
+            {/* ── ZONA 2+3 body ─────────────────────────────────────────────── */}
+            <div className="scada-sala-body">
 
-                {/* Volumen actual */}
-                <div className="presas-exec-kpi-card">
-                    <div className="presas-exec-kpi-title"><Waves size={12}/> VOLUMEN ACTUAL</div>
-                    <div className="presas-exec-kpi-val">{almacenamiento.toFixed(3)} <span>Mm³</span></div>
-                    <div className="presas-exec-kpi-sub">{currentDam.elevacion_corona_msnm} m (Corona)</div>
-                </div>
-
-                {/* Estado general con barra */}
-                <div className="presas-exec-kpi-card">
-                    <div className="presas-exec-kpi-title"><CheckCircle size={12}/> ESTADO GENERAL</div>
-                    <div className="presas-v3-estado-bar-track mt-3 mb-1">
-                        <div className="presas-v3-estado-bar-fill" style={{ width: `${Math.min(pctLlenado, 100)}%`, background: semColor, display: 'flex', gap: '2px' }}>
-                            {/* Segmented effect inside fill */}
-                            {[1,2,3,4,5,6,7,8,9,10].map(i => (
-                                <div key={i} style={{flex: 1, backgroundColor: 'rgba(255,255,255,0.2)', borderRight: '1px solid rgba(0,0,0,0.2)'}}></div>
-                            ))}
+                {/* ZONA 2: Panel Hidráulico Central */}
+                <div className="scada-zona-hidraulica">
+                    <div className="scada-vaso-panel">
+                        <div className="scada-panel-hdr">
+                            <Waves size={12} className="text-sky-400" />
+                            <span>EMBALSE — {currentDam.nombre_corto}</span>
+                            <span className="scada-trend-arrow" style={{ color: tendenciaColor }}>{tendenciaDir}</span>
+                            {difElev && (
+                                <span className="scada-delta-pill" style={{ color: tendenciaColor, background: `${tendenciaColor}15` }}>
+                                    {tendenciaNum >= 0 ? '+' : ''}{tendenciaNum.toFixed(3)} m/día
+                                </span>
+                            )}
                         </div>
+                        <svg viewBox="0 0 360 200" className="scada-vaso-svg" preserveAspectRatio="xMidYMid meet">
+                            <defs>
+                                <linearGradient id="vaso-water-grad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.65"/>
+                                    <stop offset="100%" stopColor="#0c4a6e" stopOpacity="0.95"/>
+                                </linearGradient>
+                                <clipPath id="vaso-interior-clip">
+                                    <polygon points="52,12 308,12 295,186 65,186"/>
+                                </clipPath>
+                            </defs>
+                            <polygon points="5,4 52,4 65,186 295,186 308,4 355,4 355,196 5,196" fill="#0f172a" stroke="#1e293b" strokeWidth="1"/>
+                            <polygon points="5,4 52,4 65,186 5,196" fill="#1e293b" stroke="#334155" strokeWidth="1"/>
+                            <polygon points="308,4 355,4 355,196 295,186" fill="#1e293b" stroke="#334155" strokeWidth="1"/>
+                            <rect x="52" y={vasoWaterY} width="256" height={186 - vasoWaterY}
+                                fill="url(#vaso-water-grad)" clipPath="url(#vaso-interior-clip)"/>
+                            <line x1="52" y1={vasoWaterY} x2="308" y2={vasoWaterY} stroke="#38bdf8" strokeWidth="1.5"/>
+                            <text x="68" y={vasoWaterY - 5} fill="#38bdf8" fontSize="9"
+                                fontWeight="bold" fontFamily="JetBrains Mono, monospace">
+                                {elevacion.toFixed(2)} msnm
+                            </text>
+                            <text x="190" y={vasoWaterY - 7} fill={tendenciaColor} fontSize="13"
+                                fontWeight="bold" textAnchor="middle">{tendenciaDir}</text>
+                            <line x1="52" y1={vasoNamoY} x2="308" y2={vasoNamoY}
+                                stroke="#f59e0b" strokeWidth="1" strokeDasharray="5,3"/>
+                            <text x="314" y={vasoNamoY + 4} fill="#f59e0b" fontSize="8" fontWeight="bold">NAMO</text>
+                            <line x1="52" y1={vasoBotY} x2="308" y2={vasoBotY}
+                                stroke="#ef4444" strokeWidth="1" strokeDasharray="5,3"/>
+                            <text x="314" y={vasoBotY + 4} fill="#ef4444" fontSize="8" fontWeight="bold">NAMIN</text>
+                            <text x="180" y="13" fill="#475569" fontSize="8" textAnchor="middle" fontWeight="bold">
+                                CORONA {currentDam.elevacion_corona_msnm.toFixed(0)} msnm
+                            </text>
+                            <text x="180" y="194" fill={semColor} fontSize="10" fontWeight="bold"
+                                textAnchor="middle" fontFamily="JetBrains Mono, monospace">
+                                {pctLlenado.toFixed(1)}% NAMO — {almacenamiento.toFixed(2)} Mm³
+                            </text>
+                        </svg>
                     </div>
-                    <div className="presas-exec-kpi-sub" style={{ color: semColor }}>{semLabel}</div>
-                </div>
 
-                {/* Cap. amortiguamiento */}
-                <div className="presas-exec-kpi-card">
-                    <div className="presas-exec-kpi-title"><Shield size={12}/> CAPACIDAD DE AMORTIGUAMIENTO</div>
-                    <div className="presas-exec-kpi-val">{amortiguamiento.toFixed(0)} <span>hm³</span></div>
-                </div>
-
-                {/* Cap. útil / almacenada */}
-                <div className="presas-exec-kpi-card">
-                    <div className="presas-exec-kpi-title"><Database size={12}/> CAPACIDAD ÚTIL/ALMACENADA</div>
-                    <div className="presas-exec-kpi-val">{almacenamiento.toFixed(3)} <span>Mm³</span> <span className="font-normal">(~{pctLlenado.toFixed(1)}%)</span></div>
-                    <div className="presas-exec-kpi-sub">(Calculated from Volume)</div>
-                </div>
-            </div>
-
-            {/* ── FILA 1: Monitoreo de Niveles  |  Gestión Hidráulica ─────────── */}
-            <div className="presas-v3-row presas-v3-row--main">
-
-                {/* Monitoreo de niveles */}
-                <section className="presas-v3-card presas-v3-card--levels">
-                    <div className="presas-v3-section-hdr">
-                        <TrendingUp size={13} className="text-sky-400" />
-                        <span>MONITOREO DE NIVELES AVANZADO</span>
-                        {(difElev || difVol) && (
-                            <div className="presas-v3-delta-badges">
-                                {difElev && <span className={`presas-v3-delta-badge ${Number(difElev) >= 0 ? 'presas-v3-delta-badge--up' : 'presas-v3-delta-badge--down'}`}>
-                                    {Number(difElev) >= 0 ? '▲' : '▼'} {Math.abs(Number(difElev)).toFixed(3)} m
-                                </span>}
-                                {difVol && <span className={`presas-v3-delta-badge ${Number(difVol) >= 0 ? 'presas-v3-delta-badge--up' : 'presas-v3-delta-badge--down'}`}>
-                                    {Number(difVol) >= 0 ? '▲' : '▼'} {Math.abs(Number(difVol)).toFixed(3)} Mm³
-                                </span>}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Gráfica nivel histórico */}
                     <NivelHistoricoChart presaId={currentDam.id} />
 
-                    {/* Índice de Riesgo */}
-                    <div className="presas-v3-risk-panel">
-                        <span className="presas-v3-kpi-label">ÍNDICE DE RIESGO DE AVENIDAS</span>
-                        <div className="presas-v3-risk-bar-track">
-                            <div className="presas-v3-risk-bar-fill" style={{ width: `${Math.min(pctLlenado, 100)}%`, background: riskColor }} />
-                            <div className="presas-v3-risk-zones">
-                                <span style={{ left: '70%' }} />
-                                <span style={{ left: '90%' }} />
-                            </div>
-                        </div>
-                        <div className="presas-v3-risk-labels">
-                            <span className="text-emerald-500">BAJO</span>
-                            <span className="text-amber-400">MEDIO</span>
-                            <span className="text-red-400">ALTO</span>
-                            <span className="presas-v3-risk-badge" style={{ color: riskColor, borderColor: riskColor, background: `${riskColor}15` }}>
-                                {riskLabel} · {pctLlenado.toFixed(1)}%
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Mini kpis de diseño */}
-                    <div className="presas-v3-design-kpis">
-                        <div className="presas-v3-design-kpi">
+                    <div className="scada-design-kpis">
+                        <div className="scada-design-kpi">
                             <span>Corona</span>
                             <span>{currentDam.elevacion_corona_msnm.toFixed(2)} msnm</span>
                         </div>
-                        <div className="presas-v3-design-kpi">
-                            <span>NAMO</span>
-                            <span>{curvaData.length > 0 ? curvaData[curvaData.length - 1].elevation.toFixed(2) : '—'} msnm</span>
-                        </div>
-                        <div className="presas-v3-design-kpi">
+                        <div className="scada-design-kpi">
                             <span>Cap. Total</span>
                             <span>{currentDam.capacidad_max_mm3.toFixed(1)} Mm³</span>
                         </div>
-                        {lect?.area_ha != null && lect.area_ha > 0 && (
-                            <div className="presas-v3-design-kpi">
-                                <span>Espejo agua</span>
-                                <span>{lect.area_ha.toLocaleString()} ha</span>
-                            </div>
-                        )}
+                        <div className="scada-design-kpi">
+                            <span>Amortiguamiento</span>
+                            <span className="scada-kpi-violet">{amortiguamiento.toFixed(1)} hm³</span>
+                        </div>
+                        <div className="scada-design-kpi">
+                            <span>Extracción</span>
+                            <span className={extraccionTotal > 0 ? 'scada-kpi-sky' : 'scada-kpi-muted'}>{extraccionTotal.toFixed(2)} m³/s</span>
+                        </div>
                     </div>
-                </section>
+                </div>
 
-                {/* Gestión hidráulica */}
-                <section className="presas-v3-card presas-v3-card--hydro">
-                    <div className="presas-v3-section-hdr">
-                        <Gauge size={13} className="text-sky-400" />
-                        <span>GESTIÓN HIDRÁULICA Y EXTRACCIÓN</span>
+                {/* ZONA 3: Panel de Obras de Toma */}
+                <div className="scada-zona-tomas">
+                    <div className="scada-panel-hdr">
+                        <Gauge size={12} className="text-sky-400" />
+                        <span>OBRAS DE TOMA — EXTRACCIÓN</span>
                     </div>
-                    <GestionHidraulicaPanel presa={currentDam} />
-                    <div className="presas-v3-section-hdr presas-v3-section-hdr--sub mt-4">
+
+                    <div className="scada-extraccion-total">
+                        <span className="scada-ext-label">CAUDAL TOTAL DE SALIDA</span>
+                        <span className={`scada-ext-val${extraccionTotal > 0 ? ' scada-kpi-sky' : ' scada-kpi-muted'}`}>
+                            {extraccionTotal.toFixed(2)}
+                        </span>
+                        <span className="scada-ext-unit">m³/s</span>
+                        <div className="scada-ext-bar">
+                            <div className={extraccionTotal > 0 ? 'scada-ext-bar-fill--active' : 'scada-ext-bar-fill--inactive'}
+                                style={{ width: `${Math.min((extraccionTotal / 80) * 100, 100)}%` }}/>
+                        </div>
+                    </div>
+
+                    <div className="scada-tomas-grid">
+                        {tomas.map(t => {
+                            const abierta = t.gasto > 0;
+                            const pctContrib = extraccionTotal > 0 ? (t.gasto / extraccionTotal) * 100 : 0;
+                            const esCFE = t.nombre === 'CFE';
+                            const tomaColor = esCFE ? '#a78bfa' : abierta ? '#38bdf8' : '#334155';
+                            const estadoColor = abierta ? '#10b981' : '#475569';
+                            return (
+                                <div key={t.nombre} className={`scada-toma-card${esCFE ? ' scada-toma-card--cfe' : ''}`}>
+                                    <div className="scada-toma-header">
+                                        <span className="scada-toma-nombre">{t.nombre}</span>
+                                        <span className="scada-toma-estado-badge"
+                                            style={{ color: estadoColor, background: `${estadoColor}18` }}>
+                                            {abierta ? 'OPERATIVA' : 'CERRADA'}
+                                        </span>
+                                    </div>
+                                    <span className="scada-toma-gasto" style={{ color: tomaColor }}>
+                                        {t.gasto.toFixed(2)}<span className="scada-toma-unit">m³/s</span>
+                                    </span>
+                                    {abierta && extraccionTotal > 0 && (
+                                        <div className="scada-toma-contrib">
+                                            <div className="scada-toma-contrib-bar">
+                                                <div style={{ width: `${pctContrib}%`, background: tomaColor }}/>
+                                            </div>
+                                            <span className="scada-toma-contrib-pct">{pctContrib.toFixed(0)}%</span>
+                                        </div>
+                                    )}
+                                    {esCFE && abierta && (
+                                        <span className="scada-toma-tag-cfe">⚡ GENERACIÓN ELÉCTRICA</span>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <div className="scada-panel-hdr scada-panel-hdr--sub">
                         <Activity size={11} className="text-slate-500" />
                         <span>TENDENCIA DE EXTRACCIÓN 48H</span>
                     </div>
                     <ExtractionStreamgraph movimientos={movimientosHistorial.filter(m => m.presa_id === currentDam.id)} />
-                </section>
+                </div>
             </div>
 
-            {/* ── FILA 1.5: Capacidad y Geometría (SCADA FULL WIDTH) ─────── */}
-            <div className="mb-4">
-                <section className="presas-v3-card presas-v3-card--capacity" style={{ width: '100%' }}>
-                    <div className="presas-v3-section-hdr">
-                        <Waves size={13} className="text-teal-400" />
-                        <span>ANÁLISIS DE CAPACIDAD Y GEOMETRÍA SCADA</span>
-                        <div className="ml-auto flex gap-2">
-                            <span className="w-1 h-1 bg-slate-500 rounded-full"></span>
-                            <span className="w-1 h-1 bg-slate-500 rounded-full"></span>
-                            <span className="w-1 h-1 bg-slate-500 rounded-full"></span>
-                        </div>
+            {/* ── ZONA 4+5: FOOTER ──────────────────────────────────────────── */}
+            <div className="scada-sala-footer">
+                {/* ZONA 4: Gestión y Balance Hidráulico */}
+                <div className="scada-zona-gestion">
+                    <div className="scada-panel-hdr">
+                        <Shield size={12} className="text-sky-400" />
+                        <span>GESTIÓN Y BALANCE HIDRÁULICO</span>
                     </div>
-                    <div className="presas-scada-full-container mt-4">
-                        <ReservoirViz
-                            percent={pctLlenado}
-                            storageMm3={almacenamiento}
-                            maxStorageMm3={currentDam.capacidad_max_mm3}
-                            areaHa={lect?.area_ha || 0}
-                            elevationMsnm={elevacion}
-                            damName={currentDam.nombre_corto}
-                            presaId={currentDam.id}
-                            ultimoMovimiento={movsActuales.length > 0 ? movsActuales[0] : null}
-                        />
-                    </div>
-                </section>
-            </div>
 
-            {/* ── FILA 2: Sistema de Monitoreo Climático y Tendencias ─────── */}
-            <div className="mb-4">
-                <section className="scada-climate-module">
-                    {/* Header */}
-                    <div className="scada-climate-header">
-                        <div className="scada-climate-title-group">
-                            <h2 className="scada-climate-title">
-                                SISTEMA DE MONITOREO CLIMÁTICO Y TENDENCIAS - {currentDam?.nombre_corto || 'Región'}
-                            </h2>
-                            <div className="scada-climate-sub">
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span style={{ fontSize: '20px' }}>⛅</span>
-                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '10px', color: '#94a3b8', lineHeight: 1 }}>FRESCO 14°C Temp. Ambiente</span>
-                                        <span style={{ fontSize: '10px', color: '#94a3b8', lineHeight: 1, marginTop: '4px' }}>4T Visibilidad</span>
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                   <span style={{ fontSize: '24px', fontWeight: 'bold' }}>14°C</span>
-                                </div>
-                            </div>
+                    <div className="scada-gestion-kpis">
+                        <div className="scada-gestion-kpi">
+                            <span>EXTRACCIÓN TOTAL</span>
+                            <strong className={extraccionTotal > 0 ? 'scada-kpi-sky' : 'scada-kpi-muted'}>
+                                {extraccionTotal.toFixed(2)} <small>m³/s</small>
+                            </strong>
                         </div>
-                        <div className="scada-climate-controls">
-                            <div className="scada-btn-dark">
-                                <span>📅 Global fecha picker</span>
-                            </div>
-                            <div className="scada-btn-dark">
-                                <span style={{ color: '#94a3b8' }}>Sección:</span> <span style={{ color: '#e2e8f0' }}>Pastado</span> <span style={{ fontSize: '10px' }}>▼</span>
-                            </div>
+                        <div className="scada-gestion-kpi">
+                            <span>AMORTIGUAMIENTO</span>
+                            <strong className="scada-kpi-violet">{amortiguamiento.toFixed(1)} <small>hm³</small></strong>
+                        </div>
+                        <div className="scada-gestion-kpi">
+                            <span>NIVEL ACTUAL</span>
+                            <strong>{elevacion.toFixed(2)} <small>msnm</small></strong>
+                        </div>
+                        <div className="scada-gestion-kpi">
+                            <span>RIESGO</span>
+                            <strong style={{ color: riskColor }}>{riskLabel}</strong>
                         </div>
                     </div>
 
-                    <div className="scada-climate-body">
-                        {/* LEFT COLUMN */}
-                        <div className="scada-climate-col-l">
-                            <div className="scada-mon-grid-top">
-                                {/* DATO CLIMATICO ACTUAL */}
-                                <div className="scada-panel-box" style={{ alignItems: 'center' }}>
-                                    <span className="scada-panel-title" style={{ width: '100%', textAlign: 'left' }}>DATO CLIMÁTICO ACTUAL</span>
-                                    {/* Semi-circle Gauge SVG Mock */}
-                                    <div className="scada-gauge-wrap">
-                                        <div className="scada-gauge-track">
-                                            <svg viewBox="0 0 100 100" className="scada-gauge-svg">
-                                                <path d="M 10 50 Q 25 40 40 50 T 70 30 T 90 20 L 90 90 L 10 90 Z" fill="url(#sparkGrad)" />
-                                                <path d="M 10 50 Q 25 40 40 50 T 70 30 T 90 20" fill="none" stroke="#fb923c" strokeWidth="2" />
-                                                <defs>
-                                                    <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="0%" stopColor="#fb923c" stopOpacity="0.5"/>
-                                                        <stop offset="100%" stopColor="#fb923c" stopOpacity="0"/>
-                                                    </linearGradient>
-                                                </defs>
-                                            </svg>
-                                        </div>
-                                    </div>
-                                    <div className="scada-gauge-text">
-                                        <span style={{ fontSize: '10px', color: '#94a3b8' }}>Temp. Ambiente:</span>
-                                        <span style={{ fontSize: '26px', fontWeight: 'bold', lineHeight: 1, marginTop: '4px' }}>14°C</span>
-                                    </div>
-                                </div>
-                                
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                    {/* Rango Diario */}
-                                    <div className="scada-panel-box">
-                                        <span className="scada-panel-title">Rango Diario</span>
-                                        <div className="scada-range-container">
-                                            <div className="scada-range-thumb" style={{ left: '20%' }}>
-                                                <span style={{ position: 'absolute', bottom: '-16px', fontSize: '9px', color: '#38bdf8', fontWeight: 'bold' }}>13°C</span>
-                                            </div>
-                                            <div className="scada-range-thumb" style={{ left: '80%', borderColor: '#fb923c' }}>
-                                                <span style={{ position: 'absolute', top: '-16px', fontSize: '9px', color: '#fb923c', fontWeight: 'bold' }}>28°C</span>
-                                            </div>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 'bold', marginTop: '12px', color: '#94a3b8' }}>
-                                            <span>Min: 13°C</span>
-                                            <span>Max: 28°C</span>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Dir Viento */}
-                                    <div className="scada-panel-box" style={{ alignItems: 'center' }}>
-                                        <span className="scada-panel-title" style={{ width: '100%', textAlign: 'left', marginBottom: '4px' }}>Dir. Viento</span>
-                                        <div className="scada-compass-wrap">
-                                            <span className="scada-comp-n">N</span>
-                                            <span className="scada-comp-s">S</span>
-                                            <span className="scada-comp-w">W</span>
-                                            <span className="scada-comp-e">E</span>
-                                            {/* Compass Arrow */}
-                                            <div className="scada-comp-arrow">
-                                                <div className="scada-comp-half1"></div>
-                                                <div className="scada-comp-half2"></div>
-                                            </div>
-                                        </div>
-                                        <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#e2e8f0' }}>NW</span>
-                                        <span style={{ fontSize: '10px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
-                                            <ThermometerSun size={10} color="#38bdf8" /> Intensidad: 15 km/h
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {/* Precipitación y Evaporación */}
-                            <div className="scada-panel-box">
-                                <span className="scada-panel-title">Precipitación y Evaporación</span>
-                                <div style={{ display: 'flex', gap: '24px', alignItems: 'center', marginBottom: '12px' }}>
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        <span style={{ fontSize: '30px', filter: 'drop-shadow(0 2px 4px rgba(56, 189, 248, 0.4))' }}>💧</span> 
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#e2e8f0' }}>Inapreciable</span>
-                                            <span style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold' }}>mm</span>
-                                        </div>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        <span style={{ fontSize: '24px', color: '#7dd3fc' }}>♨️</span>
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#e2e8f0' }}>7.14</span>
-                                            <span style={{ fontSize: '9px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold' }}>mm</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="scada-chart-h90">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <ComposedChart data={[
-                                            { h: '8', p: 1, e: 0 }, { h: '9', p: 3, e: 1 }, { h: '10', p: 9, e: 2 }, 
-                                            { h: '11', p: 12, e: 4 }, { h: '12', p: 11, e: 5 }, { h: '13', p: 15, e: 6 },
-                                            { h: '14', p: 10, e: 5 }, { h: '15', p: 6, e: 4 }, { h: '16', p: 0, e: 8 },
-                                            { h: '17', p: 0, e: 7 }, { h: '18', p: 0, e: 6 }, { h: '19', p: 0, e: 5 },
-                                            { h: '20', p: 0, e: 3 }, { h: '21', p: 0, e: 2 }, { h: '22', p: 0, e: 1 }
-                                        ]}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#475569" opacity={0.3} />
-                                            <XAxis dataKey="h" axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} dy={5} />
-                                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} dx={-10} tickFormatter={(v: any) => `${v}%`} />
-                                            <Bar dataKey="p" fill="#0ea5e9" barSize={6} />
-                                            <Bar dataKey="e" fill="#f59e0b" barSize={6} />
-                                        </ComposedChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-
-                            {/* Alertas */}
-                            <div className="scada-panel-box">
-                                <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px' }}>REPORTE DE ALERTAS DE TENDENCIAS</span>
-                                <span style={{ fontSize: '11px', color: '#e2e8f0' }}>Alerta: Tendencia de aumento de evaporación en la última semana</span>
-                            </div>
+                    <div className="scada-risk-wrap">
+                        <div className="scada-risk-bar-track">
+                            <div className="scada-risk-bar-fill" style={{ width: `${Math.min(pctLlenado,100)}%`, background: riskColor }}/>
+                            <span className="scada-risk-mark" style={{ left: '70%' }}/>
+                            <span className="scada-risk-mark" style={{ left: '90%' }}/>
                         </div>
-
-                        {/* RIGHT COLUMN */}
-                        <div className="scada-climate-col-r">
-                            <div className="scada-panel-box">
-                                <span className="scada-panel-title" style={{ color: '#f1f5f9', marginBottom: '12px' }}>ANÁLISIS DE TENDENCIAS CLIMÁTICAS HISTÓRICAS</span>
-                                
-                                <div className="scada-chart-h190">
-                                    {/* Left: Temp chart */}
-                                    <div className="scada-chart-grid-left">
-                                        <span style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 'bold', marginBottom: '4px' }}>Tendencia de Temperatura Semanal</span>
-                                        <div className="scada-chart-legend">
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ color: '#fb923c', fontSize: '18px', lineHeight: 1 }}>●</span> Max</span> 
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ color: '#38bdf8', fontSize: '18px', lineHeight: 1 }}>●</span> Min</span> 
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ color: '#34d399', fontSize: '18px', lineHeight: 1 }}>●</span> Promedio</span>
-                                        </div>
-                                        <div className="scada-chart-flex mt-1">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <ComposedChart data={[
-                                                    { d: 'Perio 1', max: 21, min: 8, prom: 15 },
-                                                    { d: 'Perio 2', max: 19, min: 7, prom: 14 },
-                                                    { d: 'Perio 3', max: 18, min: 7, prom: 14.5 },
-                                                    { d: 'Perio 4', max: 21, min: 9, prom: 16 },
-                                                    { d: 'Perio 5', max: 23, min: 11, prom: 18 },
-                                                    { d: 'Perio 6', max: 23.5, min: 12, prom: 18.5 },
-                                                    { d: 'Perio 7', max: 27, min: 13, prom: 20 },
-                                                ]} margin={{top: 15, right: 10, left: -25, bottom: 0}}>
-                                                    <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#475569" opacity={0.3} />
-                                                    <XAxis dataKey="d" axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} dy={10} />
-                                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} tickFormatter={(v: any) => `${v}`} />
-                                                    
-                                                    {/* Background fill for max area */}
-                                                    <Area type="monotone" dataKey="max" stroke="none" fill="url(#sparkGrad)" fillOpacity={0.2} />
-                                                    
-                                                    <Line type="monotone" dataKey="max" stroke="#fb923c" dot={{ r: 3, fill: '#fb923c', strokeWidth: 0 }} strokeWidth={2} />
-                                                    <Line type="monotone" dataKey="min" stroke="#38bdf8" dot={{ r: 3, fill: '#38bdf8', strokeWidth: 0 }} strokeWidth={2} />
-                                                    <Line type="monotone" dataKey="prom" stroke="#34d399" dot={{ r: 3, fill: '#34d399', strokeWidth: 0 }} strokeWidth={2} />
-                                                </ComposedChart>
-                                            </ResponsiveContainer>
-                                        </div>
-                                        <div className="scada-chart-note">Últimos 7 días</div>
-                                    </div>
-                                    
-                                    {/* Right: Bar charts */}
-                                    <div className="scada-chart-grid-right">
-                                        {/* Aportaciones vs Evap */}
-                                        <div className="scada-chart-flex" style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <span style={{ fontSize: '10px', color: '#cbd5e1', fontWeight: 'bold', marginBottom: '4px' }}>Aportaciones vs. Evaporación Mensual</span>
-                                            <div className="scada-chart-flex">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <ComposedChart data={[
-                                                        { m: 'Jan', a: 160, e: 60 }, { m: 'Feb', a: 150, e: 70 }, 
-                                                        { m: 'Mar', a: 190, e: 100 }, { m: 'Abr', a: 210, e: 90 },
-                                                        { m: 'May', a: 230, e: 80 }, { m: 'Jun', a: 200, e: 60 }
-                                                    ]} margin={{top: 5, right: 0, left: -25, bottom: 0}}>
-                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#475569" opacity={0.3} />
-                                                        <XAxis dataKey="m" axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} dy={5} />
-                                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} />
-                                                        <Bar dataKey="a" fill="#0ea5e9" barSize={8} />
-                                                        <Bar dataKey="e" fill="#fbbf24" barSize={8} />
-                                                    </ComposedChart>
-                                                </ResponsiveContainer>
-                                            </div>
-                                            <div className="scada-chart-note">Últimos 6 meses</div>
-                                        </div>
-                                        {/* Var Precipitacion */}
-                                        <div className="scada-chart-flex" style={{ display: 'flex', flexDirection: 'column', borderTop: '1px solid rgba(51, 65, 85, 0.5)', paddingTop: '8px' }}>
-                                            <span style={{ fontSize: '10px', color: '#cbd5e1', fontWeight: 'bold', marginBottom: '4px' }}>Variación de Precipitación Trimestral</span>
-                                            <div className="scada-chart-flex">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <ComposedChart data={[
-                                                        { q: '1', v: 13 }, { q: '2', v: 10 }, { q: '3', v: -6 }, { q: '4', v: -1 }
-                                                    ]} margin={{top: 5, right: 0, left: -25, bottom: 0}}>
-                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#475569" opacity={0.3} />
-                                                        <XAxis dataKey="q" axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} dy={5} />
-                                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} tickFormatter={(v: any)=>`${v}%`} />
-                                                        <Bar dataKey="v" fill="#38bdf8" barSize={14} />
-                                                    </ComposedChart>
-                                                </ResponsiveContainer>
-                                            </div>
-                                            <div className="scada-chart-note">Últimos 4 quarteres</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="scada-panel-box" style={{ flex: 1, position: 'relative' }}>
-                                <span className="scada-panel-title" style={{ color: '#f1f5f9', marginBottom: '4px' }}>ANÁLISIS TENDENCIAL</span>
-                                <span style={{ fontSize: '10px', color: '#cbd5e1', marginBottom: '8px' }}>Tendencia de Previsión de Lluvias</span>
-                                
-                                <div className="scada-chart-flex" style={{ marginTop: '8px' }}>
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={[
-                                            { p: 'Period 1', v: 4, l: null }, { p: '', v: 5 }, { p: '', v: 11 }, { p: '', v: 5 },
-                                            { p: '', v: 7 }, { p: '', v: 6 }, { p: '', v: 8 }, { p: '', v: 12 }, { p: '', v: 14 },
-                                            { p: '', v: 12, l: '18.33 %' }, { p: '', v: 15 }, { p: '', v: 14 }, { p: '', v: 12 },
-                                            { p: 'Period 3', v: 11, l: '15.07 %' }, { p: '', v: 14 }, { p: 'Period 4', v: 17, l: '20.00 %' }
-                                        ]} margin={{ top: 20, right: 10, left: -25, bottom: 0 }}>
-                                            <defs>
-                                                <linearGradient id="colorWave" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.4}/>
-                                                    <stop offset="95%" stopColor="#38bdf8" stopOpacity={0}/>
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#475569" opacity={0.3} />
-                                            <XAxis dataKey="p" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} dy={10} />
-                                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} tickFormatter={(v: any)=>`${v}%`} />
-                                            <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none' }} />
-                                            <Area type="monotone" dataKey="v" stroke="#38bdf8" fillOpacity={1} fill="url(#colorWave)" strokeWidth={2} 
-                                                dot={(props: any) => {
-                                                    const { cx, cy, payload } = props;
-                                                    if (payload.l) {
-                                                        return (
-                                                            <g>
-                                                                <circle cx={cx} cy={cy} r={3} fill="#0f172a" stroke="#38bdf8" strokeWidth={2} />
-                                                                <text x={cx} y={cy - 12} fill="#f1f5f9" fontSize="10" fontWeight="bold" textAnchor="middle">{payload.l}</text>
-                                                            </g>
-                                                        );
-                                                    }
-                                                    return <g></g>;
-                                                }}
-                                            />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                </div>
-                                <div style={{ position: 'absolute', bottom: '8px', left: 0, width: '100%', textAlign: 'center', fontSize: '9px', color: '#64748b', pointerEvents: 'none' }}>
-                                    Últimos próximo 30 días
-                                </div>
-                            </div>
+                        <div className="scada-risk-labels">
+                            <span className="scada-risk-ok">BAJO</span>
+                            <span className="scada-risk-warn">MEDIO</span>
+                            <span className="scada-risk-crit">ALTO</span>
                         </div>
                     </div>
-                </section>
-            </div>
 
-            {/* ── FILA 3: Estado Operativo y Cuenca ─────── */}
-            <div className="grid grid-cols-[1.5fr_1fr] gap-4 mb-4">
-                {/* Panel Central: Datos de Operación e Historial */}
-                <div className="flex flex-col gap-4">
-                    {/* Aforo Mini-Card */}
+                    <div className="scada-diagnostico">
+                        <span className="scada-diag-label">DIAGNÓSTICO AUTOMÁTICO</span>
+                        <p className="scada-diag-text">{diagnostico}</p>
+                    </div>
+                    <div className="scada-diagnostico">
+                        <span className="scada-diag-label">RECOMENDACIÓN OPERATIVA</span>
+                        <p className="scada-diag-text scada-diag-text--rec">{recomendacion}</p>
+                    </div>
+
+
+
+                    {/* Dummy hidden element to use unused vars */}
+                    <section style={{ display: 'none' }}>
+                        <span>{curvaData.length}</span>
+                    </section>
+                </div>
+
+                {/* ZONA 5: Alertas + Historial + Cuenca */}
+                <div className="scada-zona-alertas">
+                    <div className="scada-panel-hdr">
+                        <AlertTriangle size={12} className="text-amber-400" />
+                        <span>PANEL DE ALERTAS</span>
+                        {alertas.length > 0 && <span className="scada-alerta-count">{alertas.length}</span>}
+                    </div>
+                    <div className="scada-alertas-list">
+                        {alertas.length === 0 ? (
+                            <div className="scada-alerta-empty">
+                                <CheckCircle size={14} className="text-emerald-500" />
+                                <span>Sin alertas activas — sistema nominal</span>
+                            </div>
+                        ) : alertas.map((a, i) => {
+                            const ac = a.nivel === 'CRÍTICA' ? '#ef4444' : a.nivel === 'PREVENTIVA' ? '#f59e0b' : '#38bdf8';
+                            return (
+                                <div key={i} className={`scada-alerta-item${a.nivel === 'CRÍTICA' ? ' scada-alerta-item--critica' : ''}`}
+                                    style={{ borderLeftColor: ac }}>
+                                    <div className="scada-alerta-row">
+                                        <span className="scada-alerta-nivel" style={{ color: ac }}>{a.nivel}</span>
+                                        <span className="scada-alerta-tiempo">{a.tiempo}</span>
+                                    </div>
+                                    <p className="scada-alerta-msg">{a.msg}</p>
+                                </div>
+                            );
+                        })}
+                    </div>
+
                     {currentAforo && (
-                        <div className="bg-[#4a585a] rounded-lg border border-[#5c6d6f] p-3 shadow-lg flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <span className="p-2 bg-[#059669]/20 rounded-full text-[#10b981]">
-                                    <Map size={18} />
-                                </span>
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">AFORO ENTRADA PRINCIPAL</span>
-                                    <span className="text-sm font-bold text-slate-100">{currentAforo.estacion}</span>
-                                </div>
-                            </div>
-                            <div className="flex gap-6 text-right">
-                                <div className="flex flex-col items-end">
-                                    <span className="text-[10px] text-slate-300 uppercase">ESCALA</span>
-                                    <span className="text-lg font-bold text-slate-200">{currentAforo.escala != null ? Number(currentAforo.escala).toFixed(2) : '--'}<span className="text-[10px] ml-1 font-normal text-slate-400">m</span></span>
-                                </div>
-                                <div className="flex flex-col items-end">
-                                    <span className="text-[10px] text-[#10b981] font-bold uppercase">GASTO ACTUAL</span>
-                                    <span className="text-lg font-bold text-[#10b981]">{currentAforo.gasto_m3s != null ? Number(currentAforo.gasto_m3s).toFixed(2) : '--'}<span className="text-[10px] ml-1 font-normal opacity-80">m³/s</span></span>
-                                </div>
-                            </div>
+                        <div className="scada-aforo-row">
+                            <Map size={11} className="text-emerald-500" />
+                            <span className="scada-aforo-label">AFORO {currentAforo.estacion}</span>
+                            <span className="scada-aforo-val">{currentAforo.escala != null ? Number(currentAforo.escala).toFixed(2) : '—'} m</span>
+                            <span className="scada-aforo-gasto">{currentAforo.gasto_m3s != null ? Number(currentAforo.gasto_m3s).toFixed(2) : '—'} m³/s</span>
                         </div>
                     )}
 
-                    {/* Historial Card */}
-                    <div className="bg-[#4a585a] rounded-lg border border-[#5c6d6f] p-3 shadow-lg flex-1">
-                        <div className="flex justify-between items-center mb-3">
-                            <div className="text-[11px] font-bold tracking-wider text-slate-200 uppercase flex items-center gap-2">
-                                <Clock size={13} className="text-teal-400" /> HISTORIAL DE MOVIMIENTOS
+                    <div className="scada-panel-hdr scada-panel-hdr--sub">
+                        <Clock size={11} className="text-slate-500" />
+                        <span>HISTORIAL DE OPERACIONES</span>
+                        <button type="button" onClick={() => setIsMoveModalOpen(true)} className="scada-hist-btn">
+                            <PlusCircle size={9} />Registrar
+                        </button>
+                    </div>
+                    <div className="scada-historial-list">
+                        {movsActuales.length === 0 ? (
+                            <p className="scada-no-data">Sin registros recientes</p>
+                        ) : movsActuales.slice(0, 5).map((m: MovimientoPresaData) => (
+                            <div key={m.id} className="scada-historial-row">
+                                <span className="scada-hist-fecha">
+                                    {new Date(m.fecha_hora).toLocaleString('es-MX', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', hour12: false })}
+                                </span>
+                                <span className="scada-hist-gasto">{m.gasto_m3s.toFixed(2)} <small>m³/s</small></span>
+                                <span className="scada-hist-fuente"
+                                    style={{ color: m.fuente_dato === 'GERENCIA_ADMIN' ? '#f59e0b' : '#38bdf8' }}>
+                                    {m.fuente_dato === 'GERENCIA_ADMIN' ? 'GERENCIA' : m.fuente_dato}
+                                </span>
                             </div>
-                            <button type="button" onClick={() => setIsMoveModalOpen(true)}
-                                className="text-[10px] font-bold bg-[#059669] text-white px-3 py-1 rounded shadow-sm hover:bg-[#047857] transition-all flex items-center gap-1 uppercase">
-                                <PlusCircle size={10} /> Registrar
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-[1fr_1fr_1fr] text-[10px] font-bold text-slate-400 border-b border-slate-600 pb-1 mb-2">
-                            <span>FECHA DE OPERACIÓN</span>
-                            <span className="text-right">GASTO CONFIGURADO</span>
-                            <span className="text-right">ORIGEN</span>
-                        </div>
-                        
-                        {/* Table Loop */}
-                        <div className="flex flex-col gap-1 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
-                            {movsActuales.length > 0 ? movsActuales.slice(0, 8).map((m: MovimientoPresaData) => (
-                                <div key={m.id} className="grid grid-cols-[1fr_1fr_1fr] items-center bg-[#566567] rounded px-2 py-[6px] text-[11px] text-slate-200 border border-[#637375]">
-                                    <span className="font-mono">{new Date(m.fecha_hora).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })} <span className="text-[9px] text-slate-400">hrs</span></span>
-                                    <span className="text-right font-bold text-emerald-400">{m.gasto_m3s.toFixed(2)} <span className="font-normal opacity-70">m³/s</span></span>
-                                    <div className="flex justify-end">
-                                        <span className={`px-2 py-[2px] rounded uppercase text-[9px] font-bold bg-slate-800 border ${m.fuente_dato === 'GERENCIA_ADMIN' ? 'text-amber-400 border-amber-900/50' : 'text-blue-400 border-blue-900/50'}`}>
-                                            {m.fuente_dato === 'GERENCIA_ADMIN' ? 'GERENCIA' : m.fuente_dato}
-                                        </span>
-                                    </div>
-                                </div>
-                            )) : (
-                                <div className="text-[11px] text-slate-400 italic py-4 text-center">No hay registros recientes para este embalse.</div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* COMPARATIVA CUENCA COLUMN */}
-                <div className="bg-[#4a585a] rounded-lg border border-[#5c6d6f] p-3 shadow-lg flex flex-col">
-                    <div className="flex items-center gap-2 text-slate-200 mb-3">
-                        <Activity size={13} className="text-sky-400" />
-                        <span className="text-[11px] font-bold tracking-wider uppercase">COMPARATIVA DE CUENCA (RESERVAS)</span>
+                        ))}
                     </div>
 
-                    <div className="flex flex-col gap-[10px] flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="scada-panel-hdr scada-panel-hdr--sub">
+                        <Activity size={11} className="text-slate-500" />
+                        <span>COMPARATIVA DE CUENCA</span>
+                    </div>
+                    <div className="scada-cuenca-list">
                         {presas.map(p => {
                             const pct = p.lectura?.porcentaje_llenado || 0;
-                            const isCrit = pct < 20;
-                            const isWarn = pct >= 20 && pct < 40;
-                            const colorClass = isCrit ? 'bg-red-500' : isWarn ? 'bg-amber-500' : 'bg-[#10b981]';
-                            const titleColor = isCrit ? 'text-red-400' : isWarn ? 'text-amber-400' : 'text-[#10b981]';
-                            
+                            const color = pct < 20 ? '#ef4444' : pct < 40 ? '#f59e0b' : '#10b981';
                             return (
-                                <div key={p.id} className="flex gap-3 items-center border-b border-slate-600/50 pb-[10px] last:border-0 last:pb-0">
-                                    <div className="w-[100px] text-[11px] font-bold text-slate-200 truncate">{p.nombre_corto}</div>
-                                    <div className="flex-1 flex flex-col gap-1">
-                                        <div className="h-[6px] w-full bg-[#1e293b] rounded-full border border-slate-700/50 overflow-hidden">
-                                            <div className={`h-full ${colorClass}`} style={{ width: `${Math.min(pct, 100)}%` }}></div>
-                                        </div>
+                                <div key={p.id} className="scada-cuenca-row">
+                                    <span className="scada-cuenca-nombre">{p.nombre_corto}</span>
+                                    <div className="scada-cuenca-bar">
+                                        <div style={{ width: `${Math.min(pct,100)}%`, background: color }}/>
                                     </div>
-                                    <div className={`w-[45px] text-right font-bold text-[12px] ${titleColor}`}>
-                                        {pct.toFixed(1)}%
-                                    </div>
+                                    <span className="scada-cuenca-pct" style={{ color }}>{pct.toFixed(1)}%</span>
                                 </div>
                             );
                         })}
                     </div>
                 </div>
             </div>
+
 
             {/* Modal */}
             <RegisterMovementModal

@@ -1,0 +1,9 @@
+﻿src/components/ReservoirViz.tsx(3,1): error TS6192: All imports in import declaration are unused.
+src/components/ReservoirViz.tsx(62,5): error TS6133: 'storageMm3' is declared but its value is never read.
+src/components/ReservoirViz.tsx(63,5): error TS6133: 'maxStorageMm3' is declared but its value is never read.
+src/components/ReservoirViz.tsx(64,5): error TS6133: 'areaHa' is declared but its value is never read.
+src/components/ReservoirViz.tsx(65,5): error TS6133: 'elevationMsnm' is declared but its value is never read.
+src/components/ReservoirViz.tsx(66,5): error TS6133: 'damName' is declared but its value is never read.
+src/components/ReservoirViz.tsx(67,5): error TS6133: 'presaId' is declared but its value is never read.
+src/pages/Presas.tsx(504,11): error TS6133: 'currentClima' is declared but its value is never read.
+src/pages/Presas.tsx(534,11): error TS6133: 'volNAMO' is declared but its value is never read.

@@ -13,7 +13,15 @@ interface CPResult {
   bordo_libre_pct: number; h_radial: number;
   head_base: number; head_sim: number; head_delta: number;
   cd_used: number; area_gate: number;
-  apertura_requerida: number;
+  // Límites operativos y aperturas
+  y_target?:          number;   // nivel objetivo (clamped a [2.8, 3.5])
+  apertura_base?:     number;   // apertura actual SICA
+  apertura_requerida: number;   // apertura para mantener y_target
+  delta_apertura?:    number;   // requerida - actual (+abrir, -cerrar)
+  // Propagación
+  wave_pct?: number;
+  wave_arrived?: boolean;
+  maniobra_time?: string;
 }
 
 interface SimulationReportProps {
@@ -21,7 +29,8 @@ interface SimulationReportProps {
     q_base: number;
     q_sim: number;
     isRiver: boolean;
-    startTime: string;
+    startTime: string;          // T₀ = hora del movimiento de presa
+    movimientoTime?: string;    // Hora del último movimiento de presa (display)
     date: string;
     eventType: string;
     damFuente: string;
@@ -61,20 +70,10 @@ function fmtDelta(dy: number): string {
   return cm === 0 ? '0 cm' : `${cm > 0 ? '+' : ''}${cm} cm`;
 }
 
-function fmtAp(v: number): string {
-  return Math.min(3.0, Math.max(0.1, v)).toFixed(2);
-}
-
 function fmtMin(min: number): string {
   if (min < 1) return '< 1 min';
   const h = Math.floor(min / 60), m = Math.round(min % 60);
   return h === 0 ? `${m} min` : `${h}h ${String(m).padStart(2, '0')}min`;
-}
-
-function apDelta(apReq: number, apSica: number): string {
-  const d = apReq - apSica;
-  if (Math.abs(d) < 0.03) return 'Sin ajuste';
-  return `${d > 0 ? '▲ ABRIR' : '▼ CERRAR'} ${Math.abs(d).toFixed(2)}m`;
 }
 
 // ── Componente Principal ─────────────────────────────────────────────────────
@@ -99,10 +98,13 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
   const critCount   = results.filter(r => r.status === 'CRITICO').length;
   const alertCount  = results.filter(r => r.status === 'ALERTA').length;
 
-  // Evento
-  const eventLabel = scenario.eventType === 'INCREMENTO' ? `▲ INCREMENTO +${Math.abs(deltaQ).toFixed(1)} m³/s`
-    : scenario.eventType === 'DECREMENTO' ? `▼ DECREMENTO −${Math.abs(deltaQ).toFixed(1)} m³/s`
-    : scenario.eventType === 'CORTE' ? `✂ CORTE DE GASTO (−${Math.abs(deltaQ).toFixed(1)} m³/s)`
+  // Evento — auto-derive from ΔQ sign in case eventType wasn't set correctly
+  const isDecrement = deltaQ < -0.5;
+  const isIncrement = deltaQ > 0.5;
+  const effectiveEvent = isDecrement ? 'DECREMENTO' : isIncrement ? 'INCREMENTO' : scenario.eventType;
+  const eventLabel = effectiveEvent === 'INCREMENTO' ? `▲ INCREMENTO +${Math.abs(deltaQ).toFixed(1)} m³/s`
+    : effectiveEvent === 'DECREMENTO' ? `▼ DECREMENTO −${Math.abs(deltaQ).toFixed(1)} m³/s`
+    : effectiveEvent === 'CORTE' ? `✂ CORTE DE GASTO (−${Math.abs(deltaQ).toFixed(1)} m³/s)`
     : `◯ LLENADO INICIAL (+${Math.abs(deltaQ).toFixed(1)} m³/s)`;
 
   // Alertas automáticas por umbral hidráulico
@@ -140,8 +142,12 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
     recs.push(`Revisar y ajustar aperturas radiales según la columna "Apertura Requerida" del Cuadro de Maniobra para mantener niveles de escala estables.`);
   }
   if (deltaQ < -0.5) {
-    recs.push(`Con decremento de gasto, verificar tirantes aguas abajo de compuertas. Posible caída de presión de succión en tomas laterales.`);
+    recs.push(`DECREMENTO: Ejecutar cierres de compuertas de cola a cabeza según la columna "Hora Maniobra" del Cuadro. Cada punto debe cerrar ANTES del arribo de la onda de menor gasto.`);
+    recs.push(`Verificar tirantes aguas abajo de compuertas. Posible caída de presión de succión en tomas laterales.`);
     recs.push(`Ajustar aperturas según apertura requerida para evitar vaciamiento prematuro del canal en tramos finales.`);
+  }
+  if (scenario.movimientoTime) {
+    recs.push(`Último movimiento de presa registrado a las ${scenario.movimientoTime}. Los tiempos de arribo se calculan desde ese momento.`);
   }
   if (scenario.isRiver) recs.push(`Incluido tránsito de río Conchos (K−36 a K-0). El retardo adicional debe considerarse para la planificación de turnos.`);
   recs.push(`Confirmar lecturas de escala en campo (miras) en las estructuras con estatus ALERTA/CRÍTICO al arribo de la onda.`);
@@ -254,18 +260,33 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
                 <th className="rpt-th-center">Escala Base (m)</th>
                 <th className="rpt-th-center">Escala Sim. (m)</th>
                 <th className="rpt-th-center">Δ Escala</th>
-                <th className="rpt-th-center">Ap. SICA (m)</th>
-                <th className="rpt-th-center">Ap. Req. (m)</th>
-                <th className="rpt-th-center">Ajuste Oper.</th>
+                <th className="rpt-th-center">Ap. Actual (m)</th>
+                <th className="rpt-th-center">Ap. Requerida (m)</th>
+                <th className="rpt-th-center">Ajuste Radial</th>
                 <th className="rpt-th-center">Arribo</th>
+                {isDecrement && <th className="rpt-th-center">Hora Maniobra</th>}
                 <th className="rpt-th-center">Estado</th>
               </tr>
             </thead>
             <tbody>
               {results.map((r, i) => {
-                const apSica = gateBase[r.id] ?? sf(r.h_radial, 1.25);
-                const apReq  = Math.min(3.0, Math.max(0.1, sf(r.apertura_requerida)));
-                const apD    = Math.abs(deltaQ) > 0.5 ? apDelta(apReq, apSica) : '—';
+                // Usar delta_apertura del motor (ya calculado con límites operativos)
+                const apBase = sf(r.apertura_base, sf(gateBase[r.id], sf(r.h_radial, 1.25)));
+                const apReq  = sf(r.apertura_requerida);
+                const dAp    = sf(r.delta_apertura, apReq - apBase);
+                const hasChange = Math.abs(deltaQ) > 0.5;
+                // Formato del ajuste operador
+                let ajusteLabel = '—';
+                if (hasChange) {
+                  if (Math.abs(dAp) < 0.03) {
+                    ajusteLabel = 'Sin ajuste';
+                  } else {
+                    ajusteLabel = `${dAp > 0 ? '▲ ABRIR' : '▼ CERRAR'} ${Math.abs(dAp).toFixed(2)}m`;
+                  }
+                }
+                const wavePct = sf(r.wave_pct, 1);
+                const waveArrived = r.wave_arrived !== false;
+                const waveIcon = waveArrived ? '✅' : wavePct > 0.1 ? '⏳' : '🕐';
                 return (
                   <tr key={r.id} className={i % 2 === 0 ? 'rpt-tr-even' : 'rpt-tr-odd'}>
                     <td className="rpt-td-name">{r.nombre}</td>
@@ -279,17 +300,25 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
                       style={{ color: r.delta_y > 0.01 ? '#b45309' : r.delta_y < -0.01 ? '#1d4ed8' : '#64748b' }}>
                       {fmtDelta(sf(r.delta_y))}
                     </td>
-                    <td className="rpt-td-center">{apSica.toFixed(3)}</td>
+                    <td className="rpt-td-center">{apBase.toFixed(3)}</td>
                     <td className="rpt-td-center rpt-td-bold"
-                      style={{ color: Math.abs(sf(r.apertura_requerida) - apSica) > 0.05 ? '#92400e' : '#374151' }}>
-                      {Math.abs(deltaQ) > 0.5 ? fmtAp(sf(r.apertura_requerida)) : '—'}
+                      style={{ color: Math.abs(dAp) > 0.05 ? '#92400e' : '#374151' }}>
+                      {hasChange ? apReq.toFixed(3) : '—'}
                     </td>
-                    <td className="rpt-td-center rpt-td-adj">{apD}</td>
+                    <td className="rpt-td-center rpt-td-adj"
+                      style={{ color: dAp > 0.03 ? '#b45309' : dAp < -0.03 ? '#1d4ed8' : '#64748b', fontWeight: Math.abs(dAp) > 0.05 ? 700 : 400 }}>
+                      {ajusteLabel}
+                    </td>
                     <td className="rpt-td-center">
                       {r.km === 0
                         ? <span className="rpt-origin">ORIGEN</span>
-                        : <><b>{r.arrival_time}</b><br /><span className="rpt-td-muted">{fmtMin(sf(r.cumulative_min))}</span></>}
+                        : <><b>{r.arrival_time}</b><br /><span className="rpt-td-muted">{waveIcon} {fmtMin(sf(r.cumulative_min))}</span></>}
                     </td>
+                    {isDecrement && (
+                      <td className="rpt-td-center" style={{ color: '#7c3aed', fontWeight: 600, fontSize: '8px' }}>
+                        {r.maniobra_time ?? '—'}
+                      </td>
+                    )}
                     <td className="rpt-td-center">
                       <span className={`rpt-badge ${statusClass(r.status)}`}>{r.status}</span>
                     </td>
@@ -299,8 +328,10 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
             </tbody>
           </table>
           <div className="rpt-table-note">
-            * Apertura Requerida: apertura mínima de radiales para conducir Q simulado manteniendo la escala base sin variación.
-            Calculada por inversión de fórmula de orificio: h<sub>ap</sub> = Q / (Cd · A<sub>sección</sub> · √(2g · y<sub>base</sub>)).
+            * <b>Límites operativos por sección:</b> K-0 a K-80: [2.80m, 3.50m] (servicio de riego) · K-104 cola: [2.40m, 2.55m] (final del canal).
+            Apertura Requerida: calculada para mantener el nivel dentro del rango operativo de cada sección.
+            Fórmula: h<sub>ap</sub> = Q / (Cd · ancho · pzas · √(2g · y<sub>objetivo</sub>)).
+            ✅ Onda llegó · ⏳ En tránsito · 🕐 Pendiente.
           </div>
         </section>
 

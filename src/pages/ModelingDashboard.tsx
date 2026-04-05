@@ -21,7 +21,14 @@ const FREEBOARD = 3.2;      // m — bordo libre operativo
 const CD_GATE   = 0.70;
 const RIVER_KM  = 36;
 const S0_CANAL  = 0.00016;
-const WAVE_K    = 1.3;
+// LÍMITES OPERATIVOS DE ESCALA (nivel del agua en metros)
+// Cada sección del canal puede tener límites diferentes según su función.
+// K-0 a K-80: [2.80, 3.50] — tomas laterales necesitan carga mínima de 2.80m para servicio.
+// K-104 (cola): [2.40, 2.55] — final del canal, opera con tirante menor sin tomas críticas.
+function getOpLimits(km: number): { yMin: number; yMax: number } {
+  if (km >= 100) return { yMin: 2.40, yMax: 2.55 };  // K-104 final del canal
+  return { yMin: 2.80, yMax: 3.50 };                  // Red general
+}
 
 const DEFAULT_CPS = [
   { id: 'k0',   nombre: 'K-0  Inicio Canal',  km: 0,   pzas_radiales: 4, ancho: 12 },
@@ -53,21 +60,28 @@ interface CPResult {
   // Técnico: parámetros hidráulicos de la compuerta
   head_base: number; head_sim: number; head_delta: number;
   cd_used: number; area_gate: number;
-  // Apertura requerida para pasar Q_sim al MISMO tirante actual (lógica operativa canal)
-  apertura_requerida: number;
+  // LÍMITES OPERATIVOS y apertura requerida para mantener escala en rango [2.8, 3.5]m
+  y_target:           number;   // nivel objetivo operativo (clamped a [Y_MIN_OP, Y_MAX_OP])
+  apertura_base:      number;   // apertura actual de la compuerta (m)
+  apertura_requerida: number;   // apertura para mantener y_target con Q simulado
+  delta_apertura:     number;   // apertura_requerida - apertura_base (+abrir, -cerrar)
   // Extracción real por puntos de entrega en este tramo (de reportes_diarios)
-  q_extraido:      number;   // m³/s siendo extraídos en tomas activas de este tramo
-  n_tomas_activas: number;   // cantidad de tomas activas en el tramo
-  // Geometría de diseño del tramo (de perfil_hidraulico_canal)
+  q_extraido:      number;
+  n_tomas_activas: number;
+  // Geometría de diseño del tramo
   plantilla_m:      number;
-  tirante_diseno_m: number;   // tirante de diseño (profundidad operativa)
-  bordo_libre_m:    number;   // margen de seguridad sobre el tirante de diseño
-  canal_depth_m:    number;   // profundidad total = tirante_diseno + bordo_libre
+  tirante_diseno_m: number;
+  bordo_libre_m:    number;
+  canal_depth_m:    number;
   capacidad_diseno_m3s: number;
-  pct_capacidad_diseno: number;  // q_sim / capacidad_diseno × 100
-  // Ancla de compuerta: Q real calculado por orificio con apertura SICA
-  q_gate_m3s:   number | null;  // null = sin dato de apertura en este punto
-  gate_anchored: boolean;        // true = qCur fue limitado por esta compuerta al propagar
+  pct_capacidad_diseno: number;
+  // Ancla de compuerta
+  q_gate_m3s:   number | null;
+  gate_anchored: boolean;
+  // Propagación temporal del frente de onda
+  wave_pct:        number;
+  wave_arrived:    boolean;
+  maniobra_time:   string;
 }
 
 // Datos de telemetría base por punto de control (de SICA Capture)
@@ -107,6 +121,7 @@ interface DataStatus {
   damNivel:         string;   // escala msnm de la presa (o hora del primer movimiento)
   damFuente:        string;   // 'movimientos_presas' | 'lecturas_presas' | 'estimado'
   totalExtractionM3s: number; // suma total de caudales activos en puntos de entrega hoy
+  qRealK0?:      number;  // gasto real medido en K-0+000 (SICA Capture)
   perfilFuente?: string;  // fuente_q_entrada del perfil hidráulico RPC
   perfilQ?:      number;  // q_m3s en K-0 del perfil hidráulico RPC
 }
@@ -376,7 +391,7 @@ function generateDecisions(
   simResults.forEach((r, idx) => {
     const gateActual = gateBase[r.id] ?? r.h_radial;
     const aperReq    = Math.min(3.0, Math.max(0.1, r.apertura_requerida));
-    const aperDelta  = aperReq - gateActual;
+    const aperDelta  = r.delta_apertura ?? (aperReq - gateActual);
     const tel        = cpTelemetry[r.id];
 
     // R2: Nivel CRÍTICO — acción inmediata
@@ -406,13 +421,14 @@ function generateDecisions(
     }
 
     // R4: Ajuste de apertura significativo requerido
-    if (Math.abs(deltaQ) > 5 && Math.abs(aperDelta) > 0.15) {
+    // Usa delta_apertura del motor (calculado con límites operativos [2.8, 3.5])
+    if (Math.abs(deltaQ) > 0.5 && Math.abs(aperDelta) > 0.05) {
       decisions.push({
         prioridad: Math.abs(aperDelta) > 0.40 ? 'ALERTA' : 'INFO',
         tipo:      aperDelta > 0 ? 'APERTURA' : 'CIERRE',
         punto: r.nombre, km: r.km,
         accion: `${aperDelta > 0 ? 'ABRIR' : 'CERRAR'} radiales ${r.nombre}`,
-        detalle: `Para mantener escala ${r.y_base.toFixed(2)} m con Q = ${r.q_sim.toFixed(1)} m³/s`,
+        detalle: `Para mantener escala en ${(r.y_target ?? r.y_base).toFixed(2)} m [rango 2.80–3.50] con Q = ${r.q_sim.toFixed(1)} m³/s`,
         valor_actual: `${gateActual.toFixed(2)} m`,
         valor_meta:   `${aperReq.toFixed(2)} m (${aperDelta > 0 ? '+' : ''}${aperDelta.toFixed(2)} m)`,
       });
@@ -479,25 +495,34 @@ function generateDecisions(
 }
 
 // ── MOTOR DE SIMULACIÓN PURO (reutilizable para multi-escenario) ─────────
+// currentTimeMin: hora actual del sistema en minutos desde medianoche
+// simBaseMin: hora del ÚLTIMO movimiento de presa (no la hora del sistema)
 function runSimulation(
   controlPoints:  ControlPoint[],
   qDamInit:       number,
   qBaseInit:      number,
   baseReadings:   Record<string, number>,
   gateOverrides:  Record<string, number>,
-  gastoMedido:    Record<string, number>,   // gasto_calculado_m3s de SICA Capture por escala
+  gastoMedido:    Record<string, number>,
   deliveryPoints: DeliveryData[],
   tramoGeom:      TramoGeom[],
   riverTransit:   boolean,
   simBaseMin:     number,
+  currentTimeMin: number,
 ): CPResult[] {
   let qCur     = qDamInit,  cumMin = 0;
   let qBaseCur = qBaseInit;
+
+  // Minutos transcurridos desde el movimiento de presa hasta hora actual
+  const elapsedMin = ((currentTimeMin - simBaseMin) + 1440) % 1440;
 
   if (riverTransit) {
     const vRio = 0.5 * Math.pow(Math.max(qDamInit, 1), 0.4) + 0.5;
     cumMin += (RIVER_KM * 1000 / vRio) / 60;
   }
+
+  // Margen de anticipación para maniobra (minutos antes del arribo)
+  const MANIOBRA_MARGEN_MIN = 30;
 
   return controlPoints.map((cp, idx) => {
     const kmCp   = safeFloat(cp.km, idx * 17);
@@ -517,11 +542,27 @@ function runSimulation(
       ? baseReadings[cp.id]
       : Math.max(0.3, 2.2 - idx * 0.04);
 
+    // Cálculos hidráulicos con Q nuevo (estado final)
     const y_n   = normalDepth(qCur, s_tramo, b_tramo, z_tramo, n_tramo);
-    const c     = waveCelerity(y_n, b_tramo, z_tramo) * WAVE_K;
+    const c     = waveCelerity(y_n, b_tramo, z_tramo);
     const A_n   = (b_tramo + z_tramo * y_n) * y_n;
     const v_n   = A_n > 0 ? qCur / A_n : 0;
     const Fr    = v_n / Math.max(0.001, Math.sqrt(G * Math.max(0.01, y_n)));
+
+    // ── VELOCIDAD DE PROPAGACIÓN CALIBRADA EMPÍRICAMENTE ────────────────
+    // En un canal regulado con compuertas cada ~10-20 km, la onda de maniobra
+    // NO viaja a la velocidad cinemática teórica (v + c ≈ 5-6 m/s).
+    // Las compuertas, cambios de sección y rugosidad frenan la propagación.
+    // Calibración empírica con datos operativos del Canal Conchos:
+    //   K-0 → K-23 (23 km): ~3h 00min ≈ 7.7 km/h ≈ 2.1 m/s
+    //   K-0 → K-104 (104 km): ~13h 40min
+    // Modelo: v_onda = 5.3 × Q^0.15 [km/h]
+    //   v_onda(Q=28) = 5.3 × 28^0.15 ≈ 7.6 km/h → K23 en 3.0h ✓
+    //   v_onda(Q=34) = 5.3 × 34^0.15 ≈ 7.9 km/h → K23 en 2.9h ✓
+    const V_WAVE_BASE_KMH = 5.3;
+    const v_wave_kmh = V_WAVE_BASE_KMH * Math.pow(Math.max(qCur, 1), 0.15);
+    const travelSpd  = v_wave_kmh / 3.6; // convertir km/h → m/s
+    const transit_min = (dist * 1000) / travelSpd / 60;
 
     const cd_used   = safeFloat(cp.coeficiente_descarga, CD_GATE) || CD_GATE;
     const pzas      = Math.max(1, safeFloat(cp.pzas_radiales, 1));
@@ -532,38 +573,74 @@ function runSimulation(
       : Math.max(0.3, pzas > 0 ? 1.25 : 1.0);
     const area_gate = Math.max(0.01, ancho * pzas * h_gate);
 
-    // Q real medido por SICA Capture (gasto_calculado_m3s de lecturas_escalas).
-    // Este valor usa la geometría real de cada estructura — más confiable que
-    // cualquier fórmula de orificio genérica. Solo se usa cuando SICA tiene dato > 0.
     const gm = safeFloat(gastoMedido[cp.id], 0);
     const q_gate_m3s: number | null = (gm > 0) ? +gm.toFixed(3) : null;
 
     const head_base  = Math.pow(Math.max(qBaseCur, 0.1) / (cd_used * area_gate), 2) / (2 * G);
     const head_sim   = Math.pow(Math.max(qCur,     0.1) / (cd_used * area_gate), 2) / (2 * G);
     const head_delta = head_sim - head_base;
-    // y_sim = tirante normal de Manning para Q simulado (flujo uniforme canal abierto).
-    // El modelo gate anterior (y_base + head_delta) daba variaciones <5cm para cualquier Q
-    // porque area_gate es grande (~60m²). Manning refleja correctamente el nivel del canal.
-    // Profundidad total del canal = tirante de diseño + margen de bordo libre.
-    // IMPORTANTE: bordo_libre_m en perfil_hidraulico_canal es el MARGEN (ej. 0.6m),
-    // NO la profundidad total. tirante_diseno_m es la lámina operativa de diseño (ej. 2.5m).
+
     const td_tramo   = tramo.tirante_diseno_m;
-    const canal_depth = td_tramo + fb_tramo;   // ej. 2.5 + 0.6 = 3.1m
+    const canal_depth = td_tramo + fb_tramo;
 
-    const y_sim_mn   = normalDepth(qCur, s_tramo, b_tramo, z_tramo, n_tramo);
-    const y_sim      = Math.max(0.1, Math.min(y_sim_mn, canal_depth - 0.08));
+    const y_sim_mn2  = normalDepth(qCur, s_tramo, b_tramo, z_tramo, n_tramo);
 
-    const sqrtHead           = Math.sqrt(2 * G * Math.max(0.01, y_base));
-    const apertura_requerida = qCur / Math.max(0.001, cd_used * ancho * pzas * sqrtHead);
+    // ── PISO DE SERVICIO: la escala simulada NO puede caer más del 10%     ──
+    // ── de la escala actual real. Esto garantiza continuidad de servicio   ──
+    // ── a tomas altas y laterales. La operación busca ESTABILIDAD, no     ──
+    // ── equilibrio hidráulico puro (Manning).                             ──
+    const { yMin: yMinOp, yMax: yMaxOp } = getOpLimits(kmCp);
+    const y_floor_service = y_base * 0.90;   // máx 10% de caída permitida
+    const y_floor = Math.max(yMinOp, y_floor_service);
+
+    const y_sim_capped = Math.max(y_floor, Math.min(y_sim_mn2, canal_depth - 0.08));
+    const y_sim_final = Math.max(0.1, Math.min(y_sim_capped, Math.max(y_base, yMaxOp)));
+
+    // ── APERTURA REQUERIDA para MANTENER la escala estabilizada ──────────
+    const y_target       = Math.max(y_floor, Math.min(yMaxOp, y_base));
+    const sqrtHead       = Math.sqrt(2 * G * Math.max(0.01, y_target));
+    const apertura_base  = has_real_gate ? h_gate : Math.max(0.3, h_gate);
+    const apertura_requerida_raw = qCur / Math.max(0.001, cd_used * ancho * pzas * sqrtHead);
+    const apertura_requerida = Math.max(0.05, Math.min(3.5, apertura_requerida_raw));
+    const delta_apertura = apertura_requerida - apertura_base;
+
+    cumMin += transit_min;
+
+    // ── PROPAGACIÓN TEMPORAL: frente de onda ────────────────────────────
+    const wave_arrived = cumMin <= elapsedMin;
+    let wave_pct: number;
+    if (wave_arrived) {
+      wave_pct = 1.0;
+    } else if (elapsedMin >= (cumMin - transit_min)) {
+      wave_pct = Math.max(0, (elapsedMin - (cumMin - transit_min)) / Math.max(1, transit_min));
+    } else {
+      wave_pct = 0;
+    }
+
+    // y_sim = nivel estabilizado con piso de servicio (no Manning puro)
+    const y_sim = y_sim_final;
 
     const delta_y      = y_sim - y_base;
     const remanso_type: RemansoType = delta_y > 0.08 ? 'M1' : delta_y < -0.08 ? 'M2' : 'NORMAL';
-    const pct          = y_sim / canal_depth;  // % sobre profundidad total (no solo el margen)
-    const status: CPStatus = pct > 0.92 ? 'CRITICO' : pct > 0.75 ? 'ALERTA' : 'ESTABLE';
+    const pct          = y_sim / canal_depth;
 
-    const travelSpd   = Math.max(0.5, v_n + c);
-    const transit_min = (dist * 1000) / travelSpd / 60;
-    cumMin += transit_min;
+    // ── STATUS EXPANDIDO: estado FINAL (lo que sucederá), no estado actual ──
+    let status: CPStatus;
+    if (pct > 0.92) {
+      status = 'CRITICO';
+    } else if (pct > 0.75) {
+      status = 'ALERTA';
+    } else if (Math.abs(delta_y) > 0.50) {
+      // Cambio grande (>50cm) incluso si el tirante final no es alto → ALERTA
+      // porque un descenso de >50cm deja tomas sin carga hidráulica
+      status = 'ALERTA';
+    } else {
+      status = 'ESTABLE';
+    }
+
+    // Hora sugerida de maniobra: arribo - margen de seguridad
+    const maniobraMin = Math.max(0, cumMin - MANIOBRA_MARGEN_MIN);
+    const maniobra_time = idx === 0 ? 'ORIGEN' : fmtTime(simBaseMin, maniobraMin);
 
     const hasDelivData    = deliveryPoints.length > 0;
     const conductionK     = hasDelivData ? 0.00012 : 0.00038;
@@ -576,25 +653,18 @@ function runSimulation(
     const q_extraido      = tomasEnTramo.reduce((s, dp) => s + safeFloat(dp.caudal_m3s, 0), 0);
     const n_tomas_activas = tomasEnTramo.length;
 
-    // Capturar caudal de ARRIBO a esta sección (antes de extracciones y pérdidas aguas abajo).
-    // q_sim = flujo que llega al punto de control — el que mueve la escala y se usa en displays.
-    // qCur/qBaseCur se actualizan para propagar el flujo SALIENTE hacia la siguiente sección.
+    // q_sim: caudal FINAL que llegará a este punto (para planificación operativa)
     const q_sim_arribo  = qCur;
     const q_base_arribo = qBaseCur;
 
     qCur     = Math.max(0.1, qCur     * conductionFactor - q_extraido);
     qBaseCur = Math.max(0.1, qBaseCur * conductionFactor - q_extraido);
 
-    // Ancla de compuerta: la apertura real SICA limita el Q que pasa hacia aguas abajo.
-    // Si q_gate < qCur_post_extracción, la compuerta es el cuello de botella real.
-    // Esto corrige la propagación en cascada: lo que llega a K-34 no puede superar
-    // lo que K-23 dejó pasar con su apertura real.
     let gate_anchored = false;
     if (q_gate_m3s !== null && q_gate_m3s < qCur) {
       qCur = Math.max(0.1, q_gate_m3s);
       gate_anchored = true;
     }
-    // qBaseCur sigue la misma proporción para mantener coherencia del escenario base
     if (gate_anchored && q_gate_m3s !== null) {
       qBaseCur = Math.min(qBaseCur, q_gate_m3s);
     }
@@ -608,7 +678,7 @@ function runSimulation(
       celerity_ms: c, velocity_ms: v_n, froude_n: Fr,
       bordo_libre_pct: pct * 100, h_radial: h_gate,
       head_base, head_sim, head_delta, cd_used, area_gate,
-      apertura_requerida,
+      y_target, apertura_base, apertura_requerida, delta_apertura,
       q_extraido, n_tomas_activas,
       plantilla_m: b_tramo,
       tirante_diseno_m: td_tramo,
@@ -617,6 +687,7 @@ function runSimulation(
       capacidad_diseno_m3s: qdis,
       pct_capacidad_diseno: qdis > 0 ? Math.min(120, (q_sim_arribo / qdis) * 100) : 0,
       q_gate_m3s, gate_anchored,
+      wave_pct, wave_arrived, maniobra_time,
     };
   });
 }
@@ -656,7 +727,10 @@ const ModelingDashboard: React.FC = () => {
 
   const [timeDelta,   setTimeDelta]  = useState(0);
   const [isPlaying,   setIsPlaying]  = useState(false);
-  const [simBaseMin]                 = useState(new Date().getHours() * 60 + new Date().getMinutes());
+  // T₀ = hora del ÚLTIMO movimiento de presa (no hora de apertura de la pantalla)
+  const [simBaseMin,  setSimBaseMin] = useState(new Date().getHours() * 60 + new Date().getMinutes());
+  // Hora actual del sistema en minutos — se actualiza cada minuto para propagación de onda
+  const [currentTimeMin, setCurrentTimeMin] = useState(new Date().getHours() * 60 + new Date().getMinutes());
 
   const [activeCP,    setActiveCP]   = useState('');
   const [showReport,  setShowReport] = useState(false);
@@ -719,11 +793,9 @@ const ModelingDashboard: React.FC = () => {
           .limit(1)
           .maybeSingle(),
 
-        // ÚLTIMO movimiento de presa hoy = Q actual (punto de partida del slider)
+        // ÚLTIMO movimiento de presa (estado actual real, puede ser de días anteriores)
         supabase.from('movimientos_presas')
           .select('gasto_m3s, fecha_hora, fuente_dato')
-          .gte('fecha_hora', `${today}T00:00:00`)
-          .lt('fecha_hora',  `${tomorrow}T00:00:00`)
           .order('fecha_hora', { ascending: false })
           .limit(1)
           .maybeSingle(),
@@ -970,17 +1042,34 @@ const ModelingDashboard: React.FC = () => {
       let damNivel = '—', damFuente = 'estimado';
       let damLive  = false;
 
-      if (firstMovPresa?.gasto_m3s != null) {
-        const base = safeFloat(firstMovPresa.gasto_m3s, 0);
-        const curr = safeFloat(lastMovPresa?.gasto_m3s,  base);
+      if (lastMovPresa?.gasto_m3s != null) {
+        // La simulación utiliza el ÚLTIMO movimiento de presa como "Base"
+        const base = safeFloat(lastMovPresa.gasto_m3s, 0);
         if (base > 0) {
           qBaseVal  = base;
-          qDamVal   = curr > 0 ? curr : base;
+          qDamVal   = base; // Ambos inician iguales (Delta 0 hasta que el usuario mueva el slider)
           damFuente = 'movimientos_presas';
           damLive   = true;
-          damNivel  = firstMovPresa.fecha_hora
-            ? formatTime(firstMovPresa.fecha_hora)
+          damNivel  = lastMovPresa.fecha_hora
+            ? formatTime(lastMovPresa.fecha_hora)
             : '—';
+          // T₀ = hora del ÚLTIMO movimiento de presa
+          if (lastMovPresa.fecha_hora) {
+            const movDate = new Date(lastMovPresa.fecha_hora);
+            if (!isNaN(movDate.getTime())) {
+              setSimBaseMin(movDate.getHours() * 60 + movDate.getMinutes());
+            }
+          }
+          // El tipo de evento se mantendrá en reposo hasta que el slider se mueva
+        }
+      } else if (firstMovPresa?.gasto_m3s != null) {
+        // Fallback si por alguna razón falla lastMovPresa pero hay firstMovPresa
+        const base = safeFloat(firstMovPresa.gasto_m3s, 0);
+        if (base > 0) {
+          qBaseVal  = base;
+          qDamVal   = base;
+          damFuente = 'movimientos_presas';
+          damLive   = true;
         }
       }
       if (!damLive && lecturaHoy?.extraccion_total_m3s != null) {
@@ -1028,6 +1117,8 @@ const ModelingDashboard: React.FC = () => {
 
       setQBase(qBaseVal);
       setQDam(qDamVal);
+      const q0Escala = safeFloat(gastoMedidoMap.get(cps[0]?.id ?? 'k0'), NaN);
+
       setDataLoaded(true);
       setDataStatus({
         dam: damLive, gates: hasGates, levels: hasLevels, deliveries: hasDeliveries,
@@ -1036,6 +1127,7 @@ const ModelingDashboard: React.FC = () => {
         damCurrentValue: qDamVal,
         damNivel, damFuente,
         totalExtractionM3s,
+        qRealK0:      Number.isFinite(q0Escala) ? q0Escala : undefined,
         perfilFuente: rpcFuente ?? undefined,
         perfilQ:      rpcQ     ?? undefined,
       });
@@ -1104,6 +1196,18 @@ const ModelingDashboard: React.FC = () => {
       fetchData();
     });
 
+    // Suscripción realtime: cuando hay nuevas capturas manuales de escalas/compuertas
+    const unsubEscalas = onTable('lecturas_escalas', 'INSERT', () => {
+      console.log('💧 Nueva captura de escala SICA detectada. Recargando modelo...');
+      fetchData();
+    });
+
+    // Suscripción realtime: cuando hay nuevas capturas de tomas activas
+    const unsubReportes = onTable('reportes_diarios', 'INSERT', () => {
+      console.log('🚰 Nueva alta de tomas SICA detectada. Recargando modelo...');
+      fetchData();
+    });
+
     // Suscripción realtime: cuando se aplica calibración Manning, refrescar geometría
     const unsubPerfil = onTable('perfil_hidraulico_canal', 'UPDATE', () => {
       console.log('📐 Perfil hidráulico actualizado. Recargando geometría...');
@@ -1112,6 +1216,8 @@ const ModelingDashboard: React.FC = () => {
 
     return () => {
       unsubPresa();
+      unsubEscalas();
+      unsubReportes();
       unsubPerfil();
       clearInterval(deliveryInterval);
     };
@@ -1126,6 +1232,15 @@ const ModelingDashboard: React.FC = () => {
     return () => clearInterval(t);
   }, [isPlaying]);
 
+  // ── RELOJ: actualizar currentTimeMin cada 60s para propagación de onda en tiempo real
+  useEffect(() => {
+    const tick = setInterval(() => {
+      const now = new Date();
+      setCurrentTimeMin(now.getHours() * 60 + now.getMinutes());
+    }, 60_000);
+    return () => clearInterval(tick);
+  }, []);
+
   // ── MOTOR HIDRÁULICO ─────────────────────────────────────────────────
   // gastoMedidoRecord: gasto_calculado_m3s de SICA por escala_id (ancla de compuerta)
   const gastoMedidoRecord = useMemo<Record<string, number>>(() => {
@@ -1139,8 +1254,8 @@ const ModelingDashboard: React.FC = () => {
   const simResults = useMemo<CPResult[]>(() => {
     if (!controlPoints.length || !dataLoaded) return [];
     return runSimulation(controlPoints, qDam, qBase, baseReadings, gateOverrides,
-      gastoMedidoRecord, deliveryPoints, tramoGeom, riverTransit, simBaseMin);
-  }, [controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDam, qBase, riverTransit, simBaseMin, deliveryPoints, dataLoaded, tramoGeom]);
+      gastoMedidoRecord, deliveryPoints, tramoGeom, riverTransit, simBaseMin, currentTimeMin);
+  }, [controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDam, qBase, riverTransit, simBaseMin, currentTimeMin, deliveryPoints, dataLoaded, tramoGeom]);
 
   // ── ESCENARIO B — segunda corrida del motor para comparación ─────────
   const [showScenarioB, setShowScenarioB] = useState(false);
@@ -1160,8 +1275,8 @@ const ModelingDashboard: React.FC = () => {
       return mod ? { ...d, caudal_m3s: mod.nuevo_caudal, is_active: mod.nuevo_caudal > 0 } : d;
     });
     return runSimulation(controlPoints, qDamB, qBase, baseReadings, gateOverrides,
-      gastoMedidoRecord, modDeliveries, tramoGeom, riverTransit, simBaseMin);
-  }, [showScenarioB, controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDamB, qBase, riverTransit, simBaseMin, deliveryPoints, scenarioMods, dataLoaded, tramoGeom]);
+      gastoMedidoRecord, modDeliveries, tramoGeom, riverTransit, simBaseMin, currentTimeMin);
+  }, [showScenarioB, controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDamB, qBase, riverTransit, simBaseMin, currentTimeMin, deliveryPoints, scenarioMods, dataLoaded, tramoGeom]);
 
   // ── FASE 3: MOTOR DE DECISIÓN ─────────────────────────────────────────
   const decisions = useMemo<Decision[]>(() => {
@@ -1956,6 +2071,7 @@ const ModelingDashboard: React.FC = () => {
             q_sim:           qDam,
             isRiver:         riverTransit,
             startTime:       fmtTime(simBaseMin, 0),
+            movimientoTime:  fmtTime(simBaseMin, 0),
             date:            formatDate(new Date()),
             eventType:       eventType,
             damFuente:       dataStatus.damFuente,
@@ -2142,13 +2258,15 @@ const ModelingDashboard: React.FC = () => {
               : 'Sin reporte del día'}
           </span>
         </div>
-        <div className={`sim-ds-pill ${dataStatus.perfilFuente ? 'live' : 'default'}`}>
+        <div className={`sim-ds-pill ${dataStatus.qRealK0 !== undefined ? 'live' : 'default'}`}>
           <span className="sim-ds-dot" />
           <span className="sim-ds-label">Q ENTRADA CANAL</span>
           <span className="sim-ds-val">
-            {dataStatus.perfilFuente
-              ? `${(dataStatus.perfilQ ?? 0).toFixed(1)} m³/s · ${dataStatus.perfilFuente}`
-              : 'Sin perfil hidráulico'}
+            {dataStatus.qRealK0 !== undefined
+              ? `${dataStatus.qRealK0.toFixed(1)} m³/s · COMPUERTA K-0 (SICA Capture)`
+              : dataStatus.perfilFuente
+                ? `${(dataStatus.perfilQ ?? 0).toFixed(1)} m³/s · ${dataStatus.perfilFuente}`
+                : 'Sin telemetría en K-0'}
           </span>
         </div>
         {dataStatus.timestamp && (
@@ -2811,8 +2929,10 @@ const ModelingDashboard: React.FC = () => {
                       ['Carga simulada H',   `${(activeCPResult.head_sim??0).toFixed(4)} m`,  '#64748b'],
                       ['ΔH (carga orificio)',`${(activeCPResult.head_delta??0) >= 0 ? '+' : ''}${(activeCPResult.head_delta??0).toFixed(4)} m`, '#fbbf24'],
                       ['── Lógica operativa ──', '────────────────', '#1e3a5f'],
-                      ['Apertura actual SICA', gateBase[activeCP] != null ? `${gateBase[activeCP].toFixed(3)} m` : `${activeCPResult.h_radial.toFixed(3)} m`, '#38bdf8'],
-                      ['Apertura requerida',  `${Math.min(3.0, Math.max(0.1, activeCPResult.apertura_requerida)).toFixed(3)} m  ${activeCPResult.apertura_requerida > (gateBase[activeCP] ?? activeCPResult.h_radial) ? '▲ ABRIR' : '▼ CERRAR'}`, '#fbbf24'],
+                      ['Nivel objetivo (y_target)', `${(activeCPResult.y_target??0).toFixed(3)} m  [${getOpLimits(activeCPResult.km).yMin.toFixed(2)} – ${getOpLimits(activeCPResult.km).yMax.toFixed(2)}]`, '#a78bfa'],
+                      ['Apertura actual SICA', `${(activeCPResult.apertura_base??gateBase[activeCP]??activeCPResult.h_radial).toFixed(3)} m`, '#38bdf8'],
+                      ['Apertura requerida',  `${activeCPResult.apertura_requerida.toFixed(3)} m`, '#fbbf24'],
+                      ['Δ Apertura',          `${(activeCPResult.delta_apertura??0) >= 0 ? '+' : ''}${(activeCPResult.delta_apertura??0).toFixed(3)} m  ${(activeCPResult.delta_apertura??0) > 0.03 ? '▲ ABRIR' : (activeCPResult.delta_apertura??0) < -0.03 ? '▼ CERRAR' : 'Sin ajuste'}`, (activeCPResult.delta_apertura??0) > 0.03 ? '#f59e0b' : (activeCPResult.delta_apertura??0) < -0.03 ? '#3b82f6' : '#64748b'],
                     ].map(([k, v, c]) => (
                       <div key={k as string} className="sim-tech-row">
                         <span>{k as string}</span><span style={{ color: c as string }}>{v as string}</span>

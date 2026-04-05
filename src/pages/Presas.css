@@ -895,3 +895,550 @@
     justify-content: space-between;
     align-items: center;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   PRESAS V3 — Layout basado en referencia dashboard SICA
+   ═══════════════════════════════════════════════════════════ */
+
+.presas-v3-container {
+    padding: 24px;
+    max-width: 1600px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    font-family: 'Inter', 'JetBrains Mono', sans-serif;
+}
+
+/* ── Header ───────────────────────────────────────────────── */
+.presas-v3-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+.presas-v3-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 20px;
+    font-weight: 900;
+    color: #f1f5f9;
+    letter-spacing: -0.03em;
+    margin: 0;
+}
+.presas-v3-subtitle {
+    font-size: 11px;
+    color: #475569;
+    font-weight: 700;
+    margin-top: 4px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+.presas-v3-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* ── ESTADO ACTUAL strip ──────────────────────────────────── */
+.presas-v3-estado-strip {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(56, 189, 248, 0.12);
+    border-radius: 16px;
+    padding: 0;
+    overflow: hidden;
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+}
+.presas-v3-estado-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 24px;
+    min-width: 220px;
+    background: rgba(56, 189, 248, 0.04);
+}
+.presas-v3-estado-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 8px currentColor;
+    animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
+}
+.presas-v3-estado-dam-name {
+    font-size: 13px;
+    font-weight: 900;
+    color: #f1f5f9;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+}
+.presas-v3-estado-dam-sub {
+    font-size: 9px;
+    color: #475569;
+    font-weight: 700;
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.presas-v3-estado-type {
+    font-size: 8px;
+    font-weight: 900;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 999px;
+    padding: 3px 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+    margin-left: auto;
+}
+.presas-v3-estado-divider {
+    width: 1px;
+    height: 48px;
+    background: rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+}
+.presas-v3-estado-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 16px 24px;
+    flex: 1;
+    min-width: 120px;
+}
+.presas-v3-estado-general {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px 24px;
+    flex: 1.5;
+    min-width: 160px;
+}
+.presas-v3-estado-bar-track {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+}
+.presas-v3-estado-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.6s ease;
+}
+
+/* ── Shared KPI typography ────────────────────────────────── */
+.presas-v3-kpi-label {
+    font-size: 8px;
+    font-weight: 900;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+}
+.presas-v3-kpi-val {
+    font-size: 22px;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    color: #f1f5f9;
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+.presas-v3-kpi-unit {
+    font-size: 9px;
+    font-weight: 700;
+    color: #475569;
+}
+
+/* ── Rows ─────────────────────────────────────────────────── */
+.presas-v3-row {
+    display: grid;
+    gap: 20px;
+}
+.presas-v3-row--main {
+    grid-template-columns: 1.1fr 0.9fr;
+}
+.presas-v3-row--analysis {
+    grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 1024px) {
+    .presas-v3-row--main,
+    .presas-v3-row--analysis {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── Cards ────────────────────────────────────────────────── */
+.presas-v3-card {
+    background: rgba(10, 18, 35, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 20px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    transition: border-color 0.2s;
+}
+.presas-v3-card:hover {
+    border-color: rgba(56, 189, 248, 0.14);
+}
+
+/* ── Section header ──────────────────────────────────────── */
+.presas-v3-section-hdr {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.presas-v3-section-hdr span {
+    font-size: 9px;
+    font-weight: 900;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+}
+.presas-v3-section-hdr--sub {
+    padding-bottom: 8px;
+    border-bottom: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    padding-top: 12px;
+}
+.presas-v3-section-hdr--sub span {
+    font-size: 8px;
+    color: #334155;
+}
+
+/* ── Delta badges ────────────────────────────────────────── */
+.presas-v3-delta-badges {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+.presas-v3-delta-badge {
+    font-size: 8px;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid;
+}
+.presas-v3-delta-badge--up {
+    color: #10b981;
+    border-color: rgba(16, 185, 129, 0.3);
+    background: rgba(16, 185, 129, 0.08);
+}
+.presas-v3-delta-badge--down {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.08);
+}
+
+/* ── Risk panel ──────────────────────────────────────────── */
+.presas-v3-risk-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 12px;
+}
+.presas-v3-risk-bar-track {
+    position: relative;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+}
+.presas-v3-risk-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.6s ease;
+}
+.presas-v3-risk-labels {
+    display: flex;
+    gap: 8px;
+    font-size: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    align-items: center;
+}
+.presas-v3-risk-badge {
+    margin-left: auto;
+    font-size: 8px;
+    font-weight: 900;
+    border: 1px solid;
+    border-radius: 999px;
+    padding: 2px 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+.presas-v3-risk-zones span {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Design KPIs (mini row) ──────────────────────────────── */
+.presas-v3-design-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+.presas-v3-design-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 10px;
+}
+.presas-v3-design-kpi span:first-child {
+    font-size: 8px;
+    font-weight: 900;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+.presas-v3-design-kpi span:last-child {
+    font-size: 11px;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    color: #94a3b8;
+}
+
+/* ── EAC legend ─────────────────────────────────────────── */
+.presas-v3-eac-legend {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.presas-v3-eac-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.presas-v3-eac-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+.presas-v3-eac-legend-item span {
+    font-size: 8px;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+/* ── Capacity breakdown ──────────────────────────────────── */
+.presas-v3-cap-breakdown {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+.presas-v3-cap-metric {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 10px 8px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+}
+.presas-v3-cap-metric-label {
+    font-size: 7px;
+    font-weight: 900;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    text-align: center;
+    line-height: 1.3;
+}
+.presas-v3-cap-metric-val {
+    font-size: 16px;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1;
+}
+.presas-v3-cap-metric-unit {
+    font-size: 7px;
+    color: #334155;
+    font-weight: 700;
+}
+
+/* ── Clima grid ──────────────────────────────────────────── */
+.presas-v3-clima-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 14px;
+}
+.presas-v3-clima-main {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    padding-right: 12px;
+}
+.presas-v3-clima-temp {
+    font-size: 36px;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    color: #fbbf24;
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+.presas-v3-clima-metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    justify-content: center;
+}
+.presas-v3-clima-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+.presas-v3-clima-metric-val {
+    font-size: 16px;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1;
+}
+.presas-v3-clima-empty {
+    font-size: 10px;
+    color: #334155;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+}
+
+/* ── Aforo row ───────────────────────────────────────────── */
+.presas-v3-aforo-values {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.presas-v3-aforo-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+}
+
+/* ── Movements table ─────────────────────────────────────── */
+.presas-v3-movs-table {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.presas-v3-mov-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.01);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    transition: background 0.15s;
+}
+.presas-v3-mov-row:last-child { border-bottom: none; }
+.presas-v3-mov-row:hover { background: rgba(255, 255, 255, 0.03); }
+.presas-v3-mov-fecha {
+    font-size: 9px;
+    font-family: 'JetBrains Mono', monospace;
+    color: #64748b;
+}
+.presas-v3-mov-gasto {
+    font-size: 11px;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    color: #10b981;
+}
+.presas-v3-mov-gasto small {
+    font-size: 8px;
+    color: #334155;
+    font-weight: 700;
+}
+.presas-v3-mov-fuente {
+    font-size: 7px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 2px 6px;
+    border-radius: 999px;
+    border: 1px solid;
+}
+.presas-v3-mov-fuente--admin {
+    color: #60a5fa;
+    border-color: rgba(96, 165, 250, 0.3);
+    background: rgba(96, 165, 250, 0.08);
+}
+.presas-v3-mov-fuente--campo {
+    color: #10b981;
+    border-color: rgba(16, 185, 129, 0.3);
+    background: rgba(16, 185, 129, 0.08);
+}
+
+/* ── Cuenca compare ─────────────────────────────────────── */
+.presas-v3-cuenca-compare {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.presas-v3-cuenca-presa {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.presas-v3-cuenca-presa .presas-v3-kpi-label {
+    width: 80px;
+    flex-shrink: 0;
+}
+.presas-v3-cuenca-bar-track {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+}
+.presas-v3-cuenca-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.6s ease;
+}
+.presas-v3-cuenca-presa .presas-v3-kpi-unit {
+    width: 40px;
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+}

@@ -7,7 +7,7 @@ import {
     Map, PlusCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
+import { AreaChart, Area, Line, ComposedChart, ReferenceLine, Legend, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import './Presas.css';
 import { useFecha } from '../context/FechaContext';
 import { usePresas, type PresaData, type PuntoCurva, type MovimientoPresaData } from '../hooks/usePresas';
@@ -385,6 +385,92 @@ const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
     );
 };
 
+// ─── ANALÍTICA HISTÓRICA Y PREDICTIVA ────────────────────────────────────────
+const AnaliticaPredictivaPanel = ({ presa }: { presa: PresaData }) => {
+    // Mock Data: Comparativa Interanual
+    const historialAnual = [
+        { mes: 'Ene', actual: 45, prom: 52, critico: 30, optimo: 85 },
+        { mes: 'Feb', actual: 42, prom: 49, critico: 28, optimo: 82 },
+        { mes: 'Mar', actual: 38, prom: 45, critico: 25, optimo: 78 },
+        { mes: 'Abr', actual: 32, prom: 40, critico: 20, optimo: 71 },
+        { mes: 'May', actual: 30, prom: 35, critico: 15, optimo: 65 },
+        { mes: 'Jun', actual: null, prom: 31, critico: 12, optimo: 60 },
+        { mes: 'Jul', actual: null, prom: 36, critico: 18, optimo: 68 },
+        { mes: 'Ago', actual: null, prom: 48, critico: 25, optimo: 80 },
+        { mes: 'Sep', actual: null, prom: 60, critico: 35, optimo: 95 },
+        { mes: 'Oct', actual: null, prom: 58, critico: 34, optimo: 92 },
+        { mes: 'Nov', actual: null, prom: 55, critico: 32, optimo: 89 },
+        { mes: 'Dic', actual: null, prom: 53, critico: 31, optimo: 87 },
+    ];
+
+    // Mock Data: Burn-down chart (Proyección de Vaciado Operativo)
+    const currentPct = presa.lectura?.porcentaje_llenado || 30;
+    const proyeccion = [
+        { dia: 'Hoy', sinLluvia: currentPct, conLluvia: currentPct },
+        { dia: '+15d', sinLluvia: currentPct - 3, conLluvia: currentPct - 1 },
+        { dia: '+30d', sinLluvia: currentPct - 7, conLluvia: currentPct - 2 },
+        { dia: '+45d', sinLluvia: currentPct - 11, conLluvia: currentPct },
+        { dia: '+60d', sinLluvia: currentPct - 15, conLluvia: currentPct + 2 },
+        { dia: '+75d', sinLluvia: currentPct - 19, conLluvia: currentPct + 5 },
+        { dia: '+90d', sinLluvia: currentPct - 24, conLluvia: currentPct + 12 },
+    ];
+
+    return (
+        <div className="flex flex-col gap-3">
+            {/* Comparativa Interanual */}
+            <div className="scada-zona-analitica-card" style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '8px', padding: '10px' }}>
+                <div className="scada-panel-hdr scada-panel-hdr--sub">
+                    <span>ESTADÍSTICA INTERANUAL: NIVELES (% NAMO)</span>
+                </div>
+                <div className="h-[200px] w-full mt-2">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={historialAnual} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.5} />
+                            <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} dy={5} />
+                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} domain={[0, 100]} />
+                            <Tooltip 
+                                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', fontSize: '10px' }}
+                                itemStyle={{ fontSize: '11px', fontWeight: 'bold' }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: '9px', paddingTop: '10px' }} iconType="circle" />
+                            
+                            <Area type="monotone" name="Hist. Crítico (2020)" dataKey="critico" stroke="none" fill="#ef4444" fillOpacity={0.1} />
+                            <Line type="monotone" name="Promedio (10 años)" dataKey="prom" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                            <Line type="monotone" name="Año Actual" dataKey="actual" stroke="#38bdf8" strokeWidth={3} dot={{ r: 3, fill: '#0ea5e9' }} />
+                            <Line type="monotone" name="Hist. Óptimo (2015)" dataKey="optimo" stroke="#10b981" strokeWidth={1} dot={false} opacity={0.5} />
+                        </ComposedChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* Proyección de vaciado */}
+            <div className="scada-zona-analitica-card" style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '8px', padding: '10px' }}>
+                <div className="scada-panel-hdr scada-panel-hdr--sub flex justify-between">
+                    <span>PROYECCIÓN BURN-DOWN CHART (100% EXTRACCIÓN)</span>
+                    <span className="text-[8px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded">SIMULACIÓN 90 DÍAS</span>
+                </div>
+                <div className="h-[200px] w-full mt-2">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={proyeccion} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#334155" opacity={0.4} />
+                            <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} dy={5} />
+                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} domain={[0, 100]} />
+                            <Tooltip 
+                                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', fontSize: '10px' }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: '9px', paddingTop: '10px' }} iconType="plainline" />
+                            
+                            <ReferenceLine y={20} label={{ position: 'insideTopLeft', value: 'NIVEL CRÍTICO (20%)', fill: '#ef4444', fontSize: 8 }} stroke="#ef4444" strokeDasharray="3 3" />
+                            
+                            <Area type="monotone" name="Lluvia Normal" dataKey="conLluvia" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={2} />
+                            <Line type="monotone" name="Sequía Continua" dataKey="sinLluvia" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, fill: '#b91c1c' }} />
+                        </ComposedChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // Main Component
 const Presas = () => {
@@ -392,6 +478,7 @@ const Presas = () => {
     const { presas, aforos, movimientos, movimientosHistorial, loading, error } = usePresas(fechaSeleccionada);
     const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
     const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<'operacion' | 'analitica'>('operacion');
     const [horaActual, setHoraActual] = useState(() => new Date());
     useEffect(() => {
         const t = setInterval(() => setHoraActual(new Date()), 1000);
@@ -581,7 +668,25 @@ const Presas = () => {
 
                 {/* ZONA 2: Panel Hidráulico Central */}
                 <div className="scada-zona-hidraulica">
-                    <div className="scada-vaso-panel">
+                    {/* TABS DE ZONA 2 */}
+                    <div className="flex bg-[#0f172a] p-1 rounded-md mb-3" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <button 
+                            className={`flex-1 py-1.5 text-[10px] font-bold tracking-wider rounded transition-colors ${activeTab === 'operacion' ? 'bg-[#38bdf8] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
+                            onClick={() => setActiveTab('operacion')}
+                        >
+                            VASO OPERATIVO
+                        </button>
+                        <button 
+                            className={`flex-1 py-1.5 text-[10px] font-bold tracking-wider rounded transition-colors ${activeTab === 'analitica' ? 'bg-[#38bdf8] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
+                            onClick={() => setActiveTab('analitica')}
+                        >
+                            ANALÍTICA Y FORECASTING
+                        </button>
+                    </div>
+
+                    {activeTab === 'operacion' ? (
+                        <>
+                            <div className="scada-vaso-panel">
                         <div className="scada-panel-hdr">
                             <Waves size={12} className="text-sky-400" />
                             <span>EMBALSE — {currentDam.nombre_corto}</span>
@@ -650,6 +755,10 @@ const Presas = () => {
                             <span className={extraccionTotal > 0 ? 'scada-kpi-sky' : 'scada-kpi-muted'}>{extraccionTotal.toFixed(2)} m³/s</span>
                         </div>
                     </div>
+                        </>
+                    ) : (
+                        <AnaliticaPredictivaPanel presa={currentDam} />
+                    )}
                 </div>
 
                 {/* ZONA 3: Panel de Obras de Toma */}

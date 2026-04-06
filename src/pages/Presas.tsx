@@ -11,6 +11,7 @@ import { AreaChart, Area, Line, ComposedChart, ReferenceLine, Legend, XAxis, YAx
 import './Presas.css';
 import { useFecha } from '../context/FechaContext';
 import { usePresas, type PresaData, type PuntoCurva, type MovimientoPresaData } from '../hooks/usePresas';
+import { getTodayString } from '../utils/dateHelpers';
 
 
 const FUENTE_COLOR: Record<string, string> = {
@@ -654,6 +655,19 @@ const Presas = () => {
         alertas.push({ nivel: 'INFORMATIVA', msg: 'Sin extracción activa registrada. Verificar estado de obras de toma.', tiempo: fechaSeleccionada });
     if (tomas.find(t => t.nombre === 'CFE' && t.gasto > 0))
         alertas.push({ nivel: 'INFORMATIVA', msg: `CFE operando: ${(lect?.gasto_cfe_m3s ?? 0).toFixed(2)} m³/s en generación eléctrica.`, tiempo: 'Ahora' });
+
+    // ── AUDITORÍA DE CAPTURA (09:00 AM Watchdog) ─────────────────────────────
+    const esTarde      = horaActual.getHours() >= 9;
+    const esHoy        = fechaSeleccionada === getTodayString();
+    const hayDatosHoy  = lect?.fecha === getTodayString();
+    
+    if (esHoy && esTarde && !hayDatosHoy) {
+        alertas.push({ 
+            nivel: 'CRÍTICA', 
+            msg: `REPORTE MATUTINO AUSENTE (>09:00). La sala de control opera con datos ${lect ? 'del día anterior' : 'inválidos'}. Se requiere captura inmediata.`, 
+            tiempo: 'URGENTE' 
+        });
+    }
 
     const diagnostico = pctLlenado >= 90
         ? `Vaso próximo a capacidad máxima (${pctLlenado.toFixed(1)}%). Monitoreo intensivo requerido.`

@@ -7,7 +7,7 @@ import {
     Map, PlusCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { AreaChart, Area, Line, ComposedChart, ReferenceLine, Legend, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
+import { AreaChart, Area, Line, ComposedChart, ReferenceLine, Legend, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Sankey } from 'recharts';
 import './Presas.css';
 import { useFecha } from '../context/FechaContext';
 import { usePresas, type PresaData, type PuntoCurva, type MovimientoPresaData } from '../hooks/usePresas';
@@ -472,6 +472,79 @@ const AnaliticaPredictivaPanel = ({ presa }: { presa: PresaData }) => {
     );
 };
 
+// ─── MÓDULO 4: TRAZABILIDAD RED MAYOR (SANKEY) ──────────────────────────────
+const TrazabilidadRedMayorPanel = ({ extraccionTotal }: { extraccionTotal: number }) => {
+    // Si no hay extracción, inyectar valores mínimos lógicos para no quebrar el UI (Sankey arroja error en valores negativos)
+    const baseExtraccion = Math.max(extraccionTotal, 0.1);
+    const perdidas = baseExtraccion * 0.05;
+    const netoTomas = baseExtraccion - perdidas;
+
+    const cfe = netoTomas * 0.35;
+    const agricola = netoTomas * 0.65;
+    const retornos = cfe * 0.95;
+
+    const dataSankey = {
+        nodes: [
+            { name: 'Vaso (Salida)' },        // 0
+            { name: 'Pérdida Infiltración' }, // 1
+            { name: 'Objeto de Toma' },       // 2
+            { name: 'Turbinado CFE' },        // 3
+            { name: 'Canal Principal' },      // 4
+            { name: 'Retornos Río' },         // 5
+        ],
+        links: [
+            { source: 0, target: 1, value: perdidas }, 
+            { source: 0, target: 2, value: netoTomas },
+            { source: 2, target: 3, value: cfe },
+            { source: 2, target: 4, value: agricola },
+            { source: 3, target: 5, value: retornos },
+        ]
+    };
+
+    return (
+        <div className="mt-4 mb-2 p-4 bg-[#0f172a] rounded-lg" style={{ border: '1px solid rgba(56, 189, 248, 0.15)' }}>
+            <div className="scada-panel-hdr mb-3">
+                <Activity size={12} className="text-sky-400" />
+                <span>MÓDULO 4: Trazabilidad de Flujo a Red Mayor</span>
+                <span className="text-[9px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded ml-2">SIMULACIÓN INTERACTIVA</span>
+            </div>
+            
+            <div className="h-[180px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    <Sankey
+                        data={dataSankey}
+                        nodePadding={30}
+                        margin={{ left: 20, right: 20, top: 10, bottom: 10 }}
+                        link={{ stroke: '#38bdf8', strokeOpacity: 0.15 }}
+                        node={({ x, y, width, height, index, payload }: any) => (
+                            <g>
+                                <rect 
+                                    x={x} y={y} width={width} height={height} 
+                                    fill={index === 0 ? '#38bdf8' : index === 1 ? '#ef4444' : index === 3 ? '#a78bfa' : index === 5 ? '#94a3b8' : '#10b981'} 
+                                    fillOpacity="0.8" rx="2" 
+                                />
+                                <text 
+                                    x={x < 200 ? x + width + 8 : x - 8} 
+                                    y={y + height / 2} dy={4} 
+                                    textAnchor={x < 200 ? 'start' : 'end'} 
+                                    fill="#e2e8f0" fontSize="10" fontFamily="JetBrains Mono"
+                                >
+                                    {payload.name} ({payload.value < 1 ? payload.value.toFixed(2) : payload.value.toFixed(1)})
+                                </text>
+                            </g>
+                        )}
+                    >
+                        <Tooltip 
+                            contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '4px', fontSize: '11px' }}
+                            itemStyle={{ color: '#e2e8f0' }}
+                        />
+                    </Sankey>
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
+};
+
 // Main Component
 const Presas = () => {
     const { fechaSeleccionada } = useFecha();
@@ -822,6 +895,9 @@ const Presas = () => {
                     <ExtractionStreamgraph movimientos={movimientosHistorial.filter(m => m.presa_id === currentDam.id)} />
                 </div>
             </div>
+
+            {/* ── MÓDULO 4: FLUJOGRAMA SANKEY ───────────────────────────────── */}
+            <TrazabilidadRedMayorPanel extraccionTotal={extraccionTotal} />
 
             {/* ── ZONA 4+5: FOOTER ──────────────────────────────────────────── */}
             <div className="scada-sala-footer">

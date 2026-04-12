@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, ZoomControl, Marker, useMap, Popup } from 'react-leaflet';
 import { supabase } from '../lib/supabase';
 import { useHydricEvents } from '../hooks/useHydricEvents';
@@ -8,6 +8,10 @@ import 'leaflet/dist/leaflet.css';
 import './PublicMonitor.css';
 import { formatDate } from '../utils/dateHelpers';
 import type { MovimientoPresaConNombreRow } from '../types/sica.types';
+import { calcIEC, iecColor } from '../utils/canalIndex';
+import { onTable } from '../lib/realtimeHub';
+import CanalReport from '../components/CanalReport';
+import { exportEscalasCSV } from '../utils/exportCanal';
 
 // Custom Marker for Water Front
 const waterFrontIcon = L.divIcon({
@@ -44,6 +48,30 @@ interface EscalaData {
     delta_12h?: number | null;          // tendencia en 12h (m) — positivo=sube, negativo=baja
 }
 
+// ── ESTADO DE TELEMETRÍA (5 niveles) ────────────────────────────────────
+export type TelemetriaEstado = 'VIVO' | 'RETRASADO' | 'ALERTA' | 'CRITICO' | 'FUERA_DE_LINEA';
+
+function telemetriaEstado(ultimaTelemetria?: number | null): TelemetriaEstado {
+    if (!ultimaTelemetria) return 'FUERA_DE_LINEA';
+    const minutos = (Date.now() - ultimaTelemetria) / 60_000;
+    if (minutos <  30)   return 'VIVO';
+    if (minutos < 120)   return 'RETRASADO';
+    if (minutos < 480)   return 'ALERTA';
+    if (minutos < 1440)  return 'CRITICO';
+    return 'FUERA_DE_LINEA';
+}
+
+
+function telemetriaLabel(estado: TelemetriaEstado): string {
+    switch (estado) {
+        case 'VIVO':          return 'Vivo';
+        case 'RETRASADO':     return 'Retrasado';
+        case 'ALERTA':        return 'Sin señal +2h';
+        case 'CRITICO':       return 'Sin señal +8h';
+        case 'FUERA_DE_LINEA':return 'Fuera de línea';
+    }
+}
+
 // ── COLOR DE ALERTA POR ESCALA (reutilizado en mapa y perfil) ───────────
 function escalaAlertColor(e: EscalaData, coherencia?: any): string {
     const nivel = e.nivel_actual ?? 0;
@@ -59,10 +87,14 @@ function escalaAlertColor(e: EscalaData, coherencia?: any): string {
 }
 
 // ── PERFIL LONGITUDINAL DEL CANAL (ESTABILIZACIÓN) ──────────────────────
+interface FGVStep { km: number; y: number; q: number; remanso: string; pct_bordo: number; alerta: boolean; critico: boolean; }
+
 const CanalLongitudinalProfile: React.FC<{
   escalas: EscalaData[];
   coherencia: any;
-}> = ({ escalas, coherencia }) => {
+  fgvProfile?: FGVStep[] | null;
+  fgvLoading?: boolean;
+}> = ({ escalas, coherencia, fgvProfile, fgvLoading }) => {
   const W = 800, H = 190;
   const PAD_L = 42, PAD_R = 32, PAD_T = 38, PAD_B = 30;
   const plotW = W - PAD_L - PAD_R;
@@ -185,6 +217,79 @@ const CanalLongitudinalProfile: React.FC<{
         </g>
       ))}
 
+      {/* ── Capa FGV — superficie libre simulada ── */}
+      {fgvProfile && fgvProfile.length >= 2 && (() => {
+        const fpts = fgvProfile.filter(s => s.km >= 0 && s.km <= KM_MAX);
+
+        // Relleno FGV
+        const fBase = base;
+        const fWaterPoly = [
+          `${xS(fpts[0].km)},${fBase}`,
+          ...fpts.map(s => `${xS(s.km)},${yS(s.y)}`),
+          `${xS(fpts[fpts.length - 1].km)},${fBase}`,
+        ].join(' ');
+
+        // Saltos hidráulicos: transición M2 → M1
+        const jumps: number[] = [];
+        for (let i = 1; i < fpts.length; i++) {
+          if (fpts[i - 1].remanso === 'M2' && fpts[i].remanso === 'M1') {
+            jumps.push((fpts[i - 1].km + fpts[i].km) / 2);
+          }
+        }
+
+        return (
+          <g opacity="0.85">
+            {/* Relleno translúcido FGV */}
+            <polygon points={fWaterPoly} fill="rgba(251,191,36,0.06)" />
+
+            {/* Línea FGV — sombra */}
+            <polyline
+              points={fpts.map(s => `${xS(s.km)},${yS(s.y)}`).join(' ')}
+              fill="none" stroke="rgba(251,191,36,0.12)" strokeWidth="6"
+              strokeLinejoin="round"
+            />
+            {/* Línea FGV — principal (punteada) */}
+            <polyline
+              points={fpts.map(s => `${xS(s.km)},${yS(s.y)}`).join(' ')}
+              fill="none" stroke="#fbbf24" strokeWidth="1.5"
+              strokeDasharray="6,4" strokeLinejoin="round"
+            />
+
+            {/* Marcadores de alerta FGV (pct_bordo ≥ 75%) */}
+            {fpts.filter(s => s.alerta && !s.critico).map((s, i) => (
+              <circle key={`fa${i}`} cx={xS(s.km)} cy={yS(s.y)} r={3}
+                fill="#f97316" stroke="#070e1c" strokeWidth="1" opacity="0.9" />
+            ))}
+
+            {/* Marcadores críticos FGV (pct_bordo ≥ 92%) */}
+            {fpts.filter(s => s.critico).map((s, i) => (
+              <circle key={`fc${i}`} cx={xS(s.km)} cy={yS(s.y)} r={4}
+                fill="#ef4444" stroke="#070e1c" strokeWidth="1.2" />
+            ))}
+
+            {/* Saltos hidráulicos */}
+            {jumps.map((km, i) => (
+              <g key={`hj${i}`} filter="url(#cpGlow)">
+                <line x1={xS(km)} y1={PAD_T + 4} x2={xS(km)} y2={base}
+                  stroke="#f97316" strokeWidth="1.5" strokeDasharray="3,3" opacity="0.7" />
+                <rect x={xS(km) - 14} y={PAD_T + 4} width={28} height={10}
+                  fill="#f97316" opacity="0.18" rx="2" />
+                <text x={xS(km)} y={PAD_T + 11} fill="#f97316" fontSize="6"
+                  textAnchor="middle" fontFamily="monospace" fontWeight="bold">SALTO</text>
+              </g>
+            ))}
+          </g>
+        );
+      })()}
+
+      {/* Spinner FGV cargando */}
+      {fgvLoading && (
+        <text x={W / 2} y={PAD_T + plotH / 2} fill="#fbbf24" fontSize="9"
+          textAnchor="middle" fontFamily="monospace" opacity="0.7">
+          Calculando perfil FGV…
+        </text>
+      )}
+
       {/* Puntos con nivel, halo, tendencia */}
       {pts.map((e) => {
         const x = xS(e.km);
@@ -262,6 +367,9 @@ const PublicMonitor: React.FC = () => {
     const [isDockVisible, setIsDockVisible] = useState(!isMobile);
     const [isPredictionVisible, setIsPredictionVisible] = useState(false);
     const [showPerfilModal, setShowPerfilModal] = useState(false);
+    const [fgvData, setFgvData] = useState<any>(null);
+    const [fgvLoading, setFgvLoading] = useState(false);
+    const [showReport, setShowReport] = useState(false);
     const [currentTime, setCurrentTime] = useState(() => Date.now());
     const [anchorTimes, setAnchorTimes] = useState<Record<number, string>>({});
 
@@ -272,12 +380,21 @@ const PublicMonitor: React.FC = () => {
     }, []);
 
 
-    // 1. Fetch Canal Geometry
+    // 1. Fetch Canal Geometry (sessionStorage cache — estático, no cambia por sesión)
     useEffect(() => {
         const loadGeo = async () => {
+            const fetchOrCache = async (url: string, key: string) => {
+                const cached = sessionStorage.getItem(key);
+                if (cached) {
+                    try { return JSON.parse(cached); } catch { /* ignore */ }
+                }
+                const res = await fetch(url).then(r => r.json()).catch(() => null);
+                if (res) sessionStorage.setItem(key, JSON.stringify(res));
+                return res;
+            };
             const [canRes, rioRes] = await Promise.all([
-                fetch('/geo/canal_conchos.geojson').then(r => r.json()).catch(() => null),
-                fetch('/geo/rio_conchos.geojson').then(r => r.json()).catch(() => null)
+                fetchOrCache('/geo/canal_conchos.geojson', 'geo_canal'),
+                fetchOrCache('/geo/rio_conchos.geojson',   'geo_rio'),
             ]);
             if (canRes) setGeoCanal(canRes);
             if (rioRes) setGeoRio(rioRes);
@@ -285,24 +402,54 @@ const PublicMonitor: React.FC = () => {
         loadGeo();
     }, []);
 
-    // 2. Fetch Escalas & Wave Data
+    // 2. Fetch Escalas & Wave Data (todos los fetches en paralelo)
     const fetchData = useCallback(async () => {
         try {
-            // Escalas Base
-            const { data: escData } = await supabase
-                .from('escalas')
-                .select('id, nombre, km, latitud, longitud, pzas_radiales, ancho, alto, nivel_max_operativo, capacidad_max')
-                .order('km');
-            
-            // 2. Fetch Presas (Dams) Telemetry - Only latest per dam
-            const { data: pData } = await supabase
-                .from('lecturas_presas')
-                .select(`
-                    *,
-                    presas:presa_id (nombre, nombre_corto)
-                `)
-                .order('fecha', { ascending: false })
-                .order('creado_en', { ascending: false });
+            const todayDate  = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+            const eventStart = activeEvent?.fecha_inicio || `${todayDate}T00:00:00`;
+            const isLlenado  = activeEvent?.evento_tipo === 'LLENADO';
+
+            const [
+                { data: escData },
+                { data: pData },
+                { data: summaryDelta },
+                { data: readings },
+                { data: mData },
+                trackResult,
+            ] = await Promise.all([
+                supabase
+                    .from('escalas')
+                    .select('id, nombre, km, latitud, longitud, pzas_radiales, ancho, alto, nivel_max_operativo, capacidad_max')
+                    .order('km'),
+                supabase
+                    .from('lecturas_presas')
+                    .select('*, presas:presa_id (nombre, nombre_corto)')
+                    .order('fecha', { ascending: false })
+                    .order('creado_en', { ascending: false }),
+                supabase
+                    .from('resumen_escalas_diario')
+                    .select('escala_id, delta_12h')
+                    .eq('fecha', todayDate),
+                supabase
+                    .from('lecturas_escalas')
+                    .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, radiales_json, gasto_calculado_m3s, creado_en')
+                    .gte('creado_en', eventStart)
+                    .order('creado_en', { ascending: false })
+                    .limit(500),
+                supabase
+                    .from('movimientos_presas')
+                    .select('*, presas:presa_id (nombre_corto)')
+                    .order('fecha_hora', { ascending: false })
+                    .limit(5),
+                isLlenado && activeEvent?.id
+                    ? supabase
+                        .from('sica_llenado_seguimiento')
+                        .select('km, hora_real')
+                        .eq('evento_id', activeEvent.id)
+                        .not('hora_real', 'is', null)
+                        .order('km', { ascending: false })
+                    : Promise.resolve({ data: null }),
+            ]);
 
             // Sincronía Digital: Solo tomamos la última lectura de cada presa
             const uniquePresasMap = new Map();
@@ -336,36 +483,11 @@ const PublicMonitor: React.FC = () => {
 
             setPresasData(finalPresas);
 
-            // 3. Latest Readings — ventana de datos
-            // LLENADO:        desde hora_apertura_real del evento activo
-            // ESTABILIZACIÓN: desde medianoche del día actual (evita arrastre de lecturas
-            //                 del día anterior al cruzar las 00:00h)
-            const todayDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD Chihuahua
-            const eventStart = activeEvent?.fecha_inicio || `${todayDate}T00:00:00`;
-
-            // delta_12h de resumen diario — tendencia de nivel por escala
-            const { data: summaryDelta } = await supabase
-                .from('resumen_escalas_diario')
-                .select('escala_id, delta_12h')
-                .eq('fecha', todayDate);
+            // delta_12h map
             const deltaMap = new Map<string, number>();
             (summaryDelta || []).forEach((r: any) => {
                 if (r.delta_12h != null) deltaMap.set(r.escala_id, r.delta_12h);
             });
-
-            const { data: readings } = await supabase
-                .from('lecturas_escalas')
-                .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, radiales_json, gasto_calculado_m3s, creado_en')
-                .gte('creado_en', eventStart)
-                .order('creado_en', { ascending: false })
-                .limit(500);
-
-            // 4. Dam Specific Movements
-            const { data: mData } = await supabase
-                .from('movimientos_presas')
-                .select(`*, presas:presa_id (nombre_corto)`)
-                .order('fecha_hora', { ascending: false })
-                .limit(5);
 
             setDamMovements((mData || []) as MovimientoPresaConNombreRow[]);
 
@@ -432,16 +554,10 @@ const PublicMonitor: React.FC = () => {
                 });
             }
 
-            // 4. Fetch confirmed progress from Llenado Tracker + Readings
+            // 4. Confirmed progress from Llenado Tracker (ya obtenido en Promise.all)
             let maxKmConfirmed = -36;
             if (activeEvent?.evento_tipo === 'LLENADO') {
-                const { data: trackData } = await supabase
-                    .from('sica_llenado_seguimiento')
-                    .select('km, hora_real')
-                    .eq('evento_id', activeEvent.id)
-                    .not('hora_real', 'is', null)
-                    .order('km', { ascending: false });
-                
+                const trackData = (trackResult as any).data as { km: string; hora_real: string }[] | null;
                 const newAnchors: Record<number, string> = {};
 
                 trackData?.forEach(td => {
@@ -605,8 +721,23 @@ const PublicMonitor: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-        const interval = setInterval(fetchData, 60000); // 1 min refresh
-        return () => clearInterval(interval);
+
+        // Realtime: refresca al instante cuando llegan nuevas lecturas
+        const unsubEscalas  = onTable('lecturas_escalas',   '*', fetchData);
+        const unsubPresas   = onTable('lecturas_presas',    '*', fetchData);
+        const unsubMov      = onTable('movimientos_presas', '*', fetchData);
+        const unsubSeguim   = onTable('sica_llenado_seguimiento', 'UPDATE', fetchData);
+
+        // Fallback polling cada 5 min (cubre reconexiones y gaps de Realtime)
+        const interval = setInterval(fetchData, 300_000);
+
+        return () => {
+            unsubEscalas();
+            unsubPresas();
+            unsubMov();
+            unsubSeguim();
+            clearInterval(interval);
+        };
     }, [fetchData]);
 
     // 5. Predicted Front Position (Hydra Engine Logic)
@@ -894,6 +1025,92 @@ const PublicMonitor: React.FC = () => {
 
     const isEstabilizacion = !activeEvent || activeEvent.evento_tipo !== 'LLENADO';
 
+    // ── IEC — Índice de Estado del Canal ─────────────────────────────────────
+    const iecData = useMemo(() => {
+        if (!coherenciaCanal || !isEstabilizacion) return null;
+        const escalasConDatos = escalas.filter(e => e.nivel_actual !== null && e.nivel_max_operativo !== null);
+        const escalasEnCritico = escalasConDatos.filter(e => {
+            const pct = (e.nivel_actual ?? 0) / (e.nivel_max_operativo ?? 3.5);
+            return pct >= 0.92;
+        }).length;
+        return calcIEC({
+            eficiencia:       coherenciaCanal.eficiencia ?? 0,
+            n_coherentes:     coherenciaCanal.nCoherentes,
+            total_puntos:     coherenciaCanal.totalPuntos,
+            q_fuga_total:     0,
+            q_entrada:        coherenciaCanal.qK0Medido,
+            escalas_criticas: escalasEnCritico,
+            total_escalas:    escalasConDatos.length,
+        });
+    }, [coherenciaCanal, escalas, isEstabilizacion]);
+
+    // ── IEC Histórico (localStorage, buffer 30 días) ──────────────────────────
+    const IEC_LS_KEY = 'iec_historico_v1';
+    const iecHistorico = useMemo((): { fecha: string; iec: number; sem: string }[] => {
+        try { return JSON.parse(localStorage.getItem(IEC_LS_KEY) ?? '[]'); } catch { return []; }
+    }, []);
+
+    useEffect(() => {
+        if (!iecData) return;
+        const hoy = new Date().toLocaleDateString('en-CA');
+        try {
+            const hist: { fecha: string; iec: number; sem: string }[] =
+                JSON.parse(localStorage.getItem(IEC_LS_KEY) ?? '[]');
+            const filtered = hist.filter(h => h.fecha !== hoy);
+            const updated = [...filtered, { fecha: hoy, iec: iecData.iec, sem: iecData.semaforo }]
+                .sort((a, b) => a.fecha.localeCompare(b.fecha))
+                .slice(-30); // últimos 30 días
+            localStorage.setItem(IEC_LS_KEY, JSON.stringify(updated));
+        } catch { /* ignore */ }
+    }, [iecData]);
+
+    const iecBreakdownRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const el = iecBreakdownRef.current;
+        if (!el || !iecData) return;
+        el.style.setProperty('--iec-color', iecColor(iecData.semaforo));
+        el.style.setProperty('--iec-pef',   `${(iecData.p_eficiencia / 30) * 100}%`);
+        el.style.setProperty('--iec-pcoh',  `${(iecData.p_coherencia / 25) * 100}%`);
+        el.style.setProperty('--iec-pfug',  `${(iecData.p_fugas      / 25) * 100}%`);
+        el.style.setProperty('--iec-pcrit', `${(iecData.p_criticos   / 20) * 100}%`);
+    }, [iecData]);
+
+    // ── Motor hidráulico FGV — se invoca al abrir el modal de perfil ────────
+    useEffect(() => {
+        if (!showPerfilModal || !coherenciaCanal || !isEstabilizacion) return;
+        if (fgvData) return; // ya cargado en esta sesión de modal
+
+        setFgvLoading(true);
+        const tomas = escalas
+            .filter(e => e.km >= 0 && e.km <= 104 && (e.apertura_actual ?? 0) > 0 && (e.gasto_actual ?? 0) > 0)
+            .map(e => ({ km: e.km, q_m3s: e.gasto_actual! }));
+
+        const escalasConDatos = escalas.filter(e => e.nivel_actual !== null && e.nivel_max_operativo !== null);
+        const escalasEnCritico = escalasConDatos.filter(e =>
+            (e.nivel_actual ?? 0) / (e.nivel_max_operativo ?? 3.5) >= 0.92
+        ).length;
+
+        supabase.functions.invoke('hydraulic-engine', {
+            body: {
+                q:                 coherenciaCanal.qK0Medido,
+                km_inicio:         0,
+                km_fin:            104,
+                tomas,
+                eficiencia:        coherenciaCanal.eficiencia ?? 0,
+                n_coherentes:      coherenciaCanal.nCoherentes,
+                total_puntos:      coherenciaCanal.totalPuntos,
+                q_fuga_total:      0,
+                escalas_criticas:  escalasEnCritico,
+                total_escalas:     escalasConDatos.length,
+            },
+        }).then(({ data, error }) => {
+            if (!error && data) setFgvData(data);
+        }).finally(() => setFgvLoading(false));
+    }, [showPerfilModal, coherenciaCanal, isEstabilizacion]);
+
+    // Limpiar cache FGV cuando cambian los datos de campo
+    useEffect(() => { setFgvData(null); }, [coherenciaCanal]);
+
     // Canal segmentado por color de alerta (modo ESTABILIZACIÓN)
     const canalAlertSegments = useMemo(() => {
         if (!isEstabilizacion || canalDistData.length === 0 || escalas.length === 0) return [];
@@ -960,8 +1177,9 @@ const PublicMonitor: React.FC = () => {
                         </span>
                     </div>
 
-                    <button 
-                        className="phb-system-btn" 
+                    <button
+                        type="button"
+                        className="phb-system-btn"
                         onClick={() => window.location.href = '/'}
                         title="Ir al sistema completo"
                     >
@@ -990,7 +1208,7 @@ const PublicMonitor: React.FC = () => {
                     <div className="mgr-header">
                         <span className="mgr-title">ANÁLISIS DE TRÁNSITO</span>
                         {isWaitingAtZero && <span className="wait-badge-pulse">WAITING</span>}
-                        <button className="panel-toggle-mini" onClick={() => setIsPredictionVisible(false)}>×</button>
+                        <button type="button" className="panel-toggle-mini" onClick={() => setIsPredictionVisible(false)} title="Cerrar panel">×</button>
                     </div>
 
                     {isWaitingAtZero && (
@@ -1219,10 +1437,11 @@ const PublicMonitor: React.FC = () => {
                                     const barColor   = nivelPct === null ? '#38bdf8' : nivelPct >= 95 ? '#ef4444' : nivelPct >= 80 ? '#f59e0b' : '#38bdf8';
                                     const gasto      = esc.gasto_actual ?? 0;
                                     const apertura   = esc.apertura_actual ?? 0;
-                                    const tsAge      = esc.ultima_telemetria ? (Date.now() - esc.ultima_telemetria) / 60000 : null; // minutos
-                                    const tsStale    = tsAge !== null && tsAge > 480; // > 8 horas
+                                    const tsAge      = esc.ultima_telemetria ? (Date.now() - esc.ultima_telemetria) / 60000 : null;
+                                    const telEstado  = telemetriaEstado(esc.ultima_telemetria);
+                                    const telTxt     = telemetriaLabel(telEstado);
 
-                                    // Badge de estado legible para público
+                                    // Badge de estado operativo
                                     let badgeLabel = 'SIN DATOS';
                                     let badgeColor = '#475569';
                                     if (esc.estado === 'OPERANDO' && nivel > 0) {
@@ -1250,7 +1469,15 @@ const PublicMonitor: React.FC = () => {
                                                     {badgeLabel}
                                                 </span>
                                             </div>
-                                            <p className="scp-nombre">{esc.nombre}</p>
+                                            {/* Nombre + indicador de señal */}
+                                            <div className="scp-nombre-row">
+                                                <p className="scp-nombre">{esc.nombre}</p>
+                                                <span
+                                                    className="scp-signal"
+                                                    data-tel={telEstado}
+                                                    title={telTxt}
+                                                />
+                                            </div>
 
                                             {/* Nivel con barra */}
                                             <div className="scp-section">
@@ -1293,9 +1520,14 @@ const PublicMonitor: React.FC = () => {
                                                 </div>
                                             )}
 
-                                            {/* Timestamp */}
+                                            {/* Timestamp + estado señal */}
                                             <div className="scp-footer">
-                                                <span className={`scp-footer-time${tsStale ? ' scp-footer-stale' : ''}`}>{tiempoLectura}</span>
+                                                <span className="scp-footer-time" data-tel={telEstado}>
+                                                    {tiempoLectura}
+                                                </span>
+                                                <span className="scp-footer-signal" data-tel={telEstado}>
+                                                    {telTxt}
+                                                </span>
                                             </div>
                                         </div>
                                     );
@@ -1314,7 +1546,7 @@ const PublicMonitor: React.FC = () => {
             {/* Bottom Dock - Balanced layout to avoid 'heavy right' look */}
             {isDockVisible ? (
                 <div className="info-cards-dock animate-in" style={{ animationDelay: '0.4s' }}>
-                    <button className="dock-close-btn" onClick={() => setIsDockVisible(false)} title="Cerrar tablero">×</button>
+                    <button type="button" className="dock-close-btn" onClick={() => setIsDockVisible(false)} title="Cerrar tablero">×</button>
                     
                     {/* Panel izquierdo: Balance / Panorama + Fuentes fusionados */}
                     <div className="dock-section dock-panel-left">
@@ -1363,10 +1595,15 @@ const PublicMonitor: React.FC = () => {
                                 {/* Header: título + badge + botón perfil */}
                                 <div className="dock-panel-header">
                                     <span className="card-label">PANORAMA DEL CANAL</span>
-                                    {coherenciaCanal && (
-                                        <div className="health-badge-premium" style={{ borderColor: coherenciaCanal.eficiencia !== null && coherenciaCanal.eficiencia >= 88 ? '#22c55e' : coherenciaCanal.eficiencia !== null && coherenciaCanal.eficiencia >= 80 ? '#eab308' : '#ef4444' }}>
-                                            <div className="health-dot" style={{ background: coherenciaCanal.eficiencia !== null && coherenciaCanal.eficiencia >= 88 ? '#22c55e' : '#eab308' }}></div>
-                                            {coherenciaCanal.eficiencia !== null ? `EF. ${coherenciaCanal.eficiencia.toFixed(1)}%` : 'SIN DATOS'}
+                                    {iecData && (
+                                        <div
+                                            className="health-badge-premium iec-badge"
+                                            style={{ borderColor: iecColor(iecData.semaforo) }}
+                                            title={`IEC ${iecData.iec}/100 — ${iecData.texto}\nEficiencia: ${iecData.p_eficiencia}/30 pts\nCoherencia: ${iecData.p_coherencia}/25 pts\nFugas: ${iecData.p_fugas}/25 pts\nCríticos: ${iecData.p_criticos}/20 pts`}
+                                        >
+                                            <div className="health-dot" style={{ background: iecColor(iecData.semaforo) }}></div>
+                                            <span className="iec-score">{iecData.iec}</span>
+                                            <span className="iec-label">IEC</span>
                                         </div>
                                     )}
                                     <button type="button" className="perfil-inline-btn" onClick={() => setShowPerfilModal(true)} title="Ver perfil hidráulico">
@@ -1405,6 +1642,88 @@ const PublicMonitor: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="coherencia-sin-datos">Sin lecturas de gasto disponibles hoy</div>
+                                )}
+
+                                {/* IEC — Desglose de componentes en español */}
+                                {iecData && (
+                                    <div className="iec-breakdown" ref={iecBreakdownRef}>
+                                        <div className="iec-breakdown-row">
+                                            <span className="iec-bd-title">ÍNDICE DE ESTADO DEL CANAL</span>
+                                            <span className="iec-bd-total">{iecData.iec}/100</span>
+                                        </div>
+                                        <div className="iec-bd-bars">
+                                            <div className="iec-bd-item">
+                                                <span className="iec-bd-label">Eficiencia</span>
+                                                <div className="iec-bd-track"><div className="iec-bd-fill iec-fill-ef" /></div>
+                                                <span className="iec-bd-pts">{iecData.p_eficiencia}<small>/30</small></span>
+                                            </div>
+                                            <div className="iec-bd-item">
+                                                <span className="iec-bd-label">Coherencia</span>
+                                                <div className="iec-bd-track"><div className="iec-bd-fill iec-fill-coh" /></div>
+                                                <span className="iec-bd-pts">{iecData.p_coherencia}<small>/25</small></span>
+                                            </div>
+                                            <div className="iec-bd-item">
+                                                <span className="iec-bd-label">Sin fugas</span>
+                                                <div className="iec-bd-track"><div className="iec-bd-fill iec-fill-fug" /></div>
+                                                <span className="iec-bd-pts">{iecData.p_fugas}<small>/25</small></span>
+                                            </div>
+                                            <div className="iec-bd-item">
+                                                <span className="iec-bd-label">Nivel canal</span>
+                                                <div className="iec-bd-track"><div className="iec-bd-fill iec-fill-crit" /></div>
+                                                <span className="iec-bd-pts">{iecData.p_criticos}<small>/20</small></span>
+                                            </div>
+                                        </div>
+                                        <div className="iec-bd-texto">{iecData.texto}</div>
+                                    </div>
+                                )}
+
+                                {/* IEC histórico — sparkline 30 días */}
+                                {iecHistorico.length >= 2 && (
+                                    <div className="iec-sparkline-wrap">
+                                        <span className="iec-sp-label">IEC 30 días</span>
+                                        <svg className="iec-sparkline" viewBox="0 0 120 28" preserveAspectRatio="none">
+                                            {iecHistorico.map((h, i, arr) => {
+                                                const x1 = (i / (arr.length - 1)) * 118 + 1;
+                                                const y1 = 26 - (h.iec / 100) * 24;
+                                                if (i === 0) return null;
+                                                const prev = arr[i - 1];
+                                                const x0 = ((i - 1) / (arr.length - 1)) * 118 + 1;
+                                                const y0 = 26 - (prev.iec / 100) * 24;
+                                                const col = h.sem === 'VERDE' ? '#22c55e' : h.sem === 'AMARILLO' ? '#f59e0b' : '#ef4444';
+                                                return <line key={i} x1={x0} y1={y0} x2={x1} y2={y1} stroke={col} strokeWidth="1.5" strokeLinecap="round" />;
+                                            })}
+                                            {iecHistorico.length > 0 && (() => {
+                                                const last = iecHistorico[iecHistorico.length - 1];
+                                                const x = 119;
+                                                const y = 26 - (last.iec / 100) * 24;
+                                                const col = last.sem === 'VERDE' ? '#22c55e' : last.sem === 'AMARILLO' ? '#f59e0b' : '#ef4444';
+                                                return <circle cx={x} cy={y} r="2.5" fill={col} />;
+                                            })()}
+                                        </svg>
+                                        <span className="iec-sp-val">{iecHistorico[iecHistorico.length - 1]?.iec ?? '—'}</span>
+                                    </div>
+                                )}
+
+                                {/* Acciones: Reporte PDF + CSV */}
+                                {(iecData && coherenciaCanal) && (
+                                    <div className="dock-action-row">
+                                        <button
+                                            type="button"
+                                            className="dock-action-btn"
+                                            onClick={() => setShowReport(true)}
+                                            title="Generar reporte gerencial PDF"
+                                        >
+                                            Reporte PDF
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="dock-action-btn dock-action-btn--csv"
+                                            onClick={() => exportEscalasCSV(escalas)}
+                                            title="Exportar telemetría a CSV"
+                                        >
+                                            Exportar CSV
+                                        </button>
+                                    </div>
                                 )}
 
                                 {/* Footer: fuente + movimiento + coherencia en una línea */}
@@ -1503,6 +1822,17 @@ const PublicMonitor: React.FC = () => {
                 </div>
             )}
 
+            {/* Reporte gerencial PDF */}
+            {showReport && iecData && coherenciaCanal && (
+                <CanalReport
+                    coherencia={coherenciaCanal}
+                    iec={iecData}
+                    escalas={escalas}
+                    fgv={fgvData ?? null}
+                    onClose={() => setShowReport(false)}
+                />
+            )}
+
             {/* Modal — Perfil Longitudinal */}
             {showPerfilModal && (
                 <div className="perfil-modal-overlay" onClick={() => setShowPerfilModal(false)}>
@@ -1519,7 +1849,12 @@ const PublicMonitor: React.FC = () => {
                         </div>
                         <div className="perfil-modal-body">
                             <div className="perfil-svg-scroll">
-                                <CanalLongitudinalProfile escalas={escalas} coherencia={coherenciaCanal} />
+                                <CanalLongitudinalProfile
+                                    escalas={escalas}
+                                    coherencia={coherenciaCanal}
+                                    fgvProfile={fgvData?.profile}
+                                    fgvLoading={fgvLoading}
+                                />
                             </div>
                             <div className="canal-profile-legend">
                                 <span className="cpl-item cpl-green">Operativo 2.8–3.2m</span>
@@ -1527,7 +1862,20 @@ const PublicMonitor: React.FC = () => {
                                 <span className="cpl-item cpl-red">Crítico / Incoherente</span>
                                 <span className="cpl-item cpl-blue">Sin rango op.</span>
                                 <span className="cpl-item cpl-trend">▲ sube · ▼ baja · — estable (Δ12h)</span>
+                                {fgvData && <span className="cpl-item cpl-fgv">— — FGV simulado</span>}
+                                {fgvData?.criticos?.length > 0 && <span className="cpl-item cpl-jump">| Salto hidráulico</span>}
                             </div>
+                            {fgvData && (
+                                <div className="fgv-summary-bar">
+                                    <span>Q entrada: <b>{fgvData.q_entrada?.toFixed(1)} m³/s</b></span>
+                                    <span>Q salida: <b>{fgvData.q_salida?.toFixed(1)} m³/s</b></span>
+                                    <span>Ef. conducción: <b>{fgvData.eficiencia_conduccion?.toFixed(1)}%</b></span>
+                                    <span>Tránsito: <b>{fgvData.transit_time_h?.toFixed(1)} h</b></span>
+                                    {fgvData.criticos?.length > 0 && (
+                                        <span className="fgv-alert">⚠ {fgvData.criticos.length} punto(s) crítico(s)</span>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

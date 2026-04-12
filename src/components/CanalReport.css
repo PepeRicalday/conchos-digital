@@ -1,0 +1,421 @@
+/* ═══════════════════════════════════════════════════════════════════
+   SICA 005 · REPORTE GERENCIAL CANAL CONCHOS
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── OVERLAY ─────────────────────────────────────────────────────── */
+.rpt-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 8, 18, 0.92);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
+    overflow-y: auto;
+}
+
+.rpt-dialog {
+    width: 100%;
+    max-width: 860px;
+    margin: 24px auto 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* ── TOOLBAR ─────────────────────────────────────────────────────── */
+.rpt-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #0f172a;
+    border-bottom: 1px solid #1e293b;
+    border-radius: 10px 10px 0 0;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.rpt-toolbar-title {
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #64748b;
+}
+
+.rpt-toolbar-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.rpt-btn-print {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #059669;
+    color: white;
+    padding: 7px 16px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.7rem;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+}
+.rpt-btn-print:hover { background: #047857; }
+
+.rpt-btn-close {
+    display: flex;
+    align-items: center;
+    background: #1e293b;
+    color: #94a3b8;
+    padding: 7px 10px;
+    border-radius: 999px;
+    border: 1px solid #334155;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+}
+.rpt-btn-close:hover { background: #334155; }
+
+/* ── CUERPO ──────────────────────────────────────────────────────── */
+.rpt-body {
+    background: #ffffff;
+    color: #0f172a;
+    padding: 32px 36px;
+    border-radius: 0 0 10px 10px;
+    font-family: 'Georgia', serif;
+    font-size: 10pt;
+    line-height: 1.55;
+}
+
+/* ── ENCABEZADO ──────────────────────────────────────────────────── */
+.rpt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #0f172a;
+    margin-bottom: 20px;
+    gap: 16px;
+}
+
+.rpt-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.rpt-logo {
+    height: 44px;
+    width: auto;
+    object-fit: contain;
+}
+
+.rpt-title {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: 0.5px;
+    font-family: 'Arial', sans-serif;
+}
+
+.rpt-subtitle {
+    font-size: 8pt;
+    color: #475569;
+    font-family: 'Arial', sans-serif;
+    letter-spacing: 0.3px;
+    margin-top: 2px;
+}
+
+.rpt-header-meta { text-align: right; }
+
+.rpt-meta-date {
+    font-size: 8pt;
+    color: #475569;
+    font-family: 'Arial', sans-serif;
+}
+
+.rpt-meta-mode {
+    font-size: 7pt;
+    font-weight: 700;
+    color: #0284c7;
+    letter-spacing: 1px;
+    font-family: 'Arial', sans-serif;
+    margin-top: 3px;
+}
+
+/* ── SECCIONES ───────────────────────────────────────────────────── */
+.rpt-section {
+    margin-bottom: 22px;
+    page-break-inside: avoid;
+}
+
+.rpt-section-title {
+    font-size: 7.5pt;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    color: #475569;
+    font-family: 'Arial', sans-serif;
+    text-transform: uppercase;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 4px;
+    margin-bottom: 12px;
+}
+
+/* ── IEC SCORECARD ───────────────────────────────────────────────── */
+.rpt-iec-row {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.rpt-iec-score {
+    min-width: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid;
+    border-radius: 10px;
+    padding: 12px 16px;
+    text-align: center;
+}
+
+.rpt-iec-num {
+    font-size: 32pt;
+    font-weight: 900;
+    font-family: 'Arial', sans-serif;
+    line-height: 1;
+}
+
+.rpt-iec-den {
+    font-size: 10pt;
+    color: #64748b;
+    font-family: 'Arial', sans-serif;
+}
+
+.rpt-iec-sem {
+    font-size: 7pt;
+    font-weight: 800;
+    letter-spacing: 1px;
+    font-family: 'Arial', sans-serif;
+    margin-top: 4px;
+}
+
+.rpt-iec-components {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.rpt-iec-comp {
+    display: grid;
+    grid-template-columns: 150px 1fr 50px 60px;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Arial', sans-serif;
+}
+
+.rpt-iec-comp-label {
+    font-size: 8.5pt;
+    color: #334155;
+}
+
+.rpt-iec-comp-bar {
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.rpt-iec-comp-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--sem-color, #16a34a);
+}
+
+/* Anchos dinámicos vía CSS custom properties */
+.iec-fill-ef   { width: var(--iec-pef,   0%); }
+.iec-fill-coh  { width: var(--iec-pcoh,  0%); }
+.iec-fill-fug  { width: var(--iec-pfug,  0%); }
+.iec-fill-crit { width: var(--iec-pcrit, 0%); }
+
+/* Score — color semáforo */
+[data-sem="VERDE"]    .rpt-iec-score,
+[data-sem="VERDE"]    .rpt-iec-num   { color: #16a34a; border-color: #16a34a; }
+[data-sem="AMARILLO"] .rpt-iec-score,
+[data-sem="AMARILLO"] .rpt-iec-num   { color: #d97706; border-color: #d97706; }
+[data-sem="ROJO"]     .rpt-iec-score,
+[data-sem="ROJO"]     .rpt-iec-num   { color: #dc2626; border-color: #dc2626; }
+
+.rpt-iec-score { border-color: var(--sem-color, #16a34a); color: var(--sem-color, #16a34a); }
+.rpt-iec-num   { color: var(--sem-color, #16a34a); }
+.rpt-iec-sem   { color: var(--sem-color, #16a34a); }
+
+/* Críticos valor rojo */
+.rpt-val-crit { color: #dc2626 !important; }
+
+.rpt-iec-comp-pts {
+    font-size: 8.5pt;
+    font-weight: 700;
+    font-family: 'Arial', sans-serif;
+    text-align: right;
+}
+
+.rpt-iec-comp-raw {
+    font-size: 7.5pt;
+    color: #64748b;
+    font-family: 'Arial', sans-serif;
+}
+
+.rpt-iec-texto {
+    margin-top: 10px;
+    font-size: 9pt;
+    font-style: italic;
+    color: #475569;
+    font-family: 'Arial', sans-serif;
+}
+
+/* ── BALANCE HÍDRICO ─────────────────────────────────────────────── */
+.rpt-balance-chain {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 14px 0;
+    font-family: 'Arial', sans-serif;
+}
+
+.rpt-bc-node {
+    text-align: center;
+    padding: 8px 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #f8fafc;
+}
+
+.rpt-bc-label {
+    font-size: 7pt;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.8px;
+}
+
+.rpt-bc-val {
+    font-size: 12pt;
+    font-weight: 800;
+    color: #0f172a;
+    margin-top: 2px;
+}
+
+.rpt-bc-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 8px;
+    color: #64748b;
+    font-family: 'Arial', sans-serif;
+}
+
+.rpt-bc-loss {
+    font-size: 8.5pt;
+    font-weight: 700;
+    color: #ef4444;
+}
+
+.rpt-bc-dist {
+    font-size: 7pt;
+    color: #94a3b8;
+}
+
+.rpt-balance-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 12px;
+    font-family: 'Arial', sans-serif;
+}
+
+.rpt-bkpi {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.rpt-bkpi span {
+    font-size: 7pt;
+    color: #64748b;
+}
+
+.rpt-bkpi b {
+    font-size: 11pt;
+    color: #0f172a;
+}
+
+/* ── TABLA ───────────────────────────────────────────────────────── */
+.rpt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8pt;
+    font-family: 'Arial', sans-serif;
+}
+
+.rpt-table th {
+    background: #f1f5f9;
+    color: #475569;
+    font-weight: 700;
+    text-align: left;
+    padding: 5px 8px;
+    border: 1px solid #e2e8f0;
+    font-size: 7pt;
+    letter-spacing: 0.3px;
+}
+
+.rpt-table td {
+    padding: 4px 8px;
+    border: 1px solid #e2e8f0;
+    vertical-align: middle;
+}
+
+.rpt-table tr:nth-child(even) { background: #f8fafc; }
+
+.rpt-row-crit td { background: #fef2f2 !important; color: #7f1d1d; }
+.rpt-row-alert td { background: #fffbeb !important; color: #78350f; }
+
+.rpt-mt { margin-top: 10px; }
+
+/* ── FOOTER ──────────────────────────────────────────────────────── */
+.rpt-footer {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 12px;
+    border-top: 1px solid #e2e8f0;
+    margin-top: 24px;
+    font-size: 7pt;
+    color: #94a3b8;
+    font-family: 'Arial', sans-serif;
+}
+
+/* ── PRINT ───────────────────────────────────────────────────────── */
+@media print {
+    .rpt-toolbar { display: none !important; }
+    .rpt-overlay { background: white; padding: 0; }
+    .rpt-dialog  { margin: 0; max-width: 100%; }
+    .rpt-body    { padding: 20px 24px; border-radius: 0; }
+    .rpt-section { page-break-inside: avoid; }
+    .rpt-table   { page-break-inside: auto; }
+    .rpt-table tr { page-break-inside: avoid; }
+}

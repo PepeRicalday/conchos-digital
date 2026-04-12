@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Waves, Play, Pause, RotateCcw, FileText,
   AlertTriangle, AlertOctagon, CheckCircle,
@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase';
 import { onTable } from '../lib/realtimeHub';
 import { getTodayString, addDays, formatTime, formatDate } from '../utils/dateHelpers';
 import SimulationReport from '../components/SimulationReport';
+import { calcIEC, iecColor } from '../utils/canalIndex';
 import './ModelingDashboard.css';
 
 // ── CONSTANTES HIDRÁULICAS ──────────────────────────────────────────────
@@ -2039,6 +2040,27 @@ const ModelingDashboard: React.FC = () => {
   const firstCP      = simResults[0];
   const lastCP       = simResults[simResults.length - 1];
   const globalEff    = qDam > 0 && lastCP ? ((lastCP.q_sim ?? 0) / qDam) * 100 : 0;
+  const iecSim = simResults.length > 0 ? calcIEC({
+    eficiencia:       globalEff,
+    n_coherentes:     simResults.filter(r => r.status === 'ESTABLE').length,
+    total_puntos:     simResults.length,
+    q_fuga_total:     0,
+    q_entrada:        qDam,
+    escalas_criticas: simResults.filter(r => r.status === 'CRITICO').length,
+    total_escalas:    simResults.length,
+  }) : null;
+
+  const iecSimRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = iecSimRef.current;
+    if (!el || !iecSim) return;
+    el.style.setProperty('--iec-color',  iecColor(iecSim.semaforo));
+    el.style.setProperty('--iec-pef',    `${(iecSim.p_eficiencia / 30) * 100}%`);
+    el.style.setProperty('--iec-pcoh',   `${(iecSim.p_coherencia / 25) * 100}%`);
+    el.style.setProperty('--iec-pfug',   `${(iecSim.p_fugas      / 25) * 100}%`);
+    el.style.setProperty('--iec-pcrit',  `${(iecSim.p_criticos   / 20) * 100}%`);
+  }, [iecSim]);
+
   const systemStatus: CPStatus = simResults.some(r => r.status === 'CRITICO')
     ? 'CRITICO' : simResults.some(r => r.status === 'ALERTA') ? 'ALERTA' : 'ESTABLE';
   const riverLagMin  = riverTransit
@@ -2112,6 +2134,22 @@ const ModelingDashboard: React.FC = () => {
               {(globalEff ?? 0).toFixed(1)}<span>%</span>
             </div>
           </div>
+          {iecSim && (
+            <div
+              className="sim-kpi sim-kpi-iec"
+              ref={iecSimRef}
+              title={`${iecSim.texto}\nEficiencia: ${iecSim.p_eficiencia}/30\nCoherencia: ${iecSim.p_coherencia}/25\nFugas: ${iecSim.p_fugas}/25\nNivel canal: ${iecSim.p_criticos}/20`}
+            >
+              <div className="sim-kpi-label">IEC Canal</div>
+              <div className="sim-kpi-val sim-kpi-iec-val">{iecSim.iec}<span>/100</span></div>
+              <div className="sim-kpi-iec-bars">
+                <div className="sim-kpi-iec-bar iec-fill-ef" />
+                <div className="sim-kpi-iec-bar iec-fill-coh" />
+                <div className="sim-kpi-iec-bar iec-fill-fug" />
+                <div className="sim-kpi-iec-bar iec-fill-crit" />
+              </div>
+            </div>
+          )}
           <div className="sim-kpi">
             <div className="sim-kpi-label">Arribo K-104</div>
             <div className="sim-kpi-val" style={{ color: '#fbbf24' }}>{lastCP?.arrival_time ?? '—'}</div>

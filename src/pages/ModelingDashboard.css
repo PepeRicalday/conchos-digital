@@ -123,6 +123,32 @@
   opacity: 0.7;
 }
 
+/* IEC KPI card dentro de sim-kpi-row */
+.sim-kpi-iec { min-width: 72px; }
+
+.sim-kpi-iec-val { color: var(--iec-color, #22c55e) !important; }
+
+.sim-kpi-iec-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 0 4px;
+}
+
+.sim-kpi-iec-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--iec-color, #22c55e);
+  opacity: 0.75;
+  transition: width 0.4s ease;
+}
+
+.iec-fill-ef   { width: var(--iec-pef,   0%); }
+.iec-fill-coh  { width: var(--iec-pcoh,  0%); }
+.iec-fill-fug  { width: var(--iec-pfug,  0%); }
+.iec-fill-crit { width: var(--iec-pcrit, 0%); }
+
 .sim-kpi-status {
   display: flex;
   align-items: center;

@@ -13,15 +13,15 @@ export default defineConfig(({ mode }) => {
 
   return {
     define: {
-      '__V2_APP_VERSION__': JSON.stringify('2.6.0'),
-      '__V2_BUILD_HASH__': JSON.stringify('v2.6.0'),
+      '__V2_APP_VERSION__': JSON.stringify('2.7.0'),
+      '__V2_BUILD_HASH__': JSON.stringify('v2.7.0'),
       '__BUILD_DATE__': JSON.stringify(new Date().toISOString())
     },
     plugins: [
       react(),
       VitePWA({
         registerType: 'autoUpdate',   // SW se actualiza sin prompt
-        filename: 'sw-v2.6.0.js',
+        filename: 'sw-v2.7.0.js',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
           name: 'SICA 005 - Conchos Digital',
@@ -48,6 +48,21 @@ export default defineConfig(({ mode }) => {
           clientsClaim: true,
           cleanupOutdatedCaches: true,
           runtimeCaching: [
+            // Lecturas de escalas — NetworkFirst, 1h stale-while-revalidate
+            {
+              urlPattern: new RegExp(`^${escapedUrl}\\/rest\\/v1\\/(lecturas_escalas|lecturas_presas|movimientos_presas|escalas).*`),
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'sica-telemetria-cache',
+                networkTimeoutSeconds: 6,
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 60 * 60, // 1 hora
+                },
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+            // Resto de la API Supabase — NetworkFirst, 24h
             {
               urlPattern: supabaseCacheRegex,
               handler: 'NetworkFirst',
@@ -55,13 +70,24 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'supabase-api-cache',
                 expiration: {
                   maxEntries: 100,
-                  maxAgeSeconds: 60 * 60 * 24 // 24 hours
+                  maxAgeSeconds: 60 * 60 * 24,
                 },
-                cacheableResponse: {
-                  statuses: [0, 200]
-                }
-              }
-            }
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+            // GeoJSON estático — CacheFirst, 7 días
+            {
+              urlPattern: /\/geo\/.*\.geojson$/,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'sica-geo-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 7,
+                },
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
           ]
         },
         devOptions: {
@@ -70,6 +96,18 @@ export default defineConfig(({ mode }) => {
         }
       })
     ],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react':   ['react', 'react-dom'],
+            'vendor-leaflet': ['leaflet', 'react-leaflet'],
+            'vendor-echarts': ['echarts', 'echarts-for-react'],
+            'vendor-supabase': ['@supabase/supabase-js'],
+          },
+        },
+      },
+    },
     server: {
       open: false
     }

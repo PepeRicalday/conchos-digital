@@ -1379,26 +1379,17 @@
         border-radius: 50%;
     }
 
-    .summary-card-large, .sources-card-section {
+    .dock-panel-left {
         min-width: 100%;
-        width: 100%;
+        max-width: 100%;
         border-right: none;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         padding: 0 0 8px 0;
         margin-bottom: 2px;
     }
-    
-    .fuentes-summary-grid-dock {
-        flex-direction: row;
-        gap: 6px;
-        overflow-x: auto;
-        padding-bottom: 2px;
-    }
 
-    .fuente-dock-mini {
-        flex: 1;
-        min-width: 90px;
-        padding: 4px 6px;
+    .dock-panel-footer {
+        gap: 10px;
     }
 
     .gasto-value { font-size: 1.5rem; letter-spacing: -1px; }
@@ -1513,15 +1504,12 @@
         border-radius: 16px 16px 0 0;
     }
 
-    .summary-card-large {
-        grid-column: 1;
-        border-right: 1px solid rgba(255,255,255,0.05);
-        padding-right: 8px;
-    }
-
-    .sources-card-section {
-        grid-column: 2;
-        padding-left: 4px;
+    .dock-panel-left {
+        grid-column: span 2;
+        border-right: none;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        padding: 0 0 4px 0;
+        max-width: 100%;
     }
 
     .checkpoints-section {
@@ -1531,13 +1519,15 @@
         padding-top: 4px;
     }
 
-    .managerial-card-header, .dock-section-header, .card-label {
-        display: none !important; /* Total removal of headers on mobile to save 40px height */
+    .dock-panel-header, .dock-section-header, .card-label {
+        display: none !important;
     }
 
-    .summary-card-large, .sources-card-section {
-        padding-bottom: 0;
-        margin-bottom: 0;
+    .dock-panel-footer {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 12px;
+        padding-bottom: 2px;
     }
 
     .gasto-value { font-size: 1.0rem; letter-spacing: -0.5px; }
@@ -1737,6 +1727,90 @@
     font-style: italic;
 }
 
+/* ── DOCK: PANEL IZQUIERDO UNIFICADO ─────────────────────────────── */
+.dock-panel-left {
+    min-width: 240px;
+    max-width: 300px;
+    padding: 2px 16px 4px 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dock-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+    min-height: 22px;
+}
+
+.dock-panel-header .card-label {
+    flex: 1;
+    white-space: nowrap;
+    font-size: 0.72rem;
+}
+
+/* Botón PERFIL compacto dentro del header */
+.perfil-inline-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(6, 182, 212, 0.12);
+    border: 1px solid rgba(6, 182, 212, 0.28);
+    border-radius: 14px;
+    padding: 3px 8px;
+    color: #06b6d4;
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+
+.perfil-inline-btn:hover,
+.perfil-inline-btn:active {
+    background: rgba(6, 182, 212, 0.22);
+}
+
+/* Footer: fuente + movimiento + coherencia en una fila */
+.dock-panel-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+}
+
+.dpf-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.dpf-label {
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.dpf-val {
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #94a3b8;
+    font-variant-numeric: tabular-nums;
+}
+
+.dpf-coh .dpf-val {
+    color: #22c55e;
+}
+
 /* ── POPUP PUNTO DE CONTROL — sica-cp-popup ──────────────────────── */
 .sica-cp-popup .leaflet-popup-content-wrapper {
     background: #0c1524;
@@ -1919,4 +1993,247 @@
 
 .scp-footer-stale {
     color: #f59e0b;
+}
+
+/* ── PERFIL LONGITUDINAL DEL CANAL ──────────────────────────────────── */
+.canal-profile-section {
+    min-width: 360px;
+    flex: 2 1 360px;
+    padding: 0.5rem 0.75rem 0.4rem;
+}
+
+.canal-profile-legend {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 6px 10px;
+    flex-wrap: wrap;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    align-items: center;
+}
+
+.cpl-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.58rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 20px;
+    padding: 3px 8px;
+}
+
+.cpl-item::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.cpl-green { color: #22c55e; }
+.cpl-green::before { background: #22c55e; box-shadow: 0 0 4px #22c55e66; }
+
+.cpl-amber { color: #f59e0b; }
+.cpl-amber::before { background: #f59e0b; box-shadow: 0 0 4px #f59e0b66; }
+
+.cpl-red   { color: #ef4444; }
+.cpl-red::before   { background: #ef4444; box-shadow: 0 0 4px #ef444466; }
+
+.cpl-blue  { color: #38bdf8; }
+.cpl-blue::before  { background: #38bdf8; box-shadow: 0 0 4px #38bdf866; }
+
+.cpl-trend { color: #94a3b8; }
+.cpl-trend::before { display: none; }
+
+/* ── PERFIL MODAL ───────────────────────────────────────────────────── */
+.perfil-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    background: rgba(2, 6, 23, 0.82);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: flex-end;        /* bottom-sheet on mobile */
+    justify-content: center;
+    padding: 0;
+    pointer-events: auto;
+}
+
+.perfil-modal {
+    background: rgba(7, 14, 28, 0.98);
+    border: 1px solid rgba(56, 189, 248, 0.12);
+    border-radius: 18px 18px 0 0;
+    width: 100%;
+    max-height: 92dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.6);
+}
+
+.perfil-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    flex-shrink: 0;
+}
+
+.perfil-modal-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #e2e8f0;
+}
+
+.perfil-modal-icon {
+    color: #06b6d4;
+}
+
+.perfil-modal-close {
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+}
+
+.perfil-modal-close:hover,
+.perfil-modal-close:active {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.perfil-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 10px 8px 14px;
+    overscroll-behavior: contain;
+}
+
+/* SVG wrapper: permite scroll horizontal en móvil */
+.perfil-svg-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    padding-bottom: 4px;
+}
+
+.perfil-svg-scroll svg {
+    min-width: 520px;   /* garantiza legibilidad mínima del texto SVG */
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+/* Título del modal: truncar en móvil muy pequeño */
+.perfil-modal-title-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+@media (max-width: 400px) {
+    .perfil-modal-title-text {
+        font-size: 0;         /* ocultar texto largo */
+    }
+    .perfil-modal-title-text::before {
+        content: 'PERFIL HIDRÁULICO';
+        font-size: 0.65rem;
+    }
+}
+
+/* drag handle visual cue */
+.perfil-modal::before {
+    content: '';
+    display: block;
+    width: 38px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 2px;
+    margin: 8px auto 0;
+    flex-shrink: 0;
+}
+
+/* ── TABLET / DESKTOP: center dialog ─── */
+@media (min-width: 640px) {
+    .perfil-modal-overlay {
+        align-items: center;
+        padding: 20px;
+    }
+
+    .perfil-modal {
+        border-radius: 16px;
+        width: min(860px, 96vw);
+        max-height: 88dvh;
+    }
+
+    .perfil-modal::before {
+        display: none;
+    }
+}
+
+/* ── PERFIL TOGGLE BUTTON (dock) ───────────────────────────────────── */
+.perfil-btn-section {
+    display: flex;
+    justify-content: flex-start;
+    padding: 0.25rem 0.5rem 0.1rem;
+}
+
+.perfil-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid rgba(6, 182, 212, 0.25);
+    border-radius: 20px;
+    padding: 5px 12px;
+    color: #06b6d4;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.perfil-toggle-btn:hover,
+.perfil-toggle-btn:active {
+    background: rgba(6, 182, 212, 0.2);
+    border-color: rgba(6, 182, 212, 0.5);
+}
+
+.ptb-badge {
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: #22c55e;
+    letter-spacing: 0.05em;
+    animation: ptb-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ptb-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.45; }
 }

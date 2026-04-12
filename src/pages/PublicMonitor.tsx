@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, ZoomControl, Marker, useMap, Popup } from 'react-leaflet';
 import { supabase } from '../lib/supabase';
 import { useHydricEvents } from '../hooks/useHydricEvents';
-import { Timer, Activity, Clock, ArrowRightCircle, MapPin } from 'lucide-react';
+import { Timer, Activity, Clock, ArrowRightCircle, MapPin, Waves, X } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PublicMonitor.css';
@@ -34,14 +34,193 @@ interface EscalaData {
     estado?: 'OPERANDO' | 'LLENADO' | 'ESPERANDO';
     ultima_telemetria?: number | null;
     // Campos extendidos para ESTABILIZACIÓN
-    gasto_actual?: number | null;       // m³/s medido en campo
-    apertura_actual?: number | null;    // apertura total acumulada (suma de radiales activas, m)
-    puertas_abiertas?: number;          // cuántas compuertas están abiertas
+    gasto_actual?: number | null;
+    apertura_actual?: number | null;
+    puertas_abiertas?: number;
     pzas_radiales?: number;
     ancho?: number;
-    nivel_max_operativo?: number | null; // referencia de nivel máximo para la barra
-    capacidad_max?: number | null;       // caudal máximo de diseño (m³/s)
+    nivel_max_operativo?: number | null;
+    capacidad_max?: number | null;
+    delta_12h?: number | null;          // tendencia en 12h (m) — positivo=sube, negativo=baja
 }
+
+// ── COLOR DE ALERTA POR ESCALA (reutilizado en mapa y perfil) ───────────
+function escalaAlertColor(e: EscalaData, coherencia?: any): string {
+    const nivel = e.nivel_actual ?? 0;
+    if (nivel <= 0) return '#475569'; // sin datos
+    const nivelMax = e.nivel_max_operativo ?? 3.5;
+    const pct = nivelMax > 0 ? nivel / nivelMax : 0;
+    const coh = coherencia?.puntos?.find((p: any) => p.id === e.id);
+    if (coh && !coh.coherente) return '#ef4444';
+    if (pct >= 0.92) return '#ef4444';
+    if (pct >= 0.80) return '#f59e0b';
+    if (nivel >= 2.8) return '#22c55e';
+    return '#38bdf8';
+}
+
+// ── PERFIL LONGITUDINAL DEL CANAL (ESTABILIZACIÓN) ──────────────────────
+const CanalLongitudinalProfile: React.FC<{
+  escalas: EscalaData[];
+  coherencia: any;
+}> = ({ escalas, coherencia }) => {
+  const W = 800, H = 190;
+  const PAD_L = 42, PAD_R = 32, PAD_T = 38, PAD_B = 30;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+  const KM_MAX = 104;
+  const Y_MIN = 1.5, Y_MAX = 4.4;
+
+  const xS = (km: number) => PAD_L + (Math.max(0, Math.min(km, KM_MAX)) / KM_MAX) * plotW;
+  const yS = (y: number) => PAD_T + plotH - ((Math.max(Y_MIN, Math.min(y, Y_MAX)) - Y_MIN) / (Y_MAX - Y_MIN)) * plotH;
+
+  const pts = escalas
+    .filter(e => e.km >= 0 && e.km <= 104 && (e.nivel_actual ?? 0) > 0.1)
+    .sort((a, b) => a.km - b.km);
+
+  const trendArrow = (e: EscalaData): { symbol: string; color: string } => {
+    const d = e.delta_12h ?? 0;
+    if (d > 0.01)  return { symbol: '▲', color: '#ef4444' };
+    if (d < -0.01) return { symbol: '▼', color: '#22c55e' };
+    return { symbol: '—', color: '#475569' };
+  };
+
+  const base = PAD_T + plotH;
+  const waterPoly = pts.length >= 2
+    ? [`${xS(pts[0].km)},${base}`,
+       ...pts.map(e => `${xS(e.km)},${yS(e.nivel_actual ?? 0)}`),
+       `${xS(pts[pts.length - 1].km)},${base}`].join(' ')
+    : '';
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+      <defs>
+        <linearGradient id="cpWater" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#38bdf8" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.02" />
+        </linearGradient>
+        <linearGradient id="cpCrit" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#ef4444" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="#ef4444" stopOpacity="0.04" />
+        </linearGradient>
+        <filter id="cpGlow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+
+      {/* Fondo oscuro */}
+      <rect width={W} height={H} fill="#070e1c" />
+
+      {/* Zona crítica: > 3.5m */}
+      <rect x={PAD_L} y={yS(Y_MAX)} width={plotW} height={yS(3.5) - yS(Y_MAX)} fill="url(#cpCrit)" />
+      {/* Zona alerta: 3.2–3.5m */}
+      <rect x={PAD_L} y={yS(3.5)} width={plotW} height={yS(3.2) - yS(3.5)} fill="rgba(245,158,11,0.07)" />
+      {/* Zona operativa: 2.8–3.2m */}
+      <rect x={PAD_L} y={yS(3.2)} width={plotW} height={yS(2.8) - yS(3.2)} fill="rgba(34,197,94,0.08)" />
+      {/* Zona baja: < 2.8m */}
+      <rect x={PAD_L} y={yS(2.8)} width={plotW} height={yS(Y_MIN) - yS(2.8)} fill="rgba(56,189,248,0.04)" />
+
+      {/* Grid horizontal */}
+      {[2.0, 2.5, 3.0, 3.5, 4.0].map(y => (
+        <line key={y} x1={PAD_L} y1={yS(y)} x2={PAD_L + plotW} y2={yS(y)}
+          stroke="#111e34" strokeWidth={y % 1 === 0 ? 0.9 : 0.5} />
+      ))}
+
+      {/* Grid vertical en KM principales */}
+      {[0, 23, 34, 57, 80, 104].map(km => (
+        <line key={km} x1={xS(km)} y1={PAD_T} x2={xS(km)} y2={base}
+          stroke="#111e34" strokeWidth="0.7" strokeDasharray="3,6" />
+      ))}
+
+      {/* Línea de referencia 3.5m */}
+      <line x1={PAD_L} y1={yS(3.5)} x2={PAD_L + plotW} y2={yS(3.5)}
+        stroke="#f59e0b" strokeWidth="1" strokeDasharray="7,5" opacity="0.65" />
+      <rect x={PAD_L + plotW - 30} y={yS(3.5) - 6} width={30} height={10} fill="#f59e0b" opacity="0.15" rx="2" />
+      <text x={PAD_L + plotW - 15} y={yS(3.5) + 2} fill="#f59e0b" fontSize="6" textAnchor="middle" fontFamily="monospace" fontWeight="bold">LÍM 3.5</text>
+
+      {/* Línea de referencia 2.8m */}
+      <line x1={PAD_L} y1={yS(2.8)} x2={PAD_L + plotW} y2={yS(2.8)}
+        stroke="#22c55e" strokeWidth="1" strokeDasharray="7,5" opacity="0.55" />
+      <rect x={PAD_L + plotW - 30} y={yS(2.8) - 6} width={30} height={10} fill="#22c55e" opacity="0.12" rx="2" />
+      <text x={PAD_L + plotW - 15} y={yS(2.8) + 2} fill="#22c55e" fontSize="6" textAnchor="middle" fontFamily="monospace" fontWeight="bold">MÍN 2.8</text>
+
+      {/* Relleno de agua bajo el perfil */}
+      {pts.length >= 2 && <polygon points={waterPoly} fill="url(#cpWater)" />}
+
+      {/* Perfil — sombra */}
+      {pts.length >= 2 && (
+        <polyline
+          points={pts.map(e => `${xS(e.km)},${yS(e.nivel_actual ?? 0)}`).join(' ')}
+          fill="none" stroke="rgba(56,189,248,0.14)" strokeWidth="7"
+          strokeLinejoin="round" strokeLinecap="round"
+        />
+      )}
+      {/* Perfil — línea principal */}
+      {pts.length >= 2 && (
+        <polyline
+          points={pts.map(e => `${xS(e.km)},${yS(e.nivel_actual ?? 0)}`).join(' ')}
+          fill="none" stroke="rgba(56,189,248,0.55)" strokeWidth="2"
+          strokeLinejoin="round" strokeLinecap="round"
+        />
+      )}
+
+      {/* Ejes */}
+      <line x1={PAD_L} y1={PAD_T} x2={PAD_L} y2={base} stroke="#1e2f45" strokeWidth="1" />
+      <line x1={PAD_L} y1={base} x2={PAD_L + plotW} y2={base} stroke="#1e2f45" strokeWidth="1" />
+
+      {/* Y-axis labels */}
+      {[2.0, 2.5, 3.0, 3.5, 4.0].map(y => (
+        <text key={y} x={PAD_L - 5} y={yS(y) + 2.5}
+          fill="#3d546e" fontSize="7.5" textAnchor="end" fontFamily="monospace">{y.toFixed(1)}</text>
+      ))}
+      <text x={PAD_L - 28} y={PAD_T + plotH / 2}
+        fill="#2d3f55" fontSize="7" textAnchor="middle" fontFamily="monospace"
+        transform={`rotate(-90, ${PAD_L - 28}, ${PAD_T + plotH / 2})`}>m</text>
+
+      {/* KM axis labels */}
+      {[0, 23, 34, 57, 80, 104].map(km => (
+        <g key={km}>
+          <line x1={xS(km)} y1={base} x2={xS(km)} y2={base + 4} stroke="#1e2f45" strokeWidth="1" />
+          <text x={xS(km)} y={H - 6} fill="#3d546e" fontSize="7.5" textAnchor="middle" fontFamily="monospace">K{km}</text>
+        </g>
+      ))}
+
+      {/* Puntos con nivel, halo, tendencia */}
+      {pts.map((e) => {
+        const x = xS(e.km);
+        const y = yS(e.nivel_actual ?? 0);
+        const col = escalaAlertColor(e, coherencia);
+        const { symbol, color: tColor } = trendArrow(e);
+        const nearTop = y < PAD_T + 20;
+        const lY = nearTop ? y + 22 : y - 13;
+
+        return (
+          <g key={e.id} filter="url(#cpGlow)">
+            {/* Drop line */}
+            <line x1={x} y1={y + 6} x2={x} y2={base} stroke={col} strokeWidth="1" opacity="0.18" />
+            {/* Halo exterior */}
+            <circle cx={x} cy={y} r={10} fill={col} opacity="0.10" />
+            {/* Halo medio */}
+            <circle cx={x} cy={y} r={6.5} fill={col} opacity="0.18" />
+            {/* Punto principal */}
+            <circle cx={x} cy={y} r={5} fill={col} stroke="#070e1c" strokeWidth="1.8" />
+            {/* Brillo */}
+            <circle cx={x - 1.5} cy={y - 1.8} r={1.5} fill="rgba(255,255,255,0.45)" />
+            {/* Valor */}
+            <text x={x} y={lY} fill={col} fontSize="9" textAnchor="middle"
+              fontFamily="monospace" fontWeight="bold" letterSpacing="-0.3">
+              {(e.nivel_actual ?? 0).toFixed(2)}
+            </text>
+            {/* Tendencia */}
+            <text x={x + 8} y={lY} fill={tColor} fontSize="8" textAnchor="start" fontFamily="monospace">
+              {symbol}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
 
 // Distancia en KM entre dos puntos (Haversine)
 function haversineDist(lon1: number, lat1: number, lon2: number, lat2: number) {
@@ -80,8 +259,9 @@ const PublicMonitor: React.FC = () => {
     
     // Panel Visibility States - Start minimized on mobile for total map priority
     const isMobile = typeof window !== 'undefined' ? window.innerWidth <= 900 : false;
-    const [isDockVisible, setIsDockVisible] = useState(!isMobile); 
+    const [isDockVisible, setIsDockVisible] = useState(!isMobile);
     const [isPredictionVisible, setIsPredictionVisible] = useState(false);
+    const [showPerfilModal, setShowPerfilModal] = useState(false);
     const [currentTime, setCurrentTime] = useState(() => Date.now());
     const [anchorTimes, setAnchorTimes] = useState<Record<number, string>>({});
 
@@ -162,7 +342,17 @@ const PublicMonitor: React.FC = () => {
             //                 del día anterior al cruzar las 00:00h)
             const todayDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD Chihuahua
             const eventStart = activeEvent?.fecha_inicio || `${todayDate}T00:00:00`;
-            
+
+            // delta_12h de resumen diario — tendencia de nivel por escala
+            const { data: summaryDelta } = await supabase
+                .from('resumen_escalas_diario')
+                .select('escala_id, delta_12h')
+                .eq('fecha', todayDate);
+            const deltaMap = new Map<string, number>();
+            (summaryDelta || []).forEach((r: any) => {
+                if (r.delta_12h != null) deltaMap.set(r.escala_id, r.delta_12h);
+            });
+
             const { data: readings } = await supabase
                 .from('lecturas_escalas')
                 .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, radiales_json, gasto_calculado_m3s, creado_en')
@@ -253,25 +443,15 @@ const PublicMonitor: React.FC = () => {
                     .order('km', { ascending: false });
                 
                 const newAnchors: Record<number, string> = {};
-                
-                // PARCHE OPERATIVO: Forzar ancla KM 68 a las 08:00 AM (Solicitado por Usuario)
-                const hasKm68 = trackData?.some(td => parseFloat(td.km) === 68);
-                if (hasKm68) {
-                    newAnchors[68] = "2026-03-16T14:00:00Z";
-                    sessionStorage.setItem('anchor_time_68', newAnchors[68]);
-                }
 
                 trackData?.forEach(td => {
                     const kmNum = parseFloat(td.km);
-                    if (hasKm68 && kmNum === 68) return; // Skip if we already patched it
                     if (kmNum > maxKmConfirmed) maxKmConfirmed = kmNum;
                     if (!newAnchors[kmNum]) {
                         newAnchors[kmNum] = td.hora_real;
                         sessionStorage.setItem(`anchor_time_${kmNum}`, td.hora_real);
                     }
                 });
-                
-                if (maxKmConfirmed < 68 && hasKm68) maxKmConfirmed = 68;
                 
                 setAnchorTimes(newAnchors);
 
@@ -310,12 +490,6 @@ const PublicMonitor: React.FC = () => {
             }
 
             const baseEscalas = (escData || []).map(e => {
-                // PARCHE OPERATIVO: Rectificación de coordenadas K-68 (Solicitado por Usuario)
-                if (e.km === 68) {
-                    e.latitud = 28.132923;
-                    e.longitud = -105.400709;
-                }
-
                 const reading = readingsMap.get(e.id);
                 const nivel = reading?.nivel;
                 let estado: any = 'ESPERANDO';
@@ -361,6 +535,7 @@ const PublicMonitor: React.FC = () => {
                     puertas_abiertas:      puertasAbiertas > 0 ? puertasAbiertas : undefined,
                     nivel_max_operativo:   (e as any).nivel_max_operativo ?? null,
                     capacidad_max:         (e as any).capacidad_max       ?? null,
+                    delta_12h:             deltaMap.get(e.id) ?? null,
                     estado:                estado,
                     ultima_telemetria:     timestamp,
                     fuente: e.km === 0 ? 'BOQUILLA' : e.km > 100 ? 'MADERO' : null
@@ -719,6 +894,38 @@ const PublicMonitor: React.FC = () => {
 
     const isEstabilizacion = !activeEvent || activeEvent.evento_tipo !== 'LLENADO';
 
+    // Canal segmentado por color de alerta (modo ESTABILIZACIÓN)
+    const canalAlertSegments = useMemo(() => {
+        if (!isEstabilizacion || canalDistData.length === 0 || escalas.length === 0) return [];
+
+        const sorted = [...escalas]
+            .filter(e => typeof e.km === 'number')
+            .sort((a, b) => a.km - b.km);
+
+        if (sorted.length === 0) return [];
+
+        const maxKm = canalDistData[canalDistData.length - 1]?.dist ?? 104;
+        // N escalas → N+1 segments: [0→km0], [km0→km1], …, [km_{N-1}→maxKm]
+        const breakpoints = [0, ...sorted.map(e => e.km), maxKm];
+        // Color for segment i: downstream escala (sorted[i]), last segment reuses sorted[N-1]
+        const colors = [
+            ...sorted.map(e => escalaAlertColor(e, coherenciaCanal)),
+            escalaAlertColor(sorted[sorted.length - 1], coherenciaCanal),
+        ];
+
+        const segments: { coords: [number, number][]; color: string }[] = [];
+        for (let i = 0; i < breakpoints.length - 1; i++) {
+            const fromKm = breakpoints[i];
+            const toKm   = breakpoints[i + 1];
+            const color  = colors[i] ?? '#64748b';
+            const coords = canalDistData
+                .filter(d => d.dist >= fromKm && d.dist <= toKm)
+                .map(d => [d.lat, d.lng] as [number, number]);
+            if (coords.length >= 2) segments.push({ coords, color });
+        }
+        return segments;
+    }, [isEstabilizacion, canalDistData, escalas, coherenciaCanal]);
+
     return (
         <div className="public-monitor-container">
             {/* Compact Header Badge - Floating over map */}
@@ -760,7 +967,7 @@ const PublicMonitor: React.FC = () => {
                     >
                         <Activity size={12} />
                     </button>
-                    <div className="phb-version">v3.4.0-UNIFIED</div>
+                    <div className="phb-version">v{__V2_APP_VERSION__}</div>
                 </div>
             </div>
 
@@ -942,12 +1149,23 @@ const PublicMonitor: React.FC = () => {
                         color="rgba(255,255,255,0.08)" 
                         weight={4} 
                     />
-                    <Polyline 
-                        positions={canalFullLength} 
-                        color="rgba(255,255,255,0.08)" 
-                        weight={4} 
+                    <Polyline
+                        positions={canalFullLength}
+                        color="rgba(255,255,255,0.08)"
+                        weight={4}
                         className="canal-path-base"
                     />
+
+                    {/* Tramos del canal coloreados por alerta (modo ESTABILIZACIÓN) */}
+                    {canalAlertSegments.map((seg, i) => (
+                        <Polyline
+                            key={`seg-${i}`}
+                            positions={seg.coords}
+                            color={seg.color}
+                            weight={6}
+                            opacity={0.85}
+                        />
+                    ))}
 
                     {/* Canal Activo (Stream) - Solo visible si hay avance real confirmado */}
                     {activeEvent?.evento_tipo === 'LLENADO' && (
@@ -986,7 +1204,9 @@ const PublicMonitor: React.FC = () => {
                             key={esc.id}
                             center={[esc.latitud!, esc.longitud!]}
                             radius={esc.km <= displayMaxKm ? 6 : 4}
-                            fillColor={esc.km <= displayMaxKm ? statusColor : '#1e293b'}
+                            fillColor={esc.km <= displayMaxKm
+                                ? (isEstabilizacion ? escalaAlertColor(esc, coherenciaCanal) : statusColor)
+                                : '#1e293b'}
                             color="#fff"
                             weight={1.5}
                             fillOpacity={1}
@@ -1096,12 +1316,12 @@ const PublicMonitor: React.FC = () => {
                 <div className="info-cards-dock animate-in" style={{ animationDelay: '0.4s' }}>
                     <button className="dock-close-btn" onClick={() => setIsDockVisible(false)} title="Cerrar tablero">×</button>
                     
-                    {/* Section 1: Global Balance — LLENADO mantiene vista original, ESTABILIZACIÓN muestra coherencia */}
-                    <div className="dock-section summary-card-large">
+                    {/* Panel izquierdo: Balance / Panorama + Fuentes fusionados */}
+                    <div className="dock-section dock-panel-left">
                         {!isEstabilizacion ? (
-                            // ── Vista LLENADO (original, sin cambios) ──
+                            // ── Vista LLENADO ──
                             <>
-                                <div className="managerial-card-header">
+                                <div className="dock-panel-header">
                                     <span className="card-label">BALANCE HÍDRICO</span>
                                     <div className="health-badge-premium" style={{ borderColor: executiveMetrics.healthColor }}>
                                         <div className="health-dot" style={{ background: executiveMetrics.healthColor }}></div>
@@ -1117,20 +1337,48 @@ const PublicMonitor: React.FC = () => {
                                         <span className="summary-info-title">📊 PROGRESO: <span className="summary-info-value" style={{ color: statusColor }}>{(((displayMaxKm + 36) / (113 + 36)) * 100).toFixed(1)}%</span></span>
                                     </div>
                                 </div>
+                                {/* Fuentes en LLENADO */}
+                                <div className="dock-panel-footer">
+                                    {presasData.map(p => (
+                                        <span key={p.id} className="dpf-item">
+                                            <span className="dpf-label">{p.presas?.nombre_corto?.toUpperCase() || 'PRESA'}</span>
+                                            <span className="dpf-val">{p.extraccion_total?.toFixed(1)} m³/s</span>
+                                        </span>
+                                    ))}
+                                    {damMovements[0]?.fecha_hora && (
+                                        <span className="dpf-item">
+                                            <span className="dpf-label">MOV.</span>
+                                            <span className="dpf-val">
+                                                {formatDate(damMovements[0].fecha_hora, { day: '2-digit', month: 'short' })}
+                                                {' '}
+                                                {new Date(damMovements[0].fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' })}
+                                            </span>
+                                        </span>
+                                    )}
+                                </div>
                             </>
                         ) : (
-                            // ── Vista ESTABILIZACIÓN — Coherencia presa→K104 ──
+                            // ── Vista ESTABILIZACIÓN ──
                             <>
-                                <div className="managerial-card-header">
+                                {/* Header: título + badge + botón perfil */}
+                                <div className="dock-panel-header">
                                     <span className="card-label">PANORAMA DEL CANAL</span>
-                                    <div className="health-badge-premium" style={{ borderColor: coherenciaCanal ? (coherenciaCanal.eficiencia !== null && coherenciaCanal.eficiencia >= 88 ? '#22c55e' : coherenciaCanal.eficiencia !== null && coherenciaCanal.eficiencia >= 80 ? '#eab308' : '#ef4444') : '#475569' }}>
-                                        <div className="health-dot" style={{ background: coherenciaCanal ? (coherenciaCanal.eficiencia !== null && coherenciaCanal.eficiencia >= 88 ? '#22c55e' : '#eab308') : '#475569' }}></div>
-                                        {coherenciaCanal?.eficiencia !== null && coherenciaCanal?.eficiencia !== undefined ? `EF. ${coherenciaCanal.eficiencia.toFixed(1)}%` : 'SIN DATOS'}
-                                    </div>
+                                    {coherenciaCanal && (
+                                        <div className="health-badge-premium" style={{ borderColor: coherenciaCanal.eficiencia !== null && coherenciaCanal.eficiencia >= 88 ? '#22c55e' : coherenciaCanal.eficiencia !== null && coherenciaCanal.eficiencia >= 80 ? '#eab308' : '#ef4444' }}>
+                                            <div className="health-dot" style={{ background: coherenciaCanal.eficiencia !== null && coherenciaCanal.eficiencia >= 88 ? '#22c55e' : '#eab308' }}></div>
+                                            {coherenciaCanal.eficiencia !== null ? `EF. ${coherenciaCanal.eficiencia.toFixed(1)}%` : 'SIN DATOS'}
+                                        </div>
+                                    )}
+                                    <button type="button" className="perfil-inline-btn" onClick={() => setShowPerfilModal(true)} title="Ver perfil hidráulico">
+                                        <Waves size={12} />
+                                        <span>PERFIL</span>
+                                        <span className="ptb-badge">●</span>
+                                    </button>
                                 </div>
+
+                                {/* Cadena de flujo */}
                                 {coherenciaCanal ? (
                                     <div className="coherencia-flow-chain">
-                                        {/* Presa */}
                                         <div className="cfc-node">
                                             <span className="cfc-label">PRESA</span>
                                             <span className="cfc-val">{coherenciaCanal.qPresa.toFixed(1)}</span>
@@ -1140,7 +1388,6 @@ const PublicMonitor: React.FC = () => {
                                             <span className="cfc-loss">{coherenciaCanal.perdidaRio !== null ? `−${coherenciaCanal.perdidaRio.toFixed(1)}` : '—'}</span>
                                             <span className="cfc-dist">36km río</span>
                                         </div>
-                                        {/* K0 */}
                                         <div className="cfc-node">
                                             <span className="cfc-label">K0+000</span>
                                             <span className="cfc-val">{coherenciaCanal.qK0Medido.toFixed(1)}</span>
@@ -1150,7 +1397,6 @@ const PublicMonitor: React.FC = () => {
                                             <span className="cfc-loss">{coherenciaCanal.perdidaCanal !== null ? `−${coherenciaCanal.perdidaCanal.toFixed(1)}` : '—'}</span>
                                             <span className="cfc-dist">104km canal</span>
                                         </div>
-                                        {/* K104 */}
                                         <div className="cfc-node">
                                             <span className="cfc-label">K104</span>
                                             <span className="cfc-val">{coherenciaCanal.qFinal.toFixed(1)}</span>
@@ -1158,42 +1404,35 @@ const PublicMonitor: React.FC = () => {
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="coherencia-sin-datos">
-                                        Sin lecturas de gasto disponibles hoy
-                                    </div>
+                                    <div className="coherencia-sin-datos">Sin lecturas de gasto disponibles hoy</div>
                                 )}
-                                {coherenciaCanal && (
-                                    <div className="coherencia-resumen">
-                                        <span>{coherenciaCanal.nCoherentes}/{coherenciaCanal.totalPuntos} puntos coherentes</span>
-                                    </div>
-                                )}
+
+                                {/* Footer: fuente + movimiento + coherencia en una línea */}
+                                <div className="dock-panel-footer">
+                                    {presasData.map(p => (
+                                        <span key={p.id} className="dpf-item">
+                                            <span className="dpf-label">{p.presas?.nombre_corto?.toUpperCase() || 'PRESA'}</span>
+                                            <span className="dpf-val">{p.extraccion_total?.toFixed(1)} m³/s</span>
+                                        </span>
+                                    ))}
+                                    {damMovements[0]?.fecha_hora && (
+                                        <span className="dpf-item">
+                                            <span className="dpf-label">MOV.</span>
+                                            <span className="dpf-val">
+                                                {formatDate(damMovements[0].fecha_hora, { day: '2-digit', month: 'short' })}
+                                                {' '}
+                                                {new Date(damMovements[0].fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' })}
+                                            </span>
+                                        </span>
+                                    )}
+                                    {coherenciaCanal && (
+                                        <span className="dpf-item dpf-coh">
+                                            <span className="dpf-val">{coherenciaCanal.nCoherentes}/{coherenciaCanal.totalPuntos} coherentes</span>
+                                        </span>
+                                    )}
+                                </div>
                             </>
                         )}
-                    </div>
-
-                    {/* Section 2: Sources Detail (Center) - Integrated from floating card */}
-                    <div className="dock-section sources-card-section">
-                        <div className="dock-section-header">
-                            <span className="card-label">FUENTES ACTIVAS</span>
-                        </div>
-                        <div className="fuentes-summary-grid-dock">
-                            {presasData.map(p => (
-                                <div className="fuente-dock-mini" key={p.id}>
-                                    <span className="fdm-name">{p.presas?.nombre_corto?.toUpperCase() || 'PRESA'}</span>
-                                    <span className="fdm-val">{p.extraccion_total?.toFixed(2)} <small>m³/s</small></span>
-                                </div>
-                            ))}
-                            <div className="fuente-dock-mini time">
-                                <span className="fdm-name">MOVIMIENTO</span>
-                                <span className="fdm-val">
-                                    {damMovements[0]?.fecha_hora ?
-                                        formatDate(damMovements[0].fecha_hora, { day: '2-digit', month: 'short' }) + ' ' +
-                                        new Date(damMovements[0].fecha_hora).toLocaleTimeString('es-MX', {
-                                            hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua'
-                                        }) : '--:--'}
-                                </span>
-                            </div>
-                        </div>
                     </div>
 
                     {/* Section 2: Checkpoints Grid - Visualización compacta de toda la red de escalas */}
@@ -1264,15 +1503,51 @@ const PublicMonitor: React.FC = () => {
                 </div>
             )}
 
+            {/* Modal — Perfil Longitudinal */}
+            {showPerfilModal && (
+                <div className="perfil-modal-overlay" onClick={() => setShowPerfilModal(false)}>
+                    <div className="perfil-modal" onClick={e => e.stopPropagation()}>
+                        <div className="perfil-modal-header">
+                            <div className="perfil-modal-title">
+                                <Waves size={15} className="perfil-modal-icon" />
+                                <span className="perfil-modal-title-text">PERFIL HIDRÁULICO — CANAL CONCHOS</span>
+                                <span className="ptb-badge">● EN VIVO</span>
+                            </div>
+                            <button type="button" className="perfil-modal-close" title="Cerrar perfil" aria-label="Cerrar perfil" onClick={() => setShowPerfilModal(false)}>
+                                <X size={16} />
+                            </button>
+                        </div>
+                        <div className="perfil-modal-body">
+                            <div className="perfil-svg-scroll">
+                                <CanalLongitudinalProfile escalas={escalas} coherencia={coherenciaCanal} />
+                            </div>
+                            <div className="canal-profile-legend">
+                                <span className="cpl-item cpl-green">Operativo 2.8–3.2m</span>
+                                <span className="cpl-item cpl-amber">Alerta &gt;3.2m</span>
+                                <span className="cpl-item cpl-red">Crítico / Incoherente</span>
+                                <span className="cpl-item cpl-blue">Sin rango op.</span>
+                                <span className="cpl-item cpl-trend">▲ sube · ▼ baja · — estable (Δ12h)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="floating-ui-controls-v2">
                 {!isPredictionVisible && activeEvent?.evento_tipo === 'LLENADO' && (
-                    <button className="control-btn-premium" onClick={() => setIsPredictionVisible(true)} title="Mostrar avance del frente">
+                    <button type="button" className="control-btn-premium" onClick={() => setIsPredictionVisible(true)} title="Mostrar avance del frente">
                         <Timer size={18} />
                         <span className="btn-label">TRAYECTO</span>
                     </button>
                 )}
+                {isEstabilizacion && (
+                    <button type="button" className="control-btn-premium" onClick={() => setShowPerfilModal(true)} title="Perfil hidráulico del canal">
+                        <Waves size={18} />
+                        <span className="btn-label">PERFIL</span>
+                    </button>
+                )}
                 {!isDockVisible && (
-                    <button className="control-btn-premium" onClick={() => setIsDockVisible(true)} title="Mostrar tablero">
+                    <button type="button" className="control-btn-premium" onClick={() => setIsDockVisible(true)} title="Mostrar tablero">
                         <Activity size={18} />
                         <span className="btn-label">TABLERO</span>
                     </button>

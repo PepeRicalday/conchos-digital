@@ -1036,13 +1036,22 @@
   font-size: 8px;
   padding: 1px 6px;
   border-radius: 10px;
-  background: rgba(251, 191, 36, 0.12);
-  border: 1px solid rgba(251, 191, 36, 0.4);
-  color: #fbbf24;
   font-weight: 700;
   letter-spacing: 0.04em;
   white-space: nowrap;
   cursor: default;
+}
+/* AFORO SICA: ámbar — valor medido directamente */
+.sim-gate-anchored-badge.sim-gate-anchored-aforo {
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  color: #fbbf24;
+}
+/* ORIFICIO: violeta — valor calculado por fórmula (sin aforo) */
+.sim-gate-anchored-badge.sim-gate-anchored-orificio {
+  background: rgba(167, 139, 250, 0.12);
+  border: 1px solid rgba(167, 139, 250, 0.4);
+  color: #a78bfa;
 }
 
 /* ── COMPARATIVA Q ORIFICIO TEÓRICO vs Q MEDIDO SICA ────────────── */

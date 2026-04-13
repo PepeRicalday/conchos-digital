@@ -79,6 +79,8 @@ interface CPResult {
   // Ancla de compuerta
   q_gate_m3s:   number | null;
   gate_anchored: boolean;
+  // Fuente del ancla: 'AFORO' = gasto_calculado_m3s de SICA, 'ORIFICIO' = cálculo Cd·A·√(2g·H)
+  gate_source:  'AFORO' | 'ORIFICIO' | null;
   // Propagación temporal del frente de onda
   wave_pct:        number;
   wave_arrived:    boolean;
@@ -574,8 +576,25 @@ function runSimulation(
       : Math.max(0.3, pzas > 0 ? 1.25 : 1.0);
     const area_gate = Math.max(0.01, ancho * pzas * h_gate);
 
+    // ── RESOLUCIÓN DE CAUDAL EN COMPUERTA ──────────────────────────────
+    // Cascada de prioridad para anclar el flujo en cada sección:
+    //   1º AFORO: gasto_calculado_m3s de SICA Capture (medición directa)
+    //   2º ORIFICIO: Q = Cd × n × b × apertura × √(2g·y_base) si hay apertura real
+    //   3º Propagación libre desde upstream (sin ancla)
+    // El orificio sustituye al aforo SÓLO cuando no existe medición directa;
+    // provee un ancla física más precisa que dejar fluir qDam sin verificación.
     const gm = safeFloat(gastoMedido[cp.id], 0);
-    const q_gate_m3s: number | null = (gm > 0) ? +gm.toFixed(3) : null;
+    let q_gate_m3s: number | null = (gm > 0) ? +gm.toFixed(3) : null;
+    let gate_source: 'AFORO' | 'ORIFICIO' | null = q_gate_m3s !== null ? 'AFORO' : null;
+
+    if (q_gate_m3s === null && has_real_gate && h_gate > 0 && y_base > 0.1) {
+      // Sin aforo directo pero apertura real conocida → calcular por fórmula de orificio
+      const q_orificio = cd_used * pzas * ancho * h_gate * Math.sqrt(2 * G * y_base);
+      if (q_orificio > 0.1) {
+        q_gate_m3s = +q_orificio.toFixed(3);
+        gate_source = 'ORIFICIO';
+      }
+    }
 
     const head_base  = Math.pow(Math.max(qBaseCur, 0.1) / (cd_used * area_gate), 2) / (2 * G);
     const head_sim   = Math.pow(Math.max(qCur,     0.1) / (cd_used * area_gate), 2) / (2 * G);
@@ -687,7 +706,7 @@ function runSimulation(
       canal_depth_m: canal_depth,
       capacidad_diseno_m3s: qdis,
       pct_capacidad_diseno: qdis > 0 ? Math.min(120, (q_sim_arribo / qdis) * 100) : 0,
-      q_gate_m3s, gate_anchored,
+      q_gate_m3s, gate_anchored, gate_source,
       wave_pct, wave_arrived, maniobra_time,
     };
   });
@@ -2830,10 +2849,17 @@ const ModelingDashboard: React.FC = () => {
                 <div className="sim-gate-hdr">
                   <span>Apertura Radial</span>
                   <div className="sim-gate-badges">
-                    {/* A5.1: Indicador de ancla de compuerta activa */}
-                    {activeCPResult.gate_anchored && (
-                      <span className="sim-gate-anchored-badge" title="El gasto medido por SICA Capture es menor al simulado — el motor usó la medición real como límite superior.">
-                        ⚓ ANCLA SICA
+                    {/* Indicador de ancla activa — distingue fuente: aforo vs orificio */}
+                    {activeCPResult.gate_anchored && activeCPResult.gate_source === 'AFORO' && (
+                      <span className="sim-gate-anchored-badge sim-gate-anchored-aforo"
+                        title="Gasto anclado al aforo medido por SICA Capture (gasto_calculado_m3s). El motor capó el flujo simulado al valor real medido.">
+                        ⚓ AFORO SICA
+                      </span>
+                    )}
+                    {activeCPResult.gate_anchored && activeCPResult.gate_source === 'ORIFICIO' && (
+                      <span className="sim-gate-anchored-badge sim-gate-anchored-orificio"
+                        title="Sin aforo SICA disponible — el caudal fue calculado por fórmula de orificio (Cd·n·b·apertura·√(2g·y)). Basado en apertura real y tirante medido.">
+                        ⚙ ORIFICIO
                       </span>
                     )}
                     {gateBase[activeCP] != null && (
@@ -2844,25 +2870,39 @@ const ModelingDashboard: React.FC = () => {
                     <span className="sim-gate-val">{(gateOverrides[activeCP] ?? activeCPResult.h_radial ?? 0).toFixed(2)} m</span>
                   </div>
                 </div>
-                {/* A5.2: Comparativa Q orificio teórico vs Q medido SICA */}
-                {activeCPResult.gate_anchored && activeCPResult.q_gate_m3s != null && (() => {
-                  const qTeorico = CD_GATE * activeCPResult.area_gate * Math.sqrt(2 * G * Math.max(0.01, activeCPResult.y_base));
-                  const qMedido  = activeCPResult.q_gate_m3s;
-                  const ratio    = qTeorico > 0 ? qMedido / qTeorico : 1;
-                  const incoherente = ratio < 0.6 || ratio > 1.4;
+                {/* Comparativa Q orificio — siempre visible cuando hay ancla o apertura real */}
+                {activeCPResult.q_gate_m3s != null && (() => {
+                  const qOrificio = CD_GATE * activeCPResult.area_gate
+                    * Math.sqrt(2 * G * Math.max(0.01, activeCPResult.y_base));
+                  const isAforo    = activeCPResult.gate_source === 'AFORO';
+                  const isOrificio = activeCPResult.gate_source === 'ORIFICIO';
+                  const ratio      = isAforo && qOrificio > 0
+                    ? activeCPResult.q_gate_m3s / qOrificio : 1;
+                  const incoherente = isAforo && (ratio < 0.6 || ratio > 1.4);
                   return (
-                    <div className="sim-gate-orificio" style={{ borderColor: incoherente ? '#ef4444' : '#1e3a5f' }}>
+                    <div className="sim-gate-orificio"
+                      style={{ borderColor: incoherente ? '#ef4444' : isOrificio ? 'rgba(167,139,250,0.4)' : 'var(--sim-border)' }}>
+                      {isAforo && (
+                        <div className="sim-gate-orif-row">
+                          <span>Q orificio teórico</span>
+                          <span style={{ color: '#94a3b8' }}>{qOrificio.toFixed(2)} m³/s</span>
+                        </div>
+                      )}
                       <div className="sim-gate-orif-row">
-                        <span>Q teórico orificio</span>
-                        <span style={{ color: '#94a3b8' }}>{qTeorico.toFixed(2)} m³/s</span>
+                        <span>{isAforo ? 'Q aforo SICA (ancla)' : 'Q calculado orificio'}</span>
+                        <span style={{ color: isOrificio ? '#a78bfa' : '#38bdf8' }}>
+                          {activeCPResult.q_gate_m3s.toFixed(2)} m³/s
+                        </span>
                       </div>
-                      <div className="sim-gate-orif-row">
-                        <span>Q medido SICA (ancla)</span>
-                        <span style={{ color: '#38bdf8' }}>{qMedido.toFixed(2)} m³/s</span>
-                      </div>
+                      {isOrificio && (
+                        <div className="sim-gate-orif-row" style={{ color: '#475569', fontSize: '8px' }}>
+                          <span>Cd·{activeCPResult.area_gate.toFixed(1)}m²·√(2g·{activeCPResult.y_base.toFixed(2)}m)</span>
+                          <span style={{ color: '#64748b' }}>sin aforo</span>
+                        </div>
+                      )}
                       {incoherente && (
                         <div className="sim-gate-orif-alert">
-                          <AlertTriangle size={9} /> Incoherencia: Q_SICA = {(ratio * 100).toFixed(0)}% del teórico — verificar apertura o calibración Cd
+                          <AlertTriangle size={9} /> Q_aforo = {(ratio * 100).toFixed(0)}% del teórico — verificar apertura o calibración Cd
                         </div>
                       )}
                     </div>
@@ -2882,9 +2922,11 @@ const ModelingDashboard: React.FC = () => {
                 {(Math.abs(qDam - qBase) > 0.5 || activeCPResult.gate_anchored || activeCPResult.km >= 100) && (
                   <div className="sim-gate-required">
                     <div className="sim-gate-req-label">
-                      {activeCPResult.gate_anchored
-                        ? '⚓ ANCLA — Q real SICA limita el simulado'
-                        : qDam > qBase ? '▲ INCREMENTO' : '▼ DECREMENTO'} · Ajuste operativo requerido
+                      {activeCPResult.gate_anchored && activeCPResult.gate_source === 'AFORO'
+                        ? '⚓ AFORO SICA — limita el Q simulado'
+                        : activeCPResult.gate_anchored && activeCPResult.gate_source === 'ORIFICIO'
+                          ? '⚙ ORIFICIO — Q calculado por compuerta'
+                          : qDam > qBase ? '▲ INCREMENTO' : '▼ DECREMENTO'} · Ajuste operativo requerido
                     </div>
                     <div className="sim-gate-req-row">
                       <div className="sim-gate-req-item">

@@ -2830,6 +2830,12 @@ const ModelingDashboard: React.FC = () => {
                 <div className="sim-gate-hdr">
                   <span>Apertura Radial</span>
                   <div className="sim-gate-badges">
+                    {/* A5.1: Indicador de ancla de compuerta activa */}
+                    {activeCPResult.gate_anchored && (
+                      <span className="sim-gate-anchored-badge" title="El gasto medido por SICA Capture es menor al simulado — el motor usó la medición real como límite superior.">
+                        ⚓ ANCLA SICA
+                      </span>
+                    )}
                     {gateBase[activeCP] != null && (
                       <span className="sim-gate-base-badge">
                         SICA: {gateBase[activeCP].toFixed(2)}m
@@ -2838,6 +2844,30 @@ const ModelingDashboard: React.FC = () => {
                     <span className="sim-gate-val">{(gateOverrides[activeCP] ?? activeCPResult.h_radial ?? 0).toFixed(2)} m</span>
                   </div>
                 </div>
+                {/* A5.2: Comparativa Q orificio teórico vs Q medido SICA */}
+                {activeCPResult.gate_anchored && activeCPResult.q_gate_m3s != null && (() => {
+                  const qTeorico = CD_GATE * activeCPResult.area_gate * Math.sqrt(2 * G * Math.max(0.01, activeCPResult.y_base));
+                  const qMedido  = activeCPResult.q_gate_m3s;
+                  const ratio    = qTeorico > 0 ? qMedido / qTeorico : 1;
+                  const incoherente = ratio < 0.6 || ratio > 1.4;
+                  return (
+                    <div className="sim-gate-orificio" style={{ borderColor: incoherente ? '#ef4444' : '#1e3a5f' }}>
+                      <div className="sim-gate-orif-row">
+                        <span>Q teórico orificio</span>
+                        <span style={{ color: '#94a3b8' }}>{qTeorico.toFixed(2)} m³/s</span>
+                      </div>
+                      <div className="sim-gate-orif-row">
+                        <span>Q medido SICA (ancla)</span>
+                        <span style={{ color: '#38bdf8' }}>{qMedido.toFixed(2)} m³/s</span>
+                      </div>
+                      {incoherente && (
+                        <div className="sim-gate-orif-alert">
+                          <AlertTriangle size={9} /> Incoherencia: Q_SICA = {(ratio * 100).toFixed(0)}% del teórico — verificar apertura o calibración Cd
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <input type="range" min={0.1} max={3} step={0.05}
                   value={gateOverrides[activeCP] ?? activeCPResult.h_radial}
                   onChange={e => setGateOverrides({ ...gateOverrides, [activeCP]: +e.target.value })}
@@ -2848,10 +2878,13 @@ const ModelingDashboard: React.FC = () => {
                   <span>3.0 m</span>
                 </div>
                 {/* Bloque de apertura requerida — lógica operativa canal */}
-                {Math.abs(qDam - qBase) > 0.5 && (
+                {/* A5.5: Mostrar siempre para K-104 y secciones con ancla activa */}
+                {(Math.abs(qDam - qBase) > 0.5 || activeCPResult.gate_anchored || activeCPResult.km >= 100) && (
                   <div className="sim-gate-required">
                     <div className="sim-gate-req-label">
-                      {qDam > qBase ? '▲ INCREMENTO' : '▼ DECREMENTO'} · Ajuste operativo requerido
+                      {activeCPResult.gate_anchored
+                        ? '⚓ ANCLA — Q real SICA limita el simulado'
+                        : qDam > qBase ? '▲ INCREMENTO' : '▼ DECREMENTO'} · Ajuste operativo requerido
                     </div>
                     <div className="sim-gate-req-row">
                       <div className="sim-gate-req-item">
@@ -2988,6 +3021,15 @@ const ModelingDashboard: React.FC = () => {
                       return [
                       ['Plantilla / Talud / n',  `${tr.plantilla_m}m · ${tr.talud_z}:1 · n=${tr.rugosidad_n}`, '#475569'],
                       ['Tirante normal y_n',     `${yn.toFixed(3)} m`, '#38bdf8'],
+                      // A5.4: mostrar piso de servicio activo para entender por qué y_sim ≠ y_n
+                      ...((() => {
+                        const { yMin: yMinOp } = getOpLimits(activeCPResult.km);
+                        const yFloor = Math.max(yMinOp, activeCPResult.y_base * 0.90);
+                        const floorActive = yn < yFloor;
+                        return floorActive ? [
+                          ['Piso de servicio', `max(${yMinOp.toFixed(2)}, 90%·${activeCPResult.y_base.toFixed(2)}) = ${yFloor.toFixed(3)} m — y_n < piso`, '#a78bfa'] as [string, string, string],
+                        ] : [];
+                      })()),
                       ['Tirante simulado y_sim', `${(activeCPResult.y_sim??0).toFixed(3)} m`, statusColor(activeCPResult.status)],
                       ['Δy  (variación escala)', `${(activeCPResult.delta_y??0) >= 0 ? '+' : ''}${(activeCPResult.delta_y??0).toFixed(4)} m  (${Math.round((activeCPResult.delta_y??0)*100)} cm)`, Math.abs(activeCPResult.delta_y??0)*100 > 5 ? ((activeCPResult.delta_y??0) > 0 ? '#fbbf24' : '#60a5fa') : '#94a3b8'],
                       ['Curva hidráulica',       activeCPResult.remanso_type === 'M1' ? 'M1 — Remanso positivo' : activeCPResult.remanso_type === 'M2' ? 'M2 — Descenso (drawdown)' : 'Normal (sin remanso)', '#a78bfa'],
@@ -3008,23 +3050,34 @@ const ModelingDashboard: React.FC = () => {
               )}
 
               {/* Balance hídrico */}
+              {/* A5.3: Usar Q real K-0 (SICA) como referencia de entrada cuando esté disponible */}
               <div className="sim-balance-wrap">
                 <div className="sim-panel-title"><Droplets size={10} /> Balance Hídrico hasta K{activeCPResult.km}</div>
-                {[
-                  ['Entrada (Presa)',     `${qDam.toFixed(2)} m³/s`,                                '#38bdf8'],
-                  ['Llegada a sección',  `${(activeCPResult.q_sim ?? 0).toFixed(2)} m³/s`,         '#2dd4bf'],
-                  ['Pérdida en tramo',   `−${(qDam - (activeCPResult.q_sim ?? 0)).toFixed(2)} m³/s`, '#ef4444'],
-                ].map(([k, v, c]) => (
-                  <div key={k as string} className="sim-balance-row">
-                    <span>{k as string}</span><span style={{ color: c as string }}>{v as string}</span>
-                  </div>
-                ))}
-                <div className="sim-balance-eff">
-                  <span>Eficiencia hasta K{activeCPResult.km}</span>
-                  <span style={{ color: qDam > 0 ? (((activeCPResult.q_sim ?? 0) / qDam * 100) >= 90 ? '#10b981' : '#f59e0b') : '#64748b' }}>
-                    {qDam > 0 ? ((activeCPResult.q_sim ?? 0) / qDam * 100).toFixed(1) : '—'}%
-                  </span>
-                </div>
+                {(() => {
+                  const qEntrada = dataStatus.qRealK0 ?? qDam;
+                  const qLlegada = activeCPResult.q_sim ?? 0;
+                  const etiqueta = dataStatus.qRealK0 != null ? 'Entrada (Canal K-0 SICA)' : 'Entrada (Presa — estimado)';
+                  const efic     = qEntrada > 0 ? (qLlegada / qEntrada * 100) : 0;
+                  return (
+                    <>
+                      {[
+                        [etiqueta,            `${qEntrada.toFixed(2)} m³/s`, '#38bdf8'],
+                        ['Llegada a sección', `${qLlegada.toFixed(2)} m³/s`, '#2dd4bf'],
+                        ['Pérdida en tramo',  `−${(qEntrada - qLlegada).toFixed(2)} m³/s`, '#ef4444'],
+                      ].map(([k, v, c]) => (
+                        <div key={k as string} className="sim-balance-row">
+                          <span>{k as string}</span><span style={{ color: c as string }}>{v as string}</span>
+                        </div>
+                      ))}
+                      <div className="sim-balance-eff">
+                        <span>Eficiencia hasta K{activeCPResult.km}</span>
+                        <span style={{ color: qEntrada > 0 ? (efic >= 90 ? '#10b981' : '#f59e0b') : '#64748b' }}>
+                          {qEntrada > 0 ? efic.toFixed(1) : '—'}%
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </>
           ) : (

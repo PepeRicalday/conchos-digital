@@ -1031,6 +1031,52 @@
   white-space: nowrap;
 }
 
+/* ── ANCLA DE COMPUERTA ACTIVA (gate_anchored) ──────────────────── */
+.sim-gate-anchored-badge {
+  font-size: 8px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  color: #fbbf24;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: default;
+}
+
+/* ── COMPARATIVA Q ORIFICIO TEÓRICO vs Q MEDIDO SICA ────────────── */
+.sim-gate-orificio {
+  margin-top: 6px;
+  border-radius: 6px;
+  border: 1px solid var(--sim-border);
+  background: rgba(10, 22, 42, 0.6);
+  padding: 6px 10px;
+  font-size: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sim-gate-orif-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #64748b;
+}
+
+.sim-gate-orif-alert {
+  margin-top: 3px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+  font-size: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  line-height: 1.4;
+}
+
 /* ── PANEL TÉCNICO: ANÁLISIS HIDRÁULICO ─────────────────────────── */
 .sim-hydraulic-analysis {
   display: flex;

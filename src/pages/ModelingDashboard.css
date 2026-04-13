@@ -1220,6 +1220,53 @@
   font-style: italic;
 }
 
+/* ── BLOQUE APERTURA OK — INCREMENTO SIN ACCIÓN REQUERIDA ─────────── */
+/* Variante verde del sim-gate-required cuando la compuerta ya es suficiente */
+.sim-gate-required.gate-ok {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.sim-gate-required.gate-ok .sim-gate-req-label {
+  color: #6ee7b7;
+  border-bottom-color: rgba(16, 185, 129, 0.2);
+}
+
+.sim-gate-ok-body {
+  padding: 6px 10px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sim-gate-ok-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 9px;
+  color: #64748b;
+}
+
+.sim-gate-ok-val  { color: #38bdf8; font-weight: 600; }
+.sim-gate-ok-cap  { color: #10b981; font-weight: 700; }
+.sim-gate-ok-q    { color: #2dd4bf; font-weight: 600; }
+
+.sim-gate-ok-note {
+  color: #10b981;
+  border-top-color: rgba(16, 185, 129, 0.2);
+  font-style: normal;
+  font-weight: 500;
+}
+
+/* Flecha de apertura diferenciada por color de dirección */
+.sim-gate-req-arrow {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
 /* ══════════════════════════════════════════════════════════════════
    FASE 2 — PANEL COMPARACIÓN DE ESCENARIOS
    ══════════════════════════════════════════════════════════════════ */

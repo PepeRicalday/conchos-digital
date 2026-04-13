@@ -2961,45 +2961,100 @@ const ModelingDashboard: React.FC = () => {
                   <span>{activeCPData.pzas_radiales} pzas · ancho {activeCPData.ancho}m · A={activeCPResult.area_gate.toFixed(1)}m²</span>
                   <span>3.0 m</span>
                 </div>
-                {/* Bloque de apertura requerida — lógica operativa canal */}
-                {/* A5.5: Mostrar siempre para K-104 y secciones con ancla activa */}
-                {(Math.abs(qDam - qBase) > 0.5 || activeCPResult.gate_anchored || activeCPResult.km >= 100) && (
-                  <div className="sim-gate-required">
-                    <div className="sim-gate-req-label">
-                      {activeCPResult.gate_anchored && activeCPResult.gate_source === 'AFORO'
-                        ? '⚓ AFORO SICA — limita el Q simulado'
-                        : activeCPResult.gate_anchored && activeCPResult.gate_source === 'ORIFICIO'
-                          ? '⚙ ORIFICIO — Q calculado por compuerta'
-                          : qDam > qBase ? '▲ INCREMENTO' : '▼ DECREMENTO'} · Ajuste operativo requerido
+                {/* ── BLOQUE APERTURA OPERATIVA ─────────────────────────────────
+                    Semántica diferenciada por DIRECCIÓN del cambio:
+                    • INCREMENTO → pregunta: ¿puede la compuerta pasar el nuevo Q?
+                      Si capacidad física > Q_sim → "Suficiente, sin acción"
+                      Si capacidad < Q_sim (cuello botella) → "ABRIR"
+                      NUNCA mostrar "CERRAR" durante INCREMENT (físicamente contrario)
+                    • DECREMENTO / CORTE → pregunta: ¿qué apertura mantiene el nivel?
+                      apertura_req vs apertura_actual → CERRAR válido aquí
+                ─────────────────────────────────────────────────────────────── */}
+                {(Math.abs(qDam - qBase) > 0.5 || activeCPResult.gate_anchored || activeCPResult.km >= 100) && (() => {
+                  const isIncrement   = qDam > qBase + 0.5;
+                  const aperBase      = gateBase[activeCP] ?? activeCPResult.h_radial ?? 0;
+                  const aperReq       = Math.min(3.0, Math.max(0.1, activeCPResult.apertura_requerida));
+                  // Capacidad física de la compuerta al tirante actual
+                  const qCapacidad    = activeCPResult.cd_used * activeCPResult.area_gate
+                    * Math.sqrt(2 * G * Math.max(0.01, activeCPResult.y_sim));
+                  const qProyectado   = activeCPResult.q_sim ?? 0;
+                  const esSuficiente  = isIncrement && qCapacidad >= qProyectado * 0.90;
+
+                  // Etiqueta de encabezado
+                  const labelHead =
+                    activeCPResult.gate_anchored && activeCPResult.gate_source === 'AFORO'
+                      ? '⚓ AFORO SICA — limita el Q simulado'
+                    : activeCPResult.gate_anchored && activeCPResult.gate_source === 'ORIFICIO'
+                      ? '⚙ ORIFICIO — Q calculado por compuerta'
+                    : isIncrement
+                      ? '▲ INCREMENTO'
+                      : '▼ DECREMENTO';
+
+                  return (
+                    <div className={`sim-gate-required${esSuficiente ? ' gate-ok' : ''}`}>
+                      <div className="sim-gate-req-label">
+                        {labelHead} · {esSuficiente
+                          ? 'Compuerta con capacidad suficiente'
+                          : 'Ajuste operativo requerido'}
+                      </div>
+
+                      {esSuficiente ? (
+                        /* INCREMENTO — compuerta no es cuello de botella */
+                        <>
+                          <div className="sim-gate-ok-body">
+                            <div className="sim-gate-ok-row">
+                              <span>Apertura actual</span>
+                              <span className="sim-gate-ok-val">{aperBase.toFixed(2)} m</span>
+                            </div>
+                            <div className="sim-gate-ok-row">
+                              <span>Capacidad compuerta</span>
+                              <span className="sim-gate-ok-cap">{qCapacidad.toFixed(1)} m³/s</span>
+                            </div>
+                            <div className="sim-gate-ok-row">
+                              <span>Q proyectado</span>
+                              <span className="sim-gate-ok-q">{qProyectado.toFixed(1)} m³/s</span>
+                            </div>
+                          </div>
+                          <div className="sim-gate-req-note sim-gate-ok-note">
+                            ✓ Sin acción en compuerta — el volumen incremental pasará sin restricción
+                          </div>
+                        </>
+                      ) : (
+                        /* DECREMENTO o INCREMENTO cuello de botella */
+                        <>
+                          <div className="sim-gate-req-row">
+                            <div className="sim-gate-req-item">
+                              <span className="sim-gate-req-key">Apertura actual (SICA)</span>
+                              <span className="sim-gate-req-val current">{aperBase.toFixed(2)} m</span>
+                            </div>
+                            <div className="sim-gate-req-arrow" style={{
+                              color: isIncrement ? '#f59e0b' : aperReq > aperBase ? '#f59e0b' : '#60a5fa',
+                            }}>
+                              {/* Durante INCREMENT solo puede ser ABRIR (cuello de botella) */}
+                              {isIncrement || aperReq > aperBase ? '→ ABRIR →' : '→ CERRAR →'}
+                            </div>
+                            <div className="sim-gate-req-item">
+                              <span className="sim-gate-req-key">
+                                {isIncrement ? 'Apertura mínima requerida' : 'Apertura requerida'}
+                              </span>
+                              <span className="sim-gate-req-val required">{aperReq.toFixed(2)} m</span>
+                            </div>
+                          </div>
+                          <div className="sim-gate-req-note">
+                            {isIncrement
+                              ? `Compuerta limita el paso · Cap. actual: ${qCapacidad.toFixed(1)} m³/s < Q proyectado: ${qProyectado.toFixed(1)} m³/s`
+                              : `Para mantener escala ${activeCPResult.y_base.toFixed(2)}m con Q=${qProyectado.toFixed(1)}m³/s`}
+                          </div>
+                          {activeCPResult.apertura_requerida > 3.0 && (
+                            <div className="sim-gate-req-overflow">
+                              <AlertOctagon size={9} /> Apertura calculada {activeCPResult.apertura_requerida.toFixed(2)}m excede límite físico (3.0m) — Q no puede mantenerse en esta escala
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
-                    <div className="sim-gate-req-row">
-                      <div className="sim-gate-req-item">
-                        <span className="sim-gate-req-key">Apertura actual (SICA)</span>
-                        <span className="sim-gate-req-val current">
-                          {(gateBase[activeCP] ?? activeCPResult.h_radial ?? 0).toFixed(2)} m
-                        </span>
-                      </div>
-                      <div className="sim-gate-req-arrow">
-                        {activeCPResult.apertura_requerida > (gateBase[activeCP] ?? activeCPResult.h_radial ?? 0)
-                          ? '→ ABRIR →' : '→ CERRAR →'}
-                      </div>
-                      <div className="sim-gate-req-item">
-                        <span className="sim-gate-req-key">Apertura requerida</span>
-                        <span className="sim-gate-req-val required">
-                          {Math.min(3.0, Math.max(0.1, activeCPResult.apertura_requerida)).toFixed(2)} m
-                        </span>
-                      </div>
-                    </div>
-                    <div className="sim-gate-req-note">
-                      Para mantener escala {activeCPResult.y_base.toFixed(2)}m con Q={activeCPResult.q_sim.toFixed(1)}m³/s
-                    </div>
-                    {activeCPResult.apertura_requerida > 3.0 && (
-                      <div className="sim-gate-req-overflow">
-                        <AlertOctagon size={9} /> Apertura calculada {activeCPResult.apertura_requerida.toFixed(2)}m excede límite físico (3.0m) — Q no puede mantenerse en esta escala
-                      </div>
-                    )}
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* Métricas */}

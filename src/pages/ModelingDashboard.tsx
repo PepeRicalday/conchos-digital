@@ -423,18 +423,53 @@ function generateDecisions(
       });
     }
 
-    // R4: Ajuste de apertura significativo requerido
-    // Usa delta_apertura del motor (calculado con límites operativos [2.8, 3.5])
-    if (Math.abs(deltaQ) > 0.5 && Math.abs(aperDelta) > 0.05) {
-      decisions.push({
-        prioridad: Math.abs(aperDelta) > 0.40 ? 'ALERTA' : 'INFO',
-        tipo:      aperDelta > 0 ? 'APERTURA' : 'CIERRE',
-        punto: r.nombre, km: r.km,
-        accion: `${aperDelta > 0 ? 'ABRIR' : 'CERRAR'} radiales ${r.nombre}`,
-        detalle: `Para mantener escala en ${(r.y_target ?? r.y_base).toFixed(2)} m [rango 2.80–3.50] con Q = ${r.q_sim.toFixed(1)} m³/s`,
-        valor_actual: `${gateActual.toFixed(2)} m`,
-        valor_meta:   `${aperReq.toFixed(2)} m (${aperDelta > 0 ? '+' : ''}${aperDelta.toFixed(2)} m)`,
-      });
+    // R4: Ajuste de apertura — lógica diferenciada por DIRECCIÓN DEL CAMBIO
+    // ─────────────────────────────────────────────────────────────────────
+    // INCREMENTO: llega más volumen. El operador debe facilitar el paso aguas abajo.
+    //   - Verificar si la compuerta puede pasar físicamente el Q proyectado.
+    //   - Si puede → sin acción en compuerta (el agua pasa sola).
+    //   - NUNCA emitir CIERRE durante INCREMENTO (Bug B: apertura_req < apertura_base
+    //     porque cabeza alta y compuerta ya sobre-dimensionada NO implica cerrar).
+    //
+    // DECREMENTO / CORTE: llega menos volumen, nivel puede caer.
+    //   - Posible cierre para sostener carga mínima en tomas laterales.
+    //   - apertura_requerida vs apertura_base es válido aquí.
+    if (Math.abs(deltaQ) > 0.5) {
+      const isIncrement = deltaQ > 0;
+
+      if (isIncrement) {
+        // Capacidad física actual de la compuerta (Cd·A·√2gH)
+        const qCapacidad = r.cd_used * r.area_gate
+          * Math.sqrt(2 * G * Math.max(0.01, r.y_sim));
+        const cuelloBottella = qCapacidad < r.q_sim * 0.90 && r.q_sim > 1;
+        if (cuelloBottella) {
+          // Compuerta es el cuello de botella físico → ABRIR
+          decisions.push({
+            prioridad: 'ALERTA', tipo: 'APERTURA',
+            punto: r.nombre, km: r.km,
+            accion: `ABRIR radiales ${r.nombre} — compuerta cuello de botella`,
+            detalle: `Capacidad compuerta: ${qCapacidad.toFixed(1)} m³/s · Q proyectado: ${r.q_sim.toFixed(1)} m³/s — apertura insuficiente para el incremento`,
+            valor_actual: `${gateActual.toFixed(2)} m`,
+            valor_meta:   `${aperReq.toFixed(2)} m`,
+          });
+        }
+        // Si capacidad > Q proyectado: la compuerta ya pasa el volumen — no hay acción.
+        // No se emite CIERRE durante INCREMENTO.
+      } else {
+        // DECREMENTO / CORTE: ajuste para sostener nivel de servicio
+        if (Math.abs(aperDelta) > 0.05) {
+          const { yMin, yMax } = getOpLimits(r.km);
+          decisions.push({
+            prioridad: Math.abs(aperDelta) > 0.40 ? 'ALERTA' : 'INFO',
+            tipo:      aperDelta > 0 ? 'APERTURA' : 'CIERRE',
+            punto: r.nombre, km: r.km,
+            accion: `${aperDelta > 0 ? 'ABRIR' : 'CERRAR'} radiales ${r.nombre}`,
+            detalle: `Sostener escala en ${(r.y_target ?? r.y_base).toFixed(2)} m [${yMin.toFixed(2)}–${yMax.toFixed(2)}] con Q = ${r.q_sim.toFixed(1)} m³/s`,
+            valor_actual: `${gateActual.toFixed(2)} m`,
+            valor_meta:   `${aperReq.toFixed(2)} m (${aperDelta > 0 ? '+' : ''}${aperDelta.toFixed(2)} m)`,
+          });
+        }
+      }
     }
 
     // R5: Tendencia 12h creciente sin incremento de presa
@@ -680,8 +715,17 @@ function runSimulation(
     qCur     = Math.max(0.1, qCur     * conductionFactor - q_extraido);
     qBaseCur = Math.max(0.1, qBaseCur * conductionFactor - q_extraido);
 
+    // ── ANCLA DE COMPUERTA ────────────────────────────────────────────────
+    // AFORO (medición directa SICA): válido SÓLO para describir el estado base actual.
+    // En escenario futuro (qDam ≠ qBase), el aforo pertenece al instante presente;
+    // aplicarlo al escenario proyectado convierte INCREMENT en DECREMENT (Bug A).
+    // ORIFICIO (capacidad física): sí aplica al estado futuro — la compuerta no
+    // puede pasar más de lo que su apertura permite, independiente de la hora.
+    const isDeltaSim = Math.abs(qDamInit - qBaseInit) > 0.5;
+    const anchorApplies = gate_source === 'ORIFICIO' || !isDeltaSim;
+
     let gate_anchored = false;
-    if (q_gate_m3s !== null && q_gate_m3s < qCur) {
+    if (anchorApplies && q_gate_m3s !== null && q_gate_m3s < qCur) {
       qCur = Math.max(0.1, q_gate_m3s);
       gate_anchored = true;
     }

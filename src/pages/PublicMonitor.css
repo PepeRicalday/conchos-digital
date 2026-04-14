@@ -1646,37 +1646,56 @@
 
 /* --- HYDRA ULTRA-COMPACT MOBILE OPTIMIZATION (FINAL PRECEDENCE) --- */
 @media (max-width: 600px) {
+    /* 1. Header Flotante Minimalista */
+    .public-header-badge {
+        top: 10px;
+        left: 10px;
+        width: calc(100% - 20px);
+        border-radius: 20px;
+        padding: 4px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+    }
+
     .phb-main {
         padding: 4px 10px;
-        gap: 6px;
+        gap: 8px;
+        justify-content: space-around;
+        flex-wrap: nowrap;
     }
     
+    .phb-logos { display: none !important; }
+    
+    /* 2. Dock Inferior Fijo, Organizado y Simplificado */
     .info-cards-dock {
-        max-height: 22vh; /* Even more aggressive for iPhone */
-        gap: 2px;
-        padding: 4px 10px;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        grid-template-rows: auto auto;
+        max-height: 25vh; /* Ligero aumento para mejorar hitboxes */
+        padding: 8px 10px;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px;
         overflow-y: hidden;
-        border-radius: 16px 16px 0 0;
+        border-radius: 20px 20px 0 0 !important;
+        bottom: 0 !important;
+        width: 100% !important;
+        left: 0 !important;
+        position: fixed !important;
+        background: rgba(15, 23, 42, 0.95);
+        transform: none !important; /* Previene overrides de resoluciones mayores */
     }
 
     .dock-panel-left {
-        grid-column: span 2;
         border-right: none;
-        border-bottom: 1px solid rgba(255,255,255,0.05);
-        padding: 0 0 4px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+        padding: 0 0 6px 0;
         max-width: 100%;
+        display: flex;
+        flex-direction: row;
+        overflow-x: auto;
+        scroll-snap-type: none; /* Métricas fluyen solas */
+        gap: 15px;
     }
 
-    .checkpoints-section {
-        grid-column: span 2;
-        margin-top: 0;
-        border-top: 1px solid rgba(255,255,255,0.05);
-        padding-top: 4px;
-    }
-
+    .dock-panel-left::-webkit-scrollbar { display: none; }
+    
     .dock-panel-header, .dock-section-header, .card-label {
         display: none !important;
     }
@@ -1684,82 +1703,115 @@
     .dock-panel-footer {
         flex-wrap: nowrap;
         overflow-x: auto;
-        gap: 12px;
+        gap: 15px;
         padding-bottom: 2px;
     }
 
-    .gasto-value { font-size: 1.0rem; letter-spacing: -0.5px; }
-    .gasto-unit { font-size: 0.55rem; }
+    .gasto-value { font-size: 1.1rem; letter-spacing: -0.5px; }
+    .gasto-unit { font-size: 0.6rem; }
     .summary-info-title { font-size: 0.65rem; }
-    .summary-gasto { display: flex; flex-direction: column; gap: 0; }
+    .summary-gasto { display: flex; flex-direction: column; gap: 2px; }
+
+    /* 3. Red de Puntos Swipeables Nativo - Snap Obligatorio */
+    .checkpoints-section {
+        margin-top: 0;
+        padding-top: 2px;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        width: 100%;
+        border-top: none;
+    }
+
+    .checkpoints-scroll-container {
+        display: flex;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        gap: 8px;
+        padding-bottom: 5px;
+        width: 100%;
+    }
     
-    .dock-close-btn {
-        top: 4px;
-        right: 4px;
-        width: 22px;
-        height: 22px;
-        font-size: 12px;
-        background: rgba(0,0,0,0.5);
-    }
-
-    .prediction-badge {
-        bottom: 23vh;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 96%;
-        padding: 4px 8px;
-        font-size: 0.55rem;
-    }
-
-    .prediction-badge.managerial {
-        min-width: 96%;
-        padding: 6px 10px;
-        bottom: 23vh;
-    }
-
-    .mgr-header { margin-bottom: 4px; }
-    .transit-summary { gap: 2px; }
-    .transit-row { padding-bottom: 2px; }
-    .tr-label { font-size: 0.50rem; gap: 4px; }
-    .tr-value { font-size: 0.65rem; }
-
-    .fdm-name { font-size: 0.50rem; }
-    .fdm-val { font-size: 0.70rem; }
-    .fdm-val small { font-size: 0.5rem; }
+    .checkpoints-scroll-container::-webkit-scrollbar { display: none; }
 
     .checkpoint-card-compact {
-        min-width: 105px;
-        max-width: 105px;
-        padding: 4px 6px;
-        gap: 2px;
-        border-radius: 8px;
+        min-width: 125px;
+        max-width: 125px;
+        scroll-snap-align: center; /* Alinea perfectamente la tarjeta al deslizar */
+        padding: 6px 8px;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
     }
 
-    .cpc-name { font-size: 0.6rem; }
-    .cpc-value { font-size: 0.75rem; }
-    .cpc-time { font-size: 0.45rem; }
-    .cpc-km { font-size: 0.55rem; padding: 0px 3px; }
+    .cpc-name { font-size: 0.7rem; }
+    .cpc-value { font-size: 0.95rem; }
+    .cpc-time { font-size: 0.5rem; text-align: center; }
+    .cpc-km { font-size: 0.6rem; padding: 1px 4px; }
 
+    /* 4. Botones Flotantes Circulares (FABs) de Acción */
     .floating-ui-controls-v2 {
-        bottom: 23vh;
-        right: 6px;
-        gap: 6px;
+        bottom: 27vh; /* Flotan siempre por encima del Dock */
+        right: 15px;
+        gap: 12px;
+        flex-direction: column;
     }
 
     .control-btn-premium {
-        padding: 5px 10px;
-        font-size: 0.65rem;
-        border-radius: 8px;
+        padding: 10px;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%; /* Convierte los pill buttons en Circulos Perfectos */
+        min-width: unset;
+        justify-content: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+        background: #1e293b;
     }
     
     .control-btn-premium .btn-label {
-        font-size: 0.6rem;
+        display: none !important; /* Puro iconografía limpia */
     }
 
-    .trayecto-toggle-premium {
-        padding: 4px 10px;
-        font-size: 0.65rem;
-        min-width: auto;
+    .control-btn-premium svg {
+        margin: 0;
+        width: 20px;
+        height: 20px;
+    }
+
+    .dock-close-btn {
+        top: -15px; /* Permite picotearlo por encima del dock */
+        right: 15px;
+        width: 32px;
+        height: 32px;
+        background: #0f172a;
+        box-shadow: 0 -4px 10px rgba(0,0,0,0.4);
+        font-size: 14px;
+        z-index: 1500;
+        border: 1px solid #22d3ee;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* 5. SVG Engine - Soporte Dinámico a Zoom Paneo */
+    .perfil-modal {
+        width: 100vw;
+        height: 90vh;
+        margin-top: 10vh;
+        border-radius: 20px 20px 0 0;
+    }
+    
+    .perfil-svg-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch; /* Garantía iOS Safari de fricción natural */
+        width: 100%;
+        padding-bottom: 10px;
+    }
+    
+    .perfil-svg-scroll svg {
+        min-width: 800px; /* Fuerza el desbordamiento en todos los móviles */
     }
 }
 

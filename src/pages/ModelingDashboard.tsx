@@ -357,13 +357,14 @@ interface Decision {
 }
 
 function generateDecisions(
-  simResults:   CPResult[],
-  qDam:         number,
-  qBase:        number,
-  gateBase:     Record<string, number>,
-  cpTelemetry:  Record<string, CPTelemetry>,
-  dataStatus:   DataStatus,
-  eventType:    EventType,
+  simResults:    CPResult[],
+  qDam:          number,
+  qBase:         number,
+  gateBase:      Record<string, number>,
+  cpTelemetry:   Record<string, CPTelemetry>,
+  dataStatus:    DataStatus,
+  eventType:     EventType,
+  deliveryPoints: DeliveryData[],
 ): Decision[] {
   const decisions: Decision[] = [];
   const deltaQ = qDam - qBase;
@@ -377,6 +378,59 @@ function generateDecisions(
       detalle: 'Simulación basada en estimados de escala K-0. Verificar conexión de datos.',
       valor_actual: dataStatus.damFuente, valor_meta: 'movimientos_presas',
     });
+  }
+
+  // R10: Coherencia Q presa ↔ Q medido en K-0 (AFORO SICA)
+  // El tramo río Presa Boquilla → K-0 (~36 km) absorbe 5–15% del caudal en condiciones normales.
+  // Si la diferencia supera 35%, hay anomalía: compuerta K-0 cerrada, calibración SICA errónea,
+  // o evento extraordinario (avenida, ruptura). Se notifica para verificación de campo.
+  if (simResults.length > 0 && dataStatus.dam) {
+    const r0 = simResults[0];
+    if (r0.q_gate_m3s !== null && r0.gate_source === 'AFORO' && qBase > 0) {
+      const qPresa = qBase;
+      const qK0    = r0.q_gate_m3s;
+      const diff   = Math.abs(qPresa - qK0);
+      const umbralPct = 0.35; // >35% de diferencia es anomalía
+      if (diff > qPresa * umbralPct && diff > 4) {
+        const sentido = qK0 < qPresa ? 'menos de lo esperado' : 'más de lo esperado';
+        decisions.push({
+          prioridad: 'ALERTA', tipo: 'MONITOREO',
+          punto: r0.nombre, km: r0.km,
+          accion: `Inconsistencia Q Presa ↔ ${r0.nombre}`,
+          detalle: `Presa: ${qPresa.toFixed(1)} m³/s · K-0 SICA: ${qK0.toFixed(1)} m³/s · diferencia ${diff.toFixed(1)} m³/s (${(diff/qPresa*100).toFixed(0)}%) — K-0 recibe ${sentido}. Verificar compuerta K-0 o calibración SICA.`,
+          valor_actual: `K-0: ${qK0.toFixed(1)} m³/s`,
+          valor_meta:   `Presa ±35%: ${(qPresa*0.65).toFixed(1)}–${(qPresa*1.15).toFixed(1)} m³/s`,
+        });
+      }
+    }
+  }
+
+  // R11: Tomas sin reporte activo — extracciones invisibles para el simulador
+  // Caso A: ningún reporte del día cargado → Q extraído = 0 en toda la simulación
+  // Caso B: tomas activas con caudal_m3s = 0 (apertura registrada sin medición de gasto)
+  if (!dataStatus.deliveries) {
+    decisions.push({
+      prioridad: 'INFO', tipo: 'MONITOREO',
+      punto: 'Tomas Canal', km: 0,
+      accion: 'Sin reportes de tomas hoy — extracciones no contabilizadas',
+      detalle: 'reportes_diarios sin datos del día. El simulador propaga Q sin descontar extracciones laterales — Q en secciones aguas abajo puede estar sobreestimado.',
+      valor_actual: 'Sin reportes', valor_meta: 'reportes_diarios del día',
+    });
+  } else {
+    // Tomas activas (estado abierto) pero sin caudal reportado
+    const tomasSinCaudal = deliveryPoints.filter(
+      dp => dp.is_active && dp.caudal_m3s <= 0,
+    );
+    if (tomasSinCaudal.length > 0) {
+      decisions.push({
+        prioridad: 'INFO', tipo: 'MONITOREO',
+        punto: 'Tomas Canal', km: 0,
+        accion: `${tomasSinCaudal.length} toma(s) activa(s) sin gasto reportado`,
+        detalle: `Tomas abiertas sin medición: ${tomasSinCaudal.slice(0, 4).map(t => t.nombre).join(', ')}${tomasSinCaudal.length > 4 ? ` y ${tomasSinCaudal.length - 4} más` : ''}. El Q extraído en esos tramos es 0 en la simulación.`,
+        valor_actual: `${tomasSinCaudal.length} sin gasto`,
+        valor_meta:   '0 sin gasto',
+      });
+    }
   }
 
   // R8: CORTE total — alerta de ola negativa (prioridad máxima, va primero)
@@ -426,10 +480,12 @@ function generateDecisions(
     // R4: Ajuste de apertura — lógica diferenciada por DIRECCIÓN DEL CAMBIO
     // ─────────────────────────────────────────────────────────────────────
     // INCREMENTO: llega más volumen. El operador debe facilitar el paso aguas abajo.
-    //   - Verificar si la compuerta puede pasar físicamente el Q proyectado.
-    //   - Si puede → sin acción en compuerta (el agua pasa sola).
-    //   - NUNCA emitir CIERRE durante INCREMENTO (Bug B: apertura_req < apertura_base
-    //     porque cabeza alta y compuerta ya sobre-dimensionada NO implica cerrar).
+    //   Señal 1 — ORIFICIO ancló el Q: la apertura física ya está limitando el caudal.
+    //             El ancla ORIFICIO significa que la compuerta NO puede pasar q_sim.
+    //   Señal 2 — Capacidad teórica: Cd·A·√(2g·y_base) < q_sim × 0.90
+    //             Usa y_base (nivel real medido) en lugar de y_sim (Manning/piso),
+    //             ya que el canal opera en régimen M1 y y_base es el nivel real.
+    //   NUNCA emitir CIERRE durante INCREMENTO.
     //
     // DECREMENTO / CORTE: llega menos volumen, nivel puede caer.
     //   - Posible cierre para sostener carga mínima en tomas laterales.
@@ -438,20 +494,32 @@ function generateDecisions(
       const isIncrement = deltaQ > 0;
 
       if (isIncrement) {
-        // Capacidad física actual de la compuerta (Cd·A·√2gH)
-        const qCapacidad = r.cd_used * r.area_gate
-          * Math.sqrt(2 * G * Math.max(0.01, r.y_sim));
-        const cuelloBottella = qCapacidad < r.q_sim * 0.90 && r.q_sim > 1;
-        if (cuelloBottella) {
-          // Compuerta es el cuello de botella físico → ABRIR
+        // Señal 1: ORIFICIO ancló el caudal → apertura física limita el Q proyectado
+        const ancladaPorOrificio = r.gate_anchored && r.gate_source === 'ORIFICIO';
+        if (ancladaPorOrificio && r.q_gate_m3s !== null) {
           decisions.push({
             prioridad: 'ALERTA', tipo: 'APERTURA',
             punto: r.nombre, km: r.km,
-            accion: `ABRIR radiales ${r.nombre} — compuerta cuello de botella`,
-            detalle: `Capacidad compuerta: ${qCapacidad.toFixed(1)} m³/s · Q proyectado: ${r.q_sim.toFixed(1)} m³/s — apertura insuficiente para el incremento`,
+            accion: `ABRIR radiales ${r.nombre} — apertura limita a ${r.q_gate_m3s.toFixed(1)} m³/s`,
+            detalle: `Capacidad ORIFICIO actual: ${r.q_gate_m3s.toFixed(1)} m³/s · Q proyectado: ${r.q_sim.toFixed(1)} m³/s — la apertura impide el paso del incremento`,
             valor_actual: `${gateActual.toFixed(2)} m`,
             valor_meta:   `${aperReq.toFixed(2)} m`,
           });
+        } else {
+          // Señal 2: capacidad teórica usando y_base (nivel real M1, más preciso que y_sim)
+          const qCapacidad = r.cd_used * r.area_gate
+            * Math.sqrt(2 * G * Math.max(0.01, r.y_base));
+          const cuelloBottella = qCapacidad < r.q_sim * 0.90 && r.q_sim > 1;
+          if (cuelloBottella) {
+            decisions.push({
+              prioridad: 'ALERTA', tipo: 'APERTURA',
+              punto: r.nombre, km: r.km,
+              accion: `ABRIR radiales ${r.nombre} — compuerta cuello de botella`,
+              detalle: `Capacidad teórica: ${qCapacidad.toFixed(1)} m³/s · Q proyectado: ${r.q_sim.toFixed(1)} m³/s — apertura insuficiente para el incremento`,
+              valor_actual: `${gateActual.toFixed(2)} m`,
+              valor_meta:   `${aperReq.toFixed(2)} m`,
+            });
+          }
         }
         // Si capacidad > Q proyectado: la compuerta ya pasa el volumen — no hay acción.
         // No se emite CIERRE durante INCREMENTO.
@@ -547,6 +615,7 @@ function runSimulation(
   riverTransit:   boolean,
   simBaseMin:     number,
   currentTimeMin: number,
+  balanceTramos:  BalanceTramo[],
 ): CPResult[] {
   let qCur     = qDamInit,  cumMin = 0;
   let qBaseCur = qBaseInit;
@@ -697,9 +766,30 @@ function runSimulation(
     const maniobraMin = Math.max(0, cumMin - MANIOBRA_MARGEN_MIN);
     const maniobra_time = idx === 0 ? 'ORIGEN' : fmtTime(simBaseMin, maniobraMin);
 
-    const hasDelivData    = deliveryPoints.length > 0;
-    const conductionK     = hasDelivData ? 0.00012 : 0.00038;
-    const conductionFloor = hasDelivData ? 0.97 : 0.85;
+    const hasDelivData = deliveryPoints.length > 0;
+
+    // ── CONDUCCIÓN: factor de pérdida por tramo ──────────────────────────
+    // Prioridad 1: balance hídrico real (fn_balance_hidrico_tramos) — usa fugas
+    //              medidas entre escalas consecutivas. Más preciso que constante.
+    // Prioridad 2: constante calibrada empíricamente (fallback si sin balance).
+    const balanceTramo = balanceTramos.find(
+      bt => kmMid >= bt.km_inicio && kmMid <= bt.km_fin,
+    );
+    let conductionK: number;
+    let conductionFloor: number;
+    if (balanceTramo && balanceTramo.q_entrada_m3s > 0.5) {
+      // Fuga detectada como fracción del Q entrada, distribuida por km del tramo
+      const tramoDist = Math.max(1, balanceTramo.km_fin - balanceTramo.km_inicio);
+      const fugaFrac  = Math.max(0, Math.min(0.30,
+        balanceTramo.q_fuga_detectada / balanceTramo.q_entrada_m3s,
+      ));
+      conductionK     = fugaFrac / tramoDist;          // pérdida por km
+      conductionFloor = Math.max(0.70, 1 - fugaFrac);  // mínimo 70% llega
+    } else {
+      // Fallback: constantes calibradas empíricamente
+      conductionK     = hasDelivData ? 0.00012 : 0.00038;
+      conductionFloor = hasDelivData ? 0.97    : 0.85;
+    }
     const conductionFactor = Math.max(conductionFloor, 1 - dist * conductionK);
 
     const tomasEnTramo = deliveryPoints.filter(
@@ -1318,8 +1408,8 @@ const ModelingDashboard: React.FC = () => {
   const simResults = useMemo<CPResult[]>(() => {
     if (!controlPoints.length || !dataLoaded) return [];
     return runSimulation(controlPoints, qDam, qBase, baseReadings, gateOverrides,
-      gastoMedidoRecord, deliveryPoints, tramoGeom, riverTransit, simBaseMin, currentTimeMin);
-  }, [controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDam, qBase, riverTransit, simBaseMin, currentTimeMin, deliveryPoints, dataLoaded, tramoGeom]);
+      gastoMedidoRecord, deliveryPoints, tramoGeom, riverTransit, simBaseMin, currentTimeMin, balanceTramos);
+  }, [controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDam, qBase, riverTransit, simBaseMin, currentTimeMin, deliveryPoints, dataLoaded, tramoGeom, balanceTramos]);
 
   // ── ESCENARIO B — segunda corrida del motor para comparación ─────────
   const [showScenarioB, setShowScenarioB] = useState(false);
@@ -1339,14 +1429,14 @@ const ModelingDashboard: React.FC = () => {
       return mod ? { ...d, caudal_m3s: mod.nuevo_caudal, is_active: mod.nuevo_caudal > 0 } : d;
     });
     return runSimulation(controlPoints, qDamB, qBase, baseReadings, gateOverrides,
-      gastoMedidoRecord, modDeliveries, tramoGeom, riverTransit, simBaseMin, currentTimeMin);
-  }, [showScenarioB, controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDamB, qBase, riverTransit, simBaseMin, currentTimeMin, deliveryPoints, scenarioMods, dataLoaded, tramoGeom]);
+      gastoMedidoRecord, modDeliveries, tramoGeom, riverTransit, simBaseMin, currentTimeMin, balanceTramos);
+  }, [showScenarioB, controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDamB, qBase, riverTransit, simBaseMin, currentTimeMin, deliveryPoints, scenarioMods, dataLoaded, tramoGeom, balanceTramos]);
 
   // ── FASE 3: MOTOR DE DECISIÓN ─────────────────────────────────────────
   const decisions = useMemo<Decision[]>(() => {
     if (!simResults.length) return [];
-    return generateDecisions(simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType);
-  }, [simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType]);
+    return generateDecisions(simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints);
+  }, [simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints]);
 
   // ── RPC: Simulación de escenario en servidor ──────────────────────────
   const runScenarioRpc = async () => {

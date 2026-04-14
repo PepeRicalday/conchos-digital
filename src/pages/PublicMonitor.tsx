@@ -483,10 +483,24 @@ const PublicMonitor: React.FC = () => {
 
             setPresasData(finalPresas);
 
-            // delta_12h map
+            // delta_12h map (Histórico en DB)
             const deltaMap = new Map<string, number>();
             (summaryDelta || []).forEach((r: any) => {
                 if (r.delta_12h != null) deltaMap.set(r.escala_id, r.delta_12h);
+            });
+
+            // Darle vida inmediata a la tendencia: Live Delta inyectado en RAM sin costo DB.
+            // Extraemos la diferencia entre el registro número 1 y el número 2 de las lecturas recientes
+            const latestLevels = new Map<string, number>();
+            const liveDeltaMap = new Map<string, number>();
+            (readings || []).forEach((r: any) => {
+                if (!latestLevels.has(r.escala_id)) {
+                    latestLevels.set(r.escala_id, r.nivel_m);
+                } else if (!liveDeltaMap.has(r.escala_id)) {
+                    const currentLevel = latestLevels.get(r.escala_id)!;
+                    const prevLevel = r.nivel_m;
+                    liveDeltaMap.set(r.escala_id, currentLevel - prevLevel);
+                }
             });
 
             setDamMovements((mData || []) as MovimientoPresaConNombreRow[]);
@@ -536,12 +550,13 @@ const PublicMonitor: React.FC = () => {
             if (!flowStartTime) {
                 (readings || []).forEach(r => {
                     if (!readingsMap.has(r.escala_id)) {
+                        const manualReadingTime = new Date(`${r.fecha}T${r.hora_lectura}-06:00`).getTime();
                         readingsMap.set(r.escala_id, {
                             nivel:        r.nivel_m,
                             nivel_abajo:  r.nivel_abajo_m  || 0,
                             hora:         r.hora_lectura,
                             fecha:        r.fecha,
-                            timestamp:    new Date(r.creado_en).getTime(),
+                            timestamp:    manualReadingTime,
                             apertura:     r.apertura_radiales_m || 0,
                             radiales_json: r.radiales_json,
                             gasto_real:   r.gasto_calculado_m3s || 0,
@@ -651,7 +666,7 @@ const PublicMonitor: React.FC = () => {
                     puertas_abiertas:      puertasAbiertas > 0 ? puertasAbiertas : undefined,
                     nivel_max_operativo:   (e as any).nivel_max_operativo ?? null,
                     capacidad_max:         (e as any).capacidad_max       ?? null,
-                    delta_12h:             deltaMap.get(e.id) ?? null,
+                    delta_12h:             (liveDeltaMap.has(e.id) && liveDeltaMap.get(e.id) !== 0) ? liveDeltaMap.get(e.id) : (deltaMap.get(e.id) ?? null),
                     estado:                estado,
                     ultima_telemetria:     timestamp,
                     fuente: e.km === 0 ? 'BOQUILLA' : e.km > 100 ? 'MADERO' : null
@@ -1081,9 +1096,10 @@ const PublicMonitor: React.FC = () => {
         if (fgvData) return; // ya cargado en esta sesión de modal
 
         setFgvLoading(true);
-        const tomas = escalas
-            .filter(e => e.km >= 0 && e.km <= 104 && (e.apertura_actual ?? 0) > 0 && (e.gasto_actual ?? 0) > 0)
-            .map(e => ({ km: e.km, q_m3s: e.gasto_actual! }));
+        // Las abstracciones abruptas causan divergencia matemática (Picos) en la Ecuación de Energía
+        // al integrar flujos subcríticos hacia aguas abajo sin incluir estructuras de control (radiales).
+        // Por ello, en el Monitor Público enviamos un canal libre teórico.
+        const tomas: any[] = [];
 
         const escalasConDatos = escalas.filter(e => e.nivel_actual !== null && e.nivel_max_operativo !== null);
         const escalasEnCritico = escalasConDatos.filter(e =>
@@ -1776,9 +1792,19 @@ const PublicMonitor: React.FC = () => {
                                         <div className="cpc-km">{e.km.toFixed(1)} <small>KM</small></div>
                                         <div className="cpc-body">
                                             <span className="cpc-name">{e.nombre}</span>
-                                            <div className="cpc-data">
+                                            <div className="cpc-data" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                 <span className="cpc-value">{e.nivel_actual?.toFixed(2) || '0.00'}</span>
                                                 <small className="cpc-unit">m</small>
+                                                {(() => {
+                                                    const d = e.delta_12h ?? 0;
+                                                    const tChar = d > 0.01 ? '▲' : d < -0.01 ? '▼' : '—';
+                                                    const tCol = d > 0.01 ? '#ef4444' : d < -0.01 ? '#22c55e' : '#cbd5e1';
+                                                    return (
+                                                        <span style={{ color: tCol, fontSize: '12px', fontWeight: '900', textShadow: '0 0 4px rgba(0,0,0,0.8)' }} title={`Tendencia 12h: ${d > 0 ? '+' : ''}${d.toFixed(2)}m`}>
+                                                            {tChar} {Math.abs(d).toFixed(2)}
+                                                        </span>
+                                                    );
+                                                })()}
                                             </div>
                                             {/* ESTABILIZACIÓN: mostrar gasto y apertura si disponibles */}
                                             {isEstabilizacion && (
@@ -1862,7 +1888,7 @@ const PublicMonitor: React.FC = () => {
                                 <span className="cpl-item cpl-red">Crítico / Incoherente</span>
                                 <span className="cpl-item cpl-blue">Sin rango op.</span>
                                 <span className="cpl-item cpl-trend">▲ sube · ▼ baja · — estable (Δ12h)</span>
-                                {fgvData && <span className="cpl-item cpl-fgv">— — FGV simulado</span>}
+                                {fgvData && <span className="cpl-item cpl-fgv">— — FGV TEÓRICO MÁXIMO</span>}
                                 {fgvData?.criticos?.length > 0 && <span className="cpl-item cpl-jump">| Salto hidráulico</span>}
                             </div>
                             {fgvData && (

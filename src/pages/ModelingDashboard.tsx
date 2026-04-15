@@ -1283,6 +1283,8 @@ const ModelingDashboard: React.FC = () => {
   const [isPlaying,   setIsPlaying]  = useState(false);
   // T₀ = hora del ÚLTIMO movimiento de presa (no hora de apertura de la pantalla)
   const [simBaseMin,  setSimBaseMin] = useState(new Date().getHours() * 60 + new Date().getMinutes());
+  // Override manual de hora inicio de simulación (null = automático desde último movimiento de presa)
+  const [simStartOverride, setSimStartOverride] = useState<number | null>(null);
   // Hora actual del sistema en minutos — se actualiza cada minuto para propagación de onda
   const [currentTimeMin, setCurrentTimeMin] = useState(new Date().getHours() * 60 + new Date().getMinutes());
 
@@ -1810,11 +1812,14 @@ const ModelingDashboard: React.FC = () => {
     RESTRICCIONES_NIVEL.map(r => ({ ...r, ...(restriccionOverrides[r.tramo_id] ?? {}) })),
   [restriccionOverrides]);
 
+  // Hora efectiva de inicio de simulación: manual (operador) > automático (último movimiento presa)
+  const simBaseMinEff = simStartOverride ?? simBaseMin;
+
   const simResults = useMemo<CPResult[]>(() => {
     if (!controlPoints.length || !dataLoaded) return [];
     return runSimulation(controlPoints, qDam, qBase, baseReadings, gateOverrides,
-      gastoMedidoRecord, deliveryPoints, tramoGeom, riverTransit, simBaseMin, currentTimeMin, balanceTramos, activeRestricciones);
-  }, [controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDam, qBase, riverTransit, simBaseMin, currentTimeMin, deliveryPoints, dataLoaded, tramoGeom, balanceTramos, activeRestricciones]);
+      gastoMedidoRecord, deliveryPoints, tramoGeom, riverTransit, simBaseMinEff, currentTimeMin, balanceTramos, activeRestricciones);
+  }, [controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDam, qBase, riverTransit, simBaseMinEff, currentTimeMin, deliveryPoints, dataLoaded, tramoGeom, balanceTramos, activeRestricciones]);
 
   // ── ESCENARIO B — segunda corrida del motor para comparación ─────────
   const [showScenarioB, setShowScenarioB] = useState(false);
@@ -1834,8 +1839,8 @@ const ModelingDashboard: React.FC = () => {
       return mod ? { ...d, caudal_m3s: mod.nuevo_caudal, is_active: mod.nuevo_caudal > 0 } : d;
     });
     return runSimulation(controlPoints, qDamB, qBase, baseReadings, gateOverrides,
-      gastoMedidoRecord, modDeliveries, tramoGeom, riverTransit, simBaseMin, currentTimeMin, balanceTramos, activeRestricciones);
-  }, [showScenarioB, controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDamB, qBase, riverTransit, simBaseMin, currentTimeMin, deliveryPoints, scenarioMods, dataLoaded, tramoGeom, balanceTramos, activeRestricciones]);
+      gastoMedidoRecord, modDeliveries, tramoGeom, riverTransit, simBaseMinEff, currentTimeMin, balanceTramos, activeRestricciones);
+  }, [showScenarioB, controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDamB, qBase, riverTransit, simBaseMinEff, currentTimeMin, deliveryPoints, scenarioMods, dataLoaded, tramoGeom, balanceTramos, activeRestricciones]);
 
   // ── FASE 3: MOTOR DE DECISIÓN ─────────────────────────────────────────
   const decisions = useMemo<Decision[]>(() => {
@@ -2650,8 +2655,8 @@ const ModelingDashboard: React.FC = () => {
             q_base:          qBase,
             q_sim:           qDam,
             isRiver:         riverTransit,
-            startTime:       fmtTime(simBaseMin, 0),
-            movimientoTime:  fmtTime(simBaseMin, 0),
+            startTime:       fmtTime(simBaseMinEff, 0),
+            movimientoTime:  fmtTime(simBaseMinEff, 0),
             date:            formatDate(new Date()),
             eventType:       eventType,
             damFuente:       dataStatus.damFuente,
@@ -2814,6 +2819,43 @@ const ModelingDashboard: React.FC = () => {
             <div className="sim-river-sub">Presa → K-0 ({RIVER_KM} km){riverTransit ? ` · +${riverLagMin.toFixed(0)} min` : ''}</div>
           </div>
         </label>
+
+        {/* Hora de inicio de simulación */}
+        <div className="sim-start-time-row">
+          <div className="sim-start-time-label">
+            <Clock size={10} />
+            <span>HORA INICIO SIM.</span>
+            {simStartOverride === null && (
+              <span className="sim-start-time-auto">AUTO · {fmtTime(simBaseMin, 0)}</span>
+            )}
+          </div>
+          <div className="sim-start-time-controls">
+            <input
+              type="time"
+              aria-label="Hora de inicio de simulación"
+              title="Hora de inicio de simulación"
+              className="sim-start-time-input"
+              value={simStartOverride !== null
+                ? `${String(Math.floor(simStartOverride / 60)).padStart(2, '0')}:${String(simStartOverride % 60).padStart(2, '0')}`
+                : fmtTime(simBaseMin, 0)
+              }
+              onChange={e => {
+                const [h, m] = e.target.value.split(':').map(Number);
+                if (!isNaN(h) && !isNaN(m)) setSimStartOverride(h * 60 + m);
+              }}
+            />
+            {simStartOverride !== null && (
+              <button
+                type="button"
+                className="sim-start-time-reset"
+                onClick={() => setSimStartOverride(null)}
+                title="Restablecer a hora automática del último movimiento de presa"
+              >
+                ↺ AUTO
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── PANEL CONDICIONANTES DE NIVEL (TEMPORAL SIMULACIÓN) ─────── */}
@@ -3811,13 +3853,17 @@ const ModelingDashboard: React.FC = () => {
               )}
 
               {/* Balance hídrico */}
-              {/* A5.3: Usar Q real K-0 (SICA) como referencia de entrada cuando esté disponible */}
+              {/* A5.3: En delta-sim usar qDam (simulado) como referencia de entrada.
+                        qRealK0 es la medición del instante presente, no del escenario futuro. */}
               <div className="sim-balance-wrap">
                 <div className="sim-panel-title"><Droplets size={10} /> Balance Hídrico hasta K{activeCPResult.km}</div>
                 {(() => {
-                  const qEntrada = dataStatus.qRealK0 ?? qDam;
+                  const isDeltaBalance = Math.abs(qDam - qBase) > 0.5;
+                  const qEntrada = isDeltaBalance ? qDam : (dataStatus.qRealK0 ?? qDam);
                   const qLlegada = activeCPResult.q_sim ?? 0;
-                  const etiqueta = dataStatus.qRealK0 != null ? 'Entrada (Canal K-0 SICA)' : 'Entrada (Presa — estimado)';
+                  const etiqueta = isDeltaBalance
+                    ? `Entrada (Presa — sim. ${qDam > qBase ? '+' : ''}${(qDam - qBase).toFixed(1)} m³/s)`
+                    : (dataStatus.qRealK0 != null ? 'Entrada (Canal K-0 SICA)' : 'Entrada (Presa — estimado)');
                   const efic     = qEntrada > 0 ? (qLlegada / qEntrada * 100) : 0;
                   return (
                     <>

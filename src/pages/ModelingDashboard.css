@@ -413,6 +413,80 @@
   cursor: pointer;
 }
 
+/* ── HORA INICIO SIMULACIÓN ─────────────────────────────────────── */
+.sim-start-time-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px;
+  background: rgba(15, 30, 55, 0.6);
+  border: 1px solid rgba(51, 65, 85, 0.6);
+  border-radius: 6px;
+}
+
+.sim-start-time-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--sim-muted);
+  text-transform: uppercase;
+}
+
+.sim-start-time-auto {
+  margin-left: auto;
+  color: var(--sim-sky);
+  font-weight: 600;
+  font-size: 9px;
+  letter-spacing: 0;
+}
+
+.sim-start-time-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sim-start-time-input {
+  flex: 1;
+  background: rgba(30, 58, 95, 0.5);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 4px;
+  color: #e2e8f0;
+  font-size: 13px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  padding: 4px 6px;
+  text-align: center;
+  cursor: pointer;
+  outline: none;
+}
+
+.sim-start-time-input:focus {
+  border-color: var(--sim-sky);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
+}
+
+.sim-start-time-reset {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 4px;
+  color: var(--sim-sky);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 4px 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+  transition: background 0.15s;
+}
+
+.sim-start-time-reset:hover {
+  background: rgba(56, 189, 248, 0.22);
+}
+
 /* ── BODY ───────────────────────────────────────────────────────── */
 .sim-body {
   display: flex;

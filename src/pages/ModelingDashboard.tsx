@@ -3060,7 +3060,7 @@ const ModelingDashboard: React.FC = () => {
                     • DECREMENTO / CORTE → pregunta: ¿qué apertura mantiene el nivel?
                       apertura_req vs apertura_actual → CERRAR válido aquí
                 ─────────────────────────────────────────────────────────────── */}
-                {(Math.abs(qDam - qBase) > 0.5 || activeCPResult.gate_anchored || activeCPResult.km >= 100) && (() => {
+                {(Math.abs(qDam - qBase) > 0.5 || activeCPResult.km >= 100) && (() => {
                   const isIncrement   = qDam > qBase + 0.5;
                   const aperBase      = gateBase[activeCP] ?? activeCPResult.h_radial ?? 0;
                   const aperReq       = Math.min(3.0, Math.max(0.1, activeCPResult.apertura_requerida));

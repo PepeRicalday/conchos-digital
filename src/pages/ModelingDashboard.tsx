@@ -144,6 +144,12 @@ interface BalanceTramo {
   estado_balance:      'FUGA_ALTA' | 'FUGA_MEDIA' | 'INCONSISTENCIA' | 'BALANCEADO';
 }
 
+// Campos sobreescribibles en el panel de condicionantes (sesión-only, no persisten en BD)
+type RestriccionOverrideMap = Partial<Pick<
+  RestriccionNivelTramo,
+  'nivel_max_permitido_m' | 'nivel_min_deseable_m' | 'tipo_limite_max' | 'tolerancia_transitoria_m'
+>>;
+
 // ── GEOMETRÍA POR TRAMO ──────────────────────────────────────────────────
 interface TramoGeom {
   km_inicio:           number;
@@ -515,14 +521,15 @@ interface Decision {
 }
 
 function generateDecisions(
-  simResults:    CPResult[],
-  qDam:          number,
-  qBase:         number,
-  gateBase:      Record<string, number>,
-  cpTelemetry:   Record<string, CPTelemetry>,
-  dataStatus:    DataStatus,
-  eventType:     EventType,
+  simResults:     CPResult[],
+  qDam:           number,
+  qBase:          number,
+  gateBase:       Record<string, number>,
+  cpTelemetry:    Record<string, CPTelemetry>,
+  dataStatus:     DataStatus,
+  eventType:      EventType,
   deliveryPoints: DeliveryData[],
+  restricciones:  RestriccionNivelTramo[],   // lista activa con overrides temporales
 ): Decision[] {
   const decisions: Decision[] = [];
   const deltaQ = qDam - qBase;
@@ -592,23 +599,35 @@ function generateDecisions(
   }
 
   // R12: Restricciones de nivel por tramo — evaluación de condicionantes hidráulicas
-  // Opera SIEMPRE (estado base y escenarios), ya que los límites son físicos/estructurales.
-  // Prioridad: URGENTE si "requiere_maniobra_preventiva" (límite duro violado),
-  //            ALERTA  si "alerta_operativa" (dentro de tolerancia blando),
-  //            ALERTA  si "riesgo_insuficiencia_operativa" (bajo mínimo).
+  //
+  // CORRECCIONES v2.7.2:
+  //   Bug A — tipo de acción: depende de si hay EXCESO (→ CIERRE) o DÉFICIT (→ APERTURA),
+  //            no de la dirección del deltaQ (que era incorrecto).
+  //   Bug B — prioridad en estado base: en estado base (sin escenario activo) la prioridad
+  //            baja a ALERTA para no saturar de URGENTEs por cambios de límite en el panel.
+  //   Bug C — sifón sin CP (R12b): interpola y_sim entre K-57 y K-80 para evaluar la
+  //            restricción K-68.72_SIFON que no tiene punto de control propio.
+  const isDeltaActive = Math.abs(deltaQ) > 0.5;
+
   simResults.forEach(r => {
     const ev = r.evaluacion_nivel;
     if (!ev || ev.estado === 'operacion_aceptable') return;
+    // No duplicar con R2 (nivel CRITICO ya emite URGENTE para el mismo punto)
+    if (r.status === 'CRITICO') return;
 
-    const metaMax = ev.nivel_max_m != null ? `≤ ${ev.nivel_max_m.toFixed(2)} m` : '—';
-    const metaMin = ev.nivel_min_m != null ? `≥ ${ev.nivel_min_m.toFixed(2)} m` : '—';
+    const metaMax   = ev.nivel_max_m != null ? `≤ ${ev.nivel_max_m.toFixed(2)} m` : '—';
+    const metaMin   = ev.nivel_min_m != null ? `≥ ${ev.nivel_min_m.toFixed(2)} m` : '—';
+    // Fix A: tipo basado en exceso vs déficit
+    const tipoAccion: DecisionTipo = ev.exceso_sobre_max_m > 0 ? 'CIERRE' : 'APERTURA';
+    // Fix B: URGENTE solo en escenario activo; base state → ALERTA
+    const prioManiobra: DecisionPrioridad = isDeltaActive ? 'URGENTE' : 'ALERTA';
 
     if (ev.estado === 'requiere_maniobra_preventiva') {
       decisions.push({
-        prioridad: 'URGENTE',
-        tipo:      deltaQ > 0 ? 'APERTURA' : 'CIERRE',
+        prioridad: prioManiobra,
+        tipo:      tipoAccion,
         punto: r.nombre, km: r.km,
-        accion:       `MANIOBRA PREVENTIVA — ${ev.tramo_id}`,
+        accion:       `${isDeltaActive ? 'MANIOBRA PREVENTIVA' : 'NIVEL FUERA DE RANGO'} — ${ev.tramo_id}`,
         detalle:      ev.mensaje,
         valor_actual: `${ev.nivel_proyectado_m.toFixed(2)} m`,
         valor_meta:   ev.exceso_sobre_max_m > 0 ? metaMax : metaMin,
@@ -626,7 +645,7 @@ function generateDecisions(
     } else if (ev.estado === 'riesgo_insuficiencia_operativa') {
       decisions.push({
         prioridad: 'ALERTA',
-        tipo:      'MONITOREO',
+        tipo:      'APERTURA',
         punto: r.nombre, km: r.km,
         accion:       `NIVEL BAJO MÍNIMO DESEABLE — ${ev.tramo_id}`,
         detalle:      ev.mensaje,
@@ -634,6 +653,35 @@ function generateDecisions(
         valor_meta:   metaMin,
       });
     }
+  });
+
+  // R12b: Tramos con restricción de RANGO sin CP propio — interpolación lineal
+  // Caso concreto: K-68.72_SIFON (range 68.72–70.10) — entre K-57 y K-80
+  restricciones.forEach(rest => {
+    if (rest.km_fin <= rest.km_inicio) return;                          // ignorar puntuales
+    const cpEnRango = simResults.find(r => r.km >= rest.km_inicio && r.km <= rest.km_fin);
+    if (cpEnRango) return;                                              // ya evaluado en R12
+    const prev = [...simResults].reverse().find(r => r.km < rest.km_inicio);
+    const next = simResults.find(r => r.km > rest.km_fin);
+    if (!prev || !next) return;
+    const kmMid = (rest.km_inicio + rest.km_fin) / 2;
+    const t = (kmMid - prev.km) / Math.max(1, next.km - prev.km);
+    const y_interp = prev.y_sim + t * (next.y_sim - prev.y_sim);
+    const ev = evaluarRestriccionNivelTramo(rest, y_interp);
+    if (ev.estado === 'operacion_aceptable') return;
+    const metaMax = `≤ ${rest.nivel_max_permitido_m.toFixed(2)} m`;
+    decisions.push({
+      prioridad: ev.estado === 'requiere_maniobra_preventiva'
+                 ? (isDeltaActive ? 'URGENTE' : 'ALERTA')
+                 : 'ALERTA',
+      tipo:   ev.exceso_sobre_max_m > 0 ? 'CIERRE' : 'APERTURA',
+      punto:  `${rest.tramo_id} (interpolado K${prev.km}–K${next.km})`,
+      km:     kmMid,
+      accion: `${rest.criterio_operativo.toUpperCase()} — ${rest.tramo_id}`,
+      detalle: ev.mensaje + ` (y interpolado km${kmMid}: ${y_interp.toFixed(2)} m)`,
+      valor_actual: `${y_interp.toFixed(2)} m (est.)`,
+      valor_meta:   metaMax,
+    });
   });
 
   // R8: CORTE total — alerta de ola negativa (prioridad máxima, va primero)
@@ -1086,14 +1134,7 @@ const ModelingDashboard: React.FC = () => {
   const [balanceTramos, setBalanceTramos] = useState<BalanceTramo[]>([]);
 
   // ── RESTRICCIONES DE NIVEL: overrides temporales por simulación ─────────
-  // Estructura: { [tramo_id]: campos sobreescritos }
-  // Los valores del usuario reemplazan temporalmente los valores de RESTRICCIONES_NIVEL.
-  // Solo persisten en la sesión — no se guardan en Supabase.
-  type RestriccionOverride = Partial<Pick<
-    RestriccionNivelTramo,
-    'nivel_max_permitido_m' | 'nivel_min_deseable_m' | 'tipo_limite_max' | 'tolerancia_transitoria_m'
-  >>;
-  const [restriccionOverrides, setRestriccionOverrides] = useState<Record<string, RestriccionOverride>>({});
+  const [restriccionOverrides, setRestriccionOverrides] = useState<Record<string, RestriccionOverrideMap>>({});
   const [showNivelPanel, setShowNivelPanel]             = useState(false);
 
   const [qDam,         setQDam]         = useState(0);
@@ -1662,8 +1703,8 @@ const ModelingDashboard: React.FC = () => {
   // ── FASE 3: MOTOR DE DECISIÓN ─────────────────────────────────────────
   const decisions = useMemo<Decision[]>(() => {
     if (!simResults.length) return [];
-    return generateDecisions(simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints);
-  }, [simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints]);
+    return generateDecisions(simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints, activeRestricciones);
+  }, [simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints, activeRestricciones]);
 
   // ── RPC: Simulación de escenario en servidor ──────────────────────────
   const runScenarioRpc = async () => {
@@ -2682,6 +2723,10 @@ const ModelingDashboard: React.FC = () => {
                 </div>
                 {activeRestricciones.map(r => {
                   const isModified = !!restriccionOverrides[r.tramo_id];
+                  // Detectar si el tramo tiene CP propio o requiere interpolación
+                  const tieneCP = r.km_fin <= r.km_inicio
+                    ? controlPoints.some(cp => Math.abs(cp.km - r.km_inicio) < 1.0)
+                    : controlPoints.some(cp => cp.km >= r.km_inicio && cp.km <= r.km_fin);
                   const setField = (field: string, val: any) =>
                     setRestriccionOverrides(prev => ({
                       ...prev,
@@ -2702,6 +2747,11 @@ const ModelingDashboard: React.FC = () => {
                       <div>
                         <div className={`nivel-row-id ${isModified ? 'modified' : ''}`}>{r.tramo_id}</div>
                         <div className="nivel-row-criterio">{r.criterio_operativo}</div>
+                        {!tieneCP && (
+                          <div className="nivel-row-interp" title="Sin punto de control directo — nivel estimado por interpolación lineal entre CPs adyacentes">
+                            ≈ interpolado
+                          </div>
+                        )}
                       </div>
                       {/* Mín deseable */}
                       <input

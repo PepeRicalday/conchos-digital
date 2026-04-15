@@ -1955,3 +1955,9 @@
   text-align: center;
   display: block;
 }
+
+.nivel-row-interp {
+  font-size: 8px;
+  color: #64748b;
+  font-style: italic;
+}

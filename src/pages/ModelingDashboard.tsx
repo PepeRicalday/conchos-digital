@@ -843,6 +843,18 @@ function generateDecisions(
       if (isIncrement) {
         // Señal 1: ORIFICIO ancló el caudal → apertura física limita el Q proyectado
         const ancladaPorOrificio = r.gate_anchored && r.gate_source === 'ORIFICIO';
+
+        // Señal 1.5: AFORO SICA disponible en escenario delta.
+        // En régimen M1 las compuertas operan sumergidas: ΔH efectivo ≈ 0.02–0.05 m.
+        // La fórmula libre Q = Cd·A·√(2g·y) sobreestima la capacidad real ×5–×15.
+        // El aforo medido por SICA ES la capacidad operativa real bajo esas condiciones.
+        // Si q_aforo < q_sim × 90% → la compuerta real no puede pasar el nuevo gasto.
+        const aforo_ref = !r.gate_anchored
+          && r.gate_source === 'AFORO'
+          && r.q_gate_m3s !== null
+          && r.q_gate_m3s > 0.5;
+        const cuelloSubmerso = aforo_ref && r.q_gate_m3s! < r.q_sim * 0.90;
+
         if (ancladaPorOrificio && r.q_gate_m3s !== null) {
           decisions.push({
             prioridad: 'ALERTA', tipo: 'APERTURA',
@@ -852,8 +864,21 @@ function generateDecisions(
             valor_actual: `${gateActual.toFixed(2)} m`,
             valor_meta:   `${aperReq.toFixed(2)} m`,
           });
-        } else {
-          // Señal 2: capacidad teórica usando y_base (nivel real M1, más preciso que y_sim)
+        } else if (cuelloSubmerso) {
+          // Capacidad real (submersa M1) < Q proyectado → ABRIR
+          // Apertura estimada por proporcionalidad (Q ∝ apertura a ΔH ≈ cte)
+          const aperReqSubm = Math.min(3.0, gateActual * (r.q_sim / r.q_gate_m3s!));
+          const deltaSubm   = aperReqSubm - gateActual;
+          decisions.push({
+            prioridad: isDeltaActive ? 'URGENTE' : 'ALERTA', tipo: 'APERTURA',
+            punto: r.nombre, km: r.km,
+            accion: `ABRIR radiales ${r.nombre} — capacidad real M1 insuficiente`,
+            detalle: `Compuerta submersa (régimen M1): aforo real SICA ${r.q_gate_m3s!.toFixed(1)} m³/s < Q proyectado ${r.q_sim.toFixed(1)} m³/s. Apertura proporcional requerida: ~${aperReqSubm.toFixed(2)} m/pieza (+${deltaSubm.toFixed(2)} m). Maniobra: ${r.maniobra_time}.`,
+            valor_actual: `${gateActual.toFixed(2)} m (aforo: ${r.q_gate_m3s!.toFixed(1)} m³/s)`,
+            valor_meta:   `~${aperReqSubm.toFixed(2)} m`,
+          });
+        } else if (!aforo_ref) {
+          // Señal 2: sin aforo disponible → capacidad teórica libre (último recurso)
           const qCapacidad = r.cd_used * r.area_gate
             * Math.sqrt(2 * G * Math.max(0.01, r.y_base));
           const cuelloBottella = qCapacidad < r.q_sim * 0.90 && r.q_sim > 1;
@@ -868,8 +893,9 @@ function generateDecisions(
             });
           }
         }
-        // Si capacidad > Q proyectado: la compuerta ya pasa el volumen — no hay acción.
-        // No se emite CIERRE durante INCREMENTO.
+        // Si aforo_ref y no cuelloSubmerso (q_aforo ≥ q_sim×90%): capacidad suficiente.
+        // Si Señal 2 sin cuello de botella: compuerta ya pasa el volumen.
+        // En ambos casos: no se emite CIERRE durante INCREMENTO.
       } else {
         // DECREMENTO / CORTE: ajuste para sostener nivel de servicio
         if (Math.abs(aperDelta) > 0.05) {
@@ -1072,7 +1098,22 @@ function runSimulation(
     const y_target       = Math.max(y_floor, Math.min(yMaxOp, y_base));
     const sqrtHead       = Math.sqrt(2 * G * Math.max(0.01, y_target));
     const apertura_base  = has_real_gate ? h_gate : Math.max(0.3, h_gate);
-    const apertura_requerida_raw = qCur / Math.max(0.001, cd_used * ancho * pzas * sqrtHead);
+
+    // ── CONDICIÓN SUBMERSA M1: el aforo SICA es la referencia real de capacidad ──
+    // En régimen M1 (remanso), el nivel aguas abajo también es alto. La compuerta opera
+    // en condición submersa (ΔH efectivo ≈ 0.02–0.05 m, no y_upstream ≈ 3.5 m).
+    // La fórmula libre Q = Cd·A·√(2g·y_upstream) SOBREESTIMA la capacidad real ×5–×15.
+    // Cuando hay aforo SICA disponible (q_gate_m3s > 0) y estamos en delta simulación,
+    // el aforo ES la capacidad real medida. Apertura requerida ∝ Q (Q ∝ apertura a ΔH ≈ cte).
+    const isDeltaSimLocal = Math.abs(qDamInit - qBaseInit) > 0.5;
+    const aforo_disponible = gate_source === 'AFORO' && q_gate_m3s !== null && q_gate_m3s > 0.5;
+    let apertura_requerida_raw: number;
+    if (isDeltaSimLocal && aforo_disponible) {
+      // Proporcional submerso: apertura_req = apertura_actual × (Q_nuevo / Q_aforo_real)
+      apertura_requerida_raw = h_gate * (qCur / q_gate_m3s!);
+    } else {
+      apertura_requerida_raw = qCur / Math.max(0.001, cd_used * ancho * pzas * sqrtHead);
+    }
     const apertura_requerida = Math.max(0.05, Math.min(3.5, apertura_requerida_raw));
     const delta_apertura = apertura_requerida - apertura_base;
 

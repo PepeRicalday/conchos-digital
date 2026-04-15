@@ -118,24 +118,47 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
       level: 'ALERTA',
       text: `${r.nombre} (K-${r.km}): Tirante simulado ${sf(r.y_sim).toFixed(2)}m — ${sf(r.bordo_libre_pct).toFixed(0)}% del bordo libre. Monitoreo estrecho requerido.`,
     });
-    // Apertura — INCREMENTO: solo alertar si la compuerta es cuello de botella físico.
-    // NUNCA emitir alerta de CERRAR durante un INCREMENT (lógica espejo del motor UI R4).
-    const G_RPT = 9.81;
-    const apSica    = gateBase[r.id] ?? sf(r.h_radial, 1.25);
-    const apReq     = Math.min(3.0, Math.max(0.1, sf(r.apertura_requerida)));
-    const apDiff    = apReq - apSica;
-    const qCapRpt   = sf(r.cd_used, DEFAULT_CD) * sf(r.area_gate)
-                      * Math.sqrt(2 * G_RPT * Math.max(0.01, sf(r.y_base)));
-    const esCuelloRpt = isIncrement && qCapRpt < sf(r.q_sim) * 0.90;
+    // Apertura — INCREMENTO: evaluar con aforo real (condición submersa M1) o fórmula libre.
+    // NUNCA emitir alerta de CERRAR durante INCREMENT.
+    //
+    // Señal 1.5 — AFORO SICA disponible + delta sim:
+    //   En régimen M1 las compuertas están sumergidas (ΔH ≈ 0.02–0.05 m, no y_upstream).
+    //   La fórmula libre Q=Cd·A·√(2g·y) sobreestima la capacidad real ×5–×15.
+    //   El aforo medido ES la capacidad operativa real → usarlo como referencia de cuello.
+    const G_RPT    = 9.81;
+    const apSica   = gateBase[r.id] ?? sf(r.h_radial, 1.25);
+    const apReq    = Math.min(3.0, Math.max(0.1, sf(r.apertura_requerida)));
+    const apDiff   = apReq - apSica;
+    const qAforo   = sf((r as { q_gate_m3s?: number | null }).q_gate_m3s ?? null, 0);
+    const tieneAforo = qAforo > 0.5
+      && (r as { gate_source?: string }).gate_source === 'AFORO'
+      && !(r as { gate_anchored?: boolean }).gate_anchored;
+
     if (isIncrement) {
-      // Solo alerta si la compuerta es físicamente cuello de botella
-      if (esCuelloRpt) {
-        alerts.push({
-          level: 'ALERTA',
-          text: `${r.nombre}: CUELLO DE BOTELLA — capacidad compuerta ${qCapRpt.toFixed(1)} m³/s < Q proyectado ${sf(r.q_sim).toFixed(1)} m³/s. ABRIR de ${apSica.toFixed(2)}m → ${apReq.toFixed(2)}m (+${Math.abs(apDiff).toFixed(2)}m).`,
-        });
+      if (tieneAforo) {
+        // Señal 1.5: aforo < 90% del Q proyectado → cuello submerso real
+        const esCuelloSubm = qAforo < sf(r.q_sim) * 0.90;
+        if (esCuelloSubm) {
+          const aperReqSubm = Math.min(3.0, apSica * (sf(r.q_sim) / qAforo));
+          const deltaSubm   = aperReqSubm - apSica;
+          alerts.push({
+            level: 'ALERTA',
+            text: `${r.nombre}: CUELLO DE BOTELLA (M1 submerso) — aforo real SICA ${qAforo.toFixed(1)} m³/s < Q proyectado ${sf(r.q_sim).toFixed(1)} m³/s. ABRIR de ${apSica.toFixed(2)} m → ~${aperReqSubm.toFixed(2)} m (+${deltaSubm.toFixed(2)} m/pieza).`,
+          });
+        }
+        // Si aforo ≥ 90%: capacidad submersa suficiente — sin acción.
+      } else {
+        // Sin aforo: usar fórmula libre como fallback
+        const qCapRpt = sf(r.cd_used, DEFAULT_CD) * sf(r.area_gate)
+                        * Math.sqrt(2 * G_RPT * Math.max(0.01, sf(r.y_base)));
+        const esCuelloRpt = qCapRpt < sf(r.q_sim) * 0.90;
+        if (esCuelloRpt) {
+          alerts.push({
+            level: 'ALERTA',
+            text: `${r.nombre}: CUELLO DE BOTELLA — capacidad compuerta ${qCapRpt.toFixed(1)} m³/s < Q proyectado ${sf(r.q_sim).toFixed(1)} m³/s. ABRIR de ${apSica.toFixed(2)} m → ${apReq.toFixed(2)} m (+${Math.abs(apDiff).toFixed(2)} m).`,
+          });
+        }
       }
-      // Si no es cuello de botella: sin acción — el volumen incremental pasa sin restricción.
     } else if (Math.abs(apDiff) > 0.05 && Math.abs(deltaQ) > 0.5) {
       alerts.push({
         level: 'INFO',
@@ -297,21 +320,26 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
             </thead>
             <tbody>
               {results.map((r, i) => {
-                // Usar delta_apertura del motor (ya calculado con límites operativos)
+                // Apertura del motor (ya considera condición submersa cuando hay aforo)
                 const apBase = sf(r.apertura_base, sf(gateBase[r.id], sf(r.h_radial, 1.25)));
-                const apReq  = sf(r.apertura_requerida);
+                const apReq  = sf(r.apertura_requerida);  // ya usa proporcional-submerso si hay aforo
                 const dAp    = sf(r.delta_apertura, apReq - apBase);
                 const hasChange = Math.abs(deltaQ) > 0.5;
 
-                // INCREMENTO: evaluar si la compuerta es cuello de botella físico.
-                // NUNCA mostrar CERRAR durante INCREMENTO — misma regla que motor UI (R4).
-                const G_TBL   = 9.81;
+                // INCREMENTO: cuello de botella con prioridad al aforo real (M1 submerso)
+                const qAforoTbl   = sf((r as { q_gate_m3s?: number | null }).q_gate_m3s ?? null, 0);
+                const tieneAforoTbl = qAforoTbl > 0.5
+                  && (r as { gate_source?: string }).gate_source === 'AFORO'
+                  && !(r as { gate_anchored?: boolean }).gate_anchored;
+                const esCuelloSubmTbl = isIncrement && tieneAforoTbl && qAforoTbl < sf(r.q_sim) * 0.90;
+                const G_TBL = 9.81;
                 const qCapTbl = sf(r.cd_used, DEFAULT_CD) * sf(r.area_gate)
                                 * Math.sqrt(2 * G_TBL * Math.max(0.01, sf(r.y_base)));
-                const esCuelloTbl   = isIncrement && qCapTbl < sf(r.q_sim) * 0.90;
-                const esSuficTbl    = isIncrement && !esCuelloTbl;
+                const esCuelloLibreTbl = isIncrement && !tieneAforoTbl && qCapTbl < sf(r.q_sim) * 0.90;
+                const esCuelloTbl = esCuelloSubmTbl || esCuelloLibreTbl;
+                const esSuficTbl  = isIncrement && !esCuelloTbl;
 
-                // Columna "Ap. Requerida": durante INCREMENT suficiente → no mostrar
+                // Columna "Ap. Requerida": durante INCREMENT suficiente → no mostrar valor
                 const apReqDisplay = esSuficTbl ? null : apReq;
 
                 // Formato del ajuste operador

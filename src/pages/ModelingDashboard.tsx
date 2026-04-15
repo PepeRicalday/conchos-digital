@@ -207,54 +207,102 @@ interface EvaluacionNivelTramo {
 // Futura extensión: cargar desde tabla `restricciones_nivel_tramos` en Supabase.
 const RESTRICCIONES_NIVEL: RestriccionNivelTramo[] = [
   {
-    tramo_id:              'K-23',
-    km_inicio:             23.0,  km_fin: 23.0,
-    nivel_max_permitido_m: 3.50,
-    nivel_min_deseable_m:  3.20,
-    tipo_limite_max:       'duro',
-    tolerancia_transitoria_m: 0.0,
-    criterio_operativo:    'seguridad_infraestructura',
-    observaciones:         'No rebasar 3.50 m por criterio de bordo libre operativo',
+    tramo_id: 'K-0+000',   km_inicio: 0.000,   km_fin: 0.000,
+    nivel_max_permitido_m: 3.50, nivel_min_deseable_m: 2.80,
+    tipo_limite_max: 'duro',  tolerancia_transitoria_m: 0.00,
+    criterio_operativo: 'seguridad_infraestructura',
+    observaciones: 'Compuerta de cabeza — bordo libre máximo 3.50 m',
   },
   {
-    tramo_id:              'K-34',
-    km_inicio:             34.0,  km_fin: 34.0,
-    nivel_max_permitido_m: 3.45,
-    nivel_min_deseable_m:  3.10,
-    tipo_limite_max:       'blando',
-    tolerancia_transitoria_m: 0.03,
-    criterio_operativo:    'control_remanso',
-    observaciones:         'Se acepta pequeña sobre elevación transitoria',
+    tramo_id: 'K-23',      km_inicio: 23.000,  km_fin: 23.000,
+    nivel_max_permitido_m: 3.50, nivel_min_deseable_m: 3.20,
+    tipo_limite_max: 'duro',  tolerancia_transitoria_m: 0.00,
+    criterio_operativo: 'seguridad_infraestructura',
+    observaciones: 'No rebasar 3.50 m por criterio de bordo libre operativo',
   },
   {
-    tramo_id:              'K-68.72_SIFON',
-    km_inicio:             68.72, km_fin: 70.10,
-    nivel_max_permitido_m: 3.30,
-    nivel_min_deseable_m:  2.90,
-    tipo_limite_max:       'duro',
-    tolerancia_transitoria_m: 0.0,
-    criterio_operativo:    'sifon',
-    observaciones:         'Zona crítica por transición y obra especial',
+    tramo_id: 'K-29',      km_inicio: 29.000,  km_fin: 29.000,
+    nivel_max_permitido_m: 3.45, nivel_min_deseable_m: 3.10,
+    tipo_limite_max: 'blando', tolerancia_transitoria_m: 0.03,
+    criterio_operativo: 'control_remanso',
+    observaciones: 'Tramo intermedio SEC-001',
   },
   {
-    tramo_id:              'K-80',
-    km_inicio:             80.0,  km_fin: 80.0,
-    nivel_max_permitido_m: 3.25,
-    nivel_min_deseable_m:  2.95,
-    tipo_limite_max:       'blando',
-    tolerancia_transitoria_m: 0.02,
-    criterio_operativo:    'operacion_tomas',
-    observaciones:         'Proteger servicio en tomas altas',
+    tramo_id: 'K-34',      km_inicio: 34.000,  km_fin: 34.000,
+    nivel_max_permitido_m: 3.45, nivel_min_deseable_m: 3.10,
+    tipo_limite_max: 'blando', tolerancia_transitoria_m: 0.03,
+    criterio_operativo: 'control_remanso',
+    observaciones: 'Se acepta pequeña sobre elevación transitoria',
   },
   {
-    tramo_id:              'K-104',
-    km_inicio:             104.0, km_fin: 104.0,
-    nivel_max_permitido_m: 2.55,
-    nivel_min_deseable_m:  2.40,
-    tipo_limite_max:       'duro',
-    tolerancia_transitoria_m: 0.0,
-    criterio_operativo:    'seguridad_infraestructura',
-    observaciones:         'Nivel final de control',
+    tramo_id: 'K-44',      km_inicio: 44.000,  km_fin: 44.000,
+    nivel_max_permitido_m: 3.40, nivel_min_deseable_m: 3.00,
+    tipo_limite_max: 'blando', tolerancia_transitoria_m: 0.03,
+    criterio_operativo: 'operacion_tomas',
+    observaciones: 'Final SEC-001 — tomas laterales activas',
+  },
+  {
+    tramo_id: 'K-54',      km_inicio: 54.000,  km_fin: 54.000,
+    nivel_max_permitido_m: 3.35, nivel_min_deseable_m: 2.95,
+    tipo_limite_max: 'blando', tolerancia_transitoria_m: 0.03,
+    criterio_operativo: 'operacion_tomas',
+    observaciones: 'Inicio SEC-002',
+  },
+  {
+    tramo_id: 'K-62',      km_inicio: 62.000,  km_fin: 62.000,
+    nivel_max_permitido_m: 3.30, nivel_min_deseable_m: 2.90,
+    tipo_limite_max: 'blando', tolerancia_transitoria_m: 0.03,
+    criterio_operativo: 'control_remanso',
+    observaciones: 'SEC-003 — zona de transición hidráulica',
+  },
+  {
+    tramo_id: 'K-64',      km_inicio: 64.000,  km_fin: 64.000,
+    nivel_max_permitido_m: 3.30, nivel_min_deseable_m: 2.90,
+    tipo_limite_max: 'blando', tolerancia_transitoria_m: 0.03,
+    criterio_operativo: 'control_remanso',
+    observaciones: 'Final SEC-002',
+  },
+  {
+    tramo_id: 'K-68',      km_inicio: 68.000,  km_fin: 68.000,
+    nivel_max_permitido_m: 3.25, nivel_min_deseable_m: 2.85,
+    tipo_limite_max: 'blando', tolerancia_transitoria_m: 0.03,
+    criterio_operativo: 'control_remanso',
+    observaciones: 'Aguas arriba del sifón K-68+720 — vigilar nivel máximo',
+  },
+  {
+    tramo_id: 'K-79+025',  km_inicio: 79.025,  km_fin: 79.025,
+    nivel_max_permitido_m: 3.20, nivel_min_deseable_m: 2.80,
+    tipo_limite_max: 'blando', tolerancia_transitoria_m: 0.02,
+    criterio_operativo: 'operacion_tomas',
+    observaciones: 'Inicio SEC-004',
+  },
+  {
+    tramo_id: 'K-87+549',  km_inicio: 87.549,  km_fin: 87.549,
+    nivel_max_permitido_m: 3.10, nivel_min_deseable_m: 2.70,
+    tipo_limite_max: 'blando', tolerancia_transitoria_m: 0.02,
+    criterio_operativo: 'operacion_tomas',
+    observaciones: 'Tramo medio SEC-004',
+  },
+  {
+    tramo_id: 'K-94+057',  km_inicio: 94.057,  km_fin: 94.057,
+    nivel_max_permitido_m: 3.00, nivel_min_deseable_m: 2.60,
+    tipo_limite_max: 'blando', tolerancia_transitoria_m: 0.02,
+    criterio_operativo: 'operacion_tomas',
+    observaciones: 'SEC-004 — tramo final antes de K-104',
+  },
+  {
+    tramo_id: 'K-94+200',  km_inicio: 94.200,  km_fin: 94.200,
+    nivel_max_permitido_m: 3.00, nivel_min_deseable_m: 2.60,
+    tipo_limite_max: 'blando', tolerancia_transitoria_m: 0.02,
+    criterio_operativo: 'operacion_tomas',
+    observaciones: 'SEC-004 — paralela a K-94+057',
+  },
+  {
+    tramo_id: 'K-104',     km_inicio: 104.000, km_fin: 104.000,
+    nivel_max_permitido_m: 2.55, nivel_min_deseable_m: 2.40,
+    tipo_limite_max: 'duro',  tolerancia_transitoria_m: 0.00,
+    criterio_operativo: 'seguridad_infraestructura',
+    observaciones: 'Nivel final de control — cola del canal',
   },
 ];
 
@@ -269,7 +317,14 @@ function findRestriccion(
     r => r.km_fin > r.km_inicio && km >= r.km_inicio && km <= r.km_fin,
   );
   if (rangeMatch) return rangeMatch;
-  return lista.find(r => Math.abs(km - r.km_inicio) < 1.0);
+  // Closest-match within ±1 km — needed when two escalas are <1 km apart (K-94+057 / K-94+200)
+  let best: RestriccionNivelTramo | undefined;
+  let bestDist = 1.0;
+  for (const r of lista) {
+    const dist = Math.abs(km - r.km_inicio);
+    if (dist < bestDist) { bestDist = dist; best = r; }
+  }
+  return best;
 }
 
 /** Evalúa el nivel proyectado contra la restricción del tramo.

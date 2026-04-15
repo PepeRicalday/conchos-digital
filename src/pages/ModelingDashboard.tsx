@@ -654,14 +654,18 @@ function generateDecisions(
 
   // R12: Restricciones de nivel por tramo — evaluación de condicionantes hidráulicas
   //
-  // CORRECCIONES v2.7.2:
-  //   Bug A — tipo de acción: depende de si hay EXCESO (→ CIERRE) o DÉFICIT (→ APERTURA),
-  //            no de la dirección del deltaQ (que era incorrecto).
-  //   Bug B — prioridad en estado base: en estado base (sin escenario activo) la prioridad
-  //            baja a ALERTA para no saturar de URGENTEs por cambios de límite en el panel.
-  //   Bug C — sifón sin CP (R12b): interpola y_sim entre K-57 y K-80 para evaluar la
-  //            restricción K-68.72_SIFON que no tiene punto de control propio.
+  // v2.7.3 — textos diferenciados por contexto operativo:
+  //   • isDeltaActive+isIncrement+controlFijo → "AJUSTE DE NIVEL — escala fija X.XX m"
+  //     con Δapertura en cm/pieza y horario de maniobra preparatoria.
+  //   • isDeltaActive+isIncrement (sin controlFijo) → mensajes de tránsito de ola.
+  //   • isDeltaActive+isDecrement → mensajes de descenso.
+  //   • Base state (!isDeltaActive) → mensajes conservadores de monitoreo.
+  //
+  // controlFijo: el operador igualó mín ≈ máx (|max−min| < 0.05 m) en el panel de
+  //   condicionantes — indica control de nivel constante en ese punto de control.
   const isDeltaActive = Math.abs(deltaQ) > 0.5;
+  const isIncrement   = deltaQ >  0.5;
+  const isDecrement   = deltaQ < -0.5;
 
   simResults.forEach(r => {
     const ev = r.evaluacion_nivel;
@@ -669,40 +673,107 @@ function generateDecisions(
     // No duplicar con R2 (nivel CRITICO ya emite URGENTE para el mismo punto)
     if (r.status === 'CRITICO') return;
 
-    const metaMax   = ev.nivel_max_m != null ? `≤ ${ev.nivel_max_m.toFixed(2)} m` : '—';
-    const metaMin   = ev.nivel_min_m != null ? `≥ ${ev.nivel_min_m.toFixed(2)} m` : '—';
-    // Fix A: tipo basado en exceso vs déficit
+    const metaMax = ev.nivel_max_m != null ? `≤ ${ev.nivel_max_m.toFixed(2)} m` : '—';
+    const metaMin = ev.nivel_min_m != null ? `≥ ${ev.nivel_min_m.toFixed(2)} m` : '—';
     const tipoAccion: DecisionTipo = ev.exceso_sobre_max_m > 0 ? 'CIERRE' : 'APERTURA';
-    // Fix B: URGENTE solo en escenario activo; base state → ALERTA
     const prioManiobra: DecisionPrioridad = isDeltaActive ? 'URGENTE' : 'ALERTA';
 
+    // Control de nivel fijo: el operador configuró mín ≈ máx en el panel (objetivo de escala fija)
+    const controlFijo = ev.nivel_min_m !== null
+      && Math.abs(ev.nivel_max_m - ev.nivel_min_m) < 0.05;
+    const nivelFijoStr = (ev.nivel_min_m ?? ev.nivel_max_m).toFixed(2);
+    const aperDeltaCm  = Math.abs(r.delta_apertura * 100).toFixed(1);
+    const aperDir      = r.delta_apertura >= 0 ? 'ABRIR' : 'CERRAR';
+    const deltaQStr    = `${deltaQ > 0 ? '+' : ''}${deltaQ.toFixed(1)}`;
+
+    // ── requiere_maniobra_preventiva ──────────────────────────────────────
     if (ev.estado === 'requiere_maniobra_preventiva') {
+      let accionLabel: string;
+      let detalleLabel: string;
+      let valorMeta: string;
+
+      if (isDeltaActive && isIncrement && ev.exceso_sobre_max_m > 0) {
+        // Ola de incremento supera el techo → cerrar para frenar remanso
+        accionLabel  = `MANIOBRA PREVENTIVA — rebase máximo · ${ev.tramo_id}`;
+        detalleLabel = `${ev.mensaje} · Maniobra anticipada: ${r.maniobra_time}.`;
+        valorMeta    = metaMax;
+      } else if (isDeltaActive && isIncrement && controlFijo) {
+        // Escala fija con límite duro: ajuste de apertura para sostener nivel en tránsito
+        accionLabel  = `AJUSTE DE NIVEL — escala fija ${nivelFijoStr} m · ${ev.tramo_id}`;
+        detalleLabel = `Apertura insuficiente para sostener escala en ${nivelFijoStr} m con Q${deltaQStr} m³/s. ${aperDir} ~${aperDeltaCm} cm/pieza. Maniobra preparatoria: ${r.maniobra_time}.`;
+        valorMeta    = `= ${nivelFijoStr} m`;
+      } else if (isDeltaActive && isIncrement) {
+        // Incremento genera déficit genuino por debajo del mínimo duro
+        accionLabel  = `NIVEL INSUFICIENTE EN TRÁNSITO — ${ev.tramo_id}`;
+        detalleLabel = `${ev.mensaje} · Maniobra anticipada en ${r.maniobra_time}.`;
+        valorMeta    = metaMin;
+      } else if (isDeltaActive && isDecrement && ev.exceso_sobre_max_m > 0) {
+        // Descenso con nivel aún por encima del máximo → maniobra para bajar
+        accionLabel  = `MANIOBRA PREVENTIVA — nivel alto en descenso · ${ev.tramo_id}`;
+        detalleLabel = `${ev.mensaje} · Maniobra anticipada en ${r.maniobra_time}.`;
+        valorMeta    = metaMax;
+      } else {
+        // Base state o cualquier otro caso
+        accionLabel  = `${isDeltaActive ? 'MANIOBRA PREVENTIVA' : 'NIVEL FUERA DE RANGO'} — ${ev.tramo_id}`;
+        detalleLabel = ev.mensaje;
+        valorMeta    = ev.exceso_sobre_max_m > 0 ? metaMax : metaMin;
+      }
+
       decisions.push({
-        prioridad: prioManiobra,
-        tipo:      tipoAccion,
+        prioridad: prioManiobra, tipo: tipoAccion,
         punto: r.nombre, km: r.km,
-        accion:       `${isDeltaActive ? 'MANIOBRA PREVENTIVA' : 'NIVEL FUERA DE RANGO'} — ${ev.tramo_id}`,
-        detalle:      ev.mensaje,
+        accion:       accionLabel,
+        detalle:      detalleLabel,
         valor_actual: `${ev.nivel_proyectado_m.toFixed(2)} m`,
-        valor_meta:   ev.exceso_sobre_max_m > 0 ? metaMax : metaMin,
+        valor_meta:   valorMeta,
       });
+
+    // ── alerta_operativa (blando dentro de tolerancia) ────────────────────
     } else if (ev.estado === 'alerta_operativa') {
+      const accionLabel = (isDeltaActive && isIncrement && controlFijo)
+        ? `ESCALA EN RANGO — ajuste menor requerido · ${ev.tramo_id}`
+        : (isDeltaActive && isIncrement)
+          ? `NIVEL EN TOLERANCIA — vigilar durante tránsito · ${ev.tramo_id}`
+          : `NIVEL EN TOLERANCIA — ${ev.tramo_id}`;
+      const detalleLabel = (isDeltaActive && isIncrement && controlFijo)
+        ? `Escala próxima al límite configurado (${ev.nivel_max_m.toFixed(2)} m). Preparar ${aperDir} ~${aperDeltaCm} cm/pieza antes de llegada de ola (${r.arrival_time}).`
+        : ev.mensaje;
+
       decisions.push({
-        prioridad: 'ALERTA',
-        tipo:      'MONITOREO',
+        prioridad: 'ALERTA', tipo: 'MONITOREO',
         punto: r.nombre, km: r.km,
-        accion:       `NIVEL EN TOLERANCIA — ${ev.tramo_id}`,
-        detalle:      ev.mensaje,
+        accion:       accionLabel,
+        detalle:      detalleLabel,
         valor_actual: `${ev.nivel_proyectado_m.toFixed(2)} m`,
         valor_meta:   metaMax,
       });
+
+    // ── riesgo_insuficiencia_operativa (bajo mínimo deseable) ─────────────
     } else if (ev.estado === 'riesgo_insuficiencia_operativa') {
+      let accionLabel: string;
+      let detalleLabel: string;
+
+      if (isDeltaActive && isIncrement && controlFijo) {
+        // Caso principal del usuario: escala fija + incremento activo
+        accionLabel  = `AJUSTE DE NIVEL — escala fija ${nivelFijoStr} m · ${ev.tramo_id}`;
+        detalleLabel = `${aperDir} ~${aperDeltaCm} cm/pieza para sostener escala en ${nivelFijoStr} m con Q${deltaQStr} m³/s. Ola llega: ${r.arrival_time}. Maniobra preparatoria: ${r.maniobra_time}.`;
+      } else if (isDeltaActive && isIncrement) {
+        accionLabel  = `NIVEL BAJO EN TRÁNSITO — ${ev.tramo_id}`;
+        detalleLabel = `${ev.mensaje} · Verificar con SICA cuando llegue la ola: ${r.arrival_time}.`;
+      } else if (isDeltaActive && isDecrement) {
+        accionLabel  = `NIVEL BAJO EN DESCENSO — ${ev.tramo_id}`;
+        detalleLabel = `${ev.mensaje} · Monitorear continuamente durante el descenso.`;
+      } else {
+        // Base state
+        accionLabel  = `NIVEL BAJO MÍNIMO DESEABLE — ${ev.tramo_id}`;
+        detalleLabel = ev.mensaje;
+      }
+
       decisions.push({
-        prioridad: 'ALERTA',
-        tipo:      'APERTURA',
+        prioridad: 'ALERTA', tipo: 'APERTURA',
         punto: r.nombre, km: r.km,
-        accion:       `NIVEL BAJO MÍNIMO DESEABLE — ${ev.tramo_id}`,
-        detalle:      ev.mensaje,
+        accion:       accionLabel,
+        detalle:      detalleLabel,
         valor_actual: `${ev.nivel_proyectado_m.toFixed(2)} m`,
         valor_meta:   metaMin,
       });

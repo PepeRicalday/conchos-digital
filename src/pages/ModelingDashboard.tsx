@@ -529,7 +529,6 @@ function generateDecisions(
   dataStatus:     DataStatus,
   eventType:      EventType,
   deliveryPoints: DeliveryData[],
-  restricciones:  RestriccionNivelTramo[],   // lista activa con overrides temporales
 ): Decision[] {
   const decisions: Decision[] = [];
   const deltaQ = qDam - qBase;
@@ -653,35 +652,6 @@ function generateDecisions(
         valor_meta:   metaMin,
       });
     }
-  });
-
-  // R12b: Tramos con restricción de RANGO sin CP propio — interpolación lineal
-  // Caso concreto: K-68.72_SIFON (range 68.72–70.10) — entre K-57 y K-80
-  restricciones.forEach(rest => {
-    if (rest.km_fin <= rest.km_inicio) return;                          // ignorar puntuales
-    const cpEnRango = simResults.find(r => r.km >= rest.km_inicio && r.km <= rest.km_fin);
-    if (cpEnRango) return;                                              // ya evaluado en R12
-    const prev = [...simResults].reverse().find(r => r.km < rest.km_inicio);
-    const next = simResults.find(r => r.km > rest.km_fin);
-    if (!prev || !next) return;
-    const kmMid = (rest.km_inicio + rest.km_fin) / 2;
-    const t = (kmMid - prev.km) / Math.max(1, next.km - prev.km);
-    const y_interp = prev.y_sim + t * (next.y_sim - prev.y_sim);
-    const ev = evaluarRestriccionNivelTramo(rest, y_interp);
-    if (ev.estado === 'operacion_aceptable') return;
-    const metaMax = `≤ ${rest.nivel_max_permitido_m.toFixed(2)} m`;
-    decisions.push({
-      prioridad: ev.estado === 'requiere_maniobra_preventiva'
-                 ? (isDeltaActive ? 'URGENTE' : 'ALERTA')
-                 : 'ALERTA',
-      tipo:   ev.exceso_sobre_max_m > 0 ? 'CIERRE' : 'APERTURA',
-      punto:  `${rest.tramo_id} (interpolado K${prev.km}–K${next.km})`,
-      km:     kmMid,
-      accion: `${rest.criterio_operativo.toUpperCase()} — ${rest.tramo_id}`,
-      detalle: ev.mensaje + ` (y interpolado km${kmMid}: ${y_interp.toFixed(2)} m)`,
-      valor_actual: `${y_interp.toFixed(2)} m (est.)`,
-      valor_meta:   metaMax,
-    });
   });
 
   // R8: CORTE total — alerta de ola negativa (prioridad máxima, va primero)
@@ -1703,8 +1673,8 @@ const ModelingDashboard: React.FC = () => {
   // ── FASE 3: MOTOR DE DECISIÓN ─────────────────────────────────────────
   const decisions = useMemo<Decision[]>(() => {
     if (!simResults.length) return [];
-    return generateDecisions(simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints, activeRestricciones);
-  }, [simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints, activeRestricciones]);
+    return generateDecisions(simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints);
+  }, [simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints]);
 
   // ── RPC: Simulación de escenario en servidor ──────────────────────────
   const runScenarioRpc = async () => {
@@ -2723,10 +2693,6 @@ const ModelingDashboard: React.FC = () => {
                 </div>
                 {activeRestricciones.map(r => {
                   const isModified = !!restriccionOverrides[r.tramo_id];
-                  // Detectar si el tramo tiene CP propio o requiere interpolación
-                  const tieneCP = r.km_fin <= r.km_inicio
-                    ? controlPoints.some(cp => Math.abs(cp.km - r.km_inicio) < 1.0)
-                    : controlPoints.some(cp => cp.km >= r.km_inicio && cp.km <= r.km_fin);
                   const setField = (field: string, val: any) =>
                     setRestriccionOverrides(prev => ({
                       ...prev,
@@ -2747,11 +2713,6 @@ const ModelingDashboard: React.FC = () => {
                       <div>
                         <div className={`nivel-row-id ${isModified ? 'modified' : ''}`}>{r.tramo_id}</div>
                         <div className="nivel-row-criterio">{r.criterio_operativo}</div>
-                        {!tieneCP && (
-                          <div className="nivel-row-interp" title="Sin punto de control directo — nivel estimado por interpolación lineal entre CPs adyacentes">
-                            ≈ interpolado
-                          </div>
-                        )}
                       </div>
                       {/* Mín deseable */}
                       <input

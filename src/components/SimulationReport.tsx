@@ -118,11 +118,25 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
       level: 'ALERTA',
       text: `${r.nombre} (K-${r.km}): Tirante simulado ${sf(r.y_sim).toFixed(2)}m — ${sf(r.bordo_libre_pct).toFixed(0)}% del bordo libre. Monitoreo estrecho requerido.`,
     });
-    // Apertura
-    const apSica = gateBase[r.id] ?? sf(r.h_radial, 1.25);
-    const apReq  = Math.min(3.0, Math.max(0.1, sf(r.apertura_requerida)));
-    const apDiff = apReq - apSica;
-    if (Math.abs(apDiff) > 0.05 && Math.abs(deltaQ) > 0.5) {
+    // Apertura — INCREMENTO: solo alertar si la compuerta es cuello de botella físico.
+    // NUNCA emitir alerta de CERRAR durante un INCREMENT (lógica espejo del motor UI R4).
+    const G_RPT = 9.81;
+    const apSica    = gateBase[r.id] ?? sf(r.h_radial, 1.25);
+    const apReq     = Math.min(3.0, Math.max(0.1, sf(r.apertura_requerida)));
+    const apDiff    = apReq - apSica;
+    const qCapRpt   = sf(r.cd_used, DEFAULT_CD) * sf(r.area_gate)
+                      * Math.sqrt(2 * G_RPT * Math.max(0.01, sf(r.y_base)));
+    const esCuelloRpt = isIncrement && qCapRpt < sf(r.q_sim) * 0.90;
+    if (isIncrement) {
+      // Solo alerta si la compuerta es físicamente cuello de botella
+      if (esCuelloRpt) {
+        alerts.push({
+          level: 'ALERTA',
+          text: `${r.nombre}: CUELLO DE BOTELLA — capacidad compuerta ${qCapRpt.toFixed(1)} m³/s < Q proyectado ${sf(r.q_sim).toFixed(1)} m³/s. ABRIR de ${apSica.toFixed(2)}m → ${apReq.toFixed(2)}m (+${Math.abs(apDiff).toFixed(2)}m).`,
+        });
+      }
+      // Si no es cuello de botella: sin acción — el volumen incremental pasa sin restricción.
+    } else if (Math.abs(apDiff) > 0.05 && Math.abs(deltaQ) > 0.5) {
       alerts.push({
         level: 'INFO',
         text: `${r.nombre}: Para mantener escala en ${sf(r.y_base).toFixed(2)}m se requiere ajustar apertura de ${apSica.toFixed(2)}m → ${apReq.toFixed(2)}m (${apDiff > 0 ? 'ABRIR' : 'CERRAR'} ${Math.abs(apDiff).toFixed(2)}m).`,
@@ -135,11 +149,24 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
   });
   if (alerts.length === 0) alerts.push({ level: 'INFO', text: 'Sistema hidráulico estable. Todos los puntos de control dentro de parámetros operativos.' });
 
+  // Calcular cuántas secciones son cuello de botella en incremento (para recomendaciones)
+  const G_REC = 9.81;
+  const cuellosBotella = isIncrement ? results.filter(r => {
+    const qCap = sf(r.cd_used, DEFAULT_CD) * sf(r.area_gate)
+                 * Math.sqrt(2 * G_REC * Math.max(0.01, sf(r.y_base)));
+    return qCap < sf(r.q_sim) * 0.90;
+  }) : [];
+
   // Recomendaciones operativas
   const recs: string[] = [];
   if (deltaQ > 0.5) {
-    recs.push(`Monitorear el arribo de la onda al tramo K-23 (estimado ${results.find(r => r.km >= 23)?.arrival_time ?? '—'}) antes de efectuar ajustes adicionales en compuertas aguas abajo.`);
-    recs.push(`Revisar y ajustar aperturas radiales según la columna "Apertura Requerida" del Cuadro de Maniobra para mantener niveles de escala estables.`);
+    recs.push(`INCREMENTO en régimen M1: la ola de +${Math.abs(deltaQ).toFixed(1)} m³/s se propaga aguas abajo sin acción de compuertas en condiciones normales. El canal absorbe el incremento por su capacidad excedente en backwater.`);
+    recs.push(`Monitorear el arribo de la onda al tramo K-23 (estimado ${results.find(r => r.km >= 23)?.arrival_time ?? '—'}). No ejecutar cierres de compuertas — el volumen adicional debe pasar libremente.`);
+    if (cuellosBotella.length > 0) {
+      recs.push(`ATENCIÓN — ${cuellosBotella.length} sección(es) detectada(s) como cuello de botella físico: ${cuellosBotella.map(r => r.nombre).join(', ')}. ABRIR según columna "Ap. Requerida" ANTES del arribo indicado.`);
+    } else {
+      recs.push(`No se requieren ajustes de apertura en ninguna sección. La columna "Ajuste Radial" muestra "Sin acción" para todas las estructuras.`);
+    }
   }
   if (deltaQ < -0.5) {
     recs.push(`DECREMENTO: Ejecutar cierres de compuertas de cola a cabeza según la columna "Hora Maniobra" del Cuadro. Cada punto debe cerrar ANTES del arribo de la onda de menor gasto.`);
@@ -275,13 +302,31 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
                 const apReq  = sf(r.apertura_requerida);
                 const dAp    = sf(r.delta_apertura, apReq - apBase);
                 const hasChange = Math.abs(deltaQ) > 0.5;
+
+                // INCREMENTO: evaluar si la compuerta es cuello de botella físico.
+                // NUNCA mostrar CERRAR durante INCREMENTO — misma regla que motor UI (R4).
+                const G_TBL   = 9.81;
+                const qCapTbl = sf(r.cd_used, DEFAULT_CD) * sf(r.area_gate)
+                                * Math.sqrt(2 * G_TBL * Math.max(0.01, sf(r.y_base)));
+                const esCuelloTbl   = isIncrement && qCapTbl < sf(r.q_sim) * 0.90;
+                const esSuficTbl    = isIncrement && !esCuelloTbl;
+
+                // Columna "Ap. Requerida": durante INCREMENT suficiente → no mostrar
+                const apReqDisplay = esSuficTbl ? null : apReq;
+
                 // Formato del ajuste operador
                 let ajusteLabel = '—';
                 if (hasChange) {
-                  if (Math.abs(dAp) < 0.03) {
-                    ajusteLabel = 'Sin ajuste';
+                  if (isIncrement) {
+                    ajusteLabel = esSuficTbl
+                      ? '✓ Sin acción'
+                      : `▲ ABRIR ${Math.abs(dAp).toFixed(2)}m`;
                   } else {
-                    ajusteLabel = `${dAp > 0 ? '▲ ABRIR' : '▼ CERRAR'} ${Math.abs(dAp).toFixed(2)}m`;
+                    if (Math.abs(dAp) < 0.03) {
+                      ajusteLabel = 'Sin ajuste';
+                    } else {
+                      ajusteLabel = `${dAp > 0 ? '▲ ABRIR' : '▼ CERRAR'} ${Math.abs(dAp).toFixed(2)}m`;
+                    }
                   }
                 }
                 const wavePct = sf(r.wave_pct, 1);
@@ -302,8 +347,8 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
                     </td>
                     <td className="rpt-td-center">{apBase.toFixed(3)}</td>
                     <td className="rpt-td-center rpt-td-bold"
-                      style={{ color: Math.abs(dAp) > 0.05 ? '#92400e' : '#374151' }}>
-                      {hasChange ? apReq.toFixed(3) : '—'}
+                      style={{ color: Math.abs(dAp) > 0.05 && !esSuficTbl ? '#92400e' : '#374151' }}>
+                      {hasChange ? (apReqDisplay != null ? apReqDisplay.toFixed(3) : '—') : '—'}
                     </td>
                     <td className="rpt-td-center rpt-td-adj"
                       style={{ color: dAp > 0.03 ? '#b45309' : dAp < -0.03 ? '#1d4ed8' : '#64748b', fontWeight: Math.abs(dAp) > 0.05 ? 700 : 400 }}>

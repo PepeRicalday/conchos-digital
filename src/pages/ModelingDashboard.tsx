@@ -85,6 +85,8 @@ interface CPResult {
   wave_pct:        number;
   wave_arrived:    boolean;
   maniobra_time:   string;
+  // Evaluación de restricción de nivel para este tramo (null si no aplica restricción)
+  evaluacion_nivel: EvaluacionNivelTramo | null;
 }
 
 // Datos de telemetría base por punto de control (de SICA Capture)
@@ -153,6 +155,162 @@ interface TramoGeom {
   tirante_diseno_m:    number;
   capacidad_diseno_m3s: number;
   bordo_libre_m:       number;
+}
+
+// ── RESTRICCIONES DE NIVEL POR TRAMO ─────────────────────────────────────
+type TipoLimite       = 'duro' | 'blando';
+type CriterioOperativo =
+  | 'seguridad_infraestructura'
+  | 'bordo_libre'
+  | 'operacion_tomas'
+  | 'control_remanso'
+  | 'transicion'
+  | 'sifon'
+  | 'criterio_local';
+type EstadoOperacionTramo =
+  | 'operacion_aceptable'
+  | 'alerta_operativa'
+  | 'riesgo_insuficiencia_operativa'
+  | 'requiere_maniobra_preventiva';
+
+interface RestriccionNivelTramo {
+  tramo_id:                string;
+  km_inicio:               number;
+  km_fin:                  number;
+  nivel_max_permitido_m:   number;
+  nivel_min_deseable_m?:   number | null;
+  tipo_limite_max:         TipoLimite;
+  tolerancia_transitoria_m?: number | null;
+  criterio_operativo:      CriterioOperativo;
+  observaciones?:          string;
+}
+
+interface EvaluacionNivelTramo {
+  tramo_id:             string;
+  nivel_proyectado_m:   number;
+  estado:               EstadoOperacionTramo;
+  exceso_sobre_max_m:   number;
+  deficit_bajo_min_m:   number;
+  nivel_max_m:          number;
+  nivel_min_m:          number | null;
+  mensaje:              string;
+}
+
+// ── CONFIGURACIÓN DE RESTRICCIONES DE NIVEL ──────────────────────────────
+// Fuente primaria: definición operativa por criterio hidráulico y de infraestructura.
+// Futura extensión: cargar desde tabla `restricciones_nivel_tramos` en Supabase.
+const RESTRICCIONES_NIVEL: RestriccionNivelTramo[] = [
+  {
+    tramo_id:              'K-23',
+    km_inicio:             23.0,  km_fin: 23.0,
+    nivel_max_permitido_m: 3.50,
+    nivel_min_deseable_m:  3.20,
+    tipo_limite_max:       'duro',
+    tolerancia_transitoria_m: 0.0,
+    criterio_operativo:    'seguridad_infraestructura',
+    observaciones:         'No rebasar 3.50 m por criterio de bordo libre operativo',
+  },
+  {
+    tramo_id:              'K-34',
+    km_inicio:             34.0,  km_fin: 34.0,
+    nivel_max_permitido_m: 3.45,
+    nivel_min_deseable_m:  3.10,
+    tipo_limite_max:       'blando',
+    tolerancia_transitoria_m: 0.03,
+    criterio_operativo:    'control_remanso',
+    observaciones:         'Se acepta pequeña sobre elevación transitoria',
+  },
+  {
+    tramo_id:              'K-68.72_SIFON',
+    km_inicio:             68.72, km_fin: 70.10,
+    nivel_max_permitido_m: 3.30,
+    nivel_min_deseable_m:  2.90,
+    tipo_limite_max:       'duro',
+    tolerancia_transitoria_m: 0.0,
+    criterio_operativo:    'sifon',
+    observaciones:         'Zona crítica por transición y obra especial',
+  },
+  {
+    tramo_id:              'K-80',
+    km_inicio:             80.0,  km_fin: 80.0,
+    nivel_max_permitido_m: 3.25,
+    nivel_min_deseable_m:  2.95,
+    tipo_limite_max:       'blando',
+    tolerancia_transitoria_m: 0.02,
+    criterio_operativo:    'operacion_tomas',
+    observaciones:         'Proteger servicio en tomas altas',
+  },
+  {
+    tramo_id:              'K-104',
+    km_inicio:             104.0, km_fin: 104.0,
+    nivel_max_permitido_m: 2.55,
+    nivel_min_deseable_m:  2.40,
+    tipo_limite_max:       'duro',
+    tolerancia_transitoria_m: 0.0,
+    criterio_operativo:    'seguridad_infraestructura',
+    observaciones:         'Nivel final de control',
+  },
+];
+
+/** Devuelve la restricción de nivel activa para un km dado.
+ *  Primero busca rangos (km_inicio < km_fin — sifón); luego coincidencia puntual (±1 km).
+ *  Acepta una lista explícita para soportar overrides temporales de simulación. */
+function findRestriccion(
+  km: number,
+  lista: RestriccionNivelTramo[] = RESTRICCIONES_NIVEL,
+): RestriccionNivelTramo | undefined {
+  const rangeMatch = lista.find(
+    r => r.km_fin > r.km_inicio && km >= r.km_inicio && km <= r.km_fin,
+  );
+  if (rangeMatch) return rangeMatch;
+  return lista.find(r => Math.abs(km - r.km_inicio) < 1.0);
+}
+
+/** Evalúa el nivel proyectado contra la restricción del tramo.
+ *  Implementa las 5 reglas de decisión del sistema de condicionantes. */
+function evaluarRestriccionNivelTramo(
+  restriccion: RestriccionNivelTramo,
+  nivelProyectadoM: number,
+): EvaluacionNivelTramo {
+  const tolerancia = restriccion.tipo_limite_max === 'blando'
+    ? (restriccion.tolerancia_transitoria_m ?? 0)
+    : 0;
+  const max    = restriccion.nivel_max_permitido_m;
+  const min    = restriccion.nivel_min_deseable_m ?? null;
+  const exceso = Math.max(0, nivelProyectadoM - max);
+  const deficit = min !== null ? Math.max(0, min - nivelProyectadoM) : 0;
+  const base    = { tramo_id: restriccion.tramo_id, nivel_proyectado_m: nivelProyectadoM,
+                    exceso_sobre_max_m: exceso, deficit_bajo_min_m: deficit,
+                    nivel_max_m: max, nivel_min_m: min };
+
+  // Regla 1: límite DURO superado
+  if (restriccion.tipo_limite_max === 'duro' && nivelProyectadoM > max) {
+    return { ...base, estado: 'requiere_maniobra_preventiva',
+      mensaje: `${restriccion.tramo_id} rebasa límite duro (${max.toFixed(2)} m). `
+             + `Exceso: +${exceso.toFixed(3)} m — maniobra preventiva requerida.` };
+  }
+  // Regla 2: límite BLANDO superado pero dentro de tolerancia
+  if (restriccion.tipo_limite_max === 'blando' && nivelProyectadoM > max && nivelProyectadoM <= max + tolerancia) {
+    return { ...base, estado: 'alerta_operativa',
+      mensaje: `${restriccion.tramo_id} supera máximo blando (${max.toFixed(2)} m) `
+             + `dentro de tolerancia (±${tolerancia.toFixed(2)} m). Monitoreo intensivo.` };
+  }
+  // Regla 3: límite BLANDO + tolerancia superados
+  if (restriccion.tipo_limite_max === 'blando' && nivelProyectadoM > max + tolerancia) {
+    return { ...base, estado: 'requiere_maniobra_preventiva',
+      mensaje: `${restriccion.tramo_id} supera máximo más tolerancia `
+             + `(${(max + tolerancia).toFixed(2)} m). Maniobra preventiva requerida.` };
+  }
+  // Regla 4: por debajo del mínimo deseable
+  if (min !== null && nivelProyectadoM < min) {
+    return { ...base, estado: 'riesgo_insuficiencia_operativa',
+      mensaje: `${restriccion.tramo_id} bajo nivel mínimo deseable (${min.toFixed(2)} m). `
+             + `Déficit: −${deficit.toFixed(3)} m — riesgo de insuficiencia en tomas.` };
+  }
+  // Regla 5: dentro del rango permitido
+  return { ...base, estado: 'operacion_aceptable',
+    mensaje: `${restriccion.tramo_id} opera dentro del rango permitido `
+           + `[${(min ?? 0).toFixed(2)}–${max.toFixed(2)} m].` };
 }
 
 /** Devuelve la geometría del tramo que contiene el km dado.
@@ -433,6 +591,51 @@ function generateDecisions(
     }
   }
 
+  // R12: Restricciones de nivel por tramo — evaluación de condicionantes hidráulicas
+  // Opera SIEMPRE (estado base y escenarios), ya que los límites son físicos/estructurales.
+  // Prioridad: URGENTE si "requiere_maniobra_preventiva" (límite duro violado),
+  //            ALERTA  si "alerta_operativa" (dentro de tolerancia blando),
+  //            ALERTA  si "riesgo_insuficiencia_operativa" (bajo mínimo).
+  simResults.forEach(r => {
+    const ev = r.evaluacion_nivel;
+    if (!ev || ev.estado === 'operacion_aceptable') return;
+
+    const metaMax = ev.nivel_max_m != null ? `≤ ${ev.nivel_max_m.toFixed(2)} m` : '—';
+    const metaMin = ev.nivel_min_m != null ? `≥ ${ev.nivel_min_m.toFixed(2)} m` : '—';
+
+    if (ev.estado === 'requiere_maniobra_preventiva') {
+      decisions.push({
+        prioridad: 'URGENTE',
+        tipo:      deltaQ > 0 ? 'APERTURA' : 'CIERRE',
+        punto: r.nombre, km: r.km,
+        accion:       `MANIOBRA PREVENTIVA — ${ev.tramo_id}`,
+        detalle:      ev.mensaje,
+        valor_actual: `${ev.nivel_proyectado_m.toFixed(2)} m`,
+        valor_meta:   ev.exceso_sobre_max_m > 0 ? metaMax : metaMin,
+      });
+    } else if (ev.estado === 'alerta_operativa') {
+      decisions.push({
+        prioridad: 'ALERTA',
+        tipo:      'MONITOREO',
+        punto: r.nombre, km: r.km,
+        accion:       `NIVEL EN TOLERANCIA — ${ev.tramo_id}`,
+        detalle:      ev.mensaje,
+        valor_actual: `${ev.nivel_proyectado_m.toFixed(2)} m`,
+        valor_meta:   metaMax,
+      });
+    } else if (ev.estado === 'riesgo_insuficiencia_operativa') {
+      decisions.push({
+        prioridad: 'ALERTA',
+        tipo:      'MONITOREO',
+        punto: r.nombre, km: r.km,
+        accion:       `NIVEL BAJO MÍNIMO DESEABLE — ${ev.tramo_id}`,
+        detalle:      ev.mensaje,
+        valor_actual: `${ev.nivel_proyectado_m.toFixed(2)} m`,
+        valor_meta:   metaMin,
+      });
+    }
+  });
+
   // R8: CORTE total — alerta de ola negativa (prioridad máxima, va primero)
   if (eventType === 'CORTE' && qDam < 5) {
     decisions.push({
@@ -604,18 +807,19 @@ function generateDecisions(
 // currentTimeMin: hora actual del sistema en minutos desde medianoche
 // simBaseMin: hora del ÚLTIMO movimiento de presa (no la hora del sistema)
 function runSimulation(
-  controlPoints:  ControlPoint[],
-  qDamInit:       number,
-  qBaseInit:      number,
-  baseReadings:   Record<string, number>,
-  gateOverrides:  Record<string, number>,
-  gastoMedido:    Record<string, number>,
-  deliveryPoints: DeliveryData[],
-  tramoGeom:      TramoGeom[],
-  riverTransit:   boolean,
-  simBaseMin:     number,
-  currentTimeMin: number,
-  balanceTramos:  BalanceTramo[],
+  controlPoints:     ControlPoint[],
+  qDamInit:          number,
+  qBaseInit:         number,
+  baseReadings:      Record<string, number>,
+  gateOverrides:     Record<string, number>,
+  gastoMedido:       Record<string, number>,
+  deliveryPoints:    DeliveryData[],
+  tramoGeom:         TramoGeom[],
+  riverTransit:      boolean,
+  simBaseMin:        number,
+  currentTimeMin:    number,
+  balanceTramos:     BalanceTramo[],
+  restricciones:     RestriccionNivelTramo[],   // lista activa (default + overrides temporales)
 ): CPResult[] {
   let qCur     = qDamInit,  cumMin = 0;
   let qBaseCur = qBaseInit;
@@ -823,6 +1027,12 @@ function runSimulation(
       qBaseCur = Math.min(qBaseCur, q_gate_m3s);
     }
 
+    // ── RESTRICCIÓN DE NIVEL: evaluar y_sim contra límites del tramo ────────
+    const restriccion    = findRestriccion(kmCp, restricciones);
+    const evaluacion_nivel = restriccion
+      ? evaluarRestriccionNivelTramo(restriccion, y_sim)
+      : null;
+
     return {
       id: cp.id, nombre: cp.nombre, km: kmCp,
       y_base, q_base: q_base_arribo, y_sim, q_sim: q_sim_arribo,
@@ -842,6 +1052,7 @@ function runSimulation(
       pct_capacidad_diseno: qdis > 0 ? Math.min(120, (q_sim_arribo / qdis) * 100) : 0,
       q_gate_m3s, gate_anchored, gate_source,
       wave_pct, wave_arrived, maniobra_time,
+      evaluacion_nivel,
     };
   });
 }
@@ -873,6 +1084,17 @@ const ModelingDashboard: React.FC = () => {
   const [perfilRpc,    setPerfilRpc]    = useState<any[]>([]);
   // Balance hídrico por tramo (fn_balance_hidrico_tramos)
   const [balanceTramos, setBalanceTramos] = useState<BalanceTramo[]>([]);
+
+  // ── RESTRICCIONES DE NIVEL: overrides temporales por simulación ─────────
+  // Estructura: { [tramo_id]: campos sobreescritos }
+  // Los valores del usuario reemplazan temporalmente los valores de RESTRICCIONES_NIVEL.
+  // Solo persisten en la sesión — no se guardan en Supabase.
+  type RestriccionOverride = Partial<Pick<
+    RestriccionNivelTramo,
+    'nivel_max_permitido_m' | 'nivel_min_deseable_m' | 'tipo_limite_max' | 'tolerancia_transitoria_m'
+  >>;
+  const [restriccionOverrides, setRestriccionOverrides] = useState<Record<string, RestriccionOverride>>({});
+  const [showNivelPanel, setShowNivelPanel]             = useState(false);
 
   const [qDam,         setQDam]         = useState(0);
   const [qBase,        setQBase]        = useState(0);
@@ -1405,11 +1627,16 @@ const ModelingDashboard: React.FC = () => {
     return rec;
   }, [cpTelemetry]);
 
+  // ── RESTRICCIONES ACTIVAS: defaults + overrides temporales de sesión ────
+  const activeRestricciones = useMemo<RestriccionNivelTramo[]>(() =>
+    RESTRICCIONES_NIVEL.map(r => ({ ...r, ...(restriccionOverrides[r.tramo_id] ?? {}) })),
+  [restriccionOverrides]);
+
   const simResults = useMemo<CPResult[]>(() => {
     if (!controlPoints.length || !dataLoaded) return [];
     return runSimulation(controlPoints, qDam, qBase, baseReadings, gateOverrides,
-      gastoMedidoRecord, deliveryPoints, tramoGeom, riverTransit, simBaseMin, currentTimeMin, balanceTramos);
-  }, [controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDam, qBase, riverTransit, simBaseMin, currentTimeMin, deliveryPoints, dataLoaded, tramoGeom, balanceTramos]);
+      gastoMedidoRecord, deliveryPoints, tramoGeom, riverTransit, simBaseMin, currentTimeMin, balanceTramos, activeRestricciones);
+  }, [controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDam, qBase, riverTransit, simBaseMin, currentTimeMin, deliveryPoints, dataLoaded, tramoGeom, balanceTramos, activeRestricciones]);
 
   // ── ESCENARIO B — segunda corrida del motor para comparación ─────────
   const [showScenarioB, setShowScenarioB] = useState(false);
@@ -1429,8 +1656,8 @@ const ModelingDashboard: React.FC = () => {
       return mod ? { ...d, caudal_m3s: mod.nuevo_caudal, is_active: mod.nuevo_caudal > 0 } : d;
     });
     return runSimulation(controlPoints, qDamB, qBase, baseReadings, gateOverrides,
-      gastoMedidoRecord, modDeliveries, tramoGeom, riverTransit, simBaseMin, currentTimeMin, balanceTramos);
-  }, [showScenarioB, controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDamB, qBase, riverTransit, simBaseMin, currentTimeMin, deliveryPoints, scenarioMods, dataLoaded, tramoGeom, balanceTramos]);
+      gastoMedidoRecord, modDeliveries, tramoGeom, riverTransit, simBaseMin, currentTimeMin, balanceTramos, activeRestricciones);
+  }, [showScenarioB, controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDamB, qBase, riverTransit, simBaseMin, currentTimeMin, deliveryPoints, scenarioMods, dataLoaded, tramoGeom, balanceTramos, activeRestricciones]);
 
   // ── FASE 3: MOTOR DE DECISIÓN ─────────────────────────────────────────
   const decisions = useMemo<Decision[]>(() => {
@@ -2410,6 +2637,131 @@ const ModelingDashboard: React.FC = () => {
           </div>
         </label>
       </div>
+
+      {/* ── PANEL CONDICIONANTES DE NIVEL (TEMPORAL SIMULACIÓN) ─────── */}
+      {(() => {
+        const nMod = Object.keys(restriccionOverrides).length;
+        return (
+          <div className={`nivel-panel ${showNivelPanel ? 'expanded' : ''}`}>
+            {/* Header colapsable */}
+            <div className="nivel-panel-header" onClick={() => setShowNivelPanel(v => !v)}>
+              <span className="nivel-panel-title">CONDICIONANTES DE NIVEL · SIMULACIÓN</span>
+              {nMod > 0 && (
+                <span className="nivel-panel-badge">
+                  {nMod} MODIFICADO{nMod > 1 ? 'S' : ''}
+                </span>
+              )}
+              <span className="nivel-panel-toggle">
+                {showNivelPanel ? '▲ COLAPSAR' : '▼ EXPANDIR'}
+              </span>
+              {nMod > 0 && (
+                <button
+                  type="button"
+                  className="nivel-panel-reset-all"
+                  onClick={e => { e.stopPropagation(); setRestriccionOverrides({}); }}
+                >
+                  Restaurar defaults
+                </button>
+              )}
+            </div>
+
+            {/* Cuerpo expandido */}
+            {showNivelPanel && (
+              <div className="nivel-panel-body">
+                <div className="nivel-panel-note">
+                  Estos valores son <strong>temporales</strong> — solo aplican durante esta sesión de simulación. No se guardan en base de datos.
+                </div>
+                {/* Encabezado de columnas */}
+                <div className="nivel-panel-cols-header">
+                  <span>TRAMO</span>
+                  <span>MÍN DESEABLE (m)</span>
+                  <span>MÁX PERMITIDO (m)</span>
+                  <span>TIPO LÍMITE</span>
+                  <span>TOLERANCIA (m)</span>
+                  <span />
+                </div>
+                {activeRestricciones.map(r => {
+                  const isModified = !!restriccionOverrides[r.tramo_id];
+                  const setField = (field: string, val: any) =>
+                    setRestriccionOverrides(prev => ({
+                      ...prev,
+                      [r.tramo_id]: { ...prev[r.tramo_id], [field]: val },
+                    }));
+                  const resetRow = () =>
+                    setRestriccionOverrides(prev => {
+                      const next = { ...prev };
+                      delete next[r.tramo_id];
+                      return next;
+                    });
+                  return (
+                    <div
+                      key={r.tramo_id}
+                      className={`nivel-panel-row ${isModified ? 'modified' : ''}`}
+                    >
+                      {/* Tramo ID */}
+                      <div>
+                        <div className={`nivel-row-id ${isModified ? 'modified' : ''}`}>{r.tramo_id}</div>
+                        <div className="nivel-row-criterio">{r.criterio_operativo}</div>
+                      </div>
+                      {/* Mín deseable */}
+                      <input
+                        type="number" step="0.05" min="0" max="5"
+                        title={`Nivel mínimo deseable para ${r.tramo_id}`}
+                        placeholder="—"
+                        className={`nivel-input ${isModified ? 'modified' : ''}`}
+                        value={r.nivel_min_deseable_m ?? ''}
+                        onChange={e => setField('nivel_min_deseable_m', e.target.value === '' ? null : +e.target.value)}
+                      />
+                      {/* Máx permitido */}
+                      <input
+                        type="number" step="0.05" min="0" max="5"
+                        title={`Nivel máximo permitido para ${r.tramo_id}`}
+                        placeholder="0.00"
+                        className={`nivel-input ${isModified ? 'modified' : ''} ${r.tipo_limite_max}`}
+                        value={r.nivel_max_permitido_m}
+                        onChange={e => setField('nivel_max_permitido_m', +e.target.value)}
+                      />
+                      {/* Tipo límite */}
+                      <select
+                        title={`Tipo de límite para ${r.tramo_id}`}
+                        className={`nivel-select ${isModified ? 'modified' : ''} ${r.tipo_limite_max}`}
+                        value={r.tipo_limite_max}
+                        onChange={e => setField('tipo_limite_max', e.target.value as TipoLimite)}
+                      >
+                        <option value="duro">Duro</option>
+                        <option value="blando">Blando</option>
+                      </select>
+                      {/* Tolerancia */}
+                      <input
+                        type="number" step="0.01" min="0" max="0.5"
+                        title={`Tolerancia transitoria para ${r.tramo_id}`}
+                        placeholder="0.00"
+                        disabled={r.tipo_limite_max !== 'blando'}
+                        className={`nivel-input ${isModified ? 'modified' : ''} ${r.tipo_limite_max !== 'blando' ? 'disabled' : ''}`}
+                        value={r.tipo_limite_max === 'blando' ? (r.tolerancia_transitoria_m ?? 0) : ''}
+                        onChange={e => setField('tolerancia_transitoria_m', +e.target.value)}
+                      />
+                      {/* Reset fila */}
+                      {isModified ? (
+                        <button
+                          type="button"
+                          onClick={resetRow}
+                          title="Restaurar valores default de este tramo"
+                          className="nivel-row-reset"
+                        >
+                          ↺
+                        </button>
+                      ) : (
+                        <span className="nivel-row-no-mod">—</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── BANDA DE ESTADO DE TELEMETRÍA ──────────────────────────── */}
       <div className="sim-datasource-strip">

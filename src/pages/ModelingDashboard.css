@@ -1828,3 +1828,130 @@
   margin-top: 4px;
   letter-spacing: 0.02em;
 }
+
+/* ── PANEL CONDICIONANTES DE NIVEL · SIMULACIÓN TEMPORAL ──────────────── */
+.nivel-panel {
+  background: #0c1523;
+  border-bottom: 1px solid #1e2d40;
+  padding: 5px 16px;
+}
+.nivel-panel.expanded { padding-bottom: 10px; }
+
+.nivel-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.nivel-panel-title {
+  font-size: 9px;
+  color: #64748b;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+.nivel-panel-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f59e0b22;
+  color: #f59e0b;
+  border: 1px solid #f59e0b44;
+}
+.nivel-panel-toggle {
+  font-size: 8px;
+  color: #475569;
+  margin-left: auto;
+}
+.nivel-panel-reset-all {
+  font-size: 9px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  cursor: pointer;
+}
+.nivel-panel-body {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nivel-panel-note {
+  font-size: 9px;
+  color: #475569;
+  margin-bottom: 2px;
+}
+.nivel-panel-note strong { color: #f59e0b; }
+
+.nivel-panel-cols-header {
+  display: grid;
+  grid-template-columns: 120px 1fr 1fr 90px 80px 48px;
+  gap: 6px;
+  padding: 3px 4px;
+  font-size: 8px;
+  color: #475569;
+  border-bottom: 1px solid #1e2d40;
+}
+.nivel-panel-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 1fr 90px 80px 48px;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 4px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+}
+.nivel-panel-row.modified {
+  background: #f59e0b08;
+  border-color: #f59e0b22;
+}
+.nivel-row-id {
+  font-size: 9px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+.nivel-row-id.modified { color: #f59e0b; }
+.nivel-row-criterio {
+  font-size: 8px;
+  color: #475569;
+}
+
+/* Inputs y select del panel */
+.nivel-input,
+.nivel-select {
+  width: 100%;
+  padding: 3px 6px;
+  font-size: 10px;
+  background: #0f1f30;
+  border: 1px solid #1e2d40;
+  border-radius: 4px;
+  color: #e2e8f0;
+}
+.nivel-select { padding: 3px 4px; font-size: 9px; }
+.nivel-input.modified,
+.nivel-select.modified  { border-color: #f59e0b55; }
+.nivel-input.duro  { color: #f87171; }
+.nivel-input.blando { color: #fbbf24; }
+.nivel-select.duro  { color: #f87171; }
+.nivel-select.blando { color: #fbbf24; }
+.nivel-input.disabled { background: #090f18; opacity: 0.4; }
+
+.nivel-row-reset {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #1e293b;
+  border: 1px solid #f59e0b44;
+  color: #f59e0b;
+  cursor: pointer;
+}
+.nivel-row-no-mod {
+  font-size: 9px;
+  color: #1e2d40;
+  text-align: center;
+  display: block;
+}

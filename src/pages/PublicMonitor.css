@@ -1746,37 +1746,37 @@
     
     .phb-logos { display: none !important; }
     
-    /* 2. Dock Inferior Fijo, Organizado y Simplificado */
+    /* 2. Dock Inferior Fijo — bottom-sheet más alto para tabs */
     .info-cards-dock {
-        max-height: 25vh; /* Ligero aumento para mejorar hitboxes */
-        padding: 8px 10px;
+        max-height: 42vh;
+        padding: 0 0 4px;
         display: flex !important;
         flex-direction: column !important;
-        gap: 8px;
-        overflow-y: hidden;
+        gap: 0;
+        overflow: hidden;
         border-radius: 20px 20px 0 0 !important;
         bottom: 0 !important;
         width: 100% !important;
         left: 0 !important;
         position: fixed !important;
-        background: rgba(15, 23, 42, 0.95);
-        transform: none !important; /* Previene overrides de resoluciones mayores */
+        background: rgba(10, 15, 30, 0.97);
+        transform: none !important;
     }
 
     .dock-panel-left {
         border-right: none;
-        border-bottom: 1px solid rgba(255,255,255,0.08);
-        padding: 0 0 6px 0;
+        border-bottom: none;
+        padding: 6px 10px 4px;
         max-width: 100%;
+        min-width: 100%;
         display: flex;
-        flex-direction: row;
-        overflow-x: auto;
-        scroll-snap-type: none; /* Métricas fluyen solas */
-        gap: 15px;
+        flex-direction: column;
+        overflow-y: auto;
+        gap: 5px;
     }
 
     .dock-panel-left::-webkit-scrollbar { display: none; }
-    
+
     .dock-panel-header, .dock-section-header, .card-label {
         display: none !important;
     }
@@ -1833,7 +1833,7 @@
 
     /* 4. Botones Flotantes Circulares (FABs) de Acción */
     .floating-ui-controls-v2 {
-        bottom: 27vh; /* Flotan siempre por encima del Dock */
+        bottom: 44vh; /* Flotan siempre por encima del Dock */
         right: 15px;
         gap: 12px;
         flex-direction: column;
@@ -2930,4 +2930,140 @@
     .dock-tabs { padding: 5px 8px 0; }
     .dock-tab  { font-size: 8px; padding: 4px 7px 5px; }
     .dap-titulo { max-width: 160px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE-FIRST ULTRA-COMPACT — pantallas < 480 px (< 6 pulgadas)
+   Estrategia: bottom-sheet tabs, panorama condensado, canal swipeable
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+
+    /* ── 1. Tab bar — grid 3 columnas iguales, touch-friendly ──────── */
+    .dock-tabs {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 4px;
+        padding: 7px 8px 0;
+        margin-bottom: 0;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        flex-shrink: 0;
+    }
+    .dock-tab {
+        font-size: 8.5px;
+        padding: 7px 4px 8px;
+        text-align: center;
+        border-radius: 8px 8px 0 0;
+        background: rgba(255,255,255,0.02);
+        min-height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+    }
+    .dock-tab--active {
+        background: rgba(56,189,248,0.08);
+    }
+
+    /* ── 2. En pestaña PANORAMA: ocultar checkpoints (tabs se encargan) */
+    .dock-panel-left ~ .checkpoints-section {
+        display: none !important;
+    }
+
+    /* ── 3. Dock: scroll interno por contenido ─────────────────────── */
+    .dock-panel-left {
+        padding: 5px 10px 2px;
+        gap: 4px;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    /* ── 4. Flow chain ultra-compacto ──────────────────────────────── */
+    .coherencia-flow-chain {
+        gap: 1px;
+        margin-top: 3px;
+    }
+    .cfc-node {
+        min-width: 36px;
+        gap: 0;
+    }
+    .cfc-val  { font-size: 0.88rem; }
+    .cfc-unit { font-size: 0.52rem; }
+    .cfc-label { font-size: 0.52rem; letter-spacing: 0; }
+    .cfc-arrow { min-width: 22px; gap: 0; }
+    .cfc-arrow::before { font-size: 0.7rem; }
+    .cfc-loss  { font-size: 0.52rem; }
+    .cfc-dist  { font-size: 0.46rem; }
+
+    /* ── 5. IEC breakdown — barras compactas, sin sparkline ni botones */
+    .iec-breakdown {
+        padding: 4px 6px;
+        gap: 3px;
+        margin-top: 3px;
+    }
+    .iec-bd-item {
+        grid-template-columns: 52px 1fr 26px;
+        gap: 4px;
+    }
+    .iec-bd-track  { height: 3px; }
+    .iec-bd-label  { font-size: 0.5rem; }
+    .iec-bd-pts    { font-size: 0.52rem; }
+    .iec-bd-texto  { font-size: 0.52rem; margin-top: 1px; }
+
+    /* Ocultar sparkline y botones PDF/CSV en móvil */
+    .iec-sparkline-wrap { display: none !important; }
+    .dock-action-row    { display: none !important; }
+
+    /* ── 6. Footer condensado ──────────────────────────────────────── */
+    .dock-panel-footer {
+        gap: 8px;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 0;
+        margin-top: 0;
+    }
+    .dock-panel-footer::-webkit-scrollbar { display: none; }
+    .dpf-label { font-size: 0.5rem; }
+    .dpf-val   { font-size: 0.58rem; }
+
+    /* ── 7. Tarjetas de checkpoints: 105px, snap ───────────────────── */
+    .checkpoint-card-compact {
+        min-width: 105px;
+        max-width: 105px;
+        padding: 5px 6px;
+        border-radius: 10px;
+        scroll-snap-align: center;
+    }
+    .cpc-km    { font-size: 0.55rem; padding: 1px 3px; }
+    .cpc-name  { font-size: 0.65rem; }
+    .cpc-value { font-size: 0.9rem; }
+    .cpc-unit  { font-size: 0.55rem; }
+    .cpc-time  { font-size: 0.46rem; margin-top: 2px; }
+    .cpc-gasto    { font-size: 0.55rem; }
+    .cpc-apertura { font-size: 0.52rem; }
+    .cpc-extra { gap: 2px; margin-top: 1px; }
+
+    /* ── 8. Indicadores de navegación del scroll ───────────────────── */
+    .checkpoints-scroll-container {
+        padding-bottom: 8px;
+        gap: 6px;
+    }
+
+    /* ── 9. Alertas compactas ──────────────────────────────────────── */
+    .dap-titulo  { max-width: 200px; font-size: 9px; }
+    .dap-fecha   { font-size: 7.5px; }
+    .dap-item    { padding: 5px 8px; gap: 5px; }
+    .dap-list    { max-height: 140px; }
+
+    /* ── 10. IEC badge inline ──────────────────────────────────────── */
+    .iec-badge { padding: 2px 6px; }
+    .iec-score { font-size: 0.72rem; }
+
+    /* ── 11. Coherencia resumen ────────────────────────────────────── */
+    .coherencia-resumen { font-size: 0.52rem; margin-top: 2px; }
+
+    /* ── 12. perfil inline btn ─────────────────────────────────────── */
+    .perfil-inline-btn {
+        padding: 2px 6px;
+        font-size: 0.52rem;
+    }
 }

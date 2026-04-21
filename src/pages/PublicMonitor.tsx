@@ -1802,6 +1802,7 @@ const PublicMonitor: React.FC = () => {
 
                     {/* ── Pestaña RESUMEN (anterior dock-panel-left) ── */}
                     {dockTab === 'resumen' && (
+                    <>
                     <div className="dock-section dock-panel-left">
                         {!isEstabilizacion ? (
                             // ── Vista LLENADO ──
@@ -2006,10 +2007,8 @@ const PublicMonitor: React.FC = () => {
                             </>
                         )}
                     </div>
-                    )}
 
-                    {/* ── Pestaña CANAL (checkpoints grid) ── */}
-                    {dockTab === 'canal' && (
+                    {/* ── Checkpoints siempre visibles en RESUMEN (layout original) ── */}
                     <div className="dock-section checkpoints-section">
                         <div className="dock-section-header">
                             <span className="card-label">RED DE PUNTOS DE CONTROL</span>
@@ -2046,6 +2045,78 @@ const PublicMonitor: React.FC = () => {
                                                 })()}
                                             </div>
                                             {/* ESTABILIZACIÓN: mostrar gasto y apertura si disponibles */}
+                                            {isEstabilizacion && (
+                                                <div className="cpc-extra">
+                                                    {hasFlow && (
+                                                        <span className="cpc-gasto">{(e.gasto_actual ?? 0).toFixed(2)} m³/s</span>
+                                                    )}
+                                                    {(e.apertura_actual ?? 0) > 0 && (
+                                                        <span className="cpc-apertura">
+                                                            ⊿ {(e.apertura_actual ?? 0).toFixed(2)}m
+                                                            {e.puertas_abiertas != null && e.pzas_radiales != null
+                                                                ? ` (${e.puertas_abiertas}/${e.pzas_radiales})`
+                                                                : ''}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="cpc-status-bar">
+                                            <div
+                                                className="cpc-progress"
+                                                style={{
+                                                    width: isEstabilizacion
+                                                        ? (hasFlow ? `${Math.min(100, ((e.gasto_actual ?? 0) / Math.max(coherenciaCanal?.qK0Medido ?? 1, 1)) * 100)}%` : '0%')
+                                                        : (e.km <= displayMaxKm ? '100%' : '0%'),
+                                                    background: incoherente ? '#ef4444' : (e.estado === 'OPERANDO' ? '#22c55e' : statusColor)
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="cpc-time">{formatTimeAgo(e.ultima_telemetria)}</div>
+                                    </div>
+                                    );
+                                })}
+                        </div>
+                    </div>
+                    </>
+                    )}
+
+                    {/* ── Pestaña CANAL (checkpoints standalone — móvil usa esta vista) ── */}
+                    {dockTab === 'canal' && (
+                    <div className="dock-section checkpoints-section">
+                        <div className="dock-section-header">
+                            <span className="card-label">RED DE PUNTOS DE CONTROL</span>
+                            <span className="telemetry-tag active-mon">● MONITOREO TOTAL ACTIVO</span>
+                        </div>
+                        <div className="checkpoints-scroll-container">
+                            {escalas
+                                .sort((a, b) => a.km - b.km)
+                                .map((e) => {
+                                    const puntoCoh = coherenciaCanal?.puntos.find(p => p.id === e.id);
+                                    const incoherente = puntoCoh && !puntoCoh.coherente;
+                                    const hasFlow = isEstabilizacion && (e.gasto_actual ?? 0) > 0;
+                                    return (
+                                    <div
+                                        className={`checkpoint-card-compact ${e.km <= displayMaxKm ? 'active' : ''} ${incoherente ? 'cpc-incoherente' : ''}`}
+                                        key={e.id}
+                                    >
+                                        <div className="cpc-km">{e.km.toFixed(1)} <small>KM</small></div>
+                                        <div className="cpc-body">
+                                            <span className="cpc-name">{e.nombre}</span>
+                                            <div className="cpc-data" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <span className="cpc-value">{e.nivel_actual?.toFixed(2) || '0.00'}</span>
+                                                <small className="cpc-unit">m</small>
+                                                {(() => {
+                                                    const d = e.delta_12h ?? 0;
+                                                    const tChar = d > 0.01 ? '▲' : d < -0.01 ? '▼' : '—';
+                                                    const tCol = d > 0.01 ? '#ef4444' : d < -0.01 ? '#22c55e' : '#cbd5e1';
+                                                    return (
+                                                        <span style={{ color: tCol, fontSize: '12px', fontWeight: '900', textShadow: '0 0 4px rgba(0,0,0,0.8)' }} title={`Tendencia 12h: ${d > 0 ? '+' : ''}${d.toFixed(2)}m`}>
+                                                            {tChar} {Math.abs(d).toFixed(2)}
+                                                        </span>
+                                                    );
+                                                })()}
+                                            </div>
                                             {isEstabilizacion && (
                                                 <div className="cpc-extra">
                                                     {hasFlow && (

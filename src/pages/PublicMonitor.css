@@ -2601,3 +2601,183 @@
     0%, 100% { opacity: 1; }
     50%       { opacity: 0.45; }
 }
+
+/* ── Mini-badge de nivel permanente en marcadores de escala ─────────── */
+.esc-level-badge {
+    background: rgba(7, 14, 28, 0.82) !important;
+    border: 1px solid rgba(255,255,255,0.10) !important;
+    border-radius: 4px !important;
+    padding: 1px 4px !important;
+    box-shadow: none !important;
+    white-space: nowrap;
+}
+.esc-level-badge::before {
+    display: none !important;  /* oculta la flecha del tooltip */
+}
+.elb-content {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+.elb-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8.5px;
+    font-weight: 700;
+    color: #e2e8f0;
+    letter-spacing: -0.3px;
+}
+.elb-arrow {
+    font-size: 7px;
+    font-weight: 700;
+}
+.elb-arrow[data-dir="up"]   { color: #ef4444; }
+.elb-arrow[data-dir="down"] { color: #22c55e; }
+.elb-arrow[data-dir="flat"] { color: #475569; }
+
+/* Estados de marcador: offline, critical, warning */
+.esc-offline {
+    opacity: 0.4;
+}
+.esc-critical path,
+.esc-critical circle {
+    animation: esc-pulse-crit 1.4s ease-in-out infinite;
+}
+.esc-warning path,
+.esc-warning circle {
+    animation: esc-pulse-warn 2s ease-in-out infinite;
+}
+@keyframes esc-pulse-crit {
+    0%, 100% { opacity: 1;   stroke-width: 1.5; }
+    50%       { opacity: 0.6; stroke-width: 3.5; }
+}
+@keyframes esc-pulse-warn {
+    0%, 100% { opacity: 1;   stroke-width: 1.5; }
+    50%       { opacity: 0.7; stroke-width: 2.5; }
+}
+
+/* ── HUD Barra de Progreso — modo LLENADO ───────────────────────────── */
+.hud-progress {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 900;
+    width: min(680px, 92vw);
+    background: rgba(7, 14, 28, 0.84);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 8px 14px 10px;
+    pointer-events: none;
+}
+.hud-endpoints {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5px;
+    color: #334155;
+    letter-spacing: 0.6px;
+    margin-bottom: 3px;
+}
+.hud-track {
+    position: relative;
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    margin-bottom: 14px; /* espacio para etiquetas de KM */
+}
+/* Segmento completado */
+.hud-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: var(--fill-pct, 0%);
+    background: linear-gradient(90deg, #0e4a6e 0%, #22d3ee 100%);
+    border-radius: 3px;
+    box-shadow: 0 0 8px rgba(34,211,238,0.4);
+    transition: width 1.5s ease;
+}
+/* Marcas de KM */
+.hud-mark {
+    position: absolute;
+    left: var(--mark-left, 0%);
+    top: -3px;
+    transform: translateX(-50%);
+}
+.hud-tick {
+    width: 1px;
+    height: 11px;
+    background: rgba(255,255,255,0.15);
+    margin: 0 auto;
+}
+.hud-mark--done .hud-tick {
+    background: rgba(34,211,238,0.5);
+}
+.hud-km-label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7px;
+    color: #334155;
+    text-align: center;
+    margin-top: 2px;
+    white-space: nowrap;
+}
+.hud-mark--done .hud-km-label {
+    color: #38bdf8;
+}
+/* Marcador del frente de ola */
+.hud-front {
+    position: absolute;
+    left: var(--front-left, 0%);
+    top: -5px;
+    transform: translateX(-50%);
+    z-index: 2;
+}
+.hud-front-pulse {
+    position: relative;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #22d3ee;
+    border: 2px solid #fff;
+    /* glow estático — no se anima (evita Paint por frame) */
+    box-shadow: 0 0 10px #22d3ee, 0 0 20px rgba(34,211,238,0.35);
+    margin: 0 auto;
+    animation: hud-front-beat 1.2s ease-in-out infinite;
+    will-change: transform;
+}
+/* Halo de pulso via pseudo-elemento: solo opacity → Composite, sin Paint */
+.hud-front-pulse::after {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    border-radius: 50%;
+    background: rgba(34,211,238,0.25);
+    animation: hud-halo-fade 1.2s ease-in-out infinite;
+}
+.hud-front-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5px;
+    font-weight: 700;
+    color: #22d3ee;
+    white-space: nowrap;
+    text-align: center;
+    margin-top: 3px;
+    text-shadow: 0 0 8px rgba(34,211,238,0.6);
+}
+@keyframes hud-front-beat {
+    0%, 100% { transform: scale(1);    }
+    50%       { transform: scale(1.2); }
+}
+@keyframes hud-halo-fade {
+    0%, 100% { opacity: 0.8; }
+    50%       { opacity: 0.2; }
+}
+
+@media (max-width: 600px) {
+    .hud-progress { bottom: 8px; padding: 6px 10px 8px; }
+    .hud-km-label { font-size: 6px; }
+    .hud-front-label { font-size: 7px; }
+}

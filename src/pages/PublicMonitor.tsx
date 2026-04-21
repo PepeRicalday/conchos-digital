@@ -1511,128 +1511,133 @@ const PublicMonitor: React.FC = () => {
                         </Marker>
                     )}
 
-                    {/* Escalas de Puntos - Mostramos todas nuevamente */}
-                    {escalas.filter(esc => typeof esc.latitud === 'number' && typeof esc.longitud === 'number').map(esc => (
-                        <CircleMarker
-                            key={esc.id}
-                            center={[esc.latitud!, esc.longitud!]}
-                            radius={esc.km <= displayMaxKm ? 6 : 4}
-                            fillColor={esc.km <= displayMaxKm
-                                ? (isEstabilizacion ? escalaAlertColor(esc, coherenciaCanal) : statusColor)
-                                : '#1e293b'}
-                            color="#fff"
-                            weight={1.5}
-                            fillOpacity={1}
-                        >
-                            <Popup className="custom-popup sica-cp-popup">
-                                {(() => {
-                                    const nivel      = esc.nivel_actual ?? 0;
-                                    const nivelMax   = esc.nivel_max_operativo && esc.nivel_max_operativo > 0 ? esc.nivel_max_operativo : null;
-                                    const nivelPct   = nivelMax ? Math.min(100, (nivel / nivelMax) * 100) : null;
-                                    const barColor   = nivelPct === null ? '#38bdf8' : nivelPct >= 95 ? '#ef4444' : nivelPct >= 80 ? '#f59e0b' : '#38bdf8';
-                                    const gasto      = esc.gasto_actual ?? 0;
-                                    const apertura   = esc.apertura_actual ?? 0;
-                                    const tsAge      = esc.ultima_telemetria ? (Date.now() - esc.ultima_telemetria) / 60000 : null;
-                                    const telEstado  = telemetriaEstado(esc.ultima_telemetria);
-                                    const telTxt     = telemetriaLabel(telEstado);
+                    {/* Escalas de Puntos — con mini-badge de nivel y clases de estado */}
+                    {escalas.filter(esc => typeof esc.latitud === 'number' && typeof esc.longitud === 'number').map(esc => {
+                        // Valores compartidos entre CircleMarker props, Tooltip y Popup
+                        const nivel     = esc.nivel_actual ?? 0;
+                        const nivelMax  = esc.nivel_max_operativo && esc.nivel_max_operativo > 0 ? esc.nivel_max_operativo : null;
+                        const nivelPct  = nivelMax ? Math.min(100, (nivel / nivelMax) * 100) : null;
+                        const barColor  = nivelPct === null ? '#38bdf8' : nivelPct >= 95 ? '#ef4444' : nivelPct >= 80 ? '#f59e0b' : '#38bdf8';
+                        const gasto     = esc.gasto_actual ?? 0;
+                        const apertura  = esc.apertura_actual ?? 0;
+                        const telEstado = telemetriaEstado(esc.ultima_telemetria);
+                        const telTxt    = telemetriaLabel(telEstado);
+                        const tsAge     = esc.ultima_telemetria ? (Date.now() - esc.ultima_telemetria) / 60000 : null;
+                        const delta     = esc.delta_12h ?? 0;
+                        const trendSym  = delta > 0.01 ? '▲' : delta < -0.01 ? '▼' : '—';
 
-                                    // Badge de estado operativo
-                                    let badgeLabel = 'SIN DATOS';
-                                    let badgeColor = '#475569';
-                                    if (esc.estado === 'OPERANDO' && nivel > 0) {
-                                        if (gasto > 0) { badgeLabel = 'OPERANDO'; badgeColor = '#22c55e'; }
-                                        else           { badgeLabel = 'SIN FLUJO'; badgeColor = '#f59e0b'; }
-                                    } else if (esc.estado === 'LLENADO') {
-                                        badgeLabel = 'EN LLENADO'; badgeColor = '#06b6d4';
-                                    } else if (nivel > 0) {
-                                        badgeLabel = 'CON NIVEL'; badgeColor = '#38bdf8';
-                                    }
+                        // Color del marcador en mapa
+                        const alertColor = esc.km <= displayMaxKm
+                            ? (isEstabilizacion ? escalaAlertColor(esc, coherenciaCanal) : statusColor)
+                            : '#1e293b';
 
-                                    // Formato tiempo humano
-                                    const tiempoLectura = tsAge === null ? 'Sin datos'
-                                        : tsAge < 1    ? 'Hace menos de 1 min'
-                                        : tsAge < 60   ? `Hace ${Math.floor(tsAge)} min`
-                                        : tsAge < 1440 ? `Hace ${Math.floor(tsAge / 60)}h ${Math.floor(tsAge % 60)}min`
-                                        : 'Más de un día';
+                        // Clase CSS para animaciones de estado
+                        const markerClass = [
+                            telEstado === 'FUERA_DE_LINEA' ? 'esc-offline' : '',
+                            nivelPct !== null && nivelPct >= 92 ? 'esc-critical' : '',
+                            nivelPct !== null && nivelPct >= 80 && nivelPct < 92 ? 'esc-warning' : '',
+                        ].filter(Boolean).join(' ') || undefined;
 
-                                    return (
-                                        <div className="scp-root">
-                                            {/* Header */}
-                                            <div className="scp-header">
-                                                <span className="scp-km">KM {esc.km.toFixed(1)}</span>
-                                                <span className="scp-badge" style={{ '--badge-color': badgeColor } as React.CSSProperties}>
-                                                    {badgeLabel}
-                                                </span>
-                                            </div>
-                                            {/* Nombre + indicador de señal */}
-                                            <div className="scp-nombre-row">
-                                                <p className="scp-nombre">{esc.nombre}</p>
-                                                <span
-                                                    className="scp-signal"
-                                                    data-tel={telEstado}
-                                                    title={telTxt}
-                                                />
-                                            </div>
+                        // Badge operativo en popup
+                        let badgeLabel = 'SIN DATOS';
+                        let badgeColor = '#475569';
+                        if (esc.estado === 'OPERANDO' && nivel > 0) {
+                            if (gasto > 0) { badgeLabel = 'OPERANDO'; badgeColor = '#22c55e'; }
+                            else           { badgeLabel = 'SIN FLUJO'; badgeColor = '#f59e0b'; }
+                        } else if (esc.estado === 'LLENADO') {
+                            badgeLabel = 'EN LLENADO'; badgeColor = '#06b6d4';
+                        } else if (nivel > 0) {
+                            badgeLabel = 'CON NIVEL'; badgeColor = '#38bdf8';
+                        }
 
-                                            {/* Nivel con barra */}
-                                            <div className="scp-section">
-                                                <span className="scp-field-label">NIVEL DE AGUA</span>
-                                                <div className="scp-bar-row">
-                                                    <div className="scp-bar-track">
-                                                        <div className="scp-bar-fill" style={{ '--bar-w': nivelPct !== null ? `${nivelPct}%` : '0%', '--bar-color': barColor } as React.CSSProperties} />
-                                                    </div>
-                                                    <span className="scp-bar-val" style={{ '--bar-color': barColor } as React.CSSProperties}>{nivel.toFixed(2)} m</span>
+                        const tiempoLectura = tsAge === null ? 'Sin datos'
+                            : tsAge < 1    ? 'Hace menos de 1 min'
+                            : tsAge < 60   ? `Hace ${Math.floor(tsAge)} min`
+                            : tsAge < 1440 ? `Hace ${Math.floor(tsAge / 60)}h ${Math.floor(tsAge % 60)}min`
+                            : 'Más de un día';
+
+                        return (
+                            <CircleMarker
+                                key={esc.id}
+                                center={[esc.latitud!, esc.longitud!]}
+                                radius={esc.km <= displayMaxKm ? 6 : 4}
+                                fillColor={alertColor}
+                                color={telEstado === 'FUERA_DE_LINEA' ? '#475569' : '#fff'}
+                                weight={1.5}
+                                fillOpacity={telEstado === 'FUERA_DE_LINEA' ? 0.35 : 1}
+                                className={markerClass}
+                            >
+                                <Popup className="custom-popup sica-cp-popup">
+                                    <div className="scp-root">
+                                        <div className="scp-header">
+                                            <span className="scp-km">KM {esc.km.toFixed(1)}</span>
+                                            <span className="scp-badge" style={{ '--badge-color': badgeColor } as React.CSSProperties}>
+                                                {badgeLabel}
+                                            </span>
+                                        </div>
+                                        <div className="scp-nombre-row">
+                                            <p className="scp-nombre">{esc.nombre}</p>
+                                            <span className="scp-signal" data-tel={telEstado} title={telTxt} />
+                                        </div>
+                                        <div className="scp-section">
+                                            <span className="scp-field-label">NIVEL DE AGUA</span>
+                                            <div className="scp-bar-row">
+                                                <div className="scp-bar-track">
+                                                    <div className="scp-bar-fill" style={{ '--bar-w': nivelPct !== null ? `${nivelPct}%` : '0%', '--bar-color': barColor } as React.CSSProperties} />
                                                 </div>
-                                                {nivelMax && (
-                                                    <span className="scp-ref">capacidad {nivelMax.toFixed(2)} m</span>
+                                                <span className="scp-bar-val" style={{ '--bar-color': barColor } as React.CSSProperties}>{nivel.toFixed(2)} m</span>
+                                            </div>
+                                            {nivelMax && <span className="scp-ref">capacidad {nivelMax.toFixed(2)} m</span>}
+                                        </div>
+                                        {(gasto > 0 || apertura > 0) && (
+                                            <div className="scp-metrics">
+                                                {gasto > 0 && (
+                                                    <div className="scp-metric">
+                                                        <span className="scp-metric-label">FLUJO MEDIDO</span>
+                                                        <span className="scp-metric-val">{gasto.toFixed(2)}</span>
+                                                        <span className="scp-metric-unit">m³/s</span>
+                                                    </div>
+                                                )}
+                                                {apertura > 0 && (
+                                                    <div className="scp-metric">
+                                                        <span className="scp-metric-label">APERTURA ACUM.</span>
+                                                        <span className="scp-metric-val">{apertura.toFixed(2)}</span>
+                                                        <span className="scp-metric-unit">
+                                                            m{esc.puertas_abiertas != null && esc.pzas_radiales != null
+                                                                ? ` · ${esc.puertas_abiertas}/${esc.pzas_radiales} comp.`
+                                                                : esc.pzas_radiales != null ? ` · ${esc.pzas_radiales} comp.` : ''}
+                                                        </span>
+                                                    </div>
                                                 )}
                                             </div>
-
-                                            {/* Gasto y apertura en dos columnas */}
-                                            {(gasto > 0 || apertura > 0) && (
-                                                <div className="scp-metrics">
-                                                    {gasto > 0 && (
-                                                        <div className="scp-metric">
-                                                            <span className="scp-metric-label">FLUJO MEDIDO</span>
-                                                            <span className="scp-metric-val">{gasto.toFixed(2)}</span>
-                                                            <span className="scp-metric-unit">m³/s</span>
-                                                        </div>
-                                                    )}
-                                                    {apertura > 0 && (
-                                                        <div className="scp-metric">
-                                                            <span className="scp-metric-label">APERTURA ACUM.</span>
-                                                            <span className="scp-metric-val">{apertura.toFixed(2)}</span>
-                                                            <span className="scp-metric-unit">
-                                                                m
-                                                                {esc.puertas_abiertas != null && esc.pzas_radiales != null
-                                                                    ? ` · ${esc.puertas_abiertas}/${esc.pzas_radiales} comp.`
-                                                                    : esc.pzas_radiales != null
-                                                                        ? ` · ${esc.pzas_radiales} comp.`
-                                                                        : ''}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {/* Timestamp + estado señal */}
-                                            <div className="scp-footer">
-                                                <span className="scp-footer-time" data-tel={telEstado}>
-                                                    {tiempoLectura}
-                                                </span>
-                                                <span className="scp-footer-signal" data-tel={telEstado}>
-                                                    {telTxt}
-                                                </span>
-                                            </div>
+                                        )}
+                                        <div className="scp-footer">
+                                            <span className="scp-footer-time" data-tel={telEstado}>{tiempoLectura}</span>
+                                            <span className="scp-footer-signal" data-tel={telEstado}>{telTxt}</span>
                                         </div>
-                                    );
-                                })()}
-                            </Popup>
-                            <Tooltip className="custom-tooltip" direction="top" offset={[0, -10]} opacity={0.9}>
-                                <span>{esc.nombre}</span>
-                            </Tooltip>
-                        </CircleMarker>
-                    ))}
+                                    </div>
+                                </Popup>
+
+                                {/* Mini-badge permanente cuando hay nivel; tooltip hover cuando no hay datos */}
+                                <Tooltip
+                                    className={nivel > 0 ? 'esc-level-badge' : 'custom-tooltip'}
+                                    direction="top"
+                                    offset={[0, -8]}
+                                    permanent={nivel > 0}
+                                    interactive={false}
+                                    opacity={nivel > 0 ? 1 : 0.9}
+                                >
+                                    {nivel > 0
+                                        ? <span className="elb-content">
+                                            <span className="elb-val">{nivel.toFixed(2)}m</span>
+                                            <span className="elb-arrow" data-dir={delta > 0.01 ? 'up' : delta < -0.01 ? 'down' : 'flat'}>{trendSym}</span>
+                                          </span>
+                                        : <span>{esc.nombre}</span>
+                                    }
+                                </Tooltip>
+                            </CircleMarker>
+                        );
+                    })}
 
                     <ZoomControl position="bottomright" />
                 </MapContainer>
@@ -1678,6 +1683,49 @@ const PublicMonitor: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* ── HUD Barra de Progreso — solo en LLENADO ─────────────────── */}
+            {modoVisualizacion === 'LLENADO' && (
+                <div className="hud-progress">
+                    <div className="hud-endpoints">
+                        <span>PRESA</span>
+                        <span>K104</span>
+                    </div>
+                    <div className="hud-track">
+                        {/* Segmento completado */}
+                        <div
+                            className="hud-fill"
+                            style={{ '--fill-pct': `${Math.max(0, Math.min(100, ((displayMaxKm + 36) / 140) * 100)).toFixed(1)}%` } as React.CSSProperties}
+                        />
+                        {/* Marcas de km clave */}
+                        {([0, 23, 34, 57, 80, 104] as const).map(km => (
+                            <div
+                                key={km}
+                                className={`hud-mark${km <= displayMaxKm ? ' hud-mark--done' : ''}`}
+                                style={{ '--mark-left': `${(((km + 36) / 140) * 100).toFixed(1)}%` } as React.CSSProperties}
+                            >
+                                <div className="hud-tick" />
+                                <span className="hud-km-label">K{km}</span>
+                            </div>
+                        ))}
+                        {/* Marcador del frente de ola */}
+                        {displayMaxKm >= -36 && (
+                            <div
+                                className="hud-front"
+                                style={{ '--front-left': `${Math.max(0, Math.min(100, ((displayMaxKm + 36) / 140) * 100)).toFixed(1)}%` } as React.CSSProperties}
+                            >
+                                <div className="hud-front-pulse" />
+                                <div className="hud-front-label">
+                                    {displayMaxKm >= 0 ? `KM ${displayMaxKm.toFixed(0)}` : 'RÍO'}
+                                    {nextTargetInfo.arrivalTime && nextTargetInfo.arrivalTime !== 'PENDIENTE'
+                                        ? ` · ${nextTargetInfo.arrivalTime}`
+                                        : ''}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Bottom Dock - Balanced layout to avoid 'heavy right' look */}
             {isDockVisible ? (

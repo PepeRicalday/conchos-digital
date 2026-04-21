@@ -891,8 +891,31 @@ const PublicMonitor: React.FC = () => {
         return last;
     }, [hydratedPath]);
 
-    const protocolLabel = activeEvent?.evento_tipo || 'OPERACIÓN NORMAL';
-    const statusColor = activeEvent?.evento_tipo === 'LLENADO' ? '#06b6d4' : '#22c55e';
+    // ── MODO DE VISUALIZACIÓN — discriminante explícito por tipo de evento ──
+    // Reemplaza la condición binaria LLENADO / !LLENADO. Cada modo tiene
+    // identidad propia: etiqueta pública, color semáforo e ícono de cabecera.
+    type ModoVisualizacion = 'LLENADO' | 'ESTABILIZACION' | 'CONTINGENCIA' | 'VACIADO' | 'ANOMALIA' | 'SIN_EVENTO';
+
+    const MODO_CONFIG: Record<ModoVisualizacion, { label: string; color: string; kpi0Label: string }> = {
+        LLENADO:        { label: 'LLENADO EN TRÁNSITO',   color: '#06b6d4', kpi0Label: 'ENTREGA KM 0:' },
+        ESTABILIZACION: { label: 'DISTRIBUCIÓN ACTIVA',   color: '#22c55e', kpi0Label: 'FLUJO K0+000:' },
+        CONTINGENCIA:   { label: 'CONTINGENCIA — LLUVIA', color: '#f59e0b', kpi0Label: 'FLUJO K0+000:' },
+        VACIADO:        { label: 'VACIADO CONTROLADO',    color: '#a855f7', kpi0Label: 'FLUJO K0+000:' },
+        ANOMALIA:       { label: 'ANOMALÍA DETECTADA',    color: '#ef4444', kpi0Label: 'FLUJO K0+000:' },
+        SIN_EVENTO:     { label: 'MONITOREO CONTINUO',    color: '#22c55e', kpi0Label: 'FLUJO K0+000:' },
+    };
+
+    const modoVisualizacion: ModoVisualizacion = !activeEvent
+        ? 'SIN_EVENTO'
+        : activeEvent.evento_tipo === 'LLENADO'             ? 'LLENADO'
+        : activeEvent.evento_tipo === 'ESTABILIZACION'      ? 'ESTABILIZACION'
+        : activeEvent.evento_tipo === 'CONTINGENCIA_LLUVIA' ? 'CONTINGENCIA'
+        : activeEvent.evento_tipo === 'VACIADO'             ? 'VACIADO'
+        : 'ANOMALIA';
+
+    const modoActual = MODO_CONFIG[modoVisualizacion];
+    const protocolLabel = modoActual.label;
+    const statusColor   = modoActual.color;
 
     // Helper to format exact time ago for telemetry (Pure version using explicit now)
     const formatTimeAgo = (timestamp?: number | null, now: number = currentTime) => {
@@ -1038,7 +1061,14 @@ const PublicMonitor: React.FC = () => {
         };
     }, [activeEvent, damMovements, presasData, escalas]);
 
-    const isEstabilizacion = !activeEvent || activeEvent.evento_tipo !== 'LLENADO';
+    // isEstabilizacion: true para ESTABILIZACION y SIN_EVENTO (comportamiento visual idéntico).
+    // No incluye CONTINGENCIA/VACIADO/ANOMALIA — esos modos conservan el mapa de alertas
+    // pero podrán tener su propia capa de indicadores en futuras iteraciones.
+    const isEstabilizacion = modoVisualizacion === 'ESTABILIZACION'
+                          || modoVisualizacion === 'SIN_EVENTO'
+                          || modoVisualizacion === 'CONTINGENCIA'
+                          || modoVisualizacion === 'VACIADO'
+                          || modoVisualizacion === 'ANOMALIA';
 
     // ── IEC — Índice de Estado del Canal ─────────────────────────────────────
     const iecData = useMemo(() => {
@@ -1187,11 +1217,22 @@ const PublicMonitor: React.FC = () => {
                     <div className="phb-divider"></div>
 
                     <div className="phb-efficiency">
-                        <span className="phb-label">TOMA KM 0:</span>
-                        <span className="phb-val" style={{ color: sessionStorage.getItem('has_hydraulic_violation') === 'true' ? '#ef4444' : '#22c55e' }}>
+                        <span className="phb-label">{modoActual.kpi0Label}</span>
+                        <span className="phb-val" style={{ color: sessionStorage.getItem('has_hydraulic_violation') === 'true' ? '#ef4444' : statusColor }}>
                             {parseFloat(sessionStorage.getItem('zero_current_flow') || '0').toFixed(2)} m³/s
                         </span>
                     </div>
+
+                    {/* KPI meta de entrega — solo en ESTABILIZACIÓN cuando hay gasto solicitado */}
+                    {(modoVisualizacion === 'ESTABILIZACION' || modoVisualizacion === 'SIN_EVENTO') &&
+                     activeEvent?.gasto_solicitado_m3s && activeEvent.gasto_solicitado_m3s > 0 && (
+                        <div className="phb-efficiency">
+                            <span className="phb-label">META:</span>
+                            <span className="phb-val" style={{ color: '#64748b' }}>
+                                {activeEvent.gasto_solicitado_m3s.toFixed(1)} m³/s
+                            </span>
+                        </div>
+                    )}
 
                     <button
                         type="button"
@@ -1204,6 +1245,22 @@ const PublicMonitor: React.FC = () => {
                     <div className="phb-version">v{__V2_APP_VERSION__}</div>
                 </div>
             </div>
+
+            {/* Banner de estado extraordinario — CONTINGENCIA / VACIADO / ANOMALIA */}
+            {(modoVisualizacion === 'CONTINGENCIA' || modoVisualizacion === 'VACIADO' || modoVisualizacion === 'ANOMALIA') && (
+                <div
+                    className="hydraulic-violation-banner hvb-modo-extra animate-in"
+                    style={{ '--modo-color': modoActual.color } as React.CSSProperties}
+                >
+                    <div className="hvb-content">
+                        <Activity size={18} className="hvb-icon hvb-modo-icon" />
+                        <div className="hvb-text">
+                            <b className="hvb-modo-label">{modoActual.label}</b>
+                            {activeEvent?.notas && <p>{activeEvent.notas}</p>}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Hydraulic Violation Banner */}
             {sessionStorage.getItem('has_hydraulic_violation') === 'true' && (

@@ -323,3 +323,21 @@ h6 {
   from { transform: translate(-50%, -20px); opacity: 0; }
   to { transform: translate(-50%, 0); opacity: 1; }
 }
+
+/* Banner de estado extraordinario (CONTINGENCIA / VACIADO / ANOMALIA).
+   El color dinámico se inyecta como --modo-color desde el componente. */
+.hydraulic-violation-banner.hvb-modo-extra {
+  background: rgba(15, 23, 42, 0.90);
+  border-color: var(--modo-color, #f59e0b);
+  border-left: 3px solid var(--modo-color, #f59e0b);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 16px color-mix(in srgb, var(--modo-color, #f59e0b) 20%, transparent);
+}
+.hvb-modo-extra .hvb-modo-icon {
+  color: var(--modo-color, #f59e0b);
+}
+.hvb-modo-extra .hvb-modo-label {
+  color: var(--modo-color, #f59e0b);
+}
+.hvb-modo-extra .hvb-text p {
+  color: rgba(255,255,255,0.65);
+}

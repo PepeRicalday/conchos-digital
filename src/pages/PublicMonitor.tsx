@@ -1566,9 +1566,14 @@ const PublicMonitor: React.FC = () => {
                             ? (isEstabilizacion ? escalaAlertColor(esc, coherenciaCanal) : statusColor)
                             : '#1e293b';
 
+                        // Offline solo cuando la escala YA reportó alguna vez pero perdió señal.
+                        // Si ultima_telemetria es null nunca tuvo dato → mostrar con opacidad plena.
+                        const hasEverReported = esc.ultima_telemetria !== null;
+                        const isOffline = hasEverReported && telEstado === 'FUERA_DE_LINEA';
+
                         // Clase CSS para animaciones de estado
                         const markerClass = [
-                            telEstado === 'FUERA_DE_LINEA' ? 'esc-offline' : '',
+                            isOffline ? 'esc-offline' : '',
                             nivelPct !== null && nivelPct >= 92 ? 'esc-critical' : '',
                             nivelPct !== null && nivelPct >= 80 && nivelPct < 92 ? 'esc-warning' : '',
                         ].filter(Boolean).join(' ') || undefined;
@@ -1597,9 +1602,9 @@ const PublicMonitor: React.FC = () => {
                                 center={[esc.latitud!, esc.longitud!]}
                                 radius={esc.km <= displayMaxKm ? 6 : 4}
                                 fillColor={alertColor}
-                                color={telEstado === 'FUERA_DE_LINEA' ? '#475569' : '#fff'}
+                                color={isOffline ? '#475569' : '#fff'}
                                 weight={1.5}
-                                fillOpacity={telEstado === 'FUERA_DE_LINEA' ? 0.35 : 1}
+                                fillOpacity={isOffline ? 0.35 : 1}
                                 className={markerClass}
                             >
                                 <Popup className="custom-popup sica-cp-popup">

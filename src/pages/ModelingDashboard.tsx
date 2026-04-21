@@ -1848,6 +1848,49 @@ const ModelingDashboard: React.FC = () => {
     return generateDecisions(simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints);
   }, [simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints]);
 
+  // ── FASE 3B: Persistir decisiones URGENTE → registro_alertas ──────────
+  // Deduplicación por sesión: evita insertar la misma alerta en cada
+  // re-render. La clave es `punto|accion` — se limpia cuando no hay URGENTEs.
+  const _alertasPersitidasRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const urgentes = decisions.filter(d => d.prioridad === 'URGENTE');
+    if (urgentes.length === 0) {
+      // Sin URGENTEs activos → resetear el set para la próxima activación
+      _alertasPersitidasRef.current.clear();
+      return;
+    }
+    const nuevas = urgentes.filter(d => {
+      const key = `${d.punto}|${d.accion}`;
+      return !_alertasPersitidasRef.current.has(key);
+    });
+    if (nuevas.length === 0) return;
+
+    const TIPO_MAP: Record<DecisionTipo, string> = {
+      APERTURA:      'Operación',
+      CIERRE:        'Operación',
+      CAUDAL_PRESA:  'Presa',
+      MONITOREO:     'Monitoreo',
+      OPERATIVO:     'Operativo',
+    };
+
+    const rows = nuevas.map(d => ({
+      tipo_riesgo:    'critical' as const,
+      categoria:      TIPO_MAP[d.tipo] ?? 'Modelación',
+      titulo:         `[URGENTE] ${d.accion}`,
+      mensaje:        d.detalle,
+      fecha_deteccion: new Date().toISOString(),
+      resuelta:       false,
+      coordenadas:    null,
+      origen_id:      `modeling_${d.punto.replace(/\s+/g, '_')}_${d.tipo}`,
+    }));
+
+    supabase.from('registro_alertas').insert(rows).then(({ error }) => {
+      if (!error) {
+        nuevas.forEach(d => _alertasPersitidasRef.current.add(`${d.punto}|${d.accion}`));
+      }
+    });
+  }, [decisions]);
+
   // ── RPC: Simulación de escenario en servidor ──────────────────────────
   const runScenarioRpc = async () => {
     setScenarioRpcLoading(true);

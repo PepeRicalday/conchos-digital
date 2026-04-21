@@ -65,6 +65,8 @@ export interface RegistroAlertaRow {
     resuelta: boolean;
     coordenadas: { lat: number; lng: number } | null;
     origen_id: string | null;
+    resuelto_por?: string | null;
+    fecha_resolucion?: string | null;
 }
 
 export interface AppVersionRow {

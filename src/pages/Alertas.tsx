@@ -1,67 +1,196 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line, Cell, Legend } from 'recharts';
-import { AlertTriangle, MapPin, CheckCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, TrendingDown, TrendingUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { onTable } from '../lib/realtimeHub';
 import { formatTime } from '../utils/dateHelpers';
+import { useAuth } from '../context/AuthContext';
 import type { RegistroAlertaRow } from '../types/sica.types';
 
 import './Alertas.css';
 
+// ── HELPERS DE PERIODO ─────────────────────────────────────────────────────
+function periodoInicio(periodo: string): string {
+    const now = new Date();
+    if (periodo === 'Última Semana') {
+        const d = new Date(now); d.setDate(d.getDate() - 7);
+        return d.toISOString();
+    }
+    if (periodo === 'Este Mes') {
+        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    }
+    if (periodo === 'Últimos 3 Meses') {
+        const d = new Date(now); d.setMonth(d.getMonth() - 3);
+        return d.toISOString();
+    }
+    // Último día
+    const d = new Date(now); d.setDate(d.getDate() - 1);
+    return d.toISOString();
+}
+
+// Mapeo nivel UI → tipo_riesgo DB
+function riesgoToTipo(riesgo: string): string[] {
+    if (riesgo === 'Muy Alto') return ['critical'];
+    if (riesgo === 'Alto')     return ['critical', 'warning'];
+    if (riesgo === 'Medio')    return ['warning'];
+    if (riesgo === 'Bajo')     return ['info'];
+    return ['critical', 'warning', 'info'];
+}
+
+const CATEGORIA_COLORS: Record<string, string> = {
+    'HIDRAULICA':  '#38bdf8',
+    'NIVEL':       '#f59e0b',
+    'CAUDAL':      '#f43f5e',
+    'ESCALA':      '#a78bfa',
+    'TOMA':        '#10b981',
+    'PRESA':       '#fb923c',
+    'SISTEMA':     '#64748b',
+};
+
 const Alertas = () => {
-    const [riesgo, setRiesgo] = useState('Alto');
+    const { profile } = useAuth();
+    const [riesgo, setRiesgo]   = useState('Alto');
     const [periodo, setPeriodo] = useState('Última Semana');
-    const [alertasActivas, setAlertasActivas] = useState<RegistroAlertaRow[]>([]);
-    const [loading, setLoading] = useState(true);
+
+    // Alertas activas (no resueltas) — fuente del log en vivo
+    const [alertasActivas, setAlertasActivas]     = useState<RegistroAlertaRow[]>([]);
+    // Alertas históricas del período (resueltas + activas) — fuente de gráficas
+    const [alertasHistoricas, setAlertasHist]     = useState<RegistroAlertaRow[]>([]);
+    // Datos de precipitación / clima para gráfica inferior
+    const [climaData, setClimaData]               = useState<{ dia: string; mm: number }[]>([]);
+    const [loading, setLoading]                   = useState(true);
+
+    // ── FETCH ALERTAS ACTIVAS (vivo, sin filtro de tipo — filtramos en UI) ───
+    const fetchActivas = async () => {
+        setLoading(true);
+        try {
+            const { data } = await supabase
+                .from('registro_alertas')
+                .select('*')
+                .eq('resuelta', false)
+                .order('fecha_deteccion', { ascending: false });
+            if (data) setAlertasActivas(data as RegistroAlertaRow[]);
+        } catch { /* silencioso */ }
+        finally { setLoading(false); }
+    };
+
+    // ── FETCH HISTÓRICAS del período (para gráficas) ──────────────────────
+    const fetchHistoricas = async () => {
+        try {
+            const desde = periodoInicio(periodo);
+            const { data } = await supabase
+                .from('registro_alertas')
+                .select('*')
+                .gte('fecha_deteccion', desde)
+                .order('fecha_deteccion', { ascending: true });
+            if (data) setAlertasHist(data as RegistroAlertaRow[]);
+        } catch { /* silencioso */ }
+    };
+
+    // ── FETCH CLIMA (precipitación) ──────────────────────────────────────
+    const fetchClima = async () => {
+        try {
+            const desde = periodoInicio(periodo);
+            const { data } = await supabase
+                .from('clima_presas')
+                .select('fecha, precipitacion_mm')
+                .gte('fecha', desde.split('T')[0])
+                .order('fecha', { ascending: true });
+            if (data) {
+                setClimaData(data.map((d: any) => ({
+                    dia: d.fecha,
+                    mm: d.precipitacion_mm ?? 0,
+                })));
+            }
+        } catch { /* silencioso */ }
+    };
 
     useEffect(() => {
-        const fetchAlertas = async () => {
-            setLoading(true);
-            try {
-                // Fetch real alerts from Supabase
-                const { data, error } = await supabase
-                    .from('registro_alertas')
-                    .select('*')
-                    .eq('resuelta', false)
-                    .order('fecha_deteccion', { ascending: false });
-
-                if (!error && data) {
-                    setAlertasActivas(data as RegistroAlertaRow[]);
-                }
-            } catch (err) {
-                console.error("No se pudo cargar la matriz de alertas");
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchAlertas();
-
-        const unsubAlertas = onTable('registro_alertas', '*', () => fetchAlertas());
-
-        return () => unsubAlertas();
+        fetchActivas();
+        const unsub = onTable('registro_alertas', '*', () => fetchActivas());
+        return () => unsub();
     }, []);
 
-    // Conteo Dinámico basado en Supabase
+    useEffect(() => {
+        fetchHistoricas();
+        fetchClima();
+    }, [periodo]);
+
+    // ── DATOS DERIVADOS ────────────────────────────────────────────────────
+
+    // Log visible — filtrado por nivel de riesgo seleccionado
+    const tiposVisibles = riesgoToTipo(riesgo);
+    const alertasFiltradas = useMemo(
+        () => alertasActivas.filter(a => tiposVisibles.includes(a.tipo_riesgo)),
+        [alertasActivas, riesgo]
+    );
+
+    // KPIs
     const countCritical = alertasActivas.filter(a => a.tipo_riesgo === 'critical').length;
-    const countWarning = alertasActivas.filter(a => a.tipo_riesgo === 'warning').length;
+    const countWarning  = alertasActivas.filter(a => a.tipo_riesgo === 'warning').length;
 
-    // Datos simulados
-    const sparkData = Array.from({ length: 15 }, () => ({ val: Math.random() * 10 }));
+    // Tendencia: alertas de las últimas 24h vs las 24h anteriores
+    const ahora = Date.now();
+    const ult24h   = alertasHistoricas.filter(a => ahora - new Date(a.fecha_deteccion).getTime() < 86400000).length;
+    const prev24h  = alertasHistoricas.filter(a => {
+        const t = ahora - new Date(a.fecha_deteccion).getTime();
+        return t >= 86400000 && t < 172800000;
+    }).length;
+    const tendencia = ult24h - prev24h;
 
-    const barData = [
-        { name: 'CaudaL', uv: 17, pv: 2400, color: '#f43f5e' },
-        { name: 'Evap', uv: 7, pv: 1398, color: '#38bdf8' },
-        { name: 'Infra', uv: 12, pv: 9800, color: '#fbbf24' },
-        { name: 'Infra2', uv: 17, pv: 3908, color: '#a78bfa' },
-        { name: 'Evap2', uv: 7, pv: 4800, color: '#f59e0b' },
-        { name: 'Caudal2', uv: 17, pv: 3800, color: '#10b981' },
-    ];
+    // Sparkline de alertas activas por día (últimos 15 días)
+    const sparkData = useMemo(() => {
+        const dias: Record<string, number> = {};
+        for (let i = 14; i >= 0; i--) {
+            const d = new Date(); d.setDate(d.getDate() - i);
+            dias[d.toISOString().split('T')[0]] = 0;
+        }
+        alertasHistoricas
+            .filter(a => a.tipo_riesgo === 'critical')
+            .forEach(a => {
+                const k = a.fecha_deteccion.split('T')[0];
+                if (k in dias) dias[k]++;
+            });
+        return Object.entries(dias).map(([, val]) => ({ val }));
+    }, [alertasHistoricas]);
 
-    const lineData = Array.from({ length: 30 }, (_, i) => ({
-        day: i + 1,
-        spei1: (Math.sin(i / 5) * 0.5) + (Math.random() * 0.2) - 0.2,
-        spi3: (Math.cos(i / 6) * 0.4) + (Math.random() * 0.2) - 0.1,
-    }));
+    // Barchart: conteo real de alertas por categoría en el período
+    const barData = useMemo(() => {
+        const counts: Record<string, number> = {};
+        alertasHistoricas.forEach(a => {
+            const cat = (a.categoria ?? 'SISTEMA').toUpperCase();
+            counts[cat] = (counts[cat] ?? 0) + 1;
+        });
+        return Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 7)
+            .map(([name, uv]) => ({
+                name: name.length > 8 ? name.slice(0, 8) : name,
+                uv,
+                color: CATEGORIA_COLORS[name] ?? '#64748b',
+            }));
+    }, [alertasHistoricas]);
+
+    // Gráfica inferior: precipitación real de clima_presas (o placeholder vacío)
+    const climaChartData = useMemo(() =>
+        climaData.length > 0
+            ? climaData.map(d => ({ day: d.dia.slice(5), mm: d.mm }))
+            : [],
+        [climaData]
+    );
+
+    // ── ATENDER — marca resuelta con responsable ──────────────────────────
+    const handleAtender = async (id: string) => {
+        await supabase
+            .from('registro_alertas')
+            .update({
+                resuelta:          true,
+                resuelto_por:      profile?.nombre ?? 'Operador',
+                fecha_resolucion:  new Date().toISOString(),
+            })
+            .eq('id', id);
+        // La suscripción Realtime actualiza fetchActivas() automáticamente
+    };
 
     return (
         <div className="alertas-container">
@@ -88,7 +217,7 @@ const Alertas = () => {
                                     onClick={() => setRiesgo(r)}
                                     style={{
                                         background: riesgo === r ? 'rgba(255,255,255,0.1)' : 'transparent',
-                                        color: riesgo === r ? (r === 'Alto' ? '#fbbf24' : '#f8fafc') : '#94a3b8',
+                                        color: riesgo === r ? (r === 'Muy Alto' || r === 'Alto' ? '#f43f5e' : r === 'Medio' ? '#f59e0b' : '#38bdf8') : '#94a3b8',
                                         border: 'none',
                                         padding: '0.3rem 1rem',
                                         borderRadius: '4px',
@@ -104,24 +233,23 @@ const Alertas = () => {
                 </div>
 
                 <div className="al-filter-group">
-                    <span className="al-filter-label" style={{ textAlign: 'right' }}>PERÍODO</span>
+                    <span className="al-filter-label" style={{ textAlign: 'right' }}>PERÍODO (Gráficas)</span>
                     <div className="al-filter-controls">
-                        <select className="al-combo-box" value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+                        <select className="al-combo-box" title="Seleccionar período" value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+                            <option value="Último Día">Último Día</option>
                             <option value="Última Semana">Última Semana</option>
                             <option value="Este Mes">Este Mes</option>
-                        </select>
-                        <select className="al-combo-box">
-                            <option>Este Mes</option>
+                            <option value="Últimos 3 Meses">Últimos 3 Meses</option>
                         </select>
                     </div>
                 </div>
             </div>
 
             <div className="al-grid">
-                {/* Left Column (KPIs + Map) */}
+                {/* Left Column */}
                 <div className="al-left-col">
                     <div className="al-kpi-row">
-                        {/* Red Card */}
+                        {/* Alertas Críticas */}
                         <div className="al-kpi-card red">
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <span className="al-kpi-title">ALERTAS CRÍTICAS ACTIVAS</span>
@@ -132,7 +260,10 @@ const Alertas = () => {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <AreaChart data={sparkData}>
                                         <defs>
-                                            <linearGradient id="gRed" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f43f5e" stopOpacity={0.4} /><stop offset="95%" stopColor="#f43f5e" stopOpacity={0} /></linearGradient>
+                                            <linearGradient id="gRed" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.4} />
+                                                <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                                            </linearGradient>
                                         </defs>
                                         <Area type="monotone" dataKey="val" stroke="#f43f5e" fill="url(#gRed)" strokeWidth={2} isAnimationActive={false} />
                                     </AreaChart>
@@ -140,168 +271,199 @@ const Alertas = () => {
                             </div>
                         </div>
 
-                        {/* Amber Card */}
+                        {/* Advertencias */}
                         <div className="al-kpi-card amber">
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span className="al-kpi-title">ALMACENAMIENTO BAJO EL MÍNIMO</span>
+                                <span className="al-kpi-title">ADVERTENCIAS ACTIVAS</span>
                             </div>
-                            <span className="al-kpi-value">{loading ? '...' : `${countWarning} ZONAS`}</span>
+                            <span className="al-kpi-value">{loading ? '...' : `${countWarning}`}</span>
                             <div className="al-kpi-subtext">
-                                {countWarning > 0 ? 'Focos de alerta por bajo nivel en reservorios.' : 'Niveles operativos dentro de lo normal.'}
+                                {countWarning > 0 ? 'Focos de alerta en monitoreo activo.' : 'Sin advertencias pendientes.'}
                             </div>
                         </div>
 
-                        {/* Blue Card */}
+                        {/* Tendencia 24h */}
                         <div className="al-kpi-card blue">
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span className="al-kpi-title">PREVISIÓN DE ESCASEZ</span>
+                                <span className="al-kpi-title">TENDENCIA 24H</span>
+                                {tendencia > 0
+                                    ? <TrendingUp size={16} color="#f43f5e" />
+                                    : <TrendingDown size={16} color="#10b981" />}
                             </div>
-                            <span className="al-kpi-value">+18% RIESGO</span>
+                            <span className="al-kpi-value" style={{ color: tendencia > 0 ? '#f43f5e' : '#10b981' }}>
+                                {tendencia > 0 ? `+${tendencia}` : tendencia === 0 ? '—' : `${tendencia}`}
+                            </span>
                             <div className="al-kpi-subtext">
-                                para los próximos 30 días
+                                {tendencia > 0
+                                    ? `${tendencia} más que las 24h previas`
+                                    : tendencia < 0
+                                        ? `${Math.abs(tendencia)} menos que las 24h previas`
+                                        : 'Sin cambio vs las 24h previas'}
                             </div>
                         </div>
                     </div>
 
+                    {/* Mapa geo-referenciado — pins sobre fondo */}
                     <div className="al-map-card">
-                        <div className="al-card-title">MAPA DE CALOR DE ALERTAS GEO-REFERENCIADAS (Recharts)</div>
+                        <div className="al-card-title">ALERTAS GEO-REFERENCIADAS — Canal Conchos KM 0–104</div>
                         <div style={{ flex: 1, position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                            {/* Visual simulation of the contour heatmap */}
-                            <div style={{ position: 'relative', width: '80%', height: '80%', background: 'url(/logos/SICA005.png) center/contain no-repeat', filter: 'blur(1px) opacity(0.1)' }} />
-
-                            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={sparkData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                                        <defs>
-                                            <radialGradient id="mapGlow" cx="50%" cy="50%" r="50%">
-                                                <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.8} />
-                                                <stop offset="50%" stopColor="#f59e0b" stopOpacity={0.4} />
-                                                <stop offset="100%" stopColor="#38bdf8" stopOpacity={0} />
-                                            </radialGradient>
-                                        </defs>
-                                        <Area type="monotone" dataKey="val" stroke="none" fill="url(#mapGlow)" strokeWidth={0} />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </div>
-                            <div style={{ position: 'absolute', zIndex: 20, width: '100%', height: '100%', pointerEvents: 'none' }}>
-                                {alertasActivas.filter(al => al.coordenadas).map((alerta) => (
-                                    <div
-                                        key={alerta.id}
-                                        style={{
-                                            position: 'absolute',
-                                            left: `${((Number(alerta.coordenadas!.lng) + 106) * 50) % 80 + 10}%`,
-                                            top: `${((Number(alerta.coordenadas!.lat) - 27) * 40) % 70 + 15}%`,
-                                            transform: 'translate(-50%, -100%)',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center'
-                                        }}
-                                    >
-                                        <MapPin
-                                            color={alerta.tipo_riesgo === 'critical' ? '#f43f5e' : alerta.tipo_riesgo === 'warning' ? '#f59e0b' : '#38bdf8'}
-                                            size={24}
-                                            style={{
-                                                filter: `drop-shadow(0 0 8px ${alerta.tipo_riesgo === 'critical' ? '#f43f5e' : alerta.tipo_riesgo === 'warning' ? '#f59e0b' : '#38bdf8'})`,
-                                            }}
-                                        />
-                                        <div style={{
-                                            fontSize: '8px',
-                                            background: 'rgba(0,0,0,0.8)',
-                                            padding: '2px 4px',
-                                            borderRadius: '4px',
-                                            marginTop: '2px',
-                                            color: '#fff',
-                                            border: '1px solid rgba(255,255,255,0.1)',
-                                            whiteSpace: 'nowrap'
-                                        }}>
-                                            {alerta.origen_id}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            {/* Canal esquemático horizontal */}
+                            <svg width="100%" height="100%" viewBox="0 0 800 200" style={{ position: 'absolute', top: 0, left: 0 }}>
+                                {/* Fondo */}
+                                <rect width="800" height="200" fill="rgba(5,14,26,0.6)" rx="8" />
+                                {/* Línea del canal */}
+                                <line x1="40" y1="100" x2="760" y2="100" stroke="rgba(56,189,248,0.25)" strokeWidth="8" strokeLinecap="round" />
+                                <line x1="40" y1="100" x2="760" y2="100" stroke="rgba(56,189,248,0.5)" strokeWidth="2" strokeLinecap="round" />
+                                {/* KM labels */}
+                                {[0, 23, 34, 57, 80, 104].map(km => {
+                                    const x = 40 + (km / 104) * 720;
+                                    return (
+                                        <g key={km}>
+                                            <circle cx={x} cy={100} r={3} fill="#38bdf8" opacity={0.6} />
+                                            <text x={x} y={120} fill="#475569" fontSize="10" textAnchor="middle">K{km}</text>
+                                        </g>
+                                    );
+                                })}
+                                {/* Pins de alertas reales */}
+                                {alertasActivas.filter(a => a.coordenadas).map(alerta => {
+                                    // Calcular posición x por longitud (aproximada al canal Conchos ~105.5°–106.5° W)
+                                    const lng = Number(alerta.coordenadas!.lng);
+                                    // Mapeo lineal: -106.5 → x=40, -105.5 → x=760
+                                    const x = Math.max(40, Math.min(760, 40 + ((-105.5 - lng) / (-105.5 - (-106.5))) * 720));
+                                    const color = alerta.tipo_riesgo === 'critical' ? '#f43f5e' : alerta.tipo_riesgo === 'warning' ? '#f59e0b' : '#38bdf8';
+                                    return (
+                                        <g key={alerta.id}>
+                                            <circle cx={x} cy={80} r={5} fill={color} opacity={0.85}
+                                                style={{ filter: `drop-shadow(0 0 4px ${color})` }} />
+                                            <line x1={x} y1={85} x2={x} y2={100} stroke={color} strokeWidth={1} opacity={0.5} />
+                                            <text x={x} y={70} fill={color} fontSize="8" textAnchor="middle"
+                                                style={{ fontFamily: 'monospace' }}>
+                                                {alerta.origen_id ?? ''}
+                                            </text>
+                                        </g>
+                                    );
+                                })}
+                                {/* Leyenda */}
+                                {alertasActivas.filter(a => a.coordenadas).length === 0 && (
+                                    <text x="400" y="95" fill="#334155" fontSize="12" textAnchor="middle">
+                                        Sin alertas geo-referenciadas activas
+                                    </text>
+                                )}
+                                <text x="400" y="185" fill="#1e3a5f" fontSize="9" textAnchor="middle">
+                                    Presa Boquilla → K-0 Canal Conchos → K-104 Cola
+                                </text>
+                            </svg>
                         </div>
                     </div>
                 </div>
 
-                {/* Right Column (Charts) */}
+                {/* Right Column */}
                 <div className="al-right-col">
+                    {/* Histórico real por categoría */}
                     <div className="al-side-card">
                         <div className="al-side-card-top">
-                            <span className="al-card-title" style={{ color: '#cbd5e1', letterSpacing: '0px', textTransform: 'none' }}>Desglose Técnico Separado</span>
+                            <span className="al-card-title" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                                {alertasHistoricas.length} eventos · {periodo}
+                            </span>
                         </div>
-                        <span className="al-card-title">HISTÓRICO DE ALERTAS POR TIPO</span>
+                        <span className="al-card-title">ALERTAS POR CATEGORÍA</span>
 
                         <div style={{ flex: 1, minHeight: '150px' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={barData} margin={{ top: 20, right: 0, left: -25, bottom: 25 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                                    <XAxis dataKey="name" stroke="none" tick={{ fill: '#64748b', fontSize: 9, textAnchor: 'end' }} dy={10} />
-                                    <YAxis stroke="none" tick={{ fill: '#64748b', fontSize: 10 }} />
-                                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} contentStyle={{ backgroundColor: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.1)' }} />
-                                    <Legend wrapperStyle={{ fontSize: '10px', top: -30 }} iconType="plainline" />
-                                    <Bar dataKey="uv" name="Alertas" radius={[4, 4, 0, 0]} maxBarSize={20}>
-                                        {barData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill="transparent" stroke={entry.color} strokeWidth={2} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
+                            {barData.length === 0 ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#334155', fontSize: '0.8rem' }}>
+                                    Sin datos en el período
+                                </div>
+                            ) : (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={barData} margin={{ top: 20, right: 0, left: -25, bottom: 25 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                        <XAxis dataKey="name" stroke="none" tick={{ fill: '#64748b', fontSize: 9, textAnchor: 'end' }} dy={10} />
+                                        <YAxis stroke="none" tick={{ fill: '#64748b', fontSize: 10 }} />
+                                        <Tooltip
+                                            cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                            contentStyle={{ backgroundColor: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                        />
+                                        <Bar dataKey="uv" name="Alertas" radius={[4, 4, 0, 0]} maxBarSize={20}>
+                                            {barData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.7} stroke={entry.color} strokeWidth={1} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            )}
                         </div>
                     </div>
 
+                    {/* Precipitación real de clima_presas */}
                     <div className="al-side-card">
-                        <span className="al-card-title">EVOLUCIÓN DEL ÍNDICE DE SEQUÍA</span>
+                        <span className="al-card-title">PRECIPITACIÓN — PRESAS ({periodo})</span>
 
                         <div style={{ flex: 1, minHeight: '150px', marginTop: '1rem' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={lineData} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                                    <XAxis dataKey="day" stroke="none" tick={{ fill: '#64748b', fontSize: 10 }} dy={5} />
-                                    <YAxis stroke="none" tick={{ fill: '#64748b', fontSize: 10 }} domain={['dataMin - 0.2', 'dataMax + 0.2']} />
-                                    <Tooltip contentStyle={{ backgroundColor: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.1)' }} />
-                                    <Legend wrapperStyle={{ fontSize: '10px', top: -20 }} iconType="plainline" />
-                                    <Line type="monotone" dataKey="spei1" name="SPEI-1" stroke="#38bdf8" strokeWidth={2} dot={false} />
-                                    <Line type="monotone" dataKey="spi3" name="SPI-3" stroke="#fbbf24" strokeWidth={2} dot={false} />
-                                </LineChart>
-                            </ResponsiveContainer>
+                            {climaChartData.length === 0 ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#334155', fontSize: '0.8rem' }}>
+                                    Sin datos de clima en el período
+                                </div>
+                            ) : (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={climaChartData} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                        <XAxis dataKey="day" stroke="none" tick={{ fill: '#64748b', fontSize: 9 }} dy={5} interval="preserveStartEnd" />
+                                        <YAxis stroke="none" tick={{ fill: '#64748b', fontSize: 10 }} unit=" mm" />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                            formatter={(v: number | undefined) => [`${v ?? 0} mm`, 'Precipitación']}
+                                        />
+                                        <Legend wrapperStyle={{ fontSize: '10px', top: -20 }} iconType="plainline" />
+                                        <Line type="monotone" dataKey="mm" name="Precip. mm" stroke="#38bdf8" strokeWidth={2} dot={false} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            )}
                         </div>
                     </div>
                 </div>
-
             </div>
 
-            {/* FASE 5: Listado Detallado de Alertas (Log) */}
+            {/* Log de Eventos — filtrado por nivel seleccionado */}
             <div className="al-log-section" style={{ marginTop: '1.5rem' }}>
-                <div className="al-card-title" style={{ marginBottom: '1rem' }}>CENTRO DE DESPACHO: LOG DE EVENTOS CRÍTICOS</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <div className="al-card-title">CENTRO DE DESPACHO: LOG DE EVENTOS — NIVEL {riesgo.toUpperCase()}</div>
+                    <span style={{ fontSize: '0.7rem', color: '#475569', fontWeight: 700 }}>
+                        {alertasFiltradas.length} activa{alertasFiltradas.length !== 1 ? 's' : ''} · {alertasActivas.length} total sin resolver
+                    </span>
+                </div>
                 <div className="al-log-container">
                     {loading ? (
                         <div className="al-log-loading">Sincronizando con Hydra Engine...</div>
-                    ) : alertasActivas.length === 0 ? (
+                    ) : alertasFiltradas.length === 0 ? (
                         <div className="al-log-empty">
                             <CheckCircle size={20} color="#10b981" />
-                            <span>SISTEMA ÓPTIMO: No se detectan anomalías en la red de canales ni presas.</span>
+                            <span>
+                                {alertasActivas.length === 0
+                                    ? 'SISTEMA ÓPTIMO: No se detectan anomalías activas.'
+                                    : `Sin alertas de nivel "${riesgo}" — hay ${alertasActivas.length} evento(s) en otros niveles.`}
+                            </span>
                         </div>
                     ) : (
                         <div className="al-log-grid">
-                            {alertasActivas.map((alerta) => (
+                            {alertasFiltradas.map((alerta) => (
                                 <div key={alerta.id} className={`al-log-item ${alerta.tipo_riesgo}`}>
                                     <div className="al-log-indicator"></div>
                                     <div className="al-log-content">
                                         <div className="al-log-header">
                                             <span className="al-log-tag">{alerta.categoria.toUpperCase()}</span>
                                             <span className="al-log-time">{formatTime(alerta.fecha_deteccion)}</span>
+                                            {alerta.origen_id && (
+                                                <span style={{ fontSize: '0.6rem', color: '#38bdf8', fontWeight: 700, fontFamily: 'monospace' }}>
+                                                    {alerta.origen_id}
+                                                </span>
+                                            )}
                                         </div>
                                         <h3 className="al-log-title">{alerta.titulo}</h3>
                                         <p className="al-log-msg">{alerta.mensaje}</p>
                                     </div>
                                     <button
                                         className="al-log-action"
-                                        onClick={async () => {
-                                            await supabase
-                                                .from('registro_alertas')
-                                                .update({ resuelta: true, fecha_resolucion: new Date().toISOString() })
-                                                .eq('id', alerta.id);
-                                        }}
+                                        onClick={() => handleAtender(alerta.id)}
                                     >
                                         ATENDER
                                     </button>

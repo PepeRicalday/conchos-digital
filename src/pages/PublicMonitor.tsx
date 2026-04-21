@@ -2,16 +2,17 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, ZoomControl, Marker, useMap, Popup } from 'react-leaflet';
 import { supabase } from '../lib/supabase';
 import { useHydricEvents } from '../hooks/useHydricEvents';
-import { Timer, Activity, Clock, ArrowRightCircle, MapPin, Waves, X } from 'lucide-react';
+import { Timer, Activity, Clock, ArrowRightCircle, MapPin, Waves, X, AlertTriangle } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PublicMonitor.css';
 import { formatDate } from '../utils/dateHelpers';
-import type { MovimientoPresaConNombreRow } from '../types/sica.types';
+import type { MovimientoPresaConNombreRow, RegistroAlertaRow } from '../types/sica.types';
 import { calcIEC, iecColor } from '../utils/canalIndex';
 import { onTable } from '../lib/realtimeHub';
 import CanalReport from '../components/CanalReport';
 import { exportEscalasCSV } from '../utils/exportCanal';
+import { toast } from 'sonner';
 
 // Custom Marker for Water Front
 const waterFrontIcon = L.divIcon({
@@ -365,6 +366,7 @@ const PublicMonitor: React.FC = () => {
     // Panel Visibility States - Start minimized on mobile for total map priority
     const isMobile = typeof window !== 'undefined' ? window.innerWidth <= 900 : false;
     const [isDockVisible, setIsDockVisible] = useState(!isMobile);
+    const [dockTab, setDockTab] = useState<'resumen' | 'canal' | 'alertas'>('resumen');
     const [isPredictionVisible, setIsPredictionVisible] = useState(false);
     const [showPerfilModal, setShowPerfilModal] = useState(false);
     const [fgvData, setFgvData] = useState<any>(null);
@@ -372,6 +374,7 @@ const PublicMonitor: React.FC = () => {
     const [showReport, setShowReport] = useState(false);
     const [currentTime, setCurrentTime] = useState(() => Date.now());
     const [anchorTimes, setAnchorTimes] = useState<Record<number, string>>({});
+    const [activeAlertas, setActiveAlertas] = useState<Pick<RegistroAlertaRow, 'id' | 'tipo_riesgo' | 'titulo' | 'mensaje' | 'fecha_deteccion'>[]>([]);
 
     // 0. Update internal clock for reactive calculations
     useEffect(() => {
@@ -754,6 +757,38 @@ const PublicMonitor: React.FC = () => {
             clearInterval(interval);
         };
     }, [fetchData]);
+
+    // ── Alertas activas — últimas 5, con toast Realtime para críticas ────
+    useEffect(() => {
+        const fetchAlertas = async () => {
+            const { data } = await supabase
+                .from('registro_alertas')
+                .select('id, tipo_riesgo, titulo, mensaje, fecha_deteccion')
+                .eq('resuelta', false)
+                .order('fecha_deteccion', { ascending: false })
+                .limit(5);
+            if (data) setActiveAlertas(data as any);
+        };
+        fetchAlertas();
+
+        const unsubAlertas = onTable('registro_alertas', 'INSERT', (payload) => {
+            fetchAlertas();
+            const row = payload.new as RegistroAlertaRow;
+            if (row?.tipo_riesgo === 'critical') {
+                toast.error(`🚨 ${row.titulo}`, {
+                    description: row.mensaje?.slice(0, 120),
+                    duration: 8000,
+                });
+            } else if (row?.tipo_riesgo === 'warning') {
+                toast.warning(`⚠️ ${row.titulo}`, {
+                    description: row.mensaje?.slice(0, 120),
+                    duration: 6000,
+                });
+            }
+        });
+
+        return () => unsubAlertas();
+    }, []);
 
     // 5. Predicted Front Position (Hydra Engine Logic)
     const vRio = 3.0; // km/h (Referencia: 36km / 12h)
@@ -1731,8 +1766,37 @@ const PublicMonitor: React.FC = () => {
             {isDockVisible ? (
                 <div className="info-cards-dock animate-in" style={{ animationDelay: '0.4s' }}>
                     <button type="button" className="dock-close-btn" onClick={() => setIsDockVisible(false)} title="Cerrar tablero">×</button>
-                    
-                    {/* Panel izquierdo: Balance / Panorama + Fuentes fusionados */}
+
+                    {/* ── Barra de pestañas ── */}
+                    <div className="dock-tabs">
+                        <button
+                            type="button"
+                            className={`dock-tab${dockTab === 'resumen' ? ' dock-tab--active' : ''}`}
+                            onClick={() => setDockTab('resumen')}
+                        >
+                            {isEstabilizacion ? 'PANORAMA' : 'BALANCE'}
+                        </button>
+                        <button
+                            type="button"
+                            className={`dock-tab${dockTab === 'canal' ? ' dock-tab--active' : ''}`}
+                            onClick={() => setDockTab('canal')}
+                        >
+                            CANAL
+                        </button>
+                        <button
+                            type="button"
+                            className={`dock-tab${dockTab === 'alertas' ? ' dock-tab--active' : ''}`}
+                            onClick={() => setDockTab('alertas')}
+                        >
+                            ALERTAS
+                            {activeAlertas.length > 0 && (
+                                <span className="dock-tab-badge">{activeAlertas.length}</span>
+                            )}
+                        </button>
+                    </div>
+
+                    {/* ── Pestaña RESUMEN (anterior dock-panel-left) ── */}
+                    {dockTab === 'resumen' && (
                     <div className="dock-section dock-panel-left">
                         {!isEstabilizacion ? (
                             // ── Vista LLENADO ──
@@ -1937,8 +2001,10 @@ const PublicMonitor: React.FC = () => {
                             </>
                         )}
                     </div>
+                    )}
 
-                    {/* Section 2: Checkpoints Grid - Visualización compacta de toda la red de escalas */}
+                    {/* ── Pestaña CANAL (checkpoints grid) ── */}
+                    {dockTab === 'canal' && (
                     <div className="dock-section checkpoints-section">
                         <div className="dock-section-header">
                             <span className="card-label">RED DE PUNTOS DE CONTROL</span>
@@ -2008,6 +2074,45 @@ const PublicMonitor: React.FC = () => {
                                 })}
                         </div>
                     </div>
+                    )}
+
+                    {/* ── Pestaña ALERTAS ── */}
+                    {dockTab === 'alertas' && (
+                    <div className="dock-section dock-alertas-panel">
+                        <div className="dock-section-header">
+                            <span className="card-label">ALERTAS ACTIVAS</span>
+                            <span className="telemetry-tag active-mon">● EN VIVO</span>
+                        </div>
+                        {activeAlertas.length === 0 ? (
+                            <div className="dap-empty">
+                                <span className="dap-empty-icon">✓</span>
+                                <span>Sin alertas activas</span>
+                            </div>
+                        ) : (
+                            <div className="dap-list">
+                                {activeAlertas.map(a => (
+                                    <div key={a.id} className={`dap-item dap-item--${a.tipo_riesgo}`}>
+                                        <AlertTriangle size={12} className="dap-icon" />
+                                        <div className="dap-body">
+                                            <span className="dap-titulo">{a.titulo}</span>
+                                            <span className="dap-fecha">
+                                                {new Date(a.fecha_deteccion).toLocaleString('es-MX', {
+                                                    day: '2-digit', month: 'short',
+                                                    hour: '2-digit', minute: '2-digit',
+                                                    hour12: true, timeZone: 'America/Chihuahua'
+                                                })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        <div className="dap-footer">
+                            <a href="/alertas" className="dap-link">Ver módulo Alertas →</a>
+                        </div>
+                    </div>
+                    )}
+
                 </div>
             ) : (
                 <div className="dock-minimized animate-in" onClick={() => setIsDockVisible(true)}>

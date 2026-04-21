@@ -882,6 +882,16 @@ const PublicMonitor: React.FC = () => {
         const canalPart = displayMaxKm > 0 ? canalDistData.filter(d => d.dist <= displayMaxKm).map(d => [d.lat, d.lng] as [number, number]) : [];
         return [...rioPart, ...canalPart];
     }, [rioDistData, canalDistData, displayMaxKm]);
+
+    // Segmento del canal que aún no ha sido alcanzado por el frente de ola (LLENADO).
+    // Se renderiza como trazo punteado oscuro para indicar el tramo por recorrer.
+    const dryPath = useMemo(() => {
+        if (!activeEvent || activeEvent.evento_tipo !== 'LLENADO') return [];
+        const fromKm = Math.max(0, displayMaxKm);
+        return canalDistData
+            .filter(d => d.dist >= fromKm)
+            .map(d => [d.lat, d.lng] as [number, number]);
+    }, [activeEvent, canalDistData, displayMaxKm]);
     
     // Position for the Pulse Marker
     const frontCoords = useMemo(() => {
@@ -1458,12 +1468,24 @@ const PublicMonitor: React.FC = () => {
                         />
                     ))}
 
-                    {/* Canal Activo (Stream) - Solo visible si hay avance real confirmado */}
+                    {/* Canal Seco — tramo por recorrer (solo LLENADO) */}
+                    {activeEvent?.evento_tipo === 'LLENADO' && dryPath.length >= 2 && (
+                        <Polyline
+                            positions={dryPath}
+                            color="#1e3a5f"
+                            weight={3}
+                            dashArray="6,10"
+                            opacity={0.65}
+                            className="canal-path-dry"
+                        />
+                    )}
+
+                    {/* Canal Activo (Stream) — segmento hidratado con efecto de flujo */}
                     {activeEvent?.evento_tipo === 'LLENADO' && (
-                        <Polyline 
-                            positions={hydratedPath} 
-                            color={statusColor} 
-                            weight={6} 
+                        <Polyline
+                            positions={hydratedPath}
+                            color={statusColor}
+                            weight={6}
                             className="canal-path-active"
                         />
                     )}
@@ -1614,6 +1636,47 @@ const PublicMonitor: React.FC = () => {
 
                     <ZoomControl position="bottomright" />
                 </MapContainer>
+
+                {/* ── Leyenda de mapa — overlay persistente ── */}
+                <div className="map-legend">
+                    {isEstabilizacion ? (
+                        <>
+                            <div className="ml-title">NIVEL DE AGUA</div>
+                            <div className="ml-item">
+                                <span className="ml-dot ml-dot--critico" />
+                                <span>Crítico ≥ 92%</span>
+                            </div>
+                            <div className="ml-item">
+                                <span className="ml-dot ml-dot--alerta" />
+                                <span>Alerta ≥ 80%</span>
+                            </div>
+                            <div className="ml-item">
+                                <span className="ml-dot ml-dot--normal" />
+                                <span>Normal</span>
+                            </div>
+                            <div className="ml-item">
+                                <span className="ml-dot ml-dot--bajo" />
+                                <span>Flujo bajo</span>
+                            </div>
+                            <div className="ml-item">
+                                <span className="ml-dot ml-dot--sin" />
+                                <span>Sin datos</span>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="ml-title">FRENTE DE AVANCE</div>
+                            <div className="ml-item">
+                                <span className="ml-line ml-line--activo" />
+                                <span>Hidratado</span>
+                            </div>
+                            <div className="ml-item">
+                                <span className="ml-line ml-line--seco" />
+                                <span>Por recorrer</span>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
 
             {/* Bottom Dock - Balanced layout to avoid 'heavy right' look */}

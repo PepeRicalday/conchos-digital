@@ -9,6 +9,7 @@ import './PublicMonitor.css';
 import { formatDate } from '../utils/dateHelpers';
 import type { MovimientoPresaConNombreRow, RegistroAlertaRow } from '../types/sica.types';
 import { calcIEC, iecColor } from '../utils/canalIndex';
+import { calcRadialFlow } from '../utils/hydraulics';
 import { onTable } from '../lib/realtimeHub';
 import CanalReport from '../components/CanalReport';
 import { exportEscalasCSV } from '../utils/exportCanal';
@@ -524,6 +525,18 @@ const PublicMonitor: React.FC = () => {
 
                     if (readingTime >= flowStartTime!) {
                         if (!readingsMap.has(r.escala_id)) {
+                            const esc = escData?.find(e => e.id === r.escala_id);
+                            const gasto_recalc = esc?.pzas_radiales
+                                ? calcRadialFlow(
+                                    r.nivel_m,
+                                    r.nivel_abajo_m || 0,
+                                    r.radiales_json,
+                                    esc.ancho,
+                                    esc.pzas_radiales,
+                                    esc.nombre,
+                                    esc.km
+                                  )
+                                : (r.gasto_calculado_m3s || 0);
                             const entry = {
                                 nivel: r.nivel_m,
                                 nivel_abajo: r.nivel_abajo_m || 0,
@@ -532,12 +545,11 @@ const PublicMonitor: React.FC = () => {
                                 timestamp: readingTime,
                                 apertura: r.apertura_radiales_m || 0,
                                 radiales_json: r.radiales_json,
-                                gasto_real: r.gasto_calculado_m3s || 0
+                                gasto_real: gasto_recalc
                             };
                             readingsMap.set(r.escala_id, entry);
-                            
+
                             // Track specifically the latest KM 0 to show in header/alerts
-                            const esc = escData?.find(e => e.id === r.escala_id);
                             if (esc?.km === 0) {
                                 if (!latestReadingAtZero || readingTime > latestReadingAtZero.timestamp) {
                                     latestReadingAtZero = entry;
@@ -554,6 +566,18 @@ const PublicMonitor: React.FC = () => {
                 (readings || []).forEach(r => {
                     if (!readingsMap.has(r.escala_id)) {
                         const manualReadingTime = new Date(`${r.fecha}T${r.hora_lectura}-06:00`).getTime();
+                        const esc = escData?.find(e => e.id === r.escala_id);
+                        const gasto_recalc = esc?.pzas_radiales
+                            ? calcRadialFlow(
+                                r.nivel_m,
+                                r.nivel_abajo_m || 0,
+                                r.radiales_json,
+                                esc.ancho,
+                                esc.pzas_radiales,
+                                esc.nombre,
+                                esc.km
+                              )
+                            : (r.gasto_calculado_m3s || 0);
                         readingsMap.set(r.escala_id, {
                             nivel:        r.nivel_m,
                             nivel_abajo:  r.nivel_abajo_m  || 0,
@@ -562,9 +586,8 @@ const PublicMonitor: React.FC = () => {
                             timestamp:    manualReadingTime,
                             apertura:     r.apertura_radiales_m || 0,
                             radiales_json: r.radiales_json,
-                            gasto_real:   r.gasto_calculado_m3s || 0,
+                            gasto_real:   gasto_recalc,
                         });
-                        const esc = escData?.find(e => e.id === r.escala_id);
                         if (esc?.km === 0 && !latestReadingAtZero) {
                             latestReadingAtZero = readingsMap.get(r.escala_id);
                         }

@@ -340,4 +340,111 @@ export const calculateNormalDepth = (
   return Number(y.toFixed(3));
 };
 
+// ─── Radial Gate Flow (M1-calibrated) ─────────────────────────────────────
 
+const RADIAL_Cd  = 0.62;
+const RADIAL_Cv  = 1.84;
+const RADIAL_g   = 9.81;
+const RADIAL_MIN = 0.01;
+
+/** M1 correction factors calibrated 22/04/2026 via mass balance. */
+export const M1_FACTORS: Record<string, number> = {
+    'K-23':     2.3726,
+    'K-29':     1.4416,
+    'K-34':     1.6407,
+    'K-44':     1.2156,
+    'K-54':     1.2616,
+    'K-62':     1.1294,
+    'K-64':     1.3305,
+    'K-68':     1.0456,
+    'K-79+025': 2.8169,
+    'K-87+549': 1.3635,
+    'K-94+057': 1.2861,
+    'K-94+200': 1.2851,
+    'K-104':    0.7714,
+};
+
+const _M1_KM: Record<string, number> = {
+    'K-23': 23, 'K-29': 29, 'K-34': 34, 'K-44': 44, 'K-54': 54,
+    'K-62': 62, 'K-64': 64, 'K-68': 68, 'K-79+025': 79.025,
+    'K-87+549': 87.549, 'K-94+057': 94.057, 'K-94+200': 94.2, 'K-104': 104,
+};
+
+export function getM1Factor(nombre?: string, km?: number): number {
+    if (nombre) {
+        const key = nombre.trim().toUpperCase();
+        for (const [k, v] of Object.entries(M1_FACTORS)) {
+            if (k.toUpperCase() === key) return v;
+        }
+        for (const [k, v] of Object.entries(M1_FACTORS)) {
+            if (key.includes(k.toUpperCase()) || k.toUpperCase().includes(key)) return v;
+        }
+    }
+    if (km !== undefined && km !== null) {
+        let bestName = '';
+        let bestDist = 2.0;
+        for (const [name, nomKm] of Object.entries(_M1_KM)) {
+            const dist = Math.abs(km - nomKm);
+            if (dist < bestDist) { bestDist = dist; bestName = name; }
+        }
+        if (bestName) return M1_FACTORS[bestName];
+    }
+    return 1.0;
+}
+
+/**
+ * Recalculates gate flow from raw reading data using M1-calibrated factors.
+ * Mirrors sica-capture/src/lib/hydraulicCalculations.ts calculateFlow().
+ *
+ * @param hArriba      - Upstream level (m)
+ * @param hAbajo       - Downstream level (m)
+ * @param radialesJson - JSON array from DB: [{index, apertura_m}, ...]
+ * @param anchoRadial  - Gate width (m) — esc.ancho
+ * @param pzasRadiales - Gate count — esc.pzas_radiales
+ * @param nombre       - Checkpoint name for M1 lookup (e.g. "K-29")
+ * @param km           - Kilometre position as fallback for M1 lookup
+ */
+export function calcRadialFlow(
+    hArriba: number,
+    hAbajo: number,
+    radialesJson: any,
+    anchoRadial: number,
+    pzasRadiales: number,
+    nombre?: string,
+    km?: number
+): number {
+    if (!anchoRadial || !pzasRadiales || pzasRadiales <= 0 || hArriba <= 0) {
+        // Garganta larga fallback
+        return hArriba > 0 ? 1.84 * Math.pow(hArriba, 1.52) : 0;
+    }
+
+    let aperturas: number[] = [];
+    if (Array.isArray(radialesJson)) {
+        // [{index: 0, apertura_m: 0.5}, ...]
+        aperturas = Array.from({ length: pzasRadiales }, (_, i) => {
+            const gate = radialesJson.find((g: any) => g.index === i || g.index === i + 1);
+            return gate ? (gate.apertura_m || 0) : 0;
+        });
+    }
+    if (aperturas.length === 0) aperturas = Array(pzasRadiales).fill(0);
+
+    const fcm1 = getM1Factor(nombre, km);
+    const carga = Math.max(0, hArriba - hAbajo);
+    let q_total = 0;
+
+    for (let i = 0; i < pzasRadiales; i++) {
+        const ap = aperturas[i] || 0;
+        if (ap > 0 && hArriba > RADIAL_MIN) {
+            const area = anchoRadial * ap;
+            // Opción A: if Δh ≤ 0 (backwater, h_abajo ≥ h_arriba) use h_arriba as absolute head
+            const cargaEfectiva = carga > RADIAL_MIN ? carga : hArriba;
+            if (ap < hArriba) {
+                q_total += RADIAL_Cd * area * Math.sqrt(2 * RADIAL_g * cargaEfectiva) * fcm1;
+            } else {
+                q_total += RADIAL_Cv * anchoRadial * Math.pow(cargaEfectiva, 1.5) * fcm1;
+            }
+        }
+    }
+
+    return q_total;
+}

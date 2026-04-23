@@ -347,19 +347,19 @@ const RADIAL_Cv  = 1.84;
 const RADIAL_g   = 9.81;
 const RADIAL_MIN = 0.01;
 
-/** M1 correction factors calibrated 22/04/2026 via mass balance. */
+/** M1 correction factors calibrated 23/04/2026 via mass balance. */
 export const M1_FACTORS: Record<string, number> = {
-    'K-23':     2.3726,
-    'K-29':     1.4416,
-    'K-34':     1.6407,
-    'K-44':     1.2156,
-    'K-54':     1.2616,
+    'K-23':     2.0978,
+    'K-29':     1.3589,
+    'K-34':     1.3821,
+    'K-44':     0.9838,
+    'K-54':     1.0823,
     'K-62':     1.1294,
     'K-64':     1.3305,
-    'K-68':     1.0456,
-    'K-79+025': 2.8169,
-    'K-87+549': 1.3635,
-    'K-94+057': 1.2861,
+    'K-68':     1.1112,
+    'K-79+025': 2.8549,
+    'K-87+549': 1.2530,
+    'K-94+057': 1.1883,
     'K-94+200': 1.2851,
     'K-104':    0.7714,
 };

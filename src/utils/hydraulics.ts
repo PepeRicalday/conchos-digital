@@ -413,10 +413,13 @@ export function calcRadialFlow(
     nombre?: string,
     km?: number
 ): number {
-    if (!anchoRadial || !pzasRadiales || pzasRadiales <= 0 || hArriba <= 0) {
-        // Garganta larga fallback
+    if (!pzasRadiales || pzasRadiales <= 0) {
+        // Sin compuertas radiales: solo es garganta larga si ancho > 0.
+        // ancho = 0 → escala de referencia pura (p.ej. K-64, K-94+200): Q = 0.
+        if (!anchoRadial || anchoRadial <= 0) return 0;
         return hArriba > 0 ? 1.84 * Math.pow(hArriba, 1.52) : 0;
     }
+    if (hArriba <= 0) return 0;
 
     let aperturas: number[] = [];
     if (Array.isArray(radialesJson)) {

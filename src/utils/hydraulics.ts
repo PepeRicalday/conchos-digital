@@ -340,6 +340,56 @@ export const calculateNormalDepth = (
   return Number(y.toFixed(3));
 };
 
+// ─── Wave Propagation Parameters (DR-005 Skill v3.4 / cruce 26/04/2026) ──
+//
+// BC-06: F_aten >40 km = 0.27 — calibrado con evento 24-25/04 (confianza 45%).
+//   Representa la fracción del ΔQ_presa que se atenúa entre K-23 y la cola del canal.
+//   Coherente con datos campo: K-23→K-54 = 26.2%, K-54→K-68 = 25.0%.
+//
+// BC-07: c = 0.80 m/s — celeridad de onda, verificada en tramo K-68→K-104 (confianza 40%).
+//   Usada para calcular tiempos de tránsito entre checkpoints.
+//
+// BC-04: Zonas de extracción — se mantienen los valores SICA calibrados en campo (13.885 m³/s),
+//   superiores en confianza (~65%) a los estimados del Skill v3.4 (14.15 m³/s, 30%).
+//
+// BC-03: F_hid = 0.70 NO implementado — ya absorbido en los factores M1 de cada escala.
+
+export const WAVE_CELERITY_MS = 0.80;   // m/s — BC-07, tramo K-68→K-104 calibrado
+export const F_ATEN_GT40     = 0.27;   // fracción — BC-06, atenuación onda >40 km del canal
+
+/**
+ * Tiempo de tránsito de onda entre dos puntos kilométricos.
+ * @returns minutos (redondeado)
+ */
+export function transitTimeMin(kmFrom: number, kmTo: number): number {
+    const distM = Math.abs(kmTo - kmFrom) * 1000;
+    return Math.round(distM / WAVE_CELERITY_MS / 60);
+}
+
+/**
+ * Q esperado en un punto aguas abajo dado un ΔQ en la presa,
+ * aplicando el factor de atenuación para tramos > 40 km.
+ * Solo válido para el tramo K-23 en adelante.
+ */
+export function predictDeltaQ(deltaQPresa: number, kmDestino: number): number {
+    if (kmDestino < 23) return deltaQPresa;           // tramo presa→K-0, F_aten no calibrado
+    return deltaQPresa * (1 - F_ATEN_GT40);
+}
+
+/** Tabla de tiempos de tránsito entre checkpoints consecutivos (c = 0.80 m/s). */
+export const TRANSIT_TABLE: { de: string; a: string; km_dist: number; min: number }[] = [
+    { de: 'K-0+000',   a: 'K-23',      km_dist: 23.000, min: 479 },
+    { de: 'K-23',      a: 'K-29',      km_dist:  6.000, min: 125 },
+    { de: 'K-29',      a: 'K-34',      km_dist:  5.000, min: 104 },
+    { de: 'K-34',      a: 'K-44',      km_dist: 10.000, min: 208 },
+    { de: 'K-44',      a: 'K-54',      km_dist: 10.000, min: 208 },
+    { de: 'K-54',      a: 'K-68',      km_dist: 14.000, min: 292 },
+    { de: 'K-68',      a: 'K-79+025',  km_dist: 11.025, min: 230 },
+    { de: 'K-79+025',  a: 'K-87+549',  km_dist:  8.524, min: 178 },
+    { de: 'K-87+549',  a: 'K-94+057',  km_dist:  6.508, min: 136 },
+    { de: 'K-94+057',  a: 'K-104',     km_dist:  9.943, min: 207 },  // BC-02 verificable 27/04
+];
+
 // ─── Radial Gate Flow (M1-calibrated) ─────────────────────────────────────
 
 const RADIAL_Cd  = 0.62;

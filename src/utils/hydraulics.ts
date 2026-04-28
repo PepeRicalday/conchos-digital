@@ -402,8 +402,8 @@ export const M1_FACTORS: Record<string, number> = {
     'K-0+000':  0.8923,  // cal. aforo 27/04/2026 — era 1.0000
     'K-23':     1.9031,  // recal. 27/04/2026 — era 2.0978
     'K-29':     1.2379,  // recal. 27/04/2026 — era 1.3589
-    'K-34':     1.2637,  // recal. 27/04/2026 — era 1.3821
-    'K-44':     0.9067,  // recal. 27/04/2026 — era 0.9838
+    'K-34':     1.5199,  // recal. 27/04/2026 v2 — era 1.2637; balance K-29
+    'K-44':     1.0119,  // recal. 27/04/2026 v2 — era 0.9067; balance K-29
     'K-54':     1.0066,  // recal. 27/04/2026 — era 1.0823
     'K-62':     1.0537,  // recal. 27/04/2026 — era 1.1294
     'K-64':     1.3305,  // escala referencia — sin cambio

@@ -2,14 +2,14 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, ZoomControl, Marker, useMap, Popup } from 'react-leaflet';
 import { supabase } from '../lib/supabase';
 import { useHydricEvents } from '../hooks/useHydricEvents';
-import { Timer, Activity, Clock, ArrowRightCircle, MapPin, Waves, X, AlertTriangle } from 'lucide-react';
+import { Timer, Activity, Clock, ArrowRightCircle, MapPin, Waves, X, AlertTriangle, Download, Copy } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PublicMonitor.css';
 import { formatDate } from '../utils/dateHelpers';
 import type { MovimientoPresaConNombreRow, RegistroAlertaRow } from '../types/sica.types';
 import { calcIEC, iecColor } from '../utils/canalIndex';
-import { calcRadialFlow } from '../utils/hydraulics';
+import { calcRadialFlow, M1_FACTORS, getM1Factor } from '../utils/hydraulics';
 import { onTable } from '../lib/realtimeHub';
 import CanalReport from '../components/CanalReport';
 import { exportEscalasCSV } from '../utils/exportCanal';
@@ -367,7 +367,8 @@ const PublicMonitor: React.FC = () => {
     // Panel Visibility States - Start minimized on mobile for total map priority
     const isMobile = typeof window !== 'undefined' ? window.innerWidth <= 900 : false;
     const [isDockVisible, setIsDockVisible] = useState(!isMobile);
-    const [dockTab, setDockTab] = useState<'resumen' | 'canal' | 'alertas'>('resumen');
+    const [dockTab, setDockTab] = useState<'resumen' | 'canal' | 'alertas' | 'skill'>('resumen');
+    const [snapshotCopied, setSnapshotCopied] = useState(false);
     const [isPredictionVisible, setIsPredictionVisible] = useState(false);
     const [showPerfilModal, setShowPerfilModal] = useState(false);
     const [fgvData, setFgvData] = useState<any>(null);
@@ -1177,6 +1178,70 @@ const PublicMonitor: React.FC = () => {
         } catch { /* ignore */ }
     }, [iecData]);
 
+    // ── Skill Snapshot — datos actuales para extracción por Claude ───────────
+    // Se recalcula cada vez que `escalas` cambia (suscripción Realtime activa).
+    const skillSnapshot = useMemo(() => {
+        const ZONAS_SKILL = [
+            { nombre: 'Z1', km_ini: 23, km_fin: 29, q: 2.400 },
+            { nombre: 'Z2', km_ini: 34, km_fin: 44, q: 2.750 },
+            { nombre: 'Z3', km_ini: 54, km_fin: 68, q: 4.635 },
+            { nombre: 'Z4', km_ini: 79, km_fin: 94, q: 4.200 },
+        ];
+        const Q_ZONAS = ZONAS_SKILL.reduce((s, z) => s + z.q, 0);
+        const q0   = escalas.find(e => e.km === 0)?.gasto_actual ?? 0;
+        const q104 = escalas.find(e => e.km === 104)?.gasto_actual ?? 0;
+        const perdidas   = q0 - q104 - Q_ZONAS;
+        const eficiencia = q0 > 0 ? (q0 - Math.max(0, perdidas)) / q0 * 100 : 0;
+        const lambda     = q0 > 0 ? perdidas / 104 : 0;
+
+        const checkpoints = escalas
+            .filter(e => e.km >= 0 && e.km <= 104)
+            .sort((a, b) => a.km - b.km)
+            .map(e => {
+                const bl = e.nivel_max_operativo ? +(e.nivel_max_operativo - (e.nivel_actual ?? 0)).toFixed(3) : null;
+                return {
+                    nombre:          e.nombre,
+                    km:              e.km,
+                    hA:              +(e.nivel_actual ?? 0).toFixed(3),
+                    q:               +(e.gasto_actual  ?? 0).toFixed(3),
+                    m1:              +getM1Factor(e.nombre, e.km).toFixed(4),
+                    apertura:        +(e.apertura_actual ?? 0).toFixed(3),
+                    puertas_abiertas: e.puertas_abiertas ?? 0,
+                    nivel_max:       e.nivel_max_operativo ?? null,
+                    bl,
+                    alerta:          bl !== null && bl < 0 ? 'NIVEL_CRITICO' : bl !== null && bl < 0.10 ? 'PRECAUCION' : null,
+                    ts_min:          e.ultima_telemetria ? +((Date.now() - e.ultima_telemetria) / 60000).toFixed(0) : null,
+                };
+            });
+
+        const alertas = checkpoints.filter(c => c.alerta);
+
+        return {
+            meta: {
+                version:    '3.6b',
+                generado:   new Date().toISOString(),
+                canal:      'Canal Principal Conchos',
+                distrito:   'DR-005 Delicias',
+                calibracion: '27/04/2026',
+            },
+            constantes: { Cd: 0.62, Cv: 1.84, g: 9.81, Cd_gl: 1.84, n_gl: 1.52, MIN_H: 0.01, n_man: 0.015, C_ONDA: 0.80, F_ATEN: 0.27, lambda: +lambda.toFixed(5) },
+            M1_FACTORS,
+            zonas: ZONAS_SKILL,
+            Q_ZONAS_TOTAL: +Q_ZONAS.toFixed(3),
+            balance: {
+                Q0:            +q0.toFixed(3),
+                Q104:          +q104.toFixed(3),
+                Q_extracciones: +Q_ZONAS.toFixed(3),
+                perdidas:      +perdidas.toFixed(3),
+                eficiencia:    +eficiencia.toFixed(1),
+                lambda:        +lambda.toFixed(5),
+            },
+            alertas_nivel: alertas.map(c => ({ nombre: c.nombre, km: c.km, hA: c.hA, bl: c.bl, tipo: c.alerta })),
+            checkpoints,
+            timestamp: new Date().toISOString(),
+        };
+    }, [escalas]);
+
     const iecBreakdownRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const el = iecBreakdownRef.current;
@@ -1821,6 +1886,14 @@ const PublicMonitor: React.FC = () => {
                                 <span className="dock-tab-badge">{activeAlertas.length}</span>
                             )}
                         </button>
+                        <button
+                            type="button"
+                            className={`dock-tab dock-tab--skill${dockTab === 'skill' ? ' dock-tab--active' : ''}`}
+                            onClick={() => setDockTab('skill')}
+                            title="Datos actuales para modelación con Claude"
+                        >
+                            DATOS
+                        </button>
                     </div>
 
                     {/* ── Pestaña RESUMEN (anterior dock-panel-left) ── */}
@@ -2208,6 +2281,127 @@ const PublicMonitor: React.FC = () => {
                         )}
                         <div className="dap-footer">
                             <a href="/alertas" className="dap-link">Ver módulo Alertas →</a>
+                        </div>
+                    </div>
+                    )}
+
+                    {/* ── Pestaña DATOS ACTUALES — Snapshot para Claude/Skill ── */}
+                    {dockTab === 'skill' && (
+                    <div className="dock-section dock-skill-panel">
+                        <div className="dock-section-header">
+                            <span className="card-label">DATOS ACTUALES — SKILL v3.6b</span>
+                            <span className="telemetry-tag active-mon">● EN VIVO</span>
+                        </div>
+
+                        {/* Balance global */}
+                        <div className="dsk-balance-row">
+                            <div className="dsk-bal-item">
+                                <span className="dsk-bal-label">K-0 ENTRADA</span>
+                                <span className="dsk-bal-val dsk-val--green">{skillSnapshot.balance.Q0.toFixed(3)}</span>
+                                <span className="dsk-bal-unit">m³/s</span>
+                            </div>
+                            <div className="dsk-bal-item">
+                                <span className="dsk-bal-label">K-104 SALIDA</span>
+                                <span className="dsk-bal-val dsk-val--blue">{skillSnapshot.balance.Q104.toFixed(3)}</span>
+                                <span className="dsk-bal-unit">m³/s</span>
+                            </div>
+                            <div className="dsk-bal-item">
+                                <span className="dsk-bal-label">EFICIENCIA</span>
+                                <span className={`dsk-bal-val ${skillSnapshot.balance.eficiencia >= 95 ? 'dsk-val--green' : skillSnapshot.balance.eficiencia >= 90 ? 'dsk-val--amber' : 'dsk-val--red'}`}>{skillSnapshot.balance.eficiencia.toFixed(1)}%</span>
+                                <span className="dsk-bal-unit"></span>
+                            </div>
+                            <div className="dsk-bal-item">
+                                <span className="dsk-bal-label">PÉRDIDAS</span>
+                                <span className="dsk-bal-val dsk-val--amber">{skillSnapshot.balance.perdidas.toFixed(3)}</span>
+                                <span className="dsk-bal-unit">m³/s</span>
+                            </div>
+                            <div className="dsk-bal-item">
+                                <span className="dsk-bal-label">λ /km</span>
+                                <span className="dsk-bal-val">{skillSnapshot.balance.lambda.toFixed(5)}</span>
+                                <span className="dsk-bal-unit">m³/s·km⁻¹</span>
+                            </div>
+                        </div>
+
+                        {/* Alertas de nivel */}
+                        {skillSnapshot.alertas_nivel.length > 0 && (
+                            <div className="dsk-alerts-strip">
+                                {skillSnapshot.alertas_nivel.map(a => (
+                                    <span key={a.nombre} className={`dsk-alert-tag ${a.tipo === 'NIVEL_CRITICO' ? 'dsk-alert--red' : 'dsk-alert--amber'}`}>
+                                        ⚠ {a.nombre} BL={a.bl}m
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Tabla de checkpoints */}
+                        <div className="dsk-table-wrap">
+                            <table className="dsk-table">
+                                <thead>
+                                    <tr>
+                                        <th>PUNTO</th>
+                                        <th>KM</th>
+                                        <th>H↑ (m)</th>
+                                        <th>Q (m³/s)</th>
+                                        <th>M1</th>
+                                        <th>AP (m)</th>
+                                        <th>BL</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {skillSnapshot.checkpoints.map(c => (
+                                        <tr key={c.nombre} className={c.alerta === 'NIVEL_CRITICO' ? 'dsk-tr--critico' : c.alerta === 'PRECAUCION' ? 'dsk-tr--warn' : ''}>
+                                            <td className="dsk-td-nombre">{c.nombre}</td>
+                                            <td className="dsk-td-num">{c.km}</td>
+                                            <td className="dsk-td-num">{c.hA.toFixed(3)}</td>
+                                            <td className={`dsk-td-num ${c.q > 0 ? 'dsk-td--q' : 'dsk-td--zero'}`}>{c.q.toFixed(3)}</td>
+                                            <td className="dsk-td-num dsk-td--m1">{c.m1.toFixed(4)}</td>
+                                            <td className="dsk-td-num">{c.apertura > 0 ? c.apertura.toFixed(3) : '—'}</td>
+                                            <td className={`dsk-td-num ${c.bl !== null && c.bl < 0 ? 'dsk-td--red' : c.bl !== null && c.bl < 0.10 ? 'dsk-td--amber' : ''}`}>
+                                                {c.bl !== null ? c.bl.toFixed(3) : '—'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Timestamp y acciones */}
+                        <div className="dsk-footer">
+                            <span className="dsk-ts">
+                                Snapshot: {new Date(skillSnapshot.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'America/Chihuahua' })} CST
+                            </span>
+                            <div className="dsk-actions">
+                                <button
+                                    type="button"
+                                    className={`dsk-btn ${snapshotCopied ? 'dsk-btn--copied' : ''}`}
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(JSON.stringify(skillSnapshot, null, 2));
+                                        setSnapshotCopied(true);
+                                        setTimeout(() => setSnapshotCopied(false), 2000);
+                                    }}
+                                    title="Copiar JSON al portapapeles para usar en Claude"
+                                >
+                                    <Copy size={11} />
+                                    {snapshotCopied ? 'Copiado!' : 'Copiar JSON'}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="dsk-btn dsk-btn--download"
+                                    onClick={() => {
+                                        const blob = new Blob([JSON.stringify(skillSnapshot, null, 2)], { type: 'application/json' });
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = `skill_snapshot_${new Date().toISOString().slice(0,16).replace('T','_')}.json`;
+                                        a.click();
+                                        URL.revokeObjectURL(url);
+                                    }}
+                                    title="Descargar snapshot JSON"
+                                >
+                                    <Download size={11} />
+                                    Descargar
+                                </button>
+                            </div>
                         </div>
                     </div>
                     )}

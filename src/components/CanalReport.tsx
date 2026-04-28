@@ -1,9 +1,11 @@
 /**
  * CanalReport.tsx — Reporte gerencial de estado del canal (ESTABILIZACIÓN)
  * Imprime / exporta PDF: IEC, balance hídrico, FGV, telemetría crítica.
+ *
+ * Impresión: abre una ventana nueva con el contenido + CSS embebido para evitar
+ * el freeze que ocurre al llamar window.print() dentro de un modal React.
  */
 import React, { useRef, useEffect } from 'react';
-import { useReactToPrint } from 'react-to-print';
 import { Printer, X } from 'lucide-react';
 import type { IECBreakdown } from '../utils/canalIndex';
 import './CanalReport.css';
@@ -84,10 +86,111 @@ const CanalReport: React.FC<CanalReportProps> = ({
         el.style.setProperty('--iec-pcrit', `${(iec.p_criticos   / 20) * 100}%`);
     }, [iec]);
 
-    const handlePrint = useReactToPrint({
-        contentRef: ref,
-        documentTitle: `SICA_Canal_${new Date().toLocaleDateString('en-CA')}`,
-    });
+    // Abre el contenido del reporte en una ventana nueva y llama window.print() ahí.
+    // Esto evita el freeze causado por llamar print() dentro del modal de React,
+    // que bloquea el thread JS y deja la UI congelada sin poder cerrar el diálogo.
+    const handlePrint = () => {
+        const bodyEl = ref.current;
+        if (!bodyEl) return;
+
+        const semC = semColor(iec.semaforo);
+        const pef   = `${(iec.p_eficiencia / 30) * 100}%`;
+        const pcoh  = `${(iec.p_coherencia / 25) * 100}%`;
+        const pfug  = `${(iec.p_fugas      / 25) * 100}%`;
+        const pcrit = `${(iec.p_criticos   / 20) * 100}%`;
+
+        const logoUrl = `${window.location.origin}/logos/logo-srl.png`;
+        const html = bodyEl.innerHTML.replace('/logos/logo-srl.png', logoUrl);
+
+        const win = window.open('', '_blank', 'width=920,height=780,scrollbars=yes');
+        if (!win) {
+            alert('El navegador bloqueó la ventana emergente. Permite ventanas emergentes para este sitio e intenta de nuevo.');
+            return;
+        }
+
+        win.document.write(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>SICA_Canal_${new Date().toLocaleDateString('en-CA')}</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Georgia', serif; font-size: 10pt; color: #0f172a; background: #fff; padding: 28px 36px; }
+  /* ── Header ── */
+  .rpt-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 14px; border-bottom: 2px solid #0f172a; margin-bottom: 18px; gap: 12px; }
+  .rpt-header-brand { display: flex; align-items: center; gap: 12px; }
+  .rpt-logo { height: 42px; width: auto; }
+  .rpt-title { font-size: 13pt; font-weight: 700; color: #0f172a; letter-spacing: .4px; font-family: Arial, sans-serif; }
+  .rpt-subtitle { font-size: 8pt; color: #475569; font-family: Arial, sans-serif; margin-top: 2px; }
+  .rpt-header-meta { text-align: right; }
+  .rpt-meta-date { font-size: 8pt; color: #475569; font-family: Arial, sans-serif; }
+  .rpt-meta-mode { font-size: 7pt; font-weight: 700; color: #0284c7; letter-spacing: 1px; font-family: Arial, sans-serif; margin-top: 3px; }
+  /* ── Sections ── */
+  .rpt-section { margin-bottom: 20px; page-break-inside: avoid; }
+  .rpt-section-title { font-size: 7.5pt; font-weight: 800; letter-spacing: 1.2px; color: #475569; font-family: Arial, sans-serif; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 10px; }
+  /* ── IEC ── */
+  .rpt-iec-row { display: flex; gap: 18px; align-items: flex-start; }
+  .rpt-iec-score { min-width: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 3px solid ${semC}; border-radius: 10px; padding: 10px 14px; text-align: center; }
+  .rpt-iec-num { font-size: 30pt; font-weight: 900; font-family: Arial, sans-serif; line-height: 1; color: ${semC}; }
+  .rpt-iec-den { font-size: 9pt; color: #64748b; font-family: Arial, sans-serif; }
+  .rpt-iec-sem { font-size: 7pt; font-weight: 800; letter-spacing: 1px; font-family: Arial, sans-serif; color: ${semC}; margin-top: 4px; }
+  .rpt-iec-components { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .rpt-iec-comp { display: grid; grid-template-columns: 150px 1fr 50px 60px; align-items: center; gap: 8px; font-family: Arial, sans-serif; }
+  .rpt-iec-comp-label { font-size: 8.5pt; color: #334155; }
+  .rpt-iec-comp-bar { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+  .rpt-iec-comp-fill { height: 100%; border-radius: 4px; background: ${semC}; }
+  .iec-fill-ef   { width: ${pef};   }
+  .iec-fill-coh  { width: ${pcoh};  }
+  .iec-fill-fug  { width: ${pfug};  }
+  .iec-fill-crit { width: ${pcrit}; }
+  .rpt-iec-comp-pts { font-size: 8.5pt; font-weight: 700; font-family: Arial, sans-serif; text-align: right; }
+  .rpt-iec-comp-raw { font-size: 7.5pt; color: #64748b; font-family: Arial, sans-serif; }
+  .rpt-iec-texto { font-size: 8pt; color: #64748b; font-style: italic; margin-top: 8px; font-family: Arial, sans-serif; }
+  .rpt-val-crit { color: #dc2626 !important; }
+  /* ── Balance ── */
+  .rpt-balance-chain { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .rpt-bc-node { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 16px; text-align: center; min-width: 100px; }
+  .rpt-bc-label { font-size: 7pt; font-weight: 700; color: #64748b; font-family: Arial, sans-serif; letter-spacing: .5px; text-transform: uppercase; }
+  .rpt-bc-val { font-size: 13pt; font-weight: 800; color: #0f172a; font-family: Arial, sans-serif; }
+  .rpt-bc-arrow { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; min-width: 60px; }
+  .rpt-bc-loss { font-size: 9pt; font-weight: 700; color: #dc2626; font-family: Arial, sans-serif; }
+  .rpt-bc-dist { font-size: 7pt; color: #94a3b8; font-family: Arial, sans-serif; }
+  .rpt-balance-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .rpt-bkpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; display: flex; flex-direction: column; gap: 3px; }
+  .rpt-bkpi span { font-size: 7pt; color: #64748b; font-family: Arial, sans-serif; }
+  .rpt-bkpi b { font-size: 11pt; font-weight: 800; color: #0f172a; font-family: Arial, sans-serif; }
+  /* ── Tables ── */
+  .rpt-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; font-family: Arial, sans-serif; }
+  .rpt-table th { background: #0f172a; color: #fff; padding: 5px 8px; text-align: left; font-weight: 700; font-size: 7.5pt; }
+  .rpt-table td { padding: 4px 8px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+  .rpt-table tr:nth-child(even) td { background: #f8fafc; }
+  .rpt-row-crit td { background: #fff1f2 !important; color: #991b1b !important; font-weight: 600; }
+  .rpt-row-alert td { background: #fffbeb !important; color: #92400e !important; }
+  .rpt-mt { margin-top: 10px; }
+  /* ── Footer ── */
+  .rpt-footer { margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 8px; display: flex; justify-content: space-between; font-size: 7pt; color: #94a3b8; font-family: Arial, sans-serif; }
+</style>
+</head>
+<body>
+${html}
+</body>
+</html>`);
+
+        win.document.close();
+
+        // Espera a que cargue la imagen del logo antes de imprimir
+        const img = win.document.querySelector('img');
+        const doPrint = () => { win.focus(); win.print(); win.close(); };
+        if (img) {
+            img.onload  = doPrint;
+            img.onerror = doPrint; // imprimir igualmente si falla la imagen
+            // Timeout de seguridad: si la imagen tarda más de 2s, imprimir de todas formas
+            setTimeout(doPrint, 2000);
+        } else {
+            setTimeout(doPrint, 300);
+        }
+    };
 
     const fecha = new Date().toLocaleString('es-MX', {
         timeZone: 'America/Chihuahua',

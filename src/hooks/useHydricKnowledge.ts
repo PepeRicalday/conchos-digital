@@ -29,10 +29,11 @@ export function useHydricKnowledge() {
             setDocuments(data || []);
         } catch (err: any) {
             console.error('Error fetching hydric documents:', err);
-            // Hide error if table doesn't exist yet
-            if (!err.message?.includes('does not exist')) {
-                setError(err.message);
-            }
+            const msg: string = err.message ?? '';
+            if (msg.includes('does not exist')) return;
+            // JWT/algorithm errors → silencioso en load (se maneja en InteligenciaHidrica)
+            if (/algorithm|JWT|token.*invalid|invalid.*token|unauthorized/i.test(msg)) return;
+            setError(msg);
         } finally {
             setIsLoading(false);
         }

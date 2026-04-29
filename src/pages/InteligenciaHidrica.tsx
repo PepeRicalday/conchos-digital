@@ -7,6 +7,7 @@ import {
     CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { useHydricChat, type ChatMessage } from '../hooks/useHydricChat';
 import { useHydricKnowledge } from '../hooks/useHydricKnowledge';
 import { useHydricEvents, type HydraulicEvent } from '../hooks/useHydricEvents';
@@ -366,15 +367,34 @@ const InteligenciaHidrica = () => {
                             )}
 
                             {/* Error */}
-                            {(error || knowledgeError) && (
-                                <div className="ih-error">
-                                    <AlertTriangle size={14} />
-                                    <span>{error || knowledgeError}</span>
-                                    <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', flexShrink: 0 }}>
-                                        <button onClick={clearError}>Cerrar</button>
+                            {(error || knowledgeError) && (() => {
+                                const rawError = error || knowledgeError || '';
+                                const isJwt = /SESSION_JWT_ERROR|algorithm|JWT|token.*invalid|invalid.*token/i.test(rawError);
+                                const displayMsg = isJwt
+                                    ? 'Sesión no válida con el servidor (JWT). Renueva tu sesión para continuar.'
+                                    : rawError;
+                                return (
+                                    <div className="ih-error">
+                                        <AlertTriangle size={14} />
+                                        <span>{displayMsg}</span>
+                                        <div className="ih-error-actions">
+                                            {isJwt && (
+                                                <button
+                                                    type="button"
+                                                    className="ih-error-refresh"
+                                                    onClick={async () => {
+                                                        await supabase.auth.refreshSession();
+                                                        window.location.reload();
+                                                    }}
+                                                >
+                                                    Renovar sesión
+                                                </button>
+                                            )}
+                                            <button type="button" onClick={clearError}>Cerrar</button>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
 
                             {/* Input */}
                             <div className="ih-input-area">

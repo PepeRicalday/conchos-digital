@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
+const isJwtError = (msg: string) =>
+    /algorithm|JWT|token.*invalid|invalid.*token|unauthorized|expired/i.test(msg ?? '');
+
 export interface ChatMessage {
     id: string;
     role: 'user' | 'assistant' | 'system';
@@ -44,8 +47,15 @@ export function useHydricChat() {
             setConversations(data || []);
         } catch (err: any) {
             console.error('Error fetching conversations:', err);
-            if (!err.message?.includes('does not exist')) {
-                setError(err.message);
+            const msg: string = err.message ?? '';
+            if (msg.includes('does not exist')) return;
+
+            if (isJwtError(msg)) {
+                // Token ES256 rechazado por el servidor — intentar refresh silencioso
+                await supabase.auth.refreshSession().catch(() => {});
+                setError('SESSION_JWT_ERROR');
+            } else {
+                setError(msg);
             }
         } finally {
             setIsLoading(false);
@@ -110,8 +120,8 @@ export function useHydricChat() {
 
             if (invokeError) {
                 console.error('Invoke error details:', invokeError);
-                // Si es un error de JWT expirado, intentamos forzar un refresh
-                if (invokeError.message?.toLowerCase().includes('expired') || invokeError.message?.toLowerCase().includes('unauthorized')) {
+                // Si es un error de JWT (expirado, algoritmo no soportado, unauthorized), forzar refresh
+                if (isJwtError(invokeError.message ?? '')) {
                     const { error: refreshErr } = await supabase.auth.refreshSession();
                     if (refreshErr) throw new Error('Tu sesión ha expirado totalmente. Inicia sesión de nuevo.');
                     // Reintentar una vez tras el refresh

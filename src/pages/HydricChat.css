@@ -667,13 +667,25 @@
 }
 
 .ih-error button {
-    margin-left: auto;
     background: none;
     border: none;
     color: #f87171;
     cursor: pointer;
     font-size: 0.7rem;
     text-decoration: underline;
+}
+
+.ih-error-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.ih-error-refresh {
+    font-weight: 700;
+    color: #22d3ee !important;
+    text-decoration: none !important;
 }
 
 /* ── ACCESS DENIED ────────────────────────── */

@@ -55,8 +55,24 @@ export function useHydricChat() {
             if (msg.includes('does not exist')) return;
 
             if (isJwtError(msg)) {
-                await supabase.auth.refreshSession().catch(() => {});
-                setError('SESSION_JWT_ERROR');
+                // Intentar refresh del token
+                const { error: refreshErr } = await supabase.auth.refreshSession();
+                if (!refreshErr) {
+                    // Refresh exitoso → reintentar fetch sin mostrar banner
+                    try {
+                        const { data: retryData } = await supabase
+                            .from('chat_conversations')
+                            .select('*')
+                            .order('updated_at', { ascending: false });
+                        setConversations(retryData || []);
+                    } catch {
+                        // Si el retry también falla, mostrar banner
+                        setError('SESSION_JWT_ERROR');
+                    }
+                } else {
+                    // Refresh falló → sesión completamente expirada
+                    setError('SESSION_JWT_ERROR');
+                }
             } else {
                 setError(msg);
             }

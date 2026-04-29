@@ -383,8 +383,14 @@ const InteligenciaHidrica = () => {
                                                     type="button"
                                                     className="ih-error-refresh"
                                                     onClick={async () => {
-                                                        await supabase.auth.refreshSession();
-                                                        window.location.reload();
+                                                        const { error: refreshErr } = await supabase.auth.refreshSession();
+                                                        if (refreshErr) {
+                                                            // Sesión expirada por completo — cerrar y redirigir al login
+                                                            await supabase.auth.signOut();
+                                                            window.location.href = '/';
+                                                        } else {
+                                                            window.location.reload();
+                                                        }
                                                     }}
                                                 >
                                                     Renovar sesión

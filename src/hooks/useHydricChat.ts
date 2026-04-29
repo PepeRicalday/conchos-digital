@@ -35,8 +35,9 @@ export function useHydricChat() {
     const [error, setError] = useState<string | null>(null);
 
     // ─── Fetch all conversations ─────────────────────
-    const fetchConversations = useCallback(async () => {
-        setIsLoading(true);
+    // silent=true → llamada de fondo (post-mensaje): swallow todos los errores sin mostrar banner
+    const fetchConversations = useCallback(async (silent = false) => {
+        if (!silent) setIsLoading(true);
         try {
             const { data, error: fetchError } = await supabase
                 .from('chat_conversations')
@@ -46,19 +47,21 @@ export function useHydricChat() {
             if (fetchError) throw fetchError;
             setConversations(data || []);
         } catch (err: any) {
-            console.error('Error fetching conversations:', err);
+            if (silent) {
+                console.warn('[useHydricChat] fetchConversations (silent) error:', err.message);
+                return;
+            }
             const msg: string = err.message ?? '';
             if (msg.includes('does not exist')) return;
 
             if (isJwtError(msg)) {
-                // Token ES256 rechazado por el servidor — intentar refresh silencioso
                 await supabase.auth.refreshSession().catch(() => {});
                 setError('SESSION_JWT_ERROR');
             } else {
                 setError(msg);
             }
         } finally {
-            setIsLoading(false);
+            if (!silent) setIsLoading(false);
         }
     }, []);
 
@@ -141,7 +144,7 @@ export function useHydricChat() {
                 if (!activeConversationId) {
                     setActiveConversationId(result.conversation_id);
                 }
-                fetchConversations();
+                fetchConversations(true); // Refresh de fondo — no propaga errores JWT al banner
 
                 const assistantMsg: ChatMessage = {
                     id: `assistant-${Date.now()}`,

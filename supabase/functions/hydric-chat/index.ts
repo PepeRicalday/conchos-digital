@@ -394,38 +394,43 @@ Deno.serve(async (req: Request) => {
         // STAGE 2: Destructure contexto from request body
         const { message, conversation_id, contexto = "general" } = await req.json() as ChatRequest;
 
-        // STAGE 3 (RAG interim): Broader keyword search instead of 20-char prefix
+        // RAG semántico: embedding de la consulta + búsqueda vectorial por coseno
+        // Corre en paralelo con fetchSystemData para no agregar latencia neta
         let contextText = "";
-        try {
-            // Split message into significant keywords (>4 chars), search each independently
-            const keywords = message
-                .replace(/[¿?¡!.,;:]/g, " ")
-                .split(/\s+/)
-                .filter((w: string) => w.length > 4)
-                .slice(0, 5); // top 5 keywords
+        const [systemData, ragChunks] = await Promise.all([
+            fetchSystemData(supabaseAdmin),
+            (async () => {
+                try {
+                    const session = new Supabase.ai.Session("gte-small");
+                    const output = await session.run(message, { mean_pool: true, normalize: true });
+                    const queryEmbedding = Array.from(output.data as Float32Array);
 
-            if (keywords.length > 0) {
-                // Build OR filter: ilike for each keyword
-                const filters = keywords.map((k: string) => `content.ilike.%${k}%`).join(",");
-                const { data: chunks } = await supabaseAdmin
-                    .from("hydric_document_chunks")
-                    .select("content, metadata")
-                    .or(filters)
-                    .limit(4);
+                    const { data: chunks, error: ragError } = await supabaseAdmin.rpc(
+                        "match_hydric_documents",
+                        { query_embedding: queryEmbedding, match_threshold: 0.40, match_count: 5 }
+                    );
 
-                if (chunks && chunks.length > 0) {
-                    contextText = "\n\n=== INFORMACIÓN DE DOCUMENTOS TÉCNICOS ===\n" +
-                        chunks.map((c: any) =>
-                            `[Fuente: ${c.metadata?.source || "Documento"}]\n${c.content}`
-                        ).join("\n---\n");
+                    if (ragError) {
+                        console.error("RAG RPC error:", ragError.message);
+                        return [];
+                    }
+                    return chunks ?? [];
+                } catch (e) {
+                    console.error("RAG embedding error:", e);
+                    return [];
                 }
-            }
-        } catch (e) {
-            console.error("Error fetching RAG context:", e);
+            })(),
+        ]);
+
+        if (ragChunks.length > 0) {
+            contextText = "\n\n=== INFORMACIÓN DE DOCUMENTOS TÉCNICOS ===\n" +
+                (ragChunks as any[]).map((c: any) =>
+                    `[Fuente: ${c.metadata?.source || "Documento"} | Similitud: ${(c.similarity * 100).toFixed(0)}%]\n${c.content}`
+                ).join("\n---\n");
+            console.log(`RAG: ${ragChunks.length} chunks recuperados (similitud vectorial)`);
         }
 
         // Build system prompt with contexto
-        const systemData = await fetchSystemData(supabaseAdmin);
         const systemPrompt = buildSystemPrompt(systemData, contexto) + contextText;
 
         // Conversation management

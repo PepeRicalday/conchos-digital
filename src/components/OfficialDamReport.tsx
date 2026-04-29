@@ -1,5 +1,3 @@
-import { useRef } from 'react';
-import { useReactToPrint } from 'react-to-print';
 import { Printer, CloudSun, Thermometer } from 'lucide-react';
 import { useAforos } from '../hooks/useAforos';
 import { usePresas } from '../hooks/usePresas';
@@ -30,11 +28,10 @@ const OfficialDamReport = () => {
     const isHistorical = boquillaDate !== todayStr;
     const reportDateLabel = formatDate(new Date(boquillaDate + 'T12:00:00Z'), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-    const componentRef = useRef<HTMLDivElement>(null);
-    const handlePrint = useReactToPrint({
-        contentRef: componentRef,
-        documentTitle: `Reporte_Presas_${getTodayString()}`,
-    });
+    const handlePrint = () => {
+        document.title = `Reporte_Presas_${getTodayString()}`;
+        window.print();
+    };
 
     return (
         <div className="report-page-container bg-slate-900 min-h-screen p-8 text-slate-800">
@@ -51,7 +48,7 @@ const OfficialDamReport = () => {
             </div>
 
             {/* The Report (A4 Sheet Simulation) */}
-            <div className="report-paper bg-white max-w-5xl mx-auto shadow-2xl overflow-hidden print:shadow-none print:m-0 print:max-w-none" ref={componentRef}>
+            <div className="report-paper bg-white max-w-5xl mx-auto shadow-2xl overflow-hidden print:shadow-none print:m-0 print:max-w-none">
                 <div className="p-8 border-4 border-double border-slate-200 h-full flex flex-col">
 
                     {/* Header */}

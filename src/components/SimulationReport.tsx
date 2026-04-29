@@ -1,5 +1,4 @@
-import React, { useRef } from 'react';
-import { useReactToPrint } from 'react-to-print';
+import React from 'react';
 import { Printer, X } from 'lucide-react';
 import './SimulationReport.css';
 
@@ -80,11 +79,10 @@ function fmtMin(min: number): string {
 const SimulationReport: React.FC<SimulationReportProps> = ({
   scenario, results, gateBase, deliveryPoints, onClose,
 }) => {
-  const componentRef = useRef<HTMLDivElement>(null);
-  const handlePrint = useReactToPrint({
-    contentRef: componentRef,
-    documentTitle: `SICA_Simulacion_${scenario.date.replace(/\//g, '-')}_${scenario.startTime.replace(':', '')}`,
-  });
+  const handlePrint = () => {
+    document.title = `SICA_Simulacion_${scenario.date.replace(/\//g, '-')}_${scenario.startTime.replace(':', '')}`;
+    window.print();
+  };
 
   if (!results.length) return null;
 
@@ -219,7 +217,7 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
         </button>
       </div>
 
-      <div className="sim-report-paper" ref={componentRef}>
+      <div className="sim-report-paper">
 
         {/* ── ENCABEZADO INSTITUCIONAL ───────────────────────────────── */}
         <header className="rpt-header">

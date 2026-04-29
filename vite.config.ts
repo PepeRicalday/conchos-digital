@@ -44,6 +44,14 @@ export default defineConfig(({ mode }) => {
         workbox: {
           maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+          globIgnores: [
+            '**/vendor-echarts-*.js',
+            '**/vendor-leaflet-*.js',
+            '**/GeoMonitor-*.js',
+            '**/InteligenciaHidrica-*.js',
+            '**/ImportReport-*.js',
+            '**/boquilla_*.png',
+          ],
           skipWaiting: true,
           clientsClaim: true,
           cleanupOutdatedCaches: true,
@@ -88,6 +96,19 @@ export default defineConfig(({ mode }) => {
                 cacheableResponse: { statuses: [0, 200] },
               },
             },
+            // Chunks grandes excluidos del precache — StaleWhileRevalidate al visitarlos
+            {
+              urlPattern: /\/assets\/(vendor-echarts|vendor-leaflet|GeoMonitor|InteligenciaHidrica|ImportReport)-.*\.js$/,
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'sica-heavy-chunks-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
           ]
         },
         devOptions: {
@@ -100,7 +121,6 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            'vendor-react':   ['react', 'react-dom'],
             'vendor-leaflet': ['leaflet', 'react-leaflet'],
             'vendor-echarts': ['echarts', 'echarts-for-react'],
             'vendor-supabase': ['@supabase/supabase-js'],

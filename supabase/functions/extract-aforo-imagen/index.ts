@@ -6,48 +6,72 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const EXTRACTION_PROMPT = `Analiza esta imagen de un formulario "Aforo por Molinete - Método de Dobelas" y extrae TODOS los datos que puedas identificar.
+const EXTRACTION_PROMPT = `Analiza esta imagen de un formulario "Aforo por Molinete - Método de Dobelas" y extrae TODOS los datos con máxima fidelidad al documento físico.
 
 Devuelve ÚNICAMENTE un objeto JSON válido con la siguiente estructura (usa null para valores que no puedas leer claramente):
 
 {
-  "punto_control": "identificador del punto de control, ej: K 1+000",
+  "punto_control": "identificador exacto del punto, ej: K 1+000",
   "fecha": "fecha en formato YYYY-MM-DD",
   "hora_inicio": "hora de inicio en formato HH:MM",
   "hora_fin": "hora de fin en formato HH:MM",
-  "escala_inicial": 2.56,
-  "escala_final": 2.56,
-  "molinete_modelo": "modelo del molinete, ej: ROSSBACH_PRICE",
-  "molinete_serie": "número de serie del molinete",
-  "aforador": "nombre completo del aforador",
-  "tirante_m": 2.56,
+  "escala_inicial": 2.19,
+  "escala_final": 2.19,
+  "molinete_modelo": "modelo completo tal como aparece, ej: ROSSBACH_PRICE",
+  "molinete_numero": "número o serie del molinete, ej: 73201",
+  "aforador": "nombre completo del aforador si aparece",
+  "tirante_m": 2.19,
   "plantilla_m": 13.30,
-  "espejo_m": 22.20,
-  "area_total_m2": 45.440,
-  "gasto_total_m3s": 29.161,
-  "velocidad_media_ms": 0.6328,
+  "espejo_m": 20.96,
+  "profundidad_total_m": 3.93,
+  "borde_libre_m": 1.97,
+  "area_total_m2": 37.509,
+  "gasto_total_m3s": 22.801,
+  "velocidad_promedio_ms": 0.5937,
+  "coef_molinete": 0.70,
   "dobelas": [
     {
       "numero": 1,
-      "base_m": 4.34,
-      "tirante_m": 2.56,
-      "revoluciones": 30,
+      "base_m": 3.73,
+      "tirante_m": 2.19,
+      "area_m2": 4.079,
+      "n_revoluciones": 30,
+      "velocidad_media_ms": 0.4670,
+      "gasto_m3s": 1.905,
       "lecturas": [
-        { "tiempo_s": 41 },
-        { "tiempo_s": 42 },
-        { "tiempo_s": 41 }
+        {
+          "lectura_raw": "46/40",
+          "tiempo_s": 46,
+          "tiempo_s_alt": 40,
+          "velocidad_ms": 0.456
+        },
+        {
+          "lectura_raw": "45",
+          "tiempo_s": 45,
+          "tiempo_s_alt": null,
+          "velocidad_ms": 0.467
+        },
+        {
+          "lectura_raw": "44",
+          "tiempo_s": 44,
+          "tiempo_s_alt": null,
+          "velocidad_ms": 0.478
+        }
       ]
     }
   ]
 }
 
-Instrucciones importantes:
-- Extrae TODAS las dobelas visibles en el formulario.
-- Para cada dobela, incluye TODAS las lecturas de tiempo disponibles (generalmente 3 lecturas).
-- Si un valor numérico no es legible con claridad, usa null.
-- Si un campo de texto no es legible, usa null.
-- NO incluyas explicaciones ni texto adicional, SOLO el objeto JSON.
-- Asegúrate de que el JSON sea válido y bien formado.`;
+INSTRUCCIONES CRÍTICAS:
+1. Extrae TODAS las dobelas visibles — no omitas ninguna.
+2. Para "lectura_raw": copia EXACTAMENTE el texto impreso incluyendo formato "X/Y" cuando aparezcan dos números separados por barra (ej: "46/40", "57/52"). Esto indica dos tiempos en una misma lectura.
+3. Para "tiempo_s": usa el PRIMER número de la notación "X/Y" como tiempo principal.
+4. Para "tiempo_s_alt": usa el SEGUNDO número de "X/Y" si existe, null si la lectura es un solo número.
+5. Para "velocidad_ms" por lectura: si aparece en el formulario úsalo; si no, calcula V = coef × (n_revoluciones / tiempo_s) donde coef usualmente es 0.70.
+6. Para "n_revoluciones": cada dobela puede tener un número diferente de revoluciones (ej V1=30, V2=40, V5=45). Léelo de la columna "# Revoluciones" de la tabla molinete.
+7. Preserva todos los valores numéricos con sus decimales exactos tal como aparecen.
+8. NO incluyas texto adicional ni explicaciones — SOLO el objeto JSON válido.`;
+
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {

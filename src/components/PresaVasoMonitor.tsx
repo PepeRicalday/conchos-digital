@@ -45,7 +45,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, onClos
                 {/* Background Satellite Image with Dynamic Mask */}
                 <div className="vaso-map-bg">
                     <img
-                        src="/boquilla_5marzo.png"
+                        src="/boquilla_5marzo.webp"
                         alt="Vaso de la Presa - Imagen Satelital 5 de Marzo"
                         className="vaso-base-img"
                         style={{ filter: `brightness(${0.4 + (stats.porcentaje / 200)}) contrast(1.1)` }}

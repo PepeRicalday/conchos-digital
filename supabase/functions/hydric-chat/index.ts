@@ -49,7 +49,8 @@ async function fetchSystemData(supabaseAdmin: any) {
         const [
             presasRes, modulosRes, escalasRawRes, cicloRes,
             knowledgeRes, operacionRes, aforosRes, perfilRes,
-            canalStatusRes, eventoLogRes
+            canalStatusRes, eventoLogRes,
+            balanceZonasRes, canalDiarioRes
         ] = await Promise.all([
             supabaseAdmin.from("lecturas_presas")
                 .select("*, presas(nombre, nombre_corto, capacidad_max)")
@@ -83,6 +84,18 @@ async function fetchSystemData(supabaseAdmin: any) {
 
             supabaseAdmin.from("sica_eventos_log")
                 .select("*").eq("esta_activo", true).maybeSingle(),
+
+            // Control por Zona y Módulo — balance base + adicional del ciclo activo
+            supabaseAdmin.from("balance_volumen_modulo")
+                .select("modulo_nombre, codigo_corto, zona_codigo, zona_nombre, vol_base_m3, vol_base_consumido_m3, vol_adicional_consumido_m3, vol_total_consumido_m3, vol_base_disponible_m3, pct_base_consumido, estado_volumen, ultimo_adicional_fecha")
+                .order("zona_codigo"),
+
+            // Volumen entregado hoy y ayer por zona
+            supabaseAdmin.from("volumenes_zona_diarios")
+                .select("fecha, codigo, zona_nombre, modulos_activos, gasto_total_m3s, volumen_total_m3, vol_base_m3, vol_adicional_m3")
+                .gte("fecha", new Date(Date.now() - 2 * 86400000).toISOString().split("T")[0])
+                .order("fecha", { ascending: false })
+                .order("codigo"),
         ]);
 
         // STAGE 1: Deduplicate escalas — keep only the most recent reading per escala_id
@@ -131,6 +144,8 @@ async function fetchSystemData(supabaseAdmin: any) {
             transito_tramos: transitoAcumulado,
             canal_status: canalStatusRes.data,
             evento_oficial: eventoLogRes.data,
+            balance_zonas: balanceZonasRes.data || [],
+            volumenes_zona_recientes: canalDiarioRes.data || [],
         };
     } catch (e) {
         console.error("Error fetching system data:", e);
@@ -168,6 +183,35 @@ function buildSystemPrompt(data: any, contexto: string): string {
             `Vol. Autorizado ${volAuth.toLocaleString("en-US")} millares m³ (${volAuthMm3} Mm³), ` +
             `Caudal Máx ${auth?.caudal_max || m.caudal_objetivo || 0} m³/s`;
     }).join("\n");
+
+    // Control por zona — balance base vs adicional por módulo (capturado en campo)
+    const ESTADO_ICON: Record<string, string> = {
+        normal: "✅", alerta_base: "⚠️", base_agotado: "🔴"
+    };
+    const balanceZonasText = (data.balance_zonas as any[] || []).length === 0
+        ? "Sin datos de entregas por zona capturados aún."
+        : (data.balance_zonas as any[]).map((b: any) =>
+            `${ESTADO_ICON[b.estado_volumen] || "•"} [${b.zona_codigo || "—"}] ${b.modulo_nombre}` +
+            ` (${b.codigo_corto || "—"}): ` +
+            `Base ${r(b.vol_base_m3 / 1000, 2)} Mm³ | ` +
+            `Consumido base ${r(b.vol_base_consumido_m3 / 1000, 2)} Mm³ (${r(b.pct_base_consumido, 1)}%) | ` +
+            `Adicional ${r(b.vol_adicional_consumido_m3 / 1000, 2)} Mm³ | ` +
+            `Disponible base ${r(b.vol_base_disponible_m3 / 1000, 2)} Mm³ | ` +
+            `Estado: ${b.estado_volumen}` +
+            (b.ultimo_adicional_fecha ? ` | Último adicional: ${b.ultimo_adicional_fecha}` : "")
+        ).join("\n");
+
+    // Volumen entregado por zona (últimos 2 días)
+    const today = getTodayChihuahua();
+    const volZonasText = (data.volumenes_zona_recientes as any[] || []).length === 0
+        ? "Sin entregas de zona registradas recientemente."
+        : (data.volumenes_zona_recientes as any[]).map((v: any) =>
+            `${v.fecha === today ? "HOY" : v.fecha} | ${v.codigo} — ${v.zona_nombre}: ` +
+            `${v.modulos_activos} módulos | ` +
+            `Q total ${r(v.gasto_total_m3s, 3)} m³/s | ` +
+            `Vol. entregado ${r((v.volumen_total_m3 || 0) / 1000, 2)} Mm³` +
+            (v.vol_adicional_m3 > 0 ? ` (incl. ${r(v.vol_adicional_m3 / 1000, 2)} Mm³ adicional)` : "")
+        ).join("\n");
 
     // STAGE 1: Deduped + rounded + timestamped escalas
     // Includes gate structure dimensions from escalas table (ancho, alto, pzas_radiales, coeficiente_descarga)
@@ -255,6 +299,12 @@ ${tomasActivasText || "No hay tomas laterales activas hoy."}
 MÓDULOS — BALANCE DEL CICLO:
 ${cicloText}
 ${modulosText || "Sin datos de módulos"}
+
+=== CONTROL POR ZONA — BALANCE BASE vs ADICIONAL (CICLO ACTIVO) ===
+${balanceZonasText}
+
+=== VOLUMEN ENTREGADO POR ZONA (ÚLTIMOS 2 DÍAS) ===
+${volZonasText}
 
 === PERFIL HIDRÁULICO DEL CANAL PRINCIPAL ===
 ${perfilCanalText.substring(0, 5000) || "No hay datos de perfil hidráulico."}

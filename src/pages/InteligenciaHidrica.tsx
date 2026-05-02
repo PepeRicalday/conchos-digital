@@ -51,6 +51,7 @@ const InteligenciaHidrica = () => {
         messages,
         isSending,
         error,
+        historialJwtError,
         sendMessage,
         selectConversation,
         startNewConversation,
@@ -267,7 +268,13 @@ const InteligenciaHidrica = () => {
                     </div>
 
                     <div className="ih-conversations">
-                        {conversations.length === 0 ? (
+                        {historialJwtError && (
+                            <div className="ih-historial-unavailable">
+                                <AlertTriangle size={11} />
+                                <span>Historial no disponible</span>
+                            </div>
+                        )}
+                        {!historialJwtError && conversations.length === 0 ? (
                             <div className="ih-empty-state">
                                 <MessageSquare size={28} />
                                 <p>Tus consultas aparecerán aquí</p>

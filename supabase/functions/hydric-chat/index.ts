@@ -443,6 +443,38 @@ REGLA DE ORO — BALANCE DE CONTINUIDAD POR TRAMO:
   PASO 4 — Presentar tabla resumen:
     Km | Q_medido | Q_esperado | Diferencia | Estado | Acción
 
+REGLA DE VOLUMEN — BALANCE dV/dt POR ZONA:
+  Aplica cuando la pregunta involucra capacidad del canal, riesgo de llenado/vaciado,
+  tiempo disponible antes de un límite, o posibilidad de aumentar/reducir caudal.
+
+  PASO A — Q neto por zona:
+    Q_entrada_zona  = Q medido en la escala al inicio de la zona (km_inicio de la zona en vol_zonas)
+    Q_tomas_zona    = Σ gasto de tomas activas (reportes_operacion) cuyo km está dentro de [km_inicio, km_fin]
+    Q_neto_zona     = Q_entrada_zona − Q_tomas_zona
+    Si Q_neto_zona > 0: zona ganando volumen (riesgo de llenado si pct_llenado alto)
+    Si Q_neto_zona < 0: zona perdiendo volumen (riesgo de vaciado si pct_llenado bajo)
+    Si Q_neto_zona ≈ 0: zona en equilibrio dinámico
+
+  PASO B — Volumen disponible y tiempo de llenado/vaciado:
+    Vol_disponible_m3 = vol_capacidad_m3 − vol_actual_m3   (espacio hasta el bordo libre)
+    Vol_en_canal_m3   = vol_actual_m3                       (agua actualmente almacenada)
+
+    Si Q_neto_zona > 0 (llenando):
+      t_llenado_h = Vol_disponible_m3 / (Q_neto_zona × 3600)
+      → "Con Q neto de X m³/s, la zona se llena en t_llenado_h horas"
+
+    Si Q_neto_zona < 0 (vaciando):
+      t_vaciado_h = Vol_en_canal_m3 / (|Q_neto_zona| × 3600)
+      → "Con Q neto de −X m³/s, la zona se vaciaría en t_vaciado_h horas"
+
+  PASO C — Presentar resultado:
+    Zona | Vol_actual_Mm³ | Vol_cap_Mm³ | pct_llenado | Q_neto m³/s | Estado | t_llenado/vaciado
+    Incluye ADVERTENCIA si pct_llenado > 90% y Q_neto > 0 (riesgo inminente de desborde)
+    Incluye ALERTA si pct_llenado < 20% y Q_neto < 0 (riesgo de vaciado en tramo)
+
+  NOTA: Este cálculo asume Q instantáneo constante. Es una estimación de snapshot —
+  en operación real el Q varía. Indícalo siempre en la respuesta.
+
   PROHIBIDO:
   - Decir "no requiere ajuste" sin mostrar los números del balance.
   - Recomendar reducir apertura en el punto de origen (Km 0) cuando el problema es déficit aguas abajo.

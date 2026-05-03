@@ -3218,8 +3218,37 @@
 .dsk-btn--download { background: rgba(167,139,250,0.10); border-color: rgba(167,139,250,0.25); color: #a78bfa; }
 .dsk-btn--download:hover { background: rgba(167,139,250,0.20); }
 
+/* ── Volumetría interescalas ── */
+.dsk-section-block { margin-top: 10px; }
+.dsk-sub-header {
+    font-size: 0.5rem; font-weight: 700; letter-spacing: 0.08em;
+    color: #475569; text-transform: uppercase; margin-bottom: 4px;
+}
+.dsk-td-tramo { text-align: left !important; color: #94a3b8 !important; font-size: 9px !important; }
+
+/* ── Zonas cards ── */
+.dsk-zonas-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 6px;
+}
+.dsk-zona-card {
+    background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 5px; padding: 5px 6px;
+}
+.dsk-zona-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
+.dsk-zona-code { font-size: 0.6rem; font-weight: 700; color: #94a3b8; }
+.dsk-zona-pct  { font-size: 0.65rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dsk-zona-bar-bg {
+    height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; margin-bottom: 4px;
+}
+.dsk-zona-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+.dsk-zona-stats { display: flex; flex-direction: column; gap: 1px; }
+.dsk-zona-stats span { font-size: 0.48rem; color: #475569; font-variant-numeric: tabular-nums; }
+.dsk-zona-total { font-size: 0.5rem; color: #64748b; text-align: right; }
+.dsk-zona-total strong { color: #38bdf8; }
+
 /* Responsive */
 @media (max-width: 640px) {
     .dsk-table-wrap { max-height: 160px; }
     .dsk-bal-val { font-size: 0.75rem; }
+    .dsk-zonas-grid { grid-template-columns: repeat(2, 1fr); }
 }

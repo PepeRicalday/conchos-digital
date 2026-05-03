@@ -377,6 +377,9 @@ const PublicMonitor: React.FC = () => {
     const [currentTime, setCurrentTime] = useState(() => Date.now());
     const [anchorTimes, setAnchorTimes] = useState<Record<number, string>>({});
     const [activeAlertas, setActiveAlertas] = useState<Pick<RegistroAlertaRow, 'id' | 'tipo_riesgo' | 'titulo' | 'mensaje' | 'fecha_deteccion'>[]>([]);
+    const [volInterescalas, setVolInterescalas] = useState<any[]>([]);
+    const [volZonas, setVolZonas] = useState<any[]>([]);
+    const [tomasActivas, setTomasActivas] = useState<any[]>([]);
 
     // 0. Update internal clock for reactive calculations
     useEffect(() => {
@@ -1180,6 +1183,31 @@ const PublicMonitor: React.FC = () => {
 
     // ── Skill Snapshot — datos actuales para extracción por Claude ───────────
     // Se recalcula cada vez que `escalas` cambia (suscripción Realtime activa).
+    // Fetch vol_interescalas, vol_zonas y tomas activas — refresco cada 5 min
+    useEffect(() => {
+        const fetchVolumetria = async () => {
+            const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chihuahua' }).format(new Date());
+            const [viRes, vzRes, tomasRes] = await Promise.all([
+                supabase.from('vol_interescalas')
+                    .select('esc_up, km_up, esc_down, km_down, longitud_km, nivel_up_m, nivel_down_m, vol_m3, vol_mm3')
+                    .order('km_up', { ascending: true }),
+                supabase.from('vol_zonas')
+                    .select('codigo, zona_nombre, km_inicio, km_fin, n_tramos, nivel_medio_m, tirante_diseno_m, bordo_libre_m, y_capacidad_m, vol_actual_m3, vol_actual_mm3, vol_diseno_m3, vol_capacidad_m3, pct_llenado')
+                    .order('km_inicio', { ascending: true }),
+                supabase.from('reportes_operacion')
+                    .select('*, puntos_entrega(nombre, km)')
+                    .eq('fecha', today)
+                    .in('estado', ['inicio', 'continua', 'reabierto', 'modificacion']),
+            ]);
+            if (!viRes.error)    setVolInterescalas(viRes.data  || []);
+            if (!vzRes.error)    setVolZonas(vzRes.data         || []);
+            if (!tomasRes.error) setTomasActivas(tomasRes.data  || []);
+        };
+        fetchVolumetria();
+        const interval = setInterval(fetchVolumetria, 5 * 60 * 1000);
+        return () => clearInterval(interval);
+    }, []);
+
     const skillSnapshot = useMemo(() => {
         const ZONAS_SKILL = [
             { nombre: 'Z1', km_ini: 23, km_fin: 29, q: 2.400 },
@@ -1238,9 +1266,29 @@ const PublicMonitor: React.FC = () => {
             },
             alertas_nivel: alertas.map(c => ({ nombre: c.nombre, km: c.km, hA: c.hA, bl: c.bl, tipo: c.alerta })),
             checkpoints,
+            // ── Volumetría hidráulica ──────────────────────────────────
+            vol_interescalas: volInterescalas,
+            vol_zonas: volZonas,
+            // ── Presas estado actual ───────────────────────────────────
+            presas: presasData.map(p => ({
+                nombre:           p.presas?.nombre       ?? p.presas?.nombre_corto ?? '—',
+                almacenamiento_mm3: +(p.almacenamiento_mm3 ?? 0).toFixed(3),
+                porcentaje_llenado: +(p.porcentaje_llenado ?? 0).toFixed(1),
+                extraccion_m3s:   +(p.extraccion_total_m3s ?? p.extraccion_total ?? 0).toFixed(3),
+                escala_msnm:      +(p.escala_msnm ?? 0).toFixed(3),
+                fecha:            p.fecha,
+            })),
+            // ── Tomas activas hoy ──────────────────────────────────────
+            tomas_activas: tomasActivas.map(t => ({
+                nombre:   t.puntos_entrega?.nombre ?? '—',
+                km:       t.puntos_entrega?.km     ?? null,
+                estado:   t.estado,
+                caudal_ls: +(t.caudal_promedio ?? 0).toFixed(1),
+                caudal_m3s: +((t.caudal_promedio ?? 0) / 1000).toFixed(4),
+            })),
             timestamp: new Date().toISOString(),
         };
-    }, [escalas]);
+    }, [escalas, volInterescalas, volZonas, presasData, tomasActivas]);
 
     const iecBreakdownRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -2364,6 +2412,71 @@ const PublicMonitor: React.FC = () => {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Volumen por tramo interescala */}
+                        {volInterescalas.length > 0 && (
+                        <div className="dsk-section-block">
+                            <div className="dsk-sub-header">VOLUMEN EN CANAL — TRAMOS INTERESCALA</div>
+                            <div className="dsk-table-wrap">
+                                <table className="dsk-table">
+                                    <thead>
+                                        <tr>
+                                            <th>TRAMO</th>
+                                            <th>L (km)</th>
+                                            <th>NA↑ (m)</th>
+                                            <th>NA↓ (m)</th>
+                                            <th>Vol (m³)</th>
+                                            <th>Mm³</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {volInterescalas.map((v: any) => (
+                                            <tr key={v.km_up}>
+                                                <td className="dsk-td-tramo">{v.esc_up} → {v.esc_down}</td>
+                                                <td className="dsk-td-num">{Number(v.longitud_km).toFixed(3)}</td>
+                                                <td className="dsk-td-num">{Number(v.nivel_up_m).toFixed(3)}</td>
+                                                <td className="dsk-td-num">{Number(v.nivel_down_m).toFixed(3)}</td>
+                                                <td className="dsk-td-num dsk-td--q">{Number(v.vol_m3).toLocaleString('es-MX')}</td>
+                                                <td className="dsk-td-num">{Number(v.vol_mm3).toFixed(4)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        )}
+
+                        {/* Almacenamiento por zona Z1–Z4 */}
+                        {volZonas.length > 0 && (
+                        <div className="dsk-section-block">
+                            <div className="dsk-sub-header">ALMACENAMIENTO POR ZONA</div>
+                            <div className="dsk-zonas-grid">
+                                {volZonas.map((z: any) => {
+                                    const pct = Math.min(Number(z.pct_llenado ?? 0), 100);
+                                    const color = pct >= 90 ? '#ef4444' : pct >= 75 ? '#f97316' : '#22c55e';
+                                    return (
+                                        <div key={z.codigo} className="dsk-zona-card">
+                                            <div className="dsk-zona-header">
+                                                <span className="dsk-zona-code">{z.codigo}</span>
+                                                <span className="dsk-zona-pct" style={{color}}>{pct.toFixed(1)}%</span>
+                                            </div>
+                                            <div className="dsk-zona-bar-bg">
+                                                <div className="dsk-zona-bar-fill" style={{width:`${pct}%`, backgroundColor: color}} />
+                                            </div>
+                                            <div className="dsk-zona-stats">
+                                                <span>Vol: {Number(z.vol_actual_mm3).toFixed(4)} Mm³</span>
+                                                <span>Niv: {Number(z.nivel_medio_m).toFixed(3)}m</span>
+                                                <span>Cap: {Number(z.y_capacidad_m).toFixed(2)}m</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div className="dsk-zona-total">
+                                Vol total canal: <strong>{volZonas.reduce((s: number, z: any) => s + Number(z.vol_actual_mm3 ?? 0), 0).toFixed(4)} Mm³</strong>
+                            </div>
+                        </div>
+                        )}
 
                         {/* Timestamp y acciones */}
                         <div className="dsk-footer">

@@ -403,6 +403,16 @@ MANNING (canal trapezoidal):
   R = A / P
   Q = (1/n) × A × R^(2/3) × S₀^(1/2)
 
+  LÍMITE DE USO DE MANNING — CRÍTICO:
+  Manning calcula Q (m³/s) — caudal que fluye por una sección. NO calcula volumen almacenado.
+  El volumen almacenado entre dos represas es un concepto distinto:
+    V_almacenado (m³) = integral prismática del perfil entre km_up y km_down con tirante interpolado.
+  Este cálculo ya fue ejecutado por fn_vol_interescala() y el resultado está en:
+    → VOLUMEN EN TRÁNSITO POR TRAMO INTERESCALA (campo vol_m3 / vol_mm3)
+    → ALMACENAMIENTO HIDRÁULICO POR ZONA (campo vol_actual_m3 / vol_actual_mm3)
+  PROHIBIDO recalcular el volumen almacenado usando Manning o A×L simples.
+  Esos valores son los autorizados. Úsalos directamente sin re-derivarlos.
+
 TIEMPO DE TRAVESÍA (tránsito hidráulico):
   Para calcular cuánto tarda el agua en recorrer un tramo o la ruta completa:
     t_tramo(s) = L_tramo(m) / velocidad_diseno_ms

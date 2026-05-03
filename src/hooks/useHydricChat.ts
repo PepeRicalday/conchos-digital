@@ -32,10 +32,14 @@ export function useHydricChat() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSending, setIsSending] = useState(false);
+
+    // error → solo para fallos de sendMessage/deleteConversation (muestra banner)
+    // historialJwtError → fallo silencioso del sidebar (nota discreta, sin banner)
     const [error, setError] = useState<string | null>(null);
+    const [historialJwtError, setHistorialJwtError] = useState(false);
 
     // ─── Fetch all conversations ─────────────────────
-    // silent=true → llamada de fondo (post-mensaje): swallow todos los errores sin mostrar banner
+    // JWT errors del historial NUNCA generan banner — son del sidebar, no del chat.
     const fetchConversations = useCallback(async (silent = false) => {
         if (!silent) setIsLoading(true);
         try {
@@ -46,35 +50,36 @@ export function useHydricChat() {
 
             if (fetchError) throw fetchError;
             setConversations(data || []);
+            setHistorialJwtError(false);
         } catch (err: any) {
-            if (silent) {
-                console.warn('[useHydricChat] fetchConversations (silent) error:', err.message);
-                return;
-            }
             const msg: string = err.message ?? '';
             if (msg.includes('does not exist')) return;
+            if (silent) return;
 
             if (isJwtError(msg)) {
-                // Intentar refresh del token
+                // Intentar refresh silencioso
                 const { error: refreshErr } = await supabase.auth.refreshSession();
                 if (!refreshErr) {
-                    // Refresh exitoso → reintentar fetch sin mostrar banner
+                    // Refresh OK → reintentar una vez
                     try {
-                        const { data: retryData } = await supabase
+                        const { data: retry } = await supabase
                             .from('chat_conversations')
                             .select('*')
                             .order('updated_at', { ascending: false });
-                        setConversations(retryData || []);
+                        setConversations(retry || []);
+                        setHistorialJwtError(false);
                     } catch {
-                        // Si el retry también falla, mostrar banner
-                        setError('SESSION_JWT_ERROR');
+                        // Retry también falló → marcar historial no disponible, sin banner
+                        setHistorialJwtError(true);
                     }
                 } else {
-                    // Refresh falló → sesión completamente expirada
-                    setError('SESSION_JWT_ERROR');
+                    // Refresh falló → historial no disponible, sin banner
+                    setHistorialJwtError(true);
                 }
             } else {
-                setError(msg);
+                // Error no-JWT del historial → nota discreta, sin banner
+                console.warn('[useHydricChat] fetchConversations error:', msg);
+                setHistorialJwtError(true);
             }
         } finally {
             if (!silent) setIsLoading(false);
@@ -94,7 +99,9 @@ export function useHydricChat() {
             setMessages(data || []);
         } catch (err: any) {
             console.error('Error fetching messages:', err);
-            setError(err.message || 'Error al cargar mensajes');
+            if (!isJwtError(err.message ?? '')) {
+                setError(err.message || 'Error al cargar mensajes');
+            }
         }
     }, []);
 
@@ -111,14 +118,13 @@ export function useHydricChat() {
         setError(null);
     }, []);
 
-    // ─── Send a message (Using Supabase Invoke) ─────
+    // ─── Send a message ──────────────────────────────
     const sendMessage = useCallback(async (content: string, contexto?: string): Promise<void> => {
         if (!content.trim() || isSending) return;
 
         setIsSending(true);
         setError(null);
 
-        // Optimistic UI
         const optimisticUserMsg: ChatMessage = {
             id: `temp-${Date.now()}`,
             role: 'user',
@@ -128,7 +134,6 @@ export function useHydricChat() {
         setMessages(prev => [...prev, optimisticUserMsg]);
 
         try {
-            // Invocamos la función de forma nativa
             const { data, error: invokeError } = await supabase.functions.invoke('hydric-chat', {
                 body: {
                     message: content,
@@ -139,11 +144,9 @@ export function useHydricChat() {
 
             if (invokeError) {
                 console.error('Invoke error details:', invokeError);
-                // Si es un error de JWT (expirado, algoritmo no soportado, unauthorized), forzar refresh
                 if (isJwtError(invokeError.message ?? '')) {
                     const { error: refreshErr } = await supabase.auth.refreshSession();
-                    if (refreshErr) throw new Error('Tu sesión ha expirado totalmente. Inicia sesión de nuevo.');
-                    // Reintentar una vez tras el refresh
+                    if (refreshErr) throw new Error('Tu sesión ha expirado. Inicia sesión de nuevo.');
                     const { data: retryData, error: retryError } = await supabase.functions.invoke('hydric-chat', {
                         body: { message: content, conversation_id: activeConversationId, contexto: contexto || 'general' }
                     });
@@ -160,7 +163,7 @@ export function useHydricChat() {
                 if (!activeConversationId) {
                     setActiveConversationId(result.conversation_id);
                 }
-                fetchConversations(true); // Refresh de fondo — no propaga errores JWT al banner
+                fetchConversations(true); // Sidebar refresh silencioso
 
                 const assistantMsg: ChatMessage = {
                     id: `assistant-${Date.now()}`,
@@ -176,11 +179,8 @@ export function useHydricChat() {
             console.error('Error sending message:', err);
 
             let msg = 'Error desconocido';
-
-            // Si es un error de Supabase Functions, intentamos extraer el mensaje del cuerpo
             if (err.context && typeof err.context === 'object') {
                 try {
-                    // Algunos SDKs de Supabase exponen el cuerpo en err.context
                     const body = await err.context.json?.() || err.context.message;
                     msg = body?.message || body?.error || err.message || msg;
                 } catch {
@@ -215,7 +215,9 @@ export function useHydricChat() {
             if (activeConversationId === conversationId) startNewConversation();
         } catch (err: any) {
             console.error('Error deleting conversation:', err);
-            setError(err.message);
+            if (!isJwtError(err.message ?? '')) {
+                setError(err.message);
+            }
         }
     }, [activeConversationId, startNewConversation]);
 
@@ -230,11 +232,11 @@ export function useHydricChat() {
         isLoading,
         isSending,
         error,
+        historialJwtError,
         sendMessage,
         selectConversation,
         startNewConversation,
         deleteConversation,
         clearError: () => setError(null),
     };
-
 }

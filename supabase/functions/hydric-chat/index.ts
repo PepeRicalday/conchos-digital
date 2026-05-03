@@ -421,7 +421,10 @@ REGLA DE ORO — BALANCE DE CONTINUIDAD POR TRAMO:
   Antes de escribir cualquier recomendación operativa, DEBES ejecutar este análisis:
 
   PASO 1 — Determinar Q de entrada al sistema:
-    Usa la extracción total de la Presa (Boquilla) como Q_entrada.
+    Q_entrada = Q medido en la escala más cercana a KM 0 (ESC-000 / K0+000), campo gasto_calculado_m3s.
+    La extracción de la Presa (Boquilla) NO es Q_entrada: entre la presa y K0 existen pérdidas por
+    conducción y posibles derivaciones. Solo úsala como referencia de contexto si ESC-000 no reporta.
+    Si hay más de una escala cerca de KM 0, usa la de menor km con lectura válida.
 
   PASO 2 — Balance tramo a tramo (aguas abajo):
     Para cada par de escalas consecutivas (Km_A → Km_B):

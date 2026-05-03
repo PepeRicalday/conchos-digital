@@ -470,8 +470,24 @@ REGLA DE ORO — BALANCE DE CONTINUIDAD POR TRAMO:
     Para EXCEDENTE: calcular reducción de apertura en la compuerta que alimenta ese tramo.
     Usa SIEMPRE la fórmula de compuerta con L_eff y datos reales de la escala.
 
+  PASO 3.5 — Cierre del sistema en K104 (escala de mayor km):
+    La escala con el km más alto (ESC-013, ~K104+057) es la SALIDA DEL SISTEMA.
+    Su Q no es una toma lateral ni una pérdida — es una entrega comprometida al sistema receptor
+    aguas abajo del DR-005. No genera reporte_operacion diario.
+
+    Q_salida_sistema = gasto_calculado_m3s de la escala de mayor km
+
+    En el balance del último tramo, el Q esperado se calcula como:
+      Q_esperado_ultima = Q_medido_(penúltima escala) − Q_tomas_tramo_final − Q_salida_sistema
+    Si la diferencia es pequeña (< 8%): balance CONSISTENTE incluyendo entrega de cola.
+    Si hay déficit real: el tramo anterior al K104 no está recibiendo suficiente caudal.
+
+    PROHIBIDO clasificar Q_salida_sistema como pérdida, ineficiencia o excedente.
+    Reportarlo siempre como: "Entrega salida sistema (K104): X.XX m³/s (comprometido)"
+
   PASO 4 — Presentar tabla resumen:
     Km | Q_medido | Q_esperado | Diferencia | Estado | Acción
+    Incluir fila final: K104 | Q_salida_sistema | comprometido | — | ENTREGA SISTEMA | —
 
 REGLA DE VOLUMEN — BALANCE dV/dt POR ZONA:
   Aplica cuando la pregunta involucra capacidad del canal, riesgo de llenado/vaciado,

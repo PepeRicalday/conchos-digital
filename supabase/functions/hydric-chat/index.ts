@@ -50,7 +50,8 @@ async function fetchSystemData(supabaseAdmin: any) {
             presasRes, modulosRes, escalasRawRes, cicloRes,
             knowledgeRes, operacionRes, aforosRes, perfilRes,
             canalStatusRes, eventoLogRes,
-            balanceZonasRes, canalDiarioRes
+            balanceZonasRes, canalDiarioRes,
+            volInterescalasRes, volZonasRes
         ] = await Promise.all([
             supabaseAdmin.from("lecturas_presas")
                 .select("*, presas(nombre, nombre_corto, capacidad_max)")
@@ -96,6 +97,16 @@ async function fetchSystemData(supabaseAdmin: any) {
                 .gte("fecha", new Date(Date.now() - 2 * 86400000).toISOString().split("T")[0])
                 .order("fecha", { ascending: false })
                 .order("codigo"),
+
+            // Volumen almacenado entre represas consecutivas (tránsito en canal)
+            supabaseAdmin.from("vol_interescalas")
+                .select("esc_up, km_up, esc_down, km_down, longitud_km, nivel_up_m, nivel_down_m, vol_m3, vol_mm3")
+                .order("km_up", { ascending: true }),
+
+            // Almacenamiento agregado por zona Z1-Z4 con % de llenado real
+            supabaseAdmin.from("vol_zonas")
+                .select("codigo, zona_nombre, km_inicio, km_fin, n_tramos, nivel_medio_m, tirante_diseno_m, bordo_libre_m, y_capacidad_m, vol_actual_m3, vol_actual_mm3, vol_diseno_m3, vol_capacidad_m3, pct_llenado")
+                .order("km_inicio", { ascending: true }),
         ]);
 
         // STAGE 1: Deduplicate escalas — keep only the most recent reading per escala_id
@@ -146,6 +157,8 @@ async function fetchSystemData(supabaseAdmin: any) {
             evento_oficial: eventoLogRes.data,
             balance_zonas: balanceZonasRes.data || [],
             volumenes_zona_recientes: canalDiarioRes.data || [],
+            vol_interescalas: volInterescalasRes.data || [],
+            vol_zonas: volZonasRes.data || [],
         };
     } catch (e) {
         console.error("Error fetching system data:", e);
@@ -270,6 +283,29 @@ function buildSystemPrompt(data: any, contexto: string): string {
         `dn=${r(t.tirante_diseno_m, 3)}m, BL=${r(t.bordo_libre_m, 3)}m`
     ).join("\n");
 
+    // Volumen entre represas — 12 tramos interescala
+    const volInterescalasText = (data.vol_interescalas as any[] || []).length === 0
+        ? "Sin datos de volumen interescala."
+        : (data.vol_interescalas as any[]).map((v: any) =>
+            `${v.esc_up} (Km ${r(v.km_up, 3)}) → ${v.esc_down} (Km ${r(v.km_down, 3)}) | ` +
+            `L=${r(v.longitud_km, 3)} km | ` +
+            `NA_up=${r(v.nivel_up_m, 3)}m, NA_down=${r(v.nivel_down_m, 3)}m | ` +
+            `Vol=${v.vol_m3?.toLocaleString("en-US")} m³ (${r(v.vol_mm3, 4)} Mm³)`
+        ).join("\n");
+
+    // Almacenamiento por zona con % de llenado real (tirante_diseno + bordo_libre = 100%)
+    const volZonasText2 = (data.vol_zonas as any[] || []).length === 0
+        ? "Sin datos de almacenamiento por zona."
+        : (data.vol_zonas as any[]).map((z: any) =>
+            `${z.codigo} — ${z.zona_nombre} (Km ${r(z.km_inicio, 1)}–${r(z.km_fin, 1)}) | ` +
+            `${z.n_tramos} tramos | ` +
+            `Nivel medio ${r(z.nivel_medio_m, 3)}m (diseño ${r(z.tirante_diseno_m, 3)}m + BL ${r(z.bordo_libre_m, 3)}m = cap. ${r(z.y_capacidad_m, 3)}m) | ` +
+            `Vol actual ${r(z.vol_actual_mm3, 4)} Mm³ | ` +
+            `Vol diseño ${r((z.vol_diseno_m3 || 0) / 1e6, 4)} Mm³ | ` +
+            `Vol capacidad ${r((z.vol_capacidad_m3 || 0) / 1e6, 4)} Mm³ | ` +
+            `Llenado ${r(z.pct_llenado, 1)}%`
+        ).join("\n");
+
     // STAGE 2: Contexto-specific instruction
     const contextoInstruction = contexto === "operacion"
         ? "El usuario es un operador en campo. Prioriza instrucciones claras de acción, valores puntuales y alertas de seguridad."
@@ -305,6 +341,14 @@ ${balanceZonasText}
 
 === VOLUMEN ENTREGADO POR ZONA (ÚLTIMOS 2 DÍAS) ===
 ${volZonasText}
+
+=== VOLUMEN ALMACENADO EN TRÁNSITO — POR TRAMO INTERESCALA ===
+Volumen en el canal entre represas consecutivas (calculado con perfil trapecial + tirante actual).
+Referencia: 100% llenado = tirante_diseno + bordo_libre (capacidad física real del canal).
+${volInterescalasText}
+
+=== ALMACENAMIENTO HIDRÁULICO POR ZONA (Z1–Z4) ===
+${volZonasText2}
 
 === PERFIL HIDRÁULICO DEL CANAL PRINCIPAL ===
 ${perfilCanalText.substring(0, 5000) || "No hay datos de perfil hidráulico."}

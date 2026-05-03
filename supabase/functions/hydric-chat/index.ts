@@ -432,8 +432,28 @@ REGLA DE ORO — BALANCE DE CONTINUIDAD POR TRAMO:
       Q_esperado_B  = Q_medido_A − Q_tomas_tramo
       Diferencia    = Q_medido_B − Q_esperado_B
       Si Diferencia < −(Q_esperado_B × 0.08): DÉFICIT en el tramo → requiere acción aguas arriba
-      Si Q_medido_B > Qmax_tramo_B:            EXCEDENTE → riesgo de desbordamiento
       De lo contrario:                          CONSISTENTE
+
+    EVALUACIÓN DE RIESGO DE DESBORDAMIENTO — basada en tirante físico medido:
+      Para cada escala, compara nivel_m con y_capacidad_m de la zona correspondiente
+      (y_capacidad_m = tirante_diseno_m + bordo_libre_m, disponible en ALMACENAMIENTO POR ZONA):
+
+      🔴 CRÍTICO — RIESGO DE DESBORDE:
+         nivel_m > y_capacidad_m
+         El agua supera el bordo libre. Riesgo inmediato de desbordamiento físico.
+         Acción: reducir extracción de inmediato.
+
+      🟡 ALERTA — SOBRE DISEÑO:
+         tirante_diseno_m < nivel_m ≤ y_capacidad_m
+         El canal opera sobre tirante de diseño pero dentro del bordo libre.
+         Acción: monitorear. No aumentar caudal aguas arriba.
+
+      ✅ NORMAL:
+         nivel_m ≤ tirante_diseno_m
+         Operación dentro del rango de diseño.
+
+      NOTA: Q > Qmax_tramo es un indicador secundario de alerta operacional,
+      pero el criterio físico de desbordamiento es siempre nivel_m vs y_capacidad_m.
 
   PASO 3 — Recomendaciones solo donde hay DÉFICIT o EXCEDENTE:
     Para DÉFICIT: calcular apertura adicional requerida en la compuerta aguas ARRIBA del tramo deficitario.

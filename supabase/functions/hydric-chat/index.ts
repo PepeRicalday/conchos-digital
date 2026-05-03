@@ -48,9 +48,9 @@ async function fetchSystemData(supabaseAdmin: any) {
     try {
         const [
             presasRes, modulosRes, escalasRawRes, cicloRes,
-            knowledgeRes, operacionRes, aforosRes, perfilRes,
+            knowledgeRes, operacionRes, perfilRes,
             canalStatusRes, eventoLogRes,
-            balanceZonasRes, canalDiarioRes,
+            balanceZonasRes,
             volInterescalasRes, volZonasRes
         ] = await Promise.all([
             supabaseAdmin.from("lecturas_presas")
@@ -76,8 +76,6 @@ async function fetchSystemData(supabaseAdmin: any) {
                 .eq("fecha", today)
                 .in("estado", ["inicio", "continua", "reabierto", "modificacion"]),
 
-            supabaseAdmin.from("aforos_control").select("*"),
-
             supabaseAdmin.from("perfil_hidraulico_canal")
                 .select("*").order("km_inicio", { ascending: true }),
 
@@ -88,15 +86,8 @@ async function fetchSystemData(supabaseAdmin: any) {
 
             // Control por Zona y Módulo — balance base + adicional del ciclo activo
             supabaseAdmin.from("balance_volumen_modulo")
-                .select("modulo_nombre, codigo_corto, zona_codigo, zona_nombre, vol_base_m3, vol_base_consumido_m3, vol_adicional_consumido_m3, vol_total_consumido_m3, vol_base_disponible_m3, pct_base_consumido, estado_volumen, ultimo_adicional_fecha")
+                .select("modulo_nombre, codigo_corto, zona_codigo, vol_base_m3, vol_base_consumido_m3, vol_adicional_consumido_m3, vol_base_disponible_m3, pct_base_consumido, estado_volumen")
                 .order("zona_codigo"),
-
-            // Volumen entregado hoy y ayer por zona
-            supabaseAdmin.from("volumenes_zona_diarios")
-                .select("fecha, codigo, zona_nombre, modulos_activos, gasto_total_m3s, volumen_total_m3, vol_base_m3, vol_adicional_m3")
-                .gte("fecha", new Date(Date.now() - 2 * 86400000).toISOString().split("T")[0])
-                .order("fecha", { ascending: false })
-                .order("codigo"),
 
             // Volumen almacenado entre represas consecutivas (tránsito en canal)
             supabaseAdmin.from("vol_interescalas")
@@ -150,13 +141,11 @@ async function fetchSystemData(supabaseAdmin: any) {
             ciclo_activo: cicloRes.data,
             knowledge: knowledgeRes.data || [],
             tomas_activas: operacionRes.data || [],
-            aforos_control: aforosRes.data || [],
             perfil_canal: perfilData,
             transito_tramos: transitoAcumulado,
             canal_status: canalStatusRes.data,
             evento_oficial: eventoLogRes.data,
             balance_zonas: balanceZonasRes.data || [],
-            volumenes_zona_recientes: canalDiarioRes.data || [],
             vol_interescalas: volInterescalasRes.data || [],
             vol_zonas: volZonasRes.data || [],
         };
@@ -194,33 +183,16 @@ function buildSystemPrompt(data: any, contexto: string): string {
             `Caudal Máx ${auth?.caudal_max || m.caudal_objetivo || 0} m³/s`;
     }).join("\n");
 
-    // Control por zona — balance base vs adicional por módulo (capturado en campo)
+    // Control por zona — balance base vs adicional por módulo (formato compacto)
     const ESTADO_ICON: Record<string, string> = {
         normal: "✅", alerta_base: "⚠️", base_agotado: "🔴"
     };
     const balanceZonasText = (data.balance_zonas as any[] || []).length === 0
-        ? "Sin datos de entregas por zona capturados aún."
+        ? "Sin datos."
         : (data.balance_zonas as any[]).map((b: any) =>
-            `${ESTADO_ICON[b.estado_volumen] || "•"} [${b.zona_codigo || "—"}] ${b.modulo_nombre}` +
-            ` (${b.codigo_corto || "—"}): ` +
-            `Base ${r(b.vol_base_m3 / 1000, 2)} Mm³ | ` +
-            `Consumido base ${r(b.vol_base_consumido_m3 / 1000, 2)} Mm³ (${r(b.pct_base_consumido, 1)}%) | ` +
-            `Adicional ${r(b.vol_adicional_consumido_m3 / 1000, 2)} Mm³ | ` +
-            `Disponible base ${r(b.vol_base_disponible_m3 / 1000, 2)} Mm³ | ` +
-            `Estado: ${b.estado_volumen}` +
-            (b.ultimo_adicional_fecha ? ` | Último adicional: ${b.ultimo_adicional_fecha}` : "")
-        ).join("\n");
-
-    // Volumen entregado por zona (últimos 2 días)
-    const today = getTodayChihuahua();
-    const volZonasText = (data.volumenes_zona_recientes as any[] || []).length === 0
-        ? "Sin entregas de zona registradas recientemente."
-        : (data.volumenes_zona_recientes as any[]).map((v: any) =>
-            `${v.fecha === today ? "HOY" : v.fecha} | ${v.codigo} — ${v.zona_nombre}: ` +
-            `${v.modulos_activos} módulos | ` +
-            `Q total ${r(v.gasto_total_m3s, 3)} m³/s | ` +
-            `Vol. entregado ${r((v.volumen_total_m3 || 0) / 1000, 2)} Mm³` +
-            (v.vol_adicional_m3 > 0 ? ` (incl. ${r(v.vol_adicional_m3 / 1000, 2)} Mm³ adicional)` : "")
+            `${ESTADO_ICON[b.estado_volumen] || "•"} [${b.zona_codigo || "—"}] ${b.codigo_corto || b.modulo_nombre}: ` +
+            `base=${r(b.vol_base_m3 / 1000, 2)} usados=${r(b.vol_base_consumido_m3 / 1000, 2)}(${r(b.pct_base_consumido, 0)}%) ` +
+            `adic=${r(b.vol_adicional_consumido_m3 / 1000, 2)} disp=${r(b.vol_base_disponible_m3 / 1000, 2)} Mm³`
         ).join("\n");
 
     // STAGE 1: Deduped + rounded + timestamped escalas
@@ -265,13 +237,6 @@ function buildSystemPrompt(data: any, contexto: string): string {
         ? `Ciclo Activo: ${data.ciclo_activo.nombre} (${data.ciclo_activo.fecha_inicio} a ${data.ciclo_activo.fecha_fin}), ` +
           `Vol. Autorizado Global: ${data.ciclo_activo.volumen_autorizado_mm3} Mm³`
         : "No hay ciclo agrícola activo.";
-
-    // STAGE 2: aforosControlText now INJECTED (was built but never used before)
-    const aforosControlText = (data.aforos_control || []).map((a: any) => {
-        const geo = a.caracteristicas_hidraulicas || {};
-        return `${a.nombre_punto} | Coord: ${r(a.latitud, 5)}, ${r(a.longitud, 5)} | ` +
-            `b=${r(geo.b, 2)}m, z=${r(geo.z, 2)}, n=${r(geo.n, 4)}, S₀=${r(geo.s0, 6)}`;
-    }).join("\n");
 
     const perfilCanalText = (data.perfil_canal || []).map((t: any) =>
         `KM ${t.km_inicio}-${t.km_fin} | ${t.nombre_tramo} | ` +
@@ -327,9 +292,6 @@ ${modulosText || "Sin datos de módulos"}
 === CONTROL POR ZONA — BALANCE BASE vs ADICIONAL (CICLO ACTIVO) ===
 ${balanceZonasText}
 
-=== VOLUMEN ENTREGADO POR ZONA (ÚLTIMOS 2 DÍAS) ===
-${volZonasText}
-
 === VOLUMEN ALMACENADO EN TRÁNSITO — POR TRAMO INTERESCALA ===
 Volumen en el canal entre represas consecutivas (calculado con perfil trapecial + tirante actual).
 Referencia: 100% llenado = tirante_diseno + bordo_libre (capacidad física real del canal).
@@ -341,21 +303,15 @@ ${volZonasText2}
 === PERFIL HIDRÁULICO DEL CANAL PRINCIPAL ===
 ${perfilCanalText.substring(0, 1200) || "No hay datos de perfil hidráulico."}
 
-=== TIEMPOS DE TRÁNSITO PRE-CALCULADOS (usa esta tabla directamente) ===
-Formato: KM_inicio → KM_fin | Longitud | Velocidad diseño | t_tramo | t_acumulado_desde_K0
+=== TRÁNSITO PRE-CALCULADO: K_inicio→K_fin +tramo acum(desde K0) ===
 ${(data.transito_tramos || []).map((t: any) => {
-    const hh = Math.floor(t.t_acum_min / 60).toString().padStart(2, "0");
+    const hh = Math.floor(t.t_acum_min / 60);
     const mm = (t.t_acum_min % 60).toString().padStart(2, "0");
-    const hh_t = Math.floor(t.t_min / 60).toString().padStart(2, "0");
-    const mm_t = (t.t_min % 60).toString().padStart(2, "0");
-    return `KM ${t.km_inicio}→${t.km_fin} | ${t.L_m}m | V=${t.V_ms}m/s | +${hh_t}:${mm_t} | acum=${hh}:${mm} | Qmax=${r(t.Qmax,2)}m³/s`;
-}).join("\n") || "Sin datos de tránsito."}
-
-INSTRUCCIÓN: Para consultas de tránsito KMa→KMb, resta t_acumulado(KMb) − t_acumulado(KMa).
-NO uses estimaciones de velocidad — la tabla de arriba tiene los valores reales de diseño.
-
-=== PUNTOS DE AFORO DE CONTROL ===
-${aforosControlText || "Sin puntos de aforo registrados."}
+    const ht = Math.floor(t.t_min / 60);
+    const mt = (t.t_min % 60).toString().padStart(2, "0");
+    return `K${t.km_inicio}→K${t.km_fin}:+${ht}:${mt} acum=${hh}:${mm}`;
+}).join(" | ") || "Sin datos."}
+INSTRUCCIÓN: resta t_acumulado(KMb)−t_acumulado(KMa) para calcular tránsito entre dos puntos.
 
 === ESTATUS HIDRÁULICO DEL SISTEMA ===
 EVENTO OFICIAL (SRL): ${data.evento_oficial?.evento_tipo || "ESTABILIZACIÓN"}
@@ -645,7 +601,7 @@ Deno.serve(async (req: Request) => {
                 model: AI_MODEL,
                 messages,
                 temperature: 0.3,
-                max_tokens: 2000,
+                max_tokens: 1200,
                 stream: false,
             }),
         });

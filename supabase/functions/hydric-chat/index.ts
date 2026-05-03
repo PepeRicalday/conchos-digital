@@ -172,9 +172,6 @@ async function fetchSystemData(supabaseAdmin: any) {
 
 // ─── STAGE 2: buildSystemPrompt ─────────────────────────────────────────────
 function buildSystemPrompt(data: any, contexto: string): string {
-    const knowledgeText = data.knowledge.map((k: any) =>
-        `[${k.categoria.toUpperCase()}] ${k.titulo}:\n${k.contenido}`
-    ).join("\n\n");
 
     // STAGE 1: Rounded floats + timestamps
     const presasText = data.presas.map((l: any) =>
@@ -342,7 +339,7 @@ ${volInterescalasText}
 ${volZonasText2}
 
 === PERFIL HIDRÁULICO DEL CANAL PRINCIPAL ===
-${perfilCanalText.substring(0, 2500) || "No hay datos de perfil hidráulico."}
+${perfilCanalText.substring(0, 1200) || "No hay datos de perfil hidráulico."}
 
 === TIEMPOS DE TRÁNSITO PRE-CALCULADOS (usa esta tabla directamente) ===
 Formato: KM_inicio → KM_fin | Longitud | Velocidad diseño | t_tramo | t_acumulado_desde_K0
@@ -368,9 +365,6 @@ EVENTO OFICIAL (SRL): ${data.evento_oficial?.evento_tipo || "ESTABILIZACIÓN"}
 DETECCIÓN AUTOMÁTICA (SENSÓRICA): ${data.canal_status?.estado_hidraulico || "ESTABLE"}
   Extracción Boquilla: ${r(data.canal_status?.qe_boquilla, 2)} m³/s
   Alerta Estructural: ${data.canal_status?.alerta_activa ? "SÍ — " + data.canal_status.mensaje_alerta : "Ninguna"}
-
-=== BASE DE CONOCIMIENTO TÉCNICO ===
-${knowledgeText || "Sin entradas en la base de conocimiento."}
 
 === FÓRMULAS HIDRÁULICAS DE REFERENCIA ===
 COMPUERTAS RADIALES (Tainter gates):

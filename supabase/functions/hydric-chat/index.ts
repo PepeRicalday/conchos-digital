@@ -69,7 +69,7 @@ async function fetchSystemData(supabaseAdmin: any) {
             supabaseAdmin.from("ciclos_agricolas").select("*").eq("activo", true).maybeSingle(),
 
             supabaseAdmin.from("hydric_knowledge_base")
-                .select("titulo, contenido, categoria").eq("activo", true),
+                .select("titulo, contenido, categoria").eq("activo", true).limit(5),
 
             supabaseAdmin.from("reportes_operacion")
                 .select("*, puntos_entrega(nombre, km)")
@@ -283,27 +283,18 @@ function buildSystemPrompt(data: any, contexto: string): string {
         `dn=${r(t.tirante_diseno_m, 3)}m, BL=${r(t.bordo_libre_m, 3)}m`
     ).join("\n");
 
-    // Volumen entre represas — 12 tramos interescala
+    // Volumen entre represas — formato compacto (1 línea por tramo)
     const volInterescalasText = (data.vol_interescalas as any[] || []).length === 0
-        ? "Sin datos de volumen interescala."
+        ? "Sin datos."
         : (data.vol_interescalas as any[]).map((v: any) =>
-            `${v.esc_up} (Km ${r(v.km_up, 3)}) → ${v.esc_down} (Km ${r(v.km_down, 3)}) | ` +
-            `L=${r(v.longitud_km, 3)} km | ` +
-            `NA_up=${r(v.nivel_up_m, 3)}m, NA_down=${r(v.nivel_down_m, 3)}m | ` +
-            `Vol=${v.vol_m3?.toLocaleString("en-US")} m³ (${r(v.vol_mm3, 4)} Mm³)`
+            `K${r(v.km_up,1)}→K${r(v.km_down,1)} ↑${r(v.nivel_up_m,3)}↓${r(v.nivel_down_m,3)}m ${Number(v.vol_m3).toLocaleString("en-US")}m³/${r(v.vol_mm3,4)}Mm³`
         ).join("\n");
 
-    // Almacenamiento por zona con % de llenado real (tirante_diseno + bordo_libre = 100%)
+    // Almacenamiento por zona — formato compacto
     const volZonasText2 = (data.vol_zonas as any[] || []).length === 0
-        ? "Sin datos de almacenamiento por zona."
+        ? "Sin datos."
         : (data.vol_zonas as any[]).map((z: any) =>
-            `${z.codigo} — ${z.zona_nombre} (Km ${r(z.km_inicio, 1)}–${r(z.km_fin, 1)}) | ` +
-            `${z.n_tramos} tramos | ` +
-            `Nivel medio ${r(z.nivel_medio_m, 3)}m (diseño ${r(z.tirante_diseno_m, 3)}m + BL ${r(z.bordo_libre_m, 3)}m = cap. ${r(z.y_capacidad_m, 3)}m) | ` +
-            `Vol actual ${r(z.vol_actual_mm3, 4)} Mm³ | ` +
-            `Vol diseño ${r((z.vol_diseno_m3 || 0) / 1e6, 4)} Mm³ | ` +
-            `Vol capacidad ${r((z.vol_capacidad_m3 || 0) / 1e6, 4)} Mm³ | ` +
-            `Llenado ${r(z.pct_llenado, 1)}%`
+            `${z.codigo} K${r(z.km_inicio,0)}-${r(z.km_fin,0)} niv=${r(z.nivel_medio_m,3)}m dn=${r(z.tirante_diseno_m,2)} BL=${r(z.bordo_libre_m,2)} cap=${r(z.y_capacidad_m,2)}m | ${r(z.vol_actual_mm3,4)}/${r((z.vol_capacidad_m3||0)/1e6,4)}Mm³ ${r(z.pct_llenado,1)}%`
         ).join("\n");
 
     // STAGE 2: Contexto-specific instruction
@@ -351,7 +342,7 @@ ${volInterescalasText}
 ${volZonasText2}
 
 === PERFIL HIDRÁULICO DEL CANAL PRINCIPAL ===
-${perfilCanalText.substring(0, 5000) || "No hay datos de perfil hidráulico."}
+${perfilCanalText.substring(0, 2500) || "No hay datos de perfil hidráulico."}
 
 === TIEMPOS DE TRÁNSITO PRE-CALCULADOS (usa esta tabla directamente) ===
 Formato: KM_inicio → KM_fin | Longitud | Velocidad diseño | t_tramo | t_acumulado_desde_K0
@@ -633,7 +624,7 @@ Deno.serve(async (req: Request) => {
                 .select("role, content")
                 .eq("conversation_id", convId)
                 .order("created_at", { ascending: true })
-                .limit(15)
+                .limit(8)
             : { data: [] };
 
         const messages = [
@@ -658,7 +649,7 @@ Deno.serve(async (req: Request) => {
                 model: AI_MODEL,
                 messages,
                 temperature: 0.3,
-                max_tokens: 6000,
+                max_tokens: 3000,
                 stream: false,
             }),
         });

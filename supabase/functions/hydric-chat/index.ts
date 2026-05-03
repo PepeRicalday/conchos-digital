@@ -589,11 +589,11 @@ Deno.serve(async (req: Request) => {
         ]);
 
         if (ragChunks.length > 0) {
-            contextText = "\n\n=== INFORMACIÓN DE DOCUMENTOS TÉCNICOS ===\n" +
-                (ragChunks as any[]).map((c: any) =>
-                    `[Fuente: ${c.metadata?.source || "Documento"} | Similitud: ${(c.similarity * 100).toFixed(0)}%]\n${c.content}`
-                ).join("\n---\n");
-            console.log(`RAG: ${ragChunks.length} chunks recuperados (similitud vectorial)`);
+            const rawRag = (ragChunks as any[]).map((c: any) =>
+                `[${c.metadata?.source || "Doc"} ${(c.similarity * 100).toFixed(0)}%] ${c.content}`
+            ).join("\n---\n");
+            contextText = "\n\n=== DOCS TÉCNICOS ===\n" + rawRag.substring(0, 1200);
+            console.log(`RAG: ${ragChunks.length} chunks recuperados`);
         }
 
         // Build system prompt with contexto
@@ -618,21 +618,23 @@ Deno.serve(async (req: Request) => {
             if (msgError) throw new Error(`DB Error (chat_messages): ${msgError.message}`);
         }
 
-        // STAGE 4: Increase history limit 8 → 15
+        // History: 4 msgs max — cada respuesta AI ~800 tok, 4×800=3200 tok de historial
         const { data: history } = convId
             ? await supabaseAdmin.from("chat_messages")
                 .select("role, content")
                 .eq("conversation_id", convId)
-                .order("created_at", { ascending: true })
-                .limit(8)
+                .order("created_at", { ascending: false })
+                .limit(4)
             : { data: [] };
+        // Revertir a orden cronológico para el contexto
+        const historyOrdered = (history || []).reverse();
 
         const messages = [
             { role: "system", content: systemPrompt },
-            ...(history || []).map((m: any) => ({ role: m.role, content: m.content })),
+            ...historyOrdered.map((m: any) => ({ role: m.role, content: m.content })),
         ];
 
-        if (!history?.some((h: any) => h.content === message)) {
+        if (!historyOrdered.some((h: any) => h.content === message)) {
             messages.push({ role: "user", content: message });
         }
 
@@ -649,7 +651,7 @@ Deno.serve(async (req: Request) => {
                 model: AI_MODEL,
                 messages,
                 temperature: 0.3,
-                max_tokens: 3000,
+                max_tokens: 2000,
                 stream: false,
             }),
         });

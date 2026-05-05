@@ -3246,6 +3246,37 @@
 .dsk-zona-total { font-size: 0.5rem; color: #64748b; text-align: right; }
 .dsk-zona-total strong { color: #38bdf8; }
 
+/* ── Tabla de entregas hoy — cabeceras de grupo ─────────────────── */
+.dsk-th-base {
+    border-bottom: 1px solid #1e40af;
+    color: #60a5fa;
+}
+.dsk-th-adic {
+    border-bottom: 1px solid #7c3aed;
+    color: #c084fc;
+}
+.dsk-th-base-sub { color: #60a5fa; }
+.dsk-th-adic-sub  { color: #c084fc; }
+
+/* celdas de la columna adicional */
+.dsk-td--adic        { color: #c084fc !important; }
+.dsk-td--total-label { color: #94a3b8; }
+
+/* celdas pequeñas (horario, motivo) */
+.dsk-td-horario {
+    font-size: 9px !important;
+    color: #94a3b8 !important;
+}
+.dsk-td-motivo {
+    text-align: left !important;
+    font-size: 9px !important;
+    color: #a78bfa !important;
+    max-width: 100px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* Responsive */
 @media (max-width: 640px) {
     .dsk-table-wrap { max-height: 160px; }

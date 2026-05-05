@@ -381,6 +381,7 @@ const PublicMonitor: React.FC = () => {
     const [volZonas, setVolZonas] = useState<any[]>([]);
     const [tomasActivas, setTomasActivas] = useState<any[]>([]);
     const [balanceModulos, setBalanceModulos] = useState<any[]>([]);
+    const [entregasHoy, setEntregasHoy] = useState<any[]>([]);
 
     // 0. Update internal clock for reactive calculations
     useEffect(() => {
@@ -1188,7 +1189,7 @@ const PublicMonitor: React.FC = () => {
     useEffect(() => {
         const fetchVolumetria = async () => {
             const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chihuahua' }).format(new Date());
-            const [viRes, vzRes, tomasRes, bmRes] = await Promise.all([
+            const [viRes, vzRes, tomasRes, bmRes, ehRes] = await Promise.all([
                 supabase.from('vol_interescalas')
                     .select('esc_up, km_up, esc_down, km_down, longitud_km, nivel_up_m, nivel_down_m, vol_m3, vol_mm3')
                     .order('km_up', { ascending: true }),
@@ -1202,11 +1203,16 @@ const PublicMonitor: React.FC = () => {
                 supabase.from('balance_volumen_modulo')
                     .select('modulo_id, modulo_nombre, codigo_corto, zona_id, zona_codigo, zona_nombre, es_primaria, ciclo_id, vol_base_m3, vol_base_consumido_m3, vol_adicional_consumido_m3, vol_total_consumido_m3, vol_base_disponible_m3, pct_base_consumido, estado_volumen, ultimo_adicional_fecha')
                     .order('modulo_id', { ascending: true }),
+                supabase.from('entregas_modulo')
+                    .select('modulo_id, tipo_entrega, gasto_lps, gasto_m3s, volumen_m3, hora_inicio, hora_fin, estado_operativo, motivo_adicional')
+                    .eq('fecha', today)
+                    .order('modulo_id', { ascending: true }),
             ]);
             if (!viRes.error)    setVolInterescalas(viRes.data  || []);
             if (!vzRes.error)    setVolZonas(vzRes.data         || []);
             if (!tomasRes.error) setTomasActivas(tomasRes.data  || []);
             if (!bmRes.error)    setBalanceModulos(bmRes.data   || []);
+            if (!ehRes.error)    setEntregasHoy(ehRes.data      || []);
         };
         fetchVolumetria();
         const interval = setInterval(fetchVolumetria, 5 * 60 * 1000);
@@ -1325,9 +1331,32 @@ const PublicMonitor: React.FC = () => {
                 caudal_ls: +(t.caudal_promedio ?? 0).toFixed(1),
                 caudal_m3s: +((t.caudal_promedio ?? 0) / 1000).toFixed(4),
             })),
+            // ── Entregas hoy por módulo ────────────────────────────────
+            entregas_hoy: (() => {
+                const ids = [...new Set(entregasHoy.map(e => e.modulo_id))];
+                return ids.map(mid => {
+                    const meta = balanceModulos.find(b => b.modulo_id === mid && b.es_primaria);
+                    const base = entregasHoy.find(e => e.modulo_id === mid && e.tipo_entrega === 'base');
+                    const adic = entregasHoy.find(e => e.modulo_id === mid && e.tipo_entrega === 'adicional');
+                    return {
+                        modulo:          meta?.modulo_nombre ?? mid,
+                        codigo:          meta?.codigo_corto  ?? mid,
+                        zona:            meta?.zona_codigo   ?? '—',
+                        base_m3:         base ? +(base.volumen_m3).toFixed(2)  : null,
+                        base_m3s:        base ? +(base.gasto_m3s).toFixed(4)   : null,
+                        base_lps:        base ? +(base.gasto_lps).toFixed(2)   : null,
+                        base_horario:    base ? `${base.hora_inicio ?? '—'}–${base.hora_fin ?? '—'}` : null,
+                        adic_m3:         adic ? +(adic.volumen_m3).toFixed(2)  : null,
+                        adic_m3s:        adic ? +(adic.gasto_m3s).toFixed(4)   : null,
+                        adic_lps:        adic ? +(adic.gasto_lps).toFixed(2)   : null,
+                        motivo:          adic?.motivo_adicional ?? null,
+                        total_m3:        +((base?.volumen_m3 ?? 0) + (adic?.volumen_m3 ?? 0)).toFixed(2),
+                    };
+                });
+            })(),
             timestamp: new Date().toISOString(),
         };
-    }, [escalas, volInterescalas, volZonas, balanceModulos, presasData, tomasActivas]);
+    }, [escalas, volInterescalas, volZonas, balanceModulos, entregasHoy, presasData, tomasActivas]);
 
     const iecBreakdownRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -2554,6 +2583,79 @@ const PublicMonitor: React.FC = () => {
                                             );
                                         })}
                                     </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        )}
+
+                        {/* Entregas del día por módulo — base y adicional */}
+                        {entregasHoy.length > 0 && (
+                        <div className="dsk-section-block">
+                            <div className="dsk-sub-header">
+                                ENTREGAS HOY — {new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Chihuahua' }).format(new Date())}
+                            </div>
+                            <div className="dsk-table-wrap">
+                                <table className="dsk-table">
+                                    <thead>
+                                        <tr>
+                                            <th rowSpan={2}>MÓDULO</th>
+                                            <th rowSpan={2}>ZONA</th>
+                                            <th colSpan={3} className="dsk-th-base">BASE</th>
+                                            <th colSpan={3} className="dsk-th-adic">ADICIONAL</th>
+                                            <th rowSpan={2}>TOTAL m³</th>
+                                        </tr>
+                                        <tr>
+                                            <th className="dsk-th-base-sub">m³</th>
+                                            <th className="dsk-th-base-sub">L/s</th>
+                                            <th className="dsk-th-base-sub">HORARIO</th>
+                                            <th className="dsk-th-adic-sub">m³</th>
+                                            <th className="dsk-th-adic-sub">L/s</th>
+                                            <th className="dsk-th-adic-sub">MOTIVO</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(() => {
+                                            const ids = [...new Set(entregasHoy.map((e: any) => e.modulo_id))];
+                                            return ids.map((mid: any) => {
+                                                const meta = balanceModulos.find(b => b.modulo_id === mid && b.es_primaria);
+                                                const base = entregasHoy.find((e: any) => e.modulo_id === mid && e.tipo_entrega === 'base');
+                                                const adic = entregasHoy.find((e: any) => e.modulo_id === mid && e.tipo_entrega === 'adicional');
+                                                const total = (base?.volumen_m3 ?? 0) + (adic?.volumen_m3 ?? 0);
+                                                return (
+                                                    <tr key={mid}>
+                                                        <td className="dsk-td-nombre">{meta?.codigo_corto ?? mid}</td>
+                                                        <td className="dsk-td-num">{meta?.zona_codigo ?? '—'}</td>
+                                                        {/* BASE */}
+                                                        <td className="dsk-td-num dsk-td--q">{base ? Number(base.volumen_m3).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+                                                        <td className="dsk-td-num">{base ? Number(base.gasto_lps).toFixed(1) : '—'}</td>
+                                                        <td className="dsk-td-horario">{base ? `${base.hora_inicio ?? ''}${base.hora_inicio && base.hora_fin ? '–' : ''}${base.hora_fin ?? ''}` : '—'}</td>
+                                                        {/* ADICIONAL */}
+                                                        <td className={`dsk-td-num${adic ? ' dsk-td--adic' : ''}`}>{adic ? Number(adic.volumen_m3).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+                                                        <td className={`dsk-td-num${adic ? ' dsk-td--adic' : ''}`}>{adic ? Number(adic.gasto_lps).toFixed(1) : '—'}</td>
+                                                        <td className="dsk-td-motivo">{adic?.motivo_adicional ?? '—'}</td>
+                                                        {/* TOTAL */}
+                                                        <td className="dsk-td-num dsk-td--q">{total > 0 ? Number(total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+                                                    </tr>
+                                                );
+                                            });
+                                        })()}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td colSpan={2} className="dsk-td--total-label">TOTAL DÍA</td>
+                                            <td className="dsk-td-num dsk-td--q">
+                                                {Number(entregasHoy.filter((e: any) => e.tipo_entrega === 'base').reduce((s: number, e: any) => s + Number(e.volumen_m3), 0)).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </td>
+                                            <td colSpan={2} />
+                                            <td className="dsk-td-num dsk-td--adic">
+                                                {Number(entregasHoy.filter((e: any) => e.tipo_entrega === 'adicional').reduce((s: number, e: any) => s + Number(e.volumen_m3), 0)).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </td>
+                                            <td colSpan={2} />
+                                            <td className="dsk-td-num dsk-td--q">
+                                                {Number(entregasHoy.reduce((s: number, e: any) => s + Number(e.volumen_m3), 0)).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
                                 </table>
                             </div>
                         </div>

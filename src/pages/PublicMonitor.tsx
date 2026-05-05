@@ -380,6 +380,7 @@ const PublicMonitor: React.FC = () => {
     const [volInterescalas, setVolInterescalas] = useState<any[]>([]);
     const [volZonas, setVolZonas] = useState<any[]>([]);
     const [tomasActivas, setTomasActivas] = useState<any[]>([]);
+    const [balanceModulos, setBalanceModulos] = useState<any[]>([]);
 
     // 0. Update internal clock for reactive calculations
     useEffect(() => {
@@ -1187,7 +1188,7 @@ const PublicMonitor: React.FC = () => {
     useEffect(() => {
         const fetchVolumetria = async () => {
             const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chihuahua' }).format(new Date());
-            const [viRes, vzRes, tomasRes] = await Promise.all([
+            const [viRes, vzRes, tomasRes, bmRes] = await Promise.all([
                 supabase.from('vol_interescalas')
                     .select('esc_up, km_up, esc_down, km_down, longitud_km, nivel_up_m, nivel_down_m, vol_m3, vol_mm3')
                     .order('km_up', { ascending: true }),
@@ -1198,10 +1199,14 @@ const PublicMonitor: React.FC = () => {
                     .select('*, puntos_entrega(nombre, km)')
                     .eq('fecha', today)
                     .in('estado', ['inicio', 'continua', 'reabierto', 'modificacion']),
+                supabase.from('balance_volumen_modulo')
+                    .select('modulo_id, modulo_nombre, codigo_corto, zona_id, zona_codigo, zona_nombre, es_primaria, ciclo_id, vol_base_m3, vol_base_consumido_m3, vol_adicional_consumido_m3, vol_total_consumido_m3, vol_base_disponible_m3, pct_base_consumido, estado_volumen, ultimo_adicional_fecha')
+                    .order('modulo_id', { ascending: true }),
             ]);
             if (!viRes.error)    setVolInterescalas(viRes.data  || []);
             if (!vzRes.error)    setVolZonas(vzRes.data         || []);
             if (!tomasRes.error) setTomasActivas(tomasRes.data  || []);
+            if (!bmRes.error)    setBalanceModulos(bmRes.data   || []);
         };
         fetchVolumetria();
         const interval = setInterval(fetchVolumetria, 5 * 60 * 1000);
@@ -1209,16 +1214,35 @@ const PublicMonitor: React.FC = () => {
     }, []);
 
     const skillSnapshot = useMemo(() => {
-        const ZONAS_SKILL = [
-            { nombre: 'Z1', km_ini: 23, km_fin: 29, q: 2.400 },
-            { nombre: 'Z2', km_ini: 34, km_fin: 44, q: 2.750 },
-            { nombre: 'Z3', km_ini: 54, km_fin: 68, q: 4.635 },
-            { nombre: 'Z4', km_ini: 79, km_fin: 94, q: 4.200 },
+        // Compute real zone deliveries as Q differential between boundary escalas
+        const ZONAS_DEF = [
+            { nombre: 'Z1', km_ini: 23, km_fin: 29, q_obj: 2.400 },
+            { nombre: 'Z2', km_ini: 34, km_fin: 44, q_obj: 2.750 },
+            { nombre: 'Z3', km_ini: 54, km_fin: 68, q_obj: 4.635 },
+            { nombre: 'Z4', km_ini: 79, km_fin: 94, q_obj: 4.200 },
         ];
-        const Q_ZONAS = ZONAS_SKILL.reduce((s, z) => s + z.q, 0);
+        const ZONAS_SKILL = ZONAS_DEF.map(z => {
+            const escIn  = escalas.find(e => Math.abs(e.km - z.km_ini) < 0.5 && (e.gasto_actual ?? 0) > 0);
+            const escOut = escalas.find(e => Math.abs(e.km - z.km_fin) < 0.5 && (e.gasto_actual ?? 0) > 0);
+            const q_real = (escIn && escOut) ? Math.max(0, (escIn.gasto_actual ?? 0) - (escOut.gasto_actual ?? 0)) : null;
+            const vz = volZonas.find(v => v.codigo === z.nombre);
+            return {
+                nombre:       z.nombre,
+                km_ini:       z.km_ini,
+                km_fin:       z.km_fin,
+                q_objetivo:   z.q_obj,
+                q_real:       q_real !== null ? +q_real.toFixed(3) : null,
+                vol_mm3:      vz?.vol_actual_mm3 != null ? +Number(vz.vol_actual_mm3).toFixed(4) : null,
+                pct_llenado:  vz?.pct_llenado    != null ? +Number(vz.pct_llenado).toFixed(1)    : null,
+                nivel_medio_m: vz?.nivel_medio_m != null ? +Number(vz.nivel_medio_m).toFixed(3)  : null,
+                n_tramos:     vz?.n_tramos        != null ? +Number(vz.n_tramos)                  : null,
+            };
+        });
+        const Q_ZONAS_OBJ  = ZONAS_SKILL.reduce((s, z) => s + z.q_objetivo, 0);
+        const Q_ZONAS_REAL = ZONAS_SKILL.reduce((s, z) => s + (z.q_real ?? z.q_objetivo), 0);
         const q0   = escalas.find(e => e.km === 0)?.gasto_actual ?? 0;
         const q104 = escalas.find(e => e.km === 104)?.gasto_actual ?? 0;
-        const perdidas   = q0 - q104 - Q_ZONAS;
+        const perdidas   = q0 - q104 - Q_ZONAS_REAL;
         const eficiencia = q0 > 0 ? (q0 - Math.max(0, perdidas)) / q0 * 100 : 0;
         const lambda     = q0 > 0 ? perdidas / 104 : 0;
 
@@ -1246,20 +1270,21 @@ const PublicMonitor: React.FC = () => {
 
         return {
             meta: {
-                version:    '3.6b',
+                version:    '3.6c',
                 generado:   new Date().toISOString(),
                 canal:      'Canal Principal Conchos',
                 distrito:   'DR-005 Delicias',
-                calibracion: '27/04/2026',
+                calibracion: '05/05/2026',
             },
             constantes: { Cd: 0.62, Cv: 1.84, g: 9.81, Cd_gl: 1.84, n_gl: 1.52, MIN_H: 0.01, n_man: 0.015, C_ONDA: 0.80, F_ATEN: 0.27, lambda: +lambda.toFixed(5) },
             M1_FACTORS,
             zonas: ZONAS_SKILL,
-            Q_ZONAS_TOTAL: +Q_ZONAS.toFixed(3),
+            Q_ZONAS_REAL:  +Q_ZONAS_REAL.toFixed(3),
+            Q_ZONAS_TOTAL: +Q_ZONAS_OBJ.toFixed(3),
             balance: {
                 Q0:            +q0.toFixed(3),
                 Q104:          +q104.toFixed(3),
-                Q_extracciones: +Q_ZONAS.toFixed(3),
+                Q_extracciones: +Q_ZONAS_REAL.toFixed(3),
                 perdidas:      +perdidas.toFixed(3),
                 eficiencia:    +eficiencia.toFixed(1),
                 lambda:        +lambda.toFixed(5),
@@ -1269,6 +1294,20 @@ const PublicMonitor: React.FC = () => {
             // ── Volumetría hidráulica ──────────────────────────────────
             vol_interescalas: volInterescalas,
             vol_zonas: volZonas,
+            // ── Balance dotación vs consumo por módulo ─────────────────
+            modulos_balance: balanceModulos
+                .filter(b => b.es_primaria)
+                .map(b => ({
+                    modulo:          b.modulo_nombre,
+                    codigo:          b.codigo_corto,
+                    zona:            b.zona_codigo,
+                    dotacion_Mm3:    +(b.vol_base_m3 / 1e6).toFixed(3),
+                    consumido_Mm3:   +(b.vol_base_consumido_m3 / 1e6).toFixed(4),
+                    adicional_Mm3:   +(b.vol_adicional_consumido_m3 / 1e6).toFixed(4),
+                    disponible_Mm3:  +((b.vol_base_disponible_m3 ?? 0) / 1e6).toFixed(4),
+                    pct:             +(b.pct_base_consumido ?? 0).toFixed(2),
+                    estado:          b.estado_volumen,
+                })),
             // ── Presas estado actual ───────────────────────────────────
             presas: presasData.map(p => ({
                 nombre:           p.presas?.nombre       ?? p.presas?.nombre_corto ?? '—',
@@ -1288,7 +1327,7 @@ const PublicMonitor: React.FC = () => {
             })),
             timestamp: new Date().toISOString(),
         };
-    }, [escalas, volInterescalas, volZonas, presasData, tomasActivas]);
+    }, [escalas, volInterescalas, volZonas, balanceModulos, presasData, tomasActivas]);
 
     const iecBreakdownRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -2337,7 +2376,7 @@ const PublicMonitor: React.FC = () => {
                     {dockTab === 'skill' && (
                     <div className="dock-section dock-skill-panel">
                         <div className="dock-section-header">
-                            <span className="card-label">DATOS ACTUALES — SKILL v3.6b</span>
+                            <span className="card-label">DATOS ACTUALES — SKILL v3.6c</span>
                             <span className="telemetry-tag active-mon">● EN VIVO</span>
                         </div>
 
@@ -2474,6 +2513,48 @@ const PublicMonitor: React.FC = () => {
                             </div>
                             <div className="dsk-zona-total">
                                 Vol total canal: <strong>{volZonas.reduce((s: number, z: any) => s + Number(z.vol_actual_mm3 ?? 0), 0).toFixed(4)} Mm³</strong>
+                            </div>
+                        </div>
+                        )}
+
+                        {/* Balance dotación vs consumo por módulo */}
+                        {balanceModulos.filter(b => b.es_primaria).length > 0 && (
+                        <div className="dsk-section-block">
+                            <div className="dsk-sub-header">DOTACIÓN BASE vs CONSUMO — MÓDULOS</div>
+                            <div className="dsk-table-wrap">
+                                <table className="dsk-table">
+                                    <thead>
+                                        <tr>
+                                            <th>MÓDULO</th>
+                                            <th>ZONA</th>
+                                            <th>DOTAC (Mm³)</th>
+                                            <th>USADO (Mm³)</th>
+                                            <th>ADIC (Mm³)</th>
+                                            <th>DISP (Mm³)</th>
+                                            <th>%</th>
+                                            <th>ESTADO</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {balanceModulos.filter(b => b.es_primaria).map((b: any) => {
+                                            const estado = b.estado_volumen as string;
+                                            const rowCls = estado === 'base_agotado' ? 'dsk-tr--critico' : estado === 'alerta_base' ? 'dsk-tr--warn' : '';
+                                            const estadoLabel = estado === 'base_agotado' ? '🔴 Agotado' : estado === 'alerta_base' ? '⚠ Alerta' : '✓ Normal';
+                                            return (
+                                                <tr key={b.modulo_id} className={rowCls}>
+                                                    <td className="dsk-td-nombre">{b.codigo_corto || b.modulo_nombre}</td>
+                                                    <td className="dsk-td-num">{b.zona_codigo}</td>
+                                                    <td className="dsk-td-num">{(b.vol_base_m3 / 1e6).toFixed(3)}</td>
+                                                    <td className="dsk-td-num dsk-td--q">{(b.vol_base_consumido_m3 / 1e6).toFixed(4)}</td>
+                                                    <td className="dsk-td-num">{(b.vol_adicional_consumido_m3 / 1e6).toFixed(4)}</td>
+                                                    <td className={`dsk-td-num ${(b.vol_base_disponible_m3 ?? 0) < 0 ? 'dsk-td--red' : ''}`}>{((b.vol_base_disponible_m3 ?? 0) / 1e6).toFixed(4)}</td>
+                                                    <td className="dsk-td-num">{Number(b.pct_base_consumido ?? 0).toFixed(2)}%</td>
+                                                    <td className="dsk-td-nombre">{estadoLabel}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                         )}

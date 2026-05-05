@@ -20,9 +20,14 @@ interface ChatRequest {
     contexto?: string;
 }
 
-// ─── STAGE 1: Timezone-correct "today" ─────────────────────────────────────
+// ─── STAGE 1: Timezone-correct dates ───────────────────────────────────────
 function getTodayChihuahua(): string {
     return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chihuahua" }).format(new Date());
+}
+function getYesterdayChihuahua(): string {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chihuahua" }).format(d);
 }
 
 // ─── STAGE 1: Format timestamps to local time ───────────────────────────────
@@ -51,14 +56,17 @@ async function fetchSystemData(supabaseAdmin: any) {
             knowledgeRes, operacionRes, perfilRes,
             canalStatusRes, eventoLogRes,
             balanceZonasRes,
-            volInterescalasRes, volZonasRes
+            volInterescalasRes, volZonasRes,
+            entregasHoyRes
         ] = await Promise.all([
+            // limit(30) para garantizar al menos 1 lectura por presa tras dedup
             supabaseAdmin.from("lecturas_presas")
                 .select("*, presas(nombre, nombre_corto, capacidad_max)")
-                .order("fecha", { ascending: false }).limit(9),
+                .order("fecha", { ascending: false }).limit(30),
 
+            // ciclo_id incluido para poder filtrar la autorización del ciclo activo
             supabaseAdmin.from("modulos")
-                .select("*, autorizaciones_ciclo(vol_autorizado, caudal_max)"),
+                .select("*, autorizaciones_ciclo(ciclo_id, vol_autorizado, caudal_max)"),
 
             // STAGE 1: Fetch 50 rows so we can deduplicate per escala_id below
             // Include gate dimensions from escalas: ancho, alto, pzas_radiales, coeficiente_descarga
@@ -98,7 +106,24 @@ async function fetchSystemData(supabaseAdmin: any) {
             supabaseAdmin.from("vol_zonas")
                 .select("codigo, zona_nombre, km_inicio, km_fin, n_tramos, nivel_medio_m, tirante_diseno_m, bordo_libre_m, y_capacidad_m, vol_actual_m3, vol_actual_mm3, vol_diseno_m3, vol_capacidad_m3, pct_llenado")
                 .order("km_inicio", { ascending: true }),
+
+            // Entregas declaradas: hoy + ayer como fallback si sync del día no ha corrido aún
+            supabaseAdmin.from("entregas_modulo")
+                .select("modulo_id, tipo_entrega, gasto_m3s, volumen_m3, fecha, estado_operativo")
+                .gte("fecha", getYesterdayChihuahua())
+                .or("estado_operativo.is.null,estado_operativo.neq.cierre")
+                .order("fecha", { ascending: false })
+                .order("modulo_id"),
         ]);
+
+        // Deduplicate presas — keep most recent per presa_id (query ordered desc → first = newest)
+        const presasRaw: any[] = presasRes.data || [];
+        const presasDeduped = new Map<string, any>();
+        for (const row of presasRaw) {
+            const key = row.presa_id ?? row.presas?.nombre ?? row.id;
+            if (!presasDeduped.has(key)) presasDeduped.set(key, row);
+        }
+        const presas = Array.from(presasDeduped.values());
 
         // STAGE 1: Deduplicate escalas — keep only the most recent reading per escala_id
         const escalasRaw: any[] = escalasRawRes.data || [];
@@ -108,6 +133,15 @@ async function fetchSystemData(supabaseAdmin: any) {
             if (!escalasMap.has(key)) escalasMap.set(key, row); // already ordered desc → first = newest
         }
         const escalas = Array.from(escalasMap.values());
+
+        // Deduplicate entregas_hoy — most recent per modulo+tipo (query ordered fecha desc)
+        const entregasRaw: any[] = entregasHoyRes.data || [];
+        const entregasDeduped = new Map<string, any>();
+        for (const row of entregasRaw) {
+            const key = `${row.modulo_id}_${row.tipo_entrega}`;
+            if (!entregasDeduped.has(key)) entregasDeduped.set(key, row);
+        }
+        const entregas_hoy = Array.from(entregasDeduped.values());
 
         // PRE-CALCULAR tiempos de tránsito por tramo — el LLM lee la tabla, no calcula
         const perfilData: any[] = perfilRes.data || [];
@@ -135,7 +169,7 @@ async function fetchSystemData(supabaseAdmin: any) {
         });
 
         return {
-            presas: presasRes.data || [],
+            presas,
             modulos: modulosRes.data || [],
             escalas,
             ciclo_activo: cicloRes.data,
@@ -148,6 +182,7 @@ async function fetchSystemData(supabaseAdmin: any) {
             balance_zonas: balanceZonasRes.data || [],
             vol_interescalas: volInterescalasRes.data || [],
             vol_zonas: volZonasRes.data || [],
+            entregas_hoy,
         };
     } catch (e) {
         console.error("Error fetching system data:", e);
@@ -173,7 +208,8 @@ function buildSystemPrompt(data: any, contexto: string): string {
     ).join("\n");
 
     const modulosText = data.modulos.map((m: any) => {
-        const auth = m.autorizaciones_ciclo?.[0];
+        const auth = m.autorizaciones_ciclo?.find((a: any) => a.ciclo_id === data.ciclo_activo?.id)
+                  ?? m.autorizaciones_ciclo?.[0];
         const volAcum = parseFloat(m.vol_acumulado || "0").toLocaleString("en-US");
         const volAuth = parseFloat(auth?.vol_autorizado || m.vol_autorizado || "0");
         const volAuthMm3 = (volAuth / 1000).toFixed(2);
@@ -191,8 +227,8 @@ function buildSystemPrompt(data: any, contexto: string): string {
         ? "Sin datos."
         : (data.balance_zonas as any[]).map((b: any) =>
             `${ESTADO_ICON[b.estado_volumen] || "•"} [${b.zona_codigo || "—"}] ${b.codigo_corto || b.modulo_nombre}: ` +
-            `base=${r(b.vol_base_m3 / 1000, 2)} usados=${r(b.vol_base_consumido_m3 / 1000, 2)}(${r(b.pct_base_consumido, 0)}%) ` +
-            `adic=${r(b.vol_adicional_consumido_m3 / 1000, 2)} disp=${r(b.vol_base_disponible_m3 / 1000, 2)} Mm³`
+            `base=${r(b.vol_base_m3 / 1e6, 3)} usados=${r(b.vol_base_consumido_m3 / 1e6, 4)}(${r(b.pct_base_consumido, 2)}%) ` +
+            `adic=${r(b.vol_adicional_consumido_m3 / 1e6, 4)} disp=${r(b.vol_base_disponible_m3 / 1e6, 4)} Mm³`
         ).join("\n");
 
     // STAGE 1: Deduped + rounded + timestamped escalas
@@ -259,6 +295,15 @@ function buildSystemPrompt(data: any, contexto: string): string {
             `${z.codigo} K${r(z.km_inicio,0)}-${r(z.km_fin,0)} niv=${r(z.nivel_medio_m,3)}m dn=${r(z.tirante_diseno_m,2)} BL=${r(z.bordo_libre_m,2)} cap=${r(z.y_capacidad_m,2)}m | ${r(z.vol_actual_mm3,4)}/${r((z.vol_capacidad_m3||0)/1e6,4)}Mm³ ${r(z.pct_llenado,1)}%`
         ).join("\n");
 
+    // Entregas declaradas por módulo hoy — gasto para balance
+    const entregasHoyArr: any[] = data.entregas_hoy || [];
+    const entregasHoyText = entregasHoyArr.length === 0
+        ? "Sin entregas de módulos registradas hoy."
+        : entregasHoyArr.map((e: any) =>
+            `${e.modulo_id} ${e.tipo_entrega}: ${r(e.gasto_m3s, 3)} m³/s ${r(e.volumen_m3, 0)} m³`
+        ).join("\n") +
+        `\nTOTAL: ${r(entregasHoyArr.reduce((a: number, e: any) => a + (parseFloat(e.gasto_m3s) || 0), 0), 3)} m³/s`;
+
     // STAGE 2: Contexto-specific instruction
     const contextoInstruction = contexto === "operacion"
         ? "El usuario es un operador en campo. Prioriza instrucciones claras de acción, valores puntuales y alertas de seguridad."
@@ -284,6 +329,9 @@ ${escalasText || "Sin lecturas recientes"}
 
 TOMAS ABIERTAS HOY (${getTodayChihuahua()} — zona Chihuahua):
 ${tomasActivasText || "No hay tomas laterales activas hoy."}
+
+ENTREGAS MÓDULOS HOY (declaradas en SICA Capture — campo gasto_m3s para balance):
+${entregasHoyText}
 
 MÓDULOS — BALANCE DEL CICLO:
 ${cicloText}
@@ -379,7 +427,7 @@ REGLA DE ORO — BALANCE DE CONTINUIDAD POR TRAMO:
 
   PASO 2 — Balance tramo a tramo (aguas abajo):
     Para cada par de escalas consecutivas (Km_A → Km_B):
-      Q_tomas_tramo = suma de caudal de tomas activas (reportes_operacion) ubicadas entre Km_A y Km_B
+      Q_tomas_tramo = suma de caudal de tomas activas (reportes_operacion) + entregas_modulo del día (ENTREGAS MÓDULOS HOY) cuyos módulos están entre Km_A y Km_B
       Q_esperado_B  = Q_medido_A − Q_tomas_tramo
       Diferencia    = Q_medido_B − Q_esperado_B
       Si Diferencia < −(Q_esperado_B × 0.08): DÉFICIT en el tramo → requiere acción aguas arriba
@@ -436,7 +484,7 @@ REGLA DE VOLUMEN — BALANCE dV/dt POR ZONA:
 
   PASO A — Q neto por zona:
     Q_entrada_zona  = Q medido en la escala al inicio de la zona (km_inicio de la zona en vol_zonas)
-    Q_tomas_zona    = Σ gasto de tomas activas (reportes_operacion) cuyo km está dentro de [km_inicio, km_fin]
+    Q_tomas_zona    = Σ gasto de tomas activas (reportes_operacion) + Σ gasto_m3s de ENTREGAS MÓDULOS HOY cuyo módulo pertenece a esta zona (cruza por balance_zonas → zona_codigo)
     Q_neto_zona     = Q_entrada_zona − Q_tomas_zona
     Si Q_neto_zona > 0: zona ganando volumen (riesgo de llenado si pct_llenado alto)
     Si Q_neto_zona < 0: zona perdiendo volumen (riesgo de vaciado si pct_llenado bajo)

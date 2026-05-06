@@ -1,12 +1,12 @@
 -- ============================================================
 -- Módulo-Zonas: relación muchos a muchos
 -- Permite que un módulo pertenezca a más de una zona (ej. MOD-002 en Z2 y Z3)
--- Reemplaza la FK directa modulos.zona_id para el balance por zona
 -- ============================================================
 
 -- ── 1. TABLA DE UNIÓN ────────────────────────────────────────
+-- NOTA: modulo_id es TEXT porque modulos.id es TEXT ('MOD-001', etc.)
 CREATE TABLE IF NOT EXISTS public.modulo_zonas (
-    modulo_id   UUID NOT NULL REFERENCES public.modulos(id) ON DELETE CASCADE,
+    modulo_id   TEXT NOT NULL REFERENCES public.modulos(id) ON DELETE CASCADE,
     zona_id     UUID NOT NULL REFERENCES public.zonas_canal(id) ON DELETE CASCADE,
     es_primaria BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (modulo_id, zona_id)
@@ -15,7 +15,6 @@ CREATE TABLE IF NOT EXISTS public.modulo_zonas (
 CREATE INDEX IF NOT EXISTS idx_modulo_zonas_modulo ON public.modulo_zonas(modulo_id);
 CREATE INDEX IF NOT EXISTS idx_modulo_zonas_zona   ON public.modulo_zonas(zona_id);
 
--- RLS: todos los autenticados leen; solo SRL modifica
 ALTER TABLE public.modulo_zonas ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "modulo_zonas_select"  ON public.modulo_zonas FOR SELECT USING (TRUE);
 CREATE POLICY "modulo_zonas_srl_all" ON public.modulo_zonas FOR ALL
@@ -58,7 +57,6 @@ ON CONFLICT DO NOTHING;
 
 
 -- ── 3. SINCRONIZAR modulos.zona_id CON ZONA PRIMARIA ─────────
--- Mantener la FK directa como zona por defecto (sin romper código existente)
 UPDATE public.modulos m
 SET zona_id = mz.zona_id
 FROM public.modulo_zonas mz
@@ -67,7 +65,7 @@ WHERE mz.modulo_id = m.id AND mz.es_primaria = TRUE;
 
 -- ── 4. VISTA BALANCE_VOLUMEN_MODULO — con soporte multizona ──
 -- Una fila por (módulo, zona). MOD-002 aparece en Z2 y en Z3.
--- vol_base_m3 se muestra solo en la zona PRIMARIA para no duplicar la autorización.
+-- vol_base_m3 solo visible en zona PRIMARIA para no duplicar autorización.
 CREATE OR REPLACE VIEW public.balance_volumen_modulo AS
 WITH base_auth AS (
     SELECT modulo_id, ciclo_id, vol_autorizado AS vol_base_m3
@@ -83,7 +81,7 @@ consumo_por_zona AS (
         SUM(volumen_m3)                                            AS vol_total_consumido_m3,
         MAX(fecha)      FILTER (WHERE tipo_entrega = 'adicional') AS ultimo_adicional_fecha
     FROM public.entregas_modulo
-    GROUP BY modulo_id, zona_id, ciclo_id
+    GROUP BY modulo_id, zona_id, ciclo_id  -- ciclo_id es TEXT en ambas tablas
 ),
 ciclo_activo AS (
     SELECT id FROM public.ciclos_agricolas WHERE activo = TRUE LIMIT 1
@@ -98,15 +96,15 @@ SELECT
     zc.nombre                                                       AS zona_nombre,
     ba.ciclo_id,
 
-    -- Autorización base: solo visible en la zona primaria del módulo
+    -- Autorización base: solo en zona primaria
     CASE WHEN mz.es_primaria THEN ba.vol_base_m3 ELSE NULL END      AS vol_base_m3,
 
-    -- Consumo desglosado por zona (real, no duplicado)
+    -- Consumo desglosado por zona
     COALESCE(c.vol_base_consumido_m3,      0)                      AS vol_base_consumido_m3,
     COALESCE(c.vol_adicional_consumido_m3, 0)                      AS vol_adicional_consumido_m3,
     COALESCE(c.vol_total_consumido_m3,     0)                      AS vol_total_consumido_m3,
 
-    -- Disponible base (calculable solo en zona primaria)
+    -- Disponible base (solo zona primaria)
     CASE WHEN mz.es_primaria
         THEN ba.vol_base_m3 - COALESCE(c.vol_base_consumido_m3, 0)
         ELSE NULL
@@ -122,7 +120,7 @@ SELECT
 
     c.ultimo_adicional_fecha,
 
-    -- Semáforo (zona primaria: vs dotación total; secundaria: solo hay adicional relevante)
+    -- Semáforo
     CASE
         WHEN NOT mz.es_primaria THEN
             CASE WHEN COALESCE(c.vol_adicional_consumido_m3, 0) > 0

@@ -59,6 +59,9 @@ WHERE em.zona_id IS NULL;
 ALTER TABLE public.entregas_modulo
     DROP CONSTRAINT IF EXISTS entregas_modulo_fecha_tipo_uq;
 
+ALTER TABLE public.entregas_modulo
+    DROP CONSTRAINT IF EXISTS entregas_modulo_fecha_zona_tipo_uq;
+
 -- NULLS NOT DISTINCT (PG 15+): dos NULLs en zona_id siguen colisionando
 -- → backward-compatible con registros históricos sin zona
 ALTER TABLE public.entregas_modulo

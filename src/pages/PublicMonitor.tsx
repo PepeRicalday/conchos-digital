@@ -383,6 +383,41 @@ const PublicMonitor: React.FC = () => {
     const [balanceModulos, setBalanceModulos] = useState<any[]>([]);
     const [entregasHoy, setEntregasHoy] = useState<any[]>([]);
 
+    // Aggregate all zones per module: DOTAC from primary, consumption summed across ALL zones
+    const modulosResumen = useMemo(() => {
+        const byMod = new Map<string, any>();
+        for (const b of balanceModulos) {
+            if (!byMod.has(b.modulo_id)) {
+                byMod.set(b.modulo_id, {
+                    modulo_id: b.modulo_id,
+                    modulo_nombre: b.modulo_nombre,
+                    codigo_corto: b.codigo_corto,
+                    zona_codigo: '',
+                    vol_base_m3: 0,
+                    vol_base_consumido_m3: 0,
+                    vol_adicional_consumido_m3: 0,
+                });
+            }
+            const m = byMod.get(b.modulo_id)!;
+            if (b.es_primaria) {
+                m.zona_codigo = b.zona_codigo;
+                m.vol_base_m3 = b.vol_base_m3 ?? 0;
+            }
+            m.vol_base_consumido_m3 += b.vol_base_consumido_m3 ?? 0;
+            m.vol_adicional_consumido_m3 += b.vol_adicional_consumido_m3 ?? 0;
+        }
+        return Array.from(byMod.values()).map(m => ({
+            ...m,
+            vol_base_disponible_m3: m.vol_base_m3 - m.vol_base_consumido_m3,
+            pct_base_consumido: m.vol_base_m3 > 0 ? (m.vol_base_consumido_m3 / m.vol_base_m3 * 100) : 0,
+            estado_volumen: m.vol_base_m3 > 0
+                ? m.vol_base_consumido_m3 >= m.vol_base_m3 ? 'base_agotado'
+                  : m.vol_base_consumido_m3 >= m.vol_base_m3 * 0.85 ? 'alerta_base'
+                  : 'normal'
+                : 'normal',
+        }));
+    }, [balanceModulos]);
+
     // 0. Update internal clock for reactive calculations
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(Date.now()), 15000);
@@ -1204,7 +1239,7 @@ const PublicMonitor: React.FC = () => {
                     .select('modulo_id, modulo_nombre, codigo_corto, zona_id, zona_codigo, zona_nombre, es_primaria, ciclo_id, vol_base_m3, vol_base_consumido_m3, vol_adicional_consumido_m3, vol_total_consumido_m3, vol_base_disponible_m3, pct_base_consumido, estado_volumen, ultimo_adicional_fecha')
                     .order('modulo_id', { ascending: true }),
                 supabase.from('entregas_modulo')
-                    .select('modulo_id, tipo_entrega, gasto_lps, gasto_m3s, volumen_m3, hora_inicio, hora_fin, estado_operativo, motivo_adicional')
+                    .select('modulo_id, zona_id, tipo_entrega, gasto_lps, gasto_m3s, volumen_m3, hora_inicio, hora_fin, estado_operativo, motivo_adicional')
                     .eq('fecha', today)
                     .order('modulo_id', { ascending: true }),
             ]);
@@ -1301,9 +1336,7 @@ const PublicMonitor: React.FC = () => {
             vol_interescalas: volInterescalas,
             vol_zonas: volZonas,
             // ── Balance dotación vs consumo por módulo ─────────────────
-            modulos_balance: balanceModulos
-                .filter(b => b.es_primaria)
-                .map(b => ({
+            modulos_balance: modulosResumen.map(b => ({
                     modulo:          b.modulo_nombre,
                     codigo:          b.codigo_corto,
                     zona:            b.zona_codigo,
@@ -1333,15 +1366,21 @@ const PublicMonitor: React.FC = () => {
             })),
             // ── Entregas hoy por módulo ────────────────────────────────
             entregas_hoy: (() => {
-                const ids = [...new Set(entregasHoy.map(e => e.modulo_id))];
-                return ids.map(mid => {
-                    const meta = balanceModulos.find(b => b.modulo_id === mid && b.es_primaria);
-                    const base = entregasHoy.find(e => e.modulo_id === mid && e.tipo_entrega === 'base');
-                    const adic = entregasHoy.find(e => e.modulo_id === mid && e.tipo_entrega === 'adicional');
+                const seenSK = new Set<string>();
+                const pairs2: { mid: string; zid: string | null }[] = [];
+                for (const e of entregasHoy) {
+                    const k = `${e.modulo_id}_${e.zona_id ?? ''}`;
+                    if (!seenSK.has(k)) { seenSK.add(k); pairs2.push({ mid: e.modulo_id, zid: e.zona_id ?? null }); }
+                }
+                return pairs2.map(({ mid, zid }) => {
+                    const metaPrimary = balanceModulos.find(b => b.modulo_id === mid && b.es_primaria);
+                    const metaZone = balanceModulos.find(b => b.modulo_id === mid && (zid ? b.zona_id === zid : b.es_primaria)) ?? metaPrimary;
+                    const base = entregasHoy.find(e => e.modulo_id === mid && (zid ? e.zona_id === zid : true) && e.tipo_entrega === 'base');
+                    const adic = entregasHoy.find(e => e.modulo_id === mid && (zid ? e.zona_id === zid : true) && e.tipo_entrega === 'adicional');
                     return {
-                        modulo:          meta?.modulo_nombre ?? mid,
-                        codigo:          meta?.codigo_corto  ?? mid,
-                        zona:            meta?.zona_codigo   ?? '—',
+                        modulo:          metaPrimary?.modulo_nombre ?? mid,
+                        codigo:          metaPrimary?.codigo_corto  ?? mid,
+                        zona:            metaZone?.zona_codigo       ?? '—',
                         base_m3:         base ? +(base.volumen_m3).toFixed(2)  : null,
                         base_m3s:        base ? +(base.gasto_m3s).toFixed(4)   : null,
                         base_lps:        base ? +(base.gasto_lps).toFixed(2)   : null,
@@ -2547,7 +2586,7 @@ const PublicMonitor: React.FC = () => {
                         )}
 
                         {/* Balance dotación vs consumo por módulo */}
-                        {balanceModulos.filter(b => b.es_primaria).length > 0 && (
+                        {modulosResumen.length > 0 && (
                         <div className="dsk-section-block">
                             <div className="dsk-sub-header">DOTACIÓN BASE vs CONSUMO — MÓDULOS</div>
                             <div className="dsk-table-wrap">
@@ -2565,7 +2604,7 @@ const PublicMonitor: React.FC = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {balanceModulos.filter(b => b.es_primaria).map((b: any) => {
+                                        {modulosResumen.map((b: any) => {
                                             const estado = b.estado_volumen as string;
                                             const rowCls = estado === 'base_agotado' ? 'dsk-tr--critico' : estado === 'alerta_base' ? 'dsk-tr--warn' : '';
                                             const estadoLabel = estado === 'base_agotado' ? '🔴 Agotado' : estado === 'alerta_base' ? '⚠ Alerta' : '✓ Normal';
@@ -2615,16 +2654,23 @@ const PublicMonitor: React.FC = () => {
                                     </thead>
                                     <tbody>
                                         {(() => {
-                                            const ids = [...new Set(entregasHoy.map((e: any) => e.modulo_id))];
-                                            return ids.map((mid: any) => {
-                                                const meta = balanceModulos.find(b => b.modulo_id === mid && b.es_primaria);
-                                                const base = entregasHoy.find((e: any) => e.modulo_id === mid && e.tipo_entrega === 'base');
-                                                const adic = entregasHoy.find((e: any) => e.modulo_id === mid && e.tipo_entrega === 'adicional');
+                                            // Group by (modulo_id, zona_id) so multizone modules show one row per zone
+                                            const seenKeys = new Set<string>();
+                                            const pairs: { mid: string; zid: string | null }[] = [];
+                                            for (const e of entregasHoy as any[]) {
+                                                const k = `${e.modulo_id}_${e.zona_id ?? ''}`;
+                                                if (!seenKeys.has(k)) { seenKeys.add(k); pairs.push({ mid: e.modulo_id, zid: e.zona_id ?? null }); }
+                                            }
+                                            return pairs.map(({ mid, zid }) => {
+                                                const metaPrimary = balanceModulos.find(b => b.modulo_id === mid && b.es_primaria);
+                                                const metaZone = balanceModulos.find(b => b.modulo_id === mid && (zid ? b.zona_id === zid : b.es_primaria)) ?? metaPrimary;
+                                                const base = entregasHoy.find((e: any) => e.modulo_id === mid && (zid ? e.zona_id === zid : true) && e.tipo_entrega === 'base');
+                                                const adic = entregasHoy.find((e: any) => e.modulo_id === mid && (zid ? e.zona_id === zid : true) && e.tipo_entrega === 'adicional');
                                                 const total = (base?.volumen_m3 ?? 0) + (adic?.volumen_m3 ?? 0);
                                                 return (
-                                                    <tr key={mid}>
-                                                        <td className="dsk-td-nombre">{meta?.codigo_corto ?? mid}</td>
-                                                        <td className="dsk-td-num">{meta?.zona_codigo ?? '—'}</td>
+                                                    <tr key={`${mid}_${zid ?? ''}`}>
+                                                        <td className="dsk-td-nombre">{metaPrimary?.codigo_corto ?? mid}</td>
+                                                        <td className="dsk-td-num">{metaZone?.zona_codigo ?? '—'}</td>
                                                         {/* BASE */}
                                                         <td className="dsk-td-num dsk-td--q">{base ? Number(base.volumen_m3).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
                                                         <td className="dsk-td-num">{base ? Number(base.gasto_lps).toFixed(1) : '—'}</td>

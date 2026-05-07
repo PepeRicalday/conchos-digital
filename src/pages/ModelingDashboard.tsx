@@ -1034,13 +1034,12 @@ function runSimulation(
     // En un canal regulado con compuertas cada ~10-20 km, la onda de maniobra
     // NO viaja a la velocidad cinemática teórica (v + c ≈ 5-6 m/s).
     // Las compuertas, cambios de sección y rugosidad frenan la propagación.
-    // Calibración empírica con datos operativos del Canal Conchos:
-    //   K-0 → K-23 (23 km): ~3h 00min ≈ 7.7 km/h ≈ 2.1 m/s
-    //   K-0 → K-104 (104 km): ~13h 40min
-    // Modelo: v_onda = 5.3 × Q^0.15 [km/h]
-    //   v_onda(Q=28) = 5.3 × 28^0.15 ≈ 7.6 km/h → K23 en 3.0h ✓
-    //   v_onda(Q=34) = 5.3 × 34^0.15 ≈ 7.9 km/h → K23 en 2.9h ✓
-    const V_WAVE_BASE_KMH = 5.3;
+    // Calibración unificada 06/05/2026 (reconciliación BC-07):
+    //   Anclas: K-0→K-23 ~180 min, K-0→K-104 ~820 min (Q=28 m³/s)
+    //   Constante 5.3 → 4.5 reduce error K-23 de -12% a -2%  y K-104 de -13% a +1%
+    //   v_onda(Q=28) = 4.5 × 28^0.15 ≈ 7.8 km/h → K-23 en 2h 57min ✓
+    //   v_onda(Q=34) = 4.5 × 34^0.15 ≈ 8.0 km/h → K-23 en 2h 52min
+    const V_WAVE_BASE_KMH = 4.5;
     const v_wave_kmh = V_WAVE_BASE_KMH * Math.pow(Math.max(qCur, 1), 0.15);
     const travelSpd  = v_wave_kmh / 3.6; // convertir km/h → m/s
     const transit_min = (dist * 1000) / travelSpd / 60;

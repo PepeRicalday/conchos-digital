@@ -407,7 +407,7 @@ export const M1_FACTORS: Record<string, number> = {
     'K-54':     1.0066,  // recal. 27/04/2026 — era 1.0823
     'K-62':     1.0537,  // recal. 27/04/2026 — era 1.1294
     'K-64':     1.3305,  // escala referencia — sin cambio
-    'K-68':     1.0398,  // recal. 27/04/2026 — era 1.1112
+    'K-68':     1.4900,  // recal. 07/05/2026 ancla aforo K-72+008=21.602 m³/s — era 1.0398
     'K-79+025': 1.9960,  // recal. 07/05/2026 bal. Z4 — era 1.5824
     'K-87+549': 1.4250,  // recal. 07/05/2026 bal. Z4 — era 1.2089
     'K-94+057': 1.4280,  // recal. 07/05/2026 bal. Z4 — era 1.1612
@@ -434,6 +434,25 @@ export function propagarQSifon(nombre: string, q_k0: number): number {
 /** True si la escala es un sifón (Q por propagación, no por fórmula). */
 export function esSifon(nombre: string): boolean {
     return Object.keys(SIFON_DELTA_Q).some(k => nombre?.toUpperCase().includes(k));
+}
+
+/**
+ * Estructuras mixtas — compuertas + vertedor de sobrepaso superior.
+ * Q_total = Q_compuertas(M1) + Q_sobrepaso  cuando H > H_crit
+ * Q_sobrepaso = Cw × L_vertedor × (H - H_crit)^1.5
+ * M1 se CONGELA al valor calibrado cuando H > H_crit (no ajustar por balance).
+ * Ref: Informe Técnico K-68 07/05/2026. L estimada ≈ 8.5m para Q_sobrepaso=0.20 m³/s a ΔH=0.05m.
+ * Pendiente: medir L real en campo.
+ */
+export const SOBREPASO_CONFIG: Record<string, { h_crit: number; Cw: number; L: number }> = {
+    'K-68': { h_crit: 3.56, Cw: 2.1, L: 8.5 },
+};
+
+/** Calcula Q_sobrepaso para una escala con estructura mixta. Retorna 0 si H ≤ H_crit. */
+export function calcQSobrepaso(nombre: string, hArriba: number): number {
+    const cfg = Object.entries(SOBREPASO_CONFIG).find(([k]) => nombre?.toUpperCase().includes(k))?.[1];
+    if (!cfg || hArriba <= cfg.h_crit) return 0;
+    return cfg.Cw * cfg.L * Math.pow(hArriba - cfg.h_crit, 1.5);
 }
 
 const _M1_KM: Record<string, number> = {

@@ -397,9 +397,9 @@ const RADIAL_Cv  = 1.84;
 const RADIAL_g   = 9.81;
 const RADIAL_MIN = 0.01;
 
-/** M1 correction factors — recal. 27/04/2026 (ancla K-0 corregida por aforo). */
+/** M1 correction factors — recal. 07/05/2026 (ancla K-0 aforo 29.436 m³/s). */
 export const M1_FACTORS: Record<string, number> = {
-    'K-0+000':  0.8923,  // cal. aforo 27/04/2026 — era 1.0000
+    'K-0+000':  1.1570,  // cal. aforo 07/05/2026 Q=29.436 m³/s (era 0.8923)
     'K-23':     1.9031,  // recal. 27/04/2026 — era 2.0978
     'K-29':     1.2379,  // recal. 27/04/2026 — era 1.3589
     'K-34':     1.5199,  // recal. 27/04/2026 v2 — era 1.2637; balance K-29

@@ -445,7 +445,7 @@ export function esSifon(nombre: string): boolean {
  * Pendiente: medir L real en campo.
  */
 export const SOBREPASO_CONFIG: Record<string, { h_crit: number; Cw: number; L: number }> = {
-    'K-68': { h_crit: 3.56, Cw: 2.1, L: 8.5 },
+    'K-68': { h_crit: 3.56, Cw: 2.1, L: 10.80 },  // 2 vertedores × 5.40m = 10.80m (medido campo 07/05/2026)
 };
 
 /** Calcula Q_sobrepaso para una escala con estructura mixta. Retorna 0 si H ≤ H_crit. */

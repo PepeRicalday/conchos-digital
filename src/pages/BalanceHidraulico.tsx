@@ -4,7 +4,7 @@ import ManningCalibrador from '../components/ManningCalibrador';
 import RatingCurve from '../components/RatingCurve';
 import { supabase } from '../lib/supabase';
 import { useFecha } from '../context/FechaContext';
-import { calculateSectionBalance, manningFlow, getEfficiencyStatus, type PerfilTramo, type BalanceTramo } from '../utils/hydraulics';
+import { calculateSectionBalance, manningFlow, getEfficiencyStatus, propagarQSifon, esSifon, type PerfilTramo, type BalanceTramo } from '../utils/hydraulics';
 import EfficiencyGauge from '../components/EfficiencyGauge';
 import { usePredictiveBalance } from '../hooks/usePredictiveBalance';
 import './BalanceHidraulico.css';
@@ -255,14 +255,23 @@ const BalanceHidraulico = () => {
         }
 
         if (escalasData.length > 0) {
-            setEscalas(escalasData.map((e: any) => ({
-                escala_id: e.escala_id,
-                nombre: e.nombre,
-                km: Number(e.km || 0),
-                nivel_actual: Number(e.nivel_actual || 0),
-                gasto_calculado: Number(e.gasto_calculado_m3s || 0),
-                seccion_nombre: e.seccion_nombre || ''
-            })));
+            // K-23 sifón: propagar Q desde K-0+000 (fórmula radial no aplica)
+            const q_k0 = Number(escalasData.find((e: any) => Number(e.km || 0) === 0)?.gasto_calculado_m3s || 0);
+            const mapped = escalasData.map((e: any) => {
+                const nombre = e.nombre || '';
+                const gasto = esSifon(nombre) && q_k0 > 0
+                    ? propagarQSifon(nombre, q_k0)
+                    : Number(e.gasto_calculado_m3s || 0);
+                return {
+                    escala_id: e.escala_id,
+                    nombre,
+                    km: Number(e.km || 0),
+                    nivel_actual: Number(e.nivel_actual || 0),
+                    gasto_calculado: gasto,
+                    seccion_nombre: e.seccion_nombre || ''
+                };
+            });
+            setEscalas(mapped);
         }
 
         if (tomasRes.data) {

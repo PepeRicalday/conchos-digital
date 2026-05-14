@@ -397,9 +397,9 @@ const RADIAL_Cv  = 1.84;
 const RADIAL_g   = 9.81;
 const RADIAL_MIN = 0.01;
 
-/** M1 correction factors — recal. 07/05/2026 (ancla K-0 aforo 29.436 m³/s). */
+/** M1 correction factors — recal. 14/05/2026 (ancla K-0 aforo 31.377 m³/s). */
 export const M1_FACTORS: Record<string, number> = {
-    'K-0+000':  1.1570,  // cal. aforo 07/05/2026 Q=29.436 m³/s (era 0.8923)
+    'K-0+000':  1.2547,  // cal. aforo 14/05/2026 Q=31.377 m³/s (era 1.1570)
     'K-23':     1.9031,  // CONGELADO — sifón: fórmula radial no aplica, no calibrar por balance
     'K-29':     1.4370,  // recal. 07/05/2026 bal. Z1 — era 1.2379
     'K-34':     1.5510,  // recal. 07/05/2026 bal. Z1 — era 1.5199

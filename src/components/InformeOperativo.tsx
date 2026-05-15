@@ -7,7 +7,7 @@
  *   GASTO POR MÓDULO + RESUMEN DEMANDA POR ZONA · OBSERVACIONES + BALANCE
  *   PUNTOS DE CONTROL · FOOTER
  */
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Printer, X } from 'lucide-react';
 import './CanalReport.css';
 
@@ -47,7 +47,6 @@ const ZONAS_OP = [
 ];
 
 const semColor = (s: string) => s === 'VERDE' ? '#16a34a' : s === 'AMARILLO' ? '#d97706' : '#dc2626';
-const semLabel = (s: string) => s === 'VERDE' ? 'OPERACIÓN NORMAL' : s === 'AMARILLO' ? 'ATENCIÓN REQUERIDA' : 'ALERTA CRÍTICA';
 const N3 = (v: number | null | undefined) => v != null && isFinite(v) ? v.toFixed(3) : '—';
 
 const InformeOperativo: React.FC<InformeOperativoProps> = ({
@@ -62,10 +61,45 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
     for (const e of entregasHoy) {
         const bm = balanceModulos.find((b: any) =>
             b.modulo_id === e.modulo_id && (e.zona_id ? b.zona_id === e.zona_id : b.es_primaria));
-        const zc = bm?.zona_codigo as string | undefined;
+        // Si balance_modulo no tiene zona_codigo, usar zona_id directo de la entrega
+        const zc = (bm?.zona_codigo as string | undefined)
+            ?? (e.zona_id ? balanceModulos.find((b: any) => b.zona_id === e.zona_id)?.zona_codigo : undefined);
         if (zc) zonaDemandaMap.set(zc, (zonaDemandaMap.get(zc) ?? 0) + Number(e.gasto_m3s ?? 0));
+        else {
+            // Sin zona_codigo: acumular en genérico para no perder el gasto
+            const fallKey = '_sin_zona';
+            zonaDemandaMap.set(fallKey, (zonaDemandaMap.get(fallKey) ?? 0) + Number(e.gasto_m3s ?? 0));
+        }
     }
-    const demandaModulos = Array.from(zonaDemandaMap.values()).reduce((s, v) => s + v, 0)
+
+    // ── Fallback hidráulico cuando no hay entregas registradas ───────────────
+    // Usa Q diferencial entre escalas por límites de zona (vol_zonas). Solo si
+    // entregasHoy vacío; etiquetado como estimado en el informe.
+    const usandoFallback = entregasHoy.length === 0;
+    if (usandoFallback) {
+        const findQ = (targetKm: number) => {
+            const candidates = escalas.filter(e => (e.gasto_actual ?? 0) > 0);
+            if (candidates.length === 0) return 0;
+            return candidates.reduce((best, e) =>
+                Math.abs(e.km - targetKm) < Math.abs(best.km - targetKm) ? e : best
+            ).gasto_actual ?? 0;
+        };
+        // Límites hidráulicos reales de vol_zonas
+        const ZONAS_HIDRO = [
+            { codigo: 'Z1', km_in: 0,      km_out: 48.42  },
+            { codigo: 'Z2', km_in: 48.42,  km_out: 67.32  },
+            { codigo: 'Z3', km_in: 67.32,  km_out: 71.912 },
+            { codigo: 'Z4', km_in: 79.025, km_out: 104    },
+        ];
+        for (const z of ZONAS_HIDRO) {
+            const diff = Math.max(0, findQ(z.km_in) - findQ(z.km_out));
+            if (diff > 0) zonaDemandaMap.set(z.codigo, diff);
+        }
+    }
+
+    const demandaModulos = [...zonaDemandaMap.entries()]
+        .filter(([k]) => k !== '_sin_zona')
+        .reduce((s, [, v]) => s + v, 0)
         || entregasHoy.reduce((s: number, e: any) => s + Number(e.gasto_m3s ?? 0), 0);
 
     // ── Módulos por pares (base + adicional) ──────────────────────────────────
@@ -117,8 +151,8 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
 
     const semC  = semColor(iec.semaforo);
 
-    // ── Generación del PDF ────────────────────────────────────────────────────
-    const handlePrint = () => {
+    // ── Generación del HTML (usada para iframe y para imprimir) ───────────────
+    const generateHtml = useCallback(() => {
         const now     = new Date();
         const dateDMY = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Chihuahua' });
         const timeStr = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' });
@@ -478,6 +512,24 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
 
             + '</body></html>';
 
+        return html;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [escalas, iec, coherencia, entregasHoy, balanceModulos, volZonas, checkpoints,
+        q0, q104, demandaModulos, variacionAlm, eficiencia, eta2, lambda,
+        zonaDemandaMap, volZonasMap, moduloRows, semC, usandoFallback]);
+
+    // ── iframe: preview idéntico al PDF ──────────────────────────────────────
+    const [iframeUrl, setIframeUrl] = useState<string | null>(null);
+    useEffect(() => {
+        const html = generateHtml();
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const url  = URL.createObjectURL(blob);
+        setIframeUrl(url);
+        return () => URL.revokeObjectURL(url);
+    }, [generateHtml]);
+
+    const handlePrint = () => {
+        const html = generateHtml();
         const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
@@ -486,103 +538,28 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
         setTimeout(() => URL.revokeObjectURL(url), 30_000);
     };
 
-    // ── Preview en pantalla ───────────────────────────────────────────────────
-    const semC2 = semColor(iec.semaforo);
-    const semL2 = semLabel(iec.semaforo);
-    const variacionAlm2 = q0 - q104 - demandaModulos;
-
     return (
         <div className="rpt-overlay" onClick={onClose}>
-            <div className="rpt-dialog" style={{ maxWidth: 700 }} onClick={e => e.stopPropagation()}>
+            <div className="rpt-dialog" style={{ maxWidth: '92vw', width: 960 }} onClick={e => e.stopPropagation()}>
                 <div className="rpt-toolbar">
-                    <span className="rpt-toolbar-title">INFORME OPERATIVO DIARIO — CANAL CONCHOS</span>
+                    <span className="rpt-toolbar-title">INFORME OPERATIVO — CANAL CONCHOS</span>
                     <div className="rpt-toolbar-actions">
                         <button type="button" className="rpt-btn-print" onClick={handlePrint}>
-                            <Printer size={14} /> Generar PDF
+                            <Printer size={14} /> Imprimir / PDF
                         </button>
                         <button type="button" className="rpt-btn-close" onClick={onClose} title="Cerrar" aria-label="Cerrar">
                             <X size={14} />
                         </button>
                     </div>
                 </div>
-
-                <div className="rpt-body">
-                    {/* Header preview */}
-                    <div className="rpt-header">
-                        <div className="rpt-header-brand">
-                            <img src="/logos/logo-srl.png" alt="SRL" className="rpt-logo" />
-                            <div>
-                                <div className="rpt-title">INFORME OPERATIVO ACTUALIZADO</div>
-                                <div className="rpt-subtitle">CANAL PRINCIPAL CONCHOS — DISTRITO DE RIEGO 005 DELICIAS</div>
-                            </div>
-                        </div>
-                        <div className="rpt-header-meta">
-                            <div className="rpt-meta-date">
-                                {new Date().toLocaleString('es-MX', { timeZone: 'America/Chihuahua', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                            <div className="rpt-meta-mode" style={{ color: semC2 }}>{semL2}</div>
-                        </div>
-                    </div>
-
-                    {/* KPIs preview */}
-                    <section className="rpt-section">
-                        <h2 className="rpt-section-title">INDICADORES CLAVE</h2>
-                        <div className="rpt-balance-kpis">
-                            <div className="rpt-bkpi"><span>Caudal Entrada (K-0+000)</span><b>{N3(q0)} m³/s</b></div>
-                            <div className="rpt-bkpi"><span>Demanda Real por Módulos</span><b>{N3(demandaModulos)} m³/s</b></div>
-                            <div className="rpt-bkpi"><span>Caudal Salida (K-104)</span><b>{N3(q104)} m³/s</b></div>
-                            <div className="rpt-bkpi">
-                                <span>Var. Almacenamiento</span>
-                                <b style={{ color: variacionAlm2 < -1 ? '#dc2626' : variacionAlm2 > 1 ? '#d97706' : '#16a34a' }}>
-                                    {variacionAlm2 >= 0 ? '+' : ''}{variacionAlm2.toFixed(3)} m³/s
-                                </b>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* Zonas preview */}
-                    <section className="rpt-section">
-                        <h2 className="rpt-section-title">DISTRIBUCIÓN POR ZONA (SEGÚN MÓDULOS)</h2>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
-                            {ZONAS_OP.map(z => {
-                                const qz = zonaDemandaMap.get(z.codigo) ?? 0;
-                                const vz = volZonasMap.get(z.codigo);
-                                return (
-                                    <div key={z.codigo} style={{ border: '2px solid ' + z.color, borderRadius: 6, padding: '6px 8px', background: z.bg, textAlign: 'center' }}>
-                                        <div style={{ fontWeight: 800, color: z.color, fontSize: '0.75rem' }}>{z.codigo}</div>
-                                        <div style={{ fontSize: '0.6rem', color: '#888' }}>{z.tramo}</div>
-                                        <div style={{ fontWeight: 900, fontSize: '1.1rem', color: z.color }}>{qz.toFixed(3)}</div>
-                                        <div style={{ fontSize: '0.6rem', color: '#555' }}>m³/s</div>
-                                        {vz && <div style={{ fontSize: '0.55rem', color: '#777', marginTop: 2 }}>{Number(vz.vol_actual_mm3).toFixed(4)} Mm³ · {Number(vz.pct_llenado).toFixed(1)}%</div>}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </section>
-
-                    {/* IEC + Balance preview */}
-                    <section className="rpt-section">
-                        <h2 className="rpt-section-title">ÍNDICE DE ESTADO (IEC) — BALANCE</h2>
-                        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <div style={{ fontWeight: 900, fontSize: '2.5rem', color: semC2, lineHeight: 1 }}>{iec.iec}</div>
-                                <div>
-                                    <div style={{ fontWeight: 700, color: semC2 }}>{iec.semaforo}</div>
-                                    <div style={{ fontSize: '0.65rem', color: '#666' }}>{coherencia.nCoherentes}/{coherencia.totalPuntos} coherentes</div>
-                                </div>
-                            </div>
-                            <div style={{ fontSize: '0.7rem', lineHeight: 1.8, color: '#333' }}>
-                                <div>Efic. global (η₁): <strong style={{ color: eficiencia >= 90 ? '#16a34a' : '#d97706' }}>{eficiencia.toFixed(2)}%</strong></div>
-                                <div>Efic. total (η₂): <strong>{eta2.toFixed(2)}%</strong></div>
-                                <div>λ: <strong>{lambda.toFixed(5)} m³/s/km</strong></div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <p style={{ fontSize: '0.7rem', color: '#888', marginTop: 4 }}>
-                        PDF incluye: resumen ejecutivo · zonas + volúmenes · módulos · demanda por zona · observaciones · balance · puntos de control
-                    </p>
-                </div>
+                {iframeUrl
+                    ? <iframe
+                        src={iframeUrl}
+                        title="Informe Operativo"
+                        style={{ width: '100%', height: '78vh', border: 'none', display: 'block' }}
+                    />
+                    : <div style={{ padding: 32, textAlign: 'center', color: '#888' }}>Generando informe…</div>
+                }
             </div>
         </div>
     );

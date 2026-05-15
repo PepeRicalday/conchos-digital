@@ -1224,6 +1224,8 @@ const PublicMonitor: React.FC = () => {
     useEffect(() => {
         const fetchVolumetria = async () => {
             const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chihuahua' }).format(new Date());
+            const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chihuahua' })
+                .format(new Date(Date.now() - 86_400_000));
             const [viRes, vzRes, tomasRes, bmRes, ehRes] = await Promise.all([
                 supabase.from('vol_interescalas')
                     .select('esc_up, km_up, esc_down, km_down, longitud_km, nivel_up_m, nivel_down_m, vol_m3, vol_mm3')
@@ -1238,16 +1240,26 @@ const PublicMonitor: React.FC = () => {
                 supabase.from('balance_volumen_modulo')
                     .select('modulo_id, modulo_nombre, codigo_corto, zona_id, zona_codigo, zona_nombre, es_primaria, ciclo_id, vol_base_m3, vol_base_consumido_m3, vol_adicional_consumido_m3, vol_total_consumido_m3, vol_base_disponible_m3, pct_base_consumido, estado_volumen, ultimo_adicional_fecha')
                     .order('modulo_id', { ascending: true }),
+                // Igual que sica-capture Monitor: fecha >= ayer, gasto > 0, orden desc → deduplicar más reciente
                 supabase.from('entregas_modulo')
-                    .select('modulo_id, zona_id, tipo_entrega, gasto_lps, gasto_m3s, volumen_m3, hora_inicio, hora_fin, estado_operativo, motivo_adicional')
-                    .eq('fecha', today)
-                    .order('modulo_id', { ascending: true }),
+                    .select('modulo_id, zona_id, tipo_entrega, gasto_lps, gasto_m3s, volumen_m3, hora_inicio, hora_fin, estado_operativo, motivo_adicional, fecha')
+                    .gte('fecha', yesterday)
+                    .gt('gasto_m3s', 0)
+                    .order('fecha', { ascending: false }),
             ]);
             if (!viRes.error)    setVolInterescalas(viRes.data  || []);
             if (!vzRes.error)    setVolZonas(vzRes.data         || []);
             if (!tomasRes.error) setTomasActivas(tomasRes.data  || []);
             if (!bmRes.error)    setBalanceModulos(bmRes.data   || []);
-            if (!ehRes.error)    setEntregasHoy(ehRes.data      || []);
+            if (!ehRes.error) {
+                // Deduplicar: más reciente por modulo_id + zona_id + tipo_entrega
+                const latestMap = new Map<string, any>();
+                for (const e of (ehRes.data || [])) {
+                    const key = `${e.modulo_id}_${e.zona_id ?? ''}_${e.tipo_entrega}`;
+                    if (!latestMap.has(key)) latestMap.set(key, e);
+                }
+                setEntregasHoy(Array.from(latestMap.values()));
+            }
         };
         fetchVolumetria();
         const interval = setInterval(fetchVolumetria, 5 * 60 * 1000);

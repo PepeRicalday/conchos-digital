@@ -382,6 +382,11 @@ const PublicMonitor: React.FC = () => {
     const [tomasActivas, setTomasActivas] = useState<any[]>([]);
     const [balanceModulos, setBalanceModulos] = useState<any[]>([]);
     const [entregasHoy, setEntregasHoy] = useState<any[]>([]);
+    const [balanceTramos, setBalanceTramos] = useState<any[]>([]);
+    const [pronosticoModulos, setPronosticoModulos] = useState<any[]>([]);
+    const [scenarioQ, setScenarioQ] = useState<number>(20);
+    const [scenarioData, setScenarioData] = useState<any[] | null>(null);
+    const [scenarioLoading, setScenarioLoading] = useState(false);
 
     // Aggregate all zones per module: DOTAC from primary, consumption summed across ALL zones
     const modulosResumen = useMemo(() => {
@@ -875,9 +880,11 @@ const PublicMonitor: React.FC = () => {
         const elapsedHours = (currentTime - startTime) / (1000 * 3600);
         if (elapsedHours <= 0) return startKm;
 
-        // VELOCIDAD CALIBRADA: 1.66 m/s = 6.0 km/h
-        // Ajustado para asegurar que el frente supere visualmente el KM 68 (Ancla a las 08:00).
-        const vCanal = activeEvent?.evento_tipo === 'LLENADO' ? 6.0 : vCanalDefault; 
+        // Modelo A: v = 5.3 × Q^0.15 km/h (calibrado campo 23/04/2026)
+        const qK0vis = escalas.find(e => e.km === 0)?.gasto_actual ?? 20;
+        const vCanal = activeEvent?.evento_tipo === 'LLENADO'
+            ? 5.3 * Math.pow(Math.max(qK0vis, 0.5), 0.15)
+            : vCanalDefault;
 
         let currentKm = startKm;
         let remainingHours = elapsedHours;
@@ -1072,9 +1079,14 @@ const PublicMonitor: React.FC = () => {
 
         // Distance remaining to that specific checkpoint
         const distRemaining = nextScale.km - displayMaxKm;
-        
-        // Velocidades del canal por tramo (Unificados a 6.0 km/h para LLENADO)
-        const vCanalKmh = activeEvent?.evento_tipo === 'LLENADO' ? 6.0 : (1.16 * 3.6); 
+
+        // Modelo A — celeridad dinámica calibrada campo 23/04/2026
+        // v_onda = 5.3 × Q^0.15 km/h  (error histórico ±12% en K-23, K-104)
+        // ESTABILIZACIÓN: mantiene 1.16 m/s (velocidad media Manning observada)
+        const qK0 = escalas.find(e => e.km === 0)?.gasto_actual ?? 20;
+        const vCanalKmh = activeEvent?.evento_tipo === 'LLENADO'
+            ? 5.3 * Math.pow(Math.max(qK0, 0.5), 0.15)
+            : 1.16 * 3.6;
 
         let totalHours = 0;
         if (displayMaxKm < 0) {
@@ -1091,7 +1103,7 @@ const PublicMonitor: React.FC = () => {
         const min = Math.floor((totalHours - hr) * 60);
 
         const arrivalTimeUTC = currentTime + (totalHours * 3600 * 1000);
-        
+
         return {
             name: nextScale.nombre.toUpperCase(),
             hours: hr,
@@ -1099,7 +1111,9 @@ const PublicMonitor: React.FC = () => {
             kmRemaining: distRemaining.toFixed(1),
             arrivalTime: new Date(arrivalTimeUTC).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' }),
             elapsed: elapsedSinceAnchor,
-            status: "AVANCE EN CANAL"
+            status: "AVANCE EN CANAL",
+            vOndaKmh: +vCanalKmh.toFixed(1),
+            qK0Usado: +qK0.toFixed(1),
         };
     }, [escalas, isWaitingAtZero, displayMaxKm, activeEvent, currentTime, vRio, realMaxKm, anchorTimes]);
 
@@ -1260,6 +1274,16 @@ const PublicMonitor: React.FC = () => {
                 }
                 setEntregasHoy(Array.from(latestMap.values()));
             }
+
+            // Balance hidrico por tramo — detecta fugas y extracciones no registradas
+            const btRes = await supabase.rpc('fn_balance_hidrico_tramos', { p_fecha: today });
+            if (!btRes.error) setBalanceTramos(btRes.data || []);
+
+            // Pronóstico de agotamiento de dotación por módulo (Fase 3A)
+            const pmRes = await supabase
+                .from('vw_pronostico_agotamiento_modulos')
+                .select('codigo_corto, zona_codigo, tasa_diaria_m3, dias_restantes, fecha_agotamiento, urgencia');
+            if (!pmRes.error) setPronosticoModulos(pmRes.data || []);
         };
         fetchVolumetria();
         const interval = setInterval(fetchVolumetria, 5 * 60 * 1000);
@@ -1640,6 +1664,18 @@ const PublicMonitor: React.FC = () => {
                             </div>
                             <div className="tr-value tr-value-accent">{nextTargetInfo.arrivalTime}</div>
                         </div>
+
+                        {nextTargetInfo.vOndaKmh != null && (
+                        <div className="transit-row transit-row--onda">
+                            <div className="tr-label">
+                                〜 V ONDA
+                            </div>
+                            <div className="tr-value tr-value--onda">
+                                {nextTargetInfo.vOndaKmh} km/h
+                                <span className="tr-onda-q"> · Q={nextTargetInfo.qK0Usado} m³/s</span>
+                            </div>
+                        </div>
+                        )}
                     </div>
 
                     <div className="transit-divider"></div>
@@ -2536,6 +2572,20 @@ const PublicMonitor: React.FC = () => {
                         {volInterescalas.length > 0 && (
                         <div className="dsk-section-block">
                             <div className="dsk-sub-header">VOLUMEN EN CANAL — TRAMOS INTERESCALA</div>
+
+                            {/* Strip de alertas de fuga — solo cuando hay tramos con balance anómalo */}
+                            {balanceTramos.some(b => b.estado_balance === 'FUGA_ALTA' || b.estado_balance === 'FUGA_MEDIA') && (
+                                <div className="bt-alert-strip">
+                                    {balanceTramos.filter(b => b.estado_balance === 'FUGA_ALTA' || b.estado_balance === 'FUGA_MEDIA').map((b: any) => (
+                                        <div key={b.km_inicio} className={`bt-alert-item bt-alert--${b.estado_balance === 'FUGA_ALTA' ? 'alta' : 'media'}`}>
+                                            <span className="bt-alert-badge">{b.estado_balance === 'FUGA_ALTA' ? '⚠ FUGA ALTA' : '· FUGA MEDIA'}</span>
+                                            <span className="bt-alert-tramo">{b.escala_entrada} → {b.escala_salida}</span>
+                                            <span className="bt-alert-q">{Number(b.q_fuga_detectada).toFixed(3)} m³/s no contabilizados</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
                             <div className="dsk-table-wrap">
                                 <table className="dsk-table">
                                     <thead>
@@ -2546,19 +2596,34 @@ const PublicMonitor: React.FC = () => {
                                             <th>NA↓ (m)</th>
                                             <th>Vol (m³)</th>
                                             <th>Mm³</th>
+                                            <th>Q↑ (m³/s)</th>
+                                            <th>Q↓ (m³/s)</th>
+                                            <th>Fuga (m³/s)</th>
+                                            <th>Balance</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {volInterescalas.map((v: any) => (
-                                            <tr key={v.km_up}>
+                                        {volInterescalas.map((v: any) => {
+                                            const bt = balanceTramos.find(b => Math.abs(Number(b.km_inicio) - Number(v.km_up)) < 0.1);
+                                            const estadoClass = bt?.estado_balance === 'FUGA_ALTA' ? 'bt-estado--alta'
+                                                : bt?.estado_balance === 'FUGA_MEDIA' ? 'bt-estado--media'
+                                                : bt?.estado_balance === 'INCONSISTENCIA' ? 'bt-estado--inconsistencia'
+                                                : bt ? 'bt-estado--ok' : '';
+                                            return (
+                                            <tr key={v.km_up} className={bt?.estado_balance === 'FUGA_ALTA' ? 'bt-row--alta' : ''}>
                                                 <td className="dsk-td-tramo">{v.esc_up} → {v.esc_down}</td>
                                                 <td className="dsk-td-num">{Number(v.longitud_km).toFixed(3)}</td>
                                                 <td className="dsk-td-num">{Number(v.nivel_up_m).toFixed(3)}</td>
                                                 <td className="dsk-td-num">{Number(v.nivel_down_m).toFixed(3)}</td>
                                                 <td className="dsk-td-num dsk-td--q">{Number(v.vol_m3).toLocaleString('es-MX')}</td>
                                                 <td className="dsk-td-num">{Number(v.vol_mm3).toFixed(4)}</td>
+                                                <td className="dsk-td-num">{bt ? Number(bt.q_entrada_m3s).toFixed(3) : '—'}</td>
+                                                <td className="dsk-td-num">{bt ? Number(bt.q_salida_m3s).toFixed(3) : '—'}</td>
+                                                <td className="dsk-td-num">{bt ? Number(bt.q_fuga_detectada).toFixed(3) : '—'}</td>
+                                                <td className={`dsk-td-num bt-estado ${estadoClass}`}>{bt?.estado_balance ?? '—'}</td>
                                             </tr>
-                                        ))}
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
@@ -2612,6 +2677,8 @@ const PublicMonitor: React.FC = () => {
                                             <th>ADIC (Mm³)</th>
                                             <th>DISP (Mm³)</th>
                                             <th>%</th>
+                                            <th>TASA (m³/d)</th>
+                                            <th>DÍAS</th>
                                             <th>ESTADO</th>
                                         </tr>
                                     </thead>
@@ -2620,6 +2687,12 @@ const PublicMonitor: React.FC = () => {
                                             const estado = b.estado_volumen as string;
                                             const rowCls = estado === 'base_agotado' ? 'dsk-tr--critico' : estado === 'alerta_base' ? 'dsk-tr--warn' : '';
                                             const estadoLabel = estado === 'base_agotado' ? '🔴 Agotado' : estado === 'alerta_base' ? '⚠ Alerta' : '✓ Normal';
+                                            const pm = pronosticoModulos.find(p => p.codigo_corto === b.codigo_corto);
+                                            const urgenciaClass = pm?.urgencia === 'AGOTADO' ? 'pm-urgencia--agotado'
+                                                : pm?.urgencia === 'CRITICO' ? 'pm-urgencia--critico'
+                                                : pm?.urgencia === 'ALERTA'  ? 'pm-urgencia--alerta'
+                                                : pm?.urgencia === 'NORMAL'  ? 'pm-urgencia--normal'
+                                                : '';
                                             return (
                                                 <tr key={b.modulo_id} className={rowCls}>
                                                     <td className="dsk-td-nombre">{b.codigo_corto || b.modulo_nombre}</td>
@@ -2629,6 +2702,8 @@ const PublicMonitor: React.FC = () => {
                                                     <td className="dsk-td-num">{(b.vol_adicional_consumido_m3 / 1e6).toFixed(4)}</td>
                                                     <td className={`dsk-td-num ${(b.vol_base_disponible_m3 ?? 0) < 0 ? 'dsk-td--red' : ''}`}>{((b.vol_base_disponible_m3 ?? 0) / 1e6).toFixed(4)}</td>
                                                     <td className="dsk-td-num">{Number(b.pct_base_consumido ?? 0).toFixed(2)}%</td>
+                                                    <td className="dsk-td-num">{pm?.tasa_diaria_m3 != null ? Number(pm.tasa_diaria_m3).toLocaleString('es-MX') : '—'}</td>
+                                                    <td className={`dsk-td-num ${urgenciaClass}`}>{pm?.dias_restantes != null ? pm.dias_restantes : pm?.urgencia === 'SIN_DATOS' ? '—' : '—'}</td>
                                                     <td className="dsk-td-nombre">{estadoLabel}</td>
                                                 </tr>
                                             );
@@ -2638,6 +2713,87 @@ const PublicMonitor: React.FC = () => {
                             </div>
                         </div>
                         )}
+
+                        {/* Simulador de Escenario de Compuerta — Fase 3B */}
+                        <div className="dsk-section-block">
+                            <div className="dsk-sub-header">SIMULADOR DE ESCENARIO — COMPUERTA</div>
+                            <div className="sim-controls">
+                                <label className="sim-label">
+                                    Q entrada presa
+                                    <span className="sim-q-value">{scenarioQ} m³/s</span>
+                                </label>
+                                <input
+                                    type="range"
+                                    min={5}
+                                    max={50}
+                                    step={1}
+                                    value={scenarioQ}
+                                    onChange={e => { setScenarioQ(Number(e.target.value)); setScenarioData(null); }}
+                                    className="sim-slider"
+                                    aria-label="Gasto de entrada en la presa (m³/s)"
+                                />
+                                <button
+                                    type="button"
+                                    className={`sim-btn ${scenarioLoading ? 'sim-btn--loading' : ''}`}
+                                    disabled={scenarioLoading}
+                                    onClick={async () => {
+                                        setScenarioLoading(true);
+                                        try {
+                                            const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chihuahua' }).format(new Date());
+                                            const { data, error } = await supabase.rpc('fn_perfil_canal_completo', {
+                                                p_fecha: today,
+                                                p_q_entrada_m3s: scenarioQ,
+                                                p_modificaciones: null,
+                                            });
+                                            if (!error) setScenarioData(data || []);
+                                        } finally {
+                                            setScenarioLoading(false);
+                                        }
+                                    }}
+                                >
+                                    {scenarioLoading ? 'CALCULANDO…' : 'SIMULAR'}
+                                </button>
+                            </div>
+                            {scenarioData && scenarioData.length > 0 && (
+                            <div className="dsk-table-wrap sim-table-wrap">
+                                <table className="dsk-table sim-table">
+                                    <thead>
+                                        <tr>
+                                            <th>ESCALA</th>
+                                            <th>KM</th>
+                                            <th>Q real (m³/s)</th>
+                                            <th>Q sim (m³/s)</th>
+                                            <th>y real (m)</th>
+                                            <th>y sim (m)</th>
+                                            <th>Δ nivel (cm)</th>
+                                            <th>Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {scenarioData.map((row: any, i: number) => {
+                                            const delta = row.delta_real_cm != null ? Number(row.delta_real_cm) : null;
+                                            const deltaCls = delta == null ? '' : delta > 5 ? 'sim-delta--sube' : delta < -5 ? 'sim-delta--baja' : 'sim-delta--ok';
+                                            return (
+                                                <tr key={i}>
+                                                    <td className="dsk-td-nombre">{row.escala_nombre ?? row.nombre ?? '—'}</td>
+                                                    <td className="dsk-td-num">{row.km != null ? Number(row.km).toFixed(1) : '—'}</td>
+                                                    <td className="dsk-td-num">{row.q_real_m3s != null ? Number(row.q_real_m3s).toFixed(3) : '—'}</td>
+                                                    <td className="dsk-td-num sim-td--sim">{row.q_m3s != null ? Number(row.q_m3s).toFixed(3) : '—'}</td>
+                                                    <td className="dsk-td-num">{row.y_real_m != null ? Number(row.y_real_m).toFixed(3) : '—'}</td>
+                                                    <td className="dsk-td-num sim-td--sim">{row.y_m != null ? Number(row.y_m).toFixed(3) : '—'}</td>
+                                                    <td className={`dsk-td-num ${deltaCls}`}>{delta != null ? (delta > 0 ? '+' : '') + delta.toFixed(1) : '—'}</td>
+                                                    <td className="dsk-td-nombre">{row.estado_lectura ?? '—'}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                            )}
+                            {scenarioData && scenarioData.length === 0 && (
+                                <div className="sim-empty">Sin datos de perfil para la fecha actual.</div>
+                            )}
+                        </div>
 
                         {/* Entregas del día por módulo — base y adicional */}
                         {entregasHoy.length > 0 && (

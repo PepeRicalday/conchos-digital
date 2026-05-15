@@ -3283,3 +3283,127 @@
     .dsk-bal-val { font-size: 0.75rem; }
     .dsk-zonas-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+
+/* ── Balance Hidrico por Tramo — alertas de fuga ─────────────────── */
+.bt-alert-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+.bt-alert-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+}
+.bt-alert--alta {
+    background: rgba(239, 68, 68, 0.15);
+    border-left: 3px solid #ef4444;
+}
+.bt-alert--media {
+    background: rgba(234, 179, 8, 0.12);
+    border-left: 3px solid #eab308;
+}
+.bt-alert-badge {
+    font-weight: 700;
+    min-width: 110px;
+}
+.bt-alert--alta  .bt-alert-badge { color: #ef4444; }
+.bt-alert--media .bt-alert-badge { color: #eab308; }
+.bt-alert-tramo { color: #94a3b8; flex: 1; }
+.bt-alert-q     { color: #e2e8f0; font-weight: 600; }
+
+/* columna Estado en tabla */
+.bt-estado { font-size: 9px !important; font-weight: 700 !important; letter-spacing: 0.03em; }
+.bt-estado--alta           { color: #ef4444 !important; }
+.bt-estado--media          { color: #eab308 !important; }
+.bt-estado--inconsistencia { color: #a78bfa !important; }
+.bt-estado--ok             { color: #22c55e !important; }
+
+/* fila destacada para FUGA_ALTA */
+.bt-row--alta { background: rgba(239, 68, 68, 0.06); }
+
+/* ── Velocidad de onda — fila adicional en panel de tránsito ─────── */
+.transit-row--onda {
+    border-top: 1px solid rgba(99, 102, 241, 0.2);
+    margin-top: 4px;
+    padding-top: 4px;
+}
+.tr-value--onda {
+    color: #818cf8;
+    font-weight: 700;
+    font-size: 13px;
+}
+.tr-onda-q {
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 400;
+    margin-left: 4px;
+}
+
+/* ── Fase 3A — Urgencia pronóstico de agotamiento (celdas DÍAS) ──── */
+.pm-urgencia--agotado { color: #ef4444 !important; font-weight: 700; }
+.pm-urgencia--critico { color: #f97316 !important; font-weight: 700; }
+.pm-urgencia--alerta  { color: #eab308 !important; font-weight: 600; }
+.pm-urgencia--normal  { color: #22c55e !important; }
+
+/* ── Fase 3B — Simulador de Escenario ───────────────────────────── */
+.sim-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0 12px;
+    flex-wrap: wrap;
+}
+.sim-label {
+    font-size: 11px;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+.sim-q-value {
+    color: #e2e8f0;
+    font-weight: 700;
+    font-size: 13px;
+    min-width: 70px;
+}
+.sim-slider {
+    flex: 1;
+    min-width: 140px;
+    max-width: 280px;
+    accent-color: #6366f1;
+    cursor: pointer;
+}
+.sim-btn {
+    padding: 5px 14px;
+    background: #6366f1;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+.sim-btn:hover:not(:disabled) { background: #4f46e5; }
+.sim-btn--loading, .sim-btn:disabled { background: #334155; cursor: default; }
+.sim-table-wrap { margin-top: 6px; }
+.sim-td--sim { color: #818cf8; font-weight: 600; }
+.sim-delta--sube { color: #22c55e !important; font-weight: 700; }
+.sim-delta--baja { color: #ef4444 !important; font-weight: 700; }
+.sim-delta--ok   { color: #94a3b8 !important; }
+.sim-empty {
+    font-size: 11px;
+    color: #64748b;
+    padding: 8px 0;
+    text-align: center;
+}

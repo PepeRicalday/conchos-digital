@@ -77,14 +77,22 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
     // entregasHoy vacío; etiquetado como estimado en el informe.
     const usandoFallback = entregasHoy.length === 0;
     if (usandoFallback) {
-        const findQ = (targetKm: number) => {
-            const candidates = escalas.filter(e => (e.gasto_actual ?? 0) > 0);
-            if (candidates.length === 0) return 0;
-            return candidates.reduce((best, e) =>
-                Math.abs(e.km - targetKm) < Math.abs(best.km - targetKm) ? e : best
-            ).gasto_actual ?? 0;
+        const withQ = escalas.filter(e => (e.gasto_actual ?? 0) > 0);
+
+        // Último escala con Q > 0 en km ≤ targetKm (upstream)
+        const qUpstream = (targetKm: number) => {
+            const pool = withQ.filter(e => e.km <= targetKm);
+            if (!pool.length) return withQ.reduce((b, e) => e.km < b.km ? e : b, withQ[0])?.gasto_actual ?? 0;
+            return pool.reduce((b, e) => e.km > b.km ? e : b).gasto_actual ?? 0;
         };
-        // Límites hidráulicos reales de vol_zonas
+        // Primer escala con Q > 0 en km ≥ targetKm (downstream)
+        const qDownstream = (targetKm: number) => {
+            const pool = withQ.filter(e => e.km >= targetKm);
+            if (!pool.length) return withQ.reduce((b, e) => e.km > b.km ? e : b, withQ[0])?.gasto_actual ?? 0;
+            return pool.reduce((b, e) => e.km < b.km ? e : b).gasto_actual ?? 0;
+        };
+
+        // Límites hidráulicos de vol_zonas: Q entrada (upstream del inicio) − Q salida (downstream del fin)
         const ZONAS_HIDRO = [
             { codigo: 'Z1', km_in: 0,      km_out: 48.42  },
             { codigo: 'Z2', km_in: 48.42,  km_out: 67.32  },
@@ -92,7 +100,7 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
             { codigo: 'Z4', km_in: 79.025, km_out: 104    },
         ];
         for (const z of ZONAS_HIDRO) {
-            const diff = Math.max(0, findQ(z.km_in) - findQ(z.km_out));
+            const diff = Math.max(0, qUpstream(z.km_in) - qDownstream(z.km_out));
             if (diff > 0) zonaDemandaMap.set(z.codigo, diff);
         }
     }

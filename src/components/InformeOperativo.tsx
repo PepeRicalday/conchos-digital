@@ -70,13 +70,6 @@ export interface InformeOperativoProps {
     onClose: () => void;
 }
 
-// ── Zonas del canal ──────────────────────────────────────────────────────────
-const ZONAS_DEF = [
-    { codigo: 'Z1', nombre: 'Zona 1', km_ini: 23, km_fin: 29 },
-    { codigo: 'Z2', nombre: 'Zona 2', km_ini: 34, km_fin: 44 },
-    { codigo: 'Z3', nombre: 'Zona 3', km_ini: 54, km_fin: 68 },
-    { codigo: 'Z4', nombre: 'Zona 4', km_ini: 79, km_fin: 94 },
-];
 
 const N = (v: number | null | undefined, dec = 3) =>
     v != null && isFinite(v) ? v.toFixed(dec) : '—';
@@ -103,26 +96,44 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
     const q0   = escalas.find(e => e.km === 0)?.gasto_actual   ?? 0;
     const q104 = escalas.find(e => e.km === 104)?.gasto_actual ?? 0;
 
-    const zonaData = ZONAS_DEF.map(z => {
-        const escIn  = escalas.find(e => Math.abs(e.km - z.km_ini) < 0.5);
-        const escOut = escalas.find(e => Math.abs(e.km - z.km_fin) < 0.5);
-        const qIn    = escIn?.gasto_actual  ?? 0;
-        const qOut   = escOut?.gasto_actual ?? 0;
-        const qReal  = (qIn > 0 || qOut > 0) ? Math.max(0, qIn - qOut) : null;
-        const vz     = volZonas.find((v: any) => v.codigo === z.codigo);
-        return {
-            ...z,
-            q_real:     qReal,
-            nivel_medio: vz?.nivel_medio_m != null ? +Number(vz.nivel_medio_m).toFixed(3) : null,
-            vol_mm3:     vz?.vol_actual_mm3 != null ? +Number(vz.vol_actual_mm3).toFixed(4) : null,
-            pct_llenado: vz?.pct_llenado    != null ? +Number(vz.pct_llenado).toFixed(1)   : null,
-        };
-    });
+    // Zonas: límites reales desde vol_zonas (km_inicio/km_fin de Supabase).
+    // Q por zona = diferencial entre la escala más cercana a cada límite.
+    const canal = escalas.filter(e => e.km >= 0 && e.km <= 104);
+    const zonaData = [...volZonas]
+        .sort((a: any, b: any) => Number(a.km_inicio) - Number(b.km_inicio))
+        .map((vz: any) => {
+            const kmIni  = Number(vz.km_inicio);
+            const kmFin  = Number(vz.km_fin);
+            const escIn  = [...canal].sort((a, b) => Math.abs(a.km - kmIni) - Math.abs(b.km - kmIni))[0];
+            const escOut = [...canal].filter(e => e.km !== escIn?.km)
+                                     .sort((a, b) => Math.abs(a.km - kmFin) - Math.abs(b.km - kmFin))[0];
+            const qIn    = escIn?.gasto_actual  ?? 0;
+            const qOut   = escOut?.gasto_actual ?? 0;
+            const qReal  = (qIn > 0 || qOut > 0) ? Math.max(0, qIn - qOut) : null;
+            const nombreZona = (vz.zona_nombre ?? vz.codigo ?? '') as string;
+            return {
+                codigo:      (vz.codigo ?? '') as string,
+                nombre:      nombreZona.split(' — ')[0] ?? nombreZona,
+                nombre_full: nombreZona,
+                km_ini:      kmIni,
+                km_fin:      kmFin,
+                q_real:      qReal,
+                nivel_medio: vz.nivel_medio_m  != null ? +Number(vz.nivel_medio_m).toFixed(3)  : null,
+                vol_mm3:     vz.vol_actual_mm3 != null ? +Number(vz.vol_actual_mm3).toFixed(4) : null,
+                pct_llenado: vz.pct_llenado    != null ? +Number(vz.pct_llenado).toFixed(1)   : null,
+            };
+        });
 
-    const qZonas   = zonaData.reduce((s, z) => s + (z.q_real ?? 0), 0);
-    const perdidas = q0 - q104 - qZonas;
+    // Demanda módulos: gasto total registrado en entregas del día (lps → m³/s ya convertido)
+    const demandaModulos = entregasHoy.reduce((s: number, e: any) => s + Number(e.gasto_m3s ?? 0), 0);
+
+    const qZonas     = zonaData.reduce((s, z) => s + (z.q_real ?? 0), 0);
+    const perdidas   = q0 - q104 - qZonas;
     const eficiencia = q0 > 0 ? ((q0 - Math.max(0, perdidas)) / q0 * 100) : 0;
-    const lambda   = q0 > 0 ? perdidas / 104 : 0;
+    const lambda     = q0 > 0 ? perdidas / 104 : 0;
+    // Variación almacenamiento: diferencia entre lo que entra y lo que sale+se entrega
+    // Positivo = excedente (pérdidas no contabilizadas); Negativo = déficit
+    const variacionAlm = q0 - q104 - demandaModulos;
 
     // Módulos
     const seenSK = new Set<string>();
@@ -175,8 +186,8 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
         // ── Filas tablas ──────────────────────────────────────────────────────
         const zonaTableRows = zonaData.map(z =>
             '<tr>'
-            + '<td><strong>' + z.codigo + '</strong> — ' + z.nombre + '</td>'
-            + '<td class="num">' + z.km_ini + ' – ' + z.km_fin + '</td>'
+            + '<td><strong>' + z.codigo + '</strong> ' + z.nombre_full + '</td>'
+            + '<td class="num">K-' + z.km_ini.toFixed(3) + ' – K-' + z.km_fin.toFixed(3) + '</td>'
             + '<td class="num">' + N(z.nivel_medio, 3) + '</td>'
             + '<td class="num">' + N(z.vol_mm3, 4) + '</td>'
             + '<td class="num">' + (z.pct_llenado != null ? z.pct_llenado.toFixed(1) + '%' : '—') + '</td>'
@@ -230,7 +241,7 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
         const zonaCardsHtml = zonaData.map(z =>
             '<div class="zona-card">'
             + '<div class="zona-label">' + z.codigo + ' — ' + z.nombre + '</div>'
-            + '<div class="zona-tramo">KM ' + z.km_ini + ' – ' + z.km_fin + '</div>'
+            + '<div class="zona-tramo">K-' + z.km_ini.toFixed(3) + ' al K-' + z.km_fin.toFixed(3) + '</div>'
             + '<div class="zona-q">' + (z.q_real != null ? z.q_real.toFixed(3) : '—') + ' <span class="zona-q-unit">m³/s</span></div>'
             + '<div class="zona-vol">'
             + (z.vol_mm3 != null ? 'Vol: ' + z.vol_mm3.toFixed(4) + ' Mm³' : '')
@@ -249,7 +260,9 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
         // ── Resumen ejecutivo ─────────────────────────────────────────────────
         const ejecutivoText = 'Al corte de las <strong>' + timeStr + ' CST</strong>, el Canal Principal Conchos opera con un gasto de entrada de '
             + '<strong>' + q0.toFixed(3) + ' m³/s</strong> en K-0+000 y una descarga en K-104 de <strong>' + q104.toFixed(3) + ' m³/s</strong>. '
-            + 'La demanda por distribución en zonas de riego asciende a <strong>' + qZonas.toFixed(3) + ' m³/s</strong>. '
+            + 'La demanda por módulos de riego asciende a <strong>' + demandaModulos.toFixed(3) + ' m³/s</strong>'
+            + (moduloRows.length > 0 ? ' (' + moduloRows.length + ' módulos activos)' : '') + '. '
+            + 'La distribución hidráulica por zonas totaliza <strong>' + qZonas.toFixed(3) + ' m³/s</strong>. '
             + (perdidas > 0
                 ? 'Las pérdidas en conducción se estiman en <strong>' + perdidas.toFixed(3) + ' m³/s</strong>, '
                   + 'correspondiente a una eficiencia de conducción del <strong>' + eficiencia.toFixed(1) + '%</strong>. '
@@ -348,9 +361,9 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
             // ── KPIs ──
             + '<div class="kpis">'
             + '<div class="kpi"><div class="kpi-lbl">Q Entrada K-0+000</div><div class="kpi-val">' + q0.toFixed(3) + '</div><div class="kpi-unit">m³/s</div><div class="kpi-sub">Presa La Boquilla</div></div>'
-            + '<div class="kpi"><div class="kpi-lbl">Demanda Zonas</div><div class="kpi-val">' + qZonas.toFixed(3) + '</div><div class="kpi-unit">m³/s</div><div class="kpi-sub">' + zonaData.filter(z => z.q_real && z.q_real > 0).length + ' zona(s) activa(s)</div></div>'
+            + '<div class="kpi"><div class="kpi-lbl">Demanda Módulos</div><div class="kpi-val">' + demandaModulos.toFixed(3) + '</div><div class="kpi-unit">m³/s</div><div class="kpi-sub">' + moduloRows.length + ' módulo(s) activo(s)</div></div>'
             + '<div class="kpi"><div class="kpi-lbl">Q Salida K-104</div><div class="kpi-val">' + q104.toFixed(3) + '</div><div class="kpi-unit">m³/s</div><div class="kpi-sub">Entrega Madero</div></div>'
-            + '<div class="kpi"><div class="kpi-lbl">Pérdidas / Eficiencia</div><div class="kpi-val" style="color:' + (perdidas > 2 ? '#d97706' : '#16a34a') + '">' + (perdidas > 0 ? perdidas.toFixed(3) : '0.000') + '</div><div class="kpi-unit">m³/s</div><div class="kpi-sub">Efic. ' + eficiencia.toFixed(1) + '%</div></div>'
+            + '<div class="kpi"><div class="kpi-lbl">Var. Almacenamiento</div><div class="kpi-val" style="color:' + (Math.abs(variacionAlm) > 2 ? '#d97706' : '#16a34a') + '">' + (variacionAlm >= 0 ? '+' : '') + variacionAlm.toFixed(3) + '</div><div class="kpi-unit">m³/s</div><div class="kpi-sub">Efic. ' + eficiencia.toFixed(1) + '%</div></div>'
             + '</div>'
 
             // ── DISTRIBUCIÓN ZONAS ──
@@ -465,17 +478,17 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
                                 <b>{N(q0, 3)} m³/s</b>
                             </div>
                             <div className="rpt-bkpi">
-                                <span>Demanda Zonas</span>
-                                <b>{N(qZonas, 3)} m³/s</b>
+                                <span>Demanda Módulos</span>
+                                <b>{N(demandaModulos, 3)} m³/s</b>
                             </div>
                             <div className="rpt-bkpi">
                                 <span>Q Salida K-104</span>
                                 <b>{N(q104, 3)} m³/s</b>
                             </div>
                             <div className="rpt-bkpi">
-                                <span>Eficiencia</span>
-                                <b style={{ color: eficiencia >= 90 ? '#16a34a' : eficiencia >= 80 ? '#d97706' : '#dc2626' }}>
-                                    {eficiencia.toFixed(1)}%
+                                <span>Var. Almacenamiento</span>
+                                <b style={{ color: Math.abs(variacionAlm) > 2 ? '#d97706' : '#16a34a' }}>
+                                    {variacionAlm >= 0 ? '+' : ''}{variacionAlm.toFixed(3)} m³/s
                                 </b>
                             </div>
                         </div>
@@ -487,10 +500,12 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
                             {zonaData.map(z => (
                                 <div key={z.codigo} style={{ border: '1px solid #e5e0e0', borderRadius: 6, padding: '6px 8px', background: '#f9f6f6' }}>
-                                    <div style={{ fontWeight: 700, color: '#6B2D2D', fontSize: '0.75rem' }}>{z.codigo}</div>
-                                    <div style={{ fontSize: '0.65rem', color: '#888' }}>KM {z.km_ini}–{z.km_fin}</div>
+                                    <div style={{ fontWeight: 700, color: '#6B2D2D', fontSize: '0.75rem' }}>{z.codigo} — {z.nombre}</div>
+                                    <div style={{ fontSize: '0.6rem', color: '#888' }}>K-{z.km_ini.toFixed(3)} → K-{z.km_fin.toFixed(3)}</div>
                                     <div style={{ fontWeight: 700, fontSize: '1rem' }}>{z.q_real != null ? z.q_real.toFixed(3) : '—'}</div>
-                                    <div style={{ fontSize: '0.6rem', color: '#888' }}>m³/s</div>
+                                    <div style={{ fontSize: '0.6rem', color: '#888' }}>
+                                        m³/s{z.vol_mm3 != null ? ` · ${z.vol_mm3.toFixed(4)} Mm³` : ''}{z.pct_llenado != null ? ` · ${z.pct_llenado.toFixed(1)}%` : ''}
+                                    </div>
                                 </div>
                             ))}
                         </div>

@@ -214,23 +214,55 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
                 + '</tr>';
         }).join('');
 
-        // Tabla módulos
-        const moduloTableRows = moduloRows.length > 0
-            ? moduloRows.map(m =>
-                '<tr>'
+        // ── Tabla dotación base vs consumo (balanceModulos) ──────────────────
+        const modBalMap = new Map<string, {
+            codigo: string; zona: string; dotac: number;
+            usado: number; adic: number; disp: number; pct: number; estado: string;
+        }>();
+        for (const b of balanceModulos) {
+            if (!modBalMap.has(b.modulo_id)) {
+                modBalMap.set(b.modulo_id, {
+                    codigo: b.codigo_corto || b.modulo_id,
+                    zona: '—', dotac: 0, usado: 0, adic: 0, disp: 0, pct: 0, estado: '—',
+                });
+            }
+            const entry = modBalMap.get(b.modulo_id)!;
+            entry.usado += (Number(b.vol_base_consumido_m3)     || 0) / 1e6;
+            entry.adic  += (Number(b.vol_adicional_consumido_m3) || 0) / 1e6;
+            if (b.es_primaria) {
+                entry.zona   = b.zona_codigo  || '—';
+                entry.dotac  = (Number(b.vol_base_m3)           || 0) / 1e6;
+                entry.disp   = (Number(b.vol_base_disponible_m3) || 0) / 1e6;
+                entry.pct    = Number(b.pct_base_consumido)      || 0;
+                entry.estado = b.estado_volumen || 'Normal';
+            }
+        }
+        const dotTotalDotac = [...modBalMap.values()].reduce((s, m) => s + m.dotac, 0);
+        const dotTotalUsado = [...modBalMap.values()].reduce((s, m) => s + m.usado, 0);
+        const dotTotalAdic  = [...modBalMap.values()].reduce((s, m) => s + m.adic,  0);
+        const dotTotalDisp  = [...modBalMap.values()].reduce((s, m) => s + m.disp,  0);
+        const dotacionRows = [...modBalMap.values()]
+            .sort((a, b) => a.codigo.localeCompare(b.codigo))
+            .map(m => '<tr>'
                 + '<td><strong>' + m.codigo + '</strong></td>'
-                + '<td>' + m.zona + '</td>'
-                + '<td class="num">' + (m.base_m3s > 0 ? m.base_m3s.toFixed(3) : '0.000') + '</td>'
-                + '<td class="num">' + (m.adic_m3s > 0 ? m.adic_m3s.toFixed(3) : '0.000') + '</td>'
-                + '<td class="num bold">' + m.total_m3s.toFixed(3) + '</td>'
+                + '<td style="color:' + (ZONAS_OP.find(z => z.codigo === m.zona)?.color || '#555') + ';font-weight:700">' + m.zona + '</td>'
+                + '<td class="num">' + m.dotac.toFixed(3) + '</td>'
+                + '<td class="num bold" style="color:#2563eb">' + m.usado.toFixed(4) + '</td>'
+                + '<td class="num">' + m.adic.toFixed(4) + '</td>'
+                + '<td class="num">' + m.disp.toFixed(4) + '</td>'
+                + '<td class="num">' + m.pct.toFixed(2) + '%</td>'
+                + '<td style="color:#16a34a;font-size:6.5pt">&#10003; ' + m.estado + '</td>'
                 + '</tr>'
             ).join('')
-            + '<tr class="totals-row"><td colspan="2">TOTAL DEMANDA POR MÓDULOS</td>'
-            + '<td class="num">' + moduloRows.reduce((s, m) => s + m.base_m3s, 0).toFixed(3) + '</td>'
-            + '<td class="num">' + moduloRows.reduce((s, m) => s + m.adic_m3s, 0).toFixed(3) + '</td>'
-            + '<td class="num bold">' + demandaModulos.toFixed(3) + ' m³/s</td>'
-            + '</tr>'
-            : '<tr><td colspan="5" class="empty">Sin entregas registradas hoy</td></tr>';
+            + (modBalMap.size > 0
+                ? '<tr class="totals-row"><td>TOTAL</td><td>—</td>'
+                    + '<td class="num">' + dotTotalDotac.toFixed(3) + '</td>'
+                    + '<td class="num bold">' + dotTotalUsado.toFixed(4) + '</td>'
+                    + '<td class="num">' + dotTotalAdic.toFixed(4)  + '</td>'
+                    + '<td class="num">' + dotTotalDisp.toFixed(4)  + '</td>'
+                    + '<td class="num">' + (dotTotalDotac > 0 ? (dotTotalUsado / dotTotalDotac * 100).toFixed(2) + '%' : '—') + '</td>'
+                    + '<td>—</td></tr>'
+                : '<tr><td colspan="8" class="empty">Sin datos de módulos</td></tr>');
 
         // Tabla volúmenes por zona
         const volRows = ZONAS_OP.map(z => {
@@ -261,17 +293,65 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
                 + '</tr>';
         }).join('');
 
-        // Zona cards para el diagrama
-        const zonaCardsHtml = ZONAS_OP.map(z => {
-            const qz = zonaDemandaMap.get(z.codigo) ?? 0;
-            return '<div class="zona-card" style="border:2px solid ' + z.color + ';background:' + z.bg + '">'
-                + '<div style="color:' + z.color + ';font-weight:800;font-size:9pt">' + z.codigo + '</div>'
-                + '<div style="font-size:7pt;color:#555">' + z.tramo + '</div>'
-                + '<div style="font-size:7pt;color:#888;margin-top:3px">GASTO REAL</div>'
-                + '<div style="font-size:14pt;font-weight:900;color:' + z.color + '">' + qz.toFixed(3) + '</div>'
-                + '<div style="font-size:7pt;color:#666">m³/s</div>'
-                + '</div>';
-        }).join('');
+        // ── Diagrama lineal del canal (vol_zonas de Supabase) ────────────────
+        const CANAL_LEN = 104;
+        const p = (km: number) => (km / CANAL_LEN * 100).toFixed(3) + '%';
+        const wd = (a: number, b: number) => ((b - a) / CANAL_LEN * 100).toFixed(3) + '%';
+        const ZONES_D = [
+            { codigo: 'Z1', km_in: 0,      km_out: 48.42,  color: '#16a34a', bg: '#f0fdf4' },
+            { codigo: 'Z2', km_in: 48.42,  km_out: 67.32,  color: '#2563eb', bg: '#dbeafe' },
+            { codigo: 'Z3', km_in: 67.32,  km_out: 71.912, color: '#ea580c', bg: '#fff7ed' },
+            { codigo: 'Z4', km_in: 79.025, km_out: 104,    color: '#7c3aed', bg: '#faf5ff' },
+        ];
+        const CPS = [
+            { km: 0,       lbl: 'K-0' },   { km: 23,      lbl: 'K-23' },
+            { km: 29,      lbl: 'K-29' },   { km: 34,      lbl: 'K-34' },
+            { km: 44,      lbl: 'K-44' },   { km: 54,      lbl: 'K-54' },
+            { km: 62,      lbl: 'K-62' },   { km: 64,      lbl: 'K-64' },
+            { km: 68,      lbl: 'K-68' },   { km: 79.025,  lbl: 'K-79' },
+            { km: 87.549,  lbl: 'K-87' },   { km: 94.057,  lbl: 'K-94' },
+            { km: 104,     lbl: 'K-104' },
+        ];
+
+        const canalDiagramHtml = (() => {
+            // Zone bands + gasto cards
+            let bands = '';
+            for (const z of ZONES_D) {
+                const qz  = zonaDemandaMap.get(z.codigo) ?? 0;
+                const vz  = volZonasMap.get(z.codigo);
+                const fill = vz?.pct_llenado != null ? Number(vz.pct_llenado).toFixed(1) + '%' : '';
+                const nom  = vz?.zona_nombre?.split('—')[1]?.trim().replace(/K-0\+000/, 'K-0') || z.codigo;
+                // Narrow zone (Z3 = 4.6 km ≈ 4.4%): skip text inside band
+                const narrow = (z.km_out - z.km_in) < 10;
+                bands += '<div style="position:absolute;top:0;left:' + p(z.km_in) + ';width:' + wd(z.km_in, z.km_out)
+                    + ';height:28px;border-top:3px solid ' + z.color + ';background:' + z.bg + ';overflow:hidden;text-align:center">'
+                    + (narrow ? '' : '<span style="font-size:6pt;font-weight:800;color:' + z.color + '">' + z.codigo + '</span>'
+                        + '<span style="font-size:4.5pt;color:#666;display:block;margin-top:1px">' + nom + '</span>')
+                    + '</div>';
+                // Gasto card (centered in zone)
+                bands += '<div style="position:absolute;top:88px;left:' + p(z.km_in) + ';width:' + wd(z.km_in, z.km_out) + ';text-align:center">'
+                    + '<div style="font-size:5.5pt;font-weight:800;color:' + z.color + ';text-transform:uppercase;letter-spacing:.5px">'
+                    + z.codigo + (narrow ? '' : ' — Gasto Real') + '</div>'
+                    + '<div style="font-size:' + (narrow ? '8' : '13') + 'pt;font-weight:900;color:' + z.color + ';line-height:1.1">' + qz.toFixed(narrow ? 2 : 3) + '</div>'
+                    + '<div style="font-size:4.5pt;color:#777">m³/s' + (fill ? ' · ' + fill : '') + '</div>'
+                    + '</div>';
+            }
+            // Canal line
+            const line = '<div style="position:absolute;top:36px;left:0;right:0;height:5px;background:#1e3a5f;border-radius:2px"></div>';
+            // Control points
+            let cps = '';
+            for (const cp of CPS) {
+                const lp = p(cp.km);
+                cps += '<div style="position:absolute;top:30px;left:' + lp + ';width:13px;height:13px;'
+                    + 'background:#1e3a5f;border-radius:2px;transform:translateX(-6.5px);'
+                    + 'display:flex;align-items:center;justify-content:center">'
+                    + '<span style="color:#7dd3fc;font-size:6pt">&#9632;</span></div>';
+                cps += '<span style="position:absolute;top:46px;left:' + lp + ';font-size:4pt;color:#334155;'
+                    + 'white-space:nowrap;transform:translateX(-50%)">' + cp.lbl + '</span>';
+            }
+            return '<div style="position:relative;width:100%;height:132px;margin-bottom:4px;overflow:hidden">'
+                + bands + line + cps + '</div>';
+        })();
 
         // ── CSS ──────────────────────────────────────────────────────────────
         const css = '@page{size:letter portrait;margin:10mm 12mm}'
@@ -410,40 +490,35 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
             + '<div class="kpi"><div class="kpi-lbl">Variación de<br>Almacenamiento</div><div class="kpi-val" style="color:' + (variacionAlm < -1 ? '#dc2626' : variacionAlm > 1 ? '#d97706' : '#16a34a') + '">' + (variacionAlm >= 0 ? '+' : '') + variacionAlm.toFixed(3) + '</div><div class="kpi-unit">m³/s</div><div class="kpi-sub">Pérdida (-) / Aporte (+)</div></div>'
             + '</div></div>'
 
-            // ── DISTRIBUCIÓN POR ZONAS + VOLÚMENES ──
+            // ── DIAGRAMA LINEAL DEL CANAL ──
+            + '<div class="sec-title">Distribución Real por Zonas — Canal Principal Conchos' + (usandoFallback ? ' (estimado hidráulico)' : '') + '</div>'
+            + canalDiagramHtml
+
+            // ── DOTACIÓN BASE vs CONSUMO + DEMANDA POR ZONA ──
             + '<div class="two-col">'
-            // Col izquierda: diagrama zonas
+            // Col izquierda: tabla dotación base vs consumo
             + '<div class="col-60">'
-            + '<div class="sec-title">Distribución Real por Zonas (Operativo)</div>'
-            + '<div class="zona-row">' + zonaCardsHtml + '</div>'
+            + '<div class="sec-title">Dotación Base vs Consumo — Módulos</div>'
+            + '<table><thead><tr>'
+            + '<th>Módulo</th><th>Zona</th><th class="num">Dotac. (Mm³)</th><th class="num">Usado (Mm³)</th>'
+            + '<th class="num">Adic. (Mm³)</th><th class="num">Disp. (Mm³)</th><th class="num">%</th><th>Estado</th>'
+            + '</tr></thead><tbody>' + dotacionRows + '</tbody></table>'
             + '</div>'
-            // Col derecha: tabla volúmenes
+            // Col derecha: tabla volúmenes hidráulicos + demanda por zona
             + '<div class="col-40">'
             + '<div class="sec-title">Niveles y Volúmenes por Zona</div>'
             + '<table><thead><tr>'
-            + '<th>Zona</th><th class="num">Nivel Medio (m)</th><th class="num">Vol. (MMm³)</th><th class="num">% Llenado</th>'
+            + '<th>Zona</th><th class="num">Nivel (m)</th><th class="num">Vol. (Mm³)</th><th class="num">% Llenado</th>'
             + '</tr></thead><tbody>' + volRows + '</tbody></table>'
-            + '</div></div>'
-
-            // ── MÓDULOS + DEMANDA POR ZONA ──
-            + '<div class="two-col">'
-            // Col izquierda: tabla módulos
-            + '<div class="col-55">'
-            + '<div class="sec-title">Gasto Operativo por Módulo</div>'
+            + '<div style="margin-top:5px">'
+            + '<div class="sec-title" style="margin-top:5px">Demanda por Zona (m³/s)</div>'
             + '<table><thead><tr>'
-            + '<th>Módulo</th><th>Zona</th><th class="num">Q Normal (m³/s)</th><th class="num">Q Adicional (m³/s)</th><th class="num">Q Total (m³/s)</th>'
-            + '</tr></thead><tbody>' + moduloTableRows + '</tbody></table>'
-            + '</div>'
-            // Col derecha: resumen demanda por zona
-            + '<div class="col-45">'
-            + '<div class="sec-title">Resumen de Demanda por Zona (según módulos)</div>'
-            + '<table><thead><tr>'
-            + '<th>Zona</th><th>Tramo</th><th class="num">Gasto Real (m³/s)</th><th class="num">% del Total</th>'
+            + '<th>Zona</th><th class="num">Q Real (m³/s)</th><th class="num">% Total</th>'
             + '</tr></thead><tbody>' + zonaDemandaRows
-            + '<tr class="totals-row"><td colspan="2">TOTAL DEMANDA REAL</td>'
+            + '<tr class="totals-row"><td>TOTAL</td>'
             + '<td class="num bold">' + demandaModulos.toFixed(3) + '</td>'
             + '<td class="num bold">100.0 %</td></tr>'
-            + '</tbody></table>'
+            + '</tbody></table></div>'
             + '</div></div>'
 
             // ── OBSERVACIONES + BALANCE ──

@@ -11,7 +11,7 @@ import type { MovimientoPresaConNombreRow, RegistroAlertaRow } from '../types/si
 import { calcIEC, iecColor } from '../utils/canalIndex';
 import { calcRadialFlow, M1_FACTORS, getM1Factor } from '../utils/hydraulics';
 import { onTable } from '../lib/realtimeHub';
-import CanalReport from '../components/CanalReport';
+import InformeOperativo from '../components/InformeOperativo';
 import { exportEscalasCSV } from '../utils/exportCanal';
 import { toast } from 'sonner';
 
@@ -2756,13 +2756,16 @@ const PublicMonitor: React.FC = () => {
                 </div>
             )}
 
-            {/* Reporte gerencial PDF */}
+            {/* Informe Operativo Diario PDF */}
             {showReport && iecData && coherenciaCanal && (
-                <CanalReport
+                <InformeOperativo
+                    escalas={escalas}
                     coherencia={coherenciaCanal}
                     iec={iecData}
-                    escalas={escalas}
-                    fgv={fgvData ?? null}
+                    entregasHoy={entregasHoy}
+                    balanceModulos={balanceModulos}
+                    volZonas={volZonas}
+                    presasData={presasData}
                     onClose={() => setShowReport(false)}
                 />
             )}

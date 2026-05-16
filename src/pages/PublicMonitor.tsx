@@ -383,11 +383,6 @@ const PublicMonitor: React.FC = () => {
     const [balanceModulos, setBalanceModulos] = useState<any[]>([]);
     const [entregasHoy, setEntregasHoy] = useState<any[]>([]);
     const [balanceTramos, setBalanceTramos] = useState<any[]>([]);
-    const [pronosticoModulos, setPronosticoModulos] = useState<any[]>([]);
-    const [scenarioQ, setScenarioQ] = useState<number>(20);
-    const [scenarioData, setScenarioData] = useState<any[] | null>(null);
-    const [scenarioLoading, setScenarioLoading] = useState(false);
-
     // Aggregate all zones per module: DOTAC from primary, consumption summed across ALL zones
     const modulosResumen = useMemo(() => {
         const byMod = new Map<string, any>();
@@ -1279,11 +1274,6 @@ const PublicMonitor: React.FC = () => {
             const btRes = await supabase.rpc('fn_balance_hidrico_tramos', { p_fecha: today });
             if (!btRes.error) setBalanceTramos(btRes.data || []);
 
-            // Pronóstico de agotamiento de dotación por módulo (Fase 3A)
-            const pmRes = await supabase
-                .from('vw_pronostico_agotamiento_modulos')
-                .select('codigo_corto, zona_codigo, tasa_diaria_m3, dias_restantes, fecha_agotamiento, urgencia');
-            if (!pmRes.error) setPronosticoModulos(pmRes.data || []);
         };
         fetchVolumetria();
         const interval = setInterval(fetchVolumetria, 5 * 60 * 1000);
@@ -2677,8 +2667,6 @@ const PublicMonitor: React.FC = () => {
                                             <th>ADIC (Mm³)</th>
                                             <th>DISP (Mm³)</th>
                                             <th>%</th>
-                                            <th>TASA (m³/d)</th>
-                                            <th>DÍAS</th>
                                             <th>ESTADO</th>
                                         </tr>
                                     </thead>
@@ -2687,12 +2675,6 @@ const PublicMonitor: React.FC = () => {
                                             const estado = b.estado_volumen as string;
                                             const rowCls = estado === 'base_agotado' ? 'dsk-tr--critico' : estado === 'alerta_base' ? 'dsk-tr--warn' : '';
                                             const estadoLabel = estado === 'base_agotado' ? '🔴 Agotado' : estado === 'alerta_base' ? '⚠ Alerta' : '✓ Normal';
-                                            const pm = pronosticoModulos.find(p => p.codigo_corto === b.codigo_corto);
-                                            const urgenciaClass = pm?.urgencia === 'AGOTADO' ? 'pm-urgencia--agotado'
-                                                : pm?.urgencia === 'CRITICO' ? 'pm-urgencia--critico'
-                                                : pm?.urgencia === 'ALERTA'  ? 'pm-urgencia--alerta'
-                                                : pm?.urgencia === 'NORMAL'  ? 'pm-urgencia--normal'
-                                                : '';
                                             return (
                                                 <tr key={b.modulo_id} className={rowCls}>
                                                     <td className="dsk-td-nombre">{b.codigo_corto || b.modulo_nombre}</td>
@@ -2702,8 +2684,6 @@ const PublicMonitor: React.FC = () => {
                                                     <td className="dsk-td-num">{(b.vol_adicional_consumido_m3 / 1e6).toFixed(4)}</td>
                                                     <td className={`dsk-td-num ${(b.vol_base_disponible_m3 ?? 0) < 0 ? 'dsk-td--red' : ''}`}>{((b.vol_base_disponible_m3 ?? 0) / 1e6).toFixed(4)}</td>
                                                     <td className="dsk-td-num">{Number(b.pct_base_consumido ?? 0).toFixed(2)}%</td>
-                                                    <td className="dsk-td-num">{pm?.tasa_diaria_m3 != null ? Number(pm.tasa_diaria_m3).toLocaleString('es-MX') : '—'}</td>
-                                                    <td className={`dsk-td-num ${urgenciaClass}`}>{pm?.dias_restantes != null ? pm.dias_restantes : pm?.urgencia === 'SIN_DATOS' ? '—' : '—'}</td>
                                                     <td className="dsk-td-nombre">{estadoLabel}</td>
                                                 </tr>
                                             );
@@ -2713,87 +2693,6 @@ const PublicMonitor: React.FC = () => {
                             </div>
                         </div>
                         )}
-
-                        {/* Simulador de Escenario de Compuerta — Fase 3B */}
-                        <div className="dsk-section-block">
-                            <div className="dsk-sub-header">SIMULADOR DE ESCENARIO — COMPUERTA</div>
-                            <div className="sim-controls">
-                                <label className="sim-label">
-                                    Q entrada presa
-                                    <span className="sim-q-value">{scenarioQ} m³/s</span>
-                                </label>
-                                <input
-                                    type="range"
-                                    min={5}
-                                    max={50}
-                                    step={1}
-                                    value={scenarioQ}
-                                    onChange={e => { setScenarioQ(Number(e.target.value)); setScenarioData(null); }}
-                                    className="sim-slider"
-                                    aria-label="Gasto de entrada en la presa (m³/s)"
-                                />
-                                <button
-                                    type="button"
-                                    className={`sim-btn ${scenarioLoading ? 'sim-btn--loading' : ''}`}
-                                    disabled={scenarioLoading}
-                                    onClick={async () => {
-                                        setScenarioLoading(true);
-                                        try {
-                                            const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chihuahua' }).format(new Date());
-                                            const { data, error } = await supabase.rpc('fn_perfil_canal_completo', {
-                                                p_fecha: today,
-                                                p_q_entrada_m3s: scenarioQ,
-                                                p_modificaciones: null,
-                                            });
-                                            if (!error) setScenarioData(data || []);
-                                        } finally {
-                                            setScenarioLoading(false);
-                                        }
-                                    }}
-                                >
-                                    {scenarioLoading ? 'CALCULANDO…' : 'SIMULAR'}
-                                </button>
-                            </div>
-                            {scenarioData && scenarioData.length > 0 && (
-                            <div className="dsk-table-wrap sim-table-wrap">
-                                <table className="dsk-table sim-table">
-                                    <thead>
-                                        <tr>
-                                            <th>ESCALA</th>
-                                            <th>KM</th>
-                                            <th>Q real (m³/s)</th>
-                                            <th>Q sim (m³/s)</th>
-                                            <th>y real (m)</th>
-                                            <th>y sim (m)</th>
-                                            <th>Δ nivel (cm)</th>
-                                            <th>Estado</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {scenarioData.map((row: any, i: number) => {
-                                            const delta = row.delta_real_cm != null ? Number(row.delta_real_cm) : null;
-                                            const deltaCls = delta == null ? '' : delta > 5 ? 'sim-delta--sube' : delta < -5 ? 'sim-delta--baja' : 'sim-delta--ok';
-                                            return (
-                                                <tr key={i}>
-                                                    <td className="dsk-td-nombre">{row.escala_nombre ?? row.nombre ?? '—'}</td>
-                                                    <td className="dsk-td-num">{row.km != null ? Number(row.km).toFixed(1) : '—'}</td>
-                                                    <td className="dsk-td-num">{row.q_real_m3s != null ? Number(row.q_real_m3s).toFixed(3) : '—'}</td>
-                                                    <td className="dsk-td-num sim-td--sim">{row.q_m3s != null ? Number(row.q_m3s).toFixed(3) : '—'}</td>
-                                                    <td className="dsk-td-num">{row.y_real_m != null ? Number(row.y_real_m).toFixed(3) : '—'}</td>
-                                                    <td className="dsk-td-num sim-td--sim">{row.y_m != null ? Number(row.y_m).toFixed(3) : '—'}</td>
-                                                    <td className={`dsk-td-num ${deltaCls}`}>{delta != null ? (delta > 0 ? '+' : '') + delta.toFixed(1) : '—'}</td>
-                                                    <td className="dsk-td-nombre">{row.estado_lectura ?? '—'}</td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                            )}
-                            {scenarioData && scenarioData.length === 0 && (
-                                <div className="sim-empty">Sin datos de perfil para la fecha actual.</div>
-                            )}
-                        </div>
 
                         {/* Entregas del día por módulo — base y adicional */}
                         {entregasHoy.length > 0 && (

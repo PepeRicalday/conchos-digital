@@ -397,20 +397,20 @@ const RADIAL_Cv  = 1.84;
 const RADIAL_g   = 9.81;
 const RADIAL_MIN = 0.01;
 
-/** M1 correction factors — recal. 14/05/2026 (ancla K-0 aforo 31.377 m³/s). */
+/** M1 correction factors — skill v3.6f validado aforos campo 18/05/2026. */
 export const M1_FACTORS: Record<string, number> = {
-    'K-0+000':  1.2547,  // cal. aforo 14/05/2026 Q=31.377 m³/s (era 1.1570)
+    'K-0+000':  1.1855,  // aforo molinete K1+000=27.825 m³/s 18/05/2026 (−5.5% vs 14/05)
     'K-23':     1.9031,  // CONGELADO — sifón: fórmula radial no aplica, no calibrar por balance
-    'K-29':     1.4370,  // recal. 07/05/2026 bal. Z1 — era 1.2379
-    'K-34':     1.4470,  // rest. coherencia 14/05/2026 — rango físico [1.4420,1.4519] pend. aforo campo
-    'K-44':     1.0810,  // recal. 07/05/2026 bal. Z1 — era 1.0119
-    'K-54':     1.0066,  // recal. 27/04/2026 — era 1.0823
-    'K-62':     1.0537,  // recal. 27/04/2026 — era 1.1294
+    'K-29':     1.2379,  // aforo anterior (restaurado; 14/05 sobreestimó +16%)
+    'K-34':     1.5199,  // aforo anterior (restaurado; 14/05 sobreestimó)
+    'K-44':     1.0119,  // aforo anterior (restaurado; 14/05 sobreestimó)
+    'K-54':     1.0066,  // aforo 27/04/2026
+    'K-62':     1.0537,  // aforo 27/04/2026
     'K-64':     1.3305,  // escala referencia — sin cambio
-    'K-68':     1.4900,  // recal. 07/05/2026 ancla aforo K-72+008=21.602 m³/s — era 1.0398
-    'K-79+025': 1.9960,  // recal. 07/05/2026 bal. Z4 — era 1.5824
-    'K-87+549': 1.4250,  // recal. 07/05/2026 bal. Z4 — era 1.2089
-    'K-94+057': 1.4280,  // recal. 07/05/2026 bal. Z4 — era 1.1612
+    'K-68':     1.0398,  // aforo anterior (restaurado; 14/05 sobreestimó +43%)
+    'K-79+025': 1.5824,  // aforo anterior (restaurado; 14/05 sobreestimó +26%)
+    'K-87+549': 1.2089,  // aforo anterior (restaurado; 14/05 sobreestimó +18%)
+    'K-94+057': 1.1612,  // aforo anterior (restaurado; 14/05 sobreestimó +23%)
     'K-94+200': 1.2851,  // escala referencia — sin cambio
     'K-104':    0.7714,  // ancla salida — sin cambio
 };

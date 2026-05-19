@@ -3285,6 +3285,79 @@
 }
 
 
+/* ── Skill panel — nuevas secciones ─────────────────────────────── */
+.dsk-tr--reciente { background: rgba(34,197,94,0.06) !important; }
+.dsk-td-src { text-align: left !important; color: #475569 !important; font-size: 0.55rem !important; }
+.dsk-nota {
+    font-size: 0.5rem; color: #334155; margin-top: 4px;
+    line-height: 1.5; letter-spacing: 0.01em;
+}
+
+/* Modelación paralela */
+.dsk-model-form { display: flex; flex-direction: column; gap: 6px; }
+.dsk-model-input-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.dsk-model-label { font-size: 0.55rem; color: #64748b; white-space: nowrap; }
+.dsk-model-input {
+    width: 70px; padding: 3px 6px;
+    background: rgba(15,23,42,0.8); border: 1px solid rgba(56,189,248,0.25);
+    border-radius: 4px; color: #e2e8f0; font-size: 0.6rem;
+    font-variant-numeric: tabular-nums;
+}
+.dsk-model-input:focus { outline: none; border-color: rgba(56,189,248,0.5); }
+.dsk-btn--calc {
+    background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.30);
+    color: #38bdf8; border-radius: 4px; padding: 3px 8px;
+    font-size: 0.55rem; font-weight: 700; cursor: pointer; letter-spacing: 0.06em;
+}
+.dsk-btn--calc:hover { background: rgba(56,189,248,0.22); }
+.dsk-model-results {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px;
+    background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 5px; padding: 6px 8px;
+}
+.dsk-model-res-item { display: flex; flex-direction: column; gap: 1px; }
+.dsk-model-res-label { font-size: 0.48rem; color: #475569; text-transform: uppercase; letter-spacing: 0.06em; }
+.dsk-model-res-val { font-size: 0.65rem; font-weight: 700; font-variant-numeric: tabular-nums; color: #94a3b8; }
+
+/* Skill informe colapsable */
+.dsk-sub-header--toggle { cursor: pointer; -webkit-user-select: none; user-select: none; }
+.dsk-sub-header--toggle:hover { color: #64748b; }
+.dsk-skill-informe {
+    background: rgba(15,23,42,0.4); border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 5px; padding: 8px 10px; display: flex; flex-direction: column; gap: 8px;
+}
+.dsk-informe-section { display: flex; flex-direction: column; gap: 3px; }
+.dsk-informe-title {
+    font-size: 0.5rem; font-weight: 700; letter-spacing: 0.08em;
+    color: #38bdf8; text-transform: uppercase;
+}
+.dsk-informe-formula {
+    font-size: 0.62rem; color: #a78bfa; font-family: 'Courier New', monospace;
+    background: rgba(167,139,250,0.06); border-radius: 3px; padding: 3px 6px;
+}
+.dsk-informe-params { font-size: 0.5rem; color: #475569; }
+.dsk-modulos-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;
+}
+.dsk-modulo-tag {
+    display: flex; align-items: baseline; gap: 4px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 4px; padding: 3px 6px;
+}
+.dsk-mod-code { font-size: 0.55rem; font-weight: 700; color: #38bdf8; white-space: nowrap; }
+.dsk-mod-zona { font-size: 0.5rem; color: #a78bfa; white-space: nowrap; }
+.dsk-mod-desc { font-size: 0.5rem; color: #475569; }
+.dsk-informe-list {
+    margin: 0; padding-left: 14px; display: flex; flex-direction: column; gap: 2px;
+}
+.dsk-informe-list li { font-size: 0.52rem; color: #64748b; line-height: 1.5; }
+
+/* Botón Skill .md */
+.dsk-btn--skill-md {
+    background: rgba(34,197,94,0.10); border: 1px solid rgba(34,197,94,0.25); color: #4ade80;
+}
+.dsk-btn--skill-md:hover { background: rgba(34,197,94,0.20); }
+
 /* ── Balance Hidrico por Tramo — alertas de fuga ─────────────────── */
 .bt-alert-strip {
     display: flex;

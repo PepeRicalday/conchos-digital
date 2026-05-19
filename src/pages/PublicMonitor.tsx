@@ -369,6 +369,9 @@ const PublicMonitor: React.FC = () => {
     const [isDockVisible, setIsDockVisible] = useState(!isMobile);
     const [dockTab, setDockTab] = useState<'resumen' | 'canal' | 'alertas' | 'skill'>('resumen');
     const [snapshotCopied, setSnapshotCopied] = useState(false);
+    const [showSkillInforme, setShowSkillInforme] = useState(false);
+    const [modelQ0, setModelQ0] = useState('');
+    const [modelResult, setModelResult] = useState<null | { q104: number; perdidas: number; ef: number; transitH: number }>(null);
     const [isPredictionVisible, setIsPredictionVisible] = useState(false);
     const [showPerfilModal, setShowPerfilModal] = useState(false);
     const [fgvData, setFgvData] = useState<any>(null);
@@ -2482,7 +2485,7 @@ const PublicMonitor: React.FC = () => {
                     {dockTab === 'skill' && (
                     <div className="dock-section dock-skill-panel">
                         <div className="dock-section-header">
-                            <span className="card-label">DATOS ACTUALES — SKILL v3.6c</span>
+                            <span className="card-label">DATOS ACTUALES — SKILL v3.6f</span>
                             <span className="telemetry-tag active-mon">● EN VIVO</span>
                         </div>
 
@@ -2774,6 +2777,153 @@ const PublicMonitor: React.FC = () => {
                         </div>
                         )}
 
+                        {/* Calibración M1 — estado actual */}
+                        <div className="dsk-section-block">
+                            <div className="dsk-sub-header">CALIBRACIÓN M1 — ESTADO ACTUAL (SKILL v3.6f)</div>
+                            <div className="dsk-table-wrap">
+                                <table className="dsk-table">
+                                    <thead>
+                                        <tr><th>ESCALA</th><th>M1</th><th>FUENTE</th><th>ESTADO</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {([
+                                            { n:'K-0+000',   m1:1.1855, src:'Aforo molinete 18/05/2026', est:'RECIENTE'  },
+                                            { n:'K-23',      m1:1.9031, src:'Estimado estructural',      est:'PENDIENTE' },
+                                            { n:'K-29',      m1:1.2379, src:'Aforo anterior',            est:'VERIFICAR' },
+                                            { n:'K-34',      m1:1.5199, src:'Estimado',                  est:'PENDIENTE' },
+                                            { n:'K-44',      m1:1.0119, src:'Aforo anterior',            est:'OK'        },
+                                            { n:'K-54',      m1:1.0066, src:'Aforo anterior',            est:'OK'        },
+                                            { n:'K-62',      m1:1.0537, src:'Aforo anterior',            est:'OK'        },
+                                            { n:'K-64',      m1:1.3305, src:'Estimado',                  est:'PENDIENTE' },
+                                            { n:'K-68',      m1:1.0398, src:'Aforo anterior',            est:'VERIFICAR' },
+                                            { n:'K-79+025',  m1:1.5824, src:'Estimado',                  est:'PENDIENTE' },
+                                            { n:'K-87+549',  m1:1.2089, src:'Aforo anterior',            est:'VERIFICAR' },
+                                            { n:'K-94+057',  m1:1.1612, src:'Aforo anterior',            est:'OK'        },
+                                            { n:'K-94+200',  m1:1.2851, src:'Estimado',                  est:'PENDIENTE' },
+                                            { n:'K-104',     m1:0.7714, src:'Aforo anterior',            est:'OK'        },
+                                        ] as { n: string; m1: number; src: string; est: string }[]).map(r => (
+                                            <tr key={r.n} className={r.est === 'PENDIENTE' ? 'dsk-tr--warn' : r.est === 'RECIENTE' ? 'dsk-tr--reciente' : ''}>
+                                                <td className="dsk-td-nombre">{r.n}</td>
+                                                <td className="dsk-td-num dsk-td--m1">{r.m1.toFixed(4)}</td>
+                                                <td className="dsk-td-src">{r.src}</td>
+                                                <td className={`dsk-td-num ${r.est==='RECIENTE'?'dsk-val--green':r.est==='PENDIENTE'?'dsk-val--amber':r.est==='VERIFICAR'?'dsk-val--amber':''}`}>
+                                                    {r.est==='RECIENTE'?'✓ Reciente':r.est==='PENDIENTE'?'⚠ Pendiente':r.est==='VERIFICAR'?'? Verificar':'✓ OK'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="dsk-nota">Cd=0.62 fijo · Cd_eff = Cd×M1 · PENDIENTE = sin aforo de campo · Recalibrar si SICA diverge &gt;5% vs aforo</div>
+                        </div>
+
+                        {/* Modelación Paralela */}
+                        <div className="dsk-section-block">
+                            <div className="dsk-sub-header">MODELACIÓN PARALELA — TRÁNSITO CANAL</div>
+                            <div className="dsk-model-form">
+                                <div className="dsk-model-input-row">
+                                    <label className="dsk-model-label">Q entrada K-0 (m³/s)</label>
+                                    <input
+                                        type="number"
+                                        className="dsk-model-input"
+                                        value={modelQ0}
+                                        onChange={e => setModelQ0(e.target.value)}
+                                        placeholder={skillSnapshot.balance.Q0.toFixed(3)}
+                                        step="0.5"
+                                        min="0"
+                                        max="70"
+                                    />
+                                    <button
+                                        type="button"
+                                        className="dsk-btn dsk-btn--calc"
+                                        onClick={() => {
+                                            const q0 = parseFloat(modelQ0) || skillSnapshot.balance.Q0;
+                                            const lambda = skillSnapshot.balance.lambda;
+                                            const q104 = Math.max(0, q0 - lambda * 104);
+                                            const ef = q0 > 0 ? (q104 / q0) * 100 : 0;
+                                            const transitH = 13.87 / Math.sqrt(Math.max(q0, 1) / 28);
+                                            setModelResult({ q104, perdidas: q0 - q104, ef, transitH });
+                                        }}
+                                    >
+                                        Calcular
+                                    </button>
+                                </div>
+                                {modelResult && (
+                                    <div className="dsk-model-results">
+                                        <div className="dsk-model-res-item">
+                                            <span className="dsk-model-res-label">Q estimado K-104</span>
+                                            <span className="dsk-model-res-val dsk-val--blue">{modelResult.q104.toFixed(3)} m³/s</span>
+                                        </div>
+                                        <div className="dsk-model-res-item">
+                                            <span className="dsk-model-res-label">Pérdidas totales</span>
+                                            <span className="dsk-model-res-val dsk-val--amber">{modelResult.perdidas.toFixed(3)} m³/s</span>
+                                        </div>
+                                        <div className="dsk-model-res-item">
+                                            <span className="dsk-model-res-label">Eficiencia</span>
+                                            <span className={`dsk-model-res-val ${modelResult.ef >= 95 ? 'dsk-val--green' : modelResult.ef >= 90 ? 'dsk-val--amber' : 'dsk-val--red'}`}>
+                                                {modelResult.ef.toFixed(1)}%
+                                            </span>
+                                        </div>
+                                        <div className="dsk-model-res-item">
+                                            <span className="dsk-model-res-label">Tránsito K-0→K-104</span>
+                                            <span className="dsk-model-res-val">{modelResult.transitH.toFixed(1)} h ({Math.round(modelResult.transitH * 60)} min)</span>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="dsk-nota">Q₁₀₄ = Q₀ − λ×104 · λ={skillSnapshot.balance.lambda.toFixed(5)} m³/s·km⁻¹ · Tránsito ∝ 1/√(Q₀/28) calibrado a 8 min/km</div>
+                            </div>
+                        </div>
+
+                        {/* Informe Skill — colapsable */}
+                        <div className="dsk-section-block">
+                            <div
+                                className="dsk-sub-header dsk-sub-header--toggle"
+                                onClick={() => setShowSkillInforme(v => !v)}
+                            >
+                                INFORME SKILL v3.6f — MÓDULOS Y METODOLOGÍA {showSkillInforme ? '▲' : '▼'}
+                            </div>
+                            {showSkillInforme && (
+                                <div className="dsk-skill-informe">
+                                    <div className="dsk-informe-section">
+                                        <div className="dsk-informe-title">FÓRMULA BASE — GASTO POR COMPUERTA</div>
+                                        <div className="dsk-informe-formula">Q = Cd × M1 × b × Σ(apertura_i) × √(2g·ΔH)</div>
+                                        <div className="dsk-informe-params">Cd=0.62 · g=9.81 m/s² · b=ancho por compuerta · M1=factor calibración por escala</div>
+                                    </div>
+                                    <div className="dsk-informe-section">
+                                        <div className="dsk-informe-title">MÓDULOS OPERATIVOS</div>
+                                        <div className="dsk-modulos-grid">
+                                            {([
+                                                { cod:'MOD-001', zona:'Z1', desc:'K-0 → K-23 · Derivaciones norte' },
+                                                { cod:'MOD-002', zona:'Z1', desc:'K-23 → K-29 · Zona baja Conchos' },
+                                                { cod:'MOD-003', zona:'Z2', desc:'K-29 → K-44 · Gravedad centro' },
+                                                { cod:'MOD-004', zona:'Z2', desc:'K-44 → K-62 · Riego tradicional' },
+                                                { cod:'MOD-005', zona:'Z3', desc:'K-62 → K-79 · Gravedad sur' },
+                                                { cod:'MOD-006', zona:'Z4', desc:'K-79 → K-104 · Cola canal' },
+                                            ] as { cod: string; zona: string; desc: string }[]).map(m => (
+                                                <div key={m.cod} className="dsk-modulo-tag">
+                                                    <span className="dsk-mod-code">{m.cod}</span>
+                                                    <span className="dsk-mod-zona">{m.zona}</span>
+                                                    <span className="dsk-mod-desc">{m.desc}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="dsk-informe-section">
+                                        <div className="dsk-informe-title">INSTRUCCIONES CLAVE</div>
+                                        <ul className="dsk-informe-list">
+                                            <li>BL &lt; 0 = CRÍTICO: reducir entradas de inmediato</li>
+                                            <li>BL 0–10 cm = PRECAUCIÓN: monitoreo continuo</li>
+                                            <li>M1 &gt; 1.5 indica desgaste probable o calibración pendiente</li>
+                                            <li>λ objetivo: &lt; 0.0004 m³/s·km⁻¹ (eficiencia de conducción normal)</li>
+                                            <li>Aforo de campo requerido cada 30 días por escala</li>
+                                            <li>Tránsito K-0 → K-104: ~14 h a Q=28 m³/s</li>
+                                            <li>Recalibrar M1 cuando SICA diverge &gt;5% vs aforo</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         {/* Timestamp y acciones */}
                         <div className="dsk-footer">
                             <span className="dsk-ts">
@@ -2808,7 +2958,21 @@ const PublicMonitor: React.FC = () => {
                                     title="Descargar snapshot JSON"
                                 >
                                     <Download size={11} />
-                                    Descargar
+                                    Snapshot
+                                </button>
+                                <button
+                                    type="button"
+                                    className="dsk-btn dsk-btn--skill-md"
+                                    onClick={() => {
+                                        const a = document.createElement('a');
+                                        a.href = '/datos/skill_hidraulica_v36.md';
+                                        a.download = 'skill_hidraulica_v36.md';
+                                        a.click();
+                                    }}
+                                    title="Descargar skill hidráulica completa v3.6f"
+                                >
+                                    <Download size={11} />
+                                    Skill v3.6f
                                 </button>
                             </div>
                         </div>

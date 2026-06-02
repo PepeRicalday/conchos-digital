@@ -2787,7 +2787,7 @@ const PublicMonitor: React.FC = () => {
                                     </thead>
                                     <tbody>
                                         {([
-                                            { n:'K-0+000',   m1:1.1855, src:'Aforo molinete 18/05/2026', est:'RECIENTE'  },
+                                            { n:'K-0+000',   m1:1.2022, src:'Aforo molinete 01/06/2026', est:'RECIENTE'  },
                                             { n:'K-23',      m1:1.9031, src:'Estimado estructural',      est:'PENDIENTE' },
                                             { n:'K-29',      m1:1.2379, src:'Aforo anterior',            est:'VERIFICAR' },
                                             { n:'K-34',      m1:1.5199, src:'Estimado',                  est:'PENDIENTE' },

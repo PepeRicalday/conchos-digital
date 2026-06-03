@@ -2965,14 +2965,14 @@ const PublicMonitor: React.FC = () => {
                                     className="dsk-btn dsk-btn--skill-md"
                                     onClick={() => {
                                         const a = document.createElement('a');
-                                        a.href = '/datos/skill_hidraulica_v36.md';
-                                        a.download = 'skill_hidraulica_v36.md';
+                                        a.href = '/datos/skill_hidraulica_v37.md';
+                                        a.download = 'skill_hidraulica_v37.md';
                                         a.click();
                                     }}
-                                    title="Descargar skill hidráulica completa v3.6f"
+                                    title="Descargar skill hidráulica completa v3.7"
                                 >
                                     <Download size={11} />
-                                    Skill v3.6f
+                                    Skill v3.7
                                 </button>
                             </div>
                         </div>

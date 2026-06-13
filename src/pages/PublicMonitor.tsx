@@ -716,18 +716,10 @@ const PublicMonitor: React.FC = () => {
                 }).length;
                 const aperturaFinal = aperturaTotal > 0 ? aperturaTotal : (reading?.apertura || null);
 
-                // ── Coherencia física (solo ESTABILIZACIÓN) ───────────────────
-                // En ESTABILIZACIÓN el flujo en cualquier punto del canal no puede
-                // superar el gasto de presa. Si gasto_calculado_m3s (rating curve
-                // Manning a nivel lleno) supera presa × 1.1, es un artefacto del
-                // nivel alto residual del LLENADO — no representa flujo real.
-                let gastoFinal: number | null = reading?.gasto_real ?? null;
-                if (!flowStartTime && gastoFinal !== null) {
-                    const qPresaRef = Number(mData?.[0]?.gasto_m3s || finalPresas[0]?.extraccion_total || 0);
-                    if (qPresaRef > 0 && gastoFinal > qPresaRef * 1.25) {
-                        gastoFinal = null;
-                    }
-                }
+                // ── Coherencia física: solo contra capacidad de diseño ────────
+                // No comparar vs gasto de presa: el canal puede evacuar volumen
+                // almacenado en el tramo Boquilla→K0 (36km), produciendo Q_k0 > Q_presa.
+                const gastoFinal: number | null = reading?.gasto_real ?? null;
 
                 return {
                     ...e,
@@ -788,13 +780,7 @@ const PublicMonitor: React.FC = () => {
                 );
             }
 
-            // Coherencia física: K0 no puede superar el gasto de presa × 1.25
-            // Margen 25%: permite variación hidráulica transitoria en tramo Boquilla→K0 (36km)
-            const qPresaK0 = Number(mData?.[0]?.gasto_m3s || finalPresas[0]?.extraccion_total || 0);
-            if (!flowStartTime && qPresaK0 > 0 && currentFlowAtZero > qPresaK0 * 1.25) {
-                currentFlowAtZero = 0;
-            }
-
+            // Sin check vs presa — K0 puede superar Q_presa por almacenamiento en tramo 36km
             const hasViolation = currentFlowAtZero > 70.42;
             
             sessionStorage.setItem('zero_radial_apertura', (zeroReading?.apertura || 0).toString());

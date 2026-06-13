@@ -386,6 +386,7 @@ const PublicMonitor: React.FC = () => {
     const [balanceModulos, setBalanceModulos] = useState<any[]>([]);
     const [entregasHoy, setEntregasHoy] = useState<any[]>([]);
     const [balanceTramos, setBalanceTramos] = useState<any[]>([]);
+    const [flowAtZero, setFlowAtZero] = useState<number>(0);
     // Aggregate all zones per module: DOTAC from primary, consumption summed across ALL zones
     const modulosResumen = useMemo(() => {
         const byMod = new Map<string, any>();
@@ -723,7 +724,7 @@ const PublicMonitor: React.FC = () => {
                 let gastoFinal: number | null = reading?.gasto_real ?? null;
                 if (!flowStartTime && gastoFinal !== null) {
                     const qPresaRef = Number(mData?.[0]?.gasto_m3s || finalPresas[0]?.extraccion_total || 0);
-                    if (qPresaRef > 0 && gastoFinal > qPresaRef * 1.1) {
+                    if (qPresaRef > 0 && gastoFinal > qPresaRef * 1.25) {
                         gastoFinal = null;
                     }
                 }
@@ -787,9 +788,10 @@ const PublicMonitor: React.FC = () => {
                 );
             }
 
-            // Coherencia física: K0 no puede superar el gasto de presa × 1.1
+            // Coherencia física: K0 no puede superar el gasto de presa × 1.25
+            // Margen 25%: permite variación hidráulica transitoria en tramo Boquilla→K0 (36km)
             const qPresaK0 = Number(mData?.[0]?.gasto_m3s || finalPresas[0]?.extraccion_total || 0);
-            if (!flowStartTime && qPresaK0 > 0 && currentFlowAtZero > qPresaK0 * 1.1) {
+            if (!flowStartTime && qPresaK0 > 0 && currentFlowAtZero > qPresaK0 * 1.25) {
                 currentFlowAtZero = 0;
             }
 
@@ -798,10 +800,10 @@ const PublicMonitor: React.FC = () => {
             sessionStorage.setItem('zero_radial_apertura', (zeroReading?.apertura || 0).toString());
             sessionStorage.setItem('zero_nivel_abajo', (zeroReading?.nivel_abajo || 0).toString());
             sessionStorage.setItem('zero_nivel_arriba', (zeroReading?.nivel || 0).toString());
-            sessionStorage.setItem('zero_current_flow', currentFlowAtZero.toString());
             sessionStorage.setItem('has_hydraulic_violation', hasViolation ? 'true' : 'false');
             sessionStorage.setItem('k0_pzas', pzas.toString());
             sessionStorage.setItem('k0_ancho', ancho.toString());
+            setFlowAtZero(currentFlowAtZero);
             
         } catch (err) {
             console.error("PublicMonitor fetch error", err);
@@ -1540,7 +1542,7 @@ const PublicMonitor: React.FC = () => {
                     <div className="phb-efficiency">
                         <span className="phb-label">{modoActual.kpi0Label}</span>
                         <span className="phb-val" style={{ color: sessionStorage.getItem('has_hydraulic_violation') === 'true' ? '#ef4444' : statusColor }}>
-                            {parseFloat(sessionStorage.getItem('zero_current_flow') || '0').toFixed(2)} m³/s
+                            {flowAtZero.toFixed(2)} m³/s
                         </span>
                     </div>
 
@@ -1590,7 +1592,7 @@ const PublicMonitor: React.FC = () => {
                         <Activity size={18} className="hvb-icon" />
                         <div className="hvb-text">
                             <b>VIOLACIÓN HIDRÁULICA DETECTADA: K-0+000</b>
-                            <p>El gasto de entrada ({parseFloat(sessionStorage.getItem('zero_current_flow') || '0').toFixed(2)} m³/s) EXCEDE la capacidad de diseño de 70.42 m³/s. Riesgo de desbordamiento.</p>
+                            <p>El gasto de entrada ({flowAtZero.toFixed(2)} m³/s) EXCEDE la capacidad de diseño de 70.42 m³/s. Riesgo de desbordamiento.</p>
                         </div>
                     </div>
                 </div>
@@ -1704,7 +1706,7 @@ const PublicMonitor: React.FC = () => {
                             <div className="tech-item delivery">
                                 <div className="tech-label">ENTREGA KM 0+000</div>
                                 <div className="tech-main-val">
-                                    {parseFloat(sessionStorage.getItem('zero_current_flow') || '0').toFixed(2)}
+                                    {flowAtZero.toFixed(2)}
                                     <small>m³/s</small>
                                 </div>
                                 <div className="tech-sub" style={{ color: '#22d3ee' }}>RADIALES SICA</div>
@@ -1732,15 +1734,15 @@ const PublicMonitor: React.FC = () => {
                         <div className="balance-summary-tech">
                             <div className="bst-item">
                                 <span className="bst-label">PÉRDIDA EN TRÁNSITO</span>
-                                <span className="bst-val" style={{ color: (Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal) - Number(sessionStorage.getItem('zero_current_flow'))) > 5 ? '#ef4444' : '#22c55e' }}>
-                                    {(Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal) - Number(sessionStorage.getItem('zero_current_flow'))).toFixed(2)} m³/s
+                                <span className="bst-val" style={{ color: (Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal) - flowAtZero) > 5 ? '#ef4444' : '#22c55e' }}>
+                                    {(Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal) - flowAtZero).toFixed(2)} m³/s
                                 </span>
                             </div>
                             <div className="bst-item">
                                 <span className="bst-label">EFICIENCIA GLOBAL</span>
                                 <span className="bst-val highlight">
                                     {Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal) > 0 
-                                        ? ((Number(sessionStorage.getItem('zero_current_flow')) / Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal)) * 100).toFixed(1) 
+                                        ? ((flowAtZero / Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal)) * 100).toFixed(1) 
                                         : '0.0'}%
                                 </span>
                             </div>

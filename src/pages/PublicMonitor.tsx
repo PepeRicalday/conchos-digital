@@ -775,12 +775,16 @@ const PublicMonitor: React.FC = () => {
             let currentFlowAtZero = zeroReading?.gasto_real || 0;
 
             if (currentFlowAtZero === 0 && zeroReading?.apertura > 0) {
-                const Cd = 0.6;
-                const hArriba = zeroReading.nivel || 0;
-                const hAbajo = zeroReading.nivel_abajo || 0;
-                const cargaH = hAbajo > 0 ? Math.max(0, hArriba - hAbajo) : hArriba;
-                const areaTotal = pzas * ancho * zeroReading.apertura;
-                currentFlowAtZero = Cd * areaTotal * Math.sqrt(2 * 9.81 * cargaH);
+                // Usa calcRadialFlow con M1 y radiales_json individuales (igual que path principal)
+                currentFlowAtZero = calcRadialFlow(
+                    zeroReading.nivel || 0,
+                    zeroReading.nivel_abajo || 0,
+                    zeroReading.radiales_json,
+                    ancho,
+                    pzas,
+                    k0Phys?.nombre,
+                    0
+                );
             }
 
             // Coherencia física: K0 no puede superar el gasto de presa × 1.1

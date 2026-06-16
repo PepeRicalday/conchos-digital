@@ -15,6 +15,9 @@ import InformeOperativo from '../components/InformeOperativo';
 import { exportEscalasCSV } from '../utils/exportCanal';
 import { toast } from 'sonner';
 
+// Escalas de referencia: tienen nivel pero no controlan Q (sin compuerta propia).
+const ESC_SIN_CONTROL = new Set(['K-64', 'K-94+200']);
+
 // Custom Marker for Water Front
 const waterFrontIcon = L.divIcon({
     className: 'water-front-marker',
@@ -2375,7 +2378,7 @@ const PublicMonitor: React.FC = () => {
                                     // Coherencia individual: marcar punto incoherente
                                     const puntoCoh = coherenciaCanal?.puntos.find(p => p.id === e.id);
                                     const incoherente = puntoCoh && !puntoCoh.coherente;
-                                    const hasFlow = isEstabilizacion && (e.gasto_actual ?? 0) > 0;
+                                    const hasFlow = isEstabilizacion && !ESC_SIN_CONTROL.has(e.nombre) && (e.gasto_actual ?? 0) > 0;
                                     return (
                                     <div
                                         className={`checkpoint-card-compact ${e.km <= displayMaxKm ? 'active' : ''} ${incoherente ? 'cpc-incoherente' : ''}`}
@@ -2448,7 +2451,7 @@ const PublicMonitor: React.FC = () => {
                                 .map((e) => {
                                     const puntoCoh = coherenciaCanal?.puntos.find(p => p.id === e.id);
                                     const incoherente = puntoCoh && !puntoCoh.coherente;
-                                    const hasFlow = isEstabilizacion && (e.gasto_actual ?? 0) > 0;
+                                    const hasFlow = isEstabilizacion && !ESC_SIN_CONTROL.has(e.nombre) && (e.gasto_actual ?? 0) > 0;
                                     return (
                                     <div
                                         className={`checkpoint-card-compact ${e.km <= displayMaxKm ? 'active' : ''} ${incoherente ? 'cpc-incoherente' : ''}`}
@@ -2660,8 +2663,6 @@ const PublicMonitor: React.FC = () => {
 
                             {/* Strip de alertas de fuga — excluye tramos con escalas STALE (>4h) o escalas de referencia sin control de gasto */}
                             {(() => {
-                                // Escalas de referencia: tienen nivel pero no controlan Q (sin compuerta propia)
-                                const ESC_SIN_CONTROL = new Set(['K-64', 'K-94+200']);
                                 const escStale = new Set(
                                     skillSnapshot.checkpoints
                                         .filter(c => c.ts_min === null || c.ts_min > 240)

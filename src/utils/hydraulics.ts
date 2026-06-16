@@ -397,9 +397,9 @@ const RADIAL_Cv  = 1.84;
 const RADIAL_g   = 9.81;
 const RADIAL_MIN = 0.01;
 
-/** M1 correction factors — skill v3.7 · última calibración K-0+000: 01/06/2026. */
+/** M1 correction factors — skill v3.7 · última calibración K-0+000: 08/06/2026. */
 export const M1_FACTORS: Record<string, number> = {
-    'K-0+000':  1.2022,  // aforo molinete K1+000=28.217 m³/s 01/06/2026 (+1.4% vs 18/05)
+    'K-0+000':  1.2365,  // pond. aforos K1+000 01/06 (28.217) + 08/06 (31.260); ver skill v3.7
     'K-23':     1.9031,  // CONGELADO — sifón: fórmula radial no aplica, no calibrar por balance
     'K-29':     1.2379,  // aforo anterior (restaurado; 14/05 sobreestimó +16%)
     'K-34':     1.5199,  // aforo anterior (restaurado; 14/05 sobreestimó)

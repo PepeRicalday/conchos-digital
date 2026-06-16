@@ -3198,6 +3198,7 @@
 .dsk-td-nombre { text-align: left !important; color: #94a3b8 !important; font-weight: 600; }
 .dsk-td-num { font-variant-numeric: tabular-nums; }
 .dsk-td--q    { color: #38bdf8 !important; font-weight: 700; }
+.dsk-td--ref  { color: #475569 !important; font-size: 9px !important; }
 .dsk-td--zero { color: #334155 !important; }
 .dsk-td--m1   { color: #a78bfa !important; }
 .dsk-td--red  { color: #ef4444 !important; font-weight: 700; }
@@ -3435,9 +3436,12 @@
 .bt-estado--media          { color: #eab308 !important; }
 .bt-estado--inconsistencia { color: #a78bfa !important; }
 .bt-estado--ok             { color: #22c55e !important; }
+.bt-estado--stale          { color: #64748b !important; }
 
-/* fila destacada para FUGA_ALTA */
-.bt-row--alta { background: rgba(239, 68, 68, 0.06); }
+/* filas destacadas */
+.bt-row--alta  { background: rgba(239, 68, 68, 0.06); }
+.bt-row--stale { background: rgba(71, 85, 105, 0.10); color: #64748b; }
+.bt-row--stale .dsk-td-num { color: #64748b; }
 
 /* ── Velocidad de onda — fila adicional en panel de tránsito ─────── */
 .transit-row--onda {

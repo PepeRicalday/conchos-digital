@@ -1234,7 +1234,7 @@ const PublicMonitor: React.FC = () => {
                 .format(new Date(Date.now() - 86_400_000));
             const [viRes, vzRes, tomasRes, bmRes, ehRes] = await Promise.all([
                 supabase.from('vol_interescalas')
-                    .select('esc_up, km_up, esc_down, km_down, longitud_km, nivel_up_m, nivel_down_m, vol_m3, vol_mm3')
+                    .select('esc_up, km_up, esc_down, km_down, longitud_km, nivel_up_m, nivel_down_m, nivel_ini_m, nivel_fin_m, ancho_canal_m, vol_m3, vol_mm3')
                     .order('km_up', { ascending: true }),
                 supabase.from('vol_zonas')
                     .select('codigo, zona_nombre, km_inicio, km_fin, n_tramos, nivel_medio_m, tirante_diseno_m, bordo_libre_m, y_capacidad_m, vol_actual_m3, vol_actual_mm3, vol_diseno_m3, vol_capacidad_m3, pct_llenado')
@@ -1280,48 +1280,80 @@ const PublicMonitor: React.FC = () => {
     }, []);
 
     const skillSnapshot = useMemo(() => {
-        // Compute real zone deliveries as Q differential between boundary escalas
-        const ZONAS_DEF = [
-            { nombre: 'Z1', km_ini: 23, km_fin: 29, q_obj: 2.400 },
-            { nombre: 'Z2', km_ini: 34, km_fin: 44, q_obj: 2.750 },
-            { nombre: 'Z3', km_ini: 54, km_fin: 68, q_obj: 4.635 },
-            { nombre: 'Z4', km_ini: 79, km_fin: 94, q_obj: 4.200 },
-        ];
-        const ZONAS_SKILL = ZONAS_DEF.map(z => {
-            const escIn  = escalas.find(e => Math.abs(e.km - z.km_ini) < 0.5 && (e.gasto_actual ?? 0) > 0);
-            const escOut = escalas.find(e => Math.abs(e.km - z.km_fin) < 0.5 && (e.gasto_actual ?? 0) > 0);
-            const q_real = (escIn && escOut) ? Math.max(0, (escIn.gasto_actual ?? 0) - (escOut.gasto_actual ?? 0)) : null;
-            const vz = volZonas.find(v => v.codigo === z.nombre);
-            return {
-                nombre:       z.nombre,
-                km_ini:       z.km_ini,
-                km_fin:       z.km_fin,
-                q_objetivo:   z.q_obj,
-                q_real:       q_real !== null ? +q_real.toFixed(3) : null,
-                vol_mm3:      vz?.vol_actual_mm3 != null ? +Number(vz.vol_actual_mm3).toFixed(4) : null,
-                pct_llenado:  vz?.pct_llenado    != null ? +Number(vz.pct_llenado).toFixed(1)    : null,
-                nivel_medio_m: vz?.nivel_medio_m != null ? +Number(vz.nivel_medio_m).toFixed(3)  : null,
-                n_tramos:     vz?.n_tramos        != null ? +Number(vz.n_tramos)                  : null,
-            };
-        });
-        const Q_ZONAS_OBJ  = ZONAS_SKILL.reduce((s, z) => s + z.q_objetivo, 0);
-        const Q_ZONAS_REAL = ZONAS_SKILL.reduce((s, z) => s + (z.q_real ?? z.q_objetivo), 0);
+        // ── DOS conceptos de "zona" distintos — no confundirlos ──────────────
+        //  1) VOLUMEN almacenado: límites geométricos de zonas_canal (vía vol_zonas):
+        //     Z1 0–48.42, Z2 48.42–67.32, Z3 67.32–71.91, Z4 79.025–104.
+        //     Esas fronteras NO caen en escalas → no sirven para diferencial de Q.
+        //  2) Q EXTRAÍDO por zona: escalas de control de extracción (skill v3.7):
+        //     Z1 K-23→K-29, Z2 K-34→K-44, Z3 K-54→K-68, Z4 K-79+025→K-94+057.
+        //     El caudal de zona = Q_entrada − Q_salida entre ese par de escalas.
+        // Antes se mezclaban: se buscaba escala en los km de zonas_canal (48.42…),
+        // que nunca existe → q_real siempre null → balance nunca válido.
         // Solo usar Q de una escala si su telemetría es reciente (<4h = 240 min).
         // Si está FUERA_DE_LINEA/CRITICO, tratar como null para no contaminar el balance.
         const MAX_STALE_MIN = 240;
         const escalaFresh = (km: number) => {
-            const e = escalas.find(e => e.km === km);
+            const e = escalas.find(e => Math.abs(e.km - km) < 0.5);
             if (!e || !e.ultima_telemetria) return null;
             const mins = (Date.now() - e.ultima_telemetria) / 60000;
             return mins <= MAX_STALE_MIN ? e : null;
         };
-        const q0   = escalaFresh(0)?.gasto_actual   ?? 0;
+        const ZONAS_CONTROL = [
+            { codigo: 'Z1', km_in: 23,     km_out: 29,     q_obj: 2.400 },
+            { codigo: 'Z2', km_in: 34,     km_out: 44,     q_obj: 2.750 },
+            { codigo: 'Z3', km_in: 54,     km_out: 68,     q_obj: 4.635 },
+            { codigo: 'Z4', km_in: 79.025, km_out: 94.057, q_obj: 4.200 },
+        ];
+        const ZONAS_SKILL = ZONAS_CONTROL.map(z => {
+            // Q extraído: diferencial entre las escalas de control reales de la zona.
+            // Ambas escalas deben estar FRESCAS (<4h) y con gasto>0; si no, q_real=null
+            // para no inyectar un diferencial obsoleto al balance global.
+            const escIn  = escalaFresh(z.km_in);
+            const escOut = escalaFresh(z.km_out);
+            const q_real = (escIn && (escIn.gasto_actual ?? 0) > 0 && escOut && (escOut.gasto_actual ?? 0) > 0)
+                ? Math.max(0, (escIn.gasto_actual ?? 0) - (escOut.gasto_actual ?? 0))
+                : null;
+            // Volumen/pct/nivel: de vol_zonas (BD), emparejado por código de zona.
+            const vz = volZonas.find(v => v.codigo === z.codigo);
+            return {
+                nombre:        z.codigo,
+                // km_ini/km_fin = escalas de CONTROL de Q (no las fronteras geométricas
+                // de vol_zonas). escala_in/out lo dejan explícito en el snapshot.
+                km_ini:        z.km_in,
+                km_fin:        z.km_out,
+                escala_in:     escIn?.nombre  ?? `K-${z.km_in}`,
+                escala_out:    escOut?.nombre ?? `K-${z.km_out}`,
+                q_objetivo:    z.q_obj,
+                q_real:        q_real !== null ? +q_real.toFixed(3) : null,
+                q_real_stale:  q_real === null,   // true si alguna escala de control no es fresca
+                vol_mm3:       vz?.vol_actual_mm3 != null ? +Number(vz.vol_actual_mm3).toFixed(4) : null,
+                pct_llenado:   vz?.pct_llenado    != null ? +Number(vz.pct_llenado).toFixed(1)    : null,
+                nivel_medio_m: vz?.nivel_medio_m  != null ? +Number(vz.nivel_medio_m).toFixed(3)  : null,
+                n_tramos:      vz?.n_tramos        != null ? +Number(vz.n_tramos)                  : null,
+            };
+        });
+        const Q_ZONAS_OBJ  = ZONAS_SKILL.reduce((s, z) => s + z.q_objetivo, 0);
+        // Extracciones de zona MEDIDAS: solo suma zonas con q_real real (telemetría
+        // en ambas escalas frontera). Las zonas sin medición quedan fuera del balance
+        // — NO se sustituyen por q_objetivo, para no mezclar caudal medido con diseño.
+        const N_ZONAS_ESPERADAS = 4;   // Z1–Z4
+        const zonasMedidas  = ZONAS_SKILL.filter(z => z.q_real !== null);
+        const Q_ZONAS_REAL  = zonasMedidas.reduce((s, z) => s + (z.q_real ?? 0), 0);
+        // Completas solo si las 4 zonas tienen Q extraído MEDIDO (ambas escalas de
+        // control frescas y con gasto). Sin las 4, el balance global no es confiable.
+        const zonasCompletas = zonasMedidas.length === N_ZONAS_ESPERADAS;
+        const q0   = escalaFresh(0)?.gasto_actual   ?? null;   // null cuando STALE
         const q104 = escalaFresh(104)?.gasto_actual ?? null;   // null cuando STALE
-        // Balance solo es significativo cuando K-104 tiene dato fresco
-        const balanceValido = q104 !== null;
-        const perdidas   = balanceValido ? q0 - q104! - Q_ZONAS_REAL : null;
-        const eficiencia = (balanceValido && q0 > 0) ? (q0 - Math.max(0, perdidas!)) / q0 * 100 : null;
-        const lambda     = (perdidas !== null && q0 > 0) ? perdidas / 104 : 0;
+        // El balance Q0 − Q104 − Q_zonas solo es físicamente significativo cuando:
+        //  (1) K-0 tiene dato fresco (entrada medida),
+        //  (2) K-104 tiene dato fresco (salida medida),
+        //  (3) las 4 zonas tienen extracción medida (sin huecos rellenados por diseño).
+        // De lo contrario mezclaríamos caudal medido con valores teóricos y las
+        // pérdidas/eficiencia resultarían números imposibles presentados como "EN VIVO".
+        const balanceValido = q0 !== null && q104 !== null && zonasCompletas;
+        const perdidas   = balanceValido ? q0! - q104! - Q_ZONAS_REAL : null;
+        const eficiencia = (balanceValido && q0! > 0) ? (q0! - Math.max(0, perdidas!)) / q0! * 100 : null;
+        const lambda     = (perdidas !== null && q0! > 0) ? perdidas / 104 : 0;
 
         const checkpoints = escalas
             .filter(e => e.km >= 0 && e.km <= 104)
@@ -1362,14 +1394,16 @@ const PublicMonitor: React.FC = () => {
             zonas: ZONAS_SKILL,
             Q_ZONAS_REAL:  +Q_ZONAS_REAL.toFixed(3),
             Q_ZONAS_TOTAL: +Q_ZONAS_OBJ.toFixed(3),
+            Q_ZONAS_MEDIDAS: zonasMedidas.length,   // cuántas de las 4 zonas tienen extracción medida
             balance: {
-                Q0:             +q0.toFixed(3),
+                Q0:             q0 !== null ? +q0.toFixed(3) : null,
                 Q104:           q104 !== null ? +q104.toFixed(3) : null,
                 Q_extracciones: +Q_ZONAS_REAL.toFixed(3),
                 perdidas:       perdidas !== null ? +perdidas.toFixed(3) : null,
                 eficiencia:     eficiencia !== null ? +eficiencia.toFixed(1) : null,
                 lambda:         +lambda.toFixed(5),
                 balance_valido: balanceValido,
+                zonas_completas: zonasCompletas,
             },
             alertas_nivel: alertas.map(c => ({ nombre: c.nombre, km: c.km, hA: c.hA, bl: c.bl, tipo: c.alerta })),
             checkpoints,
@@ -2517,7 +2551,10 @@ const PublicMonitor: React.FC = () => {
                         <div className="dsk-balance-row">
                             <div className="dsk-bal-item">
                                 <span className="dsk-bal-label">K-0 ENTRADA</span>
-                                <span className="dsk-bal-val dsk-val--green">{skillSnapshot.balance.Q0.toFixed(3)}</span>
+                                {skillSnapshot.balance.Q0 !== null
+                                    ? <span className="dsk-bal-val dsk-val--green">{skillSnapshot.balance.Q0.toFixed(3)}</span>
+                                    : <span className="dsk-bal-val dsk-val--red" title="K-0 sin telemetría &gt;4h">S/D</span>
+                                }
                                 <span className="dsk-bal-unit">m³/s</span>
                             </div>
                             <div className="dsk-bal-item">
@@ -2532,7 +2569,7 @@ const PublicMonitor: React.FC = () => {
                                 <span className="dsk-bal-label">EFICIENCIA</span>
                                 {skillSnapshot.balance.eficiencia !== null
                                     ? <span className={`dsk-bal-val ${skillSnapshot.balance.eficiencia >= 95 ? 'dsk-val--green' : skillSnapshot.balance.eficiencia >= 90 ? 'dsk-val--amber' : 'dsk-val--red'}`}>{skillSnapshot.balance.eficiencia.toFixed(1)}%</span>
-                                    : <span className="dsk-bal-val dsk-val--red" title="K-104 sin dato fresco">S/D</span>
+                                    : <span className="dsk-bal-val dsk-val--red" title={`Balance no confiable — ${skillSnapshot.balance.Q0 === null ? 'K-0 sin dato' : skillSnapshot.balance.Q104 === null ? 'K-104 sin dato' : `solo ${skillSnapshot.Q_ZONAS_MEDIDAS}/4 zonas medidas`}`}>S/D</span>
                                 }
                                 <span className="dsk-bal-unit"></span>
                             </div>
@@ -2540,7 +2577,7 @@ const PublicMonitor: React.FC = () => {
                                 <span className="dsk-bal-label">PÉRDIDAS</span>
                                 {skillSnapshot.balance.perdidas !== null
                                     ? <span className="dsk-bal-val dsk-val--amber">{skillSnapshot.balance.perdidas.toFixed(3)}</span>
-                                    : <span className="dsk-bal-val dsk-val--red" title="K-104 sin dato fresco">S/D</span>
+                                    : <span className="dsk-bal-val dsk-val--red" title={`Balance no confiable — ${skillSnapshot.balance.Q0 === null ? 'K-0 sin dato' : skillSnapshot.balance.Q104 === null ? 'K-104 sin dato' : `solo ${skillSnapshot.Q_ZONAS_MEDIDAS}/4 zonas medidas`}`}>S/D</span>
                                 }
                                 <span className="dsk-bal-unit">m³/s</span>
                             </div>
@@ -2614,22 +2651,23 @@ const PublicMonitor: React.FC = () => {
                         <div className="dsk-section-block">
                             <div className="dsk-sub-header">VOLUMEN EN CANAL — TRAMOS INTERESCALA</div>
 
-                            {/* Strip de alertas de fuga — excluye tramos con escalas STALE (>4h) o sifones sin Q real */}
+                            {/* Strip de alertas de fuga — excluye tramos con escalas STALE (>4h) o escalas de referencia sin control de gasto */}
                             {(() => {
-                                const SIFONES = new Set(['K-64', 'K-94+200']);  // escalas sin compuerta medible
+                                // Escalas de referencia: tienen nivel pero no controlan Q (sin compuerta propia)
+                                const ESC_SIN_CONTROL = new Set(['K-64', 'K-94+200']);
                                 const escStale = new Set(
                                     skillSnapshot.checkpoints
                                         .filter(c => c.ts_min === null || c.ts_min > 240)
                                         .map(c => c.nombre)
                                 );
                                 const tramosConfiables = balanceTramos.filter((b: any) => {
-                                    if (SIFONES.has(b.escala_entrada) || SIFONES.has(b.escala_salida)) return false;
+                                    if (ESC_SIN_CONTROL.has(b.escala_entrada) || ESC_SIN_CONTROL.has(b.escala_salida)) return false;
                                     if (escStale.has(b.escala_entrada) || escStale.has(b.escala_salida)) return false;
                                     return b.estado_balance === 'FUGA_ALTA' || b.estado_balance === 'FUGA_MEDIA';
                                 });
                                 const tramosStaleOSifon = balanceTramos.filter((b: any) =>
                                     (b.estado_balance === 'INCONSISTENCIA' || b.estado_balance === 'FUGA_ALTA') &&
-                                    (SIFONES.has(b.escala_entrada) || SIFONES.has(b.escala_salida) ||
+                                    (ESC_SIN_CONTROL.has(b.escala_entrada) || ESC_SIN_CONTROL.has(b.escala_salida) ||
                                      escStale.has(b.escala_entrada) || escStale.has(b.escala_salida))
                                 );
                                 return (
@@ -2666,8 +2704,9 @@ const PublicMonitor: React.FC = () => {
                                         <tr>
                                             <th>TRAMO</th>
                                             <th>L (km)</th>
-                                            <th>NA↑ (m)</th>
-                                            <th>NA↓ (m)</th>
+                                            <th title="H↑ escala entrada — nivel aguas arriba de compuerta">H↑ ent (m)</th>
+                                            <th title="H↓ escala entrada — nivel real inicio de tramo, aguas abajo de compuerta">H↓ ent (m)</th>
+                                            <th title="H↑ escala salida — nivel real fin de tramo, aguas arriba de siguiente compuerta">H↑ sal (m)</th>
                                             <th>Vol (m³)</th>
                                             <th>Mm³</th>
                                             <th>Q↑ (m³/s)</th>
@@ -2677,27 +2716,44 @@ const PublicMonitor: React.FC = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {volInterescalas.map((v: any) => {
+                                        {(() => {
+                                            const ESC_SIN_CONTROL_TB = new Set(['K-64', 'K-94+200']);
+                                            const escStaleSet = new Set(
+                                                skillSnapshot.checkpoints
+                                                    .filter(c => c.ts_min === null || c.ts_min > 240)
+                                                    .map(c => c.nombre)
+                                            );
+                                            return volInterescalas.map((v: any) => {
                                             const bt = balanceTramos.find(b => Math.abs(Number(b.km_inicio) - Number(v.km_up)) < 0.1);
-                                            const estadoClass = bt?.estado_balance === 'FUGA_ALTA' ? 'bt-estado--alta'
+                                            const esSinControl = ESC_SIN_CONTROL_TB.has(v.esc_up) || ESC_SIN_CONTROL_TB.has(v.esc_down);
+                                            const esStale = escStaleSet.has(v.esc_up) || escStaleSet.has(v.esc_down);
+                                            const sinDato = esSinControl || esStale;
+                                            const estadoClass = sinDato ? 'bt-estado--stale'
+                                                : bt?.estado_balance === 'FUGA_ALTA' ? 'bt-estado--alta'
                                                 : bt?.estado_balance === 'FUGA_MEDIA' ? 'bt-estado--media'
                                                 : bt?.estado_balance === 'INCONSISTENCIA' ? 'bt-estado--inconsistencia'
                                                 : bt ? 'bt-estado--ok' : '';
+                                            const rowClass = sinDato ? 'bt-row--stale'
+                                                : bt?.estado_balance === 'FUGA_ALTA' ? 'bt-row--alta' : '';
                                             return (
-                                            <tr key={v.km_up} className={bt?.estado_balance === 'FUGA_ALTA' ? 'bt-row--alta' : ''}>
+                                            <tr key={v.km_up} className={rowClass}>
                                                 <td className="dsk-td-tramo">{v.esc_up} → {v.esc_down}</td>
                                                 <td className="dsk-td-num">{Number(v.longitud_km).toFixed(3)}</td>
-                                                <td className="dsk-td-num">{Number(v.nivel_up_m).toFixed(3)}</td>
-                                                <td className="dsk-td-num">{Number(v.nivel_down_m).toFixed(3)}</td>
-                                                <td className="dsk-td-num dsk-td--q">{Number(v.vol_m3).toLocaleString('es-MX')}</td>
-                                                <td className="dsk-td-num">{Number(v.vol_mm3).toFixed(4)}</td>
-                                                <td className="dsk-td-num">{bt ? Number(bt.q_entrada_m3s).toFixed(3) : '—'}</td>
-                                                <td className="dsk-td-num">{bt ? Number(bt.q_salida_m3s).toFixed(3) : '—'}</td>
-                                                <td className="dsk-td-num">{bt ? Number(bt.q_fuga_detectada).toFixed(3) : '—'}</td>
-                                                <td className={`dsk-td-num bt-estado ${estadoClass}`}>{bt?.estado_balance ?? '—'}</td>
+                                                <td className="dsk-td-num dsk-td--ref" title="H↑ escala entrada (remanso aguas arriba de compuerta)">{v.nivel_up_m != null ? Number(v.nivel_up_m).toFixed(3) : '—'}</td>
+                                                <td className="dsk-td-num" title="H↓ escala entrada — inicio real del tramo">{v.nivel_ini_m != null ? Number(v.nivel_ini_m).toFixed(3) : '—'}</td>
+                                                <td className="dsk-td-num" title="H↑ escala salida — fin real del tramo">{v.nivel_fin_m != null ? Number(v.nivel_fin_m).toFixed(3) : '—'}</td>
+                                                <td className="dsk-td-num dsk-td--q">{v.vol_m3 != null ? Number(v.vol_m3).toLocaleString('es-MX') : '—'}</td>
+                                                <td className="dsk-td-num">{v.vol_mm3 != null ? Number(v.vol_mm3).toFixed(4) : '—'}</td>
+                                                <td className="dsk-td-num">{sinDato ? '⊘' : bt ? Number(bt.q_entrada_m3s).toFixed(3) : '—'}</td>
+                                                <td className="dsk-td-num">{sinDato ? '⊘' : bt ? Number(bt.q_salida_m3s).toFixed(3) : '—'}</td>
+                                                <td className="dsk-td-num">{sinDato ? '⊘' : bt ? Number(bt.q_fuga_detectada).toFixed(3) : '—'}</td>
+                                                <td className={`dsk-td-num bt-estado ${estadoClass}`}>
+                                                    {sinDato ? (esSinControl ? 'REF' : 'S/D') : (bt?.estado_balance ?? '—')}
+                                                </td>
                                             </tr>
                                             );
-                                        })}
+                                        });
+                                        })()}
                                     </tbody>
                                 </table>
                             </div>
@@ -2708,19 +2764,29 @@ const PublicMonitor: React.FC = () => {
                         {volZonas.length > 0 && (
                         <div className="dsk-section-block">
                             <div className="dsk-sub-header">ALMACENAMIENTO POR ZONA</div>
-                            {/* Alerta zonas vaciándose — umbral operativo <40% */}
-                            {volZonas.some((z: any) => Number(z.pct_llenado ?? 0) < 40) && (
+                            {/* Alertas de zona — vaciándose (<40%) Y sobrellenado (≥90%).
+                                Una zona al 100% (riesgo de desbordamiento) es tan crítica como
+                                una al 20%; antes solo se alertaban las zonas bajas. */}
+                            {volZonas.some((z: any) => { const p = Number(z.pct_llenado ?? 0); return p < 40 || p >= 90; }) && (
                                 <div className="bt-alert-strip" style={{marginBottom:'6px'}}>
-                                    {volZonas.filter((z: any) => Number(z.pct_llenado ?? 0) < 40).map((z: any) => {
-                                        const pct = Number(z.pct_llenado ?? 0);
-                                        return (
-                                            <div key={z.codigo} className={`bt-alert-item bt-alert--${pct < 20 ? 'alta' : 'media'}`}>
-                                                <span className="bt-alert-badge">{pct < 20 ? '⚠ ZONA CRÍTICA' : '· ZONA BAJA'}</span>
-                                                <span className="bt-alert-tramo">{z.codigo} — {z.zona_nombre}</span>
-                                                <span className="bt-alert-q">{pct.toFixed(1)}% · {Number(z.vol_actual_mm3).toFixed(4)} Mm³</span>
-                                            </div>
-                                        );
-                                    })}
+                                    {volZonas
+                                        .filter((z: any) => { const p = Number(z.pct_llenado ?? 0); return p < 40 || p >= 90; })
+                                        .map((z: any) => {
+                                            const pct = Number(z.pct_llenado ?? 0);
+                                            const sev = pct >= 100 || pct < 20 ? 'alta' : 'media';
+                                            const badge =
+                                                pct >= 100 ? '⚠ ZONA LLENA'
+                                                : pct >= 90 ? '· ZONA ALTA'
+                                                : pct < 20  ? '⚠ ZONA CRÍTICA'
+                                                : '· ZONA BAJA';
+                                            return (
+                                                <div key={z.codigo} className={`bt-alert-item bt-alert--${sev}`}>
+                                                    <span className="bt-alert-badge">{badge}</span>
+                                                    <span className="bt-alert-tramo">{z.codigo} — {z.zona_nombre}</span>
+                                                    <span className="bt-alert-q">{pct.toFixed(1)}% · {Number(z.vol_actual_mm3).toFixed(4)} Mm³</span>
+                                                </div>
+                                            );
+                                        })}
                                 </div>
                             )}
                             <div className="dsk-zonas-grid">
@@ -2887,26 +2953,29 @@ const PublicMonitor: React.FC = () => {
                                             // Fuente y estado se calculan desde los datos reales en hydraulics.ts
                                             const m1src =
                                                 c.nombre === 'K-0+000'  ? 'Aforo molinete 01/06/2026' :
-                                                c.nombre === 'K-23'     ? 'Sifón — estimado estructural' :
+                                                c.nombre === 'K-23'     ? 'Estimado estructural' :
                                                 c.nombre === 'K-54'     ? 'Aforo 27/04/2026' :
                                                 c.nombre === 'K-62'     ? 'Aforo 27/04/2026' :
                                                 c.nombre === 'K-104'    ? 'Ancla salida' :
                                                 c.nombre === 'K-64'     ? 'Escala referencia' :
                                                 c.nombre === 'K-94+200' ? 'Escala referencia' :
                                                 'Aforo anterior';
+                                            // Prioridad: estados nombrados explícitos (curados) ANTES que la
+                                            // heurística M1>1.5. Si no, una escala marcada VERIFICAR con M1>1.5
+                                            // se mostraría como PENDIENTE y nunca llegaría a VERIFICAR.
                                             const est =
+                                                c.nombre === 'K-64' || c.nombre === 'K-94+200' ? 'REFERENCIA' :
                                                 c.nombre === 'K-0+000'  ? 'RECIENTE' :
-                                                c.m1 > 1.5              ? 'PENDIENTE' :
-                                                c.nombre === 'K-64' || c.nombre === 'K-94+200' ? 'PENDIENTE' :
                                                 c.nombre === 'K-29' || c.nombre === 'K-68' || c.nombre === 'K-87+549' ? 'VERIFICAR' :
+                                                c.m1 > 1.5              ? 'PENDIENTE' :
                                                 'OK';
                                             return (
-                                                <tr key={c.nombre} className={est === 'PENDIENTE' ? 'dsk-tr--warn' : est === 'RECIENTE' ? 'dsk-tr--reciente' : ''}>
+                                                <tr key={c.nombre} className={est === 'PENDIENTE' ? 'dsk-tr--warn' : est === 'RECIENTE' ? 'dsk-tr--reciente' : est === 'REFERENCIA' ? 'bt-row--stale' : ''}>
                                                     <td className="dsk-td-nombre">{c.nombre}</td>
                                                     <td className="dsk-td-num dsk-td--m1">{c.m1.toFixed(4)}</td>
                                                     <td className="dsk-td-src">{m1src}</td>
-                                                    <td className={`dsk-td-num ${est==='RECIENTE'?'dsk-val--green':est==='PENDIENTE'?'dsk-val--amber':est==='VERIFICAR'?'dsk-val--amber':''}`}>
-                                                        {est==='RECIENTE'?'✓ Reciente':est==='PENDIENTE'?'⚠ Pendiente':est==='VERIFICAR'?'? Verificar':'✓ OK'}
+                                                    <td className={`dsk-td-num ${est==='RECIENTE'?'dsk-val--green':est==='PENDIENTE'?'dsk-val--amber':est==='VERIFICAR'?'dsk-val--amber':est==='REFERENCIA'?'bt-estado--stale':''}`}>
+                                                        {est==='RECIENTE'?'✓ Reciente':est==='PENDIENTE'?'⚠ Pendiente':est==='VERIFICAR'?'? Verificar':est==='REFERENCIA'?'· Referencia':'✓ OK'}
                                                     </td>
                                                 </tr>
                                             );
@@ -2928,7 +2997,7 @@ const PublicMonitor: React.FC = () => {
                                         className="dsk-model-input"
                                         value={modelQ0}
                                         onChange={e => setModelQ0(e.target.value)}
-                                        placeholder={skillSnapshot.balance.Q0.toFixed(3)}
+                                        placeholder={(skillSnapshot.balance.Q0 ?? 28).toFixed(3)}
                                         step="0.5"
                                         min="0"
                                         max="70"
@@ -2937,7 +3006,7 @@ const PublicMonitor: React.FC = () => {
                                         type="button"
                                         className="dsk-btn dsk-btn--calc"
                                         onClick={() => {
-                                            const q0 = parseFloat(modelQ0) || skillSnapshot.balance.Q0;
+                                            const q0 = parseFloat(modelQ0) || skillSnapshot.balance.Q0 || 28;
                                             const lambda = skillSnapshot.balance.lambda;
                                             const qZonas = skillSnapshot.Q_ZONAS_REAL;
                                             const perdidasLin = lambda * 104;
@@ -2998,20 +3067,27 @@ const PublicMonitor: React.FC = () => {
                                     <div className="dsk-informe-section">
                                         <div className="dsk-informe-title">MÓDULOS OPERATIVOS</div>
                                         <div className="dsk-modulos-grid">
+                                            {/* Descripción de tramo por módulo (metadato estático);
+                                                la ZONA se toma de balance_volumen_modulo (BD) para que
+                                                nunca contradiga la tabla DOTACIÓN de arriba. */}
                                             {([
-                                                { cod:'MOD-001', zona:'Z1', desc:'K-0 → K-23 · Derivaciones norte' },
-                                                { cod:'MOD-002', zona:'Z1', desc:'K-23 → K-29 · Zona baja Conchos' },
-                                                { cod:'MOD-003', zona:'Z2', desc:'K-29 → K-44 · Gravedad centro' },
-                                                { cod:'MOD-004', zona:'Z2', desc:'K-44 → K-62 · Riego tradicional' },
-                                                { cod:'MOD-005', zona:'Z3', desc:'K-62 → K-79 · Gravedad sur' },
-                                                { cod:'MOD-006', zona:'Z4', desc:'K-79 → K-104 · Cola canal' },
-                                            ] as { cod: string; zona: string; desc: string }[]).map(m => (
+                                                { cod:'MOD-001', codCorto:'M1',  desc:'K-0 → K-23 · Derivaciones norte' },
+                                                { cod:'MOD-002', codCorto:'M2',  desc:'K-23 → K-29 · Zona baja Conchos' },
+                                                { cod:'MOD-003', codCorto:'M3',  desc:'K-29 → K-44 · Gravedad centro' },
+                                                { cod:'MOD-004', codCorto:'M4',  desc:'K-44 → K-62 · Riego tradicional' },
+                                                { cod:'MOD-005', codCorto:'M5',  desc:'K-62 → K-79 · Gravedad sur' },
+                                                { cod:'MOD-006', codCorto:'M6',  desc:'K-79 → K-104 · Cola canal' },
+                                            ] as { cod: string; codCorto: string; desc: string }[]).map(m => {
+                                                const live = modulosResumen.find(r => r.codigo_corto === m.codCorto || r.modulo_id === m.cod);
+                                                const zona = live?.zona_codigo || '—';
+                                                return (
                                                 <div key={m.cod} className="dsk-modulo-tag">
                                                     <span className="dsk-mod-code">{m.cod}</span>
-                                                    <span className="dsk-mod-zona">{m.zona}</span>
+                                                    <span className="dsk-mod-zona">{zona}</span>
                                                     <span className="dsk-mod-desc">{m.desc}</span>
                                                 </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                     <div className="dsk-informe-section">
@@ -3062,7 +3138,7 @@ const PublicMonitor: React.FC = () => {
                                     onClick={() => {
                                         const now = new Date();
                                         const cdtStr = now.toLocaleString('sv-SE', { timeZone: 'America/Chihuahua' })
-                                            .replace(' ', '_').replace(/:/g, 'h', 1).replace(':', 'm').replace(/:\d+$/, '');
+                                            .replace(' ', '_').replace(/:/, 'h').replace(':', 'm').replace(/:\d+$/, '');
                                         const tzLabel = now.toLocaleTimeString('es-MX', { timeZoneName: 'short', timeZone: 'America/Chihuahua' }).split(' ').pop()?.toLowerCase() ?? 'cdt';
                                         const eventoTag = skillSnapshot.evento_activo ? `_${skillSnapshot.evento_activo.tipo.toLowerCase()}` : '_operacion';
                                         const blob = new Blob([JSON.stringify(skillSnapshot, null, 2)], { type: 'application/json' });

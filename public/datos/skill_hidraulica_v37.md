@@ -78,19 +78,27 @@ Q = 0   (solo mide nivel para referencia hidráulica)
 
 **Historial calibración K-0+000:**
 ```
+24/03/2026  Q_aforo = 29.161 m³/s  (aforo K1+000, escala 2.56)
+06/04/2026  Q_aforo = 24.030 m³/s  (aforo K1+000, escala 2.28)
+15/04/2026  Q_aforo = 22.801 m³/s  (aforo K1+000, escala 2.19)
 27/04/2026  Q_aforo = 26.488 m³/s
 04/05/2026  Q_aforo = 29.497 m³/s
-14/05/2026  M1 = 1.2547  (gastos_actuales.mjs — ⚠ posible sobreestimación)
+14/05/2026  M1 = 1.2547  (gastos_actuales.mjs · Q_aforo=31.377 — ⚠ posible sobreestimación)
 18/05/2026  Q_aforo = 27.825 m³/s  →  M1 = 1.1855  (−5.5% vs 14/05)
-01/06/2026  Q_aforo = 28.217 m³/s  →  M1 = 1.2022  (+1.4% vs 18/05)  ← ACTUAL
+01/06/2026  Q_aforo = 28.217 m³/s  →  M1 = 1.2022  (+1.4% vs 18/05)
+08/06/2026  Q_aforo = 31.260 m³/s  →  M1 = 1.2593  (Q_base=24.824 · cond. 06–10/jun estables 1.234–1.275)
 ```
+
+**M1 vigente = 1.2365** — promedio ponderado 01/06 (0.4) + 08/06 (0.6).
+Se pondera para no sobreajustar a un solo aforo de Q alto (lección del 14/05).
+Δ vs aforo individual 08/06 = −1.8% · Δ vs 01/06 = +2.9% (ambos < umbral 5%).
 
 **Q_base sin M1 (geométrica fija K-0+000):** 23.471 m³/s
 (Cd=0.62 · 12 compuertas · ancho=1.55 m · condiciones aforo 18/05 como ancla)
 
 | Punto | KM | M1 v3.7 | M1 v3.6f | Fuente |
 |---|---|---|---|---|
-| K-0+000 | 0 | **1.2022** | 1.1855 | Aforo molinete K1+000=28.217 m³/s 01/06/2026 (+1.4%) |
+| K-0+000 | 0 | **1.2365** | 1.1855 | Aforo molinete K1+000 — pond. 01/06 (28.217) + 08/06 (31.260) |
 | K-23 | 23 | **1.9031** | 1.9031 | CONGELADO — sifón, fórmula radial no aplica |
 | K-29 | 29 | **1.2379** | 1.2379 | Sin cambio |
 | K-34 | 34 | **1.5199** | 1.5199 | Sin cambio |

@@ -482,7 +482,7 @@ const PublicMonitor: React.FC = () => {
                     .eq('fecha', todayDate),
                 supabase
                     .from('lecturas_escalas')
-                    .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, radiales_json, gasto_calculado_m3s, creado_en')
+                    .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, radiales_json, gasto_calculado_m3s, gasto_metodo, creado_en')
                     .gte('creado_en', eventStart)
                     .order('creado_en', { ascending: false })
                     .limit(500),
@@ -572,7 +572,12 @@ const PublicMonitor: React.FC = () => {
                     if (readingTime >= flowStartTime!) {
                         if (!readingsMap.has(r.escala_id)) {
                             const esc = escData?.find(e => e.id === r.escala_id);
-                            const gasto_recalc = esc?.pzas_radiales
+                            // Si el operador eligió curva nivel-gasto (robusta ante compuertas
+                            // taponadas), respetar ese valor en vez de recalcular con la fórmula
+                            // de orificio/radiales, que sobreestima cuando hay azolve.
+                            const gasto_recalc = r.gasto_metodo === 'curva_nivel'
+                                ? (r.gasto_calculado_m3s || 0)
+                                : esc?.pzas_radiales
                                 ? calcRadialFlow(
                                     r.nivel_m,
                                     r.nivel_abajo_m || 0,
@@ -613,7 +618,9 @@ const PublicMonitor: React.FC = () => {
                     if (!readingsMap.has(r.escala_id)) {
                         const manualReadingTime = new Date(`${r.fecha}T${r.hora_lectura}-06:00`).getTime();
                         const esc = escData?.find(e => e.id === r.escala_id);
-                        const gasto_recalc = esc?.pzas_radiales
+                        const gasto_recalc = r.gasto_metodo === 'curva_nivel'
+                            ? (r.gasto_calculado_m3s || 0)
+                            : esc?.pzas_radiales
                             ? calcRadialFlow(
                                 r.nivel_m,
                                 r.nivel_abajo_m || 0,

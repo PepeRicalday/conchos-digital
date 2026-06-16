@@ -1306,11 +1306,22 @@ const PublicMonitor: React.FC = () => {
         });
         const Q_ZONAS_OBJ  = ZONAS_SKILL.reduce((s, z) => s + z.q_objetivo, 0);
         const Q_ZONAS_REAL = ZONAS_SKILL.reduce((s, z) => s + (z.q_real ?? z.q_objetivo), 0);
-        const q0   = escalas.find(e => e.km === 0)?.gasto_actual ?? 0;
-        const q104 = escalas.find(e => e.km === 104)?.gasto_actual ?? 0;
-        const perdidas   = q0 - q104 - Q_ZONAS_REAL;
-        const eficiencia = q0 > 0 ? (q0 - Math.max(0, perdidas)) / q0 * 100 : 0;
-        const lambda     = q0 > 0 ? perdidas / 104 : 0;
+        // Solo usar Q de una escala si su telemetría es reciente (<4h = 240 min).
+        // Si está FUERA_DE_LINEA/CRITICO, tratar como null para no contaminar el balance.
+        const MAX_STALE_MIN = 240;
+        const escalaFresh = (km: number) => {
+            const e = escalas.find(e => e.km === km);
+            if (!e || !e.ultima_telemetria) return null;
+            const mins = (Date.now() - e.ultima_telemetria) / 60000;
+            return mins <= MAX_STALE_MIN ? e : null;
+        };
+        const q0   = escalaFresh(0)?.gasto_actual   ?? 0;
+        const q104 = escalaFresh(104)?.gasto_actual ?? null;   // null cuando STALE
+        // Balance solo es significativo cuando K-104 tiene dato fresco
+        const balanceValido = q104 !== null;
+        const perdidas   = balanceValido ? q0 - q104! - Q_ZONAS_REAL : null;
+        const eficiencia = (balanceValido && q0 > 0) ? (q0 - Math.max(0, perdidas!)) / q0 * 100 : null;
+        const lambda     = (perdidas !== null && q0 > 0) ? perdidas / 104 : 0;
 
         const checkpoints = escalas
             .filter(e => e.km >= 0 && e.km <= 104)
@@ -1352,12 +1363,13 @@ const PublicMonitor: React.FC = () => {
             Q_ZONAS_REAL:  +Q_ZONAS_REAL.toFixed(3),
             Q_ZONAS_TOTAL: +Q_ZONAS_OBJ.toFixed(3),
             balance: {
-                Q0:            +q0.toFixed(3),
-                Q104:          +q104.toFixed(3),
+                Q0:             +q0.toFixed(3),
+                Q104:           q104 !== null ? +q104.toFixed(3) : null,
                 Q_extracciones: +Q_ZONAS_REAL.toFixed(3),
-                perdidas:      +perdidas.toFixed(3),
-                eficiencia:    +eficiencia.toFixed(1),
-                lambda:        +lambda.toFixed(5),
+                perdidas:       perdidas !== null ? +perdidas.toFixed(3) : null,
+                eficiencia:     eficiencia !== null ? +eficiencia.toFixed(1) : null,
+                lambda:         +lambda.toFixed(5),
+                balance_valido: balanceValido,
             },
             alertas_nivel: alertas.map(c => ({ nombre: c.nombre, km: c.km, hA: c.hA, bl: c.bl, tipo: c.alerta })),
             checkpoints,
@@ -2498,6 +2510,9 @@ const PublicMonitor: React.FC = () => {
                             <span className="telemetry-tag active-mon">● EN VIVO</span>
                         </div>
 
+                        {/* Contenido scrolleable */}
+                        <div className="dsk-scroll-body">
+
                         {/* Balance global */}
                         <div className="dsk-balance-row">
                             <div className="dsk-bal-item">
@@ -2507,17 +2522,26 @@ const PublicMonitor: React.FC = () => {
                             </div>
                             <div className="dsk-bal-item">
                                 <span className="dsk-bal-label">K-104 SALIDA</span>
-                                <span className="dsk-bal-val dsk-val--blue">{skillSnapshot.balance.Q104.toFixed(3)}</span>
+                                {skillSnapshot.balance.Q104 !== null
+                                    ? <span className="dsk-bal-val dsk-val--blue">{skillSnapshot.balance.Q104.toFixed(3)}</span>
+                                    : <span className="dsk-bal-val dsk-val--red" title="Sin telemetría &gt;4h">S/D</span>
+                                }
                                 <span className="dsk-bal-unit">m³/s</span>
                             </div>
                             <div className="dsk-bal-item">
                                 <span className="dsk-bal-label">EFICIENCIA</span>
-                                <span className={`dsk-bal-val ${skillSnapshot.balance.eficiencia >= 95 ? 'dsk-val--green' : skillSnapshot.balance.eficiencia >= 90 ? 'dsk-val--amber' : 'dsk-val--red'}`}>{skillSnapshot.balance.eficiencia.toFixed(1)}%</span>
+                                {skillSnapshot.balance.eficiencia !== null
+                                    ? <span className={`dsk-bal-val ${skillSnapshot.balance.eficiencia >= 95 ? 'dsk-val--green' : skillSnapshot.balance.eficiencia >= 90 ? 'dsk-val--amber' : 'dsk-val--red'}`}>{skillSnapshot.balance.eficiencia.toFixed(1)}%</span>
+                                    : <span className="dsk-bal-val dsk-val--red" title="K-104 sin dato fresco">S/D</span>
+                                }
                                 <span className="dsk-bal-unit"></span>
                             </div>
                             <div className="dsk-bal-item">
                                 <span className="dsk-bal-label">PÉRDIDAS</span>
-                                <span className="dsk-bal-val dsk-val--amber">{skillSnapshot.balance.perdidas.toFixed(3)}</span>
+                                {skillSnapshot.balance.perdidas !== null
+                                    ? <span className="dsk-bal-val dsk-val--amber">{skillSnapshot.balance.perdidas.toFixed(3)}</span>
+                                    : <span className="dsk-bal-val dsk-val--red" title="K-104 sin dato fresco">S/D</span>
+                                }
                                 <span className="dsk-bal-unit">m³/s</span>
                             </div>
                             <div className="dsk-bal-item">
@@ -2590,18 +2614,51 @@ const PublicMonitor: React.FC = () => {
                         <div className="dsk-section-block">
                             <div className="dsk-sub-header">VOLUMEN EN CANAL — TRAMOS INTERESCALA</div>
 
-                            {/* Strip de alertas de fuga — solo cuando hay tramos con balance anómalo */}
-                            {balanceTramos.some(b => b.estado_balance === 'FUGA_ALTA' || b.estado_balance === 'FUGA_MEDIA') && (
-                                <div className="bt-alert-strip">
-                                    {balanceTramos.filter(b => b.estado_balance === 'FUGA_ALTA' || b.estado_balance === 'FUGA_MEDIA').map((b: any) => (
-                                        <div key={b.km_inicio} className={`bt-alert-item bt-alert--${b.estado_balance === 'FUGA_ALTA' ? 'alta' : 'media'}`}>
-                                            <span className="bt-alert-badge">{b.estado_balance === 'FUGA_ALTA' ? '⚠ FUGA ALTA' : '· FUGA MEDIA'}</span>
-                                            <span className="bt-alert-tramo">{b.escala_entrada} → {b.escala_salida}</span>
-                                            <span className="bt-alert-q">{Number(b.q_fuga_detectada).toFixed(3)} m³/s no contabilizados</span>
+                            {/* Strip de alertas de fuga — excluye tramos con escalas STALE (>4h) o sifones sin Q real */}
+                            {(() => {
+                                const SIFONES = new Set(['K-64', 'K-94+200']);  // escalas sin compuerta medible
+                                const escStale = new Set(
+                                    skillSnapshot.checkpoints
+                                        .filter(c => c.ts_min === null || c.ts_min > 240)
+                                        .map(c => c.nombre)
+                                );
+                                const tramosConfiables = balanceTramos.filter((b: any) => {
+                                    if (SIFONES.has(b.escala_entrada) || SIFONES.has(b.escala_salida)) return false;
+                                    if (escStale.has(b.escala_entrada) || escStale.has(b.escala_salida)) return false;
+                                    return b.estado_balance === 'FUGA_ALTA' || b.estado_balance === 'FUGA_MEDIA';
+                                });
+                                const tramosStaleOSifon = balanceTramos.filter((b: any) =>
+                                    (b.estado_balance === 'INCONSISTENCIA' || b.estado_balance === 'FUGA_ALTA') &&
+                                    (SIFONES.has(b.escala_entrada) || SIFONES.has(b.escala_salida) ||
+                                     escStale.has(b.escala_entrada) || escStale.has(b.escala_salida))
+                                );
+                                return (
+                                    <>
+                                    {tramosConfiables.length > 0 && (
+                                        <div className="bt-alert-strip">
+                                            {tramosConfiables.map((b: any) => (
+                                                <div key={b.km_inicio} className={`bt-alert-item bt-alert--${b.estado_balance === 'FUGA_ALTA' ? 'alta' : 'media'}`}>
+                                                    <span className="bt-alert-badge">{b.estado_balance === 'FUGA_ALTA' ? '⚠ FUGA ALTA' : '· FUGA MEDIA'}</span>
+                                                    <span className="bt-alert-tramo">{b.escala_entrada} → {b.escala_salida}</span>
+                                                    <span className="bt-alert-q">{Number(b.q_fuga_detectada).toFixed(3)} m³/s no contabilizados</span>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
-                                </div>
-                            )}
+                                    )}
+                                    {tramosStaleOSifon.length > 0 && (
+                                        <div className="bt-alert-strip">
+                                            {tramosStaleOSifon.map((b: any) => (
+                                                <div key={'stale-'+b.km_inicio} className="bt-alert-item bt-alert--stale">
+                                                    <span className="bt-alert-badge">⊘ SIN DATO</span>
+                                                    <span className="bt-alert-tramo">{b.escala_entrada} → {b.escala_salida}</span>
+                                                    <span className="bt-alert-q">telemetría fuera de línea — balance no confiable</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    </>
+                                );
+                            })()}
 
                             <div className="dsk-table-wrap">
                                 <table className="dsk-table">
@@ -2972,6 +3029,8 @@ const PublicMonitor: React.FC = () => {
                                 </div>
                             )}
                         </div>
+
+                        </div>{/* /dsk-scroll-body */}
 
                         {/* Timestamp y acciones */}
                         <div className="dsk-footer">

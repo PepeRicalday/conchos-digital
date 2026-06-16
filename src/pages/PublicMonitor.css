@@ -3077,9 +3077,36 @@
 .dock-skill-panel {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 8px 10px 6px;
+    padding: 8px 10px 0;
     overflow: hidden;
+    /* Altura máxima = viewport menos dock header, tabs y footer */
+    max-height: calc(100vh - 160px);
+}
+
+.dsk-scroll-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 6px;
+    /* scrollbar fina y discreta */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(56,189,248,0.25) transparent;
+}
+.dsk-scroll-body::-webkit-scrollbar {
+    width: 4px;
+}
+.dsk-scroll-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+.dsk-scroll-body::-webkit-scrollbar-thumb {
+    background: rgba(56,189,248,0.25);
+    border-radius: 2px;
+}
+.dsk-scroll-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(56,189,248,0.45);
 }
 
 /* Balance row */
@@ -3394,6 +3421,11 @@
 }
 .bt-alert--alta  .bt-alert-badge { color: #ef4444; }
 .bt-alert--media .bt-alert-badge { color: #eab308; }
+.bt-alert--stale {
+    background: rgba(71, 85, 105, 0.20);
+    border-left: 3px solid #475569;
+}
+.bt-alert--stale .bt-alert-badge { color: #64748b; }
 .bt-alert-tramo { color: #94a3b8; flex: 1; }
 .bt-alert-q     { color: #e2e8f0; font-weight: 600; }
 

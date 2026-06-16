@@ -3176,6 +3176,12 @@
 .dsk-td--red  { color: #ef4444 !important; font-weight: 700; }
 .dsk-td--amber{ color: #f59e0b !important; font-weight: 700; }
 
+/* TEL column — semáforo de telemetría en tabla checkpoints */
+.dsk-tel--ok      { color: #22c55e !important; font-weight: 600; }
+.dsk-tel--warn    { color: #f59e0b !important; font-weight: 600; }
+.dsk-tel--critico { color: #ef4444 !important; font-weight: 700; }
+.dsk-tel--offline { color: #475569 !important; }
+
 .dsk-tr--critico { background: rgba(239,68,68,0.08) !important; }
 .dsk-tr--warn    { background: rgba(245,158,11,0.06) !important; }
 

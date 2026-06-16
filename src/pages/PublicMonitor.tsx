@@ -48,6 +48,7 @@ interface EscalaData {
     nivel_max_operativo?: number | null;
     capacidad_max?: number | null;
     delta_12h?: number | null;          // tendencia en 12h (m) — positivo=sube, negativo=baja
+    nivel_abajo?: number | null;        // H↓ aguas abajo (m) — diferencial para Q radial
 }
 
 // ── ESTADO DE TELEMETRÍA (5 niveles) ────────────────────────────────────
@@ -724,6 +725,7 @@ const PublicMonitor: React.FC = () => {
                 return {
                     ...e,
                     nivel_actual:          nivel,
+                    nivel_abajo:           reading?.nivel_abajo ?? null,
                     gasto_actual:          gastoFinal,
                     apertura_actual:       aperturaFinal,
                     puertas_abiertas:      puertasAbiertas > 0 ? puertasAbiertas : undefined,
@@ -1272,7 +1274,9 @@ const PublicMonitor: React.FC = () => {
         };
         fetchVolumetria();
         const interval = setInterval(fetchVolumetria, 5 * 60 * 1000);
-        return () => clearInterval(interval);
+        // Refrescar también cuando llega una nueva lectura de escala (misma fuente que vol_interescalas)
+        const unsubVol = onTable('lecturas_escalas', 'INSERT', fetchVolumetria);
+        return () => { clearInterval(interval); unsubVol(); };
     }, []);
 
     const skillSnapshot = useMemo(() => {
@@ -1313,10 +1317,13 @@ const PublicMonitor: React.FC = () => {
             .sort((a, b) => a.km - b.km)
             .map(e => {
                 const bl = e.nivel_max_operativo ? +(e.nivel_max_operativo - (e.nivel_actual ?? 0)).toFixed(3) : null;
+                const ts_min = e.ultima_telemetria ? +((Date.now() - e.ultima_telemetria) / 60000).toFixed(0) : null;
+                const telEst: TelemetriaEstado = telemetriaEstado(e.ultima_telemetria);
                 return {
                     nombre:          e.nombre,
                     km:              e.km,
                     hA:              +(e.nivel_actual ?? 0).toFixed(3),
+                    hB:              e.nivel_abajo != null ? +e.nivel_abajo.toFixed(3) : null,
                     q:               +(e.gasto_actual  ?? 0).toFixed(3),
                     m1:              +getM1Factor(e.nombre, e.km).toFixed(4),
                     apertura:        +(e.apertura_actual ?? 0).toFixed(3),
@@ -1324,7 +1331,8 @@ const PublicMonitor: React.FC = () => {
                     nivel_max:       e.nivel_max_operativo ?? null,
                     bl,
                     alerta:          bl !== null && bl < 0 ? 'NIVEL_CRITICO' : bl !== null && bl < 0.10 ? 'PRECAUCION' : null,
-                    ts_min:          e.ultima_telemetria ? +((Date.now() - e.ultima_telemetria) / 60000).toFixed(0) : null,
+                    ts_min,
+                    tel_estado:      telEst,
                 };
             });
 
@@ -1414,9 +1422,18 @@ const PublicMonitor: React.FC = () => {
                     };
                 });
             })(),
+            evento_activo: activeEvent ? {
+                id:              activeEvent.id,
+                tipo:            activeEvent.evento_tipo,
+                fecha_inicio:    activeEvent.fecha_inicio,
+                gasto_solicitado: activeEvent.gasto_solicitado_m3s ?? null,
+                hora_apertura:   activeEvent.hora_apertura_real ?? null,
+                autorizado_por:  activeEvent.autorizado_por ?? null,
+                notas:           activeEvent.notas ?? null,
+            } : null,
             timestamp: new Date().toISOString(),
         };
-    }, [escalas, volInterescalas, volZonas, balanceModulos, entregasHoy, presasData, tomasActivas]);
+    }, [escalas, volInterescalas, volZonas, balanceModulos, entregasHoy, presasData, tomasActivas, activeEvent]);
 
     const iecBreakdownRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -2529,26 +2546,41 @@ const PublicMonitor: React.FC = () => {
                                         <th>PUNTO</th>
                                         <th>KM</th>
                                         <th>H↑ (m)</th>
+                                        <th>H↓ (m)</th>
                                         <th>Q (m³/s)</th>
                                         <th>M1</th>
                                         <th>AP (m)</th>
                                         <th>BL</th>
+                                        <th>TEL</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {skillSnapshot.checkpoints.map(c => (
-                                        <tr key={c.nombre} className={c.alerta === 'NIVEL_CRITICO' ? 'dsk-tr--critico' : c.alerta === 'PRECAUCION' ? 'dsk-tr--warn' : ''}>
-                                            <td className="dsk-td-nombre">{c.nombre}</td>
-                                            <td className="dsk-td-num">{c.km}</td>
-                                            <td className="dsk-td-num">{c.hA.toFixed(3)}</td>
-                                            <td className={`dsk-td-num ${c.q > 0 ? 'dsk-td--q' : 'dsk-td--zero'}`}>{c.q.toFixed(3)}</td>
-                                            <td className="dsk-td-num dsk-td--m1">{c.m1.toFixed(4)}</td>
-                                            <td className="dsk-td-num">{c.apertura > 0 ? c.apertura.toFixed(3) : '—'}</td>
-                                            <td className={`dsk-td-num ${c.bl !== null && c.bl < 0 ? 'dsk-td--red' : c.bl !== null && c.bl < 0.10 ? 'dsk-td--amber' : ''}`}>
-                                                {c.bl !== null ? c.bl.toFixed(3) : '—'}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {skillSnapshot.checkpoints.map(c => {
+                                        const tsMin = c.ts_min;
+                                        const telCls = tsMin === null ? 'dsk-tel--offline'
+                                            : tsMin < 60  ? 'dsk-tel--ok'
+                                            : tsMin < 120 ? 'dsk-tel--warn'
+                                            : 'dsk-tel--critico';
+                                        const telLabel = tsMin === null ? '—'
+                                            : tsMin < 60  ? `${tsMin}m`
+                                            : tsMin < 120 ? `${tsMin}m`
+                                            : `${Math.round(tsMin / 60)}h`;
+                                        return (
+                                            <tr key={c.nombre} className={c.alerta === 'NIVEL_CRITICO' ? 'dsk-tr--critico' : c.alerta === 'PRECAUCION' ? 'dsk-tr--warn' : ''}>
+                                                <td className="dsk-td-nombre">{c.nombre}</td>
+                                                <td className="dsk-td-num">{c.km}</td>
+                                                <td className="dsk-td-num">{c.hA.toFixed(3)}</td>
+                                                <td className="dsk-td-num">{c.hB !== null && c.hB !== undefined ? c.hB.toFixed(3) : '—'}</td>
+                                                <td className={`dsk-td-num ${c.q > 0 ? 'dsk-td--q' : 'dsk-td--zero'}`}>{c.q.toFixed(3)}</td>
+                                                <td className="dsk-td-num dsk-td--m1">{c.m1.toFixed(4)}</td>
+                                                <td className="dsk-td-num">{c.apertura > 0 ? c.apertura.toFixed(3) : '—'}</td>
+                                                <td className={`dsk-td-num ${c.bl !== null && c.bl < 0 ? 'dsk-td--red' : c.bl !== null && c.bl < 0.10 ? 'dsk-td--amber' : ''}`}>
+                                                    {c.bl !== null ? c.bl.toFixed(3) : '—'}
+                                                </td>
+                                                <td className={`dsk-td-num ${telCls}`}>{telLabel}</td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -2619,10 +2651,25 @@ const PublicMonitor: React.FC = () => {
                         {volZonas.length > 0 && (
                         <div className="dsk-section-block">
                             <div className="dsk-sub-header">ALMACENAMIENTO POR ZONA</div>
+                            {/* Alerta zonas vaciándose — umbral operativo <40% */}
+                            {volZonas.some((z: any) => Number(z.pct_llenado ?? 0) < 40) && (
+                                <div className="bt-alert-strip" style={{marginBottom:'6px'}}>
+                                    {volZonas.filter((z: any) => Number(z.pct_llenado ?? 0) < 40).map((z: any) => {
+                                        const pct = Number(z.pct_llenado ?? 0);
+                                        return (
+                                            <div key={z.codigo} className={`bt-alert-item bt-alert--${pct < 20 ? 'alta' : 'media'}`}>
+                                                <span className="bt-alert-badge">{pct < 20 ? '⚠ ZONA CRÍTICA' : '· ZONA BAJA'}</span>
+                                                <span className="bt-alert-tramo">{z.codigo} — {z.zona_nombre}</span>
+                                                <span className="bt-alert-q">{pct.toFixed(1)}% · {Number(z.vol_actual_mm3).toFixed(4)} Mm³</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                             <div className="dsk-zonas-grid">
                                 {volZonas.map((z: any) => {
                                     const pct = Math.min(Number(z.pct_llenado ?? 0), 100);
-                                    const color = pct >= 90 ? '#ef4444' : pct >= 75 ? '#f97316' : '#22c55e';
+                                    const color = pct >= 90 ? '#ef4444' : pct >= 75 ? '#f97316' : pct < 20 ? '#ef4444' : pct < 40 ? '#f97316' : '#22c55e';
                                     return (
                                         <div key={z.codigo} className="dsk-zona-card">
                                             <div className="dsk-zona-header">
@@ -2929,7 +2976,12 @@ const PublicMonitor: React.FC = () => {
                         {/* Timestamp y acciones */}
                         <div className="dsk-footer">
                             <span className="dsk-ts">
-                                Snapshot: {new Date(skillSnapshot.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'America/Chihuahua' })} CST
+                                {(() => {
+                                    const d = new Date(skillSnapshot.timestamp);
+                                    const tzLabel = d.toLocaleTimeString('es-MX', { timeZoneName: 'short', timeZone: 'America/Chihuahua' }).split(' ').pop() ?? 'CDT';
+                                    const hhmm = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'America/Chihuahua' });
+                                    return `Snapshot: ${hhmm} ${tzLabel}`;
+                                })()}
                             </span>
                             <div className="dsk-actions">
                                 <button
@@ -2949,11 +3001,16 @@ const PublicMonitor: React.FC = () => {
                                     type="button"
                                     className="dsk-btn dsk-btn--download"
                                     onClick={() => {
+                                        const now = new Date();
+                                        const cdtStr = now.toLocaleString('sv-SE', { timeZone: 'America/Chihuahua' })
+                                            .replace(' ', '_').replace(/:/g, 'h', 1).replace(':', 'm').replace(/:\d+$/, '');
+                                        const tzLabel = now.toLocaleTimeString('es-MX', { timeZoneName: 'short', timeZone: 'America/Chihuahua' }).split(' ').pop()?.toLowerCase() ?? 'cdt';
+                                        const eventoTag = skillSnapshot.evento_activo ? `_${skillSnapshot.evento_activo.tipo.toLowerCase()}` : '_operacion';
                                         const blob = new Blob([JSON.stringify(skillSnapshot, null, 2)], { type: 'application/json' });
                                         const url = URL.createObjectURL(blob);
                                         const a = document.createElement('a');
                                         a.href = url;
-                                        a.download = `skill_snapshot_${new Date().toISOString().slice(0,16).replace('T','_')}.json`;
+                                        a.download = `snapshot_${cdtStr}_${tzLabel}${eventoTag}.json`;
                                         a.click();
                                         URL.revokeObjectURL(url);
                                     }}

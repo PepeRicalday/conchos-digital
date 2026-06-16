@@ -371,7 +371,7 @@ const PublicMonitor: React.FC = () => {
     const [snapshotCopied, setSnapshotCopied] = useState(false);
     const [showSkillInforme, setShowSkillInforme] = useState(false);
     const [modelQ0, setModelQ0] = useState('');
-    const [modelResult, setModelResult] = useState<null | { q104: number; perdidas: number; ef: number; transitH: number }>(null);
+    const [modelResult, setModelResult] = useState<null | { q104: number; qZonas: number; perdidasLin: number; ef: number; transitH: number }>(null);
     const [isPredictionVisible, setIsPredictionVisible] = useState(false);
     const [showPerfilModal, setShowPerfilModal] = useState(false);
     const [fgvData, setFgvData] = useState<any>(null);
@@ -1332,11 +1332,11 @@ const PublicMonitor: React.FC = () => {
 
         return {
             meta: {
-                version:    '3.6c',
+                version:    '3.7',
                 generado:   new Date().toISOString(),
                 canal:      'Canal Principal Conchos',
                 distrito:   'DR-005 Delicias',
-                calibracion: '05/05/2026',
+                calibracion: '01/06/2026',
             },
             constantes: { Cd: 0.62, Cv: 1.84, g: 9.81, Cd_gl: 1.84, n_gl: 1.52, MIN_H: 0.01, n_man: 0.015, C_ONDA: 0.80, F_ATEN: 0.27, lambda: +lambda.toFixed(5) },
             M1_FACTORS,
@@ -2477,7 +2477,7 @@ const PublicMonitor: React.FC = () => {
                     {dockTab === 'skill' && (
                     <div className="dock-section dock-skill-panel">
                         <div className="dock-section-header">
-                            <span className="card-label">DATOS ACTUALES — SKILL v3.6f</span>
+                            <span className="card-label">DATOS ACTUALES — SKILL v3.7</span>
                             <span className="telemetry-tag active-mon">● EN VIVO</span>
                         </div>
 
@@ -2771,38 +2771,42 @@ const PublicMonitor: React.FC = () => {
 
                         {/* Calibración M1 — estado actual */}
                         <div className="dsk-section-block">
-                            <div className="dsk-sub-header">CALIBRACIÓN M1 — ESTADO ACTUAL (SKILL v3.6f)</div>
+                            <div className="dsk-sub-header">CALIBRACIÓN M1 — ESTADO ACTUAL (SKILL v3.7)</div>
                             <div className="dsk-table-wrap">
                                 <table className="dsk-table">
                                     <thead>
                                         <tr><th>ESCALA</th><th>M1</th><th>FUENTE</th><th>ESTADO</th></tr>
                                     </thead>
                                     <tbody>
-                                        {([
-                                            { n:'K-0+000',   m1:1.2022, src:'Aforo molinete 01/06/2026', est:'RECIENTE'  },
-                                            { n:'K-23',      m1:1.9031, src:'Estimado estructural',      est:'PENDIENTE' },
-                                            { n:'K-29',      m1:1.2379, src:'Aforo anterior',            est:'VERIFICAR' },
-                                            { n:'K-34',      m1:1.5199, src:'Estimado',                  est:'PENDIENTE' },
-                                            { n:'K-44',      m1:1.0119, src:'Aforo anterior',            est:'OK'        },
-                                            { n:'K-54',      m1:1.0066, src:'Aforo anterior',            est:'OK'        },
-                                            { n:'K-62',      m1:1.0537, src:'Aforo anterior',            est:'OK'        },
-                                            { n:'K-64',      m1:1.3305, src:'Estimado',                  est:'PENDIENTE' },
-                                            { n:'K-68',      m1:1.0398, src:'Aforo anterior',            est:'VERIFICAR' },
-                                            { n:'K-79+025',  m1:1.5824, src:'Estimado',                  est:'PENDIENTE' },
-                                            { n:'K-87+549',  m1:1.2089, src:'Aforo anterior',            est:'VERIFICAR' },
-                                            { n:'K-94+057',  m1:1.1612, src:'Aforo anterior',            est:'OK'        },
-                                            { n:'K-94+200',  m1:1.2851, src:'Estimado',                  est:'PENDIENTE' },
-                                            { n:'K-104',     m1:0.7714, src:'Aforo anterior',            est:'OK'        },
-                                        ] as { n: string; m1: number; src: string; est: string }[]).map(r => (
-                                            <tr key={r.n} className={r.est === 'PENDIENTE' ? 'dsk-tr--warn' : r.est === 'RECIENTE' ? 'dsk-tr--reciente' : ''}>
-                                                <td className="dsk-td-nombre">{r.n}</td>
-                                                <td className="dsk-td-num dsk-td--m1">{r.m1.toFixed(4)}</td>
-                                                <td className="dsk-td-src">{r.src}</td>
-                                                <td className={`dsk-td-num ${r.est==='RECIENTE'?'dsk-val--green':r.est==='PENDIENTE'?'dsk-val--amber':r.est==='VERIFICAR'?'dsk-val--amber':''}`}>
-                                                    {r.est==='RECIENTE'?'✓ Reciente':r.est==='PENDIENTE'?'⚠ Pendiente':r.est==='VERIFICAR'?'? Verificar':'✓ OK'}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        {skillSnapshot.checkpoints.map(c => {
+                                            // Derivar fuente y estado desde el valor M1 y el nombre
+                                            // Fuente y estado se calculan desde los datos reales en hydraulics.ts
+                                            const m1src =
+                                                c.nombre === 'K-0+000'  ? 'Aforo molinete 01/06/2026' :
+                                                c.nombre === 'K-23'     ? 'Sifón — estimado estructural' :
+                                                c.nombre === 'K-54'     ? 'Aforo 27/04/2026' :
+                                                c.nombre === 'K-62'     ? 'Aforo 27/04/2026' :
+                                                c.nombre === 'K-104'    ? 'Ancla salida' :
+                                                c.nombre === 'K-64'     ? 'Escala referencia' :
+                                                c.nombre === 'K-94+200' ? 'Escala referencia' :
+                                                'Aforo anterior';
+                                            const est =
+                                                c.nombre === 'K-0+000'  ? 'RECIENTE' :
+                                                c.m1 > 1.5              ? 'PENDIENTE' :
+                                                c.nombre === 'K-64' || c.nombre === 'K-94+200' ? 'PENDIENTE' :
+                                                c.nombre === 'K-29' || c.nombre === 'K-68' || c.nombre === 'K-87+549' ? 'VERIFICAR' :
+                                                'OK';
+                                            return (
+                                                <tr key={c.nombre} className={est === 'PENDIENTE' ? 'dsk-tr--warn' : est === 'RECIENTE' ? 'dsk-tr--reciente' : ''}>
+                                                    <td className="dsk-td-nombre">{c.nombre}</td>
+                                                    <td className="dsk-td-num dsk-td--m1">{c.m1.toFixed(4)}</td>
+                                                    <td className="dsk-td-src">{m1src}</td>
+                                                    <td className={`dsk-td-num ${est==='RECIENTE'?'dsk-val--green':est==='PENDIENTE'?'dsk-val--amber':est==='VERIFICAR'?'dsk-val--amber':''}`}>
+                                                        {est==='RECIENTE'?'✓ Reciente':est==='PENDIENTE'?'⚠ Pendiente':est==='VERIFICAR'?'? Verificar':'✓ OK'}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
@@ -2831,10 +2835,12 @@ const PublicMonitor: React.FC = () => {
                                         onClick={() => {
                                             const q0 = parseFloat(modelQ0) || skillSnapshot.balance.Q0;
                                             const lambda = skillSnapshot.balance.lambda;
-                                            const q104 = Math.max(0, q0 - lambda * 104);
-                                            const ef = q0 > 0 ? (q104 / q0) * 100 : 0;
+                                            const qZonas = skillSnapshot.Q_ZONAS_REAL;
+                                            const perdidasLin = lambda * 104;
+                                            const q104 = Math.max(0, q0 - perdidasLin - qZonas);
+                                            const ef = q0 > 0 ? (q0 - Math.max(0, perdidasLin)) / q0 * 100 : 0;
                                             const transitH = 13.87 / Math.sqrt(Math.max(q0, 1) / 28);
-                                            setModelResult({ q104, perdidas: q0 - q104, ef, transitH });
+                                            setModelResult({ q104, qZonas, perdidasLin, ef, transitH });
                                         }}
                                     >
                                         Calcular
@@ -2843,15 +2849,19 @@ const PublicMonitor: React.FC = () => {
                                 {modelResult && (
                                     <div className="dsk-model-results">
                                         <div className="dsk-model-res-item">
+                                            <span className="dsk-model-res-label">Extracciones Z1–Z4</span>
+                                            <span className="dsk-model-res-val dsk-val--amber">{modelResult.qZonas.toFixed(3)} m³/s</span>
+                                        </div>
+                                        <div className="dsk-model-res-item">
+                                            <span className="dsk-model-res-label">Pérdidas lineales (λ×104)</span>
+                                            <span className="dsk-model-res-val dsk-val--amber">{modelResult.perdidasLin.toFixed(3)} m³/s</span>
+                                        </div>
+                                        <div className="dsk-model-res-item">
                                             <span className="dsk-model-res-label">Q estimado K-104</span>
                                             <span className="dsk-model-res-val dsk-val--blue">{modelResult.q104.toFixed(3)} m³/s</span>
                                         </div>
                                         <div className="dsk-model-res-item">
-                                            <span className="dsk-model-res-label">Pérdidas totales</span>
-                                            <span className="dsk-model-res-val dsk-val--amber">{modelResult.perdidas.toFixed(3)} m³/s</span>
-                                        </div>
-                                        <div className="dsk-model-res-item">
-                                            <span className="dsk-model-res-label">Eficiencia</span>
+                                            <span className="dsk-model-res-label">Eficiencia conducción</span>
                                             <span className={`dsk-model-res-val ${modelResult.ef >= 95 ? 'dsk-val--green' : modelResult.ef >= 90 ? 'dsk-val--amber' : 'dsk-val--red'}`}>
                                                 {modelResult.ef.toFixed(1)}%
                                             </span>
@@ -2862,7 +2872,7 @@ const PublicMonitor: React.FC = () => {
                                         </div>
                                     </div>
                                 )}
-                                <div className="dsk-nota">Q₁₀₄ = Q₀ − λ×104 · λ={skillSnapshot.balance.lambda.toFixed(5)} m³/s·km⁻¹ · Tránsito ∝ 1/√(Q₀/28) calibrado a 8 min/km</div>
+                                <div className="dsk-nota">Q₁₀₄ = Q₀ − Q_zonas − λ×104 · Q_zonas={skillSnapshot.Q_ZONAS_REAL.toFixed(3)} m³/s · λ={skillSnapshot.balance.lambda.toFixed(5)} m³/s·km⁻¹ · Tránsito ∝ 1/√(Q₀/28) calibrado a 8 min/km</div>
                             </div>
                         </div>
 
@@ -2872,7 +2882,7 @@ const PublicMonitor: React.FC = () => {
                                 className="dsk-sub-header dsk-sub-header--toggle"
                                 onClick={() => setShowSkillInforme(v => !v)}
                             >
-                                INFORME SKILL v3.6f — MÓDULOS Y METODOLOGÍA {showSkillInforme ? '▲' : '▼'}
+                                INFORME SKILL v3.7 — MÓDULOS Y METODOLOGÍA {showSkillInforme ? '▲' : '▼'}
                             </div>
                             {showSkillInforme && (
                                 <div className="dsk-skill-informe">

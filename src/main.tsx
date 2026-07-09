@@ -20,6 +20,41 @@ if (typeof window !== 'undefined') {
             window.location.reload();
         }
     }
+
+    // ── Guardián global de caché envenenada ─────────────────────────────────
+    // Un chunk lazy con hash muerto (tras deploy) puede fallar ANTES de que
+    // React monte, por lo que el ErrorBoundary no lo vería. Este listener global
+    // detecta el error de MIME/chunk y fuerza limpieza + nuke una sola vez.
+    const recuperarCacheViciada = () => {
+        if (sessionStorage.getItem('mime_recovery_done')) return;
+        sessionStorage.setItem('mime_recovery_done', '1');
+        const purgar = async () => {
+            try {
+                if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map(r => r.unregister()));
+                }
+                if ('caches' in window) {
+                    const names = await caches.keys();
+                    await Promise.all(names.map(n => caches.delete(n)));
+                }
+            } catch { /* seguimos */ }
+            window.location.replace(`/nuke.html?from=mime-global&t=${Date.now()}`);
+        };
+        void purgar();
+    };
+    const patronCache = /valid JavaScript MIME type|dynamically imported module|Importing a module script failed|Unexpected token '<'|ChunkLoadError/i;
+    window.addEventListener('error', (e) => {
+        const msg = (e as ErrorEvent).message || '';
+        // Error de carga de <script>/módulo: e.target es el elemento que falló
+        const tgt = e.target as HTMLElement | null;
+        const esScript = tgt && (tgt.tagName === 'SCRIPT' || tgt.tagName === 'LINK');
+        if (patronCache.test(msg) || esScript) recuperarCacheViciada();
+    }, true);
+    window.addEventListener('unhandledrejection', (e) => {
+        const msg = String((e as PromiseRejectionEvent).reason?.message || (e as PromiseRejectionEvent).reason || '');
+        if (patronCache.test(msg)) recuperarCacheViciada();
+    });
 }
 
 import { StrictMode } from 'react'
@@ -44,4 +79,10 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// Arranque exitoso: liberar el candado de recuperación para permitir un futuro
+// intento si más adelante ocurre otra vez (tras el próximo deploy).
+requestAnimationFrame(() => {
+  setTimeout(() => sessionStorage.removeItem('mime_recovery_done'), 4000);
+})
 

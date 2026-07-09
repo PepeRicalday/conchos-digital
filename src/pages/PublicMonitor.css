@@ -3707,3 +3707,74 @@
   background: rgba(148,163,184,0.05); border-radius: 6px; }
 .tnd-note.tnd-warn { background: rgba(245,158,11,0.1); color: #fbbf24; }
 .tnd-note code { background: rgba(148,163,184,0.15); padding: 0 3px; border-radius: 3px; font-size: 0.9em; }
+
+/* ── Scroll táctil mejorado en TENDENCIAS ──────────────────────────────
+   Problema: cada .dsk-table-wrap tenía overflow-y propio → en móvil el
+   gesto vertical scrolleaba la tabla (que casi siempre cabe) en vez del
+   panel, confundiendo al usuario. Solución: (1) tablas de tendencias sin
+   scroll vertical propio (solo horizontal para columnas anchas), y (2) un
+   asa de scroll dedicada a la izquierda que controla el panel sin ambigüedad. */
+
+/* Tablas dentro de TENDENCIAS: sin scroll vertical propio (el panel scrollea).
+   overflow-y: hidden + max-height:none → la tabla se expande completa y NO
+   captura el gesto vertical; overflow-x: auto conserva el horizontal para
+   columnas anchas. touch-action pan-x deja pasar el gesto vertical al panel. */
+.tnd-block .dsk-table-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: none;
+    overscroll-behavior: contain;
+    touch-action: pan-x;
+}
+
+/* Layout con riel de scroll a la izquierda. El contenido real vive en
+   .tnd-scroll-content; el asa .tnd-rail refleja y controla su posición. */
+.tnd-root {
+    position: relative;
+    padding-left: 22px;   /* espacio para el riel */
+}
+.tnd-rail {
+    position: absolute;
+    left: 2px;
+    top: 4px;
+    bottom: 4px;
+    width: 14px;
+    display: flex;
+    align-items: stretch;
+    z-index: 5;
+    touch-action: none;   /* el riel captura el gesto para scrollear el panel */
+    cursor: grab;
+}
+.tnd-rail:active { cursor: grabbing; }
+.tnd-rail-track {
+    flex: 1;
+    background: rgba(56,189,248,0.10);
+    border: 1px solid rgba(56,189,248,0.18);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+}
+.tnd-rail-thumb {
+    position: absolute;
+    left: 1px;
+    right: 1px;
+    background: linear-gradient(180deg, #38bdf8, #0ea5e9);
+    border-radius: 7px;
+    min-height: 30px;
+    box-shadow: 0 0 8px rgba(56,189,248,0.5);
+    transition: background .15s;
+}
+.tnd-rail:hover .tnd-rail-thumb { background: linear-gradient(180deg, #7dd3fc, #38bdf8); }
+.tnd-rail-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(90deg);
+    font-size: 6.5px;
+    letter-spacing: 1px;
+    color: rgba(226,232,240,0.55);
+    font-family: var(--font-mono, monospace);
+    text-transform: uppercase;
+    pointer-events: none;
+    white-space: nowrap;
+}

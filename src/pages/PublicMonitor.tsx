@@ -657,6 +657,21 @@ const PublicMonitor: React.FC = () => {
         const cargar = async () => {
             setTndLoading(true);
             try {
+                // Paginación con .range(): la API REST de Supabase corta a 1000 filas
+                // POR PETICIÓN, ignorando .limit() mayores. Un rango amplio (mar–jul)
+                // supera ese tope; sin paginar, .order desc dejaba fuera marzo/abril.
+                const PAGE = 1000;
+                const fetchAll = async <T,>(build: (from: number, to: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> => {
+                    const acc: T[] = [];
+                    for (let from = 0; ; from += PAGE) {
+                        const { data } = await build(from, from + PAGE - 1);
+                        const rows = data || [];
+                        acc.push(...rows);
+                        if (rows.length < PAGE) break;   // última página
+                    }
+                    return acc;
+                };
+
                 const [escRes, tramoRes] = await Promise.all([
                     supabase.from('escalas').select('id, nombre, km, nivel_max_operativo').order('km'),
                     supabase.from('vol_interescalas').select('esc_up_id, esc_up, km_up, esc_down_id, esc_down, km_down, longitud_km, ancho_canal_m, vol_m3, nivel_up_m, nivel_down_m'),
@@ -664,22 +679,24 @@ const PublicMonitor: React.FC = () => {
                 const escalasGeom = (escRes.data || []) as { id: string; nombre: string; km: number; nivel_max_operativo: number | null }[];
                 const tramos = (tramoRes.data || []) as TramoGeom[];
 
-                // Lecturas de campo (nivel ↑↓, compuertas, gasto) — filtra autogeneradas
-                const { data: lecRaw } = await supabase.from('lecturas_escalas')
-                    .select('escala_id, fecha, hora_lectura, nivel_m, nivel_abajo_m, gasto_calculado_m3s, gasto_metodo, radiales_json, creado_en, responsable, notas')
-                    .gte('fecha', tndDesde).lte('fecha', tndHasta)
-                    .order('creado_en', { ascending: true }).limit(4000);
-                const lecturas = ((lecRaw || []) as (TndLectura & { responsable?: string; notas?: string })[])
+                // Lecturas de campo (nivel ↑↓, compuertas, gasto) — paginado, filtra autogeneradas
+                const lecRaw = await fetchAll<TndLectura & { responsable?: string; notas?: string }>((from, to) =>
+                    supabase.from('lecturas_escalas')
+                        .select('escala_id, fecha, hora_lectura, nivel_m, nivel_abajo_m, gasto_calculado_m3s, gasto_metodo, radiales_json, creado_en, responsable, notas')
+                        .gte('fecha', tndDesde).lte('fecha', tndHasta)
+                        .order('creado_en', { ascending: true }).range(from, to));
+                const lecturas = lecRaw
                     .filter(r => !/chronos|autogenerad|medianoche/i.test((r.responsable || '') + (r.notas || '')));
 
-                // Resumen diario (serie de nivel por escala) + entregas
-                const [{ data: resRaw }, { data: entRaw }] = await Promise.all([
-                    supabase.from('resumen_escalas_diario').select('escala_id, fecha, lectura_am, hora_am, lectura_pm, hora_pm, nivel_actual')
-                        .gte('fecha', tndDesde).lte('fecha', tndHasta).order('fecha', { ascending: true }),
+                // Resumen diario (serie de nivel por escala, paginado) + entregas
+                const [resRaw, { data: entRaw }] = await Promise.all([
+                    fetchAll<Record<string, unknown>>((from, to) =>
+                        supabase.from('resumen_escalas_diario').select('escala_id, fecha, lectura_am, hora_am, lectura_pm, hora_pm, nivel_actual')
+                            .gte('fecha', tndDesde).lte('fecha', tndHasta).order('fecha', { ascending: true }).range(from, to)),
                     supabase.from('entregas_modulo').select('modulo_id, zona_id, tipo_entrega, gasto_m3s, fecha')
                         .gte('fecha', tndDesde).lte('fecha', tndHasta).gt('gasto_m3s', 0),
                 ]);
-                const resumen: TndResumen[] = (resRaw || []).map((r: Record<string, unknown>) => ({
+                const resumen: TndResumen[] = resRaw.map((r: Record<string, unknown>) => ({
                     escala_id: r.escala_id as string, fecha: r.fecha as string,
                     nivel_am: (r.lectura_am as number) ?? null, nivel_pm: (r.lectura_pm as number) ?? null,
                     nivel_actual: (r.nivel_actual as number) ?? null,

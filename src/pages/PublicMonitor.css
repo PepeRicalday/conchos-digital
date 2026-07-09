@@ -1600,16 +1600,29 @@
         transform: none;
         width: 100%;
         border-radius: 20px 20px 0 0;
-        max-height: 40vh; 
+        max-height: 70dvh;
         padding: 12px;
         gap: 12px;
         flex-direction: column;
-        overflow-y: auto;
+        /* El dock NO scrollea en móvil: el scroll vive en el panel activo
+           (.dsk-scroll-body). Un dock scrolleable + panel scrolleable creaba
+           doble-scroll y dejaba el contenido de TENDENCIAS inalcanzable. */
+        overflow: hidden;
         border: 1px solid rgba(255, 255, 255, 0.15);
         border-bottom: none;
         box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
     }
-    
+
+    /* Panel de pestaña (DATOS/TENDENCIAS) en móvil: ocupa el alto del dock y su
+       propio scroll-body toma el overflow. Sin esto, el calc(100dvh-160px) lo
+       hacía más alto que el dock y el scroll quedaba fuera de pantalla. */
+    .dock-skill-panel {
+        max-height: none;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+
     .dock-close-btn {
         top: 8px;
         right: 8px;
@@ -1676,8 +1689,14 @@
 /* Optimization for Portrait mode on 7-inch devices */
 @media (max-height: 1100px) and (orientation: portrait) {
     .info-cards-dock {
-        max-height: 45vh;
-        overflow-y: auto;
+        max-height: 70dvh;
+        /* overflow en el dock desactivado: el scroll lo maneja el panel activo */
+        overflow: hidden;
+    }
+    .dock-skill-panel {
+        max-height: none;
+        flex: 1 1 auto;
+        min-height: 0;
     }
     .checkpoints-scroll-container {
         padding-bottom: 20px;
@@ -1687,9 +1706,15 @@
 
 @media (orientation: landscape) and (max-height: 500px) {
     .info-cards-dock {
-        max-height: 45vh;
+        max-height: 92dvh;
         flex-direction: row;
         overflow-x: auto;
+    }
+    /* En landscape corto (móvil apaisado) el dock es horizontal; el panel de
+       pestaña necesita casi todo el alto y su scroll-body vertical propio. */
+    .dock-skill-panel {
+        max-height: 88dvh;
+        min-height: 0;
     }
     .checkpoints-scroll-container {
         height: auto;
@@ -3146,8 +3171,13 @@
     flex-direction: column;
     padding: 8px 10px 0;
     overflow: hidden;
-    /* Altura máxima = viewport menos dock header, tabs y footer */
-    max-height: calc(100vh - 160px);
+    /* dvh (no vh): en móvil la barra de URL cambia el 100vh y rompía el cálculo,
+       dejando el panel más alto que el dock → el scroll quedaba fuera de vista.
+       min-height:0 permite que el hijo flex (.dsk-scroll-body) se contraiga y
+       tome el overflow en lugar de empujar el contenido fuera del dock. */
+    max-height: calc(100dvh - 160px);
+    min-height: 0;
+    flex: 1 1 auto;
 }
 
 .dsk-scroll-body {

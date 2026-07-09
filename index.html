@@ -1,15 +1,20 @@
 <!doctype html>
-<html lang="en">
+<!-- lang="es": la interfaz está en español. Antes decía "en", lo que hacía que
+     Chrome ofreciera "traducir" y convirtiera términos técnicos como "S/D"
+     (Sin Dato) en "Dakota del Sur", "balance"→"saldo", etc. translate="no"
+     desactiva la traducción automática del navegador para toda la app. -->
+<html lang="es" translate="no">
 
 <head>
   <meta charset="UTF-8" />
+  <meta name="google" content="notranslate" />
   <link rel="icon" type="image/png" href="/logos/logo-srl.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Conchos Digital v2.7.0</title>
+  <title>Conchos Digital v2.8.0</title>
   <script>
-    // CACHE BOUNCE v2.7.0
+    // CACHE BOUNCE v2.8.0
     (function () {
-      const REQ_V = '270';
+      const REQ_V = '280';
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('v') !== REQ_V) {
         window.location.replace(window.location.origin + window.location.pathname + '?v=' + REQ_V + '&t=' + Date.now());

@@ -14,9 +14,23 @@ import { onTable } from '../lib/realtimeHub';
 import InformeOperativo from '../components/InformeOperativo';
 import { exportEscalasCSV } from '../utils/exportCanal';
 import { toast } from 'sonner';
+import TendenciasPanel from '../components/TendenciasPanel';
+import {
+  serieNivelesDiaria, serieNivelesLectura, indiceNivelesDiario, serieVolumenTramos,
+  serieCompuertas, serieGasto,
+  type SerieEscala, type SerieTramo, type SerieCompuerta, type SerieGasto, type SeriePunto,
+  type LecturaEscala as TndLectura, type ResumenDiario as TndResumen,
+  type TramoGeom, type EntregaModulo as TndEntrega,
+} from '../utils/tendencias';
 
 // Escalas de referencia: tienen nivel pero no controlan Q (sin compuerta propia).
 const ESC_SIN_CONTROL = new Set(['K-64', 'K-94+200']);
+
+// λ de referencia (calibración histórica v3.6b, skill_hidraulica_v37.md).
+// Se usa SOLO como fallback del predictor "what-if" cuando el balance en vivo
+// no es confiable (telemetría vencida) y por tanto la λ dinámica es null.
+// Nunca se presenta como medición en vivo: el panel muestra "S/D" en ese caso.
+const LAMBDA_REF = 0.00703; // m³/s·km⁻¹
 
 // Custom Marker for Water Front
 const waterFrontIcon = L.divIcon({
@@ -68,6 +82,12 @@ function telemetriaEstado(ultimaTelemetria?: number | null): TelemetriaEstado {
 }
 
 
+// Edad legible (min → "45 min" / "10.4 h"). null → "s/d".
+function fmtAge(min: number | null): string {
+    if (min === null) return 's/d';
+    return min < 60 ? `${Math.round(min)} min` : `${(min / 60).toFixed(1)} h`;
+}
+
 function telemetriaLabel(estado: TelemetriaEstado): string {
     switch (estado) {
         case 'VIVO':          return 'Vivo';
@@ -95,25 +115,66 @@ function escalaAlertColor(e: EscalaData, coherencia?: any): string {
 // ── PERFIL LONGITUDINAL DEL CANAL (ESTABILIZACIÓN) ──────────────────────
 interface FGVStep { km: number; y: number; q: number; remanso: string; pct_bordo: number; alerta: boolean; critico: boolean; }
 
-const CanalLongitudinalProfile: React.FC<{
+// React.memo: el perfil se redibuja solo cuando cambian escalas/coherencia/FGV,
+// no con cada tick del reloj del monitor.
+const CanalLongitudinalProfile = React.memo(({ escalas, coherencia, fgvProfile, fgvLoading }: {
   escalas: EscalaData[];
   coherencia: any;
   fgvProfile?: FGVStep[] | null;
   fgvLoading?: boolean;
-}> = ({ escalas, coherencia, fgvProfile, fgvLoading }) => {
+}) => {
   const W = 800, H = 190;
   const PAD_L = 42, PAD_R = 32, PAD_T = 38, PAD_B = 30;
   const plotW = W - PAD_L - PAD_R;
   const plotH = H - PAD_T - PAD_B;
   const KM_MAX = 104;
-  const Y_MIN = 1.5, Y_MAX = 4.4;
-
-  const xS = (km: number) => PAD_L + (Math.max(0, Math.min(km, KM_MAX)) / KM_MAX) * plotW;
-  const yS = (y: number) => PAD_T + plotH - ((Math.max(Y_MIN, Math.min(y, Y_MAX)) - Y_MIN) / (Y_MAX - Y_MIN)) * plotH;
+  const Y_MIN = 1.5;
 
   const pts = escalas
     .filter(e => e.km >= 0 && e.km <= 104 && (e.nivel_actual ?? 0) > 0.1)
     .sort((a, b) => a.km - b.km);
+
+  // Y_MAX adaptativo: deja margen sobre el bordo más alto y el nivel más alto
+  // para que ni la línea de bordo ni la zona crítica queden recortadas.
+  const maxBordo = Math.max(0, ...escalas.map(e => e.nivel_max_operativo ?? 0));
+  const maxNivel = Math.max(0, ...pts.map(e => e.nivel_actual ?? 0));
+  const Y_MAX = Math.max(4.4, Math.ceil((Math.max(maxBordo, maxNivel) + 0.3) * 2) / 2);
+
+  const xS = (km: number) => PAD_L + (Math.max(0, Math.min(km, KM_MAX)) / KM_MAX) * plotW;
+  const yS = (y: number) => PAD_T + plotH - ((Math.max(Y_MIN, Math.min(y, Y_MAX)) - Y_MIN) / (Y_MAX - Y_MIN)) * plotH;
+
+  // ── Bordo libre REAL por escala ─────────────────────────────────────────
+  // Antes el fondo crítico/alerta era una banda horizontal fija (3.5/3.2m) para
+  // TODO el canal. Pero cada escala tiene su propio nivel_max_operativo: 3.0m en
+  // K-0 y 3.0m en K-104 NO representan el mismo riesgo de desbordamiento. Aquí
+  // construimos la línea de bordo siguiendo el techo real de cada escala, y las
+  // zonas de riesgo se dibujan RELATIVAS a ese techo (no a un umbral global).
+  const bordoPts = escalas
+    .filter(e => e.km >= 0 && e.km <= 104 && (e.nivel_max_operativo ?? 0) > 0.1)
+    .sort((a, b) => a.km - b.km)
+    .map(e => ({ km: e.km, bordo: e.nivel_max_operativo as number }));
+  const hasBordo = bordoPts.length >= 2;
+  // Banda de ALERTA = 80–100% del bordo; CRÍTICO = >100% del bordo.
+  const ALERTA_FRAC = 0.80;
+
+  // ── Frescura de telemetría ──────────────────────────────────────────────
+  // Coherente con el banner "TELEMETRÍA VENCIDA" del panel SKILL. Si la lectura
+  // más reciente supera 4 h, el perfil dibuja datos históricos: lo atenuamos y
+  // congelamos la animación de flujo para no insinuar operación en vivo.
+  const STALE_MIN = 240;
+  const ptAgeMin = (e: EscalaData): number | null =>
+    e.ultima_telemetria ? (Date.now() - e.ultima_telemetria) / 60000 : null;
+  const edadMin = pts.reduce<number | null>((min, e) => {
+    const a = ptAgeMin(e);
+    if (a === null) return min;
+    return min === null || a < min ? a : min;
+  }, null);
+  const perfilStale = edadMin === null || edadMin > STALE_MIN;
+  const edadTxt = edadMin === null ? 'sin lectura'
+    : edadMin < 60 ? `${Math.round(edadMin)} min`
+    : `${(edadMin / 60).toFixed(1)} h`;
+  const bordoLine   = hasBordo ? bordoPts.map(b => `${xS(b.km)},${yS(b.bordo)}`).join(' ') : '';
+  const alertaLine  = hasBordo ? bordoPts.map(b => `${xS(b.km)},${yS(b.bordo * ALERTA_FRAC)}`).join(' ') : '';
 
   const trendArrow = (e: EscalaData): { symbol: string; color: string } => {
     const d = e.delta_12h ?? 0;
@@ -122,41 +183,104 @@ const CanalLongitudinalProfile: React.FC<{
     return { symbol: '—', color: '#475569' };
   };
 
+  // ── Spline Catmull-Rom → curva suave (superficie de agua fluida) ─────────
+  // Convierte una serie de puntos [x,y] en un path SVG con curvas Bézier que
+  // pasan por todos los puntos. Da el aspecto de lámina de agua continua en
+  // lugar de segmentos rectos quebrados.
+  const smoothPath = (xy: [number, number][]): string => {
+    if (xy.length < 2) return '';
+    if (xy.length === 2) return `M ${xy[0][0]},${xy[0][1]} L ${xy[1][0]},${xy[1][1]}`;
+    const t = 0.5; // tensión
+    let d = `M ${xy[0][0]},${xy[0][1]}`;
+    for (let i = 0; i < xy.length - 1; i++) {
+      const p0 = xy[i === 0 ? 0 : i - 1];
+      const p1 = xy[i];
+      const p2 = xy[i + 1];
+      const p3 = xy[i + 2 < xy.length ? i + 2 : i + 1];
+      const c1x = p1[0] + (p2[0] - p0[0]) / 6 * t * 2;
+      const c1y = p1[1] + (p2[1] - p0[1]) / 6 * t * 2;
+      const c2x = p2[0] - (p3[0] - p1[0]) / 6 * t * 2;
+      const c2y = p2[1] - (p3[1] - p1[1]) / 6 * t * 2;
+      d += ` C ${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${p2[0].toFixed(2)},${p2[1].toFixed(2)}`;
+    }
+    return d;
+  };
+
   const base = PAD_T + plotH;
-  const waterPoly = pts.length >= 2
-    ? [`${xS(pts[0].km)},${base}`,
-       ...pts.map(e => `${xS(e.km)},${yS(e.nivel_actual ?? 0)}`),
-       `${xS(pts[pts.length - 1].km)},${base}`].join(' ')
+  const waterXY: [number, number][] = pts.map(e => [xS(e.km), yS(e.nivel_actual ?? 0)]);
+  const waterLinePath = smoothPath(waterXY);
+  const waterAreaPath = pts.length >= 2
+    ? `${waterLinePath} L ${xS(pts[pts.length - 1].km)},${base} L ${xS(pts[0].km)},${base} Z`
     : '';
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
       <defs>
+        {/* Cuerpo de agua — degradado vertical glassy */}
         <linearGradient id="cpWater" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#38bdf8" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.02" />
+          <stop offset="0%"   stopColor="#22d3ee" stopOpacity="0.34" />
+          <stop offset="45%"  stopColor="#38bdf8" stopOpacity="0.16" />
+          <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.02" />
+        </linearGradient>
+        {/* Línea de superficie — degradado horizontal (entrada → salida) */}
+        <linearGradient id="cpSurface" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stopColor="#67e8f9" />
+          <stop offset="55%"  stopColor="#38bdf8" />
+          <stop offset="100%" stopColor="#818cf8" />
+        </linearGradient>
+        {/* Brillo móvil que recorre la superficie (sensación de flujo) */}
+        <linearGradient id="cpFlow" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0" />
+          <stop offset="50%"  stopColor="#ffffff" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+          <animate attributeName="x1" values="-0.3;1" dur="4.5s" repeatCount="indefinite" />
+          <animate attributeName="x2" values="0;1.3" dur="4.5s" repeatCount="indefinite" />
         </linearGradient>
         <linearGradient id="cpCrit" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#ef4444" stopOpacity="0.2" />
-          <stop offset="100%" stopColor="#ef4444" stopOpacity="0.04" />
+          <stop offset="0%"   stopColor="#ef4444" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="#ef4444" stopOpacity="0.03" />
         </linearGradient>
+        {/* Vignette del lienzo */}
+        <radialGradient id="cpVignette" cx="50%" cy="40%" r="75%">
+          <stop offset="60%" stopColor="#070e1c" stopOpacity="0" />
+          <stop offset="100%" stopColor="#000000" stopOpacity="0.55" />
+        </radialGradient>
         <filter id="cpGlow" x="-60%" y="-60%" width="220%" height="220%">
           <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b" />
           <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        {/* Glow suave para la línea de superficie */}
+        <filter id="cpLineGlow" x="-20%" y="-40%" width="140%" height="180%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2.2" result="bg" />
+          <feMerge><feMergeNode in="bg" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
 
       {/* Fondo oscuro */}
       <rect width={W} height={H} fill="#070e1c" />
 
-      {/* Zona crítica: > 3.5m */}
-      <rect x={PAD_L} y={yS(Y_MAX)} width={plotW} height={yS(3.5) - yS(Y_MAX)} fill="url(#cpCrit)" />
-      {/* Zona alerta: 3.2–3.5m */}
-      <rect x={PAD_L} y={yS(3.5)} width={plotW} height={yS(3.2) - yS(3.5)} fill="rgba(245,158,11,0.07)" />
-      {/* Zona operativa: 2.8–3.2m */}
-      <rect x={PAD_L} y={yS(3.2)} width={plotW} height={yS(2.8) - yS(3.2)} fill="rgba(34,197,94,0.08)" />
-      {/* Zona baja: < 2.8m */}
-      <rect x={PAD_L} y={yS(2.8)} width={plotW} height={yS(Y_MIN) - yS(2.8)} fill="rgba(56,189,248,0.04)" />
+      {/* ── Zonas de riesgo RELATIVAS al bordo real de cada escala ──────────
+           El techo de riesgo sigue el nivel_max_operativo punto a punto, no un
+           umbral global. Así el riesgo de desbordamiento es comparable a lo
+           largo de todo el canal aunque las escalas tengan distinta altura. */}
+      {hasBordo ? (
+        <>
+          {/* Zona CRÍTICA: por encima de la línea de bordo (riesgo de rebose) */}
+          <polygon
+            points={`${xS(bordoPts[0].km)},${PAD_T} ${bordoLine} ${xS(bordoPts[bordoPts.length - 1].km)},${PAD_T}`}
+            fill="url(#cpCrit)" />
+          {/* Zona ALERTA: banda entre 80% del bordo y el bordo */}
+          <polygon
+            points={`${alertaLine} ${bordoPts.slice().reverse().map(b => `${xS(b.km)},${yS(b.bordo)}`).join(' ')}`}
+            fill="rgba(245,158,11,0.08)" />
+        </>
+      ) : (
+        // Fallback al esquema fijo solo si no hay bordo definido en ninguna escala
+        <>
+          <rect x={PAD_L} y={yS(Y_MAX)} width={plotW} height={yS(3.5) - yS(Y_MAX)} fill="url(#cpCrit)" />
+          <rect x={PAD_L} y={yS(3.5)} width={plotW} height={yS(3.2) - yS(3.5)} fill="rgba(245,158,11,0.07)" />
+        </>
+      )}
 
       {/* Grid horizontal */}
       {[2.0, 2.5, 3.0, 3.5, 4.0].map(y => (
@@ -170,37 +294,56 @@ const CanalLongitudinalProfile: React.FC<{
           stroke="#111e34" strokeWidth="0.7" strokeDasharray="3,6" />
       ))}
 
-      {/* Línea de referencia 3.5m */}
-      <line x1={PAD_L} y1={yS(3.5)} x2={PAD_L + plotW} y2={yS(3.5)}
-        stroke="#f59e0b" strokeWidth="1" strokeDasharray="7,5" opacity="0.65" />
-      <rect x={PAD_L + plotW - 30} y={yS(3.5) - 6} width={30} height={10} fill="#f59e0b" opacity="0.15" rx="2" />
-      <text x={PAD_L + plotW - 15} y={yS(3.5) + 2} fill="#f59e0b" fontSize="6" textAnchor="middle" fontFamily="monospace" fontWeight="bold">LÍM 3.5</text>
-
-      {/* Línea de referencia 2.8m */}
-      <line x1={PAD_L} y1={yS(2.8)} x2={PAD_L + plotW} y2={yS(2.8)}
-        stroke="#22c55e" strokeWidth="1" strokeDasharray="7,5" opacity="0.55" />
-      <rect x={PAD_L + plotW - 30} y={yS(2.8) - 6} width={30} height={10} fill="#22c55e" opacity="0.12" rx="2" />
-      <text x={PAD_L + plotW - 15} y={yS(2.8) + 2} fill="#22c55e" fontSize="6" textAnchor="middle" fontFamily="monospace" fontWeight="bold">MÍN 2.8</text>
-
-      {/* Relleno de agua bajo el perfil */}
-      {pts.length >= 2 && <polygon points={waterPoly} fill="url(#cpWater)" />}
-
-      {/* Perfil — sombra */}
-      {pts.length >= 2 && (
-        <polyline
-          points={pts.map(e => `${xS(e.km)},${yS(e.nivel_actual ?? 0)}`).join(' ')}
-          fill="none" stroke="rgba(56,189,248,0.14)" strokeWidth="7"
-          strokeLinejoin="round" strokeLinecap="round"
-        />
+      {/* Línea de BORDO real por escala (techo de seguridad) — curva suave */}
+      {hasBordo && (
+        <>
+          <path d={smoothPath(bordoPts.map(b => [xS(b.km), yS(b.bordo)]))}
+            fill="none" stroke="#ef4444" strokeWidth="1.4"
+            strokeDasharray="7,5" opacity="0.75" strokeLinejoin="round" />
+          <rect x={PAD_L + plotW - 34} y={yS(bordoPts[bordoPts.length - 1].bordo) - 6} width={34} height={10}
+            fill="#ef4444" opacity="0.15" rx="2" />
+          <text x={PAD_L + plotW - 17} y={yS(bordoPts[bordoPts.length - 1].bordo) + 2}
+            fill="#ef4444" fontSize="6" textAnchor="middle" fontFamily="monospace" fontWeight="bold">BORDO</text>
+          {/* Línea de alerta = 80% del bordo */}
+          <path d={smoothPath(bordoPts.map(b => [xS(b.km), yS(b.bordo * ALERTA_FRAC)]))}
+            fill="none" stroke="#f59e0b" strokeWidth="0.9"
+            strokeDasharray="4,4" opacity="0.45" strokeLinejoin="round" />
+        </>
       )}
-      {/* Perfil — línea principal */}
-      {pts.length >= 2 && (
-        <polyline
-          points={pts.map(e => `${xS(e.km)},${yS(e.nivel_actual ?? 0)}`).join(' ')}
-          fill="none" stroke="rgba(56,189,248,0.55)" strokeWidth="2"
-          strokeLinejoin="round" strokeLinecap="round"
-        />
-      )}
+
+      {/* Cuerpo de agua + superficie — atenuados si la telemetría está vencida */}
+      <g opacity={perfilStale ? 0.42 : 1}>
+        {/* Cuerpo de agua — relleno glassy con curva suave */}
+        {pts.length >= 2 && <path d={waterAreaPath} fill="url(#cpWater)" />}
+
+        {/* Superficie — halo suave */}
+        {pts.length >= 2 && (
+          <path d={waterLinePath} fill="none" stroke="rgba(56,189,248,0.16)"
+            strokeWidth="7.5" strokeLinejoin="round" strokeLinecap="round" />
+        )}
+        {/* Superficie — línea principal. En vivo: degradado + glow. Vencida:
+            gris punteado para señalar que es un perfil histórico, no actual. */}
+        {pts.length >= 2 && (
+          perfilStale ? (
+            <path d={waterLinePath} fill="none" stroke="#64748b" strokeWidth="2"
+              strokeDasharray="5,4" strokeLinejoin="round" strokeLinecap="round" />
+          ) : (
+            <path d={waterLinePath} fill="none" stroke="url(#cpSurface)" strokeWidth="2.4"
+              strokeLinejoin="round" strokeLinecap="round" filter="url(#cpLineGlow)" />
+          )
+        )}
+        {/* Brillo móvil + partícula de flujo — SOLO en vivo (congelado si vencido) */}
+        {pts.length >= 2 && !perfilStale && (
+          <path d={waterLinePath} fill="none" stroke="url(#cpFlow)" strokeWidth="2.6"
+            strokeLinejoin="round" strokeLinecap="round" />
+        )}
+        {pts.length >= 2 && !perfilStale && waterLinePath && (
+          <circle r="2.4" fill="#ffffff" opacity="0.85">
+            <animateMotion dur="4.5s" repeatCount="indefinite" path={waterLinePath} rotate="auto" />
+            <animate attributeName="opacity" values="0;0.9;0" dur="4.5s" repeatCount="indefinite" />
+          </circle>
+        )}
+      </g>
 
       {/* Ejes */}
       <line x1={PAD_L} y1={PAD_T} x2={PAD_L} y2={base} stroke="#1e2f45" strokeWidth="1" />
@@ -300,38 +443,95 @@ const CanalLongitudinalProfile: React.FC<{
       {pts.map((e) => {
         const x = xS(e.km);
         const y = yS(e.nivel_actual ?? 0);
-        const col = escalaAlertColor(e, coherencia);
+        const baseCol = escalaAlertColor(e, coherencia);
+        const age = ptAgeMin(e);
+        const ptStale = age === null || age > STALE_MIN;
+        // Punto vencido: color desaturado (gris) para no afirmar alerta en vivo.
+        const col = ptStale ? '#64748b' : baseCol;
+        const isCrit = !ptStale && baseCol === '#ef4444';
         const { symbol, color: tColor } = trendArrow(e);
         const nearTop = y < PAD_T + 20;
-        const lY = nearTop ? y + 22 : y - 13;
+        const lY = nearTop ? y + 22 : y - 14;
 
         return (
           <g key={e.id} filter="url(#cpGlow)">
-            {/* Drop line */}
+            {/* Drop line al lecho */}
             <line x1={x} y1={y + 6} x2={x} y2={base} stroke={col} strokeWidth="1" opacity="0.18" />
+            {/* Anillo de pulso animado solo en puntos críticos EN VIVO */}
+            {isCrit && (
+              <circle cx={x} cy={y} r={6} fill="none" stroke={col} strokeWidth="1.4">
+                <animate attributeName="r" values="6;13;6" dur="2.2s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.7;0;0.7" dur="2.2s" repeatCount="indefinite" />
+              </circle>
+            )}
             {/* Halo exterior */}
-            <circle cx={x} cy={y} r={10} fill={col} opacity="0.10" />
+            <circle cx={x} cy={y} r={10} fill={col} opacity={ptStale ? 0.06 : 0.10} />
             {/* Halo medio */}
-            <circle cx={x} cy={y} r={6.5} fill={col} opacity="0.18" />
-            {/* Punto principal */}
-            <circle cx={x} cy={y} r={5} fill={col} stroke="#070e1c" strokeWidth="1.8" />
-            {/* Brillo */}
-            <circle cx={x - 1.5} cy={y - 1.8} r={1.5} fill="rgba(255,255,255,0.45)" />
-            {/* Valor */}
-            <text x={x} y={lY} fill={col} fontSize="9" textAnchor="middle"
-              fontFamily="monospace" fontWeight="bold" letterSpacing="-0.3">
-              {(e.nivel_actual ?? 0).toFixed(2)}
-            </text>
+            <circle cx={x} cy={y} r={6.5} fill={col} opacity={ptStale ? 0.12 : 0.20} />
+            {/* Punto principal — relleno si en vivo, hueco si vencido */}
+            <circle cx={x} cy={y} r={5}
+              fill={ptStale ? '#0a1426' : col}
+              stroke={col} strokeWidth={ptStale ? 1.6 : 1.8}
+              strokeDasharray={ptStale ? '2,1.5' : undefined}>
+              <title>{`${e.nombre} · nivel ${(e.nivel_actual ?? 0).toFixed(2)} m${e.nivel_max_operativo ? ` / bordo ${e.nivel_max_operativo.toFixed(2)} m` : ''} · ${age === null ? 'sin lectura' : age < 60 ? `hace ${Math.round(age)} min` : `hace ${(age / 60).toFixed(1)} h`}`}</title>
+            </circle>
+            {/* Brillo especular — solo en vivo */}
+            {!ptStale && <circle cx={x - 1.5} cy={y - 1.8} r={1.5} fill="rgba(255,255,255,0.55)" />}
+            {/* Etiqueta de valor — pastilla de fondo para legibilidad */}
+            <g>
+              <rect x={x - 13} y={lY - 8} width={26} height={11} rx={3}
+                fill="#0a1426" opacity="0.78" />
+              <text x={x} y={lY} fill={col} fontSize="9" textAnchor="middle"
+                fontFamily="monospace" fontWeight="bold" letterSpacing="-0.3">
+                {(e.nivel_actual ?? 0).toFixed(2)}
+              </text>
+            </g>
             {/* Tendencia */}
-            <text x={x + 8} y={lY} fill={tColor} fontSize="8" textAnchor="start" fontFamily="monospace">
+            <text x={x + 15} y={lY} fill={tColor} fontSize="8" textAnchor="start" fontFamily="monospace">
               {symbol}
             </text>
           </g>
         );
       })}
+
+      {/* Indicador de dirección de flujo — eje superior */}
+      {pts.length >= 2 && (
+        <g opacity="0.5">
+          <text x={PAD_L} y={PAD_T - 6} fill="#475569" fontSize="6.5"
+            fontFamily="monospace" fontWeight="bold" letterSpacing="0.5">K-0 ENTRADA</text>
+          <text x={PAD_L + plotW} y={PAD_T - 6} fill="#475569" fontSize="6.5"
+            textAnchor="end" fontFamily="monospace" fontWeight="bold" letterSpacing="0.5">K-104 SALIDA →</text>
+        </g>
+      )}
+
+      {/* Badge de frescura de telemetría — centrado arriba */}
+      {pts.length >= 2 && (() => {
+        const cx = PAD_L + plotW / 2;
+        const live = !perfilStale;
+        const fill = live ? '#22c55e' : '#64748b';
+        const label = live ? `EN VIVO · ${edadTxt}` : `PERFIL HISTÓRICO · ${edadTxt}`;
+        const bw = label.length * 4.2 + 18;
+        return (
+          <g>
+            <rect x={cx - bw / 2} y={PAD_T - 11} width={bw} height={11} rx={5.5}
+              fill={live ? 'rgba(34,197,94,0.12)' : 'rgba(100,116,139,0.14)'}
+              stroke={live ? 'rgba(34,197,94,0.4)' : 'rgba(100,116,139,0.35)'} strokeWidth="0.6" />
+            <circle cx={cx - bw / 2 + 8} cy={PAD_T - 5.5} r={2} fill={fill}>
+              {live && <animate attributeName="opacity" values="1;0.3;1" dur="1.8s" repeatCount="indefinite" />}
+            </circle>
+            <text x={cx + 4} y={PAD_T - 2.5} fill={fill} fontSize="6.5"
+              textAnchor="middle" fontFamily="monospace" fontWeight="bold" letterSpacing="0.3">
+              {label}
+            </text>
+          </g>
+        );
+      })()}
+
+      {/* Vignette del lienzo (profundidad) */}
+      <rect x={PAD_L} y={PAD_T} width={plotW} height={plotH} fill="url(#cpVignette)" pointerEvents="none" />
     </svg>
   );
-};
+});
 
 // Distancia en KM entre dos puntos (Haversine)
 function haversineDist(lon1: number, lat1: number, lon2: number, lat2: number) {
@@ -371,7 +571,22 @@ const PublicMonitor: React.FC = () => {
     // Panel Visibility States - Start minimized on mobile for total map priority
     const isMobile = typeof window !== 'undefined' ? window.innerWidth <= 900 : false;
     const [isDockVisible, setIsDockVisible] = useState(!isMobile);
-    const [dockTab, setDockTab] = useState<'resumen' | 'canal' | 'alertas' | 'skill'>('resumen');
+    const [dockTab, setDockTab] = useState<'resumen' | 'canal' | 'alertas' | 'skill' | 'tendencias'>('resumen');
+
+    // ── Pestaña TENDENCIAS: rango, granularidad y series históricas ──────────
+    const hoyISO = new Date().toISOString().slice(0, 10);
+    const hace7 = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+    const [tndDesde, setTndDesde] = useState(hace7);
+    const [tndHasta, setTndHasta] = useState(hoyISO);
+    const [tndGran, setTndGran] = useState<'diaria' | 'lectura'>('diaria');
+    const [tndLoading, setTndLoading] = useState(false);
+    const [tndData, setTndData] = useState<{
+        niveles: SerieEscala[]; volTramos: SerieTramo[]; volTotal: SeriePunto[];
+        compuertas: SerieCompuerta[]; gasto: SerieGasto;
+    }>({ niveles: [], volTramos: [], volTotal: [], compuertas: [], gasto: { entrada: [], salida: [], entregas: [], perdidas: [] } });
+    // Callback estable: TendenciasPanel está memoizado; una arrow inline aquí
+    // invalidaría el memo en cada render del monitor (reloj de 60 s, mapa, etc.).
+    const onTndRango = useCallback((d: string, h: string) => { setTndDesde(d); setTndHasta(h); }, []);
     const [snapshotCopied, setSnapshotCopied] = useState(false);
     const [showSkillInforme, setShowSkillInforme] = useState(false);
     const [modelQ0, setModelQ0] = useState('');
@@ -427,10 +642,70 @@ const PublicMonitor: React.FC = () => {
     }, [balanceModulos]);
 
     // 0. Update internal clock for reactive calculations
+    // 60 s (antes 15 s): cada tick re-renderiza TODO el árbol (mapa Leaflet, paneles,
+    // SVGs) y recalcula ~5 useMemo pesados. La UI muestra edades con precisión de
+    // minutos ("hace 5h 1m"), así que 15 s eran 4× re-renders sin beneficio visible.
     useEffect(() => {
-        const timer = setInterval(() => setCurrentTime(Date.now()), 15000);
+        const timer = setInterval(() => setCurrentTime(Date.now()), 60_000);
         return () => clearInterval(timer);
     }, []);
+
+    // 0b. TENDENCIAS: carga histórica por rango+granularidad (solo con la pestaña activa)
+    useEffect(() => {
+        if (dockTab !== 'tendencias') return;
+        let cancel = false;
+        const cargar = async () => {
+            setTndLoading(true);
+            try {
+                const [escRes, tramoRes] = await Promise.all([
+                    supabase.from('escalas').select('id, nombre, km, nivel_max_operativo').order('km'),
+                    supabase.from('vol_interescalas').select('esc_up_id, esc_up, km_up, esc_down_id, esc_down, km_down, longitud_km, ancho_canal_m, vol_m3, nivel_up_m, nivel_down_m'),
+                ]);
+                const escalasGeom = (escRes.data || []) as { id: string; nombre: string; km: number; nivel_max_operativo: number | null }[];
+                const tramos = (tramoRes.data || []) as TramoGeom[];
+
+                // Lecturas de campo (nivel ↑↓, compuertas, gasto) — filtra autogeneradas
+                const { data: lecRaw } = await supabase.from('lecturas_escalas')
+                    .select('escala_id, fecha, hora_lectura, nivel_m, nivel_abajo_m, gasto_calculado_m3s, gasto_metodo, radiales_json, creado_en, responsable, notas')
+                    .gte('fecha', tndDesde).lte('fecha', tndHasta)
+                    .order('creado_en', { ascending: true }).limit(4000);
+                const lecturas = ((lecRaw || []) as (TndLectura & { responsable?: string; notas?: string })[])
+                    .filter(r => !/chronos|autogenerad|medianoche/i.test((r.responsable || '') + (r.notas || '')));
+
+                // Resumen diario (serie de nivel por escala) + entregas
+                const [{ data: resRaw }, { data: entRaw }] = await Promise.all([
+                    supabase.from('resumen_escalas_diario').select('escala_id, fecha, lectura_am, hora_am, lectura_pm, hora_pm, nivel_actual')
+                        .gte('fecha', tndDesde).lte('fecha', tndHasta).order('fecha', { ascending: true }),
+                    supabase.from('entregas_modulo').select('modulo_id, zona_id, tipo_entrega, gasto_m3s, fecha')
+                        .gte('fecha', tndDesde).lte('fecha', tndHasta).gt('gasto_m3s', 0),
+                ]);
+                const resumen: TndResumen[] = (resRaw || []).map((r: Record<string, unknown>) => ({
+                    escala_id: r.escala_id as string, fecha: r.fecha as string,
+                    nivel_am: (r.lectura_am as number) ?? null, nivel_pm: (r.lectura_pm as number) ?? null,
+                    nivel_actual: (r.nivel_actual as number) ?? null,
+                }));
+                const entregas = (entRaw || []) as TndEntrega[];
+
+                // Series
+                const niveles = tndGran === 'diaria'
+                    ? serieNivelesDiaria(resumen, escalasGeom)
+                    : serieNivelesLectura(lecturas, escalasGeom);
+                const { idx, fechas } = indiceNivelesDiario(resumen);
+                const { series: volTramos, totalPorFecha: volTotal } = serieVolumenTramos(tramos, idx, fechas);
+                const compuertas = serieCompuertas(lecturas, escalasGeom);
+                const gasto = serieGasto(lecturas, escalasGeom, entregas, fechas.length ? fechas : [tndHasta]);
+
+                if (!cancel) setTndData({ niveles, volTramos, volTotal, compuertas, gasto });
+            } catch (e) {
+                if (!cancel) toast.error('No se pudo cargar el histórico de tendencias');
+                console.error('[TENDENCIAS]', e);
+            } finally {
+                if (!cancel) setTndLoading(false);
+            }
+        };
+        cargar();
+        return () => { cancel = true; };
+    }, [dockTab, tndDesde, tndHasta, tndGran]);
 
 
     // 1. Fetch Canal Geometry (sessionStorage cache — estático, no cambia por sesión)
@@ -462,13 +737,40 @@ const PublicMonitor: React.FC = () => {
             const eventStart = activeEvent?.fecha_inicio || `${todayDate}T00:00:00`;
             const isLlenado  = activeEvent?.evento_tipo === 'LLENADO';
 
+            // ── RPC agregada fn_monitor_snapshot: 1 request en vez de 6 ──────
+            // Feature-detect con caché de sesión: si la función aún no existe en
+            // la BD (migración 20260709100000 pendiente de aplicar), se marca 'no'
+            // y NO se vuelve a intentar en esta sesión → fallback sin costo extra.
+            let escData: any[] | null | undefined, pData: any[] | null | undefined,
+                summaryDelta: any[] | null | undefined, readings: any[] | null | undefined,
+                mData: any[] | null | undefined, trackResult: { data: any } = { data: null };
+            let usedRpc = false;
+            if (sessionStorage.getItem('rpc_monitor_snapshot') !== 'no') {
+                const { data: snap, error: rpcErr } = await supabase.rpc('fn_monitor_snapshot', {
+                    p_event_start: eventStart,
+                    p_evento_id: (isLlenado && activeEvent?.id) ? activeEvent.id : null,
+                });
+                if (!rpcErr && snap) {
+                    usedRpc = true;
+                    escData      = snap.escalas;
+                    pData        = snap.lecturas_presas;
+                    summaryDelta = snap.resumen_delta;
+                    readings     = snap.lecturas_escalas;
+                    mData        = snap.movimientos;
+                    trackResult  = { data: snap.llenado_seguimiento };
+                } else {
+                    sessionStorage.setItem('rpc_monitor_snapshot', 'no');
+                }
+            }
+
+            if (!usedRpc) {
             const [
-                { data: escData },
-                { data: pData },
-                { data: summaryDelta },
-                { data: readings },
-                { data: mData },
-                trackResult,
+                { data: escData2 },
+                { data: pData2 },
+                { data: summaryDelta2 },
+                { data: readings2 },
+                { data: mData2 },
+                trackResult2,
             ] = await Promise.all([
                 supabase
                     .from('escalas')
@@ -503,6 +805,9 @@ const PublicMonitor: React.FC = () => {
                         .order('km', { ascending: false })
                     : Promise.resolve({ data: null }),
             ]);
+            escData = escData2; pData = pData2; summaryDelta = summaryDelta2;
+            readings = readings2; mData = mData2; trackResult = trackResult2;
+            } // fin fallback sin RPC
 
             // Sincronía Digital: Solo tomamos la última lectura de cada presa
             const uniquePresasMap = new Map();
@@ -758,7 +1063,12 @@ const PublicMonitor: React.FC = () => {
                     km: -36,
                     nivel_actual: 3.5, // Referencia Escala de Presa (Directiva de Usuario)
                     estado: activeEvent.hora_apertura_real ? 'OPERANDO' : 'ESPERANDO',
-                    ultima_telemetria: extraccionReal > 0 ? new Date(presaReading!.fecha).getTime() : currentTime,
+                    // Date.now() directo (no currentTime): currentTime cambia cada tick del
+                    // reloj y, como dependencia de este useCallback, hacía que fetchData
+                    // cambiara de identidad en cada tick → el useEffect de suscripciones
+                    // destruía/recreaba 4 canales Realtime y RE-EJECUTABA el batch completo
+                    // de queries cada 15 s (≈15× el tráfico diseñado de 5 min).
+                    ultima_telemetria: extraccionReal > 0 ? new Date(presaReading!.fecha).getTime() : Date.now(),
                     latitud: 27.545,
                     longitud: -105.414
                 } as any);
@@ -806,7 +1116,7 @@ const PublicMonitor: React.FC = () => {
         } catch (err) {
             console.error("PublicMonitor fetch error", err);
         }
-    }, [activeEvent, currentTime]);
+    }, [activeEvent]);
 
     useEffect(() => {
         fetchData();
@@ -1145,15 +1455,28 @@ const PublicMonitor: React.FC = () => {
         if (activeEvent?.evento_tipo === 'LLENADO') return null;
 
         const qPresa = Number(damMovements[0]?.gasto_m3s || presasData[0]?.extraccion_total || 0);
+        // Solo lecturas de gasto FRESCAS (<4 h). Una lectura vencida no debe
+        // alimentar eficiencia/pérdidas/IEC y presentarse como estado en vivo
+        // (mismo criterio que el panel SKILL y el perfil hidráulico).
+        const STALE_MIN = 240;
+        const esFresco = (e: EscalaData) =>
+            e.ultima_telemetria != null && (Date.now() - e.ultima_telemetria) / 60000 <= STALE_MIN;
         const escOrdenadas = [...escalas]
-            .filter(e => e.km >= 0 && e.km <= 104 && e.gasto_actual !== null && (e.gasto_actual ?? 0) > 0)
+            .filter(e => e.km >= 0 && e.km <= 104 && e.gasto_actual !== null && (e.gasto_actual ?? 0) > 0 && esFresco(e))
             .sort((a, b) => a.km - b.km);
 
         if (escOrdenadas.length === 0) return null;
 
         // Pérdida esperada en río (36 km): ~2-5% por km ≈ 8% total
         const qK0Esperado = qPresa * 0.92;
-        const qK0Medido   = escOrdenadas.find(e => e.km === 0)?.gasto_actual ?? escOrdenadas[0]?.gasto_actual ?? 0;
+        const escK0   = escOrdenadas.find(e => e.km === 0);
+        const escK104 = escOrdenadas.find(e => e.km >= 104);
+        // qK0Medido = SOLO el gasto real de K-0. Si K-0 no tiene lectura fresca,
+        // NO sustituir por escOrdenadas[0]: ese fallback rotulaba el caudal de
+        // otra escala (la primera fresca) como "K0+000" → la cadena PANORAMA
+        // mostraba 9.9 mientras la tarjeta de K-0 mostraba su valor real 21.6.
+        const k0Disponible = !!escK0;
+        const qK0Medido = escK0?.gasto_actual ?? 0;
 
         // Verificación de coherencia por punto: cada Q debe ser ≤ Q del punto anterior
         // tolerancia ±15% para lecturas de campo
@@ -1167,16 +1490,26 @@ const PublicMonitor: React.FC = () => {
         });
 
         const nCoherentes = puntos.filter(p => p.coherente).length;
-        const qFinal      = escOrdenadas[escOrdenadas.length - 1]?.gasto_actual ?? 0;
-        const eficiencia  = qK0Medido > 0 ? (qFinal / qK0Medido) * 100 : null;
-        const perdidaRio  = qPresa > 0 ? qPresa - qK0Medido : null;
-        const perdidaCanal = qK0Medido > 0 ? qK0Medido - qFinal : null;
+        // qFinal = caudal de salida REAL. Si no hay lectura fresca en K-104, no
+        // existe "salida del canal" medida; usamos el último punto disponible
+        // pero marcamos el tramo como parcial para no llamarlo eficiencia total.
+        const ultimo      = escOrdenadas[escOrdenadas.length - 1];
+        const qFinal      = ultimo?.gasto_actual ?? 0;
+        const tramoCompleto = !!escK0 && !!escK104;   // ¿K-0 y K-104 ambos medidos?
+        // Eficiencia de conducción SOLO válida de extremo a extremo (K-0→K-104).
+        // Antes: qFinal/qK0 con un solo punto daba 100% imposible presentado como real.
+        const eficiencia  = (tramoCompleto && qK0Medido > 0) ? (qFinal / qK0Medido) * 100 : null;
+        const perdidaRio  = (escK0 && qPresa > 0) ? qPresa - qK0Medido : null;
+        const perdidaCanal = (tramoCompleto && qK0Medido > 0) ? qK0Medido - qFinal : null;
 
         return {
             qPresa,
             qK0Esperado,
             qK0Medido,
+            k0Disponible,
             qFinal,
+            tramoCompleto,
+            kmFinal: ultimo?.km ?? null,
             eficiencia,
             perdidaRio,
             perdidaCanal,
@@ -1184,7 +1517,7 @@ const PublicMonitor: React.FC = () => {
             nCoherentes,
             totalPuntos: puntos.length,
         };
-    }, [activeEvent, damMovements, presasData, escalas]);
+    }, [activeEvent, damMovements, presasData, escalas, currentTime]);
 
     // isEstabilizacion: true para ESTABILIZACION y SIN_EVENTO (comportamiento visual idéntico).
     // No incluye CONTINGENCIA/VACIADO/ANOMALIA — esos modos conservan el mapa de alertas
@@ -1198,6 +1531,11 @@ const PublicMonitor: React.FC = () => {
     // ── IEC — Índice de Estado del Canal ─────────────────────────────────────
     const iecData = useMemo(() => {
         if (!coherenciaCanal || !isEstabilizacion) return null;
+        // El IEC pondera la eficiencia de conducción (30/100 pts). Sin medición
+        // extremo a extremo (K-0→K-104 frescos) esa eficiencia es null; calcular
+        // el IEC con eficiencia=0 daría un puntaje artificialmente bajo presentado
+        // como real. En ese caso no publicamos IEC (el badge simplemente no aparece).
+        if (coherenciaCanal.eficiencia === null) return null;
         const escalasConDatos = escalas.filter(e => e.nivel_actual !== null && e.nivel_max_operativo !== null);
         const escalasEnCritico = escalasConDatos.filter(e => {
             const pct = (e.nivel_actual ?? 0) / (e.nivel_max_operativo ?? 3.5);
@@ -1308,21 +1646,47 @@ const PublicMonitor: React.FC = () => {
             const mins = (Date.now() - e.ultima_telemetria) / 60000;
             return mins <= MAX_STALE_MIN ? e : null;
         };
+        // Último dato CONOCIDO de una escala, sin filtro de frescura. Devuelve el
+        // gasto medido y su antigüedad (min) para mostrarlo como "histórico" cuando
+        // la lectura fresca no existe — referencia atenuada, no medición en vivo.
+        const escalaUlt = (km: number): { gasto: number; ageMin: number } | null => {
+            const e = escalas.find(e => Math.abs(e.km - km) < 0.5);
+            if (!e || !e.ultima_telemetria || (e.gasto_actual ?? 0) <= 0) return null;
+            return { gasto: e.gasto_actual as number, ageMin: (Date.now() - e.ultima_telemetria) / 60000 };
+        };
         const ZONAS_CONTROL = [
             { codigo: 'Z1', km_in: 23,     km_out: 29,     q_obj: 2.400 },
             { codigo: 'Z2', km_in: 34,     km_out: 44,     q_obj: 2.750 },
             { codigo: 'Z3', km_in: 54,     km_out: 68,     q_obj: 4.635 },
             { codigo: 'Z4', km_in: 79.025, km_out: 94.057, q_obj: 4.200 },
         ];
+        // ── Q EXTRAÍDO POR ZONA = Σ ENTREGAS reales a usuarios ──────────────────
+        // FUENTE CORRECTA: la extracción de una zona es el agua ENTREGADA a sus
+        // módulos (entregas_modulo, base+adicional), capturada en campo.
+        //
+        // NO usar el diferencial entre escalas (Q_in − Q_out): ese diferencial
+        // incluye las FUGAS del tramo (azolve, infiltración) y NO es extracción a
+        // usuarios. Sumarlo inflaba Q_zonas a ~39 m³/s (> Q0=34), dando pérdidas
+        // NEGATIVAS imposibles. El diferencial ya se usa aparte como detector de
+        // fugas ("FUGA ALTA"), no debe entrar al balance de extracción.
+        const zonaIdToCodigo = new Map<string, string>(
+            volZonas.map((v: any) => [v.zona_id as string, v.codigo as string])
+        );
+        const entregasPorZona = new Map<string, number>();   // codigo Zn → Q m³/s
+        for (const e of entregasHoy) {
+            const cod = e.zona_id ? zonaIdToCodigo.get(e.zona_id) : undefined;
+            if (!cod) continue;
+            entregasPorZona.set(cod, (entregasPorZona.get(cod) ?? 0) + Number(e.gasto_m3s ?? 0));
+        }
         const ZONAS_SKILL = ZONAS_CONTROL.map(z => {
-            // Q extraído: diferencial entre las escalas de control reales de la zona.
-            // Ambas escalas deben estar FRESCAS (<4h) y con gasto>0; si no, q_real=null
-            // para no inyectar un diferencial obsoleto al balance global.
+            // escalas de control: solo para etiquetar y para el detector de fugas,
+            // NO para el Q extraído del balance.
             const escIn  = escalaFresh(z.km_in);
             const escOut = escalaFresh(z.km_out);
-            const q_real = (escIn && (escIn.gasto_actual ?? 0) > 0 && escOut && (escOut.gasto_actual ?? 0) > 0)
-                ? Math.max(0, (escIn.gasto_actual ?? 0) - (escOut.gasto_actual ?? 0))
-                : null;
+            // Q extraído = suma de entregas de hoy de la zona (extracción real).
+            const q_ent = entregasPorZona.get(z.codigo);
+            const q_real  = q_ent && q_ent > 0 ? +q_ent.toFixed(3) : null;
+            const q_fuente: 'entregas' | null = q_real !== null ? 'entregas' : null;
             // Volumen/pct/nivel: de vol_zonas (BD), emparejado por código de zona.
             const vz = volZonas.find(v => v.codigo === z.codigo);
             return {
@@ -1335,7 +1699,8 @@ const PublicMonitor: React.FC = () => {
                 escala_out:    escOut?.nombre ?? `K-${z.km_out}`,
                 q_objetivo:    z.q_obj,
                 q_real:        q_real !== null ? +q_real.toFixed(3) : null,
-                q_real_stale:  q_real === null,   // true si alguna escala de control no es fresca
+                q_fuente,                          // 'entregas' | null
+                q_real_stale:  q_real === null,   // true si la zona no tiene entregas hoy
                 vol_mm3:       vz?.vol_actual_mm3 != null ? +Number(vz.vol_actual_mm3).toFixed(4) : null,
                 pct_llenado:   vz?.pct_llenado    != null ? +Number(vz.pct_llenado).toFixed(1)    : null,
                 nivel_medio_m: vz?.nivel_medio_m  != null ? +Number(vz.nivel_medio_m).toFixed(3)  : null,
@@ -1354,16 +1719,29 @@ const PublicMonitor: React.FC = () => {
         const zonasCompletas = zonasMedidas.length === N_ZONAS_ESPERADAS;
         const q0   = escalaFresh(0)?.gasto_actual   ?? null;   // null cuando STALE
         const q104 = escalaFresh(104)?.gasto_actual ?? null;   // null cuando STALE
-        // El balance Q0 − Q104 − Q_zonas solo es físicamente significativo cuando:
-        //  (1) K-0 tiene dato fresco (entrada medida),
-        //  (2) K-104 tiene dato fresco (salida medida),
-        //  (3) las 4 zonas tienen extracción medida (sin huecos rellenados por diseño).
-        // De lo contrario mezclaríamos caudal medido con valores teóricos y las
-        // pérdidas/eficiencia resultarían números imposibles presentados como "EN VIVO".
-        const balanceValido = q0 !== null && q104 !== null && zonasCompletas;
-        const perdidas   = balanceValido ? q0! - q104! - Q_ZONAS_REAL : null;
-        const eficiencia = (balanceValido && q0! > 0) ? (q0! - Math.max(0, perdidas!)) / q0! * 100 : null;
-        const lambda     = (perdidas !== null && q0! > 0) ? perdidas / 104 : 0;
+        // Último dato conocido (histórico) — solo para PRESENTACIÓN cuando no hay
+        // lectura fresca. Nunca entra al balance (perdidas/eficiencia/λ).
+        const q0Ult   = escalaUlt(0);
+        const q104Ult = escalaUlt(104);
+        // El balance Q0 − Q104 − Q_zonas tiene DOS modos:
+        //  • 'vivo'    : K-0, K-104 y las 4 zonas frescas (<4h). Medición confiable.
+        //  • 'parcial' : K-0 fresco + 4 zonas medidas (telemetría o entregas), pero
+        //                K-104 usa el último dato conocido. Es una REFERENCIA, no una
+        //                medición en vivo — se marca como tal en el panel.
+        // Sin K-0 fresco o sin las 4 zonas, no hay balance (todo → S/D): no podemos
+        // inventar la entrada ni la mitad de las extracciones.
+        const q104Bal = q104 ?? (q104Ult ? q104Ult.gasto : null);   // fresco o histórico
+        const balanceValido = q0 !== null && q104 !== null && zonasCompletas;     // 'vivo'
+        const balanceParcial = !balanceValido && q0 !== null && q104Bal !== null && zonasCompletas;
+        const balanceModo: 'vivo' | 'parcial' | null =
+            balanceValido ? 'vivo' : balanceParcial ? 'parcial' : null;
+        const q104Calc = balanceValido ? q104 : (balanceParcial ? q104Bal : null);
+        const perdidas   = balanceModo ? q0! - q104Calc! - Q_ZONAS_REAL : null;
+        const eficiencia = (balanceModo && q0! > 0) ? (q0! - Math.max(0, perdidas!)) / q0! * 100 : null;
+        // λ dinámica = null cuando no hay balance. Antes caía a 0, lo que el panel
+        // mostraba como "0.00000" — un valor que se lee como "pérdidas nulas medidas"
+        // cuando en realidad NO hay medición. Mantenerlo null lo deja consistente.
+        const lambda     = (perdidas !== null && q0! > 0) ? perdidas / 104 : null;
 
         const checkpoints = escalas
             .filter(e => e.km >= 0 && e.km <= 104)
@@ -1391,6 +1769,49 @@ const PublicMonitor: React.FC = () => {
 
         const alertas = checkpoints.filter(c => c.alerta);
 
+        // ── Estado de telemetría agregado (para banner gerencial) ───────────
+        // Clasifica el estado GLOBAL del sistema para no mostrar "EN VIVO" cuando
+        // en realidad todos los valores están S/D. Distingue tres situaciones que
+        // antes se confundían en un muro de "0 / S/D":
+        //   • frescos  : lecturas <60 min (operación normal, datos confiables)
+        //   • atrasados: lecturas 60–240 min (datos útiles pero envejeciendo)
+        //   • stale    : lecturas >240 min o sin telemetría (no confiable)
+        const conTel    = checkpoints.filter(c => c.ts_min !== null);
+        const frescos   = conTel.filter(c => (c.ts_min ?? 0) < 60).length;
+        const atrasados = conTel.filter(c => (c.ts_min ?? 0) >= 60 && (c.ts_min ?? 0) <= MAX_STALE_MIN).length;
+        const stale     = checkpoints.filter(c => c.ts_min === null || (c.ts_min ?? 0) > MAX_STALE_MIN).length;
+        const sinFlujo  = conTel.filter(c => c.q <= 0).length;   // nivel presente pero sin gasto
+        // Edad de la lectura más reciente del sistema (min). null si nada reportó.
+        const tsMin = conTel.reduce<number | null>((min, c) => {
+            const t = c.ts_min ?? Infinity;
+            return min === null || t < min ? t : min;
+        }, null);
+        // El estado GLOBAL debe reflejar la COBERTURA de frescura, no la mejor
+        // lectura. Antes usaba tsMin (la escala más nueva) → mostraba "EN VIVO·2min"
+        // aunque 8/14 escalas estuvieran vencidas y casi todos los tramos en S/D.
+        // Ahora pondera cuántas escalas están realmente vigentes (<4h):
+        //   EN_VIVO  : ≥80% vigentes y la mayoría <60 min
+        //   ATRASADO : ≥50% vigentes (datos parciales pero utilizables)
+        //   STALE    : <50% vigentes (como aquí: solo 6/14 → balance no confiable)
+        const total       = checkpoints.length;
+        const vigentes    = frescos + atrasados;                 // escalas <4h
+        const pctVigentes = total > 0 ? vigentes / total : 0;
+        const pctFrescos  = total > 0 ? frescos / total : 0;
+        const telemetria_estado_global =
+            conTel.length === 0      ? 'OFFLINE'
+            : pctVigentes < 0.5      ? 'STALE'
+            : pctFrescos  >= 0.8     ? 'EN_VIVO'
+            : 'ATRASADO';
+        const telemetria = {
+            estado: telemetria_estado_global,
+            total,
+            vigentes,
+            pct_vigentes: +(pctVigentes * 100).toFixed(0),
+            frescos, atrasados, stale, sin_flujo: sinFlujo,
+            edad_min_reciente: tsMin,
+            balance_valido: balanceValido,
+        };
+
         return {
             meta: {
                 version:    '3.7',
@@ -1399,7 +1820,8 @@ const PublicMonitor: React.FC = () => {
                 distrito:   'DR-005 Delicias',
                 calibracion: '01/06/2026',
             },
-            constantes: { Cd: 0.62, Cv: 1.84, g: 9.81, Cd_gl: 1.84, n_gl: 1.52, MIN_H: 0.01, n_man: 0.015, C_ONDA: 0.80, F_ATEN: 0.27, lambda: +lambda.toFixed(5) },
+            telemetria,
+            constantes: { Cd: 0.62, Cv: 1.84, g: 9.81, Cd_gl: 1.84, n_gl: 1.52, MIN_H: 0.01, n_man: 0.015, C_ONDA: 0.80, F_ATEN: 0.27, lambda: +(lambda ?? LAMBDA_REF).toFixed(5) },
             M1_FACTORS,
             zonas: ZONAS_SKILL,
             Q_ZONAS_REAL:  +Q_ZONAS_REAL.toFixed(3),
@@ -1408,11 +1830,18 @@ const PublicMonitor: React.FC = () => {
             balance: {
                 Q0:             q0 !== null ? +q0.toFixed(3) : null,
                 Q104:           q104 !== null ? +q104.toFixed(3) : null,
+                // Último dato conocido (histórico) — referencia atenuada cuando Q0/Q104
+                // son null por telemetría vencida. NO entra al balance.
+                Q0_hist:        q0Ult   ? +q0Ult.gasto.toFixed(3)   : null,
+                Q0_age_min:     q0Ult   ? Math.round(q0Ult.ageMin)   : null,
+                Q104_hist:      q104Ult ? +q104Ult.gasto.toFixed(3) : null,
+                Q104_age_min:   q104Ult ? Math.round(q104Ult.ageMin) : null,
                 Q_extracciones: +Q_ZONAS_REAL.toFixed(3),
                 perdidas:       perdidas !== null ? +perdidas.toFixed(3) : null,
                 eficiencia:     eficiencia !== null ? +eficiencia.toFixed(1) : null,
-                lambda:         +lambda.toFixed(5),
+                lambda:         lambda !== null ? +lambda.toFixed(5) : null,
                 balance_valido: balanceValido,
+                balance_modo:   balanceModo,        // 'vivo' | 'parcial' | null
                 zonas_completas: zonasCompletas,
             },
             alertas_nivel: alertas.map(c => ({ nombre: c.nombre, km: c.km, hA: c.hA, bl: c.bl, tipo: c.alerta })),
@@ -1490,6 +1919,14 @@ const PublicMonitor: React.FC = () => {
             timestamp: new Date().toISOString(),
         };
     }, [escalas, volInterescalas, volZonas, balanceModulos, entregasHoy, presasData, tomasActivas, activeEvent]);
+
+    // Cerrar el modal de perfil con Escape (accesibilidad de teclado)
+    useEffect(() => {
+        if (!showPerfilModal) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowPerfilModal(false); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [showPerfilModal]);
 
     const iecBreakdownRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -1571,6 +2008,30 @@ const PublicMonitor: React.FC = () => {
         return segments;
     }, [isEstabilizacion, canalDistData, escalas, coherenciaCanal]);
 
+    // Tag de estado de telemetría reutilizable — única fuente de verdad para
+    // todas las pestañas del dock (RESUMEN/CANAL/ALERTAS/SKILL). Antes cada
+    // pestaña mostraba un "● EN VIVO / MONITOREO TOTAL ACTIVO" fijo que
+    // contradecía el estado real cuando la telemetría estaba vencida.
+    const renderStateTag = (liveLabel?: string) => {
+        const t = skillSnapshot.telemetria;
+        const cfg =
+            t.estado === 'EN_VIVO'  ? { cls: 'dsk-state--live',  dot: '●', txt: liveLabel ?? 'EN VIVO' } :
+            t.estado === 'ATRASADO' ? { cls: 'dsk-state--warn',  dot: '◐', txt: 'DATOS ATRASADOS' } :
+            t.estado === 'STALE'    ? { cls: 'dsk-state--stale', dot: '○', txt: 'TELEMETRÍA VENCIDA' } :
+                                      { cls: 'dsk-state--off',   dot: '⊘', txt: 'SIN TELEMETRÍA' };
+        const edad = t.edad_min_reciente;
+        const edadTxt = edad === null ? '—' : edad < 60 ? `${edad} min` : `${(edad / 60).toFixed(1)} h`;
+        // Sufijo = COBERTURA de escalas vigentes (no la edad de la mejor lectura,
+        // que daba "EN VIVO·2min" con 8/14 vencidas). En EN_VIVO sí muestra edad.
+        const sufijo = t.estado === 'EN_VIVO' ? edadTxt : `${t.vigentes}/${t.total} vigentes`;
+        return (
+            <span className={`telemetry-tag dsk-state-tag ${cfg.cls}`}
+                  title={`${t.vigentes}/${t.total} escalas vigentes (<4 h) · ${t.frescos} frescas <1h / ${t.atrasados} 1–4h / ${t.stale} vencidas · lectura más nueva hace ${edadTxt}`}>
+                {cfg.dot} {cfg.txt} · {sufijo}
+            </span>
+        );
+    };
+
     return (
         <div className="public-monitor-container">
             {/* Compact Header Badge - Floating over map */}
@@ -1621,6 +2082,7 @@ const PublicMonitor: React.FC = () => {
                         className="phb-system-btn"
                         onClick={() => window.location.href = '/'}
                         title="Ir al sistema completo"
+                        aria-label="Ir al sistema completo"
                     >
                         <Activity size={12} />
                     </button>
@@ -2155,6 +2617,14 @@ const PublicMonitor: React.FC = () => {
                         >
                             DATOS
                         </button>
+                        <button
+                            type="button"
+                            className={`dock-tab${dockTab === 'tendencias' ? ' dock-tab--active' : ''}`}
+                            onClick={() => setDockTab('tendencias')}
+                            title="Análisis histórico por periodo: escalas, tramos, compuertas, gasto"
+                        >
+                            TENDENCIAS
+                        </button>
                     </div>
 
                     {/* ── Pestaña RESUMEN (anterior dock-panel-left) ── */}
@@ -2177,7 +2647,7 @@ const PublicMonitor: React.FC = () => {
                                         <span className="gasto-unit">m³/s</span>
                                     </span>
                                     <div className="summary-info-row">
-                                        <span className="summary-info-title">📊 PROGRESO: <span className="summary-info-value" style={{ color: statusColor }}>{(((displayMaxKm + 36) / (113 + 36)) * 100).toFixed(1)}%</span></span>
+                                        <span className="summary-info-title">📊 PROGRESO: <span className="summary-info-value" style={{ color: statusColor }}>{Math.max(0, Math.min(100, ((displayMaxKm + 36) / 140) * 100)).toFixed(1)}%</span></span>
                                     </div>
                                 </div>
                                 {/* Fuentes en LLENADO */}
@@ -2238,21 +2708,24 @@ const PublicMonitor: React.FC = () => {
                                         </div>
                                         <div className="cfc-node">
                                             <span className="cfc-label">K0+000</span>
-                                            <span className="cfc-val">{coherenciaCanal.qK0Medido.toFixed(1)}</span>
+                                            <span className="cfc-val" title={coherenciaCanal.k0Disponible ? undefined : 'K-0 sin lectura de gasto fresca (<4 h)'}>
+                                                {coherenciaCanal.k0Disponible ? coherenciaCanal.qK0Medido.toFixed(1) : 'S/D'}
+                                            </span>
                                             <span className="cfc-unit">m³/s</span>
                                         </div>
                                         <div className="cfc-arrow">
                                             <span className="cfc-loss">{coherenciaCanal.perdidaCanal !== null ? `−${coherenciaCanal.perdidaCanal.toFixed(1)}` : '—'}</span>
-                                            <span className="cfc-dist">104km canal</span>
+                                            <span className="cfc-dist">{coherenciaCanal.tramoCompleto ? '104km canal' : `hasta K${coherenciaCanal.kmFinal ?? '?'}`}</span>
                                         </div>
                                         <div className="cfc-node">
-                                            <span className="cfc-label">K104</span>
+                                            <span className="cfc-label">{coherenciaCanal.tramoCompleto ? 'K104' : `K${coherenciaCanal.kmFinal ?? '?'}`}</span>
                                             <span className="cfc-val">{coherenciaCanal.qFinal.toFixed(1)}</span>
                                             <span className="cfc-unit">m³/s</span>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="coherencia-sin-datos">Sin lecturas de gasto disponibles hoy</div>
+                                    // Criterio real: frescura <4h (no "hoy") — decirlo evita contradecir a CANAL/DATOS
+                                    <div className="coherencia-sin-datos">Sin lecturas de gasto frescas (&lt;4 h) — el último dato conocido está en la pestaña DATOS</div>
                                 )}
 
                                 {/* IEC — Desglose de componentes en español */}
@@ -2369,7 +2842,7 @@ const PublicMonitor: React.FC = () => {
                     <div className="dock-section checkpoints-section">
                         <div className="dock-section-header">
                             <span className="card-label">RED DE PUNTOS DE CONTROL</span>
-                            <span className="telemetry-tag active-mon">● MONITOREO TOTAL ACTIVO</span>
+                            {renderStateTag('MONITOREO ACTIVO')}
                         </div>
                         <div className="checkpoints-scroll-container">
                             {escalas
@@ -2391,6 +2864,12 @@ const PublicMonitor: React.FC = () => {
                                                 <span className="cpc-value">{e.nivel_actual?.toFixed(2) || '0.00'}</span>
                                                 <small className="cpc-unit">m</small>
                                                 {(() => {
+                                                    // Tendencia solo con lectura fresca (<4h): un "— 0.00" sobre
+                                                    // datos de 20h sugiere estabilidad EN VIVO que nadie midió.
+                                                    const ageMin = e.ultima_telemetria ? (Date.now() - e.ultima_telemetria) / 60000 : Infinity;
+                                                    if (ageMin > 240) return (
+                                                        <span style={{ color: '#64748b', fontSize: '11px' }} title="Tendencia 12h no disponible — telemetría vencida (>4 h)">·</span>
+                                                    );
                                                     const d = e.delta_12h ?? 0;
                                                     const tChar = d > 0.01 ? '▲' : d < -0.01 ? '▼' : '—';
                                                     const tCol = d > 0.01 ? '#ef4444' : d < -0.01 ? '#22c55e' : '#cbd5e1';
@@ -2443,7 +2922,7 @@ const PublicMonitor: React.FC = () => {
                     <div className="dock-section checkpoints-section">
                         <div className="dock-section-header">
                             <span className="card-label">RED DE PUNTOS DE CONTROL</span>
-                            <span className="telemetry-tag active-mon">● MONITOREO TOTAL ACTIVO</span>
+                            {renderStateTag('MONITOREO ACTIVO')}
                         </div>
                         <div className="checkpoints-scroll-container">
                             {escalas
@@ -2464,6 +2943,12 @@ const PublicMonitor: React.FC = () => {
                                                 <span className="cpc-value">{e.nivel_actual?.toFixed(2) || '0.00'}</span>
                                                 <small className="cpc-unit">m</small>
                                                 {(() => {
+                                                    // Tendencia solo con lectura fresca (<4h): un "— 0.00" sobre
+                                                    // datos de 20h sugiere estabilidad EN VIVO que nadie midió.
+                                                    const ageMin = e.ultima_telemetria ? (Date.now() - e.ultima_telemetria) / 60000 : Infinity;
+                                                    if (ageMin > 240) return (
+                                                        <span style={{ color: '#64748b', fontSize: '11px' }} title="Tendencia 12h no disponible — telemetría vencida (>4 h)">·</span>
+                                                    );
                                                     const d = e.delta_12h ?? 0;
                                                     const tChar = d > 0.01 ? '▲' : d < -0.01 ? '▼' : '—';
                                                     const tCol = d > 0.01 ? '#ef4444' : d < -0.01 ? '#22c55e' : '#cbd5e1';
@@ -2514,7 +2999,7 @@ const PublicMonitor: React.FC = () => {
                     <div className="dock-section dock-alertas-panel">
                         <div className="dock-section-header">
                             <span className="card-label">ALERTAS ACTIVAS</span>
-                            <span className="telemetry-tag active-mon">● EN VIVO</span>
+                            {renderStateTag()}
                         </div>
                         {activeAlertas.length === 0 ? (
                             <div className="dap-empty">
@@ -2551,18 +3036,50 @@ const PublicMonitor: React.FC = () => {
                     <div className="dock-section dock-skill-panel">
                         <div className="dock-section-header">
                             <span className="card-label">DATOS ACTUALES — SKILL v3.7</span>
-                            <span className="telemetry-tag active-mon">● EN VIVO</span>
+                            {renderStateTag()}
                         </div>
+
+                        {/* Banner de estado gerencial — explica el porqué de los S/D */}
+                        {skillSnapshot.telemetria.estado !== 'EN_VIVO' && (
+                            <div className={`dsk-state-banner dsk-state-banner--${
+                                skillSnapshot.telemetria.estado === 'ATRASADO' ? 'warn' :
+                                skillSnapshot.telemetria.estado === 'OFFLINE' ? 'off' : 'stale'}`}>
+                                <span className="dsk-sb-icon">
+                                    {skillSnapshot.telemetria.estado === 'ATRASADO' ? '◐' :
+                                     skillSnapshot.telemetria.estado === 'OFFLINE'  ? '⊘' : '○'}
+                                </span>
+                                <div className="dsk-sb-text">
+                                    <strong>
+                                        {skillSnapshot.telemetria.estado === 'ATRASADO'
+                                            ? 'Telemetría envejeciendo — balance de referencia'
+                                            : skillSnapshot.telemetria.estado === 'OFFLINE'
+                                            ? 'Sin lecturas activas — panel en espera de campo'
+                                            : 'Telemetría vencida (>4 h) — balance no confiable'}
+                                    </strong>
+                                    <span>
+                                        {skillSnapshot.telemetria.frescos} frescos · {skillSnapshot.telemetria.atrasados} atrasados · {skillSnapshot.telemetria.stale} vencidos
+                                        {skillSnapshot.telemetria.sin_flujo > 0 && ` · ${skillSnapshot.telemetria.sin_flujo} sin gasto (solo nivel)`}
+                                        {' '}de {skillSnapshot.telemetria.total} escalas.
+                                        {' '}El balance global K-0/K-104 requiere lecturas &lt;4 h en ambos extremos y las 4 zonas.
+                                        {' '}Los valores en gris son el último dato conocido (referencia, no medición en vivo).
+                                    </span>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Contenido scrolleable */}
                         <div className="dsk-scroll-body">
 
-                        {/* Balance global */}
-                        <div className="dsk-balance-row">
+                        {/* Balance global — translate="no": evita que el navegador
+                            traduzca "S/D" (Sin Dato) a "Dakota del Sur" y otros
+                            términos técnicos si el usuario fuerza traducción. */}
+                        <div className="dsk-balance-row notranslate" translate="no">
                             <div className="dsk-bal-item">
                                 <span className="dsk-bal-label">K-0 ENTRADA</span>
                                 {skillSnapshot.balance.Q0 !== null
                                     ? <span className="dsk-bal-val dsk-val--green">{skillSnapshot.balance.Q0.toFixed(3)}</span>
+                                    : skillSnapshot.balance.Q0_hist !== null
+                                    ? <span className="dsk-bal-val dsk-val--hist" title={`Sin telemetría fresca (>4h). Último dato conocido hace ${fmtAge(skillSnapshot.balance.Q0_age_min)} — referencia, no medición en vivo.`}>{skillSnapshot.balance.Q0_hist.toFixed(3)}<small className="dsk-bal-age"> ·{fmtAge(skillSnapshot.balance.Q0_age_min)}</small></span>
                                     : <span className="dsk-bal-val dsk-val--red" title="K-0 sin telemetría &gt;4h">S/D</span>
                                 }
                                 <span className="dsk-bal-unit">m³/s</span>
@@ -2571,6 +3088,8 @@ const PublicMonitor: React.FC = () => {
                                 <span className="dsk-bal-label">K-104 SALIDA</span>
                                 {skillSnapshot.balance.Q104 !== null
                                     ? <span className="dsk-bal-val dsk-val--blue">{skillSnapshot.balance.Q104.toFixed(3)}</span>
+                                    : skillSnapshot.balance.Q104_hist !== null
+                                    ? <span className="dsk-bal-val dsk-val--hist" title={`Sin telemetría fresca (>4h). Último dato conocido hace ${fmtAge(skillSnapshot.balance.Q104_age_min)} — referencia, no medición en vivo.`}>{skillSnapshot.balance.Q104_hist.toFixed(3)}<small className="dsk-bal-age"> ·{fmtAge(skillSnapshot.balance.Q104_age_min)}</small></span>
                                     : <span className="dsk-bal-val dsk-val--red" title="Sin telemetría &gt;4h">S/D</span>
                                 }
                                 <span className="dsk-bal-unit">m³/s</span>
@@ -2578,7 +3097,7 @@ const PublicMonitor: React.FC = () => {
                             <div className="dsk-bal-item">
                                 <span className="dsk-bal-label">EFICIENCIA</span>
                                 {skillSnapshot.balance.eficiencia !== null
-                                    ? <span className={`dsk-bal-val ${skillSnapshot.balance.eficiencia >= 95 ? 'dsk-val--green' : skillSnapshot.balance.eficiencia >= 90 ? 'dsk-val--amber' : 'dsk-val--red'}`}>{skillSnapshot.balance.eficiencia.toFixed(1)}%</span>
+                                    ? <span className={`dsk-bal-val ${skillSnapshot.balance.eficiencia >= 95 ? 'dsk-val--green' : skillSnapshot.balance.eficiencia >= 90 ? 'dsk-val--amber' : 'dsk-val--red'}`} title={skillSnapshot.balance.balance_modo === 'parcial' ? 'Balance parcial: K-104 con último dato conocido (no en vivo)' : undefined}>{skillSnapshot.balance.eficiencia.toFixed(1)}%{skillSnapshot.balance.balance_modo === 'parcial' && <small className="dsk-bal-age"> ref</small>}</span>
                                     : <span className="dsk-bal-val dsk-val--red" title={`Balance no confiable — ${skillSnapshot.balance.Q0 === null ? 'K-0 sin dato' : skillSnapshot.balance.Q104 === null ? 'K-104 sin dato' : `solo ${skillSnapshot.Q_ZONAS_MEDIDAS}/4 zonas medidas`}`}>S/D</span>
                                 }
                                 <span className="dsk-bal-unit"></span>
@@ -2586,14 +3105,17 @@ const PublicMonitor: React.FC = () => {
                             <div className="dsk-bal-item">
                                 <span className="dsk-bal-label">PÉRDIDAS</span>
                                 {skillSnapshot.balance.perdidas !== null
-                                    ? <span className="dsk-bal-val dsk-val--amber">{skillSnapshot.balance.perdidas.toFixed(3)}</span>
+                                    ? <span className="dsk-bal-val dsk-val--amber" title={skillSnapshot.balance.balance_modo === 'parcial' ? 'Balance parcial: K-104 con último dato conocido (no en vivo)' : undefined}>{skillSnapshot.balance.perdidas.toFixed(3)}{skillSnapshot.balance.balance_modo === 'parcial' && <small className="dsk-bal-age"> ref</small>}</span>
                                     : <span className="dsk-bal-val dsk-val--red" title={`Balance no confiable — ${skillSnapshot.balance.Q0 === null ? 'K-0 sin dato' : skillSnapshot.balance.Q104 === null ? 'K-104 sin dato' : `solo ${skillSnapshot.Q_ZONAS_MEDIDAS}/4 zonas medidas`}`}>S/D</span>
                                 }
                                 <span className="dsk-bal-unit">m³/s</span>
                             </div>
                             <div className="dsk-bal-item">
                                 <span className="dsk-bal-label">λ /km</span>
-                                <span className="dsk-bal-val">{skillSnapshot.balance.lambda.toFixed(5)}</span>
+                                {skillSnapshot.balance.lambda !== null
+                                    ? <span className="dsk-bal-val" title={skillSnapshot.balance.balance_modo === 'parcial' ? 'Balance parcial: K-104 con último dato conocido (no en vivo)' : undefined}>{skillSnapshot.balance.lambda.toFixed(5)}{skillSnapshot.balance.balance_modo === 'parcial' && <small className="dsk-bal-age"> ref</small>}</span>
+                                    : <span className="dsk-bal-val dsk-val--red" title={`Balance no confiable — ${skillSnapshot.balance.Q0 === null ? 'K-0 sin dato' : skillSnapshot.balance.Q104 === null ? 'K-104 sin dato' : `solo ${skillSnapshot.Q_ZONAS_MEDIDAS}/4 zonas medidas`}`}>S/D</span>
+                                }
                                 <span className="dsk-bal-unit">m³/s·km⁻¹</span>
                             </div>
                         </div>
@@ -2642,7 +3164,9 @@ const PublicMonitor: React.FC = () => {
                                                 <td className="dsk-td-num">{c.km}</td>
                                                 <td className="dsk-td-num">{c.hA.toFixed(3)}</td>
                                                 <td className="dsk-td-num">{c.hB !== null && c.hB !== undefined ? c.hB.toFixed(3) : '—'}</td>
-                                                <td className={`dsk-td-num ${c.q > 0 ? 'dsk-td--q' : 'dsk-td--zero'}`}>{c.q.toFixed(3)}</td>
+                                                <td className={`dsk-td-num ${c.q > 0 ? 'dsk-td--q' : 'dsk-td--zero'}`}
+                                                    title={c.q > 0 ? undefined : (c.ts_min === null ? 'Sin telemetría' : 'Nivel reportado, sin medición de gasto')}>
+                                                    {c.q > 0 ? c.q.toFixed(3) : '—'}</td>
                                                 <td className="dsk-td-num dsk-td--m1">{c.m1.toFixed(4)}</td>
                                                 <td className="dsk-td-num">{c.apertura > 0 ? c.apertura.toFixed(3) : '—'}</td>
                                                 <td className={`dsk-td-num ${c.bl !== null && c.bl < 0 ? 'dsk-td--red' : c.bl !== null && c.bl < 0.10 ? 'dsk-td--amber' : ''}`}>
@@ -2660,6 +3184,39 @@ const PublicMonitor: React.FC = () => {
                         {volInterescalas.length > 0 && (
                         <div className="dsk-section-block">
                             <div className="dsk-sub-header">VOLUMEN EN CANAL — TRAMOS INTERESCALA</div>
+
+                            {/* Aviso de aforo urgente — escalas vencidas que bloquean el balance.
+                                Prioriza las más antiguas; con ellas frescas, sus tramos se recalculan. */}
+                            {(() => {
+                                const vencidas = skillSnapshot.checkpoints
+                                    .filter(c => (c.ts_min === null || c.ts_min > 240) && !ESC_SIN_CONTROL.has(c.nombre))
+                                    .map(c => ({ nombre: c.nombre, ts: c.ts_min }))
+                                    .sort((a, b) => (b.ts ?? 1e9) - (a.ts ?? 1e9));
+                                if (vencidas.length === 0) return null;
+                                const fmt = (m: number | null) => m == null ? 'sin lectura' : m < 60 ? `${m} min` : `${(m / 60).toFixed(1)} h`;
+                                // Críticas = sin lectura o >12 h (las que más bloquean)
+                                const criticas = vencidas.filter(v => v.ts === null || (v.ts ?? 0) > 720);
+                                return (
+                                    <div className="dsk-aforo-aviso">
+                                        <span className="dsk-aforo-icon">📡</span>
+                                        <div className="dsk-aforo-text">
+                                            <strong>{vencidas.length} escala{vencidas.length > 1 ? 's' : ''} requiere{vencidas.length > 1 ? 'n' : ''} aforo</strong>
+                                            <span className="dsk-aforo-list">
+                                                {vencidas.map(v => (
+                                                    <span key={v.nombre} className={`dsk-aforo-chip ${v.ts === null || (v.ts ?? 0) > 720 ? 'dsk-aforo-chip--crit' : ''}`}>
+                                                        {v.nombre} · {fmt(v.ts)}
+                                                    </span>
+                                                ))}
+                                            </span>
+                                            {criticas.length > 0 && (
+                                                <span className="dsk-aforo-nota">
+                                                    ⚠ {criticas.map(c => c.nombre).join(', ')} sin reportar &gt;12 h — bloquean el balance de sus tramos.
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
 
                             {/* Strip de alertas de fuga — excluye tramos con escalas STALE (>4h) o escalas de referencia sin control de gasto */}
                             {(() => {
@@ -2726,16 +3283,38 @@ const PublicMonitor: React.FC = () => {
                                     <tbody>
                                         {(() => {
                                             const ESC_SIN_CONTROL_TB = new Set(['K-64', 'K-94+200']);
-                                            const escStaleSet = new Set(
-                                                skillSnapshot.checkpoints
-                                                    .filter(c => c.ts_min === null || c.ts_min > 240)
-                                                    .map(c => c.nombre)
+                                            // Antigüedad (min) por escala — para indicar CUÁL falta y desde cuándo,
+                                            // en vez de un "S/D" genérico que no dice qué hay que medir.
+                                            const edadMap = new Map<string, number | null>(
+                                                skillSnapshot.checkpoints.map(c => [c.nombre, c.ts_min])
                                             );
+                                            const edadTxt = (n: string) => {
+                                                const m = edadMap.get(n);
+                                                if (m == null) return 'sin lectura';
+                                                return m < 60 ? `${m} min` : `${(m / 60).toFixed(1)} h`;
+                                            };
+                                            const esVencida = (n: string) => {
+                                                const m = edadMap.get(n);
+                                                return m == null || m > 240;
+                                            };
                                             return volInterescalas.map((v: any) => {
                                             const bt = balanceTramos.find(b => Math.abs(Number(b.km_inicio) - Number(v.km_up)) < 0.1);
                                             const esSinControl = ESC_SIN_CONTROL_TB.has(v.esc_up) || ESC_SIN_CONTROL_TB.has(v.esc_down);
-                                            const esStale = escStaleSet.has(v.esc_up) || escStaleSet.has(v.esc_down);
+                                            // ¿Qué escala(s) frontera están vencidas? — para el detalle del motivo
+                                            const upVenc = esVencida(v.esc_up);
+                                            const dnVenc = esVencida(v.esc_down);
+                                            const esStale = upVenc || dnVenc;
                                             const sinDato = esSinControl || esStale;
+                                            // Motivo legible de por qué el balance no es confiable
+                                            const motivo = esSinControl
+                                                ? 'Escala de referencia sin control de gasto'
+                                                : upVenc && dnVenc
+                                                ? `Ambas escalas vencidas (${v.esc_up} ${edadTxt(v.esc_up)}, ${v.esc_down} ${edadTxt(v.esc_down)})`
+                                                : upVenc
+                                                ? `Entrada ${v.esc_up} sin lectura fresca (${edadTxt(v.esc_up)})`
+                                                : dnVenc
+                                                ? `Salida ${v.esc_down} sin lectura fresca (${edadTxt(v.esc_down)})`
+                                                : '';
                                             const estadoClass = sinDato ? 'bt-estado--stale'
                                                 : bt?.estado_balance === 'FUGA_ALTA' ? 'bt-estado--alta'
                                                 : bt?.estado_balance === 'FUGA_MEDIA' ? 'bt-estado--media'
@@ -2744,19 +3323,24 @@ const PublicMonitor: React.FC = () => {
                                             const rowClass = sinDato ? 'bt-row--stale'
                                                 : bt?.estado_balance === 'FUGA_ALTA' ? 'bt-row--alta' : '';
                                             return (
-                                            <tr key={v.km_up} className={rowClass}>
+                                            <tr key={v.km_up} className={rowClass} title={motivo || undefined}>
                                                 <td className="dsk-td-tramo">{v.esc_up} → {v.esc_down}</td>
                                                 <td className="dsk-td-num">{Number(v.longitud_km).toFixed(3)}</td>
+                                                {/* Niveles y volumen SIEMPRE se muestran: dependen del tirante
+                                                    medido, no del gasto fresco. Aunque el balance de fuga no
+                                                    sea confiable, el almacenamiento del tramo sí es útil. */}
                                                 <td className="dsk-td-num dsk-td--ref" title="H↑ escala entrada (remanso aguas arriba de compuerta)">{v.nivel_up_m != null ? Number(v.nivel_up_m).toFixed(3) : '—'}</td>
                                                 <td className="dsk-td-num" title="H↓ escala entrada — inicio real del tramo">{v.nivel_ini_m != null ? Number(v.nivel_ini_m).toFixed(3) : '—'}</td>
                                                 <td className="dsk-td-num" title="H↑ escala salida — fin real del tramo">{v.nivel_fin_m != null ? Number(v.nivel_fin_m).toFixed(3) : '—'}</td>
                                                 <td className="dsk-td-num dsk-td--q">{v.vol_m3 != null ? Number(v.vol_m3).toLocaleString('es-MX') : '—'}</td>
                                                 <td className="dsk-td-num">{v.vol_mm3 != null ? Number(v.vol_mm3).toFixed(4) : '—'}</td>
-                                                <td className="dsk-td-num">{sinDato ? '⊘' : bt ? Number(bt.q_entrada_m3s).toFixed(3) : '—'}</td>
-                                                <td className="dsk-td-num">{sinDato ? '⊘' : bt ? Number(bt.q_salida_m3s).toFixed(3) : '—'}</td>
-                                                <td className="dsk-td-num">{sinDato ? '⊘' : bt ? Number(bt.q_fuga_detectada).toFixed(3) : '—'}</td>
-                                                <td className={`dsk-td-num bt-estado ${estadoClass}`}>
-                                                    {sinDato ? (esSinControl ? 'REF' : 'S/D') : (bt?.estado_balance ?? '—')}
+                                                {/* Q y fuga: ocultos solo si NO son confiables (gasto viejo daría
+                                                    fugas imposibles de ±37 m³/s). El ⊘ lleva tooltip con el motivo. */}
+                                                <td className="dsk-td-num" title={sinDato ? motivo : undefined}>{sinDato ? '⊘' : bt ? Number(bt.q_entrada_m3s).toFixed(3) : '—'}</td>
+                                                <td className="dsk-td-num" title={sinDato ? motivo : undefined}>{sinDato ? '⊘' : bt ? Number(bt.q_salida_m3s).toFixed(3) : '—'}</td>
+                                                <td className="dsk-td-num" title={sinDato ? motivo : undefined}>{sinDato ? '⊘' : bt ? Number(bt.q_fuga_detectada).toFixed(3) : '—'}</td>
+                                                <td className={`dsk-td-num bt-estado ${estadoClass}`} title={motivo || undefined}>
+                                                    {sinDato ? (esSinControl ? 'REF' : esStale ? '⏳ STALE' : 'S/D') : (bt?.estado_balance ?? '—')}
                                                 </td>
                                             </tr>
                                             );
@@ -3015,7 +3599,9 @@ const PublicMonitor: React.FC = () => {
                                         className="dsk-btn dsk-btn--calc"
                                         onClick={() => {
                                             const q0 = parseFloat(modelQ0) || skillSnapshot.balance.Q0 || 28;
-                                            const lambda = skillSnapshot.balance.lambda;
+                                            // λ en vivo si el balance es confiable; si no, λ de referencia
+                                            // calibrada (el simulador necesita un valor numérico).
+                                            const lambda = skillSnapshot.balance.lambda ?? LAMBDA_REF;
                                             const qZonas = skillSnapshot.Q_ZONAS_REAL;
                                             const perdidasLin = lambda * 104;
                                             const q104 = Math.max(0, q0 - perdidasLin - qZonas);
@@ -3053,18 +3639,20 @@ const PublicMonitor: React.FC = () => {
                                         </div>
                                     </div>
                                 )}
-                                <div className="dsk-nota">Q₁₀₄ = Q₀ − Q_zonas − λ×104 · Q_zonas={skillSnapshot.Q_ZONAS_REAL.toFixed(3)} m³/s · λ={skillSnapshot.balance.lambda.toFixed(5)} m³/s·km⁻¹ · Tránsito ∝ 1/√(Q₀/28) calibrado a 8 min/km</div>
+                                <div className="dsk-nota">Q₁₀₄ = Q₀ − Q_zonas − λ×104 · Q_zonas={skillSnapshot.Q_ZONAS_REAL.toFixed(3)} m³/s · λ={(skillSnapshot.balance.lambda ?? LAMBDA_REF).toFixed(5)} m³/s·km⁻¹{skillSnapshot.balance.lambda === null ? ' (ref.)' : ''} · Tránsito ∝ 1/√(Q₀/28) calibrado a 8 min/km</div>
                             </div>
                         </div>
 
                         {/* Informe Skill — colapsable */}
                         <div className="dsk-section-block">
-                            <div
+                            <button
+                                type="button"
                                 className="dsk-sub-header dsk-sub-header--toggle"
                                 onClick={() => setShowSkillInforme(v => !v)}
+                                aria-expanded={showSkillInforme ? 'true' : 'false'}
                             >
                                 INFORME SKILL v3.7 — MÓDULOS Y METODOLOGÍA {showSkillInforme ? '▲' : '▼'}
-                            </div>
+                            </button>
                             {showSkillInforme && (
                                 <div className="dsk-skill-informe">
                                     <div className="dsk-informe-section">
@@ -3181,12 +3769,39 @@ const PublicMonitor: React.FC = () => {
                     </div>
                     )}
 
+                    {/* ── Pestaña TENDENCIAS ── */}
+                    {/* Mismo wrapper que DATOS: .dock-skill-panel acota la altura
+                        (calc(100vh - 160px)) y convierte a .dsk-scroll-body en el
+                        área scrolleable real. Sin él, el contenido crece sin límite
+                        y el scroll nunca se activa. */}
+                    {dockTab === 'tendencias' && (
+                    <div className="dock-section dock-skill-panel">
+                        <div className="dock-section-header">
+                            <span className="card-label">TENDENCIAS — ANÁLISIS POR PERIODO</span>
+                        </div>
+                        <div className="dsk-scroll-body">
+                            <TendenciasPanel
+                                loading={tndLoading}
+                                rangoDesde={tndDesde} rangoHasta={tndHasta}
+                                granularidad={tndGran}
+                                onRango={onTndRango}
+                                onGranularidad={setTndGran}
+                                niveles={tndData.niveles}
+                                volTramos={tndData.volTramos}
+                                volTotal={tndData.volTotal}
+                                compuertas={tndData.compuertas}
+                                gasto={tndData.gasto}
+                            />
+                        </div>
+                    </div>
+                    )}
+
                 </div>
             ) : (
-                <div className="dock-minimized animate-in" onClick={() => setIsDockVisible(true)}>
+                <button type="button" className="dock-minimized animate-in" onClick={() => setIsDockVisible(true)}>
                     <Activity size={20} />
                     <span>VER TABLERO TÉCNICO</span>
-                </div>
+                </button>
             )}
 
             {/* Informe Operativo Diario PDF */}
@@ -3206,12 +3821,13 @@ const PublicMonitor: React.FC = () => {
             {/* Modal — Perfil Longitudinal */}
             {showPerfilModal && (
                 <div className="perfil-modal-overlay" onClick={() => setShowPerfilModal(false)}>
-                    <div className="perfil-modal" onClick={e => e.stopPropagation()}>
+                    <div className="perfil-modal" onClick={e => e.stopPropagation()}
+                        role="dialog" aria-modal="true" aria-labelledby="perfil-modal-title">
                         <div className="perfil-modal-header">
                             <div className="perfil-modal-title">
                                 <Waves size={15} className="perfil-modal-icon" />
-                                <span className="perfil-modal-title-text">PERFIL HIDRÁULICO — CANAL CONCHOS</span>
-                                <span className="ptb-badge">● EN VIVO</span>
+                                <span id="perfil-modal-title" className="perfil-modal-title-text">PERFIL HIDRÁULICO — CANAL CONCHOS</span>
+                                {renderStateTag()}
                             </div>
                             <button type="button" className="perfil-modal-close" title="Cerrar perfil" aria-label="Cerrar perfil" onClick={() => setShowPerfilModal(false)}>
                                 <X size={16} />
@@ -3227,22 +3843,40 @@ const PublicMonitor: React.FC = () => {
                                 />
                             </div>
                             <div className="canal-profile-legend">
-                                <span className="cpl-item cpl-green">Operativo 2.8–3.2m</span>
-                                <span className="cpl-item cpl-amber">Alerta &gt;3.2m</span>
-                                <span className="cpl-item cpl-red">Crítico / Incoherente</span>
-                                <span className="cpl-item cpl-blue">Sin rango op.</span>
+                                <span className="cpl-item cpl-green">Operativo (&lt;80% bordo)</span>
+                                <span className="cpl-item cpl-amber">Alerta (80–92% bordo)</span>
+                                <span className="cpl-item cpl-red">Crítico (&gt;92%) / Incoherente</span>
+                                <span className="cpl-item cpl-blue">Bajo / sin rango op.</span>
+                                <span className="cpl-item cpl-bordo">— — Bordo real por escala</span>
                                 <span className="cpl-item cpl-trend">▲ sube · ▼ baja · — estable (Δ12h)</span>
-                                {fgvData && <span className="cpl-item cpl-fgv">— — FGV TEÓRICO MÁXIMO</span>}
+                                {fgvData && <span className="cpl-item cpl-fgv" title="Superficie libre calculada por el modelo de Flujo Gradualmente Variado para el caudal actual">— — FGV · perfil teórico (modelo)</span>}
                                 {fgvData?.criticos?.length > 0 && <span className="cpl-item cpl-jump">| Salto hidráulico</span>}
                             </div>
                             {fgvData && (
-                                <div className="fgv-summary-bar">
-                                    <span>Q entrada: <b>{fgvData.q_entrada?.toFixed(1)} m³/s</b></span>
-                                    <span>Q salida: <b>{fgvData.q_salida?.toFixed(1)} m³/s</b></span>
-                                    <span>Ef. conducción: <b>{fgvData.eficiencia_conduccion?.toFixed(1)}%</b></span>
-                                    <span>Tránsito: <b>{fgvData.transit_time_h?.toFixed(1)} h</b></span>
+                                <div className="fgv-stat-grid">
+                                    <div className="fgv-stat">
+                                        <span className="fgv-stat-label">Q ENTRADA</span>
+                                        <span className="fgv-stat-val fgv-stat--cyan">{fgvData.q_entrada != null ? fgvData.q_entrada.toFixed(1) : '—'}<small>m³/s</small></span>
+                                    </div>
+                                    <div className="fgv-stat">
+                                        <span className="fgv-stat-label">Q SALIDA</span>
+                                        <span className="fgv-stat-val fgv-stat--blue">{fgvData.q_salida != null ? fgvData.q_salida.toFixed(1) : '—'}<small>m³/s</small></span>
+                                    </div>
+                                    <div className="fgv-stat">
+                                        <span className="fgv-stat-label">EF. CONDUCCIÓN</span>
+                                        <span className={`fgv-stat-val ${fgvData.eficiencia_conduccion == null ? '' : fgvData.eficiencia_conduccion >= 95 ? 'fgv-stat--green' : fgvData.eficiencia_conduccion >= 90 ? 'fgv-stat--amber' : 'fgv-stat--red'}`}>
+                                            {fgvData.eficiencia_conduccion != null ? fgvData.eficiencia_conduccion.toFixed(1) : '—'}<small>%</small>
+                                        </span>
+                                    </div>
+                                    <div className="fgv-stat">
+                                        <span className="fgv-stat-label">TRÁNSITO K-0→104</span>
+                                        <span className="fgv-stat-val">{fgvData.transit_time_h != null ? fgvData.transit_time_h.toFixed(1) : '—'}<small>h</small></span>
+                                    </div>
                                     {fgvData.criticos?.length > 0 && (
-                                        <span className="fgv-alert">⚠ {fgvData.criticos.length} punto(s) crítico(s)</span>
+                                        <div className="fgv-stat fgv-stat--critbox">
+                                            <span className="fgv-stat-label">PUNTOS CRÍTICOS</span>
+                                            <span className="fgv-stat-val fgv-stat--red">⚠ {fgvData.criticos.length}</span>
+                                        </div>
                                     )}
                                 </div>
                             )}

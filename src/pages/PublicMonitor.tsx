@@ -2052,8 +2052,13 @@ const PublicMonitor: React.FC = () => {
         );
     };
 
+    // En pestañas de DATOS (Tendencias, Datos) el plano no aporta y resta espacio:
+    // se oculta el mapa y el dock ocupa toda el área para ver mejor la información.
+    // En Panorama, Canal y Alertas sí se muestra el plano.
+    const tabSinMapa = isDockVisible && (dockTab === 'tendencias' || dockTab === 'skill');
+
     return (
-        <div className="public-monitor-container">
+        <div className={`public-monitor-container${tabSinMapa ? ' pm-sin-mapa' : ''}`}>
             {/* Compact Header Badge - Floating over map */}
             <div className="public-header-badge animate-in">
                 <div className="phb-main">

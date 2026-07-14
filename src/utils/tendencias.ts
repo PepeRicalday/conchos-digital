@@ -119,7 +119,7 @@ export interface PerfilGeom {
   tirante_diseno_m?: number | null;   // tirante de diseño, para % de llenado
 }
 
-// Estado de llenado de un tramo en la última fecha con dato (para P2/P3).
+// Estado de llenado de un tramo en la última fecha con dato (para P2/P3 y modal).
 export interface EstadoTramo {
   tiranteActual: number | null;   // tirante medio (m) más reciente
   pctDiseno: number | null;       // % del tirante de diseño (null si no hay diseño)
@@ -127,6 +127,9 @@ export interface EstadoTramo {
   talud: number;                  // z usado
   tiranteDiseno: number | null;
   esTrapezoidal: boolean;         // true = geometría real; false = fallback rectangular
+  longitudKm: number;             // longitud del tramo (km)
+  nivelUpActual: number | null;   // nivel última fecha en la escala aguas arriba
+  nivelDownActual: number | null; // nivel última fecha en la escala aguas abajo
 }
 
 export interface SerieTramo {
@@ -196,10 +199,15 @@ export function serieVolumenTramos(
 
     // Estado de llenado: tirante medio de la última fecha con ambos niveles.
     let tiranteActual: number | null = null;
+    let nivelUpActual: number | null = null, nivelDownActual: number | null = null;
     for (let i = fechas.length - 1; i >= 0; i--) {
       const nUp = nivelesPorEscalaFecha.get(tr.esc_up_id)?.get(fechas[i]);
       const nDn = nivelesPorEscalaFecha.get(tr.esc_down_id)?.get(fechas[i]);
-      if (nUp != null && nDn != null) { tiranteActual = +((nUp + nDn) / 2).toFixed(3); break; }
+      if (nUp != null && nDn != null) {
+        tiranteActual = +((nUp + nDn) / 2).toFixed(3);
+        nivelUpActual = +nUp.toFixed(3); nivelDownActual = +nDn.toFixed(3);
+        break;
+      }
     }
     const tiranteDiseno = perfil?.tirante_diseno_m ?? null;
     const pctDiseno = tiranteActual != null && tiranteDiseno != null && tiranteDiseno > 0
@@ -213,6 +221,8 @@ export function serieVolumenTramos(
         plantilla: usaTrapecio ? b : (tr.ancho_canal_m || 8),
         talud: usaTrapecio ? z : 0,
         tiranteDiseno, esTrapezoidal: usaTrapecio,
+        longitudKm: tr.longitud_km,
+        nivelUpActual, nivelDownActual,
       },
     };
   });

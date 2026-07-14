@@ -13,15 +13,15 @@ export default defineConfig(({ mode }) => {
 
   return {
     define: {
-      '__V2_APP_VERSION__': JSON.stringify('2.9.1'),
-      '__V2_BUILD_HASH__': JSON.stringify('v2.9.1'),
+      '__V2_APP_VERSION__': JSON.stringify('2.10.0'),
+      '__V2_BUILD_HASH__': JSON.stringify('v2.10.0'),
       '__BUILD_DATE__': JSON.stringify(new Date().toISOString())
     },
     plugins: [
       react(),
       VitePWA({
         registerType: 'autoUpdate',   // SW se actualiza sin prompt
-        filename: 'sw-v2.9.1.js',
+        filename: 'sw-v2.10.0.js',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
           name: 'SICA 005 - Conchos Digital',

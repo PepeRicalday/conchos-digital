@@ -336,6 +336,104 @@ const StackedArea: React.FC<{
   );
 };
 
+// ── Modal de detalle de tramo ───────────────────────────────────────────────
+// Ficha técnica completa al hacer clic en una sección: identificación,
+// geometría del canal (plantilla, talud, espejo, área), volumen (actual/mín/máx/Δ),
+// estado hidráulico (tirante vs diseño, margen a bordo) y mini-tendencia.
+const ModalTramo: React.FC<{ tramo: SerieTramo; color: string; t0: number; t1: number; onClose: () => void }>
+= ({ tramo, color, t0, t1, onClose }) => {
+  const { estado, etiqueta, km_up, km_down } = tramo;
+  const { tiranteActual, pctDiseno, plantilla: b, talud: z, tiranteDiseno, esTrapezoidal,
+          longitudKm, nivelUpActual, nivelDownActual } = estado;
+  const { color: colEstado, label, icon } = estadoLlenado(pctDiseno);
+  const st = statsSerie(tramo.puntos);
+  const volActual = [...tramo.puntos].reverse().find(p => p.y != null)?.y ?? null;
+
+  // Cierra con Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  // Geometría derivada al tirante actual (o de diseño si no hay lectura)
+  const hRef = tiranteActual ?? tiranteDiseno ?? 0;
+  const espejo = esTrapezoidal ? espejoM(b, z, hRef) : b;
+  const area = esTrapezoidal ? (b + z * hRef) * hRef : b * hRef;   // m²
+  const margenBordo = tiranteDiseno != null && tiranteActual != null ? +(tiranteDiseno - tiranteActual).toFixed(2) : null;
+
+  const Fila: React.FC<{ k: string; v: React.ReactNode; c?: string }> = ({ k, v, c }) => (
+    <div className="tnd-modal-row"><span className="tnd-modal-k">{k}</span><span className="tnd-modal-v" style={c ? { color: c } : undefined}>{v}</span></div>
+  );
+
+  return (
+    <div className="tnd-modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={`Detalle del tramo ${etiqueta}`}>
+      <div className="tnd-modal" onClick={e => e.stopPropagation()} style={{ '--tramo-col': color } as React.CSSProperties}>
+        <header className="tnd-modal-head">
+          <div>
+            <span className="tnd-modal-badge" style={{ background: color }} />
+            <b>{etiqueta}</b>
+            <span className="tnd-modal-km">K {km_up.toFixed(3)} → {km_down.toFixed(3)}</span>
+          </div>
+          <button type="button" className="tnd-modal-close" onClick={onClose} aria-label="Cerrar">✕</button>
+        </header>
+
+        <div className="tnd-modal-body">
+          {/* Bloque estado — chip grande */}
+          <div className="tnd-modal-estado" style={{ borderColor: colEstado, background: `color-mix(in srgb, ${colEstado} 12%, transparent)` }}>
+            <div className="tnd-modal-estado-val" style={{ color: colEstado }}>
+              {pctDiseno != null ? `${Math.round(pctDiseno)}%` : '—'}
+            </div>
+            <div className="tnd-modal-estado-lbl">
+              <span style={{ color: colEstado, fontWeight: 700 }}>{label}{icon ? ' ' + icon : ''}</span>
+              <span>del tirante de diseño</span>
+            </div>
+          </div>
+
+          <div className="tnd-modal-grid">
+            {/* Volumen */}
+            <section>
+              <h5>Volumen almacenado</h5>
+              <Fila k="Actual" v={volActual != null ? <><b>{volActual.toFixed(3)}</b> Mm³</> : '—'} />
+              <Fila k="Mínimo (periodo)" v={n3(st.min) + ' Mm³'} />
+              <Fila k="Máximo (periodo)" v={n3(st.max) + ' Mm³'} />
+              <Fila k="Δ periodo" v={st.delta != null ? `${st.delta > 0 ? '▲' : st.delta < 0 ? '▼' : ''} ${n3(Math.abs(st.delta))} Mm³` : '—'}
+                    c={st.delta != null && st.delta > 0 ? '#38bdf8' : '#f59e0b'} />
+            </section>
+
+            {/* Geometría del canal */}
+            <section>
+              <h5>Geometría del canal {esTrapezoidal ? <em className="tnd-modal-tag">trapezoidal</em> : <em className="tnd-modal-tag warn">rectangular</em>}</h5>
+              <Fila k="Plantilla (b)" v={<><b>{b.toFixed(2)}</b> m</>} />
+              {esTrapezoidal && <Fila k="Talud (z)" v={<><b>{z.toFixed(2)}</b> : 1 (H:V)</>} />}
+              <Fila k="Espejo de agua (T)" v={<>{espejo.toFixed(2)} m</>} />
+              <Fila k="Área hidráulica (A)" v={<>{area.toFixed(2)} m²</>} />
+              <Fila k="Longitud del tramo" v={<><b>{longitudKm.toFixed(3)}</b> km</>} />
+            </section>
+
+            {/* Estado hidráulico */}
+            <section>
+              <h5>Estado hidráulico</h5>
+              <Fila k="Tirante actual" v={tiranteActual != null ? <><b>{tiranteActual.toFixed(2)}</b> m</> : '—'} />
+              <Fila k="Tirante de diseño" v={tiranteDiseno != null ? `${tiranteDiseno.toFixed(2)} m` : 's/dato'} />
+              <Fila k="Nivel aguas arriba" v={nivelUpActual != null ? `${nivelUpActual.toFixed(2)} m` : '—'} />
+              <Fila k="Nivel aguas abajo" v={nivelDownActual != null ? `${nivelDownActual.toFixed(2)} m` : '—'} />
+              <Fila k="Margen a bordo" v={margenBordo != null ? `${margenBordo.toFixed(2)} m` : '—'}
+                    c={margenBordo != null && margenBordo < 0 ? '#ef4444' : undefined} />
+            </section>
+          </div>
+
+          {/* Mini-tendencia del volumen del tramo */}
+          <section className="tnd-modal-chart">
+            <h5>Volumen del tramo en el periodo</h5>
+            <MultiLine series={[{ nombre: etiqueta, puntos: tramo.puntos, color }]} t0={t0} t1={t1} yLabel="Mm³" height={110} />
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 interface Props {
   loading: boolean;
   rangoDesde: string; rangoHasta: string;
@@ -460,8 +558,15 @@ const TendenciasPanel: React.FC<Props> = ({
   // apilado. El color de identidad de cada tramo es su índice en la paleta —
   // el MISMO que usa StackedArea para su banda, así "mismo tramo = mismo color".
   const [tramoSel, setTramoSel] = useState<string | null>(null);
+  // Modal de detalle: key del tramo cuyo modal está abierto (null = cerrado).
+  const [modalKey, setModalKey] = useState<string | null>(null);
   const toggleTramo = useCallback((key: string) => {
     setTramoSel(prev => prev === key ? null : key);
+  }, []);
+  // Clic en sección: aísla la banda Y abre el modal de detalle del tramo.
+  const abrirTramo = useCallback((key: string) => {
+    setTramoSel(key);
+    setModalKey(key);
   }, []);
   // color de identidad por key (idéntico al índice de banda del apilado)
   const colorTramo = useCallback(
@@ -586,7 +691,7 @@ const TendenciasPanel: React.FC<Props> = ({
                       colorTramo={colorTramo(tr.key)}
                       seleccionado={tramoSel === tr.key}
                       atenuado={tramoSel != null && tramoSel !== tr.key}
-                      onSelect={() => toggleTramo(tr.key)} />
+                      onSelect={() => abrirTramo(tr.key)} />
                   ))}
                 </div>
                 <div className="tnd-secline tnd-secline-hint">
@@ -603,7 +708,7 @@ const TendenciasPanel: React.FC<Props> = ({
             )}
 
             <StackedArea series={volTramos} t0={t0} t1={t1} height={170}
-              selKey={tramoSel} onSelBand={key => setTramoSel(prev => prev === key ? null : key)} />
+              selKey={tramoSel} onSelBand={toggleTramo} />
             <MultiLine series={[{ nombre: 'Total canal', puntos: volTotal, color: '#38bdf8' }]} t0={t0} t1={t1} yLabel="Volumen total en canal (Mm³)" height={110} />
             <div className="dsk-table-wrap">
               <table className="dsk-table">
@@ -691,6 +796,12 @@ const TendenciasPanel: React.FC<Props> = ({
           </div>
         </>
       )}
+
+      {/* Modal de detalle del tramo seleccionado */}
+      {modalKey != null && (() => {
+        const tr = volTramos.find(t => t.key === modalKey);
+        return tr ? <ModalTramo tramo={tr} color={colorTramo(tr.key)} t0={t0} t1={t1} onClose={() => setModalKey(null)} /> : null;
+      })()}
     </div>
   );
 };

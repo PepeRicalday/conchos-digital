@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import type {
   SerieEscala, SerieTramo, SerieCompuerta, SerieGasto, SeriePunto,
 } from '../utils/tendencias';
@@ -475,72 +475,8 @@ const TendenciasPanel: React.FC<Props> = ({
     onRango(desde.toISOString().slice(0, 10), hasta.toISOString().slice(0, 10));
   };
 
-  // ── Riel de scroll a la izquierda ────────────────────────────────────────
-  // Controla el .dsk-scroll-body padre (el contenedor scrolleable real). Da al
-  // usuario una zona táctil inequívoca para desplazar el panel, sin competir
-  // con el scroll horizontal de las tablas.
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [thumb, setThumb] = useState({ top: 0, height: 100, visible: false });
-  const scrollerRef = useRef<HTMLElement | null>(null);
-
-  const syncThumb = useCallback(() => {
-    const sc = scrollerRef.current;
-    if (!sc) return;
-    const ratio = sc.clientHeight / sc.scrollHeight;
-    if (ratio >= 1) { setThumb(t => ({ ...t, visible: false })); return; }
-    const trackH = sc.clientHeight - 8;                      // alto del riel (top/bottom 4px)
-    const h = Math.max(30, ratio * trackH);
-    const top = (sc.scrollTop / (sc.scrollHeight - sc.clientHeight)) * (trackH - h);
-    setThumb({ top, height: h, visible: true });
-  }, []);
-
-  useEffect(() => {
-    // El scroller es el ancestro .dsk-scroll-body del panel
-    const sc = rootRef.current?.closest('.dsk-scroll-body') as HTMLElement | null;
-    scrollerRef.current = sc;
-    if (!sc) return;
-    syncThumb();
-    sc.addEventListener('scroll', syncThumb, { passive: true });
-    const ro = new ResizeObserver(syncThumb);
-    ro.observe(sc);
-    return () => { sc.removeEventListener('scroll', syncThumb); ro.disconnect(); };
-  }, [syncThumb, niveles, volTramos, compuertas, gasto, loading]);
-
-  // Arrastre del riel: mapea la posición del puntero a scrollTop del panel.
-  const dragRef = useRef(false);
-  const railToScroll = (clientY: number, railEl: HTMLElement) => {
-    const sc = scrollerRef.current;
-    if (!sc) return;
-    const rect = railEl.getBoundingClientRect();
-    const rel = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
-    sc.scrollTop = rel * (sc.scrollHeight - sc.clientHeight);
-  };
-  const onRailDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    dragRef.current = true;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    railToScroll(e.clientY, e.currentTarget);
-  };
-  const onRailMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current) railToScroll(e.clientY, e.currentTarget);
-  };
-  const onRailUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    dragRef.current = false;
-    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
-  };
-
   return (
-    <div className="tnd-root" ref={rootRef}>
-      {/* Riel de scroll táctil — controla el panel completo */}
-      {thumb.visible && (
-        <div className="tnd-rail" onPointerDown={onRailDown} onPointerMove={onRailMove}
-             onPointerUp={onRailUp} onPointerCancel={onRailUp}
-             role="scrollbar" aria-label="Desplazar panel de tendencias" aria-orientation="vertical">
-          <div className="tnd-rail-track">
-            <span className="tnd-rail-hint">scroll</span>
-            <div className="tnd-rail-thumb" style={{ top: thumb.top, height: thumb.height }} />
-          </div>
-        </div>
-      )}
+    <div className="tnd-root">
       {/* Controles */}
       <div className="tnd-controls">
         <div className="tnd-dates">

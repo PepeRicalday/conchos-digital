@@ -104,39 +104,117 @@ export function serieNivelesLectura(
 }
 
 // ── Bloque 2: volumen por tramo (RECONSTRUIDO) ──────────────────────────────
-// Volumen prismático de un tramo entre dos escalas: se aproxima como la longitud
-// del tramo × ancho de canal × tirante medio de las dos escalas frontera.
-// (mismo criterio que el snapshot vol_interescalas: vol = L·b·h_medio).
-export interface SerieTramo { key: string; etiqueta: string; km_up: number; km_down: number; puntos: SeriePunto[]; }
+// Volumen de un tramo entre dos escalas: L · A_media, donde A es el área de la
+// SECCIÓN TRAPEZOIDAL real del canal (revestido) al tirante medio de las dos
+// escalas frontera. Sección trapezoidal: A = (b + z·h)·h, con b=plantilla y
+// z=talud (mismo criterio que manningFlow en hydraulics.ts y las curvas de aforo).
+// Fallback: si el tramo no tiene geometría trapezoidal en perfil_hidraulico_canal,
+// se cae al prisma rectangular L·ancho·h calibrado por k (comportamiento previo).
 
-function volTramoM3(longitud_km: number, ancho_m: number, nivelUp: number, nivelDown: number): number {
+// Geometría trapezoidal de un tramo del canal (de perfil_hidraulico_canal).
+export interface PerfilGeom {
+  km_inicio: number; km_fin: number;
+  plantilla_m: number;          // b — base menor (fondo)
+  talud_z: number;              // z — talud lateral (H:V)
+  tirante_diseno_m?: number | null;   // tirante de diseño, para % de llenado
+}
+
+// Estado de llenado de un tramo en la última fecha con dato (para P2/P3).
+export interface EstadoTramo {
+  tiranteActual: number | null;   // tirante medio (m) más reciente
+  pctDiseno: number | null;       // % del tirante de diseño (null si no hay diseño)
+  plantilla: number;              // b usada (m)
+  talud: number;                  // z usado
+  tiranteDiseno: number | null;
+  esTrapezoidal: boolean;         // true = geometría real; false = fallback rectangular
+}
+
+export interface SerieTramo {
+  key: string; etiqueta: string; km_up: number; km_down: number;
+  puntos: SeriePunto[];
+  estado: EstadoTramo;            // llenado actual del tramo
+}
+
+// Área de sección trapezoidal a un tirante h: A = (b + z·h)·h.
+function areaTrapecio(plantilla_m: number, talud_z: number, h: number): number {
+  const y = Math.max(0, h);
+  return (plantilla_m + talud_z * y) * y;
+}
+
+// Volumen prismático rectangular (fallback): L·b·h_medio.
+function volTramoRectM3(longitud_km: number, ancho_m: number, nivelUp: number, nivelDown: number): number {
   const L = longitud_km * 1000;
   const hMedio = (nivelUp + nivelDown) / 2;
   return L * ancho_m * Math.max(0, hMedio);
 }
 
+// Empareja un tramo (km_up→km_down) con el perfil que cubre su punto medio.
+function perfilDeTramo(tr: TramoGeom, perfiles: PerfilGeom[]): PerfilGeom | null {
+  if (!perfiles.length) return null;
+  const kmMedio = (tr.km_up + tr.km_down) / 2;
+  return perfiles.find(p => p.km_inicio <= kmMedio && p.km_fin >= kmMedio)
+      ?? perfiles.find(p => p.km_inicio <= tr.km_up && p.km_fin >= tr.km_up)
+      ?? null;
+}
+
 export function serieVolumenTramos(
   tramos: TramoGeom[],
   nivelesPorEscalaFecha: Map<string, Map<string, number>>, // escala_id -> (fecha -> nivel)
-  fechas: string[]
+  fechas: string[],
+  perfiles: PerfilGeom[] = []
 ): { series: SerieTramo[]; totalPorFecha: SeriePunto[] } {
   const series: SerieTramo[] = tramos.map(tr => {
-    // Factor de calibración k: hace que la reconstrucción reproduzca EXACTO el
-    // volumen del snapshot (sección real, no prisma rectangular) a los niveles
-    // del snapshot. Corrige el sesgo sistemático (+≈4%) de forma proporcional.
+    const perfil = perfilDeTramo(tr, perfiles);
+    const usaTrapecio = perfil != null && perfil.plantilla_m > 0 && perfil.talud_z >= 0;
+    const b = perfil?.plantilla_m ?? 0;
+    const z = perfil?.talud_z ?? 0;
+    const L = tr.longitud_km * 1000;
+
+    // Factor de calibración k SOLO para el fallback rectangular: hace que la
+    // reconstrucción reproduzca EXACTO el volumen del snapshot a los niveles del
+    // snapshot. Con geometría trapezoidal real no hace falta (k=1).
     let k = 1;
-    if (tr.vol_m3 != null && tr.vol_m3 > 0 && tr.nivel_up_m != null && tr.nivel_down_m != null) {
-      const prismaSnap = volTramoM3(tr.longitud_km, tr.ancho_canal_m || 8, tr.nivel_up_m, tr.nivel_down_m);
+    if (!usaTrapecio && tr.vol_m3 != null && tr.vol_m3 > 0 && tr.nivel_up_m != null && tr.nivel_down_m != null) {
+      const prismaSnap = volTramoRectM3(tr.longitud_km, tr.ancho_canal_m || 8, tr.nivel_up_m, tr.nivel_down_m);
       if (prismaSnap > 0) k = tr.vol_m3 / prismaSnap;
     }
+
+    const volM3 = (nUp: number, nDn: number): number => {
+      if (usaTrapecio) {
+        const hMedio = Math.max(0, (nUp + nDn) / 2);
+        return L * areaTrapecio(b, z, hMedio);
+      }
+      return volTramoRectM3(tr.longitud_km, tr.ancho_canal_m || 8, nUp, nDn) * k;
+    };
+
     const puntos: SeriePunto[] = fechas.map(f => {
       const nUp = nivelesPorEscalaFecha.get(tr.esc_up_id)?.get(f);
       const nDn = nivelesPorEscalaFecha.get(tr.esc_down_id)?.get(f);
       if (nUp == null || nDn == null) return { t: tsOf(f), y: null };
-      const mm3 = volTramoM3(tr.longitud_km, tr.ancho_canal_m || 8, nUp, nDn) * k / 1e6;
-      return { t: tsOf(f), y: +mm3.toFixed(4) };
+      return { t: tsOf(f), y: +(volM3(nUp, nDn) / 1e6).toFixed(4) };
     });
-    return { key: `${tr.esc_up_id}_${tr.esc_down_id}`, etiqueta: `${tr.esc_up}→${tr.esc_down}`, km_up: tr.km_up, km_down: tr.km_down, puntos };
+
+    // Estado de llenado: tirante medio de la última fecha con ambos niveles.
+    let tiranteActual: number | null = null;
+    for (let i = fechas.length - 1; i >= 0; i--) {
+      const nUp = nivelesPorEscalaFecha.get(tr.esc_up_id)?.get(fechas[i]);
+      const nDn = nivelesPorEscalaFecha.get(tr.esc_down_id)?.get(fechas[i]);
+      if (nUp != null && nDn != null) { tiranteActual = +((nUp + nDn) / 2).toFixed(3); break; }
+    }
+    const tiranteDiseno = perfil?.tirante_diseno_m ?? null;
+    const pctDiseno = tiranteActual != null && tiranteDiseno != null && tiranteDiseno > 0
+      ? +((tiranteActual / tiranteDiseno) * 100).toFixed(1) : null;
+
+    return {
+      key: `${tr.esc_up_id}_${tr.esc_down_id}`, etiqueta: `${tr.esc_up}→${tr.esc_down}`,
+      km_up: tr.km_up, km_down: tr.km_down, puntos,
+      estado: {
+        tiranteActual, pctDiseno,
+        plantilla: usaTrapecio ? b : (tr.ancho_canal_m || 8),
+        talud: usaTrapecio ? z : 0,
+        tiranteDiseno, esTrapezoidal: usaTrapecio,
+      },
+    };
   });
   const totalPorFecha: SeriePunto[] = fechas.map((f, i) => {
     const suma = series.reduce((s, se) => s + (se.puntos[i].y ?? 0), 0);

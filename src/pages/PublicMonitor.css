@@ -3702,6 +3702,72 @@
 .tnd-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.58rem; color: #94a3b8; }
 .tnd-legend span { display: flex; align-items: center; gap: 4px; }
 .tnd-legend i { width: 9px; height: 3px; border-radius: 2px; display: inline-block; }
+
+/* ── Filtro por punto de control (Bloque 1) ─────────────────────────────
+   La tabla y la leyenda funcionan como filtro activo del gráfico. */
+.tnd-filtro-info { margin-left: auto; font-size: 0.56rem; font-weight: 600; color: #7dd3fc;
+  font-family: var(--font-mono, monospace); background: rgba(56,189,248,0.1);
+  padding: 2px 7px; border-radius: 20px; letter-spacing: 0.3px; }
+.tnd-filtro-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.tnd-filtro-lbl { font-size: 0.56rem; text-transform: uppercase; letter-spacing: 0.6px;
+  color: #64748b; font-family: var(--font-mono, monospace); }
+.tnd-filtro-bar button { background: #0a1220; border: 1px solid rgba(148,163,184,0.2);
+  color: #94a3b8; border-radius: 5px; padding: 3px 9px; font-size: 0.6rem; cursor: pointer;
+  font-family: var(--font-mono, monospace); transition: all .15s; }
+.tnd-filtro-bar button:hover { border-color: rgba(56,189,248,0.5); color: #e2e8f0; }
+.tnd-filtro-bar button.on { background: rgba(56,189,248,0.16); color: #e2e8f0; border-color: rgba(56,189,248,0.5); font-weight: 700; }
+
+/* Leyenda interactiva: cada chip es un botón toggle */
+.tnd-legend-int .tnd-chip { display: inline-flex; align-items: center; gap: 4px;
+  background: transparent; border: 1px solid rgba(148,163,184,0.18); border-radius: 20px;
+  color: #94a3b8; font-size: 0.58rem; padding: 2px 8px; cursor: pointer; transition: all .12s;
+  font-family: inherit; }
+.tnd-legend-int .tnd-chip:hover { border-color: rgba(56,189,248,0.45); color: #e2e8f0; }
+.tnd-legend-int .tnd-chip i { width: 9px; height: 3px; border-radius: 2px; display: inline-block; transition: opacity .12s; }
+.tnd-legend-int .tnd-chip.off { opacity: 0.42; text-decoration: line-through; }
+.tnd-legend-int .tnd-chip.off i { opacity: 0.35; }
+
+/* Tabla como filtro: filas clicables, swatch de color, botón "solo" en hover */
+.tnd-table-int tbody tr { cursor: pointer; transition: background .12s, opacity .12s; }
+.tnd-table-int tbody tr:hover { background: rgba(56,189,248,0.07); }
+.tnd-table-int tbody tr.off { opacity: 0.4; }
+.tnd-table-int tbody tr.off:hover { opacity: 0.62; }
+.tnd-swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px;
+  margin-right: 6px; vertical-align: middle; transition: opacity .12s; }
+.tnd-solo-cell { width: 1%; padding-left: 4px !important; padding-right: 6px !important; text-align: right; }
+.tnd-solo-btn { background: transparent; border: 1px solid rgba(148,163,184,0.22);
+  color: #64748b; border-radius: 4px; font-size: 0.52rem; padding: 1px 6px; cursor: pointer;
+  font-family: var(--font-mono, monospace); text-transform: uppercase; letter-spacing: 0.4px;
+  opacity: 0; transition: opacity .12s, border-color .12s, color .12s; }
+.tnd-table-int tbody tr:hover .tnd-solo-btn { opacity: 1; }
+.tnd-solo-btn:hover { border-color: rgba(56,189,248,0.5); color: #7dd3fc; }
+@media (hover: none) { .tnd-solo-btn { opacity: 1; } }  /* táctil: siempre visible */
+
+/* Pista de la banda de nivel máximo operativo (aparece con ≤3 escalas) */
+.tnd-band-hint { font-size: 0.54rem; color: #94a3b8; font-family: var(--font-mono, monospace);
+  letter-spacing: 0.2px; opacity: 0.8; }
+
+/* ── Tira de secciones transversales por tramo (Bloque 2) ───────────────── */
+.tnd-secline { font-size: 0.56rem; color: #64748b; font-family: var(--font-mono, monospace);
+  letter-spacing: 0.2px; margin-bottom: 2px; }
+.tnd-secstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(64px, 1fr);
+  gap: 4px; overflow-x: auto; padding: 4px 2px 2px; background: #0a1220;
+  border: 1px solid #16233a; border-radius: 6px; scrollbar-width: thin; touch-action: pan-x; }
+.tnd-sec { min-width: 64px; padding: 2px; background: transparent; border: 0;
+  border-radius: 6px; cursor: pointer; transition: transform .12s, opacity .12s, background .12s;
+  font-family: inherit; }
+.tnd-sec:hover { transform: translateY(-2px); background: rgba(255,255,255,0.03); }
+.tnd-sec.sel { background: color-mix(in srgb, var(--tramo-col, #38bdf8) 16%, transparent);
+  box-shadow: 0 0 0 1px var(--tramo-col, #38bdf8); }
+.tnd-sec.dim { opacity: 0.4; }
+.tnd-sec.dim:hover { opacity: 0.7; }
+.tnd-sec:focus-visible { outline: 2px solid var(--tramo-col, #7dd3fc); outline-offset: 1px; }
+
+.tnd-secline-hint { display: flex; align-items: center; gap: 8px; }
+.tnd-sec-clear { background: rgba(56,189,248,0.14); border: 1px solid rgba(56,189,248,0.4);
+  color: #7dd3fc; border-radius: 5px; padding: 2px 9px; font-size: 0.56rem; cursor: pointer;
+  font-family: var(--font-mono, monospace); }
+.tnd-sec-clear:hover { background: rgba(56,189,248,0.24); }
 .tnd-empty { text-align: center; color: #7d8ea3; padding: 18px; font-size: 0.66rem; font-style: italic; }
 .tnd-note { font-size: 0.58rem; color: #64748b; line-height: 1.5; padding: 6px 8px;
   background: rgba(148,163,184,0.05); border-radius: 6px; }

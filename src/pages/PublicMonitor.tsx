@@ -20,7 +20,7 @@ import {
   serieCompuertas, serieGasto,
   type SerieEscala, type SerieTramo, type SerieCompuerta, type SerieGasto, type SeriePunto,
   type LecturaEscala as TndLectura, type ResumenDiario as TndResumen,
-  type TramoGeom, type EntregaModulo as TndEntrega,
+  type TramoGeom, type EntregaModulo as TndEntrega, type PerfilGeom,
 } from '../utils/tendencias';
 
 // Escalas de referencia: tienen nivel pero no controlan Q (sin compuerta propia).
@@ -672,12 +672,15 @@ const PublicMonitor: React.FC = () => {
                     return acc;
                 };
 
-                const [escRes, tramoRes] = await Promise.all([
+                const [escRes, tramoRes, perfilRes] = await Promise.all([
                     supabase.from('escalas').select('id, nombre, km, nivel_max_operativo').order('km'),
                     supabase.from('vol_interescalas').select('esc_up_id, esc_up, km_up, esc_down_id, esc_down, km_down, longitud_km, ancho_canal_m, vol_m3, nivel_up_m, nivel_down_m'),
+                    // Geometría trapezoidal por tramo (plantilla, talud) para el volumen real del Bloque 2
+                    supabase.from('perfil_hidraulico_canal').select('km_inicio, km_fin, plantilla_m, talud_z, tirante_diseno_m').order('km_inicio'),
                 ]);
                 const escalasGeom = (escRes.data || []) as { id: string; nombre: string; km: number; nivel_max_operativo: number | null }[];
                 const tramos = (tramoRes.data || []) as TramoGeom[];
+                const perfiles = (perfilRes.data || []) as PerfilGeom[];
 
                 // Lecturas de campo (nivel ↑↓, compuertas, gasto) — paginado, filtra autogeneradas
                 const lecRaw = await fetchAll<TndLectura & { responsable?: string; notas?: string }>((from, to) =>
@@ -708,7 +711,7 @@ const PublicMonitor: React.FC = () => {
                     ? serieNivelesDiaria(resumen, escalasGeom)
                     : serieNivelesLectura(lecturas, escalasGeom);
                 const { idx, fechas } = indiceNivelesDiario(resumen);
-                const { series: volTramos, totalPorFecha: volTotal } = serieVolumenTramos(tramos, idx, fechas);
+                const { series: volTramos, totalPorFecha: volTotal } = serieVolumenTramos(tramos, idx, fechas, perfiles);
                 const compuertas = serieCompuertas(lecturas, escalasGeom);
                 const gasto = serieGasto(lecturas, escalasGeom, entregas, fechas.length ? fechas : [tndHasta]);
 

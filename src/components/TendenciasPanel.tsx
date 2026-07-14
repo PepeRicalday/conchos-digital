@@ -11,6 +11,12 @@ const PAL = ['#3987e5', '#199e70', '#c98500', '#2fb35a', '#9085e9', '#e66767', '
 const n2 = (v: number | null | undefined) => v == null || !isFinite(v) ? '—' : v.toFixed(2);
 const n3 = (v: number | null | undefined) => v == null || !isFinite(v) ? '—' : v.toFixed(3);
 
+// Escalas de referencia (nivel sin control de Q): sin compuerta propia. Debe
+// coincidir con ESC_SIN_CONTROL de PublicMonitor.tsx. Se clasifica por nombre.
+const ESC_SIN_CONTROL = new Set(['K-64', 'K-94+200']);
+const esControlDeQ = (s: SerieEscala) => !ESC_SIN_CONTROL.has(s.nombre);
+const LS_VISIBLES = 'tnd:puntos-visibles';
+
 // ── Mini-gráfica de líneas genérica (multi-serie) con crosshair + tooltip ───
 const fmtFecha = (t: number) => new Date(t).toLocaleString('es-MX', {
   day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua',
@@ -21,8 +27,11 @@ const MultiLine: React.FC<{
   yLabel?: string; height?: number;
   yMinHint?: number; yMaxHint?: number;
   band?: { y: number; label: string } | null;
+  // Líneas de referencia horizontales (p.ej. nivel máximo operativo por escala).
+  // color por defecto rojo; se dibujan discontinuas y expanden el eje Y.
+  bands?: { y: number; label: string; color?: string }[];
   zeroLine?: boolean;
-}> = ({ series, t0, t1, yLabel, height = 150, yMinHint, yMaxHint, band, zeroLine }) => {
+}> = ({ series, t0, t1, yLabel, height = 150, yMinHint, yMaxHint, band, bands, zeroLine }) => {
   const W = 720, PL = 40, PR = 14, PT = 14, PB = 24;
   const ph = height - PT - PB, pw = W - PL - PR;
   // hoverT: timestamp de la muestra más cercana al puntero (null = sin hover)
@@ -38,6 +47,7 @@ const MultiLine: React.FC<{
   let yMin = Math.min(...allY, ...(yMinHint != null ? [yMinHint] : []));
   let yMax = Math.max(...allY, ...(yMaxHint != null ? [yMaxHint] : []));
   if (band) yMax = Math.max(yMax, band.y);
+  if (bands?.length) yMax = Math.max(yMax, ...bands.map(b => b.y));
   if (zeroLine) yMin = Math.min(yMin, 0);
   const pad = (yMax - yMin) * 0.08 || 0.5;
   yMin -= pad; yMax += pad;
@@ -94,6 +104,12 @@ const MultiLine: React.FC<{
           <text x={PL + pw - 2} y={yS(band.y) - 3} fill="#ef4444" fontSize="7.5" textAnchor="end" fontFamily="monospace" opacity="0.8">{band.label}</text>
         </>
       )}
+      {bands?.map((b, bi) => (
+        <g key={`band${bi}`}>
+          <line x1={PL} y1={yS(b.y)} x2={PL + pw} y2={yS(b.y)} stroke={b.color ?? '#ef4444'} strokeWidth="1" strokeDasharray="5,4" opacity="0.55" />
+          <text x={PL + 2} y={yS(b.y) - 3} fill={b.color ?? '#ef4444'} fontSize="7" fontFamily="monospace" opacity="0.85">{b.label}</text>
+        </g>
+      ))}
       {series.map((s, si) => {
         const pts = s.puntos.filter(p => p.y != null);
         if (pts.length < 1) return null;
@@ -132,8 +148,104 @@ const MultiLine: React.FC<{
   );
 };
 
+// ── Sección transversal trapezoidal por tramo (estado de llenado) ───────────
+// Dibuja la sección real del canal (plantilla b, taludes z) con la lámina de
+// agua al tirante actual. El COLOR de IDENTIDAD es único por tramo (paleta); el
+// ESTADO (respecto al tirante de diseño) se comunica con borde + ícono, no con
+// el relleno, para que "mismo tramo = mismo color" en sección y apilado.
+//
+// Umbrales respecto al tirante de DISEÑO (que es el nivel normal de operación,
+// no un límite de peligro): operar al 100% del diseño es óptimo. El riesgo real
+// es SUPERARLO (invade bordo libre) o quedar muy por debajo (desabasto).
+const estadoLlenado = (pct: number | null): { color: string; label: string; icon: string } => {
+  if (pct == null) return { color: '#64748b', label: 's/diseño', icon: '' };
+  if (pct > 105) return { color: '#ef4444', label: 'alto', icon: '⚠' };   // invade bordo libre
+  if (pct >= 85) return { color: '#22c55e', label: 'óptimo', icon: '' };  // cerca del diseño
+  if (pct >= 60) return { color: '#38bdf8', label: 'normal', icon: '' };  // operativo, sin llenar
+  return { color: '#f59e0b', label: 'bajo', icon: '▽' };                  // posible desabasto
+};
+
+// Escala común de la tira: metros máximos (ancho de espejo a diseño y tirante)
+// entre todos los tramos, para dibujar cada sección PROPORCIONAL a sus medidas
+// reales y poder comparar dimensiones entre tramos de un vistazo.
+interface EscalaSeccion { anchoMaxM: number; tiranteMaxM: number; }
+
+// Espejo de agua (ancho superior) a un tirante h: T = b + 2·z·h.
+const espejoM = (b: number, z: number, h: number) => b + 2 * z * Math.max(0, h);
+
+const SeccionCanal: React.FC<{
+  tramo: SerieTramo; escala: EscalaSeccion; colorTramo: string;
+  seleccionado: boolean; atenuado: boolean; onSelect: () => void;
+}> = ({ tramo, escala, colorTramo, seleccionado, atenuado, onSelect }) => {
+  const { estado, etiqueta } = tramo;
+  const { tiranteActual, pctDiseno, plantilla: b, talud: z, tiranteDiseno, esTrapezoidal } = estado;
+  const { color: colEstado, label, icon } = estadoLlenado(pctDiseno);
+
+  // ── Lienzo con margen; el mapeo metros→px es COMÚN a toda la tira ──
+  const W = 100, H = 96, PBtxt = 26, PTtop = 8;
+  const drawW = W - 8, drawH = H - PBtxt - PTtop;      // zona útil
+  const cx = W / 2, yBot = PTtop + drawH;
+  // px por metro (horizontal y vertical), compartidos vía la escala máxima global
+  const pxPerM_X = drawW / Math.max(1e-6, escala.anchoMaxM);
+  const pxPerM_Y = drawH / Math.max(1e-6, escala.tiranteMaxM);
+
+  // Referencia de altura del canal dibujado = tirante de diseño (o actual).
+  const hCanal = Math.max(tiranteDiseno ?? tiranteActual ?? 1, 0.1);
+  // Anchos reales (m) → medios anchos en px
+  const halfBot = (b * pxPerM_X) / 2;                             // plantilla (fondo)
+  const halfTopCanal = (espejoM(b, z, hCanal) * pxPerM_X) / 2;    // espejo a la altura del canal
+  const yTopCanal = yBot - hCanal * pxPerM_Y;                     // borde superior del canal (a escala)
+  const xBotL = cx - halfBot, xBotR = cx + halfBot;
+  const xTopL = cx - halfTopCanal, xTopR = cx + halfTopCanal;
+
+  // Lámina de agua al tirante actual (a la MISMA escala vertical)
+  const hAgua = tiranteActual != null ? Math.min(tiranteActual, escala.tiranteMaxM) : 0;
+  const yW = yBot - hAgua * pxPerM_Y;
+  const halfAgua = (espejoM(b, z, hAgua) * pxPerM_X) / 2;
+  const xWL = cx - halfAgua, xWR = cx + halfAgua;
+
+  const espejoDiseno = esTrapezoidal ? espejoM(b, z, hCanal) : b;
+  const tip = `${etiqueta}\n`
+    + `tirante ${tiranteActual != null ? tiranteActual.toFixed(2) + ' m' : 's/d'}`
+    + `${pctDiseno != null ? ` · ${pctDiseno}% diseño (${label})` : ''}\n`
+    + (esTrapezoidal
+        ? `plantilla b=${b.toFixed(1)} m · talud z=${z.toFixed(2)} · espejo≈${espejoDiseno.toFixed(1)} m`
+        : 'rectangular (sin geometría de perfil)');
+
+  const cls = `tnd-sec${seleccionado ? ' sel' : ''}${atenuado ? ' dim' : ''}`;
+  return (
+    <button type="button" className={cls} title={tip} onClick={onSelect}
+      aria-pressed={seleccionado} style={{ '--tramo-col': colorTramo } as React.CSSProperties}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
+        {/* sección de concreto a escala real; el borde lleva el COLOR DE IDENTIDAD del tramo */}
+        <polygon points={`${xTopL.toFixed(1)},${yTopCanal.toFixed(1)} ${xBotL.toFixed(1)},${yBot} ${xBotR.toFixed(1)},${yBot} ${xTopR.toFixed(1)},${yTopCanal.toFixed(1)}`}
+          fill="#101a26" stroke={colorTramo} strokeWidth={seleccionado ? 2 : 1.2} />
+        {/* agua — coloreada con la IDENTIDAD del tramo (mismo color que su banda del apilado) */}
+        {hAgua > 0 && (
+          <polygon points={`${xWL.toFixed(1)},${yW.toFixed(1)} ${xBotL.toFixed(1)},${yBot} ${xBotR.toFixed(1)},${yBot} ${xWR.toFixed(1)},${yW.toFixed(1)}`}
+            fill={colorTramo} opacity={seleccionado ? 0.9 : 0.68} />
+        )}
+        {/* espejo de agua */}
+        {hAgua > 0 && <line x1={xWL.toFixed(1)} y1={yW.toFixed(1)} x2={xWR.toFixed(1)} y2={yW.toFixed(1)} stroke="#e2e8f0" strokeWidth="0.8" strokeDasharray="3,2" opacity="0.75" />}
+        {/* línea de tirante de diseño = borde superior; ROJO si el estado es alto (invade bordo) */}
+        {tiranteDiseno != null && <line x1={xTopL.toFixed(1)} y1={yTopCanal.toFixed(1)} x2={xTopR.toFixed(1)} y2={yTopCanal.toFixed(1)} stroke={pctDiseno != null && pctDiseno > 105 ? '#ef4444' : '#d9a53a'} strokeWidth="1" strokeDasharray="2,2" opacity="0.8" />}
+        {/* etiquetas */}
+        <text x={cx} y={H - 14} fill="#cbd5e1" fontSize="8" fontFamily="monospace" textAnchor="middle">{etiqueta.slice(0, 13)}</text>
+        <text x={cx} y={H - 4} fill={colEstado} fontSize="7.5" fontFamily="monospace" textAnchor="middle">
+          {pctDiseno != null ? `${Math.round(pctDiseno)}% ${label}${icon ? ' ' + icon : ''}` : (tiranteActual != null ? `${tiranteActual.toFixed(2)} m` : 's/d')}
+        </text>
+      </svg>
+    </button>
+  );
+};
+
 // ── Área apilada para volumen por tramo — hover identifica la banda ─────────
-const StackedArea: React.FC<{ series: SerieTramo[]; t0: number; t1: number; height?: number }> = ({ series, t0, t1, height = 160 }) => {
+// selKey: tramo seleccionado desde la tira de secciones → su banda se resalta y
+// el resto se atenúa. onSelBand: clic en una banda alterna la selección.
+const StackedArea: React.FC<{
+  series: SerieTramo[]; t0: number; t1: number; height?: number;
+  selKey?: string | null; onSelBand?: (key: string) => void;
+}> = ({ series, t0, t1, height = 160, selKey = null, onSelBand }) => {
   const W = 720, PL = 42, PR = 14, PT = 14, PB = 24;
   const ph = height - PT - PB, pw = W - PL - PR;
   const [hover, setHover] = useState<{ i: number; band: number | null } | null>(null);
@@ -188,9 +300,19 @@ const StackedArea: React.FC<{ series: SerieTramo[]; t0: number; t1: number; heig
           ...idxs.slice().reverse().map(i => `${xS(se.puntos[i]?.t ?? base[i].t).toFixed(1)},${yS(acc[i]).toFixed(1)}`),
         ].join(' ');
         idxs.forEach(i => { acc[i] = top[i]; });
-        // banda hovered se resalta; el resto se atenúa levemente
-        const dim = hover?.band != null && hover.band !== si;
-        return <polygon key={si} points={poly} fill={PAL[si % PAL.length]} opacity={dim ? 0.28 : 0.62} stroke={PAL[si % PAL.length]} strokeWidth={hover?.band === si ? 1.2 : 0.5} />;
+        // Selección (desde la tira de secciones) manda sobre el hover:
+        // la banda seleccionada se resalta y el resto se atenúa; sin selección,
+        // el hover resalta como antes.
+        const sel = selKey != null && se.key === selKey;
+        const dimBySel = selKey != null && !sel;
+        const dimByHover = selKey == null && hover?.band != null && hover.band !== si;
+        const dim = dimBySel || dimByHover;
+        const activo = sel || (selKey == null && hover?.band === si);
+        return <polygon key={si} points={poly} fill={PAL[si % PAL.length]}
+          opacity={dim ? 0.2 : (activo ? 0.85 : 0.62)}
+          stroke={PAL[si % PAL.length]} strokeWidth={activo ? 1.6 : 0.5}
+          style={{ cursor: onSelBand ? 'pointer' : undefined }}
+          onClick={onSelBand ? (e) => { e.stopPropagation(); onSelBand(se.key); } : undefined} />;
       })}
       <text x={PL} y={PT - 3} fill="#64748b" fontSize="8" fontFamily="monospace">Volumen por tramo (Mm³) — apilado</text>
 
@@ -236,6 +358,116 @@ const TendenciasPanel: React.FC<Props> = ({
     const b = new Date(`${rangoHasta}T23:59:59-06:00`).getTime();
     return [a, b];
   }, [rangoDesde, rangoHasta]);
+
+  // ── Filtro por punto de control (Bloque 1) ────────────────────────────────
+  // La tabla y la leyenda actúan como filtro activo del gráfico: clic = toggle
+  // de visibilidad; el botón "solo" (hover) aísla; la barra ofrece preajustes.
+  // vis = Set de escala_id visibles. null = "todas" (estado inicial). Persiste
+  // en localStorage por sesión; si el conjunto guardado no intersecta las
+  // escalas actuales, se descarta (fallback: todas visibles).
+  const idsNiveles = useMemo(() => niveles.map(s => s.escala_id), [niveles]);
+  const [visNiveles, setVisNiveles] = useState<Set<string> | null>(() => {
+    try {
+      const raw = localStorage.getItem(LS_VISIBLES);
+      if (!raw) return null;
+      const arr = JSON.parse(raw) as string[];
+      return Array.isArray(arr) && arr.length ? new Set(arr) : null;
+    } catch { return null; }
+  });
+  // Poda IDs que ya no existen entre las escalas actuales (p.ej. tras cambiar de
+  // rango cambia el conjunto de escalas con dato). NO convierte un Set vacío
+  // INTENCIONAL ("Ninguna") en "todas": solo actúa si el Set contiene algún id
+  // obsoleto. Un vacío elegido por el usuario se respeta.
+  useEffect(() => {
+    if (visNiveles == null || !idsNiveles.length || visNiveles.size === 0) return;
+    const validos = [...visNiveles].filter(id => idsNiveles.includes(id));
+    if (validos.length !== visNiveles.size) {
+      // Si ninguno de los guardados existe hoy (set totalmente obsoleto, típico al
+      // rehidratar de localStorage con otras escalas) → volver a "todas".
+      setVisNiveles(validos.length ? new Set(validos) : null);
+    }
+  }, [idsNiveles, visNiveles]);
+  useEffect(() => {
+    try {
+      if (visNiveles == null) localStorage.removeItem(LS_VISIBLES);
+      else localStorage.setItem(LS_VISIBLES, JSON.stringify([...visNiveles]));
+    } catch { /* almacenamiento no disponible */ }
+  }, [visNiveles]);
+
+  const esVisible = useCallback(
+    (id: string) => visNiveles == null || visNiveles.has(id),
+    [visNiveles]
+  );
+  const nVisibles = visNiveles == null ? niveles.length : niveles.filter(s => visNiveles.has(s.escala_id)).length;
+
+  // toggle: enciende/apaga una escala. Nunca deja el gráfico totalmente vacío
+  // por accidente — apagar la última visible equivale a "ninguna" explícita.
+  const toggleNivel = useCallback((id: string) => {
+    setVisNiveles(prev => {
+      const base = prev == null ? new Set(idsNiveles) : new Set(prev);
+      if (base.has(id)) base.delete(id); else base.add(id);
+      return base.size === idsNiveles.length ? null : base;
+    });
+  }, [idsNiveles]);
+  // solo: aísla una escala (o restaura "todas" si ya estaba aislada sola).
+  const soloNivel = useCallback((id: string) => {
+    setVisNiveles(prev => (prev != null && prev.size === 1 && prev.has(id)) ? null : new Set([id]));
+  }, []);
+  const verTodas = useCallback(() => setVisNiveles(null), []);
+  const verNinguna = useCallback(() => setVisNiveles(new Set()), []);
+  const verSoloControl = useCallback(
+    () => setVisNiveles(new Set(niveles.filter(esControlDeQ).map(s => s.escala_id))),
+    [niveles]
+  );
+
+  // Bandas de nivel máximo operativo: solo con ≤3 escalas visibles (con más se
+  // saturaría el gráfico). Una banda por escala visible que tenga nivelMax, con
+  // su color de serie; se deduplica por valor de nivel para no apilar líneas
+  // idénticas (el nivelMax suele ser común, p.ej. 4.0 m).
+  const bandasNivelMax = useMemo(() => {
+    const vis = niveles
+      .map((s, i) => ({ s, color: PAL[i % PAL.length] }))
+      .filter(({ s }) => esVisible(s.escala_id));
+    if (!vis.length || vis.length > 3) return [];
+    const porNivel = new Map<number, { y: number; label: string; color?: string }>();
+    for (const { s, color } of vis) {
+      if (s.nivelMax == null || !isFinite(s.nivelMax)) continue;
+      const y = +s.nivelMax.toFixed(2);
+      // si dos escalas comparten nivel máx, una sola banda gris; si es única, su color
+      if (porNivel.has(y)) porNivel.set(y, { y, label: `máx op ${y.toFixed(2)} m`, color: '#94a3b8' });
+      else porNivel.set(y, { y, label: `K-${s.km} máx ${y.toFixed(2)} m`, color });
+    }
+    return [...porNivel.values()];
+  }, [niveles, esVisible]);
+
+  // Escala común de la tira de secciones: mayor espejo de agua (a la altura del
+  // canal) y mayor tirante entre TODOS los tramos. Así cada sección se dibuja a
+  // escala real y sus dimensiones son comparables entre tramos (canal cónico:
+  // ancho en cabecera > cola). Un +6 % de holgura evita que el mayor toque el borde.
+  const escalaSeccion = useMemo<EscalaSeccion>(() => {
+    let anchoMax = 1, tiranteMax = 1;
+    for (const tr of volTramos) {
+      const e = tr.estado;
+      const hRef = Math.max(e.tiranteDiseno ?? e.tiranteActual ?? 0, e.tiranteActual ?? 0);
+      const ancho = e.esTrapezoidal ? espejoM(e.plantilla, e.talud, hRef) : e.plantilla;
+      if (ancho > anchoMax) anchoMax = ancho;
+      if (hRef > tiranteMax) tiranteMax = hRef;
+    }
+    return { anchoMaxM: anchoMax * 1.06, tiranteMaxM: tiranteMax * 1.06 };
+  }, [volTramos]);
+
+  // Selección de tramo (Bloque 2): sincroniza la tira de secciones con el
+  // apilado. El color de identidad de cada tramo es su índice en la paleta —
+  // el MISMO que usa StackedArea para su banda, así "mismo tramo = mismo color".
+  const [tramoSel, setTramoSel] = useState<string | null>(null);
+  const toggleTramo = useCallback((key: string) => {
+    setTramoSel(prev => prev === key ? null : key);
+  }, []);
+  // color de identidad por key (idéntico al índice de banda del apilado)
+  const colorTramo = useCallback(
+    (key: string) => PAL[volTramos.findIndex(t => t.key === key) % PAL.length],
+    [volTramos]
+  );
 
   const preset = (dias: number) => {
     const hasta = new Date();
@@ -331,48 +563,129 @@ const TendenciasPanel: React.FC<Props> = ({
       {!loading && (
         <>
           {/* ── Bloque 1: niveles por escala ── */}
+          {/* La tabla y la leyenda son el FILTRO ACTIVO del gráfico: clic en una
+              fila/chip alterna su visibilidad; el botón "solo" aísla; la barra
+              superior ofrece preajustes. El color de cada serie se ancla a su
+              escala_id (índice en `niveles`), no a la lista filtrada, para que no
+              "salte" al ocultar/mostrar escalas. */}
           <div className="tnd-block">
-            <div className="tnd-h"><span className="tnd-n" style={{ background: '#3987e5' }}>1</span> Tendencia de niveles por escala</div>
+            <div className="tnd-h">
+              <span className="tnd-n" style={{ background: '#3987e5' }}>1</span> Tendencia de niveles por escala
+              <span className="tnd-filtro-info">{nVisibles === niveles.length ? `${niveles.length} puntos` : `${nVisibles} de ${niveles.length}`}</span>
+            </div>
+            <div className="tnd-filtro-bar">
+              <span className="tnd-filtro-lbl">Punto de control:</span>
+              <button type="button" className={visNiveles == null ? 'on' : ''} onClick={verTodas}>Todas</button>
+              <button type="button" onClick={verSoloControl}>Solo control de Q</button>
+              <button type="button" onClick={verNinguna}>Ninguna</button>
+            </div>
             <MultiLine
-              series={niveles.map((s, i) => ({ nombre: s.nombre, puntos: s.puntos, color: PAL[i % PAL.length] }))}
+              series={niveles.map((s, i) => ({ nombre: `K-${s.km}`, puntos: s.puntos, color: PAL[i % PAL.length] }))
+                             .filter((_, i) => esVisible(niveles[i].escala_id))}
               t0={t0} t1={t1} yLabel="Nivel (m)" height={168}
+              bands={bandasNivelMax}
             />
-            <div className="tnd-legend">
-              {niveles.map((s, i) => <span key={s.escala_id}><i style={{ background: PAL[i % PAL.length] }} />K-{s.km}</span>)}
+            {bandasNivelMax.length > 0 && (
+              <div className="tnd-band-hint">— — nivel máximo operativo (a bordo) de las escalas enfocadas</div>
+            )}
+            <div className="tnd-legend tnd-legend-int" role="group" aria-label="Filtro de escalas visibles">
+              {niveles.map((s, i) => {
+                const on = esVisible(s.escala_id);
+                return (
+                  <button type="button" key={s.escala_id} className={`tnd-chip${on ? '' : ' off'}`}
+                    onClick={() => toggleNivel(s.escala_id)}
+                    onDoubleClick={() => soloNivel(s.escala_id)}
+                    aria-pressed={on}
+                    title={on ? `Ocultar K-${s.km} (doble clic: solo)` : `Mostrar K-${s.km}`}>
+                    <i style={{ background: PAL[i % PAL.length] }} />K-{s.km}
+                  </button>
+                );
+              })}
             </div>
             <div className="dsk-table-wrap">
-              <table className="dsk-table">
-                <thead><tr><th>Escala</th><th>Mín</th><th>Máx</th><th>Prom</th><th>Δ periodo</th><th>Lect.</th></tr></thead>
+              <table className="dsk-table tnd-table-int">
+                <thead><tr><th>Escala</th><th>Mín</th><th>Máx</th><th>Prom</th><th>Δ periodo</th><th>Lect.</th><th aria-label="Aislar" /></tr></thead>
                 <tbody>
-                  {niveles.map(s => { const st = statsSerie(s.puntos); return (
-                    <tr key={s.escala_id}>
-                      <td style={{ fontWeight: 700 }}>K-{s.km}</td>
+                  {niveles.map((s, i) => { const st = statsSerie(s.puntos); const on = esVisible(s.escala_id); return (
+                    <tr key={s.escala_id} className={`tnd-row${on ? '' : ' off'}`}
+                        onClick={() => toggleNivel(s.escala_id)}
+                        title={on ? `Ocultar K-${s.km}` : `Mostrar K-${s.km}`}>
+                      <td style={{ fontWeight: 700 }}>
+                        <span className="tnd-swatch" style={{ background: PAL[i % PAL.length], opacity: on ? 1 : 0.3 }} />K-{s.km}
+                      </td>
                       <td>{n2(st.min)}</td><td>{n2(st.max)}</td><td>{n2(st.avg)}</td>
                       <td style={{ color: st.delta! > 0 ? '#ef4444' : st.delta! < 0 ? '#22c55e' : '#64748b' }}>{st.delta == null ? '—' : (st.delta > 0 ? '▲' : st.delta < 0 ? '▼' : '—') + ' ' + n2(Math.abs(st.delta))}</td>
                       <td>{st.n}</td>
+                      <td className="tnd-solo-cell">
+                        <button type="button" className="tnd-solo-btn"
+                          onClick={e => { e.stopPropagation(); soloNivel(s.escala_id); }}
+                          title={`Ver solo K-${s.km}`}>solo</button>
+                      </td>
                     </tr>
                   ); })}
                 </tbody>
               </table>
             </div>
+            {nVisibles === 0 && <div className="tnd-empty">Ningún punto de control seleccionado — activa alguno en la tabla o pulsa «Todas».</div>}
           </div>
 
           {/* ── Bloque 2: volumen por tramo ── */}
+          {/* El volumen se reconstruye con la SECCIÓN TRAPEZOIDAL real del canal
+              (plantilla b, talud z de perfil_hidraulico_canal) cuando hay geometría;
+              si falta, cae al prisma rectangular calibrado (sin regresión). La tira
+              de secciones muestra el estado de llenado actual de cada tramo. */}
           <div className="tnd-block">
-            <div className="tnd-h"><span className="tnd-n" style={{ background: '#199e70' }}>2</span> Volumen por tramo <small className="tnd-calc">reconstruido de niveles</small></div>
-            <StackedArea series={volTramos} t0={t0} t1={t1} height={170} />
+            <div className="tnd-h">
+              <span className="tnd-n" style={{ background: '#199e70' }}>2</span> Volumen por tramo
+              <small className="tnd-calc">{volTramos.some(t => t.estado.esTrapezoidal) ? 'sección trapezoidal' : 'reconstruido de niveles'}</small>
+            </div>
+
+            {/* Tira de secciones transversales — estado de llenado por tramo */}
+            {volTramos.length > 0 && (
+              <>
+                <div className="tnd-secline">Estado del canal — sección transversal por tramo (tirante · % de diseño)</div>
+                <div className="tnd-secstrip">
+                  {volTramos.map(tr => (
+                    <SeccionCanal key={tr.key} tramo={tr} escala={escalaSeccion}
+                      colorTramo={colorTramo(tr.key)}
+                      seleccionado={tramoSel === tr.key}
+                      atenuado={tramoSel != null && tramoSel !== tr.key}
+                      onSelect={() => toggleTramo(tr.key)} />
+                  ))}
+                </div>
+                <div className="tnd-secline tnd-secline-hint">
+                  Toca un tramo para aislarlo en el apilado · el color de cada sección = su banda
+                  {tramoSel != null && <button type="button" className="tnd-sec-clear" onClick={() => setTramoSel(null)}>ver todos</button>}
+                </div>
+                <div className="tnd-legend">
+                  <span><i style={{ background: '#22c55e' }} />óptimo 85–105%</span>
+                  <span><i style={{ background: '#38bdf8' }} />normal 60–85%</span>
+                  <span><i style={{ background: '#f59e0b' }} />bajo &lt;60%</span>
+                  <span><i style={{ background: '#ef4444' }} />alto &gt;105% (a bordo)</span>
+                </div>
+              </>
+            )}
+
+            <StackedArea series={volTramos} t0={t0} t1={t1} height={170}
+              selKey={tramoSel} onSelBand={key => setTramoSel(prev => prev === key ? null : key)} />
             <MultiLine series={[{ nombre: 'Total canal', puntos: volTotal, color: '#38bdf8' }]} t0={t0} t1={t1} yLabel="Volumen total en canal (Mm³)" height={110} />
             <div className="dsk-table-wrap">
               <table className="dsk-table">
-                <thead><tr><th>Tramo</th><th>Vol mín</th><th>Vol máx</th><th>Δ Mm³</th></tr></thead>
+                <thead><tr><th>Tramo</th><th>Vol mín</th><th>Vol máx</th><th>Δ Mm³</th><th>Tirante act.</th><th>% diseño</th></tr></thead>
                 <tbody>
-                  {volTramos.map(tr => { const st = statsSerie(tr.puntos); return (
+                  {volTramos.map(tr => { const st = statsSerie(tr.puntos); const { color, label } = estadoLlenado(tr.estado.pctDiseno); return (
                     <tr key={tr.key}><td style={{ fontSize: '0.62rem' }}>{tr.etiqueta}</td><td>{n3(st.min)}</td><td>{n3(st.max)}</td>
-                      <td style={{ color: st.delta! > 0 ? '#38bdf8' : '#f59e0b' }}>{n3(st.delta)}</td></tr>
+                      <td style={{ color: st.delta! > 0 ? '#38bdf8' : '#f59e0b' }}>{n3(st.delta)}</td>
+                      <td>{tr.estado.tiranteActual != null ? tr.estado.tiranteActual.toFixed(2) : '—'}</td>
+                      <td style={{ color, fontWeight: 700 }}>{tr.estado.pctDiseno != null ? `${Math.round(tr.estado.pctDiseno)}% ${label}` : '—'}</td>
+                    </tr>
                   ); })}
                 </tbody>
               </table>
             </div>
+            {!volTramos.some(t => t.estado.esTrapezoidal) && volTramos.length > 0 && (
+              <div className="tnd-note">Geometría trapezoidal no disponible para estos tramos en <code>perfil_hidraulico_canal</code> — el volumen usa el prisma rectangular calibrado. El % de diseño aparece solo donde hay <code>tirante_diseno_m</code>.</div>
+            )}
           </div>
 
           {/* ── Bloque 3: arriba/abajo por compuerta ── */}

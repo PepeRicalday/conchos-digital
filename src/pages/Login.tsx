@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, Lock, Mail, Activity } from 'lucide-react';
+import { LogIn, Lock, Mail } from 'lucide-react';
 import './Login.css';
 
 const APP_VERSION = typeof __V2_APP_VERSION__ !== 'undefined' ? __V2_APP_VERSION__ : '0.0.0';
@@ -56,7 +56,7 @@ const Login: React.FC = () => {
                         SISTEMA DE CONTROL
                     </h3>
                     <p className="login-section-desc">
-                        Ingresa tus credenciales o accede al monitor público.
+                        Ingresa tus credenciales para acceder.
                     </p>
                 </div>
 
@@ -112,19 +112,6 @@ const Login: React.FC = () => {
                         )}
                     </button>
                 </form>
-
-                <div className="public-access-divider">
-                    <span>O accede sin cuenta</span>
-                </div>
-
-                <button
-                    type="button"
-                    onClick={() => navigate('/monitor-publico')}
-                    className="public-monitor-link-button"
-                >
-                    <Activity size={18} style={{ marginRight: '8px' }} />
-                    ACCESO MONITOR PÚBLICO
-                </button>
 
                 <div className="footer-logo-section">
                     <span className="footer-tagline">Respaldo Tecnológico</span>

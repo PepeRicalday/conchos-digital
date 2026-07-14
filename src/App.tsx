@@ -180,7 +180,9 @@ function App() {
               <Routes>
                 {/* Rutas Públicas */}
                 <Route path="/login" element={<Login />} />
-                <Route path="/monitor-publico" element={<SafePage><PublicMonitor /></SafePage>} />
+                {/* Monitor "público": el sistema ya es estable; el acceso anónimo
+                    se retiró. Ahora requiere sesión (solo desde Conchos Digital). */}
+                <Route path="/monitor-publico" element={<ProtectedRoute><SafePage><PublicMonitor /></SafePage></ProtectedRoute>} />
 
                 {/* Rutas Protegidas — cada una con su propio Error Boundary */}
                 <Route path="/" element={<ProtectedRoute><SafePage><Dashboard /></SafePage></ProtectedRoute>} />

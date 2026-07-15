@@ -16,7 +16,7 @@ import { exportEscalasCSV } from '../utils/exportCanal';
 import { toast } from 'sonner';
 import TendenciasPanel from '../components/TendenciasPanel';
 import {
-  serieNivelesDiaria, serieNivelesLectura, indiceNivelesDiario, serieVolumenTramos,
+  serieNivelesDiaria, serieNivelesLectura, indiceNivelesUpDown, serieVolumenTramos,
   serieCompuertas, serieGasto,
   type SerieEscala, type SerieTramo, type SerieCompuerta, type SerieGasto, type SeriePunto,
   type LecturaEscala as TndLectura, type ResumenDiario as TndResumen,
@@ -673,14 +673,22 @@ const PublicMonitor: React.FC = () => {
                 };
 
                 const [escRes, tramoRes, perfilRes] = await Promise.all([
-                    supabase.from('escalas').select('id, nombre, km, nivel_max_operativo').order('km'),
+                    supabase.from('escalas').select('id, nombre, km, nivel_max_operativo, pzas_radiales').order('km'),
                     supabase.from('vol_interescalas').select('esc_up_id, esc_up, km_up, esc_down_id, esc_down, km_down, longitud_km, ancho_canal_m, vol_m3, nivel_up_m, nivel_down_m'),
                     // Geometría trapezoidal por tramo (plantilla, talud) para el volumen real del Bloque 2
-                    supabase.from('perfil_hidraulico_canal').select('km_inicio, km_fin, plantilla_m, talud_z, tirante_diseno_m').order('km_inicio'),
+                    supabase.from('perfil_hidraulico_canal').select('km_inicio, km_fin, plantilla_m, talud_z, tirante_diseno_m, bordo_libre_m').order('km_inicio'),
                 ]);
-                const escalasGeom = (escRes.data || []) as { id: string; nombre: string; km: number; nivel_max_operativo: number | null }[];
+                const escalasGeom = (escRes.data || []) as { id: string; nombre: string; km: number; nivel_max_operativo: number | null; pzas_radiales?: number | null }[];
                 const tramos = (tramoRes.data || []) as TramoGeom[];
                 const perfiles = (perfilRes.data || []) as PerfilGeom[];
+                // Escalas de SÓLO REFERENCIA (sin compuerta de control, pzas_radiales=0):
+                // K-64 y K-94+200. No reciben lecturas de campo, sólo el nivel de
+                // continuidad autogenerado por Chronos — pero ese nivel SÍ es válido para
+                // representar el tramo (K-104 entrega volumen con esa escala). Se conserva
+                // su lectura autogenerada para el índice de volumen, no se descarta.
+                const escalasReferencia = new Set(
+                    escalasGeom.filter(e => (e.pzas_radiales ?? 0) === 0).map(e => e.id)
+                );
 
                 // Lecturas de campo (nivel ↑↓, compuertas, gasto) — paginado, filtra autogeneradas
                 const lecRaw = await fetchAll<TndLectura & { responsable?: string; notas?: string }>((from, to) =>
@@ -688,8 +696,16 @@ const PublicMonitor: React.FC = () => {
                         .select('escala_id, fecha, hora_lectura, nivel_m, nivel_abajo_m, gasto_calculado_m3s, gasto_metodo, radiales_json, creado_en, responsable, notas')
                         .gte('fecha', tndDesde).lte('fecha', tndHasta)
                         .order('creado_en', { ascending: true }).range(from, to));
-                const lecturas = lecRaw
-                    .filter(r => !/chronos|autogenerad|medianoche/i.test((r.responsable || '') + (r.notas || '')));
+                const esAutogenerada = (r: { responsable?: string; notas?: string }) =>
+                    /chronos|autogenerad|medianoche/i.test((r.responsable || '') + (r.notas || ''));
+                // Lecturas de campo (compuertas, gasto, niveles): sin autogeneradas.
+                const lecturas = lecRaw.filter(r => !esAutogenerada(r));
+                // Para el VOLUMEN por tramo, además conserva las lecturas autogeneradas
+                // de las escalas de sólo referencia (única fuente de su nivel), para que
+                // los tramos que las tocan (…→K-94+200, K-94+200→K-104, …→K-64→…) no
+                // queden vacíos pese a no tener lectura manual.
+                const lecturasVol = lecRaw.filter(r =>
+                    !esAutogenerada(r) || escalasReferencia.has(r.escala_id));
 
                 // Resumen diario (serie de nivel por escala, paginado) + entregas
                 const [resRaw, { data: entRaw }] = await Promise.all([
@@ -710,7 +726,10 @@ const PublicMonitor: React.FC = () => {
                 const niveles = tndGran === 'diaria'
                     ? serieNivelesDiaria(resumen, escalasGeom)
                     : serieNivelesLectura(lecturas, escalasGeom);
-                const { idx, fechas } = indiceNivelesDiario(resumen);
+                // Volumen por tramo con modelo de compuertas: usa nivel ABAJO de la
+                // escala aguas arriba y nivel ARRIBA de la aguas abajo (ambas caras
+                // vienen de lecturas_escalas, no del resumen diario de una sola cara).
+                const { idx, fechas } = indiceNivelesUpDown(lecturasVol);
                 const { series: volTramos, totalPorFecha: volTotal } = serieVolumenTramos(tramos, idx, fechas, perfiles);
                 const compuertas = serieCompuertas(lecturas, escalasGeom);
                 const gasto = serieGasto(lecturas, escalasGeom, entregas, fechas.length ? fechas : [tndHasta]);

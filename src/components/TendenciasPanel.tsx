@@ -178,8 +178,10 @@ const SeccionCanal: React.FC<{
   seleccionado: boolean; atenuado: boolean; onSelect: () => void;
 }> = ({ tramo, escala, colorTramo, seleccionado, atenuado, onSelect }) => {
   const { estado, etiqueta } = tramo;
-  const { tiranteActual, pctDiseno, plantilla: b, talud: z, tiranteDiseno, esTrapezoidal } = estado;
+  const { tiranteActual, pctDiseno, plantilla: b, talud: z, tiranteDiseno,
+          bordoLibre, alturaCanal, anchoCorona, nSecciones, esTrapezoidal } = estado;
   const { color: colEstado, label, icon } = estadoLlenado(pctDiseno);
+  const compuesto = nSecciones > 1;   // el tramo cruza varias secciones-tipo reales
 
   // ── Lienzo con margen; el mapeo metros→px es COMÚN a toda la tira ──
   const W = 100, H = 96, PBtxt = 26, PTtop = 8;
@@ -189,14 +191,22 @@ const SeccionCanal: React.FC<{
   const pxPerM_X = drawW / Math.max(1e-6, escala.anchoMaxM);
   const pxPerM_Y = drawH / Math.max(1e-6, escala.tiranteMaxM);
 
-  // Referencia de altura del canal dibujado = tirante de diseño (o actual).
-  const hCanal = Math.max(tiranteDiseno ?? tiranteActual ?? 1, 0.1);
+  // Altura FÍSICA del canal dibujado = altura real del revestimiento (tirante de
+  // diseño + bordo libre). Si no hay bordo libre, se cae al tirante de diseño
+  // (o al actual). Así la sección muestra el canal completo y el agua adentro,
+  // dejando ver el margen a bordo real, no solo el llenado respecto al diseño.
+  const hCanal = Math.max(alturaCanal ?? tiranteDiseno ?? tiranteActual ?? 1, 0.1);
   // Anchos reales (m) → medios anchos en px
   const halfBot = (b * pxPerM_X) / 2;                             // plantilla (fondo)
-  const halfTopCanal = (espejoM(b, z, hCanal) * pxPerM_X) / 2;    // espejo a la altura del canal
-  const yTopCanal = yBot - hCanal * pxPerM_Y;                     // borde superior del canal (a escala)
+  const halfTopCanal = (espejoM(b, z, hCanal) * pxPerM_X) / 2;    // espejo al borde del canal
+  const yTopCanal = yBot - hCanal * pxPerM_Y;                     // coronamiento del canal (a escala)
   const xBotL = cx - halfBot, xBotR = cx + halfBot;
   const xTopL = cx - halfTopCanal, xTopR = cx + halfTopCanal;
+
+  // Línea de tirante de DISEÑO (nivel normal de operación), dentro del canal.
+  const hDiseno = tiranteDiseno != null ? Math.min(tiranteDiseno, hCanal) : null;
+  const yDiseno = hDiseno != null ? yBot - hDiseno * pxPerM_Y : null;
+  const halfDiseno = hDiseno != null ? (espejoM(b, z, hDiseno) * pxPerM_X) / 2 : 0;
 
   // Lámina de agua al tirante actual (a la MISMA escala vertical)
   const hAgua = tiranteActual != null ? Math.min(tiranteActual, escala.tiranteMaxM) : 0;
@@ -204,12 +214,16 @@ const SeccionCanal: React.FC<{
   const halfAgua = (espejoM(b, z, hAgua) * pxPerM_X) / 2;
   const xWL = cx - halfAgua, xWR = cx + halfAgua;
 
-  const espejoDiseno = esTrapezoidal ? espejoM(b, z, hCanal) : b;
+  const coronaTxt = anchoCorona != null ? anchoCorona.toFixed(1) : (esTrapezoidal ? espejoM(b, z, hCanal).toFixed(1) : b.toFixed(1));
   const tip = `${etiqueta}\n`
     + `tirante ${tiranteActual != null ? tiranteActual.toFixed(2) + ' m' : 's/d'}`
     + `${pctDiseno != null ? ` · ${pctDiseno}% diseño (${label})` : ''}\n`
     + (esTrapezoidal
-        ? `plantilla b=${b.toFixed(1)} m · talud z=${z.toFixed(2)} · espejo≈${espejoDiseno.toFixed(1)} m`
+        ? `plantilla b=${b.toFixed(1)} m · talud z=${z.toFixed(2)} · corona ${coronaTxt} m\n`
+          + `altura canal ${alturaCanal != null ? alturaCanal.toFixed(2) + ' m' : 's/d'}`
+          + `${tiranteDiseno != null ? ` (diseño ${tiranteDiseno.toFixed(2)} m` : ''}`
+          + `${bordoLibre != null ? ` + bordo ${bordoLibre.toFixed(2)} m)` : (tiranteDiseno != null ? ')' : '')}`
+          + `${compuesto ? `\n⚠ tramo compuesto: cruza ${nSecciones} secciones-tipo · se muestra la dominante` : ''}`
         : 'rectangular (sin geometría de perfil)');
 
   const cls = `tnd-sec${seleccionado ? ' sel' : ''}${atenuado ? ' dim' : ''}`;
@@ -217,9 +231,16 @@ const SeccionCanal: React.FC<{
     <button type="button" className={cls} title={tip} onClick={onSelect}
       aria-pressed={seleccionado} style={{ '--tramo-col': colorTramo } as React.CSSProperties}>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
-        {/* sección de concreto a escala real; el borde lleva el COLOR DE IDENTIDAD del tramo */}
+        {/* sección de concreto a la ALTURA REAL del canal (coronamiento); el borde
+            lleva el COLOR DE IDENTIDAD del tramo. La cavidad muestra el canal vacío. */}
         <polygon points={`${xTopL.toFixed(1)},${yTopCanal.toFixed(1)} ${xBotL.toFixed(1)},${yBot} ${xBotR.toFixed(1)},${yBot} ${xTopR.toFixed(1)},${yTopCanal.toFixed(1)}`}
           fill="#101a26" stroke={colorTramo} strokeWidth={seleccionado ? 2 : 1.2} />
+        {/* zona de BORDO LIBRE (entre tirante de diseño y coronamiento): franja
+            hachurada que hace visible el margen físico del canal sobre la operación. */}
+        {yDiseno != null && bordoLibre != null && bordoLibre > 0 && (
+          <polygon points={`${(cx - halfDiseno).toFixed(1)},${yDiseno.toFixed(1)} ${xTopL.toFixed(1)},${yTopCanal.toFixed(1)} ${xTopR.toFixed(1)},${yTopCanal.toFixed(1)} ${(cx + halfDiseno).toFixed(1)},${yDiseno.toFixed(1)}`}
+            fill="#334155" opacity="0.22" />
+        )}
         {/* agua — coloreada con la IDENTIDAD del tramo (mismo color que su banda del apilado) */}
         {hAgua > 0 && (
           <polygon points={`${xWL.toFixed(1)},${yW.toFixed(1)} ${xBotL.toFixed(1)},${yBot} ${xBotR.toFixed(1)},${yBot} ${xWR.toFixed(1)},${yW.toFixed(1)}`}
@@ -227,8 +248,19 @@ const SeccionCanal: React.FC<{
         )}
         {/* espejo de agua */}
         {hAgua > 0 && <line x1={xWL.toFixed(1)} y1={yW.toFixed(1)} x2={xWR.toFixed(1)} y2={yW.toFixed(1)} stroke="#e2e8f0" strokeWidth="0.8" strokeDasharray="3,2" opacity="0.75" />}
-        {/* línea de tirante de diseño = borde superior; ROJO si el estado es alto (invade bordo) */}
-        {tiranteDiseno != null && <line x1={xTopL.toFixed(1)} y1={yTopCanal.toFixed(1)} x2={xTopR.toFixed(1)} y2={yTopCanal.toFixed(1)} stroke={pctDiseno != null && pctDiseno > 105 ? '#ef4444' : '#d9a53a'} strokeWidth="1" strokeDasharray="2,2" opacity="0.8" />}
+        {/* línea de tirante de DISEÑO dentro del canal (nivel normal de operación);
+            ROJO si el agua lo supera (invade bordo libre), ámbar si opera por debajo. */}
+        {yDiseno != null && <line x1={(cx - halfDiseno).toFixed(1)} y1={yDiseno.toFixed(1)} x2={(cx + halfDiseno).toFixed(1)} y2={yDiseno.toFixed(1)} stroke={pctDiseno != null && pctDiseno > 100 ? '#ef4444' : '#d9a53a'} strokeWidth="1" strokeDasharray="2,2" opacity="0.85" />}
+        {/* coronamiento del canal = límite físico de bordo; línea sólida tenue */}
+        <line x1={xTopL.toFixed(1)} y1={yTopCanal.toFixed(1)} x2={xTopR.toFixed(1)} y2={yTopCanal.toFixed(1)} stroke={colorTramo} strokeWidth="0.6" opacity="0.55" />
+        {/* marcador de sección COMPUESTA: el tramo cruza varias secciones-tipo
+            reales; se dibuja la dominante. Aviso «≠N» arriba a la derecha. */}
+        {compuesto && (
+          <>
+            <title>{`Tramo compuesto: cruza ${nSecciones} secciones-tipo del canal · se muestra la dominante`}</title>
+            <text x={W - 3} y={PTtop + 2} fill="#f59e0b" fontSize="7" fontFamily="monospace" textAnchor="end" fontWeight="bold">≠{nSecciones}</text>
+          </>
+        )}
         {/* etiquetas */}
         <text x={cx} y={H - 14} fill="#cbd5e1" fontSize="8" fontFamily="monospace" textAnchor="middle">{etiqueta.slice(0, 13)}</text>
         <text x={cx} y={H - 4} fill={colEstado} fontSize="7.5" fontFamily="monospace" textAnchor="middle">
@@ -254,6 +286,9 @@ const StackedArea: React.FC<{
   if (!base.length) return <div className="tnd-empty">Sin datos en el rango.</div>;
   const idxs = base.map((_, i) => i);
   const totals = idxs.map(i => series.reduce((s, se) => s + (se.puntos[i]?.y ?? 0), 0));
+  // Día ESTIMADO: al menos un tramo tomó su valor por arrastre (LOCF) por no
+  // haberse aforado ese día. Se marca para no leerlo como medición completa.
+  const estimado = idxs.map(i => series.some(se => se.puntos[i]?.est));
   const yMax = Math.max(...totals, 0.1) * 1.05;
   const xS = (t: number) => PL + ((t - t0) / Math.max(1, t1 - t0)) * pw;
   const yS = (y: number) => PT + ph - (y / yMax) * ph;
@@ -316,6 +351,16 @@ const StackedArea: React.FC<{
       })}
       <text x={PL} y={PT - 3} fill="#64748b" fontSize="8" fontFamily="monospace">Volumen por tramo (Mm³) — apilado</text>
 
+      {/* Marcador de día ESTIMADO (LOCF): rombo hueco sobre el tope del apilado.
+          Indica que uno o más tramos no se aforaron y arrastran su último dato. */}
+      {idxs.filter(i => estimado[i]).map(i => {
+        const x = xS(base[i].t), y = yS(totals[i]);
+        return <path key={`est${i}`} d={`M ${x.toFixed(1)} ${(y - 5).toFixed(1)} l 3 3 l -3 3 l -3 -3 z`}
+          fill="none" stroke="#f59e0b" strokeWidth="0.9" opacity="0.85">
+          <title>Día estimado: uno o más tramos sin aforo, valor arrastrado (LOCF)</title>
+        </path>;
+      })}
+
       {hovI != null && (
         <g pointerEvents="none">
           <line x1={hx} y1={PT} x2={hx} y2={PT + ph} stroke="#7dd3fc" strokeWidth="0.8" strokeDasharray="3,3" opacity="0.7" />
@@ -324,6 +369,7 @@ const StackedArea: React.FC<{
             {new Date(base[hovI].t).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
             <tspan fill="#cbd5e1" fontWeight="normal">  · Total </tspan>
             <tspan fill="#f1f5f9" fontWeight="bold">{totals[hovI].toFixed(3)} Mm³</tspan>
+            {estimado[hovI] && <tspan fill="#f59e0b" fontWeight="normal"> ◆est</tspan>}
           </text>
           {hover?.band != null && (
             <text x={tipX + 7} y={PT + 27} fill="#cbd5e1" fontSize="7.5" fontFamily="monospace">
@@ -343,7 +389,8 @@ const StackedArea: React.FC<{
 const ModalTramo: React.FC<{ tramo: SerieTramo; color: string; t0: number; t1: number; onClose: () => void }>
 = ({ tramo, color, t0, t1, onClose }) => {
   const { estado, etiqueta, km_up, km_down } = tramo;
-  const { tiranteActual, pctDiseno, plantilla: b, talud: z, tiranteDiseno, esTrapezoidal,
+  const { tiranteActual, pctDiseno, plantilla: b, talud: z, tiranteDiseno,
+          bordoLibre, alturaCanal, pctBordo, anchoCorona, nSecciones, esTrapezoidal,
           longitudKm, nivelUpActual, nivelDownActual } = estado;
   const { color: colEstado, label, icon } = estadoLlenado(pctDiseno);
   const st = statsSerie(tramo.puntos);
@@ -360,7 +407,10 @@ const ModalTramo: React.FC<{ tramo: SerieTramo; color: string; t0: number; t1: n
   const hRef = tiranteActual ?? tiranteDiseno ?? 0;
   const espejo = esTrapezoidal ? espejoM(b, z, hRef) : b;
   const area = esTrapezoidal ? (b + z * hRef) * hRef : b * hRef;   // m²
-  const margenBordo = tiranteDiseno != null && tiranteActual != null ? +(tiranteDiseno - tiranteActual).toFixed(2) : null;
+  // Margen al tirante de diseño (holgura de operación normal) y margen al
+  // coronamiento real del canal (seguridad física ante desbordamiento).
+  const margenDiseno = tiranteDiseno != null && tiranteActual != null ? +(tiranteDiseno - tiranteActual).toFixed(2) : null;
+  const margenBordo = alturaCanal != null && tiranteActual != null ? +(alturaCanal - tiranteActual).toFixed(2) : null;
 
   const Fila: React.FC<{ k: string; v: React.ReactNode; c?: string }> = ({ k, v, c }) => (
     <div className="tnd-modal-row"><span className="tnd-modal-k">{k}</span><span className="tnd-modal-v" style={c ? { color: c } : undefined}>{v}</span></div>
@@ -408,7 +458,11 @@ const ModalTramo: React.FC<{ tramo: SerieTramo; color: string; t0: number; t1: n
               {esTrapezoidal && <Fila k="Talud (z)" v={<><b>{z.toFixed(2)}</b> : 1 (H:V)</>} />}
               <Fila k="Espejo de agua (T)" v={<>{espejo.toFixed(2)} m</>} />
               <Fila k="Área hidráulica (A)" v={<>{area.toFixed(2)} m²</>} />
+              <Fila k="Altura del canal" v={alturaCanal != null ? <><b>{alturaCanal.toFixed(2)}</b> m</> : 's/dato'} />
+              <Fila k="Bordo libre (diseño)" v={bordoLibre != null ? `${bordoLibre.toFixed(2)} m` : 's/dato'} />
+              <Fila k="Ancho de corona (C)" v={anchoCorona != null ? `${anchoCorona.toFixed(2)} m` : 's/dato'} />
               <Fila k="Longitud del tramo" v={<><b>{longitudKm.toFixed(3)}</b> km</>} />
+              {nSecciones > 1 && <Fila k="Secciones-tipo que cruza" v={<span style={{ color: '#f59e0b' }}>≠ {nSecciones} · se muestra la dominante</span>} />}
             </section>
 
             {/* Estado hidráulico */}
@@ -416,10 +470,14 @@ const ModalTramo: React.FC<{ tramo: SerieTramo; color: string; t0: number; t1: n
               <h5>Estado hidráulico</h5>
               <Fila k="Tirante actual" v={tiranteActual != null ? <><b>{tiranteActual.toFixed(2)}</b> m</> : '—'} />
               <Fila k="Tirante de diseño" v={tiranteDiseno != null ? `${tiranteDiseno.toFixed(2)} m` : 's/dato'} />
-              <Fila k="Nivel aguas arriba" v={nivelUpActual != null ? `${nivelUpActual.toFixed(2)} m` : '—'} />
-              <Fila k="Nivel aguas abajo" v={nivelDownActual != null ? `${nivelDownActual.toFixed(2)} m` : '—'} />
-              <Fila k="Margen a bordo" v={margenBordo != null ? `${margenBordo.toFixed(2)} m` : '—'}
-                    c={margenBordo != null && margenBordo < 0 ? '#ef4444' : undefined} />
+              <Fila k="% de la altura del canal" v={pctBordo != null ? `${pctBordo.toFixed(0)} %` : '—'}
+                    c={pctBordo != null ? (pctBordo > 92 ? '#ef4444' : pctBordo > 75 ? '#f59e0b' : '#22c55e') : undefined} />
+              <Fila k="Tirante frontera aguas arriba" v={nivelUpActual != null ? <>{nivelUpActual.toFixed(2)} m <em className="tnd-modal-tag">abajo de {tramo.etiqueta.split('→')[0]}</em></> : '—'} />
+              <Fila k="Tirante frontera aguas abajo" v={nivelDownActual != null ? <>{nivelDownActual.toFixed(2)} m <em className="tnd-modal-tag">arriba de {tramo.etiqueta.split('→')[1]}</em></> : '—'} />
+              <Fila k="Margen al diseño" v={margenDiseno != null ? `${margenDiseno.toFixed(2)} m` : '—'}
+                    c={margenDiseno != null && margenDiseno < 0 ? '#f59e0b' : undefined} />
+              <Fila k="Margen a coronamiento" v={margenBordo != null ? `${margenBordo.toFixed(2)} m` : '—'}
+                    c={margenBordo != null && margenBordo < 0.15 ? '#ef4444' : undefined} />
             </section>
           </div>
 
@@ -546,7 +604,10 @@ const TendenciasPanel: React.FC<Props> = ({
     let anchoMax = 1, tiranteMax = 1;
     for (const tr of volTramos) {
       const e = tr.estado;
-      const hRef = Math.max(e.tiranteDiseno ?? e.tiranteActual ?? 0, e.tiranteActual ?? 0);
+      // La altura de referencia es la altura FÍSICA del canal (coronamiento),
+      // para que el bordo libre completo quepa en el lienzo y las secciones sean
+      // comparables por su tamaño real. El agua actual puede acercarse pero no supera.
+      const hRef = Math.max(e.alturaCanal ?? e.tiranteDiseno ?? e.tiranteActual ?? 0, e.tiranteActual ?? 0);
       const ancho = e.esTrapezoidal ? espejoM(e.plantilla, e.talud, hRef) : e.plantilla;
       if (ancho > anchoMax) anchoMax = ancho;
       if (hRef > tiranteMax) tiranteMax = hRef;
@@ -684,7 +745,7 @@ const TendenciasPanel: React.FC<Props> = ({
             {/* Tira de secciones transversales — estado de llenado por tramo */}
             {volTramos.length > 0 && (
               <>
-                <div className="tnd-secline">Estado del canal — sección transversal por tramo (tirante · % de diseño)</div>
+                <div className="tnd-secline">Estado del canal — sección transversal REAL por tramo (altura del revestimiento a escala; franja gris = bordo libre; línea ─── = tirante de diseño). Tirante por tramo = nivel aguas abajo de la escala inicial → nivel aguas arriba de la final (modelo de compuertas).</div>
                 <div className="tnd-secstrip">
                   {volTramos.map(tr => (
                     <SeccionCanal key={tr.key} tramo={tr} escala={escalaSeccion}
@@ -695,7 +756,7 @@ const TendenciasPanel: React.FC<Props> = ({
                   ))}
                 </div>
                 <div className="tnd-secline tnd-secline-hint">
-                  Toca un tramo para aislarlo en el apilado · el color de cada sección = su banda
+                  Toca un tramo para aislarlo en el apilado · el color de cada sección = su banda · <span style={{ color: '#f59e0b' }}>◆</span> día estimado (tramo sin aforo, arrastra último dato)
                   {tramoSel != null && <button type="button" className="tnd-sec-clear" onClick={() => setTramoSel(null)}>ver todos</button>}
                 </div>
                 <div className="tnd-legend">

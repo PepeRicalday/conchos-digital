@@ -62,7 +62,7 @@ export interface EntregaModulo {
 }
 
 // Punto genérico de una serie temporal
-export interface SeriePunto { t: number; y: number | null; }
+export interface SeriePunto { t: number; y: number | null; est?: boolean; } // est=valor arrastrado (LOCF), no medido ese día
 export interface SerieEscala { escala_id: string; nombre: string; km: number; nivelMax?: number | null; puntos: SeriePunto[]; }
 
 const tsOf = (fecha: string, hora?: string | null): number =>
@@ -117,6 +117,7 @@ export interface PerfilGeom {
   plantilla_m: number;          // b — base menor (fondo)
   talud_z: number;              // z — talud lateral (H:V)
   tirante_diseno_m?: number | null;   // tirante de diseño, para % de llenado
+  bordo_libre_m?: number | null;      // bordo libre (freeboard) sobre el diseño → altura real del canal
 }
 
 // Estado de llenado de un tramo en la última fecha con dato (para P2/P3 y modal).
@@ -126,7 +127,12 @@ export interface EstadoTramo {
   plantilla: number;              // b usada (m)
   talud: number;                  // z usado
   tiranteDiseno: number | null;
+  bordoLibre: number | null;      // bordo libre de diseño (m)
+  alturaCanal: number | null;     // altura real del canal = tirante diseño + bordo libre (m)
+  pctBordo: number | null;        // % de la altura real del canal ocupado por el agua
   esTrapezoidal: boolean;         // true = geometría real; false = fallback rectangular
+  anchoCorona: number | null;     // ancho de corona = espejo a la altura total (m)
+  nSecciones: number;             // nº de geometrías reales distintas que cruza el tramo (>1 = compuesto)
   longitudKm: number;             // longitud del tramo (km)
   nivelUpActual: number | null;   // nivel última fecha en la escala aguas arriba
   nivelDownActual: number | null; // nivel última fecha en la escala aguas abajo
@@ -151,23 +157,72 @@ function volTramoRectM3(longitud_km: number, ancho_m: number, nivelUp: number, n
   return L * ancho_m * Math.max(0, hMedio);
 }
 
-// Empareja un tramo (km_up→km_down) con el perfil que cubre su punto medio.
-function perfilDeTramo(tr: TramoGeom, perfiles: PerfilGeom[]): PerfilGeom | null {
-  if (!perfiles.length) return null;
-  const kmMedio = (tr.km_up + tr.km_down) / 2;
-  return perfiles.find(p => p.km_inicio <= kmMedio && p.km_fin >= kmMedio)
-      ?? perfiles.find(p => p.km_inicio <= tr.km_up && p.km_fin >= tr.km_up)
-      ?? null;
+// Empareja un tramo (km_up→km_down) con su geometría REPRESENTATIVA.
+// Un tramo del panel (entre escalas) puede cruzar varias secciones-tipo del
+// canal (el Canal Conchos cambia plantilla/talud/corona a lo largo). Elegir por
+// el punto medio es arbitrario; en su lugar tomamos el perfil DOMINANTE: el que
+// aporta MÁS longitud dentro del tramo. Devolvemos también cuántas geometrías
+// distintas cruza, para etiquetar honestamente las secciones compuestas.
+function perfilDeTramo(
+  tr: TramoGeom, perfiles: PerfilGeom[]
+): { perfil: PerfilGeom | null; nSecciones: number } {
+  if (!perfiles.length) return { perfil: null, nSecciones: 0 };
+  const a = Math.min(tr.km_up, tr.km_down), b = Math.max(tr.km_up, tr.km_down);
+  // Solape (km) de cada perfil con el tramo.
+  const solapes = perfiles
+    .map(p => ({ p, ov: Math.max(0, Math.min(b, p.km_fin) - Math.max(a, p.km_inicio)) }))
+    .filter(s => s.ov > 0);
+  if (!solapes.length) {
+    // Sin solape: cae al perfil que contiene el punto de inicio (o el más cercano).
+    const kmMedio = (a + b) / 2;
+    const p = perfiles.find(pp => pp.km_inicio <= kmMedio && pp.km_fin >= kmMedio)
+           ?? perfiles.find(pp => pp.km_inicio <= a && pp.km_fin >= a) ?? null;
+    return { perfil: p, nSecciones: p ? 1 : 0 };
+  }
+  // El perfil se almacena en filas cortas (p.ej. cada 2 km) que comparten la
+  // MISMA geometría. Agrupamos por firma (b/z/tirante/bordo) y sumamos el solape
+  // de cada geometría; la dominante es la de MAYOR longitud total dentro del
+  // tramo (no la fila individual más larga). Empate → la de km_inicio menor.
+  const firma = (p: PerfilGeom) =>
+    `${p.plantilla_m}|${p.talud_z}|${p.tirante_diseno_m ?? ''}|${p.bordo_libre_m ?? ''}`;
+  const porGeom = new Map<string, { p: PerfilGeom; ov: number; km0: number }>();
+  for (const s of solapes) {
+    const f = firma(s.p);
+    const g = porGeom.get(f);
+    if (g) { g.ov += s.ov; g.km0 = Math.min(g.km0, s.p.km_inicio); }
+    else porGeom.set(f, { p: s.p, ov: s.ov, km0: s.p.km_inicio });
+  }
+  const geoms = [...porGeom.values()].sort((x, y) => y.ov - x.ov || x.km0 - y.km0);
+  return { perfil: geoms[0].p, nSecciones: porGeom.size };
 }
+
+// Nivel de una escala en una fecha, distinguiendo las dos caras de su compuerta:
+//   arriba = nivel_m (remanso AGUAS ARRIBA de la compuerta de esa escala)
+//   abajo  = nivel_abajo_m (lámina AGUAS ABAJO, ya dentro del tramo siguiente)
+export interface NivelUpDown { arriba: number | null; abajo: number | null; }
+
+// Tirante REAL en cada frontera de un tramo (modelo hidráulico de compuertas):
+// el tramo esc_up→esc_down es el prisma de agua ENTRE dos compuertas, así que
+//   · frontera aguas arriba  = nivel ABAJO de esc_up (agua ya dentro del tramo)
+//   · frontera aguas abajo   = nivel ARRIBA de esc_down (remanso contra su compuerta)
+// Fallback: K-64 y K-94+200 son escalas de sólo referencia (sin compuerta de
+// control); su nivel_abajo_m suele venir 0/null → se usa el nivel disponible
+// (arriba) de esa misma escala como aproximación, por ser de pura referencia.
+const nivelValido = (n: number | null | undefined): n is number => n != null && n > 0;
+const tiranteFrontera = (nd: NivelUpDown | undefined, cara: 'up' | 'down'): number | null => {
+  if (!nd) return null;
+  if (cara === 'up') return nivelValido(nd.abajo) ? nd.abajo : (nivelValido(nd.arriba) ? nd.arriba : null);
+  return nivelValido(nd.arriba) ? nd.arriba : (nivelValido(nd.abajo) ? nd.abajo : null);
+};
 
 export function serieVolumenTramos(
   tramos: TramoGeom[],
-  nivelesPorEscalaFecha: Map<string, Map<string, number>>, // escala_id -> (fecha -> nivel)
+  nivelesPorEscalaFecha: Map<string, Map<string, NivelUpDown>>, // escala_id -> (fecha -> {arriba,abajo})
   fechas: string[],
   perfiles: PerfilGeom[] = []
 ): { series: SerieTramo[]; totalPorFecha: SeriePunto[] } {
   const series: SerieTramo[] = tramos.map(tr => {
-    const perfil = perfilDeTramo(tr, perfiles);
+    const { perfil, nSecciones } = perfilDeTramo(tr, perfiles);
     const usaTrapecio = perfil != null && perfil.plantilla_m > 0 && perfil.talud_z >= 0;
     const b = perfil?.plantilla_m ?? 0;
     const z = perfil?.talud_z ?? 0;
@@ -190,28 +245,51 @@ export function serieVolumenTramos(
       return volTramoRectM3(tr.longitud_km, tr.ancho_canal_m || 8, nUp, nDn) * k;
     };
 
+    // Volumen diario del tramo con arrastre de última lectura (LOCF): si un día
+    // no se aforó una frontera, se mantiene su ÚLTIMO tirante conocido en vez de
+    // contar 0. Evita valles falsos en el apilado cuando la cola del canal no se
+    // mide a diario (el agua sigue ahí). El punto se marca est=true (estimado)
+    // cuando cualquiera de las dos fronteras se arrastró. Un hueco INICIAL (sin
+    // lectura previa) queda null: no inventamos datos antes del primer aforo.
+    let lastUp: number | null = null, lastDn: number | null = null;
     const puntos: SeriePunto[] = fechas.map(f => {
-      const nUp = nivelesPorEscalaFecha.get(tr.esc_up_id)?.get(f);
-      const nDn = nivelesPorEscalaFecha.get(tr.esc_down_id)?.get(f);
-      if (nUp == null || nDn == null) return { t: tsOf(f), y: null };
-      return { t: tsOf(f), y: +(volM3(nUp, nDn) / 1e6).toFixed(4) };
+      const rawUp = tiranteFrontera(nivelesPorEscalaFecha.get(tr.esc_up_id)?.get(f), 'up');
+      const rawDn = tiranteFrontera(nivelesPorEscalaFecha.get(tr.esc_down_id)?.get(f), 'down');
+      const arrastrado = (rawUp == null && lastUp != null) || (rawDn == null && lastDn != null);
+      if (rawUp != null) lastUp = rawUp;
+      if (rawDn != null) lastDn = rawDn;
+      if (lastUp == null || lastDn == null) return { t: tsOf(f), y: null };
+      const y = +(volM3(lastUp, lastDn) / 1e6).toFixed(4);
+      return arrastrado ? { t: tsOf(f), y, est: true } : { t: tsOf(f), y };
     });
 
-    // Estado de llenado: tirante medio de la última fecha con ambos niveles.
-    let tiranteActual: number | null = null;
+    // Estado de llenado de la SECCIÓN: último tirante conocido en cada frontera
+    // (real o arrastrado, igual que el apilado), tomando la lectura más reciente
+    // disponible de forma independiente para arriba y abajo. Así la sección
+    // dibujada coincide con el último punto de la serie de volumen.
     let nivelUpActual: number | null = null, nivelDownActual: number | null = null;
-    for (let i = fechas.length - 1; i >= 0; i--) {
-      const nUp = nivelesPorEscalaFecha.get(tr.esc_up_id)?.get(fechas[i]);
-      const nDn = nivelesPorEscalaFecha.get(tr.esc_down_id)?.get(fechas[i]);
-      if (nUp != null && nDn != null) {
-        tiranteActual = +((nUp + nDn) / 2).toFixed(3);
-        nivelUpActual = +nUp.toFixed(3); nivelDownActual = +nDn.toFixed(3);
-        break;
-      }
-    }
+    for (let i = fechas.length - 1; i >= 0 && nivelUpActual == null; i--)
+      nivelUpActual = tiranteFrontera(nivelesPorEscalaFecha.get(tr.esc_up_id)?.get(fechas[i]), 'up');
+    for (let i = fechas.length - 1; i >= 0 && nivelDownActual == null; i--)
+      nivelDownActual = tiranteFrontera(nivelesPorEscalaFecha.get(tr.esc_down_id)?.get(fechas[i]), 'down');
+    if (nivelUpActual != null) nivelUpActual = +nivelUpActual.toFixed(3);
+    if (nivelDownActual != null) nivelDownActual = +nivelDownActual.toFixed(3);
+    const tiranteActual = (nivelUpActual != null && nivelDownActual != null)
+      ? +((nivelUpActual + nivelDownActual) / 2).toFixed(3) : null;
     const tiranteDiseno = perfil?.tirante_diseno_m ?? null;
     const pctDiseno = tiranteActual != null && tiranteDiseno != null && tiranteDiseno > 0
       ? +((tiranteActual / tiranteDiseno) * 100).toFixed(1) : null;
+    // Altura REAL del canal = tirante de diseño + bordo libre (freeboard). Es la
+    // profundidad física del revestimiento; sobre ella se mide el margen a bordo.
+    const bordoLibre = perfil?.bordo_libre_m ?? null;
+    const alturaCanal = tiranteDiseno != null && bordoLibre != null
+      ? +(tiranteDiseno + bordoLibre).toFixed(3) : null;
+    const pctBordo = tiranteActual != null && alturaCanal != null && alturaCanal > 0
+      ? +((tiranteActual / alturaCanal) * 100).toFixed(1) : null;
+    // Ancho de corona = espejo a la altura total del canal (b + 2·z·(y+BL)).
+    // Es el ancho físico entre coronamientos del documento del Canal Conchos.
+    const anchoCorona = usaTrapecio && alturaCanal != null
+      ? +(b + 2 * z * alturaCanal).toFixed(2) : null;
 
     return {
       key: `${tr.esc_up_id}_${tr.esc_down_id}`, etiqueta: `${tr.esc_up}→${tr.esc_down}`,
@@ -220,7 +298,8 @@ export function serieVolumenTramos(
         tiranteActual, pctDiseno,
         plantilla: usaTrapecio ? b : (tr.ancho_canal_m || 8),
         talud: usaTrapecio ? z : 0,
-        tiranteDiseno, esTrapezoidal: usaTrapecio,
+        tiranteDiseno, bordoLibre, alturaCanal, pctBordo, esTrapezoidal: usaTrapecio,
+        anchoCorona, nSecciones,
         longitudKm: tr.longitud_km,
         nivelUpActual, nivelDownActual,
       },
@@ -244,6 +323,31 @@ export function indiceNivelesDiario(resumen: ResumenDiario[]): { idx: Map<string
     if (!idx.has(r.escala_id)) idx.set(r.escala_id, new Map());
     idx.get(r.escala_id)!.set(r.fecha, nivel);
     fechasSet.add(r.fecha);
+  }
+  return { idx, fechas: [...fechasSet].sort() };
+}
+
+// Índice escala_id -> (fecha -> {arriba, abajo}) desde lecturas_escalas, para el
+// volumen por tramo con el modelo de compuertas (necesita AMBAS caras del nivel).
+// Por día se toma la ÚLTIMA lectura con dato en cada cara (creado_en ascendente),
+// para que arriba y abajo reflejen el estado más reciente aunque vengan en
+// lecturas distintas del mismo día.
+export function indiceNivelesUpDown(
+  lecturas: LecturaEscala[]
+): { idx: Map<string, Map<string, NivelUpDown>>; fechas: string[] } {
+  const ordenadas = [...lecturas].sort((a, b) => a.creado_en.localeCompare(b.creado_en));
+  const idx = new Map<string, Map<string, NivelUpDown>>();
+  const fechasSet = new Set<string>();
+  for (const l of ordenadas) {
+    if (!idx.has(l.escala_id)) idx.set(l.escala_id, new Map());
+    const porFecha = idx.get(l.escala_id)!;
+    const prev = porFecha.get(l.fecha) ?? { arriba: null, abajo: null };
+    // Última lectura válida gana (>0); un 0/null no pisa un valor real anterior.
+    porFecha.set(l.fecha, {
+      arriba: nivelValido(l.nivel_m) ? l.nivel_m : prev.arriba,
+      abajo:  nivelValido(l.nivel_abajo_m) ? l.nivel_abajo_m : prev.abajo,
+    });
+    fechasSet.add(l.fecha);
   }
   return { idx, fechas: [...fechasSet].sort() };
 }

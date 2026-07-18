@@ -329,7 +329,19 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
   </table>
 
   <h2>2. Ubicación geográfica</h2>
-  ${mapaSVG(ests)}
+  <table>
+    <thead><tr><th>Estación</th><th>Rol</th><th>Latitud</th><th>Longitud</th><th>Elevación</th></tr></thead>
+    <tbody>${ests.map(e => `<tr>
+      <td><b>${e.nombre}</b></td>
+      <td>${e.rol === 'presa' ? 'Presa' : e.rol === 'modulo' ? 'Módulo' : 'Canal'}</td>
+      <td>${e.latitud.toFixed(4)}°</td>
+      <td>${e.longitud.toFixed(4)}°</td>
+      <td>${e.elevacion_msnm != null ? e.elevacion_msnm + ' msnm' : '—'}</td>
+    </tr>`).join('')}</tbody>
+  </table>
+  ${preds.length
+    ? `<p class="pred-nota">Ubicación espacial ilustrada en el mapa de la sección 4 (predicción).</p>`
+    : mapaSVG(ests)}
 
   <h2>3. Análisis técnico</h2>
   <div class="analisis">

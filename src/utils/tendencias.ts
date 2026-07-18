@@ -159,41 +159,32 @@ function volTramoRectM3(longitud_km: number, ancho_m: number, nivelUp: number, n
 
 // Empareja un tramo (km_up→km_down) con su geometría REPRESENTATIVA.
 // Un tramo del panel (entre escalas) puede cruzar varias secciones-tipo del
-// canal (el Canal Conchos cambia plantilla/talud/corona a lo largo). Elegir por
-// el punto medio es arbitrario; en su lugar tomamos el perfil DOMINANTE: el que
-// aporta MÁS longitud dentro del tramo. Devolvemos también cuántas geometrías
-// distintas cruza, para etiquetar honestamente las secciones compuestas.
+// canal (el Canal Conchos cambia plantilla/talud/corona a lo largo). Se toma la
+// geometría del INICIO del tramo (aguas arriba, km_up): es la sección de la
+// escala/compuerta que da nombre al tramo y la que el operador asocia con él
+// (p.ej. K-0+000→K-23 dibuja la plantilla 13.3 m de K-0, no la de aguas abajo).
+// El VOLUMEN no usa esto: integra cada sub-geometría real por su longitud. Aquí
+// sólo se decide qué trapecio se dibuja y qué b/z/corona muestra la ficha.
+// nSecciones = nº de geometrías distintas que cruza, para el badge ≠N.
 function perfilDeTramo(
   tr: TramoGeom, perfiles: PerfilGeom[]
 ): { perfil: PerfilGeom | null; nSecciones: number } {
   if (!perfiles.length) return { perfil: null, nSecciones: 0 };
   const a = Math.min(tr.km_up, tr.km_down), b = Math.max(tr.km_up, tr.km_down);
-  // Solape (km) de cada perfil con el tramo.
-  const solapes = perfiles
-    .map(p => ({ p, ov: Math.max(0, Math.min(b, p.km_fin) - Math.max(a, p.km_inicio)) }))
-    .filter(s => s.ov > 0);
-  if (!solapes.length) {
-    // Sin solape: cae al perfil que contiene el punto de inicio (o el más cercano).
-    const kmMedio = (a + b) / 2;
-    const p = perfiles.find(pp => pp.km_inicio <= kmMedio && pp.km_fin >= kmMedio)
-           ?? perfiles.find(pp => pp.km_inicio <= a && pp.km_fin >= a) ?? null;
-    return { perfil: p, nSecciones: p ? 1 : 0 };
-  }
-  // El perfil se almacena en filas cortas (p.ej. cada 2 km) que comparten la
-  // MISMA geometría. Agrupamos por firma (b/z/tirante/bordo) y sumamos el solape
-  // de cada geometría; la dominante es la de MAYOR longitud total dentro del
-  // tramo (no la fila individual más larga). Empate → la de km_inicio menor.
+  // Geometrías distintas (por firma b/z/tirante/bordo) que atraviesa el tramo.
   const firma = (p: PerfilGeom) =>
     `${p.plantilla_m}|${p.talud_z}|${p.tirante_diseno_m ?? ''}|${p.bordo_libre_m ?? ''}`;
-  const porGeom = new Map<string, { p: PerfilGeom; ov: number; km0: number }>();
-  for (const s of solapes) {
-    const f = firma(s.p);
-    const g = porGeom.get(f);
-    if (g) { g.ov += s.ov; g.km0 = Math.min(g.km0, s.p.km_inicio); }
-    else porGeom.set(f, { p: s.p, ov: s.ov, km0: s.p.km_inicio });
-  }
-  const geoms = [...porGeom.values()].sort((x, y) => y.ov - x.ov || x.km0 - y.km0);
-  return { perfil: geoms[0].p, nSecciones: porGeom.size };
+  const solapan = perfiles.filter(p => Math.min(b, p.km_fin) - Math.max(a, p.km_inicio) > 0);
+  const nSecciones = new Set(solapan.map(firma)).size;
+  // Perfil del INICIO del tramo (aguas arriba). Fallbacks: contiene km_up →
+  // el primero que solapa el tramo → el que contiene el punto medio → null.
+  const kmIni = tr.km_up, kmMedio = (a + b) / 2;
+  const perfil =
+       perfiles.find(p => p.km_inicio <= kmIni && p.km_fin >= kmIni)
+    ?? solapan.slice().sort((x, y) => x.km_inicio - y.km_inicio)[0]
+    ?? perfiles.find(p => p.km_inicio <= kmMedio && p.km_fin >= kmMedio)
+    ?? null;
+  return { perfil, nSecciones: perfil ? Math.max(1, nSecciones) : 0 };
 }
 
 // Nivel de una escala en una fecha, distinguiendo las dos caras de su compuerta:

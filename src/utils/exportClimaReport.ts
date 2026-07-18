@@ -188,14 +188,23 @@ function predice24h(e: EstacionConLectura): Pred24 {
     const tMinEsp = tActual != null ? +(tActual - AMPL * 0.45).toFixed(0) : null;
     const etoEsp = l.eto_mm ?? l.et_dia_mm ?? null;
 
-    // Probabilidad de lluvia (heurística): presión bajando + humedad alta la suben.
+    // Probabilidad de lluvia (heurística meteorológica): la TENDENCIA barométrica
+    // es el factor dominante. Presión subiendo → tiempo estable (suprime lluvia);
+    // bajando → deterioro. La humedad solo suma cuando la presión NO está al alza
+    // (una HR alta de madrugada es rocío normal, no señal de lluvia si la presión sube).
     let pLluvia = 0;
+    const subiendo = trend != null && trend > 0.3;
     if (trend != null) {
-        if (trend <= -1.5) pLluvia += 45; else if (trend <= -0.5) pLluvia += 25; else if (trend < 0) pLluvia += 10;
+        if (trend <= -2) pLluvia += 55;
+        else if (trend <= -1) pLluvia += 40;
+        else if (trend <= -0.3) pLluvia += 20;
+        else if (trend >= 1) pLluvia -= 15;          // ascenso marcado = muy estable
     }
-    if (hum >= 80) pLluvia += 25; else if (hum >= 65) pLluvia += 10;
-    if ((l.lluvia_24h_mm ?? 0) > 0) pLluvia += 15;
-    pLluvia = Math.min(90, pLluvia);
+    if (!subiendo) {                                  // humedad solo si no hay ascenso
+        if (hum >= 85) pLluvia += 20; else if (hum >= 75) pLluvia += 8;
+    }
+    if ((l.lluvia_24h_mm ?? 0) > 0.5) pLluvia += 15;  // ya llovió = sistema activo
+    pLluvia = Math.max(0, Math.min(90, pLluvia));
 
     let cielo: Cielo, icono: string, color: string, etiqueta: string, nota: string;
     if (viento > 6) {
@@ -204,9 +213,9 @@ function predice24h(e: EstacionConLectura): Pred24 {
     } else if (pLluvia >= 45) {
         cielo = 'lluvia'; icono = '🌧️'; color = '#2563eb'; etiqueta = 'Probable lluvia';
         nota = `Presión ${trend != null ? (trend < 0 ? 'en descenso' : 'estable') : 's/tendencia'} y humedad ${hum.toFixed(0)} %: aumenta la probabilidad de precipitación.`;
-    } else if (pLluvia >= 20 || (trend != null && trend < -0.3)) {
+    } else if (pLluvia >= 30 || (trend != null && trend < -0.3)) {
         cielo = 'variable'; icono = '⛅'; color = '#0ea5e9'; etiqueta = 'Variable';
-        nota = 'Condiciones cambiantes; vigilar evolución de la presión.';
+        nota = `Presión ${trend != null && trend < 0 ? 'en descenso' : 'sin cambio marcado'}; condiciones cambiantes, vigilar evolución.`;
     } else {
         cielo = 'estable'; icono = '☀️'; color = '#eab308'; etiqueta = 'Estable / despejado';
         nota = `Presión ${trend != null && trend > 0 ? 'en ascenso' : 'estable'}: tiempo seco y demanda hídrica sostenida.`;

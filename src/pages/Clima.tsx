@@ -382,7 +382,7 @@ const Clima = () => {
                 <section className="card estaciones-section">
                     <div className="estaciones-header">
                         <h3><Activity size={18} /> Estaciones en tiempo real (WeatherLink / Davis)</h3>
-                        <button className="estaciones-dl" onClick={() => exportClimaReport(estaciones)} title="Descargar informe de clima (HTML)">
+                        <button className="estaciones-dl" onClick={() => { void exportClimaReport(estaciones); }} title="Descargar informe técnico de clima (HTML)">
                             <Download size={14} /> Informe
                         </button>
                     </div>

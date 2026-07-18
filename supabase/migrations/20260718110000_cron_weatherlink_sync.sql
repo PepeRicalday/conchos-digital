@@ -19,8 +19,8 @@ SELECT cron.unschedule('weatherlink-sync-2h')
 WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'weatherlink-sync-2h');
 
 -- Cada 2 horas: invoca la Edge Function.
--- ⚠️ Reemplaza <ANON_KEY> por la anon key del proyecto antes de aplicar, o usa
---    Vault (recomendado). Ver nota de despliegue al final.
+-- La anon key es PÚBLICA (rol 'anon', ya viaja en el frontend), así que es seguro
+-- embeberla aquí. La Edge Function usa el service_role internamente para escribir.
 SELECT cron.schedule(
   'weatherlink-sync-2h',
   '0 */2 * * *',
@@ -29,15 +29,16 @@ SELECT cron.schedule(
     url     := 'https://dumfyrgwnshcgeibffvr.supabase.co/functions/v1/weatherlink-sync',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.settings.anon_key', true)
+      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1bWZ5cmd3bnNoY2dlaWJmZnZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA2ODUyNTcsImV4cCI6MjA4NjI2MTI1N30.4vB-8b2nnyqXw6JDJdQYyzjOf4Lx-UJgAfaR7uRrCQY'
     ),
     body    := '{}'::jsonb
   );
   $$
 );
 
--- ── Nota de despliegue ──────────────────────────────────────────────────────
--- Para que el header Authorization funcione sin exponer la anon key en el SQL,
--- define el parámetro una sola vez (ejecutar como superusuario / desde el panel):
---   ALTER DATABASE postgres SET app.settings.anon_key = '<ANON_KEY_DEL_PROYECTO>';
--- Alternativa: pegar la anon key directamente en el header del cron.schedule.
+-- ── Verificación ────────────────────────────────────────────────────────────
+-- Ver el job creado:      SELECT jobid, schedule, jobname FROM cron.job WHERE jobname = 'weatherlink-sync-2h';
+-- Ver ejecuciones/errores: SELECT status, return_message, start_time
+--                          FROM cron.job_run_details WHERE jobid =
+--                            (SELECT jobid FROM cron.job WHERE jobname='weatherlink-sync-2h')
+--                          ORDER BY start_time DESC LIMIT 5;

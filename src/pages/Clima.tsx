@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import {
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    BarChart, Bar, Legend
+    BarChart, Bar, Legend, LabelList
 } from 'recharts';
 import './Clima.css';
 import { useFecha } from '../context/FechaContext';
@@ -168,7 +168,7 @@ const EstacionCard = ({ est }: { est: EstacionConLectura }) => {
                     <em className="estacion-rol">{rolLabel(est.rol)}</em>
                 </div>
                 <span className={`estacion-status ${est.enLinea ? 'on' : 'off'}`}>
-                    {est.enLinea ? '● en línea'
+                    {est.enLinea ? 'en línea'
                         : est.edadHoras != null ? `○ ${est.edadHoras < 48 ? Math.round(est.edadHoras) + ' h' : Math.round(est.edadHoras / 24) + ' d'} sin datos`
                             : '○ sin datos'}
                 </span>
@@ -246,15 +246,25 @@ const Clima = () => {
         }
     }
 
-    // Precipitation data per station
-    const precipData = clima.map(c => {
-        const presa = presas.find(p => p.id === c.presa_id);
-        return {
-            station: presa?.nombre_corto || c.presa_id,
-            precipitacion: c.precipitacion_mm || 0,
-            evaporacion: c.evaporacion_mm || 0,
-        };
-    });
+    // Precipitación / evaporación de las DOS PRESAS del distrito, tomadas de sus
+    // estaciones WeatherLink representativas (datos reales, no clima_presas):
+    //   · Presa Boquilla       ← estación "Boquilla" (a ~3 km, rol presa)
+    //   · Presa Fco. I. Madero ← estación "Las Vírgenes" (la más cercana, ~22 km)
+    // La evaporación usa la ET de la estación (et_dia_mm), pérdida real medida.
+    const estPorNombre = (n: string) => estaciones.find(e => e.nombre.toLowerCase().includes(n));
+    const presaEstaciones = [
+        { presa: 'Presa Boquilla', est: estPorNombre('boquilla') },
+        { presa: 'Presa Fco. I. Madero', est: estPorNombre('vírgenes') ?? estPorNombre('virgenes') },
+    ];
+    const precipData = presaEstaciones
+        .filter(x => x.est?.lectura)
+        .map(x => ({
+            station: x.presa,
+            estacion: x.est!.nombre,
+            precipitacion: +(x.est!.lectura!.lluvia_dia_mm ?? 0),
+            evaporacion: +(x.est!.lectura!.et_dia_mm ?? 0),
+            enLinea: x.est!.enLinea,
+        }));
 
     // Irrigation alerts derived from real data
     const irrigationAlerts = [];
@@ -464,22 +474,34 @@ const Clima = () => {
                     </section>
                 )}
 
-                {/* Section: Precipitation by Station */}
+                {/* Section: Precipitación / Evaporación — dos presas del distrito */}
                 {precipData.length > 0 && (
                     <section className="card history-section">
-                        <h3><TrendingDown size={18} /> Precipitación y Evaporación por Estación</h3>
+                        <h3><TrendingDown size={18} /> Precipitación y Evaporación — Presas del Distrito</h3>
+                        <p className="chart-sub">Del día, medido en la estación de cada presa (mm)</p>
                         <div className="chart-container">
-                            <ResponsiveContainer width="100%" height={200}>
-                                <BarChart data={precipData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                                    <XAxis dataKey="station" tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                                    <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} unit=" mm" />
+                            <ResponsiveContainer width="100%" height={210}>
+                                <BarChart data={precipData} margin={{ top: 16, right: 12, left: 0, bottom: 0 }} barGap={2} barCategoryGap="34%">
+                                    <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.06)" />
+                                    <XAxis dataKey="station" tick={{ fill: '#cbd5e1', fontSize: 11, fontWeight: 600 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} />
+                                    <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} unit=" mm" axisLine={false} tickLine={false} />
                                     <Tooltip
-                                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                                        cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                                        contentStyle={{ backgroundColor: '#0f1c30', border: '1px solid rgba(56,189,248,0.35)', borderRadius: '8px', fontSize: '11px' }}
+                                        labelStyle={{ color: '#e2e8f0', fontWeight: 700 }}
+                                        formatter={(v, n) => [`${Number(v).toFixed(1)} mm`, n]}
+                                        labelFormatter={(label, payload) => {
+                                            const est = payload?.[0]?.payload?.estacion;
+                                            return est ? `${label} · est. ${est}` : String(label);
+                                        }}
                                     />
-                                    <Legend wrapperStyle={{ fontSize: '10px' }} />
-                                    <Bar dataKey="precipitacion" name="Precipitación" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                                    <Bar dataKey="evaporacion" name="Evaporación" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: 4 }} iconType="circle" iconSize={9} />
+                                    <Bar dataKey="precipitacion" name="Precipitación" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                                        <LabelList dataKey="precipitacion" position="top" formatter={(v) => Number(v) > 0 ? Number(v).toFixed(1) : ''} style={{ fill: '#93c5fd', fontSize: 10, fontWeight: 600 }} />
+                                    </Bar>
+                                    <Bar dataKey="evaporacion" name="Evaporación (ET)" fill="#f97316" radius={[4, 4, 0, 0]}>
+                                        <LabelList dataKey="evaporacion" position="top" formatter={(v) => Number(v) > 0 ? Number(v).toFixed(1) : ''} style={{ fill: '#fdba74', fontSize: 10, fontWeight: 600 }} />
+                                    </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>

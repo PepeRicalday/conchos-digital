@@ -118,6 +118,9 @@ Deno.serve(async (req) => {
         const humPct = pick(records, "hum");
         const dewC = fToC(pick(records, "dew_point"));
         const presHpa = inHgToHpa(pick(records, "bar_sea_level", "bar"));
+        // Tendencia barométrica (inHg/3h de Davis) → hPa/3h. Predictor de tiempo:
+        // sube = mejora/estable, baja = probable deterioro/lluvia.
+        const barTrendHpa = inHgToHpa(pick(records, "bar_trend"));
         const vientoMs = mphToMs(pick(records, "wind_speed_last", "wind_speed_avg_last_10_min"));
         const vientoDir = pick(records, "wind_dir_last", "wind_dir_scalar_avg_last_10_min");
         const rafagaMs = mphToMs(pick(records, "wind_speed_hi_last_2_min", "wind_gust_10_min"));
@@ -158,6 +161,7 @@ Deno.serve(async (req) => {
           viento_rafaga_ms: rafagaMs, lluvia_dia_mm: lluviaDia, lluvia_24h_mm: lluvia24,
           lluvia_mes_mm: lluviaMes, lluvia_anio_mm: lluviaAnio, rad_solar_wm2: radWm2, uv_index: uv,
           et_dia_mm: etDiaMm, et_mes_mm: etMesMm, eto_mm: eto, gdd: gddVal,
+          bar_trend_hpa: barTrendHpa,
           payload: { ts: tsSec, records_count: records.length },
         }, { onConflict: "estacion_id,ts" });
         if (eIns) { resultados.push({ estacion: est.nombre, ok: false, motivo: eIns.message }); continue; }

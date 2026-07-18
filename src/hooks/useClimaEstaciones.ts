@@ -42,6 +42,7 @@ export interface LecturaClima {
     et_mes_mm: number | null;
     eto_mm: number | null;
     gdd: number | null;
+    bar_trend_hpa: number | null;
 }
 
 // Estación + su lectura más reciente, lista para tarjetas/mapa.

@@ -36,9 +36,12 @@ async function assetToDataURI(path: string): Promise<string> {
 
 // ── Mapa georreferenciado con el Canal Conchos de fondo (proyección lat/lon
 //    con corrección de aspecto por latitud), presas y estaciones ─────────────
-function mapaSVG(ests: EstacionConLectura[]): string {
+// Si se pasan `preds`, el mapa se vuelve de PRONÓSTICO: cada estación lleva el
+// ícono/color de su predicción a 24 h (capa de estado sobre el plano).
+function mapaSVG(ests: EstacionConLectura[], preds?: Pred24[]): string {
     const pts = ests.filter(e => e.latitud && e.longitud);
     if (!pts.length) return '';
+    const predDe = (nombre: string) => preds?.find(p => p.estacion === nombre);
     // Extensión que abarca canal + presas + estaciones, con MARGEN geográfico
     // (5 % del rango) para que ningún punto ni etiqueta quede pegado al borde.
     const allLat = [...CANAL.map(p => p[1]), ...PRESAS.map(p => p.lat), ...pts.map(e => e.latitud)];
@@ -65,10 +68,17 @@ function mapaSVG(ests: EstacionConLectura[]): string {
     }).join('');
     const estSVG = pts.map(e => {
         const x = sx(e.longitud), y = sy(e.latitud);
-        const col = e.enLinea ? '#0284c7' : '#94a3b8';
-        return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6.5" fill="${col}" stroke="#fff" stroke-width="2"/>
-                <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="10" fill="none" stroke="${col}" stroke-width="1" opacity="0.4"/>
-                <text x="${x.toFixed(1)}" y="${(y-13).toFixed(1)}" font-size="9.5" font-weight="600" text-anchor="middle" fill="#0c4a6e" font-family="system-ui">${e.nombre}</text>`;
+        const pr = predDe(e.nombre);
+        const col = pr ? pr.color : (e.enLinea ? '#0284c7' : '#94a3b8');
+        // En modo pronóstico: ícono de estado + temp máx esperada bajo el marcador.
+        const icono = pr
+            ? `<text x="${x.toFixed(1)}" y="${(y+4).toFixed(1)}" font-size="12" text-anchor="middle">${pr.icono}</text>
+               <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="12" fill="none" stroke="${col}" stroke-width="2"/>
+               ${pr.tMaxEsp != null ? `<text x="${x.toFixed(1)}" y="${(y+24).toFixed(1)}" font-size="8.5" font-weight="700" text-anchor="middle" fill="${col}" font-family="system-ui">máx ${pr.tMaxEsp}°</text>` : ''}`
+            : `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6.5" fill="${col}" stroke="#fff" stroke-width="2"/>
+               <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="10" fill="none" stroke="${col}" stroke-width="1" opacity="0.4"/>`;
+        return `${icono}
+                <text x="${x.toFixed(1)}" y="${(y-15).toFixed(1)}" font-size="9.5" font-weight="600" text-anchor="middle" fill="#0c4a6e" font-family="system-ui">${e.nombre}</text>`;
     }).join('');
 
     // Retícula de grados (líneas tenues de referencia = "plano")
@@ -88,7 +98,7 @@ function mapaSVG(ests: EstacionConLectura[]): string {
         <path d="${canalPath}" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>
         <path d="${canalPath}" fill="none" stroke="#93c5fd" stroke-width="0.8" stroke-dasharray="1,4"/>
         ${presasSVG}${estSVG}
-        <text x="${P+4}" y="${P+13}" font-size="9" fill="#64748b" font-family="system-ui">Canal Principal Conchos (K0→K104) · presas y estaciones climáticas</text>
+        <text x="${P+4}" y="${P+13}" font-size="9" fill="#64748b" font-family="system-ui">${preds ? 'Pronóstico 24 h por estación — Canal Conchos (☀️ estable · ⛅ variable · 🌧️ lluvia · 💨 ventoso)' : 'Canal Principal Conchos (K0→K104) · presas y estaciones climáticas'}</text>
         <g transform="translate(${W-92},${H-30})">
           <line x1="0" y1="0" x2="${(0.1*kx/spanLo*(W-2*P)).toFixed(0)}" y2="0" stroke="#334155" stroke-width="1.5"/>
           <text x="0" y="-4" font-size="7.5" fill="#475569" font-family="system-ui">~10 km</text>
@@ -149,6 +159,61 @@ function analisisTecnico(ests: EstacionConLectura[], etoProm: number | null, gdd
     return { demanda, balance, termico, viento, recomendaciones };
 }
 
+// ── Predicción por TENDENCIA (nowcasting) a 24 h, por estación ──────────────
+// No es un pronóstico numérico (WRF/GFS): extrapola desde la señal REAL de la
+// estación. La tendencia barométrica es el predictor clásico de tiempo:
+//   sube  → estable / mejora     · baja  → probable deterioro / lluvia
+// La temp máx/mín esperada usa la amplitud diurna típica del desierto chihuahuense
+// (~14 °C) sobre la temperatura actual; la ETo esperada persiste el valor del día.
+type Cielo = 'estable' | 'variable' | 'lluvia' | 'ventoso';
+interface Pred24 {
+    estacion: string; lat: number; lon: number; enLinea: boolean;
+    cielo: Cielo; icono: string; color: string; etiqueta: string;
+    tMaxEsp: number | null; tMinEsp: number | null; etoEsp: number | null;
+    pLluvia: number; nota: string;
+}
+
+function predice24h(e: EstacionConLectura): Pred24 {
+    const l = e.lectura;
+    const base: Omit<Pred24, 'cielo' | 'icono' | 'color' | 'etiqueta' | 'tMaxEsp' | 'tMinEsp' | 'etoEsp' | 'pLluvia' | 'nota'> =
+        { estacion: e.nombre, lat: e.latitud, lon: e.longitud, enLinea: e.enLinea };
+    if (!l) return { ...base, cielo: 'variable', icono: '○', color: '#94a3b8', etiqueta: 'sin datos', tMaxEsp: null, tMinEsp: null, etoEsp: null, pLluvia: 0, nota: 'Sin lectura reciente.' };
+
+    const trend = l.bar_trend_hpa;           // hPa/3h
+    const viento = l.viento_ms ?? 0;
+    const hum = l.hum_rel_pct ?? 0;
+    const AMPL = 14;                          // amplitud diurna típica (°C)
+    const tActual = l.temp_c;
+    const tMaxEsp = tActual != null ? +(tActual + AMPL * 0.55).toFixed(0) : null;
+    const tMinEsp = tActual != null ? +(tActual - AMPL * 0.45).toFixed(0) : null;
+    const etoEsp = l.eto_mm ?? l.et_dia_mm ?? null;
+
+    // Probabilidad de lluvia (heurística): presión bajando + humedad alta la suben.
+    let pLluvia = 0;
+    if (trend != null) {
+        if (trend <= -1.5) pLluvia += 45; else if (trend <= -0.5) pLluvia += 25; else if (trend < 0) pLluvia += 10;
+    }
+    if (hum >= 80) pLluvia += 25; else if (hum >= 65) pLluvia += 10;
+    if ((l.lluvia_24h_mm ?? 0) > 0) pLluvia += 15;
+    pLluvia = Math.min(90, pLluvia);
+
+    let cielo: Cielo, icono: string, color: string, etiqueta: string, nota: string;
+    if (viento > 6) {
+        cielo = 'ventoso'; icono = '💨'; color = '#f59e0b'; etiqueta = 'Ventoso';
+        nota = `Viento sostenido ${viento.toFixed(1)} m/s; posible deriva en aspersión las próximas horas.`;
+    } else if (pLluvia >= 45) {
+        cielo = 'lluvia'; icono = '🌧️'; color = '#2563eb'; etiqueta = 'Probable lluvia';
+        nota = `Presión ${trend != null ? (trend < 0 ? 'en descenso' : 'estable') : 's/tendencia'} y humedad ${hum.toFixed(0)} %: aumenta la probabilidad de precipitación.`;
+    } else if (pLluvia >= 20 || (trend != null && trend < -0.3)) {
+        cielo = 'variable'; icono = '⛅'; color = '#0ea5e9'; etiqueta = 'Variable';
+        nota = 'Condiciones cambiantes; vigilar evolución de la presión.';
+    } else {
+        cielo = 'estable'; icono = '☀️'; color = '#eab308'; etiqueta = 'Estable / despejado';
+        nota = `Presión ${trend != null && trend > 0 ? 'en ascenso' : 'estable'}: tiempo seco y demanda hídrica sostenida.`;
+    }
+    return { ...base, cielo, icono, color, etiqueta, tMaxEsp, tMinEsp, etoEsp, pLluvia, nota };
+}
+
 async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     const [logoSRL, logoSICA] = await Promise.all([
         assetToDataURI('/logos/logo-srl.png'),
@@ -163,6 +228,18 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     const gddProm = gdds.length ? gdds.reduce((a, b) => a + b, 0) / gdds.length : null;
     const lluviaTotal = ests.reduce((a, e) => a + (e.lectura?.lluvia_dia_mm ?? 0), 0);
     const an = analisisTecnico(ests, etoProm, gddProm, lluviaTotal);
+    // Predicción por tendencia (nowcasting) a 24 h por estación en línea
+    const preds = ests.filter(e => e.enLinea && e.lectura).map(predice24h);
+
+    // Filas de la tabla de predicción 24 h
+    const filasPred = preds.map(p => `<tr>
+        <td><b>${p.estacion}</b></td>
+        <td style="color:${p.color};font-weight:600">${p.icono} ${p.etiqueta}</td>
+        <td>${p.tMinEsp != null ? p.tMinEsp + '°' : '—'} / <b>${p.tMaxEsp != null ? p.tMaxEsp + '°' : '—'}</b></td>
+        <td>${p.pLluvia}%</td>
+        <td>${p.etoEsp != null ? p.etoEsp.toFixed(1) + ' mm' : '—'}</td>
+        <td style="font-size:0.74rem;color:#475569">${p.nota}</td>
+    </tr>`).join('');
 
     const filas = ests.map(e => {
         const l = e.lectura;
@@ -213,6 +290,9 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
   .analisis p { font-size: 0.82rem; margin: 4px 0 12px; }
   .reco { list-style: none; padding: 0; margin: 6px 0; }
   .reco li { font-size: 0.82rem; padding: 7px 12px; margin: 6px 0; background: #eff6ff; border-left: 3px solid ${AZUL}; border-radius: 4px; }
+  .pred-nota { font-size: 0.76rem; color: #64748b; font-style: italic; margin: 4px 0 10px; }
+  .pred-tabla { margin-top: 12px; } .pred-tabla th { background: ${AZUL}; }
+  .pred-tabla td { vertical-align: top; }
   .foot { margin-top: 32px; padding-top: 14px; border-top: 1px solid #e2e8f0; font-size: 0.7rem; color: #94a3b8; display: flex; justify-content: space-between; gap: 12px; }
   @media print { body { padding: 0; } .kpi, .analisis, table { break-inside: avoid; } }
 </style></head><body><div class="wrap">
@@ -254,7 +334,16 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     <p>${an.viento}</p>
   </div>
 
-  <h2>4. Recomendaciones operativas</h2>
+  ${preds.length ? `
+  <h2>4. Predicción a 24 h (por tendencia)</h2>
+  <p class="pred-nota">Nowcasting desde la señal real de cada estación (tendencia barométrica, humedad y viento). No sustituye un pronóstico meteorológico numérico; orienta la operación de las próximas 24 h.</p>
+  ${mapaSVG(ests, preds)}
+  <table class="pred-tabla">
+    <thead><tr><th>Estación</th><th>Estado esperado</th><th>Temp mín/máx</th><th>Prob. lluvia</th><th>ETₒ esp.</th><th>Detalle</th></tr></thead>
+    <tbody>${filasPred}</tbody>
+  </table>` : ''}
+
+  <h2>${preds.length ? '5' : '4'}. Recomendaciones operativas</h2>
   <ul class="reco">
     ${an.recomendaciones.map(r => `<li>${r}</li>`).join('')}
   </ul>

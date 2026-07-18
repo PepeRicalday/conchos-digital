@@ -1,5 +1,5 @@
 import {
-    Cloud, Sun, Wind, Droplets, Thermometer, AlertTriangle,
+    Cloud, CloudRain, Sun, Wind, Droplets, Thermometer, AlertTriangle,
     TrendingDown, MapPin, RefreshCw,
     Leaf, Zap, Activity, Loader
 } from 'lucide-react';
@@ -12,6 +12,7 @@ import { useFecha } from '../context/FechaContext';
 import { usePresas, type ClimaPresaData } from '../hooks/usePresas';
 import { useClimaEstaciones, type EstacionConLectura } from '../hooks/useClimaEstaciones';
 import { exportClimaReport } from '../utils/exportClimaReport';
+import { formateaEdad, clasificaCielo, PROCEDENCIA_LABEL } from '../utils/cielo';
 import { Download } from 'lucide-react';
 
 // Types for display
@@ -159,6 +160,9 @@ const rolLabel = (rol: string) =>
 
 const EstacionCard = ({ est }: { est: EstacionConLectura }) => {
     const l = est.lectura;
+    const q = est.calidad;
+    const c = est.cielo;
+    const fc = est.pronostico;
     return (
         <div className={`estacion-card ${est.enLinea ? 'online' : 'offline'}`}>
             <div className="estacion-head">
@@ -167,23 +171,46 @@ const EstacionCard = ({ est }: { est: EstacionConLectura }) => {
                     <span>{est.nombre}</span>
                     <em className="estacion-rol">{rolLabel(est.rol)}</em>
                 </div>
-                <span className={`estacion-status ${est.enLinea ? 'on' : 'off'}`}>
-                    {est.enLinea ? 'en línea'
-                        : est.edadHoras != null ? `○ ${est.edadHoras < 48 ? Math.round(est.edadHoras) + ' h' : Math.round(est.edadHoras / 24) + ' d'} sin datos`
-                            : '○ sin datos'}
+                {/* Calidad + edad del dato: ningún valor se presenta como "actual" sin ellas. */}
+                <span className="estacion-status" style={{ color: q.color }} title={q.flags.join(', ') || 'sin banderas'}>
+                    ● {q.etiqueta} · {formateaEdad(q.edadMin)}
                 </span>
             </div>
+
+            {/* Condición del cielo: variable propia, separada de la lluvia.
+                Sin fuente de nubosidad se muestra "no determinado", sin icono solar. */}
+            <div className="estacion-cielo" style={{ borderColor: c.color }}>
+                <span className="cielo-estado" style={{ color: c.color }}>
+                    {c.icono && <span className="cielo-icono">{c.icono}</span>}
+                    {c.etiqueta}
+                    {c.coberturaPct != null && <b> · {c.coberturaPct}%</b>}
+                </span>
+                <span className="cielo-meta">
+                    <em className={`proc proc-${c.procedencia}`}>{PROCEDENCIA_LABEL[c.procedencia]}</em>
+                    {c.procedencia !== 'ninguna' && <span>confianza {c.confianzaEtiqueta.toLowerCase()}</span>}
+                </span>
+            </div>
+
             {l ? (
                 <div className="estacion-grid">
                     <div className="est-var"><Thermometer size={13} /><b>{l.temp_c != null ? l.temp_c.toFixed(1) : '—'}</b><small>°C</small></div>
                     <div className="est-var"><Droplets size={13} /><b>{l.hum_rel_pct != null ? Math.round(l.hum_rel_pct) : '—'}</b><small>% HR</small></div>
                     <div className="est-var"><Wind size={13} /><b>{l.viento_ms != null ? l.viento_ms.toFixed(1) : '—'}</b><small>m/s</small></div>
-                    <div className="est-var"><Cloud size={13} /><b>{l.lluvia_dia_mm != null ? l.lluvia_dia_mm.toFixed(1) : '—'}</b><small>mm día</small></div>
+                    <div className="est-var"><CloudRain size={13} /><b>{l.lluvia_dia_mm != null ? l.lluvia_dia_mm.toFixed(1) : '—'}</b><small>mm día</small></div>
                     <div className="est-var accent"><Activity size={13} /><b>{l.eto_mm != null ? l.eto_mm.toFixed(2) : (l.et_dia_mm != null ? l.et_dia_mm.toFixed(2) : '—')}</b><small>ETₒ mm</small></div>
                     <div className="est-var"><Zap size={13} /><b>{l.gdd != null ? l.gdd.toFixed(0) : '—'}</b><small>GDD</small></div>
                 </div>
             ) : (
                 <div className="estacion-nodata">Aún sin lecturas registradas.</div>
+            )}
+
+            {/* Precipitación prevista: escala independiente de la nubosidad. */}
+            {fc && (
+                <div className="estacion-precip">
+                    <Droplets size={12} />
+                    <span>Lluvia prevista: <b>{fc.precip_prob_pct != null ? `${fc.precip_prob_pct}%` : '—'}</b>
+                        {fc.precip_mm != null && fc.precip_mm > 0 && ` · ${fc.precip_mm.toFixed(1)} mm`}</span>
+                </div>
             )}
         </div>
     );
@@ -193,7 +220,7 @@ const EstacionCard = ({ est }: { est: EstacionConLectura }) => {
 const Clima = () => {
     const { fechaSeleccionada } = useFecha();
     const { presas, clima, loading } = usePresas(fechaSeleccionada);
-    const { estaciones, loading: loadingEst } = useClimaEstaciones();
+    const { estaciones, loading: loadingEst, refrescarAhora, refresco } = useClimaEstaciones();
 
     // Build weather conditions from Supabase data
     const conditions = buildConditions(clima);
@@ -266,6 +293,23 @@ const Clima = () => {
             enLinea: x.est!.enLinea,
         }));
 
+    // ── Condición del cielo del distrito ────────────────────────────────────
+    // Se promedia SOLO entre estaciones con una fuente real de nubosidad. Si no
+    // hay ninguna, cieloDistrito es null y la UI declara "NO DETERMINADO" en vez
+    // de deducir el estado del cielo a partir de la precipitación.
+    const estConCobertura = estaciones.filter(e => e.cielo.coberturaPct != null);
+    const cobDistrito = estConCobertura.length
+        ? estConCobertura.reduce((a, e) => a + (e.cielo.coberturaPct ?? 0), 0) / estConCobertura.length
+        : null;
+    const cieloDistrito = cobDistrito != null ? clasificaCielo(cobDistrito) : null;
+
+    // Precipitación: escala independiente del cielo, observada y prevista.
+    const lluviaObsTotal = estaciones.reduce((a, e) => a + (e.lectura?.lluvia_dia_mm ?? 0), 0);
+    const probsFc = estaciones
+        .map(e => e.pronostico?.precip_prob_pct)
+        .filter((v): v is number => v != null);
+    const probMaxFc = probsFc.length ? Math.round(Math.max(...probsFc)) : null;
+
     // Irrigation alerts derived from real data
     const irrigationAlerts = [];
     if (clima.length > 0) {
@@ -297,6 +341,15 @@ const Clima = () => {
                 threshold: '< 5°C',
             });
         }
+    }
+    // Dato vencido: se avisa explícitamente para que no se lea como "actual".
+    const vencidas = estaciones.filter(e => e.calidad.status === 'expired');
+    if (vencidas.length > 0) {
+        irrigationAlerts.push({
+            active: true,
+            message: `${vencidas.length} estación(es) sin reportar hace más de 1 h (${vencidas.map(e => e.nombre).join(', ')}): no usar como lectura actual`,
+            threshold: 'edad > 60 min',
+        });
     }
 
     if (loading && clima.length === 0) {
@@ -377,15 +430,84 @@ const Clima = () => {
                 </div>
             </section>
 
+            {/* Condición del cielo del distrito — separada de la precipitación.
+                Si ninguna estación tiene fuente de nubosidad, se declara NO
+                DETERMINADO en vez de inferirlo de la lluvia observada. */}
+            {estaciones.length > 0 && (
+                <section className={`card cielo-panel ${cieloDistrito ? '' : 'sin-fuente'}`}>
+                    <div className="cielo-panel-main">
+                        <div className="cielo-panel-icono" style={{ color: cieloDistrito?.color ?? '#f59e0b' }}>
+                            {cieloDistrito?.icono || <AlertTriangle size={30} />}
+                        </div>
+                        <div className="cielo-panel-txt">
+                            <span className="cielo-panel-label">Condición del cielo · distrito</span>
+                            <h3 style={{ color: cieloDistrito?.color ?? '#fbbf24' }}>
+                                {cieloDistrito
+                                    ? `${cieloDistrito.etiqueta} · ${cobDistrito!.toFixed(0)}% de cobertura`
+                                    : 'NO DETERMINADO'}
+                            </h3>
+                            <p>
+                                {cieloDistrito
+                                    ? `Promedio de ${estConCobertura.length} estación(es) con fuente de nubosidad.`
+                                    : 'Sin cobertura nubosa de modelo, satélite ni radiación utilizable. '
+                                      + 'El estado del cielo no se infiere de la lluvia: 0 mm y 0 % de probabilidad son compatibles con cielo cubierto.'}
+                            </p>
+                        </div>
+                    </div>
+                    {/* Precipitación: tarjeta propia, escala independiente */}
+                    <div className="cielo-panel-precip">
+                        <span className="cielo-panel-label">Precipitación</span>
+                        <div className="precip-linea">
+                            <Droplets size={14} />
+                            <span>Observada hoy <b>{lluviaObsTotal.toFixed(1)} mm</b></span>
+                        </div>
+                        <div className="precip-linea">
+                            <CloudRain size={14} />
+                            <span>Prevista {probMaxFc != null ? <b>{probMaxFc}%</b> : <em>sin pronóstico</em>}</span>
+                        </div>
+                    </div>
+                </section>
+            )}
+
             {/* Estaciones WeatherLink en tiempo real */}
             {estaciones.length > 0 && (
                 <section className="card estaciones-section">
                     <div className="estaciones-header">
                         <h3><Activity size={18} /> Estaciones en tiempo real (WeatherLink / Davis)</h3>
-                        <button className="estaciones-dl" onClick={() => { void exportClimaReport(estaciones); }} title="Descargar informe técnico de clima (HTML)">
-                            <Download size={14} /> Informe
-                        </button>
+                        <div className="estaciones-acciones">
+                            {/* Refresco manual: fuerza el sync de estaciones y modelo antes de
+                                emitir el informe, sin alterar los crones automáticos. */}
+                            <button
+                                className="estaciones-refresh"
+                                onClick={() => { void refrescarAhora(); }}
+                                disabled={refresco.activo}
+                                title="Consulta ahora mismo las estaciones y el modelo de pronóstico, para emitir el informe con datos frescos"
+                            >
+                                <RefreshCw size={14} className={refresco.activo ? 'girando' : ''} />
+                                {refresco.activo ? 'Actualizando…' : 'Actualizar datos'}
+                            </button>
+                            <button className="estaciones-dl" onClick={() => { void exportClimaReport(estaciones); }} title="Descargar informe técnico de clima (HTML)">
+                                <Download size={14} /> Informe
+                            </button>
+                        </div>
                     </div>
+
+                    {/* Retroalimentación del refresco manual */}
+                    {(refresco.activo || refresco.paso || refresco.resultado || refresco.error) && (
+                        <div className={`refresco-estado ${refresco.error ? 'con-error' : ''}`}>
+                            {refresco.activo
+                                ? <span>{refresco.paso}</span>
+                                : <>
+                                    {refresco.resultado && <span>Actualizado · {refresco.resultado}</span>}
+                                    {refresco.ultimoEn && (
+                                        <span className="refresco-hora">
+                                            {refresco.ultimoEn.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    )}
+                                    {refresco.error && <span className="refresco-err">{refresco.error}</span>}
+                                </>}
+                        </div>
+                    )}
                     <div className="estaciones-grid">
                         {estaciones.map((e) => <EstacionCard key={e.id} est={e} />)}
                     </div>

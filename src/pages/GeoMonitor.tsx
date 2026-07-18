@@ -15,6 +15,7 @@ import { ShapefileImporter, type GeoLayer } from '../components/ShapefileImporte
 import { useAuth } from '../context/AuthContext';
 import { useHydricEvents } from '../hooks/useHydricEvents';
 import { useClimaEstaciones } from '../hooks/useClimaEstaciones';
+import { esModuloSRL, moduloSRLde } from '../utils/modulosSRL';
 import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
 import { useMetadataStore } from '../store/useMetadataStore';
 
@@ -271,7 +272,17 @@ const GeoMonitor = () => {
                     fetch('/geo/canal_conchos.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
                     fetch('/geo/rio_conchos.geojson').then(r => r.ok ? r.json() : null).catch(() => null),
                 ]);
-                if (modRes) setGeoModulos(modRes);
+                // El geojson trae los NOMBRES cambiados; se filtra a los 6 módulos
+                // de la SRL Conchos y se corrige nombre/número/color con el mapeo real.
+                if (modRes?.features) {
+                    const feats = (modRes.features as GeoJSON.Feature[])
+                        .filter(f => esModuloSRL(Number(f.properties?.numero_modulo)))
+                        .map(f => {
+                            const m = moduloSRLde(Number(f.properties?.numero_modulo))!;
+                            return { ...f, properties: { ...f.properties, nombre: m.nombre, numero_modulo: m.numero, color: m.color } };
+                        });
+                    setGeoModulos({ ...modRes, features: feats });
+                } else if (modRes) setGeoModulos(modRes);
                 if (preRes) setGeoPresas(preRes);
                 if (canRes) setGeoCanal(canRes);
                 if (rioRes) setGeoRio(rioRes);

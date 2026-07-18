@@ -588,3 +588,104 @@
 /* Sección estaciones: encabezado con respiración */
 .estaciones-section h3, .conditions-section h3, .tech-section h3,
 .alerts-section h3, .history-section h3 { letter-spacing: -0.01em; }
+
+/* ═══ CONDICIÓN DEL CIELO Y CALIDAD DEL DATO — Módulo Agroclimático v2 ═══════
+   La condición del cielo y la probabilidad de lluvia son variables DISTINTAS y
+   se presentan por separado. Sin fuente de nubosidad no se dibuja icono solar:
+   el panel entra en estado "sin-fuente" (ámbar) y lo declara explícitamente. */
+
+/* Panel resumen distrital */
+.cielo-panel {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: var(--spacing-md);
+    border-left: 3px solid #38bdf8;
+}
+.cielo-panel.sin-fuente { border-left-color: #f59e0b; background: rgba(245,158,11,0.05); }
+.cielo-panel-main { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 260px; }
+.cielo-panel-icono {
+    font-size: 2.4rem; line-height: 1; display: flex; align-items: center; justify-content: center;
+    width: 52px; flex: none;
+}
+.cielo-panel-txt h3 { margin: 2px 0 4px; font-size: 1.05rem; letter-spacing: -0.01em; }
+.cielo-panel-txt p { font-size: 0.72rem; color: #94a3b8; margin: 0; line-height: 1.45; max-width: 52ch; }
+.cielo-panel-label {
+    font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em;
+    color: #64748b; font-weight: 700;
+}
+/* Precipitación: bloque propio, nunca fusionado con el estado del cielo */
+.cielo-panel-precip {
+    display: flex; flex-direction: column; gap: 5px;
+    padding: 10px 14px; border-radius: var(--radius-md, 10px);
+    background: rgba(59,130,246,0.07); border: 1px solid rgba(59,130,246,0.18);
+    min-width: 190px;
+}
+.precip-linea {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.74rem; color: #cbd5e1;
+}
+.precip-linea b { color: #93c5fd; }
+.precip-linea em { color: #64748b; font-style: italic; font-size: 0.7rem; }
+
+/* Tarjeta de estación: bloque de cielo y de lluvia prevista */
+.estacion-cielo {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 4px;
+    border: 1px solid; border-radius: 7px; padding: 6px 9px;
+    margin-bottom: var(--spacing-sm);
+    background: rgba(255,255,255,0.02);
+}
+.cielo-estado { display: flex; align-items: center; gap: 5px; font-size: 0.74rem; font-weight: 700; }
+.cielo-icono { font-size: 0.95rem; }
+.cielo-meta { display: flex; align-items: center; gap: 6px; font-size: 0.58rem; color: #64748b; }
+.estacion-precip {
+    display: flex; align-items: center; gap: 5px;
+    margin-top: var(--spacing-sm); padding-top: 7px;
+    border-top: 1px dashed rgba(255,255,255,0.08);
+    font-size: 0.68rem; color: #94a3b8;
+}
+.estacion-precip b { color: #93c5fd; }
+
+/* Etiquetas de procedencia (§9: franja OBSERVADO/ESTIMADO/PRONOSTICADO/SATÉLITE) */
+.proc {
+    font-style: normal; font-size: 0.52rem; font-weight: 800; letter-spacing: 0.05em;
+    padding: 1px 5px; border-radius: 3px; color: #fff; white-space: nowrap;
+}
+.proc-observado { background: #16a34a; }
+.proc-estimado { background: #f59e0b; }
+.proc-pronosticado { background: #2563eb; }
+.proc-satelite { background: #7c3aed; }
+.proc-ninguna { background: #64748b; }
+
+/* El estado de la estación ahora lo colorea la bandera QA (color inline), así
+   que se retira el punto verde pulsante que asumía "en línea = correcto". */
+.estacion-status.on::before { content: none; }
+
+/* ═══ REFRESCO MANUAL BAJO DEMANDA ══════════════════════════════════════════
+   Botón para forzar la consulta a estaciones y modelo justo antes de emitir un
+   informe. No sustituye los crones automáticos (estaciones 2 h, modelo 1 h);
+   evita que el corte arrastre datos que el motor de calidad marcaría vencidos. */
+.estaciones-acciones { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.estaciones-refresh {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: transparent; color: #38bdf8;
+    border: 1px solid rgba(56,189,248,0.45); border-radius: 6px;
+    padding: 6px 12px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.estaciones-refresh:hover:not(:disabled) {
+    background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.75);
+}
+.estaciones-refresh:disabled { opacity: 0.6; cursor: progress; }
+.girando { animation: refresco-spin 1s linear infinite; }
+@keyframes refresco-spin { to { transform: rotate(360deg); } }
+
+/* Línea de retroalimentación del refresco */
+.refresco-estado {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    margin-top: var(--spacing-sm); padding: 6px 10px;
+    background: rgba(56,189,248,0.07); border-left: 2px solid #38bdf8;
+    border-radius: 5px; font-size: 0.68rem; color: #cbd5e1;
+}
+.refresco-estado.con-error { background: rgba(245,158,11,0.08); border-left-color: #f59e0b; }
+.refresco-hora { color: #64748b; font-family: monospace; }
+.refresco-err { color: #fbbf24; }

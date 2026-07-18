@@ -1,4 +1,4 @@
-import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X } from 'lucide-react';
+import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
@@ -14,6 +14,7 @@ import type { VwAlertaTomaVaradaRow } from '../types/sica.types';
 import { ShapefileImporter, type GeoLayer } from '../components/ShapefileImporter';
 import { useAuth } from '../context/AuthContext';
 import { useHydricEvents } from '../hooks/useHydricEvents';
+import { useClimaEstaciones } from '../hooks/useClimaEstaciones';
 import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
 import { useMetadataStore } from '../store/useMetadataStore';
 
@@ -127,6 +128,7 @@ const GeoMonitor = () => {
 
     // Eventos Hidro-Sincrónicos
     const { activeEvent } = useHydricEvents();
+    const { estaciones: estacionesClima } = useClimaEstaciones();
     const [maxKmLlenado, setMaxKmLlenado] = useState<number>(1000);
 
     // Fetch Max KM for LLENADO
@@ -237,6 +239,7 @@ const GeoMonitor = () => {
         rioShape: true,
         mostrarAforosQ: true,
         mostrarAperturas: true,
+        estaciones: true,
     });
 
     const [baseLayer, setBaseLayer] = useState<'standard' | 'satellite' | 'eos'>(() => {
@@ -895,6 +898,14 @@ const GeoMonitor = () => {
                         {layers.tomas && <span className="geo-indicator-dot"></span>}
                     </button>
                     <button
+                        className={clsx('geo-control-btn', layers.estaciones ? 'active' : 'default')}
+                        onClick={() => toggleLayer('estaciones')}
+                        title="Estaciones climáticas (WeatherLink)"
+                    >
+                        <CloudRain size={22} />
+                        {layers.estaciones && <span className="geo-indicator-dot"></span>}
+                    </button>
+                    <button
                         className={clsx('geo-control-btn', layers.modulos ? 'active' : 'default')}
                         onClick={() => toggleLayer('modulos')}
                         title="Polígonos de Módulos de Riego"
@@ -1383,6 +1394,47 @@ const GeoMonitor = () => {
                                         </Popup>
                                     </CircleMarker>
                                 )})}
+
+                                {/* Estaciones climáticas WeatherLink */}
+                                {layers.estaciones && estacionesClima.map(e => {
+                                    const l = e.lectura;
+                                    const col = e.enLinea ? '#38bdf8' : '#64748b';
+                                    return (
+                                        <CircleMarker
+                                            key={`est-${e.id}`}
+                                            center={[e.latitud, e.longitud]}
+                                            radius={8}
+                                            fillColor={col}
+                                            color="#fff"
+                                            weight={2}
+                                            fillOpacity={e.enLinea ? 0.85 : 0.5}
+                                        >
+                                            <Tooltip direction="top" offset={[0, -6]}>
+                                                <div style={{ fontFamily: 'monospace', fontSize: 10 }}>
+                                                    <b>🌦️ {e.nombre}</b>{e.enLinea ? '' : ' (sin datos)'}<br />
+                                                    {l?.temp_c != null && <span>{l.temp_c.toFixed(1)}°C · {l.hum_rel_pct != null ? Math.round(l.hum_rel_pct) : '—'}% HR</span>}
+                                                </div>
+                                            </Tooltip>
+                                            <Popup>
+                                                <div style={{ fontFamily: 'monospace', minWidth: 180 }}>
+                                                    <strong style={{ fontSize: 13 }}>🌦️ {e.nombre}</strong>
+                                                    <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>
+                                                        Estación WeatherLink #{e.station_id} · {e.enLinea ? 'en línea' : (e.edadHoras != null ? `${Math.round(e.edadHoras)} h sin datos` : 'sin datos')}
+                                                    </div>
+                                                    {l ? (
+                                                        <div style={{ padding: '4px 8px', borderRadius: 4, background: '#f0f9ff', fontSize: 11, lineHeight: 1.6 }}>
+                                                            <div>🌡️ Temp: <b>{l.temp_c != null ? l.temp_c.toFixed(1) : '—'} °C</b></div>
+                                                            <div>💧 Humedad: <b>{l.hum_rel_pct != null ? Math.round(l.hum_rel_pct) : '—'} %</b></div>
+                                                            <div>💨 Viento: <b>{l.viento_ms != null ? l.viento_ms.toFixed(1) : '—'} m/s</b></div>
+                                                            <div>🌧️ Lluvia día: <b>{l.lluvia_dia_mm != null ? l.lluvia_dia_mm.toFixed(1) : '—'} mm</b></div>
+                                                            <div>🌿 ETₒ: <b>{l.eto_mm != null ? l.eto_mm.toFixed(2) : (l.et_dia_mm != null ? l.et_dia_mm.toFixed(2) : '—')} mm/día</b></div>
+                                                        </div>
+                                                    ) : <div style={{ fontSize: 11, color: '#999' }}>Sin lecturas registradas.</div>}
+                                                </div>
+                                            </Popup>
+                                        </CircleMarker>
+                                    );
+                                })}
                             </MapContainer>
                         )}
                     </div>

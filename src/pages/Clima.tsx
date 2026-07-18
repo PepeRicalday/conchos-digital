@@ -10,6 +10,9 @@ import {
 import './Clima.css';
 import { useFecha } from '../context/FechaContext';
 import { usePresas, type ClimaPresaData } from '../hooks/usePresas';
+import { useClimaEstaciones, type EstacionConLectura } from '../hooks/useClimaEstaciones';
+import { exportClimaReport } from '../utils/exportClimaReport';
+import { Download } from 'lucide-react';
 
 // Types for display
 interface WeatherCondition {
@@ -150,26 +153,84 @@ const TechVarCard = ({ variable }: { variable: TechnicalVariable }) => (
     </div>
 );
 
+// ── Tarjeta de estación WeatherLink en tiempo real ──────────────────────────
+const rolLabel = (rol: string) =>
+    rol === 'presa' ? 'Presa' : rol === 'modulo' ? 'Módulo' : 'Canal';
+
+const EstacionCard = ({ est }: { est: EstacionConLectura }) => {
+    const l = est.lectura;
+    return (
+        <div className={`estacion-card ${est.enLinea ? 'online' : 'offline'}`}>
+            <div className="estacion-head">
+                <div className="estacion-title">
+                    <MapPin size={14} />
+                    <span>{est.nombre}</span>
+                    <em className="estacion-rol">{rolLabel(est.rol)}</em>
+                </div>
+                <span className={`estacion-status ${est.enLinea ? 'on' : 'off'}`}>
+                    {est.enLinea ? '● en línea'
+                        : est.edadHoras != null ? `○ ${est.edadHoras < 48 ? Math.round(est.edadHoras) + ' h' : Math.round(est.edadHoras / 24) + ' d'} sin datos`
+                            : '○ sin datos'}
+                </span>
+            </div>
+            {l ? (
+                <div className="estacion-grid">
+                    <div className="est-var"><Thermometer size={13} /><b>{l.temp_c != null ? l.temp_c.toFixed(1) : '—'}</b><small>°C</small></div>
+                    <div className="est-var"><Droplets size={13} /><b>{l.hum_rel_pct != null ? Math.round(l.hum_rel_pct) : '—'}</b><small>% HR</small></div>
+                    <div className="est-var"><Wind size={13} /><b>{l.viento_ms != null ? l.viento_ms.toFixed(1) : '—'}</b><small>m/s</small></div>
+                    <div className="est-var"><Cloud size={13} /><b>{l.lluvia_dia_mm != null ? l.lluvia_dia_mm.toFixed(1) : '—'}</b><small>mm día</small></div>
+                    <div className="est-var accent"><Activity size={13} /><b>{l.eto_mm != null ? l.eto_mm.toFixed(2) : (l.et_dia_mm != null ? l.et_dia_mm.toFixed(2) : '—')}</b><small>ETₒ mm</small></div>
+                    <div className="est-var"><Zap size={13} /><b>{l.gdd != null ? l.gdd.toFixed(0) : '—'}</b><small>GDD</small></div>
+                </div>
+            ) : (
+                <div className="estacion-nodata">Aún sin lecturas registradas.</div>
+            )}
+        </div>
+    );
+};
+
 // Main Component
 const Clima = () => {
     const { fechaSeleccionada } = useFecha();
     const { presas, clima, loading } = usePresas(fechaSeleccionada);
+    const { estaciones, loading: loadingEst } = useClimaEstaciones();
 
     // Build weather conditions from Supabase data
     const conditions = buildConditions(clima);
 
-    // Build technical variables from available data
+    // Build technical variables. Prioriza la ETₒ REAL de las estaciones WeatherLink
+    // (FAO-56 Penman-Monteith); si no hay estaciones, cae a la aproximación previa.
     const techVars: TechnicalVariable[] = [];
-    if (clima.length > 0) {
+    const estEnLinea = estaciones.filter(e => e.enLinea && e.lectura?.eto_mm != null);
+    if (estEnLinea.length > 0) {
+        const etoProm = estEnLinea.reduce((a, e) => a + (e.lectura!.eto_mm ?? 0), 0) / estEnLinea.length;
+        techVars.push({
+            name: 'Evapotranspiración (ETₒ)',
+            value: etoProm.toFixed(2),
+            unit: 'mm/día',
+            description: `Real, promedio de ${estEnLinea.length} estación(es) — FAO-56 Penman-Monteith`,
+            icon: <Activity size={18} />
+        });
+        const estGdd = estaciones.filter(e => e.lectura?.gdd != null);
+        if (estGdd.length > 0) {
+            const gddProm = estGdd.reduce((a, e) => a + (e.lectura!.gdd ?? 0), 0) / estGdd.length;
+            techVars.push({
+                name: 'Unidades Calor (GDD)',
+                value: gddProm.toFixed(0),
+                unit: '°C-día',
+                description: 'Real de estación · base 10°C (nogal/alfalfa)',
+                icon: <Zap size={18} />
+            });
+        }
+    } else if (clima.length > 0) {
         const c = clima[0];
         if (c.evaporacion_mm != null) {
-            // ETo approximation from evaporación
             const eto = (c.evaporacion_mm * 0.7).toFixed(1);
             techVars.push({
                 name: 'Evapotranspiración (ETₒ)',
                 value: eto,
                 unit: 'mm/día',
-                description: 'Estimada desde evaporación × 0.7',
+                description: 'Estimada desde evaporación × 0.7 (sin estación en línea)',
                 icon: <Activity size={18} />
             });
         }
@@ -305,6 +366,30 @@ const Clima = () => {
                     </div>
                 </div>
             </section>
+
+            {/* Estaciones WeatherLink en tiempo real */}
+            {estaciones.length > 0 && (
+                <section className="card estaciones-section">
+                    <div className="estaciones-header">
+                        <h3><Activity size={18} /> Estaciones en tiempo real (WeatherLink / Davis)</h3>
+                        <button className="estaciones-dl" onClick={() => exportClimaReport(estaciones)} title="Descargar informe de clima (HTML)">
+                            <Download size={14} /> Informe
+                        </button>
+                    </div>
+                    <div className="estaciones-grid">
+                        {estaciones.map((e) => <EstacionCard key={e.id} est={e} />)}
+                    </div>
+                    <p className="estaciones-foot">
+                        {estaciones.filter(e => e.enLinea).length} de {estaciones.length} en línea ·
+                        ETₒ calculada por estación (FAO-56 Penman-Monteith)
+                    </p>
+                </section>
+            )}
+            {!loadingEst && estaciones.length === 0 && (
+                <div className="card p-4 text-center text-slate-400 text-xs">
+                    Estaciones climáticas no configuradas todavía (tabla clima_estaciones vacía).
+                </div>
+            )}
 
             {noData && (
                 <div className="card p-6 text-center text-slate-400">

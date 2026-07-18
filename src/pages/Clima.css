@@ -459,3 +459,54 @@
 .chart-container {
     margin-top: var(--spacing-md);
 }
+/* ── Estaciones WeatherLink en tiempo real ─────────────────────────────── */
+.estaciones-section { margin-bottom: var(--spacing-lg); }
+.estaciones-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-sm);
+}
+.estacion-card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md, 10px);
+    padding: var(--spacing-md);
+    background: var(--color-bg-card, #0f1c30);
+    transition: border-color 0.2s;
+}
+.estacion-card.online { border-left: 3px solid #22c55e; }
+.estacion-card.offline { border-left: 3px solid #64748b; opacity: 0.82; }
+.estacion-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: var(--spacing-sm); gap: 6px;
+}
+.estacion-title { display: flex; align-items: center; gap: 5px; font-weight: 700; color: #e2e8f0; font-size: 0.85rem; }
+.estacion-rol {
+    font-style: normal; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.04em;
+    background: rgba(148,163,184,0.15); color: #94a3b8; padding: 1px 6px; border-radius: 999px;
+}
+.estacion-status { font-size: 0.62rem; font-family: monospace; white-space: nowrap; }
+.estacion-status.on { color: #22c55e; }
+.estacion-status.off { color: #94a3b8; }
+.estacion-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 6px;
+}
+.est-var {
+    display: flex; flex-direction: column; align-items: center; gap: 1px;
+    padding: 6px 2px; background: rgba(255,255,255,0.02); border-radius: 6px;
+    color: #cbd5e1;
+}
+.est-var b { font-size: 0.95rem; color: #f1f5f9; line-height: 1.1; }
+.est-var small { font-size: 0.55rem; color: #94a3b8; }
+.est-var.accent { background: rgba(56,189,248,0.08); }
+.est-var.accent b { color: #38bdf8; }
+.estacion-nodata { font-size: 0.72rem; color: #94a3b8; text-align: center; padding: 10px 0; }
+.estaciones-foot { font-size: 0.66rem; color: #64748b; margin-top: var(--spacing-sm); }
+.estaciones-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.estaciones-dl {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: #6B2D2D; color: #fff; border: none; border-radius: 6px;
+    padding: 6px 12px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
+    transition: opacity 0.15s;
+}
+.estaciones-dl:hover { opacity: 0.88; }

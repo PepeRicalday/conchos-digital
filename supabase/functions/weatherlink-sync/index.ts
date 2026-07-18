@@ -30,14 +30,19 @@ const mphToMs = (v: number | null | undefined) => (v == null ? null : +(v * 0.44
 const inHgToHpa = (v: number | null | undefined) => (v == null ? null : +(v * 33.8639).toFixed(1));
 // solar_rad de Davis ya viene en W/m²; UV index adimensional.
 
-// ── ETo de referencia FAO-56 Penman-Monteith (diaria, cultivo referencia) ───
-// Aproximación con datos puntuales de estación: usa temp, HR, viento a 2 m,
-// radiación solar (W/m² → MJ/m²·día) y presión por elevación. Devuelve mm/día.
+// ── ETo de referencia FAO-56 Penman-Monteith ────────────────────────────────
+// ADVERTENCIA: esto extrapola una lectura INSTANTÁNEA a un día completo, así que
+// solo es una aproximación válida en horas de sol y alta radiación. De noche
+// (radiación 0) el término aerodinámico sigue produciendo valores de 0.5-3 mm
+// que NO son un ETo diario: son ruido. Por eso el llamador solo lo usa como
+// respaldo diurno, nunca de madrugada. Devuelve mm/día.
 function etoPenmanMonteith(
   tempC: number | null, humPct: number | null, vientoMs: number | null,
   radWm2: number | null, elevM: number, dewC: number | null,
 ): number | null {
   if (tempC == null || humPct == null) return null;
+  // Sin radiación significativa el cálculo no representa un día: se descarta.
+  if (radWm2 == null || radWm2 < 50) return null;
   const T = tempC;
   const P = 101.3 * Math.pow((293 - 0.0065 * elevM) / 293, 5.26);          // kPa (presión por altitud)
   const gamma = 0.000665 * P;                                             // constante psicrométrica
@@ -47,7 +52,7 @@ function etoPenmanMonteith(
     : es * (humPct / 100);                                                // o desde HR
   const delta = (4098 * es) / Math.pow(T + 237.3, 2);                     // pendiente curva vapor
   const u2 = vientoMs != null ? vientoMs : 2;                             // viento a 2 m (m/s)
-  const Rs = radWm2 != null ? radWm2 * 0.0864 : Math.max(0, 12);          // W/m² → MJ/m²·día (medio)
+  const Rs = radWm2 * 0.0864;                                             // W/m² → MJ/m²·día
   const Rn = 0.77 * Rs * 0.408;                                           // radiación neta aprox (mm-equiv)
   const num = 0.408 * delta * Rn + gamma * (900 / (T + 273)) * u2 * (es - ea);
   const den = delta + gamma * (1 + 0.34 * u2);
@@ -146,9 +151,16 @@ Deno.serve(async (req) => {
         }
 
         // ETo del día: se PRIORIZA el acumulado diario de la estación (et_day, ya
-        // integrado en el tiempo) sobre el Penman-Monteith instantáneo, que de noche
-        // (radiación 0, viento bajo) da valores casi nulos poco representativos del
-        // día. El P-M queda como respaldo cuando la estación no reporta et_day.
+        // integrado en el tiempo) sobre el Penman-Monteith instantáneo.
+        //
+        // IMPORTANTE — semántica de eto_mm: es el ACUMULADO DEL DÍA HASTA LA HORA
+        // DE LA LECTURA, no el total diario. A las 11:00 vale ~1.2 mm y al cierre
+        // del día ~5 mm. Nunca debe compararse contra un total de 24 h (p. ej. el
+        // ETo pronosticado) sin normalizar el periodo: son magnitudes distintas.
+        //
+        // El P-M solo actúa de respaldo DIURNO (devuelve null con radiación < 50
+        // W/m²), porque de madrugada extrapolar una lectura instantánea a un día
+        // completo produce valores espurios de 0.5-3 mm.
         const etoPM = etoPenmanMonteith(tempC, humPct, vientoMs, radWm2, Number(est.elevacion_msnm) || 1200, dewC);
         const eto = etDiaMm != null && etDiaMm > 0 ? etDiaMm : etoPM;
         const gddVal = gdd(tmaxC, tminC);

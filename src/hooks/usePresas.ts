@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useMetadataStore } from '../store/useMetadataStore';
 import { getStartOfDateISO, getTodayString } from '../utils/dateHelpers';
 import { onTable } from '../lib/realtimeHub';
+import { agregarAlmacenamiento, calcularFrescura, lecturaMasReciente } from '../utils/presaMetrics';
 
 // ─── Types ───────────────────────────────────────────
 export interface PresaData {
@@ -25,9 +26,14 @@ export interface PresaData {
 
 export interface LecturaPresaData {
     fecha: string;
-    escala_msnm: number;
-    almacenamiento_mm3: number;
-    porcentaje_llenado: number;
+    /**
+     * Nivel/volumen: `null` = SIN DATO, distinto de 0 = medición de cero.
+     * SICA Capture no captura estas columnas hoy; llegan nulas de la BD y no
+     * deben colapsarse a 0 — ver src/utils/presaMetrics.ts.
+     */
+    escala_msnm: number | null;
+    almacenamiento_mm3: number | null;
+    porcentaje_llenado: number | null;
     extraccion_total_m3s: number;
     gasto_toma_baja_m3s: number | null;
     gasto_cfe_m3s: number | null;
@@ -184,11 +190,21 @@ export function usePresas(fecha: string) {
                 //    movimiento explícito — principio de continuidad hidráulica.
                 //    Limitación: la query usa offset fijo -06:00 (CDT). Ver P1-6.
                 //
-                //  CAPA 3 — sica_eventos_log / Protocolo Activo (MÁXIMA PRIORIDAD)
+                //  CAPA 3 — sica_eventos_log / Protocolo Activo (SOLO SIN MEDICIÓN POSTERIOR)
                 //    Solo aplica a Presa La Boquilla (PRE-001 / PLB).
-                //    Si hay un protocolo LLENADO activo, el gasto toma el valor
-                //    gasto_solicitado_m3s del evento (o 34 m³/s por defecto).
-                //    Sobreescribe Capa 1 y Capa 2 — fuerza el gasto operativo del canal.
+                //    Si hay un protocolo activo, el gasto toma el valor
+                //    gasto_solicitado_m3s del evento (o 34 m³/s por defecto en LLENADO).
+                //
+                //    CONDICIÓN DE VIGENCIA: el gasto solicitado es una INSTRUCCIÓN, no una
+                //    medición. Solo prevalece mientras no exista un movimiento de campo
+                //    POSTERIOR al inicio del protocolo. En cuanto el operador mide y registra
+                //    en movimientos_presas, esa medición gana — la instrucción ya fue
+                //    ejecutada y verificada en campo.
+                //
+                //    Sin esta condición, un protocolo abierto y no cerrado congela el valor
+                //    mostrado indefinidamente: el evento ESTABILIZACION del 2026-03-17
+                //    (gasto_solicitado 28) mantuvo la UI en 28 m³/s durante 124 días mientras
+                //    el gasto real medido osciló entre 25.5 y 37.5 m³/s.
                 //
                 // ─────────────────────────────────────────────────────────────────────
 
@@ -222,12 +238,33 @@ export function usePresas(fecha: string) {
 
                     if (isBoquilla && eventDB && eventDB.esta_activo) {
                         const solicitado = Number(eventDB.gasto_solicitado_m3s);
-                        // Si es LLENADO o hay un gasto específico solicitado, lo forzamos
-                        if (eventDB.evento_tipo === 'LLENADO' || solicitado > 0) {
+
+                        // ¿Hay medición de campo POSTERIOR al inicio del protocolo?
+                        // Si la hay, la instrucción ya fue ejecutada y verificada: la
+                        // medición manda y el solicitado deja de aplicar.
+                        const inicioProtocolo = eventDB.fecha_inicio
+                            ? new Date(eventDB.fecha_inicio).getTime()
+                            : null;
+                        const fechaMov = latestMov?.fecha_hora
+                            ? new Date(latestMov.fecha_hora).getTime()
+                            : null;
+                        const hayMedicionPosterior =
+                            fechaMov != null && inicioProtocolo != null && fechaMov > inicioProtocolo;
+
+                        // Si es LLENADO o hay un gasto específico solicitado, lo forzamos —
+                        // salvo que exista medición de campo posterior al protocolo.
+                        if ((eventDB.evento_tipo === 'LLENADO' || solicitado > 0) && !hayMedicionPosterior) {
                             const gastoFinal = solicitado > 0 ? solicitado : 34; // Default 34 si es LLENADO
                             extraccion = gastoFinal;
                             notas = (notas ? notas + ' | ' : '') + `[PROTOCOL-ACTIVE]: ${eventDB.evento_tipo} (${gastoFinal} m³/s)`;
                             dataSource = `sica_eventos_log (${eventDB.evento_tipo})`;
+                        } else if (hayMedicionPosterior && solicitado > 0 && Math.abs(extraccion - solicitado) > 0.01) {
+                            // La medición de campo difiere de lo solicitado: se conserva la
+                            // medición (ya asignada en Capa 2) y se deja constancia de la
+                            // desviación para trazabilidad operativa.
+                            notas = (notas ? notas + ' | ' : '') +
+                                `[PROTOCOL-SUPERSEDED]: ${eventDB.evento_tipo} solicitó ${solicitado} m³/s; ` +
+                                `medición de campo ${extraccion} m³/s (${latestMov.fecha_hora}) prevalece.`;
                         }
                     }
 
@@ -237,9 +274,12 @@ export function usePresas(fecha: string) {
                     // (Útil para fines de ciclo o días feriados donde no se captura escala pero sí hay gasto)
                     const readingObject = (lect || latestMov) ? {
                         fecha: lect?.fecha || latestMov?.fecha_hora?.split('T')[0] || fecha,
-                        escala_msnm: Number(lect?.escala_msnm) || 0,
-                        almacenamiento_mm3: Number(lect?.almacenamiento_mm3) || 0,
-                        porcentaje_llenado: Number(lect?.porcentaje_llenado) || 0,
+                        // "S/D nunca cero": se preserva null cuando la BD no trae el dato.
+                        // `Number(null) || 0` daba 0 y volvía indistinguible un embalse
+                        // vacío de uno sin lectura capturada.
+                        escala_msnm: lect?.escala_msnm != null ? Number(lect.escala_msnm) : null,
+                        almacenamiento_mm3: lect?.almacenamiento_mm3 != null ? Number(lect.almacenamiento_mm3) : null,
+                        porcentaje_llenado: lect?.porcentaje_llenado != null ? Number(lect.porcentaje_llenado) : null,
                         extraccion_total_m3s: extraccion,
                         gasto_toma_baja_m3s: lect?.gasto_toma_baja_m3s != null ? Number(lect.gasto_toma_baja_m3s) : (p.id === 'PRE-001' && extraccion > 0 ? extraccion : null),
                         gasto_cfe_m3s: lect?.gasto_cfe_m3s != null ? Number(lect.gasto_cfe_m3s) : null,
@@ -325,9 +365,12 @@ export function usePresas(fecha: string) {
         };
     }, [fecha]);
 
-    // Derived values
-    const totalAlmacenamiento = presas.reduce((acc, p) => acc + (p.lectura?.almacenamiento_mm3 || 0), 0);
-    const totalCapacidad = presas.reduce((acc, p) => acc + p.capacidad_max_mm3, 0);
+    // Derived values — agregación vía módulo compartido (ver presaMetrics.ts).
+    // Excluye presas sin lectura en lugar de contarlas como 0: incluirlas metía
+    // su capacidad en el denominador y hundía el porcentaje a 0.0%.
+    const almacenamiento = agregarAlmacenamiento(presas);
+    const totalAlmacenamiento = almacenamiento.totalMm3;
+    const totalCapacidad = almacenamiento.capacidadCatalogoMm3;
     // Calculamos el volumen total extraído proyectado para el día (en Millores de m3)
     const totalVolumenExtraidoMm3 = presas.reduce((acc, p) => {
         const flow = p.lectura?.extraccion_total_m3s || 0;
@@ -344,7 +387,10 @@ export function usePresas(fecha: string) {
         }
     }, 0);
     const totalExtraccion = presas.reduce((acc, p) => acc + (p.lectura?.extraccion_total_m3s || 0), 0);
-    const porcentajeLlenado = totalCapacidad > 0 ? (totalAlmacenamiento / totalCapacidad) * 100 : 0;
+    const porcentajeLlenado = almacenamiento.porcentaje;
+
+    // Vigencia de la lectura más reciente — para el sello de frescura en UI.
+    const frescuraLectura = calcularFrescura(lecturaMasReciente(presas));
 
     return {
         presas,
@@ -354,11 +400,14 @@ export function usePresas(fecha: string) {
         movimientosHistorial,
         loading,
         error,
-        // Aggregates
+        // Aggregates — `null` significa SIN DATO, nunca 0.
         totalAlmacenamiento,
         totalCapacidad,
         totalExtraccion,
         totalVolumenExtraidoMm3,
         porcentajeLlenado,
+        /** Detalle de cobertura: cuántas presas aportaron dato y si es parcial. */
+        almacenamiento,
+        frescuraLectura,
     };
 };

@@ -1,13 +1,16 @@
 import { useMemo, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import clsx from 'clsx';
 import {
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     BarChart, Bar, Cell, AreaChart, Area
 } from 'recharts';
 import {
     Droplets, Waves, Activity, AlertTriangle, TrendingUp, TrendingDown,
-    ArrowRight, Loader, ShieldCheck, Smartphone, Monitor as MonitorIcon, Database
+    ArrowRight, Loader, ShieldCheck, Smartphone, Monitor as MonitorIcon, Database,
+    Radio, Clock
 } from 'lucide-react';
-import KPICard from '../components/KPICard';
+import KPICard, { type KPISeverity } from '../components/KPICard';
 import ChartWidget from '../components/ChartWidget';
 import AlertList, { type Alert } from '../components/AlertList';
 import { useHydraEngine } from '../hooks/useHydraEngine';
@@ -17,26 +20,49 @@ import { useHydricEvents } from '../hooks/useHydricEvents';
 import { usePredictiveBalance } from '../hooks/usePredictiveBalance';
 import { useFecha } from '../context/FechaContext';
 import { supabase } from '../lib/supabase';
-import { getTodayString, addDays } from '../utils/dateHelpers';
+import { getTodayString, addDays, getStartOfDateISO } from '../utils/dateHelpers';
+import { porcentajeLlenadoPresa } from '../utils/presaMetrics';
 import type { AppVersionRow, VwAlertaTomaVaradaRow } from '../types/sica.types';
 import './Dashboard.css';
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+/** Pérdida mínima (m³/s) para considerar una fuga como real y accionable. */
+const UMBRAL_PERDIDA_M3S = 0.05;
+
+/** Días tras los cuales un protocolo abierto se considera sospechoso de no haberse cerrado. */
+const UMBRAL_DIAS_PROTOCOLO = 30;
+
+/** Capacidad de conducción de referencia del canal (m³/s) para normalizar el anillo de extracción. */
+const CAPACIDAD_CONDUCCION_M3S = 80;
 
 function formatFechaCorta(dateStr: string): string {
     const [y, m, d] = dateStr.split('-');
     return `${parseInt(d)} ${MESES_CORTOS[parseInt(m) - 1]} ${y}`;
 }
 
+/**
+ * Nombre legible de un tramo. La vista dashboard_vulnerabilidad_fugas no siempre
+ * entrega `tramo_inicio`, y sin este respaldo la UI imprimía "Tramo undefined".
+ */
+function nombrarTramo(s: { tramo_inicio?: string | null; tramo_fin?: string | null; km_inicio?: number | null }): string {
+    const km = s.km_inicio != null ? `KM ${s.km_inicio.toFixed(1)}` : 'KM s/d';
+    if (s.tramo_inicio && s.tramo_fin) return `Tramo ${s.tramo_inicio} → ${s.tramo_fin}`;
+    if (s.tramo_inicio) return `Tramo ${s.tramo_inicio} (${km})`;
+    return `Tramo ${km}`;
+}
+
 /* ─── SVG Donut Ring ──────────────────────────────────────────── */
 function DonutRing({ pct, label, color = '#60a5fa', size = 110 }: {
-    pct: number; label: string; color?: string; size?: number;
+    pct: number | null; label: string; color?: string; size?: number;
 }) {
     const r = 38;
     const circ = 2 * Math.PI * r;
-    const safePct = Number.isFinite(pct) ? Math.max(0, Math.min(pct, 100)) : 0;
+    // null = sin dato: el anillo se muestra vacío con "S/D" al centro, nunca 0%.
+    const sinDato = pct == null || !Number.isFinite(pct);
+    const safePct = sinDato ? 0 : Math.max(0, Math.min(pct as number, 100));
     const stroke = circ * safePct / 100;
-    const ringId = `donut-grad-${label.replace(/\s+/g, '-')}`;
+    const ringId = `donut-grad-${label.replace(/[^a-zA-Z0-9]/g, '-')}`;
     
     return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
@@ -68,8 +94,14 @@ function DonutRing({ pct, label, color = '#60a5fa', size = 110 }: {
                     }}
                 />
                 {/* Center text */}
-                <text x="50" y="55" textAnchor="middle" fill="#fff" fontSize="18" fontWeight="900" fontFamily="var(--font-mono)">
-                    {safePct.toFixed(0)}%
+                <text
+                    x="50" y="55" textAnchor="middle"
+                    fill={sinDato ? '#94a3b8' : '#fff'}
+                    fontSize={sinDato ? '15' : '18'}
+                    fontWeight="900"
+                    fontFamily="var(--font-mono)"
+                >
+                    {sinDato ? 'S/D' : `${safePct.toFixed(0)}%`}
                 </text>
             </svg>
             <span style={{ 
@@ -93,14 +125,25 @@ function DonutRing({ pct, label, color = '#60a5fa', size = 110 }: {
 
 /* ─── Module Efficiency Bar (custom, no recharts) ──────────────── */
 function ModuleBar({ name, pct, rank, vol }: { name: string; pct: number; rank: number; vol: number }) {
-    const isHigh = pct >= 90;
-    const barColor = isHigh
-        ? 'linear-gradient(90deg, #f43f5e, #fb923c)'
-        : pct >= 60
-            ? 'linear-gradient(90deg, #3b82f6, #06b6d4)'
-            : 'linear-gradient(90deg, #10b981, #34d399)';
+    // El sobregiro (>100% del volumen autorizado) es una condición distinta de
+    // "cumplimiento alto" y debe distinguirse a simple vista.
+    const isOver = pct > 100;
+    const isHigh = pct >= 90 && !isOver;
 
-    const glowColor = isHigh ? '#f43f5e' : pct >= 60 ? '#3b82f6' : '#10b981';
+    const barColor = isOver
+        ? 'linear-gradient(90deg, #dc2626, #f43f5e)'
+        : isHigh
+            ? 'linear-gradient(90deg, #f43f5e, #fb923c)'
+            : pct >= 60
+                ? 'linear-gradient(90deg, #3b82f6, #06b6d4)'
+                : 'linear-gradient(90deg, #10b981, #34d399)';
+
+    const glowColor = isOver ? '#dc2626' : isHigh ? '#f43f5e' : pct >= 60 ? '#3b82f6' : '#10b981';
+
+    // La barra se escala contra el máximo real para que el excedente sea visible.
+    const escala = Math.max(100, pct);
+    const anchoPct = (Math.min(pct, escala) / escala) * 100;
+    const marca100 = (100 / escala) * 100;
 
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
@@ -120,15 +163,28 @@ function ModuleBar({ name, pct, rank, vol }: { name: string; pct: number; rank: 
             </span>
 
             {/* Bar track */}
-            <div style={{ flex: 1, height: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '999px', overflow: 'hidden', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
+            <div style={{ flex: 1, height: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '999px', position: 'relative', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
                 <div style={{
-                    width: `${Math.min(pct, 100)}%`,
+                    width: `${anchoPct}%`,
                     height: '100%',
                     background: barColor,
                     borderRadius: '999px',
                     boxShadow: `0 0 12px ${glowColor}B3, inset 0 1px 1px rgba(255,255,255,0.3)`,
                     transition: 'width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
                 }} />
+                {/* Marca de referencia en el volumen autorizado (100%) */}
+                {isOver && (
+                    <div
+                        title="Volumen autorizado (100%)"
+                        style={{
+                            position: 'absolute', top: '-2px', bottom: '-2px',
+                            left: `${marca100}%`, width: '2px',
+                            background: 'rgba(255,255,255,0.85)',
+                            boxShadow: '0 0 4px rgba(0,0,0,0.6)',
+                            pointerEvents: 'none'
+                        }}
+                    />
+                )}
             </div>
 
             {/* Value & Volume */}
@@ -139,7 +195,7 @@ function ModuleBar({ name, pct, rank, vol }: { name: string; pct: number; rank: 
             }}>
                 <span style={{
                     fontSize: '0.8rem', fontWeight: '800',
-                    color: isHigh ? '#fb923c' : pct >= 60 ? '#60a5fa' : '#34d399',
+                    color: isOver ? '#f87171' : isHigh ? '#fb923c' : pct >= 60 ? '#60a5fa' : '#34d399',
                     fontFamily: 'var(--font-mono)',
                     textShadow: `0 0 10px ${glowColor}80`
                 }}>
@@ -184,6 +240,7 @@ const ExtraccionTooltip = ({ active, payload, label }: any) => {
 
 /* ═══════════════════════════════════════════════════════════════ */
 const Dashboard = () => {
+    const navigate = useNavigate();
     const { fechaSeleccionada, esHoy } = useFecha();
     const { activeEvent } = useHydricEvents();
 
@@ -195,6 +252,8 @@ const Dashboard = () => {
         totalExtraccion,
         totalVolumenExtraidoMm3,
         porcentajeLlenado,
+        almacenamiento,
+        frescuraLectura,
         loading: loadingPresas
     } = usePresas(fechaSeleccionada);
 
@@ -204,50 +263,83 @@ const Dashboard = () => {
     const [appVersions, setAppVersions] = useState<AppVersionRow[]>([]);
     const [tomasVaradas, setTomasVaradas] = useState<VwAlertaTomaVaradaRow[]>([]);
     const [rawExtractionHistory, setRawExtractionHistory] = useState<{ fecha: string; total: number }[]>([]);
+    /** Fuentes que fallaron al cargar — se informan en la tira de estado en lugar
+     *  de dejar que la pantalla se vea completa cuando no lo está. */
+    const [fuentesCaidas, setFuentesCaidas] = useState<string[]>([]);
 
     useEffect(() => {
-        const fetchVersions = async () => {
-            const { data } = await supabase.from('app_versions').select('*');
-            if (data) setAppVersions(data as AppVersionRow[]);
-        };
-        fetchVersions();
+        let cancelado = false;
+        const fallos: string[] = [];
 
-        const fetchVaradas = async () => {
-            const { data } = await supabase.from('vw_alertas_tomas_varadas').select('*');
-            if (data) setTomasVaradas(data as VwAlertaTomaVaradaRow[]);
+        const marcarFallo = (fuente: string, err: unknown) => {
+            console.error(`[Dashboard] Error cargando ${fuente}:`, err);
+            fallos.push(fuente);
         };
-        fetchVaradas();
 
-        const fetchExtractionHistory = async () => {
-            const to = getTodayString();
-            const from = addDays(to, -6);
-            const { data } = await supabase
-                .from('lecturas_presa')
-                .select('fecha, extraccion_total_m3s')
-                .gte('fecha', from)
-                .lte('fecha', to)
-                .order('fecha', { ascending: true });
-            if (data && data.length > 0) {
+        const cargar = async () => {
+            const [versionsRes, varadasRes, histRes] = await Promise.allSettled([
+                supabase.from('app_versions').select('*'),
+                supabase.from('vw_alertas_tomas_varadas').select('*'),
+                (async () => {
+                    // Ventana anclada a la FECHA SELECCIONADA, no a hoy: antes la
+                    // gráfica mostraba los últimos 7 días reales aunque el resto
+                    // de la pantalla estuviera en una fecha histórica.
+                    const to = fechaSeleccionada || getTodayString();
+                    const from = addDays(to, -6);
+                    return supabase
+                        .from('lecturas_presas')
+                        .select('fecha, extraccion_total_m3s')
+                        .gte('fecha', from)
+                        .lte('fecha', to)
+                        .order('fecha', { ascending: true });
+                })(),
+            ]);
+
+            if (cancelado) return;
+
+            if (versionsRes.status === 'fulfilled' && !versionsRes.value.error) {
+                setAppVersions((versionsRes.value.data ?? []) as AppVersionRow[]);
+            } else {
+                marcarFallo('Versiones', versionsRes.status === 'rejected' ? versionsRes.reason : versionsRes.value.error);
+            }
+
+            if (varadasRes.status === 'fulfilled' && !varadasRes.value.error) {
+                setTomasVaradas((varadasRes.value.data ?? []) as VwAlertaTomaVaradaRow[]);
+            } else {
+                marcarFallo('Tomas varadas', varadasRes.status === 'rejected' ? varadasRes.reason : varadasRes.value.error);
+            }
+
+            if (histRes.status === 'fulfilled' && !histRes.value.error) {
+                const data = histRes.value.data ?? [];
                 const byDate = new Map<string, number>();
-                data.forEach((r: { fecha: string; extraccion_total_m3s: number | null }) => {
-                    const v = byDate.get(r.fecha) || 0;
-                    byDate.set(r.fecha, v + (r.extraccion_total_m3s || 0));
+                (data as { fecha: string; extraccion_total_m3s: number | null }[]).forEach(r => {
+                    byDate.set(r.fecha, (byDate.get(r.fecha) || 0) + (r.extraccion_total_m3s || 0));
                 });
                 setRawExtractionHistory(
                     Array.from(byDate.entries()).map(([fecha, total]) => ({ fecha, total }))
                 );
+            } else {
+                marcarFallo('Historial de extracción', histRes.status === 'rejected' ? histRes.reason : histRes.value.error);
             }
+
+            setFuentesCaidas(fallos);
         };
-        fetchExtractionHistory();
-    }, []);
+
+        cargar();
+        return () => { cancelado = true; };
+    }, [fechaSeleccionada]);
 
     const loading = loadingModules || loadingPresas || loadingLeaks;
 
+    // Reloj para interpolar volumen entregado. A 3 s re-renderizaba todo el árbol
+    // (tarjetas, ambos gráficos de Recharts, lista de alertas) para animar un dígito
+    // imperceptible — costo directo de batería en las tabletas de campo.
     const [now, setNow] = useState<number>(() => Date.now());
     useEffect(() => {
-        const interval = setInterval(() => setNow(Date.now()), 3000);
+        if (!esHoy) return;            // en fechas históricas no hay nada que interpolar
+        const interval = setInterval(() => setNow(Date.now()), 30000);
         return () => clearInterval(interval);
-    }, []);
+    }, [esHoy]);
 
     /* ── Aggregations ── */
     const totalDailyVol = useMemo(() => modules.reduce((acc, m) => {
@@ -271,11 +363,37 @@ const Dashboard = () => {
         return totalExtraccion > 30 ? 'rising' : totalExtraccion > 0 ? 'stable' : 'falling';
     }, [rawExtractionHistory, totalExtraccion]);
 
-    const deliveryTrend = useMemo(() => {
-        if (totalDailyVol > 0.001) return 'rising';
-        if (modules.length > 0) return 'stable';
-        return 'falling';
-    }, [totalDailyVol, modules]);
+    /* Entrega a módulos — volumen del día.
+     * Antes: cualquier volumen > 0.001 era "Ascenso" y bastaba con que existiera
+     * un módulo cargado para declarar "Estable", así que una entrega NULA en plena
+     * operación se rotulaba como estable. Ahora el cero se trata como anomalía. */
+    const deliveryState = useMemo(() => {
+        const hayEntrega = totalDailyVol > 0.0001;
+
+        if (!hayEntrega) {
+            return {
+                trend: undefined as 'rising' | 'falling' | 'stable' | undefined,
+                severity: (modules.length > 0 ? 'warning' : 'normal') as KPISeverity,
+                label: modules.length > 0 ? 'Sin registro de entrega' : 'Sin módulos cargados',
+            };
+        }
+
+        const objetivo = modules.reduce((acc, m) => acc + (m.target_flow || 0), 0);
+        // Volumen esperado a esta hora del día si se sostuviera el gasto objetivo.
+        // Usa `now` (estado del reloj) en vez de Date.now() para que el cálculo
+        // sea puro respecto al render y reactivo al tick.
+        const fraccionDia = esHoy
+            ? Math.min(Math.max((now - new Date(getStartOfDateISO(fechaSeleccionada)).getTime()) / 86400000, 0), 1)
+            : 1;
+        const esperado = (objetivo * 86400 * fraccionDia) / 1_000_000;
+
+        if (esperado <= 0) return { trend: 'stable' as const, severity: 'normal' as KPISeverity, label: 'En operación' };
+
+        const ratio = totalDailyVol / esperado;
+        if (ratio > 1.1) return { trend: 'rising' as const, severity: 'warning' as KPISeverity, label: 'Sobre lo previsto' };
+        if (ratio < 0.9) return { trend: 'falling' as const, severity: 'warning' as KPISeverity, label: 'Bajo lo previsto' };
+        return { trend: 'stable' as const, severity: 'normal' as KPISeverity, label: 'Conforme a lo previsto' };
+    }, [totalDailyVol, modules, esHoy, fechaSeleccionada, now]);
 
     /* ── Chart Data ── */
     const moduleChartData = useMemo(() =>
@@ -284,7 +402,10 @@ const Dashboard = () => {
             full_name: m.name,
             vol: m.accumulated_vol,
             authorized: m.authorized_vol,
-            efficiency: Math.min(((m.accumulated_vol / (m.authorized_vol || 1)) * 100), 100),
+            // SIN truncar a 100: Math.min() aplanaba el sobregiro y dibujaba un
+            // módulo al 145% igual que uno al 100%, ocultando visualmente la
+            // condición que distribución necesita detectar.
+            efficiency: (m.accumulated_vol / (m.authorized_vol || 1)) * 100,
             flow: m.current_flow * 1000
         })).sort((a, b) => b.efficiency - a.efficiency),
         [modules]
@@ -330,14 +451,32 @@ const Dashboard = () => {
         });
 
         // 2. Pérdidas Críticas / Fugas en Canales (Directiva 10%)
-        segments.filter(s => s.eficiencia_pct < 90).forEach(s => {
-            alerts.push({
-                id: `leak-${s.km_inicio}`,
-                type: 'critical',
-                title: 'Pérdida Crítica / Posible Fuga',
-                message: `Tramo ${s.tramo_inicio} KM ${(s.km_inicio ?? 0).toFixed(1)}: Eficiencia ${(s.eficiencia_pct ?? 0).toFixed(1)}% (Pérdida: ${(s.q_perdida ?? 0).toFixed(2)} m³/s).`,
-                timestamp: 'Ahora'
-            });
+        //    Se exige pérdida MATERIAL, no solo eficiencia baja: un tramo con
+        //    q_perdida = 0.00 no está perdiendo agua y anunciarlo como fuga
+        //    genera alarmas falsas que entrenan al operador a ignorar el panel.
+        segments.filter(s => (s.eficiencia_pct ?? 100) < 90).forEach(s => {
+            const perdida = s.q_perdida ?? 0;
+            const nombreTramo = nombrarTramo(s);
+            const eficiencia = (s.eficiencia_pct ?? 0).toFixed(1);
+
+            if (perdida >= UMBRAL_PERDIDA_M3S) {
+                alerts.push({
+                    id: `leak-${s.km_inicio}`,
+                    type: 'critical',
+                    title: 'Pérdida Crítica / Posible Fuga',
+                    message: `${nombreTramo}: Eficiencia ${eficiencia}% — pérdida de ${perdida.toFixed(2)} m³/s. Requiere inspección.`,
+                    timestamp: 'Ahora'
+                });
+            } else {
+                // Eficiencia baja sin pérdida medible: informativo, no accionable.
+                alerts.push({
+                    id: `leak-info-${s.km_inicio}`,
+                    type: 'info',
+                    title: 'Eficiencia Baja sin Pérdida Medible',
+                    message: `${nombreTramo}: Eficiencia ${eficiencia}% con pérdida ${perdida.toFixed(2)} m³/s (bajo umbral de ${UMBRAL_PERDIDA_M3S} m³/s). Posible error de aforo.`,
+                    timestamp: 'Ahora'
+                });
+            }
         });
 
         // 3. Sobregiros en Módulos
@@ -355,16 +494,37 @@ const Dashboard = () => {
             }
         });
 
-        // 4. Estado de Presas
+        // 4. Estado de Presas — solo con nivel capturado. Sin lectura no se puede
+        //    afirmar nada del embalse: alertar sobre `null` sería inventar el dato.
         presas.forEach(p => {
-            if (p.lectura && p.lectura.porcentaje_llenado > 90) {
-                alerts.push({ id: `dam-high-${p.id}`, type: 'warning' as const, title: 'Alto Nivel (NAMO)', message: `${p.nombre}: ${p.lectura.porcentaje_llenado.toFixed(1)}% de llenado.`, timestamp: p.lectura.fecha || 'Hoy' });
+            const pct = porcentajeLlenadoPresa(p);
+            if (pct == null) return;
+
+            if (pct > 90) {
+                alerts.push({ id: `dam-high-${p.id}`, type: 'warning' as const, title: 'Alto Nivel (NAMO)', message: `${p.nombre}: ${pct.toFixed(1)}% de llenado.`, timestamp: p.lectura?.fecha || 'Hoy' });
             }
             // Alerta de nivel bajo solo si NO estamos en protocolo de LLENADO (donde es sabido que estamos extrayendo)
-            if (p.lectura && p.lectura.porcentaje_llenado < 20 && activeEvent?.evento_tipo !== 'LLENADO') {
-                alerts.push({ id: `dam-low-${p.id}`, type: 'critical' as const, title: 'Almacenamiento Crítico', message: `${p.nombre}: Nivel por debajo del 20% (${p.lectura.porcentaje_llenado.toFixed(1)}%).`, timestamp: p.lectura.fecha || 'Hoy' });
+            if (pct < 20 && activeEvent?.evento_tipo !== 'LLENADO') {
+                alerts.push({ id: `dam-low-${p.id}`, type: 'critical' as const, title: 'Almacenamiento Crítico', message: `${p.nombre}: Nivel por debajo del 20% (${pct.toFixed(1)}%).`, timestamp: p.lectura?.fecha || 'Hoy' });
             }
         });
+
+        // 4b. Protocolo hidráulico abierto por tiempo prolongado.
+        //     Un protocolo activo gobierna umbrales y (antes del fix de Capa 3)
+        //     podía congelar el gasto mostrado. Si lleva semanas abierto casi
+        //     siempre significa que nadie lo cerró, no que siga vigente.
+        if (activeEvent?.fecha_inicio) {
+            const diasAbierto = Math.floor((now - new Date(activeEvent.fecha_inicio).getTime()) / 86400000);
+            if (diasAbierto > UMBRAL_DIAS_PROTOCOLO) {
+                alerts.push({
+                    id: `proto-stale-${activeEvent.id}`,
+                    type: 'warning',
+                    title: 'Protocolo Abierto Prolongado',
+                    message: `${activeEvent.evento_tipo} activo desde hace ${diasAbierto} días. Verificar si sigue vigente o debe cerrarse.`,
+                    timestamp: activeEvent.fecha_inicio.slice(0, 10),
+                });
+            }
+        }
 
         // 5. Alertas predictivas (balance hídrico proyectado)
         // Deduplicar: si ya existe una alerta de fuga real para el mismo tramo,
@@ -377,8 +537,32 @@ const Dashboard = () => {
         if (alerts.length === 0) {
             alerts.push({ id: 'ok', type: 'info', title: 'Sistema Estable', message: 'Operando dentro de parámetros normales.', timestamp: 'Ahora' });
         }
-        return alerts;
-    }, [modules, presas, tomasVaradas, segments, activeEvent, predictiveAlerts]);
+
+        // Críticas primero: el orden del panel debe seguir la severidad, no el
+        // orden en que se generaron las alertas.
+        const peso = { critical: 0, warning: 1, info: 2 } as const;
+        return alerts.sort((a, b) => (peso[a.type] ?? 3) - (peso[b.type] ?? 3));
+    }, [modules, presas, tomasVaradas, segments, activeEvent, predictiveAlerts, now]);
+
+    /* Cuenta accionable: las informativas no deben inflar el KPI de alertas. */
+    const alertasAccionables = useMemo(
+        () => realAlerts.filter(a => a.type === 'critical' || a.type === 'warning').length,
+        [realAlerts]
+    );
+    const alertasInformativas = realAlerts.length - alertasAccionables;
+    const hayCriticas = useMemo(() => realAlerts.some(a => a.type === 'critical'), [realAlerts]);
+
+    /* Serie para el sparkline de extracción (7 días). */
+    const sparkExtraccion = useMemo(
+        () => rawExtractionHistory.map(r => r.total),
+        [rawExtractionHistory]
+    );
+
+    /* Días que lleva abierto el protocolo activo. */
+    const diasProtocolo = useMemo(() => {
+        if (!activeEvent?.fecha_inicio) return null;
+        return Math.floor((now - new Date(activeEvent.fecha_inicio).getTime()) / 86400000);
+    }, [activeEvent, now]);
 
     if (loading && presas.length === 0) {
         return (
@@ -396,27 +580,25 @@ const Dashboard = () => {
     return (
         <div className="dashboard-container" style={{ marginTop: '-24px' }}>
 
-            {/* Header */}
+            {/* Header — identidad comprimida a una barra delgada.
+                El bloque institucional completo se reserva para la vista de
+                impresión (.print-only), donde la identidad sí es el propósito.
+                En consola operativa ese espacio informa estado del sistema. */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', paddingTop: '4px' }}>
-                    <div style={{
-                        flexShrink: 0, backgroundColor: 'rgba(255,255,255,0.03)',
-                        padding: '10px', borderRadius: '16px',
-                        border: '1px solid rgba(255,255,255,0.05)',
-                        boxShadow: '0 8px 20px -5px rgba(0,0,0,0.3)'
-                    }}>
-                        <img src="/logos/logo-srl.png" alt="SRL Unidad Conchos" style={{ height: '54px', width: 'auto', objectFit: 'contain' }} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                        <h3 style={{ fontSize: '0.75rem', color: '#93c5fd', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '2px' }}>
-                            Sociedad de Asociaciones de Usuarios
-                        </h3>
-                        <h1 style={{ fontSize: '1.75rem', color: '#ffffff', fontWeight: '900', letterSpacing: '0.05em', textTransform: 'uppercase', lineHeight: '1', marginBottom: '4px' }}>
-                            Unidad Conchos
-                        </h1>
-                        <h4 style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: '500', letterSpacing: '0.2em', textTransform: 'uppercase' }}>
-                            S. de R.L. de I.P. y C.V.
-                        </h4>
+                <div className="dash-identity">
+                    <img src="/logos/logo-srl.png" alt="SRL Unidad Conchos" className="dash-identity-logo" />
+                    <span className="dash-identity-name">Unidad Conchos</span>
+                    <span className="dash-identity-sep">·</span>
+                    <span className="dash-identity-sub">S. de R.L. de I.P. y C.V.</span>
+                </div>
+
+                {/* Bloque institucional completo — solo al imprimir */}
+                <div className="print-only dash-print-header">
+                    <img src="/logos/logo-srl.png" alt="SRL Unidad Conchos" style={{ height: '64px', width: 'auto', objectFit: 'contain' }} />
+                    <div>
+                        <h3>Sociedad de Asociaciones de Usuarios</h3>
+                        <h1>Unidad Conchos</h1>
+                        <h4>S. de R.L. de I.P. y C.V.</h4>
                     </div>
                 </div>
 
@@ -428,15 +610,15 @@ const Dashboard = () => {
                         </p>
                     </div>
                     <div className="flex gap-4">
-                        <button 
-                            className="btn-premium btn-premium-glass" 
+                        <button
+                            className="btn-premium btn-premium-glass"
                             onClick={() => window.open('/monitor-publico', '_blank')}
                         >
                             <Activity size={16} />
                             Monitor Público
                         </button>
-                        <button 
-                            className="btn-premium btn-premium-solid" 
+                        <button
+                            className="btn-premium btn-premium-solid"
                             onClick={() => window.print()}
                         >
                             <Droplets size={16} />
@@ -444,16 +626,107 @@ const Dashboard = () => {
                         </button>
                     </div>
                 </header>
+
+                {/* ── Tira de estado operativo ──────────────────────────────
+                    El protocolo activo ya se consultaba y modulaba los umbrales
+                    de alerta, pero nunca se mostraba: el operador no sabía que
+                    estaba en LLENADO cuando eso cambia lo que está viendo. */}
+                <div className="dash-statusbar">
+                    {activeEvent ? (
+                        <span className={clsx('dash-chip', (diasProtocolo ?? 0) > UMBRAL_DIAS_PROTOCOLO ? 'chip-warn' : 'chip-info')}>
+                            <Radio size={12} />
+                            Protocolo <b>{activeEvent.evento_tipo}</b>
+                            {activeEvent.gasto_solicitado_m3s ? ` · ${activeEvent.gasto_solicitado_m3s} m³/s solicitados` : ''}
+                            {diasProtocolo != null ? ` · ${diasProtocolo} d abierto` : ''}
+                        </span>
+                    ) : (
+                        <span className="dash-chip chip-ok">
+                            <Radio size={12} /> Sin protocolo activo
+                        </span>
+                    )}
+
+                    {frescuraLectura && (
+                        <span className={clsx('dash-chip', frescuraLectura.stale ? 'chip-warn' : 'chip-ok')}>
+                            <Clock size={12} /> {frescuraLectura.texto}
+                        </span>
+                    )}
+
+                    {almacenamiento.parcial && (
+                        <span className="dash-chip chip-warn">
+                            <Database size={12} />
+                            Nivel de presa: {almacenamiento.presasConDato} de {almacenamiento.presasTotal} con lectura
+                        </span>
+                    )}
+
+                    {fuentesCaidas.length > 0 && (
+                        <span className="dash-chip chip-crit">
+                            <AlertTriangle size={12} /> Sin respuesta: {fuentesCaidas.join(', ')}
+                        </span>
+                    )}
+                </div>
             </div>
 
 
 
             {/* KPI Section */}
             <section className="dashboard-grid-kpi">
-                <KPICard title="Almacenamiento Total" value={`${(porcentajeLlenado ?? 0).toFixed(1)}%`} subtext={`${(totalAlmacenamiento ?? 0).toFixed(1)} / ${(totalCapacidad ?? 0).toFixed(0)} Mm³`} icon={Waves} color="cyan" className="shadow-cyan-900/10" />
-                <KPICard title="Extracción Total (Presas)" value={(totalExtraccion ?? 0).toFixed(1)} unit="m³/s" subtext={`Volumen inyectado: ${(totalVolumenExtraidoMm3 ?? 0).toFixed(4)} Mm³`} icon={Droplets} color="blue" trend={extractionTrend as any} className="shadow-blue-900/10" />
-                <KPICard title="Entrega a Módulos" value={(totalDailyVol ?? 0).toFixed(4)} unit="Mm³" subtext="Volumen Real del Día (Mm³)" icon={Activity} color="emerald" trend={deliveryTrend as any} className="shadow-emerald-900/10" />
-                <KPICard title="Alertas Activas" value={realAlerts.length.toString()} subtext="Atención Requerida" icon={AlertTriangle} color={realAlerts.some(a => a.type === 'critical') ? 'rose' : 'amber'} className="shadow-rose-900/10" />
+                <KPICard
+                    title="Almacenamiento Total"
+                    // null → "S/D". Antes `|| 0` mostraba 0.0% cuando simplemente
+                    // no había nivel capturado, junto a una extracción activa.
+                    value={porcentajeLlenado != null ? `${porcentajeLlenado.toFixed(1)}%` : null}
+                    subtext={
+                        totalAlmacenamiento != null
+                            ? `${totalAlmacenamiento.toFixed(1)} / ${almacenamiento.capacidadContabilizadaMm3.toFixed(0)} Mm³`
+                            : undefined
+                    }
+                    noDataReason={`Sin lectura de nivel · capacidad instalada ${totalCapacidad.toFixed(0)} Mm³`}
+                    icon={Waves}
+                    color="cyan"
+                    severity={porcentajeLlenado != null && porcentajeLlenado < 20 ? 'critical' : 'normal'}
+                    freshness={frescuraLectura?.texto}
+                    freshnessStale={frescuraLectura?.stale}
+                    className="shadow-cyan-900/10"
+                />
+                <KPICard
+                    title="Extracción Total (Presas)"
+                    value={(totalExtraccion ?? 0).toFixed(1)}
+                    unit="m³/s"
+                    subtext={`Volumen inyectado: ${(totalVolumenExtraidoMm3 ?? 0).toFixed(3)} Mm³`}
+                    icon={Droplets}
+                    color="blue"
+                    trend={extractionTrend as 'rising' | 'falling' | 'stable'}
+                    sparkline={sparkExtraccion}
+                    freshness={frescuraLectura?.texto}
+                    freshnessStale={frescuraLectura?.stale}
+                    className="shadow-blue-900/10"
+                />
+                <KPICard
+                    title="Entrega a Módulos"
+                    // Miles de m³ en vez de 4 decimales en Mm³: "0.0000" no comunica nada.
+                    value={(totalDailyVol * 1000).toFixed(1)}
+                    unit="miles m³"
+                    subtext={`${totalDailyVol.toFixed(3)} Mm³ · ${deliveryState.label}`}
+                    icon={Activity}
+                    color="emerald"
+                    trend={deliveryState.trend}
+                    trendLabel={deliveryState.label}
+                    severity={deliveryState.severity}
+                    className="shadow-emerald-900/10"
+                />
+                <KPICard
+                    title="Alertas Activas"
+                    value={alertasAccionables.toString()}
+                    subtext={
+                        alertasInformativas > 0
+                            ? `${alertasAccionables} requieren atención · ${alertasInformativas} informativas`
+                            : 'Atención Requerida'
+                    }
+                    icon={AlertTriangle}
+                    color={hayCriticas ? 'rose' : alertasAccionables > 0 ? 'amber' : 'emerald'}
+                    severity={hayCriticas ? 'critical' : alertasAccionables > 0 ? 'warning' : 'normal'}
+                    className="shadow-rose-900/10"
+                />
             </section>
 
             {/* Main Content Grid */}
@@ -464,9 +737,14 @@ const Dashboard = () => {
                     <div className="card presa-status-card">
                         <div className="presa-header flex justify-between items-center mb-2">
                             <h3 className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>Estado de Fuentes (Presas)</h3>
-                            {presas[0]?.lectura && (
-                                <span className="text-xs font-mono text-slate-500 bg-slate-800/50 px-2 py-1 rounded border border-slate-700">
-                                    Lectura: {presas[0].lectura.fecha}
+                            {frescuraLectura && (
+                                <span className={clsx(
+                                    'text-xs font-mono px-2 py-1 rounded border',
+                                    frescuraLectura.stale
+                                        ? 'text-amber-400 bg-amber-500/10 border-amber-500/30'
+                                        : 'text-slate-500 bg-slate-800/50 border-slate-700'
+                                )}>
+                                    {frescuraLectura.texto}
                                 </span>
                             )}
                         </div>
@@ -474,10 +752,11 @@ const Dashboard = () => {
                         <div className="space-y-4">
                             {presas.map(presa => {
                                 const lect = presa.lectura;
-                                const almacenamiento = lect?.almacenamiento_mm3 || 0;
-                                const pctLlenado = lect?.porcentaje_llenado || 0;
+                                // `null` = sin lectura capturada; NO se colapsa a 0.
+                                const almacPresa = lect?.almacenamiento_mm3 ?? null;
+                                const pctLlenado = porcentajeLlenadoPresa(presa);
                                 const extraccion = lect?.extraccion_total_m3s || 0;
-                                const elevacion = lect?.escala_msnm || 0;
+                                const elevacion = lect?.escala_msnm ?? null;
 
                                 return (
                                     <div key={presa.id} className="presa-item group">
@@ -487,7 +766,7 @@ const Dashboard = () => {
                                                 <DonutRing
                                                     pct={pctLlenado}
                                                     label="Llenado"
-                                                    color={pctLlenado > 90 ? '#fbbf24' : '#60a5fa'}
+                                                    color={(pctLlenado ?? 0) > 90 ? '#fbbf24' : '#60a5fa'}
                                                     size={80}
                                                 />
                                                 <div className="flex flex-col">
@@ -510,30 +789,47 @@ const Dashboard = () => {
                                         <div className="presa-stats">
                                             <div className="stat border-r border-slate-700/50">
                                                 <span>Elevación Actual</span>
-                                                <strong>{(elevacion ?? 0).toFixed(2)} <small className="text-slate-500 text-[10px]">msnm</small></strong>
+                                                <strong>
+                                                    {elevacion != null
+                                                        ? <>{elevacion.toFixed(2)} <small className="text-slate-500 text-[10px]">msnm</small></>
+                                                        : <span className="text-slate-500">S/D</span>}
+                                                </strong>
                                             </div>
                                             <div className="stat border-r border-slate-700/50">
                                                 <span>Almacenamiento</span>
-                                                <strong>{(almacenamiento ?? 0).toFixed(1)} <small className="text-slate-500 text-[10px]">Mm³</small></strong>
+                                                <strong>
+                                                    {almacPresa != null
+                                                        ? <>{almacPresa.toFixed(1)} <small className="text-slate-500 text-[10px]">Mm³</small></>
+                                                        : <span className="text-slate-500">S/D</span>}
+                                                </strong>
                                             </div>
                                             <div className="stat">
                                                 <span>% Llenado</span>
-                                                <strong className={pctLlenado > 90 ? 'text-amber-400' : 'text-emerald-400'}>{(pctLlenado ?? 0).toFixed(1)}%</strong>
+                                                <strong className={pctLlenado == null ? 'text-slate-500' : pctLlenado > 90 ? 'text-amber-400' : 'text-emerald-400'}>
+                                                    {pctLlenado != null ? `${pctLlenado.toFixed(1)}%` : 'S/D'}
+                                                </strong>
                                             </div>
                                         </div>
 
                                         <div className="presa-level mt-2">
                                             <div className="flex justify-between text-xxs text-slate-400 mb-1 font-mono">
                                                 <span>NAMO ({(presa.capacidad_max_mm3 ?? 0).toFixed(0)} Mm³)</span>
-                                                <span>{(almacenamiento ?? 0).toFixed(1)} / {(presa.capacidad_max_mm3 ?? 0).toFixed(0)} Mm³</span>
+                                                <span>
+                                                    {almacPresa != null ? almacPresa.toFixed(1) : 'S/D'} / {(presa.capacidad_max_mm3 ?? 0).toFixed(0)} Mm³
+                                                </span>
                                             </div>
                                             <div className="h-3 bg-slate-900/80 rounded-full overflow-hidden border border-slate-700/50 shadow-inner">
-                                                <div
-                                                    className={`h-full relative overflow-hidden transition-all duration-1000 ease-out ${pctLlenado > 90 ? 'bg-gradient-to-r from-amber-600 to-amber-400' : 'bg-gradient-to-r from-blue-600 to-cyan-400'}`}
-                                                    style={{ width: `${Math.min(pctLlenado, 100)}%` }}
-                                                >
-                                                    <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                                                </div>
+                                                {pctLlenado != null ? (
+                                                    <div
+                                                        className={`h-full relative overflow-hidden transition-all duration-1000 ease-out ${pctLlenado > 90 ? 'bg-gradient-to-r from-amber-600 to-amber-400' : 'bg-gradient-to-r from-blue-600 to-cyan-400'}`}
+                                                        style={{ width: `${Math.min(pctLlenado, 100)}%` }}
+                                                    >
+                                                        <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                                                    </div>
+                                                ) : (
+                                                    // Sin lectura: barra rayada, nunca vacía-como-cero.
+                                                    <div className="presa-level-sd" title="Sin lectura de nivel capturada" />
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -663,7 +959,8 @@ const Dashboard = () => {
                                 <Activity size={18} className="text-blue-400 shadow-blue-500/50 drop-shadow-sm" />
                                 <h3 className="font-bold text-white">Cumplimiento Módulos</h3>
                             </div>
-                            <span className="chart-badge">TOP 8</span>
+                            {/* Cuenta real — antes decía "TOP 8" pero se renderizan todos */}
+                            <span className="chart-badge">{moduleChartData.length} MÓDULOS</span>
                         </div>
 
                         {/* Legend */}
@@ -671,7 +968,8 @@ const Dashboard = () => {
                             {[
                                 { color: 'linear-gradient(90deg,#10b981,#34d399)', label: '< 60%' },
                                 { color: 'linear-gradient(90deg,#3b82f6,#06b6d4)', label: '60-89%' },
-                                { color: 'linear-gradient(90deg,#f43f5e,#fb923c)', label: '≥ 90%' },
+                                { color: 'linear-gradient(90deg,#f43f5e,#fb923c)', label: '90-100%' },
+                                { color: 'linear-gradient(90deg,#dc2626,#f43f5e)', label: '> 100% sobregiro' },
                             ].map(l => (
                                 <div key={l.label} className="chart-legend-item">
                                     <div className="chart-legend-dot" style={{ background: l.color }} />
@@ -701,8 +999,11 @@ const Dashboard = () => {
                         </div>
 
                         <div className="mt-4 pt-4 border-t border-slate-700/30">
-                            <button className="w-full py-2.5 text-xs font-bold text-blue-300 bg-blue-500/10 rounded-lg hover:bg-blue-500/20 transition-all hover:scale-[1.02] flex items-center justify-center gap-2 border border-blue-500/10">
-                                Ver Matriz Completa <ArrowRight size={14} />
+                            <button
+                                onClick={() => navigate('/balance')}
+                                className="w-full py-2.5 text-xs font-bold text-blue-300 bg-blue-500/10 rounded-lg hover:bg-blue-500/20 transition-all hover:scale-[1.02] flex items-center justify-center gap-2 border border-blue-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+                            >
+                                Ver Balance Hidráulico <ArrowRight size={14} />
                             </button>
                         </div>
                     </div>
@@ -726,17 +1027,19 @@ const Dashboard = () => {
                             marginBottom: '1rem'
                         }}>
                             <DonutRing pct={porcentajeLlenado} label="ALMAC." color="#38bdf8" size={85} />
-                            <DonutRing 
-                                pct={totalExtraccion > 0 ? Math.min((totalExtraccion / 80) * 100, 100) : 0} 
-                                label="EXTRAC." 
-                                color="#a78bfa" 
-                                size={85} 
+                            <DonutRing
+                                // Normalizado contra la capacidad de conducción del canal,
+                                // no contra una constante sin unidad ni origen.
+                                pct={totalExtraccion > 0 ? (totalExtraccion / CAPACIDAD_CONDUCCION_M3S) * 100 : 0}
+                                label={`DE ${CAPACIDAD_CONDUCCION_M3S} m³/s`}
+                                color="#a78bfa"
+                                size={85}
                             />
-                            <DonutRing 
-                                pct={moduleChartData.length > 0 ? moduleChartData.reduce((a, m) => a + m.efficiency, 0) / moduleChartData.length : 0} 
-                                label="EFICIEN." 
-                                color="#10b981" 
-                                size={85} 
+                            <DonutRing
+                                pct={moduleChartData.length > 0 ? moduleChartData.reduce((a, m) => a + m.efficiency, 0) / moduleChartData.length : 0}
+                                label="EFICIEN."
+                                color="#10b981"
+                                size={85}
                             />
                         </div>
 

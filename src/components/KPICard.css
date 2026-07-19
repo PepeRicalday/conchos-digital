@@ -157,6 +157,144 @@
     font-weight: 500;
 }
 
+/* -------------------------------------------
+   SEVERIDAD OPERATIVA
+   Franja superior — el estado se lee por forma,
+   no solo por número. Independiente del color
+   temático (kpi-blue, kpi-cyan, …).
+------------------------------------------- */
+
+.kpi-card.kpi-sev-warning,
+.kpi-card.kpi-sev-critical {
+    /* La franja va sobre el borde aurora (::before) */
+    border-top: 3px solid transparent;
+}
+
+.kpi-card.kpi-sev-warning {
+    border-top-color: var(--color-warning);
+}
+
+.kpi-card.kpi-sev-critical {
+    border-top-color: var(--color-danger);
+}
+
+/* Halo tenue que refuerza la franja sin competir con el valor */
+.kpi-card.kpi-sev-critical {
+    box-shadow: 0 0 0 1px rgba(244, 63, 94, 0.18), 0 12px 28px -12px rgba(244, 63, 94, 0.35);
+}
+
+.kpi-card.kpi-sev-warning {
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.16), 0 12px 28px -12px rgba(245, 158, 11, 0.3);
+}
+
+/* -------------------------------------------
+   ESTADO SIN DATO (S/D)
+   Debe ser tipográficamente distinto de un cero
+   medido — nunca confundible con una medición.
+------------------------------------------- */
+
+.kpi-card.kpi-nodata {
+    border-top: 3px dashed rgba(148, 163, 184, 0.4);
+}
+
+.kpi-value-sd {
+    font-size: 2rem !important;
+    color: var(--color-text-muted) !important;
+    letter-spacing: 0.08em !important;
+    text-shadow: none !important;
+    opacity: 0.75;
+}
+
+.kpi-nodata .kpi-icon {
+    background: rgba(148, 163, 184, 0.08) !important;
+    color: var(--color-text-muted) !important;
+}
+
+.kpi-subtext-sd {
+    color: var(--color-warning);
+    font-weight: 600;
+    font-style: italic;
+}
+
+/* -------------------------------------------
+   SPARKLINE + SELLO DE FRESCURA
+------------------------------------------- */
+
+.kpi-aside {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.kpi-spark {
+    display: block;
+    overflow: visible;
+    opacity: 0.9;
+}
+
+.kpi-spark-line {
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.85;
+}
+
+.kpi-spark-area {
+    fill: currentColor;
+    opacity: 0.12;
+}
+
+.kpi-spark-dot {
+    fill: currentColor;
+    stroke: rgba(2, 6, 23, 0.9);
+    stroke-width: 1.5;
+}
+
+.kpi-spark-dot.is-stale {
+    fill: var(--color-warning);
+}
+
+/* El sparkline hereda el color temático de la tarjeta */
+.kpi-blue .kpi-spark { color: var(--color-primary); }
+.kpi-cyan .kpi-spark { color: var(--color-accent); }
+.kpi-emerald .kpi-spark { color: var(--color-success); }
+.kpi-amber .kpi-spark { color: var(--color-warning); }
+.kpi-rose .kpi-spark { color: var(--color-danger); }
+
+.kpi-freshness {
+    font-size: 0.68rem;
+    font-family: var(--font-mono);
+    color: var(--color-text-muted);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    opacity: 0.75;
+    letter-spacing: 0.02em;
+}
+
+.kpi-freshness.is-stale {
+    color: var(--color-warning);
+    opacity: 1;
+    font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .kpi-card {
+        animation: none;
+        transition: none;
+    }
+
+    .kpi-card:hover {
+        transform: none;
+    }
+
+    .kpi-card:hover::before {
+        animation: none;
+    }
+}
+
 /* Trend indicators (Capsule style) */
 .kpi-trend {
     display: flex;

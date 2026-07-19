@@ -859,10 +859,50 @@ const PublicMonitor: React.FC = () => {
                 }
             });
 
+            // ── CAPA 2: continuidad operativa (movimientos_presas) ──
+            // El Monitor Público omitía esta capa, así que un movimiento
+            // registrado desde SICA Capture se reflejaba en el Dashboard pero
+            // NO aquí — dos gastos distintos para la misma presa en el mismo
+            // instante, siendo esta la cara pública del organismo.
+            const movPorPresa = new Map<string, any>();
+            (mData || []).forEach((m: any) => {
+                if (!movPorPresa.has(m.presa_id)) movPorPresa.set(m.presa_id, m);
+            });
+
+            movPorPresa.forEach((mov, presaId) => {
+                const lectura = uniquePresasMap.get(presaId);
+                const fechaLectura = lectura?.fecha ? new Date(lectura.fecha).getTime() : 0;
+                const fechaMov = mov.fecha_hora ? new Date(mov.fecha_hora).getTime() : 0;
+
+                if (!lectura) {
+                    // Hay movimiento sin reporte diario: se publica igualmente.
+                    uniquePresasMap.set(presaId, {
+                        id: `mov-${presaId}`,
+                        presa_id: presaId,
+                        extraccion_total: Number(mov.gasto_m3s),
+                        fecha: mov.fecha_hora,
+                        presas: mov.presas ?? null,
+                        almacenamiento_mm3: null,
+                        porcentaje_llenado: null,
+                        escala_msnm: null,
+                    });
+                } else if (fechaMov > fechaLectura) {
+                    uniquePresasMap.set(presaId, { ...lectura, extraccion_total: Number(mov.gasto_m3s) });
+                }
+            });
+
             let finalPresas = Array.from(uniquePresasMap.values());
 
-            // Si es protocolo de LLENADO y no hay dato de hoy, inyectar el solicitado para Boquilla
-            if (activeEvent?.evento_tipo === 'LLENADO' && activeEvent.gasto_solicitado_m3s) {
+            // Si es protocolo de LLENADO y no hay dato de hoy, inyectar el solicitado para Boquilla.
+            // El gasto solicitado es una INSTRUCCIÓN: solo aplica mientras no exista
+            // medición de campo posterior al inicio del protocolo (misma regla que usePresas).
+            const movBoquilla = movPorPresa.get('PRE-001');
+            const inicioProtocolo = activeEvent?.fecha_inicio ? new Date(activeEvent.fecha_inicio).getTime() : null;
+            const medicionPosterior = movBoquilla?.fecha_hora && inicioProtocolo != null
+                ? new Date(movBoquilla.fecha_hora).getTime() > inicioProtocolo
+                : false;
+
+            if (activeEvent?.evento_tipo === 'LLENADO' && activeEvent.gasto_solicitado_m3s && !medicionPosterior) {
                 const hasBoquilla = finalPresas.some(p => (p.presas?.nombre_corto === 'Boquilla' || p.presa_id === 'PRE-001') && p.extraccion_total > 0);
                 if (!hasBoquilla) {
                     finalPresas = [
@@ -1901,12 +1941,14 @@ const PublicMonitor: React.FC = () => {
                     estado:          b.estado_volumen,
                 })),
             // ── Presas estado actual ───────────────────────────────────
+            // `null` = SIN DATO, nunca 0: un consumidor de este payload no puede
+            // distinguir un embalse vacío de uno sin lectura si ambos llegan como 0.
             presas: presasData.map(p => ({
                 nombre:           p.presas?.nombre       ?? p.presas?.nombre_corto ?? '—',
-                almacenamiento_mm3: +(p.almacenamiento_mm3 ?? 0).toFixed(3),
-                porcentaje_llenado: +(p.porcentaje_llenado ?? 0).toFixed(1),
+                almacenamiento_mm3: p.almacenamiento_mm3 != null ? +Number(p.almacenamiento_mm3).toFixed(3) : null,
+                porcentaje_llenado: p.porcentaje_llenado != null ? +Number(p.porcentaje_llenado).toFixed(1) : null,
                 extraccion_m3s:   +(p.extraccion_total_m3s ?? p.extraccion_total ?? 0).toFixed(3),
-                escala_msnm:      +(p.escala_msnm ?? 0).toFixed(3),
+                escala_msnm:      p.escala_msnm != null ? +Number(p.escala_msnm).toFixed(3) : null,
                 fecha:            p.fecha,
             })),
             // ── Tomas activas hoy ──────────────────────────────────────

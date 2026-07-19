@@ -607,6 +607,10 @@ const Presas = () => {
 
     // ─── Datos del embalse seleccionado ──────────────────────────────────────
     const lect          = currentDam.lectura;
+    // `sinNivel` distingue "no hay lectura capturada" de "el embalse está en cero".
+    // Los derivados numéricos siguen usando 0 como base de cálculo, pero la UI
+    // debe rotular S/D en lugar de presentar ese 0 como medición.
+    const sinNivel      = lect?.almacenamiento_mm3 == null && lect?.porcentaje_llenado == null;
     const elevacion     = lect?.escala_msnm         || 0;
     const almacenamiento = lect?.almacenamiento_mm3  || 0;
     const pctLlenado    = lect?.porcentaje_llenado   || 0;
@@ -641,12 +645,23 @@ const Presas = () => {
 
     // Dynamic alerts from real data
     const alertas: { nivel: 'CRÍTICA' | 'PREVENTIVA' | 'INFORMATIVA'; msg: string; tiempo: string }[] = [];
-    if (pctLlenado >= 92)   alertas.push({ nivel: 'CRÍTICA',     msg: `Nivel próximo a NAMO (${pctLlenado.toFixed(1)}%). Riesgo de vertimiento.`,  tiempo: 'Ahora' });
-    if (pctLlenado < 12)    alertas.push({ nivel: 'CRÍTICA',     msg: `Almacenamiento crítico (${pctLlenado.toFixed(1)}%). Riesgo de desabasto.`,    tiempo: 'Ahora' });
-    if (pctLlenado >= 80 && pctLlenado < 92)
-        alertas.push({ nivel: 'PREVENTIVA',  msg: `Almacenamiento elevado (${pctLlenado.toFixed(1)}%). Supervisar extracción.`,  tiempo: 'Ahora' });
-    if (pctLlenado >= 12 && pctLlenado < 22)
-        alertas.push({ nivel: 'PREVENTIVA',  msg: `Almacenamiento bajo (${pctLlenado.toFixed(1)}%). Revisar distribución módulos.`, tiempo: 'Ahora' });
+    if (sinNivel) {
+        // Sin lectura de nivel no se puede afirmar nada del embalse. Antes, el
+        // 0 por defecto disparaba "Almacenamiento crítico (0.0%)" — una alerta
+        // fabricada a partir de un dato que no existe.
+        alertas.push({
+            nivel: 'INFORMATIVA',
+            msg: 'Sin lectura de nivel capturada. No es posible evaluar la condición del embalse.',
+            tiempo: 'Ahora',
+        });
+    } else {
+        if (pctLlenado >= 92)   alertas.push({ nivel: 'CRÍTICA',     msg: `Nivel próximo a NAMO (${pctLlenado.toFixed(1)}%). Riesgo de vertimiento.`,  tiempo: 'Ahora' });
+        if (pctLlenado < 12)    alertas.push({ nivel: 'CRÍTICA',     msg: `Almacenamiento crítico (${pctLlenado.toFixed(1)}%). Riesgo de desabasto.`,    tiempo: 'Ahora' });
+        if (pctLlenado >= 80 && pctLlenado < 92)
+            alertas.push({ nivel: 'PREVENTIVA',  msg: `Almacenamiento elevado (${pctLlenado.toFixed(1)}%). Supervisar extracción.`,  tiempo: 'Ahora' });
+        if (pctLlenado >= 12 && pctLlenado < 22)
+            alertas.push({ nivel: 'PREVENTIVA',  msg: `Almacenamiento bajo (${pctLlenado.toFixed(1)}%). Revisar distribución módulos.`, tiempo: 'Ahora' });
+    }
     if (tendenciaNum > 0.05)
         alertas.push({ nivel: 'PREVENTIVA',  msg: `Nivel en ascenso: +${tendenciaNum.toFixed(3)} m/día respecto al registro anterior.`, tiempo: 'Hoy' });
     if (tendenciaNum < -0.15)
@@ -721,12 +736,16 @@ const Presas = () => {
                     </div>
                     <div className="scada-header-kpi">
                         <span className="scada-header-kpi-label">ALMACENAMIENTO</span>
-                        <span className="scada-header-kpi-val" style={{ color: semColor }}>{pctLlenado.toFixed(1)}</span>
-                        <span className="scada-header-kpi-unit">% NAMO</span>
+                        <span className="scada-header-kpi-val" style={{ color: sinNivel ? '#94a3b8' : semColor }}>
+                            {sinNivel ? 'S/D' : pctLlenado.toFixed(1)}
+                        </span>
+                        <span className="scada-header-kpi-unit">{sinNivel ? 'sin lectura' : '% NAMO'}</span>
                     </div>
                     <div className="scada-header-kpi">
                         <span className="scada-header-kpi-label">VOLUMEN</span>
-                        <span className="scada-header-kpi-val">{almacenamiento.toFixed(2)}</span>
+                        <span className="scada-header-kpi-val" style={sinNivel ? { color: '#94a3b8' } : undefined}>
+                            {sinNivel ? 'S/D' : almacenamiento.toFixed(2)}
+                        </span>
                         <span className="scada-header-kpi-unit">Mm³</span>
                     </div>
                 </div>

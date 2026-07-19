@@ -14,7 +14,7 @@ import {
     type PuntoSerie,
 } from './climaCharts';
 import { calculaIndices, entradasDesdeEstaciones } from './indicesAgro';
-import { lon2tile, lat2tile, type FondoSatelital } from './mapaSatelital';
+import type { FondoSatelital } from './mapaSatelital';
 
 const SRL_MARRON = '#6B2D2D';
 const AZUL = '#1e5b8f';

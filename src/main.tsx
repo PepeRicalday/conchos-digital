@@ -65,8 +65,17 @@ if (typeof window !== 'undefined') {
         };
 
         // Al cambiar el SW controlador, el bundle en memoria quedó obsoleto.
+        //
+        // CUIDADO: en la PRIMERA carga tras un nuke no hay SW controlando la
+        // página. Cuando el SW recién registrado toma control, dispara
+        // `controllerchange` — y recargar ahí aborta la descarga de los chunks
+        // lazy a medio vuelo, dejando el Suspense colgado en "Cargando módulo…"
+        // para siempre. Solo se recarga si YA había un controlador antes, que
+        // es el caso real de "llegó una versión nueva".
+        const habiaControlador = !!navigator.serviceWorker.controller;
         let recargando = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!habiaControlador) return;   // primera toma de control: no tocar
             if (recargando) return;          // evita bucle de recarga
             recargando = true;
             window.location.reload();

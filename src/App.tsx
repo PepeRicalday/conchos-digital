@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import Layout from './components/Layout';
@@ -72,11 +72,63 @@ const PageLoader = () => (
   </div>
 );
 
+/**
+ * Vigilante de carga colgada.
+ *
+ * Si un chunk lazy nunca resuelve (descarga abortada por una recarga, red
+ * caída a media petición, entrada de caché corrupta), React se queda en el
+ * fallback indefinidamente y el ErrorBoundary no ve nada: no hubo excepción,
+ * solo una promesa que jamás terminó. El usuario ve "Cargando módulo…" para
+ * siempre, sin salida.
+ *
+ * A los 12 s se ofrece reintentar; recargar vuelve a pedir el chunk.
+ */
+const PageLoaderConRescate = () => {
+  const [colgado, setColgado] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setColgado(true), 12000);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (!colgado) return <PageLoader />;
+
+  return (
+    <div style={{
+      height: '60vh', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '2rem',
+      textAlign: 'center',
+    }}>
+      <span style={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
+        SICA 005
+      </span>
+      <p style={{ color: '#94a3b8', fontSize: '0.85rem', maxWidth: '38ch', margin: 0 }}>
+        El módulo está tardando más de lo normal. Puede ser una descarga
+        interrumpida.
+      </p>
+      <button
+        onClick={() => window.location.reload()}
+        style={{
+          background: 'rgba(56,189,248,0.12)', color: '#38bdf8',
+          border: '1px solid rgba(56,189,248,0.3)', borderRadius: '10px',
+          padding: '0.6rem 1.4rem', fontSize: '0.8rem', fontWeight: 700,
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}
+      >
+        Reintentar
+      </button>
+      <a href="/nuke.html" style={{ color: '#64748b', fontSize: '0.7rem', textDecoration: 'underline' }}>
+        Si persiste, limpiar caché
+      </a>
+    </div>
+  );
+};
+
 // ── Page-Level Error Boundary Wrapper ────────────────────────── //
 // Wraps each lazy page so a crash in one module doesn't collapse the entire app.
 const SafePage = ({ children }: { children: ReactNode }) => (
   <ErrorBoundary>
-    <Suspense fallback={<PageLoader />}>
+    <Suspense fallback={<PageLoaderConRescate />}>
       {children}
     </Suspense>
   </ErrorBoundary>

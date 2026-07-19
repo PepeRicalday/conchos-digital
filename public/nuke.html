@@ -44,50 +44,76 @@
         <h2 style="margin: 0 0 10px 0;">Limpiando Caché...</h2>
         <p style="color: #94a3b8; font-size: 14px;">Estamos forzando la descarga de la nueva versión.<br>Serás
             redirigido en un momento.</p>
+        <p id="paso" style="color: #64748b; font-size: 12px; font-family: monospace; margin-top: 12px;">Iniciando…</p>
     </div>
     <script>
-        console.log("NUCLEAR NUKE: Initiating factory reset...");
-        
-        // 1. Clear All Storage
-        localStorage.clear();
-        sessionStorage.clear();
-        console.log("Storage cleared.");
+        /**
+         * Purga total y ESPERADA antes de redirigir.
+         *
+         * La versión anterior lanzaba las operaciones asíncronas (.then) y
+         * redirigía con un setTimeout fijo de 2 s sin esperarlas: en un
+         * dispositivo lento la navegación ocurría ANTES de terminar de borrar,
+         * el SW viejo sobrevivía y el equipo volvía a quedar anclado. Ahora se
+         * espera cada paso con await y el timeout solo actúa como tope máximo.
+         */
+        (async function () {
+            const log = (m) => { console.log(m); const el = document.getElementById('paso'); if (el) el.textContent = m; };
 
-        // 2. Unregister ALL Service Workers
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function (regs) {
-                for (let reg of regs) {
-                    reg.unregister();
-                    console.log("SW unregistered:", reg.scope);
+            // Preservar la sesión de Supabase: borrarla obliga a reingresar
+            // credenciales en campo, donde el operador puede no tenerlas.
+            const auth = [];
+            try {
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (k && (k.startsWith('sb-') || k.indexOf('supabase.auth') !== -1)) {
+                        auth.push([k, localStorage.getItem(k)]);
+                    }
                 }
-            });
-        }
+            } catch (e) { /* modo privado */ }
 
-        // 3. Clear ALL Caches
-        if ('caches' in window) {
-            caches.keys().then(function(names) {
-                for (let name of names) {
-                    caches.delete(name);
-                    console.log("Cache deleted:", name);
+            // 1. Desregistrar TODOS los service workers (antes que nada: si
+            //    sobrevive uno, puede volver a poblar las cachés que borremos).
+            try {
+                if ('serviceWorker' in navigator) {
+                    log('Desregistrando service workers…');
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map((r) => r.unregister()));
                 }
-            });
-        }
+            } catch (e) { console.warn('SW:', e); }
 
-        // 4. Clear IndexedDB (SICA uses Dexie)
-        if (window.indexedDB) {
-            indexedDB.databases().then(dbs => {
-                dbs.forEach(db => {
-                    if (db.name) indexedDB.deleteDatabase(db.name);
-                });
-            });
-        }
+            // 2. Borrar TODAS las cachés
+            try {
+                if ('caches' in window) {
+                    log('Borrando cachés…');
+                    const names = await caches.keys();
+                    await Promise.all(names.map((n) => caches.delete(n)));
+                }
+            } catch (e) { console.warn('caches:', e); }
 
-        // 5. Final Redirect with brutal cache-busting
-        setTimeout(function () {
-            const forceUrl = window.location.origin + "/?nuke=" + Date.now() + "&v=202";
-            console.log("Redirecting to:", forceUrl);
-            window.location.replace(forceUrl);
-        }, 2000);
+            // 3. Limpiar almacenamiento (restaurando la sesión)
+            try {
+                log('Limpiando almacenamiento…');
+                localStorage.clear();
+                sessionStorage.clear();
+                for (const [k, v] of auth) if (v !== null) localStorage.setItem(k, v);
+            } catch (e) { console.warn('storage:', e); }
+
+            // 4. IndexedDB (Dexie). Safari/iOS no soporta databases() — se
+            //    ignora silenciosamente ahí; no es crítico para el anclaje.
+            try {
+                if (window.indexedDB && indexedDB.databases) {
+                    log('Limpiando base local…');
+                    const dbs = await indexedDB.databases();
+                    await Promise.all(dbs.map((db) => db.name
+                        ? new Promise((res) => { const r = indexedDB.deleteDatabase(db.name); r.onsuccess = r.onerror = r.onblocked = () => res(); })
+                        : Promise.resolve()));
+                }
+            } catch (e) { console.warn('idb:', e); }
+
+            // 5. Redirigir con cache-busting sólo cuando TODO terminó.
+            log('Cargando versión nueva…');
+            window.location.replace(window.location.origin + '/?nuke=' + Date.now());
+        })();
     </script>
 </body>
 

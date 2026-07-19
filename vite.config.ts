@@ -1,6 +1,12 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import pkg from './package.json' with { type: 'json' }
+
+// Fuente única de la versión: package.json. Antes estaba escrita a mano aquí,
+// en el nombre del SW y en el <title> de index.html; los tres se desincronizaban
+// (producción mostró "v2.8.4" durante cinco versiones).
+const APP_VERSION = pkg.version
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -13,15 +19,22 @@ export default defineConfig(({ mode }) => {
 
   return {
     define: {
-      '__V2_APP_VERSION__': JSON.stringify('2.10.2'),
-      '__V2_BUILD_HASH__': JSON.stringify('v2.10.2'),
+      '__V2_APP_VERSION__': JSON.stringify(APP_VERSION),
+      '__V2_BUILD_HASH__': JSON.stringify(`v${APP_VERSION}`),
       '__BUILD_DATE__': JSON.stringify(new Date().toISOString())
     },
     plugins: [
       react(),
+      // Sustituye %APP_VERSION% en index.html para que el <title> siga a package.json.
+      {
+        name: 'html-app-version',
+        transformIndexHtml(html: string) {
+          return html.replace(/%APP_VERSION%/g, APP_VERSION)
+        }
+      },
       VitePWA({
         registerType: 'autoUpdate',   // SW se actualiza sin prompt
-        filename: 'sw-v2.10.2.js',
+        filename: `sw-v${APP_VERSION}.js`,
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
           name: 'SICA 005 - Conchos Digital',

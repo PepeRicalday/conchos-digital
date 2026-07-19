@@ -1,13 +1,13 @@
 {
     "rewrites": [
         {
-            "source": "/((?!assets/|.*\\.).*)",
+            "source": "/((?!assets/|sw-v.*\\.js|workbox-.*\\.js|registerSW\\.js|manifest\\.webmanifest|.*\\.).*)",
             "destination": "/index.html"
         }
     ],
     "headers": [
         {
-            "source": "/(index.html|sw.js)",
+            "source": "/(index.html|registerSW.js|manifest.webmanifest|sw-v(.*).js)",
             "headers": [
                 {
                     "key": "Cache-Control",

@@ -10,10 +10,14 @@ import {
 import './Clima.css';
 import { useFecha } from '../context/FechaContext';
 import { usePresas, type ClimaPresaData } from '../hooks/usePresas';
-import { useClimaEstaciones, type EstacionConLectura } from '../hooks/useClimaEstaciones';
+import { useClimaEstaciones, type EstacionConLectura, type LecturaClima } from '../hooks/useClimaEstaciones';
 import { exportClimaReport } from '../utils/exportClimaReport';
+import { exportClimaInfografia, agrupaPorDia, type DiaHistorico } from '../utils/exportClimaInfografia';
+import { supabase } from '../lib/supabase';
 import { formateaEdad, clasificaCielo, PROCEDENCIA_LABEL } from '../utils/cielo';
-import { Download } from 'lucide-react';
+import { Download, Gauge } from 'lucide-react';
+import { useMemo } from 'react';
+import { calculaIndices, entradasDesdeEstaciones, type Indice } from '../utils/indicesAgro';
 
 // Types for display
 interface WeatherCondition {
@@ -158,6 +162,42 @@ const TechVarCard = ({ variable }: { variable: TechnicalVariable }) => (
 const rolLabel = (rol: string) =>
     rol === 'presa' ? 'Presa' : rol === 'modulo' ? 'Módulo' : 'Canal';
 
+/**
+ * Medidor de índice agroclimático (0-100) para el tablero ejecutivo.
+ * Muestra SIEMPRE la implicación operativa junto al número: un valor sin
+ * consecuencia obliga al lector a conocer de memoria la escala del indicador.
+ * Sin dato se rotula «S/D», nunca 0 — un cero se leería como "riesgo nulo".
+ */
+const IndiceRing = ({ ind }: { ind: Indice }) => {
+    const r = 32, circ = 2 * Math.PI * r;
+    const pct = ind.valor ?? 0;
+    return (
+        <div className="idx-card" title={`${ind.formula}\nProcedencia: ${ind.procedencia}`}>
+            <div className="idx-clave">{ind.clave === 'ICA' ? 'ICA-005' : ind.clave}</div>
+            <div className="idx-nombre">{ind.nombre}</div>
+            <svg viewBox="0 0 84 84" className="idx-svg" role="img"
+                 aria-label={`${ind.clave}: ${ind.valor ?? 'sin dato'} de 100`}>
+                <circle cx="42" cy="42" r={r} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="8" />
+                {ind.valor != null && (
+                    <circle cx="42" cy="42" r={r} fill="none" stroke={ind.color} strokeWidth="8"
+                            strokeLinecap="round" transform="rotate(-90 42 42)"
+                            strokeDasharray={`${(circ * pct / 100).toFixed(1)} ${circ.toFixed(1)}`} />
+                )}
+                {ind.valor != null ? (
+                    <>
+                        <text x="42" y="46" textAnchor="middle" className="idx-num">{ind.valor}</text>
+                        <text x="42" y="59" textAnchor="middle" className="idx-den">/100</text>
+                    </>
+                ) : (
+                    <text x="42" y="48" textAnchor="middle" className="idx-sd">S/D</text>
+                )}
+            </svg>
+            <div className="idx-etq" style={{ color: ind.color }}>{ind.etiqueta}</div>
+            <div className="idx-imp">{ind.implicacion}</div>
+        </div>
+    );
+};
+
 const EstacionCard = ({ est }: { est: EstacionConLectura }) => {
     const l = est.lectura;
     const q = est.calidad;
@@ -221,6 +261,67 @@ const Clima = () => {
     const { fechaSeleccionada } = useFecha();
     const { clima, loading } = usePresas(fechaSeleccionada);
     const { estaciones, loading: loadingEst, refrescarAhora, refresco } = useClimaEstaciones();
+
+    // Infografía: trae el historial de 7 días para el panel de tendencias. Si la
+    // consulta falla se emite igual con historial vacío — ese panel se rotula
+    // "sin datos suficientes" en vez de bloquear toda la descarga.
+    const descargarInfografia = async () => {
+        let historial: DiaHistorico[] = [];
+        try {
+            const ids = estaciones.map(e => e.id);
+            if (ids.length) {
+                const desde = new Date(Date.now() - 7 * 864e5).toISOString();
+                const { data, error } = await supabase
+                    .from('clima_estacion_lecturas')
+                    .select('estacion_id, fecha, ts, temp_c, hum_rel_pct, viento_ms, eto_mm, et_dia_mm')
+                    .in('estacion_id', ids)
+                    .gte('ts', desde)
+                    .order('ts', { ascending: true });
+                if (error) throw error;
+                historial = agrupaPorDia((data ?? []) as LecturaClima[]);
+            }
+        } catch (e) {
+            console.warn('[Clima] historial 7 d no disponible para la infografía:', e);
+        }
+        await exportClimaInfografia(estaciones, historial);
+    };
+
+    // ── Tablero ejecutivo del distrito ──────────────────────────────────────
+    // Los índices ICA-005/IDR/IRO/IHE existían solo en los informes descargados;
+    // en pantalla el gerente tenía que derivar la lectura operativa de las
+    // variables crudas. Se calculan con las MISMAS funciones auditadas que usan
+    // los informes, para que pantalla y PDF nunca discrepen.
+    const etoDiarioRed = useMemo(() => {
+        const hoyLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
+        const sumas = estaciones.map(e => e.pronosticoSerie
+            .filter(p => p.fecha_local === hoyLocal && p.eto_fc_mm != null)
+            .reduce((a, p) => a + (p.eto_fc_mm ?? 0), 0)).filter(v => v > 0);
+        return sumas.length ? sumas.reduce((a, b) => a + b, 0) / sumas.length : null;
+    }, [estaciones]);
+
+    const indices = useMemo(
+        () => (estaciones.length ? calculaIndices(entradasDesdeEstaciones(estaciones, etoDiarioRed)) : []),
+        [estaciones, etoDiarioRed],
+    );
+
+    // Confianza del corte: frescura QA/QC + cobertura de red + pronóstico.
+    // Un tablero de decisión debe declarar cuánto vale el dato que muestra.
+    const confianza = useMemo(() => {
+        if (!estaciones.length) return null;
+        const frescas = estaciones.filter(e => e.calidad.usableComoActual).length;
+        const enLinea = estaciones.filter(e => e.enLinea).length;
+        const conFc = estaciones.filter(e => e.pronosticoSerie.length > 0).length;
+        const n = estaciones.length;
+        const pct = Math.round(100 * (0.5 * (frescas / n) + 0.3 * (enLinea / n) + 0.2 * (conFc / n)));
+        const edades = estaciones.map(e => e.calidad.edadMin).filter((v): v is number => v != null);
+        return {
+            pct,
+            etiqueta: pct >= 85 ? 'ALTA' : pct >= 60 ? 'MEDIA' : 'BAJA',
+            color: pct >= 85 ? '#22c55e' : pct >= 60 ? '#f59e0b' : '#ef4444',
+            detalle: `${frescas}/${n} con dato vigente · ${conFc}/${n} con pronóstico`
+                + (edades.length ? ` · antigüedad máx. ${Math.max(...edades).toFixed(0)} min` : ''),
+        };
+    }, [estaciones]);
 
     // Build weather conditions from Supabase data
     const conditions = buildConditions(clima);
@@ -322,34 +423,49 @@ const Clima = () => {
     const probMaxFc = probsFc.length ? Math.round(Math.max(...probsFc)) : null;
 
     // Irrigation alerts derived from real data
+    // Alertas de riego desde la RED WEATHERLINK (fuente viva), no desde
+    // clima_presas. La tabla legada trae `intensidad_viento` como CATEGORÍA de
+    // texto ("Int > 3"), no como m/s: decidir la suspensión de aspersión con un
+    // índice opaco, existiendo la medición real, es la misma clase de error ya
+    // corregida en el resumen de red. Además, sin filas en clima_presas el panel
+    // quedaba vacío aunque las 4 estaciones estuvieran reportando.
     const irrigationAlerts = [];
-    if (clima.length > 0) {
-        const c = clima[0];
-        if (Number(c.intensidad_viento ?? 0) > 3) {
+    {
+        const conLect = estaciones.filter(e => e.lectura);
+        const vientos = conLect.map(e => e.lectura!.viento_ms).filter((v): v is number => v != null);
+        const vMax = vientos.length ? Math.max(...vientos) : null;
+        const estVientoMax = vMax != null
+            ? conLect.find(e => e.lectura!.viento_ms === vMax)?.nombre : null;
+        const lluviaTot = conLect.reduce((a, e) => a + (e.lectura!.lluvia_dia_mm ?? 0), 0);
+        const tMins = conLect.map(e => e.lectura!.temp_min_c).filter((v): v is number => v != null);
+        const tMin = tMins.length ? Math.min(...tMins) : null;
+
+        // Umbral 5 m/s: límite recomendado para aspersión (deriva y evaporación).
+        if (vMax != null) {
+            irrigationAlerts.push(vMax > 5
+                ? { active: true, threshold: '> 5 m/s',
+                    message: `Viento ${vMax.toFixed(1)} m/s${estVientoMax ? ` en ${estVientoMax}` : ''}: suspender riego por aspersión (deriva)` }
+                : { active: false, threshold: '≤ 5 m/s',
+                    message: `Viento ${vMax.toFixed(1)} m/s: riego por aspersión dentro de parámetros` });
+        }
+        if (lluviaTot > 10) {
             irrigationAlerts.push({
-                active: true,
-                message: `Viento fuerte (Int: ${c.intensidad_viento}): Suspender riego por aspersión`,
-                threshold: 'Int > 3',
-            });
-        } else {
-            irrigationAlerts.push({
-                active: false,
-                message: 'Viento dentro de parámetros: Riego por aspersión permitido',
-                threshold: 'Int ≤ 3',
+                active: true, threshold: '> 10 mm',
+                message: `Precipitación ${lluviaTot.toFixed(1)} mm en la red: considerar cierre preventivo de tomas`,
             });
         }
-        if ((c.precipitacion_mm ?? 0) > 10) {
+        if (tMin != null && tMin < 5) {
             irrigationAlerts.push({
-                active: true,
-                message: `Precipitación ${c.precipitacion_mm} mm: Considerar cierre preventivo de tomas`,
-                threshold: '> 10 mm',
+                active: true, threshold: '< 5 °C',
+                message: `Temp. mínima ${tMin.toFixed(1)} °C: vigilar heladas en frutales`,
             });
         }
-        if ((c.temp_minima_c ?? 99) < 5) {
+        // La demanda alta es una condición operativa, no una anomalía: se informa
+        // para que el turno se dimensione, con la lámina bruta ya calculada.
+        if (etoDiarioRed != null && etoDiarioRed >= 6) {
             irrigationAlerts.push({
-                active: true,
-                message: `Temp. mín ${c.temp_minima_c}°C: Vigilar heladas en frutales`,
-                threshold: '< 5°C',
+                active: true, threshold: 'ETₒ ≥ 6 mm/día',
+                message: `Demanda atmosférica alta (ETₒ ${etoDiarioRed.toFixed(2)} mm/día): reponer ≈ ${((etoDiarioRed * 0.85) / 0.7).toFixed(1)} mm/día; priorizar turnos nocturnos`,
             });
         }
     }
@@ -447,6 +563,26 @@ const Clima = () => {
                 </div>
             </section>
 
+            {/* Tablero ejecutivo: los índices que resumen el estado operativo del
+                distrito. Antes solo existían en los informes descargados. */}
+            {indices.length > 0 && (
+                <section className="card tablero-ejecutivo">
+                    <div className="tablero-head">
+                        <h3><Zap size={18} /> Tablero Ejecutivo del Distrito</h3>
+                        {confianza && (
+                            <span className="conf-chip" title={confianza.detalle}>
+                                Confianza del dato
+                                <b style={{ color: confianza.color }}>{confianza.etiqueta} · {confianza.pct}%</b>
+                            </span>
+                        )}
+                    </div>
+                    <div className="idx-row">
+                        {indices.map(i => <IndiceRing key={i.clave} ind={i} />)}
+                    </div>
+                    {confianza && <p className="tablero-pie">{confianza.detalle}</p>}
+                </section>
+            )}
+
             {/* Condición del cielo del distrito — separada de la precipitación.
                 Si ninguna estación tiene fuente de nubosidad, se declara NO
                 DETERMINADO en vez de inferirlo de la lluvia observada. */}
@@ -502,6 +638,12 @@ const Clima = () => {
                             >
                                 <RefreshCw size={14} className={refresco.activo ? 'girando' : ''} />
                                 {refresco.activo ? 'Actualizando…' : 'Actualizar datos'}
+                            </button>
+                            {/* Lectura rápida: KPI + plano activo, sin metodología ni tablas horarias.
+                                El historial de 7 días alimenta el panel de tendencias; si la consulta
+                                falla se emite igual y ese panel se rotula "sin datos suficientes". */}
+                            <button className="estaciones-info" onClick={() => { void descargarInfografia(); }} title="Descargar infografía de clima actual: indicadores KPI y plano activo del distrito (HTML)">
+                                <Gauge size={14} /> Infografía
                             </button>
                             <button className="estaciones-dl" onClick={() => { void exportClimaReport(estaciones); }} title="Descargar informe técnico de clima (HTML)">
                                 <Download size={14} /> Informe

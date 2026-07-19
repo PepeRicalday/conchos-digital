@@ -510,6 +510,14 @@
     transition: opacity 0.15s;
 }
 .estaciones-dl:hover { opacity: 0.88; }
+/* Infografía: misma jerarquía que "Informe" pero secundaria — el técnico manda. */
+.estaciones-info {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: transparent; color: #38bdf8; border: 1px solid #38bdf8; border-radius: 6px;
+    padding: 6px 12px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
+    transition: background 0.15s;
+}
+.estaciones-info:hover { background: rgba(56, 189, 248, 0.12); }
 
 /* ═══ MEJORA VISUAL MODERNA — Módulo Clima v2 ═══════════════════════════ */
 
@@ -689,3 +697,53 @@
 .refresco-estado.con-error { background: rgba(245,158,11,0.08); border-left-color: #f59e0b; }
 .refresco-hora { color: #64748b; font-family: monospace; }
 .refresco-err { color: #fbbf24; }
+
+/* ═══ TABLERO EJECUTIVO DEL DISTRITO ═══════════════════════════════════════
+   Índices ICA-005/IDR/IRO/IHE en pantalla. Cada medidor lleva SIEMPRE su
+   implicación operativa debajo: el número por sí solo obliga a conocer la
+   escala de memoria, que es justo lo que un tablero gerencial debe evitar. */
+.tablero-ejecutivo { margin-bottom: var(--spacing-lg); }
+
+.tablero-head {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: var(--spacing-sm); margin-bottom: var(--spacing-md);
+}
+.tablero-head h3 { margin: 0; }
+
+/* Confianza del corte: cuánto vale el dato que se está mostrando. */
+.conf-chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 12px; border-radius: 20px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10);
+    font-size: 0.66rem; color: var(--color-text-muted);
+    text-transform: uppercase; letter-spacing: 0.04em;
+}
+.conf-chip b { font-size: 0.74rem; letter-spacing: 0; }
+
+.idx-row {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--spacing-sm);
+}
+.idx-card {
+    text-align: center; padding: var(--spacing-md) var(--spacing-sm);
+    background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.07);
+    border-radius: var(--radius-md);
+}
+.idx-clave { font-size: 0.82rem; font-weight: 800; color: var(--color-text-primary); }
+.idx-nombre {
+    font-size: 0.58rem; color: var(--color-text-muted);
+    line-height: 1.3; min-height: 2.1em; margin-top: 2px;
+}
+.idx-svg { width: 84px; height: 84px; display: block; margin: 4px auto 0; }
+.idx-num { fill: #fff; font-size: 22px; font-weight: 700; }
+.idx-den { fill: #94a3b8; font-size: 9px; }
+.idx-sd { fill: #94a3b8; font-size: 14px; font-weight: 700; }
+.idx-etq { font-size: 0.72rem; font-weight: 700; margin-top: 2px; }
+.idx-imp {
+    font-size: 0.6rem; color: var(--color-text-muted); line-height: 1.35;
+    margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(255,255,255,0.07);
+}
+.tablero-pie {
+    margin: var(--spacing-md) 0 0; font-size: 0.62rem;
+    color: var(--color-text-muted);
+}

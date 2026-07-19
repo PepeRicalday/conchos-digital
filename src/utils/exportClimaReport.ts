@@ -14,6 +14,7 @@ import {
     type PuntoSerie,
 } from './climaCharts';
 import { calculaIndices, entradasDesdeEstaciones } from './indicesAgro';
+import { lon2tile, lat2tile, type FondoSatelital } from './mapaSatelital';
 
 const SRL_MARRON = '#6B2D2D';
 const AZUL = '#1e5b8f';
@@ -88,7 +89,7 @@ function colocaEtiqueta(
 }
 
 // Carga un asset público y lo devuelve como data URI base64 (para el HTML offline).
-async function assetToDataURI(path: string): Promise<string> {
+export async function assetToDataURI(path: string): Promise<string> {
     try {
         const res = await fetch(path);
         if (!res.ok) return '';
@@ -105,7 +106,32 @@ async function assetToDataURI(path: string): Promise<string> {
 //    con corrección de aspecto por latitud), presas y estaciones ─────────────
 // Si se pasan `preds`, el mapa se vuelve de PRONÓSTICO: cada estación lleva el
 // ícono/color de su predicción a 24 h (capa de estado sobre el plano).
-function mapaSVG(ests: EstacionConLectura[], preds?: Pred24[]): string {
+/**
+ * Extensión geográfica que abarcará el plano (canal + presas + estaciones +
+ * módulos, con 8 % de margen). Se exporta para que quien construya el fondo
+ * satelital pida EXACTAMENTE la misma ventana que dibuja `mapaSVG`; si cada uno
+ * calculara la suya por su cuenta, la imagen quedaría descuadrada del trazo.
+ */
+export function extensionMapa(ests: EstacionConLectura[]): {
+    minLat: number; maxLat: number; minLon: number; maxLon: number;
+} | null {
+    const pts = ests.filter(e => e.latitud && e.longitud);
+    if (!pts.length) return null;
+    const modPts = Object.values(MODULOS_SRL).flat();
+    const allLat = [...CANAL.map(p => p[1]), ...PRESAS.map(p => p.lat), ...pts.map(e => e.latitud), ...modPts.map(p => p[1])];
+    const allLon = [...CANAL.map(p => p[0]), ...PRESAS.map(p => p.lon), ...pts.map(e => e.longitud), ...modPts.map(p => p[0])];
+    let minLa = Math.min(...allLat), maxLa = Math.max(...allLat);
+    let minLo = Math.min(...allLon), maxLo = Math.max(...allLon);
+    const mLa = (maxLa - minLa) * 0.08, mLo = (maxLo - minLo) * 0.08;
+    return {
+        minLat: minLa - mLa, maxLat: maxLa + mLa,
+        minLon: minLo - mLo, maxLon: maxLo + mLo,
+    };
+}
+
+export function mapaSVG(
+    ests: EstacionConLectura[], preds?: Pred24[], fondo?: FondoSatelital | null,
+): string {
     const pts = ests.filter(e => e.latitud && e.longitud);
     if (!pts.length) return '';
     const predDe = (nombre: string) => preds?.find(p => p.estacion === nombre);
@@ -135,7 +161,9 @@ function mapaSVG(ests: EstacionConLectura[], preds?: Pred24[]): string {
         const d = ring.map((p, i) => `${i ? 'L' : 'M'}${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join(' ') + ' Z';
         let cx = 0, cy = 0; for (const p of ring) { cx += p[0]; cy += p[1]; } cx /= ring.length; cy /= ring.length;
         const lx = sx(cx), ly = sy(cy);
-        return `<path d="${d}" fill="${col}" fill-opacity="0.20" stroke="${col}" stroke-width="2" stroke-dasharray="5,3" stroke-linejoin="round"/>
+        // Sobre satélite el relleno se reduce: la imagen debe leerse a través
+        // del módulo, que aquí solo delimita, no colorea.
+        return `<path d="${d}" fill="${col}" fill-opacity="${fondo ? 0.11 : 0.20}" stroke="${col}" stroke-width="${fondo ? 2.2 : 2}" stroke-dasharray="5,3" stroke-linejoin="round"/>
                 <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="11.5" fill="#fff" fill-opacity="0.95" stroke="${col}" stroke-width="2"/>
                 <text x="${lx.toFixed(1)}" y="${(ly+4).toFixed(1)}" font-size="11" font-weight="800" text-anchor="middle" fill="${col}" font-family="system-ui">M${num}</text>`;
     }).join('');
@@ -153,12 +181,16 @@ function mapaSVG(ests: EstacionConLectura[], preds?: Pred24[]): string {
         ocupados.push({ x: sx(cx / ring.length) - 12, y: sy(cy / ring.length) - 12, w: 24, h: 24 });
     }
 
+    // Sobre imagen satelital el rótulo va en blanco con halo oscuro; sobre el
+    // fondo claro vectorial, al revés. Si no, uno de los dos casos queda ilegible.
+    const tintaRotulo = fondo ? '#ffffff' : '#155e75';
+    const haloRotulo = fondo ? '#0b1f38' : '#ffffff';
     const presasSVG = PRESAS.map(pr => {
         const x = sx(pr.lon), y = sy(pr.lat);
         ocupados.push({ x: x - 6, y: y - 10, w: 12, h: 12 });
         const lbl = colocaEtiqueta(x, y, pr.nombre.length * 5, ocupados, limites);
-        return `<path d="M${(x-5).toFixed(0)},${y.toFixed(0)} L${x.toFixed(0)},${(y-8).toFixed(0)} L${(x+5).toFixed(0)},${y.toFixed(0)} Z" fill="#0e7490" stroke="#fff" stroke-width="1.2"/>
-                <text x="${lbl.x.toFixed(0)}" y="${lbl.y.toFixed(0)}" font-size="8.5" font-weight="600" text-anchor="${lbl.anchor}" fill="#155e75" font-family="system-ui" paint-order="stroke" stroke="#fff" stroke-width="2.5">${pr.nombre}</text>`;
+        return `<path d="M${(x-5).toFixed(0)},${y.toFixed(0)} L${x.toFixed(0)},${(y-8).toFixed(0)} L${(x+5).toFixed(0)},${y.toFixed(0)} Z" fill="#22d3ee" stroke="#fff" stroke-width="1.2"/>
+                <text x="${lbl.x.toFixed(0)}" y="${lbl.y.toFixed(0)}" font-size="8.5" font-weight="600" text-anchor="${lbl.anchor}" fill="${tintaRotulo}" font-family="system-ui" paint-order="stroke" stroke="${haloRotulo}" stroke-width="2.5">${pr.nombre}</text>`;
     }).join('');
 
     // Estaciones: marcador + ícono; nombre y "máx N°" en UN rótulo compacto, anti-solape.
@@ -184,7 +216,7 @@ function mapaSVG(ests: EstacionConLectura[], preds?: Pred24[]): string {
             : (pr?.tMaxEsp != null ? `${e.nombre} · máx ${pr.tMaxEsp}°` : e.nombre);
         const lbl = txt ? colocaEtiqueta(x, y, txt.length * 4.8, ocupados, limites) : null;
         const lblSVG = lbl
-            ? `<text x="${lbl.x.toFixed(1)}" y="${lbl.y.toFixed(1)}" font-size="9" font-weight="700" text-anchor="${lbl.anchor}" fill="#0c4a6e" font-family="system-ui" paint-order="stroke" stroke="#fff" stroke-width="3">${txt}</text>`
+            ? `<text x="${lbl.x.toFixed(1)}" y="${lbl.y.toFixed(1)}" font-size="9" font-weight="700" text-anchor="${lbl.anchor}" fill="${fondo ? '#ffffff' : '#0c4a6e'}" font-family="system-ui" paint-order="stroke" stroke="${fondo ? '#0b1f38' : '#ffffff'}" stroke-width="3">${txt}</text>`
             : '';
         return `${marca}\n${lblSVG}`;
     }).join('');
@@ -193,11 +225,11 @@ function mapaSVG(ests: EstacionConLectura[], preds?: Pred24[]): string {
     const grid: string[] = [];
     for (let la = Math.ceil(minLa * 10) / 10; la <= maxLa; la += 0.1) {
         const y = sy(la);
-        grid.push(`<line x1="${P}" y1="${y.toFixed(0)}" x2="${W-P}" y2="${y.toFixed(0)}" stroke="#000" stroke-opacity="0.05" stroke-width="0.6"/><text x="${P-3}" y="${(y+3).toFixed(0)}" font-size="7" text-anchor="end" fill="#94a3b8">${la.toFixed(1)}°</text>`);
+        grid.push(`<line x1="${P}" y1="${y.toFixed(0)}" x2="${W-P}" y2="${y.toFixed(0)}" stroke="${fondo ? '#fff' : '#000'}" stroke-opacity="${fondo ? 0.14 : 0.05}" stroke-width="0.6"/><text x="${P-3}" y="${(y+3).toFixed(0)}" font-size="7" text-anchor="end" fill="${fondo ? '#c3d3e2' : '#94a3b8'}">${la.toFixed(1)}°</text>`);
     }
     for (let lo = Math.ceil(minLo * 10) / 10; lo <= maxLo; lo += 0.1) {
         const x = sx(lo);
-        grid.push(`<line x1="${x.toFixed(0)}" y1="${P}" x2="${x.toFixed(0)}" y2="${H-P}" stroke="#000" stroke-opacity="0.05" stroke-width="0.6"/><text x="${x.toFixed(0)}" y="${(H-P+10).toFixed(0)}" font-size="7" text-anchor="middle" fill="#94a3b8">${lo.toFixed(1)}°</text>`);
+        grid.push(`<line x1="${x.toFixed(0)}" y1="${P}" x2="${x.toFixed(0)}" y2="${H-P}" stroke="${fondo ? '#fff' : '#000'}" stroke-opacity="${fondo ? 0.14 : 0.05}" stroke-width="0.6"/><text x="${x.toFixed(0)}" y="${(H-P+10).toFixed(0)}" font-size="7" text-anchor="middle" fill="${fondo ? '#c3d3e2' : '#94a3b8'}">${lo.toFixed(1)}°</text>`);
     }
 
     // ── Fondo GEOMORFOLÓGICO estilizado (SVG): terreno árido del semidesierto
@@ -212,9 +244,27 @@ function mapaSVG(ests: EstacionConLectura[], preds?: Pred24[]): string {
         bandas.push(`<rect x="${P}" y="${y0.toFixed(1)}" width="${W-2*P}" height="${(h+1).toFixed(1)}" fill="url(#terr${i % 2})" opacity="${(0.5 + verde * 0.25).toFixed(2)}"/>`);
     }
 
+    // ── Fondo satelital georreferenciado (si se pudo construir) ─────────────
+    // La imagen viene en Web Mercator y el plano proyecta lineal en lat/lon. Se
+    // coloca por sus bordes reales: sobre los ~0.9° de latitud del distrito la
+    // diferencia entre ambas proyecciones es < 1 px, así que estirar la imagen
+    // linealmente no descuadra el trazo del canal ni los contornos de módulo.
+    // Se recorta al marco del mapa para que no invada los márgenes de rótulos.
+    const fondoSVG = fondo ? (() => {
+        const fx0 = sx(fondo.minLon), fx1 = sx(fondo.maxLon);
+        const fy0 = sy(fondo.maxLat), fy1 = sy(fondo.minLat);
+        return `<clipPath id="marco"><rect x="${P}" y="${P}" width="${W-2*P}" height="${H-2*P}" rx="3"/></clipPath>
+                <g clip-path="url(#marco)">
+                  <image href="${fondo.dataURI}" x="${fx0.toFixed(1)}" y="${fy0.toFixed(1)}"
+                         width="${(fx1-fx0).toFixed(1)}" height="${(fy1-fy0).toFixed(1)}"
+                         preserveAspectRatio="none"/>
+                  <rect x="${P}" y="${P}" width="${W-2*P}" height="${H-2*P}" fill="#0b1f38" opacity="0.10"/>
+                </g>`;
+    })() : '';
+
     // Alto extra al pie cuando hay leyenda de iconos de cielo, para que no se recorte.
     const HL = preds ? 26 : 0;
-    return `<svg viewBox="0 0 ${W} ${H + HL}" width="100%" style="background:#f4f8fb;border:1px solid #cbd5e1;border-radius:10px">
+    return `<svg viewBox="0 0 ${W} ${H + HL}" width="100%" style="background:${fondo ? '#0b1f38' : '#f4f8fb'};border:1px solid ${fondo ? '#1e3a5c' : '#cbd5e1'};border-radius:10px">
         <defs>
           <linearGradient id="terr0" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stop-color="#e8e0cf"/><stop offset="0.5" stop-color="#dfe6cf"/><stop offset="1" stop-color="#e5dcc7"/>
@@ -229,15 +279,24 @@ function mapaSVG(ests: EstacionConLectura[], preds?: Pred24[]): string {
             <feColorMatrix in="n" type="matrix" values="0 0 0 0 0.55  0 0 0 0 0.5  0 0 0 0 0.42  0 0 0 0.5 0"/>
             <feComposite operator="in" in2="SourceGraphic"/></filter>
         </defs>
-        <rect x="${P}" y="${P}" width="${W-2*P}" height="${H-2*P}" fill="#e6ddc9"/>
-        ${bandas.join('')}
-        <rect x="${P}" y="${P}" width="${W-2*P}" height="${H-2*P}" fill="url(#valle)"/>
-        <rect x="${P}" y="${P}" width="${W-2*P}" height="${H-2*P}" filter="url(#relieve)" opacity="0.28"/>
+        ${fondo
+            // Con imagen satelital, el terreno sintético sobra: sería una capa
+            // decorativa tapando datos reales.
+            ? fondoSVG
+            : `<rect x="${P}" y="${P}" width="${W-2*P}" height="${H-2*P}" fill="#e6ddc9"/>
+               ${bandas.join('')}
+               <rect x="${P}" y="${P}" width="${W-2*P}" height="${H-2*P}" fill="url(#valle)"/>
+               <rect x="${P}" y="${P}" width="${W-2*P}" height="${H-2*P}" filter="url(#relieve)" opacity="0.28"/>`}
         ${grid.join('')}
-        <path d="${rioPath}" fill="none" stroke="#3b82f6" stroke-width="1.6" stroke-linejoin="round" opacity="0.55"/>
+        <path d="${rioPath}" fill="none" stroke="#3b82f6" stroke-width="1.6" stroke-linejoin="round" opacity="${fondo ? 0.75 : 0.55}"/>
         ${modulosSVG}
-        <path d="${canalPath}" fill="none" stroke="#1d4ed8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>
-        <path d="${canalPath}" fill="none" stroke="#bfdbfe" stroke-width="0.8" stroke-dasharray="1,4"/>
+        ${fondo
+            // Sobre satélite el canal lleva contorno oscuro + núcleo cian: el
+            // azul plano se confundía con el agua realzada de los vasos.
+            ? `<path d="${canalPath}" fill="none" stroke="#0b1f38" stroke-width="4.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.75"/>
+               <path d="${canalPath}" fill="none" stroke="#38bdf8" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>`
+            : `<path d="${canalPath}" fill="none" stroke="#1d4ed8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>
+               <path d="${canalPath}" fill="none" stroke="#bfdbfe" stroke-width="0.8" stroke-dasharray="1,4"/>`}
         ${presasSVG}${estSVG}
         <rect x="${P}" y="${P}" width="${W-2*P}" height="17" fill="#0f172a" opacity="0.35"/>
         <text x="${P+5}" y="${P+12}" font-size="9" font-weight="600" fill="#fff" font-family="system-ui">${preds ? 'Nubosidad prevista 24 h — Módulos SRL Conchos · DR-005' : 'Módulos SRL Conchos (M1-M5, M12) · Valle del Conchos, DR-005'}</text>
@@ -360,7 +419,7 @@ function analisisTecnico(
 //     directamente y la tendencia barométrica solo se usa como respaldo cuando
 //     no hay pronóstico disponible.
 // "Sin lluvia prevista" y "cubierto" pueden coexistir, y el informe lo refleja.
-interface Pred24 {
+export interface Pred24 {
     estacion: string; lat: number; lon: number; enLinea: boolean;
     /** Diagnóstico del cielo con procedencia y confianza; sin icono si no hay fuente. */
     cielo: DiagnosticoCielo;
@@ -399,7 +458,7 @@ function pLluviaPorTendencia(l: LecturaClima): number {
     return Math.max(0, Math.min(90, p));
 }
 
-function predice24h(e: EstacionConLectura): Pred24 {
+export function predice24h(e: EstacionConLectura): Pred24 {
     const l = e.lectura;
     const base = { estacion: e.nombre, lat: e.latitud, lon: e.longitud, enLinea: e.enLinea };
 

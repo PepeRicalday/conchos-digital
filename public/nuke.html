@@ -56,63 +56,104 @@
          * el SW viejo sobrevivía y el equipo volvía a quedar anclado. Ahora se
          * espera cada paso con await y el timeout solo actúa como tope máximo.
          */
-        (async function () {
-            const log = (m) => { console.log(m); const el = document.getElementById('paso'); if (el) el.textContent = m; };
+        (function () {
+            var salida = false;
+            var log = function (m) {
+                console.log(m);
+                var el = document.getElementById('paso');
+                if (el) el.textContent = m;
+            };
 
-            // Preservar la sesión de Supabase: borrarla obliga a reingresar
-            // credenciales en campo, donde el operador puede no tenerlas.
-            const auth = [];
-            try {
-                for (let i = 0; i < localStorage.length; i++) {
-                    const k = localStorage.key(i);
-                    if (k && (k.startsWith('sb-') || k.indexOf('supabase.auth') !== -1)) {
-                        auth.push([k, localStorage.getItem(k)]);
+            var irAlSitio = function (motivo) {
+                if (salida) return;              // una sola navegación
+                salida = true;
+                console.log('Redirigiendo (' + motivo + ')');
+                window.location.replace(window.location.origin + '/?nuke=' + Date.now());
+            };
+
+            // RED DE SEGURIDAD: pase lo que pase, a los 8 s se navega igual.
+            // Si un paso queda colgado (caso típico: deleteDatabase bloqueado
+            // por una conexión Dexie abierta en otra pestaña de iPadOS), la
+            // purga que SÍ alcanzó a correr ya sirve — lo esencial es
+            // desregistrar el SW y borrar cachés, que van primero.
+            setTimeout(function () { irAlSitio('tope de seguridad'); }, 8000);
+
+            // Tope individual por paso: ninguna promesa puede colgar la cadena.
+            var conTope = function (promesa, ms, etiqueta) {
+                return Promise.race([
+                    Promise.resolve(promesa).catch(function (e) { console.warn(etiqueta, e); }),
+                    new Promise(function (res) { setTimeout(function () { console.warn(etiqueta + ': tope alcanzado'); res(); }, ms); })
+                ]);
+            };
+
+            (async function () {
+                // Preservar la sesión de Supabase: borrarla obliga a reingresar
+                // credenciales en campo, donde el operador puede no tenerlas.
+                var auth = [];
+                try {
+                    for (var i = 0; i < localStorage.length; i++) {
+                        var k = localStorage.key(i);
+                        if (k && (k.indexOf('sb-') === 0 || k.indexOf('supabase.auth') !== -1)) {
+                            auth.push([k, localStorage.getItem(k)]);
+                        }
                     }
-                }
-            } catch (e) { /* modo privado */ }
+                } catch (e) { /* modo privado */ }
 
-            // 1. Desregistrar TODOS los service workers (antes que nada: si
-            //    sobrevive uno, puede volver a poblar las cachés que borremos).
-            try {
+                // 1. Desregistrar TODOS los service workers. Va primero: si
+                //    sobrevive uno, puede repoblar las cachés que borremos.
                 if ('serviceWorker' in navigator) {
                     log('Desregistrando service workers…');
-                    const regs = await navigator.serviceWorker.getRegistrations();
-                    await Promise.all(regs.map((r) => r.unregister()));
+                    await conTope((async function () {
+                        var regs = await navigator.serviceWorker.getRegistrations();
+                        await Promise.all(regs.map(function (r) { return r.unregister(); }));
+                    })(), 3000, 'SW');
                 }
-            } catch (e) { console.warn('SW:', e); }
 
-            // 2. Borrar TODAS las cachés
-            try {
+                // 2. Borrar TODAS las cachés — el paso decisivo del anclaje.
                 if ('caches' in window) {
                     log('Borrando cachés…');
-                    const names = await caches.keys();
-                    await Promise.all(names.map((n) => caches.delete(n)));
+                    await conTope((async function () {
+                        var names = await caches.keys();
+                        await Promise.all(names.map(function (n) { return caches.delete(n); }));
+                    })(), 3000, 'caches');
                 }
-            } catch (e) { console.warn('caches:', e); }
 
-            // 3. Limpiar almacenamiento (restaurando la sesión)
-            try {
-                log('Limpiando almacenamiento…');
-                localStorage.clear();
-                sessionStorage.clear();
-                for (const [k, v] of auth) if (v !== null) localStorage.setItem(k, v);
-            } catch (e) { console.warn('storage:', e); }
+                // 3. Almacenamiento (restaurando la sesión). Es síncrono.
+                try {
+                    log('Limpiando almacenamiento…');
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    for (var j = 0; j < auth.length; j++) {
+                        if (auth[j][1] !== null) localStorage.setItem(auth[j][0], auth[j][1]);
+                    }
+                } catch (e) { console.warn('storage:', e); }
 
-            // 4. IndexedDB (Dexie). Safari/iOS no soporta databases() — se
-            //    ignora silenciosamente ahí; no es crítico para el anclaje.
-            try {
-                if (window.indexedDB && indexedDB.databases) {
-                    log('Limpiando base local…');
-                    const dbs = await indexedDB.databases();
-                    await Promise.all(dbs.map((db) => db.name
-                        ? new Promise((res) => { const r = indexedDB.deleteDatabase(db.name); r.onsuccess = r.onerror = r.onblocked = () => res(); })
-                        : Promise.resolve()));
-                }
-            } catch (e) { console.warn('idb:', e); }
+                // 4. IndexedDB. deleteDatabase() puede quedarse en `blocked`
+                //    indefinidamente si Dexie tiene una conexión abierta, así
+                //    que va AL FINAL y con tope corto: no borrarla no impide
+                //    recibir la versión nueva.
+                try {
+                    if (window.indexedDB && indexedDB.databases) {
+                        log('Limpiando base local…');
+                        await conTope((async function () {
+                            var dbs = await indexedDB.databases();
+                            await Promise.all(dbs.map(function (db) {
+                                if (!db.name) return Promise.resolve();
+                                return new Promise(function (res) {
+                                    var r = indexedDB.deleteDatabase(db.name);
+                                    r.onsuccess = r.onerror = r.onblocked = function () { res(); };
+                                });
+                            }));
+                        })(), 2000, 'idb');
+                    }
+                } catch (e) { console.warn('idb:', e); }
 
-            // 5. Redirigir con cache-busting sólo cuando TODO terminó.
-            log('Cargando versión nueva…');
-            window.location.replace(window.location.origin + '/?nuke=' + Date.now());
+                log('Cargando versión nueva…');
+                irAlSitio('purga completa');
+            })().catch(function (e) {
+                console.error('nuke:', e);
+                irAlSitio('error');          // ni un throw impide salir
+            });
         })();
     </script>
 </body>

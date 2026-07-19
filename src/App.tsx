@@ -207,21 +207,15 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
 };
 
 function App() {
-  // --- PWA SERVICE WORKER: Registro silencioso v3 ---
-  if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-    navigator.serviceWorker.ready.then(registration => {
-      setInterval(() => {
-        registration.update().catch(() => { });
-      }, 10 * 60 * 1000);
-    });
-
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return;
-      refreshing = true;
-      window.location.reload();
-    });
-  }
+  // El registro del SW, la búsqueda periódica de versión y el manejo de
+  // `controllerchange` viven en main.tsx.
+  //
+  // Aquí había una copia de esa lógica SIN la guardia de primera carga: tras
+  // un nuke no hay controlador, el SW recién registrado disparaba
+  // `controllerchange` y esta recarga abortaba los chunks lazy a medio vuelo
+  // — el Suspense quedaba colgado en "Cargando módulo…" para siempre.
+  // Además corría en el cuerpo del componente, registrando un listener nuevo
+  // y un setInterval en cada render.
 
   return (
     <ErrorBoundary>

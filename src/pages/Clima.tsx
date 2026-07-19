@@ -326,17 +326,30 @@ const Clima = () => {
     // Build weather conditions from Supabase data
     const conditions = buildConditions(clima);
 
-    // Build technical variables. Prioriza la ETₒ REAL de las estaciones WeatherLink
-    // (FAO-56 Penman-Monteith); si no hay estaciones, cae a la aproximación previa.
+    // Build technical variables.
+    //
+    // ETₒ para DIMENSIONAR LÁMINA. Debe ser el total del día, no el acumulado al
+    // corte: de madrugada `eto_mm` vale 0 (o null, si la estación aún no publica
+    // el acumulado) y la lámina resultante salía 0.00 mm/día, contradiciendo a la
+    // alerta que pedía reponer 8.2 mm/día. Prioridad:
+    //   1) total del día del modelo (misma magnitud que usa el IDR),
+    //   2) acumulado real de estación, si ya hay algo acumulado,
+    //   3) aproximación desde evaporación de presa (último recurso).
+    // Nunca se emite 0.00 como si fuera una demanda medida.
     const techVars: TechnicalVariable[] = [];
-    const estEnLinea = estaciones.filter(e => e.enLinea && e.lectura?.eto_mm != null);
-    if (estEnLinea.length > 0) {
-        const etoProm = estEnLinea.reduce((a, e) => a + (e.lectura!.eto_mm ?? 0), 0) / estEnLinea.length;
+    const estEnLinea = estaciones.filter(e => e.enLinea && (e.lectura?.eto_mm ?? 0) > 0);
+    const etoAcumRed = estEnLinea.length
+        ? estEnLinea.reduce((a, e) => a + (e.lectura!.eto_mm ?? 0), 0) / estEnLinea.length
+        : null;
+    const etoLamina = etoDiarioRed ?? etoAcumRed;
+    if (etoLamina != null) {
         techVars.push({
             name: 'Evapotranspiración (ETₒ)',
-            value: etoProm.toFixed(2),
+            value: etoLamina.toFixed(2),
             unit: 'mm/día',
-            description: `Real, promedio de ${estEnLinea.length} estación(es) — FAO-56 Penman-Monteith`,
+            description: etoDiarioRed != null
+                ? `Total previsto del día — modelo horario (acum. al corte: ${etoAcumRed != null ? etoAcumRed.toFixed(2) : '0.00'} mm)`
+                : `Acumulado al corte, promedio de ${estEnLinea.length} estación(es) — FAO-56 Penman-Monteith`,
             icon: <Activity size={18} />
         });
         const estGdd = estaciones.filter(e => e.lectura?.gdd != null);
@@ -352,7 +365,10 @@ const Clima = () => {
         }
     } else if (clima.length > 0) {
         const c = clima[0];
-        if (c.evaporacion_mm != null) {
+        // Solo si aporta un valor REAL: `evaporacion_mm` en 0 producía una ETₒ de
+        // 0.0 mm/día que se leía como "no hay demanda", cuando en realidad
+        // significa "no hay dato".
+        if (c.evaporacion_mm != null && c.evaporacion_mm > 0) {
             const eto = (c.evaporacion_mm * 0.7).toFixed(1);
             techVars.push({
                 name: 'Evapotranspiración (ETₒ)',
@@ -554,10 +570,20 @@ const Clima = () => {
                             {lluviaObsTotal.toFixed(1)} <small>mm</small>
                         </span>
                     </div>
+                    {/* ETₒ ACUMULADA AL CORTE, no el total del día. A primera hora vale
+                        casi 0 aunque el IDR marque demanda alta: el índice usa el total
+                        previsto del día (la magnitud con la que se dimensiona la lámina).
+                        Se rotula explícitamente para que ese contraste no se lea como
+                        contradicción entre la cabecera y el tablero. */}
                     <div className="quick-stat">
-                        <span className="stat-label">ETₒ acum. media</span>
+                        <span className="stat-label">ETₒ acum. al corte</span>
                         <span className="stat-value">
                             {etoMedioRed != null ? etoMedioRed.toFixed(2) : '—'} <small>mm</small>
+                        </span>
+                        <span className="stat-nota">
+                            {etoDiarioRed != null
+                                ? `Total previsto hoy ${etoDiarioRed.toFixed(2)} mm`
+                                : 'Sin total previsto del modelo'}
                         </span>
                     </div>
                 </div>
@@ -728,10 +754,20 @@ const Clima = () => {
                                 <Leaf size={16} />
                                 <span>Coeficiente de Cultivo (Kc)</span>
                             </div>
-                            <p>La App cruza la ETₒ ({techVars[0]?.value || '—'} mm/día) con la etapa del cultivo para determinar la lámina de riego real:</p>
+                            {/* Se lee de `etoLamina`, no de techVars[0] por posición, y se
+                                muestra también la LÁMINA BRUTA: es la cifra que se entrega
+                                en campo y la que citan las alertas y los informes. Sin ella,
+                                pantalla (neta) e informe (bruta) parecían discrepar. */}
+                            <p>La App cruza la ETₒ ({etoLamina != null ? etoLamina.toFixed(2) : '—'} mm/día) con la etapa del cultivo para determinar la lámina de riego real:</p>
                             <div className="kc-formula">
                                 <span>ETc = ETₒ × Kc</span>
-                                <span className="kc-example">Ej: Nogal en brotación: {techVars[0]?.value || '—'} × 0.85 = <strong>{((Number(techVars[0]?.value) || 0) * 0.85).toFixed(2)} mm/día</strong></span>
+                                <span className="kc-example">
+                                    Nogal en brotación (Kc 0.85): {etoLamina != null ? etoLamina.toFixed(2) : '—'} × 0.85 = <strong>{etoLamina != null ? (etoLamina * 0.85).toFixed(2) : '—'} mm/día</strong> netos
+                                </span>
+                                <span className="kc-example">
+                                    Lámina bruta (eficiencia 70 % en rodado): <strong>{etoLamina != null ? ((etoLamina * 0.85) / 0.7).toFixed(2) : '—'} mm/día</strong>
+                                    {etoLamina != null && <> ≈ {(((etoLamina * 0.85) / 0.7) * 10).toFixed(0)} m³/ha·día</>}
+                                </span>
                             </div>
                         </div>
                     </section>

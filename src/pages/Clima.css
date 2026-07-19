@@ -747,3 +747,12 @@
     margin: var(--spacing-md) 0 0; font-size: 0.62rem;
     color: var(--color-text-muted);
 }
+
+/* Aclaración bajo un KPI de cabecera (p. ej. ETₒ al corte vs. total del día). */
+.quick-stat .stat-nota {
+    font-size: 0.58rem;
+    color: var(--color-text-muted);
+    margin-top: 3px;
+    text-align: center;
+    line-height: 1.3;
+}

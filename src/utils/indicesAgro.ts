@@ -156,7 +156,8 @@ function calcIRO(e: EntradasIndices): Indice {
         clave: 'IRO', nombre: 'Índice de Riesgo Operativo',
         descripcion: 'Riesgo operativo',
         formula: 'IRO = 0.50 × prob_lluvia + 25 × min(1, lluvia_prev/15 mm) '
-            + '+ 15 × min(1, máx(0, viento−5)/5) + 20 × (1 − estaciones_válidas/total)',
+            + '+ 15 × min(1, máx(0, viento−5)/5) + 20 × (1 − estaciones_válidas/total). '
+            + 'Piso: si viento > 5 m/s, IRO ≥ 20 (nunca "Bajo")',
         procedencia: 'Lluvia y viento: modelo + estaciones · integridad: motor QA/QC',
         implicacion: '',
     };
@@ -170,10 +171,26 @@ function calcIRO(e: EntradasIndices): Indice {
     const rViento = 15 * Math.min(1, Math.max(0, (e.vientoMaxMs ?? 0) - 5) / 5);
     const rDato = e.estacionesTotal > 0
         ? 20 * (1 - e.estacionesOk / e.estacionesTotal) : 20;
-    const v = clamp(rLluvia + rLamina + rViento + rDato);
+
+    // PISO POR VIENTO RESTRICTIVO. El término de viento aporta 15 pts como
+    // máximo (satura a 10 m/s) frente a un umbral de 20 para salir de "Bajo":
+    // por sí solo NUNCA podía sacar al índice de esa categoría. Resultado
+    // observado el 2026-07-19: con 7.1 m/s en Las Vírgenes el IRO daba 18
+    // ("Bajo · Ejecutar lo programado") mientras la alerta operativa pedía
+    // suspender la aspersión — el tablero contradecía a la restricción real.
+    // Se conservan fórmula y pesos; solo se impide esa contradicción.
+    const vientoRestrictivo = (e.vientoMaxMs ?? 0) > 5;
+    const v = clamp(Math.max(
+        rLluvia + rLamina + rViento + rDato,
+        vientoRestrictivo ? 20 : 0,
+    ));
     const etiqueta = v < 20 ? 'Bajo' : v < 40 ? 'Moderado' : v < 65 ? 'Alto' : 'Crítico';
     const color = v < 20 ? C_BUENO : v < 40 ? C_AVISO : v < 65 ? C_SERIO : C_CRITICO;
-    const implicacion = v < 20 ? 'Ejecutar lo programado'
+    // Con viento restrictivo se nombra la causa: "vigilar" a secas no le dice al
+    // jefe de zona QUÉ vigilar, y aquí la restricción concreta es la aspersión.
+    const implicacion = vientoRestrictivo && v < 40
+        ? 'Viento: suspender aspersión'
+        : v < 20 ? 'Ejecutar lo programado'
         : v < 40 ? 'Vigilar antes del turno'
         : v < 65 ? 'Evaluar diferimiento' : 'Suspender y reprogramar';
     return { ...base, valor: Math.round(v), etiqueta, color, implicacion };

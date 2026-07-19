@@ -44,8 +44,12 @@ export const VersionGuard = ({ children }: { children: ReactNode }) => {
 
                 if (error || !data) return;
 
-                const effectiveMin = '2.5.8';
-                if (isVersionLower(CURRENT_VERSION, effectiveMin)) {
+                // Se usa el mínimo declarado en Supabase. Antes había un
+                // `effectiveMin = '2.5.8'` fijo que ignoraba la BD, así que el
+                // banner nunca podía reflejar una versión mínima nueva por más
+                // que se actualizara la tabla.
+                const effectiveMin = data.min_supported_version;
+                if (effectiveMin && isVersionLower(CURRENT_VERSION, effectiveMin)) {
                     setServerVersion(effectiveMin);
                     setShowBanner(true);
                 }

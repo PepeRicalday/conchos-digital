@@ -219,7 +219,7 @@ const EstacionCard = ({ est }: { est: EstacionConLectura }) => {
 // Main Component
 const Clima = () => {
     const { fechaSeleccionada } = useFecha();
-    const { presas, clima, loading } = usePresas(fechaSeleccionada);
+    const { clima, loading } = usePresas(fechaSeleccionada);
     const { estaciones, loading: loadingEst, refrescarAhora, refresco } = useClimaEstaciones();
 
     // Build weather conditions from Supabase data
@@ -305,6 +305,17 @@ const Clima = () => {
 
     // Precipitación: escala independiente del cielo, observada y prevista.
     const lluviaObsTotal = estaciones.reduce((a, e) => a + (e.lectura?.lluvia_dia_mm ?? 0), 0);
+
+    // Resumen de la red para la tarjeta de cabecera.
+    const tempsRed = estaciones
+        .map(e => e.lectura?.temp_max_c ?? e.lectura?.temp_c)
+        .filter((v): v is number => v != null);
+    const tempMaxRed = tempsRed.length ? Math.max(...tempsRed) : null;
+    const etosRed = estaciones
+        .map(e => e.lectura?.eto_mm ?? e.lectura?.et_dia_mm)
+        .filter((v): v is number => v != null);
+    const etoMedioRed = etosRed.length
+        ? etosRed.reduce((a, b) => a + b, 0) / etosRed.length : null;
     const probsFc = estaciones
         .map(e => e.pronostico?.precip_prob_pct)
         .filter((v): v is number => v != null);
@@ -387,44 +398,50 @@ const Clima = () => {
                         <Cloud size={32} />
                     </div>
                     <div className="station-details">
-                        <h3>Estaciones Meteorológicas — Presas del Distrito</h3>
+                        <h3>Red de Estaciones Meteorológicas</h3>
                         <div className="station-meta">
+                            {/* Cuenta la red WeatherLink real, no las presas: antes
+                                mostraba "0 estaciones activas" con 4 en pantalla. */}
                             <span className="meta-item">
                                 <Activity size={12} />
-                                {presas.length} estaciones activas
+                                {estaciones.filter(e => e.calidad.usableComoActual).length} de {estaciones.length} con dato vigente
                             </span>
                             <span className="meta-item">
                                 <Leaf size={12} />
-                                SICA-005 / CONAGUA
+                                SICA-005 / WeatherLink
                             </span>
-                            {presas.length > 0 && (
+                            {estaciones.length > 0 && (
                                 <span className="meta-item">
                                     <MapPin size={12} />
-                                    {presas.map(p => p.nombre_corto).join(', ')}
+                                    {estaciones.map(e => e.nombre).join(', ')}
                                 </span>
                             )}
                         </div>
                     </div>
                 </div>
 
-                {/* Quick Stats */}
+                {/* Resumen de la red. Toma los valores de las estaciones
+                    WeatherLink —la fuente viva— y cae a clima_presas solo si
+                    aún no hay lecturas; antes leía siempre de clima_presas y
+                    mostraba guiones con las estaciones reportando. */}
                 <div className="quick-stats">
                     <div className="quick-stat">
                         <span className="stat-label">Temp. Máx</span>
                         <span className="stat-value">
-                            {clima.length > 0 && clima[0].temp_maxima_c != null ? `${clima[0].temp_maxima_c}` : '—'} <small>°C</small>
+                            {tempMaxRed != null ? tempMaxRed.toFixed(1)
+                                : clima[0]?.temp_maxima_c != null ? `${clima[0].temp_maxima_c}` : '—'} <small>°C</small>
                         </span>
                     </div>
                     <div className="quick-stat">
-                        <span className="stat-label">Precip. Total</span>
+                        <span className="stat-label">Lluvia observada</span>
                         <span className="stat-value">
-                            {clima.reduce((acc, c) => acc + (c.precipitacion_mm || 0), 0).toFixed(1)} <small>mm</small>
+                            {lluviaObsTotal.toFixed(1)} <small>mm</small>
                         </span>
                     </div>
                     <div className="quick-stat">
-                        <span className="stat-label">Evap. Promedio</span>
+                        <span className="stat-label">ETₒ acum. media</span>
                         <span className="stat-value">
-                            {clima.length > 0 ? (clima.reduce((acc, c) => acc + (c.evaporacion_mm || 0), 0) / clima.length).toFixed(1) : '—'} <small>mm</small>
+                            {etoMedioRed != null ? etoMedioRed.toFixed(2) : '—'} <small>mm</small>
                         </span>
                     </div>
                 </div>

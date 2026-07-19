@@ -109,7 +109,9 @@ export function usePresas(fecha: string) {
                     supabase.from('lecturas_presas').select('*').eq('fecha', fecha),
                     supabase.from('clima_presas').select('*').eq('fecha', fecha),
                     supabase.from('aforos_principales_diarios').select('*').eq('fecha', fecha),
-                    supabase.from('sica_eventos_log').select('*').eq('esta_activo', true).order('creado_en', { ascending: false }).limit(1),
+                    // Ordena por fecha_inicio: sica_eventos_log no tiene columna
+                    // creado_en, y pedirla devolvía 400 en cada carga de la página.
+                    supabase.from('sica_eventos_log').select('*').eq('esta_activo', true).order('fecha_inicio', { ascending: false }).limit(1),
                     supabase.from('movimientos_presas').select('*')
                         // P1-6: end-of-day computed in America/Chihuahua to handle CDT↔CST transitions
                         .lte('fecha_hora', new Date(new Date(getStartOfDateISO(fecha)).getTime() + 86400000 - 1).toISOString())

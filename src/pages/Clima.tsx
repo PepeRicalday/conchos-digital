@@ -27,6 +27,8 @@ interface WeatherCondition {
     impact: string;
     icon: React.ReactNode;
     status: 'normal' | 'warning' | 'alert';
+    /** Procedencia del valor (estación que manda, nº de estaciones agregadas). */
+    detalle?: string;
 }
 
 interface TechnicalVariable {
@@ -35,6 +37,129 @@ interface TechnicalVariable {
     unit: string;
     description: string;
     icon: React.ReactNode;
+}
+
+/**
+ * Condiciones registradas y pronóstico 24 h, desde la RED WEATHERLINK.
+ *
+ * Sustituye a la versión que leía `clima_presas`, que era una foto de UNA sola
+ * presa (PRE-001) tomada a las 06:00. Con el corte del 2026-07-19 eso producía
+ * tres afirmaciones falsas a la vez:
+ *   · "Temperatura Máxima 22.44 °C" era la instantánea de Boquilla a las 06:00,
+ *     no una máxima del día; la máxima real de la red era 24.56 °C.
+ *   · "Viento Int: 1.1" ocultaba los 7.1 m/s de Las Vírgenes, por encima del
+ *     umbral de aspersión — el panel decía "afecta la uniformidad" mientras las
+ *     alertas pedían suspender.
+ *   · "Precipitación 0 mm" contradecía los 1.27 mm registrados en Módulo 3.
+ * Además la columna de pronóstico salía siempre "—" porque las columnas *_24h
+ * de esa tabla están vacías, aun teniendo el modelo horario sincronizado.
+ *
+ * Aquí cada fila agrega la red (máx/mín/suma según la variable), declara de qué
+ * estación proviene el valor que manda, y toma el pronóstico del modelo horario.
+ */
+function buildConditionsRed(
+    ests: EstacionConLectura[], hoyLocal: string,
+): WeatherCondition[] {
+    const conLect = ests.filter(e => e.lectura);
+    if (!conLect.length) return [];
+    const out: WeatherCondition[] = [];
+
+    // Ventana de pronóstico: próximas 24 h.
+    const serie = ests.flatMap(e => e.pronosticoSerie.filter(p => (p.horizonte_h ?? 99) <= 24));
+    const num = (vs: (number | null | undefined)[]) => vs.filter((v): v is number => v != null);
+
+    // ── Temperatura máxima / mínima ─────────────────────────────────────────
+    // temp_max_c/temp_min_c son los extremos del día que publica cada estación.
+    const maxs = conLect.map(e => ({ n: e.nombre, v: e.lectura!.temp_max_c ?? e.lectura!.temp_c }))
+        .filter((x): x is { n: string; v: number } => x.v != null);
+    if (maxs.length) {
+        const top = maxs.reduce((a, b) => (b.v > a.v ? b : a));
+        const fcMax = num(serie.map(p => p.temp_c));
+        out.push({
+            variable: 'Temperatura Máxima',
+            current: `${top.v.toFixed(1)} °C`,
+            forecast: fcMax.length ? `${Math.max(...fcMax).toFixed(0)} °C` : '—',
+            impact: top.v > 35 ? 'Estrés térmico alto en cultivos' : 'Define el estrés térmico del cultivo',
+            icon: <Thermometer size={18} />,
+            status: top.v > 38 ? 'alert' : top.v > 35 ? 'warning' : 'normal',
+            detalle: `Máx. de la red · ${top.n}`,
+        });
+    }
+    const mins = conLect.map(e => ({ n: e.nombre, v: e.lectura!.temp_min_c ?? e.lectura!.temp_c }))
+        .filter((x): x is { n: string; v: number } => x.v != null);
+    if (mins.length) {
+        const bot = mins.reduce((a, b) => (b.v < a.v ? b : a));
+        const fcMin = num(serie.map(p => p.temp_c));
+        out.push({
+            variable: 'Temperatura Mínima',
+            current: `${bot.v.toFixed(1)} °C`,
+            forecast: fcMin.length ? `${Math.min(...fcMin).toFixed(0)} °C` : '—',
+            impact: bot.v < 5 ? '⚠️ Riesgo de heladas en frutales' : 'Sin riesgo de heladas',
+            icon: <Thermometer size={18} />,
+            status: bot.v < 0 ? 'alert' : bot.v < 5 ? 'warning' : 'normal',
+            detalle: `Mín. de la red · ${bot.n}`,
+        });
+    }
+
+    // ── Viento: manda el MÁXIMO, que es el que restringe la aspersión ───────
+    const vientos = conLect.map(e => ({ n: e.nombre, v: e.lectura!.viento_ms, d: e.lectura!.viento_dir_deg, r: e.lectura!.viento_rafaga_ms }))
+        .filter((x): x is { n: string; v: number; d: number | null; r: number | null } => x.v != null);
+    if (vientos.length) {
+        const top = vientos.reduce((a, b) => (b.v > a.v ? b : a));
+        const fcV = num(serie.map(p => p.viento_ms));
+        out.push({
+            variable: 'Viento (máx.)',
+            current: `${top.v.toFixed(1)} m/s${top.d != null ? ` · ${top.d.toFixed(0)}°` : ''}`,
+            forecast: fcV.length ? `${Math.max(...fcV).toFixed(1)} m/s` : '—',
+            impact: top.v > 5
+                ? 'Suspender riego por aspersión (deriva)'
+                : 'Dentro del rango operativo para aspersión',
+            icon: <Wind size={18} />,
+            status: top.v > 6 ? 'alert' : top.v > 5 ? 'warning' : 'normal',
+            detalle: `${top.n}${top.r != null ? ` · ráfaga ${top.r.toFixed(1)} m/s` : ''}`,
+        });
+    }
+
+    // ── Precipitación: SUMA observada en la red + lámina prevista ───────────
+    const lluvias = conLect.map(e => ({ n: e.nombre, v: e.lectura!.lluvia_dia_mm ?? 0 }));
+    const totalLluvia = lluvias.reduce((a, x) => a + x.v, 0);
+    const conLluvia = lluvias.filter(x => x.v > 0);
+    const mmPrev = ests.map(e => e.pronosticoSerie
+        .filter(p => p.fecha_local === hoyLocal && p.precip_mm != null)
+        .reduce((a, p) => a + (p.precip_mm ?? 0), 0)).filter(v => v > 0);
+    const probs = num(serie.map(p => p.precip_prob_pct));
+    out.push({
+        variable: 'Precipitación',
+        current: `${totalLluvia.toFixed(1)} mm`,
+        forecast: probs.length
+            ? `${Math.max(...probs)} %${mmPrev.length ? ` · ${(mmPrev.reduce((a, b) => a + b, 0) / mmPrev.length).toFixed(1)} mm` : ''}`
+            : '—',
+        impact: totalLluvia > 10 ? 'Posible suspensión de riegos' : 'Sin impacto en operación',
+        icon: <Droplets size={18} />,
+        status: totalLluvia > 20 ? 'alert' : totalLluvia > 10 ? 'warning' : 'normal',
+        detalle: conLluvia.length
+            ? `Observada en ${conLluvia.map(x => `${x.n} ${x.v.toFixed(1)} mm`).join(', ')}`
+            : `Sin registro en ${conLect.length} estación(es)`,
+    });
+
+    // ── Humedad relativa: media de la red ───────────────────────────────────
+    const hrs = num(conLect.map(e => e.lectura!.hum_rel_pct));
+    if (hrs.length) {
+        const media = hrs.reduce((a, b) => a + b, 0) / hrs.length;
+        out.push({
+            variable: 'Humedad Relativa',
+            current: `${media.toFixed(0)} %`,
+            forecast: '—',
+            impact: media < 30 ? 'Ambiente seco: mayor demanda evaporativa'
+                : media > 80 ? 'Alta humedad: vigilar enfermedades foliares'
+                : 'Sin efecto operativo relevante',
+            icon: <Droplets size={18} />,
+            status: media < 20 ? 'warning' : 'normal',
+            detalle: `Media de ${hrs.length} estación(es)`,
+        });
+    }
+
+    return out;
 }
 
 // Build weather conditions from Supabase data
@@ -137,7 +262,12 @@ const ConditionRow = ({ condition }: { condition: WeatherCondition }) => (
             <div className="var-icon">{condition.icon}</div>
             <span>{condition.variable}</span>
         </td>
-        <td className="value-cell current">{condition.current}</td>
+        <td className="value-cell current">
+            {condition.current}
+            {/* Procedencia junto al valor: un agregado de red sin decir de qué
+                estación sale no es verificable en campo. */}
+            {condition.detalle && <span className="value-detalle">{condition.detalle}</span>}
+        </td>
         <td className="value-cell forecast">{condition.forecast}</td>
         <td className="impact-cell">{condition.impact}</td>
     </tr>
@@ -323,8 +453,13 @@ const Clima = () => {
         };
     }, [estaciones]);
 
-    // Build weather conditions from Supabase data
-    const conditions = buildConditions(clima);
+    // Condiciones desde la red WeatherLink; `clima_presas` queda solo como
+    // respaldo para cuando no haya ninguna estación reportando.
+    const conditions = useMemo(() => {
+        const hoyLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
+        const red = buildConditionsRed(estaciones, hoyLocal);
+        return red.length ? red : buildConditions(clima);
+    }, [estaciones, clima]);
 
     // Build technical variables.
     //
@@ -721,12 +856,20 @@ const Clima = () => {
                 {conditions.length > 0 && (
                     <section className="card conditions-section">
                         <h3><Thermometer size={18} /> Condiciones Registradas y Pronóstico (24h)</h3>
+                        <p className="chart-sub">
+                            Agregado de la red WeatherLink ({estaciones.filter(e => e.lectura).length} estación(es));
+                            pronóstico del modelo horario a 24 h.
+                        </p>
                         <table className="conditions-table">
                             <thead>
                                 <tr>
                                     <th>Variable</th>
-                                    <th>Valor Actual</th>
-                                    <th>Pronóstico 24h</th>
+                                    {/* "Registrado al corte" evita leer el contraste con el
+                                        pronóstico como contradicción: a primera hora la máxima
+                                        registrada (24.6 °C) es muy inferior al pico previsto
+                                        del día (35 °C), y ambas cifras son correctas. */}
+                                    <th>Registrado al corte</th>
+                                    <th>Previsto 24 h</th>
                                     <th>Impacto Operativo</th>
                                 </tr>
                             </thead>

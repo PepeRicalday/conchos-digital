@@ -756,3 +756,15 @@
     text-align: center;
     line-height: 1.3;
 }
+
+/* Procedencia bajo el valor actual en la tabla de condiciones: identifica la
+   estación que manda el agregado, para poder verificarlo en campo. */
+.value-cell .value-detalle {
+    display: block;
+    font-family: var(--font-sans, system-ui);
+    font-size: 0.58rem;
+    font-weight: 400;
+    color: var(--color-text-muted);
+    margin-top: 3px;
+    line-height: 1.3;
+}

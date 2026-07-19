@@ -16,8 +16,9 @@ import { exportClimaInfografia, agrupaPorDia, type DiaHistorico } from '../utils
 import { supabase } from '../lib/supabase';
 import { formateaEdad, clasificaCielo, PROCEDENCIA_LABEL } from '../utils/cielo';
 import { Download, Gauge } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { calculaIndices, entradasDesdeEstaciones, type Indice } from '../utils/indicesAgro';
+import EstacionDetalle from '../components/EstacionDetalle';
 
 // Types for display
 interface WeatherCondition {
@@ -328,13 +329,55 @@ const IndiceRing = ({ ind }: { ind: Indice }) => {
     );
 };
 
-const EstacionCard = ({ est }: { est: EstacionConLectura }) => {
+/**
+ * Hora local del distrito, refrescada cada 5 min.
+ *
+ * Las etiquetas que dependen de la hora ("al corte" antes de las 09:00) no
+ * pueden derivarse de `new Date()` en el render: la página vive abierta durante
+ * turnos completos y la etiqueta quedaría congelada en la hora de carga.
+ */
+function useHoraDistrito() {
+    const leer = () => Number(new Date().toLocaleString('en-US', {
+        timeZone: 'America/Chihuahua', hour: '2-digit', hour12: false,
+    }));
+    const [hora, setHora] = useState(leer);
+    useEffect(() => {
+        const id = setInterval(() => setHora(leer()), 300000);
+        return () => clearInterval(id);
+    }, []);
+    return hora;
+}
+
+const EstacionCard = ({ est, onAbrir, horaCorte }: {
+    est: EstacionConLectura; onAbrir: () => void; horaCorte: number;
+}) => {
     const l = est.lectura;
     const q = est.calidad;
     const c = est.cielo;
     const fc = est.pronostico;
+
+    /* ETₒ de la tarjeta: `eto_mm` es el ACUMULADO DEL DÍA HASTA LA LECTURA, no el
+       total diario. De madrugada vale 0 legítimamente (el día apenas inicia) y la
+       tarjeta mostraba "0.00 mm" en las 4 estaciones, que se lee como "no hay
+       demanda evaporativa" cuando el cierre del día previo fue de 5.8-6.4 mm.
+       Antes de las 09:00 locales se rotula "al corte" para que el 0 no se
+       interprete como una medición de valor cero; el total del día anterior queda
+       en el panel de detalle. */
+    const etoVal = l?.eto_mm ?? l?.et_dia_mm ?? null;
+    // La hora viene de un reloj que avanza, no de `new Date()` en el render: con
+    // la página abierta desde antes de las 09:00 la etiqueta "al corte" debe
+    // retirarse sola al cruzar esa hora, sin depender de que algo la re-renderice.
+    const etoParcial = horaCorte < 9;
+
     return (
-        <div className={`estacion-card ${est.enLinea ? 'online' : 'offline'}`}>
+        <div
+            className={`estacion-card ${est.enLinea ? 'online' : 'offline'} clicable`}
+            onClick={onAbrir}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onAbrir(); } }}
+            role="button"
+            tabIndex={0}
+            title={`Ver análisis detallado de ${est.nombre}`}
+        >
             <div className="estacion-head">
                 <div className="estacion-title">
                     <MapPin size={14} />
@@ -367,7 +410,13 @@ const EstacionCard = ({ est }: { est: EstacionConLectura }) => {
                     <div className="est-var"><Droplets size={13} /><b>{l.hum_rel_pct != null ? Math.round(l.hum_rel_pct) : '—'}</b><small>% HR</small></div>
                     <div className="est-var"><Wind size={13} /><b>{l.viento_ms != null ? l.viento_ms.toFixed(1) : '—'}</b><small>m/s</small></div>
                     <div className="est-var"><CloudRain size={13} /><b>{l.lluvia_dia_mm != null ? l.lluvia_dia_mm.toFixed(1) : '—'}</b><small>mm día</small></div>
-                    <div className="est-var accent"><Activity size={13} /><b>{l.eto_mm != null ? l.eto_mm.toFixed(2) : (l.et_dia_mm != null ? l.et_dia_mm.toFixed(2) : '—')}</b><small>ETₒ mm</small></div>
+                    <div className="est-var accent" title={etoParcial
+                        ? 'Acumulado del día hasta la hora de la lectura. De madrugada es cercano a 0 porque el día apenas inicia; abre el detalle para ver el cierre del día anterior.'
+                        : 'Acumulado del día hasta la hora de la lectura'}>
+                        <Activity size={13} />
+                        <b>{etoVal != null ? etoVal.toFixed(2) : 'S/D'}</b>
+                        <small>{etoParcial ? 'ETₒ mm · al corte' : 'ETₒ mm'}</small>
+                    </div>
                     <div className="est-var"><Zap size={13} /><b>{l.gdd != null ? l.gdd.toFixed(0) : '—'}</b><small>GDD</small></div>
                 </div>
             ) : (
@@ -391,6 +440,16 @@ const Clima = () => {
     const { fechaSeleccionada } = useFecha();
     const { clima, loading } = usePresas(fechaSeleccionada);
     const { estaciones, loading: loadingEst, refrescarAhora, refresco } = useClimaEstaciones();
+
+    // Estación abierta en el panel de detalle. Se guarda el ID, no el objeto:
+    // así el panel sigue el refresco de `estaciones` en vez de congelar la
+    // lectura que había al abrirlo.
+    const horaDistrito = useHoraDistrito();
+    const [estacionSel, setEstacionSel] = useState<string | null>(null);
+    const estacionAbierta = useMemo(
+        () => estaciones.find(e => e.id === estacionSel) ?? null,
+        [estaciones, estacionSel],
+    );
 
     // Infografía: trae el historial de 7 días para el panel de tendencias. Si la
     // consulta falla se emite igual con historial vacío — ese panel se rotula
@@ -829,8 +888,14 @@ const Clima = () => {
                         </div>
                     )}
                     <div className="estaciones-grid">
-                        {estaciones.map((e) => <EstacionCard key={e.id} est={e} />)}
+                        {estaciones.map((e) => (
+                            <EstacionCard key={e.id} est={e} horaCorte={horaDistrito} onAbrir={() => setEstacionSel(e.id)} />
+                        ))}
                     </div>
+                    <p className="estaciones-hint">
+                        Selecciona una estación para ver su análisis detallado: balance hídrico,
+                        acumulados, evolución diaria y viento.
+                    </p>
                     <p className="estaciones-foot">
                         {estaciones.filter(e => e.enLinea).length} de {estaciones.length} en línea ·
                         ETₒ calculada por estación (FAO-56 Penman-Monteith)
@@ -968,6 +1033,15 @@ const Clima = () => {
                     </section>
                 )}
             </div>
+
+            {/* Detalle de la estación seleccionada. Solo se monta al abrirlo: el
+                histórico se consulta bajo demanda, no al cargar la página. */}
+            {estacionAbierta && (
+                <EstacionDetalle
+                    estacion={estacionAbierta}
+                    onCerrar={() => setEstacionSel(null)}
+                />
+            )}
         </div>
     );
 };

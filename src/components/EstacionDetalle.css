@@ -1,0 +1,557 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PANEL DE DETALLE POR ESTACIÓN — SICA-005
+   Paleta y radios heredados de Clima.css para que no se lea como otra app.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.est-det-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.78);
+    /* Prefijo -webkit- requerido por Safari/iOS: el módulo se consulta en iPad. */
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    z-index: 900;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 2rem 1rem;
+    overflow-y: auto;
+    animation: est-det-in 0.16s ease-out;
+}
+
+@keyframes est-det-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.est-det-panel {
+    width: 100%;
+    max-width: 940px;
+    background: #0f172a;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+}
+
+/* ── Cabecera ───────────────────────────────────────────────────────────── */
+
+.est-det-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.15rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(56, 189, 248, 0.06), transparent);
+}
+
+.est-det-ident h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0 0 0.35rem;
+    font-size: 1.05rem;
+    color: #f1f5f9;
+}
+
+.est-det-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.7rem;
+    color: #94a3b8;
+}
+
+.est-det-rol {
+    font-style: normal;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.6rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background: rgba(148, 163, 184, 0.15);
+    color: #cbd5e1;
+}
+
+.est-det-cerrar {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+    color: #cbd5e1;
+    padding: 0.35rem;
+    cursor: pointer;
+    display: flex;
+    transition: background 0.15s, color 0.15s;
+}
+
+.est-det-cerrar:hover {
+    background: rgba(239, 68, 68, 0.18);
+    color: #fca5a5;
+}
+
+/* ── Selector de ventana ────────────────────────────────────────────────── */
+
+.est-det-ventana {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1.15rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.7rem;
+    color: #94a3b8;
+}
+
+.est-det-ventana button {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 6px;
+    color: #cbd5e1;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.68rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.est-det-ventana button:hover { background: rgba(56, 189, 248, 0.14); }
+
+.est-det-ventana button.activa {
+    background: rgba(56, 189, 248, 0.20);
+    border-color: rgba(56, 189, 248, 0.45);
+    color: #7dd3fc;
+}
+
+.est-det-cobertura {
+    margin-left: auto;
+    font-style: normal;
+    font-size: 0.65rem;
+    color: #64748b;
+}
+
+/* ── Estados ────────────────────────────────────────────────────────────── */
+
+.est-det-cargando,
+.est-det-error {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 2rem 1.15rem;
+    justify-content: center;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.est-det-error { color: #fca5a5; }
+
+.girando { animation: est-det-spin 1s linear infinite; }
+
+@keyframes est-det-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Cuerpo y secciones ─────────────────────────────────────────────────── */
+
+.est-det-cuerpo {
+    padding: 0.4rem 1.15rem 1.15rem;
+}
+
+.est-det-sec {
+    padding: 0.9rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.est-det-sec:last-child { border-bottom: none; }
+
+.est-det-sec h4 {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0 0 0.7rem;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #7dd3fc;
+}
+
+.est-det-nota {
+    margin: 0.5rem 0 0;
+    font-size: 0.65rem;
+    line-height: 1.5;
+    color: #64748b;
+}
+
+.est-det-nota.aviso {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.08);
+    border-left: 2px solid rgba(245, 158, 11, 0.5);
+    padding: 0.5rem 0.6rem;
+    border-radius: 0 6px 6px 0;
+}
+
+/* ── ETo de referencia ──────────────────────────────────────────────────── */
+
+.eto-ref {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 0.8rem;
+}
+
+.eto-principal,
+.eto-secundario {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 0.75rem 0.85rem;
+}
+
+.eto-principal {
+    background: rgba(245, 158, 11, 0.09);
+    border-color: rgba(245, 158, 11, 0.28);
+}
+
+.eto-num {
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: #fbbf24;
+    line-height: 1;
+}
+
+.eto-principal small,
+.eto-secundario small {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    margin-left: 0.2rem;
+}
+
+.eto-secundario > span {
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    line-height: 1;
+}
+
+.eto-etq {
+    margin-top: 0.4rem;
+    font-size: 0.68rem;
+    color: #cbd5e1;
+}
+
+.eto-etq em {
+    display: block;
+    margin-top: 0.2rem;
+    font-style: normal;
+    font-size: 0.62rem;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+.eto-etq em.eto-aviso { color: #fbbf24; }
+
+/* ── Balance hídrico ────────────────────────────────────────────────────── */
+
+.bal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 0.7rem;
+}
+
+.bal-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 0.75rem 0.85rem;
+}
+
+.bal-titulo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+    margin-bottom: 0.5rem;
+}
+
+.bal-parcial {
+    font-style: normal;
+    font-size: 0.6rem;
+    padding: 0.08rem 0.35rem;
+    border-radius: 4px;
+    background: rgba(245, 158, 11, 0.16);
+    color: #fbbf24;
+    text-transform: none;
+    letter-spacing: 0;
+    cursor: help;
+}
+
+.bal-cifra {
+    font-size: 1.7rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.bal-cifra small {
+    font-size: 0.68rem;
+    margin-left: 0.25rem;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.bal-leyenda {
+    margin-top: 0.25rem;
+    font-size: 0.65rem;
+    color: #94a3b8;
+}
+
+.bal-desglose {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    margin-top: 0.55rem;
+    font-size: 0.66rem;
+    color: #cbd5e1;
+}
+
+.bal-desglose span {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.bal-bloqueo {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    font-size: 0.68rem;
+    line-height: 1.45;
+    color: #fbbf24;
+    padding: 0.35rem 0;
+}
+
+.bal-media {
+    margin-top: 0.6rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    font-size: 0.66rem;
+    color: #94a3b8;
+}
+
+.bal-media b { color: #7dd3fc; }
+
+.bal-media em {
+    display: block;
+    font-style: normal;
+    font-size: 0.6rem;
+    color: #64748b;
+    margin-top: 0.15rem;
+}
+
+/* ── Acumulados ─────────────────────────────────────────────────────────── */
+
+.acum-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+    gap: 0.5rem;
+}
+
+.acum-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 8px;
+    padding: 0.55rem 0.5rem;
+    text-align: center;
+}
+
+.acum-val {
+    display: block;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    line-height: 1.15;
+}
+
+.acum-lbl {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.58rem;
+    color: #94a3b8;
+}
+
+/* ── Gráfica ────────────────────────────────────────────────────────────── */
+
+.est-det-chart {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 0.6rem 0.3rem 0.3rem;
+}
+
+/* ── Viento ─────────────────────────────────────────────────────────────── */
+
+.viento-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 0.7rem;
+}
+
+.viento-actual,
+.viento-rosa,
+.riesgo-term {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 0.7rem 0.8rem;
+}
+
+.riesgo-term { border-left-width: 3px; }
+
+.v-titulo {
+    display: block;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+    margin-bottom: 0.5rem;
+}
+
+.v-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    padding: 0.16rem 0;
+}
+
+.v-fila b { color: #f1f5f9; }
+
+.v-alerta {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.45rem;
+    padding: 0.3rem 0.4rem;
+    border-radius: 6px;
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+    font-size: 0.62rem;
+}
+
+.v-sector {
+    display: grid;
+    grid-template-columns: 1.5rem 1fr 2rem 3rem;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.64rem;
+    color: #94a3b8;
+    padding: 0.13rem 0;
+}
+
+.v-sec-lbl { color: #cbd5e1; font-weight: 600; }
+
+.v-barra {
+    height: 5px;
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.v-barra-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #38bdf8, #7dd3fc);
+    border-radius: 3px;
+}
+
+.v-sec-pct { text-align: right; color: #cbd5e1; }
+.v-sec-vel { text-align: right; color: #64748b; }
+
+.riesgo-term b {
+    display: block;
+    font-size: 0.85rem;
+    margin-bottom: 0.35rem;
+}
+
+.riesgo-det {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.64rem;
+    color: #94a3b8;
+}
+
+/* ── Cielo y pronóstico ─────────────────────────────────────────────────── */
+
+.cielo-det {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) 2fr;
+    gap: 0.7rem;
+    align-items: stretch;
+}
+
+.cielo-det-estado {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-left-width: 3px;
+    border-radius: 10px;
+    padding: 0.7rem 0.8rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.25rem;
+    font-size: 0.78rem;
+}
+
+.cielo-det-estado em {
+    font-style: normal;
+    font-size: 0.62rem;
+    color: #64748b;
+}
+
+.cielo-det-vars {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.35rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 0.7rem 0.8rem;
+    font-size: 0.66rem;
+    color: #94a3b8;
+}
+
+.cielo-det-vars b { color: #f1f5f9; }
+
+.fc-det {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.35rem;
+    margin-top: 0.6rem;
+    padding: 0.6rem 0.8rem;
+    background: rgba(56, 189, 248, 0.07);
+    border: 1px solid rgba(56, 189, 248, 0.18);
+    border-radius: 10px;
+    font-size: 0.66rem;
+    color: #94a3b8;
+}
+
+.fc-det b { color: #7dd3fc; }
+
+/* ── Responsivo ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+    .est-det-overlay { padding: 0.75rem 0.5rem; }
+    .eto-ref,
+    .cielo-det { grid-template-columns: 1fr; }
+    .est-det-cobertura {
+        margin-left: 0;
+        width: 100%;
+    }
+}

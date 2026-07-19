@@ -590,6 +590,33 @@
 .est-var { transition: background 0.15s; }
 .estacion-card:hover .est-var.accent { background: rgba(56,189,248,0.14); }
 
+/* Tarjeta seleccionable: abre el panel de análisis por estación.
+   Se marca con cursor y foco visible porque es un control, no solo una vista. */
+.estacion-card.clicable { cursor: pointer; }
+.estacion-card.clicable:focus-visible {
+    outline: 2px solid rgba(56,189,248,0.75);
+    outline-offset: 2px;
+}
+.estacion-card.clicable::after {
+    content: 'Ver detalle →';
+    position: absolute;
+    right: 10px; bottom: 8px;
+    font-size: 0.58rem;
+    color: #7dd3fc;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+}
+.estacion-card.clicable:hover::after,
+.estacion-card.clicable:focus-visible::after { opacity: 1; }
+
+.estaciones-hint {
+    margin: 0.5rem 0 0;
+    font-size: 0.65rem;
+    color: #64748b;
+    text-align: center;
+}
+
 /* Subtítulo de gráficas */
 .chart-sub { font-size: 0.72rem; color: #64748b; margin: -4px 0 8px; }
 

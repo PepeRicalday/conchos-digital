@@ -115,7 +115,8 @@ Deno.serve(async (req) => {
         const ts = new Date(tsSec * 1000);
         // fecha local America/Chihuahua (UTC-6/-7); usamos offset del payload si viene.
         const tzOff = pick(records, "tz_offset") ?? -21600;
-        const fecha = new Date((tsSec + tzOff) * 1000).toISOString().slice(0, 10);
+        const tsLocal = new Date((tsSec + tzOff) * 1000);
+        const fecha = tsLocal.toISOString().slice(0, 10);
 
         // Lectura cruda (imperial) → métrico. NOTA: /current no trae máx/mín del
         // día (solo temp instantánea); tmax/tmin se derivan del histórico en BD.
@@ -135,8 +136,32 @@ Deno.serve(async (req) => {
         const lluviaAnio = pick(records, "rainfall_year_mm");
         const radWm2 = pick(records, "solar_rad");
         const uv = pick(records, "uv_index");
-        const etDiaMm = inToMm(pick(records, "et_day"));              // ETo de la estación (in→mm)
+        const etDiaMmRaw = inToMm(pick(records, "et_day"));           // ETo de la estación (in→mm)
         const etMesMm = inToMm(pick(records, "et_month"));
+
+        // ── Arrastre de medianoche ──────────────────────────────────────────
+        // El contador et_day/rainfall_day de Davis NO se reinicia exactamente a
+        // las 00:00 locales, sino algunos minutos después. En esa ventana la
+        // estación sigue publicando el acumulado del día que ACABA DE TERMINAR,
+        // mientras la lectura ya pertenece al día nuevo.
+        //
+        // Observado en Boquilla el 2026-07-19:
+        //   00:00 local → et_day = 6.38 mm  ← cierre del 07-18, leído el 07-19
+        //   00:15 local → et_day = 0        ← contador ya reiniciado
+        //
+        // Sin corregir, el día nuevo nace con un acumulado fantasma que domina
+        // cualquier agregado por máximo y contamina el balance hídrico.
+        //
+        // Se ANULAN los acumulados de esa lectura en vez de reasignar `fecha` al
+        // día anterior: `fecha` gobierna además la consulta de máx/mín y el
+        // upsert de clima_presas (onConflict presa_id,fecha), así que moverla
+        // haría que la temperatura nocturna sobrescribiera los extremos de un
+        // día ya cerrado. El resto de la lectura (temperatura, viento, presión)
+        // es instantáneo, válido para el día nuevo, y se conserva intacto.
+        const horaLocal = tsLocal.getUTCHours();
+        const arrastre = horaLocal === 0 && etDiaMmRaw != null && etDiaMmRaw > 0;
+        const etDiaMm = arrastre ? null : etDiaMmRaw;
+        const lluviaDiaMm = arrastre ? null : lluviaDia;
 
         // Máx/mín del día: /current no los trae, así que se derivan del histórico
         // de HOY ya guardado en BD, combinado con la lectura actual (rolling min/max).
@@ -170,7 +195,7 @@ Deno.serve(async (req) => {
           estacion_id: est.id, station_id: est.station_id, fecha, ts: ts.toISOString(),
           temp_c: tempC, temp_max_c: tmaxC, temp_min_c: tminC, hum_rel_pct: humPct,
           punto_rocio_c: dewC, presion_hpa: presHpa, viento_ms: vientoMs, viento_dir_deg: vientoDir,
-          viento_rafaga_ms: rafagaMs, lluvia_dia_mm: lluviaDia, lluvia_24h_mm: lluvia24,
+          viento_rafaga_ms: rafagaMs, lluvia_dia_mm: lluviaDiaMm, lluvia_24h_mm: lluvia24,
           lluvia_mes_mm: lluviaMes, lluvia_anio_mm: lluviaAnio, rad_solar_wm2: radWm2, uv_index: uv,
           et_dia_mm: etDiaMm, et_mes_mm: etMesMm, eto_mm: eto, gdd: gddVal,
           bar_trend_hpa: barTrendHpa,
@@ -183,7 +208,7 @@ Deno.serve(async (req) => {
           await supabase.from("clima_presas").upsert({
             presa_id: est.presa_id, fecha,
             temp_ambiente_c: tempC, temp_maxima_c: tmaxC ?? tempC, temp_minima_c: tminC ?? tempC,
-            precipitacion_mm: lluviaDia, evaporacion_mm: etDiaMm,
+            precipitacion_mm: lluviaDiaMm, evaporacion_mm: etDiaMm,
             dir_viento: vientoDir != null ? String(Math.round(vientoDir)) + "°" : null,
             intensidad_viento: vientoMs != null ? vientoMs.toFixed(1) : null,
           }, { onConflict: "presa_id,fecha" });
@@ -194,7 +219,9 @@ Deno.serve(async (req) => {
           ult_sync_en: new Date().toISOString(), ult_dato_en: ts.toISOString(), actualizado_en: new Date().toISOString(),
         }).eq("id", est.id);
 
-        resultados.push({ estacion: est.nombre, ok: true, fecha, temp_c: tempC, eto_mm: eto, lluvia_dia_mm: lluviaDia });
+        // `arrastre` se reporta para que el operador vea por qué una sincronización
+        // de medianoche no trae acumulados, en vez de leerlo como fallo del sensor.
+        resultados.push({ estacion: est.nombre, ok: true, fecha, temp_c: tempC, eto_mm: eto, lluvia_dia_mm: lluviaDiaMm, ...(arrastre ? { arrastre_medianoche: true } : {}) });
       } catch (err) {
         resultados.push({ estacion: est.nombre, ok: false, motivo: String(err) });
       }

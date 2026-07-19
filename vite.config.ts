@@ -57,7 +57,16 @@ export default defineConfig(({ mode }) => {
         workbox: {
           maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+          // index.html se sirve SIEMPRE desde la red (NetworkFirst más abajo).
+          // Es el documento que apunta a los chunks con hash; si queda cacheado,
+          // el dispositivo sigue pidiendo chunks que ya no existen en el servidor
+          // y nunca alcanza la versión nueva.
+          navigateFallback: null,
           globIgnores: [
+            // index.html FUERA del precache: es el documento que referencia los
+            // chunks con hash. Precacheado, el dispositivo queda anclado a una
+            // lista de chunks que el servidor ya borró (404) y no puede avanzar.
+            'index.html',
             '**/vendor-echarts-*.js',
             '**/vendor-leaflet-*.js',
             '**/GeoMonitor-*.js',
@@ -68,7 +77,28 @@ export default defineConfig(({ mode }) => {
           skipWaiting: true,
           clientsClaim: true,
           cleanupOutdatedCaches: true,
+          // El navegador SIEMPRE revalida el SW contra la red, así que este
+          // archivo es el único punto de entrada que no puede quedar atrapado
+          // en caché. Al activarse una versión nueva, purga todo lo anterior:
+          // sin esto, index.html se servía desde caché y el dispositivo nunca
+          // llegaba a ver las referencias a los chunks nuevos — el bundle viejo
+          // se perpetuaba aunque el SW sí se hubiera actualizado.
+          importScripts: ['/sw-purge.js'],
           runtimeCaching: [
+            // Documento de navegación — SIEMPRE red primero.
+            // Garantiza que el index.html (y con él, las referencias a los
+            // chunks vigentes) se revalide en cada carga. La caché solo actúa
+            // como respaldo sin conexión.
+            {
+              urlPattern: ({ request }: { request: Request }) => request.mode === 'navigate',
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'sica-html-cache',
+                networkTimeoutSeconds: 5,
+                expiration: { maxEntries: 5 },
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
             // Lecturas de escalas — NetworkFirst, 1h stale-while-revalidate
             {
               urlPattern: new RegExp(`^${escapedUrl}\\/rest\\/v1\\/(lecturas_escalas|lecturas_presas|movimientos_presas|escalas).*`),

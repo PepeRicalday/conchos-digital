@@ -126,6 +126,16 @@
                     for (var j = 0; j < auth.length; j++) {
                         if (auth[j][1] !== null) localStorage.setItem(auth[j][0], auth[j][1]);
                     }
+                    // Candado anti-bucle de VersionGuard: si esta purga manual
+                    // NO alcanza a limpiar lo que tenía anclado al dispositivo
+                    // (típico en PWA standalone de iPadOS, donde el proceso
+                    // WKWebView puede tener su propia copia del bundle fuera del
+                    // alcance de caches.delete()), el guardián que monte después
+                    // no debe disparar OTRA purga de inmediato — sería el mismo
+                    // bucle, ahora iniciado desde aquí. Se le agota el contador
+                    // de intentos para que, si vuelve a ver versión "menor", se
+                    // rinda y deje operar en vez de recargar otra vez.
+                    localStorage.setItem('sica_vg_intentos', '99');
                 } catch (e) { console.warn('storage:', e); }
 
                 // 4. IndexedDB. deleteDatabase() puede quedarse en `blocked`

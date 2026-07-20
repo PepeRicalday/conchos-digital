@@ -1,113 +1,103 @@
 /**
- * VersionGuard v3.0 — Sistema Robusto de Control de Versiones (Conchos Digital)
- * 
- * REGLAS:
- * 1. NUNCA bloquea la app completamente — siempre permite el uso.
- * 2. Solo muestra un banner informativo (no-bloqueante) si la versión
- *    local es MENOR que min_supported_version en Supabase.
- * 3. Si no hay conexión o falla la consulta → pasa silenciosamente.
- * 4. El banner se puede cerrar y no vuelve a aparecer en esa sesión.
+ * VersionGuard v4.0 — Actualización forzada desde la nube (Conchos Digital)
+ *
+ * QUÉ RESUELVE
+ * Las capas del PWA (epoch, sw-purge, polling del SW) viven DENTRO del bundle:
+ * solo las ejecuta quien ya bajó la versión nueva. Un dispositivo anclado en
+ * una versión vieja nunca las corre — es circular. Este guardián rompe el
+ * círculo porque consulta Supabase, que responde igual sea cual sea el bundle
+ * que el dispositivo esté ejecutando.
+ *
+ * CÓMO DECIDE
+ * Compara la versión compilada contra `version` en app_versions (no contra
+ * `min_supported_version`: el deploy iguala mínimo y versión, así que ese campo
+ * nunca dispara nada). Si la nube va adelante, purga y recarga SOLA.
+ *
+ * A diferencia de SICA Capture, aquí no hay guarda por captura en curso: esta
+ * app es de consulta y operación, no de captura de campo, así que una recarga
+ * no destruye trabajo irrecuperable.
+ *
+ * NUNCA bloquea por error de red o falta de conexión.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShieldAlert, Activity } from 'lucide-react';
 
 const CURRENT_VERSION = typeof __V2_APP_VERSION__ !== 'undefined' ? __V2_APP_VERSION__ : '0.0.0';
 
-const isVersionLower = (current: string, min: string): boolean => {
-    const c = current.split('.').map(Number);
-    const m = min.split('.').map(Number);
+/** ¿`a` es una versión menor que `b`? Compara major.minor.patch. */
+const esVersionMenor = (a: string, b: string): boolean => {
+    const x = a.split('.').map(Number);
+    const y = b.split('.').map(Number);
     for (let i = 0; i < 3; i++) {
-        if ((c[i] || 0) < (m[i] || 0)) return true;
-        if ((c[i] || 0) > (m[i] || 0)) return false;
+        if ((x[i] || 0) < (y[i] || 0)) return true;
+        if ((x[i] || 0) > (y[i] || 0)) return false;
     }
     return false;
 };
 
+/** Purga SW + cachés y recarga contra el origen, sorteando la caché del navegador. */
+const purgarYRecargar = async (): Promise<void> => {
+    try {
+        if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(r => r.unregister()));
+        }
+        if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+        }
+    } catch (e) {
+        // Purga parcial: recargamos igual — mejor intentarlo que quedar anclado.
+        console.warn('Purga de caché incompleta:', e);
+    }
+    window.location.replace(`${window.location.origin}?v=${Date.now()}`);
+};
+
+const INTERVALO_SONDEO_MS = 10 * 60 * 1000;   // 10 min
+
 export const VersionGuard = ({ children }: { children: ReactNode }) => {
-    const [showBanner, setShowBanner] = useState(false);
-    const [serverVersion, setServerVersion] = useState('');
+    // window.location.replace no es instantáneo: sin este candado, el sondeo
+    // y el retorno a primer plano pueden encadenar dos recargas.
+    const recargando = useRef(false);
 
     useEffect(() => {
-        const SESSION_KEY = 'cd_version_dismissed';
-        if (sessionStorage.getItem(SESSION_KEY) === CURRENT_VERSION) return;
+        let vivo = true;
 
-        const checkVersion = async () => {
+        const consultar = async () => {
+            if (!vivo || recargando.current || !navigator.onLine) return;
             try {
-                if (!navigator.onLine) return;
-
                 const { data, error } = await supabase
                     .from('app_versions')
-                    .select('version, min_supported_version')
+                    .select('version')
                     .eq('app_id', 'control-digital')
                     .single();
 
-                if (error || !data) return;
+                if (!vivo || error || !data?.version) return;
+                if (!esVersionMenor(CURRENT_VERSION, data.version)) return;
 
-                // Se usa el mínimo declarado en Supabase. Antes había un
-                // `effectiveMin = '2.5.8'` fijo que ignoraba la BD, así que el
-                // banner nunca podía reflejar una versión mínima nueva por más
-                // que se actualizara la tabla.
-                const effectiveMin = data.min_supported_version;
-                if (effectiveMin && isVersionLower(CURRENT_VERSION, effectiveMin)) {
-                    setServerVersion(effectiveMin);
-                    setShowBanner(true);
-                }
+                recargando.current = true;
+                void purgarYRecargar();
             } catch {
-                // Fail-safe: NUNCA bloquear por error de red
+                // Fail-safe: NUNCA interrumpir la operación por un fallo de red.
             }
         };
 
-        checkVersion();
+        void consultar();
+        const id = setInterval(consultar, INTERVALO_SONDEO_MS);
+
+        // Un tablero puede quedar días abierto en pantalla; al retomarlo debe
+        // revisar de inmediato, sin esperar al siguiente intervalo.
+        const alVolver = () => {
+            if (document.visibilityState === 'visible') void consultar();
+        };
+        document.addEventListener('visibilitychange', alVolver);
+
+        return () => {
+            vivo = false;
+            clearInterval(id);
+            document.removeEventListener('visibilitychange', alVolver);
+        };
     }, []);
 
-
-    const handleUpdate = async () => {
-        try {
-            if ('serviceWorker' in navigator) {
-                const regs = await navigator.serviceWorker.getRegistrations();
-                await Promise.all(regs.map(r => r.unregister()));
-            }
-            if ('caches' in window) {
-                const keys = await caches.keys();
-                await Promise.all(keys.map(k => caches.delete(k)));
-            }
-        } catch (e) {
-            console.warn('Cache clear partial:', e);
-        }
-        window.location.replace(window.location.origin + '?v=' + Date.now());
-    };
-
-    return (
-        <>
-            {showBanner && (
-                <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-[99999] flex items-center justify-center p-6 text-center">
-                    <div className="max-w-sm w-full bg-slate-900 border border-red-500/30 rounded-2xl p-8 shadow-2xl animate-in zoom-in duration-300">
-                        <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <ShieldAlert size={32} className="text-red-500 animate-pulse" />
-                        </div>
-                        
-                        <h2 className="text-xl font-black text-white mb-2 tracking-tight">ACTUALIZACIÓN OBLIGATORIA</h2>
-                        <p className="text-sm text-slate-400 mb-8 leading-relaxed">
-                            Detectamos una versión antigua ({CURRENT_VERSION}). <br/>
-                            Se requiere la <b>v{serverVersion}</b> para asegurar la integridad de los datos hidráulicos.
-                        </p>
-
-                        <button
-                            onClick={handleUpdate}
-                            className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-3"
-                        >
-                            <Activity size={18} />
-                            ACTUALIZAR AHORA
-                        </button>
-                        
-                        <div className="mt-6 text-[10px] text-slate-600 uppercase tracking-widest font-mono">
-                            SICA 005 — DIGITAL SYNCHRONY
-                        </div>
-                    </div>
-                </div>
-            )}
-            {children}
-        </>
-    );
+    return <>{children}</>;
 };

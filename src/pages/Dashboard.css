@@ -133,6 +133,16 @@
     border-color: rgba(244, 63, 94, 0.3);
 }
 
+/* Refuerzo para condiciones que exigen acción inmediata (protocolo vencido,
+   fuentes sin respuesta, cobertura de datos en cero) — el chip-crit tenue se
+   confunde a distancia con chip-warn; este toma superficie sólida. */
+.dash-chip.chip-crit-loud {
+    color: #ffffff;
+    background: var(--sica-crit);
+    border-color: var(--sica-crit);
+    font-weight: 800;
+}
+
 /* Barra de nivel sin lectura — rayado diagonal, nunca "vacío = cero" */
 .presa-level-sd {
     height: 100%;

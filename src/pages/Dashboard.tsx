@@ -630,40 +630,79 @@ const Dashboard = () => {
                 {/* ── Tira de estado operativo ──────────────────────────────
                     El protocolo activo ya se consultaba y modulaba los umbrales
                     de alerta, pero nunca se mostraba: el operador no sabía que
-                    estaba en LLENADO cuando eso cambia lo que está viendo. */}
-                <div className="dash-statusbar">
-                    {activeEvent ? (
-                        <span className={clsx('dash-chip', (diasProtocolo ?? 0) > UMBRAL_DIAS_PROTOCOLO ? 'chip-warn' : 'chip-info')}>
-                            <Radio size={12} />
-                            Protocolo <b>{activeEvent.evento_tipo}</b>
-                            {activeEvent.gasto_solicitado_m3s ? ` · ${activeEvent.gasto_solicitado_m3s} m³/s solicitados` : ''}
-                            {diasProtocolo != null ? ` · ${diasProtocolo} d abierto` : ''}
-                        </span>
-                    ) : (
-                        <span className="dash-chip chip-ok">
-                            <Radio size={12} /> Sin protocolo activo
-                        </span>
-                    )}
+                    estaba en LLENADO cuando eso cambia lo que está viendo.
 
-                    {frescuraLectura && (
-                        <span className={clsx('dash-chip', frescuraLectura.stale ? 'chip-warn' : 'chip-ok')}>
-                            <Clock size={12} /> {frescuraLectura.texto}
-                        </span>
-                    )}
+                    Los chips se arman en un array con severidad explícita y se
+                    ordenan crítico → alerta → informativo → ok antes de pintarse:
+                    antes el orden fijo del JSX podía dejar "125 d abierto" (que
+                    ya dispara alerta interna) al mismo nivel visual que la hora
+                    de la última lectura. */}
+                {(() => {
+                    const PESO_CHIP = { crit: 0, warn: 1, info: 2, ok: 3 } as const;
+                    const chips: { key: string; sev: keyof typeof PESO_CHIP; icon: React.ReactNode; content: React.ReactNode }[] = [];
 
-                    {almacenamiento.parcial && (
-                        <span className="dash-chip chip-warn">
-                            <Database size={12} />
-                            Nivel de presa: {almacenamiento.presasConDato} de {almacenamiento.presasTotal} con lectura
-                        </span>
-                    )}
+                    if (activeEvent) {
+                        const protocoloVencido = (diasProtocolo ?? 0) > UMBRAL_DIAS_PROTOCOLO;
+                        chips.push({
+                            key: 'protocolo',
+                            sev: protocoloVencido ? 'crit' : 'info',
+                            icon: <Radio size={12} />,
+                            content: (
+                                <>
+                                    Protocolo <b>{activeEvent.evento_tipo}</b>
+                                    {activeEvent.gasto_solicitado_m3s ? ` · ${activeEvent.gasto_solicitado_m3s} m³/s solicitados` : ''}
+                                    {diasProtocolo != null ? ` · ${diasProtocolo} d abierto` : ''}
+                                    {protocoloVencido ? ' — revisar cierre' : ''}
+                                </>
+                            ),
+                        });
+                    } else {
+                        chips.push({ key: 'protocolo', sev: 'ok', icon: <Radio size={12} />, content: 'Sin protocolo activo' });
+                    }
 
-                    {fuentesCaidas.length > 0 && (
-                        <span className="dash-chip chip-crit">
-                            <AlertTriangle size={12} /> Sin respuesta: {fuentesCaidas.join(', ')}
-                        </span>
-                    )}
-                </div>
+                    if (almacenamiento.parcial) {
+                        // Cobertura de datos en cero (nadie capturó nivel) es más grave que
+                        // un dato presente pero con antigüedad — antes ambos casos usaban
+                        // el mismo chip-warn y se veían igual de urgentes.
+                        chips.push({
+                            key: 'nivel-presa',
+                            sev: almacenamiento.presasConDato === 0 ? 'crit' : 'warn',
+                            icon: <Database size={12} />,
+                            content: `Nivel de presa: ${almacenamiento.presasConDato} de ${almacenamiento.presasTotal} con lectura`,
+                        });
+                    }
+
+                    if (fuentesCaidas.length > 0) {
+                        chips.push({
+                            key: 'fuentes-caidas',
+                            sev: 'crit',
+                            icon: <AlertTriangle size={12} />,
+                            content: `Sin respuesta: ${fuentesCaidas.join(', ')}`,
+                        });
+                    }
+
+                    if (frescuraLectura) {
+                        chips.push({
+                            key: 'frescura',
+                            sev: frescuraLectura.stale ? 'warn' : 'ok',
+                            icon: <Clock size={12} />,
+                            content: frescuraLectura.texto,
+                        });
+                    }
+
+                    chips.sort((a, b) => PESO_CHIP[a.sev] - PESO_CHIP[b.sev]);
+                    const claseSev = { crit: 'chip-crit', warn: 'chip-warn', info: 'chip-info', ok: 'chip-ok' } as const;
+
+                    return (
+                        <div className="dash-statusbar">
+                            {chips.map(c => (
+                                <span key={c.key} className={clsx('dash-chip', claseSev[c.sev], c.sev === 'crit' && 'chip-crit-loud')}>
+                                    {c.icon} {c.content}
+                                </span>
+                            ))}
+                        </div>
+                    );
+                })()}
             </div>
 
 
@@ -712,6 +751,9 @@ const Dashboard = () => {
                     trend={deliveryState.trend}
                     trendLabel={deliveryState.label}
                     severity={deliveryState.severity}
+                    // Entrega en cero con módulos activos es la anomalía más seria de
+                    // esta fila de KPIs después de las alertas — la franja sola es sutil.
+                    valueFlag={deliveryState.severity === 'warning' && totalDailyVol <= 0.0001}
                     className="shadow-emerald-900/10"
                 />
                 <KPICard
@@ -952,6 +994,42 @@ const Dashboard = () => {
                 <div className="grid-col-right space-y-4">
                     <AlertList alerts={realAlerts} />
 
+                    {/* ── Balance Hídrico Global — el resumen más denso de la pantalla
+                        (presas + canal + módulos en 3 números) se sube al tope de la
+                        columna y sus anillos crecen de 85px a 130px: antes vivía al
+                        fondo, del mismo tamaño que el ícono de versión de app. */}
+                    <div className="card" style={{ background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%)' }}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                                <Database size={18} className="text-violet-400" />
+                            </div>
+                            <h3 className="font-bold text-white tracking-wide">Balance Hídrico Global</h3>
+                        </div>
+
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-around',
+                            alignItems: 'center',
+                            padding: '0.5rem 0'
+                        }}>
+                            <DonutRing pct={porcentajeLlenado} label="ALMAC." color="#38bdf8" size={130} />
+                            <DonutRing
+                                // Normalizado contra la capacidad de conducción del canal,
+                                // no contra una constante sin unidad ni origen.
+                                pct={totalExtraccion > 0 ? (totalExtraccion / CAPACIDAD_CONDUCCION_M3S) * 100 : 0}
+                                label={`DE ${CAPACIDAD_CONDUCCION_M3S} m³/s`}
+                                color="#a78bfa"
+                                size={130}
+                            />
+                            <DonutRing
+                                pct={moduleChartData.length > 0 ? moduleChartData.reduce((a, m) => a + m.efficiency, 0) / moduleChartData.length : 0}
+                                label="EFICIEN."
+                                color="#10b981"
+                                size={130}
+                            />
+                        </div>
+                    </div>
+
                     {/* ── Chart 3: Cumplimiento Módulos — Modern Lollipop Bars ── */}
                     <div className="card h-full flex flex-col">
                         <div className="flex items-center justify-between gap-2 mb-4">
@@ -1008,41 +1086,9 @@ const Dashboard = () => {
                         </div>
                     </div>
 
-                    {/* ── Donut Summary + Version Control ── */}
+                    {/* ── Version Control — información de mantenimiento, no operativa;
+                        se queda al fondo de la columna, separada del resumen hídrico. ── */}
                     <div className="card" style={{ background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%)' }}>
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="p-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
-                                <Database size={18} className="text-violet-400" />
-                            </div>
-                            <h3 className="font-bold text-white tracking-wide">Balance Hídrico Global</h3>
-                        </div>
-                        
-                        {/* Donut rings row */}
-                        <div style={{ 
-                            display: 'flex', 
-                            justifyContent: 'space-around', 
-                            alignItems: 'center', 
-                            padding: '0.5rem 0 2rem',
-                            borderBottom: '1px solid rgba(255,255,255,0.05)',
-                            marginBottom: '1rem'
-                        }}>
-                            <DonutRing pct={porcentajeLlenado} label="ALMAC." color="#38bdf8" size={85} />
-                            <DonutRing
-                                // Normalizado contra la capacidad de conducción del canal,
-                                // no contra una constante sin unidad ni origen.
-                                pct={totalExtraccion > 0 ? (totalExtraccion / CAPACIDAD_CONDUCCION_M3S) * 100 : 0}
-                                label={`DE ${CAPACIDAD_CONDUCCION_M3S} m³/s`}
-                                color="#a78bfa"
-                                size={85}
-                            />
-                            <DonutRing
-                                pct={moduleChartData.length > 0 ? moduleChartData.reduce((a, m) => a + m.efficiency, 0) / moduleChartData.length : 0}
-                                label="EFICIEN."
-                                color="#10b981"
-                                size={85}
-                            />
-                        </div>
-
                         <div className="pt-2">
                             <div className="flex items-center gap-2 mb-3">
                                 <ShieldCheck size={14} className="text-emerald-400" />

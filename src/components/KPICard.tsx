@@ -1,5 +1,5 @@
 import React from 'react';
-import { type LucideIcon, TrendingUp, TrendingDown, Minus, HelpCircle } from 'lucide-react';
+import { type LucideIcon, TrendingUp, TrendingDown, Minus, HelpCircle, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 import './KPICard.css';
 
@@ -28,6 +28,9 @@ interface KPICardProps {
     freshnessStale?: boolean;
     /** Motivo del S/D — se muestra en lugar del subtexto cuando value es null. */
     noDataReason?: string;
+    /** Marca visualmente el valor como anómalo (ej. "0.0" con módulos activos):
+     *  la franja de severidad por sí sola es sutil frente a un valor en cero. */
+    valueFlag?: boolean;
 }
 
 /** Sparkline SVG sin dependencias, con endpoint enfatizado. */
@@ -74,6 +77,7 @@ const KPICard: React.FC<KPICardProps> = React.memo(({
     freshness,
     freshnessStale,
     noDataReason,
+    valueFlag,
 }) => {
     // "S/D" nunca 0: un dato ausente no puede verse igual que una medición de cero.
     const sinDato = value === null || value === undefined;
@@ -110,6 +114,13 @@ const KPICard: React.FC<KPICardProps> = React.memo(({
                             </span>
                         ) : (
                             <>
+                                {valueFlag && (
+                                    <AlertTriangle
+                                        size={20}
+                                        className="kpi-value-flag"
+                                        aria-label="Valor anómalo"
+                                    />
+                                )}
                                 <span className="kpi-value">{value}</span>
                                 {unit && <span className="kpi-unit">{unit}</span>}
                             </>

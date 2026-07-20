@@ -518,6 +518,16 @@
     transition: background 0.15s;
 }
 .estaciones-info:hover { background: rgba(56, 189, 248, 0.12); }
+/* Imagen: misma jerarquía secundaria que Infografía, tono neutro para no competir
+   con el acento azul de esa acción ni con el marrón institucional de Informe. */
+.estaciones-pdf {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: transparent; color: #94a3b8; border: 1px solid #475569; border-radius: 6px;
+    padding: 6px 12px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.estaciones-pdf:hover { background: rgba(148, 163, 184, 0.12); color: #e2e8f0; border-color: #94a3b8; }
+.estaciones-pdf:disabled { opacity: 0.6; cursor: wait; }
 
 /* ═══ MEJORA VISUAL MODERNA — Módulo Clima v2 ═══════════════════════════ */
 

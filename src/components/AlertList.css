@@ -75,6 +75,91 @@
     scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
+.alert-empty {
+    color: #64748b;
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 1.5rem 0;
+}
+
+/* ── Grupos por severidad ──────────────────────────────────────
+   Con 7+ alertas sueltas, leer línea por línea es lento. Agrupar
+   por tipo con encabezado plegable deja lo crítico visible de
+   inmediato y las informativas fuera del camino por defecto. */
+.alert-group {
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.alert-group-head {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+}
+
+.alert-group-head-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.alert-group-chevron {
+    transition: transform 0.2s ease;
+    color: #64748b;
+    flex-shrink: 0;
+}
+
+.alert-group-chevron.is-open {
+    transform: rotate(180deg);
+}
+
+.alert-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+}
+
+.alert-group-critical .alert-group-head {
+    background: rgba(239, 68, 68, 0.14);
+    color: #f87171;
+}
+
+.alert-group-warning .alert-group-head {
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+}
+
+.alert-group-info .alert-group-head {
+    background: rgba(56, 189, 248, 0.08);
+    color: #94a3b8;
+}
+
+.alert-group-info .alert-group-head:hover,
+.alert-group-warning .alert-group-head:hover,
+.alert-group-critical .alert-group-head:hover {
+    filter: brightness(1.15);
+}
+
+.alert-group-head:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: -2px;
+}
+
 .alert-item {
     display: flex;
     gap: var(--spacing-md);

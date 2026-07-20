@@ -12,10 +12,10 @@ import { useFecha } from '../context/FechaContext';
 import { usePresas, type ClimaPresaData } from '../hooks/usePresas';
 import { useClimaEstaciones, type EstacionConLectura, type LecturaClima } from '../hooks/useClimaEstaciones';
 import { exportClimaReport } from '../utils/exportClimaReport';
-import { exportClimaInfografia, agrupaPorDia, type DiaHistorico } from '../utils/exportClimaInfografia';
+import { exportClimaInfografia, imagenClimaInfografia, agrupaPorDia, type DiaHistorico } from '../utils/exportClimaInfografia';
 import { supabase } from '../lib/supabase';
 import { formateaEdad, clasificaCielo, PROCEDENCIA_LABEL } from '../utils/cielo';
-import { Download, Gauge } from 'lucide-react';
+import { Download, Gauge, Image as ImageIcon } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { calculaIndices, entradasDesdeEstaciones, type Indice } from '../utils/indicesAgro';
 import EstacionDetalle from '../components/EstacionDetalle';
@@ -454,25 +454,45 @@ const Clima = () => {
     // Infografía: trae el historial de 7 días para el panel de tendencias. Si la
     // consulta falla se emite igual con historial vacío — ese panel se rotula
     // "sin datos suficientes" en vez de bloquear toda la descarga.
-    const descargarInfografia = async () => {
-        let historial: DiaHistorico[] = [];
+    // Compartido por la descarga .html y la impresión/PDF, para no duplicar la
+    // consulta ni arriesgar que ambas salidas muestren tendencias distintas.
+    const historialInfografia = async (): Promise<DiaHistorico[]> => {
         try {
             const ids = estaciones.map(e => e.id);
-            if (ids.length) {
-                const desde = new Date(Date.now() - 7 * 864e5).toISOString();
-                const { data, error } = await supabase
-                    .from('clima_estacion_lecturas')
-                    .select('estacion_id, fecha, ts, temp_c, hum_rel_pct, viento_ms, eto_mm, et_dia_mm')
-                    .in('estacion_id', ids)
-                    .gte('ts', desde)
-                    .order('ts', { ascending: true });
-                if (error) throw error;
-                historial = agrupaPorDia((data ?? []) as LecturaClima[]);
-            }
+            if (!ids.length) return [];
+            const desde = new Date(Date.now() - 7 * 864e5).toISOString();
+            const { data, error } = await supabase
+                .from('clima_estacion_lecturas')
+                .select('estacion_id, fecha, ts, temp_c, hum_rel_pct, viento_ms, eto_mm, et_dia_mm')
+                .in('estacion_id', ids)
+                .gte('ts', desde)
+                .order('ts', { ascending: true });
+            if (error) throw error;
+            return agrupaPorDia((data ?? []) as LecturaClima[]);
         } catch (e) {
             console.warn('[Clima] historial 7 d no disponible para la infografía:', e);
+            return [];
         }
-        await exportClimaInfografia(estaciones, historial);
+    };
+
+    const descargarInfografia = async () => {
+        await exportClimaInfografia(estaciones, await historialInfografia());
+    };
+
+    // Imagen (no PDF vía impresión): el navegador omite el fondo institucional
+    // y pagina mal el layout continuo salvo que el usuario active manualmente
+    // "Gráficos de fondo" — la captura a PNG es fiel a lo que se ve en pantalla.
+    const [generandoImagen, setGenerandoImagen] = useState(false);
+    const generarImagenInfografia = async () => {
+        setGenerandoImagen(true);
+        try {
+            await imagenClimaInfografia(estaciones, await historialInfografia());
+        } catch (e) {
+            console.error('[Clima] no se pudo generar la imagen de la infografía:', e);
+            alert(e instanceof Error ? e.message : 'No se pudo generar la imagen de la infografía.');
+        } finally {
+            setGenerandoImagen(false);
+        }
     };
 
     // ── Tablero ejecutivo del distrito ──────────────────────────────────────
@@ -864,6 +884,14 @@ const Clima = () => {
                                 falla se emite igual y ese panel se rotula "sin datos suficientes". */}
                             <button className="estaciones-info" onClick={() => { void descargarInfografia(); }} title="Descargar infografía de clima actual: indicadores KPI y plano activo del distrito (HTML)">
                                 <Gauge size={14} /> Infografía
+                            </button>
+                            <button
+                                className="estaciones-pdf"
+                                onClick={() => { void generarImagenInfografia(); }}
+                                disabled={generandoImagen}
+                                title="Descargar la infografía como imagen PNG en alta resolución, fiel a los colores y el diseño en pantalla"
+                            >
+                                <ImageIcon size={14} /> {generandoImagen ? 'Generando…' : 'Imagen'}
                             </button>
                             <button className="estaciones-dl" onClick={() => { void exportClimaReport(estaciones); }} title="Descargar informe técnico de clima (HTML)">
                                 <Download size={14} /> Informe

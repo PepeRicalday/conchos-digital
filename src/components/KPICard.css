@@ -143,6 +143,15 @@
     text-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
 }
 
+/* Refuerzo de forma para un valor anómalo (ej. entrega en cero con módulos
+   activos) — no depender sólo del color de franja para comunicar la anomalía. */
+.kpi-value-flag {
+    color: var(--color-warning);
+    flex-shrink: 0;
+    margin-bottom: 0.4rem;
+    filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.5));
+}
+
 .kpi-unit {
     font-size: 1.1rem;
     font-weight: 700;
@@ -185,6 +194,17 @@
 
 .kpi-card.kpi-sev-warning {
     box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.16), 0 12px 28px -12px rgba(245, 158, 11, 0.3);
+}
+
+/* Crítico gana superficie completa de color, no sólo franja: en la fila de
+   KPIs debe leerse primero que cualquier tarjeta normal, incluso a distancia. */
+.kpi-card.kpi-sev-critical {
+    background:
+        linear-gradient(135deg, rgba(244, 63, 94, 0.14) 0%, rgba(244, 63, 94, 0.03) 55%, rgba(2, 6, 23, 0.9) 100%);
+}
+
+.kpi-card.kpi-sev-critical .kpi-title {
+    color: var(--color-danger);
 }
 
 /* -------------------------------------------

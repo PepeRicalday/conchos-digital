@@ -157,6 +157,61 @@ function filaHidro(icono: string, titulo: string, estado: string, color: string)
 }
 
 /**
+ * Tabla de precipitación por estación: 24 h, mes en curso y acumulado.
+ * `lluvia_anio_mm` es el contador que WeatherLink reinicia por ciclo anual de
+ * la consola (no necesariamente enero), así que se rotula "Acum. temporada"
+ * en vez de "Acum. anual" para no prometer un corte calendario que la fuente
+ * no garantiza. Cada celda usa nf(): sin lectura de esa estación es "S/D",
+ * nunca "0.0" — una estación caída no es lo mismo que una estación seca.
+ * Se ordena de mayor a menor 24 h: la fila que más importa a la operación
+ * (dónde llovió más recientemente) va arriba, no el orden fijo de alta en catálogo.
+ */
+function tablaPrecipitacion(ests: EstacionConLectura[]): string {
+    const filas = ests
+        .map(e => ({
+            nombre: e.nombre,
+            enLinea: e.enLinea,
+            h24: e.lectura?.lluvia_24h_mm ?? null,
+            mes: e.lectura?.lluvia_mes_mm ?? null,
+            acum: e.lectura?.lluvia_anio_mm ?? null,
+        }))
+        .sort((a, b) => (b.h24 ?? -1) - (a.h24 ?? -1));
+
+    if (!filas.length) {
+        return `<div style="font-size:0.75rem;color:${T.tintaSec};padding:6px 0">Sin estaciones registradas.</div>`;
+    }
+
+    const suma = (k: 'h24' | 'mes' | 'acum') => {
+        const vs = filas.map(f => f[k]).filter((v): v is number => v != null);
+        return vs.length ? vs.reduce((a, b) => a + b, 0) : null;
+    };
+    const tot24 = suma('h24'), totMes = suma('mes'), totAcum = suma('acum');
+
+    const filasHTML = filas.map(f => `<tr${f.enLinea ? '' : ' style="opacity:0.55"'}>
+        <td><b>${f.nombre}</b>${f.enLinea ? '' : ' <small style="color:' + T.tintaSec + '">(sin reportar)</small>'}</td>
+        <td class="pp-n">${nf(f.h24, 1)}</td>
+        <td class="pp-n">${nf(f.mes, 1)}</td>
+        <td class="pp-n">${nf(f.acum, 1)}</td>
+      </tr>`).join('');
+
+    return `<table class="pp-tabla">
+      <thead><tr>
+        <th>Estación</th>
+        <th class="pp-n">24 h <small>mm</small></th>
+        <th class="pp-n">Mes <small>mm</small></th>
+        <th class="pp-n">Acum. temporada <small>mm</small></th>
+      </tr></thead>
+      <tbody>${filasHTML}</tbody>
+      <tfoot><tr>
+        <td>Total distrito</td>
+        <td class="pp-n">${nf(tot24, 1)}</td>
+        <td class="pp-n">${nf(totMes, 1)}</td>
+        <td class="pp-n">${nf(totAcum, 1)}</td>
+      </tr></tfoot>
+    </table>`;
+}
+
+/**
  * Serie diaria de los últimos 7 días para las tendencias.
  * `historial` es opcional: si la vista no lo suministra, el panel se rotula
  * "sin datos suficientes" en vez de dibujar una línea inventada.
@@ -452,6 +507,8 @@ async function buildHTML(
             lluviaObs > 20 || lluviaPrevMax > 20 ? T.ambar : T.verde),
     ].join('');
 
+    const precipTabla = tablaPrecipitacion(ests);
+
     const plano = mapaSVG(ests, preds, fondo);
 
     const cieloBanda = cieloDist
@@ -583,6 +640,19 @@ async function buildHTML(
   .alerta-i{font-size:1.9rem;line-height:1}
   .alerta-x{font-size:0.75rem;line-height:1.6}
   .recos{list-style:none;padding:0;margin:0;font-size:0.73rem;line-height:1.85}
+
+  /* ── Precipitación por estación ─────────────────────────── */
+  /* Namespaced: no hereda el selector genérico table/td de la tabla de
+     láminas, que tiñe la última columna de verde — aquí el color es azul
+     lluvia y hay 3 columnas numéricas, no 1. */
+  .pp-tabla{width:100%;border-collapse:collapse;font-size:0.74rem}
+  .pp-tabla th{text-align:left;font-size:0.6rem;font-weight:700;letter-spacing:0.04em;
+               color:${T.tintaSec};padding:5px 8px;border-bottom:2px solid ${T.borde}}
+  .pp-tabla th small{font-weight:500;text-transform:none;letter-spacing:0}
+  .pp-tabla td{padding:6px 8px;border-bottom:1px solid #eef2f6}
+  .pp-tabla .pp-n{text-align:right;font-variant-numeric:tabular-nums;color:${T.azul};font-weight:700;white-space:nowrap}
+  .pp-tabla tfoot td{border-bottom:none;border-top:2px solid ${T.borde};font-weight:800;color:${T.tinta}}
+  .pp-tabla tfoot .pp-n{color:${T.marino}}
   .recos li::before{content:'✓ ';color:${T.verde};font-weight:800}
 
   /* ── Mapa y pie ─────────────────────────────────────────── */
@@ -700,6 +770,15 @@ async function buildHTML(
   </div>
 </div>
 
+<h2>PRECIPITACIÓN POR ESTACIÓN</h2>
+<div class="sec">
+  ${precipTabla}
+  <div style="font-size:0.6rem;color:${T.tintaSec};margin-top:7px">
+    24 h y mes según contador acumulado de cada consola WeatherLink; "acum. temporada" es el contador anual de la
+    consola, no un corte de año calendario. Estaciones sin reportar recientemente se muestran atenuadas.
+  </div>
+</div>
+
 <div class="nota">
   <b style="color:#fff">Alcance de esta pieza.</b> Infografía de consulta rápida: presenta indicadores agregados, no la metodología.
   Cielo y probabilidad de lluvia son variables independientes y se leen por separado; un índice sin datos se muestra como «S/D», nunca como cero.
@@ -718,13 +797,13 @@ async function buildHTML(
 }
 
 /**
- * Genera la infografía de clima actual y la descarga como HTML autónomo.
- * `historial` (promedios diarios de 7 días) es OPCIONAL: sin él, el panel de
- * tendencias se rotula "sin datos suficientes" en vez de dibujar una línea falsa.
+ * Construye el HTML de la infografía. Compartido por la descarga (.html) y la
+ * impresión/PDF, para no repetir la resolución del fondo satelital en cada
+ * salida ni arriesgar que diverjan entre sí.
  */
-export async function exportClimaInfografia(
-    ests: EstacionConLectura[], historial: DiaHistorico[] = [],
-): Promise<void> {
+async function construyeInfografiaHTML(
+    ests: EstacionConLectura[], historial: DiaHistorico[],
+): Promise<string> {
     // Fondo satelital con realce geomorfológico. Es opcional por diseño: sin red
     // (o si el navegador bloquea el canvas por CORS) devuelve null y el plano cae
     // al fondo vectorial, en vez de dejar la infografía sin mapa.
@@ -732,7 +811,18 @@ export async function exportClimaInfografia(
     const fondo = ext
         ? await construyeFondoSatelital(ext.minLon, ext.maxLon, ext.minLat, ext.maxLat)
         : null;
-    const html = await buildHTML(ests, historial, fondo);
+    return buildHTML(ests, historial, fondo);
+}
+
+/**
+ * Genera la infografía de clima actual y la descarga como HTML autónomo.
+ * `historial` (promedios diarios de 7 días) es OPCIONAL: sin él, el panel de
+ * tendencias se rotula "sin datos suficientes" en vez de dibujar una línea falsa.
+ */
+export async function exportClimaInfografia(
+    ests: EstacionConLectura[], historial: DiaHistorico[] = [],
+): Promise<void> {
+    const html = await construyeInfografiaHTML(ests, historial);
     const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -742,4 +832,171 @@ export async function exportClimaInfografia(
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+}
+
+/**
+ * Abre la infografía en una pestaña nueva y dispara el diálogo de impresión
+ * del navegador — el usuario elige "Guardar como PDF" ahí. Se usa una pestaña
+ * (no un iframe oculto) porque Chrome/Safari bloquean o degradan el print()
+ * de un iframe invisible; la pestaña además deja la pieza visible si el
+ * usuario cancela el diálogo en vez de perder el resultado silenciosamente.
+ * El CSS `@media print` ya definido en buildHTML() gobierna la paginación.
+ */
+export async function imprimirClimaInfografia(
+    ests: EstacionConLectura[], historial: DiaHistorico[] = [],
+): Promise<void> {
+    const html = await construyeInfografiaHTML(ests, historial);
+    // Navegar la pestaña a un Blob URL (en vez de document.write, ya deprecado)
+    // deja que el navegador parsee el documento de forma normal, con su propio
+    // evento 'load' cuando imágenes y estilos ya resolvieron.
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const ventana = window.open(url, '_blank');
+    if (!ventana) {
+        URL.revokeObjectURL(url);
+        throw new Error('El navegador bloqueó la ventana de impresión. Habilita ventanas emergentes para este sitio.');
+    }
+    const disparaImpresion = () => {
+        ventana.print();
+        // Revocar tras imprimir: dar tiempo a que el diálogo termine de leer el recurso.
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+    };
+    if (ventana.document.readyState === 'complete') {
+        disparaImpresion();
+    } else {
+        ventana.addEventListener('load', disparaImpresion, { once: true });
+    }
+}
+
+/**
+ * Codifica un string UTF-8 (con emojis y acentos — la infografía usa ambos
+ * extensamente) a base64. btoa() sólo acepta Latin1, así que se pasa por
+ * TextEncoder en vez del patrón unescape(encodeURIComponent(...)), ya
+ * deprecado y con casos límite en puntos de código fuera del BMP.
+ */
+function utf8ToBase64(texto: string): string {
+    const bytes = new TextEncoder().encode(texto);
+    let binario = '';
+    for (const b of bytes) binario += String.fromCharCode(b);
+    return btoa(binario);
+}
+
+/**
+ * Espera a que todas las <img> de un documento terminen de cargar (o fallen).
+ * El logo SRL/SICA y el mapa satelital ya llegan embebidos como data URI, pero
+ * el navegador aún necesita un tick para decodificarlos antes de poder
+ * dibujarlos en el <canvas> — sin esto, la primera captura puede salir con
+ * huecos en blanco donde deberían ir esas imágenes.
+ */
+function esperaImagenes(doc: Document): Promise<void> {
+    const imgs = Array.from(doc.images);
+    return Promise.all(
+        imgs.map(img => img.complete ? Promise.resolve() : new Promise<void>(resolve => {
+            img.addEventListener('load', () => resolve(), { once: true });
+            img.addEventListener('error', () => resolve(), { once: true });
+        })),
+    ).then(() => undefined);
+}
+
+/**
+ * Genera la infografía como PNG de alta resolución, fiel a como se ve en
+ * pantalla — sin depender del motor de impresión del navegador, que por
+ * defecto omite `background` (el lienzo azul marino) salvo que el usuario
+ * active "Gráficos de fondo" manualmente, y que pagina el layout continuo
+ * de forma que corta el mapa y las tarjetas a media altura.
+ *
+ * Técnica: el HTML se carga en un iframe oculto para medir su alto real
+ * (el contenido es dinámico: nº de estaciones, alertas, etc.), luego ese
+ * documento completo se envuelve en un SVG `<foreignObject>` del mismo
+ * tamaño y se rasteriza a un `<canvas>` a 2x para nitidez de impresión.
+ * No requiere ninguna librería nueva: todo el HTML es CSS/SVG estándar
+ * (confirmado sin `backdrop-filter` ni otras features que foreignObject
+ * no soporta), y las imágenes (logos, mapa) ya vienen como data URI.
+ */
+export async function imagenClimaInfografia(
+    ests: EstacionConLectura[], historial: DiaHistorico[] = [],
+): Promise<void> {
+    const html = await construyeInfografiaHTML(ests, historial);
+
+    const blobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8;' }));
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1200px;height:800px;border:0;visibility:hidden;';
+
+    try {
+        // Navegar por src (en vez de document.write, ya deprecado) deja que el
+        // navegador parsee el documento de forma normal y dispare 'load' cuando
+        // el HTML ya resolvió — el Blob hereda el origen de la página, así que
+        // contentDocument sigue siendo accesible (no hay problema de CORS).
+        const cargaLista = new Promise<void>(resolve => {
+            iframe.addEventListener('load', () => resolve(), { once: true });
+        });
+        iframe.src = blobUrl;
+        document.body.appendChild(iframe);
+        await cargaLista;
+
+        const doc = iframe.contentDocument;
+        if (!doc) throw new Error('No se pudo preparar el lienzo de captura.');
+        await esperaImagenes(doc);
+
+        // Alto real del documento ya renderizado — el contenido varía con el
+        // número de estaciones y alertas, así que no puede fijarse a mano.
+        const ancho = 1200;
+        const alto = Math.ceil(doc.documentElement.scrollHeight);
+
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNS, 'svg');
+        svg.setAttribute('xmlns', svgNS);
+        svg.setAttribute('width', String(ancho));
+        svg.setAttribute('height', String(alto));
+        svg.setAttribute('viewBox', `0 0 ${ancho} ${alto}`);
+        const foreign = document.createElementNS(svgNS, 'foreignObject');
+        foreign.setAttribute('width', '100%');
+        foreign.setAttribute('height', '100%');
+        // xhtml namespace requerido: un <div> plano dentro de foreignObject se
+        // ignora en Chrome si no declara su namespace explícitamente.
+        const htmlNode = doc.documentElement.cloneNode(true) as HTMLElement;
+        htmlNode.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+        foreign.appendChild(htmlNode);
+        svg.appendChild(foreign);
+
+        const svgData = new XMLSerializer().serializeToString(svg);
+        // Data URI en vez de Blob URL: Chrome marca como "tainted" cualquier
+        // canvas donde se dibuje una imagen SVG cargada desde un Blob URL —
+        // incluso siendo same-origin y sin contenido ejecutable — y eso hace
+        // fallar canvas.toDataURL() más abajo con "Tainted canvases may not be
+        // exported". Con data: en base64 el navegador no aplica esa marca.
+        const svgDataUri = `data:image/svg+xml;charset=utf-8;base64,${utf8ToBase64(svgData)}`;
+
+        const img = new Image();
+        img.width = ancho;
+        img.height = alto;
+        await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error('No se pudo rasterizar la infografía.'));
+            img.src = svgDataUri;
+        });
+
+        // Escala 2x: nitidez adecuada para impresión/proyección sin generar un
+        // archivo desproporcionadamente grande (a 3x+ el peso crece muy rápido
+        // para el beneficio marginal en pantallas normales).
+        const escala = 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = ancho * escala;
+        canvas.height = alto * escala;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('No se pudo preparar el lienzo de captura.');
+        ctx.scale(escala, escala);
+        ctx.drawImage(img, 0, 0, ancho, alto);
+
+        const pngUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = pngUrl;
+        a.download = `infografia-clima-conchos-${new Date().toISOString().slice(0, 10)}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    } finally {
+        if (iframe.parentNode) document.body.removeChild(iframe);
+        URL.revokeObjectURL(blobUrl);
+    }
 }

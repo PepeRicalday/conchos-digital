@@ -38,7 +38,9 @@ export interface BalanceTramo {
   q_tomas: number;         // Sum of tomas in between
   q_perdidas: number;      // Unaccounted losses
   eficiencia: number;      // %
-  estado: 'optimo' | 'atencion' | 'alerta' | 'critico';
+  estado: 'optimo' | 'atencion' | 'alerta' | 'critico' | 'sin_dato';
+  sinDato: boolean;        // true si no hay lectura confiable (q_entrada <= 0)
+  anomalo: boolean;        // true si q_salida+q_tomas > q_entrada (medición/aportación lateral, no fuga)
   perfil?: PerfilTramo;    // Canal design data
 }
 
@@ -80,6 +82,33 @@ export const isCriticalLoss = (efficiency: number): boolean => {
 
 // ─── NEW: Balance & Modeling Functions ────────────
 
+export type EstadoBalance = 'optimo' | 'atencion' | 'alerta' | 'critico' | 'sin_dato';
+
+/**
+ * Fuente única de verdad para clasificar una eficiencia de tramo: color, etiqueta,
+ * fondo y nivel (usado tanto para el badge de estado como para el fondo de la fila,
+ * el gauge global y el esquema del canal). Antes existían tres clasificaciones
+ * independientes con cortes distintos (80/90 vs 85/90 vs 90 en el gauge) que
+ * producían fondo y badge contradictorios en la misma fila.
+ *
+ * @param eficiencia  % de conducción (Q_salida + Q_tomas) / Q_entrada.
+ * @param anomalo     true si Q_salida+Q_tomas > Q_entrada (error de medición o
+ *                    aportación lateral) — no es una fuga real, se marca aparte.
+ */
+export const getEfficiencyStatus = (
+  eficiencia: number,
+  anomalo = false
+): { color: string; label: string; bg: string; nivel: EstadoBalance } => {
+  if (anomalo) {
+    return { color: '#818cf8', label: 'Dato Anómalo', bg: 'rgba(129, 140, 248, 0.1)', nivel: 'alerta' };
+  }
+  if (eficiencia >= 95) return { color: '#10b981', label: 'Óptimo', bg: 'rgba(16, 185, 129, 0.1)', nivel: 'optimo' };
+  if (eficiencia >= 90) return { color: '#f59e0b', label: 'Atención', bg: 'rgba(245, 158, 11, 0.1)', nivel: 'atencion' };
+  // A partir de 20% de pérdidas (eficiencia < 80%), se considera crítico (fuga) por directiva técnica.
+  if (eficiencia >= 80) return { color: '#ef4444', label: 'Alerta Roja', bg: 'rgba(239, 68, 68, 0.1)', nivel: 'alerta' };
+  return { color: '#991b1b', label: 'Crítico (Fuga)', bg: 'rgba(153, 27, 27, 0.1)', nivel: 'critico' };
+};
+
 /**
  * Calculates the hydraulic balance for a canal section.
  * Q_entrada = Q_salida + Q_tomas + Q_pérdidas
@@ -95,19 +124,19 @@ export const calculateSectionBalance = (
   qTomas: number,
   perfil?: PerfilTramo
 ): BalanceTramo => {
+  const sinDato = qEntrada <= 0;
   const qContabilizado = qSalida + qTomas;
-  // Anómalo: más salidas que entradas (error de medición o aportación lateral)
-  const isAnomalous = qContabilizado > qEntrada && qEntrada > 0;
-  const qPerdidas = isAnomalous ? 0 : Math.max(0, qEntrada - qContabilizado);
+  // Anómalo: más salidas que entradas (error de medición o aportación lateral) — no es fuga real
+  const anomalo = !sinDato && qContabilizado > qEntrada;
+  const qPerdidas = (sinDato || anomalo) ? 0 : Math.max(0, qEntrada - qContabilizado);
   const eficienciaRaw = qEntrada > 0 ? (qContabilizado / qEntrada) * 100 : 0;
   // Limitar a 100% — valores > 100% indican anomalía de medición, no ganancia real
   const eficiencia = Math.min(100, eficienciaRaw);
 
-  let estado: BalanceTramo['estado'] = 'optimo';
-  if (isAnomalous) estado = 'alerta'; // Marcar tramos con datos anómalos
-  else if (eficiencia < 80) estado = 'critico';
-  else if (eficiencia < 90) estado = 'alerta';
-  else if (eficiencia < 95) estado = 'atencion';
+  // Fuente única de estado: misma clasificación que se usa para pintar la fila y el badge.
+  const estado: BalanceTramo['estado'] = sinDato
+    ? 'sin_dato'
+    : getEfficiencyStatus(eficiencia, anomalo).nivel;
 
   return {
     seccion_nombre: seccionNombre,
@@ -119,6 +148,8 @@ export const calculateSectionBalance = (
     q_perdidas: Number(qPerdidas.toFixed(3)),
     eficiencia: Number(eficiencia.toFixed(2)),
     estado,
+    sinDato,
+    anomalo,
     perfil
   };
 };
@@ -223,17 +254,6 @@ export const validateAforoVsDesign = (
   }
 
   return warnings;
-};
-
-/**
- * Gets operational status color/label based on efficiency.
- */
-export const getEfficiencyStatus = (eficiencia: number): { color: string; label: string; bg: string } => {
-  if (eficiencia >= 95) return { color: '#10b981', label: 'Óptimo', bg: 'rgba(16, 185, 129, 0.1)' };
-  if (eficiencia >= 90) return { color: '#f59e0b', label: 'Atención', bg: 'rgba(245, 158, 11, 0.1)' };
-  // A partir de 10% de pérdidas (eficiencia < 90%), se considera alerta crítica (Rojo) por directiva técnica.
-  if (eficiencia >= 85) return { color: '#ef4444', label: 'Alerta Roja', bg: 'rgba(239, 68, 68, 0.1)' };
-  return { color: '#991b1b', label: 'Crítico (Fuga)', bg: 'rgba(153, 27, 27, 0.1)' };
 };
 
 /**

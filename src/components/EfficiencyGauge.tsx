@@ -1,6 +1,7 @@
 import React from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { Zap } from 'lucide-react';
+import { getEfficiencyStatus } from '../utils/hydraulics';
 import './EfficiencyGauge.css';
 
 interface EfficiencyGaugeProps {
@@ -8,26 +9,23 @@ interface EfficiencyGaugeProps {
     label?: string;
 }
 
+// Cortes idénticos a getEfficiencyStatus() en utils/hydraulics.ts — antes este
+// gauge tenía su propia escala de 3 niveles (90/80) distinta de la tabla de
+// balance (que usa 4 niveles: 95/90/80), así que podía mostrar "Sistema Óptimo"
+// mientras la tabla ya marcaba tramos en rojo.
 const EfficiencyGauge: React.FC<EfficiencyGaugeProps> = ({ value, label = "Eficiencia Global" }) => {
     const score = Math.min(Math.max(value, 0), 100);
+    const status = getEfficiencyStatus(score);
 
     const data = [
         { name: 'Eficiencia', value: score },
         { name: 'Pérdida', value: 100 - score }
     ];
 
-    const getColor = (val: number) => {
-        if (val >= 90) return '#10b981';
-        if (val >= 80) return '#f59e0b';
-        return '#ef4444';
-    };
-
-    const color = getColor(score);
-
     return (
         <div className="efficiency-gauge">
             <h3 className="gauge-title">
-                <Zap size={14} className={score < 80 ? 'gauge-title-icon alert' : 'gauge-title-icon'} />
+                <Zap size={14} className={status.nivel === 'critico' || status.nivel === 'alerta' ? 'gauge-title-icon alert' : 'gauge-title-icon'} />
                 {label}
             </h3>
 
@@ -46,7 +44,7 @@ const EfficiencyGauge: React.FC<EfficiencyGaugeProps> = ({ value, label = "Efici
                             dataKey="value"
                             stroke="none"
                         >
-                            <Cell fill={color} />
+                            <Cell fill={status.color} />
                             <Cell fill="#334155" />
                         </Pie>
                     </PieChart>
@@ -59,21 +57,15 @@ const EfficiencyGauge: React.FC<EfficiencyGaugeProps> = ({ value, label = "Efici
             </div>
 
             <div className="gauge-status">
-                {score < 80 && (
-                    <span className="gauge-status-badge status-critical">
-                        ¡ALERTA DE FUGAS!
-                    </span>
-                )}
-                {score >= 80 && score < 90 && (
-                    <span className="gauge-status-badge status-warning">
-                        Atención Requerida
-                    </span>
-                )}
-                {score >= 90 && (
-                    <span className="gauge-status-badge status-optimal">
-                        Sistema Óptimo
-                    </span>
-                )}
+                <span
+                    className={`gauge-status-badge status-${status.nivel}`}
+                    style={{ color: status.color, background: status.bg, borderColor: status.color }}
+                >
+                    {status.nivel === 'critico' ? '¡ALERTA DE FUGAS!'
+                        : status.nivel === 'alerta' ? 'Atención Requerida'
+                        : status.nivel === 'atencion' ? 'Vigilar Tendencia'
+                        : 'Sistema Óptimo'}
+                </span>
             </div>
         </div>
     );

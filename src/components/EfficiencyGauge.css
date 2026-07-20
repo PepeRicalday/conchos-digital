@@ -79,19 +79,11 @@
     padding: 3px 14px;
     border-radius: var(--radius-full);
     display: inline-block;
+    border: 1px solid;
 }
 
-.gauge-status-badge.status-critical {
-    background-color: rgba(239, 68, 68, 0.15);
-    color: #fca5a5;
-    border: 1px solid rgba(239, 68, 68, 0.4);
+/* nivel viene de getEfficiencyStatus() en utils/hydraulics.ts — color/bg/border
+   ya llegan por prop `style`; aquí sólo se agrega el énfasis de crítico. */
+.gauge-status-badge.status-critico {
     animation: pulse-glow 1.5s ease-in-out infinite;
-}
-
-.gauge-status-badge.status-warning {
-    color: var(--color-warning);
-}
-
-.gauge-status-badge.status-optimal {
-    color: var(--color-success);
 }

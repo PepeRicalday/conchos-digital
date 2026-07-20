@@ -25,6 +25,10 @@ interface TomaActiva {
     caudal: number;
 }
 
+// Orden de severidad para listar primero lo más urgente — compartido entre la
+// tabla principal y el Reporte Ejecutivo para que ambas vistas concuerden.
+const ORDEN_SEVERIDAD: Record<string, number> = { critico: 0, alerta: 1, atencion: 2, optimo: 3, sin_dato: 4 };
+
 // ─── Reporte Ejecutivo Diario ─────────────────────────────────────────────────
 
 interface ReporteProps {
@@ -36,14 +40,17 @@ const ReporteEjecutivo = ({ fecha, balanceData }: ReporteProps) => {
     const printRef = useRef<HTMLDivElement>(null);
     const { alertas, tramos, loading: loadingPred } = usePredictiveBalance();
 
+    // Misma fórmula y mismo filtro (excluye anómalos/sin dato) que globalEfficiency
+    // en BalanceHidraulico principal — antes este reporte calculaba con una fórmula
+    // distinta (sólo primer/último tramo) y podía mostrar una eficiencia global
+    // diferente a la que se ve en el dashboard, el mismo día.
     const efGlobal = useMemo(() => {
         if (!balanceData.length) return null;
-        const first = balanceData[0];
-        const last  = balanceData[balanceData.length - 1];
-        if (!first?.q_entrada || first.q_entrada <= 0) return null;
-        const qSalida = last?.q_salida ?? 0;
-        const qTomas  = balanceData.reduce((s, t) => s + (t.q_tomas ?? 0), 0);
-        return Math.min(100, ((qSalida + qTomas) / first.q_entrada) * 100);
+        const validas = balanceData.filter(b => !b.sinDato && !b.anomalo);
+        if (!validas.length) return null;
+        const totalEntrada = validas.reduce((s, b) => s + b.q_entrada, 0);
+        const totalSalida  = validas.reduce((s, b) => s + b.q_salida + b.q_tomas, 0);
+        return totalEntrada > 0 ? Math.min(100, (totalSalida / totalEntrada) * 100) : null;
     }, [balanceData]);
 
     const anomalias = tramos.filter(t => t.estado === 'critico' || t.estado === 'alerta');
@@ -120,11 +127,13 @@ const ReporteEjecutivo = ({ fecha, balanceData }: ReporteProps) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {balanceData.map((b, i) => {
-                                    const st = getEfficiencyStatus(b.eficiencia);
+                                {[...balanceData].sort((a, b) => (ORDEN_SEVERIDAD[a.estado] ?? 9) - (ORDEN_SEVERIDAD[b.estado] ?? 9)).map((b, i) => {
+                                    const st = b.sinDato
+                                        ? { color: '#64748b', label: 'S/D', bg: 'rgba(100,116,139,0.1)' }
+                                        : getEfficiencyStatus(b.eficiencia, b.anomalo);
                                     return (
                                         <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
-                                            <td className="px-3 py-2 text-[10px] font-bold text-white">{b.seccion_nombre}</td>
+                                            <td className="px-3 py-2 text-[10px] font-bold text-white">{b.seccion_nombre}{b.anomalo && ' ⚠'}</td>
                                             <td className="px-3 py-2 text-[10px] font-mono text-slate-300 text-right">{(b.q_entrada ?? 0).toFixed(2)}</td>
                                             <td className="px-3 py-2 text-[10px] font-mono text-slate-300 text-right">{(b.q_salida ?? 0).toFixed(2)}</td>
                                             <td className="px-3 py-2 text-[10px] font-mono text-slate-300 text-right">{(b.q_tomas ?? 0).toFixed(2)}</td>
@@ -133,7 +142,7 @@ const ReporteEjecutivo = ({ fecha, balanceData }: ReporteProps) => {
                                             </td>
                                             <td className="px-3 py-2 text-center">
                                                 <span className="text-[11px] font-black font-mono" style={{ color: st.color }}>
-                                                    {(b.eficiencia ?? 0).toFixed(1)}%
+                                                    {b.sinDato ? 'S/D' : `${(b.eficiencia ?? 0).toFixed(1)}%`}
                                                 </span>
                                             </td>
                                             <td className="px-3 py-2 text-center">
@@ -326,17 +335,29 @@ const BalanceHidraulico = () => {
         return balances;
     }, [escalas, tomas, perfilTramos]);
 
-    // Eficiencia global — excluir tramos anómalos (q_salida > q_entrada) por error de medición
+    // Eficiencia global — excluir tramos anómalos y sin dato para no diluir el número
+    // real con errores de medición o días sin lectura (q_entrada <= 0).
     const globalEfficiency = useMemo((): number | null => {
         if (balanceData.length === 0) return null;
-        const validSections = balanceData.filter(b => b.q_salida + b.q_tomas <= b.q_entrada || b.q_entrada === 0);
+        const validSections = balanceData.filter(b => !b.sinDato && !b.anomalo);
         if (validSections.length === 0) return null;
         const totalEntrada = validSections.reduce((acc, b) => acc + b.q_entrada, 0);
         const totalSalida = validSections.reduce((acc, b) => acc + b.q_salida + b.q_tomas, 0);
         return totalEntrada > 0 ? Math.min(100, (totalSalida / totalEntrada) * 100) : null;
     }, [balanceData]);
 
-    const criticalSections = balanceData.filter(b => b.estado === 'critico' || b.estado === 'alerta');
+    // Sólo cuenta fugas reales (alerta/crítico) — los tramos anómalos o sin dato
+    // se muestran aparte en la tabla pero no inflan este contador, para que
+    // coincida con lo que dice globalEfficiency arriba.
+    const criticalSections = balanceData.filter(b => !b.anomalo && (b.estado === 'critico' || b.estado === 'alerta'));
+    const sinDatoCount = balanceData.filter(b => b.sinDato).length;
+    const anomaloCount = balanceData.filter(b => b.anomalo).length;
+
+    // Tabla ordenada por severidad: crítico → alerta → atención → óptimo → sin dato al final.
+    const balanceOrdenado = useMemo(
+        () => [...balanceData].sort((a, b) => (ORDEN_SEVERIDAD[a.estado] ?? 9) - (ORDEN_SEVERIDAD[b.estado] ?? 9)),
+        [balanceData]
+    );
 
     if (loading) {
         return (
@@ -370,10 +391,16 @@ const BalanceHidraulico = () => {
                         <span className="kpi-value">{perfilTramos.length}</span>
                         <span className="kpi-label">Tramos Diseño</span>
                     </div>
-                    <div className="balance-kpi highlight">
+                    <div className={`balance-kpi${criticalSections.length > 0 ? ' highlight' : ''}`}>
                         <span className="kpi-value">{criticalSections.length}</span>
-                        <span className="kpi-label">Alertas</span>
+                        <span className="kpi-label">Alertas (fuga real)</span>
                     </div>
+                    {(sinDatoCount > 0 || anomaloCount > 0) && (
+                        <div className="balance-kpi balance-kpi--muted">
+                            <span className="kpi-value">{sinDatoCount + anomaloCount}</span>
+                            <span className="kpi-label">S/D · Anómalo</span>
+                        </div>
+                    )}
                 </div>
             </header>
 
@@ -420,11 +447,33 @@ const BalanceHidraulico = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {balanceData.map((b, idx) => {
-                                        const status = getEfficiencyStatus(b.eficiencia);
+                                    {balanceOrdenado.map((b, idx) => {
+                                        if (b.sinDato) {
+                                            // Sin lectura confiable ese día: nunca se pinta como 0% de eficiencia
+                                            // (se vería idéntico a una fuga real del 100%). Ver getEfficiencyStatus.
+                                            return (
+                                                <tr key={idx} className="balance-row sin_dato">
+                                                    <td className="tramo-name">{b.seccion_nombre}</td>
+                                                    <td className="tramo-km">{(b.km_inicio ?? 0).toFixed(1)} - {(b.km_fin ?? 0).toFixed(1)}</td>
+                                                    <td className="q-value" colSpan={4} style={{ color: 'var(--text-secondary)' }}>
+                                                        Sin dato de caudal para este tramo en la fecha seleccionada
+                                                    </td>
+                                                    <td className="efficiency-cell">
+                                                        <span className="efficiency-text-sd">S/D</span>
+                                                    </td>
+                                                    <td>
+                                                        <span className="status-badge status-sin_dato">S/D</span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        }
+                                        const status = getEfficiencyStatus(b.eficiencia, b.anomalo);
                                         return (
-                                            <tr key={idx} className={`balance-row ${b.estado}`}>
-                                                <td className="tramo-name">{b.seccion_nombre}</td>
+                                            <tr key={idx} className={`balance-row ${b.estado}`} style={{ borderLeft: `3px solid ${status.color}` }}>
+                                                <td className="tramo-name">
+                                                    {b.seccion_nombre}
+                                                    {b.anomalo && <span className="anomalo-flag" title="Q_salida + Q_tomas supera Q_entrada: error de medición o aportación lateral, no es una fuga">⚠ dato anómalo</span>}
+                                                </td>
                                                 <td className="tramo-km">{(b.km_inicio ?? 0).toFixed(1)} - {(b.km_fin ?? 0).toFixed(1)}</td>
                                                 <td className="q-value entrada">{(b.q_entrada ?? 0).toFixed(3)}</td>
                                                 <td className="q-value salida">{(b.q_salida ?? 0).toFixed(3)}</td>
@@ -468,10 +517,15 @@ const BalanceHidraulico = () => {
                     </h2>
                     <div className="canal-schematic">
                         {balanceData.map((b, idx) => {
-                            const status = getEfficiencyStatus(b.eficiencia);
-                            const widthPct = b.perfil
+                            const status = b.sinDato
+                                ? { color: '#64748b', label: 'S/D', bg: 'rgba(100,116,139,0.1)', nivel: 'sin_dato' as const }
+                                : getEfficiencyStatus(b.eficiencia, b.anomalo);
+                            // Sin perfil de diseño no hay base para estimar el % de capacidad usado;
+                            // se deja la tubería sin relleno en vez de un 50% inventado que se confunde
+                            // con un tramo real a media capacidad.
+                            const widthPct = b.perfil && b.perfil.capacidad_diseno_m3s > 0
                                 ? Math.min(100, (b.q_entrada / b.perfil.capacidad_diseno_m3s) * 100)
-                                : 50;
+                                : null;
                             return (
                                 <div key={idx} className="schematic-section">
                                     <div className="schematic-node">
@@ -480,13 +534,17 @@ const BalanceHidraulico = () => {
                                         <span className="node-q">{(b.q_entrada ?? 0).toFixed(2)} m³/s</span>
                                     </div>
                                     <div className="schematic-pipe">
-                                        <div
-                                            className="pipe-flow"
-                                            style={{
-                                                width: `${widthPct}%`,
-                                                background: `linear-gradient(90deg, ${status.color}40, ${status.color})`
-                                            }}
-                                        />
+                                        {widthPct !== null ? (
+                                            <div
+                                                className="pipe-flow"
+                                                style={{
+                                                    width: `${widthPct}%`,
+                                                    background: `linear-gradient(90deg, ${status.color}40, ${status.color})`
+                                                }}
+                                            />
+                                        ) : (
+                                            <div className="pipe-flow pipe-flow--sin-perfil" title="Sin perfil de diseño para este tramo: no se puede estimar % de capacidad" />
+                                        )}
                                         {b.q_tomas > 0 && (
                                             <div className="pipe-tomas">
                                                 <ArrowDown size={10} />
@@ -500,7 +558,7 @@ const BalanceHidraulico = () => {
                                             </div>
                                         )}
                                         <span className="pipe-efficiency" style={{ color: status.color }}>
-                                            {(b.eficiencia ?? 0).toFixed(1)}%
+                                            {b.sinDato ? 'S/D' : `${(b.eficiencia ?? 0).toFixed(1)}%`}
                                         </span>
                                     </div>
                                     {idx === balanceData.length - 1 && (

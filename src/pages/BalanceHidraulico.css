@@ -160,12 +160,63 @@
     border-bottom: 1px solid rgba(51, 65, 85, 0.3);
 }
 
+/* Fondo de fila alineado a los mismos colores de getEfficiencyStatus() en
+   utils/hydraulics.ts — antes usaba sus propios cortes (rojo para ambos) y
+   podía no coincidir con el color del badge de la misma fila. */
 .balance-row.critico {
-    background: rgba(239, 68, 68, 0.04);
+    background: rgba(153, 27, 27, 0.08);
 }
 
 .balance-row.alerta {
-    background: rgba(249, 115, 22, 0.04);
+    background: rgba(239, 68, 68, 0.05);
+}
+
+.balance-row.atencion {
+    background: rgba(245, 158, 11, 0.04);
+}
+
+.balance-row.sin_dato {
+    background: rgba(100, 116, 139, 0.04);
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.efficiency-text-sd {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--text-secondary);
+}
+
+.anomalo-flag {
+    display: inline-block;
+    margin-left: 0.4rem;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #818cf8;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.balance-kpi--muted {
+    opacity: 0.7;
+}
+
+.balance-kpi--muted .kpi-value {
+    color: var(--text-secondary);
+}
+
+.pipe-flow--sin-perfil {
+    height: 100%;
+    width: 100%;
+    border-radius: 4px;
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(100, 116, 139, 0.15),
+        rgba(100, 116, 139, 0.15) 6px,
+        rgba(100, 116, 139, 0.3) 6px,
+        rgba(100, 116, 139, 0.3) 12px
+    );
 }
 
 .tramo-name {
@@ -241,6 +292,22 @@
     border-radius: 9999px;
     border: 1px solid;
     white-space: nowrap;
+}
+
+/* Refuerza crítico vs alerta más allá del color (accesibilidad / daltonismo):
+   el crítico lleva icono + borde sólido más marcado. */
+.status-badge.status-critico::before {
+    content: "● ";
+}
+
+.status-badge.status-alerta::before {
+    content: "▲ ";
+}
+
+.status-badge.status-sin_dato {
+    color: var(--text-secondary) !important;
+    background: rgba(100, 116, 139, 0.1) !important;
+    border-color: var(--border) !important;
 }
 
 /* Canal Schematic */

@@ -196,7 +196,12 @@ export function usePredictiveBalance(): PredictiveBalanceResult {
                     // Q entrada hoy (para sobrecapacidad)
                     const qEntHoy = lectIdx[hoy]?.[escEnt.id] ?? 0;
 
-                    // Clasificar estado del tramo
+                    // Clasificar estado del tramo. NOTA: esta escala es intencionalmente
+                    // distinta de getEfficiencyStatus() en utils/hydraulics.ts — ese balance
+                    // clasifica la eficiencia instantánea del tramo (95/90/80); este hook
+                    // predice fuga comparando contra el baseline histórico + una alerta dura
+                    // en 85%. Comparten los nombres 'alerta'/'critico' pero NO deben tratarse
+                    // como la misma clasificación al mostrarlas juntas en la UI.
                     let estadoTramo: TramoSnapshot['estado'] = 'normal';
                     if (efHoy !== null) {
                         if (efHoy < 85)                              estadoTramo = 'critico';

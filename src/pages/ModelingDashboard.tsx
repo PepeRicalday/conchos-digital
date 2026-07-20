@@ -806,21 +806,23 @@ function generateDecisions(
         accion: deltaQ > 0
           ? `REDUCIR gasto o ABRIR ${r.nombre}`
           : `ABRIR compuerta ${r.nombre}`,
-        detalle: `Bordo libre al ${r.bordo_libre_pct.toFixed(0)}% — margen restante ${(r.bordo_libre_m - r.y_sim).toFixed(2)} m`,
+        detalle: `Tirante al ${r.bordo_libre_pct.toFixed(0)}% de la profundidad total — margen al desborde ${(r.canal_depth_m - r.y_sim).toFixed(2)} m`,
         valor_actual: `${r.y_sim.toFixed(2)} m`,
-        valor_meta:   `< ${(r.bordo_libre_m * 0.75).toFixed(2)} m`,
+        valor_meta:   `< ${(r.canal_depth_m * 0.75).toFixed(2)} m`,
       });
     }
 
-    // R3: Nivel ALERTA
-    else if (r.status === 'ALERTA') {
+    // R3: Nivel ALERTA — solo cuando la alerta NO proviene de una restricción
+    // de nivel (esos casos ya emiten mensaje específico en R12)
+    else if (r.status === 'ALERTA'
+      && (r.evaluacion_nivel == null || r.evaluacion_nivel.estado === 'operacion_aceptable')) {
       decisions.push({
         prioridad: 'ALERTA', tipo: 'MONITOREO',
         punto: r.nombre, km: r.km,
         accion: `Vigilar escala ${r.nombre}`,
-        detalle: `${r.bordo_libre_pct.toFixed(0)}% del bordo libre — tendencia ${r.delta_y > 0 ? 'ascendente' : 'descendente'}`,
+        detalle: `Tirante al ${r.bordo_libre_pct.toFixed(0)}% de la profundidad total — tendencia ${r.delta_y > 0 ? 'ascendente' : 'descendente'}`,
         valor_actual: `${r.y_sim.toFixed(2)} m`,
-        valor_meta:   `< ${(r.bordo_libre_m * 0.75).toFixed(2)} m`,
+        valor_meta:   `< ${(r.canal_depth_m * 0.75).toFixed(2)} m`,
       });
     }
 
@@ -899,7 +901,9 @@ function generateDecisions(
       } else {
         // DECREMENTO / CORTE: ajuste para sostener nivel de servicio
         if (Math.abs(aperDelta) > 0.05) {
-          const { yMin, yMax } = getOpLimits(r.km);
+          // Límites efectivos: restricción del tramo (si existe) > genéricos
+          const yMin = r.evaluacion_nivel?.nivel_min_m ?? getOpLimits(r.km).yMin;
+          const yMax = r.evaluacion_nivel?.nivel_max_m ?? getOpLimits(r.km).yMax;
           decisions.push({
             prioridad: Math.abs(aperDelta) > 0.40 ? 'ALERTA' : 'INFO',
             tipo:      aperDelta > 0 ? 'APERTURA' : 'CIERRE',
@@ -1080,17 +1084,33 @@ function runSimulation(
     const td_tramo   = tramo.tirante_diseno_m;
     const canal_depth = td_tramo + fb_tramo;
 
-    const y_sim_mn2  = normalDepth(qCur, s_tramo, b_tramo, z_tramo, n_tramo);
+    // ── LÍMITES OPERATIVOS EFECTIVOS: restricción del tramo > genéricos ────
+    // Un override del operador en el panel de condicionantes mueve también
+    // el piso de servicio y el nivel objetivo del motor (antes solo la
+    // evaluación usaba la restricción y el motor seguía con getOpLimits).
+    const restriccion = findRestriccion(kmCp, restricciones);
+    const yMinOp = restriccion?.nivel_min_deseable_m ?? getOpLimits(kmCp).yMin;
+    const yMaxOp = restriccion?.nivel_max_permitido_m ?? getOpLimits(kmCp).yMax;
 
-    // ── PISO DE SERVICIO: la escala simulada NO puede caer más del 10%     ──
-    // ── de la escala actual real. Esto garantiza continuidad de servicio   ──
-    // ── a tomas altas y laterales. La operación busca ESTABILIDAD, no     ──
-    // ── equilibrio hidráulico puro (Manning).                             ──
-    const { yMin: yMinOp, yMax: yMaxOp } = getOpLimits(kmCp);
-    const y_floor_service = y_base * 0.90;   // máx 10% de caída permitida
-    const y_floor = Math.max(yMinOp, y_floor_service);
+    // ── MODELO PERTURBACIONAL ──────────────────────────────────────────────
+    // El canal opera en régimen M1 (remanso por compuertas): Manning uniforme
+    // NO reproduce el nivel real medido. La escala observada ES el estado base;
+    // Manning solo aporta la VARIACIÓN entre el Q base y el Q simulado:
+    //   y_sim = y_base + [y_n(Q_sim) − y_n(Q_base)]
+    // Con ΔQ = 0 los términos se cancelan → y_sim = y_base (sin descensos
+    // ficticios por el sesgo Manning-vs-remanso).
+    const y_n_base  = normalDepth(qBaseCur, s_tramo, b_tramo, z_tramo, n_tramo);
+    const y_sim_raw = y_base + (y_n - y_n_base);
 
-    const y_sim_capped = Math.max(y_floor, Math.min(y_sim_mn2, canal_depth - 0.08));
+    // ── PISO DE SERVICIO: la escala simulada NO puede caer más del 10% de la
+    // escala actual (continuidad de servicio a tomas altas y laterales). Si la
+    // escala real ya está bajo el mínimo operativo, el piso no puede fabricar
+    // un ascenso: se limita al 90% del nivel real.
+    const y_floor = y_base >= yMinOp
+      ? Math.max(yMinOp, y_base * 0.90)
+      : y_base * 0.90;
+
+    const y_sim_capped = Math.max(y_floor, Math.min(y_sim_raw, canal_depth - 0.08));
     const y_sim_final = Math.max(0.1, Math.min(y_sim_capped, Math.max(y_base, yMaxOp)));
 
     // ── APERTURA REQUERIDA para MANTENER la escala estabilizada ──────────
@@ -1136,10 +1156,23 @@ function runSimulation(
     const remanso_type: RemansoType = delta_y > 0.08 ? 'M1' : delta_y < -0.08 ? 'M2' : 'NORMAL';
     const pct          = y_sim / canal_depth;
 
+    // ── RESTRICCIÓN DE NIVEL: evaluar y_sim contra límites del tramo ────────
+    const evaluacion_nivel = restriccion
+      ? evaluarRestriccionNivelTramo(restriccion, y_sim)
+      : null;
+
     // ── STATUS EXPANDIDO: estado FINAL (lo que sucederá), no estado actual ──
+    // pct > 92% de la profundidad total = riesgo físico de desborde → CRITICO.
+    // Con restricción definida, el semáforo sigue las condicionantes del tramo:
+    // el umbral genérico 75% queda por debajo del rango operativo normal
+    // (2.80–3.50 m) y marcaba ALERTA permanente en operación aceptable.
     let status: CPStatus;
     if (pct > 0.92) {
       status = 'CRITICO';
+    } else if (evaluacion_nivel) {
+      status = evaluacion_nivel.estado !== 'operacion_aceptable' || Math.abs(delta_y) > 0.50
+        ? 'ALERTA'
+        : 'ESTABLE';
     } else if (pct > 0.75) {
       status = 'ALERTA';
     } else if (Math.abs(delta_y) > 0.50) {
@@ -1210,12 +1243,6 @@ function runSimulation(
     if (gate_anchored && q_gate_m3s !== null) {
       qBaseCur = Math.min(qBaseCur, q_gate_m3s);
     }
-
-    // ── RESTRICCIÓN DE NIVEL: evaluar y_sim contra límites del tramo ────────
-    const restriccion    = findRestriccion(kmCp, restricciones);
-    const evaluacion_nivel = restriccion
-      ? evaluarRestriccionNivelTramo(restriccion, y_sim)
-      : null;
 
     return {
       id: cp.id, nombre: cp.nombre, km: kmCp,
@@ -2644,8 +2671,17 @@ const ModelingDashboard: React.FC = () => {
   // ── GLOBALS ──────────────────────────────────────────────────────────
   const firstCP      = simResults[0];
   const lastCP       = simResults[simResults.length - 1];
-  const globalEff    = qDam > 0 && lastCP ? ((lastCP.q_sim ?? 0) / qDam) * 100 : 0;
-  const iecSim = simResults.length > 0 ? calcIEC({
+  // Eficiencia de conducción = (Q que llega a cola + Q entregado en tomas) / Q entrada.
+  // Sin reportes de tomas y con anclas AFORO activas, la caída de Q entre escalas
+  // incluye extracciones no contabilizadas → el cociente NO mide conducción (S/D,
+  // nunca un número falso — mismo principio que el panel SKILL del Monitor).
+  const extraccionesSimM3s = simResults.reduce((s, r) => s + (r.q_extraido ?? 0), 0);
+  const globalEff    = qDam > 0 && lastCP
+    ? Math.min(100, (((lastCP.q_sim ?? 0) + extraccionesSimM3s) / qDam) * 100)
+    : 0;
+  const globalEffConfiable = dataStatus.deliveries
+    || !simResults.some(r => r.gate_anchored && r.gate_source === 'AFORO');
+  const iecSim = simResults.length > 0 && globalEffConfiable ? calcIEC({
     eficiencia:       globalEff,
     n_coherentes:     simResults.filter(r => r.status === 'ESTABLE').length,
     total_puntos:     simResults.length,
@@ -2733,12 +2769,26 @@ const ModelingDashboard: React.FC = () => {
             <div className="sim-kpi-label">Nivel K-0</div>
             <div className="sim-kpi-val" style={{ color: '#2dd4bf' }}>{firstCP ? (firstCP.y_sim ?? 0).toFixed(2) : '—'}<span> m</span></div>
           </div>
-          <div className="sim-kpi">
+          <div
+            className="sim-kpi"
+            title={globalEffConfiable ? undefined
+              : 'Tomas sin reporte del día con gasto anclado a aforos SICA: la caída de Q incluye extracciones no contabilizadas — la conducción no es medible'}
+          >
             <div className="sim-kpi-label">Eficiencia Conducción</div>
-            <div className="sim-kpi-val" style={{ color: globalEff >= 90 ? '#10b981' : globalEff >= 85 ? '#f59e0b' : '#ef4444' }}>
-              {(globalEff ?? 0).toFixed(1)}<span>%</span>
-            </div>
+            {globalEffConfiable ? (
+              <div className="sim-kpi-val" style={{ color: globalEff >= 90 ? '#10b981' : globalEff >= 85 ? '#f59e0b' : '#ef4444' }}>
+                {(globalEff ?? 0).toFixed(1)}<span>%</span>
+              </div>
+            ) : (
+              <div className="sim-kpi-val" style={{ color: '#64748b' }}>S/D</div>
+            )}
           </div>
+          {!iecSim && simResults.length > 0 && (
+            <div className="sim-kpi" title="IEC no calculable: eficiencia de conducción sin dato confiable (tomas sin reporte del día)">
+              <div className="sim-kpi-label">IEC Canal</div>
+              <div className="sim-kpi-val" style={{ color: '#64748b' }}>S/D</div>
+            </div>
+          )}
           {iecSim && (
             <div
               className="sim-kpi sim-kpi-iec"
@@ -3845,7 +3895,12 @@ const ModelingDashboard: React.FC = () => {
                       ['Carga simulada H',   `${(activeCPResult.head_sim??0).toFixed(4)} m`,  '#64748b'],
                       ['ΔH (carga orificio)',`${(activeCPResult.head_delta??0) >= 0 ? '+' : ''}${(activeCPResult.head_delta??0).toFixed(4)} m`, '#fbbf24'],
                       ['── Lógica operativa ──', '────────────────', '#1e3a5f'],
-                      ['Nivel objetivo (y_target)', `${(activeCPResult.y_target??0).toFixed(3)} m  [${getOpLimits(activeCPResult.km).yMin.toFixed(2)} – ${getOpLimits(activeCPResult.km).yMax.toFixed(2)}]`, '#a78bfa'],
+                      ['Nivel objetivo (y_target)', (() => {
+                        const rst  = findRestriccion(activeCPResult.km, activeRestricciones);
+                        const yMin = rst?.nivel_min_deseable_m ?? getOpLimits(activeCPResult.km).yMin;
+                        const yMax = rst?.nivel_max_permitido_m ?? getOpLimits(activeCPResult.km).yMax;
+                        return `${(activeCPResult.y_target??0).toFixed(3)} m  [${yMin.toFixed(2)} – ${yMax.toFixed(2)}]`;
+                      })(), '#a78bfa'],
                       ['Apertura actual SICA', `${(activeCPResult.apertura_base??gateBase[activeCP]??activeCPResult.h_radial).toFixed(3)} m`, '#38bdf8'],
                       ['Apertura requerida',  `${activeCPResult.apertura_requerida.toFixed(3)} m`, '#fbbf24'],
                       ['Δ Apertura',          `${(activeCPResult.delta_apertura??0) >= 0 ? '+' : ''}${(activeCPResult.delta_apertura??0).toFixed(3)} m  ${(activeCPResult.delta_apertura??0) > 0.03 ? '▲ ABRIR' : (activeCPResult.delta_apertura??0) < -0.03 ? '▼ CERRAR' : 'Sin ajuste'}`, (activeCPResult.delta_apertura??0) > 0.03 ? '#f59e0b' : (activeCPResult.delta_apertura??0) < -0.03 ? '#3b82f6' : '#64748b'],
@@ -3866,14 +3921,27 @@ const ModelingDashboard: React.FC = () => {
                       return [
                       ['Plantilla / Talud / n',  `${tr.plantilla_m}m · ${tr.talud_z}:1 · n=${tr.rugosidad_n}`, '#475569'],
                       ['Tirante normal y_n',     `${yn.toFixed(3)} m`, '#38bdf8'],
-                      // A5.4: mostrar piso de servicio activo para entender por qué y_sim ≠ y_n
+                      // Modelo perturbacional: y_sim = y_base + [y_n(Q_sim) − y_n(Q_base)]
                       ...((() => {
-                        const { yMin: yMinOp } = getOpLimits(activeCPResult.km);
-                        const yFloor = Math.max(yMinOp, activeCPResult.y_base * 0.90);
-                        const floorActive = yn < yFloor;
-                        return floorActive ? [
-                          ['Piso de servicio', `max(${yMinOp.toFixed(2)}, 90%·${activeCPResult.y_base.toFixed(2)}) = ${yFloor.toFixed(3)} m — y_n < piso`, '#a78bfa'] as [string, string, string],
-                        ] : [];
+                        const ynBase = normalDepth(activeCPResult.q_base ?? 0,
+                          tr.pendiente_s0, tr.plantilla_m, tr.talud_z, tr.rugosidad_n);
+                        const dManning = yn - ynBase;
+                        const rows: [string, string, string][] = [
+                          ['Δy Manning (perturbación)',
+                            `${dManning >= 0 ? '+' : ''}${dManning.toFixed(3)} m  (y_sim = y_base + Δy_n)`,
+                            '#a78bfa'],
+                        ];
+                        // A5.4: mostrar piso de servicio cuando acota la proyección
+                        const rst    = findRestriccion(activeCPResult.km, activeRestricciones);
+                        const yMinOp = rst?.nivel_min_deseable_m ?? getOpLimits(activeCPResult.km).yMin;
+                        const yB     = activeCPResult.y_base;
+                        const yFloor = yB >= yMinOp ? Math.max(yMinOp, yB * 0.90) : yB * 0.90;
+                        if (yB + dManning < yFloor) {
+                          rows.push(['Piso de servicio',
+                            `${yFloor.toFixed(3)} m — proyección Manning bajo piso (máx −10% o mín operativo)`,
+                            '#a78bfa']);
+                        }
+                        return rows;
                       })()),
                       ['Tirante simulado y_sim', `${(activeCPResult.y_sim??0).toFixed(3)} m`, statusColor(activeCPResult.status)],
                       ['Δy  (variación escala)', `${(activeCPResult.delta_y??0) >= 0 ? '+' : ''}${(activeCPResult.delta_y??0).toFixed(4)} m  (${Math.round((activeCPResult.delta_y??0)*100)} cm)`, Math.abs(activeCPResult.delta_y??0)*100 > 5 ? ((activeCPResult.delta_y??0) > 0 ? '#fbbf24' : '#60a5fa') : '#94a3b8'],
@@ -3906,13 +3974,27 @@ const ModelingDashboard: React.FC = () => {
                   const etiqueta = isDeltaBalance
                     ? `Entrada (Presa — sim. ${qDam > qBase ? '+' : ''}${(qDam - qBase).toFixed(1)} m³/s)`
                     : (dataStatus.qRealK0 != null ? 'Entrada (Canal K-0 SICA)' : 'Entrada (Presa — estimado)');
-                  const efic     = qEntrada > 0 ? (qLlegada / qEntrada * 100) : 0;
+                  // Extracciones contabilizadas aguas arriba del punto activo
+                  const extraidoHasta = simResults
+                    .filter(r => r.km <= activeCPResult.km)
+                    .reduce((s, r) => s + (r.q_extraido ?? 0), 0);
+                  // Sin reporte de tomas + Q anclado a aforos aguas arriba:
+                  // la diferencia incluye extracciones no contabilizadas → S/D
+                  const ancladoSinTomas = !dataStatus.deliveries && simResults.some(
+                    r => r.km <= activeCPResult.km && r.gate_anchored && r.gate_source === 'AFORO');
+                  const perdida = Math.max(0, qEntrada - qLlegada - extraidoHasta);
+                  const efic    = qEntrada > 0
+                    ? Math.min(100, (qLlegada + extraidoHasta) / qEntrada * 100) : 0;
                   return (
                     <>
                       {[
                         [etiqueta,            `${qEntrada.toFixed(2)} m³/s`, '#38bdf8'],
                         ['Llegada a sección', `${qLlegada.toFixed(2)} m³/s`, '#2dd4bf'],
-                        ['Pérdida en tramo',  `−${(qEntrada - qLlegada).toFixed(2)} m³/s`, '#ef4444'],
+                        ...(extraidoHasta > 0.005
+                          ? [['Extraído en tomas', `−${extraidoHasta.toFixed(2)} m³/s`, '#fbbf24']]
+                          : []),
+                        [ancladoSinTomas ? 'Δ no contabilizado (fugas + tomas s/reporte)' : 'Pérdida en tramo',
+                          `−${perdida.toFixed(2)} m³/s`, '#ef4444'],
                       ].map(([k, v, c]) => (
                         <div key={k as string} className="sim-balance-row">
                           <span>{k as string}</span><span style={{ color: c as string }}>{v as string}</span>
@@ -3920,8 +4002,11 @@ const ModelingDashboard: React.FC = () => {
                       ))}
                       <div className="sim-balance-eff">
                         <span>Eficiencia hasta K{activeCPResult.km}</span>
-                        <span style={{ color: qEntrada > 0 ? (efic >= 90 ? '#10b981' : '#f59e0b') : '#64748b' }}>
-                          {qEntrada > 0 ? efic.toFixed(1) : '—'}%
+                        <span
+                          title={ancladoSinTomas ? 'No medible: la caída de Q incluye extracciones sin reporte del día' : undefined}
+                          style={{ color: ancladoSinTomas ? '#64748b' : qEntrada > 0 ? (efic >= 90 ? '#10b981' : '#f59e0b') : '#64748b' }}
+                        >
+                          {ancladoSinTomas ? 'S/D' : qEntrada > 0 ? `${efic.toFixed(1)}%` : '—'}
                         </span>
                       </div>
                     </>

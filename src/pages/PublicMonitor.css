@@ -3725,8 +3725,19 @@
   color: #94a3b8; border-radius: 5px; padding: 4px 9px; font-size: 0.62rem; cursor: pointer;
   font-family: var(--font-mono, monospace); transition: all .15s; }
 .tnd-presets button:hover, .tnd-gran button:hover { border-color: rgba(56,189,248,0.5); color: #e2e8f0; }
-.tnd-gran button.on { background: #38bdf8; color: #06121f; border-color: #38bdf8; font-weight: 700; }
+.tnd-presets button.on, .tnd-gran button.on { background: #38bdf8; color: #06121f; border-color: #38bdf8; font-weight: 700; }
 .tnd-gran { margin-left: auto; }
+.tnd-btn-analisis { display: flex; align-items: center; gap: 5px; background: #6B2D2D; border: 1px solid #6B2D2D;
+  color: #fff; border-radius: 5px; padding: 5px 11px; font-size: 0.66rem; font-weight: 700; cursor: pointer;
+  letter-spacing: 0.3px; font-family: var(--font-mono, monospace); transition: all .15s; }
+.tnd-btn-analisis:hover:not(:disabled) { background: #7d3535; border-color: #7d3535; }
+.tnd-btn-analisis:disabled { opacity: 0.5; cursor: not-allowed; }
+.tnd-live { display: flex; align-items: center; gap: 5px; font-size: 0.6rem; color: #4ade80;
+  font-family: var(--font-mono, monospace); letter-spacing: 0.3px; font-weight: 700; }
+.tnd-live i { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; display: inline-block;
+  animation: tnd-live-pulse 1.8s ease-in-out infinite; }
+@keyframes tnd-live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .tnd-live i { animation: none; } }
 .tnd-loading { text-align: center; color: #64748b; padding: 24px; font-size: 0.75rem; }
 .tnd-block { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.05); }
 .tnd-block:first-of-type { border-top: 0; }

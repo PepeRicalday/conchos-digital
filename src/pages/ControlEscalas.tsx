@@ -64,7 +64,7 @@ interface ScaleReading {
     anchoRadial: number;
     altoRadial: number;
     radialAperturas: RadialApertura[];
-    nivelAbajo: number;
+    nivelAbajo: number | null;
     gastoCalculado: number;
     horaLectura: string;
 }
@@ -113,7 +113,7 @@ function mapResumenToZones(
             anchoRadial: cfg?.ancho ?? 0,
             altoRadial: cfg?.alto ?? 0,
             radialAperturas: lect?.radiales_json ?? [],
-            nivelAbajo: lect?.nivel_abajo_m ?? 0,
+            nivelAbajo: lect && lect.nivel_abajo_m > 0 ? lect.nivel_abajo_m : null,
             gastoCalculado: lect?.gasto_calculado_m3s ?? 0,
             horaLectura: lect?.hora_lectura ?? '',
         });
@@ -137,7 +137,7 @@ const RadialModal = ({ scale, onClose }: { scale: ScaleReading; onClose: () => v
     const { pzasRadiales, anchoRadial, altoRadial, currentLevel, nivelAbajo, gastoCalculado, radialAperturas } = scale;
     const openRadiales = radialAperturas.filter(r => r.apertura_m > 0);
     const totalAperturaXAncho = openRadiales.reduce((acc, r) => acc + (Math.min(r.apertura_m, altoRadial) * anchoRadial), 0);
-    const cargaH = currentLevel > 0 ? Math.max(0, currentLevel - (nivelAbajo || 0)) : 0;
+    const cargaH = currentLevel > 0 && nivelAbajo !== null ? Math.max(0, currentLevel - nivelAbajo) : null;
 
     return (
         <div className="radial-modal-overlay" onClick={onClose} style={{
@@ -167,8 +167,12 @@ const RadialModal = ({ scale, onClose }: { scale: ScaleReading; onClose: () => v
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
                     <div style={{ backgroundColor: '#1e293b', padding: '16px', borderRadius: '8px', border: '1px solid #334155' }}>
                         <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '4px', textTransform: 'uppercase' }}>Carga Hidrostática (H)</div>
-                        <div style={{ color: '#0ea5e9', fontSize: '24px', fontWeight: 'bold' }}>{cargaH.toFixed(2)} <small style={{ fontSize: '14px' }}>m</small></div>
-                        <div style={{ color: '#64748b', fontSize: '11px', marginTop: '4px' }}>Tirante arriba ({currentLevel.toFixed(2)}m) - Tirante abajo ({nivelAbajo.toFixed(2)}m)</div>
+                        <div style={{ color: cargaH !== null ? '#0ea5e9' : '#64748b', fontSize: '24px', fontWeight: 'bold' }}>
+                            {cargaH !== null ? <>{cargaH.toFixed(2)} <small style={{ fontSize: '14px' }}>m</small></> : 'S/D'}
+                        </div>
+                        <div style={{ color: '#64748b', fontSize: '11px', marginTop: '4px' }}>
+                            Tirante arriba ({currentLevel.toFixed(2)}m) - Tirante abajo ({nivelAbajo !== null ? `${nivelAbajo.toFixed(2)}m` : 'sin dato'})
+                        </div>
                     </div>
 
                     <div style={{ backgroundColor: '#1e293b', padding: '16px', borderRadius: '8px', border: '1px solid #334155' }}>
@@ -230,19 +234,24 @@ const RadialModal = ({ scale, onClose }: { scale: ScaleReading; onClose: () => v
 
 // ─── COMPONENTE: Mini Diagrama de Radiales (SVG inline) ───
 const RadialGateDiagram = ({ scale, onOpenModal }: { scale: ScaleReading; onOpenModal: () => void }) => {
-    const { pzasRadiales, anchoRadial, altoRadial, radialAperturas, currentLevel } = scale;
+    const { pzasRadiales, anchoRadial, altoRadial, radialAperturas, currentLevel, nivelAbajo } = scale;
     if (pzasRadiales <= 0) return null;
 
-    const W = 140;
+    const W = 150;
     const H = 80;
     const baseLine = 70;
-    const pxPerMeter = 45 / Math.max(altoRadial * 1.3, currentLevel * 1.3, 2);
-    const gateWidth = (W - 20) / pzasRadiales;
+    const pxPerMeter = 45 / Math.max(altoRadial * 1.3, currentLevel * 1.3, (nivelAbajo ?? 0) * 1.3, 2);
+    const gateAreaW = W - 30; // reserva 20px para franja de aguas abajo
+    const gateWidth = gateAreaW / pzasRadiales;
     const pillarW = 4;
     const effectiveGW = gateWidth - pillarW;
     const startX = 10;
+    const abajoX = startX + gateAreaW + pillarW + 2;
+    const abajoW = W - abajoX - 2;
 
     const waterY = baseLine - (currentLevel * pxPerMeter);
+    const waterYAbajo = nivelAbajo !== null ? baseLine - (nivelAbajo * pxPerMeter) : null;
+    const cargaH = nivelAbajo !== null ? Math.max(0, currentLevel - nivelAbajo) : null;
 
     const openCount = radialAperturas.filter(r => r.apertura_m > 0).length;
 
@@ -258,15 +267,28 @@ const RadialGateDiagram = ({ scale, onOpenModal }: { scale: ScaleReading; onOpen
                         <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.2" />
                         <stop offset="100%" stopColor="#0284c7" stopOpacity="0.5" />
                     </linearGradient>
+                    <linearGradient id="wGradAbajo" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#a855f7" stopOpacity="0.2" />
+                        <stop offset="100%" stopColor="#7e22ce" stopOpacity="0.55" />
+                    </linearGradient>
                 </defs>
 
-                {/* Water body */}
+                {/* Water body aguas arriba (en el vaso de la compuerta) */}
                 {currentLevel > 0 && (
-                    <rect x={startX} y={Math.max(8, waterY)} width={pzasRadiales * gateWidth + pillarW} height={baseLine - Math.max(8, waterY)} fill="url(#wGrad)" />
+                    <rect x={startX} y={Math.max(8, waterY)} width={gateAreaW + pillarW} height={baseLine - Math.max(8, waterY)} fill="url(#wGrad)" />
                 )}
 
-                {/* Water line */}
-                <line x1={0} y1={waterY} x2={W} y2={waterY} stroke="#38bdf8" strokeWidth="1" strokeDasharray="3 2" opacity={0.5} />
+                {/* Water line arriba */}
+                <line x1={0} y1={waterY} x2={abajoX} y2={waterY} stroke="#38bdf8" strokeWidth="1" strokeDasharray="3 2" opacity={0.5} />
+
+                {/* Franja de aguas abajo (canal de salida, después de la última compuerta) */}
+                <line x1={abajoX} y1={12} x2={abajoX} y2={baseLine} stroke="#475569" strokeWidth="1" strokeDasharray="2 2" opacity={0.5} />
+                {waterYAbajo !== null && (
+                    <rect x={abajoX} y={Math.max(8, waterYAbajo)} width={abajoW} height={baseLine - Math.max(8, waterYAbajo)} fill="url(#wGradAbajo)" />
+                )}
+                {waterYAbajo !== null && (
+                    <line x1={abajoX} y1={waterYAbajo} x2={W} y2={waterYAbajo} stroke="#c084fc" strokeWidth="1" strokeDasharray="2 2" opacity={0.8} />
+                )}
 
                 {/* Base */}
                 <line x1={0} y1={baseLine} x2={W} y2={baseLine} stroke="#475569" strokeWidth="2" />
@@ -328,6 +350,9 @@ const RadialGateDiagram = ({ scale, onOpenModal }: { scale: ScaleReading; onOpen
                 <span className={`radial-badge ${openCount > 0 ? 'open' : 'closed'}`}>
                     {openCount > 0 ? `${openCount}/${pzasRadiales} Abiertas` : 'Todas Cerradas'}
                 </span>
+                <span className="radial-badge carga" title="Carga hidrostática = nivel arriba - nivel abajo">
+                    H {cargaH !== null ? `${cargaH.toFixed(2)}m` : 'S/D'}
+                </span>
             </div>
         </div>
     );
@@ -351,6 +376,10 @@ const GastoVolumeBar = ({ scale }: { scale: ScaleReading }) => {
                     <span className="gasto-unit">m³/s</span>
                 </div>
             )}
+            <div className="nivel-abajo-row">
+                <ArrowDown size={10} />
+                <span>Aguas abajo: {scale.nivelAbajo !== null ? `${scale.nivelAbajo.toFixed(2)}m` : 'S/D'}</span>
+            </div>
             <div className="volume-bar-container">
                 <div className="volume-bar-track">
                     <div
@@ -474,7 +503,11 @@ const ScaleGauge = ({ scale, zoneColor, onOpenModal }: { scale: ScaleReading; zo
 const ZoneCard = ({ zone, onOpenModal }: { zone: Zone; onOpenModal: (scale: ScaleReading) => void }) => {
     const avgLevel = zone.scales.reduce((sum, s) => sum + s.currentLevel, 0) / zone.scales.length;
     const hasWarning = zone.scales.some(s => s.currentLevel < s.minOperational || s.currentLevel > s.maxOperational);
-    const totalGasto = zone.scales.reduce((sum, s) => sum + s.gastoCalculado, 0);
+    // Q de zona = gasto de la escala de cabecera (menor km, zone.scales[0] tras el sort por km
+    // en mapResumenToZones). Las escalas de una zona están en serie sobre el mismo cauce, así que
+    // sumar sus gastos no representa un "total" real: es el mismo agua medida varias veces aguas
+    // abajo. El balance tramo a tramo (entrada/salida/tomas/pérdidas) ya vive en BalanceHidraulico.tsx.
+    const qCabecera = zone.scales[0]?.gastoCalculado ?? 0;
     const radialScales = zone.scales.filter(s => s.pzasRadiales > 0);
 
     return (
@@ -497,11 +530,11 @@ const ZoneCard = ({ zone, onOpenModal }: { zone: Zone; onOpenModal: (scale: Scal
                         <span className="stat-value">{(avgLevel ?? 0).toFixed(2)}m</span>
                         <span className="stat-label">Promedio</span>
                     </div>
-                    {totalGasto > 0 && (
-                        <div className="summary-stat">
+                    {qCabecera > 0 && (
+                        <div className="summary-stat" title={`Gasto medido en ${zone.scales[0]?.name} (cabecera de zona, Km ${zone.scales[0]?.km})`}>
                             <Waves size={16} style={{ color: '#0ea5e9' }} />
-                            <span className="stat-value" style={{ color: '#0ea5e9' }}>{(totalGasto ?? 0).toFixed(2)}</span>
-                            <span className="stat-label">m³/s Total</span>
+                            <span className="stat-value" style={{ color: '#0ea5e9' }}>{qCabecera.toFixed(2)}</span>
+                            <span className="stat-label">m³/s Cabecera</span>
                         </div>
                     )}
                     {hasWarning && (
@@ -653,7 +686,10 @@ const ControlEscalas = () => {
         ? allScales.reduce((sum, s) => sum + (s.pmReading - s.amReading), 0) / totalScales
         : 0;
     const totalRadiales = allScales.filter(s => s.pzasRadiales > 0).length;
-    const totalGasto = allScales.reduce((sum, s) => sum + s.gastoCalculado, 0);
+    // Q de cabecera del canal (menor km) — las escalas están en serie sobre el mismo cauce,
+    // sumar sus gastos mide la misma agua varias veces según avanza. Ver detalle en ZoneCard.
+    const escalaCabecera = zones[0]?.scales[0];
+    const qCabeceraCanal = escalaCabecera?.gastoCalculado ?? 0;
 
     if (loading) {
         return (
@@ -698,10 +734,10 @@ const ControlEscalas = () => {
                         {avgDelta >= 0 ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
                         <span>Δ {(avgDelta ?? 0) >= 0 ? '+' : ''}{(avgDelta ?? 0).toFixed(2)}m (12h)</span>
                     </div>
-                    {totalGasto > 0 && (
-                        <div className="stat-chip" style={{ color: '#0ea5e9', borderColor: 'rgba(14,165,233,0.3)', backgroundColor: 'rgba(14,165,233,0.1)' }}>
+                    {qCabeceraCanal > 0 && (
+                        <div className="stat-chip" style={{ color: '#0ea5e9', borderColor: 'rgba(14,165,233,0.3)', backgroundColor: 'rgba(14,165,233,0.1)' }} title={`Gasto medido en ${escalaCabecera?.name} (cabecera del canal, Km ${escalaCabecera?.km})`}>
                             <Waves size={16} />
-                            <span>Q Total: {(totalGasto ?? 0).toFixed(2)} m³/s</span>
+                            <span>Q Cabecera: {qCabeceraCanal.toFixed(2)} m³/s</span>
                         </div>
                     )}
                 </div>

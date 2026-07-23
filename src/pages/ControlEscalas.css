@@ -504,6 +504,8 @@
 .radial-status-row {
     display: flex;
     justify-content: center;
+    gap: 4px;
+    flex-wrap: wrap;
 }
 
 .radial-badge {
@@ -525,6 +527,12 @@
     color: #64748b;
     background-color: rgba(100, 116, 139, 0.1);
     border: 1px solid rgba(100, 116, 139, 0.2);
+}
+
+.radial-badge.carga {
+    color: #c084fc;
+    background-color: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.25);
 }
 
 /* ══════════════════════════════════════════════════════════

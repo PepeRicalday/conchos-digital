@@ -580,6 +580,8 @@ const PublicMonitor: React.FC = () => {
     const [tndHasta, setTndHasta] = useState(hoyISO);
     const [tndGran, setTndGran] = useState<'diaria' | 'lectura'>('diaria');
     const [tndLoading, setTndLoading] = useState(false);
+    // Se incrementa por el poll de "Hoy" para forzar recarga sin cambiar rango/gran.
+    const [tndRefreshTick, setTndRefreshTick] = useState(0);
     const [tndData, setTndData] = useState<{
         niveles: SerieEscala[]; volTramos: SerieTramo[]; volTotal: SeriePunto[];
         compuertas: SerieCompuerta[]; gasto: SerieGasto;
@@ -651,11 +653,18 @@ const PublicMonitor: React.FC = () => {
     }, []);
 
     // 0b. TENDENCIAS: carga histórica por rango+granularidad (solo con la pestaña activa)
+    // prevFiltro: distingue si el disparo vino de un cambio real de rango/gran
+    // (muestra "Cargando periodo…") o del poll silencioso de "Hoy" (tndRefreshTick,
+    // no debe ocultar el gráfico ya pintado ni parpadear cada 90 s).
+    const tndPrevFiltro = useRef<string>('');
     useEffect(() => {
         if (dockTab !== 'tendencias') return;
         let cancel = false;
+        const filtroKey = `${tndDesde}|${tndHasta}|${tndGran}`;
+        const esRefreshSilencioso = tndRefreshTick > 0 && tndPrevFiltro.current === filtroKey;
+        tndPrevFiltro.current = filtroKey;
         const cargar = async () => {
-            setTndLoading(true);
+            if (!esRefreshSilencioso) setTndLoading(true);
             try {
                 // Paginación con .range(): la API REST de Supabase corta a 1000 filas
                 // POR PETICIÓN, ignorando .limit() mayores. Un rango amplio (mar–jul)
@@ -744,7 +753,20 @@ const PublicMonitor: React.FC = () => {
         };
         cargar();
         return () => { cancel = true; };
-    }, [dockTab, tndDesde, tndHasta, tndGran]);
+    }, [dockTab, tndDesde, tndHasta, tndGran, tndRefreshTick]);
+
+    // 0c. TENDENCIAS — "Hoy": refresco periódico mientras el rango activo sea el
+    // día en curso. El efecto anterior solo recarga cuando cambian rango/gran
+    // /pestaña; sin este poll, una lectura capturada en campo mientras el
+    // operador ya está viendo "Hoy" nunca aparecería hasta salir y reentrar.
+    // Se limita a este caso (no a 7d/30d/90d) para no generar tráfico extra
+    // en rangos históricos que no cambian minuto a minuto.
+    const tndEsHoy = tndDesde === tndHasta && tndDesde === hoyISO;
+    useEffect(() => {
+        if (dockTab !== 'tendencias' || !tndEsHoy) return;
+        const t = setInterval(() => setTndRefreshTick(x => x + 1), 90_000);
+        return () => clearInterval(t);
+    }, [dockTab, tndEsHoy]);
 
 
     // 1. Fetch Canal Geometry (sessionStorage cache — estático, no cambia por sesión)
@@ -1271,10 +1293,10 @@ const PublicMonitor: React.FC = () => {
         const elapsedHours = (currentTime - startTime) / (1000 * 3600);
         if (elapsedHours <= 0) return startKm;
 
-        // Modelo A: v = 5.3 × Q^0.15 km/h (calibrado campo 23/04/2026)
+        // Modelo A: v = 4.5 × Q^0.15 km/h (BC-07 reconciliado, skill v3.7 §5.1 — error <2% vs anclas K-23/K-104)
         const qK0vis = escalas.find(e => e.km === 0)?.gasto_actual ?? 20;
         const vCanal = activeEvent?.evento_tipo === 'LLENADO'
-            ? 5.3 * Math.pow(Math.max(qK0vis, 0.5), 0.15)
+            ? 4.5 * Math.pow(Math.max(qK0vis, 0.5), 0.15)
             : vCanalDefault;
 
         let currentKm = startKm;
@@ -1471,12 +1493,12 @@ const PublicMonitor: React.FC = () => {
         // Distance remaining to that specific checkpoint
         const distRemaining = nextScale.km - displayMaxKm;
 
-        // Modelo A — celeridad dinámica calibrada campo 23/04/2026
-        // v_onda = 5.3 × Q^0.15 km/h  (error histórico ±12% en K-23, K-104)
+        // Modelo A — celeridad dinámica BC-07 reconciliado (skill v3.7 §5.1)
+        // v_onda = 4.5 × Q^0.15 km/h  (error <2% vs anclas K-23, K-104)
         // ESTABILIZACIÓN: mantiene 1.16 m/s (velocidad media Manning observada)
         const qK0 = escalas.find(e => e.km === 0)?.gasto_actual ?? 20;
         const vCanalKmh = activeEvent?.evento_tipo === 'LLENADO'
-            ? 5.3 * Math.pow(Math.max(qK0, 0.5), 0.15)
+            ? 4.5 * Math.pow(Math.max(qK0, 0.5), 0.15)
             : 1.16 * 3.6;
 
         let totalHours = 0;
@@ -3279,7 +3301,7 @@ const PublicMonitor: React.FC = () => {
                                     .map(c => ({ nombre: c.nombre, ts: c.ts_min }))
                                     .sort((a, b) => (b.ts ?? 1e9) - (a.ts ?? 1e9));
                                 if (vencidas.length === 0) return null;
-                                const fmt = (m: number | null) => m == null ? 'sin lectura' : m < 60 ? `${m} min` : `${(m / 60).toFixed(1)} h`;
+                                const fmt = (m: number | null) => m == null ? 'sin lectura' : m < 60 ? `sin reporte hace ${m} min` : `sin reporte hace ${(m / 60).toFixed(1)} h`;
                                 // Críticas = sin lectura o >12 h (las que más bloquean)
                                 const criticas = vencidas.filter(v => v.ts === null || (v.ts ?? 0) > 720);
                                 return (

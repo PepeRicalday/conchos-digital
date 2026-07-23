@@ -1,8 +1,10 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import { FileBarChart } from 'lucide-react';
 import type {
   SerieEscala, SerieTramo, SerieCompuerta, SerieGasto, SeriePunto,
 } from '../utils/tendencias';
 import { statsSerie } from '../utils/tendencias';
+import InformeTendencias from './InformeTendencias';
 
 // Paleta categórica validada (dataviz): blue, aqua, yellow, green, violet, red, magenta, orange
 const PAL = ['#3987e5', '#199e70', '#c98500', '#2fb35a', '#9085e9', '#e66767', '#d55181', '#d95926',
@@ -640,6 +642,22 @@ const TendenciasPanel: React.FC<Props> = ({
     const desde = new Date(hasta.getTime() - dias * 864e5);
     onRango(desde.toISOString().slice(0, 10), hasta.toISOString().slice(0, 10));
   };
+  // "Hoy": tendencia intradía — solo lecturas capturadas en la fecha de hoy.
+  // Fuerza granularidad "Por lectura": "Diaria" colapsa el día a un único punto
+  // (resumen_escalas_diario) y no puede mostrar variación dentro del mismo día.
+  const presetHoy = () => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    onRango(hoy, hoy);
+    if (granularidad !== 'lectura') onGranularidad('lectura');
+  };
+  const esHoy = rangoDesde === rangoHasta && rangoDesde === new Date().toISOString().slice(0, 10);
+
+  // Informe de análisis (Bloque 1-4): usa las mismas escalas ya filtradas por
+  // "Punto de control" (Todas/Solo control de Q/Ninguna) que se ven en pantalla,
+  // así el PDF exportado coincide exactamente con lo que el operador está viendo.
+  const [showInforme, setShowInforme] = useState(false);
+  const nivelesInforme = useMemo(() => niveles.filter(s => esVisible(s.escala_id)), [niveles, esVisible]);
+  const filtroLabel = visNiveles == null ? 'todas las escalas' : nVisibles === 0 ? 'ninguna escala' : `${nVisibles} de ${niveles.length} escalas`;
 
   return (
     <div className="tnd-root">
@@ -650,14 +668,23 @@ const TendenciasPanel: React.FC<Props> = ({
           <label>Hasta <input type="date" value={rangoHasta} min={rangoDesde} onChange={e => onRango(rangoDesde, e.target.value)} /></label>
         </div>
         <div className="tnd-presets">
+          <button type="button" className={esHoy ? 'on' : ''} onClick={presetHoy}>Hoy</button>
           <button type="button" onClick={() => preset(7)}>7 d</button>
           <button type="button" onClick={() => preset(30)}>30 d</button>
           <button type="button" onClick={() => preset(90)}>90 d</button>
         </div>
+        {esHoy && (
+          <span className="tnd-live" title="Se actualiza automáticamente con nuevas lecturas del día">
+            <i /> EN VIVO — actualiza c/90 s
+          </span>
+        )}
         <div className="tnd-gran">
           <button type="button" className={granularidad === 'diaria' ? 'on' : ''} onClick={() => onGranularidad('diaria')}>Diaria</button>
           <button type="button" className={granularidad === 'lectura' ? 'on' : ''} onClick={() => onGranularidad('lectura')}>Por lectura</button>
         </div>
+        <button type="button" className="tnd-btn-analisis" onClick={() => setShowInforme(true)} disabled={loading}>
+          <FileBarChart size={13} /> Análisis
+        </button>
       </div>
 
       {loading && <div className="tnd-loading">Cargando periodo…</div>}
@@ -863,6 +890,17 @@ const TendenciasPanel: React.FC<Props> = ({
         const tr = volTramos.find(t => t.key === modalKey);
         return tr ? <ModalTramo tramo={tr} color={colorTramo(tr.key)} t0={t0} t1={t1} onClose={() => setModalKey(null)} /> : null;
       })()}
+
+      {/* Informe de Análisis de Tendencias — PDF institucional */}
+      {showInforme && (
+        <InformeTendencias
+          rangoDesde={rangoDesde} rangoHasta={rangoHasta} granularidad={granularidad}
+          niveles={nivelesInforme} niveleslabel={filtroLabel}
+          volTramos={volTramos} volTotal={volTotal}
+          compuertas={compuertas} gasto={gasto}
+          onClose={() => setShowInforme(false)}
+        />
+      )}
     </div>
   );
 };

@@ -16,8 +16,8 @@ import { exportEscalasCSV } from '../utils/exportCanal';
 import { toast } from 'sonner';
 import TendenciasPanel from '../components/TendenciasPanel';
 import {
-  serieNivelesDiaria, serieNivelesLectura, indiceNivelesUpDown, serieVolumenTramos,
-  serieCompuertas, serieGasto,
+  serieNivelesDiaria, serieNivelesLectura, indiceNivelesUpDown, indiceNivelesUpDownPorLectura, serieVolumenTramos,
+  serieCompuertas, serieGasto, serieGastoPorLectura, claveInstante,
   type SerieEscala, type SerieTramo, type SerieCompuerta, type SerieGasto, type SeriePunto,
   type LecturaEscala as TndLectura, type ResumenDiario as TndResumen,
   type TramoGeom, type EntregaModulo as TndEntrega, type PerfilGeom,
@@ -738,10 +738,26 @@ const PublicMonitor: React.FC = () => {
                 // Volumen por tramo con modelo de compuertas: usa nivel ABAJO de la
                 // escala aguas arriba y nivel ARRIBA de la aguas abajo (ambas caras
                 // vienen de lecturas_escalas, no del resumen diario de una sola cara).
-                const { idx, fechas } = indiceNivelesUpDown(lecturasVol);
+                // En "Por lectura" se indexa por INSTANTE (fecha+hora), no por día:
+                // con un solo día en rango ("Hoy"), la agregación diaria colapsaría
+                // todas las lecturas del día a un único punto (Δ=0 aunque sí hubo
+                // variación intradía real).
+                const { idx, fechas } = tndGran === 'lectura'
+                    ? indiceNivelesUpDownPorLectura(lecturasVol)
+                    : indiceNivelesUpDown(lecturasVol);
                 const { series: volTramos, totalPorFecha: volTotal } = serieVolumenTramos(tramos, idx, fechas, perfiles);
                 const compuertas = serieCompuertas(lecturas, escalasGeom);
-                const gasto = serieGasto(lecturas, escalasGeom, entregas, fechas.length ? fechas : [tndHasta]);
+                // Gasto: "Diaria" agrega por día calendario (gastoDiarioPorKm). "Por
+                // lectura" usa un punto por INSTANTE de K-0/K-104 — igual razón que
+                // el volumen: con un solo día en rango, la agregación diaria colapsa
+                // todas las lecturas del día a un único punto sin variación visible.
+                const fechasDia = [...new Set(lecturas.map(l => l.fecha))].sort();
+                const gasto = tndGran === 'lectura'
+                    ? serieGastoPorLectura(lecturas, escalasGeom, entregas,
+                        [...new Set(lecturas
+                            .filter(l => l.gasto_calculado_m3s != null)
+                            .map(l => claveInstante(l.fecha, l.hora_lectura)))].sort())
+                    : serieGasto(lecturas, escalasGeom, entregas, fechasDia.length ? fechasDia : [tndHasta]);
 
                 if (!cancel) setTndData({ niveles, volTramos, volTotal, compuertas, gasto });
             } catch (e) {

@@ -51,6 +51,29 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
         const esHoy = rangoDesde === rangoHasta && rangoDesde === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
         const periodoLbl = esHoy ? 'HOY' : (dias + ' día' + (dias === 1 ? '' : 's'));
 
+        // ── Eje X compartido por las 3 gráficas del informe ─────────────────────
+        // En "Hoy" (esHoy) el eje muestra HORA (HH:MM): es el punto pedido — los
+        // 4 bloques deben leerse por horario de captura, no solo como "hubo
+        // variación". En rangos de varios días se sigue mostrando fecha corta.
+        // marcasEjeX: hasta 6 marcas repartidas en el ancho útil del gráfico,
+        // ancladas a los timestamps reales de la serie (no a horas "redondas"
+        // inventadas) para no sugerir lecturas que no existieron.
+        const marcasEjeX = (t0: number, t1: number, xS: (t: number) => number, y: number, n = 6): string => {
+            const lblDe = (t: number) => esHoy
+                ? new Date(t).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' })
+                : new Date(t).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: 'America/Chihuahua' });
+            if (t1 <= t0) {
+                return '<text x="' + xS(t0).toFixed(1) + '" y="' + y + '" font-size="6.3" fill="#888" text-anchor="middle" font-family="monospace">' + lblDe(t0) + '</text>';
+            }
+            let out = '';
+            for (let i = 0; i <= n; i++) {
+                const t = t0 + (i / n) * (t1 - t0);
+                const anchor = i === 0 ? 'start' : i === n ? 'end' : 'middle';
+                out += '<text x="' + xS(t).toFixed(1) + '" y="' + y + '" font-size="6.3" fill="#888" text-anchor="' + anchor + '" font-family="monospace">' + lblDe(t) + '</text>';
+            }
+            return out;
+        };
+
         // ── Bloque 1: niveles por escala ──────────────────────────────────────
         const nivelesRows = niveles.map((s, i) => {
             const st = statsSerie(s.puntos);
@@ -79,7 +102,7 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
             const t0 = Math.min(...allT), t1 = Math.max(...allT);
             let yMin = Math.min(...allY), yMax = Math.max(...allY);
             const pad = (yMax - yMin) * 0.1 || 0.3; yMin -= pad; yMax += pad;
-            const W = 680, H = 150, PL = 34, PR = 8, PT = 8, PB = 16;
+            const W = 680, H = 158, PL = 34, PR = 8, PT = 8, PB = 24;
             const pw = W - PL - PR, ph = H - PT - PB;
             const xS = (t: number) => PL + ((t - t0) / Math.max(1, t1 - t0)) * pw;
             const yS = (y: number) => PT + ph - ((y - yMin) / Math.max(1e-6, yMax - yMin)) * ph;
@@ -98,8 +121,9 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
                 '<span style="display:inline-flex;align-items:center;gap:3px;margin-right:9px">'
                 + '<i style="width:7px;height:7px;background:' + PAL[i % PAL.length] + ';display:inline-block;border-radius:1px"></i>K-' + s.km + '</span>'
             ).join('');
+            const ejeX = marcasEjeX(t0, t1, xS, H - 4);
             return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block;background:#fbfaf8;border-radius:4px">'
-                + grid + lines + '</svg>'
+                + grid + lines + ejeX + '</svg>'
                 + '<div style="font-size:6.5pt;color:#555;margin-top:3px">' + legend + '</div>';
         })();
 
@@ -133,7 +157,7 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
             const idxs = base.map((_, i) => i);
             const totals = idxs.map(i => volTramos.reduce((s, se) => s + (se.puntos[i]?.y ?? 0), 0));
             const yMax = Math.max(...totals, 0.1) * 1.08;
-            const W = 680, H = 150, PL = 34, PR = 8, PT = 8, PB = 16;
+            const W = 680, H = 158, PL = 34, PR = 8, PT = 8, PB = 24;
             const pw = W - PL - PR, ph = H - PT - PB;
             const t0 = base[0].t, t1 = base[base.length - 1].t;
             const xS = (t: number) => PL + ((t - t0) / Math.max(1, t1 - t0)) * pw;
@@ -159,23 +183,31 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
                 '<span style="display:inline-flex;align-items:center;gap:3px;margin-right:9px">'
                 + '<i style="width:7px;height:7px;background:' + PAL[i % PAL.length] + ';display:inline-block;border-radius:1px"></i>' + tr.etiqueta + '</span>'
             ).join('');
+            const ejeX = marcasEjeX(t0, t1, xS, H - 4);
             return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block;background:#fbfaf8;border-radius:4px">'
-                + grid + bands + '</svg>'
+                + grid + bands + ejeX + '</svg>'
                 + '<div style="font-size:6.5pt;color:#555;margin-top:3px">' + legend + '</div>';
         })();
 
         // ── Bloque 3: arriba/abajo por compuerta ────────────────────────────────
+        // K-64 y K-94+200 son escalas de SÓLO REFERENCIA (sin compuerta de
+        // control propia): su "H↓ 0.00" y diferencial "—" no son datos faltantes,
+        // son el comportamiento esperado. Se marca explícito para no leerse como
+        // un hueco de captura — mismo criterio que ESC_SIN_CONTROL en TendenciasPanel.
+        const ESC_SIN_CONTROL_INF = new Set(['K-64', 'K-94+200', 'K-94.057']);
         const compRows = compuertas.map(c => {
             const su = statsSerie(c.arriba), sd = statsSerie(c.abajo), sdif = statsSerie(c.diferencial);
+            const esRef = ESC_SIN_CONTROL_INF.has('K-' + c.km) || ESC_SIN_CONTROL_INF.has(c.nombre);
             return '<tr>'
-                + '<td class="bold">K-' + c.km + '</td>'
+                + '<td class="bold">K-' + c.km + (esRef ? ' <span style="font-size:6pt;font-weight:600;color:#888">(ref.)</span>' : '') + '</td>'
                 + '<td class="num">' + N2(su.avg) + '</td>'
-                + '<td class="num">' + N2(sd.avg) + '</td>'
-                + '<td class="num bold" style="color:#c98500">' + N2(sdif.avg) + '</td>'
-                + '<td class="num">' + N2(c.aperturaUlt) + '</td>'
-                + '<td class="num">' + (c.puertasAbiertas ?? '—') + '</td>'
+                + '<td class="num">' + (esRef ? '<span style="color:#aaa">s/control</span>' : N2(sd.avg)) + '</td>'
+                + '<td class="num bold" style="color:' + (esRef ? '#aaa' : '#c98500') + '">' + (esRef ? '—' : N2(sdif.avg)) + '</td>'
+                + '<td class="num">' + (esRef ? '—' : N2(c.aperturaUlt)) + '</td>'
+                + '<td class="num">' + (esRef ? '—' : (c.puertasAbiertas ?? '—')) + '</td>'
                 + '</tr>';
         }).join('') || '<tr><td colspan="6" class="empty">Sin lecturas de compuerta en el periodo</td></tr>';
+        const hayRef = compuertas.some(c => ESC_SIN_CONTROL_INF.has('K-' + c.km) || ESC_SIN_CONTROL_INF.has(c.nombre));
 
         // ── Bloque 4: gasto K-0 → entregas → K-104 ──────────────────────────────
         const stEnt = statsSerie(gasto.entrada), stSal = statsSerie(gasto.salida),
@@ -206,7 +238,7 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
             const t0 = Math.min(...allT), t1 = Math.max(...allT);
             let yMin = Math.min(0, ...allY), yMax = Math.max(...allY);
             const pad = (yMax - yMin) * 0.1 || 0.5; yMin -= pad; yMax += pad;
-            const W = 680, H = 140, PL = 34, PR = 8, PT = 8, PB = 16;
+            const W = 680, H = 148, PL = 34, PR = 8, PT = 8, PB = 24;
             const pw = W - PL - PR, ph = H - PT - PB;
             const xS = (t: number) => PL + ((t - t0) / Math.max(1, t1 - t0)) * pw;
             const yS = (y: number) => PT + ph - ((y - yMin) / Math.max(1e-6, yMax - yMin)) * ph;
@@ -227,8 +259,9 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
                 '<span style="display:inline-flex;align-items:center;gap:3px;margin-right:10px">'
                 + '<i style="width:7px;height:7px;background:' + s.color + ';display:inline-block;border-radius:1px"></i>' + s.nombre + '</span>'
             ).join('');
+            const ejeX = marcasEjeX(t0, t1, xS, H - 4);
             return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block;background:#fbfaf8;border-radius:4px">'
-                + grid + zero + lines + '</svg>'
+                + grid + zero + lines + ejeX + '</svg>'
                 + '<div style="font-size:6.5pt;color:#555;margin-top:3px">' + legend + '</div>';
         })();
 
@@ -357,6 +390,7 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
             + '<div class="sec-title">Bloque 3 &nbsp;·&nbsp; Niveles Arriba / Abajo por Compuerta</div>'
             + '<table><thead><tr><th>Compuerta</th><th class="num">H↑ prom (m)</th><th class="num">H↓ prom (m)</th><th class="num">Diferencial prom (m)</th><th class="num">Apertura últ. (m)</th><th class="num">Radiales abiertas</th></tr></thead>'
             + '<tbody>' + compRows + '</tbody></table>'
+            + (hayRef ? '<div class="nota">Las escalas marcadas <strong>(ref.)</strong> son de solo referencia (K-64, K-94+200): no tienen compuerta de control propia, por lo que H↓, diferencial y apertura no aplican — no es un dato faltante.</div>' : '')
             + '</div>'
 
             // ── BLOQUE 4: gasto ──

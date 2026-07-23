@@ -68,6 +68,16 @@ export interface SerieEscala { escala_id: string; nombre: string; km: number; ni
 const tsOf = (fecha: string, hora?: string | null): number =>
   new Date(`${fecha}T${(hora || '12:00:00').slice(0, 8)}-06:00`).getTime();
 
+// Clave de "instante" (fecha + hora) para series por lectura, separable con
+// instanteFecha/instanteHora. Distinto de una fecha pura (YYYY-MM-DD) para que
+// serieVolumenTramos pueda operar tanto en modo diario (clave = fecha) como en
+// modo por lectura (clave = instante) sin duplicar su lógica de arrastre/LOCF.
+export const claveInstante = (fecha: string, hora: string | null): string => `${fecha}|${hora || '12:00:00'}`;
+const instanteTs = (clave: string): number => {
+  const [fecha, hora] = clave.split('|');
+  return tsOf(fecha, hora);
+};
+
 // ── Bloque 1: tendencia de niveles por escala ───────────────────────────────
 export function serieNivelesDiaria(
   resumen: ResumenDiario[], escalas: EscalaGeom[]
@@ -249,9 +259,9 @@ export function serieVolumenTramos(
       const arrastrado = (rawUp == null && lastUp != null) || (rawDn == null && lastDn != null);
       if (rawUp != null) lastUp = rawUp;
       if (rawDn != null) lastDn = rawDn;
-      if (lastUp == null || lastDn == null) return { t: tsOf(f), y: null };
+      if (lastUp == null || lastDn == null) return { t: instanteTs(f), y: null };
       const y = +(volM3(lastUp, lastDn) / 1e6).toFixed(4);
-      return arrastrado ? { t: tsOf(f), y, est: true } : { t: tsOf(f), y };
+      return arrastrado ? { t: instanteTs(f), y, est: true } : { t: instanteTs(f), y };
     });
 
     // Estado de llenado de la SECCIÓN: último tirante conocido en cada frontera
@@ -299,7 +309,7 @@ export function serieVolumenTramos(
   const totalPorFecha: SeriePunto[] = fechas.map((f, i) => {
     const suma = series.reduce((s, se) => s + (se.puntos[i].y ?? 0), 0);
     const algun = series.some(se => se.puntos[i].y != null);
-    return { t: tsOf(f), y: algun ? +suma.toFixed(4) : null };
+    return { t: instanteTs(f), y: algun ? +suma.toFixed(4) : null };
   });
   return { series, totalPorFecha };
 }
@@ -341,6 +351,37 @@ export function indiceNivelesUpDown(
     fechasSet.add(l.fecha);
   }
   return { idx, fechas: [...fechasSet].sort() };
+}
+
+// Variante POR LECTURA de indiceNivelesUpDown: agrupa por INSTANTE
+// (fecha+hora, vía claveInstante) en vez de por día. Necesaria para que el
+// Bloque 2 (volumen por tramo) muestre variación real en rangos de un solo
+// día ("Hoy") — con la agregación diaria, un día con 2+ lecturas colapsa a
+// un único punto y el volumen sale con Mín=Máx=Δ0 aunque sí hubo variación
+// intradía. Arrastra entre instantes de la MISMA escala (no solo dentro del
+// mismo instante) para que una lectura que solo capturó una cara no invalide
+// la otra cara ya conocida de una lectura anterior el mismo día.
+export function indiceNivelesUpDownPorLectura(
+  lecturas: LecturaEscala[]
+): { idx: Map<string, Map<string, NivelUpDown>>; fechas: string[] } {
+  const ordenadas = [...lecturas].sort((a, b) => a.creado_en.localeCompare(b.creado_en));
+  const idx = new Map<string, Map<string, NivelUpDown>>();
+  const ultimo = new Map<string, NivelUpDown>();   // escala_id -> última cara conocida (arrastre entre lecturas)
+  const clavesSet = new Set<string>();
+  for (const l of ordenadas) {
+    if (!idx.has(l.escala_id)) idx.set(l.escala_id, new Map());
+    const porInstante = idx.get(l.escala_id)!;
+    const prev = ultimo.get(l.escala_id) ?? { arriba: null, abajo: null };
+    const actual: NivelUpDown = {
+      arriba: nivelValido(l.nivel_m) ? l.nivel_m : prev.arriba,
+      abajo:  nivelValido(l.nivel_abajo_m) ? l.nivel_abajo_m : prev.abajo,
+    };
+    const clave = claveInstante(l.fecha, l.hora_lectura);
+    porInstante.set(clave, actual);
+    ultimo.set(l.escala_id, actual);
+    clavesSet.add(clave);
+  }
+  return { idx, fechas: [...clavesSet].sort() };
 }
 
 // ── Bloque 3: niveles arriba / abajo por compuerta ──────────────────────────
@@ -414,6 +455,20 @@ function gastoDiarioPorKm(lecturas: LecturaEscala[], escalas: EscalaGeom[], kmOb
   return out;
 }
 
+// Variante POR LECTURA: un punto por INSTANTE (fecha+hora) en vez de uno por
+// día — necesaria para ver variación de gasto dentro del mismo día ("Hoy").
+function gastoPorLecturaPorKm(lecturas: LecturaEscala[], escalas: EscalaGeom[], kmObjetivo: number): Map<string, number> {
+  const escId = escalas.find(e => Math.abs(e.km - kmObjetivo) < 0.5)?.id;
+  const out = new Map<string, number>();
+  if (!escId) return out;
+  const ordenadas = [...lecturas].sort((a, b) => a.creado_en.localeCompare(b.creado_en));
+  for (const l of ordenadas) {
+    if (l.escala_id !== escId || l.gasto_calculado_m3s == null) continue;
+    out.set(claveInstante(l.fecha, l.hora_lectura), l.gasto_calculado_m3s);
+  }
+  return out;
+}
+
 export function serieGasto(
   lecturas: LecturaEscala[], escalas: EscalaGeom[], entregas: EntregaModulo[], fechas: string[]
 ): SerieGasto {
@@ -434,6 +489,39 @@ export function serieGasto(
     const qe = entrada[i].y, qs = salida[i].y, qz = entregasS[i].y;
     if (qe == null || qs == null || qz == null) return { t: tsOf(f), y: null };
     return { t: tsOf(f), y: +(qe - qs - qz).toFixed(3) };
+  });
+  return { entrada, salida, entregas: entregasS, perdidas };
+}
+
+// Variante POR LECTURA de serieGasto: Q entrada/salida por INSTANTE (cada
+// lectura de campo es un punto), para ver variación de gasto dentro del
+// mismo día ("Hoy"). entregas_modulo no tiene hora, así que su total diario
+// se repite en cada instante de ese día (mismo valor, no inventa variación);
+// pérdidas solo se calcula cuando los tres tienen dato en ese instante.
+export function serieGastoPorLectura(
+  lecturas: LecturaEscala[], escalas: EscalaGeom[], entregas: EntregaModulo[], instantes: string[]
+): SerieGasto {
+  const qEntrada = gastoPorLecturaPorKm(lecturas, escalas, 0);
+  const qSalida = gastoPorLecturaPorKm(lecturas, escalas, 104);
+  const entregasPorFecha = new Map<string, number>();
+  const seen = new Set<string>();
+  for (const e of entregas) {
+    const k = `${e.fecha}_${e.modulo_id}_${e.zona_id ?? ''}_${e.tipo_entrega}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    entregasPorFecha.set(e.fecha, (entregasPorFecha.get(e.fecha) ?? 0) + Number(e.gasto_m3s ?? 0));
+  }
+  const mk = (m: Map<string, number>) => instantes.map(i => ({ t: instanteTs(i), y: m.has(i) ? +m.get(i)!.toFixed(3) : null }));
+  const entrada = mk(qEntrada), salida = mk(qSalida);
+  const entregasS: SeriePunto[] = instantes.map(i => {
+    const fecha = i.split('|')[0];
+    const v = entregasPorFecha.get(fecha);
+    return { t: instanteTs(i), y: v != null ? +v.toFixed(3) : null };
+  });
+  const perdidas: SeriePunto[] = instantes.map((i, idx) => {
+    const qe = entrada[idx].y, qs = salida[idx].y, qz = entregasS[idx].y;
+    if (qe == null || qs == null || qz == null) return { t: instanteTs(i), y: null };
+    return { t: instanteTs(i), y: +(qe - qs - qz).toFixed(3) };
   });
   return { entrada, salida, entregas: entregasS, perdidas };
 }

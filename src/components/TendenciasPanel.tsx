@@ -56,6 +56,14 @@ const MultiLine: React.FC<{
   const xS = (t: number) => PL + ((t - t0) / Math.max(1, t1 - t0)) * pw;
   const yS = (y: number) => PT + ph - ((y - yMin) / Math.max(1e-6, yMax - yMin)) * ph;
   const ticks = 4;
+  // Eje X: rango de un solo día ("Hoy") se lee por HORA de captura, no solo
+  // como fecha — es el requisito de que los 4 bloques reflejen el horario
+  // real. Rango de varios días sigue mostrando fecha corta.
+  const esUnDia = (t1 - t0) <= 26 * 3600_000;
+  const xTicks = 5;
+  const fmtEje = (t: number) => esUnDia
+    ? new Date(t).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' })
+    : new Date(t).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: 'America/Chihuahua' });
 
   const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!allTs.length) return;
@@ -124,6 +132,17 @@ const MultiLine: React.FC<{
         );
       })}
       {yLabel && <text x={PL} y={PT - 3} fill="#64748b" fontSize="8" fontFamily="monospace">{yLabel}</text>}
+
+      {/* Eje X: horas si el rango es "Hoy" (un solo día), fecha corta si no */}
+      {Array.from({ length: xTicks + 1 }, (_, i) => {
+        const t = t0 + (i / xTicks) * (t1 - t0);
+        const anchor = i === 0 ? 'start' : i === xTicks ? 'end' : 'middle';
+        return (
+          <text key={`x${i}`} x={xS(t)} y={height - 5} fill="#5c7391" fontSize="7" textAnchor={anchor} fontFamily="monospace">
+            {fmtEje(t)}
+          </text>
+        );
+      })}
 
       {/* ── Capa de hover: crosshair + puntos resaltados + tooltip ── */}
       {hoverT != null && hoverVals.length > 0 && (
@@ -294,6 +313,13 @@ const StackedArea: React.FC<{
   const yMax = Math.max(...totals, 0.1) * 1.05;
   const xS = (t: number) => PL + ((t - t0) / Math.max(1, t1 - t0)) * pw;
   const yS = (y: number) => PT + ph - (y / yMax) * ph;
+  // Eje X: en "Hoy" (un solo día) se lee por HORA de captura — mismo criterio
+  // que MultiLine, para que el Bloque 2 se comporte igual que los demás.
+  const esUnDia = (t1 - t0) <= 26 * 3600_000;
+  const xTicks = 5;
+  const fmtEje = (t: number) => esUnDia
+    ? new Date(t).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' })
+    : new Date(t).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: 'America/Chihuahua' });
 
   const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -353,6 +379,17 @@ const StackedArea: React.FC<{
       })}
       <text x={PL} y={PT - 3} fill="#64748b" fontSize="8" fontFamily="monospace">Volumen por tramo (Mm³) — apilado</text>
 
+      {/* Eje X: horas si el rango es "Hoy" (un solo día), fecha corta si no */}
+      {Array.from({ length: xTicks + 1 }, (_, i) => {
+        const t = t0 + (i / xTicks) * (t1 - t0);
+        const anchor = i === 0 ? 'start' : i === xTicks ? 'end' : 'middle';
+        return (
+          <text key={`x${i}`} x={xS(t)} y={height - 5} fill="#5c7391" fontSize="7" textAnchor={anchor} fontFamily="monospace">
+            {fmtEje(t)}
+          </text>
+        );
+      })}
+
       {/* Marcador de día ESTIMADO (LOCF): rombo hueco sobre el tope del apilado.
           Indica que uno o más tramos no se aforaron y arrastran su último dato. */}
       {idxs.filter(i => estimado[i]).map(i => {
@@ -368,7 +405,9 @@ const StackedArea: React.FC<{
           <line x1={hx} y1={PT} x2={hx} y2={PT + ph} stroke="#7dd3fc" strokeWidth="0.8" strokeDasharray="3,3" opacity="0.7" />
           <rect x={tipX} y={PT + 4} width={tipW} height={tipH} rx="5" fill="#0f1c30" stroke="rgba(125,211,252,0.35)" strokeWidth="0.8" opacity="0.97" />
           <text x={tipX + 7} y={PT + 15} fill="#7dd3fc" fontSize="7.5" fontFamily="monospace" fontWeight="bold">
-            {new Date(base[hovI].t).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
+            {esUnDia
+              ? new Date(base[hovI].t).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' })
+              : new Date(base[hovI].t).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
             <tspan fill="#cbd5e1" fontWeight="normal">  · Total </tspan>
             <tspan fill="#f1f5f9" fontWeight="bold">{totals[hovI].toFixed(3)} Mm³</tspan>
             {estimado[hovI] && <tspan fill="#f59e0b" fontWeight="normal"> ◆est</tspan>}

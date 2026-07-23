@@ -560,5 +560,8 @@ export function calcRadialFlow(
         }
     }
 
+    // Estructura mixta (K-68): vertedor de sobrepaso se suma cuando hArriba > H_crit.
+    q_total += calcQSobrepaso(nombre ?? '', hArriba);
+
     return q_total;
 }

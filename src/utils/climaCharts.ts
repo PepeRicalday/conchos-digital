@@ -180,6 +180,18 @@ export function graficaNubosidad24h(serie: PuntoSerie[]): string {
     const linea = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.total!).toFixed(1)}`).join(' ');
     const area = `${linea} L${x(pts.length - 1).toFixed(1)},${y(0).toFixed(1)} L${x(0).toFixed(1)},${y(0).toFixed(1)} Z`;
 
+    // Tramos donde el punto siguiente NO es la hora consecutiva (hueco real:
+    // ninguna estación reportó ese horizonte) se dibujan punteados y en gris,
+    // para no sugerir una transición observada donde en realidad se interpola
+    // sobre datos ausentes.
+    const huecos = pts.slice(1).map((p, k) => {
+        const prev = pts[k];
+        if (p.horizonte - prev.horizonte <= 1) return '';
+        return `<line x1="${x(k).toFixed(1)}" y1="${y(prev.total!).toFixed(1)}"
+                      x2="${x(k + 1).toFixed(1)}" y2="${y(p.total!).toFixed(1)}"
+                      stroke="${VIZ.inkMuted}" stroke-width="2" stroke-dasharray="3,3"/>`;
+    }).join('');
+
     // Capas baja/media/alta como líneas finas de apoyo
     const capa = (campo: 'baja' | 'media' | 'alta', color: string, dash: string) => {
         const vs = pts.map((p, i) => ({ i, v: p[campo] }));
@@ -216,7 +228,7 @@ export function graficaNubosidad24h(serie: PuntoSerie[]): string {
                  fill="${VIZ.inkMuted}" font-family="system-ui">${esc(p.hora)}</text>` : '').join('');
 
     return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img"
-                 aria-label="Evolución de la cobertura nubosa en las próximas 24 horas">
+                 aria-label="Cobertura nubosa prevista por el modelo en las próximas 24 horas">
         ${grid}
         <path d="${area}" fill="${VIZ.nube[2]}" opacity="0.10"/>
         ${capa('alta', VIZ.nube[0], '9,4')}
@@ -224,6 +236,7 @@ export function graficaNubosidad24h(serie: PuntoSerie[]): string {
         ${capa('baja', VIZ.nube[4], '1,3')}
         <path d="${linea}" fill="none" stroke="${VIZ.nube[3]}" stroke-width="2"
               stroke-linejoin="round" stroke-linecap="round"/>
+        ${huecos}
         ${marcas}
         <line x1="${ML}" y1="${y(0).toFixed(1)}" x2="${W - MR}" y2="${y(0).toFixed(1)}"
               stroke="${VIZ.axis}" stroke-width="1"/>

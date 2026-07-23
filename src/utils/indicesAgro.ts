@@ -48,7 +48,7 @@ export interface EntradasIndices {
     probLluviaPct: number | null;
     /** Lámina prevista en 24 h (mm). */
     lluviaPrevMm: number | null;
-    /** Lluvia observada acumulada del día (mm). */
+    /** Lluvia observada del día, PROMEDIO entre estaciones con lectura (mm). */
     lluviaObsMm: number;
     /** HR media observada (%). */
     hrPct: number | null;
@@ -73,13 +73,17 @@ export function entradasDesdeEstaciones(
     const mms = ests.map(e => e.pronosticoSerie
         .filter(p => (p.horizonte_h ?? 99) <= 24)
         .reduce((a, p) => a + (p.precip_mm ?? 0), 0)).filter(v => v > 0);
+    // PROMEDIO entre estaciones con lectura, no suma: la lámina de lluvia no se
+    // acumula entre pluviómetros distintos. Sumar infla el término de aporte del
+    // IHE en proporción al número de estaciones conectadas, no a la lluvia real.
+    const lluvias = conLectura.map(e => e.lectura!.lluvia_dia_mm ?? 0);
 
     return {
         etoDiario,
         nubosidadPct: cobs.length ? cobs.reduce((a, b) => a + b, 0) / cobs.length : null,
         probLluviaPct: probs.length ? Math.max(...probs) : null,
         lluviaPrevMm: mms.length ? mms.reduce((a, b) => a + b, 0) / mms.length : null,
-        lluviaObsMm: ests.reduce((a, e) => a + (e.lectura?.lluvia_dia_mm ?? 0), 0),
+        lluviaObsMm: lluvias.length ? lluvias.reduce((a, b) => a + b, 0) / lluvias.length : 0,
         hrPct: hrs.length ? hrs.reduce((a, b) => a + b, 0) / hrs.length : null,
         vientoMaxMs: vientos.length ? Math.max(...vientos) : null,
         estacionesOk: ests.filter(e => e.calidad.usableComoActual).length,

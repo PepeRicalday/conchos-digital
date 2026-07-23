@@ -17,6 +17,7 @@ import { clasificaCielo, PROCEDENCIA_LABEL } from './cielo';
 import { calculaIndices, entradasDesdeEstaciones } from './indicesAgro';
 import { mapaSVG, predice24h, assetToDataURI, extensionMapa } from './exportClimaReport';
 import { construyeFondoSatelital, type FondoSatelital } from './mapaSatelital';
+import { guardaOComparte } from './descargaArchivo';
 
 /** Paleta institucional de la infografía (azul marino SICA + verdes de estado). */
 const T = {
@@ -167,6 +168,10 @@ function filaHidro(icono: string, titulo: string, estado: string, color: string)
  * (dónde llovió más recientemente) va arriba, no el orden fijo de alta en catálogo.
  */
 function tablaPrecipitacion(ests: EstacionConLectura[]): string {
+    // Orden fijo de despliegue (presa → canal → módulos), heredado de `ests` tal
+    // como llega ordenado por `prioridad` desde useClimaEstaciones: NO reordenar
+    // por magnitud de lluvia, para que la tabla sea consistente con las tarjetas
+    // del panel principal y no salte de posición estación por estación.
     const filas = ests
         .map(e => ({
             nombre: e.nombre,
@@ -174,8 +179,7 @@ function tablaPrecipitacion(ests: EstacionConLectura[]): string {
             h24: e.lectura?.lluvia_24h_mm ?? null,
             mes: e.lectura?.lluvia_mes_mm ?? null,
             acum: e.lectura?.lluvia_anio_mm ?? null,
-        }))
-        .sort((a, b) => (b.h24 ?? -1) - (a.h24 ?? -1));
+        }));
 
     if (!filas.length) {
         return `<div style="font-size:0.75rem;color:${T.tintaSec};padding:6px 0">Sin estaciones registradas.</div>`;
@@ -281,7 +285,10 @@ async function buildHTML(
     const vMax = vientos.length ? Math.max(...vientos) : null;
     const etoMed = etos.length ? etos.reduce((a, b) => a + b, 0) / etos.length : null;
     const gddProm = gdds.length ? gdds.reduce((a, b) => a + b, 0) / gdds.length : null;
-    const lluviaObs = ests.reduce((a, e) => a + (e.lectura?.lluvia_dia_mm ?? 0), 0);
+    // PROMEDIO entre estaciones con lectura, no suma: sumar mm entre pluviómetros
+    // distintos no tiene lectura hidrológica y crece con cada estación conectada.
+    const lluvias = conLectura.map(e => e.lectura!.lluvia_dia_mm ?? 0);
+    const lluviaObs = lluvias.length ? lluvias.reduce((a, b) => a + b, 0) / lluvias.length : 0;
 
     // ETₒ TOTAL prevista para hoy: es la magnitud que dimensiona la lámina de
     // riego. El acumulado del corte (etoMed) subestima en proporción a las horas
@@ -408,7 +415,7 @@ async function buildHTML(
         kpi('💧', 'ETₒ DISTRITAL', nf(ETO, 2), 'mm/día', clasETo.txt, clasETo.col,
             delta(ETO, prev.map(d => d.eto), ' mm', 'subir_tensa', 2)),
         kpi('🌱', 'GDD MEDIO', nf(gddProm, 0), '°C·día', clasGDD.txt, clasGDD.col),
-        kpi('🌧️', 'LLUVIA TOTAL', nf(lluviaObs, 1), 'mm', lluviaObs > 0 ? 'Con registro' : 'Sin lluvia', T.azul),
+        kpi('🌧️', 'LLUVIA PROMEDIO', nf(lluviaObs, 1), 'mm', lluviaObs > 0 ? 'Con registro' : 'Sin lluvia', T.azul),
         kpi('💦', 'HR PROMEDIO', hrProm == null ? 'S/D' : `${hrProm.toFixed(0)}%`, '', clasHR.txt, clasHR.col,
             delta(hrProm, prev.map(d => d.hr), ' pp', 'subir_alivia', 0)),
         kpi('🌡️', 'TEMP. PROMEDIO', nf(tProm, 1), '°C', clasTemp.txt, clasTemp.col,
@@ -499,7 +506,7 @@ async function buildHTML(
         filaHidro('🌊', 'Canal Principal Conchos', 'Sin dato de la red de clima', '#b9c6d3'),
         filaHidro('🏞️', 'Presas', 'Sin dato de la red de clima', '#b9c6d3'),
         filaHidro('🌧️', 'Lluvias',
-            lluviaObs > 0 ? `${lluviaObs.toFixed(1)} mm observados hoy` : 'Sin registro en 24 h',
+            lluviaObs > 0 ? `${lluviaObs.toFixed(1)} mm promedio hoy` : 'Sin registro en 24 h',
             lluviaObs > 0 ? T.azul : '#b9c6d3'),
         filaHidro('⚠️', 'Riesgo de avenidas',
             lluviaObs > 20 || lluviaPrevMax > 20 ? 'Vigilar: lámina significativa'
@@ -823,15 +830,9 @@ export async function exportClimaInfografia(
     ests: EstacionConLectura[], historial: DiaHistorico[] = [],
 ): Promise<void> {
     const html = await construyeInfografiaHTML(ests, historial);
+    const nombreArchivo = `infografia-clima-conchos-${new Date().toISOString().slice(0, 10)}.html`;
     const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `infografia-clima-conchos-${new Date().toISOString().slice(0, 10)}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    await guardaOComparte(blob, nombreArchivo, 'text/html');
 }
 
 /**
@@ -988,13 +989,14 @@ export async function imagenClimaInfografia(
         ctx.scale(escala, escala);
         ctx.drawImage(img, 0, 0, ancho, alto);
 
-        const pngUrl = canvas.toDataURL('image/png');
-        const a = document.createElement('a');
-        a.href = pngUrl;
-        a.download = `infografia-clima-conchos-${new Date().toISOString().slice(0, 10)}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        const nombreArchivo = `infografia-clima-conchos-${new Date().toISOString().slice(0, 10)}.png`;
+
+        // Ver descargaArchivo.ts: en iOS/iPadOS el <a download> con data: URI se
+        // abre en una pestaña sin forma visible de guardar ni volver, así que se
+        // ofrece la hoja nativa de "Compartir" en su lugar.
+        const blobPng: Blob | null = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        if (!blobPng) throw new Error('No se pudo generar el archivo de imagen.');
+        await guardaOComparte(blobPng, nombreArchivo, 'image/png');
     } finally {
         if (iframe.parentNode) document.body.removeChild(iframe);
         URL.revokeObjectURL(blobUrl);

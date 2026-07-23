@@ -121,9 +121,12 @@ function buildConditionsRed(
         });
     }
 
-    // ── Precipitación: SUMA observada en la red + lámina prevista ───────────
+    // ── Precipitación: PROMEDIO observado en la red + lámina prevista ───────
+    // Promedio, no suma: la lámina de lluvia no se acumula entre pluviómetros
+    // distintos — sumar infla el indicador en proporción al número de estaciones
+    // conectadas, no a la lluvia real caída en el distrito.
     const lluvias = conLect.map(e => ({ n: e.nombre, v: e.lectura!.lluvia_dia_mm ?? 0 }));
-    const totalLluvia = lluvias.reduce((a, x) => a + x.v, 0);
+    const promLluvia = lluvias.length ? lluvias.reduce((a, x) => a + x.v, 0) / lluvias.length : 0;
     const conLluvia = lluvias.filter(x => x.v > 0);
     const mmPrev = ests.map(e => e.pronosticoSerie
         .filter(p => p.fecha_local === hoyLocal && p.precip_mm != null)
@@ -131,13 +134,13 @@ function buildConditionsRed(
     const probs = num(serie.map(p => p.precip_prob_pct));
     out.push({
         variable: 'Precipitación',
-        current: `${totalLluvia.toFixed(1)} mm`,
+        current: `${promLluvia.toFixed(1)} mm`,
         forecast: probs.length
             ? `${Math.max(...probs)} %${mmPrev.length ? ` · ${(mmPrev.reduce((a, b) => a + b, 0) / mmPrev.length).toFixed(1)} mm` : ''}`
             : '—',
-        impact: totalLluvia > 10 ? 'Posible suspensión de riegos' : 'Sin impacto en operación',
+        impact: promLluvia > 10 ? 'Posible suspensión de riegos' : 'Sin impacto en operación',
         icon: <Droplets size={18} />,
-        status: totalLluvia > 20 ? 'alert' : totalLluvia > 10 ? 'warning' : 'normal',
+        status: promLluvia > 20 ? 'alert' : promLluvia > 10 ? 'warning' : 'normal',
         detalle: conLluvia.length
             ? `Observada en ${conLluvia.map(x => `${x.n} ${x.v.toFixed(1)} mm`).join(', ')}`
             : `Sin registro en ${conLect.length} estación(es)`,
@@ -635,7 +638,12 @@ const Clima = () => {
     const cieloDistrito = cobDistrito != null ? clasificaCielo(cobDistrito) : null;
 
     // Precipitación: escala independiente del cielo, observada y prevista.
-    const lluviaObsTotal = estaciones.reduce((a, e) => a + (e.lectura?.lluvia_dia_mm ?? 0), 0);
+    // PROMEDIO entre estaciones con lectura, no suma: sumar mm entre pluviómetros
+    // distintos no tiene lectura hidrológica y crece con cada estación conectada.
+    const estConLluvia = estaciones.filter(e => e.lectura);
+    const lluviaObsProm = estConLluvia.length
+        ? estConLluvia.reduce((a, e) => a + (e.lectura!.lluvia_dia_mm ?? 0), 0) / estConLluvia.length
+        : 0;
 
     // Resumen de la red para la tarjeta de cabecera.
     const tempsRed = estaciones
@@ -666,7 +674,10 @@ const Clima = () => {
         const vMax = vientos.length ? Math.max(...vientos) : null;
         const estVientoMax = vMax != null
             ? conLect.find(e => e.lectura!.viento_ms === vMax)?.nombre : null;
-        const lluviaTot = conLect.reduce((a, e) => a + (e.lectura!.lluvia_dia_mm ?? 0), 0);
+        // Promedio, no suma: ver nota en lluviaObsProm más arriba.
+        const lluviaTot = conLect.length
+            ? conLect.reduce((a, e) => a + (e.lectura!.lluvia_dia_mm ?? 0), 0) / conLect.length
+            : 0;
         const tMins = conLect.map(e => e.lectura!.temp_min_c).filter((v): v is number => v != null);
         const tMin = tMins.length ? Math.min(...tMins) : null;
 
@@ -681,7 +692,7 @@ const Clima = () => {
         if (lluviaTot > 10) {
             irrigationAlerts.push({
                 active: true, threshold: '> 10 mm',
-                message: `Precipitación ${lluviaTot.toFixed(1)} mm en la red: considerar cierre preventivo de tomas`,
+                message: `Precipitación ${lluviaTot.toFixed(1)} mm (promedio de la red): considerar cierre preventivo de tomas`,
             });
         }
         if (tMin != null && tMin < 5) {
@@ -779,9 +790,9 @@ const Clima = () => {
                         </span>
                     </div>
                     <div className="quick-stat">
-                        <span className="stat-label">Lluvia observada</span>
+                        <span className="stat-label">Lluvia promedio</span>
                         <span className="stat-value">
-                            {lluviaObsTotal.toFixed(1)} <small>mm</small>
+                            {lluviaObsProm.toFixed(1)} <small>mm</small>
                         </span>
                     </div>
                     {/* ETₒ ACUMULADA AL CORTE, no el total del día. A primera hora vale
@@ -852,7 +863,7 @@ const Clima = () => {
                         <span className="cielo-panel-label">Precipitación</span>
                         <div className="precip-linea">
                             <Droplets size={14} />
-                            <span>Observada hoy <b>{lluviaObsTotal.toFixed(1)} mm</b></span>
+                            <span>Promedio hoy <b>{lluviaObsProm.toFixed(1)} mm</b></span>
                         </div>
                         <div className="precip-linea">
                             <CloudRain size={14} />

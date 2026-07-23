@@ -13,6 +13,7 @@ import {
     medidorIndice, barraNivel,
     type PuntoSerie,
 } from './climaCharts';
+import { guardaOComparte } from './descargaArchivo';
 import { calculaIndices, entradasDesdeEstaciones } from './indicesAgro';
 import type { FondoSatelital } from './mapaSatelital';
 
@@ -355,7 +356,7 @@ function analisisTecnico(
             : '');
 
     const balance = lluviaTotal > 0
-        ? `Se registró precipitación (<b>${lluviaTotal.toFixed(1)} mm</b> acumulados en las estaciones), que aporta al balance hídrico y reduce la lámina neta a reponer en las parcelas bajo lluvia.`
+        ? `Se registró precipitación (<b>${lluviaTotal.toFixed(1)} mm</b> promedio de la red de estaciones), que aporta al balance hídrico y reduce la lámina neta a reponer en las parcelas bajo lluvia.`
         : `Sin precipitación <b>observada</b> en las estaciones: la reposición hídrica depende íntegramente del riego. `
           + `El déficit diario a cubrir equivale a la ETc del cultivo. `
           + `<b>La ausencia de lluvia no describe el estado del cielo</b>, que se trata por separado.`;
@@ -532,14 +533,26 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     const etoProm = etos.length ? etos.reduce((a, b) => a + b, 0) / etos.length : null;
     const gdds = ests.map(e => e.lectura?.gdd).filter((v): v is number => v != null);
     const gddProm = gdds.length ? gdds.reduce((a, b) => a + b, 0) / gdds.length : null;
-    const lluviaTotal = ests.reduce((a, e) => a + (e.lectura?.lluvia_dia_mm ?? 0), 0);
+    // PROMEDIO entre estaciones con lectura, no suma: sumar mm entre pluviómetros
+    // distintos no tiene lectura hidrológica y crece con cada estación conectada.
+    const conLecturaLluvia = ests.filter(e => e.lectura);
+    const lluviaTotal = conLecturaLluvia.length
+        ? conLecturaLluvia.reduce((a, e) => a + (e.lectura!.lluvia_dia_mm ?? 0), 0) / conLecturaLluvia.length
+        : 0;
     // ETₒ TOTAL prevista para hoy (24 h del modelo). Es la magnitud con la que se
     // dimensiona la lámina de riego; `etoProm` es solo el acumulado hasta el corte.
     const etoFcHoy = (() => {
         const hoyLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
-        const sumas = ests.map(e => e.pronosticoSerie
-            .filter(p => p.fecha_local === hoyLocal && p.eto_fc_mm != null)
-            .reduce((a, p) => a + (p.eto_fc_mm ?? 0), 0)).filter(v => v > 0);
+        // Estación sin ninguna fila de pronóstico para hoy → sin dato, se excluye.
+        // Un total de 0 mm (día nublado/lluvioso) SÍ es un valor real y debe
+        // contarse en el promedio, no descartarse como si la estación no
+        // hubiera reportado — filtrar por `> 0` trataba un dato legítimo igual
+        // que uno ausente.
+        const porEstacion = ests.map(e => e.pronosticoSerie
+            .filter(p => p.fecha_local === hoyLocal && p.eto_fc_mm != null));
+        const sumas = porEstacion
+            .filter(serie => serie.length > 0)
+            .map(serie => serie.reduce((a, p) => a + (p.eto_fc_mm ?? 0), 0));
         return sumas.length ? sumas.reduce((a, b) => a + b, 0) / sumas.length : null;
     })();
     const an = analisisTecnico(ests, etoProm, gddProm, lluviaTotal, etoFcHoy);
@@ -626,7 +639,26 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     // El distrito se opera como una unidad, así que la evolución se presenta
     // agregada; el detalle por estación queda en las tablas y los medidores.
     const serieDistrital: PuntoSerie[] = (() => {
-        const porHora = new Map<string, PuntoSerie & { n: number }>();
+        // Acumuladores + contador de estaciones CON DATO, uno por campo: si una
+        // estación reporta null en un campo puntual para esa hora (dato parcial
+        // faltante del proveedor), esa estación queda fuera del promedio de ESE
+        // campo en vez de contar como 0. Compartir un solo contador `n` sumaba
+        // null??0 mientras igual incrementaba n, hundiendo el promedio hacia 0
+        // en cualquier hora con datos parciales — la huella de un "salto" 0→100%
+        // que no reflejaba nubosidad real, solo datos faltantes de una estación.
+        interface Acc {
+            hora: string; horizonte: number;
+            sTotal: number; nTotal: number; sBaja: number; nBaja: number;
+            sMedia: number; nMedia: number; sAlta: number; nAlta: number;
+            sProb: number; nProb: number; sMm: number; nMm: number;
+            sTemp: number; nTemp: number;
+        }
+        const suma = (acc: Acc, campoS: keyof Acc, campoN: keyof Acc, v: number | null) => {
+            if (v == null) return;
+            (acc[campoS] as number) += v;
+            (acc[campoN] as number) += 1;
+        };
+        const porHora = new Map<string, Acc>();
         for (const e of ests) {
             for (const p of e.pronosticoSerie) {
                 if ((p.horizonte_h ?? 99) > 24) continue;
@@ -635,17 +667,17 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
                     hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Chihuahua',
                 });
                 const acc = porHora.get(k) ?? {
-                    hora, horizonte: p.horizonte_h ?? 0, total: 0, baja: 0, media: 0,
-                    alta: 0, prob: 0, mm: 0, temp: 0, n: 0,
+                    hora, horizonte: p.horizonte_h ?? 0,
+                    sTotal: 0, nTotal: 0, sBaja: 0, nBaja: 0, sMedia: 0, nMedia: 0,
+                    sAlta: 0, nAlta: 0, sProb: 0, nProb: 0, sMm: 0, nMm: 0, sTemp: 0, nTemp: 0,
                 };
-                acc.total = (acc.total ?? 0) + (p.nubosidad_total_pct ?? 0);
-                acc.baja = (acc.baja ?? 0) + (p.nubosidad_baja_pct ?? 0);
-                acc.media = (acc.media ?? 0) + (p.nubosidad_media_pct ?? 0);
-                acc.alta = (acc.alta ?? 0) + (p.nubosidad_alta_pct ?? 0);
-                acc.prob = (acc.prob ?? 0) + (p.precip_prob_pct ?? 0);
-                acc.mm = (acc.mm ?? 0) + (p.precip_mm ?? 0);
-                acc.temp = (acc.temp ?? 0) + (p.temp_c ?? 0);
-                acc.n += 1;
+                suma(acc, 'sTotal', 'nTotal', p.nubosidad_total_pct);
+                suma(acc, 'sBaja', 'nBaja', p.nubosidad_baja_pct);
+                suma(acc, 'sMedia', 'nMedia', p.nubosidad_media_pct);
+                suma(acc, 'sAlta', 'nAlta', p.nubosidad_alta_pct);
+                suma(acc, 'sProb', 'nProb', p.precip_prob_pct);
+                suma(acc, 'sMm', 'nMm', p.precip_mm);
+                suma(acc, 'sTemp', 'nTemp', p.temp_c);
                 porHora.set(k, acc);
             }
         }
@@ -653,13 +685,13 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
             .sort((a, b) => a[0].localeCompare(b[0]))
             .map(([, v]) => ({
                 hora: v.hora, horizonte: v.horizonte,
-                total: v.n ? +((v.total ?? 0) / v.n).toFixed(0) : null,
-                baja: v.n ? +((v.baja ?? 0) / v.n).toFixed(0) : null,
-                media: v.n ? +((v.media ?? 0) / v.n).toFixed(0) : null,
-                alta: v.n ? +((v.alta ?? 0) / v.n).toFixed(0) : null,
-                prob: v.n ? +((v.prob ?? 0) / v.n).toFixed(0) : null,
-                mm: v.n ? +((v.mm ?? 0) / v.n).toFixed(2) : null,
-                temp: v.n ? +((v.temp ?? 0) / v.n).toFixed(1) : null,
+                total: v.nTotal ? +(v.sTotal / v.nTotal).toFixed(0) : null,
+                baja: v.nBaja ? +(v.sBaja / v.nBaja).toFixed(0) : null,
+                media: v.nMedia ? +(v.sMedia / v.nMedia).toFixed(0) : null,
+                alta: v.nAlta ? +(v.sAlta / v.nAlta).toFixed(0) : null,
+                prob: v.nProb ? +(v.sProb / v.nProb).toFixed(0) : null,
+                mm: v.nMm ? +(v.sMm / v.nMm).toFixed(2) : null,
+                temp: v.nTemp ? +(v.sTemp / v.nTemp).toFixed(1) : null,
             }));
     })();
 
@@ -681,13 +713,17 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
         e.cielo.coberturaPct != null ? e.cielo.etiqueta : 'sin fuente',
     )).join('');
 
-    // Ventana de máxima probabilidad de lluvia: dato accionable para la operación
-    const ventanaLluvia = (() => {
+    // Máximo real de probabilidad de lluvia en 24 h, exista o no ventana
+    // operativa: para el KPI "sin ventana relevante" (prob < 20 %) NO es lo
+    // mismo que "0 % de probabilidad" — mostrar 0 sería un dato falso.
+    const probMaxima = (() => {
         const conProb = serieDistrital.filter(p => p.prob != null);
-        if (!conProb.length) return null;
-        const max = conProb.reduce((a, b) => (b.prob! > a.prob! ? b : a));
-        return max.prob! >= 20 ? { hora: max.hora, prob: max.prob!, mm: max.mm ?? 0 } : null;
+        return conProb.length ? conProb.reduce((a, b) => (b.prob! > a.prob! ? b : a)) : null;
     })();
+    // Ventana de máxima probabilidad de lluvia: dato ACCIONABLE para la
+    // operación, con el umbral de 20 % que separa "vigilar" de "sin ajuste".
+    const ventanaLluvia = probMaxima && probMaxima.prob! >= 20
+        ? { hora: probMaxima.hora, prob: probMaxima.prob!, mm: probMaxima.mm ?? 0 } : null;
 
     // ── Veredicto operativo: la conclusión que el informe debe entregar ─────
     // Un centro de inteligencia no expone datos, entrega un juicio accionable.
@@ -1172,8 +1208,10 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     </div>
     <div class="kpi">
       <div class="l">Lluvia prevista 24 h</div>
-      <div class="v">${ventanaLluvia ? ventanaLluvia.prob : (serieDistrital.length ? 0 : '—')}<span class="u">%</span></div>
-      <div class="pie">${ventanaLluvia ? `máximo hacia las ${ventanaLluvia.hora} h` : 'sin ventana relevante'}</div>
+      <div class="v">${probMaxima ? probMaxima.prob : '—'}<span class="u">%</span></div>
+      <div class="pie">${ventanaLluvia ? `máximo hacia las ${ventanaLluvia.hora} h`
+        : probMaxima ? `máximo ${probMaxima.prob} % hacia las ${probMaxima.hora} h · sin ventana operativa`
+        : 'sin pronóstico sincronizado'}</div>
     </div>
     <div class="kpi">
       <div class="l">Integridad del dato</div>
@@ -1226,8 +1264,8 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
   ${svgNub24 ? `
   <figure class="fig">
     <figcaption>
-      <b>Evolución de la cobertura nubosa · próximas 24 h</b>
-      <span>Promedio del distrito. La línea sólida es la cobertura total; las punteadas, las capas baja, media y alta.</span>
+      <b>Pronóstico de cobertura nubosa · próximas 24 h</b>
+      <span>Modelo horario, promedio del distrito — no es una medición. La línea sólida es la cobertura total; las punteadas, las capas baja, media y alta. Cambios abruptos entre horas seguidas reflejan el modelo, no necesariamente el cielo real.</span>
     </figcaption>
     ${svgNub24}
     <div class="leyenda">
@@ -1441,17 +1479,10 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
 </div></body></html>`;
 }
 
-/** Genera el informe técnico y lo descarga como archivo HTML autónomo. */
+/** Genera el informe técnico y lo entrega como archivo HTML autónomo. */
 export async function exportClimaReport(ests: EstacionConLectura[]): Promise<void> {
     const html = await buildHTML(ests);
     const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
     const date = new Date().toISOString().slice(0, 10);
-    a.href = url;
-    a.download = `informe-clima-conchos-${date}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    await guardaOComparte(blob, `informe-clima-conchos-${date}.html`, 'text/html');
 }

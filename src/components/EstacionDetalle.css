@@ -130,6 +130,79 @@
     color: #64748b;
 }
 
+.est-det-informe {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: rgba(56, 189, 248, 0.14);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 6px;
+    color: #7dd3fc;
+    padding: 0.22rem 0.6rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.est-det-informe:hover:not(:disabled) { background: rgba(56, 189, 248, 0.24); }
+.est-det-informe:disabled { opacity: 0.6; cursor: default; }
+
+/* ── Periodo manual ─────────────────────────────────────────────────────── */
+
+.est-det-manual {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 1.15rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(56, 189, 248, 0.05);
+    font-size: 0.7rem;
+    color: #94a3b8;
+}
+
+.est-det-manual label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.est-det-manual input[type="date"] {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    color: #e2e8f0;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.68rem;
+    color-scheme: dark;
+}
+
+.est-det-manual-aplicar {
+    background: rgba(34, 197, 94, 0.18);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    border-radius: 6px;
+    color: #86efac;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.est-det-manual-aplicar:hover:not(:disabled) { background: rgba(34, 197, 94, 0.28); }
+.est-det-manual-aplicar:disabled { opacity: 0.5; cursor: default; }
+
+.est-det-manual-error {
+    color: #fca5a5;
+    font-size: 0.65rem;
+}
+
+.est-det-manual-activo {
+    font-style: normal;
+    color: #7dd3fc;
+    font-size: 0.65rem;
+}
+
 /* ── Estados ────────────────────────────────────────────────────────────── */
 
 .est-det-cargando,
@@ -554,4 +627,6 @@
         margin-left: 0;
         width: 100%;
     }
+    .est-det-manual { flex-direction: column; align-items: stretch; }
+    .est-det-manual label { justify-content: space-between; }
 }

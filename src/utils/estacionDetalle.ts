@@ -347,8 +347,10 @@ export interface DetalleEstacion {
     dias: DiaEstacion[];
     pluviometro: EstadoPluviometro;
     referencia: ReferenciaEto;
+    /** Referencia corta, siempre fija en 7 días. */
     balance7: BalanceHidrico;
-    balance30: BalanceHidrico;
+    /** Balance de la ventana/rango de análisis activo (puede no ser 30 días). */
+    balanceVentana: BalanceHidrico;
     rosa: RosaViento[];
     riesgo: RiesgoTermico;
     /** Acumulados nativos de la estación en la última lectura. */
@@ -362,8 +364,13 @@ export interface DetalleEstacion {
     totalLecturas: number;
 }
 
+/**
+ * @param diasVentana Días que abarca la ventana/rango activo, para el segundo
+ * bloque de balance («Últimos N días»). Por defecto 30, igual que antes de
+ * que el balance siguiera al selector de periodo.
+ */
 export function construyeDetalle(
-    est: EstacionConLectura, lecturas: LecturaClima[],
+    est: EstacionConLectura, lecturas: LecturaClima[], diasVentana = 30,
 ): DetalleEstacion {
     const dias = resumeDias(lecturas);
     const pluviometro = evaluaPluviometro(lecturas);
@@ -384,7 +391,7 @@ export function construyeDetalle(
         pluviometro,
         referencia: referenciaEto(dias),
         balance7: balanceHidrico(dias, pluviometro, 7),
-        balance30: balanceHidrico(dias, pluviometro, 30),
+        balanceVentana: balanceHidrico(dias, pluviometro, diasVentana),
         rosa: rosaDeVientos(lecturas),
         riesgo: riesgoTermico(dias, lecturas),
         lluviaMesMm: num(l?.lluvia_mes_mm),

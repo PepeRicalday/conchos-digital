@@ -1,4 +1,5 @@
 /* M-02: Local fonts — no CDN dependency (works offline for PWA) */
+@import "tailwindcss";
 
 :root {
   /* Hidro-Sincronía 2.0: Technical Premium Palette */

@@ -12,16 +12,19 @@
 import { useMemo, useState, useEffect } from 'react';
 import {
     X, Droplets, Wind, Thermometer, Activity, Zap, CloudRain,
-    AlertTriangle, Loader, CalendarDays, MapPin, Gauge,
+    AlertTriangle, Loader, CalendarDays, MapPin, Gauge, Share2,
 } from 'lucide-react';
 import {
     ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis,
     CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 import type { EstacionConLectura } from '../hooks/useClimaEstaciones';
-import { useEstacionDetalle, VENTANAS, type Ventana } from '../hooks/useEstacionDetalle';
+import {
+    useEstacionDetalle, VENTANAS, diasDelRango, type RangoAnalisis,
+} from '../hooks/useEstacionDetalle';
 import type { BalanceHidrico } from '../utils/estacionDetalle';
 import { formateaEdad, PROCEDENCIA_LABEL } from '../utils/cielo';
+import { exportEstacionInforme } from '../utils/exportEstacionInforme';
 import './EstacionDetalle.css';
 
 const rolLabel = (rol: string) =>
@@ -95,9 +98,41 @@ interface Props {
     onCerrar: () => void;
 }
 
+/** Fecha local (America/Chihuahua) en formato YYYY-MM-DD, para los inputs date. */
+const hoyISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
+const haceDiasISO = (dias: number) =>
+    new Date(Date.now() - dias * 864e5).toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
+
 const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
-    const [ventana, setVentana] = useState<Ventana>(30);
-    const { detalle, loading, error } = useEstacionDetalle(estacion, ventana);
+    const [rango, setRango] = useState<RangoAnalisis>({ tipo: 'ventana', dias: 30 });
+    // Borrador del rango manual: solo se aplica (dispara la consulta) al confirmar,
+    // para no relanzar la carga con cada tecla mientras el usuario edita la fecha.
+    const [manualDesde, setManualDesde] = useState(haceDiasISO(30));
+    const [manualHasta, setManualHasta] = useState(hoyISO());
+    const [mostrarManual, setMostrarManual] = useState(false);
+    const { detalle, loading, error } = useEstacionDetalle(estacion, rango);
+    const [generandoInforme, setGenerandoInforme] = useState(false);
+
+    const diasVentana = diasDelRango(rango);
+    const errorRangoManual = manualDesde > manualHasta ? 'La fecha "desde" debe ser anterior a "hasta".' : null;
+
+    const aplicarManual = () => {
+        if (errorRangoManual) return;
+        setRango({ tipo: 'manual', rango: { desde: manualDesde, hasta: manualHasta } });
+    };
+
+    const generarInforme = async () => {
+        if (!detalle) return;
+        setGenerandoInforme(true);
+        try {
+            await exportEstacionInforme(estacion, detalle, rango);
+        } catch (e) {
+            console.error('[EstacionDetalle] no se pudo generar el informe:', e);
+            alert(e instanceof Error ? e.message : 'No se pudo generar el informe de la estación.');
+        } finally {
+            setGenerandoInforme(false);
+        }
+    };
 
     // Comportamiento de diálogo modal: se declara aria-modal, así que Escape debe
     // cerrar y el fondo no debe desplazarse bajo el overlay.
@@ -162,16 +197,59 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
                     {VENTANAS.map(v => (
                         <button
                             key={v}
-                            className={ventana === v ? 'activa' : ''}
-                            onClick={() => setVentana(v)}
+                            className={rango.tipo === 'ventana' && rango.dias === v ? 'activa' : ''}
+                            onClick={() => { setMostrarManual(false); setRango({ tipo: 'ventana', dias: v }); }}
                         >{v} días</button>
                     ))}
+                    <button
+                        className={rango.tipo === 'manual' || mostrarManual ? 'activa' : ''}
+                        onClick={() => setMostrarManual(m => !m)}
+                    >Personalizado</button>
                     {detalle && (
                         <em className="est-det-cobertura">
                             {detalle.diasConDato} día(s) con dato · {detalle.totalLecturas} lecturas
                         </em>
                     )}
+                    {detalle && (
+                        <button
+                            className="est-det-informe"
+                            onClick={generarInforme}
+                            disabled={generandoInforme}
+                            title="Generar informe de esta estación para compartir"
+                        >
+                            {generandoInforme
+                                ? <Loader size={13} className="girando" />
+                                : <Share2 size={13} />}
+                            {generandoInforme ? 'Generando…' : 'Informe'}
+                        </button>
+                    )}
                 </div>
+
+                {mostrarManual && (
+                    <div className="est-det-manual">
+                        <label>
+                            Desde
+                            <input type="date" value={manualDesde} max={manualHasta}
+                                   onChange={e => setManualDesde(e.target.value)} />
+                        </label>
+                        <label>
+                            Hasta
+                            <input type="date" value={manualHasta} min={manualDesde} max={hoyISO()}
+                                   onChange={e => setManualHasta(e.target.value)} />
+                        </label>
+                        <button
+                            className="est-det-manual-aplicar"
+                            onClick={aplicarManual}
+                            disabled={!!errorRangoManual}
+                        >Aplicar</button>
+                        {errorRangoManual && <span className="est-det-manual-error">{errorRangoManual}</span>}
+                        {rango.tipo === 'manual' && !errorRangoManual && (
+                            <em className="est-det-manual-activo">
+                                Mostrando {fechaCorta(rango.rango.desde)} – {fechaCorta(rango.rango.hasta)}
+                            </em>
+                        )}
+                    </div>
+                )}
 
                 {loading && (
                     <div className="est-det-cargando"><Loader size={16} className="girando" /> Cargando histórico…</div>
@@ -218,7 +296,10 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
                             <h4><Droplets size={14} /> Balance hídrico (ETₒ − lluvia)</h4>
                             <div className="bal-grid">
                                 <BalanceCard b={detalle.balance7} titulo="Últimos 7 días" />
-                                <BalanceCard b={detalle.balance30} titulo="Últimos 30 días" />
+                                <BalanceCard b={detalle.balanceVentana}
+                                    titulo={rango.tipo === 'manual'
+                                        ? `${fechaCorta(rango.rango.desde)} – ${fechaCorta(rango.rango.hasta)}`
+                                        : `Últimos ${diasVentana} días`} />
                             </div>
                             {detalle.pluviometro === 'ausente' && (
                                 <p className="est-det-nota aviso">

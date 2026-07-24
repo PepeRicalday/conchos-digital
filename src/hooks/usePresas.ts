@@ -255,6 +255,18 @@ export function usePresas(fecha: string) {
 
                     // ── CAPA 1: Línea base del reporte diario ──
                     const latestMov = (movsDB || []).find((m: any) => m.presa_id === p.id);
+                    // Último movimiento de ESTA presa que sí trae desglose por obra —
+                    // puede no ser `latestMov` si el movimiento más reciente se capturó
+                    // como total único (formulario viejo, o gasto_m3s de fin de ciclo).
+                    // Una obra sigue en el mismo gasto hasta que se reporte lo contrario:
+                    // sin este fallback, un movimiento-total nuevo hacía desaparecer el
+                    // desglose de CFE/Toma Baja aunque nada haya cambiado en esas obras.
+                    const latestMovConDesglose = (movsDB || []).find((m: any) =>
+                        m.presa_id === p.id && (
+                            m.gasto_toma_baja_m3s != null || m.gasto_cfe_m3s != null ||
+                            m.gasto_toma_izq_m3s != null || m.gasto_toma_der_m3s != null
+                        )
+                    );
                     let extraccion = Number(lect?.extraccion_total_m3s) || 0;
                     let notas = lect?.notas || null;
                     let dataSource = lect ? 'lecturas_presas' : 'sin_lectura';
@@ -324,20 +336,29 @@ export function usePresas(fecha: string) {
                         almacenamiento_mm3: tieneNivelHoy && lect?.almacenamiento_mm3 != null ? Number(lect.almacenamiento_mm3) : (nivelPrevio?.almacenamiento_mm3 ?? null),
                         porcentaje_llenado: tieneNivelHoy && lect?.porcentaje_llenado != null ? Number(lect.porcentaje_llenado) : (nivelPrevio?.porcentaje_llenado ?? null),
                         extraccion_total_m3s: extraccion,
-                        // Desglose por obra de toma — misma cascada que el total (Capa 1 → Capa 2),
-                        // más una regla legado SOLO para Boquilla cuando ninguna fuente trae desglose:
-                        // antes de que sica-capture reportara por obra, un movimiento traía un solo
-                        // número y se asumía completo en Toma Baja. Con desglose real en Capa 1 o 2,
-                        // esa regla ya no aplica y CFE deja de fantasmear en 0.00/CERRADA.
+                        // Desglose por obra de toma — cascada: Capa 1 (lecturas_presas) →
+                        // Capa 2 (último movimiento, si trae desglose) → último movimiento
+                        // CON desglose aunque sea de un día anterior (una obra sigue en el
+                        // mismo gasto hasta que se reporte lo contrario — no puede
+                        // "olvidarse" solo porque el movimiento más reciente fue un total
+                        // único) → regla legado SOLO para Boquilla cuando NINGUNA fuente
+                        // trae desglose real: antes de que sica-capture reportara por obra,
+                        // un movimiento traía un solo número y se asumía completo en Toma
+                        // Baja. Con desglose real en cualquier capa anterior, esa regla ya
+                        // no aplica y CFE deja de fantasmear en 0.00/CERRADA.
                         gasto_toma_baja_m3s: lect?.gasto_toma_baja_m3s != null ? Number(lect.gasto_toma_baja_m3s)
                             : latestMov?.gasto_toma_baja_m3s != null ? Number(latestMov.gasto_toma_baja_m3s)
-                            : (p.id === 'PRE-001' && extraccion > 0 && latestMov?.gasto_cfe_m3s == null ? extraccion : null),
+                            : latestMovConDesglose?.gasto_toma_baja_m3s != null ? Number(latestMovConDesglose.gasto_toma_baja_m3s)
+                            : (p.id === 'PRE-001' && extraccion > 0 && !latestMovConDesglose ? extraccion : null),
                         gasto_cfe_m3s: lect?.gasto_cfe_m3s != null ? Number(lect.gasto_cfe_m3s)
-                            : latestMov?.gasto_cfe_m3s != null ? Number(latestMov.gasto_cfe_m3s) : null,
+                            : latestMov?.gasto_cfe_m3s != null ? Number(latestMov.gasto_cfe_m3s)
+                            : latestMovConDesglose?.gasto_cfe_m3s != null ? Number(latestMovConDesglose.gasto_cfe_m3s) : null,
                         gasto_toma_izq_m3s: lect?.gasto_toma_izq_m3s != null ? Number(lect.gasto_toma_izq_m3s)
-                            : latestMov?.gasto_toma_izq_m3s != null ? Number(latestMov.gasto_toma_izq_m3s) : null,
+                            : latestMov?.gasto_toma_izq_m3s != null ? Number(latestMov.gasto_toma_izq_m3s)
+                            : latestMovConDesglose?.gasto_toma_izq_m3s != null ? Number(latestMovConDesglose.gasto_toma_izq_m3s) : null,
                         gasto_toma_der_m3s: lect?.gasto_toma_der_m3s != null ? Number(lect.gasto_toma_der_m3s)
-                            : latestMov?.gasto_toma_der_m3s != null ? Number(latestMov.gasto_toma_der_m3s) : null,
+                            : latestMov?.gasto_toma_der_m3s != null ? Number(latestMov.gasto_toma_der_m3s)
+                            : latestMovConDesglose?.gasto_toma_der_m3s != null ? Number(latestMovConDesglose.gasto_toma_der_m3s) : null,
                         area_ha: Number(lect?.area_ha) || 0,
                         responsable: lect?.responsable || (latestMov ? 'Sistema (Movimiento)' : null),
                         notas: notas,

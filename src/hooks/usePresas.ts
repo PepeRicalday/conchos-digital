@@ -42,6 +42,9 @@ export interface LecturaPresaData {
     area_ha: number;
     responsable: string | null;
     notas: string | null;
+    // Variación en metros vs. la lectura de nivel anterior — null si no hay
+    // elevación de hoy o no hay lectura previa con la que comparar.
+    variacion_elevacion_m: number | null;
 }
 
 export interface PuntoCurva {
@@ -80,6 +83,13 @@ export interface MovimientoPresaData {
     fecha_hora: string;
     gasto_m3s: number;
     fuente_dato: string;
+    // Desglose por obra de toma — null en movimientos legacy (un solo total).
+    gasto_toma_baja_m3s?: number | null;
+    gasto_cfe_m3s?: number | null;
+    gasto_toma_izq_m3s?: number | null;
+    gasto_toma_der_m3s?: number | null;
+    // Posición de compuerta por obra (ej. {"tomaBaja": "1/10"}) — solo trazabilidad.
+    posiciones_compuerta?: Record<string, string> | null;
 }
 
 // ─── Hook ────────────────────────────────────────────
@@ -110,7 +120,8 @@ export function usePresas(fecha: string) {
                     { data: aforosDB, error: errA },
                     { data: eventDBRaw },
                     { data: movsDB },
-                    { data: movsHistorialDB }
+                    { data: movsHistorialDB },
+                    { data: lecturasPreviasDB }
                 ] = await Promise.all([
                     supabase.from('lecturas_presas').select('*').eq('fecha', fecha),
                     supabase.from('clima_presas').select('*').eq('fecha', fecha),
@@ -127,7 +138,14 @@ export function usePresas(fecha: string) {
                     supabase.from('movimientos_presas').select('id, presa_id, fecha_hora, gasto_m3s, fuente_dato')
                         .gte('fecha_hora', new Date(Date.now() - 7 * 86400000).toISOString())
                         .order('fecha_hora', { ascending: true })
-                        .limit(500)
+                        .limit(500),
+                    // Lectura de nivel más reciente ANTERIOR a `fecha`, por presa — para
+                    // calcular la variación real en cm (reemplaza el regex sobre notas).
+                    supabase.from('lecturas_presas').select('presa_id, fecha, escala_msnm')
+                        .lt('fecha', fecha)
+                        .not('escala_msnm', 'is', null)
+                        .order('fecha', { ascending: false })
+                        .limit(60)
                 ]);
 
                 const eventDB = eventDBRaw && eventDBRaw.length > 0 ? eventDBRaw[0] : null;
@@ -170,6 +188,15 @@ export function usePresas(fecha: string) {
                 const lecturaMap: Record<string, any> = {};
                 (finalLecturas || []).forEach((l: any) => {
                     lecturaMap[l.presa_id] = l;
+                });
+
+                // Index lectura previa (más reciente antes de `fecha`) por presa_id —
+                // ya viene ordenada desc, así que la primera que aparece por presa es la más reciente.
+                const lecturaPreviaMap: Record<string, number> = {};
+                (lecturasPreviasDB || []).forEach((l: any) => {
+                    if (lecturaPreviaMap[l.presa_id] === undefined && l.escala_msnm != null) {
+                        lecturaPreviaMap[l.presa_id] = Number(l.escala_msnm);
+                    }
                 });
 
                 // ─── JERARQUÍA DE FUENTES DE DATOS (gasto / extracción) ──────────────
@@ -281,13 +308,29 @@ export function usePresas(fecha: string) {
                         almacenamiento_mm3: lect?.almacenamiento_mm3 != null ? Number(lect.almacenamiento_mm3) : null,
                         porcentaje_llenado: lect?.porcentaje_llenado != null ? Number(lect.porcentaje_llenado) : null,
                         extraccion_total_m3s: extraccion,
-                        gasto_toma_baja_m3s: lect?.gasto_toma_baja_m3s != null ? Number(lect.gasto_toma_baja_m3s) : (p.id === 'PRE-001' && extraccion > 0 ? extraccion : null),
-                        gasto_cfe_m3s: lect?.gasto_cfe_m3s != null ? Number(lect.gasto_cfe_m3s) : null,
-                        gasto_toma_izq_m3s: lect?.gasto_toma_izq_m3s != null ? Number(lect.gasto_toma_izq_m3s) : null,
-                        gasto_toma_der_m3s: lect?.gasto_toma_der_m3s != null ? Number(lect.gasto_toma_der_m3s) : null,
+                        // Desglose por obra de toma — misma cascada que el total (Capa 1 → Capa 2),
+                        // más una regla legado SOLO para Boquilla cuando ninguna fuente trae desglose:
+                        // antes de que sica-capture reportara por obra, un movimiento traía un solo
+                        // número y se asumía completo en Toma Baja. Con desglose real en Capa 1 o 2,
+                        // esa regla ya no aplica y CFE deja de fantasmear en 0.00/CERRADA.
+                        gasto_toma_baja_m3s: lect?.gasto_toma_baja_m3s != null ? Number(lect.gasto_toma_baja_m3s)
+                            : latestMov?.gasto_toma_baja_m3s != null ? Number(latestMov.gasto_toma_baja_m3s)
+                            : (p.id === 'PRE-001' && extraccion > 0 && latestMov?.gasto_cfe_m3s == null ? extraccion : null),
+                        gasto_cfe_m3s: lect?.gasto_cfe_m3s != null ? Number(lect.gasto_cfe_m3s)
+                            : latestMov?.gasto_cfe_m3s != null ? Number(latestMov.gasto_cfe_m3s) : null,
+                        gasto_toma_izq_m3s: lect?.gasto_toma_izq_m3s != null ? Number(lect.gasto_toma_izq_m3s)
+                            : latestMov?.gasto_toma_izq_m3s != null ? Number(latestMov.gasto_toma_izq_m3s) : null,
+                        gasto_toma_der_m3s: lect?.gasto_toma_der_m3s != null ? Number(lect.gasto_toma_der_m3s)
+                            : latestMov?.gasto_toma_der_m3s != null ? Number(latestMov.gasto_toma_der_m3s) : null,
                         area_ha: Number(lect?.area_ha) || 0,
                         responsable: lect?.responsable || (latestMov ? 'Sistema (Movimiento)' : null),
                         notas: notas,
+                        // Variación real vs. la lectura de nivel anterior — reemplaza el
+                        // regex "Dif Elev: Xm" sobre notas (texto libre, frágil). null si
+                        // no hay elevación de hoy o no hay lectura previa con la que comparar.
+                        variacion_elevacion_m: (lect?.escala_msnm != null && lecturaPreviaMap[p.id] !== undefined)
+                            ? Number(lect.escala_msnm) - lecturaPreviaMap[p.id]
+                            : null,
                     } : null;
 
                     return {

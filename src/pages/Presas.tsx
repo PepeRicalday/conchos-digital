@@ -617,21 +617,28 @@ const Presas = () => {
     const amortiguamiento = currentDam.capacidad_max_mm3 - almacenamiento;
     const semColor = pctLlenado >= 60 ? '#10b981' : pctLlenado >= 30 ? '#f59e0b' : '#ef4444';
     // const semLabel = pctLlenado >= 60 ? 'ÓPTIMO'  : pctLlenado >= 30 ? 'ATENCIÓN' : 'ALERTA';
-    const difElev  = lect?.notas?.match(/Dif Elev: ([-\d.]+)m/)?.[1];
-    // const difVol   = lect?.notas?.match(/Dif Vol: ([-\d.]+)Mm3/)?.[1];
+    // Variación real día-a-día, calculada en usePresas.ts contra la lectura
+    // anterior — ya no depende de que alguien escriba "Dif Elev: Xm" en notas.
+    const difElev = lect?.variacion_elevacion_m != null ? lect.variacion_elevacion_m : null;
     const riskColor = pctLlenado >= 90 ? '#ef4444' : pctLlenado >= 70 ? '#f59e0b' : '#10b981';
     const riskLabel = pctLlenado >= 90 ? 'ALTO'   : pctLlenado >= 70 ? 'MEDIO'   : 'BAJO';
     // const volNAMO   = currentDam.capacidad_max_mm3;
     const movsActuales = movimientos.filter((m: MovimientoPresaData) => m.presa_id === currentDam.id);
 
     // ─── SCADA computed ──────────────────────────────────────────────────────
-    const sistemaEstado = pctLlenado >= 92 || pctLlenado < 12
+    // Sin lectura de nivel, pctLlenado cae a 0 por defecto (línea arriba) — eso
+    // NO puede evaluarse como "< 12%" o disparará un falso CRÍTICO. Mismo guard
+    // que ya protege el KPI de nivel (sinNivel) se extiende aquí.
+    const sistemaEstado: 'CRÍTICO' | 'PRECAUCIÓN' | 'NORMAL' | 'SIN DATO' = sinNivel
+        ? 'SIN DATO'
+        : pctLlenado >= 92 || pctLlenado < 12
         ? 'CRÍTICO' : pctLlenado >= 80 || pctLlenado < 22
         ? 'PRECAUCIÓN' : 'NORMAL';
-    const sistemaColor = sistemaEstado === 'CRÍTICO' ? '#ef4444'
+    const sistemaColor = sistemaEstado === 'SIN DATO' ? '#94a3b8'
+        : sistemaEstado === 'CRÍTICO' ? '#ef4444'
         : sistemaEstado === 'PRECAUCIÓN' ? '#f59e0b' : '#10b981';
 
-    const tendenciaNum = difElev ? Number(difElev) : 0;
+    const tendenciaNum = difElev ?? 0;
     const tendenciaDir = tendenciaNum > 0.005 ? '↑' : tendenciaNum < -0.005 ? '↓' : '→';
     const tendenciaColor = tendenciaNum > 0.005 ? '#10b981' : tendenciaNum < -0.005 ? '#ef4444' : '#94a3b8';
 

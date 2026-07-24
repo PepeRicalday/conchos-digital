@@ -48,6 +48,13 @@ export interface MovimientoPresaRow {
     fecha_hora: string;
     gasto_m3s: number;
     fuente_dato: string | null;
+    // Desglose por obra de toma — null en movimientos legacy (un solo total).
+    gasto_toma_baja_m3s?: number | null;
+    gasto_cfe_m3s?: number | null;
+    gasto_toma_izq_m3s?: number | null;
+    gasto_toma_der_m3s?: number | null;
+    // Posición de compuerta por obra (ej. {"tomaBaja": "1/10"}) — solo trazabilidad.
+    posiciones_compuerta?: Record<string, string> | null;
 }
 
 /** movimientos_presas joined with presas (nombre_corto) */

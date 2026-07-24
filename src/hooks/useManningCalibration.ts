@@ -16,6 +16,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { getTodayString, addDays } from '../utils/dateHelpers';
 
 const S0_FALLBACK = 0.00016; // pendiente media Canal Principal Conchos
 
@@ -105,9 +106,7 @@ export function useManningCalibration(diasAtras = 90): ManningCalibrationResult 
 
         async function run() {
             try {
-                const fechaDesde = new Date(Date.now() - diasAtras * 86400000)
-                    .toISOString()
-                    .split('T')[0];
+                const fechaDesde = addDays(getTodayString(), -diasAtras);
 
                 const [
                     { data: aforosDB, error: errAforos },

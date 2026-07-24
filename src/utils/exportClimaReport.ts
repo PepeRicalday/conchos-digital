@@ -16,6 +16,7 @@ import {
 import { guardaOComparte } from './descargaArchivo';
 import { calculaIndices, entradasDesdeEstaciones } from './indicesAgro';
 import type { FondoSatelital } from './mapaSatelital';
+import { getTodayString } from './dateHelpers';
 
 const SRL_MARRON = '#6B2D2D';
 const AZUL = '#1e5b8f';
@@ -1483,6 +1484,6 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
 export async function exportClimaReport(ests: EstacionConLectura[]): Promise<void> {
     const html = await buildHTML(ests);
     const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
-    const date = new Date().toISOString().slice(0, 10);
+    const date = getTodayString();
     await guardaOComparte(blob, `informe-clima-conchos-${date}.html`, 'text/html');
 }

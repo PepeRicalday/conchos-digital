@@ -20,15 +20,13 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useMetadataStore } from '../store/useMetadataStore';
 import type { Alert } from '../components/AlertList';
+import { getTodayString, addDays } from '../utils/dateHelpers';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function lastNDays(n: number): string[] {
-    return Array.from({ length: n }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - (n - 1 - i));
-        return d.toLocaleDateString('en-CA');
-    });
+    const hoy = getTodayString();
+    return Array.from({ length: n }, (_, i) => addDays(hoy, -(n - 1 - i)));
 }
 
 function median(values: number[]): number {

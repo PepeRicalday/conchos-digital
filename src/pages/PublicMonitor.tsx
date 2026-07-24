@@ -6,7 +6,7 @@ import { Timer, Activity, Clock, ArrowRightCircle, MapPin, Waves, X, AlertTriang
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PublicMonitor.css';
-import { formatDate } from '../utils/dateHelpers';
+import { formatDate, getTodayString, addDays } from '../utils/dateHelpers';
 import type { MovimientoPresaConNombreRow, RegistroAlertaRow } from '../types/sica.types';
 import { calcIEC, iecColor } from '../utils/canalIndex';
 import { calcRadialFlow, M1_FACTORS, getM1Factor } from '../utils/hydraulics';
@@ -574,8 +574,8 @@ const PublicMonitor: React.FC = () => {
     const [dockTab, setDockTab] = useState<'resumen' | 'canal' | 'alertas' | 'skill' | 'tendencias'>('resumen');
 
     // ── Pestaña TENDENCIAS: rango, granularidad y series históricas ──────────
-    const hoyISO = new Date().toISOString().slice(0, 10);
-    const hace7 = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+    const hoyISO = getTodayString();
+    const hace7 = addDays(hoyISO, -7);
     const [tndDesde, setTndDesde] = useState(hace7);
     const [tndHasta, setTndHasta] = useState(hoyISO);
     const [tndGran, setTndGran] = useState<'diaria' | 'lectura'>('diaria');
@@ -810,7 +810,7 @@ const PublicMonitor: React.FC = () => {
     // 2. Fetch Escalas & Wave Data (todos los fetches en paralelo)
     const fetchData = useCallback(async () => {
         try {
-            const todayDate  = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+            const todayDate  = getTodayString();
             const eventStart = activeEvent?.fecha_inicio || `${todayDate}T00:00:00`;
             const isLlenado  = activeEvent?.evento_tipo === 'LLENADO';
 
@@ -1677,7 +1677,7 @@ const PublicMonitor: React.FC = () => {
 
     useEffect(() => {
         if (!iecData) return;
-        const hoy = new Date().toLocaleDateString('en-CA');
+        const hoy = getTodayString();
         try {
             const hist: { fecha: string; iec: number; sem: string }[] =
                 JSON.parse(localStorage.getItem(IEC_LS_KEY) ?? '[]');

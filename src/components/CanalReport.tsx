@@ -8,6 +8,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Printer, X } from 'lucide-react';
 import type { IECBreakdown } from '../utils/canalIndex';
+import { getTodayString } from '../utils/dateHelpers';
 import './CanalReport.css';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
@@ -165,7 +166,7 @@ const CanalReport: React.FC<CanalReportProps> = ({
         // Ensamblar el documento completo — bodyHtml es concatenado, nunca interpolado en template literal
         const fullHtml = '<!DOCTYPE html><html lang="es"><head>'
             + '<meta charset="UTF-8">'
-            + '<title>SICA_Canal_' + new Date().toLocaleDateString('en-CA') + '</title>'
+            + '<title>SICA_Canal_' + getTodayString() + '</title>'
             + '<style>' + css + '</style>'
             + '<script>window.onload=function(){window.print()}<\/script>'
             + '</head><body>'

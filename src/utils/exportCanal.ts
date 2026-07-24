@@ -2,6 +2,7 @@
  * exportCanal.ts — Utilidades de exportación para Conchos Digital
  * CSV de telemetría de escalas, descarga directa en el navegador.
  */
+import { getTodayString } from './dateHelpers';
 
 export interface EscalaExportRow {
     id: string;
@@ -58,7 +59,7 @@ export function exportEscalasCSV(escalas: EscalaExportRow[], filename?: string):
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    const date = new Date().toLocaleDateString('en-CA');
+    const date = getTodayString();
     a.href     = url;
     a.download = filename ?? `conchos-telemetria-${date}.csv`;
     a.click();

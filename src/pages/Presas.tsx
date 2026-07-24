@@ -11,7 +11,7 @@ import { AreaChart, Area, Line, ComposedChart, ReferenceLine, Legend, XAxis, YAx
 import './Presas.css';
 import { useFecha } from '../context/FechaContext';
 import { usePresas, type PresaData, type PuntoCurva, type MovimientoPresaData } from '../hooks/usePresas';
-import { getTodayString } from '../utils/dateHelpers';
+import { getTodayString, addDays, getLocalDatetimeInput } from '../utils/dateHelpers';
 
 
 const FUENTE_COLOR: Record<string, string> = {
@@ -126,7 +126,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
     const [tipo, setTipo]           = useState<TipoMovimiento>('AJUSTE');
     const [responsable, setResp]    = useState('');
     const [notas, setNotas]         = useState('');
-    const [fechaHora, setFechaHora] = useState(new Date().toISOString().slice(0, 16));
+    const [fechaHora, setFechaHora] = useState(getLocalDatetimeInput());
     const [isSaving, setIsSaving]   = useState(false);
     const [validErr, setValidErr]   = useState<string | null>(null);
 
@@ -300,7 +300,7 @@ const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
     const [loadingHist, setLoadingHist] = useState(true);
 
     useEffect(() => {
-        const desde = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+        const desde = addDays(getTodayString(), -30);
         supabase
             .from('lecturas_presas')
             .select('fecha, escala_msnm, almacenamiento_mm3, porcentaje_llenado')

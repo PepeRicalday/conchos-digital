@@ -18,6 +18,7 @@ import { calculaIndices, entradasDesdeEstaciones } from './indicesAgro';
 import { mapaSVG, predice24h, assetToDataURI, extensionMapa } from './exportClimaReport';
 import { construyeFondoSatelital, type FondoSatelital } from './mapaSatelital';
 import { guardaOComparte } from './descargaArchivo';
+import { getTodayString } from './dateHelpers';
 
 /** Paleta institucional de la infografía (azul marino SICA + verdes de estado). */
 const T = {
@@ -830,7 +831,7 @@ export async function exportClimaInfografia(
     ests: EstacionConLectura[], historial: DiaHistorico[] = [],
 ): Promise<void> {
     const html = await construyeInfografiaHTML(ests, historial);
-    const nombreArchivo = `infografia-clima-conchos-${new Date().toISOString().slice(0, 10)}.html`;
+    const nombreArchivo = `infografia-clima-conchos-${getTodayString()}.html`;
     const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
     await guardaOComparte(blob, nombreArchivo, 'text/html');
 }
@@ -989,7 +990,7 @@ export async function imagenClimaInfografia(
         ctx.scale(escala, escala);
         ctx.drawImage(img, 0, 0, ancho, alto);
 
-        const nombreArchivo = `infografia-clima-conchos-${new Date().toISOString().slice(0, 10)}.png`;
+        const nombreArchivo = `infografia-clima-conchos-${getTodayString()}.png`;
 
         // Ver descargaArchivo.ts: en iOS/iPadOS el <a download> con data: URI se
         // abre en una pestaña sin forma visible de guardar ni volver, así que se

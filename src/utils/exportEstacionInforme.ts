@@ -17,6 +17,7 @@ import type { RangoAnalisis } from '../hooks/useEstacionDetalle';
 import { formateaEdad, PROCEDENCIA_LABEL } from './cielo';
 import { assetToDataURI } from './exportClimaReport';
 import { guardaOComparte } from './descargaArchivo';
+import { getTodayString } from './dateHelpers';
 
 const fechaCorta2 = (iso: string) => { const [, m, d] = iso.split('-'); return `${d}/${m}`; };
 const tituloVentana = (r: RangoAnalisis) => r.tipo === 'manual'
@@ -345,7 +346,7 @@ export async function exportEstacionInforme(
 ): Promise<void> {
     const html = await construyeHTML(estacion, detalle, rango);
     const slug = estacion.nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-');
-    const date = new Date().toISOString().slice(0, 10);
+    const date = getTodayString();
     const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
     await guardaOComparte(blob, `informe-${slug}-${date}.html`, 'text/html');
 }

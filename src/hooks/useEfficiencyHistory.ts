@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useMetadataStore } from '../store/useMetadataStore';
+import { getTodayString, addDays } from '../utils/dateHelpers';
 
 export type EstadoBalance = 'optimo' | 'atencion' | 'alerta' | 'critico' | 'sin_datos';
 
@@ -37,11 +38,8 @@ function clasificarEstado(eficiencia: number | null): EstadoBalance {
 
 // Genera array de los últimos N días en formato YYYY-MM-DD (local Chihuahua)
 function lastNDays(n: number): string[] {
-    return Array.from({ length: n }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - (n - 1 - i));
-        return d.toLocaleDateString('en-CA'); // YYYY-MM-DD
-    });
+    const hoy = getTodayString();
+    return Array.from({ length: n }, (_, i) => addDays(hoy, -(n - 1 - i)));
 }
 
 export function useEfficiencyHistory(days = 7): EfficiencyHistory {

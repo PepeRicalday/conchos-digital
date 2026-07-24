@@ -3,7 +3,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { AlertTriangle, CheckCircle, TrendingDown, TrendingUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { onTable } from '../lib/realtimeHub';
-import { formatTime } from '../utils/dateHelpers';
+import { formatTime, getTodayString, addDays, toDateString } from '../utils/dateHelpers';
 import { useAuth } from '../context/AuthContext';
 import type { RegistroAlertaRow } from '../types/sica.types';
 
@@ -141,14 +141,14 @@ const Alertas = () => {
     // Sparkline de alertas activas por día (últimos 15 días)
     const sparkData = useMemo(() => {
         const dias: Record<string, number> = {};
+        const hoy = getTodayString();
         for (let i = 14; i >= 0; i--) {
-            const d = new Date(); d.setDate(d.getDate() - i);
-            dias[d.toISOString().split('T')[0]] = 0;
+            dias[addDays(hoy, -i)] = 0;
         }
         alertasHistoricas
             .filter(a => a.tipo_riesgo === 'critical')
             .forEach(a => {
-                const k = a.fecha_deteccion.split('T')[0];
+                const k = toDateString(new Date(a.fecha_deteccion));
                 if (k in dias) dias[k]++;
             });
         return Object.entries(dias).map(([, val]) => ({ val }));

@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { getTodayString, addDays } from '../utils/dateHelpers';
 
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -82,9 +83,7 @@ export function useRatingCurve(diasAtras = 365): RatingCurveResult {
 
         async function run() {
             try {
-                const fechaDesde = new Date(Date.now() - diasAtras * 86400000)
-                    .toISOString()
-                    .split('T')[0];
+                const fechaDesde = addDays(getTodayString(), -diasAtras);
 
                 const [
                     { data: aforosDB, error: errAforos },

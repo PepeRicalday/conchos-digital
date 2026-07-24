@@ -5,6 +5,7 @@ import type {
 } from '../utils/tendencias';
 import { statsSerie } from '../utils/tendencias';
 import InformeTendencias from './InformeTendencias';
+import { getTodayString, addDays } from '../utils/dateHelpers';
 
 // Paleta categórica validada (dataviz): blue, aqua, yellow, green, violet, red, magenta, orange
 const PAL = ['#3987e5', '#199e70', '#c98500', '#2fb35a', '#9085e9', '#e66767', '#d55181', '#d95926',
@@ -677,19 +678,19 @@ const TendenciasPanel: React.FC<Props> = ({
   );
 
   const preset = (dias: number) => {
-    const hasta = new Date();
-    const desde = new Date(hasta.getTime() - dias * 864e5);
-    onRango(desde.toISOString().slice(0, 10), hasta.toISOString().slice(0, 10));
+    const hasta = getTodayString();
+    const desde = addDays(hasta, -dias);
+    onRango(desde, hasta);
   };
   // "Hoy": tendencia intradía — solo lecturas capturadas en la fecha de hoy.
   // Fuerza granularidad "Por lectura": "Diaria" colapsa el día a un único punto
   // (resumen_escalas_diario) y no puede mostrar variación dentro del mismo día.
   const presetHoy = () => {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = getTodayString();
     onRango(hoy, hoy);
     if (granularidad !== 'lectura') onGranularidad('lectura');
   };
-  const esHoy = rangoDesde === rangoHasta && rangoDesde === new Date().toISOString().slice(0, 10);
+  const esHoy = rangoDesde === rangoHasta && rangoDesde === getTodayString();
 
   // Informe de análisis (Bloque 1-4): usa las mismas escalas ya filtradas por
   // "Punto de control" (Todas/Solo control de Q/Ninguna) que se ven en pantalla,

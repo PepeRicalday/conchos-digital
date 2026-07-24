@@ -306,6 +306,10 @@ const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
             .select('fecha, escala_msnm, almacenamiento_mm3, porcentaje_llenado')
             .eq('presa_id', presaId)
             .gte('fecha', desde)
+            // Excluye días donde solo se capturó gasto sin nivel (nivel y gasto se
+            // reportan por separado). Sin este filtro, escala_msnm null → NaN
+            // rompía Math.min/max de abajo y el dominio del eje Y colapsaba a 0.
+            .not('escala_msnm', 'is', null)
             .order('fecha', { ascending: true })
             .then(({ data: rows }) => {
                 setHistData((rows ?? []).map(r => ({
@@ -474,14 +478,34 @@ const AnaliticaPredictivaPanel = ({ presa }: { presa: PresaData }) => {
 };
 
 // ─── MÓDULO 4: TRAZABILIDAD RED MAYOR (SANKEY) ──────────────────────────────
-const TrazabilidadRedMayorPanel = ({ extraccionTotal }: { extraccionTotal: number }) => {
+const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
+    extraccionTotal: number;
+    // Desglose real por obra de toma (sica-capture). Cuando está disponible,
+    // reemplaza la estimación fija 35%/65% — esa estimación no reflejaba que
+    // CFE y Toma Baja pueden operar en regímenes completamente distintos
+    // (ej. TB 3.0 m³/s + CFE 14.57 m³/s no es ni remotamente 35/65).
+    desglose?: { tomaBaja: number | null; cfe: number | null; tomaIzq: number | null; tomaDer: number | null };
+}) => {
     // Si no hay extracción, inyectar valores mínimos lógicos para no quebrar el UI (Sankey arroja error en valores negativos)
     const baseExtraccion = Math.max(extraccionTotal, 0.1);
-    const perdidas = baseExtraccion * 0.05;
-    const netoTomas = baseExtraccion - perdidas;
 
-    const cfe = netoTomas * 0.35;
-    const agricola = netoTomas * 0.65;
+    const tieneDesgloseReal = desglose != null && (
+        desglose.tomaBaja != null || desglose.cfe != null ||
+        desglose.tomaIzq != null || desglose.tomaDer != null
+    );
+
+    // Con desglose real: CFE y agua de riego (Toma Baja + Izq. + Der.) vienen
+    // directo de lo capturado, y las "pérdidas" son la diferencia contra el
+    // total (no una fracción fija) para que el diagrama balancee sin inventar
+    // un 5% que ya no aplica cuando las obras suman su propio total real.
+    // Sin desglose (presas donde aún no se reporta por obra): se conserva la
+    // estimación 5%/35%/65% como aproximación visual.
+    const cfe = tieneDesgloseReal ? (desglose!.cfe ?? 0) : baseExtraccion * 0.95 * 0.35;
+    const agricola = tieneDesgloseReal
+        ? (desglose!.tomaBaja ?? 0) + (desglose!.tomaIzq ?? 0) + (desglose!.tomaDer ?? 0)
+        : baseExtraccion * 0.95 * 0.65;
+    const netoTomas = tieneDesgloseReal ? cfe + agricola : baseExtraccion * 0.95;
+    const perdidas = Math.max(baseExtraccion - netoTomas, 0);
     const retornos = cfe * 0.95;
 
     const dataSankey = {
@@ -937,7 +961,15 @@ const Presas = () => {
             </div>
 
             {/* ── MÓDULO 4: FLUJOGRAMA SANKEY ───────────────────────────────── */}
-            <TrazabilidadRedMayorPanel extraccionTotal={extraccionTotal} />
+            <TrazabilidadRedMayorPanel
+                extraccionTotal={extraccionTotal}
+                desglose={{
+                    tomaBaja: lect?.gasto_toma_baja_m3s ?? null,
+                    cfe: lect?.gasto_cfe_m3s ?? null,
+                    tomaIzq: lect?.gasto_toma_izq_m3s ?? null,
+                    tomaDer: lect?.gasto_toma_der_m3s ?? null,
+                }}
+            />
 
             {/* ── ZONA 4+5: FOOTER ──────────────────────────────────────────── */}
             <div className="scada-sala-footer">

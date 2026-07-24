@@ -139,9 +139,12 @@ export function usePresas(fecha: string) {
                         .gte('fecha_hora', new Date(Date.now() - 7 * 86400000).toISOString())
                         .order('fecha_hora', { ascending: true })
                         .limit(500),
-                    // Lectura de nivel más reciente ANTERIOR a `fecha`, por presa — para
-                    // calcular la variación real en cm (reemplaza el regex sobre notas).
-                    supabase.from('lecturas_presas').select('presa_id, fecha, escala_msnm')
+                    // Lectura de nivel más reciente ANTERIOR a `fecha`, por presa. Sirve para
+                    // dos cosas: (1) calcular la variación real en cm (reemplaza el regex
+                    // sobre notas), y (2) arrastrar el último nivel conocido cuando la fila
+                    // de HOY existe (ej. porque ya se capturó el gasto) pero sin nivel — el
+                    // nivel se captura por separado y no siempre el mismo día que el gasto.
+                    supabase.from('lecturas_presas').select('presa_id, fecha, escala_msnm, almacenamiento_mm3, porcentaje_llenado')
                         .lt('fecha', fecha)
                         .not('escala_msnm', 'is', null)
                         .order('fecha', { ascending: false })
@@ -192,10 +195,14 @@ export function usePresas(fecha: string) {
 
                 // Index lectura previa (más reciente antes de `fecha`) por presa_id —
                 // ya viene ordenada desc, así que la primera que aparece por presa es la más reciente.
-                const lecturaPreviaMap: Record<string, number> = {};
+                const lecturaPreviaMap: Record<string, { escala_msnm: number; almacenamiento_mm3: number | null; porcentaje_llenado: number | null }> = {};
                 (lecturasPreviasDB || []).forEach((l: any) => {
                     if (lecturaPreviaMap[l.presa_id] === undefined && l.escala_msnm != null) {
-                        lecturaPreviaMap[l.presa_id] = Number(l.escala_msnm);
+                        lecturaPreviaMap[l.presa_id] = {
+                            escala_msnm: Number(l.escala_msnm),
+                            almacenamiento_mm3: l.almacenamiento_mm3 != null ? Number(l.almacenamiento_mm3) : null,
+                            porcentaje_llenado: l.porcentaje_llenado != null ? Number(l.porcentaje_llenado) : null,
+                        };
                     }
                 });
 
@@ -297,16 +304,25 @@ export function usePresas(fecha: string) {
 
                     console.debug(`[usePresas] ${p.nombre_corto ?? p.id} → fuente: ${dataSource} | extracción: ${extraccion} m³/s`);
 
+                    // Nivel y gasto se capturan por separado y no siempre el mismo día
+                    // (ej. hoy se reportó solo el movimiento de compuertas; el nivel del
+                    // embalse fue de ayer). Si la fila de `fecha` no trae elevación, se
+                    // arrastra la última conocida — igual que ya se hace con el gasto vía
+                    // movimientos_presas. Sin esto, un día con solo gasto capturado volvía
+                    // a mostrar "S/D" aunque el nivel real siguiera siendo el de ayer.
+                    const nivelPrevio = lecturaPreviaMap[p.id];
+                    const tieneNivelHoy = lect?.escala_msnm != null;
+
                     // Construimos el objeto lectura garantizando que el gasto aparezca aunque no haya reporte diario
                     // (Útil para fines de ciclo o días feriados donde no se captura escala pero sí hay gasto)
-                    const readingObject = (lect || latestMov) ? {
+                    const readingObject = (lect || latestMov || nivelPrevio) ? {
                         fecha: lect?.fecha || latestMov?.fecha_hora?.split('T')[0] || fecha,
-                        // "S/D nunca cero": se preserva null cuando la BD no trae el dato.
-                        // `Number(null) || 0` daba 0 y volvía indistinguible un embalse
-                        // vacío de uno sin lectura capturada.
-                        escala_msnm: lect?.escala_msnm != null ? Number(lect.escala_msnm) : null,
-                        almacenamiento_mm3: lect?.almacenamiento_mm3 != null ? Number(lect.almacenamiento_mm3) : null,
-                        porcentaje_llenado: lect?.porcentaje_llenado != null ? Number(lect.porcentaje_llenado) : null,
+                        // "S/D nunca cero": se preserva null cuando ni hoy ni una lectura
+                        // anterior traen el dato. `Number(null) || 0` daba 0 y volvía
+                        // indistinguible un embalse vacío de uno sin lectura capturada.
+                        escala_msnm: tieneNivelHoy ? Number(lect.escala_msnm) : (nivelPrevio?.escala_msnm ?? null),
+                        almacenamiento_mm3: tieneNivelHoy && lect?.almacenamiento_mm3 != null ? Number(lect.almacenamiento_mm3) : (nivelPrevio?.almacenamiento_mm3 ?? null),
+                        porcentaje_llenado: tieneNivelHoy && lect?.porcentaje_llenado != null ? Number(lect.porcentaje_llenado) : (nivelPrevio?.porcentaje_llenado ?? null),
                         extraccion_total_m3s: extraccion,
                         // Desglose por obra de toma — misma cascada que el total (Capa 1 → Capa 2),
                         // más una regla legado SOLO para Boquilla cuando ninguna fuente trae desglose:
@@ -327,9 +343,10 @@ export function usePresas(fecha: string) {
                         notas: notas,
                         // Variación real vs. la lectura de nivel anterior — reemplaza el
                         // regex "Dif Elev: Xm" sobre notas (texto libre, frágil). null si
-                        // no hay elevación de hoy o no hay lectura previa con la que comparar.
-                        variacion_elevacion_m: (lect?.escala_msnm != null && lecturaPreviaMap[p.id] !== undefined)
-                            ? Number(lect.escala_msnm) - lecturaPreviaMap[p.id]
+                        // no hay elevación de HOY (arrastrar el nivel de ayer no cuenta como
+                        // variación) o no hay lectura previa con la que comparar.
+                        variacion_elevacion_m: (tieneNivelHoy && nivelPrevio !== undefined)
+                            ? Number(lect.escala_msnm) - nivelPrevio.escala_msnm
                             : null,
                     } : null;
 

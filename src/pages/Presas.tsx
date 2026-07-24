@@ -508,23 +508,38 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
     const perdidas = Math.max(baseExtraccion - netoTomas, 0);
     const retornos = cfe * 0.95;
 
-    const dataSankey = {
-        nodes: [
-            { name: 'Vaso (Salida)' },        // 0
-            { name: 'Pérdida Infiltración' }, // 1
-            { name: 'Objeto de Toma' },       // 2
-            { name: 'Turbinado CFE' },        // 3
-            { name: 'Canal Principal' },      // 4
-            { name: 'Retornos Río' },         // 5
-        ],
-        links: [
-            { source: 0, target: 1, value: perdidas }, 
-            { source: 0, target: 2, value: netoTomas },
-            { source: 2, target: 3, value: cfe },
-            { source: 2, target: 4, value: agricola },
-            { source: 3, target: 5, value: retornos },
-        ]
-    };
+    // Recharts Sankey rompe el layout con un link de value:0 (ej. cuando el
+    // desglose real capturado ya suma el total exacto y no queda margen de
+    // "pérdida" que mostrar). Se construye la lista de nodos dinámicamente,
+    // incluyendo solo los que tienen un flujo real > 0, y se reindexan los
+    // links para no dejar huecos ni referencias a nodos omitidos.
+    const nodosBase = [
+        { name: 'Vaso (Salida)' },
+        { name: 'Pérdida Infiltración' },
+        { name: 'Objeto de Toma' },
+        { name: 'Turbinado CFE' },
+        { name: 'Canal Principal' },
+        { name: 'Retornos Río' },
+    ];
+    const linksBase = [
+        { source: 0, target: 1, value: perdidas },
+        { source: 0, target: 2, value: netoTomas },
+        { source: 2, target: 3, value: cfe },
+        { source: 2, target: 4, value: agricola },
+        { source: 3, target: 5, value: retornos },
+    ].filter(l => l.value > 0);
+
+    const indicesUsados = Array.from(new Set(linksBase.flatMap(l => [l.source, l.target])));
+    const mapaIndices: Record<number, number> = {};
+    indicesUsados.forEach((viejoIndex, nuevoIndex) => { mapaIndices[viejoIndex] = nuevoIndex; });
+    const nodes = indicesUsados.map(i => ({ name: nodosBase[i].name }));
+    const links = linksBase.map(l => ({
+        source: mapaIndices[l.source],
+        target: mapaIndices[l.target],
+        value: l.value,
+    }));
+
+    const dataSankey = { nodes, links };
 
     return (
         <div className="mt-4 mb-2 p-4 bg-[#0f172a] rounded-lg" style={{ border: '1px solid rgba(56, 189, 248, 0.15)' }}>
@@ -541,12 +556,22 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
                         nodePadding={30}
                         margin={{ left: 20, right: 20, top: 10, bottom: 10 }}
                         link={{ stroke: '#38bdf8', strokeOpacity: 0.15 }}
-                        node={({ x, y, width, height, index, payload }: any) => (
+                        node={({ x, y, width, height, payload }: any) => (
                             <g>
-                                <rect 
-                                    x={x} y={y} width={width} height={height} 
-                                    fill={index === 0 ? '#38bdf8' : index === 1 ? '#ef4444' : index === 3 ? '#a78bfa' : index === 5 ? '#94a3b8' : '#10b981'} 
-                                    fillOpacity="0.8" rx="2" 
+                                <rect
+                                    x={x} y={y} width={width} height={height}
+                                    // Color por NOMBRE, no por índice posicional: los nodos con
+                                    // flujo 0 (ej. "Pérdida Infiltración" cuando el desglose real
+                                    // ya suma el total exacto) se omiten del arreglo, así que un
+                                    // color fijo por índice apuntaría al nodo equivocado.
+                                    fill={
+                                        payload.name === 'Vaso (Salida)' ? '#38bdf8'
+                                        : payload.name === 'Pérdida Infiltración' ? '#ef4444'
+                                        : payload.name === 'Turbinado CFE' ? '#a78bfa'
+                                        : payload.name === 'Retornos Río' ? '#94a3b8'
+                                        : '#10b981'
+                                    }
+                                    fillOpacity="0.8" rx="2"
                                 />
                                 <text 
                                     x={x < 200 ? x + width + 8 : x - 8} 

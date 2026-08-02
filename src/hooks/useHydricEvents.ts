@@ -25,7 +25,6 @@ export const useHydricEvents = () => {
 
     const fetchActiveEvent = useCallback(async () => {
         try {
-            console.log('📡 [HydricEvents] Consultando evento activo...');
             const { data, error: fetchError } = await supabase
                 .from('sica_eventos_log')
                 .select('*')
@@ -35,15 +34,13 @@ export const useHydricEvents = () => {
                 .maybeSingle();
 
             if (fetchError) {
-                console.error('❌ [HydricEvents] Error en consulta:', fetchError);
                 throw fetchError;
             }
-            
-            console.log('📡 [HydricEvents] Resultado:', data ? `${data.evento_tipo} (ID: ${data.id})` : 'NULL - Sin evento activo');
+
             setActiveEvent(data);
             setError(null);
         } catch (err: any) {
-            console.error('❌ [HydricEvents] Error fatal en fetch:', err);
+            console.error('[HydricEvents] Error fatal en fetch:', err);
             setError(err.message);
         }
     }, []);
@@ -51,7 +48,6 @@ export const useHydricEvents = () => {
     const activateEvent = useCallback(async (tipo: HydraulicEvent, extras: Partial<SICAEventLog> = {}) => {
         setIsLoading(true);
         setError(null);
-        console.log(`🚀 [HydricEvents] Activando protocolo: ${tipo}`);
 
         try {
             // 1. Verificar autenticación
@@ -86,12 +82,11 @@ export const useHydricEvents = () => {
                 throw rpcError;
             }
 
-            console.log('✅ [HydricEvents] Protocolo activado atómicamente:', evento?.evento_tipo);
             setActiveEvent(evento);
             toast.success(`✅ Protocolo ${tipo} activado`);
 
         } catch (err: any) {
-            console.error('❌ [HydricEvents] Error en activación:', err.message);
+            console.error('[HydricEvents] Error en activación:', err.message);
             setError(err.message);
             toast.error(`❌ Error: ${err.message}`);
         } finally {
@@ -123,8 +118,7 @@ export const useHydricEvents = () => {
     useEffect(() => {
         fetchActiveEvent();
 
-        const unsub = onTable('sica_eventos_log', '*', (payload) => {
-            console.log('🔴 [Realtime] Cambio detectado:', payload);
+        const unsub = onTable('sica_eventos_log', '*', () => {
             fetchActiveEvent();
         });
 

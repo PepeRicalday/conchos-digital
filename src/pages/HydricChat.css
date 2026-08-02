@@ -652,6 +652,12 @@
     box-shadow: none;
 }
 
+.ih-cooldown-secs {
+    font-size: 0.7rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
 .ih-send-btn.sending {
     animation: ih-send-pulse 1s ease-in-out infinite;
 }

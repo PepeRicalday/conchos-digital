@@ -488,9 +488,31 @@ const GeoMonitor = () => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         setTimeout(() => setMapReady(true), 100);
         fetchAllData();
-        // Auto-refresh cada 60 segundos
-        const refreshInterval = setInterval(fetchAllData, 60000);
-        return () => { clearInterval(timer); clearInterval(refreshInterval); };
+
+        // Realtime: refresca al instante cuando llegan nuevas lecturas.
+        // resumen_escalas_diario y reportes_diarios son VISTAS (no suscribibles
+        // directo en Supabase Realtime) — quedan cubiertas indirectamente porque
+        // se derivan de lecturas_escalas y reportes_operacion, ambas escuchadas aquí.
+        const unsubEscalas = onTable('lecturas_escalas', '*', fetchAllData);
+        const unsubPresas = onTable('lecturas_presas', '*', fetchAllData);
+        const unsubAforos = onTable('aforos', '*', fetchAllData);
+        const unsubReportes = onTable('reportes_operacion', '*', fetchAllData);
+        const unsubModulos = onTable('modulos', '*', fetchAllData);
+
+        // Fallback polling cada 5 min (cubre reconexiones, gaps de Realtime y las
+        // dos vistas — vw_alertas_tomas_varadas y resumen_escalas_diario/reportes_diarios
+        // cuando cambian por causas que sus tablas base no reflejan de inmediato).
+        const refreshInterval = setInterval(fetchAllData, 300_000);
+
+        return () => {
+            clearInterval(timer);
+            clearInterval(refreshInterval);
+            unsubEscalas();
+            unsubPresas();
+            unsubAforos();
+            unsubReportes();
+            unsubModulos();
+        };
     }, [fetchAllData]);
 
     // Fullscreen Toggle (Prioridad 4)

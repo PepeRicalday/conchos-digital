@@ -8,21 +8,20 @@ import {
 } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 import { supabase } from '../lib/supabase';
-import { onTable } from '../lib/realtimeHub';
-import { getTodayString, addDays, formatTime, formatDate } from '../utils/dateHelpers';
+import { formatDate } from '../utils/dateHelpers';
 import SimulationReport from '../components/SimulationReport';
 import { calcIEC, iecColor } from '../utils/canalIndex';
+import { useModelingTelemetry } from '../hooks/useModelingTelemetry';
+import {
+  MANNING_N, PLANTILLA, TALUD_Z, FREEBOARD, CD_GATE, S0_CANAL, safeFloat,
+  type ControlPoint, type CPTelemetry, type DeliveryData, type DataStatus,
+  type BalanceTramo, type TramoGeom,
+} from '../utils/modelingTypes';
 import './ModelingDashboard.css';
 
 // ── CONSTANTES HIDRÁULICAS ──────────────────────────────────────────────
 const G         = 9.81;
-const MANNING_N = 0.015;
-const PLANTILLA = 20;       // m — plantilla Canal Principal Conchos
-const TALUD_Z   = 1.5;
-const FREEBOARD = 3.2;      // m — bordo libre operativo
-const CD_GATE   = 0.70;
 const RIVER_KM  = 36;
-const S0_CANAL  = 0.00016;
 // LÍMITES OPERATIVOS DE ESCALA (nivel del agua en metros)
 // Cada sección del canal puede tener límites diferentes según su función.
 // K-0 a K-80: [2.80, 3.50] — tomas laterales necesitan carga mínima de 2.80m para servicio.
@@ -32,25 +31,9 @@ function getOpLimits(km: number): { yMin: number; yMax: number } {
   return { yMin: 2.80, yMax: 3.50 };                  // Red general
 }
 
-const DEFAULT_CPS = [
-  { id: 'k0',   nombre: 'K-0  Inicio Canal',  km: 0,   pzas_radiales: 4, ancho: 12 },
-  { id: 'k23',  nombre: 'K-23 Derivadora',    km: 23,  pzas_radiales: 3, ancho: 10 },
-  { id: 'k34',  nombre: 'K-34 Compuerta',     km: 34,  pzas_radiales: 3, ancho: 10 },
-  { id: 'k57',  nombre: 'K-57 Sección S3',    km: 57,  pzas_radiales: 2, ancho: 8  },
-  { id: 'k80',  nombre: 'K-80 Sección S4',    km: 80,  pzas_radiales: 2, ancho: 8  },
-  { id: 'k104', nombre: 'K-104 Final Canal',  km: 104, pzas_radiales: 1, ancho: 6  },
-];
-
 type EventType   = 'INCREMENTO' | 'DECREMENTO' | 'CORTE' | 'LLENADO';
 type CPStatus    = 'ESTABLE' | 'ALERTA' | 'CRITICO';
 type RemansoType = 'M1' | 'M2' | 'NORMAL';
-
-interface ControlPoint {
-  id: string; nombre: string; km: number;
-  pzas_radiales: number; ancho: number;
-  coeficiente_descarga?: number;  // Cd real por escala (de tabla escalas)
-  nivel_max_op?: number;           // Nivel máximo operativo
-}
 
 interface CPResult {
   id: string; nombre: string; km: number;
@@ -90,79 +73,11 @@ interface CPResult {
   evaluacion_nivel: EvaluacionNivelTramo | null;
 }
 
-// Datos de telemetría base por punto de control (de SICA Capture)
-interface CPTelemetry {
-  delta_12h:    number;
-  lectura_am:   number | null;
-  lectura_pm:   number | null;
-  hora_am:      string | null;
-  hora_pm:      string | null;
-  gasto_medido: number | null;
-  apertura_real: number | null;   // apertura_radiales_m de lecturas_escalas
-}
-
-// Punto de entrega activo con volumen del día (de reportes_diarios + puntos_entrega)
-interface DeliveryData {
-  punto_id:      string;
-  nombre:        string;
-  km:            number;   // posición en el canal
-  tipo:          string;   // 'toma' | 'lateral' | 'carcamo'
-  caudal_m3s:    number;   // caudal promedio extraído hoy (m³/s)
-  volumen_mm3:   number;   // volumen acumulado hoy (Mm³)
-  hora_apertura: string | null;
-  estado:        string;
-  modulo_nombre: string | null;
-  is_active:     boolean;  // apertura activa en este momento (sin hora_cierre)
-}
-
-// Estado de fuente de datos
-interface DataStatus {
-  dam:              boolean;  // true = movimientos_presas / lecturas_presas en vivo
-  gates:            boolean;  // true = apertura_radiales_m de SICA Capture
-  levels:           boolean;  // true = lecturas AM o lecturas_escalas de hoy
-  deliveries:       boolean;  // true = reportes_diarios del día disponibles
-  timestamp:        string;
-  damBaseValue:     number;   // Q del PRIMER movimiento del día (referencia hidráulica)
-  damCurrentValue:  number;   // Q del ÚLTIMO movimiento del día (estado actual)
-  damNivel:         string;   // escala msnm de la presa (o hora del primer movimiento)
-  damFuente:        string;   // 'movimientos_presas' | 'lecturas_presas' | 'estimado'
-  totalExtractionM3s: number; // suma total de caudales activos en puntos de entrega hoy
-  qRealK0?:      number;  // gasto real medido en K-0+000 (SICA Capture)
-  perfilFuente?: string;  // fuente_q_entrada del perfil hidráulico RPC
-  perfilQ?:      number;  // q_m3s en K-0 del perfil hidráulico RPC
-}
-
-// Balance hídrico por tramo (fn_balance_hidrico_tramos)
-interface BalanceTramo {
-  km_inicio:           number;
-  km_fin:              number;
-  escala_entrada:      string;
-  escala_salida:       string;
-  q_entrada_m3s:       number;
-  q_salida_m3s:        number;
-  q_tomas_registradas: number;
-  q_fuga_detectada:    number;
-  estado_balance:      'FUGA_ALTA' | 'FUGA_MEDIA' | 'INCONSISTENCIA' | 'BALANCEADO';
-}
-
 // Campos sobreescribibles en el panel de condicionantes (sesión-only, no persisten en BD)
 type RestriccionOverrideMap = Partial<Pick<
   RestriccionNivelTramo,
   'nivel_max_permitido_m' | 'nivel_min_deseable_m' | 'tipo_limite_max' | 'tolerancia_transitoria_m'
 >>;
-
-// ── GEOMETRÍA POR TRAMO ──────────────────────────────────────────────────
-interface TramoGeom {
-  km_inicio:           number;
-  km_fin:              number;
-  plantilla_m:         number;
-  talud_z:             number;
-  rugosidad_n:         number;
-  pendiente_s0:        number;
-  tirante_diseno_m:    number;
-  capacidad_diseno_m3s: number;
-  bordo_libre_m:       number;
-}
 
 // ── RESTRICCIONES DE NIVEL POR TRAMO ─────────────────────────────────────
 type TipoLimite       = 'duro' | 'blando';
@@ -434,13 +349,6 @@ function waveCelerity(y: number, b = PLANTILLA, z = TALUD_Z): number {
 function fmtTime(baseMin: number, addMin: number): string {
   const t = (baseMin + addMin) % 1440;
   return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
-}
-
-// Convierte cualquier valor a número seguro. Si es null/undefined/"NaN"/Infinity
-// devuelve el fallback para que nunca llegue un NaN al motor hidráulico ni a la UI.
-function safeFloat(val: unknown, fallback = 0): number {
-  const n = typeof val === 'number' ? val : parseFloat(String(val ?? ''));
-  return Number.isFinite(n) ? n : fallback;
 }
 
 function transitLabel(min: number): string {
@@ -1271,31 +1179,9 @@ function runSimulation(
 
 // ── COMPONENTE PRINCIPAL ────────────────────────────────────────────────
 const ModelingDashboard: React.FC = () => {
-  const [controlPoints, setControlPoints] = useState<ControlPoint[]>([]);
-  const [baseReadings,  setBaseReadings]  = useState<Record<string, number>>({});
   const [gateOverrides, setGateOverrides] = useState<Record<string, number>>({});
   // Aperturas REALES de SICA Capture (lectura original, no modificada)
   const [gateBase,      setGateBase]      = useState<Record<string, number>>({});
-  // Telemetría por punto: tendencia, AM/PM, gasto medido, apertura real
-  const [cpTelemetry,   setCpTelemetry]   = useState<Record<string, CPTelemetry>>({});
-  // Puntos de entrega activos con volúmenes del día (reportes_diarios)
-  const [deliveryPoints, setDeliveryPoints] = useState<DeliveryData[]>([]);
-  // Estado de fuente de datos (live vs defaults)
-  const [dataStatus,    setDataStatus]    = useState<DataStatus>({
-    dam: false, gates: false, levels: false, deliveries: false,
-    timestamp: '',
-    damBaseValue: 0, damCurrentValue: 0,
-    damNivel: '—', damFuente: 'estimado',
-    totalExtractionM3s: 0,
-  });
-  // false hasta que fetchData complete al menos una carga exitosa
-  const [dataLoaded,   setDataLoaded]   = useState(false);
-  // Geometría real por tramo (perfil_hidraulico_canal)
-  const [tramoGeom,    setTramoGeom]    = useState<TramoGeom[]>([]);
-  // Perfil hidráulico real del RPC (fn_perfil_canal_completo) para línea ámbar
-  const [perfilRpc,    setPerfilRpc]    = useState<any[]>([]);
-  // Balance hídrico por tramo (fn_balance_hidrico_tramos)
-  const [balanceTramos, setBalanceTramos] = useState<BalanceTramo[]>([]);
 
   // ── RESTRICCIONES DE NIVEL: overrides temporales por simulación ─────────
   const [restriccionOverrides, setRestriccionOverrides] = useState<Record<string, RestriccionOverrideMap>>({});
@@ -1320,491 +1206,16 @@ const ModelingDashboard: React.FC = () => {
   const [simpleMode,  setSimpleMode] = useState(true);
 
   // ── FETCH — Telemetría real: primer mov. del día como base hidráulica ──
-  useEffect(() => {
-    const fetchData = async () => {
-      // 1. Puntos de control con Cd real por estructura
-      const { data: cpData } = await supabase
-        .from('escalas')
-        .select('id, nombre, km, pzas_radiales, ancho, coeficiente_descarga, nivel_max_operativo')
-        .gt('pzas_radiales', 0)
-        .order('km', { ascending: true });
-
-      // P2-9: addDays usa noon-UTC — correcto en cambio de horario (86400000ms no cubre DST)
-      const today    = getTodayString();
-      const tomorrow = addDays(today, 1);
-
-      // 2. Todas las fuentes en paralelo — 9 queries simultáneas
-      const [
-        { data: summary },
-        { data: rawAM },        // turno AM de hoy = estado base del canal
-        { data: rawLatest },    // lecturas más recientes = estado actual
-        { data: firstMovPresa },// PRIMER movimiento de presa del día → qBase
-        { data: lastMovPresa }, // ÚLTIMO movimiento de presa del día → qDam inicial
-        { data: lecturaHoy },   // lecturas_presas hoy (respaldo)
-        { data: rawReportes },  // reportes_diarios hoy → volúmenes puntos de entrega
-        { data: rawPuntos },    // puntos_entrega → km de cada toma/lateral
-        { data: rawPerfil },    // perfil_hidraulico_canal → geometría real por tramo
-        { data: rawPerfilRpc }, // fn_perfil_canal_completo → perfil hidráulico real
-        { data: rawBalance },   // fn_balance_hidrico_tramos → fugas detectadas por tramo
-      ] = await Promise.all([
-        // Resumen diario con AM/PM y delta 12h
-        supabase.from('resumen_escalas_diario')
-          .select('escala_id, nivel_actual, gasto_calculado_m3s, delta_12h, lectura_am, lectura_pm, hora_am, hora_pm')
-          .eq('fecha', today),
-
-        // Lecturas AM de hoy: nivel base que corresponde al Q inicial
-        supabase.from('lecturas_escalas')
-          .select('escala_id, nivel_m, apertura_radiales_m, gasto_calculado_m3s')
-          .eq('fecha', today)
-          .eq('turno', 'am')
-          .order('hora_lectura', { ascending: true })
-          .limit(50),
-
-        // Lecturas más recientes (cualquier día) para estado actual de aperturas
-        supabase.from('lecturas_escalas')
-          .select('escala_id, nivel_m, apertura_radiales_m, gasto_calculado_m3s')
-          .order('fecha', { ascending: false })
-          .order('hora_lectura', { ascending: false })
-          .limit(100),
-
-        // PRIMER movimiento de presa hoy = Q0 base de la simulación
-        supabase.from('movimientos_presas')
-          .select('gasto_m3s, fecha_hora, fuente_dato')
-          .gte('fecha_hora', `${today}T00:00:00`)
-          .lt('fecha_hora',  `${tomorrow}T00:00:00`)
-          .order('fecha_hora', { ascending: true })
-          .limit(1)
-          .maybeSingle(),
-
-        // ÚLTIMO movimiento de presa (estado actual real, puede ser de días anteriores)
-        supabase.from('movimientos_presas')
-          .select('gasto_m3s, fecha_hora, fuente_dato')
-          .order('fecha_hora', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-
-        // lecturas_presas de hoy (respaldo si no hay movimientos)
-        supabase.from('lecturas_presas')
-          .select('extraccion_total_m3s, escala_msnm, fecha')
-          .eq('fecha', today)
-          .maybeSingle(),
-
-        // Reportes diarios de hoy — caudal y volumen entregado por punto de entrega
-        // Solo registros del día actual para escenario más actualizado
-        supabase.from('reportes_diarios')
-          .select('punto_id, punto_nombre, caudal_promedio_m3s, volumen_total_mm3, hora_apertura, hora_cierre, estado, modulo_nombre')
-          .eq('fecha', today),
-
-        // Posición km de cada punto de entrega (necesaria para ubicarlos en el canal)
-        supabase.from('puntos_entrega')
-          .select('id, nombre, km, tipo')
-          .not('km', 'is', null)
-          .order('km', { ascending: true })
-          .limit(300),
-
-        // Geometría hidráulica real por tramo — Fase 1: reemplaza constantes globales
-        supabase.from('perfil_hidraulico_canal')
-          .select('km_inicio, km_fin, plantilla_m, talud_z, rugosidad_n, pendiente_s0, tirante_diseno_m, capacidad_diseno_m3s, bordo_libre_m')
-          .order('km_inicio', { ascending: true }),
-
-        // Perfil hidráulico real del canal (cascada Q + GVF SQL)
-        supabase.rpc('fn_perfil_canal_completo', { p_fecha: today }),
-
-        // Balance hídrico por tramo — fugas detectadas
-        supabase.rpc('fn_balance_hidrico_tramos', { p_fecha: today }),
-      ]);
-
-      // 3. Construir lista de puntos de control — safeFloat en todos los campos numéricos
-      // para blindar NaN cuando Supabase devuelve null en columnas numéricas (null*n = 0, undefined*n = NaN)
-      const cps: ControlPoint[] = (cpData && cpData.length > 0)
-        ? cpData
-            .map(c => ({
-              id: c.id,
-              nombre: c.nombre || `K-${c.km}`,
-              km: safeFloat(c.km, NaN),
-              pzas_radiales: Math.max(1, safeFloat(c.pzas_radiales, 1)),
-              ancho: Math.max(1, safeFloat(c.ancho, 8)),
-              coeficiente_descarga: c.coeficiente_descarga != null
-                ? safeFloat(c.coeficiente_descarga, CD_GATE) : undefined,
-              nivel_max_op: c.nivel_max_operativo != null
-                ? safeFloat(c.nivel_max_operativo, FREEBOARD) : undefined,
-            }))
-            .filter(c => Number.isFinite(c.km))  // elimina registros sin KM válido
-        : [...DEFAULT_CPS];
-
-      if (!cps.some(p => p.km >= 100)) {
-        cps.push({ id: 'k104', nombre: 'K-104 Final Canal', km: 104, pzas_radiales: 1, ancho: 6 });
-      }
-      setControlPoints(cps);
-      setActiveCP(cps[0]?.id ?? '');
-
-      // 4. y_base = lecturas más actuales de SICA Capture
-      // Prioridad: rawLatest (registro más reciente de hoy/ayer) > lectura_pm (resumen) > lectura_am > rawAM
-      // Se filtra v > 0.05 para evitar que lecturas 0 o nulas contaminen la base hidráulica
-      const lvlMap = new Map<string, number>();
-      // 1º rawLatest — el registro más reciente disponible (lectura actual del canal)
-      rawLatest?.forEach(r => {
-        const v = safeFloat(r.nivel_m, NaN);
-        if (Number.isFinite(v) && v > 0.05) lvlMap.set(r.escala_id, v);
-      });
-      // 2º lectura_pm del resumen (lectura de tarde, si rawLatest no tiene dato)
-      summary?.forEach(r => {
-        if (!lvlMap.has(r.escala_id)) {
-          const v = safeFloat(r.lectura_pm, NaN);
-          if (Number.isFinite(v) && v > 0.05) lvlMap.set(r.escala_id, v);
-        }
-      });
-      // 3º lectura_am del resumen
-      summary?.forEach(r => {
-        if (!lvlMap.has(r.escala_id)) {
-          const v = safeFloat(r.lectura_am, NaN);
-          if (Number.isFinite(v) && v > 0.05) lvlMap.set(r.escala_id, v);
-        }
-      });
-      // 4º rawAM como último respaldo
-      rawAM?.forEach(r => {
-        if (!lvlMap.has(r.escala_id)) {
-          const v = safeFloat(r.nivel_m, NaN);
-          if (Number.isFinite(v) && v > 0.05) lvlMap.set(r.escala_id, v);
-        }
-      });
-      const rm: Record<string, number> = {};
-      cps.forEach(cp => { if (lvlMap.has(cp.id)) rm[cp.id] = lvlMap.get(cp.id)!; });
-
-      // Overlay: RPC nivel_real_m es más preciso que lecturas_escalas raw
-      // (usa nivel_abajo_m en K0+000, aplica la misma lógica que el perfil SQL)
-      let rpcQ: number | null = null;
-      let rpcFuente: string | null = null;
-      if (rawPerfilRpc && rawPerfilRpc.length > 0) {
-        const firstRow = rawPerfilRpc[0] as any;
-        const fq = safeFloat(firstRow?.q_m3s, 0);
-        if (fq > 0) rpcQ = fq;
-        rpcFuente = firstRow?.fuente_q_entrada ?? null;
-        (rawPerfilRpc as any[]).forEach(row => {
-          const rpcKm   = safeFloat(row.km_ref, NaN);
-          const rpcNivel = safeFloat(row.nivel_real_m, NaN);
-          if (!Number.isFinite(rpcKm) || !Number.isFinite(rpcNivel) || rpcNivel <= 0.05) return;
-          const cp = cps.find(c => Math.abs(c.km - rpcKm) < 2.0);
-          if (cp) rm[cp.id] = rpcNivel;
-        });
-      }
-
-      setBaseReadings(rm);
-      setPerfilRpc(rawPerfilRpc ?? []);
-      setBalanceTramos(
-        ((rawBalance ?? []) as any[]).map(r => ({
-          km_inicio:           safeFloat(r.km_inicio, 0),
-          km_fin:              safeFloat(r.km_fin, 0),
-          escala_entrada:      r.escala_entrada ?? '',
-          escala_salida:       r.escala_salida  ?? '',
-          q_entrada_m3s:       safeFloat(r.q_entrada_m3s, 0),
-          q_salida_m3s:        safeFloat(r.q_salida_m3s, 0),
-          q_tomas_registradas: safeFloat(r.q_tomas_registradas, 0),
-          q_fuga_detectada:    safeFloat(r.q_fuga_detectada, 0),
-          estado_balance:      r.estado_balance ?? 'BALANCEADO',
-        }))
-      );
-      const hasLevels = Object.keys(rm).length > 0;
-
-      // 5. Aperturas — safeFloat en todos los parseos
-      const gateMapAM = new Map<string, number>();
-      rawAM?.forEach(r => {
-        if (!gateMapAM.has(r.escala_id)) {
-          const v = safeFloat(r.apertura_radiales_m, 0);
-          if (v > 0) gateMapAM.set(r.escala_id, v);
-        }
-      });
-      const gateMapCurrent = new Map<string, number>();
-      rawLatest?.forEach(r => {
-        if (!gateMapCurrent.has(r.escala_id)) {
-          const v = safeFloat(r.apertura_radiales_m, 0);
-          if (v > 0) gateMapCurrent.set(r.escala_id, v);
-        }
-      });
-      cps.forEach(cp => {
-        if (!gateMapAM.has(cp.id) && gateMapCurrent.has(cp.id)) {
-          gateMapAM.set(cp.id, gateMapCurrent.get(cp.id)!);
-        }
-      });
-      const gb: Record<string, number> = {};
-      const go: Record<string, number> = {};
-      cps.forEach(cp => {
-        if (gateMapAM.has(cp.id))      gb[cp.id] = gateMapAM.get(cp.id)!;
-        if (gateMapCurrent.has(cp.id)) go[cp.id] = gateMapCurrent.get(cp.id)!;
-        else if (gateMapAM.has(cp.id)) go[cp.id] = gateMapAM.get(cp.id)!;
-      });
-      setGateBase(gb);
-      setGateOverrides(go);
-      const hasGates = Object.keys(go).length > 0;
-
-      // 6. Telemetría — safeFloat en todos los campos numéricos
-      const gastoMedidoMap = new Map<string, number>();
-      rawLatest?.forEach(r => {
-        if (!gastoMedidoMap.has(r.escala_id)) {
-          const v = safeFloat(r.gasto_calculado_m3s, NaN);
-          if (Number.isFinite(v)) gastoMedidoMap.set(r.escala_id, v);
-        }
-      });
-      const telMap: Record<string, CPTelemetry> = {};
-      cps.forEach(cp => {
-        const s = summary?.find(r => r.escala_id === cp.id);
-        const amV  = safeFloat(s?.lectura_am,  NaN);
-        const pmV  = safeFloat(s?.lectura_pm,  NaN);
-        const dV   = safeFloat(s?.delta_12h,   0);
-        telMap[cp.id] = {
-          delta_12h:    Number.isFinite(dV) ? dV : 0,
-          lectura_am:   Number.isFinite(amV) ? amV : null,
-          lectura_pm:   Number.isFinite(pmV) ? pmV : null,
-          hora_am:      s?.hora_am ?? null,
-          hora_pm:      s?.hora_pm ?? null,
-          gasto_medido: gastoMedidoMap.get(cp.id) ?? null,
-          apertura_real: gateMapCurrent.get(cp.id) ?? gateMapAM.get(cp.id) ?? null,
-        };
-      });
-      setCpTelemetry(telMap);
-
-      // 7. ── PUNTOS DE ENTREGA — volúmenes del día más actuales ────────
-      // Fuente: reportes_diarios (VIEW) filtrado por hoy + km de puntos_entrega
-      // Estados activos: inicio / continua / reabierto / modificacion (sin hora_cierre = sigue abierto)
-      const ACTIVE_STATES = new Set(['inicio', 'continua', 'reabierto', 'modificacion']);
-      const kmMap = new Map<string, number>();
-      const tipoMap = new Map<string, string>();
-      rawPuntos?.forEach(p => {
-        const km = safeFloat(p.km, NaN);
-        if (Number.isFinite(km)) {
-          kmMap.set(p.id, km);
-          if (p.tipo) tipoMap.set(p.id, p.tipo);
-        }
-      });
-
-      const deliveries: DeliveryData[] = (rawReportes ?? [])
-        .map(r => {
-          const km = kmMap.get(r.punto_id ?? '') ?? NaN;
-          const caudal = safeFloat(r.caudal_promedio_m3s, 0);
-          const volumen = safeFloat(r.volumen_total_mm3, 0);
-          const isActive = ACTIVE_STATES.has(r.estado ?? '') && !r.hora_cierre && caudal > 0;
-          return {
-            punto_id:      r.punto_id ?? '',
-            nombre:        r.punto_nombre ?? r.punto_id ?? 'Toma s/n',
-            km,
-            tipo:          tipoMap.get(r.punto_id ?? '') ?? 'toma',
-            caudal_m3s:    caudal,
-            volumen_mm3:   volumen,
-            hora_apertura: r.hora_apertura ?? null,
-            estado:        r.estado ?? 'desconocido',
-            modulo_nombre: r.modulo_nombre ?? null,
-            is_active:     isActive,
-          };
-        })
-        .filter(d => Number.isFinite(d.km))   // descartar tomas sin posición km
-        .sort((a, b) => a.km - b.km);          // ordenar por km ascendente
-
-      setDeliveryPoints(deliveries);
-      const hasDeliveries = deliveries.length > 0;
-
-      // 9. ── GEOMETRÍA POR TRAMO — perfil_hidraulico_canal ─────────────
-      const tramos: TramoGeom[] = (rawPerfil ?? []).map(t => ({
-        km_inicio:            safeFloat(t.km_inicio, 0),
-        km_fin:               safeFloat(t.km_fin, 999),
-        plantilla_m:          safeFloat(t.plantilla_m, PLANTILLA),
-        talud_z:              safeFloat(t.talud_z, TALUD_Z),
-        rugosidad_n:          safeFloat(t.rugosidad_n, MANNING_N),
-        pendiente_s0:         safeFloat(t.pendiente_s0, S0_CANAL),
-        tirante_diseno_m:     safeFloat(t.tirante_diseno_m, 2.5),
-        capacidad_diseno_m3s: safeFloat(t.capacidad_diseno_m3s, 62),
-        bordo_libre_m:        safeFloat(t.bordo_libre_m, FREEBOARD),
-      }));
-      setTramoGeom(tramos);
-      const totalExtractionM3s = deliveries
-        .filter(d => d.is_active)
-        .reduce((s, d) => s + d.caudal_m3s, 0);
-
-      // 8. ── GASTO PRESA — safeFloat + validación isFinite ─────────────
-      const ts = formatTime(new Date());
-      let qBaseVal = 62.4, qDamVal = 62.4;
-      let damNivel = '—', damFuente = 'estimado';
-      let damLive  = false;
-
-      if (lastMovPresa?.gasto_m3s != null) {
-        // La simulación utiliza el ÚLTIMO movimiento de presa como "Base"
-        const base = safeFloat(lastMovPresa.gasto_m3s, 0);
-        if (base > 0) {
-          qBaseVal  = base;
-          qDamVal   = base; // Ambos inician iguales (Delta 0 hasta que el usuario mueva el slider)
-          damFuente = 'movimientos_presas';
-          damLive   = true;
-          damNivel  = lastMovPresa.fecha_hora
-            ? formatTime(lastMovPresa.fecha_hora)
-            : '—';
-          // T₀ = hora del ÚLTIMO movimiento de presa
-          if (lastMovPresa.fecha_hora) {
-            const movDate = new Date(lastMovPresa.fecha_hora);
-            if (!isNaN(movDate.getTime())) {
-              setSimBaseMin(movDate.getHours() * 60 + movDate.getMinutes());
-            }
-          }
-          // El tipo de evento se mantendrá en reposo hasta que el slider se mueva
-        }
-      } else if (firstMovPresa?.gasto_m3s != null) {
-        // Fallback si por alguna razón falla lastMovPresa pero hay firstMovPresa
-        const base = safeFloat(firstMovPresa.gasto_m3s, 0);
-        if (base > 0) {
-          qBaseVal  = base;
-          qDamVal   = base;
-          damFuente = 'movimientos_presas';
-          damLive   = true;
-        }
-      }
-      if (!damLive && lecturaHoy?.extraccion_total_m3s != null) {
-        const ext = safeFloat(lecturaHoy.extraccion_total_m3s, 0);
-        if (ext > 0) {
-          qBaseVal  = ext;
-          qDamVal   = ext;
-          damFuente = 'lecturas_presas';
-          damLive   = true;
-          const nivelNum = safeFloat(lecturaHoy.escala_msnm, NaN);
-          damNivel = Number.isFinite(nivelNum) ? nivelNum.toFixed(2) : '—';
-        }
-      }
-      // Tier 3: perfil hidráulico RPC — Q ya calculado con cascada completa (aforo → compuerta → presa)
-      if (!damLive && rpcQ && rpcQ > 0) {
-        qBaseVal  = rpcQ;
-        qDamVal   = rpcQ;
-        damFuente = 'fn_perfil_canal_completo';
-        damLive   = true;
-      }
-      if (!damLive) {
-        // Tier 4: lectura directa K-0 (respaldo si RPC no disponible).
-        // NOTA: gasto de K-0 ya incluye pérdidas del tramo río (~36 km), por lo que
-        // se aplica corrección inversa ÷0.95 para estimar el gasto real en cabeza de presa.
-        const q0Escala = safeFloat(gastoMedidoMap.get(cps[0]?.id ?? ''), NaN);
-        if (Number.isFinite(q0Escala) && q0Escala > 0) {
-          const q0Corregido = q0Escala / 0.95;
-          qBaseVal = q0Corregido;
-          qDamVal  = q0Corregido;
-        }
-        damFuente = 'estimado';
-
-        // Tier 4: si la extracción total medida en tomas supera en >40% al estimado
-        // de K-0, es más confiable usar la suma de tomas ÷ eficiencia de conducción.
-        // Esto ocurre cuando gasto_calculado_m3s en K-0 está mal calibrado o es nulo.
-        const totalExt = deliveries
-          .filter(d => d.is_active)
-          .reduce((s, d) => s + safeFloat(d.caudal_m3s, 0), 0);
-        if (totalExt > qDamVal * 1.4) {
-          const qFromTomas = totalExt / 0.88; // eficiencia conducción ~88%
-          qBaseVal = qFromTomas;
-          qDamVal  = qFromTomas;
-        }
-      }
-
-      setQBase(qBaseVal);
-      setQDam(qDamVal);
-      const q0Escala = safeFloat(gastoMedidoMap.get(cps[0]?.id ?? 'k0'), NaN);
-
-      setDataLoaded(true);
-      setDataStatus({
-        dam: damLive, gates: hasGates, levels: hasLevels, deliveries: hasDeliveries,
-        timestamp: ts,
-        damBaseValue:    qBaseVal,
-        damCurrentValue: qDamVal,
-        damNivel, damFuente,
-        totalExtractionM3s,
-        qRealK0:      Number.isFinite(q0Escala) ? q0Escala : undefined,
-        perfilFuente: rpcFuente ?? undefined,
-        perfilQ:      rpcQ     ?? undefined,
-      });
-    };
-    fetchData();
-
-    // ── Refresh parcial cada 5 min: solo las 2 queries dinámicas ─────────
-    // reportes_diarios y puntos_entrega cambian con cada captura de SICA.
-    // El resto (presa, escalas, geometría) usa realtime o carga inicial.
-    const fetchDeliveries = async () => {
-      const today = getTodayString();
-      const ACTIVE_STATES = new Set(['inicio', 'continua', 'reabierto', 'modificacion']);
-      const [{ data: rawReportes }, { data: rawPuntos }] = await Promise.all([
-        supabase.from('reportes_diarios')
-          .select('punto_id, punto_nombre, caudal_promedio_m3s, volumen_total_mm3, hora_apertura, hora_cierre, estado, modulo_nombre')
-          .eq('fecha', today),
-        supabase.from('puntos_entrega')
-          .select('id, nombre, km, tipo')
-          .not('km', 'is', null)
-          .order('km', { ascending: true })
-          .limit(300),
-      ]);
-
-      const kmMap   = new Map<string, number>();
-      const tipoMap = new Map<string, string>();
-      rawPuntos?.forEach(p => {
-        const km = safeFloat(p.km, NaN);
-        if (Number.isFinite(km)) {
-          kmMap.set(p.id, km);
-          if (p.tipo) tipoMap.set(p.id, p.tipo);
-        }
-      });
-
-      const deliveries: DeliveryData[] = (rawReportes ?? [])
-        .map(r => {
-          const km     = kmMap.get(r.punto_id ?? '') ?? NaN;
-          const caudal = safeFloat(r.caudal_promedio_m3s, 0);
-          const volumen = safeFloat(r.volumen_total_mm3, 0);
-          const isActive = ACTIVE_STATES.has(r.estado ?? '') && !r.hora_cierre && caudal > 0;
-          return {
-            punto_id: r.punto_id ?? '', nombre: r.punto_nombre ?? r.punto_id ?? 'Toma s/n',
-            km, tipo: tipoMap.get(r.punto_id ?? '') ?? 'toma',
-            caudal_m3s: caudal, volumen_mm3: volumen,
-            hora_apertura: r.hora_apertura ?? null, estado: r.estado ?? 'desconocido',
-            modulo_nombre: r.modulo_nombre ?? null, is_active: isActive,
-          };
-        })
-        .filter(d => Number.isFinite(d.km))
-        .sort((a, b) => a.km - b.km);
-
-      setDeliveryPoints(deliveries);
-      const totalExtractionM3s = deliveries.filter(d => d.is_active).reduce((s, d) => s + d.caudal_m3s, 0);
-      setDataStatus(prev => ({
-        ...prev,
-        deliveries: deliveries.length > 0,
-        totalExtractionM3s,
-        timestamp: formatTime(new Date()),
-      }));
-    };
-
-    const deliveryInterval = setInterval(fetchDeliveries, 300_000);
-
-    // Suscripción realtime: cuando llega un nuevo movimiento de presa, recalcular
-    const unsubPresa = onTable('movimientos_presas', 'INSERT', () => {
-      console.log('🏔️ Nuevo movimiento de presa detectado. Recargando modelo...');
-      fetchData();
-    });
-
-    // Suscripción realtime: cuando hay nuevas capturas manuales de escalas/compuertas
-    const unsubEscalas = onTable('lecturas_escalas', 'INSERT', () => {
-      console.log('💧 Nueva captura de escala SICA detectada. Recargando modelo...');
-      fetchData();
-    });
-
-    // Suscripción realtime: cuando hay nuevas capturas de tomas activas
-    const unsubReportes = onTable('reportes_diarios', 'INSERT', () => {
-      console.log('🚰 Nueva alta de tomas SICA detectada. Recargando modelo...');
-      fetchData();
-    });
-
-    // Suscripción realtime: cuando se aplica calibración Manning, refrescar geometría
-    const unsubPerfil = onTable('perfil_hidraulico_canal', 'UPDATE', () => {
-      console.log('📐 Perfil hidráulico actualizado. Recargando geometría...');
-      fetchData();
-    });
-
-    return () => {
-      unsubPresa();
-      unsubEscalas();
-      unsubReportes();
-      unsubPerfil();
-      clearInterval(deliveryInterval);
-    };
-  }, []);
+  // Extraído a useModelingTelemetry — gateOverrides/gateBase/qDam/qBase/
+  // activeCP/simBaseMin siguen siendo estado de este componente porque el
+  // usuario los edita interactivamente (sliders, click en punto de control);
+  // el hook solo los inicializa vía los setters que recibe.
+  const {
+    controlPoints, baseReadings, cpTelemetry, deliveryPoints,
+    dataStatus, dataLoaded, tramoGeom, perfilRpc, balanceTramos,
+  } = useModelingTelemetry({
+    setGateBase, setGateOverrides, setQBase, setQDam, setSimBaseMin, setActiveCP,
+  });
 
   // ── TIMELINE PLAYER ──────────────────────────────────────────────────
   useEffect(() => {

@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { FileBarChart } from 'lucide-react';
 import type {
@@ -24,6 +25,21 @@ const LS_VISIBLES = 'tnd:puntos-visibles';
 const fmtFecha = (t: number) => new Date(t).toLocaleString('es-MX', {
   day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua',
 });
+// ── Skeleton de bloque (carga granular) ─────────────────────────────────────
+// Cada uno de los 4 bloques del panel pinta su propio placeholder con el mismo
+// número/color de cabecera que tendrá cuando llegue el dato — así, si a futuro
+// la carga se fragmenta (p.ej. por bloque en vez de un solo fetch), la UI ya
+// tiene el slot listo en vez de un mensaje único cubriendo todo el panel.
+const TndBlockSkeleton: React.FC<{ titulo: string; color: string; height: number }> = ({ titulo, color, height }) => (
+  <div className="tnd-block tnd-skel">
+    <div className="tnd-h">
+      <span className="tnd-n tnd-skel-n" style={{ background: color }} />
+      {titulo}
+    </div>
+    <div className="tnd-skel-chart" style={{ height }} />
+  </div>
+);
+
 const MultiLine: React.FC<{
   series: { nombre: string; puntos: SeriePunto[]; color: string; dashed?: boolean }[];
   t0: number; t1: number;
@@ -536,6 +552,8 @@ const ModalTramo: React.FC<{ tramo: SerieTramo; color: string; t0: number; t1: n
 
 interface Props {
   loading: boolean;
+  error?: string | null;
+  onReintentar?: () => void;
   rangoDesde: string; rangoHasta: string;
   granularidad: 'diaria' | 'lectura';
   onRango: (desde: string, hasta: string) => void;
@@ -548,7 +566,7 @@ interface Props {
 }
 
 const TendenciasPanel: React.FC<Props> = ({
-  loading, rangoDesde, rangoHasta, granularidad, onRango, onGranularidad,
+  loading, error, onReintentar, rangoDesde, rangoHasta, granularidad, onRango, onGranularidad,
   niveles, volTramos, volTotal, compuertas, gasto,
 }) => {
   const [t0, t1] = useMemo(() => {
@@ -727,9 +745,25 @@ const TendenciasPanel: React.FC<Props> = ({
         </button>
       </div>
 
-      {loading && <div className="tnd-loading">Cargando periodo…</div>}
+      {loading && (
+        <>
+          <TndBlockSkeleton titulo="Tendencia de niveles por escala" color="#3987e5" height={168} />
+          <TndBlockSkeleton titulo="Volumen por tramo" color="#199e70" height={170} />
+          <TndBlockSkeleton titulo="Niveles arriba / abajo por compuerta" color="#c98500" height={120} />
+          <TndBlockSkeleton titulo="Gasto: K-0+000 → entregas a módulos → K-104" color="#9085e9" height={168} />
+        </>
+      )}
 
-      {!loading && (
+      {!loading && error && (
+        <div className="tnd-error">
+          <span>No se pudo cargar el periodo. {error}</span>
+          {onReintentar && (
+            <button type="button" className="tnd-btn-reintentar" onClick={onReintentar}>Reintentar</button>
+          )}
+        </div>
+      )}
+
+      {!loading && !error && (
         <>
           {/* ── Bloque 1: niveles por escala ── */}
           {/* La tabla y la leyenda son el FILTRO ACTIVO del gráfico: clic en una

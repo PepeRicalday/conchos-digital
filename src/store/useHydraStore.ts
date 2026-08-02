@@ -3,6 +3,18 @@ import { supabase } from '../lib/supabase';
 import { onTable } from '../lib/realtimeHub';
 import { getTodayString, getStartOfTodayISO } from '../utils/dateHelpers';
 import { useMetadataStore } from './useMetadataStore';
+import type {
+    MedicionRow, ReporteOperacionRow, ReporteDiarioRow, ResumenCicloRow,
+    ModuloRow, PuntoEntregaRow,
+} from '../types/sica.types';
+
+// Pick<> reflejando exactamente las columnas de cada .select() — no el Row
+// completo, que traería columnas que la query no pidió y rompería el tipo
+// real que Supabase devuelve.
+type MedicionSel = Pick<MedicionRow, 'punto_id' | 'valor_q' | 'valor_vol' | 'fecha_hora'>;
+type ReporteDiarioSel = Pick<ReporteDiarioRow, 'punto_id' | 'modulo_id' | 'volumen_total_mm3' | 'caudal_promedio_lps'>;
+type ReporteOperacionSel = Pick<ReporteOperacionRow, 'punto_id' | 'caudal_promedio' | 'volumen_acumulado' | 'hora_apertura' | 'estado' | 'fecha'>;
+type ResumenCicloSel = Pick<ResumenCicloRow, 'modulo_id' | 'volumen_entregado_mm3'>;
 
 export interface SectionData {
     id: string;
@@ -27,16 +39,16 @@ export interface DeliveryPoint {
     section: string;
     section_data?: SectionData;
     last_update_time?: string;
-    mediciones?: any[];
-    reportes?: any[];
+    mediciones?: MedicionSel[];
+    reportes?: ReporteDiarioSel[];
 }
 
 export interface ModuleData {
     id: string;
-    short_code?: string;
+    short_code?: string | null;
     name: string;
-    acu_name: string;
-    logo_url?: string;
+    acu_name: string | null;
+    logo_url?: string | null;
     current_flow: number;
     daily_vol: number;
     accumulated_vol: number;
@@ -54,6 +66,10 @@ interface HydraState {
     fetchHydraulicData: () => Promise<void>;
     initSubscription: () => void;
     destroySubscription: () => void;
+    // Referencia interna a la función de desuscripción de initSubscription.
+    // No es estado reactivo (no dispara render) — se guarda fuera de `set`
+    // porque destroySubscription necesita invocarla desde otra llamada.
+    _cleanup?: (() => void) | null;
 }
 
 export const useHydraStore = create<HydraState>((set, get) => ({
@@ -119,15 +135,17 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             if (!modulosDB) return;
 
             // Map mediciones to points for easy lookup
-            const medicionMap = new Map<string, any[]>();
+            const medicionMap = new Map<string, MedicionSel[]>();
             (allMediciones || []).forEach(m => {
+                if (!m.punto_id) return;
                 if (!medicionMap.has(m.punto_id)) medicionMap.set(m.punto_id, []);
                 medicionMap.get(m.punto_id)?.push(m);
             });
 
             // Map reportes_operacion by punto_id (fallback when mediciones is empty)
-            const reporteOpMap = new Map<string, any>();
+            const reporteOpMap = new Map<string, ReporteOperacionSel>();
             (reportesOperacion || []).forEach(r => {
+                if (!r.punto_id) return;
                 if (!reporteOpMap.has(r.punto_id)) reporteOpMap.set(r.punto_id, r);
             });
 
@@ -138,16 +156,20 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             }
 
             // 3. Index reports for quick access
-            const reporteByPunto: Record<string, any> = {};
+            const reporteByPunto: Record<string, ReporteDiarioSel> = {};
             const reporteByModulo: Record<string, number> = {};
-            (reportesHoy || []).forEach((r: any) => {
+            (reportesHoy || []).forEach((r: ReporteDiarioSel) => {
+                if (!r.punto_id) return;
                 reporteByPunto[r.punto_id] = r;
-                reporteByModulo[r.modulo_id] = (reporteByModulo[r.modulo_id] || 0) + Number(r.volumen_total_mm3 || 0);
+                if (r.modulo_id) {
+                    reporteByModulo[r.modulo_id] = (reporteByModulo[r.modulo_id] || 0) + Number(r.volumen_total_mm3 || 0);
+                }
             });
 
             // 4. Index resumen_ciclo por módulo (volumen acumulado ciclo activo)
             const resumenCicloMap = new Map<string, number>();
-            (volDiarioModulo || []).forEach((v: any) => {
+            (volDiarioModulo || []).forEach((v: ResumenCicloSel) => {
+                if (!v.modulo_id) return;
                 resumenCicloMap.set(v.modulo_id, Number(v.volumen_entregado_mm3 || 0));
             });
 
@@ -157,13 +179,13 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             const metaPuntos = metaStore.puntos_entrega;
 
             const dynModMap = new Map(modulosDB.map(m => [m.id, m]));
-            const fullModules: ModuleData[] = metaModulos.map((mod: any, mIdx: number) => {
+            const fullModules: ModuleData[] = metaModulos.map((mod: ModuloRow, mIdx: number) => {
                 const freshMod = dynModMap.get(mod.id) || mod;
                 const points = metaPuntos
-                    .filter((p: any) => p.modulo_id === mod.id)
-                    .map((p: any, pIdx: number) => {
+                    .filter((p: PuntoEntregaRow) => p.modulo_id === mod.id)
+                    .map((p: PuntoEntregaRow, pIdx: number) => {
                         indexMap[p.id] = { mIndex: mIdx, pIndex: pIdx };
-                        
+
                         const measurements = medicionMap.get(p.id) || [];
                         const latest = measurements[0];
                         // Fallback: si no hay medicion para hoy, usar reportes_operacion (estado activo)
@@ -173,7 +195,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                         // P1-4: All measurements are today's — no JS date filter needed.
                         // reportes_diarios is authoritative for daily/accumulated volumes;
                         // fall back to reportes_operacion.volumen_acumulado (already in Mm³) if no report exists.
-                        const calculatedDailyVol = measurements.reduce((acc: number, med: any) => acc + Number(med.valor_vol || 0), 0);
+                        const calculatedDailyVol = measurements.reduce((acc: number, med: MedicionSel) => acc + Number(med.valor_vol || 0), 0);
                         const dailyReport = reporteByPunto[p.id];
                         const opVol = reporteOp ? Number(reporteOp.volumen_acumulado || 0) : 0;
                         const dailyVolPt = dailyReport
@@ -183,11 +205,18 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                         // Secciones metadata join
                         const sectionInfo = metaStore.secciones.find(s => s.id === p.seccion_id);
 
+                        // p.tipo viene de Supabase como string | null; DeliveryPoint.type
+                        // exige uno de los 3 tipos conocidos — 'toma' como default seguro
+                        // si el catálogo trae un valor nulo o inesperado.
+                        const tipoValido: DeliveryPoint['type'] =
+                            p.tipo === 'toma' || p.tipo === 'lateral' || p.tipo === 'carcamo'
+                                ? p.tipo : 'toma';
+
                         return {
                             id: p.id,
                             name: p.nombre,
                             km: Number(p.km),
-                            type: p.tipo,
+                            type: tipoValido,
                             capacity: Number(p.capacidad_max),
                             current_q: qM3s,
                             current_q_lps: qM3s * 1000,
@@ -211,10 +240,10 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                     });
 
 
-                const currentFlow = points.reduce((acc: number, pt: any) => acc + pt.current_q, 0);
-                const calcDailyVol = points.reduce((acc: number, pt: any) => acc + pt.daily_vol, 0);
+                const currentFlow = points.reduce((acc, pt) => acc + pt.current_q, 0);
+                const calcDailyVol = points.reduce((acc, pt) => acc + pt.daily_vol, 0);
                 // Volumen diario: suma de reportes_operacion.volumen_acumulado de los puntos del módulo (Mm³)
-                const opDailyVol = points.reduce((acc: number, pt: any) => {
+                const opDailyVol = points.reduce((acc, pt) => {
                     const op = reporteOpMap.get(pt.id);
                     return acc + Number(op?.volumen_acumulado || 0);
                 }, 0);
@@ -252,9 +281,10 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             localStorage.setItem('hydra_modules_cache', JSON.stringify(fullModules));
             localStorage.setItem('hydra_cache_version', __V2_APP_VERSION__);
 
-        } catch (err: any) {
+        } catch (err) {
             console.error('Zustand HydraEngine Error:', err);
-            set({ error: err.message, loading: false });
+            const message = err instanceof Error ? err.message : 'Error desconocido al cargar datos hidráulicos';
+            set({ error: message, loading: false });
         }
     },
 
@@ -265,12 +295,13 @@ export const useHydraStore = create<HydraState>((set, get) => ({
         get().fetchHydraulicData();
 
         // --- Realtime handler for mediciones (INSERT + UPDATE) ---
-        const handleMedicionUpsert = (payload: any) => {
+        const handleMedicionUpsert = (payload: { new: MedicionRow }) => {
             const record = payload.new;
-            if (!record || !record.punto_id) return;
+            const puntoId = record?.punto_id;
+            if (!puntoId) return;
 
             set(state => {
-                const indices = state.pointIndexMap[record.punto_id];
+                const indices = state.pointIndexMap[puntoId];
                 if (!indices) return state; // Unknown point — ignore
 
                 const { mIndex, pIndex } = indices;
@@ -323,21 +354,23 @@ export const useHydraStore = create<HydraState>((set, get) => ({
         document.addEventListener('visibilitychange', handleVisibility);
 
         // --- Store cleanup reference for proper teardown ---
-        (useHydraStore as any)._cleanup = () => {
-            document.removeEventListener('visibilitychange', handleVisibility);
-            unsubMedicionInsert();
-            unsubMedicionUpdate();
-            unsubMedicionDelete();
-            unsubEscalas();
-            unsubPreasas();
-        };
+        set({
+            _cleanup: () => {
+                document.removeEventListener('visibilitychange', handleVisibility);
+                unsubMedicionInsert();
+                unsubMedicionUpdate();
+                unsubMedicionDelete();
+                unsubEscalas();
+                unsubPreasas();
+            },
+        });
     },
 
     destroySubscription: () => {
-        const cleanup = (useHydraStore as any)._cleanup;
+        const cleanup = get()._cleanup;
         if (cleanup) {
             cleanup();
-            (useHydraStore as any)._cleanup = null;
+            set({ _cleanup: null });
         }
         set({ isInitialized: false });
     }

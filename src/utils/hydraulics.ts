@@ -378,6 +378,17 @@ export const WAVE_CELERITY_MS = 0.80;   // m/s — BC-07, tramo K-68→K-104 cal
 export const F_ATEN_GT40     = 0.27;   // fracción — BC-06, atenuación onda >40 km del canal
 
 /**
+ * Confianza de calibración de los parámetros de tránsito de onda, para mostrar
+ * al operador junto al countdown de LlenadoTracker (no solo dejarla en comentario).
+ * BC-07 / BC-06, evento de campo 24-25/04/2026 — ver notas arriba.
+ */
+export const WAVE_CELERITY_CONFIANZA = {
+    celeridad_pct: 40,
+    atenuacion_pct: 45,
+    fuente: 'Evento de campo 24-25/04/2026, tramo K-68→K-104',
+} as const;
+
+/**
  * Tiempo de tránsito de onda entre dos puntos kilométricos.
  * @returns minutos (redondeado)
  */

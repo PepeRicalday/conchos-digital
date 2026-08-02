@@ -1,6 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
+// Sin este límite, cualquier archivo llega directo a Storage sin guardarraíl —
+// bajo riesgo hoy por volumen bajo de uso, pero barato de prevenir antes de
+// que la Base de Conocimiento crezca. 20 MB cubre PDFs/XLSX técnicos típicos
+// sin abrir la puerta a subidas descontroladas.
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
 export interface HydricDocument {
     id: string;
     titulo: string;
@@ -40,6 +46,14 @@ export function useHydricKnowledge() {
     }, []);
 
     const uploadDocument = async (file: File, tipo: string = 'manual') => {
+        if (file.size > MAX_UPLOAD_BYTES) {
+            const maxMb = (MAX_UPLOAD_BYTES / (1024 * 1024)).toFixed(0);
+            const fileMb = (file.size / (1024 * 1024)).toFixed(1);
+            const msg = `"${file.name}" pesa ${fileMb} MB — el límite es ${maxMb} MB. Divide el documento o sube una versión comprimida.`;
+            setError(msg);
+            throw new Error(msg);
+        }
+
         setIsUploading(true);
         setError(null);
         try {

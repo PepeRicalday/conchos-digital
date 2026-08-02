@@ -24,6 +24,7 @@ export type LecturaEscalaRow    = Tables<'lecturas_escalas'>;
 export type LecturaPresaRow     = Tables<'lecturas_presas'>;
 export type ReporteOperacionRow = Tables<'reportes_operacion'>;
 export type ReporteDiarioRow    = Tables<'reportes_diarios'>;
+export type ResumenCicloRow     = Tables<'resumen_ciclo'>;
 export type ResumenEscalaDiarioRow = Tables<'resumen_escalas_diario'>;
 export type AforoRow            = Tables<'aforos'>;
 export type ClimaPresaRow       = Tables<'clima_presas'>;

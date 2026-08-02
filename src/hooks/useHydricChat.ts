@@ -1,8 +1,16 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 const isJwtError = (msg: string) =>
     /algorithm|JWT|token.*invalid|invalid.*token|unauthorized|expired/i.test(msg ?? '');
+
+const HYDRIC_CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/hydric-chat`;
+
+// Cada mensaje reconstruye ~4,000+ tokens de contexto de sistema — sin este
+// piso, un usuario puede ráfaga de mensajes cortos y agotar la cuota de Groq
+// para todos. isSending ya bloquea "mientras responde", pero una respuesta
+// rápida deja hueco para reenviar de inmediato; este cooldown lo cierra.
+const SEND_COOLDOWN_MS = 3000;
 
 export interface ChatMessage {
     id: string;
@@ -20,18 +28,14 @@ export interface ChatConversation {
     updated_at: string;
 }
 
-interface SendMessageResult {
-    conversation_id: string;
-    message: string;
-    metadata?: Record<string, any>;
-}
-
 export function useHydricChat() {
     const [conversations, setConversations] = useState<ChatConversation[]>([]);
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSending, setIsSending] = useState(false);
+    const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+    const lastSendAtRef = useRef(0);
 
     // error → solo para fallos de sendMessage/deleteConversation (muestra banner)
     // historialJwtError → fallo silencioso del sidebar (nota discreta, sin banner)
@@ -118,9 +122,103 @@ export function useHydricChat() {
         setError(null);
     }, []);
 
-    // ─── Send a message ──────────────────────────────
+    // ─── Send a message (streaming SSE) ──────────────
+    // La Edge Function responde con Server-Sent Events: cada línea "data: {...}"
+    // trae un delta de texto nuevo. Se pinta incrementalmente en vez de esperar
+    // el bloque completo (antes: 8-15s de pantalla en blanco por el prompt de
+    // sistema denso + tablas de balance que el modelo debe generar).
+    const streamChat = useCallback(async (content: string, contexto: string, assistantMsgId: string) => {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) throw new Error('Tu sesión expiró. Refresca la página o vuelve a iniciar sesión.');
+
+        const res = await fetch(HYDRIC_CHAT_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({
+                message: content,
+                conversation_id: activeConversationId,
+                contexto: contexto || 'general',
+            }),
+        });
+
+        if (!res.ok || !res.body) {
+            let msg = `Error del servidor (${res.status})`;
+            try {
+                const body = await res.json();
+                msg = body?.message || body?.error || msg;
+            } catch { /* respuesta no-JSON, se usa el mensaje genérico */ }
+            const err: any = new Error(msg);
+            // res.status es el código HTTP de ESTA función (siempre 400 en el catch
+            // de index.ts, ver línea ~796) — nunca el 401 que Groq pudo haber
+            // devuelto puertas adentro por cuota/rate-limit agotado. Ese 401 de
+            // Groq viaja como TEXTO dentro de `msg` ("Groq API Error: 401 — ..."),
+            // no como res.status. Confundirlos hace que un error de créditos de
+            // Groq dispare un refreshSession() de Supabase + reintento automático,
+            // que vuelve a fallar por el mismo motivo y duplica el gasto de cuota
+            // en cada mensaje enviado.
+            err.status = res.status;
+            err.isGroqError = /groq api error/i.test(msg);
+            throw err;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let accumulated = '';
+        let resolvedConvId: string | null = null;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() ?? '';
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith('data:')) continue;
+                const payload = trimmed.slice(5).trim();
+                if (!payload) continue;
+                let json: any;
+                try { json = JSON.parse(payload); } catch { continue; }
+
+                if (json.error) {
+                    const streamErr: any = new Error(json.message || 'Error de streaming');
+                    streamErr.isGroqError = /groq/i.test(json.message ?? '');
+                    throw streamErr;
+                }
+                if (json.conversation_id) resolvedConvId = json.conversation_id;
+                if (json.delta) {
+                    accumulated += json.delta;
+                    setMessages(prev => prev.map(m =>
+                        m.id === assistantMsgId ? { ...m, content: accumulated } : m
+                    ));
+                }
+                if (json.done) {
+                    if (resolvedConvId && !activeConversationId) setActiveConversationId(resolvedConvId);
+                    fetchConversations(true); // Sidebar refresh silencioso
+                }
+            }
+        }
+
+        if (!accumulated) throw new Error('No se recibió respuesta del asistente.');
+    }, [activeConversationId, fetchConversations]);
+
     const sendMessage = useCallback(async (content: string, contexto?: string): Promise<void> => {
         if (!content.trim() || isSending) return;
+
+        const elapsed = Date.now() - lastSendAtRef.current;
+        if (elapsed < SEND_COOLDOWN_MS) {
+            const remaining = Math.ceil((SEND_COOLDOWN_MS - elapsed) / 1000);
+            setError(`Espera ${remaining}s antes de enviar otro mensaje — cada consulta reconstruye el contexto completo del sistema.`);
+            return;
+        }
+        lastSendAtRef.current = Date.now();
+        setCooldownUntil(Date.now() + SEND_COOLDOWN_MS);
 
         setIsSending(true);
         setError(null);
@@ -131,76 +229,55 @@ export function useHydricChat() {
             content,
             created_at: new Date().toISOString(),
         };
-        setMessages(prev => [...prev, optimisticUserMsg]);
+        const assistantMsgId = `assistant-${Date.now()}`;
+        const placeholderAssistantMsg: ChatMessage = {
+            id: assistantMsgId,
+            role: 'assistant',
+            content: '',
+            created_at: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, optimisticUserMsg, placeholderAssistantMsg]);
 
         try {
-            const { data, error: invokeError } = await supabase.functions.invoke('hydric-chat', {
-                body: {
-                    message: content,
-                    conversation_id: activeConversationId,
-                    contexto: contexto || 'general',
-                }
-            });
-
-            if (invokeError) {
-                console.error('Invoke error details:', invokeError);
-                if (isJwtError(invokeError.message ?? '')) {
+            try {
+                await streamChat(content, contexto || 'general', assistantMsgId);
+            } catch (err: any) {
+                // Un 401/expired de Groq (cuota o rate-limit de la API de IA agotados)
+                // NO es una sesión de Supabase vencida — reintentar solo tiene sentido
+                // para el JWT de Supabase. Reintentar un error de Groq solo duplica el
+                // consumo de la cuota sin arreglar nada.
+                if (!err.isGroqError && (isJwtError(err.message ?? '') || err.status === 401)) {
                     const { error: refreshErr } = await supabase.auth.refreshSession();
                     if (refreshErr) throw new Error('Tu sesión ha expirado. Inicia sesión de nuevo.');
-                    const { data: retryData, error: retryError } = await supabase.functions.invoke('hydric-chat', {
-                        body: { message: content, conversation_id: activeConversationId, contexto: contexto || 'general' }
-                    });
-                    if (retryError) throw retryError;
-                    handleSuccess(retryData);
+                    await streamChat(content, contexto || 'general', assistantMsgId);
                 } else {
-                    throw invokeError;
+                    throw err;
                 }
-            } else {
-                handleSuccess(data);
             }
-
-            function handleSuccess(result: SendMessageResult) {
-                if (!activeConversationId) {
-                    setActiveConversationId(result.conversation_id);
-                }
-                fetchConversations(true); // Sidebar refresh silencioso
-
-                const assistantMsg: ChatMessage = {
-                    id: `assistant-${Date.now()}`,
-                    role: 'assistant',
-                    content: result.message,
-                    metadata: result.metadata,
-                    created_at: new Date().toISOString(),
-                };
-                setMessages(prev => [...prev, assistantMsg]);
-            }
-
         } catch (err: any) {
             console.error('Error sending message:', err);
 
-            let msg = 'Error desconocido';
-            if (err.context && typeof err.context === 'object') {
-                try {
-                    const body = await err.context.json?.() || err.context.message;
-                    msg = body?.message || body?.error || err.message || msg;
-                } catch {
-                    msg = err.message || msg;
-                }
+            let msg = err.message || 'Error desconocido';
+            if (err.isGroqError) {
+                // Mensaje real de Groq (p.ej. "429 rate limit" o "401 invalid_api_key
+                // / insufficient credits") — mostrarlo tal cual, no reescribirlo como
+                // si fuera un problema de sesión de Supabase.
+                msg = /429|rate.?limit|quota|credit/i.test(msg)
+                    ? 'El motor de IA alcanzó su límite de uso (cuota/rate-limit de Groq). Espera unos minutos e intenta de nuevo.'
+                    : `Error del motor de IA: ${msg.replace(/^groq api error:\s*/i, '')}`;
             } else {
-                msg = err.message || msg;
-            }
-
-            const lowerMsg = (msg || '').toLowerCase();
-            if ((msg || '').includes('401') || lowerMsg.includes('unauthorized') || lowerMsg.includes('expired')) {
-                msg = 'Tu sesión expiró. Refresca la página o vuelve a iniciar sesión.';
+                const lowerMsg = msg.toLowerCase();
+                if (msg.includes('401') || lowerMsg.includes('unauthorized') || lowerMsg.includes('expired')) {
+                    msg = 'Tu sesión expiró. Refresca la página o vuelve a iniciar sesión.';
+                }
             }
 
             setError(msg);
-            setMessages(prev => prev.filter(m => m.id !== optimisticUserMsg.id));
+            setMessages(prev => prev.filter(m => m.id !== optimisticUserMsg.id && m.id !== assistantMsgId));
         } finally {
             setIsSending(false);
         }
-    }, [activeConversationId, isSending, fetchConversations]);
+    }, [isSending, streamChat]);
 
     // ─── Delete conversation ─────────────────────────
     const deleteConversation = useCallback(async (conversationId: string) => {
@@ -231,6 +308,7 @@ export function useHydricChat() {
         messages,
         isLoading,
         isSending,
+        cooldownUntil,
         error,
         historialJwtError,
         sendMessage,

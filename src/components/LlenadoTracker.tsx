@@ -3,6 +3,7 @@ import { Timer, MapPin, Clock, CheckCircle2, AlertTriangle, Shield } from 'lucid
 import { getLocalDatetimeInput, formatTime } from '../utils/dateHelpers';
 import { useLlenadoTracker } from '../hooks/useLlenadoTracker';
 import type { PuntoControl, LlenadoEstado } from '../hooks/useLlenadoTracker';
+import { WAVE_CELERITY_CONFIANZA } from '../utils/hydraulics';
 import TransicionProtocolo from './TransicionProtocolo';
 import './LlenadoTracker.css';
 
@@ -305,6 +306,12 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                                 <div className="text-slate-500 text-[9px] font-black uppercase mb-1">Tiempo de Tránsito</div>
                                 <div className="text-blue-400 text-lg font-black font-mono tracking-tighter">
                                     {formatCountdown(tiempoTranscurrido)}
+                                </div>
+                                <div
+                                    className="text-amber-500/80 text-[8px] font-bold uppercase tracking-wide mt-1"
+                                    title={`Celeridad de onda calibrada con confianza ${WAVE_CELERITY_CONFIANZA.celeridad_pct}% (${WAVE_CELERITY_CONFIANZA.fuente})`}
+                                >
+                                    Estimado · confianza {WAVE_CELERITY_CONFIANZA.celeridad_pct}%
                                 </div>
                             </div>
                             <div className="flex-1 min-w-[120px] p-3 bg-cyan-500/10 rounded-2xl border border-cyan-500/20 shadow-inner">

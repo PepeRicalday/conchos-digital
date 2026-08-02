@@ -3739,6 +3739,21 @@
 @keyframes tnd-live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .tnd-live i { animation: none; } }
 .tnd-loading { text-align: center; color: #64748b; padding: 24px; font-size: 0.75rem; }
+.tnd-error { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px;
+  text-align: center; color: var(--status-critical-text); background: var(--status-critical-bg);
+  border: 1px solid var(--status-critical-border);
+  border-radius: 8px; padding: 18px 20px; margin: 8px 0; font-size: 0.75rem; }
+.tnd-btn-reintentar { flex-shrink: 0; padding: 6px 14px; background: var(--status-critical); color: #fff; border: none;
+  border-radius: 6px; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
+.tnd-btn-reintentar:hover { background: #dc2626; }
+.tnd-skel-n { color: transparent; }
+.tnd-skel-chart { border-radius: 8px; margin-top: 4px;
+  background: linear-gradient(90deg, rgba(148,163,184,0.06) 25%, rgba(148,163,184,0.14) 37%, rgba(148,163,184,0.06) 63%);
+  background-size: 400% 100%; animation: tnd-shimmer 1.6s ease-in-out infinite; }
+@keyframes tnd-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .tnd-skel-chart { animation: none; background: rgba(148,163,184,0.08); }
+}
 .tnd-block { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.05); }
 .tnd-block:first-of-type { border-top: 0; }
 .tnd-h { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; font-weight: 700; color: #e2e8f0; }

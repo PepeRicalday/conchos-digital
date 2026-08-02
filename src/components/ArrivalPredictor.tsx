@@ -38,14 +38,36 @@ const ArrivalPredictor: React.FC = () => {
     };
 
     useEffect(() => {
-        fetchPredictions();
+        let cancelled = false;
+
+        // fetchPredictions es async: su setState real ocurre tras el await,
+        // ya fuera del cuerpo síncrono del efecto. El guard evita setState
+        // si el componente se desmontó antes de que resuelva la consulta.
+        (async () => {
+            const { data, error } = await supabase
+                .from('vw_prediccion_arribo_escalas')
+                .select('*')
+                .order('km', { ascending: true })
+                .limit(5);
+
+            if (cancelled) return;
+            if (!error && data) {
+                const processed = data.map(d => ({
+                    ...d,
+                    seconds_remaining: (new Date(d.hora_arribo_estimada).getTime() - Date.now()) / 1000
+                }));
+                setPredictions(processed);
+            }
+            setLoading(false);
+        })();
+
         const interval = setInterval(() => {
             setPredictions(prev => prev.map(p => ({
                 ...p,
                 seconds_remaining: Math.max(0, (new Date(p.hora_arribo_estimada).getTime() - Date.now()) / 1000)
             })));
         }, 1000);
-        return () => clearInterval(interval);
+        return () => { cancelled = true; clearInterval(interval); };
     }, []);
 
     const markRealArrival = async (item: ArrivalInfo) => {

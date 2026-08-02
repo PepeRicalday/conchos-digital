@@ -20,21 +20,30 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getLocalDatetimeInput, formatTime, formatDate } from '../utils/dateHelpers';
 
+// contexto debe ser uno de los reconocidos por buildSystemPrompt en la Edge
+// Function hydric-chat ('operacion' | 'balance' | 'hidraulica' | default
+// 'general') — cualquier otro valor cae silenciosamente a la instrucción
+// genérica y pierde el ajuste de tono/prioridad ya escrito para ese caso.
 const QUICK_SUGGESTIONS = [
     {
         icon: Waves,
         text: '¿Cuál es el estado actual de almacenamiento de las presas?',
-        contexto: 'presas',
+        contexto: 'operacion',
     },
     {
         icon: BarChart3,
         text: 'Analiza la eficiencia de distribución por módulo',
-        contexto: 'eficiencia',
+        contexto: 'balance',
     },
     {
         icon: TrendingUp,
         text: 'Genera una proyección del volumen disponible para este ciclo',
-        contexto: 'escenario',
+        contexto: 'balance',
+    },
+    {
+        icon: AlertTriangle,
+        text: 'Haz el balance de continuidad K0→K104 ahora mismo',
+        contexto: 'hidraulica',
     },
     {
         icon: Shield,
@@ -50,6 +59,7 @@ const InteligenciaHidrica = () => {
         activeConversationId,
         messages,
         isSending,
+        cooldownUntil,
         error,
         historialJwtError,
         sendMessage,
@@ -58,6 +68,17 @@ const InteligenciaHidrica = () => {
         deleteConversation,
         clearError,
     } = useHydricChat();
+
+    // Segundos restantes de cooldown para deshabilitar el botón de envío
+    // visualmente (el hook ya bloquea sendMessage; esto es solo feedback).
+    const [cooldownSecs, setCooldownSecs] = useState(0);
+    useEffect(() => {
+        if (!cooldownUntil) { setCooldownSecs(0); return; }
+        const tick = () => setCooldownSecs(Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000)));
+        tick();
+        const id = setInterval(tick, 250);
+        return () => clearInterval(id);
+    }, [cooldownUntil]);
 
     const {
         documents,
@@ -147,7 +168,7 @@ const InteligenciaHidrica = () => {
                 </div>
                 <h2>Acceso Restringido</h2>
                 <p>
-                    El módulo de Inteligencia Hídrica está disponible exclusivamente para
+                    El módulo de Consultoría IA está disponible exclusivamente para
                     usuarios con rol de Gerente (SRL).
                 </p>
             </div>
@@ -215,7 +236,7 @@ const InteligenciaHidrica = () => {
                         <Brain size={22} />
                     </div>
                     <div>
-                        <h1 className="text-gradient">Inteligencia Hídrica</h1>
+                        <h1 className="text-gradient">Consultoría IA</h1>
                         <p className="header-subtitle">
                             Asistente IA especialista en hidrometría y modelado — DR-005 Delicias
                         </p>
@@ -356,9 +377,13 @@ const InteligenciaHidrica = () => {
                                 </div>
                             ) : (
                                 <div className="ih-messages">
-                                    {messages.map(renderMessage)}
+                                    {/* El placeholder del asistente se agrega vacío y se llena por streaming
+                                        (useHydricChat.streamChat) — se filtra de renderMessage para no pintar
+                                        una burbuja en blanco; "Analizando..." cubre ese hueco hasta el primer
+                                        delta, y desaparece solo apenas empieza a llegar texto real. */}
+                                    {messages.filter(m => m.role !== 'assistant' || m.content).map(renderMessage)}
 
-                                    {isSending && (
+                                    {isSending && messages[messages.length - 1]?.content === '' && (
                                         <div className="ih-typing">
                                             <div className="typing-dots">
                                                 <div className="typing-dot" />
@@ -424,10 +449,10 @@ const InteligenciaHidrica = () => {
                                     <button
                                         className={`ih-send-btn ${isSending ? 'sending' : ''}`}
                                         onClick={handleSend}
-                                        disabled={!inputValue.trim() || isSending}
-                                        title="Enviar consulta"
+                                        disabled={!inputValue.trim() || isSending || cooldownSecs > 0}
+                                        title={cooldownSecs > 0 ? `Espera ${cooldownSecs}s antes de enviar otro mensaje` : 'Enviar consulta'}
                                     >
-                                        <Send size={16} />
+                                        {cooldownSecs > 0 ? <span className="ih-cooldown-secs">{cooldownSecs}</span> : <Send size={16} />}
                                     </button>
                                 </div>
                             </div>
@@ -455,7 +480,9 @@ const InteligenciaHidrica = () => {
                                     accept=".pdf,.xlsx,.csv,.txt,.docx"
                                     onChange={(e) => {
                                         const file = e.target.files?.[0];
-                                        if (file) uploadDocument(file);
+                                        // El hook ya deja el mensaje en knowledgeError (banner de arriba);
+                                        // el catch aquí solo evita una promesa rechazada sin manejar.
+                                        if (file) uploadDocument(file).catch(() => {});
                                     }}
                                     disabled={isUploadingKnowledge}
                                 />
@@ -650,7 +677,6 @@ const InteligenciaHidrica = () => {
                                         key={evt.id}
                                         className={`protocol-btn group border-2 ${activeEvent?.evento_tipo === evt.id ? 'active scale-[1.02] bg-white/[0.05]' : ''}`}
                                         onClick={() => {
-                                            console.log('🖱️ Click en protocolo:', evt.id);
                                             setPendingEventId(evt.id);
                                             setPendingEventLabel(evt.label);
                                             setFormNotas('');
@@ -691,20 +717,20 @@ const InteligenciaHidrica = () => {
                                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                                 }} onClick={() => setShowActivationModal(false)}>
                                     <div onClick={e => e.stopPropagation()} style={{
-                                        background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)',
+                                        background: 'var(--surface-panel)', border: '1px solid rgba(255,255,255,0.1)',
                                         borderRadius: '16px', padding: '32px', width: '480px', maxWidth: '95vw',
                                         boxShadow: '0 25px 50px rgba(0,0,0,0.5)'
                                     }}>
                                         <h3 style={{ color: '#22d3ee', fontSize: '1.25rem', fontWeight: 900, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                             Activar: {pendingEventLabel}
                                         </h3>
-                                        <div style={{ display: 'flex', gap: '8px', padding: '12px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '12px', marginBottom: '24px' }}>
-                                            <Shield size={16} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                                        <div style={{ display: 'flex', gap: '8px', padding: '12px', background: 'var(--status-critical-bg)', border: '1px solid var(--status-critical-border)', borderRadius: '12px', marginBottom: '24px' }}>
+                                            <Shield size={16} style={{ color: 'var(--status-critical)', flexShrink: 0, marginTop: '2px' }} />
                                             <div>
-                                                <p style={{ color: '#fca5a5', fontSize: '0.75rem', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                <p style={{ color: 'var(--status-critical-text)', fontSize: '0.75rem', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                                     Acción Gerencial (SRL)
                                                 </p>
-                                                <p style={{ color: '#94a3b8', fontSize: '0.7rem', margin: 0, lineHeight: 1.4 }}>
+                                                <p style={{ color: 'var(--surface-text-muted)', fontSize: '0.7rem', margin: 0, lineHeight: 1.4 }}>
                                                     Esta maniobra desactivará el protocolo actual y alterará la métrica de toda la cuenca. Operación auditada bajo su firma digital.
                                                 </p>
                                             </div>
@@ -712,33 +738,33 @@ const InteligenciaHidrica = () => {
 
                                         {pendingEventId === 'LLENADO' && (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
-                                                <label style={{ color: '#e2e8f0', fontSize: '0.75rem', fontWeight: 700 }}>
+                                                <label style={{ color: 'var(--surface-text-2)', fontSize: '0.75rem', fontWeight: 700 }}>
                                                     Gasto solicitado (m³/s)
                                                     <input type="number" value={formGasto} onChange={e => setFormGasto(e.target.value)}
-                                                        style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '1rem' }} />
+                                                        style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px 12px', background: 'var(--surface-input)', border: '1px solid var(--surface-border)', borderRadius: '8px', color: 'var(--surface-text)', fontSize: '1rem' }} />
                                                 </label>
-                                                <label style={{ color: '#e2e8f0', fontSize: '0.75rem', fontWeight: 700 }}>
+                                                <label style={{ color: 'var(--surface-text-2)', fontSize: '0.75rem', fontWeight: 700 }}>
                                                     Apertura de presa (%)
                                                     <input type="number" value={formApertura} onChange={e => setFormApertura(e.target.value)}
-                                                        style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '1rem' }} />
+                                                        style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px 12px', background: 'var(--surface-input)', border: '1px solid var(--surface-border)', borderRadius: '8px', color: 'var(--surface-text)', fontSize: '1rem' }} />
                                                 </label>
-                                                <label style={{ color: '#e2e8f0', fontSize: '0.75rem', fontWeight: 700 }}>
+                                                <label style={{ color: 'var(--surface-text-2)', fontSize: '0.75rem', fontWeight: 700 }}>
                                                     Válvulas activas
                                                     <input type="text" value={formValvulas} onChange={e => setFormValvulas(e.target.value)}
-                                                        style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '1rem' }} />
+                                                        style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px 12px', background: 'var(--surface-input)', border: '1px solid var(--surface-border)', borderRadius: '8px', color: 'var(--surface-text)', fontSize: '1rem' }} />
                                                 </label>
                                             </div>
                                         )}
 
-                                        <label style={{ color: '#e2e8f0', fontSize: '0.75rem', fontWeight: 700, display: 'block', marginBottom: '16px' }}>
+                                        <label style={{ color: 'var(--surface-text-2)', fontSize: '0.75rem', fontWeight: 700, display: 'block', marginBottom: '16px' }}>
                                             Notas operativas
                                             <textarea value={formNotas} onChange={e => setFormNotas(e.target.value)}
                                                 rows={2} placeholder="Notas adicionales..."
-                                                style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '0.9rem', resize: 'none' }} />
+                                                style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px 12px', background: 'var(--surface-input)', border: '1px solid var(--surface-border)', borderRadius: '8px', color: 'var(--surface-text)', fontSize: '0.9rem', resize: 'none' }} />
                                         </label>
 
                                         {eventError && (
-                                            <div style={{ background: '#7f1d1d', color: '#fca5a5', padding: '10px', borderRadius: '8px', marginBottom: '12px', fontSize: '0.8rem', fontWeight: 600 }}>
+                                            <div style={{ background: '#7f1d1d', color: 'var(--status-critical-text)', padding: '10px', borderRadius: '8px', marginBottom: '12px', fontSize: '0.8rem', fontWeight: 600 }}>
                                                 ❌ Error: {eventError}
                                             </div>
                                         )}
@@ -746,14 +772,13 @@ const InteligenciaHidrica = () => {
                                         <div style={{ display: 'flex', gap: '12px' }}>
                                             <button
                                                 onClick={() => setShowActivationModal(false)}
-                                                style={{ flex: 1, padding: '12px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}
+                                                style={{ flex: 1, padding: '12px', background: 'var(--surface-border)', color: 'var(--surface-text-2)', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}
                                             >
                                                 Cancelar
                                             </button>
                                             <button
                                                 disabled={isLoadingEvents}
                                                 onClick={async () => {
-                                                    console.log('🔥 [Modal] Ejecutando activación...');
                                                     if (pendingEventId === 'LLENADO') {
                                                         await activateEvent('LLENADO', {
                                                             gasto_solicitado_m3s: parseFloat(formGasto) || 60,
@@ -785,7 +810,7 @@ const InteligenciaHidrica = () => {
                                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                                 }} onClick={() => setShowAperturaModal(false)}>
                                     <div onClick={e => e.stopPropagation()} style={{
-                                        background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)',
+                                        background: 'var(--surface-panel)', border: '1px solid rgba(255,255,255,0.1)',
                                         borderRadius: '20px', padding: '32px', width: '400px', maxWidth: '95vw',
                                         boxShadow: '0 25px 50px rgba(0,0,0,0.6)',
                                         textAlign: 'center'
@@ -796,44 +821,44 @@ const InteligenciaHidrica = () => {
                                             justifyContent: 'center', margin: '0 auto 20px',
                                             border: '1px solid rgba(245,158,11,0.2)'
                                         }}>
-                                            <Clock size={32} style={{ color: '#f59e0b' }} />
+                                            <Clock size={32} style={{ color: 'var(--status-warning)' }} />
                                         </div>
-                                        
-                                        <h3 style={{ color: '#f1f5f9', fontSize: '1.25rem', fontWeight: 900, marginBottom: '8px' }}>
+
+                                        <h3 style={{ color: 'var(--surface-text)', fontSize: '1.25rem', fontWeight: 900, marginBottom: '8px' }}>
                                             Confirmar Apertura
                                         </h3>
-                                        <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '16px' }}>
+                                        <p style={{ color: 'var(--surface-text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
                                             Establezca el <b>Día y Hora</b> exactos en que se realizó la maniobra en la Obra de Toma.
                                         </p>
 
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '10px', marginBottom: '24px', textAlign: 'left' }}>
-                                            <Shield size={14} style={{ color: '#10b981', flexShrink: 0 }} />
-                                            <span style={{ color: '#10b981', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            <Shield size={14} style={{ color: 'var(--status-good)', flexShrink: 0 }} />
+                                            <span style={{ color: 'var(--status-good)', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                                 Autorizado por Gerencia SRL
                                             </span>
                                         </div>
 
                                         <div style={{ marginBottom: '24px', textAlign: 'left' }}>
-                                            <label style={{ color: '#e2e8f0', fontSize: '0.75rem', fontWeight: 700, display: 'block', marginBottom: '8px' }}>
+                                            <label style={{ color: 'var(--surface-text-2)', fontSize: '0.75rem', fontWeight: 700, display: 'block', marginBottom: '8px' }}>
                                                 Fecha y Hora de Apertura
                                             </label>
-                                            <input 
-                                                type="datetime-local" 
-                                                value={tempAperturaDatetime} 
+                                            <input
+                                                type="datetime-local"
+                                                value={tempAperturaDatetime}
                                                 onChange={e => setTempAperturaDatetime(e.target.value)}
-                                                style={{ 
-                                                    display: 'block', width: '100%', padding: '12px', 
-                                                    background: '#1e293b', border: '1px solid #334155', 
-                                                    borderRadius: '10px', color: '#f1f5f9', fontSize: '1rem',
+                                                style={{
+                                                    display: 'block', width: '100%', padding: '12px',
+                                                    background: 'var(--surface-input)', border: '1px solid var(--surface-border)',
+                                                    borderRadius: '10px', color: 'var(--surface-text)', fontSize: '1rem',
                                                     outline: 'none'
-                                                }} 
+                                                }}
                                             />
                                         </div>
 
                                         <div style={{ display: 'flex', gap: '12px' }}>
                                             <button
                                                 onClick={() => setShowAperturaModal(false)}
-                                                style={{ flex: 1, padding: '12px', background: 'transparent', color: '#94a3b8', border: '1px solid #334155', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}
+                                                style={{ flex: 1, padding: '12px', background: 'transparent', color: 'var(--surface-text-muted)', border: '1px solid var(--surface-border)', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}
                                             >
                                                 Cancelar
                                             </button>

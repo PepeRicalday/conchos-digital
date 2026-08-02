@@ -196,7 +196,7 @@ const Sidebar = () => {
                         style={{ background: 'none', border: 'none', display: 'flex', alignItems: 'center', gap: '12px', position: 'relative' }}
                     >
                         <Brain size={20} />
-                        <span>Inteligencia Hídrica</span>
+                        <span>Consultoría IA</span>
                         <span style={{
                             marginLeft: 'auto',
                             fontSize: '0.55rem',

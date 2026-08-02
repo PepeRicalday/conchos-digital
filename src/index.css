@@ -23,6 +23,24 @@
   --color-amber-neon: #fbbf24;
   --color-indigo-neon: #818cf8;
 
+  /* Status semantics — reservados para estado (bueno/atención/crítico), nunca como serie categórica */
+  --status-critical: #ef4444;
+  --status-critical-bg: rgba(239, 68, 68, 0.08);
+  --status-critical-border: rgba(239, 68, 68, 0.25);
+  --status-critical-text: #fca5a5;
+  --status-warning: #f59e0b;
+  --status-warning-text: #fbbf24;
+  --status-good: #10b981;
+  --status-good-text: #4ade80;
+
+  /* Superficies de panel/modal oscuro (Hidro-Sincronía) */
+  --surface-panel: #0f172a;
+  --surface-input: #1e293b;
+  --surface-border: #334155;
+  --surface-text: #f1f5f9;
+  --surface-text-2: #e2e8f0;
+  --surface-text-muted: #94a3b8;
+
   /* Glassmorphism Refined */
   --glass-blur: 24px;
   --glass-opacity: 0.4;

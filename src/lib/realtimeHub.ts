@@ -47,6 +47,8 @@ const WATCHED: Array<{ table: string; event: RealtimeEventType }> = [
     { table: 'sica_llenado_seguimiento',  event: 'UPDATE'  },
     { table: 'registro_alertas',          event: '*'       },
     { table: 'reportes_operacion',        event: '*'       },
+    { table: 'aforos',                    event: '*'       },
+    { table: 'modulos',                   event: '*'       },
 ];
 
 function dispatch(table: string, payload: any): void {

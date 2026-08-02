@@ -40,6 +40,19 @@ function fmtLocal(isoStr: string | null | undefined): string {
     }).format(new Date(isoStr));
 }
 
+// lecturas_escalas no tiene created_at: fecha es DATE puro (sin hora) y
+// hora_lectura es TIME aparte. Concatenar da la hora REAL de captura en
+// Chihuahua; usar solo `fecha` como Date() la interpreta a medianoche UTC
+// y fmtLocal la corre 6h al día anterior (bug visto: "18:00 del 24/07"
+// para una lectura sin hora real). creado_en es el registro en BD, no la
+// hora de campo — se usa solo si no hay fecha+hora de lectura.
+function fmtLecturaEscala(fecha: string | null | undefined, horaLectura: string | null | undefined, creadoEn: string | null | undefined): string {
+    if (fecha && horaLectura) return fmtLocal(`${fecha}T${horaLectura}`);
+    if (creadoEn) return fmtLocal(creadoEn);
+    if (fecha) return fecha.split("T")[0]; // solo fecha, sin hora conocida — no inventar una
+    return "—";
+}
+
 // ─── STAGE 1: Round a number to N decimals ──────────────────────────────────
 function r(val: number | null | undefined, decimals = 2): string {
     if (val == null || isNaN(Number(val))) return "—";
@@ -70,9 +83,14 @@ async function fetchSystemData(supabaseAdmin: any) {
 
             // STAGE 1: Fetch 50 rows so we can deduplicate per escala_id below
             // Include gate dimensions from escalas: ancho, alto, pzas_radiales, coeficiente_descarga
+            // Desempate por hora_lectura: dos lecturas del mismo día (turno AM/PM) deben
+            // quedar ordenadas por hora real, o el dedup de abajo puede tomar la del
+            // turno equivocado como "más reciente".
             supabaseAdmin.from("lecturas_escalas")
                 .select("*, escalas(nombre, km, ancho, alto, pzas_radiales, coeficiente_descarga)")
-                .order("fecha", { ascending: false }).limit(50),
+                .order("fecha", { ascending: false })
+                .order("hora_lectura", { ascending: false, nullsFirst: false })
+                .limit(50),
 
             supabaseAdmin.from("ciclos_agricolas").select("*").eq("activo", true).maybeSingle(),
 
@@ -261,7 +279,7 @@ function buildSystemPrompt(data: any, contexto: string): string {
             `${estructuraInfo}` +
             `${aperturaInfo}` +
             ` | Q=${r(e.gasto_calculado_m3s, 2)} m³/s` +
-            ` | Lectura: ${fmtLocal(e.created_at ?? e.fecha)}`;
+            ` | Lectura: ${fmtLecturaEscala(e.fecha, e.hora_lectura, e.creado_en)}`;
     }).join("\n");
 
     const tomasActivasText = (data.tomas_activas || []).map((t: any) =>
@@ -616,13 +634,18 @@ Deno.serve(async (req: Request) => {
             if (msgError) throw new Error(`DB Error (chat_messages): ${msgError.message}`);
         }
 
-        // History: 4 msgs max — cada respuesta AI ~800 tok, 4×800=3200 tok de historial
+        // History: 8 msgs max (4 turnos) — con max_tokens=2500 cada respuesta AI
+        // puede pesar ~1500 tok, 8×~1000 tok promedio ≈ 8000 tok de historial.
+        // Llama-3.3-70B en Groq soporta 128K de contexto, así que el límite real
+        // es la continuidad conversacional: 4 mensajes (2 turnos) cortaba
+        // seguimientos tipo "¿y si en vez de eso cierro R3?" que necesitan
+        // recordar el escenario planteado 2 turnos atrás.
         const { data: history } = convId
             ? await supabaseAdmin.from("chat_messages")
                 .select("role, content")
                 .eq("conversation_id", convId)
                 .order("created_at", { ascending: false })
-                .limit(4)
+                .limit(8)
             : { data: [] };
         // Revertir a orden cronológico para el contexto
         const historyOrdered = (history || []).reverse();
@@ -636,10 +659,15 @@ Deno.serve(async (req: Request) => {
             messages.push({ role: "user", content: message });
         }
 
-        console.log(`Llamando a Groq API — modelo: ${AI_MODEL}, contexto: ${contexto}`);
+        console.log(`Llamando a Groq API (streaming) — modelo: ${AI_MODEL}, contexto: ${contexto}`);
 
-        // STAGE 2+3: Higher token limit (1500→2500), lower temperature (0.5→0.3)
-        const response = await fetch(AI_URL, {
+        // El prompt de sistema exige tablas de 6 columnas (balance de continuidad)
+        // y hasta 4 pasos de la regla de volumen — 1200 tokens las corta a medio
+        // cálculo sin aviso. El comentario original decía "1500→2500" pero el
+        // valor nunca se actualizó; se sube al valor documentado como intención.
+        // temperature baja (no 0): el prompt exige cálculo numérico determinista,
+        // no creatividad — 0.1 deja margen mínimo de variación de fraseo.
+        const groqResponse = await fetch(AI_URL, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${GROQ_API_KEY}`,
@@ -648,40 +676,106 @@ Deno.serve(async (req: Request) => {
             body: JSON.stringify({
                 model: AI_MODEL,
                 messages,
-                temperature: 0.3,
-                max_tokens: 1200,
-                stream: false,
+                temperature: 0.1,
+                max_tokens: 2500,
+                stream: true,
             }),
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
+        if (!groqResponse.ok || !groqResponse.body) {
+            const errorText = await groqResponse.text();
             console.error("Groq Error Response:", errorText);
-            throw new Error(`Groq API Error: ${response.status} — ${errorText}`);
+            throw new Error(`Groq API Error: ${groqResponse.status} — ${errorText}`);
         }
 
-        const result = await response.json();
-        const assistantMessage = result.choices[0]?.message?.content || "No pude generar una respuesta.";
+        // Reenviamos el stream de Groq (SSE, formato OpenAI-compatible) como SSE
+        // propio hacia el cliente: cada evento trae solo el delta de texto nuevo,
+        // así el cliente pinta la respuesta progresivamente en vez de esperar el
+        // bloque completo (8-15s en blanco antes de este cambio). Acumulamos el
+        // texto completo en el servidor para persistirlo igual que antes.
+        const encoder = new TextEncoder();
+        const decoder = new TextDecoder();
+        let fullText = "";
+        let finishReason: string | null = null;
 
-        // Persist assistant response
-        if (convId) {
-            await supabaseAdmin.from("chat_messages").insert({
-                conversation_id: convId,
-                role: "assistant",
-                content: assistantMessage,
-            });
-            await supabaseAdmin.from("chat_conversations")
-                .update({ updated_at: new Date().toISOString() })
-                .eq("id", convId);
-        }
+        const stream = new ReadableStream({
+            async start(controller) {
+                const reader = groqResponse.body!.getReader();
+                let buffer = "";
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split("\n");
+                        buffer = lines.pop() ?? "";
+                        for (const line of lines) {
+                            const trimmed = line.trim();
+                            if (!trimmed.startsWith("data:")) continue;
+                            const payload = trimmed.slice(5).trim();
+                            if (payload === "[DONE]") continue;
+                            try {
+                                const json = JSON.parse(payload);
+                                const delta = json.choices?.[0]?.delta?.content;
+                                if (json.choices?.[0]?.finish_reason) {
+                                    finishReason = json.choices[0].finish_reason;
+                                }
+                                if (delta) {
+                                    fullText += delta;
+                                    controller.enqueue(encoder.encode(
+                                        `data: ${JSON.stringify({ delta, conversation_id: convId })}\n\n`
+                                    ));
+                                }
+                            } catch {
+                                // línea SSE parcial o no-JSON — se descarta, no rompe el stream
+                            }
+                        }
+                    }
 
-        console.log("Respuesta generada con éxito.");
+                    // finish_reason "length" = Groq cortó por el límite de tokens, no
+                    // porque el análisis haya terminado. Sin este aviso, una tabla de
+                    // balance a medias se ve idéntica a una completa.
+                    if (finishReason === "length") {
+                        console.warn("Respuesta truncada por max_tokens — finish_reason=length");
+                        const warning = "\n\n---\n⚠️ **Respuesta incompleta**: el análisis se cortó por longitud. Pide continuar o acota la pregunta (por ejemplo, a un solo tramo o zona) para obtener el cálculo completo.";
+                        fullText += warning;
+                        controller.enqueue(encoder.encode(
+                            `data: ${JSON.stringify({ delta: warning, conversation_id: convId })}\n\n`
+                        ));
+                    }
 
-        return new Response(JSON.stringify({
-            conversation_id: convId,
-            message: assistantMessage,
-        }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    // Persist assistant response — igual que en el flujo no-streaming
+                    if (convId) {
+                        await supabaseAdmin.from("chat_messages").insert({
+                            conversation_id: convId,
+                            role: "assistant",
+                            content: fullText || "No pude generar una respuesta.",
+                        });
+                        await supabaseAdmin.from("chat_conversations")
+                            .update({ updated_at: new Date().toISOString() })
+                            .eq("id", convId);
+                    }
+
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, conversation_id: convId })}\n\n`));
+                    console.log("Respuesta generada con éxito (streaming).");
+                } catch (streamErr: any) {
+                    console.error("Error durante streaming:", streamErr);
+                    controller.enqueue(encoder.encode(
+                        `data: ${JSON.stringify({ error: true, message: streamErr.message || "Error de streaming" })}\n\n`
+                    ));
+                } finally {
+                    controller.close();
+                }
+            },
+        });
+
+        return new Response(stream, {
+            headers: {
+                ...corsHeaders,
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            },
         });
 
     } catch (e: any) {

@@ -13,6 +13,7 @@
 //   · Etiquetas selectivas (extremos y fin de serie), nunca un número por punto.
 //   · El texto usa tokens de tinta, jamás el color de la serie.
 // ═══════════════════════════════════════════════════════════════════════════
+import { formateaEdad } from './cielo';
 
 // ── Tokens de color (paleta institucional validada) ─────────────────────────
 export const VIZ = {
@@ -309,6 +310,74 @@ export function graficaPrecipitacion24h(serie: PuntoSerie[]): string {
 }
 
 /**
+ * Comparativo actual vs. promedio histórico de la misma fecha (climatología
+ * NASA POWER): 2 barras pareadas, no eje doble ni línea de tendencia — con
+ * pocos años acumulados una "tendencia" no es representativa, el par de
+ * barras funciona igual de bien con 1 año que con 20.
+ * Sin histórico suficiente: placeholder explícito (mismo lenguaje "S/D" que
+ * medidorNubosidad/medidorIndice), nunca una barra en 0 que se leería como
+ * "el histórico fue cero" en vez de "no hay dato".
+ */
+export function graficaComparativoHistorico(
+    etiqueta: string, unidad: string,
+    valorActual: number | null, valorHistorico: number | null,
+    aniosDisponibles: number, aniosMinimos: number,
+): string {
+    const W = 260, H = 150;
+
+    if (valorHistorico == null) {
+        return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img"
+                     aria-label="${esc(etiqueta)}: histórico insuficiente">
+            <text x="${W / 2}" y="${H / 2 - 10}" text-anchor="middle" font-size="15" font-weight="700"
+                  fill="${VIZ.estado.aviso}" font-family="system-ui">S/D</text>
+            <text x="${W / 2}" y="${H / 2 + 10}" text-anchor="middle" font-size="8.5"
+                  fill="${VIZ.inkMuted}" font-family="system-ui">histórico insuficiente</text>
+            <text x="${W / 2}" y="${H / 2 + 26}" text-anchor="middle" font-size="9.5" font-weight="600"
+                  fill="${VIZ.inkSecondary}" font-family="system-ui">${esc(etiqueta)}</text>
+            <text x="${W / 2}" y="${H / 2 + 42}" text-anchor="middle" font-size="8"
+                  fill="${VIZ.inkMuted}" font-family="system-ui">${aniosDisponibles}/${aniosMinimos} años mínimos</text>
+        </svg>`;
+    }
+
+    const ML = 40, MR = 16, MT = 20, MB = 34;
+    const ih = H - MT - MB;
+    const maxV = Math.max(valorActual ?? 0, valorHistorico, 1) * 1.15;
+    const y = (v: number) => MT + ih - (Math.max(0, v) / maxV) * ih;
+    const anchoBarra = 46;
+    const gapCentro = 14;
+    const xActual = W / 2 - gapCentro / 2 - anchoBarra;
+    const xHist = W / 2 + gapCentro / 2;
+
+    const barra = (x: number, v: number, color: string, label: string) => {
+        const by = y(v), h = y(0) - by;
+        if (h < 0.6) return '';
+        const r = Math.min(4, h);
+        return `<path d="M${x},${(by + h).toFixed(1)} L${x},${(by + r).toFixed(1)}
+                 Q${x},${by.toFixed(1)} ${(x + r).toFixed(1)},${by.toFixed(1)}
+                 L${(x + anchoBarra - r).toFixed(1)},${by.toFixed(1)}
+                 Q${(x + anchoBarra).toFixed(1)},${by.toFixed(1)} ${(x + anchoBarra).toFixed(1)},${(by + r).toFixed(1)}
+                 L${(x + anchoBarra).toFixed(1)},${(by + h).toFixed(1)} Z" fill="${color}"/>
+                 <text x="${(x + anchoBarra / 2).toFixed(1)}" y="${(by - 7).toFixed(1)}" text-anchor="middle"
+                       font-size="12" font-weight="700" fill="${VIZ.inkPrimary}" font-family="system-ui">${v.toFixed(1)}</text>
+                 <text x="${(x + anchoBarra / 2).toFixed(1)}" y="${H - 18}" text-anchor="middle"
+                       font-size="8.5" fill="${VIZ.inkSecondary}" font-family="system-ui">${esc(label)}</text>`;
+    };
+
+    const preliminar = aniosDisponibles < aniosMinimos;
+
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img"
+                 aria-label="${esc(etiqueta)}: ${valorActual != null ? valorActual.toFixed(1) : '—'} ${esc(unidad)} actual contra ${valorHistorico.toFixed(1)} ${esc(unidad)} histórico">
+        <line x1="${ML}" y1="${y(0).toFixed(1)}" x2="${W - MR}" y2="${y(0).toFixed(1)}" stroke="${VIZ.axis}" stroke-width="1"/>
+        ${valorActual != null ? barra(xActual, valorActual, VIZ.serie[0], 'Hoy') : ''}
+        ${barra(xHist, valorHistorico, VIZ.inkMuted, 'Histórico')}
+        <text x="${ML - 7}" y="${MT - 6}" text-anchor="end" font-size="8"
+              fill="${VIZ.inkMuted}" font-family="system-ui">${esc(unidad)}</text>
+        <text x="${W / 2}" y="${H - 4}" text-anchor="middle" font-size="7.5"
+              fill="${VIZ.inkMuted}" font-family="system-ui">${esc(etiqueta)} · ${aniosDisponibles} año(s)${preliminar ? ' (muestra preliminar)' : ''}</text>
+    </svg>`;
+}
+
+/**
  * Marcha térmica prevista a 24 h (línea única, sin leyenda: el título la nombra).
  */
 export function graficaTemperatura24h(serie: PuntoSerie[]): string {
@@ -412,8 +481,11 @@ export function franjaCalidad(
         const icono = x.status === 'valid' ? '●' : x.status === 'expired' ? '▲' : '◆';
         const edad = x.edadMin ?? TOPE;
         const w = Math.max(3, Math.min(1, edad / TOPE) * iw);
-        const txt = x.edadMin == null ? 's/d'
-            : x.edadMin < 60 ? `${Math.round(x.edadMin)} min` : `${(x.edadMin / 60).toFixed(1)} h`;
+        // Misma función que la tabla de lecturas observadas (formateaEdad, en
+        // cielo.ts): antes esta gráfica redondeaba a 1 decimal ("2.7 h") y la
+        // tabla a entero ("3 h") para el mismo dato — dos números distintos
+        // para la misma edad en el mismo informe.
+        const txt = formateaEdad(x.edadMin);
         // El valor va DENTRO de la barra solo si cabe con holgura; si no, fuera,
         // en tinta secundaria. Nunca se recorta ni se desborda del riel.
         const anchoTxt = txt.length * 4.6 + 10;

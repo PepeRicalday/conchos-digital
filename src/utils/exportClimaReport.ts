@@ -10,13 +10,15 @@ import {
 import {
     VIZ, medidorNubosidad, graficaNubosidad24h, graficaPrecipitacion24h,
     graficaTemperatura24h, graficaEtoEstaciones, franjaCalidad,
-    medidorIndice, barraNivel,
+    medidorIndice, barraNivel, graficaComparativoHistorico,
     type PuntoSerie,
 } from './climaCharts';
 import { guardaOComparte } from './descargaArchivo';
 import { calculaIndices, entradasDesdeEstaciones } from './indicesAgro';
-import type { FondoSatelital } from './mapaSatelital';
+import { CENTRO_DISTRITO, type FondoSatelital } from './mapaSatelital';
+import type { CapaNubes } from './capaNubesGIBS';
 import { getTodayString } from './dateHelpers';
+import { climatologiaHistorica } from './climatologia';
 
 const SRL_MARRON = '#6B2D2D';
 const AZUL = '#1e5b8f';
@@ -133,6 +135,7 @@ export function extensionMapa(ests: EstacionConLectura[]): {
 
 export function mapaSVG(
     ests: EstacionConLectura[], preds?: Pred24[], fondo?: FondoSatelital | null,
+    capaNubes?: CapaNubes | null,
 ): string {
     const pts = ests.filter(e => e.latitud && e.longitud);
     if (!pts.length) return '';
@@ -166,8 +169,8 @@ export function mapaSVG(
         // Sobre satélite el relleno se reduce: la imagen debe leerse a través
         // del módulo, que aquí solo delimita, no colorea.
         return `<path d="${d}" fill="${col}" fill-opacity="${fondo ? 0.11 : 0.20}" stroke="${col}" stroke-width="${fondo ? 2.2 : 2}" stroke-dasharray="5,3" stroke-linejoin="round"/>
-                <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="11.5" fill="#fff" fill-opacity="0.95" stroke="${col}" stroke-width="2"/>
-                <text x="${lx.toFixed(1)}" y="${(ly+4).toFixed(1)}" font-size="11" font-weight="800" text-anchor="middle" fill="${col}" font-family="system-ui">M${num}</text>`;
+                <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="13.5" fill="#fff" fill-opacity="0.95" stroke="${col}" stroke-width="2"/>
+                <text x="${lx.toFixed(1)}" y="${(ly+4.5).toFixed(1)}" font-size="13" font-weight="800" text-anchor="middle" fill="${col}" font-family="system-ui">M${num}</text>`;
     }).join('');
 
     const canalPath = CANAL.map((p, i) => `${i ? 'L' : 'M'}${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join(' ');
@@ -176,7 +179,7 @@ export function mapaSVG(
     // Registro de cajas ocupadas (íconos/marcadores) para el anti-solapamiento de rótulos.
     const ocupados: Rotulo[] = [];
     // Área válida para etiquetas: dentro del lienzo, bajo la barra de título superior.
-    const limites = { bx0: P + 2, bx1: W - P - 2, by0: P + 20, by1: H - P - 12 };
+    const limites = { bx0: P + 2, bx1: W - P - 2, by0: P + 24, by1: H - P - 12 };
     // Reserva el área de cada etiqueta M# de módulo (ya colocada al centroide).
     for (const ring of Object.values(MODULOS_SRL)) {
         let cx = 0, cy = 0; for (const p of ring) { cx += p[0]; cy += p[1]; }
@@ -190,9 +193,9 @@ export function mapaSVG(
     const presasSVG = PRESAS.map(pr => {
         const x = sx(pr.lon), y = sy(pr.lat);
         ocupados.push({ x: x - 6, y: y - 10, w: 12, h: 12 });
-        const lbl = colocaEtiqueta(x, y, pr.nombre.length * 5, ocupados, limites);
+        const lbl = colocaEtiqueta(x, y, pr.nombre.length * 6.2, ocupados, limites);
         return `<path d="M${(x-5).toFixed(0)},${y.toFixed(0)} L${x.toFixed(0)},${(y-8).toFixed(0)} L${(x+5).toFixed(0)},${y.toFixed(0)} Z" fill="#22d3ee" stroke="#fff" stroke-width="1.2"/>
-                <text x="${lbl.x.toFixed(0)}" y="${lbl.y.toFixed(0)}" font-size="8.5" font-weight="600" text-anchor="${lbl.anchor}" fill="${tintaRotulo}" font-family="system-ui" paint-order="stroke" stroke="${haloRotulo}" stroke-width="2.5">${pr.nombre}</text>`;
+                <text x="${lbl.x.toFixed(0)}" y="${lbl.y.toFixed(0)}" font-size="10.5" font-weight="700" text-anchor="${lbl.anchor}" fill="${tintaRotulo}" font-family="system-ui" paint-order="stroke" stroke="${haloRotulo}" stroke-width="3">${pr.nombre}</text>`;
     }).join('');
 
     // Estaciones: marcador + ícono; nombre y "máx N°" en UN rótulo compacto, anti-solape.
@@ -200,25 +203,25 @@ export function mapaSVG(
         const x = sx(e.longitud), y = sy(e.latitud);
         const pr = predDe(e.nombre);
         const col = pr ? pr.color : (e.enLinea ? '#0284c7' : '#94a3b8');
-        // Reserva acorde al marcador real (r=12 + anillo) para que el rótulo no lo pise.
-        const rMarca = pr ? 17 : 13;
+        // Reserva acorde al marcador real (r=14 + anillo) para que el rótulo no lo pise.
+        const rMarca = pr ? 19 : 15;
         ocupados.push({ x: x - rMarca, y: y - rMarca, w: rMarca * 2, h: rMarca * 2 });
         // Con pronóstico: icono de cielo SOLO si hay fuente de nubosidad; si no,
         // un signo de interrogación — nunca un sol que insinúe cielo despejado.
         const marca = pr
-            ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="12" fill="#fff" fill-opacity="0.85" stroke="${col}" stroke-width="2"${pr.icono ? '' : ' stroke-dasharray="3,2"'}/>
-               <text x="${x.toFixed(1)}" y="${(y+4).toFixed(1)}" font-size="${pr.icono ? 12 : 11}" text-anchor="middle"${pr.icono ? '' : ` fill="${col}" font-weight="700" font-family="system-ui"`}>${pr.icono || '?'}</text>`
-            : `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6.5" fill="${col}" stroke="#fff" stroke-width="2"/>
-               <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="10" fill="none" stroke="${col}" stroke-width="1" opacity="0.4"/>`;
+            ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="14" fill="#fff" fill-opacity="0.85" stroke="${col}" stroke-width="2"${pr.icono ? '' : ' stroke-dasharray="3,2"'}/>
+               <text x="${x.toFixed(1)}" y="${(y+5).toFixed(1)}" font-size="${pr.icono ? 14 : 13}" text-anchor="middle"${pr.icono ? '' : ` fill="${col}" font-weight="700" font-family="system-ui"`}>${pr.icono || '?'}</text>`
+            : `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7.5" fill="${col}" stroke="#fff" stroke-width="2"/>
+               <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="11.5" fill="none" stroke="${col}" stroke-width="1" opacity="0.4"/>`;
         // Estaciones DENTRO de un módulo (Módulo 3/5) ya se identifican por el "M#"
         // del contorno: se evita repetir "Módulo N" y se rotula solo la temp.
         const enModulo = /m[oó]dulo/i.test(e.nombre);
         const txt = enModulo
             ? (pr?.tMaxEsp != null ? `máx ${pr.tMaxEsp}°` : '')
             : (pr?.tMaxEsp != null ? `${e.nombre} · máx ${pr.tMaxEsp}°` : e.nombre);
-        const lbl = txt ? colocaEtiqueta(x, y, txt.length * 4.8, ocupados, limites) : null;
+        const lbl = txt ? colocaEtiqueta(x, y, txt.length * 5.9, ocupados, limites) : null;
         const lblSVG = lbl
-            ? `<text x="${lbl.x.toFixed(1)}" y="${lbl.y.toFixed(1)}" font-size="9" font-weight="700" text-anchor="${lbl.anchor}" fill="${fondo ? '#ffffff' : '#0c4a6e'}" font-family="system-ui" paint-order="stroke" stroke="${fondo ? '#0b1f38' : '#ffffff'}" stroke-width="3">${txt}</text>`
+            ? `<text x="${lbl.x.toFixed(1)}" y="${lbl.y.toFixed(1)}" font-size="11" font-weight="700" text-anchor="${lbl.anchor}" fill="${fondo ? '#ffffff' : '#0c4a6e'}" font-family="system-ui" paint-order="stroke" stroke="${fondo ? '#0b1f38' : '#ffffff'}" stroke-width="3.5">${txt}</text>`
             : '';
         return `${marca}\n${lblSVG}`;
     }).join('');
@@ -227,11 +230,11 @@ export function mapaSVG(
     const grid: string[] = [];
     for (let la = Math.ceil(minLa * 10) / 10; la <= maxLa; la += 0.1) {
         const y = sy(la);
-        grid.push(`<line x1="${P}" y1="${y.toFixed(0)}" x2="${W-P}" y2="${y.toFixed(0)}" stroke="${fondo ? '#fff' : '#000'}" stroke-opacity="${fondo ? 0.14 : 0.05}" stroke-width="0.6"/><text x="${P-3}" y="${(y+3).toFixed(0)}" font-size="7" text-anchor="end" fill="${fondo ? '#c3d3e2' : '#94a3b8'}">${la.toFixed(1)}°</text>`);
+        grid.push(`<line x1="${P}" y1="${y.toFixed(0)}" x2="${W-P}" y2="${y.toFixed(0)}" stroke="${fondo ? '#fff' : '#000'}" stroke-opacity="${fondo ? 0.14 : 0.05}" stroke-width="0.6"/><text x="${P-3}" y="${(y+3).toFixed(0)}" font-size="9" text-anchor="end" fill="${fondo ? '#c3d3e2' : '#94a3b8'}">${la.toFixed(1)}°</text>`);
     }
     for (let lo = Math.ceil(minLo * 10) / 10; lo <= maxLo; lo += 0.1) {
         const x = sx(lo);
-        grid.push(`<line x1="${x.toFixed(0)}" y1="${P}" x2="${x.toFixed(0)}" y2="${H-P}" stroke="${fondo ? '#fff' : '#000'}" stroke-opacity="${fondo ? 0.14 : 0.05}" stroke-width="0.6"/><text x="${x.toFixed(0)}" y="${(H-P+10).toFixed(0)}" font-size="7" text-anchor="middle" fill="${fondo ? '#c3d3e2' : '#94a3b8'}">${lo.toFixed(1)}°</text>`);
+        grid.push(`<line x1="${x.toFixed(0)}" y1="${P}" x2="${x.toFixed(0)}" y2="${H-P}" stroke="${fondo ? '#fff' : '#000'}" stroke-opacity="${fondo ? 0.14 : 0.05}" stroke-width="0.6"/><text x="${x.toFixed(0)}" y="${(H-P+10).toFixed(0)}" font-size="9" text-anchor="middle" fill="${fondo ? '#c3d3e2' : '#94a3b8'}">${lo.toFixed(1)}°</text>`);
     }
 
     // ── Fondo GEOMORFOLÓGICO estilizado (SVG): terreno árido del semidesierto
@@ -252,17 +255,39 @@ export function mapaSVG(
     // diferencia entre ambas proyecciones es < 1 px, así que estirar la imagen
     // linealmente no descuadra el trazo del canal ni los contornos de módulo.
     // Se recorta al marco del mapa para que no invada los márgenes de rótulos.
+    // Marco de recorte único: lo usan tanto el fondo satelital como la capa de
+    // nubes, para que ninguna de las dos imágenes invada el margen de rótulos.
+    const marcoClip = `<clipPath id="marco"><rect x="${P}" y="${P}" width="${W-2*P}" height="${H-2*P}" rx="3"/></clipPath>`;
     const fondoSVG = fondo ? (() => {
         const fx0 = sx(fondo.minLon), fx1 = sx(fondo.maxLon);
         const fy0 = sy(fondo.maxLat), fy1 = sy(fondo.minLat);
-        return `<clipPath id="marco"><rect x="${P}" y="${P}" width="${W-2*P}" height="${H-2*P}" rx="3"/></clipPath>
-                <g clip-path="url(#marco)">
+        return `<g clip-path="url(#marco)">
                   <image href="${fondo.dataURI}" x="${fx0.toFixed(1)}" y="${fy0.toFixed(1)}"
                          width="${(fx1-fx0).toFixed(1)}" height="${(fy1-fy0).toFixed(1)}"
                          preserveAspectRatio="none"/>
                   <rect x="${P}" y="${P}" width="${W-2*P}" height="${H-2*P}" fill="#0b1f38" opacity="0.10"/>
                 </g>`;
     })() : '';
+
+    // ── Capa de nubosidad ACTUAL (NASA GIBS) ────────────────────────────────
+    // Imagen satelital real de nubes de la zona, no interpolación entre
+    // estaciones (ver nota en capaNubesGIBS.ts). Se pinta por ENCIMA del
+    // terreno/canal/módulos pero por DEBAJO de los marcadores de estación, en
+    // modo "screen" para que aclare donde hay nube sin tapar el trazo del canal
+    // ni los contornos de módulo que ya están dibujados debajo.
+    const nubesSVG = capaNubes ? (() => {
+        const nx0 = sx(capaNubes.minLon), nx1 = sx(capaNubes.maxLon);
+        const ny0 = sy(capaNubes.maxLat), ny1 = sy(capaNubes.minLat);
+        return `<g clip-path="url(#marco)" style="mix-blend-mode:screen" opacity="0.82">
+                  <image href="${capaNubes.dataURI}" x="${nx0.toFixed(1)}" y="${ny0.toFixed(1)}"
+                         width="${(nx1-nx0).toFixed(1)}" height="${(ny1-ny0).toFixed(1)}"
+                         preserveAspectRatio="none"/>
+                </g>`;
+    })() : '';
+    // Nota de vigencia impresa al pie del plano cuando la capa se pudo pintar.
+    const nubesVigenciaTxt = capaNubes
+        ? `Nubosidad satelital (NASA GIBS, GOES-East) vigente ${capaNubes.vigenteEn.toLocaleString('es-MX', { timeZone: 'America/Chihuahua', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })} hrs.`
+        : '';
 
     // Alto extra al pie cuando hay leyenda de iconos de cielo, para que no se recorte.
     const HL = preds ? 26 : 0;
@@ -280,6 +305,7 @@ export function mapaSVG(
           <filter id="relieve"><feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="3" seed="7" result="n"/>
             <feColorMatrix in="n" type="matrix" values="0 0 0 0 0.55  0 0 0 0 0.5  0 0 0 0 0.42  0 0 0 0.5 0"/>
             <feComposite operator="in" in2="SourceGraphic"/></filter>
+          ${marcoClip}
         </defs>
         ${fondo
             // Con imagen satelital, el terreno sintético sobra: sería una capa
@@ -299,17 +325,19 @@ export function mapaSVG(
                <path d="${canalPath}" fill="none" stroke="#38bdf8" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>`
             : `<path d="${canalPath}" fill="none" stroke="#1d4ed8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>
                <path d="${canalPath}" fill="none" stroke="#bfdbfe" stroke-width="0.8" stroke-dasharray="1,4"/>`}
+        ${nubesSVG}
         ${presasSVG}${estSVG}
-        <rect x="${P}" y="${P}" width="${W-2*P}" height="17" fill="#0f172a" opacity="0.35"/>
-        <text x="${P+5}" y="${P+12}" font-size="9" font-weight="600" fill="#fff" font-family="system-ui">${preds ? 'Nubosidad prevista 24 h — Módulos SRL Conchos · DR-005' : 'Módulos SRL Conchos (M1-M5, M12) · Valle del Conchos, DR-005'}</text>
-        ${preds ? `<g transform="translate(${P+4},${H-P+22})">
-          <rect x="-3" y="-11" width="${W-2*P+6}" height="17" rx="4" fill="#f1f5f9"/>
-          <text x="2" y="1.5" font-size="7.6" fill="#475569" font-family="system-ui">☀️ despejado · 🌤️ mayorm. despejado · ⛅ parcial · 🌥️ mayorm. nublado · ☁️ cubierto · ? sin fuente de nubosidad</text>
+        <rect x="${P}" y="${P}" width="${W-2*P}" height="21" fill="#0f172a" opacity="0.35"/>
+        <text x="${P+5}" y="${P+15}" font-size="11" font-weight="600" fill="#fff" font-family="system-ui">${capaNubes ? 'Cobertura de nubes actual (satélite) — Módulos SRL Conchos · DR-005' : preds ? 'Nubosidad prevista 24 h — Módulos SRL Conchos · DR-005' : 'Módulos SRL Conchos (M1-M5, M12) · Valle del Conchos, DR-005'}</text>
+        ${preds ? `<g transform="translate(${P+4},${H-P+24})">
+          <rect x="-3" y="-13" width="${W-2*P+6}" height="20" rx="4" fill="#f1f5f9"/>
+          <text x="2" y="2" font-size="9.5" fill="#475569" font-family="system-ui">☀️ despejado · 🌤️ mayorm. despejado · ⛅ parcial · 🌥️ mayorm. nublado · ☁️ cubierto · ? sin fuente de nubosidad</text>
         </g>` : ''}
-        <g transform="translate(${W-98},${H-24})">
-          <rect x="-6" y="-14" width="${(0.1*kx/spanLo*(W-2*P)+40).toFixed(0)}" height="22" rx="4" fill="#fff" opacity="0.75"/>
+        ${capaNubes ? `<text x="${W-P-5}" y="${P+34}" font-size="9" text-anchor="end" fill="${fondo ? '#c3d3e2' : '#5b7186'}" font-family="system-ui" paint-order="stroke" stroke="${fondo ? '#0b1f38' : '#ffffff'}" stroke-width="3">${nubesVigenciaTxt}</text>` : ''}
+        <g transform="translate(${W-104},${H-26})">
+          <rect x="-6" y="-16" width="${(0.1*kx/spanLo*(W-2*P)+44).toFixed(0)}" height="25" rx="4" fill="#fff" opacity="0.75"/>
           <line x1="0" y1="0" x2="${(0.1*kx/spanLo*(W-2*P)).toFixed(0)}" y2="0" stroke="#334155" stroke-width="1.5"/>
-          <text x="0" y="-4" font-size="7.5" fill="#475569" font-family="system-ui">~10 km</text>
+          <text x="0" y="-5" font-size="9.5" fill="#475569" font-family="system-ui">~10 km</text>
         </g>
     </svg>`;
 }
@@ -559,6 +587,12 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     const an = analisisTecnico(ests, etoProm, gddProm, lluviaTotal, etoFcHoy);
     // Predicción por tendencia (nowcasting) a 24 h por estación en línea
     const preds = ests.filter(e => e.enLinea && e.lectura).map(predice24h);
+
+    // Climatología histórica (NASA POWER): promedio de esta misma fecha en años
+    // anteriores. No falla el informe si no hay historia suficiente todavía —
+    // climatologiaHistorica() ya maneja ese caso internamente.
+    const fechaHoyLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
+    const climatologia = await climatologiaHistorica(ests.map(e => e.id), fechaHoyLocal);
 
     // Filas de la tabla de pronóstico 24 h. Nubosidad y lluvia en COLUMNAS
     // SEPARADAS: son variables distintas y conservan escalas independientes.
@@ -1315,6 +1349,32 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     </figcaption>
     ${svgTemp24}
   </figure>` : ''}
+
+  <h2>${sec()}. Mapa animado (Windy.com)</h2>
+  <p class="pred-nota">
+    Visualización satelital en vivo de nubosidad y precipitación sobre el distrito.
+    Requiere conexión a internet; si no carga, use el enlace directo.
+  </p>
+  <figure class="fig">
+    <iframe src="https://embed.windy.com/embed2.html?lat=${CENTRO_DISTRITO.lat}&lon=${CENTRO_DISTRITO.lon}&detailLat=${CENTRO_DISTRITO.lat}&detailLon=${CENTRO_DISTRITO.lon}&width=800&height=450&zoom=8&level=surface&overlay=rain&product=ecmwf&menu=&message=true&marker=&calendar=now&type=map"
+            width="100%" height="450" style="border:0;border-radius:8px" loading="lazy"
+            title="Mapa animado Windy.com"></iframe>
+    <div class="destacado" style="margin-top:8px">
+      <a href="https://www.windy.com/-Radar-radar?radar,${CENTRO_DISTRITO.lat},${CENTRO_DISTRITO.lon},8" target="_blank" rel="noopener">Abrir en windy.com ↗</a>
+    </div>
+  </figure>
+
+  ${climatologia.aniosDisponibles >= 1 ? `
+  <h2>${sec()}. Comparativo con climatología histórica (NASA POWER)</h2>
+  <p class="pred-nota">
+    Compara las condiciones de hoy contra el promedio histórico de esta misma fecha
+    en años anteriores (datos satelitales NASA POWER). Base: ${climatologia.aniosDisponibles}
+    año(s)${climatologia.aniosDisponibles < climatologia.aniosMinimos ? ' — muestra preliminar' : ''}.
+  </p>
+  <div class="duo">
+    <figure class="fig">${graficaComparativoHistorico('Precipitación', 'mm', lluviaTotal, climatologia.precipProm, climatologia.aniosDisponibles, climatologia.aniosMinimos)}</figure>
+    <figure class="fig">${graficaComparativoHistorico('ETo de referencia', 'mm', etoProm, climatologia.etoProm, climatologia.aniosDisponibles, climatologia.aniosMinimos)}</figure>
+  </div>` : ''}
 
   ${filasCultivo ? `
   <h2>${sec()}. Lámina de riego por cultivo</h2>

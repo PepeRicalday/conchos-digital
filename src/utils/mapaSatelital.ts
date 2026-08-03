@@ -34,6 +34,11 @@ const VASOS: { nombre: string; lat: number; lon: number; radioKm: number }[] = [
     { nombre: 'Fco. I. Madero', lat: 28.3364, lon: -105.5278, radioKm: 12 },
 ];
 
+/** Centro geográfico del Distrito de Riego 005 (Canal Conchos), usado como
+ *  encuadre por defecto para vistas satelitales/animadas de todo el distrito
+ *  (mapa Windy, informe de clima). */
+export const CENTRO_DISTRITO = { lat: 28.02, lon: -105.42 } as const;
+
 // ── Web Mercator (EPSG:3857): lon/lat → coordenada de tesela fraccionaria ───
 export const lon2tile = (lon: number, z: number) => ((lon + 180) / 360) * 2 ** z;
 export const lat2tile = (lat: number, z: number) => {

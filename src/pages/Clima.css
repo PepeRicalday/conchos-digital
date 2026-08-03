@@ -527,6 +527,15 @@
     transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .estaciones-pdf:hover { background: rgba(148, 163, 184, 0.12); color: #e2e8f0; border-color: #94a3b8; }
+/* Mapa animado: acción de consulta (no export), tono distinto de Infografía
+   para no confundirse con esa acción pese a compartir jerarquía secundaria. */
+.estaciones-mapa-animado {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: transparent; color: #0ea5e9; border: 1px solid #0ea5e9; border-radius: 6px;
+    padding: 6px 12px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
+    transition: background 0.15s;
+}
+.estaciones-mapa-animado:hover { background: rgba(14, 165, 233, 0.12); }
 .estaciones-pdf:disabled { opacity: 0.6; cursor: wait; }
 
 /* ═══ MEJORA VISUAL MODERNA — Módulo Clima v2 ═══════════════════════════ */

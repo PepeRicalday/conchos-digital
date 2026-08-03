@@ -1,4 +1,4 @@
-import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain } from 'lucide-react';
+import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain, Satellite, PanelRight } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
@@ -17,6 +17,7 @@ import { useHydricEvents } from '../hooks/useHydricEvents';
 import { useClimaEstaciones } from '../hooks/useClimaEstaciones';
 import { esModuloSRL, moduloSRLde } from '../utils/modulosSRL';
 import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
+import { WindyMapModal } from '../components/WindyMapModal';
 import { useMetadataStore } from '../store/useMetadataStore';
 
 // Fix for Leaflet icons in React
@@ -28,6 +29,74 @@ L.Icon.Default.mergeOptions({
 });
 
 // Removed unused createIcon function
+
+const BASE_LAYER_LABEL: Record<'standard' | 'satellite' | 'eos' | 'sentinel', string> = {
+    standard: 'Mapa Estándar',
+    satellite: 'Satélite ArcGIS',
+    eos: 'EOS LandViewer',
+    sentinel: 'Sentinel Hub',
+};
+
+type LayerKey = 'canal' | 'escalas' | 'tomas' | 'estaciones' | 'modulos' | 'presasShape'
+    | 'rioShape' | 'alertas' | 'mostrarAforosQ' | 'mostrarAperturas';
+
+interface SidebarButtonConfig {
+    key: LayerKey;
+    icon: React.ComponentType<{ size?: number; className?: string }>;
+    title: string;
+    iconClassName?: string;
+    indicatorClass?: string;
+    /** 'alertas' usa una clase de estado propia ('shield') en vez de 'active'. */
+    activeClass?: string;
+}
+
+interface SidebarGroupConfig {
+    id: string;
+    label: string;
+    buttons: SidebarButtonConfig[];
+}
+
+// Los 10 toggles de contenido, agrupados por función real (no por orden de
+// aparición histórico): topología de red activa, overlays geoespaciales
+// estáticos, monitoreo de clima/riesgo, e indicadores de operación puntual.
+const SIDEBAR_GROUPS: SidebarGroupConfig[] = [
+    {
+        id: 'red-hidraulica',
+        label: 'Red hidráulica',
+        buttons: [
+            { key: 'canal', icon: Layers, title: 'Trazado del Canal por Secciones' },
+            { key: 'escalas', icon: Crosshair, title: 'Escalas y Puntos de Aforo' },
+            { key: 'tomas', icon: Droplets, title: 'Presas y Tomas Activas' },
+            { key: 'rioShape', icon: Activity, title: 'Trazado del Río Conchos', iconClassName: 'geo-icon-blue', indicatorClass: 'geo-indicator-blue' },
+        ],
+    },
+    {
+        id: 'capas-geoespaciales',
+        label: 'Polígonos',
+        buttons: [
+            { key: 'modulos', icon: MapIcon, title: 'Polígonos de Módulos de Riego', indicatorClass: 'geo-indicator-purple' },
+            { key: 'presasShape', icon: Droplets, title: 'Polígonos de Vasos de Presas', indicatorClass: 'geo-indicator-blue' },
+        ],
+    },
+    {
+        id: 'clima-alertas',
+        label: 'Monitoreo',
+        buttons: [
+            { key: 'estaciones', icon: CloudRain, title: 'Estaciones climáticas (WeatherLink)' },
+            { key: 'alertas', icon: ShieldCheck, title: 'Alertas y Anomalías', activeClass: 'shield' },
+        ],
+    },
+    {
+        id: 'indicadores',
+        label: 'Indicadores',
+        buttons: [
+            { key: 'mostrarAforosQ', icon: TrendingUp, title: 'Ver Gastos de Aforos de Control', iconClassName: 'geo-icon-amber', indicatorClass: 'geo-indicator-amber' },
+            { key: 'mostrarAperturas', icon: Gauge, title: 'Ver Apertura de Compuertas', iconClassName: 'geo-icon-teal', indicatorClass: 'geo-indicator-teal' },
+        ],
+    },
+];
+
+const SIDEBAR_ICON_SIZE = 19;
 
 const presaIcon = L.divIcon({
     className: 'geo-custom-marker',
@@ -227,7 +296,12 @@ const GeoMonitor = () => {
     const [geoRio, setGeoRio] = useState<GeoJSON.FeatureCollection | null>(null);
     const [customLayers, setCustomLayers] = useState<GeoLayer[]>([]);
     const [showImporter, setShowImporter] = useState(false);
+    const [showWindy, setShowWindy] = useState(false);
     const [geoKey, setGeoKey] = useState(0); // Force re-render on geojson change
+
+    // Panel de KPIs (.geo-stats-panel): columna fija en escritorio, drawer
+    // deslizable en tablet (≤1024px) activado por este estado.
+    const [statsOpen, setStatsOpen] = useState(false);
 
     // Layer Toggles
     const [layers, setLayers] = useState({
@@ -243,12 +317,89 @@ const GeoMonitor = () => {
         estaciones: true,
     });
 
-    const [baseLayer, setBaseLayer] = useState<'standard' | 'satellite' | 'eos'>(() => {
+    // Centro de referencia del mapa (Canal Principal Conchos), también usado
+    // para consultar el Catalog API de Sentinel Hub (qué escena cubre este punto).
+    const mapCenter: [number, number] = [28.02, -105.42];
+
+    const [baseLayer, setBaseLayer] = useState<'standard' | 'satellite' | 'eos' | 'sentinel'>(() => {
         return (localStorage.getItem('geo_base_layer') as any) || 'satellite';
     });
     const [eosUrl, setEosUrl] = useState<string>(() => {
         return localStorage.getItem('geo_eos_url') || '';
     }); // Para almacenar la URL WMS de EOS
+
+    // Sentinel Hub (Copernicus): instance ID de configuration WMS del usuario +
+    // capa temática activa. TRUE_COLOR = imagen natural, NDVI = vigor vegetativo,
+    // MOISTURE_INDEX = humedad de suelo/vegetación — capas predefinidas del
+    // "Sentinel Hub custom scripts repository", disponibles en cualquier
+    // configuration WMS estándar creada en el dashboard de Sentinel Hub.
+    const [sentinelInstanceId, setSentinelInstanceId] = useState<string>(() => {
+        return (
+            localStorage.getItem('geo_sentinel_instance_id') ||
+            import.meta.env.VITE_SENTINEL_INSTANCE_ID ||
+            ''
+        );
+    });
+    const [sentinelLayer, setSentinelLayer] = useState<'1_TRUE_COLOR' | '3_NDVI' | '7_NDWI' | '9_NDVI_AGRO'>(() => {
+        const saved = localStorage.getItem('geo_sentinel_layer');
+        const validas = ['1_TRUE_COLOR', '3_NDVI', '7_NDWI', '9_NDVI_AGRO'];
+        // Guarda contra nombres de capa de una versión anterior (p. ej. 'NDVI'
+        // sin prefijo numérico) que ya no existen en la configuration WMS real.
+        return (validas.includes(saved ?? '') ? saved : '3_NDVI') as '1_TRUE_COLOR' | '3_NDVI' | '7_NDWI' | '9_NDVI_AGRO';
+    });
+    // 'reciente' = último día disponible aunque tenga nubes; 'legible' = la
+    // imagen más clara de los últimos 30 días (comportamiento previo por defecto).
+    const [sentinelModo, setSentinelModo] = useState<'reciente' | 'legible'>(() => {
+        return (localStorage.getItem('geo_sentinel_modo') as any) || 'legible';
+    });
+    // Metadatos de la escena mostrada (fecha real + nubosidad), resueltos vía
+    // sentinel-catalog-search — el WMS por sí solo no expone qué fecha eligió.
+    const [sentinelEscena, setSentinelEscena] = useState<{
+        fecha: string | null; nubosidad: number | null; cargando: boolean; error: string | null;
+    }>({ fecha: null, nubosidad: null, cargando: false, error: null });
+
+    // Menú desplegable de capa base: un botón, no cuatro, para no saturar la
+    // columna de controles (que ya tiene 11 toggles de contenido).
+    // El menú se posiciona `fixed` con coordenadas calculadas del botón —
+    // `.geo-main-content` tiene overflow:hidden (para contener el mapa), así
+    // que un `absolute` anidado ahí adentro se recorta y queda invisible.
+    const [baseLayerMenuOpen, setBaseLayerMenuOpen] = useState(false);
+    // 'top' ancla el menú creciendo hacia abajo desde el botón; 'bottom' lo
+    // ancla creciendo hacia arriba — necesario porque el botón vive al fondo
+    // del sidebar, y el menú (con los chips de Sentinel Hub + fecha) puede
+    // medir más que el espacio libre hacia abajo y salirse de la pantalla.
+    const [baseLayerMenuPos, setBaseLayerMenuPos] = useState<{ left: number; top?: number; bottom?: number }>({ left: 0 });
+    const baseLayerMenuRef = useRef<HTMLDivElement>(null);
+    const baseLayerTriggerRef = useRef<HTMLButtonElement>(null);
+
+    const openBaseLayerMenu = () => {
+        const rect = baseLayerTriggerRef.current?.getBoundingClientRect();
+        if (rect) {
+            const espacioAbajo = window.innerHeight - rect.top;
+            const left = rect.right + 8;
+            // Estimado generoso (el menú de Sentinel Hub con chips + fecha
+            // puede superar 300px); si no cabe hacia abajo, se ancla al piso
+            // de la ventana y crece hacia arriba desde ahí.
+            if (espacioAbajo < 320) {
+                setBaseLayerMenuPos({ left, bottom: window.innerHeight - rect.bottom });
+            } else {
+                setBaseLayerMenuPos({ left, top: rect.top });
+            }
+        }
+        setBaseLayerMenuOpen(v => !v);
+    };
+
+    useEffect(() => {
+        if (!baseLayerMenuOpen) return;
+        const onClickOutside = (e: MouseEvent) => {
+            if (baseLayerMenuRef.current && !baseLayerMenuRef.current.contains(e.target as Node)
+                && baseLayerTriggerRef.current && !baseLayerTriggerRef.current.contains(e.target as Node)) {
+                setBaseLayerMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', onClickOutside);
+        return () => document.removeEventListener('mousedown', onClickOutside);
+    }, [baseLayerMenuOpen]);
 
     useEffect(() => {
         localStorage.setItem('geo_base_layer', baseLayer);
@@ -257,6 +408,64 @@ const GeoMonitor = () => {
     useEffect(() => {
         if (eosUrl) localStorage.setItem('geo_eos_url', eosUrl);
     }, [eosUrl]);
+
+    useEffect(() => {
+        if (sentinelInstanceId) localStorage.setItem('geo_sentinel_instance_id', sentinelInstanceId);
+    }, [sentinelInstanceId]);
+
+    // Memoizado: si `params` se recalcula en cada render (GeoMonitor re-renderiza
+    // seguido por datos en vivo), react-leaflet lo ve como "cambiado" y refresca
+    // la capa WMS entera — tiles se descargan de nuevo y el fondo parpadea.
+    const sentinelWmsParams = useMemo(() => {
+        const diasVentana = sentinelModo === 'reciente' ? 3 : 30;
+        const params: Record<string, unknown> = {
+            layers: sentinelLayer,
+            format: 'image/png',
+            transparent: true,
+            version: '1.3.0',
+            time: `${new Date(Date.now() - diasVentana * 86400000).toISOString().slice(0, 10)}/${new Date().toISOString().slice(0, 10)}`,
+        };
+        // 'reciente' no filtra por nubosidad: prioriza que sea de hoy/ayer aunque
+        // salga nublada — filtrar aquí forzaría a Sentinel Hub a buscar más atrás.
+        if (sentinelModo === 'legible') params.maxcc = 40;
+        return params;
+    }, [sentinelLayer, sentinelModo]);
+
+    useEffect(() => {
+        localStorage.setItem('geo_sentinel_layer', sentinelLayer);
+    }, [sentinelLayer]);
+
+    useEffect(() => {
+        localStorage.setItem('geo_sentinel_modo', sentinelModo);
+    }, [sentinelModo]);
+
+    // Fecha real de la escena mostrada: el WMS solo pinta el tile, no dice qué
+    // día eligió dentro del rango — se resuelve aparte vía Catalog API (OAuth,
+    // por eso corre en una Edge Function y no directo desde el navegador).
+    useEffect(() => {
+        if (baseLayer !== 'sentinel' || !sentinelInstanceId) return;
+        let cancelado = false;
+        setSentinelEscena(prev => ({ ...prev, cargando: true, error: null }));
+
+        supabase.functions.invoke('sentinel-catalog-search', {
+            body: { lat: mapCenter[0], lon: mapCenter[1], modo: sentinelModo },
+        }).then(({ data, error }) => {
+            if (cancelado) return;
+            if (error || data?.error) {
+                setSentinelEscena({ fecha: null, nubosidad: null, cargando: false, error: error?.message || data?.error || 'Error desconocido' });
+                return;
+            }
+            if (!data?.encontrada) {
+                setSentinelEscena({ fecha: null, nubosidad: null, cargando: false, error: data?.mensaje || 'Sin escenas disponibles' });
+                return;
+            }
+            setSentinelEscena({ fecha: data.fecha_captura, nubosidad: data.nubosidad_pct, cargando: false, error: null });
+        }).catch((err) => {
+            if (!cancelado) setSentinelEscena({ fecha: null, nubosidad: null, cargando: false, error: String(err) });
+        });
+
+        return () => { cancelado = true; };
+    }, [baseLayer, sentinelInstanceId, sentinelModo]);
 
     const toggleLayer = (key: keyof typeof layers) => {
         setLayers(prev => ({ ...prev, [key]: !prev[key] }));
@@ -846,8 +1055,6 @@ const GeoMonitor = () => {
         { time: 'Tiempo Real', type: 'DISTRIBUCIÓN', title: `${operStats.tomas_abiertas} tomas operando`, location: 'Canal Principal', status: 'status-info', point: null },
     ], [tomasVaradas, presas, escalas, operStats]);
 
-    const mapCenter: [number, number] = [28.02, -105.42];
-
     return (
         <div className={clsx('geo-monitor-container', isFullscreen && 'geo-fullscreen')} ref={containerRef}>
             <div className="geo-background-grid"></div>
@@ -896,6 +1103,15 @@ const GeoMonitor = () => {
                             <Wifi size={12} /> {escalas.length} ESCALAS
                         </span>
                     </div>
+                    {/* Toggle del panel de KPIs en tablet (≤1024px): en escritorio el
+                        panel es una columna fija y este botón se oculta por CSS. */}
+                    <button
+                        className={clsx('geo-fullscreen-btn', 'geo-stats-toggle-btn', statsOpen && 'active')}
+                        onClick={() => setStatsOpen(v => !v)}
+                        title={statsOpen ? 'Ocultar panel de indicadores' : 'Ver panel de indicadores'}
+                    >
+                        <PanelRight size={18} />
+                    </button>
                     {/* Fullscreen Toggle (Prioridad 4.3) */}
                     <button className="geo-fullscreen-btn" onClick={toggleFullscreen} title={isFullscreen ? 'Salir Pantalla Completa' : 'Modo Video Wall'}>
                         {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
@@ -906,155 +1122,230 @@ const GeoMonitor = () => {
             <div className="geo-main-content">
                 {/* LEFT: LAYER CONTROLS (Prioridad 2) */}
                 <div className="geo-sidebar-controls">
-                    <button
-                        className={clsx('geo-control-btn', layers.canal ? 'active' : 'default')}
-                        onClick={() => toggleLayer('canal')}
-                        title="Trazado del Canal por Secciones"
-                    >
-                        <Layers size={22} />
-                        {layers.canal && <span className="geo-indicator-dot"></span>}
-                    </button>
-                    <button
-                        className={clsx('geo-control-btn', layers.escalas ? 'active' : 'default')}
-                        onClick={() => toggleLayer('escalas')}
-                        title="Escalas y Puntos de Aforo"
-                    >
-                        <Crosshair size={22} />
-                        {layers.escalas && <span className="geo-indicator-dot"></span>}
-                    </button>
-                    <button
-                        className={clsx('geo-control-btn', layers.tomas ? 'active' : 'default')}
-                        onClick={() => toggleLayer('tomas')}
-                        title="Presas y Tomas Activas"
-                    >
-                        <Droplets size={22} />
-                        {layers.tomas && <span className="geo-indicator-dot"></span>}
-                    </button>
-                    <button
-                        className={clsx('geo-control-btn', layers.estaciones ? 'active' : 'default')}
-                        onClick={() => toggleLayer('estaciones')}
-                        title="Estaciones climáticas (WeatherLink)"
-                    >
-                        <CloudRain size={22} />
-                        {layers.estaciones && <span className="geo-indicator-dot"></span>}
-                    </button>
-                    <button
-                        className={clsx('geo-control-btn', layers.modulos ? 'active' : 'default')}
-                        onClick={() => toggleLayer('modulos')}
-                        title="Polígonos de Módulos de Riego"
-                    >
-                        <MapIcon size={22} />
-                        {layers.modulos && <span className="geo-indicator-dot geo-indicator-purple"></span>}
-                    </button>
-                    <button
-                        className={clsx('geo-control-btn', layers.presasShape ? 'active' : 'default')}
-                        onClick={() => toggleLayer('presasShape')}
-                        title="Polígonos de Vasos de Presas"
-                    >
-                        <Droplets size={22} />
-                        {layers.presasShape && <span className="geo-indicator-dot geo-indicator-blue"></span>}
-                    </button>
-                    <button
-                        className={clsx('geo-control-btn', layers.rioShape ? 'active' : 'default')}
-                        onClick={() => toggleLayer('rioShape')}
-                        title="Trazado del Río Conchos"
-                    >
-                        <Activity size={22} className="geo-icon-blue" />
-                        {layers.rioShape && <span className="geo-indicator-dot geo-indicator-blue"></span>}
-                    </button>
-                    <button
-                        className={clsx('geo-control-btn', layers.alertas ? 'shield' : 'default')}
-                        onClick={() => toggleLayer('alertas')}
-                        title="Alertas y Anomalías"
-                    >
-                        <ShieldCheck size={22} />
-                        {layers.alertas && tomasVaradas.length > 0 && (
-                            <span className="geo-alert-badge">{tomasVaradas.length}</span>
-                        )}
-                    </button>
-                    {/* Botón de Importar Shapefile (Solo Gerente SRL) */}
+                <div className="geo-sidebar-scroll">
+                    {SIDEBAR_GROUPS.map((group, groupIdx) => (
+                        <React.Fragment key={group.id}>
+                            {groupIdx > 0 && <div className="geo-divider-h"></div>}
+                            <div className="geo-control-group">
+                                <span className="geo-group-label" aria-hidden="true">{group.label}</span>
+                                {group.buttons.map(({ key, icon: Icon, title, iconClassName, indicatorClass, activeClass }) => {
+                                    const isOn = layers[key];
+                                    return (
+                                        <button
+                                            key={key}
+                                            className={clsx('geo-control-btn', isOn ? (activeClass ?? 'active') : 'default')}
+                                            onClick={() => toggleLayer(key)}
+                                            title={title}
+                                        >
+                                            <Icon size={SIDEBAR_ICON_SIZE} className={isOn ? iconClassName : undefined} />
+                                            {isOn && key === 'alertas' && tomasVaradas.length > 0 && (
+                                                <span className="geo-alert-badge">{tomasVaradas.length}</span>
+                                            )}
+                                            {isOn && key !== 'alertas' && (
+                                                <span className={clsx('geo-indicator-dot', indicatorClass)}></span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </React.Fragment>
+                    ))}
+
+                    {/* Botón de Importar Shapefile (Solo Gerente SRL) — acción puntual,
+                        no un toggle de capa, se mantiene fuera de los grupos. */}
                     {isGerente && (
-                        <button
-                            className="geo-control-btn default geo-btn-import"
-                            onClick={() => setShowImporter(true)}
-                            title="Importar Shapefile / GeoJSON"
-                        >
-                            <Upload size={20} />
-                        </button>
+                        <>
+                            <div className="geo-divider-h"></div>
+                            <button
+                                className="geo-control-btn default geo-btn-import"
+                                onClick={() => setShowImporter(true)}
+                                title="Importar Shapefile / GeoJSON"
+                            >
+                                <Upload size={16} />
+                            </button>
+                        </>
                     )}
+                </div>
+                <div className="geo-sidebar-fade" aria-hidden="true"></div>
 
-                    <div className="geo-divider-h"></div>
+                <div className="geo-layer-divider-base"></div>
 
-                    {/* Visual Toggles (User Request Improvements) */}
+                {/* Base Layer Selector: un solo botón con menú desplegable — las 4
+                    capas base son mutuamente excluyentes, no necesitan 4 íconos
+                    sueltos compitiendo por espacio con los toggles de contenido. */}
+                <div className="geo-baselayer-wrap">
                     <button
-                        className={clsx('geo-control-btn', layers.mostrarAforosQ ? 'active' : 'default')}
-                        onClick={() => toggleLayer('mostrarAforosQ')}
-                        title="Ver Gastos de Aforos de Control"
+                        ref={baseLayerTriggerRef}
+                        className={clsx('geo-control-btn', 'geo-baselayer-trigger', baseLayerMenuOpen ? 'active' : 'default')}
+                        onClick={openBaseLayerMenu}
+                        title={`Capa base: ${BASE_LAYER_LABEL[baseLayer]} (clic para elegir)`}
                     >
-                        <TrendingUp size={20} className={layers.mostrarAforosQ ? 'geo-icon-amber' : ''} />
-                        {layers.mostrarAforosQ && <span className="geo-indicator-dot geo-indicator-amber"></span>}
-                    </button>
-                    <button
-                        className={clsx('geo-control-btn', layers.mostrarAperturas ? 'active' : 'default')}
-                        onClick={() => toggleLayer('mostrarAperturas')}
-                        title="Ver Apertura de Compuertas"
-                    >
-                        <Gauge size={20} className={layers.mostrarAperturas ? 'geo-icon-teal' : ''} />
-                        {layers.mostrarAperturas && <span className="geo-indicator-dot geo-indicator-teal"></span>}
+                        {baseLayer === 'standard' && <MapIcon size={20} />}
+                        {baseLayer === 'satellite' && <Layers size={20} />}
+                        {baseLayer === 'eos' && <Wifi size={20} className="text-amber-400" />}
+                        {baseLayer === 'sentinel' && <Satellite size={20} className="text-emerald-400" />}
+                        <span className="geo-baselayer-status-dot" style={{
+                            background: baseLayer === 'eos' ? '#f59e0b' : baseLayer === 'sentinel' ? '#10b981' : 'var(--geo-neon-cyan)'
+                        }}></span>
                     </button>
 
-                    <div className="geo-layer-divider" style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '8px 4px' }}></div>
-
-                    {/* Base Layer Selector */}
-                    <button
-                        className={clsx('geo-control-btn', baseLayer === 'standard' ? 'active' : 'default')}
-                        onClick={() => setBaseLayer('standard')}
-                        title="Mapa Estándar"
-                    >
-                        <MapIcon size={20} />
-                    </button>
-                    <button
-                        className={clsx('geo-control-btn', baseLayer === 'satellite' ? 'active' : 'default')}
-                        onClick={() => setBaseLayer('satellite')}
-                        title="Satélite ArcGIS"
-                    >
-                        <Layers size={20} />
-                    </button>
-                    <button
-                        className={clsx('geo-control-btn', baseLayer === 'eos' ? 'active' : 'default')}
-                        onClick={() => {
-                            if (baseLayer === 'eos') {
-                                // Si ya estamos en EOS, preguntar si quiere cambiar la URL
-                                const url = prompt("Cambiar WMS URL de EOS LandViewer (deja vacío para mantener la actual):", eosUrl);
-                                if (url) {
-                                    if (url && (url.includes('landviewer/es?') || url.includes('landviewer/en?'))) {
-                                        alert("¡Atención! Has pegado la URL del navegador. Para que el mapa funcione, necesitas la 'URL de Integración WMS' que se encuentra en el menú de integración de EOS.");
-                                    }
-                                    setEosUrl(url);
-                                }
-                            } else {
-                                if (!eosUrl) {
-                                    const url = prompt("Introduce tu WMS URL de EOS LandViewer:", eosUrl);
-                                    if (url) {
-                                        if (url.includes('landviewer/es?') || url.includes('landviewer/en?')) {
-                                            alert("¡Atención! Has pegado la URL del navegador. Para que el mapa funcione, necesitas la 'URL de Integración WMS' que se encuentra en el menú de integración de EOS.");
+                    {baseLayerMenuOpen && (
+                        <div
+                            className="geo-baselayer-menu"
+                            ref={baseLayerMenuRef}
+                            style={{
+                                position: 'fixed',
+                                left: baseLayerMenuPos.left,
+                                top: baseLayerMenuPos.top,
+                                bottom: baseLayerMenuPos.bottom,
+                                maxHeight: 'calc(100vh - 24px)',
+                                overflowY: 'auto',
+                            }}
+                        >
+                            <button
+                                className={clsx('geo-baselayer-option', baseLayer === 'standard' && 'active')}
+                                onClick={() => { setBaseLayer('standard'); setBaseLayerMenuOpen(false); }}
+                            >
+                                <MapIcon size={16} /> Mapa Estándar
+                            </button>
+                            <button
+                                className={clsx('geo-baselayer-option', baseLayer === 'satellite' && 'active')}
+                                onClick={() => { setBaseLayer('satellite'); setBaseLayerMenuOpen(false); }}
+                            >
+                                <Layers size={16} /> Satélite ArcGIS
+                            </button>
+                            <button
+                                className={clsx('geo-baselayer-option', baseLayer === 'eos' && 'active')}
+                                onClick={() => {
+                                    if (!eosUrl) {
+                                        const url = prompt("Introduce tu WMS URL de EOS LandViewer:", eosUrl);
+                                        if (url) {
+                                            if (url.includes('landviewer/es?') || url.includes('landviewer/en?')) {
+                                                alert("¡Atención! Has pegado la URL del navegador. Para que el mapa funcione, necesitas la 'URL de Integración WMS' que se encuentra en el menú de integración de EOS.");
+                                            }
+                                            setEosUrl(url);
+                                        } else {
+                                            return;
                                         }
-                                        setEosUrl(url);
                                     }
-                                }
-                                setBaseLayer('eos');
-                            }
-                        }}
-                        title={eosUrl ? "Cambiar / Activar EOS LandViewer" : "Activar EOS LandViewer (Requiere WMS URL)"}
-                    >
-                        <Wifi size={20} className={baseLayer === 'eos' ? 'text-amber-400' : ''} />
-                        {baseLayer === 'eos' && <span className="geo-indicator-dot" style={{ background: '#f59e0b' }}></span>}
-                    </button>
+                                    setBaseLayer('eos');
+                                    setBaseLayerMenuOpen(false);
+                                }}
+                            >
+                                <Wifi size={16} /> EOS LandViewer
+                                {eosUrl && (
+                                    <span
+                                        className="geo-baselayer-config"
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const url = prompt("Cambiar WMS URL de EOS LandViewer:", eosUrl);
+                                            if (url) setEosUrl(url);
+                                        }}
+                                        title="Cambiar URL"
+                                    >
+                                        editar
+                                    </span>
+                                )}
+                            </button>
+                            <button
+                                className={clsx('geo-baselayer-option', baseLayer === 'sentinel' && 'active')}
+                                onClick={() => {
+                                    if (!sentinelInstanceId) {
+                                        const id = prompt(
+                                            "Introduce tu Instance ID de Sentinel Hub (Dashboard → Configuration Utility → WMS):",
+                                            sentinelInstanceId
+                                        );
+                                        if (!id) return;
+                                        setSentinelInstanceId(id.trim());
+                                    }
+                                    setBaseLayer('sentinel');
+                                    setBaseLayerMenuOpen(false);
+                                }}
+                            >
+                                <Satellite size={16} /> Sentinel Hub
+                                {baseLayer === 'sentinel' && (
+                                    <>
+                                        <span className="geo-baselayer-sublayers geo-baselayer-sublayers-wrap">
+                                            {(['1_TRUE_COLOR', '3_NDVI', '9_NDVI_AGRO', '7_NDWI'] as const).map(l => (
+                                                <span
+                                                    key={l}
+                                                    className={clsx('geo-baselayer-chip', sentinelLayer === l && 'active')}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={(e) => { e.stopPropagation(); setSentinelLayer(l); }}
+                                                    title={l === '9_NDVI_AGRO' ? 'NDVI de alto contraste por bandas — mejor para distinguir zonas con y sin vegetación' : undefined}
+                                                >
+                                                    {l === '1_TRUE_COLOR' ? 'Color real' : l === '3_NDVI' ? 'NDVI' : l === '9_NDVI_AGRO' ? 'NDVI agro' : 'Humedad (NDWI)'}
+                                                </span>
+                                            ))}
+                                        </span>
+                                        <span className="geo-baselayer-sublayers">
+                                            {(['reciente', 'legible'] as const).map(m => (
+                                                <span
+                                                    key={m}
+                                                    className={clsx('geo-baselayer-chip', sentinelModo === m && 'active')}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={(e) => { e.stopPropagation(); setSentinelModo(m); }}
+                                                    title={m === 'reciente' ? 'Última imagen disponible (últimos 3 días), aunque tenga nubes' : 'Imagen más clara de los últimos 30 días'}
+                                                >
+                                                    {m === 'reciente' ? 'Más reciente' : 'Más legible'}
+                                                </span>
+                                            ))}
+                                        </span>
+                                        <span className="geo-baselayer-fecha">
+                                            {sentinelEscena.cargando && 'Buscando escena…'}
+                                            {!sentinelEscena.cargando && sentinelEscena.error && `Sin dato de fecha: ${sentinelEscena.error}`}
+                                            {!sentinelEscena.cargando && !sentinelEscena.error && sentinelEscena.fecha && (
+                                                `${new Date(sentinelEscena.fecha).toLocaleString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' })}`
+                                                + (sentinelEscena.nubosidad != null ? ` · nubes ${Math.round(sentinelEscena.nubosidad)}%` : '')
+                                            )}
+                                        </span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Mapa animado (Windy.com): acción puntual que abre un modal ajeno
+                    al mapa Leaflet, no un toggle de capa — se mantiene fuera de
+                    SIDEBAR_GROUPS y del selector de capa base, mismo criterio que
+                    ya distingue el botón de importar shapefile. */}
+                <button
+                    className="geo-control-btn default"
+                    onClick={() => setShowWindy(true)}
+                    title="Mapa animado de nubosidad y precipitación (Windy.com)"
+                >
+                    <Satellite size={SIDEBAR_ICON_SIZE} />
+                </button>
                 </div>
 
                 {/* CENTER: MAP (Prioridad 1 + 2) */}
                 <div className="geo-map-container" style={{ position: 'relative' }}>
                     <div className="geo-map-inner">
+                        {/* Badge de fecha de la escena Sentinel Hub activa — visible sin
+                            depender de que el menú desplegable esté abierto. */}
+                        {baseLayer === 'sentinel' && sentinelInstanceId && (
+                            <div className="geo-sentinel-date-badge">
+                                <Satellite size={13} className="text-emerald-400" />
+                                <span>
+                                    {sentinelEscena.cargando && 'Buscando escena…'}
+                                    {!sentinelEscena.cargando && sentinelEscena.error && 'Sin escena en el rango'}
+                                    {!sentinelEscena.cargando && !sentinelEscena.error && sentinelEscena.fecha && (
+                                        <>
+                                            {new Date(sentinelEscena.fecha).toLocaleString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' })}
+                                            {sentinelEscena.nubosidad != null && ` · nubes ${Math.round(sentinelEscena.nubosidad)}%`}
+                                        </>
+                                    )}
+                                </span>
+                                <span className="geo-sentinel-date-modo">
+                                    {sentinelModo === 'reciente' ? 'Más reciente' : 'Más legible'}
+                                </span>
+                            </div>
+                        )}
                         {/* Protocol HUD Banner */}
                         {activeEvent && (
                             <div className={clsx(
@@ -1142,6 +1433,15 @@ const GeoMonitor = () => {
                                             }
                                         })()}
                                     </React.Fragment>
+                                )}
+                                {baseLayer === 'sentinel' && sentinelInstanceId && (
+                                    <WMSTileLayer
+                                        key={`sentinel-${sentinelLayer}`}
+                                        url={`https://services.sentinel-hub.com/ogc/wms/${sentinelInstanceId}`}
+                                        params={sentinelWmsParams as any}
+                                        maxZoom={19}
+                                        attribution="© Copernicus Sentinel Hub"
+                                    />
                                 )}
 
                                 {/* GeoJSON: Polígonos de Módulos */}
@@ -1489,7 +1789,7 @@ const GeoMonitor = () => {
                 </div>
 
                 {/* RIGHT: KPIs + CHARTS + FEED (Prioridad 3) */}
-                <div className="geo-stats-panel">
+                <div className={clsx('geo-stats-panel', statsOpen && 'open')}>
 
                     {/* Element Detail Panel (Selected Element) */}
                     {selectedPoint && (
@@ -1848,6 +2148,14 @@ const GeoMonitor = () => {
                     </div>
                 </div>
             )}
+
+            <WindyMapModal
+                abierto={showWindy}
+                onCerrar={() => setShowWindy(false)}
+                lat={mapCenter[0]}
+                lon={mapCenter[1]}
+                titulo="GeoMonitor — Mapa animado"
+            />
         </div>
     );
 };

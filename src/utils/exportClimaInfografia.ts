@@ -17,6 +17,7 @@ import { clasificaCielo, PROCEDENCIA_LABEL } from './cielo';
 import { calculaIndices, entradasDesdeEstaciones } from './indicesAgro';
 import { mapaSVG, predice24h, assetToDataURI, extensionMapa } from './exportClimaReport';
 import { construyeFondoSatelital, type FondoSatelital } from './mapaSatelital';
+import { construyeCapaNubes, type CapaNubes } from './capaNubesGIBS';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
 
@@ -261,6 +262,7 @@ export function agrupaPorDia(lecturas: LecturaClima[]): DiaHistorico[] {
 
 async function buildHTML(
     ests: EstacionConLectura[], historial: DiaHistorico[], fondo: FondoSatelital | null,
+    capaNubes: CapaNubes | null = null,
 ): Promise<string> {
     const [logoSRL, logoSICA] = await Promise.all([
         assetToDataURI('/logos/logo-srl.png'),
@@ -517,7 +519,7 @@ async function buildHTML(
 
     const precipTabla = tablaPrecipitacion(ests);
 
-    const plano = mapaSVG(ests, preds, fondo);
+    const plano = mapaSVG(ests, preds, fondo, capaNubes);
 
     const cieloBanda = cieloDist
         ? `<b>${cieloDist.icono} ${cieloDist.etiqueta} · ${cobMedia!.toFixed(0)} % de cobertura</b>
@@ -707,7 +709,9 @@ async function buildHTML(
     <div class="sec plano">
       ${plano || `<div style="color:${T.tintaSec};font-size:0.78rem">Sin estaciones georreferenciadas.</div>`}
       <div class="plano-pie">Contornos de los 6 módulos SRL (M1-M5, M12) sobre el Canal Principal Conchos (K0→K104) y el río Conchos.
-      El marcador de cada estación lleva el icono de nubosidad prevista a 24 h; «?» indica que no hay fuente de nubosidad.</div>
+      El marcador de cada estación lleva el icono de nubosidad prevista a 24 h; «?» indica que no hay fuente de nubosidad.${capaNubes
+          ? ' La imagen de fondo sobre el valle es la cobertura de nubes REAL de la zona (satélite GOES-East, NASA GIBS), no una interpolación entre estaciones.'
+          : ''}</div>
     </div>
   </div>
   <div>
@@ -816,10 +820,16 @@ async function construyeInfografiaHTML(
     // (o si el navegador bloquea el canvas por CORS) devuelve null y el plano cae
     // al fondo vectorial, en vez de dejar la infografía sin mapa.
     const ext = extensionMapa(ests);
-    const fondo = ext
-        ? await construyeFondoSatelital(ext.minLon, ext.maxLon, ext.minLat, ext.maxLat)
-        : null;
-    return buildHTML(ests, historial, fondo);
+    // Fondo (terreno) y capa de nubes se piden en paralelo: son descargas
+    // independientes de proveedores distintos (Esri / NASA GIBS) y ninguna
+    // depende de la otra para resolverse.
+    const [fondo, capaNubes] = ext
+        ? await Promise.all([
+            construyeFondoSatelital(ext.minLon, ext.maxLon, ext.minLat, ext.maxLat),
+            construyeCapaNubes(ext.minLon, ext.maxLon, ext.minLat, ext.maxLat),
+        ])
+        : [null, null];
+    return buildHTML(ests, historial, fondo, capaNubes);
 }
 
 /**

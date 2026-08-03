@@ -13,6 +13,8 @@
     --geo-neon-emerald: #10b981;
     --geo-font-sans: 'Outfit', sans-serif;
     --geo-font-mono: 'JetBrains Mono', monospace;
+    --geo-sidebar-width: 4.75rem;
+    --geo-sidebar-width-tablet: 4rem;
 }
 
 .geo-monitor-container {
@@ -155,9 +157,9 @@
 }
 
 .geo-title {
-    font-size: 1.35rem;
-    font-weight: 900;
-    letter-spacing: -0.02em;
+    font-size: 1.3rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
     color: white;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
@@ -170,11 +172,11 @@
 
 .geo-subtitle {
     color: #94a3b8;
-    font-size: 0.65rem;
-    letter-spacing: 0.2em;
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     margin-top: 2px;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .geo-header-right {
@@ -283,6 +285,19 @@
     box-shadow: 0 0 15px rgba(34, 211, 238, 0.2);
 }
 
+/* Toggle del drawer de KPIs: solo tiene sentido ≤1024px (ver media query),
+   oculto por defecto en escritorio donde el panel ya es una columna fija. */
+.geo-stats-toggle-btn {
+    display: none;
+}
+
+.geo-stats-toggle-btn.active {
+    color: white;
+    background: rgba(34, 211, 238, 0.16);
+    border-color: var(--geo-neon-cyan);
+    box-shadow: 0 0 15px rgba(34, 211, 238, 0.25);
+}
+
 /* ── MAIN CONTENT & MAP ── */
 .geo-main-content {
     flex: 1;
@@ -295,10 +310,217 @@
 }
 
 .geo-sidebar-controls {
-    width: 4rem;
+    width: var(--geo-sidebar-width);
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    min-height: 0;
+}
+
+/* Un grupo funcional de la barra lateral (p. ej. "Red hidráulica"): el label
+   vive rotado a la izquierda de los botones, no arriba — evita gastar alto
+   vertical en una columna que ya necesita scroll, y no depende de hover (que
+   no existe en tablet táctil, el caso de uso que se está optimizando). */
+.geo-control-group {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-left: 18px;
+}
+
+.geo-group-label {
+    position: absolute;
+    left: 1px;
+    top: 2px;
+    bottom: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    font-family: var(--geo-font-sans);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--geo-neon-cyan);
+    opacity: 0.85;
+    pointer-events: none;
+    white-space: nowrap;
+    border-left: 1px solid rgba(34, 211, 238, 0.25);
+    padding-left: 5px;
+}
+
+/* Lista de toggles de contenido: puede exceder la altura disponible, así que
+   scrollea en vez de desbordarse silenciosamente fuera del contenedor padre. */
+.geo-sidebar-scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    overflow-y: auto;
+    min-height: 0;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(34, 211, 238, 0.35) transparent;
+}
+
+.geo-sidebar-scroll::-webkit-scrollbar {
+    width: 4px;
+}
+
+.geo-sidebar-scroll::-webkit-scrollbar-thumb {
+    background: rgba(34, 211, 238, 0.35);
+    border-radius: 4px;
+}
+
+/* Degradado sutil sobre el último ícono visible: señal de "hay más abajo"
+   sin depender de que el usuario note una barra de scroll de 4px. */
+.geo-sidebar-fade {
+    height: 14px;
+    margin-top: -14px;
+    background: linear-gradient(to bottom, transparent, rgba(2, 6, 23, 0.55));
+    pointer-events: none;
+    flex-shrink: 0;
+}
+
+.geo-layer-divider-base {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 2px 4px;
+    flex-shrink: 0;
+}
+
+/* Selector de capa base: un botón fijo (no scrollea con el resto) que abre un
+   menú lateral con las 4 capas — mutuamente excluyentes, no necesitan 4 íconos
+   permanentes compitiendo por espacio vertical con los toggles de contenido. */
+.geo-baselayer-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.geo-baselayer-trigger {
+    position: relative;
+}
+
+/* Punto de estado de la capa base activa: a diferencia de .geo-indicator-dot
+   (usado en marcadores del mapa, con pulso para llamar la atención), este es
+   un indicador estático — no hay nada "en vivo" que anunciar aquí. */
+.geo-baselayer-status-dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid #020617;
+}
+
+.geo-baselayer-menu {
+    /* position/top/left: inline (fixed, calculado en JS desde el botón) —
+       .geo-main-content tiene overflow:hidden para contener el mapa, así que
+       un absolute anidado ahí adentro quedaría recortado e invisible.
+       z-index: Leaflet reserva hasta ~1000 para sus propios paneles/controles
+       (leaflet.css), así que el menú necesita superar ese rango con margen. */
+    width: 13rem;
+    background: rgba(8, 12, 24, 0.97);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(51, 65, 85, 0.6);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 2000;
+}
+
+.geo-baselayer-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: transparent;
+    border: none;
+    color: #cbd5e1;
+    font-size: 12.5px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.geo-baselayer-option:hover {
+    background: rgba(34, 211, 238, 0.08);
+    color: #fff;
+}
+
+.geo-baselayer-option.active {
+    background: rgba(34, 211, 238, 0.14);
+    color: var(--geo-neon-cyan);
+}
+
+.geo-baselayer-config {
+    margin-left: auto;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    padding: 2px 6px;
+    border-radius: 6px;
+}
+
+.geo-baselayer-config:hover {
+    color: var(--geo-neon-cyan);
+    background: rgba(34, 211, 238, 0.1);
+}
+
+/* La opción Sentinel Hub, activa, crece de una fila a una tarjeta: ícono+label
+   arriba, luego capa temática, modo de fecha y la fecha resuelta — demasiado
+   contenido para una sola fila `align-items:center` como las otras opciones. */
+.geo-baselayer-option:has(.geo-baselayer-sublayers) {
+    flex-wrap: wrap;
+    row-gap: 6px;
+}
+
+.geo-baselayer-sublayers {
+    width: 100%;
+    margin-left: 24px; /* alinea bajo el label, no bajo el ícono */
+    display: flex;
+    gap: 3px;
+}
+
+/* 4 chips de capa temática (Color real/NDVI/NDVI agro/Humedad) ya no caben
+   cómodos en una sola fila dentro del ancho del menú (13rem) — se envuelven
+   en 2 filas en vez de comprimir el texto hasta ilegible. */
+.geo-baselayer-sublayers-wrap {
+    flex-wrap: wrap;
+    row-gap: 4px;
+}
+
+.geo-baselayer-chip {
+    font-size: 9.5px;
+    padding: 2px 5px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #94a3b8;
+    white-space: nowrap;
+}
+
+.geo-baselayer-chip.active {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.geo-baselayer-fecha {
+    width: 100%;
+    margin-left: 24px;
+    font-size: 10px;
+    color: #64748b;
+    white-space: normal;
+    line-height: 1.4;
 }
 
 .geo-control-btn {
@@ -485,6 +707,7 @@
     color: white;
     font-family: var(--geo-font-mono);
     font-weight: 800;
+    font-variant-numeric: tabular-nums;
 }
 
 .detail-stat strong small {
@@ -610,10 +833,10 @@
 }
 
 .geo-stat-title {
-    font-size: 0.75rem;
-    font-weight: 900;
+    font-size: 0.72rem;
+    font-weight: 800;
     color: #f8fafc;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     display: block;
 }
@@ -860,9 +1083,40 @@
     transition: width 0.3s ease;
 }
 
+/* Fecha de la escena Sentinel Hub activa, siempre visible sobre el mapa —
+   independiente del menú desplegable, que se cierra tras elegir la capa. */
+.geo-sentinel-date-badge {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    z-index: 900; /* bajo el HUD de protocolo (1000), sobre los tiles de Leaflet */
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(8, 12, 24, 0.85);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    font-size: 11.5px;
+    color: #e2e8f0;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.geo-sentinel-date-modo {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #10b981;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(16, 185, 129, 0.15);
+}
+
 .geo-event-banner {
     position: absolute;
-    top: 0; left: 0; right: 0; 
+    top: 0; left: 0; right: 0;
     z-index: 1000;
     padding: 10px 20px;
     display: flex;
@@ -879,5 +1133,96 @@
 .geo-event-bg-contingencia { background: rgba(245, 158, 11, 0.9); }
 .geo-event-bg-anomalia { background: rgba(124, 58, 237, 0.9); }
 .geo-event-bg-alerta { background: rgba(239, 68, 68, 0.9); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE — TABLET (≤1024px) Y TABLET ANGOSTA/LANDSCAPE CHICA (≤768px)
+   Breakpoints alineados a la convención ya usada en el resto del proyecto
+   (Presas.css, AnalisisHistorico.css, Canales.css, etc.): desktop-first,
+   max-width, CSS puro por página. Foco en tablet landscape (768–1024px),
+   no en teléfono angosto en vertical.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1024px) {
+    /* Sidebar de controles: más angosto pero por encima del mínimo táctil de
+       44px (3.4rem ≈ 54px). El tamaño de ícono (19px) ya es fijo desde JSX,
+       no depende de este breakpoint. */
+    .geo-sidebar-controls {
+        width: var(--geo-sidebar-width-tablet);
+    }
+
+    .geo-baselayer-menu {
+        width: 12rem;
+    }
+
+    /* Panel de KPIs: de columna fija en flex a drawer superpuesto sobre el
+       mapa. Mismo patrón de transición que .geo-detail-panel (translateX +
+       cubic-bezier con rebote), para que ambos paneles se sientan parte del
+       mismo sistema al abrir/cerrar. */
+    .geo-stats-panel {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(24rem, 88vw);
+        z-index: 250;
+        padding: 1rem;
+        background: var(--geo-glass-bg);
+        -webkit-backdrop-filter: blur(20px);
+        backdrop-filter: blur(20px);
+        border-left: 1px solid var(--geo-glass-border);
+        box-shadow: -10px 0 40px rgba(0, 0, 0, 0.7);
+        transform: translateX(100%);
+        transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .geo-stats-panel.open {
+        transform: translateX(0);
+    }
+
+    .geo-stats-toggle-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Header: el buscador cede espacio al reloj/badges/toggles, que son
+       información de estado más urgente que la búsqueda en una pantalla
+       angosta — el buscador sigue disponible, solo más compacto. */
+    .geo-search-container {
+        max-width: 220px;
+        margin: 0 0.5rem;
+    }
+
+    .geo-status-badges .geo-badge.satellite {
+        display: none;
+    }
+
+    .geo-time {
+        font-size: 1.1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    /* Labels de grupo rotados: a este ancho priorizar mapa sobre etiqueta —
+       los divisores entre grupos (.geo-divider-h) siguen marcando la
+       agrupación visualmente sin gastar los ~14px del label. */
+    .geo-group-label {
+        display: none;
+    }
+
+    .geo-control-group {
+        padding-left: 0;
+    }
+
+    /* Título recortado a la marca sola; el subtítulo de ubicación cede el
+       espacio — a este ancho el mapa y sus controles son la prioridad. */
+    .geo-title .font-light {
+        display: none;
+    }
+
+    .geo-subtitle {
+        display: none;
+    }
+}
 
 

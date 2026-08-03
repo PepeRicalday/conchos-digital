@@ -15,10 +15,12 @@ import { exportClimaReport } from '../utils/exportClimaReport';
 import { exportClimaInfografia, imagenClimaInfografia, agrupaPorDia, type DiaHistorico } from '../utils/exportClimaInfografia';
 import { supabase } from '../lib/supabase';
 import { formateaEdad, clasificaCielo, PROCEDENCIA_LABEL } from '../utils/cielo';
-import { Download, Gauge, Image as ImageIcon } from 'lucide-react';
+import { Download, Gauge, Image as ImageIcon, Satellite } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { calculaIndices, entradasDesdeEstaciones, type Indice } from '../utils/indicesAgro';
 import EstacionDetalle from '../components/EstacionDetalle';
+import { WindyMapModal } from '../components/WindyMapModal';
+import { CENTRO_DISTRITO } from '../utils/mapaSatelital';
 
 // Types for display
 interface WeatherCondition {
@@ -453,6 +455,7 @@ const Clima = () => {
         () => estaciones.find(e => e.id === estacionSel) ?? null,
         [estaciones, estacionSel],
     );
+    const [showWindy, setShowWindy] = useState(false);
 
     // Infografía: trae el historial de 7 días para el panel de tendencias. Si la
     // consulta falla se emite igual con historial vacío — ese panel se rotula
@@ -907,6 +910,13 @@ const Clima = () => {
                             <button className="estaciones-dl" onClick={() => { void exportClimaReport(estaciones); }} title="Descargar informe técnico de clima (HTML)">
                                 <Download size={14} /> Informe
                             </button>
+                            <button
+                                className="estaciones-mapa-animado"
+                                onClick={() => setShowWindy(true)}
+                                title="Ver mapa animado de nubosidad y precipitación (Windy.com)"
+                            >
+                                <Satellite size={14} /> Mapa animado
+                            </button>
                         </div>
                     </div>
 
@@ -1081,6 +1091,14 @@ const Clima = () => {
                     onCerrar={() => setEstacionSel(null)}
                 />
             )}
+
+            <WindyMapModal
+                abierto={showWindy}
+                onCerrar={() => setShowWindy(false)}
+                lat={CENTRO_DISTRITO.lat}
+                lon={CENTRO_DISTRITO.lon}
+                titulo="Clima — Mapa animado"
+            />
         </div>
     );
 };

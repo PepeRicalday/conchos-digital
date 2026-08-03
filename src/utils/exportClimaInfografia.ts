@@ -710,7 +710,7 @@ async function buildHTML(
       ${plano || `<div style="color:${T.tintaSec};font-size:0.78rem">Sin estaciones georreferenciadas.</div>`}
       <div class="plano-pie">Contornos de los 6 módulos SRL (M1-M5, M12) sobre el Canal Principal Conchos (K0→K104) y el río Conchos.
       El marcador de cada estación lleva el icono de nubosidad prevista a 24 h; «?» indica que no hay fuente de nubosidad.${capaNubes
-          ? ' La imagen de fondo sobre el valle es la cobertura de nubes REAL de la zona (satélite GOES-East, NASA GIBS), no una interpolación entre estaciones.'
+          ? ` La imagen de fondo sobre el valle es la cobertura de nubes REAL de la zona (satélite GOES-East ${capaNubes.fuente === 'geocolor' ? 'GeoColor' : 'infrarrojo nocturno'}, NASA GIBS), no una interpolación entre estaciones.`
           : ''}</div>
     </div>
   </div>

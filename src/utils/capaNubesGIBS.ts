@@ -3,9 +3,22 @@
 // ---------------------------------------------------------------------------
 // Superpone al plano la imagen satelital de nubes REAL de la zona, a diferencia
 // del fondo de `mapaSatelital.ts` (World Imagery), que es terreno fijo sin
-// componente temporal. Fuente: NASA GIBS, capa GOES-East_ABI_GeoColor —
-// geocolor cuasi-tiempo-real (recorrida cada ~10 min, cobertura América),
-// pública y sin API key.
+// componente temporal. Fuente: NASA GIBS, dos capas GOES-East ABI según la
+// hora del corte:
+//   · De día:  GeoColor — luz visible, la más fiel a "foto de nubes" a simple
+//     vista, pero sin señal útil sin sol.
+//   · De noche: Band13 (10.3 µm, IR de onda larga limpia) — nubes altas/frías
+//     se ven brillantes contra la superficie cálida; es la capa estándar para
+//     nubosidad nocturna en GOES-East, pública y sin API key igual que GeoColor.
+// Ambas cuasi-tiempo-real (recorridas cada ~10 min, cobertura América).
+//
+// Cada capa tiene su PROPIO TileMatrixSet, zoom máximo y formato de imagen en
+// el catálogo de GIBS (confirmado contra su GetCapabilities) — no son
+// intercambiables:
+//   · GeoColor: GoogleMapsCompatible_Level7, PNG, hasta zoom 7.
+//   · Band13:   GoogleMapsCompatible_Level6, PNG, hasta zoom 5.
+// El timestamp RESTful también debe llevar segundos (HH:MM:SSZ); GIBS
+// responde 400 con el formato corto HH:MMZ para ambas capas.
 //
 // Por qué NO se interpola nubosidad entre estaciones (ver cielo.ts): los
 // sensores dan un % puntual, y rellenar el resto del plano con un gradiente
@@ -19,13 +32,33 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 const TILE_PX = 256;
-/** Zoom bajo: GOES-East GeoColor no tiene el detalle de una imagen aérea, y un
- *  zoom alto solo pide más teselas para el mismo nivel de detalle real. */
-const ZOOM = 6;
-/** Capa GIBS: geocolor GOES-East, la más próxima a "foto de nubes ahora mismo"
- *  con cobertura sobre Chihuahua entre las capas públicas de NASA. */
-const CAPA_GIBS = 'GOES-East_ABI_GeoColor';
-const TILE_MATRIX_SET = 'GoogleMapsCompatible_Level6';
+
+interface DefCapa {
+    id: string;
+    tileMatrixSet: string;
+    /** Zoom máximo soportado por el TileMatrixSetLimits real de esta capa en
+     *  GIBS — pedir uno mayor devuelve 400, no una tesela vacía. */
+    zoom: number;
+    formato: 'png' | 'jpg';
+}
+
+/** Geocolor GOES-East: la más próxima a "foto de nubes ahora mismo" con
+ *  cobertura sobre Chihuahua, pero solo tiene señal útil con luz de día. */
+const CAPA_DIA: DefCapa = {
+    id: 'GOES-East_ABI_GeoColor',
+    tileMatrixSet: 'GoogleMapsCompatible_Level7',
+    zoom: 6,
+    formato: 'png',
+};
+/** Band13 (10.3 µm, IR ventana limpia) GOES-East: capa estándar para
+ *  nubosidad nocturna — nubes brillantes por frías, superficie oscura por
+ *  cálida. Sustituye a GeoColor fuera de la ventana de luz solar. */
+const CAPA_NOCHE: DefCapa = {
+    id: 'GOES-East_ABI_Band13_Clean_Infrared',
+    tileMatrixSet: 'GoogleMapsCompatible_Level6',
+    zoom: 5,
+    formato: 'png',
+};
 
 const TILE_URL_BASE = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best';
 
@@ -36,13 +69,16 @@ export const lat2tile = (lat: number, z: number) => {
 };
 
 export interface CapaNubes {
-    /** JPEG del mosaico de nubes en data URI, listo para <image href> en el SVG. */
+    /** Mosaico de nubes en data URI, listo para <image href> en el SVG. */
     dataURI: string;
     minLon: number; maxLon: number; minLat: number; maxLat: number;
     ancho: number; alto: number;
     /** Instante (UTC, redondeado a 10 min) que retrata la imagen — se imprime en
      *  el plano para no confundir "nubosidad de ahora" con una toma vieja. */
     vigenteEn: Date;
+    /** Capa GIBS usada: para no rotular una toma IR nocturna como "satélite
+     *  visible" en el pie del plano — son lecturas distintas del mismo fenómeno. */
+    fuente: 'geocolor' | 'infrarrojo';
 }
 
 function cargaTesela(url: string): Promise<HTMLImageElement | null> {
@@ -55,13 +91,17 @@ function cargaTesela(url: string): Promise<HTMLImageElement | null> {
     });
 }
 
-/** GOES-East GeoColor solo tiene sentido de día (usa luz visible, no IR
- *  térmico); de noche GIBS no publica tesela útil para esta capa. */
-function esDeDia(fecha: Date, lonDeg: number): boolean {
+/** Decide qué capa GIBS tiene señal útil para el instante y longitud dados.
+ *  GeoColor usa luz visible: solo sirve con sol. Band13 (IR) no depende de
+ *  luz y cubre el resto del día, así que la capa nocturna nunca deja el plano
+ *  sin observación real disponible. */
+function capaParaInstante(fecha: Date, lonDeg: number): DefCapa & { fuente: 'geocolor' | 'infrarrojo' } {
     // Hora solar local aproximada: UTC + lon/15. Entre 07:00 y 20:00 solar hay
     // luz suficiente en el valle del Conchos para el geocolor.
     const horaSolar = (fecha.getUTCHours() + lonDeg / 15 + 24) % 24;
-    return horaSolar >= 7 && horaSolar <= 20;
+    return (horaSolar >= 7 && horaSolar <= 20)
+        ? { ...CAPA_DIA, fuente: 'geocolor' }
+        : { ...CAPA_NOCHE, fuente: 'infrarrojo' };
 }
 
 /**
@@ -77,15 +117,18 @@ function instanteDisponible(): Date {
     return ahora;
 }
 
+/** GIBS responde 400 al formato corto (sin segundos) en el path RESTful;
+ *  exige HH:MM:SSZ aunque la resolución temporal real sea de 10 minutos. */
 function isoParaGIBS(d: Date): string {
-    return d.toISOString().slice(0, 16) + 'Z'; // YYYY-MM-DDTHH:MMZ
+    return d.toISOString().slice(0, 19) + 'Z'; // YYYY-MM-DDTHH:MM:SSZ
 }
 
 /**
- * Construye el mosaico de nubosidad real (GOES-East GeoColor) para la extensión
- * geográfica indicada. Devuelve null si no hay red, es de noche (la capa no
- * tiene dato útil) o el mosaico queda incompleto — el plano no debe mostrar un
- * parche de nubes a medias, eso sería peor que no mostrar la capa.
+ * Construye el mosaico de nubosidad real (GOES-East GeoColor de día, Band13
+ * IR de noche) para la extensión geográfica indicada. Devuelve null si no hay
+ * red, GIBS no tiene tesela para el corte pedido, o el mosaico queda
+ * incompleto — el plano no debe mostrar un parche de nubes a medias, eso
+ * sería peor que no mostrar la capa.
  */
 export async function construyeCapaNubes(
     minLon: number, maxLon: number, minLat: number, maxLat: number,
@@ -93,12 +136,12 @@ export async function construyeCapaNubes(
     try {
         const centroLon = (minLon + maxLon) / 2;
         const momento = instanteDisponible();
-        if (!esDeDia(momento, centroLon)) return null; // sin geocolor útil de noche
+        const { id: capaGIBS, tileMatrixSet, zoom, formato, fuente } = capaParaInstante(momento, centroLon);
 
-        const x0 = Math.floor(lon2tile(minLon, ZOOM));
-        const x1 = Math.floor(lon2tile(maxLon, ZOOM));
-        const y0 = Math.floor(lat2tile(maxLat, ZOOM));
-        const y1 = Math.floor(lat2tile(minLat, ZOOM));
+        const x0 = Math.floor(lon2tile(minLon, zoom));
+        const x1 = Math.floor(lon2tile(maxLon, zoom));
+        const y0 = Math.floor(lat2tile(maxLat, zoom));
+        const y1 = Math.floor(lat2tile(minLat, zoom));
         const nx = x1 - x0 + 1, ny = y1 - y0 + 1;
         if (nx < 1 || ny < 1 || nx * ny > 40) return null;
 
@@ -112,8 +155,8 @@ export async function construyeCapaNubes(
         const trabajos: Promise<boolean>[] = [];
         for (let ty = y0; ty <= y1; ty++) {
             for (let tx = x0; tx <= x1; tx++) {
-                const url = `${TILE_URL_BASE}/${CAPA_GIBS}/default/${tiempoGIBS}/`
-                    + `${TILE_MATRIX_SET}/${ZOOM}/${ty}/${tx}.jpg`;
+                const url = `${TILE_URL_BASE}/${capaGIBS}/default/${tiempoGIBS}/`
+                    + `${tileMatrixSet}/${zoom}/${ty}/${tx}.${formato}`;
                 trabajos.push(cargaTesela(url).then((img) => {
                     if (!img) return false;
                     ctx.drawImage(img, (tx - x0) * TILE_PX, (ty - y0) * TILE_PX);
@@ -126,9 +169,9 @@ export async function construyeCapaNubes(
         // engañoso —parecería que solo una parte del distrito tiene nubes—.
         if (logradas < nx * ny) return null;
 
-        const tile2lon = (x: number) => (x / 2 ** ZOOM) * 360 - 180;
+        const tile2lon = (x: number) => (x / 2 ** zoom) * 360 - 180;
         const tile2lat = (y: number) => {
-            const n = Math.PI - (2 * Math.PI * y) / 2 ** ZOOM;
+            const n = Math.PI - (2 * Math.PI * y) / 2 ** zoom;
             return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
         };
 
@@ -138,6 +181,7 @@ export async function construyeCapaNubes(
             maxLat: tile2lat(y0), minLat: tile2lat(y1 + 1),
             ancho: W, alto: H,
             vigenteEn: momento,
+            fuente,
         };
     } catch {
         return null; // sin red, CORS o GIBS sin tesela para el corte pedido

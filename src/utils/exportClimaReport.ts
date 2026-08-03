@@ -285,8 +285,10 @@ export function mapaSVG(
                 </g>`;
     })() : '';
     // Nota de vigencia impresa al pie del plano cuando la capa se pudo pintar.
+    // El texto declara la FUENTE real (geocolor visible vs. infrarrojo nocturno):
+    // son lecturas distintas del mismo fenómeno y no deben leerse como la misma cosa.
     const nubesVigenciaTxt = capaNubes
-        ? `Nubosidad satelital (NASA GIBS, GOES-East) vigente ${capaNubes.vigenteEn.toLocaleString('es-MX', { timeZone: 'America/Chihuahua', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })} hrs.`
+        ? `Nubosidad satelital (NASA GIBS, GOES-East ${capaNubes.fuente === 'geocolor' ? 'GeoColor' : 'infrarrojo nocturno'}) vigente ${capaNubes.vigenteEn.toLocaleString('es-MX', { timeZone: 'America/Chihuahua', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })} hrs.`
         : '';
 
     // Alto extra al pie cuando hay leyenda de iconos de cielo, para que no se recorte.

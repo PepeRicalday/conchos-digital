@@ -471,6 +471,26 @@ const GeoMonitor = () => {
         return { maxProbPct, horaMaxProb, mmAcumulado48h };
     }, [estacionesClima]);
 
+    // Layer Toggles — declarado antes de modulosLotesVisibles (más abajo), que
+    // lee layers.lotes: moverlo después causaba "Cannot access 'layers' before
+    // initialization" (temporal dead zone) al montar Geo-Monitor.
+    const [layers, setLayers] = useState({
+        canal: true,
+        escalas: true,
+        tomas: true,
+        alertas: true,
+        modulos: true,
+        presasShape: true,
+        rioShape: true,
+        mostrarAforosQ: true,
+        mostrarAperturas: true,
+        estaciones: true,
+        // Apaga por defecto: ~5,200 lotes en 6 archivos (3.3 MB) no deben
+        // descargarse en cada visita a Geo-Monitor — el usuario la activa
+        // explícitamente y solo entonces se cargan bajo demanda.
+        lotes: false,
+    });
+
     // GeoJSON Layers (Shapes)
     const [geoModulos, setGeoModulos] = useState<GeoJSON.FeatureCollection | null>(null);
     const [geoPresas, setGeoPresas] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -511,24 +531,6 @@ const GeoMonitor = () => {
     // Panel de KPIs (.geo-stats-panel): columna fija en escritorio, drawer
     // deslizable en tablet (≤1024px) activado por este estado.
     const [statsOpen, setStatsOpen] = useState(false);
-
-    // Layer Toggles
-    const [layers, setLayers] = useState({
-        canal: true,
-        escalas: true,
-        tomas: true,
-        alertas: true,
-        modulos: true,
-        presasShape: true,
-        rioShape: true,
-        mostrarAforosQ: true,
-        mostrarAperturas: true,
-        estaciones: true,
-        // Apaga por defecto: ~5,200 lotes en 6 archivos (3.3 MB) no deben
-        // descargarse en cada visita a Geo-Monitor — el usuario la activa
-        // explícitamente y solo entonces se cargan bajo demanda.
-        lotes: false,
-    });
 
     // Centro de referencia del mapa (Canal Principal Conchos), también usado
     // para consultar el Catalog API de Sentinel Hub (qué escena cubre este punto).

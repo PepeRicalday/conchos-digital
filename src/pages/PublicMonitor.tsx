@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, ZoomControl, Marker, useMap, Popup } from 'react-leaflet';
 import { supabase } from '../lib/supabase';
 import { useHydricEvents } from '../hooks/useHydricEvents';
-import { Timer, Activity, Clock, ArrowRightCircle, MapPin, Waves, X, AlertTriangle, Download, Copy } from 'lucide-react';
+import { Timer, Activity, Clock, ArrowRightCircle, MapPin, Waves, X, AlertTriangle, Download, Copy, Map as MapIconLucide } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PublicMonitor.css';
@@ -554,6 +555,7 @@ const MapController = ({ center, zoom, active }: { center: [number, number], zoo
 };
 
 const PublicMonitor: React.FC = () => {
+    const navigate = useNavigate();
     const { activeEvent } = useHydricEvents();
     const [escalas, setEscalas] = useState<EscalaData[]>([]);
     const [geoCanal, setGeoCanal] = useState<any>(null);
@@ -562,10 +564,21 @@ const PublicMonitor: React.FC = () => {
     const [presasData, setPresasData] = useState<any[]>([]);
     const [damMovements, setDamMovements] = useState<MovimientoPresaConNombreRow[]>([]);
     
+    // Deep-link a una pestaña específica (p. ej. desde Geo-Monitor hacia
+    // Tendencias, ver informe de auditoría — antes eran islas sin navegación
+    // cruzada pese a operar sobre el mismo canal). Soporta ?tab=tendencias.
+    const tabInicialUrl = (() => {
+        if (typeof window === 'undefined') return null;
+        const t = new URLSearchParams(window.location.search).get('tab');
+        return (['resumen', 'canal', 'alertas', 'skill', 'tendencias'] as const).includes(t as any) ? t : null;
+    })();
+
     // Panel Visibility States - Start minimized on mobile for total map priority
     const isMobile = typeof window !== 'undefined' ? window.innerWidth <= 900 : false;
-    const [isDockVisible, setIsDockVisible] = useState(!isMobile);
-    const [dockTab, setDockTab] = useState<'resumen' | 'canal' | 'alertas' | 'skill' | 'tendencias'>('resumen');
+    const [isDockVisible, setIsDockVisible] = useState(!isMobile || !!tabInicialUrl);
+    const [dockTab, setDockTab] = useState<'resumen' | 'canal' | 'alertas' | 'skill' | 'tendencias'>(
+        (tabInicialUrl as any) || 'resumen'
+    );
 
     // Pestaña TENDENCIAS: rango, granularidad y series históricas — solo
     // consulta la base mientras dockTab === 'tendencias'.
@@ -3753,8 +3766,17 @@ const PublicMonitor: React.FC = () => {
                         y el scroll nunca se activa. */}
                     {dockTab === 'tendencias' && (
                     <div className="dock-section dock-skill-panel">
-                        <div className="dock-section-header">
+                        <div className="dock-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span className="card-label">TENDENCIAS — ANÁLISIS POR PERIODO</span>
+                            {/* Enlace a Geo-Monitor (Fase 5) — simétrico al botón que ya
+                                trae al usuario hasta aquí desde el mapa. */}
+                            <button
+                                onClick={() => navigate('/geo-monitor')}
+                                title="Ver en Geo-Monitor (mapa)"
+                                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.3)', borderRadius: 6, color: '#22d3ee', fontSize: 11, fontWeight: 700, padding: '4px 10px', cursor: 'pointer' }}
+                            >
+                                <MapIconLucide size={13} /> Ver en mapa
+                            </button>
                         </div>
                         <div className="dsk-scroll-body">
                             <TendenciasPanel

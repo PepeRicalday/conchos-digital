@@ -300,11 +300,65 @@
     z-index: 10;
 }
 
+.vaso-analytics-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #22d3ee;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 1rem;
+}
+
 .vaso-analytics-body {
     display: grid;
     grid-template-columns: 1.8fr 1fr;
     gap: 2rem;
     align-items: center;
+}
+
+/* Manejo de Vaso — comparación NDWI vs. captura de campo */
+.vaso-ndwi-compare {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.vaso-ndwi-col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.vaso-ndwi-label {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+}
+
+.vaso-ndwi-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #22d3ee;
+}
+
+.vaso-ndwi-value small {
+    font-size: 0.85rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 .vaso-alert-box {

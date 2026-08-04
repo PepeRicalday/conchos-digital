@@ -1,6 +1,6 @@
 import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain, Satellite, PanelRight } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline, useMapEvents } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
 import 'leaflet/dist/leaflet.css';
@@ -16,9 +16,11 @@ import { useAuth } from '../context/AuthContext';
 import { useHydricEvents } from '../hooks/useHydricEvents';
 import { useClimaEstaciones } from '../hooks/useClimaEstaciones';
 import { esModuloSRL, moduloSRLde } from '../utils/modulosSRL';
+import { WAVE_CELERITY_MS, WAVE_CELERITY_CONFIANZA } from '../utils/hydraulics';
 import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
 import { WindyMapModal } from '../components/WindyMapModal';
 import { useMetadataStore } from '../store/useMetadataStore';
+import { useNavigate } from 'react-router-dom';
 
 // Fix for Leaflet icons in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -38,7 +40,7 @@ const BASE_LAYER_LABEL: Record<'standard' | 'satellite' | 'eos' | 'sentinel', st
 };
 
 type LayerKey = 'canal' | 'escalas' | 'tomas' | 'estaciones' | 'modulos' | 'presasShape'
-    | 'rioShape' | 'alertas' | 'mostrarAforosQ' | 'mostrarAperturas';
+    | 'rioShape' | 'alertas' | 'mostrarAforosQ' | 'mostrarAperturas' | 'lotes';
 
 interface SidebarButtonConfig {
     key: LayerKey;
@@ -76,6 +78,7 @@ const SIDEBAR_GROUPS: SidebarGroupConfig[] = [
         buttons: [
             { key: 'modulos', icon: MapIcon, title: 'Polígonos de Módulos de Riego', indicatorClass: 'geo-indicator-purple' },
             { key: 'presasShape', icon: Droplets, title: 'Polígonos de Vasos de Presas', indicatorClass: 'geo-indicator-blue' },
+            { key: 'lotes', icon: Crosshair, title: 'Lotes de Productores (catastro) — visible desde zoom 13', indicatorClass: 'geo-indicator-amber' },
         ],
     },
     {
@@ -97,6 +100,51 @@ const SIDEBAR_GROUPS: SidebarGroupConfig[] = [
 ];
 
 const SIDEBAR_ICON_SIZE = 19;
+
+// Zoom mínimo para cargar/mostrar la capa de lotes: a niveles más alejados
+// ~5,200 polígonos no se distinguen unos de otros y solo saturan el mapa.
+const LOTES_MIN_ZOOM = 13;
+
+// Bbox real de cada archivo lotes_modulo_N.geojson (calculado de la geometría
+// convertida) — permite cargar solo los módulos que intersectan el viewport
+// visible en vez de los 6 archivos (3.3 MB) de golpe al activar la capa.
+const LOTES_MODULO_BBOX: { modulo: number; minLon: number; minLat: number; maxLon: number; maxLat: number }[] = [
+    { modulo: 1,  minLon: -105.323, minLat: 27.714, maxLon: -105.167, maxLat: 28.027 },
+    { modulo: 2,  minLon: -105.400, minLat: 28.012, maxLon: -105.295, maxLat: 28.150 },
+    { modulo: 3,  minLon: -105.410, minLat: 28.146, maxLon: -105.335, maxLat: 28.286 },
+    { modulo: 4,  minLon: -105.499, minLat: 28.130, maxLon: -105.392, maxLat: 28.316 },
+    { modulo: 5,  minLon: -105.619, minLat: 28.075, maxLon: -105.438, maxLat: 28.239 },
+    { modulo: 12, minLon: -105.341, minLat: 27.977, maxLon: -105.215, maxLat: 28.197 },
+];
+
+interface ViewportBounds { minLon: number; minLat: number; maxLon: number; maxLat: number }
+
+function bboxIntersecta(a: ViewportBounds, b: { minLon: number; minLat: number; maxLon: number; maxLat: number }): boolean {
+    return a.minLon <= b.maxLon && a.maxLon >= b.minLon && a.minLat <= b.maxLat && a.maxLat >= b.minLat;
+}
+
+/** Reporta zoom + bounds del mapa Leaflet al estado de React — usado para
+ *  decidir qué módulos de lotes cargar bajo demanda sin montar un mapa nuevo. */
+function MapViewportWatcher({ onChange }: { onChange: (zoom: number, bounds: ViewportBounds) => void }) {
+    const map = useMapEvents({
+        zoomend: () => {
+            const b = map.getBounds();
+            onChange(map.getZoom(), { minLon: b.getWest(), minLat: b.getSouth(), maxLon: b.getEast(), maxLat: b.getNorth() });
+        },
+        moveend: () => {
+            const b = map.getBounds();
+            onChange(map.getZoom(), { minLon: b.getWest(), minLat: b.getSouth(), maxLon: b.getEast(), maxLat: b.getNorth() });
+        },
+    });
+    // moveend/zoomend no disparan al montar — se reporta el viewport inicial
+    // una vez para que la capa de lotes funcione sin que el usuario mueva el mapa antes.
+    useEffect(() => {
+        const b = map.getBounds();
+        onChange(map.getZoom(), { minLon: b.getWest(), minLat: b.getSouth(), maxLon: b.getEast(), maxLat: b.getNorth() });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    return null;
+}
 
 const presaIcon = L.divIcon({
     className: 'geo-custom-marker',
@@ -140,6 +188,12 @@ interface PresaData {
     presa_id: string; nombre: string; latitud: number; longitud: number;
     almacenamiento_mm3: number; porcentaje_llenado: number;
     extraccion_total_m3s: number; fecha: string;
+    // Fase 1: nivel real del vaso (msnm) y metadatos de capacidad — antes
+    // GeoMonitor los hardcodeaba por presa_id en vez de leerlos de la BD.
+    escala_msnm: number | null;
+    capacidad_max: number | null;
+    elevacion_corona_msnm: number | null;
+    curvas_capacidad: { elevacion_msnm: number; volumen_mm3: number; area_ha: number | null }[];
 }
 interface AforoData {
     id: string; nombre_punto: string; latitud: number; longitud: number;
@@ -176,6 +230,7 @@ function haversineDist(lon1: number, lat1: number, lon2: number, lat2: number) {
 
 const GeoMonitor = () => {
     const { profile } = useAuth();
+    const navigate = useNavigate();
     const isGerente = profile?.rol === 'SRL';
     const [currentTime, setCurrentTime] = useState(new Date());
     const [mapReady, setMapReady] = useState(false);
@@ -192,6 +247,11 @@ const GeoMonitor = () => {
     const [tomasVaradas, setTomasVaradas] = useState<VwAlertaTomaVaradaRow[]>([]);
     const [latestAforos, setLatestAforos] = useState<Record<string, any>>({});
     const [totalDemandaProgramada, setTotalDemandaProgramada] = useState(0);
+    // Caudal objetivo por módulo (id 'MOD-N' → { nombre, caudal_objetivo }),
+    // usado para cruzar contra la ETo de la estación climática asignada a ese
+    // módulo (Fase 4, auditoría ago-2026: antes la ETo solo se mostraba suelta
+    // en un tooltip, sin relacionarse con ninguna demanda).
+    const [modulosCaudalObjetivo, setModulosCaudalObjetivo] = useState<Record<string, { nombre: string; caudal_objetivo: number }>>({});
     const [loading, setLoading] = useState(true);
     const [showVaso, setShowVaso] = useState(false);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -200,6 +260,36 @@ const GeoMonitor = () => {
     const { activeEvent } = useHydricEvents();
     const { estaciones: estacionesClima } = useClimaEstaciones();
     const [maxKmLlenado, setMaxKmLlenado] = useState<number>(1000);
+
+    // Fase 5 (auditoría ago-2026): ETA calibrado dinámicamente (Modelo A,
+    // fn_celeridad_onda_ms) desde vw_prediccion_arribo_escalas — la misma vista
+    // que ya usa ArrivalPredictor.tsx y que Canaleros retroalimenta al confirmar
+    // arribo real. Se muestra JUNTO a la velocidad visual local (predictedMaxKm),
+    // no la reemplaza: cambiar el frente animado en sí requiere coordinación con
+    // Canaleros durante protocolos en curso (ver notas de riesgo del informe).
+    interface EtaCalibrado { nombre: string; km: number; hora_arribo_estimada: string; v_onda_kmh: number }
+    const [etaCalibrado, setEtaCalibrado] = useState<EtaCalibrado | null>(null);
+
+    useEffect(() => {
+        if (activeEvent?.evento_tipo !== 'LLENADO') { setEtaCalibrado(null); return; }
+        let cancelado = false;
+        const cargar = async () => {
+            const { data } = await supabase
+                .from('vw_prediccion_arribo_escalas')
+                .select('nombre, km, hora_arribo_estimada, v_onda_kmh')
+                .order('km', { ascending: true });
+            if (cancelado || !data) return;
+            // Próxima escala aguas abajo del frente confirmado (maxKmLlenado).
+            const siguiente = data.find((d: any) => d.km > maxKmLlenado);
+            setEtaCalibrado(siguiente ? {
+                nombre: siguiente.nombre, km: siguiente.km,
+                hora_arribo_estimada: siguiente.hora_arribo_estimada, v_onda_kmh: siguiente.v_onda_kmh,
+            } : null);
+        };
+        cargar();
+        const interval = setInterval(cargar, 60_000);
+        return () => { cancelado = true; clearInterval(interval); };
+    }, [activeEvent, maxKmLlenado]);
 
     // Fetch Max KM for LLENADO
     useEffect(() => {
@@ -257,10 +347,18 @@ const GeoMonitor = () => {
         const elapsedHours = (currentTime.getTime() - startTime) / (1000 * 3600);
         if (elapsedHours <= 0) return startKm;
 
-        // VELOCIDAD CALIBRADA: 1.66 m/s = 6.0 km/h
-        // Ajustado para asegurar que el frente supere visualmente el KM 68 (Ancla a las 08:00).
+        // NOTA (auditoría Geo-Monitor, ago-2026): esta NO es la celeridad de onda
+        // calibrada con datos de campo — esa es WAVE_CELERITY_MS = 0.80 m/s
+        // (2.88 km/h, hydraulics.ts, confianza declarada: WAVE_CELERITY_CONFIANZA).
+        // vCanal = 6.0 km/h es una velocidad ajustada visualmente para que el
+        // frente animado alcance el KM 68 a una hora ancla determinada — casi el
+        // doble de la calibrada. Se mantiene así deliberadamente (cambiarla altera
+        // la posición del frente durante protocolos de llenado en curso; requiere
+        // coordinación con Canaleros antes de ajustar). WAVE_CELERITY_MS queda
+        // importada y disponible para quien decida reconciliar ambos valores.
+        void WAVE_CELERITY_MS; void WAVE_CELERITY_CONFIANZA;
         const vRio = 3.0; // km/h
-        const vCanal = activeEvent?.evento_tipo === 'LLENADO' ? 6.0 : (1.16 * 3.6); 
+        const vCanal = activeEvent?.evento_tipo === 'LLENADO' ? 6.0 : (1.16 * 3.6); // km/h — velocidad visual, no BC-07
 
         let currentKm = startKm;
         let remainingHours = elapsedHours;
@@ -289,6 +387,90 @@ const GeoMonitor = () => {
         return Math.max(maxKmLlenado, predictedMaxKm);
     }, [activeEvent, maxKmLlenado, predictedMaxKm]);
 
+    // NDVI agregado por módulo (Fase 4, auditoría ago-2026): bajo demanda al
+    // hacer clic en un polígono de módulo, vía Statistical API de Sentinel Hub.
+    // Por módulo y no por lote — la Statistical API cobra por cálculo, y una
+    // llamada por cada uno de los ~5,200 lotes sería inviable en costo.
+    interface ModuloNdviResult {
+        numeroModulo: number; nombre: string; superficieHa: number | null; cargando: boolean; error: string | null;
+        ndvi_medio: number | null; ndvi_min: number | null; ndvi_max: number | null;
+        muestras_validas: number | null; hasta: string | null;
+    }
+    const [moduloNdvi, setModuloNdvi] = useState<ModuloNdviResult | null>(null);
+
+    const consultarNdviModulo = useCallback(async (numeroModulo: number, nombre: string, superficieHa: number | null, coords: [number, number][]) => {
+        setModuloNdvi({ numeroModulo, nombre, superficieHa, cargando: true, error: null, ndvi_medio: null, ndvi_min: null, ndvi_max: null, muestras_validas: null, hasta: null });
+        try {
+            const lons = coords.map(c => c[0]), lats = coords.map(c => c[1]);
+            const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+            const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+            const { data, error } = await supabase.functions.invoke('sentinel-ndvi-modulo', {
+                body: { minLon, minLat, maxLon, maxLat, diasVentana: 30 },
+            });
+            if (error || data?.error) {
+                setModuloNdvi(prev => prev && { ...prev, cargando: false, error: error?.message || data?.error || 'Error desconocido' });
+                return;
+            }
+            if (!data?.encontrada) {
+                setModuloNdvi(prev => prev && { ...prev, cargando: false, error: data?.mensaje || 'Sin escenas disponibles' });
+                return;
+            }
+            setModuloNdvi(prev => prev && {
+                ...prev, cargando: false, error: null,
+                ndvi_medio: data.ndvi_medio, ndvi_min: data.ndvi_min, ndvi_max: data.ndvi_max,
+                muestras_validas: data.muestras_validas, hasta: data.hasta,
+            });
+        } catch (e) {
+            setModuloNdvi(prev => prev && { ...prev, cargando: false, error: String(e) });
+        }
+    }, []);
+
+    // Balance ETo vs. demanda programada del módulo actualmente mostrado en el
+    // panel de NDVI (mismo trigger de clic sobre el polígono — no hace falta
+    // un segundo botón). Usa la estación climática ya asignada a ese módulo
+    // (EstacionClima.modulo_id) y la superficie del polígono para convertir
+    // ETo (mm/día) a caudal equivalente (m³/s): Q = ETo·Superficie·10/86400.
+    const balanceEtoModulo = useMemo(() => {
+        if (!moduloNdvi) return null;
+        const moduloId = `MOD-${moduloNdvi.numeroModulo}`;
+        const estacion = estacionesClima.find(e => e.modulo_id === moduloId);
+        const eto = estacion?.lectura?.eto_mm ?? estacion?.lectura?.et_dia_mm ?? null;
+        const cad = modulosCaudalObjetivo[moduloId];
+        if (!estacion || eto === null || !cad) return { estacion: estacion ?? null, eto, disponible: false as const };
+
+        const superficieHa = moduloNdvi.superficieHa;
+        if (!superficieHa) return { estacion, eto, disponible: false as const };
+
+        const demandaEtoM3s = (eto * superficieHa * 10) / 86400;
+        const balance = cad.caudal_objetivo - demandaEtoM3s; // + = superávit, - = déficit
+        return {
+            disponible: true as const,
+            estacion, eto, superficieHa,
+            demandaEtoM3s, caudalObjetivo: cad.caudal_objetivo, balance,
+        };
+    }, [moduloNdvi, estacionesClima, modulosCaudalObjetivo]);
+
+    // Alerta anticipada de lluvia 48h (Fase 4, auditoría ago-2026): el pronóstico
+    // ya se sincroniza cada hora (clima-pronostico-sync) y ya llega a la app vía
+    // useClimaEstaciones, pero solo era visible en el módulo Clima — no había
+    // puente hacia el HUD de protocolo, donde el operador decide apertura/cierre.
+    const alertaLluvia48h = useMemo(() => {
+        let maxProbPct: number | null = null;
+        let horaMaxProb: string | null = null;
+        let mmAcumulado48h = 0;
+        for (const est of estacionesClima) {
+            for (const h of est.pronosticoSerie) {
+                if (h.horizonte_h == null || h.horizonte_h < 0 || h.horizonte_h > 48) continue;
+                if (h.precip_prob_pct != null && (maxProbPct === null || h.precip_prob_pct > maxProbPct)) {
+                    maxProbPct = h.precip_prob_pct;
+                    horaMaxProb = h.valido_en;
+                }
+                mmAcumulado48h += h.precip_mm ?? 0;
+            }
+        }
+        return { maxProbPct, horaMaxProb, mmAcumulado48h };
+    }, [estacionesClima]);
+
     // GeoJSON Layers (Shapes)
     const [geoModulos, setGeoModulos] = useState<GeoJSON.FeatureCollection | null>(null);
     const [geoPresas, setGeoPresas] = useState<GeoJSON.FeatureCollection | null>(null);
@@ -298,6 +480,33 @@ const GeoMonitor = () => {
     const [showImporter, setShowImporter] = useState(false);
     const [showWindy, setShowWindy] = useState(false);
     const [geoKey, setGeoKey] = useState(0); // Force re-render on geojson change
+
+    // Lotes (catastro de productores): carga bajo demanda, solo módulos
+    // visibles en el viewport y solo a partir de LOTES_MIN_ZOOM. Cache por
+    // módulo para no re-descargar al hacer pan/zoom dentro de la misma zona.
+    const [mapZoom, setMapZoom] = useState(10);
+    const [mapBounds, setMapBounds] = useState<ViewportBounds | null>(null);
+    const [geoLotesPorModulo, setGeoLotesPorModulo] = useState<Record<number, GeoJSON.FeatureCollection>>({});
+    const lotesEnCarga = useRef<Set<number>>(new Set());
+
+    const modulosLotesVisibles = useMemo(() => {
+        if (!layers.lotes || mapZoom < LOTES_MIN_ZOOM || !mapBounds) return [];
+        return LOTES_MODULO_BBOX.filter(m => bboxIntersecta(mapBounds, m)).map(m => m.modulo);
+    }, [layers.lotes, mapZoom, mapBounds]);
+
+    useEffect(() => {
+        for (const modulo of modulosLotesVisibles) {
+            if (geoLotesPorModulo[modulo] || lotesEnCarga.current.has(modulo)) continue;
+            lotesEnCarga.current.add(modulo);
+            fetch(`/geo/lotes_modulo_${modulo}.geojson`)
+                .then(r => r.ok ? r.json() : null)
+                .then((fc: GeoJSON.FeatureCollection | null) => {
+                    if (fc) setGeoLotesPorModulo(prev => ({ ...prev, [modulo]: fc }));
+                })
+                .catch(() => { /* módulo sin capa de lotes disponible: se omite en silencio */ })
+                .finally(() => lotesEnCarga.current.delete(modulo));
+        }
+    }, [modulosLotesVisibles, geoLotesPorModulo]);
 
     // Panel de KPIs (.geo-stats-panel): columna fija en escritorio, drawer
     // deslizable en tablet (≤1024px) activado por este estado.
@@ -315,6 +524,10 @@ const GeoMonitor = () => {
         mostrarAforosQ: true,
         mostrarAperturas: true,
         estaciones: true,
+        // Apaga por defecto: ~5,200 lotes en 6 archivos (3.3 MB) no deben
+        // descargarse en cada visita a Geo-Monitor — el usuario la activa
+        // explícitamente y solo entonces se cargan bajo demanda.
+        lotes: false,
     });
 
     // Centro de referencia del mapa (Canal Principal Conchos), también usado
@@ -543,6 +756,74 @@ const GeoMonitor = () => {
         setSelectedPoint({ type, data });
     };
 
+    // Historial real del punto seleccionado (Fase 1: reemplaza la serie ficticia
+    // fija que se mostraba sin importar qué escala/toma/presa se hubiera elegido).
+    // Granularidad real disponible: lecturas_escalas/lecturas_presas traen una
+    // lectura por día (no series intradía), y reportes_diarios es una vista por
+    // día — así que el historial es "últimos N días", no "24 horas".
+    const [historySeries, setHistorySeries] = useState<{ labels: string[]; values: number[]; unit: string; seriesName: string } | null>(null);
+    const [historyLoading, setHistoryLoading] = useState(false);
+
+    useEffect(() => {
+        if (!selectedPoint) { setHistorySeries(null); return; }
+        let cancelado = false;
+        setHistoryLoading(true);
+
+        const cargarHistorial = async () => {
+            const fechaDesde = addDays(getTodayString(), -14);
+            try {
+                if (selectedPoint.type === 'escala') {
+                    const { data } = await supabase
+                        .from('lecturas_escalas')
+                        .select('fecha, nivel_m')
+                        .eq('escala_id', selectedPoint.data.id)
+                        .gte('fecha', fechaDesde)
+                        .order('fecha', { ascending: true });
+                    if (cancelado) return;
+                    setHistorySeries({
+                        labels: (data || []).map(d => formatDate(new Date(d.fecha + 'T00:00:00'), { day: '2-digit', month: 'short' })),
+                        values: (data || []).map(d => parseFloat(String(d.nivel_m ?? 0))),
+                        unit: 'm', seriesName: 'Nivel (m)',
+                    });
+                } else if (selectedPoint.type === 'presa') {
+                    const { data } = await supabase
+                        .from('lecturas_presas')
+                        .select('fecha, porcentaje_llenado')
+                        .eq('presa_id', selectedPoint.data.presa_id)
+                        .gte('fecha', fechaDesde)
+                        .order('fecha', { ascending: true });
+                    if (cancelado) return;
+                    setHistorySeries({
+                        labels: (data || []).map(d => formatDate(new Date(d.fecha + 'T00:00:00'), { day: '2-digit', month: 'short' })),
+                        values: (data || []).map(d => parseFloat(String(d.porcentaje_llenado ?? 0))),
+                        unit: '%', seriesName: 'Llenado (%)',
+                    });
+                } else {
+                    // toma: reportes_diarios es la única fuente con granularidad diaria real
+                    const { data } = await supabase
+                        .from('reportes_diarios')
+                        .select('fecha, caudal_promedio_m3s')
+                        .eq('punto_id', selectedPoint.data.id)
+                        .gte('fecha', fechaDesde)
+                        .order('fecha', { ascending: true });
+                    if (cancelado) return;
+                    setHistorySeries({
+                        labels: (data || []).map(d => formatDate(new Date((d.fecha ?? '') + 'T00:00:00'), { day: '2-digit', month: 'short' })),
+                        values: (data || []).map(d => parseFloat(String(d.caudal_promedio_m3s ?? 0))),
+                        unit: 'm³/s', seriesName: 'Caudal (m³/s)',
+                    });
+                }
+            } catch (e) {
+                console.error('Error cargando historial:', e);
+                if (!cancelado) setHistorySeries({ labels: [], values: [], unit: '', seriesName: '' });
+            } finally {
+                if (!cancelado) setHistoryLoading(false);
+            }
+        };
+        cargarHistorial();
+        return () => { cancelado = true; };
+    }, [selectedPoint]);
+
     // Data Fetching (Prioridad 1)
     const fetchAllData = useCallback(async () => {
         try {
@@ -565,12 +846,12 @@ const GeoMonitor = () => {
             ] = await Promise.all([
                 supabase.from('resumen_escalas_diario').select('escala_id, nivel_actual, delta_12h, estado, fecha, lectura_am, lectura_pm').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }),
                 supabase.from('lecturas_escalas').select('escala_id, apertura_radiales_m, fecha, hora_lectura').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_lectura', { ascending: false }),
-                supabase.from('lecturas_presas').select('presa_id, almacenamiento_mm3, porcentaje_llenado, extraccion_total_m3s, fecha').order('fecha', { ascending: false }).limit(3),
+                supabase.from('lecturas_presas').select('presa_id, almacenamiento_mm3, porcentaje_llenado, extraccion_total_m3s, escala_msnm, fecha').order('fecha', { ascending: false }).limit(3),
                 supabase.from('aforos').select('punto_control_id, gasto_calculado_m3s, fecha, hora_inicio').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_inicio', { ascending: false }),
                 supabase.from('vw_alertas_tomas_varadas').select('*'),
                 supabase.from('reportes_operacion').select('punto_id, estado, caudal_promedio, hora_apertura, volumen_acumulado', { count: 'exact' }).eq('fecha', todayStr),
                 supabase.from('reportes_diarios').select('punto_id, volumen_total_mm3, hora_apertura, hora_cierre, caudal_promedio_m3s').gte('fecha', fiveDaysAgoStr),
-                supabase.from('modulos').select('id, caudal_objetivo')
+                supabase.from('modulos').select('id, nombre, caudal_objetivo')
             ]);
             
             const escData = metaStore.escalas;
@@ -618,7 +899,14 @@ const GeoMonitor = () => {
                         latitud: meta.latitud ?? 0, longitud: meta.longitud ?? 0,
                         almacenamiento_mm3: Number(lp.almacenamiento_mm3 || 0),
                         porcentaje_llenado: Number(lp.porcentaje_llenado || 0),
-                        extraccion_total_m3s: extraccion, fecha: lp.fecha
+                        extraccion_total_m3s: extraccion, fecha: lp.fecha,
+                        escala_msnm: lp.escala_msnm !== null && lp.escala_msnm !== undefined ? Number(lp.escala_msnm) : null,
+                        capacidad_max: meta.capacidad_max ?? null,
+                        elevacion_corona_msnm: meta.elevacion_corona_msnm ?? null,
+                        curvas_capacidad: (meta.curvas_capacidad || []).map(c => ({
+                            elevacion_msnm: Number(c.elevacion_msnm), volumen_mm3: Number(c.volumen_mm3),
+                            area_ha: c.area_ha !== null ? Number(c.area_ha) : null,
+                        })),
                     });
                 }
             });
@@ -684,6 +972,12 @@ const GeoMonitor = () => {
             // 6. Stats & Demand
             const totalDemanda = (modStaticData || []).reduce((acc, curr) => acc + (parseFloat(curr.caudal_objetivo) || 0), 0);
             setTotalDemandaProgramada(totalDemanda);
+
+            const caudalPorModulo: Record<string, { nombre: string; caudal_objetivo: number }> = {};
+            (modStaticData || []).forEach((m: any) => {
+                caudalPorModulo[m.id] = { nombre: m.nombre, caudal_objetivo: parseFloat(m.caudal_objetivo) || 0 };
+            });
+            setModulosCaudalObjetivo(caudalPorModulo);
 
         } catch (e) {
             console.error('GeoMonitor fetch error:', e);
@@ -857,53 +1151,53 @@ const GeoMonitor = () => {
 
     const chartGaugeOptions = {
         series: [{
-            type: 'gauge', 
+            type: 'gauge',
             center: ['50%', '60%'],
-            startAngle: 210, 
-            endAngle: -30, 
-            min: 0, 
-            max: 120, 
+            startAngle: 210,
+            endAngle: -30,
+            min: 0,
+            max: 120,
             splitNumber: 6,
             progress: {
                 show: true, width: 14, roundCap: true,
-                itemStyle: { 
+                itemStyle: {
                     color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-                        { offset: 0, color: '#06b6d4' }, 
+                        { offset: 0, color: '#0e7490' },
                         { offset: 1, color: '#22d3ee' }
-                    ]) 
+                    ])
                 }
             },
-            pointer: { 
-                show: true, length: '65%', width: 5, 
-                itemStyle: { color: '#0ea5e9' } 
+            pointer: {
+                show: true, length: '65%', width: 5,
+                itemStyle: { color: '#22d3ee' }
             },
-            axisLine: { 
-                lineStyle: { 
-                    width: 14, 
-                    color: [[0.7, '#ef4444'], [0.85, '#f59e0b'], [1, '#10b981']] 
-                } 
+            axisLine: {
+                lineStyle: {
+                    width: 14,
+                    color: [[0.7, '#ef4565'], [0.85, '#f5a623'], [1, '#34d399']]
+                }
             },
             axisTick: { show: false },
             splitLine: { distance: -18, length: 12, lineStyle: { color: 'rgba(255, 255, 255, 0.1)', width: 2 } },
-            axisLabel: { distance: 18, color: '#475569', fontSize: 10, fontFamily: 'var(--geo-font-mono)' },
-            detail: { 
-                valueAnimation: true, 
-                formatter: '{value}%', 
-                color: '#fff', 
-                fontSize: 28, 
-                fontWeight: 900, 
-                offsetCenter: [0, '25%'], 
-                fontFamily: 'var(--geo-font-mono)' 
+            axisLabel: { distance: 18, color: '#526079', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' },
+            detail: {
+                valueAnimation: true,
+                formatter: '{value}%',
+                color: '#f4f8fc',
+                fontSize: 28,
+                fontWeight: 800,
+                offsetCenter: [0, '25%'],
+                fontFamily: 'JetBrains Mono, monospace'
             },
-            data: [{ 
-                value: parseFloat(eficienciaReal.toFixed(1)), 
-                name: 'Salud Operacional' 
+            data: [{
+                value: parseFloat(eficienciaReal.toFixed(1)),
+                name: 'Salud Operacional'
             }],
-            title: { 
-                offsetCenter: [0, '75%'], 
-                color: '#94a3b8', 
-                fontSize: 10, 
-                fontFamily: 'var(--geo-font-sans)', 
+            title: {
+                offsetCenter: [0, '75%'],
+                color: '#7c8ba3',
+                fontSize: 10,
+                fontFamily: 'Manrope, sans-serif',
                 fontWeight: 700,
                 textTransform: 'uppercase'
             }
@@ -917,17 +1211,17 @@ const GeoMonitor = () => {
         xAxis: {
             type: 'category' as const,
             data: escalas.map(e => `K${Math.round(e.km)}`),
-            axisLabel: { color: '#475569', fontSize: 8, rotate: 0, fontWeight: 700 },
-            axisLine: { lineStyle: { color: 'rgba(51, 65, 85, 0.3)' } },
+            axisLabel: { color: '#526079', fontSize: 8, rotate: 0, fontWeight: 700 },
+            axisLine: { lineStyle: { color: 'rgba(28, 43, 66, 0.6)' } },
             axisTick: { show: false }
         },
         yAxis: {
             type: 'value' as const,
             min: 0,
             max: 4.5,
-            axisLabel: { color: '#475569', fontSize: 9, formatter: '{value}m', fontFamily: 'var(--geo-font-mono)' },
+            axisLabel: { color: '#526079', fontSize: 9, formatter: '{value}m', fontFamily: 'JetBrains Mono, monospace' },
             axisLine: { show: false },
-            splitLine: { lineStyle: { color: 'rgba(51, 65, 85, 0.1)', type: 'dashed' } },
+            splitLine: { lineStyle: { color: 'rgba(28, 43, 66, 0.5)', type: 'dashed' } },
         },
         series: [
             {
@@ -935,11 +1229,11 @@ const GeoMonitor = () => {
                 type: 'line',
                 data: escalas.map(() => 3.2), // Línea Ideal
                 symbol: 'none',
-                lineStyle: { color: 'rgba(16, 185, 129, 0.2)', width: 1, type: 'dashed' },
+                lineStyle: { color: 'rgba(52, 211, 153, 0.2)', width: 1, type: 'dashed' },
                 markArea: {
                     silent: true,
-                    itemStyle: { color: 'rgba(16, 185, 129, 0.03)' },
-                    data: activeEvent?.evento_tipo === 'LLENADO' 
+                    itemStyle: { color: 'rgba(52, 211, 153, 0.03)' },
+                    data: activeEvent?.evento_tipo === 'LLENADO'
                         ? [[{ yAxis: 0.1 }, { yAxis: 3.4 }]] // Rango amplio en llenado
                         : [[{ yAxis: 2.8 }, { yAxis: 3.4 }]]
                 }
@@ -950,57 +1244,53 @@ const GeoMonitor = () => {
                 smooth: true,
                 symbol: 'circle',
                 symbolSize: 8,
-                lineStyle: { 
+                lineStyle: {
                     color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-                        { offset: 0, color: '#06b6d4' },
-                        { offset: 1, color: '#3b82f6' }
-                    ]), 
-                    width: 4,
-                    shadowBlur: 10,
-                    shadowColor: 'rgba(6, 182, 212, 0.4)'
+                        { offset: 0, color: '#0e7490' },
+                        { offset: 1, color: '#22d3ee' }
+                    ]),
+                    width: 3,
                 },
-                itemStyle: { 
-                    color: '#fff', 
-                    borderColor: '#22d3ee', 
+                itemStyle: {
+                    color: '#f4f8fc',
+                    borderColor: '#22d3ee',
                     borderWidth: 2,
-                    shadowBlur: 5,
-                    shadowColor: 'rgba(0,0,0,0.5)'
                 },
                 areaStyle: {
                     color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                        { offset: 0, color: 'rgba(6, 182, 212, 0.3)' },
-                        { offset: 1, color: 'rgba(6, 182, 212, 0)' }
+                        { offset: 0, color: 'rgba(34, 211, 238, 0.25)' },
+                        { offset: 1, color: 'rgba(34, 211, 238, 0)' }
                     ])
                 }
             }
         ],
         tooltip: {
             trigger: 'axis' as const,
-            backgroundColor: 'rgba(15, 23, 42, 0.95)',
-            borderColor: '#22d3ee',
+            backgroundColor: 'rgba(12, 23, 41, 0.97)',
+            borderColor: '#1c2b42',
             padding: [10, 15],
-            textStyle: { color: '#f8fafc', fontSize: 12, fontFamily: 'var(--geo-font-sans)' },
+            textStyle: { color: '#f4f8fc', fontSize: 12, fontFamily: 'var(--geo-font-sans)' },
             formatter: (params: any) => {
                 const dataIndex = params[0].dataIndex;
                 const esc = escalas[dataIndex];
                 const level = esc?.nivel_actual;
-                const status = (level ?? 0) > 3.4 
-                    ? 'CRÍTICO (+)' 
-                    : (level ?? 0) < (activeEvent?.evento_tipo === 'LLENADO' ? 0.1 : 2.8) 
-                        ? 'CRÍTICO (-)' 
+                const status = (level ?? 0) > 3.4
+                    ? 'CRÍTICO (+)'
+                    : (level ?? 0) < (activeEvent?.evento_tipo === 'LLENADO' ? 0.1 : 2.8)
+                        ? 'CRÍTICO (-)'
                         : 'ÓPTIMO';
-                const statusColor = (status === 'ÓPTIMO' || (status === 'CRÍTICO (-)' && activeEvent?.evento_tipo === 'LLENADO')) ? '#10b981' : '#ef4444';
-                
+                const statusColor = (status === 'ÓPTIMO' || (status === 'CRÍTICO (-)' && activeEvent?.evento_tipo === 'LLENADO')) ? '#34d399' : '#ef4565';
+
                 return `
                     <div style="min-width: 140px">
-                        <div style="font-weight: 800; font-size: 14px; margin-bottom: 4px; color: #fff">${esc?.nombre} <small style="color: #64748b">KM ${esc?.km}</small></div>
+                        <div style="font-weight: 800; font-size: 14px; margin-bottom: 4px; color: #f4f8fc">${esc?.nombre} <small style="color: #7c8ba3">KM ${esc?.km}</small></div>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
-                            <span style="color: #94a3b8; font-size: 10px; font-weight: 700">ESTADO</span>
+                            <span style="color: #7c8ba3; font-size: 10px; font-weight: 700">ESTADO</span>
                             <span style="color: ${statusColor}; font-size: 10px; font-weight: 900">${status}</span>
                         </div>
                         <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; display: flex; align-items: baseline; gap: 4px">
                             <span style="color: #22d3ee; font-size: 20px; font-weight: 900; font-family: var(--geo-font-mono)">${level ?? '—'}</span>
-                            <span style="color: #64748b; font-size: 12px; font-weight: 600">metros</span>
+                            <span style="color: #7c8ba3; font-size: 12px; font-weight: 600">metros</span>
                         </div>
                     </div>
                 `;
@@ -1011,10 +1301,10 @@ const GeoMonitor = () => {
     const miniHistoryOptions = {
         backgroundColor: 'transparent',
         grid: { left: 5, right: 5, top: 5, bottom: 5 },
-        xAxis: { type: 'category', show: false },
+        xAxis: { type: 'category', show: false, data: historySeries?.labels ?? [] },
         yAxis: { type: 'value', show: false },
         series: [{
-            data: [2.1, 2.3, 2.2, 2.5, 2.4, 2.6, 2.5],
+            data: historySeries?.values ?? [],
             type: 'line', smooth: true, symbol: 'none',
             lineStyle: { color: '#22d3ee', width: 2 },
             areaStyle: { color: 'rgba(34, 211, 238, 0.1)' }
@@ -1023,16 +1313,20 @@ const GeoMonitor = () => {
 
     const fullHistoryOptions = {
         backgroundColor: 'transparent',
-        tooltip: { trigger: 'axis', backgroundColor: 'rgba(2, 6, 23, 0.9)', borderColor: '#1e293b', textStyle: { color: '#f8fafc', fontSize: 11, fontFamily: 'monospace' } },
+        tooltip: {
+            trigger: 'axis', backgroundColor: 'rgba(12, 23, 41, 0.95)', borderColor: '#1c2b42',
+            textStyle: { color: '#f4f8fc', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' },
+            valueFormatter: (v: number) => `${v} ${historySeries?.unit ?? ''}`,
+        },
         grid: { left: 40, right: 20, top: 40, bottom: 30 },
-        xAxis: { type: 'category', data: ['00:00', '02:00', '04:00', '06:00', '08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'], axisLabel: { color: '#64748b', fontSize: 10, fontWeight: 'bold' } },
-        yAxis: { type: 'value', axisLabel: { color: '#64748b', fontSize: 10, fontFamily: 'monospace' }, splitLine: { lineStyle: { color: '#1e293b', type: 'dashed' } } },
+        xAxis: { type: 'category', data: historySeries?.labels ?? [], axisLabel: { color: '#7c8ba3', fontSize: 10, fontWeight: 'bold' } },
+        yAxis: { type: 'value', axisLabel: { color: '#7c8ba3', fontSize: 10, fontFamily: 'JetBrains Mono, monospace', formatter: `{value} ${historySeries?.unit ?? ''}` }, splitLine: { lineStyle: { color: '#1c2b42', type: 'dashed' } } },
         series: [{
-            name: selectedPoint?.type === 'escala' ? 'Nivel (m)' : selectedPoint?.type === 'toma' ? 'Caudal (m³/s)' : 'Extracción',
-            data: [2.1, 2.3, 2.2, 2.5, 2.4, 2.6, 2.5, 2.4, 2.3, 2.2, 2.4, 2.5],
+            name: historySeries?.seriesName ?? '',
+            data: historySeries?.values ?? [],
             type: 'line', smooth: true, symbol: 'circle', symbolSize: 8,
-            lineStyle: { color: '#22d3ee', width: 3, shadowColor: 'rgba(34, 211, 238, 0.5)', shadowBlur: 10 },
-            itemStyle: { color: '#22d3ee', borderColor: '#020617', borderWidth: 2 },
+            lineStyle: { color: '#22d3ee', width: 3 },
+            itemStyle: { color: '#22d3ee', borderColor: '#050b16', borderWidth: 2 },
             areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(34, 211, 238, 0.3)' }, { offset: 1, color: 'rgba(34, 211, 238, 0.0)' }] } }
         }]
     };
@@ -1066,8 +1360,8 @@ const GeoMonitor = () => {
                         <MapIcon color="#22d3ee" size={28} />
                     </div>
                     <div>
-                        <h1 className="geo-title" style={{ fontSize: '1.4rem' }}>
-                            GEO-MONITOR <span className="font-light">| CENTRO VISUAL</span>
+                        <h1 className="geo-title">
+                            GEO-MONITOR <span className="font-light">CENTRO VISUAL</span>
                         </h1>
                         <p className="geo-subtitle">
                             Canal Principal Conchos — DR-005
@@ -1111,6 +1405,17 @@ const GeoMonitor = () => {
                         title={statsOpen ? 'Ocultar panel de indicadores' : 'Ver panel de indicadores'}
                     >
                         <PanelRight size={18} />
+                    </button>
+                    {/* Enlace a Tendencias (Monitor Público) — Fase 5: antes eran islas
+                        sin navegación cruzada pese a operar sobre el mismo canal; ahí vive
+                        el histórico de volumen por tramo y gasto entrada/salida/pérdidas
+                        con mejor granularidad que el historial de Geo-Monitor. */}
+                    <button
+                        className="geo-fullscreen-btn"
+                        onClick={() => navigate('/monitor-publico?tab=tendencias')}
+                        title="Ver Tendencias históricas (Monitor Público)"
+                    >
+                        <TrendingUp size={18} />
                     </button>
                     {/* Fullscreen Toggle (Prioridad 4.3) */}
                     <button className="geo-fullscreen-btn" onClick={toggleFullscreen} title={isFullscreen ? 'Salir Pantalla Completa' : 'Modo Video Wall'}>
@@ -1346,6 +1651,97 @@ const GeoMonitor = () => {
                                 </span>
                             </div>
                         )}
+                        {/* Aviso de zoom insuficiente: la capa está activada pero a este nivel
+                            de acercamiento ~5,200 lotes se verían como ruido — se explica en vez
+                            de dejar la capa "activa" sin mostrar nada, sin dar pista al usuario. */}
+                        {layers.lotes && mapZoom < LOTES_MIN_ZOOM && (
+                            <div className="geo-lotes-zoom-badge">
+                                <Crosshair size={13} className="text-amber-400" />
+                                <span>Acerca el mapa para ver lotes (zoom {mapZoom}/{LOTES_MIN_ZOOM})</span>
+                            </div>
+                        )}
+                        {/* Resultado de NDVI por módulo (Fase 4): panel flotante, se cierra con X.
+                            No usa el geo-detail-panel de escala/toma/presa a propósito — evita
+                            acoplar esta consulta puntual a esa lógica de selección más compleja. */}
+                        {moduloNdvi && (
+                            <div className="geo-ndvi-modulo-panel">
+                                <div className="geo-ndvi-modulo-header">
+                                    <span>NDVI — {moduloNdvi.nombre}</span>
+                                    <button onClick={() => setModuloNdvi(null)} title="Cerrar">×</button>
+                                </div>
+                                {moduloNdvi.cargando && <div className="geo-ndvi-modulo-body">Calculando NDVI del área…</div>}
+                                {!moduloNdvi.cargando && moduloNdvi.error && (
+                                    <div className="geo-ndvi-modulo-body error">{moduloNdvi.error}</div>
+                                )}
+                                {!moduloNdvi.cargando && !moduloNdvi.error && moduloNdvi.ndvi_medio !== null && (
+                                    <div className="geo-ndvi-modulo-body">
+                                        <div className="geo-ndvi-modulo-value">
+                                            {moduloNdvi.ndvi_medio.toFixed(3)}
+                                            <small>NDVI medio</small>
+                                        </div>
+                                        <div className="geo-ndvi-modulo-range">
+                                            rango {moduloNdvi.ndvi_min?.toFixed(2)} – {moduloNdvi.ndvi_max?.toFixed(2)}
+                                            {moduloNdvi.muestras_validas != null && ` · ${moduloNdvi.muestras_validas.toLocaleString()} muestras`}
+                                        </div>
+                                        <div className="geo-ndvi-modulo-note">
+                                            Últimos 30 días{moduloNdvi.hasta ? `, hasta ${new Date(moduloNdvi.hasta).toLocaleDateString('es-MX')}` : ''}.
+                                            Agregado sobre el área del módulo completo, no por lote individual.
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Balance ETo vs. demanda programada — Fase 4. Antes la ETo de
+                                    las estaciones climáticas solo se veía suelta en un tooltip. */}
+                                <div className="geo-ndvi-modulo-divider" />
+                                <div className="geo-ndvi-modulo-body">
+                                    <div className="geo-eto-title">Balance hídrico estimado (ETo)</div>
+                                    {!balanceEtoModulo?.estacion && (
+                                        <div className="geo-ndvi-modulo-note">Sin estación climática asignada a este módulo.</div>
+                                    )}
+                                    {balanceEtoModulo?.estacion && balanceEtoModulo.eto === null && (
+                                        <div className="geo-ndvi-modulo-note">Estación {balanceEtoModulo.estacion.nombre} sin lectura de ETo reciente.</div>
+                                    )}
+                                    {balanceEtoModulo?.estacion && balanceEtoModulo.eto !== null && !balanceEtoModulo.disponible && (
+                                        <div className="geo-ndvi-modulo-note">
+                                            ETo: {balanceEtoModulo.eto.toFixed(2)} mm/día ({balanceEtoModulo.estacion.nombre}).
+                                            Sin superficie o caudal objetivo del módulo para calcular el balance.
+                                        </div>
+                                    )}
+                                    {balanceEtoModulo?.disponible && (
+                                        <>
+                                            <div className={clsx('geo-eto-balance-value', balanceEtoModulo.balance >= 0 ? 'positivo' : 'negativo')}>
+                                                {balanceEtoModulo.balance >= 0 ? '+' : ''}{balanceEtoModulo.balance.toFixed(2)}
+                                                <small>m³/s {balanceEtoModulo.balance >= 0 ? 'superávit' : 'déficit'}</small>
+                                            </div>
+                                            <div className="geo-ndvi-modulo-range">
+                                                Objetivo {balanceEtoModulo.caudalObjetivo.toFixed(2)} m³/s vs. demanda ETo {balanceEtoModulo.demandaEtoM3s.toFixed(2)} m³/s
+                                            </div>
+                                            <div className="geo-ndvi-modulo-note">
+                                                ETo {balanceEtoModulo.eto.toFixed(2)} mm/día ({balanceEtoModulo.estacion!.nombre}) ×
+                                                {' '}{balanceEtoModulo.superficieHa?.toLocaleString()} ha de superficie del módulo.
+                                                Estimación agregada, no sustituye la demanda real por cultivo/lote.
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        {/* Alerta anticipada de lluvia (Fase 4): solo se muestra si hay
+                            probabilidad relevante en las próximas 48h — en días despejados
+                            no agrega ruido al mapa. Sirve de contexto para decisiones de
+                            apertura/cierre ANTES de una contingencia por lluvia. */}
+                        {alertaLluvia48h.maxProbPct != null && alertaLluvia48h.maxProbPct >= 40 && (
+                            <div
+                                className={clsx('geo-lluvia-badge', alertaLluvia48h.maxProbPct >= 70 && 'alta')}
+                                style={activeEvent ? { top: 58 } : undefined}
+                            >
+                                <CloudRain size={13} />
+                                <span>
+                                    Lluvia {Math.round(alertaLluvia48h.maxProbPct)}% prob. en 48h
+                                    {alertaLluvia48h.horaMaxProb && ` · pico ${new Date(alertaLluvia48h.horaMaxProb).toLocaleString('es-MX', { weekday: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' })}`}
+                                </span>
+                            </div>
+                        )}
                         {/* Protocol HUD Banner */}
                         {activeEvent && (
                             <div className={clsx(
@@ -1386,6 +1782,7 @@ const GeoMonitor = () => {
                                 className="geo-map-leaflet"
                                 zoomControl={false} attributionControl={false}
                             >
+                                <MapViewportWatcher onChange={(zoom, bounds) => { setMapZoom(zoom); setMapBounds(bounds); }} />
                                 {baseLayer === 'satellite' && (
                                     <TileLayer
                                         url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
@@ -1459,13 +1856,29 @@ const GeoMonitor = () => {
                                         onEachFeature={(feature, layer) => {
                                             if (feature.properties) {
                                                 const p = feature.properties;
+                                                const btnId = `ndvi-btn-mod-${p.numero_modulo}`;
                                                 layer.bindPopup(`
                                                     <div style="font-family:var(--geo-font-sans);min-width:180px">
                                                         <strong style="font-size:14px;font-weight:800;color:${p.color}">${p.nombre}</strong>
                                                         <div style="font-size:11px;color:#cbd5e1;margin:4px 0;text-transform:uppercase;letter-spacing:0.05em">Módulo ${p.numero_modulo}</div>
                                                         <div style="font-size:12px;font-family:var(--geo-font-mono)">Superficie: <b style="color:#fff">${p.superficie_ha?.toLocaleString()} ha</b></div>
+                                                        <button id="${btnId}" style="margin-top:8px;width:100%;padding:6px 8px;border-radius:6px;border:1px solid rgba(34,211,238,0.4);background:rgba(34,211,238,0.12);color:#22d3ee;font-size:11px;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:0.04em">
+                                                            Consultar NDVI del área
+                                                        </button>
                                                     </div>
                                                 `);
+                                                // El botón vive dentro del popup HTML de Leaflet (fuera del árbol React),
+                                                // así que se engancha el listener cuando el popup se abre — no antes,
+                                                // porque el nodo aún no existe en el DOM.
+                                                layer.on('popupopen', () => {
+                                                    const btn = document.getElementById(btnId);
+                                                    if (btn && feature.geometry.type === 'Polygon') {
+                                                        btn.onclick = () => consultarNdviModulo(
+                                                            p.numero_modulo, p.nombre, p.superficie_ha ?? null,
+                                                            feature.geometry.coordinates[0] as [number, number][],
+                                                        );
+                                                    }
+                                                });
                                                 layer.bindTooltip(p.nombre, { sticky: true, className: 'geo-tooltip-custom' });
                                             }
                                         }}
@@ -1497,6 +1910,47 @@ const GeoMonitor = () => {
                                         }}
                                     />
                                 )}
+
+                                {/* GeoJSON: Lotes de productores (catastro) — cargado bajo demanda por
+                                    módulo visible, solo desde LOTES_MIN_ZOOM. El nombre del productor
+                                    (dato personal) solo se muestra a rol SRL; el resto ve cultivo y
+                                    superficie sin identificar al titular (ver informe de auditoría). */}
+                                {layers.lotes && mapZoom >= LOTES_MIN_ZOOM && modulosLotesVisibles.map(modulo => {
+                                    const fc = geoLotesPorModulo[modulo];
+                                    if (!fc) return null;
+                                    return (
+                                        <GeoJSON
+                                            key={`lotes-${modulo}-${geoKey}`}
+                                            data={fc}
+                                            style={() => ({
+                                                color: '#f5a623',
+                                                weight: 1,
+                                                fillColor: '#f5a623',
+                                                fillOpacity: 0.08,
+                                            })}
+                                            onEachFeature={(feature, layer) => {
+                                                const p = feature.properties;
+                                                if (!p) return;
+                                                const productorHtml = isGerente
+                                                    ? `<div style="font-size:12px;color:#cbd5e1;margin-top:2px">${p.productor || 'Sin productor registrado'}</div>`
+                                                    : '';
+                                                layer.bindPopup(`
+                                                    <div style="font-family:var(--geo-font-sans);min-width:190px">
+                                                        <strong style="font-size:13px;font-weight:800;color:#f5a623">Lote ${p.idparcela ?? ''} — Módulo ${p.modulo}</strong>
+                                                        ${productorHtml}
+                                                        <div style="font-size:11px;color:#94a3b8;margin-top:6px;text-transform:uppercase;letter-spacing:0.04em">Cultivo</div>
+                                                        <div style="font-size:12px;color:#fff">${p.cultivo || 'Sin registrar'}</div>
+                                                        <div style="font-size:11px;font-family:var(--geo-font-mono);margin-top:6px">
+                                                            Superficie física: <b style="color:#fff">${p.superficie_fisica_ha ?? '—'} ha</b><br/>
+                                                            Superficie de riego: <b style="color:#fff">${p.superficie_riego_ha ?? '—'} ha</b>
+                                                        </div>
+                                                    </div>
+                                                `);
+                                                layer.bindTooltip(`Lote ${p.idparcela ?? ''}${p.cultivo ? ' · ' + p.cultivo : ''}`, { sticky: true });
+                                            }}
+                                        />
+                                    );
+                                })}
 
                                 {/* GeoJSON: Canal Principal (línea gruesa) */}
                                 {layers.canal && geoCanal && (
@@ -1590,7 +2044,19 @@ const GeoMonitor = () => {
                                         <Tooltip sticky>
                                             <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold', color: '#06b6d4' }}>
                                                 🌊 FRENTE DE AGUA<br />
-                                                Arribo actual: Km {(maxKmLlenado ?? 0).toFixed(1)}
+                                                Confirmado (campo): Km {(maxKmLlenado ?? 0).toFixed(1)}<br />
+                                                {predictedMaxKm > maxKmLlenado && (
+                                                    <span style={{ color: '#94a3b8', fontWeight: 'normal' }}>
+                                                        Proyectado (visual): Km {predictedMaxKm.toFixed(1)}<br />
+                                                    </span>
+                                                )}
+                                                {etaCalibrado && (
+                                                    <span style={{ color: '#34d399', fontWeight: 'normal' }}>
+                                                        Próx. escala calibrada: {etaCalibrado.nombre} (Km {etaCalibrado.km}) ·{' '}
+                                                        {new Date(etaCalibrado.hora_arribo_estimada).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' })}
+                                                        {' '}· {etaCalibrado.v_onda_kmh.toFixed(1)} km/h
+                                                    </span>
+                                                )}
                                             </span>
                                         </Tooltip>
                                     </Polyline>
@@ -1822,75 +2288,56 @@ const GeoMonitor = () => {
                                                 <strong>{calcGasto(selectedPoint.data)?.toFixed(2) ?? '—'} <small>m³/s</small></strong>
                                             </div>
                                             {selectedPoint.data?.pzas_radiales > 0 && (
-                                                <div className="detail-stat full" style={{ marginTop: 8, padding: '12px 10px', background: 'rgba(15, 23, 42, 0.6)', borderRadius: 8, border: '1px solid rgba(30, 41, 59, 1)' }}>
-                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                                                <div className="detail-stat full geo-gate-panel">
+                                                    <label className="geo-gate-panel-label">
                                                         <Layers size={12} className="text-cyan-400" />
                                                         Control de Represa ({selectedPoint.data.pzas_radiales} Compuertas)
                                                     </label>
-                                                    
+
                                                     {/* Representación Gráfica de Compuertas Radiales */}
-                                                    <div style={{ display: 'flex', gap: 6, marginBottom: 16, justifyContent: 'center', height: '44px' }}>
+                                                    <div className="geo-gate-row">
                                                         {Array.from({ length: selectedPoint.data.pzas_radiales }).map((_, i) => {
                                                             const apertura = parseFloat(selectedPoint.data.apertura_radiales_m || 0);
                                                             const altoMax = parseFloat(selectedPoint.data.alto || 3);
                                                             const fillPct = Math.min(100, Math.max(0, (apertura / altoMax) * 100));
-                                                            
+
                                                             return (
-                                                                <div key={i} style={{ 
-                                                                    flex: 1, 
-                                                                    maxWidth: '28px',
-                                                                    background: '#020617', 
-                                                                    border: '1px solid #1e293b', 
-                                                                    borderRadius: '2px', 
-                                                                    position: 'relative', 
-                                                                    overflow: 'hidden',
-                                                                    boxShadow: 'inset 0 0 10px rgba(0,0,0,0.8)'
-                                                                }}>
+                                                                <div key={i} className="geo-gate-cell">
                                                                     {/* Background Agua */}
-                                                                    <div style={{ width: '100%', height: '100%', background: 'rgba(34, 211, 238, 0.05)', position: 'absolute' }}></div>
-                                                                    
+                                                                    <div className="geo-gate-water-bg"></div>
+
                                                                     {/* Cortina Mecánica (de arriba hacia abajo) */}
-                                                                    <div style={{
-                                                                        width: '100%',
-                                                                        height: `${100 - fillPct}%`,
-                                                                        background: 'linear-gradient(to bottom, #64748b, #334155)',
-                                                                        position: 'absolute',
-                                                                        top: 0,
-                                                                        borderBottom: '3px solid #94a3b8',
-                                                                        zIndex: 1,
-                                                                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)'
-                                                                    }}>
-                                                                        <div style={{ borderBottom: '1px solid rgba(0,0,0,0.2)', borderTop: '1px solid rgba(255,255,255,0.05)', height: '40%', width: '100%', marginTop: '30%' }}></div>
+                                                                    <div className="geo-gate-curtain" style={{ height: `${100 - fillPct}%` }}>
+                                                                        <div className="geo-gate-curtain-seam"></div>
                                                                     </div>
-                                                                    
+
                                                                     {/* Flujo de Agua (la apertura por debajo) */}
-                                                                    <div className="water-flow-anim" style={{
-                                                                        width: '100%',
-                                                                        height: `${fillPct}%`,
-                                                                        background: fillPct > 0 ? 'linear-gradient(to bottom, rgba(34, 211, 238, 0.6), rgba(14, 165, 233, 0.9))' : 'transparent',
-                                                                        position: 'absolute',
-                                                                        bottom: 0,
-                                                                        zIndex: 2,
-                                                                        borderTop: fillPct > 0 ? '1px solid rgba(255,255,255,0.3)' : 'none'
-                                                                    }}></div>
+                                                                    <div
+                                                                        className="water-flow-anim geo-gate-flow"
+                                                                        style={{
+                                                                            height: `${fillPct}%`,
+                                                                            background: fillPct > 0 ? 'linear-gradient(to bottom, rgba(34, 211, 238, 0.6), rgba(14, 165, 233, 0.9))' : 'transparent',
+                                                                            borderTop: fillPct > 0 ? '1px solid rgba(255,255,255,0.3)' : 'none'
+                                                                        }}
+                                                                    ></div>
                                                                 </div>
                                                             );
                                                         })}
                                                     </div>
 
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '0 4px' }}>
-                                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                            <span style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Apertura Prom.</span>
-                                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-                                                                <span style={{ fontSize: 18, fontWeight: 900, color: '#22d3ee', lineHeight: 1 }}>{selectedPoint.data.apertura_radiales_m || '0.00'}</span>
-                                                                <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>m</span>
+                                                    <div className="geo-gate-stats">
+                                                        <div className="geo-gate-stat">
+                                                            <span className="geo-gate-stat-label">Apertura Prom.</span>
+                                                            <div className="geo-gate-stat-value">
+                                                                <span className="num cyan">{selectedPoint.data.apertura_radiales_m || '0.00'}</span>
+                                                                <span className="unit">m</span>
                                                             </div>
                                                         </div>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                                            <span style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Descarga Est.</span>
-                                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-                                                                <span style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc', lineHeight: 1 }}>{calcGasto(selectedPoint.data)?.toFixed(2) ?? '0.00'}</span>
-                                                                <span style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>m³/s</span>
+                                                        <div className="geo-gate-stat align-end">
+                                                            <span className="geo-gate-stat-label">Descarga Est.</span>
+                                                            <div className="geo-gate-stat-value">
+                                                                <span className="num">{calcGasto(selectedPoint.data)?.toFixed(2) ?? '0.00'}</span>
+                                                                <span className="unit">m³/s</span>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1904,15 +2351,15 @@ const GeoMonitor = () => {
                                                 <label>Gasto (m³/s)</label>
                                                 <strong>{selectedPoint.data.caudal?.toFixed(3) ?? '0.000'} <small className="text-slate-500 lowercase font-bold">m³/s</small></strong>
                                             </div>
-                                            <div className="detail-stat full" style={{ marginTop: 8, padding: 8, background: 'rgba(34, 211, 238, 0.05)', borderRadius: 8, border: '1px solid rgba(34, 211, 238, 0.1)' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                        <span style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Volumen Entregado (m³)</span>
-                                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 2 }}>
-                                                            <span style={{ fontSize: 18, fontWeight: 900, color: '#22d3ee', fontFamily: 'monospace' }}>
+                                            <div className="detail-stat full geo-volume-panel">
+                                                <div className="geo-volume-row">
+                                                    <div>
+                                                        <span className="geo-gate-stat-label">Volumen Entregado (m³)</span>
+                                                        <div className="geo-gate-stat-value" style={{ marginTop: 2 }}>
+                                                            <span className="num cyan mono">
                                                                 {Math.round((selectedPoint.data.volumen_acumulado || 0) * 1000000).toLocaleString()}
                                                             </span>
-                                                            <span style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>m³</span>
+                                                            <span className="unit">m³</span>
                                                         </div>
                                                     </div>
                                                     <Layers size={16} className="text-cyan-600" opacity={0.5} />
@@ -1935,9 +2382,15 @@ const GeoMonitor = () => {
                                 </div>
 
                                 <div className="geo-detail-chart">
-                                    <label>Tendencia Reciente (12h)</label>
+                                    <label>Tendencia Reciente (14 días)</label>
                                     <div style={{ height: '40px' }}>
-                                        <ReactECharts option={miniHistoryOptions} style={{ height: '100%', width: '100%' }} />
+                                        {historySeries?.values.length ? (
+                                            <ReactECharts option={miniHistoryOptions} style={{ height: '100%', width: '100%' }} />
+                                        ) : (
+                                            <div style={{ height: '100%', display: 'flex', alignItems: 'center', fontSize: 10, color: 'var(--geo-text-3)' }}>
+                                                {historyLoading ? 'Cargando…' : 'Sin lecturas recientes'}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -1966,7 +2419,7 @@ const GeoMonitor = () => {
                             <div className="geo-kpi-value cyan">
                                 {nivelEntrada?.toFixed(2) ?? '—'} <small>m</small>
                             </div>
-                            {gastoEntrada && <div style={{ fontSize: 9, color: '#64748b', marginTop: 2, fontFamily: 'monospace' }}>Q: {(gastoEntrada ?? 0).toFixed(2)} m³/s</div>}
+                            {gastoEntrada && <div className="geo-kpi-sub">Q: {(gastoEntrada ?? 0).toFixed(2)} m³/s</div>}
                         </div>
                         <div className="geo-kpi-card" onClick={() => escalaSalida && handleSelect('escala', escalaSalida)}>
                             <div className="geo-kpi-label">
@@ -1975,7 +2428,7 @@ const GeoMonitor = () => {
                             <div className="geo-kpi-value">
                                 {nivelSalida?.toFixed(2) ?? '—'} <small>m</small>
                             </div>
-                            {gastoSalida && <div style={{ fontSize: 9, color: '#64748b', marginTop: 2, fontFamily: 'monospace' }}>Q: {(gastoSalida ?? 0).toFixed(2)} m³/s</div>}
+                            {gastoSalida && <div className="geo-kpi-sub">Q: {(gastoSalida ?? 0).toFixed(2)} m³/s</div>}
                         </div>
                         <div className="geo-kpi-card">
                             <div className="geo-kpi-label">
@@ -2011,17 +2464,15 @@ const GeoMonitor = () => {
                             <span className="geo-tomas-count">{operStats.tomas_cerradas}</span>
                             <span className="geo-tomas-label">Cerradas</span>
                         </div>
-                        <div className="geo-tomas-item split-glass" style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '6px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-                                <span className="geo-tomas-count" style={{ color: '#22d3ee', fontFamily: 'monospace', fontSize: '1.2rem', lineHeight: 1.2 }}>
-                                    {(gastoDistribuido ?? 0).toFixed(1)} <small style={{ fontSize: '0.6rem', color: '#94a3b8' }}>m³/s</small>
-                                </span>
-                                <div style={{ height: '1px', width: '80%', background: 'rgba(255,255,255,0.1)', margin: '4px 0' }} />
-                                <span style={{ color: '#64748b', fontFamily: 'monospace', fontSize: '0.8rem', lineHeight: 1 }}>
-                                    {(totalDemandaProgramada ?? 0).toFixed(1)} <small style={{ fontSize: '0.55rem' }}>m³/s</small>
-                                </span>
-                            </div>
-                            <span className="geo-tomas-label" style={{ marginTop: '4px', fontSize: '9px', letterSpacing: '0.05em' }}>BALANCE (REAL / PROG)</span>
+                        <div className="geo-tomas-item balance">
+                            <span className="geo-balance-real">
+                                {(gastoDistribuido ?? 0).toFixed(1)} <small>m³/s</small>
+                            </span>
+                            <div className="geo-balance-rule" />
+                            <span className="geo-balance-prog">
+                                {(totalDemandaProgramada ?? 0).toFixed(1)} <small>m³/s</small>
+                            </span>
+                            <span className="geo-tomas-label" style={{ marginTop: 4 }}>Balance (real / prog)</span>
                         </div>
                         <div
                             className={clsx('geo-tomas-item alert filter-btn', activeFilter === 'alert' && 'active')}
@@ -2036,10 +2487,10 @@ const GeoMonitor = () => {
                     <div className="geo-chart-card">
                         <div className="geo-stat-header">
                             <div>
-                                <span className="geo-stat-title">SALUD OPERACIONAL GLOBAL</span>
-                                <p style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', marginTop: '2px' }}>Eficiencia Hidráulica del Sistema</p>
+                                <span className="geo-stat-title">Salud operacional global</span>
+                                <p className="geo-stat-caption">Eficiencia hidráulica del sistema</p>
                             </div>
-                            <Activity size={14} className="geo-stat-icon" style={{ color: eficienciaReal >= 90 ? '#10b981' : '#f59e0b' }} />
+                            <Activity size={14} className="geo-stat-icon" style={{ color: eficienciaReal >= 90 ? '#34d399' : '#f5a623' }} />
                         </div>
                         <div className="geo-chart-wrapper" style={{ marginTop: '-15px' }}>
                             <ReactECharts option={chartGaugeOptions} style={{ height: '180px', width: '100%' }} opts={{ renderer: 'svg' }} />
@@ -2050,8 +2501,8 @@ const GeoMonitor = () => {
                     <div className="geo-chart-card">
                         <div className="geo-stat-header" style={{ marginBottom: '12px' }}>
                             <div>
-                                <span className="geo-stat-title">PERFIL HIDRÁULICO DIGITAL</span>
-                                <p style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', marginTop: '2px' }}>Comportamiento Dinámico del Canal</p>
+                                <span className="geo-stat-title">Perfil hidráulico digital</span>
+                                <p className="geo-stat-caption">Comportamiento dinámico del canal</p>
                             </div>
                             <TrendingUp size={14} className="geo-stat-icon" />
                         </div>
@@ -2109,18 +2560,21 @@ const GeoMonitor = () => {
                 />
             )}
 
-            {/* Vaso Monitor Overlay */}
+            {/* Vaso Monitor Overlay — Fase 1: nivel, capacidad y curva reales de
+                lecturas_presas/presas/curvas_capacidad; "S/D" si falta el dato,
+                nunca un valor fijo por presa_id (ver informe de auditoría). */}
             {showVaso && selectedPoint?.type === 'presa' && (
                 <PresaVasoMonitor
                     data={{
                         nombre: selectedPoint.data.nombre,
-                        nivel_msnm: (selectedPoint.data.presa_id === 'BOQUILLA' ? 1317.40 : 1240.20), // Mock data or from actual readings
+                        nivel_msnm: selectedPoint.data.escala_msnm,
                         almacenamiento_mm3: selectedPoint.data.almacenamiento_mm3,
                         porcentaje: selectedPoint.data.porcentaje_llenado,
                         extraccion_m3s: selectedPoint.data.extraccion_total_m3s,
-                        nivel_nma: (selectedPoint.data.presa_id === 'BOQUILLA' ? 1317.0 : 1242.0),
-                        capacidad_total: 2893.5, // Mm3
-                        presa_id: selectedPoint.data.presa_id
+                        nivel_nma: selectedPoint.data.elevacion_corona_msnm,
+                        capacidad_total: selectedPoint.data.capacidad_max,
+                        presa_id: selectedPoint.data.presa_id,
+                        curva: selectedPoint.data.curvas_capacidad,
                     }}
                     onClose={() => setShowVaso(false)}
                 />
@@ -2135,7 +2589,7 @@ const GeoMonitor = () => {
                                 <Activity size={24} className="text-primary" />
                                 <div>
                                     <h2 className="text-xl font-black text-white uppercase tracking-wider">{selectedPoint.data.nombre}</h2>
-                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">Historial Operativo (24 Horas Recientes)</p>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">Historial Operativo (Últimos 14 Días)</p>
                                 </div>
                             </div>
                             <button className="p-2 bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors" onClick={() => setShowHistoryModal(false)}>
@@ -2143,7 +2597,13 @@ const GeoMonitor = () => {
                             </button>
                         </div>
                         <div className="h-[400px] w-full mt-4">
-                            <ReactECharts option={fullHistoryOptions} style={{ height: '100%', width: '100%' }} />
+                            {historyLoading ? (
+                                <div className="h-full w-full flex items-center justify-center text-slate-500 text-sm">Cargando historial…</div>
+                            ) : !historySeries?.values.length ? (
+                                <div className="h-full w-full flex items-center justify-center text-slate-500 text-sm">Sin lecturas registradas en los últimos 14 días</div>
+                            ) : (
+                                <ReactECharts option={fullHistoryOptions} style={{ height: '100%', width: '100%' }} />
+                            )}
                         </div>
                     </div>
                 </div>

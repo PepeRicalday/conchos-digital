@@ -39,6 +39,10 @@ const VASOS: { nombre: string; lat: number; lon: number; radioKm: number }[] = [
  *  (mapa Windy, informe de clima). */
 export const CENTRO_DISTRITO = { lat: 28.02, lon: -105.42 } as const;
 
+/** Vasos conocidos, expuestos para quien necesite el encuadre/coords sin
+ *  duplicar las constantes (p. ej. detectarSuperficieVaso, geojson de presas). */
+export const VASOS_CONOCIDOS = VASOS;
+
 // ── Web Mercator (EPSG:3857): lon/lat → coordenada de tesela fraccionaria ───
 export const lon2tile = (lon: number, z: number) => ((lon + 180) / 360) * 2 ** z;
 export const lat2tile = (lat: number, z: number) => {
@@ -319,5 +323,161 @@ export async function construyeFondoSatelital(
         };
     } catch {
         return null;   // sin red, CORS o canvas contaminado → fondo vectorial
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUPERFICIE DE VASO CUANTIFICADA (Manejo de Vaso — Fase 2, auditoría ago-2026)
+// ---------------------------------------------------------------------------
+// `mascaraVasos` ya clasificaba agua-de-embalse pixel a pixel para el realce
+// visual del informe de clima; esta función reutiliza esa misma máscara pero
+// la convierte en un NÚMERO (km² de espejo de agua) y en un CONTORNO en
+// lon/lat, para poder graficarla junto a la captura diaria real de la presa
+// (escala_msnm / porcentaje_llenado) en vez de solo pintarla.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface SuperficieVaso {
+    /** km² de superficie clasificada como agua dentro del radio del vaso. */
+    areaKm2: number;
+    /** Contorno del vaso como anillo [lon, lat][] (orden GeoJSON), ya cerrado. */
+    contorno: [number, number][];
+    /** Recorte JPEG del mosaico alrededor del vaso, mismo tratamiento que construyeFondoSatelital. */
+    dataURI: string;
+    /** Cuántas teselas se lograron descargar vs. las esperadas (0-1). */
+    cobertura: number;
+}
+
+/**
+ * Recorre el borde de una máscara binaria con "marching squares" simplificado:
+ * para cada píxel de agua en el borde de la mancha principal, conserva el
+ * contorno como polígono en píxeles. No es un trazador topológico completo
+ * (no separa islas/huecos internos) — suficiente para un contorno de vaso,
+ * que es una mancha simplemente conexa por construcción de `mascaraVasos`.
+ */
+function contornoDeMascara(mascara: Uint8Array, W: number, H: number): [number, number][] {
+    const esAgua = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && mascara[y * W + x] === 1;
+    const bordePx: [number, number][] = [];
+    for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+            if (!esAgua(x, y)) continue;
+            // Píxel de borde: agua con al menos un vecino 4-conectado que no lo es.
+            if (!esAgua(x - 1, y) || !esAgua(x + 1, y) || !esAgua(x, y - 1) || !esAgua(x, y + 1)) {
+                bordePx.push([x, y]);
+            }
+        }
+    }
+    return bordePx;
+}
+
+/**
+ * Ordena puntos de borde dispersos en un anillo aproximado por ángulo respecto
+ * al centroide — suficiente para un polígono visualmente coherente en Leaflet
+ * (no para análisis geométrico riguroso). Devuelve como máximo `maxPuntos`,
+ * muestreados uniformemente, para no generar un GeoJSON de miles de vértices.
+ */
+function ordenaComoAnillo(puntos: [number, number][], maxPuntos = 240): [number, number][] {
+    if (puntos.length < 3) return puntos;
+    const cx = puntos.reduce((s, p) => s + p[0], 0) / puntos.length;
+    const cy = puntos.reduce((s, p) => s + p[1], 0) / puntos.length;
+    const conAngulo = puntos
+        .map(p => ({ p, a: Math.atan2(p[1] - cy, p[0] - cx) }))
+        .sort((a, b) => a.a - b.a);
+    const paso = Math.max(1, Math.floor(conAngulo.length / maxPuntos));
+    const anillo = conAngulo.filter((_, i) => i % paso === 0).map(c => c.p);
+    if (anillo.length && (anillo[0][0] !== anillo[anillo.length - 1][0] || anillo[0][1] !== anillo[anillo.length - 1][1])) {
+        anillo.push(anillo[0]);
+    }
+    return anillo;
+}
+
+/**
+ * Descarga el mosaico alrededor de UN vaso conocido (por nombre, ver VASOS_CONOCIDOS)
+ * y devuelve superficie de agua cuantificada + contorno, usando el mismo
+ * algoritmo NDWI-geométrico que ya usa el informe de clima descargable.
+ *
+ * Aproximación declarada (ver informe de auditoría): NDWI simplificado sobre
+ * imaginería RGB de ArcGIS (sin banda infrarroja real), no un índice de sensor
+ * multiespectral — presentar junto al dato de campo como "estimado por imagen
+ * visual", no como medición espectral certificada.
+ */
+export async function detectaSuperficieVaso(nombreVaso: string, zoom = ZOOM): Promise<SuperficieVaso | null> {
+    const vaso = VASOS.find(v => v.nombre === nombreVaso);
+    if (!vaso) return null;
+
+    try {
+        // Encuadre: cuadrado centrado en el vaso, 1.6x el radio conocido de
+        // holgura para no recortar la orilla en años de aguas altas.
+        const gradoLat = (vaso.radioKm * 1.6) / 111.32;
+        const gradoLon = gradoLat / Math.cos((vaso.lat * Math.PI) / 180);
+        const minLon = vaso.lon - gradoLon, maxLon = vaso.lon + gradoLon;
+        const minLat = vaso.lat - gradoLat, maxLat = vaso.lat + gradoLat;
+
+        const x0 = Math.floor(lon2tile(minLon, zoom));
+        const x1 = Math.floor(lon2tile(maxLon, zoom));
+        const y0 = Math.floor(lat2tile(maxLat, zoom));
+        const y1 = Math.floor(lat2tile(minLat, zoom));
+        const nx = x1 - x0 + 1, ny = y1 - y0 + 1;
+        if (nx < 1 || ny < 1 || nx * ny > 120) return null;
+
+        const W = nx * TILE_PX, H = ny * TILE_PX;
+        const canvas = document.createElement('canvas');
+        canvas.width = W; canvas.height = H;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) return null;
+        ctx.fillStyle = '#d9cfba';
+        ctx.fillRect(0, 0, W, H);
+
+        const trabajos: Promise<boolean>[] = [];
+        for (let ty = y0; ty <= y1; ty++) {
+            for (let tx = x0; tx <= x1; tx++) {
+                const url = TILE_URL.replace('{z}', String(zoom)).replace('{y}', String(ty)).replace('{x}', String(tx));
+                trabajos.push(cargaTesela(url).then((img) => {
+                    if (!img) return false;
+                    ctx.drawImage(img, (tx - x0) * TILE_PX, (ty - y0) * TILE_PX);
+                    return true;
+                }));
+            }
+        }
+        const logradas = (await Promise.all(trabajos)).filter(Boolean).length;
+        const cobertura = logradas / (nx * ny);
+        if (cobertura < 0.5) return null;
+
+        const tile2px = (tx: number) => (tx - x0) * TILE_PX;
+        const tile2py = (ty: number) => (ty - y0) * TILE_PX;
+        const cx = tile2px(lon2tile(vaso.lon, zoom));
+        const cy = tile2py(lat2tile(vaso.lat, zoom));
+        const pxPorGradoLat = tile2py(lat2tile(vaso.lat - 0.5, zoom)) - tile2py(lat2tile(vaso.lat + 0.5, zoom));
+        const r = (vaso.radioKm / 111.32) * pxPorGradoLat;
+        const cercaDeVaso = (px: number, py: number) => (px - cx) ** 2 + (py - cy) ** 2 <= r ** 2;
+
+        const datos = ctx.getImageData(0, 0, W, H);
+        const mascara = mascaraVasos(datos.data, W, H, cercaDeVaso);
+
+        // km² reales: cada píxel cubre (grado/W)*(grado/H) en superficie geográfica.
+        const kmPorPxX = ((maxLon - minLon) * 111.32 * Math.cos((vaso.lat * Math.PI) / 180)) / W;
+        const kmPorPxY = ((maxLat - minLat) * 111.32) / H;
+        let pxAgua = 0;
+        for (let i = 0; i < mascara.length; i++) if (mascara[i]) pxAgua++;
+        const areaKm2 = pxAgua * kmPorPxX * kmPorPxY;
+
+        // Contorno: píxeles de borde → lon/lat, ordenados como anillo.
+        const tile2lon = (x: number) => (x / 2 ** zoom) * 360 - 180;
+        const tile2lat = (y: number) => {
+            const n = Math.PI - (2 * Math.PI * y) / 2 ** zoom;
+            return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+        };
+        const bordePx = ordenaComoAnillo(contornoDeMascara(mascara, W, H));
+        const contorno: [number, number][] = bordePx.map(([px, py]) => [
+            tile2lon(x0 + px / TILE_PX),
+            tile2lat(y0 + py / TILE_PX),
+        ]);
+
+        // Mismo tratamiento visual que construyeFondoSatelital, recortado al vaso.
+        realceGeomorfologico(datos.data, W, (px, py) => mascara[py * W + px] === 1);
+        ctx.putImageData(new ImageData(datos.data, W, H), 0, 0);
+
+        return { areaKm2, contorno, dataURI: canvas.toDataURL('image/jpeg', 0.85), cobertura };
+    } catch {
+        return null;
     }
 }

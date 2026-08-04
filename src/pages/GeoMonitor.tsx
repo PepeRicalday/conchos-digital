@@ -1872,12 +1872,13 @@ const GeoMonitor = () => {
                                                 // El botón vive dentro del popup HTML de Leaflet (fuera del árbol React),
                                                 // así que se engancha el listener cuando el popup se abre — no antes,
                                                 // porque el nodo aún no existe en el DOM.
+                                                const geometry = feature.geometry;
                                                 layer.on('popupopen', () => {
                                                     const btn = document.getElementById(btnId);
-                                                    if (btn && feature.geometry.type === 'Polygon') {
+                                                    if (btn && geometry.type === 'Polygon') {
+                                                        const ring = geometry.coordinates[0] as [number, number][];
                                                         btn.onclick = () => consultarNdviModulo(
-                                                            p.numero_modulo, p.nombre, p.superficie_ha ?? null,
-                                                            feature.geometry.coordinates[0] as [number, number][],
+                                                            p.numero_modulo, p.nombre, p.superficie_ha ?? null, ring,
                                                         );
                                                     }
                                                 });

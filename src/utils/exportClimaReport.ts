@@ -19,6 +19,8 @@ import { CENTRO_DISTRITO, type FondoSatelital } from './mapaSatelital';
 import type { CapaNubes } from './capaNubesGIBS';
 import { getTodayString } from './dateHelpers';
 import { climatologiaHistorica } from './climatologia';
+import { skillPronosticoResumen, calibracionResumen } from './climaVerificacion';
+import { obtenNdviModulo, type NdviModulo } from './kcNdvi';
 
 const SRL_MARRON = '#6B2D2D';
 const AZUL = '#1e5b8f';
@@ -124,8 +126,8 @@ export function extensionMapa(ests: EstacionConLectura[]): {
     const modPts = Object.values(MODULOS_SRL).flat();
     const allLat = [...CANAL.map(p => p[1]), ...PRESAS.map(p => p.lat), ...pts.map(e => e.latitud), ...modPts.map(p => p[1])];
     const allLon = [...CANAL.map(p => p[0]), ...PRESAS.map(p => p.lon), ...pts.map(e => e.longitud), ...modPts.map(p => p[0])];
-    let minLa = Math.min(...allLat), maxLa = Math.max(...allLat);
-    let minLo = Math.min(...allLon), maxLo = Math.max(...allLon);
+    const minLa = Math.min(...allLat), maxLa = Math.max(...allLat);
+    const minLo = Math.min(...allLon), maxLo = Math.max(...allLon);
     const mLa = (maxLa - minLa) * 0.08, mLo = (maxLo - minLo) * 0.08;
     return {
         minLat: minLa - mLa, maxLat: maxLa + mLa,
@@ -594,7 +596,26 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     // anteriores. No falla el informe si no hay historia suficiente todavía —
     // climatologiaHistorica() ya maneja ese caso internamente.
     const fechaHoyLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
-    const climatologia = await climatologiaHistorica(ests.map(e => e.id), fechaHoyLocal);
+    // Skill del pronóstico y calibración de sensores: mismo espíritu que la
+    // climatología — nunca fallan el informe si el RPC aún no está aplicado o
+    // no hay suficientes muestras, solo omiten su sección.
+    const [climatologia, skill, calibracion] = await Promise.all([
+        climatologiaHistorica(ests.map(e => e.id), fechaHoyLocal),
+        skillPronosticoResumen(7),
+        calibracionResumen(30),
+    ]);
+
+    // Kc real por NDVI (Sentinel Hub) para los módulos con estación vinculada.
+    // Se muestra junto a la tabla de Kc tabular, nunca la sustituye: el Kc
+    // tabular es una referencia por etapa fenológica; el NDVI es vigor
+    // vegetativo real medido, pero de un solo módulo, no de todo el distrito.
+    const modulosConEstacion = [...new Set(
+        ests.map(e => e.modulo_id ? Number(e.modulo_id.replace(/\D/g, '')) : null)
+            .filter((m): m is number => m != null && Number.isFinite(m)),
+    )].sort((a, b) => a - b);
+    const ndviPorModulo = (await Promise.all(
+        modulosConEstacion.map((m) => obtenNdviModulo(m)),
+    )).filter((v): v is NdviModulo => v != null);
 
     // Filas de la tabla de pronóstico 24 h. Nubosidad y lluvia en COLUMNAS
     // SEPARADAS: son variables distintas y conservan escalas independientes.
@@ -675,6 +696,10 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     // ── Serie distrital 24 h: promedio horario entre estaciones ─────────────
     // El distrito se opera como una unidad, así que la evolución se presenta
     // agregada; el detalle por estación queda en las tablas y los medidores.
+    // Horizonte fijo en 24 h a propósito: es la ventana operativa del turno de
+    // riego del día siguiente. Open-Meteo trae hasta 48 h (clima-pronostico-
+    // sync), pero la segunda mitad tiene menor skill y no aporta a la decisión
+    // diaria — se deja disponible en la tabla/serie cruda para quien la use.
     const serieDistrital: PuntoSerie[] = (() => {
         // Acumuladores + contador de estaciones CON DATO, uno por campo: si una
         // estación reporta null en un campo puntual para esa hora (dato parcial
@@ -1261,7 +1286,7 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     <span class="proc proc-observado">OBSERVADO</span> estación ·
     <span class="proc proc-estimado">ESTIMADO</span> radiación local ·
     <span class="proc proc-pronosticado">PRONOSTICADO</span> modelo ·
-    <span class="proc proc-satelite">SATÉLITE</span> pendiente (etapa 4)
+    <span class="proc proc-satelite">SATÉLITE</span> ${ests.filter(e => e.cielo.procedencia === 'satelite').length}/${ests.length} estación(es) (NASA GIBS)
     <em>Cada valor del informe indica su procedencia y la edad del dato.</em>
   </div>
 
@@ -1378,6 +1403,37 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     <figure class="fig">${graficaComparativoHistorico('ETo de referencia', 'mm', etoProm, climatologia.etoProm, climatologia.aniosDisponibles, climatologia.aniosMinimos)}</figure>
   </div>` : ''}
 
+  ${skill.disponible || calibracion.disponible ? `
+  <h2>${sec()}. Verificación del pronóstico y calibración de sensores</h2>
+  <p class="pred-nota">
+    El sistema audita sus propias fuentes en vez de solo consumirlas: compara el pronóstico ya vencido
+    contra la lectura real que después reportó cada estación, y contrasta la radiación medida en campo
+    contra la misma coordenada vía satélite (NASA POWER) para detectar sensores fuera de rango.
+  </p>
+  <div class="duo">
+    ${skill.disponible ? `
+    <div class="analisis">
+      <h4>Acierto del pronóstico (Open-Meteo, ${skill.diasVentana} d)</h4>
+      <p>
+        Error absoluto medio de nubosidad: <b>${skill.maeNubosidadPct != null ? skill.maeNubosidadPct.toFixed(0) + ' pts' : '—'}</b>
+        sobre ${skill.totalMuestras} comparaciones pronóstico-vs-observado.
+        Sesgo: <b>${skill.sesgoNubosidadPct != null
+            ? `${skill.sesgoNubosidadPct > 0 ? '+' : ''}${skill.sesgoNubosidadPct.toFixed(0)} pts (${skill.sesgoNubosidadPct > 0 ? 'sobreestima' : 'subestima'} nubosidad)`
+            : '—'}</b>.
+      </p>
+    </div>` : `<div class="analisis"><h4>Acierto del pronóstico</h4><p>Aún sin suficientes pronósticos vencidos y emparejados con lectura real para reportar un valor confiable.</p></div>`}
+    ${calibracion.disponible ? `
+    <div class="analisis">
+      <h4>Calibración de sensores vs. NASA POWER (${calibracion.diasVentana} d)</h4>
+      <p>
+        ${calibracion.nAlertas > 0
+            ? `<b>${calibracion.nAlertas} estación(es)</b> con sesgo de radiación &gt;15 % — revisar orientación/limpieza del sensor: `
+                + calibracion.porEstacion.filter(e => e.alerta).map(e => `${e.estacionNombre} (${e.errorRadMedioPct! > 0 ? '+' : ''}${e.errorRadMedioPct!.toFixed(0)}%)`).join(', ') + '.'
+            : 'Ninguna estación supera el umbral de alerta (±15 % de sesgo de radiación) en la ventana.'}
+      </p>
+    </div>` : `<div class="analisis"><h4>Calibración de sensores</h4><p>Aún sin suficientes días superpuestos entre estaciones y NASA POWER para calibrar.</p></div>`}
+  </div>` : ''}
+
   ${filasCultivo ? `
   <h2>${sec()}. Lámina de riego por cultivo</h2>
   <div class="duo">
@@ -1390,6 +1446,12 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
         <thead><tr><th>Cultivo</th><th>Kc</th><th>ETc neta</th><th>Bruta m³/ha·día</th></tr></thead>
         <tbody>${filasCultivo}</tbody>
       </table>
+      ${ndviPorModulo.length ? `
+      <p class="pred-nota" style="margin-top:10px">
+        <b>Kc real por vigor vegetativo (NDVI, Sentinel-2):</b> los Kc de la tabla son de referencia
+        por etapa fenológica; estos valores miden vigor vegetativo real del módulo, vía satélite.
+        ${ndviPorModulo.map(n => `Módulo ${n.modulo}: NDVI ${n.ndviMedio.toFixed(2)} → Kc ${n.kcEstimado.toFixed(2)}`).join(' · ')}.
+      </p>` : ''}
     </div>
     <div class="nivel-demanda">
       <div class="nivel-cab">Nivel de demanda del distrito</div>
@@ -1479,7 +1541,10 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     <h4>Fuentes</h4>
     <p>
       <b>Observación:</b> red de estaciones Davis/WeatherLink (API v2), convertida a métrico por SICA-005.
-      <b>Pronóstico:</b> ${provTxt}. <b>Satélite:</b> no integrado en esta versión (etapa 4 del plan).
+      <b>Pronóstico:</b> ${provTxt}. <b>Satélite:</b> NASA GIBS (GOES-East GeoColor de día, Band13
+      infrarrojo de noche) provee nubosidad observada puntual por estación, con jerarquía de evidencia
+      superior al modelo y a la radiación local (§6). NASA POWER aporta clima histórico/casi-tiempo-real
+      para calibración de sensores y climatología, sin sustituir el pronóstico operativo (rezago de días).
     </p>
     <h4>Cálculo</h4>
     <p>
@@ -1492,8 +1557,9 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     <p>
       La estimación de nubosidad por radiación <b>no es una medición directa</b>: responde también a
       polvo, humo, aerosoles, sombra y suciedad del sensor, y solo es calculable con elevación solar
-      ≥ 10°. Sin capa satelital, el estado del cielo no puede confirmarse regionalmente.
-      La ETₒ del pronóstico procede del modelo y puede diferir de la medida en estación.
+      ≥ 10°. La lectura satelital GIBS es puntual (un píxel por estación, luminancia aproximada) —
+      no es una clasificación fotométrica de precisión. La ETₒ del pronóstico procede del modelo y
+      puede diferir de la medida en estación.
     </p>
     <h4>Índices agroclimáticos</h4>
     <p>

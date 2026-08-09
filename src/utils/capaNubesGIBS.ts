@@ -31,6 +31,8 @@
 // sigue mostrando los íconos de nube por estación sin esta capa adicional.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { elevacionSolar } from './cielo';
+
 const TILE_PX = 256;
 
 interface DefCapa {
@@ -91,15 +93,21 @@ function cargaTesela(url: string): Promise<HTMLImageElement | null> {
     });
 }
 
-/** Decide qué capa GIBS tiene señal útil para el instante y longitud dados.
- *  GeoColor usa luz visible: solo sirve con sol. Band13 (IR) no depende de
- *  luz y cubre el resto del día, así que la capa nocturna nunca deja el plano
- *  sin observación real disponible. */
-function capaParaInstante(fecha: Date, lonDeg: number): DefCapa & { fuente: 'geocolor' | 'infrarrojo' } {
-    // Hora solar local aproximada: UTC + lon/15. Entre 07:00 y 20:00 solar hay
-    // luz suficiente en el valle del Conchos para el geocolor.
-    const horaSolar = (fecha.getUTCHours() + lonDeg / 15 + 24) % 24;
-    return (horaSolar >= 7 && horaSolar <= 20)
+/** Decide qué capa GIBS tiene señal útil para el instante y coordenada dados.
+ *  GeoColor usa luz visible: solo sirve con sol alto; con el sol bajo o puesto
+ *  la imagen es prácticamente negra y produce ruido, no señal. Se usa la misma
+ *  elevación solar real (§5.1 de cielo.ts) que el resto del sistema en vez de
+ *  una franja horaria fija — una franja "07:00-20:00 hora solar" trataba el
+ *  crepúsculo (sol ya puesto pero aún dentro del rango horario) como si hubiera
+ *  luz útil, produciendo lecturas GeoColor erráticas justo al atardecer.
+ *  Band13 (IR) no depende de luz y cubre el resto del día, así que la capa
+ *  nocturna nunca deja el plano sin observación real disponible. */
+function capaParaInstante(fecha: Date, latDeg: number, lonDeg: number): DefCapa & { fuente: 'geocolor' | 'infrarrojo' } {
+    // Margen de 5° sobre el umbral de 10° de cielo.ts: GeoColor necesita más
+    // luz reflejada que la radiación instantánea en superficie para dar una
+    // imagen utilizable — un margen evita el falso "despejado" del crepúsculo.
+    const elev = elevacionSolar(fecha, latDeg, lonDeg);
+    return elev >= 15
         ? { ...CAPA_DIA, fuente: 'geocolor' }
         : { ...CAPA_NOCHE, fuente: 'infrarrojo' };
 }
@@ -135,8 +143,9 @@ export async function construyeCapaNubes(
 ): Promise<CapaNubes | null> {
     try {
         const centroLon = (minLon + maxLon) / 2;
+        const centroLat = (minLat + maxLat) / 2;
         const momento = instanteDisponible();
-        const { id: capaGIBS, tileMatrixSet, zoom, formato, fuente } = capaParaInstante(momento, centroLon);
+        const { id: capaGIBS, tileMatrixSet, zoom, formato, fuente } = capaParaInstante(momento, centroLat, centroLon);
 
         const x0 = Math.floor(lon2tile(minLon, zoom));
         const x1 = Math.floor(lon2tile(maxLon, zoom));
@@ -185,5 +194,88 @@ export async function construyeCapaNubes(
         };
     } catch {
         return null; // sin red, CORS o GIBS sin tesela para el corte pedido
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LECTURA PUNTUAL — nubosidad satelital en la coordenada exacta de una estación
+// ---------------------------------------------------------------------------
+// `construyeCapaNubes` arma el mosaico completo para dibujar en un plano; esto
+// es más barato para el fusor de cielo.ts, que solo necesita UN valor por
+// estación: descarga una sola tesela y lee el brillo del píxel exacto.
+//
+// Heurística de brillo → nubosidad: en GeoColor (día) las nubes son blancas
+// y brillantes contra tierra/vegetación oscuras; en Band13 IR (noche) las
+// nubes altas/frías también aparecen brillantes contra la superficie cálida
+// oscura — ambas capas comparten esa convención visual, por lo que el mismo
+// umbral de luminancia sirve para las dos. No es una clasificación NDVI-like
+// de precisión: es una señal binaria-suave (¿hay algo brillante encima de
+// este punto ahora mismo?), coherente con el resto de nubosidadSatPct en el
+// fusor, que ya trata esta fuente como la de mayor jerarquía pero puntual.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface NubosidadSatelitalPunto {
+    nubosidadSatPct: number;
+    fuente: 'geocolor' | 'infrarrojo';
+    vigenteEn: Date;
+}
+
+/** Luminancia perceptual 0-255 de un pixel RGB. */
+function luminancia(r: number, g: number, b: number): number {
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * Lee la nubosidad satelital observada (NASA GIBS) en un único punto lat/lon.
+ * Descarga una sola tesela — mucho más barato que el mosaico completo de
+ * `construyeCapaNubes` — y clasifica el píxel exacto de la coordenada.
+ * Devuelve null si no hay red, CORS bloquea el canvas, o GIBS no tiene tesela
+ * para el corte pedido: el llamador debe tratarlo como "sin fuente satelital",
+ * nunca como 0 % de nubosidad.
+ */
+export async function nubosidadSatelitalPuntual(
+    lat: number, lon: number,
+): Promise<NubosidadSatelitalPunto | null> {
+    try {
+        const momento = instanteDisponible();
+        const { id: capaGIBS, tileMatrixSet, zoom, formato, fuente } = capaParaInstante(momento, lat, lon);
+
+        const fx = lon2tile(lon, zoom);
+        const fy = lat2tile(lat, zoom);
+        const tx = Math.floor(fx);
+        const ty = Math.floor(fy);
+        // Posición del punto dentro de la tesela (0-255 en cada eje).
+        const px = Math.min(TILE_PX - 1, Math.max(0, Math.floor((fx - tx) * TILE_PX)));
+        const py = Math.min(TILE_PX - 1, Math.max(0, Math.floor((fy - ty) * TILE_PX)));
+
+        const tiempoGIBS = isoParaGIBS(momento);
+        const url = `${TILE_URL_BASE}/${capaGIBS}/default/${tiempoGIBS}/`
+            + `${tileMatrixSet}/${zoom}/${ty}/${tx}.${formato}`;
+
+        const img = await cargaTesela(url);
+        if (!img) return null;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = TILE_PX; canvas.height = TILE_PX;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) return null;
+        ctx.drawImage(img, 0, 0);
+
+        let rgba: Uint8ClampedArray;
+        try {
+            rgba = ctx.getImageData(px, py, 1, 1).data;
+        } catch {
+            return null; // canvas "tainted" por CORS: no se puede leer el píxel
+        }
+        const [r, g, b] = rgba;
+        const lum = luminancia(r, g, b);
+        // Superficie oscura ≈ 20-60 de luminancia; nube densa ≈ 200-255.
+        // Normalizado a 0-100 con clamp — no pretende precisión fotométrica,
+        // solo una estimación coherente con la resolución del resto del fusor.
+        const nubosidadSatPct = Math.max(0, Math.min(100, ((lum - 40) / (230 - 40)) * 100));
+
+        return { nubosidadSatPct: Math.round(nubosidadSatPct), fuente, vigenteEn: momento };
+    } catch {
+        return null;
     }
 }

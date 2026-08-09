@@ -12,7 +12,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import {
     X, Droplets, Wind, Thermometer, Activity, Zap, CloudRain,
-    AlertTriangle, Loader, CalendarDays, MapPin, Gauge, Share2,
+    AlertTriangle, Loader, CalendarDays, MapPin, Gauge, Share2, Satellite,
 } from 'lucide-react';
 import {
     ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis,
@@ -25,7 +25,59 @@ import {
 import type { BalanceHidrico } from '../utils/estacionDetalle';
 import { formateaEdad, PROCEDENCIA_LABEL } from '../utils/cielo';
 import { exportEstacionInforme } from '../utils/exportEstacionInforme';
+import { supabase } from '../lib/supabase';
 import './EstacionDetalle.css';
+
+/** Fila diaria de calibración cruzada (fn_clima_calibracion_cruzada). */
+interface CalibracionFila {
+    fecha: string;
+    error_rad_pct: number | null;
+    error_eto_pct: number | null;
+}
+
+/** Resumen calculado en cliente a partir del detalle diario de UNA estación. */
+interface CalibracionResumen {
+    nDias: number;
+    errorRadMedioPct: number | null;
+    alerta: boolean;
+}
+
+const promedio = (vals: number[]): number | null =>
+    vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+
+/** Compara radiación observada contra NASA POWER en la misma coordenada, para
+ *  esta única estación — detecta sensores descalibrados o mal orientados. */
+function useCalibracionCruzada(estacionId: string) {
+    const [calib, setCalib] = useState<CalibracionResumen | null>(null);
+    const [cargando, setCargando] = useState(true);
+    useEffect(() => {
+        let vivo = true;
+        setCargando(true);
+        (async () => {
+            try {
+                const { data, error } = await supabase.rpc(
+                    'fn_clima_calibracion_cruzada', { p_dias: 30, p_estacion_id: estacionId },
+                );
+                if (!vivo) return;
+                if (error || !data) { setCalib(null); return; }
+                const filas = data as CalibracionFila[];
+                const errores = filas.map((f) => f.error_rad_pct).filter((x): x is number => x != null);
+                const errorRadMedioPct = promedio(errores);
+                setCalib({
+                    nDias: errores.length,
+                    errorRadMedioPct: errorRadMedioPct != null ? +errorRadMedioPct.toFixed(1) : null,
+                    alerta: errorRadMedioPct != null && Math.abs(errorRadMedioPct) > 15,
+                });
+            } catch {
+                if (vivo) setCalib(null);
+            } finally {
+                if (vivo) setCargando(false);
+            }
+        })();
+        return () => { vivo = false; };
+    }, [estacionId]);
+    return { calib, cargando };
+}
 
 const rolLabel = (rol: string) =>
     rol === 'presa' ? 'Presa' : rol === 'modulo' ? 'Módulo' : 'Canal';
@@ -111,6 +163,7 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
     const [manualHasta, setManualHasta] = useState(hoyISO());
     const [mostrarManual, setMostrarManual] = useState(false);
     const { detalle, loading, error } = useEstacionDetalle(estacion, rango);
+    const { calib } = useCalibracionCruzada(estacion.id);
     const [generandoInforme, setGenerandoInforme] = useState(false);
 
     const diasVentana = diasDelRango(rango);
@@ -473,6 +526,28 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
                                 </div>
                             ) : (
                                 <p className="est-det-nota">Sin pronóstico sincronizado para esta estación.</p>
+                            )}
+                        </section>
+
+                        {/* ── Calibración cruzada vs. NASA POWER ─────────────── */}
+                        <section className="est-det-sec">
+                            <h4><Satellite size={14} /> Calibración del sensor (vs. satélite)</h4>
+                            {calib && calib.nDias >= 3 ? (
+                                <div className="cielo-det-vars">
+                                    <span>Radiación vs. NASA POWER (30 d) · <b style={{ color: calib.alerta ? '#f59e0b' : undefined }}>
+                                        {calib.errorRadMedioPct != null
+                                            ? `${calib.errorRadMedioPct > 0 ? '+' : ''}${calib.errorRadMedioPct}%`
+                                            : 'S/D'}
+                                    </b></span>
+                                    <span>Días comparados · <b>{calib.nDias}</b></span>
+                                    {calib.alerta && (
+                                        <span style={{ color: '#f59e0b' }}>⚠ Sesgo &gt;15%: revisar orientación/limpieza del sensor</span>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="est-det-nota">
+                                    Sin suficientes días superpuestos con el histórico satelital NASA POWER todavía.
+                                </p>
                             )}
                         </section>
                     </div>

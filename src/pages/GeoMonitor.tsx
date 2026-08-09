@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { useHydricEvents } from '../hooks/useHydricEvents';
 import { useClimaEstaciones } from '../hooks/useClimaEstaciones';
 import { esModuloSRL, moduloSRLde } from '../utils/modulosSRL';
+import { MODULOS_BBOX } from '../utils/modulosBbox';
 import { WAVE_CELERITY_MS, WAVE_CELERITY_CONFIANZA } from '../utils/hydraulics';
 import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
 import { WindyMapModal } from '../components/WindyMapModal';
@@ -108,14 +109,9 @@ const LOTES_MIN_ZOOM = 13;
 // Bbox real de cada archivo lotes_modulo_N.geojson (calculado de la geometría
 // convertida) — permite cargar solo los módulos que intersectan el viewport
 // visible en vez de los 6 archivos (3.3 MB) de golpe al activar la capa.
-const LOTES_MODULO_BBOX: { modulo: number; minLon: number; minLat: number; maxLon: number; maxLat: number }[] = [
-    { modulo: 1,  minLon: -105.323, minLat: 27.714, maxLon: -105.167, maxLat: 28.027 },
-    { modulo: 2,  minLon: -105.400, minLat: 28.012, maxLon: -105.295, maxLat: 28.150 },
-    { modulo: 3,  minLon: -105.410, minLat: 28.146, maxLon: -105.335, maxLat: 28.286 },
-    { modulo: 4,  minLon: -105.499, minLat: 28.130, maxLon: -105.392, maxLat: 28.316 },
-    { modulo: 5,  minLon: -105.619, minLat: 28.075, maxLon: -105.438, maxLat: 28.239 },
-    { modulo: 12, minLon: -105.341, minLat: 27.977, maxLon: -105.215, maxLat: 28.197 },
-];
+// Fuente única de verdad: src/utils/modulosBbox.ts (también usada por el NDVI
+// de Clima.tsx, que cobra por área consultada a Sentinel Hub).
+const LOTES_MODULO_BBOX = MODULOS_BBOX;
 
 interface ViewportBounds { minLon: number; minLat: number; maxLon: number; maxLat: number }
 

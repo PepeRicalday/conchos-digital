@@ -18,6 +18,8 @@ import { calculaIndices, entradasDesdeEstaciones } from './indicesAgro';
 import { mapaSVG, predice24h, assetToDataURI, extensionMapa } from './exportClimaReport';
 import { construyeFondoSatelital, type FondoSatelital } from './mapaSatelital';
 import { construyeCapaNubes, type CapaNubes } from './capaNubesGIBS';
+import { obtenNdviModulo, type NdviModulo } from './kcNdvi';
+import { skillPronosticoResumen } from './climaVerificacion';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
 
@@ -357,6 +359,21 @@ async function buildHTML(
         // mm/día → m³/ha·día (1 mm sobre 1 ha = 10 m³)
         m3: ETO != null ? ((ETO * c.kc) / 0.7) * 10 : null,
     }));
+
+    // Kc real por NDVI (Sentinel Hub), junto a la tabla tabular — pieza de
+    // lectura rápida: solo se cita un módulo (el de mayor prioridad con
+    // estación), no toda la lista, para no romper el propósito de 10 segundos.
+    const primerModuloConEstacion = [...new Set(
+        ests.map(e => e.modulo_id ? Number(e.modulo_id.replace(/\D/g, '')) : null)
+            .filter((m): m is number => m != null && Number.isFinite(m)),
+    )].sort((a, b) => a - b)[0];
+    const ndviModulo: NdviModulo | null = primerModuloConEstacion != null
+        ? await obtenNdviModulo(primerModuloConEstacion)
+        : null;
+
+    // Skill del pronóstico: una sola cifra para el pie, no una sección — esta
+    // pieza es de lectura rápida, no de auditoría (esa vive en el informe técnico).
+    const skill = await skillPronosticoResumen(7);
 
     // ── Análisis ejecutivo: cuatro lecturas derivadas de los datos ──────────
     const ejec = [
@@ -744,6 +761,9 @@ async function buildHTML(
           <div class="dem-lbl">LÁMINA BRUTA REQUERIDA</div>
           <div style="font-size:0.6rem;color:${T.tintaSec};margin-bottom:5px">(equivalente m³/ha·día)</div>
           <table>${laminasHTML}</table>
+          ${ndviModulo ? `<div style="font-size:0.6rem;color:${T.tintaSec};margin-top:5px">
+            Kc real por NDVI, módulo ${ndviModulo.modulo}: <b style="color:${T.tinta}">${ndviModulo.kcEstimado.toFixed(2)}</b>
+            (NDVI ${ndviModulo.ndviMedio.toFixed(2)}, satélite)</div>` : ''}
         </div>
       </div>
     </div>
@@ -802,6 +822,7 @@ async function buildHTML(
 <footer>
   <div>🧭 <b>Índice Agroclimático SICA</b>Modelo FAO-56 Penman-Monteith</div>
   <div>📡 <b>WeatherLink Davis</b>Actualización cada 15 minutos</div>
+  ${skill.disponible ? `<div>🎯 <b>Acierto del pronóstico (7 d)</b>MAE nubosidad ${skill.maeNubosidadPct != null ? skill.maeNubosidadPct.toFixed(0) + ' pts' : 'S/D'}</div>` : ''}
   <div>📍 <b>Distrito de Riego 005</b>SRL Unidad Conchos</div>
 </footer>
 

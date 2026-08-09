@@ -51,8 +51,13 @@ export function medidorNubosidad(pct: number | null, etiqueta: string, subtitulo
         const a0 = Math.PI * (1 + desde / 100), a1 = Math.PI * (1 + hasta / 100);
         const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
         const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
-        const largo = hasta - desde > 50 ? 1 : 0;
-        return `<path d="M${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${largo},1 ${x1.toFixed(1)},${y1.toFixed(1)}"
+        // Medidor semicircular: el barrido de 0 a 100 cubre exactamente 180°, así
+        // que el tramo dibujado (0→hasta) nunca excede medio círculo. El large-arc
+        // flag de SVG solo aplica al tramo >180°, que aquí no puede ocurrir — debe
+        // ser SIEMPRE 0. Con `hasta-desde>50` en 1, valores >50% tomaban el arco
+        // complementario (por fuera), desfasando la línea de color del número
+        // mostrado — visible en Boquilla 51%, Las Vírgenes 55%, Módulo 5 68%, etc.
+        return `<path d="M${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 0,1 ${x1.toFixed(1)},${y1.toFixed(1)}"
                  fill="none" stroke="${color}" stroke-width="${ancho}" stroke-linecap="round"/>`;
     };
     const pista = arco(0, 100, VIZ.grid, 13);

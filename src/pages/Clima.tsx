@@ -11,6 +11,7 @@ import './Clima.css';
 import { useFecha } from '../context/FechaContext';
 import { usePresas, type ClimaPresaData } from '../hooks/usePresas';
 import { useClimaEstaciones, type EstacionConLectura, type LecturaClima } from '../hooks/useClimaEstaciones';
+import { useClimaSkill } from '../hooks/useClimaSkill';
 import { exportClimaReport } from '../utils/exportClimaReport';
 import { exportClimaInfografia, imagenClimaInfografia, agrupaPorDia, type DiaHistorico } from '../utils/exportClimaInfografia';
 import { supabase } from '../lib/supabase';
@@ -18,6 +19,7 @@ import { formateaEdad, clasificaCielo, PROCEDENCIA_LABEL } from '../utils/cielo'
 import { Download, Gauge, Image as ImageIcon, Satellite } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { calculaIndices, entradasDesdeEstaciones, type Indice } from '../utils/indicesAgro';
+import { obtenNdviModulo, type NdviModulo } from '../utils/kcNdvi';
 import EstacionDetalle from '../components/EstacionDetalle';
 import { WindyMapModal } from '../components/WindyMapModal';
 import { CENTRO_DISTRITO } from '../utils/mapaSatelital';
@@ -445,12 +447,44 @@ const Clima = () => {
     const { fechaSeleccionada } = useFecha();
     const { clima, loading } = usePresas(fechaSeleccionada);
     const { estaciones, loading: loadingEst, refrescarAhora, refresco } = useClimaEstaciones();
+    const { resumen: skillResumen, totalMuestras: skillMuestras, cargando: skillCargando } = useClimaSkill(7);
 
     // Estación abierta en el panel de detalle. Se guarda el ID, no el objeto:
     // así el panel sigue el refresco de `estaciones` en vez de congelar la
     // lectura que había al abrirlo.
     const horaDistrito = useHoraDistrito();
     const [estacionSel, setEstacionSel] = useState<string | null>(null);
+
+    // Kc real por NDVI: solo módulos con estación vinculada tienen bbox y
+    // sentido agronómico aquí (ver modulosBbox.ts). MOD-003 → módulo 3, etc.
+    const modulosConEstacion = useMemo(() => {
+        const nums = new Set<number>();
+        for (const e of estaciones) {
+            const m = e.modulo_id ? Number(e.modulo_id.replace(/\D/g, '')) : null;
+            if (m != null && Number.isFinite(m)) nums.add(m);
+        }
+        return [...nums].sort((a, b) => a - b);
+    }, [estaciones]);
+    const [moduloKcSel, setModuloKcSel] = useState<number | null>(null);
+    const [ndviModulo, setNdviModulo] = useState<NdviModulo | null>(null);
+    const [ndviCargando, setNdviCargando] = useState(false);
+
+    useEffect(() => {
+        if (moduloKcSel == null && modulosConEstacion.length > 0) {
+            setModuloKcSel(modulosConEstacion[0]);
+        }
+    }, [modulosConEstacion, moduloKcSel]);
+
+    useEffect(() => {
+        if (moduloKcSel == null) { setNdviModulo(null); return; }
+        let vivo = true;
+        setNdviCargando(true);
+        obtenNdviModulo(moduloKcSel)
+            .then((v) => { if (vivo) setNdviModulo(v); })
+            .finally(() => { if (vivo) setNdviCargando(false); });
+        return () => { vivo = false; };
+    }, [moduloKcSel]);
+
     const estacionAbierta = useMemo(
         () => estaciones.find(e => e.id === estacionSel) ?? null,
         [estaciones, estacionSel],
@@ -876,6 +910,53 @@ const Clima = () => {
                 </section>
             )}
 
+            {/* Precisión del pronóstico: compara Open-Meteo contra lo que las
+                propias estaciones midieron después (fn_clima_skill_resumen).
+                Sin esto el sistema consumía el pronóstico sin auditarlo nunca. */}
+            {!skillCargando && skillMuestras >= 5 && (
+                <section className="card skill-panel">
+                    <div className="skill-panel-header">
+                        <Gauge size={18} />
+                        <h3>Precisión del pronóstico · últimos 7 días</h3>
+                        <span className="skill-panel-badge" title="Comparaciones pronóstico-vs-observado disponibles en la ventana">
+                            {skillMuestras} comparaciones
+                        </span>
+                    </div>
+                    <p className="skill-panel-nota">
+                        Error absoluto medio (MAE) de nubosidad de Open-Meteo contra la lectura real de cada estación.
+                        Sesgo positivo = el modelo sobreestima nubosidad; negativo = la subestima.
+                    </p>
+                    <div className="table-scroll">
+                        <table className="skill-table">
+                            <thead>
+                                <tr>
+                                    <th>Estación</th>
+                                    <th>Horizonte</th>
+                                    <th>Muestras</th>
+                                    <th>MAE nubosidad</th>
+                                    <th>Sesgo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {skillResumen.map((r, i) => (
+                                    <tr key={i}>
+                                        <td>{r.estacion_nombre}</td>
+                                        <td>{r.horizonte_bucket}</td>
+                                        <td>{r.n_muestras}</td>
+                                        <td>{r.mae_nubosidad_pct != null ? `${r.mae_nubosidad_pct.toFixed(0)} pts` : 's/d'}</td>
+                                        <td>
+                                            {r.sesgo_nubosidad_pct != null
+                                                ? `${r.sesgo_nubosidad_pct > 0 ? '+' : ''}${r.sesgo_nubosidad_pct.toFixed(0)} pts`
+                                                : 's/d'}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            )}
+
             {/* Estaciones WeatherLink en tiempo real */}
             {estaciones.length > 0 && (
                 <section className="card estaciones-section">
@@ -1019,13 +1100,47 @@ const Clima = () => {
                             <div className="kc-formula">
                                 <span>ETc = ETₒ × Kc</span>
                                 <span className="kc-example">
-                                    Nogal en brotación (Kc 0.85): {etoLamina != null ? etoLamina.toFixed(2) : '—'} × 0.85 = <strong>{etoLamina != null ? (etoLamina * 0.85).toFixed(2) : '—'} mm/día</strong> netos
+                                    Nogal en brotación, Kc tabular de ejemplo (0.85): {etoLamina != null ? etoLamina.toFixed(2) : '—'} × 0.85 = <strong>{etoLamina != null ? (etoLamina * 0.85).toFixed(2) : '—'} mm/día</strong> netos
                                 </span>
                                 <span className="kc-example">
                                     Lámina bruta (eficiencia 70 % en rodado): <strong>{etoLamina != null ? ((etoLamina * 0.85) / 0.7).toFixed(2) : '—'} mm/día</strong>
                                     {etoLamina != null && <> ≈ {(((etoLamina * 0.85) / 0.7) * 10).toFixed(0)} m³/ha·día</>}
                                 </span>
                             </div>
+
+                            {/* Kc REAL por NDVI (Sentinel Hub), junto al tabular — nunca lo
+                                sustituye silenciosamente: el operador ve ambos y decide. */}
+                            {modulosConEstacion.length > 0 && (
+                                <div className="kc-ndvi">
+                                    <div className="kc-ndvi-header">
+                                        <Satellite size={14} />
+                                        <span>Kc real por vigor vegetativo (NDVI, módulo</span>
+                                        <select
+                                            value={moduloKcSel ?? ''}
+                                            onChange={(e) => setModuloKcSel(Number(e.target.value))}
+                                            className="kc-ndvi-select"
+                                        >
+                                            {modulosConEstacion.map((m) => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+                                        <span>)</span>
+                                    </div>
+                                    {ndviCargando ? (
+                                        <p className="est-det-nota">Consultando NDVI reciente…</p>
+                                    ) : ndviModulo ? (
+                                        <span className="kc-example">
+                                            NDVI medio {ndviModulo.ndviMedio.toFixed(2)} ({ndviModulo.desde.slice(0, 10)} a {ndviModulo.hasta.slice(0, 10)})
+                                            → Kc estimado <strong>{ndviModulo.kcEstimado.toFixed(2)}</strong>
+                                            {etoLamina != null && (
+                                                <> · ETc ≈ <strong>{(etoLamina * ndviModulo.kcEstimado).toFixed(2)} mm/día</strong> netos</>
+                                            )}
+                                        </span>
+                                    ) : (
+                                        <p className="est-det-nota">Sin escenas Sentinel-2 recientes utilizables para este módulo.</p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </section>
                 )}

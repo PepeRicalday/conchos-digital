@@ -4,6 +4,7 @@ import {
     estimaNubosidadPorRadiacion, evaluaCalidad, fusionaCielo,
     type DiagnosticoCielo, type QaResultado,
 } from '../utils/cielo';
+import { nubosidadSatelitalPuntual } from '../utils/capaNubesGIBS';
 
 // ── Estación climática WeatherLink seleccionada + su última lectura ──────────
 export interface EstacionClima {
@@ -161,6 +162,18 @@ export function useClimaEstaciones() {
                 if (arr) arr.push(f); else seriePorEstacion.set(f.estacion_id, [f]);
             }
 
+            // Nubosidad satelital puntual (NASA GIBS) por estación: es la fuente
+            // de mayor jerarquía en fusionaCielo, pero hasta ahora solo llegaba a
+            // los planos de los informes exportables, nunca al panel en vivo. Se
+            // pide en paralelo y con tolerancia total a fallos — sin red, CORS, o
+            // sin tesela disponible, la estación simplemente queda sin esta fuente
+            // y el fusor sigue su jerarquía normal (modelo → radiación local).
+            const satPorEstacion = new Map<string, number>();
+            await Promise.all(lista.map(async (e) => {
+                const sat = await nubosidadSatelitalPuntual(Number(e.latitud), Number(e.longitud));
+                if (sat) satPorEstacion.set(e.id, sat.nubosidadSatPct);
+            }));
+
             const ahoraMs = Date.now();
             const ahoraDate = new Date(ahoraMs);
             const combinadas: EstacionConLectura[] = lista.map((e) => {
@@ -183,6 +196,7 @@ export function useClimaEstaciones() {
                 const cielo = fusionaCielo({
                     nubosidadFcPct: pronostico?.nubosidad_total_pct ?? null,
                     nubosidadEstPct: est?.nubosidadEstPct ?? null,
+                    nubosidadSatPct: satPorEstacion.get(e.id) ?? null,
                     edadObsMin: calidad.edadMin,
                     edadFcMin: pronostico
                         ? (ahoraMs - new Date(pronostico.corrida_en ?? pronostico.valido_en).getTime()) / 60000

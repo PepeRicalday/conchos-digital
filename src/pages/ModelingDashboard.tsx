@@ -1205,6 +1205,16 @@ const ModelingDashboard: React.FC = () => {
   const [showReport,  setShowReport] = useState(false);
   const [simpleMode,  setSimpleMode] = useState(true);
 
+  // Badge de estado (header) → Motor de Decisión: al hacer clic, desplaza y
+  // resalta brevemente el panel para que el operador no tenga que buscarlo.
+  const decisionPanelRef = useRef<HTMLDivElement>(null);
+  const [decisionPanelPulse, setDecisionPanelPulse] = useState(false);
+  const focusDecisionPanel = () => {
+    decisionPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setDecisionPanelPulse(true);
+    setTimeout(() => setDecisionPanelPulse(false), 1600);
+  };
+
   // ── FETCH — Telemetría real: primer mov. del día como base hidráulica ──
   // Extraído a useModelingTelemetry — gateOverrides/gateBase/qDam/qBase/
   // activeCP/simBaseMin siguen siendo estado de este componente porque el
@@ -2221,10 +2231,17 @@ const ModelingDashboard: React.FC = () => {
             <div className="sim-kpi-label">Arribo K-104</div>
             <div className="sim-kpi-val" style={{ color: '#fbbf24' }}>{lastCP?.arrival_time ?? '—'}</div>
           </div>
-          <div className="sim-kpi-status" style={{ background: `${statusColor(systemStatus)}1a`, borderColor: statusColor(systemStatus) }}>
+          <button
+            type="button"
+            className="sim-kpi-status"
+            style={{ background: `${statusColor(systemStatus)}1a`, borderColor: statusColor(systemStatus) }}
+            onClick={decisions.length > 0 ? focusDecisionPanel : undefined}
+            disabled={decisions.length === 0}
+            title={decisions.length > 0 ? 'Ir al Motor de Decisión' : undefined}
+          >
             <span style={{ color: statusColor(systemStatus) }}><StatusIcon s={systemStatus} /></span>
             <span style={{ color: statusColor(systemStatus), fontWeight: 700 }}>{systemStatus}</span>
-          </div>
+          </button>
         </div>
 
         <div className="sim-header-actions">
@@ -2550,7 +2567,15 @@ const ModelingDashboard: React.FC = () => {
         <aside className="sim-left">
           <div className="sim-panel-title"><Activity size={10} /> Puntos de Control</div>
           <div className="sim-cp-list">
-            {controlPoints.map(cp => {
+            {/* Orden por severidad (CRÍTICO → ALERTA → ESTABLE) para que el
+                punto con problema esté siempre arriba, sin escanear la lista
+                completa; el km desempata dentro de cada grupo. */}
+            {[...controlPoints].sort((a, b) => {
+              const PESO_STATUS = { CRITICO: 0, ALERTA: 1, ESTABLE: 2 } as const;
+              const sa = simResults.find(s => s.id === a.id)?.status ?? 'ESTABLE';
+              const sb = simResults.find(s => s.id === b.id)?.status ?? 'ESTABLE';
+              return PESO_STATUS[sa] - PESO_STATUS[sb] || a.km - b.km;
+            }).map(cp => {
               const r  = simResults.find(s => s.id === cp.id);
               const dy = r?.delta_y ?? 0;
               const sc = statusColor(r?.status ?? 'ESTABLE');
@@ -3080,7 +3105,9 @@ const ModelingDashboard: React.FC = () => {
                     <span className="sim-gate-val">{(gateOverrides[activeCP] ?? activeCPResult.h_radial ?? 0).toFixed(2)} m</span>
                   </div>
                 </div>
-                {/* Comparativa Q orificio — siempre visible cuando hay ancla o apertura real */}
+                {/* Comparativa Q orificio — el desglose técnico solo en modo Técnico;
+                    la alerta de incoherencia se muestra siempre (también en Operativo):
+                    es la señal de "algo está mal", no un detalle a esconder. */}
                 {activeCPResult.q_gate_m3s != null && (() => {
                   const qOrificio = CD_GATE * activeCPResult.area_gate
                     * Math.sqrt(2 * G * Math.max(0.01, activeCPResult.y_base));
@@ -3089,22 +3116,25 @@ const ModelingDashboard: React.FC = () => {
                   const ratio      = isAforo && qOrificio > 0
                     ? activeCPResult.q_gate_m3s / qOrificio : 1;
                   const incoherente = isAforo && (ratio < 0.6 || ratio > 1.4);
+                  if (simpleMode && !incoherente) return null;
                   return (
                     <div className="sim-gate-orificio"
                       style={{ borderColor: incoherente ? '#ef4444' : isOrificio ? 'rgba(167,139,250,0.4)' : 'var(--sim-border)' }}>
-                      {isAforo && (
+                      {!simpleMode && isAforo && (
                         <div className="sim-gate-orif-row">
                           <span>Q orificio teórico</span>
                           <span style={{ color: '#94a3b8' }}>{qOrificio.toFixed(2)} m³/s</span>
                         </div>
                       )}
-                      <div className="sim-gate-orif-row">
-                        <span>{isAforo ? 'Q aforo SICA (ancla)' : 'Q calculado orificio'}</span>
-                        <span style={{ color: isOrificio ? '#a78bfa' : '#38bdf8' }}>
-                          {activeCPResult.q_gate_m3s.toFixed(2)} m³/s
-                        </span>
-                      </div>
-                      {isOrificio && (
+                      {!simpleMode && (
+                        <div className="sim-gate-orif-row">
+                          <span>{isAforo ? 'Q aforo SICA (ancla)' : 'Q calculado orificio'}</span>
+                          <span style={{ color: isOrificio ? '#a78bfa' : '#38bdf8' }}>
+                            {activeCPResult.q_gate_m3s.toFixed(2)} m³/s
+                          </span>
+                        </div>
+                      )}
+                      {!simpleMode && isOrificio && (
                         <div className="sim-gate-orif-row" style={{ color: '#475569', fontSize: '8px' }}>
                           <span>Cd·{activeCPResult.area_gate.toFixed(1)}m²·√(2g·{activeCPResult.y_base.toFixed(2)}m)</span>
                           <span style={{ color: '#64748b' }}>sin aforo</span>
@@ -3112,7 +3142,8 @@ const ModelingDashboard: React.FC = () => {
                       )}
                       {incoherente && (
                         <div className="sim-gate-orif-alert">
-                          <AlertTriangle size={9} /> Q_aforo = {(ratio * 100).toFixed(0)}% del teórico — verificar apertura o calibración Cd
+                          <AlertOctagon size={14} />
+                          <span>Q_aforo = {(ratio * 100).toFixed(0)}% del teórico — verificar apertura o calibración Cd</span>
                         </div>
                       )}
                     </div>
@@ -3435,7 +3466,7 @@ const ModelingDashboard: React.FC = () => {
 
           {/* ── FASE 3: MOTOR DE DECISIÓN ──────────────────────────── */}
           {decisions.length > 0 && (
-            <div className="sim-decision-panel">
+            <div className={`sim-decision-panel ${decisionPanelPulse ? 'sim-decision-panel-pulse' : ''}`} ref={decisionPanelRef}>
               <div className="sim-decision-hdr">
                 <span className="sim-decision-title">
                   <Zap size={11} /> MOTOR DE DECISIÓN

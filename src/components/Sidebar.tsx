@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, type ComponentType } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge, BarChart3, Database, Box } from 'lucide-react';
+import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge, BarChart3, Database, Box, FileText, Upload } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useHydraStore } from '../store/useHydraStore';
@@ -48,19 +48,47 @@ const Sidebar = () => {
         navigate('/login');
     };
 
-    const navItems = [
-        { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-        { icon: Waves, label: 'Presas', path: '/presas' },
-        { icon: Box, label: 'Modelación Hidráulica', path: '/modelacion-hidraulica' },
-        { icon: Droplets, label: 'Distribución', path: '/canales', badge: liveStats.activePoints > 0 ? `${liveStats.activePoints}` : undefined },
-        { icon: Gauge, label: 'Control de Niveles', path: '/escalas' },
-        { icon: Activity, label: 'Hidrometría', path: '/hidrometria' },
-        { icon: BarChart3, label: 'Balance Hidráulico', path: '/balance' },
-        { icon: Database, label: 'Análisis Histórico', path: '/analisis-historico' },
-        { icon: Cloud, label: 'Clima', path: '/clima' },
-        { icon: Map, label: 'Geo-Monitor', path: '/geo-monitor' },
-        { icon: Activity, label: 'Monitor Público', path: '/monitor-publico' },
-        { icon: Bell, label: 'Alertas', path: '/alertas', badge: criticalAlertsCount > 0 ? `${criticalAlertsCount}` : undefined, badgeColor: criticalAlertsCount > 0 ? '#f43f5e' : undefined },
+    interface NavItem {
+        icon: ComponentType<{ size?: number }>;
+        label: string;
+        path: string;
+        badge?: string;
+        badgeColor?: string;
+    }
+
+    const navSections: { label: string; items: NavItem[] }[] = [
+        {
+            label: 'Tiempo Real',
+            items: [
+                { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+                { icon: Activity, label: 'Monitor Público', path: '/monitor-publico' },
+                { icon: Bell, label: 'Alertas', path: '/alertas', badge: criticalAlertsCount > 0 ? `${criticalAlertsCount}` : undefined, badgeColor: criticalAlertsCount > 0 ? '#f43f5e' : undefined },
+            ],
+        },
+        {
+            label: 'Captura y Operación',
+            items: [
+                { icon: Waves, label: 'Presas', path: '/presas' },
+                { icon: Gauge, label: 'Control de Niveles', path: '/escalas' },
+                { icon: Activity, label: 'Hidrometría', path: '/hidrometria' },
+                { icon: Droplets, label: 'Distribución', path: '/canales', badge: liveStats.activePoints > 0 ? `${liveStats.activePoints}` : undefined },
+            ],
+        },
+        {
+            label: 'Análisis e Histórico',
+            items: [
+                { icon: BarChart3, label: 'Balance Hidráulico', path: '/balance' },
+                { icon: Box, label: 'Modelación Hidráulica', path: '/modelacion-hidraulica' },
+                { icon: Database, label: 'Análisis Histórico', path: '/analisis-historico' },
+            ],
+        },
+        {
+            label: 'Clima y Geo',
+            items: [
+                { icon: Cloud, label: 'Clima', path: '/clima' },
+                { icon: Map, label: 'Geo-Monitor', path: '/geo-monitor' },
+            ],
+        },
     ];
 
     return (
@@ -127,33 +155,38 @@ const Sidebar = () => {
             )}
 
             <nav className="sidebar-nav">
-                {navItems.map((item) => (
-                    <NavLink
-                        key={item.path}
-                        to={item.path}
-                        className={({ isActive }) =>
-                            clsx('nav-item', isActive && 'active')
-                        }
-                    >
-                        <item.icon size={20} />
-                        <span>{item.label}</span>
-                        {item.badge && (
-                            <span style={{
-                                marginLeft: 'auto',
-                                fontSize: '0.6rem',
-                                fontWeight: 800,
-                                padding: '2px 6px',
-                                borderRadius: '9999px',
-                                background: item.badgeColor ? `color-mix(in srgb, ${item.badgeColor} 15%, transparent)` : 'rgba(16, 185, 129, 0.15)',
-                                color: item.badgeColor || '#10b981',
-                                fontFamily: 'var(--font-mono)',
-                                border: `1px solid ${item.badgeColor ? `color-mix(in srgb, ${item.badgeColor} 40%, transparent)` : 'rgba(16, 185, 129, 0.2)'}`,
-                                minWidth: '22px',
-                                textAlign: 'center',
-                                boxShadow: item.badgeColor ? `0 0 10px color-mix(in srgb, ${item.badgeColor} 20%, transparent)` : 'none'
-                            }}>{item.badge}</span>
-                        )}
-                    </NavLink>
+                {navSections.map((section) => (
+                    <div key={section.label}>
+                        <div className="nav-section-label">{section.label}</div>
+                        {section.items.map((item) => (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                className={({ isActive }) =>
+                                    clsx('nav-item', isActive && 'active')
+                                }
+                            >
+                                <item.icon size={20} />
+                                <span>{item.label}</span>
+                                {item.badge && (
+                                    <span style={{
+                                        marginLeft: 'auto',
+                                        fontSize: '0.6rem',
+                                        fontWeight: 800,
+                                        padding: '2px 6px',
+                                        borderRadius: '9999px',
+                                        background: item.badgeColor ? `color-mix(in srgb, ${item.badgeColor} 15%, transparent)` : 'rgba(16, 185, 129, 0.15)',
+                                        color: item.badgeColor || '#10b981',
+                                        fontFamily: 'var(--font-mono)',
+                                        border: `1px solid ${item.badgeColor ? `color-mix(in srgb, ${item.badgeColor} 40%, transparent)` : 'rgba(16, 185, 129, 0.2)'}`,
+                                        minWidth: '22px',
+                                        textAlign: 'center',
+                                        boxShadow: item.badgeColor ? `0 0 10px color-mix(in srgb, ${item.badgeColor} 20%, transparent)` : 'none'
+                                    }}>{item.badge}</span>
+                                )}
+                            </NavLink>
+                        ))}
+                    </div>
                 ))}
             </nav>
 
@@ -184,6 +217,14 @@ const Sidebar = () => {
                             <NavLink to="/infraestructura" className={({ isActive }) => clsx('nav-item', isActive && 'active')} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
                                 <MapPin size={16} />
                                 <span>Infraestructura</span>
+                            </NavLink>
+                            <NavLink to="/reporte-oficial" className={({ isActive }) => clsx('nav-item', isActive && 'active')} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                                <FileText size={16} />
+                                <span>Reporte Oficial</span>
+                            </NavLink>
+                            <NavLink to="/importar" className={({ isActive }) => clsx('nav-item', isActive && 'active')} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                                <Upload size={16} />
+                                <span>Importar Datos</span>
                             </NavLink>
                         </div>
                     )}

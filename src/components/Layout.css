@@ -151,6 +151,19 @@
     gap: var(--spacing-xs);
 }
 
+.nav-section-label {
+    padding: var(--spacing-md) var(--spacing-md) var(--spacing-xs);
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--color-text-muted);
+}
+
+.nav-section-label:first-child {
+    padding-top: var(--spacing-xs);
+}
+
 .nav-item {
     display: flex;
     align-items: center;

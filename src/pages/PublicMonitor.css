@@ -1,7 +1,6 @@
 
 /* PublicMonitor.css - Premium Hydric Sync Design - v3.1 Inspired */
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@500;800&display=swap');
+/* Fuentes Inter/JetBrains Mono cargadas localmente via @fontsource en main.tsx */
 
 :root {
     --neon-cyan: #06b6d4;
@@ -49,15 +48,15 @@
     backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 40px;
-    padding: 6px 12px;
+    padding: 8px 16px;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
 }
 
 .phb-logo {
-    height: 28px;
+    height: 34px;
     object-fit: contain;
 }
 
@@ -97,20 +96,20 @@
 }
 
 .phb-label {
-    font-size: 0.5rem;
+    font-size: 0.65rem;
     font-weight: 800;
-    color: #64748b;
+    color: #94a3b8;
     letter-spacing: 0.5px;
 }
 
 .phb-value {
-    font-size: 0.75rem;
+    font-size: 0.95rem;
     font-weight: 900;
 }
 
 .phb-divider {
     width: 1px;
-    height: 20px;
+    height: 26px;
     background: rgba(255,255,255,0.1);
 }
 
@@ -121,7 +120,7 @@
 
 .phb-val {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
+    font-size: 1.05rem;
     font-weight: 800;
 }
 
@@ -129,8 +128,8 @@
     background: rgba(34, 211, 238, 0.1);
     border: 1px solid rgba(34, 211, 238, 0.2);
     color: #22d3ee;
-    width: 28px;
-    height: 28px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -333,18 +332,18 @@
 }
 
 /* IEC badge — score + label */
-.iec-badge { gap: 4px; padding: 3px 8px; cursor: default; }
+.iec-badge { gap: 5px; padding: 4px 10px; cursor: default; }
 .iec-score {
-    font-size: 0.8rem;
+    font-size: 1.05rem;
     font-weight: 900;
     line-height: 1;
     color: #f8fafc;
 }
 .iec-label {
-    font-size: 0.55rem;
+    font-size: 0.6rem;
     font-weight: 700;
     letter-spacing: 0.8px;
-    color: rgba(248,250,252,0.55);
+    color: rgba(248,250,252,0.6);
     margin-top: 1px;
 }
 

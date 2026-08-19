@@ -33,6 +33,14 @@
   --status-good: #10b981;
   --status-good-text: #4ade80;
 
+  /* Alias de severidad — mismos valores que --status-*, nombre usado por
+     KPICard/Layout/SupabaseStatus/etc. Antes no estaban declarados y el
+     navegador los resolvía a "unset"; unificados a una sola fuente de verdad. */
+  --color-danger: var(--status-critical);
+  --color-warning: var(--status-warning);
+  --color-success: var(--status-good);
+  --color-primary-hover: #0ea5e9;
+
   /* Superficies de panel/modal oscuro (Hidro-Sincronía) */
   --surface-panel: #0f172a;
   --surface-input: #1e293b;

@@ -2,8 +2,6 @@
    DASHBOARD SICA 005 - HIDRO-SINCRONÍA DIGITAL (ESTÉTICA PREMIUM)
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap');
-
 :root {
     --dash-bg-gradient: linear-gradient(135deg, #090e17 0%, #111a2e 100%);
     --card-glass-bg: linear-gradient(145deg, rgba(30, 41, 59, 0.4), rgba(15, 23, 42, 0.6));
@@ -11,8 +9,6 @@
     --color-accent-blue: #38bdf8;
     --color-accent-emerald: #10b981;
     --color-accent-rose: #f43f5e;
-    --font-sans: 'Outfit', sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
 
     /* ── Identidad institucional SRL Conchos ──────────────────────
        El marrón oficial del logo no participaba de la paleta de
@@ -236,6 +232,13 @@
     gap: var(--spacing-lg);
 }
 
+/* Una KPICard en estado crítico ya destaca por color (ver KPICard.css), pero
+   en una fila de 4 columnas iguales sigue compitiendo en tamaño con métricas
+   normales. Duplicar su ancho la hace inequívocamente la primera a mirar. */
+.dashboard-grid-kpi > .kpi-card.kpi-sev-critical {
+    grid-column: span 2;
+}
+
 .dashboard-grid-main {
     display: grid;
     grid-template-columns: 2.2fr 1fr;
@@ -257,8 +260,8 @@
     backdrop-filter: blur(20px);
     border: 1px solid var(--card-glass-border);
     box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    border-radius: 1.25rem;
-    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
     position: relative;
     overflow: hidden;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;

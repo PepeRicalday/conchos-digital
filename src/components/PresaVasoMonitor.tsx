@@ -405,63 +405,17 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
     return (
         <div className="vaso-screen-overlay">
             <div className="vaso-container animate-in-zoom">
-                {/* Background Satellite Image with Dynamic Mask.
-                    Fase 2: usa el recorte NDWI reciente del vaso (detectaSuperficieVaso)
-                    cuando está disponible; antes era siempre la misma foto fija de una
-                    sola fecha (boquilla_5marzo.webp), sin importar presa ni día. */}
-                <div className="vaso-map-bg">
-                    <img
-                        src={superficieVaso?.dataURI || '/boquilla_5marzo.webp'}
-                        alt={`Vaso de la Presa ${data.nombre} - Imagen Satelital`}
-                        className="vaso-base-img"
-                        style={{ filter: `brightness(${0.4 + ((stats.porcentaje ?? 50) / 200)}) contrast(1.1)` }}
-                    />
-
-                    {/* SVG MASK INTERACTIVA: Simula el espejo de agua moviéndose */}
-                    <svg className="vaso-water-mask" viewBox="0 0 1000 600" preserveAspectRatio="none">
-                        <defs>
-                            <filter id="glow">
-                                <feGaussianBlur stdDeviation="5" result="coloredBlur" />
-                                <feMerge>
-                                    <feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" />
-                                </feMerge>
-                            </filter>
-                        </defs>
-                        <path
-                            d="M150,300 Q300,150 500,200 T850,300 Q700,450 500,400 T150,300"
-                            fill="rgba(34, 211, 238, 0.2)"
-                            stroke="#22d3ee"
-                            strokeWidth="2"
-                            style={{
-                                transform: `scale(${0.5 + ((stats.porcentaje ?? 50) / 180)})`,
-                                transformOrigin: 'center',
-                                transition: 'all 0.5s ease-out',
-                                filter: 'url(#glow)'
-                            }}
-                        />
-                    </svg>
-
-                    <div className="vaso-scanline"></div>
-
-                    {/* Ancla visual fija sobre la imagen satelital de fondo — vive
-                        aquí (no dentro de vaso-scroll-content) porque su top:50%
-                        se referencia contra el viewport del modal, no contra la
-                        altura acumulada del contenido apilable. */}
-                    <div className="vaso-map-tag tag-cortina" style={{ top: '50%', left: '88%' }}>
-                        <div className="tag-line"></div>
-                        <div className="tag-content">CORTINA</div>
-                    </div>
-                </div>
-
                 {/* UI OVERLAYS — envueltas en un contenedor scrolleable: antes
                     vaso-container tenía overflow:hidden y altura fija (90vh),
                     así que con 5+ secciones apiladas (simulador, KPIs, análisis
                     técnico, NDWI, evolución de ciclo) el contenido que excedía
                     la altura visible se cortaba sin ningún scroll posible —
                     causa real de que la sección nueva de "Evolución del Ciclo"
-                    fuera invisible sin importar cuánto se bajara. El fondo
-                    satelital (vaso-map-bg) queda fuera de este contenedor para
-                    seguir cubriendo todo el modal como fondo fijo. */}
+                    fuera invisible sin importar cuánto se bajara. Ya no hay
+                    imagen satelital de fondo cubriendo todo el modal — la foto
+                    del vaso ahora vive solo detrás de los polígonos de
+                    comparación mensual, donde aporta contexto real en vez de
+                    competir con el texto de las secciones de arriba. */}
                 <div className="vaso-scroll-content">
                 <header className="vaso-header">
                     <div className="vaso-title-group">
@@ -481,7 +435,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                     </div>
                     <div className="sim-body">
                         {!tieneNivel ? (
-                            <div className="sim-value-display" style={{ opacity: 0.6 }}>
+                            <div className="sim-value-display sim-msg" style={{ opacity: 0.6 }}>
                                 Sin lectura oficial del día — simulador no disponible.
                             </div>
                         ) : (
@@ -510,7 +464,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                     </button>
                                 )}
                                 {!tieneCurva && (
-                                    <div className="sim-value-display" style={{ fontSize: 10, opacity: 0.6, marginTop: 6 }}>
+                                    <div className="sim-value-display sim-msg" style={{ opacity: 0.6 }}>
                                         Sin curva elevación-capacidad cargada para esta presa: el volumen simulado no se puede estimar.
                                     </div>
                                 )}

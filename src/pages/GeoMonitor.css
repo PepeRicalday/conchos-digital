@@ -2,7 +2,7 @@
    GEOMONITOR SICA 005 - HIDRO-SINCRONÍA DIGITAL v2 (SISTEMA DE TOKENS)
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+/* Fuentes Inter/JetBrains Mono cargadas localmente via @fontsource en main.tsx */
 
 :root {
     --geo-panel-width: 24rem;
@@ -34,7 +34,7 @@
     --geo-violet: #a78bfa;
     --geo-blue: #4d8dff;
 
-    --geo-font-sans: 'Manrope', system-ui, sans-serif;
+    --geo-font-sans: 'Inter', system-ui, sans-serif;
     --geo-font-mono: 'JetBrains Mono', ui-monospace, monospace;
     --geo-sidebar-width: 4.75rem;
     --geo-sidebar-width-tablet: 4rem;
@@ -606,6 +606,20 @@
     border: 1px solid var(--geo-border);
     background: var(--geo-bg-main);
     box-shadow: var(--geo-shadow-lift);
+}
+
+/* Scrim de contraste: independiza la legibilidad de puntos/texto/HUD de qué
+   tan clara u oscura salga la escena satelital del día (NDVI, ArcGIS, etc.).
+   pointer-events: none para no interceptar el pan/zoom del mapa debajo. */
+.geo-map-container::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 150;
+    pointer-events: none;
+    background:
+        radial-gradient(ellipse at center, rgba(5, 11, 22, 0) 45%, rgba(5, 11, 22, 0.38) 100%),
+        linear-gradient(180deg, rgba(5, 11, 22, 0.32) 0%, rgba(5, 11, 22, 0) 18%, rgba(5, 11, 22, 0) 82%, rgba(5, 11, 22, 0.32) 100%);
 }
 
 .geo-map-inner {
@@ -1475,6 +1489,49 @@
     box-shadow: var(--geo-shadow-card);
 }
 
+/* Leyenda de rango NDVI: ancla a la izquierda, arriba del badge de fecha de
+   escena, para que el rojo/naranja dominante del overlay se lea como "vigor
+   bajo" y no como una alerta operativa sin contexto. */
+.geo-ndvi-legend {
+    position: absolute;
+    left: 12px;
+    bottom: 50px;
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 12px;
+    border-radius: var(--geo-r-md);
+    background: var(--geo-bg-shell);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    box-shadow: var(--geo-shadow-card);
+    width: 168px;
+}
+
+.geo-ndvi-legend-label {
+    font-size: var(--geo-fs-0);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--geo-text-1);
+}
+
+.geo-ndvi-legend-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #b91c1c, #f59e0b, #facc15, #4ade80, #15803d);
+}
+
+.geo-ndvi-legend-scale {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--geo-text-2);
+    line-height: 1.2;
+}
+
 /* Alerta anticipada de lluvia 48h — franja superior, debajo del HUD de
    protocolo si ambos coinciden (protocolo usa top:0 en ancho completo; este
    badge es compacto y se desplaza cuando hay evento activo). */
@@ -1650,6 +1707,7 @@
     color: #04140f;
 }
 
+.geo-event-bg-pendiente { background: rgba(148, 163, 184, 0.94); color: #0f172a; }
 .geo-event-bg-llenado { background: rgba(77, 141, 255, 0.94); color: #051329; }
 .geo-event-bg-estabilizacion { background: rgba(52, 211, 153, 0.94); }
 .geo-event-bg-contingencia { background: rgba(245, 166, 35, 0.94); color: #2b1904; }

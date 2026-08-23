@@ -1,4 +1,4 @@
-import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain, Satellite, PanelRight } from 'lucide-react';
+import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain, Satellite, PanelRight, CalendarRange } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline, useMapEvents } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
@@ -250,6 +250,10 @@ const GeoMonitor = () => {
     const [modulosCaudalObjetivo, setModulosCaudalObjetivo] = useState<Record<string, { nombre: string; caudal_objetivo: number }>>({});
     const [loading, setLoading] = useState(true);
     const [showVaso, setShowVaso] = useState(false);
+    // Qué sección debe enfocar PresaVasoMonitor al abrirse — 'satelital' (NDWI
+    // del día, comportamiento previo) o 'ciclo' (comparativa mensual nueva,
+    // botón dedicado para no obligar a bajar manualmente en un modal largo).
+    const [seccionVasoInicial, setSeccionVasoInicial] = useState<'satelital' | 'ciclo'>('satelital');
     const [showHistoryModal, setShowHistoryModal] = useState(false);
 
     // Eventos Hidro-Sincrónicos
@@ -1137,11 +1141,10 @@ const GeoMonitor = () => {
         // Q_tomas no se usa aquí porque sus promedios diarios son temporalmente inconsistentes con Q instantáneo de escala
         const captado = gastoEntrada - gastoSalida;
         eficienciaReal = Math.min(100, Math.max(0, (captado / gastoEntrada) * 100));
-
-        // Pérdida real = Q_entrada - Q_salida - Q_tomas_instante_actual (sin datos confiables, se usa como referencia)
-        const perdidaM3s = Math.max(0, gastoEntrada - gastoSalida);
-        perdidaPct = (((perdidaM3s ?? 0) / gastoEntrada) * 100).toFixed(1);
         eficienciaTxt = eficienciaReal.toFixed(1);
+
+        // Pérdida = complemento de la eficiencia de conducción (misma medición, otra lectura)
+        perdidaPct = (100 - eficienciaReal).toFixed(1);
     } else if (gastoEntrada && gastoEntrada > 0) {
         eficienciaReal = Math.min(100, totalDemandaProgramada > 0 ? (gastoDistribuido / totalDemandaProgramada) * 100 : 0);
         eficienciaTxt = eficienciaReal.toFixed(1);
@@ -1429,7 +1432,7 @@ const GeoMonitor = () => {
                     {SIDEBAR_GROUPS.map((group, groupIdx) => (
                         <React.Fragment key={group.id}>
                             {groupIdx > 0 && <div className="geo-divider-h"></div>}
-                            <div className="geo-control-group">
+                            <div className="geo-control-group" role="toolbar" aria-label={group.label}>
                                 <span className="geo-group-label" aria-hidden="true">{group.label}</span>
                                 {group.buttons.map(({ key, icon: Icon, title, iconClassName, indicatorClass, activeClass }) => {
                                     const isOn = layers[key];
@@ -1439,6 +1442,8 @@ const GeoMonitor = () => {
                                             className={clsx('geo-control-btn', isOn ? (activeClass ?? 'active') : 'default')}
                                             onClick={() => toggleLayer(key)}
                                             title={title}
+                                            aria-label={title}
+                                            aria-pressed={isOn}
                                         >
                                             <Icon size={SIDEBAR_ICON_SIZE} className={isOn ? iconClassName : undefined} />
                                             {isOn && key === 'alertas' && tomasVaradas.length > 0 && (
@@ -1463,6 +1468,7 @@ const GeoMonitor = () => {
                                 className="geo-control-btn default geo-btn-import"
                                 onClick={() => setShowImporter(true)}
                                 title="Importar Shapefile / GeoJSON"
+                                aria-label="Importar Shapefile o GeoJSON"
                             >
                                 <Upload size={16} />
                             </button>
@@ -1482,6 +1488,9 @@ const GeoMonitor = () => {
                         className={clsx('geo-control-btn', 'geo-baselayer-trigger', baseLayerMenuOpen ? 'active' : 'default')}
                         onClick={openBaseLayerMenu}
                         title={`Capa base: ${BASE_LAYER_LABEL[baseLayer]} (clic para elegir)`}
+                        aria-label={`Capa base: ${BASE_LAYER_LABEL[baseLayer]}. Clic para elegir otra.`}
+                        aria-haspopup="menu"
+                        aria-expanded={baseLayerMenuOpen}
                     >
                         {baseLayer === 'standard' && <MapIcon size={20} />}
                         {baseLayer === 'satellite' && <Layers size={20} />}
@@ -1649,6 +1658,19 @@ const GeoMonitor = () => {
                                 </span>
                             </div>
                         )}
+                        {/* Leyenda de rango NDVI: sin esto, el rojo/naranja dominante de suelo
+                            desnudo o vigor bajo se lee como "alerta" en vez de como la paleta
+                            estándar del proveedor — solo aplica a las capas NDVI, no a TRUE_COLOR/NDWI. */}
+                        {baseLayer === 'sentinel' && sentinelInstanceId && (sentinelLayer === '3_NDVI' || sentinelLayer === '9_NDVI_AGRO') && (
+                            <div className="geo-ndvi-legend">
+                                <span className="geo-ndvi-legend-label">NDVI</span>
+                                <div className="geo-ndvi-legend-bar" />
+                                <div className="geo-ndvi-legend-scale">
+                                    <span>Suelo / vigor bajo</span>
+                                    <span>Vigor alto</span>
+                                </div>
+                            </div>
+                        )}
                         {/* Aviso de zoom insuficiente: la capa está activada pero a este nivel
                             de acercamiento ~5,200 lotes se verían como ruido — se explica en vez
                             de dejar la capa "activa" sin mostrar nada, sin dar pista al usuario. */}
@@ -1744,11 +1766,12 @@ const GeoMonitor = () => {
                         {activeEvent && (
                             <div className={clsx(
                                 'geo-event-banner',
-                                activeEvent.evento_tipo === 'LLENADO' && 'geo-event-bg-llenado',
-                                activeEvent.evento_tipo === 'ESTABILIZACION' && 'geo-event-bg-estabilizacion',
-                                activeEvent.evento_tipo === 'CONTINGENCIA_LLUVIA' && 'geo-event-bg-contingencia',
-                                activeEvent.evento_tipo === 'ANOMALIA_BAJA' && 'geo-event-bg-anomalia',
-                                !['LLENADO', 'ESTABILIZACION', 'CONTINGENCIA_LLUVIA', 'ANOMALIA_BAJA'].includes(activeEvent.evento_tipo) && 'geo-event-bg-alerta'
+                                !activeEvent.hora_apertura_real && 'geo-event-bg-pendiente',
+                                activeEvent.hora_apertura_real && activeEvent.evento_tipo === 'LLENADO' && 'geo-event-bg-llenado',
+                                activeEvent.hora_apertura_real && activeEvent.evento_tipo === 'ESTABILIZACION' && 'geo-event-bg-estabilizacion',
+                                activeEvent.hora_apertura_real && activeEvent.evento_tipo === 'CONTINGENCIA_LLUVIA' && 'geo-event-bg-contingencia',
+                                activeEvent.hora_apertura_real && activeEvent.evento_tipo === 'ANOMALIA_BAJA' && 'geo-event-bg-anomalia',
+                                activeEvent.hora_apertura_real && !['LLENADO', 'ESTABILIZACION', 'CONTINGENCIA_LLUVIA', 'ANOMALIA_BAJA'].includes(activeEvent.evento_tipo) && 'geo-event-bg-alerta'
                             )}>
                                 <div className="flex items-center gap-3">
                                     {activeEvent.evento_tipo === 'LLENADO' ? <Droplets size={20} /> : <AlertTriangle size={20} />}
@@ -1757,11 +1780,11 @@ const GeoMonitor = () => {
                                             PROTOCOLO: {activeEvent.evento_tipo.replace('_', ' ')}
                                         </div>
                                         <div className="geo-event-banner-info">
-                                            Inicio: {activeEvent.hora_apertura_real ? 
-                                                new Date(activeEvent.hora_apertura_real).toLocaleTimeString('es-MX', { 
-                                                    hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua' 
-                                                }) + ' (LOCAL)' 
-                                                : 'Procesando...'} | Sincronizando con Canaleros.
+                                            Inicio: {activeEvent.hora_apertura_real ?
+                                                new Date(activeEvent.hora_apertura_real).toLocaleTimeString('es-MX', {
+                                                    hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Chihuahua'
+                                                }) + ' (LOCAL)'
+                                                : 'Pendiente de confirmación en campo...'} | Sincronizando con Canaleros.
                                         </div>
                                     </div>
                                 </div>
@@ -2395,12 +2418,20 @@ const GeoMonitor = () => {
 
                                 <div className="geo-detail-actions">
                                     {selectedPoint.type === 'presa' && (
-                                        <button
-                                            className="geo-action-btn primary"
-                                            onClick={() => setShowVaso(true)}
-                                        >
-                                            <Maximize size={14} /> Analizar Vaso Satelital
-                                        </button>
+                                        <>
+                                            <button
+                                                className="geo-action-btn primary"
+                                                onClick={() => { setSeccionVasoInicial('satelital'); setShowVaso(true); }}
+                                            >
+                                                <Maximize size={14} /> Analizar Vaso Satelital
+                                            </button>
+                                            <button
+                                                className="geo-action-btn primary"
+                                                onClick={() => { setSeccionVasoInicial('ciclo'); setShowVaso(true); }}
+                                            >
+                                                <CalendarRange size={14} /> Evolución del Ciclo
+                                            </button>
+                                        </>
                                     )}
                                     <button className="geo-action-btn primary" onClick={() => setShowHistoryModal(true)}>Ver historial completo</button>
                                     <button className="geo-action-btn">Reportar anomalía</button>
@@ -2465,11 +2496,11 @@ const GeoMonitor = () => {
                         </div>
                         <div className="geo-tomas-item balance">
                             <span className="geo-balance-real">
-                                {(gastoDistribuido ?? 0).toFixed(1)} <small>m³/s</small>
+                                {operStats.tomas_abiertas > 0 ? (gastoDistribuido ?? 0).toFixed(1) : '—'} <small>m³/s</small>
                             </span>
                             <div className="geo-balance-rule" />
                             <span className="geo-balance-prog">
-                                {(totalDemandaProgramada ?? 0).toFixed(1)} <small>m³/s</small>
+                                {totalDemandaProgramada > 0 ? totalDemandaProgramada.toFixed(1) : '—'} <small>m³/s</small>
                             </span>
                             <span className="geo-tomas-label" style={{ marginTop: 4 }}>Balance (real / prog)</span>
                         </div>
@@ -2575,6 +2606,7 @@ const GeoMonitor = () => {
                         presa_id: selectedPoint.data.presa_id,
                         curva: selectedPoint.data.curvas_capacidad,
                     }}
+                    seccionInicial={seccionVasoInicial}
                     onClose={() => setShowVaso(false)}
                 />
             )}

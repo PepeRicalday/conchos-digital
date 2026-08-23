@@ -33,6 +33,22 @@
     background: #000;
 }
 
+/* Contenedor scrolleable de todo el contenido apilado (header, KPIs,
+   análisis, NDWI, evolución de ciclo) — el fondo satelital (vaso-map-bg)
+   queda fuera, fijo detrás. Antes vaso-container tenía overflow:hidden con
+   altura fija (90vh) y NADA era scrolleable: con 5+ secciones el contenido
+   que excedía la altura visible simplemente se cortaba, sin scroll manual
+   ni automático posible — causa real de secciones "invisibles" al agregar
+   más contenido al modal. */
+.vaso-scroll-content {
+    position: relative;
+    z-index: 4;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+}
+
 .vaso-base-img {
     width: 100%;
     height: 100%;
@@ -67,9 +83,10 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    position: relative;
+    position: sticky;
+    top: 0;
     z-index: 10;
-    background: linear-gradient(to bottom, rgba(2, 6, 23, 0.9), transparent);
+    background: linear-gradient(to bottom, rgba(2, 6, 23, 0.95) 70%, transparent);
 }
 
 .vaso-badge {
@@ -124,17 +141,20 @@
     transform: rotate(180deg) scale(1.1);
 }
 
-/* SIMULATION CONTROLS */
+/* SIMULATION CONTROLS — antes centrado con position:absolute + top:50%,
+   pensado para un modal sin scroll. Con vaso-scroll-content ese 50% pasaba
+   a calcularse sobre TODA la altura acumulada del contenido, empujando el
+   panel fuera de vista o encimándolo con otras secciones. Ahora vive en el
+   flujo normal, como una tarjeta más de ancho acotado. */
 .vaso-sim-controls {
-    position: absolute;
-    top: 50%;
-    left: 2.5rem;
-    transform: translateY(-50%);
-    width: 320px;
+    width: min(320px, 100%);
+    margin: 0 2.5rem 1.5rem;
     padding: 1.5rem;
     border-radius: 20px;
-    z-index: 20;
+    position: relative;
+    z-index: 10;
     background: rgba(15, 23, 42, 0.75);
+    -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     border: 1px solid rgba(34, 211, 238, 0.3);
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
@@ -230,7 +250,6 @@
     grid-template-columns: repeat(3, 1fr);
     gap: 1.5rem;
     padding: 0 2.5rem;
-    margin-top: auto;
     margin-bottom: 2rem;
     position: relative;
     z-index: 10;
@@ -317,6 +336,172 @@
     grid-template-columns: 1.8fr 1fr;
     gap: 2rem;
     align-items: center;
+}
+
+/* Badge de confiabilidad — distingue la estimación en vivo (aproximada,
+   sin banda infrarroja real) del histórico validado por Sentinel-2. */
+.vaso-confiabilidad-badge {
+    font-size: 0.6rem;
+    font-weight: 800;
+    padding: 3px 9px;
+    border-radius: 100px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-left: 4px;
+}
+
+.vaso-confiabilidad-badge.aproximado {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.vaso-confiabilidad-badge.validado {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+/* Galería mensual: un mini-mapa por cada mes del histórico en fila
+   horizontal con scroll, todos dibujados sobre el MISMO bbox (ver
+   calculaBboxComun) para que la progresión completa del vaso sea
+   comparable a simple vista sin tener que elegir pares uno a uno. */
+.vaso-galeria-mensual {
+    margin-bottom: 1.5rem;
+}
+
+.vaso-galeria-titulo {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+}
+
+.vaso-galeria-tira {
+    display: flex;
+    gap: 0.85rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    scroll-snap-type: x proximity;
+}
+
+.vaso-galeria-item {
+    flex: 0 0 140px;
+    scroll-snap-align: start;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 0.6rem 0.6rem 0.5rem;
+    text-align: center;
+}
+
+.vaso-galeria-item svg {
+    display: block;
+    width: 100%;
+    border-radius: 6px;
+}
+
+.vaso-galeria-fecha {
+    font-size: 0.68rem;
+    color: #94a3b8;
+    text-transform: capitalize;
+    margin-top: 0.5rem;
+}
+
+.vaso-galeria-kpi {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #22d3ee;
+    margin-top: 2px;
+}
+
+/* Selectores de mes para el mini-mapa comparativo — permiten elegir
+   cualquier par de meses ya presentes en vaso_geometria_historico, no solo
+   apertura de ciclo vs. más reciente. */
+.vaso-mes-selectores {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.85rem;
+}
+
+.vaso-mes-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+}
+
+.vaso-mes-selector select {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: normal;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.vaso-mes-selector select:focus {
+    outline: 2px solid rgba(34, 211, 238, 0.5);
+    outline-offset: 1px;
+}
+
+/* Mini-mapa comparativo: contornos de los dos meses elegidos arriba
+   superpuestos sobre un bbox común (ver anilloASvgPath/poligonoASvgPath). */
+.vaso-mapa-comparativo {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    padding: 1rem 1rem 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.vaso-mapa-comparativo svg {
+    display: block;
+    width: 100%;
+}
+
+.vaso-mapa-leyenda {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+    font-size: 0.7rem;
+    color: #94a3b8;
+}
+
+.leyenda-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.leyenda-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.leyenda-swatch.marzo {
+    background: transparent;
+    border: 2px dashed #94a3b8;
+}
+
+.leyenda-swatch.reciente {
+    background: rgba(34, 211, 238, 0.25);
+    border: 2px solid #22d3ee;
 }
 
 /* Manejo de Vaso — comparación NDWI vs. captura de campo */

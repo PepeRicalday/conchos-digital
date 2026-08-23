@@ -33,3 +33,8 @@ lint_*.txt
 tsc_errors.txt
 eslint_errors.txt
 _agents/
+
+# Archivos de bloqueo temporal de Excel/Office (se crean al abrir un .xlsx)
+~$*.xlsx
+~$*.xls
+~$*.docx

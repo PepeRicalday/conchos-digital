@@ -19,9 +19,21 @@ interface GeometriaVasoFila {
     contorno_geojson: { type: 'Polygon'; coordinates: [number, number][][] };
 }
 
+interface FilaValidacionCruzada {
+    fecha_escena: string;
+    areaSatelite: number;
+    sinReferencia: boolean;
+    fechaLectura?: string;
+    escalaLectura?: number;
+    diasDiferencia?: number;
+    areaEsperadaKm2?: number;
+    pctCoincidencia?: number | null;
+}
+
 export interface InformeVasoInstitucionalProps {
     nombrePresa: string;
     historico: GeometriaVasoFila[];
+    validacionCruzada?: FilaValidacionCruzada[];
     onClose: () => void;
 }
 
@@ -77,7 +89,7 @@ function poligonoASvgPath(
         .join(' ');
 }
 
-const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nombrePresa, historico, onClose }) => {
+const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nombrePresa, historico, validacionCruzada = [], onClose }) => {
     const generateHtml = useCallback(() => {
         const now = new Date();
         const dateDMY = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Chihuahua' });
@@ -200,8 +212,37 @@ const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nom
             if (mesesFaltantes > 0) hallazgos.push('<strong>Cobertura incompleta:</strong> ' + mesesFaltantes + ' mes(es) del periodo no tienen escena Sentinel-2 confiable (nubosidad excesiva o bbox insuficiente) — no se registraron como cero, quedaron como hueco.');
             if (ultimo?.pct_del_maximo_ciclo != null && ultimo.pct_del_maximo_ciclo < 70) hallazgos.push('<strong>Por debajo del máximo del ciclo:</strong> la superficie más reciente equivale solo al ' + N0(ultimo.pct_del_maximo_ciclo) + '% del máximo alcanzado en lo que va del ciclo agrícola.');
         }
+        const conReferencia = validacionCruzada.filter(v => !v.sinReferencia && v.pctCoincidencia != null);
+        if (conReferencia.length) {
+            const desviosGrandes = conReferencia.filter(v => Math.abs((v.pctCoincidencia ?? 100) - 100) > 12);
+            if (desviosGrandes.length) hallazgos.push('<strong>Validación cruzada con desviación relevante:</strong> ' + desviosGrandes.length + ' mes(es) donde el área satelital difiere más de 12% del área esperada por la curva batimétrica oficial — revisar azolve, error de escala o desfase de fechas.');
+            else hallazgos.push('<strong>Validación cruzada consistente:</strong> el área medida por satélite coincide dentro de un margen razonable con el área esperada por la curva batimétrica oficial en los meses con lectura de campo cercana.');
+        }
         if (!hallazgos.length) hallazgos.push('Sin variaciones relevantes detectadas automáticamente en el periodo analizado.');
         const hallazgosHtml = hallazgos.map(h => '<div class="obs-item"><span class="obs-icon">&#8226;</span><div>' + h + '</div></div>').join('');
+
+        // ── Validación cruzada: satélite (NDWI) vs. curva batimétrica oficial ──
+        const validacionHtml = (() => {
+            if (!conReferencia.length) return '';
+            const filas = conReferencia.map(v => {
+                const pct = v.pctCoincidencia!;
+                const desvio = Math.abs(pct - 100);
+                const color = desvio <= 5 ? '#16a34a' : desvio <= 12 ? '#d97706' : '#dc2626';
+                return '<tr>'
+                    + '<td class="bold">' + fechaDMY(v.fecha_escena) + '</td>'
+                    + '<td class="num">' + N1(v.areaSatelite) + '</td>'
+                    + '<td class="num">' + N1(v.areaEsperadaKm2) + '</td>'
+                    + '<td class="num" style="color:' + color + ';font-weight:800">' + pct.toFixed(0) + '%</td>'
+                    + '<td style="font-size:6.8pt;color:#666">' + fechaDMY(v.fechaLectura!) + ' (' + v.diasDiferencia + ' día' + (v.diasDiferencia === 1 ? '' : 's') + ')</td>'
+                    + '</tr>';
+            }).join('');
+            return '<div class="sec-block" style="margin-top:8px">'
+                + '<div class="sec-title">Validación Cruzada <small>satélite (NDWI) vs. curva batimétrica oficial</small></div>'
+                + '<table><thead><tr><th>Mes</th><th class="num">Área satélite (km²)</th><th class="num">Área esperada (km²)</th><th class="num">Coincidencia</th><th>Lectura de campo usada</th></tr></thead>'
+                + '<tbody>' + filas + '</tbody></table>'
+                + '<div class="nota">Área esperada = interpolación de la curva Elevación-Área-Capacidad oficial CONAGUA sobre la escala de la lectura de campo más cercana en fecha (máx. 20 días de diferencia). 100% = coincidencia perfecta; desviaciones grandes pueden indicar azolve, error de escala, o simplemente el desfase de días entre ambas mediciones — no se comparan meses sin lectura de campo cercana.</div>'
+                + '</div>';
+        })();
 
         // ── CSS (mismo sistema visual que InformeTendencias.tsx, paleta SRL) ──
         const css = '@page{size:letter portrait;margin:10mm 12mm}'
@@ -305,6 +346,9 @@ const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nom
             + '<div class="nota">Área neta (bancos de tierra expuestos excluidos) y perímetro real vía NDWI de Sentinel-2 (10–20 m/pixel), vectorizado con marching squares. Un hueco en la serie indica un mes sin escena confiable por nubosidad excesiva — nunca se registra como cero. Ratio de elongación = perímetro real / perímetro del círculo de igual área (mínimo teórico 1.0).</div>'
             + '</div>'
 
+            // ── Validación cruzada ──
+            + validacionHtml
+
             // ── FOOTER ──
             + '<div class="footer">'
             + '&#128167; &nbsp; SRL CONCHOS &nbsp;•&nbsp; TRABAJAMOS CON RESPONSABILIDAD, OPERAMOS CON PRECISIÓN, SERVIMOS CON COMPROMISO'
@@ -314,7 +358,7 @@ const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nom
             + '</body></html>';
 
         return html;
-    }, [nombrePresa, historico]);
+    }, [nombrePresa, historico, validacionCruzada]);
 
     const [iframeUrl, setIframeUrl] = useState<string | null>(null);
     useEffect(() => {

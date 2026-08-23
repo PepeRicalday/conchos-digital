@@ -23,9 +23,15 @@
 // Multi-presa por diseño: BBOXES_PRESA es un registro extensible; añadir Las
 // Vírgenes es agregar una entrada, no duplicar la función.
 //
-// Invocación: POST { presa_id: "PRE-001", mes?: "2026-03" }
-//   Sin "mes": usa el mes calendario actual (uso normal del cron mensual).
-//   Con "mes": ventana de ese mes completo (uso del backfill manual).
+// Invocación: POST { presa_id: "PRE-001", mes?: "2026-03", fecha_referencia?: "2017-09-01" }
+//   Sin "mes" ni "fecha_referencia": usa el mes calendario actual (cron mensual).
+//   Con "mes": ventana de ese mes completo (backfill manual del ciclo agrícola).
+//   Con "fecha_referencia": ventana de ±15 días alrededor de esa fecha, y la
+//     fila se guarda con es_referencia_historica=true — excluida de la serie
+//     mensual del ciclo actual y de sus delta_*/pct_del_maximo_ciclo (que no
+//     aplican a un registro de referencia puntual como la máxima extensión
+//     histórica del vaso). "mes" y "fecha_referencia" son mutuamente
+//     excluyentes; si ambos llegan, gana fecha_referencia.
 // ═══════════════════════════════════════════════════════════════════════════
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
@@ -64,12 +70,28 @@ interface ConfigPresa {
   nombre: string;
   bbox: [number, number, number, number]; // [minLon, minLat, maxLon, maxLat]
   ancla: { lon: number; lat: number };     // para descartar cuerpos de agua vecinos
+  // Bbox alternativo SOLO para referencia histórica (es_referencia_historica):
+  // el bbox normal, calibrado contra el vaso en NIVEL BAJO (73-50km² en el
+  // ciclo 2026), es insuficiente para escenas antiguas donde el vaso puede
+  // estar cerca del NAME (188km² oficial, mucho más extendido). Usar el
+  // mismo bbox de 50x34.8km para ambos casos rompió el trazado en 3 fechas
+  // distintas de 2017 (sep/oct/nov, mismo patrón: el contorno exterior
+  // vectorizado siempre colapsaba a un fragmento de ~13km² pegado al ancla,
+  // geométricamente imposible para las áreas de 85-150km² reportadas —
+  // señal de que el bbox no cubría suficiente margen del vaso extendido).
+  // Diseñado a partir de la extensión REAL medida en 2026 (29.5x8.8km a
+  // 73km²), escalado al área NAME oficial (188.2km²) con 30% de margen
+  // adicional — mismo criterio que evitó el bug análogo en el bbox normal.
+  bboxHistorico?: [number, number, number, number];
+  resolucionHistoricaM?: number; // el bbox histórico es más ancho (61.6km) — 20m/pixel excede el límite de 2500px del Process API, se usa 25m/pixel.
 }
 const BBOXES_PRESA: Record<string, ConfigPresa> = {
   "PRE-001": {
     nombre: "La Boquilla",
     bbox: [-105.7241, 27.3942, -105.2175, 27.7092],
     ancla: { lon: -105.4375, lat: 27.5517 },
+    bboxHistorico: [-105.8471, 27.4436, -105.2234, 27.6096],
+    resolucionHistoricaM: 25,
   },
 };
 
@@ -211,7 +233,7 @@ type Pt = [number, number];
  * Verificado en la prueba puntual: 0 fragmentos abiertos, 0 colisiones.
  */
 function trazaContornoMarchingSquares(
-  ndwiRaster: Uint16Array, W: number, H: number, umbralCodificado: number,
+  ndwiRaster: Uint16Array, W: number, H: number, umbralCodificado: number, minPxIsla = 3,
 ): { exterior: Pt[]; islas: Pt[][] } {
   const valorEn = (x: number, y: number) => (x >= 0 && y >= 0 && x < W && y < H ? ndwiRaster[y * W + x] : 0);
   const claveH = (x: number, y: number) => `H,${x},${y}`;
@@ -320,11 +342,15 @@ function trazaContornoMarchingSquares(
   anillos.sort((a, b) => areaAnillo(b) - areaAnillo(a));
   const [masGrande, ...resto] = anillos;
 
-  // Umbral de 3px² solo filtra fragmentos degenerados de celdas ambiguas
-  // aisladas — verificado en la prueba puntual que toda isla real supera
-  // ampliamente este mínimo (la más chica observada: 124 px reales).
-  const MIN_PX_ISLA = 3;
-  return { exterior: masGrande, islas: resto.filter(a => areaAnillo(a) >= MIN_PX_ISLA) };
+  // Umbral de área mínima de isla, en PÍXELES pero calibrado a la resolución
+  // real (minPxIsla, parámetro — no una constante fija): con nubosidad
+  // relajada (referencia histórica, maxCloudCoverage:20) el trazador genera
+  // muchas islas espurias de nubes/sombra mal clasificadas como "no agua"
+  // dentro del vaso — confirmado visualmente en 2017-09-11 (174 "islas",
+  // la mayoría ruido). El umbral por defecto (3px²) solo filtraba
+  // fragmentos degenerados de celdas ambiguas aisladas, calibrado con
+  // escenas ≤20% de nube ya limpias del ciclo 2026 — insuficiente aquí.
+  return { exterior: masGrande, islas: resto.filter(a => areaAnillo(a) >= minPxIsla) };
 }
 
 function submuestrea(puntos: Pt[], maxPuntos = 400): Pt[] {
@@ -353,6 +379,56 @@ function suavizaChaikin(anillo: Pt[], iteraciones = 2): Pt[] {
     pts = out;
   }
   return pts;
+}
+
+/** Erosión binaria de 1 iteración (vecindad de 4, no diagonal): un píxel
+ *  sobrevive solo si él y sus 4 vecinos ortogonales son agua. Elimina
+ *  protuberancias/ruido de 1px de ancho (bordes de nube mal clasificados
+ *  como agua) sin afectar cuerpos de agua reales de más de 2-3px de ancho. */
+function erosiona(mascara: Uint8Array, W: number, H: number): Uint8Array {
+  const salida = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const p = y * W + x;
+      if (!mascara[p]) continue;
+      const arriba = y > 0 && mascara[p - W];
+      const abajo = y < H - 1 && mascara[p + W];
+      const izq = x > 0 && mascara[p - 1];
+      const der = x < W - 1 && mascara[p + 1];
+      if (arriba && abajo && izq && der) salida[p] = 1;
+    }
+  }
+  return salida;
+}
+
+/** Dilatación binaria de 1 iteración (vecindad de 4): un píxel se activa si
+ *  él o cualquiera de sus 4 vecinos ortogonales es agua — inverso de la
+ *  erosión, para restaurar el tamaño original tras podar el ruido fino
+ *  (apertura morfológica = erosión seguida de dilatación). */
+function dilata(mascara: Uint8Array, W: number, H: number): Uint8Array {
+  const salida = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const p = y * W + x;
+      if (mascara[p] || (y > 0 && mascara[p - W]) || (y < H - 1 && mascara[p + W])
+        || (x > 0 && mascara[p - 1]) || (x < W - 1 && mascara[p + 1])) salida[p] = 1;
+    }
+  }
+  return salida;
+}
+
+/** Apertura morfológica (erosión → dilatación), N iteraciones: técnica
+ *  estándar para limpiar ruido de bordes irregulares (nubes/sombras mal
+ *  clasificadas como agua) manteniendo la forma general del cuerpo de agua
+ *  real — usado solo para referencia histórica, donde maxCloudCoverage
+ *  relajado a 20 (necesario para completar cobertura del mosaico, ver
+ *  ventanaProcess) genera bordes con ruido que el ciclo 2026 normal
+ *  (nubosidad ≤20% ya limpia por selección de escena) no tiene. */
+function aperturaMorfologica(mascara: Uint8Array, W: number, H: number, iteraciones: number): Uint8Array {
+  let m = mascara;
+  for (let i = 0; i < iteraciones; i++) m = erosiona(m, W, H);
+  for (let i = 0; i < iteraciones; i++) m = dilata(m, W, H);
+  return m;
 }
 
 /** Componente conexa que contiene el píxel más cercano al ancla — evita que un cuerpo de agua vecino robe el resultado. */
@@ -421,12 +497,24 @@ Deno.serve(async (req) => {
       return json({ error: `Presa no configurada: ${presaId}. Disponibles: ${Object.keys(BBOXES_PRESA).join(", ")}` }, 400);
     }
 
-    // Ventana de búsqueda: mes explícito ("2026-03", usado en el backfill
-    // manual marzo→agosto) o los últimos 30 días si se omite (uso normal del
-    // cron mensual, mismo comportamiento que la prueba puntual).
+    // Ventana de búsqueda: fecha de referencia puntual (±15 días, usado para
+    // registros históricos como la máxima extensión de 2017), mes explícito
+    // ("2026-03", backfill manual del ciclo agrícola), o los últimos 30 días
+    // si se omiten ambos (uso normal del cron mensual).
     let inicio: Date, fin: Date;
+    const fechaRefParam: string | undefined = body?.fecha_referencia;
     const mesParam: string | undefined = body?.mes;
-    if (mesParam && /^\d{4}-\d{2}$/.test(mesParam)) {
+    const esReferenciaHistorica = !!fechaRefParam && /^\d{4}-\d{2}-\d{2}$/.test(fechaRefParam);
+    if (esReferenciaHistorica) {
+      // Ventana amplia (±45 días, no ±15): imágenes de Sentinel-2 de años
+      // tempranos (2015-2017) tienen menor cadencia de revisita y más
+      // escenas con nubosidad parcial no uniforme que el Catalog API no
+      // siempre filtra bien — se necesita más candidatas para encontrar una
+      // que vectorice limpio (ver nota en la selección de escena abajo).
+      const centro = new Date(fechaRefParam + "T00:00:00Z");
+      inicio = new Date(centro.getTime() - 45 * 86400000);
+      fin = new Date(centro.getTime() + 45 * 86400000);
+    } else if (mesParam && /^\d{4}-\d{2}$/.test(mesParam)) {
       const [anio, mes] = mesParam.split("-").map(Number);
       inicio = new Date(Date.UTC(anio, mes - 1, 1));
       fin = new Date(Date.UTC(anio, mes, 1)); // primer día del mes siguiente
@@ -437,14 +525,23 @@ Deno.serve(async (req) => {
 
     const token = await obtenerAccessToken(SENTINEL_CLIENT_ID, SENTINEL_CLIENT_SECRET);
 
-    const [minLon, minLat, maxLon, maxLat] = config.bbox;
+    // Bbox y resolución activos: el bbox normal (calibrado contra el vaso en
+    // nivel bajo, ciclo 2026) es insuficiente para referencia histórica,
+    // donde el vaso puede estar mucho más extendido (cerca del NAME oficial)
+    // — confirmado con 3 fechas de 2017 que rompieron el trazado igual con
+    // el bbox normal. Usa bboxHistorico/resolucionHistoricaM si están
+    // configurados; si no, cae al bbox normal (mismo comportamiento previo).
+    const bboxActivo = (esReferenciaHistorica && config.bboxHistorico) ? config.bboxHistorico : config.bbox;
+    const resolucionActiva = (esReferenciaHistorica && config.resolucionHistoricaM) ? config.resolucionHistoricaM : RESOLUCION_M;
+
+    const [minLon, minLat, maxLon, maxLat] = bboxActivo;
     const latMedia = (minLat + maxLat) / 2;
     const mPorGradoLon = 111_320 * Math.cos(latMedia * Math.PI / 180);
     const mPorGradoLat = 110_574;
     const anchoM = (maxLon - minLon) * mPorGradoLon;
     const altoM = (maxLat - minLat) * mPorGradoLat;
-    const width = Math.round(anchoM / RESOLUCION_M);
-    const height = Math.round(altoM / RESOLUCION_M);
+    const width = Math.round(anchoM / resolucionActiva);
+    const height = Math.round(altoM / resolucionActiva);
 
     // Fecha real de la escena — el Process API con salida PNG no la expone.
     let fechaEscena: string | null = null;
@@ -453,8 +550,8 @@ Deno.serve(async (req) => {
       const catalogBody = {
         collections: ["sentinel-2-l2a"],
         datetime: `${inicio.toISOString()}/${fin.toISOString()}`,
-        bbox: config.bbox,
-        limit: 20,
+        bbox: bboxActivo,
+        limit: 100,
         fields: { include: ["properties.datetime", "properties.eo:cloud_cover"], exclude: ["geometry", "assets", "links"] },
       };
       const rCat = await fetch(CATALOG_SEARCH_URL, {
@@ -465,14 +562,38 @@ Deno.serve(async (req) => {
       if (rCat.ok) {
         const catalogo = await rCat.json();
         const features: Array<{ properties?: { datetime?: string; "eo:cloud_cover"?: number } }> = catalogo?.features ?? [];
-        const conCC = features.filter(f => (f.properties?.["eo:cloud_cover"] ?? 100) <= 20);
+        // Para referencia histórica se exige nubosidad más baja (≤5%, no
+        // ≤20%): la ventana amplia (±45 días) da margen de sobra para
+        // encontrar una escena limpia, y el trazador de marching squares es
+        // sensible a nubosidad parcial no uniforme — una escena con más
+        // nubes tiende a fragmentar el contorno en muchas islas espurias
+        // (causa confirmada del intento fallido en 2017-09-11: 201 "islas"
+        // que en realidad eran ruido de trazado, no bancos de tierra reales).
+        const umbralCC = esReferenciaHistorica ? 5 : 20;
+        const conCC = features.filter(f => (f.properties?.["eo:cloud_cover"] ?? 100) <= umbralCC);
         const candidatas = conCC.length ? conCC : features;
         const elegida = [...candidatas].sort((a, b) =>
           (a.properties?.["eo:cloud_cover"] ?? 100) - (b.properties?.["eo:cloud_cover"] ?? 100))[0];
         fechaEscena = elegida?.properties?.datetime ?? null;
         nubosidadEscena = elegida?.properties?.["eo:cloud_cover"] ?? null;
+
+        // Modo diagnóstico: devuelve todas las candidatas del Catalog API
+        // sin llamar al Process API ni persistir nada — para depurar por qué
+        // una fecha de referencia histórica da un resultado corrupto sin
+        // gastar más invocaciones de producción ni ensuciar la tabla.
+        if (body?.debug_catalogo === true) {
+          return json({
+            ok: true, debug: true, ventana: { desde: inicio.toISOString(), hasta: fin.toISOString() },
+            total_features: features.length, umbral_cc_aplicado: umbralCC,
+            candidatas: features.map(f => ({ fecha: f.properties?.datetime, nubosidad: f.properties?.["eo:cloud_cover"] })),
+            elegida: { fecha: fechaEscena, nubosidad: nubosidadEscena },
+          }, 200);
+        }
+      } else if (body?.debug_catalogo === true) {
+        return json({ ok: false, debug: true, error: `Catalog API HTTP ${rCat.status}: ${await rCat.text()}` }, 200);
       }
-    } catch {
+    } catch (errCat) {
+      if (body?.debug_catalogo === true) return json({ ok: false, debug: true, error: String(errCat) }, 200);
       // No bloquea la corrida: el Process API igual intenta con leastCC.
     }
 
@@ -486,12 +607,36 @@ Deno.serve(async (req) => {
       }, 200);
     }
 
+    // El bbox de esta presa (50x34.8km) cruza el límite entre tiles UTM de
+    // Sentinel-2 — UNA sola pasada del satélite casi nunca cubre el bbox
+    // completo (confirmado: la escena de 2017-09-11, 0.01% de nube, solo
+    // cubrió 27.7% del raster, dataMask=0 en el resto). Ampliar la ventana
+    // de fechas (probado ±3 y ±10 días, resultado IDÉNTICO en ambos) NO
+    // ayuda: con maxCloudCoverage muy bajo, "leastCC" sigue prefiriendo esa
+    // única escena limpia sobre cualquier otra con más nube, sin importar
+    // cuántos días de margen se den — el mosaico nunca se completa. La causa
+    // real es el umbral de nubosidad, no la ventana temporal: se relaja a 20
+    // (igual que el uso normal del cron mensual) para que el mosaico SÍ
+    // pueda completar la cobertura faltante con escenas vecinas de más nube
+    // (aceptable: esa nube cae fuera del área real del vaso la mayor parte
+    // del tiempo, y el umbral NDWI de agua no se ve afectado por nubes en
+    // zonas que no son el vaso).
+    const ventanaProcess = esReferenciaHistorica
+      ? (() => {
+          const centroEscena = new Date(fechaEscena!);
+          return {
+            from: new Date(centroEscena.getTime() - 20 * 86400000).toISOString(),
+            to: new Date(centroEscena.getTime() + 20 * 86400000).toISOString(),
+          };
+        })()
+      : { from: inicio.toISOString(), to: fin.toISOString() };
+
     const reqBody = {
       input: {
-        bounds: { bbox: config.bbox, properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" } },
+        bounds: { bbox: bboxActivo, properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" } },
         data: [{
           type: "sentinel-2-l2a",
-          dataFilter: { timeRange: { from: inicio.toISOString(), to: fin.toISOString() }, maxCloudCoverage: 20, mosaickingOrder: "leastCC" },
+          dataFilter: { timeRange: ventanaProcess, maxCloudCoverage: 20, mosaickingOrder: "leastCC" },
         }],
       },
       output: { width, height, responses: [{ identifier: "default", format: { type: "image/png" } }] },
@@ -510,13 +655,27 @@ Deno.serve(async (req) => {
     const umbralCodificado = Math.round((UMBRAL_NDWI + 1) * 30000);
 
     const mascaraCruda = new Uint8Array(W * H);
-    for (let p = 0; p < W * H; p++) mascaraCruda[p] = ndwiRaster[p] > umbralCodificado ? 1 : 0;
+    let pixelesConDato = 0;
+    for (let p = 0; p < W * H; p++) {
+      if (ndwiRaster[p] > 0) pixelesConDato++; // ndwiRaster[p]===0 codifica dataMask===0 (sin escena válida ese píxel)
+      mascaraCruda[p] = ndwiRaster[p] > umbralCodificado ? 1 : 0;
+    }
+    const pctCobertura = (pixelesConDato / (W * H)) * 100;
+
+    // Apertura morfológica SOLO para referencia histórica: con
+    // maxCloudCoverage relajado a 20 (necesario para completar cobertura de
+    // mosaico en escenas antiguas con menor revisita), el borde del cuerpo
+    // de agua queda con ruido de nubes/sombra mal clasificadas — confirmado
+    // visualmente en 2017-09-11 (85km², 174 islas, ratio_elongacion 9.16,
+    // absurdamente alto). 2 iteraciones podan protuberancias de hasta 2px
+    // de ancho sin afectar la forma real del vaso (decenas/cientos de px).
+    const mascaraLimpia = esReferenciaHistorica ? aperturaMorfologica(mascaraCruda, W, H, 2) : mascaraCruda;
 
     const anclaPx = {
       x: ((config.ancla.lon - minLon) / (maxLon - minLon)) * W,
       y: (1 - (config.ancla.lat - minLat) / (maxLat - minLat)) * H,
     };
-    const blobConAncla = manchaCercaDelAncla(mascaraCruda, W, H, anclaPx);
+    const blobConAncla = manchaCercaDelAncla(mascaraLimpia, W, H, anclaPx);
     const mascaraPrincipal = blobConAncla;
     const pixelesVaso = mascaraPrincipal.reduce((s, v) => s + v, 0);
     // Salvaguarda: ¿el blob seleccionado toca el borde del raster? Si el
@@ -529,13 +688,20 @@ Deno.serve(async (req) => {
     let blobTocaBorde = false;
     for (let x = 0; x < W && !blobTocaBorde; x++) { if (mascaraPrincipal[x] || mascaraPrincipal[(H - 1) * W + x]) blobTocaBorde = true; }
     for (let y = 0; y < H && !blobTocaBorde; y++) { if (mascaraPrincipal[y * W] || mascaraPrincipal[y * W + W - 1]) blobTocaBorde = true; }
-    const m2PorPixel = RESOLUCION_M * RESOLUCION_M;
+    const m2PorPixel = resolucionActiva * resolucionActiva;
     const areaVasoKm2 = (pixelesVaso * m2PorPixel) / 1_000_000;
 
     const ndwiEnmascarado = new Uint16Array(W * H);
     for (let p = 0; p < W * H; p++) ndwiEnmascarado[p] = mascaraPrincipal[p] ? ndwiRaster[p] : 0;
 
-    const { exterior, islas } = trazaContornoMarchingSquares(ndwiEnmascarado, W, H, umbralCodificado);
+    // Umbral de área mínima de isla: 3px² (default) para el ciclo normal
+    // (escenas ≤20% nube ya limpias); ~0.05km² (125px a 20m/pixel) para
+    // referencia histórica, donde maxCloudCoverage relajado a 20 (necesario
+    // para completar cobertura de mosaico, ver ventanaProcess arriba)
+    // produce islas espurias de nubes/sombra mal clasificadas — confirmado
+    // visualmente en 2017-09-11 (174 "islas", ruido en su mayoría).
+    const minPxIsla = esReferenciaHistorica ? 125 : 3;
+    const { exterior, islas } = trazaContornoMarchingSquares(ndwiEnmascarado, W, H, umbralCodificado, minPxIsla);
     if (!exterior.length) {
       return json({ ok: true, insertado: false, presa_id: presaId, fecha_escena: fechaEscena, mensaje: "Vectorización sin resultado (sin píxeles de agua sobre el umbral)." }, 200);
     }
@@ -598,29 +764,46 @@ Deno.serve(async (req) => {
     // KPI comparativos: delta vs. la fila más reciente ANTERIOR a esta fecha
     // (misma presa), y % respecto al máximo histórico del ciclo hasta esta
     // fecha inclusive — se consultan aquí, no se recalculan en el cliente.
-    const { data: anterior } = await supabase
-      .from("vaso_geometria_historico")
-      .select("area_km2, perimetro_km")
-      .eq("presa_id", presaId)
-      .lt("fecha_escena", fechaEscena)
-      .order("fecha_escena", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const { data: maximoHistorico } = await supabase
-      .from("vaso_geometria_historico")
-      .select("area_km2")
-      .eq("presa_id", presaId)
-      .lte("fecha_escena", fechaEscena)
-      .order("area_km2", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
+    // No aplican a una fila de referencia histórica puntual (ej. máxima
+    // extensión 2017): no tiene "mes anterior" dentro del ciclo agrícola
+    // actual, y mezclar su área en pct_del_maximo_ciclo rompería la
+    // semántica de esa columna para las filas del ciclo 2026 — se deja NULL.
     const areaKm2Redondeada = Number(areaVasoKm2.toFixed(3));
     const perimetroKmRedondeado = Number(perimetroKm.toFixed(3));
-    const maximoParaPct = maximoHistorico?.area_km2 != null
-      ? Math.max(maximoHistorico.area_km2, areaKm2Redondeada)
-      : areaKm2Redondeada;
+
+    let deltaAreaKm2: number | null = null;
+    let deltaPerimetroKm: number | null = null;
+    let pctDelMaximoCiclo: number | null = null;
+
+    if (!esReferenciaHistorica) {
+      const { data: anterior } = await supabase
+        .from("vaso_geometria_historico")
+        .select("area_km2, perimetro_km")
+        .eq("presa_id", presaId)
+        .eq("es_referencia_historica", false)
+        .lt("fecha_escena", fechaEscena)
+        .order("fecha_escena", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const { data: maximoHistorico } = await supabase
+        .from("vaso_geometria_historico")
+        .select("area_km2")
+        .eq("presa_id", presaId)
+        .eq("es_referencia_historica", false)
+        .lte("fecha_escena", fechaEscena)
+        .order("area_km2", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const maximoParaPct = maximoHistorico?.area_km2 != null
+        ? Math.max(maximoHistorico.area_km2, areaKm2Redondeada)
+        : areaKm2Redondeada;
+
+      deltaAreaKm2 = anterior ? Number((areaKm2Redondeada - anterior.area_km2).toFixed(3)) : null;
+      deltaPerimetroKm = anterior ? Number((perimetroKmRedondeado - anterior.perimetro_km).toFixed(3)) : null;
+      pctDelMaximoCiclo = maximoParaPct > 0 ? Number(((areaKm2Redondeada / maximoParaPct) * 100).toFixed(1)) : null;
+    }
 
     const fila = {
       presa_id: presaId,
@@ -632,12 +815,13 @@ Deno.serve(async (req) => {
       area_isla_mayor_km2: areaIslaMayorKm2 != null ? Number(areaIslaMayorKm2.toFixed(3)) : null,
       indice_compacidad: indiceCompacidad != null ? Number(indiceCompacidad.toFixed(4)) : null,
       ratio_elongacion: ratioElongacion != null ? Number(ratioElongacion.toFixed(2)) : null,
-      delta_area_km2: anterior ? Number((areaKm2Redondeada - anterior.area_km2).toFixed(3)) : null,
-      delta_perimetro_km: anterior ? Number((perimetroKmRedondeado - anterior.perimetro_km).toFixed(3)) : null,
-      pct_del_maximo_ciclo: maximoParaPct > 0 ? Number(((areaKm2Redondeada / maximoParaPct) * 100).toFixed(1)) : null,
-      resolucion_m: RESOLUCION_M,
-      bbox: config.bbox,
+      delta_area_km2: deltaAreaKm2,
+      delta_perimetro_km: deltaPerimetroKm,
+      pct_del_maximo_ciclo: pctDelMaximoCiclo,
+      resolucion_m: resolucionActiva,
+      bbox: bboxActivo,
       contorno_geojson: contornoGeoJSON,
+      es_referencia_historica: esReferenciaHistorica,
     };
 
     const { error: eUpsert } = await supabase
@@ -654,6 +838,8 @@ Deno.serve(async (req) => {
       delta_area_km2: fila.delta_area_km2, delta_perimetro_km: fila.delta_perimetro_km,
       pct_del_maximo_ciclo: fila.pct_del_maximo_ciclo,
       blob_toca_borde: blobTocaBorde,
+      pct_cobertura_raster: Number(pctCobertura.toFixed(1)),
+      es_referencia_historica: esReferenciaHistorica,
     }, 200);
   } catch (err) {
     return json({ error: String(err) }, 500);

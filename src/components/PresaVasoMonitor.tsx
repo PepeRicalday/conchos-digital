@@ -214,6 +214,85 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
         return () => { cancelado = true; };
     }, [data.presa_id]);
 
+    // Lecturas de campo (escala/almacenamiento) de esta presa — necesarias
+    // para la validación cruzada NDWI vs. curva batimétrica oficial: cada
+    // lectura de campo trae una elevación real, que la curva EAC oficial
+    // (data.curva) convierte en un área "esperada" para comparar contra el
+    // área que el satélite midió ese mes.
+    const [lecturasCampo, setLecturasCampo] = useState<{ fecha: string; escala_msnm: number }[]>([]);
+    useEffect(() => {
+        let cancelado = false;
+        supabase
+            .from('lecturas_presas')
+            .select('fecha, escala_msnm')
+            .eq('presa_id', data.presa_id)
+            .not('escala_msnm', 'is', null)
+            .order('fecha', { ascending: true })
+            .then(({ data: filas, error }) => {
+                if (cancelado) return;
+                setLecturasCampo(error || !filas ? [] : (filas as { fecha: string; escala_msnm: number }[]));
+            });
+        return () => { cancelado = true; };
+    }, [data.presa_id]);
+
+    // Interpola área (ha) para una elevación dada usando la curva EAC oficial
+    // — mismo principio que volumenPorElevacion, pero sobre area_ha en vez
+    // de volumen_mm3, para poder comparar contra area_km2 del satélite.
+    const areaPorElevacion = React.useCallback((elevacion: number): number | null => {
+        const curva = data.curva;
+        if (!curva || curva.length < 2) return null;
+        const pts = [...curva].filter(p => p.area_ha != null).sort((a, b) => a.elevacion_msnm - b.elevacion_msnm);
+        if (pts.length < 2) return null;
+        if (elevacion <= pts[0].elevacion_msnm) return pts[0].area_ha;
+        if (elevacion >= pts[pts.length - 1].elevacion_msnm) return pts[pts.length - 1].area_ha;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const a = pts[i], b = pts[i + 1];
+            if (elevacion >= a.elevacion_msnm && elevacion <= b.elevacion_msnm) {
+                const t = (elevacion - a.elevacion_msnm) / (b.elevacion_msnm - a.elevacion_msnm);
+                return (a.area_ha! + t * (b.area_ha! - a.area_ha!));
+            }
+        }
+        return null;
+    }, [data.curva]);
+
+    // Validación cruzada: por cada mes con geometría satelital, busca la
+    // lectura de campo más cercana en fecha (máx. 20 días de diferencia —
+    // más allá de eso el nivel pudo cambiar demasiado para que la comparación
+    // sea justa) y calcula el % de coincidencia entre el área esperada por la
+    // curva batimétrica oficial y el área medida por NDWI de Sentinel-2.
+    const UMBRAL_DIAS_VALIDACION = 20;
+    const validacionCruzada = useMemo(() => {
+        if (!historicoVaso.length || !lecturasCampo.length) return [];
+        return historicoVaso.map(fila => {
+            const tEscena = new Date(fila.fecha_escena).getTime();
+            let mejor: { fecha: string; escala_msnm: number } | null = null;
+            let mejorDiffDias = Infinity;
+            for (const lc of lecturasCampo) {
+                const diffDias = Math.abs(new Date(lc.fecha + 'T12:00:00Z').getTime() - tEscena) / 864e5;
+                if (diffDias < mejorDiffDias) { mejorDiffDias = diffDias; mejor = lc; }
+            }
+            if (!mejor || mejorDiffDias > UMBRAL_DIAS_VALIDACION) {
+                return { fecha_escena: fila.fecha_escena, areaSatelite: fila.area_km2, sinReferencia: true as const };
+            }
+            const areaEsperadaHa = areaPorElevacion(mejor.escala_msnm);
+            if (areaEsperadaHa === null) {
+                return { fecha_escena: fila.fecha_escena, areaSatelite: fila.area_km2, sinReferencia: true as const };
+            }
+            const areaEsperadaKm2 = areaEsperadaHa / 100;
+            const pctCoincidencia = areaEsperadaKm2 > 0 ? (fila.area_km2 / areaEsperadaKm2) * 100 : null;
+            return {
+                fecha_escena: fila.fecha_escena,
+                areaSatelite: fila.area_km2,
+                sinReferencia: false as const,
+                fechaLectura: mejor.fecha,
+                escalaLectura: mejor.escala_msnm,
+                diasDiferencia: Math.round(mejorDiffDias),
+                areaEsperadaKm2,
+                pctCoincidencia,
+            };
+        });
+    }, [historicoVaso, lecturasCampo, areaPorElevacion]);
+
     const primeraDelCiclo = historicoVaso[0] ?? null;
     const masReciente = historicoVaso.length ? historicoVaso[historicoVaso.length - 1] : null;
 
@@ -715,6 +794,43 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                     vectorizado con marching squares. Un hueco en la línea indica un mes sin escena confiable
                                     por nubosidad excesiva — nunca se registra como cero.
                                 </div>
+
+                                {validacionCruzada.some(v => !v.sinReferencia) && (
+                                    <div className="vaso-validacion-cruzada">
+                                        <div className="vaso-validacion-titulo">
+                                            Validación cruzada: satélite vs. curva batimétrica oficial
+                                        </div>
+                                        <div className="vaso-validacion-lista">
+                                            {validacionCruzada.filter(v => !v.sinReferencia).map(v => {
+                                                const pct = v.pctCoincidencia!;
+                                                const desvio = Math.abs(pct - 100);
+                                                const color = desvio <= 5 ? '#10b981' : desvio <= 12 ? '#f59e0b' : '#ef4444';
+                                                return (
+                                                    <div className="vaso-validacion-item" key={v.fecha_escena}>
+                                                        <div className="vaso-validacion-fecha">
+                                                            {new Date(v.fecha_escena).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Chihuahua' })}
+                                                        </div>
+                                                        <div className="vaso-validacion-barra">
+                                                            <div className="vaso-validacion-fill" style={{ width: `${Math.min(100, pct)}%`, background: color }} />
+                                                        </div>
+                                                        <div className="vaso-validacion-pct" style={{ color }}>{pct.toFixed(0)}%</div>
+                                                        <div className="vaso-validacion-detalle">
+                                                            {v.areaSatelite.toFixed(1)} km² satélite vs. {v.areaEsperadaKm2!.toFixed(1)} km² esperado
+                                                            (lectura de campo {new Date(v.fechaLectura! + 'T12:00:00Z').toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: 'America/Chihuahua' })},
+                                                            {' '}{v.diasDiferencia} día{v.diasDiferencia === 1 ? '' : 's'} de diferencia)
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="vaso-prediction" style={{ fontSize: 10, opacity: 0.6, marginTop: 8 }}>
+                                            Para cada mes con imagen satelital, se busca la lectura de campo (escala) más cercana en fecha
+                                            (máx. {UMBRAL_DIAS_VALIDACION} días de diferencia) y se interpola su área esperada sobre la curva
+                                            Elevación-Área-Capacidad oficial de la presa. 100% = coincidencia perfecta; desviaciones grandes
+                                            pueden indicar azolve, error de escala o simplemente el desfase de días entre ambas mediciones.
+                                        </div>
+                                    </div>
+                                )}
                             </>
                         )}
                     </div>
@@ -727,6 +843,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                 <InformeVasoInstitucional
                     nombrePresa={data.nombre}
                     historico={historicoVaso}
+                    validacionCruzada={validacionCruzada}
                     onClose={() => setMostrarInforme(false)}
                 />
             )}

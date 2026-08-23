@@ -362,6 +362,72 @@
     border: 1px solid rgba(16, 185, 129, 0.35);
 }
 
+/* Validación cruzada: área NDWI (satélite) vs. área esperada por la curva
+   batimétrica oficial (interpolada sobre la lectura de campo más cercana
+   en fecha) — una barra de coincidencia por mes con referencia disponible. */
+.vaso-validacion-cruzada {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.vaso-validacion-titulo {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    margin-bottom: 0.85rem;
+}
+
+.vaso-validacion-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.vaso-validacion-item {
+    display: grid;
+    grid-template-columns: 72px 1fr 44px;
+    align-items: center;
+    gap: 10px;
+    row-gap: 3px;
+}
+
+.vaso-validacion-fecha {
+    font-size: 0.7rem;
+    color: #cbd5e1;
+    text-transform: capitalize;
+    font-weight: 600;
+}
+
+.vaso-validacion-barra {
+    height: 8px;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 100px;
+    overflow: hidden;
+}
+
+.vaso-validacion-fill {
+    height: 100%;
+    border-radius: 100px;
+    transition: width 0.5s ease;
+}
+
+.vaso-validacion-pct {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-align: right;
+}
+
+.vaso-validacion-detalle {
+    grid-column: 1 / -1;
+    font-size: 0.65rem;
+    color: #64748b;
+    line-height: 1.4;
+}
+
 /* Galería mensual: un mini-mapa por cada mes del histórico en fila
    horizontal con scroll, todos dibujados sobre el MISMO bbox (ver
    calculaBboxComun) para que la progresión completa del vaso sea

@@ -1042,21 +1042,40 @@ const GeoMonitor = () => {
         };
     }, [fetchAllData]);
 
-    // Fullscreen Toggle (Prioridad 4)
+    // Fullscreen Toggle (Prioridad 4) — Safari en iPadOS/iOS no implementa el
+    // estándar sin prefijo para elementos arbitrarios (Element.requestFullscreen),
+    // solo webkitRequestFullscreen/webkitExitFullscreen/webkitFullscreenElement.
+    // El `?.()` sin fallback simplemente no hacía nada ahí (botón "muerto" en
+    // iPad, sin error visible). Mismo fix aplicado en VasoVisor3D.tsx.
     const toggleFullscreen = () => {
-        if (!document.fullscreenElement) {
-            containerRef.current?.requestFullscreen?.();
+        type ElementoConFullscreenWebkit = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+        type DocumentoConFullscreenWebkit = Document & {
+            webkitFullscreenElement?: Element | null;
+            webkitExitFullscreen?: () => Promise<void> | void;
+        };
+        const doc = document as DocumentoConFullscreenWebkit;
+        const elemento = containerRef.current as ElementoConFullscreenWebkit | null;
+        const enPantallaCompleta = !!(document.fullscreenElement || doc.webkitFullscreenElement);
+        if (!enPantallaCompleta) {
+            if (elemento?.requestFullscreen) elemento.requestFullscreen();
+            else elemento?.webkitRequestFullscreen?.();
             setIsFullscreen(true);
         } else {
-            document.exitFullscreen?.();
+            if (document.exitFullscreen) document.exitFullscreen();
+            else doc.webkitExitFullscreen?.();
             setIsFullscreen(false);
         }
     };
 
     useEffect(() => {
-        const handler = () => setIsFullscreen(!!document.fullscreenElement);
+        const doc = document as Document & { webkitFullscreenElement?: Element | null };
+        const handler = () => setIsFullscreen(!!(document.fullscreenElement || doc.webkitFullscreenElement));
         document.addEventListener('fullscreenchange', handler);
-        return () => document.removeEventListener('fullscreenchange', handler);
+        document.addEventListener('webkitfullscreenchange', handler);
+        return () => {
+            document.removeEventListener('fullscreenchange', handler);
+            document.removeEventListener('webkitfullscreenchange', handler);
+        };
     }, []);
     // Mapeo de distancias para el Río Conchos (36 km)
     const rioDistData = useMemo(() => {

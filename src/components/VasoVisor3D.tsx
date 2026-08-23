@@ -878,16 +878,43 @@ const VasoVisor3D: React.FC<VasoVisor3DProps> = ({ contornoGeojson: contornoGeoj
     // nativa) que ya usa GeoMonitor.tsx para su propio botón de pantalla
     // completa, aplicado aquí solo al contenedor del Canvas en vez de todo
     // el panel de GeoMonitor.
+    //
+    // Safari en iPadOS/iOS no implementa el estándar sin prefijo para
+    // elementos arbitrarios (Element.requestFullscreen) — solo lo expone
+    // como webkitRequestFullscreen/webkitExitFullscreen/
+    // webkitFullscreenElement. El código anterior solo probaba la API
+    // estándar con `?.()`, que en Safari es simplemente `undefined` — no
+    // lanza error, pero tampoco hace nada, así que el botón se sentía
+    // "muerto" en iPad (reportado: "no me abre la pantalla completa").
+    // Los tipos de WebKit no están en lib.dom.d.ts estándar, de ahí el cast.
+    type ElementoConFullscreenWebkit = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+    type DocumentoConFullscreenWebkit = Document & {
+        webkitFullscreenElement?: Element | null;
+        webkitExitFullscreen?: () => Promise<void> | void;
+    };
     const contenedorRef = useRef<HTMLDivElement>(null);
     const [esPantallaCompleta, setEsPantallaCompleta] = useState(false);
     useEffect(() => {
-        const onFullscreenChange = () => setEsPantallaCompleta(!!document.fullscreenElement);
+        const doc = document as DocumentoConFullscreenWebkit;
+        const onFullscreenChange = () => setEsPantallaCompleta(!!(document.fullscreenElement || doc.webkitFullscreenElement));
         document.addEventListener('fullscreenchange', onFullscreenChange);
-        return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+        return () => {
+            document.removeEventListener('fullscreenchange', onFullscreenChange);
+            document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
+        };
     }, []);
     const alternarPantallaCompleta = () => {
-        if (!document.fullscreenElement) contenedorRef.current?.requestFullscreen?.();
-        else document.exitFullscreen?.();
+        const doc = document as DocumentoConFullscreenWebkit;
+        const elemento = contenedorRef.current as ElementoConFullscreenWebkit | null;
+        const enPantallaCompleta = !!(document.fullscreenElement || doc.webkitFullscreenElement);
+        if (!enPantallaCompleta) {
+            if (elemento?.requestFullscreen) elemento.requestFullscreen();
+            else elemento?.webkitRequestFullscreen?.();
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else doc.webkitExitFullscreen?.();
+        }
     };
 
     // Origen local común: centro del bbox del DEM (la única referencia

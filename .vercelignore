@@ -1,0 +1,15 @@
+# Datos crudos de fotogrametría/dron (3.4GB) — NUNCA parte del deploy web.
+# El único artefacto que sí usa la app es public/modelos3d/cortina-boquilla/
+# (cortina.obj/.mtl + textura, ~13MB), que vive fuera de esta carpeta y por
+# tanto no se ve afectado por esta exclusión.
+Presa Boquilla/
+
+# Archivos de trabajo temporal de sesiones de desarrollo — nunca parte del deploy.
+scratchpad/
+
+# Ya cubiertos por .gitignore pero el CLI de Vercel no lo lee automáticamente
+# al subir el working directory completo (a diferencia de git).
+node_modules
+.git
+dist
+dist-ssr

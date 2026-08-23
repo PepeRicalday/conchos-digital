@@ -595,7 +595,8 @@
    modo fullscreen, dejando franjas negras alrededor en vez de aprovechar
    la pantalla completa. border-radius se quita en fullscreen (esquinas
    redondeadas no tienen sentido a pantalla completa). */
-.vaso3d-canvas-wrap:fullscreen {
+.vaso3d-canvas-wrap:fullscreen,
+.vaso3d-canvas-wrap:-webkit-full-screen {
     height: 100vh;
     border-radius: 0;
 }

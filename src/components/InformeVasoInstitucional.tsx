@@ -30,10 +30,17 @@ interface FilaValidacionCruzada {
     pctCoincidencia?: number | null;
 }
 
+interface TexturaSatelital {
+    urlPublica: string;
+    bbox: [number, number, number, number];
+    fechaEscena: string | null;
+}
+
 export interface InformeVasoInstitucionalProps {
     nombrePresa: string;
     historico: GeometriaVasoFila[];
     validacionCruzada?: FilaValidacionCruzada[];
+    texturaSatelital?: TexturaSatelital | null;
     onClose: () => void;
 }
 
@@ -89,7 +96,7 @@ function poligonoASvgPath(
         .join(' ');
 }
 
-const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nombrePresa, historico, validacionCruzada = [], onClose }) => {
+const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nombrePresa, historico, validacionCruzada = [], texturaSatelital = null, onClose }) => {
     const generateHtml = useCallback(() => {
         const now = new Date();
         const dateDMY = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Chihuahua' });
@@ -139,6 +146,46 @@ const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nom
                 + '<div style="display:flex;gap:16px;margin-top:6px;font-size:7pt;color:#555">'
                 + '<span><i style="display:inline-block;width:9px;height:9px;border:2px dashed #94a3b8;border-radius:2px;margin-right:4px"></i>Apertura de ciclo (' + fechaDMY(primero.fecha_escena) + ')</span>'
                 + '<span><i style="display:inline-block;width:9px;height:9px;background:rgba(107,45,45,0.25);border:2px solid #6B2D2D;border-radius:2px;margin-right:4px"></i>Más reciente (' + fechaDMY(ultimo.fecha_escena) + ')</span>'
+                + '</div>';
+        })();
+
+        // ── Contexto satelital del vaso: imagen true-color real (Sentinel-2,
+        // misma fuente que TerrenoMesh en VasoVisor3D.tsx) con el contorno
+        // NDWI del mes más reciente superpuesto — da referencia visual real
+        // del entorno (sierra, vegetación, brazos del embalse) que el
+        // polígono vectorizado solo por sí solo no transmite. ──
+        const contextoSatelitalHtml = (() => {
+            if (!texturaSatelital || !ultimo) return '';
+            const [minLon, minLat, maxLon, maxLat] = texturaSatelital.bbox;
+            const cosLat = Math.cos((minLat + maxLat) / 2 * Math.PI / 180);
+            const bboxTextura = { minLon, maxLon, minLat, maxLat, cosLat };
+            // Alto derivado del aspect ratio REAL del bbox (con corrección
+            // cosLat), no un valor fijo arbitrario: el <img> real se
+            // renderiza a su propio aspect ratio (width:100%;height:auto),
+            // y el <svg> del overlay se estira para llenar ese mismo
+            // contenedor — si el viewBox declarado no comparte esa
+            // proporción, preserveAspectRatio (por defecto xMidYMid meet)
+            // desplaza/distorsiona el contorno respecto a la imagen real
+            // (reportado: "el mapa y el polígono agua están desfasados").
+            // anilloASvgPath ya asume esta misma convención (spanLon/spanLat
+            // con cosLat), así que basta con que W/H compartan esa razón.
+            const W = 680;
+            const H = Math.round(W / ((maxLon - minLon) * cosLat / (maxLat - minLat)));
+            const pathUltimo = poligonoASvgPath(ultimo.contorno_geojson.coordinates, bboxTextura, W, H);
+            const fechaTextura = texturaSatelital.fechaEscena ? fechaDMY(texturaSatelital.fechaEscena) : '—';
+            return '<div class="sec-block" style="margin-top:8px">'
+                + '<div class="sec-title">Contexto Satelital del Vaso ' + nombrePresa + ' <small>terreno real · Sentinel-2 true color</small></div>'
+                + '<div style="position:relative;border-radius:6px;overflow:hidden;border:1px solid #e5e0e0">'
+                + '<img src="' + texturaSatelital.urlPublica + '" style="display:block;width:100%;height:auto" alt="Imagen satelital del vaso"/>'
+                + '<svg viewBox="0 0 ' + W + ' ' + H + '" style="position:absolute;inset:0;width:100%;height:100%">'
+                + '<path d="' + pathUltimo + '" fill="rgba(34,211,238,0.14)" stroke="#22d3ee" stroke-width="2" fill-rule="evenodd"/>'
+                + '</svg>'
+                + '<div style="position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.55);color:#fff;font-size:6.5pt;font-weight:700;letter-spacing:0.5px;padding:3px 8px;border-radius:100px;text-transform:uppercase">Terreno real + imagen satelital (Sentinel-2)</div>'
+                + '</div>'
+                + '<div style="display:flex;gap:16px;margin-top:6px;font-size:7pt;color:#555">'
+                + '<span><i style="display:inline-block;width:9px;height:9px;background:rgba(34,211,238,0.25);border:2px solid #22d3ee;border-radius:2px;margin-right:4px"></i>Contorno de vaso · ' + fechaDMY(ultimo.fecha_escena) + '</span>'
+                + '<span style="color:#888">Imagen satelital: ' + fechaTextura + '</span>'
+                + '</div>'
                 + '</div>';
         })();
 
@@ -274,6 +321,7 @@ const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nom
             + '.nota{background:#fffbf0;border:1px solid #f0d080;border-radius:3px;padding:5px 7px;font-size:6.5pt;line-height:1.5;margin-top:5px}'
             + '.kpi-row{display:flex;gap:8px;margin-bottom:8px}'
             + '.kpi{flex:1;border:1px solid #e5e0e0;border-radius:6px;padding:6px 8px;text-align:center;background:#fafafa}'
+            + '.kpi-primary{background:#fbf5f5;border-color:#e0c8c8;box-shadow:inset 0 2px 0 #6B2D2D}'
             + '.kpi-lbl{font-size:6.3pt;color:#666;text-transform:uppercase;letter-spacing:0.4px;line-height:1.2}'
             + '.kpi-val{font-size:14pt;font-weight:900;color:#6B2D2D;line-height:1.15;margin:2px 0}'
             + '.kpi-unit{font-size:6.5pt;color:#888}'
@@ -309,8 +357,8 @@ const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nom
 
             // ── KPIs resumen ──
             + '<div class="kpi-row">'
-            + '<div class="kpi"><div class="kpi-lbl">Superficie<br>Más Reciente</div><div class="kpi-val">' + N1(ultimo?.area_km2) + '</div><div class="kpi-unit">km²</div></div>'
-            + '<div class="kpi"><div class="kpi-lbl">Variación<br>del Ciclo</div><div class="kpi-val" style="color:' + (deltaArea != null && deltaArea < 0 ? '#dc2626' : '#16a34a') + '">' + (deltaArea != null ? (deltaArea >= 0 ? '+' : '') + N1(deltaArea) : '—') + '</div><div class="kpi-unit">km²</div></div>'
+            + '<div class="kpi kpi-primary"><div class="kpi-lbl">Superficie<br>Más Reciente</div><div class="kpi-val">' + N1(ultimo?.area_km2) + '</div><div class="kpi-unit">km²' + (ultimo?.pct_del_maximo_ciclo != null ? ' · ' + N0(ultimo.pct_del_maximo_ciclo) + '% del máx.' : '') + '</div></div>'
+            + '<div class="kpi"><div class="kpi-lbl">Variación<br>del Ciclo</div><div class="kpi-val" style="color:' + (deltaArea != null && deltaArea < 0 ? '#dc2626' : '#16a34a') + '">' + (deltaArea != null ? (deltaArea < -0.5 ? '&#8595; ' : deltaArea > 0.5 ? '&#8593; ' : '') + (deltaArea >= 0 ? '+' : '') + N1(deltaArea) : '—') + '</div><div class="kpi-unit">km²</div></div>'
             + '<div class="kpi"><div class="kpi-lbl">Perímetro<br>Más Reciente</div><div class="kpi-val">' + N0(ultimo?.perimetro_km) + '</div><div class="kpi-unit">km' + (deltaPerimetro != null ? ' · Δ ' + (deltaPerimetro >= 0 ? '+' : '') + N0(deltaPerimetro) + ' km' : '') + '</div></div>'
             + '<div class="kpi"><div class="kpi-lbl">Máximo del<br>Ciclo</div><div class="kpi-val">' + N1(areaMax) + '</div><div class="kpi-unit">km²</div></div>'
             + '<div class="kpi"><div class="kpi-lbl">Mínimo del<br>Ciclo</div><div class="kpi-val">' + N1(areaMin) + '</div><div class="kpi-unit">km²</div></div>'
@@ -331,6 +379,9 @@ const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nom
                 + '<div class="sec-title">Comparativo: Apertura de Ciclo vs. Más Reciente</div>'
                 + comparativoHtml
                 + '</div>' : '')
+
+            // ── Contexto satelital del vaso (imagen real del terreno) ──
+            + contextoSatelitalHtml
 
             // ── Tendencia de área y perímetro ──
             + '<div class="sec-block" style="margin-top:8px">'

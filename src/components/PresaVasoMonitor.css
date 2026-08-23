@@ -430,6 +430,253 @@
     line-height: 1.4;
 }
 
+/* Visor 3D del cuerpo de agua (VasoVisor3D.tsx) — Canvas de React Three
+   Fiber con overlay de badge/leyenda posicionado encima. */
+.vaso3d-canvas-wrap {
+    position: relative;
+    width: 100%;
+    height: 460px;
+    border-radius: 14px;
+    overflow: hidden;
+    background: radial-gradient(ellipse at center, #0f1b2e 0%, #020617 100%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.vaso3d-overlay {
+    position: absolute;
+    top: 12px;
+    left: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    pointer-events: none;
+}
+
+.vaso3d-badge {
+    align-self: flex-start;
+    font-size: 0.6rem;
+    font-weight: 800;
+    padding: 3px 9px;
+    border-radius: 100px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.14);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.vaso3d-caption {
+    font-size: 0.72rem;
+    color: #cbd5e1;
+    font-weight: 600;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.vaso3d-empty {
+    padding: 2rem;
+    text-align: center;
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+/* Aviso de pérdida de contexto WebGL — cubre el Canvas congelado con un
+   mensaje claro + botón de reintento (fuerza remount, nuevo contexto WebGL
+   desde cero) en vez de dejar la escena en blanco/negro sin explicación. */
+.vaso3d-contexto-perdido {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 2rem;
+    text-align: center;
+    background: rgba(2, 6, 23, 0.92);
+}
+
+.vaso3d-contexto-perdido span {
+    max-width: 420px;
+    color: #cbd5e1;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.vaso3d-contexto-perdido button {
+    padding: 8px 18px;
+    background: rgba(34, 211, 238, 0.15);
+    border: 1px solid rgba(34, 211, 238, 0.4);
+    color: #22d3ee;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+}
+
+.vaso3d-contexto-perdido button:hover {
+    background: rgba(34, 211, 238, 0.28);
+}
+
+.vaso3d-toggle-btn {
+    padding: 6px 12px;
+    background: rgba(34, 211, 238, 0.12);
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    color: #22d3ee;
+    border-radius: 8px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.vaso3d-toggle-btn:hover {
+    background: rgba(34, 211, 238, 0.22);
+}
+
+/* Contenedor de los botones flotantes del visor 3D (pantalla completa +
+   encuadrar) — esquina inferior derecha, para no tapar el badge/caption de
+   la esquina superior izquierda. Los botones individuales ya NO llevan su
+   propio position:absolute — viven en flujo normal dentro de este wrapper. */
+.vaso3d-controles-flotantes {
+    position: absolute;
+    bottom: 12px;
+    right: 14px;
+    display: flex;
+    gap: 8px;
+    z-index: 5;
+}
+
+.vaso3d-controles-flotantes .vaso3d-toggle-btn {
+    padding: 6px 12px;
+    background: rgba(15, 23, 42, 0.75);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    border-color: rgba(148, 163, 184, 0.3);
+    color: #e2e8f0;
+}
+
+.vaso3d-controles-flotantes .vaso3d-toggle-btn:hover {
+    background: rgba(30, 41, 59, 0.9);
+    border-color: rgba(34, 211, 238, 0.4);
+}
+
+/* Botón "Encuadrar" del visor 3D: re-centra la cámara en un vaso grande
+   donde es fácil perderse orbitando/haciendo zoom. */
+.vaso3d-encuadrar-btn {
+    padding: 6px 12px;
+    background: rgba(15, 23, 42, 0.75);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    color: #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+}
+
+.vaso3d-encuadrar-btn:hover {
+    background: rgba(30, 41, 59, 0.9);
+    border-color: rgba(34, 211, 238, 0.4);
+}
+
+/* Pantalla completa: el navegador expande .vaso3d-canvas-wrap a ocupar toda
+   la pantalla — sin esto, su height:460px fijo (pensado para vivir dentro
+   del modal de PresaVasoMonitor) se mantendría igual de pequeño incluso en
+   modo fullscreen, dejando franjas negras alrededor en vez de aprovechar
+   la pantalla completa. border-radius se quita en fullscreen (esquinas
+   redondeadas no tienen sentido a pantalla completa). */
+.vaso3d-canvas-wrap:fullscreen {
+    height: 100vh;
+    border-radius: 0;
+}
+
+/* Índice de Fragmentación — semáforo de conectividad hidráulica. Color por
+   nivel via clase modificadora (nivel-normal/atencion/critico), mismo patrón
+   de currentColor que .vaso-alert-box para heredar al borde izquierdo. */
+.vaso-fragmentacion-box {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-left: 4px solid currentColor;
+    border-radius: 12px;
+    padding: 0.9rem 1.1rem;
+    margin-bottom: 1.25rem;
+}
+
+.vaso-fragmentacion-box.nivel-normal { color: #10b981; }
+.vaso-fragmentacion-box.nivel-atencion { color: #f59e0b; }
+.vaso-fragmentacion-box.nivel-critico { color: #ef4444; }
+
+.vaso-fragmentacion-semaforo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0.5rem;
+}
+
+.vaso-fragmentacion-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 10px currentColor;
+    flex-shrink: 0;
+}
+
+.vaso-fragmentacion-nivel {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: currentColor;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.vaso-fragmentacion-detalle {
+    font-size: 0.78rem;
+    color: #cbd5e1;
+    line-height: 1.5;
+}
+
+.vaso-fragmentacion-detalle strong {
+    color: currentColor;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Gráfica de Desviación: área esperada CONAGUA vs. área NDWI, dentro del
+   bloque de validación cruzada existente. */
+.vaso-desviacion-chart {
+    margin: 0.75rem 0 1.25rem;
+    padding: 0.75rem 0.5rem 0.25rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+}
+
+/* Recalibración Dinámica: resumen del factor de corrección por banda de
+   elevación (curva_batimetrica_correccion), poblado por el job mensual
+   recalibra-curva-batimetrica — mismo patrón visual que
+   .vaso-validacion-cruzada, con el que convive en la misma sección. */
+.vaso-recalibracion {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.vaso-recalibracion-resumen {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    margin-top: 0.85rem;
+}
+
 /* Galería mensual: un mini-mapa por cada mes del histórico en fila
    horizontal con scroll, todos dibujados sobre el MISMO bbox (ver
    calculaBboxComun) para que la progresión completa del vaso sea
@@ -523,6 +770,33 @@
 .vaso-mes-selector select:focus {
     outline: 2px solid rgba(34, 211, 238, 0.5);
     outline-offset: 1px;
+}
+
+/* Filtro de Renderizado Espacial — toggle del visor de azolve. Mismo tamaño
+   que un select de vaso-mes-selector para alinear en la misma fila. */
+.vaso-azolve-toggle {
+    align-self: center;
+    padding: 7px 14px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #f87171;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.vaso-azolve-toggle:hover {
+    background: rgba(239, 68, 68, 0.18);
+}
+
+.vaso-azolve-toggle.activo {
+    background: rgba(239, 68, 68, 0.28);
+    border-color: #ef4444;
+    color: #fecaca;
 }
 
 /* Mini-mapa comparativo: contornos de los dos meses elegidos arriba

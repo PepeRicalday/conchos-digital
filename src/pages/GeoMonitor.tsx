@@ -986,11 +986,34 @@ const GeoMonitor = () => {
         } finally {
             setLoading(false);
         }
-    }, [activeEvent]);
+        // Deps por CAMPO primitivo, no [activeEvent]: useHydricEvents entrega un
+        // objeto nuevo (nueva referencia) en cada fetch aunque el protocolo activo
+        // no haya cambiado — con [activeEvent] como dependencia, fetchAllData se
+        // recreaba en cada uno de esos fetches, lo que reiniciaba el useEffect de
+        // suscripciones realtime de abajo (desmonta+remonta las 5 suscripciones y
+        // dispara un fetch completo) sin que hubiera ningún cambio real que
+        // justificarlo — causa del "cada ventana se recarga periódicamente".
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeEvent?.evento_tipo, activeEvent?.hora_apertura_real, activeEvent?.gasto_solicitado_m3s]);
 
+    // Reloj del header: separado del efecto de datos de abajo porque
+    // fetchAllData se recrea (useCallback con dep [activeEvent]) cada vez que
+    // useHydricEvents entrega un objeto activeEvent nuevo — Supabase devuelve
+    // una referencia nueva en cada fetch aunque el protocolo activo no haya
+    // cambiado (mismo id, mismos campos). Si el timer viviera en el mismo
+    // efecto que las suscripciones realtime (deps [fetchAllData]), cada
+    // cambio de referencia de activeEvent reiniciaba TODO: timer, fetch
+    // completo y las 5 suscripciones — el "cada ventana se recarga
+    // periódicamente" reportado. 60s (antes 1s): formatTime solo muestra
+    // hora:minuto, sin segundos, así que 1s eran 60× re-renders del árbol
+    // completo (mapa Leaflet con cientos de marcadores/popups + varios
+    // useMemo pesados) sin ningún cambio visible en el reloj.
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 60_000);
+        return () => clearInterval(timer);
+    }, []);
 
     useEffect(() => {
-        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         setTimeout(() => setMapReady(true), 100);
         fetchAllData();
 
@@ -1010,7 +1033,6 @@ const GeoMonitor = () => {
         const refreshInterval = setInterval(fetchAllData, 300_000);
 
         return () => {
-            clearInterval(timer);
             clearInterval(refreshInterval);
             unsubEscalas();
             unsubPresas();

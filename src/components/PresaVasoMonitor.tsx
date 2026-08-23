@@ -1,6 +1,12 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { Droplets, Gauge, Activity, AlertTriangle, TrendingUp, ChevronLeft, ChevronRight, Info, Satellite, RefreshCw, CalendarRange, FileText } from 'lucide-react';
+import React, { useMemo, useState, useEffect, useCallback, Suspense, lazy } from 'react';
+import { Droplets, Gauge, Activity, AlertTriangle, TrendingUp, ChevronLeft, ChevronRight, Info, Satellite, RefreshCw, CalendarRange, FileText, Box } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
+
+// Lazy: Three.js + React Three Fiber son pesados (~600KB) y la mayoría de
+// aperturas de este modal no van a activar el visor 3D — se descarga solo
+// cuando el usuario hace clic en "Ver en 3D", no en el bundle inicial del
+// modal (que ya carga Leaflet/ECharts vía GeoMonitor).
+const VasoVisor3D = lazy(() => import('./VasoVisor3D'));
 import './PresaVasoMonitor.css';
 import { detectaSuperficieVaso, type SuperficieVaso } from '../utils/mapaSatelital';
 import { supabase } from '../lib/supabase';
@@ -198,21 +204,81 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
     const [historicoVaso, setHistoricoVaso] = useState<GeometriaVasoFila[]>([]);
     const [cargandoHistorico, setCargandoHistorico] = useState(false);
 
+    // Textura satelital true-color del terreno (misma fuente que usa
+    // TerrenoMesh en VasoVisor3D.tsx, tabla textura_satelital_terreno) —
+    // se pasa al informe institucional para la sección "Contexto Satelital
+    // del Vaso" (imagen real del entorno, no solo el polígono vectorizado).
+    const [texturaSatelital, setTexturaSatelital] = useState<{ urlPublica: string; bbox: [number, number, number, number]; fechaEscena: string | null } | null>(null);
     useEffect(() => {
         let cancelado = false;
-        setCargandoHistorico(true);
         supabase
-            .from('vaso_geometria_historico')
-            .select('fecha_escena, area_km2, perimetro_km, num_islas, ratio_elongacion, delta_area_km2, pct_del_maximo_ciclo, contorno_geojson')
+            .from('textura_satelital_terreno')
+            .select('bbox, url_publica, fecha_escena')
             .eq('presa_id', data.presa_id)
-            .order('fecha_escena', { ascending: true })
-            .then(({ data: filas, error }) => {
-                if (cancelado) return;
-                setHistoricoVaso(error || !filas ? [] : (filas as GeometriaVasoFila[]));
-                setCargandoHistorico(false);
+            .maybeSingle()
+            .then(({ data: fila, error }) => {
+                if (cancelado || error || !fila) return;
+                setTexturaSatelital({
+                    urlPublica: fila.url_publica,
+                    bbox: fila.bbox as [number, number, number, number],
+                    fechaEscena: fila.fecha_escena,
+                });
             });
         return () => { cancelado = true; };
     }, [data.presa_id]);
+
+    // Extraído a función reutilizable: el useEffect inicial la llama al
+    // montar/cambiar de presa, y el botón "Actualizar mes actual" (más
+    // abajo) la vuelve a llamar tras invocar sentinel-ndwi-vaso-sync a
+    // mano, para refrescar la galería sin esperar al cron del día 3.
+    const recargarHistorico = useCallback(async () => {
+        const { data: filas, error } = await supabase
+            .from('vaso_geometria_historico')
+            .select('fecha_escena, area_km2, perimetro_km, num_islas, ratio_elongacion, delta_area_km2, pct_del_maximo_ciclo, contorno_geojson')
+            .eq('presa_id', data.presa_id)
+            .order('fecha_escena', { ascending: true });
+        setHistoricoVaso(error || !filas ? [] : (filas as GeometriaVasoFila[]));
+    }, [data.presa_id]);
+
+    useEffect(() => {
+        let cancelado = false;
+        setCargandoHistorico(true);
+        recargarHistorico().then(() => { if (!cancelado) setCargandoHistorico(false); });
+        return () => { cancelado = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data.presa_id]);
+
+    // Sincronización manual del mes en curso — mismo endpoint que invoca el
+    // cron automático (día 3 de cada mes, "últimos 30 días"), pero
+    // disparable a demanda: útil para traer el mes actual sin esperar esa
+    // fecha, o como respaldo si el cron falla (ver migración
+    // 20260823100000_cron_ndwi_vaso_sync.sql). Sin parámetro "mes": la
+    // función usa su propia ventana de últimos 30 días, igual que el cron.
+    const [sincronizandoMes, setSincronizandoMes] = useState(false);
+    const [resultadoSyncManual, setResultadoSyncManual] = useState<string | null>(null);
+    const sincronizarMesActual = useCallback(async () => {
+        setSincronizandoMes(true);
+        setResultadoSyncManual(null);
+        try {
+            const { data: resultado, error } = await supabase.functions.invoke('sentinel-ndwi-vaso-sync', {
+                body: { presa_id: data.presa_id },
+            });
+            if (error) throw error;
+            if (resultado?.error) throw new Error(resultado.error);
+            if (resultado?.insertado) {
+                await recargarHistorico();
+                setResultadoSyncManual(
+                    `Actualizado: escena del ${new Date(resultado.fecha_escena).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Chihuahua' })} (${resultado.area_km2} km²).`
+                );
+            } else {
+                setResultadoSyncManual(resultado?.mensaje || 'Sin escena nueva disponible en la ventana actual.');
+            }
+        } catch (err) {
+            setResultadoSyncManual(`Error: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+            setSincronizandoMes(false);
+        }
+    }, [data.presa_id, recargarHistorico]);
 
     // Lecturas de campo (escala/almacenamiento) de esta presa — necesarias
     // para la validación cruzada NDWI vs. curva batimétrica oficial: cada
@@ -234,6 +300,43 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
             });
         return () => { cancelado = true; };
     }, [data.presa_id]);
+
+    // Recalibración Dinámica (factor de corrección vs. curva oficial CONAGUA):
+    // poblada por el job mensual recalibra-curva-batimetrica, que compara área
+    // NDWI real contra el área que la curva oficial predice en cada lectura de
+    // campo. La curva oficial (data.curva) NUNCA se modifica — esto es un
+    // ajuste sugerido aparte, mostrado como referencia junto a la validación
+    // cruzada existente, no usado por el simulador de nivel.
+    interface FactorCorreccion { banda_elevacion_msnm: number; factor_area: number; desviacion_pct_prom: number; n_observaciones: number }
+    const [curvaCorregida, setCurvaCorregida] = useState<FactorCorreccion[]>([]);
+    useEffect(() => {
+        let cancelado = false;
+        supabase
+            .from('curva_batimetrica_correccion')
+            .select('banda_elevacion_msnm, factor_area, desviacion_pct_prom, n_observaciones')
+            .eq('presa_id', data.presa_id)
+            .order('banda_elevacion_msnm', { ascending: true })
+            .then(({ data: filas, error }) => {
+                if (cancelado) return;
+                setCurvaCorregida(error || !filas ? [] : (filas as FactorCorreccion[]));
+            });
+        return () => { cancelado = true; };
+    }, [data.presa_id]);
+
+    // Resumen de recalibración: desviación promedio ponderada por número de
+    // observaciones (una banda con 1 sola escena pesa menos que una con 5) y
+    // la banda con mayor azolve detectado (factor más alejado de 1.0), para
+    // no obligar al usuario a leer la tabla completa de bandas para entender
+    // "¿esta presa tiene azolve relevante o no?".
+    const resumenRecalibracion = useMemo(() => {
+        if (!curvaCorregida.length) return null;
+        const totalObs = curvaCorregida.reduce((s, f) => s + f.n_observaciones, 0);
+        const desviacionPonderada = totalObs > 0
+            ? curvaCorregida.reduce((s, f) => s + f.desviacion_pct_prom * f.n_observaciones, 0) / totalObs
+            : 0;
+        const bandaMayorAzolve = [...curvaCorregida].sort((a, b) => a.desviacion_pct_prom - b.desviacion_pct_prom)[0];
+        return { desviacionPonderada, bandaMayorAzolve, totalBandas: curvaCorregida.length };
+    }, [curvaCorregida]);
 
     // Interpola área (ha) para una elevación dada usando la curva EAC oficial
     // — mismo principio que volumenPorElevacion, pero sobre area_ha en vez
@@ -293,8 +396,97 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
         });
     }, [historicoVaso, lecturasCampo, areaPorElevacion]);
 
+    // Gráfica de Desviación: contrasta directamente el área esperada por la
+    // curva batimétrica oficial (CONAGUA) contra el área real medida por
+    // NDWI de Sentinel-2, mes a mes — antes esta comparación solo existía
+    // como barra de "% de coincidencia" (vaso-validacion-cruzada, abajo),
+    // que resume la brecha en un solo número pero no deja ver la forma de
+    // ambas curvas ni hacia dónde diverge la tendencia con el tiempo.
+    const opcionesDesviacionConagua = useMemo(() => {
+        const filas = validacionCruzada.filter(v => !v.sinReferencia && v.areaEsperadaKm2 != null);
+        if (filas.length < 2) return null;
+        const fechas = filas.map(v =>
+            new Date(v.fecha_escena).toLocaleDateString('es-MX', { month: 'short', year: '2-digit', timeZone: 'America/Chihuahua' })
+        );
+        return {
+            grid: { left: 50, right: 20, top: 36, bottom: 30 },
+            tooltip: { trigger: 'axis' },
+            legend: {
+                data: ['Área esperada (CONAGUA)', 'Área medida (NDWI)'],
+                textStyle: { color: '#94a3b8', fontSize: 10 }, top: 0,
+            },
+            xAxis: { type: 'category', data: fechas, axisLabel: { color: '#64748b', fontSize: 10 } },
+            yAxis: {
+                type: 'value', name: 'km²',
+                axisLabel: { color: '#64748b', fontSize: 10 },
+                splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)' } },
+            },
+            series: [
+                {
+                    name: 'Área esperada (CONAGUA)', type: 'line', smooth: true,
+                    data: filas.map(v => v.areaEsperadaKm2),
+                    lineStyle: { color: '#94a3b8', width: 2, type: 'dashed' },
+                    itemStyle: { color: '#94a3b8' },
+                },
+                {
+                    name: 'Área medida (NDWI)', type: 'line', smooth: true,
+                    data: filas.map(v => v.areaSatelite),
+                    lineStyle: { color: '#22d3ee', width: 2.5 },
+                    itemStyle: { color: '#22d3ee' },
+                    areaStyle: { color: 'rgba(34,211,238,0.08)' },
+                },
+            ],
+        };
+    }, [validacionCruzada]);
+
     const primeraDelCiclo = historicoVaso[0] ?? null;
     const masReciente = historicoVaso.length ? historicoVaso[historicoVaso.length - 1] : null;
+
+    // Índice de Fragmentación — semáforo de conectividad hidráulica: en vez
+    // de mostrar ratio_elongacion como número crudo (7-8x en un embalse
+    // dendrítico como La Boquilla no dice nada por sí solo sin referencia),
+    // se compara el mes más reciente contra el PROMEDIO HISTÓRICO de esa
+    // misma presa — así cada vaso se evalúa contra su propia forma natural,
+    // no contra un umbral fijo que no tendría sentido entre La Boquilla
+    // (muy dendrítica) y Fco. I. Madero (más compacta). num_islas actúa como
+    // agravante: si el vaso además expone más bancos de tierra de lo usual,
+    // sube un nivel — dos señales de fragmentación a la vez son más
+    // confiables que una sola, que puede ser ruido de una escena puntual.
+    const fragmentacionVaso = useMemo(() => {
+        const conRatio = historicoVaso.filter(f => f.ratio_elongacion != null);
+        if (conRatio.length < 3 || !masReciente || masReciente.ratio_elongacion == null) {
+            return { disponible: false as const };
+        }
+        // Baseline = promedio histórico excluyendo el mes evaluado (si hay
+        // más de 3 meses con dato) — evita que el propio mes reciente infle
+        // su referencia de comparación.
+        const previos = conRatio.filter(f => f.fecha_escena !== masReciente.fecha_escena);
+        const baseRatio = previos.length >= 2
+            ? previos.reduce((s, f) => s + f.ratio_elongacion!, 0) / previos.length
+            : conRatio.reduce((s, f) => s + f.ratio_elongacion!, 0) / conRatio.length;
+
+        const ratioActual = masReciente.ratio_elongacion!;
+        const desviacionPct = baseRatio > 0 ? ((ratioActual - baseRatio) / baseRatio) * 100 : 0;
+
+        let nivel: 'normal' | 'atencion' | 'critico' =
+            desviacionPct <= 15 ? 'normal' : desviacionPct <= 30 ? 'atencion' : 'critico';
+
+        // Agravante por bancos de tierra expuestos (num_islas): si el mes
+        // reciente también supera su propio promedio histórico de islas,
+        // sube un nivel (normal→atención, atención→crítico) — nunca baja.
+        const conIslas = historicoVaso.filter(f => f.fecha_escena !== masReciente.fecha_escena);
+        const baseIslas = conIslas.length
+            ? conIslas.reduce((s, f) => s + f.num_islas, 0) / conIslas.length
+            : masReciente.num_islas;
+        const islasAgravante = masReciente.num_islas > baseIslas + 1;
+        if (islasAgravante && nivel === 'normal') nivel = 'atencion';
+        else if (islasAgravante && nivel === 'atencion') nivel = 'critico';
+
+        return {
+            disponible: true as const, nivel, desviacionPct, baseRatio, ratioActual,
+            islasAgravante, baseIslas, islasActuales: masReciente.num_islas,
+        };
+    }, [historicoVaso, masReciente]);
 
     // Selección de los dos meses a comparar en el mini-mapa y las tarjetas —
     // por defecto apertura de ciclo (0) vs. más reciente (último índice),
@@ -367,6 +559,80 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
         };
     }, [filaBase, filaComparada]);
 
+    // Filtro de Renderizado Espacial — visor de azolve: toggle entre los dos
+    // polígonos elegidos arriba, iluminando en rojo SOLO las zonas que eran
+    // agua en el mes base y ya no lo son en el mes comparado (banco expuesto
+    // / azolve), y en cian tenue las zonas de nueva inundación (el caso
+    // inverso, útil para distinguir "el vaso solo bajó" de "el vaso cambió
+    // de forma"). Sin librería de geometría en el proyecto (turf, polygon-
+    // clipping): la diferencia se resuelve rasterizando ambos contornos a una
+    // grilla sobre el MISMO bbox de mapaComparativo con point-in-polygon
+    // (ray casting), el mismo principio que ya usa el backend para ir de
+    // máscara de píxeles a contorno, solo que aquí no hace falta vectorizar
+    // el resultado — un rectángulo por celda alcanza para pintarlo.
+    const [mostrarAzolve, setMostrarAzolve] = useState(false);
+    const diffAzolve = useMemo(() => {
+        if (!mostrarAzolve || !filaBase || !filaComparada) return null;
+        const W = 640, H = 380;
+        const RES = 3; // celdas de 3px — suficiente detalle sin recalcular miles de puntos por render
+        const bbox = calculaBboxComun([filaBase.contorno_geojson.coordinates[0], filaComparada.contorno_geojson.coordinates[0]]);
+
+        // Point-in-polygon con soporte de islas (evenodd): cuenta cruces con
+        // TODOS los anillos (exterior + islas) — dentro del exterior pero
+        // dentro de un anillo de isla también cuenta como cruce extra, que
+        // paridad impar/par ya resuelve sin lógica especial.
+        const dentroDelPoligono = (coordinates: [number, number][][], lon: number, lat: number): boolean => {
+            let dentro = false;
+            for (const anillo of coordinates) {
+                for (let i = 0, j = anillo.length - 1; i < anillo.length; j = i++) {
+                    const [xi, yi] = anillo[i], [xj, yj] = anillo[j];
+                    const cruza = ((yi > lat) !== (yj > lat)) &&
+                        (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+                    if (cruza) dentro = !dentro;
+                }
+            }
+            return dentro;
+        };
+
+        const spanLon = (bbox.maxLon - bbox.minLon) * bbox.cosLat;
+        const spanLat = bbox.maxLat - bbox.minLat;
+        const escala = Math.min(W / spanLon, H / spanLat);
+        const offX = (W - spanLon * escala) / 2;
+        const offY = (H - spanLat * escala) / 2;
+
+        const celdasAzolve: string[] = [];   // agua en base, tierra en comparado
+        const celdasNuevaAgua: string[] = []; // tierra en base, agua en comparado
+        let areaAzolvePx2 = 0, areaNuevaPx2 = 0;
+
+        for (let py = 0; py < H; py += RES) {
+            for (let px = 0; px < W; px += RES) {
+                // Invierte la proyección de anilloASvgPath: pixel → lon/lat.
+                const lon = bbox.minLon + (px - offX) / (bbox.cosLat * escala);
+                const lat = bbox.maxLat - (py - offY) / escala;
+                if (lon < bbox.minLon || lon > bbox.maxLon || lat < bbox.minLat || lat > bbox.maxLat) continue;
+
+                const enBase = dentroDelPoligono(filaBase.contorno_geojson.coordinates, lon, lat);
+                const enComparado = dentroDelPoligono(filaComparada.contorno_geojson.coordinates, lon, lat);
+                if (enBase && !enComparado) { celdasAzolve.push(`${px},${py}`); areaAzolvePx2 += RES * RES; }
+                else if (!enBase && enComparado) { celdasNuevaAgua.push(`${px},${py}`); areaNuevaPx2 += RES * RES; }
+            }
+        }
+
+        // km² por px²: la escala ya comprime lon→distancia real vía cosLat,
+        // así que 1px en X y 1px en Y representan la misma distancia real —
+        // basta convertir con el span real (km) entre span en px.
+        const spanLonKm = (bbox.maxLon - bbox.minLon) * bbox.cosLat * 111.32;
+        const kmPorPx = spanLonKm / spanLon; // spanLon aquí ya está en "grados*cosLat", coherente con spanLonKm
+        const km2PorPx2 = kmPorPx * kmPorPx;
+
+        return {
+            W, H, RES,
+            celdasAzolve, celdasNuevaAgua,
+            areaAzolveKm2: areaAzolvePx2 * km2PorPx2,
+            areaNuevaKm2: areaNuevaPx2 * km2PorPx2,
+        };
+    }, [mostrarAzolve, filaBase, filaComparada]);
+
     // Galería mensual: un mini-mapa por cada mes del histórico, todos sobre
     // el MISMO bbox (unión de todos los meses, no solo 2) para que la
     // progresión completa del ciclo se pueda comparar a simple vista en una
@@ -388,6 +654,13 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
     // con tendencia, polígonos y KPIs de todo el histórico de la presa —
     // reutiliza los mismos datos ya cargados en historicoVaso, sin fetch propio.
     const [mostrarInforme, setMostrarInforme] = useState(false);
+
+    // Visor 3D (Fase 1): extrusión del polígono NDWI del mes "comparado"
+    // (mismo selector que el mini-mapa 2D) con profundidad aproximada desde
+    // la curva batimétrica oficial — ver disclaimer completo en
+    // VasoVisor3D.tsx. Colapsado por defecto: Three.js solo se descarga
+    // cuando el usuario decide verlo.
+    const [mostrarVisor3D, setMostrarVisor3D] = useState(false);
 
     // Scroll automático a la sección de ciclo cuando se entra por el botón
     // dedicado "Evolución del Ciclo" — el modal es largo (varias secciones
@@ -605,10 +878,20 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                     <div className="vaso-analytics-header">
                         <CalendarRange size={16} /> EVOLUCIÓN DEL VASO — HISTÓRICO VALIDADO (SENTINEL-2)
                         <span className="vaso-confiabilidad-badge validado">VALIDADO</span>
+                        <button
+                            className="sim-reset-btn"
+                            style={{ marginLeft: 'auto', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 6 }}
+                            onClick={sincronizarMesActual}
+                            disabled={sincronizandoMes}
+                            title="Trae la escena Sentinel-2 más reciente (últimos 30 días) sin esperar al cron automático del día 3"
+                        >
+                            <RefreshCw size={12} className={sincronizandoMes ? 'animate-spin' : undefined} />
+                            {sincronizandoMes ? 'Sincronizando…' : 'Actualizar mes actual'}
+                        </button>
                         {historicoVaso.length > 0 && (
                             <button
                                 className="sim-reset-btn"
-                                style={{ marginLeft: 'auto', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 6 }}
+                                style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 6 }}
                                 onClick={() => setMostrarInforme(true)}
                                 title="Generar informe institucional SRL Conchos / SICA 005"
                             >
@@ -616,6 +899,11 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                             </button>
                         )}
                     </div>
+                    {resultadoSyncManual && (
+                        <div className="vaso-prediction" style={{ fontSize: 11.5, opacity: 0.8, padding: '0 1rem', marginTop: -4, marginBottom: 8 }}>
+                            {resultadoSyncManual}
+                        </div>
+                    )}
                     <div className="vaso-analytics-body" style={{ gridTemplateColumns: '1fr' }}>
                         {cargandoHistorico ? (
                             <div className="vaso-prediction" style={{ opacity: 0.7 }}>Cargando histórico de vaso…</div>
@@ -626,6 +914,47 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                             </div>
                         ) : (
                             <>
+                                {/* Índice de Fragmentación — semáforo de conectividad hidráulica:
+                                    compara la forma del mes más reciente (ratio_elongacion,
+                                    agravado por num_islas) contra el promedio histórico de ESTA
+                                    presa, no contra un umbral fijo — un embalse dendrítico como
+                                    La Boquilla tiene un ratio "normal" muy distinto al de Fco. I.
+                                    Madero, así que solo el desvío respecto a su propia forma
+                                    habitual es una señal confiable de pérdida de conectividad. */}
+                                {fragmentacionVaso.disponible ? (
+                                    <div className={clsx('vaso-fragmentacion-box', `nivel-${fragmentacionVaso.nivel}`)}>
+                                        <div className="vaso-fragmentacion-semaforo">
+                                            <span className="vaso-fragmentacion-dot" />
+                                            <span className="vaso-fragmentacion-nivel">
+                                                {fragmentacionVaso.nivel === 'normal' ? 'Conectividad normal'
+                                                    : fragmentacionVaso.nivel === 'atencion' ? 'Atención — inicio de fragmentación'
+                                                        : 'Crítico — pérdida de conectividad hidráulica'}
+                                            </span>
+                                        </div>
+                                        <div className="vaso-fragmentacion-detalle">
+                                            Ratio de elongación actual <strong>{fragmentacionVaso.ratioActual!.toFixed(2)}x</strong> vs.
+                                            promedio histórico <strong>{fragmentacionVaso.baseRatio!.toFixed(2)}x</strong> de esta presa
+                                            ({fragmentacionVaso.desviacionPct! >= 0 ? '+' : ''}{fragmentacionVaso.desviacionPct!.toFixed(0)}%).
+                                            {fragmentacionVaso.islasAgravante && (
+                                                <> Además, {fragmentacionVaso.islasActuales} bancos de tierra expuestos superan el
+                                                    promedio histórico ({fragmentacionVaso.baseIslas!.toFixed(1)}) — señal compuesta.</>
+                                            )}
+                                        </div>
+                                        <div className="vaso-prediction" style={{ fontSize: 10, opacity: 0.6, marginTop: 6 }}>
+                                            Índice de Fragmentación: compara el ratio de elongación (perímetro real / perímetro de
+                                            círculo de igual área) del mes más reciente contra el promedio histórico de esta presa.
+                                            Un ratio muy por encima de lo habitual indica que el vaso se está angostando en brazos
+                                            separados — riesgo de que zonas del embalse queden hidráulicamente desconectadas del
+                                            cuerpo principal antes de que eso sea visible a simple vista en la imagen satelital.
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="vaso-prediction" style={{ opacity: 0.55, fontSize: 11.5, marginBottom: '1rem' }}>
+                                        Índice de Fragmentación: se requieren al menos 3 meses con dato de forma para calibrar
+                                        el promedio histórico de esta presa.
+                                    </div>
+                                )}
+
                                 {galeriaMensual && (
                                     <div className="vaso-galeria-mensual">
                                         <div className="vaso-galeria-titulo">Una imagen por mes, todas sobre el mismo encuadre</div>
@@ -674,6 +1003,14 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                                 ))}
                                             </select>
                                         </label>
+                                        <button
+                                            type="button"
+                                            className={clsx('vaso-azolve-toggle', mostrarAzolve && 'activo')}
+                                            onClick={() => setMostrarAzolve(v => !v)}
+                                            title="Iluminar zonas de azolve/bancos expuestos entre ambos meses"
+                                        >
+                                            {mostrarAzolve ? 'Ocultar' : 'Mostrar'} azolve
+                                        </button>
                                     </div>
                                 )}
 
@@ -683,6 +1020,22 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                             aria-label={`Contorno del vaso en ${new Date(filaBase.fecha_escena).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })} comparado con ${new Date(filaComparada.fecha_escena).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}`}>
                                             <path d={mapaComparativo.pathBase} fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="6 4" fillRule="evenodd" />
                                             <path d={mapaComparativo.pathComparado} fill="rgba(34,211,238,0.18)" stroke="#22d3ee" strokeWidth="2.5" fillRule="evenodd" />
+                                            {/* Visor de azolve: un <rect> por celda de la grilla de
+                                                diferencia — rojo = agua en el mes base que ya no lo es
+                                                en el comparado (azolve/banco expuesto), cian tenue = el
+                                                caso inverso (nueva inundación). */}
+                                            {diffAzolve && (
+                                                <g>
+                                                    {diffAzolve.celdasAzolve.map(c => {
+                                                        const [x, y] = c.split(',').map(Number);
+                                                        return <rect key={`az-${c}`} x={x} y={y} width={diffAzolve.RES} height={diffAzolve.RES} fill="#ef4444" opacity={0.75} />;
+                                                    })}
+                                                    {diffAzolve.celdasNuevaAgua.map(c => {
+                                                        const [x, y] = c.split(',').map(Number);
+                                                        return <rect key={`na-${c}`} x={x} y={y} width={diffAzolve.RES} height={diffAzolve.RES} fill="#22d3ee" opacity={0.4} />;
+                                                    })}
+                                                </g>
+                                            )}
                                         </svg>
                                         <div className="vaso-mapa-leyenda">
                                             <span className="leyenda-item">
@@ -693,8 +1046,44 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                                 <span className="leyenda-swatch reciente"></span>
                                                 {new Date(filaComparada.fecha_escena).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Chihuahua' })}
                                             </span>
+                                            {mostrarAzolve && diffAzolve && (
+                                                <>
+                                                    <span className="leyenda-item">
+                                                        <span className="leyenda-swatch" style={{ background: 'rgba(239,68,68,0.75)', border: 'none' }}></span>
+                                                        Azolve / banco expuesto: {diffAzolve.areaAzolveKm2.toFixed(2)} km²
+                                                    </span>
+                                                    <span className="leyenda-item">
+                                                        <span className="leyenda-swatch" style={{ background: 'rgba(34,211,238,0.4)', border: 'none' }}></span>
+                                                        Nueva inundación: {diffAzolve.areaNuevaKm2.toFixed(2)} km²
+                                                    </span>
+                                                </>
+                                            )}
+                                            <button
+                                                type="button"
+                                                className="vaso3d-toggle-btn"
+                                                style={{ marginLeft: 'auto' }}
+                                                onClick={() => setMostrarVisor3D(v => !v)}
+                                            >
+                                                <Box size={12} /> {mostrarVisor3D ? 'Ocultar' : 'Ver'} en 3D
+                                            </button>
                                         </div>
                                     </div>
+                                )}
+
+                                {/* Visor 3D (Fase 1) — extrusión del polígono del mes
+                                    "comparado" seleccionado arriba. Lazy: Three.js/R3F
+                                    solo se descargan si el usuario activa este toggle. */}
+                                {mostrarVisor3D && filaComparada && (
+                                    <Suspense fallback={<div className="vaso3d-empty">Cargando visor 3D…</div>}>
+                                        <VasoVisor3D
+                                            contornoGeojson={filaComparada.contorno_geojson}
+                                            curva={data.curva}
+                                            nivelMsnm={data.nivel_msnm}
+                                            nombrePresa={data.nombre}
+                                            fechaEscena={filaComparada.fecha_escena}
+                                            presaId={data.presa_id}
+                                        />
+                                    </Suspense>
                                 )}
 
                                 {filaBase && filaComparada && (
@@ -754,6 +1143,18 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                         <div className="vaso-validacion-titulo">
                                             Validación cruzada: satélite vs. curva batimétrica oficial
                                         </div>
+
+                                        {/* Gráfica de Desviación: área esperada por CONAGUA (curva
+                                            batimétrica oficial) vs. área real medida por NDWI, mes a
+                                            mes — la barra de % de abajo resume la brecha en un solo
+                                            número por mes; esta gráfica deja ver la FORMA de ambas
+                                            curvas y hacia dónde diverge la tendencia en el tiempo. */}
+                                        {opcionesDesviacionConagua && (
+                                            <div className="vaso-desviacion-chart">
+                                                <ReactECharts option={opcionesDesviacionConagua} style={{ height: '200px', width: '100%' }} opts={{ renderer: 'svg' }} />
+                                            </div>
+                                        )}
+
                                         <div className="vaso-validacion-lista">
                                             {validacionCruzada.filter(v => !v.sinReferencia).map(v => {
                                                 const pct = v.pctCoincidencia!;
@@ -785,6 +1186,53 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                         </div>
                                     </div>
                                 )}
+
+                                {/* Recalibración Dinámica: factor de corrección por banda de
+                                    elevación, calculado por el job mensual recalibra-curva-
+                                    batimetrica sobre TODO el histórico disponible (no solo lo
+                                    cargado en este modal) — complementa la validación cruzada de
+                                    arriba (mes a mes, solo cliente) con un ajuste agregado y
+                                    persistido. La curva oficial CONAGUA nunca se modifica; esto
+                                    se muestra como sugerencia aparte. */}
+                                {resumenRecalibracion && (
+                                    <div className="vaso-recalibracion">
+                                        <div className="vaso-validacion-titulo">
+                                            Recalibración Dinámica <span className="vaso-confiabilidad-badge aproximado">AJUSTE SUGERIDO</span>
+                                        </div>
+                                        <div className="vaso-recalibracion-resumen">
+                                            <div className="vaso-ndwi-col">
+                                                <span className="vaso-ndwi-label">Desviación promedio vs. CONAGUA</span>
+                                                <span
+                                                    className="vaso-ndwi-value"
+                                                    style={{ color: Math.abs(resumenRecalibracion.desviacionPonderada) <= 5 ? '#10b981' : Math.abs(resumenRecalibracion.desviacionPonderada) <= 12 ? '#f59e0b' : '#ef4444' }}
+                                                >
+                                                    {resumenRecalibracion.desviacionPonderada >= 0 ? '+' : ''}{resumenRecalibracion.desviacionPonderada.toFixed(1)}<small>%</small>
+                                                </span>
+                                            </div>
+                                            <div className="vaso-ndwi-col">
+                                                <span className="vaso-ndwi-label">Banda con mayor desvío</span>
+                                                <span className="vaso-ndwi-value" style={{ fontSize: '1.15rem' }}>
+                                                    {resumenRecalibracion.bandaMayorAzolve.banda_elevacion_msnm.toFixed(0)} <small>msnm</small>
+                                                </span>
+                                                <span className="vaso-ndwi-label" style={{ fontWeight: 500, textTransform: 'none' }}>
+                                                    {resumenRecalibracion.bandaMayorAzolve.desviacion_pct_prom >= 0 ? '+' : ''}{resumenRecalibracion.bandaMayorAzolve.desviacion_pct_prom.toFixed(1)}%
+                                                    ({resumenRecalibracion.bandaMayorAzolve.n_observaciones} obs.)
+                                                </span>
+                                            </div>
+                                            <div className="vaso-ndwi-col">
+                                                <span className="vaso-ndwi-label">Bandas de elevación calibradas</span>
+                                                <span className="vaso-ndwi-value" style={{ fontSize: '1.15rem' }}>{resumenRecalibracion.totalBandas}</span>
+                                            </div>
+                                        </div>
+                                        <div className="vaso-prediction" style={{ fontSize: 10, opacity: 0.6, marginTop: 8 }}>
+                                            Factor de corrección por banda de 1m de elevación, recalculado mensualmente comparando el área NDWI
+                                            real contra el área que la curva oficial CONAGUA predice en cada lectura de campo cercana. Desviación
+                                            negativa = el vaso mide menos área real de la esperada a esa elevación (posible azolve acumulado desde
+                                            que se levantó la curva oficial); positiva = mide más. Esto NO reemplaza la curva oficial ni el
+                                            simulador de nivel — es un ajuste sugerido para priorizar dónde verificar en campo.
+                                        </div>
+                                    </div>
+                                )}
                             </>
                         )}
                     </div>
@@ -798,6 +1246,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                     nombrePresa={data.nombre}
                     historico={historicoVaso}
                     validacionCruzada={validacionCruzada}
+                    texturaSatelital={texturaSatelital}
                     onClose={() => setMostrarInforme(false)}
                 />
             )}

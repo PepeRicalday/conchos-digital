@@ -589,15 +589,22 @@
     border-color: rgba(34, 211, 238, 0.4);
 }
 
-/* Pantalla completa: el navegador expande .vaso3d-canvas-wrap a ocupar toda
-   la pantalla — sin esto, su height:460px fijo (pensado para vivir dentro
-   del modal de PresaVasoMonitor) se mantendría igual de pequeño incluso en
-   modo fullscreen, dejando franjas negras alrededor en vez de aprovechar
-   la pantalla completa. border-radius se quita en fullscreen (esquinas
-   redondeadas no tienen sentido a pantalla completa). */
-.vaso3d-canvas-wrap:fullscreen,
-.vaso3d-canvas-wrap:-webkit-full-screen {
+/* Pantalla completa CSS-only (NO la Fullscreen API del navegador): Safari en
+   iOS/iPadOS restringe requestFullscreen() casi exclusivamente a <video> —
+   un <div> arbitrario nunca entra en fullscreen real ahí, con o sin prefijo
+   webkit (confirmado en campo, iPadOS 16.4+). position:fixed cubriendo todo
+   el viewport da el mismo resultado visual sin depender de esa API, y
+   funciona igual en iPad, iPhone, desktop y cualquier navegador. z-index por
+   encima de .vaso-screen-overlay (1000, el modal padre de Manejo de Vaso) —
+   sin esto quedaría "fullscreen" pero seguiría detrás del modal. inset:0
+   ignora el offset de 280px del sidebar que sí respeta .vaso-screen-overlay:
+   en modo pantalla completa el sidebar tampoco debe verse. */
+.vaso3d-pantalla-completa {
+    position: fixed;
+    inset: 0;
+    z-index: 1500;
     height: 100vh;
+    width: 100vw;
     border-radius: 0;
 }
 

@@ -1042,41 +1042,15 @@ const GeoMonitor = () => {
         };
     }, [fetchAllData]);
 
-    // Fullscreen Toggle (Prioridad 4) — Safari en iPadOS/iOS no implementa el
-    // estándar sin prefijo para elementos arbitrarios (Element.requestFullscreen),
-    // solo webkitRequestFullscreen/webkitExitFullscreen/webkitFullscreenElement.
-    // El `?.()` sin fallback simplemente no hacía nada ahí (botón "muerto" en
-    // iPad, sin error visible). Mismo fix aplicado en VasoVisor3D.tsx.
-    const toggleFullscreen = () => {
-        type ElementoConFullscreenWebkit = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
-        type DocumentoConFullscreenWebkit = Document & {
-            webkitFullscreenElement?: Element | null;
-            webkitExitFullscreen?: () => Promise<void> | void;
-        };
-        const doc = document as DocumentoConFullscreenWebkit;
-        const elemento = containerRef.current as ElementoConFullscreenWebkit | null;
-        const enPantallaCompleta = !!(document.fullscreenElement || doc.webkitFullscreenElement);
-        if (!enPantallaCompleta) {
-            if (elemento?.requestFullscreen) elemento.requestFullscreen();
-            else elemento?.webkitRequestFullscreen?.();
-            setIsFullscreen(true);
-        } else {
-            if (document.exitFullscreen) document.exitFullscreen();
-            else doc.webkitExitFullscreen?.();
-            setIsFullscreen(false);
-        }
-    };
-
-    useEffect(() => {
-        const doc = document as Document & { webkitFullscreenElement?: Element | null };
-        const handler = () => setIsFullscreen(!!(document.fullscreenElement || doc.webkitFullscreenElement));
-        document.addEventListener('fullscreenchange', handler);
-        document.addEventListener('webkitfullscreenchange', handler);
-        return () => {
-            document.removeEventListener('fullscreenchange', handler);
-            document.removeEventListener('webkitfullscreenchange', handler);
-        };
-    }, []);
+    // Fullscreen Toggle (Prioridad 4) — CSS-only (position:fixed vía la
+    // clase .geo-fullscreen), NO la Fullscreen API del navegador. Dos
+    // intentos previos con Element.requestFullscreen + fallback webkit-
+    // prefixed confirmaron en campo que Safari en iOS/iPadOS restringe esa
+    // API casi exclusivamente a <video> — un <div> arbitrario nunca entra
+    // en fullscreen real ahí, con o sin prefijo (iPadOS 16.4+). El toggle
+    // de estado por sí solo, sin llamar a ninguna API del navegador,
+    // funciona igual en iPad, iPhone, desktop y cualquier navegador.
+    const toggleFullscreen = () => setIsFullscreen(v => !v);
     // Mapeo de distancias para el Río Conchos (36 km)
     const rioDistData = useMemo(() => {
         if (!geoRio) return [];

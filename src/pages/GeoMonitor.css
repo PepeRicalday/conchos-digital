@@ -81,8 +81,21 @@
     animation: fadeInGeo 0.6s ease-out;
 }
 
+/* CSS-only (NO depende de la Fullscreen API del navegador): Safari en
+   iOS/iPadOS restringe requestFullscreen() casi exclusivamente a <video> —
+   un <div> arbitrario nunca entra en fullscreen real ahí (confirmado en
+   campo, iPadOS 16.4+, sin importar el prefijo webkit). Antes este bloque
+   solo daba height:100vh, dependiendo de que el navegador ya hubiera puesto
+   el elemento en su propio modo fullscreen nativo para que tuviera efecto —
+   en iPad eso nunca ocurría, así que el botón no hacía nada visible.
+   position:fixed cubre el viewport completo por sí solo, sin depender de
+   esa API. */
 .geo-monitor-container.geo-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 1500;
     height: 100vh;
+    width: 100vw;
     padding: 0.5rem;
 }
 

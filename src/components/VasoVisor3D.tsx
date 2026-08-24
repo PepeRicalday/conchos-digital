@@ -874,48 +874,21 @@ const VasoVisor3D: React.FC<VasoVisor3DProps> = ({ contornoGeojson: contornoGeoj
     const [contextoWebglPerdido, setContextoWebglPerdido] = useState(false);
     const [forceRemountTick, setForceRemountTick] = useState(0);
 
-    // Pantalla completa del visor 3D — mismo mecanismo (Fullscreen API
-    // nativa) que ya usa GeoMonitor.tsx para su propio botón de pantalla
-    // completa, aplicado aquí solo al contenedor del Canvas en vez de todo
-    // el panel de GeoMonitor.
+    // Pantalla completa del visor 3D — CSS-only (position:fixed cubriendo
+    // el viewport), NO la Fullscreen API nativa del navegador.
     //
-    // Safari en iPadOS/iOS no implementa el estándar sin prefijo para
-    // elementos arbitrarios (Element.requestFullscreen) — solo lo expone
-    // como webkitRequestFullscreen/webkitExitFullscreen/
-    // webkitFullscreenElement. El código anterior solo probaba la API
-    // estándar con `?.()`, que en Safari es simplemente `undefined` — no
-    // lanza error, pero tampoco hace nada, así que el botón se sentía
-    // "muerto" en iPad (reportado: "no me abre la pantalla completa").
-    // Los tipos de WebKit no están en lib.dom.d.ts estándar, de ahí el cast.
-    type ElementoConFullscreenWebkit = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
-    type DocumentoConFullscreenWebkit = Document & {
-        webkitFullscreenElement?: Element | null;
-        webkitExitFullscreen?: () => Promise<void> | void;
-    };
-    const contenedorRef = useRef<HTMLDivElement>(null);
+    // Intento anterior (Element.requestFullscreen + fallback webkit-prefixed)
+    // seguía sin funcionar en iPad incluso en iPadOS 16.4+: confirmado en
+    // campo que ni el prefijo webkit resolvía nada — Safari en iOS/iPadOS
+    // restringe la Fullscreen API casi exclusivamente a <video>, un <div>
+    // arbitrario nunca entra en pantalla completa real ahí sin importar el
+    // prefijo (limitación de WebKit, no arreglable llamando distinto a la
+    // misma API). La alternativa universal (funciona igual en iPad, iPhone,
+    // desktop, cualquier navegador) es simular el efecto con CSS: el
+    // contenedor pasa a position:fixed cubriendo todo el viewport en vez de
+    // pedirle al navegador que entre en su propio modo fullscreen nativo.
     const [esPantallaCompleta, setEsPantallaCompleta] = useState(false);
-    useEffect(() => {
-        const doc = document as DocumentoConFullscreenWebkit;
-        const onFullscreenChange = () => setEsPantallaCompleta(!!(document.fullscreenElement || doc.webkitFullscreenElement));
-        document.addEventListener('fullscreenchange', onFullscreenChange);
-        document.addEventListener('webkitfullscreenchange', onFullscreenChange);
-        return () => {
-            document.removeEventListener('fullscreenchange', onFullscreenChange);
-            document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
-        };
-    }, []);
-    const alternarPantallaCompleta = () => {
-        const doc = document as DocumentoConFullscreenWebkit;
-        const elemento = contenedorRef.current as ElementoConFullscreenWebkit | null;
-        const enPantallaCompleta = !!(document.fullscreenElement || doc.webkitFullscreenElement);
-        if (!enPantallaCompleta) {
-            if (elemento?.requestFullscreen) elemento.requestFullscreen();
-            else elemento?.webkitRequestFullscreen?.();
-        } else {
-            if (document.exitFullscreen) document.exitFullscreen();
-            else doc.webkitExitFullscreen?.();
-        }
-    };
+    const alternarPantallaCompleta = () => setEsPantallaCompleta(v => !v);
 
     // Origen local común: centro del bbox del DEM (la única referencia
     // geolocalizada real que tenemos, tomada de las coordenadas GPS de las
@@ -1039,7 +1012,7 @@ const VasoVisor3D: React.FC<VasoVisor3DProps> = ({ contornoGeojson: contornoGeoj
     const retrocesoCam = radioEscena * 0.65;
 
     return (
-        <div className="vaso3d-canvas-wrap" ref={contenedorRef}>
+        <div className={esPantallaCompleta ? 'vaso3d-canvas-wrap vaso3d-pantalla-completa' : 'vaso3d-canvas-wrap'}>
             <Canvas
                 key={canvasKey}
                 // dpr fijo en 1 (no el [1,2] por defecto de R3F, que sigue

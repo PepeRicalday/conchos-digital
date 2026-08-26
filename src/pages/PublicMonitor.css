@@ -2731,7 +2731,10 @@
     font-size: 7px;
     font-weight: 700;
 }
-.elb-arrow[data-dir="up"]   { color: #ef4444; }
+/* Cian/verde/gris — NO rojo: la dirección de la tendencia es un hecho
+   neutro, no un juicio de riesgo. Rojo queda reservado a alerta real
+   (ver .esc-critical y demás estados de alerta más abajo). */
+.elb-arrow[data-dir="up"]   { color: #38bdf8; }
 .elb-arrow[data-dir="down"] { color: #22c55e; }
 .elb-arrow[data-dir="flat"] { color: #7d8ea3; }
 
@@ -3055,7 +3058,11 @@
 
 @media (max-width: 900px) {
     .dock-tabs { padding: 5px 8px 0; }
-    .dock-tab  { font-size: 8px; padding: 4px 7px 5px; }
+    /* min-height se repite aquí a propósito: esta regla corre DESPUÉS que la
+       de @media(max-width:600px) en la cascada y también aplica a esos
+       mismos viewports — sin repetirlo, anulaba en silencio el área táctil
+       ampliada de 40px justo en el rango de tablet donde más importa. */
+    .dock-tab  { font-size: 9px; padding: 6px 7px; min-height: 40px; }
     .dap-titulo { max-width: 160px; }
 }
 

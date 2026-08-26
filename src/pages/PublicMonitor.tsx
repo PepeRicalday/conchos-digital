@@ -173,7 +173,9 @@ const CanalLongitudinalProfile = React.memo(({ escalas, coherencia, fgvProfile, 
 
   const trendArrow = (e: EscalaData): { symbol: string; color: string } => {
     const d = e.delta_12h ?? 0;
-    if (d > 0.01)  return { symbol: '▲', color: '#ef4444' };
+    // Cian/verde/gris — NO rojo: la dirección de la tendencia es un hecho
+    // neutro, no un juicio de riesgo (rojo está reservado para alerta real).
+    if (d > 0.01)  return { symbol: '▲', color: '#38bdf8' };
     if (d < -0.01) return { symbol: '▼', color: '#22c55e' };
     return { symbol: '—', color: '#475569' };
   };
@@ -553,6 +555,246 @@ const MapController = ({ center, zoom, active }: { center: [number, number], zoo
     }, [center, zoom, active, map]);
     return null;
 };
+
+// Grid de tarjetas "RED DE PUNTOS DE CONTROL" — compartido entre las
+// pestañas RESUMEN y CANAL (antes duplicado línea por línea en ambas).
+// React.memo: solo redibuja cuando cambian los datos reales, no en cada
+// tick de 60s del reloj del monitor si escalas/coherencia no cambiaron.
+const CheckpointsGrid = React.memo(({ escalas, coherenciaCanal, displayMaxKm, isEstabilizacion, statusColor, currentTime }: {
+    escalas: EscalaData[];
+    coherenciaCanal: any;
+    displayMaxKm: number;
+    isEstabilizacion: boolean;
+    statusColor: string;
+    currentTime: number;
+}) => {
+    const formatTimeAgo = (timestamp?: number | null) => {
+        if (!timestamp) return 'SIN DATOS';
+        const diffSeconds = Math.max(0, Math.floor((currentTime - timestamp) / 1000));
+        if (diffSeconds < 60) return `HACE ${diffSeconds}s`;
+        const diffMins = Math.floor(diffSeconds / 60);
+        if (diffMins < 60) return `${diffMins}m`;
+        const diffHours = Math.floor(diffMins / 60);
+        const remainingMins = diffMins % 60;
+        return `${diffHours}h ${remainingMins}m`;
+    };
+
+    return (
+        <div className="checkpoints-scroll-container">
+            {[...escalas]
+                .sort((a, b) => a.km - b.km)
+                .map((e) => {
+                    // Coherencia individual: marcar punto incoherente
+                    const puntoCoh = coherenciaCanal?.puntos.find((p: any) => p.id === e.id);
+                    const incoherente = puntoCoh && !puntoCoh.coherente;
+                    const hasFlow = isEstabilizacion && !ESC_SIN_CONTROL.has(e.nombre) && (e.gasto_actual ?? 0) > 0;
+                    return (
+                    <div
+                        className={`checkpoint-card-compact ${e.km <= displayMaxKm ? 'active' : ''} ${incoherente ? 'cpc-incoherente' : ''}`}
+                        key={e.id}
+                    >
+                        <div className="cpc-km">{e.km.toFixed(1)} <small>KM</small></div>
+                        <div className="cpc-body">
+                            <span className="cpc-name">{e.nombre}</span>
+                            <div className="cpc-data" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span className="cpc-value">{e.nivel_actual != null ? e.nivel_actual.toFixed(2) : 'S/D'}</span>
+                                <small className="cpc-unit">m</small>
+                                {(() => {
+                                    // Tendencia solo con lectura fresca (<4h): un "— 0.00" sobre
+                                    // datos de 20h sugiere estabilidad EN VIVO que nadie midió.
+                                    const ageMin = e.ultima_telemetria ? (Date.now() - e.ultima_telemetria) / 60000 : Infinity;
+                                    if (ageMin > 240) return (
+                                        <span style={{ color: '#64748b', fontSize: '11px' }} title="Tendencia 12h no disponible — telemetría vencida (>4 h)">·</span>
+                                    );
+                                    const d = e.delta_12h ?? 0;
+                                    const tChar = d > 0.01 ? '▲' : d < -0.01 ? '▼' : '—';
+                                    // Cian/verde/gris — NO rojo: la dirección de la tendencia es un
+                                    // hecho neutro, no un juicio de riesgo. Rojo aquí se confundía
+                                    // visualmente con las tarjetas realmente en alerta (cpc-incoherente).
+                                    const tCol = d > 0.01 ? '#38bdf8' : d < -0.01 ? '#22c55e' : '#cbd5e1';
+                                    return (
+                                        <span style={{ color: tCol, fontSize: '12px', fontWeight: '900', textShadow: '0 0 4px rgba(0,0,0,0.8)' }} title={`Tendencia 12h: ${d > 0 ? '+' : ''}${d.toFixed(2)}m`}>
+                                            {tChar} {Math.abs(d).toFixed(2)}
+                                        </span>
+                                    );
+                                })()}
+                            </div>
+                            {/* ESTABILIZACIÓN: mostrar gasto y apertura si disponibles */}
+                            {isEstabilizacion && (
+                                <div className="cpc-extra">
+                                    {hasFlow && (
+                                        <span className="cpc-gasto">{(e.gasto_actual ?? 0).toFixed(2)} m³/s</span>
+                                    )}
+                                    {(e.apertura_actual ?? 0) > 0 && (
+                                        <span className="cpc-apertura">
+                                            ⊿ {(e.apertura_actual ?? 0).toFixed(2)}m
+                                            {e.puertas_abiertas != null && e.pzas_radiales != null
+                                                ? ` (${e.puertas_abiertas}/${e.pzas_radiales})`
+                                                : ''}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        <div className="cpc-status-bar">
+                            <div
+                                className="cpc-progress"
+                                style={{
+                                    width: isEstabilizacion
+                                        ? (hasFlow ? `${Math.min(100, ((e.gasto_actual ?? 0) / Math.max(coherenciaCanal?.qK0Medido ?? 1, 1)) * 100)}%` : '0%')
+                                        : (e.km <= displayMaxKm ? '100%' : '0%'),
+                                    background: incoherente ? '#ef4444' : (e.estado === 'OPERANDO' ? '#22c55e' : statusColor)
+                                }}
+                            />
+                        </div>
+                        <div className="cpc-time">{formatTimeAgo(e.ultima_telemetria)}</div>
+                    </div>
+                    );
+                })}
+        </div>
+    );
+});
+
+// Marcador individual de escala en el mapa — extraído y memoizado para que
+// las ~14 escalas no reconstruyan su Popup/Tooltip completo (con todos sus
+// cálculos de color/estado) en cada render disparado por el tick de 60s del
+// reloj del monitor cuando el dato de esa escala en particular no cambió.
+const EscalaMarker = React.memo(({ esc, displayMaxKm, isEstabilizacion, coherenciaCanal, statusColor }: {
+    esc: EscalaData;
+    displayMaxKm: number;
+    isEstabilizacion: boolean;
+    coherenciaCanal: any;
+    statusColor: string;
+}) => {
+    // Valores compartidos entre CircleMarker props, Tooltip y Popup
+    const nivel     = esc.nivel_actual ?? 0;
+    const nivelMax  = esc.nivel_max_operativo && esc.nivel_max_operativo > 0 ? esc.nivel_max_operativo : null;
+    const nivelPct  = nivelMax ? Math.min(100, (nivel / nivelMax) * 100) : null;
+    const barColor  = nivelPct === null ? '#38bdf8' : nivelPct >= 95 ? '#ef4444' : nivelPct >= 80 ? '#f59e0b' : '#38bdf8';
+    const gasto     = esc.gasto_actual ?? 0;
+    const apertura  = esc.apertura_actual ?? 0;
+    const telEstado = telemetriaEstado(esc.ultima_telemetria);
+    const telTxt    = telemetriaLabel(telEstado);
+    const tsAge     = esc.ultima_telemetria ? (Date.now() - esc.ultima_telemetria) / 60000 : null;
+    const delta     = esc.delta_12h ?? 0;
+    const trendSym  = delta > 0.01 ? '▲' : delta < -0.01 ? '▼' : '—';
+
+    // Color del marcador en mapa
+    const alertColor = esc.km <= displayMaxKm
+        ? (isEstabilizacion ? escalaAlertColor(esc, coherenciaCanal) : statusColor)
+        : '#1e293b';
+
+    // Offline solo cuando la escala YA reportó alguna vez pero perdió señal.
+    // Si ultima_telemetria es null nunca tuvo dato → mostrar con opacidad plena.
+    const hasEverReported = esc.ultima_telemetria !== null;
+    const isOffline = hasEverReported && telEstado === 'FUERA_DE_LINEA';
+
+    // Clase CSS para animaciones de estado
+    const markerClass = [
+        isOffline ? 'esc-offline' : '',
+        nivelPct !== null && nivelPct >= 92 ? 'esc-critical' : '',
+        nivelPct !== null && nivelPct >= 80 && nivelPct < 92 ? 'esc-warning' : '',
+    ].filter(Boolean).join(' ') || undefined;
+
+    // Badge operativo en popup
+    let badgeLabel = 'SIN DATOS';
+    let badgeColor = '#475569';
+    if (esc.estado === 'OPERANDO' && nivel > 0) {
+        if (gasto > 0) { badgeLabel = 'OPERANDO'; badgeColor = '#22c55e'; }
+        else           { badgeLabel = 'SIN FLUJO'; badgeColor = '#f59e0b'; }
+    } else if (esc.estado === 'LLENADO') {
+        badgeLabel = 'EN LLENADO'; badgeColor = '#06b6d4';
+    } else if (nivel > 0) {
+        badgeLabel = 'CON NIVEL'; badgeColor = '#38bdf8';
+    }
+
+    const tiempoLectura = tsAge === null ? 'Sin datos'
+        : tsAge < 1    ? 'Hace menos de 1 min'
+        : tsAge < 60   ? `Hace ${Math.floor(tsAge)} min`
+        : tsAge < 1440 ? `Hace ${Math.floor(tsAge / 60)}h ${Math.floor(tsAge % 60)}min`
+        : 'Más de un día';
+
+    return (
+        <CircleMarker
+            center={[esc.latitud!, esc.longitud!]}
+            radius={esc.km <= displayMaxKm ? 6 : 4}
+            fillColor={alertColor}
+            color={isOffline ? '#475569' : '#fff'}
+            weight={1.5}
+            fillOpacity={isOffline ? 0.35 : 1}
+            className={markerClass}
+        >
+            <Popup className="custom-popup sica-cp-popup">
+                <div className="scp-root">
+                    <div className="scp-header">
+                        <span className="scp-km">KM {esc.km.toFixed(1)}</span>
+                        <span className="scp-badge" style={{ '--badge-color': badgeColor } as React.CSSProperties}>
+                            {badgeLabel}
+                        </span>
+                    </div>
+                    <div className="scp-nombre-row">
+                        <p className="scp-nombre">{esc.nombre}</p>
+                        <span className="scp-signal" data-tel={telEstado} title={telTxt} />
+                    </div>
+                    <div className="scp-section">
+                        <span className="scp-field-label">NIVEL DE AGUA</span>
+                        <div className="scp-bar-row">
+                            <div className="scp-bar-track">
+                                <div className="scp-bar-fill" style={{ '--bar-w': nivelPct !== null ? `${nivelPct}%` : '0%', '--bar-color': barColor } as React.CSSProperties} />
+                            </div>
+                            <span className="scp-bar-val" style={{ '--bar-color': barColor } as React.CSSProperties}>{nivel.toFixed(2)} m</span>
+                        </div>
+                        {nivelMax && <span className="scp-ref">capacidad {nivelMax.toFixed(2)} m</span>}
+                    </div>
+                    {(gasto > 0 || apertura > 0) && (
+                        <div className="scp-metrics">
+                            {gasto > 0 && (
+                                <div className="scp-metric">
+                                    <span className="scp-metric-label">FLUJO MEDIDO</span>
+                                    <span className="scp-metric-val">{gasto.toFixed(2)}</span>
+                                    <span className="scp-metric-unit">m³/s</span>
+                                </div>
+                            )}
+                            {apertura > 0 && (
+                                <div className="scp-metric">
+                                    <span className="scp-metric-label">APERTURA ACUM.</span>
+                                    <span className="scp-metric-val">{apertura.toFixed(2)}</span>
+                                    <span className="scp-metric-unit">
+                                        m{esc.puertas_abiertas != null && esc.pzas_radiales != null
+                                            ? ` · ${esc.puertas_abiertas}/${esc.pzas_radiales} comp.`
+                                            : esc.pzas_radiales != null ? ` · ${esc.pzas_radiales} comp.` : ''}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    <div className="scp-footer">
+                        <span className="scp-footer-time" data-tel={telEstado}>{tiempoLectura}</span>
+                        <span className="scp-footer-signal" data-tel={telEstado}>{telTxt}</span>
+                    </div>
+                </div>
+            </Popup>
+
+            {/* Mini-badge permanente cuando hay nivel; tooltip hover cuando no hay datos */}
+            <Tooltip
+                className={nivel > 0 ? 'esc-level-badge' : 'custom-tooltip'}
+                direction="top"
+                offset={[0, -8]}
+                permanent={nivel > 0}
+                interactive={false}
+                opacity={nivel > 0 ? 1 : 0.9}
+            >
+                {nivel > 0
+                    ? <span className="elb-content">
+                        <span className="elb-val">{nivel.toFixed(2)}m</span>
+                        <span className="elb-arrow" data-dir={delta > 0.01 ? 'up' : delta < -0.01 ? 'down' : 'flat'}>{trendSym}</span>
+                      </span>
+                    : <span>{esc.nombre}</span>
+                }
+            </Tooltip>
+        </CircleMarker>
+    );
+});
 
 const PublicMonitor: React.FC = () => {
     const navigate = useNavigate();
@@ -1348,7 +1590,7 @@ const PublicMonitor: React.FC = () => {
 
     // 4. Calculate Dynamic Target Estimation (Hydra Engine Logic)
     const nextTargetInfo = useMemo(() => {
-        if (!escalas || escalas.length === 0) return { name: "Buscando...", hours: 0, mins: 0, kmRemaining: 0 };
+        if (!escalas || escalas.length === 0) return { name: "Buscando...", hours: 0, mins: 0, kmRemaining: '—' };
         
         if (isWaitingAtZero) {
             return {
@@ -1370,7 +1612,7 @@ const PublicMonitor: React.FC = () => {
         const sorted = [...escalas].sort((a,b) => a.km - b.km);
         const nextScale = sorted.find(e => e.km > displayMaxKm);
         
-        if (!nextScale) return { name: "Terminado", hours: 0, mins: 0, kmRemaining: 0 };
+        if (!nextScale) return { name: "Terminado", hours: 0, mins: 0, kmRemaining: '—' };
 
         // Distance remaining to that specific checkpoint
         const distRemaining = nextScale.km - displayMaxKm;
@@ -1958,8 +2200,13 @@ const PublicMonitor: React.FC = () => {
         }).finally(() => setFgvLoading(false));
     }, [showPerfilModal, coherenciaCanal, isEstabilizacion]);
 
-    // Limpiar cache FGV cuando cambian los datos de campo
-    useEffect(() => { setFgvData(null); }, [coherenciaCanal]);
+    // Limpiar cache FGV cuando cambia el gasto real que alimenta el motor —
+    // NO en cada recálculo de coherenciaCanal (ese memo se recrea cada 60s
+    // por currentTime aunque qK0Medido no cambie, y limpiar fgvData en cada
+    // recreación reinvocaba la Edge Function hydraulic-engine cada 60s con
+    // el modal de perfil abierto, pese al comentario "ya cargado en esta
+    // sesión de modal" del efecto de arriba).
+    useEffect(() => { setFgvData(null); }, [coherenciaCanal?.qK0Medido]);
 
     // Canal segmentado por color de alerta (modo ESTABILIZACIÓN)
     const canalAlertSegments = useMemo(() => {
@@ -2348,137 +2595,16 @@ const PublicMonitor: React.FC = () => {
                     )}
 
                     {/* Escalas de Puntos — con mini-badge de nivel y clases de estado */}
-                    {escalas.filter(esc => typeof esc.latitud === 'number' && typeof esc.longitud === 'number').map(esc => {
-                        // Valores compartidos entre CircleMarker props, Tooltip y Popup
-                        const nivel     = esc.nivel_actual ?? 0;
-                        const nivelMax  = esc.nivel_max_operativo && esc.nivel_max_operativo > 0 ? esc.nivel_max_operativo : null;
-                        const nivelPct  = nivelMax ? Math.min(100, (nivel / nivelMax) * 100) : null;
-                        const barColor  = nivelPct === null ? '#38bdf8' : nivelPct >= 95 ? '#ef4444' : nivelPct >= 80 ? '#f59e0b' : '#38bdf8';
-                        const gasto     = esc.gasto_actual ?? 0;
-                        const apertura  = esc.apertura_actual ?? 0;
-                        const telEstado = telemetriaEstado(esc.ultima_telemetria);
-                        const telTxt    = telemetriaLabel(telEstado);
-                        const tsAge     = esc.ultima_telemetria ? (Date.now() - esc.ultima_telemetria) / 60000 : null;
-                        const delta     = esc.delta_12h ?? 0;
-                        const trendSym  = delta > 0.01 ? '▲' : delta < -0.01 ? '▼' : '—';
-
-                        // Color del marcador en mapa
-                        const alertColor = esc.km <= displayMaxKm
-                            ? (isEstabilizacion ? escalaAlertColor(esc, coherenciaCanal) : statusColor)
-                            : '#1e293b';
-
-                        // Offline solo cuando la escala YA reportó alguna vez pero perdió señal.
-                        // Si ultima_telemetria es null nunca tuvo dato → mostrar con opacidad plena.
-                        const hasEverReported = esc.ultima_telemetria !== null;
-                        const isOffline = hasEverReported && telEstado === 'FUERA_DE_LINEA';
-
-                        // Clase CSS para animaciones de estado
-                        const markerClass = [
-                            isOffline ? 'esc-offline' : '',
-                            nivelPct !== null && nivelPct >= 92 ? 'esc-critical' : '',
-                            nivelPct !== null && nivelPct >= 80 && nivelPct < 92 ? 'esc-warning' : '',
-                        ].filter(Boolean).join(' ') || undefined;
-
-                        // Badge operativo en popup
-                        let badgeLabel = 'SIN DATOS';
-                        let badgeColor = '#475569';
-                        if (esc.estado === 'OPERANDO' && nivel > 0) {
-                            if (gasto > 0) { badgeLabel = 'OPERANDO'; badgeColor = '#22c55e'; }
-                            else           { badgeLabel = 'SIN FLUJO'; badgeColor = '#f59e0b'; }
-                        } else if (esc.estado === 'LLENADO') {
-                            badgeLabel = 'EN LLENADO'; badgeColor = '#06b6d4';
-                        } else if (nivel > 0) {
-                            badgeLabel = 'CON NIVEL'; badgeColor = '#38bdf8';
-                        }
-
-                        const tiempoLectura = tsAge === null ? 'Sin datos'
-                            : tsAge < 1    ? 'Hace menos de 1 min'
-                            : tsAge < 60   ? `Hace ${Math.floor(tsAge)} min`
-                            : tsAge < 1440 ? `Hace ${Math.floor(tsAge / 60)}h ${Math.floor(tsAge % 60)}min`
-                            : 'Más de un día';
-
-                        return (
-                            <CircleMarker
-                                key={esc.id}
-                                center={[esc.latitud!, esc.longitud!]}
-                                radius={esc.km <= displayMaxKm ? 6 : 4}
-                                fillColor={alertColor}
-                                color={isOffline ? '#475569' : '#fff'}
-                                weight={1.5}
-                                fillOpacity={isOffline ? 0.35 : 1}
-                                className={markerClass}
-                            >
-                                <Popup className="custom-popup sica-cp-popup">
-                                    <div className="scp-root">
-                                        <div className="scp-header">
-                                            <span className="scp-km">KM {esc.km.toFixed(1)}</span>
-                                            <span className="scp-badge" style={{ '--badge-color': badgeColor } as React.CSSProperties}>
-                                                {badgeLabel}
-                                            </span>
-                                        </div>
-                                        <div className="scp-nombre-row">
-                                            <p className="scp-nombre">{esc.nombre}</p>
-                                            <span className="scp-signal" data-tel={telEstado} title={telTxt} />
-                                        </div>
-                                        <div className="scp-section">
-                                            <span className="scp-field-label">NIVEL DE AGUA</span>
-                                            <div className="scp-bar-row">
-                                                <div className="scp-bar-track">
-                                                    <div className="scp-bar-fill" style={{ '--bar-w': nivelPct !== null ? `${nivelPct}%` : '0%', '--bar-color': barColor } as React.CSSProperties} />
-                                                </div>
-                                                <span className="scp-bar-val" style={{ '--bar-color': barColor } as React.CSSProperties}>{nivel.toFixed(2)} m</span>
-                                            </div>
-                                            {nivelMax && <span className="scp-ref">capacidad {nivelMax.toFixed(2)} m</span>}
-                                        </div>
-                                        {(gasto > 0 || apertura > 0) && (
-                                            <div className="scp-metrics">
-                                                {gasto > 0 && (
-                                                    <div className="scp-metric">
-                                                        <span className="scp-metric-label">FLUJO MEDIDO</span>
-                                                        <span className="scp-metric-val">{gasto.toFixed(2)}</span>
-                                                        <span className="scp-metric-unit">m³/s</span>
-                                                    </div>
-                                                )}
-                                                {apertura > 0 && (
-                                                    <div className="scp-metric">
-                                                        <span className="scp-metric-label">APERTURA ACUM.</span>
-                                                        <span className="scp-metric-val">{apertura.toFixed(2)}</span>
-                                                        <span className="scp-metric-unit">
-                                                            m{esc.puertas_abiertas != null && esc.pzas_radiales != null
-                                                                ? ` · ${esc.puertas_abiertas}/${esc.pzas_radiales} comp.`
-                                                                : esc.pzas_radiales != null ? ` · ${esc.pzas_radiales} comp.` : ''}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        <div className="scp-footer">
-                                            <span className="scp-footer-time" data-tel={telEstado}>{tiempoLectura}</span>
-                                            <span className="scp-footer-signal" data-tel={telEstado}>{telTxt}</span>
-                                        </div>
-                                    </div>
-                                </Popup>
-
-                                {/* Mini-badge permanente cuando hay nivel; tooltip hover cuando no hay datos */}
-                                <Tooltip
-                                    className={nivel > 0 ? 'esc-level-badge' : 'custom-tooltip'}
-                                    direction="top"
-                                    offset={[0, -8]}
-                                    permanent={nivel > 0}
-                                    interactive={false}
-                                    opacity={nivel > 0 ? 1 : 0.9}
-                                >
-                                    {nivel > 0
-                                        ? <span className="elb-content">
-                                            <span className="elb-val">{nivel.toFixed(2)}m</span>
-                                            <span className="elb-arrow" data-dir={delta > 0.01 ? 'up' : delta < -0.01 ? 'down' : 'flat'}>{trendSym}</span>
-                                          </span>
-                                        : <span>{esc.nombre}</span>
-                                    }
-                                </Tooltip>
-                            </CircleMarker>
-                        );
-                    })}
+                    {escalas.filter(esc => typeof esc.latitud === 'number' && typeof esc.longitud === 'number').map(esc => (
+                        <EscalaMarker
+                            key={esc.id}
+                            esc={esc}
+                            displayMaxKm={displayMaxKm}
+                            isEstabilizacion={isEstabilizacion}
+                            coherenciaCanal={coherenciaCanal}
+                            statusColor={statusColor}
+                        />
+                    ))}
 
                     <ZoomControl position="bottomright" />
                 </MapContainer>
@@ -2834,75 +2960,14 @@ const PublicMonitor: React.FC = () => {
                             <span className="card-label">RED DE PUNTOS DE CONTROL</span>
                             {renderStateTag('MONITOREO ACTIVO')}
                         </div>
-                        <div className="checkpoints-scroll-container">
-                            {escalas
-                                .sort((a, b) => a.km - b.km)
-                                .map((e) => {
-                                    // Coherencia individual: marcar punto incoherente
-                                    const puntoCoh = coherenciaCanal?.puntos.find(p => p.id === e.id);
-                                    const incoherente = puntoCoh && !puntoCoh.coherente;
-                                    const hasFlow = isEstabilizacion && !ESC_SIN_CONTROL.has(e.nombre) && (e.gasto_actual ?? 0) > 0;
-                                    return (
-                                    <div
-                                        className={`checkpoint-card-compact ${e.km <= displayMaxKm ? 'active' : ''} ${incoherente ? 'cpc-incoherente' : ''}`}
-                                        key={e.id}
-                                    >
-                                        <div className="cpc-km">{e.km.toFixed(1)} <small>KM</small></div>
-                                        <div className="cpc-body">
-                                            <span className="cpc-name">{e.nombre}</span>
-                                            <div className="cpc-data" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <span className="cpc-value">{e.nivel_actual?.toFixed(2) || '0.00'}</span>
-                                                <small className="cpc-unit">m</small>
-                                                {(() => {
-                                                    // Tendencia solo con lectura fresca (<4h): un "— 0.00" sobre
-                                                    // datos de 20h sugiere estabilidad EN VIVO que nadie midió.
-                                                    const ageMin = e.ultima_telemetria ? (Date.now() - e.ultima_telemetria) / 60000 : Infinity;
-                                                    if (ageMin > 240) return (
-                                                        <span style={{ color: '#64748b', fontSize: '11px' }} title="Tendencia 12h no disponible — telemetría vencida (>4 h)">·</span>
-                                                    );
-                                                    const d = e.delta_12h ?? 0;
-                                                    const tChar = d > 0.01 ? '▲' : d < -0.01 ? '▼' : '—';
-                                                    const tCol = d > 0.01 ? '#ef4444' : d < -0.01 ? '#22c55e' : '#cbd5e1';
-                                                    return (
-                                                        <span style={{ color: tCol, fontSize: '12px', fontWeight: '900', textShadow: '0 0 4px rgba(0,0,0,0.8)' }} title={`Tendencia 12h: ${d > 0 ? '+' : ''}${d.toFixed(2)}m`}>
-                                                            {tChar} {Math.abs(d).toFixed(2)}
-                                                        </span>
-                                                    );
-                                                })()}
-                                            </div>
-                                            {/* ESTABILIZACIÓN: mostrar gasto y apertura si disponibles */}
-                                            {isEstabilizacion && (
-                                                <div className="cpc-extra">
-                                                    {hasFlow && (
-                                                        <span className="cpc-gasto">{(e.gasto_actual ?? 0).toFixed(2)} m³/s</span>
-                                                    )}
-                                                    {(e.apertura_actual ?? 0) > 0 && (
-                                                        <span className="cpc-apertura">
-                                                            ⊿ {(e.apertura_actual ?? 0).toFixed(2)}m
-                                                            {e.puertas_abiertas != null && e.pzas_radiales != null
-                                                                ? ` (${e.puertas_abiertas}/${e.pzas_radiales})`
-                                                                : ''}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="cpc-status-bar">
-                                            <div
-                                                className="cpc-progress"
-                                                style={{
-                                                    width: isEstabilizacion
-                                                        ? (hasFlow ? `${Math.min(100, ((e.gasto_actual ?? 0) / Math.max(coherenciaCanal?.qK0Medido ?? 1, 1)) * 100)}%` : '0%')
-                                                        : (e.km <= displayMaxKm ? '100%' : '0%'),
-                                                    background: incoherente ? '#ef4444' : (e.estado === 'OPERANDO' ? '#22c55e' : statusColor)
-                                                }}
-                                            />
-                                        </div>
-                                        <div className="cpc-time">{formatTimeAgo(e.ultima_telemetria)}</div>
-                                    </div>
-                                    );
-                                })}
-                        </div>
+                        <CheckpointsGrid
+                            escalas={escalas}
+                            coherenciaCanal={coherenciaCanal}
+                            displayMaxKm={displayMaxKm}
+                            isEstabilizacion={isEstabilizacion}
+                            statusColor={statusColor}
+                            currentTime={currentTime}
+                        />
                     </div>
                     </>
                     )}
@@ -2914,73 +2979,14 @@ const PublicMonitor: React.FC = () => {
                             <span className="card-label">RED DE PUNTOS DE CONTROL</span>
                             {renderStateTag('MONITOREO ACTIVO')}
                         </div>
-                        <div className="checkpoints-scroll-container">
-                            {escalas
-                                .sort((a, b) => a.km - b.km)
-                                .map((e) => {
-                                    const puntoCoh = coherenciaCanal?.puntos.find(p => p.id === e.id);
-                                    const incoherente = puntoCoh && !puntoCoh.coherente;
-                                    const hasFlow = isEstabilizacion && !ESC_SIN_CONTROL.has(e.nombre) && (e.gasto_actual ?? 0) > 0;
-                                    return (
-                                    <div
-                                        className={`checkpoint-card-compact ${e.km <= displayMaxKm ? 'active' : ''} ${incoherente ? 'cpc-incoherente' : ''}`}
-                                        key={e.id}
-                                    >
-                                        <div className="cpc-km">{e.km.toFixed(1)} <small>KM</small></div>
-                                        <div className="cpc-body">
-                                            <span className="cpc-name">{e.nombre}</span>
-                                            <div className="cpc-data" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <span className="cpc-value">{e.nivel_actual?.toFixed(2) || '0.00'}</span>
-                                                <small className="cpc-unit">m</small>
-                                                {(() => {
-                                                    // Tendencia solo con lectura fresca (<4h): un "— 0.00" sobre
-                                                    // datos de 20h sugiere estabilidad EN VIVO que nadie midió.
-                                                    const ageMin = e.ultima_telemetria ? (Date.now() - e.ultima_telemetria) / 60000 : Infinity;
-                                                    if (ageMin > 240) return (
-                                                        <span style={{ color: '#64748b', fontSize: '11px' }} title="Tendencia 12h no disponible — telemetría vencida (>4 h)">·</span>
-                                                    );
-                                                    const d = e.delta_12h ?? 0;
-                                                    const tChar = d > 0.01 ? '▲' : d < -0.01 ? '▼' : '—';
-                                                    const tCol = d > 0.01 ? '#ef4444' : d < -0.01 ? '#22c55e' : '#cbd5e1';
-                                                    return (
-                                                        <span style={{ color: tCol, fontSize: '12px', fontWeight: '900', textShadow: '0 0 4px rgba(0,0,0,0.8)' }} title={`Tendencia 12h: ${d > 0 ? '+' : ''}${d.toFixed(2)}m`}>
-                                                            {tChar} {Math.abs(d).toFixed(2)}
-                                                        </span>
-                                                    );
-                                                })()}
-                                            </div>
-                                            {isEstabilizacion && (
-                                                <div className="cpc-extra">
-                                                    {hasFlow && (
-                                                        <span className="cpc-gasto">{(e.gasto_actual ?? 0).toFixed(2)} m³/s</span>
-                                                    )}
-                                                    {(e.apertura_actual ?? 0) > 0 && (
-                                                        <span className="cpc-apertura">
-                                                            ⊿ {(e.apertura_actual ?? 0).toFixed(2)}m
-                                                            {e.puertas_abiertas != null && e.pzas_radiales != null
-                                                                ? ` (${e.puertas_abiertas}/${e.pzas_radiales})`
-                                                                : ''}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="cpc-status-bar">
-                                            <div
-                                                className="cpc-progress"
-                                                style={{
-                                                    width: isEstabilizacion
-                                                        ? (hasFlow ? `${Math.min(100, ((e.gasto_actual ?? 0) / Math.max(coherenciaCanal?.qK0Medido ?? 1, 1)) * 100)}%` : '0%')
-                                                        : (e.km <= displayMaxKm ? '100%' : '0%'),
-                                                    background: incoherente ? '#ef4444' : (e.estado === 'OPERANDO' ? '#22c55e' : statusColor)
-                                                }}
-                                            />
-                                        </div>
-                                        <div className="cpc-time">{formatTimeAgo(e.ultima_telemetria)}</div>
-                                    </div>
-                                    );
-                                })}
-                        </div>
+                        <CheckpointsGrid
+                            escalas={escalas}
+                            coherenciaCanal={coherenciaCanal}
+                            displayMaxKm={displayMaxKm}
+                            isEstabilizacion={isEstabilizacion}
+                            statusColor={statusColor}
+                            currentTime={currentTime}
+                        />
                     </div>
                     )}
 

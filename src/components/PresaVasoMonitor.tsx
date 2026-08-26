@@ -7,6 +7,12 @@ import ReactECharts from 'echarts-for-react';
 // cuando el usuario hace clic en "Ver en 3D", no en el bundle inicial del
 // modal (que ya carga Leaflet/ECharts vía GeoMonitor).
 const VasoVisor3D = lazy(() => import('./VasoVisor3D'));
+// Mismo chunk que VasoVisor3D (Three.js ya se descarga una sola vez si el
+// usuario abre cualquiera de los dos) pero import perezoso aparte: el
+// informe institucional puede pedirse SIN que el usuario haya abierto nunca
+// el visor 3D interactivo, y no debe forzar la descarga de Three.js si nunca
+// se pide un informe tampoco.
+const VasoVisor3DCaptura = lazy(() => import('./VasoVisor3D').then(m => ({ default: m.VasoVisor3DCaptura })));
 import './PresaVasoMonitor.css';
 import { detectaSuperficieVaso, type SuperficieVaso } from '../utils/mapaSatelital';
 import { supabase } from '../lib/supabase';
@@ -110,11 +116,12 @@ interface PresaVasoMonitorProps {
         presa_id: string;
         curva?: CurvaPunto[];
     };
-    /** Qué sección enfocar al abrir: 'satelital' (NDWI del día, default) o
-     *  'ciclo' (comparativa mensual histórica) — evita que el usuario tenga
-     *  que bajar manualmente en un modal largo cuando entra desde el botón
-     *  dedicado "Evolución del Ciclo". */
-    seccionInicial?: 'satelital' | 'ciclo';
+    /** Qué sección enfocar al abrir: 'satelital' (NDWI del día, default),
+     *  'ciclo' (comparativa mensual histórica) o 'relieve3d' (visor 3D con
+     *  terreno real/hillshade activado automáticamente) — evita que el
+     *  usuario tenga que bajar manualmente y hacer clic adicional en un
+     *  modal largo cuando entra desde un botón dedicado del mapa. */
+    seccionInicial?: 'satelital' | 'ciclo' | 'relieve3d';
     onClose: () => void;
 }
 
@@ -655,6 +662,59 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
     // reutiliza los mismos datos ya cargados en historicoVaso, sin fetch propio.
     const [mostrarInforme, setMostrarInforme] = useState(false);
 
+    // Imagen de relieve para el informe: ángulo panorámico FIJO (a diferencia
+    // del visor 3D interactivo, que depende de cómo haya quedado orbitando la
+    // cámara el último usuario) — se genera montando VasoVisor3DCaptura oculto.
+    // undefined = todavía no se pidió; null = se pidió y no hay DEM disponible
+    // para esta presa (el informe se genera igual, solo sin esa sección).
+    const [imagenRelieveInforme, setImagenRelieveInforme] = useState<string | null | undefined>(undefined);
+    // El modal del informe (y su botón "Imprimir/PDF") solo se muestran
+    // DESPUÉS de que la captura resuelva (imagen o null) — antes, el informe
+    // se abría de inmediato con imagenRelieveInforme todavía en undefined, y
+    // si el usuario hacía clic en "Imprimir/PDF" antes de que la captura
+    // llegara (varios segundos: fetch del DEM + textura satelital de varios
+    // MB + render), el PDF generado quedaba con esa versión vieja (sin la
+    // sección de relieve) aunque el iframe en pantalla se actualizara un
+    // instante después — causa real del "no se actualiza" reportado en el
+    // PDF exportado.
+    const [preparandoInforme, setPreparandoInforme] = useState(false);
+    // Montaje diferido de VasoVisor3DCaptura tras preparandoInforme=true: si
+    // el visor 3D interactivo estaba abierto (mostrarVisor3D), se desmonta
+    // en el MISMO render en que preparandoInforme se activa, pero el
+    // navegador no libera la VRAM de ese contexto WebGL de forma instantánea
+    // — montar el Canvas de captura en el mismo tick competía por memoria
+    // con el contexto todavía en proceso de liberarse, y perdía el suyo
+    // propio a mitad de captura (confirmado en consola: "Context Lost" justo
+    // tras un toDataURL() de solo 5.8KB — un frame vacío, no el relieve
+    // real). 400ms de margen es suficiente en la práctica para que el
+    // navegador libere el contexto anterior antes de abrir uno nuevo.
+    const [capturaListaParaMontar, setCapturaListaParaMontar] = useState(false);
+    const abrirInforme = useCallback(() => {
+        if (imagenRelieveInforme !== undefined) { setMostrarInforme(true); return; }
+        // Sin histórico todavía no hay ningún mes que capturar en 3D — abre
+        // el informe directo (sin sección de relieve) en vez de quedarse
+        // esperando para siempre una captura que nunca se va a disparar.
+        if (!masReciente) { setImagenRelieveInforme(null); setMostrarInforme(true); return; }
+        setPreparandoInforme(true);
+    }, [imagenRelieveInforme, masReciente]);
+    useEffect(() => {
+        if (!preparandoInforme) { setCapturaListaParaMontar(false); return; }
+        const t = setTimeout(() => setCapturaListaParaMontar(true), 400);
+        return () => clearTimeout(t);
+    }, [preparandoInforme]);
+    useEffect(() => {
+        if (preparandoInforme && imagenRelieveInforme !== undefined) {
+            setPreparandoInforme(false);
+            setMostrarInforme(true);
+        }
+    }, [preparandoInforme, imagenRelieveInforme]);
+    // Reinicia la captura pendiente al cambiar de presa — sin esto, abrir el
+    // informe de una segunda presa en la misma sesión del modal (el
+    // componente se remonta con nuevo `data.presa_id` vía key del padre, así
+    // que en la práctica esto solo cubre el caso de reutilización futura)
+    // podría mostrar la imagen de relieve de la presa anterior.
+    useEffect(() => { setImagenRelieveInforme(undefined); }, [data.presa_id]);
+
     // Visor 3D (Fase 1): extrusión del polígono NDWI del mes "comparado"
     // (mismo selector que el mini-mapa 2D) con profundidad aproximada desde
     // la curva batimétrica oficial — ver disclaimer completo en
@@ -667,11 +727,16 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
     // apiladas) y sin esto el usuario tendría que bajar manualmente cada vez.
     const seccionCicloRef = React.useRef<HTMLDivElement>(null);
     useEffect(() => {
-        if (seccionInicial === 'ciclo' && seccionCicloRef.current) {
+        if ((seccionInicial === 'ciclo' || seccionInicial === 'relieve3d') && seccionCicloRef.current) {
             seccionCicloRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
+        // 'relieve3d': activa el visor 3D de una vez — sin esto el usuario
+        // llegaba a la sección correcta con scroll automático pero igual
+        // tenía que hacer un clic más ("Ver en 3D") para llegar al relieve
+        // real que pidió explícitamente desde el mapa.
+        if (seccionInicial === 'relieve3d') setMostrarVisor3D(true);
         // Se dispara una sola vez al montar con esta prop — no en cada
-        // render, para no pelear con el scroll manual del usuario después.
+        // render, para no pelear con el scroll/toggle manual del usuario después.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -698,6 +763,19 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                             LECTURA OFICIAL: {tieneNivel ? `${data.nivel_msnm!.toFixed(2)} msnm` : 'S/D — sin lectura del día'}
                         </div>
                     </div>
+                    {/* Acceso directo al relieve 3D desde el header — antes el
+                        visor (terreno real Copernicus DEM + hillshade) solo se
+                        alcanzaba bajando hasta Evolución del Vaso y haciendo un
+                        clic más en "Ver en 3D"; con esto queda a un clic desde
+                        que se abre el modal, sin importar cómo se haya entrado. */}
+                    <button
+                        type="button"
+                        className="vaso-header-3d-btn"
+                        onClick={() => { setMostrarVisor3D(true); seccionCicloRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+                        title="Ir directo al visor 3D con terreno real"
+                    >
+                        <Box size={14} /> Ver Relieve 3D
+                    </button>
                     <button className="vaso-close" onClick={onClose}>×</button>
                 </header>
 
@@ -892,10 +970,12 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                             <button
                                 className="sim-reset-btn"
                                 style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 6 }}
-                                onClick={() => setMostrarInforme(true)}
+                                onClick={abrirInforme}
+                                disabled={preparandoInforme}
                                 title="Generar informe institucional SRL Conchos / SICA 005"
                             >
-                                <FileText size={12} /> Informe Institucional
+                                <FileText size={12} className={preparandoInforme ? 'animate-spin' : ''} />
+                                {preparandoInforme ? 'Preparando relieve 3D…' : 'Informe Institucional'}
                             </button>
                         )}
                     </div>
@@ -1072,8 +1152,16 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
 
                                 {/* Visor 3D (Fase 1) — extrusión del polígono del mes
                                     "comparado" seleccionado arriba. Lazy: Three.js/R3F
-                                    solo se descargan si el usuario activa este toggle. */}
-                                {mostrarVisor3D && filaComparada && (
+                                    solo se descargan si el usuario activa este toggle.
+                                    Se desmonta mientras se prepara el informe institucional
+                                    (preparandoInforme): VasoVisor3DCaptura abre su PROPIO
+                                    Canvas WebGL con el mismo DEM + textura satelital de
+                                    varios MB — dos contextos WebGL pesados a la vez agotaba
+                                    la VRAM disponible y perdía el contexto (confirmado en
+                                    consola: "THREE.WebGLRenderer: Context Lost" justo
+                                    después de capturar), dejando la imagen del informe en
+                                    un rectángulo vacío/casi negro en vez del relieve real. */}
+                                {mostrarVisor3D && !preparandoInforme && filaComparada && (
                                     <Suspense fallback={<div className="vaso3d-empty">Cargando visor 3D…</div>}>
                                         <VasoVisor3D
                                             contornoGeojson={filaComparada.contorno_geojson}
@@ -1241,12 +1329,34 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                 </div>
             </div>
 
+            {/* Captura del relieve 3D para el informe: se monta oculta apenas
+                se pide el informe institucional (preparandoInforme, ANTES de
+                abrir el modal — ver abrirInforme) mientras no se tenga ya una
+                imagen o se haya confirmado que no hay DEM (imagenRelieveInforme
+                sigue en undefined) — no antes, para no pagar el costo de
+                Three.js/DEM en cada apertura del modal si el usuario nunca
+                pide el informe. capturaListaParaMontar añade un margen corto
+                tras preparandoInforme para que, si el visor 3D interactivo
+                estaba abierto, su contexto WebGL termine de liberar VRAM
+                antes de abrir uno nuevo (ver comentario en su declaración). */}
+            {capturaListaParaMontar && imagenRelieveInforme === undefined && masReciente && (
+                <Suspense fallback={null}>
+                    <VasoVisor3DCaptura
+                        contornoGeojson={masReciente.contorno_geojson}
+                        nivelMsnm={data.nivel_msnm}
+                        presaId={data.presa_id}
+                        onCaptura={setImagenRelieveInforme}
+                    />
+                </Suspense>
+            )}
+
             {mostrarInforme && (
                 <InformeVasoInstitucional
                     nombrePresa={data.nombre}
                     historico={historicoVaso}
                     validacionCruzada={validacionCruzada}
                     texturaSatelital={texturaSatelital}
+                    imagenRelieve3D={imagenRelieveInforme ?? null}
                     onClose={() => setMostrarInforme(false)}
                 />
             )}

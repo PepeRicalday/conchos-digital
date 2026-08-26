@@ -88,6 +88,31 @@
     letter-spacing: 0.05em;
 }
 
+/* Acceso directo al visor 3D desde el header — mismo acento cian que
+   .vaso-badge, para que se lea como acción destacada sin competir con el
+   botón de cerrar (rojo al hover, semántica distinta). */
+.vaso-header-3d-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    align-self: center;
+    background: rgba(34, 211, 238, 0.12);
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    color: #22d3ee;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 10px 16px;
+    border-radius: 100px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.vaso-header-3d-btn:hover {
+    background: rgba(34, 211, 238, 0.22);
+    border-color: rgba(34, 211, 238, 0.6);
+}
+
 .vaso-close {
     background: rgba(30, 41, 59, 0.6);
     border: 1px solid rgba(100, 116, 139, 0.3);
@@ -440,6 +465,22 @@
     overflow: hidden;
     background: radial-gradient(ellipse at center, #0f1b2e 0%, #020617 100%);
     border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Captura para el Informe Institucional: el Canvas debe estar realmente
+   renderizado (tamaño real, en el árbol del DOM) para que WebGL dibuje
+   frames — `display:none` detiene el render loop en varios navegadores y
+   `visibility:hidden` puede saltarse el primer paint en algunos. Se
+   posiciona fuera del viewport en vez de ocultarse por CSS de visibilidad,
+   así el usuario nunca lo ve pero el canvas sí compone normalmente. Tamaño
+   fijo 1280x480 (panorámico, mismo aspecto que la imagen final del informe). */
+.vaso3d-captura-oculta {
+    position: fixed;
+    top: 0;
+    left: -10000px;
+    width: 1280px;
+    height: 480px;
+    pointer-events: none;
 }
 
 .vaso3d-overlay {

@@ -1,4 +1,4 @@
-import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain, Satellite, PanelRight, CalendarRange } from 'lucide-react';
+import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain, Satellite, PanelRight, CalendarRange, Box } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline, useMapEvents } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
@@ -251,9 +251,13 @@ const GeoMonitor = () => {
     const [loading, setLoading] = useState(true);
     const [showVaso, setShowVaso] = useState(false);
     // Qué sección debe enfocar PresaVasoMonitor al abrirse — 'satelital' (NDWI
-    // del día, comportamiento previo) o 'ciclo' (comparativa mensual nueva,
-    // botón dedicado para no obligar a bajar manualmente en un modal largo).
-    const [seccionVasoInicial, setSeccionVasoInicial] = useState<'satelital' | 'ciclo'>('satelital');
+    // del día, comportamiento previo), 'ciclo' (comparativa mensual, botón
+    // dedicado para no obligar a bajar manualmente en un modal largo) o
+    // 'relieve3d' (visor 3D con terreno real/hillshade — antes solo alcanzable
+    // bajando hasta Evolución del Vaso y haciendo clic en "Ver en 3D"; con
+    // este acceso directo desde el mapa, PresaVasoMonitor activa el visor
+    // automáticamente al abrir en vez de requerir ese clic adicional).
+    const [seccionVasoInicial, setSeccionVasoInicial] = useState<'satelital' | 'ciclo' | 'relieve3d'>('satelital');
     const [showHistoryModal, setShowHistoryModal] = useState(false);
 
     // Eventos Hidro-Sincrónicos
@@ -2445,6 +2449,12 @@ const GeoMonitor = () => {
                                                 onClick={() => { setSeccionVasoInicial('ciclo'); setShowVaso(true); }}
                                             >
                                                 <CalendarRange size={14} /> Evolución del Ciclo
+                                            </button>
+                                            <button
+                                                className="geo-action-btn primary"
+                                                onClick={() => { setSeccionVasoInicial('relieve3d'); setShowVaso(true); }}
+                                            >
+                                                <Box size={14} /> Ver Relieve 3D
                                             </button>
                                         </>
                                     )}

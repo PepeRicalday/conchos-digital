@@ -41,6 +41,12 @@ export interface InformeVasoInstitucionalProps {
     historico: GeometriaVasoFila[];
     validacionCruzada?: FilaValidacionCruzada[];
     texturaSatelital?: TexturaSatelital | null;
+    /** JPEG (dataURL) del visor 3D capturado en el ángulo panorámico fijo del
+     *  informe (terreno real Copernicus DEM + hillshade + textura Sentinel-2)
+     *  — ver VasoVisor3DCaptura en VasoVisor3D.tsx. null si la presa no tiene
+     *  DEM sincronizado todavía: la sección de relieve se omite sin bloquear
+     *  el resto del informe. */
+    imagenRelieve3D?: string | null;
     onClose: () => void;
 }
 
@@ -96,7 +102,7 @@ function poligonoASvgPath(
         .join(' ');
 }
 
-const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nombrePresa, historico, validacionCruzada = [], texturaSatelital = null, onClose }) => {
+const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nombrePresa, historico, validacionCruzada = [], texturaSatelital = null, imagenRelieve3D = null, onClose }) => {
     const generateHtml = useCallback(() => {
         const now = new Date();
         const dateDMY = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Chihuahua' });
@@ -146,6 +152,25 @@ const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nom
                 + '<div style="display:flex;gap:16px;margin-top:6px;font-size:7pt;color:#555">'
                 + '<span><i style="display:inline-block;width:9px;height:9px;border:2px dashed #94a3b8;border-radius:2px;margin-right:4px"></i>Apertura de ciclo (' + fechaDMY(primero.fecha_escena) + ')</span>'
                 + '<span><i style="display:inline-block;width:9px;height:9px;background:rgba(107,45,45,0.25);border:2px solid #6B2D2D;border-radius:2px;margin-right:4px"></i>Más reciente (' + fechaDMY(ultimo.fecha_escena) + ')</span>'
+                + '</div>';
+        })();
+
+        // ── Relieve del vaso: captura fija del visor 3D (terreno real
+        // Copernicus DEM + hillshade analítico + textura Sentinel-2), ángulo
+        // panorámico bajo SIEMPRE igual entre informes — a diferencia del
+        // visor interactivo (que depende de cómo haya quedado orbitando la
+        // cámara el último usuario), esta vista se genera aparte solo para el
+        // informe (ver VasoVisor3DCaptura en VasoVisor3D.tsx) precisamente
+        // para que sea consistente. Se omite en silencio si la presa no tiene
+        // DEM sincronizado todavía — no bloquea el resto del documento. ──
+        const relieveHtml = (() => {
+            if (!imagenRelieve3D) return '';
+            return '<div class="sec-block" style="margin-top:8px">'
+                + '<div class="sec-title">Relieve del Vaso ' + nombrePresa + ' <small>terreno real · Copernicus DEM + Sentinel-2</small></div>'
+                + '<div style="border-radius:6px;overflow:hidden;border:1px solid #e5e0e0">'
+                + '<img src="' + imagenRelieve3D + '" style="display:block;width:100%;height:auto" alt="Relieve tridimensional del vaso"/>'
+                + '</div>'
+                + '<div class="nota">Elevación real del terreno (Copernicus DEM GLO-30) con sombreado analítico e imagen satelital Sentinel-2 superpuesta. Exageración vertical de la escena para que el relieve se lea con claridad — no altera ninguna elevación registrada. El fondo del vaso bajo la lámina de agua es aproximado (sin batimetría medida disponible).</div>'
                 + '</div>';
         })();
 
@@ -380,6 +405,9 @@ const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nom
                 + comparativoHtml
                 + '</div>' : '')
 
+            // ── Relieve del vaso (visor 3D, ángulo panorámico fijo) ──
+            + relieveHtml
+
             // ── Contexto satelital del vaso (imagen real del terreno) ──
             + contextoSatelitalHtml
 
@@ -409,7 +437,7 @@ const InformeVasoInstitucional: React.FC<InformeVasoInstitucionalProps> = ({ nom
             + '</body></html>';
 
         return html;
-    }, [nombrePresa, historico, validacionCruzada]);
+    }, [nombrePresa, historico, validacionCruzada, texturaSatelital, imagenRelieve3D]);
 
     const [iframeUrl, setIframeUrl] = useState<string | null>(null);
     useEffect(() => {

@@ -37,7 +37,7 @@
  * pendiente vía Meshroom).
  */
 import React, { useMemo, useEffect, useState, useRef } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
@@ -1197,6 +1197,304 @@ const VasoVisor3D: React.FC<VasoVisor3DProps> = ({ contornoGeojson: contornoGeoj
                     Encuadrar
                 </button>
             </div>
+        </div>
+    );
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// CAPTURA PARA INFORME INSTITUCIONAL: monta la misma escena (terreno DEM +
+// hillshade + textura Sentinel-2 + lámina de agua) en un Canvas oculto, con
+// la cámara SIEMPRE en el mismo ángulo panorámico bajo (vista "a ras de
+// agua" mirando a lo largo del embalse, con sierra en el horizonte) — a
+// diferencia del visor interactivo, aquí el ángulo es fijo a propósito: el
+// informe debe verse igual entre presas/meses/usuarios, no depender de dónde
+// haya quedado orbitando la cámara la última persona que abrió el modal.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Vive DENTRO de <Canvas>: fija position+lookAt de la cámara en CADA frame
+ *  (no solo al montar o vía useEffect) — la prop declarativa `camera={{
+ *  position }}` del <Canvas> de R3F recibe un array literal nuevo en cada
+ *  render de VasoVisor3DCaptura (posicionCam no está memoizado), y R3F
+ *  reconcilia esa prop reasignando camera.position en cada commit; un
+ *  lookAt() aplicado solo una vez en onCreated (intento anterior) o en un
+ *  useEffect separado de la posición podía quedar corriendo ANTES de que
+ *  esa reasignación de posición ocurriera para el radioEscena real (el DEM
+ *  llega asíncrono; el primer render usa el radio por defecto de 500m) —
+ *  aplicando lookAt() en useFrame, en el mismo tick en que la posición ya
+ *  vive en su valor final, se elimina cualquier ventana de desincronización
+ *  entre "dónde está la cámara" y "hacia dónde mira". Causa real del
+ *  rectángulo vacío/morado reportado: no era falta de geometría ni de
+ *  textura (la escena sí tenía 2 mallas, confirmado en consola) — la cámara
+ *  apuntaba hacia un punto sin nada que ver. */
+function ApuntadorCamara({ position, target }: { position: [number, number, number]; target: [number, number, number] }) {
+    const { camera } = useThree();
+    useFrame(() => {
+        camera.position.set(...position);
+        camera.lookAt(...target);
+        camera.updateProjectionMatrix();
+    }, -1); // prioridad negativa: corre ANTES que CapturadorAngulo en el mismo frame
+    return null;
+}
+
+/** Vive DENTRO de <Canvas>: coloca la cámara en el ángulo panorámico bajo
+ *  fijo y, cuando la escena ya tiene terreno+textura listos, espera unos
+ *  frames (para que el primer draw real ya esté en el buffer) y reporta el
+ *  PNG capturado del canvas al padre. */
+function CapturadorAngulo({ listo, onCaptura }: { listo: boolean; onCaptura: (dataUrl: string | null) => void }) {
+    const { gl, scene } = useThree();
+    const capturado = useRef(false);
+    const framesListo = useRef(0);
+    useEffect(() => {
+        // Se resetea si `listo` vuelve a false (cambio de presa/mes mientras
+        // el componente de captura sigue montado) — evita capturar dos veces
+        // el mismo canvas o quedarse sin capturar tras un cambio de props.
+        if (!listo) { capturado.current = false; framesListo.current = 0; }
+    }, [listo]);
+    useFrame(() => {
+        if (!listo || capturado.current) return;
+        // Antes de contar frames, confirma que la escena ya tiene malla real
+        // que dibujar — `listo` (DEM cargado + estadoTextura resuelto) puede
+        // volverse true antes de que TerrenoMesh (geometría de ~35k vértices,
+        // calculada en un useMemo pesado) termine de montarse como hijo real
+        // del <scene> de Three.js. Sin esta comprobación, la captura podía
+        // disparar sobre una escena todavía vacía — solo fondo/niebla, sin
+        // terreno ni agua (reportado: la imagen del informe salía en blanco/
+        // morado sólido). traverse() es barato aquí: corre una sola vez por
+        // frame hasta encontrar el primer Mesh, no en cada objeto siempre.
+        let hayMalla = false;
+        let nMallas = 0;
+        scene.traverse((obj) => { if ((obj as THREE.Mesh).isMesh) { hayMalla = true; nMallas++; } });
+        if (!hayMalla) {
+            console.warn('VasoVisor3DCaptura: esperando malla en escena, frame', framesListo.current);
+            return;
+        }
+        // 6 frames de margen tras confirmar malla presente: da tiempo a que
+        // texturas/mipmaps recién asignados terminen su primer upload a GPU
+        // antes de leer el buffer — capturar demasiado pronto a veces
+        // atrapaba un frame parcialmente compuesto (textura aún en gris).
+        framesListo.current += 1;
+        if (framesListo.current < 6) return;
+        capturado.current = true;
+        // Chequeo directo de pérdida de contexto WebGL: si esta captura corre
+        // MIENTRAS el visor 3D interactivo (VasoVisor3D) sigue montado en el
+        // mismo modal, hay DOS contextos WebGL vivos a la vez (cada uno con
+        // su propio DEM + textura satelital de varios MB) — el mismo
+        // escenario de agotamiento de VRAM ya documentado como causa de
+        // "Context Lost" en el visor interactivo. isContextLost() detecta
+        // esto directo, sin depender de que el evento 'webglcontextlost' ya
+        // haya disparado en este instante.
+        const perdido = gl.getContext().isContextLost();
+        console.warn('VasoVisor3DCaptura: capturando —', nMallas, 'mallas en escena, canvas', gl.domElement.width, 'x', gl.domElement.height, 'contextLost:', perdido);
+        if (perdido) {
+            console.warn('VasoVisor3DCaptura: contexto WebGL perdido antes de capturar — reportando sin imagen');
+            onCaptura(null);
+            return;
+        }
+        // No se llama gl.render() manual aquí: R3F ya renderiza la escena
+        // automáticamente en cada frame (frameloop="always") ANTES de que
+        // termine su ciclo — un render manual adicional dentro del propio
+        // callback de useFrame competía con ese ciclo normal y el
+        // toDataURL() posterior podía leer un buffer a medio pintar o ya
+        // limpiado (reportado: la imagen salía en blanco/morado sólido sin
+        // ningún rastro de terreno). requestAnimationFrame extra: espera a
+        // que el navegador realmente termine de componer/presentar el frame
+        // que R3F acaba de dibujar antes de leer el canvas — toDataURL()
+        // llamado en el mismo tick de useFrame puede adelantarse a esa
+        // composición en algunos navegadores/GPUs.
+        requestAnimationFrame(() => {
+            try {
+                const dataUrl = gl.domElement.toDataURL('image/jpeg', 0.92);
+                console.warn('VasoVisor3DCaptura: toDataURL OK, longitud', dataUrl.length);
+                onCaptura(dataUrl);
+            } catch (err) {
+                // "Tainted canvas": la textura satelital (Supabase Storage)
+                // puede contaminar el canvas si el servidor no manda CORS
+                // correcto pese a crossOrigin='anonymous' (ver comentario en
+                // TerrenoMesh) — en ese caso toDataURL() lanza SecurityError
+                // en vez de devolver un dataURL vacío, y sin este catch la
+                // excepción se perdía en silencio (la escena SÍ se pintaba
+                // bien en pantalla — este canvas está oculto, nadie la veía
+                // — pero onCaptura nunca se llamaba con imagen real).
+                console.warn('VasoVisor3DCaptura: toDataURL falló (posible tainted canvas)', err);
+                onCaptura(null);
+            }
+        });
+    });
+    return null;
+}
+
+interface VasoVisor3DCapturaProps {
+    contornoGeojson: { type: 'Polygon'; coordinates: [number, number][][] } | null;
+    nivelMsnm: number | null;
+    presaId: string;
+    /** Se llama una sola vez con el dataURL JPEG capturado, o con null si no
+     *  hay DEM/contorno disponible para esta presa (informe sigue sin esta
+     *  imagen, no bloquea el resto del contenido). */
+    onCaptura: (dataUrl: string | null) => void;
+}
+
+/** Componente sin UI propia — se monta oculto (fuera de viewport, ver CSS
+ *  `.vaso3d-captura-oculta`) solo mientras se genera el informe institucional,
+ *  y se desmonta apenas entrega su captura. No comparte Canvas con
+ *  VasoVisor3D (ese es interactivo y puede no estar montado al pedir el
+ *  informe) — instancia su propia escena mínima con el mismo terreno real. */
+export const VasoVisor3DCaptura: React.FC<VasoVisor3DCapturaProps> = ({ contornoGeojson, nivelMsnm, presaId, onCaptura }) => {
+    const { dem } = useDemTerreno(presaId);
+    const texturaSatelital = useTexturaSatelital(presaId);
+    const [estadoTextura, setEstadoTextura] = useState<'sin_url' | 'cargando' | 'lista' | 'error'>('sin_url');
+
+    const centro = useMemo(() => {
+        if (dem) {
+            const [west, south, east, north] = dem.bbox;
+            return { lon: (west + east) / 2, lat: (south + north) / 2, cosLat: Math.cos(((south + north) / 2) * Math.PI / 180) };
+        }
+        return { lon: 0, lat: 0, cosLat: 1 };
+    }, [dem]);
+
+    const elevacionReferencia = useMemo(() => {
+        if (nivelMsnm != null) return nivelMsnm;
+        if (dem) {
+            const validos = dem.grid.flat().filter((v): v is number => v != null);
+            if (validos.length) return validos.reduce((s, v) => s + v, 0) / validos.length;
+        }
+        return 1300;
+    }, [dem, nivelMsnm]);
+
+    const radioEscena = useMemo(() => {
+        let radio = 500;
+        if (contornoGeojson) {
+            for (const [lon, lat] of contornoGeojson.coordinates[0]) {
+                const [x, z] = proyectaAMetros(lon, lat, centro);
+                radio = Math.max(radio, Math.sqrt(x * x + z * z));
+            }
+        }
+        if (dem) {
+            const [west, south, east, north] = dem.bbox;
+            for (const [lon, lat] of [[west, south], [west, north], [east, south], [east, north]] as [number, number][]) {
+                const [x, z] = proyectaAMetros(lon, lat, centro);
+                radio = Math.max(radio, Math.sqrt(x * x + z * z));
+            }
+        }
+        return radio;
+    }, [contornoGeojson, dem, centro]);
+
+    // Eje principal del embalse (dirección de mayor extensión del contorno
+    // NDWI, en metros locales) + centro y radio DEL PROPIO VASO (no del bbox
+    // del DEM, que cubre terreno mucho más allá del agua y no está centrado
+    // en ella) — un embalse dendrítico como La Boquilla es mucho más largo
+    // que ancho, y "mirar a lo largo" solo tiene sentido relativo A ESE eje.
+    // Se aproxima con el par de vértices del anillo exterior más separados
+    // entre sí (más simple que un PCA completo y suficiente para un polígono
+    // ya de por sí muy alargado). ANTES la composición usaba centro/radio del
+    // DEM completo (bbox de ~55km, pensado para cubrir toda la cuenca visible
+    // desde el visor interactivo) — el agua terminaba relegada a una esquina
+    // del encuadre en vez de ser el sujeto central de la toma (reportado: "el
+    // vaso apenas se ve como una franja arriba a la derecha").
+    const { dx: ejeDx, dz: ejeDz, centroVasoX, centroVasoZ, radioVaso } = useMemo(() => {
+        if (!contornoGeojson) return { dx: 1, dz: 0, centroVasoX: 0, centroVasoZ: 0, radioVaso: 500 };
+        const pts = contornoGeojson.coordinates[0].map(([lon, lat]) => proyectaAMetros(lon, lat, centro));
+        let mejorA = pts[0], mejorB = pts[0], mejorD2 = 0;
+        // Recorrido O(n²) sobre el anillo exterior — unos cientos de puntos
+        // típicamente, trivial para correr una sola vez al generar el informe.
+        for (let i = 0; i < pts.length; i++) {
+            for (let j = i + 1; j < pts.length; j++) {
+                const dx = pts[i][0] - pts[j][0], dz = pts[i][1] - pts[j][1];
+                const d2 = dx * dx + dz * dz;
+                if (d2 > mejorD2) { mejorD2 = d2; mejorA = pts[i]; mejorB = pts[j]; }
+            }
+        }
+        const dx = mejorB[0] - mejorA[0], dz = mejorB[1] - mejorA[1];
+        const largo = Math.hypot(dx, dz) || 1;
+        // Centroide simple del anillo exterior (promedio de vértices) — no es
+        // el centroide de área exacto, pero para un polígono de forma
+        // razonable (aunque dendrítico) es suficiente para centrar la cámara.
+        const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+        const cz = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+        const rVaso = Math.max(300, ...pts.map(p => Math.hypot(p[0] - cx, p[1] - cz)));
+        return { dx: dx / largo, dz: dz / largo, centroVasoX: cx, centroVasoZ: cz, radioVaso: rVaso };
+    }, [contornoGeojson, centro]);
+
+    // Ángulo panorámico bajo fijo del informe: cámara casi al ras del agua
+    // (altura relativa al tamaño del VASO, no al radio del DEM completo),
+    // retrasada a lo largo del eje principal del embalse y apuntando
+    // DIRECTO AL CENTRO DEL VASO (sin desplazamiento adicional del target) —
+    // el intento anterior apuntaba a un punto corrido hacia el lado OPUESTO
+    // del eje de retroceso, así que la composición miraba oblicuamente y el
+    // agua quedaba en una esquina en vez de centrada (reportado). Altura
+    // bajada de 0.18x a 0.09x y retroceso de 1.3x a 0.75x: cámara más baja y
+    // más cerca, para que el agua ocupe el centro/mitad inferior del cuadro
+    // (composición "a ras de orilla") en vez de verse desde muy arriba.
+    const posicionCam: [number, number, number] = [
+        centroVasoX + ejeDx * radioVaso * 0.75,
+        Math.max(45, radioVaso * 0.09),
+        centroVasoZ + ejeDz * radioVaso * 0.75,
+    ];
+    const targetCam: [number, number, number] = [
+        centroVasoX,
+        -radioVaso * 0.04,
+        centroVasoZ,
+    ];
+    // Distancia real cámara→target: la niebla de abajo debe escalar con ESTA
+    // distancia — copiar los multiplicadores del visor interactivo (pensados
+    // para una cámara mucho más cercana a su target) dejaba la propia cámara
+    // ya dentro de niebla densa, cubriendo todo de un morado casi sólido.
+    const distCamTarget = Math.hypot(posicionCam[0] - targetCam[0], posicionCam[1] - targetCam[1], posicionCam[2] - targetCam[2]);
+
+    // 'sin_url' cuenta como estado terminal (no solo 'lista'/'error'): si
+    // esta presa no tiene textura_satelital_terreno sincronizada, TerrenoMesh
+    // nunca pasa por 'cargando' y se queda reportando 'sin_url' para
+    // siempre — con la condición anterior (solo 'lista'|'error') listo nunca
+    // se volvía true en ese caso y la captura no se disparaba jamás (bug:
+    // "no aparece la imagen en el informe" en presas sin textura sincronizada).
+    const listo = !!dem && !!contornoGeojson && estadoTextura !== 'cargando';
+
+    useEffect(() => {
+        if (!listo) return;
+        console.warn('VasoVisor3DCaptura: parámetros de cámara', {
+            radioEscena, radioVaso, posicionCam, targetCam, distCamTarget,
+            elevacionReferencia, centro, centroVasoX, centroVasoZ, ejeDx, ejeDz,
+            demBbox: dem?.bbox, estadoTextura,
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [listo]);
+
+    // Si tras un tiempo razonable no hay DEM (presa sin terreno sincronizado
+    // todavía), se reporta null en vez de dejar el informe esperando para
+    // siempre a una imagen que nunca va a llegar.
+    useEffect(() => {
+        if (dem) return;
+        const t = setTimeout(() => onCaptura(null), 6000);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dem]);
+
+    if (!contornoGeojson) return null;
+
+    return (
+        <div className="vaso3d-captura-oculta">
+            <Canvas
+                dpr={1}
+                frameloop="always"
+                camera={{ fov: 45, near: 10, far: Math.max(20000, radioEscena * 8) }}
+                gl={{ toneMappingExposure: 0.85, preserveDrawingBuffer: true }}
+            >
+                <color attach="background" args={['#2b2438']} />
+                <fog attach="fog" args={['#2b2438', distCamTarget * 1.6, distCamTarget * 5.5]} />
+                <ambientLight intensity={0.35} />
+                <directionalLight position={[radioEscena * 0.5, radioEscena * 0.7, radioEscena * 0.35]} intensity={0.9} />
+                <directionalLight position={[-radioEscena * 0.43, radioEscena * 0.36, -radioEscena * 0.29]} intensity={0.25} />
+                <Environment preset="sunset" environmentIntensity={0.4} />
+                <ApuntadorCamara position={posicionCam} target={targetCam} />
+                {dem && (
+                    <TerrenoMesh
+                        dem={dem} centro={centro} elevacionReferencia={elevacionReferencia}
+                        contornoAgua={contornoGeojson} texturaUrl={texturaSatelital?.urlPublica}
+                        onEstadoTextura={setEstadoTextura}
+                    />
+                )}
+                <VasoMesh contornoGeojson={contornoGeojson} nivelMsnm={nivelMsnm} centro={centro} elevacionReferencia={elevacionReferencia} />
+                <CapturadorAngulo listo={listo} onCaptura={onCaptura} />
+            </Canvas>
         </div>
     );
 };

@@ -21,6 +21,24 @@ import { useTendenciasHistoricas } from '../hooks/useTendenciasHistoricas';
 // Escalas de referencia: tienen nivel pero no controlan Q (sin compuerta propia).
 const ESC_SIN_CONTROL = new Set(['K-64', 'K-94+200']);
 
+// Basemap CARTO: sin key, el tile legacy sigue sirviendo el PNG (curl
+// confirma 200 OK), pero el navegador dibuja encima una marca de agua
+// "API KEY REQUIRED" — CARTO retiró el uso anónimo de basemaps.cartocdn.com.
+// VITE_CARTO_ACCESS_TOKEN es el "CARTO Basemaps API key" gratuito de
+// carto.com/basemaps/apikey (sin cuenta CARTO) — DISTINTO del "API Access
+// Token" de Maps API v3 que se genera en el dashboard de una organización:
+// ese es para datos/workflows propios y no autentica este endpoint de
+// basemaps aunque tenga formato similar (confirmado: no quitaba el
+// watermark). Sin la env var, cae al tile legacy con marca de agua en vez
+// de romper el mapa por completo.
+// Ruta y parámetro exactos según docs.carto.com/faqs/carto-basemaps:
+// /rastertiles/{style}/{z}/{x}/{y}.png?key=TOKEN — no /dark_all/ suelto ni
+// ?accessToken=.
+const CARTO_ACCESS_TOKEN = import.meta.env.VITE_CARTO_ACCESS_TOKEN as string | undefined;
+const CARTO_TILE_URL = CARTO_ACCESS_TOKEN
+    ? `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=${CARTO_ACCESS_TOKEN}`
+    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+
 // λ de referencia (calibración histórica v3.6b, skill_hidraulica_v37.md).
 // Se usa SOLO como fallback del predictor "what-if" cuando el balance en vivo
 // no es confiable (telemetría vencida) y por tanto la λ dinámica es null.
@@ -849,6 +867,13 @@ const PublicMonitor: React.FC = () => {
     const [entregasHoy, setEntregasHoy] = useState<any[]>([]);
     const [balanceTramos, setBalanceTramos] = useState<any[]>([]);
     const [flowAtZero, setFlowAtZero] = useState<number>(0);
+    // Frescura de la lectura que alimenta flowAtZero (<4h, mismo criterio
+    // STALE_MIN que coherenciaCanal.k0Disponible) — sin esto el header
+    // mostraba "FLUJO K0+000: 27.50" en verde como si fuera dato en vivo
+    // aunque la lectura tuviera 15h de antigüedad, mientras el panel
+    // PANORAMA (que sí filtra por frescura) correctamente mostraba "S/D"
+    // para el mismo K-0 en la misma pantalla.
+    const [flowAtZeroFresh, setFlowAtZeroFresh] = useState<boolean>(false);
     // Aggregate all zones per module: DOTAC from primary, consumption summed across ALL zones
     const modulosResumen = useMemo(() => {
         const byMod = new Map<string, any>();
@@ -1337,6 +1362,9 @@ const PublicMonitor: React.FC = () => {
             sessionStorage.setItem('k0_pzas', pzas.toString());
             sessionStorage.setItem('k0_ancho', ancho.toString());
             setFlowAtZero(currentFlowAtZero);
+            // Mismo umbral STALE_MIN=240min (4h) que esFresco() en coherenciaCanal.
+            const zeroAgeMin = zeroReading?.timestamp ? (Date.now() - zeroReading.timestamp) / 60000 : Infinity;
+            setFlowAtZeroFresh(zeroAgeMin <= 240);
             
         } catch (err) {
             console.error("PublicMonitor fetch error", err);
@@ -1660,16 +1688,29 @@ const PublicMonitor: React.FC = () => {
         const totalRequested = activeEvent?.gasto_solicitado_m3s || 0;
         let totalReal = 0;
         presasData.forEach(p => { totalReal += (p.extraccion_total || 0); });
-        
+
         const efficiency = totalRequested > 0 ? (totalReal / totalRequested) * 100 : 0;
         const healthStatus = efficiency > 95 ? 'OPTIMO' : efficiency > 85 ? 'PRECAUCIÓN' : 'REVISIÓN';
         const healthColor = efficiency > 95 ? '#22c55e' : efficiency > 85 ? '#eab308' : '#ef4444';
+
+        // Frescura: al menos una presa con lectura/movimiento <24h. Umbral
+        // más laxo que K-0 (4h) porque la captura de presa suele ser diaria,
+        // no continua — con 4h mostraría S/D casi todo el día aunque el dato
+        // siga siendo el vigente. Sin esto, totalReal=0 por falta de lectura
+        // se mostraba igual que un "0.00 m³/s" real medido, ambos indistinguibles.
+        const masReciente = presasData.reduce<number | null>((max, p) => {
+            const t = p.fecha ? new Date(p.fecha).getTime() : null;
+            if (t === null) return max;
+            return max === null || t > max ? t : max;
+        }, null);
+        const fresh = masReciente !== null && (Date.now() - masReciente) / 3_600_000 <= 24;
 
         return {
             totalReal,
             efficiency,
             healthStatus,
-            healthColor
+            healthColor,
+            fresh,
         };
     }, [activeEvent, presasData]);
 
@@ -1679,7 +1720,16 @@ const PublicMonitor: React.FC = () => {
     const coherenciaCanal = useMemo(() => {
         if (activeEvent?.evento_tipo === 'LLENADO') return null;
 
-        const qPresa = Number(damMovements[0]?.gasto_m3s || presasData[0]?.extraccion_total || 0);
+        // Fuente única: executiveMetrics.totalReal ya reconcilia 3 capas por
+        // presa (lectura diaria → movimiento más reciente → protocolo). Antes
+        // se usaba damMovements[0]?.gasto_m3s como primario: ese array es el
+        // top-5 de movimientos_presas SIN filtrar por presa, ordenado por
+        // fecha entre las 3 presas del sistema (Boquilla/Madero/Delicias) —
+        // si otra presa registraba un movimiento más reciente que Boquilla,
+        // su gasto se colaba aquí como "gasto de la presa" del Canal Conchos,
+        // divergiendo del header (que sí usa executiveMetrics.totalReal) en
+        // la misma pantalla al mismo tiempo.
+        const qPresa = executiveMetrics.totalReal;
         // Solo lecturas de gasto FRESCAS (<4 h). Una lectura vencida no debe
         // alimentar eficiencia/pérdidas/IEC y presentarse como estado en vivo
         // (mismo criterio que el panel SKILL y el perfil hidráulico).
@@ -1742,7 +1792,7 @@ const PublicMonitor: React.FC = () => {
             nCoherentes,
             totalPuntos: puntos.length,
         };
-    }, [activeEvent, damMovements, presasData, escalas, currentTime]);
+    }, [activeEvent, executiveMetrics, escalas, currentTime]);
 
     // isEstabilizacion: true para ESTABILIZACION y SIN_EVENTO (comportamiento visual idéntico).
     // No incluye CONTINGENCIA/VACIADO/ANOMALIA — esos modos conservan el mapa de alertas
@@ -2291,15 +2341,21 @@ const PublicMonitor: React.FC = () => {
 
                     <div className="phb-efficiency">
                         <span className="phb-label">PRESA:</span>
-                        <span className="phb-val">{executiveMetrics.totalReal.toFixed(2)} m³/s</span>
+                        <span className="phb-val" style={{ color: executiveMetrics.fresh ? undefined : '#64748b' }} title={executiveMetrics.fresh ? undefined : 'Sin lectura/movimiento de presa en las últimas 24 h'}>
+                            {executiveMetrics.fresh ? `${executiveMetrics.totalReal.toFixed(2)} m³/s` : 'S/D'}
+                        </span>
                     </div>
 
                     <div className="phb-divider"></div>
 
                     <div className="phb-efficiency">
                         <span className="phb-label">{modoActual.kpi0Label}</span>
-                        <span className="phb-val" style={{ color: sessionStorage.getItem('has_hydraulic_violation') === 'true' ? '#ef4444' : statusColor }}>
-                            {flowAtZero.toFixed(2)} m³/s
+                        <span
+                            className="phb-val"
+                            style={{ color: !flowAtZeroFresh ? '#64748b' : sessionStorage.getItem('has_hydraulic_violation') === 'true' ? '#ef4444' : statusColor }}
+                            title={flowAtZeroFresh ? undefined : 'K-0 sin lectura de gasto fresca (<4 h)'}
+                        >
+                            {flowAtZeroFresh ? `${flowAtZero.toFixed(2)} m³/s` : 'S/D'}
                         </span>
                     </div>
 
@@ -2448,11 +2504,11 @@ const PublicMonitor: React.FC = () => {
                             {/* Source: Dam */}
                             <div className="tech-item source">
                                 <div className="tech-label">EXTRACCIÓN PRESA</div>
-                                <div className="tech-main-val">
-                                    {Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal).toFixed(2)}
-                                    <small>m³/s</small>
+                                <div className="tech-main-val" title={executiveMetrics.fresh ? undefined : 'Sin lectura/movimiento de presa en las últimas 24 h'}>
+                                    {executiveMetrics.fresh ? executiveMetrics.totalReal.toFixed(2) : 'S/D'}
+                                    {executiveMetrics.fresh && <small>m³/s</small>}
                                 </div>
-                                <div className="tech-sub">FUENTE: BOQUILLA</div>
+                                <div className="tech-sub">FUENTE: TOTAL PRESAS</div>
                             </div>
 
                             <div className="tech-arrow">
@@ -2463,9 +2519,9 @@ const PublicMonitor: React.FC = () => {
                             {/* Delivery: KM 0 */}
                             <div className="tech-item delivery">
                                 <div className="tech-label">ENTREGA KM 0+000</div>
-                                <div className="tech-main-val">
-                                    {flowAtZero.toFixed(2)}
-                                    <small>m³/s</small>
+                                <div className="tech-main-val" title={flowAtZeroFresh ? undefined : 'K-0 sin lectura de gasto fresca (<4 h)'}>
+                                    {flowAtZeroFresh ? flowAtZero.toFixed(2) : 'S/D'}
+                                    {flowAtZeroFresh && <small>m³/s</small>}
                                 </div>
                                 <div className="tech-sub" style={{ color: '#22d3ee' }}>RADIALES SICA</div>
                             </div>
@@ -2490,20 +2546,36 @@ const PublicMonitor: React.FC = () => {
                         </div>
 
                         <div className="balance-summary-tech">
-                            <div className="bst-item">
-                                <span className="bst-label">PÉRDIDA EN TRÁNSITO</span>
-                                <span className="bst-val" style={{ color: (Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal) - flowAtZero) > 5 ? '#ef4444' : '#22c55e' }}>
-                                    {(Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal) - flowAtZero).toFixed(2)} m³/s
-                                </span>
-                            </div>
-                            <div className="bst-item">
-                                <span className="bst-label">EFICIENCIA GLOBAL</span>
-                                <span className="bst-val highlight">
-                                    {Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal) > 0 
-                                        ? ((flowAtZero / Number(damMovements[0]?.gasto_m3s || executiveMetrics.totalReal)) * 100).toFixed(1) 
-                                        : '0.0'}%
-                                </span>
-                            </div>
+                            {(() => {
+                                const ambosFrescos = flowAtZeroFresh && executiveMetrics.fresh;
+                                const motivo = !flowAtZeroFresh && !executiveMetrics.fresh
+                                    ? 'K-0 y PRESA sin lectura fresca'
+                                    : !flowAtZeroFresh
+                                    ? 'K-0 sin lectura de gasto fresca (<4 h)'
+                                    : 'Sin lectura/movimiento de presa en las últimas 24 h';
+                                return (
+                                <>
+                                <div className="bst-item">
+                                    <span className="bst-label">PÉRDIDA EN TRÁNSITO</span>
+                                    <span
+                                        className="bst-val"
+                                        style={{ color: !ambosFrescos ? '#64748b' : (executiveMetrics.totalReal - flowAtZero) > 5 ? '#ef4444' : '#22c55e' }}
+                                        title={ambosFrescos ? undefined : motivo}
+                                    >
+                                        {ambosFrescos ? `${(executiveMetrics.totalReal - flowAtZero).toFixed(2)} m³/s` : 'S/D'}
+                                    </span>
+                                </div>
+                                <div className="bst-item">
+                                    <span className="bst-label">EFICIENCIA GLOBAL</span>
+                                    <span className="bst-val highlight" title={ambosFrescos ? undefined : motivo}>
+                                        {executiveMetrics.totalReal > 0 && ambosFrescos
+                                            ? ((flowAtZero / executiveMetrics.totalReal) * 100).toFixed(1)
+                                            : 'S/D'}%
+                                    </span>
+                                </div>
+                                </>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -2523,7 +2595,7 @@ const PublicMonitor: React.FC = () => {
                         active={activeEvent?.evento_tipo === 'LLENADO'} 
                     />
                     <TileLayer
-                        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                        url={CARTO_TILE_URL}
                         attribution='&copy; CARTO'
                     />
                     
@@ -2758,9 +2830,9 @@ const PublicMonitor: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="summary-gasto">
-                                    <span className="gasto-value">
-                                        {executiveMetrics.totalReal.toFixed(2)}
-                                        <span className="gasto-unit">m³/s</span>
+                                    <span className="gasto-value" title={executiveMetrics.fresh ? undefined : 'Sin lectura/movimiento de presa en las últimas 24 h'}>
+                                        {executiveMetrics.fresh ? executiveMetrics.totalReal.toFixed(2) : 'S/D'}
+                                        {executiveMetrics.fresh && <span className="gasto-unit">m³/s</span>}
                                     </span>
                                     <div className="summary-info-row">
                                         <span className="summary-info-title">📊 PROGRESO: <span className="summary-info-value" style={{ color: statusColor }}>{Math.max(0, Math.min(100, ((displayMaxKm + 36) / 140) * 100)).toFixed(1)}%</span></span>

@@ -97,18 +97,21 @@ const Hidrometria = () => {
                 .select('*')
                 .eq('fecha_inicio', startOfWeek);
 
+            // reportes_diarios está vacía (sistema de captura legado sin uso) — entregas_modulo
+            // es la fuente viva de captura operativa real (mismo criterio que useHydraStore.ts
+            // y PublicMonitor.fetchVolumetria).
             const { data: deliveries } = await supabase
-                .from('reportes_diarios')
-                .select('modulo_id, volumen_total_mm3, fecha')
+                .from('entregas_modulo')
+                .select('modulo_id, volumen_m3, fecha')
                 .gte('fecha', startOfWeek)
                 .lte('fecha', endOfWeek);
 
             const deliveryMap: Record<string, number> = {};
             const todayStr = getTodayString();
-            
+
             deliveries?.forEach(d => {
                 if (d.modulo_id && d.fecha !== todayStr) {
-                    deliveryMap[d.modulo_id] = (deliveryMap[d.modulo_id] || 0) + (d.volumen_total_mm3 || 0);
+                    deliveryMap[d.modulo_id] = (deliveryMap[d.modulo_id] || 0) + (Number(d.volumen_m3 || 0) / 1_000_000);
                 }
             });
 

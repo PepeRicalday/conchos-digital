@@ -1,0 +1,164 @@
+/* src/components/PlanoGeneralModulos.css */
+
+.plano-general-card {
+    margin: 0 clamp(1.25rem, 4vw, 3rem) 2rem;
+    padding: 1.5rem;
+    border-radius: 20px;
+}
+
+.plano-general-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.plano-general-titulo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: #e2e8f0;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.plano-general-controles {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.plano-general-control {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.68rem;
+    color: #94a3b8;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.plano-general-control select {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.plano-general-body {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1.25rem;
+}
+
+@media (max-width: 860px) {
+    .plano-general-body {
+        grid-template-columns: 1fr;
+    }
+}
+
+.plano-general-map-wrap {
+    border-radius: 14px;
+    overflow: hidden;
+    min-height: 420px;
+}
+
+.plano-general-map {
+    width: 100%;
+    height: 100%;
+    min-height: 420px;
+    background: #0f172a;
+}
+
+.plano-general-lateral {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.plano-general-promedio-card {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    padding: 1.25rem;
+    text-align: center;
+}
+
+.plano-general-promedio-label {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #94a3b8;
+    letter-spacing: 0.06em;
+}
+
+.plano-general-promedio-valor {
+    font-size: 2.4rem;
+    font-weight: 900;
+    color: white;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1.1;
+    margin: 6px 0 2px;
+}
+
+.plano-general-promedio-sub {
+    font-size: 0.68rem;
+    color: #64748b;
+}
+
+.plano-general-tabla {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    padding: 0.75rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.plano-general-fila {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+}
+
+.plano-general-fila-logo {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1.5px solid rgba(255, 255, 255, 0.15);
+}
+
+.plano-general-fila-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.plano-general-fila-nombre {
+    color: #cbd5e1;
+    flex: 1;
+}
+
+.plano-general-fila-valor {
+    color: white;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.plano-general-tooltip {
+    font-family: var(--geo-font-sans, sans-serif);
+    font-size: 12px;
+}

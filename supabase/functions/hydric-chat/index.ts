@@ -585,7 +585,8 @@ Deno.serve(async (req: Request) => {
                 try {
                     const session = new Supabase.ai.Session("gte-small");
                     const output = await session.run(message, { mean_pool: true, normalize: true });
-                    const queryEmbedding = Array.from(output.data as Float32Array);
+                    // output YA es el array de 384 floats — no {data: Float32Array}.
+                    const queryEmbedding = Array.from(output as unknown as number[]);
 
                     const { data: chunks, error: ragError } = await supabaseAdmin.rpc(
                         "match_hydric_documents",

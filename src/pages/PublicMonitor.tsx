@@ -17,6 +17,7 @@ import { exportEscalasCSV } from '../utils/exportCanal';
 import { toast } from 'sonner';
 import TendenciasPanel from '../components/TendenciasPanel';
 import { useTendenciasHistoricas } from '../hooks/useTendenciasHistoricas';
+import { volumenAcumuladoPorModuloHm3 } from '../utils/indicesSrl';
 
 // Escalas de referencia: tienen nivel pero no controlan Q (sin compuerta propia).
 const ESC_SIN_CONTROL = new Set(['K-64', 'K-94+200']);
@@ -864,6 +865,11 @@ const PublicMonitor: React.FC = () => {
     const [volZonas, setVolZonas] = useState<any[]>([]);
     const [tomasActivas, setTomasActivas] = useState<any[]>([]);
     const [balanceModulos, setBalanceModulos] = useState<any[]>([]);
+    // Acumulado provisional marzo→mes vigente por módulo SRL (volumen_modulo_mensual_provisional,
+    // carga institucional manual — ver indicesSrl.ts). Solo complementa la tabla de dotación del
+    // ciclo activo con una lectura de tendencia multi-mes; vol_base_m3/consumido_m3 (de
+    // balance_volumen_modulo/entregas_modulo) siguen siendo la fuente oficial del ciclo.
+    const [volProvisional, setVolProvisional] = useState<{ porModulo: Map<number, number>; ultimoMesEsParcial: boolean }>({ porModulo: new Map(), ultimoMesEsParcial: false });
     const [entregasHoy, setEntregasHoy] = useState<any[]>([]);
     const [balanceTramos, setBalanceTramos] = useState<any[]>([]);
     const [flowAtZero, setFlowAtZero] = useState<number>(0);
@@ -1894,6 +1900,11 @@ const PublicMonitor: React.FC = () => {
             const btRes = await supabase.rpc('fn_balance_hidrico_tramos', { p_fecha: today });
             if (!btRes.error) setBalanceTramos(btRes.data || []);
 
+            // Acumulado provisional por módulo SRL (marzo→mes vigente)
+            const mesVigente = today.slice(0, 7);
+            const vp = await volumenAcumuladoPorModuloHm3(mesVigente);
+            setVolProvisional(vp);
+
         };
         fetchVolumetria();
         const interval = setInterval(fetchVolumetria, 5 * 60 * 1000);
@@ -2125,7 +2136,10 @@ const PublicMonitor: React.FC = () => {
             vol_interescalas: volInterescalas,
             vol_zonas: volZonas,
             // ── Balance dotación vs consumo por módulo ─────────────────
-            modulos_balance: modulosResumen.map(b => ({
+            modulos_balance: modulosResumen.map(b => {
+                    const numeroSrl = Number(String(b.codigo_corto ?? '').replace(/^M/i, ''));
+                    const acumHm3 = Number.isFinite(numeroSrl) ? volProvisional.porModulo.get(numeroSrl) : undefined;
+                    return {
                     modulo:          b.modulo_nombre,
                     codigo:          b.codigo_corto,
                     zona:            b.zona_codigo,
@@ -2135,7 +2149,12 @@ const PublicMonitor: React.FC = () => {
                     disponible_Mm3:  +((b.vol_base_disponible_m3 ?? 0) / 1e6).toFixed(4),
                     pct:             +(b.pct_base_consumido ?? 0).toFixed(2),
                     estado:          b.estado_volumen,
-                })),
+                    // Fuente institucional separada (volumen_modulo_mensual_provisional) — acumulado
+                    // marzo→mes vigente, no concilia con dotacion_Mm3/consumido_Mm3 del ciclo oficial.
+                    acumulado_provisional_hm3: acumHm3 != null ? +acumHm3.toFixed(3) : null,
+                    acumulado_provisional_mes_parcial: volProvisional.ultimoMesEsParcial,
+                    };
+                }),
             // ── Presas estado actual ───────────────────────────────────
             // `null` = SIN DATO, nunca 0: un consumidor de este payload no puede
             // distinguir un embalse vacío de uno sin lectura si ambos llegan como 0.
@@ -2195,7 +2214,7 @@ const PublicMonitor: React.FC = () => {
             } : null,
             timestamp: new Date().toISOString(),
         };
-    }, [escalas, volInterescalas, volZonas, balanceModulos, entregasHoy, presasData, tomasActivas, activeEvent]);
+    }, [escalas, volInterescalas, volZonas, balanceModulos, entregasHoy, presasData, tomasActivas, activeEvent, volProvisional]);
 
     // Cerrar el modal de perfil con Escape (accesibilidad de teclado)
     useEffect(() => {
@@ -3493,6 +3512,7 @@ const PublicMonitor: React.FC = () => {
                                             <th>DISP (Mm³)</th>
                                             <th>%</th>
                                             <th>ESTADO</th>
+                                            <th>ACUM. PROVISIONAL (mar→{new Intl.DateTimeFormat('es-MX', { month: 'short', timeZone: 'America/Chihuahua' }).format(new Date())})</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -3500,6 +3520,8 @@ const PublicMonitor: React.FC = () => {
                                             const estado = b.estado_volumen as string;
                                             const rowCls = estado === 'base_agotado' ? 'dsk-tr--critico' : estado === 'alerta_base' ? 'dsk-tr--warn' : '';
                                             const estadoLabel = estado === 'base_agotado' ? '🔴 Agotado' : estado === 'alerta_base' ? '⚠ Alerta' : '✓ Normal';
+                                            const numeroSrl = Number(String(b.codigo_corto ?? '').replace(/^M/i, ''));
+                                            const acumHm3 = Number.isFinite(numeroSrl) ? volProvisional.porModulo.get(numeroSrl) : undefined;
                                             return (
                                                 <tr key={b.modulo_id} className={rowCls}>
                                                     <td className="dsk-td-nombre">{b.codigo_corto || b.modulo_nombre}</td>
@@ -3510,12 +3532,22 @@ const PublicMonitor: React.FC = () => {
                                                     <td className={`dsk-td-num ${(b.vol_base_disponible_m3 ?? 0) < 0 ? 'dsk-td--red' : ''}`}>{((b.vol_base_disponible_m3 ?? 0) / 1e6).toFixed(4)}</td>
                                                     <td className="dsk-td-num">{Number(b.pct_base_consumido ?? 0).toFixed(2)}%</td>
                                                     <td className="dsk-td-nombre">{estadoLabel}</td>
+                                                    <td className="dsk-td-num" title="Fuente institucional separada (hoja Acumulado General SRL) — no concilia con el ciclo de dotación oficial de esta tabla">
+                                                        {acumHm3 != null
+                                                            ? <>{acumHm3.toFixed(3)} hm³{volProvisional.ultimoMesEsParcial ? ' ⚠' : ''}</>
+                                                            : 'S/D'}
+                                                    </td>
                                                 </tr>
                                             );
                                         })}
                                     </tbody>
                                 </table>
                             </div>
+                            {volProvisional.ultimoMesEsParcial && (
+                                <div className="dsk-zona-total" style={{ fontSize: '0.7rem', opacity: 0.8 }}>
+                                    ⚠ El mes en curso del acumulado provisional está incompleto (dato parcial) — no comparar directamente entre módulos hasta el cierre de mes.
+                                </div>
+                            )}
                         </div>
                         )}
 

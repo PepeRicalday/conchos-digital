@@ -343,12 +343,17 @@ const Dashboard = () => {
 
     /* ── Aggregations ── */
     const totalDailyVol = useMemo(() => modules.reduce((acc, m) => {
-        const mDailyVol = m.delivery_points.reduce((ptAcc, pt) => {
+        const pointsDailyVol = m.delivery_points.reduce((ptAcc, pt) => {
             const elapsedSeconds = pt.last_update_time ? Math.max(0, (now - new Date(pt.last_update_time).getTime()) / 1000) : 0;
             const cappedSeconds = Math.min(elapsedSeconds, 30 * 60);
             const interpolated = (esHoy && pt.current_q > 0) ? (pt.current_q * cappedSeconds) / 1000000 : 0;
             return ptAcc + (pt.daily_vol || 0) + interpolated;
         }, 0);
+        // Fallback: si los puntos no traen nada (mediciones/reportes_* vacías), usar
+        // m.daily_vol — ya calculado en useHydraStore.ts con entregas_modulo como
+        // respaldo a nivel módulo (entregas_modulo no tiene punto_id, no se puede
+        // repartir por punto individual).
+        const mDailyVol = pointsDailyVol > 0 ? pointsDailyVol : (m.daily_vol || 0);
         return acc + mDailyVol;
     }, 0), [modules, now, esHoy]);
 

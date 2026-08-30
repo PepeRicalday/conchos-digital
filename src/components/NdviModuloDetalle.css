@@ -1,0 +1,304 @@
+/* src/components/NdviModuloDetalle.css
+   Modal de ficha técnica por módulo, anidado sobre NdviModulosPanel — mismo
+   criterio de overlay fullscreen que .vaso3d-pantalla-completa en
+   PresaVasoMonitor.css (z-index por encima del panel padre, que usa 1000). */
+
+.ndvi-detalle-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1500;
+    background: rgba(2, 6, 23, 0.85);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.ndvi-detalle-container {
+    width: 100%;
+    max-width: 1100px;
+    max-height: 90vh;
+    background: #0b1220;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+
+.ndvi-detalle-scroll {
+    height: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.ndvi-detalle-header {
+    padding: 1.5rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: #0b1220;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.ndvi-detalle-badge {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid;
+    margin-bottom: 0.6rem;
+}
+
+.ndvi-detalle-title-group h2 {
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: white;
+    margin: 0;
+    letter-spacing: -0.01em;
+}
+
+.ndvi-detalle-sub {
+    color: #94a3b8;
+    font-size: 0.78rem;
+    margin-top: 6px;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.ndvi-detalle-close {
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(100, 116, 139, 0.3);
+    color: white;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.ndvi-detalle-close:hover {
+    background: #ef4444;
+    border-color: #ef4444;
+}
+
+.ndvi-detalle-body {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 1.5rem;
+    padding: 1.5rem 2rem;
+}
+
+@media (max-width: 860px) {
+    .ndvi-detalle-body {
+        grid-template-columns: 1fr;
+    }
+}
+
+.ndvi-detalle-map-card {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    min-height: 320px;
+}
+
+.ndvi-detalle-map {
+    width: 100%;
+    height: 100%;
+    min-height: 320px;
+    background: #0f172a;
+}
+
+.ndvi-detalle-map-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    font-size: 0.8rem;
+    background: rgba(2, 6, 23, 0.4);
+    pointer-events: none;
+}
+
+.ndvi-detalle-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.ndvi-detalle-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.ndvi-detalle-stat {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 0.75rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ndvi-detalle-stat-label {
+    font-size: 0.68rem;
+    color: #94a3b8;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.ndvi-detalle-stat-value {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: white;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.ndvi-detalle-stat-value-sm {
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.ndvi-detalle-nota {
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.5;
+    padding: 0 0.25rem;
+}
+
+.ndvi-detalle-chart-card {
+    margin: 0 2rem 2rem;
+    padding: 1.25rem 1.5rem;
+    border-radius: 16px;
+}
+
+.ndvi-detalle-chart-title {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #94a3b8;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.75rem;
+}
+
+.ndvi-detalle-indices-card {
+    margin: 0 2rem 1.5rem;
+    padding: 1.25rem 1.5rem;
+    border-radius: 16px;
+}
+
+.ndvi-detalle-indices-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.ndvi-indice-card {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid;
+    border-radius: 14px;
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ndvi-indice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ndvi-indice-clave {
+    font-size: 0.72rem;
+    font-weight: 900;
+    color: #cbd5e1;
+    letter-spacing: 0.06em;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.ndvi-indice-etiqueta {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.ndvi-indice-valor {
+    font-size: 1.9rem;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1;
+    margin: 4px 0 2px;
+}
+
+.ndvi-indice-valor small {
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0.7;
+}
+
+.ndvi-indice-nombre {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.ndvi-indice-implicacion {
+    font-size: 0.72rem;
+    color: #cbd5e1;
+    line-height: 1.4;
+    margin-top: 2px;
+}
+
+.ndvi-indice-parcial-aviso {
+    font-size: 0.68rem;
+    color: #fbbf24;
+    line-height: 1.4;
+    margin-top: 4px;
+}
+
+.ndvi-indice-metodologia {
+    margin-top: 6px;
+    font-size: 0.68rem;
+}
+
+.ndvi-indice-metodologia summary {
+    cursor: pointer;
+    color: #64748b;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.ndvi-indice-metodologia summary:hover {
+    color: #94a3b8;
+}
+
+.ndvi-indice-formula {
+    margin-top: 6px;
+    color: #94a3b8;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.ndvi-indice-procedencia {
+    margin-top: 4px;
+    color: #64748b;
+    font-style: italic;
+    line-height: 1.4;
+}

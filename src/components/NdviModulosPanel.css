@@ -1,0 +1,168 @@
+/* src/components/NdviModulosPanel.css
+   Complementa PresaVasoMonitor.css (overlay/header/tarjetas reutilizados) —
+   solo lo específico de la vista de NDVI mensual va aquí. */
+
+/* .vaso-header base asume 2 hijos (title-group + close) con
+   justify-content:space-between — aquí hay 3 (title-group + botón
+   "Actualizar ahora" + close), y el h2 de 2.5rem sin límite de ancho
+   empujaba/superponía el botón de en medio. min-width:0 permite que el
+   title-group se comprima en vez de desbordar, y las acciones se agrupan
+   en un wrapper aparte para no depender de space-between con 3 elementos. */
+.ndvi-panel-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    flex-wrap: wrap;
+    /* Salvaguarda: si el contenido interno llegara a desbordar la altura del
+       header sticky (z-index:10 en .vaso-header base), este z-index mayor
+       asegura que el header siga por encima de .vaso-stats-grid en vez de
+       quedar tapado por las tarjetas siguientes en el flujo del documento. */
+    position: relative;
+    z-index: 11;
+}
+
+.ndvi-panel-title-group {
+    flex: 1 1 320px;
+    min-width: 0;
+}
+
+/* El h2 base (.vaso-title-group h2, PresaVasoMonitor.css) es 2.5rem — pensado
+   para títulos cortos como "LA BOQUILLA". "NDVI MENSUAL POR MÓDULO" es mucho
+   más largo y, en headers angostos o con las 3 acciones envueltas
+   (ndvi-panel-header-actions con flex-wrap), el texto se desbordaba fuera del
+   <header> sticky y quedaba tapado detrás de las tarjetas de módulo
+   siguientes en el flujo del documento (mismo layout bug que ocultaba el
+   botón "Actualizar ahora" antes de darle su propio wrapper). Tamaño más
+   chico y quiebre de línea normal evita que el texto necesite más ancho del
+   que el header realmente tiene disponible. */
+.ndvi-panel-title-group h2 {
+    font-size: 1.5rem;
+    white-space: normal;
+    line-height: 1.25;
+}
+
+.ndvi-panel-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+}
+
+.ndvi-tarjetas-filtro {
+    margin: 0 clamp(1.25rem, 4vw, 3rem) 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.ndvi-tarjetas-filtro-label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.68rem;
+    color: #94a3b8;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.ndvi-tarjetas-filtro-label select {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ndvi-tarjetas-filtro-nota {
+    font-size: 0.68rem;
+    color: #64748b;
+    line-height: 1.4;
+    max-width: 480px;
+}
+
+.ndvi-sync-msg {
+    margin: 0 clamp(1.25rem, 4vw, 3rem) 1.5rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 12px;
+    color: #cbd5e1;
+    font-size: 0.85rem;
+}
+
+.ndvi-empty-state {
+    margin: 3rem clamp(1.25rem, 4vw, 3rem);
+    padding: 3rem 1.5rem;
+    text-align: center;
+    color: #64748b;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.ndvi-chart-card {
+    margin: 0 clamp(1.25rem, 4vw, 3rem) 2rem;
+    padding: 1.5rem;
+    border-radius: 20px;
+}
+
+.ndvi-delta-up {
+    color: #4ade80;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.ndvi-delta-down {
+    color: #f87171;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.ndvi-modulo-card-clickable {
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.ndvi-modulo-card-clickable:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.ndvi-minimap {
+    width: 100%;
+    height: 140px;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+    background: #0f172a;
+    /* El mini-mapa tiene drag/scroll deshabilitados (ver MiniMapaNdviAgro) —
+       pointer-events:none deja que el clic pase a la tarjeta contenedora
+       (abre la ficha técnica) en vez de quedar atrapado por los controles
+       internos de Leaflet. */
+    pointer-events: none;
+}
+
+.ndvi-minimap-sd {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    font-size: 0.75rem;
+    text-align: center;
+    padding: 0.5rem;
+}
+
+.ndvi-spin {
+    animation: ndvi-spin-anim 1s linear infinite;
+}
+
+@keyframes ndvi-spin-anim {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}

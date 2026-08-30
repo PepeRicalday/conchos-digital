@@ -19,6 +19,7 @@ import { esModuloSRL, moduloSRLde } from '../utils/modulosSRL';
 import { MODULOS_BBOX } from '../utils/modulosBbox';
 import { WAVE_CELERITY_MS, WAVE_CELERITY_CONFIANZA } from '../utils/hydraulics';
 import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
+import { NdviModulosPanel } from '../components/NdviModulosPanel';
 import { WindyMapModal } from '../components/WindyMapModal';
 import { useMetadataStore } from '../store/useMetadataStore';
 import { useNavigate } from 'react-router-dom';
@@ -259,6 +260,10 @@ const GeoMonitor = () => {
     // automáticamente al abrir en vez de requerir ese clic adicional).
     const [seccionVasoInicial, setSeccionVasoInicial] = useState<'satelital' | 'ciclo' | 'relieve3d'>('satelital');
     const [showHistoryModal, setShowHistoryModal] = useState(false);
+    // Sección dedicada de NDVI mensual por módulo (histórico, polígono exacto
+    // vía sentinel-ndvi-modulo-sync) — separada del NDVI puntual bajo-demanda
+    // de consultarNdviModulo/moduloNdvi (clic en el polígono), que sigue intacto.
+    const [showNdviModulos, setShowNdviModulos] = useState(false);
 
     // Eventos Hidro-Sincrónicos
     const { activeEvent } = useHydricEvents();
@@ -1478,6 +1483,20 @@ const GeoMonitor = () => {
                         </React.Fragment>
                     ))}
 
+                    {/* NDVI mensual por módulo — sección dedicada (histórico, polígono
+                        exacto), acción puntual que abre un panel a pantalla completa,
+                        no un toggle de capa — se mantiene fuera de los grupos, igual
+                        criterio que el botón de Importar de abajo. */}
+                    <div className="geo-divider-h"></div>
+                    <button
+                        className="geo-control-btn default"
+                        onClick={() => setShowNdviModulos(true)}
+                        title="NDVI mensual por módulo (histórico)"
+                        aria-label="Ver NDVI mensual por módulo"
+                    >
+                        <TrendingUp size={SIDEBAR_ICON_SIZE} />
+                    </button>
+
                     {/* Botón de Importar Shapefile (Solo Gerente SRL) — acción puntual,
                         no un toggle de capa, se mantiene fuera de los grupos. */}
                     {isGerente && (
@@ -2634,6 +2653,12 @@ const GeoMonitor = () => {
                     seccionInicial={seccionVasoInicial}
                     onClose={() => setShowVaso(false)}
                 />
+            )}
+
+            {/* NDVI mensual por módulo — histórico (Fase 4b): panel dedicado,
+                independiente del NDVI puntual bajo-demanda de consultarNdviModulo. */}
+            {showNdviModulos && (
+                <NdviModulosPanel onClose={() => setShowNdviModulos(false)} />
             )}
 
             {/* Modal de Historial Completo */}

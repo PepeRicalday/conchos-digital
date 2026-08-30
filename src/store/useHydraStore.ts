@@ -100,12 +100,18 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             // Accumulated volumes come from reportes_diarios (authoritative), not from raw sums.
             const startOfToday = getStartOfTodayISO();
 
+            // yesterday: mismo criterio que PublicMonitor.fetchVolumetria — entregas_modulo se
+            // captura por turno y puede quedar fechada "ayer" aunque siga vigente hoy operativamente.
+            const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chihuahua' })
+                .format(new Date(Date.now() - 86_400_000));
+
             const [
                 { data: modulosDB, error: modError },
                 { data: allMediciones, error: medError },
                 { data: reportesHoy },
                 { data: reportesOperacion },
-                { data: volDiarioModulo }
+                { data: volDiarioModulo },
+                { data: entregasHoy }
             ] = await Promise.all([
                 supabase.from('modulos').select(`
                     id, codigo_corto, nombre, nombre_acu, logo_url, vol_acumulado, vol_autorizado, caudal_objetivo,
@@ -127,7 +133,15 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                 // Volumen acumulado del ciclo activo por módulo (fuente authoritative)
                 supabase.from('resumen_ciclo')
                     .select('modulo_id, volumen_entregado_mm3')
-                    .eq('activo', true)
+                    .eq('activo', true),
+                // Captura operativa real por módulo (mediciones/reportes_diarios/reportes_operacion
+                // están vacías — entregas_modulo es la fuente viva, mismo criterio que
+                // PublicMonitor.fetchVolumetria: fecha >= ayer, gasto > 0, dedupe por más reciente).
+                supabase.from('entregas_modulo')
+                    .select('modulo_id, gasto_m3s, volumen_m3, fecha, tipo_entrega')
+                    .gte('fecha', yesterday)
+                    .gt('gasto_m3s', 0)
+                    .order('fecha', { ascending: false })
             ]);
 
             if (modError) throw modError;
@@ -171,6 +185,26 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             (volDiarioModulo || []).forEach((v: ResumenCicloSel) => {
                 if (!v.modulo_id) return;
                 resumenCicloMap.set(v.modulo_id, Number(v.volumen_entregado_mm3 || 0));
+            });
+
+            // 4b. Index entregas_modulo por módulo — dedupe por (modulo_id, tipo_entrega) al
+            // registro más reciente (mismo criterio que PublicMonitor.fetchVolumetria), luego
+            // suma base+adicional. gasto_m3s alimenta current_flow y volumen_m3/1e6 alimenta
+            // daily_vol cuando las fuentes por-punto (mediciones/reportes_*) no traen nada.
+            const entregaModuloLatest = new Map<string, { gasto_m3s: number; volumen_m3: number }>();
+            (entregasHoy || []).forEach((e) => {
+                if (!e.modulo_id) return;
+                const key = `${e.modulo_id}_${e.tipo_entrega ?? ''}`;
+                if (!entregaModuloLatest.has(key)) {
+                    entregaModuloLatest.set(key, { gasto_m3s: Number(e.gasto_m3s || 0), volumen_m3: Number(e.volumen_m3 || 0) });
+                }
+            });
+            const entregaModuloFlowMap = new Map<string, number>();   // modulo_id -> m³/s (suma base+adicional)
+            const entregaModuloVolMap = new Map<string, number>();    // modulo_id -> Mm³ (suma base+adicional)
+            entregaModuloLatest.forEach((v, key) => {
+                const modId = key.slice(0, key.lastIndexOf('_'));
+                entregaModuloFlowMap.set(modId, (entregaModuloFlowMap.get(modId) ?? 0) + v.gasto_m3s);
+                entregaModuloVolMap.set(modId, (entregaModuloVolMap.get(modId) ?? 0) + v.volumen_m3 / 1_000_000);
             });
 
             // 5. Transform & Merge Metadata with Realtime Data
@@ -240,14 +274,18 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                     });
 
 
-                const currentFlow = points.reduce((acc, pt) => acc + pt.current_q, 0);
+                const pointsFlow = points.reduce((acc, pt) => acc + pt.current_q, 0);
                 const calcDailyVol = points.reduce((acc, pt) => acc + pt.daily_vol, 0);
                 // Volumen diario: suma de reportes_operacion.volumen_acumulado de los puntos del módulo (Mm³)
                 const opDailyVol = points.reduce((acc, pt) => {
                     const op = reporteOpMap.get(pt.id);
                     return acc + Number(op?.volumen_acumulado || 0);
                 }, 0);
-                const dailyVol = reporteByModulo[mod.id] || opDailyVol || calcDailyVol;
+                const pointsDailyVol = reporteByModulo[mod.id] || opDailyVol || calcDailyVol;
+                // Fallback a entregas_modulo (fuente viva) cuando las 3 fuentes por-punto
+                // (mediciones/reportes_diarios/reportes_operacion) no traen nada — ver 4b arriba.
+                const currentFlow = pointsFlow > 0 ? pointsFlow : (entregaModuloFlowMap.get(mod.id) ?? 0);
+                const dailyVol = pointsDailyVol > 0 ? pointsDailyVol : (entregaModuloVolMap.get(mod.id) ?? 0);
 
                 // Acumulado ciclo: resumen_ciclo.volumen_entregado_mm3 (ya en Mm³)
                 const accumulatedVol = resumenCicloMap.get(mod.id) ?? (Number(freshMod.vol_acumulado || 0) / 1000);

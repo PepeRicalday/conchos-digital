@@ -45,3 +45,12 @@ export function moduloSRLde(numeroGeojson: number): { numero: number; nombre: st
     if (num == null) return null;
     return { numero: num, nombre: `Módulo ${num}`, color: COLOR_MODULO_SRL[num] ?? '#64748b' };
 }
+
+/** Inverso de GEOJSON_A_MODULO_SRL: dado el número de Módulo SRL real, el
+ *  numero_modulo con el que ese polígono aparece en public/geo/modulos.geojson
+ *  — necesario para localizar el feature exacto (contorno real) de un módulo
+ *  SRL dentro del archivo, ya que el geojson no usa la numeración SRL. */
+export function numeroGeojsonDeSRL(numeroSRL: number): number | null {
+    const entrada = Object.entries(GEOJSON_A_MODULO_SRL).find(([, srl]) => srl === numeroSRL);
+    return entrada ? Number(entrada[0]) : null;
+}

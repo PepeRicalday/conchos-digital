@@ -73,8 +73,8 @@ export const NdviModuloDetalle: React.FC<NdviModuloDetalleProps> = ({ numeroModu
             .then(({ data, error }) => {
                 if (cancelado) return;
                 setFilas(error || !data ? [] : (data as NdviModuloFila[]));
-            })
-            .finally(() => { if (!cancelado) setCargandoDatos(false); });
+                setCargandoDatos(false);
+            });
         return () => { cancelado = true; };
     }, [numeroModulo]);
 

@@ -582,6 +582,40 @@ const GeoMonitor = () => {
         fecha: string | null; nubosidad: number | null; cargando: boolean; error: string | null;
     }>({ fecha: null, nubosidad: null, cargando: false, error: null });
 
+    // Estado de la cuenta de Sentinel Hub (tabla sentinel_hub_status, escrita
+    // por la edge function sentinel-status vía cron cada 6h). Se lee sola vez
+    // al montar — NO golpea Sentinel Hub directo, así que no cuesta cuota.
+    // Sirve para el banner "Sentinel disponible de nuevo" cuando el usuario
+    // está en satélite (por el fallback de tileerror) y el servicio ya
+    // volvió — la capa NUNCA cambia sola, solo se avisa.
+    const [sentinelHubStatus, setSentinelHubStatus] = useState<{
+        disponible: boolean; mensaje: string | null;
+        processing_units_usadas: number | null; processing_units_limite: number | null;
+        ultima_verificacion: string | null; ultima_vez_disponible: string | null;
+    } | null>(null);
+    const [verificandoSentinelHub, setVerificandoSentinelHub] = useState(false);
+
+    const recargarSentinelHubStatus = useCallback(async () => {
+        const { data } = await supabase
+            .from('sentinel_hub_status')
+            .select('disponible, mensaje, processing_units_usadas, processing_units_limite, ultima_verificacion, ultima_vez_disponible')
+            .limit(1)
+            .maybeSingle();
+        if (data) setSentinelHubStatus(data as typeof sentinelHubStatus);
+    }, []);
+
+    useEffect(() => { recargarSentinelHubStatus(); }, [recargarSentinelHubStatus]);
+
+    const verificarSentinelHubAhora = useCallback(async () => {
+        setVerificandoSentinelHub(true);
+        try {
+            await supabase.functions.invoke('sentinel-status', { body: {} });
+        } finally {
+            await recargarSentinelHubStatus();
+            setVerificandoSentinelHub(false);
+        }
+    }, [recargarSentinelHubStatus]);
+
     // Menú desplegable de capa base: un botón, no cuatro, para no saturar la
     // columna de controles (que ya tiene 11 toggles de contenido).
     // El menú se posiciona `fixed` con coordenadas calculadas del botón —
@@ -1615,6 +1649,25 @@ const GeoMonitor = () => {
                                 }}
                             >
                                 <Satellite size={16} /> Sentinel Hub
+                                <span className="geo-baselayer-sublayers geo-baselayer-status-row">
+                                    {sentinelHubStatus && (
+                                        <span
+                                            className={clsx('geo-baselayer-chip', sentinelHubStatus.disponible ? 'active' : 'geo-baselayer-chip-alerta')}
+                                            title={sentinelHubStatus.mensaje ?? undefined}
+                                        >
+                                            {sentinelHubStatus.disponible ? 'Cuenta activa' : 'Cuenta vencida'}
+                                        </span>
+                                    )}
+                                    <span
+                                        className="geo-baselayer-chip"
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={(e) => { e.stopPropagation(); if (!verificandoSentinelHub) verificarSentinelHubAhora(); }}
+                                        title="Probar el WMS de Sentinel Hub ahora, sin esperar al chequeo automático cada 6h"
+                                    >
+                                        {verificandoSentinelHub ? 'verificando…' : 'verificar ahora'}
+                                    </span>
+                                </span>
                                 {baseLayer === 'sentinel' && (
                                     <>
                                         <span className="geo-baselayer-sublayers geo-baselayer-sublayers-wrap">
@@ -1676,6 +1729,35 @@ const GeoMonitor = () => {
                 {/* CENTER: MAP (Prioridad 1 + 2) */}
                 <div className="geo-map-container" style={{ position: 'relative' }}>
                     <div className="geo-map-inner">
+                        {/* Aviso "Sentinel Hub disponible de nuevo": solo cuando la capa
+                            activa NO es 'sentinel' (se cayó a satélite por tileerror, o el
+                            usuario nunca la activó) y la última verificación dice que el
+                            servicio ya responde. Nunca cambia la capa por sí solo — cuida
+                            la cuota, la reactivación es decisión del usuario. */}
+                        {baseLayer !== 'sentinel' && sentinelHubStatus?.disponible && (
+                            <div className="geo-sentinel-date-badge" style={{ borderColor: 'rgba(16,185,129,0.5)' }}>
+                                <Satellite size={13} className="text-emerald-400" />
+                                <span>
+                                    Sentinel Hub disponible de nuevo
+                                    {sentinelHubStatus.ultima_vez_disponible && (
+                                        ` · desde ${new Date(sentinelHubStatus.ultima_vez_disponible).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' })}`
+                                    )}
+                                    {sentinelHubStatus.processing_units_usadas != null && (
+                                        ` · PU usadas este mes: ${Math.round(sentinelHubStatus.processing_units_usadas)}`
+                                    )}
+                                </span>
+                                <span
+                                    className="geo-sentinel-date-modo"
+                                    style={{ cursor: 'pointer' }}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => setBaseLayer('sentinel')}
+                                    title="Activar capa Sentinel Hub"
+                                >
+                                    Activar
+                                </span>
+                            </div>
+                        )}
                         {/* Badge de fecha de la escena Sentinel Hub activa — visible sin
                             depender de que el menú desplegable esté abierto. */}
                         {baseLayer === 'sentinel' && sentinelInstanceId && (
@@ -1897,6 +1979,16 @@ const GeoMonitor = () => {
                                         params={sentinelWmsParams as any}
                                         maxZoom={19}
                                         attribution="© Copernicus Sentinel Hub"
+                                        eventHandlers={{
+                                            tileerror: () => {
+                                                // El WMS de Sentinel puede fallar por cuenta vencida, cuota
+                                                // agotada o instance ID inválido — sin esto el mapa se queda
+                                                // en negro (transparent=true, nada debajo). Cae a satélite
+                                                // ArcGIS (sin key, ya validado) en vez de dejarlo vacío.
+                                                setSentinelEscena(prev => ({ ...prev, error: prev.error || 'WMS de Sentinel Hub no disponible — usando satélite de respaldo' }));
+                                                setBaseLayer('satellite');
+                                            },
+                                        }}
                                     />
                                 )}
 

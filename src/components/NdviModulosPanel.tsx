@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Satellite, RefreshCw, TrendingUp, TrendingDown, FileText } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
-import { MapContainer, WMSTileLayer } from 'react-leaflet';
+import { MapContainer, TileLayer, WMSTileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import './NdviModulosPanel.css';
 // Reutiliza el esqueleto visual del modal de Manejo de Vaso (overlay, header,
@@ -14,6 +14,14 @@ import { bboxDeModulo } from '../utils/modulosBbox';
 import { NdviModuloDetalle } from './NdviModuloDetalle';
 import { PlanoGeneralModulos } from './PlanoGeneralModulos';
 import { generarInformeInstitucional } from '../utils/informeNdviInstitucional';
+
+// Mismo basemap CARTO oscuro y mismo criterio de fallback que GeoMonitor.tsx /
+// PlanoGeneralModulos.tsx — sin él, el WMS de NDVI (transparente) queda flotando
+// sobre fondo negro y el mini-mapa parece vacío.
+const CARTO_ACCESS_TOKEN = import.meta.env.VITE_CARTO_ACCESS_TOKEN as string | undefined;
+const CARTO_TILE_URL = CARTO_ACCESS_TOKEN
+    ? `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=${CARTO_ACCESS_TOKEN}`
+    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
 interface NdviModuloFila {
     numero_modulo: number;
@@ -65,6 +73,7 @@ const MiniMapaNdviAgro: React.FC<{ numeroModulo: number; instanceId: string }> =
             doubleClickZoom={false}
             attributionControl={false}
         >
+            <TileLayer url={CARTO_TILE_URL} />
             <WMSTileLayer
                 url={`https://services.sentinel-hub.com/ogc/wms/${instanceId}`}
                 params={wmsParams as any}

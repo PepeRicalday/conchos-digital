@@ -536,10 +536,22 @@
 
 /* La opción Sentinel Hub, activa, crece de una fila a una tarjeta: ícono+label
    arriba, luego capa temática, modo de fecha y la fecha resuelta — demasiado
-   contenido para una sola fila `align-items:center` como las otras opciones. */
-.geo-baselayer-option:has(.geo-baselayer-sublayers) {
+   contenido para una sola fila `align-items:center` como las otras opciones.
+   También aplica en reposo (:has(.geo-baselayer-status-row)): el chip de
+   estado "Cuenta activa/vencida" + "verificar ahora" ya no caben junto al
+   label en una sola fila dentro del ancho del menú (13rem). */
+.geo-baselayer-option:has(.geo-baselayer-sublayers),
+.geo-baselayer-option:has(.geo-baselayer-status-row) {
     flex-wrap: wrap;
     row-gap: 6px;
+}
+
+/* Fila de estado (chip Cuenta activa/vencida + verificar ahora): mismo
+   tratamiento que .geo-baselayer-sublayers (ancho completo, alineada bajo el
+   label), pero envuelve si el mensaje de error es largo. */
+.geo-baselayer-status-row {
+    flex-wrap: wrap;
+    row-gap: 4px;
 }
 
 .geo-baselayer-sublayers {
@@ -569,6 +581,11 @@
 .geo-baselayer-chip.active {
     background: var(--geo-emerald-glow);
     color: var(--geo-neon-emerald);
+}
+
+.geo-baselayer-chip-alerta {
+    background: rgba(220, 38, 38, 0.15);
+    color: #f87171;
 }
 
 .geo-baselayer-fecha {

@@ -1,6 +1,6 @@
 import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain, Satellite, PanelRight, CalendarRange, Box } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline, useMapEvents, useMap } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
 import 'leaflet/dist/leaflet.css';
@@ -153,6 +153,23 @@ function MapViewportWatcher({ onChange }: { onChange: (zoom: number, bounds: Vie
         onChange(map.getZoom(), { minLon: b.getWest(), minLat: b.getSouth(), maxLon: b.getEast(), maxLat: b.getNorth() });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+    return null;
+}
+
+/** Leaflet cachea el tamaño de su contenedor al montar y NO lo recalcula solo
+ *  — al entrar/salir de pantalla completa (CSS-only: position:fixed;inset:0)
+ *  el mapa sigue creyendo que mide lo de antes: tiles grises en la franja
+ *  nueva, bounds reportados incorrectos a MapViewportWatcher (contamina qué
+ *  lotes se cargan), y clics que caen desplazados del punto visible. Solo
+ *  invalidateSize() fuerza el recálculo real (bug confirmado, auditoría
+ *  GEO-MONITOR sep-2026). El pequeño delay espera a que la transición CSS del
+ *  contenedor termine antes de medir. */
+function MapFullscreenInvalidator({ isFullscreen }: { isFullscreen: boolean }) {
+    const map = useMap();
+    useEffect(() => {
+        const t = setTimeout(() => map.invalidateSize(), 150);
+        return () => clearTimeout(t);
+    }, [map, isFullscreen]);
     return null;
 }
 
@@ -559,7 +576,25 @@ const GeoMonitor = () => {
     const mapCenter: [number, number] = [28.02, -105.42];
 
     const [baseLayer, setBaseLayer] = useState<'standard' | 'satellite' | 'eos' | 'sentinel'>(() => {
-        return (localStorage.getItem('geo_base_layer') as any) || 'satellite';
+        const guardado = localStorage.getItem('geo_base_layer');
+        // Degrada a 'satellite' si el valor guardado requiere una credencial
+        // que no está disponible — 'sentinel' y 'eos' solo se montan cuando
+        // su companion (sentinelInstanceId / eosUrl) es truthy (líneas del
+        // render, condición `baseLayer === 'sentinel' && sentinelInstanceId`).
+        // Sin esta guarda, un localStorage con 'sentinel' guardado en una
+        // sesión donde luego se limpió geo_sentinel_instance_id (u otro
+        // navegador sin esa clave) monta CERO TileLayers — las 4 ramas de
+        // capa base son mutuamente excluyentes — y el mapa se abre en negro
+        // sin ningún mensaje (bug confirmado, auditoría GEO-MONITOR sep-2026,
+        // mismo patrón que ya causó el incidente de hoy con Sentinel Hub).
+        if (guardado === 'sentinel') {
+            const tieneInstanceId = !!(localStorage.getItem('geo_sentinel_instance_id') || import.meta.env.VITE_SENTINEL_INSTANCE_ID);
+            if (!tieneInstanceId) return 'satellite';
+        }
+        if (guardado === 'eos' && !localStorage.getItem('geo_eos_url')) {
+            return 'satellite';
+        }
+        return (guardado as any) || 'satellite';
     });
     const [eosUrl, setEosUrl] = useState<string>(() => {
         return localStorage.getItem('geo_eos_url') || '';
@@ -571,9 +606,18 @@ const GeoMonitor = () => {
     // "Sentinel Hub custom scripts repository", disponibles en cualquier
     // configuration WMS estándar creada en el dashboard de Sentinel Hub.
     const [sentinelInstanceId, setSentinelInstanceId] = useState<string>(() => {
+        // El .env tiene precedencia sobre localStorage, no al revés: un valor
+        // viejo/incorrecto guardado en una sesión anterior (p. ej. el Instance
+        // ID de la cuenta Sentinel Hub "classic" ya vencida) pisaba para
+        // siempre el .env correcto, incluso después de corregirlo en un
+        // deploy — causa raíz confirmada del incidente de sep-2026 donde
+        // NDVI/Sentinel Hub no cargaba en un navegador con esa clave vieja.
+        // localStorage sigue siendo el fallback para cuando el usuario
+        // configura un Instance ID manual sin pasar por el .env (prompt de
+        // la línea ~1674) y no hay VITE_SENTINEL_INSTANCE_ID definido.
         return (
-            localStorage.getItem('geo_sentinel_instance_id') ||
             import.meta.env.VITE_SENTINEL_INSTANCE_ID ||
+            localStorage.getItem('geo_sentinel_instance_id') ||
             ''
         );
     });
@@ -988,7 +1032,12 @@ const GeoMonitor = () => {
                 if (!afResult[a.punto_control_id]) {
                     const meta = afMedData.find(m => m.id === a.punto_control_id);
                     if (meta) {
-                        afResult[a.punto_control_id] = { ...a, latitud: meta.latitud ?? 0, longitud: meta.longitud ?? 0 };
+                        // id/nombre_punto vienen de `meta` (aforos_control) — la tabla
+                        // `aforos` no los trae en el select (solo punto_control_id).
+                        // Sin esto, af.id quedaba undefined: todas las keys de React
+                        // colisionaban en un solo marcador y el tooltip mostraba el
+                        // nombre vacío (bug confirmado, auditoría GEO-MONITOR sep-2026).
+                        afResult[a.punto_control_id] = { ...a, id: meta.id, nombre_punto: meta.nombre_punto, latitud: meta.latitud ?? 0, longitud: meta.longitud ?? 0 };
                     }
                 }
             });
@@ -1962,6 +2011,7 @@ const GeoMonitor = () => {
                                 zoomControl={false} attributionControl={false}
                             >
                                 <MapViewportWatcher onChange={(zoom, bounds) => { setMapZoom(zoom); setMapBounds(bounds); }} />
+                                <MapFullscreenInvalidator isFullscreen={isFullscreen} />
                                 {baseLayer === 'satellite' && (
                                     <TileLayer
                                         url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"

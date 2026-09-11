@@ -24,8 +24,27 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const OAUTH_TOKEN_URL = "https://services.sentinel-hub.com/oauth/token";
-const CATALOG_SEARCH_URL = "https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search";
+// Proveedor de Sentinel Hub: "classic" (sinergise, cuenta Trial vencida — ver
+// sentinel-status) o "cdse" (Copernicus Data Space Ecosystem, gratuito sin
+// vencimiento), elegido con el secret SENTINEL_PROVIDER. Default "classic":
+// sin secret configurado, comportamiento idéntico al de siempre.
+type SentinelProvider = "classic" | "cdse";
+
+const ENDPOINTS: Record<SentinelProvider, { oauth: string; catalog: string }> = {
+  classic: {
+    oauth: "https://services.sentinel-hub.com/oauth/token",
+    catalog: "https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search",
+  },
+  cdse: {
+    oauth: "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token",
+    catalog: "https://sh.dataspace.copernicus.eu/api/v1/catalog/1.0.0/search",
+  },
+};
+
+function resolverProvider(): SentinelProvider {
+  const raw = (Deno.env.get("SENTINEL_PROVIDER") || "classic").trim().toLowerCase();
+  return raw === "cdse" ? "cdse" : "classic";
+}
 
 interface ModoConfig {
   diasVentana: number;
@@ -37,17 +56,20 @@ const MODOS: Record<"reciente" | "legible", ModoConfig> = {
   legible: { diasVentana: 30, maxcc: 40 },
 };
 
-let cachedToken: { token: string; expiraEn: number } | null = null;
+// Cacheado por proveedor: si SENTINEL_PROVIDER cambia entre invocaciones (o
+// durante la transición classic -> cdse) un token del proveedor equivocado
+// nunca se reutiliza para el otro.
+let cachedToken: { provider: SentinelProvider; token: string; expiraEn: number } | null = null;
 
-async function obtenerAccessToken(clientId: string, clientSecret: string): Promise<string> {
+async function obtenerAccessToken(provider: SentinelProvider, clientId: string, clientSecret: string): Promise<string> {
   // El token OAuth dura minutos/horas según Sentinel Hub; se cachea en memoria
   // de la función mientras la instancia siga viva, para no pedirlo en cada
   // request (el warm start de Edge Functions reutiliza el módulo).
-  if (cachedToken && cachedToken.expiraEn > Date.now() + 30_000) {
+  if (cachedToken && cachedToken.provider === provider && cachedToken.expiraEn > Date.now() + 30_000) {
     return cachedToken.token;
   }
 
-  const r = await fetch(OAUTH_TOKEN_URL, {
+  const r = await fetch(ENDPOINTS[provider].oauth, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -62,7 +84,7 @@ async function obtenerAccessToken(clientId: string, clientSecret: string): Promi
   const expiresIn = Number(body?.expires_in) || 3600;
   if (!token) throw new Error("OAuth: respuesta sin access_token");
 
-  cachedToken = { token, expiraEn: Date.now() + expiresIn * 1000 };
+  cachedToken = { provider, token, expiraEn: Date.now() + expiresIn * 1000 };
   return token;
 }
 
@@ -71,6 +93,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Usa POST" }, 405);
 
   try {
+    const provider = resolverProvider();
     const CLIENT_ID = Deno.env.get("SENTINEL_OAUTH_CLIENT_ID");
     const CLIENT_SECRET = Deno.env.get("SENTINEL_OAUTH_CLIENT_SECRET");
     if (!CLIENT_ID || !CLIENT_SECRET) {
@@ -89,7 +112,7 @@ Deno.serve(async (req) => {
     const fin = new Date();
     const inicio = new Date(fin.getTime() - diasVentana * 86400000);
 
-    const token = await obtenerAccessToken(CLIENT_ID, CLIENT_SECRET);
+    const token = await obtenerAccessToken(provider, CLIENT_ID, CLIENT_SECRET);
 
     // Bbox pequeño (~0.02°, ~2 km) centrado en el punto: solo interesa saber
     // qué escena cubre ese punto exacto del canal, no un área amplia.
@@ -107,7 +130,7 @@ Deno.serve(async (req) => {
       },
     };
 
-    const r = await fetch(CATALOG_SEARCH_URL, {
+    const r = await fetch(ENDPOINTS[provider].catalog, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(searchBody),

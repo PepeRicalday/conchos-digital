@@ -25,16 +25,37 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const OAUTH_TOKEN_URL = "https://services.sentinel-hub.com/oauth/token";
-const STATISTICAL_URL = "https://services.sentinel-hub.com/api/v1/statistics";
+// Proveedor de Sentinel Hub: "classic" (sinergise, cuenta Trial vencida — ver
+// sentinel-status) o "cdse" (Copernicus Data Space Ecosystem, gratuito sin
+// vencimiento), elegido con el secret SENTINEL_PROVIDER. Default "classic":
+// sin secret configurado, comportamiento idéntico al de siempre.
+type SentinelProvider = "classic" | "cdse";
 
-let cachedToken: { token: string; expiraEn: number } | null = null;
+const ENDPOINTS: Record<SentinelProvider, { oauth: string; statistics: string }> = {
+  classic: {
+    oauth: "https://services.sentinel-hub.com/oauth/token",
+    statistics: "https://services.sentinel-hub.com/api/v1/statistics",
+  },
+  cdse: {
+    oauth: "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token",
+    statistics: "https://sh.dataspace.copernicus.eu/api/v1/statistics",
+  },
+};
 
-async function obtenerAccessToken(clientId: string, clientSecret: string): Promise<string> {
-  if (cachedToken && cachedToken.expiraEn > Date.now() + 30_000) {
+function resolverProvider(): SentinelProvider {
+  const raw = (Deno.env.get("SENTINEL_PROVIDER") || "classic").trim().toLowerCase();
+  return raw === "cdse" ? "cdse" : "classic";
+}
+
+// Cacheado por proveedor: evita reutilizar un token classic para cdse (o
+// viceversa) si SENTINEL_PROVIDER cambia entre invocaciones.
+let cachedToken: { provider: SentinelProvider; token: string; expiraEn: number } | null = null;
+
+async function obtenerAccessToken(provider: SentinelProvider, clientId: string, clientSecret: string): Promise<string> {
+  if (cachedToken && cachedToken.provider === provider && cachedToken.expiraEn > Date.now() + 30_000) {
     return cachedToken.token;
   }
-  const r = await fetch(OAUTH_TOKEN_URL, {
+  const r = await fetch(ENDPOINTS[provider].oauth, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -48,7 +69,7 @@ async function obtenerAccessToken(clientId: string, clientSecret: string): Promi
   const token = body?.access_token;
   const expiresIn = Number(body?.expires_in) || 3600;
   if (!token) throw new Error("OAuth: respuesta sin access_token");
-  cachedToken = { token, expiraEn: Date.now() + expiresIn * 1000 };
+  cachedToken = { provider, token, expiraEn: Date.now() + expiresIn * 1000 };
   return token;
 }
 
@@ -80,6 +101,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Usa POST" }, 405);
 
   try {
+    const provider = resolverProvider();
     const CLIENT_ID = Deno.env.get("SENTINEL_OAUTH_CLIENT_ID");
     const CLIENT_SECRET = Deno.env.get("SENTINEL_OAUTH_CLIENT_SECRET");
     if (!CLIENT_ID || !CLIENT_SECRET) {
@@ -89,12 +111,17 @@ Deno.serve(async (req) => {
     const b = await req.json().catch(() => ({}));
     const minLon = Number(b?.minLon), minLat = Number(b?.minLat);
     const maxLon = Number(b?.maxLon), maxLat = Number(b?.maxLat);
-    const diasVentana = Number.isFinite(Number(b?.diasVentana)) ? Number(b.diasVentana) : 30;
+    // Acotado a [1, 90]: sin verify_jwt esta función era invocable por
+    // cualquiera (ya corregido con verify_jwt=true), pero igual conviene no
+    // aceptar un valor sin cota — un diasVentana de miles de días pediría una
+    // agregación Statistical API desproporcionada por request.
+    const diasVentanaRaw = Number.isFinite(Number(b?.diasVentana)) ? Number(b.diasVentana) : 30;
+    const diasVentana = Math.min(Math.max(1, Math.round(diasVentanaRaw)), 90);
     if (![minLon, minLat, maxLon, maxLat].every(Number.isFinite)) {
       return json({ error: "Se requieren minLon/minLat/maxLon/maxLat numéricos" }, 400);
     }
 
-    const token = await obtenerAccessToken(CLIENT_ID, CLIENT_SECRET);
+    const token = await obtenerAccessToken(provider, CLIENT_ID, CLIENT_SECRET);
 
     const fin = new Date();
     const inicio = new Date(fin.getTime() - diasVentana * 86400000);
@@ -105,19 +132,22 @@ Deno.serve(async (req) => {
           bbox: [minLon, minLat, maxLon, maxLat],
           properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" },
         },
-        data: [{ type: "sentinel-2-l2a" }],
+        // maxCloudCoverage va en data[].dataFilter, no en `aggregation` — ahí
+        // la Statistical API lo ignora en silencio y nunca filtra ninguna
+        // escena (confirmado con prueba directa sep-2026: mismo request con
+        // el filtro mal ubicado devolvía ndvi_max=0.11 promediando escenas de
+        // 80-95% de nubosidad junto con las limpias; con el filtro en el
+        // lugar correcto, ndvi_max=0.95 para el mismo mes/área).
+        data: [{ type: "sentinel-2-l2a", dataFilter: { maxCloudCoverage: 40 } }],
       },
       aggregation: {
         timeRange: { from: inicio.toISOString(), to: fin.toISOString() },
-        aggregationInterval: { of: "P30D" }, // un solo intervalo: toda la ventana
+        aggregationInterval: { of: `P${diasVentana}D` }, // un solo intervalo: toda la ventana
         evalscript: EVALSCRIPT_NDVI,
-        // maxCloudCoverage: filtra escenas muy nubladas antes de agregar, para
-        // no diluir el promedio con NDVI falso bajo nubes.
-        maxCloudCoverage: 40,
       },
     };
 
-    const r = await fetch(STATISTICAL_URL, {
+    const r = await fetch(ENDPOINTS[provider].statistics, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(reqBody),

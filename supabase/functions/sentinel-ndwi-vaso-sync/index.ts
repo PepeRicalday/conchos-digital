@@ -42,9 +42,38 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const OAUTH_TOKEN_URL = "https://services.sentinel-hub.com/oauth/token";
-const PROCESS_URL = "https://services.sentinel-hub.com/api/v1/process";
-const CATALOG_SEARCH_URL = "https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search";
+// Proveedor de Sentinel Hub: "classic" (sinergise, cuenta Trial vencida — ver
+// sentinel-status) o "cdse" (Copernicus Data Space Ecosystem, gratuito sin
+// vencimiento), elegido con el secret SENTINEL_PROVIDER. Default "classic":
+// sin secret configurado, comportamiento idéntico al de siempre.
+//
+// IMPORTANTE — la función de MAYOR riesgo del set para migrar: cron mensual
+// (día 3) que escribe vaso_geometria_historico vía un pipeline propio
+// (Process API → PNG NDWI decodificado a mano → marching squares →
+// suavizado/morfología). Antes de confiar el cron real a "cdse", invocar
+// manualmente con SENTINEL_PROVIDER=cdse y comparar el PNG/vector resultante
+// contra una corrida "classic" reciente — cualquier diferencia sutil en cómo
+// CDSE codifica el PNG de salida (paleta, profundidad de bits) puede
+// corromper la geometría sin lanzar ningún error HTTP.
+type SentinelProvider = "classic" | "cdse";
+
+const ENDPOINTS: Record<SentinelProvider, { oauth: string; process: string; catalog: string }> = {
+  classic: {
+    oauth: "https://services.sentinel-hub.com/oauth/token",
+    process: "https://services.sentinel-hub.com/api/v1/process",
+    catalog: "https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search",
+  },
+  cdse: {
+    oauth: "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token",
+    process: "https://sh.dataspace.copernicus.eu/api/v1/process",
+    catalog: "https://sh.dataspace.copernicus.eu/api/v1/catalog/1.0.0/search",
+  },
+};
+
+function resolverProvider(): SentinelProvider {
+  const raw = (Deno.env.get("SENTINEL_PROVIDER") || "classic").trim().toLowerCase();
+  return raw === "cdse" ? "cdse" : "classic";
+}
 
 // Bbox y ancla por presa.
 //
@@ -100,8 +129,8 @@ const RESOLUCION_M = 20;
 // relieve — mismo umbral validado en la prueba puntual.
 const UMBRAL_NDWI = 0.2;
 
-async function obtenerAccessToken(clientId: string, clientSecret: string): Promise<string> {
-  const r = await fetch(OAUTH_TOKEN_URL, {
+async function obtenerAccessToken(provider: SentinelProvider, clientId: string, clientSecret: string): Promise<string> {
+  const r = await fetch(ENDPOINTS[provider].oauth, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "client_credentials", client_id: clientId, client_secret: clientSecret }),
@@ -111,6 +140,29 @@ async function obtenerAccessToken(clientId: string, clientSecret: string): Promi
   const token = body?.access_token;
   if (!token) throw new Error("OAuth: respuesta sin access_token");
   return token;
+}
+
+// El cron mensual (día 3) alimenta un histórico NO recuperable retroactivamente
+// — sin timeout, un fetch colgado agota el wall-clock de la Edge Function y el
+// mes se pierde en silencio; sin reintento, un 429/5xx transitorio de CDSE
+// (común en el plan gratuito bajo carga) hace lo mismo. 90s de timeout (mayor
+// que en sentinel-ndvi-modulo-sync: el Process API de esta función procesa un
+// raster mucho más grande), hasta 2 reintentos con backoff, solo sobre
+// códigos transitorios (429/5xx) — un 400 (bbox/evalscript inválido) no se
+// reintenta porque fallará igual siempre.
+async function fetchConReintento(url: string, init: RequestInit, intentos = 3): Promise<Response> {
+  let ultimoError: unknown;
+  for (let intento = 1; intento <= intentos; intento++) {
+    try {
+      const r = await fetch(url, { ...init, signal: AbortSignal.timeout(90_000) });
+      if (r.ok || (r.status < 500 && r.status !== 429)) return r;
+      ultimoError = new Error(`HTTP ${r.status}: ${await r.text().catch(() => "")}`);
+    } catch (err) {
+      ultimoError = err;
+    }
+    if (intento < intentos) await new Promise((res) => setTimeout(res, 1000 * 2 ** (intento - 1)));
+  }
+  throw ultimoError instanceof Error ? ultimoError : new Error(String(ultimoError));
 }
 
 // NDWI continuo (no máscara binaria): codificado = (ndwi+1)*30000 en UINT16
@@ -478,6 +530,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Usa POST" }, 405);
 
   try {
+    const provider = resolverProvider();
     const SENTINEL_CLIENT_ID = Deno.env.get("SENTINEL_OAUTH_CLIENT_ID");
     const SENTINEL_CLIENT_SECRET = Deno.env.get("SENTINEL_OAUTH_CLIENT_SECRET");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -523,7 +576,7 @@ Deno.serve(async (req) => {
       inicio = new Date(fin.getTime() - 30 * 86400000);
     }
 
-    const token = await obtenerAccessToken(SENTINEL_CLIENT_ID, SENTINEL_CLIENT_SECRET);
+    const token = await obtenerAccessToken(provider, SENTINEL_CLIENT_ID, SENTINEL_CLIENT_SECRET);
 
     // Bbox y resolución activos: el bbox normal (calibrado contra el vaso en
     // nivel bajo, ciclo 2026) es insuficiente para referencia histórica,
@@ -554,7 +607,7 @@ Deno.serve(async (req) => {
         limit: 100,
         fields: { include: ["properties.datetime", "properties.eo:cloud_cover"], exclude: ["geometry", "assets", "links"] },
       };
-      const rCat = await fetch(CATALOG_SEARCH_URL, {
+      const rCat = await fetch(ENDPOINTS[provider].catalog, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(catalogBody),
@@ -572,8 +625,22 @@ Deno.serve(async (req) => {
         const umbralCC = esReferenciaHistorica ? 5 : 20;
         const conCC = features.filter(f => (f.properties?.["eo:cloud_cover"] ?? 100) <= umbralCC);
         const candidatas = conCC.length ? conCC : features;
-        const elegida = [...candidatas].sort((a, b) =>
-          (a.properties?.["eo:cloud_cover"] ?? 100) - (b.properties?.["eo:cloud_cover"] ?? 100))[0];
+        // Referencia histórica (fecha fija del pasado, ventana ±45 días a su
+        // alrededor): no hay una "más reciente" con sentido — se prioriza la
+        // imagen más limpia posible, ya que el trazado geométrico es sensible
+        // a nubosidad parcial (ver comentario arriba).
+        // Cron normal (últimos 30 días desde hoy): antes se elegía la de
+        // MENOR nubosidad de toda la ventana, lo que podía preferir una
+        // escena de hace 2-3 semanas (ej. 0.03%) sobre otra de hace 2 días
+        // casi igual de limpia (ej. 0.78%) — el panel institucional mostraba
+        // "última actualización" con semanas de retraso sin que hubiera
+        // ninguna razón real (ambas cumplen sobra el umbral de 20%). Ahora,
+        // entre las que ya pasan el umbral, se prioriza la MÁS RECIENTE.
+        const elegida = esReferenciaHistorica
+          ? [...candidatas].sort((a, b) =>
+              (a.properties?.["eo:cloud_cover"] ?? 100) - (b.properties?.["eo:cloud_cover"] ?? 100))[0]
+          : [...candidatas].sort((a, b) =>
+              (b.properties?.datetime ?? "").localeCompare(a.properties?.datetime ?? ""))[0];
         fechaEscena = elegida?.properties?.datetime ?? null;
         nubosidadEscena = elegida?.properties?.["eo:cloud_cover"] ?? null;
 
@@ -643,7 +710,7 @@ Deno.serve(async (req) => {
       evalscript: EVALSCRIPT_MASCARA,
     };
 
-    const r = await fetch(PROCESS_URL, {
+    const r = await fetchConReintento(ENDPOINTS[provider].process, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(reqBody),
@@ -776,12 +843,25 @@ Deno.serve(async (req) => {
     let pctDelMaximoCiclo: number | null = null;
 
     if (!esReferenciaHistorica) {
+      // "anterior" excluye la fila que esta misma invocación está por
+      // escribir (upsert onConflict presa_id,fecha_escena) filtrando por
+      // fecha_escena!=fechaEscena además de lt() — una reinvocación con la
+      // misma fecha_escena (el usuario pulsa "Actualizar" dos veces seguidas,
+      // o el cron se dispara más de una vez) ya había insertado esta fila en
+      // una corrida previa; sin el neq() explícito, alguna combinación de
+      // precisión de timestamp entre el string ISO devuelto por el Catalog
+      // API y el timestamptz ya almacenado podía dejar pasar la propia fila
+      // como "anterior", dando delta_area_km2=0 (la fila comparada consigo
+      // misma) en vez de null o del valor real — confirmado en producción,
+      // fila del 2026-09-09 con delta=0 en vez de +0.643 km² tras varias
+      // invocaciones de prueba en la misma mañana.
       const { data: anterior } = await supabase
         .from("vaso_geometria_historico")
         .select("area_km2, perimetro_km")
         .eq("presa_id", presaId)
         .eq("es_referencia_historica", false)
         .lt("fecha_escena", fechaEscena)
+        .neq("fecha_escena", fechaEscena)
         .order("fecha_escena", { ascending: false })
         .limit(1)
         .maybeSingle();

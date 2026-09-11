@@ -17,8 +17,13 @@
 //
 // Invocación: POST { numero_modulo?: number, mes?: "2026-03" }
 //   Sin numero_modulo: procesa los 6 módulos SRL.
-//   Sin mes: ventana de "últimos 30 días" (uso normal del cron mensual).
-//   Con mes ("2026-03"): ventana del mes calendario completo (backfill manual).
+//   Sin mes: mes calendario ANTERIOR al actual (uso normal del cron, día 3 —
+//     da margen a que Sentinel-2 ya tenga indexado el mes recién cerrado).
+//   Con mes ("2026-03"): ventana de ESE mes calendario completo (backfill).
+//   En ambos casos la ventana es siempre un mes calendario completo, nunca
+//   una ventana deslizante de "N días atrás desde hoy" — eso etiquetaba la
+//   fila con el mes de HOY aunque la mayoría de los días de la ventana
+//   fueran del mes anterior (bug confirmado en producción, ver git log).
 // ═══════════════════════════════════════════════════════════════════════════
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
@@ -30,12 +35,41 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const OAUTH_TOKEN_URL = "https://services.sentinel-hub.com/oauth/token";
-const STATISTICAL_URL = "https://services.sentinel-hub.com/api/v1/statistics";
+// Proveedor de Sentinel Hub: "classic" (sinergise, cuenta Trial vencida — ver
+// sentinel-status) o "cdse" (Copernicus Data Space Ecosystem, gratuito sin
+// vencimiento), elegido con el secret SENTINEL_PROVIDER. Default "classic":
+// sin secret configurado, comportamiento idéntico al de siempre.
+//
+// IMPORTANTE — esta función es de ALTO riesgo para migrar: alimenta el cron
+// mensual (día 3) que escribe ndvi_modulo_historico, un histórico NO
+// recuperable retroactivamente si un mes falla en silencio. Además usa
+// bounds.geometry (polígono exacto del módulo), no un bbox — antes de confiar
+// el cron real a "cdse", invocar esta función manualmente con
+// SENTINEL_PROVIDER=cdse y confirmar que la Statistical API de CDSE acepta
+// geometry (no solo bbox) y devuelve stats con la misma forma
+// (outputs.ndvi.bands.B0.stats.{mean,min,max,stDev,sampleCount}).
+type SentinelProvider = "classic" | "cdse";
+
+const ENDPOINTS: Record<SentinelProvider, { oauth: string; statistics: string }> = {
+  classic: {
+    oauth: "https://services.sentinel-hub.com/oauth/token",
+    statistics: "https://services.sentinel-hub.com/api/v1/statistics",
+  },
+  cdse: {
+    oauth: "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token",
+    statistics: "https://sh.dataspace.copernicus.eu/api/v1/statistics",
+  },
+};
+
+function resolverProvider(): SentinelProvider {
+  const raw = (Deno.env.get("SENTINEL_PROVIDER") || "classic").trim().toLowerCase();
+  return raw === "cdse" ? "cdse" : "classic";
+}
+
 const MAX_CLOUD_COVERAGE = 40;
 
-async function obtenerAccessToken(clientId: string, clientSecret: string): Promise<string> {
-  const r = await fetch(OAUTH_TOKEN_URL, {
+async function obtenerAccessToken(provider: SentinelProvider, clientId: string, clientSecret: string): Promise<string> {
+  const r = await fetch(ENDPOINTS[provider].oauth, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "client_credentials", client_id: clientId, client_secret: clientSecret }),
@@ -45,6 +79,27 @@ async function obtenerAccessToken(clientId: string, clientSecret: string): Promi
   const token = body?.access_token;
   if (!token) throw new Error("OAuth: respuesta sin access_token");
   return token;
+}
+
+// El cron mensual (día 3) alimenta un histórico NO recuperable retroactivamente
+// — sin timeout, un fetch colgado agota el wall-clock de la Edge Function y el
+// mes se pierde en silencio; sin reintento, un 429/5xx transitorio de CDSE
+// (común en el plan gratuito bajo carga) hace lo mismo. 60s de timeout, hasta
+// 2 reintentos con backoff, solo sobre códigos transitorios (429/5xx) — un 400
+// (geometría/evalscript inválido) no se reintenta porque fallará igual siempre.
+async function fetchConReintento(url: string, init: RequestInit, intentos = 3): Promise<Response> {
+  let ultimoError: unknown;
+  for (let intento = 1; intento <= intentos; intento++) {
+    try {
+      const r = await fetch(url, { ...init, signal: AbortSignal.timeout(60_000) });
+      if (r.ok || (r.status < 500 && r.status !== 429)) return r;
+      ultimoError = new Error(`HTTP ${r.status}: ${await r.text().catch(() => "")}`);
+    } catch (err) {
+      ultimoError = err;
+    }
+    if (intento < intentos) await new Promise((res) => setTimeout(res, 1000 * 2 ** (intento - 1)));
+  }
+  throw ultimoError instanceof Error ? ultimoError : new Error(String(ultimoError));
 }
 
 // Mismo evalscript base que sentinel-ndvi-modulo (Sentinel-2 L2A, B04/B08),
@@ -132,6 +187,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Usa POST" }, 405);
 
   try {
+    const provider = resolverProvider();
     const CLIENT_ID = Deno.env.get("SENTINEL_OAUTH_CLIENT_ID");
     const CLIENT_SECRET = Deno.env.get("SENTINEL_OAUTH_CLIENT_SECRET");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -154,7 +210,19 @@ Deno.serve(async (req) => {
       return json({ error: `Módulo(s) sin geometría configurada: ${invalidos.join(", ")}. Disponibles: ${Object.keys(MODULOS_SRL_GEOMETRY).join(", ")}` }, 400);
     }
 
-    // Ventana: mes calendario explícito (backfill) o últimos 30 días (cron normal).
+    // Ventana: mes calendario explícito (backfill) o mes calendario ANTERIOR
+    // (cron normal, día 3 de cada mes — corre con margen para que el mes
+    // recién cerrado ya tenga cobertura Sentinel-2 indexada). Antes usaba
+    // "últimos 30 días desde hoy" pero etiquetaba la fila con el mes de HOY:
+    // el día 3 de octubre eso arma una ventana 3-sep→3-oct (≈90% de días de
+    // septiembre) guardada como mes="2026-10" — el mes actual quedaba
+    // etiquetado con datos mayormente del mes anterior, y delta_ndvi
+    // comparaba dos ventanas que se solapan casi por completo consigo
+    // mismas en vez de dos meses reales (bug confirmado en producción,
+    // sep-2026: la fila "2026-09" tenía ventana_desde=2026-08-12). El mes
+    // calendario completo también evita depender de en qué día del mes se
+    // invoque manualmente "Actualizar ahora" — siempre cae en el mes
+    // calendario anterior, sin importar la hora local del usuario.
     let inicio: Date, fin: Date, mes: string;
     if (mesParam && /^\d{4}-\d{2}$/.test(mesParam)) {
       const [anio, mesNum] = mesParam.split("-").map(Number);
@@ -162,13 +230,22 @@ Deno.serve(async (req) => {
       fin = new Date(Date.UTC(anio, mesNum, 1));
       mes = mesParam;
     } else {
-      fin = new Date();
-      inicio = new Date(fin.getTime() - 30 * 86400000);
-      mes = `${fin.getUTCFullYear()}-${String(fin.getUTCMonth() + 1).padStart(2, "0")}`;
+      const hoy = new Date();
+      // Mes calendario anterior al actual (UTC): si hoy es 2026-10-03,
+      // cubre 2026-09-01..2026-10-01.
+      fin = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1));
+      inicio = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - 1, 1));
+      mes = `${inicio.getUTCFullYear()}-${String(inicio.getUTCMonth() + 1).padStart(2, "0")}`;
     }
 
-    const token = await obtenerAccessToken(CLIENT_ID, CLIENT_SECRET);
+    const token = await obtenerAccessToken(provider, CLIENT_ID, CLIENT_SECRET);
     const resultados: ResultadoModulo[] = [];
+
+    // Duración exacta de la ventana en días — un intervalo fijo "P30D" corta
+    // el último día en cualquier mes de 31 días (confirmado en producción:
+    // ventana_hasta quedaba en el día 31 en vez del 1 del mes siguiente para
+    // marzo/mayo/julio/agosto). ISO 8601 acepta "P<n>D" con n arbitrario.
+    const diasVentana = Math.round((fin.getTime() - inicio.getTime()) / 86400000);
 
     for (const numeroModulo of modulosAProcesar) {
       const geom = MODULOS_SRL_GEOMETRY[numeroModulo];
@@ -181,17 +258,25 @@ Deno.serve(async (req) => {
               geometry: geom,
               properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" },
             },
-            data: [{ type: "sentinel-2-l2a" }],
+            // maxCloudCoverage va aquí, dentro de data[].dataFilter — NO en
+            // el bloque `aggregation` (donde vivía antes). La Statistical API
+            // ignora silenciosamente un maxCloudCoverage puesto en
+            // `aggregation`: no es un parámetro válido ahí, así que nunca
+            // filtró ninguna escena desde que existe esta función — cada mes
+            // se promediaba con TODAS las escenas de la ventana, incluidas
+            // las de 80-95% de nubosidad, junto con las limpias. Confirmado
+            // con prueba directa (sep-2026): mismo request con el filtro en
+            // el lugar correcto, ndvi_max de mayo 2026 pasó de 0.11 a 0.95.
+            data: [{ type: "sentinel-2-l2a", dataFilter: { maxCloudCoverage: MAX_CLOUD_COVERAGE } }],
           },
           aggregation: {
             timeRange: { from: inicio.toISOString(), to: fin.toISOString() },
-            aggregationInterval: { of: "P30D" },
+            aggregationInterval: { of: `P${diasVentana}D` },
             evalscript: EVALSCRIPT_NDVI,
-            maxCloudCoverage: MAX_CLOUD_COVERAGE,
           },
         };
 
-        const r = await fetch(STATISTICAL_URL, {
+        const r = await fetchConReintento(ENDPOINTS[provider].statistics, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify(reqBody),
@@ -261,7 +346,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ ok: true, mes, ventana: { desde: inicio.toISOString(), hasta: fin.toISOString() }, resultados }, 200);
+    // El cron (net.http_post) no inspecciona el body de la respuesta, solo el
+    // status HTTP — devolver 200 aunque TODOS los módulos hayan fallado hacía
+    // que cron.job_run_details marcara "succeeded" con el mes completo
+    // perdido y sin ninguna señal de alerta. 207 (Multi-Status) si hubo al
+    // menos un fallo, 500 si fallaron todos — 200 solo si los 6 módulos
+    // insertaron correctamente.
+    const fallidos = resultados.filter((r) => !r.insertado);
+    const status = fallidos.length === 0 ? 200 : fallidos.length === resultados.length ? 500 : 207;
+    return json({ ok: fallidos.length !== resultados.length, provider, mes, ventana: { desde: inicio.toISOString(), hasta: fin.toISOString() }, resultados }, status);
   } catch (err) {
     return json({ error: String(err) }, 500);
   }

@@ -31,8 +31,28 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const OAUTH_TOKEN_URL = "https://services.sentinel-hub.com/oauth/token";
-const PROCESS_URL = "https://services.sentinel-hub.com/api/v1/process";
+// Proveedor de Sentinel Hub: "classic" (sinergise, cuenta Trial vencida — ver
+// sentinel-status) o "cdse" (Copernicus Data Space Ecosystem, gratuito sin
+// vencimiento), elegido con el secret SENTINEL_PROVIDER. Default "classic":
+// sin secret configurado, comportamiento idéntico al de siempre.
+type SentinelProvider = "classic" | "cdse";
+
+const ENDPOINTS: Record<SentinelProvider, { oauth: string; process: string }> = {
+  classic: {
+    oauth: "https://services.sentinel-hub.com/oauth/token",
+    process: "https://services.sentinel-hub.com/api/v1/process",
+  },
+  cdse: {
+    oauth: "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token",
+    process: "https://sh.dataspace.copernicus.eu/api/v1/process",
+  },
+};
+
+function resolverProvider(): SentinelProvider {
+  const raw = (Deno.env.get("SENTINEL_PROVIDER") || "classic").trim().toLowerCase();
+  return raw === "cdse" ? "cdse" : "classic";
+}
+
 const LADO_PX = 260; // imagen cuadrada, suficiente para miniatura de informe sin pesar demasiado el HTML
 
 // Rampa rojo(#d03b3b)→ámbar(#d98704)→verde(#0ca30c) sobre NDVI∈[0.05,0.75] —
@@ -66,8 +86,8 @@ function evaluatePixel(s) {
 }
 `;
 
-async function obtenerAccessToken(clientId: string, clientSecret: string): Promise<string> {
-  const r = await fetch(OAUTH_TOKEN_URL, {
+async function obtenerAccessToken(provider: SentinelProvider, clientId: string, clientSecret: string): Promise<string> {
+  const r = await fetch(ENDPOINTS[provider].oauth, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "client_credentials", client_id: clientId, client_secret: clientSecret }),
@@ -119,6 +139,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Usa POST" }, 405);
 
   try {
+    const provider = resolverProvider();
     const CLIENT_ID = Deno.env.get("SENTINEL_OAUTH_CLIENT_ID");
     const CLIENT_SECRET = Deno.env.get("SENTINEL_OAUTH_CLIENT_SECRET");
     if (!CLIENT_ID || !CLIENT_SECRET) {
@@ -133,7 +154,7 @@ Deno.serve(async (req) => {
       return json({ error: `Módulo(s) sin geometría configurada: ${invalidos.join(", ")}` }, 400);
     }
 
-    const token = await obtenerAccessToken(CLIENT_ID, CLIENT_SECRET);
+    const token = await obtenerAccessToken(provider, CLIENT_ID, CLIENT_SECRET);
     const fin = new Date();
     const inicio = new Date(fin.getTime() - 30 * 86400000);
 
@@ -153,7 +174,7 @@ Deno.serve(async (req) => {
           output: { width: LADO_PX, height: LADO_PX, responses: [{ identifier: "default", format: { type: "image/png" } }] },
           evalscript: EVALSCRIPT_NDVI_COLOREADO,
         };
-        const r = await fetch(PROCESS_URL, {
+        const r = await fetch(ENDPOINTS[provider].process, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify(reqBody),

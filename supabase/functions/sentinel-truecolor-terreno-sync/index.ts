@@ -22,9 +22,29 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const OAUTH_TOKEN_URL = "https://services.sentinel-hub.com/oauth/token";
-const PROCESS_URL = "https://services.sentinel-hub.com/api/v1/process";
-const CATALOG_SEARCH_URL = "https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search";
+// Proveedor de Sentinel Hub: "classic" (sinergise, cuenta Trial vencida — ver
+// sentinel-status) o "cdse" (Copernicus Data Space Ecosystem, gratuito sin
+// vencimiento), elegido con el secret SENTINEL_PROVIDER. Default "classic":
+// sin secret configurado, comportamiento idéntico al de siempre.
+type SentinelProvider = "classic" | "cdse";
+
+const ENDPOINTS: Record<SentinelProvider, { oauth: string; process: string; catalog: string }> = {
+  classic: {
+    oauth: "https://services.sentinel-hub.com/oauth/token",
+    process: "https://services.sentinel-hub.com/api/v1/process",
+    catalog: "https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search",
+  },
+  cdse: {
+    oauth: "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token",
+    process: "https://sh.dataspace.copernicus.eu/api/v1/process",
+    catalog: "https://sh.dataspace.copernicus.eu/api/v1/catalog/1.0.0/search",
+  },
+};
+
+function resolverProvider(): SentinelProvider {
+  const raw = (Deno.env.get("SENTINEL_PROVIDER") || "classic").trim().toLowerCase();
+  return raw === "cdse" ? "cdse" : "classic";
+}
 
 // MISMO bbox que BBOXES_PRESA['PRE-001'] en sentinel-ndwi-vaso-sync y
 // BBOX_CORTINA en dem-boquilla-sync (ambos ya alineados al vaso completo) —
@@ -62,8 +82,8 @@ function evaluatePixel(s) {
 }
 `;
 
-async function obtenerAccessToken(clientId: string, clientSecret: string): Promise<string> {
-  const r = await fetch(OAUTH_TOKEN_URL, {
+async function obtenerAccessToken(provider: SentinelProvider, clientId: string, clientSecret: string): Promise<string> {
+  const r = await fetch(ENDPOINTS[provider].oauth, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "client_credentials", client_id: clientId, client_secret: clientSecret }),
@@ -80,6 +100,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Usa POST" }, 405);
 
   try {
+    const provider = resolverProvider();
     const SENTINEL_CLIENT_ID = Deno.env.get("SENTINEL_OAUTH_CLIENT_ID");
     const SENTINEL_CLIENT_SECRET = Deno.env.get("SENTINEL_OAUTH_CLIENT_SECRET");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -100,7 +121,7 @@ Deno.serve(async (req) => {
     }
     const [minLon, minLat, maxLon, maxLat] = config.bbox;
 
-    const token = await obtenerAccessToken(SENTINEL_CLIENT_ID, SENTINEL_CLIENT_SECRET);
+    const token = await obtenerAccessToken(provider, SENTINEL_CLIENT_ID, SENTINEL_CLIENT_SECRET);
 
     const fin = new Date();
     const inicio = new Date(fin.getTime() - 60 * 86400000); // ventana amplia (60 días): TRUE_COLOR necesita cielo despejado, no solo NDWI
@@ -111,7 +132,7 @@ Deno.serve(async (req) => {
     let fechaEscena: string | null = null;
     let nubosidadEscena: number | null = null;
     try {
-      const rCat = await fetch(CATALOG_SEARCH_URL, {
+      const rCat = await fetch(ENDPOINTS[provider].catalog, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -156,7 +177,7 @@ Deno.serve(async (req) => {
       evalscript: EVALSCRIPT_TRUE_COLOR,
     };
 
-    const r = await fetch(PROCESS_URL, {
+    const r = await fetch(ENDPOINTS[provider].process, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(reqBody),

@@ -26,6 +26,12 @@
 //      principal.
 //   4. Upsert en sentinel_hub_status: si pasa de no-disponible a disponible,
 //      guarda ultima_vez_disponible = now().
+//
+// Proveedor: soporta "classic" (sinergise, cuenta Trial vencida — plan de
+// pago requerido para reactivar) y "cdse" (Copernicus Data Space Ecosystem,
+// gratuito sin vencimiento) vía el secret SENTINEL_PROVIDER. Mientras no se
+// configure ese secret, se sigue usando "classic" — sin cambio de
+// comportamiento hasta que haya credenciales CDSE listas.
 // ═══════════════════════════════════════════════════════════════════════════
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
@@ -36,18 +42,44 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 };
 
-const OAUTH_TOKEN_URL = "https://services.sentinel-hub.com/oauth/token";
-const STATISTICS_URL = "https://services.sentinel-hub.com/api/v1/statistics";
+// Dos proveedores posibles para las mismas APIs de Sentinel Hub:
+// - "classic" (sinergise.com, services.sentinel-hub.com): el que se usó
+//   siempre en este proyecto. La cuenta Trial gratuita expiró y no se
+//   renueva sola — requiere plan de pago para reactivarse.
+// - "cdse" (Copernicus Data Space Ecosystem, dataspace.copernicus.eu): plan
+//   gratuito sin vencimiento, mismas APIs (OAuth/WMS/Statistical/Catalog/
+//   Process) pero con endpoints y flujo de credenciales distintos.
+// Se elige con el secret SENTINEL_PROVIDER ("classic" por defecto, para no
+// cambiar comportamiento hasta que haya credenciales CDSE configuradas).
+type SentinelProvider = "classic" | "cdse";
+
+const ENDPOINTS: Record<SentinelProvider, { oauth: string; statistics: string; wms: string }> = {
+  classic: {
+    oauth: "https://services.sentinel-hub.com/oauth/token",
+    statistics: "https://services.sentinel-hub.com/api/v1/statistics",
+    wms: "https://services.sentinel-hub.com/ogc/wms",
+  },
+  cdse: {
+    oauth: "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token",
+    statistics: "https://sh.dataspace.copernicus.eu/api/v1/statistics",
+    wms: "https://sh.dataspace.copernicus.eu/ogc/wms",
+  },
+};
+
+function resolverProvider(): SentinelProvider {
+  const raw = (Deno.env.get("SENTINEL_PROVIDER") || "classic").trim().toLowerCase();
+  return raw === "cdse" ? "cdse" : "classic";
+}
 
 // El Instance ID de la configuration WMS no es secreto (viaja en el bundle
 // público de Vite con prefijo VITE_ y en cada URL de tile del navegador) — se
 // hardcodea aquí como fallback para el cron, que no tiene body del frontend.
 // Puede sobreescribirse pasando { instanceId } en el POST, o con el secret
 // SENTINEL_INSTANCE_ID en Supabase si algún día cambia.
-const INSTANCE_ID_FALLBACK = "5b5d2146-31e4-4dea-9044-f2457a978f53";
+const INSTANCE_ID_FALLBACK = "25dab096-95ef-4ca7-b0af-6024e9d25b74";
 
-async function obtenerAccessToken(clientId: string, clientSecret: string): Promise<string> {
-  const r = await fetch(OAUTH_TOKEN_URL, {
+async function obtenerAccessToken(provider: SentinelProvider, clientId: string, clientSecret: string): Promise<string> {
+  const r = await fetch(ENDPOINTS[provider].oauth, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -69,9 +101,9 @@ async function obtenerAccessToken(clientId: string, clientSecret: string): Promi
  *  aún ejercita el mismo Instance ID/WMS que usa el mapa real. Cualquier XML
  *  de ServiceException (cuenta vencida, instance ID inválido, cuota agotada)
  *  se captura como texto para mostrarlo tal cual al usuario. */
-async function probarWms(instanceId: string): Promise<{ ok: boolean; mensaje: string }> {
+async function probarWms(provider: SentinelProvider, instanceId: string): Promise<{ ok: boolean; mensaje: string }> {
   const bbox = "27.9,-105.5,28.1,-105.3"; // mismo punto de referencia del canal usado en sentinel-catalog-search
-  const url = `https://services.sentinel-hub.com/ogc/wms/${instanceId}` +
+  const url = `${ENDPOINTS[provider].wms}/${instanceId}` +
     `?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=1_TRUE_COLOR&FORMAT=image/png` +
     `&TRANSPARENT=true&CRS=EPSG:4326&BBOX=${bbox}&WIDTH=1&HEIGHT=1`;
   const r = await fetch(url);
@@ -86,11 +118,11 @@ async function probarWms(instanceId: string): Promise<{ ok: boolean; mensaje: st
 }
 
 /** Best-effort: no todos los planes exponen esta API. Si falla, se ignora. */
-async function leerEstadisticas(token: string): Promise<{ usadas: number | null; limite: number | null }> {
+async function leerEstadisticas(provider: SentinelProvider, token: string): Promise<{ usadas: number | null; limite: number | null }> {
   try {
     const hoy = new Date();
     const inicioMes = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1));
-    const r = await fetch(STATISTICS_URL, {
+    const r = await fetch(ENDPOINTS[provider].statistics, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
@@ -111,6 +143,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    const provider = resolverProvider();
     const CLIENT_ID = Deno.env.get("SENTINEL_OAUTH_CLIENT_ID");
     const CLIENT_SECRET = Deno.env.get("SENTINEL_OAUTH_CLIENT_SECRET");
     const body = await req.json().catch(() => ({}));
@@ -135,12 +168,12 @@ Deno.serve(async (req) => {
     let limite: number | null = null;
 
     try {
-      const token = await obtenerAccessToken(CLIENT_ID, CLIENT_SECRET);
-      const probe = await probarWms(INSTANCE_ID);
+      const token = await obtenerAccessToken(provider, CLIENT_ID, CLIENT_SECRET);
+      const probe = await probarWms(provider, INSTANCE_ID);
       disponible = probe.ok;
       mensaje = probe.mensaje;
       if (probe.ok) {
-        const stats = await leerEstadisticas(token);
+        const stats = await leerEstadisticas(provider, token);
         usadas = stats.usadas;
         limite = stats.limite;
       }
@@ -176,7 +209,7 @@ Deno.serve(async (req) => {
       await supabase.from("sentinel_hub_status").insert(patch);
     }
 
-    return json({ ok: true, disponible, mensaje, processing_units_usadas: usadas, processing_units_limite: limite }, 200);
+    return json({ ok: true, provider, disponible, mensaje, processing_units_usadas: usadas, processing_units_limite: limite }, 200);
   } catch (err) {
     return json({ error: String(err) }, 500);
   }

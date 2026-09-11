@@ -17,6 +17,7 @@ import { useHydricEvents } from '../hooks/useHydricEvents';
 import { useClimaEstaciones } from '../hooks/useClimaEstaciones';
 import { esModuloSRL, moduloSRLde } from '../utils/modulosSRL';
 import { MODULOS_BBOX } from '../utils/modulosBbox';
+import { sentinelWmsUrl } from '../utils/sentinelWms';
 import { WAVE_CELERITY_MS, WAVE_CELERITY_CONFIANZA } from '../utils/hydraulics';
 import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
 import { NdviModulosPanel } from '../components/NdviModulosPanel';
@@ -40,6 +41,18 @@ const BASE_LAYER_LABEL: Record<'standard' | 'satellite' | 'eos' | 'sentinel', st
     eos: 'EOS LandViewer',
     sentinel: 'Sentinel Hub',
 };
+
+// Tiles fallidos consecutivos (dentro de la misma carga, ver
+// sentinelTileErrorCount) antes de asumir que el WMS de Sentinel Hub está
+// caído y caer a satélite ArcGIS. Un mosaico real con zoom/pan pide varias
+// decenas de tiles por carga, y es normal que unos pocos fallen por timeout
+// de red o por caer en el borde de la escena disponible sin que la cuenta
+// esté realmente caída — con el umbral en 4 eso bastaba para expulsar al
+// usuario de Sentinel Hub segundos después de activarlo (reportado ago-2026:
+// "aparece unos segundos y se cierra"). 14 tolera ese ruido y sigue
+// detectando una cuenta vencida/instance ID inválido, que falla TODOS los
+// tiles casi de inmediato.
+const SENTINEL_TILEERROR_UMBRAL = 14;
 
 type LayerKey = 'canal' | 'escalas' | 'tomas' | 'estaciones' | 'modulos' | 'presasShape'
     | 'rioShape' | 'alertas' | 'mostrarAforosQ' | 'mostrarAperturas' | 'lotes';
@@ -594,6 +607,18 @@ const GeoMonitor = () => {
         ultima_verificacion: string | null; ultima_vez_disponible: string | null;
     } | null>(null);
     const [verificandoSentinelHub, setVerificandoSentinelHub] = useState(false);
+
+    // Contador de tiles fallidos del WMS de Sentinel — un solo tileerror NO
+    // basta para asumir que el servicio está caído: un mosaico satelital
+    // normal descarga docenas de tiles por vista, y es común que 1-2 fallen
+    // por timeout de red o por caer justo en el borde de la escena
+    // disponible, sin que el resto del servicio esté afectado. Antes,
+    // cualquier tileerror aislado tiraba baseLayer a 'satellite' de
+    // inmediato, lo que hacía parecer que Sentinel Hub "se apagaba solo"
+    // segundos después de activarlo. Ahora solo se cae a satélite si varios
+    // tiles fallan seguidos (SENTINEL_TILEERROR_UMBRAL), señal más confiable
+    // de que la cuenta/instance ID realmente no está sirviendo nada.
+    const sentinelTileErrorCount = useRef(0);
 
     const recargarSentinelHubStatus = useCallback(async () => {
         const { data } = await supabase
@@ -1633,7 +1658,16 @@ const GeoMonitor = () => {
                                     </span>
                                 )}
                             </button>
-                            <button
+                            {/* <div>, no <button>: las sub-opciones de abajo (capa temática,
+                                modo, "verificar ahora") son ellas mismas controles interactivos
+                                (role="button") — anidarlas dentro de un <button> real es HTML
+                                inválido y el navegador puede burbujear su clic nativo hacia este
+                                contenedor incluso con stopPropagation() en el evento de React,
+                                disparando este onClick también y produciendo comportarse de forma
+                                errática (los chips "parecían cerrarse solos" al pulsarlos). */}
+                            <div
+                                role="button"
+                                tabIndex={0}
                                 className={clsx('geo-baselayer-option', baseLayer === 'sentinel' && 'active')}
                                 onClick={() => {
                                     if (!sentinelInstanceId) {
@@ -1645,8 +1679,12 @@ const GeoMonitor = () => {
                                         setSentinelInstanceId(id.trim());
                                     }
                                     setBaseLayer('sentinel');
-                                    setBaseLayerMenuOpen(false);
+                                    // A diferencia de las demás capas base, Sentinel Hub despliega
+                                    // sub-opciones (capa temática, modo, fecha de escena) dentro de
+                                    // este mismo menú — cerrarlo aquí las ocultaba antes de que el
+                                    // usuario pudiera verlas o hacer clic en ellas.
                                 }}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.currentTarget.click(); } }}
                             >
                                 <Satellite size={16} /> Sentinel Hub
                                 <span className="geo-baselayer-sublayers geo-baselayer-status-row">
@@ -1708,7 +1746,7 @@ const GeoMonitor = () => {
                                         </span>
                                     </>
                                 )}
-                            </button>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -1973,18 +2011,43 @@ const GeoMonitor = () => {
                                     </React.Fragment>
                                 )}
                                 {baseLayer === 'sentinel' && sentinelInstanceId && (
+                                    // El WMS de Sentinel es transparent=true: donde no hay escena
+                                    // que cumpla la ventana de tiempo/nubosidad (borde de cobertura,
+                                    // franja sin pasada reciente) esos tiles devuelven PNG
+                                    // transparente — sin una capa debajo, el mapa se ve negro en
+                                    // esa zona (reportado sep-2026: "aparece en las esquinas pero el
+                                    // centro, donde está el canal, se queda negro"). Mismo fallback
+                                    // de satélite ArcGIS que ya usa 'satellite' arriba. zIndex fijo:
+                                    // por defecto react-leaflet asigna 1 a ambos panes (este y el WMS
+                                    // de abajo) y dentro de Leaflet dos panes con el mismo z-index
+                                    // quedan en orden de montaje, no garantizado tras un remount por
+                                    // `key` — el WMS podía terminar PINTADO DEBAJO de este fondo
+                                    // aunque sus tiles cargaran bien (reportado sep-2026: el chip de
+                                    // capa cambiaba de activo pero el mapa seguía viéndose igual).
+                                    <TileLayer
+                                        url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                                        maxZoom={19}
+                                        zIndex={0}
+                                    />
+                                )}
+                                {baseLayer === 'sentinel' && sentinelInstanceId && (
                                     <WMSTileLayer
                                         key={`sentinel-${sentinelLayer}`}
-                                        url={`https://services.sentinel-hub.com/ogc/wms/${sentinelInstanceId}`}
+                                        url={sentinelWmsUrl(sentinelInstanceId)}
                                         params={sentinelWmsParams as any}
                                         maxZoom={19}
+                                        zIndex={1}
                                         attribution="© Copernicus Sentinel Hub"
                                         eventHandlers={{
+                                            loading: () => { sentinelTileErrorCount.current = 0; },
                                             tileerror: () => {
-                                                // El WMS de Sentinel puede fallar por cuenta vencida, cuota
-                                                // agotada o instance ID inválido — sin esto el mapa se queda
-                                                // en negro (transparent=true, nada debajo). Cae a satélite
-                                                // ArcGIS (sin key, ya validado) en vez de dejarlo vacío.
+                                                // Un tile aislado que falla (timeout de red, borde de la
+                                                // escena disponible) no significa que el servicio esté
+                                                // caído — solo se asume eso, y se cae a satélite ArcGIS
+                                                // (sin key, ya validado), cuando fallan varios tiles
+                                                // seguidos de la MISMA carga (ver SENTINEL_TILEERROR_UMBRAL).
+                                                sentinelTileErrorCount.current += 1;
+                                                if (sentinelTileErrorCount.current < SENTINEL_TILEERROR_UMBRAL) return;
                                                 setSentinelEscena(prev => ({ ...prev, error: prev.error || 'WMS de Sentinel Hub no disponible — usando satélite de respaldo' }));
                                                 setBaseLayer('satellite');
                                             },

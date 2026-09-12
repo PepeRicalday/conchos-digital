@@ -348,42 +348,72 @@ export interface SuperficieVaso {
 }
 
 /**
- * Recorre el borde de una máscara binaria con "marching squares" simplificado:
- * para cada píxel de agua en el borde de la mancha principal, conserva el
- * contorno como polígono en píxeles. No es un trazador topológico completo
- * (no separa islas/huecos internos) — suficiente para un contorno de vaso,
- * que es una mancha simplemente conexa por construcción de `mascaraVasos`.
+ * Traza el contorno real de la mancha principal de una máscara binaria con
+ * Moore-Neighbor tracing: camina píxel a píxel por el borde siguiendo el
+ * vecino de contacto más próximo (8-conectado), en vez de ordenar puntos por
+ * ángulo respecto al centroide. Necesario porque un vaso de presa suele ser
+ * dendrítico (varios brazos alargados) — dos puntos en brazos distintos
+ * pueden tener ángulos casi iguales vistos desde el centroide, lo que hacía
+ * que el orden angular saltara entre brazos no adyacentes y dibujara líneas
+ * rectas cruzando el polígono (bug confirmado en GEO-MONITOR sep-2026: el
+ * contorno de La Boquilla salía con "púas" en vez de la silueta del embalse).
+ * Solo separa la mancha conexa más grande — igual que el trazador anterior,
+ * no resuelve islas/huecos internos.
  */
 function contornoDeMascara(mascara: Uint8Array, W: number, H: number): [number, number][] {
     const esAgua = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && mascara[y * W + x] === 1;
-    const bordePx: [number, number][] = [];
-    for (let y = 0; y < H; y++) {
+
+    // Punto de partida: primer píxel de agua en el borde de la mancha,
+    // recorriendo en orden de lectura (arriba-izquierda primero).
+    let inicio: [number, number] | null = null;
+    for (let y = 0; y < H && !inicio; y++) {
         for (let x = 0; x < W; x++) {
-            if (!esAgua(x, y)) continue;
-            // Píxel de borde: agua con al menos un vecino 4-conectado que no lo es.
-            if (!esAgua(x - 1, y) || !esAgua(x + 1, y) || !esAgua(x, y - 1) || !esAgua(x, y + 1)) {
-                bordePx.push([x, y]);
+            if (esAgua(x, y) && (!esAgua(x - 1, y) || !esAgua(x + 1, y) || !esAgua(x, y - 1) || !esAgua(x, y + 1))) {
+                inicio = [x, y];
+                break;
             }
         }
     }
-    return bordePx;
+    if (!inicio) return [];
+
+    // 8 direcciones en orden horario empezando arriba, para Moore-Neighbor tracing.
+    const dirs: [number, number][] = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
+    const contorno: [number, number][] = [inicio];
+    let actual = inicio;
+    // Dirección desde la que se "entró" al píxel actual — se empieza buscando
+    // desde la dirección opuesta a "izquierda" para no salir disparado hacia adentro.
+    let dirEntrada = 6; // '-1,0' — como si se hubiera llegado desde el oeste
+    const maxPasos = W * H * 4;
+
+    for (let paso = 0; paso < maxPasos; paso++) {
+        let encontrado = false;
+        for (let i = 0; i < 8; i++) {
+            const dir = (dirEntrada + 1 + i) % 8;
+            const [dx, dy] = dirs[dir];
+            const nx = actual[0] + dx, ny = actual[1] + dy;
+            if (esAgua(nx, ny)) {
+                actual = [nx, ny];
+                dirEntrada = (dir + 4) % 8; // dirección opuesta = por dónde se llegó
+                encontrado = true;
+                break;
+            }
+        }
+        if (!encontrado) break; // píxel aislado (no debería pasar en una mancha conexa)
+        if (actual[0] === inicio[0] && actual[1] === inicio[1]) break; // vuelta completa
+        contorno.push(actual);
+    }
+    return contorno;
 }
 
 /**
- * Ordena puntos de borde dispersos en un anillo aproximado por ángulo respecto
- * al centroide — suficiente para un polígono visualmente coherente en Leaflet
- * (no para análisis geométrico riguroso). Devuelve como máximo `maxPuntos`,
- * muestreados uniformemente, para no generar un GeoJSON de miles de vértices.
+ * Cierra el anillo trazado por `contornoDeMascara` y lo reduce a como máximo
+ * `maxPuntos`, muestreados uniformemente a lo largo del recorrido (ya viene en
+ * orden de contorno real, no se reordena) — evita un GeoJSON de miles de vértices.
  */
-function ordenaComoAnillo(puntos: [number, number][], maxPuntos = 240): [number, number][] {
+function simplificaAnillo(puntos: [number, number][], maxPuntos = 240): [number, number][] {
     if (puntos.length < 3) return puntos;
-    const cx = puntos.reduce((s, p) => s + p[0], 0) / puntos.length;
-    const cy = puntos.reduce((s, p) => s + p[1], 0) / puntos.length;
-    const conAngulo = puntos
-        .map(p => ({ p, a: Math.atan2(p[1] - cy, p[0] - cx) }))
-        .sort((a, b) => a.a - b.a);
-    const paso = Math.max(1, Math.floor(conAngulo.length / maxPuntos));
-    const anillo = conAngulo.filter((_, i) => i % paso === 0).map(c => c.p);
+    const paso = Math.max(1, Math.floor(puntos.length / maxPuntos));
+    const anillo = puntos.filter((_, i) => i % paso === 0);
     if (anillo.length && (anillo[0][0] !== anillo[anillo.length - 1][0] || anillo[0][1] !== anillo[anillo.length - 1][1])) {
         anillo.push(anillo[0]);
     }
@@ -466,8 +496,8 @@ export async function detectaSuperficieVaso(nombreVaso: string, zoom = ZOOM): Pr
             const n = Math.PI - (2 * Math.PI * y) / 2 ** zoom;
             return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
         };
-        const bordePx = ordenaComoAnillo(contornoDeMascara(mascara, W, H));
-        const contorno: [number, number][] = bordePx.map(([px, py]) => [
+        const bordePx = simplificaAnillo(contornoDeMascara(mascara, W, H));
+        const contorno: [number, number][] = bordePx.map(([px, py]: [number, number]) => [
             tile2lon(x0 + px / TILE_PX),
             tile2lat(y0 + py / TILE_PX),
         ]);

@@ -473,13 +473,16 @@
    `visibility:hidden` puede saltarse el primer paint en algunos. Se
    posiciona fuera del viewport en vez de ocultarse por CSS de visibilidad,
    así el usuario nunca lo ve pero el canvas sí compone normalmente. Tamaño
-   fijo 1280x480 (panorámico, mismo aspecto que la imagen final del informe). */
+   subido de 1280x480 a 1920x720 (mismo aspecto panorámico 2.67:1) — combinado
+   con dpr={[1,2]} en el <Canvas>, la imagen final se veía notablemente más
+   borrosa que el visor interactivo al mostrarse a ancho completo en el
+   informe (reportado). */
 .vaso3d-captura-oculta {
     position: fixed;
     top: 0;
     left: -10000px;
-    width: 1280px;
-    height: 480px;
+    width: 1920px;
+    height: 720px;
     pointer-events: none;
 }
 

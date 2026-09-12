@@ -7,6 +7,7 @@ import './NdviModuloDetalle.css';
 import { supabase } from '../lib/supabase';
 import { COLOR_MODULO_SRL, numeroGeojsonDeSRL } from '../utils/modulosSRL';
 import { bboxDeModulo } from '../utils/modulosBbox';
+import { sentinelWmsUrl } from '../utils/sentinelWms';
 import { calculaIndicesSrl, volumenAcumuladoPorModuloHm3, type IndiceSrl } from '../utils/indicesSrl';
 
 interface NdviModuloFila {
@@ -159,7 +160,7 @@ export const NdviModuloDetalle: React.FC<NdviModuloDetalleProps> = ({ numeroModu
                             <MapContainer center={center} zoom={11} className="ndvi-detalle-map" attributionControl={false}>
                                 {instanceId && (
                                     <WMSTileLayer
-                                        url={`https://services.sentinel-hub.com/ogc/wms/${instanceId}`}
+                                        url={sentinelWmsUrl(instanceId)}
                                         params={wmsParams as any}
                                         maxZoom={19}
                                     />

@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import './PlanoGeneralModulos.css';
 import { COLOR_MODULO_SRL, numeroGeojsonDeSRL } from '../utils/modulosSRL';
 import { calcICV, calcIHR } from '../utils/indicesSrl';
+import { sentinelWmsUrl } from '../utils/sentinelWms';
 
 interface NdviModuloFila {
     numero_modulo: number;
@@ -222,7 +223,7 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
                             mostrar, se quedan con el coroplético por color. */}
                         {indiceSeleccionado === 'ndvi' && sentinelInstanceId && (
                             <WMSTileLayer
-                                url={`https://services.sentinel-hub.com/ogc/wms/${sentinelInstanceId}`}
+                                url={sentinelWmsUrl(sentinelInstanceId)}
                                 params={wmsParams as any}
                                 maxZoom={19}
                                 opacity={0.85}

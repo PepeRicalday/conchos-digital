@@ -11,6 +11,7 @@ import '../components/PresaVasoMonitor.css';
 import { supabase } from '../lib/supabase';
 import { COLOR_MODULO_SRL } from '../utils/modulosSRL';
 import { bboxDeModulo } from '../utils/modulosBbox';
+import { sentinelWmsUrl } from '../utils/sentinelWms';
 import { NdviModuloDetalle } from './NdviModuloDetalle';
 import { PlanoGeneralModulos } from './PlanoGeneralModulos';
 import { generarInformeInstitucional } from '../utils/informeNdviInstitucional';
@@ -75,7 +76,7 @@ const MiniMapaNdviAgro: React.FC<{ numeroModulo: number; instanceId: string }> =
         >
             <TileLayer url={CARTO_TILE_URL} />
             <WMSTileLayer
-                url={`https://services.sentinel-hub.com/ogc/wms/${instanceId}`}
+                url={sentinelWmsUrl(instanceId)}
                 params={wmsParams as any}
                 maxZoom={19}
             />

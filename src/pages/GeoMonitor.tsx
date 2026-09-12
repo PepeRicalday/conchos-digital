@@ -18,8 +18,9 @@ import { useClimaEstaciones } from '../hooks/useClimaEstaciones';
 import { esModuloSRL, moduloSRLde } from '../utils/modulosSRL';
 import { MODULOS_BBOX } from '../utils/modulosBbox';
 import { sentinelWmsUrl } from '../utils/sentinelWms';
-import { WAVE_CELERITY_MS, WAVE_CELERITY_CONFIANZA } from '../utils/hydraulics';
+import { WAVE_CELERITY_MS, WAVE_CELERITY_CONFIANZA, calcRadialFlow } from '../utils/hydraulics';
 import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
+import { detectaSuperficieVaso, VASOS_CONOCIDOS } from '../utils/mapaSatelital';
 import { NdviModulosPanel } from '../components/NdviModulosPanel';
 import { WindyMapModal } from '../components/WindyMapModal';
 import { useMetadataStore } from '../store/useMetadataStore';
@@ -210,6 +211,14 @@ interface EscalaData {
     ancho: number; alto: number; pzas_radiales: number;
     nivel_actual?: number; delta_12h?: number; estado?: string;
     apertura_radiales_m?: number;
+    // Fuente única de gasto (mismo criterio que PublicMonitor.tsx): gasto_actual
+    // viene de lecturas_escalas (curva nivel-gasto capturada en campo, o
+    // calcRadialFlow con aperturas reales), NUNCA de una fórmula Cd·H^n
+    // recalculada aquí con coeficientes genéricos. ultima_telemetria habilita
+    // el mismo criterio de frescura (STALE_MIN) para no mostrar un número
+    // viejo como si fuera dato en vivo.
+    gasto_actual?: number | null;
+    ultima_telemetria?: number | null;
 }
 interface PresaData {
     presa_id: string; nombre: string; latitud: number; longitud: number;
@@ -819,7 +828,14 @@ const GeoMonitor = () => {
                         });
                     setGeoModulos({ ...modRes, features: feats });
                 } else if (modRes) setGeoModulos(modRes);
-                if (preRes) setGeoPresas(preRes);
+                // Por el momento SRL Conchos solo da seguimiento operativo a La
+                // Boquilla — Fco. I. Madero ("presa vírgenes") no se monitorea
+                // aún, así que se oculta de GEO-MONITOR para no mostrar un vaso
+                // sin datos de operación (queda intacta en mapaSatelital.ts /
+                // Clima / Bitácora / informes, que sí la usan).
+                if (preRes?.features) {
+                    setGeoPresas({ ...preRes, features: preRes.features.filter((f: GeoJSON.Feature) => f.properties?.nombre !== 'Fco. I. Madero') });
+                } else if (preRes) setGeoPresas(preRes);
                 if (canRes) setGeoCanal(canRes);
                 if (rioRes) setGeoRio(rioRes);
                 setGeoKey(k => k + 1);
@@ -829,6 +845,53 @@ const GeoMonitor = () => {
         };
         loadGeoFiles();
     }, []);
+
+    // Refinamiento de vasos de presas: el geojson estático solo trae un círculo
+    // por radio conocido (placeholder declarado en fuente:"aproximacion_circular",
+    // ver public/geo/presas.geojson) porque no hay levantamiento batimétrico.
+    // Aquí se reemplaza ese círculo por el contorno real vía NDWI — mismo
+    // algoritmo que ya usa el panel "Manejo de Vaso" (PresaVasoMonitor) — para
+    // cada vaso conocido, sin bloquear el primer render (se corre después,
+    // feature por feature, y solo se sustituye si detectaSuperficieVaso()
+    // devuelve cobertura de tiles suficiente).
+    // Corre cuando geoPresas pasa de null a tener datos (carga inicial de
+    // loadGeoFiles, o una importación manual) — NO cuando se activa/desactiva
+    // el toggle de la capa, que no cambia la referencia de geoPresas y dejaría
+    // este efecto sin disparar nunca tras el primer montaje.
+    const refinamientoVasosHecho = useRef(false);
+    useEffect(() => {
+        if (!geoPresas || refinamientoVasosHecho.current) return;
+        refinamientoVasosHecho.current = true;
+        let cancelado = false;
+        (async () => {
+            // Solo se refinan los vasos que sobrevivieron el filtro de arriba
+            // (por ahora, Fco. I. Madero queda fuera de GEO-MONITOR).
+            const nombresVisibles = new Set(geoPresas.features.map(f => f.properties?.nombre));
+            for (const vaso of VASOS_CONOCIDOS.filter(v => nombresVisibles.has(v.nombre))) {
+                const superficie = await detectaSuperficieVaso(vaso.nombre);
+                if (cancelado || !superficie || superficie.contorno.length < 4) continue;
+                setGeoPresas(prev => {
+                    if (!prev) return prev;
+                    const features = prev.features.map((f) => {
+                        if (f.properties?.nombre !== vaso.nombre) return f;
+                        return {
+                            ...f,
+                            properties: {
+                                ...f.properties,
+                                fuente: 'ndwi_estimado',
+                                area_km2: Math.round(superficie.areaKm2 * 100) / 100,
+                                nota: 'Contorno estimado por NDWI sobre imagen satelital reciente (no es medición espectral certificada). Reemplaza el círculo de radio fijo.',
+                            },
+                            geometry: { type: 'Polygon' as const, coordinates: [superficie.contorno] },
+                        };
+                    });
+                    return { ...prev, features };
+                });
+                setGeoKey(k => k + 1);
+            }
+        })();
+        return () => { cancelado = true; };
+    }, [geoPresas]);
 
     const handleLayerImported = (layer: GeoLayer) => {
         // Si es un tipo predefinido, reemplazar la capa correspondiente
@@ -959,7 +1022,7 @@ const GeoMonitor = () => {
                 { data: modStaticData }
             ] = await Promise.all([
                 supabase.from('resumen_escalas_diario').select('escala_id, nivel_actual, delta_12h, estado, fecha, lectura_am, lectura_pm').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }),
-                supabase.from('lecturas_escalas').select('escala_id, apertura_radiales_m, fecha, hora_lectura').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_lectura', { ascending: false }),
+                supabase.from('lecturas_escalas').select('escala_id, apertura_radiales_m, nivel_m, nivel_abajo_m, radiales_json, gasto_calculado_m3s, gasto_metodo, fecha, hora_lectura, creado_en').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_lectura', { ascending: false }),
                 supabase.from('lecturas_presas').select('presa_id, almacenamiento_mm3, porcentaje_llenado, extraccion_total_m3s, escala_msnm, fecha').order('fecha', { ascending: false }).limit(3),
                 supabase.from('aforos').select('punto_control_id, gasto_calculado_m3s, fecha, hora_inicio').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_inicio', { ascending: false }),
                 supabase.from('vw_alertas_tomas_varadas').select('*'),
@@ -992,12 +1055,33 @@ const GeoMonitor = () => {
                 }
             });
 
+            // Gasto y frescura por escala — MISMA fuente y criterio de selección de
+            // método que PublicMonitor.tsx (curva_nivel capturada en campo > cálculo
+            // con aperturas reales de compuertas radiales > gasto_calculado_m3s crudo),
+            // NUNCA una fórmula Cd·H^n con coeficientes genéricos recalculada aquí.
+            // lecData ya viene ordenado desc por fecha+hora_lectura → el primer
+            // registro por escala_id es la lectura más reciente.
+            const gastoMap = new Map<string, { gasto: number; telemetria: number | null }>();
+            lecData?.forEach((l: any) => {
+                if (gastoMap.has(l.escala_id)) return;
+                const esc = (escData || []).find((e: any) => e.id === l.escala_id) as any;
+                const gasto = l.gasto_metodo === 'curva_nivel'
+                    ? (l.gasto_calculado_m3s || 0)
+                    : esc?.pzas_radiales
+                    ? calcRadialFlow(l.nivel_m, l.nivel_abajo_m || 0, l.radiales_json, esc.ancho, esc.pzas_radiales, esc.nombre, esc.km)
+                    : (l.gasto_calculado_m3s || 0);
+                const telemetria = l.creado_en ? new Date(l.creado_en).getTime() : null;
+                gastoMap.set(l.escala_id, { gasto, telemetria });
+            });
+
             setEscalas((escData || []).map((e: any) => ({
                 ...e,
                 nivel_actual: resMap.get(e.id)?.nivel_actual !== undefined ? parseFloat(resMap.get(e.id).nivel_actual) : undefined,
                 delta_12h: resMap.get(e.id)?.delta_12h !== undefined ? parseFloat(resMap.get(e.id).delta_12h) : undefined,
                 estado: resMap.get(e.id)?.estado || 'sin_datos',
                 fecha_lectura: resMap.get(e.id)?.fecha || null,
+                gasto_actual: gastoMap.get(e.id)?.gasto ?? null,
+                ultima_telemetria: gastoMap.get(e.id)?.telemetria ?? null,
                 apertura_radiales_m: apMap.get(e.id) || 0,
             })));
 
@@ -1244,42 +1328,47 @@ const GeoMonitor = () => {
         return [...rioWave, ...canalWave];
     }, [rioDistData, canalDistData, activeEvent, effectiveMaxKm]);
 
-    // KPIs vinculados a datos reales de SICA
-    // Nivel de entrada: K-23 (primera escala)
-    const escalaEntrada = escalas.find(e => e.km <= 30 && e.nivel_actual !== undefined);
-    const escalaSalida = [...escalas].reverse().find(e => e.km >= 87 && e.nivel_actual !== undefined);
+    // KPIs vinculados a datos reales de SICA — fuente única con PublicMonitor.tsx:
+    // punto kilométrico EXACTO (no rango), gasto_actual ya calculado en la fuente
+    // (curva nivel-gasto de campo / calcRadialFlow, ver setEscalas arriba), y
+    // frescura con el mismo umbral STALE_MIN que el panel SKILL / balance K-0↔K-104
+    // (ver project_skill_panel_sd_no_cero, project_monitor_publico_fuente_verdad).
+    const STALE_MIN = 240;
+    const esFrescaEscala = (e: EscalaData) =>
+        e.ultima_telemetria != null && (Date.now() - e.ultima_telemetria) / 60000 <= STALE_MIN;
+
+    const gastoDistribuido = operStats.gasto_distribuido_m3s;
+    // Panel de detalle (click en una escala del mapa): mismo gasto_actual de
+    // la fuente única, no la fórmula Cd·H^n genérica que tenía antes.
+    const calcGasto = (esc: EscalaData | undefined): number | undefined => esc?.gasto_actual ?? undefined;
+    const escalaEntrada = escalas.find(e => e.km === 0);
+    const escalaSalida = escalas.find(e => e.km === 104);
+    const entradaFresca = !!escalaEntrada && esFrescaEscala(escalaEntrada);
+    const salidaFresca = !!escalaSalida && esFrescaEscala(escalaSalida);
+
     const nivelEntrada = escalaEntrada?.nivel_actual;
     const nivelSalida = escalaSalida?.nivel_actual;
+    // Gasto solo se expone si la lectura es fresca — un Q viejo mostrado como si
+    // fuera en vivo es exactamente el bug de fuente única que ya se corrigió en
+    // Monitor Público (no sustituir con el último dato conocido sin marcarlo).
+    const gastoEntrada = entradaFresca ? (escalaEntrada?.gasto_actual ?? undefined) : undefined;
+    const gastoSalida = salidaFresca ? (escalaSalida?.gasto_actual ?? undefined) : undefined;
 
-    // Gasto calculado Q = Cd * H^n (fórmula de garganta larga)
-    const calcGasto = (esc: EscalaData | undefined): number | undefined => {
-        if (!esc || esc.nivel_actual === undefined) return undefined;
-        const Cd = (esc as any).coeficiente_descarga || 1.84;
-        const n = (esc as any).exponente_n || 1.52;
-        return Cd * Math.pow(esc.nivel_actual, n);
-    };
-    const gastoEntrada = calcGasto(escalaEntrada);
-    const gastoSalida = calcGasto(escalaSalida);
-    
-    // Cálculo de Salud Operativa Global (MEJ-5) y Eficiencia/Pérdida
-    let eficienciaReal = 0;
-    let perdidaPct: string | null = null;
+    // Eficiencia/Pérdida de conducción: SOLO válida de extremo a extremo
+    // (K-0 y K-104 ambos frescos), igual que skillSnapshot.balance en Monitor
+    // Público — nunca se sustituye un extremo faltante por otra escala.
+    // eficienciaReal se mantiene en 0 (no null) cuando el tramo no está completo
+    // porque alimenta el gauge "Salud Operacional Global", que necesita un
+    // número siempre — el S/D real se comunica vía eficienciaTxt/tramoCompleto.
     let eficienciaTxt: string | null = null;
-    const gastoDistribuido = operStats.gasto_distribuido_m3s;
-
-    if (gastoEntrada && gastoEntrada > 0 && gastoSalida !== undefined) {
-        // Eficiencia de Conducción: basada solo en lecturas de escala (consistencia temporal)
-        // E = (Q_entrada - Q_salida) / Q_entrada — fracción del caudal que fue captada por el sistema
-        // Q_tomas no se usa aquí porque sus promedios diarios son temporalmente inconsistentes con Q instantáneo de escala
-        const captado = gastoEntrada - gastoSalida;
-        eficienciaReal = Math.min(100, Math.max(0, (captado / gastoEntrada) * 100));
+    let perdidaPct: string | null = null;
+    const tramoCompleto = entradaFresca && salidaFresca && (gastoEntrada ?? 0) > 0;
+    const eficienciaReal = tramoCompleto
+        ? Math.min(100, Math.max(0, (((gastoEntrada ?? 0) - (gastoSalida ?? 0)) / (gastoEntrada ?? 1)) * 100))
+        : 0;
+    if (tramoCompleto) {
         eficienciaTxt = eficienciaReal.toFixed(1);
-
-        // Pérdida = complemento de la eficiencia de conducción (misma medición, otra lectura)
         perdidaPct = (100 - eficienciaReal).toFixed(1);
-    } else if (gastoEntrada && gastoEntrada > 0) {
-        eficienciaReal = Math.min(100, totalDemandaProgramada > 0 ? (gastoDistribuido / totalDemandaProgramada) * 100 : 0);
-        eficienciaTxt = eficienciaReal.toFixed(1);
     }
 
     const chartGaugeOptions = {
@@ -2160,14 +2249,24 @@ const GeoMonitor = () => {
                                             weight: 2,
                                             fillColor: feature?.properties?.color || '#1d4ed8',
                                             fillOpacity: feature?.properties?.fill_opacity || 0.25,
+                                            // Mientras el contorno sigue siendo el círculo de radio fijo
+                                            // (fuente:"aproximacion_circular") se marca punteado para no
+                                            // confundirlo con un levantamiento real; sólido en cuanto
+                                            // detectaSuperficieVaso() (NDWI) lo reemplaza.
+                                            dashArray: feature?.properties?.fuente === 'ndwi_estimado' ? undefined : '6, 6',
                                         })}
                                         onEachFeature={(feature, layer) => {
                                             if (feature.properties) {
                                                 const p = feature.properties;
+                                                const esAproximado = p.fuente !== 'ndwi_estimado';
                                                 layer.bindPopup(`
                                                     <div style="font-family:var(--geo-font-sans);min-width:180px">
                                                         <strong style="font-size:14px;font-weight:800;color:${p.color}">${p.nombre}</strong>
                                                         <div style="font-size:12px;margin-top:4px;color:#94a3b8">Capacidad: <b style="color:#fff;font-family:var(--geo-font-mono)">${p.capacidad_mm3} Mm³</b></div>
+                                                        ${p.area_km2 ? `<div style="font-size:12px;color:#94a3b8">Espejo de agua estimado: <b style="color:#fff;font-family:var(--geo-font-mono)">${p.area_km2} km²</b></div>` : ''}
+                                                        <div style="font-size:10px;margin-top:6px;color:${esAproximado ? '#fbbf24' : '#4ade80'};text-transform:uppercase;letter-spacing:0.04em">
+                                                            ${esAproximado ? '⚠ Contorno aproximado (radio fijo)' : '✓ Contorno estimado por NDWI'}
+                                                        </div>
                                                     </div>
                                                 `);
                                                 layer.bindTooltip(p.nombre, { sticky: true });
@@ -2693,36 +2792,36 @@ const GeoMonitor = () => {
                     <div className="geo-kpi-grid">
                         <div className="geo-kpi-card" onClick={() => escalaEntrada && handleSelect('escala', escalaEntrada)}>
                             <div className="geo-kpi-label">
-                                <Gauge size={12} /> Nivel Entrada ({escalaEntrada?.nombre || 'K-23'})
+                                <Gauge size={12} /> Nivel Entrada ({escalaEntrada?.nombre || 'K-0+000'})
                             </div>
                             <div className="geo-kpi-value cyan">
-                                {nivelEntrada?.toFixed(2) ?? '—'} <small>m</small>
+                                {nivelEntrada !== undefined ? (entradaFresca ? nivelEntrada.toFixed(2) : 'S/D') : '—'} <small>m</small>
                             </div>
-                            {gastoEntrada && <div className="geo-kpi-sub">Q: {(gastoEntrada ?? 0).toFixed(2)} m³/s</div>}
+                            {gastoEntrada !== undefined && <div className="geo-kpi-sub">Q: {gastoEntrada.toFixed(2)} m³/s</div>}
                         </div>
                         <div className="geo-kpi-card" onClick={() => escalaSalida && handleSelect('escala', escalaSalida)}>
                             <div className="geo-kpi-label">
-                                <Gauge size={12} /> Nivel Salida ({escalaSalida?.nombre || 'K-94'})
+                                <Gauge size={12} /> Nivel Salida ({escalaSalida?.nombre || 'K-104'})
                             </div>
                             <div className="geo-kpi-value">
-                                {nivelSalida?.toFixed(2) ?? '—'} <small>m</small>
+                                {nivelSalida !== undefined ? (salidaFresca ? nivelSalida.toFixed(2) : 'S/D') : '—'} <small>m</small>
                             </div>
-                            {gastoSalida && <div className="geo-kpi-sub">Q: {(gastoSalida ?? 0).toFixed(2)} m³/s</div>}
+                            {gastoSalida !== undefined && <div className="geo-kpi-sub">Q: {gastoSalida.toFixed(2)} m³/s</div>}
                         </div>
                         <div className="geo-kpi-card">
                             <div className="geo-kpi-label">
                                 <TrendingUp size={12} /> Eficiencia
                             </div>
-                            <div className={clsx('geo-kpi-value', eficienciaTxt && parseFloat(eficienciaTxt) >= 90 ? 'green' : eficienciaTxt ? 'red' : '')}>
-                                {eficienciaTxt ?? '—'}<small>%</small>
+                            <div className={clsx('geo-kpi-value', eficienciaTxt && parseFloat(eficienciaTxt) >= 90 ? 'green' : eficienciaTxt ? 'red' : '')} title={!tramoCompleto ? 'Balance no confiable — requiere K-0+000 y K-104 con lectura fresca (<4h)' : undefined}>
+                                {eficienciaTxt ?? 'S/D'}<small>%</small>
                             </div>
                         </div>
                         <div className="geo-kpi-card">
                             <div className="geo-kpi-label">
                                 <TriangleAlert size={12} /> Pérdida
                             </div>
-                            <div className={clsx('geo-kpi-value', perdidaPct && parseFloat(perdidaPct) > 10 ? 'red' : 'green')}>
-                                {perdidaPct ?? '—'}<small>%</small>
+                            <div className={clsx('geo-kpi-value', perdidaPct && parseFloat(perdidaPct) > 10 ? 'red' : 'green')} title={!tramoCompleto ? 'Balance no confiable — requiere K-0+000 y K-104 con lectura fresca (<4h)' : undefined}>
+                                {perdidaPct ?? 'S/D'}<small>%</small>
                             </div>
                         </div>
                     </div>

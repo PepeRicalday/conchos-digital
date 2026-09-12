@@ -514,7 +514,7 @@ function TerrenoMesh({ dem, centro, elevacionReferencia, contornoAgua, texturaUr
     }, [geometria, texture]);
 
     return (
-        <mesh geometry={geometria} receiveShadow castShadow>
+        <mesh geometry={geometria} receiveShadow castShadow renderOrder={0}>
             <meshStandardMaterial vertexColors map={texture ?? undefined} roughness={texture ? 0.9 : 0.85} metalness={0} />
         </mesh>
     );
@@ -733,18 +733,37 @@ function VasoMesh({ contornoGeojson, nivelMsnm, centro, elevacionReferencia }: {
 
     return (
         <group position={[0, alturaAgua, 0]}>
-            <mesh geometry={geometria.superficie} position={[0, 0, 0]}>
-                {/* Tono ajustado de celeste brillante (#0ea5e9, se veía como
-                    una capa "pegada" encima de la textura satelital
-                    fotorrealista — demasiado saturado/artificial junto a
-                    ella) a un verde-azulado profundo, más cercano al agua
-                    real de un embalse visto desde altura (ver referencia
-                    Google Earth). transmission bajado (menos "gel
-                    translúcido") y clearcoat agregado para el brillo
-                    especular sutil que sí tiene agua real bajo luz. */}
+            {/* renderOrder alto + depthWrite=false: el terreno bajo el agua
+                (TerrenoMesh, ver CORTE_BAJO_AGUA_M) queda apenas ~120m por
+                debajo en un escenario de ~55km — dos superficies casi
+                coplanares vistas desde lejos. Three.js NO garantiza el orden
+                de pintado entre dos objetos transparentes solo por posición
+                en el árbol de la escena; sin forzarlo aquí, en ciertos
+                ángulos el terreno (con la textura satelital fotorrealista,
+                que en tono "color real" un embalse grande y en calma se ve
+                blanquecino por reflejo especular, no azul) se pintaba
+                ENCIMA del mesh de agua transparente — el cambio de color de
+                abajo no tenía ningún efecto visible porque no era lo que
+                estaba realmente arriba (reportado: "se ve igual" tras subir
+                opacity/bajar transmission). depthWrite=false evita que el
+                propio agua, al pintarse, bloquee objetos transparentes
+                futuros que debieran ir aún más encima. */}
+            <mesh geometry={geometria.superficie} position={[0, 0, 0]} renderOrder={10}>
+                {/* Azul profundo (#0b2e4f) en vez del verde-azulado oscuro
+                    anterior (#12313a): con transmission>0 ese tono quedaba
+                    demasiado cerca del color del terreno árido de abajo
+                    (beige/marrón), y bajo la niebla/exposición de la escena
+                    el agua se leía casi indistinguible del suelo seco
+                    alrededor (reportado). transmission bajado de 0.12 a 0.04
+                    (casi opaco: sigue habiendo ALGO de profundidad óptica
+                    sin dejar pasar el color de abajo) y opacity subida a
+                    0.95 — el objetivo es contraste legible a simple vista en
+                    un informe impreso, no realismo físico de un shader de
+                    agua. clearcoat se mantiene para el brillo especular que
+                    sí lee como "superficie líquida" bajo luz direccional. */}
                 <meshPhysicalMaterial
-                    color="#12313a" transparent opacity={0.88}
-                    roughness={0.18} metalness={0} transmission={0.12} thickness={1.5}
+                    color="#0b2e4f" transparent opacity={0.95} depthWrite={false}
+                    roughness={0.15} metalness={0} transmission={0.04} thickness={1.5}
                     clearcoat={0.6} clearcoatRoughness={0.25}
                     side={THREE.DoubleSide}
                 />
@@ -1414,20 +1433,22 @@ export const VasoVisor3DCaptura: React.FC<VasoVisor3DCapturaProps> = ({ contorno
         return { dx: dx / largo, dz: dz / largo, centroVasoX: cx, centroVasoZ: cz, radioVaso: rVaso };
     }, [contornoGeojson, centro]);
 
-    // Ángulo panorámico bajo fijo del informe: cámara casi al ras del agua
-    // (altura relativa al tamaño del VASO, no al radio del DEM completo),
-    // retrasada a lo largo del eje principal del embalse y apuntando
-    // DIRECTO AL CENTRO DEL VASO (sin desplazamiento adicional del target) —
-    // el intento anterior apuntaba a un punto corrido hacia el lado OPUESTO
-    // del eje de retroceso, así que la composición miraba oblicuamente y el
-    // agua quedaba en una esquina en vez de centrada (reportado). Altura
-    // bajada de 0.18x a 0.09x y retroceso de 1.3x a 0.75x: cámara más baja y
-    // más cerca, para que el agua ocupe el centro/mitad inferior del cuadro
-    // (composición "a ras de orilla") en vez de verse desde muy arriba.
+    // Ángulo panorámico del informe: apunta DIRECTO AL CENTRO DEL VASO (sin
+    // desplazamiento adicional del target) — el intento anterior apuntaba a
+    // un punto corrido hacia el lado OPUESTO del eje de retroceso, así que
+    // la composición miraba oblicuamente y el agua quedaba en una esquina en
+    // vez de centrada (reportado). Altura y retroceso subidos de 0.09x/0.75x
+    // a 0.22x/1.1x: la versión "a ras de orilla" (0.09x) dejaba el horizonte
+    // muy alto en el cuadro — la niebla atmosférica (ver más abajo) dominaba
+    // buena parte de la imagen y el terreno/agua se leían pequeños y oscuros
+    // (reportado: "cielo morado" ocupando media captura). Una cámara más
+    // alta ve más terreno y menos cielo/niebla por el mismo encuadre, más
+    // parecida a los ángulos con los que se suele orbitar el visor
+    // interactivo.
     const posicionCam: [number, number, number] = [
-        centroVasoX + ejeDx * radioVaso * 0.75,
-        Math.max(45, radioVaso * 0.09),
-        centroVasoZ + ejeDz * radioVaso * 0.75,
+        centroVasoX + ejeDx * radioVaso * 1.1,
+        Math.max(110, radioVaso * 0.22),
+        centroVasoZ + ejeDz * radioVaso * 1.1,
     ];
     const targetCam: [number, number, number] = [
         centroVasoX,
@@ -1473,13 +1494,19 @@ export const VasoVisor3DCaptura: React.FC<VasoVisor3DCapturaProps> = ({ contorno
     return (
         <div className="vaso3d-captura-oculta">
             <Canvas
-                dpr={1}
+                dpr={[1, 2]}
                 frameloop="always"
                 camera={{ fov: 45, near: 10, far: Math.max(20000, radioEscena * 8) }}
                 gl={{ toneMappingExposure: 0.85, preserveDrawingBuffer: true }}
             >
                 <color attach="background" args={['#2b2438']} />
-                <fog attach="fog" args={['#2b2438', distCamTarget * 1.6, distCamTarget * 5.5]} />
+                {/* Multiplicadores subidos de 1.6/5.5 a 2.4/7: con la cámara
+                    más alta/lejos (ver posicionCam arriba) distCamTarget ya
+                    creció, pero además se ensancha la banda para que la
+                    niebla no arranque a mostrar densidad visible tan cerca
+                    del primer plano — dominaba media captura como un morado
+                    casi sólido (reportado). */}
+                <fog attach="fog" args={['#2b2438', distCamTarget * 2.4, distCamTarget * 7]} />
                 <ambientLight intensity={0.35} />
                 <directionalLight position={[radioEscena * 0.5, radioEscena * 0.7, radioEscena * 0.35]} intensity={0.9} />
                 <directionalLight position={[-radioEscena * 0.43, radioEscena * 0.36, -radioEscena * 0.29]} intensity={0.25} />

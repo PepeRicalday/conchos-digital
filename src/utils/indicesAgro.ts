@@ -39,6 +39,19 @@ const C_BUENO = '#0ca30c', C_AVISO = '#d98704', C_SERIO = '#ec835a', C_CRITICO =
 /** ETₒ de referencia máxima del ciclo en el DR-005 (verano, demanda pico). */
 const ETO_MAX_REF = 9.0;
 
+/**
+ * Temperatura base de acumulación de GDD (°C) para los cultivos de referencia
+ * del distrito (nogal/alfalfa) — por debajo de esta temperatura no hay
+ * desarrollo fenológico computable. Antes vivía como literal `10` repetido
+ * en Clima.tsx (fórmula) y exportClimaReport.ts (solo texto descriptivo).
+ */
+export const GDD_BASE_C = 10;
+
+/** Coeficiente de tanque evaporimétrico (Kp) usado como ÚLTIMO recurso para
+ *  aproximar ETₒ desde evaporación de tanque cuando no hay ninguna estación
+ *  WeatherLink en línea. No es FAO-56 Penman-Monteith — ver Clima.tsx. */
+export const KP_TANQUE_EVAPORIMETRICO = 0.7;
+
 export interface EntradasIndices {
     /** ETₒ TOTAL del día (mm), del modelo. No el acumulado parcial. */
     etoDiario: number | null;
@@ -89,6 +102,28 @@ export function entradasDesdeEstaciones(
         estacionesOk: ests.filter(e => e.calidad.usableComoActual).length,
         estacionesTotal: ests.length,
     };
+}
+
+/**
+ * ETₒ TOTAL prevista para hoy (24 h del modelo horario), promedio entre
+ * estaciones con pronóstico para el día. Es la magnitud con la que se
+ * dimensiona la lámina de riego y con la que se calcula el IDR — el
+ * acumulado al corte (`lectura.eto_mm`) subestima según la hora del día.
+ *
+ * Única fuente para esta cifra: antes vivía triplicada (Clima.tsx,
+ * exportClimaReport.ts, exportClimaInfografia.ts) y dos de las tres copias
+ * filtraban por `total > 0`, lo que descarta una estación cuyo total del día
+ * es legítimamente 0 mm (día nublado/lluvioso) como si no hubiera reportado.
+ * El filtro correcto es "¿la estación tiene alguna fila de pronóstico para
+ * hoy?" (`serie.length > 0`), no "¿el total resultante es positivo?".
+ */
+export function etoTotalDelDiaRed(ests: EstacionConLectura[], hoyLocal: string): number | null {
+    const porEstacion = ests.map(e => e.pronosticoSerie
+        .filter(p => p.fecha_local === hoyLocal && p.eto_fc_mm != null));
+    const sumas = porEstacion
+        .filter(serie => serie.length > 0)
+        .map(serie => serie.reduce((a, p) => a + (p.eto_fc_mm ?? 0), 0));
+    return sumas.length ? sumas.reduce((a, b) => a + b, 0) / sumas.length : null;
 }
 
 const clamp = (v: number) => Math.max(0, Math.min(100, v));

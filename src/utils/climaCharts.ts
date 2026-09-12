@@ -523,3 +523,206 @@ export function franjaCalidad(
         ${ref}${filas}
     </svg>`;
 }
+
+/**
+ * Evolución mensual de una variable por estación. Dos formas según la
+ * naturaleza del dato (elegida por `forma`, nunca decorativa):
+ *
+ *  · 'linea'  — temperatura, viento, radiación: el promedio mensual de una
+ *    misma estación tiene una trayectoria con sentido de continuidad entre
+ *    un mes y el siguiente (el clima de agosto es contiguo al de julio), así
+ *    que la línea comunica bien la tendencia. Huecos (mes sin lectura) se
+ *    dibujan como corte real de la línea, nunca interpolados.
+ *  · 'barras' — precipitación: el acumulado de un mes es una magnitud
+ *    DISCRETA e independiente — la lámina de agosto no "fluye" desde la de
+ *    julio — así que una línea sugeriría una continuidad que no existe
+ *    (ver `references/choosing-a-form.md` del skill dataviz: comparar
+ *    magnitudes independientes → barras, no línea). Un mes sin lectura es
+ *    una barra ausente (columna vacía), nunca una barra en 0.
+ *
+ * En ambas formas: paleta categórica VIZ.serie, orden fijo (nunca reciclado
+ * entre gráficos del mismo informe), y leyenda explícita — con hasta 6
+ * estaciones el extremo de la línea no siempre alcanza a rotular todas sin
+ * solaparse, y las barras no tienen "extremo de línea" que etiquetar, así
+ * que la leyenda (no solo el color) es la referencia de identidad confiable.
+ *
+ * `series`: una entrada por estación, con un valor (o null = S/D, hueco/barra
+ * ausente, nunca interpolado ni tratado como 0) por cada mes en `meses`
+ * (mismo orden, ya cronológico ascendente).
+ */
+export function graficaEvolucionMensual(
+    titulo: string, unidad: string,
+    meses: { anio: number; mes: number }[],
+    series: { nombre: string; valores: (number | null)[] }[],
+    /** true para variables que nunca son negativas (viento, radiación,
+     *  precipitación) — el eje no baja de 0 aunque el margen dinámico lo
+     *  sugiera. false (temperatura) permite que el eje empiece por encima o
+     *  por debajo de 0 según los datos reales. Ignorado en forma 'barras':
+     *  una barra siempre parte de 0 (es la convención de lectura de longitud
+     *  de barra; partir de otro punto distorsionaría la magnitud mostrada). */
+    pisoEnCero = false,
+    /** 'linea' (default, compatible con las llamadas existentes) o 'barras'
+     *  para magnitudes discretas por mes (precipitación). */
+    forma: 'linea' | 'barras' = 'linea',
+): string {
+    const NOMBRES_MES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const conDato = series.filter(s => s.valores.some(v => v != null));
+    if (meses.length < 2 || !conDato.length) return '';
+
+    // La leyenda ocupa una franja fija abajo: hasta 2 filas de hasta 3
+    // entradas, altura reservada por adelantado para que nunca se recorte.
+    const filasLeyenda = Math.ceil(conDato.length / 3);
+    const H_LEYENDA = 18 * filasLeyenda + 6;
+    const W = 720, H = 200 + H_LEYENDA, ML = 42, MR = forma === 'barras' ? 16 : 96, MT = 16, MB = 26;
+    const iw = W - ML - MR, ih = H - MT - MB - H_LEYENDA;
+    const todos = conDato.flatMap(s => s.valores).filter((v): v is number => v != null);
+    const minReal = Math.min(...todos), maxReal = Math.max(...todos);
+    // Barras: el piso SIEMPRE es 0 (una barra codifica magnitud por longitud
+    // desde la base; partir de un mínimo distinto exageraría diferencias
+    // pequeñas como si fueran grandes). Línea: rango ajustado a los DATOS
+    // reales (no forzado a incluir 0 salvo pisoEnCero) — con series de
+    // temperatura donde todas las estaciones rondan 26-30°C, un eje 0-34
+    // aplana la línea y esconde la variación real entre meses/estaciones —
+    // mismo principio que rangoDelCorte() en exportClimaGeoInforme.ts para
+    // los mapas. Un margen del 18% dentro del rango real da aire sin
+    // desperdiciar la mitad del alto en un piso que ningún dato toca.
+    const margen = Math.max((maxReal - minReal) * 0.18, maxReal * 0.03, 0.5);
+    const lo = forma === 'barras' ? 0
+        : pisoEnCero ? Math.max(0, Math.floor((minReal - margen) * 10) / 10)
+            : Math.floor((minReal - margen) * 10) / 10;
+    const hi = forma === 'barras' ? (Math.ceil((maxReal * 1.15) * 10) / 10 || 1)
+        : (Math.ceil((maxReal + margen) * 10) / 10 || 1);
+    const x = (i: number) => ML + (meses.length === 1 ? 0 : (i / (meses.length - 1)) * iw);
+    const y = (v: number) => MT + ih - ((v - lo) / Math.max(1e-6, hi - lo)) * ih;
+
+    const ticksY = [lo, (lo + hi) / 2, hi].map(v =>
+        `<line x1="${ML}" y1="${y(v).toFixed(1)}" x2="${W - MR}" y2="${y(v).toFixed(1)}"
+               stroke="${VIZ.grid}" stroke-width="1"/>
+         <text x="${ML - 7}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end" font-size="9"
+               fill="${VIZ.inkMuted}" font-family="system-ui">${v.toFixed(v % 1 === 0 ? 0 : 1)}</text>`).join('');
+
+    const ejeX = meses.map((m, i) =>
+        `<text x="${x(i).toFixed(1)}" y="${H - H_LEYENDA - 8}" text-anchor="middle" font-size="9"
+               fill="${VIZ.inkMuted}" font-family="system-ui">${NOMBRES_MES_CORTO[m.mes - 1]}</text>`).join('');
+
+    // ── Leyenda: línea-clave (form 'linea') o swatch (form 'barras'), nunca
+    // una caja de color que compita en peso visual con las marcas de datos.
+    // 3 entradas por fila, centrada bajo el eje X.
+    const anchoEntrada = Math.min(160, iw / Math.min(3, conDato.length));
+    const leyenda = conDato.map((s, si) => {
+        const col = VIZ.serie[si % VIZ.serie.length];
+        const fila = Math.floor(si / 3), colI = si % 3;
+        const nEnFila = Math.min(3, conDato.length - fila * 3);
+        const offsetFila = (W - nEnFila * anchoEntrada) / 2;
+        const lx = offsetFila + colI * anchoEntrada;
+        const ly = H - H_LEYENDA + 12 + fila * 18;
+        const clave = forma === 'barras'
+            ? `<rect x="${lx}" y="${(ly - 7).toFixed(1)}" width="12" height="9" rx="2" fill="${col}"/>`
+            : `<line x1="${lx}" y1="${(ly - 3).toFixed(1)}" x2="${lx + 14}" y2="${(ly - 3).toFixed(1)}" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;
+        return `${clave}
+                <text x="${lx + 19}" y="${ly.toFixed(1)}" font-size="9" font-weight="600"
+                      fill="${VIZ.inkSecondary}" font-family="system-ui">${esc(s.nombre)}</text>`;
+    }).join('');
+
+    if (forma === 'barras') {
+        // Grupos por mes: dentro de cada grupo, una barra por estación en el
+        // MISMO orden fijo siempre (misma mecánica de identidad que la línea:
+        // cada estación es siempre el mismo slot de color, nunca reordenado
+        // por valor) — así el lector aprende "estación X = 2° barra del
+        // grupo" una vez y vale para todo el gráfico.
+        const anchoGrupo = iw / meses.length;
+        const GAP = 2;                                      // separador de superficie entre barras
+        const anchoBarra = Math.min(24, (anchoGrupo - GAP * (conDato.length + 1)) / conDato.length);
+        const anchoBarra2 = Math.max(2, anchoBarra);
+
+        const barras = meses.map((_, mi) => {
+            const inicioGrupo = ML + mi * anchoGrupo;
+            const anchoUsado = anchoBarra2 * conDato.length + GAP * (conDato.length - 1);
+            const inicio = inicioGrupo + (anchoGrupo - anchoUsado) / 2;
+            return conDato.map((s, si) => {
+                const v = s.valores[mi];
+                if (v == null) return '';                    // mes sin lectura: barra ausente, no 0
+                const col = VIZ.serie[si % VIZ.serie.length];
+                const bx = inicio + si * (anchoBarra2 + GAP);
+                const by = y(v), h = y(0) - by;
+                if (h < 0.6) return '';
+                const r = Math.min(4, h, anchoBarra2 / 2);
+                return `<path d="M${bx.toFixed(1)},${(by + h).toFixed(1)} L${bx.toFixed(1)},${(by + r).toFixed(1)}
+                         Q${bx.toFixed(1)},${by.toFixed(1)} ${(bx + r).toFixed(1)},${by.toFixed(1)}
+                         L${(bx + anchoBarra2 - r).toFixed(1)},${by.toFixed(1)}
+                         Q${(bx + anchoBarra2).toFixed(1)},${by.toFixed(1)} ${(bx + anchoBarra2).toFixed(1)},${(by + r).toFixed(1)}
+                         L${(bx + anchoBarra2).toFixed(1)},${(by + h).toFixed(1)} Z" fill="${col}"/>`;
+            }).join('');
+        }).join('');
+
+        return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img"
+                     aria-label="${esc(titulo)}: acumulado mensual por estación, en ${esc(unidad)}">
+            ${ticksY}
+            <text x="${ML - 7}" y="${MT - 4}" text-anchor="end" font-size="8"
+                  fill="${VIZ.inkMuted}" font-family="system-ui">${esc(unidad)}</text>
+            ${barras}
+            <line x1="${ML}" y1="${y(0).toFixed(1)}" x2="${W - MR}" y2="${y(0).toFixed(1)}"
+                  stroke="${VIZ.axis}" stroke-width="1"/>
+            ${ejeX}
+            ${leyenda}
+        </svg>`;
+    }
+
+    const lineasYPuntos = conDato.map((s, si) => {
+        const col = VIZ.serie[si % VIZ.serie.length];
+        // Segmentos: solo se traza línea entre puntos CONSECUTIVOS con dato —
+        // un hueco (mes sin lectura) rompe la línea en vez de saltarlo, para
+        // no insinuar continuidad donde no hay evidencia.
+        const segmentos: string[] = [];
+        let actual = '';
+        s.valores.forEach((v, i) => {
+            if (v == null) { if (actual) segmentos.push(actual); actual = ''; return; }
+            actual += `${actual ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)} `;
+        });
+        if (actual) segmentos.push(actual);
+        const path = segmentos.map(d => `<path d="${d}" fill="none" stroke="${col}" stroke-width="2"
+                stroke-linejoin="round" stroke-linecap="round"/>`).join('');
+
+        const puntos = s.valores.map((v, i) => v == null ? '' : `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}"
+                r="3.5" fill="${col}" stroke="${VIZ.surface}" stroke-width="1.5"/>`).join('');
+
+        return `${path}${puntos}`;
+    }).join('');
+
+    // Etiquetas finales (nombre de cada serie, en su color) con anti-solape
+    // vertical: series con valores parecidos en el último mes (frecuente
+    // entre estaciones de temperatura, todas 26-30°C) quedan una encima de
+    // otra si se colocan en su y real — se empujan a lo largo del eje Y
+    // manteniendo el orden relativo, mismo problema/solución que las
+    // cápsulas de módulo en exportClimaGeoInforme.ts.
+    const ALTO_ETQ = 12;
+    const candidatas = conDato.map((s, si) => {
+        let iUltimo = -1;
+        for (let i = s.valores.length - 1; i >= 0; i--) if (s.valores[i] != null) { iUltimo = i; break; }
+        if (iUltimo < 0) return null;
+        return { nombre: s.nombre, col: VIZ.serie[si % VIZ.serie.length], x: x(iUltimo) + 8, y: y(s.valores[iUltimo]!) + 3.5 };
+    }).filter((e): e is { nombre: string; col: string; x: number; y: number } => e != null)
+        .sort((a, b) => a.y - b.y);
+    for (let iter = 0; iter < 8; iter++) {
+        let movido = false;
+        for (let i = 1; i < candidatas.length; i++) {
+            const solape = ALTO_ETQ - (candidatas[i].y - candidatas[i - 1].y);
+            if (solape > 0) { candidatas[i].y += solape; movido = true; }
+        }
+        if (!movido) break;
+    }
+    const etiquetas = candidatas.map(e =>
+        `<text x="${e.x.toFixed(1)}" y="${e.y.toFixed(1)}" font-size="9.5" font-weight="700"
+               fill="${e.col}" font-family="system-ui">${esc(e.nombre)}</text>`).join('');
+
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img"
+                 aria-label="${esc(titulo)}: evolución mensual por estación, en ${esc(unidad)}">
+        ${ticksY}
+        <text x="${ML - 7}" y="${MT - 4}" text-anchor="end" font-size="8"
+              fill="${VIZ.inkMuted}" font-family="system-ui">${esc(unidad)}</text>
+        ${lineasYPuntos}
+        ${etiquetas}
+        ${ejeX}
+        ${leyenda}
+    </svg>`;
+}

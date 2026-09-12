@@ -14,7 +14,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import type { EstacionConLectura, LecturaClima } from '../hooks/useClimaEstaciones';
 import { clasificaCielo, PROCEDENCIA_LABEL } from './cielo';
-import { calculaIndices, entradasDesdeEstaciones } from './indicesAgro';
+import { calculaIndices, entradasDesdeEstaciones, etoTotalDelDiaRed } from './indicesAgro';
 import { mapaSVG, predice24h, assetToDataURI, extensionMapa } from './exportClimaReport';
 import { construyeFondoSatelital, type FondoSatelital } from './mapaSatelital';
 import { construyeCapaNubes, type CapaNubes } from './capaNubesGIBS';
@@ -298,13 +298,7 @@ async function buildHTML(
     // ETₒ TOTAL prevista para hoy: es la magnitud que dimensiona la lámina de
     // riego. El acumulado del corte (etoMed) subestima en proporción a las horas
     // de sol que faltan, por lo que solo se usa como respaldo.
-    const etoDiario = (() => {
-        const hoyLocal = ahora.toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
-        const sumas = ests.map(e => e.pronosticoSerie
-            .filter(p => p.fecha_local === hoyLocal && p.eto_fc_mm != null)
-            .reduce((a, p) => a + (p.eto_fc_mm ?? 0), 0)).filter(v => v > 0);
-        return sumas.length ? sumas.reduce((a, b) => a + b, 0) / sumas.length : null;
-    })();
+    const etoDiario = etoTotalDelDiaRed(ests, ahora.toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' }));
     const ETO = etoDiario ?? etoMed;
 
     // Cielo del distrito: promedio SOLO de estaciones con fuente de nubosidad.

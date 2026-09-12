@@ -13,12 +13,15 @@ import { usePresas, type ClimaPresaData } from '../hooks/usePresas';
 import { useClimaEstaciones, type EstacionConLectura, type LecturaClima } from '../hooks/useClimaEstaciones';
 import { useClimaSkill } from '../hooks/useClimaSkill';
 import { exportClimaReport } from '../utils/exportClimaReport';
+import { exportClimaGeoInforme, type OpcionesGeoInforme } from '../utils/exportClimaGeoInforme';
+import { obtenMesesDisponibles, obtenSerieMensual } from '../utils/climaResumenMensual';
+import { GeoInformeOpcionesModal } from '../components/GeoInformeOpcionesModal';
 import { exportClimaInfografia, imagenClimaInfografia, agrupaPorDia, type DiaHistorico } from '../utils/exportClimaInfografia';
 import { supabase } from '../lib/supabase';
 import { formateaEdad, clasificaCielo, PROCEDENCIA_LABEL } from '../utils/cielo';
 import { Download, Gauge, Image as ImageIcon, Satellite } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
-import { calculaIndices, entradasDesdeEstaciones, type Indice } from '../utils/indicesAgro';
+import { calculaIndices, entradasDesdeEstaciones, etoTotalDelDiaRed, GDD_BASE_C, KP_TANQUE_EVAPORIMETRICO, type Indice } from '../utils/indicesAgro';
 import { obtenNdviModulo, type NdviModulo } from '../utils/kcNdvi';
 import EstacionDetalle from '../components/EstacionDetalle';
 import { WindyMapModal } from '../components/WindyMapModal';
@@ -490,6 +493,7 @@ const Clima = () => {
         [estaciones, estacionSel],
     );
     const [showWindy, setShowWindy] = useState(false);
+    const [showGeoInformeOpciones, setShowGeoInformeOpciones] = useState(false);
 
     // Infografía: trae el historial de 7 días para el panel de tendencias. Si la
     // consulta falla se emite igual con historial vacío — ese panel se rotula
@@ -519,6 +523,28 @@ const Clima = () => {
         await exportClimaInfografia(estaciones, await historialInfografia());
     };
 
+    // Informe Geoclimático: el mapa de cada variable es SIEMPRE el corte
+    // actual (última lectura de `estaciones`, sin transformar). Además se
+    // resuelve la serie histórica completa (todos los meses con datos, ver
+    // climaResumenMensual.ts) para la gráfica de evolución de cada bloque —
+    // temperatura/viento/radiación como promedio, precipitación como
+    // acumulado (nunca promedio); un mes sin lectura queda como hueco, nunca
+    // interpolado. Ya no hay modo "mes específico" separado.
+    const [generandoGeoInforme, setGenerandoGeoInforme] = useState(false);
+    const generarGeoInforme = async (opciones: OpcionesGeoInforme) => {
+        setGenerandoGeoInforme(true);
+        try {
+            const meses = await obtenMesesDisponibles();
+            const serieMensual = await obtenSerieMensual(meses);
+            await exportClimaGeoInforme(estaciones, { ...opciones, serieMensual });
+        } catch (e) {
+            console.error('[Clima] no se pudo generar el informe geoclimático:', e);
+            alert(e instanceof Error ? e.message : 'No se pudo generar el informe geoclimático.');
+        } finally {
+            setGenerandoGeoInforme(false);
+        }
+    };
+
     // Imagen (no PDF vía impresión): el navegador omite el fondo institucional
     // y pagina mal el layout continuo salvo que el usuario active manualmente
     // "Gráficos de fondo" — la captura a PNG es fiel a lo que se ve en pantalla.
@@ -542,15 +568,20 @@ const Clima = () => {
     // los informes, para que pantalla y PDF nunca discrepen.
     const etoDiarioRed = useMemo(() => {
         const hoyLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
-        const sumas = estaciones.map(e => e.pronosticoSerie
-            .filter(p => p.fecha_local === hoyLocal && p.eto_fc_mm != null)
-            .reduce((a, p) => a + (p.eto_fc_mm ?? 0), 0)).filter(v => v > 0);
-        return sumas.length ? sumas.reduce((a, b) => a + b, 0) / sumas.length : null;
+        return etoTotalDelDiaRed(estaciones, hoyLocal);
     }, [estaciones]);
 
-    const indices = useMemo(
-        () => (estaciones.length ? calculaIndices(entradasDesdeEstaciones(estaciones, etoDiarioRed)) : []),
+    // Entradas crudas de los índices — se guardan (no solo el resultado 0-100)
+    // para que irrigationAlerts reuse vientoMaxMs/lluviaObsMm en vez de
+    // recalcularlos por su cuenta con el mismo filtro, un patrón de duplicación
+    // que ya causó divergencias de fórmula en otros paneles (ver ETₒ arriba).
+    const entradasIndices = useMemo(
+        () => (estaciones.length ? entradasDesdeEstaciones(estaciones, etoDiarioRed) : null),
         [estaciones, etoDiarioRed],
+    );
+    const indices = useMemo(
+        () => (entradasIndices ? calculaIndices(entradasIndices) : []),
+        [entradasIndices],
     );
 
     // Confianza del corte: frescura QA/QC + cobertura de red + pronóstico.
@@ -613,7 +644,7 @@ const Clima = () => {
                 name: 'Unidades Calor (GDD)',
                 value: gddProm.toFixed(0),
                 unit: '°C-día',
-                description: 'Real de estación · base 10°C (nogal/alfalfa)',
+                description: `Real de estación · base ${GDD_BASE_C}°C (nogal/alfalfa)`,
                 icon: <Zap size={18} />
             });
         }
@@ -623,22 +654,22 @@ const Clima = () => {
         // 0.0 mm/día que se leía como "no hay demanda", cuando en realidad
         // significa "no hay dato".
         if (c.evaporacion_mm != null && c.evaporacion_mm > 0) {
-            const eto = (c.evaporacion_mm * 0.7).toFixed(1);
+            const eto = (c.evaporacion_mm * KP_TANQUE_EVAPORIMETRICO).toFixed(1);
             techVars.push({
                 name: 'Evapotranspiración (ETₒ)',
                 value: eto,
                 unit: 'mm/día',
-                description: 'Estimada desde evaporación × 0.7 (sin estación en línea)',
+                description: `Estimada desde evaporación × ${KP_TANQUE_EVAPORIMETRICO} (sin estación en línea)`,
                 icon: <Activity size={18} />
             });
         }
         if (c.temp_maxima_c != null && c.temp_minima_c != null) {
-            const gdd = Math.max(0, ((c.temp_maxima_c + c.temp_minima_c) / 2) - 10);
+            const gdd = Math.max(0, ((c.temp_maxima_c + c.temp_minima_c) / 2) - GDD_BASE_C);
             techVars.push({
                 name: 'Unidades Calor (GDD)',
                 value: gdd.toFixed(0),
                 unit: '°C-día',
-                description: 'Base 10°C para nogal/alfalfa',
+                description: `Base ${GDD_BASE_C}°C para nogal/alfalfa`,
                 icon: <Zap size={18} />
             });
         }
@@ -646,13 +677,18 @@ const Clima = () => {
 
     // Precipitación / evaporación de las DOS PRESAS del distrito, tomadas de sus
     // estaciones WeatherLink representativas (datos reales, no clima_presas):
-    //   · Presa Boquilla       ← estación "Boquilla" (a ~3 km, rol presa)
-    //   · Presa Fco. I. Madero ← estación "Las Vírgenes" (la más cercana, ~22 km)
+    //   · Presa Boquilla       ← estación con rol:'presa' y presa_id PRE-001
+    //   · Presa Fco. I. Madero ← estación con rol:'presa' y presa_id PRE-002
     // La evaporación usa la ET de la estación (et_dia_mm), pérdida real medida.
-    const estPorNombre = (n: string) => estaciones.find(e => e.nombre.toLowerCase().includes(n));
+    // Antes el emparejamiento era por texto libre en el nombre de la estación
+    // (`nombre.includes('boquilla')`) — frágil ante un renombre en
+    // clima_estaciones. presa_id es la relación estructurada que ya expone
+    // EstacionClima (useClimaEstaciones.ts), misma clave que presas.geojson y
+    // usePresas.ts (PRE-001/PRE-002) usan para identificar cada presa.
+    const estDePresa = (presaId: string) => estaciones.find(e => e.rol === 'presa' && e.presa_id === presaId);
     const presaEstaciones = [
-        { presa: 'Presa Boquilla', est: estPorNombre('boquilla') },
-        { presa: 'Presa Fco. I. Madero', est: estPorNombre('vírgenes') ?? estPorNombre('virgenes') },
+        { presa: 'Presa Boquilla', est: estDePresa('PRE-001') },
+        { presa: 'Presa Fco. I. Madero', est: estDePresa('PRE-002') },
     ];
     const precipData = presaEstaciones
         .filter(x => x.est?.lectura)
@@ -707,14 +743,13 @@ const Clima = () => {
     const irrigationAlerts = [];
     {
         const conLect = estaciones.filter(e => e.lectura);
-        const vientos = conLect.map(e => e.lectura!.viento_ms).filter((v): v is number => v != null);
-        const vMax = vientos.length ? Math.max(...vientos) : null;
+        // vMax/lluviaTot vienen de entradasIndices (misma extracción que ya usa
+        // el Tablero Ejecutivo) — solo se busca aquí el nombre de la estación
+        // del viento máximo, dato que EntradasIndices no expone.
+        const vMax = entradasIndices?.vientoMaxMs ?? null;
         const estVientoMax = vMax != null
             ? conLect.find(e => e.lectura!.viento_ms === vMax)?.nombre : null;
-        // Promedio, no suma: ver nota en lluviaObsProm más arriba.
-        const lluviaTot = conLect.length
-            ? conLect.reduce((a, e) => a + (e.lectura!.lluvia_dia_mm ?? 0), 0) / conLect.length
-            : 0;
+        const lluviaTot = entradasIndices?.lluviaObsMm ?? 0;
         const tMins = conLect.map(e => e.lectura!.temp_min_c).filter((v): v is number => v != null);
         const tMin = tMins.length ? Math.min(...tMins) : null;
 
@@ -992,6 +1027,14 @@ const Clima = () => {
                                 <Download size={14} /> Informe
                             </button>
                             <button
+                                className="estaciones-dl"
+                                onClick={() => setShowGeoInformeOpciones(true)}
+                                disabled={generandoGeoInforme}
+                                title="Descargar informe geoclimático: elige variables y periodo (corte actual o promedio/acumulado de un mes)"
+                            >
+                                <MapPin size={14} /> {generandoGeoInforme ? 'Generando…' : 'Geoclimático'}
+                            </button>
+                            <button
                                 className="estaciones-mapa-animado"
                                 onClick={() => setShowWindy(true)}
                                 title="Ver mapa animado de nubosidad y precipitación (Windy.com)"
@@ -1033,16 +1076,21 @@ const Clima = () => {
                 </section>
             )}
             {!loadingEst && estaciones.length === 0 && (
-                <div className="card p-4 text-center text-slate-400 text-xs">
+                // Márgenes/padding vía estilo inline: las utilidades Tailwind de
+                // espaciado (p-*, m-*, mx-auto) no aplican en este árbol — el reset
+                // global `* { margin:0; padding:0 }` de index.css vive fuera de
+                // cualquier @layer y gana sobre cualquier utilidad sin importar
+                // especificidad (mismo defecto ya documentado en GeoInformeOpcionesModal.tsx).
+                <div className="card text-center text-slate-400 text-xs" style={{ marginBottom: 'var(--spacing-lg)' }}>
                     Estaciones climáticas no configuradas todavía (tabla clima_estaciones vacía).
                 </div>
             )}
 
             {noData && (
-                <div className="card p-6 text-center text-slate-400">
-                    <AlertTriangle size={24} className="mx-auto mb-2 text-amber-400" />
+                <div className="card text-center text-slate-400" style={{ marginBottom: 'var(--spacing-lg)' }}>
+                    <AlertTriangle size={24} className="text-amber-400" style={{ margin: '0 auto 8px' }} />
                     <p className="text-sm">No hay datos climatológicos disponibles para la fecha {fechaSeleccionada}.</p>
-                    <p className="text-xs mt-1">Los datos mostrados podrían ser de la lectura más reciente disponible.</p>
+                    <p className="text-xs" style={{ marginTop: 4 }}>Los datos mostrados podrían ser de la lectura más reciente disponible.</p>
                 </div>
             )}
 
@@ -1213,6 +1261,11 @@ const Clima = () => {
                 lat={CENTRO_DISTRITO.lat}
                 lon={CENTRO_DISTRITO.lon}
                 titulo="Clima — Mapa animado"
+            />
+            <GeoInformeOpcionesModal
+                abierto={showGeoInformeOpciones}
+                onCerrar={() => setShowGeoInformeOpciones(false)}
+                onConfirmar={(opciones) => { void generarGeoInforme(opciones); }}
             />
         </div>
     );

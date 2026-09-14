@@ -63,11 +63,13 @@ export function clasificaCielo(coberturaPct: number | null | undefined): ClaseCi
 // ── Estimación auxiliar por radiación (§5.1) ────────────────────────────────
 
 /**
- * Elevación solar (grados) para una posición y momento dados.
- * Algoritmo NOAA simplificado; precisión ~0.1°, suficiente para decidir si hay
- * luz bastante como para que la radiación diga algo sobre la nubosidad.
+ * Núcleo del cálculo astronómico (algoritmo NOAA simplificado, precisión
+ * ~0.1°) compartido por elevacionSolar() y azimutSolar() — declinación,
+ * ángulo horario y latitud en radianes se calculan una sola vez aquí para
+ * que las dos funciones públicas no repitan (y puedan desincronizarse) el
+ * mismo modelo.
  */
-export function elevacionSolar(fecha: Date, latDeg: number, lonDeg: number): number {
+function anguloHorarioYDeclinacion(fecha: Date, lonDeg: number): { anguloHorario: number; declinacion: number } {
     const rad = Math.PI / 180;
     // Día juliano fraccionario desde J2000.0
     const jd = fecha.getTime() / 86400000 + 2440587.5;
@@ -81,10 +83,41 @@ export function elevacionSolar(fecha: Date, latDeg: number, lonDeg: number): num
     const gmst = (18.697374558 + 24.06570982441908 * n) % 24;
     const ascension = Math.atan2(Math.cos(eps) * Math.sin(lambda), Math.cos(lambda));
     const anguloHorario = (gmst * 15 * rad + lonDeg * rad) - ascension;
+    return { anguloHorario, declinacion };
+}
+
+/**
+ * Elevación solar (grados) para una posición y momento dados.
+ * Precisión ~0.1°, suficiente para decidir si hay luz bastante como para que
+ * la radiación diga algo sobre la nubosidad.
+ */
+export function elevacionSolar(fecha: Date, latDeg: number, lonDeg: number): number {
+    const rad = Math.PI / 180;
+    const { anguloHorario, declinacion } = anguloHorarioYDeclinacion(fecha, lonDeg);
     const lat = latDeg * rad;
     const sinAlt = Math.sin(lat) * Math.sin(declinacion)
         + Math.cos(lat) * Math.cos(declinacion) * Math.cos(anguloHorario);
     return Math.asin(Math.max(-1, Math.min(1, sinAlt))) / rad;
+}
+
+/**
+ * Azimut solar (grados, 0=norte, 90=este, 180=sur, 270=oeste) para una
+ * posición y momento dados — mismo modelo NOAA que elevacionSolar(), para
+ * el hillshade dinámico del Informe Geoclimático (mapaHillshadeDEM.ts): la
+ * dirección de la luz, no solo su altura, es la que produce sombras largas
+ * al amanecer/atardecer y cortas al mediodía.
+ */
+export function azimutSolar(fecha: Date, latDeg: number, lonDeg: number): number {
+    const rad = Math.PI / 180;
+    const { anguloHorario, declinacion } = anguloHorarioYDeclinacion(fecha, lonDeg);
+    const lat = latDeg * rad;
+    const sinAlt = Math.sin(lat) * Math.sin(declinacion)
+        + Math.cos(lat) * Math.cos(declinacion) * Math.cos(anguloHorario);
+    const alt = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
+    const cosAz = (Math.sin(declinacion) - Math.sin(lat) * Math.sin(alt)) / (Math.cos(lat) * Math.cos(alt));
+    let az = Math.acos(Math.max(-1, Math.min(1, cosAz))) / rad;
+    if (Math.sin(anguloHorario) > 0) az = 360 - az; // acos es simétrico: distingue mañana/tarde por el signo del ángulo horario
+    return az;
 }
 
 /**

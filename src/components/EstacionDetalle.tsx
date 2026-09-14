@@ -80,7 +80,7 @@ function useCalibracionCruzada(estacionId: string) {
 }
 
 const rolLabel = (rol: string) =>
-    rol === 'presa' ? 'Presa' : rol === 'modulo' ? 'Módulo' : 'Canal';
+    rol === 'presa' ? 'Presa' : rol === 'modulo' ? 'Módulo' : rol === 'unidad_riego' ? 'Unidad de Riego' : 'Canal';
 
 /** Formatea un número o devuelve «S/D»: un guion vacío se confunde con cero. */
 const f = (v: number | null | undefined, dec = 1, suf = '') =>

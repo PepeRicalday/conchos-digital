@@ -1452,7 +1452,7 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     <thead><tr><th>Estación</th><th>Rol</th><th>Latitud</th><th>Longitud</th><th>Elevación</th></tr></thead>
     <tbody>${ests.map(e => `<tr>
       <td><b>${e.nombre}</b></td>
-      <td>${e.rol === 'presa' ? 'Presa' : e.rol === 'modulo' ? 'Módulo' : 'Canal'}</td>
+      <td>${e.rol === 'presa' ? 'Presa' : e.rol === 'modulo' ? 'Módulo' : e.rol === 'unidad_riego' ? 'Unidad de Riego' : 'Canal'}</td>
       <td>${e.latitud.toFixed(4)}°</td>
       <td>${e.longitud.toFixed(4)}°</td>
       <td>${e.elevacion_msnm != null ? e.elevacion_msnm + ' msnm' : '—'}</td>

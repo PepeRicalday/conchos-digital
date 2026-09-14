@@ -301,7 +301,7 @@ const TechVarCard = ({ variable }: { variable: TechnicalVariable }) => (
 
 // ── Tarjeta de estación WeatherLink en tiempo real ──────────────────────────
 const rolLabel = (rol: string) =>
-    rol === 'presa' ? 'Presa' : rol === 'modulo' ? 'Módulo' : 'Canal';
+    rol === 'presa' ? 'Presa' : rol === 'modulo' ? 'Módulo' : rol === 'unidad_riego' ? 'Unidad de Riego' : 'Canal';
 
 /**
  * Medidor de índice agroclimático (0-100) para el tablero ejecutivo.

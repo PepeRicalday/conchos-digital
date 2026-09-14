@@ -1,0 +1,75 @@
+{
+  "ncols": 183,
+  "nrows": 191,
+  "bbox": [
+    -105.672304,
+    27.45251344,
+    -105.115296,
+    28.40497356
+  ],
+  "zfactor": 2.2,
+  "grisMin": 30,
+  "grisMax": 235,
+  "fuenteDEM": "Copernicus DEM GLO-30 (OpenTopography), grilla 183x191",
+  "fuenteTextura": "Sentinel-2 L2A TRUE_COLOR (Sentinel Hub, CDSE), escena 2026-08-25, nubosidad 0%",
+  "generadoEn": "2026-09-14",
+  "notas": "Re-sintetizado 2026-09-14 con el bbox real de extentModulos() (6 modulos SRL + estaciones Modulo 1/3/5 + Riego San Rafael + punto Boquilla + margen 12%), reemplazando el bbox angosto original (solo bbox de los poligonos de modulo) que dejaba bordes vacios una vez corregido el estiramiento (preserveAspectRatio xMidYMid slice) en exportClimaGeoInforme.ts. Misma escena Sentinel-2 que la generacion anterior (ventana de 60 dias aun la devuelve).",
+  "angulos": [
+    {
+      "id": "amanecer_ne",
+      "azimut": 70,
+      "elevacion": 12,
+      "archivo": "fondo_amanecer_ne.jpg",
+      "bytes": 63099
+    },
+    {
+      "id": "manana_e",
+      "azimut": 95,
+      "elevacion": 35,
+      "archivo": "fondo_manana_e.jpg",
+      "bytes": 108681
+    },
+    {
+      "id": "media_manana_se",
+      "azimut": 120,
+      "elevacion": 55,
+      "archivo": "fondo_media_manana_se.jpg",
+      "bytes": 133547
+    },
+    {
+      "id": "mediodia_alto",
+      "azimut": 160,
+      "elevacion": 75,
+      "archivo": "fondo_mediodia_alto.jpg",
+      "bytes": 147287
+    },
+    {
+      "id": "tarde_sw",
+      "azimut": 220,
+      "elevacion": 55,
+      "archivo": "fondo_tarde_sw.jpg",
+      "bytes": 133743
+    },
+    {
+      "id": "media_tarde_w",
+      "azimut": 260,
+      "elevacion": 35,
+      "archivo": "fondo_media_tarde_w.jpg",
+      "bytes": 108653
+    },
+    {
+      "id": "atardecer_nw",
+      "azimut": 285,
+      "elevacion": 15,
+      "archivo": "fondo_atardecer_nw.jpg",
+      "bytes": 69407
+    },
+    {
+      "id": "crepusculo",
+      "azimut": 295,
+      "elevacion": 6,
+      "archivo": "fondo_crepusculo.jpg",
+      "bytes": 47020
+    }
+  ]
+}

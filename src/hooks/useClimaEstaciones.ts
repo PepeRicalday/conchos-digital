@@ -18,7 +18,7 @@ export interface EstacionClima {
     presa_id: string | null;
     modulo_id: string | null;
     zona_id: string | null;
-    rol: 'presa' | 'modulo' | 'canal' | string;
+    rol: 'presa' | 'modulo' | 'canal' | 'unidad_riego' | string;
     activa: boolean;
     ult_dato_en: string | null;
 }

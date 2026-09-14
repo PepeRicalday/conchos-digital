@@ -29,6 +29,7 @@ import { formateaEdad } from './cielo';
 import { VIZ, graficaEvolucionMensual } from './climaCharts';
 import { tablaPrecipitacion, NOTA_TABLA_PRECIPITACION } from './tablaPrecipitacion';
 import { assetToDataURI } from './assetToDataURI';
+import { resuelveFondoHillshade, LEYENDA_VIIRS, type FondoHillshade, type FondoNocturno } from './mapaHillshadeDEM';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
 
@@ -373,7 +374,7 @@ function rasterCalorSVG(
  */
 function mapaVariableSVG(
     cfg: VariableMapa, estaciones: EstacionConLectura[], valorPorModulo: Map<number, InfoModulo>, corte: string,
-    logosModulo: LogosModulo,
+    logosModulo: LogosModulo, fondo: FondoHillshade | FondoNocturno | null,
 ): string {
     // El encuadre lo definen los 6 módulos (el sujeto real del informe): las
     // presas (Boquilla, Las Vírgenes) NO entran en el extent — están decenas
@@ -417,6 +418,51 @@ function mapaVariableSVG(
     // de precipitación CONABIO/SDR Chihuahua.
     const muestrasIDW = estaciones.map(estacionAMuestra);
     const rasterSVG = rasterCalorSVG(cfg, muestrasIDW, rango, sx, sy, minLo, maxLo, minLa, maxLa, kx);
+
+    // Fondo de relieve/satelital real (mapaHillshadeDEM.ts) — va DETRÁS del
+    // raster de color: el dato climático sigue siendo la variable principal,
+    // esto solo da textura de terreno sin competir por atención. Se dibuja
+    // sobre el extent COMPLETO del lienzo (no solo el de los módulos, como
+    // hace el raster con su buffer) para que el hillshade/luces nocturnas
+    // cubran también el margen del 12% del encuadre, evitando un borde
+    // rectangular visible entre "terreno" y "vacío". El fondo día
+    // (escala de grises) se mezcla con `mix-blend-mode:multiply` para que
+    // nunca aclare el raster de color por encima de sí mismo (solo puede
+    // oscurecerlo, igual que una sombra real sobre un mapa impreso); el
+    // fondo noche (VIIRS, ya es una foto a color) usa opacidad reducida en
+    // vez de multiply, porque multiply sobre una imagen ya oscura la dejaría
+    // casi negra.
+    const fondoSVG = fondo ? (() => {
+        const fx = sx(minLo), fy = sy(maxLa);
+        const fw = sx(maxLo) - sx(minLo), fh = sy(minLa) - sy(maxLa);
+        // Tanto de día como de noche, el fondo se dibuja con SU PROPIO bbox
+        // real (fondo.minLon/maxLon/minLat/maxLat), nunca estirado al extent
+        // del mapa (minLo/maxLo/minLa/maxLa, que varía por variable e incluye
+        // el margen del 12% de extentModulos() y a veces Boquilla) — de lo
+        // contrario la imagen se deforma y el terreno real queda desplazado
+        // respecto a las coordenadas/estaciones dibujadas encima (bug
+        // reportado por el usuario 2026-09-14: Boquilla aparecía sobre tierra
+        // seca en vez de junto al vaso visible en la propia foto). El fondo
+        // día (BBOX_HILLSHADE_DISTRITO, fijo desde que se generó el asset) y
+        // el fondo noche (bbox real del mosaico VIIRS, recortado a tesela
+        // completa) NUNCA coinciden exactamente con el extent del lienzo, así
+        // que ambos ramas usan el mismo patrón de posicionamiento.
+        const px = sx(fondo.minLon), py = sy(fondo.maxLat);
+        const pw = sx(fondo.maxLon) - sx(fondo.minLon), ph = sy(fondo.minLat) - sy(fondo.maxLat);
+        if (fondo.modo === 'dia') {
+            // Opacidad subida de 0.55→0.85: con la imagen ahora en su
+            // proporción real (sin el estiramiento que antes difuminaba el
+            // detalle), 0.55 se leía como relieve plano — el usuario pidió
+            // explícitamente que la diferencia de altitud se note con
+            // claridad. mix-blend-mode:multiply sigue garantizando que esta
+            // capa solo puede OSCURECER el raster de color de arriba, nunca
+            // aclararlo, así que subir la opacidad no compromete la lectura
+            // del dato climático (sigue siendo la capa más superficial).
+            return `<image href="${fondo.dataURI}" x="${px.toFixed(1)}" y="${py.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" preserveAspectRatio="xMidYMid slice" style="mix-blend-mode:multiply" opacity="0.85"/>`;
+        }
+        return `<image href="${fondo.dataURI}" x="${px.toFixed(1)}" y="${py.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" preserveAspectRatio="xMidYMid slice" opacity="0.8"/>
+                <rect x="${fx.toFixed(1)}" y="${fy.toFixed(1)}" width="${fw.toFixed(1)}" height="${fh.toFixed(1)}" fill="#0a1128" opacity="0.32" style="mix-blend-mode:multiply"/>`;
+    })() : '';
 
     // Contornos: SOLO borde + tramado sobre módulos interpolados (el color ya
     // lo aporta el raster de fondo) — nunca se desplazan; las etiquetas van
@@ -475,9 +521,16 @@ function mapaVariableSVG(
     // pantalla). anclaX/anclaY es la posición del marcador (no se mueve); el
     // solver ajusta el CENTRO de la caja de texto alrededor de esa ancla.
     const nombresEnCapsulaPre = new Set(Object.values(MODULOS_CON_ESTACION));
-    const estacionesVisiblesPre = estaciones.filter(e =>
-        e.longitud >= minLo && e.longitud <= maxLo && e.latitud >= minLa && e.latitud <= maxLa &&
-        !nombresEnCapsulaPre.has(e.nombre));
+    // Todas las estaciones dentro del encuadre llevan su marcador (círculo de
+    // identificación) — antes solo las "sin cápsula" (presas, Riego San
+    // Rafael) lo tenían, y una estación con cápsula de módulo (M1/3/5) quedaba
+    // sin ningún símbolo de "aquí hay una estación física" en el mapa, lo que
+    // se leía como si esa estación no existiera (reportado por el usuario
+    // 2026-09-14). Solo la ETIQUETA DE TEXTO sigue reservada a las estaciones
+    // sin cápsula, para no repetir el mismo valor dos veces en el mapa.
+    const estacionesEnEncuadrePre = estaciones.filter(e =>
+        e.longitud >= minLo && e.longitud <= maxLo && e.latitud >= minLa && e.latitud <= maxLa);
+    const estacionesVisiblesPre = estacionesEnEncuadrePre.filter(e => !nombresEnCapsulaPre.has(e.nombre));
     const etiquetasEst = estacionesVisiblesPre.map(e => {
         const m = estacionAMuestra(e);
         const valor = m[cfg.clave];
@@ -543,12 +596,28 @@ function mapaVariableSVG(
                 <circle cx="${lcx.toFixed(1)}" cy="${lcy.toFixed(1)}" r="${r.toFixed(1)}" fill="#fff" stroke="${BORDE}" stroke-width="1"/>
                 <image href="${logoUri}" x="${(lcx - r).toFixed(1)}" y="${(lcy - r).toFixed(1)}" width="${LOGO_D}" height="${LOGO_D}" clip-path="url(#logoClip${cfg.clave}${num})" preserveAspectRatio="xMidYMid slice"/>`;
         })() : '';
+        // Badge "estación aquí" COSIDO al borde de la cápsula (esquina
+        // superior derecha), en vez de un marcador de 20px independiente
+        // dibujado en la coordenada geográfica real de la estación. Antes,
+        // en M1/M3/M5 (módulos con estación propia), ambos elementos caían
+        // prácticamente en el mismo punto — el centroide del módulo y la
+        // estación que le da nombre están a metros de distancia entre sí,
+        // muy por debajo de la resolución del mapa — así que el marcador
+        // quedaba incrustado sobre el borde de la cápsula, cortándola
+        // (detectado por captura de pantalla 2026-09-14). El badge se mueve
+        // CON la cápsula (ya resuelta por el solver anti-colisión), nunca
+        // queda huérfano en una coordenada que el solver no conoce.
+        const badgeMedido = info?.medido
+            ? `<circle cx="${(lx + capW / 2 - 3).toFixed(1)}" cy="${(ly - capH / 2 + 3).toFixed(1)}" r="5.5" fill="#fff" stroke="#0f172a" stroke-width="1.8"/>
+                <circle cx="${(lx + capW / 2 - 3).toFixed(1)}" cy="${(ly - capH / 2 + 3).toFixed(1)}" r="2.1" fill="#0f172a"/>`
+            : '';
         return `<rect x="${(lx - capW / 2).toFixed(1)}" y="${(ly - capH / 2).toFixed(1)}" width="${capW.toFixed(1)}" height="${capH}" rx="7" fill="#fff" fill-opacity="0.95" stroke="${BORDE}" stroke-width="1.5"/>
                 ${logoSVG}
                 <text x="${cxTexto.toFixed(1)}" y="${(ly - 2).toFixed(1)}" font-size="10.5" font-weight="800" text-anchor="middle" fill="#0f172a" font-family="system-ui">M${num}</text>
                 <text x="${cxTexto.toFixed(1)}" y="${(ly + 10.5).toFixed(1)}" font-size="9" font-weight="700" text-anchor="middle" fill="#334155" font-family="system-ui">${etiquetaValor} ${cfg.unidad}</text>
                 ${distTxt ? `<text x="${cxTexto.toFixed(1)}" y="${(ly + capH / 2 + 9).toFixed(1)}" font-size="7.5" text-anchor="middle" fill="#64748b" font-family="system-ui">${distTxt}</text>` : ''}
-                ${flechaModulo}`;
+                ${flechaModulo}
+                ${badgeMedido}`;
     }).join('');
     const modulosSVG = contornosSVG + etiquetasSVG;
 
@@ -557,19 +626,35 @@ function mapaVariableSVG(
     // contribuyendo a la interpolación IDW (calculaValoresPorModulo usa TODAS
     // las estaciones), pero su marcador no se fuerza dentro de un mapa cuyo
     // encuadre es la geofrontera de los módulos, no el distrito completo.
-    // Nombres de estaciones que YA tienen su valor mostrado en una cápsula de
-    // módulo (Módulo 1/3/5) — su marcador se dibuja sin repetir el texto al
-    // lado, porque quedaría pegado a la cápsula del módulo y duplicaría el
-    // mismo dato dos veces en el mismo punto (detectado por captura de pantalla).
-    // La posición del texto (x/y) viene YA resuelta por el solver AABB de
-    // arriba (etiquetasEst) — el marcador se queda en su coordenada geográfica
-    // real (anclaX/anclaY), solo la caja de texto se desplaza si chocaba con
-    // una cápsula de módulo vecina (ej. Las Vírgenes vs M5).
+    // TODAS las estaciones en el encuadre llevan el marcador circular (ver
+    // estacionesEnEncuadrePre arriba) — incluidas Módulo 1/3/5, que antes
+    // quedaban sin ningún símbolo de "aquí hay una estación física" porque su
+    // dato ya vive en la cápsula del módulo (detectado por el usuario
+    // 2026-09-14: una estación real sin marcador se leía como ausente). Solo
+    // las estaciones SIN cápsula de módulo (Nombres fuera de
+    // MODULOS_CON_ESTACION) llevan además la etiqueta de texto al lado —
+    // repetirla junto a una cápsula duplicaría el mismo dato dos veces en el
+    // mismo punto (detectado por captura de pantalla). La posición del texto
+    // (x/y) viene YA resuelta por el solver AABB de arriba (etiquetasEst) — el
+    // marcador se queda en su coordenada geográfica real (anclaX/anclaY),
+    // solo la caja de texto se desplaza si chocaba con una cápsula de módulo
+    // vecina (ej. Las Vírgenes vs M5).
     const etiquetasEstPorNombre = new Map(etiquetasEst.map(et => [et.estacion.nombre, et]));
-    const estSVG = estacionesVisiblesPre.map(e => {
+    const estSVG = estacionesEnEncuadrePre.map(e => {
         const x = sx(e.longitud), y = sy(e.latitud);
         const m = estacionAMuestra(e);
-        const et = etiquetasEstPorNombre.get(e.nombre)!;
+        const et = etiquetasEstPorNombre.get(e.nombre);
+        // Estaciones con cápsula de módulo (M1/3/5, ver nombresEnCapsulaPre)
+        // YA llevan su indicador de "estación medida" cosido al borde de esa
+        // cápsula (badgeMedido, en etiquetasSVG) — su centroide de módulo y
+        // su coordenada geográfica real están a metros de distancia, muy por
+        // debajo de la resolución del mapa, así que dibujar AQUÍ además un
+        // marcador de 20px en su lat/lon real lo incrustaba sobre el borde
+        // de la cápsula, cortándola (detectado por captura de pantalla
+        // 2026-09-14). Sin marcador propio: el badge en la cápsula ya cubre
+        // la necesidad original de "que se vea que aquí hay una estación
+        // física" sin competir por el mismo punto en el mapa.
+        if (nombresEnCapsulaPre.has(e.nombre)) return '';
         // Símbolo convencional de estación de observación (halo de contacto +
         // disco blanco + anillo + núcleo oscuro) — más grande que la versión
         // anterior (r=9 vs r=7) y con un halo de contacto adicional para que
@@ -582,8 +667,10 @@ function mapaVariableSVG(
         const flecha = (cfg.clave === 'vientoMs' && m.vientoDirDeg != null && m.vientoMs != null && m.vientoMs > 0.3)
             ? flechaViento(x, y, m.vientoDirDeg, 14 + Math.min(14, m.vientoMs * 2), '#0f172a', true)
             : '';
-        return `${marcador}${flecha}
-                <text x="${et.x.toFixed(1)}" y="${et.y.toFixed(1)}" font-size="9.5" font-weight="700" text-anchor="middle" fill="#0f172a" font-family="system-ui" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(et.txt)}</text>`;
+        const etiquetaTxt = et
+            ? `<text x="${et.x.toFixed(1)}" y="${et.y.toFixed(1)}" font-size="9.5" font-weight="700" text-anchor="middle" fill="#0f172a" font-family="system-ui" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(et.txt)}</text>`
+            : '';
+        return `${marcador}${flecha}${etiquetaTxt}`;
     }).join('');
 
     // Leyenda: banda propia bajo el mapa (nunca sobre un polígono), con
@@ -662,6 +749,21 @@ function mapaVariableSVG(
         <text x="${(P + 6).toFixed(1)}" y="${(P + 14).toFixed(1)}" font-size="10.5" font-weight="700" fill="#fff" font-family="system-ui">${esc(cfg.titulo)} · DR-005</text>
         <text x="${(W - P - 6).toFixed(1)}" y="${(P + 14).toFixed(1)}" font-size="8.5" text-anchor="end" fill="#e2e8f0" font-family="system-ui">${esc(corte)}</text>`;
 
+    // Aviso OBLIGATORIO de la capa VIIRS (fondo nocturno): un composite fijo
+    // de 2016 nunca debe leerse como "así se ve el distrito esta noche" — se
+    // rotula directamente sobre el mapa (no solo en el pie del documento)
+    // porque es la condición explícita bajo la que el usuario aprobó usar
+    // esta capa. Franja propia debajo de la cartela, mismo estilo visual.
+    // Ancho recortado (no W-2*P completo) para dejar libre la esquina
+    // superior derecha, donde vive la flecha de norte (norteSVG) — a todo lo
+    // ancho, la franja quedaba por debajo de la flecha y la cortaba a la
+    // mitad (detectado por captura de pantalla del modo noche).
+    const ANCHO_AVISO_VIIRS = W - 2 * P - 26;
+    const avisoViirsSVG = fondo?.modo === 'noche'
+        ? `<rect x="${P}" y="${(P + 20).toFixed(1)}" width="${ANCHO_AVISO_VIIRS.toFixed(1)}" height="15" fill="#0a1128" opacity="0.78"/>
+           <text x="${(P + 6).toFixed(1)}" y="${(P + 31).toFixed(1)}" font-size="7.5" font-weight="600" fill="#fde68a" font-family="system-ui">⚠ ${esc(LEYENDA_VIIRS)}</text>`
+        : '';
+
     const atribucionSVG = `<line x1="${leyX}" y1="${(H + HL - 20).toFixed(1)}" x2="${W - P}" y2="${(H + HL - 20).toFixed(1)}" stroke="${VIZ.grid}" stroke-width="1"/>
         <text x="${(leyX).toFixed(1)}" y="${(H + HL - 6).toFixed(1)}" font-size="7.5" fill="${VIZ.inkMuted}" font-family="system-ui">Fuente: red WeatherLink (Davis) · interpolación IDW p=2 · proyección geográfica WGS-84 (aspecto corregido por cos φ) · SICA-005</text>`;
 
@@ -675,6 +777,7 @@ function mapaVariableSVG(
         </defs>
         <rect x="${P}" y="${P}" width="${W - 2 * P}" height="${H - 2 * P}" fill="#eef2f6"/>
         <g clip-path="url(#marcoGeo${cfg.clave})">
+          ${fondoSVG}
           ${rasterSVG}
         </g>
         ${decGrid.join('')}
@@ -682,6 +785,7 @@ function mapaVariableSVG(
         ${modulosSVG}
         ${estSVG}
         ${cartelaSVG}
+        ${avisoViirsSVG}
         <g transform="translate(${(W - P - anchoBarraPx - 8).toFixed(1)},${(H - P - 6).toFixed(1)})">
           <rect x="-6" y="-16" width="${(anchoBarraPx + 44).toFixed(1)}" height="24" rx="4" fill="#fff" fill-opacity="0.85"/>
           ${escalaSVG}
@@ -775,17 +879,29 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
     // El mapa de cada variable es SIEMPRE el corte actual (última lectura) —
     // ya no hay modo "mes específico" separado; la vista mensual vive en la
     // gráfica de evolución de cada bloque (ver graficaEvolucion más abajo).
-    const hoy = new Date().toLocaleString('es-MX', { dateStyle: 'full', timeStyle: 'short' });
+    const instanteCorte = new Date();
+    const hoy = instanteCorte.toLocaleString('es-MX', { dateStyle: 'full', timeStyle: 'short' });
     // Versión corta para la cartela dentro del SVG (ancho limitado del mapa) —
     // "hoy" completa se reserva para el header del documento HTML.
-    const corteCorto = new Date().toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+    const corteCorto = instanteCorte.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
     // Variables elegidas en el modal — si la selección quedara vacía por
     // algún error de estado, se cae a todas (nunca un informe sin mapas).
     const variablesElegidas = VARIABLES.filter(v => opciones.variables.includes(v.clave));
     const variablesActivas = variablesElegidas.length ? variablesElegidas : VARIABLES;
     const activas = estaciones.filter(e => e.activa !== false);
 
-    // ── Resumen ejecutivo: KPIs + veredicto de una frase ────────────────────
+    // Fondo de relieve/satelital real (mapaHillshadeDEM.ts) — se resuelve UNA
+    // SOLA VEZ para los 4 mapas (mismo extent, mismo instante de corte para
+    // todos), no dentro de cada mapaVariableSVG: evita 4 fetches idénticos a
+    // GIBS de noche y reutiliza el mismo hillshade elegido de día. `null` si
+    // falla (sin red, asset no encontrado) — el mapa sigue mostrando el
+    // raster de color sin fondo, nunca se rompe el informe por esto.
+    const extentFondo = extentModulos(activas);
+    const fondoHillshade = await resuelveFondoHillshade(
+        extentFondo.minLo, extentFondo.maxLo, extentFondo.minLa, extentFondo.maxLa, instanteCorte,
+    );
+
+    // ── Resumen ejecutivo: KPIs + lectura interpretada + alertas operativas ──
     const temps = activas.map(e => e.lectura?.temp_c).filter((v): v is number => v != null);
     const vientos = activas.map(e => e.lectura?.viento_ms).filter((v): v is number => v != null);
     const lluvias = activas.map(e => e.lectura?.lluvia_dia_mm).filter((v): v is number => v != null);
@@ -815,7 +931,184 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
         { l: 'Precipitación', v: lluviaMax != null ? lluviaMax.toFixed(1) : '—', u: 'mm máx.', pie: 'máximo puntual de la red — no promediar' },
         { l: 'Cobertura de red', v: `${totalModulos - interpolados}/${totalModulos}`, u: 'módulos', pie: `${interpolados} con valor interpolado` },
     ];
+
+    // Valores por módulo de las 4 variables, calculados una sola vez aquí y
+    // reutilizados tanto por el bloque de alertas/tabla consolidada como por
+    // cada bloque de variable más abajo (antes cada bloque recalculaba los
+    // suyos; con la tabla consolidada nueva hacían falta las 4 de entrada,
+    // así que se sube el cálculo a un solo punto en vez de duplicarlo).
+    const valoresPorModuloTodas = new Map(VARIABLES.map(cfg => [cfg.clave, calculaValoresPorModulo(activas, cfg.clave)] as const));
+    const numsModuloOrdenados = Object.keys(MODULOS_SRL).map(Number).sort((a, b) => a - b);
+
+    /**
+     * Alertas operativas: observaciones que se pueden leer directamente de
+     * los datos YA calculados para este corte, sin fuente nueva ni supuesto
+     * de "normalidad histórica" (el informe no tiene climatología de
+     * referencia cargada aquí — declarar esa ausencia es más honesto que
+     * simular una comparación). Tres familias de alerta:
+     *   1. Estación con lectura vencida/sospechosa (evaluaCalidad, ya
+     *      calculado por useClimaEstaciones) — el dato mostrado puede no
+     *      reflejar la condición actual del módulo.
+     *   2. Módulo cuyo valor medido/interpolado se aparta fuerte del resto
+     *      de la red (umbral: separado del rango típico ya usado para
+     *      colorear el mapa — rangoDelCorte —, no un valor inventado aparte).
+     *   3. Viento por encima del umbral operativo habitual para aspersión
+     *      (~3.5 m/s, referencia agronómica estándar de deriva de gota) —
+     *      se etiqueta como guía operativa, no como métrica medida.
+     * Cada alerta es una oración autocontenida; sin ninguna, se declara
+     * explícitamente que no se detectaron desviaciones dignas de nota (nunca
+     * se deja el bloque vacío sin explicar por qué).
+     */
+    interface Alerta { nivel: 'aviso' | 'atencion'; texto: string; }
+    const alertas: Alerta[] = [];
+
+    const estacionesVencidas = activas.filter(e => e.calidad.status === 'expired');
+    const estacionesSospechosas = activas.filter(e => e.calidad.status === 'suspect');
+    if (estacionesVencidas.length) {
+        alertas.push({
+            nivel: 'atencion',
+            texto: `${estacionesVencidas.length === 1 ? 'La estación' : 'Las estaciones'} `
+                + `${estacionesVencidas.map(e => esc(e.nombre)).join(', ')} `
+                + `${estacionesVencidas.length === 1 ? 'reporta' : 'reportan'} un dato vencido (más de 60 min de antigüedad); `
+                + `los valores de este corte para ${estacionesVencidas.length === 1 ? 'esa estación' : 'esas estaciones'} `
+                + `pueden no reflejar la condición actual.`,
+        });
+    }
+    if (estacionesSospechosas.length) {
+        alertas.push({
+            nivel: 'aviso',
+            texto: `${estacionesSospechosas.map(e => esc(e.nombre)).join(', ')} `
+                + `${estacionesSospechosas.length === 1 ? 'marca' : 'marcan'} una lectura fuera de rango físico esperado (posible falla de sensor) — verificar antes de usarla para una decisión operativa.`,
+        });
+    }
+
+    // Módulo fuera de línea respecto al resto de la red, por variable: mismo
+    // criterio de dispersión que rangoDelCorte (amplitud mínima por variable,
+    // para no marcar como "atípico" una diferencia de 0.3°C que es solo ruido
+    // de sensor) — un módulo cuyo valor cae en el escalón más alto o más bajo
+    // de la rampa de color, cuando la red tiene variación real, ya se lee
+    // visualmente en el mapa; aquí se nombra en texto para quien solo lee el
+    // resumen. Solo se reporta el caso más marcado por variable (el mapa ya
+    // muestra el resto) para no saturar el resumen ejecutivo de líneas.
+    for (const cfg of VARIABLES) {
+        const valores = valoresPorModuloTodas.get(cfg.clave)!;
+        const entradas = numsModuloOrdenados
+            .map(num => ({ num, info: valores.get(num) }))
+            .filter((e): e is { num: number; info: InfoModulo } => e.info?.valor != null);
+        if (entradas.length < 3) continue; // dispersión no es significativa con tan pocos módulos con dato
+        const rango = rangoDelCorte(activas, cfg);
+        const amplitud = rango.max - rango.min;
+        if (amplitud <= 0) continue;
+        const vals = entradas.map(e => e.info.valor!);
+        const media = vals.reduce((a, b) => a + b, 0) / vals.length;
+        let peor = entradas[0];
+        let peorDesvio = 0;
+        for (const e of entradas) {
+            const desvio = Math.abs(e.info.valor! - media);
+            if (desvio > peorDesvio) { peorDesvio = desvio; peor = e; }
+        }
+        // Umbral: la desviación del módulo más extremo debe superar el 55%
+        // de la amplitud del rango dinámico del corte (mismo rango que ya
+        // colorea el mapa) — un módulo que ya se ve en el extremo de la
+        // rampa de color, no una diferencia menor.
+        if (peorDesvio >= amplitud * 0.55 && cfg.clave !== 'lluviaDiaMm') {
+            const arriba = peor.info.valor! > media;
+            alertas.push({
+                nivel: 'aviso',
+                texto: `Módulo ${peor.num} destaca ${arriba ? 'por encima' : 'por debajo'} del resto de la red en ${cfg.titulo.toLowerCase()} `
+                    + `(${cfg.fmt(peor.info.valor!)} ${cfg.unidad} frente a un promedio de red de ${cfg.fmt(media)} ${cfg.unidad})`
+                    + `${!peor.info.medido ? ' — valor interpolado, sin estación propia que lo confirme' : ''}.`,
+            });
+        }
+    }
+
+    // Umbral operativo de viento para aspersión (deriva de gota): referencia
+    // agronómica habitual ~3.5 m/s, declarada como guía, no como límite
+    // normativo del distrito — se listan los módulos por encima, con su
+    // procedencia (medido/interpolado) porque la decisión de suspender un
+    // riego por aspersión no debe tomarse solo sobre un valor interpolado.
+    const UMBRAL_VIENTO_ASPERSION = 3.5;
+    const valoresViento = valoresPorModuloTodas.get('vientoMs')!;
+    const modulosVientoAlto = numsModuloOrdenados
+        .map(num => ({ num, info: valoresViento.get(num) }))
+        .filter((e): e is { num: number; info: InfoModulo } => (e.info?.valor ?? 0) >= UMBRAL_VIENTO_ASPERSION);
+    if (modulosVientoAlto.length) {
+        alertas.push({
+            nivel: 'aviso',
+            texto: `Viento igual o mayor a ${UMBRAL_VIENTO_ASPERSION} m/s (referencia operativa de deriva de gota en aspersión) en `
+                + `${modulosVientoAlto.map(e => `Módulo ${e.num} (${e.info.valor!.toFixed(1)} m/s${!e.info.medido ? ', interpolado' : ''})`).join(', ')}.`,
+        });
+    }
+
+    if (interpolados >= totalModulos / 2) {
+        alertas.push({
+            nivel: 'aviso',
+            texto: `${interpolados} de ${totalModulos} módulos dependen de un valor interpolado en este corte — la cobertura de estaciones propias cubre menos de la mitad del distrito; los valores interpolados deben tratarse como referencia, no como medición.`,
+        });
+    }
+
+    // Nunca se compara contra "lo normal para la época" sin climatología
+    // cargada en esta función — declararlo explícitamente es preferible a
+    // omitirlo en silencio (el lector podría asumir que la ausencia de
+    // comentario significa "es normal").
+    const notaSinHistorico = 'Este informe no compara el corte contra un promedio histórico de la fecha: '
+        + 'hacerlo requiere una serie climatológica por estación que aún no está integrada a este documento. '
+        + 'Las observaciones de abajo son relativas a la propia red en este corte, no a lo esperado para la temporada.';
+
+    // Titular de una línea: el nivel de alerta más alto presente decide el
+    // tono (nunca un adjetivo suelto tipo "buen día" que el dato no respalda
+    // sin climatología) — "requiere atención" solo si hay una alerta de nivel
+    // atencion (dato vencido/sospechoso), "con observaciones" si solo hay
+    // avisos (dispersión, viento, cobertura), "sin observaciones" si no hay
+    // ninguna. El propio titular nombra CUÁNTAS alertas hay, no solo el tono.
+    const hayAtencion = alertas.some(a => a.nivel === 'atencion');
+    const titular = alertas.length === 0
+        ? 'Sin observaciones operativas para este corte'
+        : hayAtencion
+            ? `Requiere atención — ${alertas.length} observación${alertas.length === 1 ? '' : 'es'} operativa${alertas.length === 1 ? '' : 's'} para este corte`
+            : `Con observaciones — ${alertas.length} punto${alertas.length === 1 ? '' : 's'} a considerar en este corte`;
+
+    const alertasSVG = alertas.length
+        ? `<div class="alertas">${alertas.map(a => `<div class="alerta alerta--${a.nivel}">
+              <span class="alerta-icono">${a.nivel === 'atencion' ? '⚠️' : '•'}</span>
+              <span>${a.texto}</span>
+           </div>`).join('')}</div>`
+        : `<div class="alertas-ok"><span>✓</span><span>No se detectaron desviaciones relevantes entre módulos, estaciones vencidas/sospechosas, ni viento por encima del umbral operativo de aspersión en este corte.</span></div>`;
     const kpisSVG = kpis.map(k => `<div class="kpi"><div class="l">${k.l}</div><div class="v">${k.v}<span class="u">${k.u}</span></div><div class="pie">${k.pie}</div></div>`).join('');
+
+    // ── Tabla consolidada: panorama completo (las 4 variables × 6 módulos)
+    // en una sola fila por módulo — para quien quiere el cuadro completo de
+    // un vistazo antes de entrar al detalle por variable de cada sección de
+    // abajo. Solo incluye las variables elegidas en el modal (variablesActivas),
+    // igual que el resto del informe. Cada celda lleva su propio badge
+    // medido/interpolado — el mismo lenguaje visual que las tablas por
+    // variable, nunca un color o cifra con más confianza que la de origen.
+    const tablaConsolidadaSVG = variablesActivas.length > 1 ? `<div class="geoinf-tabla-scroll"><table class="geoinf-consolidada">
+        <thead><tr>
+            <th>Módulo</th>
+            ${variablesActivas.map(cfg => `<th>${esc(cfg.titulo)} <small>${esc(cfg.unidad)}</small></th>`).join('')}
+        </tr></thead>
+        <tbody>${numsModuloOrdenados.map(num => {
+            const logoUri = logosModulo.get(num);
+            const logoImgTd = logoUri
+                ? `<img src="${logoUri}" alt="" width="20" height="20" style="border-radius:999px;object-fit:cover;border:1px solid ${VIZ.grid};vertical-align:middle;margin-right:6px">`
+                : '';
+            const celdas = variablesActivas.map(cfg => {
+                const v = valoresPorModuloTodas.get(cfg.clave)!.get(num);
+                const valorTxt = v?.valor != null ? `${cfg.fmt(v.valor)}` : 'S/D';
+                const puntito = v?.medido
+                    ? `<span class="geoinf-punto geoinf-punto--medido" title="Medido"></span>`
+                    : `<span class="geoinf-punto geoinf-punto--interp" title="Interpolado"></span>`;
+                return `<td class="geoinf-consolidada-n">${puntito}${valorTxt}</td>`;
+            }).join('');
+            return `<tr><td>${logoImgTd}<b>Módulo ${num}</b></td>${celdas}</tr>`;
+        }).join('')}</tbody>
+    </table></div>
+    <p class="geoinf-pienota" style="margin-top:6px">
+        <span class="geoinf-punto geoinf-punto--medido" style="margin-right:4px"></span>medido
+        &nbsp;&nbsp;<span class="geoinf-punto geoinf-punto--interp" style="margin-right:4px"></span>interpolado (IDW) —
+        detalle de procedencia y distancia a la estación más cercana en la tabla de cada variable, más abajo.
+    </p>` : '';
 
     // Estaciones que participan en la interpolación (IDW usa TODAS) pero no
     // se dibujan en el mapa por caer fuera de la geofrontera de los módulos
@@ -823,8 +1116,10 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
     // para no dar la impresión de que solo "cuentan" las estaciones visibles.
     // MISMO extent que usa mapaVariableSVG (extentModulos) — antes este
     // cálculo vivía duplicado con parámetros distintos y desalineaba lo que
-    // el mapa dibujaba de lo que el texto declaraba fuera de él.
-    const extent = extentModulos(activas);
+    // el mapa dibujaba de lo que el texto declaraba fuera de él. Reutiliza
+    // extentFondo (ya calculado arriba para el fondo de relieve/satelital),
+    // en vez de volver a llamar extentModulos con el mismo resultado.
+    const extent = extentFondo;
     const fueraDeMapa = activas.filter(e => e.longitud < extent.minLo || e.longitud > extent.maxLo || e.latitud < extent.minLa || e.latitud > extent.maxLa);
     const notaFueraDeMapa = fueraDeMapa.length
         ? `<p class="geoinf-pienota">También participan en la interpolación (fuera del encuadre de este mapa): ${fueraDeMapa.map(e => esc(e.nombre)).join(', ')}.</p>`
@@ -879,9 +1174,9 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
     };
 
     const bloques = variablesActivas.map((cfg, i) => {
-        const valores = calculaValoresPorModulo(activas, cfg.clave);
-        const svg = mapaVariableSVG(cfg, activas, valores, corteCorto, logosModulo);
-        const filas = Object.keys(MODULOS_SRL).map(Number).sort((a, b) => a - b).map(num => {
+        const valores = valoresPorModuloTodas.get(cfg.clave)!;
+        const svg = mapaVariableSVG(cfg, activas, valores, corteCorto, logosModulo, fondoHillshade);
+        const filas = numsModuloOrdenados.map(num => {
             const v = valores.get(num);
             const valorTxt = v?.valor != null ? `${cfg.fmt(v.valor)} ${cfg.unidad}` : 'S/D';
             const badge = v?.medido
@@ -904,8 +1199,13 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
 
         // El mapa siempre es del corte actual (precipitación = lluvia del
         // día); el acumulado mensual vive en la gráfica de evolución debajo.
+        // h3 (no h2): estas son subsecciones dentro de "Detalle por variable"
+        // — el h2 de nivel de documento ya lo puso el encabezado de grupo,
+        // ver más abajo en el ensamblado del HTML. Antes las 4 tenían el
+        // mismo peso que "Estaciones de la red" o "Metodología", sin
+        // distinguir "panorama" de "detalle progresivo".
         return `<section class="geoinf-bloque">
-            <h2>${esc(cfg.titulo)} (${cfg.unidad})</h2>
+            <h3>${esc(cfg.titulo)} (${cfg.unidad})</h3>
             <figure class="fig">
                 <figcaption>
                     <b>${esc(cfg.titulo)} por módulo — ${esc(etiquetaPeriodo)}</b>
@@ -941,7 +1241,7 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
         const q = e.calidad;
         return `<tr>
             <td>${esc(e.nombre)}</td>
-            <td>${esc(e.rol)}</td>
+            <td>${esc(e.rol === 'presa' ? 'Presa' : e.rol === 'modulo' ? 'Módulo' : e.rol === 'unidad_riego' ? 'Unidad de Riego' : e.rol)}</td>
             <td>${e.lectura?.temp_c != null ? e.lectura.temp_c.toFixed(1) + ' °C' : '—'}</td>
             <td>${e.lectura?.viento_ms != null ? e.lectura.viento_ms.toFixed(1) + ' m/s' : '—'}${e.lectura?.viento_dir_deg != null ? ` (${e.lectura.viento_dir_deg.toFixed(0)}°)` : ''}</td>
             <td>${e.lectura?.rad_solar_wm2 != null ? e.lectura.rad_solar_wm2.toFixed(0) + ' W/m²' : '—'}</td>
@@ -974,14 +1274,33 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
   .franja em { color: #94a3b8; font-size: 0.68rem; margin-left: auto; font-style: normal; }
   .franja b.geoinf-badge--medido, .franja b.geoinf-badge--interp { font-weight: 800; }
 
+  /* Resumen ejecutivo: pensado para leerse completo en ~30 segundos — un
+     veredicto de una línea en tamaño grande, seguido de las observaciones
+     que lo sustentan. El resto del documento (detalle por variable, tablas,
+     metodología) es profundización progresiva para quien sigue leyendo. */
   .veredicto {
-    display: flex; align-items: flex-start; gap: 14px;
-    border: 1px solid ${VIZ.grid}; border-left: 4px solid ${VIZ.inkMuted};
-    border-radius: 12px; padding: 15px 18px; margin: 0 0 22px;
+    border: 1px solid ${VIZ.grid}; border-left: 4px solid ${SRL_MARRON};
+    border-radius: 12px; padding: 17px 20px; margin: 0 0 18px;
     background: ${VIZ.plane};
   }
   .veredicto-eyebrow { font-size: 0.6rem; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; color: ${VIZ.inkMuted}; }
-  .veredicto p { font-size: 0.86rem; margin: 4px 0 0; color: ${VIZ.inkSecondary}; max-width: 82ch; line-height: 1.55; }
+  .veredicto-titular { font-size: 1.18rem; font-weight: 800; color: ${VIZ.inkPrimary}; margin: 5px 0 0; line-height: 1.35; letter-spacing: -0.01em; }
+  .veredicto p { font-size: 0.86rem; margin: 8px 0 0; color: ${VIZ.inkSecondary}; max-width: 82ch; line-height: 1.55; }
+  .veredicto-nota-historico { font-size: 0.7rem; color: ${VIZ.inkMuted}; margin: 10px 0 0; padding-top: 10px; border-top: 1px dashed ${VIZ.grid}; line-height: 1.5; max-width: 82ch; }
+
+  /* Observaciones operativas: derivadas matemáticamente de los datos del
+     propio corte (ver alertas en buildHTML) — nunca decorativas. Dos
+     niveles: "atencion" (dato vencido/sospechoso — puede no ser confiable)
+     en tono más fuerte, "aviso" (dispersión entre módulos, viento alto,
+     cobertura baja) en tono neutro informativo. */
+  .alertas { margin: 0 0 24px; display: flex; flex-direction: column; gap: 7px; }
+  .alerta { display: flex; align-items: flex-start; gap: 9px; font-size: 0.79rem; line-height: 1.5;
+            padding: 9px 13px; border-radius: 9px; border: 1px solid transparent; }
+  .alerta-icono { flex: none; font-size: 0.85rem; line-height: 1.4; }
+  .alerta--aviso { background: #fffbeb; border-color: #fde8b8; color: #7c5a0b; }
+  .alerta--atencion { background: #fef2f2; border-color: #fbd0d0; color: #9f1d1d; }
+  .alertas-ok { font-size: 0.79rem; color: ${VIZ.estado.bueno}; background: #f0fdf4; border: 1px solid #d3f0dc;
+                border-radius: 9px; padding: 9px 13px; margin: 0 0 24px; display: flex; align-items: center; gap: 9px; }
 
   .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0 0 24px; }
   .kpi { border: 1px solid ${VIZ.grid}; border-radius: 12px; padding: 13px 14px; background: ${VIZ.surface}; }
@@ -996,9 +1315,34 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
     padding: 0 0 7px; margin: 34px 0 12px;
     border: 0; border-bottom: 2px solid ${SRL_MARRON};
   }
+  /* h3: subsección DENTRO de "Detalle por variable" (un peso por debajo de
+     h2) — antes cada bloque de variable usaba h2, con el mismo peso visual
+     que "Estaciones de la red" o "Metodología", sin distinguir panorama de
+     detalle progresivo. */
+  h3 {
+    color: ${VIZ.inkSecondary}; font-size: 0.92rem; font-weight: 800;
+    padding: 0; margin: 26px 0 10px; border: 0;
+  }
+  .geoinf-grupo-titulo { margin: 6px 0 2px; }
+  .geoinf-grupo-sub { font-size: 0.74rem; color: ${VIZ.inkMuted}; margin: -6px 0 14px; line-height: 1.5; max-width: 82ch; }
   .geoinf-bloque { margin-bottom: 8px; }
+  .geoinf-bloque + .geoinf-bloque { margin-top: 18px; padding-top: 4px; border-top: 1px solid ${VIZ.grid}; }
   .geoinf-mapa { margin-bottom: 6px; }
   .geoinf-pienota { font-size: 0.74rem; color: ${VIZ.inkMuted}; font-style: italic; margin: 6px 0 10px; }
+
+  /* Tabla consolidada: panorama de las 4 variables × 6 módulos en una fila
+     por módulo, antes del detalle por variable — mismo lenguaje visual
+     (cabecera marrón, filas pares) que el resto de tablas del informe, con
+     un punto de color en vez del badge de texto completo (aquí hay hasta 4
+     por fila; el badge de texto se reserva para las tablas de detalle donde
+     hay una sola variable por fila y cabe sin apretar). */
+  .geoinf-consolidada th, .geoinf-consolidada td { text-align: right; }
+  .geoinf-consolidada th:first-child, .geoinf-consolidada td:first-child { text-align: left; }
+  .geoinf-consolidada small { font-weight: 500; text-transform: none; letter-spacing: 0; opacity: 0.8; }
+  .geoinf-consolidada-n { font-weight: 700; white-space: nowrap; }
+  .geoinf-punto { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+  .geoinf-punto--medido { background: #16a34a; }
+  .geoinf-punto--interp { background: #d97706; }
   /* Mismo patrón .fig/figcaption que exportClimaReport.ts — el mapa se lee
      como figura de un documento técnico, no como bloque suelto. */
   .fig { margin: 14px 0 18px; padding: 14px 16px 10px; border: 1px solid ${VIZ.grid}; border-radius: 12px; background: ${VIZ.surface}; }
@@ -1047,11 +1391,18 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
 
   @media print {
     body { padding: 0; background: #fff; }
-    .kpi, table, .veredicto, .geoinf-bloque, .franja, .fig { break-inside: avoid; }
-    .geoinf-bloque + .geoinf-bloque { break-before: page; }
-    h2 { break-after: avoid; }
+    .kpi, table, .veredicto, .alerta, .geoinf-bloque, .franja, .fig { break-inside: avoid; }
+    .geoinf-bloque + .geoinf-bloque { break-before: page; border-top: 0; padding-top: 0; margin-top: 0; }
+    h2, h3 { break-after: avoid; }
     header { break-after: avoid; }
-    th, .geoinf-badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    /* El grupo "Panorama por módulo" (título + tabla consolidada) se trata
+       como una sola unidad: sin esto, el título podía quedar al pie de una
+       página y la tabla saltar sola a la siguiente, dejando ambas páginas
+       con un hueco grande sin motivo (visto en la primera exportación a PDF
+       de este rediseño). Si el grupo completo no cabe en lo que resta de la
+       página, se empuja entero a la siguiente. */
+    .geoinf-grupo-panorama { break-inside: avoid; }
+    th, .geoinf-badge, .alerta, .alertas-ok, .geoinf-punto, .veredicto { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     /* Impreso/exportado a PDF es una foto fija: se congela con línea sólida
        (sin el guión de la animación) en vez de dejar un patrón detenido a
        medio ciclo, que se vería como una línea punteada sin motivo. */
@@ -1063,11 +1414,20 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
        tiene viewBox, así que limitar max-height mantiene la proporción. */
     .geoinf-mapa svg { max-height: 620px; width: auto; max-width: 100%; }
   }
+  /* Contenedor de scroll horizontal para tablas anchas (la consolidada suma
+     una columna por variable, hasta 5 en total) — en vez de comprimir el
+     texto hasta ilegible en pantallas angostas, la tabla se desplaza dentro
+     de su propio marco y el resto del documento nunca se ensancha con ella
+     (ver regla del skill de artifacts: overflow-x contenido, nunca en body). */
+  .geoinf-tabla-scroll { overflow-x: auto; margin: 10px 0; }
+  .geoinf-tabla-scroll table { margin: 0; min-width: 480px; }
+
   @media (max-width: 720px) {
     body { padding: 14px; }
     .kpis { grid-template-columns: repeat(2, 1fr); }
     header { flex-wrap: wrap; }
     table { font-size: 0.72rem; }
+    .veredicto-titular { font-size: 1.02rem; }
   }
 </style>
 </head><body><div class="wrap">
@@ -1088,21 +1448,31 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
   </div>
 
   <div class="veredicto">
-    <div>
-      <div class="veredicto-eyebrow">Lectura del corte</div>
-      <p>${veredicto}</p>
-    </div>
+    <div class="veredicto-eyebrow">Lectura del corte</div>
+    <p class="veredicto-titular">${esc(titular)}</p>
+    <p>${veredicto}</p>
+    <p class="veredicto-nota-historico">${notaSinHistorico}</p>
   </div>
+
+  ${alertasSVG}
 
   <div class="kpis">${kpisSVG}</div>
 
+  ${tablaConsolidadaSVG ? `<div class="geoinf-grupo-panorama">
+  <h2 class="geoinf-grupo-titulo">Panorama por módulo</h2>
+  <p class="geoinf-grupo-sub">Las ${variablesActivas.length} variables de este informe, una fila por módulo, para el panorama completo de un vistazo. El detalle — mapa, procedencia y evolución mensual de cada variable — sigue abajo.</p>
+  ${tablaConsolidadaSVG}
+  </div>` : ''}
+
+  <h2 class="geoinf-grupo-titulo">Detalle por variable</h2>
+  <p class="geoinf-grupo-sub">Mapa del corte actual, tabla por módulo con procedencia del dato y evolución mensual — una sección por variable.</p>
   ${bloques}
 
   <h2>Estaciones de la red (fuente de los mapas anteriores)</h2>
-  <table>
+  <div class="geoinf-tabla-scroll"><table>
     <thead><tr><th>Estación</th><th>Rol</th><th>Temp.</th><th>Viento</th><th>Radiación</th><th>Precipitación</th><th>Frescura</th></tr></thead>
     <tbody>${filasEstaciones}</tbody>
-  </table>
+  </table></div>
 
   <h2>Metodología, fuentes y limitaciones</h2>
   <div class="geoinf-nota">
@@ -1116,6 +1486,11 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
     interpolado en un módulo sin estación debe leerse con más cautela que temperatura o viento,
     especialmente en módulos alejados de toda estación (ver distancia declarada en cada mapa).
     Un valor con "+" en un mapa indica que supera el máximo de la escala de color declarada.
+    Las observaciones operativas de la lectura del corte se calculan sobre los datos de este
+    mismo informe — antigüedad de la lectura, dispersión de un módulo frente al promedio de la
+    red (con el mismo rango dinámico que colorea cada mapa) y viento por encima del umbral
+    orientativo de deriva de gota en aspersión (3.5 m/s) — y no incorporan ningún promedio
+    histórico ni pronóstico.
   </div>
 
   <div class="foot">

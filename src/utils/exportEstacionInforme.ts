@@ -26,7 +26,7 @@ const tituloVentana = (r: RangoAnalisis) => r.tipo === 'manual'
 
 const SRL_MARRON = '#6B2D2D';
 const AZUL = '#1e5b8f';
-const rolLabel = (rol: string) => (rol === 'presa' ? 'Presa' : rol === 'modulo' ? 'Módulo' : 'Canal');
+const rolLabel = (rol: string) => (rol === 'presa' ? 'Presa' : rol === 'modulo' ? 'Módulo' : rol === 'unidad_riego' ? 'Unidad de Riego' : 'Canal');
 const f = (v: number | null | undefined, dec = 1, suf = '') => (v == null ? 'S/D' : `${v.toFixed(dec)}${suf}`);
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const fechaCorta = (iso: string) => { const [, m, d] = iso.split('-'); return `${d}/${m}`; };

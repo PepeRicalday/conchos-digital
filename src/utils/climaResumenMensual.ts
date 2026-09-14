@@ -38,6 +38,15 @@ export async function obtenMesesDisponibles(): Promise<MesDisponible[]> {
     return (data as any[]).map(r => ({ anio: r.anio, mes: r.mes, nLecturas: Number(r.n_lecturas) }));
 }
 
+/** Días a considerar para el umbral de cobertura de un mes: si el mes ya
+ *  terminó, sus días totales; si es el mes en curso, los transcurridos hasta
+ *  hoy (un mes a la mitad no puede pedir cobertura del mes completo). */
+function diasEsperados(anio: number, mes: number, ultimoDia: number): number {
+    const hoy = new Date();
+    const esMesActual = anio === hoy.getFullYear() && mes === hoy.getMonth() + 1;
+    return esMesActual ? Math.min(ultimoDia, hoy.getDate()) : ultimoDia;
+}
+
 interface FilaResumenMensual {
     estacion_id: string;
     estacion_nombre: string;
@@ -74,10 +83,13 @@ export async function estacionesDesdeResumenMensual(
     const filas = (data ?? []) as FilaResumenMensual[];
     const porId = new Map(filas.map(f => [f.estacion_id, f]));
 
-    // Umbral de muestras esperadas para un mes completo con la cadencia
-    // actual de sync (~13/día × días del mes) — por debajo de 60% se marca
-    // la confiabilidad como reducida (mes en curso, estación intermitente).
-    const muestrasEsperadas = ultimoDia * 13;
+    // Umbral de muestras esperadas para el mes con la cadencia actual de
+    // sync (~13/día) — por debajo de 60% se marca la confiabilidad como
+    // reducida (mes en curso, estación intermitente). diasEsperados() usa
+    // días TRANSCURRIDOS, no el total del mes, para que un mes en curso
+    // (p.ej. día 14 de 30) no penalice a estaciones con cobertura completa
+    // de esos 14 días como si les faltaran los 16 restantes.
+    const muestrasEsperadas = diasEsperados(anio, mes, ultimoDia) * 13;
 
     return estacionesBase.map((e): EstacionConLectura => {
         const f = porId.get(e.id);
@@ -140,6 +152,16 @@ export interface PuntoMensual {
  * meses, volumen trivial). Usada por el Informe Geoclimático en modo
  * "mes específico" para mostrar tendencia, no solo el número aislado del
  * mes elegido.
+ *
+ * Una estación recién dada de alta puede tener un solo punto en el mes en
+ * curso (p.ej. de alta hoy mismo, a mediodía): su "promedio" no es un
+ * promedio de nada, es esa única lectura instantánea. Mezclado con estaciones
+ * que sí tienen el mes completo (día+noche, docenas de lecturas), ese punto
+ * dispara la escala de la gráfica y aplana las series reales — mismo umbral
+ * de cobertura (60% de lo esperado con la cadencia de sync ~13/día) que ya
+ * usa estacionesDesdeResumenMensual arriba para el modo "mes específico"; por
+ * debajo de eso el punto se omite (null = hueco en la línea) en vez de
+ * mostrarse con la misma confianza visual que un promedio robusto.
  */
 export async function obtenSerieMensual(meses: MesDisponible[]): Promise<PuntoMensual[]> {
     const resultados = await Promise.all(meses.map(async (m) => {
@@ -148,13 +170,19 @@ export async function obtenSerieMensual(meses: MesDisponible[]): Promise<PuntoMe
         const hasta = `${m.anio}-${String(m.mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
         const { data, error } = await supabase.rpc('fn_clima_resumen_mensual', { p_desde: desde, p_hasta: hasta });
         if (error || !data) return [];
-        return (data as FilaResumenMensual[]).map((f): PuntoMensual => ({
-            anio: m.anio, mes: m.mes,
-            estacionId: f.estacion_id, estacionNombre: f.estacion_nombre,
-            tempCProm: f.temp_c_prom, vientoMsProm: f.viento_ms_prom,
-            radSolarWm2Prom: f.rad_solar_wm2_prom, lluviaMmAcumulada: f.lluvia_mm_acumulada,
-            nMuestras: f.n_muestras,
-        }));
+        const muestrasEsperadas = diasEsperados(m.anio, m.mes, ultimoDia) * 13;
+        return (data as FilaResumenMensual[]).map((f): PuntoMensual => {
+            const confiable = f.n_muestras / muestrasEsperadas >= 0.6;
+            return {
+                anio: m.anio, mes: m.mes,
+                estacionId: f.estacion_id, estacionNombre: f.estacion_nombre,
+                tempCProm: confiable ? f.temp_c_prom : null,
+                vientoMsProm: confiable ? f.viento_ms_prom : null,
+                radSolarWm2Prom: confiable ? f.rad_solar_wm2_prom : null,
+                lluviaMmAcumulada: confiable ? f.lluvia_mm_acumulada : null,
+                nMuestras: f.n_muestras,
+            };
+        });
     }));
     return resultados.flat();
 }

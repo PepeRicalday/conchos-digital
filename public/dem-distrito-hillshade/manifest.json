@@ -1,6 +1,6 @@
 {
-  "ncols": 183,
-  "nrows": 191,
+  "ncols": 1370,
+  "nrows": 2632,
   "bbox": [
     -105.672304,
     27.45251344,
@@ -8,68 +8,69 @@
     28.40497356
   ],
   "zfactor": 2.2,
+  "ambiente": 0.45,
   "grisMin": 30,
   "grisMax": 235,
-  "fuenteDEM": "Copernicus DEM GLO-30 (OpenTopography), grilla 183x191",
-  "fuenteTextura": "Sentinel-2 L2A TRUE_COLOR (Sentinel Hub, CDSE), escena 2026-08-25, nubosidad 0%",
+  "fuenteDEM": "Copernicus DEM GLO-30 (OpenTopography), grilla 401x381 (~30m/px nativo, descargado en 3 franjas horizontales por límite de memoria del edge runtime)",
+  "fuenteTextura": "Sentinel-2 L2A TRUE_COLOR (Sentinel Hub, CDSE) — mosaico de 6 cuadrantes (3 filas x 2 columnas, límite Sentinel Hub de 2500px/lado por request), ~20m/px, cosidos a 2740x5265 y reescalados a la mitad (1370x2632) para el JPG final",
   "generadoEn": "2026-09-14",
-  "notas": "Re-sintetizado 2026-09-14 con el bbox real de extentModulos() (6 modulos SRL + estaciones Modulo 1/3/5 + Riego San Rafael + punto Boquilla + margen 12%), reemplazando el bbox angosto original (solo bbox de los poligonos de modulo) que dejaba bordes vacios una vez corregido el estiramiento (preserveAspectRatio xMidYMid slice) en exportClimaGeoInforme.ts. Misma escena Sentinel-2 que la generacion anterior (ventana de 60 dias aun la devuelve).",
+  "notas": "Segunda regeneración de la sesión 2026-09-14: resolución subida de 86m/px (DEM 183x191, textura única 42m/px) a DEM 401x381 + textura 20m/px cosida de 6 cuadrantes, luego reescalada a la mitad (1370x2632, ~4.6x más denso que el asset anterior 640x1222) para mantener el peso total del set en ~6MB (informe HTML con data URIs). Fix de brillo: el algoritmo de Horn con elevación solar real alta (~75° a mediodía en esta latitud) hacía que el término cos(altitud) dominara y el hillshade saliera ~3x más oscuro que el asset de referencia incluso en terreno plano (comportamiento físicamente correcto pero visualmente pobre) — se agregó un piso de luz ambiental (ambiente=0.45: shaded_final = 0.45 + 0.55*shaded) antes de mapear a gris [30,235], mismo recurso que usan los renderizadores GIS profesionales para evitar laderas totalmente negras.",
   "angulos": [
     {
       "id": "amanecer_ne",
       "azimut": 70,
       "elevacion": 12,
       "archivo": "fondo_amanecer_ne.jpg",
-      "bytes": 63099
+      "bytes": 862277
     },
     {
       "id": "manana_e",
       "azimut": 95,
       "elevacion": 35,
       "archivo": "fondo_manana_e.jpg",
-      "bytes": 108681
+      "bytes": 821011
     },
     {
       "id": "media_manana_se",
       "azimut": 120,
       "elevacion": 55,
       "archivo": "fondo_media_manana_se.jpg",
-      "bytes": 133547
+      "bytes": 753773
     },
     {
       "id": "mediodia_alto",
       "azimut": 160,
       "elevacion": 75,
       "archivo": "fondo_mediodia_alto.jpg",
-      "bytes": 147287
+      "bytes": 657145
     },
     {
       "id": "tarde_sw",
       "azimut": 220,
       "elevacion": 55,
       "archivo": "fondo_tarde_sw.jpg",
-      "bytes": 133743
+      "bytes": 754046
     },
     {
       "id": "media_tarde_w",
       "azimut": 260,
       "elevacion": 35,
       "archivo": "fondo_media_tarde_w.jpg",
-      "bytes": 108653
+      "bytes": 821368
     },
     {
       "id": "atardecer_nw",
       "azimut": 285,
       "elevacion": 15,
       "archivo": "fondo_atardecer_nw.jpg",
-      "bytes": 69407
+      "bytes": 859473
     },
     {
       "id": "crepusculo",
       "azimut": 295,
       "elevacion": 6,
       "archivo": "fondo_crepusculo.jpg",
-      "bytes": 47020
+      "bytes": 866799
     }
   ]
 }

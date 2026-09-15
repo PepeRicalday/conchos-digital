@@ -38,13 +38,43 @@ export async function obtenMesesDisponibles(): Promise<MesDisponible[]> {
     return (data as any[]).map(r => ({ anio: r.anio, mes: r.mes, nLecturas: Number(r.n_lecturas) }));
 }
 
+/** Fecha (YYYY-MM-DD) de la lectura MÁS ANTIGUA de toda la red — cacheada en
+ *  el módulo porque no cambia durante la sesión (el pasado no se reescribe) y
+ *  varias llamadas a estacionesDesdeResumenMensual/obtenSerieMensual en el
+ *  mismo informe no necesitan repetir la consulta. Usada por diasEsperados()
+ *  para no penalizar el primer mes de operación de la red (ver ahí). */
+let primerDiaConDatosCache: string | null | undefined;
+async function primerDiaConDatos(): Promise<string | null> {
+    if (primerDiaConDatosCache !== undefined) return primerDiaConDatosCache;
+    const { data, error } = await supabase
+        .from('clima_estacion_lecturas')
+        .select('ts')
+        .order('ts', { ascending: true })
+        .limit(1);
+    primerDiaConDatosCache = (!error && data?.[0]?.ts) ? String(data[0].ts).slice(0, 10) : null;
+    return primerDiaConDatosCache;
+}
+
 /** Días a considerar para el umbral de cobertura de un mes: si el mes ya
  *  terminó, sus días totales; si es el mes en curso, los transcurridos hasta
- *  hoy (un mes a la mitad no puede pedir cobertura del mes completo). */
-function diasEsperados(anio: number, mes: number, ultimoDia: number): number {
+ *  hoy (un mes a la mitad no puede pedir cobertura del mes completo).
+ *
+ * PRIMER MES DE LA RED (ej. julio 2026, red dada de alta el 18): sin este
+ * ajuste, un mes que arrancó a mitad de camino se compara contra sus 31 días
+ * completos — con solo ~14 días de datos posibles, la cobertura nunca pasa
+ * ~45-50% aunque esos 14 días estén perfectamente completos, y el punto se
+ * descarta como "no confiable" (hueco en la gráfica) cuando en realidad el
+ * dato es bueno, solo cubre menos días porque antes NO EXISTÍA la estación.
+ * `piso` acota el conteo de días esperados a partir de esa fecha real. */
+function diasEsperados(anio: number, mes: number, ultimoDia: number, piso?: string | null): number {
     const hoy = new Date();
     const esMesActual = anio === hoy.getFullYear() && mes === hoy.getMonth() + 1;
-    return esMesActual ? Math.min(ultimoDia, hoy.getDate()) : ultimoDia;
+    let dias = esMesActual ? Math.min(ultimoDia, hoy.getDate()) : ultimoDia;
+    if (piso) {
+        const [pAnio, pMes, pDia] = piso.split('-').map(Number);
+        if (pAnio === anio && pMes === mes) dias = dias - pDia + 1; // desde el día de alta hasta el fin del rango ya calculado
+    }
+    return Math.max(1, dias);
 }
 
 interface FilaResumenMensual {
@@ -88,8 +118,10 @@ export async function estacionesDesdeResumenMensual(
     // reducida (mes en curso, estación intermitente). diasEsperados() usa
     // días TRANSCURRIDOS, no el total del mes, para que un mes en curso
     // (p.ej. día 14 de 30) no penalice a estaciones con cobertura completa
-    // de esos 14 días como si les faltaran los 16 restantes.
-    const muestrasEsperadas = diasEsperados(anio, mes, ultimoDia) * 13;
+    // de esos 14 días como si les faltaran los 16 restantes. `piso` acota
+    // además el primer mes de la red completa (ver diasEsperados).
+    const piso = await primerDiaConDatos();
+    const muestrasEsperadas = diasEsperados(anio, mes, ultimoDia, piso) * 13;
 
     return estacionesBase.map((e): EstacionConLectura => {
         const f = porId.get(e.id);
@@ -144,6 +176,11 @@ export interface PuntoMensual {
     radSolarWm2Prom: number | null;
     lluviaMmAcumulada: number | null;
     nMuestras: number;
+    /** true si este mes es el PRIMERO con datos de toda la red (arrancó a
+     *  mitad de mes calendario, ver diasEsperados) — el consumidor (gráfica
+     *  de evolución) debe marcarlo como parcial en vez de presentarlo como un
+     *  mes calendario completo más. */
+    parcial: boolean;
 }
 
 /**
@@ -164,13 +201,15 @@ export interface PuntoMensual {
  * mostrarse con la misma confianza visual que un promedio robusto.
  */
 export async function obtenSerieMensual(meses: MesDisponible[]): Promise<PuntoMensual[]> {
+    const piso = await primerDiaConDatos();
     const resultados = await Promise.all(meses.map(async (m) => {
         const desde = `${m.anio}-${String(m.mes).padStart(2, '0')}-01`;
         const ultimoDia = new Date(m.anio, m.mes, 0).getDate();
         const hasta = `${m.anio}-${String(m.mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
         const { data, error } = await supabase.rpc('fn_clima_resumen_mensual', { p_desde: desde, p_hasta: hasta });
         if (error || !data) return [];
-        const muestrasEsperadas = diasEsperados(m.anio, m.mes, ultimoDia) * 13;
+        const muestrasEsperadas = diasEsperados(m.anio, m.mes, ultimoDia, piso) * 13;
+        const esPrimerMesDeLaRed = !!piso && piso.startsWith(`${m.anio}-${String(m.mes).padStart(2, '0')}`);
         return (data as FilaResumenMensual[]).map((f): PuntoMensual => {
             const confiable = f.n_muestras / muestrasEsperadas >= 0.6;
             return {
@@ -181,6 +220,7 @@ export async function obtenSerieMensual(meses: MesDisponible[]): Promise<PuntoMe
                 radSolarWm2Prom: confiable ? f.rad_solar_wm2_prom : null,
                 lluviaMmAcumulada: confiable ? f.lluvia_mm_acumulada : null,
                 nMuestras: f.n_muestras,
+                parcial: esPrimerMesDeLaRed,
             };
         });
     }));

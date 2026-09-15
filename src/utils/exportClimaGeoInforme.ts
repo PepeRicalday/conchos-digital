@@ -32,6 +32,7 @@ import { assetToDataURI } from './assetToDataURI';
 import { resuelveFondoHillshade, LEYENDA_VIIRS, type FondoHillshade, type FondoNocturno } from './mapaHillshadeDEM';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
+import { nombreMes } from './nombreMes';
 
 const SRL_MARRON = '#6B2D2D';
 
@@ -54,7 +55,10 @@ export interface OpcionesGeoInforme {
      * gráfica de evolución (el mapa del corte actual sí se muestra siempre).
      */
     serieMensual?: Array<{ anio: number; mes: number; estacionId: string; estacionNombre: string;
-        tempCProm: number | null; vientoMsProm: number | null; radSolarWm2Prom: number | null; lluviaMmAcumulada: number | null }>;
+        tempCProm: number | null; vientoMsProm: number | null; radSolarWm2Prom: number | null; lluviaMmAcumulada: number | null;
+        /** true si este mes es el primero con datos de toda la red (arrancó a
+         *  mitad de mes calendario) — ver diasEsperados en climaResumenMensual.ts. */
+        parcial?: boolean }>;
 }
 
 /** Escapa texto para insertarlo dentro de SVG/HTML — un nombre de estación
@@ -1125,7 +1129,14 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
     // Independiente del corte del mapa: se muestra siempre que haya datos.
     const mesesSerie = opciones.serieMensual?.length
         ? Array.from(new Set(opciones.serieMensual.map(p => `${p.anio}-${p.mes}`)))
-            .map(k => { const [anio, mes] = k.split('-').map(Number); return { anio, mes }; })
+            .map(k => {
+                const [anio, mes] = k.split('-').map(Number);
+                // `parcial` es el mismo valor para todos los puntos de un mes
+                // (calculado por mes en obtenSerieMensual, no por estación) —
+                // basta con leerlo del primero que coincida.
+                const parcial = !!opciones.serieMensual!.find(p => p.anio === anio && p.mes === mes)?.parcial;
+                return { anio, mes, parcial };
+            })
             .sort((a, b) => a.anio - b.anio || a.mes - b.mes)
         : [];
     const CAMPO_SERIE: Record<VariableMapa['clave'], 'tempCProm' | 'vientoMsProm' | 'radSolarWm2Prom' | 'lluviaMmAcumulada'> = {
@@ -1206,10 +1217,18 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
             ${(() => {
                 const svgEvolucion = graficaEvolucion(cfg);
                 if (!svgEvolucion) return '';
+                const mesParcial = mesesSerie.find(m => m.parcial);
+                // Nota del asterisco SOLO si el mes parcial realmente entró en
+                // esta gráfica (mesesSerie es el mismo para las 4 variables,
+                // así que basta con buscarlo una vez) — evita una nota huérfana
+                // si en algún momento se filtran los meses por variable.
+                const notaParcial = mesParcial
+                    ? ` <b>*${esc(nombreMes(mesParcial.mes))} ${mesParcial.anio}</b> es el primer mes con datos de la red — no cubre el mes calendario completo (la red de estaciones se dio de alta a mitad de mes), por eso el valor mostrado cubre solo los días con estación activa, no los 30/31 días.`
+                    : '';
                 return `<figure class="fig">
                     <figcaption>
                         <b>Evolución mensual — ${esc(cfg.titulo)}</b>
-                        <span>${cfg.clave === 'lluviaDiaMm' ? 'Acumulado' : 'Promedio'} por estación, mes a mes. Un hueco en la línea indica un mes sin lectura suficiente, nunca se interpola entre meses.</span>
+                        <span>${cfg.clave === 'lluviaDiaMm' ? 'Acumulado' : 'Promedio'} por estación, mes a mes. Un hueco en la línea indica un mes sin lectura suficiente, nunca se interpola entre meses.${notaParcial}</span>
                     </figcaption>
                     ${svgEvolucion}
                 </figure>`;

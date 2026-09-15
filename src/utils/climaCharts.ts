@@ -552,7 +552,11 @@ export function franjaCalidad(
  */
 export function graficaEvolucionMensual(
     titulo: string, unidad: string,
-    meses: { anio: number; mes: number }[],
+    /** `parcial`: true si ese mes es el primero con datos de toda la red
+     *  (arrancó a mitad de mes calendario, no cubre el mes completo) — se
+     *  marca con un asterisco en el eje X; el llamador debe mostrar la nota
+     *  explicativa correspondiente fuera del SVG (ver exportClimaGeoInforme.ts). */
+    meses: { anio: number; mes: number; parcial?: boolean }[],
     series: { nombre: string; valores: (number | null)[] }[],
     /** true para variables que nunca son negativas (viento, radiación,
      *  precipitación) — el eje no baja de 0 aunque el margen dinámico lo
@@ -603,7 +607,7 @@ export function graficaEvolucionMensual(
 
     const ejeX = meses.map((m, i) =>
         `<text x="${x(i).toFixed(1)}" y="${H - H_LEYENDA - 8}" text-anchor="middle" font-size="9"
-               fill="${VIZ.inkMuted}" font-family="system-ui">${NOMBRES_MES_CORTO[m.mes - 1]}</text>`).join('');
+               fill="${VIZ.inkMuted}" font-family="system-ui">${NOMBRES_MES_CORTO[m.mes - 1]}${m.parcial ? '*' : ''}</text>`).join('');
 
     // ── Leyenda: línea-clave (form 'linea') o swatch (form 'barras'), nunca
     // una caja de color que compita en peso visual con las marcas de datos.

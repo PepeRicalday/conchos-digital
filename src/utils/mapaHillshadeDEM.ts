@@ -53,6 +53,26 @@
 // imagen de esa noche real (condición estricta con la que el usuario aprobó
 // esta capa).
 //
+// RELIEVE SOBRE VIIRS (2026-09-14): VIIRS_Black_Marble en GIBS solo existe
+// en el TileMatrixSet GoogleMapsCompatible_Level8 (confirmado contra el
+// WMTSCapabilities real: zoom 9/10 devuelven 400 con cualquier
+// TileMatrixSet) — no hay forma de pedir más resolución a esta fuente, así
+// que sin relieve el fondo nocturno se veía como una imagen plana de puntos
+// de luz sobre negro, sin sensación de terreno (inconsistente con el fondo
+// de día, que sí tiene relieve DEM). Se compone el mismo DEM (Copernicus
+// GLO-30, z-factor 2.2, mismo algoritmo de Horn + piso de luz ambiental 0.45
+// que el fondo de día) como un hillshade PURO pre-calculado
+// (hillshade_noche_315_45.jpg, ver HILLSHADE_NOCHE abajo) con iluminación
+// FIJA convencional 315°NO/45° (no hay sol real que calcular de noche, a
+// diferencia de los 8 ángulos del fondo de día) — se multiplica sobre el
+// mosaico VIIRS en el propio canvas del navegador (globalCompositeOperation
+// 'multiply') antes de exportar a data URI: el relieve oscurece las laderas
+// en sombra sin apagar las luces del valle agrícola (donde el hillshade
+// sale casi blanco). A diferencia del fondo de día, aquí NO se pre-compone
+// el JPEG final (el mosaico VIIRS varía según qué teselas toque descargar
+// por bbox, no es un asset fijo) — el hillshade es el único componente
+// estático, la composición ocurre en tiempo de generación del informe.
+//
 // Por qué el fetch de VIIRS vive AQUÍ y no en Clima.tsx: capaNubesGIBS.ts ya
 // sienta el precedente de que un archivo "generador de informe" puede hacer
 // fetch directo a GIBS desde el navegador en tiempo de generación — el
@@ -196,6 +216,22 @@ const VIIRS_FECHA_TESELA = '2016-01-01';
  *  usar este layer (composite fijo, no tiempo real). */
 export const LEYENDA_VIIRS = 'Luces nocturnas: referencia 2016 (VIIRS Black Marble), no tiempo real';
 
+/** Hillshade puro (escala de grises, sin textura) para multiplicar sobre el
+ *  mosaico VIIRS — mismo DEM y z-factor que el fondo de día, pero con
+ *  iluminación FIJA convencional 315°NO/45° (no hay sol real que calcular de
+ *  noche). Cubre el mismo BBOX_HILLSHADE_DISTRITO que los 8 JPG de día. */
+const HILLSHADE_NOCHE_ARCHIVO = 'hillshade_noche_315_45.jpg';
+
+function cargaImagenComoElement(url: string): Promise<HTMLImageElement | null> {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = url;
+    });
+}
+
 function lon2tileWebMercator(lon: number, z: number): number { return ((lon + 180) / 360) * 2 ** z; }
 function lat2tileWebMercator(lat: number, z: number): number {
     const r = (lat * Math.PI) / 180;
@@ -205,16 +241,6 @@ function tile2lon(x: number, z: number): number { return (x / 2 ** z) * 360 - 18
 function tile2lat(y: number, z: number): number {
     const n = Math.PI - (2 * Math.PI * y) / 2 ** z;
     return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
-}
-
-function cargaTeselaVIIRS(url: string): Promise<HTMLImageElement | null> {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => resolve(img);
-        img.onerror = () => resolve(null);
-        img.src = url;
-    });
 }
 
 export interface FondoNocturno {
@@ -253,7 +279,7 @@ export async function construyeFondoNocturnoVIIRS(
             for (let tx = x0; tx <= x1; tx++) {
                 const url = `${VIIRS_TILE_URL_BASE}/${VIIRS_LAYER}/default/${VIIRS_FECHA_TESELA}/`
                     + `${VIIRS_TILE_MATRIX_SET}/${VIIRS_ZOOM}/${ty}/${tx}.png`;
-                trabajos.push(cargaTeselaVIIRS(url).then((img) => {
+                trabajos.push(cargaImagenComoElement(url).then((img) => {
                     if (!img) return false;
                     ctx.drawImage(img, (tx - x0) * TILE_PX, (ty - y0) * TILE_PX);
                     return true;
@@ -262,6 +288,29 @@ export async function construyeFondoNocturnoVIIRS(
         }
         const logradas = (await Promise.all(trabajos)).filter(Boolean).length;
         if (logradas < nx * ny) return null;
+
+        // Relieve DEM multiplicado sobre las luces (ver nota HILLSHADE_NOCHE
+        // arriba) — falla silenciosa si el asset no carga (offline, 404): el
+        // mosaico VIIRS ya está completo y sigue siendo un fondo válido sin
+        // relieve, no vale la pena descartar todo el trabajo de las teselas
+        // por esto. El hillshade cubre BBOX_HILLSHADE_DISTRITO, que NO
+        // coincide con el bbox de teselas de este canvas (más ancho, definido
+        // por los límites de tesela de VIIRS_ZOOM) — se dibuja proyectando su
+        // propio bbox real a coordenadas de píxel de ESTE canvas, mismo
+        // principio que mapaVariableSVG usa para posicionar el fondo de día
+        // sin asumir que los bboxes coinciden.
+        const mosaicoWest = tile2lon(x0, VIIRS_ZOOM), mosaicoEast = tile2lon(x1 + 1, VIIRS_ZOOM);
+        const mosaicoNorth = tile2lat(y0, VIIRS_ZOOM), mosaicoSur = tile2lat(y1 + 1, VIIRS_ZOOM);
+        const hillshadeImg = await cargaImagenComoElement(`${DIR_HILLSHADE}/${HILLSHADE_NOCHE_ARCHIVO}`);
+        if (hillshadeImg) {
+            const lonToPx = (lon: number) => ((lon - mosaicoWest) / (mosaicoEast - mosaicoWest)) * W;
+            const latToPx = (lat: number) => ((mosaicoNorth - lat) / (mosaicoNorth - mosaicoSur)) * H;
+            const hx = lonToPx(BBOX_HILLSHADE_DISTRITO.west), hy = latToPx(BBOX_HILLSHADE_DISTRITO.north);
+            const hw = lonToPx(BBOX_HILLSHADE_DISTRITO.east) - hx, hh = latToPx(BBOX_HILLSHADE_DISTRITO.south) - hy;
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.drawImage(hillshadeImg, hx, hy, hw, hh);
+            ctx.globalCompositeOperation = 'source-over';
+        }
 
         return {
             modo: 'noche',

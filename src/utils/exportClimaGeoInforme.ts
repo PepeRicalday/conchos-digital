@@ -272,67 +272,26 @@ function extentModulos(estaciones: EstacionConLectura[]): { minLo: number; maxLo
     return { minLo: minLo - mLo, maxLo: maxLo + mLo, minLa: minLa - mLa, maxLa: maxLa + mLa };
 }
 
-/** Ray-casting estándar: ¿el punto [lon,lat] cae dentro del anillo? */
-function puntoEnPoligono(lon: number, lat: number, ring: [number, number][]): boolean {
-    let dentro = false;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        const [xi, yi] = ring[i], [xj, yj] = ring[j];
-        const cruza = (yi > lat) !== (yj > lat) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
-        if (cruza) dentro = !dentro;
-    }
-    return dentro;
-}
-
-function puntoEnAlgunModulo(lon: number, lat: number): boolean {
-    return Object.values(MODULOS_SRL).some(ring => puntoEnPoligono(lon, lat, ring));
-}
-
-/** Distancia mínima (en grados, aproximada) de un punto a un segmento. */
-function distPuntoSegmento(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
-    const dx = bx - ax, dy = by - ay;
-    const len2 = dx * dx + dy * dy;
-    const t = len2 > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2)) : 0;
-    const cx = ax + t * dx, cy = ay + t * dy;
-    return Math.hypot(px - cx, py - cy);
-}
-
-/** Distancia mínima de un punto al borde de CUALQUIER módulo (en grados de
- *  longitud, ya corregidos por cos(lat) para que sea comparable a distancia
- *  real, no solo grados crudos). Usada para el buffer suave del raster. */
-function distanciaABordeModulos(lon: number, lat: number, kx: number): number {
-    let min = Infinity;
-    for (const ring of Object.values(MODULOS_SRL)) {
-        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-            const d = distPuntoSegmento(lon * kx, lat, ring[i][0] * kx, ring[i][1], ring[j][0] * kx, ring[j][1]);
-            if (d < min) min = d;
-        }
-    }
-    return min;
-}
-
 /**
  * Raster de fondo: grilla fina de celdas cuadradas, cada una coloreada por el
  * valor interpolado IDW en su centro (color CONTINUO, no de escalón) —
- * produce el efecto de "isla de calor" suave alrededor de cada estación, en
- * vez de polígonos de color plano. El color se extiende un BUFFER suave más
- * allá del borde de cada módulo (con opacidad decreciente hacia el límite del
- * buffer) — los contornos de módulo son una referencia visual encima, no una
- * máscara de recorte estricta (pedido explícito del usuario: que el color
- * "no se limite al polígono", como en los mapas de referencia gubernamentales
- * que pintan todo el estado, no solo cada municipio). Referencia visual:
- * mapas de precipitación CONABIO/SDR Chihuahua.
+ * produce el efecto de "isla de calor" suave dentro de cada módulo.
+ *
+ * Ya NO decide celda por celda si pintar (puntoEnAlgunModulo): un recorte por
+ * celda cuadrada de 9px deja un borde "escalonado" (dientes de sierra) contra
+ * el contorno real del módulo, que es una curva — detectado por captura de
+ * pantalla 2026-09-14 tras el primer intento de recorte estricto. El
+ * recorte real ahora lo hace un <clipPath> vectorial con el path exacto de
+ * los polígonos (ver clipModulosSVG en mapaVariableSVG), que da un borde
+ * perfectamente curvo sin escalones — esta función solo pinta la grilla
+ * completa del extent, sin preocuparse de fronteras.
  */
 function rasterCalorSVG(
     cfg: VariableMapa, muestras: EstacionMuestra[], rango: { min: number; max: number },
     sx: (lo: number) => number, sy: (la: number) => number,
     minLo: number, maxLo: number, minLa: number, maxLa: number,
-    kx: number,
 ): string {
     const CELDA_PX = 9; // tamaño de celda en píxeles de salida — suficientemente fino para verse suave, sin generar miles de <rect>
-    // Buffer en grados: ~12% del ancho del extent (mismo orden que el margen
-    // de encuadre), suficiente para que el color respire más allá del borde
-    // sin llegar a cubrir todo el rectángulo del lienzo.
-    const BUFFER_DEG = (maxLo - minLo) * 0.1;
     const W_PX = sx(maxLo) - sx(minLo);
     const H_PX = sy(minLa) - sy(maxLa);
     const cols = Math.max(1, Math.round(W_PX / CELDA_PX));
@@ -342,25 +301,40 @@ function rasterCalorSVG(
         const la = maxLa - ((r + 0.5) / rows) * (maxLa - minLa);
         for (let c = 0; c < cols; c++) {
             const lo = minLo + ((c + 0.5) / cols) * (maxLo - minLo);
-            const dentro = puntoEnAlgunModulo(lo, la);
-            // Fuera del polígono: se pinta igual dentro del BUFFER, con
-            // opacidad decreciente hacia el límite — así el color "respira"
-            // más allá del contorno en vez de cortar en seco, sin llegar a
-            // cubrir el rectángulo completo del lienzo.
-            let opacidad = 1;
-            if (!dentro) {
-                const d = distanciaABordeModulos(lo, la, kx);
-                if (d > BUFFER_DEG) continue;
-                opacidad = 1 - d / BUFFER_DEG;
-            }
             const resultado = interpolaClimaEnPunto({ lat: la, lon: lo }, muestras);
             const color = colorContinuoEnRampa(resultado[cfg.clave], cfg, rango);
             const x = sx(minLo) + c * (W_PX / cols), y = sy(maxLa) + r * (H_PX / rows);
-            const op = opacidad < 1 ? ` fill-opacity="${opacidad.toFixed(2)}"` : '';
-            rects.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(W_PX / cols + 0.6).toFixed(1)}" height="${(H_PX / rows + 0.6).toFixed(1)}" fill="${color}"${op}/>`);
+            rects.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(W_PX / cols + 0.6).toFixed(1)}" height="${(H_PX / rows + 0.6).toFixed(1)}" fill="${color}"/>`);
         }
     }
     return rects.join('');
+}
+
+/**
+ * Construye el <clipPath> vectorial con la unión de los 6 polígonos de
+ * módulo, ligeramente EXPANDIDOS (dilatación radial simple desde el
+ * centroide de cada anillo, ~4px en espacio de pantalla) — el usuario pidió
+ * expresamente que el color pueda sobresalir un poco del contorno exacto con
+ * tal de que el borde se vea curvo y limpio, no escalonado. Varios <path>
+ * dentro de un mismo <clipPath> se unen (nonzero fill-rule por defecto): el
+ * área visible es la unión de los 6, exactamente lo que se necesita para
+ * recortar un único raster continuo.
+ */
+function clipModulosSVG(id: string, sx: (lo: number) => number, sy: (la: number) => number): string {
+    const EXPANSION_PX = 4;
+    const paths = Object.values(MODULOS_SRL).map(ring => {
+        const pts = ring.map(([lo, la]) => [sx(lo), sy(la)] as [number, number]);
+        const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+        const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+        const expandido = pts.map(([x, y]) => {
+            const dx = x - cx, dy = y - cy;
+            const d = Math.hypot(dx, dy) || 1;
+            return [x + (dx / d) * EXPANSION_PX, y + (dy / d) * EXPANSION_PX] as [number, number];
+        });
+        const d = expandido.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ') + ' Z';
+        return `<path d="${d}"/>`;
+    }).join('');
+    return `<clipPath id="${id}">${paths}</clipPath>`;
 }
 
 /**
@@ -417,7 +391,7 @@ function mapaVariableSVG(
     // recortado al polígono — ver rasterCalorSVG(). Referencia visual: mapas
     // de precipitación CONABIO/SDR Chihuahua.
     const muestrasIDW = estaciones.map(estacionAMuestra);
-    const rasterSVG = rasterCalorSVG(cfg, muestrasIDW, rango, sx, sy, minLo, maxLo, minLa, maxLa, kx);
+    const rasterSVG = rasterCalorSVG(cfg, muestrasIDW, rango, sx, sy, minLo, maxLo, minLa, maxLa);
 
     // Fondo de relieve/satelital real (mapaHillshadeDEM.ts) — va DETRÁS del
     // raster de color: el dato climático sigue siendo la variable principal,
@@ -429,12 +403,9 @@ function mapaVariableSVG(
     // (escala de grises) se mezcla con `mix-blend-mode:multiply` para que
     // nunca aclare el raster de color por encima de sí mismo (solo puede
     // oscurecerlo, igual que una sombra real sobre un mapa impreso); el
-    // fondo noche (VIIRS, ya es una foto a color) usa opacidad reducida en
-    // vez de multiply, porque multiply sobre una imagen ya oscura la dejaría
-    // casi negra.
+    // fondo noche (VIIRS) usa opacidad reducida en vez de multiply, porque
+    // multiply sobre una imagen ya oscura la dejaría casi negra.
     const fondoSVG = fondo ? (() => {
-        const fx = sx(minLo), fy = sy(maxLa);
-        const fw = sx(maxLo) - sx(minLo), fh = sy(minLa) - sy(maxLa);
         // Tanto de día como de noche, el fondo se dibuja con SU PROPIO bbox
         // real (fondo.minLon/maxLon/minLat/maxLat), nunca estirado al extent
         // del mapa (minLo/maxLo/minLa/maxLa, que varía por variable e incluye
@@ -460,8 +431,14 @@ function mapaVariableSVG(
             // del dato climático (sigue siendo la capa más superficial).
             return `<image href="${fondo.dataURI}" x="${px.toFixed(1)}" y="${py.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" preserveAspectRatio="xMidYMid slice" style="mix-blend-mode:multiply" opacity="0.85"/>`;
         }
-        return `<image href="${fondo.dataURI}" x="${px.toFixed(1)}" y="${py.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" preserveAspectRatio="xMidYMid slice" opacity="0.8"/>
-                <rect x="${fx.toFixed(1)}" y="${fy.toFixed(1)}" width="${fw.toFixed(1)}" height="${fh.toFixed(1)}" fill="#0a1128" opacity="0.32" style="mix-blend-mode:multiply"/>`;
+        // Sin velo azul plano encima (existía para dar ambiente nocturno
+        // cuando VIIRS no tenía relieve propio) — ahora que
+        // construyeFondoNocturnoVIIRS() multiplica un hillshade DEM real
+        // dentro del propio dataURI (mapaHillshadeDEM.ts, 2026-09-14), un
+        // velo uniforme por encima solo apagaba ese relieve recién agregado
+        // (bug reportado por el usuario: "lo veo igual" tras el cambio,
+        // confirmado numéricamente — el velo bajaba el brillo medio ~29%).
+        return `<image href="${fondo.dataURI}" x="${px.toFixed(1)}" y="${py.toFixed(1)}" width="${pw.toFixed(1)}" height="${ph.toFixed(1)}" preserveAspectRatio="xMidYMid slice" opacity="0.9"/>`;
     })() : '';
 
     // Contornos: SOLO borde + tramado sobre módulos interpolados (el color ya
@@ -774,11 +751,14 @@ function mapaVariableSVG(
             <line x1="0" y1="0" x2="0" y2="7" stroke="#ffffff" stroke-opacity="0.4" stroke-width="3"/>
           </pattern>
           ${marcoClip}
+          ${clipModulosSVG(`clipModulos${cfg.clave}`, sx, sy)}
         </defs>
         <rect x="${P}" y="${P}" width="${W - 2 * P}" height="${H - 2 * P}" fill="#eef2f6"/>
         <g clip-path="url(#marcoGeo${cfg.clave})">
           ${fondoSVG}
-          ${rasterSVG}
+          <g clip-path="url(#clipModulos${cfg.clave})">
+            ${rasterSVG}
+          </g>
         </g>
         ${decGrid.join('')}
         <rect x="${P}" y="${P}" width="${W - 2 * P}" height="${H - 2 * P}" fill="none" stroke="${VIZ.grid}" stroke-width="1.5"/>

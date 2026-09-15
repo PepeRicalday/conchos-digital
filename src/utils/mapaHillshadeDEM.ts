@@ -268,11 +268,29 @@ export async function construyeFondoNocturnoVIIRS(
         const nx = x1 - x0 + 1, ny = y1 - y0 + 1;
         if (nx < 1 || ny < 1 || nx * ny > 40) return null;
 
-        const W = nx * TILE_PX, H = ny * TILE_PX;
-        const canvas = document.createElement('canvas');
-        canvas.width = W; canvas.height = H;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return null;
+        // VIIRS Black Marble está topada en zoom 8 en TODO GIBS (verificado
+        // 2026-09-14 contra el WMTSCapabilities real: cada variante de night
+        // lights del catálogo —DayNightBand, GapFilled, CityLights— vive como
+        // máximo en GoogleMapsCompatible_Level7/8, límite de la resolución
+        // real del sensor VIIRS DNB [~750m/px], no de esta capa en particular
+        // — no existe una fuente GIBS con más detalle real de luces
+        // nocturnas). El mosaico crudo (256px/tesela) se dibuja primero en un
+        // canvas de trabajo a su tamaño nativo, y de ahí se reescala a
+        // ESCALA_SUAVIZADO con imageSmoothingEnabled + filter blur —el
+        // upscale nativo del navegador (que dibuja el <image> SVG final más
+        // grande vía CSS) se veía "en bloques" duros porque no interpola
+        // entre ellos; este paso adelanta el escalado con interpolación
+        // bilineal + un desenfoque sutil, para que el resultado se lea como
+        // una imagen borrosa natural en vez de píxeles cuadrados — no agrega
+        // ningún dato real, solo mejora la percepción visual del mismo dato.
+        const ESCALA_SUAVIZADO = 3;
+        const wCrudo = nx * TILE_PX, hCrudo = ny * TILE_PX;
+        const W = wCrudo * ESCALA_SUAVIZADO, H = hCrudo * ESCALA_SUAVIZADO;
+
+        const canvasCrudo = document.createElement('canvas');
+        canvasCrudo.width = wCrudo; canvasCrudo.height = hCrudo;
+        const ctxCrudo = canvasCrudo.getContext('2d');
+        if (!ctxCrudo) return null;
 
         const trabajos: Promise<boolean>[] = [];
         for (let ty = y0; ty <= y1; ty++) {
@@ -281,13 +299,23 @@ export async function construyeFondoNocturnoVIIRS(
                     + `${VIIRS_TILE_MATRIX_SET}/${VIIRS_ZOOM}/${ty}/${tx}.png`;
                 trabajos.push(cargaImagenComoElement(url).then((img) => {
                     if (!img) return false;
-                    ctx.drawImage(img, (tx - x0) * TILE_PX, (ty - y0) * TILE_PX);
+                    ctxCrudo.drawImage(img, (tx - x0) * TILE_PX, (ty - y0) * TILE_PX);
                     return true;
                 }));
             }
         }
         const logradas = (await Promise.all(trabajos)).filter(Boolean).length;
         if (logradas < nx * ny) return null;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = W; canvas.height = H;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.filter = 'blur(2.5px)'; // suaviza los bordes de tesela sin borrar los clústeres de luz
+        ctx.drawImage(canvasCrudo, 0, 0, W, H);
+        ctx.filter = 'none';
 
         // Relieve DEM multiplicado sobre las luces (ver nota HILLSHADE_NOCHE
         // arriba) — falla silenciosa si el asset no carga (offline, 404): el

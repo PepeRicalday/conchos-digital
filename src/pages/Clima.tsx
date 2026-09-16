@@ -14,7 +14,8 @@ import { useClimaEstaciones, type EstacionConLectura, type LecturaClima } from '
 import { useClimaSkill } from '../hooks/useClimaSkill';
 import { exportClimaReport } from '../utils/exportClimaReport';
 import { exportClimaGeoInforme, type OpcionesGeoInforme } from '../utils/exportClimaGeoInforme';
-import { obtenMesesDisponibles, obtenSerieMensual } from '../utils/climaResumenMensual';
+import { obtenMesesDisponibles, obtenSerieMensual, estacionesDesdeResumenRango } from '../utils/climaResumenMensual';
+import { getTodayString } from '../utils/dateHelpers';
 import { GeoInformeOpcionesModal } from '../components/GeoInformeOpcionesModal';
 import { exportClimaInfografia, imagenClimaInfografia, agrupaPorDia, type DiaHistorico } from '../utils/exportClimaInfografia';
 import { supabase } from '../lib/supabase';
@@ -523,20 +524,91 @@ const Clima = () => {
         await exportClimaInfografia(estaciones, await historialInfografia());
     };
 
-    // Informe Geoclimático: el mapa de cada variable es SIEMPRE el corte
-    // actual (última lectura de `estaciones`, sin transformar). Además se
-    // resuelve la serie histórica completa (todos los meses con datos, ver
-    // climaResumenMensual.ts) para la gráfica de evolución de cada bloque —
-    // temperatura/viento/radiación como promedio, precipitación como
-    // acumulado (nunca promedio); un mes sin lectura queda como hueco, nunca
-    // interpolado. Ya no hay modo "mes específico" separado.
+    // Informe Geoclimático: sin periodo elegido en el modal, el mapa de cada
+    // variable es el corte actual (última lectura de `estaciones`, sin
+    // transformar) — comportamiento histórico sin cambios. Con periodo
+    // elegido, `estaciones` se sustituye por el AGREGADO de ese rango
+    // (estacionesDesdeResumenRango) para que TODO el informe (KPIs, alertas,
+    // tabla consolidada, mapas) recalcule sobre el periodo, no solo el corte.
+    // En ambos casos se resuelve además la serie mes a mes (climaResumenMensual.ts)
+    // para la gráfica/tabla de evolución de cada bloque — temperatura/viento/
+    // radiación como promedio, precipitación como acumulado (nunca promedio);
+    // acotada a los meses dentro del rango cuando hay uno elegido.
     const [generandoGeoInforme, setGenerandoGeoInforme] = useState(false);
     const generarGeoInforme = async (opciones: OpcionesGeoInforme) => {
         setGenerandoGeoInforme(true);
         try {
-            const meses = await obtenMesesDisponibles();
+            const todosLosMeses = await obtenMesesDisponibles();
+            // "Todo el histórico" (sin periodo elegido en el modal) ya NO es
+            // el corte de hoy: se resuelve como el rango real de la red,
+            // desde el primer mes con datos hasta hoy, y se trata como
+            // cualquier periodo explícito de aquí en adelante — así el mapa,
+            // el veredicto y la tabla por módulo muestran el ACUMULADO (o
+            // promedio, según variable) de todo el histórico en vez de solo
+            // la lectura del día en que se genera el informe. Antes, "Todo
+            // el histórico" dejaba periodoDesde/periodoHasta vacíos y el
+            // generador usaba `estaciones` tal cual (el corte actual) — el
+            // nombre de la opción prometía un acumulado que nunca se
+            // calculaba (reportado por el usuario 2026-09-16: precipitación
+            // con "Todo el histórico" solo mostraba la lluvia de hoy, no
+            // cuánto había llovido en el periodo).
+            // fn_clima_meses_disponibles no garantiza orden cronológico (se
+            // observó en orden descendente, más reciente primero) — el más
+            // antiguo se calcula explícitamente, nunca asumiendo todosLosMeses[0].
+            const primerMes = todosLosMeses.reduce<typeof todosLosMeses[number] | null>((min, m) => {
+                if (!min) return m;
+                return (m.anio < min.anio || (m.anio === min.anio && m.mes < min.mes)) ? m : min;
+            }, null);
+            const periodoDesde = opciones.periodoDesde
+                ?? (primerMes ? `${primerMes.anio}-${String(primerMes.mes).padStart(2, '0')}-01` : undefined);
+            const periodoHasta = opciones.periodoHasta ?? getTodayString();
+            const meses = periodoDesde && periodoHasta
+                ? todosLosMeses.filter(m => {
+                    const claveMes = `${m.anio}-${String(m.mes).padStart(2, '0')}`;
+                    return claveMes >= periodoDesde.slice(0, 7) && claveMes <= periodoHasta.slice(0, 7);
+                })
+                : todosLosMeses;
             const serieMensual = await obtenSerieMensual(meses);
-            await exportClimaGeoInforme(estaciones, { ...opciones, serieMensual });
+            const resumenRango = periodoDesde && periodoHasta
+                ? await estacionesDesdeResumenRango(estaciones, periodoDesde, periodoHasta)
+                : null;
+            // "Todo el histórico" = el usuario NO eligió fechas en el modal
+            // (opciones.periodoDesde/periodoHasta ORIGINALES, antes de la
+            // derivación de arriba). Ahí, la precipitación que debe fluir por
+            // TODO el informe (KPI, mapa por módulo, tabla por módulo,
+            // veredicto — todos leen lluvia_dia_mm vía estacionAMuestra en
+            // exportClimaGeoInforme.ts) es el contador "acum. temporada" de
+            // la CONSOLA FÍSICA (lluvia_anio_mm de la lectura real), no el
+            // acumulado reconstruido desde la BD: la consola puede llevar
+            // registrando lluvia desde ANTES de que SICA-005 empezara a
+            // sincronizarla (confirmado 2026-09-16: Módulo 3 mostraba 174.8 mm
+            // "anual como de Jan" en la app WeatherLink nativa, pero solo
+            // 74.7 mm reconstruidos desde nuestra BD, que únicamente tiene
+            // lecturas desde el alta de la red en julio) — 174.8 mm es la
+            // cifra real de cuánto ha llovido; 74.7 mm es un piso truncado
+            // por cuándo empezamos a capturar, no por cuánto llovió
+            // realmente. Se sustituye lluvia_dia_mm por ese valor real en el
+            // MISMO objeto que ya consume todo el generador, en vez de
+            // duplicar la lectura en cada punto de uso. Un rango explícito
+            // (ej. "del 1 al 15 de sep") NO puede usar este atajo: el
+            // contador de consola no se puede recortar a fechas arbitrarias,
+            // ahí se mantiene el acumulado reconstruido tal cual.
+            const esTodoElHistorico = !opciones.periodoDesde && !opciones.periodoHasta;
+            const estacionesInforme = (() => {
+                const base = resumenRango?.estaciones ?? estaciones;
+                if (!esTodoElHistorico) return base;
+                const anioConsolaPorId = new Map(estaciones.map(e => [e.id, e.lectura?.lluvia_anio_mm ?? null]));
+                return base.map((e): EstacionConLectura => {
+                    const real = anioConsolaPorId.get(e.id);
+                    if (real == null || !e.lectura) return e;
+                    return { ...e, lectura: { ...e.lectura, lluvia_dia_mm: real, lluvia_mes_mm: real } };
+                });
+            })();
+            await exportClimaGeoInforme(estacionesInforme, {
+                ...opciones, periodoDesde, periodoHasta, serieMensual,
+                diaMaxLluviaPorId: resumenRango?.diaMaxLluviaPorId,
+                precipitacionEsRealDeConsola: esTodoElHistorico,
+            });
         } catch (e) {
             console.error('[Clima] no se pudo generar el informe geoclimático:', e);
             alert(e instanceof Error ? e.message : 'No se pudo generar el informe geoclimático.');

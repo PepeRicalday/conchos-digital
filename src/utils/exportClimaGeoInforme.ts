@@ -27,7 +27,8 @@ import {
 } from './interpolacionClima';
 import { formateaEdad } from './cielo';
 import { VIZ, graficaEvolucionMensual } from './climaCharts';
-import { tablaPrecipitacion, NOTA_TABLA_PRECIPITACION } from './tablaPrecipitacion';
+import { tablaPrecipitacion, NOTA_TABLA_PRECIPITACION, NOTA_TABLA_PRECIPITACION_PERIODO, NOTA_TABLA_PRECIPITACION_CONSOLA } from './tablaPrecipitacion';
+import type { DiaMaxLluvia } from './climaResumenMensual';
 import { assetToDataURI } from './assetToDataURI';
 import { resuelveFondoHillshade, LEYENDA_VIIRS, type FondoHillshade, type FondoNocturno } from './mapaHillshadeDEM';
 import { guardaOComparte } from './descargaArchivo';
@@ -36,13 +37,25 @@ import { nombreMes } from './nombreMes';
 
 const SRL_MARRON = '#6B2D2D';
 
-/** Qué variables incluir — elegido en el modal previo a la descarga
- *  (Clima.tsx). El mapa de cada variable es SIEMPRE del corte actual (última
- *  lectura); ya no existe un modo "mes específico" separado — en su lugar,
- *  cada bloque de variable incluye además una gráfica de evolución histórica
- *  mes a mes (ver `serieMensual` abajo), independiente del corte del mapa. */
+/** Qué variables e periodo incluir — elegido en el modal previo a la
+ *  descarga (Clima.tsx). generarGeoInforme en Clima.tsx SIEMPRE resuelve un
+ *  rango concreto antes de llamar aquí: si el usuario no elige uno explícito
+ *  ("Todo el histórico" en el modal), se usa desde el primer mes con datos de
+ *  la red hasta hoy — nunca queda sin periodo. `estaciones` (el argumento de
+ *  exportClimaGeoInforme) ya llega resuelto como el AGREGADO de ese rango
+ *  (ver estacionesDesdeResumenRango en climaResumenMensual.ts) — este archivo
+ *  no distingue instante de agregado, solo usa periodoDesde/periodoHasta para
+ *  las etiquetas de texto del documento. Cada bloque de variable incluye
+ *  además una gráfica de evolución mes a mes (ver `serieMensual` abajo),
+ *  acotada al rango. */
 export interface OpcionesGeoInforme {
     variables: Array<VariableMapa['clave']>;
+    /** Rango a mostrar (YYYY-MM-DD, inclusive) — generarGeoInforme en
+     *  Clima.tsx siempre lo resuelve antes de llegar aquí (ver arriba);
+     *  opcional solo porque otros llamadores hipotéticos podrían omitirlo, en
+     *  cuyo caso este archivo cae de vuelta al corte actual (última lectura). */
+    periodoDesde?: string;
+    periodoHasta?: string;
     /**
      * Serie histórica mes a mes por estación, para la gráfica de EVOLUCIÓN
      * que acompaña cada mapa (temperatura/viento/radiación: promedio del
@@ -59,6 +72,58 @@ export interface OpcionesGeoInforme {
         /** true si este mes es el primero con datos de toda la red (arrancó a
          *  mitad de mes calendario) — ver diasEsperados en climaResumenMensual.ts. */
         parcial?: boolean }>;
+    /**
+     * Día de mayor lámina de lluvia dentro del periodo, por estación (clave:
+     * `EstacionClima.id`) — resuelto en Clima.tsx desde
+     * `fn_clima_resumen_mensual` (climaResumenMensual.ts) sin consulta
+     * adicional. Solo tiene sentido bajo periodo (con corte instantáneo no
+     * hay "día de mayor lluvia" que buscar, la lectura ya es de un solo
+     * momento) — la subtabla de precipitación por estación lo usa para
+     * distinguir un evento fuerte concentrado en un día de una lluvia ligera
+     * repartida en varios (mismo acumulado total, muy distinto para
+     * infiltración/escorrentía). Ausente o sin entrada para una estación:
+     * esa estación no tuvo lluvia >0 registrada en el rango.
+     */
+    diaMaxLluviaPorId?: Map<string, DiaMaxLluvia>;
+    /**
+     * true cuando el valor de precipitación en `estaciones` (lluvia_dia_mm,
+     * leído vía estacionAMuestra por todo el generador) YA fue sustituido en
+     * Clima.tsx por el contador real "acum. temporada" de cada consola
+     * física WeatherLink, en vez del acumulado reconstruido desde la BD —
+     * solo ocurre en modo "todo el histórico" (el usuario no eligió fechas en
+     * el modal). La consola puede llevar registrando lluvia desde ANTES de
+     * que la red se diera de alta en SICA-005 (confirmado 2026-09-16: Módulo
+     * 3 real = 174.8 mm "anual como de Jan" en la app WeatherLink nativa,
+     * reconstruido desde BD = solo 74.7 mm porque la BD únicamente tiene
+     * lecturas desde julio) — 174.8 es la cifra real de cuánto ha llovido,
+     * 74.7 es un piso truncado por cuándo empezamos a capturar. Cuando este
+     * flag es true, "promedio diario" y "día de mayor lluvia" (que sí
+     * dependen de las lecturas día por día que la BD tiene) dejan de
+     * calcularse: mezclarían un acumulado de ~8 meses con un promedio o
+     * máximo derivado de solo los ~2-3 meses capturados, dos rangos
+     * distintos en la misma fila. No aplica a un rango explícito: el
+     * contador de consola no puede recortarse a fechas arbitrarias, ahí se
+     * sigue usando el acumulado reconstruido con sus 3 columnas completas.
+     */
+    precipitacionEsRealDeConsola?: boolean;
+    /**
+     * false (default) = modo SIMPLE: KPIs, mapas y gráficas, pensado para
+     * personal no técnico (operadores de campo, gerencia) — se omiten la
+     * tabla "Panorama por módulo", la tabla "Promedio mensual dentro del
+     * periodo", la tabla "Estaciones de la red" y la subtabla "Precipitación
+     * por estación" en su forma de 3 columnas numéricas; la tabla por módulo
+     * baja de 4 a 2 columnas; las leyendas de mapa pierden coordenadas/
+     * proyección/decimales de rampa; las alertas se redactan en lenguaje
+     * llano; la nota de metodología se colapsa en un acordeón. true = modo
+     * TÉCNICO: comportamiento históricamente existente, con badges MEDIDO/
+     * INTERPOLADO, distancias IDW en km, cobertura de muestras y el texto de
+     * alertas orientado a auditoría de datos. Ningún dato ni cálculo cambia
+     * entre modos — es puramente qué tanto de lo ya calculado se presenta
+     * (pedido del usuario 2026-09-16: la vista técnica completa es ilegible
+     * para quien no audita datos, pero la trazabilidad no debe perderse para
+     * quien sí la necesita).
+     */
+    modoTecnico?: boolean;
 }
 
 /** Escapa texto para insertarlo dentro de SVG/HTML — un nombre de estación
@@ -353,6 +418,20 @@ function clipModulosSVG(id: string, sx: (lo: number) => number, sy: (la: number)
 function mapaVariableSVG(
     cfg: VariableMapa, estaciones: EstacionConLectura[], valorPorModulo: Map<number, InfoModulo>, corte: string,
     logosModulo: LogosModulo, fondo: FondoHillshade | FondoNocturno | null,
+    /** Título a mostrar en la cartela interna del mapa — por defecto
+     *  `cfg.titulo`, pero bajo periodo el llamador pasa la variante
+     *  "(acumulado del periodo)" para lluviaDiaMm (ver tituloBloque en
+     *  buildHTML) — así el mapa sigue siendo autosuficiente si se recorta y
+     *  comparte suelto, sin volver a decir "(día)" cuando en realidad
+     *  muestra un acumulado de meses. */
+    tituloCartela?: string,
+    /** false (default) = modo simple: se omiten la retícula de coordenadas
+     *  (28.40°, -105.60°...), los 9 decimales de la rampa de color y la nota
+     *  de atribución técnica al pie del mapa (fuente/IDW/proyección WGS-84) —
+     *  puro ruido para quien no está auditando el dato. El mapa en sí (color,
+     *  tramado medido/interpolado, escala, flecha de norte) no cambia entre
+     *  modos: solo el texto de apoyo alrededor. */
+    modoTecnico = true,
 ): string {
     // El encuadre lo definen los 6 módulos (el sujeto real del informe): las
     // presas (Boquilla, Las Vírgenes) NO entran en el extent — están decenas
@@ -667,12 +746,19 @@ function mapaVariableSVG(
     // (ej. 26.6-28.1°C) Math.round colapsaría varios ticks al mismo entero;
     // se usa cfg.fmt (mismo formato que los valores del mapa) para que la
     // leyenda muestre la resolución real que el rango dinámico existe para
-    // mostrar.
-    const ticks = Array.from({ length: cfg.rampa.length + 1 }, (_, i) => {
-        const v = rango.min + (i * (rango.max - rango.min)) / cfg.rampa.length;
-        const x = leyX + (i * leyW) / cfg.rampa.length;
-        return `<text x="${x.toFixed(1)}" y="${(leyY + 22).toFixed(1)}" font-size="7.5" text-anchor="middle" fill="${VIZ.inkMuted}">${cfg.fmt(v)}</text>`;
-    }).join('');
+    // mostrar. Modo simple: solo mínimo y máximo (2 ticks) — la escala
+    // completa en 9 decimales es lectura de instrumento, no de operación;
+    // "de qué a qué color" ya se entiende con los dos extremos.
+    const ticks = modoTecnico
+        ? Array.from({ length: cfg.rampa.length + 1 }, (_, i) => {
+            const v = rango.min + (i * (rango.max - rango.min)) / cfg.rampa.length;
+            const x = leyX + (i * leyW) / cfg.rampa.length;
+            return `<text x="${x.toFixed(1)}" y="${(leyY + 22).toFixed(1)}" font-size="7.5" text-anchor="middle" fill="${VIZ.inkMuted}">${cfg.fmt(v)}</text>`;
+        }).join('')
+        : [
+            `<text x="${leyX.toFixed(1)}" y="${(leyY + 22).toFixed(1)}" font-size="7.5" text-anchor="start" fill="${VIZ.inkMuted}">${cfg.fmt(rango.min)}</text>`,
+            `<text x="${(leyX + leyW).toFixed(1)}" y="${(leyY + 22).toFixed(1)}" font-size="7.5" text-anchor="end" fill="${VIZ.inkMuted}">${cfg.fmt(rango.max)}</text>`,
+        ].join('');
     const sdX = leyX + leyW + 16;
 
     // ── Elementos cartográficos convencionales (retícula, marco, escala,
@@ -690,16 +776,20 @@ function mapaVariableSVG(
 
     // Paso de retícula adaptactivo: el extent de los módulos es más chico
     // que el del distrito completo (sin presas) — 0.1° fijo daría muy pocas
-    // líneas o demasiadas según el mapa.
+    // líneas o demasiadas según el mapa. Modo simple: se omite del todo — es
+    // el tipo de referencia (coordenadas geográficas) que solo un usuario
+    // técnico consulta, ruido puro para operación diaria.
     const pasoG = spanLa > 0.6 ? 0.2 : spanLa > 0.25 ? 0.1 : 0.05;
     const decGrid: string[] = [];
-    for (let la = Math.ceil(minLa / pasoG) * pasoG; la <= maxLa; la += pasoG) {
-        const y = sy(la);
-        decGrid.push(`<line x1="${P}" y1="${y.toFixed(1)}" x2="${W - P}" y2="${y.toFixed(1)}" stroke="#0f172a" stroke-opacity="0.07" stroke-width="0.6"/><text x="${(P - 3).toFixed(1)}" y="${(y + 3).toFixed(1)}" font-size="8" text-anchor="end" fill="${VIZ.inkMuted}">${la.toFixed(2)}°</text>`);
-    }
-    for (let lo = Math.ceil(minLo / pasoG) * pasoG; lo <= maxLo; lo += pasoG) {
-        const x = sx(lo);
-        decGrid.push(`<line x1="${x.toFixed(1)}" y1="${P}" x2="${x.toFixed(1)}" y2="${H - P}" stroke="#0f172a" stroke-opacity="0.07" stroke-width="0.6"/><text x="${x.toFixed(1)}" y="${(H - P + 10).toFixed(1)}" font-size="8" text-anchor="middle" fill="${VIZ.inkMuted}">${lo.toFixed(2)}°</text>`);
+    if (modoTecnico) {
+        for (let la = Math.ceil(minLa / pasoG) * pasoG; la <= maxLa; la += pasoG) {
+            const y = sy(la);
+            decGrid.push(`<line x1="${P}" y1="${y.toFixed(1)}" x2="${W - P}" y2="${y.toFixed(1)}" stroke="#0f172a" stroke-opacity="0.07" stroke-width="0.6"/><text x="${(P - 3).toFixed(1)}" y="${(y + 3).toFixed(1)}" font-size="8" text-anchor="end" fill="${VIZ.inkMuted}">${la.toFixed(2)}°</text>`);
+        }
+        for (let lo = Math.ceil(minLo / pasoG) * pasoG; lo <= maxLo; lo += pasoG) {
+            const x = sx(lo);
+            decGrid.push(`<line x1="${x.toFixed(1)}" y1="${P}" x2="${x.toFixed(1)}" y2="${H - P}" stroke="#0f172a" stroke-opacity="0.07" stroke-width="0.6"/><text x="${x.toFixed(1)}" y="${(H - P + 10).toFixed(1)}" font-size="8" text-anchor="middle" fill="${VIZ.inkMuted}">${lo.toFixed(2)}°</text>`);
+        }
     }
 
     // Escala gráfica: elige una distancia redonda (10 o 20 km según el
@@ -727,7 +817,7 @@ function mapaVariableSVG(
     // recorta y se comparte suelto (capturas, oficios), sigue siendo
     // autosuficiente: se sabe qué es, de cuándo y de dónde sale el dato.
     const cartelaSVG = `<rect x="${P}" y="${P}" width="${W - 2 * P}" height="20" fill="#0f172a" opacity="0.72"/>
-        <text x="${(P + 6).toFixed(1)}" y="${(P + 14).toFixed(1)}" font-size="10.5" font-weight="700" fill="#fff" font-family="system-ui">${esc(cfg.titulo)} · DR-005</text>
+        <text x="${(P + 6).toFixed(1)}" y="${(P + 14).toFixed(1)}" font-size="10.5" font-weight="700" fill="#fff" font-family="system-ui">${esc(tituloCartela ?? cfg.titulo)} · DR-005</text>
         <text x="${(W - P - 6).toFixed(1)}" y="${(P + 14).toFixed(1)}" font-size="8.5" text-anchor="end" fill="#e2e8f0" font-family="system-ui">${esc(corte)}</text>`;
 
     // Aviso OBLIGATORIO de la capa VIIRS (fondo nocturno): un composite fijo
@@ -745,8 +835,10 @@ function mapaVariableSVG(
            <text x="${(P + 6).toFixed(1)}" y="${(P + 31).toFixed(1)}" font-size="7.5" font-weight="600" fill="#fde68a" font-family="system-ui">⚠ ${esc(LEYENDA_VIIRS)}</text>`
         : '';
 
-    const atribucionSVG = `<line x1="${leyX}" y1="${(H + HL - 20).toFixed(1)}" x2="${W - P}" y2="${(H + HL - 20).toFixed(1)}" stroke="${VIZ.grid}" stroke-width="1"/>
-        <text x="${(leyX).toFixed(1)}" y="${(H + HL - 6).toFixed(1)}" font-size="7.5" fill="${VIZ.inkMuted}" font-family="system-ui">Fuente: red WeatherLink (Davis) · interpolación IDW p=2 · proyección geográfica WGS-84 (aspecto corregido por cos φ) · SICA-005</text>`;
+    // Modo simple: se omite del todo — atribución de fuente/método técnico,
+    // sin valor operativo para quien no audita el dato.
+    const atribucionSVG = modoTecnico ? `<line x1="${leyX}" y1="${(H + HL - 20).toFixed(1)}" x2="${W - P}" y2="${(H + HL - 20).toFixed(1)}" stroke="${VIZ.grid}" stroke-width="1"/>
+        <text x="${(leyX).toFixed(1)}" y="${(H + HL - 6).toFixed(1)}" font-size="7.5" fill="${VIZ.inkMuted}" font-family="system-ui">Fuente: red WeatherLink (Davis) · interpolación IDW p=2 · proyección geográfica WGS-84 (aspecto corregido por cos φ) · SICA-005</text>` : '';
 
     return `<svg viewBox="0 0 ${W} ${H + HL + 6}" width="100%" xmlns="http://www.w3.org/2000/svg" style="background:#f8fafc;border-radius:10px" font-family="system-ui">
         <defs>
@@ -778,7 +870,7 @@ function mapaVariableSVG(
         </g>
         ${norteSVG}
         ${atribucionSVG}
-        <text x="${leyX}" y="${(leyY - 6).toFixed(1)}" font-size="9" font-weight="700" fill="${VIZ.inkSecondary}" font-family="system-ui">${esc(cfg.titulo)} (${cfg.unidad})</text>
+        <text x="${leyX}" y="${(leyY - 6).toFixed(1)}" font-size="9" font-weight="700" fill="${VIZ.inkSecondary}" font-family="system-ui">${esc(tituloCartela ?? cfg.titulo)} (${cfg.unidad})</text>
         ${pasos}
         ${ticks}
         <rect x="${sdX}" y="${leyY}" width="14" height="10" fill="#cbd5e1"/>
@@ -787,7 +879,7 @@ function mapaVariableSVG(
         <text x="${(leyX + 16).toFixed(1)}" y="${(leyY + 35).toFixed(1)}" font-size="8.5" fill="${VIZ.inkMuted}" font-family="system-ui">medido</text>
         <rect x="${(leyX + 78).toFixed(1)}" y="${(leyY + 26).toFixed(1)}" width="12" height="12" rx="2" fill="url(#hatchInterp)" stroke="${BORDE}" stroke-width="1.5" stroke-dasharray="3,2"/>
         <rect x="${(leyX + 78).toFixed(1)}" y="${(leyY + 26).toFixed(1)}" width="12" height="12" rx="2" fill="#e2e8f0" opacity="0.5"/>
-        <text x="${(leyX + 94).toFixed(1)}" y="${(leyY + 35).toFixed(1)}" font-size="8.5" fill="${VIZ.inkMuted}" font-family="system-ui">interpolado (IDW)</text>
+        <text x="${(leyX + 94).toFixed(1)}" y="${(leyY + 35).toFixed(1)}" font-size="8.5" fill="${VIZ.inkMuted}" font-family="system-ui">${modoTecnico ? 'interpolado (IDW)' : 'estimado'}</text>
         <circle cx="${(leyX + 187).toFixed(1)}" cy="${(leyY + 32).toFixed(1)}" r="6" fill="#fff" stroke="#0f172a" stroke-width="1.6"/>
         <circle cx="${(leyX + 187).toFixed(1)}" cy="${(leyY + 32).toFixed(1)}" r="2.4" fill="#0f172a"/>
         <text x="${(leyX + 197).toFixed(1)}" y="${(leyY + 35).toFixed(1)}" font-size="8.5" fill="${VIZ.inkMuted}" font-family="system-ui">estación</text>
@@ -846,6 +938,76 @@ function vientoDominante(estaciones: EstacionConLectura[]): { velMs: number; dir
 const RUMBOS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
 const rumboDe = (deg: number) => RUMBOS[Math.round(deg / 22.5) % 16];
 
+/**
+ * Precipitación por estación, modo SIMPLE — reemplaza la subtabla técnica de
+ * 3 columnas numéricas (Acumulado/Promedio diario/Día de mayor lluvia) que
+ * disparó este rediseño (reportado por el usuario 2026-09-16: en un corte de
+ * un solo día sin lluvia, esa tabla era 7 filas de "0.0 / 0.00 / —", ruido
+ * puro repitiendo lo que el KPI de arriba ya dice). Sin lluvia en ninguna
+ * estación: una sola línea de texto (mismo principio que "S/D nunca 0" del
+ * proyecto, en espejo — un cero real se anuncia en prosa, no en una tabla).
+ * Con lluvia: gráfica de barras horizontales (mismo patrón que
+ * graficaEtoEstaciones en climaCharts.ts — magnitud directa, sin decimales
+ * de más ni columnas de análisis que solo tienen sentido para quien audita
+ * datos).
+ */
+function bloquePrecipitacionSimple(estaciones: EstacionConLectura[]): string {
+    const datos = estaciones
+        .filter(e => e.lectura?.lluvia_dia_mm != null)
+        .map(e => ({ nombre: e.nombre, mm: e.lectura!.lluvia_dia_mm as number }));
+    const totalDistrito = datos.reduce((a, d) => a + d.mm, 0);
+    if (!datos.length || totalDistrito <= 0.05) {
+        return `<div class="geoinf-nota" style="margin-top:14px">
+            <p style="font-size:0.8rem;color:${VIZ.inkSecondary};margin:0">Sin lluvia registrada en ninguna estación de la red en este periodo.</p>
+        </div>`;
+    }
+    return `<div class="geoinf-nota" style="margin-top:14px">
+        <b style="display:block;margin-bottom:8px;color:${SRL_MARRON};font-size:0.8rem">Precipitación por estación (mm)</b>
+        ${graficaBarrasLluviaEstacion(datos)}
+    </div>`;
+}
+
+/**
+ * Barras horizontales de precipitación por estación — mismo lenguaje visual
+ * que graficaEtoEstaciones (climaCharts.ts), pero con margen derecho más
+ * amplio y 1 decimal: la acumulada de lluvia de un periodo largo llega
+ * fácilmente a 3 dígitos (ej. "174.8 mm"), un texto más largo que la ETₒ
+ * diaria (típicamente <10) para la que se dimensionó el margen original —
+ * reusar esa función tal cual cortaba la etiqueta cuando la barra más alta
+ * ocupaba casi todo el ancho disponible.
+ */
+function graficaBarrasLluviaEstacion(datos: { nombre: string; mm: number }[]): string {
+    const d = datos.filter(x => x.mm > 0);
+    if (!d.length) return '';
+    const W = 460, filaH = 30, MT = 8, ML = 104, MR = 64;
+    const H = MT + d.length * filaH + 8;
+    const max = Math.max(...d.map(x => x.mm), 0.1);
+    const iw = W - ML - MR;
+    const alto = Math.min(18, filaH - 12);
+
+    const barras = d.map((x, i) => {
+        const w = Math.max(2, (x.mm / max) * iw);
+        const by = MT + i * filaH + (filaH - alto) / 2;
+        const r = Math.min(4, w);
+        return `<path d="M${ML},${by.toFixed(1)} L${(ML + w - r).toFixed(1)},${by.toFixed(1)}
+                 Q${(ML + w).toFixed(1)},${by.toFixed(1)} ${(ML + w).toFixed(1)},${(by + r).toFixed(1)}
+                 L${(ML + w).toFixed(1)},${(by + alto - r).toFixed(1)}
+                 Q${(ML + w).toFixed(1)},${(by + alto).toFixed(1)} ${(ML + w - r).toFixed(1)},${(by + alto).toFixed(1)}
+                 L${ML},${(by + alto).toFixed(1)} Z" fill="${VIZ.lluvia}"/>
+                <text x="${ML - 8}" y="${(by + alto / 2 + 3.5).toFixed(1)}" text-anchor="end" font-size="9.5"
+                      font-weight="600" fill="${VIZ.inkSecondary}" font-family="system-ui">${esc(x.nombre)}</text>
+                <text x="${(ML + w + 7).toFixed(1)}" y="${(by + alto / 2 + 3.5).toFixed(1)}" font-size="9.5"
+                      font-weight="700" fill="${VIZ.inkPrimary}" font-family="system-ui"
+                      style="font-variant-numeric:tabular-nums">${x.mm.toFixed(1)} mm</text>`;
+    }).join('');
+
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img"
+                 aria-label="Precipitación acumulada por estación">
+        <line x1="${ML}" y1="${MT}" x2="${ML}" y2="${H - 8}" stroke="${VIZ.axis}" stroke-width="1"/>
+        ${barras}
+    </svg>`;
+}
+
 async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeoInforme): Promise<string> {
     const numsModulo = Object.keys(MODULOS_SRL).map(Number);
     const [logoSRL, logoSICA, ...logosArr] = await Promise.all([
@@ -860,9 +1022,11 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
     const logosModulo: LogosModulo = new Map(
         numsModulo.map((n, i) => [n, logosArr[i]] as const).filter((par): par is [number, string] => !!par[1]),
     );
-    // El mapa de cada variable es SIEMPRE el corte actual (última lectura) —
-    // ya no hay modo "mes específico" separado; la vista mensual vive en la
-    // gráfica de evolución de cada bloque (ver graficaEvolucion más abajo).
+    // Sin periodo elegido, el mapa de cada variable es el corte actual
+    // (última lectura); con periodo, `estaciones` ya llega como el agregado
+    // de ese rango (ver OpcionesGeoInforme arriba). `instanteCorte` marca
+    // siempre el momento en que se GENERA el documento (para el fondo de
+    // relieve/satelital y el pie "Generado:") — no el periodo que analiza.
     const instanteCorte = new Date();
     const hoy = instanteCorte.toLocaleString('es-MX', { dateStyle: 'full', timeStyle: 'short' });
     // Versión corta para la cartela dentro del SVG (ancho limitado del mapa) —
@@ -873,6 +1037,32 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
     const variablesElegidas = VARIABLES.filter(v => opciones.variables.includes(v.clave));
     const variablesActivas = variablesElegidas.length ? variablesElegidas : VARIABLES;
     const activas = estaciones.filter(e => e.activa !== false);
+
+    // Con periodo elegido en el modal, `estaciones` ya llega como el
+    // agregado de ese rango (ver estacionesDesdeResumenRango en
+    // climaResumenMensual.ts y generarGeoInforme en Clima.tsx) — aquí solo se
+    // arma la etiqueta de texto para header/figcaptions/veredicto. Sin
+    // periodo, se mantiene la etiqueta histórica "corte actual".
+    const { periodoDesde, periodoHasta } = opciones;
+    const formateaFechaCorta = (iso: string) => {
+        const [anio, mes, dia] = iso.split('-').map(Number);
+        return `${dia} ${nombreMes(mes).slice(0, 3)} ${anio}`;
+    };
+    const etiquetaPeriodo = periodoDesde && periodoHasta
+        ? `${formateaFechaCorta(periodoDesde)} – ${formateaFechaCorta(periodoHasta)}`
+        : 'corte actual';
+    const hayPeriodo = !!(periodoDesde && periodoHasta);
+    const modoTecnico = !!opciones.modoTecnico;
+    // Días transcurridos del rango (no el total nominal) — mismo criterio que
+    // diasEsperadosRango en climaResumenMensual.ts: un periodo que llega
+    // hasta hoy o el futuro se recorta a hoy, para no dividir el acumulado
+    // entre días que aún no ocurrieron.
+    const diasTranscurridosPeriodo = periodoDesde && periodoHasta ? (() => {
+        const hoyStr = getTodayString();
+        const hastaEfectivo = periodoHasta > hoyStr ? hoyStr : periodoHasta;
+        const msPorDia = 24 * 60 * 60 * 1000;
+        return Math.max(1, Math.round((Date.parse(hastaEfectivo) - Date.parse(periodoDesde)) / msPorDia) + 1);
+    })() : 0;
 
     // Fondo de relieve/satelital real (mapaHillshadeDEM.ts) — se resuelve UNA
     // SOLA VEZ para los 4 mapas (mismo extent, mismo instante de corte para
@@ -904,16 +1094,34 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
         ? `viento ${viento.velMs < 2 ? 'ligero' : viento.velMs < 6 ? 'moderado' : 'fuerte'} del ${rumboDe((viento.dirDeg + 180) % 360)} (máx. ${vMax?.toFixed(1) ?? '—'} m/s)`
         : 'sin dato de viento';
     const fraseLluvia = lluviaMax != null && lluviaMax > 0.1
-        ? `lluvia registrada, máximo ${lluviaMax.toFixed(1)} mm en la red`
-        : 'sin precipitación registrada hoy';
+        ? `lluvia registrada, máximo ${lluviaMax.toFixed(1)} mm en la red${opciones.precipitacionEsRealDeConsola ? ' (acumulado real de consola, no reconstruido)' : ''}`
+        : `sin precipitación registrada ${hayPeriodo ? `en ${etiquetaPeriodo}` : 'hoy'}`;
     const veredicto = `${fraseTemp}, ${fraseViento}, ${fraseLluvia}. `
         + `${interpolados} de ${totalModulos} módulos operan con valor interpolado (sin estación meteorológica propia).`;
 
+    // Modo simple: "Cobertura de red 3/6 módulos" no dice nada por sí solo a
+    // quien no sabe qué es un módulo interpolado — se traduce a un semáforo
+    // de confiabilidad (mismo lenguaje VIZ.estado que usa el resto del
+    // proyecto para calidad de dato), con el detalle ("3 módulos sin estación
+    // propia") movido al pie en vez de ser el número grande del KPI.
+    const proporcionMedida = (totalModulos - interpolados) / totalModulos;
+    const confiabilidad = proporcionMedida >= 0.66
+        ? { texto: 'Alta', color: VIZ.estado.bueno }
+        : proporcionMedida >= 0.33
+            ? { texto: 'Media', color: VIZ.estado.aviso }
+            : { texto: 'Baja', color: VIZ.estado.critico };
     const kpis = [
         { l: 'Temperatura', v: tMax != null ? tMax.toFixed(0) : '—', u: '°C máx.', pie: tMin != null ? `mín. ${tMin.toFixed(0)} °C` : 'sin dato' },
         { l: 'Viento', v: vMax != null ? vMax.toFixed(1) : '—', u: 'm/s máx.', pie: viento ? `dominante del ${rumboDe((viento.dirDeg + 180) % 360)}` : 'sin dato' },
-        { l: 'Precipitación', v: lluviaMax != null ? lluviaMax.toFixed(1) : '—', u: 'mm máx.', pie: 'máximo puntual de la red — no promediar' },
-        { l: 'Cobertura de red', v: `${totalModulos - interpolados}/${totalModulos}`, u: 'módulos', pie: `${interpolados} con valor interpolado` },
+        {
+            l: 'Precipitación',
+            v: lluviaMax != null && lluviaMax > 0.05 ? lluviaMax.toFixed(1) : (modoTecnico ? '0.0' : 'Sin lluvia'),
+            u: lluviaMax != null && lluviaMax > 0.05 ? 'mm máx.' : '',
+            pie: opciones.precipitacionEsRealDeConsola ? 'máximo acumulado real de consola — no promediar' : hayPeriodo ? 'máximo acumulado del periodo — no promediar' : 'máximo puntual de la red — no promediar',
+        },
+        modoTecnico
+            ? { l: 'Cobertura de red', v: `${totalModulos - interpolados}/${totalModulos}`, u: 'módulos', pie: `${interpolados} con valor interpolado`, colorV: undefined as string | undefined }
+            : { l: 'Confiabilidad del dato', v: confiabilidad.texto, u: '', pie: `${interpolados} de ${totalModulos} módulos sin estación propia`, colorV: confiabilidad.color },
     ];
 
     // Valores por módulo de las 4 variables, calculados una sola vez aquí y
@@ -948,21 +1156,49 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
 
     const estacionesVencidas = activas.filter(e => e.calidad.status === 'expired');
     const estacionesSospechosas = activas.filter(e => e.calidad.status === 'suspect');
+    // 'expired'/'suspect' significan algo distinto según el origen del dato:
+    // sin periodo, vienen de la frescura de una lectura real (edadMin, ver
+    // cielo.ts) — "vencida" = más de 60 min de antigüedad, "sospechosa" =
+    // valor fuera de rango físico (posible falla de sensor). Con periodo,
+    // el mismo status lo asigna estacionesDesdeResumenRango a partir de
+    // cobertura de muestras del rango (climaResumenMensual.ts:156-169) —
+    // "vencida" ahí es "sin ninguna lectura en todo el periodo" y
+    // "sospechosa" es "cobertura de muestras por debajo del 60% del rango",
+    // ninguna de las dos habla de antigüedad ni de un sensor físico fallando.
+    // Reusar el texto de instante bajo periodo afirmaba cosas falsas
+    // (detectado por auditoría 2026-09-16 tras el fix de "Todo el histórico").
     if (estacionesVencidas.length) {
         alertas.push({
             nivel: 'atencion',
-            texto: `${estacionesVencidas.length === 1 ? 'La estación' : 'Las estaciones'} `
-                + `${estacionesVencidas.map(e => esc(e.nombre)).join(', ')} `
-                + `${estacionesVencidas.length === 1 ? 'reporta' : 'reportan'} un dato vencido (más de 60 min de antigüedad); `
-                + `los valores de este corte para ${estacionesVencidas.length === 1 ? 'esa estación' : 'esas estaciones'} `
-                + `pueden no reflejar la condición actual.`,
+            texto: !modoTecnico
+                // Modo simple: la acción operativa (revisar equipo), sin
+                // hablar de "cobertura", "antigüedad" ni "informe".
+                ? `${estacionesVencidas.length === 1 ? 'La estación' : 'Las estaciones'} `
+                    + `${estacionesVencidas.map(e => esc(e.nombre)).join(', ')} `
+                    + `${estacionesVencidas.length === 1 ? 'no está reportando' : 'no están reportando'} — conviene revisar el equipo en campo.`
+                : hayPeriodo
+                ? `${estacionesVencidas.length === 1 ? 'La estación' : 'Las estaciones'} `
+                    + `${estacionesVencidas.map(e => esc(e.nombre)).join(', ')} `
+                    + `${estacionesVencidas.length === 1 ? 'no registró' : 'no registraron'} ninguna lectura dentro de ${esc(etiquetaPeriodo)}; `
+                    + `${estacionesVencidas.length === 1 ? 'esa estación no aporta' : 'esas estaciones no aportan'} datos a este informe.`
+                : `${estacionesVencidas.length === 1 ? 'La estación' : 'Las estaciones'} `
+                    + `${estacionesVencidas.map(e => esc(e.nombre)).join(', ')} `
+                    + `${estacionesVencidas.length === 1 ? 'reporta' : 'reportan'} un dato vencido (más de 60 min de antigüedad); `
+                    + `los valores de este corte para ${estacionesVencidas.length === 1 ? 'esa estación' : 'esas estaciones'} `
+                    + `pueden no reflejar la condición actual.`,
         });
     }
     if (estacionesSospechosas.length) {
         alertas.push({
             nivel: 'aviso',
-            texto: `${estacionesSospechosas.map(e => esc(e.nombre)).join(', ')} `
-                + `${estacionesSospechosas.length === 1 ? 'marca' : 'marcan'} una lectura fuera de rango físico esperado (posible falla de sensor) — verificar antes de usarla para una decisión operativa.`,
+            texto: !modoTecnico
+                ? `${estacionesSospechosas.map(e => esc(e.nombre)).join(', ')} `
+                    + `${estacionesSospechosas.length === 1 ? 'tiene un dato poco confiable' : 'tienen datos poco confiables'} en este corte — tratar con cautela antes de decidir con ${estacionesSospechosas.length === 1 ? 'él' : 'ellos'}.`
+                : hayPeriodo
+                ? `${estacionesSospechosas.map(e => esc(e.nombre)).join(', ')} `
+                    + `${estacionesSospechosas.length === 1 ? 'tiene' : 'tienen'} cobertura de muestras por debajo del 60% dentro de ${esc(etiquetaPeriodo)} — sus valores agregados deben tratarse como referencia, no como medición robusta del periodo.`
+                : `${estacionesSospechosas.map(e => esc(e.nombre)).join(', ')} `
+                    + `${estacionesSospechosas.length === 1 ? 'marca' : 'marcan'} una lectura fuera de rango físico esperado (posible falla de sensor) — verificar antes de usarla para una decisión operativa.`,
         });
     }
 
@@ -1001,7 +1237,7 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
                 nivel: 'aviso',
                 texto: `Módulo ${peor.num} destaca ${arriba ? 'por encima' : 'por debajo'} del resto de la red en ${cfg.titulo.toLowerCase()} `
                     + `(${cfg.fmt(peor.info.valor!)} ${cfg.unidad} frente a un promedio de red de ${cfg.fmt(media)} ${cfg.unidad})`
-                    + `${!peor.info.medido ? ' — valor interpolado, sin estación propia que lo confirme' : ''}.`,
+                    + `${!peor.info.medido ? (modoTecnico ? ' — valor interpolado, sin estación propia que lo confirme' : ' — este módulo no tiene estación propia, es un valor estimado') : ''}.`,
             });
         }
     }
@@ -1019,15 +1255,19 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
     if (modulosVientoAlto.length) {
         alertas.push({
             nivel: 'aviso',
-            texto: `Viento igual o mayor a ${UMBRAL_VIENTO_ASPERSION} m/s (referencia operativa de deriva de gota en aspersión) en `
-                + `${modulosVientoAlto.map(e => `Módulo ${e.num} (${e.info.valor!.toFixed(1)} m/s${!e.info.medido ? ', interpolado' : ''})`).join(', ')}.`,
+            texto: modoTecnico
+                ? `Viento igual o mayor a ${UMBRAL_VIENTO_ASPERSION} m/s (referencia operativa de deriva de gota en aspersión) en `
+                    + `${modulosVientoAlto.map(e => `Módulo ${e.num} (${e.info.valor!.toFixed(1)} m/s${!e.info.medido ? ', interpolado' : ''})`).join(', ')}.`
+                : `Viento fuerte en ${modulosVientoAlto.map(e => `Módulo ${e.num} (${e.info.valor!.toFixed(1)} m/s)`).join(', ')} — no recomendable regar por aspersión ahora.`,
         });
     }
 
     if (interpolados >= totalModulos / 2) {
         alertas.push({
             nivel: 'aviso',
-            texto: `${interpolados} de ${totalModulos} módulos dependen de un valor interpolado en este corte — la cobertura de estaciones propias cubre menos de la mitad del distrito; los valores interpolados deben tratarse como referencia, no como medición.`,
+            texto: modoTecnico
+                ? `${interpolados} de ${totalModulos} módulos dependen de un valor interpolado en este corte — la cobertura de estaciones propias cubre menos de la mitad del distrito; los valores interpolados deben tratarse como referencia, no como medición.`
+                : `${interpolados} de ${totalModulos} módulos no tienen estación propia — sus valores son un cálculo aproximado a partir de las estaciones cercanas.`,
         });
     }
 
@@ -1035,9 +1275,13 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
     // cargada en esta función — declararlo explícitamente es preferible a
     // omitirlo en silencio (el lector podría asumir que la ausencia de
     // comentario significa "es normal").
-    const notaSinHistorico = 'Este informe no compara el corte contra un promedio histórico de la fecha: '
-        + 'hacerlo requiere una serie climatológica por estación que aún no está integrada a este documento. '
-        + 'Las observaciones de abajo son relativas a la propia red en este corte, no a lo esperado para la temporada.';
+    const notaSinHistorico = periodoDesde && periodoHasta
+        ? 'Este informe no compara el periodo contra un promedio histórico de la fecha: '
+            + 'hacerlo requiere una serie climatológica por estación que aún no está integrada a este documento. '
+            + 'Las observaciones de abajo son relativas a la propia red dentro del periodo elegido, no a lo esperado para la temporada.'
+        : 'Este informe no compara el corte contra un promedio histórico de la fecha: '
+            + 'hacerlo requiere una serie climatológica por estación que aún no está integrada a este documento. '
+            + 'Las observaciones de abajo son relativas a la propia red en este corte, no a lo esperado para la temporada.';
 
     // Titular de una línea: el nivel de alerta más alto presente decide el
     // tono (nunca un adjetivo suelto tipo "buen día" que el dato no respalda
@@ -1058,7 +1302,7 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
               <span>${a.texto}</span>
            </div>`).join('')}</div>`
         : `<div class="alertas-ok"><span>✓</span><span>No se detectaron desviaciones relevantes entre módulos, estaciones vencidas/sospechosas, ni viento por encima del umbral operativo de aspersión en este corte.</span></div>`;
-    const kpisSVG = kpis.map(k => `<div class="kpi"><div class="l">${k.l}</div><div class="v">${k.v}<span class="u">${k.u}</span></div><div class="pie">${k.pie}</div></div>`).join('');
+    const kpisSVG = kpis.map(k => `<div class="kpi"><div class="l">${k.l}</div><div class="v"${'colorV' in k && k.colorV ? ` style="color:${k.colorV}"` : ''}>${k.v}${k.u ? `<span class="u">${k.u}</span>` : ''}</div><div class="pie">${k.pie}</div></div>`).join('');
 
     // ── Tabla consolidada: panorama completo (las 4 variables × 6 módulos)
     // en una sola fila por módulo — para quien quiere el cuadro completo de
@@ -1067,7 +1311,11 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
     // igual que el resto del informe. Cada celda lleva su propio badge
     // medido/interpolado — el mismo lenguaje visual que las tablas por
     // variable, nunca un color o cifra con más confianza que la de origen.
-    const tablaConsolidadaSVG = variablesActivas.length > 1 ? `<div class="geoinf-tabla-scroll"><table class="geoinf-consolidada">
+    // Modo simple: se omite — es redundante con los mapas de cada sección
+    // (mismos valores, sin el contexto geográfico) y su lenguaje es denso
+    // para quien no audita datos (puntito medido/interpolado sin leyenda
+    // inline, celdas de puro decimal). Modo técnico: se mantiene tal cual.
+    const tablaConsolidadaSVG = modoTecnico && variablesActivas.length > 1 ? `<div class="geoinf-tabla-scroll"><table class="geoinf-consolidada">
         <thead><tr>
             <th>Módulo</th>
             ${variablesActivas.map(cfg => `<th>${esc(cfg.titulo)} <small>${esc(cfg.unidad)}</small></th>`).join('')}
@@ -1110,17 +1358,26 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
         : '';
 
     // Nota de lectura por variable, para el figcaption — reemplaza la nota de
-    // viento suelta que antes vivía como <p> aparte del mapa. El mapa es
-    // siempre del corte actual; la vista mensual vive en la gráfica de
-    // evolución aparte (graficaEvolucion), no aquí.
+    // viento suelta que antes vivía como <p> aparte del mapa. Sin periodo
+    // elegido el mapa es el corte actual; con periodo, el agregado del rango
+    // (ver etiquetaPeriodo); la vista mensual vive en la gráfica de evolución
+    // y en la tabla de desglose aparte (graficaEvolucion / tablaMensualPeriodo).
     const NOTA_LECTURA: Record<VariableMapa['clave'], string> = {
         tempC: 'Raster interpolado (IDW p=2) sobre la geofrontera de los módulos, con halo suave más allá del contorno. Rango de color ajustado al mínimo y máximo real de este corte.',
         vientoMs: 'Las flechas indican hacia dónde sopla el viento en cada punto (estación real o módulo interpolado); su longitud junto a la estación codifica intensidad. El movimiento de la flecha es decorativo (da sensación de flujo), no una simulación del campo de viento real. Interpolado por componentes u/v (no promediando grados) porque la dirección es una variable circular.',
         radSolarWm2: 'Raster interpolado (IDW p=2) sobre la geofrontera de los módulos. De noche o con el sol muy bajo, valores cercanos a 0 W/m² son correctos, no ausencia de dato.',
         lluviaDiaMm: 'Raster interpolado (IDW p=2) — la precipitación es la variable más sensible a convección local: un módulo sin estación puede haber recibido lluvia distinta a la interpolada.',
     };
-
-    const etiquetaPeriodo = 'corte actual';
+    // Modo simple: mismo mensaje operativo, sin la jerga de método de cálculo
+    // ("IDW p=2", "componentes u/v", "variable circular") — el módulo sin
+    // estación propia ya se ve marcado como "estimado" en el mapa y la tabla,
+    // no hace falta repetir el método en el pie de cada figura.
+    const NOTA_LECTURA_SIMPLE: Record<VariableMapa['clave'], string> = {
+        tempC: 'Los módulos sin estación propia muestran un valor estimado a partir de las estaciones cercanas.',
+        vientoMs: 'Las flechas indican hacia dónde sopla el viento; su longitud junto a la estación indica la intensidad.',
+        radSolarWm2: 'De noche o con el sol muy bajo, valores cercanos a 0 W/m² son correctos, no ausencia de dato.',
+        lluviaDiaMm: 'Un módulo sin estación propia puede haber recibido una lluvia distinta a la estimada.',
+    };
 
     // Evolución mensual: meses únicos presentes en la serie, orden
     // cronológico ascendente (para que la gráfica se lea izquierda=antiguo →
@@ -1164,22 +1421,48 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
         return graficaEvolucionMensual(cfg.titulo, cfg.unidad, mesesSerie, series, cfg.clave !== 'tempC', forma);
     };
 
+    // "Precipitación (día)" (cfg.titulo) es correcto en el corte instantáneo,
+    // pero bajo periodo el mapa/tabla de este mismo bloque en realidad
+    // muestran el ACUMULADO de todo el rango, no de un día — el título
+    // quedaba contradiciendo su propio contenido (detectado por auditoría
+    // 2026-09-16: un informe de 3 meses titulado "(día)"). Solo aplica a
+    // lluviaDiaMm: temperatura/viento/radiación ya son promedios en ambos
+    // modos, sin calificador de "día" que se vuelva falso.
+    const tituloBloque = (cfg: VariableMapa) => (hayPeriodo && cfg.clave === 'lluviaDiaMm')
+        ? cfg.titulo.replace(/\s*\(día\)\s*$/, opciones.precipitacionEsRealDeConsola ? ' (acumulado real de consola)' : ' (acumulado del periodo)')
+        : cfg.titulo;
+
     const bloques = variablesActivas.map((cfg, i) => {
         const valores = valoresPorModuloTodas.get(cfg.clave)!;
-        const svg = mapaVariableSVG(cfg, activas, valores, corteCorto, logosModulo, fondoHillshade);
+        const svg = mapaVariableSVG(cfg, activas, valores, corteCorto, logosModulo, fondoHillshade, tituloBloque(cfg), modoTecnico);
         const filas = numsModuloOrdenados.map(num => {
             const v = valores.get(num);
             const valorTxt = v?.valor != null ? `${cfg.fmt(v.valor)} ${cfg.unidad}` : 'S/D';
+            const logoUri = logosModulo.get(num);
+            const logoImgTd = logoUri
+                ? `<img src="${logoUri}" alt="" width="22" height="22" style="border-radius:999px;object-fit:cover;border:1px solid ${VIZ.grid};vertical-align:middle;margin-right:7px">`
+                : '';
+            // Modo simple: 2 columnas (Módulo | Valor), con el mismo par
+            // visual sólido/tramado del mapa junto al valor — nunca solo en
+            // el mapa y no en la tabla, para no dejar una textura sin
+            // explicación en ningún lado (riesgo señalado en el diseño:
+            // discontinuidad mapa↔tabla). Procedencia/distancia detallada
+            // (km, "IDW") queda solo en modo técnico.
+            if (!modoTecnico) {
+                const punto = v?.medido
+                    ? `<span class="geoinf-punto geoinf-punto--medido" title="Medido"></span>`
+                    : `<span class="geoinf-punto geoinf-punto--interp" title="Estimado"></span>`;
+                return `<tr>
+                    <td>${logoImgTd}<b>Módulo ${num}</b></td>
+                    <td>${punto}${valorTxt}</td>
+                </tr>`;
+            }
             const badge = v?.medido
                 ? `<span class="geoinf-badge geoinf-badge--medido">MEDIDO</span>`
                 : `<span class="geoinf-badge geoinf-badge--interp">INTERPOLADO</span>`;
             const detalle = v?.medido
                 ? `Estación propia: ${esc(v.fuente)}`
                 : `${esc(v?.fuente ?? '')}${v?.distanciaKm != null ? ` (${v.distanciaKm.toFixed(1)} km)` : ''}`;
-            const logoUri = logosModulo.get(num);
-            const logoImgTd = logoUri
-                ? `<img src="${logoUri}" alt="" width="22" height="22" style="border-radius:999px;object-fit:cover;border:1px solid ${VIZ.grid};vertical-align:middle;margin-right:7px">`
-                : '';
             return `<tr>
                 <td>${logoImgTd}<b>Módulo ${num}</b></td>
                 <td>${valorTxt}</td>
@@ -1188,32 +1471,78 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
             </tr>`;
         }).join('');
 
-        // El mapa siempre es del corte actual (precipitación = lluvia del
-        // día); el acumulado mensual vive en la gráfica de evolución debajo.
-        // h3 (no h2): estas son subsecciones dentro de "Detalle por variable"
-        // — el h2 de nivel de documento ya lo puso el encabezado de grupo,
-        // ver más abajo en el ensamblado del HTML. Antes las 4 tenían el
-        // mismo peso que "Estaciones de la red" o "Metodología", sin
-        // distinguir "panorama" de "detalle progresivo".
+        // Sin periodo elegido, el mapa es siempre el corte actual
+        // (precipitación = lluvia del día); con periodo, el mapa y la tabla
+        // de arriba ya son el AGREGADO GLOBAL del rango (ver etiquetaPeriodo)
+        // — el bloque de abajo añade el desglose MES A MES dentro de ese
+        // mismo rango, para que ambos niveles (global y mensual) queden uno
+        // junto al otro. h3 (no h2): estas son subsecciones dentro de
+        // "Detalle por variable" — el h2 de nivel de documento ya lo puso el
+        // encabezado de grupo, ver más abajo en el ensamblado del HTML.
+        // Modo simple: se omite — es la misma información que ya muestra la
+        // gráfica de evolución mensual de abajo, solo en forma de tabla; con
+        // un rango corto (ej. "Hoy") genera una tabla de una sola fila sin
+        // sentido, y con un rango largo duplica la gráfica sin aportar nada
+        // para quien no necesita el número exacto por mes.
+        const tablaMensualPeriodo = (() => {
+            if (!modoTecnico || !periodoDesde || !periodoHasta || !mesesSerie.length || !opciones.serieMensual?.length) return '';
+            const campo = CAMPO_SERIE[cfg.clave];
+            const esAcumulado = cfg.clave === 'lluviaDiaMm';
+            const filasMes = mesesSerie.map(m => {
+                const valoresDelMes = opciones.serieMensual!
+                    .filter(p => p.anio === m.anio && p.mes === m.mes)
+                    .map(p => p[campo]).filter((v): v is number => v != null);
+                // Global de red de ese mes: acumulado se SUMA entre estaciones
+                // (mismo criterio que un volumen de lluvia real); promedio se
+                // promedia — nunca se mezclan ambos criterios entre variables.
+                const valorRed = valoresDelMes.length
+                    ? (esAcumulado
+                        ? valoresDelMes.reduce((a, b) => a + b, 0)
+                        : valoresDelMes.reduce((a, b) => a + b, 0) / valoresDelMes.length)
+                    : null;
+                const etiquetaMes = `${esc(nombreMes(m.mes))} ${m.anio}${m.parcial ? ' *' : ''}`;
+                return `<tr><td>${etiquetaMes}</td><td>${valorRed != null ? `${cfg.fmt(valorRed)} ${esc(cfg.unidad)}` : 'S/D'}</td></tr>`;
+            }).join('');
+            return `<div class="geoinf-nota" style="margin-top:14px">
+                <b style="display:block;margin-bottom:8px;color:${SRL_MARRON};font-size:0.8rem">Promedio mensual dentro del periodo — ${esc(cfg.titulo)}</b>
+                <table>
+                    <thead><tr><th>Mes</th><th>${esAcumulado ? 'Acumulado de red' : 'Promedio de red'}</th></tr></thead>
+                    <tbody>${filasMes}</tbody>
+                </table>
+                <p style="font-size:0.65rem;color:#94a3b8;margin:8px 0 0">
+                    ${esAcumulado ? 'Suma' : 'Promedio'} de todas las estaciones activas de ese mes, dentro del periodo elegido (${esc(etiquetaPeriodo)}). El valor global del periodo completo se muestra arriba, en el mapa y la tabla por módulo.
+                </p>
+            </div>`;
+        })();
         return `<section class="geoinf-bloque">
-            <h3>${esc(cfg.titulo)} (${cfg.unidad})</h3>
+            <h3>${esc(tituloBloque(cfg))} (${cfg.unidad})</h3>
             <figure class="fig">
                 <figcaption>
-                    <b>${esc(cfg.titulo)} por módulo — ${esc(etiquetaPeriodo)}</b>
-                    <span>${NOTA_LECTURA[cfg.clave]}</span>
+                    <b>${esc(tituloBloque(cfg))} por módulo — ${esc(etiquetaPeriodo)}</b>
+                    <span>${modoTecnico ? NOTA_LECTURA[cfg.clave] : NOTA_LECTURA_SIMPLE[cfg.clave]}</span>
                 </figcaption>
                 <div class="geoinf-mapa">${svg}</div>
             </figure>
             ${i === 0 ? notaFueraDeMapa : ''}
             <table>
-                <thead><tr><th>Módulo</th><th>Valor</th><th>Procedencia</th><th>Detalle</th></tr></thead>
+                <thead><tr>${modoTecnico ? '<th>Módulo</th><th>Valor</th><th>Procedencia</th><th>Detalle</th>' : '<th>Módulo</th><th>Valor</th>'}</tr></thead>
                 <tbody>${filas}</tbody>
             </table>
-            ${cfg.clave === 'lluviaDiaMm' ? `<div class="geoinf-nota" style="margin-top:14px">
+            ${cfg.clave === 'lluviaDiaMm' ? (modoTecnico ? `<div class="geoinf-nota" style="margin-top:14px">
                 <b style="display:block;margin-bottom:8px;color:${SRL_MARRON};font-size:0.8rem">Precipitación por estación</b>
-                ${tablaPrecipitacion(activas)}
-                <p style="font-size:0.65rem;color:#94a3b8;margin:8px 0 0">${esc(NOTA_TABLA_PRECIPITACION)}</p>
-            </div>` : ''}
+                ${tablaPrecipitacion(activas, periodoDesde && periodoHasta ? {
+                    diasTranscurridos: diasTranscurridosPeriodo,
+                    diaMaxLluviaPorId: opciones.diaMaxLluviaPorId ?? new Map(),
+                    formateaFechaCorta,
+                    esRealDeConsola: opciones.precipitacionEsRealDeConsola,
+                } : undefined)}
+                <p style="font-size:0.65rem;color:#94a3b8;margin:8px 0 0">${esc(
+                    opciones.precipitacionEsRealDeConsola ? NOTA_TABLA_PRECIPITACION_CONSOLA
+                        : (periodoDesde && periodoHasta) ? NOTA_TABLA_PRECIPITACION_PERIODO
+                        : NOTA_TABLA_PRECIPITACION,
+                )}</p>
+            </div>` : bloquePrecipitacionSimple(activas)) : ''}
+            ${tablaMensualPeriodo}
             ${(() => {
                 const svgEvolucion = graficaEvolucion(cfg);
                 if (!svgEvolucion) return '';
@@ -1362,6 +1691,14 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
 
   .geoinf-nota { font-size: 0.8rem; color: ${VIZ.inkSecondary}; background: #f8fafc; border-radius: 8px; padding: 12px 16px; margin: 4px 0 8px; border: 1px solid ${VIZ.grid}; line-height: 1.6; }
 
+  /* Modo simple: la trazabilidad técnica completa (tabla de estaciones,
+     metodología) no se elimina, se archiva colapsada — cerrada por defecto,
+     un clic la expone para quien la necesite (auditoría, ingeniería). */
+  .geoinf-detalle-tecnico { margin-top: 24px; border: 1px solid ${VIZ.grid}; border-radius: 10px; padding: 4px 16px; background: #f8fafc; }
+  .geoinf-detalle-tecnico summary { cursor: pointer; padding: 12px 0; font-weight: 700; font-size: 0.85rem; color: ${VIZ.inkSecondary}; }
+  .geoinf-detalle-tecnico[open] summary { border-bottom: 1px solid ${VIZ.grid}; margin-bottom: 12px; }
+  .geoinf-detalle-tecnico h2 { font-size: 1rem; }
+
   /* Tabla de precipitación por estación (24h/mes/temporada) — namespaced
      geoinf-pp-* para no heredar el selector genérico table/td del documento
      (que tiñe filas pares y usa cabecera marrón sólida, pensada para 4
@@ -1435,22 +1772,25 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
     <div class="titulo">
       <div class="sub">S R L Unidad Conchos · Delicias, Chihuahua</div>
       <h1>Informe Geoclimático por Módulo</h1>
-      <div class="meta">Distrito de Riego 005 · Red WeatherLink (Davis) + interpolación IDW · Corte: ${hoy}</div>
+      <div class="meta">Distrito de Riego 005${modoTecnico ? ' · Red WeatherLink (Davis) + interpolación IDW' : ''} · ${periodoDesde && periodoHasta ? `Periodo: ${esc(etiquetaPeriodo)} · Generado: ${hoy}` : `Corte: ${hoy}`}</div>
     </div>
     <div class="logos">${logoImg(logoSRL, 'SRL Unidad Conchos')}</div>
   </header>
 
-  <div class="franja">
+  ${modoTecnico ? `<div class="franja">
     <b class="geoinf-badge geoinf-badge--medido">MEDIDO</b> estación propia (Módulo 1, 3, 5)
     <b class="geoinf-badge geoinf-badge--interp">INTERPOLADO</b> IDW p=2 entre estaciones activas (Módulo 2, 4, 12)
     <em>Metodología completa al pie del informe</em>
-  </div>
+  </div>` : `<div class="franja">
+    <b class="geoinf-badge geoinf-badge--medido">MEDIDO</b> con estación propia
+    <b class="geoinf-badge geoinf-badge--interp">ESTIMADO</b> calculado a partir de estaciones cercanas
+  </div>`}
 
   <div class="veredicto">
-    <div class="veredicto-eyebrow">Lectura del corte</div>
+    <div class="veredicto-eyebrow">${periodoDesde && periodoHasta ? `Lectura del periodo — ${esc(etiquetaPeriodo)}` : 'Lectura del corte'}</div>
     <p class="veredicto-titular">${esc(titular)}</p>
     <p>${veredicto}</p>
-    <p class="veredicto-nota-historico">${notaSinHistorico}</p>
+    ${modoTecnico ? `<p class="veredicto-nota-historico">${notaSinHistorico}</p>` : ''}
   </div>
 
   ${alertasSVG}
@@ -1464,12 +1804,12 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
   </div>` : ''}
 
   <h2 class="geoinf-grupo-titulo">Detalle por variable</h2>
-  <p class="geoinf-grupo-sub">Mapa del corte actual, tabla por módulo con procedencia del dato y evolución mensual — una sección por variable.</p>
+  <p class="geoinf-grupo-sub">Mapa de ${esc(etiquetaPeriodo)}, tabla por módulo con procedencia del dato y evolución mensual — una sección por variable.</p>
   ${bloques}
 
-  <h2>Estaciones de la red (fuente de los mapas anteriores)</h2>
+  ${modoTecnico ? `<h2>Estaciones de la red (fuente de los mapas anteriores)</h2>
   <div class="geoinf-tabla-scroll"><table>
-    <thead><tr><th>Estación</th><th>Rol</th><th>Temp.</th><th>Viento</th><th>Radiación</th><th>Precipitación</th><th>Frescura</th></tr></thead>
+    <thead><tr><th>Estación</th><th>Rol</th><th>Temp.</th><th>Viento</th><th>Radiación</th><th>Precipitación${hayPeriodo ? ' (periodo)' : ''}</th><th>${hayPeriodo ? 'Cobertura' : 'Frescura'}</th></tr></thead>
     <tbody>${filasEstaciones}</tbody>
   </table></div>
 
@@ -1485,12 +1825,33 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
     interpolado en un módulo sin estación debe leerse con más cautela que temperatura o viento,
     especialmente en módulos alejados de toda estación (ver distancia declarada en cada mapa).
     Un valor con "+" en un mapa indica que supera el máximo de la escala de color declarada.
-    Las observaciones operativas de la lectura del corte se calculan sobre los datos de este
-    mismo informe — antigüedad de la lectura, dispersión de un módulo frente al promedio de la
+    Las observaciones operativas de ${hayPeriodo ? `este periodo (${esc(etiquetaPeriodo)})` : 'la lectura del corte'} se calculan sobre los datos de este
+    mismo informe — ${hayPeriodo
+        ? 'cobertura de muestras de cada estación dentro del rango,'
+        : 'antigüedad de la lectura,'} dispersión de un módulo frente al promedio de la
     red (con el mismo rango dinámico que colorea cada mapa) y viento por encima del umbral
     orientativo de deriva de gota en aspersión (3.5 m/s) — y no incorporan ningún promedio
     histórico ni pronóstico.
-  </div>
+  </div>` : `<details class="geoinf-detalle-tecnico">
+    <summary>Cómo se calculan estos datos (para uso técnico)</summary>
+    <h2>Estaciones de la red (fuente de los mapas anteriores)</h2>
+    <div class="geoinf-tabla-scroll"><table>
+      <thead><tr><th>Estación</th><th>Rol</th><th>Temp.</th><th>Viento</th><th>Radiación</th><th>Precipitación${hayPeriodo ? ' (periodo)' : ''}</th><th>${hayPeriodo ? 'Cobertura' : 'Frescura'}</th></tr></thead>
+      <tbody>${filasEstaciones}</tbody>
+    </table></div>
+    <div class="geoinf-nota">
+      Cada módulo con estación meteorológica propia (Módulo 1, 3, 5) muestra su <b>lectura medida</b>.
+      Los módulos sin estación (2, 4, 12) muestran un valor <b>interpolado</b> por distancia inversa
+      (IDW, potencia 2) entre las estaciones activas de la red — nunca se le asigna a un módulo el
+      dato de otro como si fuera propio. El viento se interpola por componentes (velocidad
+      este-oeste / norte-sur), no promediando grados directamente, porque la dirección es una
+      variable circular: promediar 350° y 10° daría 180°, la dirección opuesta a ambas. Radiación
+      solar y precipitación son las variables más sensibles a nubosidad/convección local — su valor
+      interpolado en un módulo sin estación debe leerse con más cautela que temperatura o viento,
+      especialmente en módulos alejados de toda estación (ver distancia declarada en cada mapa).
+      Un valor con "+" en un mapa indica que supera el máximo de la escala de color declarada.
+    </div>
+  </details>`}
 
   <div class="foot">
     <span>
@@ -1513,10 +1874,12 @@ const OPCIONES_POR_DEFECTO: OpcionesGeoInforme = {
 };
 
 /** Genera el Informe Geoclimático por Módulo y lo entrega como archivo HTML
- *  autónomo. `opciones` (variables a incluir + serie histórica opcional)
- *  viene del modal de selección en Clima.tsx; se omite para mantener el
- *  comportamiento previo (las 4 variables, sin evolución) en cualquier otro
- *  llamador. El mapa siempre es del corte actual. */
+ *  autónomo. `opciones` (variables a incluir + periodo + serie histórica
+ *  opcional) viene del modal de selección en Clima.tsx; se omite para
+ *  mantener el comportamiento previo (las 4 variables, sin periodo ni
+ *  evolución) en cualquier otro llamador. `estaciones` decide el nivel del
+ *  mapa: corte actual si viene tal cual de useClimaEstaciones, o el agregado
+ *  de un periodo si viene de estacionesDesdeResumenRango. */
 export async function exportClimaGeoInforme(
     estaciones: EstacionConLectura[], opciones: OpcionesGeoInforme = OPCIONES_POR_DEFECTO,
 ): Promise<void> {

@@ -55,9 +55,12 @@ async function primerDiaConDatos(): Promise<string | null> {
     return primerDiaConDatosCache;
 }
 
-/** Días a considerar para el umbral de cobertura de un mes: si el mes ya
- *  terminó, sus días totales; si es el mes en curso, los transcurridos hasta
- *  hoy (un mes a la mitad no puede pedir cobertura del mes completo).
+/** Días a considerar para el umbral de cobertura de un rango [desde, hasta]
+ *  (ambas 'YYYY-MM-DD', inclusive): recorta `hasta` a hoy si el rango llega
+ *  hasta el futuro/hoy (un periodo que aún no termina no puede pedir
+ *  cobertura de días que todavía no ocurren), y recorta `desde` al `piso`
+ *  (fecha de la lectura más antigua de la red) si el rango arranca antes de
+ *  que existieran datos.
  *
  * PRIMER MES DE LA RED (ej. julio 2026, red dada de alta el 18): sin este
  * ajuste, un mes que arrancó a mitad de camino se compara contra sus 31 días
@@ -65,16 +68,24 @@ async function primerDiaConDatos(): Promise<string | null> {
  * ~45-50% aunque esos 14 días estén perfectamente completos, y el punto se
  * descarta como "no confiable" (hueco en la gráfica) cuando en realidad el
  * dato es bueno, solo cubre menos días porque antes NO EXISTÍA la estación.
- * `piso` acota el conteo de días esperados a partir de esa fecha real. */
-function diasEsperados(anio: number, mes: number, ultimoDia: number, piso?: string | null): number {
-    const hoy = new Date();
-    const esMesActual = anio === hoy.getFullYear() && mes === hoy.getMonth() + 1;
-    let dias = esMesActual ? Math.min(ultimoDia, hoy.getDate()) : ultimoDia;
-    if (piso) {
-        const [pAnio, pMes, pDia] = piso.split('-').map(Number);
-        if (pAnio === anio && pMes === mes) dias = dias - pDia + 1; // desde el día de alta hasta el fin del rango ya calculado
-    }
+ * Generalización de un cálculo por mes calendario a cualquier rango — mismo
+ * criterio, aplicado a fechas explícitas en vez de año/mes/últimoDía. */
+function diasEsperadosRango(desde: string, hasta: string, piso?: string | null): number {
+    const hoyStr = new Date().toISOString().slice(0, 10);
+    const desdeEfectivo = piso && piso > desde ? piso : desde;
+    const hastaEfectivo = hasta > hoyStr ? hoyStr : hasta;
+    const msPorDia = 24 * 60 * 60 * 1000;
+    const dias = Math.round((Date.parse(hastaEfectivo) - Date.parse(desdeEfectivo)) / msPorDia) + 1;
     return Math.max(1, dias);
+}
+
+/** Compatibilidad: mismo cálculo que diasEsperadosRango, expresado en
+ *  año/mes/últimoDía de un mes calendario — usado por estacionesDesdeResumenMensual
+ *  y obtenSerieMensual, que operan mes a mes. */
+function diasEsperados(anio: number, mes: number, ultimoDia: number, piso?: string | null): number {
+    const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
+    const hasta = `${anio}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
+    return diasEsperadosRango(desde, hasta, piso);
 }
 
 interface FilaResumenMensual {
@@ -86,44 +97,58 @@ interface FilaResumenMensual {
     viento_dir_deg_dominante: number | null;
     rad_solar_wm2_prom: number | null;
     lluvia_mm_acumulada: number | null;
+    dia_max_lluvia_fecha: string | null;
+    dia_max_lluvia_mm: number | null;
+}
+
+/** Día de mayor lámina registrada dentro de un rango, por estación — para el
+ *  informe geoclimático bajo periodo, donde "cuánto acumuló" no distingue un
+ *  evento fuerte de lluvia repartida en varios días (operativamente muy
+ *  distintos: infiltración/escorrentía). NO es un campo de `LecturaClima`
+ *  (ese tipo es de una lectura real de estación, no de un derivado de rango)
+ *  — se expone aparte, igual que `serieMensual`, para no forzar semántica de
+ *  periodo dentro de un tipo pensado para instante. */
+export interface DiaMaxLluvia {
+    fecha: string | null;
+    mm: number | null;
 }
 
 /**
- * Trae el resumen de un mes calendario (1-12, año de 4 dígitos) para las
- * estaciones dadas (se usa `estacionesBase` para heredar lat/lon/rol/nombre
- * — el RPC no conoce geografía, solo agrega lecturas) y arma un
- * EstacionConLectura[] sintético listo para exportClimaGeoInforme.
+ * Trae el resumen agregado de un rango de fechas arbitrario [desde, hasta]
+ * ('YYYY-MM-DD', inclusive) para las estaciones dadas (se usa
+ * `estacionesBase` para heredar lat/lon/rol/nombre — el RPC no conoce
+ * geografía, solo agrega lecturas) y arma un EstacionConLectura[] sintético
+ * listo para exportClimaGeoInforme — el mismo tipo que consume el resto del
+ * generador del informe, sin importarle si el número viene de un instante o
+ * de un periodo agregado (ver cabecera del archivo).
  *
- * n_muestras se traduce a una etiqueta de confiabilidad simple: con las ~13
- * lecturas/día de la red (sync cada 2h), un mes completo trae ~390-420
- * muestras; menos de la mitad de eso (mes en curso, estación con caídas de
- * sync) se marca como confiabilidad reducida en `calidad.etiqueta`, siguiendo
- * el mismo principio de nunca presentar un promedio pobre con la misma
- * confianza visual que uno robusto.
+ * n_muestras se traduce a una etiqueta de confiabilidad simple: por debajo
+ * de 60% de las muestras esperadas para la duración del rango (con la
+ * cadencia ~13 lecturas/día de la red) se marca como confiabilidad reducida
+ * en `calidad.etiqueta`, siguiendo el mismo principio de nunca presentar un
+ * promedio pobre con la misma confianza visual que uno robusto.
  */
-export async function estacionesDesdeResumenMensual(
-    estacionesBase: EstacionConLectura[], anio: number, mes: number,
-): Promise<EstacionConLectura[]> {
-    const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
-    const ultimoDia = new Date(anio, mes, 0).getDate(); // día 0 del mes siguiente = último día de este mes
-    const hasta = `${anio}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
-
+export async function estacionesDesdeResumenRango(
+    estacionesBase: EstacionConLectura[], desde: string, hasta: string,
+): Promise<{ estaciones: EstacionConLectura[]; diaMaxLluviaPorId: Map<string, DiaMaxLluvia> }> {
     const { data, error } = await supabase.rpc('fn_clima_resumen_mensual', { p_desde: desde, p_hasta: hasta });
-    if (error) throw new Error(`No se pudo obtener el resumen mensual: ${error.message}`);
+    if (error) throw new Error(`No se pudo obtener el resumen del periodo: ${error.message}`);
     const filas = (data ?? []) as FilaResumenMensual[];
     const porId = new Map(filas.map(f => [f.estacion_id, f]));
+    const diaMaxLluviaPorId = new Map<string, DiaMaxLluvia>(
+        filas.map(f => [f.estacion_id, { fecha: f.dia_max_lluvia_fecha, mm: f.dia_max_lluvia_mm }]),
+    );
 
-    // Umbral de muestras esperadas para el mes con la cadencia actual de
+    // Umbral de muestras esperadas para el rango con la cadencia actual de
     // sync (~13/día) — por debajo de 60% se marca la confiabilidad como
-    // reducida (mes en curso, estación intermitente). diasEsperados() usa
-    // días TRANSCURRIDOS, no el total del mes, para que un mes en curso
-    // (p.ej. día 14 de 30) no penalice a estaciones con cobertura completa
-    // de esos 14 días como si les faltaran los 16 restantes. `piso` acota
-    // además el primer mes de la red completa (ver diasEsperados).
+    // reducida (periodo en curso, estación intermitente). diasEsperadosRango()
+    // usa días TRANSCURRIDOS, no el total nominal del rango, para que un
+    // periodo que aún no termina (o que arranca antes del alta de la red) no
+    // penalice a estaciones con cobertura completa de sus días reales.
     const piso = await primerDiaConDatos();
-    const muestrasEsperadas = diasEsperados(anio, mes, ultimoDia, piso) * 13;
+    const muestrasEsperadas = diasEsperadosRango(desde, hasta, piso) * 13;
 
-    return estacionesBase.map((e): EstacionConLectura => {
+    const estaciones = estacionesBase.map((e): EstacionConLectura => {
         const f = porId.get(e.id);
         const base: EstacionClima = {
             id: e.id, station_id: e.station_id, nombre: e.nombre,
@@ -134,7 +159,7 @@ export async function estacionesDesdeResumenMensual(
         if (!f || f.n_muestras === 0) {
             return {
                 ...base, lectura: null, edadHoras: null, enLinea: false,
-                calidad: { status: 'expired', flags: ['missing'], edadMin: null, usableComoActual: false, etiqueta: 'SIN DATOS EN EL MES', color: '#94a3b8' },
+                calidad: { status: 'expired', flags: ['missing'], edadMin: null, usableComoActual: false, etiqueta: 'SIN DATOS EN EL PERIODO', color: '#94a3b8' },
                 pronostico: null, pronosticoSerie: [],
                 cielo: CIELO_NO_DETERMINADO,
                 nubosidadEstPct: null, clearnessIndex: null,
@@ -142,6 +167,19 @@ export async function estacionesDesdeResumenMensual(
         }
         const cobertura = f.n_muestras / muestrasEsperadas;
         const confiable = cobertura >= 0.6;
+        // OJO al leer `lluvia_dia_mm` de este objeto sintético: aquí NO es
+        // "la lluvia de hoy" (esa es su semántica en una lectura real de
+        // useClimaEstaciones) — es el ACUMULADO de TODO el rango [desde,
+        // hasta], igual que lluvia_mes_mm (mismo valor, a propósito: no hay
+        // un campo separado en LecturaClima para "acumulado de periodo
+        // arbitrario"). `lluvia_24h_mm`/`lluvia_anio_mm` quedan null a
+        // propósito: son contadores nativos de la consola WeatherLink que no
+        // tienen significado físico para un rango arbitrario elegido en el
+        // modal (ver tablaPrecipitacion.ts, que por esto usa un modo de
+        // columnas distinto bajo periodo). Cualquier código nuevo que lea
+        // `lectura.lluvia_dia_mm` asumiendo "hoy" se romperá silenciosamente
+        // si el objeto viene de aquí — revisar `calidad.status` primero para
+        // saber si el origen es un instante real o este agregado.
         const lectura: LecturaClima = {
             estacion_id: e.id, station_id: e.station_id, fecha: hasta, ts: `${hasta}T23:59:59Z`,
             temp_c: f.temp_c_prom, temp_max_c: null, temp_min_c: null, hum_rel_pct: null,
@@ -164,6 +202,19 @@ export async function estacionesDesdeResumenMensual(
             nubosidadEstPct: null, clearnessIndex: null,
         };
     });
+    return { estaciones, diaMaxLluviaPorId };
+}
+
+/** Wrapper de estacionesDesdeResumenRango para un mes calendario completo
+ *  (1-12, año de 4 dígitos) — mantiene la firma histórica para quien ya la
+ *  use, delegando el cálculo real a la versión de rango arbitrario. */
+export async function estacionesDesdeResumenMensual(
+    estacionesBase: EstacionConLectura[], anio: number, mes: number,
+): Promise<{ estaciones: EstacionConLectura[]; diaMaxLluviaPorId: Map<string, DiaMaxLluvia> }> {
+    const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
+    const ultimoDia = new Date(anio, mes, 0).getDate();
+    const hasta = `${anio}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
+    return estacionesDesdeResumenRango(estacionesBase, desde, hasta);
 }
 
 export interface PuntoMensual {

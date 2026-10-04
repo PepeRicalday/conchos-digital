@@ -257,7 +257,7 @@ const Alertas = () => {
                             </div>
                             <span className="al-kpi-value">{loading ? '...' : countCritical}</span>
                             <div className="al-kpi-chart">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                                     <AreaChart data={sparkData}>
                                         <defs>
                                             <linearGradient id="gRed" x1="0" y1="0" x2="0" y2="1">
@@ -374,7 +374,7 @@ const Alertas = () => {
                                     Sin datos en el período
                                 </div>
                             ) : (
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                                     <BarChart data={barData} margin={{ top: 20, right: 0, left: -25, bottom: 25 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                                         <XAxis dataKey="name" stroke="none" tick={{ fill: '#64748b', fontSize: 9, textAnchor: 'end' }} dy={10} />
@@ -404,7 +404,7 @@ const Alertas = () => {
                                     Sin datos de clima en el período
                                 </div>
                             ) : (
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                                     <LineChart data={climaChartData} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                                         <XAxis dataKey="day" stroke="none" tick={{ fill: '#64748b', fontSize: 9 }} dy={5} interval="preserveStartEnd" />

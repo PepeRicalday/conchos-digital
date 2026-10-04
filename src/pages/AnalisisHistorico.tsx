@@ -265,7 +265,7 @@ const AnalisisHistorico = () => {
                                     )}
                                 </div>
                                 <div className="ah-sparkline-container" style={{ width: '40%' }}>
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                                         <LineChart data={sparkData}>
                                             <Line type="monotone" dataKey="val" stroke="#38bdf8" strokeWidth={2} dot={false} isAnimationActive={false} />
                                         </LineChart>
@@ -297,7 +297,7 @@ const AnalisisHistorico = () => {
                                     )}
                                 </div>
                                 <div className="ah-sparkline-container" style={{ width: '40%' }}>
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                                         <LineChart data={sparkData}>
                                             <Line type="monotone" dataKey="val" stroke="#fbbf24" strokeWidth={2} dot={false} isAnimationActive={false} />
                                         </LineChart>
@@ -358,7 +358,7 @@ const AnalisisHistorico = () => {
                                 </div>
                             </div>
                             <div style={{ flex: 1, minHeight: '350px' }}>
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                                     <AreaChart data={combinedData} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
                                         <defs>
                                             <linearGradient id="gBoq1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#38bdf8" stopOpacity={0.6} /><stop offset="95%" stopColor="#38bdf8" stopOpacity={0.0} /></linearGradient>
@@ -392,7 +392,7 @@ const AnalisisHistorico = () => {
                                 <h2 className="ah-chart-title">ELEVACIÓN (M.S.N.M.)</h2>
                             </div>
                             <div style={{ flex: 1, marginTop: '1rem' }}>
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                                     <ComposedChart data={combinedData} margin={{ top: 5, right: 0, left: 10, bottom: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                                         <XAxis dataKey="dia" tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 10 }} />
@@ -417,7 +417,7 @@ const AnalisisHistorico = () => {
                                 <h2 className="ah-chart-title">COMPARATIVA DE LLENADO (%)</h2>
                             </div>
                             <div style={{ flex: 1, marginTop: '1rem' }}>
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                                     <ComposedChart data={combinedData} margin={{ top: 5, right: 0, left: 10, bottom: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                                         <XAxis dataKey="dia" tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 10 }} />

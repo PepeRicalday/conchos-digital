@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { useMetadataStore } from '../store/useMetadataStore';
+import { ensureMetadata } from '../store/useMetadataStore';
 import { getStartOfDateISO, getTodayString } from '../utils/dateHelpers';
 import { onTable } from '../lib/realtimeHub';
 import { agregarAlmacenamiento, calcularFrescura, lecturaMasReciente } from '../utils/presaMetrics';
@@ -110,8 +110,7 @@ export function usePresas(fecha: string) {
                 setLoading(true);
                 setError(null);
 
-                const metaStore = useMetadataStore.getState();
-                if (!metaStore.last_fetched) await metaStore.fetchMetadata();
+                const metaStore = await ensureMetadata();
 
                 // 1. Parallel Fetch of all primary dynamic data sources
                 const [

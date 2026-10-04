@@ -80,6 +80,11 @@ if (!cacheVigente) {
     localStorage.setItem('metadata_cache_version', String(METADATA_CACHE_VERSION));
 }
 
+// Carga en vuelo compartida: varios consumidores (HydraStore, usePresas, GeoMonitor…) pedían
+// los metadatos a la vez en sesión limpia y cada uno repetía la descarga completa (incluidas
+// ~5,500 filas de curvas_capacidad): 4 a 6 descargas simultáneas.
+let inflightFetch: Promise<void> | null = null;
+
 export const useMetadataStore = create<MetadataState>((set, get) => ({
     escalas:        parseCached<EscalaRow>('metadata_escalas'),
     presas:         parseCached<PresaConCurva>('metadata_presas'),
@@ -90,7 +95,9 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
     loading: false,
     last_fetched: Number(localStorage.getItem('metadata_last_fetched')) || null,
 
-    fetchMetadata: async (force = false) => {
+    fetchMetadata: (force = false) => {
+        if (inflightFetch) return inflightFetch;
+        inflightFetch = (async () => {
         const now = Date.now();
         const lastFetched = get().last_fetched;
         
@@ -165,5 +172,19 @@ export const useMetadataStore = create<MetadataState>((set, get) => ({
             console.error('❌ Error al sincronizar metadatos:', err);
             set({ loading: false });
         }
+        })().finally(() => { inflightFetch = null; });
+        return inflightFetch;
     }
 }));
+
+/**
+ * Garantiza metadatos cargados y devuelve el estado FRESCO.
+ * NO guardar `useMetadataStore.getState()` antes de esperar la carga: zustand crea un
+ * objeto nuevo en cada set(), y esa copia vieja queda con las listas vacías (causa de
+ * /presas en blanco y "0 módulos" en la primera visita).
+ */
+export async function ensureMetadata(opts: { requireSecciones?: boolean } = {}) {
+    const s = useMetadataStore.getState();
+    if (!s.last_fetched || (opts.requireSecciones && s.secciones.length === 0)) await s.fetchMetadata();
+    return useMetadataStore.getState();
+}

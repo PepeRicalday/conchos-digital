@@ -67,7 +67,7 @@ export const ModuleDetailModal = ({ module, onClose }: { module: ModuleData, onC
                         <div className="chart-card bg-slate-800/50 border-slate-700">
                             <h3>Balance Volumétrico</h3>
                             <div style={{ height: 200, display: 'flex', alignItems: 'center' }}>
-                                <ResponsiveContainer width="50%" height="100%">
+                                <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="50%" height="100%">
                                     <PieChart>
                                         <Pie data={pieData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                                             <Cell fill="#ef4444" />
@@ -98,7 +98,7 @@ export const ModuleDetailModal = ({ module, onClose }: { module: ModuleData, onC
                         <div className="chart-card bg-slate-800/50 border-slate-700">
                             <h3>Distribución</h3>
                             <div style={{ height: 150, width: '100%' }}>
-                                <ResponsiveContainer>
+                                <ResponsiveContainer initialDimension={{ width: 1, height: 1 }}>
                                     <BarChart layout="vertical" data={typeData}>
                                         <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="rgba(255,255,255,0.05)" />
                                         <XAxis type="number" hide />
@@ -225,7 +225,7 @@ export const ModuleCard = ({ data }: { data: ModuleData }) => {
 
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                     <div className="conchos-gauge-wrapper">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                             <PieChart>
                                 <Pie
                                     data={[{ value: flowPercent }, { value: Math.max(0, 100 - flowPercent) }]}

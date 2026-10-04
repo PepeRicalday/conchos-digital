@@ -236,7 +236,7 @@ const Hidrometria = () => {
 
                 <div className="col-span-12 grid grid-cols-12 gap-6">
                     <ChartWidget title={`Distribución de Caudales: ${startOfWeek} al ${endOfWeek}`} className="col-span-12 lg:col-span-8 h-[450px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                             <BarChart 
                                 data={modules.map(m => {
                                     const reqMm3 = weeklyRequests.find(r => r.modulo_id === m.id)?.volumen_solicitado_mm3 || 0;

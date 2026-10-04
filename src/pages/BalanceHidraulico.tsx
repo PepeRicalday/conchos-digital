@@ -14,7 +14,7 @@ interface EscalaData {
     nombre: string;
     km: number;
     nivel_actual: number;
-    gasto_calculado: number;
+    gasto_calculado: number | null;   // null = SIN DATO (nunca 0): sin lectura confirmada
     seccion_nombre: string;
 }
 
@@ -257,7 +257,7 @@ const BalanceHidraulico = () => {
                         nombre: l.escalas?.nombre || l.escala_id,
                         km: Number(l.escalas?.km || 0),
                         nivel_actual: Number(l.nivel_m || 0),
-                        gasto_calculado_m3s: Number(l.gasto_calculado_m3s || 0),
+                        gasto_calculado_m3s: l.gasto_calculado_m3s == null ? null : Number(l.gasto_calculado_m3s),
                         seccion_nombre: ''
                     }));
             }
@@ -270,7 +270,7 @@ const BalanceHidraulico = () => {
                 const nombre = e.nombre || '';
                 const gasto = esSifon(nombre) && q_k0 > 0
                     ? propagarQSifon(nombre, q_k0)
-                    : Number(e.gasto_calculado_m3s || 0);
+                    : (e.gasto_calculado_m3s == null ? null : Number(e.gasto_calculado_m3s));
                 return {
                     escala_id: e.escala_id,
                     nombre,
@@ -319,12 +319,15 @@ const BalanceHidraulico = () => {
                 e1.km >= p.km_inicio && e1.km < p.km_fin
             );
 
+            // Extremo SIN gasto confirmado => tramo "sin dato". Antes se tomaba como 0 y se
+            // fabricaba una fuga (p. ej. K-0→K-23 "crítico" porque K-23 aún no se captura).
+            const sinGasto = e1.gasto_calculado == null || e2.gasto_calculado == null;
             const balance = calculateSectionBalance(
                 `${e1.nombre} → ${e2.nombre}`,
                 e1.km,
                 e2.km,
-                e1.gasto_calculado,
-                e2.gasto_calculado,
+                sinGasto ? 0 : (e1.gasto_calculado as number),
+                sinGasto ? 0 : (e2.gasto_calculado as number),
                 qTomas,
                 perfil
             );

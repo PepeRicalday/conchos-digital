@@ -6,6 +6,8 @@ import { useFecha } from '../context/FechaContext';
 import { toast } from 'sonner';
 
 const CLIMA_OPTIONS = ['Soleado', 'Lluvia Ligera', 'Tormenta', 'Nublado', 'Viento Fuerte'];
+const PRESA_BOQUILLA = 'PRE-001';
+const PRESA_MADERO = 'PRE-002';
 
 export default function Bitacora() {
     const { profile } = useAuth();
@@ -25,47 +27,37 @@ export default function Bitacora() {
     const [evaporacion, setEvaporacion] = useState('');
     const [precipitacion, setPrecipitacion] = useState('');
 
+    // Tablas reales: lecturas_presas (escala/almacenamiento/extracción por presa y día) y
+    // clima_presas (clima por presa y día). Antes apuntaba a `presas.fecha` y `clima`, que no
+    // existen: la carga fallaba (400/404) y el guardado "tenía éxito" sin escribir nada.
     const loadData = async () => {
-        // Load Today's Presas
-        const { data: presasData } = await supabase
-            .from('presas')
-            .select('*')
-            .eq('fecha', fechaSeleccionada);
-
-        if (presasData) {
-            const boquilla = presasData.find(p => p.nombre_presa === 'La Boquilla');
-            if (boquilla) {
-                setBoquillaEscala(boquilla.escala?.toString() || '');
-                setBoquillaExtraccion(boquilla.extraccion?.toString() || '');
-                setBoquillaVolumen(boquilla.volumen_hm3?.toString() || '');
-            } else {
-                setBoquillaEscala(''); setBoquillaExtraccion(''); setBoquillaVolumen('');
-            }
-
-            const madero = presasData.find(p => p.nombre_presa === 'Francisco I. Madero');
-            if (madero) {
-                setMaderoEscala(madero.escala?.toString() || '');
-                setMaderoExtraccion(madero.extraccion?.toString() || '');
-                setMaderoVolumen(madero.volumen_hm3?.toString() || '');
-            } else {
-                setMaderoEscala(''); setMaderoExtraccion(''); setMaderoVolumen('');
-            }
-        }
-
-        // Load Today's Clima
-        const { data: climaData } = await supabase
-            .from('clima')
-            .select('*')
+        const { data: lect, error: errLect } = await supabase
+            .from('lecturas_presas')
+            .select('presa_id, escala_msnm, almacenamiento_mm3, extraccion_total_m3s')
             .eq('fecha', fechaSeleccionada)
-            .single();
+            .in('presa_id', [PRESA_BOQUILLA, PRESA_MADERO]);
+        if (errLect) { toast.error('No se pudieron cargar las presas: ' + errLect.message); return; }
 
-        if (climaData) {
-            setClimaDia(climaData.estado_general || 'Soleado');
-            setEvaporacion(climaData.evaporacion_mm?.toString() || '');
-            setPrecipitacion(climaData.precipitacion_mm?.toString() || '');
-        } else {
-            setClimaDia('Soleado'); setEvaporacion(''); setPrecipitacion('');
-        }
+        const fmt = (v: number | null | undefined) => (v == null ? '' : String(v));
+        const boquilla = lect?.find(p => p.presa_id === PRESA_BOQUILLA);
+        setBoquillaEscala(fmt(boquilla?.escala_msnm));
+        setBoquillaExtraccion(fmt(boquilla?.extraccion_total_m3s));
+        setBoquillaVolumen(fmt(boquilla?.almacenamiento_mm3));
+        const madero = lect?.find(p => p.presa_id === PRESA_MADERO);
+        setMaderoEscala(fmt(madero?.escala_msnm));
+        setMaderoExtraccion(fmt(madero?.extraccion_total_m3s));
+        setMaderoVolumen(fmt(madero?.almacenamiento_mm3));
+
+        const { data: clima, error: errClima } = await supabase
+            .from('clima_presas')
+            .select('presa_id, edo_tiempo, evaporacion_mm, precipitacion_mm')
+            .eq('fecha', fechaSeleccionada)
+            .in('presa_id', [PRESA_BOQUILLA, PRESA_MADERO]);
+        if (errClima) { toast.error('No se pudo cargar la climatología: ' + errClima.message); return; }
+        const c = clima?.find(x => x.presa_id === PRESA_BOQUILLA) ?? clima?.[0];
+        setClimaDia(c?.edo_tiempo || 'Soleado');
+        setEvaporacion(fmt(c?.evaporacion_mm));
+        setPrecipitacion(fmt(c?.precipitacion_mm));
     };
 
     useEffect(() => {
@@ -90,46 +82,47 @@ export default function Bitacora() {
         );
     }
 
+    // Número válido o undefined (campo vacío = NO tocar ese dato, nunca guardar 0 por omisión).
+    const num = (v: string) => { const n = parseFloat(v); return v.trim() !== '' && Number.isFinite(n) ? n : undefined; };
+
+    // Inserta o actualiza SOLO los campos capturados (la clave natural es presa_id+fecha; el id
+    // es texto sin default, por eso no se usa upsert: reescribiría el id de la fila existente).
+    const guardarFila = async (tabla: 'lecturas_presas' | 'clima_presas', presaId: string, campos: Record<string, unknown>) => {
+        const limpios = Object.fromEntries(Object.entries(campos).filter(([, v]) => v !== undefined));
+        if (Object.keys(limpios).length === 0) return;
+        const { data: existe, error: errSel } = await supabase
+            .from(tabla).select('id').eq('presa_id', presaId).eq('fecha', fechaSeleccionada).maybeSingle();
+        if (errSel) throw new Error(`${tabla}: ${errSel.message}`);
+        const { error } = existe
+            ? await supabase.from(tabla).update(limpios).eq('id', existe.id)
+            : await supabase.from(tabla).insert({ id: crypto.randomUUID(), presa_id: presaId, fecha: fechaSeleccionada, ...limpios });
+        if (error) throw new Error(`${tabla}: ${error.message}`);
+    };
+
     const handleSave = async () => {
         setLoading(true);
-        const dateStr = fechaSeleccionada;
-
         try {
-            // Upsert Boquilla
-            if (boquillaEscala || boquillaExtraccion || boquillaVolumen) {
-                await supabase.from('presas').upsert({
-                    nombre_presa: 'La Boquilla',
-                    fecha: dateStr,
-                    escala: parseFloat(boquillaEscala) || 0,
-                    extraccion: parseFloat(boquillaExtraccion) || 0,
-                    volumen_hm3: parseFloat(boquillaVolumen) || 0
-                }, { onConflict: 'nombre_presa,fecha' });
+            const resp = profile?.nombre ?? 'Bitácora SRL';
+            await guardarFila('lecturas_presas', PRESA_BOQUILLA, {
+                escala_msnm: num(boquillaEscala), extraccion_total_m3s: num(boquillaExtraccion),
+                almacenamiento_mm3: num(boquillaVolumen), responsable: resp,
+            });
+            await guardarFila('lecturas_presas', PRESA_MADERO, {
+                escala_msnm: num(maderoEscala), extraccion_total_m3s: num(maderoExtraccion),
+                almacenamiento_mm3: num(maderoVolumen), responsable: resp,
+            });
+            // Climatología del distrito: se registra para ambas presas.
+            for (const presaId of [PRESA_BOQUILLA, PRESA_MADERO]) {
+                await guardarFila('clima_presas', presaId, {
+                    edo_tiempo: climaDia, evaporacion_mm: num(evaporacion), precipitacion_mm: num(precipitacion),
+                });
             }
-
-            // Upsert Madero
-            if (maderoEscala || maderoExtraccion || maderoVolumen) {
-                await supabase.from('presas').upsert({
-                    nombre_presa: 'Francisco I. Madero',
-                    fecha: dateStr,
-                    escala: parseFloat(maderoEscala) || 0,
-                    extraccion: parseFloat(maderoExtraccion) || 0,
-                    volumen_hm3: parseFloat(maderoVolumen) || 0
-                }, { onConflict: 'nombre_presa,fecha' });
-            }
-
-            // Upsert Clima
-            await supabase.from('clima').upsert({
-                fecha: dateStr,
-                estado_general: climaDia,
-                evaporacion_mm: parseFloat(evaporacion) || 0,
-                precipitacion_mm: parseFloat(precipitacion) || 0
-            }, { onConflict: 'fecha' });
-
             toast.success('Bitácora guardada exitosamente');
-
-        } catch (error: any) {
+            await loadData(); // releer lo realmente persistido
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : String(error);
             console.error('Error saving:', error);
-            toast.error('Error al guardar: ' + error.message);
+            toast.error('NO se guardó la bitácora: ' + msg);
         } finally {
             setLoading(false);
         }
@@ -168,7 +161,7 @@ export default function Bitacora() {
                         <div className="space-y-1 col-span-2">
                             <label className="text-xs text-slate-400 font-bold uppercase">Volumen Actual (Mm³)</label>
                             <input type="number" step="0.01" value={boquillaVolumen} onChange={e => setBoquillaVolumen(e.target.value)}
-                                className="w-full bg-slate-800/50 border border-slate-700 rounded-lg p-2.5 outline-none focus:border-blue-500 transition-colors" placeholder="Almacenamiento Total" />
+                                className="w-full bg-slate-800/50 border border-slate-700 rounded-lg p-2.5 outline-none focus:border-blue-500 transition-colors" placeholder="Almacenamiento total" />
                         </div>
                     </div>
                 </div>
@@ -192,7 +185,7 @@ export default function Bitacora() {
                         <div className="space-y-1 col-span-2">
                             <label className="text-xs text-slate-400 font-bold uppercase">Volumen Actual (Mm³)</label>
                             <input type="number" step="0.01" value={maderoVolumen} onChange={e => setMaderoVolumen(e.target.value)}
-                                className="w-full bg-slate-800/50 border border-slate-700 rounded-lg p-2.5 outline-none focus:border-cyan-500 transition-colors" placeholder="Almacenamiento Total" />
+                                className="w-full bg-slate-800/50 border border-slate-700 rounded-lg p-2.5 outline-none focus:border-cyan-500 transition-colors" placeholder="Almacenamiento total" />
                         </div>
                     </div>
                 </div>

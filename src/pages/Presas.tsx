@@ -65,7 +65,7 @@ const ExtractionStreamgraph = ({ movimientos }: { movimientos: MovimientoPresaDa
 
     return (
         <div className="h-48 w-full mt-4 bg-black/20 rounded-xl p-4 border border-white/5">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                 <AreaChart data={data}>
                     <defs>
                         <linearGradient id="gastoGrad" x1="0" y1="0" x2="0" y2="1">
@@ -346,7 +346,7 @@ const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
                     <span className="text-[9px] font-black text-sky-400 font-mono">{ultimoPct.toFixed(1)}% NAMO</span>
                 </div>
             </div>
-            <ResponsiveContainer width="100%" height={160}>
+            <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height={160}>
                 <AreaChart data={histData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                     <defs>
                         <linearGradient id={`nivelGrad-${presaId}`} x1="0" y1="0" x2="0" y2="1">
@@ -428,7 +428,7 @@ const AnaliticaPredictivaPanel = ({ presa }: { presa: PresaData }) => {
                     <span>ESTADÍSTICA INTERANUAL: NIVELES (% NAMO)</span>
                 </div>
                 <div className="h-[200px] w-full mt-2">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                         <ComposedChart data={historialAnual} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.5} />
                             <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} dy={5} />
@@ -455,7 +455,7 @@ const AnaliticaPredictivaPanel = ({ presa }: { presa: PresaData }) => {
                     <span className="text-[8px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded">SIMULACIÓN 90 DÍAS</span>
                 </div>
                 <div className="h-[200px] w-full mt-2">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                         <ComposedChart data={proyeccion} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#334155" opacity={0.4} />
                             <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} dy={5} />
@@ -550,7 +550,8 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
             </div>
             
             <div className="h-[180px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
+                {/* Sankey necesita un lienzo inicial realista: con 1x1 sus márgenes (20/10) dan alturas negativas */}
+                <ResponsiveContainer initialDimension={{ width: 480, height: 180 }} width="100%" height="100%">
                     <Sankey
                         data={dataSankey}
                         nodePadding={30}

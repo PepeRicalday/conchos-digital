@@ -1289,7 +1289,7 @@ const Clima = () => {
                         <h3><TrendingDown size={18} /> Precipitación y Evaporación — Presas del Distrito</h3>
                         <p className="chart-sub">Del día, medido en la estación de cada presa (mm)</p>
                         <div className="chart-container">
-                            <ResponsiveContainer width="100%" height={210}>
+                            <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height={210}>
                                 <BarChart data={precipData} margin={{ top: 16, right: 12, left: 0, bottom: 0 }} barGap={2} barCategoryGap="34%">
                                     <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.06)" />
                                     <XAxis dataKey="station" tick={{ fill: '#cbd5e1', fontSize: 11, fontWeight: 600 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} />

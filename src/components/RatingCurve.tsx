@@ -80,7 +80,7 @@ const PuntoCard = ({ data }: { data: RatingCurveData }) => {
                         <span>n={data.rugosidad_n.toFixed(4)}</span>
                         <span>S₀={data.pendiente_s0.toExponential(2)}</span>
                     </div>
-                    <ResponsiveContainer width="100%" height={220}>
+                    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height={220}>
                         <ComposedChart margin={{ top: 8, right: 16, bottom: 24, left: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                             <XAxis

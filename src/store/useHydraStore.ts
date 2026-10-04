@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { onTable } from '../lib/realtimeHub';
 import { getTodayString, getStartOfTodayISO } from '../utils/dateHelpers';
-import { useMetadataStore } from './useMetadataStore';
+import { ensureMetadata } from './useMetadataStore';
 import type {
     MedicionRow, ReporteOperacionRow, ReporteDiarioRow,
     ModuloRow, PuntoEntregaRow,
@@ -166,10 +166,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             });
 
             // 2. Metadata Sync — also force refresh if secciones is empty (avoids stale cache with no sections)
-            const metaStore = useMetadataStore.getState();
-            if (!metaStore.last_fetched || metaStore.secciones.length === 0) {
-                await metaStore.fetchMetadata();
-            }
+            const metaStore = await ensureMetadata({ requireSecciones: true });
 
             // 3. Index reports for quick access
             const reporteByPunto: Record<string, ReporteDiarioSel> = {};

@@ -38,3 +38,6 @@ _agents/
 ~$*.xlsx
 ~$*.xls
 ~$*.docx
+
+# Salida de la auditoría Playwright
+e2e/out/

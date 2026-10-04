@@ -30,7 +30,7 @@ const EfficiencyGauge: React.FC<EfficiencyGaugeProps> = ({ value, label = "Efici
             </h3>
 
             <div className="gauge-chart-container">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                     <PieChart>
                         <Pie
                             data={data}

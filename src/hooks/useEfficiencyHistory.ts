@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { useMetadataStore } from '../store/useMetadataStore';
+import { ensureMetadata } from '../store/useMetadataStore';
 import { getTodayString, addDays } from '../utils/dateHelpers';
 
 export type EstadoBalance = 'optimo' | 'atencion' | 'alerta' | 'critico' | 'sin_datos';
@@ -54,8 +54,7 @@ export function useEfficiencyHistory(days = 7): EfficiencyHistory {
         let cancelled = false;
 
         async function fetch() {
-            const metaStore = useMetadataStore.getState();
-            if (!metaStore.last_fetched) await metaStore.fetchMetadata();
+            const metaStore = await ensureMetadata();
 
             const escalas = metaStore.escalas
                 .filter(e => e.activa && e.km >= 0 && e.km <= 104)

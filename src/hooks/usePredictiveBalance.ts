@@ -18,7 +18,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { useMetadataStore } from '../store/useMetadataStore';
+import { ensureMetadata } from '../store/useMetadataStore';
 import type { Alert } from '../components/AlertList';
 import { getTodayString, addDays } from '../utils/dateHelpers';
 
@@ -72,15 +72,13 @@ export function usePredictiveBalance(): PredictiveBalanceResult {
 
         async function run() {
             try {
-                const metaStore = useMetadataStore.getState();
-                if (!metaStore.last_fetched) {
-                    try {
-                        await metaStore.fetchMetadata();
-                    } catch {
-                        // Metadatos no disponibles — reintentará en el siguiente ciclo
-                        if (!cancelled) setState(s => ({ ...s, loading: false }));
-                        return;
-                    }
+                let metaStore;
+                try {
+                    metaStore = await ensureMetadata();
+                } catch {
+                    // Metadatos no disponibles — reintentará en el siguiente ciclo
+                    if (!cancelled) setState(s => ({ ...s, loading: false }));
+                    return;
                 }
 
                 const escalas = metaStore.escalas

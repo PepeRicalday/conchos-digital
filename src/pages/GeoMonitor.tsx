@@ -23,7 +23,7 @@ import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
 import { detectaSuperficieVaso, VASOS_CONOCIDOS } from '../utils/mapaSatelital';
 import { NdviModulosPanel } from '../components/NdviModulosPanel';
 import { WindyMapModal } from '../components/WindyMapModal';
-import { useMetadataStore } from '../store/useMetadataStore';
+import { ensureMetadata } from '../store/useMetadataStore';
 import { useNavigate } from 'react-router-dom';
 
 // Fix for Leaflet icons in React
@@ -1008,8 +1008,7 @@ const GeoMonitor = () => {
             const todayStr = getTodayString();
             const fiveDaysAgoStr = addDays(todayStr, -7);
             
-            const metaStore = useMetadataStore.getState();
-            if (!metaStore.last_fetched) await metaStore.fetchMetadata();
+            const metaStore = await ensureMetadata();
 
             const [
                 { data: resData },

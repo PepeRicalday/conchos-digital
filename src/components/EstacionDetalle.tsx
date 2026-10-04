@@ -416,7 +416,7 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
                             <h4><Thermometer size={14} /> Evolución diaria</h4>
                             {serie.length >= 2 ? (
                                 <div className="est-det-chart">
-                                    <ResponsiveContainer width="100%" height={240}>
+                                    <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height={240}>
                                         <ComposedChart data={serie} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" />
                                             <XAxis dataKey="fecha" tick={{ fontSize: 10, fill: '#94a3b8' }} />
@@ -432,7 +432,10 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
                                             <Bar yAxisId="mm" dataKey="Lluvia" fill="#38bdf8" radius={[3, 3, 0, 0]} />
                                             <Line yAxisId="mm" type="monotone" dataKey="ETo" name="ETₒ" stroke="#f59e0b" strokeWidth={2} dot={{ r: 2 }} connectNulls />
                                             <Line yAxisId="t" type="monotone" dataKey="TMax" name="T máx" stroke="#ef4444" strokeWidth={1.5} dot={false} connectNulls />
-                                            <Line yAxisId="t" type="monotone" dataKey="TMin" name="T mín" stroke="#60a5fa" strokeWidth={1.5} dot={false} connectNulls />
+                                            {/* #818cf8 (índigo), no #60a5fa: ese azul quedaba casi idéntico al
+                                                cian de la barra "Lluvia" (#38bdf8) — en días de lluvia fuerte
+                                                la línea de T mín se volvía indistinguible sobre la barra. */}
+                                            <Line yAxisId="t" type="monotone" dataKey="TMin" name="T mín" stroke="#818cf8" strokeWidth={1.5} dot={false} connectNulls />
                                         </ComposedChart>
                                     </ResponsiveContainer>
                                     {serie.some(s => s.parcial) && (

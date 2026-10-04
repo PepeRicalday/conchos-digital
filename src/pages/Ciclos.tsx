@@ -60,8 +60,8 @@ export default function Ciclos() {
     };
 
     return (
-        <div className="h-full bg-slate-900 p-6 flex flex-col overflow-hidden text-slate-200">
-            <div className="mb-6 flex justify-between items-end">
+        <div className="ciclos-root h-full bg-slate-900 p-6 flex flex-col overflow-hidden text-slate-200">
+            <div className="ciclos-head mb-6 flex justify-between items-end">
                 <div>
                     <h1 className="text-2xl font-bold text-white flex items-center gap-3">
                         <CalendarDays className="text-blue-400" size={28} />
@@ -74,9 +74,9 @@ export default function Ciclos() {
                 </button>
             </div>
 
-            <div className="flex gap-6 flex-1 min-h-0">
+            <div className="ciclos-body flex gap-6 flex-1 min-h-0">
                 {/* Lado Izquierdo: Lista de Ciclos y Formulario */}
-                <div className="w-1/3 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
+                <div className="ciclos-list w-1/3 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
                     {/* Lista de Ciclos */}
                     <div className="bg-slate-800 rounded-xl p-4 shadow-lg border border-slate-700">
                         <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Ciclos Registrados</h2>

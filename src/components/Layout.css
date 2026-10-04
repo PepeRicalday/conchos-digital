@@ -3,6 +3,7 @@
 .layout-container {
     display: flex;
     height: 100vh;
+    height: 100dvh;
     background: radial-gradient(circle at 50% -20%, rgba(15, 23, 42, 1) 0%, rgba(2, 6, 23, 1) 100%);
     color: var(--color-text-primary);
     position: relative;
@@ -29,6 +30,7 @@
     padding-top: var(--spacing-lg);
     max-width: 1800px;
     height: 100vh;
+    height: 100dvh;
     overflow-y: auto;
     overflow-x: hidden;
     position: relative;
@@ -67,6 +69,7 @@
 .sidebar {
     width: 280px;
     height: 100vh;
+    height: 100dvh;
     position: fixed;
     left: 0;
     top: 0;
@@ -301,4 +304,134 @@
 .logout-button:hover {
     background-color: rgba(239, 68, 68, 0.1) !important;
     color: #f87171 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TELÉFONO (iPhone 16 Pro Max 440×956 y similares) — data-device="phone"
+   Detección automática en hooks/useDevice.ts (ancho ≤ 900 px, o táctil con alto ≤ 500 px).
+   Escritorio y tablet NO se ven afectados: todo cuelga del atributo.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* La barra superior y el velo solo existen en teléfono */
+.mobile-topbar,
+.sidebar-backdrop { display: none; }
+
+html[data-device="phone"] .layout-container { height: 100dvh; }
+
+/* Contenido a todo el ancho, debajo de la barra superior y respetando zonas seguras */
+html[data-device="phone"] .main-content {
+    margin-left: 0;
+    max-width: none;
+    width: 100%;
+    height: 100dvh;
+    padding:
+        calc(var(--topbar-h) + var(--sat) + 12px)
+        calc(12px + var(--sar))
+        calc(16px + var(--sab))
+        calc(12px + var(--sal));
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Barra superior fija (isla dinámica: padding-top = safe-area superior) */
+html[data-device="phone"] .mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 1000;
+    box-sizing: border-box;
+    height: calc(var(--topbar-h) + var(--sat));
+    padding: var(--sat) calc(10px + var(--sar)) 0 calc(6px + var(--sal));
+    background: rgba(2, 6, 23, 0.92);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--glass-border);
+}
+.mobile-topbar__menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    color: var(--color-text-primary);
+    background: transparent;
+    border: 0;
+    border-radius: 12px;
+    cursor: pointer;
+}
+.mobile-topbar__menu:active { background: rgba(255, 255, 255, 0.08); }
+.mobile-topbar__logo {
+    width: 30px; height: 30px; flex-shrink: 0;
+    border-radius: 50%; background: #fff; padding: 1px; object-fit: contain;
+}
+.mobile-topbar__titulo {
+    margin: 0;
+    min-width: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Menú lateral → panel deslizable desde la izquierda */
+html[data-device="phone"] .sidebar {
+    width: min(86vw, 320px);
+    z-index: 1200;
+    padding-top: var(--sat);
+    padding-bottom: var(--sab);
+    padding-left: var(--sal);
+    transform: translateX(-104%);
+    visibility: hidden;                       /* cerrado: no recibe foco ni toques */
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.28s;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+html[data-device="phone"] .layout-container.menu-abierto .sidebar {
+    transform: translateX(0);
+    visibility: visible;
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s;
+}
+html[data-device="phone"] .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    background: rgba(2, 6, 23, 0.62);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+html[data-device="phone"] .layout-container.menu-abierto .sidebar-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Elementos del menú: objetivos táctiles cómodos y sin "hover pegajoso" */
+html[data-device="phone"] .nav-item { min-height: 48px; font-size: 0.9rem; }
+html[data-device="phone"] .nav-section-label { font-size: 0.72rem; }
+html[data-device="phone"] .footer-version { font-size: 0.7rem; }
+
+/* Selector de fecha de la parte superior: a todo el ancho en teléfono */
+html[data-device="phone"] .top-bar {
+    justify-content: stretch;
+    flex-wrap: wrap;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+}
+html[data-device="phone"] .top-bar > * { max-width: 100%; }
+
+@media (hover: none) {
+    .nav-item:hover { transform: none; }
+    .nav-item:hover svg { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html[data-device="phone"] .sidebar,
+    html[data-device="phone"] .sidebar-backdrop { transition: none; }
 }

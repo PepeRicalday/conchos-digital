@@ -1,0 +1,276 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   phone.css — adaptaciones de PÁGINA para teléfono (iPhone 16 Pro Max 440×956 y similares)
+
+   Todo cuelga de html[data-device="phone"] (detección automática en hooks/useDevice.ts), por lo que
+   escritorio y tablet no se ven afectados. La especificidad (html[attr] .clase = 0,2,1) supera a las
+   reglas de cada página sin necesidad de !important ni de depender del orden de carga.
+   La base común (zonas seguras, entradas de 16 px, objetivos táctiles, tablas) está en index.css y
+   Layout.css; aquí solo va lo específico de cada pantalla. Organizado por página.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Base: nada debe ensanchar la página ─────────────────────────────────── */
+html[data-device="phone"] .main-content :is(img, video) { max-width: 100%; }
+/* Los hijos de grillas/flex no se estiran más que su contenedor por su contenido (min-width:auto) */
+html[data-device="phone"] .main-content :is(.card, .chart-widget, .glass-card) { min-width: 0; max-width: 100%; }
+
+/* ── Dashboard ───────────────────────────────────────────────────────────── */
+html[data-device="phone"] .dashboard-grid-main,
+html[data-device="phone"] .dashboard-grid-kpi { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+html[data-device="phone"] :is(.dashboard-grid-main, .dashboard-grid-kpi) > *,
+html[data-device="phone"] :is(.grid-col-left, .grid-col-right) { min-width: 0; }
+html[data-device="phone"] :is(.grid-col-left, .grid-col-right) { gap: 12px; }
+html[data-device="phone"] .dashboard-grid-kpi > .kpi-card.kpi-sev-critical { grid-column: auto; }
+html[data-device="phone"] .dash-identity { flex-wrap: wrap; row-gap: 2px; }
+html[data-device="phone"] .dash-identity-sub { letter-spacing: 0.06em; font-size: 0.66rem; }
+
+/* ── Presas (sala de control SCADA) ──────────────────────────────────────── */
+html[data-device="phone"] .scada-sala-root { padding: 8px 0 24px; min-height: 0; }
+html[data-device="phone"] .scada-sala-header {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+}
+html[data-device="phone"] .scada-header-title { font-size: 15px; }
+html[data-device="phone"] .scada-header-org { font-size: 9px; }
+html[data-device="phone"] .scada-header-dam-selector { flex-wrap: wrap; gap: 8px; }
+html[data-device="phone"] .scada-dam-btn { font-size: 11px; padding: 8px 14px; min-height: 40px; }
+html[data-device="phone"] .scada-header-kpi-strip { justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+html[data-device="phone"] .scada-header-kpi-label { font-size: 9px; }
+html[data-device="phone"] .scada-header-kpi-unit { font-size: 10px; }
+html[data-device="phone"] .scada-header-kpi-val { font-size: 22px; }
+html[data-device="phone"] .scada-header-right { flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+html[data-device="phone"] .scada-clock { font-size: 14px; align-items: flex-start; }
+html[data-device="phone"] .scada-clock-date { font-size: 10px; }
+html[data-device="phone"] .scada-action-btn { font-size: 10px; padding: 8px 12px; min-height: 40px; }
+html[data-device="phone"] .scada-status-badge { font-size: 10px; padding: 6px 12px; }
+html[data-device="phone"] .scada-sala-body { grid-template-columns: minmax(0, 1fr); }
+html[data-device="phone"] .scada-design-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html[data-device="phone"] .scada-panel-hdr { font-size: 10px; }
+html[data-device="phone"] .scada-design-kpi span:first-child { font-size: 9px; color: #64748b; }
+
+/* ── Control de Niveles ──────────────────────────────────────────────────── */
+html[data-device="phone"] .zone-summary { flex-wrap: wrap; gap: 8px 16px; }
+
+/* ── Gráficas reutilizables (ChartWidget): el título puede partir línea ───── */
+html[data-device="phone"] .chart-title { white-space: normal; }
+
+/* ── Análisis Histórico ──────────────────────────────────────────────────── */
+html[data-device="phone"] .ah-title { font-size: 1.4rem; }
+html[data-device="phone"] .ah-controls-row { flex-wrap: wrap; gap: 12px; align-items: stretch; }
+html[data-device="phone"] :is(.ah-auto-detect-info, .ah-control-group) { min-width: 0; max-width: 100%; }
+
+/* ── Balance Hidráulico ──────────────────────────────────────────────────── */
+html[data-device="phone"] .balance-content { grid-template-columns: minmax(0, 1fr); }
+html[data-device="phone"] .balance-content > * { min-width: 0; }
+html[data-device="phone"] :is(.balance-table-wrapper, .balance-schematic-card) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+html[data-device="phone"] .balance-manning-card { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+
+/* ── Modelación Hidráulica (aplicación de pantalla completa → apilada en teléfono) ── */
+html[data-device="phone"] .sim-root { height: auto; min-height: 0; overflow: visible; }
+html[data-device="phone"] .sim-header { height: auto; min-height: 56px; flex-wrap: wrap; padding: 10px 12px; gap: 10px; }
+html[data-device="phone"] .sim-header-actions { flex-wrap: wrap; gap: 8px; width: 100%; }
+html[data-device="phone"] .sim-body { flex-direction: column; overflow: visible; }
+html[data-device="phone"] :is(.sim-left, .sim-right) {
+    width: 100%; min-width: 0; max-height: 70dvh;
+    border-left: 0; border-right: 0;
+    border-top: 1px solid var(--sim-border);
+}
+html[data-device="phone"] .sim-center { overflow: visible; width: 100%; order: -1; }
+html[data-device="phone"] .sim-flow-group { min-width: 0; }
+html[data-device="phone"] .sim-start-time-row { flex-wrap: wrap; gap: 8px; }
+html[data-device="phone"] :is(.sim-slider, .sim-time-slider) { min-height: 44px; }
+
+/* ── Consultoría IA ──────────────────────────────────────────────────────── */
+html[data-device="phone"] .ih-view-tools { flex-wrap: wrap; }
+html[data-device="phone"] .header-badge { max-width: 100%; white-space: normal; }
+
+/* ── GeoMonitor ──────────────────────────────────────────────────────────── */
+/* Pantalla de mapa: encabezado compacto, barra de herramientas HORIZONTAL (la columna vertical le quitaba
+   130 px al mapa) y el mapa ocupa el resto de la altura visible. */
+html[data-device="phone"] .geo-monitor-container {
+    height: calc(100dvh - var(--topbar-h) - var(--sat) - 28px - var(--sab));
+    padding: 6px;
+}
+html[data-device="phone"] .geo-monitor-container.geo-fullscreen {
+    height: 100dvh; width: 100vw;
+    padding: calc(6px + var(--sat)) calc(6px + var(--sar)) calc(6px + var(--sab)) calc(6px + var(--sal));
+}
+html[data-device="phone"] .geo-header { flex-wrap: wrap; gap: 8px; padding: 8px 10px; margin-bottom: 6px; }
+html[data-device="phone"] .geo-header-left { flex: 1 1 100%; min-width: 0; }
+html[data-device="phone"] .geo-subtitle,
+html[data-device="phone"] .geo-divider,
+html[data-device="phone"] .geo-date { display: none; }
+html[data-device="phone"] .geo-search-container { flex: 1 1 100%; width: 100%; }
+html[data-device="phone"] .geo-header-right { flex: 1 1 100%; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+html[data-device="phone"] .geo-time-display { text-align: left; }
+html[data-device="phone"] .geo-time { font-size: 1rem; }
+html[data-device="phone"] .geo-status-badges { flex-direction: row; flex-wrap: wrap; }
+html[data-device="phone"] .geo-main-content { flex-direction: column; gap: 6px; }
+html[data-device="phone"] .geo-sidebar-controls {
+    width: 100%; flex: 0 0 auto; flex-direction: row; align-items: center; gap: 8px;
+    overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; padding-bottom: 2px;
+}
+html[data-device="phone"] .geo-control-group { flex-direction: row; padding-left: 0; gap: 8px; flex-shrink: 0; }
+html[data-device="phone"] .geo-group-label,
+html[data-device="phone"] .geo-sidebar-fade { display: none; }
+html[data-device="phone"] .geo-sidebar-scroll { flex-direction: row; overflow-x: auto; overflow-y: hidden; gap: 8px; flex-shrink: 0; }
+
+/* ── Control de Niveles (tarjetas por zona) ──────────────────────────────── */
+html[data-device="phone"] .zone-header { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px; }
+html[data-device="phone"] .zone-title { flex-wrap: wrap; row-gap: 6px; }
+html[data-device="phone"] .zone-title h3 { font-size: 0.95rem; flex: 1 1 100%; }
+html[data-device="phone"] .zone-summary { width: 100%; }
+html[data-device="phone"] .zone-gauges { padding: 8px; gap: 12px; }
+html[data-device="phone"] .zone-card { padding-left: 0; padding-right: 0; }
+html[data-device="phone"] .zone-gauges { grid-template-columns: minmax(0, 1fr); }
+html[data-device="phone"] .scale-gauge-card.has-radiales { min-width: 0; grid-column: auto; }
+
+/* ── Alertas ─────────────────────────────────────────────────────────────── */
+html[data-device="phone"] .alertas-container { height: auto; overflow: visible; padding: 0; }
+html[data-device="phone"] .al-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+html[data-device="phone"] .al-header-title { font-size: 1.05rem; line-height: 1.3; }
+html[data-device="phone"] .al-header-subtitle { display: block; margin: 4px 0 0; font-size: 0.8rem; }
+html[data-device="phone"] .al-header-right { width: 100%; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+html[data-device="phone"] .al-grid { grid-template-columns: minmax(0, 1fr); }
+html[data-device="phone"] :is(.al-left-col, .al-right-col, .al-grid > *) { min-width: 0; }
+html[data-device="phone"] .al-filters-row { flex-direction: column; gap: 12px; }
+html[data-device="phone"] .al-filter-controls { flex-wrap: wrap; }
+html[data-device="phone"] .al-kpi-row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+html[data-device="phone"] .al-map-card { min-height: 260px; }
+
+/* ── Distribución (Canales / Centro de Control Operativo) ─────────────────── */
+html[data-device="phone"] .canales-container { margin-top: 0 !important; gap: 12px; }
+html[data-device="phone"] .canales-container > header { flex-wrap: wrap; gap: 12px; padding: 12px; }
+html[data-device="phone"] .canales-container > header > div { flex-wrap: wrap; gap: 10px; min-width: 0; }
+html[data-device="phone"] .conchos-tabs-area { padding: 8px 4px; -webkit-overflow-scrolling: touch; }
+html[data-device="phone"] .conchos-dashboard-v-layout { padding: 8px 0; }
+html[data-device="phone"] .conchos-top-row { flex-direction: column; gap: 12px; }
+html[data-device="phone"] .conchos-top-row > * { width: 100%; max-width: 100%; flex: 1 1 auto; }
+html[data-device="phone"] :is(.conchos-balance-card) { flex: 1 1 auto; }
+html[data-device="phone"] .conchos-modules-grid,
+html[data-device="phone"] .canales-content-grid,
+html[data-device="phone"] .analytics-grid,
+html[data-device="phone"] .stats-section,
+html[data-device="phone"] .deliveries-grid { grid-template-columns: minmax(0, 1fr); }
+
+/* ── Encabezados de página genéricos (.page-header: Hidrometría, Bitácora, Ciclos, …) ── */
+html[data-device="phone"] .page-header { margin-bottom: 16px; gap: 12px; }
+html[data-device="phone"] .page-header :is(h1, h2) { font-size: 1.3rem; line-height: 1.25; flex-wrap: wrap; row-gap: 4px; }
+html[data-device="phone"] .page-header p { font-size: 0.85rem; margin-left: 0; }
+
+/* ── Importar Datos: dos paneles lado a lado → apilados, el formulario primero ───── */
+html[data-device="phone"] .imp-root { flex-direction: column; height: auto; min-height: 0; overflow: visible; }
+html[data-device="phone"] :is(.imp-ref, .imp-form) { width: 100%; height: auto; }
+html[data-device="phone"] .imp-form { order: -1; }
+html[data-device="phone"] .imp-ref { border-right: 0; border-top: 1px solid rgb(51 65 85); max-height: 70dvh; }
+html[data-device="phone"] .imp-form > .overflow-y-auto { overflow-y: visible; padding: 14px; }
+
+/* ── Infraestructura (catálogo) ──────────────────────────────────────────── */
+html[data-device="phone"] .infra-root { height: auto; min-height: 0; overflow: visible; padding: 4px 0; background: transparent; }
+html[data-device="phone"] .infra-head { flex-direction: column; align-items: flex-start; gap: 12px; }
+html[data-device="phone"] .infra-head h1 { font-size: 1.25rem; }
+html[data-device="phone"] .infra-body { flex-direction: column; gap: 12px; }
+html[data-device="phone"] .infra-root td, html[data-device="phone"] .infra-root th { padding-left: 10px; padding-right: 10px; }
+
+/* ── Consultoría IA (cabecera y vistas) ──────────────────────────────────── */
+html[data-device="phone"] .ih-page-header { flex-wrap: wrap; align-items: flex-start; gap: 12px; }
+html[data-device="phone"] .ih-page-header .header-left { flex: 1 1 100%; }
+html[data-device="phone"] .ih-page-header h1 { font-size: 1.25rem; }
+html[data-device="phone"] .ih-view-tools { flex: 1 1 auto; justify-content: space-between; }
+html[data-device="phone"] .sim-kpi-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 10px 16px; }
+html[data-device="phone"] .sim-kpi-row > * { min-width: 0; text-align: left; align-items: flex-start; }
+html[data-device="phone"] .sim-kpi-sep { display: none; }
+html[data-device="phone"] .sim-ctrl-bar { flex-wrap: wrap; height: auto; gap: 10px; padding: 10px 12px; }
+html[data-device="phone"] .sim-ctrl-bar > * { min-width: 0; max-width: 100%; }
+html[data-device="phone"] .sim-start-time-row { max-width: 100%; width: 100%; }
+html[data-device="phone"] .sim-start-time-controls { flex-wrap: wrap; }
+html[data-device="phone"] .sim-brand { min-width: 0; }
+
+/* ── Monitor Público ─────────────────────────────────────────────────────── */
+/* El contenedor mide el área útil real: 100dvh menos barra superior, zonas seguras y el relleno del
+   .main-content en teléfono (antes usaba el relleno de escritorio y sobraban ~110 px de scroll). */
+html[data-device="phone"] .public-monitor-container {
+    height: calc(100dvh - var(--topbar-h) - var(--sat) - 12px - 16px - var(--sab));
+}
+html[data-device="phone"] .dock-close-btn { width: 44px; height: 44px; top: -22px; right: 12px; }
+html[data-device="phone"] .dsk-actions { flex-wrap: wrap; gap: 8px; }
+html[data-device="phone"] .dsk-btn { min-height: 44px; padding: 8px 12px; font-size: 0.75rem; }
+html[data-device="phone"] .dap-link { display: inline-flex; align-items: center; min-height: 44px; }
+/* Tablero técnico (dock): hoja inferior que respeta la barra de gestos; pestañas en una fila desplazable */
+html[data-device="phone"] .info-cards-dock { padding-bottom: calc(12px + var(--sab)); padding-left: calc(10px + var(--sal)); padding-right: calc(10px + var(--sar)); }
+html[data-device="phone"] .pm-sin-mapa .info-cards-dock {
+    top: calc(var(--topbar-h) + var(--sat) + 8px);
+    bottom: 0;
+    left: 0; width: 100%;
+    border-radius: 20px 20px 0 0;
+}
+html[data-device="phone"] .dock-tabs {
+    display: flex; flex-wrap: nowrap; gap: 6px;
+    overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+html[data-device="phone"] .dock-tabs::-webkit-scrollbar { display: none; }
+html[data-device="phone"] .dock-tab { flex: 0 0 auto; white-space: nowrap; }
+html[data-device="phone"] .dock-section.dock-panel-left { width: 100%; max-width: none; min-height: 110px; }
+html[data-device="phone"] .info-cards-dock .dock-tabs { display: flex; grid-template-columns: none; flex-wrap: nowrap; overflow-x: auto; }
+html[data-device="phone"] .info-cards-dock .dock-tabs .dock-tab { flex: 0 0 auto; min-width: 120px; }
+
+/* ── Presas: el media ≤1280 deja grid-column:2 y crea una columna implícita que encima los bloques ── */
+html[data-device="phone"] .scada-sala-header { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+html[data-device="phone"] .scada-sala-header > * { grid-column: auto; min-width: 0; }
+html[data-device="phone"] .scada-header-right { justify-content: space-between; }
+html[data-device="phone"] .scada-header-kpi-strip { justify-content: space-between; }
+html[data-device="phone"] .scada-sala-footer,
+html[data-device="phone"] .scada-gestion-kpis { grid-template-columns: minmax(0, 1fr); }
+
+/* ── Ciclo Agrícola ──────────────────────────────────────────────────────── */
+html[data-device="phone"] .ciclos-root { height: auto; min-height: 0; overflow: visible; padding: 4px 0; background: transparent; }
+html[data-device="phone"] .ciclos-head { flex-direction: column; align-items: flex-start; gap: 12px; }
+html[data-device="phone"] .ciclos-head h1 { font-size: 1.25rem; }
+html[data-device="phone"] .ciclos-body { flex-direction: column; gap: 14px; }
+html[data-device="phone"] .ciclos-list { width: 100%; overflow: visible; padding-right: 0; }
+
+/* ── Capas: los modales de página deben poder cubrir la barra superior ─────────────────────
+   .main-content crea un contexto de apilamiento (z-index:10) que dejaba cualquier modal por DEBAJO
+   de la barra superior (z-index:1000). En teléfono se libera; los modales con z-index propio ≥ 1000 la cubren. */
+html[data-device="phone"] .main-content { z-index: auto; }
+
+/* ── Detalle de estación (Clima) ─────────────────────────────────────────── */
+html[data-device="phone"] .est-det-overlay {
+    left: 0; z-index: 1300;
+    padding: calc(var(--sat) + 8px) calc(8px + var(--sar)) calc(var(--sab) + 8px) calc(8px + var(--sal));
+}
+html[data-device="phone"] .est-det-overlay > * { width: 100%; max-width: 100%; min-width: 0; }
+
+/* ── Asistente flotante HydraAI (si se monta) ────────────────────────────── */
+html[data-device="phone"] .hydra-ai-trigger { bottom: calc(16px + var(--sab)); right: calc(16px + var(--sar)); width: 56px; height: 56px; }
+html[data-device="phone"] .hydra-ai-window {
+    left: 8px; right: 8px; width: auto;
+    bottom: calc(84px + var(--sab));
+    height: min(550px, calc(100dvh - 160px - var(--sat) - var(--sab)));
+}
+
+html[data-device="phone"] .scada-action-btn { min-height: 44px; }
+
+/* ── Reporte Oficial (documento A4 de 210 mm): fluido en pantalla; la impresión no se toca ─── */
+@media screen {
+    html[data-device="phone"] .report-paper { width: 100%; min-height: 0; padding: 12px; box-sizing: border-box; }
+    html[data-device="phone"] .report-paper :is(.flex, .grid) { flex-wrap: wrap; }
+    html[data-device="phone"] .report-paper .p-8 { padding: 12px; }
+    html[data-device="phone"] .report-paper img { max-width: 100%; height: auto; }
+}
+
+/* ── Ajustes para pantallas estrechas (iPhone 16 393 px, iPhone SE 375 px) ─────────────────── */
+html[data-device="phone"] .dash-statusbar { flex-wrap: wrap; }
+html[data-device="phone"] .dash-chip { max-width: 100%; white-space: normal; }
+html[data-device="phone"] .phb-main { flex-wrap: wrap; row-gap: 6px; max-width: 100%; }
+html[data-device="phone"] .phb-version { white-space: normal; }
+html[data-device="phone"] .quick-stats { flex-wrap: wrap; }
+html[data-device="phone"] .quick-stat { padding: var(--spacing-sm) var(--spacing-md); flex: 1 1 110px; min-width: 0; }
+html[data-device="phone"] .al-log-action { white-space: normal; max-width: 100%; min-height: 44px; }
+html[data-device="phone"] .sim-tl-label { white-space: normal; }
+html[data-device="phone"] .geo-sentinel-date-modo { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
+html[data-device="phone"] .tnd-controls button { min-height: 44px; min-width: 44px; }
+html[data-device="phone"] .dash-donuts { flex-wrap: wrap; gap: 12px; }
+html[data-device="phone"] .main-content .flex.justify-between { flex-wrap: wrap; gap: 0.5rem; }
+html[data-device="phone"] .al-log-item { flex-wrap: wrap; }
+html[data-device="phone"] .al-log-content { min-width: 0; flex: 1 1 200px; }

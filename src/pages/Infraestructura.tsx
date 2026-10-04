@@ -54,8 +54,8 @@ export default function Infraestructura() {
     };
 
     return (
-        <div className="h-full bg-slate-900 p-6 flex flex-col overflow-hidden text-slate-200">
-            <div className="mb-6 flex justify-between items-end">
+        <div className="infra-root h-full bg-slate-900 p-6 flex flex-col overflow-hidden text-slate-200">
+            <div className="infra-head mb-6 flex justify-between items-end">
                 <div>
                     <h1 className="text-2xl font-bold text-white flex items-center gap-3">
                         <MapPin className="text-blue-400" size={28} />
@@ -70,7 +70,7 @@ export default function Infraestructura() {
                 )}
             </div>
 
-            <div className="flex-1 flex gap-6 min-h-0 relative">
+            <div className="infra-body flex-1 flex gap-6 min-h-0 relative">
 
                 {/* Tabla de Puntos (Oculta si se está editando en móvil, o reducida en desktop) */}
                 <div className={`flex-1 bg-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700 flex flex-col transition-all ${isEditing ? 'opacity-30 pointer-events-none lg:opacity-100 lg:pointer-events-auto lg:w-1/2 flex-none' : 'w-full'}`}>

@@ -7,6 +7,7 @@
 // Salida: e2e/out/<app>_<viewport>.json y capturas .png (carpeta ignorada por git).
 import { chromium } from 'playwright';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 
 const OUT = new URL('./out/', import.meta.url);
 fs.mkdirSync(OUT, { recursive: true });
@@ -50,7 +51,7 @@ for (const route of routes) {
       imgsRotas: [...document.images].filter(i => i.complete && i.naturalWidth === 0).map(i => i.src.slice(-50)),
     };
   });
-  await page.screenshot({ path: new URL(`${app}_${vpName}_${route.replace(/\//g, '_') || '_root'}.png`, OUT).pathname.replace(/^\/([A-Z]:)/, '$1') });
+  await page.screenshot({ path: fileURLToPath(new URL(`${app}_${vpName}_${route.replace(/\//g, '_') || '_root'}.png`, OUT)) });
   const cands = await page.evaluate(DS => {
     const bad = new RegExp(DS, 'i'); const seen = new Set(); const out = [];
     document.querySelectorAll('[role=tab], button').forEach((el, i) => {

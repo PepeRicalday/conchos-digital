@@ -355,9 +355,9 @@ const ImportReport = () => {
     const currentData = formData[activeTab];
 
     return (
-        <div className="flex h-screen bg-slate-900 text-slate-100 overflow-hidden">
+        <div className="imp-root flex h-screen bg-slate-900 text-slate-100 overflow-hidden">
             {/* LEFT: Source / Preview */}
-            <div className="w-1/2 h-full border-r border-slate-700 flex flex-col bg-slate-800/50">
+            <div className="imp-ref w-1/2 h-full border-r border-slate-700 flex flex-col bg-slate-800/50">
                 <header className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/40">
                     <h2 className="font-bold flex items-center gap-2 text-white">
                         <FileText className="text-blue-400" />
@@ -486,7 +486,7 @@ const ImportReport = () => {
             </div>
 
             {/* RIGHT: Data Entry Form */}
-            <div className="w-1/2 h-full flex flex-col">
+            <div className="imp-form w-1/2 h-full flex flex-col">
                 <header className="p-4 border-b border-slate-700 bg-slate-800/80 backdrop-blur-md flex flex-col gap-4">
                     <div className="flex justify-between items-center">
                         <h2 className="font-bold text-lg mb-0 flex items-center gap-2">

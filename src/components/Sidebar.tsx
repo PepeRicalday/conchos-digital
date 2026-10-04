@@ -92,7 +92,7 @@ const Sidebar = () => {
     ];
 
     return (
-        <aside className="sidebar">
+        <aside className="sidebar" id="sidebar-principal">
             <div className="sidebar-header">
                 <div className="brand-logo-container">
                     <img src="/logos/SICA005.png" alt="SICA 005" className="brand-logo" />

@@ -42,17 +42,33 @@ export default defineConfig(({ mode }) => {
           name: 'SICA 005 - Conchos Digital',
           short_name: 'SICA 005',
           description: 'Sistema de Integridad y Control de Agua - Distrito 005',
-          theme_color: '#ffffff',
+          // Mismos colores que la app (fondo oscuro): sin destello blanco al abrir desde
+          // la pantalla de inicio del iPhone y barra de estado integrada.
+          theme_color: '#020617',
+          background_color: '#020617',
+          display: 'standalone',
+          orientation: 'any',
+          start_url: '/',
+          scope: '/',
+          lang: 'es',
           icons: [
             {
               src: 'pwa-192x192.png',
               sizes: '192x192',
-              type: 'image/png'
+              type: 'image/png',
+              purpose: 'any'
             },
             {
               src: 'pwa-512x512.png',
               sizes: '512x512',
-              type: 'image/png'
+              type: 'image/png',
+              purpose: 'any'
+            },
+            {
+              src: 'pwa-maskable-512x512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable'
             }
           ]
         },

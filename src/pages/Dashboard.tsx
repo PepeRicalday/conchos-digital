@@ -1011,7 +1011,7 @@ const Dashboard = () => {
                             <h3 className="font-bold text-white tracking-wide">Balance Hídrico Global</h3>
                         </div>
 
-                        <div style={{
+                        <div className="dash-donuts" style={{
                             display: 'flex',
                             justifyContent: 'space-around',
                             alignItems: 'center',

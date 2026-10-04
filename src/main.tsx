@@ -139,10 +139,17 @@ import '@fontsource/jetbrains-mono/latin-500.css'
 import '@fontsource/jetbrains-mono/latin-700.css'
 import '@fontsource/jetbrains-mono/latin-800.css'
 import './index.css'
+import './styles/phone.css'   // adaptaciones de página para teléfono (html[data-device="phone"])
 import App from './App.tsx'
+import { initDeviceDetection } from './hooks/useDevice'
 
 // C-01: ErrorBoundary real vive en components/ErrorBoundary.tsx (usa react-error-boundary con UI premium)
 // Se usa dentro de App.tsx — no duplicar aquí.
+
+// Detección automática de pantalla (teléfono/tablet/escritorio, orientación, PWA): escribe
+// data-device/data-orientation/... en <html> ANTES del primer render para que el CSS acierte
+// desde el primer pintado y siga el redimensionado/giro en vivo. Ver hooks/useDevice.ts.
+initDeviceDetection()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

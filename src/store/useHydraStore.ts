@@ -4,7 +4,7 @@ import { onTable } from '../lib/realtimeHub';
 import { getTodayString, getStartOfTodayISO } from '../utils/dateHelpers';
 import { useMetadataStore } from './useMetadataStore';
 import type {
-    MedicionRow, ReporteOperacionRow, ReporteDiarioRow, ResumenCicloRow,
+    MedicionRow, ReporteOperacionRow, ReporteDiarioRow,
     ModuloRow, PuntoEntregaRow,
 } from '../types/sica.types';
 
@@ -14,7 +14,8 @@ import type {
 type MedicionSel = Pick<MedicionRow, 'punto_id' | 'valor_q' | 'valor_vol' | 'fecha_hora'>;
 type ReporteDiarioSel = Pick<ReporteDiarioRow, 'punto_id' | 'modulo_id' | 'volumen_total_mm3' | 'caudal_promedio_lps'>;
 type ReporteOperacionSel = Pick<ReporteOperacionRow, 'punto_id' | 'caudal_promedio' | 'volumen_acumulado' | 'hora_apertura' | 'estado' | 'fecha'>;
-type ResumenCicloSel = Pick<ResumenCicloRow, 'modulo_id' | 'volumen_entregado_mm3'>;
+// Vista única volumen_ciclo_modulo (hoja institucional + remanente): autorizado y entregado del ciclo.
+type ResumenCicloSel = { modulo_id: string | null; vol_entregado_mm3: number | null; vol_autorizado_mm3: number | null };
 
 export interface SectionData {
     id: string;
@@ -130,9 +131,10 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                     .select('punto_id, caudal_promedio, volumen_acumulado, hora_apertura, estado, fecha')
                     .eq('fecha', today)
                     .in('estado', ['inicio', 'continua', 'reabierto', 'modificacion']),
-                // Volumen acumulado del ciclo activo por módulo (fuente authoritative)
-                supabase.from('resumen_ciclo')
-                    .select('modulo_id, volumen_entregado_mm3')
+                // Volumen autorizado y acumulado del ciclo activo por módulo — ÚNICA FUENTE
+                // (volumen_ciclo_modulo; ver utils/volumenCiclo.ts).
+                supabase.from('volumen_ciclo_modulo')
+                    .select('modulo_id, vol_entregado_mm3, vol_autorizado_mm3')
                     .eq('activo', true),
                 // Captura operativa real por módulo (mediciones/reportes_diarios/reportes_operacion
                 // están vacías — entregas_modulo es la fuente viva, mismo criterio que
@@ -182,9 +184,11 @@ export const useHydraStore = create<HydraState>((set, get) => ({
 
             // 4. Index resumen_ciclo por módulo (volumen acumulado ciclo activo)
             const resumenCicloMap = new Map<string, number>();
+            const autorizadoCicloMap = new Map<string, number>();
             (volDiarioModulo || []).forEach((v: ResumenCicloSel) => {
                 if (!v.modulo_id) return;
-                resumenCicloMap.set(v.modulo_id, Number(v.volumen_entregado_mm3 || 0));
+                resumenCicloMap.set(v.modulo_id, Number(v.vol_entregado_mm3 || 0));
+                autorizadoCicloMap.set(v.modulo_id, Number(v.vol_autorizado_mm3 || 0));
             });
 
             // 4b. Index entregas_modulo por módulo — dedupe por (modulo_id, tipo_entrega) al
@@ -287,7 +291,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                 const currentFlow = pointsFlow > 0 ? pointsFlow : (entregaModuloFlowMap.get(mod.id) ?? 0);
                 const dailyVol = pointsDailyVol > 0 ? pointsDailyVol : (entregaModuloVolMap.get(mod.id) ?? 0);
 
-                // Acumulado ciclo: resumen_ciclo.volumen_entregado_mm3 (ya en Mm³)
+                // Acumulado ciclo: volumen_ciclo_modulo.vol_entregado_mm3 (ya en Mm³)
                 const accumulatedVol = resumenCicloMap.get(mod.id) ?? (Number(freshMod.vol_acumulado || 0) / 1000);
 
                 return {
@@ -299,7 +303,7 @@ export const useHydraStore = create<HydraState>((set, get) => ({
                     current_flow: currentFlow,
                     daily_vol: dailyVol,
                     accumulated_vol: accumulatedVol,
-                    authorized_vol: (Number(freshMod.vol_autorizado || 0) / 1000),
+                    authorized_vol: autorizadoCicloMap.get(mod.id) ?? (Number(freshMod.vol_autorizado || 0) / 1000),
                     target_flow: Number(mod.caudal_objetivo || 0),
                     delivery_points: points
                 };

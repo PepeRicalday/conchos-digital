@@ -235,14 +235,19 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
                 });
             }
             const entry = modBalMap.get(b.modulo_id)!;
-            entry.usado += (Number(b.vol_base_consumido_m3)     || 0) / 1e6;
-            entry.adic  += (Number(b.vol_adicional_consumido_m3) || 0) / 1e6;
+            // ÚNICA FUENTE: la fila PRIMARIA de balance_volumen_modulo ya trae el total del ciclo
+            // (volumen_ciclo_modulo = hoja institucional + remanente). Las filas de zonas secundarias
+            // solo son captura parcial de esa zona: sumarlas duplicaría volumen.
             if (b.es_primaria) {
+                const dotac = (Number(b.vol_base_m3) || 0) / 1e6;
+                const entregado = (Number(b.vol_total_consumido_m3) || 0) / 1e6;
                 entry.zona   = b.zona_codigo  || '—';
-                entry.dotac  = (Number(b.vol_base_m3)           || 0) / 1e6;
-                entry.disp   = (Number(b.vol_base_disponible_m3) || 0) / 1e6;
-                entry.pct    = Number(b.pct_base_consumido)      || 0;
-                entry.estado = b.estado_volumen || 'Normal';
+                entry.dotac  = dotac;
+                entry.usado  = entregado;
+                entry.adic   = (Number(b.vol_adicional_consumido_m3) || 0) / 1e6;
+                entry.disp   = dotac - entregado;
+                entry.pct    = dotac > 0 ? (entregado / dotac) * 100 : 0;
+                entry.estado = entry.pct >= 100 ? 'Agotado' : entry.pct >= 85 ? 'Alta' : 'Normal';
             }
         }
         const dotTotalDotac = [...modBalMap.values()].reduce((s, m) => s + m.dotac, 0);
@@ -506,10 +511,10 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
             + '<div class="two-col">'
             // Col izquierda: tabla dotación base vs consumo
             + '<div class="col-60">'
-            + '<div class="sec-title">Dotación Base vs Consumo — Módulos</div>'
+            + '<div class="sec-title">Volumen a Entregar vs Entregado — Módulos (ciclo)</div>'
             + '<table><thead><tr>'
-            + '<th>Módulo</th><th>Zona</th><th class="num">Dotac. (Mm³)</th><th class="num">Usado (Mm³)</th>'
-            + '<th class="num">Adic. (Mm³)</th><th class="num">Disp. (Mm³)</th><th class="num">%</th><th>Estado</th>'
+            + '<th>Módulo</th><th>Zona</th><th class="num">A entregar (Mm³)</th><th class="num">Entregado (Mm³)</th>'
+            + '<th class="num">Adic. capt. (Mm³)</th><th class="num">Saldo (Mm³)</th><th class="num">%</th><th>Estado</th>'
             + '</tr></thead><tbody>' + dotacionRows + '</tbody></table>'
             + '</div>'
             // Col derecha: tabla volúmenes hidráulicos + demanda por zona

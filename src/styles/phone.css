@@ -274,3 +274,13 @@ html[data-device="phone"] .dash-donuts { flex-wrap: wrap; gap: 12px; }
 html[data-device="phone"] .main-content .flex.justify-between { flex-wrap: wrap; gap: 0.5rem; }
 html[data-device="phone"] .al-log-item { flex-wrap: wrap; }
 html[data-device="phone"] .al-log-content { min-width: 0; flex: 1 1 200px; }
+
+/* Menú lateral SÓLIDO: el degradado translúcido de escritorio dejaba ver el contenido de atrás
+   (texto superpuesto) y la barra superior al abrirlo en Safari/WebKit. */
+html[data-device="phone"] .sidebar {
+    background: #020617;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: 12px 0 40px rgba(0, 0, 0, 0.6);
+}
+html[data-device="phone"] .layout-container.menu-abierto .mobile-topbar { visibility: hidden; }

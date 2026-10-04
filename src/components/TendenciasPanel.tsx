@@ -21,6 +21,14 @@ const ESC_SIN_CONTROL = new Set(['K-64', 'K-94+200']);
 const esControlDeQ = (s: SerieEscala) => !ESC_SIN_CONTROL.has(s.nombre);
 const LS_VISIBLES = 'tnd:puntos-visibles';
 
+// Táctil: pan-y deja que el gesto vertical desplace el panel (con 'none' la
+// gráfica atrapaba el dedo); el arrastre horizontal sigue moviendo el crosshair.
+// user-select/callout evitan que la pulsación larga en iPad seleccione texto.
+const CHART_TOUCH_STYLE: React.CSSProperties = {
+  display: 'block', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none',
+  WebkitTouchCallout: 'none',
+} as React.CSSProperties;
+
 // ── Mini-gráfica de líneas genérica (multi-serie) con crosshair + tooltip ───
 const fmtFecha = (t: number) => new Date(t).toLocaleString('es-MX', {
   day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua',
@@ -110,8 +118,8 @@ const MultiLine: React.FC<{
   const tipY = PT + 4;
 
   return (
-    <svg viewBox={`0 0 ${W} ${height}`} width="100%" style={{ display: 'block', touchAction: 'none' }}
-      onPointerMove={onMove} onPointerLeave={() => setHoverT(null)}>
+    <svg viewBox={`0 0 ${W} ${height}`} width="100%" style={CHART_TOUCH_STYLE}
+      onPointerMove={onMove} onPointerLeave={() => setHoverT(null)} onPointerCancel={() => setHoverT(null)}>
       <rect width={W} height={height} fill="#0a1220" rx="5" />
       {Array.from({ length: ticks + 1 }, (_, i) => {
         const y = yMin + (i / ticks) * (yMax - yMin);
@@ -364,8 +372,8 @@ const StackedArea: React.FC<{
   const tipX = hovI != null && hx + tipW + 10 > W - PR ? hx - tipW - 8 : hx + 8;
 
   return (
-    <svg viewBox={`0 0 ${W} ${height}`} width="100%" style={{ display: 'block', touchAction: 'none' }}
-      onPointerMove={onMove} onPointerLeave={() => setHover(null)}>
+    <svg viewBox={`0 0 ${W} ${height}`} width="100%" style={CHART_TOUCH_STYLE}
+      onPointerMove={onMove} onPointerLeave={() => setHover(null)} onPointerCancel={() => setHover(null)}>
       <rect width={W} height={height} fill="#0a1220" rx="5" />
       {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
         <g key={i}>

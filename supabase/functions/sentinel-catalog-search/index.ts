@@ -9,7 +9,7 @@
 // función corre server-side y el cliente solo pide "dame la fecha disponible".
 //
 // Dos modos (par con el selector de GeoMonitor):
-//   'reciente' — ventana corta (3 días), sin filtro de nubosidad: prioriza
+//   'reciente' — ventana de 12 días, sin filtro de nubosidad: prioriza
 //                que la imagen sea de HOY/AYER aunque tenga nubes.
 //   'legible'  — ventana de 30 días, con maxcc: prioriza la imagen más clara
 //                del período (comportamiento por defecto ya usado en el WMS).
@@ -52,7 +52,9 @@ interface ModoConfig {
 }
 
 const MODOS: Record<"reciente" | "legible", ModoConfig> = {
-  reciente: { diasVentana: 3, maxcc: null },
+  // 12 días y no 3: Sentinel-2 revisita este punto cada ~3-5 días, así que una ventana de 3 días queda vacía con
+  // frecuencia y el mapa mostraba "Sin escena" en vez de la imagen más nueva disponible.
+  reciente: { diasVentana: 12, maxcc: null },
   legible: { diasVentana: 30, maxcc: 40 },
 };
 
@@ -147,17 +149,22 @@ Deno.serve(async (req) => {
       }, 200);
     }
 
-    // Orden: 'reciente' = la más nueva; 'legible' = la de menor nubosidad
-    // dentro de la ventana (empatando por fecha si hay cobertura igual).
-    const ordenadas = [...features].sort((a, b) => {
-      if (modo === "reciente") {
-        return (b.properties?.datetime ?? "").localeCompare(a.properties?.datetime ?? "");
-      }
-      const ca = a.properties?.["eo:cloud_cover"] ?? 100;
-      const cb = b.properties?.["eo:cloud_cover"] ?? 100;
-      if (ca !== cb) return ca - cb;
-      return (b.properties?.datetime ?? "").localeCompare(a.properties?.datetime ?? "");
-    });
+    // Ambos modos devuelven la escena que el WMS realmente pinta: la MÁS NUEVA dentro de la ventana (mosaico
+    // "mostRecent"), y en 'legible' solo entre las que cumplen maxcc. Antes 'legible' informaba la de menor
+    // nubosidad, que podía ser de otro día distinto al de la imagen visible.
+    const porFechaDesc = (a: { properties?: { datetime?: string } }, b: { properties?: { datetime?: string } }) =>
+      (b.properties?.datetime ?? "").localeCompare(a.properties?.datetime ?? "");
+    const cumple = features.filter((f) => maxcc == null || (f.properties?.["eo:cloud_cover"] ?? 100) <= maxcc);
+    const ordenadas = [...cumple].sort(porFechaDesc);
+    const recientes = [...features].sort(porFechaDesc).slice(0, 6).map((f) => ({
+      fecha: f.properties?.datetime ?? null, nubosidad_pct: f.properties?.["eo:cloud_cover"] ?? null,
+    }));
+    if (!ordenadas.length) {
+      return json({
+        ok: true, modo, encontrada: false, escenas_recientes: recientes,
+        mensaje: `Hay ${features.length} escena(s) en ${diasVentana} días, pero ninguna con nubosidad ≤ ${maxcc} %.`,
+      }, 200);
+    }
 
     const elegida = ordenadas[0];
     return json({
@@ -165,6 +172,7 @@ Deno.serve(async (req) => {
       fecha_captura: elegida.properties?.datetime ?? null,
       nubosidad_pct: elegida.properties?.["eo:cloud_cover"] ?? null,
       escenas_en_ventana: features.length,
+      escenas_recientes: recientes,
       dias_ventana: diasVentana,
       maxcc_aplicado: maxcc,
     }, 200);

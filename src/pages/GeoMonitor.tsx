@@ -642,7 +642,7 @@ const GeoMonitor = () => {
         // sin prefijo numérico) que ya no existen en la configuration WMS real.
         return (validas.includes(saved ?? '') ? saved : '3_NDVI') as SentinelLayerId;
     });
-    // 'reciente' = último día disponible aunque tenga nubes; 'legible' = la
+    // 'reciente' = escena más nueva de los últimos 12 días aunque tenga nubes; 'legible' = la
     // imagen más clara de los últimos 30 días (comportamiento previo por defecto).
     const [sentinelModo, setSentinelModo] = useState<'reciente' | 'legible'>(() => {
         return (localStorage.getItem('geo_sentinel_modo') as any) || 'legible';
@@ -758,7 +758,7 @@ const GeoMonitor = () => {
     // seguido por datos en vivo), react-leaflet lo ve como "cambiado" y refresca
     // la capa WMS entera — tiles se descargan de nuevo y el fondo parpadea.
     const sentinelWmsParams = useMemo(() => {
-        const diasVentana = sentinelModo === 'reciente' ? 3 : 30;
+        const diasVentana = sentinelModo === 'reciente' ? 12 : 30; // 12 d: Sentinel-2 revisita cada ~3-5 d; 3 d dejaba el mapa sin imagen
         const params: Record<string, unknown> = {
             layers: sentinelLayer,
             format: 'image/png',

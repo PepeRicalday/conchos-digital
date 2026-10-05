@@ -24,5 +24,5 @@ for (const c of casos) {
     eficiencia: [...document.querySelectorAll('.geo-kpi-value')].map(e => e.textContent).slice(0, 8),
   }));
   console.log(c.nombre, JSON.stringify(r), err.length ? 'ERRORES: ' + err.slice(0, 3).join(' | ') : '');
-  await page.screenshot({ path: `${OUT}${c.nombre}.png` }); await b.close();
+  await page.getByRole("button", { name: /Capas y leyenda/ }).click().catch(() => {}); await page.waitForTimeout(500); await page.screenshot({ path: `${OUT}${c.nombre}.png` }); await b.close();
 }

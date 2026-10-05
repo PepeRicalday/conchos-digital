@@ -1,5 +1,6 @@
 import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain, Satellite, PanelRight, CalendarRange, Box } from 'lucide-react';
 import { conduccionTramo } from '../utils/conduccion';
+import { GeoLeyenda, type CapaLeyenda } from '../components/geo/GeoLeyenda';
 import { extraccionPresa, presaBaja, valorGrafica, escapaHtml as esc } from '../utils/geoKpis';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline, useMapEvents, useMap, ZoomControl, ScaleControl, AttributionControl } from 'react-leaflet';
@@ -814,6 +815,7 @@ const GeoMonitor = () => {
         setLayers(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
+
     // Cargar GeoJSON estáticos desde /public/geo/
     useEffect(() => {
         const loadGeoFiles = async () => {
@@ -938,7 +940,18 @@ const GeoMonitor = () => {
     // Selection Handler Helper
     const handleSelect = (type: 'escala' | 'toma' | 'presa', data: any) => {
         setSelectedPoint({ type, data });
+        // En tablet el panel derecho es un drawer cerrado por defecto: al elegir un punto se abre para que su detalle
+        // sea visible (en escritorio la columna es fija y este estado no cambia nada).
+        setStatsOpen(true);
     };
+
+    // Escape cierra el detalle del punto (y el drawer en tablet).
+    useEffect(() => {
+        if (!selectedPoint) return;
+        const alTeclear = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedPoint(null); };
+        window.addEventListener('keydown', alTeclear);
+        return () => window.removeEventListener('keydown', alTeclear);
+    }, [selectedPoint]);
 
     // Historial real del punto seleccionado (Fase 1: reemplaza la serie ficticia
     // fija que se mostraba sin importar qué escala/toma/presa se hubiera elegido).
@@ -1394,6 +1407,23 @@ const GeoMonitor = () => {
     const eficienciaReal: number | null = conduccion.eficienciaPct;
     const eficienciaTxt: string | null = eficienciaReal != null ? eficienciaReal.toFixed(1) : null;
     const perdidaPct: string | null = conduccion.perdidaPct != null ? conduccion.perdidaPct.toFixed(1) : null;
+
+    // Leyenda: qué dibuja cada capa y cuántos elementos tiene (— cuando el conteo no aplica o aún no cargó).
+    const lotesCargados = Object.values(geoLotesPorModulo).reduce((a, fc) => a + (fc.features?.length ?? 0), 0);
+    const capasLeyenda: CapaLeyenda[] = [
+        { key: 'canal', etiqueta: 'Canal Principal', detalle: 'Trazado por secciones', simbolo: 'linea', color: '#22d3ee', conteo: secciones.length || null },
+        { key: 'escalas', etiqueta: 'Escalas y aforos', detalle: 'Puntos de control con nivel y gasto', simbolo: 'punto', color: '#38bdf8', conteo: escalas.length + aforos.length || null },
+        { key: 'tomas', etiqueta: 'Presas y tomas', detalle: 'Presas y tomas de módulos', simbolo: 'punto', color: '#3b82f6', conteo: presas.length + filteredTomas.length || null },
+        { key: 'rioShape', etiqueta: 'Río Conchos', detalle: 'Trazado del cauce', simbolo: 'linea', color: '#60a5fa', conteo: null },
+        { key: 'modulos', etiqueta: 'Módulos de riego', detalle: 'Polígonos por módulo SRL', simbolo: 'poligono', color: '#a78bfa', conteo: geoModulos?.features?.length ?? null },
+        { key: 'presasShape', etiqueta: 'Vasos de presa', detalle: 'Contorno del espejo de agua', simbolo: 'poligono', color: '#38bdf8', conteo: geoPresas?.features?.length ?? null },
+        { key: 'lotes', etiqueta: 'Lotes de productores', detalle: 'Catastro; se carga desde zoom ' + LOTES_MIN_ZOOM, simbolo: 'poligono', color: '#fbbf24',
+          conteo: lotesCargados || null, nota: layers.lotes && mapZoom < LOTES_MIN_ZOOM ? 'Acerca el mapa (zoom ' + LOTES_MIN_ZOOM + ') para verlos' : undefined },
+        { key: 'estaciones', etiqueta: 'Estaciones climáticas', detalle: 'WeatherLink / Davis', simbolo: 'rombo', color: '#34d399', conteo: estacionesClima.length || null },
+        { key: 'alertas', etiqueta: 'Alertas y tomas varadas', detalle: 'Anomalías detectadas en la red', simbolo: 'rombo', color: '#f87171', conteo: tomasVaradas.length },
+        { key: 'mostrarAforosQ', etiqueta: 'Gasto de aforos', detalle: 'Etiqueta con el último gasto medido', simbolo: 'punto', color: '#fbbf24', conteo: null },
+        { key: 'mostrarAperturas', etiqueta: 'Apertura de compuertas', detalle: 'Radiales de cada escala; S/D si no hay lectura', simbolo: 'punto', color: '#2dd4bf', conteo: escalas.filter(e => (e.pzas_radiales ?? 0) > 0).length || null },
+    ];
 
     const chartGaugeOptions = {
         series: [{
@@ -1933,6 +1963,11 @@ const GeoMonitor = () => {
 
                 {/* CENTER: MAP (Prioridad 1 + 2) */}
                 <div className="geo-map-container" style={{ position: 'relative' }}>
+                    <GeoLeyenda
+                        capas={capasLeyenda}
+                        activas={layers as unknown as Record<string, boolean>}
+                        onAlternar={(k) => toggleLayer(k as keyof typeof layers)}
+                    />
                     <div className="geo-map-inner">
                         {/* Aviso "Sentinel Hub disponible de nuevo": solo cuando la capa
                             activa NO es 'sentinel' (se cayó a satélite por tileerror, o el
@@ -2488,9 +2523,9 @@ const GeoMonitor = () => {
                                                 )}
                                                 {layers.mostrarAperturas && esc.pzas_radiales > 0 && (
                                                     <div className="geo-apertura-badge">
-                                                        <span className="text-[9px] text-slate-400">Apertura Compuertas:</span><br />
+                                                        <span className="text-[11px] text-slate-400">Apertura Compuertas:</span><br />
                                                         <b className="text-white text-[13px]">{esc.apertura_radiales_m == null ? 'S/D' : esc.apertura_radiales_m > 0 ? `${esc.apertura_radiales_m.toFixed(2)} m` : 'CERRADAS'}</b>
-                                                        <div className="text-[8px] text-slate-500">{esc.pzas_radiales} radiales ({esc.ancho}×{esc.alto}m)</div>
+                                                        <div className="text-[11px] text-slate-500">{esc.pzas_radiales} radiales ({esc.ancho}×{esc.alto}m)</div>
                                                     </div>
                                                 )}
                                             </div>
@@ -2506,14 +2541,14 @@ const GeoMonitor = () => {
                                             <Tooltip direction="top" offset={[0, -12]}>
                                                 <div className="geo-aforo-tooltip">
                                                     <b className="geo-icon-amber">📐 {af.nombre_punto}</b><br />
-                                                    <span className="text-[9px]">Histórico de Aforo de Control</span><br />
+                                                    <span className="text-[11px]">Histórico de Aforo de Control</span><br />
                                                     {layers.mostrarAforosQ && m ? (
                                                         <div className="geo-aforo-badge">
                                                             Gasto: <b className="text-white text-[14px]">{m.gasto_calculado_m3s?.toFixed(2)} <small>m³/s</small></b><br />
-                                                            <span className="text-[8px]">{m.fecha} @ {m.hora_inicio}</span>
+                                                            <span className="text-[11px]">{m.fecha} @ {m.hora_inicio}</span>
                                                         </div>
                                                     ) : (
-                                                        <span className="text-slate-500 text-[9px]">{layers.mostrarAforosQ ? 'Sin mediciones recientes' : ''}</span>
+                                                        <span className="text-slate-500 text-[11px]">{layers.mostrarAforosQ ? 'Sin mediciones recientes' : ''}</span>
                                                     )}
                                                 </div>
                                             </Tooltip>
@@ -2525,14 +2560,14 @@ const GeoMonitor = () => {
                                 {layers.tomas && presas.map(p => (
                                     <Marker key={p.presa_id} position={[p.latitud, p.longitud]} icon={presaIcon}>
                                         <Tooltip direction="top" offset={[0, -16]} permanent>
-                                            <span className="font-mono text-[10px] font-bold">
+                                            <span className="font-mono text-[11px] font-bold">
                                                 {p.porcentaje_llenado != null ? `${p.porcentaje_llenado.toFixed(0)}%` : 'S/D'}
                                             </span>
                                         </Tooltip>
                                         <Popup>
                                             <div className="geo-presa-popup">
                                                 <strong className="text-[13px] geo-icon-blue">{p.nombre}</strong>
-                                                <div className="text-[10px] text-slate-400 mb-1.5">Última lectura: {p.fecha}</div>
+                                                <div className="text-[11px] text-slate-400 mb-1.5">Última lectura: {p.fecha}</div>
                                                 <div className="geo-presa-stat-box">
                                                     <div className="text-[11px]">Almacenamiento: <b>{p.almacenamiento_mm3 != null ? `${p.almacenamiento_mm3.toFixed(1)} Mm³` : 'S/D'}</b></div>
                                                     <div className="geo-progress-bg">
@@ -2666,7 +2701,7 @@ const GeoMonitor = () => {
                                     {selectedPoint.type === 'presa' && <Droplets size={16} className="blue" />}
                                     <h3>{selectedPoint.data?.nombre || 'Elemento sin nombre'}</h3>
                                 </div>
-                                <button className="geo-detail-close" onClick={() => setSelectedPoint(null)}>×</button>
+                                <button className="geo-detail-close" onClick={() => setSelectedPoint(null)} aria-label="Cerrar detalle" title="Cerrar (Esc)">×</button>
                             </div>
 
                             <div className="geo-detail-content">
@@ -2825,7 +2860,9 @@ const GeoMonitor = () => {
 
                     {/* KPI Cards vinculados a SICA */}
                     <div className="geo-kpi-grid">
-                        <div className="geo-kpi-card" onClick={() => escalaEntrada && handleSelect('escala', escalaEntrada)}>
+                        <div className="geo-kpi-card" role="button" tabIndex={0} aria-label="Ver detalle de la escala de entrada (K-0+000)"
+                            onClick={() => escalaEntrada && handleSelect('escala', escalaEntrada)}
+                            onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && escalaEntrada) { e.preventDefault(); handleSelect('escala', escalaEntrada); } }}>
                             <div className="geo-kpi-label">
                                 <Gauge size={12} /> Nivel Entrada ({escalaEntrada?.nombre || 'K-0+000'})
                             </div>
@@ -2834,7 +2871,9 @@ const GeoMonitor = () => {
                             </div>
                             {gastoEntrada !== undefined && <div className="geo-kpi-sub">Q: {gastoEntrada.toFixed(2)} m³/s</div>}
                         </div>
-                        <div className="geo-kpi-card" onClick={() => escalaSalida && handleSelect('escala', escalaSalida)}>
+                        <div className="geo-kpi-card" role="button" tabIndex={0} aria-label="Ver detalle de la escala de salida (K-104)"
+                            onClick={() => escalaSalida && handleSelect('escala', escalaSalida)}
+                            onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && escalaSalida) { e.preventDefault(); handleSelect('escala', escalaSalida); } }}>
                             <div className="geo-kpi-label">
                                 <Gauge size={12} /> Nivel Salida ({escalaSalida?.nombre || 'K-104'})
                             </div>
@@ -3009,7 +3048,7 @@ const GeoMonitor = () => {
                                 <Activity size={24} className="text-primary" />
                                 <div>
                                     <h2 className="text-xl font-black text-white uppercase tracking-wider">{selectedPoint.data.nombre}</h2>
-                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">Historial Operativo (Últimos 14 Días)</p>
+                                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-[0.2em]">Historial Operativo (Últimos 14 Días)</p>
                                 </div>
                             </div>
                             <button className="p-2 bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors" onClick={() => setShowHistoryModal(false)}>

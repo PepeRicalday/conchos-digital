@@ -1260,7 +1260,7 @@ const Clima = () => {
                                 <BarChart data={precipData} margin={{ top: 16, right: 12, left: 0, bottom: 0 }} barGap={2} barCategoryGap="34%">
                                     <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.06)" />
                                     <XAxis dataKey="station" tick={{ fill: '#cbd5e1', fontSize: 11, fontWeight: 600 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} />
-                                    <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} unit=" mm" axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} unit=" mm" axisLine={false} tickLine={false} />
                                     <Tooltip
                                         cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                                         contentStyle={{ backgroundColor: '#0f1c30', border: '1px solid rgba(56,189,248,0.35)', borderRadius: '8px', fontSize: '11px' }}
@@ -1273,10 +1273,10 @@ const Clima = () => {
                                     />
                                     <Legend wrapperStyle={{ fontSize: '11px', paddingTop: 4 }} iconType="circle" iconSize={9} />
                                     <Bar dataKey="precipitacion" name="Precipitación" fill="#3b82f6" radius={[4, 4, 0, 0]}>
-                                        <LabelList dataKey="precipitacion" position="top" formatter={(v) => Number(v) > 0 ? Number(v).toFixed(1) : ''} style={{ fill: '#93c5fd', fontSize: 10, fontWeight: 600 }} />
+                                        <LabelList dataKey="precipitacion" position="top" formatter={(v) => Number(v) > 0 ? Number(v).toFixed(1) : ''} style={{ fill: '#93c5fd', fontSize: 11, fontWeight: 600 }} />
                                     </Bar>
                                     <Bar dataKey="evaporacion" name="Evaporación (ET)" fill="#f97316" radius={[4, 4, 0, 0]}>
-                                        <LabelList dataKey="evaporacion" position="top" formatter={(v) => Number(v) > 0 ? Number(v).toFixed(1) : ''} style={{ fill: '#fdba74', fontSize: 10, fontWeight: 600 }} />
+                                        <LabelList dataKey="evaporacion" position="top" formatter={(v) => Number(v) > 0 ? Number(v).toFixed(1) : ''} style={{ fill: '#fdba74', fontSize: 11, fontWeight: 600 }} />
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>

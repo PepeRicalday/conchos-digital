@@ -19,7 +19,7 @@
     --geo-text-0: #f4f8fc;
     --geo-text-1: #b9c6d9;
     --geo-text-2: #7c8ba3;
-    --geo-text-3: #526079;
+    --geo-text-3: #8396ad;
 
     /* Acento */
     --geo-neon-cyan: #22d3ee;
@@ -1058,7 +1058,7 @@
 
 .geo-kpi-sub {
     font-family: var(--geo-font-mono);
-    font-size: 10px;
+    font-size: 11px;
     color: var(--geo-text-3);
     margin-top: 4px;
 }
@@ -1150,7 +1150,7 @@
     color: var(--geo-neon-cyan);
     line-height: 1.2;
 }
-.geo-balance-real small { font-size: 9px; color: var(--geo-text-3); font-weight: 600; }
+.geo-balance-real small { font-size: 11px; color: var(--geo-text-3); font-weight: 600; }
 .geo-balance-rule { width: 70%; height: 1px; background: var(--geo-border); margin: 3px 0; }
 .geo-balance-prog {
     font-family: var(--geo-font-mono);
@@ -1161,7 +1161,7 @@
 .geo-balance-prog small { font-size: 8.5px; }
 
 .geo-tomas-label {
-    font-size: 9px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--geo-text-3);
@@ -1271,12 +1271,12 @@
 
 .geo-event-time {
     font-family: var(--geo-font-mono);
-    font-size: 10px;
+    font-size: 11px;
     color: var(--geo-text-3);
 }
 
 .geo-event-type {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -1394,7 +1394,7 @@
 }
 
 .geo-event-banner-label {
-    font-size: 10px;
+    font-size: 11px;
     text-transform: uppercase;
     opacity: 0.9;
 }
@@ -1560,7 +1560,7 @@
 .geo-ndvi-legend-scale {
     display: flex;
     justify-content: space-between;
-    font-size: 10px;
+    font-size: 11px;
     color: var(--geo-text-2);
     line-height: 1.2;
 }
@@ -1675,7 +1675,7 @@
 }
 
 .geo-ndvi-modulo-note {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--geo-text-3);
     margin-top: var(--geo-sp-2);
     line-height: 1.5;
@@ -1838,7 +1838,7 @@
     }
 }
 
-
+
 
 /* ── Controles de mapa (zoom / escala / atribuciones) en el lenguaje oscuro del módulo ── */
 .geo-map-leaflet .leaflet-control-zoom { border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 10px; overflow: hidden; box-shadow: none; }

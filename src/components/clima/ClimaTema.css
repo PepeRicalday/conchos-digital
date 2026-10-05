@@ -1,0 +1,110 @@
+/* Tema "observatorio" para el resto de la página de Clima. Se carga DESPUÉS de Clima.css y sustituye sus colores
+   y tipografías fijos por los tokens --cl-*; el comportamiento y la estructura de cada sección no cambian. */
+.clima-container {
+    --cl-bg: #020a14;
+    --cl-surface: rgba(255, 255, 255, 0.028);
+    --cl-surface-2: rgba(255, 255, 255, 0.05);
+    --cl-line: rgba(148, 163, 184, 0.16);
+    --cl-t1: #e8eef6;
+    --cl-t2: #b4c2d4;
+    --cl-t3: #8396ad;
+    --cl-sky: #38bdf8;
+    --cl-ok: #34d399;
+    --cl-warn: #fbbf24;
+    --cl-crit: #f87171;
+    --cl-display: 'Big Shoulders Display', 'JetBrains Mono', sans-serif;
+    --cl-body: 'IBM Plex Sans', 'Inter', system-ui, sans-serif;
+    --cl-mono: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: var(--cl-body);
+    color: var(--cl-t1);
+    max-width: 1500px;
+}
+
+/* ── Hero del distrito ── */
+.cl-hero {
+    position: relative; overflow: hidden;
+    margin-bottom: 18px; padding: 22px 24px 18px;
+    border: 1px solid var(--cl-line); border-radius: 16px;
+    background:
+        radial-gradient(900px 260px at 100% -20%, rgba(56, 189, 248, 0.14), transparent 60%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+    animation: cl-entra 0.45s ease both;
+}
+/* Líneas de nivel muy sutiles: guiño a la carta hidrográfica */
+.cl-hero::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+    background: repeating-linear-gradient(172deg, transparent 0 22px, rgba(56, 189, 248, 0.05) 22px 23px);
+    -webkit-mask-image: linear-gradient(90deg, transparent 35%, #000 100%);
+    mask-image: linear-gradient(90deg, transparent 35%, #000 100%);
+}
+.cl-hero > * { position: relative; }
+.cl-hero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.cl-hero h2 { margin: 2px 0 4px; font-family: var(--cl-display); font-size: clamp(30px, 4vw, 46px); font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1; color: var(--cl-t1); }
+.cl-hero-sub { margin: 0; font-size: 14px; color: var(--cl-t2); }
+.cl-hero-conf { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding: 8px 14px; border: 1px solid var(--cl-line); border-radius: 12px; background: var(--cl-surface); font-size: 11px; color: var(--cl-t3); font-family: var(--cl-mono); text-transform: uppercase; letter-spacing: 0.06em; }
+.cl-hero-conf b { font-size: 15px; letter-spacing: 0.02em; }
+
+.cl-hero-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0 0; }
+.cl-kpi { --acc: var(--cl-sky); margin: 0; padding: 12px 14px 10px; border: 1px solid var(--cl-line); border-top: 2px solid var(--acc); border-radius: 12px; background: var(--cl-surface); }
+.cl-kpi-temp { --acc: #d95926; }
+.cl-kpi-viento { --acc: #199e70; }
+.cl-kpi-lluvia { --acc: #3987e5; }
+.cl-kpi-eto { --acc: #b49cff; }
+.cl-kpi dt { display: flex; align-items: center; gap: 6px; font-family: var(--cl-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--cl-t3); }
+.cl-kpi dd { margin: 4px 0 2px; font-family: var(--cl-display); font-size: clamp(38px, 4.4vw, 56px); font-weight: 800; line-height: 0.95; color: var(--cl-t1); font-variant-numeric: tabular-nums; }
+.cl-kpi dd small { margin-left: 5px; font-family: var(--cl-mono); font-size: 13px; font-weight: 500; color: var(--cl-t3); }
+.cl-kpi-nota { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--cl-t2); }
+.cl-hero .cl-aviso { margin-top: 12px; }
+
+/* ── Tarjetas y títulos de sección ── */
+.clima-container .card {
+    background: var(--cl-surface); border: 1px solid var(--cl-line); border-radius: 14px;
+}
+.clima-container .card h3 {
+    font-family: var(--cl-display); font-size: 22px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--cl-t1);
+}
+.clima-container .card h3 svg { color: var(--cl-sky); }
+.chart-sub, .estaciones-foot, .estaciones-hint, .tablero-pie { color: var(--cl-t3) !important; font-size: 12px !important; }
+
+/* ── Tablero ejecutivo ── */
+.idx-card { background: var(--cl-surface); border: 1px solid var(--cl-line); border-radius: 12px; }
+.idx-clave { font-family: var(--cl-display); font-size: 22px; letter-spacing: 0.04em; }
+.idx-nombre, .idx-imp { color: var(--cl-t3); }
+.idx-num { font-family: var(--cl-display); font-size: 26px; }
+.conf-chip { border: 1px solid var(--cl-line); background: var(--cl-surface-2); color: var(--cl-t2); }
+
+/* ── Cielo ── */
+.cielo-panel { border-left-width: 3px; }
+.cielo-panel-txt h3 { font-size: 22px; }
+.cielo-panel-txt p, .cielo-panel-label { color: var(--cl-t2); font-size: 12px; }
+
+/* ── Estaciones en tiempo real: tarjetas más aireadas ── */
+.estaciones-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important; gap: 12px !important; }
+.estacion-card { background: var(--cl-surface); border: 1px solid var(--cl-line); border-radius: 12px; }
+.estacion-head { flex-wrap: wrap; gap: 6px 10px; }
+.estacion-title { font-family: var(--cl-body); font-size: 15px; font-weight: 600; color: var(--cl-t1); }
+.estacion-status { font-family: var(--cl-mono); font-size: 11px; }
+.est-var b { font-family: var(--cl-display); font-size: 24px; font-weight: 700; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
+.est-var small { color: var(--cl-t3); }
+.estacion-sospechosa { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 6px 8px; border-radius: 8px; border: 1px dashed rgba(251, 191, 36, 0.55); color: var(--cl-warn); font-size: 12px; }
+.estaciones-dl, .estaciones-info, .estaciones-pdf, .estaciones-refresh, .estaciones-mapa-animado { min-height: 44px; }
+
+/* ── Tablas (condiciones y precisión del pronóstico) ── */
+.conditions-table th, .skill-table th { font-family: var(--cl-mono); font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--cl-t3); }
+.conditions-table td, .skill-table td { color: var(--cl-t1); }
+.value-cell { font-family: var(--cl-mono); font-variant-numeric: tabular-nums; }
+.impact-cell { color: var(--cl-t2); }
+
+/* ── Variables técnicas ── */
+.tech-var-card { background: var(--cl-surface); border: 1px solid var(--cl-line); border-radius: 12px; }
+.tech-value { font-family: var(--cl-display); font-size: 34px; font-weight: 800; }
+.tech-unit, .tech-desc, .tech-name { color: var(--cl-t2); }
+.kc-info { border-color: var(--cl-line); }
+
+@media (max-width: 900px) { .cl-hero-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) {
+    .cl-hero { padding: 16px 14px 14px; }
+    .cl-hero-conf { align-items: flex-start; }
+    .cl-kpi dd { font-size: 40px; }
+}
+@media (prefers-reduced-motion: reduce) { .cl-hero { animation: none; } }

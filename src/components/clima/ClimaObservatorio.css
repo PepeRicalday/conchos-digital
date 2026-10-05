@@ -131,3 +131,7 @@
     .cl-seccion-cifra b { font-size: 32px; }
     .cl-red-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Distribución: alertas + franja de 72 h a la izquierda, la red (alta) a la derecha. */
+.cl-obs .cl-span2 { grid-row: span 2; min-width: 0; }
+@media (max-width: 1100px) { .cl-obs .cl-span2 { grid-row: auto; } }

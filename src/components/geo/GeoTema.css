@@ -1,0 +1,35 @@
+/* Tema "carta hidrográfica nocturna" para Geo-Monitor — mismo lenguaje que Presas, Histórico y Clima.
+   Se carga DESPUÉS de GeoMonitor.css: redefine tokens (tipografías, fondos, líneas) sin tocar estructura. */
+:root {
+    --geo-font-sans: 'IBM Plex Sans', 'Inter', system-ui, sans-serif;
+    --geo-font-display: 'Big Shoulders Display', 'JetBrains Mono', sans-serif;
+    --geo-bg-main: #020a14;
+    --geo-bg-shell: #040e1b;
+    --geo-surface: rgba(255, 255, 255, 0.032);
+    --geo-surface-raised: rgba(255, 255, 255, 0.055);
+    --geo-border: rgba(148, 163, 184, 0.17);
+    --geo-border-soft: rgba(148, 163, 184, 0.1);
+    --geo-text-0: #e8eef6;
+    --geo-text-1: #b4c2d4;
+    --geo-text-2: #8fa3bb;
+    --geo-text-3: #8396ad;
+    --geo-neon-cyan: #38bdf8;
+}
+
+/* Título y numerales con la voz de Presas/Clima */
+.geo-title { font-family: var(--geo-font-display); font-size: 1.7rem; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; line-height: 1; }
+.geo-title .font-light { font-family: var(--geo-font-sans); text-transform: none; letter-spacing: 0; }
+
+.geo-kpi-card { border-top: 2px solid var(--geo-border); border-radius: 12px; padding: 0.8rem 0.9rem; }
+.geo-kpi-card:hover { border-top-color: var(--geo-neon-cyan); }
+.geo-kpi-label { font-family: var(--geo-font-mono); font-size: 0.6875rem; letter-spacing: 0.08em; color: var(--geo-text-2); }
+.geo-kpi-value { font-family: var(--geo-font-display); font-size: 2.4rem; font-weight: 800; line-height: 0.95; letter-spacing: 0.01em; }
+.geo-kpi-value small { font-family: var(--geo-font-mono); font-size: 0.8125rem; }
+.geo-kpi-card:focus-visible { outline: 2px solid var(--geo-neon-cyan); outline-offset: 2px; }
+
+.geo-chart-card { border-radius: 14px; border-color: var(--geo-border); }
+.geo-chart-card:hover { border-color: rgba(56, 189, 248, 0.35); }
+
+/* Las cifras de los paneles de detalle usan los mismos numerales */
+.detail-stat strong, .geo-gate-stat-value .num { font-family: var(--geo-font-display); font-weight: 800; letter-spacing: 0.01em; }
+.detail-stat strong { font-size: 1.9rem; }

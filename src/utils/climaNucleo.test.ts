@@ -64,12 +64,13 @@ describe('cielo — clasificación, calidad y sol', () => {
     const ahora = new Date('2026-10-05T18:00:00Z');
     const lectura = (minAtras: number, extra = {}) => ({ ts: new Date(ahora.getTime() - minAtras * 60000).toISOString(), temp_c: 25, hum_rel_pct: 40, ...extra });
 
-    it('frescura de la lectura: válida ≤20, retrasada ≤60, vencida >60', () => {
-        expect(evaluaCalidad(lectura(10), ahora).status).toBe('valid');
-        expect(evaluaCalidad(lectura(30), ahora).status).toBe('stale');
-        expect(evaluaCalidad(lectura(90), ahora).status).toBe('expired');
-        expect(evaluaCalidad(lectura(30), ahora).usableComoActual).toBe(true);
-        expect(evaluaCalidad(lectura(90), ahora).usableComoActual).toBe(false);
+    it('frescura (cadencia de 2 h, igual que saludRed): vigente ≤150, retrasada ≤360, vencida >360', () => {
+        expect(evaluaCalidad(lectura(32), ahora).status).toBe('valid'); // antes salía "retrasada" a los 32 min
+        expect(evaluaCalidad(lectura(150), ahora).status).toBe('valid');
+        expect(evaluaCalidad(lectura(200), ahora).status).toBe('stale');
+        expect(evaluaCalidad(lectura(400), ahora).status).toBe('expired');
+        expect(evaluaCalidad(lectura(200), ahora).usableComoActual).toBe(true);
+        expect(evaluaCalidad(lectura(400), ahora).usableComoActual).toBe(false);
     });
 
     it('sin lectura → vencida y "Sin dato"', () => {

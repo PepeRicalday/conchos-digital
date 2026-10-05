@@ -10,6 +10,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import clsx from 'clsx';
 import './GeoMonitor.css';
+import '../components/geo/GeoTema.css';
 import { supabase } from '../lib/supabase';
 import { onTable } from '../lib/realtimeHub';
 import { getTodayString, addDays, formatTime, formatDate } from '../utils/dateHelpers';

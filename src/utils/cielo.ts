@@ -195,9 +195,14 @@ export interface QaResultado {
     color: string;
 }
 
-/** Umbrales de frescura (§4): ≤20 min válido · 21-60 retrasado · >60 vencido. */
-export const FRESCURA_VALIDA_MIN = 20;
-export const FRESCURA_VENCIDA_MIN = 60;
+/**
+ * Umbrales de frescura (§4), alineados con la cadencia real de WeatherLink (sincronización cada 2 h) y con
+ * utils/saludRed.ts, que es la fuente única: ≤150 min vigente · ≤360 retrasada · >360 vencida.
+ * Con los 20/60 min anteriores toda estación aparecía "Retrasada" a los pocos minutos de cada ciclo, mientras
+ * el panel de salud de la red la marcaba "Vigente".
+ */
+export const FRESCURA_VALIDA_MIN = 150;
+export const FRESCURA_VENCIDA_MIN = 360;
 
 interface LecturaQA {
     ts: string | null;
@@ -243,7 +248,7 @@ export function evaluaCalidad(l: LecturaQA | null, ahora = new Date()): QaResult
     if (flags.includes('out_of_range') && status === 'valid') status = 'suspect';
 
     const etiquetas: Record<QaStatus, { etiqueta: string; color: string }> = {
-        valid: { etiqueta: 'Válido', color: '#16a34a' },
+        valid: { etiqueta: 'Vigente', color: '#16a34a' },
         stale: { etiqueta: 'Retrasado', color: '#f59e0b' },
         expired: { etiqueta: 'Vencido', color: '#dc2626' },
         suspect: { etiqueta: 'Sospechoso', color: '#f59e0b' },

@@ -13,6 +13,8 @@ import { RedSalud } from '../components/clima/RedSalud';
 import { AlertasAgro } from '../components/clima/AlertasAgro';
 import { Franja72h } from '../components/clima/Franja72h';
 import { BalanceModulos } from '../components/clima/BalanceModulos';
+import { HeroDistrito } from '../components/clima/HeroDistrito';
+import '../components/clima/ClimaTema.css';
 import { useSaludRed, useAlertasClima, useUmbralesClima, useEntregasDia } from '../hooks/useClimaOperativo';
 import { SUPERFICIE_RIEGO_HA } from '../utils/modulosSRL';
 import { EFICIENCIA_RODADO, KC_REFERENCIA, laminaBruta, laminaNeta, m3PorHa } from '../utils/agronomia';
@@ -367,8 +369,8 @@ function useHoraDistrito() {
     return hora;
 }
 
-const EstacionCard = ({ est, onAbrir, horaCorte }: {
-    est: EstacionConLectura; onAbrir: () => void; horaCorte: number;
+const EstacionCard = ({ est, onAbrir, horaCorte, sospechosa }: {
+    est: EstacionConLectura; onAbrir: () => void; horaCorte: number; sospechosa?: boolean;
 }) => {
     const l = est.lectura;
     const q = est.calidad;
@@ -425,7 +427,7 @@ const EstacionCard = ({ est, onAbrir, horaCorte }: {
 
             {l ? (
                 <div className="estacion-grid">
-                    <div className="est-var"><Thermometer size={13} /><b>{l.temp_c != null ? l.temp_c.toFixed(1) : '—'}</b><small>°C</small></div>
+                    <div className="est-var"><Thermometer size={13} /><b>{sospechosa ? 'S/D' : l.temp_c != null ? l.temp_c.toFixed(1) : '—'}</b><small>°C</small></div>
                     <div className="est-var"><Droplets size={13} /><b>{l.hum_rel_pct != null ? Math.round(l.hum_rel_pct) : '—'}</b><small>% HR</small></div>
                     <div className="est-var"><Wind size={13} /><b>{l.viento_ms != null ? l.viento_ms.toFixed(1) : '—'}</b><small>m/s</small></div>
                     <div className="est-var"><CloudRain size={13} /><b>{l.lluvia_dia_mm != null ? l.lluvia_dia_mm.toFixed(1) : '—'}</b><small>mm día</small></div>
@@ -440,6 +442,11 @@ const EstacionCard = ({ est, onAbrir, horaCorte }: {
                 </div>
             ) : (
                 <div className="estacion-nodata">Aún sin lecturas registradas.</div>
+            )}
+            {sospechosa && (
+                <div className="estacion-sospechosa" role="status">
+                    <AlertTriangle size={12} aria-hidden="true" /> Lectura sospechosa: la temperatura no se muestra ni entra a los promedios.
+                </div>
             )}
 
             {/* Precipitación prevista: escala independiente de la nubosidad. */}
@@ -465,6 +472,10 @@ const Clima = () => {
     const alertasClima = useAlertasClima();
     const umbralesClima = useUmbralesClima();
     const entregasHoy = useEntregasDia(hoyLocalCorte);
+    // Una estación con lectura sospechosa (p. ej. 82 °C, o muy lejos de la mediana de la red) no debe entrar a los
+    // promedios, índices ni a la tabla de condiciones del distrito; su tarjeta sigue visible y rotulada.
+    const sospechosaIds = useMemo(() => new Set(salud.estaciones.filter(x => x.sospechosa).map(x => x.id)), [salud.estaciones]);
+    const estValidas = useMemo(() => estaciones.filter(e => !sospechosaIds.has(e.id)), [estaciones, sospechosaIds]);
     // Avisos integrados: sustituyen a los alert() nativos (bloquean la página y no se pueden estilizar).
     const [avisoUi, setAvisoUi] = useState<string | null>(null);
 
@@ -655,16 +666,16 @@ const Clima = () => {
     // los informes, para que pantalla y PDF nunca discrepen.
     const etoDiarioRed = useMemo(() => {
         const hoyLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
-        return etoTotalDelDiaRed(estaciones, hoyLocal);
-    }, [estaciones]);
+        return etoTotalDelDiaRed(estValidas, hoyLocal);
+    }, [estValidas]);
 
     // Entradas crudas de los índices — se guardan (no solo el resultado 0-100)
     // para que irrigationAlerts reuse vientoMaxMs/lluviaObsMm en vez de
     // recalcularlos por su cuenta con el mismo filtro, un patrón de duplicación
     // que ya causó divergencias de fórmula en otros paneles (ver ETₒ arriba).
     const entradasIndices = useMemo(
-        () => (estaciones.length ? entradasDesdeEstaciones(estaciones, etoDiarioRed) : null),
-        [estaciones, etoDiarioRed],
+        () => (estValidas.length ? entradasDesdeEstaciones(estValidas, etoDiarioRed) : null),
+        [estValidas, etoDiarioRed],
     );
     const indices = useMemo(
         () => (entradasIndices ? calculaIndices(entradasIndices) : []),
@@ -694,9 +705,9 @@ const Clima = () => {
     // respaldo para cuando no haya ninguna estación reportando.
     const conditions = useMemo(() => {
         const hoyLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
-        const red = buildConditionsRed(estaciones, hoyLocal);
+        const red = buildConditionsRed(estValidas, hoyLocal);
         return red.length ? red : buildConditions(clima);
-    }, [estaciones, clima]);
+    }, [estValidas, clima]);
 
     // Build technical variables.
     //
@@ -801,7 +812,7 @@ const Clima = () => {
     // PROMEDIO entre estaciones con lectura, no suma: sumar mm entre pluviómetros
     // distintos no tiene lectura hidrológica y crece con cada estación conectada.
     // Estación sin dato de lluvia ≠ estación con 0 mm: se excluye del promedio; sin ninguna, queda null (S/D).
-    const lluviasRed = estaciones
+    const lluviasRed = estValidas
         .map(e => e.lectura?.lluvia_dia_mm)
         .filter((v): v is number => v != null);
     const lluviaObsProm: number | null = lluviasRed.length
@@ -809,11 +820,11 @@ const Clima = () => {
         : null;
 
     // Resumen de la red para la tarjeta de cabecera.
-    const tempsRed = estaciones
+    const tempsRed = estValidas
         .map(e => e.lectura?.temp_max_c ?? e.lectura?.temp_c)
         .filter((v): v is number => v != null);
     const tempMaxRed = tempsRed.length ? Math.max(...tempsRed) : null;
-    const etosRed = estaciones
+    const etosRed = estValidas
         .map(e => e.lectura?.eto_mm ?? e.lectura?.et_dia_mm)
         .filter((v): v is number => v != null);
     const etoMedioRed = etosRed.length
@@ -822,6 +833,12 @@ const Clima = () => {
         .map(e => e.pronostico?.precip_prob_pct)
         .filter((v): v is number => v != null);
     const probMaxFc = probsFc.length ? Math.round(Math.max(...probsFc)) : null;
+    const tMinsRed = estValidas.map(e => e.lectura?.temp_min_c).filter((v): v is number => v != null);
+    const tempMinRed = tMinsRed.length ? Math.min(...tMinsRed) : null;
+    const vientoMaxRed = entradasIndices?.vientoMaxMs ?? null;
+    const vientoEnNombre = vientoMaxRed != null
+        ? estValidas.find(e => e.lectura?.viento_ms === vientoMaxRed)?.nombre ?? null : null;
+    const nombresExcluidos = estaciones.filter(e => sospechosaIds.has(e.id)).map(e => e.nombre);
 
     // Las alertas agroclimáticas ya NO se derivan aquí con umbrales literales: las evalúa la base de datos cada
     // 30 min (fn_clima_alertas_agro, umbrales editables en clima_umbrales) y se leen de registro_alertas.
@@ -841,84 +858,22 @@ const Clima = () => {
 
     return (
         <div className="clima-container">
-            <header className="page-header">
-                <div>
-                    <h2 className="text-2xl font-bold text-white">Inteligencia Agroclimática</h2>
-                    <p className="text-slate-400 text-sm">SICA-005 • Módulo Agro-SICA para el Distrito de Riego • {fechaSeleccionada}</p>
-                </div>
-
-                {/* Sync Status */}
-                <div className="sync-status">
-                    <RefreshCw size={14} className="sync-icon" />
-                    <span>Fecha seleccionada: {fechaSeleccionada}</span>
-                </div>
-            </header>
-
-            {/* Station Identification */}
-            <section className="station-card">
-                <div className="station-info">
-                    <div className="station-icon">
-                        <Cloud size={32} />
-                    </div>
-                    <div className="station-details">
-                        <h3>Red de Estaciones Meteorológicas</h3>
-                        <div className="station-meta">
-                            {/* Cuenta la red WeatherLink real, no las presas: antes
-                                mostraba "0 estaciones activas" con 4 en pantalla. */}
-                            <span className="meta-item">
-                                <Activity size={12} />
-                                {estaciones.filter(e => e.calidad.usableComoActual).length} de {estaciones.length} con dato vigente
-                            </span>
-                            <span className="meta-item">
-                                <Leaf size={12} />
-                                SICA-005 / WeatherLink
-                            </span>
-                            {estaciones.length > 0 && (
-                                <span className="meta-item">
-                                    <MapPin size={12} />
-                                    {estaciones.map(e => e.nombre).join(', ')}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Resumen de la red. Toma los valores de las estaciones
-                    WeatherLink —la fuente viva— y cae a clima_presas solo si
-                    aún no hay lecturas; antes leía siempre de clima_presas y
-                    mostraba guiones con las estaciones reportando. */}
-                <div className="quick-stats">
-                    <div className="quick-stat">
-                        <span className="stat-label">Temp. Máx</span>
-                        <span className="stat-value">
-                            {tempMaxRed != null ? tempMaxRed.toFixed(1)
-                                : clima[0]?.temp_maxima_c != null ? `${clima[0].temp_maxima_c}` : '—'} <small>°C</small>
-                        </span>
-                    </div>
-                    <div className="quick-stat">
-                        <span className="stat-label">Lluvia promedio</span>
-                        <span className="stat-value">
-                            {lluviaObsProm != null ? lluviaObsProm.toFixed(1) : 'S/D'} <small>mm</small>
-                        </span>
-                    </div>
-                    {/* ETₒ ACUMULADA AL CORTE, no el total del día. A primera hora vale
-                        casi 0 aunque el IDR marque demanda alta: el índice usa el total
-                        previsto del día (la magnitud con la que se dimensiona la lámina).
-                        Se rotula explícitamente para que ese contraste no se lea como
-                        contradicción entre la cabecera y el tablero. */}
-                    <div className="quick-stat">
-                        <span className="stat-label">ETₒ acum. al corte</span>
-                        <span className="stat-value">
-                            {etoMedioRed != null ? etoMedioRed.toFixed(2) : '—'} <small>mm</small>
-                        </span>
-                        <span className="stat-nota">
-                            {etoDiarioRed != null
-                                ? `Total previsto hoy ${etoDiarioRed.toFixed(2)} mm`
-                                : 'Sin total previsto del modelo'}
-                        </span>
-                    </div>
-                </div>
-            </section>
+            <HeroDistrito
+                fecha={fechaSeleccionada}
+                vigentes={estaciones.filter(e => e.calidad.usableComoActual).length}
+                total={estaciones.length}
+                excluidas={nombresExcluidos}
+                tempMax={tempMaxRed ?? (clima[0]?.temp_maxima_c ?? null)}
+                tempMin={tempMinRed}
+                vientoMax={vientoMaxRed}
+                vientoEn={vientoEnNombre}
+                lluviaProm={lluviaObsProm}
+                probLluviaMax={probMaxFc}
+                etoHoy={etoDiarioRed}
+                etoCorte={etoMedioRed}
+                cielo={cieloDistrito && cobDistrito != null ? { etiqueta: cieloDistrito.etiqueta, color: cieloDistrito.color, cobertura: cobDistrito } : null}
+                confianza={confianza}
+            />
 
             {avisoUi && (
                 <div className="cl-aviso cl-aviso-crit" role="alert" style={{ marginBottom: 12 }}>
@@ -930,8 +885,8 @@ const Clima = () => {
             {/* Observatorio operativo: salud de la red, alertas accionables, franja 72 h y balance clima ↔ canal. */}
             <div className="cl-obs">
                 <AlertasAgro alertas={alertasClima.alertas} umbrales={umbralesClima} cargado={alertasClima.cargado} error={alertasClima.error} />
-                <RedSalud estaciones={salud.estaciones} cargado={salud.cargado} error={salud.error} onAbrir={setEstacionSel} />
-                <div className="cl-ancho"><Franja72h estaciones={estaciones} umbrales={umbralesClima} /></div>
+                <div className="cl-span2"><RedSalud estaciones={salud.estaciones} cargado={salud.cargado} error={salud.error} onAbrir={setEstacionSel} /></div>
+                <Franja72h estaciones={estaciones} umbrales={umbralesClima} />
                 <div className="cl-ancho">
                     <BalanceModulos
                         modulos={Object.keys(SUPERFICIE_RIEGO_HA).map(Number).map(n => ({ modulo: n, nombre: `Módulo ${n}` }))}
@@ -1119,7 +1074,7 @@ const Clima = () => {
                     )}
                     <div className="estaciones-grid">
                         {estaciones.map((e) => (
-                            <EstacionCard key={e.id} est={e} horaCorte={horaDistrito} onAbrir={() => setEstacionSel(e.id)} />
+                            <EstacionCard key={e.id} est={e} horaCorte={horaDistrito} sospechosa={sospechosaIds.has(e.id)} onAbrir={() => setEstacionSel(e.id)} />
                         ))}
                     </div>
                     <p className="estaciones-hint">
@@ -1157,7 +1112,7 @@ const Clima = () => {
                     <section className="card conditions-section">
                         <h3><Thermometer size={18} /> Condiciones Registradas y Pronóstico (24h)</h3>
                         <p className="chart-sub">
-                            Agregado de la red WeatherLink ({estaciones.filter(e => e.lectura).length} estación(es));
+                            Agregado de la red WeatherLink ({estValidas.filter(e => e.lectura).length} estación(es){nombresExcluidos.length > 0 && `, sin ${nombresExcluidos.join(', ')}`});
                             pronóstico del modelo horario a 24 h.
                         </p>
                         <table className="conditions-table">

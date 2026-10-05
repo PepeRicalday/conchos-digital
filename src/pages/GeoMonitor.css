@@ -682,7 +682,10 @@
     transform: translateX(0);
 }
 
-.animate-in {
+/* Acotada al panel de detalle: antes era una clase global `.animate-in` y, al quedar cargada tras visitar
+   Geo-Monitor, pisaba el transform (translateX(-50%)) de elementos de otras pantallas que usan la misma clase
+   (dock del Monitor Público) y los desplazaba fuera de la pantalla. */
+.geo-detail-panel.animate-in {
     animation: portalIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 

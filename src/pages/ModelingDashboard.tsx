@@ -365,6 +365,19 @@ function deltaLabel(dy: number): string {
   return `${(dy ?? 0) > 0 ? 'Sube' : 'Baja'} ${cm.toFixed(0)} cm`;
 }
 
+/** Estado que se muestra en la tarjeta. En vaciado/sin entrada, estar bajo el mínimo deseable de servicio
+ *  es lo esperado: se rotula "BAJO MÍN." en tono neutro en vez de ALERTA ámbar (que implicaría un riesgo real). */
+type EstadoVista = CPStatus | 'BAJO_MIN';
+function estadoVistaCP(r: CPResult | undefined, suspendidas: boolean): EstadoVista {
+  if (!r) return 'ESTABLE';
+  const soloMinimo = r.status === 'ALERTA'
+    && r.evaluacion_nivel?.estado === 'riesgo_insuficiencia_operativa'
+    && Math.abs(r.delta_y) <= 0.5 && r.bordo_libre_pct <= 92;
+  return suspendidas && soloMinimo ? 'BAJO_MIN' : r.status;
+}
+function colorEstadoVista(e: EstadoVista): string { return e === 'BAJO_MIN' ? '#94a3b8' : statusColor(e); }
+const TXT_ESTADO: Record<EstadoVista, string> = { CRITICO: 'CRÍTICO', ALERTA: 'ALERTA', ESTABLE: 'ESTABLE', BAJO_MIN: 'BAJO MÍN.' };
+
 function statusColor(s: CPStatus): string {
   return s === 'CRITICO' ? '#ef4444' : s === 'ALERTA' ? '#f59e0b' : '#10b981';
 }
@@ -493,7 +506,7 @@ function edadLectura(fecha: string | undefined, nivelReal: number | undefined): 
   if (!fecha) return null;
   const dias = Math.round((new Date(getTodayString() + 'T12:00:00').getTime() - new Date(fecha + 'T12:00:00').getTime()) / 86400000);
   if (!(dias >= 0)) return null;
-  if (dias === 0) return { texto: 'lectura de hoy', color: '#64748b', title: `Lectura base del ${fecha}` };
+  if (dias === 0) return null; // lo normal no se rotula: solo se avisa la excepción
   return {
     texto: dias === 1 ? 'lectura de ayer' : `lectura de hace ${dias} d`,
     color: '#f59e0b',
@@ -1238,6 +1251,9 @@ const ModelingDashboard: React.FC = () => {
   const [currentTimeMin, setCurrentTimeMin] = useState(new Date().getHours() * 60 + new Date().getMinutes());
 
   const [activeCP,    setActiveCP]   = useState('');
+  // Orden de la lista de puntos de control: por km (recorrido del canal, K-0 → K-104) o por severidad.
+  const [ordenCP, setOrdenCP] = useState<'km' | 'severidad'>('km');
+  const cpCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [showReport,  setShowReport] = useState(false);
   const [simpleMode,  setSimpleMode] = useState(true);
 
@@ -1327,6 +1343,18 @@ const ModelingDashboard: React.FC = () => {
   }, [showScenarioB, controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDamB, qBase, riverTransit, simBaseMinEff, currentTimeMin, deliveryPoints, scenarioMods, dataLoaded, tramoGeom, balanceTramos, activeRestricciones]);
 
   // ── FASE 3: MOTOR DE DECISIÓN ─────────────────────────────────────────
+  // Al activar un punto desde la tabla o el track del centro, la tarjeta puede quedar fuera de vista en la
+  // columna izquierda: se desplaza solo esa columna (nunca la página).
+  useEffect(() => {
+    const el = cpCardRefs.current[activeCP];
+    const left = el?.closest('.sim-left') as HTMLElement | null;
+    if (!el || !left || left.scrollHeight <= left.clientHeight + 1) return;
+    const head = (left.querySelector('.sim-cp-head') as HTMLElement | null)?.offsetHeight ?? 0;
+    const lr = left.getBoundingClientRect(), er = el.getBoundingClientRect();
+    if (er.top < lr.top + head) left.scrollTo({ top: left.scrollTop + er.top - lr.top - head - 6, behavior: 'smooth' });
+    else if (er.bottom > lr.bottom) left.scrollTo({ top: left.scrollTop + er.bottom - lr.bottom + 6, behavior: 'smooth' });
+  }, [activeCP]);
+
   // Modo operativo: las reglas del motor (abrir compuertas, mínimos deseables de servicio) solo
   // tienen sentido con el canal sirviendo riego. En VACIADO (presa cerrada, remanente) o sin
   // entrada de agua recomendarían acciones contrarias a la operación y generarían alertas falsas.
@@ -2513,99 +2541,153 @@ const ModelingDashboard: React.FC = () => {
 
         {/* ─── IZQUIERDA: Tarjetas CP ─────────────────────────────── */}
         <aside className="sim-left">
-          <div className="sim-panel-title"><Activity size={10} /> Puntos de Control</div>
-          <div className="sim-cp-list">
-            {/* Orden por severidad (CRÍTICO → ALERTA → ESTABLE) para que el
-                punto con problema esté siempre arriba, sin escanear la lista
-                completa; el km desempata dentro de cada grupo. */}
-            {[...controlPoints].sort((a, b) => {
-              const PESO_STATUS = { CRITICO: 0, ALERTA: 1, ESTABLE: 2 } as const;
-              const sa = simResults.find(s => s.id === a.id)?.status ?? 'ESTABLE';
-              const sb = simResults.find(s => s.id === b.id)?.status ?? 'ESTABLE';
-              return PESO_STATUS[sa] - PESO_STATUS[sb] || a.km - b.km;
-            }).map(cp => {
-              const r  = simResults.find(s => s.id === cp.id);
-              const dy = r?.delta_y ?? 0;
-              const sc = statusColor(r?.status ?? 'ESTABLE');
-              const isActive = activeCP === cp.id;
-              return (
-                <div
-                  key={cp.id}
-                  className={`sim-cp-card ${isActive ? 'active' : ''}`}
-                  style={isActive ? { borderColor: sc, background: `${sc}0d` } : {}}
-                  onClick={() => setActiveCP(cp.id)}
-                >
-                  <div className="sim-cp-card-top">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                      <div className="sim-cp-dot" style={{ background: sc, boxShadow: `0 0 7px ${sc}` }} />
-                      <div>
-                        <div className="sim-cp-name">{cp.nombre}</div>
-                        <div className="sim-cp-km">KM {cp.km} · {r?.remanso_type ?? 'NORMAL'}</div>
-                        {(() => {
-                          const edad = edadLectura(dataStatus.lecturaFecha?.[cp.id], baseReadings[cp.id]);
-                          return edad ? <div className="sim-cp-age" style={{ color: edad.color }} title={edad.title}>{edad.texto}</div> : null;
-                        })()}
-                      </div>
-                    </div>
-                    <div style={{ color: sc, fontSize: 8, fontWeight: 700 }}>{r?.status ?? '—'}</div>
+          {(() => {
+            const vistas = controlPoints.map(cp => {
+              const r = simResults.find(x => x.id === cp.id);
+              return { cp, r, est: estadoVistaCP(r, reglasRiegoSuspendidas) };
+            });
+            const cuenta = (e: EstadoVista) => vistas.filter(v => v.est === e).length;
+            const PESO: Record<EstadoVista, number> = { CRITICO: 0, ALERTA: 1, BAJO_MIN: 2, ESTABLE: 3 };
+            const ordenadas = [...vistas].sort((x, y) => ordenCP === 'severidad'
+              ? PESO[x.est] - PESO[y.est] || x.cp.km - y.cp.km
+              : x.cp.km - y.cp.km);
+            const kmMin = Math.min(...controlPoints.map(c => c.km));
+            const kmMax = Math.max(...controlPoints.map(c => c.km));
+            // Sin escenario (Q simulado = real) ACTUAL y SIMULADO son iguales: se muestra un solo valor.
+            const hayEscenario = simResults.some(x => Math.abs(x.delta_y) >= 0.015);
+            const resumen: [EstadoVista, string][] = [['CRITICO', 'crítico'], ['ALERTA', 'alerta'], ['BAJO_MIN', 'bajo mín.'], ['ESTABLE', 'estable']];
+            return (
+              <>
+                <div className="sim-cp-head">
+                  <div className="sim-panel-title"><Activity size={10} /> Puntos de control · {controlPoints.length}</div>
+                  <div className="sim-cp-sort" role="group" aria-label="Orden de la lista">
+                    <span>Orden</span>
+                    <button type="button" className={ordenCP === 'km' ? 'on' : ''} aria-pressed={ordenCP === 'km'} onClick={() => setOrdenCP('km')}>Km</button>
+                    <button type="button" className={ordenCP === 'severidad' ? 'on' : ''} aria-pressed={ordenCP === 'severidad'} onClick={() => setOrdenCP('severidad')}>Severidad</button>
                   </div>
-
-                  {simpleMode ? (
-                    <div className="sim-card-simple">
-                      <div className="sim-card-levels">
-                        <div>
-                          <div className="sim-lvl-label">ACTUAL</div>
-                          <div className="sim-lvl-val">{(r?.y_base ?? 0).toFixed(2)}<span>m</span></div>
-                        </div>
-                        <div className={`sim-arrow ${dy > 0.015 ? 'up' : dy < -0.015 ? 'down' : 'flat'}`}>
-                          {dy > 0.015 ? <ArrowUp size={20} /> : dy < -0.015 ? <ArrowDown size={20} /> : <span style={{ fontSize: 16 }}>—</span>}
-                        </div>
-                        <div>
-                          <div className="sim-lvl-label">SIMULADO</div>
-                          <div className="sim-lvl-val" style={{ color: sc }}>{(r?.y_sim ?? 0).toFixed(2)}<span>m</span></div>
-                        </div>
-                      </div>
-                      <div className="sim-card-info-row">
-                        <span className="sim-delta-txt" style={{ color: Math.abs(dy) * 100 > 5 ? (dy > 0 ? '#fbbf24' : '#60a5fa') : '#475569' }}>
-                          {deltaLabel(dy)}
-                        </span>
-                        <span className="sim-transit-txt"><Clock size={10} /> {transitLabel(r?.cumulative_min ?? 0)}</span>
-                      </div>
-                      <div className="sim-pct-bar">
-                        <div className="sim-pct-fill" style={{
-                          width: `${Math.min(100, r?.bordo_libre_pct ?? 0)}%`,
-                          background: (r?.bordo_libre_pct ?? 0) > 92 ? '#ef4444' : (r?.bordo_libre_pct ?? 0) > 75 ? '#f59e0b' : '#10b981',
-                        }} />
-                      </div>
-                      <div className="sim-pct-lbl">{(r?.bordo_libre_pct ?? 0).toFixed(0)}% de la profundidad del canal</div>
-                      {/* Extracción real en este tramo */}
-                      {(r?.n_tomas_activas ?? 0) > 0 && (
-                        <div className="sim-delivery-chip">
-                          <Droplets size={8} />
-                          {r!.n_tomas_activas} toma{r!.n_tomas_activas > 1 ? 's' : ''} ·
-                          −{r!.q_extraido.toFixed(2)} m³/s entregado
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="sim-card-tech">
-                      {[
-                        ['y_base / y_sim', `${(r?.y_base ?? 0).toFixed(2)} / ${(r?.y_sim ?? 0).toFixed(2)} m`],
-                        ['Δy (Remanso)',   `${(dy ?? 0) >= 0 ? '+' : ''}${(dy ?? 0).toFixed(3)} m`],
-                        ['Q · V · Fr',    `${(r?.q_sim ?? 0).toFixed(1)} m³/s · ${(r?.velocity_ms ?? 0).toFixed(2)} · ${(r?.froude_n ?? 0).toFixed(3)}`],
-                        ['Tomas activas',  `${r?.n_tomas_activas ?? 0} · −${(r?.q_extraido ?? 0).toFixed(2)} m³/s`],
-                        ['Arribo',        r?.arrival_time ?? '—'],
-                      ].map(([k, v]) => (
-                        <div key={k} className="sim-tech-row">
-                          <span>{k}</span><span>{v}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div className="sim-cp-summary">
+                    {resumen.filter(([e]) => cuenta(e) > 0).map(([e, txt]) => (
+                      <span key={e} className="sim-cp-chip" style={{ color: colorEstadoVista(e), borderColor: `${colorEstadoVista(e)}55`, background: `${colorEstadoVista(e)}14` }}>
+                        {cuenta(e)} {txt}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+                {!hayEscenario && simResults.length > 0 && (
+                  <div className="sim-cp-banner">Sin escenario: nivel simulado = nivel actual</div>
+                )}
+                <div className="sim-cp-list">
+                  {controlPoints.length === 0 && <div className="sim-cp-empty">Sin puntos de control cargados</div>}
+                  {ordenadas.map(({ cp, r, est }) => {
+                    const dy = r?.delta_y ?? 0;
+                    const sc = colorEstadoVista(est);
+                    const isActive = activeCP === cp.id;
+                    const sinLectura = !(baseReadings[cp.id] > 0.05);
+                    const niv = (v: number | undefined) => (sinLectura || v === undefined ? 'S/D' : v.toFixed(2));
+                    const extremo = cp.km === kmMin ? ' · origen' : cp.km === kmMax ? ' · fin del canal' : '';
+                    return (
+                      <div
+                        key={cp.id}
+                        ref={el => { cpCardRefs.current[cp.id] = el; }}
+                        className={`sim-cp-card ${isActive ? 'active' : ''}`}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={isActive}
+                        style={{
+                          ...(isActive ? { borderColor: sc, background: `${sc}1f` } : {}),
+                          ...(est !== 'ESTABLE' ? { borderLeft: `3px solid ${sc}` } : {}),
+                        }}
+                        onClick={() => setActiveCP(cp.id)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveCP(cp.id); } }}
+                      >
+                        <div className="sim-cp-card-top">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                            <div className="sim-cp-dot" style={{ background: sc, boxShadow: `0 0 7px ${sc}` }} />
+                            <div>
+                              <div className="sim-cp-name">{cp.nombre}</div>
+                              <div className="sim-cp-km">KM {cp.km}{extremo}{hayEscenario ? ` · ${r?.remanso_type ?? 'NORMAL'}` : ''}</div>
+                              {(() => {
+                                const edad = edadLectura(dataStatus.lecturaFecha?.[cp.id], baseReadings[cp.id]);
+                                return edad ? <div className="sim-cp-age" style={{ color: edad.color }} title={edad.title}>{edad.texto}</div> : null;
+                              })()}
+                            </div>
+                          </div>
+                          <div className="sim-cp-status" style={{ color: sc, borderColor: `${sc}55`, background: `${sc}1f` }}
+                            title={est === 'BAJO_MIN' ? 'Bajo el mínimo deseable de servicio: esperado con el canal en vaciado o sin entrada de agua.' : undefined}>
+                            {r ? TXT_ESTADO[est] : '—'}
+                          </div>
+                        </div>
+
+                        {simpleMode ? (
+                          <div className="sim-card-simple">
+                            <div className="sim-card-levels">
+                              <div>
+                                <div className="sim-lvl-label">{hayEscenario ? 'ACTUAL' : 'NIVEL'}</div>
+                                <div className={`sim-lvl-val ${hayEscenario ? 'secondary' : ''}`} style={hayEscenario ? undefined : { color: sinLectura ? '#f59e0b' : sc }}>{niv(r?.y_base)}<span>{sinLectura ? '' : 'm'}</span></div>
+                              </div>
+                              {hayEscenario && (
+                                <>
+                                  <div className={`sim-arrow ${dy > 0.015 ? 'up' : dy < -0.015 ? 'down' : 'flat'}`}>
+                                    {dy > 0.015 ? <ArrowUp size={20} /> : dy < -0.015 ? <ArrowDown size={20} /> : <span style={{ fontSize: 16 }}>—</span>}
+                                  </div>
+                                  <div>
+                                    <div className="sim-lvl-label">SIMULADO</div>
+                                    <div className="sim-lvl-val" style={{ color: sc }}>{niv(r?.y_sim)}<span>{sinLectura ? '' : 'm'}</span></div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                            {hayEscenario && (
+                              <div className="sim-card-info-row">
+                                <span className="sim-delta-txt" style={{ color: Math.abs(dy) * 100 > 5 ? (dy > 0 ? '#fbbf24' : '#60a5fa') : '#94a3b8' }}>
+                                  {deltaLabel(dy)}
+                                </span>
+                                <span className="sim-transit-txt"
+                                  title={qDam < 5 ? 'Tiempo extrapolado: la velocidad de onda está calibrada para gastos de 5 m³/s o más.' : undefined}>
+                                  <Clock size={10} /> {qDam < 5 && (r?.cumulative_min ?? 0) >= 1 ? '≈ ' : ''}{transitLabel(r?.cumulative_min ?? 0)}
+                                </span>
+                              </div>
+                            )}
+                            <div className="sim-pct-row">
+                              <div className="sim-pct-bar">
+                                <div className="sim-pct-fill" style={{
+                                  width: `${Math.min(100, r?.bordo_libre_pct ?? 0)}%`,
+                                  background: (r?.bordo_libre_pct ?? 0) > 92 ? '#ef4444' : (r?.bordo_libre_pct ?? 0) > 75 ? '#f59e0b' : '#10b981',
+                                }} />
+                              </div>
+                              <div className="sim-pct-lbl">{sinLectura ? 'S/D' : `${(r?.bordo_libre_pct ?? 0).toFixed(0)}%`} del tirante máx.</div>
+                            </div>
+                            {/* Extracción real en este tramo */}
+                            {(r?.n_tomas_activas ?? 0) > 0 && (
+                              <div className="sim-delivery-chip">
+                                <Droplets size={9} />
+                                {r!.n_tomas_activas} toma{r!.n_tomas_activas > 1 ? 's' : ''} ·
+                                −{r!.q_extraido.toFixed(2)} m³/s entregado
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="sim-card-tech">
+                            {[
+                              ['y_base / y_sim', sinLectura ? 'S/D' : `${(r?.y_base ?? 0).toFixed(2)} / ${(r?.y_sim ?? 0).toFixed(2)} m`],
+                              ['Δy (Remanso)',   `${(dy ?? 0) >= 0 ? '+' : ''}${(dy ?? 0).toFixed(3)} m`],
+                              ['Q · V · Fr',    `${(r?.q_sim ?? 0).toFixed(1)} m³/s · ${(r?.velocity_ms ?? 0).toFixed(2)} · ${(r?.froude_n ?? 0).toFixed(3)}`],
+                              ['Tomas activas',  `${r?.n_tomas_activas ?? 0} · −${(r?.q_extraido ?? 0).toFixed(2)} m³/s`],
+                              ['Arribo',        reglasRiegoSuspendidas ? 'S/D' : (r?.arrival_time ?? '—')],
+                            ].map(([k, v]) => (
+                              <div key={k} className="sim-tech-row">
+                                <span>{k}</span><span>{v}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
         </aside>
 
         {/* ─── CENTRO: Perfil + Timeline ──────────────────────────── */}

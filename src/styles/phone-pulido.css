@@ -272,3 +272,21 @@ html[data-device="phone"] .gauge-status-badge.status-critico { color: #fecaca !i
 
 /* Controles nativos (select, fecha) en tema oscuro en lugar del gris claro de iOS */
 html[data-device="phone"] :is(select, input[type="date"], input[type="time"]) { color-scheme: dark; }
+
+/* ── Dashboard: columna derecha sin alturas forzadas ──
+   La fila del grid estiraba .grid-col-right (flex column) a 1416 px: la tarjeta "Cumplimiento"
+   (h-full) se inflaba a ~800 px con un hueco vacío y "SICA Source of Truth" se comprimía y
+   quedaba recortada (overflow hidden). En teléfono cada tarjeta toma la altura de su contenido. */
+html[data-device="phone"] .dashboard-grid-main { align-items: start; }
+html[data-device="phone"] .dashboard-grid-main > * { height: auto; min-height: 0; }
+html[data-device="phone"] .grid-col-right > .card { flex: none; height: auto; min-height: 0; overflow: visible; }
+html[data-device="phone"] .grid-col-right > .card.h-full { height: auto; }
+/* Pie de versión: que el texto largo se parta en vez de cortarse */
+html[data-device="phone"] .grid-col-right > .card:last-child span { white-space: normal; overflow-wrap: anywhere; }
+html[data-device="phone"] .grid-col-right > .card:last-child .border-t { flex-wrap: wrap; gap: 6px; }
+/* Tarjeta de versiones: respiro entre filas (las utilidades space-y/mt no existen en esta app) */
+html[data-device="phone"] .grid-col-right > .card:last-child { padding: 14px; }
+html[data-device="phone"] .grid-col-right > .card:last-child .space-y-2 { display: flex; flex-direction: column; gap: 8px; }
+html[data-device="phone"] .grid-col-right > .card:last-child .space-y-2 > div { padding: 8px 10px; }
+html[data-device="phone"] .grid-col-right > .card:last-child .mt-4 { margin-top: 12px; padding: 8px 10px; }
+html[data-device="phone"] .grid-col-right > .card:last-child .mt-6 { margin-top: 12px; padding-top: 10px; }

@@ -1,0 +1,26 @@
+Reservoir Report
+
+
+International Reservoirs
+All Data Are Provisional And Subject To RevisionUnits are in million cubic meters, meters and cubic meters per second
+Reservoir|Conservation Elev.|Conservation Cap.|Flood Elev.|Flood Cap.|Super Storage Elev.|Super Storage Cap.|Timestamp|Elev.|Storage.|Timestamp|Release
+Amistad|340.462|3980.096|347.595|6055.72|349.025|6541.334|2026-10-05 10:15:00|322.955|1036.152|2026-10-05 10:15:00|2.201|
+Falcon|91.805|3288.726|93.48|3923.322|95.768|4919.06|2026-10-05 10:00:00|79.418|543.928|2026-10-05 10:15:00|9.56|
+
+
+Large Storage Reservoirs in Mexico
+All Data Are Provisional And Subject To RevisionUnits are in million cubic meters, meters and cubic meters per second
+Reservoir|Conservation Elev.|Conservation Cap.|Flood Elev.|Flood Cap.|Timestamp|Elev.|Storage.|Timestamp|Release
+San Gabriel, Dgo.|1777.9|245.431|1783.39|377.338|05-Oct-2026 00:00|N/A|62.596|05-Oct-2026 00:00|0|25.504521|
+La Boquilla, Chih.|1317|2846.78|1319.1|3208.267|05-Oct-2026 00:00|N/A|702.466|05-Oct-2026 00:00|0|24.675809|
+Fco. I . Madero, Chih.|1239.3|333.318|1242.56|456.499|05-Oct-2026 00:00|N/A|164.302|05-Oct-2026 00:00|0|49.292867|
+Pico del Aguila, Chih.|1616.9|48.276|1623.4|88.804|05-Oct-2026 00:00|N/A|17.564|05-Oct-2026 00:00|0|36.382467|
+Chihuahua, Chih.|1540.5|23.383|1544.28|35.631|05-Oct-2026 00:00|N/A|8.924|05-Oct-2026 00:00|0.09|38.164478|
+El Rejon, Chih.|1477.08|6.528|1478.32|7.755|05-Oct-2026 00:00|N/A|2.264|05-Oct-2026 00:00|0|34.681373|
+Luis L. Leon, Chih.|1034.8|284.382|1050.5|824.761|05-Oct-2026 00:00|N/A|28.166|05-Oct-2026 00:00|0|9.904284|
+Centenario, Coah.|336.15|24.589|336.38|25.711|05-Oct-2026 00:00|N/A|6.681|05-Oct-2026 00:00|0|27.170686|
+San Miguel, Coah.|341.74|21.168|341.96|22.193|05-Oct-2026 00:00|N/A|10.61|05-Oct-2026 00:00|0|50.122827|
+La Fragua, Coah.|300.3|47.295|303.96|85.38|05-Oct-2026 00:00|N/A|14.624|05-Oct-2026 00:00|0|30.920816|
+V. Carranza, Coah.|259.24|645.21|261.8|1322.372|05-Oct-2026 00:00|N/A|68.799|05-Oct-2026 00:00|0|10.66304|
+El Cuchillo, N.L.|162.35|1123.143|166.66|1784.292|05-Oct-2026 00:00|N/A|602.978|05-Oct-2026 00:00|6.114|53.686663|
+Marte R. Gomez, Tam.|77.34|781.7|83|2208.663|05-Oct-2026 00:00|N/A|536.763|05-Oct-2026 00:00|0|68.666112|

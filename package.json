@@ -1,7 +1,7 @@
 {
   "name": "conchos-digital",
   "private": true,
-  "version": "2.11.9",
+  "version": "2.12.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,8 @@
     "audit:e2e": "node e2e/auditoria.mjs"
   },
   "dependencies": {
+    "@fontsource/big-shoulders-display": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@loadable/component": "^5.16.7",

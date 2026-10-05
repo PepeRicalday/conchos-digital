@@ -21,3 +21,6 @@ declare module 'virtual:pwa-register/react' {
         onOfflineReady?: () => void;
     }
 }
+
+// Hojas de estilo de @fontsource importadas sin extensión (exports `./*` → `*.css`).
+declare module '@fontsource/*';

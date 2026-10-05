@@ -158,3 +158,27 @@ export function lecturaMasReciente(presas: PresaLike[]): string | null {
         .sort();
     return fechas.length > 0 ? fechas[fechas.length - 1] : null;
 }
+
+/** Procedencia del nivel que muestra SICA para una presa (marcas escritas en `lecturas_presas.notas`). */
+export type ProcedenciaNivel = 'CAMPO' | 'CILA' | 'ESTIMADA';
+
+/**
+ * - ESTIMADA: elevación derivada con incertidumbre declarada (p. ej. Madero, batimetría 2004 ajustada).
+ * - CILA: nivel volcado por la ingesta oficial CILA/USIBWC (elevación calculada con la curva).
+ * - CAMPO: lectura capturada en campo (prevalece sobre CILA).
+ * - null: sin lectura.
+ */
+export function procedenciaNivel(
+    notas: string | null | undefined,
+    hayNivel: boolean
+): ProcedenciaNivel | null {
+    if (!hayNivel) return null;
+    if (notas?.includes('ESTIMADA')) return 'ESTIMADA';
+    if (notas?.includes('Nivel: CILA-IBWC')) return 'CILA';
+    return 'CAMPO';
+}
+
+/** true si la elevación mostrada es una estimación con margen de error declarado. */
+export function elevacionEstimada(notas: string | null | undefined): boolean {
+    return !!notas?.includes('ESTIMADA');
+}

@@ -16,6 +16,7 @@ import InformeOperativo from '../components/InformeOperativo';
 import { exportEscalasCSV } from '../utils/exportCanal';
 import { toast } from 'sonner';
 import TendenciasPanel from '../components/TendenciasPanel';
+import PresasNivelStrip from '../components/PresasNivelStrip';
 import { useTendenciasHistoricas } from '../hooks/useTendenciasHistoricas';
 import { fetchVolumenCiclo, totalesVolumenCiclo, estadoVolumen, type VolumenCicloModulo } from '../utils/volumenCiclo';
 
@@ -1047,7 +1048,8 @@ const PublicMonitor: React.FC = () => {
                         porcentaje_llenado: null,
                         escala_msnm: null,
                     });
-                } else if (fechaMov > fechaLectura) {
+                } else if (fechaMov > fechaLectura || lectura.extraccion_total == null) {
+                    // Filas de nivel (CILA) no traen extracción: el último movimiento sigue vigente.
                     uniquePresasMap.set(presaId, { ...lectura, extraccion_total: Number(mov.gasto_m3s) });
                 }
             });
@@ -2833,6 +2835,7 @@ const PublicMonitor: React.FC = () => {
                                         <span className="summary-info-title">📊 PROGRESO: <span className="summary-info-value" style={{ color: statusColor }}>{Math.max(0, Math.min(100, ((displayMaxKm + 36) / 140) * 100)).toFixed(1)}%</span></span>
                                     </div>
                                 </div>
+                                <PresasNivelStrip presas={presasData} />
                                 {/* Fuentes en LLENADO */}
                                 <div className="dock-panel-footer">
                                     {presasData.map(p => (
@@ -2993,6 +2996,7 @@ const PublicMonitor: React.FC = () => {
                                     </div>
                                 )}
 
+                                <PresasNivelStrip presas={presasData} />
                                 {/* Footer: fuente + movimiento + coherencia en una línea */}
                                 <div className="dock-panel-footer">
                                     {presasData.map(p => (

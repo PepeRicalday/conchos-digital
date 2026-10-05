@@ -31,7 +31,7 @@ html[data-device="phone"] .scada-sala-header {
     padding: 12px;
 }
 html[data-device="phone"] .scada-header-title { font-size: 15px; }
-html[data-device="phone"] .scada-header-org { font-size: 9px; }
+html[data-device="phone"] .scada-header-org { font-size: 11px; }
 html[data-device="phone"] .scada-header-dam-selector { flex-wrap: wrap; gap: 8px; }
 html[data-device="phone"] .scada-dam-btn { font-size: 11px; padding: 8px 14px; min-height: 40px; }
 html[data-device="phone"] .scada-header-kpi-strip { justify-content: space-between; gap: 12px; flex-wrap: wrap; }
@@ -40,13 +40,13 @@ html[data-device="phone"] .scada-header-kpi-unit { font-size: 10px; }
 html[data-device="phone"] .scada-header-kpi-val { font-size: 22px; }
 html[data-device="phone"] .scada-header-right { flex-wrap: wrap; justify-content: space-between; gap: 8px; }
 html[data-device="phone"] .scada-clock { font-size: 14px; align-items: flex-start; }
-html[data-device="phone"] .scada-clock-date { font-size: 10px; }
-html[data-device="phone"] .scada-action-btn { font-size: 10px; padding: 8px 12px; min-height: 40px; }
-html[data-device="phone"] .scada-status-badge { font-size: 10px; padding: 6px 12px; }
+html[data-device="phone"] .scada-clock-date { font-size: 11px; }
+html[data-device="phone"] .scada-action-btn { font-size: 11px; padding: 8px 12px; min-height: 40px; }
+html[data-device="phone"] .scada-status-badge { font-size: 11px; padding: 6px 12px; }
 html[data-device="phone"] .scada-sala-body { grid-template-columns: minmax(0, 1fr); }
 html[data-device="phone"] .scada-design-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-html[data-device="phone"] .scada-panel-hdr { font-size: 10px; }
-html[data-device="phone"] .scada-design-kpi span:first-child { font-size: 9px; color: #64748b; }
+html[data-device="phone"] .scada-panel-hdr { font-size: 11px; }
+html[data-device="phone"] .scada-design-kpi span:first-child { font-size: 11px; color: #64748b; }
 
 /* ── Control de Niveles ──────────────────────────────────────────────────── */
 html[data-device="phone"] .zone-summary { flex-wrap: wrap; gap: 8px 16px; }

@@ -35,6 +35,11 @@ export interface LecturaPresaData {
     almacenamiento_mm3: number | null;
     porcentaje_llenado: number | null;
     extraccion_total_m3s: number;
+    /**
+     * false = ninguna fuente (lectura, movimiento o protocolo) informa la extracción; la UI debe
+     * rotular S/D en vez de presentar el 0 de arranque como una medición (regla "S/D nunca cero").
+     */
+    extraccion_conocida: boolean;
     gasto_toma_baja_m3s: number | null;
     gasto_cfe_m3s: number | null;
     gasto_toma_izq_m3s: number | null;
@@ -145,7 +150,7 @@ export function usePresas(fecha: string) {
                     // nivel se captura por separado y no siempre el mismo día que el gasto.
                     supabase.from('lecturas_presas').select('presa_id, fecha, escala_msnm, almacenamiento_mm3, porcentaje_llenado')
                         .lt('fecha', fecha)
-                        .not('escala_msnm', 'is', null)
+                        .or('escala_msnm.not.is.null,almacenamiento_mm3.not.is.null')
                         .order('fecha', { ascending: false })
                         .limit(60)
                 ]);
@@ -194,11 +199,12 @@ export function usePresas(fecha: string) {
 
                 // Index lectura previa (más reciente antes de `fecha`) por presa_id —
                 // ya viene ordenada desc, así que la primera que aparece por presa es la más reciente.
-                const lecturaPreviaMap: Record<string, { escala_msnm: number; almacenamiento_mm3: number | null; porcentaje_llenado: number | null }> = {};
+                const lecturaPreviaMap: Record<string, { fecha: string; escala_msnm: number | null; almacenamiento_mm3: number | null; porcentaje_llenado: number | null }> = {};
                 (lecturasPreviasDB || []).forEach((l: any) => {
-                    if (lecturaPreviaMap[l.presa_id] === undefined && l.escala_msnm != null) {
+                    if (lecturaPreviaMap[l.presa_id] === undefined && (l.escala_msnm != null || l.almacenamiento_mm3 != null)) {
                         lecturaPreviaMap[l.presa_id] = {
-                            escala_msnm: Number(l.escala_msnm),
+                            fecha: String(l.fecha).slice(0, 10),
+                            escala_msnm: l.escala_msnm != null ? Number(l.escala_msnm) : null,
                             almacenamiento_mm3: l.almacenamiento_mm3 != null ? Number(l.almacenamiento_mm3) : null,
                             porcentaje_llenado: l.porcentaje_llenado != null ? Number(l.porcentaje_llenado) : null,
                         };
@@ -267,12 +273,14 @@ export function usePresas(fecha: string) {
                         )
                     );
                     let extraccion = Number(lect?.extraccion_total_m3s) || 0;
+                    let extraccionConocida = lect?.extraccion_total_m3s != null;
                     let notas = lect?.notas || null;
                     let dataSource = lect ? 'lecturas_presas' : 'sin_lectura';
 
                     // ── CAPA 2: Continuidad operativa (último movimiento) ──
                     if (latestMov) {
                         extraccion = Number(latestMov.gasto_m3s);
+                        extraccionConocida = true;
                         dataSource = `movimientos_presas (${latestMov.fuente_dato ?? 'manual'})`;
                     }
 
@@ -301,6 +309,7 @@ export function usePresas(fecha: string) {
                         if ((eventDB.evento_tipo === 'LLENADO' || solicitado > 0) && !hayMedicionPosterior) {
                             const gastoFinal = solicitado > 0 ? solicitado : 34; // Default 34 si es LLENADO
                             extraccion = gastoFinal;
+                            extraccionConocida = true;
                             notas = (notas ? notas + ' | ' : '') + `[PROTOCOL-ACTIVE]: ${eventDB.evento_tipo} (${gastoFinal} m³/s)`;
                             dataSource = `sica_eventos_log (${eventDB.evento_tipo})`;
                         } else if (hayMedicionPosterior && solicitado > 0 && Math.abs(extraccion - solicitado) > 0.01) {
@@ -332,9 +341,10 @@ export function usePresas(fecha: string) {
                         // anterior traen el dato. `Number(null) || 0` daba 0 y volvía
                         // indistinguible un embalse vacío de uno sin lectura capturada.
                         escala_msnm: tieneNivelHoy ? Number(lect.escala_msnm) : (nivelPrevio?.escala_msnm ?? null),
-                        almacenamiento_mm3: tieneNivelHoy && lect?.almacenamiento_mm3 != null ? Number(lect.almacenamiento_mm3) : (nivelPrevio?.almacenamiento_mm3 ?? null),
-                        porcentaje_llenado: tieneNivelHoy && lect?.porcentaje_llenado != null ? Number(lect.porcentaje_llenado) : (nivelPrevio?.porcentaje_llenado ?? null),
+                        almacenamiento_mm3: lect?.almacenamiento_mm3 != null ? Number(lect.almacenamiento_mm3) : (nivelPrevio?.almacenamiento_mm3 ?? null),
+                        porcentaje_llenado: lect?.porcentaje_llenado != null ? Number(lect.porcentaje_llenado) : (nivelPrevio?.porcentaje_llenado ?? null),
                         extraccion_total_m3s: extraccion,
+                        extraccion_conocida: extraccionConocida,
                         // Desglose por obra de toma — cascada: Capa 1 (lecturas_presas) →
                         // Capa 2 (último movimiento, si trae desglose) → último movimiento
                         // CON desglose aunque sea de un día anterior (una obra sigue en el
@@ -365,8 +375,11 @@ export function usePresas(fecha: string) {
                         // regex "Dif Elev: Xm" sobre notas (texto libre, frágil). null si
                         // no hay elevación de HOY (arrastrar el nivel de ayer no cuenta como
                         // variación) o no hay lectura previa con la que comparar.
-                        variacion_elevacion_m: (tieneNivelHoy && nivelPrevio !== undefined)
-                            ? Number(lect.escala_msnm) - nivelPrevio.escala_msnm
+                        variacion_elevacion_m: (tieneNivelHoy && nivelPrevio?.escala_msnm != null)
+                            // Normalizado por día: con lecturas CILA diarias el registro previo de
+                            // campo puede estar a semanas, y la UI lo rotula "m/día".
+                            ? (Number(lect.escala_msnm) - nivelPrevio.escala_msnm) /
+                              Math.max(1, Math.round((Date.parse(`${String(lect.fecha).slice(0, 10)}T00:00:00Z`) - Date.parse(`${nivelPrevio.fecha}T00:00:00Z`)) / 86400000))
                             : null,
                     } : null;
 

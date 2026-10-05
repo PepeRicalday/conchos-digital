@@ -10,9 +10,14 @@ import { Link } from 'react-router-dom';
 import { AreaChart, Area, Line, ComposedChart, ReferenceLine, Legend, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Sankey } from 'recharts';
 import './Presas.css';
 import { useFecha } from '../context/FechaContext';
-import { usePresas, type PresaData, type PuntoCurva, type MovimientoPresaData } from '../hooks/usePresas';
+import { usePresas, type PresaData, type MovimientoPresaData } from '../hooks/usePresas';
 import { getTodayString, addDays, getLocalDatetimeInput } from '../utils/dateHelpers';
+import PresaLecturaBand from '../components/PresaLecturaBand';
+import LimnimetroPresa from '../components/LimnimetroPresa';
 
+
+/** Espejo de los tokens --pr-* de Presas.css (hex porque se componen con alfa: `${color}18`). */
+const PR = { ok: '#34d399', warn: '#fbbf24', crit: '#f87171', mute: '#94a3b8', sky: '#38bdf8', violet: '#a78bfa' } as const;
 
 const FUENTE_COLOR: Record<string, string> = {
     GERENCIA_ADMIN: '#f59e0b',
@@ -75,7 +80,7 @@ const ExtractionStreamgraph = ({ movimientos }: { movimientos: MovimientoPresaDa
                     </defs>
                     <XAxis
                         dataKey="hora"
-                        tick={{ fontFamily: 'JetBrains Mono', fontSize: 9, fill: '#475569' }}
+                        tick={{ fontFamily: 'JetBrains Mono', fontSize: 11, fill: '#475569' }}
                         interval={3}
                         axisLine={false}
                         tickLine={false}
@@ -184,7 +189,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
                             <span className="text-lg" style={{ color: tipoMeta.color }}>{tipoMeta.icon}</span>
                             Orden de Operación — {presa.nombre_corto}
                         </h3>
-                        <p className="text-[10px] text-slate-500 font-bold mt-0.5 uppercase tracking-widest">Movimientos Presa · Registro con Trazabilidad</p>
+                        <p className="text-[11px] text-slate-500 font-bold mt-0.5 uppercase tracking-widest">Movimientos Presa · Registro con Trazabilidad</p>
                     </div>
                 </div>
 
@@ -192,7 +197,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
 
                     {/* Tipo de movimiento */}
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tipo de Movimiento</label>
+                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Tipo de Movimiento</label>
                         <div className="grid grid-cols-5 gap-1.5">
                             {(Object.keys(TIPO_MOV_META) as TipoMovimiento[]).map(t => {
                                 const m = TIPO_MOV_META[t];
@@ -211,12 +216,12 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
                                 );
                             })}
                         </div>
-                        <p className="text-[9px] text-slate-600 font-bold">{tipoMeta.desc}</p>
+                        <p className="text-[11px] text-slate-600 font-bold">{tipoMeta.desc}</p>
                     </div>
 
                     {/* Gasto */}
                     <div className="space-y-2">
-                        <label htmlFor="rmm-gasto" className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                        <label htmlFor="rmm-gasto" className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
                             Gasto Liberado (Q)
                             {tipo === 'CORTE' && <span className="ml-2 text-red-400">→ se registrará como 0.00 m³/s</span>}
                         </label>
@@ -240,7 +245,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
 
                     {/* Fecha y hora */}
                     <div className="space-y-2">
-                        <label htmlFor="rmm-fecha" className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fecha y Hora Efectiva del Movimiento</label>
+                        <label htmlFor="rmm-fecha" className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Fecha y Hora Efectiva del Movimiento</label>
                         <input id="rmm-fecha" type="datetime-local" value={fechaHora}
                             onChange={e => setFechaHora(e.target.value)}
                             className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-sm focus:outline-none"
@@ -249,7 +254,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
 
                     {/* Responsable */}
                     <div className="space-y-2">
-                        <label htmlFor="rmm-resp" className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Responsable de la Orden</label>
+                        <label htmlFor="rmm-resp" className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Responsable de la Orden</label>
                         <input id="rmm-resp" type="text" value={responsable}
                             onChange={e => { setResp(e.target.value); setValidErr(null); }}
                             className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm font-bold focus:outline-none transition-all"
@@ -260,7 +265,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
 
                     {/* Notas */}
                     <div className="space-y-2">
-                        <label htmlFor="rmm-notas" className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Notas Operativas <span className="text-slate-700">(opcional)</span></label>
+                        <label htmlFor="rmm-notas" className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Notas Operativas <span className="text-slate-700">(opcional)</span></label>
                         <textarea id="rmm-notas" rows={2} value={notas}
                             onChange={e => setNotas(e.target.value)}
                             className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm resize-none focus:outline-none"
@@ -339,11 +344,11 @@ const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
                     <TrendingUp size={14} className="text-sky-400" /> Monitoreo de Niveles (30 días)
                 </h3>
                 <div className="flex items-center gap-3">
-                    <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md"
+                    <span className="text-[11px] font-black uppercase tracking-widest px-2 py-1 rounded-md"
                         style={{ color: tColor, background: `${tColor}18`, border: `1px solid ${tColor}40` }}>
                         {tendencia > 0 ? '▲' : tendencia < 0 ? '▼' : '─'} {Math.abs(tendencia).toFixed(2)} m
                     </span>
-                    <span className="text-[9px] font-black text-sky-400 font-mono">{ultimoPct.toFixed(1)}% NAMO</span>
+                    <span className="text-[11px] font-black text-sky-400 font-mono">{ultimoPct.toFixed(1)}% NAMO</span>
                 </div>
             </div>
             <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height={160}>
@@ -357,7 +362,7 @@ const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                     <XAxis
                         dataKey="fecha"
-                        tick={{ fill: '#475569', fontSize: 8 }}
+                        tick={{ fill: '#475569', fontSize: 11 }}
                         tickFormatter={v => v.slice(5)}
                         interval="preserveStartEnd"
                         axisLine={false}
@@ -365,14 +370,14 @@ const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
                     />
                     <YAxis
                         domain={[minNivel, maxNivel]}
-                        tick={{ fill: '#475569', fontSize: 8 }}
+                        tick={{ fill: '#475569', fontSize: 11 }}
                         tickFormatter={v => `${v.toFixed(0)}`}
                         width={38}
                     />
                     <Tooltip
                         contentStyle={{ background: 'rgba(4,11,22,0.97)', border: '1px solid #1e3a5f', borderRadius: 6 }}
-                        labelStyle={{ color: '#94a3b8', fontSize: 9 }}
-                        itemStyle={{ fontSize: 10 }}
+                        labelStyle={{ color: '#94a3b8', fontSize: 11 }}
+                        itemStyle={{ fontSize: 11 }}
                         formatter={(v: number | undefined) => [`${(v ?? 0).toFixed(3)} msnm`, 'Nivel']}
                     />
                     <Area
@@ -431,13 +436,13 @@ const AnaliticaPredictivaPanel = ({ presa }: { presa: PresaData }) => {
                     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                         <ComposedChart data={historialAnual} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.5} />
-                            <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} dy={5} />
-                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} domain={[0, 100]} />
+                            <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} dy={5} />
+                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} domain={[0, 100]} />
                             <Tooltip 
-                                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', fontSize: '10px' }}
+                                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', fontSize: '11px' }}
                                 itemStyle={{ fontSize: '11px', fontWeight: 'bold' }}
                             />
-                            <Legend wrapperStyle={{ fontSize: '9px', paddingTop: '10px' }} iconType="circle" />
+                            <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} iconType="circle" />
                             
                             <Area type="monotone" name="Hist. Crítico (2020)" dataKey="critico" stroke="none" fill="#ef4444" fillOpacity={0.1} />
                             <Line type="monotone" name="Promedio (10 años)" dataKey="prom" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" dot={false} />
@@ -458,14 +463,14 @@ const AnaliticaPredictivaPanel = ({ presa }: { presa: PresaData }) => {
                     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
                         <ComposedChart data={proyeccion} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#334155" opacity={0.4} />
-                            <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} dy={5} />
-                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} domain={[0, 100]} />
+                            <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} dy={5} />
+                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} domain={[0, 100]} />
                             <Tooltip 
-                                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', fontSize: '10px' }}
+                                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', fontSize: '11px' }}
                             />
-                            <Legend wrapperStyle={{ fontSize: '9px', paddingTop: '10px' }} iconType="plainline" />
+                            <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} iconType="plainline" />
                             
-                            <ReferenceLine y={20} label={{ position: 'insideTopLeft', value: 'NIVEL CRÍTICO (20%)', fill: '#ef4444', fontSize: 8 }} stroke="#ef4444" strokeDasharray="3 3" />
+                            <ReferenceLine y={20} label={{ position: 'insideTopLeft', value: 'NIVEL CRÍTICO (20%)', fill: '#ef4444', fontSize: 11 }} stroke="#ef4444" strokeDasharray="3 3" />
                             
                             <Area type="monotone" name="Lluvia Normal" dataKey="conLluvia" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={2} />
                             <Line type="monotone" name="Sequía Continua" dataKey="sinLluvia" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, fill: '#b91c1c' }} />
@@ -546,7 +551,7 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
             <div className="scada-panel-hdr mb-3">
                 <Activity size={12} className="text-sky-400" />
                 <span>MÓDULO 4: Trazabilidad de Flujo a Red Mayor</span>
-                <span className="text-[9px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded ml-2">SIMULACIÓN INTERACTIVA</span>
+                <span className="text-[11px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded ml-2">SIMULACIÓN INTERACTIVA</span>
             </div>
             
             <div className="h-[180px] w-full">
@@ -578,7 +583,7 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
                                     x={x < 200 ? x + width + 8 : x - 8} 
                                     y={y + height / 2} dy={4} 
                                     textAnchor={x < 200 ? 'start' : 'end'} 
-                                    fill="#e2e8f0" fontSize="10" fontFamily="JetBrains Mono"
+                                    fill="#e2e8f0" fontSize="11" fontFamily="JetBrains Mono"
                                 >
                                     {payload.name} ({payload.value < 1 ? payload.value.toFixed(2) : payload.value.toFixed(1)})
                                 </text>
@@ -641,20 +646,6 @@ const Presas = () => {
     const estAforo = currentDam.id === 'PRE-001' ? 'Km 0+580' : 'Km 106';
     const currentAforo = aforos.find(a => a.estacion === estAforo);
 
-    // Prepare capacity curve chart data from Supabase
-    let curvaData = (currentDam.curva_capacidad || []).map((c: PuntoCurva) => ({
-        elevation: c.elevacion_msnm,
-        volume: c.volumen_mm3,
-    }));
-
-    // Fallback para visualización y diseño en caso de no haber datos reales de la curva
-    if (curvaData.length === 0) {
-        curvaData = Array.from({length: 10}).map((_, i) => ({
-            elevation: 1100 + (Math.pow(i, 1.5) * 5),
-            volume: i * 35,
-        }));
-    }
-
     // ─── Datos del embalse seleccionado ──────────────────────────────────────
     const lect          = currentDam.lectura;
     // `sinNivel` distingue "no hay lectura capturada" de "el embalse está en cero".
@@ -662,15 +653,17 @@ const Presas = () => {
     // debe rotular S/D en lugar de presentar ese 0 como medición.
     const sinNivel      = lect?.almacenamiento_mm3 == null && lect?.porcentaje_llenado == null;
     const elevacion     = lect?.escala_msnm         || 0;
+    // Elevación derivada de la curva con incertidumbre declarada (Madero): se muestra con ≈ y no como medición.
+    const elevEstimada  = !!lect?.notas?.includes('ESTIMADA');
+    const elevTexto     = elevacion > 0 ? `${elevEstimada ? '≈' : ''}${elevacion.toFixed(elevEstimada ? 1 : 2)}` : null;
     const almacenamiento = lect?.almacenamiento_mm3  || 0;
     const pctLlenado    = lect?.porcentaje_llenado   || 0;
     const amortiguamiento = currentDam.capacidad_max_mm3 - almacenamiento;
-    const semColor = pctLlenado >= 60 ? '#10b981' : pctLlenado >= 30 ? '#f59e0b' : '#ef4444';
     // const semLabel = pctLlenado >= 60 ? 'ÓPTIMO'  : pctLlenado >= 30 ? 'ATENCIÓN' : 'ALERTA';
     // Variación real día-a-día, calculada en usePresas.ts contra la lectura
     // anterior — ya no depende de que alguien escriba "Dif Elev: Xm" en notas.
     const difElev = lect?.variacion_elevacion_m != null ? lect.variacion_elevacion_m : null;
-    const riskColor = pctLlenado >= 90 ? '#ef4444' : pctLlenado >= 70 ? '#f59e0b' : '#10b981';
+    const riskColor = pctLlenado >= 90 ? PR.crit : pctLlenado >= 70 ? PR.warn : PR.ok;
     const riskLabel = pctLlenado >= 90 ? 'ALTO'   : pctLlenado >= 70 ? 'MEDIO'   : 'BAJO';
     // const volNAMO   = currentDam.capacidad_max_mm3;
     const movsActuales = movimientos.filter((m: MovimientoPresaData) => m.presa_id === currentDam.id);
@@ -684,15 +677,18 @@ const Presas = () => {
         : pctLlenado >= 92 || pctLlenado < 12
         ? 'CRÍTICO' : pctLlenado >= 80 || pctLlenado < 22
         ? 'PRECAUCIÓN' : 'NORMAL';
-    const sistemaColor = sistemaEstado === 'SIN DATO' ? '#94a3b8'
-        : sistemaEstado === 'CRÍTICO' ? '#ef4444'
-        : sistemaEstado === 'PRECAUCIÓN' ? '#f59e0b' : '#10b981';
+    const sistemaColor = sistemaEstado === 'SIN DATO' ? PR.mute
+        : sistemaEstado === 'CRÍTICO' ? PR.crit
+        : sistemaEstado === 'PRECAUCIÓN' ? PR.warn : PR.ok;
 
     const tendenciaNum = difElev ?? 0;
     const tendenciaDir = tendenciaNum > 0.005 ? '↑' : tendenciaNum < -0.005 ? '↓' : '→';
-    const tendenciaColor = tendenciaNum > 0.005 ? '#10b981' : tendenciaNum < -0.005 ? '#ef4444' : '#94a3b8';
+    const tendenciaColor = tendenciaNum > 0.005 ? PR.sky : tendenciaNum < -0.005 ? PR.warn : PR.mute;
 
     const extraccionTotal = lect?.extraccion_total_m3s ?? 0;
+    // S/D nunca cero: sin fuente que informe la extracción no se presenta el 0 de arranque como medición.
+    const extConocida   = lect?.extraccion_conocida ?? false;
+    const extTexto      = extConocida ? extraccionTotal.toFixed(2) : 'S/D';
     const tomas = [
         { nombre: 'Toma Baja', gasto: lect?.gasto_toma_baja_m3s ?? 0, tipo: 'agua' },
         { nombre: 'CFE',       gasto: lect?.gasto_cfe_m3s       ?? 0, tipo: 'energia' },
@@ -723,7 +719,7 @@ const Presas = () => {
         alertas.push({ nivel: 'PREVENTIVA',  msg: `Nivel en ascenso: +${tendenciaNum.toFixed(3)} m/día respecto al registro anterior.`, tiempo: 'Hoy' });
     if (tendenciaNum < -0.15)
         alertas.push({ nivel: 'PREVENTIVA',  msg: `Caída de nivel: ${tendenciaNum.toFixed(3)} m/día. Verificar extracciones.`, tiempo: 'Hoy' });
-    if (extraccionTotal === 0 && pctLlenado > 25)
+    if (extConocida && extraccionTotal === 0 && pctLlenado > 25)
         alertas.push({ nivel: 'INFORMATIVA', msg: 'Sin extracción activa registrada. Verificar estado de obras de toma.', tiempo: fechaSeleccionada });
     if (tomas.find(t => t.nombre === 'CFE' && t.gasto > 0))
         alertas.push({ nivel: 'INFORMATIVA', msg: `CFE operando: ${(lect?.gasto_cfe_m3s ?? 0).toFixed(2)} m³/s en generación eléctrica.`, tiempo: 'Ahora' });
@@ -757,11 +753,6 @@ const Presas = () => {
         ? 'Mantener extracciones según programa de distribución. Sin acción inmediata.'
         : 'Suspender extracciones no esenciales. Revisar balance hídrico con módulos.';
 
-    // SVG Vaso water Y calculation
-    const vasoNamoY  = 22;
-    const vasoBotY   = 175;
-    const vasoWaterY = vasoNamoY + ((100 - Math.min(pctLlenado, 100)) / 100) * (vasoBotY - vasoNamoY);
-
     return (
         <div className="scada-sala-root">
 
@@ -784,29 +775,6 @@ const Presas = () => {
                     ))}
                 </div>
 
-                {/* Hero KPIs */}
-                <div className="scada-header-kpi-strip">
-                    <div className="scada-header-kpi">
-                        <span className="scada-header-kpi-label">NIVEL ACTUAL</span>
-                        <span className="scada-header-kpi-val">{elevacion > 0 ? elevacion.toFixed(2) : '—'}</span>
-                        <span className="scada-header-kpi-unit">msnm</span>
-                    </div>
-                    <div className="scada-header-kpi">
-                        <span className="scada-header-kpi-label">ALMACENAMIENTO</span>
-                        <span className="scada-header-kpi-val" style={{ color: sinNivel ? '#94a3b8' : semColor }}>
-                            {sinNivel ? 'S/D' : pctLlenado.toFixed(1)}
-                        </span>
-                        <span className="scada-header-kpi-unit">{sinNivel ? 'sin lectura' : '% NAMO'}</span>
-                    </div>
-                    <div className="scada-header-kpi">
-                        <span className="scada-header-kpi-label">VOLUMEN</span>
-                        <span className="scada-header-kpi-val" style={sinNivel ? { color: '#94a3b8' } : undefined}>
-                            {sinNivel ? 'S/D' : almacenamiento.toFixed(2)}
-                        </span>
-                        <span className="scada-header-kpi-unit">Mm³</span>
-                    </div>
-                </div>
-
                 {/* Right: status + clock + actions */}
                 <div className="scada-header-right">
                     <div className="scada-status-badge" style={{ borderColor: sistemaColor, color: sistemaColor, background: `${sistemaColor}18` }}>
@@ -825,6 +793,15 @@ const Presas = () => {
                 </div>
             </header>
 
+            {/* ══ BANDA DE LECTURA: cifras clave con procedencia ═══════════════ */}
+            <PresaLecturaBand
+                key={currentDam.id}
+                presa={currentDam}
+                tendenciaMDia={difElev}
+                estadoSistema={sistemaEstado}
+                colorSistema={sistemaColor}
+            />
+
             {/* ══ ZONA 2+3: CUERPO PRINCIPAL ══════════════════════════════════ */}
             {/* ── ZONA 2+3 body ─────────────────────────────────────────────── */}
             <div className="scada-sala-body">
@@ -834,13 +811,13 @@ const Presas = () => {
                     {/* TABS DE ZONA 2 */}
                     <div className="flex bg-[#0f172a] p-1 rounded-md mb-3" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
                         <button 
-                            className={`flex-1 py-1.5 text-[10px] font-bold tracking-wider rounded transition-colors ${activeTab === 'operacion' ? 'bg-[#38bdf8] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
+                            className={`flex-1 py-2 text-[11px] font-bold tracking-wider rounded transition-colors ${activeTab === 'operacion' ? 'bg-[#38bdf8] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
                             onClick={() => setActiveTab('operacion')}
                         >
                             VASO OPERATIVO
                         </button>
                         <button 
-                            className={`flex-1 py-1.5 text-[10px] font-bold tracking-wider rounded transition-colors ${activeTab === 'analitica' ? 'bg-[#38bdf8] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
+                            className={`flex-1 py-2 text-[11px] font-bold tracking-wider rounded transition-colors ${activeTab === 'analitica' ? 'bg-[#38bdf8] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
                             onClick={() => setActiveTab('analitica')}
                         >
                             ANALÍTICA Y FORECASTING
@@ -860,42 +837,13 @@ const Presas = () => {
                                 </span>
                             )}
                         </div>
-                        <svg viewBox="0 0 360 200" className="scada-vaso-svg" preserveAspectRatio="xMidYMid meet">
-                            <defs>
-                                <linearGradient id="vaso-water-grad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.65"/>
-                                    <stop offset="100%" stopColor="#0c4a6e" stopOpacity="0.95"/>
-                                </linearGradient>
-                                <clipPath id="vaso-interior-clip">
-                                    <polygon points="52,12 308,12 295,186 65,186"/>
-                                </clipPath>
-                            </defs>
-                            <polygon points="5,4 52,4 65,186 295,186 308,4 355,4 355,196 5,196" fill="#0f172a" stroke="#1e293b" strokeWidth="1"/>
-                            <polygon points="5,4 52,4 65,186 5,196" fill="#1e293b" stroke="#334155" strokeWidth="1"/>
-                            <polygon points="308,4 355,4 355,196 295,186" fill="#1e293b" stroke="#334155" strokeWidth="1"/>
-                            <rect x="52" y={vasoWaterY} width="256" height={186 - vasoWaterY}
-                                fill="url(#vaso-water-grad)" clipPath="url(#vaso-interior-clip)"/>
-                            <line x1="52" y1={vasoWaterY} x2="308" y2={vasoWaterY} stroke="#38bdf8" strokeWidth="1.5"/>
-                            <text x="68" y={vasoWaterY - 5} fill="#38bdf8" fontSize="9"
-                                fontWeight="bold" fontFamily="JetBrains Mono, monospace">
-                                {elevacion.toFixed(2)} msnm
-                            </text>
-                            <text x="190" y={vasoWaterY - 7} fill={tendenciaColor} fontSize="13"
-                                fontWeight="bold" textAnchor="middle">{tendenciaDir}</text>
-                            <line x1="52" y1={vasoNamoY} x2="308" y2={vasoNamoY}
-                                stroke="#f59e0b" strokeWidth="1" strokeDasharray="5,3"/>
-                            <text x="314" y={vasoNamoY + 4} fill="#f59e0b" fontSize="8" fontWeight="bold">NAMO</text>
-                            <line x1="52" y1={vasoBotY} x2="308" y2={vasoBotY}
-                                stroke="#ef4444" strokeWidth="1" strokeDasharray="5,3"/>
-                            <text x="314" y={vasoBotY + 4} fill="#ef4444" fontSize="8" fontWeight="bold">NAMIN</text>
-                            <text x="180" y="13" fill="#475569" fontSize="8" textAnchor="middle" fontWeight="bold">
-                                CORONA {currentDam.elevacion_corona_msnm.toFixed(0)} msnm
-                            </text>
-                            <text x="180" y="194" fill={semColor} fontSize="10" fontWeight="bold"
-                                textAnchor="middle" fontFamily="JetBrains Mono, monospace">
-                                {pctLlenado.toFixed(1)}% NAMO — {almacenamiento.toFixed(2)} Mm³
-                            </text>
-                        </svg>
+                        <LimnimetroPresa
+                            presaId={currentDam.id}
+                            nivel={elevacion > 0 ? elevacion : null}
+                            estimada={elevEstimada}
+                            coronaMsnm={currentDam.elevacion_corona_msnm}
+                            curvaMinMsnm={currentDam.curva_capacidad[0]?.elevacion_msnm ?? null}
+                        />
                     </div>
 
                     <NivelHistoricoChart presaId={currentDam.id} />
@@ -915,7 +863,7 @@ const Presas = () => {
                         </div>
                         <div className="scada-design-kpi">
                             <span>Extracción</span>
-                            <span className={extraccionTotal > 0 ? 'scada-kpi-sky' : 'scada-kpi-muted'}>{extraccionTotal.toFixed(2)} m³/s</span>
+                            <span className={extConocida && extraccionTotal > 0 ? 'scada-kpi-sky' : 'scada-kpi-muted'}>{extTexto}{extConocida ? ' m³/s' : ''}</span>
                         </div>
                     </div>
                         </>
@@ -933,8 +881,8 @@ const Presas = () => {
 
                     <div className="scada-extraccion-total">
                         <span className="scada-ext-label">CAUDAL TOTAL DE SALIDA</span>
-                        <span className={`scada-ext-val${extraccionTotal > 0 ? ' scada-kpi-sky' : ' scada-kpi-muted'}`}>
-                            {extraccionTotal.toFixed(2)}
+                        <span className={`scada-ext-val${extConocida && extraccionTotal > 0 ? ' scada-kpi-sky' : ' scada-kpi-muted'}`}>
+                            {extTexto}
                         </span>
                         <span className="scada-ext-unit">m³/s</span>
                         <div className="scada-ext-bar">
@@ -945,7 +893,7 @@ const Presas = () => {
 
                     <div className="scada-tomas-grid">
                         {tomas.map(t => {
-                            const abierta = t.gasto > 0;
+                            const abierta = extConocida && t.gasto > 0;
                             const pctContrib = extraccionTotal > 0 ? (t.gasto / extraccionTotal) * 100 : 0;
                             const esCFE = t.nombre === 'CFE';
                             const tomaColor = esCFE ? '#a78bfa' : abierta ? '#38bdf8' : '#334155';
@@ -956,11 +904,11 @@ const Presas = () => {
                                         <span className="scada-toma-nombre">{t.nombre}</span>
                                         <span className="scada-toma-estado-badge"
                                             style={{ color: estadoColor, background: `${estadoColor}18` }}>
-                                            {abierta ? 'OPERATIVA' : 'CERRADA'}
+                                            {!extConocida ? 'S/D' : abierta ? 'OPERATIVA' : 'CERRADA'}
                                         </span>
                                     </div>
                                     <span className="scada-toma-gasto" style={{ color: tomaColor }}>
-                                        {t.gasto.toFixed(2)}<span className="scada-toma-unit">m³/s</span>
+                                        {extConocida ? <>{t.gasto.toFixed(2)}<span className="scada-toma-unit">m³/s</span></> : 'S/D'}
                                     </span>
                                     {abierta && extraccionTotal > 0 && (
                                         <div className="scada-toma-contrib">
@@ -1009,8 +957,8 @@ const Presas = () => {
                     <div className="scada-gestion-kpis">
                         <div className="scada-gestion-kpi">
                             <span>EXTRACCIÓN TOTAL</span>
-                            <strong className={extraccionTotal > 0 ? 'scada-kpi-sky' : 'scada-kpi-muted'}>
-                                {extraccionTotal.toFixed(2)} <small>m³/s</small>
+                            <strong className={extConocida && extraccionTotal > 0 ? 'scada-kpi-sky' : 'scada-kpi-muted'}>
+                                {extTexto} {extConocida && <small>m³/s</small>}
                             </strong>
                         </div>
                         <div className="scada-gestion-kpi">
@@ -1019,7 +967,7 @@ const Presas = () => {
                         </div>
                         <div className="scada-gestion-kpi">
                             <span>NIVEL ACTUAL</span>
-                            <strong>{elevacion.toFixed(2)} <small>msnm</small></strong>
+                            <strong>{elevTexto ? <>{elevTexto} <small>msnm{elevEstimada ? ' · estimada ±0.5 m' : ''}</small></> : 'S/D'}</strong>
                         </div>
                         <div className="scada-gestion-kpi">
                             <span>RIESGO</span>
@@ -1049,12 +997,6 @@ const Presas = () => {
                         <p className="scada-diag-text scada-diag-text--rec">{recomendacion}</p>
                     </div>
 
-
-
-                    {/* Dummy hidden element to use unused vars */}
-                    <section style={{ display: 'none' }}>
-                        <span>{curvaData.length}</span>
-                    </section>
                 </div>
 
                 {/* ZONA 5: Alertas + Historial + Cuenca */}

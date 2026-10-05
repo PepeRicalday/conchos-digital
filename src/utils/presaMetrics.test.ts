@@ -4,6 +4,8 @@ import {
   porcentajeLlenadoPresa,
   calcularFrescura,
   lecturaMasReciente,
+  procedenciaNivel,
+  elevacionEstimada,
   type PresaLike,
 } from './presaMetrics';
 
@@ -126,4 +128,23 @@ describe('lecturaMasReciente', () => {
     const presas = [presa({ capacidad_max_mm3: 1, lectura: null })];
     expect(lecturaMasReciente(presas)).toBeNull();
   });
+});
+
+describe('procedenciaNivel / elevacionEstimada', () => {
+    it('sin nivel → null', () => {
+        expect(procedenciaNivel('Nivel: CILA-IBWC', false)).toBeNull();
+    });
+    it('marca ESTIMADA gana a CILA', () => {
+        const n = 'Nivel: CILA-IBWC (elevación ESTIMADA ±0.5 m: batimetría 2004)';
+        expect(procedenciaNivel(n, true)).toBe('ESTIMADA');
+        expect(elevacionEstimada(n)).toBe(true);
+    });
+    it('CILA sin estimación', () => {
+        expect(procedenciaNivel('Nivel: CILA-IBWC (elevación calculada con curva de capacidad)', true)).toBe('CILA');
+    });
+    it('lectura de campo (sin marcas)', () => {
+        expect(procedenciaNivel('Lectura de campo 05-oct-2026', true)).toBe('CAMPO');
+        expect(procedenciaNivel(null, true)).toBe('CAMPO');
+        expect(elevacionEstimada(null)).toBe(false);
+    });
 });

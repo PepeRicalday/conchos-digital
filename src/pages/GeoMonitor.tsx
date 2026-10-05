@@ -1026,7 +1026,7 @@ const GeoMonitor = () => {
             ] = await Promise.all([
                 supabase.from('resumen_escalas_diario').select('escala_id, nivel_actual, delta_12h, estado, fecha, lectura_am, lectura_pm').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }),
                 supabase.from('lecturas_escalas').select('escala_id, apertura_radiales_m, nivel_m, nivel_abajo_m, radiales_json, gasto_calculado_m3s, gasto_metodo, fecha, hora_lectura, creado_en').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_lectura', { ascending: false }),
-                supabase.from('lecturas_presas').select('presa_id, almacenamiento_mm3, porcentaje_llenado, extraccion_total_m3s, escala_msnm, fecha').order('fecha', { ascending: false }).limit(3),
+                supabase.from('lecturas_presas').select('presa_id, almacenamiento_mm3, porcentaje_llenado, extraccion_total_m3s, escala_msnm, fecha').order('fecha', { ascending: false }).limit(12),
                 supabase.from('aforos').select('punto_control_id, gasto_calculado_m3s, fecha, hora_inicio').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_inicio', { ascending: false }),
                 supabase.from('vw_alertas_tomas_varadas').select('*'),
                 supabase.from('reportes_operacion').select('punto_id, estado, caudal_promedio, hora_apertura, volumen_acumulado', { count: 'exact' }).eq('fecha', todayStr),
@@ -1090,10 +1090,15 @@ const GeoMonitor = () => {
 
             // 2. Process Presas
             const pMap = new Map<string, PresaData>();
+            // Las filas de nivel (CILA) no traen extracción: esta se toma de la lectura más reciente que sí la tenga.
+            const extUltima = new Map<string, number>();
+            (lpData || []).forEach((lp: any) => {
+                if (lp.extraccion_total_m3s != null && !extUltima.has(lp.presa_id)) extUltima.set(lp.presa_id, Number(lp.extraccion_total_m3s));
+            });
             (lpData || []).forEach((lp: any) => {
                 const meta = metaStore.presas.find(p => p.id === lp.presa_id);
                 if (!pMap.has(lp.presa_id) && meta?.latitud) {
-                    let extraccion = parseFloat(lp.extraccion_total_m3s || 0);
+                    let extraccion = extUltima.get(lp.presa_id) ?? 0;
                     if (lp.presa_id === 'PRE-001' && activeEvent?.evento_tipo === 'LLENADO' && extraccion === 0) extraccion = activeEvent.gasto_solicitado_m3s || 30;
                     pMap.set(lp.presa_id, {
                         presa_id: lp.presa_id, nombre: meta.nombre,

@@ -4061,3 +4061,18 @@
 .tnd-swatch { border-radius: 3px; }
 .tnd-mini { transition: transform .15s, border-color .15s, opacity .18s; }
 .tnd-mini:hover { transform: translateY(-2px); }
+
+/* ── Tira de nivel de presas (Panorama): mismo lenguaje que la sala de Presas ───────────── */
+.pr-strip { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 4px; }
+.pr-strip-item {
+    flex: 1 1 170px; min-width: 0; display: flex; flex-direction: column; gap: 2px;
+    padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.16);
+    background: rgba(255, 255, 255, 0.04); border-top: 2px solid #38bdf8;
+}
+.pr-strip-item.is-vencido { opacity: 0.68; border-top-color: #64748b; }
+.pr-strip-nombre { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; color: #8396ad; }
+.pr-strip-pct { font-family: 'Big Shoulders Display', 'JetBrains Mono', sans-serif; font-weight: 800; font-size: 40px; line-height: 1; color: #e8eef6; font-variant-numeric: tabular-nums; }
+.pr-strip-pct small { margin-left: 4px; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; font-weight: 600; color: #8396ad; }
+.pr-strip-pct--ok { color: #34d399; } .pr-strip-pct--warn { color: #fbbf24; } .pr-strip-pct--crit { color: #f87171; } .pr-strip-pct--mute { color: #8396ad; }
+.pr-strip-det { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: #cbd5e1; }
+.pr-strip-fecha { font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 11px; color: #8396ad; }

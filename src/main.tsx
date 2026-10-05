@@ -138,6 +138,12 @@ import '@fontsource/jetbrains-mono/latin-400.css'
 import '@fontsource/jetbrains-mono/latin-500.css'
 import '@fontsource/jetbrains-mono/latin-700.css'
 import '@fontsource/jetbrains-mono/latin-800.css'
+// Sala de Presas (carta hidrográfica): numerales display condensados + texto técnico legible
+import '@fontsource/big-shoulders-display/latin-600'
+import '@fontsource/big-shoulders-display/latin-800'
+import '@fontsource/ibm-plex-sans/latin-400'
+import '@fontsource/ibm-plex-sans/latin-500'
+import '@fontsource/ibm-plex-sans/latin-600'
 import './index.css'
 import './styles/phone.css'   // adaptaciones de página para teléfono (html[data-device="phone"])
 import './styles/phone-pulido.css'   // pulido visual/gerencial para teléfono (auditoría con agentes)

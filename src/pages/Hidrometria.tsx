@@ -223,7 +223,7 @@ const Hidrometria = () => {
             </header>
 
             <div className="hidro-grid grid grid-cols-12 gap-6">
-                <section className="col-span-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <section className="hidro-kpi-row col-span-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <KPICard title="Gasto Entrada (K-0)" value={entranceFlow.toFixed(3)} unit="m³/s" color="blue" icon={Upload} />
                     <KPICard title="Entrega Total" value={totalDeliveryFlow.toFixed(3)} unit="m³/s" color="emerald" icon={Download} />
                     <KPICard title="Eficiencia Global" value={`${efficiencyGlobal.toFixed(1)}%`} color={efficiencyGlobal > 85 ? 'blue' : 'amber'} icon={Activity} />

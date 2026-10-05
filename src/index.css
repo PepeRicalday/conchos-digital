@@ -374,7 +374,7 @@ h6 {
    La detección vive en src/hooks/useDevice.ts y escribe en <html>:
      data-device="phone|tablet|desktop" · data-orientation · data-touch · data-standalone · data-ios
    Breakpoints (mantener sincronizados con useDevice.ts):
-     phone  = (max-width: 900px), (pointer: coarse) and (max-height: 500px)
+     phone  = (max-width: 699px), (max-width: 900px) and (pointer: fine), (pointer: coarse) and (max-height: 500px)
      tablet = (max-width: 1366px) and (pointer: coarse), si no es phone
    ═══════════════════════════════════════════════════════════════════════════ */
 :root {
@@ -384,6 +384,7 @@ h6 {
   --sal: env(safe-area-inset-left, 0px);
   --sar: env(safe-area-inset-right, 0px);
   --tap-min: 44px;        /* objetivo táctil mínimo (guía de Apple) */
+  --sidebar-w: 280px;     /* ancho del menú lateral fijo; Layout.css lo ajusta por dispositivo */
   --topbar-h: 56px;       /* alto de la barra superior móvil, sin contar la zona segura */
 }
 
@@ -405,15 +406,15 @@ html[data-touch="true"] :is(input:not([type="checkbox"]):not([type="radio"]):not
   font-size: 16px !important;
 }
 
-/* Teléfono: objetivos táctiles de al menos 44 px y tablas desplazables en horizontal.
+/* Teléfono y tablet (iPad): objetivos táctiles de al menos 44 px. Solo teléfono: tablas desplazables en horizontal.
    Quedan fuera las tablas de datos, los controles de mapa y las gráficas (densos por diseño). */
-html[data-device="phone"] :is(button, select, [role="tab"], .btn, a.nav-item):not(:is(table *, .leaflet-control *, .recharts-wrapper *, .tap-compact)) {
+html:is([data-device="phone"], [data-device="tablet"]) :is(button, select, [role="tab"], .btn, a.nav-item):not(:is(table *, .leaflet-control *, .recharts-wrapper *, .tap-compact)) {
   min-height: var(--tap-min);
 }
-html[data-device="phone"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]), textarea):not(:is(table *, .leaflet-control *, .tap-compact)) {
+html:is([data-device="phone"], [data-device="tablet"]) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]), textarea):not(:is(table *, .leaflet-control *, .tap-compact)) {
   min-height: var(--tap-min);
 }
-html[data-device="phone"] :is(button, [role="button"]):has(> svg:only-child):not(:is(table *, .leaflet-control *, .recharts-wrapper *, .tap-compact)) {
+html:is([data-device="phone"], [data-device="tablet"]) :is(button, [role="button"]):has(> svg:only-child):not(:is(table *, .leaflet-control *, .recharts-wrapper *, .tap-compact)) {
   min-width: var(--tap-min);
 }
 html[data-device="phone"] table:not(.tap-compact) {

@@ -2081,3 +2081,15 @@
   color: #64748b;
   font-style: italic;
 }
+
+/* ── TABLET (iPad): el simulador es un tablero de escritorio (3 paneles). Con el menú lateral fijo
+   quedan ~900 px; el encabezado y la barra de maniobra se envuelven en vez de salirse de la pantalla. ── */
+@media (max-width: 1366px) {
+  .sim-root { height: 100dvh; }
+  .sim-header { flex-wrap: wrap; height: auto; min-height: 56px; padding: 8px 14px; row-gap: 6px; }
+  .sim-kpi-row { flex-wrap: wrap; gap: 8px 16px; justify-content: flex-start; min-width: 0; }
+  .sim-header-actions { flex-shrink: 1; flex-wrap: wrap; }
+  .sim-ctrl-bar { flex-wrap: wrap; gap: 8px 16px; }
+  .sim-left { width: 232px; }
+  .sim-right { width: 250px; min-width: 250px; }
+}

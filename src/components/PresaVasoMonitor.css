@@ -9,7 +9,7 @@
 .vaso-screen-overlay {
     position: fixed;
     top: 0;
-    left: 280px;
+    left: var(--sidebar-w, 280px);
     right: 0;
     bottom: 0;
     z-index: 1000;

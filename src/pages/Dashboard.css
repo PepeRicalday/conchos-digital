@@ -469,3 +469,10 @@
         grid-template-columns: 1fr;
     }
 }
+/* Tablet (iPad, 700–1200 px): con una alerta crítica la fila de KPI quedaba en 2 columnas y dejaba un hueco
+   junto a "Entrega a módulos", con la alerta al final. Ahora la crítica va primero a todo el ancho y las
+   otras tres en 3 columnas; sin crítica, 2×2. */
+@media (min-width: 700px) and (max-width: 1200px) {
+    .dashboard-grid-kpi:has(> .kpi-card.kpi-sev-critical) { grid-template-columns: repeat(3, 1fr); }
+    .dashboard-grid-kpi > .kpi-card.kpi-sev-critical { grid-column: 1 / -1; order: -1; }
+}

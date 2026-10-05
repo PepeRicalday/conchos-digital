@@ -454,3 +454,6 @@
 .kpi-card:nth-child(4) {
     animation-delay: 0.3s;
 }
+/* Tarjetas angostas (iPad, 3 por fila): el valor y la tendencia pasan a dos líneas en vez de cortar el pill */
+.kpi-value-row { flex-wrap: wrap; row-gap: 8px; }
+.kpi-aside { max-width: 100%; }

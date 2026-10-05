@@ -25,7 +25,7 @@
 
 .main-content {
     flex: 1;
-    margin-left: 280px;
+    margin-left: var(--sidebar-w, 280px);
     padding: var(--spacing-xl);
     padding-top: var(--spacing-lg);
     max-width: 1800px;
@@ -67,7 +67,7 @@
 
 /* Sidebar */
 .sidebar {
-    width: 280px;
+    width: var(--sidebar-w, 280px);
     height: 100vh;
     height: 100dvh;
     position: fixed;
@@ -316,10 +316,10 @@
 .mobile-topbar,
 .sidebar-backdrop { display: none; }
 
-html[data-device="phone"] .layout-container { height: 100dvh; }
+html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .layout-container { height: 100dvh; }
 
 /* Contenido a todo el ancho, debajo de la barra superior y respetando zonas seguras */
-html[data-device="phone"] .main-content {
+html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .main-content {
     margin-left: 0;
     max-width: none;
     width: 100%;
@@ -334,7 +334,7 @@ html[data-device="phone"] .main-content {
 }
 
 /* Barra superior fija (isla dinámica: padding-top = safe-area superior) */
-html[data-device="phone"] .mobile-topbar {
+html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .mobile-topbar {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -380,7 +380,7 @@ html[data-device="phone"] .mobile-topbar {
 }
 
 /* Menú lateral → panel deslizable desde la izquierda */
-html[data-device="phone"] .sidebar {
+html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .sidebar {
     width: min(86vw, 320px);
     z-index: 1200;
     padding-top: var(--sat);
@@ -392,12 +392,12 @@ html[data-device="phone"] .sidebar {
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
 }
-html[data-device="phone"] .layout-container.menu-abierto .sidebar {
+html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .layout-container.menu-abierto .sidebar {
     transform: translateX(0);
     visibility: visible;
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s;
 }
-html[data-device="phone"] .sidebar-backdrop {
+html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .sidebar-backdrop {
     display: block;
     position: fixed;
     inset: 0;
@@ -407,24 +407,24 @@ html[data-device="phone"] .sidebar-backdrop {
     pointer-events: none;
     transition: opacity 0.25s ease;
 }
-html[data-device="phone"] .layout-container.menu-abierto .sidebar-backdrop {
+html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .layout-container.menu-abierto .sidebar-backdrop {
     opacity: 1;
     pointer-events: auto;
 }
 
 /* Elementos del menú: objetivos táctiles cómodos y sin "hover pegajoso" */
-html[data-device="phone"] .nav-item { min-height: 48px; font-size: 0.9rem; }
-html[data-device="phone"] .nav-section-label { font-size: 0.72rem; }
-html[data-device="phone"] .footer-version { font-size: 0.7rem; }
+html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .nav-item { min-height: 48px; font-size: 0.9rem; }
+html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .nav-section-label { font-size: 0.72rem; }
+html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .footer-version { font-size: 0.7rem; }
 
 /* Selector de fecha de la parte superior: a todo el ancho en teléfono */
-html[data-device="phone"] .top-bar {
+html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .top-bar {
     justify-content: stretch;
     flex-wrap: wrap;
     padding-bottom: 10px;
     margin-bottom: 12px;
 }
-html[data-device="phone"] .top-bar > * { max-width: 100%; }
+html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .top-bar > * { max-width: 100%; }
 
 @media (hover: none) {
     .nav-item:hover { transform: none; }
@@ -432,6 +432,34 @@ html[data-device="phone"] .top-bar > * { max-width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    html[data-device="phone"] .sidebar,
-    html[data-device="phone"] .sidebar-backdrop { transition: none; }
+    html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .sidebar,
+    html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .sidebar-backdrop { transition: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANCHO DEL MENÚ LATERAL — variable única (--sidebar-w)
+   Los overlays a pantalla completa (EstacionDetalle, PresaVasoMonitor, Windy, GeoInforme) usan
+   `left: var(--sidebar-w)` para no tapar el menú: si el ancho cambia aquí, cambia ahí también.
+   ═══════════════════════════════════════════════════════════════════════════ */
+html[data-device="tablet"][data-orientation="landscape"] { --sidebar-w: 240px; }
+html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) { --sidebar-w: 0px; }
+
+/* Tablet horizontal: menú más angosto (más ancho útil para tableros) y compacto */
+html[data-device="tablet"][data-orientation="landscape"] .sidebar-header { padding: var(--spacing-md); gap: var(--spacing-sm); }
+html[data-device="tablet"][data-orientation="landscape"] .brand-logo-container { width: 48px; height: 48px; }
+html[data-device="tablet"][data-orientation="landscape"] .nav-item { min-height: var(--tap-min); }
+
+/* Tablet instalada como PWA (viewport-fit=cover): respetar las zonas seguras */
+html[data-device="tablet"][data-orientation="landscape"] .main-content {
+    padding-top: calc(var(--spacing-lg) + var(--sat));
+    padding-right: calc(var(--spacing-xl) + var(--sar));
+    padding-bottom: calc(var(--spacing-lg) + var(--sab));
+}
+html[data-device="tablet"][data-orientation="landscape"] .sidebar {
+    padding-top: var(--sat);
+    padding-bottom: var(--sab);
+    padding-left: var(--sal);
+}
+
+/* Tablet horizontal: etiquetas del menú más compactas dentro de los 240 px */
+html[data-device="tablet"][data-orientation="landscape"] .nav-item { font-size: 0.8rem; letter-spacing: 0.02em; gap: 10px; }

@@ -20,8 +20,10 @@ const RUTAS_CON_SELECTOR_FECHA = new Set(['/', '/presas', '/escalas', '/clima', 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
     const location = useLocation();
     const mostrarSelectorFecha = RUTAS_CON_SELECTOR_FECHA.has(location.pathname);
-    // En teléfono el menú lateral es un panel deslizable que se abre desde la barra superior.
-    const { esPhone } = useDevice();
+    // En teléfono y en tablet vertical el menú lateral es un panel deslizable que se abre desde la
+    // barra superior; en tablet horizontal y escritorio queda fijo (ver --sidebar-w en Layout.css).
+    const { esPhone, esTablet, orientacion } = useDevice();
+    const menuDeslizable = esPhone || (esTablet && orientacion === 'portrait');
     const [menuAbierto, setMenuAbierto] = useState(false);
 
     useEffect(() => {
@@ -34,9 +36,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         };
     }, []);
 
-    // Navegar cierra el menú; salir de modo teléfono (p. ej. girar a escritorio) también.
+    // Navegar cierra el menú; salir del modo deslizable (p. ej. girar el iPad a horizontal) también.
     useEffect(() => { setMenuAbierto(false); }, [location.pathname]);
-    useEffect(() => { if (!esPhone) setMenuAbierto(false); }, [esPhone]);
+    useEffect(() => { if (!menuDeslizable) setMenuAbierto(false); }, [menuDeslizable]);
 
     // Menú abierto: Escape lo cierra y el fondo no se desplaza detrás del panel.
     useEffect(() => {
@@ -55,12 +57,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     // Menú cerrado en teléfono: fuera del orden de tabulación/lectores de pantalla (inert).
     useEffect(() => {
         const aside = document.getElementById('sidebar-principal');
-        if (aside) aside.toggleAttribute('inert', esPhone && !menuAbierto);
-    }, [esPhone, menuAbierto]);
+        if (aside) aside.toggleAttribute('inert', menuDeslizable && !menuAbierto);
+    }, [menuDeslizable, menuAbierto]);
 
     return (
         <div className={clsx('layout-container', menuAbierto && 'menu-abierto')}>
-            {esPhone && <MobileTopBar abierto={menuAbierto} onAlternar={() => setMenuAbierto(v => !v)} />}
+            {menuDeslizable && <MobileTopBar abierto={menuAbierto} onAlternar={() => setMenuAbierto(v => !v)} />}
             <Sidebar />
             <div className="sidebar-backdrop" onClick={() => setMenuAbierto(false)} aria-hidden="true" />
             <main className="main-content">

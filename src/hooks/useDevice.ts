@@ -12,8 +12,9 @@
 //   data-ios          true | false
 //
 // Reglas:
-//   phone   = ancho ≤ 900 px, o táctil con alto ≤ 500 px (iPhone en horizontal, 956×440).
-//   tablet  = táctil con ancho ≤ 1366 px que no es phone (iPad).
+//   phone   = ancho ≤ 699 px; ancho ≤ 900 px con puntero fino (ventana de escritorio angosta);
+//             o táctil con alto ≤ 500 px (iPhone en horizontal, 956×440).
+//   tablet  = táctil con ancho ≤ 1366 px que no es phone (iPad, también en vertical: 744–1024 px).
 //   desktop = el resto.
 // Las mismas consultas están documentadas en src/index.css; si se cambian aquí, cambiar allá.
 import { useSyncExternalStore } from 'react';
@@ -32,7 +33,7 @@ export interface Dispositivo {
     esDesktop: boolean;
 }
 
-const MQ_PHONE = '(max-width: 900px), (pointer: coarse) and (max-height: 500px)';
+const MQ_PHONE = '(max-width: 699px), (max-width: 900px) and (pointer: fine), (pointer: coarse) and (max-height: 500px)';
 const MQ_TABLET = '(max-width: 1366px) and (pointer: coarse)';
 const MQ_PORTRAIT = '(orientation: portrait)';
 const MQ_TOUCH = '(pointer: coarse)';

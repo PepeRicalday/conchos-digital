@@ -196,3 +196,16 @@
         grid-column: span 12 / span 12;
     }
 }
+/* Tablet (iPad): con el menú lateral fijo quedan ~900 px útiles; 4 tarjetas KPI recortaban el valor
+   ("0.483 m³/"). 2 columnas hasta 1366 px, y cabecera en fila con el título a la izquierda. */
+@media (min-width: 1024px) and (max-width: 1366px) {
+    .hidrometria-container .hidro-kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 768px) {
+    .hidrometria-container > .page-header {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+    }
+}

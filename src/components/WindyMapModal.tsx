@@ -44,8 +44,13 @@ export function WindyMapModal({
         + `&metricWind=default&metricTemp=default&radarRange=-1`;
 
     return (
+        // left-[280px] (no inset-0): 280px es el ancho fijo del sidebar
+        // (Layout.css .sidebar, sin versión responsive/colapsable) — con
+        // inset-0 el overlay se centraba sobre el VIEWPORT completo y el
+        // diálogo (max-w-4xl) invadía la franja del sidebar. Mismo fix ya
+        // aplicado en EstacionDetalle.css (est-det-overlay).
         <div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+            className="fixed top-0 right-0 bottom-0 left-[var(--sidebar-w,280px)] z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
             onClick={onCerrar}
             role="presentation"
         >

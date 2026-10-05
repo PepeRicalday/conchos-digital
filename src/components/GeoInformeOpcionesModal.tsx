@@ -106,6 +106,13 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
         setPeriodo({ desde: hoy, hasta: hoy });
     };
     const esHoy = !!periodo && periodo.desde === getTodayString() && periodo.hasta === getTodayString();
+    // Mismo criterio de comparación que esHoy, para los presets 7/30/90 días —
+    // antes estos 3 botones no comparaban contra `periodo` en absoluto (estilo
+    // hardcodeado), así que aplicar "30 d" cambiaba las fechas correctamente
+    // pero ningún pill se resaltaba: el usuario no tenía forma de confirmar
+    // qué preset quedó activo antes de generar el informe.
+    const esPresetDias = (dias: number) =>
+        !!periodo && periodo.hasta === getTodayString() && periodo.desde === addDays(getTodayString(), -dias);
 
     const confirmar = () => {
         if (!variables.size) return;
@@ -119,8 +126,13 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
     };
 
     return (
+        // left-[280px] (no inset-0): mismo fix que WindyMapModal.tsx / 280px
+        // es el ancho fijo del sidebar (Layout.css .sidebar). Con max-w-xl
+        // este diálogo no llegaba a invadir la franja del sidebar hoy, pero
+        // es el mismo bug de código — se corrige de raíz para no depender de
+        // que el ancho del diálogo se mantenga igual en el futuro.
         <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm"
+            className="fixed top-0 right-0 bottom-0 left-[var(--sidebar-w,280px)] z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm"
             style={{ padding: 16 }}
             onClick={onCerrar}
             role="presentation"
@@ -314,20 +326,25 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
                             >
                                 Hoy
                             </button>
-                            {[7, 30, 90].map(dias => (
-                                <button
-                                    key={dias}
-                                    type="button"
-                                    onClick={() => presetDias(dias)}
-                                    className="font-semibold transition-colors"
-                                    style={{
-                                        padding: '6px 12px', borderRadius: 999, fontSize: 11.5,
-                                        border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)', color: '#94a3b8',
-                                    }}
-                                >
-                                    {dias} d
-                                </button>
-                            ))}
+                            {[7, 30, 90].map(dias => {
+                                const activo = esPresetDias(dias);
+                                return (
+                                    <button
+                                        key={dias}
+                                        type="button"
+                                        onClick={() => presetDias(dias)}
+                                        className="font-semibold transition-colors"
+                                        style={{
+                                            padding: '6px 12px', borderRadius: 999, fontSize: 11.5,
+                                            border: `1px solid ${activo ? 'rgba(56,189,248,0.5)' : 'rgba(255,255,255,0.12)'}`,
+                                            background: activo ? 'rgba(56,189,248,0.16)' : 'rgba(255,255,255,0.03)',
+                                            color: activo ? '#7dd3fc' : '#94a3b8',
+                                        }}
+                                    >
+                                        {dias} d
+                                    </button>
+                                );
+                            })}
                         </div>
                         <div className="flex items-center flex-wrap" style={{ gap: 12 }}>
                             <label className="flex items-center" style={{ gap: 6, fontSize: 11.5, color: '#94a3b8' }}>

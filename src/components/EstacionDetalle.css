@@ -5,7 +5,14 @@
 
 .est-det-overlay {
     position: fixed;
-    inset: 0;
+    /* left: 280px (no 0) = ancho fijo de .sidebar (Layout.css) — con inset:0 el
+       overlay se centraba sobre el VIEWPORT completo (1400px en desktop), así
+       que el panel de 940px arrancaba en x≈230, invadiendo los primeros 50px
+       bajo el sidebar (0-280px) y superponiendo su cabecera/título con él.
+       Centrar solo sobre el área de contenido real (a la derecha del sidebar)
+       evita el empalme. En viewports angostos (<900px, ver media query abajo)
+       el sidebar deja de ser :fixed y este valor se anula a 0. */
+    top: 0; right: 0; bottom: 0; left: var(--sidebar-w, 280px);
     background: rgba(2, 6, 23, 0.78);
     /* Prefijo -webkit- requerido por Safari/iOS: el módulo se consulta en iPad. */
     -webkit-backdrop-filter: blur(3px);

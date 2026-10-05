@@ -6,11 +6,8 @@ import type {
 } from '../utils/tendencias';
 import { statsSerie } from '../utils/tendencias';
 import InformeTendencias from './InformeTendencias';
+import { PAL, MultiLine, StackedArea, MiniNivel, colorKm, niceTicks, type EventoMarca } from './TendenciasCharts';
 import { getTodayString, addDays } from '../utils/dateHelpers';
-
-// Paleta categórica validada (dataviz): blue, aqua, yellow, green, violet, red, magenta, orange
-const PAL = ['#3987e5', '#199e70', '#c98500', '#2fb35a', '#9085e9', '#e66767', '#d55181', '#d95926',
-             '#38bdf8', '#22c55e', '#eab308', '#f472b6', '#a78bfa', '#fb7185'];
 
 const n2 = (v: number | null | undefined) => v == null || !isFinite(v) ? '—' : v.toFixed(2);
 const n3 = (v: number | null | undefined) => v == null || !isFinite(v) ? '—' : v.toFixed(3);
@@ -21,18 +18,6 @@ const ESC_SIN_CONTROL = new Set(['K-64', 'K-94+200']);
 const esControlDeQ = (s: SerieEscala) => !ESC_SIN_CONTROL.has(s.nombre);
 const LS_VISIBLES = 'tnd:puntos-visibles';
 
-// Táctil: pan-y deja que el gesto vertical desplace el panel (con 'none' la
-// gráfica atrapaba el dedo); el arrastre horizontal sigue moviendo el crosshair.
-// user-select/callout evitan que la pulsación larga en iPad seleccione texto.
-const CHART_TOUCH_STYLE: React.CSSProperties = {
-  display: 'block', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none',
-  WebkitTouchCallout: 'none',
-} as React.CSSProperties;
-
-// ── Mini-gráfica de líneas genérica (multi-serie) con crosshair + tooltip ───
-const fmtFecha = (t: number) => new Date(t).toLocaleString('es-MX', {
-  day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua',
-});
 // ── Skeleton de bloque (carga granular) ─────────────────────────────────────
 // Cada uno de los 4 bloques del panel pinta su propio placeholder con el mismo
 // número/color de cabecera que tendrá cuando llegue el dato — así, si a futuro
@@ -47,152 +32,6 @@ const TndBlockSkeleton: React.FC<{ titulo: string; color: string; height: number
     <div className="tnd-skel-chart" style={{ height }} />
   </div>
 );
-
-const MultiLine: React.FC<{
-  series: { nombre: string; puntos: SeriePunto[]; color: string; dashed?: boolean }[];
-  t0: number; t1: number;
-  yLabel?: string; height?: number;
-  yMinHint?: number; yMaxHint?: number;
-  band?: { y: number; label: string } | null;
-  // Líneas de referencia horizontales (p.ej. nivel máximo operativo por escala).
-  // color por defecto rojo; se dibujan discontinuas y expanden el eje Y.
-  bands?: { y: number; label: string; color?: string }[];
-  zeroLine?: boolean;
-}> = ({ series, t0, t1, yLabel, height = 150, yMinHint, yMaxHint, band, bands, zeroLine }) => {
-  const W = 720, PL = 40, PR = 14, PT = 14, PB = 24;
-  const ph = height - PT - PB, pw = W - PL - PR;
-  // hoverT: timestamp de la muestra más cercana al puntero (null = sin hover)
-  const [hoverT, setHoverT] = useState<number | null>(null);
-  // Unión ordenada de timestamps con dato (para "snap" del crosshair)
-  const allTs = useMemo(() => {
-    const s = new Set<number>();
-    for (const se of series) for (const p of se.puntos) if (p.y != null) s.add(p.t);
-    return [...s].sort((a, b) => a - b);
-  }, [series]);
-  const allY = series.flatMap(s => s.puntos.map(p => p.y).filter((v): v is number => v != null));
-  if (!allY.length) return <div className="tnd-empty">Sin datos en el rango.</div>;
-  let yMin = Math.min(...allY, ...(yMinHint != null ? [yMinHint] : []));
-  let yMax = Math.max(...allY, ...(yMaxHint != null ? [yMaxHint] : []));
-  if (band) yMax = Math.max(yMax, band.y);
-  if (bands?.length) yMax = Math.max(yMax, ...bands.map(b => b.y));
-  if (zeroLine) yMin = Math.min(yMin, 0);
-  const pad = (yMax - yMin) * 0.08 || 0.5;
-  yMin -= pad; yMax += pad;
-  const xS = (t: number) => PL + ((t - t0) / Math.max(1, t1 - t0)) * pw;
-  const yS = (y: number) => PT + ph - ((y - yMin) / Math.max(1e-6, yMax - yMin)) * ph;
-  const ticks = 4;
-  // Eje X: rango de un solo día ("Hoy") se lee por HORA de captura, no solo
-  // como fecha — es el requisito de que los 4 bloques reflejen el horario
-  // real. Rango de varios días sigue mostrando fecha corta.
-  const esUnDia = (t1 - t0) <= 26 * 3600_000;
-  const xTicks = 5;
-  const fmtEje = (t: number) => esUnDia
-    ? new Date(t).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' })
-    : new Date(t).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: 'America/Chihuahua' });
-
-  const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!allTs.length) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const xVB = (e.clientX - rect.left) / rect.width * W;              // px → unidades viewBox
-    const t = t0 + Math.max(0, Math.min(1, (xVB - PL) / pw)) * (t1 - t0);
-    let best = allTs[0];
-    for (const ts of allTs) if (Math.abs(ts - t) < Math.abs(best - t)) best = ts;
-    setHoverT(best);
-  };
-
-  // Valores de cada serie en hoverT (tolerancia: mitad del paso mediano de muestreo)
-  const tol = allTs.length > 1 ? Math.max(30 * 60_000, (allTs[allTs.length - 1] - allTs[0]) / allTs.length / 2) : 12 * 3600_000;
-  const hoverVals = hoverT == null ? [] : series.map(s => {
-    let bp: SeriePunto | null = null;
-    for (const p of s.puntos) {
-      if (p.y == null) continue;
-      if (bp == null || Math.abs(p.t - hoverT) < Math.abs(bp.t - hoverT)) bp = p;
-    }
-    return bp && Math.abs(bp.t - hoverT) <= tol ? { nombre: s.nombre, color: s.color, y: bp.y as number, t: bp.t } : null;
-  }).filter((v): v is { nombre: string; color: string; y: number; t: number } => v != null);
-
-  // Tooltip: caja a la derecha del crosshair, volteada si no cabe
-  const tipW = 128, tipH = 14 + hoverVals.length * 11;
-  const hx = hoverT != null ? xS(hoverT) : 0;
-  const tipX = hx + tipW + 10 > W - PR ? hx - tipW - 8 : hx + 8;
-  const tipY = PT + 4;
-
-  return (
-    <svg viewBox={`0 0 ${W} ${height}`} width="100%" style={CHART_TOUCH_STYLE}
-      onPointerMove={onMove} onPointerLeave={() => setHoverT(null)} onPointerCancel={() => setHoverT(null)}>
-      <rect width={W} height={height} fill="#0a1220" rx="5" />
-      {Array.from({ length: ticks + 1 }, (_, i) => {
-        const y = yMin + (i / ticks) * (yMax - yMin);
-        return (
-          <g key={i}>
-            <line x1={PL} y1={yS(y)} x2={PL + pw} y2={yS(y)} stroke="#16233a" strokeWidth="0.7" />
-            <text x={PL - 4} y={yS(y) + 3} fill="#5c7391" fontSize="8" textAnchor="end" fontFamily="monospace">{y.toFixed(1)}</text>
-          </g>
-        );
-      })}
-      {zeroLine && yMin < 0 && yMax > 0 && (
-        <line x1={PL} y1={yS(0)} x2={PL + pw} y2={yS(0)} stroke="#475569" strokeWidth="1" strokeDasharray="3,3" />
-      )}
-      {band && (
-        <>
-          <line x1={PL} y1={yS(band.y)} x2={PL + pw} y2={yS(band.y)} stroke="#ef4444" strokeWidth="1" strokeDasharray="5,4" opacity="0.6" />
-          <text x={PL + pw - 2} y={yS(band.y) - 3} fill="#ef4444" fontSize="7.5" textAnchor="end" fontFamily="monospace" opacity="0.8">{band.label}</text>
-        </>
-      )}
-      {bands?.map((b, bi) => (
-        <g key={`band${bi}`}>
-          <line x1={PL} y1={yS(b.y)} x2={PL + pw} y2={yS(b.y)} stroke={b.color ?? '#ef4444'} strokeWidth="1" strokeDasharray="5,4" opacity="0.55" />
-          <text x={PL + 2} y={yS(b.y) - 3} fill={b.color ?? '#ef4444'} fontSize="7" fontFamily="monospace" opacity="0.85">{b.label}</text>
-        </g>
-      ))}
-      {series.map((s, si) => {
-        const pts = s.puntos.filter(p => p.y != null);
-        if (pts.length < 1) return null;
-        const d = pts.map((p, i) => `${i ? 'L' : 'M'}${xS(p.t).toFixed(1)},${yS(p.y as number).toFixed(1)}`).join(' ');
-        return (
-          <g key={si}>
-            <path d={d} fill="none" stroke={s.color} strokeWidth="1.6" strokeDasharray={s.dashed ? '4,3' : undefined} strokeLinejoin="round" opacity="0.95" />
-            {pts.map((p, i) => <circle key={i} cx={xS(p.t).toFixed(1)} cy={yS(p.y as number).toFixed(1)} r="1.8" fill={s.color} />)}
-          </g>
-        );
-      })}
-      {yLabel && <text x={PL} y={PT - 3} fill="#64748b" fontSize="8" fontFamily="monospace">{yLabel}</text>}
-
-      {/* Eje X: horas si el rango es "Hoy" (un solo día), fecha corta si no */}
-      {Array.from({ length: xTicks + 1 }, (_, i) => {
-        const t = t0 + (i / xTicks) * (t1 - t0);
-        const anchor = i === 0 ? 'start' : i === xTicks ? 'end' : 'middle';
-        return (
-          <text key={`x${i}`} x={xS(t)} y={height - 5} fill="#5c7391" fontSize="7" textAnchor={anchor} fontFamily="monospace">
-            {fmtEje(t)}
-          </text>
-        );
-      })}
-
-      {/* ── Capa de hover: crosshair + puntos resaltados + tooltip ── */}
-      {hoverT != null && hoverVals.length > 0 && (
-        <g pointerEvents="none">
-          <line x1={hx} y1={PT} x2={hx} y2={PT + ph} stroke="#7dd3fc" strokeWidth="0.8" strokeDasharray="3,3" opacity="0.7" />
-          {hoverVals.map((v, i) => (
-            <circle key={i} cx={xS(v.t)} cy={yS(v.y)} r="3.4" fill={v.color} stroke="#0a1220" strokeWidth="1.4" />
-          ))}
-          <g>
-            <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="5" fill="#0f1c30" stroke="rgba(125,211,252,0.35)" strokeWidth="0.8" opacity="0.97" />
-            <text x={tipX + 7} y={tipY + 11} fill="#7dd3fc" fontSize="7.5" fontFamily="monospace" fontWeight="bold">{fmtFecha(hoverT)}</text>
-            {hoverVals.map((v, i) => (
-              <g key={i}>
-                <circle cx={tipX + 10} cy={tipY + 20 + i * 11} r="2.4" fill={v.color} />
-                <text x={tipX + 16} y={tipY + 23 + i * 11} fill="#cbd5e1" fontSize="7.5" fontFamily="monospace">
-                  {v.nombre.slice(0, 14)} <tspan fontWeight="bold" fill="#f1f5f9">{v.y.toFixed(2)}</tspan>
-                </text>
-              </g>
-            ))}
-          </g>
-        </g>
-      )}
-    </svg>
-  );
-};
 
 // ── Sección transversal trapezoidal por tramo (estado de llenado) ───────────
 // Dibuja la sección real del canal (plantilla b, taludes z) con la lámina de
@@ -234,7 +73,7 @@ const SeccionCanal: React.FC<{
   const compuesto = nSecciones > 1;   // el tramo cruza varias secciones-tipo reales
 
   // ── Lienzo con margen; el mapeo metros→px es COMÚN a toda la tira ──
-  const W = 100, H = 96, PBtxt = 26, PTtop = 8;
+  const W = 100, H = 116, PBtxt = 46, PTtop = 10;
   const drawW = W - 8, drawH = H - PBtxt - PTtop;      // zona útil
   const cx = W / 2, yBot = PTtop + drawH;
   // px por metro (horizontal y vertical), compartidos vía la escala máxima global
@@ -308,147 +147,18 @@ const SeccionCanal: React.FC<{
         {compuesto && (
           <>
             <title>{`Tramo compuesto: cruza ${nSecciones} secciones-tipo del canal · se muestra la dominante`}</title>
-            <text x={W - 3} y={PTtop + 2} fill="#f59e0b" fontSize="7" fontFamily="monospace" textAnchor="end" fontWeight="bold">≠{nSecciones}</text>
+            <text x={W - 3} y={PTtop + 2} fill="#f59e0b" fontSize="9" fontFamily="monospace" textAnchor="end" fontWeight="bold">≠{nSecciones}</text>
           </>
         )}
         {/* etiquetas */}
-        <text x={cx} y={H - 14} fill="#cbd5e1" fontSize="8" fontFamily="monospace" textAnchor="middle">{etiqueta.slice(0, 13)}</text>
-        <text x={cx} y={H - 4} fill={colEstado} fontSize="7.5" fontFamily="monospace" textAnchor="middle">
+        {/* Nombre del tramo en dos líneas (origen / →destino) para poder usar texto de ≥10 px */}
+        <text x={cx} y={H - 30} fill="#cbd5e1" fontSize="10.5" fontFamily="monospace" textAnchor="middle">{etiqueta.split('→')[0]}</text>
+        <text x={cx} y={H - 17} fill="#cbd5e1" fontSize="10.5" fontFamily="monospace" textAnchor="middle">→{etiqueta.split('→')[1] ?? ''}</text>
+        <text x={cx} y={H - 4} fill={colEstado} fontSize="10" fontFamily="monospace" textAnchor="middle" fontWeight="bold">
           {pctDiseno != null ? `${Math.round(pctDiseno)}% ${label}${icon ? ' ' + icon : ''}` : (tiranteActual != null ? `${tiranteActual.toFixed(2)} m` : 's/d')}
         </text>
       </svg>
     </button>
-  );
-};
-
-// ── Área apilada para volumen por tramo — hover identifica la banda ─────────
-// selKey: tramo seleccionado desde la tira de secciones → su banda se resalta y
-// el resto se atenúa. onSelBand: clic en una banda alterna la selección.
-const StackedArea: React.FC<{
-  series: SerieTramo[]; t0: number; t1: number; height?: number;
-  selKey?: string | null; onSelBand?: (key: string) => void;
-}> = ({ series, t0, t1, height = 160, selKey = null, onSelBand }) => {
-  const W = 720, PL = 42, PR = 14, PT = 14, PB = 24;
-  const ph = height - PT - PB, pw = W - PL - PR;
-  const [hover, setHover] = useState<{ i: number; band: number | null } | null>(null);
-  // fechas comunes (usa las del primer tramo con datos)
-  const base = series.find(s => s.puntos.length)?.puntos ?? [];
-  if (!base.length) return <div className="tnd-empty">Sin datos en el rango.</div>;
-  const idxs = base.map((_, i) => i);
-  const totals = idxs.map(i => series.reduce((s, se) => s + (se.puntos[i]?.y ?? 0), 0));
-  // Día ESTIMADO: al menos un tramo tomó su valor por arrastre (LOCF) por no
-  // haberse aforado ese día. Se marca para no leerlo como medición completa.
-  const estimado = idxs.map(i => series.some(se => se.puntos[i]?.est));
-  const yMax = Math.max(...totals, 0.1) * 1.05;
-  const xS = (t: number) => PL + ((t - t0) / Math.max(1, t1 - t0)) * pw;
-  const yS = (y: number) => PT + ph - (y / yMax) * ph;
-  // Eje X: en "Hoy" (un solo día) se lee por HORA de captura — mismo criterio
-  // que MultiLine, para que el Bloque 2 se comporte igual que los demás.
-  const esUnDia = (t1 - t0) <= 26 * 3600_000;
-  const xTicks = 5;
-  const fmtEje = (t: number) => esUnDia
-    ? new Date(t).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' })
-    : new Date(t).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: 'America/Chihuahua' });
-
-  const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const xVB = (e.clientX - rect.left) / rect.width * W;
-    const yVB = (e.clientY - rect.top) / rect.height * height;
-    // índice de fecha más cercano
-    let bi = 0;
-    for (let i = 0; i < base.length; i++) if (Math.abs(xS(base[i].t) - xVB) < Math.abs(xS(base[bi].t) - xVB)) bi = i;
-    // banda (tramo) bajo el cursor: valor y en unidades de volumen
-    const yVal = Math.max(0, (PT + ph - yVB) / ph) * yMax;
-    let accV = 0, band: number | null = null;
-    for (let si = 0; si < series.length; si++) {
-      const v = series[si].puntos[bi]?.y ?? 0;
-      if (yVal >= accV && yVal < accV + v) { band = si; break; }
-      accV += v;
-    }
-    setHover({ i: bi, band });
-  };
-
-  // acumular de abajo hacia arriba
-  const acc = idxs.map(() => 0);
-  const hovI = hover?.i ?? null;
-  const tipW = 168, tipH = hover?.band != null ? 38 : 26;
-  const hx = hovI != null ? xS(base[hovI].t) : 0;
-  const tipX = hovI != null && hx + tipW + 10 > W - PR ? hx - tipW - 8 : hx + 8;
-
-  return (
-    <svg viewBox={`0 0 ${W} ${height}`} width="100%" style={CHART_TOUCH_STYLE}
-      onPointerMove={onMove} onPointerLeave={() => setHover(null)} onPointerCancel={() => setHover(null)}>
-      <rect width={W} height={height} fill="#0a1220" rx="5" />
-      {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
-        <g key={i}>
-          <line x1={PL} y1={yS(yMax * f)} x2={PL + pw} y2={yS(yMax * f)} stroke="#16233a" strokeWidth="0.7" />
-          <text x={PL - 4} y={yS(yMax * f) + 3} fill="#5c7391" fontSize="8" textAnchor="end" fontFamily="monospace">{(yMax * f).toFixed(1)}</text>
-        </g>
-      ))}
-      {series.map((se, si) => {
-        const top = idxs.map(i => acc[i] + (se.puntos[i]?.y ?? 0));
-        const poly = [
-          ...idxs.map(i => `${xS(se.puntos[i]?.t ?? base[i].t).toFixed(1)},${yS(top[i]).toFixed(1)}`),
-          ...idxs.slice().reverse().map(i => `${xS(se.puntos[i]?.t ?? base[i].t).toFixed(1)},${yS(acc[i]).toFixed(1)}`),
-        ].join(' ');
-        idxs.forEach(i => { acc[i] = top[i]; });
-        // Selección (desde la tira de secciones) manda sobre el hover:
-        // la banda seleccionada se resalta y el resto se atenúa; sin selección,
-        // el hover resalta como antes.
-        const sel = selKey != null && se.key === selKey;
-        const dimBySel = selKey != null && !sel;
-        const dimByHover = selKey == null && hover?.band != null && hover.band !== si;
-        const dim = dimBySel || dimByHover;
-        const activo = sel || (selKey == null && hover?.band === si);
-        return <polygon key={si} points={poly} fill={PAL[si % PAL.length]}
-          opacity={dim ? 0.2 : (activo ? 0.85 : 0.62)}
-          stroke={PAL[si % PAL.length]} strokeWidth={activo ? 1.6 : 0.5}
-          style={{ cursor: onSelBand ? 'pointer' : undefined }}
-          onClick={onSelBand ? (e) => { e.stopPropagation(); onSelBand(se.key); } : undefined} />;
-      })}
-      <text x={PL} y={PT - 3} fill="#64748b" fontSize="8" fontFamily="monospace">Volumen por tramo (Mm³) — apilado</text>
-
-      {/* Eje X: horas si el rango es "Hoy" (un solo día), fecha corta si no */}
-      {Array.from({ length: xTicks + 1 }, (_, i) => {
-        const t = t0 + (i / xTicks) * (t1 - t0);
-        const anchor = i === 0 ? 'start' : i === xTicks ? 'end' : 'middle';
-        return (
-          <text key={`x${i}`} x={xS(t)} y={height - 5} fill="#5c7391" fontSize="7" textAnchor={anchor} fontFamily="monospace">
-            {fmtEje(t)}
-          </text>
-        );
-      })}
-
-      {/* Marcador de día ESTIMADO (LOCF): rombo hueco sobre el tope del apilado.
-          Indica que uno o más tramos no se aforaron y arrastran su último dato. */}
-      {idxs.filter(i => estimado[i]).map(i => {
-        const x = xS(base[i].t), y = yS(totals[i]);
-        return <path key={`est${i}`} d={`M ${x.toFixed(1)} ${(y - 5).toFixed(1)} l 3 3 l -3 3 l -3 -3 z`}
-          fill="none" stroke="#f59e0b" strokeWidth="0.9" opacity="0.85">
-          <title>Día estimado: uno o más tramos sin aforo, valor arrastrado (LOCF)</title>
-        </path>;
-      })}
-
-      {hovI != null && (
-        <g pointerEvents="none">
-          <line x1={hx} y1={PT} x2={hx} y2={PT + ph} stroke="#7dd3fc" strokeWidth="0.8" strokeDasharray="3,3" opacity="0.7" />
-          <rect x={tipX} y={PT + 4} width={tipW} height={tipH} rx="5" fill="#0f1c30" stroke="rgba(125,211,252,0.35)" strokeWidth="0.8" opacity="0.97" />
-          <text x={tipX + 7} y={PT + 15} fill="#7dd3fc" fontSize="7.5" fontFamily="monospace" fontWeight="bold">
-            {esUnDia
-              ? new Date(base[hovI].t).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' })
-              : new Date(base[hovI].t).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
-            <tspan fill="#cbd5e1" fontWeight="normal">  · Total </tspan>
-            <tspan fill="#f1f5f9" fontWeight="bold">{totals[hovI].toFixed(3)} Mm³</tspan>
-            {estimado[hovI] && <tspan fill="#f59e0b" fontWeight="normal"> ◆est</tspan>}
-          </text>
-          {hover?.band != null && (
-            <text x={tipX + 7} y={PT + 27} fill="#cbd5e1" fontSize="7.5" fontFamily="monospace">
-              <tspan fill={PAL[hover.band % PAL.length]}>■</tspan> {series[hover.band].etiqueta.slice(0, 16)}: <tspan fontWeight="bold" fill="#f1f5f9">{(series[hover.band].puntos[hovI]?.y ?? 0).toFixed(3)}</tspan>
-            </text>
-          )}
-        </g>
-      )}
-    </svg>
   );
 };
 
@@ -637,6 +347,55 @@ const TendenciasPanel: React.FC<Props> = ({
   );
   const nVisibles = visNiveles == null ? niveles.length : niveles.filter(s => visNiveles.has(s.escala_id)).length;
 
+  // Escalas en orden de recorrido del canal (K-0 → K-104) y su color SECUENCIAL por posición.
+  const nivelesOrd = useMemo(() => [...niveles].sort((a, b) => a.km - b.km), [niveles]);
+  const colorEsc = useCallback((id: string) => {
+    const i = nivelesOrd.findIndex(s => s.escala_id === id);
+    return colorKm(i < 0 ? 0 : i, nivelesOrd.length);
+  }, [nivelesOrd]);
+  // Vista del Bloque 1: una mini-gráfica por escala (default) o comparadas en una sola gráfica.
+  const [vistaNiveles, setVistaNiveles] = useState<'escalas' | 'comparar'>(() => {
+    try { return localStorage.getItem('tnd:vista') === 'comparar' ? 'comparar' : 'escalas'; } catch { return 'escalas'; }
+  });
+  useEffect(() => { try { localStorage.setItem('tnd:vista', vistaNiveles); } catch { /* sin almacenamiento */ } }, [vistaNiveles]);
+  // Compuerta mostrada en el Bloque 3 (antes siempre la primera, arbitraria): por defecto la primera con control.
+  const [compSelId, setCompSelId] = useState<string | null>(null);
+  const compGraf = compuertas.find(c => c.escala_id === compSelId) ?? compuertas.find(c => !c.esReferencia) ?? compuertas[0];
+  // Anotación en las gráficas de tiempo: cierre de presa / inicio del vaciado.
+  const eventosGraf = useMemo<EventoMarca[]>(() => vaciadoDesde
+    ? [{ t: new Date(`${vaciadoDesde}T12:00:00-06:00`).getTime(), label: 'Cierre de presa · vaciado' }] : [], [vaciadoDesde]);
+  // Eje Y común de la vista por escala: hasta el mayor entre datos y máximo operativo, con ticks redondos.
+  const yTopMini = useMemo(() => {
+    let m = 1;
+    for (const s of niveles) {
+      if (!esVisible(s.escala_id)) continue;
+      for (const p of s.puntos) if (p.y != null && p.y > m) m = p.y;
+      if (s.nivelMax != null && isFinite(s.nivelMax) && s.nivelMax > m) m = s.nivelMax;
+    }
+    return niceTicks(0, m * 1.04, 4).hi;
+  }, [niveles, esVisible]);
+  // Resumen ejecutivo: lo que el operador quiere saber antes de leer las gráficas.
+  const kpis = useMemo(() => {
+    const ult = (pts: SeriePunto[]) => { for (let i = pts.length - 1; i >= 0; i--) if (pts[i].y != null) return pts[i]; return null; };
+    const prim = (pts: SeriePunto[]) => pts.find(p => p.y != null) ?? null;
+    const vt = ult(volTotal), v0 = prim(volTotal), q = ult(gasto.entrada);
+    let sobre = 0, conDato = 0, ultimoT = 0;
+    for (const s of niveles) {
+      const u = ult(s.puntos);
+      if (!u) continue;
+      conDato++;
+      if (u.t > ultimoT) ultimoT = u.t;
+      if (s.nivelMax != null && (u.y as number) > s.nivelMax) sobre++;
+    }
+    return {
+      vol: vt ? (vt.y as number) : null,
+      volDelta: vt && v0 ? (vt.y as number) - (v0.y as number) : null,
+      volParcial: !!vt?.est,
+      q: q ? (q.y as number) : null, qT: q ? q.t : null,
+      sobre, conDato, ultimoT,
+    };
+  }, [niveles, volTotal, gasto.entrada]);
+
   // toggle: enciende/apaga una escala. Nunca deja el gráfico totalmente vacío
   // por accidente — apagar la última visible equivale a "ninguna" explícita.
   const toggleNivel = useCallback((id: string) => {
@@ -657,24 +416,12 @@ const TendenciasPanel: React.FC<Props> = ({
     [niveles]
   );
 
-  // Bandas de nivel máximo operativo: solo con ≤3 escalas visibles (con más se
-  // saturaría el gráfico). Una banda por escala visible que tenga nivelMax, con
-  // su color de serie; se deduplica por valor de nivel para no apilar líneas
-  // idénticas (el nivelMax suele ser común, p.ej. 4.0 m).
+  // Líneas de nivel máximo operativo: una por valor ÚNICO entre las escalas visibles (el máximo suele ser común,
+  // p.ej. 3.4 m), así siempre hay referencia aunque se vean las 14 escalas.
   const bandasNivelMax = useMemo(() => {
-    const vis = niveles
-      .map((s, i) => ({ s, color: PAL[i % PAL.length] }))
-      .filter(({ s }) => esVisible(s.escala_id));
-    if (!vis.length || vis.length > 3) return [];
-    const porNivel = new Map<number, { y: number; label: string; color?: string }>();
-    for (const { s, color } of vis) {
-      if (s.nivelMax == null || !isFinite(s.nivelMax)) continue;
-      const y = +s.nivelMax.toFixed(2);
-      // si dos escalas comparten nivel máx, una sola banda gris; si es única, su color
-      if (porNivel.has(y)) porNivel.set(y, { y, label: `máx op ${y.toFixed(2)} m`, color: '#94a3b8' });
-      else porNivel.set(y, { y, label: `${s.nombre} máx ${y.toFixed(2)} m`, color });
-    }
-    return [...porNivel.values()];
+    const vals = new Set<number>();
+    for (const s of niveles) if (esVisible(s.escala_id) && s.nivelMax != null && isFinite(s.nivelMax)) vals.add(+s.nivelMax.toFixed(2));
+    return [...vals].sort((a, b) => b - a).slice(0, 3).map(y => ({ y, label: `máx. operativo ${y.toFixed(2)} m`, color: '#f87171' }));
   }, [niveles, esVisible]);
 
   // Escala común de la tira de secciones: mayor espejo de agua (a la altura del
@@ -795,6 +542,30 @@ const TendenciasPanel: React.FC<Props> = ({
 
       {!loading && !error && (
         <>
+          {/* ── Resumen ejecutivo ── */}
+          <div className="tnd-kpis">
+            <div className="tnd-kpi">
+              <span>Volumen en canal</span>
+              <b>{kpis.vol != null ? `${kpis.vol.toFixed(2)} Mm³` : 'S/D'}</b>
+              <small>{kpis.volDelta != null ? `${kpis.volDelta > 0 ? '▲' : kpis.volDelta < 0 ? '▼' : '■'} ${Math.abs(kpis.volDelta).toFixed(2)} en el periodo` : 'sin dato'}{kpis.volParcial ? ' · parcial' : ''}</small>
+            </div>
+            <div className="tnd-kpi">
+              <span>Q entrada K-0</span>
+              <b>{kpis.q != null ? `${kpis.q.toFixed(2)} m³/s` : 'S/D'}</b>
+              <small>{kpis.qT != null ? new Date(kpis.qT).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: 'America/Chihuahua' }) : 'sin lectura en el rango'}</small>
+            </div>
+            <div className="tnd-kpi">
+              <span>Sobre máx. operativo</span>
+              <b style={{ color: kpis.sobre > 0 ? '#f87171' : undefined }}>{kpis.sobre} de {kpis.conDato}</b>
+              <small>escalas, con su último dato</small>
+            </div>
+            <div className="tnd-kpi">
+              <span>Último dato</span>
+              <b>{kpis.ultimoT ? new Date(kpis.ultimoT).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: 'America/Chihuahua' }) : 'S/D'}</b>
+              <small>{kpis.conDato} escalas con lectura</small>
+            </div>
+          </div>
+
           {/* ── Bloque 1: niveles por escala ── */}
           {/* La tabla y la leyenda son el FILTRO ACTIVO del gráfico: clic en una
               fila/chip alterna su visibilidad; el botón "solo" aísla; la barra
@@ -812,17 +583,33 @@ const TendenciasPanel: React.FC<Props> = ({
               <button type="button" onClick={verSoloControl}>Solo control de Q</button>
               <button type="button" onClick={verNinguna}>Ninguna</button>
             </div>
-            <MultiLine
-              series={niveles.map((s, i) => ({ nombre: s.nombre, puntos: s.puntos, color: PAL[i % PAL.length] }))
-                             .filter((_, i) => esVisible(niveles[i].escala_id))}
-              t0={t0} t1={t1} yLabel="Nivel (m)" height={168}
-              bands={bandasNivelMax}
-            />
-            {bandasNivelMax.length > 0 && (
-              <div className="tnd-band-hint">— — nivel máximo operativo (a bordo) de las escalas enfocadas</div>
+            <div className="tnd-seg" role="group" aria-label="Vista de niveles">
+              <button type="button" className={vistaNiveles === 'escalas' ? 'on' : ''} aria-pressed={vistaNiveles === 'escalas'} onClick={() => setVistaNiveles('escalas')}>Por escala</button>
+              <button type="button" className={vistaNiveles === 'comparar' ? 'on' : ''} aria-pressed={vistaNiveles === 'comparar'} onClick={() => setVistaNiveles('comparar')}>Comparar</button>
+            </div>
+            {vistaNiveles === 'escalas' ? (
+              <>
+                <div className="tnd-mini-grid">
+                  {nivelesOrd.filter(s => esVisible(s.escala_id)).map(s => (
+                    <MiniNivel key={s.escala_id} serie={s} t0={t0} t1={t1} yTop={yTopMini}
+                      esRef={ESC_SIN_CONTROL.has(s.nombre)}
+                      onSel={() => { soloNivel(s.escala_id); setVistaNiveles('comparar'); }} />
+                  ))}
+                </div>
+                <div className="tnd-band-hint">Eje común 0–{yTopMini.toFixed(1)} m · línea roja discontinua = nivel máximo operativo · toca una escala para verla en detalle</div>
+              </>
+            ) : (
+              <>
+                <MultiLine
+                  series={nivelesOrd.filter(s => esVisible(s.escala_id)).map(s => ({ nombre: s.nombre, puntos: s.puntos, color: colorEsc(s.escala_id) }))}
+                  t0={t0} t1={t1} yLabel="Nivel (m)" height={230}
+                  bands={bandasNivelMax} eventos={eventosGraf} nonNegative dimOthers
+                />
+                <div className="tnd-band-hint">Color = posición en el canal (claro: cabecera → oscuro: cola) · apunta una línea para resaltarla · línea discontinua = nivel máximo operativo</div>
+              </>
             )}
             <div className="tnd-legend tnd-legend-int" role="group" aria-label="Filtro de escalas visibles">
-              {niveles.map((s, i) => {
+              {nivelesOrd.map(s => {
                 const on = esVisible(s.escala_id);
                 return (
                   <button type="button" key={s.escala_id} className={`tnd-chip${on ? '' : ' off'}`}
@@ -830,22 +617,23 @@ const TendenciasPanel: React.FC<Props> = ({
                     onDoubleClick={() => soloNivel(s.escala_id)}
                     aria-pressed={on}
                     title={on ? `Ocultar ${s.nombre} (doble clic: solo)` : `Mostrar ${s.nombre}`}>
-                    <i style={{ background: PAL[i % PAL.length] }} />{s.nombre}
+                    <i style={{ background: colorEsc(s.escala_id) }} />{s.nombre}
                   </button>
                 );
               })}
             </div>
             <div className="dsk-table-wrap">
               <table className="dsk-table tnd-table-int">
-                <thead><tr><th>Escala</th><th>Mín</th><th>Máx</th><th>Prom</th><th>Δ periodo</th><th>Lect.</th><th aria-label="Aislar" /></tr></thead>
+                <thead><tr><th>Escala</th><th>Actual</th><th>Mín</th><th>Máx</th><th>Prom</th><th>Δ periodo</th><th>Lect.</th><th aria-label="Aislar" /></tr></thead>
                 <tbody>
-                  {niveles.map((s, i) => { const st = statsSerie(s.puntos); const on = esVisible(s.escala_id); return (
+                  {nivelesOrd.map(s => { const st = statsSerie(s.puntos); const on = esVisible(s.escala_id); const actual = [...s.puntos].reverse().find(p => p.y != null)?.y ?? null; return (
                     <tr key={s.escala_id} className={`tnd-row${on ? '' : ' off'}`}
                         onClick={() => toggleNivel(s.escala_id)}
                         title={on ? `Ocultar ${s.nombre}` : `Mostrar ${s.nombre}`}>
                       <td style={{ fontWeight: 700 }}>
-                        <span className="tnd-swatch" style={{ background: PAL[i % PAL.length], opacity: on ? 1 : 0.3 }} />{s.nombre}
+                        <span className="tnd-swatch" style={{ background: colorEsc(s.escala_id), opacity: on ? 1 : 0.3 }} />{s.nombre}
                       </td>
+                      <td style={{ fontWeight: 700, color: s.nivelMax != null && actual != null && actual > s.nivelMax ? '#f87171' : undefined }}>{n2(actual)}</td>
                       <td>{n2(st.min)}</td><td>{n2(st.max)}</td><td>{n2(st.avg)}</td>
                       <td style={{ color: st.delta! > 0 ? '#ef4444' : st.delta! < 0 ? '#22c55e' : '#64748b' }}>{st.delta == null ? '—' : (st.delta > 0 ? '▲' : st.delta < 0 ? '▼' : '—') + ' ' + n2(Math.abs(st.delta))}</td>
                       <td>{st.n}</td>
@@ -899,9 +687,8 @@ const TendenciasPanel: React.FC<Props> = ({
               </>
             )}
 
-            <StackedArea series={volTramos} t0={t0} t1={t1} height={170}
-              selKey={tramoSel} onSelBand={toggleTramo} />
-            <MultiLine series={[{ nombre: 'Total canal', puntos: volTotal, color: '#38bdf8' }]} t0={t0} t1={t1} yLabel="Volumen total en canal (Mm³)" height={110} />
+            <StackedArea series={volTramos} t0={t0} t1={t1} height={220}
+              selKey={tramoSel} onSelBand={toggleTramo} eventos={eventosGraf} />
             <div className="dsk-table-wrap">
               <table className="dsk-table">
                 <thead><tr><th>Tramo</th><th>Vol mín</th><th>Vol máx</th><th>Δ Mm³</th><th>Tirante act.</th><th>% diseño</th></tr></thead>
@@ -940,15 +727,23 @@ const TendenciasPanel: React.FC<Props> = ({
                 </tbody>
               </table>
             </div>
-            {/* diferencial de la primera compuerta con datos como muestra visual */}
-            {compuertas[0] && (
-              <MultiLine
-                series={[
-                  { nombre: 'H↑', puntos: compuertas[0].arriba, color: '#3987e5' },
-                  { nombre: 'H↓', puntos: compuertas[0].abajo, color: '#c98500', dashed: true },
-                ]}
-                t0={t0} t1={t1} yLabel={`Niveles arriba/abajo — K-${compuertas[0].km} (m)`} height={120}
-              />
+            {compGraf && (
+              <>
+                <div className="tnd-filtro-bar">
+                  <span className="tnd-filtro-lbl">Compuerta:</span>
+                  <select className="tnd-select" value={compGraf.escala_id} onChange={e => setCompSelId(e.target.value)} aria-label="Compuerta a graficar">
+                    {compuertas.filter(c => !c.esReferencia).map(c => <option key={c.escala_id} value={c.escala_id}>{c.nombre}</option>)}
+                  </select>
+                </div>
+                <MultiLine
+                  series={[
+                    { nombre: 'H↑ aguas arriba', puntos: compGraf.arriba, color: '#5aa9ff' },
+                    { nombre: 'H↓ aguas abajo', puntos: compGraf.abajo, color: '#fbbf24', dashed: true },
+                  ]}
+                  t0={t0} t1={t1} yLabel={`Niveles arriba/abajo — ${compGraf.nombre} (m)`} height={170}
+                  nonNegative eventos={eventosGraf}
+                />
+              </>
             )}
           </div>
 
@@ -962,7 +757,7 @@ const TendenciasPanel: React.FC<Props> = ({
                 { nombre: 'Q salida K-104', puntos: gasto.salida, color: '#199e70' },
                 { nombre: 'Pérdidas', puntos: gasto.perdidas, color: '#e66767', dashed: true },
               ]}
-              t0={t0} t1={t1} yLabel="Gasto (m³/s)" height={168} zeroLine
+              t0={t0} t1={t1} yLabel="Gasto (m³/s)" height={200} zeroLine eventos={eventosGraf}
             />
             <div className="tnd-legend">
               <span><i style={{ background: '#3987e5' }} />Q entrada (K-0)</span>

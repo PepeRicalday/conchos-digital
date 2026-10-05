@@ -12,6 +12,7 @@ import { Printer, X } from 'lucide-react';
 import './CanalReport.css';
 import type { SerieEscala, SerieTramo, SeriePunto, SerieCompuerta, SerieGasto } from '../utils/tendencias';
 import { statsSerie } from '../utils/tendencias';
+import { niceTicks, fmtTick } from './TendenciasCharts';
 
 export interface InformeTendenciasProps {
     rangoDesde: string; rangoHasta: string;
@@ -105,17 +106,16 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
             const allY = activas.flatMap(s => s.puntos.filter(p => p.y != null).map(p => p.y as number));
             if (!allT.length) return '';
             const t0 = Math.min(...allT), t1 = Math.max(...allT);
-            let yMin = Math.min(...allY), yMax = Math.max(...allY);
-            const pad = (yMax - yMin) * 0.1 || 0.3; yMin -= pad; yMax += pad;
+            const NT = niceTicks(Math.min(0, ...allY), Math.max(...allY) * 1.03, 4);
+            const yMin = NT.lo, yMax = NT.hi;
             const W = 680, H = 158, PL = 34, PR = 8, PT = 8, PB = 24;
             const pw = W - PL - PR, ph = H - PT - PB;
             const xS = (t: number) => PL + ((t - t0) / Math.max(1, t1 - t0)) * pw;
             const yS = (y: number) => PT + ph - ((y - yMin) / Math.max(1e-6, yMax - yMin)) * ph;
             let grid = '';
-            for (let i = 0; i <= 4; i++) {
-                const y = yMin + (i / 4) * (yMax - yMin);
+            for (const y of NT.ticks) {
                 grid += '<line x1="' + PL + '" y1="' + yS(y).toFixed(1) + '" x2="' + (PL + pw) + '" y2="' + yS(y).toFixed(1) + '" stroke="#e5e0e0" stroke-width="0.6"/>'
-                    + '<text x="' + (PL - 4) + '" y="' + (yS(y) + 3).toFixed(1) + '" font-size="6.5" fill="#888" text-anchor="end" font-family="monospace">' + y.toFixed(1) + '</text>';
+                    + '<text x="' + (PL - 4) + '" y="' + (yS(y) + 3).toFixed(1) + '" font-size="7.5" fill="#666" text-anchor="end" font-family="monospace">' + fmtTick(y, NT.step) + '</text>';
             }
             const lines = activas.map((s, i) => {
                 const pts = s.puntos.filter(p => p.y != null);
@@ -161,17 +161,17 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
             if (!base.length) return '';
             const idxs = base.map((_, i) => i);
             const totals = idxs.map(i => volTramos.reduce((s, se) => s + (se.puntos[i]?.y ?? 0), 0));
-            const yMax = Math.max(...totals, 0.1) * 1.08;
+            const NT = niceTicks(0, Math.max(...totals, 0.1) * 1.03, 4);
+            const yMax = NT.hi;
             const W = 680, H = 158, PL = 34, PR = 8, PT = 8, PB = 24;
             const pw = W - PL - PR, ph = H - PT - PB;
             const t0 = base[0].t, t1 = base[base.length - 1].t;
             const xS = (t: number) => PL + ((t - t0) / Math.max(1, t1 - t0)) * pw;
             const yS = (y: number) => PT + ph - (y / yMax) * ph;
             let grid = '';
-            for (let i = 0; i <= 4; i++) {
-                const y = (i / 4) * yMax;
+            for (const y of NT.ticks) {
                 grid += '<line x1="' + PL + '" y1="' + yS(y).toFixed(1) + '" x2="' + (PL + pw) + '" y2="' + yS(y).toFixed(1) + '" stroke="#e5e0e0" stroke-width="0.6"/>'
-                    + '<text x="' + (PL - 4) + '" y="' + (yS(y) + 3).toFixed(1) + '" font-size="6.5" fill="#888" text-anchor="end" font-family="monospace">' + y.toFixed(1) + '</text>';
+                    + '<text x="' + (PL - 4) + '" y="' + (yS(y) + 3).toFixed(1) + '" font-size="7.5" fill="#666" text-anchor="end" font-family="monospace">' + fmtTick(y, NT.step) + '</text>';
             }
             const acc = idxs.map(() => 0);
             let bands = '';
@@ -240,17 +240,16 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
             const allT = series.flatMap(s => s.puntos.filter(p => p.y != null).map(p => p.t));
             if (!allT.length) return '<div style="font-size:7pt;color:#888;padding:8px">Sin datos de gasto para graficar en el periodo.</div>';
             const t0 = Math.min(...allT), t1 = Math.max(...allT);
-            let yMin = Math.min(0, ...allY), yMax = Math.max(...allY);
-            const pad = (yMax - yMin) * 0.1 || 0.5; yMin -= pad; yMax += pad;
+            const NT = niceTicks(Math.min(0, ...allY), Math.max(...allY) * 1.03, 4);
+            const yMin = NT.lo, yMax = NT.hi;
             const W = 680, H = 148, PL = 34, PR = 8, PT = 8, PB = 24;
             const pw = W - PL - PR, ph = H - PT - PB;
             const xS = (t: number) => PL + ((t - t0) / Math.max(1, t1 - t0)) * pw;
             const yS = (y: number) => PT + ph - ((y - yMin) / Math.max(1e-6, yMax - yMin)) * ph;
             let grid = '';
-            for (let i = 0; i <= 4; i++) {
-                const y = yMin + (i / 4) * (yMax - yMin);
+            for (const y of NT.ticks) {
                 grid += '<line x1="' + PL + '" y1="' + yS(y).toFixed(1) + '" x2="' + (PL + pw) + '" y2="' + yS(y).toFixed(1) + '" stroke="#e5e0e0" stroke-width="0.6"/>'
-                    + '<text x="' + (PL - 4) + '" y="' + (yS(y) + 3).toFixed(1) + '" font-size="6.5" fill="#888" text-anchor="end" font-family="monospace">' + y.toFixed(1) + '</text>';
+                    + '<text x="' + (PL - 4) + '" y="' + (yS(y) + 3).toFixed(1) + '" font-size="7.5" fill="#666" text-anchor="end" font-family="monospace">' + fmtTick(y, NT.step) + '</text>';
             }
             const zero = (yMin < 0 && yMax > 0) ? '<line x1="' + PL + '" y1="' + yS(0).toFixed(1) + '" x2="' + (PL + pw) + '" y2="' + yS(0).toFixed(1) + '" stroke="#999" stroke-width="0.8" stroke-dasharray="3,2"/>' : '';
             const lines = series.map(s => {

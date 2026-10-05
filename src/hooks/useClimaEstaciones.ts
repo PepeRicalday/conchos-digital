@@ -116,8 +116,9 @@ export function useClimaEstaciones() {
         activo: false, paso: null, resultado: null, error: null, ultimoEn: null,
     });
 
-    const fetchData = useCallback(async () => {
-        setLoading(true);
+    // `silencioso`: los refrescos periódicos no vuelven a mostrar el estado de carga (evita parpadeo de la página).
+    const fetchData = useCallback(async (silencioso = false) => {
+        if (!silencioso) setLoading(true);
         setError(null);
         try {
             const { data: ests, error: eEst } = await supabase
@@ -130,20 +131,20 @@ export function useClimaEstaciones() {
             const lista = (ests ?? []) as EstacionClima[];
             if (!lista.length) { setEstaciones([]); return; }
 
-            // Última lectura de cada estación (una query, tomamos la más reciente por estación)
+            // Última lectura de CADA estación, una consulta por estación con limit(1). El enfoque anterior
+            // (limit(n*20) global) dejaba sin lectura a una estación silenciosa cuando las demás acumulaban filas.
             const ids = lista.map((e) => e.id);
-            const { data: lects, error: eLec } = await supabase
-                .from('clima_estacion_lecturas')
-                .select('*')
-                .in('estacion_id', ids)
-                .order('ts', { ascending: false })
-                .limit(ids.length * 20); // margen: varias lecturas por estación
-            if (eLec) throw eLec;
-
             const ultimaPorEstacion = new Map<string, LecturaClima>();
-            for (const l of (lects ?? []) as LecturaClima[]) {
-                if (!ultimaPorEstacion.has(l.estacion_id)) ultimaPorEstacion.set(l.estacion_id, l);
-            }
+            await Promise.all(ids.map(async (id) => {
+                const { data: l, error: eLec } = await supabase
+                    .from('clima_estacion_lecturas')
+                    .select('*')
+                    .eq('estacion_id', id)
+                    .order('ts', { ascending: false })
+                    .limit(1);
+                if (eLec) throw eLec;
+                if (l?.[0]) ultimaPorEstacion.set(id, l[0] as LecturaClima);
+            }));
 
             // Pronóstico horario vigente (nubosidad por capas + precipitación).
             // Es una fuente OPCIONAL: si aún no se ha sincronizado, el estado del
@@ -219,13 +220,20 @@ export function useClimaEstaciones() {
             setEstaciones(combinadas);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Error cargando estaciones climáticas');
-            setEstaciones([]);
+            if (!silencioso) setEstaciones([]); // en un refresco periódico se conserva el último corte bueno
         } finally {
             setLoading(false);
         }
     }, []);
 
-    useEffect(() => { fetchData(); }, [fetchData]);
+    useEffect(() => {
+        void fetchData();
+        // Refresco cada 10 min solo con la pestaña visible (las estaciones reportan cada 2 h; el pronóstico cada 1 h).
+        const tick = () => { if (document.visibilityState === 'visible') void fetchData(true); };
+        const id = window.setInterval(tick, 10 * 60_000);
+        document.addEventListener('visibilitychange', tick);
+        return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', tick); };
+    }, [fetchData]);
 
     /**
      * Refresco MANUAL bajo demanda, para emitir un informe con datos frescos.
@@ -281,5 +289,5 @@ export function useClimaEstaciones() {
         }
     }, [fetchData]);
 
-    return { estaciones, loading, error, refetch: fetchData, refrescarAhora, refresco };
+    return { estaciones, loading, error, refetch: () => fetchData(), refrescarAhora, refresco };
 }

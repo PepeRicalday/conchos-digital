@@ -25,6 +25,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { diaDelAnioDeFecha, elevacionPlausible, etoFao56Diario } from "./eto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,7 +57,7 @@ interface FilaHistorico {
 interface AdaptadorHistorico {
   nombre: string;
   comunidad: string;
-  obtener(lat: number, lon: number, inicio: string, fin: string): Promise<FilaHistorico[]>;
+  obtener(lat: number, lon: number, elevacionM: number, inicio: string, fin: string): Promise<FilaHistorico[]>;
 }
 
 // ── Adaptador NASA POWER ───────────────────────────────────────────────────
@@ -72,14 +73,15 @@ const nasaPower: AdaptadorHistorico = {
   nombre: "nasa-power",
   comunidad: "AG",
 
-  async obtener(lat, lon, inicio, fin) {
+  async obtener(lat, lon, elevacionM, inicio, fin) {
     const params = [
       "ALLSKY_SFC_SW_DWN", // radiación solar superficial, MJ/m²/día
       "T2M",               // temperatura a 2m, °C
       "RH2M",               // humedad relativa a 2m, %
       "WS2M",               // viento a 2m, m/s
       "PRECTOTCORR",        // precipitación corregida, mm/día
-      "ET0",                 // evapotranspiración de referencia, mm/día (perfil AG)
+      "T2M_MAX",            // para FAO-56: ETₒ NO existe como parámetro en POWER (ET0 → HTTP 422)
+      "T2M_MIN",
     ].join(",");
 
     const url = `https://power.larc.nasa.gov/api/temporal/daily/point`
@@ -109,7 +111,13 @@ const nasaPower: AdaptadorHistorico = {
         hum_rel_sat_pct: num(p.RH2M?.[f]),
         viento_sat_ms: num(p.WS2M?.[f]),
         precip_sat_mm: num(p.PRECTOTCORR?.[f]),
-        eto_sat_mm: num(p.ET0?.[f]),
+        // ETₒ FAO-56 Penman-Monteith calculada con las variables diarias del propio POWER.
+        eto_sat_mm: etoFao56Diario({
+          tMax: num(p.T2M_MAX?.[f]) ?? undefined, tMin: num(p.T2M_MIN?.[f]) ?? undefined,
+          tMedia: num(p.T2M?.[f]) ?? undefined, hrMedia: num(p.RH2M?.[f]) ?? undefined,
+          u2: num(p.WS2M?.[f]) ?? undefined, rsMj: radMj ?? undefined,
+          latitudDeg: lat, elevacionM, diaAnio: diaDelAnioDeFecha(`${f.slice(0, 4)}-${f.slice(4, 6)}-${f.slice(6, 8)}`),
+        }),
       };
     });
 
@@ -154,7 +162,7 @@ Deno.serve(async (req) => {
 
     for (const est of estaciones as Estacion[]) {
       try {
-        const filas = await ADAPTADOR.obtener(est.latitud, est.longitud, inicio, fin);
+        const filas = await ADAPTADOR.obtener(est.latitud, est.longitud, elevacionPlausible(est.elevacion_msnm), inicio, fin);
         if (!filas.length) {
           resultados.push({ estacion: est.nombre, ok: false, motivo: "sin filas en el rango" });
           continue;

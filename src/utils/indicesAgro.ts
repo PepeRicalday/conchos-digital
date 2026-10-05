@@ -61,8 +61,8 @@ export interface EntradasIndices {
     probLluviaPct: number | null;
     /** Lámina prevista en 24 h (mm). */
     lluviaPrevMm: number | null;
-    /** Lluvia observada del día, PROMEDIO entre estaciones con lectura (mm). */
-    lluviaObsMm: number;
+    /** Lluvia observada del día, PROMEDIO entre estaciones que la reportan (mm); null si ninguna. */
+    lluviaObsMm: number | null;
     /** HR media observada (%). */
     hrPct: number | null;
     /** Viento máximo observado (m/s). */
@@ -89,14 +89,15 @@ export function entradasDesdeEstaciones(
     // PROMEDIO entre estaciones con lectura, no suma: la lámina de lluvia no se
     // acumula entre pluviómetros distintos. Sumar infla el término de aporte del
     // IHE en proporción al número de estaciones conectadas, no a la lluvia real.
-    const lluvias = conLectura.map(e => e.lectura!.lluvia_dia_mm ?? 0);
+    // Una estación SIN dato de lluvia no es una estación con 0 mm: se excluye del promedio (antes `?? 0` lo diluía).
+    const lluvias = conLectura.map(e => e.lectura!.lluvia_dia_mm).filter((v): v is number => v != null);
 
     return {
         etoDiario,
         nubosidadPct: cobs.length ? cobs.reduce((a, b) => a + b, 0) / cobs.length : null,
         probLluviaPct: probs.length ? Math.max(...probs) : null,
         lluviaPrevMm: mms.length ? mms.reduce((a, b) => a + b, 0) / mms.length : null,
-        lluviaObsMm: lluvias.length ? lluvias.reduce((a, b) => a + b, 0) / lluvias.length : 0,
+        lluviaObsMm: lluvias.length ? lluvias.reduce((a, b) => a + b, 0) / lluvias.length : null,
         hrPct: hrs.length ? hrs.reduce((a, b) => a + b, 0) / hrs.length : null,
         vientoMaxMs: vientos.length ? Math.max(...vientos) : null,
         estacionesOk: ests.filter(e => e.calidad.usableComoActual).length,
@@ -174,7 +175,7 @@ function calcIHE(e: EntradasIndices): Indice {
         return { ...base, valor: null, etiqueta: 'Sin dato', color: '#94a3b8',
             implicacion: 'Sin HR disponible' };
     }
-    const aporte = Math.min(1, (e.lluviaObsMm + (e.lluviaPrevMm ?? 0)) / 10);
+    const aporte = Math.min(1, ((e.lluviaObsMm ?? 0) + (e.lluviaPrevMm ?? 0)) / 10);
     const v = clamp(0.70 * e.hrPct + 30 * aporte);
     const etiqueta = v < 30 ? 'Deficiente' : v < 50 ? 'Baja' : v < 75 ? 'Adecuada' : 'Elevada';
     const color = v < 30 ? C_CRITICO : v < 50 ? C_AVISO : C_BUENO;

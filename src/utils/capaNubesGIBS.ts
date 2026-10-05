@@ -118,8 +118,8 @@ function capaParaInstante(fecha: Date, latDeg: number, lonDeg: number): DefCapa 
  * "ahora" y se redondea al múltiplo de 10 anterior para pedir un corte que ya
  * exista, en vez de fallar por pedir uno demasiado reciente.
  */
-function instanteDisponible(): Date {
-    const ahora = new Date(Date.now() - 35 * 60000);
+function instanteDisponible(retrocesoExtraMin = 0): Date {
+    const ahora = new Date(Date.now() - (35 + retrocesoExtraMin) * 60000);
     ahora.setUTCSeconds(0, 0);
     ahora.setUTCMinutes(Math.floor(ahora.getUTCMinutes() / 10) * 10);
     return ahora;
@@ -131,6 +131,9 @@ function isoParaGIBS(d: Date): string {
     return d.toISOString().slice(0, 19) + 'Z'; // YYYY-MM-DDTHH:MM:SSZ
 }
 
+/** Retrocesos (min) que se prueban si GIBS aún no publicó el corte más reciente (devuelve 404). */
+const RETROCESOS_MIN = [0, 10, 20, 30];
+
 /**
  * Construye el mosaico de nubosidad real (GOES-East GeoColor de día, Band13
  * IR de noche) para la extensión geográfica indicada. Devuelve null si no hay
@@ -141,10 +144,21 @@ function isoParaGIBS(d: Date): string {
 export async function construyeCapaNubes(
     minLon: number, maxLon: number, minLat: number, maxLat: number,
 ): Promise<CapaNubes | null> {
+    // Si el corte más reciente aún no existe en GIBS (404), se reintenta con cortes de hasta 30 min antes.
+    for (const extra of RETROCESOS_MIN) {
+        const capa = await construyeCapaNubesEn(minLon, maxLon, minLat, maxLat, extra);
+        if (capa) return capa;
+    }
+    return null;
+}
+
+async function construyeCapaNubesEn(
+    minLon: number, maxLon: number, minLat: number, maxLat: number, retrocesoExtraMin: number,
+): Promise<CapaNubes | null> {
     try {
         const centroLon = (minLon + maxLon) / 2;
         const centroLat = (minLat + maxLat) / 2;
-        const momento = instanteDisponible();
+        const momento = instanteDisponible(retrocesoExtraMin);
         const { id: capaGIBS, tileMatrixSet, zoom, formato, fuente } = capaParaInstante(momento, centroLat, centroLon);
 
         const x0 = Math.floor(lon2tile(minLon, zoom));
@@ -237,8 +251,21 @@ export async function nubosidadSatelitalPuntual(
     lat: number, lon: number,
 ): Promise<NubosidadSatelitalPunto | null> {
     try {
-        const momento = instanteDisponible();
-        const { id: capaGIBS, tileMatrixSet, zoom, formato, fuente } = capaParaInstante(momento, lat, lon);
+        // Primer corte con tesela disponible (el más reciente suele dar 404 hasta ~30 min después).
+        let momento = instanteDisponible();
+        let img: HTMLImageElement | null = null;
+        let def = capaParaInstante(momento, lat, lon);
+        for (const extra of RETROCESOS_MIN) {
+            momento = instanteDisponible(extra);
+            def = capaParaInstante(momento, lat, lon);
+            const fx0 = lon2tile(lon, def.zoom), fy0 = lat2tile(lat, def.zoom);
+            const url0 = `${TILE_URL_BASE}/${def.id}/default/${isoParaGIBS(momento)}/`
+                + `${def.tileMatrixSet}/${def.zoom}/${Math.floor(fy0)}/${Math.floor(fx0)}.${def.formato}`;
+            img = await cargaTesela(url0);
+            if (img) break;
+        }
+        if (!img) return null;
+        const { zoom, fuente } = def;
 
         const fx = lon2tile(lon, zoom);
         const fy = lat2tile(lat, zoom);
@@ -247,13 +274,6 @@ export async function nubosidadSatelitalPuntual(
         // Posición del punto dentro de la tesela (0-255 en cada eje).
         const px = Math.min(TILE_PX - 1, Math.max(0, Math.floor((fx - tx) * TILE_PX)));
         const py = Math.min(TILE_PX - 1, Math.max(0, Math.floor((fy - ty) * TILE_PX)));
-
-        const tiempoGIBS = isoParaGIBS(momento);
-        const url = `${TILE_URL_BASE}/${capaGIBS}/default/${tiempoGIBS}/`
-            + `${tileMatrixSet}/${zoom}/${ty}/${tx}.${formato}`;
-
-        const img = await cargaTesela(url);
-        if (!img) return null;
 
         const canvas = document.createElement('canvas');
         canvas.width = TILE_PX; canvas.height = TILE_PX;

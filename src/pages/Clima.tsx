@@ -8,6 +8,14 @@ import {
     BarChart, Bar, Legend, LabelList
 } from 'recharts';
 import './Clima.css';
+import '../components/clima/ClimaObservatorio.css';
+import { RedSalud } from '../components/clima/RedSalud';
+import { AlertasAgro } from '../components/clima/AlertasAgro';
+import { Franja72h } from '../components/clima/Franja72h';
+import { BalanceModulos } from '../components/clima/BalanceModulos';
+import { useSaludRed, useAlertasClima, useUmbralesClima, useEntregasDia } from '../hooks/useClimaOperativo';
+import { SUPERFICIE_RIEGO_HA } from '../utils/modulosSRL';
+import { EFICIENCIA_RODADO, KC_REFERENCIA, laminaBruta, laminaNeta, m3PorHa } from '../utils/agronomia';
 import { useFecha } from '../context/FechaContext';
 import { usePresas, type ClimaPresaData } from '../hooks/usePresas';
 import { useClimaEstaciones, type EstacionConLectura, type LecturaClima } from '../hooks/useClimaEstaciones';
@@ -452,6 +460,13 @@ const Clima = () => {
     const { clima, loading } = usePresas(fechaSeleccionada);
     const { estaciones, loading: loadingEst, refrescarAhora, refresco } = useClimaEstaciones();
     const { resumen: skillResumen, totalMuestras: skillMuestras, cargando: skillCargando } = useClimaSkill(7);
+    const hoyLocalCorte = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
+    const salud = useSaludRed();
+    const alertasClima = useAlertasClima();
+    const umbralesClima = useUmbralesClima();
+    const entregasHoy = useEntregasDia(hoyLocalCorte);
+    // Avisos integrados: sustituyen a los alert() nativos (bloquean la página y no se pueden estilizar).
+    const [avisoUi, setAvisoUi] = useState<string | null>(null);
 
     // Estación abierta en el panel de detalle. Se guarda el ID, no el objeto:
     // así el panel sigue el refresco de `estaciones` en vez de congelar la
@@ -611,7 +626,7 @@ const Clima = () => {
             });
         } catch (e) {
             console.error('[Clima] no se pudo generar el informe geoclimático:', e);
-            alert(e instanceof Error ? e.message : 'No se pudo generar el informe geoclimático.');
+            setAvisoUi(e instanceof Error ? e.message : 'No se pudo generar el informe geoclimático.');
         } finally {
             setGenerandoGeoInforme(false);
         }
@@ -627,7 +642,7 @@ const Clima = () => {
             await imagenClimaInfografia(estaciones, await historialInfografia());
         } catch (e) {
             console.error('[Clima] no se pudo generar la imagen de la infografía:', e);
-            alert(e instanceof Error ? e.message : 'No se pudo generar la imagen de la infografía.');
+            setAvisoUi(e instanceof Error ? e.message : 'No se pudo generar la imagen de la infografía.');
         } finally {
             setGenerandoImagen(false);
         }
@@ -767,8 +782,8 @@ const Clima = () => {
         .map(x => ({
             station: x.presa,
             estacion: x.est!.nombre,
-            precipitacion: +(x.est!.lectura!.lluvia_dia_mm ?? 0),
-            evaporacion: +(x.est!.lectura!.et_dia_mm ?? 0),
+            precipitacion: x.est!.lectura!.lluvia_dia_mm,
+            evaporacion: x.est!.lectura!.et_dia_mm,
             enLinea: x.est!.enLinea,
         }));
 
@@ -785,10 +800,13 @@ const Clima = () => {
     // Precipitación: escala independiente del cielo, observada y prevista.
     // PROMEDIO entre estaciones con lectura, no suma: sumar mm entre pluviómetros
     // distintos no tiene lectura hidrológica y crece con cada estación conectada.
-    const estConLluvia = estaciones.filter(e => e.lectura);
-    const lluviaObsProm = estConLluvia.length
-        ? estConLluvia.reduce((a, e) => a + (e.lectura!.lluvia_dia_mm ?? 0), 0) / estConLluvia.length
-        : 0;
+    // Estación sin dato de lluvia ≠ estación con 0 mm: se excluye del promedio; sin ninguna, queda null (S/D).
+    const lluviasRed = estaciones
+        .map(e => e.lectura?.lluvia_dia_mm)
+        .filter((v): v is number => v != null);
+    const lluviaObsProm: number | null = lluviasRed.length
+        ? lluviasRed.reduce((a, b) => a + b, 0) / lluviasRed.length
+        : null;
 
     // Resumen de la red para la tarjeta de cabecera.
     const tempsRed = estaciones
@@ -805,64 +823,8 @@ const Clima = () => {
         .filter((v): v is number => v != null);
     const probMaxFc = probsFc.length ? Math.round(Math.max(...probsFc)) : null;
 
-    // Irrigation alerts derived from real data
-    // Alertas de riego desde la RED WEATHERLINK (fuente viva), no desde
-    // clima_presas. La tabla legada trae `intensidad_viento` como CATEGORÍA de
-    // texto ("Int > 3"), no como m/s: decidir la suspensión de aspersión con un
-    // índice opaco, existiendo la medición real, es la misma clase de error ya
-    // corregida en el resumen de red. Además, sin filas en clima_presas el panel
-    // quedaba vacío aunque las 4 estaciones estuvieran reportando.
-    const irrigationAlerts = [];
-    {
-        const conLect = estaciones.filter(e => e.lectura);
-        // vMax/lluviaTot vienen de entradasIndices (misma extracción que ya usa
-        // el Tablero Ejecutivo) — solo se busca aquí el nombre de la estación
-        // del viento máximo, dato que EntradasIndices no expone.
-        const vMax = entradasIndices?.vientoMaxMs ?? null;
-        const estVientoMax = vMax != null
-            ? conLect.find(e => e.lectura!.viento_ms === vMax)?.nombre : null;
-        const lluviaTot = entradasIndices?.lluviaObsMm ?? 0;
-        const tMins = conLect.map(e => e.lectura!.temp_min_c).filter((v): v is number => v != null);
-        const tMin = tMins.length ? Math.min(...tMins) : null;
-
-        // Umbral 5 m/s: límite recomendado para aspersión (deriva y evaporación).
-        if (vMax != null) {
-            irrigationAlerts.push(vMax > 5
-                ? { active: true, threshold: '> 5 m/s',
-                    message: `Viento ${vMax.toFixed(1)} m/s${estVientoMax ? ` en ${estVientoMax}` : ''}: suspender riego por aspersión (deriva)` }
-                : { active: false, threshold: '≤ 5 m/s',
-                    message: `Viento ${vMax.toFixed(1)} m/s: riego por aspersión dentro de parámetros` });
-        }
-        if (lluviaTot > 10) {
-            irrigationAlerts.push({
-                active: true, threshold: '> 10 mm',
-                message: `Precipitación ${lluviaTot.toFixed(1)} mm (promedio de la red): considerar cierre preventivo de tomas`,
-            });
-        }
-        if (tMin != null && tMin < 5) {
-            irrigationAlerts.push({
-                active: true, threshold: '< 5 °C',
-                message: `Temp. mínima ${tMin.toFixed(1)} °C: vigilar heladas en frutales`,
-            });
-        }
-        // La demanda alta es una condición operativa, no una anomalía: se informa
-        // para que el turno se dimensione, con la lámina bruta ya calculada.
-        if (etoDiarioRed != null && etoDiarioRed >= 6) {
-            irrigationAlerts.push({
-                active: true, threshold: 'ETₒ ≥ 6 mm/día',
-                message: `Demanda atmosférica alta (ETₒ ${etoDiarioRed.toFixed(2)} mm/día): reponer ≈ ${((etoDiarioRed * 0.85) / 0.7).toFixed(1)} mm/día; priorizar turnos nocturnos`,
-            });
-        }
-    }
-    // Dato vencido: se avisa explícitamente para que no se lea como "actual".
-    const vencidas = estaciones.filter(e => e.calidad.status === 'expired');
-    if (vencidas.length > 0) {
-        irrigationAlerts.push({
-            active: true,
-            message: `${vencidas.length} estación(es) sin reportar hace más de 1 h (${vencidas.map(e => e.nombre).join(', ')}): no usar como lectura actual`,
-            threshold: 'edad > 60 min',
-        });
-    }
+    // Las alertas agroclimáticas ya NO se derivan aquí con umbrales literales: las evalúa la base de datos cada
+    // 30 min (fn_clima_alertas_agro, umbrales editables en clima_umbrales) y se leen de registro_alertas.
 
     if (loading && clima.length === 0) {
         return (
@@ -936,7 +898,7 @@ const Clima = () => {
                     <div className="quick-stat">
                         <span className="stat-label">Lluvia promedio</span>
                         <span className="stat-value">
-                            {lluviaObsProm.toFixed(1)} <small>mm</small>
+                            {lluviaObsProm != null ? lluviaObsProm.toFixed(1) : 'S/D'} <small>mm</small>
                         </span>
                     </div>
                     {/* ETₒ ACUMULADA AL CORTE, no el total del día. A primera hora vale
@@ -957,6 +919,29 @@ const Clima = () => {
                     </div>
                 </div>
             </section>
+
+            {avisoUi && (
+                <div className="cl-aviso cl-aviso-crit" role="alert" style={{ marginBottom: 12 }}>
+                    <AlertTriangle size={14} /> {avisoUi}
+                    <button type="button" onClick={() => setAvisoUi(null)} style={{ marginLeft: 'auto', minHeight: 44, padding: '0 12px', background: 'none', border: '1px solid currentColor', borderRadius: 8, color: 'inherit', cursor: 'pointer' }}>Cerrar</button>
+                </div>
+            )}
+
+            {/* Observatorio operativo: salud de la red, alertas accionables, franja 72 h y balance clima ↔ canal. */}
+            <div className="cl-obs">
+                <AlertasAgro alertas={alertasClima.alertas} umbrales={umbralesClima} cargado={alertasClima.cargado} error={alertasClima.error} />
+                <RedSalud estaciones={salud.estaciones} cargado={salud.cargado} error={salud.error} onAbrir={setEstacionSel} />
+                <div className="cl-ancho"><Franja72h estaciones={estaciones} umbrales={umbralesClima} /></div>
+                <div className="cl-ancho">
+                    <BalanceModulos
+                        modulos={Object.keys(SUPERFICIE_RIEGO_HA).map(Number).map(n => ({ modulo: n, nombre: `Módulo ${n}` }))}
+                        etoMm={etoDiarioRed}
+                        lluviaMm={entradasIndices?.lluviaObsMm ?? null}
+                        entregas={entregasHoy.porModulo}
+                        fecha={hoyLocalCorte}
+                    />
+                </div>
+            </div>
 
             {/* Tablero ejecutivo: los índices que resumen el estado operativo del
                 distrito. Antes solo existían en los informes descargados. */}
@@ -1007,7 +992,7 @@ const Clima = () => {
                         <span className="cielo-panel-label">Precipitación</span>
                         <div className="precip-linea">
                             <Droplets size={14} />
-                            <span>Promedio hoy <b>{lluviaObsProm.toFixed(1)} mm</b></span>
+                            <span>Promedio hoy <b>{lluviaObsProm != null ? `${lluviaObsProm.toFixed(1)} mm` : 'S/D'}</b></span>
                         </div>
                         <div className="precip-linea">
                             <CloudRain size={14} />
@@ -1220,11 +1205,11 @@ const Clima = () => {
                             <div className="kc-formula">
                                 <span>ETc = ETₒ × Kc</span>
                                 <span className="kc-example">
-                                    Nogal en brotación, Kc tabular de ejemplo (0.85): {etoLamina != null ? etoLamina.toFixed(2) : '—'} × 0.85 = <strong>{etoLamina != null ? (etoLamina * 0.85).toFixed(2) : '—'} mm/día</strong> netos
+                                    Nogal en brotación, Kc tabular de ejemplo ({KC_REFERENCIA}): {etoLamina != null ? etoLamina.toFixed(2) : '—'} × {KC_REFERENCIA} = <strong>{laminaNeta(etoLamina) != null ? laminaNeta(etoLamina)!.toFixed(2) : '—'} mm/día</strong> netos
                                 </span>
                                 <span className="kc-example">
-                                    Lámina bruta (eficiencia 70 % en rodado): <strong>{etoLamina != null ? ((etoLamina * 0.85) / 0.7).toFixed(2) : '—'} mm/día</strong>
-                                    {etoLamina != null && <> ≈ {(((etoLamina * 0.85) / 0.7) * 10).toFixed(0)} m³/ha·día</>}
+                                    Lámina bruta (eficiencia {Math.round(EFICIENCIA_RODADO * 100)} % en rodado): <strong>{laminaBruta(etoLamina) != null ? laminaBruta(etoLamina)!.toFixed(2) : '—'} mm/día</strong>
+                                    {m3PorHa(laminaBruta(etoLamina)) != null && <> ≈ {m3PorHa(laminaBruta(etoLamina))!.toFixed(0)} m³/ha·día</>}
                                 </span>
                             </div>
 
@@ -1261,24 +1246,6 @@ const Clima = () => {
                                     )}
                                 </div>
                             )}
-                        </div>
-                    </section>
-                )}
-
-                {/* Section: Irrigation Integration */}
-                {irrigationAlerts.length > 0 && (
-                    <section className="card alerts-section">
-                        <h3><AlertTriangle size={18} /> Integración con Plan de Riego</h3>
-                        <div className="alerts-list">
-                            {irrigationAlerts.map((alert, i) => (
-                                <div key={i} className={`alert-item ${alert.active ? 'active' : ''}`}>
-                                    <div className="alert-indicator" />
-                                    <div className="alert-content">
-                                        <span className="alert-message">{alert.message}</span>
-                                        <span className="alert-threshold">Umbral: {alert.threshold}</span>
-                                    </div>
-                                </div>
-                            ))}
                         </div>
                     </section>
                 )}

@@ -54,3 +54,28 @@ export function numeroGeojsonDeSRL(numeroSRL: number): number | null {
     const entrada = Object.entries(GEOJSON_A_MODULO_SRL).find(([, srl]) => srl === numeroSRL);
     return entrada ? Number(entrada[0]) : null;
 }
+
+/**
+ * Superficie de RIEGO por Módulo SRL (ha): suma de `superficie_riego_ha` de los lotes de
+ * public/geo/lotes_modulo_N.geojson (calculada el 2026-10-06; 4,211 lotes). `modulos` en la base de datos no
+ * trae superficie, por eso vive aquí. Actualizar si se recarga el padrón de lotes.
+ */
+export const SUPERFICIE_RIEGO_HA: Record<number, number> = {
+    1: 5456.7,
+    2: 6165.2,
+    3: 6552.0,
+    4: 9144.3,
+    5: 11594.3,
+    12: 2551.3,
+};
+
+/** Hectáreas de riego de un Módulo SRL (por número) o null si no se conoce. */
+export function superficieRiegoHa(moduloSrl: number): number | null {
+    return SUPERFICIE_RIEGO_HA[moduloSrl] ?? null;
+}
+
+/** 'MOD-005' → 5; cualquier otro formato → null. */
+export function numeroModuloDeId(id: string | null | undefined): number | null {
+    const m = /^MOD-0*(\d+)$/i.exec(id ?? '');
+    return m ? Number(m[1]) : null;
+}

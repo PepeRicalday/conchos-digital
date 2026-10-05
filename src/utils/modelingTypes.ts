@@ -73,6 +73,7 @@ export interface DataStatus {
   qRealK0?:      number;  // gasto real medido en K-0+000 (SICA Capture)
   perfilFuente?: string;  // fuente_q_entrada del perfil hidráulico RPC
   perfilQ?:      number;  // q_m3s en K-0 del perfil hidráulico RPC
+  lecturaFecha?: Record<string, string>; // escala_id → fecha (YYYY-MM-DD) de la lectura de nivel usada como base
 }
 
 // Balance hídrico por tramo (fn_balance_hidrico_tramos)

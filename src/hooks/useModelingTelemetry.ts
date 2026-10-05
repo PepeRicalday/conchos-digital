@@ -93,7 +93,7 @@ export function useModelingTelemetry(setters: {
 
         // Lecturas más recientes (cualquier día) para estado actual de aperturas
         supabase.from('lecturas_escalas')
-          .select('escala_id, nivel_m, apertura_radiales_m, gasto_calculado_m3s')
+          .select('escala_id, nivel_m, apertura_radiales_m, gasto_calculado_m3s, fecha')
           .order('fecha', { ascending: false })
           .order('hora_lectura', { ascending: false })
           .limit(100),
@@ -173,10 +173,15 @@ export function useModelingTelemetry(setters: {
       // Prioridad: rawLatest (registro más reciente de hoy/ayer) > lectura_pm (resumen) > lectura_am > rawAM
       // Se filtra v > 0.05 para evitar que lecturas 0 o nulas contaminen la base hidráulica
       const lvlMap = new Map<string, number>();
+      // Fecha de la lectura que alimenta cada nivel base (para mostrar su antigüedad en pantalla)
+      const lecturaFecha: Record<string, string> = {};
       // 1º rawLatest — el registro más reciente disponible (lectura actual del canal)
       rawLatest?.forEach(r => {
         const v = safeFloat(r.nivel_m, NaN);
-        if (Number.isFinite(v) && v > 0.05) lvlMap.set(r.escala_id, v);
+        if (Number.isFinite(v) && v > 0.05 && !lvlMap.has(r.escala_id)) {
+          lvlMap.set(r.escala_id, v);
+          if (r.fecha) lecturaFecha[r.escala_id] = String(r.fecha);
+        }
       });
       // 2º lectura_pm del resumen (lectura de tarde, si rawLatest no tiene dato)
       summary?.forEach(r => {
@@ -444,6 +449,7 @@ export function useModelingTelemetry(setters: {
         qRealK0: Number.isFinite(q0Escala) ? q0Escala : undefined,
         perfilFuente: rpcFuente ?? undefined,
         perfilQ: rpcQ ?? undefined,
+        lecturaFecha,
       });
     };
     fetchData();

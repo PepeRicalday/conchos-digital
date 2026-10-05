@@ -110,11 +110,11 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
   results.forEach(r => {
     if (r.status === 'CRITICO') alerts.push({
       level: 'CRITICO',
-      text: `${r.nombre} (K-${r.km}): Tirante simulado ${sf(r.y_sim).toFixed(2)}m — ${sf(r.bordo_libre_pct).toFixed(0)}% del bordo libre. RIESGO DE DESBORDAMIENTO.`,
+      text: `${r.nombre} (K-${r.km}): Tirante simulado ${sf(r.y_sim).toFixed(2)}m — ${sf(r.bordo_libre_pct).toFixed(0)}% de la profundidad del canal. RIESGO DE DESBORDAMIENTO.`,
     });
     else if (r.status === 'ALERTA') alerts.push({
       level: 'ALERTA',
-      text: `${r.nombre} (K-${r.km}): Tirante simulado ${sf(r.y_sim).toFixed(2)}m — ${sf(r.bordo_libre_pct).toFixed(0)}% del bordo libre. Monitoreo estrecho requerido.`,
+      text: `${r.nombre} (K-${r.km}): Tirante simulado ${sf(r.y_sim).toFixed(2)}m — ${sf(r.bordo_libre_pct).toFixed(0)}% de la profundidad del canal. Monitoreo estrecho requerido.`,
     });
     // Apertura — INCREMENTO: evaluar con aforo real (condición submersa M1) o fórmula libre.
     // NUNCA emitir alerta de CERRAR durante INCREMENT.

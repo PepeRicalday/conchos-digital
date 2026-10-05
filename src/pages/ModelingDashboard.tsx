@@ -8,10 +8,11 @@ import {
 } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 import { supabase } from '../lib/supabase';
-import { formatDate } from '../utils/dateHelpers';
+import { formatDate, getTodayString } from '../utils/dateHelpers';
 import SimulationReport from '../components/SimulationReport';
 import { calcIEC, iecColor } from '../utils/canalIndex';
 import { useModelingTelemetry } from '../hooks/useModelingTelemetry';
+import { useHydricEvents } from '../hooks/useHydricEvents';
 import {
   MANNING_N, PLANTILLA, TALUD_Z, FREEBOARD, CD_GATE, S0_CANAL, safeFloat,
   type ControlPoint, type CPTelemetry, type DeliveryData, type DataStatus,
@@ -482,6 +483,41 @@ interface Decision {
   detalle:       string;
   valor_actual:  string;
   valor_meta:    string;
+}
+
+/** Antigüedad de la lectura de nivel que sirve de base. Sin lectura real el simulador usa un nivel sintético: se avisa. */
+function edadLectura(fecha: string | undefined, nivelReal: number | undefined): { texto: string; color: string; title: string } | null {
+  if (!(nivelReal && nivelReal > 0.05)) {
+    return { texto: 'sin lectura · nivel estimado', color: '#f59e0b', title: 'No hay lectura de nivel para esta escala: el simulador usa un valor sintético como base.' };
+  }
+  if (!fecha) return null;
+  const dias = Math.round((new Date(getTodayString() + 'T12:00:00').getTime() - new Date(fecha + 'T12:00:00').getTime()) / 86400000);
+  if (!(dias >= 0)) return null;
+  if (dias === 0) return { texto: 'lectura de hoy', color: '#64748b', title: `Lectura base del ${fecha}` };
+  return {
+    texto: dias === 1 ? 'lectura de ayer' : `lectura de hace ${dias} d`,
+    color: '#f59e0b',
+    title: `La lectura base tiene ${dias} día(s) (${fecha}): el nivel mostrado puede no ser vigente.`,
+  };
+}
+
+type ModoOperativo = 'RIEGO' | 'LLENADO' | 'VACIADO' | 'SIN_ENTRADA';
+/** Por debajo de este gasto de presa se considera que el canal no recibe entrada de riego. */
+const Q_MIN_ENTRADA_M3S = 2;
+
+function decisionModoOperativo(modo: ModoOperativo, qDam: number): Decision {
+  const vaciado = modo === 'VACIADO';
+  return {
+    prioridad: 'INFO', tipo: 'OPERATIVO',
+    punto: 'Canal', km: 0,
+    accion: vaciado ? 'Canal en VACIADO — reglas de riego suspendidas' : 'Sin entrada de agua — reglas de riego suspendidas',
+    detalle: (vaciado
+      ? 'Presa cerrada y canal en remanente: el motor no recomienda abrir compuertas ni evalúa los mínimos deseables de servicio.'
+      : `Gasto de presa bajo ${Q_MIN_ENTRADA_M3S} m³/s: el motor no recomienda abrir compuertas ni evalúa mínimos de servicio.`)
+      + ' Vigilar el descenso de nivel (protocolo de vaciado: máx. 30 cm/día).',
+    valor_actual: `Q presa ${qDam.toFixed(1)} m³/s`,
+    valor_meta:   'Descenso ≤ 30 cm/día',
+  };
 }
 
 function generateDecisions(
@@ -1291,10 +1327,23 @@ const ModelingDashboard: React.FC = () => {
   }, [showScenarioB, controlPoints, baseReadings, gateOverrides, gastoMedidoRecord, qDamB, qBase, riverTransit, simBaseMinEff, currentTimeMin, deliveryPoints, scenarioMods, dataLoaded, tramoGeom, balanceTramos, activeRestricciones]);
 
   // ── FASE 3: MOTOR DE DECISIÓN ─────────────────────────────────────────
+  // Modo operativo: las reglas del motor (abrir compuertas, mínimos deseables de servicio) solo
+  // tienen sentido con el canal sirviendo riego. En VACIADO (presa cerrada, remanente) o sin
+  // entrada de agua recomendarían acciones contrarias a la operación y generarían alertas falsas.
+  const { activeEvent } = useHydricEvents();
+  const modoOperativo: ModoOperativo =
+    activeEvent?.evento_tipo === 'VACIADO' ? 'VACIADO'
+    : activeEvent?.evento_tipo === 'LLENADO' ? 'LLENADO'
+    : qDam < Q_MIN_ENTRADA_M3S ? 'SIN_ENTRADA'
+    : 'RIEGO';
+  const reglasRiegoSuspendidas = modoOperativo === 'VACIADO' || modoOperativo === 'SIN_ENTRADA';
+
   const decisions = useMemo<Decision[]>(() => {
     if (!simResults.length) return [];
-    return generateDecisions(simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints);
-  }, [simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints]);
+    const todas = generateDecisions(simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints);
+    if (!reglasRiegoSuspendidas) return todas;
+    return [decisionModoOperativo(modoOperativo, qDam), ...todas.filter(d => d.prioridad === 'INFO')];
+  }, [simResults, qDam, qBase, gateBase, cpTelemetry, dataStatus, eventType, deliveryPoints, modoOperativo, reglasRiegoSuspendidas]);
 
   // ── FASE 3B: Persistir decisiones URGENTE → registro_alertas ──────────
   // Deduplicación por sesión: evita insertar la misma alerta en cada
@@ -1487,7 +1536,7 @@ const ModelingDashboard: React.FC = () => {
 
     // Tirante máximo dinámico (bordo libre del primer tramo u 4m mínimo)
     const yMax = Math.max(4, ...bordoData) * 1.05;
-    const qMax = Math.max(10, ...qSimData) * 1.15;
+    const qMax = Math.max(1, ...qSimData) * 1.2;
 
     return {
       animation: false,
@@ -1509,8 +1558,8 @@ const ModelingDashboard: React.FC = () => {
         {
           gridIndex: 0, type: 'value', min: 0, max: 110,
           name: 'Km del canal', nameLocation: 'middle', nameGap: 22,
-          nameTextStyle: { color: '#334155', fontSize: 8 },
-          axisLabel: { color: '#64748b', fontSize: 8, formatter: 'K{value}' },
+          nameTextStyle: { color: '#64748b', fontSize: 10 },
+          axisLabel: { color: '#64748b', fontSize: 10, formatter: 'K{value}' },
           axisLine: { lineStyle: { color: '#1e3a5f' } },
           axisTick: { lineStyle: { color: '#1e3a5f' } },
           splitLine: { lineStyle: { color: 'rgba(30,58,95,0.3)', type: 'dashed' } },
@@ -1519,9 +1568,9 @@ const ModelingDashboard: React.FC = () => {
         {
           gridIndex: 1, type: 'value', min: 0, max: maxHr,
           name: 'Tiempo desde el evento (horas)', nameLocation: 'middle', nameGap: 28,
-          nameTextStyle: { color: '#334155', fontSize: 8 },
+          nameTextStyle: { color: '#64748b', fontSize: 10 },
           axisLabel: {
-            color: '#64748b', fontSize: 9,
+            color: '#64748b', fontSize: 10,
             formatter: (v: number) => v === 0 ? 'T0' : `+${v}h`,
           },
           axisLine: { lineStyle: { color: '#1e3a5f' } },
@@ -1533,16 +1582,16 @@ const ModelingDashboard: React.FC = () => {
         // Grid 0 izq — tirante (m)
         {
           gridIndex: 0, type: 'value', name: 'Tirante (m)', min: 0, max: +yMax.toFixed(1),
-          nameTextStyle: { color: '#334155', fontSize: 8, padding: [0, 0, 0, -22] },
-          axisLabel: { color: '#64748b', fontSize: 8, formatter: '{value}m' },
+          nameTextStyle: { color: '#64748b', fontSize: 10, padding: [0, 0, 0, -22] },
+          axisLabel: { color: '#64748b', fontSize: 10, formatter: '{value}m' },
           splitLine: { lineStyle: { color: '#080f1c', type: 'dashed' } },
           axisLine: { lineStyle: { color: '#1e3a5f' } },
         },
         // Grid 0 der — caudal (m³/s)
         {
-          gridIndex: 0, type: 'value', name: 'Q (m³/s)', min: 0, max: +qMax.toFixed(0),
-          nameTextStyle: { color: '#7c3aed', fontSize: 8 },
-          axisLabel: { color: '#7c3aed', fontSize: 8, formatter: (v: number) => `${v}` },
+          gridIndex: 0, type: 'value', name: 'Q (m³/s)', min: 0, max: +qMax.toFixed(qMax < 10 ? 1 : 0),
+          nameTextStyle: { color: '#7c3aed', fontSize: 10 },
+          axisLabel: { color: '#7c3aed', fontSize: 10, formatter: (v: number) => `${v}` },
           splitLine: { show: false },
           axisLine: { lineStyle: { color: '#3730a3' } },
           position: 'right',
@@ -1550,8 +1599,8 @@ const ModelingDashboard: React.FC = () => {
         // Grid 1 — kilómetro del canal
         {
           gridIndex: 1, type: 'value', name: 'Kilómetro del Canal', min: 0, max: 110,
-          nameTextStyle: { color: '#334155', fontSize: 8 },
-          axisLabel: { color: '#64748b', fontSize: 8, formatter: 'K{value}' },
+          nameTextStyle: { color: '#64748b', fontSize: 10 },
+          axisLabel: { color: '#64748b', fontSize: 10, formatter: 'K{value}' },
           splitLine: { lineStyle: { color: '#080f1c', type: 'dashed' } },
           axisLine: { lineStyle: { color: '#1e3a5f' } },
           inverse: true,
@@ -1705,7 +1754,7 @@ const ModelingDashboard: React.FC = () => {
               show: true,
               formatter: () => `K-${r.km}`,
               position: i % 2 === 0 ? 'top' : 'bottom',
-              distance: 5, fontSize: 7.5, color: colors[i],
+              distance: 5, fontSize: 10, color: colors[i],
             },
           })),
           z: 6,
@@ -1773,7 +1822,7 @@ const ModelingDashboard: React.FC = () => {
               label: {
                 show: true,
                 position: i % 2 === 0 ? 'right' : 'left',
-                distance: 7, fontSize: 8,
+                distance: 7, fontSize: 10,
                 color: arrived ? colors[i] : '#374151',
                 formatter: () => {
                   const km = `K-${r.km}`;
@@ -1799,7 +1848,7 @@ const ModelingDashboard: React.FC = () => {
           label: {
             show: timeDelta > 0,
             position: 'right', distance: 9,
-            fontSize: 9, fontWeight: 'bold', color: '#fbbf24',
+            fontSize: 10, fontWeight: 'bold', color: '#fbbf24',
             formatter: () => `◀ K-${curKm}  T+${timeDelta}min`,
           },
           // Línea vertical "ahora" — markLine sobre esta serie (válido en ECharts)
@@ -1846,7 +1895,7 @@ const ModelingDashboard: React.FC = () => {
       .map(d => ({ value: [d.km, +d.caudal_m3s.toFixed(3)], name: d.nombre }));
 
     const allQ = [...rpcQSerie.map(p => p[1]), ...simQSerie.map(p => p[1])].filter(Boolean);
-    const qMax = Math.max(10, ...allQ) * 1.15;
+    const qMax = Math.max(1, ...allQ) * 1.2;
     const extMax = deliveryPoints.filter(d => d.is_active).reduce((s, d) => s + d.caudal_m3s, 0);
     const yMin  = -(Math.max(0.5, extMax) * 1.8);
 
@@ -1915,14 +1964,14 @@ const ModelingDashboard: React.FC = () => {
       grid: { top: 28, bottom: 36, left: 58, right: 16 },
       xAxis: {
         type: 'value', min: 0, max: 110,
-        axisLabel: { color: '#64748b', fontSize: 8, formatter: 'K{value}' },
+        axisLabel: { color: '#64748b', fontSize: 10, formatter: 'K{value}' },
         axisLine: { lineStyle: { color: '#1e3a5f' } },
         splitLine: { lineStyle: { color: 'rgba(30,58,95,0.3)', type: 'dashed' } },
       },
       yAxis: {
-        type: 'value', name: 'Q (m³/s)', min: +yMin.toFixed(1), max: +qMax.toFixed(0),
-        nameTextStyle: { color: '#334155', fontSize: 8 },
-        axisLabel: { color: '#64748b', fontSize: 8, formatter: (v: number) => v >= 0 ? `${v}` : '' },
+        type: 'value', name: 'Q (m³/s)', min: +yMin.toFixed(1), max: +qMax.toFixed(qMax < 10 ? 1 : 0),
+        nameTextStyle: { color: '#64748b', fontSize: 10 },
+        axisLabel: { color: '#64748b', fontSize: 10, formatter: (v: number) => v >= 0 ? `${v}` : '' },
         splitLine: { lineStyle: { color: '#080f1c', type: 'dashed' } },
         axisLine: { lineStyle: { color: '#1e3a5f' } },
       },
@@ -1964,7 +2013,7 @@ const ModelingDashboard: React.FC = () => {
           })),
           symbolSize: 11, symbol: 'rect', z: 7,
           label: {
-            show: true, position: 'top', fontSize: 8, fontWeight: 'bold',
+            show: true, position: 'top', fontSize: 10, fontWeight: 'bold',
             color: '#fb923c',
             formatter: (p: any) => `${(+p.value[1]).toFixed(1)}`,
           },
@@ -1979,116 +2028,9 @@ const ModelingDashboard: React.FC = () => {
     };
   }, [simResults, perfilRpc, deliveryPoints, qDam, balanceTramos]);
 
-  // ── GLOBALS (necesarios antes de crossSectionOption) ─────────────────
+  // ── PUNTO DE CONTROL ACTIVO ──────────────────────────────────────────
   const activeCPResult = simResults.find(r => r.id === activeCP);
   const activeCPData   = controlPoints.find(c => c.id === activeCP);
-
-  // ── ETAPA 5: SECCIÓN TRANSVERSAL INTERACTIVA ─────────────────────────
-  const crossSectionOption = useMemo(() => {
-    if (!activeCPResult) return {
-      backgroundColor: 'transparent', animation: false,
-      xAxis: { type: 'value', show: false },
-      yAxis: { type: 'value', show: false },
-      series: [],
-    };
-
-    // Guardia > 0: safeFloat devuelve el valor de BD aunque sea 0 (no usa fallback).
-    // Si BD tiene 0, usar constantes razonables para que el trapecio siempre se dibuje.
-    const b  = activeCPResult.plantilla_m  > 0 ? activeCPResult.plantilla_m  : PLANTILLA;
-    const td = activeCPResult.tirante_diseno_m > 0 ? activeCPResult.tirante_diseno_m : 2.5;
-    const fb = activeCPResult.bordo_libre_m > 0 ? activeCPResult.bordo_libre_m : 0.5;
-    const cd = activeCPResult.canal_depth_m > 0 ? activeCPResult.canal_depth_m : (td + fb);
-    const z  = Math.max(0.5, findTramo(activeCPResult.km, tramoGeom).talud_z);
-    const yB = Math.max(0, activeCPResult.y_base);    // nivel actual
-    const yS = Math.max(0, activeCPResult.y_sim);     // nivel simulado
-
-    // Nivel Real SQL del RPC para este punto de control
-    const rpcRow = (perfilRpc as any[]).find(r =>
-      Math.abs(safeFloat(r.km_ref, NaN) - activeCPResult.km) < 2.0
-    );
-    const yR = rpcRow ? safeFloat(rpcRow.nivel_real_m, NaN) : NaN;
-
-    // Coordenadas horizontales del trapecio a profundidad y
-    const xL = (y: number) => -(b / 2 + z * y);
-    const xR = (y: number) =>  (b / 2 + z * y);
-
-    // Contorno del canal (talud izq → fondo → talud der)
-    const canalContorno = [
-      [xL(cd), cd], [xL(0), 0], [xR(0), 0], [xR(cd), cd],
-    ];
-
-    // Relleno de agua a una profundidad dada
-    const waterPoly = (y: number): [number, number][] =>
-      y > 0.05 ? [[xL(y), y], [xL(0), 0], [xR(0), 0], [xR(y), y]] : [];
-
-    const xMax = Math.max(2, xR(cd) + 1);
-    const yMax = Math.max(1, +(cd * 1.12).toFixed(2));
-
-    return {
-      animation: false,
-      backgroundColor: 'transparent',
-      tooltip: { show: false },
-      grid: { top: 18, bottom: 28, left: 42, right: 12 },
-      xAxis: {
-        type: 'value', min: -xMax, max: xMax,
-        axisLabel: { color: '#64748b', fontSize: 7, formatter: (v: number) => `${v.toFixed(0)}m` },
-        axisLine: { lineStyle: { color: '#1e3a5f' } },
-        splitLine: { show: false },
-        axisTick: { lineStyle: { color: '#1e3a5f' } },
-      },
-      yAxis: {
-        type: 'value', name: 'm', min: 0, max: yMax,
-        nameTextStyle: { color: '#334155', fontSize: 7 },
-        axisLabel: { color: '#64748b', fontSize: 7, formatter: '{value}' },
-        splitLine: { lineStyle: { color: '#080f1c', type: 'dashed' } },
-        axisLine: { lineStyle: { color: '#1e3a5f' } },
-      },
-      series: [
-        // Terraplén (fondo del canal — relleno oscuro)
-        {
-          name: 'Canal', type: 'line', data: canalContorno,
-          smooth: false, showSymbol: false, z: 1,
-          lineStyle: { color: '#475569', width: 2 },
-          areaStyle: { color: 'rgba(15,23,42,0.55)' },
-        },
-        // Agua simulada Manning (teal, relleno)
-        {
-          name: 'Agua Simulada', type: 'line', data: waterPoly(yS),
-          smooth: false, showSymbol: false, z: 2,
-          lineStyle: { color: '#2dd4bf', width: 1.5 },
-          areaStyle: { color: 'rgba(45,212,191,0.15)' },
-        },
-        // Agua actual lecturas (cian punteado, relleno más tenue)
-        {
-          name: 'Agua Actual', type: 'line', data: waterPoly(yB),
-          smooth: false, showSymbol: false, z: 3,
-          lineStyle: { color: '#38bdf8', width: 1.5, type: 'dashed' },
-          areaStyle: { color: 'rgba(56,189,248,0.10)' },
-        },
-        // Nivel Real SQL (ámbar, línea horizontal)
-        ...(Number.isFinite(yR) && yR > 0.05 ? [{
-          name: 'Nivel Real SQL', type: 'line' as const,
-          data: [[xL(yR), yR], [xR(yR), yR]] as [number, number][],
-          smooth: false, showSymbol: false, z: 4,
-          lineStyle: { color: '#f59e0b', width: 2.5 },
-        }] : []),
-        // Tirante de diseño (gris punteado)
-        {
-          name: 'Diseño', type: 'line',
-          data: [[xL(td), td], [xR(td), td]],
-          smooth: false, showSymbol: false, z: 1,
-          lineStyle: { color: 'rgba(71,85,105,0.6)', width: 1, type: 'dotted' },
-        },
-        // Bordo libre / tope del canal (rojo tenue)
-        {
-          name: 'Bordo Libre', type: 'line',
-          data: [[xL(cd), cd], [xR(cd), cd]],
-          smooth: false, showSymbol: false, z: 1,
-          lineStyle: { color: 'rgba(239,68,68,0.45)', width: 1, type: 'dashed' },
-        },
-      ],
-    };
-  }, [activeCPResult, tramoGeom, perfilRpc]);
 
   // ── GLOBALS ──────────────────────────────────────────────────────────
   const firstCP      = simResults[0];
@@ -2126,6 +2068,8 @@ const ModelingDashboard: React.FC = () => {
 
   const systemStatus: CPStatus = simResults.some(r => r.status === 'CRITICO')
     ? 'CRITICO' : simResults.some(r => r.status === 'ALERTA') ? 'ALERTA' : 'ESTABLE';
+  // En modo VACIADO/SIN ENTRADA el chip no alarma por niveles bajos esperados: se muestra el modo en tono neutro.
+  const chipStatus: CPStatus = reglasRiegoSuspendidas ? 'ESTABLE' : systemStatus;
   const riverLagMin  = riverTransit
     ? (RIVER_KM * 1000 / (0.5 * Math.pow(Math.max(qDam, 1), 0.4) + 0.5)) / 60 : 0;
 
@@ -2229,18 +2173,22 @@ const ModelingDashboard: React.FC = () => {
           )}
           <div className="sim-kpi">
             <div className="sim-kpi-label">Arribo K-104</div>
-            <div className="sim-kpi-val" style={{ color: '#fbbf24' }}>{lastCP?.arrival_time ?? '—'}</div>
+            <div className="sim-kpi-val" style={{ color: '#fbbf24' }}>{reglasRiegoSuspendidas ? 'S/D' : (lastCP?.arrival_time ?? '—')}</div>
           </div>
           <button
             type="button"
             className="sim-kpi-status"
-            style={{ background: `${statusColor(systemStatus)}1a`, borderColor: statusColor(systemStatus) }}
+            style={{ background: `${statusColor(chipStatus)}1a`, borderColor: statusColor(chipStatus) }}
             onClick={decisions.length > 0 ? focusDecisionPanel : undefined}
             disabled={decisions.length === 0}
-            title={decisions.length > 0 ? 'Ir al Motor de Decisión' : undefined}
+            title={reglasRiegoSuspendidas
+              ? 'Reglas de riego suspendidas: los niveles bajos son esperados en este modo. Ir al Motor de Decisión'
+              : decisions.length > 0 ? 'Ir al Motor de Decisión' : undefined}
           >
-            <span style={{ color: statusColor(systemStatus) }}><StatusIcon s={systemStatus} /></span>
-            <span style={{ color: statusColor(systemStatus), fontWeight: 700 }}>{systemStatus}</span>
+            <span style={{ color: statusColor(chipStatus) }}><StatusIcon s={chipStatus} /></span>
+            <span style={{ color: statusColor(chipStatus), fontWeight: 700 }}>
+              {reglasRiegoSuspendidas ? (modoOperativo === 'VACIADO' ? 'VACIADO' : 'SIN ENTRADA') : systemStatus}
+            </span>
           </button>
         </div>
 
@@ -2593,6 +2541,10 @@ const ModelingDashboard: React.FC = () => {
                       <div>
                         <div className="sim-cp-name">{cp.nombre}</div>
                         <div className="sim-cp-km">KM {cp.km} · {r?.remanso_type ?? 'NORMAL'}</div>
+                        {(() => {
+                          const edad = edadLectura(dataStatus.lecturaFecha?.[cp.id], baseReadings[cp.id]);
+                          return edad ? <div className="sim-cp-age" style={{ color: edad.color }} title={edad.title}>{edad.texto}</div> : null;
+                        })()}
                       </div>
                     </div>
                     <div style={{ color: sc, fontSize: 8, fontWeight: 700 }}>{r?.status ?? '—'}</div>
@@ -2625,7 +2577,7 @@ const ModelingDashboard: React.FC = () => {
                           background: (r?.bordo_libre_pct ?? 0) > 92 ? '#ef4444' : (r?.bordo_libre_pct ?? 0) > 75 ? '#f59e0b' : '#10b981',
                         }} />
                       </div>
-                      <div className="sim-pct-lbl">{(r?.bordo_libre_pct ?? 0).toFixed(0)}% del bordo libre</div>
+                      <div className="sim-pct-lbl">{(r?.bordo_libre_pct ?? 0).toFixed(0)}% de la profundidad del canal</div>
                       {/* Extracción real en este tramo */}
                       {(r?.n_tomas_activas ?? 0) > 0 && (
                         <div className="sim-delivery-chip">
@@ -2702,32 +2654,7 @@ const ModelingDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* ─── ETAPA 5: SECCIÓN TRANSVERSAL ──────────────────── */}
-          {activeCPResult && (
-            <div className="sim-cross-card">
-              <div className="sim-qflow-hdr">
-                <span className="sim-qflow-title">
-                  <Activity size={11} />
-                  Sección Transversal · {activeCPResult.nombre} · KM {activeCPResult.km}
-                  &nbsp;·&nbsp;
-                  Plantilla {activeCPResult.plantilla_m.toFixed(0)} m · Z {findTramo(activeCPResult.km, tramoGeom).talud_z}:1
-                </span>
-                <div className="sim-profile-legend">
-                  <span className="sim-leg"><span className="sim-leg-dot sim-leg-dot--amber" /> Nivel Real SQL</span>
-                  <span className="sim-leg"><span className="sim-leg-dot sim-leg-dot--cyan-line" /> Actual</span>
-                  <span className="sim-leg"><span className="sim-leg-dot sim-leg-dot--teal" /> Simulado</span>
-                  <span className="sim-leg sim-leg--muted">
-                    y_real {Number.isFinite(activeCPResult.y_base) ? activeCPResult.y_base.toFixed(2) : '—'} m ·
-                    y_sim {activeCPResult.y_sim.toFixed(2)} m ·
-                    Δ {((activeCPResult.y_sim - activeCPResult.y_base) * 100).toFixed(0)} cm
-                  </span>
-                </div>
-              </div>
-              <div className="sim-cross-chart">
-                <ReactECharts option={crossSectionOption} style={{ height: '155px', width: '100%' }} notMerge={true} lazyUpdate={false} />
-              </div>
-            </div>
-          )}
+          {/* La sección transversal vive solo en el panel derecho (CanalSection): antes estaba duplicada aquí. */}
 
           {/* ─── PANEL COMPARACIÓN DE ESCENARIOS (Fase 2) ────────── */}
           {showScenarioB && (
@@ -3268,7 +3195,7 @@ const ModelingDashboard: React.FC = () => {
                       [dy > 0.01 ? <ArrowUp size={13}/> : dy < -0.01 ? <ArrowDown size={13}/> : <Activity size={13}/>,
                        'Variación de escala', deltaLabel(dy), movClr],
                       [<StatusIcon s={activeCPResult.status} />, 'Estado', activeCPResult.status, sc],
-                      [<Waves size={13}/>, '% Bordo libre', `${(activeCPResult.bordo_libre_pct??0).toFixed(1)}%`, sc],
+                      [<Waves size={13}/>, '% Profundidad usada', `${(activeCPResult.bordo_libre_pct??0).toFixed(1)}%`, sc],
                       ...(tel?.delta_12h != null && Math.abs(tel.delta_12h) > 0.001 ? [
                         [tel.delta_12h > 0 ? <TrendingUp size={13}/> : <TrendingDown size={13}/>,
                          'Tendencia 12h (telemetría)',
@@ -3392,7 +3319,7 @@ const ModelingDashboard: React.FC = () => {
                       ['Velocidad media V',      `${(activeCPResult.velocity_ms??0).toFixed(3)} m/s`, '#38bdf8'],
                       ['Celeridad de onda c',    `${(activeCPResult.celerity_ms??0).toFixed(3)} m/s`, '#2dd4bf'],
                       ['Número de Froude Fr',    `${(activeCPResult.froude_n??0).toFixed(4)}  ${(activeCPResult.froude_n??0) > 1 ? '⚠ Supercrítico' : 'Subcrítico'}`, (activeCPResult.froude_n??0) > 1 ? '#ef4444' : '#64748b'],
-                      ['% Bordo libre',          `${(activeCPResult.bordo_libre_pct??0).toFixed(1)}%`, statusColor(activeCPResult.status)],
+                      ['% Profundidad usada',     `${(activeCPResult.bordo_libre_pct??0).toFixed(1)}%`, statusColor(activeCPResult.status)],
                       ['Estado hidráulico',      activeCPResult.status, statusColor(activeCPResult.status)],
                       ['Arribo de onda',         `${activeCPResult.arrival_time}  (T+${Math.round(activeCPResult.cumulative_min??0)} min)`, '#c084fc'],
                       ] as [string, string, string][];
@@ -3437,7 +3364,7 @@ const ModelingDashboard: React.FC = () => {
                           ? [['Extraído en tomas', `−${extraidoHasta.toFixed(2)} m³/s`, '#fbbf24']]
                           : []),
                         [ancladoSinTomas ? 'Δ no contabilizado (fugas + tomas s/reporte)' : 'Pérdida en tramo',
-                          `−${perdida.toFixed(2)} m³/s`, '#ef4444'],
+                          perdida > 0.005 ? `−${perdida.toFixed(2)} m³/s` : '0.00 m³/s', '#ef4444'],
                       ].map(([k, v, c]) => (
                         <div key={k as string} className="sim-balance-row">
                           <span>{k as string}</span><span style={{ color: c as string }}>{v as string}</span>

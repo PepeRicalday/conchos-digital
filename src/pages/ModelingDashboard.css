@@ -35,6 +35,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: var(--sim-bg);
   color: var(--sim-text);
@@ -688,12 +689,14 @@
   gap: 0;
 }
 
+/* El perfil es el gráfico principal: nunca se colapsa. Si el viewport es bajo,
+   .sim-center desplaza en vez de encogerlo a 0 px. */
 .sim-profile-card {
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   border-bottom: 1px solid var(--sim-border);
-  min-height: 0;
+  min-height: 420px;
 }
 
 .sim-profile-hdr {
@@ -709,18 +712,18 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 9.5px;
+  font-size: 11px;
   color: var(--sim-muted);
   letter-spacing: 0.05em;
 }
 
-.sim-profile-legend { display: flex; align-items: center; gap: 12px; }
+.sim-profile-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
 .sim-leg {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 8px;
+  font-size: 10px;
   color: var(--sim-muted);
 }
 
@@ -733,7 +736,7 @@
 }
 
 .sim-leg-tag {
-  font-size: 8px;
+  font-size: 10px;
   padding: 1px 6px;
   border-radius: 3px;
   border: 1px solid;
@@ -743,7 +746,7 @@
 .tag-m1 { color: #f97316; border-color: rgba(249,115,22,0.3); background: rgba(249,115,22,0.07); }
 .tag-m2 { color: #60a5fa; border-color: rgba(96,165,250,0.3); background: rgba(96,165,250,0.07); }
 
-.sim-chart-wrap { flex: 1; min-height: 0; }
+.sim-chart-wrap { flex: 1; min-height: 360px; }
 
 /* ── PANEL B: HIDROGRAMA DE GASTO ───────────────────────────────── */
 .sim-qflow-card {
@@ -770,7 +773,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--sim-muted);
   letter-spacing: 0.05em;
 }
@@ -900,8 +903,8 @@
   z-index: 1;
 }
 
-.sim-track-km   { font-size: 7px; color: var(--sim-muted); margin-top: 4px; font-family: var(--sim-mono); }
-.sim-track-time { font-size: 7px; font-family: var(--sim-mono); margin-top: 1px; }
+.sim-track-km   { font-size: 10px; color: var(--sim-muted); margin-top: 4px; font-family: var(--sim-mono); }
+.sim-track-time { font-size: 10px; font-family: var(--sim-mono); margin-top: 1px; }
 
 /* ── DERECHA ────────────────────────────────────────────────────── */
 .sim-right {
@@ -2093,3 +2096,29 @@
   .sim-left { width: 232px; }
   .sim-right { width: 250px; min-width: 250px; }
 }
+
+/* ── PROPORCIONES (2026-10-05) ──────────────────────────────────────
+   1) Fuera de teléfono, el simulador ocupa todo el alto útil: se quita el padding del
+      contenedor padre (.main-content), que sumado a 100dvh forzaba un scroll doble.
+   2) Barras superiores compactas para que el perfil (gráfico principal) conserve altura. */
+html:not([data-device="phone"]) .main-content:has(> .sim-root),
+html:not([data-device="phone"]) .main-content:has(.sim-root) {
+  padding: 0;
+  max-width: none;
+  overflow: hidden;
+}
+
+.sim-kpi-label { font-size: 9px; }
+.sim-kpi { min-width: 68px; }
+.sim-kpi-row { gap: 10px 16px; }
+.sim-ctrl-bar { gap: 10px 16px; min-height: 0; }
+.sim-ctrl-label { font-size: 9px; }
+.sim-ds-pill { font-size: 10px; }
+
+/* Hora de inicio: una sola línea en vez de un bloque de 3 filas. */
+.sim-start-time-row { flex-direction: row; align-items: center; gap: 8px; padding: 4px 8px; }
+.sim-start-time-label { font-size: 10px; white-space: nowrap; }
+.sim-start-time-input { flex: 0 0 96px; font-size: 12px; padding: 3px 6px; }
+.sim-start-time-reset { font-size: 10px; }
+
+.sim-cp-age { font-size: 10px; margin-top: 1px; letter-spacing: 0.02em; }

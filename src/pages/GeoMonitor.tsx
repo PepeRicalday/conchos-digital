@@ -630,12 +630,13 @@ const GeoMonitor = () => {
             ''
         );
     });
-    const [sentinelLayer, setSentinelLayer] = useState<'1_TRUE_COLOR' | '3_NDVI' | '7_NDWI' | '9_NDVI_AGRO'>(() => {
+    type SentinelLayerId = '1_TRUE_COLOR' | '3_NDVI' | '7_NDWI' | '9_NDVI_AGRO' | '9_NDWI_AGRO';
+    const [sentinelLayer, setSentinelLayer] = useState<SentinelLayerId>(() => {
         const saved = localStorage.getItem('geo_sentinel_layer');
-        const validas = ['1_TRUE_COLOR', '3_NDVI', '7_NDWI', '9_NDVI_AGRO'];
+        const validas = ['1_TRUE_COLOR', '3_NDVI', '7_NDWI', '9_NDVI_AGRO', '9_NDWI_AGRO'];
         // Guarda contra nombres de capa de una versión anterior (p. ej. 'NDVI'
         // sin prefijo numérico) que ya no existen en la configuration WMS real.
-        return (validas.includes(saved ?? '') ? saved : '3_NDVI') as '1_TRUE_COLOR' | '3_NDVI' | '7_NDWI' | '9_NDVI_AGRO';
+        return (validas.includes(saved ?? '') ? saved : '3_NDVI') as SentinelLayerId;
     });
     // 'reciente' = último día disponible aunque tenga nubes; 'legible' = la
     // imagen más clara de los últimos 30 días (comportamiento previo por defecto).
@@ -759,6 +760,9 @@ const GeoMonitor = () => {
             format: 'image/png',
             transparent: true,
             version: '1.3.0',
+            // Suprime el watermark "Copernicus" quemado en el tile por defecto
+            // en CDSE (plan gratuito) — mismo fix que NdviModulosPanel.tsx.
+            showlogo: false,
             time: `${new Date(Date.now() - diasVentana * 86400000).toISOString().slice(0, 10)}/${new Date().toISOString().slice(0, 10)}`,
         };
         // 'reciente' no filtra por nubosidad: prioriza que sea de hoy/ayer aunque
@@ -1846,16 +1850,21 @@ const GeoMonitor = () => {
                                 {baseLayer === 'sentinel' && (
                                     <>
                                         <span className="geo-baselayer-sublayers geo-baselayer-sublayers-wrap">
-                                            {(['1_TRUE_COLOR', '3_NDVI', '9_NDVI_AGRO', '7_NDWI'] as const).map(l => (
+                                            {(['1_TRUE_COLOR', '3_NDVI', '9_NDVI_AGRO', '7_NDWI', '9_NDWI_AGRO'] as const).map(l => (
                                                 <span
                                                     key={l}
                                                     className={clsx('geo-baselayer-chip', sentinelLayer === l && 'active')}
                                                     role="button"
                                                     tabIndex={0}
                                                     onClick={(e) => { e.stopPropagation(); setSentinelLayer(l); }}
-                                                    title={l === '9_NDVI_AGRO' ? 'NDVI de alto contraste por bandas — mejor para distinguir zonas con y sin vegetación' : undefined}
+                                                    title={
+                                                        l === '9_NDVI_AGRO' ? 'NDVI de alto contraste por bandas — mejor para distinguir zonas con y sin vegetación'
+                                                        : l === '7_NDWI' ? 'NDWI con la paleta por defecto del proveedor — en canales angostos se ve casi todo oscuro/vacío (poco contraste fuera del agua)'
+                                                        : l === '9_NDWI_AGRO' ? 'NDWI de alto contraste — agua en azul intenso, tierra en tonos oscuros discretos. Requiere que la capa custom "9_NDWI_AGRO" ya esté configurada en el dashboard de Sentinel Hub (ver docs/evalscript_ndwi_agro.js); si no existe, este chip mostrará el mapa vacío igual que el NDWI nativo.'
+                                                        : undefined
+                                                    }
                                                 >
-                                                    {l === '1_TRUE_COLOR' ? 'Color real' : l === '3_NDVI' ? 'NDVI' : l === '9_NDVI_AGRO' ? 'NDVI agro' : 'Humedad (NDWI)'}
+                                                    {l === '1_TRUE_COLOR' ? 'Color real' : l === '3_NDVI' ? 'NDVI' : l === '9_NDVI_AGRO' ? 'NDVI agro' : l === '7_NDWI' ? 'Humedad (NDWI)' : 'Humedad agro (NDWI)'}
                                                 </span>
                                             ))}
                                         </span>

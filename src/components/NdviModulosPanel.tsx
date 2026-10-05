@@ -61,6 +61,10 @@ const MiniMapaNdviAgro: React.FC<{ numeroModulo: number; instanceId: string }> =
         transparent: true,
         version: '1.3.0',
         maxcc: 40,
+        // El watermark "Copernicus" viene quemado en el tile por defecto en
+        // CDSE (plan gratuito) — showlogo=false lo suprime vía parámetro WMS
+        // estándar de Sentinel Hub, sin tocar la instancia ni el proveedor.
+        showlogo: false,
         time: `${new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)}/${new Date().toISOString().slice(0, 10)}`,
     }), []);
     return (

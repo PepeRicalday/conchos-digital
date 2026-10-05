@@ -187,6 +187,9 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
         transparent: true,
         version: '1.3.0',
         maxcc: 40,
+        // Suprime el watermark "Copernicus" quemado en el tile por defecto
+        // en CDSE (plan gratuito) — mismo fix que NdviModulosPanel.tsx/GeoMonitor.tsx.
+        showlogo: false,
         time: `${new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)}/${new Date().toISOString().slice(0, 10)}`,
     }), []);
 

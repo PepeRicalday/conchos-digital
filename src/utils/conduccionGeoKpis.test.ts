@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { conduccionTramo, etiquetaEficiencia } from './conduccion';
 import {
-    STALE_MIN_ESCALA, esFrescaEscala, estadoCompuertas, extraccionPresa, presaBaja, valorGrafica, kmTexto, ordenarPorKm, escalaEnKm, minutosDesde,
+    STALE_MIN_ESCALA, esFrescaEscala, estadoCompuertas, extraccionPresa, presaBaja, valorGrafica, kmTexto, ordenarPorKm, escalaEnKm, minutosDesde, escapaHtml,
 } from './geoKpis';
 
 const ok = (gasto: number) => ({ gasto, fresca: true });
@@ -108,5 +108,17 @@ describe('geoKpis — S/D nunca cero', () => {
         expect(escalaEnKm(e, 0)?.n).toBe('K0');
         expect(escalaEnKm(e, 104)?.n).toBe('K104');
         expect(escalaEnKm(e, 50)).toBeUndefined();
+    });
+});
+
+describe('escapaHtml — popups de Leaflet', () => {
+    it('neutraliza etiquetas y comillas', () => {
+        expect(escapaHtml('<img src=x onerror="alert(1)">')).toBe('&lt;img src=x onerror=&quot;alert(1)&quot;&gt;');
+        expect(escapaHtml("O'Brien & Co")).toBe('O&#39;Brien &amp; Co');
+    });
+    it('null/undefined → cadena vacía; números se conservan', () => {
+        expect(escapaHtml(null)).toBe('');
+        expect(escapaHtml(undefined)).toBe('');
+        expect(escapaHtml(12.5)).toBe('12.5');
     });
 });

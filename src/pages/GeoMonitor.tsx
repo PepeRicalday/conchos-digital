@@ -1,6 +1,8 @@
 import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain, Satellite, PanelRight, CalendarRange, Box } from 'lucide-react';
+import { conduccionTramo } from '../utils/conduccion';
+import { extraccionPresa, presaBaja, valorGrafica, escapaHtml as esc } from '../utils/geoKpis';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline, useMapEvents, useMap, ZoomControl, ScaleControl, AttributionControl } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
 import 'leaflet/dist/leaflet.css';
@@ -37,7 +39,7 @@ L.Icon.Default.mergeOptions({
 // Removed unused createIcon function
 
 const BASE_LAYER_LABEL: Record<'standard' | 'satellite' | 'eos' | 'sentinel', string> = {
-    standard: 'Mapa Estándar',
+    standard: 'Mapa Oscuro',
     satellite: 'Satélite ArcGIS',
     eos: 'EOS LandViewer',
     sentinel: 'Sentinel Hub',
@@ -210,7 +212,7 @@ interface EscalaData {
     capacidad_max: number; seccion_id: string;
     ancho: number; alto: number; pzas_radiales: number;
     nivel_actual?: number; delta_12h?: number; estado?: string;
-    apertura_radiales_m?: number;
+    apertura_radiales_m?: number | null;
     // Fuente única de gasto (mismo criterio que PublicMonitor.tsx): gasto_actual
     // viene de lecturas_escalas (curva nivel-gasto capturada en campo, o
     // calcRadialFlow con aperturas reales), NUNCA de una fórmula Cd·H^n
@@ -222,8 +224,9 @@ interface EscalaData {
 }
 interface PresaData {
     presa_id: string; nombre: string; latitud: number; longitud: number;
-    almacenamiento_mm3: number; porcentaje_llenado: number;
-    extraccion_total_m3s: number; fecha: string;
+    // null = sin dato (S/D). Nunca se sustituye por 0: un 0 % falso dispararía alertas de presa baja.
+    almacenamiento_mm3: number | null; porcentaje_llenado: number | null;
+    extraccion_total_m3s: number | null; extraccion_fuente?: 'MEDIDO' | 'SOLICITADO' | null; fecha: string;
     // Fase 1: nivel real del vaso (msnm) y metadatos de capacidad — antes
     // GeoMonitor los hardcodeaba por presa_id en vez de leerlos de la BD.
     escala_msnm: number | null;
@@ -352,7 +355,7 @@ const GeoMonitor = () => {
                     .limit(1)
                     .maybeSingle();
                 if (data) {
-                    setMaxKmLlenado(data.km || 0);
+                    setMaxKmLlenado(data.km ?? 0);
                     // Anchor Logic: Save confirmation time for prediction
                     const { data: latestConfirm } = await supabase
                         .from('sica_llenado_seguimiento')
@@ -942,7 +945,7 @@ const GeoMonitor = () => {
     // Granularidad real disponible: lecturas_escalas/lecturas_presas traen una
     // lectura por día (no series intradía), y reportes_diarios es una vista por
     // día — así que el historial es "últimos N días", no "24 horas".
-    const [historySeries, setHistorySeries] = useState<{ labels: string[]; values: number[]; unit: string; seriesName: string } | null>(null);
+    const [historySeries, setHistorySeries] = useState<{ labels: string[]; values: (number | null)[]; unit: string; seriesName: string } | null>(null);
     const [historyLoading, setHistoryLoading] = useState(false);
 
     useEffect(() => {
@@ -963,7 +966,7 @@ const GeoMonitor = () => {
                     if (cancelado) return;
                     setHistorySeries({
                         labels: (data || []).map(d => formatDate(new Date(d.fecha + 'T00:00:00'), { day: '2-digit', month: 'short' })),
-                        values: (data || []).map(d => parseFloat(String(d.nivel_m ?? 0))),
+                        values: (data || []).map(d => valorGrafica(d.nivel_m)),
                         unit: 'm', seriesName: 'Nivel (m)',
                     });
                 } else if (selectedPoint.type === 'presa') {
@@ -976,7 +979,7 @@ const GeoMonitor = () => {
                     if (cancelado) return;
                     setHistorySeries({
                         labels: (data || []).map(d => formatDate(new Date(d.fecha + 'T00:00:00'), { day: '2-digit', month: 'short' })),
-                        values: (data || []).map(d => parseFloat(String(d.porcentaje_llenado ?? 0))),
+                        values: (data || []).map(d => valorGrafica(d.porcentaje_llenado)),
                         unit: '%', seriesName: 'Llenado (%)',
                     });
                 } else {
@@ -990,7 +993,7 @@ const GeoMonitor = () => {
                     if (cancelado) return;
                     setHistorySeries({
                         labels: (data || []).map(d => formatDate(new Date((d.fecha ?? '') + 'T00:00:00'), { day: '2-digit', month: 'short' })),
-                        values: (data || []).map(d => parseFloat(String(d.caudal_promedio_m3s ?? 0))),
+                        values: (data || []).map(d => valorGrafica(d.caudal_promedio_m3s)),
                         unit: 'm³/s', seriesName: 'Caudal (m³/s)',
                     });
                 }
@@ -1049,12 +1052,13 @@ const GeoMonitor = () => {
                 }
             });
 
-            const apMap = new Map<string, number>();
+            const apMap = new Map<string, number | null>();
             lecData?.forEach(l => {
                 if (!apMap.has(l.escala_id)) {
                     const lTime = new Date(`${l.fecha}T${l.hora_lectura}`);
                     const aTime = activeEvent?.hora_apertura_real ? new Date(activeEvent.hora_apertura_real) : new Date(0);
-                    if (lTime >= aTime) apMap.set(l.escala_id, parseFloat(l.apertura_radiales_m || 0));
+                    // Apertura nula = sin dato (S/D), no "compuertas cerradas": solo un 0 medido significa cerrado.
+                    if (lTime >= aTime) apMap.set(l.escala_id, l.apertura_radiales_m != null ? parseFloat(l.apertura_radiales_m) : null);
                 }
             });
 
@@ -1085,7 +1089,7 @@ const GeoMonitor = () => {
                 fecha_lectura: resMap.get(e.id)?.fecha || null,
                 gasto_actual: gastoMap.get(e.id)?.gasto ?? null,
                 ultima_telemetria: gastoMap.get(e.id)?.telemetria ?? null,
-                apertura_radiales_m: apMap.get(e.id) || 0,
+                apertura_radiales_m: apMap.get(e.id) ?? null,
             })));
 
             // 2. Process Presas
@@ -1098,14 +1102,17 @@ const GeoMonitor = () => {
             (lpData || []).forEach((lp: any) => {
                 const meta = metaStore.presas.find(p => p.id === lp.presa_id);
                 if (!pMap.has(lp.presa_id) && meta?.latitud) {
-                    let extraccion = extUltima.get(lp.presa_id) ?? 0;
-                    if (lp.presa_id === 'PRE-001' && activeEvent?.evento_tipo === 'LLENADO' && extraccion === 0) extraccion = activeEvent.gasto_solicitado_m3s || 30;
+                    // Lo medido prevalece; el gasto solicitado del evento de llenado se rotula como SOLICITADO; sin ninguno,
+                    // S/D (antes se inventaban 30 m³/s).
+                    const solicitado = lp.presa_id === 'PRE-001' && activeEvent?.evento_tipo === 'LLENADO'
+                        ? (activeEvent.gasto_solicitado_m3s ?? null) : null;
+                    const ext = extraccionPresa(extUltima.get(lp.presa_id) ?? null, solicitado);
                     pMap.set(lp.presa_id, {
                         presa_id: lp.presa_id, nombre: meta.nombre,
                         latitud: meta.latitud ?? 0, longitud: meta.longitud ?? 0,
-                        almacenamiento_mm3: Number(lp.almacenamiento_mm3 || 0),
-                        porcentaje_llenado: Number(lp.porcentaje_llenado || 0),
-                        extraccion_total_m3s: extraccion, fecha: lp.fecha,
+                        almacenamiento_mm3: lp.almacenamiento_mm3 != null ? Number(lp.almacenamiento_mm3) : null,
+                        porcentaje_llenado: lp.porcentaje_llenado != null ? Number(lp.porcentaje_llenado) : null,
+                        extraccion_total_m3s: ext.valorM3s, extraccion_fuente: ext.fuente, fecha: lp.fecha,
                         escala_msnm: lp.escala_msnm !== null && lp.escala_msnm !== undefined ? Number(lp.escala_msnm) : null,
                         capacidad_max: meta.capacidad_max ?? null,
                         elevacion_corona_msnm: meta.elevacion_corona_msnm ?? null,
@@ -1230,11 +1237,18 @@ const GeoMonitor = () => {
         // resumen_escalas_diario y reportes_diarios son VISTAS (no suscribibles
         // directo en Supabase Realtime) — quedan cubiertas indirectamente porque
         // se derivan de lecturas_escalas y reportes_operacion, ambas escuchadas aquí.
-        const unsubEscalas = onTable('lecturas_escalas', '*', fetchAllData);
-        const unsubPresas = onTable('lecturas_presas', '*', fetchAllData);
-        const unsubAforos = onTable('aforos', '*', fetchAllData);
-        const unsubReportes = onTable('reportes_operacion', '*', fetchAllData);
-        const unsubModulos = onTable('modulos', '*', fetchAllData);
+        // Antes cada evento disparaba fetchAllData (8 consultas) sin agrupar: una captura masiva de lecturas
+        // provocaba decenas de recargas completas. Ahora una ráfaga se funde en UNA recarga (ventana de 1.5 s).
+        let pendiente: number | undefined;
+        const programaRecarga = () => {
+            window.clearTimeout(pendiente);
+            pendiente = window.setTimeout(() => { void fetchAllData(); }, 1500);
+        };
+        const unsubEscalas = onTable('lecturas_escalas', '*', programaRecarga);
+        const unsubPresas = onTable('lecturas_presas', '*', programaRecarga);
+        const unsubAforos = onTable('aforos', '*', programaRecarga);
+        const unsubReportes = onTable('reportes_operacion', '*', programaRecarga);
+        const unsubModulos = onTable('modulos', '*', programaRecarga);
 
         // Fallback polling cada 5 min (cubre reconexiones, gaps de Realtime y las
         // dos vistas — vw_alertas_tomas_varadas y resumen_escalas_diario/reportes_diarios
@@ -1242,6 +1256,7 @@ const GeoMonitor = () => {
         const refreshInterval = setInterval(fetchAllData, 300_000);
 
         return () => {
+            window.clearTimeout(pendiente);
             clearInterval(refreshInterval);
             unsubEscalas();
             unsubPresas();
@@ -1368,16 +1383,17 @@ const GeoMonitor = () => {
     // eficienciaReal se mantiene en 0 (no null) cuando el tramo no está completo
     // porque alimenta el gauge "Salud Operacional Global", que necesita un
     // número siempre — el S/D real se comunica vía eficienciaTxt/tramoCompleto.
-    let eficienciaTxt: string | null = null;
-    let perdidaPct: string | null = null;
-    const tramoCompleto = entradaFresca && salidaFresca && (gastoEntrada ?? 0) > 0;
-    const eficienciaReal = tramoCompleto
-        ? Math.min(100, Math.max(0, (((gastoEntrada ?? 0) - (gastoSalida ?? 0)) / (gastoEntrada ?? 1)) * 100))
-        : 0;
-    if (tramoCompleto) {
-        eficienciaTxt = eficienciaReal.toFixed(1);
-        perdidaPct = (100 - eficienciaReal).toFixed(1);
-    }
+    // Fuente única (utils/conduccion.ts): eficiencia = Qs/Qe×100 y pérdida = 100 − eficiencia, igual que Monitor Público.
+    // Antes esta pantalla calculaba (Qe−Qs)/Qe —que es la PÉRDIDA— y la rotulaba "eficiencia": las dos tarjetas salían
+    // intercambiadas. Sin tramo completo y fresco todo queda null (S/D), nunca 0 %.
+    const conduccion = conduccionTramo(
+        { gasto: gastoEntrada, fresca: entradaFresca },
+        { gasto: gastoSalida, fresca: salidaFresca },
+    );
+    const tramoCompleto = conduccion.completo;
+    const eficienciaReal: number | null = conduccion.eficienciaPct;
+    const eficienciaTxt: string | null = eficienciaReal != null ? eficienciaReal.toFixed(1) : null;
+    const perdidaPct: string | null = conduccion.perdidaPct != null ? conduccion.perdidaPct.toFixed(1) : null;
 
     const chartGaugeOptions = {
         series: [{
@@ -1412,7 +1428,7 @@ const GeoMonitor = () => {
             axisLabel: { distance: 18, color: '#526079', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' },
             detail: {
                 valueAnimation: true,
-                formatter: '{value}%',
+                formatter: (v: number | null) => (v == null || Number.isNaN(v) ? 'S/D' : `${v}%`),
                 color: '#f4f8fc',
                 fontSize: 28,
                 fontWeight: 800,
@@ -1420,7 +1436,7 @@ const GeoMonitor = () => {
                 fontFamily: 'JetBrains Mono, monospace'
             },
             data: [{
-                value: parseFloat(eficienciaReal.toFixed(1)),
+                value: eficienciaReal != null ? parseFloat(eficienciaReal.toFixed(1)) : null,
                 name: 'Salud Operacional'
             }],
             title: {
@@ -1546,7 +1562,7 @@ const GeoMonitor = () => {
         tooltip: {
             trigger: 'axis', backgroundColor: 'rgba(12, 23, 41, 0.95)', borderColor: '#1c2b42',
             textStyle: { color: '#f4f8fc', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' },
-            valueFormatter: (v: number) => `${v} ${historySeries?.unit ?? ''}`,
+            valueFormatter: (v: number | null) => (v == null ? "S/D" : `${v} ${historySeries?.unit ?? ""}`),
         },
         grid: { left: 40, right: 20, top: 40, bottom: 30 },
         xAxis: { type: 'category', data: historySeries?.labels ?? [], axisLabel: { color: '#7c8ba3', fontSize: 10, fontWeight: 'bold' } },
@@ -1569,7 +1585,7 @@ const GeoMonitor = () => {
             location: tv.punto_nombre, status: 'status-critical',
             point: { type: 'toma' as const, id: tv.punto_id }
         })),
-        ...presas.filter(p => p.porcentaje_llenado < 40).map(p => ({
+        ...presas.filter(p => presaBaja(p.porcentaje_llenado)).map(p => ({
             time: p.fecha, type: 'ALMACENAMIENTO',
             title: `${p.nombre} al ${(p.porcentaje_llenado ?? 0).toFixed(1)}%`,
             location: 'Red Mayor', status: 'status-warning',
@@ -1761,7 +1777,7 @@ const GeoMonitor = () => {
                                 className={clsx('geo-baselayer-option', baseLayer === 'standard' && 'active')}
                                 onClick={() => { setBaseLayer('standard'); setBaseLayerMenuOpen(false); }}
                             >
-                                <MapIcon size={16} /> Mapa Estándar
+                                <MapIcon size={16} /> Mapa Oscuro
                             </button>
                             <button
                                 className={clsx('geo-baselayer-option', baseLayer === 'satellite' && 'active')}
@@ -2112,18 +2128,24 @@ const GeoMonitor = () => {
                                 className="geo-map-leaflet"
                                 zoomControl={false} attributionControl={false}
                             >
+                                <ZoomControl position="bottomright" />
+                                <ScaleControl position="bottomleft" imperial={false} />
+                                <AttributionControl position="bottomright" prefix={false} />
                                 <MapViewportWatcher onChange={(zoom, bounds) => { setMapZoom(zoom); setMapBounds(bounds); }} />
                                 <MapFullscreenInvalidator isFullscreen={isFullscreen} />
                                 {baseLayer === 'satellite' && (
                                     <TileLayer
                                         url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                                         maxZoom={19}
+                                        attribution="Tiles &copy; Esri &mdash; Maxar, Earthstar Geographics"
                                     />
                                 )}
                                 {baseLayer === 'standard' && (
                                     <TileLayer
-                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                                        subdomains="abcd"
                                         maxZoom={19}
+                                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
                                     />
                                 )}
                                 {baseLayer === 'eos' && eosUrl && (
@@ -2225,10 +2247,10 @@ const GeoMonitor = () => {
                                                 const btnId = `ndvi-btn-mod-${p.numero_modulo}`;
                                                 layer.bindPopup(`
                                                     <div style="font-family:var(--geo-font-sans);min-width:180px">
-                                                        <strong style="font-size:14px;font-weight:800;color:${p.color}">${p.nombre}</strong>
-                                                        <div style="font-size:11px;color:#cbd5e1;margin:4px 0;text-transform:uppercase;letter-spacing:0.05em">Módulo ${p.numero_modulo}</div>
-                                                        <div style="font-size:12px;font-family:var(--geo-font-mono)">Superficie: <b style="color:#fff">${p.superficie_ha?.toLocaleString()} ha</b></div>
-                                                        <button id="${btnId}" style="margin-top:8px;width:100%;padding:6px 8px;border-radius:6px;border:1px solid rgba(34,211,238,0.4);background:rgba(34,211,238,0.12);color:#22d3ee;font-size:11px;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:0.04em">
+                                                        <strong style="font-size:14px;font-weight:800;color:${esc(p.color)}">${esc(p.nombre)}</strong>
+                                                        <div style="font-size:11px;color:#cbd5e1;margin:4px 0;text-transform:uppercase;letter-spacing:0.05em">Módulo ${esc(p.numero_modulo)}</div>
+                                                        <div style="font-size:12px;font-family:var(--geo-font-mono)">Superficie: <b style="color:#fff">${esc(p.superficie_ha?.toLocaleString())} ha</b></div>
+                                                        <button id="${esc(btnId)}" style="margin-top:8px;width:100%;padding:6px 8px;border-radius:6px;border:1px solid rgba(34,211,238,0.4);background:rgba(34,211,238,0.12);color:#22d3ee;font-size:11px;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:0.04em">
                                                             Consultar NDVI del área
                                                         </button>
                                                     </div>
@@ -2274,9 +2296,9 @@ const GeoMonitor = () => {
                                                 const esAproximado = p.fuente !== 'ndwi_estimado';
                                                 layer.bindPopup(`
                                                     <div style="font-family:var(--geo-font-sans);min-width:180px">
-                                                        <strong style="font-size:14px;font-weight:800;color:${p.color}">${p.nombre}</strong>
-                                                        <div style="font-size:12px;margin-top:4px;color:#94a3b8">Capacidad: <b style="color:#fff;font-family:var(--geo-font-mono)">${p.capacidad_mm3} Mm³</b></div>
-                                                        ${p.area_km2 ? `<div style="font-size:12px;color:#94a3b8">Espejo de agua estimado: <b style="color:#fff;font-family:var(--geo-font-mono)">${p.area_km2} km²</b></div>` : ''}
+                                                        <strong style="font-size:14px;font-weight:800;color:${esc(p.color)}">${esc(p.nombre)}</strong>
+                                                        <div style="font-size:12px;margin-top:4px;color:#94a3b8">Capacidad: <b style="color:#fff;font-family:var(--geo-font-mono)">${esc(p.capacidad_mm3)} Mm³</b></div>
+                                                        ${p.area_km2 ? `<div style="font-size:12px;color:#94a3b8">Espejo de agua estimado: <b style="color:#fff;font-family:var(--geo-font-mono)">${esc(p.area_km2)} km²</b></div>` : ''}
                                                         <div style="font-size:10px;margin-top:6px;color:${esAproximado ? '#fbbf24' : '#4ade80'};text-transform:uppercase;letter-spacing:0.04em">
                                                             ${esAproximado ? '⚠ Contorno aproximado (radio fijo)' : '✓ Contorno estimado por NDWI'}
                                                         </div>
@@ -2309,17 +2331,17 @@ const GeoMonitor = () => {
                                                 const p = feature.properties;
                                                 if (!p) return;
                                                 const productorHtml = isGerente
-                                                    ? `<div style="font-size:12px;color:#cbd5e1;margin-top:2px">${p.productor || 'Sin productor registrado'}</div>`
+                                                    ? `<div style="font-size:12px;color:#cbd5e1;margin-top:2px">${esc(p.productor || 'Sin productor registrado')}</div>`
                                                     : '';
                                                 layer.bindPopup(`
                                                     <div style="font-family:var(--geo-font-sans);min-width:190px">
-                                                        <strong style="font-size:13px;font-weight:800;color:#f5a623">Lote ${p.idparcela ?? ''} — Módulo ${p.modulo}</strong>
+                                                        <strong style="font-size:13px;font-weight:800;color:#f5a623">Lote ${esc(p.idparcela)} — Módulo ${esc(p.modulo)}</strong>
                                                         ${productorHtml}
                                                         <div style="font-size:11px;color:#94a3b8;margin-top:6px;text-transform:uppercase;letter-spacing:0.04em">Cultivo</div>
-                                                        <div style="font-size:12px;color:#fff">${p.cultivo || 'Sin registrar'}</div>
+                                                        <div style="font-size:12px;color:#fff">${esc(p.cultivo || 'Sin registrar')}</div>
                                                         <div style="font-size:11px;font-family:var(--geo-font-mono);margin-top:6px">
-                                                            Superficie física: <b style="color:#fff">${p.superficie_fisica_ha ?? '—'} ha</b><br/>
-                                                            Superficie de riego: <b style="color:#fff">${p.superficie_riego_ha ?? '—'} ha</b>
+                                                            Superficie física: <b style="color:#fff">${esc(p.superficie_fisica_ha ?? '—')} ha</b><br/>
+                                                            Superficie de riego: <b style="color:#fff">${esc(p.superficie_riego_ha ?? '—')} ha</b>
                                                         </div>
                                                     </div>
                                                 `);
@@ -2377,7 +2399,7 @@ const GeoMonitor = () => {
                                         onEachFeature={(feature, layer) => {
                                             if (feature.properties) {
                                                 const html = Object.entries(feature.properties)
-                                                    .map(([k, v]) => `<div style="font-size:10px"><b>${k}:</b> ${v}</div>`)
+                                                    .map(([k, v]) => `<div style="font-size:11px"><b>${esc(k)}:</b> ${esc(v)}</div>`)
                                                     .join('');
                                                 layer.bindPopup(`<div style="font-family:monospace;max-width:250px">${html}</div>`);
                                             }
@@ -2467,7 +2489,7 @@ const GeoMonitor = () => {
                                                 {layers.mostrarAperturas && esc.pzas_radiales > 0 && (
                                                     <div className="geo-apertura-badge">
                                                         <span className="text-[9px] text-slate-400">Apertura Compuertas:</span><br />
-                                                        <b className="text-white text-[13px]">{(esc.apertura_radiales_m || 0) > 0 ? `${(esc.apertura_radiales_m || 0).toFixed(2)} m` : 'CERRADAS'}</b>
+                                                        <b className="text-white text-[13px]">{esc.apertura_radiales_m == null ? 'S/D' : esc.apertura_radiales_m > 0 ? `${esc.apertura_radiales_m.toFixed(2)} m` : 'CERRADAS'}</b>
                                                         <div className="text-[8px] text-slate-500">{esc.pzas_radiales} radiales ({esc.ancho}×{esc.alto}m)</div>
                                                     </div>
                                                 )}
@@ -2504,7 +2526,7 @@ const GeoMonitor = () => {
                                     <Marker key={p.presa_id} position={[p.latitud, p.longitud]} icon={presaIcon}>
                                         <Tooltip direction="top" offset={[0, -16]} permanent>
                                             <span className="font-mono text-[10px] font-bold">
-                                                {(p.porcentaje_llenado ?? 0).toFixed(0)}%
+                                                {p.porcentaje_llenado != null ? `${p.porcentaje_llenado.toFixed(0)}%` : 'S/D'}
                                             </span>
                                         </Tooltip>
                                         <Popup>
@@ -2512,19 +2534,19 @@ const GeoMonitor = () => {
                                                 <strong className="text-[13px] geo-icon-blue">{p.nombre}</strong>
                                                 <div className="text-[10px] text-slate-400 mb-1.5">Última lectura: {p.fecha}</div>
                                                 <div className="geo-presa-stat-box">
-                                                    <div className="text-[11px]">Almacenamiento: <b>{(p.almacenamiento_mm3 ?? 0).toFixed(1)} Mm³</b></div>
+                                                    <div className="text-[11px]">Almacenamiento: <b>{p.almacenamiento_mm3 != null ? `${p.almacenamiento_mm3.toFixed(1)} Mm³` : 'S/D'}</b></div>
                                                     <div className="geo-progress-bg">
                                                         <div 
                                                             className="geo-progress-bar"
                                                             style={{
-                                                                width: `${Math.min(p.porcentaje_llenado, 100)}%`,
-                                                                background: p.porcentaje_llenado > 70 ? '#3b82f6' : p.porcentaje_llenado > 40 ? '#f59e0b' : '#ef4444',
+                                                                width: `${Math.min(p.porcentaje_llenado ?? 0, 100)}%`,
+                                                                background: p.porcentaje_llenado == null ? '#475569' : p.porcentaje_llenado > 70 ? '#3b82f6' : p.porcentaje_llenado > 40 ? '#f59e0b' : '#ef4444',
                                                             }}
                                                         />
                                                     </div>
-                                                    <div className="text-[11px] mt-1">Llenado: <b>{(p.porcentaje_llenado ?? 0).toFixed(1)}%</b></div>
+                                                    <div className="text-[11px] mt-1">Llenado: <b>{p.porcentaje_llenado != null ? `${p.porcentaje_llenado.toFixed(1)}%` : 'S/D'}</b></div>
                                                 </div>
-                                                <div className="text-[11px]">Extracción: <b>{p.extraccion_total_m3s} m³/s</b></div>
+                                                <div className="text-[11px]">Extracción: <b>{p.extraccion_total_m3s != null ? `${p.extraccion_total_m3s} m³/s${p.extraccion_fuente === 'SOLICITADO' ? ' (solicitado)' : ''}` : 'S/D'}</b></div>
                                             </div>
                                         </Popup>
                                     </Marker>
@@ -2674,7 +2696,7 @@ const GeoMonitor = () => {
                                                     {/* Representación Gráfica de Compuertas Radiales */}
                                                     <div className="geo-gate-row">
                                                         {Array.from({ length: selectedPoint.data.pzas_radiales }).map((_, i) => {
-                                                            const apertura = parseFloat(selectedPoint.data.apertura_radiales_m || 0);
+                                                            const apertura = selectedPoint.data.apertura_radiales_m != null ? parseFloat(selectedPoint.data.apertura_radiales_m) : 0; // S/D se dibuja sin flujo (ver rótulo)
                                                             const altoMax = parseFloat(selectedPoint.data.alto || 3);
                                                             const fillPct = Math.min(100, Math.max(0, (apertura / altoMax) * 100));
 
@@ -2706,7 +2728,7 @@ const GeoMonitor = () => {
                                                         <div className="geo-gate-stat">
                                                             <span className="geo-gate-stat-label">Apertura Prom.</span>
                                                             <div className="geo-gate-stat-value">
-                                                                <span className="num cyan">{selectedPoint.data.apertura_radiales_m || '0.00'}</span>
+                                                                <span className="num cyan">{selectedPoint.data.apertura_radiales_m != null ? selectedPoint.data.apertura_radiales_m : 'S/D'}</span>
                                                                 <span className="unit">m</span>
                                                             </div>
                                                         </div>
@@ -2748,11 +2770,11 @@ const GeoMonitor = () => {
                                         <>
                                             <div className="detail-stat">
                                                 <label>Llenado</label>
-                                                <strong>{(selectedPoint.data.porcentaje_llenado ?? 0).toFixed(1)} <small>%</small></strong>
+                                                <strong>{selectedPoint.data.porcentaje_llenado != null ? selectedPoint.data.porcentaje_llenado.toFixed(1) : 'S/D'} <small>%</small></strong>
                                             </div>
                                             <div className="detail-stat">
                                                 <label>Extracción</label>
-                                                <strong>{(selectedPoint.data.extraccion_total_m3s ?? 0).toFixed(2)} <small>m³/s</small></strong>
+                                                <strong>{selectedPoint.data.extraccion_total_m3s != null ? selectedPoint.data.extraccion_total_m3s.toFixed(2) : 'S/D'} <small>m³/s</small>{selectedPoint.data.extraccion_fuente === 'SOLICITADO' && <small> (solicitado)</small>}</strong>
                                             </div>
                                         </>
                                     )}
@@ -2881,7 +2903,7 @@ const GeoMonitor = () => {
                                 <span className="geo-stat-title">Salud operacional global</span>
                                 <p className="geo-stat-caption">Eficiencia hidráulica del sistema</p>
                             </div>
-                            <Activity size={14} className="geo-stat-icon" style={{ color: eficienciaReal >= 90 ? '#34d399' : '#f5a623' }} />
+                            <Activity size={14} className="geo-stat-icon" style={{ color: eficienciaReal != null && eficienciaReal >= 90 ? '#34d399' : '#f5a623' }} />
                         </div>
                         <div className="geo-chart-wrapper" style={{ marginTop: '-15px' }}>
                             <ReactECharts option={chartGaugeOptions} style={{ height: '180px', width: '100%' }} opts={{ renderer: 'svg' }} />

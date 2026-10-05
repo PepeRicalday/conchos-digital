@@ -5,10 +5,11 @@ import { entregadoDelDia } from '../utils/balanceModulo';
 import { numeroModuloDeId } from '../utils/modulosSRL';
 
 /** Refresca cada `ms` solo con la pestaña visible; al volver a verse recarga de inmediato. */
-function usePolling(cargar: () => void, ms: number) {
+/** `cargar` DEBE ser estable (useCallback): una función nueva en cada render reiniciaría el efecto en bucle. */
+function usePolling(cargar: () => unknown, ms: number) {
     useEffect(() => {
-        cargar();
-        const tick = () => { if (document.visibilityState === 'visible') cargar(); };
+        void cargar();
+        const tick = () => { if (document.visibilityState === 'visible') void cargar(); };
         const id = window.setInterval(tick, ms);
         document.addEventListener('visibilitychange', tick);
         return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', tick); };
@@ -28,7 +29,7 @@ export function useSaludRed() {
         setEstaciones(((data ?? []) as FilaSaludRed[]).map(normalizaSalud));
         setCargado(true);
     }, []);
-    usePolling(() => { void cargar(); }, 5 * 60_000);
+    usePolling(cargar, 5 * 60_000);
     return { estaciones, error, cargado, recargar: cargar };
 }
 
@@ -70,7 +71,7 @@ export function useAlertasClima() {
         })));
         setCargado(true);
     }, []);
-    usePolling(() => { void cargar(); }, 5 * 60_000);
+    usePolling(cargar, 5 * 60_000);
     return { alertas, error, cargado };
 }
 

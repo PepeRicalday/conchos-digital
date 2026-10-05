@@ -68,3 +68,14 @@ export function ordenarPorKm<T extends { km: number | null | undefined }>(items:
 export function escalaEnKm<T extends { km: number | null | undefined }>(items: T[], km: number): T | undefined {
     return items.find(i => i.km != null && i.km === km);
 }
+
+/**
+ * Escapa texto para insertarlo en HTML (popups de Leaflet se arman como cadenas). Los nombres de lotes, productores y
+ * las propiedades de capas GeoJSON importadas por el usuario NO son de confianza: sin esto un `<img onerror=…>` en un
+ * atributo se ejecutaba al abrir el popup.
+ */
+export function escapaHtml(v: unknown): string {
+    return String(v ?? '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}

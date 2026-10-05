@@ -53,9 +53,9 @@ const MODULOS_SRL = [1, 2, 3, 4, 5, 12];
  *  este proyecto (ver sentinelWmsParams en GeoMonitor.tsx). */
 const MiniMapaNdviAgro: React.FC<{ numeroModulo: number; instanceId: string }> = ({ numeroModulo, instanceId }) => {
     const bbox = bboxDeModulo(numeroModulo);
-    if (!bbox) return null;
-    const center: [number, number] = [(bbox.minLat + bbox.maxLat) / 2, (bbox.minLon + bbox.maxLon) / 2];
-    const wmsParams = useMemo(() => ({
+    // Los hooks van ANTES de cualquier return: un `return null` previo al useMemo rompe la regla de hooks
+    // cuando el módulo cambia entre uno con bbox y otro sin él.
+    const [wmsParams] = useState(() => ({
         layers: '9_NDVI_AGRO',
         format: 'image/png',
         transparent: true,
@@ -66,7 +66,9 @@ const MiniMapaNdviAgro: React.FC<{ numeroModulo: number; instanceId: string }> =
         // estándar de Sentinel Hub, sin tocar la instancia ni el proveedor.
         showlogo: false,
         time: `${new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)}/${new Date().toISOString().slice(0, 10)}`,
-    }), []);
+    }));
+    if (!bbox) return null;
+    const center: [number, number] = [(bbox.minLat + bbox.maxLat) / 2, (bbox.minLon + bbox.maxLon) / 2];
     return (
         <MapContainer
             center={center}

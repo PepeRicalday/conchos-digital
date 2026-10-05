@@ -1839,3 +1839,11 @@
 }
 
 
+
+/* ── Controles de mapa (zoom / escala / atribuciones) en el lenguaje oscuro del módulo ── */
+.geo-map-leaflet .leaflet-control-zoom { border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 10px; overflow: hidden; box-shadow: none; }
+.geo-map-leaflet .leaflet-control-zoom a { width: 44px; height: 44px; line-height: 44px; font-size: 20px; background: rgba(8, 16, 30, 0.92); color: #e8eef6; border-bottom: 1px solid rgba(148, 163, 184, 0.2); }
+.geo-map-leaflet .leaflet-control-zoom a:hover { background: rgba(56, 189, 248, 0.2); }
+.geo-map-leaflet .leaflet-control-scale-line { background: rgba(8, 16, 30, 0.8); color: #b4c2d4; border-color: #8396ad; font-size: 11px; }
+.geo-map-leaflet .leaflet-control-attribution { background: rgba(8, 16, 30, 0.75); color: #8396ad; font-size: 11px; }
+.geo-map-leaflet .leaflet-control-attribution a { color: #8fc8ee; }

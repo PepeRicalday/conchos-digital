@@ -256,7 +256,19 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
                     ))}
                     <button
                         className={rango.tipo === 'manual' || mostrarManual ? 'activa' : ''}
-                        onClick={() => setMostrarManual(m => !m)}
+                        onClick={() => setMostrarManual(m => {
+                            // Al ABRIR (no al cerrar) desde una ventana fija (7/30/90 días),
+                            // precargar el borrador manual con esa misma ventana en vez de
+                            // dejar los 30 días fijos del montaje inicial — antes, si el
+                            // usuario tenía "90 días" activo y abría "Personalizado", el
+                            // campo "Desde" volvía a mostrar hace 30 días, perdiendo el
+                            // contexto del rango que ya estaba viendo.
+                            if (!m && rango.tipo === 'ventana') {
+                                setManualDesde(haceDiasISO(rango.dias));
+                                setManualHasta(hoyISO());
+                            }
+                            return !m;
+                        })}
                     >Personalizado</button>
                     {detalle && (
                         <em className="est-det-cobertura">

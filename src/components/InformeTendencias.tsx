@@ -12,7 +12,7 @@ import { Printer, X } from 'lucide-react';
 import './CanalReport.css';
 import type { SerieEscala, SerieTramo, SeriePunto, SerieCompuerta, SerieGasto } from '../utils/tendencias';
 import { statsSerie } from '../utils/tendencias';
-import { niceTicks, fmtTick } from './TendenciasCharts';
+import { niceTicks, fmtTick, TRAMO_COLORS } from './TendenciasCharts';
 
 export interface InformeTendenciasProps {
     rangoDesde: string; rangoHasta: string;
@@ -46,6 +46,15 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
     const generateHtml = useCallback(() => {
         const enVaciado = !!vaciadoDesde && rangoHasta >= vaciadoDesde;
         const periodoMixto = enVaciado && rangoDesde < (vaciadoDesde as string);
+        // Color por TRAMO (igual que el panel): cada tramo entre escalas tiene su color; cada escala toma el del tramo que abre
+        // (K-104, el del que la cierra).
+        const colorTr = (i: number) => TRAMO_COLORS[Math.max(0, i) % TRAMO_COLORS.length];
+        const idxTramoDe = (id: string) => {
+            const i = volTramos.findIndex(tr => tr.key.startsWith(id + '_'));
+            return i >= 0 ? i : volTramos.findIndex(tr => tr.key.endsWith('_' + id));
+        };
+        const colorEsc = (id: string) => { const i = idxTramoDe(id); return i < 0 ? '#9aa3af' : colorTr(i); };
+        const sw = (c: string) => '<i class="sw" style="background:' + c + '"></i>';
         const vaciadoLbl = vaciadoDesde ? new Date(`${vaciadoDesde}T12:00:00-06:00`).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', timeZone: 'America/Chihuahua' }) : '';
         const now = new Date();
         const dateDMY = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Chihuahua' });
@@ -69,13 +78,13 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
                 ? new Date(t).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' })
                 : new Date(t).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: 'America/Chihuahua' });
             if (t1 <= t0) {
-                return '<text x="' + xS(t0).toFixed(1) + '" y="' + y + '" font-size="6.3" fill="#888" text-anchor="middle" font-family="monospace">' + lblDe(t0) + '</text>';
+                return '<text x="' + xS(t0).toFixed(1) + '" y="' + y + '" font-size="7" fill="#666" text-anchor="middle" font-family="monospace">' + lblDe(t0) + '</text>';
             }
             let out = '';
             for (let i = 0; i <= n; i++) {
                 const t = t0 + (i / n) * (t1 - t0);
                 const anchor = i === 0 ? 'start' : i === n ? 'end' : 'middle';
-                out += '<text x="' + xS(t).toFixed(1) + '" y="' + y + '" font-size="6.3" fill="#888" text-anchor="' + anchor + '" font-family="monospace">' + lblDe(t) + '</text>';
+                out += '<text x="' + xS(t).toFixed(1) + '" y="' + y + '" font-size="7" fill="#666" text-anchor="' + anchor + '" font-family="monospace">' + lblDe(t) + '</text>';
             }
             return out;
         };
@@ -86,7 +95,7 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
             const tendencia = st.delta == null ? '—' : st.delta > 0.02 ? '▲ subiendo' : st.delta < -0.02 ? '▼ bajando' : '● estable';
             const tColor = st.delta == null ? '#888' : st.delta > 0.02 ? '#dc2626' : st.delta < -0.02 ? '#16a34a' : '#555';
             return '<tr' + (i % 2 ? '' : '') + '>'
-                + '<td class="bold">' + s.nombre + '</td>'
+                + '<td class="bold">' + sw(colorEsc(s.escala_id)) + s.nombre + '</td>'
                 + '<td class="num">' + N2(st.min) + '</td>'
                 + '<td class="num">' + N2(st.max) + '</td>'
                 + '<td class="num bold">' + N2(st.avg) + '</td>'
@@ -97,11 +106,10 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
                 + '</tr>';
         }).join('') || '<tr><td colspan="8" class="empty">Sin lecturas de nivel en el periodo seleccionado</td></tr>';
 
-        // Mini gráfica SVG de niveles (línea por escala, hasta 8 para legibilidad impresa)
+        // Gráfica SVG de niveles: una línea por escala, con el color de su tramo
         const nivelesChartHtml = (() => {
-            const activas = niveles.filter(s => s.puntos.some(p => p.y != null)).slice(0, 8);
+            const activas = niveles.filter(s => s.puntos.some(p => p.y != null));
             if (!activas.length) return '';
-            const PAL = ['#3987e5', '#199e70', '#c98500', '#2fb35a', '#9085e9', '#e66767', '#d55181', '#d95926'];
             const allT = activas.flatMap(s => s.puntos.filter(p => p.y != null).map(p => p.t));
             const allY = activas.flatMap(s => s.puntos.filter(p => p.y != null).map(p => p.y as number));
             if (!allT.length) return '';
@@ -117,27 +125,32 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
                 grid += '<line x1="' + PL + '" y1="' + yS(y).toFixed(1) + '" x2="' + (PL + pw) + '" y2="' + yS(y).toFixed(1) + '" stroke="#e5e0e0" stroke-width="0.6"/>'
                     + '<text x="' + (PL - 4) + '" y="' + (yS(y) + 3).toFixed(1) + '" font-size="7.5" fill="#666" text-anchor="end" font-family="monospace">' + fmtTick(y, NT.step) + '</text>';
             }
-            const lines = activas.map((s, i) => {
+            const lines = activas.map(s => {
                 const pts = s.puntos.filter(p => p.y != null);
                 const d = pts.map((p, j) => (j ? 'L' : 'M') + xS(p.t).toFixed(1) + ',' + yS(p.y as number).toFixed(1)).join(' ');
-                return '<path d="' + d + '" fill="none" stroke="' + PAL[i % PAL.length] + '" stroke-width="1.3"/>';
+                return '<path d="' + d + '" fill="none" stroke="' + colorEsc(s.escala_id) + '" stroke-width="1.5"/>';
             }).join('');
-            const legend = activas.map((s, i) =>
+            const legend = activas.map(s =>
                 '<span style="display:inline-flex;align-items:center;gap:3px;margin-right:9px">'
-                + '<i style="width:7px;height:7px;background:' + PAL[i % PAL.length] + ';display:inline-block;border-radius:1px"></i>' + s.nombre + '</span>'
+                + sw(colorEsc(s.escala_id)) + s.nombre + '</span>'
             ).join('');
             const ejeX = marcasEjeX(t0, t1, xS, H - 4);
+            const tEv = vaciadoDesde ? new Date(`${vaciadoDesde}T12:00:00-06:00`).getTime() : null;
+            const evento = (tEv != null && tEv >= t0 && tEv <= t1)
+                ? '<line x1="' + xS(tEv).toFixed(1) + '" y1="' + PT + '" x2="' + xS(tEv).toFixed(1) + '" y2="' + (PT + ph) + '" stroke="#6b7280" stroke-width="0.9" stroke-dasharray="4,3"/>'
+                  + '<text x="' + (xS(tEv) + 3).toFixed(1) + '" y="' + (PT + 8) + '" font-size="7" fill="#374151" font-family="monospace">Cierre de presa · vaciado</text>'
+                : '';
             return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block;background:#fbfaf8;border-radius:4px">'
-                + grid + lines + ejeX + '</svg>'
+                + grid + evento + lines + ejeX + '</svg>'
                 + '<div style="font-size:6.5pt;color:#555;margin-top:3px">' + legend + '</div>';
         })();
 
         // ── Bloque 2: volumen por tramo ────────────────────────────────────────
-        const volRows = volTramos.map(tr => {
+        const volRows = volTramos.map((tr, ti) => {
             const st = statsSerie(tr.puntos);
             const { color, label } = estadoLlenadoLbl(tr.estado.pctDiseno, enVaciado);
             return '<tr>'
-                + '<td style="font-size:6.8pt">' + tr.etiqueta + '</td>'
+                + '<td style="font-size:7pt;font-weight:700">' + sw(colorTr(ti)) + tr.etiqueta + '</td>'
                 + '<td class="num">' + N3(st.min) + '</td>'
                 + '<td class="num">' + N3(st.max) + '</td>'
                 + '<td class="num" style="color:' + (st.delta != null && st.delta > 0 ? '#2563eb' : '#d97706') + '">' + N3(st.delta) + '</td>'
@@ -146,6 +159,17 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
                 + '<td style="color:' + color + ';font-size:6.5pt">' + label + '</td>'
                 + '</tr>';
         }).join('') || '<tr><td colspan="7" class="empty">Sin datos de volumen por tramo en el periodo</td></tr>';
+
+        // Recorrido del canal: un segmento de color por tramo (K-0 → K-104), igual que en el panel
+        const rutaHtml = volTramos.length
+            ? '<div class="ruta">' + volTramos.map((tr, i) => {
+                const [a, b] = tr.etiqueta.split('→');
+                const km = tr.estado.longitudKm;
+                return '<div class="ruta-seg"><i style="background:' + colorTr(i) + '"></i><b>' + a + '</b>'
+                    + '<small>' + (km != null ? km.toFixed(km < 10 ? 1 : 0) + ' km' : '') + '</small>'
+                    + (i === volTramos.length - 1 ? '<em>' + b + '</em>' : '') + '</div>';
+            }).join('') + '</div>'
+            : '';
 
         const volTotalActual = [...volTotal].reverse().find(p => p.y != null)?.y ?? null;
         const stVolTotal = statsSerie(volTotal);
@@ -156,7 +180,6 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
         // simplificada para impresión: sin hover, con etiqueta de total al final).
         const volChartHtml = (() => {
             if (!hayVolumen) return '';
-            const PAL = ['#3987e5', '#199e70', '#c98500', '#2fb35a', '#9085e9', '#e66767', '#d55181', '#d95926'];
             const base = volTramos.find(s => s.puntos.length)?.puntos ?? [];
             if (!base.length) return '';
             const idxs = base.map((_, i) => i);
@@ -182,11 +205,11 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
                     ...idxs.slice().reverse().map(i => xS(se.puntos[i]?.t ?? base[i].t).toFixed(1) + ',' + yS(acc[i]).toFixed(1)),
                 ].join(' ');
                 idxs.forEach(i => { acc[i] = top[i]; });
-                bands += '<polygon points="' + poly + '" fill="' + PAL[si % PAL.length] + '" opacity="0.68" stroke="' + PAL[si % PAL.length] + '" stroke-width="0.5"/>';
+                bands += '<polygon points="' + poly + '" fill="' + colorTr(si) + '" opacity="0.78" stroke="#fbfaf8" stroke-width="0.6"/>';
             });
             const legend = volTramos.map((tr, i) =>
                 '<span style="display:inline-flex;align-items:center;gap:3px;margin-right:9px">'
-                + '<i style="width:7px;height:7px;background:' + PAL[i % PAL.length] + ';display:inline-block;border-radius:1px"></i>' + tr.etiqueta + '</span>'
+                + sw(colorTr(i)) + tr.etiqueta + '</span>'
             ).join('');
             const ejeX = marcasEjeX(t0, t1, xS, H - 4);
             return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block;background:#fbfaf8;border-radius:4px">'
@@ -322,6 +345,13 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
             + '.kpi-lbl{font-size:6.3pt;color:#666;text-transform:uppercase;letter-spacing:0.4px;line-height:1.2}'
             + '.kpi-val{font-size:14pt;font-weight:900;color:#6B2D2D;line-height:1.15;margin:2px 0}'
             + '.kpi-unit{font-size:6.5pt;color:#888}'
+            + '.sw{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:5px;vertical-align:baseline}'
+            + '.ruta{display:flex;gap:2px;margin:3px 0 10px;padding-right:34px}'
+            + '.ruta-seg{flex:1;min-width:0;position:relative}'
+            + '.ruta-seg i{display:block;height:7px;border-radius:2px}'
+            + '.ruta-seg b{display:block;font-size:6.5pt;margin-top:3px;white-space:nowrap}'
+            + '.ruta-seg small{display:block;font-size:6pt;color:#555}'
+            + '.ruta-seg em{position:absolute;left:100%;top:9px;margin-left:3px;font-size:6.5pt;font-style:normal;font-weight:700;white-space:nowrap}'
             + '.footer{border-top:3px solid #6B2D2D;margin-top:8px;padding-top:5px;text-align:center;font-size:6.5pt;color:#6B2D2D;font-weight:700;letter-spacing:1px;text-transform:uppercase}'
             + '@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}.sec-block{page-break-inside:avoid}}';
 
@@ -356,6 +386,9 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
             + '<div class="kpi"><div class="kpi-lbl">Gasto Entrada<br>Promedio K-0</div><div class="kpi-val">' + N2(stEnt.avg) + '</div><div class="kpi-unit">m³/s</div></div>'
             + '<div class="kpi"><div class="kpi-lbl">Gasto Salida<br>Promedio K-104</div><div class="kpi-val">' + N2(stSal.avg) + '</div><div class="kpi-unit">m³/s</div></div>'
             + '</div>'
+
+            // ── Recorrido del canal ──
+            + (rutaHtml ? '<div class="sec-title">Recorrido del Canal &nbsp;·&nbsp; un color por tramo</div>' + rutaHtml : '')
 
             // ── Hallazgos del periodo ──
             + '<div class="sec-title">Hallazgos del Periodo</div>'
@@ -419,7 +452,7 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
             + '</body></html>';
 
         return html;
-    }, [rangoDesde, rangoHasta, granularidad, niveles, niveleslabel, volTramos, volTotal, compuertas, gasto]);
+    }, [rangoDesde, rangoHasta, granularidad, niveles, niveleslabel, volTramos, volTotal, compuertas, gasto, vaciadoDesde]);
 
     // ── iframe: preview idéntico al PDF ──────────────────────────────────────
     const [iframeUrl, setIframeUrl] = useState<string | null>(null);

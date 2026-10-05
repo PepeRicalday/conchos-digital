@@ -14,6 +14,7 @@ import { usePresas, type PresaData, type MovimientoPresaData } from '../hooks/us
 import { getTodayString, addDays, getLocalDatetimeInput } from '../utils/dateHelpers';
 import PresaLecturaBand from '../components/PresaLecturaBand';
 import LimnimetroPresa from '../components/LimnimetroPresa';
+import PresaHistoricoContexto from '../components/PresaHistoricoContexto';
 
 
 /** Espejo de los tokens --pr-* de Presas.css (hex porque se componen con alfa: `${color}18`). */
@@ -800,6 +801,12 @@ const Presas = () => {
                 tendenciaMDia={difElev}
                 estadoSistema={sistemaEstado}
                 colorSistema={sistemaColor}
+            />
+
+            <PresaHistoricoContexto
+                presaId={currentDam.id}
+                fechaISO={fechaSeleccionada}
+                almacenamientoHoyMm3={lect?.almacenamiento_mm3 ?? null}
             />
 
             {/* ══ ZONA 2+3: CUERPO PRINCIPAL ══════════════════════════════════ */}

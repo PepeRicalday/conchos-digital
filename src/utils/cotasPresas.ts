@@ -19,7 +19,8 @@ export interface ConfigCotas {
 /**
  * Cotas oficiales por presa, tomadas de las batimetrías vigentes:
  *  - Boquilla: levantamiento 2020 (hojas «Gráfica áreas-capacidades» y «Capacidad muerta»).
- *  - Madero: NAMO/NAME oficiales de CILA/SICA; fondo = inicio de la curva 2004 ajustada al volumen oficial.
+ *  - Madero: NAMO/NAME oficiales de CILA/SICA; la curva es la tabla oficial derivada de 1,542 pares escala-volumen
+ *    de los reportes mensuales de la SRL (fondo = menor escala observada).
  */
 export const COTAS_OFICIALES: Record<string, ConfigCotas> = {
     'PRE-001': {
@@ -32,8 +33,8 @@ export const COTAS_OFICIALES: Record<string, ConfigCotas> = {
         ],
     },
     'PRE-002': {
-        fondo: 1220.69,
-        fuente: 'Batimetría 2004 ajustada al volumen oficial',
+        fondo: 1223.75,
+        fuente: 'Tabla oficial SRL · reportes 2021–2025',
         cotas: [
             { label: 'NAMO', elev: 1239.3, tono: 'warn' },
             { label: 'NAME', elev: 1242.56, tono: 'alert' },

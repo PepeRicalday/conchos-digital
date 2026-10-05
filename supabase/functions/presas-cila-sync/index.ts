@@ -25,7 +25,10 @@ const BASE = "https://ibwcsftpstg.blob.core.windows.net/wad/ReservoirReports";
 const ORIGEN_ALERTA = "CILA-SYNC";
 // Incertidumbre (m) de la elevación derivada del almacenamiento. Boquilla: curva validada con lecturas de campo.
 // Madero: batimetría 2004 ajustada al volumen oficial, sin lectura de escala de campo que la calibre.
-const INCERTIDUMBRE_ELEV_M: Record<string, number> = { "PRE-002": 0.5 };
+// Sin incertidumbre declarada: ambas curvas están validadas con lecturas reales (Boquilla con escala de campo;
+// Madero con 1,542 pares escala-volumen de los reportes SRL 2021-2025). Si una presa vuelve a depender de una
+// curva sin validar, declarar aquí su incertidumbre en metros para que la UI la rotule como ESTIMADA.
+const INCERTIDUMBRE_ELEV_M: Record<string, number> = {};
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 

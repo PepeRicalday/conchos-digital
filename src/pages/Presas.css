@@ -2114,3 +2114,22 @@ html[data-device="phone"] .pr-num small { font-size: 12px; margin-left: 4px; }
 html[data-device="phone"] .pr-nombre { font-size: 28px; }
 html[data-device="phone"] .pr-fuentes { grid-template-columns: minmax(0, 1fr); }
 html[data-device="phone"] .pr-sello { min-height: 32px; }
+
+/* Contexto histórico: «el mismo día en años anteriores» */
+.pr-hist { padding: 12px 16px 14px; border: 1px solid var(--pr-line); border-radius: 12px; background: var(--pr-surface); }
+.pr-hist-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; color: var(--pr-t3); }
+.pr-hist-head svg { align-self: center; }
+.pr-hist-head h3 { margin: 0; font-family: var(--pr-display); font-weight: 800; font-size: 20px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--pr-t1); }
+.pr-hist-head span { font-size: 12px; }
+.pr-hist-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.pr-hist-lista li {
+    display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'a v' 'p d' 'n n'; align-items: baseline; gap: 2px 10px;
+    padding: 9px 12px; border: 1px solid var(--pr-line); border-radius: 10px; background: var(--pr-surface-2);
+}
+.pr-hist-anio { grid-area: a; font-family: var(--pr-mono); font-size: 13px; font-weight: 700; color: var(--pr-t3); }
+.pr-hist-vol { grid-area: v; text-align: right; font-family: var(--pr-display); font-weight: 800; font-size: 30px; line-height: 1; color: var(--pr-t1); font-variant-numeric: tabular-nums; }
+.pr-hist-vol small { margin-left: 5px; font-family: var(--pr-body); font-size: 12px; font-weight: 600; color: var(--pr-t3); }
+.pr-hist-pct { grid-area: p; font-family: var(--pr-mono); font-size: 12px; color: var(--pr-t2); }
+.pr-hist-dif { grid-area: d; text-align: right; font-family: var(--pr-mono); font-size: 12px; font-weight: 700; color: var(--pr-t3); }
+.pr-hist-dif.is-up { color: #7dd3fc; } .pr-hist-dif.is-down { color: var(--pr-warn); }
+.pr-hist-nota { grid-area: n; font-size: 11px; color: var(--pr-t3); }

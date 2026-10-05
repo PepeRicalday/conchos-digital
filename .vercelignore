@@ -17,3 +17,6 @@ dist-ssr
 # Batimetrías oficiales (insumo de las curvas de capacidad): no se publican en la web.
 public/FMADERO_ElevAreasCapac_1cm.xls
 public/batimetria boquilla.xlsx
+
+# Reportes mensuales de presas (SRL 2021-2025): insumo del histórico, no se publican en la web.
+public/REPORTES_PRESAS/

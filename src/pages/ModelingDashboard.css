@@ -2122,3 +2122,44 @@ html:not([data-device="phone"]) .main-content:has(.sim-root) {
 .sim-start-time-reset { font-size: 10px; }
 
 .sim-cp-age { font-size: 10px; margin-top: 1px; letter-spacing: 0.02em; }
+
+/* ── TABLET / iPad: la página desplaza como un todo (2026-10-05) ──────────────
+   Con 100dvh fijo, cabecera + barra + chips ocupaban 45% de la pantalla sin poder
+   desplazarse y el trabajo quedaba en un cuerpo de ~420 px con tres paneles estrechos.
+   Ahora la cabecera sube con el scroll de la página y los paneles ocupan la pantalla. */
+html[data-device="tablet"] .main-content:has(.sim-root) {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+html[data-device="tablet"] .sim-root { height: auto; min-height: 100dvh; overflow: visible; }
+html[data-device="tablet"] .sim-body { flex: none; height: 100dvh; min-height: 560px; }
+html[data-device="tablet"] .sim-left  { width: 232px; min-width: 232px; }
+html[data-device="tablet"] .sim-right { width: 250px; min-width: 250px; }
+
+/* Vertical: el gráfico principal arriba a todo el ancho; lista y detalle debajo, lado a lado,
+   todo dentro del scroll de la página (sin paneles con scroll propio). */
+html[data-device="tablet"][data-orientation="portrait"] .sim-body {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+html[data-device="tablet"][data-orientation="portrait"] .sim-center {
+  order: -1;
+  flex: 1 1 100%;
+  overflow: visible;
+}
+html[data-device="tablet"][data-orientation="portrait"] .sim-left,
+html[data-device="tablet"][data-orientation="portrait"] .sim-right {
+  flex: 1 1 50%;
+  width: auto;
+  min-width: 0;
+  overflow: visible;
+}
+
+/* iPad vertical: hay barra superior fija (menú); sin este espacio tapaba la primera fila de indicadores. */
+html[data-device="tablet"][data-orientation="portrait"] .main-content:has(.sim-root) {
+  padding-top: calc(var(--topbar-h) + var(--sat, 0px));
+}

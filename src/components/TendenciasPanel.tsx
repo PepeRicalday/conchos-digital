@@ -6,7 +6,7 @@ import type {
 } from '../utils/tendencias';
 import { statsSerie } from '../utils/tendencias';
 import InformeTendencias from './InformeTendencias';
-import { PAL, MultiLine, StackedArea, MiniNivel, colorKm, niceTicks, type EventoMarca } from './TendenciasCharts';
+import { TRAMO_COLORS, MultiLine, StackedArea, MiniNivel, RutaCanal, niceTicks, type EventoMarca } from './TendenciasCharts';
 import { getTodayString, addDays } from '../utils/dateHelpers';
 
 const n2 = (v: number | null | undefined) => v == null || !isFinite(v) ? '—' : v.toFixed(2);
@@ -347,12 +347,18 @@ const TendenciasPanel: React.FC<Props> = ({
   );
   const nVisibles = visNiveles == null ? niveles.length : niveles.filter(s => visNiveles.has(s.escala_id)).length;
 
-  // Escalas en orden de recorrido del canal (K-0 → K-104) y su color SECUENCIAL por posición.
+  // Escalas en orden de recorrido del canal (K-0 → K-104).
   const nivelesOrd = useMemo(() => [...niveles].sort((a, b) => a.km - b.km), [niveles]);
+  // Color de cada escala = el del TRAMO que abre (aguas abajo de la escala); la última (K-104) toma el del tramo que
+  // la cierra. Así escala y tramo se identifican con el mismo color en todo el panel.
+  const idxTramoDe = useCallback((id: string) => {
+    const i = volTramos.findIndex(t => t.key.startsWith(id + '_'));
+    return i >= 0 ? i : volTramos.findIndex(t => t.key.endsWith('_' + id));
+  }, [volTramos]);
   const colorEsc = useCallback((id: string) => {
-    const i = nivelesOrd.findIndex(s => s.escala_id === id);
-    return colorKm(i < 0 ? 0 : i, nivelesOrd.length);
-  }, [nivelesOrd]);
+    const i = idxTramoDe(id);
+    return i < 0 ? '#64748b' : TRAMO_COLORS[i % TRAMO_COLORS.length];
+  }, [idxTramoDe]);
   // Vista del Bloque 1: una mini-gráfica por escala (default) o comparadas en una sola gráfica.
   const [vistaNiveles, setVistaNiveles] = useState<'escalas' | 'comparar'>(() => {
     try { return localStorage.getItem('tnd:vista') === 'comparar' ? 'comparar' : 'escalas'; } catch { return 'escalas'; }
@@ -459,7 +465,7 @@ const TendenciasPanel: React.FC<Props> = ({
   }, []);
   // color de identidad por key (idéntico al índice de banda del apilado)
   const colorTramo = useCallback(
-    (key: string) => PAL[volTramos.findIndex(t => t.key === key) % PAL.length],
+    (key: string) => TRAMO_COLORS[Math.max(0, volTramos.findIndex(t => t.key === key)) % TRAMO_COLORS.length],
     [volTramos]
   );
 
@@ -566,6 +572,17 @@ const TendenciasPanel: React.FC<Props> = ({
             </div>
           </div>
 
+          {/* ── Recorrido del canal: un color por tramo (el mismo en todo el panel) ── */}
+          {volTramos.length > 0 && (
+            <div className="tnd-ruta-wrap">
+              <div className="tnd-ruta-t">
+                <span>Recorrido del canal · un color por tramo</span>
+                {tramoSel != null && <button type="button" className="tnd-sec-clear" onClick={() => setTramoSel(null)}>ver todos</button>}
+              </div>
+              <RutaCanal tramos={volTramos} colorDe={colorTramo} sel={tramoSel} onSel={toggleTramo} />
+            </div>
+          )}
+
           {/* ── Bloque 1: niveles por escala ── */}
           {/* La tabla y la leyenda son el FILTRO ACTIVO del gráfico: clic en una
               fila/chip alterna su visibilidad; el botón "solo" aísla; la barra
@@ -593,10 +610,13 @@ const TendenciasPanel: React.FC<Props> = ({
                   {nivelesOrd.filter(s => esVisible(s.escala_id)).map(s => (
                     <MiniNivel key={s.escala_id} serie={s} t0={t0} t1={t1} yTop={yTopMini}
                       esRef={ESC_SIN_CONTROL.has(s.nombre)}
+                      color={colorEsc(s.escala_id)}
+                      tramo={volTramos[idxTramoDe(s.escala_id)]?.etiqueta}
+                      dim={tramoSel != null && volTramos[idxTramoDe(s.escala_id)]?.key !== tramoSel}
                       onSel={() => { soloNivel(s.escala_id); setVistaNiveles('comparar'); }} />
                   ))}
                 </div>
-                <div className="tnd-band-hint">Eje común 0–{yTopMini.toFixed(1)} m · línea roja discontinua = nivel máximo operativo · toca una escala para verla en detalle</div>
+                <div className="tnd-band-hint">Color de cada escala = tramo que abre · eje común 0–{yTopMini.toFixed(1)} m · línea roja discontinua = nivel máximo operativo · toca una escala para verla en detalle</div>
               </>
             ) : (
               <>
@@ -605,7 +625,7 @@ const TendenciasPanel: React.FC<Props> = ({
                   t0={t0} t1={t1} yLabel="Nivel (m)" height={230}
                   bands={bandasNivelMax} eventos={eventosGraf} nonNegative dimOthers
                 />
-                <div className="tnd-band-hint">Color = posición en el canal (claro: cabecera → oscuro: cola) · apunta una línea para resaltarla · línea discontinua = nivel máximo operativo</div>
+                <div className="tnd-band-hint">Color = tramo del canal que abre cada escala (ver el recorrido de arriba) · apunta una línea para resaltarla · línea discontinua = nivel máximo operativo</div>
               </>
             )}
             <div className="tnd-legend tnd-legend-int" role="group" aria-label="Filtro de escalas visibles">
@@ -694,7 +714,7 @@ const TendenciasPanel: React.FC<Props> = ({
                 <thead><tr><th>Tramo</th><th>Vol mín</th><th>Vol máx</th><th>Δ Mm³</th><th>Tirante act.</th><th>% diseño</th></tr></thead>
                 <tbody>
                   {volTramos.map(tr => { const st = statsSerie(tr.puntos); const { color, label } = estadoLlenado(tr.estado.pctDiseno, enVaciado); return (
-                    <tr key={tr.key}><td style={{ fontSize: '0.62rem' }}>{tr.etiqueta}</td><td>{n3(st.min)}</td><td>{n3(st.max)}</td>
+                    <tr key={tr.key}><td style={{ fontSize: '0.7rem', fontWeight: 700 }}><span className="tnd-swatch" style={{ background: colorTramo(tr.key) }} />{tr.etiqueta}</td><td>{n3(st.min)}</td><td>{n3(st.max)}</td>
                       <td style={{ color: st.delta! > 0 ? '#38bdf8' : '#f59e0b' }}>{n3(st.delta)}</td>
                       <td>{tr.estado.tiranteActual != null ? tr.estado.tiranteActual.toFixed(2) : '—'}</td>
                       <td style={{ color, fontWeight: 700 }}>{tr.estado.pctDiseno != null ? `${Math.round(tr.estado.pctDiseno)}% ${label}` : '—'}</td>

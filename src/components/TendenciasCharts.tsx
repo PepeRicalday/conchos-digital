@@ -19,6 +19,13 @@ import type { SerieEscala, SerieTramo, SeriePunto } from '../utils/tendencias';
 export const PAL = ['#3987e5', '#199e70', '#c98500', '#2fb35a', '#9085e9', '#e66767', '#d55181', '#d95926',
                     '#38bdf8', '#22c55e', '#eab308', '#f472b6', '#a78bfa', '#fb7185'];
 
+// Un color por TRAMO del canal (sección entre dos escalas), en orden de recorrido. Paleta de 13 tonos generada y
+// validada con validate_palette.js (modo oscuro, pares vecinos): luminosidad en banda, croma >= 0.1, separación CVD
+// ΔE 9.3, visión normal ΔE 19.7, contraste >= 3:1 sobre #0a1220. Evita el rojo (reservado a alertas). Con 13 tonos los
+// no vecinos pueden parecerse: el color SIEMPRE va acompañado de etiqueta y de la cinta "recorrido del canal".
+export const TRAMO_COLORS = ['#b48b0e', '#4f90f0', '#3f8935', '#108edb', '#d86d34', '#1aa29c', '#7960d0',
+                             '#c56c05', '#2bac73', '#ce64b8', '#6e8205', '#009eb8', '#8e58b8'];
+
 const C = { bg: '#0a1220', grid: '#16233a', eje: '#94a3b8', txt: '#cbd5e1', tip: '#0f1c30', acento: '#fbbf24', cross: '#7dd3fc' };
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
@@ -245,8 +252,8 @@ export const MultiLine: React.FC<{
           if (!pts.length) return null;
           const esFoco = focoSi === si;
           const atenuada = focoSi != null && !esFoco;
-          const color = esFoco ? C.acento : s.color;
-          const grosor = esFoco ? 2.6 : (atenuada ? 1.2 : 1.7);
+          const color = s.color;
+          const grosor = esFoco ? 3.4 : (atenuada ? 1.2 : 1.8);
           const op = atenuada ? 0.22 : 0.95;
           const muestraPuntos = pts.length <= 40;
           return (
@@ -268,14 +275,14 @@ export const MultiLine: React.FC<{
           <g pointerEvents="none">
             <line x1={hx} y1={PT} x2={hx} y2={PT + ph} stroke={C.cross} strokeWidth="1" strokeDasharray="3,3" opacity="0.7" />
             {hoverVals.map((v, i) => (
-              <circle key={i} cx={xS(v.t)} cy={yS(v.y)} r={v.si === focoSi ? 4.2 : 3.4} fill={v.si === focoSi ? C.acento : v.color} stroke={C.bg} strokeWidth="1.4" />
+              <circle key={i} cx={xS(v.t)} cy={yS(v.y)} r={v.si === focoSi ? 4.2 : 3.4} fill={v.color} stroke={v.si === focoSi ? '#ffffff' : C.bg} strokeWidth={v.si === focoSi ? 1.8 : 1.4} />
             ))}
             <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="5" fill={C.tip} stroke="rgba(125,211,252,0.4)" strokeWidth="0.9" opacity="0.98" />
             <text x={tipX + 8} y={tipY + 15} fill={C.cross} fontSize="11" fontFamily={MONO} fontWeight="bold">{fmtFecha(hover.t)}</text>
             {cercanas.map((v, i) => (
               <g key={v.si}>
                 <circle cx={tipX + 12} cy={tipY + 28 + i * 16} r="3.2" fill={v.color} />
-                <text x={tipX + 20} y={tipY + 32 + i * 16} fill={v.si === focoSi ? C.acento : C.txt} fontSize="11" fontFamily={MONO}>
+                <text x={tipX + 20} y={tipY + 32 + i * 16} fill={v.si === focoSi ? '#ffffff' : C.txt} fontSize="11" fontFamily={MONO} fontWeight={v.si === focoSi ? 'bold' : undefined}>
                   {v.nombre} <tspan fontWeight="bold" fill="#f1f5f9">{v.y.toFixed(decimales)}</tspan>
                 </text>
               </g>
@@ -291,7 +298,8 @@ export const MultiLine: React.FC<{
 // ── Vista por escala (small multiples) con eje Y común ──────────────────────
 export const MiniNivel: React.FC<{
   serie: SerieEscala; t0: number; t1: number; yTop: number; esRef: boolean; onSel: () => void;
-}> = ({ serie, t0, t1, yTop, esRef, onSel }) => {
+  color: string; tramo?: string; dim?: boolean;
+}> = ({ serie, t0, t1, yTop, esRef, onSel, color, tramo, dim }) => {
   const W = 168, H = 74, PL = 3, PR = 5, PT = 5, PB = 5;
   const pw = W - PL - PR, ph = H - PT - PB;
   const pts = serie.puntos.filter((p): p is SeriePunto & { y: number } => p.y != null);
@@ -301,13 +309,13 @@ export const MiniNivel: React.FC<{
   const primero = pts.length ? pts[0] : null;
   const delta = ult && primero ? ult.y - primero.y : null;
   const sobre = ult != null && serie.nivelMax != null && ult.y > serie.nivelMax;
-  const color = sobre ? '#ef4444' : '#5aa9ff';
   return (
     <button type="button" className="tnd-mini" onClick={onSel}
-      title={`${serie.nombre}${esRef ? ' (escala de referencia)' : ''} — clic para compararla en detalle`}>
+      style={{ borderLeft: `4px solid ${color}`, opacity: dim ? 0.38 : 1 }}
+      title={`${serie.nombre}${esRef ? ' (escala de referencia)' : ''}${tramo ? ' · abre el tramo ' + tramo : ''} — clic para compararla en detalle`}>
       <div className="tnd-mini-h">
         <span>{serie.nombre}{esRef && <small> ref.</small>}</span>
-        <span className="tnd-mini-v" style={{ color: sobre ? '#f87171' : '#7dd3fc' }}>{ult ? `${ult.y.toFixed(2)} m` : 'S/D'}</span>
+        <span className="tnd-mini-v" style={{ color: sobre ? '#f87171' : '#e2e8f0' }}>{sobre ? '⚠ ' : ''}{ult ? `${ult.y.toFixed(2)} m` : 'S/D'}</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img"
         aria-label={`${serie.nombre}: ${ult ? ult.y.toFixed(2) + ' m' : 'sin dato'}`}>
@@ -400,7 +408,7 @@ export const StackedArea: React.FC<{
           const sel = selKey != null && se.key === selKey;
           const dim = (selKey != null && !sel) || (selKey == null && hover?.band != null && hover.band !== si);
           const activo = sel || (selKey == null && hover?.band === si);
-          return <polygon key={si} points={poly} fill={PAL[si % PAL.length]}
+          return <polygon key={si} points={poly} fill={TRAMO_COLORS[si % TRAMO_COLORS.length]}
             opacity={dim ? 0.2 : (activo ? 0.88 : 0.62)}
             stroke={C.bg} strokeWidth={activo ? 1.6 : 0.8}
             style={{ cursor: onSelBand ? 'pointer' : undefined }}
@@ -435,12 +443,46 @@ export const StackedArea: React.FC<{
             </text>
             {hover?.band != null && (
               <text x={tipX + 8} y={PT + 51} fill={C.txt} fontSize="11" fontFamily={MONO}>
-                <tspan fill={PAL[hover.band % PAL.length]}>■</tspan> {series[hover.band].etiqueta}: <tspan fontWeight="bold" fill="#f1f5f9">{(series[hover.band].puntos[hovI]?.y ?? 0).toFixed(3)}</tspan>
+                <tspan fill={TRAMO_COLORS[hover.band % TRAMO_COLORS.length]}>■</tspan> {series[hover.band].etiqueta}: <tspan fontWeight="bold" fill="#f1f5f9">{(series[hover.band].puntos[hovI]?.y ?? 0).toFixed(3)}</tspan>
               </text>
             )}
           </g>
         )}
       </svg>
+    </div>
+  );
+};
+
+// ── Recorrido del canal: un segmento de color por tramo (K-0 → K-104) ───────
+// Cada tramo (sección entre dos escalas) tiene su color; es el MISMO en las bandas del apilado, las secciones, las
+// mini-gráficas, la tabla y las líneas de la vista comparada. Tocar un tramo lo aísla en todo el panel.
+export const RutaCanal: React.FC<{
+  tramos: SerieTramo[];
+  colorDe: (key: string) => string;
+  sel: string | null;
+  onSel: (key: string) => void;
+}> = ({ tramos, colorDe, sel, onSel }) => {
+  if (!tramos.length) return null;
+  const ult = tramos.length - 1;
+  return (
+    <div className="tnd-ruta" role="group" aria-label="Recorrido del canal por tramos">
+      {tramos.map((tr, i) => {
+        const [a, b] = tr.etiqueta.split('→');
+        const activo = sel === tr.key;
+        const km = tr.estado.longitudKm;
+        return (
+          <button type="button" key={tr.key} aria-pressed={activo}
+            className={`tnd-ruta-seg${activo ? ' sel' : ''}${sel != null && !activo ? ' dim' : ''}`}
+            style={{ '--c': colorDe(tr.key), '--i': i } as React.CSSProperties}
+            onClick={() => onSel(tr.key)}
+            title={`${tr.etiqueta}${km != null ? ` · ${km.toFixed(1)} km` : ''} · km ${tr.km_up.toFixed(1)}–${tr.km_down.toFixed(1)}`}>
+            <i className="tnd-ruta-bar" />
+            <span className="tnd-ruta-a">{a}</span>
+            <small>{km != null ? `${km.toFixed(km < 10 ? 1 : 0)} km` : ''}</small>
+            {i === ult && <span className="tnd-ruta-b">{b}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 };

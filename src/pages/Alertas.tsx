@@ -408,7 +408,7 @@ const Alertas = () => {
                                     <LineChart data={climaChartData} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                                         <XAxis dataKey="day" stroke="none" tick={{ fill: '#64748b', fontSize: 9 }} dy={5} interval="preserveStartEnd" />
-                                        <YAxis stroke="none" tick={{ fill: '#64748b', fontSize: 10 }} unit=" mm" />
+                                        <YAxis stroke="none" tick={{ fill: '#64748b', fontSize: 10 }} unit=" mm" domain={[0, 'auto']} allowDecimals={false} tickCount={5} />
                                         <Tooltip
                                             contentStyle={{ backgroundColor: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.1)' }}
                                             formatter={(v: number | undefined) => [`${v ?? 0} mm`, 'Precipitación']}

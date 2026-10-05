@@ -140,6 +140,7 @@ import '@fontsource/jetbrains-mono/latin-700.css'
 import '@fontsource/jetbrains-mono/latin-800.css'
 import './index.css'
 import './styles/phone.css'   // adaptaciones de página para teléfono (html[data-device="phone"])
+import './styles/phone-pulido.css'   // pulido visual/gerencial para teléfono (auditoría con agentes)
 import App from './App.tsx'
 import { initDeviceDetection } from './hooks/useDevice'
 

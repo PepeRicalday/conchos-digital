@@ -1,0 +1,274 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   phone-pulido.css — pulido visual y gerencial para teléfono (iPhone 16 Pro Max y similares)
+
+   Resultado de la auditoría visual con agentes sobre capturas WebKit a 440 px. Se importa DESPUÉS de
+   phone.css: a igual especificidad, esta hoja manda. Principios:
+     1. Jerarquía gerencial: lo crítico (alertas, estado, 3-5 cifras clave) arriba; el detalle, compacto.
+     2. Sin montajes: nada se encima ni se corta; los controles caben en una fila o apilan limpiamente.
+     3. Legibilidad: ningún texto operativo bajo ~11 px, contraste mínimo #94a3b8 sobre fondo oscuro.
+     4. Listas largas → densas (tarjetas de una o dos líneas), no interminables.
+   Todo cuelga de html[data-device="phone"]: escritorio y tablet no cambian.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tokens de pulido ────────────────────────────────────────────────────── */
+html[data-device="phone"] {
+    --pl-radius: 16px;
+    --pl-muted: #94a3b8;          /* texto secundario legible sobre #020617 (≈7:1) */
+    --pl-gap: 10px;
+}
+
+/* ═══ DASHBOARD ═════════════════════════════════════════════════════════════ */
+html[data-device="phone"] .dashboard-header { flex-direction: column; align-items: stretch; gap: 10px; }
+html[data-device="phone"] .dashboard-header > div:last-child { display: flex; gap: 8px; width: 100%; }
+html[data-device="phone"] .dashboard-header .btn-premium {
+    flex: 1 1 0; justify-content: center; white-space: nowrap;
+    padding: 10px 8px; font-size: 0.8rem; min-height: 44px;
+}
+/* Tira de estado: una sola fila desplazable en vez de 3 filas apiladas */
+html[data-device="phone"] .dash-statusbar { flex-wrap: nowrap; overflow-x: auto; gap: 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+html[data-device="phone"] .dash-statusbar::-webkit-scrollbar { display: none; }
+html[data-device="phone"] .dash-chip { flex: 0 0 auto; white-space: nowrap; font-size: 0.72rem; padding: 4px 10px; }
+html[data-device="phone"] .dash-identity-sub { display: none; }
+html[data-device="phone"] .dash-identity { margin-top: 6px; }
+
+/* KPIs 2×2; las alertas críticas ocupan todo el ancho y suben primero */
+html[data-device="phone"] .dashboard-grid-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+html[data-device="phone"] .dashboard-grid-kpi > .kpi-card.kpi-sev-critical { grid-column: 1 / -1; order: -1; }
+html[data-device="phone"] .dashboard-grid-kpi > .kpi-card:nth-child(3):nth-last-child(2) { grid-column: 1 / -1; }   /* evita el KPI huérfano */
+html[data-device="phone"] .kpi-card { padding: 12px; gap: 6px; border-radius: var(--pl-radius); min-height: 0; }
+html[data-device="phone"] .kpi-header { gap: 6px; }
+html[data-device="phone"] .kpi-title { font-size: 0.66rem; letter-spacing: 0.06em; line-height: 1.25; }
+html[data-device="phone"] .kpi-icon { display: none; }
+html[data-device="phone"] .kpi-value { font-size: 1.9rem; line-height: 1.05; }
+html[data-device="phone"] .kpi-unit { font-size: 0.75rem; }
+html[data-device="phone"] .kpi-subtext { font-size: 0.7rem; line-height: 1.3; color: var(--pl-muted); }
+html[data-device="phone"] .kpi-freshness { font-family: inherit; font-size: 0.66rem; letter-spacing: 0; }
+html[data-device="phone"] .kpi-aside { display: none; }
+html[data-device="phone"] .kpi-spark { display: none; }
+
+/* Gráficas del Dashboard */
+html[data-device="phone"] .chart-widget { padding: 12px; border-radius: var(--pl-radius); }
+html[data-device="phone"] .chart-widget .recharts-responsive-container { max-height: 230px; }
+html[data-device="phone"] .dash-donuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+html[data-device="phone"] .dash-donuts svg { max-width: 100%; height: auto; }
+html[data-device="phone"] .card { border-radius: var(--pl-radius); }
+
+/* ═══ MONITOR PÚBLICO ═══════════════════════════════════════════════════════ */
+html[data-device="phone"] .phb-version, html[data-device="phone"] .phb-system-btn { display: none; }   /* "ir al sistema completo": ya existe el menú */
+html[data-device="phone"] .phb-main { padding: 8px 12px; gap: 6px; }
+/* Banner del protocolo (VACIADO…): compacto, el mapa es lo importante */
+html[data-device="phone"] .hydraulic-violation-banner { padding: 8px 12px; }
+html[data-device="phone"] .hvb-text p {
+    margin: 2px 0 0; font-size: 0.74rem; line-height: 1.3;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+html[data-device="phone"] .hvb-modo-label { font-size: 0.82rem; }
+/* Tablero abierto: sin botones flotantes del mapa encima */
+html[data-device="phone"] .public-monitor-container:has(.info-cards-dock) .floating-ui-controls-v2 { display: none; }
+/* Pestañas del tablero: UNA fila desplazable (la regla ≤480 px del escritorio fuerza cuadrícula con !important) */
+html[data-device="phone"] .info-cards-dock .dock-tabs {
+    display: flex !important; flex-direction: row; flex-wrap: nowrap; grid-template-columns: none;
+    overflow-x: auto; gap: 6px; padding: 6px 4px 0; scrollbar-width: none;
+}
+html[data-device="phone"] .info-cards-dock .dock-tabs::-webkit-scrollbar { display: none; }
+html[data-device="phone"] .info-cards-dock .dock-tab {
+    flex: 0 0 auto; min-width: 0; padding: 0 14px; height: 40px; min-height: 40px;
+    font-size: 11px; color: var(--pl-muted); white-space: nowrap;
+}
+html[data-device="phone"] .info-cards-dock .dock-tab--active { color: #38bdf8; }
+/* Cerrar: dentro de la hoja, no cortado por su borde */
+html[data-device="phone"] .dock-close-btn { top: 8px; right: 10px; width: 36px; height: 36px; z-index: 5; }
+/* Contenido del tablero */
+html[data-device="phone"] .cpc-extra, html[data-device="phone"] .cpc-time { font-size: 11px; line-height: 1.3; }
+html[data-device="phone"] .dap-link { font-size: 0.8rem; }
+html[data-device="phone"] .dsk-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: 100%; }
+html[data-device="phone"] .dsk-actions .dsk-btn { font-size: 0.68rem; padding: 8px 4px; white-space: nowrap; justify-content: center; min-height: 44px; }
+html[data-device="phone"] .tnd-legend button, html[data-device="phone"] .tnd-chips button { padding: 4px 10px; font-size: 0.7rem; min-height: 32px; }
+
+/* ═══ PRESAS ════════════════════════════════════════════════════════════════ */
+/* Alertas críticas justo bajo el encabezado: primero lo urgente */
+html[data-device="phone"] .scada-sala-body { display: flex; flex-direction: column; align-items: stretch; }
+html[data-device="phone"] .scada-sala-body > * { width: 100%; min-width: 0; }
+html[data-device="phone"] .scada-zona-alertas { order: -1; }
+html[data-device="phone"] .scada-vaso-panel { padding: 10px; }
+html[data-device="phone"] .scada-vaso-svg { max-height: 150px; }
+html[data-device="phone"] .scada-gestion-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+html[data-device="phone"] .scada-gestion-kpi { padding: 8px 10px; }
+html[data-device="phone"] .scada-panel-hdr { flex-wrap: wrap; gap: 6px; }
+/* Sankey: ruido para un gerente (etiquetas montadas); se oculta en teléfono */
+html[data-device="phone"] .scada-zona-analitica-card:has(.recharts-sankey) { display: none; }
+html[data-device="phone"] .scada-toma-nombre { font-size: 0.72rem; }
+
+/* ═══ DISTRIBUCIÓN ══════════════════════════════════════════════════════════ */
+/* Mapa lineal del canal: vacío/ilegible a 440 px */
+html[data-device="phone"] .conchos-map-section { display: none; }
+html[data-device="phone"] .conchos-tabs-area { gap: 6px; scroll-snap-type: x proximity; }
+html[data-device="phone"] .conchos-section-tab { flex: 0 0 auto; white-space: nowrap; padding: 8px 14px; font-size: 0.78rem; min-height: 40px; scroll-snap-align: start; }
+/* Balance: 3 cifras en una fila */
+html[data-device="phone"] .conchos-balance-card { padding: 12px; }
+html[data-device="phone"] .conchos-vol-huge { font-size: 1.6rem; }
+html[data-device="phone"] .conchos-efficiency-center { width: 100%; max-width: none; padding: 12px; }
+html[data-device="phone"] .conchos-modules-grid { gap: 8px; }
+html[data-device="phone"] .conchos-module-card { padding: 10px; }
+html[data-device="phone"] .conchos-modules-header { margin: 12px 0 6px; }
+
+/* ═══ CONTROL DE NIVELES (la página más larga: 8,651 px) ════════════════════ */
+html[data-device="phone"] .header-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+html[data-device="phone"] .stat-chip { justify-content: center; font-size: 0.8rem; padding: 6px 8px; }
+html[data-device="phone"] .scale-gauge-card { padding: 10px; }
+html[data-device="phone"] .gauge-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+html[data-device="phone"] .gauge-header .warning-badge { position: static; margin-left: auto; }
+html[data-device="phone"] .gauge-km { display: none; }   /* el nombre (K-23) ya indica el km; evitaba el montaje con la insignia */
+/* Cada escala pasa de ~1,100 px a una ficha: nombre, estado, gasto y variación. Gráfica y radiales se omiten. */
+html[data-device="phone"] .gauge-body-row,
+html[data-device="phone"] .radial-diagram-section { display: none; }
+html[data-device="phone"] .reading-row { padding: 2px 0; }
+html[data-device="phone"] .delta-row { padding: 4px 8px; font-size: 0.85rem; }
+
+/* ═══ HIDROMETRÍA ═══════════════════════════════════════════════════════════ */
+html[data-device="phone"] .hidro-grid > * { height: auto !important; min-height: 0; }
+html[data-device="phone"] .hidro-grid .glass-card { padding: 12px 14px; }
+html[data-device="phone"] .hidro-grid .glass-card [class*="text-5xl"],
+html[data-device="phone"] .hidro-grid .glass-card [class*="text-6xl"] { font-size: 2.2rem; line-height: 1.1; }
+html[data-device="phone"] .hidro-grid .recharts-responsive-container { max-height: 240px; }
+html[data-device="phone"] .hidro-grid table { width: 100%; }
+html[data-device="phone"] .hidro-grid th, html[data-device="phone"] .hidro-grid td { padding: 6px 8px; }
+
+/* ═══ CLIMA ═════════════════════════════════════════════════════════════════ */
+html[data-device="phone"] .estaciones-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+html[data-device="phone"] .estacion-card { padding: 10px; }
+html[data-device="phone"] .estacion-cielo, html[data-device="phone"] .estacion-precip { display: none; }
+html[data-device="phone"] .estaciones-header { flex-direction: column; align-items: stretch; gap: 8px; }
+html[data-device="phone"] .estaciones-acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+html[data-device="phone"] .estaciones-acciones > * { width: 100%; justify-content: center; min-height: 44px; }
+html[data-device="phone"] .quick-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+html[data-device="phone"] .est-var small, html[data-device="phone"] .estacion-rol, html[data-device="phone"] .estacion-status { font-size: 11px; }
+html[data-device="phone"] .estacion-cielo, html[data-device="phone"] .cielo-estado { color: #cbd5e1; }
+html[data-device="phone"] .idx-card { padding: 8px; }
+html[data-device="phone"] .idx-svg { width: 84px; height: 84px; }
+html[data-device="phone"] .sync-status { display: none; }
+
+/* ═══ ALERTAS ═══════════════════════════════════════════════════════════════ */
+html[data-device="phone"] .al-header { flex-direction: column; align-items: flex-start; gap: 4px; }
+html[data-device="phone"] .al-header-subtitle { letter-spacing: 0.04em; font-size: 12px; }
+html[data-device="phone"] .al-logos { display: none; }
+html[data-device="phone"] .al-kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+html[data-device="phone"] .al-kpi-card { padding: 10px; min-height: 0; }
+html[data-device="phone"] .al-kpi-value { font-size: 1.8rem; }
+html[data-device="phone"] .al-kpi-title { font-size: 0.62rem; }
+html[data-device="phone"] .al-kpi-subtext, html[data-device="phone"] .al-kpi-chart { display: none; }
+html[data-device="phone"] .al-filter-group { align-items: flex-start; }
+html[data-device="phone"] .al-combo-box { width: 100%; background: #0f172a; border-radius: 10px; min-height: 44px; }
+html[data-device="phone"] .al-map-card { display: none; }          /* línea de 3 px con etiquetas <8 px: ilegible */
+html[data-device="phone"] .al-side-card:has(.al-log-empty) { display: none; }
+html[data-device="phone"] .al-log-item { padding: 8px 10px; }
+html[data-device="phone"] .al-log-msg { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+html[data-device="phone"] .al-log-action { flex: 0 0 100%; margin-top: 6px; }
+html[data-device="phone"] .al-log-time { color: var(--pl-muted); font-size: 12px; }
+html[data-device="phone"] .al-log-tag { font-size: 11px; }
+
+/* ═══ BALANCE HIDRÁULICO ════════════════════════════════════════════════════ */
+html[data-device="phone"] .balance-kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+html[data-device="phone"] .balance-kpi--muted { grid-column: 1 / -1; }
+html[data-device="phone"] .balance-gauge-card { padding: 12px; }
+html[data-device="phone"] .balance-formula { font-size: 11px; overflow-x: auto; white-space: nowrap; }
+html[data-device="phone"] .balance-table { min-width: 520px; }
+html[data-device="phone"] .balance-table td:first-child, html[data-device="phone"] .balance-table th:first-child { position: sticky; left: 0; background: #0b1220; z-index: 1; }
+html[data-device="phone"] .balance-table-wrapper { -webkit-mask-image: linear-gradient(to right, #000 92%, transparent); mask-image: linear-gradient(to right, #000 92%, transparent); }
+html[data-device="phone"] .balance-manning-card { display: none; }  /* perfil teórico repetido: no aporta al gerente */
+html[data-device="phone"] .balance-title-group h1 { font-size: 1.25rem; }
+html[data-device="phone"] .balance-title-group { gap: 8px; }
+
+/* ═══ MODELACIÓN HIDRÁULICA ═════════════════════════════════════════════════ */
+html[data-device="phone"] .sim-header { flex-direction: column; align-items: stretch; }
+html[data-device="phone"] .sim-kpi-status { grid-column: 1 / -1; white-space: normal; text-align: center; min-height: 44px; }
+html[data-device="phone"] .sim-kpi-label { white-space: normal; font-size: 11px; }
+html[data-device="phone"] .sim-flow-row { flex-wrap: wrap; }
+html[data-device="phone"] .sim-slider { flex: 1 1 100%; order: 3; width: 100%; }
+html[data-device="phone"] .sim-flow-group { width: 100%; }
+html[data-device="phone"] .sim-tl-label { font-size: 11px; }
+
+/* ═══ ANÁLISIS HISTÓRICO · BITÁCORA · CONSULTORÍA ═══════════════════════════ */
+html[data-device="phone"] .ah-control-group { flex: 1 1 100%; }
+html[data-device="phone"] .ah-control-group select { width: 100%; }
+html[data-device="phone"] input[type="number"] { appearance: textfield; -moz-appearance: textfield; padding-left: 14px; padding-right: 14px; border-radius: 12px; }
+html[data-device="phone"] .ih-view-tools { flex-wrap: nowrap; overflow-x: auto; }
+html[data-device="phone"] .ih-view-tools > * { flex: 0 0 auto; white-space: nowrap; }
+
+/* ═══ INFRAESTRUCTURA: tabla de 177 filas → tarjetas de dos líneas + buscador ═ */
+html[data-device="phone"] .infra-search { position: sticky; top: 0; z-index: 5; margin-bottom: 8px; }
+html[data-device="phone"] .infra-search input { width: 100%; min-height: 44px; border-radius: 12px; padding: 0 14px; background: #0f172a; border: 1px solid rgba(255,255,255,0.12); color: #e2e8f0; }
+html[data-device="phone"] .infra-root table { display: block; overflow: visible; }
+html[data-device="phone"] .infra-root thead { display: none; }
+html[data-device="phone"] .infra-root tbody { display: block; }
+html[data-device="phone"] .infra-root tbody tr {
+    display: grid; grid-template-columns: 4.6rem minmax(0, 1fr) auto; grid-template-rows: auto auto;
+    gap: 2px 10px; align-items: center; padding: 8px 12px; border-bottom: 1px solid rgba(51,65,85,0.5);
+}
+html[data-device="phone"] .infra-root tbody td { display: block; padding: 0 !important; border: 0; }
+/* col 1: km (arriba) + módulo (abajo) · col 2: nombre + tipo · col 3: capacidad (arriba) + acciones (abajo) */
+html[data-device="phone"] .infra-root tbody td:nth-child(1) { grid-column: 1; grid-row: 1; white-space: nowrap; font-size: 0.8rem; }
+html[data-device="phone"] .infra-root tbody td:nth-child(3) { grid-column: 1; grid-row: 2; }
+html[data-device="phone"] .infra-root tbody td:nth-child(3) > div:nth-child(2) { display: none; }   /* sección repetida en cada fila */
+html[data-device="phone"] .infra-root tbody td:nth-child(2) { grid-column: 2; grid-row: 1 / 3; min-width: 0; }
+html[data-device="phone"] .infra-root tbody td:nth-child(4) { grid-column: 3; grid-row: 1; white-space: nowrap; font-size: 0.8rem; }
+html[data-device="phone"] .infra-root tbody td:nth-child(5) { grid-column: 3; grid-row: 2; }
+html[data-device="phone"] .infra-root tbody td:nth-child(5) > div { opacity: 1; }
+html[data-device="phone"] .infra-head p { font-size: 0.85rem; }
+
+/* ═══ CICLOS ════════════════════════════════════════════════════════════════ */
+html[data-device="phone"] .ciclos-body > * { width: 100%; min-width: 0; }
+html[data-device="phone"] .ciclos-root td, html[data-device="phone"] .ciclos-root th { padding: 8px 10px; }
+html[data-device="phone"] .ciclos-root input { min-height: 44px; width: 100%; }
+
+/* ═══ IMPORTAR DATOS ════════════════════════════════════════════════════════ */
+html[data-device="phone"] .imp-form .grid { row-gap: 12px; }
+html[data-device="phone"] .imp-form label { display: block; margin-bottom: 5px; }
+
+/* ═══ REPORTE OFICIAL: el documento A4 se desliza, no se rompe ═══════════════ */
+@media screen {
+    html[data-device="phone"] .report-paper { overflow-x: auto; }
+    html[data-device="phone"] .report-paper table { min-width: 560px; table-layout: fixed; font-size: 10px; word-break: break-word; }
+    html[data-device="phone"] .report-paper :is(.flex, .grid) { flex-wrap: nowrap; }
+}
+
+/* ═══ GEO-MONITOR ═══════════════════════════════════════════════════════════ */
+html[data-device="phone"] .geo-header { padding: 6px 8px; gap: 6px; }
+html[data-device="phone"] .geo-search-container input { width: 100%; text-overflow: ellipsis; }
+html[data-device="phone"] .geo-sidebar-scroll { scrollbar-width: none; }
+html[data-device="phone"] .geo-sidebar-scroll::-webkit-scrollbar { display: none; }
+
+/* ═══ MENÚ LATERAL ══════════════════════════════════════════════════════════ */
+html[data-device="phone"] .sidebar-header { padding-top: 12px; padding-bottom: 12px; }
+html[data-device="phone"] .nav-item { min-height: 44px; padding: 8px 12px; }
+html[data-device="phone"] .nav-section-label { margin-top: 12px; color: #64748b; font-size: 0.7rem; }
+
+/* ═══ LOGIN ═════════════════════════════════════════════════════════════════ */
+html[data-device="phone"] a[href*="nuke"], html[data-device="phone"] .login-clear-cache { color: #fb923c; }
+
+/* ═══ MONITOR PÚBLICO: ajustes tras la 2.ª ronda visual ═════════════════════ */
+html[data-device="phone"] .phb-main { flex-wrap: nowrap; }
+/* el tablero es una hoja opaca: antes se transparentaba el HUD y el banner de atrás */
+html[data-device="phone"] .info-cards-dock { background: rgba(2, 6, 23, 0.98); }
+/* deja sitio al botón cerrar para que no tape la última pestaña */
+html[data-device="phone"] .info-cards-dock .dock-tabs { padding-right: 52px; }
+html[data-device="phone"] .dock-minimized { white-space: nowrap; padding: 10px 22px; font-size: 0.78rem; min-height: 44px; width: auto; }
+html[data-device="phone"] .dsk-aforo-list { display: flex; flex-wrap: wrap; gap: 4px; }
+html[data-device="phone"] .dsk-aforo-chip { font-size: 0.66rem; padding: 2px 8px; white-space: nowrap; }
+/* Con el tablero abierto, el HUD y el banner de atrás no deben transparentarse a través de la hoja */
+html[data-device="phone"] .public-monitor-container:has(.info-cards-dock) :is(.public-header-badge, .hydraulic-violation-banner) { visibility: hidden; }
+/* Escalas sin reporte: lista corta desplazable (12 filas ocupaban media pantalla) */
+html[data-device="phone"] .dsk-aforo-list { max-height: 112px; overflow-y: auto; flex-direction: row; -webkit-overflow-scrolling: touch; }
+/* Tramos sin dato: etiqueta, tramo y motivo legibles (el tramo se partía en 4 líneas) */
+html[data-device="phone"] .bt-alert-item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; align-items: center; }
+html[data-device="phone"] .bt-alert-tramo { white-space: nowrap; }
+html[data-device="phone"] .bt-alert-q { grid-column: 1 / -1; font-size: 0.72rem; color: var(--pl-muted); }
+
+/* Indicador de eficiencia: título y aviso legibles (gris/rojo oscuro sobre fondo oscuro casi no se leían) */
+html[data-device="phone"] .gauge-title { color: #cbd5e1; font-size: 0.8rem; }
+html[data-device="phone"] .gauge-value-label { color: var(--pl-muted); }
+html[data-device="phone"] .gauge-status { color: #fecaca; background: rgba(239, 68, 68, 0.18); border-color: #f87171; }
+html[data-device="phone"] .gauge-status-badge.status-critico { color: #fecaca !important; background: rgba(239, 68, 68, 0.22) !important; border-color: #f87171 !important; }
+
+/* Controles nativos (select, fecha) en tema oscuro en lugar del gris claro de iOS */
+html[data-device="phone"] :is(select, input[type="date"], input[type="time"]) { color-scheme: dark; }

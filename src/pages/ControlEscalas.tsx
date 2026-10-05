@@ -56,6 +56,9 @@ interface ScaleReading {
     currentLevel: number;
     amReading: number;
     pmReading: number;
+    // true = NO hubo lectura (amReading/pmReading valen 0 solo por compatibilidad): se muestra S/D, nunca 0.
+    sinAm?: boolean;
+    sinPm?: boolean;
     minOperational: number;
     maxOperational: number;
     maxCapacity: number;
@@ -105,6 +108,8 @@ function mapResumenToZones(
             currentLevel: row.nivel_actual ?? 0,
             amReading: row.lectura_am ?? 0,
             pmReading: row.lectura_pm ?? 0,
+            sinAm: row.lectura_am == null,
+            sinPm: row.lectura_pm == null,
             minOperational: row.nivel_min_operativo,
             maxOperational: row.nivel_max_operativo,
             maxCapacity: row.capacidad_max,
@@ -400,7 +405,8 @@ const ScaleGauge = ({ scale, zoneColor, onOpenModal }: { scale: ScaleReading; zo
     const minPercent = (scale.minOperational / MAX_H) * 100;
     const maxPercent = (scale.maxOperational / MAX_H) * 100;
 
-    const delta = scale.pmReading - scale.amReading;
+    const sinDelta = !!(scale.sinAm || scale.sinPm);   // variación solo con AMBAS lecturas
+    const delta = sinDelta ? 0 : scale.pmReading - scale.amReading;
     const isRising = delta > 0.02;
     const isFalling = delta < -0.02;
 
@@ -476,16 +482,16 @@ const ScaleGauge = ({ scale, zoneColor, onOpenModal }: { scale: ScaleReading; zo
                 <div className="reading-row">
                     <Clock size={12} className="text-slate-500" />
                     <span className="reading-label">06:00</span>
-                    <span className="reading-value">{(scale.amReading ?? 0).toFixed(2)}m</span>
+                    <span className="reading-value">{scale.sinAm ? 'S/D' : `${(scale.amReading ?? 0).toFixed(2)}m`}</span>
                 </div>
                 <div className="reading-row">
                     <Clock size={12} className="text-slate-500" />
                     <span className="reading-label">18:00</span>
-                    <span className="reading-value">{(scale.pmReading ?? 0).toFixed(2)}m</span>
+                    <span className="reading-value">{scale.sinPm ? 'S/D' : `${(scale.pmReading ?? 0).toFixed(2)}m`}</span>
                 </div>
                 <div className={`delta-row ${isRising ? 'rising' : isFalling ? 'falling' : 'stable'}`}>
                     {isRising ? <ArrowUp size={14} /> : isFalling ? <ArrowDown size={14} /> : <Minus size={14} />}
-                    <span>Δ {(delta ?? 0) >= 0 ? '+' : ''}{(delta ?? 0).toFixed(2)}m</span>
+                    <span>{sinDelta ? 'Δ S/D (falta una lectura)' : `Δ ${(delta ?? 0) >= 0 ? '+' : ''}${(delta ?? 0).toFixed(2)}m`}</span>
                 </div>
             </div>
 
@@ -682,9 +688,12 @@ const ControlEscalas = () => {
     const allScales = zones.flatMap(z => z.scales);
     const totalScales = allScales.length;
     const warningCount = allScales.filter(s => s.currentLevel < s.minOperational || s.currentLevel > s.maxOperational).length;
-    const avgDelta = totalScales > 0
-        ? allScales.reduce((sum, s) => sum + (s.pmReading - s.amReading), 0) / totalScales
-        : 0;
+    // Promedio SOLO con escalas que tienen lectura de la mañana Y de la tarde: antes un "sin lectura"
+    // contaba como 0 m y arrastraba el promedio (p. ej. Δ −1.66 m falso).
+    const escalasConDelta = allScales.filter(s => !s.sinAm && !s.sinPm);
+    const avgDelta = escalasConDelta.length > 0
+        ? escalasConDelta.reduce((sum, s) => sum + (s.pmReading - s.amReading), 0) / escalasConDelta.length
+        : null;
     const totalRadiales = allScales.filter(s => s.pzasRadiales > 0).length;
     // Q de cabecera del canal (menor km) — las escalas están en serie sobre el mismo cauce,
     // sumar sus gastos mide la misma agua varias veces según avanza. Ver detalle en ZoneCard.
@@ -730,9 +739,9 @@ const ControlEscalas = () => {
                         <Activity size={16} />
                         <span>{warningCount} Alertas</span>
                     </div>
-                    <div className={`stat-chip ${avgDelta >= 0 ? 'rising' : 'falling'}`}>
-                        {avgDelta >= 0 ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
-                        <span>Δ {(avgDelta ?? 0) >= 0 ? '+' : ''}{(avgDelta ?? 0).toFixed(2)}m (12h)</span>
+                    <div className={`stat-chip ${avgDelta == null ? '' : avgDelta >= 0 ? 'rising' : 'falling'}`}>
+                        {avgDelta == null ? <Minus size={16} /> : avgDelta >= 0 ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
+                        <span>{avgDelta == null ? 'Δ S/D (12h)' : `Δ ${avgDelta >= 0 ? '+' : ''}${avgDelta.toFixed(2)}m (12h)`}</span>
                     </div>
                     {qCabeceraCanal > 0 && (
                         <div className="stat-chip" style={{ color: '#0ea5e9', borderColor: 'rgba(14,165,233,0.3)', backgroundColor: 'rgba(14,165,233,0.1)' }} title={`Gasto medido en ${escalaCabecera?.name} (cabecera del canal, Km ${escalaCabecera?.km})`}>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useInfraestructura, type PuntoEntrega } from '../hooks/useInfraestructura';
 import { MapPin, Plus, Save, Trash2, Edit2, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,14 @@ export default function Infraestructura() {
     const { profile } = useAuth();
 
     const [isEditing, setIsEditing] = useState(false);
+    // Buscador: 177 puntos son una lista interminable en el teléfono; filtra por nombre, tipo, km o módulo.
+    const [busqueda, setBusqueda] = useState('');
+    const puntosFiltrados = useMemo(() => {
+        const q = busqueda.trim().toLowerCase();
+        if (!q) return puntos;
+        return puntos.filter(p => [p.nombre, p.tipo, p.m_codigo_corto, p.s_nombre, p.seccion_texto, p.km != null ? String(p.km) : '']
+            .some(v => String(v ?? '').toLowerCase().includes(q)));
+    }, [puntos, busqueda]);
     const [formData, setFormData] = useState<Partial<PuntoEntrega>>({});
 
     const accessDenied = profile?.rol !== 'SRL';
@@ -75,7 +83,17 @@ export default function Infraestructura() {
                 {/* Tabla de Puntos (Oculta si se está editando en móvil, o reducida en desktop) */}
                 <div className={`flex-1 bg-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700 flex flex-col transition-all ${isEditing ? 'opacity-30 pointer-events-none lg:opacity-100 lg:pointer-events-auto lg:w-1/2 flex-none' : 'w-full'}`}>
                     <div className="p-4 border-b border-slate-700 bg-slate-900/50 flex justify-between items-center">
-                        <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Puntos Registrados ({puntos.length})</h2>
+                        <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Puntos Registrados ({busqueda.trim() ? `${puntosFiltrados.length} de ${puntos.length}` : puntos.length})</h2>
+                    </div>
+                    <div className="infra-search p-3 border-b border-slate-700 bg-slate-900/40">
+                        <input
+                            type="search"
+                            value={busqueda}
+                            onChange={e => setBusqueda(e.target.value)}
+                            placeholder="Buscar por nombre, tipo, km o módulo…"
+                            aria-label="Buscar punto de infraestructura"
+                            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 outline-none focus:border-blue-500"
+                        />
                     </div>
                     <div className="flex-1 overflow-auto custom-scrollbar">
                         <table className="w-full text-left border-collapse text-sm">
@@ -92,7 +110,7 @@ export default function Infraestructura() {
                                 {loading ? (
                                     <tr><td colSpan={5} className="text-center py-8 text-slate-500">Cargando catálogo...</td></tr>
                                 ) : (
-                                    puntos.map(p => (
+                                    puntosFiltrados.map(p => (
                                         <tr key={p.id} className="hover:bg-slate-750 transition-colors group">
                                             <td className="py-3 px-4 font-mono text-blue-400">{p.km?.toFixed(3)}</td>
                                             <td className="py-3 px-4">

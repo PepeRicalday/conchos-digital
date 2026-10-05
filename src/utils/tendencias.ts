@@ -34,6 +34,7 @@ export interface EscalaGeom {
   nombre: string;
   km: number;
   nivel_max_operativo?: number | null;
+  pzas_radiales?: number | null;   // 0 = escala de SOLO REFERENCIA (sin compuertas de control)
 }
 
 export interface TramoGeom {
@@ -220,7 +221,8 @@ export function serieVolumenTramos(
   tramos: TramoGeom[],
   nivelesPorEscalaFecha: Map<string, Map<string, NivelUpDown>>, // escala_id -> (fecha -> {arriba,abajo})
   fechas: string[],
-  perfiles: PerfilGeom[] = []
+  perfiles: PerfilGeom[] = [],
+  vaciadoDesde: string | null = null
 ): { series: SerieTramo[]; totalPorFecha: SeriePunto[] } {
   const series: SerieTramo[] = tramos.map(tr => {
     const { perfil, nSecciones } = perfilDeTramo(tr, perfiles);
@@ -260,6 +262,9 @@ export function serieVolumenTramos(
       if (rawUp != null) lastUp = rawUp;
       if (rawDn != null) lastDn = rawDn;
       if (lastUp == null || lastDn == null) return { t: instanteTs(f), y: null };
+      // Tras iniciar el vaciado un nivel arrastrado es agua que ya no está (escalas de referencia con
+      // nivel congelado por Chronos): S/D en vez de un volumen inventado.
+      if (arrastrado && vaciadoDesde && f.split('|')[0] > vaciadoDesde) return { t: instanteTs(f), y: null };
       const y = +(volM3(lastUp, lastDn) / 1e6).toFixed(4);
       return arrastrado ? { t: instanteTs(f), y, est: true } : { t: instanteTs(f), y };
     });
@@ -269,9 +274,13 @@ export function serieVolumenTramos(
     // disponible de forma independiente para arriba y abajo. Así la sección
     // dibujada coincide con el último punto de la serie de volumen.
     let nivelUpActual: number | null = null, nivelDownActual: number | null = null;
-    for (let i = fechas.length - 1; i >= 0 && nivelUpActual == null; i--)
+    // En vaciado el 'último nivel conocido' de una frontera con días de antigüedad no es el estado actual
+    // (el agua ya no está): solo cuenta la lectura del último instante del rango; si falta, S/D.
+    const ultimoEsVaciado = !!vaciadoDesde && fechas.length > 0 && fechas[fechas.length - 1].split('|')[0] > vaciadoDesde;
+    const iMin = ultimoEsVaciado ? fechas.length - 1 : 0;
+    for (let i = fechas.length - 1; i >= iMin && nivelUpActual == null; i--)
       nivelUpActual = tiranteFrontera(nivelesPorEscalaFecha.get(tr.esc_up_id)?.get(fechas[i]), 'up');
-    for (let i = fechas.length - 1; i >= 0 && nivelDownActual == null; i--)
+    for (let i = fechas.length - 1; i >= iMin && nivelDownActual == null; i--)
       nivelDownActual = tiranteFrontera(nivelesPorEscalaFecha.get(tr.esc_down_id)?.get(fechas[i]), 'down');
     if (nivelUpActual != null) nivelUpActual = +nivelUpActual.toFixed(3);
     if (nivelDownActual != null) nivelDownActual = +nivelDownActual.toFixed(3);
@@ -309,7 +318,9 @@ export function serieVolumenTramos(
   const totalPorFecha: SeriePunto[] = fechas.map((f, i) => {
     const suma = series.reduce((s, se) => s + (se.puntos[i].y ?? 0), 0);
     const algun = series.some(se => se.puntos[i].y != null);
-    return { t: instanteTs(f), y: algun ? +suma.toFixed(4) : null };
+    // Total PARCIAL (algún tramo sin dato): se marca est para no leerlo como volumen completo del canal.
+    const parcial = algun && series.some(se => se.puntos[i].y == null);
+    return algun ? { t: instanteTs(f), y: +suma.toFixed(4), ...(parcial ? { est: true } : {}) } : { t: instanteTs(f), y: null };
   });
   return { series, totalPorFecha };
 }
@@ -392,6 +403,7 @@ export interface SerieCompuerta {
   diferencial: SeriePunto[]; // arriba - abajo
   aperturaUlt: number | null;      // apertura total última (m)
   puertasAbiertas: number | null;
+  esReferencia?: boolean;          // pzas_radiales = 0: sin H↓, diferencial ni apertura
 }
 
 export function aperturaTotal(radiales_json: unknown): { total: number; abiertas: number } | null {
@@ -416,8 +428,10 @@ export function serieCompuertas(lecturas: LecturaEscala[], escalas: EscalaGeom[]
     const arriba: SeriePunto[] = [], abajo: SeriePunto[] = [], diferencial: SeriePunto[] = [];
     for (const l of rows) {
       const t = tsOf(l.fecha, l.hora_lectura);
-      arriba.push({ t, y: l.nivel_m });
-      abajo.push({ t, y: l.nivel_abajo_m });
+      // Un nivel <= 0 es 'no medido' (p.ej. nivel_abajo=0 en escalas de referencia): null, no 0,
+      // para que no arrastre a la baja los promedios H↑/H↓.
+      arriba.push({ t, y: nivelValido(l.nivel_m) ? l.nivel_m : null });
+      abajo.push({ t, y: nivelValido(l.nivel_abajo_m) ? l.nivel_abajo_m : null });
       // Diferencial solo cuando AMBOS niveles son reales (>0). nivel_abajo=0 suele ser
       // "no medido" en escalas de referencia sin control (K-64, K-94+200); tratarlo
       // como null evita un diferencial artificial (p.ej. 3.16 - 0 = 3.16).
@@ -430,6 +444,7 @@ export function serieCompuertas(lecturas: LecturaEscala[], escalas: EscalaGeom[]
       escala_id: e.id, nombre: e.nombre, km: e.km, arriba, abajo, diferencial,
       aperturaUlt: ult ? +ult.total.toFixed(2) : null,
       puertasAbiertas: ult ? ult.abiertas : null,
+      esReferencia: e.pzas_radiales != null && e.pzas_radiales === 0,
     };
   }).filter(s => s.arriba.some(p => p.y != null) || s.abajo.some(p => p.y != null));
 }
@@ -447,7 +462,11 @@ function gastoDiarioPorKm(lecturas: LecturaEscala[], escalas: EscalaGeom[], kmOb
   const escId = escalas.find(e => Math.abs(e.km - kmObjetivo) < 0.5)?.id;
   const out = new Map<string, number>();
   if (!escId) return out;
-  for (const l of lecturas) {
+  // Orden por hora de lectura (desempata creado_en): en BD varias lecturas comparten el mismo
+  // creado_en de Chronos y la 'última' salía arbitraria.
+  const ordenadas = [...lecturas].sort((a, b) =>
+    tsOf(a.fecha, a.hora_lectura) - tsOf(b.fecha, b.hora_lectura) || a.creado_en.localeCompare(b.creado_en));
+  for (const l of ordenadas) {
     if (l.escala_id !== escId || l.gasto_calculado_m3s == null) continue;
     // conserva la lectura más tardía del día
     out.set(l.fecha, l.gasto_calculado_m3s);
@@ -469,8 +488,11 @@ function gastoPorLecturaPorKm(lecturas: LecturaEscala[], escalas: EscalaGeom[], 
   return out;
 }
 
+// vaciadoDesde (YYYY-MM-DD): desde esa fecha el balance Q₀ − Σentregas − Q₁₀₄ NO aplica: las entregas salen del
+// volumen almacenado, no de la entrada, así que la diferencia no es pérdida. Se deja sin dato (no conciliable).
 export function serieGasto(
-  lecturas: LecturaEscala[], escalas: EscalaGeom[], entregas: EntregaModulo[], fechas: string[]
+  lecturas: LecturaEscala[], escalas: EscalaGeom[], entregas: EntregaModulo[], fechas: string[],
+  vaciadoDesde: string | null = null
 ): SerieGasto {
   const qEntrada = gastoDiarioPorKm(lecturas, escalas, 0);
   const qSalida = gastoDiarioPorKm(lecturas, escalas, 104);
@@ -487,6 +509,7 @@ export function serieGasto(
   const entrada = mk(qEntrada), salida = mk(qSalida), entregasS = mk(entregasPorFecha);
   const perdidas: SeriePunto[] = fechas.map((f, i) => {
     const qe = entrada[i].y, qs = salida[i].y, qz = entregasS[i].y;
+    if (vaciadoDesde && f >= vaciadoDesde) return { t: tsOf(f), y: null };
     if (qe == null || qs == null || qz == null) return { t: tsOf(f), y: null };
     return { t: tsOf(f), y: +(qe - qs - qz).toFixed(3) };
   });
@@ -499,7 +522,8 @@ export function serieGasto(
 // se repite en cada instante de ese día (mismo valor, no inventa variación);
 // pérdidas solo se calcula cuando los tres tienen dato en ese instante.
 export function serieGastoPorLectura(
-  lecturas: LecturaEscala[], escalas: EscalaGeom[], entregas: EntregaModulo[], instantes: string[]
+  lecturas: LecturaEscala[], escalas: EscalaGeom[], entregas: EntregaModulo[], instantes: string[],
+  vaciadoDesde: string | null = null
 ): SerieGasto {
   const qEntrada = gastoPorLecturaPorKm(lecturas, escalas, 0);
   const qSalida = gastoPorLecturaPorKm(lecturas, escalas, 104);
@@ -520,6 +544,7 @@ export function serieGastoPorLectura(
   });
   const perdidas: SeriePunto[] = instantes.map((i, idx) => {
     const qe = entrada[idx].y, qs = salida[idx].y, qz = entregasS[idx].y;
+    if (vaciadoDesde && i.split('|')[0] >= vaciadoDesde) return { t: instanteTs(i), y: null };
     if (qe == null || qs == null || qz == null) return { t: instanteTs(i), y: null };
     return { t: instanteTs(i), y: +(qe - qs - qz).toFixed(3) };
   });

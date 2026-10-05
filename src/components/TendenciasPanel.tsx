@@ -203,8 +203,11 @@ const MultiLine: React.FC<{
 // Umbrales respecto al tirante de DISEÑO (que es el nivel normal de operación,
 // no un límite de peligro): operar al 100% del diseño es óptimo. El riesgo real
 // es SUPERARLO (invade bordo libre) o quedar muy por debajo (desabasto).
-const estadoLlenado = (pct: number | null): { color: string; label: string; icon: string } => {
+// Con el canal en VACIADO un tirante bajo es lo esperado, no un desabasto: se rotula 'vaciado' en tono neutro.
+const VaciadoCtx = React.createContext(false);
+const estadoLlenado = (pct: number | null, vaciado = false): { color: string; label: string; icon: string } => {
   if (pct == null) return { color: '#64748b', label: 's/diseño', icon: '' };
+  if (vaciado && pct < 60) return { color: '#94a3b8', label: 'vaciado', icon: '' };
   if (pct > 105) return { color: '#ef4444', label: 'alto', icon: '⚠' };   // invade bordo libre
   if (pct >= 85) return { color: '#22c55e', label: 'óptimo', icon: '' };  // cerca del diseño
   if (pct >= 60) return { color: '#38bdf8', label: 'normal', icon: '' };  // operativo, sin llenar
@@ -226,7 +229,8 @@ const SeccionCanal: React.FC<{
   const { estado, etiqueta } = tramo;
   const { tiranteActual, pctDiseno, plantilla: b, talud: z, tiranteDiseno,
           bordoLibre, alturaCanal, anchoCorona, nSecciones, esTrapezoidal } = estado;
-  const { color: colEstado, label, icon } = estadoLlenado(pctDiseno);
+  const vac = React.useContext(VaciadoCtx);
+  const { color: colEstado, label, icon } = estadoLlenado(pctDiseno, vac);
   const compuesto = nSecciones > 1;   // el tramo cruza varias secciones-tipo reales
 
   // ── Lienzo con margen; el mapeo metros→px es COMÚN a toda la tira ──
@@ -458,7 +462,8 @@ const ModalTramo: React.FC<{ tramo: SerieTramo; color: string; t0: number; t1: n
   const { tiranteActual, pctDiseno, plantilla: b, talud: z, tiranteDiseno,
           bordoLibre, alturaCanal, pctBordo, anchoCorona, nSecciones, esTrapezoidal,
           longitudKm, nivelUpActual, nivelDownActual } = estado;
-  const { color: colEstado, label, icon } = estadoLlenado(pctDiseno);
+  const vac = React.useContext(VaciadoCtx);
+  const { color: colEstado, label, icon } = estadoLlenado(pctDiseno, vac);
   const st = statsSerie(tramo.puntos);
   const volActual = [...tramo.puntos].reverse().find(p => p.y != null)?.y ?? null;
 
@@ -571,12 +576,20 @@ interface Props {
   volTotal: SeriePunto[];
   compuertas: SerieCompuerta[];
   gasto: SerieGasto;
+  /** Inicio (YYYY-MM-DD) del VACIADO activo; null/undefined si no hay. */
+  vaciadoDesde?: string | null;
 }
 
 const TendenciasPanel: React.FC<Props> = ({
   loading, error, onReintentar, rangoDesde, rangoHasta, granularidad, onRango, onGranularidad,
-  niveles, volTramos, volTotal, compuertas, gasto,
+  niveles, volTramos, volTotal, compuertas, gasto, vaciadoDesde,
 }) => {
+  // El rango incluye días de vaciado → el estado actual del canal es 'vaciado'.
+  const enVaciado = !!vaciadoDesde && rangoHasta >= vaciadoDesde;
+  const periodoMixto = enVaciado && rangoDesde < (vaciadoDesde as string);
+  const vaciadoLbl = vaciadoDesde
+    ? new Date(`${vaciadoDesde}T12:00:00-06:00`).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: 'America/Chihuahua' })
+    : '';
   const [t0, t1] = useMemo(() => {
     const a = new Date(`${rangoDesde}T00:00:00-06:00`).getTime();
     const b = new Date(`${rangoHasta}T23:59:59-06:00`).getTime();
@@ -659,7 +672,7 @@ const TendenciasPanel: React.FC<Props> = ({
       const y = +s.nivelMax.toFixed(2);
       // si dos escalas comparten nivel máx, una sola banda gris; si es única, su color
       if (porNivel.has(y)) porNivel.set(y, { y, label: `máx op ${y.toFixed(2)} m`, color: '#94a3b8' });
-      else porNivel.set(y, { y, label: `K-${s.km} máx ${y.toFixed(2)} m`, color });
+      else porNivel.set(y, { y, label: `${s.nombre} máx ${y.toFixed(2)} m`, color });
     }
     return [...porNivel.values()];
   }, [niveles, esVisible]);
@@ -726,6 +739,7 @@ const TendenciasPanel: React.FC<Props> = ({
   const filtroLabel = visNiveles == null ? 'todas las escalas' : nVisibles === 0 ? 'ninguna escala' : `${nVisibles} de ${niveles.length} escalas`;
 
   return (
+    <VaciadoCtx.Provider value={enVaciado}>
     <div className="tnd-root">
       {/* Controles */}
       <div className="tnd-controls">
@@ -752,6 +766,14 @@ const TendenciasPanel: React.FC<Props> = ({
           <FileBarChart size={13} /> Análisis
         </button>
       </div>
+
+      {enVaciado && (
+        <div className="tnd-note tnd-vaciado" role="status">
+          <strong>Canal en VACIADO desde {vaciadoLbl}.</strong> Los niveles bajos y el descenso son lo esperado, no desabasto.
+          {periodoMixto && ' El periodo mezcla operación y vaciado: los Δ y promedios no son comparables entre ambas etapas.'}
+          {' '}Escalas de referencia sin lectura de campo se muestran como S/D.
+        </div>
+      )}
 
       {loading && (
         <>
@@ -791,7 +813,7 @@ const TendenciasPanel: React.FC<Props> = ({
               <button type="button" onClick={verNinguna}>Ninguna</button>
             </div>
             <MultiLine
-              series={niveles.map((s, i) => ({ nombre: `K-${s.km}`, puntos: s.puntos, color: PAL[i % PAL.length] }))
+              series={niveles.map((s, i) => ({ nombre: s.nombre, puntos: s.puntos, color: PAL[i % PAL.length] }))
                              .filter((_, i) => esVisible(niveles[i].escala_id))}
               t0={t0} t1={t1} yLabel="Nivel (m)" height={168}
               bands={bandasNivelMax}
@@ -807,8 +829,8 @@ const TendenciasPanel: React.FC<Props> = ({
                     onClick={() => toggleNivel(s.escala_id)}
                     onDoubleClick={() => soloNivel(s.escala_id)}
                     aria-pressed={on}
-                    title={on ? `Ocultar K-${s.km} (doble clic: solo)` : `Mostrar K-${s.km}`}>
-                    <i style={{ background: PAL[i % PAL.length] }} />K-{s.km}
+                    title={on ? `Ocultar ${s.nombre} (doble clic: solo)` : `Mostrar ${s.nombre}`}>
+                    <i style={{ background: PAL[i % PAL.length] }} />{s.nombre}
                   </button>
                 );
               })}
@@ -820,9 +842,9 @@ const TendenciasPanel: React.FC<Props> = ({
                   {niveles.map((s, i) => { const st = statsSerie(s.puntos); const on = esVisible(s.escala_id); return (
                     <tr key={s.escala_id} className={`tnd-row${on ? '' : ' off'}`}
                         onClick={() => toggleNivel(s.escala_id)}
-                        title={on ? `Ocultar K-${s.km}` : `Mostrar K-${s.km}`}>
+                        title={on ? `Ocultar ${s.nombre}` : `Mostrar ${s.nombre}`}>
                       <td style={{ fontWeight: 700 }}>
-                        <span className="tnd-swatch" style={{ background: PAL[i % PAL.length], opacity: on ? 1 : 0.3 }} />K-{s.km}
+                        <span className="tnd-swatch" style={{ background: PAL[i % PAL.length], opacity: on ? 1 : 0.3 }} />{s.nombre}
                       </td>
                       <td>{n2(st.min)}</td><td>{n2(st.max)}</td><td>{n2(st.avg)}</td>
                       <td style={{ color: st.delta! > 0 ? '#ef4444' : st.delta! < 0 ? '#22c55e' : '#64748b' }}>{st.delta == null ? '—' : (st.delta > 0 ? '▲' : st.delta < 0 ? '▼' : '—') + ' ' + n2(Math.abs(st.delta))}</td>
@@ -884,7 +906,7 @@ const TendenciasPanel: React.FC<Props> = ({
               <table className="dsk-table">
                 <thead><tr><th>Tramo</th><th>Vol mín</th><th>Vol máx</th><th>Δ Mm³</th><th>Tirante act.</th><th>% diseño</th></tr></thead>
                 <tbody>
-                  {volTramos.map(tr => { const st = statsSerie(tr.puntos); const { color, label } = estadoLlenado(tr.estado.pctDiseno); return (
+                  {volTramos.map(tr => { const st = statsSerie(tr.puntos); const { color, label } = estadoLlenado(tr.estado.pctDiseno, enVaciado); return (
                     <tr key={tr.key}><td style={{ fontSize: '0.62rem' }}>{tr.etiqueta}</td><td>{n3(st.min)}</td><td>{n3(st.max)}</td>
                       <td style={{ color: st.delta! > 0 ? '#38bdf8' : '#f59e0b' }}>{n3(st.delta)}</td>
                       <td>{tr.estado.tiranteActual != null ? tr.estado.tiranteActual.toFixed(2) : '—'}</td>
@@ -908,10 +930,11 @@ const TendenciasPanel: React.FC<Props> = ({
                 <tbody>
                   {compuertas.map(c => { const su = statsSerie(c.arriba), sd = statsSerie(c.abajo), sdif = statsSerie(c.diferencial); return (
                     <tr key={c.escala_id}>
-                      <td style={{ fontWeight: 700 }}>K-{c.km}</td>
-                      <td>{n2(su.avg)}</td><td>{n2(sd.avg)}</td>
-                      <td style={{ color: '#c98500', fontWeight: 700 }}>{n2(sdif.avg)}</td>
-                      <td>{n2(c.aperturaUlt)}</td><td>{c.puertasAbiertas ?? '—'}</td>
+                      <td style={{ fontWeight: 700 }}>{c.nombre}{c.esReferencia && <span style={{ fontSize: '0.55rem', fontWeight: 600, color: '#94a3b8' }} title="Escala de referencia: sin compuertas de control"> (ref.)</span>}</td>
+                      <td>{n2(su.avg)}</td>
+                      <td>{c.esReferencia ? <span style={{ color: '#94a3b8' }}>s/control</span> : n2(sd.avg)}</td>
+                      <td style={{ color: c.esReferencia ? '#94a3b8' : '#c98500', fontWeight: 700 }}>{c.esReferencia ? '—' : n2(sdif.avg)}</td>
+                      <td>{c.esReferencia ? '—' : n2(c.aperturaUlt)}</td><td>{c.esReferencia ? '—' : (c.puertasAbiertas ?? '—')}</td>
                     </tr>
                   ); })}
                 </tbody>
@@ -962,6 +985,9 @@ const TendenciasPanel: React.FC<Props> = ({
             {gasto.entregas.every(p => p.y == null) && (
               <div className="tnd-note tnd-warn">⚠ Sin registros de entregas en el rango seleccionado — la serie de entregas y las pérdidas quedan vacías. Los datos de <code>entregas_modulo</code> pueden no cubrir fechas recientes; prueba un rango anterior (p.ej. mayo–junio).</div>
             )}
+            {enVaciado && (
+              <div className="tnd-note">Desde {vaciadoLbl} (vaciado) las pérdidas quedan sin dato: las entregas salen del volumen almacenado y no de la entrada, así que Q₀ − Σentregas − Q₁₀₄ no es una pérdida (balance no conciliable).</div>
+            )}
             <div className="tnd-note">Extracción por zona = Σ entregas reales a módulos (no diferencial entre escalas). Pérdidas = Q₀ − Σentregas − Q₁₀₄, solo cuando los tres tienen dato el mismo día.</div>
           </div>
         </>
@@ -979,11 +1005,12 @@ const TendenciasPanel: React.FC<Props> = ({
           rangoDesde={rangoDesde} rangoHasta={rangoHasta} granularidad={granularidad}
           niveles={nivelesInforme} niveleslabel={filtroLabel}
           volTramos={volTramos} volTotal={volTotal}
-          compuertas={compuertas} gasto={gasto}
+          compuertas={compuertas} gasto={gasto} vaciadoDesde={vaciadoDesde}
           onClose={() => setShowInforme(false)}
         />
       )}
     </div>
+    </VaciadoCtx.Provider>
   );
 };
 

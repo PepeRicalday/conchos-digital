@@ -3896,6 +3896,7 @@ const PublicMonitor: React.FC = () => {
                                 volTotal={tndData.volTotal}
                                 compuertas={tndData.compuertas}
                                 gasto={tndData.gasto}
+                                vaciadoDesde={tndData.vaciadoDesde}
                             />
                         </div>
                     </div>

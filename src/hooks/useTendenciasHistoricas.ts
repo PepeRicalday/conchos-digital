@@ -16,11 +16,14 @@ export interface TendenciasData {
   volTotal: SeriePunto[];
   compuertas: SerieCompuerta[];
   gasto: SerieGasto;
+  /** Fecha local (YYYY-MM-DD) de inicio del VACIADO activo; null si el canal no está en vaciado. */
+  vaciadoDesde: string | null;
 }
 
 const EMPTY_TND_DATA: TendenciasData = {
   niveles: [], volTramos: [], volTotal: [], compuertas: [],
   gasto: { entrada: [], salida: [], entregas: [], perdidas: [] },
+  vaciadoDesde: null,
 };
 
 /**
@@ -77,12 +80,19 @@ export function useTendenciasHistoricas(activo: boolean) {
           return acc;
         };
 
-        const [escRes, tramoRes, perfilRes] = await Promise.all([
+        const [escRes, tramoRes, perfilRes, vacRes] = await Promise.all([
           supabase.from('escalas').select('id, nombre, km, nivel_max_operativo, pzas_radiales').order('km'),
           supabase.from('vol_interescalas').select('esc_up_id, esc_up, km_up, esc_down_id, esc_down, km_down, longitud_km, ancho_canal_m, vol_m3, nivel_up_m, nivel_down_m'),
           // Geometría trapezoidal por tramo (plantilla, talud) para el volumen real del Bloque 2
           supabase.from('perfil_hidraulico_canal').select('km_inicio, km_fin, plantilla_m, talud_z, tirante_diseno_m, bordo_libre_m').order('km_inicio'),
+          // Evento VACIADO activo (presa cerrada, canal en remanente): cambia cómo se interpretan los análisis.
+          supabase.from('sica_eventos_log').select('fecha_inicio').eq('evento_tipo', 'VACIADO').eq('esta_activo', true)
+            .order('fecha_inicio', { ascending: false }).limit(1).maybeSingle(),
         ]);
+        const vacIni = (vacRes.data as { fecha_inicio?: string } | null)?.fecha_inicio;
+        const vaciadoDesde: string | null = vacIni
+          ? new Date(vacIni).toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' })
+          : null;
         const escalasGeom = (escRes.data || []) as { id: string; nombre: string; km: number; nivel_max_operativo: number | null; pzas_radiales?: number | null }[];
         const tramos = (tramoRes.data || []) as TramoGeom[];
         const perfiles = (perfilRes.data || []) as PerfilGeom[];
@@ -109,8 +119,11 @@ export function useTendenciasHistoricas(activo: boolean) {
         // de las escalas de sólo referencia (única fuente de su nivel), para que
         // los tramos que las tocan (…→K-94+200, K-94+200→K-104, …→K-64→…) no
         // queden vacíos pese a no tener lectura manual.
+        // Tras iniciar el VACIADO ese nivel autogenerado es un arrastre de la última lectura (el agua ya
+        // no está), así que se descarta a partir del día siguiente al inicio.
         const lecturasVol = lecRaw.filter(r =>
-          !esAutogenerada(r) || escalasReferencia.has(r.escala_id));
+          !esAutogenerada(r)
+          || (escalasReferencia.has(r.escala_id) && !(vaciadoDesde && r.fecha > vaciadoDesde)));
 
         // Resumen diario (serie de nivel por escala, paginado) + entregas
         const [resRaw, { data: entRaw }] = await Promise.all([
@@ -141,21 +154,23 @@ export function useTendenciasHistoricas(activo: boolean) {
         const { idx, fechas } = tndGran === 'lectura'
           ? indiceNivelesUpDownPorLectura(lecturasVol)
           : indiceNivelesUpDown(lecturasVol);
-        const { series: volTramos, totalPorFecha: volTotal } = serieVolumenTramos(tramos, idx, fechas, perfiles);
+        const { series: volTramos, totalPorFecha: volTotal } = serieVolumenTramos(tramos, idx, fechas, perfiles, vaciadoDesde);
         const compuertas = serieCompuertas(lecturas, escalasGeom);
         // Gasto: "Diaria" agrega por día calendario (gastoDiarioPorKm). "Por
         // lectura" usa un punto por INSTANTE de K-0/K-104 — igual razón que
         // el volumen: con un solo día en rango, la agregación diaria colapsa
         // todas las lecturas del día a un único punto sin variación visible.
-        const fechasDia = [...new Set(lecturas.map(l => l.fecha))].sort();
+        // Fechas con lectura de campo O con entregas: antes solo las primeras, y se perdían las entregas
+        // de los días sin captura (1–3 y 5 de oct).
+        const fechasDia = [...new Set([...lecturas.map(l => l.fecha), ...entregas.map(e => e.fecha)])].sort();
         const gasto = tndGran === 'lectura'
           ? serieGastoPorLectura(lecturas, escalasGeom, entregas,
               [...new Set(lecturas
                 .filter(l => l.gasto_calculado_m3s != null)
-                .map(l => claveInstante(l.fecha, l.hora_lectura)))].sort())
-          : serieGasto(lecturas, escalasGeom, entregas, fechasDia.length ? fechasDia : [tndHasta]);
+                .map(l => claveInstante(l.fecha, l.hora_lectura)))].sort(), vaciadoDesde)
+          : serieGasto(lecturas, escalasGeom, entregas, fechasDia.length ? fechasDia : [tndHasta], vaciadoDesde);
 
-        if (!cancel) setTndData({ niveles, volTramos, volTotal, compuertas, gasto });
+        if (!cancel) setTndData({ niveles, volTramos, volTotal, compuertas, gasto, vaciadoDesde });
       } catch (e) {
         if (!cancel) {
           toast.error('No se pudo cargar el histórico de tendencias');

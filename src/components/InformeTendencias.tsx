@@ -22,14 +22,16 @@ export interface InformeTendenciasProps {
     volTotal: SeriePunto[];
     compuertas: SerieCompuerta[];
     gasto: SerieGasto;
+    vaciadoDesde?: string | null;   // inicio del VACIADO activo (YYYY-MM-DD)
     onClose: () => void;
 }
 
 const N2 = (v: number | null | undefined) => v != null && isFinite(v) ? v.toFixed(2) : '—';
 const N3 = (v: number | null | undefined) => v != null && isFinite(v) ? v.toFixed(3) : '—';
 
-const estadoLlenadoLbl = (pct: number | null): { color: string; label: string } => {
+const estadoLlenadoLbl = (pct: number | null, vaciado = false): { color: string; label: string } => {
     if (pct == null) return { color: '#888', label: 's/diseño' };
+    if (vaciado && pct < 60) return { color: '#64748b', label: 'vaciado' };
     if (pct > 105) return { color: '#dc2626', label: 'alto (a bordo)' };
     if (pct >= 85) return { color: '#16a34a', label: 'óptimo' };
     if (pct >= 60) return { color: '#2563eb', label: 'normal' };
@@ -38,9 +40,12 @@ const estadoLlenadoLbl = (pct: number | null): { color: string; label: string } 
 
 const InformeTendencias: React.FC<InformeTendenciasProps> = ({
     rangoDesde, rangoHasta, granularidad, niveles, niveleslabel,
-    volTramos, volTotal, compuertas, gasto, onClose,
+    volTramos, volTotal, compuertas, gasto, vaciadoDesde, onClose,
 }) => {
     const generateHtml = useCallback(() => {
+        const enVaciado = !!vaciadoDesde && rangoHasta >= vaciadoDesde;
+        const periodoMixto = enVaciado && rangoDesde < (vaciadoDesde as string);
+        const vaciadoLbl = vaciadoDesde ? new Date(`${vaciadoDesde}T12:00:00-06:00`).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', timeZone: 'America/Chihuahua' }) : '';
         const now = new Date();
         const dateDMY = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Chihuahua' });
         const timeStr = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' });
@@ -80,7 +85,7 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
             const tendencia = st.delta == null ? '—' : st.delta > 0.02 ? '▲ subiendo' : st.delta < -0.02 ? '▼ bajando' : '● estable';
             const tColor = st.delta == null ? '#888' : st.delta > 0.02 ? '#dc2626' : st.delta < -0.02 ? '#16a34a' : '#555';
             return '<tr' + (i % 2 ? '' : '') + '>'
-                + '<td class="bold">K-' + s.km + '</td>'
+                + '<td class="bold">' + s.nombre + '</td>'
                 + '<td class="num">' + N2(st.min) + '</td>'
                 + '<td class="num">' + N2(st.max) + '</td>'
                 + '<td class="num bold">' + N2(st.avg) + '</td>'
@@ -119,7 +124,7 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
             }).join('');
             const legend = activas.map((s, i) =>
                 '<span style="display:inline-flex;align-items:center;gap:3px;margin-right:9px">'
-                + '<i style="width:7px;height:7px;background:' + PAL[i % PAL.length] + ';display:inline-block;border-radius:1px"></i>K-' + s.km + '</span>'
+                + '<i style="width:7px;height:7px;background:' + PAL[i % PAL.length] + ';display:inline-block;border-radius:1px"></i>' + s.nombre + '</span>'
             ).join('');
             const ejeX = marcasEjeX(t0, t1, xS, H - 4);
             return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block;background:#fbfaf8;border-radius:4px">'
@@ -130,7 +135,7 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
         // ── Bloque 2: volumen por tramo ────────────────────────────────────────
         const volRows = volTramos.map(tr => {
             const st = statsSerie(tr.puntos);
-            const { color, label } = estadoLlenadoLbl(tr.estado.pctDiseno);
+            const { color, label } = estadoLlenadoLbl(tr.estado.pctDiseno, enVaciado);
             return '<tr>'
                 + '<td style="font-size:6.8pt">' + tr.etiqueta + '</td>'
                 + '<td class="num">' + N3(st.min) + '</td>'
@@ -194,12 +199,11 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
         // control propia): su "H↓ 0.00" y diferencial "—" no son datos faltantes,
         // son el comportamiento esperado. Se marca explícito para no leerse como
         // un hueco de captura — mismo criterio que ESC_SIN_CONTROL en TendenciasPanel.
-        const ESC_SIN_CONTROL_INF = new Set(['K-64', 'K-94+200', 'K-94.057']);
         const compRows = compuertas.map(c => {
             const su = statsSerie(c.arriba), sd = statsSerie(c.abajo), sdif = statsSerie(c.diferencial);
-            const esRef = ESC_SIN_CONTROL_INF.has('K-' + c.km) || ESC_SIN_CONTROL_INF.has(c.nombre);
+            const esRef = !!c.esReferencia;
             return '<tr>'
-                + '<td class="bold">K-' + c.km + (esRef ? ' <span style="font-size:6pt;font-weight:600;color:#888">(ref.)</span>' : '') + '</td>'
+                + '<td class="bold">' + c.nombre + (esRef ? ' <span style="font-size:6pt;font-weight:600;color:#888">(ref.)</span>' : '') + '</td>'
                 + '<td class="num">' + N2(su.avg) + '</td>'
                 + '<td class="num">' + (esRef ? '<span style="color:#aaa">s/control</span>' : N2(sd.avg)) + '</td>'
                 + '<td class="num bold" style="color:' + (esRef ? '#aaa' : '#c98500') + '">' + (esRef ? '—' : N2(sdif.avg)) + '</td>'
@@ -207,7 +211,7 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
                 + '<td class="num">' + (esRef ? '—' : (c.puertasAbiertas ?? '—')) + '</td>'
                 + '</tr>';
         }).join('') || '<tr><td colspan="6" class="empty">Sin lecturas de compuerta en el periodo</td></tr>';
-        const hayRef = compuertas.some(c => ESC_SIN_CONTROL_INF.has('K-' + c.km) || ESC_SIN_CONTROL_INF.has(c.nombre));
+        const hayRef = compuertas.some(c => !!c.esReferencia);
 
         // ── Bloque 4: gasto K-0 → entregas → K-104 ──────────────────────────────
         const stEnt = statsSerie(gasto.entrada), stSal = statsSerie(gasto.salida),
@@ -268,15 +272,18 @@ const InformeTendencias: React.FC<InformeTendenciasProps> = ({
         // ── Hallazgos automáticos (lectura rápida para el operador) ─────────────
         const hallazgos: string[] = [];
         if (esHoy) hallazgos.push('<strong>Análisis intradía:</strong> tendencia calculada solo con lecturas capturadas hoy — la comparación Δ es contra la primera lectura del día, no contra ayer.');
-        const nivelesSubiendo = niveles.filter(s => { const st = statsSerie(s.puntos); return st.delta != null && st.delta > 0.05; });
-        const nivelesBajando = niveles.filter(s => { const st = statsSerie(s.puntos); return st.delta != null && st.delta < -0.05; });
-        if (nivelesSubiendo.length) hallazgos.push('<strong>Niveles al alza:</strong> ' + nivelesSubiendo.map(s => 'K-' + s.km).join(', ') + ' — verificar bordo libre disponible.');
-        if (nivelesBajando.length) hallazgos.push('<strong>Niveles a la baja:</strong> ' + nivelesBajando.map(s => 'K-' + s.km).join(', ') + ' — revisar continuidad de entrega aguas abajo.');
+        if (enVaciado) hallazgos.push('<strong>Canal en VACIADO desde ' + vaciadoLbl + ':</strong> el descenso de niveles y los tirantes bajos son lo esperado (no desabasto). Las pérdidas de tránsito no se calculan: las entregas salen del volumen almacenado.' + (periodoMixto ? ' El periodo mezcla operación y vaciado: los Δ y promedios no son comparables entre ambas etapas.' : ''));
+        // Escalas de referencia (sin compuertas): su nivel lo arrastra Chronos, no es una medición propia.
+        const nombresRef = new Set(compuertas.filter(c => c.esReferencia).map(c => c.nombre));
+        const nivelesSubiendo = niveles.filter(s => !nombresRef.has(s.nombre)).filter(s => { const st = statsSerie(s.puntos); return st.delta != null && st.delta > 0.05; });
+        const nivelesBajando = niveles.filter(s => !nombresRef.has(s.nombre)).filter(s => { const st = statsSerie(s.puntos); return st.delta != null && st.delta < -0.05; });
+        if (nivelesSubiendo.length) hallazgos.push('<strong>Niveles al alza:</strong> ' + nivelesSubiendo.map(s => s.nombre).join(', ') + ' — verificar bordo libre disponible.');
+        if (nivelesBajando.length && !enVaciado) hallazgos.push('<strong>Niveles a la baja:</strong> ' + nivelesBajando.map(s => s.nombre).join(', ') + ' — revisar continuidad de entrega aguas abajo.');
         const tramosAltos = volTramos.filter(t => t.estado.pctDiseno != null && t.estado.pctDiseno > 105);
         if (tramosAltos.length) hallazgos.push('<strong>Tramos sobre el tirante de diseño:</strong> ' + tramosAltos.map(t => t.etiqueta).join(', ') + ' — invaden bordo libre.');
         const tramosBajos = volTramos.filter(t => t.estado.pctDiseno != null && t.estado.pctDiseno < 60);
-        if (tramosBajos.length) hallazgos.push('<strong>Tramos con posible desabasto:</strong> ' + tramosBajos.map(t => t.etiqueta).join(', ') + ' — menos del 60% del tirante de diseño.');
-        if (stPer.avg != null && stPer.avg > 0.5) hallazgos.push('<strong>Pérdidas de tránsito promedio:</strong> ' + N2(stPer.avg) + ' m³/s en el periodo — revisar coherencia K-0 → entregas → K-104.');
+        if (tramosBajos.length && !enVaciado) hallazgos.push('<strong>Tramos con posible desabasto:</strong> ' + tramosBajos.map(t => t.etiqueta).join(', ') + ' — menos del 60% del tirante de diseño.');
+        if (stPer.avg != null && stPer.avg > 0.5 && !enVaciado) hallazgos.push('<strong>Pérdidas de tránsito promedio:</strong> ' + N2(stPer.avg) + ' m³/s en el periodo — revisar coherencia K-0 → entregas → K-104.');
         if (sinEntregas) hallazgos.push('Sin registros de <code>entregas_modulo</code> en el rango: la serie de entregas y pérdidas del Bloque 4 queda sin dato.');
         if (!hallazgos.length) hallazgos.push('Sin variaciones relevantes detectadas automáticamente en el periodo: niveles, volúmenes y gasto se mantienen dentro de rangos estables.');
         const hallazgosHtml = hallazgos.map(h => '<div class="obs-item"><span class="obs-icon">&#8226;</span><div>' + h + '</div></div>').join('');

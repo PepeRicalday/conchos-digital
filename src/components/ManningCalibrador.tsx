@@ -68,14 +68,14 @@ const FilaCalib = ({ r, onApply }: { r: ResultadoCalibPunto; onApply: (r: Result
                 <td className="px-4 py-3 text-center">
                     <div className="flex flex-col items-center gap-0.5">
                         <span className="text-[11px] font-black text-white">{r.n_muestras}</span>
-                        <span className="text-[8px] font-bold text-slate-500 uppercase">{CONFIANZA_LABEL[r.confianza]}</span>
+                        <span className="text-[11px] font-bold text-slate-500 uppercase">{CONFIANZA_LABEL[r.confianza]}</span>
                     </div>
                 </td>
 
                 {/* Estado */}
                 <td className="px-4 py-3 text-center">
                     <span
-                        className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md"
+                        className="text-[11px] font-black uppercase tracking-widest px-2 py-1 rounded-md"
                         style={{ backgroundColor: st.bg, color: st.color }}
                     >
                         {st.label}
@@ -89,7 +89,7 @@ const FilaCalib = ({ r, onApply }: { r: ResultadoCalibPunto; onApply: (r: Result
                             <button
                                 type="button"
                                 onClick={e => { e.stopPropagation(); onApply(r); }}
-                                className="text-[9px] font-black uppercase px-2 py-1 rounded-md border transition-all hover:opacity-80 active:scale-95"
+                                className="text-[11px] font-black uppercase px-2 py-1 rounded-md border transition-all hover:opacity-80 active:scale-95"
                                 style={{ borderColor: st.color, color: st.color }}
                             >
                                 Aplicar
@@ -104,7 +104,7 @@ const FilaCalib = ({ r, onApply }: { r: ResultadoCalibPunto; onApply: (r: Result
             {expanded && (
                 <tr className="border-b border-white/5 bg-slate-950/50">
                     <td colSpan={7} className="px-6 py-4">
-                        <div className="flex gap-8 flex-wrap text-[10px]">
+                        <div className="flex gap-8 flex-wrap text-[11px]">
                             <div>
                                 <span className="text-slate-500 font-bold uppercase tracking-widest block mb-1">Estadísticas</span>
                                 <div className="flex gap-4 font-mono text-slate-300">
@@ -163,7 +163,7 @@ const ConfirmModal = ({
                     <FlaskConical className="text-amber-400" size={20} />
                     Aplicar Calibración Manning
                 </h3>
-                <p className="text-[10px] text-slate-400 mt-1">{item.nombre_punto}</p>
+                <p className="text-[11px] text-slate-400 mt-1">{item.nombre_punto}</p>
             </div>
             <div className="p-6 space-y-4">
                 <div className="bg-slate-950/50 rounded-xl p-4 font-mono text-sm space-y-2">
@@ -186,7 +186,7 @@ const ConfirmModal = ({
                         <span className="text-white">{item.n_muestras} aforos de campo</span>
                     </div>
                 </div>
-                <p className="text-[10px] text-slate-500 leading-relaxed">
+                <p className="text-[11px] text-slate-500 leading-relaxed">
                     Esto actualizará <code className="text-amber-400">rugosidad_n</code> en{' '}
                     <code className="text-amber-400">perfil_hidraulico_canal</code> para el punto "{item.nombre_punto}".
                     El ModelingDashboard y los cálculos de Paso Estándar usarán el nuevo valor en su próxima ejecución.
@@ -258,7 +258,7 @@ export const ManningCalibrador = () => {
     if (loading) {
         return (
             <div className="flex items-center justify-center py-12">
-                <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest animate-pulse">
+                <span className="text-[11px] text-slate-600 font-bold uppercase tracking-widest animate-pulse">
                     Procesando aforos de campo ({90} días)...
                 </span>
             </div>
@@ -279,7 +279,7 @@ export const ManningCalibrador = () => {
             <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-600">
                 <FlaskConical size={32} />
                 <p className="text-xs font-bold uppercase tracking-widest">Sin aforos de campo en los últimos 90 días</p>
-                <p className="text-[10px] text-slate-700 text-center max-w-sm">
+                <p className="text-[11px] text-slate-700 text-center max-w-sm">
                     Registra aforos desde SICA Capture (método de dobles o vadeo) para
                     habilitar la calibración automática de Manning.
                 </p>
@@ -304,15 +304,15 @@ export const ManningCalibrador = () => {
             {/* KPIs resumen */}
             <div className="grid grid-cols-3 gap-3 mb-4">
                 <div className="bg-slate-950/50 rounded-xl p-3 border border-white/5">
-                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Puntos analizados</p>
+                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Puntos analizados</p>
                     <p className="text-2xl font-black text-white font-mono mt-1">{resultados.length}</p>
                 </div>
                 <div className="bg-emerald-950/30 rounded-xl p-3 border border-emerald-900/30">
-                    <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest">Conformes (Δ &lt;5%)</p>
+                    <p className="text-[11px] font-black text-emerald-600 uppercase tracking-widest">Conformes (Δ &lt;5%)</p>
                     <p className="text-2xl font-black text-emerald-400 font-mono mt-1">{conforme}</p>
                 </div>
                 <div className="bg-amber-950/30 rounded-xl p-3 border border-amber-900/30">
-                    <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest">Requieren revisión</p>
+                    <p className="text-[11px] font-black text-amber-600 uppercase tracking-widest">Requieren revisión</p>
                     <p className="text-2xl font-black text-amber-400 font-mono mt-1">{desviados}</p>
                 </div>
             </div>
@@ -322,13 +322,13 @@ export const ManningCalibrador = () => {
                 <table className="w-full text-left">
                     <thead>
                         <tr className="border-b border-white/10 bg-slate-950/80">
-                            <th className="px-4 py-2 text-[9px] font-black text-slate-500 uppercase tracking-widest">Punto de Control</th>
-                            <th className="px-4 py-2 text-[9px] font-black text-slate-500 uppercase tracking-widest text-center">n Diseño</th>
-                            <th className="px-4 py-2 text-[9px] font-black text-slate-500 uppercase tracking-widest text-center">n Calibrado</th>
-                            <th className="px-4 py-2 text-[9px] font-black text-slate-500 uppercase tracking-widest text-center">Δ%</th>
-                            <th className="px-4 py-2 text-[9px] font-black text-slate-500 uppercase tracking-widest text-center">Muestras</th>
-                            <th className="px-4 py-2 text-[9px] font-black text-slate-500 uppercase tracking-widest text-center">Estado</th>
-                            <th className="px-4 py-2 text-[9px] font-black text-slate-500 uppercase tracking-widest text-center">Acción</th>
+                            <th className="px-4 py-2 text-[11px] font-black text-slate-500 uppercase tracking-widest">Punto de Control</th>
+                            <th className="px-4 py-2 text-[11px] font-black text-slate-500 uppercase tracking-widest text-center">n Diseño</th>
+                            <th className="px-4 py-2 text-[11px] font-black text-slate-500 uppercase tracking-widest text-center">n Calibrado</th>
+                            <th className="px-4 py-2 text-[11px] font-black text-slate-500 uppercase tracking-widest text-center">Δ%</th>
+                            <th className="px-4 py-2 text-[11px] font-black text-slate-500 uppercase tracking-widest text-center">Muestras</th>
+                            <th className="px-4 py-2 text-[11px] font-black text-slate-500 uppercase tracking-widest text-center">Estado</th>
+                            <th className="px-4 py-2 text-[11px] font-black text-slate-500 uppercase tracking-widest text-center">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -340,7 +340,7 @@ export const ManningCalibrador = () => {
             </div>
 
             {ultima_actualizacion && (
-                <p className="text-[8px] text-slate-700 mt-3 text-right font-mono">
+                <p className="text-[11px] text-slate-700 mt-3 text-right font-mono">
                     Calculado: {new Date(ultima_actualizacion).toLocaleString('es-MX')} · Ventana: 90 días
                 </p>
             )}

@@ -1,0 +1,37 @@
+/* Balance Hídrico — complementos sobre src/styles/sala-control.css */
+.bal-perdida { color: var(--sc-crit) !important; font-weight: 600; }
+.bal-cobertura { display: inline-flex; align-items: center; gap: 8px; }
+.bal-cobertura .sc-barra { width: 90px; }
+
+.bal-esquema { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.bal-tramo-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.bal-tramo-q { margin-left: auto; font-family: var(--sc-mono); font-size: 13px; color: var(--sc-t2); }
+
+.bal-manning { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.bal-manning-item { padding: 12px 14px; border: 1px solid var(--sc-line); border-radius: 12px; background: var(--sc-surface); }
+.bal-manning-item header { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 13px; }
+.bal-manning-item header span { font-family: var(--sc-mono); font-size: 11px; color: var(--sc-t3); }
+.bal-manning-item dl { margin: 0; display: grid; gap: 4px; }
+.bal-manning-item dl div { display: flex; justify-content: space-between; font-size: 13px; color: var(--sc-t2); }
+.bal-manning-item dd { margin: 0; font-family: var(--sc-mono); font-weight: 600; color: var(--sc-t1); }
+
+.bal-alertas { display: grid; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
+.bal-alerta { display: flex; gap: 10px; padding: 10px 14px; border: 1px solid var(--sc-line); border-left-width: 4px; border-radius: 10px; background: var(--sc-surface); }
+.bal-alerta.crit { border-left-color: var(--sc-crit); background: rgba(248, 113, 113, 0.07); }
+.bal-alerta.crit > svg { color: var(--sc-crit); flex-shrink: 0; margin-top: 2px; }
+.bal-alerta.warn { border-left-color: var(--sc-warn); }
+.bal-alerta.warn > svg { color: var(--sc-warn); flex-shrink: 0; margin-top: 2px; }
+.bal-alerta p { margin: 2px 0 0; font-size: 13px; color: var(--sc-t2); }
+
+.bal-seccion-externa { padding: 16px 18px; }
+.bal-seccion-externa h3 { margin: 2px 0 4px; font-family: var(--sc-display); font-size: 24px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+
+/* Impresión: se imprime la página sin controles ni los módulos interactivos de calibración */
+.print-only { display: none; }
+@media print {
+    .no-print { display: none !important; }
+    .print-only { display: block; }
+    .sc-root { background: #fff !important; color: #111 !important; }
+    .sc-card, .sc-tile { break-inside: avoid; background: #fff !important; border-color: #bbb !important; }
+    .sc-root * { color: #111 !important; }
+}

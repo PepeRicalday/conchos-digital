@@ -26,6 +26,7 @@ import { CumplimientoModulos, type FilaModulo } from '../components/dashboard/Cu
 import { PieSistema } from '../components/dashboard/PieSistema';
 import type { AppVersionRow, VwAlertaTomaVaradaRow } from '../types/sica.types';
 import './Dashboard.css';
+import '../styles/sala-control.css';
 import '../components/dashboard/DashboardTema.css';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];

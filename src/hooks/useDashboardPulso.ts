@@ -75,7 +75,7 @@ export function useCanalExtremos() {
         ),
         [extremos],
     );
-    return { ...extremos, conduccion, error, cargado };
+    return { ...extremos, conduccion, error, cargado, recargar: cargar };
 }
 
 // ── Clima: resumen ligero de la red (sin cargar todo el módulo de Clima) ────

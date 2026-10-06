@@ -1,11 +1,10 @@
-import { useState, useMemo, useEffect, type ComponentType } from 'react';
+import { useState, useMemo, type ComponentType } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge, BarChart3, Database, Box, FileText, Upload } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useHydraStore } from '../store/useHydraStore';
-import { supabase } from '../lib/supabase';
-import { onTable } from '../lib/realtimeHub';
+import { useAlertasRegistro } from '../hooks/useAlertasSistema';
 
 import './Layout.css';
 import SupabaseStatus from './SupabaseStatus';
@@ -24,24 +23,12 @@ const Sidebar = () => {
         return { totalPoints, activePoints, totalFlow };
     }, [modules]);
 
-    // ── Realtime Alertas Badge ──
-    const [criticalAlertsCount, setCriticalAlertsCount] = useState(0);
-
-    useEffect(() => {
-        const fetchAlerts = async () => {
-            const { count } = await supabase
-                .from('registro_alertas')
-                .select('*', { count: 'exact', head: true })
-                .eq('resuelta', false)
-                .in('tipo_riesgo', ['critical', 'warning']);
-            setCriticalAlertsCount(count || 0);
-        };
-        fetchAlerts();
-
-        const unsubAlertas = onTable('registro_alertas', '*', () => fetchAlerts());
-
-        return () => unsubAlertas();
-    }, []);
+    // ── Alertas: MISMA fuente y misma cifra que el Dashboard (hooks/useAlertasSistema) ──
+    // Rojo = críticas + avisos vigentes. Las persistidas con más de 14 días sin resolver ya no se cuentan como "de hoy":
+    // se muestran aparte, en gris, para que se revisen o resuelvan (antes 20 alertas de marzo inflaban el 21 del menú).
+    const { resumen: resumenAlertas } = useAlertasRegistro();
+    const criticalAlertsCount = resumenAlertas.accionables;
+    const alertasAntiguas = resumenAlertas.antiguas;
 
     const handleLogout = async () => {
         await signOut();
@@ -54,6 +41,7 @@ const Sidebar = () => {
         path: string;
         badge?: string;
         badgeColor?: string;
+        badgeTitle?: string;
     }
 
     const navSections: { label: string; items: NavItem[] }[] = [
@@ -62,7 +50,8 @@ const Sidebar = () => {
             items: [
                 { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
                 { icon: Activity, label: 'Monitor Público', path: '/monitor-publico' },
-                { icon: Bell, label: 'Alertas', path: '/alertas', badge: criticalAlertsCount > 0 ? `${criticalAlertsCount}` : undefined, badgeColor: criticalAlertsCount > 0 ? '#f43f5e' : undefined },
+                { icon: Bell, label: 'Alertas', path: '/alertas', badge: criticalAlertsCount > 0 ? `${criticalAlertsCount}` : alertasAntiguas > 0 ? `${alertasAntiguas}` : undefined, badgeColor: criticalAlertsCount > 0 ? '#f43f5e' : alertasAntiguas > 0 ? '#94a3b8' : undefined,
+                  badgeTitle: criticalAlertsCount > 0 ? `${criticalAlertsCount} alerta(s) vigente(s)${alertasAntiguas > 0 ? ` · ${alertasAntiguas} pendiente(s) antigua(s)` : ''}` : alertasAntiguas > 0 ? `${alertasAntiguas} pendiente(s) antigua(s) sin resolver (más de 14 días). Las alertas calculadas en vivo están en el Dashboard.` : undefined },
             ],
         },
         {
@@ -182,7 +171,7 @@ const Sidebar = () => {
                                         minWidth: '22px',
                                         textAlign: 'center',
                                         boxShadow: item.badgeColor ? `0 0 10px color-mix(in srgb, ${item.badgeColor} 20%, transparent)` : 'none'
-                                    }}>{item.badge}</span>
+                                    }} title={item.badgeTitle}>{item.badge}</span>
                                 )}
                             </NavLink>
                         ))}

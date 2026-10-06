@@ -22,19 +22,17 @@ import { useFecha } from '../context/FechaContext';
 import { supabase } from '../lib/supabase';
 import { getTodayString, addDays, getStartOfDateISO } from '../utils/dateHelpers';
 import { porcentajeLlenadoPresa } from '../utils/presaMetrics';
+import {
+    UMBRAL_PERDIDA_M3S, UMBRAL_DIAS_PROTOCOLO, CAPACIDAD_CONDUCCION_M3S, PRESA_ALTA_PCT, PRESA_BAJA_PCT,
+    EFICIENCIA_TRAMO_MIN_PCT, TOLERANCIA_SOBREGIRO, TOLERANCIA_SOBREGIRO_LLENADO,
+    extraccionTotalMedida, serieExtraccion, tendenciaSerie, datosAlmacenamientoPresas, cumplimientoModulo, promedioSinNulos,
+    fusionaAlertas, resumenAlertas,
+} from '../utils/dashboardKpis';
+import { useAlertasRegistro } from '../hooks/useAlertasSistema';
 import type { AppVersionRow, VwAlertaTomaVaradaRow } from '../types/sica.types';
 import './Dashboard.css';
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-
-/** Pérdida mínima (m³/s) para considerar una fuga como real y accionable. */
-const UMBRAL_PERDIDA_M3S = 0.05;
-
-/** Días tras los cuales un protocolo abierto se considera sospechoso de no haberse cerrado. */
-const UMBRAL_DIAS_PROTOCOLO = 30;
-
-/** Capacidad de conducción de referencia del canal (m³/s) para normalizar el anillo de extracción. */
-const CAPACIDAD_CONDUCCION_M3S = 80;
 
 function formatFechaCorta(dateStr: string): string {
     const [y, m, d] = dateStr.split('-');
@@ -124,7 +122,9 @@ function DonutRing({ pct, label, color = '#60a5fa', size = 110 }: {
 
 
 /* ─── Module Efficiency Bar (custom, no recharts) ──────────────── */
-function ModuleBar({ name, pct, rank, vol }: { name: string; pct: number; rank: number; vol: number }) {
+function ModuleBar({ name, pct: pctProp, rank, vol }: { name: string; pct: number | null; rank: number; vol: number }) {
+    const sinDato = pctProp == null;
+    const pct = pctProp ?? 0;
     // El sobregiro (>100% del volumen autorizado) es una condición distinta de
     // "cumplimiento alto" y debe distinguirse a simple vista.
     const isOver = pct > 100;
@@ -165,7 +165,7 @@ function ModuleBar({ name, pct, rank, vol }: { name: string; pct: number; rank: 
             {/* Bar track */}
             <div style={{ flex: 1, height: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '999px', position: 'relative', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
                 <div style={{
-                    width: `${anchoPct}%`,
+                    width: `${sinDato ? 0 : anchoPct}%`,
                     height: '100%',
                     background: barColor,
                     borderRadius: '999px',
@@ -199,7 +199,7 @@ function ModuleBar({ name, pct, rank, vol }: { name: string; pct: number; rank: 
                     fontFamily: 'var(--font-mono)',
                     textShadow: `0 0 10px ${glowColor}80`
                 }}>
-                    {pct.toFixed(1)}%
+                    {sinDato ? 'S/D' : `${pct.toFixed(1)}%`}
                 </span>
                 <span style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: '600', fontFamily: 'var(--font-mono)' }}>
                     {vol.toFixed(3)}<small style={{ fontSize: '0.5rem', marginLeft: '1px' }}>Mm³</small>
@@ -249,7 +249,6 @@ const Dashboard = () => {
         presas,
         totalAlmacenamiento,
         totalCapacidad,
-        totalExtraccion,
         totalVolumenExtraidoMm3,
         porcentajeLlenado,
         almacenamiento,
@@ -262,7 +261,8 @@ const Dashboard = () => {
 
     const [appVersions, setAppVersions] = useState<AppVersionRow[]>([]);
     const [tomasVaradas, setTomasVaradas] = useState<VwAlertaTomaVaradaRow[]>([]);
-    const [rawExtractionHistory, setRawExtractionHistory] = useState<{ fecha: string; total: number }[]>([]);
+    const [extraccionFilas, setExtraccionFilas] = useState<{ fecha: string; extraccion_total_m3s: number | null }[]>([]);
+    const { alertas: alertasRegistro, error: errorAlertasRegistro } = useAlertasRegistro();
     /** Fuentes que fallaron al cargar — se informan en la tira de estado en lugar
      *  de dejar que la pantalla se vea completa cuando no lo está. */
     const [fuentesCaidas, setFuentesCaidas] = useState<string[]>([]);
@@ -279,7 +279,7 @@ const Dashboard = () => {
         const cargar = async () => {
             const [versionsRes, varadasRes, histRes] = await Promise.allSettled([
                 supabase.from('app_versions').select('*'),
-                supabase.from('vw_alertas_tomas_varadas').select('*'),
+                supabase.from('vw_alertas_tomas_varadas').select('*'), // vista pequeña; las columnas las define la vista
                 (async () => {
                     // Ventana anclada a la FECHA SELECCIONADA, no a hoy: antes la
                     // gráfica mostraba los últimos 7 días reales aunque el resto
@@ -310,14 +310,8 @@ const Dashboard = () => {
             }
 
             if (histRes.status === 'fulfilled' && !histRes.value.error) {
-                const data = histRes.value.data ?? [];
-                const byDate = new Map<string, number>();
-                (data as { fecha: string; extraccion_total_m3s: number | null }[]).forEach(r => {
-                    byDate.set(r.fecha, (byDate.get(r.fecha) || 0) + (r.extraccion_total_m3s || 0));
-                });
-                setRawExtractionHistory(
-                    Array.from(byDate.entries()).map(([fecha, total]) => ({ fecha, total }))
-                );
+                // Filas crudas: la agregación por día (con huecos, no ceros) la hace serieExtraccion().
+                setExtraccionFilas((histRes.value.data ?? []) as { fecha: string; extraccion_total_m3s: number | null }[]);
             } else {
                 marcarFallo('Historial de extracción', histRes.status === 'rejected' ? histRes.reason : histRes.value.error);
             }
@@ -357,16 +351,12 @@ const Dashboard = () => {
         return acc + mDailyVol;
     }, 0), [modules, now, esHoy]);
 
-    const extractionTrend = useMemo(() => {
-        if (rawExtractionHistory.length >= 2) {
-            const last = rawExtractionHistory[rawExtractionHistory.length - 1].total;
-            const prev = rawExtractionHistory[rawExtractionHistory.length - 2].total;
-            if (prev > 0 && last > prev * 1.05) return 'rising';
-            if (prev > 0 && last < prev * 0.95) return 'falling';
-            return 'stable';
-        }
-        return totalExtraccion > 30 ? 'rising' : totalExtraccion > 0 ? 'stable' : 'falling';
-    }, [rawExtractionHistory, totalExtraccion]);
+    // Extracción total MEDIDA: null si ninguna presa tiene medición (antes sumaba || 0 y mostraba "0.0 m³/s").
+    const extraccionTotal = useMemo(() => extraccionTotalMedida(presas), [presas]);
+    // Serie de 7 días terminando en la fecha seleccionada; los días sin medición son huecos, no ceros.
+    const serieExt = useMemo(() => serieExtraccion(extraccionFilas, fechaSeleccionada || getTodayString(), 7), [extraccionFilas, fechaSeleccionada]);
+    const hayExtraccionHistorica = serieExt.some(p => p.total != null);
+    const extractionTrend = useMemo(() => tendenciaSerie(serieExt), [serieExt]);
 
     /* Entrega a módulos — volumen del día.
      * Antes: cualquier volumen > 0.001 era "Ascenso" y bastaba con que existiera
@@ -410,35 +400,20 @@ const Dashboard = () => {
             // SIN truncar a 100: Math.min() aplanaba el sobregiro y dibujaba un
             // módulo al 145% igual que uno al 100%, ocultando visualmente la
             // condición que distribución necesita detectar.
-            efficiency: (m.accumulated_vol / (m.authorized_vol || 1)) * 100,
+            // S/D (null) si el módulo no tiene volumen autorizado — antes dividía entre `|| 1`.
+            efficiency: cumplimientoModulo(m.accumulated_vol, m.authorized_vol),
             flow: m.current_flow * 1000
-        })).sort((a, b) => b.efficiency - a.efficiency),
+        })).sort((a, b) => (b.efficiency ?? -1) - (a.efficiency ?? -1)),
         [modules]
     );
 
-    const damStorageData = useMemo(() =>
-        presas.map(p => ({
-            nombre: p.nombre_corto || p.nombre,
-            actual: p.lectura?.almacenamiento_mm3 || 0,
-            capacidad: p.capacidad_max_mm3,
-            pct: ((p.lectura?.almacenamiento_mm3 || 0) / p.capacidad_max_mm3) * 100
-        })),
-        [presas]
-    );
+    const damStorageData = useMemo(() => datosAlmacenamientoPresas(presas), [presas]);
 
     /* Real extraction trend — 7-day historical from lecturas_presa */
     const extractionTrendData = useMemo(() => {
-        if (rawExtractionHistory.length > 0) {
-            return rawExtractionHistory.map(r => ({
-                label: formatFechaCorta(r.fecha).slice(0, 6),
-                extraccion: r.total
-            }));
-        }
-        // Fallback: flat line with current value while data loads
-        const base = totalExtraccion || 0;
-        const labels = ['−6d', '−5d', '−4d', '−3d', '−2d', 'Ayer', 'Hoy'];
-        return labels.map(label => ({ label, extraccion: base }));
-    }, [rawExtractionHistory, totalExtraccion]);
+        // Sin línea plana inventada: los días sin medición quedan como hueco (null).
+        return serieExt.map(p => ({ label: formatFechaCorta(p.fecha).slice(0, 6), extraccion: p.total }));
+    }, [serieExt]);
 
     /* ── Alerts ── */
     const realAlerts: Alert[] = useMemo(() => {
@@ -459,12 +434,12 @@ const Dashboard = () => {
         //    Se exige pérdida MATERIAL, no solo eficiencia baja: un tramo con
         //    q_perdida = 0.00 no está perdiendo agua y anunciarlo como fuga
         //    genera alarmas falsas que entrenan al operador a ignorar el panel.
-        segments.filter(s => (s.eficiencia_pct ?? 100) < 90).forEach(s => {
-            const perdida = s.q_perdida ?? 0;
+        segments.filter(s => (s.eficiencia_pct ?? 100) < EFICIENCIA_TRAMO_MIN_PCT).forEach(s => {
+            const perdida = s.q_perdida; // null = sin medición de pérdida (no es "0.00")
             const nombreTramo = nombrarTramo(s);
-            const eficiencia = (s.eficiencia_pct ?? 0).toFixed(1);
+            const eficiencia = s.eficiencia_pct != null ? s.eficiencia_pct.toFixed(1) : 'S/D';
 
-            if (perdida >= UMBRAL_PERDIDA_M3S) {
+            if (perdida != null && perdida >= UMBRAL_PERDIDA_M3S) {
                 alerts.push({
                     id: `leak-${s.km_inicio}`,
                     type: 'critical',
@@ -478,7 +453,9 @@ const Dashboard = () => {
                     id: `leak-info-${s.km_inicio}`,
                     type: 'info',
                     title: 'Eficiencia Baja sin Pérdida Medible',
-                    message: `${nombreTramo}: Eficiencia ${eficiencia}% con pérdida ${perdida.toFixed(2)} m³/s (bajo umbral de ${UMBRAL_PERDIDA_M3S} m³/s). Posible error de aforo.`,
+                    message: perdida != null
+                        ? `${nombreTramo}: Eficiencia ${eficiencia}% con pérdida ${perdida.toFixed(2)} m³/s (bajo umbral de ${UMBRAL_PERDIDA_M3S} m³/s). Posible error de aforo.`
+                        : `${nombreTramo}: Eficiencia ${eficiencia}% y pérdida sin medición (S/D). Verificar aforos de entrada y salida.`,
                     timestamp: 'Ahora'
                 });
             }
@@ -487,7 +464,7 @@ const Dashboard = () => {
         // 3. Sobregiros en Módulos
         modules.forEach(m => {
             // Durante LLENADO, los gastos pueden ser erráticos o de purga, toleramos más (50%)
-            const tolerance = activeEvent?.evento_tipo === 'LLENADO' ? 1.5 : 1.1;
+            const tolerance = activeEvent?.evento_tipo === 'LLENADO' ? TOLERANCIA_SOBREGIRO_LLENADO : TOLERANCIA_SOBREGIRO;
             if (m.current_flow > m.target_flow * tolerance && m.target_flow > 0) {
                 alerts.push({ 
                     id: `ovf-${m.id}`, 
@@ -505,12 +482,12 @@ const Dashboard = () => {
             const pct = porcentajeLlenadoPresa(p);
             if (pct == null) return;
 
-            if (pct > 90) {
+            if (pct > PRESA_ALTA_PCT) {
                 alerts.push({ id: `dam-high-${p.id}`, type: 'warning' as const, title: 'Alto Nivel (NAMO)', message: `${p.nombre}: ${pct.toFixed(1)}% de llenado.`, timestamp: p.lectura?.fecha || 'Hoy' });
             }
             // Alerta de nivel bajo solo si NO estamos en protocolo de LLENADO (donde es sabido que estamos extrayendo)
-            if (pct < 20 && activeEvent?.evento_tipo !== 'LLENADO') {
-                alerts.push({ id: `dam-low-${p.id}`, type: 'critical' as const, title: 'Almacenamiento Crítico', message: `${p.nombre}: Nivel por debajo del 20% (${pct.toFixed(1)}%).`, timestamp: p.lectura?.fecha || 'Hoy' });
+            if (pct < PRESA_BAJA_PCT && activeEvent?.evento_tipo !== 'LLENADO') {
+                alerts.push({ id: `dam-low-${p.id}`, type: 'critical' as const, title: 'Almacenamiento Crítico', message: `${p.nombre}: Nivel por debajo del ${PRESA_BAJA_PCT}% (${pct.toFixed(1)}%).`, timestamp: p.lectura?.fecha || 'Hoy' });
             }
         });
 
@@ -549,18 +526,18 @@ const Dashboard = () => {
         return alerts.sort((a, b) => (peso[a.type] ?? 3) - (peso[b.type] ?? 3));
     }, [modules, presas, tomasVaradas, segments, activeEvent, predictiveAlerts, now]);
 
-    /* Cuenta accionable: las informativas no deben inflar el KPI de alertas. */
-    const alertasAccionables = useMemo(
-        () => realAlerts.filter(a => a.type === 'critical' || a.type === 'warning').length,
-        [realAlerts]
-    );
-    const alertasInformativas = realAlerts.length - alertasAccionables;
-    const hayCriticas = useMemo(() => realAlerts.some(a => a.type === 'critical'), [realAlerts]);
+    /* UNA sola fuente de alertas: las calculadas en vivo + las persistidas (registro_alertas). La misma cifra
+       alimenta el KPI, la lista y el menú lateral; las persistidas con más de 14 días sin resolver se listan aparte
+       como "pendientes antiguos" y no cuentan como accionables de hoy. */
+    const alertasUnificadas = useMemo(() => fusionaAlertas(realAlerts, alertasRegistro), [realAlerts, alertasRegistro]);
+    const resumenAl = useMemo(() => resumenAlertas(alertasUnificadas), [alertasUnificadas]);
+    const alertasAccionables = resumenAl.accionables;
+    const hayCriticas = resumenAl.criticas > 0;
 
-    /* Serie para el sparkline de extracción (7 días). */
+    /* Serie para el sparkline de extracción (7 días): solo los días con dato. */
     const sparkExtraccion = useMemo(
-        () => rawExtractionHistory.map(r => r.total),
-        [rawExtractionHistory]
+        () => serieExt.map(p => p.total).filter((v): v is number => v != null),
+        [serieExt]
     );
 
     /* Días que lleva abierto el protocolo activo. */
@@ -734,12 +711,16 @@ const Dashboard = () => {
                 />
                 <KPICard
                     title="Extracción Total (Presas)"
-                    value={(totalExtraccion ?? 0).toFixed(1)}
+                    // null → "S/D": sin ninguna medición de extracción NO se muestra 0.0 (que sería un cero "medido").
+                    value={extraccionTotal.valorM3s != null ? extraccionTotal.valorM3s.toFixed(1) : null}
                     unit="m³/s"
-                    subtext={`Volumen inyectado: ${(totalVolumenExtraidoMm3 ?? 0).toFixed(3)} Mm³`}
+                    subtext={extraccionTotal.valorM3s != null
+                        ? `${extraccionTotal.conMedicion} de ${extraccionTotal.total} presas con medición · volumen inyectado ${(totalVolumenExtraidoMm3 ?? 0).toFixed(3)} Mm³`
+                        : undefined}
+                    noDataReason="Sin extracción medida en las presas"
                     icon={Droplets}
                     color="blue"
-                    trend={extractionTrend as 'rising' | 'falling' | 'stable'}
+                    trend={extractionTrend ?? undefined}
                     sparkline={sparkExtraccion}
                     freshness={frescuraLectura?.texto}
                     freshnessStale={frescuraLectura?.stale}
@@ -764,11 +745,7 @@ const Dashboard = () => {
                 <KPICard
                     title="Alertas Activas"
                     value={alertasAccionables.toString()}
-                    subtext={
-                        alertasInformativas > 0
-                            ? `${alertasAccionables} requieren atención · ${alertasInformativas} informativas`
-                            : 'Atención Requerida'
-                    }
+                    subtext={`${resumenAl.criticas} crítica(s) · ${resumenAl.avisos} aviso(s) · ${resumenAl.informativas} informativa(s)${resumenAl.antiguas > 0 ? ` · ${resumenAl.antiguas} pendiente(s) antigua(s)` : ''}`}
                     icon={AlertTriangle}
                     color={hayCriticas ? 'rose' : alertasAccionables > 0 ? 'amber' : 'emerald'}
                     severity={hayCriticas ? 'critical' : alertasAccionables > 0 ? 'warning' : 'normal'}
@@ -802,7 +779,7 @@ const Dashboard = () => {
                                 // `null` = sin lectura capturada; NO se colapsa a 0.
                                 const almacPresa = lect?.almacenamiento_mm3 ?? null;
                                 const pctLlenado = porcentajeLlenadoPresa(presa);
-                                const extraccion = lect?.extraccion_total_m3s || 0;
+                                const extraccion = lect?.extraccion_total_m3s ?? null; // null = sin medición (S/D), no 0
                                 const elevacion = lect?.escala_msnm ?? null;
 
                                 return (
@@ -827,9 +804,9 @@ const Dashboard = () => {
                                             <div className="text-right bg-blue-950/30 px-3 py-2 rounded-lg border border-blue-500/10">
                                                 <div className="flex items-center justify-end gap-1 mb-1">
                                                     <span className="text-xs text-blue-300 uppercase font-bold tracking-wider">Extracción</span>
-                                                    {extraccion > 0 ? <TrendingUp size={12} className="text-emerald-400" /> : <TrendingDown size={12} className="text-slate-500" />}
+                                                    {extraccion != null && extraccion > 0 ? <TrendingUp size={12} className="text-emerald-400" /> : <TrendingDown size={12} className="text-slate-500" />}
                                                 </div>
-                                                <span className="text-2xl font-mono font-bold text-blue-100">{(extraccion ?? 0).toFixed(1)} <span className="text-sm text-blue-400">m³/s</span></span>
+                                                <span className="text-2xl font-mono font-bold text-blue-100">{extraccion != null ? extraccion.toFixed(1) : 'S/D'} <span className="text-sm text-blue-400">m³/s</span></span>
                                             </div>
                                         </div>
 
@@ -889,7 +866,7 @@ const Dashboard = () => {
                     <ChartWidget
                         title="Almacenamiento por Presa"
                         subtitle="Comparativa Actual vs Capacidad NAMO · Mm³"
-                        badge="LIVE"
+                        badge={esHoy ? 'LIVE' : undefined}
                         infoBar={
                             <div style={{ display: 'flex', gap: '1.5rem', width: '100%', justifyContent: 'center' }}>
                                 <div className="chart-legend-item">
@@ -938,7 +915,7 @@ const Dashboard = () => {
                                     {damStorageData.map((entry, index) => (
                                         <Cell
                                             key={`cell-${index}`}
-                                            fill={entry.pct > 90 ? 'url(#gradAmber)' : 'url(#gradActual)'}
+                                            fill={(entry.pct ?? 0) > PRESA_ALTA_PCT ? 'url(#gradAmber)' : 'url(#gradActual)'}
                                         />
                                     ))}
                                 </Bar>
@@ -949,7 +926,7 @@ const Dashboard = () => {
                     {/* ── Chart 2: Tendencia de Extracción — Glowing AreaChart ── */}
                     <ChartWidget
                         title="Tendencia de Extracción"
-                        subtitle={rawExtractionHistory.length > 0 ? 'Datos históricos reales · m³/s' : 'Cargando datos históricos · m³/s'}
+                        subtitle={hayExtraccionHistorica ? 'Mediciones diarias de las presas · m³/s · los días sin medición quedan en blanco' : 'Sin mediciones de extracción en los últimos 7 días'}
                         badge="7d"
                         infoBar={
                             <div style={{ display: 'flex', gap: '1.5rem', width: '100%', justifyContent: 'center' }}>
@@ -960,6 +937,11 @@ const Dashboard = () => {
                             </div>
                         }
                     >
+                        {!hayExtraccionHistorica ? (
+                            <p className="text-slate-400 text-sm" style={{ padding: '2.5rem 0', textAlign: 'center' }}>
+                                Sin extracción medida del {formatFechaCorta(serieExt[0].fecha)} al {formatFechaCorta(serieExt[serieExt.length - 1].fecha)}.
+                            </p>
+                        ) : (
                         <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height={180}>
                             <AreaChart data={extractionTrendData} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                                 <defs>
@@ -993,11 +975,15 @@ const Dashboard = () => {
                                 />
                             </AreaChart>
                         </ResponsiveContainer>
+                        )}
                     </ChartWidget>
                 </div>
 
                 <div className="grid-col-right space-y-4">
-                    <AlertList alerts={realAlerts} />
+                    <AlertList alerts={alertasUnificadas} />
+                    {errorAlertasRegistro && (
+                        <p className="text-amber-400 text-xs" role="status">No se pudieron leer las alertas guardadas: {errorAlertasRegistro}</p>
+                    )}
 
                     {/* ── Balance Hídrico Global — el resumen más denso de la pantalla
                         (presas + canal + módulos en 3 números) se sube al tope de la
@@ -1021,13 +1007,13 @@ const Dashboard = () => {
                             <DonutRing
                                 // Normalizado contra la capacidad de conducción del canal,
                                 // no contra una constante sin unidad ni origen.
-                                pct={totalExtraccion > 0 ? (totalExtraccion / CAPACIDAD_CONDUCCION_M3S) * 100 : 0}
+                                pct={extraccionTotal.valorM3s != null ? (extraccionTotal.valorM3s / CAPACIDAD_CONDUCCION_M3S) * 100 : null}
                                 label={`DE ${CAPACIDAD_CONDUCCION_M3S} m³/s`}
                                 color="#a78bfa"
                                 size={130}
                             />
                             <DonutRing
-                                pct={moduleChartData.length > 0 ? moduleChartData.reduce((a, m) => a + m.efficiency, 0) / moduleChartData.length : 0}
+                                pct={promedioSinNulos(moduleChartData.map(m => m.efficiency))}
                                 label="EFICIEN."
                                 color="#10b981"
                                 size={130}

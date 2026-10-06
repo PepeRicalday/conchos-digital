@@ -6,7 +6,7 @@ import { numeroModuloDeId } from '../utils/modulosSRL';
 
 /** Refresca cada `ms` solo con la pestaña visible; al volver a verse recarga de inmediato. */
 /** `cargar` DEBE ser estable (useCallback): una función nueva en cada render reiniciaría el efecto en bucle. */
-function usePolling(cargar: () => unknown, ms: number) {
+export function usePolling(cargar: () => unknown, ms: number) {
     useEffect(() => {
         void cargar();
         const tick = () => { if (document.visibilityState === 'visible') void cargar(); };

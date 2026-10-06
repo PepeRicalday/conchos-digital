@@ -8,6 +8,8 @@
  *  · un nivel nulo no se grafica como 0.
  */
 
+import { calcRadialFlow } from './hydraulics';
+
 /** Minutos a partir de los cuales la lectura de una escala deja de considerarse "en vivo". */
 export const STALE_MIN_ESCALA = 240;
 
@@ -78,4 +80,30 @@ export function escapaHtml(v: unknown): string {
     return String(v ?? '')
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+export interface LecturaGastoEntrada {
+    gasto_metodo?: string | null;
+    gasto_calculado_m3s?: number | string | null;
+    nivel_m?: number | string | null;
+    nivel_abajo_m?: number | string | null;
+    radiales_json?: unknown;
+}
+export interface EscalaGastoEntrada { pzas_radiales?: number | null; ancho?: number | null; nombre: string; km: number }
+
+const aNum = (v: unknown): number | null => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+
+/**
+ * Gasto de una escala a partir de su lectura, con el MISMO criterio que Geo-Monitor y el Monitor Público:
+ * curva nivel-gasto de campo > cálculo con aperturas reales de compuertas radiales > gasto_calculado_m3s crudo.
+ * Devuelve null si falta el dato necesario (nunca un 0 inventado).
+ */
+export function gastoDeLectura(l: LecturaGastoEntrada, esc: EscalaGastoEntrada): number | null {
+    if (l.gasto_metodo === 'curva_nivel') return aNum(l.gasto_calculado_m3s);
+    if (esc.pzas_radiales && esc.pzas_radiales > 0) {
+        const nivel = aNum(l.nivel_m);
+        if (nivel == null) return null;
+        return calcRadialFlow(nivel, aNum(l.nivel_abajo_m) ?? 0, l.radiales_json, esc.ancho ?? 0, esc.pzas_radiales, esc.nombre, esc.km);
+    }
+    return aNum(l.gasto_calculado_m3s);
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { conduccionTramo, etiquetaEficiencia } from './conduccion';
 import {
-    STALE_MIN_ESCALA, esFrescaEscala, estadoCompuertas, extraccionPresa, presaBaja, valorGrafica, kmTexto, ordenarPorKm, escalaEnKm, minutosDesde, escapaHtml,
+    STALE_MIN_ESCALA, esFrescaEscala, estadoCompuertas, extraccionPresa, presaBaja, valorGrafica, kmTexto, ordenarPorKm, escalaEnKm, minutosDesde, escapaHtml, gastoDeLectura,
 } from './geoKpis';
 
 const ok = (gasto: number) => ({ gasto, fresca: true });
@@ -120,5 +120,20 @@ describe('escapaHtml — popups de Leaflet', () => {
         expect(escapaHtml(null)).toBe('');
         expect(escapaHtml(undefined)).toBe('');
         expect(escapaHtml(12.5)).toBe('12.5');
+    });
+});
+
+describe('gastoDeLectura — misma regla que Geo-Monitor y Monitor Público', () => {
+    it('curva nivel-gasto de campo manda sobre todo', () => {
+        expect(gastoDeLectura({ gasto_metodo: 'curva_nivel', gasto_calculado_m3s: '12.5', nivel_m: 2 }, { pzas_radiales: 3, ancho: 2, nombre: 'K-0', km: 0 })).toBe(12.5);
+        expect(gastoDeLectura({ gasto_metodo: 'curva_nivel', gasto_calculado_m3s: null }, { nombre: 'K-0', km: 0 })).toBeNull();
+    });
+    it('sin radiales usa el gasto calculado crudo; sin dato → null (no 0)', () => {
+        expect(gastoDeLectura({ gasto_calculado_m3s: '0.79' }, { nombre: 'K-23', km: 23 })).toBeCloseTo(0.79, 5);
+        expect(gastoDeLectura({}, { nombre: 'K-23', km: 23 })).toBeNull();
+    });
+    it('con radiales y nivel nulo → null; nivel 0 no inventa caudal', () => {
+        expect(gastoDeLectura({ nivel_m: null }, { pzas_radiales: 3, ancho: 2, nombre: 'K-0', km: 0 })).toBeNull();
+        expect(gastoDeLectura({ nivel_m: 0 }, { pzas_radiales: 3, ancho: 2, nombre: 'K-0', km: 0 })).toBe(0);
     });
 });

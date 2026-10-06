@@ -11,6 +11,11 @@ describe('extracción total — S/D no es 0', () => {
         const r = extraccionTotalMedida([presa('A', 100, null), presa('B', 50, { almacenamiento_mm3: 10 })]);
         expect(r).toEqual({ valorM3s: null, conMedicion: 0, total: 2 });
     });
+    it('extraccion_conocida=false → el 0 de arranque NO es una medición', () => {
+        const r = extraccionTotalMedida([presa('A', 1, { extraccion_total_m3s: 0, extraccion_conocida: false }), presa('B', 1, { extraccion_total_m3s: 0, extraccion_conocida: true })]);
+        expect(r).toEqual({ valorM3s: 0, conMedicion: 1, total: 2 });
+        expect(extraccionTotalMedida([presa('A', 1, { extraccion_total_m3s: 0, extraccion_conocida: false })]).valorM3s).toBeNull();
+    });
     it('un 0 medido es un valor real', () => {
         expect(extraccionTotalMedida([presa('A', 1, { extraccion_total_m3s: 0 })]).valorM3s).toBe(0);
     });

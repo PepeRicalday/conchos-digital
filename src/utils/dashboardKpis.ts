@@ -29,9 +29,17 @@ export interface ExtraccionTotal {
     total: number;
 }
 
-export function extraccionTotalMedida(presas: Pick<PresaLike, 'lectura'>[]): ExtraccionTotal {
+type PresaConExtraccion = { lectura: ((PresaLike['lectura'] & object) & { extraccion_conocida?: boolean }) | null };
+
+/** Extracción de UNA presa: null si no hay medición o si ninguna fuente la informa (extraccion_conocida === false: el 0 es de arranque). */
+export function extraccionDePresa(p: PresaConExtraccion): number | null {
+    if (p.lectura?.extraccion_conocida === false) return null;
+    return num(p.lectura?.extraccion_total_m3s);
+}
+
+export function extraccionTotalMedida(presas: PresaConExtraccion[]): ExtraccionTotal {
     const medidas = presas
-        .map((p) => num(p.lectura?.extraccion_total_m3s))
+        .map((p) => extraccionDePresa(p))
         .filter((v): v is number => v != null);
     return {
         valorM3s: medidas.length ? medidas.reduce((a, b) => a + b, 0) : null,

@@ -1,5 +1,6 @@
-import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain, Satellite, PanelRight, CalendarRange, Box } from 'lucide-react';
+import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain, Satellite, PanelRight, CalendarRange, Box, Download } from 'lucide-react';
 import { conduccionTramo } from '../utils/conduccion';
+import { exportaMapaPng } from '../utils/exportMapaPng';
 import { GeoLeyenda, type CapaLeyenda } from '../components/geo/GeoLeyenda';
 import { extraccionPresa, presaBaja, valorGrafica, escapaHtml as esc } from '../utils/geoKpis';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -39,6 +40,13 @@ L.Icon.Default.mergeOptions({
 });
 
 // Removed unused createIcon function
+
+// CARTO exige api key en sus mosaicos (sin ella pinta "API KEY REQUIRED" encima del mapa). Mismo patrón y misma clave
+// pública que NdviModulosPanel y PlanoGeneralModulos; sin clave se cae al mosaico legado (con marca de agua).
+const CARTO_ACCESS_TOKEN = import.meta.env.VITE_CARTO_ACCESS_TOKEN as string | undefined;
+const CARTO_TILE_URL = CARTO_ACCESS_TOKEN
+    ? `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=${CARTO_ACCESS_TOKEN}`
+    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
 const BASE_LAYER_LABEL: Record<'standard' | 'satellite' | 'eos' | 'sentinel', string> = {
     standard: 'Mapa Oscuro',
@@ -811,6 +819,32 @@ const GeoMonitor = () => {
 
         return () => { cancelado = true; };
     }, [baseLayer, sentinelInstanceId, sentinelModo]);
+
+    const [exportandoMapa, setExportandoMapa] = useState(false);
+    const [avisoExport, setAvisoExport] = useState<string | null>(null);
+    const exportarMapa = async () => {
+        const nodo = document.querySelector<HTMLElement>('.geo-map-leaflet');
+        if (!nodo || exportandoMapa) return;
+        setExportandoMapa(true);
+        setAvisoExport(null);
+        try {
+            const atribucion = baseLayer === 'standard' ? '© OpenStreetMap © CARTO'
+                : baseLayer === 'satellite' ? 'Tiles © Esri — Maxar, Earthstar Geographics'
+                : baseLayer === 'sentinel' ? 'Contiene datos Copernicus Sentinel modificados' : 'EOS LandViewer';
+            await exportaMapaPng(nodo, {
+                capaBase: BASE_LAYER_LABEL[baseLayer],
+                capas: capasLeyenda.filter(c => (layers as unknown as Record<string, boolean>)[c.key]).map(c => c.etiqueta),
+                escena: baseLayer === 'sentinel' && sentinelEscena.fecha
+                    ? `${new Date(sentinelEscena.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Chihuahua' })}${sentinelEscena.nubosidad != null ? ` · nubes ${Math.round(sentinelEscena.nubosidad)} %` : ''}`
+                    : null,
+                atribucion,
+            });
+        } catch (e) {
+            setAvisoExport(e instanceof Error ? e.message : 'No se pudo exportar el mapa.');
+        } finally {
+            setExportandoMapa(false);
+        }
+    };
 
     const toggleLayer = (key: keyof typeof layers) => {
         setLayers(prev => ({ ...prev, [key]: !prev[key] }));
@@ -1694,6 +1728,10 @@ const GeoMonitor = () => {
                     >
                         <TrendingUp size={18} />
                     </button>
+                    <button className="geo-fullscreen-btn" onClick={() => { void exportarMapa(); }} disabled={exportandoMapa}
+                        title="Exportar el mapa actual como imagen PNG" aria-label="Exportar el mapa como imagen PNG">
+                        <Download size={18} className={exportandoMapa ? 'animate-pulse' : undefined} />
+                    </button>
                     {/* Fullscreen Toggle (Prioridad 4.3) */}
                     <button className="geo-fullscreen-btn" onClick={toggleFullscreen} title={isFullscreen ? 'Salir Pantalla Completa' : 'Modo Video Wall'}>
                         {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
@@ -1964,6 +2002,13 @@ const GeoMonitor = () => {
 
                 {/* CENTER: MAP (Prioridad 1 + 2) */}
                 <div className="geo-map-container" style={{ position: 'relative' }}>
+                    {avisoExport && (
+                        <div className="geo-lotes-zoom-badge" role="alert" style={{ top: 12 }}>
+                            <AlertTriangle size={13} className="text-amber-400" />
+                            <span>{avisoExport}</span>
+                            <button type="button" onClick={() => setAvisoExport(null)} aria-label="Cerrar aviso" style={{ marginLeft: 8, minHeight: 32, minWidth: 32, background: 'none', border: 0, color: 'inherit', cursor: 'pointer' }}>×</button>
+                        </div>
+                    )}
                     <GeoLeyenda
                         capas={capasLeyenda}
                         activas={layers as unknown as Record<string, boolean>}
@@ -2173,14 +2218,16 @@ const GeoMonitor = () => {
                                     <TileLayer
                                         url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                                         maxZoom={19}
+                                        crossOrigin="anonymous"
                                         attribution="Tiles &copy; Esri &mdash; Maxar, Earthstar Geographics"
                                     />
                                 )}
                                 {baseLayer === 'standard' && (
                                     <TileLayer
-                                        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                                        url={CARTO_TILE_URL}
                                         subdomains="abcd"
                                         maxZoom={19}
+                                        crossOrigin="anonymous"
                                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
                                     />
                                 )}

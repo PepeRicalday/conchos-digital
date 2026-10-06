@@ -63,3 +63,14 @@ export function useHidrometriaSemana(inicio: string, fin: string): DatosSemana {
     usePolling(recargar, 5 * 60_000);
     return { solicitudes, entregas, ultimaCaptura, error, cargando: cargadaClave !== inicio, actualizadoEn, recargar };
 }
+
+/** Fecha más reciente con captura de entrega por módulo (para rotular de cuándo es el "gasto actual" de Distribución). */
+export function useUltimaCaptura(): string | null {
+    const [fecha, setFecha] = useState<string | null>(null);
+    const cargar = useCallback(async () => {
+        const { data } = await supabase.from('entregas_modulo').select('fecha').order('fecha', { ascending: false }).limit(1);
+        setFecha((data?.[0]?.fecha as string | undefined) ?? null);
+    }, []);
+    usePolling(cargar, 5 * 60_000);
+    return fecha;
+}

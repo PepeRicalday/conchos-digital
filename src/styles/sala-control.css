@@ -136,3 +136,12 @@
     .sc-acciones .sc-btn { flex: 1 1 auto; justify-content: center; }
 }
 @media print { .sc-card, .sc-tile, .sc-hero { animation: none; } .sc-acciones { display: none; } }
+
+/* ── Barras de progreso y leyendas (genéricas) ── */
+.sc-barra { position: relative; height: 10px; border-radius: 999px; background: rgba(255,255,255,0.07); overflow: hidden; }
+.sc-barra i { display: block; height: 100%; border-radius: 999px; background: var(--sc-s1); transition: width 1s ease; }
+.sc-barra i.sc-alta { background: var(--sc-warn); }
+.sc-barra.sc-sd { background: repeating-linear-gradient(135deg, rgba(148,163,184,0.25) 0 6px, transparent 6px 12px); }
+.sc-barra-pie { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-family: var(--sc-mono); font-size: 11px; color: var(--sc-t3); }
+.sc-leyenda { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 10px; padding: 0; list-style: none; font-size: 12px; color: var(--sc-t2); }
+.sc-leyenda i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }

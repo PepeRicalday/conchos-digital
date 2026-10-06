@@ -21,6 +21,7 @@ import { supabase } from '../lib/supabase';
 import { ensureMetadata } from '../store/useMetadataStore';
 import type { Alert } from '../components/AlertList';
 import { getTodayString, addDays } from '../utils/dateHelpers';
+import { soloEscalasDeControl } from '../utils/escalasReferencia';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -81,8 +82,9 @@ export function usePredictiveBalance(): PredictiveBalanceResult {
                     return;
                 }
 
-                const escalas = metaStore.escalas
-                    .filter(e => e.activa && Number(e.km) >= 0 && Number(e.km) <= 104)
+                // K-64 y K-94+200 son escalas de REFERENCIA (sin compuertas ni gasto propio): no delimitan tramos de balance.
+                const escalas = soloEscalasDeControl(metaStore.escalas
+                    .filter(e => e.activa && Number(e.km) >= 0 && Number(e.km) <= 104))
                     .sort((a, b) => Number(a.km) - Number(b.km));
 
                 const puntos = metaStore.puntos_entrega;

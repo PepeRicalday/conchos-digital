@@ -57,7 +57,7 @@ export const MapaCanal = memo(function MapaCanal({ kmIni, kmFin, escalas, modulo
 
                     {/* Escalas */}
                     {escalasVista.map((e) => (
-                        <div key={e.id} className={`dc-escala ${e.fresca ? 'dc-escala-viva' : 'dc-escala-vieja'}`} style={{ left: `${posicionKm(e.km, kmIni, kmFin)}%` }}
+                        <div key={e.id} className={`dc-escala ${e.referencia ? 'dc-escala-ref' : e.fresca ? 'dc-escala-viva' : 'dc-escala-vieja'}`} style={{ left: `${posicionKm(e.km, kmIni, kmFin)}%` }}
                             title={`${e.nombre} · km ${e.km} · nivel ${fmt(e.nivelM, 2)} m · gasto ${fmt(e.gasto, 2)} m³/s · ${e.telemetriaMs ? fmtEdadMin((ahoraMs - e.telemetriaMs) / 60000) : 'sin lectura'}`}>
                             <Crosshair size={13} aria-hidden="true" />
                             <span className="dc-escala-km">K{Math.round(e.km)}</span>
@@ -86,6 +86,7 @@ export const MapaCanal = memo(function MapaCanal({ kmIni, kmFin, escalas, modulo
                 <li><i style={{ background: 'rgba(56,189,248,.5)' }} />Tramo de módulo</li>
                 <li><i style={{ background: '#34d399' }} />Escala con lectura vigente (≤ 4 h)</li>
                 <li><i style={{ background: '#8396ad' }} />Escala sin lectura vigente</li>
+                <li><i style={{ background: '#a78bfa' }} />Escala de referencia (K-64, K-94+200): solo nivel, sin gasto</li>
                 <li><i style={{ background: '#fbbf24' }} />Toma abierta / con movimiento</li>
             </ul>
 
@@ -97,10 +98,10 @@ export const MapaCanal = memo(function MapaCanal({ kmIni, kmFin, escalas, modulo
                         {escalasVista.length === 0 && <tr><td colSpan={5}>Sin escalas en este tramo.</td></tr>}
                         {escalasVista.map((e) => (
                             <tr key={e.id}>
-                                <th scope="row">{e.nombre}</th>
+                                <th scope="row">{e.nombre}{e.referencia && <span className="sc-fresco"> · referencia (solo nivel)</span>}</th>
                                 <td>{e.km.toFixed(1)}</td>
                                 <td>{e.nivelM != null ? `${e.nivelM.toFixed(2)} m` : 'S/D'}</td>
-                                <td>{e.fresca && e.gasto != null ? `${e.gasto.toFixed(2)} m³/s` : 'S/D'}</td>
+                                <td>{e.referencia ? 'No aplica' : e.fresca && e.gasto != null ? `${e.gasto.toFixed(2)} m³/s` : 'S/D'}</td>
                                 <td><span className={`sc-estado ${e.fresca ? 'sc-estado-ok' : 'sc-estado-sd'}`}>{e.telemetriaMs ? fmtEdadMin((ahoraMs - e.telemetriaMs) / 60000) : 'sin lectura'}</span></td>
                             </tr>
                         ))}

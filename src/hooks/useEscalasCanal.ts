@@ -4,6 +4,7 @@ import { onTable } from '../lib/realtimeHub';
 import { ensureMetadata } from '../store/useMetadataStore';
 import { gastoDeLectura, esFrescaEscala } from '../utils/geoKpis';
 import { usePolling } from './useClimaOperativo';
+import { esEscalaReferencia } from '../utils/escalasReferencia';
 
 export interface EscalaCanal {
     id: string;
@@ -14,6 +15,8 @@ export interface EscalaCanal {
     gasto: number | null;
     fresca: boolean;
     telemetriaMs: number | null;
+    /** Escala de solo referencia (K-64, K-94+200): aporta nivel, nunca gasto. */
+    referencia: boolean;
 }
 
 type EscalaMeta = { id: string; nombre: string; km: number; pzas_radiales?: number | null; ancho?: number | null };
@@ -43,10 +46,11 @@ export function useEscalasCanal() {
             setEscalas(esc.map((m) => {
                 const l = ultima.get(m.id);
                 const ts = l?.creado_en ? new Date(l.creado_en as string).getTime() : null;
+                const referencia = esEscalaReferencia(m);
                 return {
-                    id: m.id, nombre: m.nombre, km: Number(m.km),
+                    id: m.id, nombre: m.nombre, km: Number(m.km), referencia,
                     nivelM: l?.nivel_m != null ? Number(l.nivel_m) : null,
-                    gasto: l ? gastoDeLectura(l, { pzas_radiales: m.pzas_radiales, ancho: m.ancho, nombre: m.nombre, km: Number(m.km) }) : null,
+                    gasto: l && !referencia ? gastoDeLectura(l, { pzas_radiales: m.pzas_radiales, ancho: m.ancho, nombre: m.nombre, km: Number(m.km) }) : null,
                     fresca: esFrescaEscala(ts, ahora),
                     telemetriaMs: ts,
                 };

@@ -30,18 +30,20 @@ const BalanceHidraulico = () => {
     const ordenados = useMemo(() => ordenaPorSeveridad(tramos), [tramos]);
     const resumen = useMemo(() => resumenBalance(tramos), [tramos]);
     // Escalas con lectura NO vigente (> 4 h) hoy: sus tramos se rotulan "lectura > 4 h" en la tabla.
-    const noVigentes = useMemo(() => new Set(esHoy ? vigentes.filter((e) => !e.fresca).map((e) => e.nombre) : []), [vigentes, esHoy]);
+    const noVigentes = useMemo(() => new Set(esHoy ? vigentes.filter((e) => !e.fresca && !e.referencia).map((e) => e.nombre) : []), [vigentes, esHoy]);
     const qTomas = useMemo(() => datos.tomas.reduce((a, t) => a + t.caudal, 0), [datos.tomas]);
 
     const chips: ChipEstado[] = useMemo(() => {
         const c: ChipEstado[] = [];
         if (datos.error) c.push({ key: 'err', sev: 'crit', texto: `No se pudo leer el balance: ${datos.error}` });
         if (!canal.k0Fresca || !canal.k104Fresca) c.push({ key: 'ext', sev: 'warn', texto: 'K-0 o K-104 sin lectura vigente (> 4 h): eficiencia de conducción en S/D' });
-        if (esHoy && vigentes.length > 0) {
-            const vivas = vigentes.filter((e) => e.fresca).length;
-            c.push({ key: 'vig', sev: vivas === vigentes.length ? 'ok' : 'warn', texto: `${vivas} de ${vigentes.length} escalas con lectura vigente (≤ 4 h)` });
+        const control = vigentes.filter((e) => !e.referencia); // las de referencia no miden gasto
+        if (esHoy && control.length > 0) {
+            const vivas = control.filter((e) => e.fresca).length;
+            c.push({ key: 'vig', sev: vivas === control.length ? 'ok' : 'warn', texto: `${vivas} de ${control.length} escalas de control con lectura vigente (≤ 4 h)` });
         }
         if (!esHoy) c.push({ key: 'fecha', sev: 'info', texto: `Balance del ${fechaSeleccionada}: resumen diario por escala (la eficiencia de conducción siempre es la actual)` });
+        c.push({ key: 'ref', sev: 'info', texto: 'K-64 y K-94+200 son escalas de referencia (sin gasto propio): no delimitan tramos del balance' });
         if (datos.sinKm > 0) c.push({ key: 'sinkm', sev: 'warn', texto: `${datos.sinKm} escala(s) sin km excluidas del balance` });
         if (datos.actualizadoEn) c.push({ key: 'act', sev: 'ok', texto: `Actualizado ${fmtEdadMin(Math.max(0, (ahora - datos.actualizadoEn) / 60000))}` });
         return c;

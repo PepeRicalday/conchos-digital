@@ -5,6 +5,7 @@ import {
     normalizaEscalas, normalizaTomas, propagaSifones,
     type EscalaBalance, type FilaEscalaRaw, type FilaTomaRaw, type TomaBalance,
 } from '../utils/balanceTramos';
+import { soloEscalasDeControl } from '../utils/escalasReferencia';
 import type { PerfilTramo } from '../utils/hydraulics';
 
 // El perfil de diseño casi nunca cambia: se pide una vez por sesión, no en cada cambio de fecha.
@@ -63,7 +64,8 @@ export function useBalanceDia(fecha: string): BalanceDia {
         if (!escRes.error) {
             const { escalas, sinKm } = normalizaEscalas(filas);
             const { tomas, descartadas } = normalizaTomas((tomasRes.data ?? []) as unknown as FilaTomaRaw[]);
-            setEstado({ escalas: propagaSifones(escalas), sinKm, tomas, tomasDescartadas: descartadas, perfil: perfilCache ?? [], actualizadoEn: Date.now() });
+            // K-64 y K-94+200 son referencias (sin gasto propio): no son extremos de tramo.
+            setEstado({ escalas: propagaSifones(soloEscalasDeControl(escalas)), sinKm, tomas, tomasDescartadas: descartadas, perfil: perfilCache ?? [], actualizadoEn: Date.now() });
         }
         setClaveCargada(fecha);
     }, [fecha]);

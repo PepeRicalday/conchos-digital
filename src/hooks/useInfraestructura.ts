@@ -9,10 +9,13 @@ export interface PuntoEntrega {
     nombre: string;
     km: number;
     tipo: 'toma' | 'lateral' | 'carcamo' | 'escala' | 'estacion';
+    /** LEGADO: está en L/s (no m³/s). Se mantiene sincronizada con capacidad_max_lps para los demás lectores. */
     capacidad_max: number;
+    /** Capacidad de diseño en L/s; null = sin dato. */
+    capacidad_max_lps?: number | null;
     coords_x?: number | null;
     coords_y?: number | null;
-    zona?: string;
+    zona?: string | null;
     seccion_texto?: string;
     // Agregados virtuales desde JOINs
     m_codigo_corto?: string;

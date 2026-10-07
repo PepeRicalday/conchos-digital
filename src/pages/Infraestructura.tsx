@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useInfraestructura, type PuntoEntrega } from '../hooks/useInfraestructura';
-import { fmt } from '../utils/formato';
+import { fmt, fmtMiles } from '../utils/formato';
 import { MapPin, Plus, Save, Trash2, Edit2, Zap } from 'lucide-react';
 
 export default function Infraestructura() {
@@ -23,9 +23,10 @@ export default function Infraestructura() {
             km: 0,
             tipo: 'toma',
             capacidad_max: 0,
+            capacidad_max_lps: null,
             coords_x: 0,
             coords_y: 0,
-            zona: '',
+            zona: null,
             seccion_texto: ''
         });
         setIsEditing(true);
@@ -113,7 +114,7 @@ export default function Infraestructura() {
                                                 <div className="text-[10px] text-slate-500">{p.s_nombre || p.seccion_texto || 'S/S'}</div>
                                             </td>
                                             <td className="py-3 px-4 text-right font-mono text-emerald-400 font-bold">
-                                                {p.capacidad_max} <span className="text-[10px] text-slate-500 font-sans">m³/s</span>
+                                                {fmtMiles(p.capacidad_max_lps ?? (p.capacidad_max > 0 ? p.capacidad_max : null), 0)} <span className="text-[10px] text-slate-500 font-sans">L/s</span>
                                             </td>
                                             <td className="py-3 px-4 text-right">
                                                 <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -161,9 +162,17 @@ export default function Infraestructura() {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Diseño Max (m³/s)</label>
-                                    <input type="number" step="0.001" required value={formData.capacidad_max ?? ''} onChange={e => setFormData({ ...formData, capacidad_max: e.target.value === '' ? undefined : parseFloat(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-emerald-400 font-mono text-sm focus:border-blue-500 outline-none" />
+                                    <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Diseño Max (L/s)</label>
+                                    <input type="number" step="0.001" required value={formData.capacidad_max_lps ?? formData.capacidad_max ?? ''} onChange={e => { const v = e.target.value === '' ? undefined : parseFloat(e.target.value); setFormData({ ...formData, capacidad_max: v, capacidad_max_lps: v ?? null }); }} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-emerald-400 font-mono text-sm focus:border-blue-500 outline-none" />
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider" htmlFor="punto-zona">Zona de riego</label>
+                                <select id="punto-zona" value={formData.zona || ''} onChange={e => setFormData({ ...formData, zona: e.target.value || null })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white text-sm focus:border-blue-500 outline-none">
+                                    <option value="">-- Sin zona --</option>
+                                    {['ZONA #1', 'ZONA #2', 'ZONA #3', 'ZONA #4'].map(z => <option key={z} value={z}>{z}</option>)}
+                                </select>
                             </div>
 
                             <div>

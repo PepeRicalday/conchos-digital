@@ -21,6 +21,7 @@ import { construyeCapaNubes, type CapaNubes } from './capaNubesGIBS';
 import { obtenNdviModulo, type NdviModulo } from './kcNdvi';
 import { skillPronosticoResumen } from './climaVerificacion';
 import { guardaOComparte } from './descargaArchivo';
+import { rasterizaHtml } from './rasterizaHtml';
 import { getTodayString } from './dateHelpers';
 
 /** Paleta institucional de la infografía (azul marino SICA + verdes de estado). */
@@ -896,36 +897,6 @@ export async function imprimirClimaInfografia(
 }
 
 /**
- * Codifica un string UTF-8 (con emojis y acentos — la infografía usa ambos
- * extensamente) a base64. btoa() sólo acepta Latin1, así que se pasa por
- * TextEncoder en vez del patrón unescape(encodeURIComponent(...)), ya
- * deprecado y con casos límite en puntos de código fuera del BMP.
- */
-function utf8ToBase64(texto: string): string {
-    const bytes = new TextEncoder().encode(texto);
-    let binario = '';
-    for (const b of bytes) binario += String.fromCharCode(b);
-    return btoa(binario);
-}
-
-/**
- * Espera a que todas las <img> de un documento terminen de cargar (o fallen).
- * El logo SRL/SICA y el mapa satelital ya llegan embebidos como data URI, pero
- * el navegador aún necesita un tick para decodificarlos antes de poder
- * dibujarlos en el <canvas> — sin esto, la primera captura puede salir con
- * huecos en blanco donde deberían ir esas imágenes.
- */
-function esperaImagenes(doc: Document): Promise<void> {
-    const imgs = Array.from(doc.images);
-    return Promise.all(
-        imgs.map(img => img.complete ? Promise.resolve() : new Promise<void>(resolve => {
-            img.addEventListener('load', () => resolve(), { once: true });
-            img.addEventListener('error', () => resolve(), { once: true });
-        })),
-    ).then(() => undefined);
-}
-
-/**
  * Genera la infografía como PNG de alta resolución, fiel a como se ve en
  * pantalla — sin depender del motor de impresión del navegador, que por
  * defecto omite `background` (el lienzo azul marino) salvo que el usuario
@@ -944,87 +915,11 @@ export async function imagenClimaInfografia(
     ests: EstacionConLectura[], historial: DiaHistorico[] = [],
 ): Promise<void> {
     const html = await construyeInfografiaHTML(ests, historial);
+    // Escala 2x: nitidez adecuada para impresión/proyección sin generar un archivo desproporcionado.
+    const blobPng = await rasterizaHtml(html, { ancho: 1200, escala: 2 });
+    const nombreArchivo = `infografia-clima-conchos-${getTodayString()}.png`;
 
-    const blobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8;' }));
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1200px;height:800px;border:0;visibility:hidden;';
-
-    try {
-        // Navegar por src (en vez de document.write, ya deprecado) deja que el
-        // navegador parsee el documento de forma normal y dispare 'load' cuando
-        // el HTML ya resolvió — el Blob hereda el origen de la página, así que
-        // contentDocument sigue siendo accesible (no hay problema de CORS).
-        const cargaLista = new Promise<void>(resolve => {
-            iframe.addEventListener('load', () => resolve(), { once: true });
-        });
-        iframe.src = blobUrl;
-        document.body.appendChild(iframe);
-        await cargaLista;
-
-        const doc = iframe.contentDocument;
-        if (!doc) throw new Error('No se pudo preparar el lienzo de captura.');
-        await esperaImagenes(doc);
-
-        // Alto real del documento ya renderizado — el contenido varía con el
-        // número de estaciones y alertas, así que no puede fijarse a mano.
-        const ancho = 1200;
-        const alto = Math.ceil(doc.documentElement.scrollHeight);
-
-        const svgNS = 'http://www.w3.org/2000/svg';
-        const svg = document.createElementNS(svgNS, 'svg');
-        svg.setAttribute('xmlns', svgNS);
-        svg.setAttribute('width', String(ancho));
-        svg.setAttribute('height', String(alto));
-        svg.setAttribute('viewBox', `0 0 ${ancho} ${alto}`);
-        const foreign = document.createElementNS(svgNS, 'foreignObject');
-        foreign.setAttribute('width', '100%');
-        foreign.setAttribute('height', '100%');
-        // xhtml namespace requerido: un <div> plano dentro de foreignObject se
-        // ignora en Chrome si no declara su namespace explícitamente.
-        const htmlNode = doc.documentElement.cloneNode(true) as HTMLElement;
-        htmlNode.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
-        foreign.appendChild(htmlNode);
-        svg.appendChild(foreign);
-
-        const svgData = new XMLSerializer().serializeToString(svg);
-        // Data URI en vez de Blob URL: Chrome marca como "tainted" cualquier
-        // canvas donde se dibuje una imagen SVG cargada desde un Blob URL —
-        // incluso siendo same-origin y sin contenido ejecutable — y eso hace
-        // fallar canvas.toDataURL() más abajo con "Tainted canvases may not be
-        // exported". Con data: en base64 el navegador no aplica esa marca.
-        const svgDataUri = `data:image/svg+xml;charset=utf-8;base64,${utf8ToBase64(svgData)}`;
-
-        const img = new Image();
-        img.width = ancho;
-        img.height = alto;
-        await new Promise<void>((resolve, reject) => {
-            img.onload = () => resolve();
-            img.onerror = () => reject(new Error('No se pudo rasterizar la infografía.'));
-            img.src = svgDataUri;
-        });
-
-        // Escala 2x: nitidez adecuada para impresión/proyección sin generar un
-        // archivo desproporcionadamente grande (a 3x+ el peso crece muy rápido
-        // para el beneficio marginal en pantallas normales).
-        const escala = 2;
-        const canvas = document.createElement('canvas');
-        canvas.width = ancho * escala;
-        canvas.height = alto * escala;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('No se pudo preparar el lienzo de captura.');
-        ctx.scale(escala, escala);
-        ctx.drawImage(img, 0, 0, ancho, alto);
-
-        const nombreArchivo = `infografia-clima-conchos-${getTodayString()}.png`;
-
-        // Ver descargaArchivo.ts: en iOS/iPadOS el <a download> con data: URI se
-        // abre en una pestaña sin forma visible de guardar ni volver, así que se
-        // ofrece la hoja nativa de "Compartir" en su lugar.
-        const blobPng: Blob | null = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        if (!blobPng) throw new Error('No se pudo generar el archivo de imagen.');
-        await guardaOComparte(blobPng, nombreArchivo, 'image/png');
-    } finally {
-        if (iframe.parentNode) document.body.removeChild(iframe);
-        URL.revokeObjectURL(blobUrl);
-    }
+    // Ver descargaArchivo.ts: en iOS/iPadOS el <a download> con data: URI se abre en una pestaña sin forma visible
+    // de guardar ni volver, así que se ofrece la hoja nativa de "Compartir" en su lugar.
+    await guardaOComparte(blobPng, nombreArchivo, 'image/png');
 }

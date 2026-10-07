@@ -15,6 +15,7 @@ import { getTodayString, addDays, getLocalDatetimeInput } from '../utils/dateHel
 import PresaLecturaBand from '../components/PresaLecturaBand';
 import LimnimetroPresa from '../components/LimnimetroPresa';
 import PresaHistoricoContexto from '../components/PresaHistoricoContexto';
+import BotonInfografiaPresas from '../components/BotonInfografiaPresas';
 
 
 /** Espejo de los tokens --pr-* de Presas.css (hex porque se componen con alfa: `${color}18`). */
@@ -791,6 +792,7 @@ const Presas = () => {
                     <Link to="/importar" className="scada-action-btn">
                         <Upload size={11} />Importar
                     </Link>
+                    <BotonInfografiaPresas presas={presas} />
                 </div>
             </header>
 

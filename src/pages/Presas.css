@@ -1814,6 +1814,8 @@
     font-family: 'JetBrains Mono', monospace; line-height: 1.2;
 }
 .scada-clock-date { font-size: 11px; color: #8396ad; font-weight: 700; }
+.scada-action-aviso { font-size: 10px; color: #f59e0b; max-width: 220px; line-height: 1.25; }
+.scada-action-btn:disabled { opacity: 0.6; cursor: progress; }
 .scada-action-btn {
     display: flex; align-items: center; gap: 5px; padding: 6px 11px;
     border-radius: 6px; border: 1px solid rgba(255,255,255,0.07);

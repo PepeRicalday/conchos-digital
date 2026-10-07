@@ -149,23 +149,6 @@ html[data-device="phone"] .idx-svg { width: 84px; height: 84px; }
 html[data-device="phone"] .sync-status { display: none; }
 
 /* ═══ ALERTAS ═══════════════════════════════════════════════════════════════ */
-html[data-device="phone"] .al-header { flex-direction: column; align-items: flex-start; gap: 4px; }
-html[data-device="phone"] .al-header-subtitle { letter-spacing: 0.04em; font-size: 12px; }
-html[data-device="phone"] .al-logos { display: none; }
-html[data-device="phone"] .al-kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-html[data-device="phone"] .al-kpi-card { padding: 10px; min-height: 0; }
-html[data-device="phone"] .al-kpi-value { font-size: 1.8rem; }
-html[data-device="phone"] .al-kpi-title { font-size: 0.62rem; }
-html[data-device="phone"] .al-kpi-subtext, html[data-device="phone"] .al-kpi-chart { display: none; }
-html[data-device="phone"] .al-filter-group { align-items: flex-start; }
-html[data-device="phone"] .al-combo-box { width: 100%; background: #0f172a; border-radius: 10px; min-height: 44px; }
-html[data-device="phone"] .al-map-card { display: none; }          /* línea de 3 px con etiquetas <8 px: ilegible */
-html[data-device="phone"] .al-side-card:has(.al-log-empty) { display: none; }
-html[data-device="phone"] .al-log-item { padding: 8px 10px; }
-html[data-device="phone"] .al-log-msg { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-html[data-device="phone"] .al-log-action { flex: 0 0 100%; margin-top: 6px; }
-html[data-device="phone"] .al-log-time { color: var(--pl-muted); font-size: 12px; }
-html[data-device="phone"] .al-log-tag { font-size: 11px; }
 
 /* ═══ BALANCE HIDRÁULICO ════════════════════════════════════════════════════ */
 html[data-device="phone"] .balance-kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

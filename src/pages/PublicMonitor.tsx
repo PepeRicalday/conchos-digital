@@ -1296,7 +1296,7 @@ const PublicMonitor: React.FC = () => {
             });
 
             if (activeEvent?.evento_tipo === 'LLENADO') {
-                const presaReading = (pData || []).find((p: any) => p.presas?.nombre_corto === 'PLB');
+                const presaReading = (pData || []).find((p: any) => p.presa_id === 'PRE-001' || p.presas?.nombre_corto === 'Boquilla');
                 const extraccionReal = presaReading?.extraccion_total || 0;
 
                 baseEscalas.unshift({

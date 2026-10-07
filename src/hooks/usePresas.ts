@@ -285,7 +285,7 @@ export function usePresas(fecha: string) {
                     }
 
                     // ── CAPA 3: Protocolo activo Hidro-Sincro (solo Boquilla) ──
-                    const isBoquilla = p.id === 'PRE-001' || p.codigo === 'PLB' ||
+                    const isBoquilla = p.id === 'PRE-001' ||
                                      p.nombre_corto?.toUpperCase().includes('BOQUILLA') ||
                                      p.nombre?.toUpperCase().includes('BOQUILLA');
 

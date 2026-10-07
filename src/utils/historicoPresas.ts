@@ -7,6 +7,9 @@
  */
 
 export type PresaId = 'PRE-001' | 'PRE-002';
+/** Ids canónicos de presa en BD (`presas.id`). Identificar SIEMPRE por id: `presas.codigo` vale "1"/"2", no PLB/PFM. */
+export const ID_BOQUILLA: PresaId = 'PRE-001';
+export const ID_MADERO: PresaId = 'PRE-002';
 export type Metrica = 'volumen' | 'elevacion' | 'llenado';
 /** normalizada = recalculada con la curva vigente (comparable entre años) · reportada = tal como salió en el reporte. */
 export type TipoSerie = 'normalizada' | 'reportada';

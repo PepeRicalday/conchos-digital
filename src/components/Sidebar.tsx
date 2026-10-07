@@ -180,6 +180,7 @@ const Sidebar = () => {
             </nav>
 
             <div className="sidebar-footer">
+                {profile?.rol === 'SRL' && (
                 <div className="admin-menu-container mb-2">
                     <button
                         onClick={() => setIsAdminOpen(!isAdminOpen)}
@@ -218,6 +219,7 @@ const Sidebar = () => {
                         </div>
                     )}
                 </div>
+                )}
 
                 {profile?.rol === 'SRL' && (
                     <NavLink

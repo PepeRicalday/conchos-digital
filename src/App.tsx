@@ -8,6 +8,7 @@ import { FechaProvider } from './context/FechaContext';
 import { Toaster } from 'sonner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { VersionGuard } from './components/VersionGuard';
+import { RoleGuard } from './components/ui/RoleGuard';
 
 // ── Lazy-loaded pages (Code Splitting) ───────────────────────── //
 // Each page is loaded on-demand, reducing initial bundle by ~60%.
@@ -237,13 +238,13 @@ function App() {
                 <Route path="/escalas" element={<ProtectedRoute><SafePage><ControlEscalas /></SafePage></ProtectedRoute>} />
                 <Route path="/hidrometria" element={<ProtectedRoute><SafePage><Hidrometria /></SafePage></ProtectedRoute>} />
                 <Route path="/clima" element={<ProtectedRoute><SafePage><Clima /></SafePage></ProtectedRoute>} />
-                <Route path="/reporte-oficial" element={<ProtectedRoute><SafePage><OfficialDamReport /></SafePage></ProtectedRoute>} />
-                <Route path="/importar" element={<ProtectedRoute><SafePage><ImportReport /></SafePage></ProtectedRoute>} />
+                <Route path="/reporte-oficial" element={<ProtectedRoute><SafePage><RoleGuard><OfficialDamReport /></RoleGuard></SafePage></ProtectedRoute>} />
+                <Route path="/importar" element={<ProtectedRoute><SafePage><RoleGuard><ImportReport /></RoleGuard></SafePage></ProtectedRoute>} />
                 <Route path="/alertas" element={<ProtectedRoute><SafePage><Alertas /></SafePage></ProtectedRoute>} />
                 <Route path="/geo-monitor" element={<ProtectedRoute><SafePage><GeoMonitor /></SafePage></ProtectedRoute>} />
-                <Route path="/bitacora" element={<ProtectedRoute><SafePage><Bitacora /></SafePage></ProtectedRoute>} />
-                <Route path="/ciclos" element={<ProtectedRoute><SafePage><Ciclos /></SafePage></ProtectedRoute>} />
-                <Route path="/infraestructura" element={<ProtectedRoute><SafePage><Infraestructura /></SafePage></ProtectedRoute>} />
+                <Route path="/bitacora" element={<ProtectedRoute><SafePage><RoleGuard><Bitacora /></RoleGuard></SafePage></ProtectedRoute>} />
+                <Route path="/ciclos" element={<ProtectedRoute><SafePage><RoleGuard><Ciclos /></RoleGuard></SafePage></ProtectedRoute>} />
+                <Route path="/infraestructura" element={<ProtectedRoute><SafePage><RoleGuard><Infraestructura /></RoleGuard></SafePage></ProtectedRoute>} />
                 <Route path="/inteligencia-hidrica" element={<ProtectedRoute><SafePage><InteligenciaHidrica /></SafePage></ProtectedRoute>} />
                 <Route path="/balance" element={<ProtectedRoute><SafePage><BalanceHidraulico /></SafePage></ProtectedRoute>} />
                 <Route path="/analisis-historico" element={<ProtectedRoute><SafePage><AnalisisHistorico /></SafePage></ProtectedRoute>} />

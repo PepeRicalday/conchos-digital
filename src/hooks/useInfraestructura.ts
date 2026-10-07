@@ -4,14 +4,14 @@ import { toast } from 'sonner';
 
 export interface PuntoEntrega {
     id: string;
-    modulo_id?: string;
-    seccion_id?: string;
+    modulo_id?: string | null;
+    seccion_id?: string | null;
     nombre: string;
     km: number;
     tipo: 'toma' | 'lateral' | 'carcamo' | 'escala' | 'estacion';
     capacidad_max: number;
-    coords_x?: number;
-    coords_y?: number;
+    coords_x?: number | null;
+    coords_y?: number | null;
     zona?: string;
     seccion_texto?: string;
     // Agregados virtuales desde JOINs
@@ -40,13 +40,14 @@ export const useInfraestructura = () => {
         setLoading(true);
         try {
             // 1. Catálogos
-            const [{ data: modData }, { data: secData }] = await Promise.all([
+            const [{ data: modData, error: modError }, { data: secData, error: secError }] = await Promise.all([
                 supabase.from('modulos').select('id, nombre, codigo_corto').order('codigo_corto'),
                 supabase.from('secciones').select('id, nombre').order('nombre')
             ]);
 
-            setModulos(modData as ModuloOpcion[] || []);
-            setSecciones(secData as SeccionOpcion[] || []);
+            if (modError || secError) throw (modError ?? secError);
+            setModulos((modData as ModuloOpcion[]) || []);
+            setSecciones((secData as SeccionOpcion[]) || []);
 
             // 2. Puntos
             const { data: ptsData, error } = await supabase
@@ -60,7 +61,7 @@ export const useInfraestructura = () => {
 
             if (error) throw error;
 
-            const mapped = ptsData.map((p: any) => ({
+            const mapped = (ptsData ?? []).map((p: any) => ({
                 ...p,
                 m_codigo_corto: p.modulos?.codigo_corto,
                 s_nombre: p.secciones?.nombre
@@ -82,7 +83,9 @@ export const useInfraestructura = () => {
     const savePunto = async (punto: Partial<PuntoEntrega>) => {
         try {
             // Remove virtual props
-            const { m_codigo_corto, s_nombre, ...payload } = punto;
+            // Quita campos virtuales (JOIN) que no son columnas de `puntos_entrega`.
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { m_codigo_corto, s_nombre, modulos: _m, secciones: _s, ...payload } = punto as Partial<PuntoEntrega> & { modulos?: unknown; secciones?: unknown };
 
             const { data, error } = await supabase
                 .from('puntos_entrega')
@@ -92,7 +95,7 @@ export const useInfraestructura = () => {
 
             if (error) throw error;
             toast.success('Punto Guardado Exitosamente');
-            fetchData();
+            await fetchData();
             return data;
         } catch (err: any) {
             toast.error('Error al guardar punto: ' + err.message);
@@ -105,7 +108,7 @@ export const useInfraestructura = () => {
             const { error } = await supabase.from('puntos_entrega').delete().eq('id', id);
             if (error) throw error;
             toast.success('Punto Eliminado');
-            fetchData();
+            await fetchData();
         } catch (err: any) {
             toast.error('No se pudo eliminar: ' + err.message);
             throw err;

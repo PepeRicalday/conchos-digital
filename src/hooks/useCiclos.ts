@@ -37,26 +37,19 @@ export const useCiclos = () => {
         setLoading(true);
         try {
             // 1. Obtener Ciclos
-            const { data: ciclosData, error: ciclosError } = await supabase
-                .from('ciclos_agricolas')
-                .select('*')
-                .order('creado_en', { ascending: false });
+            // Las tres consultas son independientes: en paralelo, no en serie.
+            const [
+                { data: ciclosData, error: ciclosError },
+                { data: modulosData, error: modulosError },
+                { data: mcData, error: mcError },
+            ] = await Promise.all([
+                supabase.from('ciclos_agricolas').select('*').order('creado_en', { ascending: false }),
+                supabase.from('modulos').select('id, nombre, codigo_corto').order('codigo_corto'),
+                supabase.from('modulos_ciclos').select('*'),
+            ]);
 
             if (ciclosError) throw ciclosError;
-
-            // 2. Obtener Módulos
-            const { data: modulosData, error: modulosError } = await supabase
-                .from('modulos')
-                .select('id, nombre, codigo_corto')
-                .order('codigo_corto');
-
             if (modulosError) throw modulosError;
-
-            // 3. Obtener Relación (Presupuestos de Ciclo por Modulo)
-            const { data: mcData, error: mcError } = await supabase
-                .from('modulos_ciclos')
-                .select('*');
-
             if (mcError) throw mcError;
 
             setCiclos(ciclosData as CicloAgricola[]);
@@ -110,10 +103,12 @@ export const useCiclos = () => {
                     .insert(payload);
                 if (error) throw error;
             }
-            await fetchData();
             toast.success('Presupuesto de Módulo Actualizado');
+            await fetchData();
+            return true;
         } catch (error: any) {
             toast.error('Error al guardar módulos_ciclo: ' + error.message);
+            return false;
         }
     };
 

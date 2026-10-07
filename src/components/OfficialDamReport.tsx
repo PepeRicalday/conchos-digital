@@ -3,7 +3,10 @@ import { useAforos } from '../hooks/useAforos';
 import { usePresas } from '../hooks/usePresas';
 import { useDistribucionEvents } from '../hooks/useDistribucionEvents';
 import { useFecha } from '../context/FechaContext';
-import { formatTime, formatDate, getTodayString } from '../utils/dateHelpers';
+import { formatTime, formatDate } from '../utils/dateHelpers';
+import { fmt, fmtMiles, SD } from '../utils/formato';
+import { agregarAlmacenamiento } from '../utils/presaMetrics';
+import { ID_BOQUILLA, ID_MADERO } from '../utils/historicoPresas';
 import './OfficialDamReport.css'; 
 
 const OfficialDamReport = () => {
@@ -12,16 +15,14 @@ const OfficialDamReport = () => {
     const { presas, clima } = usePresas(todayStr);
     const { events: distEvents } = useDistribucionEvents(todayStr);
 
-    const boquilla = presas.find(p => p.codigo === 'PLB');
-    const madero = presas.find(p => p.codigo === 'PFM');
+    const boquilla = presas.find(p => p.id === ID_BOQUILLA);
+    const madero = presas.find(p => p.id === ID_MADERO);
 
-    // Delicias climate is tied to Boquilla's ID in this mocked setup, 
-    // or we might need a distinct station ID if it existed.
-    // For now we assume Boquilla, Madero, and one specifically for Delicias.
     const climaBoquilla = clima.find(c => c.presa_id === boquilla?.id);
     const climaMadero = clima.find(c => c.presa_id === madero?.id);
-    // TODO: Create an actual Station record for Delicias. For now, we fallback to Boquilla's weather.
-    const climaDelicias = clima.find(c => c.presa_id === 'estacion-delicias') || climaBoquilla;
+    // Delicias no tiene estación propia en `clima_presas`: se rotula S/D, nunca se copia el clima de La Boquilla.
+    const climaDelicias = clima.find(c => c.presa_id === 'estacion-delicias');
+    const almacenamientoConjunto = agregarAlmacenamiento(presas.filter(p => p.id === ID_BOQUILLA || p.id === ID_MADERO));
 
     // Detect if data is historical (not from today)
     const boquillaDate = boquilla?.lectura?.fecha || todayStr;
@@ -29,7 +30,7 @@ const OfficialDamReport = () => {
     const reportDateLabel = formatDate(new Date(boquillaDate + 'T12:00:00Z'), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
     const handlePrint = () => {
-        document.title = `Reporte_Presas_${getTodayString()}`;
+        document.title = `Reporte_Presas_${todayStr}`;
         window.print();
     };
 
@@ -65,7 +66,7 @@ const OfficialDamReport = () => {
                                 <span className="text-lg font-serif font-bold text-slate-800 uppercase">{reportDateLabel}</span>
                                 {isHistorical && (
                                     <span className="text-[10px] font-bold uppercase text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full mt-1 border border-amber-300 print:hidden shadow-sm animate-pulse">
-                                        ⚠ Mostrando Lectura Guardada de Ayer
+                                        ⚠ Lectura guardada del {boquillaDate}
                                     </span>
                                 )}
                             </div>
@@ -84,21 +85,21 @@ const OfficialDamReport = () => {
 
                         {/* ROW 1: Hydro Data */}
                         <div className="col-boquilla border-r border-slate-400 p-2 space-y-1">
-                            <DataRow label="Escala (msnm)" value={boquilla?.lectura?.escala_msnm?.toFixed(2) || '---'} />
-                            <DataRow label="Almacenamiento (Mm³)" value={boquilla?.lectura?.almacenamiento_mm3?.toFixed(3) || '---'} highlight />
-                            <DataRow label="T. Baja" value={boquilla?.lectura?.gasto_toma_baja_m3s?.toString() || '---'} />
-                            <DataRow label="C.F.E." value={boquilla?.lectura?.gasto_cfe_m3s?.toString() || '---'} />
-                            <DataRow label="Extracción Total (m³/s)" value={boquilla?.lectura?.extraccion_total_m3s?.toFixed(2) || '---'} bold />
-                            <DataRow label="% Llenado" value={boquilla?.lectura?.porcentaje_llenado ? `${boquilla.lectura.porcentaje_llenado.toFixed(2)}%` : '---'} />
+                            <DataRow label="Escala (msnm)" value={fmt(boquilla?.lectura?.escala_msnm, 2)} />
+                            <DataRow label="Almacenamiento (Mm³)" value={fmt(boquilla?.lectura?.almacenamiento_mm3, 3)} highlight />
+                            <DataRow label="T. Baja" value={fmt(boquilla?.lectura?.gasto_toma_baja_m3s, 2)} />
+                            <DataRow label="C.F.E." value={fmt(boquilla?.lectura?.gasto_cfe_m3s, 2)} />
+                            <DataRow label="Extracción Total (m³/s)" value={boquilla?.lectura?.extraccion_conocida ? fmt(boquilla.lectura.extraccion_total_m3s, 2) : SD} bold />
+                            <DataRow label="% Llenado" value={boquilla?.lectura?.porcentaje_llenado != null ? `${fmt(boquilla.lectura.porcentaje_llenado, 2)}%` : SD} />
                         </div>
 
                         <div className="col-madero border-r border-slate-400 p-2 space-y-1">
-                            <DataRow label="Escala (msnm)" value={madero?.lectura?.escala_msnm?.toFixed(2) || '---'} />
-                            <DataRow label="Almacenamiento (Mm³)" value={madero?.lectura?.almacenamiento_mm3?.toFixed(2) || '---'} highlight />
-                            <DataRow label="Toma Izq. #1" value={madero?.lectura?.gasto_toma_izq_m3s?.toFixed(2) || '---'} />
-                            <DataRow label="Toma Der. #2" value={madero?.lectura?.gasto_toma_der_m3s?.toFixed(2) || '---'} />
-                            <DataRow label="Extracción Total (m³/s)" value={madero?.lectura?.extraccion_total_m3s?.toFixed(2) || '---'} bold />
-                            <DataRow label="% Llenado" value={madero?.lectura?.porcentaje_llenado ? `${madero.lectura.porcentaje_llenado.toFixed(2)}%` : '---'} />
+                            <DataRow label="Escala (msnm)" value={fmt(madero?.lectura?.escala_msnm, 2)} />
+                            <DataRow label="Almacenamiento (Mm³)" value={fmt(madero?.lectura?.almacenamiento_mm3, 2)} highlight />
+                            <DataRow label="Toma Izq. #1" value={fmt(madero?.lectura?.gasto_toma_izq_m3s, 2)} />
+                            <DataRow label="Toma Der. #2" value={fmt(madero?.lectura?.gasto_toma_der_m3s, 2)} />
+                            <DataRow label="Extracción Total (m³/s)" value={madero?.lectura?.extraccion_conocida ? fmt(madero.lectura.extraccion_total_m3s, 2) : SD} bold />
+                            <DataRow label="% Llenado" value={madero?.lectura?.porcentaje_llenado != null ? `${fmt(madero.lectura.porcentaje_llenado, 2)}%` : SD} />
                         </div>
 
                         <div className="col-delicias p-4 flex flex-col justify-center items-center text-slate-500 italic text-sm text-center bg-slate-50/50">
@@ -137,24 +138,24 @@ const OfficialDamReport = () => {
                         <div className="col-span-3 grid grid-cols-3 divide-x divide-slate-400 border-b border-slate-800">
                             <div className="p-2">
                                 <h4 className="font-bold text-center text-xs uppercase mb-1">Km 0+580 (Canal Principal)</h4>
-                                <DataRow label="Escala" value={aforosReporte.km0_580 ? aforosReporte.km0_580.nivel_escala_fin_m?.toFixed(2) : '---'} />
-                                <DataRow label="Gasto (m³/s)" value={aforosReporte.km0_580 ? aforosReporte.km0_580.gasto_calculado_m3s?.toFixed(3) : '---'} bold />
-                                <DataRow label="Vel. (m/s)" value={aforosReporte.km0_580?.velocidad_media_ms?.toFixed(2) || '---'} />
-                                <DataRow label="Régimen" value={aforosReporte.km0_580?.froude != null ? (aforosReporte.km0_580.froude < 1 ? 'Subcrítico' : 'Supercrítico') : '---'} highlight />
+                                <DataRow label="Escala" value={fmt(aforosReporte.km0_580?.nivel_escala_fin_m, 2)} />
+                                <DataRow label="Gasto (m³/s)" value={fmt(aforosReporte.km0_580?.gasto_calculado_m3s, 3)} bold />
+                                <DataRow label="Vel. (m/s)" value={fmt(aforosReporte.km0_580?.velocidad_media_ms, 2)} />
+                                <DataRow label="Régimen" value={aforosReporte.km0_580?.froude != null ? (aforosReporte.km0_580.froude < 1 ? 'Subcrítico' : 'Supercrítico') : SD} highlight />
                             </div>
                             <div className="p-2">
                                 <h4 className="font-bold text-center text-xs uppercase mb-1">Km 106</h4>
-                                <DataRow label="Escala" value={aforosReporte.km106 ? aforosReporte.km106.nivel_escala_fin_m?.toFixed(2) : '---'} />
-                                <DataRow label="Gasto (m³/s)" value={aforosReporte.km106 ? aforosReporte.km106.gasto_calculado_m3s?.toFixed(3) : '---'} bold />
-                                <DataRow label="Vel. (m/s)" value={aforosReporte.km106?.velocidad_media_ms?.toFixed(2) || '---'} />
-                                <DataRow label="Régimen" value={aforosReporte.km106?.froude != null ? (aforosReporte.km106.froude < 1 ? 'Subcrítico' : 'Supercrítico') : '---'} highlight />
+                                <DataRow label="Escala" value={fmt(aforosReporte.km106?.nivel_escala_fin_m, 2)} />
+                                <DataRow label="Gasto (m³/s)" value={fmt(aforosReporte.km106?.gasto_calculado_m3s, 3)} bold />
+                                <DataRow label="Vel. (m/s)" value={fmt(aforosReporte.km106?.velocidad_media_ms, 2)} />
+                                <DataRow label="Régimen" value={aforosReporte.km106?.froude != null ? (aforosReporte.km106.froude < 1 ? 'Subcrítico' : 'Supercrítico') : SD} highlight />
                             </div>
                             <div className="p-2">
                                 <h4 className="font-bold text-center text-xs uppercase mb-1">Km 104 (Fin)</h4>
-                                <DataRow label="Escala" value={aforosReporte.km104 ? aforosReporte.km104.nivel_escala_fin_m?.toFixed(2) : '---'} />
-                                <DataRow label="Gasto (m³/s)" value={aforosReporte.km104 ? aforosReporte.km104.gasto_calculado_m3s?.toFixed(3) : '---'} bold />
-                                <DataRow label="Vel. (m/s)" value={aforosReporte.km104?.velocidad_media_ms?.toFixed(2) || '---'} />
-                                <DataRow label="Régimen" value={aforosReporte.km104?.froude != null ? (aforosReporte.km104.froude < 1 ? 'Subcrítico' : 'Supercrítico') : '---'} highlight />
+                                <DataRow label="Escala" value={fmt(aforosReporte.km104?.nivel_escala_fin_m, 2)} />
+                                <DataRow label="Gasto (m³/s)" value={fmt(aforosReporte.km104?.gasto_calculado_m3s, 3)} bold />
+                                <DataRow label="Vel. (m/s)" value={fmt(aforosReporte.km104?.velocidad_media_ms, 2)} />
+                                <DataRow label="Régimen" value={aforosReporte.km104?.froude != null ? (aforosReporte.km104.froude < 1 ? 'Subcrítico' : 'Supercrítico') : SD} highlight />
                             </div>
                         </div>
 
@@ -162,11 +163,11 @@ const OfficialDamReport = () => {
                         <div className="col-span-3 grid grid-cols-2 divide-x divide-slate-800 bg-slate-100 font-bold uppercase text-xs">
                             <div className="p-2 flex justify-between">
                                 <span>Capacidad Total:</span>
-                                <span>2,903 Mm³ (PLB) / 346 Mm³ (PFM)</span>
+                                <span>{fmtMiles(boquilla?.capacidad_max_mm3, 3)} Mm³ (Boquilla) / {fmtMiles(madero?.capacidad_max_mm3, 3)} Mm³ (Madero)</span>
                             </div>
                             <div className="p-2 flex justify-between">
                                 <span>Almacenamiento Conjunto:</span>
-                                <span>{((boquilla?.lectura?.almacenamiento_mm3 || 0) + (madero?.lectura?.almacenamiento_mm3 || 0)).toFixed(3)} Mm³</span>
+                                <span>{almacenamientoConjunto.totalMm3 != null ? `${fmt(almacenamientoConjunto.totalMm3, 3)} Mm³${almacenamientoConjunto.parcial ? ' (parcial)' : ''}` : SD}</span>
                             </div>
                         </div>
                     </div>
@@ -196,16 +197,16 @@ const OfficialDamReport = () => {
                                                 </td>
                                                 <td className="p-1 border-r border-slate-300">
                                                     <span className="font-bold">{evt.nombre_punto}</span>
-                                                    <span className="text-slate-500 ml-1 text-[8px] italic">Km {(evt.km ?? 0).toFixed(3)}</span>
+                                                    <span className="text-slate-500 ml-1 text-[8px] italic">Km {fmt(evt.km, 3)}</span>
                                                 </td>
                                                 <td className="p-1 text-center border-r border-slate-300">
                                                     <EventBadge status={evt.estado} />
                                                 </td>
                                                 <td className="p-1 text-right font-mono font-bold border-r border-slate-300">
-                                                    {(evt.gasto_m3s ?? 0).toFixed(3)}
+                                                    {fmt(evt.gasto_m3s, 3)}
                                                 </td>
                                                 <td className="p-1 text-[9px] text-slate-600 leading-tight">
-                                                    {evt.notas || '---'}
+                                                    {evt.notas || SD}
                                                 </td>
                                             </tr>
                                         ))}
@@ -247,19 +248,19 @@ const DataRow = ({ label, value, bold = false, highlight = false }: { label: str
 
 const WeatherColumn = ({ data, last = false }: { data?: any, location: string, last?: boolean }) => (
     <div className={`${!last ? 'border-r border-slate-400' : ''} p-2 space-y-1`}>
-        <DataRow label="Temp. Ambiente" value={data?.temp_ambiente_c != null ? `${data.temp_ambiente_c} °C` : '---'} />
-        <DataRow label="Temp. Máxima" value={data?.temp_maxima_c != null ? `${data.temp_maxima_c} °C` : '---'} />
-        <DataRow label="Temp. Mínima" value={data?.temp_minima_c != null ? `${data.temp_minima_c} °C` : '---'} />
-        <DataRow label="Precipitación" value={data?.precipitacion_mm != null ? `${data.precipitacion_mm} mm` : '---'} />
-        <DataRow label="Evaporación" value={data?.evaporacion_mm != null ? `${data.evaporacion_mm.toFixed(2)} mm` : '---'} />
-        <DataRow label="Dir. Viento" value={data?.dir_viento || '---'} />
-        <DataRow label="Intensidad (km/h)" value={data?.intensidad_viento?.toString() || '---'} />
-        <DataRow label="Visibilidad (km)" value={data?.visibilidad?.toString() || '---'} />
+        <DataRow label="Temp. Ambiente" value={data?.temp_ambiente_c != null ? `${data.temp_ambiente_c} °C` : SD} />
+        <DataRow label="Temp. Máxima" value={data?.temp_maxima_c != null ? `${data.temp_maxima_c} °C` : SD} />
+        <DataRow label="Temp. Mínima" value={data?.temp_minima_c != null ? `${data.temp_minima_c} °C` : SD} />
+        <DataRow label="Precipitación" value={data?.precipitacion_mm != null ? `${data.precipitacion_mm} mm` : SD} />
+        <DataRow label="Evaporación" value={data?.evaporacion_mm != null ? `${fmt(data.evaporacion_mm, 2)} mm` : SD} />
+        <DataRow label="Dir. Viento" value={data?.dir_viento || SD} />
+        <DataRow label="Intensidad (km/h)" value={data?.intensidad_viento?.toString() || SD} />
+        <DataRow label="Visibilidad (km)" value={data?.visibilidad?.toString() || SD} />
         <div className="flex justify-between items-center mt-2 pt-1 border-t border-slate-200">
             <span className="text-xs text-slate-500 uppercase">Edo. Tiempo</span>
             <div className="flex items-center gap-1 font-bold text-sm">
-                <WeatherIcon state={data?.edo_tiempo || 'Soleado'} />
-                {data?.edo_tiempo || '---'}
+                {data?.edo_tiempo && <WeatherIcon state={data.edo_tiempo} />}
+                {data?.edo_tiempo || SD}
             </div>
         </div>
     </div>
@@ -270,12 +271,12 @@ const Prev24hColumn = ({ data, last = false }: { data?: any, last?: boolean }) =
         <div className="flex justify-between items-center">
             <span className="text-xs text-slate-500 uppercase">Edo. Tiempo</span>
             <div className="flex items-center gap-1 font-bold text-xs text-slate-400">
-                <WeatherIcon state={data?.edo_tiempo_24h || 'Soleado'} size={12} />
-                {data?.edo_tiempo_24h || '---'}
+                {data?.edo_tiempo_24h && <WeatherIcon state={data.edo_tiempo_24h} size={12} />}
+                {data?.edo_tiempo_24h || SD}
             </div>
         </div>
-        <DataRow label="Dir. Viento" value={data?.dir_viento_24h || '---'} />
-        <DataRow label="Intensidad (km/h)" value={data?.intensidad_24h?.toString() || '---'} />
+        <DataRow label="Dir. Viento" value={data?.dir_viento_24h || SD} />
+        <DataRow label="Intensidad (km/h)" value={data?.intensidad_24h?.toString() || SD} />
     </div>
 );
 
@@ -283,7 +284,7 @@ const WeatherIcon = ({ state, size = 16 }: { state: string, size?: number }) => 
     switch (state) {
         case 'Soleado': return <CloudSun size={size} />;
         case 'Nublado': return <CloudSun size={size} />; // Lucide doesn't have Cloud only?
-        case 'Frio': return <Thermometer size={size} className="text-blue-500" />;
+        case 'Frio': case 'Frío': return <Thermometer size={size} className="text-blue-500" />;
         case 'Caluroso': return <Thermometer size={size} className="text-red-500" />;
         default: return <CloudSun size={size} />;
     }

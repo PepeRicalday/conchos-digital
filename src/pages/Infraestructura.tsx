@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useInfraestructura, type PuntoEntrega } from '../hooks/useInfraestructura';
+import { fmt } from '../utils/formato';
 import { MapPin, Plus, Save, Trash2, Edit2, Zap } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
 
 export default function Infraestructura() {
     const { puntos, modulos, secciones, loading, savePunto, deletePunto } = useInfraestructura();
-    const { profile } = useAuth();
 
     const [isEditing, setIsEditing] = useState(false);
     // Buscador: 177 puntos son una lista interminable en el teléfono; filtra por nombre, tipo, km o módulo.
@@ -17,18 +16,6 @@ export default function Infraestructura() {
             .some(v => String(v ?? '').toLowerCase().includes(q)));
     }, [puntos, busqueda]);
     const [formData, setFormData] = useState<Partial<PuntoEntrega>>({});
-
-    const accessDenied = profile?.rol !== 'SRL';
-    if (accessDenied) {
-        return (
-            <div className="p-8 h-full flex items-center justify-center">
-                <div className="bg-red-500/10 border border-red-500/30 text-red-500 p-8 rounded-xl text-center max-w-lg">
-                    <h2 className="text-2xl font-bold mb-2">Acceso Restringido</h2>
-                    <p>Este módulo es de uso exclusivo para el personal directivo de la S.R.L. Unidad Conchos.</p>
-                </div>
-            </div>
-        );
-    }
 
     const handleNew = () => {
         setFormData({
@@ -50,15 +37,19 @@ export default function Infraestructura() {
     };
 
     const handleDelete = async (id: string) => {
-        if (window.confirm('¿Está seguro de eliminar esta infraestructura? Se perderá el historial vinculado.')) {
-            await deletePunto(id);
+        if (window.confirm('¿Eliminar esta infraestructura? Si tiene mediciones o reportes vinculados, la base de datos rechazará el borrado.')) {
+            try { await deletePunto(id); } catch { /* deletePunto ya avisó el error */ }
         }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        await savePunto(formData);
-        setIsEditing(false);
+        try {
+            await savePunto(formData);
+            setIsEditing(false);
+        } catch {
+            // savePunto ya avisó el error; el formulario queda abierto para no perder lo capturado.
+        }
     };
 
     return (
@@ -112,7 +103,7 @@ export default function Infraestructura() {
                                 ) : (
                                     puntosFiltrados.map(p => (
                                         <tr key={p.id} className="hover:bg-slate-750 transition-colors group">
-                                            <td className="py-3 px-4 font-mono text-blue-400">{p.km?.toFixed(3)}</td>
+                                            <td className="py-3 px-4 font-mono text-blue-400">{fmt(p.km, 3)}</td>
                                             <td className="py-3 px-4">
                                                 <div className="font-bold text-white uppercase text-xs">{p.nombre}</div>
                                                 <div className="text-[10px] text-slate-500 bg-slate-900 inline-block px-1.5 py-0.5 rounded mt-1 uppercase">{p.tipo}</div>
@@ -148,7 +139,7 @@ export default function Infraestructura() {
                             </h2>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="p-5 flex-1 overflow-y-auto custom-scrollbar space-y-4">
+                        <form id="form-punto" onSubmit={handleSubmit} className="p-5 flex-1 overflow-y-auto custom-scrollbar space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Nombre</label>
@@ -156,30 +147,28 @@ export default function Infraestructura() {
                                 </div>
                                 <div>
                                     <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Kilometraje (Km)</label>
-                                    <input type="number" step="0.001" required value={formData.km || 0} onChange={e => setFormData({ ...formData, km: parseFloat(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-blue-400 font-mono text-sm focus:border-blue-500 outline-none" />
+                                    <input type="number" step="0.001" required value={formData.km ?? ''} onChange={e => setFormData({ ...formData, km: e.target.value === '' ? undefined : parseFloat(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-blue-400 font-mono text-sm focus:border-blue-500 outline-none" />
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Tipo</label>
-                                    <select value={formData.tipo || 'toma'} onChange={e => setFormData({ ...formData, tipo: e.target.value as any })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white text-sm focus:border-blue-500 outline-none uppercase font-bold">
+                                    <select value={formData.tipo || 'toma'} onChange={e => setFormData({ ...formData, tipo: e.target.value as PuntoEntrega['tipo'] })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white text-sm focus:border-blue-500 outline-none uppercase font-bold">
                                         <option value="toma">Toma Agrícola</option>
                                         <option value="lateral">Canal Lateral</option>
-                                        <option value="escala">Escala (Nivel)</option>
                                         <option value="carcamo">Cárcamo</option>
-                                        <option value="estacion">Estación Aforo</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Diseño Max (m³/s)</label>
-                                    <input type="number" step="0.001" required value={formData.capacidad_max || 0} onChange={e => setFormData({ ...formData, capacidad_max: parseFloat(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-emerald-400 font-mono text-sm focus:border-blue-500 outline-none" />
+                                    <input type="number" step="0.001" required value={formData.capacidad_max ?? ''} onChange={e => setFormData({ ...formData, capacidad_max: e.target.value === '' ? undefined : parseFloat(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-emerald-400 font-mono text-sm focus:border-blue-500 outline-none" />
                                 </div>
                             </div>
 
                             <div>
                                 <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Módulo Destino / Custodia</label>
-                                <select value={formData.modulo_id || ''} onChange={e => setFormData({ ...formData, modulo_id: e.target.value || undefined })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white text-sm focus:border-blue-500 outline-none">
+                                <select value={formData.modulo_id || ''} onChange={e => setFormData({ ...formData, modulo_id: e.target.value || null })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white text-sm focus:border-blue-500 outline-none">
                                     <option value="">-- Sin Módulo / Control SRL --</option>
                                     {modulos.map(m => <option key={m.id} value={m.id}>{m.codigo_corto} - {m.nombre}</option>)}
                                 </select>
@@ -187,7 +176,7 @@ export default function Infraestructura() {
 
                             <div>
                                 <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Sección Hidráulica Relacional</label>
-                                <select value={formData.seccion_id || ''} onChange={e => setFormData({ ...formData, seccion_id: e.target.value || undefined })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white text-sm focus:border-blue-500 outline-none">
+                                <select value={formData.seccion_id || ''} onChange={e => setFormData({ ...formData, seccion_id: e.target.value || null })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white text-sm focus:border-blue-500 outline-none">
                                     <option value="">-- Sin Sección --</option>
                                     {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                                 </select>
@@ -198,18 +187,18 @@ export default function Infraestructura() {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Latitud (Y)</label>
-                                        <input type="number" step="0.0000001" value={formData.coords_y || ''} onChange={e => setFormData({ ...formData, coords_y: parseFloat(e.target.value) || undefined })} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-slate-300 font-mono text-xs focus:border-blue-500 outline-none" />
+                                        <input type="number" step="0.0000001" value={formData.coords_y ?? ''} onChange={e => setFormData({ ...formData, coords_y: e.target.value === '' ? null : parseFloat(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-slate-300 font-mono text-xs focus:border-blue-500 outline-none" />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Longitud (X)</label>
-                                        <input type="number" step="0.0000001" value={formData.coords_x || ''} onChange={e => setFormData({ ...formData, coords_x: parseFloat(e.target.value) || undefined })} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-slate-300 font-mono text-xs focus:border-blue-500 outline-none" />
+                                        <input type="number" step="0.0000001" value={formData.coords_x ?? ''} onChange={e => setFormData({ ...formData, coords_x: e.target.value === '' ? null : parseFloat(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-slate-300 font-mono text-xs focus:border-blue-500 outline-none" />
                                     </div>
                                 </div>
                             </div>
                         </form>
 
                         <div className="p-5 border-t border-slate-700 bg-slate-900 flex gap-3">
-                            <button type="submit" onClick={handleSubmit} className="flex-1 bg-green-600 hover:bg-green-500 text-white p-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors">
+                            <button type="submit" form="form-punto" className="flex-1 bg-green-600 hover:bg-green-500 text-white p-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors">
                                 <Save size={18} /> Guardar
                             </button>
                             <button type="button" onClick={() => setIsEditing(false)} className="bg-slate-700 hover:bg-slate-600 p-3 rounded-lg text-white font-bold px-6 transition-colors">

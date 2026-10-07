@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { construirDatosNdvi, type FilaNdviInforme } from '../src/utils/informeNdviDatos';
 import { construirHtmlNdvi } from '../src/utils/informeNdviHtml';
 import { contornosAAnillos, planoSvg } from '../src/utils/informeNdviSvg';
+import { configPorDefecto, mesesDisponibles, type ConfigInformeNdvi } from '../src/utils/informeNdviConfig';
 
 const aqui = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const OUT = aqui('./out/informe-ndvi/');
@@ -36,15 +37,21 @@ MODULOS.forEach((m, i) => {
 const fc = JSON.parse(fs.readFileSync(aqui('../public/geo/modulos.geojson'), 'utf-8')) as GeoJSON.FeatureCollection;
 const logo = (p: string) => `data:image/png;base64,${fs.readFileSync(aqui(`../public${p}`)).toString('base64')}`;
 
-function escenario(nombre: string, conFalta: boolean) {
+function escenario(nombre: string, conFalta: boolean, extra: Partial<ConfigInformeNdvi> = {}) {
     const f = conFalta ? filas.filter((x) => !(x.numero_modulo === 12 && x.mes === '2026-09')) : filas;
     const datos = construirDatosNdvi(f, {
         volumenPorModulo: new Map(MODULOS.map((m, i) => [m, 18 + i * 9])), volumenMesParcial: conFalta,
         contornosDisponibles: true, logoSrlOk: true, ahora: new Date(2026, 9, 7, 14, 5), emisor: 'Administrador SICA', version: '2.23.0',
-    });
+    }, { ...configPorDefecto(mesesDisponibles(f)), ...extra });
     const html = construirHtmlNdvi(datos, { srl: logo('/logos/logo-srl.png'), sica: logo('/logos/SICA005.png') }, planoSvg(datos.modulos, contornosAAnillos(fc)));
     fs.writeFileSync(`${OUT}${nombre}.html`, html);
     console.log(nombre, `${(html.length / 1024).toFixed(0)} KB`);
 }
 escenario('informe', false);
 escenario('informe_con_faltantes', true);
+const vacio = { desde: '', hasta: '' };
+escenario('tendencia', false, { modo: 'tendencia' });
+escenario('cmp_periodos', false, { modo: 'comparativo' });
+escenario('cmp_mes', false, { modo: 'comparativo', comparacion: { tipo: 'mesVsMes', a: { desde: '2026-08', hasta: '2026-08' }, b: { desde: '2026-09', hasta: '2026-09' }, moduloA: 1, moduloB: 2 } });
+escenario('cmp_modulos', false, { modo: 'comparativo', comparacion: { tipo: 'modulos', a: vacio, b: vacio, moduloA: 1, moduloB: 12 } });
+escenario('cmp_vs_srl', false, { modo: 'comparativo', comparacion: { tipo: 'vsSRL', a: vacio, b: vacio, moduloA: 1, moduloB: 2 } });

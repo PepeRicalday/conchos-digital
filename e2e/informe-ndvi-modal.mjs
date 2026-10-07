@@ -41,6 +41,11 @@ for (const c of casos) {
   await page.waitForTimeout(400);
   console.log(c.nombre, 'tras filtros:', await page.evaluate(() => document.querySelector('.ndvi-cfg-resumen')?.textContent));
   await page.screenshot({ path: `${OUT}${c.nombre}_modal_filtrado.png` });
+  // Modo comparativo (periodo A vs B por defecto) y su vista previa
+  await d.getByRole('radio', { name: 'Comparativo' }).click().catch((e) => err.push('modo: ' + e.message.slice(0, 60)));
+  await page.waitForTimeout(400);
+  console.log(c.nombre, 'comparativo:', await page.evaluate(() => document.querySelector('.ndvi-cfg-resumen')?.textContent), '| hojas:', await page.evaluate(() => document.querySelector('.ndvi-cfg-cuenta')?.textContent));
+  await page.screenshot({ path: `${OUT}${c.nombre}_modal_comparativo.png` });
   await page.getByRole('button', { name: /Vista previa/ }).click().catch((e) => err.push('sin vista previa: ' + e.message.slice(0, 80)));
   await page.waitForSelector('.ndvi-cfg-marco iframe', { timeout: 20000 }).catch(() => err.push('no cargó el iframe'));
   await page.waitForTimeout(1500);

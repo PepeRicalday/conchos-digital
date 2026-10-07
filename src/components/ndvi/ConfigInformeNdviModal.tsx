@@ -5,8 +5,8 @@ import { useModalA11y } from '../historico/useModalA11y';
 import { COLOR_MODULO_SRL, MODULOS_SRL_IDS } from '../../utils/modulosSRL';
 import {
     INDICADORES_NDVI, MAX_PRESETS, ORDEN_SECCIONES, PRESETS_PERIODO, SECCIONES_NDVI, avisosConfig, configPorDefecto, conPreset, etiquetaPeriodo,
-    filtrarFilas, guardarPresets, leerPresets, mesesDisponibles, normalizaConfig, paginasEstimadas, validarConfig,
-    type ConfigInformeNdvi, type IndicadorNdvi, type PresetGuardado, type SeccionNdvi,
+    comparacionPorDefecto, filtrarFilas, guardarPresets, leerPresets, mesesDisponibles, normalizaConfig, paginasEstimadas, validarConfig,
+    type ConfigComparacion, type ConfigInformeNdvi, type IndicadorNdvi, type ModoNdvi, type PresetGuardado, type SeccionNdvi, type TipoComparacion,
 } from '../../utils/informeNdviConfig';
 import type { FilaNdviInforme } from '../../utils/informeNdviDatos';
 import { generarInformeInstitucional } from '../../utils/informeNdviInstitucional';
@@ -37,6 +37,18 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
     useModalA11y(dialogRef, previa == null, onCerrar);
 
     const set = (p: Partial<ConfigInformeNdvi>) => setC((prev) => ({ ...prev, ...p }));
+    const setCmp = (p: Partial<ConfigComparacion>) => setC((prev) => ({ ...prev, comparacion: { ...prev.comparacion, ...p } }));
+    // Elegir un modo de análisis activa la sección "Análisis" (si no, el informe no lo mostraría).
+    const cambiarModo = (m: ModoNdvi) => setC((prev) => ({
+        ...prev, modo: m,
+        secciones: m !== 'resumen' && !prev.secciones.includes('analisis') ? ORDEN_SECCIONES.filter((x) => x === 'analisis' || prev.secciones.includes(x)) : prev.secciones,
+    }));
+    // Mes contra mes parte de los dos últimos meses; los demás tipos conservan lo elegido.
+    const cambiarTipo = (t: TipoComparacion) => setC((prev) => {
+        if (t !== 'mesVsMes' || meses.length < 2) return { ...prev, comparacion: { ...prev.comparacion, tipo: t } };
+        const b = meses[meses.length - 1], a = meses[meses.length - 2];
+        return { ...prev, comparacion: { ...prev.comparacion, tipo: t, a: { desde: a, hasta: a }, b: { desde: b, hasta: b } } };
+    });
     const errores = useMemo(() => validarConfig(c, filas), [c, filas]);
     const avisos = useMemo(() => avisosConfig(c, filas), [c, filas]);
     const hojas = paginasEstimadas(c);
@@ -67,7 +79,11 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
 
     const resumen = `Informe ${etiquetaPeriodo(c)} · ${c.modulos.length} ${c.modulos.length === 1 ? 'módulo' : 'módulos'} · ${hojas} ${hojas === 1 ? 'hoja' : 'hojas'} · ${c.hoja === 'letter' ? 'Carta' : 'A4'}`;
     const opcionesMes = meses.map((m) => ({ valor: m, texto: m }));
-    const grupos = (['A', 'B', 'C', 'D'] as const).map((g) => SECCIONES_NDVI.filter((s) => s.pagina === g && c.secciones.includes(s.id))).filter((x) => x.length);
+    const opcionesModulo = MODULOS_SRL_IDS.map((m) => ({ valor: String(m), texto: `M${m}` }));
+    // Mismo orden y regla que el informe: la hoja de análisis (E) va tras plano+fichas y solo existe si el modo no es "resumen".
+    const grupos = (['A', 'B', 'E', 'C', 'D'] as const)
+        .map((g) => SECCIONES_NDVI.filter((s) => s.pagina === g && c.secciones.includes(s.id) && (g !== 'E' || c.modo !== 'resumen')))
+        .filter((x) => x.length);
 
     return createPortal(
         <>
@@ -83,6 +99,33 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
 
                     <div className="ndvi-cfg-cuerpo">
                         <div className="ndvi-cfg-col">
+                            <section className="ndvi-cfg-bloque" aria-label="Modo del informe">
+                                <span className="ndvi-cfg-etq">Modo</span>
+                                <SelectorChips etiqueta="Qué mostrar" valor={c.modo} onChange={cambiarModo}
+                                    opciones={[{ valor: 'resumen', texto: 'Resumen', title: 'El informe de siempre' }, { valor: 'tendencia', texto: 'Tendencia', title: 'Pendiente, pico y estabilidad por módulo' }, { valor: 'comparativo', texto: 'Comparativo', title: 'Dos periodos, dos módulos o un módulo contra el promedio SRL' }]} />
+                                {c.modo === 'comparativo' && (
+                                    <div className="ndvi-cfg-bloque" style={{ gap: 10 }}>
+                                        <SelectorChips etiqueta="Comparar" valor={c.comparacion.tipo} onChange={cambiarTipo}
+                                            opciones={[{ valor: 'periodos', texto: 'Periodo A vs B' }, { valor: 'mesVsMes', texto: 'Mes vs mes' }, { valor: 'modulos', texto: 'Módulo vs módulo' }, { valor: 'vsSRL', texto: 'Módulo vs promedio SRL' }]} />
+                                        {c.comparacion.tipo === 'periodos' && (<>
+                                            <SelectorChips etiqueta="A desde" valor={c.comparacion.a.desde} opciones={opcionesMes} onChange={(v) => setCmp({ a: { ...c.comparacion.a, desde: v } })} />
+                                            <SelectorChips etiqueta="A hasta" valor={c.comparacion.a.hasta} opciones={opcionesMes} onChange={(v) => setCmp({ a: { ...c.comparacion.a, hasta: v } })} />
+                                            <SelectorChips etiqueta="B desde" valor={c.comparacion.b.desde} opciones={opcionesMes} onChange={(v) => setCmp({ b: { ...c.comparacion.b, desde: v } })} />
+                                            <SelectorChips etiqueta="B hasta" valor={c.comparacion.b.hasta} opciones={opcionesMes} onChange={(v) => setCmp({ b: { ...c.comparacion.b, hasta: v } })} />
+                                            <button type="button" className="ndvi-cfg-chip" onClick={() => setCmp(comparacionPorDefecto(meses))}>Primera mitad vs segunda mitad</button>
+                                        </>)}
+                                        {c.comparacion.tipo === 'mesVsMes' && (<>
+                                            <SelectorChips etiqueta="Mes A" valor={c.comparacion.a.desde} opciones={opcionesMes} onChange={(v) => setCmp({ a: { desde: v, hasta: v } })} />
+                                            <SelectorChips etiqueta="Mes B" valor={c.comparacion.b.desde} opciones={opcionesMes} onChange={(v) => setCmp({ b: { desde: v, hasta: v } })} />
+                                        </>)}
+                                        {(c.comparacion.tipo === 'modulos' || c.comparacion.tipo === 'vsSRL') && (<>
+                                            <SelectorChips etiqueta={c.comparacion.tipo === 'modulos' ? 'Módulo A' : 'Módulo'} valor={String(c.comparacion.moduloA)} opciones={opcionesModulo} onChange={(v) => setCmp({ moduloA: Number(v) })} />
+                                            {c.comparacion.tipo === 'modulos' && <SelectorChips etiqueta="Módulo B" valor={String(c.comparacion.moduloB)} opciones={opcionesModulo} onChange={(v) => setCmp({ moduloB: Number(v) })} />}
+                                        </>)}
+                                    </div>
+                                )}
+                            </section>
+
                             <section className="ndvi-cfg-bloque" aria-label="Periodo">
                                 <span className="ndvi-cfg-etq">Periodo</span>
                                 <div className="ndvi-cfg-chips" role="radiogroup" aria-label="Preajuste de periodo">

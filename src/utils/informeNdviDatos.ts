@@ -10,6 +10,7 @@ import { MODULOS_SRL_IDS, COLOR_MODULO_SRL } from './modulosSRL';
 import { claseNdvi, CLASES_NDVI, type ClaseNdvi } from './ndviRampa';
 import { folioInforme } from './informeBase';
 import { configPorDefecto, filtrarFilas, mesesDisponibles, type BasePromedio, type ConfigInformeNdvi } from './informeNdviConfig';
+import { construirAnalisis, type ResultadoAnalisis } from './informeNdviAnalisis';
 
 export interface FilaNdviInforme {
     numero_modulo: number;
@@ -96,6 +97,8 @@ export interface InformeNdvi {
     nubosidadMaxPct: number | null;
     volumenMesParcial: boolean;
     avisos: AvisoInforme[];
+    /** Tendencia o comparación según el modo elegido (null en modo resumen). */
+    analisis: ResultadoAnalisis | null;
     /** Parámetros reales del cálculo (se imprimen en la metodología: no se escriben a mano). */
     parametros: { ndviPiso: number; ndviTecho: number; umbralActivo: number };
 }
@@ -226,6 +229,7 @@ export function construirDatosNdvi(filas: FilaNdviInforme[], ctx: ContextoInform
         nubosidadMaxPct: nub.length ? Math.max(...nub) : null,
         volumenMesParcial: ctx.volumenMesParcial,
         avisos,
+        analisis: construirAnalisis(filas, cfg, meses),
         parametros: { ndviPiso: NDVI_PISO, ndviTecho: NDVI_TECHO, umbralActivo: NDVI_UMBRAL_ACTIVO },
     };
 }

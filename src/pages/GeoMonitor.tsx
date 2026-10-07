@@ -240,6 +240,8 @@ interface PresaData {
     // Fase 1: nivel real del vaso (msnm) y metadatos de capacidad — antes
     // GeoMonitor los hardcodeaba por presa_id en vez de leerlos de la BD.
     escala_msnm: number | null;
+    /** lecturas_presas.notas: procedencia del nivel (CILA / campo / estimada). */
+    notas?: string | null;
     capacidad_max: number | null;
     elevacion_corona_msnm: number | null;
     curvas_capacidad: { elevacion_msnm: number; volumen_mm3: number; area_ha: number | null }[];
@@ -1077,7 +1079,7 @@ const GeoMonitor = () => {
             ] = await Promise.all([
                 supabase.from('resumen_escalas_diario').select('escala_id, nivel_actual, delta_12h, estado, fecha, lectura_am, lectura_pm').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }),
                 supabase.from('lecturas_escalas').select('escala_id, apertura_radiales_m, nivel_m, nivel_abajo_m, radiales_json, gasto_calculado_m3s, gasto_metodo, fecha, hora_lectura, creado_en').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_lectura', { ascending: false }),
-                supabase.from('lecturas_presas').select('presa_id, almacenamiento_mm3, porcentaje_llenado, extraccion_total_m3s, escala_msnm, fecha').order('fecha', { ascending: false }).limit(12),
+                supabase.from('lecturas_presas').select('presa_id, almacenamiento_mm3, porcentaje_llenado, extraccion_total_m3s, escala_msnm, fecha, notas').order('fecha', { ascending: false }).limit(12),
                 supabase.from('aforos').select('punto_control_id, gasto_calculado_m3s, fecha, hora_inicio').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_inicio', { ascending: false }),
                 supabase.from('vw_alertas_tomas_varadas').select('*'),
                 supabase.from('reportes_operacion').select('punto_id, estado, caudal_promedio, hora_apertura, volumen_acumulado', { count: 'exact' }).eq('fecha', todayStr),
@@ -1162,6 +1164,7 @@ const GeoMonitor = () => {
                         porcentaje_llenado: lp.porcentaje_llenado != null ? Number(lp.porcentaje_llenado) : null,
                         extraccion_total_m3s: ext.valorM3s, extraccion_fuente: ext.fuente, fecha: lp.fecha,
                         escala_msnm: lp.escala_msnm !== null && lp.escala_msnm !== undefined ? Number(lp.escala_msnm) : null,
+                        notas: lp.notas ?? null,
                         capacidad_max: meta.capacidad_max ?? null,
                         elevacion_corona_msnm: meta.elevacion_corona_msnm ?? null,
                         curvas_capacidad: (meta.curvas_capacidad || []).map(c => ({
@@ -3072,6 +3075,8 @@ const GeoMonitor = () => {
                         porcentaje: selectedPoint.data.porcentaje_llenado,
                         extraccion_m3s: selectedPoint.data.extraccion_total_m3s,
                         nivel_nma: selectedPoint.data.elevacion_corona_msnm,
+                        fecha_lectura: selectedPoint.data.fecha,
+                        notas: selectedPoint.data.notas ?? null,
                         capacidad_total: selectedPoint.data.capacidad_max,
                         presa_id: selectedPoint.data.presa_id,
                         curva: selectedPoint.data.curvas_capacidad,

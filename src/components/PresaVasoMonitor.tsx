@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useCallback, Suspense, lazy } from 'react';
-import { Droplets, Gauge, Activity, AlertTriangle, TrendingUp, ChevronLeft, ChevronRight, Info, Satellite, RefreshCw, CalendarRange, FileText, Box } from 'lucide-react';
+import { RefreshCw, CalendarRange, FileText, Box } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 
 // Lazy: Three.js + React Three Fiber son pesados (~600KB) y la mayoría de
@@ -17,12 +17,21 @@ import './PresaVasoMonitor.css';
 import { detectaSuperficieVaso, type SuperficieVaso } from '../utils/mapaSatelital';
 import { supabase } from '../lib/supabase';
 import InformeVasoInstitucional from './InformeVasoInstitucional';
+import HeroVaso from './vaso/HeroVaso';
+import SimuladorVaso from './vaso/SimuladorVaso';
+import TarjetaSuperficieVaso from './vaso/SuperficieVaso';
+import './vaso/vasoNiveles.css';
+import {
+    areaKm2PorElevacion, conciliaSuperficie, cotasDePresa, deficitBajoNamo, estadoEmbalse, mensajeEstado, sinComillas, tendenciaNivel, volumenPorElevacion,
+} from '../utils/presaNiveles';
+import { calcularFrescura, procedenciaNivel } from '../utils/presaMetrics';
 
 interface GeometriaVasoFila {
     fecha_escena: string;
     area_km2: number;
     perimetro_km: number;
     num_islas: number;
+    nubosidad_pct?: number | null;
     ratio_elongacion: number | null;
     delta_area_km2: number | null;
     pct_del_maximo_ciclo: number | null;
@@ -108,10 +117,16 @@ interface PresaVasoMonitorProps {
     data: {
         nombre: string;
         nivel_msnm: number | null;
-        almacenamiento_mm3: number;
-        porcentaje: number;
-        extraccion_m3s: number;
-        nivel_nma: number | null; // Nivel Máximo de Aguas — de elevacion_corona_msnm si no hay NAME propio
+        // null = S/D (GeoMonitor ya los entrega así; antes la interfaz decía `number` y escondía el null).
+        almacenamiento_mm3: number | null;
+        porcentaje: number | null;
+        extraccion_m3s: number | null;
+        /** Respaldo del NAMO (viene de presas.elevacion_corona_msnm = 1317.00 = NAMO, no la corona real). La cota oficial sale de cotasDePresa. */
+        nivel_nma: number | null;
+        /** Fecha ('AAAA-MM-DD') de la lectura mostrada: da la frescura. */
+        fecha_lectura?: string | null;
+        /** lecturas_presas.notas: de ahí sale la procedencia del nivel (CILA / campo / estimada). */
+        notas?: string | null;
         capacidad_total: number | null;
         presa_id: string;
         curva?: CurvaPunto[];
@@ -125,24 +140,6 @@ interface PresaVasoMonitorProps {
     onClose: () => void;
 }
 
-// Interpola volumen (Mm3) para una elevación dada usando la curva real de la
-// presa (curvas_capacidad). Si no hay curva, retorna null — nunca un número
-// inventado (antes: factor Mm3/metro hardcodeado por presa_id).
-function volumenPorElevacion(curva: CurvaPunto[] | undefined, elevacion: number): number | null {
-    if (!curva || curva.length < 2) return null;
-    const pts = [...curva].sort((a, b) => a.elevacion_msnm - b.elevacion_msnm);
-    if (elevacion <= pts[0].elevacion_msnm) return pts[0].volumen_mm3;
-    if (elevacion >= pts[pts.length - 1].elevacion_msnm) return pts[pts.length - 1].volumen_mm3;
-    for (let i = 0; i < pts.length - 1; i++) {
-        const a = pts[i], b = pts[i + 1];
-        if (elevacion >= a.elevacion_msnm && elevacion <= b.elevacion_msnm) {
-            const t = (elevacion - a.elevacion_msnm) / (b.elevacion_msnm - a.elevacion_msnm);
-            return a.volumen_mm3 + t * (b.volumen_mm3 - a.volumen_mm3);
-        }
-    }
-    return null;
-}
-
 export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccionInicial = 'satelital', onClose }) => {
     const tieneNivel = data.nivel_msnm !== null;
     const tieneCurva = (data.curva?.length ?? 0) >= 2;
@@ -151,27 +148,17 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
     // o en 0 (deshabilitado) si no hay lectura del día.
     const [simNivel, setSimNivel] = useState(data.nivel_msnm ?? 0);
 
-    // Cálculos dinámicos basados en el nivel. Usa la curva real elevación→volumen
-    // de la presa (curvas_capacidad) cuando está disponible; si no, no inventa un
-    // factor Mm3/metro — el volumen simulado se muestra como "S/D".
+    // Sin simulación se muestran el volumen y el % OFICIALES de la lectura (no se recalculan con la curva del cliente: si la
+    // curva y la lectura divergieran habría dos cifras); al simular, el volumen sale de la curva real (curvas_capacidad) y,
+    // sin curva, queda S/D (nunca un factor inventado).
     const stats = useMemo(() => {
         const diff = data.nivel_msnm !== null ? simNivel - data.nivel_msnm : 0;
-        const nuevoAlmacenamiento = tieneCurva
-            ? volumenPorElevacion(data.curva, simNivel)
-            : (Math.abs(diff) < 0.001 ? data.almacenamiento_mm3 : null);
-        const nuevoPorcentaje = (nuevoAlmacenamiento !== null && data.capacidad_total)
-            ? Math.min(100, (nuevoAlmacenamiento / data.capacidad_total) * 100)
-            : null;
-
-        // Área expuesta (simulación visual, solo si hay NMA de referencia)
-        const areaExpuestaFactor = data.nivel_nma !== null ? Math.max(0, data.nivel_nma - simNivel) * 12 : 0;
-
-        return {
-            almacenamiento: nuevoAlmacenamiento,
-            porcentaje: nuevoPorcentaje,
-            areaExpuesta: areaExpuestaFactor,
-            isSimulated: Math.abs(diff) > 0.01
-        };
+        const isSimulated = Math.abs(diff) > 0.01;
+        const almCurva = tieneCurva ? volumenPorElevacion(data.curva, simNivel) : null;
+        const pctDe = (alm: number | null) => (alm !== null && data.capacidad_total ? Math.min(100, (alm / data.capacidad_total) * 100) : null);
+        const almacenamiento = isSimulated ? almCurva : (data.almacenamiento_mm3 ?? almCurva);
+        const porcentaje = isSimulated ? pctDe(almCurva) : (data.porcentaje ?? pctDe(almacenamiento));
+        return { almacenamiento, porcentaje, isSimulated };
     }, [simNivel, data, tieneCurva]);
 
     // Manejo de Vaso (Fase 2, auditoría ago-2026): superficie de agua estimada
@@ -241,7 +228,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
     const recargarHistorico = useCallback(async () => {
         const { data: filas, error } = await supabase
             .from('vaso_geometria_historico')
-            .select('fecha_escena, area_km2, perimetro_km, num_islas, ratio_elongacion, delta_area_km2, pct_del_maximo_ciclo, contorno_geojson')
+            .select('fecha_escena, area_km2, perimetro_km, num_islas, nubosidad_pct, ratio_elongacion, delta_area_km2, pct_del_maximo_ciclo, contorno_geojson')
             .eq('presa_id', data.presa_id)
             .order('fecha_escena', { ascending: true });
         setHistoricoVaso(error || !filas ? [] : (filas as GeometriaVasoFila[]));
@@ -307,6 +294,28 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
             });
         return () => { cancelado = true; };
     }, [data.presa_id]);
+
+    // ── Estado del vaso (funciones puras de utils/presaNiveles, con pruebas) ──
+    const cotas = useMemo(() => cotasDePresa(data.presa_id), [data.presa_id]);
+    const namo = cotas.namo ?? data.nivel_nma;
+    const nivelMostrado = tieneNivel ? simNivel : null;
+    const estadoVaso = estadoEmbalse(stats.porcentaje);
+    const deficit = deficitBajoNamo(nivelMostrado, namo);
+    const tendencia = useMemo(() => tendenciaNivel(lecturasCampo), [lecturasCampo]);
+    const mensaje = mensajeEstado({
+        tieneNivel, estado: estadoVaso, deficitM: deficit, tendencia, simulado: stats.isSimulated,
+        deltaSimM: tieneNivel ? simNivel - data.nivel_msnm! : null,
+    });
+    const procedencia = procedenciaNivel(data.notas, tieneNivel);
+    const frescura = calcularFrescura(data.fecha_lectura);
+    const volumenBase = data.almacenamiento_mm3 ?? (tieneCurva && tieneNivel ? volumenPorElevacion(data.curva, data.nivel_msnm!) : null);
+    const pctBase = data.porcentaje ?? (volumenBase !== null && data.capacidad_total ? Math.min(100, (volumenBase / data.capacidad_total) * 100) : null);
+    const ultimaEscena = historicoVaso.length ? historicoVaso[historicoVaso.length - 1] : null;
+    const fuentesSuperficie = useMemo(() => conciliaSuperficie({
+        curvaKm2: tieneNivel ? areaKm2PorElevacion(data.curva, data.nivel_msnm!) : null,
+        sentinel: ultimaEscena ? { km2: ultimaEscena.area_km2, fecha: ultimaEscena.fecha_escena, nubesPct: ultimaEscena.nubosidad_pct ?? null } : null,
+        visual: superficieVaso ? { km2: superficieVaso.areaKm2, cobertura: superficieVaso.cobertura } : null,
+    }), [tieneNivel, data.curva, data.nivel_msnm, ultimaEscena, superficieVaso]);
 
     // Recalibración Dinámica (factor de corrección vs. curva oficial CONAGUA):
     // poblada por el job mensual recalibra-curva-batimetrica, que compara área
@@ -758,192 +767,35 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                 <header className="vaso-header">
                     <div className="vaso-title-group">
                         <div className="vaso-badge">SITUACIÓN E INTERACTIVIDAD DE VASO</div>
-                        <h2>{data.nombre.toUpperCase()}</h2>
-                        <div className="vaso-coords">
-                            LECTURA OFICIAL: {tieneNivel ? `${data.nivel_msnm!.toFixed(2)} msnm` : 'S/D — sin lectura del día'}
-                        </div>
+                        <h2>{sinComillas(data.nombre).toUpperCase()}</h2>
                     </div>
-                    {/* Acceso directo al relieve 3D desde el header — antes el
-                        visor (terreno real Copernicus DEM + hillshade) solo se
-                        alcanzaba bajando hasta Evolución del Vaso y haciendo un
-                        clic más en "Ver en 3D"; con esto queda a un clic desde
-                        que se abre el modal, sin importar cómo se haya entrado. */}
+                    {/* Acceso directo al relieve 3D (terreno real Copernicus DEM + hillshade) desde que se abre el modal. */}
                     <button
                         type="button"
-                        className="vaso-header-3d-btn"
+                        className="vaso-btn vaso-btn--pri"
                         onClick={() => { setMostrarVisor3D(true); seccionCicloRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
                         title="Ir directo al visor 3D con terreno real"
                     >
-                        <Box size={14} /> Ver Relieve 3D
+                        <Box size={16} aria-hidden="true" /> Ver relieve 3D
                     </button>
-                    <button className="vaso-close" onClick={onClose}>×</button>
+                    <button type="button" className="vaso-close" aria-label="Cerrar manejo de vaso" onClick={onClose}>×</button>
                 </header>
 
-                {/* CONTROLES DE SIMULACIÓN INTERACTIVA — deshabilitado sin lectura real de ancla */}
-                <div className="vaso-sim-controls glass">
-                    <div className="sim-header">
-                        <Activity size={16} /> SIMULADOR DE IMPACTO HIDRÁULICO
-                    </div>
-                    <div className="sim-body">
-                        {!tieneNivel ? (
-                            <div className="sim-value-display sim-msg" style={{ opacity: 0.6 }}>
-                                Sin lectura oficial del día — simulador no disponible.
-                            </div>
-                        ) : (
-                            <>
-                                <div className="sim-slider-group">
-                                    <label>Ajustar Nivel Manualmente (msnm)</label>
-                                    <div className="sim-input-row">
-                                        <button onClick={() => setSimNivel(s => s - 0.5)}><ChevronLeft /></button>
-                                        <input
-                                            type="range"
-                                            min={data.nivel_msnm! - 10}
-                                            max={(data.nivel_nma ?? data.nivel_msnm! + 5) + 2}
-                                            step="0.1"
-                                            value={simNivel}
-                                            onChange={(e) => setSimNivel(parseFloat(e.target.value))}
-                                        />
-                                        <button onClick={() => setSimNivel(s => s + 0.5)}><ChevronRight /></button>
-                                    </div>
-                                    <div className="sim-value-display">
-                                        <strong>{(simNivel ?? 0).toFixed(2)}</strong> <small>msnm</small>
-                                    </div>
-                                </div>
-                                {stats.isSimulated && (
-                                    <button className="sim-reset-btn" onClick={() => setSimNivel(data.nivel_msnm!)}>
-                                        Restablecer a Lectura Real
-                                    </button>
-                                )}
-                                {!tieneCurva && (
-                                    <div className="sim-value-display sim-msg" style={{ opacity: 0.6 }}>
-                                        Sin curva elevación-capacidad cargada para esta presa: el volumen simulado no se puede estimar.
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </div>
-                </div>
+                <HeroVaso
+                    presaId={data.presa_id} nivel={nivelMostrado} pct={stats.porcentaje} volumen={stats.almacenamiento} capacidad={data.capacidad_total}
+                    namo={namo} deficit={deficit} estado={estadoVaso} mensaje={mensaje} simulado={stats.isSimulated} frescura={frescura} procedencia={procedencia}
+                />
 
-                {/* KPI SQUARES (DINÁMICOS) */}
-                <div className="vaso-stats-grid">
-                    <div className={clsx('vaso-stat-card glass', stats.isSimulated && 'simulated-highlight')}>
-                        <div className="vaso-stat-label">
-                            <Gauge size={14} /> VOLUMEN {stats.isSimulated ? 'INTERACTIVO' : 'REGISTRADO'}
-                        </div>
-                        <div className="vaso-stat-value">
-                            {stats.almacenamiento !== null ? stats.almacenamiento.toLocaleString(undefined, { maximumFractionDigits: 1 }) : 'S/D'} <small>Mm³</small>
-                        </div>
-                        <div className="vaso-stat-footer">
-                            CAP. TOTAL: {data.capacidad_total !== null ? `${data.capacidad_total} Mm³` : 'S/D'}
-                        </div>
-                    </div>
+                <SimuladorVaso
+                    nivelBase={data.nivel_msnm} nivel={simNivel} min={tieneNivel ? data.nivel_msnm! - 10 : 0} max={tieneNivel ? (namo ?? data.nivel_msnm! + 5) + 2 : 1}
+                    namo={namo} tieneCurva={tieneCurva} volumenBase={volumenBase} volumenSim={stats.almacenamiento} pctBase={pctBase} pctSim={stats.porcentaje}
+                    deficitSim={deficit} onNivel={setSimNivel}
+                />
 
-                    <div className="vaso-stat-card glass">
-                        <div className="vaso-stat-label">
-                            <Droplets size={14} /> PORCENTAJE LLENADO
-                        </div>
-                        <div className="vaso-stat-value">
-                            {stats.porcentaje !== null ? stats.porcentaje.toFixed(1) : 'S/D'} <small>{stats.porcentaje !== null ? '%' : ''}</small>
-                        </div>
-                        <div className="vaso-stat-progress">
-                            <div className="vaso-progress-bar">
-                                <div className="vaso-progress-fill" style={{ width: `${stats.porcentaje ?? 0}%` }}></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="vaso-stat-card glass">
-                        <div className="vaso-stat-label">
-                            <Info size={14} /> ESTADO DEL EMBALSE
-                        </div>
-                        <div className="vaso-stat-value" style={{ fontSize: '1.5rem', marginTop: '10px' }}>
-                            {stats.porcentaje === null ? 'S/D' : stats.porcentaje < 20 ? 'CRÍTICO' : stats.porcentaje < 40 ? 'BAJO' : 'NORMAL'}
-                        </div>
-                        <div className="vaso-stat-footer status-active">
-                            <span className="pulse-dot"></span> MONITOREO ACTIVO
-                        </div>
-                    </div>
-                </div>
-
-                {/* ANALYTICS: PERFIL DE IMPACTO */}
-                <div className="vaso-analytics glass">
-                    <div className="vaso-analytics-header">
-                        <TrendingUp size={16} /> ANÁLISIS TÉCNICO DE SUPERFICIE
-                    </div>
-                    <div className="vaso-analytics-body">
-                        <div className="vaso-alert-box">
-                            <AlertTriangle size={20} className={stats.porcentaje !== null && stats.porcentaje < 30 ? 'text-red-500' : 'text-amber-500'} />
-                            <div className="vaso-alert-text">
-                                {stats.isSimulated ? (
-                                    <span>Simulando impacto de <strong>{(simNivel - (data.nivel_msnm ?? 0)).toFixed(2)}m</strong> sobre la lectura base de hoy.</span>
-                                ) : tieneNivel ? (
-                                    <span>Situación operativa estable basada en el aforo de entrada de la SRL.</span>
-                                ) : (
-                                    <span>Todavía no se ha capturado la lectura de nivel de hoy en campo.</span>
-                                )}
-                            </div>
-                        </div>
-                        {data.nivel_nma !== null && (
-                            <div className="vaso-prediction">
-                                Diferencia vs NMA: <strong>{(data.nivel_nma - simNivel).toFixed(2)}m</strong> de "anillo de sequía" expuesto.
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* VISTA RÁPIDA DE SUPERFICIE — recalculada en el cliente cada
-                    vez que se abre el modal, sin memoria de meses anteriores.
-                    Badge "APROXIMADO" la distingue de la sección de abajo, que
-                    usa geometría validada y persistida server-side. */}
-                <div className="vaso-analytics glass">
-                    <div className="vaso-analytics-header">
-                        <Satellite size={16} /> VISTA RÁPIDA DE SUPERFICIE — ESTIMACIÓN EN VIVO
-                        <span className="vaso-confiabilidad-badge aproximado">APROXIMADO</span>
-                        <button
-                            className="sim-reset-btn"
-                            style={{ marginLeft: 'auto', padding: '4px 10px' }}
-                            onClick={cargarSuperficie}
-                            disabled={cargandoNdwi || !nombreVaso}
-                            title="Recalcular superficie de agua por imagen satelital reciente"
-                        >
-                            <RefreshCw size={12} className={cargandoNdwi ? 'animate-spin' : ''} />
-                        </button>
-                    </div>
-                    <div className="vaso-analytics-body">
-                        {!nombreVaso ? (
-                            <div className="vaso-prediction" style={{ opacity: 0.6 }}>
-                                Esta presa no tiene coordenadas de vaso configuradas para detección satelital.
-                            </div>
-                        ) : cargandoNdwi ? (
-                            <div className="vaso-prediction" style={{ opacity: 0.7 }}>Analizando imagen satelital reciente…</div>
-                        ) : errorNdwi ? (
-                            <div className="vaso-prediction" style={{ opacity: 0.7 }}>
-                                No hay una imagen satelital reciente y despejada para esta presa — vuelve a intentarlo
-                                en unos minutos o consulta la evolución del ciclo abajo, que sí conserva meses pasados.
-                            </div>
-                        ) : superficieVaso ? (
-                            <>
-                                <div className="vaso-ndwi-compare">
-                                    <div className="vaso-ndwi-col">
-                                        <span className="vaso-ndwi-label">Superficie estimada (hoy)</span>
-                                        <span className="vaso-ndwi-value">{superficieVaso.areaKm2.toFixed(1)} <small>km²</small></span>
-                                    </div>
-                                    <div className="vaso-ndwi-col">
-                                        <span className="vaso-ndwi-label">Llenado capturado (campo)</span>
-                                        <span className="vaso-ndwi-value">
-                                            {stats.porcentaje !== null ? stats.porcentaje.toFixed(1) : 'S/D'} <small>{stats.porcentaje !== null ? '%' : ''}</small>
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="vaso-prediction" style={{ fontSize: 10.5, opacity: 0.65, marginTop: 8 }}>
-                                    Cálculo rápido sobre imaginería visual (ArcGIS World Imagery, sin banda infrarroja real) —
-                                    útil como referencia del día, no como medición certificada. Cobertura de imagen: {(superficieVaso.cobertura * 100).toFixed(0)}%.
-                                    Para cifras validadas por sensor multiespectral, ver la evolución del ciclo abajo.
-                                </div>
-                            </>
-                        ) : null}
-                    </div>
-                </div>
+                {/* SUPERFICIE: curva oficial, Sentinel-2 validado y estimación visual (APROXIMADA) en una sola tarjeta, comparadas. */}
+                <TarjetaSuperficieVaso
+                    fuentes={fuentesSuperficie} cargandoVisual={cargandoNdwi} errorVisual={errorNdwi} sinDeteccion={!nombreVaso} onRefrescarVisual={cargarSuperficie}
+                />
 
                 {/* EVOLUCIÓN DEL VASO — HISTÓRICO VALIDADO (Fase 3): comparativa
                     apertura de ciclo vs. más reciente + serie de área/perímetro
@@ -956,31 +808,33 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                     <div className="vaso-analytics-header">
                         <CalendarRange size={16} /> EVOLUCIÓN DEL VASO — HISTÓRICO VALIDADO (SENTINEL-2)
                         <span className="vaso-confiabilidad-badge validado">VALIDADO</span>
-                        <button
-                            className="sim-reset-btn"
-                            style={{ marginLeft: 'auto', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 6 }}
-                            onClick={sincronizarMesActual}
-                            disabled={sincronizandoMes}
-                            title="Trae la escena Sentinel-2 más reciente (últimos 30 días) sin esperar al cron automático del día 3"
-                        >
-                            <RefreshCw size={12} className={sincronizandoMes ? 'animate-spin' : undefined} />
-                            {sincronizandoMes ? 'Sincronizando…' : 'Actualizar mes actual'}
-                        </button>
-                        {historicoVaso.length > 0 && (
+                        <div className="vaso-evo-acciones">
                             <button
-                                className="sim-reset-btn"
-                                style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 6 }}
-                                onClick={abrirInforme}
-                                disabled={preparandoInforme}
-                                title="Generar informe institucional SRL Conchos / SICA 005"
+                                type="button"
+                                className="vaso-btn"
+                                onClick={sincronizarMesActual}
+                                disabled={sincronizandoMes}
+                                title="Trae la escena Sentinel-2 más reciente (últimos 30 días) sin esperar al cron automático del día 3"
                             >
-                                <FileText size={12} className={preparandoInforme ? 'animate-spin' : ''} />
-                                {preparandoInforme ? 'Preparando relieve 3D…' : 'Informe Institucional'}
+                                <RefreshCw size={16} className={sincronizandoMes ? 'animate-spin' : undefined} aria-hidden="true" />
+                                {sincronizandoMes ? 'Sincronizando…' : 'Actualizar mes actual'}
                             </button>
-                        )}
+                            {historicoVaso.length > 0 && (
+                                <button
+                                    type="button"
+                                    className="vaso-btn"
+                                    onClick={abrirInforme}
+                                    disabled={preparandoInforme}
+                                    title="Generar informe institucional SRL Conchos / SICA 005"
+                                >
+                                    <FileText size={16} className={preparandoInforme ? 'animate-spin' : undefined} aria-hidden="true" />
+                                    {preparandoInforme ? 'Preparando relieve 3D…' : 'Informe institucional'}
+                                </button>
+                            )}
+                        </div>
                     </div>
                     {resultadoSyncManual && (
-                        <div className="vaso-prediction" style={{ fontSize: 11.5, opacity: 0.8, padding: '0 1rem', marginTop: -4, marginBottom: 8 }}>
+                        <div className="vaso-prediction" role="status" style={{ fontSize: 13, padding: '0 1rem', marginTop: -4, marginBottom: 8 }}>
                             {resultadoSyncManual}
                         </div>
                     )}
@@ -1041,7 +895,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                         <div className="vaso-galeria-tira">
                                             {galeriaMensual.map((mes) => (
                                                 <div className="vaso-galeria-item" key={mes.fecha_escena}>
-                                                    <svg viewBox={`0 0 ${mes.W} ${mes.H}`} width="100%" height="auto" role="img"
+                                                    <svg viewBox={`0 0 ${mes.W} ${mes.H}`} width="100%" role="img"
                                                         aria-label={`Contorno del vaso en ${new Date(mes.fecha_escena).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}`}>
                                                         <rect x="0" y="0" width={mes.W} height={mes.H} fill="rgba(255,255,255,0.02)" />
                                                         <path d={mes.path} fill="rgba(34,211,238,0.22)" stroke="#22d3ee" strokeWidth="1.5" fillRule="evenodd" />
@@ -1096,7 +950,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
 
                                 {mapaComparativo && filaBase && filaComparada && (
                                     <div className="vaso-mapa-comparativo">
-                                        <svg viewBox={`0 0 ${mapaComparativo.W} ${mapaComparativo.H}`} width="100%" height="auto" role="img"
+                                        <svg viewBox={`0 0 ${mapaComparativo.W} ${mapaComparativo.H}`} width="100%" role="img"
                                             aria-label={`Contorno del vaso en ${new Date(filaBase.fecha_escena).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })} comparado con ${new Date(filaComparada.fecha_escena).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}`}>
                                             <path d={mapaComparativo.pathBase} fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="6 4" fillRule="evenodd" />
                                             <path d={mapaComparativo.pathComparado} fill="rgba(34,211,238,0.18)" stroke="#22d3ee" strokeWidth="2.5" fillRule="evenodd" />

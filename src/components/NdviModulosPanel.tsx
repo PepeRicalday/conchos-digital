@@ -11,6 +11,7 @@ import './ndvi/ndviVisual.css';
 // a pantalla completa que PresaVasoMonitor.
 import '../components/PresaVasoMonitor.css';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 import { COLOR_MODULO_SRL } from '../utils/modulosSRL';
 import { bboxDeModulo } from '../utils/modulosBbox';
 import { sentinelWmsUrl } from '../utils/sentinelWms';
@@ -43,6 +44,9 @@ interface NdviModuloFila {
     superficie_ha: number | null;
     fraccion_cobertura_activa: number | null;
     muestras_validas: number | null;
+    ventana_desde?: string | null;
+    ventana_hasta?: string | null;
+    nubosidad_max_pct?: number | null;
 }
 
 interface NdviModulosPanelProps {
@@ -135,11 +139,12 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
     const [mesTarjetas, setMesTarjetas] = useState<string>('');
 
     const [generandoInforme, setGenerandoInforme] = useState(false);
+    const { profile } = useAuth();
 
     const recargar = useCallback(async () => {
         const { data, error } = await supabase
             .from('ndvi_modulo_historico')
-            .select('numero_modulo, nombre_modulo, mes, ndvi_medio, ndvi_min, ndvi_max, ndvi_desv, kc_estimado, delta_ndvi, superficie_ha, fraccion_cobertura_activa, muestras_validas')
+            .select('numero_modulo, nombre_modulo, mes, ndvi_medio, ndvi_min, ndvi_max, ndvi_desv, kc_estimado, delta_ndvi, superficie_ha, fraccion_cobertura_activa, muestras_validas, ventana_desde, ventana_hasta, nubosidad_max_pct')
             .order('mes', { ascending: true });
         // Un fallo de lectura NO es "todavía no hay datos": se informa aparte, con reintento.
         setErrorCarga(error ? error.message : null);
@@ -208,13 +213,13 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
     const generarInforme = useCallback(async () => {
         setGenerandoInforme(true);
         try {
-            await generarInformeInstitucional(filas);
+            await generarInformeInstitucional(filas, { emisor: profile?.nombre ?? null });
         } catch (err) {
             setResultadoSync(`Error al generar el informe: ${err instanceof Error ? err.message : String(err)}`);
         } finally {
             setGenerandoInforme(false);
         }
-    }, [filas]);
+    }, [filas, profile?.nombre]);
 
     const chartOption = useMemo(() => {
         const series = MODULOS_SRL.map(numeroModulo => {

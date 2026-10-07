@@ -24,6 +24,9 @@ export const GEOJSON_A_MODULO_SRL: Record<number, number> = {
     9: 12,
 };
 
+/** Los 6 Módulos SRL reales, en orden de presentación (una sola lista para panel, plano e informe). */
+export const MODULOS_SRL_IDS: readonly number[] = [1, 2, 3, 4, 5, 12];
+
 /** Color de identidad por Módulo SRL real (paleta categórica estable). */
 export const COLOR_MODULO_SRL: Record<number, string> = {
     1: '#3b82f6',   // azul

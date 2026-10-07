@@ -37,13 +37,13 @@ const clamp = (v: number) => Math.max(0, Math.min(100, v));
 // cultivo, 0.75 ≈ vigor pleno típico de los cultivos del DR-005. Referencia
 // agronómica estándar, no un máximo histórico observado — mismo criterio de
 // "constante declarada" que ETO_MAX_REF en indicesAgro.ts.
-const NDVI_PISO = 0.10;
-const NDVI_TECHO = 0.75;
+export const NDVI_PISO = 0.10;
+export const NDVI_TECHO = 0.75;
 
 // Umbral de NDVI para "cobertura vegetal activa" — debe coincidir con
 // UMBRAL_COBERTURA_ACTIVA en supabase/functions/sentinel-ndvi-modulo-sync
 // (0.30), que es lo que fraccion_cobertura_activa ya trae calculado.
-const NDVI_UMBRAL_ACTIVO = 0.30;
+export const NDVI_UMBRAL_ACTIVO = 0.30;
 
 export interface EntradaModuloSrl {
     numeroModulo: number;

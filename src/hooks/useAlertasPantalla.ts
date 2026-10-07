@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { onTable } from '../lib/realtimeHub';
+import { useAuth } from '../context/AuthContext';
 import { useUmbralesClima, usePolling } from './useClimaOperativo';
 import type { AlertaFila } from '../utils/alertasPantalla';
 
@@ -34,6 +35,7 @@ export function useAlertasPantalla(periodo: Periodo) {
     const [cargando, setCargando] = useState(true);
     const [corteMs, setCorteMs] = useState(0);
     const umbrales = useUmbralesClima();
+    const { profile } = useAuth();
 
     const cargarActivas = useCallback(async () => {
         const { data, error } = await supabase.from('registro_alertas').select(COLS).eq('resuelta', false)
@@ -69,13 +71,18 @@ export function useAlertasPantalla(periodo: Periodo) {
 
     /** Resuelve una alerta. Devuelve null si salió bien o el mensaje de error. */
     const atender = useCallback(async (id: string): Promise<string | null> => {
-        // La tabla aún no tiene `resuelto_por`: enviarlo hacía fallar el UPDATE en silencio. Se registra solo la fecha.
-        const { error } = await supabase.from('registro_alertas')
-            .update({ resuelta: true, fecha_resolucion: new Date().toISOString() }).eq('id', id);
+        const fecha_resolucion = new Date().toISOString();
+        // Con la migración 20261007130000 aplicada se registra quién y cómo; sin ella (columnas inexistentes) se
+        // reintenta solo con la fecha, para que atender nunca falle por el esquema.
+        let { error } = await supabase.from('registro_alertas')
+            .update({ resuelta: true, fecha_resolucion, resuelto_por: profile?.nombre ?? 'Operador', resolucion_tipo: 'manual' }).eq('id', id);
+        if (error && /resuelto_por|resolucion_tipo/.test(error.message)) {
+            ({ error } = await supabase.from('registro_alertas').update({ resuelta: true, fecha_resolucion }).eq('id', id));
+        }
         if (error) return error.message;
         setActivas((prev) => prev.filter((a) => a.id !== id));
         return null;
-    }, []);
+    }, [profile?.nombre]);
 
     return {
         activas: activasConAccion, periodoFilas, cargando, corteMs,

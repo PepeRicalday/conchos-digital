@@ -17,6 +17,7 @@ export default function Ciclos() {
     // Ciclo seleccionado; por defecto el ACTIVO (no el más reciente por fecha de alta).
     const selectedCiclo = ciclos.find(c => c.id === selectedCicloId) || ciclos.find(c => c.activo) || ciclos[0];
     const hoy = new Date().toISOString().slice(0, 10);
+    // Pasar la fecha de cierre con el ciclo activo es legítimo en un cierre anticipado (vaciado/remanente): informa, no alarma.
     const cicloVencido = !!selectedCiclo && selectedCiclo.activo && !!selectedCiclo.fecha_fin && selectedCiclo.fecha_fin < hoy;
     // Volumen 0 / vacío = "sin presupuesto cargado", no un presupuesto de cero.
     const volCiclo = selectedCiclo && Number(selectedCiclo.volumen_autorizado_mm3) > 0 ? Number(selectedCiclo.volumen_autorizado_mm3) : null;
@@ -173,7 +174,7 @@ export default function Ciclos() {
                                 <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Balance Autorizado</div>
                                 <div className="text-2xl font-mono text-white leading-none">{volCiclo != null ? <>{volCiclo} <span className="text-sm text-slate-500">Mm³</span></> : 'S/D'}</div>
                                 {volCiclo == null && <div className="text-[11px] text-amber-400 mt-1">Sin presupuesto cargado</div>}
-                                {cicloVencido && <div className="text-[11px] text-red-400 mt-1">Ciclo vencido ({selectedCiclo.fecha_fin}) y aún marcado activo</div>}
+                                {cicloVencido && <div className="text-[11px] text-amber-400 mt-1">Pasó su fecha de cierre ({selectedCiclo.fecha_fin}) y sigue activo (remanente/vaciado). Desactívalo al terminar.</div>}
                             </div>
                         </div>
 

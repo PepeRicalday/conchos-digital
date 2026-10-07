@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import { COLOR_MODULO_SRL, numeroGeojsonDeSRL } from '../utils/modulosSRL';
 import { bboxDeModulo } from '../utils/modulosBbox';
 import { sentinelWmsUrl } from '../utils/sentinelWms';
+import { cargarContornosModulos } from '../utils/contornosModulos';
 import { calculaIndicesSrl, volumenAcumuladoPorModuloHm3, type IndiceSrl } from '../utils/indicesSrl';
 
 interface NdviModuloFila {
@@ -51,9 +52,8 @@ export const NdviModuloDetalle: React.FC<NdviModuloDetalleProps> = ({ numeroModu
     useEffect(() => {
         let cancelado = false;
         setCargandoContorno(true);
-        fetch('/geo/modulos.geojson')
-            .then(r => r.ok ? r.json() : null)
-            .then((fc: GeoJSON.FeatureCollection | null) => {
+        cargarContornosModulos()
+            .then((fc) => {
                 if (cancelado || !fc) return;
                 const numeroGeojson = numeroGeojsonDeSRL(numeroModulo);
                 const feature = fc.features.find(f => Number(f.properties?.numero_modulo) === numeroGeojson) ?? null;

@@ -1,0 +1,70 @@
+/* NDVI mensual por módulo — piezas visuales compartidas (rampa agronómica, chips, tarjeta, pines, leyenda).
+   Texto ≥ 12 px · objetivos táctiles ≥ 44 px · el estado nunca depende solo del color. */
+
+/* Selector por chips (sustituye al <select> nativo, cuyo desplegable tapaba la tarjeta del Módulo 5) */
+.ndvi-selector { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ndvi-selector-et { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #94a3b8; }
+.ndvi-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+.ndvi-chip { flex: 0 0 auto; min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(15, 23, 42, 0.8); color: #cbd5e1; font: 600 13px 'JetBrains Mono', ui-monospace, monospace; cursor: pointer; }
+.ndvi-chip:hover { border-color: rgba(56, 189, 248, 0.6); }
+.ndvi-chip:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.ndvi-chip-on { background: rgba(56, 189, 248, 0.16); border-color: #38bdf8; color: #f1f5f9; }
+
+/* Tarjeta de módulo */
+.ndvi-card-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; margin-bottom: 8px; }
+.ndvi-clase { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(148, 163, 184, 0.3);
+    font-size: 12px; font-weight: 700; color: #e8eef6; white-space: nowrap; }
+.ndvi-clase i { width: 12px; height: 12px; border-radius: 3px; background: var(--c); border: 1px solid rgba(255, 255, 255, 0.5); }
+.ndvi-card-valor { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 6px 8px; margin-top: 4px; }
+.ndvi-card-top .vaso-stat-label { white-space: nowrap; }
+.ndvi-card-num { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 2.1rem; font-weight: 800; line-height: 1; color: #fff; }
+.ndvi-card-num small { margin-left: 6px; font-size: 12px; font-weight: 600; color: #94a3b8; }
+.ndvi-spark { flex: 0 0 auto; }
+.ndvi-spark-sd { font-size: 12px; color: #64748b; }
+.ndvi-card-meta { margin-top: 8px; font-size: 12px; color: #94a3b8; line-height: 1.5; }
+/* Delta con semántica neutra: azul sube, ámbar baja. Una baja es normal en vaciado/fin de ciclo; el rojo la leía como falla. */
+.ndvi-delta { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+.ndvi-delta-sube { color: #38bdf8; }
+.ndvi-delta-baja { color: #fbbf24; }
+.ndvi-card-sd { margin-top: 10px; font-size: 14px; color: #94a3b8; }
+.ndvi-modulo-card-clickable:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+
+/* Mini-mapa: etiqueta de qué periodo muestra la imagen (distinto del mes de los números) */
+.ndvi-minimap-wrap { position: relative; }
+.ndvi-minimap-et { position: absolute; left: 8px; bottom: 16px; z-index: 500; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    background: rgba(2, 10, 20, 0.78); color: #e2e8f0; pointer-events: none; }
+
+/* Controles del panel */
+.ndvi-controles { margin: 0 clamp(1.25rem, 4vw, 3rem) 1rem; display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-end; }
+.ndvi-nota { margin: 0; font-size: 12px; color: #94a3b8; line-height: 1.4; max-width: 520px; }
+
+/* Leyenda */
+.ndvi-ley { margin-top: 10px; }
+.ndvi-ley-lista { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; list-style: none; font-size: 12px; color: #cbd5e1; }
+.ndvi-ley-lista li { display: inline-flex; align-items: center; gap: 6px; }
+.ndvi-ley-lista i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255, 255, 255, 0.45); }
+.ndvi-ley-lista span { color: #94a3b8; font-family: 'JetBrains Mono', ui-monospace, monospace; }
+.ndvi-ley-nota { margin: 6px 0 0; font-size: 12px; color: #94a3b8; }
+
+/* Pines del plano: número del módulo sobre fondo neutro con aro blanco (un solo código de color: la rampa) */
+.ndvi-pin-icon { background: transparent; border: 0; }
+.ndvi-pin { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: #0b1626; color: #fff;
+    border: 3px solid #fff; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.65); font: 800 15px 'JetBrains Mono', ui-monospace, monospace; }
+
+/* Lateral del plano */
+.ndvi-fila-clase { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #94a3b8; }
+.ndvi-fila-clase i { width: 10px; height: 10px; border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.45); }
+
+/* Estados */
+.ndvi-skeleton { height: 260px; border-radius: 16px; background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.09), rgba(255,255,255,0.04));
+    background-size: 200% 100%; animation: ndvi-shimmer 1.4s linear infinite; }
+@keyframes ndvi-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.ndvi-skeleton-fila { margin: 0 clamp(1.25rem, 4vw, 3rem) 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.ndvi-error { margin: 1rem clamp(1.25rem, 4vw, 3rem); padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(248, 113, 113, 0.5);
+    background: rgba(248, 113, 113, 0.07); color: #fca5a5; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.ndvi-btn { min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.35); background: rgba(15, 23, 42, 0.85);
+    color: #e2e8f0; font: 600 13px system-ui, sans-serif; cursor: pointer; }
+.ndvi-btn:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) { .ndvi-skeleton { animation: none; } }

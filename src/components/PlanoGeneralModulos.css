@@ -66,6 +66,8 @@
     }
 }
 
+.plano-general-mapa-col { min-width: 0; display: flex; flex-direction: column; }
+
 .plano-general-map-wrap {
     border-radius: 14px;
     overflow: hidden;

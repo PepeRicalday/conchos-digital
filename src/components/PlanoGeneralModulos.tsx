@@ -1,12 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Map as MapIcon } from 'lucide-react';
-import { MapContainer, TileLayer, WMSTileLayer, GeoJSON, Marker } from 'react-leaflet';
+import { MapContainer, TileLayer, WMSTileLayer, GeoJSON, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PlanoGeneralModulos.css';
+import './ndvi/ndviVisual.css';
 import { COLOR_MODULO_SRL, numeroGeojsonDeSRL } from '../utils/modulosSRL';
 import { calcICV, calcIHR } from '../utils/indicesSrl';
 import { sentinelWmsUrl } from '../utils/sentinelWms';
+import { cargarContornosModulos } from '../utils/contornosModulos';
+import { NDVI_RANGO, claseNdvi, colorNdvi } from '../utils/ndviRampa';
+import { fmt } from '../utils/formato';
+import { SelectorChips } from './ndvi/SelectorChips';
+import { LeyendaNdvi } from './ndvi/LeyendaNdvi';
 
 interface NdviModuloFila {
     numero_modulo: number;
@@ -31,30 +37,6 @@ interface PlanoGeneralModulosProps {
 
 const MODULOS_SRL = [1, 2, 3, 4, 5, 12];
 
-// Logos institucionales por módulo — ya existen en public/logos/ (mismo
-// activo que usa getLogoPath en uiHelpers.ts).
-const LOGO_MODULO: Record<number, string> = {
-    1: '/logos/modulo_1.jpg',
-    2: '/logos/modulo_2.jpg',
-    3: '/logos/modulo_3.jpg',
-    4: '/logos/modulo_4.jpg',
-    5: '/logos/modulo_5.jpg',
-    12: '/logos/modulo_12.jpg',
-};
-
-function iconoLogoModulo(numeroModulo: number, colorBorde: string): L.DivIcon {
-    return L.divIcon({
-        className: 'plano-general-logo-icon',
-        html: `<div style="
-            width:34px;height:34px;border-radius:50%;overflow:hidden;
-            border:2.5px solid ${colorBorde};box-shadow:0 2px 8px rgba(0,0,0,0.5);
-            background:#0f172a;
-        "><img src="${LOGO_MODULO[numeroModulo]}" style="width:100%;height:100%;object-fit:cover" /></div>`,
-        iconSize: [34, 34],
-        iconAnchor: [17, 17],
-    });
-}
-
 // Mismo basemap CARTO oscuro y mismo criterio de fallback que PublicMonitor.tsx
 // (CARTO_TILE_URL) — sin VITE_CARTO_ACCESS_TOKEN el tile legacy funciona pero
 // con marca de agua "API KEY REQUIRED"; con el token, ruta /rastertiles/ correcta.
@@ -64,19 +46,36 @@ const CARTO_TILE_URL = CARTO_ACCESS_TOKEN
     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
 type ClaveIndice = 'ndvi' | 'icv' | 'ihr';
-const INDICES: { clave: ClaveIndice; etiqueta: string; rango: [number, number] }[] = [
-    { clave: 'ndvi', etiqueta: 'NDVI', rango: [0, 1] },
-    { clave: 'icv', etiqueta: 'ICV (Condición Vegetativa)', rango: [0, 100] },
-    { clave: 'ihr', etiqueta: 'IHR (Homogeneidad de Riego)', rango: [0, 100] },
+const INDICES: { clave: ClaveIndice; etiqueta: string; corta: string; rango: [number, number] }[] = [
+    { clave: 'ndvi', etiqueta: 'NDVI', corta: 'NDVI', rango: NDVI_RANGO },
+    { clave: 'icv', etiqueta: 'ICV (Condición Vegetativa)', corta: 'ICV', rango: [0, 100] },
+    { clave: 'ihr', etiqueta: 'IHR (Homogeneidad de Riego)', corta: 'IHR', rango: [0, 100] },
 ];
 
-/** Rampa continua rojo→ámbar→verde sobre t∈[0,1] — misma semántica de
- *  semáforo que el resto de índices institucionales del proyecto
- *  (indicesAgro.ts), aplicada aquí como color de relleno del polígono. */
-function colorRampa(t: number): string {
+/** Pin numerado: el número identifica al módulo sin competir con la rampa de color del índice. */
+function iconoPinModulo(numeroModulo: number): L.DivIcon {
+    return L.divIcon({
+        className: 'ndvi-pin-icon',
+        html: `<div class="ndvi-pin" aria-label="Módulo ${numeroModulo}">${numeroModulo}</div>`,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+    });
+}
+
+/** Encuadra el mapa a los 6 contornos en cuanto se cargan (antes quedaban chicos en un zoom fijo). */
+const AjustarVista: React.FC<{ data: GeoJSON.FeatureCollection }> = ({ data }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (!data.features.length) return;
+        const b = L.geoJSON(data).getBounds();
+        if (b.isValid()) map.fitBounds(b, { padding: [40, 40], maxZoom: 11 });
+    }, [data, map]);
+    return null;
+};
+
+/** Semáforo rojo→ámbar→verde — solo para ICV/IHR (índices 0-100 derivados). El NDVI usa la rampa agronómica (ndviRampa). */
+function colorSemaforo(t: number): string {
     const c = Math.max(0, Math.min(1, t));
-    // Interpola en dos tramos: rojo(#d03b3b)→ámbar(#d98704) en [0,0.5],
-    // ámbar→verde(#0ca30c) en [0.5,1].
     const lerp = (a: number, b: number, f: number) => Math.round(a + (b - a) * f);
     let r: number, g: number, b: number;
     if (c < 0.5) {
@@ -92,22 +91,18 @@ function colorRampa(t: number): string {
 function valorIndice(clave: ClaveIndice, fila: NdviModuloFila | undefined): number | null {
     if (!fila) return null;
     if (clave === 'ndvi') return fila.ndvi_medio;
-    if (clave === 'icv') return calcICV({
+    const base = {
         numeroModulo: fila.numero_modulo, nombreModulo: fila.nombre_modulo,
         ndviMedio: fila.ndvi_medio, ndviDesv: fila.ndvi_desv, fraccionCoberturaActiva: fila.fraccion_cobertura_activa,
         superficieHa: fila.superficie_ha, volumenAcumuladoHm3: null,
-    }).valor;
-    return calcIHR({
-        numeroModulo: fila.numero_modulo, nombreModulo: fila.nombre_modulo,
-        ndviMedio: fila.ndvi_medio, ndviDesv: fila.ndvi_desv, fraccionCoberturaActiva: fila.fraccion_cobertura_activa,
-        superficieHa: fila.superficie_ha, volumenAcumuladoHm3: null,
-    }).valor;
+    };
+    return clave === 'icv' ? calcICV(base).valor : calcIHR(base).valor;
 }
 
 /** Plano general: mapa único con el contorno EXACTO (public/geo/modulos.geojson)
  *  de los 6 módulos SRL, coloreado según el índice y mes elegidos — vista
  *  coroplética institucional en vez de 6 mini-mapas separados. Incluye el
- *  promedio SRL (agregado de los 6 módulos) del mes/índice seleccionado. */
+ *  promedio SRL (promedio simple de los 6 módulos) del mes/índice seleccionado. */
 export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas, meses, sentinelInstanceId }) => {
     const [mesSeleccionado, setMesSeleccionado] = useState<string>('');
     const [indiceSeleccionado, setIndiceSeleccionado] = useState<ClaveIndice>('ndvi');
@@ -120,9 +115,8 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
 
     useEffect(() => {
         let cancelado = false;
-        fetch('/geo/modulos.geojson')
-            .then(r => r.ok ? r.json() : null)
-            .then((fc: GeoJSON.FeatureCollection | null) => {
+        cargarContornosModulos()
+            .then((fc) => {
                 if (cancelado || !fc) return;
                 const mapa: Record<number, GeoJSON.Feature> = {};
                 for (const srl of MODULOS_SRL) {
@@ -143,6 +137,7 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
     }, [filas, mesSeleccionado]);
 
     const indiceInfo = INDICES.find(i => i.clave === indiceSeleccionado)!;
+    const esNdvi = indiceSeleccionado === 'ndvi';
 
     const valoresPorModulo = useMemo(() => {
         const mapa = new Map<number, number | null>();
@@ -165,8 +160,7 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
     }), [contornos]);
 
     // Centroide aproximado (centro del bbox del anillo exterior) de cada
-    // módulo, para colocar el marcador de logo — suficiente para un ícono
-    // visual, no requiere el centroide geométrico exacto del polígono.
+    // módulo, para colocar el pin — suficiente para un ícono visual.
     const centroidePorModulo = useMemo(() => {
         const mapa = new Map<number, [number, number]>();
         for (const m of MODULOS_SRL) {
@@ -175,7 +169,7 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
             const geom = feature.geometry;
             const anillo = geom.type === 'Polygon' ? geom.coordinates[0] : geom.type === 'MultiPolygon' ? geom.coordinates[0][0] : null;
             if (!anillo) continue;
-            const lons = anillo.map((c: any) => c[0]), lats = anillo.map((c: any) => c[1]);
+            const lons = anillo.map((c) => c[0]), lats = anillo.map((c) => c[1]);
             mapa.set(m, [(Math.min(...lats) + Math.max(...lats)) / 2, (Math.min(...lons) + Math.max(...lons)) / 2]);
         }
         return mapa;
@@ -194,118 +188,112 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
     }), []);
 
     const center: [number, number] = [28.02, -105.35];
+    const conImagenFondo = esNdvi && !!sentinelInstanceId;
+    const decimales = esNdvi ? 2 : 0;
 
     return (
         <div className="plano-general-card glass">
             <div className="plano-general-header">
                 <div className="plano-general-titulo">
-                    <MapIcon size={16} /> PLANO GENERAL — {indiceInfo.etiqueta} · {mesSeleccionado || 'S/D'}
+                    <MapIcon size={16} /> PLANO GENERAL — {indiceInfo.corta} · {mesSeleccionado || 'S/D'}
                 </div>
                 <div className="plano-general-controles">
-                    <label className="plano-general-control">
-                        <span>Mes</span>
-                        <select value={mesSeleccionado} onChange={e => setMesSeleccionado(e.target.value)}>
-                            {meses.map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>
-                    </label>
-                    <label className="plano-general-control">
-                        <span>Índice</span>
-                        <select value={indiceSeleccionado} onChange={e => setIndiceSeleccionado(e.target.value as ClaveIndice)}>
-                            {INDICES.map(i => <option key={i.clave} value={i.clave}>{i.etiqueta}</option>)}
-                        </select>
-                    </label>
+                    <SelectorChips etiqueta="Mes (plano)" valor={mesSeleccionado} onChange={setMesSeleccionado}
+                        opciones={meses.map(m => ({ valor: m, texto: m }))} />
+                    <SelectorChips etiqueta="Índice" valor={indiceSeleccionado} onChange={setIndiceSeleccionado}
+                        opciones={INDICES.map(i => ({ valor: i.clave, texto: i.corta, title: i.etiqueta }))} />
                 </div>
             </div>
 
             <div className="plano-general-body">
-                <div className="plano-general-map-wrap">
-                    <MapContainer center={center} zoom={9} className="plano-general-map" attributionControl={false}>
-                        <TileLayer url={CARTO_TILE_URL} attribution="&copy; CARTO" />
-                        {/* Solo para NDVI: overlay del tile real "NDVI Agro" de Sentinel Hub
-                            — ICV/IHR son números derivados sin banda espectral propia que
-                            mostrar, se quedan con el coroplético por color. */}
-                        {indiceSeleccionado === 'ndvi' && sentinelInstanceId && (
-                            <WMSTileLayer
-                                url={sentinelWmsUrl(sentinelInstanceId)}
-                                params={wmsParams as any}
-                                maxZoom={19}
-                                opacity={0.85}
-                            />
-                        )}
-                        {!cargandoContornos && (() => {
-                            const conImagenFondo = indiceSeleccionado === 'ndvi' && !!sentinelInstanceId;
-                            const bindTooltip = (feature: any, layer: any) => {
-                                const srl = feature.properties?.numero_modulo_srl;
-                                const valor = srl != null ? valoresPorModulo.get(srl) : null;
-                                const nombre = feature.properties?.nombre ?? `Módulo ${srl}`;
-                                layer.bindTooltip(
-                                    `<strong>${nombre}</strong><br/>${indiceInfo.etiqueta}: ${valor != null ? valor.toFixed(indiceSeleccionado === 'ndvi' ? 3 : 0) : 'S/D'}`,
-                                    { sticky: true, className: 'plano-general-tooltip' }
-                                );
-                            };
-                            return (
-                                <>
-                                    {/* Halo blanco debajo del borde identitario — solo con el tile
-                                        NDVI de fondo: sin él, 3 de los 6 colores de módulo (verde,
-                                        ámbar, rojo) se pierden casi por completo sobre el propio
-                                        semáforo NDVI. Con coroplético puro (ICV/IHR, fondo oscuro
-                                        uniforme) el borde de color ya contrasta bien y no hace falta. */}
-                                    {conImagenFondo && (
+                <div className="plano-general-mapa-col">
+                    <div className="plano-general-map-wrap">
+                        <MapContainer center={center} zoom={9} className="plano-general-map" attributionControl={false}>
+                            <TileLayer url={CARTO_TILE_URL} attribution="&copy; CARTO" />
+                            <AjustarVista data={geoJsonCombinado} />
+                            {/* Solo para NDVI: imagen real "NDVI Agro" de Sentinel Hub como REFERENCIA (opacidad baja, sin leyenda
+                                propia: sus colores los define el servidor). El valor del mes lo da el relleno de cada polígono. */}
+                            {conImagenFondo && (
+                                <WMSTileLayer
+                                    url={sentinelWmsUrl(sentinelInstanceId)}
+                                    params={wmsParams as unknown as L.WMSParams}
+                                    maxZoom={19}
+                                    opacity={0.3}
+                                />
+                            )}
+                            {!cargandoContornos && (() => {
+                                const bindTooltip = (feature: GeoJSON.Feature, layer: L.Layer) => {
+                                    const srl = feature.properties?.numero_modulo_srl;
+                                    const valor = srl != null ? valoresPorModulo.get(srl) : null;
+                                    const nombre = feature.properties?.nombre ?? `Módulo ${srl}`;
+                                    const clase = esNdvi ? claseNdvi(valor) : null;
+                                    layer.bindTooltip(
+                                        `<strong>${nombre}</strong><br/>${indiceInfo.corta}: ${fmt(valor, decimales)}${clase ? ` · ${clase.etiqueta}` : ''}`,
+                                        { sticky: true, className: 'plano-general-tooltip' }
+                                    );
+                                };
+                                return (
+                                    <>
+                                        {/* Halo blanco bajo el borde: con la imagen satelital de fondo el borde de color se perdería. */}
+                                        {conImagenFondo && (
+                                            <GeoJSON
+                                                key={`plano-halo-${indiceSeleccionado}-${mesSeleccionado}`}
+                                                data={geoJsonCombinado}
+                                                style={{ color: '#ffffff', weight: 5, fillOpacity: 0, opacity: 0.8 }}
+                                            />
+                                        )}
                                         <GeoJSON
-                                            key={`plano-halo-${indiceSeleccionado}-${mesSeleccionado}`}
-                                            data={geoJsonCombinado as any}
-                                            style={{ color: '#ffffff', weight: 6, fillOpacity: 0, opacity: 0.85 }}
+                                            key={`plano-${indiceSeleccionado}-${mesSeleccionado}`}
+                                            data={geoJsonCombinado}
+                                            style={(feature) => {
+                                                const srl = feature?.properties?.numero_modulo_srl;
+                                                const valor = srl != null ? valoresPorModulo.get(srl) ?? null : null;
+                                                const [lo, hi] = indiceInfo.rango;
+                                                const t = valor != null ? (valor - lo) / (hi - lo) : null;
+                                                const relleno = esNdvi ? colorNdvi(valor) : (t != null ? colorSemaforo(t) : '#334155');
+                                                return {
+                                                    color: '#f8fafc', weight: 2, opacity: 0.95,
+                                                    fillColor: relleno,
+                                                    fillOpacity: valor != null ? 0.6 : 0.25,
+                                                };
+                                            }}
+                                            onEachFeature={bindTooltip}
                                         />
-                                    )}
-                                    <GeoJSON
-                                        key={`plano-${indiceSeleccionado}-${mesSeleccionado}`}
-                                        data={geoJsonCombinado as any}
-                                        style={(feature) => {
-                                            const srl = feature?.properties?.numero_modulo_srl;
-                                            const valor = srl != null ? valoresPorModulo.get(srl) : null;
-                                            const [lo, hi] = indiceInfo.rango;
-                                            const t = valor != null ? (valor - lo) / (hi - lo) : null;
-                                            const colorIdentidad = srl != null ? (COLOR_MODULO_SRL[srl] ?? '#ffffff') : '#ffffff';
-                                            return {
-                                                color: colorIdentidad, weight: conImagenFondo ? 3 : 2, opacity: 0.9,
-                                                fillColor: t != null ? colorRampa(t) : '#334155',
-                                                fillOpacity: conImagenFondo ? 0.12 : (t != null ? 0.65 : 0.25),
-                                            };
-                                        }}
-                                        onEachFeature={bindTooltip}
-                                    />
-                                </>
-                            );
-                        })()}
-                        {MODULOS_SRL.map(m => {
-                            const centroide = centroidePorModulo.get(m);
-                            if (!centroide) return null;
-                            return (
-                                <Marker key={`logo-${m}`} position={centroide} icon={iconoLogoModulo(m, COLOR_MODULO_SRL[m] ?? '#ffffff')} />
-                            );
-                        })}
-                    </MapContainer>
+                                    </>
+                                );
+                            })()}
+                            {MODULOS_SRL.map(m => {
+                                const centroide = centroidePorModulo.get(m);
+                                if (!centroide) return null;
+                                return <Marker key={`pin-${m}`} position={centroide} icon={iconoPinModulo(m)} />;
+                            })}
+                        </MapContainer>
+                    </div>
+                    {esNdvi ? (
+                        <LeyendaNdvi nota={conImagenFondo
+                            ? 'Relleno de cada módulo = NDVI del mes elegido. La imagen tenue de fondo es la referencia satelital de los últimos 30 días.'
+                            : 'Relleno de cada módulo = NDVI del mes elegido.'} />
+                    ) : (
+                        <p className="ndvi-ley-nota">Relleno de cada módulo = {indiceInfo.etiqueta} del mes elegido (rojo = bajo, verde = alto; escala 0–100).</p>
+                    )}
                 </div>
 
                 <div className="plano-general-lateral">
                     <div className="plano-general-promedio-card">
                         <div className="plano-general-promedio-label">PROMEDIO SRL</div>
-                        <div className="plano-general-promedio-valor">
-                            {promedioSrl != null ? promedioSrl.toFixed(indiceSeleccionado === 'ndvi' ? 3 : 1) : 'S/D'}
-                        </div>
-                        <div className="plano-general-promedio-sub">{indiceInfo.etiqueta} · promedio de los 6 módulos</div>
+                        <div className="plano-general-promedio-valor">{fmt(promedioSrl, esNdvi ? 2 : 1)}</div>
+                        <div className="plano-general-promedio-sub">{indiceInfo.corta} · promedio simple de los 6 módulos (sin ponderar por superficie)</div>
                     </div>
                     <div className="plano-general-tabla">
                         {MODULOS_SRL.map(srl => {
-                            const valor = valoresPorModulo.get(srl);
+                            const valor = valoresPorModulo.get(srl) ?? null;
+                            const clase = esNdvi ? claseNdvi(valor) : null;
                             return (
                                 <div key={srl} className="plano-general-fila">
-                                    <img src={LOGO_MODULO[srl]} className="plano-general-fila-logo" alt="" />
-                                    <span className="plano-general-fila-dot" style={{ background: COLOR_MODULO_SRL[srl] ?? '#334155' }} />
+                                    <span className="plano-general-fila-dot" style={{ background: COLOR_MODULO_SRL[srl] ?? '#334155' }} aria-hidden="true" />
                                     <span className="plano-general-fila-nombre">Módulo {srl}</span>
-                                    <span className="plano-general-fila-valor">
-                                        {valor != null ? valor.toFixed(indiceSeleccionado === 'ndvi' ? 3 : 0) : 'S/D'}
-                                    </span>
+                                    {clase && <span className="ndvi-fila-clase"><i style={{ background: clase.color }} aria-hidden="true" />{clase.etiqueta}</span>}
+                                    <span className="plano-general-fila-valor">{fmt(valor, decimales)}</span>
                                 </div>
                             );
                         })}

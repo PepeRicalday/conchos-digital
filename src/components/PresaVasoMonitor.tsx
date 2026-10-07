@@ -16,7 +16,8 @@ const VasoVisor3DCaptura = lazy(() => import('./VasoVisor3D').then(m => ({ defau
 import './PresaVasoMonitor.css';
 import { detectaSuperficieVaso, type SuperficieVaso } from '../utils/mapaSatelital';
 import { supabase } from '../lib/supabase';
-import InformeVasoInstitucional from './InformeVasoInstitucional';
+import { useAuth } from '../context/AuthContext';
+import InformeVasoModal from './vaso/InformeVasoModal';
 import HeroVaso from './vaso/HeroVaso';
 import SimuladorVaso from './vaso/SimuladorVaso';
 import TarjetaSuperficieVaso from './vaso/SuperficieVaso';
@@ -141,6 +142,7 @@ interface PresaVasoMonitorProps {
 }
 
 export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccionInicial = 'satelital', onClose }) => {
+    const { profile } = useAuth();
     const tieneNivel = data.nivel_msnm !== null;
     const tieneCurva = (data.curva?.length ?? 0) >= 2;
 
@@ -1205,13 +1207,18 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
             )}
 
             {mostrarInforme && (
-                <InformeVasoInstitucional
-                    nombrePresa={data.nombre}
-                    historico={historicoVaso}
-                    validacionCruzada={validacionCruzada}
-                    texturaSatelital={texturaSatelital}
-                    imagenRelieve3D={imagenRelieveInforme ?? null}
-                    onClose={() => setMostrarInforme(false)}
+                <InformeVasoModal
+                    onCerrar={() => setMostrarInforme(false)}
+                    entrada={{
+                        nombrePresa: sinComillas(data.nombre),
+                        escenas: historicoVaso,
+                        validacion: validacionCruzada,
+                        estado: {
+                            nivel: tieneNivel ? data.nivel_msnm : null, pct: pctBase, volumen: volumenBase, capacidad: data.capacidad_total ?? null, namo,
+                            deficit: deficitBajoNamo(tieneNivel ? data.nivel_msnm : null, namo), fechaLectura: data.fecha_lectura ?? null, procedencia,
+                        },
+                        textura: texturaSatelital, imagenRelieve: imagenRelieveInforme ?? null, emisor: profile?.nombre ?? null,
+                    }}
                 />
             )}
         </div>

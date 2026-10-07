@@ -97,3 +97,11 @@
     .vaso-datos { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .vaso-barra i { transition: none; } }
+
+/* Comparativo interanual */
+.vaso-inter-pos { margin: 10px 0 8px; font-size: 14px; color: var(--sc-t2); }
+.vaso-inter-pos b { color: var(--sc-t1); }
+.vaso-inter-wrap { overflow-x: auto; }
+.vaso-inter { width: 100%; border-collapse: collapse; font: 13px var(--sc-mono); font-variant-numeric: tabular-nums; }
+.vaso-inter th { text-align: left; padding: 8px 10px; font-weight: 600; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sc-t3); border-bottom: 1px solid var(--sc-line); white-space: nowrap; }
+.vaso-inter td { padding: 10px; border-bottom: 1px solid rgba(148, 163, 184, 0.1); color: var(--sc-t1); white-space: nowrap; }

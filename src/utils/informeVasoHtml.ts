@@ -3,6 +3,7 @@ import { cabeceraInforme, cssInforme, documentoHtml, esc, fechaHoraLegible, foli
 import { UMBRAL_BAJO_PCT, UMBRAL_CRITICO_PCT } from './presaNiveles';
 import type { InformeVaso, SeccionVaso } from './informeVasoDatos';
 import { UMBRAL_DESVIO_PCT } from './informeVasoDatos';
+import { interanualSvg } from './informeVasoInteranual';
 import { comparativoSvg, contextoSvg, galeriaSvg, tendenciaSvg } from './informeVasoSvg';
 
 export interface LogosVaso { srl: string; sica: string }
@@ -54,6 +55,7 @@ export function construirHtmlVaso(d: InformeVaso, logos: LogosVaso): string {
     const periodo = d.primero && d.ultimo ? `${fecha(d.primero.fecha_escena)} – ${fecha(d.ultimo.fecha_escena)}` : SD;
     const est = d.estado;
     const hojas: string[] = [];
+    let nSec = 0;
     const nombreMayus = esc(d.nombrePresa.toUpperCase());
 
     const sinTendencia = d.escenas.length < 2;
@@ -65,7 +67,7 @@ export function construirHtmlVaso(d: InformeVaso, logos: LogosVaso): string {
         const avisos = d.avisos.length
             ? d.avisos.map((a) => `<div class="aviso">${esc(a.texto)}</div>`).join('')
             : '<p class="fuente">Sin observaciones de calidad: la serie del periodo no presenta huecos, nubosidad alta ni desviaciones relevantes.</p>';
-        return `<h2><span class="n">1</span>Estado actual y resumen ejecutivo</h2>
+        return `<h2><span class="n">${++nSec}</span>Estado actual y resumen ejecutivo</h2>
 <div class="estado">
   <div class="pct"><div class="et fuente">Llenado ${est.fechaLectura ? `· lectura ${esc(fecha(est.fechaLectura))}` : ''}</div>
     <div class="v">${est.pct != null ? est.pct.toFixed(1) : SD}${est.pct != null ? '<small> %</small>' : ''}</div>
@@ -89,7 +91,7 @@ export function construirHtmlVaso(d: InformeVaso, logos: LogosVaso): string {
     };
 
     // ── Hoja 2: polígonos ──
-    const mapa = () => `<h2><span class="n">2</span>Evolución del polígono del vaso</h2>
+    const mapa = () => `<h2><span class="n">${++nSec}</span>Evolución del polígono del vaso</h2>
 <figure class="fig" style="margin:0">${galeriaSvg(d.escenas)}<figcaption class="fuente">Una imagen por escena, mismo encuadre para comparar el tamaño relativo.</figcaption></figure>
 <h3>Primera escena vs. más reciente del periodo</h3>
 ${d.primero && d.ultimo && d.primero !== d.ultimo ? `<figure class="fig" style="margin:0">${comparativoSvg(d.primero, d.ultimo)}</figure>` : avisoUna}`;
@@ -105,12 +107,12 @@ ${d.primero && d.ultimo && d.primero !== d.ultimo ? `<figure class="fig" style="
 <svg viewBox="0 0 ${g.w} ${g.h}" aria-hidden="true"><path d="${g.path}" fill="rgba(34,211,238,.14)" stroke="#0e9bb5" stroke-width="2" fill-rule="evenodd"/></svg></div>
 <figcaption class="fuente">Contorno NDWI del ${esc(fecha(d.ultimo.fecha_escena))} sobre imagen del ${esc(fecha(d.textura.fechaEscena))}.</figcaption></figure>`;
         }
-        return `<h2><span class="n">3</span>Relieve y contexto satelital</h2>${img ? `<h3>Relieve 3D</h3>${img}` : ''}${ctx ? `<h3>Contexto satelital</h3>${ctx}` : ''}
+        return `<h2><span class="n">${++nSec}</span>Relieve y contexto satelital</h2>${img ? `<h3>Relieve 3D</h3>${img}` : ''}${ctx ? `<h3>Contexto satelital</h3>${ctx}` : ''}
 ${!img && !ctx ? '<div class="aviso"><b>No disponible:</b> esta presa no tiene modelo de relieve ni imagen de contexto cargados.</div>' : ''}`;
     };
 
     // ── Hoja 4: tendencia y detalle ──
-    const tendencia = () => `<h2><span class="n">4</span>Tendencia de área y perímetro</h2><figure class="fig" style="margin:0">${tendenciaSvg(d.escenas)}</figure>`;
+    const tendencia = () => `<h2><span class="n">${++nSec}</span>Tendencia de área y perímetro</h2><figure class="fig" style="margin:0">${tendenciaSvg(d.escenas)}</figure>`;
     const tabla = () => {
         const filas = d.escenas.map((e, i) => {
             const prev = i > 0 ? d.escenas[i - 1] : null;
@@ -122,17 +124,30 @@ ${!img && !ctx ? '<div class="aviso"><b>No disponible:</b> esta presa no tiene m
 <p class="fuente">Área neta (bancos expuestos excluidos) vía NDWI de Sentinel-2. Un mes ausente significa que no hubo escena confiable; nunca se registra como cero.</p>`;
     };
 
+    // ── Comparativo interanual: mismo día en años anteriores (serie normalizada) ──
+    const interanual = () => {
+        const it = d.interanual;
+        if (!it || it.filas.length === 0) return `<h2><span class="n">${++nSec}</span>Comparativo interanual</h2><div class="aviso">No hay histórico comparable para la fecha de la lectura vigente.</div>`;
+        const fechaTxt = `${String(it.dia).padStart(2, '0')}/${String(it.mes).padStart(2, '0')}`;
+        const filas = it.filas.map((f) => `<tr><td><b>${f.anio}</b></td><td>${esc(fecha(f.fecha))}${f.desfaseDias ? ` (${f.desfaseDias > 0 ? '+' : '−'}${Math.abs(f.desfaseDias)} d)` : ''}</td><td class="n">${n(f.volumen)}</td><td class="n">${n(f.elevacion, 2)}</td><td class="n">${f.pct != null ? n(f.pct) + ' %' : SD}</td><td class="n">${esc(cambio(f.difVolumen, 'Mm³'))}</td></tr>`).join('');
+        const pos = it.posicion ? `Con ${n(it.volumenHoy)} Mm³, el ${fechaTxt} de ${it.anioRef} ocupa el lugar ${it.posicion.posicion} de ${it.posicion.de} (1 = el más bajo) entre los años con dato en esa fecha.` : 'Sin volumen vigente: no se puede ubicar el año en curso frente al histórico.';
+        return `<h2><span class="n">${++nSec}</span>Comparativo interanual · mismo día (${fechaTxt})</h2><p>${esc(pos)}</p>
+<figure class="fig" style="margin:0">${interanualSvg(it)}</figure>
+<div class="tabla-wrap"><table><thead><tr><th>Año</th><th>Fecha usada</th><th class="n">Volumen (Mm³)</th><th class="n">Nivel (msnm)</th><th class="n">Llenado</th><th class="n">Hoy vs. ese año</th></tr></thead><tbody>${filas}</tbody></table></div>
+<p class="fuente">Serie normalizada: volumen y % recalculados desde la escala con la curva vigente, para comparar años aunque la curva cambió (Boquilla sept-2021, Madero jul-2021). Si el día exacto no existe se usa el dato más cercano (±3 días) y se indica el desfase. Fuente: reportes mensuales SRL 2021-2025 y lecturas operativas.</p>`;
+    };
+
     // ── Hoja 5: validación y metodología ──
     const validacion = () => {
         const v = d.validacion.filter((x) => !x.sinReferencia && x.pctCoincidencia != null);
-        if (!v.length) return `<h2><span class="n">5</span>Validación cruzada</h2><div class="aviso"><b>Sin referencia:</b> ninguna escena del periodo tiene una lectura de campo a 20 días o menos.</div>`;
+        if (!v.length) return `<h2><span class="n">${++nSec}</span>Validación cruzada</h2><div class="aviso"><b>Sin referencia:</b> ninguna escena del periodo tiene una lectura de campo a 20 días o menos.</div>`;
         const filas = v.map((x) => {
             const desvio = Math.abs(x.pctCoincidencia! - 100);
             const marca = desvio <= 5 ? '✓ coincide' : desvio <= UMBRAL_DESVIO_PCT ? '△ revisar' : '✕ desvío alto';
             return `<tr><td><b>${esc(fecha(x.fecha_escena))}</b></td><td class="n">${n(x.areaSatelite)}</td><td class="n">${n(x.areaEsperadaKm2)}</td><td class="n">${n(x.pctCoincidencia, 0)} %</td><td>${marca}</td>
 <td>${esc(fecha(x.fechaLectura))} (${x.diasDiferencia ?? 0} d)</td></tr>`;
         }).join('');
-        return `<h2><span class="n">5</span>Validación cruzada: satélite vs. curva oficial</h2><div class="tabla-wrap"><table><thead><tr><th>Escena</th><th class="n">Área satélite (km²)</th><th class="n">Área esperada (km²)</th><th class="n">Coincidencia</th><th>Resultado</th><th>Lectura de campo usada</th></tr></thead><tbody>${filas}</tbody></table></div>
+        return `<h2><span class="n">${++nSec}</span>Validación cruzada: satélite vs. curva oficial</h2><div class="tabla-wrap"><table><thead><tr><th>Escena</th><th class="n">Área satélite (km²)</th><th class="n">Área esperada (km²)</th><th class="n">Coincidencia</th><th>Resultado</th><th>Lectura de campo usada</th></tr></thead><tbody>${filas}</tbody></table></div>
 <p class="fuente">Área esperada = interpolación de la curva elevación–área–capacidad en la escala de la lectura de campo más cercana (máx. 20 días). 100 % = coincidencia perfecta; se marca "revisar" arriba de 5 % y "desvío alto" arriba de ${UMBRAL_DESVIO_PCT} %.</p>`;
     };
     const metodologia = () => `<h3>Metodología y limitaciones</h3>
@@ -146,7 +161,8 @@ ${!img && !ctx ? '<div class="aviso"><b>No disponible:</b> esta presa no tiene m
     if (sec.has('resumen')) bloques.push(resumen());
     if (sec.has('mapa')) bloques.push(mapa());
     if (sec.has('relieve')) bloques.push(relieve());
-    if (sec.has('tendencia') || sec.has('tabla')) bloques.push(`${sec.has('tendencia') ? (sinTendencia ? `<h2><span class="n">4</span>Tendencia</h2>${avisoUna}` : tendencia()) : ''}${sec.has('tabla') ? tabla() : ''}`);
+    if (sec.has('tendencia') || sec.has('tabla')) bloques.push(`${sec.has('tendencia') ? (sinTendencia ? `<h2><span class="n">${++nSec}</span>Tendencia</h2>${avisoUna}` : tendencia()) : ''}${sec.has('tabla') ? tabla() : ''}`);
+    if (sec.has('interanual')) bloques.push(interanual());
     if (sec.has('validacion') || sec.has('metodologia')) bloques.push(`${sec.has('validacion') ? validacion() : ''}${sec.has('metodologia') ? metodologia() : ''}`);
     const total = bloques.length;
     const pie = (i: number) => pieInforme(`Folio ${folio} · SICA-005 v${d.version}`, i + 1, total);

@@ -6,6 +6,8 @@
 // S/D = null; nunca 0. Los "avisos" se imprimen dentro del informe (nada se omite en silencio).
 // ═══════════════════════════════════════════════════════════════════════════
 import { mesLegible } from './informeBase';
+import type { MapaPresa } from './historicoPresas';
+import { construirInteranual, type Interanual } from './informeVasoInteranual';
 import { estadoEmbalse, type EstadoEmbalse } from './presaNiveles';
 
 export interface EscenaVaso {
@@ -45,13 +47,14 @@ export interface EstadoActualVaso {
     procedencia: string | null;
 }
 
-export type SeccionVaso = 'resumen' | 'mapa' | 'relieve' | 'tendencia' | 'tabla' | 'validacion' | 'metodologia';
+export type SeccionVaso = 'resumen' | 'mapa' | 'relieve' | 'tendencia' | 'tabla' | 'interanual' | 'validacion' | 'metodologia';
 export const SECCIONES_VASO: { id: SeccionVaso; etiqueta: string }[] = [
     { id: 'resumen', etiqueta: 'Resumen ejecutivo y estado actual' },
     { id: 'mapa', etiqueta: 'Evolución del polígono y comparativo' },
     { id: 'relieve', etiqueta: 'Relieve 3D y contexto satelital' },
     { id: 'tendencia', etiqueta: 'Tendencia de área y perímetro' },
     { id: 'tabla', etiqueta: 'Detalle mensual' },
+    { id: 'interanual', etiqueta: 'Comparativo interanual (mismo día, 2021 en adelante)' },
     { id: 'validacion', etiqueta: 'Validación cruzada con la curva oficial' },
     { id: 'metodologia', etiqueta: 'Metodología y limitaciones' },
 ];
@@ -116,6 +119,8 @@ export interface EntradaInformeVaso {
     estado: EstadoActualVaso;
     textura: TexturaVaso | null;
     imagenRelieve: string | null;
+    /** Serie diaria normalizada de la presa (v_presas_serie_diaria); undefined = no disponible. */
+    historico?: MapaPresa;
     logoSrlOk: boolean;
     ahora: Date;
     emisor: string | null;
@@ -145,6 +150,7 @@ export interface InformeVaso {
     avisos: AvisoVaso[];
     textura: TexturaVaso | null;
     imagenRelieve: string | null;
+    interanual: Interanual | null;
 }
 
 const f1 = (v: number) => v.toFixed(1);
@@ -161,6 +167,7 @@ export function construirDatosVaso(e: EntradaInformeVaso, config: ConfigInformeV
     const fechasOk = new Set(escenas.map((x) => x.fecha_escena));
     const validacion = e.validacion.filter((v) => fechasOk.has(v.fecha_escena));
     const huecos = mesesSinEscena(escenas);
+    const interanual = construirInteranual(e.historico, e.estado.fechaLectura, e.estado.volumen);
 
     const hallazgos: string[] = [];
     if (!hayTendencia) {
@@ -193,11 +200,12 @@ export function construirDatosVaso(e: EntradaInformeVaso, config: ConfigInformeV
     if (config.secciones.includes('relieve') && !e.imagenRelieve && !e.textura) avisos.push({ texto: 'No hay modelo de relieve ni imagen satelital de contexto disponibles para esta presa; esa sección se omite.' });
     if (config.secciones.includes('validacion') && conRef.length === 0) avisos.push({ texto: 'Ninguna escena tiene una lectura de campo a menos de 20 días: no hay validación cruzada que mostrar.' });
 
+    if (config.secciones.includes('interanual') && (!interanual || interanual.filas.length === 0)) avisos.push({ texto: 'No hay histórico 2021-2025 comparable para la fecha de la lectura vigente: el comparativo interanual se omite.' });
     return {
         nombrePresa: e.nombrePresa, config, folioPrefijo: 'VASO', ahora: e.ahora, emisor: e.emisor ?? 'SICA 005', version: e.version,
         estado: { ...e.estado, estadoEmbalse: estadoEmbalse(e.estado.pct) },
         escenas, primero, ultimo, deltaArea, deltaPerimetro,
         areaMax: areas.length ? Math.max(...areas) : null, areaMin: areas.length ? Math.min(...areas) : null,
-        huecos, validacion, hallazgos, avisos, textura: e.textura, imagenRelieve: e.imagenRelieve,
+        huecos, validacion, hallazgos, avisos, textura: e.textura, imagenRelieve: e.imagenRelieve, interanual,
     };
 }

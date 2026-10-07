@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { construirDatosVaso, filtrarEscenas, mesesSinEscena, validarConfigVaso, configVasoPorDefecto, type EntradaInformeVaso, type EscenaVaso } from './informeVasoDatos';
 import { construirHtmlVaso } from './informeVasoHtml';
+import { construirInteranual } from './informeVasoInteranual';
+import type { MapaPresa, PuntoDia } from './historicoPresas';
 
 const anillo: [number, number][] = [[-105.4, 27.5], [-105.3, 27.5], [-105.3, 27.6], [-105.4, 27.6], [-105.4, 27.5]];
 const esc = (f: string, area: number, extra: Partial<EscenaVaso> = {}): EscenaVaso => ({
@@ -55,7 +57,7 @@ describe('informe del vaso — HTML', () => {
         expect(html).not.toContain('<b>"');
         expect(html).toContain('&lt;b&gt;');
         expect(html).toMatch(/VASO-20261007-\d{4}/);
-        expect(html).toMatch(/Pág\. 1 de 5/);
+        expect(html).toMatch(/Pág\. 1 de 6/);
         expect(html).toMatch(/[▲▼■]/);
         expect(html).not.toMatch(/NaN|undefined/);
     });
@@ -63,5 +65,34 @@ describe('informe del vaso — HTML', () => {
         const html = construirHtmlVaso(construirDatosVaso(base(), { ...configVasoPorDefecto(), secciones: ['resumen'] }), { srl: '', sica: '' });
         expect((html.match(/class="pagina"/g) ?? []).length).toBe(1);
         expect(html).not.toContain('Evolución del polígono');
+    });
+});
+
+const punto = (fecha: string, alm: number | null): PuntoDia => ({ fecha, escala: alm == null ? null : 1280 + alm / 100, alm, pct: alm == null ? null : alm / 28.46, almRep: alm, pctRep: null, fuente: 'HISTORICO', calidad: 'OK' });
+const mapaHist = (): MapaPresa => new Map<string, PuntoDia>([
+    ['2023-10-07', punto('2023-10-07', 900)], ['2024-10-09', punto('2024-10-09', 400)], ['2025-10-07', punto('2025-10-07', null)], ['2026-10-07', punto('2026-10-07', 709.6)],
+]);
+
+describe('informe del vaso — interanual', () => {
+    it('mismo día con desfase, S/D si falta y posición entre años', () => {
+        const it = construirInteranual(mapaHist(), '2026-10-07', 709.6)!;
+        expect(it.filas.map((f) => [f.anio, f.desfaseDias])).toEqual([[2024, 2], [2023, 0]]);
+        expect(it.filas.find((f) => f.anio === 2023)!.difVolumen).toBeCloseTo(-190.4);
+        expect(it.posicion).toEqual({ posicion: 2, de: 3 });
+        expect(construirInteranual(undefined, '2026-10-07', 709.6)).toBeNull();
+        expect(construirInteranual(mapaHist(), null, 1)).toBeNull();
+    });
+    it('sin volumen vigente no hay posición ni diferencias', () => {
+        const it = construirInteranual(mapaHist(), '2026-10-07', null)!;
+        expect(it.posicion).toBeNull();
+        expect(it.filas.every((f) => f.difVolumen === null)).toBe(true);
+    });
+    it('el HTML trae la tabla y el aviso cuando no hay histórico', () => {
+        const con = construirHtmlVaso(construirDatosVaso(base({ historico: mapaHist() }), configVasoPorDefecto()), { srl: '', sica: '' });
+        expect(con).toMatch(/Comparativo interanual · mismo día \(07\/10\)/);
+        expect(con).toMatch(/lugar 2 de 3/);
+        expect(con).not.toMatch(/NaN|undefined/);
+        const sin = construirDatosVaso(base(), configVasoPorDefecto());
+        expect(sin.avisos.some((a) => /interanual/.test(a.texto))).toBe(true);
     });
 });

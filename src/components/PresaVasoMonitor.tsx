@@ -17,9 +17,12 @@ import './PresaVasoMonitor.css';
 import { detectaSuperficieVaso, type SuperficieVaso } from '../utils/mapaSatelital';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { usePresasHistorico } from '../hooks/usePresasHistorico';
 import InformeVasoModal from './vaso/InformeVasoModal';
 import HeroVaso from './vaso/HeroVaso';
 import SimuladorVaso from './vaso/SimuladorVaso';
+import InteranualVaso from './vaso/InteranualVaso';
+import { construirInteranual } from '../utils/informeVasoInteranual';
 import TarjetaSuperficieVaso from './vaso/SuperficieVaso';
 import './vaso/vasoNiveles.css';
 import {
@@ -143,6 +146,7 @@ interface PresaVasoMonitorProps {
 
 export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccionInicial = 'satelital', onClose }) => {
     const { profile } = useAuth();
+    const { indice: indiceHistorico, loading: cargandoSerie } = usePresasHistorico();
     const tieneNivel = data.nivel_msnm !== null;
     const tieneCurva = (data.curva?.length ?? 0) >= 2;
 
@@ -312,6 +316,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
     const frescura = calcularFrescura(data.fecha_lectura);
     const volumenBase = data.almacenamiento_mm3 ?? (tieneCurva && tieneNivel ? volumenPorElevacion(data.curva, data.nivel_msnm!) : null);
     const pctBase = data.porcentaje ?? (volumenBase !== null && data.capacidad_total ? Math.min(100, (volumenBase / data.capacidad_total) * 100) : null);
+    const interanual = useMemo(() => construirInteranual(indiceHistorico[data.presa_id], data.fecha_lectura ?? null, volumenBase), [indiceHistorico, data.presa_id, data.fecha_lectura, volumenBase]);
     const ultimaEscena = historicoVaso.length ? historicoVaso[historicoVaso.length - 1] : null;
     const fuentesSuperficie = useMemo(() => conciliaSuperficie({
         curvaKm2: tieneNivel ? areaKm2PorElevacion(data.curva, data.nivel_msnm!) : null,
@@ -799,6 +804,8 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                     fuentes={fuentesSuperficie} cargandoVisual={cargandoNdwi} errorVisual={errorNdwi} sinDeteccion={!nombreVaso} onRefrescarVisual={cargarSuperficie}
                 />
 
+                <InteranualVaso datos={interanual} cargando={cargandoSerie} />
+
                 {/* EVOLUCIÓN DEL VASO — HISTÓRICO VALIDADO (Fase 3): comparativa
                     apertura de ciclo vs. más reciente + serie de área/perímetro
                     por mes, leída de vaso_geometria_historico (poblada por el
@@ -1217,7 +1224,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                             nivel: tieneNivel ? data.nivel_msnm : null, pct: pctBase, volumen: volumenBase, capacidad: data.capacidad_total ?? null, namo,
                             deficit: deficitBajoNamo(tieneNivel ? data.nivel_msnm : null, namo), fechaLectura: data.fecha_lectura ?? null, procedencia,
                         },
-                        textura: texturaSatelital, imagenRelieve: imagenRelieveInforme ?? null, emisor: profile?.nombre ?? null,
+                        textura: texturaSatelital, imagenRelieve: imagenRelieveInforme ?? null, historico: indiceHistorico[data.presa_id], emisor: profile?.nombre ?? null,
                     }}
                 />
             )}

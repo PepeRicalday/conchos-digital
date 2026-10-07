@@ -104,14 +104,12 @@ function valorIndice(clave: ClaveIndice, fila: NdviModuloFila | undefined): numb
  *  coroplética institucional en vez de 6 mini-mapas separados. Incluye el
  *  promedio SRL (promedio simple de los 6 módulos) del mes/índice seleccionado. */
 export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas, meses, sentinelInstanceId }) => {
-    const [mesSeleccionado, setMesSeleccionado] = useState<string>('');
+    // Mes elegido por el usuario; mientras no elija, el más reciente (derivado, sin efecto que lo sincronice).
+    const [mesElegido, setMesElegido] = useState<string>('');
+    const mesSeleccionado = mesElegido || meses[meses.length - 1] || '';
     const [indiceSeleccionado, setIndiceSeleccionado] = useState<ClaveIndice>('ndvi');
     const [contornos, setContornos] = useState<Record<number, GeoJSON.Feature>>({});
     const [cargandoContornos, setCargandoContornos] = useState(true);
-
-    useEffect(() => {
-        if (meses.length && !mesSeleccionado) setMesSeleccionado(meses[meses.length - 1]);
-    }, [meses, mesSeleccionado]);
 
     useEffect(() => {
         let cancelado = false;
@@ -175,7 +173,8 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
         return mapa;
     }, [contornos]);
 
-    const wmsParams = useMemo(() => ({
+    // Ventana de 30 días fijada al montar (inicializador perezoso: no llama a Date.now() en cada render).
+    const [wmsParams] = useState(() => ({
         layers: '9_NDVI_AGRO',
         format: 'image/png',
         transparent: true,
@@ -185,7 +184,7 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
         // en CDSE (plan gratuito) — mismo fix que NdviModulosPanel.tsx/GeoMonitor.tsx.
         showlogo: false,
         time: `${new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)}/${new Date().toISOString().slice(0, 10)}`,
-    }), []);
+    }));
 
     const center: [number, number] = [28.02, -105.35];
     const conImagenFondo = esNdvi && !!sentinelInstanceId;
@@ -198,7 +197,7 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
                     <MapIcon size={16} /> PLANO GENERAL — {indiceInfo.corta} · {mesSeleccionado || 'S/D'}
                 </div>
                 <div className="plano-general-controles">
-                    <SelectorChips etiqueta="Mes (plano)" valor={mesSeleccionado} onChange={setMesSeleccionado}
+                    <SelectorChips etiqueta="Mes (plano)" valor={mesSeleccionado} onChange={setMesElegido}
                         opciones={meses.map(m => ({ valor: m, texto: m }))} />
                     <SelectorChips etiqueta="Índice" valor={indiceSeleccionado} onChange={setIndiceSeleccionado}
                         opciones={INDICES.map(i => ({ valor: i.clave, texto: i.corta, title: i.etiqueta }))} />

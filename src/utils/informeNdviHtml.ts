@@ -4,6 +4,7 @@
  * rampa agronómica (ndviRampa.ts) y S/D va en gris. Sin red ni DOM: se prueba con vitest.
  */
 import { CLASES_NDVI, NDVI_RANGO, colorNdvi } from './ndviRampa';
+import { KC_BASE, KC_MAX, KC_MIN, KC_PENDIENTE } from './kcConstantes';
 import { fmt, fmtMiles, SD } from './formato';
 import { cabeceraInforme, cssInforme, documentoHtml, esc, fechaHoraLegible, mesLegible, pieInforme } from './informeBase';
 import { svgSerieModulos, svgSparkline } from './informeNdviSvg';
@@ -199,7 +200,7 @@ ${leyenda()}
 <h2><span class="n">5</span>Metodología, glosario y limitaciones</h2>
 <div class="cols"><div><h3>Definiciones</h3><dl class="def">
 <dt>NDVI</dt><dd>Índice de vegetación de diferencia normalizada, media espacial del polígono exacto de cada módulo (Sentinel-2 L2A, Statistical API).</dd>
-<dt>Kc estimado</dt><dd>Aproximación lineal NDVI→Kc: 0.15 + 1.10·NDVI, acotado a 0.15–1.05.</dd>
+<dt>Kc estimado</dt><dd>Aproximación lineal NDVI→Kc: ${KC_BASE.toFixed(2)} + ${KC_PENDIENTE.toFixed(2)}·NDVI, acotado a ${KC_MIN.toFixed(2)}–${KC_MAX.toFixed(2)}.</dd>
 <dt>ICV (0–100)</dt><dd>Condición vegetativa: escala lineal del NDVI con piso ${p.ndviPiso.toFixed(2)} (suelo desnudo) y techo ${p.ndviTecho.toFixed(2)} (vigor pleno).</dd>
 <dt>IHR (0–100)</dt><dd>Homogeneidad de riego: 100×(1 − desviación/media) del NDVI dentro del módulo.</dd>
 <dt>IEHP (ha/hm³)</dt><dd>Hectáreas con cobertura activa (NDVI ≥ ${p.umbralActivo.toFixed(2)}) por hm³ entregado acumulado del ciclo.</dd></dl></div>

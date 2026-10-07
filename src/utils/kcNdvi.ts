@@ -24,6 +24,7 @@
 
 import { supabase } from '../lib/supabase';
 import { bboxDeModulo } from './modulosBbox';
+import { ndviAKc } from './kcConstantes';
 
 const CACHE_KEY_PREFIX = 'sica_ndvi_modulo_';
 const CACHE_VIGENCIA_MS = 24 * 3600_000;
@@ -42,12 +43,6 @@ export interface NdviModulo {
 }
 
 interface CacheEntry { valor: NdviModulo; obtenidoEnMs: number; }
-
-/** Kc ≈ 0.15 + 1.10·NDVI, acotado — ver nota metodológica arriba. */
-function ndviAKc(ndvi: number): number {
-    const kc = 0.15 + 1.10 * ndvi;
-    return Math.max(0.15, Math.min(1.05, +kc.toFixed(2)));
-}
 
 function leeCache(modulo: number): NdviModulo | null {
     try {

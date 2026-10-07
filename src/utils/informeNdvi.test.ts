@@ -4,6 +4,7 @@ import { construirHtmlNdvi } from './informeNdviHtml';
 import { contornosAAnillos, planoSvg, svgSerieModulos, svgSparkline } from './informeNdviSvg';
 import { folioInforme, mesLegible, nombreArchivo } from './informeBase';
 import { CLASES_NDVI } from './ndviRampa';
+import { KC_MAX, KC_MIN, ndviAKc } from './kcConstantes';
 
 const MODULOS = [1, 2, 3, 4, 5, 12];
 const SEP = [0.202, 0.4257, 0.5189, 0.3292, 0.343, 0.503];
@@ -157,6 +158,19 @@ describe('SVG del informe', () => {
         const d = construirDatosNdvi(filas(), ctx());
         expect(svgSerieModulos(d.meses, d.modulos, d.promedioPorMes)).toContain('<svg');
         expect(svgSerieModulos([], d.modulos, [])).toBe('');
+    });
+});
+
+describe('kcConstantes (misma fórmula que la edge function sentinel-ndvi-modulo-sync)', () => {
+    it('valores de referencia y acotado', () => {
+        expect(ndviAKc(0.202)).toBe(0.37);   // M1 sep-2026, el Kc que muestra la tarjeta
+        expect(ndviAKc(0)).toBe(KC_MIN);
+        expect(ndviAKc(2)).toBe(KC_MAX);
+        expect(ndviAKc(0.6)).toBe(0.81);
+    });
+    it('la metodología del informe imprime la fórmula desde las constantes', () => {
+        const d = construirDatosNdvi(filas(), ctx());
+        expect(construirHtmlNdvi(d, LOGOS, '')).toMatch(/0\.15 \+ 1\.10·NDVI, acotado a 0\.15–1\.05/);
     });
 });
 

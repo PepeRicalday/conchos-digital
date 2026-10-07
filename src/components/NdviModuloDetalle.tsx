@@ -50,8 +50,8 @@ export const NdviModuloDetalle: React.FC<NdviModuloDetalleProps> = ({ numeroModu
     const bbox = bboxDeModulo(numeroModulo);
 
     useEffect(() => {
+        // El estado nace en `true` y la ficha se monta al abrirse: no hace falta re-fijarlo aquí (setState síncrono en efecto).
         let cancelado = false;
-        setCargandoContorno(true);
         cargarContornosModulos()
             .then((fc) => {
                 if (cancelado || !fc) return;
@@ -65,7 +65,6 @@ export const NdviModuloDetalle: React.FC<NdviModuloDetalleProps> = ({ numeroModu
 
     useEffect(() => {
         let cancelado = false;
-        setCargandoDatos(true);
         supabase
             .from('ndvi_modulo_historico')
             .select('numero_modulo, nombre_modulo, mes, ventana_desde, ventana_hasta, ndvi_medio, ndvi_min, ndvi_max, ndvi_desv, kc_estimado, delta_ndvi, superficie_ha, fraccion_cobertura_activa, muestras_validas, nubosidad_max_pct')
@@ -110,7 +109,8 @@ export const NdviModuloDetalle: React.FC<NdviModuloDetalleProps> = ({ numeroModu
         volumenAcumuladoHm3,
     }), [numeroModulo, nombreModulo, ultimo, volumenAcumuladoHm3]);
 
-    const wmsParams = useMemo(() => ({
+    // Ventana de 30 días fijada al montar (inicializador perezoso: no llama a Date.now() en cada render).
+    const [wmsParams] = useState(() => ({
         layers: '9_NDVI_AGRO',
         format: 'image/png',
         transparent: true,
@@ -120,7 +120,7 @@ export const NdviModuloDetalle: React.FC<NdviModuloDetalleProps> = ({ numeroModu
         // en CDSE (plan gratuito) — mismo fix que NdviModulosPanel.tsx/GeoMonitor.tsx.
         showlogo: false,
         time: `${new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)}/${new Date().toISOString().slice(0, 10)}`,
-    }), []);
+    }));
 
     const chartOption = useMemo(() => ({
         backgroundColor: 'transparent',

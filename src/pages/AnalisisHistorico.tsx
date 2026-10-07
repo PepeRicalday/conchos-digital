@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Download, RefreshCw } from 'lucide-react';
+import { Download, FileText, RefreshCw } from 'lucide-react';
 import { usePresasHistorico } from '../hooks/usePresasHistorico';
 import PanelPresaHistorico from '../components/historico/PanelPresaHistorico';
+import FiltroInformeHistorico from '../components/historico/FiltroInformeHistorico';
+import { configPorDefecto, type ConfigInforme } from '../utils/informeHistoricoConfig';
 import {
     diasDelMes, etiquetaMetrica, formatearNumero, MESES_LARGO, NOMBRE_PRESA, serieMes,
     type Metrica, type TipoSerie,
@@ -38,6 +40,7 @@ const AnalisisHistorico = () => {
     const [vista, setVista] = useState<'mes' | 'anio'>('mes');
     const [metrica, setMetrica] = useState<Metrica>('volumen');
     const [serie, setSerie] = useState<TipoSerie>('normalizada');
+    const [informeAbierto, setInformeAbierto] = useState(false);
 
     // Años elegidos: del más reciente (base) al más antiguo. Por defecto, los tres más recientes con registro.
     const seleccion = useMemo(
@@ -77,6 +80,17 @@ const AnalisisHistorico = () => {
         URL.revokeObjectURL(a.href);
     };
 
+    // Config inicial del informe: refleja los filtros actuales de la página sobre los valores por defecto.
+    const configInicial = useMemo<ConfigInforme>(() => {
+        const def = configPorDefecto(anios);
+        if (!seleccion.length) return def;
+        return {
+            ...def, periodo: { ...def.periodo, tipo: 'mes', mes }, anioBase: seleccion[0], aniosComparar: seleccion.slice(1),
+            metricas: [metrica], serie,
+        };
+    }, [anios, seleccion, mes, metrica, serie]);
+    const informeDisponible = !loading && !error && anios.length > 0;
+
     const rango = anios.length ? `${anios[anios.length - 1]} – ${anios[0]}` : '';
 
     return (
@@ -91,7 +105,10 @@ const AnalisisHistorico = () => {
                             : 'Aún no hay lecturas en el archivo.'}
                     </p>
                 </div>
-                <img className="ah-logo" src="/logos/SICA005.png" alt="SICA 005" />
+                <div className="ah-hero-acc">
+                    <button type="button" className="ah-btn ah-btn--pri" onClick={() => setInformeAbierto(true)} disabled={!informeDisponible} title={informeDisponible ? 'Generar informe histórico' : 'Disponible cuando carguen los datos'}><FileText size={14} /> Informe</button>
+                    <img className="ah-logo" src="/logos/SICA005.png" alt="SICA 005" />
+                </div>
             </header>
 
             <section className="ah-controles" aria-label="Controles de comparación">
@@ -180,6 +197,10 @@ const AnalisisHistorico = () => {
                         </div>
                     </details>
                 </>
+            )}
+
+            {informeAbierto && informeDisponible && (
+                <FiltroInformeHistorico abierto onCerrar={() => setInformeAbierto(false)} anios={anios} indice={indice} inicial={configInicial} />
             )}
         </div>
     );

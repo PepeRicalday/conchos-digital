@@ -95,11 +95,11 @@ describe('HTML del informe NDVI', () => {
         const plano = conPlano ? planoSvg(d.modulos, contornosAAnillos(CONTORNO)) : '';
         return construirHtmlNdvi(d, logos, plano);
     };
-    it('documento completo de 7 páginas con folio y numeración', () => {
+    it('documento completo de 4 hojas con folio y numeración', () => {
         const h = armar();
-        expect((h.match(/class="pagina/g) ?? []).length).toBe(7);
+        expect((h.match(/class="pagina/g) ?? []).length).toBe(4);
         expect(h).toContain('NDVI-20261007-1405');
-        expect(h).toContain('Pág. 7 de 7');
+        expect(h).toContain('Pág. 4 de 4');
         expect(h).toContain('@page{size:letter');
         expect(h).toContain('print-color-adjust');
         expect(h).toContain('S R L');

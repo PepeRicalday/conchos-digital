@@ -21,7 +21,7 @@ import { NdviModuloDetalle } from './NdviModuloDetalle';
 import { PlanoGeneralModulos } from './PlanoGeneralModulos';
 import { SelectorChips } from './ndvi/SelectorChips';
 import { SparklineNdvi } from './ndvi/SparklineNdvi';
-import { generarInformeInstitucional } from '../utils/informeNdviInstitucional';
+import ConfigInformeNdviModal from './ndvi/ConfigInformeNdviModal';
 
 // Mismo basemap CARTO oscuro y mismo criterio de fallback que GeoMonitor.tsx /
 // PlanoGeneralModulos.tsx — sin él, el WMS de NDVI (transparente) queda flotando
@@ -138,7 +138,7 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
     // elegido.
     const [mesTarjetas, setMesTarjetas] = useState<string>('');
 
-    const [generandoInforme, setGenerandoInforme] = useState(false);
+    const [informeAbierto, setInformeAbierto] = useState(false);
     const { profile } = useAuth();
 
     const recargar = useCallback(async () => {
@@ -210,17 +210,6 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
         return { hasta, mapa };
     }, [filas, meses, mesTarjetas]);
 
-    const generarInforme = useCallback(async () => {
-        setGenerandoInforme(true);
-        try {
-            await generarInformeInstitucional(filas, { emisor: profile?.nombre ?? null });
-        } catch (err) {
-            setResultadoSync(`Error al generar el informe: ${err instanceof Error ? err.message : String(err)}`);
-        } finally {
-            setGenerandoInforme(false);
-        }
-    }, [filas, profile?.nombre]);
-
     const chartOption = useMemo(() => {
         const series = MODULOS_SRL.map(numeroModulo => {
             const porMes = new Map(filas.filter(f => f.numero_modulo === numeroModulo).map(f => [f.mes, f.ndvi_medio]));
@@ -264,11 +253,11 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
                             <button
                                 type="button"
                                 className="vaso-header-3d-btn"
-                                onClick={generarInforme}
-                                disabled={generandoInforme || filas.length === 0}
-                                title="Generar informe institucional HTML (plano general + datos por módulo + promedio SRL)"
+                                onClick={() => setInformeAbierto(true)}
+                                disabled={filas.length === 0}
+                                title="Configurar y generar el informe institucional (periodo, módulos, indicadores, secciones)"
                             >
-                                <FileText size={14} /> {generandoInforme ? 'Generando…' : 'Informe institucional'}
+                                <FileText size={14} /> Informe institucional
                             </button>
                             <button
                                 type="button"
@@ -382,6 +371,8 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
                     )}
                 </div>
             </div>
+
+            <ConfigInformeNdviModal abierto={informeAbierto} onCerrar={() => setInformeAbierto(false)} filas={filas} emisor={profile?.nombre ?? null} />
 
             {moduloDetalle !== null && (
                 <NdviModuloDetalle

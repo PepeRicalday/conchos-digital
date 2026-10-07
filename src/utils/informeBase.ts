@@ -49,12 +49,13 @@ html{color-scheme:light;-webkit-print-color-adjust:exact;print-color-adjust:exac
 body{margin:0;background:var(--pantalla);color:var(--ink);font:9.5pt/1.45 "Segoe UI","Helvetica Neue",Arial,sans-serif}
 .num,td.n,th.n{font-family:Consolas,"SF Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;text-align:right}
 .sd{color:var(--sd);font-style:italic}
-.pagina{position:relative;background:var(--papel);width:100%;max-width:215.9mm;margin:12px auto;padding:14mm;min-height:250mm;display:flex;flex-direction:column;box-shadow:0 1px 8px rgba(0,0,0,.15)}
-.pagina>.cuerpo{flex:1}
+.pagina{position:relative;background:var(--papel);width:100%;max-width:${o.formato === 'a4' ? '210mm' : '215.9mm'};margin:12px auto;padding:12mm;min-height:${o.formato === 'a4' ? '287mm' : '270mm'};display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto;box-shadow:0 1px 8px rgba(0,0,0,.15)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @page{size:${hoja} portrait;margin:0}
 @media print{
   body{background:#fff}
-  .pagina{margin:0;box-shadow:none;max-width:none;width:100%;height:100vh;min-height:0;break-after:page;page-break-after:always;overflow:hidden}
+  /* Alto = una hoja; si un contenido la excede NO se recorta (fluye a la siguiente) para no perder datos en silencio. */
+  .pagina{margin:0;box-shadow:none;max-width:none;width:100%;min-height:100vh;height:auto;break-after:page;page-break-after:always}
   .pagina:last-child{break-after:auto;page-break-after:auto}
   .no-print{display:none!important}
 }

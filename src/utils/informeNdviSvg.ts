@@ -61,7 +61,7 @@ function areaAprox(a: Anillo): number {
  * Plano general con relleno opaco por clase NDVI, leyenda de escala (barra km), flecha de norte y fuente.
  * Devuelve '' si no hay contornos (el HTML muestra entonces un aviso, no un hueco silencioso).
  */
-export function planoSvg(modulos: ModuloInforme[], contornos: Contornos, w = 520, h = 680): string {
+export function planoSvg(modulos: ModuloInforme[], contornos: Contornos, w = 520, h = 500): string {
     const todos = Object.values(contornos).flat();
     if (!todos.length) return '';
     const bb = bboxComun(todos);

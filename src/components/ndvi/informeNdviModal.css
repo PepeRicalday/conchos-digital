@@ -1,0 +1,74 @@
+/* Ventana "Configurar informe NDVI". Texto ≥ 12 px · objetivos ≥ 44 px · el estado nunca depende solo del color.
+   El overlay deja libre el menú lateral fijo (left: var(--sidebar-w)); en teléfono ocupa toda la pantalla. */
+.ndvi-cfg-overlay { position: fixed; top: 0; right: 0; bottom: 0; left: var(--sidebar-w, 280px); z-index: 1200; display: flex; align-items: center; justify-content: center;
+    padding: 16px; background: rgba(2, 10, 20, 0.8); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+html[data-device="phone"] .ndvi-cfg-overlay { left: 0; padding: 0; }
+@media (max-width: 900px) { .ndvi-cfg-overlay { left: 0; } }
+.ndvi-cfg-overlay[hidden] { display: none; }
+.ndvi-cfg { width: min(1040px, 100%); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 16px;
+    background: #07121f; color: #e8eef6; font-family: 'IBM Plex Sans', system-ui, sans-serif; overflow: hidden; }
+html[data-device="phone"] .ndvi-cfg { max-height: 100dvh; height: 100dvh; border-radius: 0; }
+.ndvi-cfg:focus { outline: none; }
+.ndvi-cfg-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 20px 10px; border-bottom: 1px solid rgba(148, 163, 184, 0.17); }
+.ndvi-cfg-kicker { display: block; font: 600 12px 'JetBrains Mono', monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #8396ad; }
+.ndvi-cfg-titulo { margin: 2px 0 0; font: 800 28px 'Big Shoulders Display', 'IBM Plex Sans', sans-serif; letter-spacing: 0.03em; text-transform: uppercase; }
+.ndvi-cfg-cuerpo { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 20px; padding: 16px 20px; }
+@media (max-width: 860px) { .ndvi-cfg-cuerpo { grid-template-columns: 1fr; } }
+.ndvi-cfg-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ndvi-cfg-bloque { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ndvi-cfg-etq { font: 600 12px 'JetBrains Mono', monospace; letter-spacing: 0.08em; text-transform: uppercase; color: #8396ad; }
+.ndvi-cfg-etq em { font-style: normal; color: #b4c2d4; text-transform: none; letter-spacing: 0; }
+.ndvi-cfg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ndvi-cfg-chip { min-height: 44px; display: inline-flex; align-items: center; gap: 7px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.3);
+    background: rgba(15, 23, 42, 0.8); color: #cbd5e1; font: 600 13px 'IBM Plex Sans', sans-serif; cursor: pointer; }
+.ndvi-cfg-chip:hover { border-color: rgba(56, 189, 248, 0.6); }
+.ndvi-cfg-chip:focus-visible, .ndvi-cfg-btn:focus-visible, .ndvi-cfg-in:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.ndvi-cfg-chip[aria-pressed='true'], .ndvi-cfg-chip[aria-checked='true'] { background: rgba(56, 189, 248, 0.16); border-color: #38bdf8; color: #f1f5f9; }
+.ndvi-cfg-chip[disabled] { opacity: 0.75; cursor: default; }
+.ndvi-cfg-chip i { width: 12px; height: 12px; border-radius: 3px; background: var(--c, #38bdf8); border: 1px solid rgba(255, 255, 255, 0.5); }
+.ndvi-cfg-chip.sin-dato { border-style: dashed; color: #8396ad; }
+.ndvi-cfg-preset { min-height: 44px; display: flex; flex-direction: column; justify-content: center; text-align: left; padding: 6px 12px; border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.3); background: rgba(15, 23, 42, 0.8); color: #e8eef6; cursor: pointer; font: 600 13px 'IBM Plex Sans', sans-serif; }
+.ndvi-cfg-preset small { font-weight: 400; font-size: 12px; color: #8396ad; }
+.ndvi-cfg-preset[aria-checked='true'] { background: rgba(56, 189, 248, 0.16); border-color: #38bdf8; }
+.ndvi-cfg-preset:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.ndvi-cfg-secs { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; }
+.ndvi-cfg-check { min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.22); font-size: 13px; cursor: pointer; }
+.ndvi-cfg-check input { width: 20px; height: 20px; accent-color: #38bdf8; }
+.ndvi-cfg-in { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.3); background: rgba(15, 23, 42, 0.8); color: #e8eef6; font: 14px 'IBM Plex Sans', sans-serif; min-width: 0; flex: 1; }
+.ndvi-cfg-btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.35);
+    background: rgba(15, 23, 42, 0.85); color: #e8eef6; font: 600 14px 'IBM Plex Sans', sans-serif; cursor: pointer; }
+.ndvi-cfg-btn:hover:not([disabled]) { border-color: rgba(56, 189, 248, 0.6); }
+.ndvi-cfg-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+.ndvi-cfg-btn--pri { background: linear-gradient(180deg, #2b8fd6, #1d6fb0); border-color: transparent; }
+.ndvi-cfg-btn--icono { min-width: 44px; padding: 0; }
+/* Panel de resumen (vista viva) */
+.ndvi-cfg-viva { position: sticky; top: 0; align-self: start; display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 12px; background: rgba(255, 255, 255, 0.03); }
+.ndvi-cfg-cuenta { font: 700 26px 'Big Shoulders Display', 'IBM Plex Sans', sans-serif; letter-spacing: 0.02em; }
+.ndvi-cfg-cuenta small { font: 400 13px 'IBM Plex Sans', sans-serif; color: #b4c2d4; margin-left: 6px; }
+.ndvi-cfg-hojas { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.ndvi-cfg-hoja { aspect-ratio: 0.77; border: 1px solid rgba(232, 238, 246, 0.35); border-top: 4px solid #6B2D2D; border-radius: 3px; background: #f6f5f2; color: #1f2328; padding: 6px; font-size: 11px; line-height: 1.25; overflow: hidden; }
+.ndvi-cfg-hoja b { display: block; font-size: 11px; color: #6B2D2D; margin-bottom: 3px; }
+.ndvi-cfg-hoja span { display: block; }
+.ndvi-cfg-msgs { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.ndvi-cfg-msgs li { display: flex; gap: 6px; padding: 8px 10px; border-radius: 8px; border: 1px solid; }
+.ndvi-cfg-err li { color: #fca5a5; border-color: rgba(248, 113, 113, 0.5); background: rgba(248, 113, 113, 0.08); }
+.ndvi-cfg-avi li { color: #fcd34d; border-color: rgba(251, 191, 36, 0.45); background: rgba(251, 191, 36, 0.07); }
+.ndvi-cfg-pie { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(148, 163, 184, 0.17); background: #07121f; }
+.ndvi-cfg-resumen { margin: 0; font-size: 12.5px; color: #b4c2d4; flex: 1 1 260px; }
+.ndvi-cfg-acc { display: flex; gap: 8px; flex-wrap: wrap; }
+.ndvi-cfg-fila { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ndvi-cfg-lista { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ndvi-cfg-lista li { display: flex; gap: 6px; align-items: center; }
+.ndvi-cfg-lista .ndvi-cfg-btn:first-child { flex: 1; justify-content: flex-start; }
+/* Vista previa */
+.ndvi-cfg--previa { height: calc(100dvh - 32px); }
+.ndvi-cfg-barra { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid rgba(148, 163, 184, 0.17); }
+.ndvi-cfg-barra h2 { margin: 0; font: 700 18px 'IBM Plex Sans', sans-serif; }
+.ndvi-cfg-marco { flex: 1; min-height: 0; background: #1b2735; }
+.ndvi-cfg-marco iframe { width: 100%; height: 100%; border: 0; background: #eceae5; }
+.ndvi-cfg-estado { height: 100%; display: grid; place-content: center; text-align: center; gap: 10px; padding: 20px; color: #cbd5e1; }
+@media (prefers-reduced-motion: reduce) { .ndvi-cfg-overlay { -webkit-backdrop-filter: none; backdrop-filter: none; } }
+.ndvi-cfg .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Las filas de meses (7+) deben caber sin cortarse: chips más compactos dentro de la ventana. */
+.ndvi-cfg .ndvi-chip { padding: 0 9px; font-size: 12px; }

@@ -175,12 +175,16 @@ import { supabase } from '../lib/supabase';
  *  a otro que solo tiene meses completos. */
 export async function volumenAcumuladoPorModuloHm3(
     hastaMesInclusive: string,
+    /** Primer mes del ciclo ('AAAA-MM'): sin él se sumaba desde el inicio de la tabla y, con datos de otro ciclo, los mezclaría. */
+    desdeMesInclusive?: string,
 ): Promise<{ porModulo: Map<number, number>; ultimoMesEsParcial: boolean }> {
     const porModulo = new Map<number, number>();
-    const { data, error } = await supabase
+    let consulta = supabase
         .from('volumen_modulo_mensual_provisional')
         .select('numero_modulo, mes, volumen_miles_m3, es_mes_parcial')
         .lte('mes', hastaMesInclusive);
+    if (desdeMesInclusive) consulta = consulta.gte('mes', desdeMesInclusive);
+    const { data, error } = await consulta;
     if (error || !data) return { porModulo, ultimoMesEsParcial: false };
     for (const fila of data) {
         const acumulado = (porModulo.get(fila.numero_modulo) ?? 0) + fila.volumen_miles_m3 / 1000;

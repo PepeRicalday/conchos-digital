@@ -26,7 +26,7 @@
 .vaso-barra { position: relative; height: 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
 .vaso-barra i { display: block; height: 100%; border-radius: 999px; background: var(--c, var(--sc-sky)); transition: width 0.6s ease; }
 .vaso-barra .vaso-umbral { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(232, 238, 246, 0.55); }
-.vaso-barra-pie { display: flex; justify-content: space-between; font: 12px var(--sc-mono); color: var(--sc-t3); margin-top: -6px; }
+.vaso-barra-pie { display: flex; justify-content: space-between; font: 12px var(--sc-mono); color: var(--sc-t3); margin-top: 4px; }
 .vaso-datos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; }
 .vaso-datos dt { font: 600 12px var(--sc-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--sc-t3); }
 .vaso-datos dd { margin: 2px 0 0; font: 700 26px var(--sc-display); letter-spacing: 0.02em; color: var(--sc-t1); }
@@ -92,8 +92,15 @@
 @media (max-width: 860px) { .vaso-hero, .vaso-sim-fila { grid-template-columns: 1fr; } .vaso-datos { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 560px) {
     .vaso-card { margin-left: 12px; margin-right: 12px; padding: 14px; }
-    .vaso-hero { grid-template-columns: minmax(0, 1fr) 120px; gap: 12px; }
-    .vaso-hero-limn .pr-lim-svg { max-height: 300px; }
+    .vaso-hero { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    .vaso-hero-limn { max-width: 300px; margin: 0 auto; width: 100%; }
+    .vaso-hero-limn .pr-lim-svg { max-height: 280px; width: 100%; }
+    /* Cabecera: el botón de relieve pasa a su propia fila, sin partir el texto; el título no ocupa media pantalla. */
+    .vaso-header { flex-wrap: wrap; gap: 10px; position: static; }
+    .vaso-header .vaso-title-group { flex: 1 1 100%; min-width: 0; order: 1; }
+    .vaso-header .vaso-title-group h2 { font-size: clamp(30px, 9vw, 40px); line-height: 1; overflow-wrap: anywhere; }
+    .vaso-header .vaso-btn { order: 2; flex: 1 1 auto; white-space: nowrap; }
+    .vaso-header .vaso-close { order: 3; }
     .vaso-datos { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .vaso-barra i { transition: none; } }

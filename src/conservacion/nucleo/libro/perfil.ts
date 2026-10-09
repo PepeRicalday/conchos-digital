@@ -54,6 +54,27 @@ export interface PerfilFormato {
     readonly colPkFinal: string
     readonly colLongitud: string
   }
+  /** Ficha completa de cada tramo de la red de distribución (I.O.-1): coordenadas, hidráulica y enumeraciones. */
+  readonly fichaCanal: {
+    readonly hoja: string
+    readonly filas: RangoFilas
+    readonly colObra: string
+    readonly colNombre: string
+    readonly colPkInicial: string
+    readonly colPkFinal: string
+    readonly colLonInicial: string
+    readonly colLatInicial: string
+    readonly colLonFinal: string
+    readonly colLatFinal: string
+    readonly colGasto: string
+    readonly colVelocidad: string
+    readonly colArea: string
+    readonly colPlantilla: string
+    readonly colTirante: string
+    readonly colTalud: string
+    readonly colRevestimiento: string
+    readonly colSeccion: string
+  }
   readonly inventarioCaminos: {
     readonly hoja: string
     readonly filas: readonly number[]
@@ -146,6 +167,11 @@ export const PERFIL_PACOT_2026_27: PerfilFormato = {
     colFrecuencia: 'F', colEtiqueta: 'G', colNecesidadAnual: 'H',
   },
   inventarioCanales: { hoja: 'IO1', filas: { desde: 16, hasta: 75 }, colPkInicial: 'D', colPkFinal: 'G', colLongitud: 'J' },
+  fichaCanal: {
+    hoja: 'IO1', filas: { desde: 16, hasta: 75 }, colObra: 'A', colNombre: 'B', colPkInicial: 'D', colPkFinal: 'G',
+    colLonInicial: 'E', colLatInicial: 'F', colLonFinal: 'H', colLatFinal: 'I', colGasto: 'L', colVelocidad: 'M', colArea: 'O',
+    colPlantilla: 'P', colTirante: 'Q', colTalud: 'S', colRevestimiento: 'U', colSeccion: 'V',
+  },
   inventarioCaminos: { hoja: 'IO3', filas: [16, 18, 20, 22], colPkInicial: 'C', colPkFinal: 'F', colLongitud: 'I' },
   inventarioEstructuras: { hoja: 'IO4', filas: { desde: 14, hasta: 398 }, colId: 'A', colTipo: 'C', colPk: 'D' },
   calendarioMensual: {

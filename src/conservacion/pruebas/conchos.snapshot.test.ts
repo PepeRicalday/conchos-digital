@@ -177,10 +177,34 @@ describe.skipIf(!hay)('Conchos · reglas implementadas contra datos reales', () 
     expect(hall('MAQ-012').find((x) => x.id.endsWith(':concentracion'))?.severidad).toBe('informativa')
   })
 
-  it('el informe no declara un "aprobado": resume hallazgos y la cobertura real de reglas (16 de 52)', () => {
-    expect(inf.coberturaReglas).toMatchObject({ implementadas: 16, totales: 52, ejecutadas: 16 })
-    expect(inf.resumen.hallazgos).toBe(323)
-    expect(inf.resumen.alta + inf.resumen.media + inf.resumen.informativa).toBe(323)
+  it('INV-005 · 4 pares de latitudes capturadas con una longitud (…°O) y 1 suelta; 2 con segundos = 60; los extremos contiguos coinciden (C-INV-005)', () => {
+    const h = hall('INV-005')
+    expect(inf.resultados.find((x) => x.reglaId === 'INV-005')?.cobertura).toMatchObject({ revisados: 240, identificados: 240 })
+    const hem = h.filter((x) => x.id.endsWith(':hemisferio')).map((x) => x.id).sort()
+    expect(hem).toEqual(['INV-005:IO1!F27:hemisferio', 'INV-005:IO1!F50:hemisferio', 'INV-005:IO1!F59:hemisferio', 'INV-005:IO1!F74:hemisferio',
+      'INV-005:IO1!I26:hemisferio', 'INV-005:IO1!I49:hemisferio', 'INV-005:IO1!I58:hemisferio'])
+    expect(h.filter((x) => x.id.endsWith(':hemisferio')).every((x) => x.severidad === 'alta')).toBe(true)
+    expect(h.filter((x) => x.id.endsWith(':segundos_60')).map((x) => x.severidad)).toEqual(['informativa', 'informativa'])
+    expect(h.some((x) => x.id.endsWith(':discontinuidad'))).toBe(false)
+  })
+
+  it('INV-006 · A = d(b+z·d) y Q = A·V concilian en los 60 tramos de IO1 (C-INV-009 no se reproduce con tolerancia de captura)', () => {
+    const r = inf.resultados.find((x) => x.reglaId === 'INV-006')
+    expect(r?.estado).toBe('superada')
+    expect(r?.cobertura).toMatchObject({ revisados: 60, identificados: 60 })
+  })
+
+  it('INV-007 · 3 valores fuera de enumeración: TRAPECIOIDAL (60), CANCRETO (1) y un PK con espacio "K- 48+000"', () => {
+    const h = hall('INV-007')
+    expect(h.map((x) => x.id).sort()).toEqual(['INV-007:IO1!G:k--48+000', 'INV-007:IO1!U:cancreto', 'INV-007:IO1!V:trapecioidal'])
+    expect(h.every((x) => x.severidad === 'informativa' && x.origen === 'pacot')).toBe(true)
+    expect(h.find((x) => x.id.endsWith('trapecioidal'))?.titulo).toContain('60 registros')
+  })
+
+  it('el informe no declara un "aprobado": resume hallazgos y la cobertura real de reglas (19 de 52)', () => {
+    expect(inf.coberturaReglas).toMatchObject({ implementadas: 19, totales: 52, ejecutadas: 19 })
+    expect(inf.resumen.hallazgos).toBe(335)
+    expect(inf.resumen.alta + inf.resumen.media + inf.resumen.informativa).toBe(335)
   })
 
   it('es determinista sobre el libro real', () => {

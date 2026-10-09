@@ -69,12 +69,27 @@ export interface PerfilFormato {
   }
   /** Hojas donde se revisan sumas de programa y presupuesto. */
   readonly hojasPrograma: readonly string[]
+  /** Cuadros de presupuesto: filas de importe, suma de obra, complementos y total (DYP-013). */
+  readonly presupuestos: readonly CuadroPresupuesto[]
   /** De dónde sale la unidad de cada columna en cada hoja (DYP-007). */
   readonly unidades: {
     readonly hojas: readonly PerfilUnidadesHoja[]
     /** Hojas cuyas fórmulas se revisan. */
     readonly hojasAEvaluar: readonly string[]
   }
+}
+
+export interface CuadroPresupuesto {
+  readonly hoja: string
+  /** Columna donde cada fila dice su unidad; las filas de importe llevan "$". */
+  readonly colUnidad: string
+  readonly primeraFila: number
+  /** Fila "Suma de obra": debe sumar todas las filas de importe del cuadro. */
+  readonly filaObra: number
+  /** Adquisiciones, indirectos y rehabilitación de maquinaria. */
+  readonly filasComplementos: readonly number[]
+  /** Fila "Suma de importes" o "Total presupuesto": obra + complementos. */
+  readonly filaTotal: number
 }
 
 /** La unidad de una celda es fija, la dice otra columna de su misma fila, o no aplica (frecuencias, precios, etiquetas). */
@@ -104,6 +119,13 @@ export const PERFIL_PACOT_2026_27: PerfilFormato = {
   inventarioCaminos: { hoja: 'IO3', filas: [16, 18, 20, 22], colPkInicial: 'C', colPkFinal: 'F', colLongitud: 'I' },
   inventarioEstructuras: { hoja: 'IO4', filas: { desde: 14, hasta: 398 }, colId: 'A', colTipo: 'C', colPk: 'D' },
   hojasPrograma: ['PO-2', 'PO-2C', '2PA', '2PAC', '2PAAB', 'UM1', 'PUM1'],
+  presupuestos: [
+    { hoja: 'PO-2', colUnidad: 'B', primeraFila: 14, filaObra: 104, filasComplementos: [105, 106, 107], filaTotal: 108 },
+    { hoja: 'PO-2C', colUnidad: 'B', primeraFila: 14, filaObra: 104, filasComplementos: [105, 106, 107], filaTotal: 108 },
+    { hoja: '2PA', colUnidad: 'B', primeraFila: 14, filaObra: 102, filasComplementos: [103, 104, 105], filaTotal: 106 },
+    { hoja: '2PAC', colUnidad: 'B', primeraFila: 14, filaObra: 102, filasComplementos: [103, 104, 105], filaTotal: 106 },
+    { hoja: '2PAAB', colUnidad: 'B', primeraFila: 14, filaObra: 102, filasComplementos: [103, 104, 105], filaTotal: 106 },
+  ],
   unidades: {
     hojasAEvaluar: ['PO-2', 'PO-2C', '3DND'],
     hojas: [

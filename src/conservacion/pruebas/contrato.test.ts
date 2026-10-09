@@ -81,14 +81,14 @@ describe('motor', () => {
   it('sin libro, las reglas que lo requieren se informan como no ejecutadas y las puras como "sin datos": nada se aprueba', () => {
     const inf = ejecutar({ ...entrada, libro: null })
     expect(inf.reglasNoEjecutadas.map((r) => r.id)).toContain('MAQ-003')
-    expect(inf.reglasNoEjecutadas).toHaveLength(10) // las 10 reglas que leen el libro
+    expect(inf.reglasNoEjecutadas).toHaveLength(11) // las 11 reglas que leen el libro
     expect(inf.resultados.every((r) => r.estado === 'no_evaluable' && r.motivo)).toBe(true)
     expect(inf.reglasSinDatos).toEqual(['DYP-014', 'DYP-015', 'DYP-018'])
     expect(inf.resumen.hallazgos).toBe(0)
     expect(inf.baseValores).toBe('sin_libro')
   })
 
-  it('la cobertura de reglas deja explícito que 13 de 52 no certifican un programa', () => {
+  it('la cobertura de reglas deja explícito que 14 de 52 no certifican un programa', () => {
     const inf = ejecutar(entrada)
     expect(inf.coberturaReglas).toMatchObject({ implementadas: REGLAS_IMPLEMENTADAS.length, totales: 52 })
   })

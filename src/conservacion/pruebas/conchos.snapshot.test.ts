@@ -127,15 +127,39 @@ describe.skipIf(!hay)('Conchos · reglas implementadas contra datos reales', () 
     expect(r?.pendientes.join(' ')).toMatch(/29 fórmulas con producto o cociente/)
   })
 
+  it('DYP-013 · totales de PO-2, PO-2C, 2PA y 2PAAB: filas de importe omitidas, término no aditivo y participaciones (C-DYP-P08/P09/P10/P11)', () => {
+    const h = hall('DYP-013')
+    expect(h.map((x) => x.id)).toEqual([
+      'DYP-013:PO-2!fila104:obra:omite-20_22_25_27_30_32_35_37_46_58_61_64_67_71_74_77_80', // P08: presas, pozos, bombeo, tuberías y drenaje
+      'DYP-013:PO-2!fila108:total:omite-107', // P09: rehabilitación de maquinaria
+      'DYP-013:PO-2C!fila104:obra:omite-46',
+      'DYP-013:PO-2C!fila108:total:omite-107',
+      'DYP-013:2PA!C106:termino_no_aditivo', // P10: C105/C102*100 dentro del total
+      'DYP-013:2PA!fila106:participacion', // P11: 12 columnas
+      'DYP-013:2PAAB!fila106:participacion', // P11: H106
+    ])
+    // Todo es fragilidad latente: las filas omitidas y C105 están en blanco o en cero (la auditoría: "sin importe vigente")
+    expect(h.filter((x) => x.severidad === 'alta')).toHaveLength(0)
+    expect(h.filter((x) => x.severidad === 'media')).toHaveLength(5)
+    expect(h.slice(0, 5).every((x) => x.limites.join(' ').length > 0)).toBe(true)
+    expect(h[0]?.detalle).toContain('fragilidad latente')
+    expect(h[0]?.titulo).toContain('17 fila(s)')
+    expect(h[0]?.detalle).toContain('26 columna(s)') // C, E y los meses con fórmula vertical
+    expect(h[0]?.detalle).toContain('20 (Reparación obra civil)') // cada fila omitida se nombra con su rubro
+    expect(h[5]?.referencias).toHaveLength(6) // muestra de las 12 columnas
+    expect(h[5]?.titulo).toContain('12 columna(s)')
+    expect(h[6]?.referencias).toEqual(['2PAAB!H106'])
+  })
+
   it('DYP-014, DYP-015 y DYP-018 quedan "sin datos": Conchos no trae APU (Dt_Maq vacío) ni ejecución; no se dan por superadas', () => {
     expect(inf.reglasSinDatos).toEqual(['DYP-014', 'DYP-015', 'DYP-018'])
     expect(inf.resultados.filter((r) => r.estado === 'no_evaluable').every((r) => (r.motivo ?? '').length > 20)).toBe(true)
   })
 
-  it('el informe no declara un "aprobado": resume hallazgos y la cobertura real de reglas (13 de 52)', () => {
-    expect(inf.coberturaReglas).toMatchObject({ implementadas: 13, totales: 52, ejecutadas: 13 })
-    expect(inf.resumen.hallazgos).toBe(310)
-    expect(inf.resumen.alta + inf.resumen.media + inf.resumen.informativa).toBe(310)
+  it('el informe no declara un "aprobado": resume hallazgos y la cobertura real de reglas (14 de 52)', () => {
+    expect(inf.coberturaReglas).toMatchObject({ implementadas: 14, totales: 52, ejecutadas: 14 })
+    expect(inf.resumen.hallazgos).toBe(317)
+    expect(inf.resumen.alta + inf.resumen.media + inf.resumen.informativa).toBe(317)
   })
 
   it('es determinista sobre el libro real', () => {

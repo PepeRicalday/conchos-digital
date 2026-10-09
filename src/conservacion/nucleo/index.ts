@@ -17,6 +17,7 @@ export { calcularHorasEfectivas, calcularNm, maquinasPorUmbral } from './reglas/
 export { analizarFilaFrecuencia } from './reglas/dyp'
 export { balanceTipo } from './reglas/balance'
 export { referenciasDeFormula, esSumaOResta } from './reglas/unidades'
+export { terminosDeFormula, clasificarFormulaTotal, compararConjuntos } from './reglas/presupuesto'
 export { cadenaPU, jornalCuadrilla } from './reglas/precios'
 export type { ApuDeclarado } from './reglas/precios'
 export { avancePorcentual, clasificarIndice, indiceSobreDnmacn } from './reglas/seguimiento'

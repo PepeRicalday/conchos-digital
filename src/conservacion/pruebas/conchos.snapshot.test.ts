@@ -13,7 +13,7 @@ import type { Hallazgo, InformeEjecucion } from '../nucleo'
 const carpeta = process.env.CONCHOS_EVIDENCIAS ?? path.resolve(process.cwd(), '../Conservacion/Skill/ejemplo_Conchos/evidencias')
 const hay = existsSync(path.join(carpeta, 'data.json')) && existsSync(path.join(carpeta, 'manifest.json'))
 
-describe.skipIf(!hay)('Conchos · reglas del primer corte contra datos reales', () => {
+describe.skipIf(!hay)('Conchos · reglas implementadas contra datos reales', () => {
   let inf: InformeEjecucion
   const hall = (regla: string): readonly Hallazgo[] => inf.resultados.filter((r) => r.reglaId === regla).flatMap((r) => r.hallazgos)
   const sufijo = (h: Hallazgo): string => h.id.split(':').slice(-1)[0] ?? ''
@@ -97,10 +97,28 @@ describe.skipIf(!hay)('Conchos · reglas del primer corte contra datos reales', 
     expect(cuenta('TRV-004', 'termino_repetido')).toBe(36)
   })
 
-  it('el informe no declara un "aprobado": resume hallazgos y la cobertura real de reglas (8 de 52)', () => {
-    expect(inf.coberturaReglas).toMatchObject({ implementadas: 8, totales: 52, ejecutadas: 8 })
-    expect(inf.resumen.hallazgos).toBe(300)
-    expect(inf.resumen.alta + inf.resumen.media + inf.resumen.informativa).toBe(300)
+  it('MAQ-006 · 8 tipos con necesidad: faltante de 1 tractor agrícola con 0.48 que el umbral no justifica; K68 constante (C-MAQ-10)', () => {
+    expect(inf.resultados.find((x) => x.reglaId === 'MAQ-006')?.cobertura).toMatchObject({ revisados: 8, identificados: 8 })
+    expect(hall('MAQ-006').map((h) => h.id).sort()).toEqual(['MAQ-006:B Maq!D55:faltante', 'MAQ-006:B Maq!E51:sobrante', 'MAQ-006:B Maq!K68:total'])
+    const f = hall('MAQ-006').find((h) => sufijo(h) === 'faltante')
+    expect([f?.esperado, f?.observado, f?.severidad, f?.origen]).toEqual(['0', '1', 'media', 'pacot'])
+    const t = hall('MAQ-006').find((h) => sufijo(h) === 'total')
+    expect([t?.esperado, t?.observado, t?.diferencia]).toEqual(['2', '1', '-1'])
+    expect(t?.detalle).toContain('constante')
+    // El sobrante por conteo (3 existentes frente a 2 requeridas) incluye unidades en mal estado y baja: es informativo y de la norma
+    const so = hall('MAQ-006').find((h) => sufijo(h) === 'sobrante')
+    expect([so?.severidad, so?.origen]).toEqual(['informativa', 'norma'])
+  })
+
+  it('DYP-014, DYP-015 y DYP-018 quedan "sin datos": Conchos no trae APU (Dt_Maq vacío) ni ejecución; no se dan por superadas', () => {
+    expect(inf.reglasSinDatos).toEqual(['DYP-014', 'DYP-015', 'DYP-018'])
+    expect(inf.resultados.filter((r) => r.estado === 'no_evaluable').every((r) => (r.motivo ?? '').length > 20)).toBe(true)
+  })
+
+  it('el informe no declara un "aprobado": resume hallazgos y la cobertura real de reglas (12 de 52)', () => {
+    expect(inf.coberturaReglas).toMatchObject({ implementadas: 12, totales: 52, ejecutadas: 12 })
+    expect(inf.resumen.hallazgos).toBe(303)
+    expect(inf.resumen.alta + inf.resumen.media + inf.resumen.informativa).toBe(303)
   })
 
   it('es determinista sobre el libro real', () => {

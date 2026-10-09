@@ -1,6 +1,8 @@
 import type { Parametros } from '../parametros/catalogo'
 import type { VistaLibro } from '../libro/vista'
 import type { PerfilFormato } from '../libro/perfil'
+import type { ApuDeclarado } from '../reglas/precios'
+import type { FilaAvance } from '../reglas/seguimiento'
 
 export type ClaseRegla =
   | 'MARCO NORMATIVO'
@@ -96,6 +98,10 @@ export interface ContextoEvaluacion {
   readonly perfil: PerfilFormato | null
   /** ISO. Las reglas no leen el reloj. */
   readonly fechaReferencia: string
+  /** APU declarados (de un libro o de un documento). Sin ellos, DYP-014 y DYP-015 quedan pendientes de evidencia. */
+  readonly apus?: readonly ApuDeclarado[]
+  /** Filas de seguimiento con ejecución. Sin ellas, DYP-018 queda pendiente de evidencia. */
+  readonly seguimiento?: readonly FilaAvance[]
 }
 
 export interface Regla {

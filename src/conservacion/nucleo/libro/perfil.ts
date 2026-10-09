@@ -20,6 +20,23 @@ export interface PerfilFormato {
     readonly colMaquinas: string
     readonly filaTotal: number
   }
+  /** Tabla de necesidades de maquinaria por tipo (Formato 4, filas 36-45 del formato oficial). */
+  readonly tablaMaquinaria: {
+    readonly hoja: string
+    readonly filas: RangoFilas
+    readonly filaTotal: number
+    readonly colTipo: string
+    readonly colNm: string
+    readonly colExistentes: string
+    readonly colFaltante: string
+    readonly colSobrante: string
+    readonly colBuenoRegular: string
+    readonly colMalo: string
+    readonly colBaja: string
+    readonly colPorFaltante: string
+    readonly colPorSustituir: string
+    readonly colSuma: string
+  }
   readonly necesidadMedia: {
     readonly hoja: string
     readonly filas: RangoFilas
@@ -59,6 +76,10 @@ export const PERFIL_PACOT_2026_27: PerfilFormato = {
   balanceMaquinaria: {
     hoja: 'B Maq', filas: { desde: 13, hasta: 43 }, colAnual: 'F', colRendimiento: 'H',
     colHorasNecesarias: 'I', colHorasDisponibles: 'J', colMaquinas: 'K', filaTotal: 44,
+  },
+  tablaMaquinaria: {
+    hoja: 'B Maq', filas: { desde: 51, hasta: 67 }, filaTotal: 68, colTipo: 'A', colNm: 'B', colExistentes: 'C', colFaltante: 'D',
+    colSobrante: 'E', colBuenoRegular: 'F', colMalo: 'G', colBaja: 'H', colPorFaltante: 'K', colPorSustituir: 'L', colSuma: 'M',
   },
   necesidadMedia: {
     hoja: '3DN', filas: { desde: 11, hasta: 70 }, colConcepto: 'A', colCantidadTotal: 'E',

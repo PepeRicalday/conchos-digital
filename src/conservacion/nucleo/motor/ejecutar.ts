@@ -4,6 +4,9 @@ import type { VistaLibro } from '../libro/vista'
 import { reglaDyp006 } from '../reglas/dyp'
 import { reglaInv002, reglaInv003 } from '../reglas/inv'
 import { reglaMaq003, reglaMaq004, reglaMaq005 } from '../reglas/maq'
+import { reglaMaq006 } from '../reglas/balance'
+import { reglaDyp014, reglaDyp015, type ApuDeclarado } from '../reglas/precios'
+import { reglaDyp018, type FilaAvance } from '../reglas/seguimiento'
 import { reglaTrv001, reglaTrv004 } from '../reglas/trv'
 import type { ContextoEvaluacion, Regla, Resultado } from '../tipos/regla'
 
@@ -12,14 +15,21 @@ export const REGLAS_PRIMER_CORTE: readonly Regla[] = [
   reglaMaq003, reglaMaq004, reglaMaq005, reglaDyp006, reglaTrv001, reglaInv003, reglaInv002, reglaTrv004,
 ]
 
+/** Corte 1b: reglas puras, que no necesitan leer el libro (cierran TC-05 a TC-10). */
+export const REGLAS_CORTE_1B: readonly Regla[] = [reglaMaq006, reglaDyp014, reglaDyp015, reglaDyp018]
+
+export const REGLAS_IMPLEMENTADAS: readonly Regla[] = [...REGLAS_PRIMER_CORTE, ...REGLAS_CORTE_1B]
+
 export const TOTAL_REGLAS_MATRIZ = 52
-export const VERSION_MOTOR = '0.1.0-corte1'
+export const VERSION_MOTOR = '0.2.0-corte1b'
 
 export interface EntradaEjecucion {
   readonly libro: VistaLibro | null
   readonly parametros: Parametros
   readonly perfil: PerfilFormato | null
   readonly fechaReferencia: string
+  readonly apus?: readonly ApuDeclarado[]
+  readonly seguimiento?: readonly FilaAvance[]
   /** SHA-256 de la matriz usada, calculado por quien invoca (el núcleo no accede a archivos). */
   readonly matrizSha256?: string
 }
@@ -34,15 +44,18 @@ export interface InformeEjecucion {
   readonly declaracionParametros: readonly DeclaracionParametro[]
   readonly resultados: readonly Resultado[]
   readonly reglasNoEjecutadas: ReadonlyArray<{ readonly id: string; readonly motivo: 'sin_libro' }>
+  /** Reglas que respondieron 'no evaluable' por falta de datos: se informan, no se dan por superadas. */
+  readonly reglasSinDatos: readonly string[]
   /** Deja explícito que no encontrar hallazgos no equivale a un programa correcto. */
   readonly coberturaReglas: { readonly implementadas: number; readonly totales: number; readonly ejecutadas: number }
   readonly resumen: { readonly hallazgos: number; readonly alta: number; readonly media: number; readonly informativa: number }
 }
 
 /** Ejecuta las reglas en orden determinista. Un fallo interno de una regla nunca se convierte en aprobación. */
-export function ejecutar(entrada: EntradaEjecucion, reglas: readonly Regla[] = REGLAS_PRIMER_CORTE): InformeEjecucion {
+export function ejecutar(entrada: EntradaEjecucion, reglas: readonly Regla[] = REGLAS_IMPLEMENTADAS): InformeEjecucion {
   const ctx: ContextoEvaluacion = {
     libro: entrada.libro, parametros: entrada.parametros, perfil: entrada.perfil, fechaReferencia: entrada.fechaReferencia,
+    ...(entrada.apus ? { apus: entrada.apus } : {}), ...(entrada.seguimiento ? { seguimiento: entrada.seguimiento } : {}),
   }
   const ordenadas = [...reglas].sort((a, b) => a.meta.id.localeCompare(b.meta.id))
   const resultados: Resultado[] = []
@@ -69,6 +82,7 @@ export function ejecutar(entrada: EntradaEjecucion, reglas: readonly Regla[] = R
     declaracionParametros: declararParametros(entrada.parametros),
     resultados,
     reglasNoEjecutadas: noEjecutadas,
+    reglasSinDatos: resultados.filter((r) => r.estado === 'no_evaluable').map((r) => r.reglaId),
     coberturaReglas: { implementadas: reglas.length, totales: TOTAL_REGLAS_MATRIZ, ejecutadas: resultados.filter((r) => r.estado !== 'error_interno').length },
     resumen: {
       hallazgos: todos.length,

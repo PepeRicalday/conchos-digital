@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { REGLAS_PRIMER_CORTE, TOTAL_REGLAS_MATRIZ } from '../nucleo'
+import { REGLAS_IMPLEMENTADAS, TOTAL_REGLAS_MATRIZ } from '../nucleo'
 import { PARAMETROS_POR_DEFECTO } from '../nucleo/parametros/catalogo'
 
 interface Matriz {
@@ -27,7 +27,7 @@ describe('matriz norma → regla → prueba', () => {
 
   it('cada regla implementada existe en la matriz con la misma clase y severidad base', () => {
     const sev = { alta: 'Alta', media: 'Media', informativa: 'Informativa' } as const
-    for (const r of REGLAS_PRIMER_CORTE) {
+    for (const r of REGLAS_IMPLEMENTADAS) {
       const m = matriz.reglas.find((x) => x.id === r.meta.id)
       expect(m, `${r.meta.id} no está en la matriz`).toBeDefined()
       expect(m?.clase).toBe(r.meta.clase)
@@ -36,13 +36,13 @@ describe('matriz norma → regla → prueba', () => {
   })
 
   it('los ids de reglas implementadas no se repiten', () => {
-    const ids = REGLAS_PRIMER_CORTE.map((r) => r.meta.id)
+    const ids = REGLAS_IMPLEMENTADAS.map((r) => r.meta.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
 
   it('cada caso de oro citado por una regla está definido en la matriz', () => {
     const definidos = new Set(matriz.casos_prueba.map((c) => c.id))
-    for (const r of REGLAS_PRIMER_CORTE) for (const tc of r.meta.casosOro) expect(definidos.has(tc), `${r.meta.id} cita ${tc}`).toBe(true)
+    for (const r of REGLAS_IMPLEMENTADAS) for (const tc of r.meta.casosOro) expect(definidos.has(tc), `${r.meta.id} cita ${tc}`).toBe(true)
   })
 
   it('cada parámetro tipado del catálogo existe en la matriz', () => {

@@ -291,14 +291,12 @@ export const reglaMaq012: Regla = {
       const base = { reglaId: 'MAQ-012', fuentes: [A5, A3], origen: 'pacot' as const, estadoEvidencia: 'pendiente_de_evidencia' as const, parametros: ['PAR-01', 'PAR-07'] as const }
       const cap = verificarCapacidad(porMes, p.elegibles, horasMes)
       if (cap.excesos.length > 0) {
-        const todos = verificarCapacidad(porMes, p.existentes, horasMes).excesos.length > 0
         const peor0 = cap.excesos.reduce((a, b) => (b.horas.minus(b.capacidad).greaterThan(a.horas.minus(a.capacidad)) ? b : a))
         const peor = { ...peor0, horas: peor0.horas.toDecimalPlaces(2) }
         hallazgos.push(crearHallazgo(ctx, {
           ...base, id: `MAQ-012:${p.nombre}:capacidad`, titulo: `Horas mensuales superan la capacidad del parque elegible (${p.nombre})`,
-          detalle: `${p.elegibles.toFixed()} máquina(s) en buen estado o regular × ${aCadena(horasMes)} h/mes = ${aCadena(peor.capacidad)} h; el programa pide hasta ${aCadena(peor.horas)} h en ${nombresMeses[peor.mes] ?? '?'} (${cap.excesos.length} mes(es) excedidos: ${listaMeses(nombresMeses, cap.excesos.map((e) => e.mes))}). `
-            + (todos ? `Aun contando las ${p.existentes.toFixed()} existentes el exceso persiste.` : `Contando las ${p.existentes.toFixed()} existentes (incluye las malas) cabría: confirmar si las malas pueden operar en la ventana.`),
-          severidad: todos ? 'alta' : 'media', referencias: [refParque, ...refsUm],
+          detalle: `${p.elegibles.toFixed()} máquina(s) en buen estado o regular × ${aCadena(horasMes)} h/mes = ${aCadena(peor.capacidad)} h; el programa pide hasta ${aCadena(peor.horas)} h en ${nombresMeses[peor.mes] ?? '?'} (${cap.excesos.length} mes(es) excedidos: ${listaMeses(nombresMeses, cap.excesos.map((e) => e.mes))}). Solo el parque en buen estado o regular cuenta como capacidad (criterio del usuario, 2026-10-09); de las ${p.existentes.toFixed()} existentes, el resto está en mal estado o de baja.`,
+          severidad: 'alta', referencias: [refParque, ...refsUm],
           esperado: aCadena(peor.capacidad), observado: aCadena(peor.horas), diferencia: aCadena(peor.horas.minus(peor.capacidad)),
           dimensiones: { viabilidad: 'abierta', aritmetica: 'verificada', condicion_fisica: 'pendiente' },
         }))
@@ -329,7 +327,7 @@ export const reglaMaq012: Regla = {
     }
 
     pendientes.push('Solo hay meses: la compatibilidad diaria, la disponibilidad por fecha y los operadores no se pueden verificar con este libro.')
-    pendientes.push('Capacidad elegible = máquinas en buen estado o regular; las malas se informan pero no se cuentan. Equivalencias UM-1 → balance propuestas en el perfil, pendientes de confirmar.')
+    pendientes.push('Capacidad elegible = máquinas en buen estado o regular (las malas y de baja no cuentan). Equivalencias UM-1 → balance confirmadas por el usuario.')
     return [crearResultado({
       reglaId: 'MAQ-012', hallazgos, revisados, identificados, unidad: 'filas de UM-1 con horas', pendientes,
     })]

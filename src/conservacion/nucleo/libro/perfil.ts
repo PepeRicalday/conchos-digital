@@ -91,7 +91,7 @@ export interface PerfilFormato {
     readonly meses: ReadonlyArray<{ readonly nombre: string; readonly columna: string }>
     /**
      * Tipo de máquina de UM-1 (en mayúsculas, sin acentos) → tipo de la tabla de necesidades del balance.
-     * Es una equivalencia PROPUESTA que el usuario confirma; un tipo no listado queda pendiente, no se adivina.
+     * Equivalencia confirmada por el usuario (2026-10-09); un tipo no listado queda pendiente, no se adivina.
      */
     readonly equivalenciasTipo: Readonly<Record<string, string>>
   }

@@ -40,6 +40,7 @@ function kind(k: string, texto: string): KindFormula {
   if (/^SHARED FMLA/.test(texto)) return 'desconocida' // ancla tExp: no es una expresión operativa
   if (k === 'ordinary') return 'ordinary'
   if (k === 'shared_expanded') return 'shared_expanded'
+  if (k === 'array_expanded') return 'array'
   return 'desconocida'
 }
 

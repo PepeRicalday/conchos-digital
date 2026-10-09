@@ -38,7 +38,7 @@ export const reglaTrv001: Regla = {
         formulas++
         const id = `${nombre}!${ref}`
         if (f.kind === 'desconocida') noInterpretadas.push(id)
-        else if (f.texto.includes('<<external>>')) externas.push(id)
+        else if (f.texto.includes('<<external>>') || /\[\d+\][^!]*!/.test(f.texto)) externas.push(id)
         else if (/ADDIN\(/.test(f.texto)) addin.push(id)
         else interpretables++
       }
@@ -58,7 +58,7 @@ export const reglaTrv001: Regla = {
 // TRV-004  Integridad de referencias y sumas
 // ---------------------------------------------------------------------------------------------
 
-const RE_CALIFICADA = /(?:'[^']+'|[A-Za-z0-9_.-]+)!\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?/g
+const RE_CALIFICADA = /(?:'[^']+'|\[\d+\][^!\s,;()+*/^&=<>]+|[A-Za-z0-9_.-]+)!\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?/g
 const RE_REF = /\$?([A-Za-z]{1,3})\$?(\d+)(?::\$?([A-Za-z]{1,3})\$?(\d+))?/g
 
 /** Referencias de la misma hoja (como rangos A1:B2 normalizados); descarta las calificadas con otra hoja. */

@@ -10,7 +10,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { ejecutar, normalizarDataJson, PARAMETROS_POR_DEFECTO, PERFIL_PACOT_2026_27, VistaLibro } from '../nucleo'
 import type { Hallazgo, InformeEjecucion } from '../nucleo'
 
-const carpeta = process.env.CONCHOS_EVIDENCIAS ?? path.resolve(process.cwd(), '../Conservacion/Skill/ejemplo_Conchos/evidencias')
+const carpeta = process.env.CONCHOS_EVIDENCIAS ?? path.resolve(process.cwd(), '../Conservacion/Skill/ejemplo_Conchos/evidencias/lector_xls')
 const hay = existsSync(path.join(carpeta, 'data.json')) && existsSync(path.join(carpeta, 'manifest.json'))
 
 describe.skipIf(!hay)('Conchos · reglas implementadas contra datos reales', () => {
@@ -22,7 +22,7 @@ describe.skipIf(!hay)('Conchos · reglas implementadas contra datos reales', () 
   beforeAll(() => {
     const crudo: unknown = JSON.parse(readFileSync(path.join(carpeta, 'data.json'), 'utf8'))
     const manifest = JSON.parse(readFileSync(path.join(carpeta, 'manifest.json'), 'utf8')) as { sha256: string }
-    const libro = normalizarDataJson(crudo, { sha256: manifest.sha256, extractor: 'data.json (auditoría Conchos)' })
+    const libro = normalizarDataJson(crudo, { sha256: manifest.sha256, extractor: 'lector_xls 1.0.0' })
     inf = ejecutar({ libro: new VistaLibro(libro), parametros: PARAMETROS_POR_DEFECTO, perfil: PERFIL_PACOT_2026_27, fechaReferencia: '2026-10-09' })
   })
 
@@ -79,11 +79,11 @@ describe.skipIf(!hay)('Conchos · reglas implementadas contra datos reales', () 
     expect(hall('MAQ-005').some((x) => x.id.startsWith('MAQ-005:ht:'))).toBe(false)
   })
 
-  it('TRV-001 · 4 errores #VALUE! almacenados en 2PAC; 156 fórmulas sin tratamiento operativo declaradas (C-DYP-P03)', () => {
+  it('TRV-001 · 4 errores #VALUE! almacenados en 2PAC; 52 fórmulas con libros externos declaradas; ADDIN y matriciales ya interpretadas (C-DYP-P03)', () => {
     expect(hall('TRV-001').map((x) => x.referencias[0]).sort()).toEqual(['2PAC!C102', '2PAC!C106', '2PAC!D102', '2PAC!D106'])
     const r = inf.resultados.find((x) => x.reglaId === 'TRV-001')
-    expect(r?.cobertura).toMatchObject({ identificados: 3212, revisados: 3056 })
-    expect(r?.pendientes.join(' ')).toMatch(/100 fórmulas ADDIN/)
+    expect(r?.cobertura).toMatchObject({ identificados: 3212, revisados: 3160 })
+    expect(r?.pendientes.join(' ')).not.toMatch(/ADDIN|matriciales/)
     expect(r?.pendientes.join(' ')).toMatch(/52 fórmulas con referencia a libros externos/)
   })
 

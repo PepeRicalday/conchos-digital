@@ -31,12 +31,13 @@ export function referenciasDeFormula(texto: string, hojasDelLibro: readonly stri
   const refs: RefFormula[] = []
   let externas = 0
   const nombres = [...hojasDelLibro].sort((a, b) => b.length - a.length).map(escapar)
-  const hojaAlt = ['<<[^>]+>>', "'[^']+'", ...nombres].join('|')
+  const hojaAlt = ['<<[^>]+>>', String.raw`\[\d+\][^!'\s,;()+*/^&=<>]+`, "'[^']+'", ...nombres].join('|')
   const celda = String.raw`\$?([A-Za-z]{1,3})\$?(\d+)`
   const reQual = new RegExp(`(?<![A-Za-z0-9_])(${hojaAlt})!${celda}(?::${celda})?`, 'g')
   const sinCalificadas = texto.replace(reQual, (_m, hoja: string, c1: string, f1: string, c2?: string, f2?: string) => {
-    if (hoja.startsWith('<<')) { externas++; return ' ' }
+    if (hoja.startsWith('<<') || hoja.startsWith('[')) { externas++; return ' ' }
     const nombre = hoja.startsWith("'") ? hoja.slice(1, -1) : hoja
+    if (nombre.startsWith('[')) { externas++; return ' ' }
     refs.push({ hoja: nombre, col: c1.toUpperCase(), fila: Number(f1), esRango: c2 !== undefined && (c2.toUpperCase() !== c1.toUpperCase() || f2 !== f1) })
     return ' '
   })

@@ -177,6 +177,29 @@ describe.skipIf(!hay)('Conchos · reglas implementadas contra datos reales', () 
     expect(hall('MAQ-012').find((x) => x.id.endsWith(':concentracion'))?.severidad).toBe('informativa')
   })
 
+  it('NOR-001 · declara 8 parámetros con fuente; 5 notas informativas por valores alternos de los Anexos, ninguna como error del PacOT', () => {
+    const r = inf.resultados.find((x) => x.reglaId === 'NOR-001')
+    expect(r?.cobertura).toMatchObject({ revisados: 8, identificados: 17 })
+    expect(hall('NOR-001').map((x) => x.id).sort()).toEqual(['NOR-001:PAR-01:alterno', 'NOR-001:PAR-02:alterno', 'NOR-001:PAR-03:alterno', 'NOR-001:PAR-07:alterno', 'NOR-001:PAR-17:alterno'])
+    expect(hall('NOR-001').every((x) => x.severidad === 'informativa' && x.origen === 'norma')).toBe(true)
+    expect(r?.pendientes.join(' ')).toContain('PAR-06')
+  })
+
+  it('NOR-002 · las 11 piezas del Manual y 5 del Anexo 3 que viven en el libro tienen datos; el resto se entrega aparte', () => {
+    const r = inf.resultados.find((x) => x.reglaId === 'NOR-002')
+    expect(r?.estado).toBe('superada')
+    expect(r?.cobertura).toMatchObject({ revisados: 17, identificados: 27 })
+    expect(r?.pendientes.join(' ')).toMatch(/6 documento\(s\) se entregan aparte/)
+    expect(r?.pendientes.join(' ')).toMatch(/4 documento\(s\) se entregan aparte/)
+  })
+
+  it('NOR-004 · el ciclo 2026 - 2027 es el mismo en todas las hojas (el catálogo se excluye) y los meses van de octubre a septiembre', () => {
+    const r = inf.resultados.find((x) => x.reglaId === 'NOR-004')
+    expect(r?.estado).toBe('superada')
+    expect(r?.cobertura.revisados).toBe(r?.cobertura.identificados)
+    expect(r?.pendientes.join(' ')).toContain('última semana de septiembre')
+  })
+
   it('INV-001 · T_I concilia con IO1 e IO3 (101.231 km de canal, 202.462 de caminos, 385 estructuras); el concreto de principales solo con "CANCRETO" (1.96 km)', () => {
     const r = inf.resultados.find((x) => x.reglaId === 'INV-001')
     expect(r?.cobertura).toMatchObject({ revisados: 16, identificados: 16 })
@@ -212,10 +235,10 @@ describe.skipIf(!hay)('Conchos · reglas implementadas contra datos reales', () 
     expect(h.find((x) => x.id.endsWith('trapecioidal'))?.titulo).toContain('60 registros')
   })
 
-  it('el informe no declara un "aprobado": resume hallazgos y la cobertura real de reglas (20 de 52)', () => {
-    expect(inf.coberturaReglas).toMatchObject({ implementadas: 20, totales: 52, ejecutadas: 20 })
-    expect(inf.resumen.hallazgos).toBe(338)
-    expect(inf.resumen.alta + inf.resumen.media + inf.resumen.informativa).toBe(338)
+  it('el informe no declara un "aprobado": resume hallazgos y la cobertura real de reglas (23 de 52)', () => {
+    expect(inf.coberturaReglas).toMatchObject({ implementadas: 23, totales: 52, ejecutadas: 23 })
+    expect(inf.resumen.hallazgos).toBe(343)
+    expect(inf.resumen.alta + inf.resumen.media + inf.resumen.informativa).toBe(343)
   })
 
   it('es determinista sobre el libro real', () => {

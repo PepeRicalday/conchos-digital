@@ -7,6 +7,7 @@ import { reglaMaq003, reglaMaq004, reglaMaq005 } from '../reglas/maq'
 import { reglaMaq006 } from '../reglas/balance'
 import { reglaDyp007 } from '../reglas/unidades'
 import { reglaDyp010, reglaMaq012 } from '../reglas/calendario'
+import { reglaNor001, reglaNor002, reglaNor004 } from '../reglas/normativa'
 import { reglaInv001 } from '../reglas/tarjeta'
 import { reglaInv005, reglaInv006, reglaInv007 } from '../reglas/ficha'
 import { reglaDyp013 } from '../reglas/presupuesto'
@@ -32,10 +33,13 @@ export const REGLAS_CORTE_3: readonly Regla[] = [reglaDyp010, reglaMaq012]
 /** Corte 4: ficha del inventario de canales (coordenadas, hidráulica, enumeraciones) y conciliación con T_I. */
 export const REGLAS_CORTE_4: readonly Regla[] = [reglaInv001, reglaInv005, reglaInv006, reglaInv007]
 
-export const REGLAS_IMPLEMENTADAS: readonly Regla[] = [...REGLAS_PRIMER_CORTE, ...REGLAS_CORTE_1B, ...REGLAS_CORTE_2, ...REGLAS_CORTE_3, ...REGLAS_CORTE_4]
+/** Corte 5: capa normativa (parámetros, checklist documental y calendario). */
+export const REGLAS_CORTE_5: readonly Regla[] = [reglaNor001, reglaNor002, reglaNor004]
+
+export const REGLAS_IMPLEMENTADAS: readonly Regla[] = [...REGLAS_PRIMER_CORTE, ...REGLAS_CORTE_1B, ...REGLAS_CORTE_2, ...REGLAS_CORTE_3, ...REGLAS_CORTE_4, ...REGLAS_CORTE_5]
 
 export const TOTAL_REGLAS_MATRIZ = 52
-export const VERSION_MOTOR = '0.5.1-corte4'
+export const VERSION_MOTOR = '0.6.0-corte5'
 
 export interface EntradaEjecucion {
   readonly libro: VistaLibro | null

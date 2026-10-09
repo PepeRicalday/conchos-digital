@@ -81,14 +81,16 @@ describe('motor', () => {
   it('sin libro, las reglas que lo requieren se informan como no ejecutadas y las puras como "sin datos": nada se aprueba', () => {
     const inf = ejecutar({ ...entrada, libro: null })
     expect(inf.reglasNoEjecutadas.map((r) => r.id)).toContain('MAQ-003')
-    expect(inf.reglasNoEjecutadas).toHaveLength(17) // las 17 reglas que leen el libro
-    expect(inf.resultados.every((r) => r.estado === 'no_evaluable' && r.motivo)).toBe(true)
+    expect(inf.reglasNoEjecutadas).toHaveLength(19) // las 19 reglas que leen el libro
+    // NOR-001 declara parámetros y no lee el libro: es la única que responde sin él, y solo con notas informativas
+    expect(inf.resultados.filter((r) => r.reglaId !== 'NOR-001').every((r) => r.estado === 'no_evaluable' && r.motivo)).toBe(true)
+    expect(inf.resultados.find((r) => r.reglaId === 'NOR-001')?.hallazgos.every((h) => h.severidad === 'informativa')).toBe(true)
     expect(inf.reglasSinDatos).toEqual(['DYP-014', 'DYP-015', 'DYP-018'])
-    expect(inf.resumen.hallazgos).toBe(0)
+    expect(inf.resumen.alta + inf.resumen.media).toBe(0)
     expect(inf.baseValores).toBe('sin_libro')
   })
 
-  it('la cobertura de reglas deja explícito que 20 de 52 no certifican un programa', () => {
+  it('la cobertura de reglas deja explícito que 23 de 52 no certifican un programa', () => {
     const inf = ejecutar(entrada)
     expect(inf.coberturaReglas).toMatchObject({ implementadas: REGLAS_IMPLEMENTADAS.length, totales: 52 })
   })

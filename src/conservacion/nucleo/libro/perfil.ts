@@ -122,6 +122,8 @@ export interface PerfilFormato {
     readonly colUnidad: string
     readonly colTotal: string
     readonly meses: ReadonlyArray<{ readonly nombre: string; readonly columnas: readonly string[] }>
+    /** Fila con los nombres de los meses (la primera columna de cada par). */
+    readonly filaEncabezado: number
   }
   /** Programa anual de utilización de maquinaria (UM-1): horas por tipo de máquina y mes. */
   readonly programaMaquinaria: {
@@ -135,11 +137,19 @@ export interface PerfilFormato {
     readonly colHoras: string
     readonly colTotal: string
     readonly meses: ReadonlyArray<{ readonly nombre: string; readonly columna: string }>
+    readonly filaEncabezado: number
     /**
      * Tipo de máquina de UM-1 (en mayúsculas, sin acentos) → tipo de la tabla de necesidades del balance.
      * Equivalencia confirmada por el usuario (2026-10-09); un tipo no listado queda pendiente, no se adivina.
      */
     readonly equivalenciasTipo: Readonly<Record<string, string>>
+  }
+  /** Ciclo agrícola: celda maestra y hojas que lo repiten en sus primeras filas. */
+  readonly ciclo: { readonly hoja: string; readonly celda: string; readonly filasEncabezado: number; readonly hojasCatalogo: readonly string[] }
+  /** Documentos que exige cada fuente para el programa anual, y en qué hojas del libro se encuentran. */
+  readonly documentosPrograma: {
+    readonly manual: readonly DocumentoPrograma[]
+    readonly anexo3: readonly DocumentoPrograma[]
   }
   /** Hojas donde se revisan sumas de programa y presupuesto. */
   readonly hojasPrograma: readonly string[]
@@ -151,6 +161,12 @@ export interface PerfilFormato {
     /** Hojas cuyas fórmulas se revisan. */
     readonly hojasAEvaluar: readonly string[]
   }
+}
+
+export interface DocumentoPrograma {
+  readonly nombre: string
+  /** Hojas del libro que lo contienen. Vacío: el documento se entrega aparte y no se verifica desde el libro. */
+  readonly hojas: readonly string[]
 }
 
 export interface CuadroPresupuesto {
@@ -209,18 +225,54 @@ export const PERFIL_PACOT_2026_27: PerfilFormato = {
   inventarioCaminos: { hoja: 'IO3', filas: [16, 18, 20, 22], colPkInicial: 'C', colPkFinal: 'F', colLongitud: 'I' },
   inventarioEstructuras: { hoja: 'IO4', filas: { desde: 14, hasta: 398 }, colId: 'A', colTipo: 'C', colPk: 'D' },
   calendarioMensual: {
-    hojas: ['PO-2', 'PO-2C'], filas: { desde: 18, hasta: 107 }, colConcepto: 'A', colUnidad: 'B', colTotal: 'E',
+    hojas: ['PO-2', 'PO-2C'], filas: { desde: 18, hasta: 107 }, colConcepto: 'A', colUnidad: 'B', colTotal: 'E', filaEncabezado: 13,
     meses: MESES_CICLO.map((nombre, i) => ({ nombre, columnas: [indiceACol(5 + 2 * i), indiceACol(6 + 2 * i)] })),
   },
   programaMaquinaria: {
     hoja: 'UM1', filas: { desde: 14, hasta: 37 }, colConcepto: 'A', colUnidad: 'B', colCantidad: 'C', colTipo: 'D',
-    colRendimiento: 'E', colHoras: 'F', colTotal: 'T',
+    colRendimiento: 'E', colHoras: 'F', colTotal: 'T', filaEncabezado: 13,
     meses: MESES_CICLO.map((nombre, i) => ({ nombre, columna: indiceACol(7 + i) })),
     equivalenciasTipo: {
       'EXCAVADORA L. A.': 'EXCAVADORAS', 'EXCAVADORA M. A.': 'EXCAVADORAS', 'EXCAVADORA EQUIPO LIGERO': 'EXCAVADORAS',
       RETROEXCAVADORA: 'RETROEXCAVADORA/CARGADORA', BULLDOZER: 'TRACTOR SOBRE ORUGA', MOTOCONFORMADORA: 'MOTOCONFORMADORA',
       'CAMION DE VOLTEO': 'CAMION VOLTEO',
     },
+  },
+  ciclo: { hoja: 'Resumen', celda: 'B10', filasEncabezado: 3, hojasCatalogo: ['Cat'] },
+  documentosPrograma: {
+    // Manual de Conservación 2026 §3.3: los 18 documentos del programa anual. Las hojas son la ubicación en este formato.
+    manual: [
+      { nombre: 'Inventario de obras actualizado', hojas: ['IO1', 'IO2', 'IO3', 'IO4', 'IO5a', 'IO5b', 'IO5c', 'IO5d', 'IO6', 'IO7'] },
+      { nombre: 'Distribución del presupuesto conforme al programa de recaudación', hojas: [] },
+      { nombre: 'Importe del DNMACN', hojas: ['3DN', '3DND'] },
+      { nombre: 'Porcentaje del DNMACN frente a la conservación propuesta', hojas: [] },
+      { nombre: 'Programa de actividades', hojas: ['PO-1', 'PO-2'] },
+      { nombre: 'Programa anual de obras y control de avances', hojas: ['SEG-3'] },
+      { nombre: 'Necesidades de conservación de obras longitudinales', hojas: ['DIAG-01'] },
+      { nombre: 'Necesidades de conservación de obras dispersas', hojas: ['DIAG-02'] },
+      { nombre: 'Hojas viajeras', hojas: ['SEG-3'] },
+      { nombre: 'Documento aprobatorio de los programas (firmado por los módulos)', hojas: [] },
+      { nombre: 'Tabla de necesidades medias de conservación anual (NMCA)', hojas: ['3DN'] },
+      { nombre: 'Relación de obras e importes por cooperación de usuarios', hojas: ['PO-1C', 'PO-2C', '2PAC', 'SEG-3C'] },
+      { nombre: 'Plano con el programa por administración, contrato y cooperación', hojas: [] },
+      { nombre: 'Relación de costos horarios de la maquinaria y equipo', hojas: [] },
+      { nombre: 'Programa de utilización de la maquinaria (PUM)', hojas: ['UM1', 'PUM1'] },
+      { nombre: 'Balance de la maquinaria', hojas: ['B Maq'] },
+      { nombre: 'Inventario de la maquinaria', hojas: ['IM01'] },
+      { nombre: 'Inventario de vehículos y equipo de cómputo', hojas: [] },
+    ],
+    // Anexo 3 §2.f
+    anexo3: [
+      { nombre: 'Recaudación esperada', hojas: [] },
+      { nombre: 'Tarjeta de inventario I.O.-08', hojas: ['T_I'] },
+      { nombre: 'Inventario I.O.-1 a I.O.-7', hojas: ['IO1', 'IO2', 'IO3', 'IO4', 'IO5a', 'IO5b', 'IO5c', 'IO5d', 'IO6', 'IO7'] },
+      { nombre: 'Hoja viajera SEG-3', hojas: ['SEG-3'] },
+      { nombre: 'Programa por administración, contrato y cooperación', hojas: ['PO-2', 'PO-2C'] },
+      { nombre: 'DNMACN', hojas: ['3DN', '3DND'] },
+      { nombre: 'Conservación diferida', hojas: [] },
+      { nombre: 'Tabla de frecuencias', hojas: [] },
+      { nombre: 'Plano en DWG', hojas: [] },
+    ],
   },
   hojasPrograma: ['PO-2', 'PO-2C', '2PA', '2PAC', '2PAAB', 'UM1', 'PUM1'],
   presupuestos: [

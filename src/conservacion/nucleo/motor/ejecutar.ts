@@ -6,6 +6,7 @@ import { reglaInv002, reglaInv003 } from '../reglas/inv'
 import { reglaMaq003, reglaMaq004, reglaMaq005 } from '../reglas/maq'
 import { reglaMaq006 } from '../reglas/balance'
 import { reglaDyp007 } from '../reglas/unidades'
+import { reglaDyp010, reglaMaq012 } from '../reglas/calendario'
 import { reglaDyp013 } from '../reglas/presupuesto'
 import { reglaDyp014, reglaDyp015, type ApuDeclarado } from '../reglas/precios'
 import { reglaDyp018, type FilaAvance } from '../reglas/seguimiento'
@@ -23,10 +24,13 @@ export const REGLAS_CORTE_1B: readonly Regla[] = [reglaMaq006, reglaDyp014, regl
 /** Corte 2: reglas que leen varias hojas del libro. */
 export const REGLAS_CORTE_2: readonly Regla[] = [reglaDyp007, reglaDyp013]
 
-export const REGLAS_IMPLEMENTADAS: readonly Regla[] = [...REGLAS_PRIMER_CORTE, ...REGLAS_CORTE_1B, ...REGLAS_CORTE_2]
+/** Corte 3: calendario mensual y capacidad de maquinaria. */
+export const REGLAS_CORTE_3: readonly Regla[] = [reglaDyp010, reglaMaq012]
+
+export const REGLAS_IMPLEMENTADAS: readonly Regla[] = [...REGLAS_PRIMER_CORTE, ...REGLAS_CORTE_1B, ...REGLAS_CORTE_2, ...REGLAS_CORTE_3]
 
 export const TOTAL_REGLAS_MATRIZ = 52
-export const VERSION_MOTOR = '0.3.1-corte2'
+export const VERSION_MOTOR = '0.4.0-corte3'
 
 export interface EntradaEjecucion {
   readonly libro: VistaLibro | null

@@ -8,7 +8,7 @@ import type { FuenteNorma } from '../tipos/regla'
  * constantes: son parámetros. Criterio del usuario (2026-10-09): el Manual de Conservación 2026
  * prevalece sobre los Anexos, que se informan como alternos.
  */
-export type ParId = 'PAR-01' | 'PAR-02' | 'PAR-03' | 'PAR-04' | 'PAR-05' | 'PAR-15' | 'PAR-17'
+export type ParId = 'PAR-01' | 'PAR-02' | 'PAR-03' | 'PAR-04' | 'PAR-05' | 'PAR-07' | 'PAR-15' | 'PAR-17'
 export type OrigenParametro = 'defecto_manual_2026' | 'organizacion' | 'distrito' | 'sesion'
 
 export interface ValorParametro<T> {
@@ -37,6 +37,8 @@ export interface Parametros {
   readonly decimalesCapacidad: ValorParametro<number>
   /** PAR-17 (propuesto) regla de redondeo de las horas efectivas. Por defecto, exactas. */
   readonly redondeoHoras: ValorParametro<ReglaRedondeo>
+  /** PAR-07 horas por mes para duración y capacidad mensual del programa (Anexo 3: 20 días hábiles). */
+  readonly horasMes: ValorParametro<Dec>
   /** PAR-15 tolerancia, declarada antes de comparar. */
   readonly tolerancia: ValorParametro<Tolerancia>
 }
@@ -77,6 +79,11 @@ export const PARAMETROS_POR_DEFECTO: Parametros = {
     fuente: { documento: 'Matriz norma-regla-prueba', seccion: 'PAR-17 (decisión 2026-10-09)' }, origen: 'defecto_manual_2026',
     alternos: [{ descripcion: 'truncar a entero (observado en B Maq fila 13)', fuente: { documento: A4, seccion: '3 p.7' } }],
   },
+  horasMes: {
+    id: 'PAR-07', nombre: 'Horas por mes para duración de actividades', valor: dec(167),
+    fuente: { documento: 'Anexo 3', seccion: '4.2' }, origen: 'defecto_manual_2026',
+    alternos: [{ descripcion: 'Ht anual / 12 (1,400 h → 116.67 h/mes; 1,200 h → 100 h/mes): el mes de 167 h equivale a ≈2,004 h/año', fuente: { documento: MANUAL, seccion: 'cap. 6, 6.3' } }],
+  },
   tolerancia: {
     id: 'PAR-15', nombre: 'Tolerancia numérica', valor: TOLERANCIA_EXACTA,
     fuente: { documento: 'references/validaciones.md', seccion: 'Presupuesto' }, origen: 'defecto_manual_2026', alternos: [],
@@ -103,6 +110,7 @@ export const esquemaOverrides = z.object({
   umbralAdquisicion: ov(num).optional(),
   decimalesCapacidad: ov(z.number().int().min(0).max(6)).optional(),
   redondeoHoras: ov(esquemaRedondeo).optional(),
+  horasMes: ov(num).optional(),
 }).strict()
 
 export type OverridesParametros = z.input<typeof esquemaOverrides>
@@ -132,6 +140,7 @@ export function resolverParametros(overrides?: unknown): ResolucionParametros {
     umbralAdquisicion: ajustar(p.umbralAdquisicion, o.umbralAdquisicion, (v) => dec(v as number | string)),
     decimalesCapacidad: ajustar(p.decimalesCapacidad, o.decimalesCapacidad, (v) => v as number),
     redondeoHoras: ajustar(p.redondeoHoras, o.redondeoHoras, (v) => v as ReglaRedondeo),
+    horasMes: ajustar(p.horasMes, o.horasMes, (v) => dec(v as number | string)),
   }
   return { parametros, avisos }
 }
@@ -155,7 +164,7 @@ const texto = (v: unknown): string => {
 
 /** NOR-001: lista de parámetros con valor usado, fuente y alternos. */
 export function declararParametros(p: Parametros): DeclaracionParametro[] {
-  const lista: ValorParametro<unknown>[] = [p.ht, p.eo, p.dondeEo, p.umbralAdquisicion, p.decimalesCapacidad, p.tolerancia, p.redondeoHoras]
+  const lista: ValorParametro<unknown>[] = [p.ht, p.eo, p.dondeEo, p.umbralAdquisicion, p.decimalesCapacidad, p.tolerancia, p.redondeoHoras, p.horasMes]
   return lista.map((x) => ({
     id: x.id, nombre: x.nombre,
     valor: x.id === 'PAR-15' ? `abs ${(x.valor as Tolerancia).absoluta.toFixed()}, rel ${(x.valor as Tolerancia).relativa.toFixed()}` : texto(x.valor),

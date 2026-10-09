@@ -156,10 +156,30 @@ describe.skipIf(!hay)('Conchos · reglas implementadas contra datos reales', () 
     expect(inf.resultados.filter((r) => r.estado === 'no_evaluable').every((r) => (r.motivo ?? '').length > 20)).toBe(true)
   })
 
-  it('el informe no declara un "aprobado": resume hallazgos y la cobertura real de reglas (14 de 52)', () => {
-    expect(inf.coberturaReglas).toMatchObject({ implementadas: 14, totales: 52, ejecutadas: 14 })
-    expect(inf.resumen.hallazgos).toBe(317)
-    expect(inf.resumen.alta + inf.resumen.media + inf.resumen.informativa).toBe(317)
+  it('DYP-010 · 4 filas de PO-2 cuyos meses no suman el total (ha 5.5 frente a 5; m³ con 1.25 de más; km con 752,944.25); UM-1 sin diferencias', () => {
+    const h = hall('DYP-010')
+    expect(h.map((x) => x.id).sort()).toEqual(['DYP-010:PO-2!E43:suma_meses', 'DYP-010:PO-2!E48:suma_meses', 'DYP-010:PO-2!E50:suma_meses', 'DYP-010:PO-2!E51:suma_meses'])
+    const ha = h.find((x) => x.id.endsWith('E43:suma_meses'))
+    expect([ha?.esperado, ha?.observado, ha?.diferencia]).toEqual(['5.5', '5', '-0.5'])
+    // el reparto de los meses activos es uniforme y contiguo en todas las filas: Conchos programa enero a abril en partes iguales
+    expect(h.some((x) => /no_uniforme|discontinuo/.test(x.id))).toBe(false)
+    expect(inf.resultados.find((x) => x.reglaId === 'DYP-010')?.pendientes.join(' ')).not.toMatch(/F22/)
+  })
+
+  it('MAQ-012 · 4 tipos revisados: las excavadoras superan 167 h/mes con 1 máquina elegible (305.22 h); todo el programa cae en enero-abril', () => {
+    const r = inf.resultados.find((x) => x.reglaId === 'MAQ-012')
+    expect(r?.cobertura).toMatchObject({ revisados: 4, identificados: 7 })
+    expect(hall('MAQ-012').map((x) => x.id).sort()).toEqual(['MAQ-012:Excavadoras:capacidad', 'MAQ-012:UM1:concentracion'])
+    const c = hall('MAQ-012').find((x) => x.id.endsWith(':capacidad'))
+    expect([c?.esperado, c?.observado, c?.severidad]).toEqual(['167', '305.22', 'media'])
+    expect(c?.detalle).toContain('4 mes(es) excedidos')
+    expect(hall('MAQ-012').find((x) => x.id.endsWith(':concentracion'))?.severidad).toBe('informativa')
+  })
+
+  it('el informe no declara un "aprobado": resume hallazgos y la cobertura real de reglas (16 de 52)', () => {
+    expect(inf.coberturaReglas).toMatchObject({ implementadas: 16, totales: 52, ejecutadas: 16 })
+    expect(inf.resumen.hallazgos).toBe(323)
+    expect(inf.resumen.alta + inf.resumen.media + inf.resumen.informativa).toBe(323)
   })
 
   it('es determinista sobre el libro real', () => {

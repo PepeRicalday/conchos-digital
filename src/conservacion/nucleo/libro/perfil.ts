@@ -1,3 +1,4 @@
+import { indiceACol } from '../num/a1'
 /**
  * Perfil de formato: dónde está cada dato en un libro concreto. Es DATO, no código: las reglas no
  * llevan coordenadas fijas. Hoy solo existe el perfil del PacOT 2026-27 (formato CNA DR);
@@ -67,6 +68,33 @@ export interface PerfilFormato {
     readonly colTipo: string
     readonly colPk: string
   }
+  /** Calendario mensual físico y financiero (PO-2 y PO-2C): un par administración/contrato por mes del ciclo. */
+  readonly calendarioMensual: {
+    readonly hojas: readonly string[]
+    readonly filas: RangoFilas
+    readonly colConcepto: string
+    readonly colUnidad: string
+    readonly colTotal: string
+    readonly meses: ReadonlyArray<{ readonly nombre: string; readonly columnas: readonly string[] }>
+  }
+  /** Programa anual de utilización de maquinaria (UM-1): horas por tipo de máquina y mes. */
+  readonly programaMaquinaria: {
+    readonly hoja: string
+    readonly filas: RangoFilas
+    readonly colConcepto: string
+    readonly colUnidad: string
+    readonly colCantidad: string
+    readonly colTipo: string
+    readonly colRendimiento: string
+    readonly colHoras: string
+    readonly colTotal: string
+    readonly meses: ReadonlyArray<{ readonly nombre: string; readonly columna: string }>
+    /**
+     * Tipo de máquina de UM-1 (en mayúsculas, sin acentos) → tipo de la tabla de necesidades del balance.
+     * Es una equivalencia PROPUESTA que el usuario confirma; un tipo no listado queda pendiente, no se adivina.
+     */
+    readonly equivalenciasTipo: Readonly<Record<string, string>>
+  }
   /** Hojas donde se revisan sumas de programa y presupuesto. */
   readonly hojasPrograma: readonly string[]
   /** Cuadros de presupuesto: filas de importe, suma de obra, complementos y total (DYP-013). */
@@ -101,6 +129,8 @@ export interface PerfilUnidadesHoja {
   readonly porDefecto: FuenteUnidad
 }
 
+const MESES_CICLO = ['OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE', 'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE'] as const
+
 export const PERFIL_PACOT_2026_27: PerfilFormato = {
   nombre: 'PacOT 2026-27 (formato CNA DR, SRL Unidad Conchos)',
   balanceMaquinaria: {
@@ -118,6 +148,20 @@ export const PERFIL_PACOT_2026_27: PerfilFormato = {
   inventarioCanales: { hoja: 'IO1', filas: { desde: 16, hasta: 75 }, colPkInicial: 'D', colPkFinal: 'G', colLongitud: 'J' },
   inventarioCaminos: { hoja: 'IO3', filas: [16, 18, 20, 22], colPkInicial: 'C', colPkFinal: 'F', colLongitud: 'I' },
   inventarioEstructuras: { hoja: 'IO4', filas: { desde: 14, hasta: 398 }, colId: 'A', colTipo: 'C', colPk: 'D' },
+  calendarioMensual: {
+    hojas: ['PO-2', 'PO-2C'], filas: { desde: 18, hasta: 107 }, colConcepto: 'A', colUnidad: 'B', colTotal: 'E',
+    meses: MESES_CICLO.map((nombre, i) => ({ nombre, columnas: [indiceACol(5 + 2 * i), indiceACol(6 + 2 * i)] })),
+  },
+  programaMaquinaria: {
+    hoja: 'UM1', filas: { desde: 14, hasta: 37 }, colConcepto: 'A', colUnidad: 'B', colCantidad: 'C', colTipo: 'D',
+    colRendimiento: 'E', colHoras: 'F', colTotal: 'T',
+    meses: MESES_CICLO.map((nombre, i) => ({ nombre, columna: indiceACol(7 + i) })),
+    equivalenciasTipo: {
+      'EXCAVADORA L. A.': 'EXCAVADORAS', 'EXCAVADORA M. A.': 'EXCAVADORAS', 'EXCAVADORA EQUIPO LIGERO': 'EXCAVADORAS',
+      RETROEXCAVADORA: 'RETROEXCAVADORA/CARGADORA', BULLDOZER: 'TRACTOR SOBRE ORUGA', MOTOCONFORMADORA: 'MOTOCONFORMADORA',
+      'CAMION DE VOLTEO': 'CAMION VOLTEO',
+    },
+  },
   hojasPrograma: ['PO-2', 'PO-2C', '2PA', '2PAC', '2PAAB', 'UM1', 'PUM1'],
   presupuestos: [
     { hoja: 'PO-2', colUnidad: 'B', primeraFila: 14, filaObra: 104, filasComplementos: [105, 106, 107], filaTotal: 108 },

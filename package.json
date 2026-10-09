@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "audit:e2e": "node e2e/auditoria.mjs"
+    "audit:e2e": "node e2e/auditoria.mjs",
+    "typecheck:conservacion": "tsc -p tsconfig.conservacion.json && tsc -p tsconfig.conservacion.pruebas.json",
+    "test:conservacion": "vitest run src/conservacion"
   },
   "dependencies": {
     "@fontsource/big-shoulders-display": "^5.3.0",
@@ -27,6 +29,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
+    "decimal.js": "^10.6.0",
     "dexie": "^4.3.0",
     "dexie-react-hooks": "^4.2.0",
     "echarts": "^6.0.0",
@@ -61,6 +64,7 @@
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
+    "fast-check": "^4.10.2",
     "globals": "^16.5.0",
     "playwright": "^1.63.0",
     "tailwindcss": "^4.3.3",

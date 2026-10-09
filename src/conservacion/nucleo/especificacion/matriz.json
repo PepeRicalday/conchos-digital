@@ -1,0 +1,2160 @@
+{
+  "meta": {
+    "titulo": "Matriz norma → regla → prueba · SICA Conservación (Fase 1)",
+    "fecha": "2026-10-09",
+    "estado": "especificacion_propuesta_no_motor_implementado",
+    "criterio": "Manual de Conservación 2026 prevalece sobre los Anexos; las discrepancias de Anexos se reportan como nota informativa. Horas por máquina: parámetro configurable (defecto 1,400 h).",
+    "origen": "Manuales, Anexos 3–6, Formato 4, Rendimientos 010, Catálogo PU 2026, Circular B00.3.05-014, Especificaciones 2026 y casos Conchos (informes capas 0–4).",
+    "limites": "Las cifras de ejemplo se verificaron contra los PDF originales. Las reglas se probaron sobre la extracción data.json (mismo SHA-256 que el archivo auditado); el .xls también se abrió y recalculó con LibreOffice en una copia. La Circular y las especificaciones son escaneos leídos visualmente; solo se vio 1 de 24 fichas de especificación. El Anexo 2 (actas de entrega-recepción) y el Anexo 7 (emergencias) se revisaron solo por estructura: no contienen reglas técnicas del programa. Del catálogo 2026 se leyeron la portada, antecedentes, índice, 1.1, 1.5, secciones 5–6 de DR y caminos y drenes de Temporal Tecnificado."
+  },
+  "parametros": [
+    {
+      "id": "PAR-01",
+      "nombre": "Horas efectivas disponibles por máquina (Ht)",
+      "defecto": "1,400 h/año (conservación normal)",
+      "fuente": "Manual de Conservación 2026 cap.6",
+      "alternos": [
+        "1,200 h/año (Anexo 5 §3.1; Manual ej. 6.3.2)",
+        "Bandas por estado (Anexo 5 §3.2): Nueva 2,000–1,800; Buena 1,800–1,400; Regular 1,400–1,000; Mala <1,000"
+      ],
+      "nota": "Configurable por organización. Declarar en NOR-001."
+    },
+    {
+      "id": "PAR-02",
+      "nombre": "Eficiencia operativa (Eo)",
+      "defecto": "No fijada por la norma; los ejemplos usan 0.85",
+      "fuente": "Manual de Conservación 2026 §6.3.2; Anexo 4 §3",
+      "alternos": [],
+      "nota": "Valor local con sustento (traslado y mantenimiento descontados)."
+    },
+    {
+      "id": "PAR-03",
+      "nombre": "Dónde se aplica Eo",
+      "defecto": "Nm = He / (Ht·Eo)",
+      "fuente": "Manual de Conservación 2026 §6.3.2",
+      "alternos": [
+        "horas = cantidad / (R·Eo) en UM-1 col.6 (Anexo 5)"
+      ],
+      "nota": "Aplicar una sola vez."
+    },
+    {
+      "id": "PAR-04",
+      "nombre": "Umbral de adquisición",
+      "defecto": "> 0.5 de máquina (1.56→2; 1.46→1)",
+      "fuente": "Manual de Conservación 2026 §6.3; Anexo 5 §3.1",
+      "alternos": [],
+      "nota": "No aplica a capacidad horaria."
+    },
+    {
+      "id": "PAR-05",
+      "nombre": "Decimales de capacidad",
+      "defecto": "2 decimales en Nm; existentes enteros",
+      "fuente": "Manual de Conservación 2026 §6.3",
+      "alternos": [],
+      "nota": ""
+    },
+    {
+      "id": "PAR-06",
+      "nombre": "Bandas de clasificación",
+      "defecto": "Parque: ≥100 / 85–99 / 65–84 / 30–64 / ≤29 %. Índices: ≥1.00 / 0.80–0.99 / 0.60–0.79 / ≤0.59",
+      "fuente": "Manual de Conservación 2026 §6.4, §9.4",
+      "alternos": [],
+      "nota": "Fronteras cerradas-abiertas a definir."
+    },
+    {
+      "id": "PAR-07",
+      "nombre": "Horas por mes para duración de actividades",
+      "defecto": "167 h/mes = 20 días hábiles",
+      "fuente": "Anexo 3 §4.2",
+      "alternos": [],
+      "nota": "Incoherente con Ht anual; el programa y el balance usan bases distintas."
+    },
+    {
+      "id": "PAR-08",
+      "nombre": "Frecuencia",
+      "defecto": "F = V/T con T en años agrícolas; exacta (1/T)",
+      "fuente": "Manual de Conservación 2026 §5.6",
+      "alternos": [
+        "Tabla Anexo 3 'veces al año' (valores 4, 10, 5…)"
+      ],
+      "nota": "No interpretar la etiqueta."
+    },
+    {
+      "id": "PAR-09",
+      "nombre": "Vida económica y valor de rescate",
+      "defecto": "10,000 HE; 7 años en conservación (1,400 HE/año); Vr 10 % (ejemplo)",
+      "fuente": "Manual de Conservación 2026 §6.1; Anexo 5 Apéndice C",
+      "alternos": [],
+      "nota": "Vr del ejemplo; local."
+    },
+    {
+      "id": "PAR-10",
+      "nombre": "Cargos del precio unitario",
+      "defecto": "Indirecto 23 %; financiamiento 2.95 %; utilidad 6 %; adicional 0.5 % (ejemplos)",
+      "fuente": "Manual de Conservación 2026 §7.7",
+      "alternos": [],
+      "nota": "Ejemplo, no norma. Usar los del APU."
+    },
+    {
+      "id": "PAR-11",
+      "nombre": "Decimales de presentación",
+      "defecto": "SEG-1: km 3 decimales; SEG-2: importes en pesos sin decimales",
+      "fuente": "Anexo 3; Anexo 6",
+      "alternos": [],
+      "nota": "Tolerancia = precisión del campo."
+    },
+    {
+      "id": "PAR-12",
+      "nombre": "Calendario",
+      "defecto": "Ciclo agrícola oct–sep; programa ago–sep; envío última semana de sep",
+      "fuente": "Manual de Conservación 2026 §3.3, §5.4",
+      "alternos": [
+        "En el transcurso de sep (Anexo 3)"
+      ],
+      "nota": ""
+    },
+    {
+      "id": "PAR-13",
+      "nombre": "Ciclos de referencia",
+      "defecto": "Revestimiento 40–50 años; mecanismos 15–20; drenes 3–5; terracerías de caminos 10; diferida→rehabilitación >5 años",
+      "fuente": "Manual de Conservación 2026 §7.5.3, §2.2",
+      "alternos": [
+        "Revestimiento 20 años y mecanismos 10 (Manual §5.2)"
+      ],
+      "nota": "Guías estadísticas."
+    },
+    {
+      "id": "PAR-14",
+      "nombre": "Lista de documentos del programa",
+      "defecto": "Manual §3.3",
+      "fuente": "Manual de Conservación 2026 §3.3",
+      "alternos": [
+        "Anexo 3 §2.f"
+      ],
+      "nota": ""
+    },
+    {
+      "id": "PAR-15",
+      "nombre": "Tolerancia numérica",
+      "defecto": "Precisión original del campo; conteos exactos",
+      "fuente": "references/validaciones.md",
+      "alternos": [],
+      "nota": "Declarar antes de comparar."
+    },
+    {
+      "id": "PAR-16",
+      "nombre": "Año de precios del catálogo",
+      "defecto": "Catálogo General de PU 2026 (marzo 2026) sin IVA; Precios Base maquinaria 2025 con IVA",
+      "fuente": "Catálogo 2026; Anexo 09",
+      "alternos": [],
+      "nota": "Homologar IVA antes de comparar."
+    },
+    {
+      "id": "PAR-17",
+      "nombre": "Redondeo de horas efectivas",
+      "defecto": "Exacto, sin redondear; el valor capturado se compara aparte",
+      "fuente": "Decisión del usuario 2026-10-09",
+      "alternos": [
+        "Truncar a entero (observado en B Maq fila 13 de Conchos)",
+        "Redondear a 2 decimales como la capacidad Nm"
+      ],
+      "nota": "Propuesto por el Arquitecto; MAQ-003 exige declarar la regla. Las bandas de estado (MAQ-005, MAQ-007) sin frontera declarada quedan sin asignar con un hallazgo informativo."
+    }
+  ],
+  "reglas": [
+    {
+      "id": "NOR-001",
+      "clase": "MARCO NORMATIVO",
+      "regla": "Parámetros y fuente declarados antes de auditar (capa 0)",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 cap.6 (Ht=1,400), cap.9.4",
+        "Anexo 5 §3.1 (Ht=1,200)",
+        "Respuesta del usuario 2026-10-09: Manual prevalece"
+      ],
+      "formula": "Para cada parámetro con valores distintos entre fuentes: valor_usado = Manual 2026 salvo que la organización/Distrito documente otro.",
+      "parametros": [
+        "PAR-01",
+        "PAR-02",
+        "PAR-03",
+        "PAR-04",
+        "PAR-05",
+        "PAR-06",
+        "PAR-07",
+        "PAR-08",
+        "PAR-09",
+        "PAR-10",
+        "PAR-11",
+        "PAR-12",
+        "PAR-13",
+        "PAR-14",
+        "PAR-15",
+        "PAR-16",
+        "PAR-17"
+      ],
+      "entradas": [
+        "Perfil de la organización",
+        "Declaración de parámetros de la auditoría"
+      ],
+      "prueba": "El informe lista cada parámetro con valor usado, fuente y valor alterno de los Anexos. Prueba superada si ninguno se usa sin declarar.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo (declaración) · no certifica el valor local",
+      "nota_discrepancia": "Los Anexos discrepantes se reportan como nota informativa, nunca como error del PacOT.",
+      "hallazgos_conchos": [],
+      "casos_prueba": []
+    },
+    {
+      "id": "NOR-002",
+      "clase": "MARCO NORMATIVO",
+      "regla": "Checklist documental del programa anual",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §3.3 (lista de 18 documentos)",
+        "Anexo 3 §2.f (lista de 11 documentos)"
+      ],
+      "formula": "Presencia(documento) ∈ {presente, ausente, no aplica justificado} por cada documento exigido por la fuente aplicable.",
+      "parametros": [
+        "PAR-14"
+      ],
+      "entradas": [
+        "Archivos recibidos",
+        "Índice del PacOT"
+      ],
+      "prueba": "Cruce de la lista del Manual (inventario, distribución de presupuesto, importe DNMACN, % vs propuesto, programa de actividades, avance, necesidades longitudinales y dispersas, hojas viajeras, aprobatorio, NMCA, cooperación, plano, costos horarios, PUM, balance, inventario de maquinaria, vehículos/cómputo) y de la del Anexo 3 (recaudación esperada, tarjeta I.O.-08, inventario I.O.1–7, SEG-3, programa por administración/cooperación, DNMACN, conservación diferida, tabla de frecuencias, plano DWG). Se informa cada lista por separado.",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo (presencia)",
+      "nota_discrepancia": "Las dos listas no coinciden: Manual incluye PUM/balance/inventario de maquinaria; Anexo 3 incluye recaudación, I.O.-08, diferida, tabla de frecuencias y DWG. Se usa la del Manual y se anota la del Anexo.",
+      "hallazgos_conchos": [],
+      "casos_prueba": []
+    },
+    {
+      "id": "NOR-003",
+      "clase": "MARCO NORMATIVO",
+      "regla": "Elegibilidad documental separada del comprobador técnico",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Circular B00.3.05.-014 (16-abr-2026), precisa numeral 9.1 de los Lineamientos 2026"
+      ],
+      "formula": "Elegible_DR = título de concesión de aguas vigente (o aprovechamiento acreditado) ∧ (título de concesión de infraestructura vigente ∨ acuse de prórroga).",
+      "parametros": [],
+      "entradas": [
+        "Copia de títulos/acuses"
+      ],
+      "prueba": "Módulo aparte. No se mezcla con las pruebas técnicas ni se infiere de datos del PacOT. Distritos de Temporal Tecnificado y Unidades de Riego: el requisito de infraestructura no aplica.",
+      "severidad": "Informativa",
+      "puede_cerrar": "Sustentada documentalmente (copia del título/acuse)",
+      "nota_discrepancia": "La Circular es una precisión de elegibilidad, no regla técnica; fuera del alcance de las pruebas DNMACN/programa/maquinaria.",
+      "hallazgos_conchos": [],
+      "casos_prueba": []
+    },
+    {
+      "id": "NOR-004",
+      "clase": "MARCO NORMATIVO",
+      "regla": "Calendario normativo del proceso",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §3.3, §4.1, §4.3.1, §5.3, §5.4, §9.2",
+        "Anexo 3 §2",
+        "Anexo 6 §2"
+      ],
+      "formula": "Fechas: ciclo agrícola oct–sep; programa se elabora ago–sep; envío última semana de sep (Manual) / durante sep (Anexo 3); DNMACN antes del ciclo O-I; inventario actualizado ≥1 vez al año; DNMACN se actualiza ≥ cada 3 años; informes mensuales; comprobantes ≥5 años.",
+      "parametros": [
+        "PAR-12"
+      ],
+      "entradas": [
+        "Fechas del diagnóstico, del programa y de aprobación",
+        "Año-mes de cada columna"
+      ],
+      "prueba": "Fecha(diagnóstico) < inicio del ciclo; fecha(inventario) dentro del año previo; fecha de envío en la ventana; meses mapeados a año real.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo (fechas) · sustentada documentalmente (acuse)",
+      "nota_discrepancia": "Manual: 'última semana de septiembre'; Anexo 3: 'en el transcurso de septiembre'. Prevalece el Manual.",
+      "hallazgos_conchos": [
+        "C-DIA-13"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "NOR-005",
+      "clase": "MARCO NORMATIVO",
+      "regla": "Categoría de conservación: normal, diferida o rehabilitación",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §2.2, §5.8"
+      ],
+      "formula": "Categoría = normal si ciclo vigente; diferida si no realizada en el año debiendo; rehabilitación si diferida >5 años. DNMACN costea solo conservación normal.",
+      "parametros": [
+        "PAR-13"
+      ],
+      "entradas": [
+        "Concepto",
+        "Años sin intervención",
+        "Hoja DNMACN"
+      ],
+      "prueba": "Ningún concepto de rehabilitación dentro del DNMACN de conservación normal; la diferida se reporta aparte (balance diferido).",
+      "severidad": "Media",
+      "puede_cerrar": "Aclarada por usuario / sustentada documentalmente (años sin intervención)",
+      "nota_discrepancia": "El Manual no da regla para separar diferida de normal al calcular el monto; requiere criterio local.",
+      "hallazgos_conchos": [
+        "C-DIA-04"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "INV-001",
+      "clase": "INVENTARIO",
+      "regla": "Detalle y acumulado por activo/categoría/unidad",
+      "estado_regla": "vigente",
+      "fuente": [
+        "Reglas_Propuestas.json (vigente)",
+        "Manual de Conservación 2026 §4.1",
+        "references/pruebas-continuidad.md"
+      ],
+      "formula": "Δ = T_I − Σ(registros atómicos elegibles) por categoría, unidad y ámbito.",
+      "parametros": [],
+      "entradas": [
+        "IO-1…IO-7",
+        "T_I / I.O.-08"
+      ],
+      "prueba": "Calcular solo sobre registros atómicos elegibles; reportar diferencia y exclusiones. Conciliar por categoría, no solo por total. Incluye reparto fijo mitad/mitad (fragilidad) y coincidencia semántica de categorías.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DIA-05",
+        "C-DIA-06",
+        "C-DIA-11",
+        "C-DYP-S3a",
+        "C-INV-004",
+        "C-INV-007",
+        "C-INV-008"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "INV-002",
+      "clase": "INVENTARIO",
+      "regla": "Número de inventario invariable, único y con vigencia",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §4.1, §4.3.1",
+        "Anexo 1 (identificación)",
+        "Anexo 3 DIAG-01 col.1"
+      ],
+      "formula": "ID_inventario único por obra; nueva obra = número de clasificación + literal; rehabilitada conserva número; baja solo con autorización de CONAGUA.",
+      "parametros": [],
+      "entradas": [
+        "IO-1…IO-7 col.1",
+        "DIAG-01 col.1",
+        "DIAG-02 col.1"
+      ],
+      "prueba": "Detectar ID repetido entre obras distintas (sin borrar ni renumerar), diferenciar ID de activo padre repetido legítimamente (tramos/márgenes), ID de estructura discreta y número de renglón. Verificar fecha de actualización anual.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo · aclarada por usuario (claves oficiales)",
+      "nota_discrepancia": "El Anexo 1 repite el mismo número una vez por cambio de sección (no es duplicado).",
+      "hallazgos_conchos": [
+        "C-INV-001"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "INV-003",
+      "clase": "INVENTARIO",
+      "regla": "PK, longitud efectiva y equivalencias de cadenamiento",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Anexo 3 DIAG-01 cols.3–5",
+        "references/auditoria-fisica.md"
+      ],
+      "formula": "L_efectiva = PK_final − PK_inicial (con PK como distancia: K12+350 = 12,350 m), por tramo y margen.",
+      "parametros": [],
+      "entradas": [
+        "PK inicial/final",
+        "Longitud efectiva",
+        "Tabla de equivalencias de cadenamiento"
+      ],
+      "prueba": "Recalcular L; detectar PK invertido, PK mayor al extremo del activo padre y diferencias entre márgenes sin soporte. No copiar el dato de otro registro.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo · pendiente de evidencia si falta equivalencia",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DYP-S3b",
+        "C-INV-002",
+        "C-INV-006"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "INV-004",
+      "clase": "INVENTARIO",
+      "regla": "Fuentes adicionales de T_I (superficie, tenencia, usuarios)",
+      "estado_regla": "nueva",
+      "fuente": [
+        "references/pruebas-continuidad.md"
+      ],
+      "formula": "Validar cálculo interno por separado de procedencia documental.",
+      "parametros": [],
+      "entradas": [
+        "T_I superficie dominada/regable",
+        "Padrón de usuarios"
+      ],
+      "prueba": "No declarar T_I completo por conciliar longitudes y piezas. Superficie beneficiada del programa ≤ superficie regable.",
+      "severidad": "Media",
+      "puede_cerrar": "Sustentada documentalmente (padrón)",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DYP-S12",
+        "C-INV-010"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "INV-005",
+      "clase": "INVENTARIO",
+      "regla": "Calidad de georreferenciación",
+      "estado_regla": "nueva",
+      "fuente": [
+        "references/pruebas-continuidad.md"
+      ],
+      "formula": "Rangos de lat/long, hemisferio, formato DMS, minutos/segundos = 60, vacíos, continuidad entre extremos.",
+      "parametros": [],
+      "entradas": [
+        "Coordenadas de IO-1…IO-7"
+      ],
+      "prueba": "Normalizar 60'' sin sustituir coordenadas; registrar vacíos como pendientes.",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo (formato) · pendiente de levantamiento",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-INV-005"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "INV-006",
+      "clase": "INVENTARIO",
+      "regla": "Coherencia hidráulica del inventario",
+      "estado_regla": "nueva",
+      "fuente": [
+        "references/auditoria-fisica.md"
+      ],
+      "formula": "A = y(b + z·y); Q = A·V; unidades de V (m/s), Q (m³/s), A (m²).",
+      "parametros": [],
+      "entradas": [
+        "IO-1 columnas b, z, y, A, V, Q"
+      ],
+      "prueba": "Comprobar coherencia interna y unidades. No es aforo ni acredita origen/fecha del levantamiento.",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo (coherencia) · pendiente de procedencia",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-INV-009"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "INV-007",
+      "clase": "INVENTARIO",
+      "regla": "Dominio y precisión de los campos del inventario (Anexo 1)",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Anexo 1 §2.1, §3.1 (I.O.-1, columnas 3–21)",
+        "Anexo 3 DIAG-01 col.5"
+      ],
+      "formula": "PK en km con 3 decimales (12+549); coordenadas en g°m's.ss'' con 2 decimales; L efectiva = PK final − inicial (km, 3 dec.) o ajustada por igualdad con observación; Q m³/s (3 dec.); V m/s (2); S = Δcotas/L adimensional (5 dec.); A, b, d, l.b., c en m² o m (2 dec.); talud como relación (1.25:1); tipo de revestimiento ∈ {sin revestir, concreto, mampostería, asfalto, tubería, suelo-cemento, otros}; tipo de sección ∈ {trapezoidal, rectangular, circular, otros}.",
+      "parametros": [],
+      "entradas": [
+        "IO-1…IO-7"
+      ],
+      "prueba": "Validar formato y enumeraciones por columna. El mismo número de inventario se repite legítimamente una vez por cambio de sección: no es duplicado (distinguir de INV-002). Una igualdad de cadenamiento exige observación escrita. S = Δcotas/L permite una prueba de Manning solo si n está documentado.",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo (formato) · pendiente de levantamiento (valores)",
+      "nota_discrepancia": "El Anexo pide medir con estación total o GPS de precisión; el comprobador no puede acreditar el método.",
+      "hallazgos_conchos": [
+        "C-DYP-S3b"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "DYP-001",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Necesidad inversa vs base independiente",
+      "estado_regla": "vigente",
+      "fuente": [
+        "Reglas_Propuestas.json (vigente)",
+        "references/auditoria-fisica.md"
+      ],
+      "formula": "N_esperada = Σ(C_i × f_i); C_implícita = N / f (o N × τ).",
+      "parametros": [],
+      "entradas": [
+        "DIAG-01/02",
+        "Inventario",
+        "Frecuencias sustentadas"
+      ],
+      "prueba": "No validar usando coeficiente despejado del mismo resultado. Compatible dimensionalmente ≠ daño acreditado.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo (coherencia) · pendiente de condición física",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DIA-07",
+        "C-DIA-08",
+        "C-DIA-09"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "DYP-002",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Cantidad por intervención vs frecuencia",
+      "estado_regla": "vigente",
+      "fuente": [
+        "Reglas_Propuestas.json (vigente)",
+        "Manual de Conservación 2026 §5.6"
+      ],
+      "formula": "Homogeneizar periodo sin aplicar frecuencia dos veces.",
+      "parametros": [],
+      "entradas": [
+        "Base DIAG-01",
+        "Frecuencia 3DN/Formato 4"
+      ],
+      "prueba": "Detectar necesidad ya anualizada multiplicada otra vez por f.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DIA-01"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "DYP-003",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Cantidad × PU y las tres bases de costo",
+      "estado_regla": "vigente",
+      "fuente": [
+        "Reglas_Propuestas.json (vigente)",
+        "Manual de Conservación 2026 §7.5.2"
+      ],
+      "formula": "Costo total = necesidad total × PU; costo medio anual = NMACN × PU; costo anual = Σ(cantidad programada × PU). Importe = cantidad × PU.",
+      "parametros": [
+        "PAR-15"
+      ],
+      "entradas": [
+        "Cantidad",
+        "PU",
+        "Importe"
+      ],
+      "prueba": "Operación determinista con unidad y alcance; no mezclar las tres bases; PU efectivo = importe/cantidad es derivado, no APU.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DIA-04",
+        "C-DIA-12"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "DYP-004",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Anual vs meses/modalidad y generador mínimo",
+      "estado_regla": "vigente",
+      "fuente": [
+        "Reglas_Propuestas.json (vigente)",
+        "Manual de Conservación 2026 §7.5.5"
+      ],
+      "formula": "Σ(meses) = total anual por partida, física y financiera por separado. Generador con: localización, clave y descripción, unidad, croquis, costo, imprevistos y total.",
+      "parametros": [],
+      "entradas": [
+        "PO-2",
+        "SEG-3",
+        "2PA",
+        "Generadores"
+      ],
+      "prueba": "Comparar referencias y año-mes, detectar omisión/duplicación y mezcla de unidades. Registrar si el generador existe y contiene los siete elementos.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo (sumas) · pendiente si falta generador",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DYP-P04",
+        "C-DYP-S6"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "DYP-005",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Fuentes adicionales",
+      "estado_regla": "vigente",
+      "fuente": [
+        "Reglas_Propuestas.json (vigente)",
+        "Manual de Conservación 2026 §7.4.4"
+      ],
+      "formula": "Separar solicitado/autorizado/recibido/aplicado; no sumar sin descartar duplicación.",
+      "parametros": [],
+      "entradas": [
+        "2PAAB",
+        "Oficios de recursos"
+      ],
+      "prueba": "Separar estado de fondos y descartar duplicación antes de sumar.",
+      "severidad": "Alta",
+      "puede_cerrar": "Sustentada documentalmente (oficio) · pendiente de evidencia",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DYP-S6"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "DYP-006",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Frecuencia: semántica y precisión",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §5.6, ejemplos p.57, p.65, p.66",
+        "Anexo 3 §3.2.4 tabla de frecuencias"
+      ],
+      "formula": "F = V/T [veces/año]; F = 1/τ si τ en años; F = 12/τ si τ en meses. NMACN = cantidad total × F, con F exacta (1/T), no el valor redondeado mostrado.",
+      "parametros": [
+        "PAR-08"
+      ],
+      "entradas": [
+        "Etiqueta de frecuencia",
+        "Valor",
+        "Fórmula",
+        "Cantidad × PU"
+      ],
+      "prueba": "No confiar en la etiqueta: despejar F de cantidad_anual / cantidad_total y compararla con valor y rótulo. Marcar etiqueta ambigua (veces/año vs periodicidad). Tolerar el redondeo de presentación (0.3 por 1/3).",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo (despeje) · aclarada por usuario (qué significa la etiqueta)",
+      "nota_discrepancia": "Manual p.65 imprime F=10 y multiplica por 0.1; Anexo 3 rotula 'veces al año' con 4, 10, 5. No se multiplica por 12 ni se invierte automáticamente.",
+      "hallazgos_conchos": [
+        "C-DIA-01",
+        "C-DIA-05"
+      ],
+      "casos_prueba": [
+        "TC-03",
+        "TC-04"
+      ]
+    },
+    {
+      "id": "DYP-007",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Unidades por concepto: tabla maestra paramétrica ↔ de trabajo",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Anexo 3 Anexo 1 de PO-2 (conceptos concentrados y unidades)",
+        "Manual de Conservación 2026 §5.8, §7.5.2"
+      ],
+      "formula": "unidad_paramétrica(tipo de obra) ∈ {km, pza}; unidad_trabajo(concepto) ∈ {ha, m³, km, m, pza, $}. Tabla maestra: tipo de obra → concepto → unidad paramétrica → unidad de trabajo.",
+      "parametros": [],
+      "entradas": [
+        "Concepto",
+        "Unidad de cada referencia",
+        "Precio unitario y su denominador"
+      ],
+      "prueba": "Cada referencia/suma entre hojas debe conservar concepto y unidad. Detectar km dentro de m³, $ dentro de km, y cantidades iguales con distinta unidad (35 km ≠ 35 m³).",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DIA-02",
+        "C-DIA-03",
+        "C-DIA-11",
+        "C-DYP-P04",
+        "C-MAQ-07"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "DYP-008",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Metas intermedias y de resultados",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §7.3",
+        "Anexo 3 §5"
+      ],
+      "formula": "meta_intermedia(tipo de obra) ≤ cantidad en inventario y ≥ mayor cantidad paramétrica entre sus conceptos. Unidad: pza (presas, pozos, bombeo, estructuras, edificios y casetas, comunicación) o km (canales, drenes, caminos). Superficie y usuarios beneficiados: proporcionales a la inversión; factor fumr = (importe concepto / importe obra) / cantidad.",
+      "parametros": [],
+      "entradas": [
+        "PO-2 metas",
+        "SEG-2",
+        "Inventario"
+      ],
+      "prueba": "Verificar cota inferior y superior por tipo de obra; superficie beneficiada ≤ regable.",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DYP-S12"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "DYP-009",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Programa preliminar, definitivo y prioridades de ajuste",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §8.3, §8.4",
+        "Anexo 3 §4.4"
+      ],
+      "formula": "Si asignación = NMACN: se valida el preliminar; si asignación < NMACN: se ajusta cada concepto por prioridad. Orden usual: fuentes de abastecimiento, red de distribución, caminos, estructuras, drenes, casetas y edificios.",
+      "parametros": [],
+      "entradas": [
+        "Techo financiero",
+        "NMACN",
+        "Programa por concepto"
+      ],
+      "prueba": "Si programa < necesidad media, explicar la selección; no exigir igualdad. Comparar el orden de recortes con la prioridad sin declarar error (es 'usual').",
+      "severidad": "Media",
+      "puede_cerrar": "Aclarada por usuario / sustentada documentalmente (techo financiero)",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DIA-04"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "DYP-010",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Duración y reparto mensual (PO-1/PO-2)",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Anexo 3 §4.2, §4.3",
+        "Manual de Conservación 2026 §8.2"
+      ],
+      "formula": "T = Ct / (Ne · R); meses = T / 167 h (o días / 20); cantidad mensual = cantidad anual / meses del periodo (reparto uniforme, sin tolerancias).",
+      "parametros": [
+        "PAR-07"
+      ],
+      "entradas": [
+        "PO-1 cols.2, 4–6, 11",
+        "PO-2 meses",
+        "Rendimiento"
+      ],
+      "prueba": "Recalcular duración y reparto. Si PO-2 no es uniforme o el periodo no coincide con PO-1, reportar. Una conciliación anual no acredita factibilidad mensual.",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo (aritmética) · pendiente de factibilidad operativa",
+      "nota_discrepancia": "El mes de 167 h (≈2,004 h/año) no es coherente con 1,400/1,200 h anuales por máquina.",
+      "hallazgos_conchos": [
+        "C-DYP-P05"
+      ],
+      "casos_prueba": [
+        "TC-11"
+      ]
+    },
+    {
+      "id": "DYP-011",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Restricciones y ventanas operativas",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §8.2",
+        "Anexo 3 §4.1"
+      ],
+      "formula": "Ventana(concepto): desazolve de canales y plantas acuáticas antes del riego; limpia/deshierbe y reforzamiento de bordos durante o fuera de riego; reposición de losas después del riego; desazolve de drenes antes de lluvias; caminos todo el año.",
+      "parametros": [],
+      "entradas": [
+        "Plan de riegos",
+        "Calendario del programa"
+      ],
+      "prueba": "Marcar conceptos programados en meses con riego/lluvia contra su ventana. Es advertencia, no error: requiere plan de riegos fechado.",
+      "severidad": "Media",
+      "puede_cerrar": "Sustentada documentalmente (plan de riegos) · pendiente de evidencia",
+      "nota_discrepancia": "Plan de riegos citado como 'Anexo 5.3' (Manual) y 'anexo 5' (Anexo 3).",
+      "hallazgos_conchos": [
+        "C-DYP-P05"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "DYP-012",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Modalidades de ejecución",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §7.4",
+        "Anexo 3 PO-2 cols.3–5"
+      ],
+      "formula": "cantidad_total = administración + contrato/convenio (+ cooperación + devolución por agua en bloque, cuando se separan).",
+      "parametros": [],
+      "entradas": [
+        "PO-2",
+        "PO-2C",
+        "SEG-3"
+      ],
+      "prueba": "Cada suma por modalidad usa su columna; detectar sustitución de administración por contrato y mes omitido. No sumar dos veces una misma aportación.",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "El Manual §7.4 lista cuatro modalidades (con devolución por agua en bloque); el Anexo Técnico General §5.2 solo tres; PO-2 separa dos.",
+      "hallazgos_conchos": [
+        "C-DYP-P05",
+        "C-DYP-P06"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "DYP-013",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Presupuesto, subtotales y redondeo",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Anexo 3 PO-2 / SEG-2",
+        "Manual de Conservación 2026 §7.9"
+      ],
+      "formula": "Suma de obra = Σ subtotales por tipo de obra; Suma de importes = suma de obra + adquisiciones + indirectos + rehabilitación de maquinaria. SEG-2: importes en pesos sin decimales.",
+      "parametros": [
+        "PAR-11"
+      ],
+      "entradas": [
+        "Filas $ de PO-2/2PA",
+        "Referencias de subtotales"
+      ],
+      "prueba": "Comparar el conjunto de referencias de cada subtotal con la lista de filas elegibles: rubros omitidos, términos repetidos, complementos excluidos. Informar impacto vigente y fragilidad latente por separado.",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DIA-04",
+        "C-DYP-P08",
+        "C-DYP-P09",
+        "C-DYP-P11"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "DYP-014",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Cadena de precio unitario",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §7.7 ejemplos 1, 3 y 4"
+      ],
+      "formula": "PU = CD × (1 + %ind) × (1 + %fin) × (1 + %util) × (1 + %cargos adicionales). %ind = gastos generales / costo directo; %fin sobre CD+ind; %util sobre CD+ind+fin.",
+      "parametros": [
+        "PAR-10"
+      ],
+      "entradas": [
+        "APU",
+        "Porcentajes declarados"
+      ],
+      "prueba": "Recalcular la cadena con los porcentajes DEL APU. Los valores del Manual (23 %, 2.95 %, 6 %, 0.5 % Secodam) son de ejemplo, no norma.",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo (cadena) · pendiente de sustento de porcentajes",
+      "nota_discrepancia": "El Manual dice que cada contratista fija su financiamiento y utilidad.",
+      "hallazgos_conchos": [
+        "C-DIA-12"
+      ],
+      "casos_prueba": [
+        "TC-05",
+        "TC-06",
+        "TC-07"
+      ]
+    },
+    {
+      "id": "DYP-015",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "APU: componentes, rendimientos y unidades",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §7.5.6, §7.7, §7.8",
+        "Anexo 5 Apéndice C"
+      ],
+      "formula": "MO = Σ(cant × SM × FSR × F.esp.) / rendimiento_jornada; equipo = CHD / R; materiales = consumo × precio (+ desperdicio); herramienta = % de MO.",
+      "parametros": [],
+      "entradas": [
+        "APU",
+        "Cuadrilla",
+        "Salario mínimo",
+        "FSR",
+        "CHD",
+        "Rendimiento"
+      ],
+      "prueba": "Recalcular cada cargo; unidad del rendimiento = unidad del cargo; sin doble conteo de componentes ya incluidos. Rendimiento declarado vs usado en el cálculo.",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo · pendiente de sustento de consumos",
+      "nota_discrepancia": "Manual ej.3: rendimiento 2.300 m³/jor y cargo con 2.310 'ha/jor'.",
+      "hallazgos_conchos": [],
+      "casos_prueba": [
+        "TC-05",
+        "TC-06"
+      ]
+    },
+    {
+      "id": "DYP-016",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Comparabilidad del precio con el catálogo",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Catálogo General de PU 2026 (marzo 2026) antecedentes",
+        "Manual de Conservación 2026 §7.7"
+      ],
+      "formula": "Comparable(partida, catálogo) = clave ∧ descripción ∧ unidad ∧ alcance ∧ sección (DR/UR/DTT) ∧ fecha.",
+      "parametros": [
+        "PAR-16"
+      ],
+      "entradas": [
+        "Clave",
+        "Descripción",
+        "Unidad",
+        "Sección",
+        "Fecha de precios"
+      ],
+      "prueba": "Catálogo sin IVA, sin regionalizar, 'únicamente una guía'; cubre rehabilitación/tecnificación y conservación con devolución de agua en bloque. Diferencia vs catálogo ≠ sobreprecio.",
+      "severidad": "Informativa",
+      "puede_cerrar": "Sustentada documentalmente (catálogo vigente)",
+      "nota_discrepancia": "El Manual y el Listado de anexos aún dicen 'Catálogo 2025'; vigente 2026. Catálogos 2025 de la carpeta = versiones previas. En la sección DR del catálogo 2026 no hay conceptos de rastreo, conformación ni cunetas de caminos de terracería (aparecen solo en la sección de Temporal Tecnificado, 1.2.6–1.2.7 y 2.3.5); las secciones 5 y 6 de DR son de rehabilitación (carga/acarreo de desazolve; terracerías compactadas).",
+      "hallazgos_conchos": [
+        "C-DYP-S7b"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "DYP-017",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Costo horario de maquinaria",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §7.6",
+        "Anexo 5 Apéndice C"
+      ],
+      "formula": "D = (Vm − Vr)/Ve; Inversión = (Vm + Vr)·i / (2·Hea); Seguro = (Vm + Vr)·s / (2·Hea); Mant = Ko·D; consumo = factor × precio; salario = So/H; seguridad = Ks·Mo.",
+      "parametros": [
+        "PAR-09"
+      ],
+      "entradas": [
+        "Vm",
+        "Vr",
+        "Ve",
+        "Hea",
+        "i",
+        "s",
+        "Ko",
+        "precios",
+        "salarios"
+      ],
+      "prueba": "Recalcular cada cargo y el total. Separar costo económico de desembolso; blancos ocultos por IFERROR no son costo cero.",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo · pendiente de sustento (precios, fecha)",
+      "nota_discrepancia": "Manual escribe (Vm−Vr) en inversión y seguros; el ejemplo de Anexo 5 reproduce 33.17 solo con (Va+Vr) y s=3 %. La inversión impresa (0.6212 % = $13.18) no se reproduce con ninguna de las dos fórmulas: la tasa implícita sería 1.19 % con (Va+Vr) o 1.46 % con (Va−Vr). Manual define Mo como depreciación y luego como mano de obra.",
+      "hallazgos_conchos": [
+        "C-MAQ-12"
+      ],
+      "casos_prueba": [
+        "TC-08"
+      ]
+    },
+    {
+      "id": "DYP-018",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Seguimiento: avance y los dos índices de eficiencia",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §9.2, §9.4",
+        "Anexo 3 columna 10",
+        "Anexo 6 §2.1–2.3"
+      ],
+      "formula": "% avance mes = ejecutado mes / programado × 100; ejecutado a la fecha = anterior + mes; eficiencia de programación = programada / DNMACN; eficiencia de realización = realizada / DNMACN. SEG-1: km con 3 decimales.",
+      "parametros": [
+        "PAR-11",
+        "PAR-06"
+      ],
+      "entradas": [
+        "SEG-1",
+        "SEG-2",
+        "SEG-3",
+        "DNMACN"
+      ],
+      "prueba": "Comparar ejecutado con la versión aprobada y el mismo corte. Blanco ≠ avance cero. Clasificar índices (≥1.00 óptima; 0.80–0.99 buena; 0.60–0.79 regular; ≤0.59 baja) y definir la frontera para valores entre rangos (0.995).",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo · ejecución requiere bitácora/aceptación",
+      "nota_discrepancia": "'Eficiencia de programación' tiene otra definición en PUM-1 (horas programadas/disponibles). Siempre rotular cuál.",
+      "hallazgos_conchos": [
+        "C-DYP-S7a",
+        "C-MAQ-17"
+      ],
+      "casos_prueba": [
+        "TC-10"
+      ]
+    },
+    {
+      "id": "DYP-019",
+      "clase": "DIAGNÓSTICOS Y PROGRAMA",
+      "regla": "Ciclos y frecuencias de referencia (plausibilidad)",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §2.2, §5.2, §5.5, §7.5.3, p.57",
+        "Anexo Técnico General §2.2"
+      ],
+      "formula": "Rangos de referencia: canales y caminos 1/año; drenes cada 3–5 años; desazolve cada 4 años en algunos distritos; deshierbe hasta 2/año; plantas acuáticas 2–4/año; terracerías de caminos cada 10 años; conformación 5, 7 o 9 pasadas. Tolerancia de azolve: pérdida de capacidad de hasta 15 % respecto del proyecto; si es mayor se abrevia el ciclo a 1–2 años (Anexo Técnico General §2.2).",
+      "parametros": [
+        "PAR-13"
+      ],
+      "entradas": [
+        "Frecuencia local",
+        "Tabla nacional"
+      ],
+      "prueba": "Marcar frecuencia fuera del rango referencial como 'requiere justificación local'. Nunca error: son guías estadísticas.",
+      "severidad": "Informativa",
+      "puede_cerrar": "Aclarada por usuario / sustentada documentalmente",
+      "nota_discrepancia": "Revestimiento de canales cada 20 años (§5.2) vs 40–50 (§7.5.3, ejemplo p.66 'cada 50'); mecanismos 10 vs 15–20. Prevalece §7.5.3 como referencia vigente del Manual; se anota §5.2.",
+      "hallazgos_conchos": [],
+      "casos_prueba": []
+    },
+    {
+      "id": "MAQ-001",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "Horas = cantidad / rendimiento",
+      "estado_regla": "vigente",
+      "fuente": [
+        "Reglas_Propuestas.json (vigente)",
+        "Manual de Conservación 2026 §6.3.2"
+      ],
+      "formula": "He = C / R.",
+      "parametros": [],
+      "entradas": [
+        "B Maq",
+        "UM1"
+      ],
+      "prueba": "Base horaria y equipo compatibles; distinguir necesidad de programa.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-MAQ-14"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "MAQ-002",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "Capacidad por equipo y fecha",
+      "estado_regla": "vigente",
+      "fuente": [
+        "Reglas_Propuestas.json (vigente)",
+        "Manual de Conservación 2026 §6.2–6.3"
+      ],
+      "formula": "Capacidad = Σ horas disponibles de equipos elegibles por tipo y fecha.",
+      "parametros": [
+        "PAR-01"
+      ],
+      "entradas": [
+        "IM-01",
+        "PUM-1"
+      ],
+      "prueba": "Parque elegible y operadores/ventanas sustentados; accesorios separados.",
+      "severidad": "Alta",
+      "puede_cerrar": "Sustentada documentalmente (bitácora) · pendiente de evidencia",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-MAQ-01",
+        "C-MAQ-02",
+        "C-MAQ-04"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "MAQ-003",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "Horas efectivas: se divide, no se multiplica",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §6.3 y §6.3.2",
+        "Anexo 4 §3",
+        "Anexo 5 §3.1 paso 4 (texto dice 'multiplicar')"
+      ],
+      "formula": "He = Vo / Rm [h]; Σ por tipo de máquina sin duplicar partidas asignadas a varias máquinas.",
+      "parametros": [],
+      "entradas": [
+        "Cantidad por concepto",
+        "Rendimiento"
+      ],
+      "prueba": "Recalcular con precisión completa y comparar con el valor capturado; informar la regla de redondeo usada (truncado vs redondeo).",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "Anexo 5 paso 4 dice multiplicar; el Manual y los ejemplos dividen. Se usa dividir.",
+      "hallazgos_conchos": [
+        "C-MAQ-07",
+        "C-MAQ-15"
+      ],
+      "casos_prueba": [
+        "TC-01",
+        "TC-02"
+      ]
+    },
+    {
+      "id": "MAQ-004",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "Número de máquinas Nm y dónde se aplica la eficiencia",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §6.3.2",
+        "Anexo 4 §3",
+        "Anexo 5 §3.2 col.6"
+      ],
+      "formula": "Nm = He / (Ht × Eo). Variante UM-1: horas programadas = cantidad / (R × Eo). Se declara cuál se usa y no se aplican las dos.",
+      "parametros": [
+        "PAR-02",
+        "PAR-03"
+      ],
+      "entradas": [
+        "He",
+        "Ht",
+        "Eo"
+      ],
+      "prueba": "Detectar doble descuento de Eo y Eo declarado pero omitido en el cálculo.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo · Eo local pendiente de sustento",
+      "nota_discrepancia": "Anexo 4 lista Eo=85 % y calcula 1,718/1,400 sin aplicarla.",
+      "hallazgos_conchos": [
+        "C-MAQ-11"
+      ],
+      "casos_prueba": [
+        "TC-01",
+        "TC-02"
+      ]
+    },
+    {
+      "id": "MAQ-005",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "Horas disponibles por máquina (Ht): parámetro y bandas por estado",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §6.1, §6.3 (1,400)",
+        "Anexo 5 §3.1 (1,200) y §3.2 col.5 (bandas)",
+        "Anexo 3 §4.2 (167 h/mes)"
+      ],
+      "formula": "Ht por defecto = 1,400 h/año (Manual). Alterno: 1,200 h. PUM por estado: Nueva 2,000–1,800; Buena 1,800–1,400; Regular 1,400–1,000; Mala <1,000, con justificación de mecánico.",
+      "parametros": [
+        "PAR-01"
+      ],
+      "entradas": [
+        "Estado mecánico (IM-01 cols.18–21)",
+        "Horas trabajadas"
+      ],
+      "prueba": "Declarar el Ht usado (NOR-001). Las bandas se solapan en 1,800 y 1,400: regla de frontera explícita. No usar 1,400 como universal sin declararlo.",
+      "severidad": "Alta",
+      "puede_cerrar": "Aclarada por usuario / sustentada documentalmente (estado y bitácora)",
+      "nota_discrepancia": "Manual 1,400; Anexo 5 y ejemplo del Manual 1,200. Parámetro configurable.",
+      "hallazgos_conchos": [
+        "C-MAQ-11"
+      ],
+      "casos_prueba": [
+        "TC-11"
+      ]
+    },
+    {
+      "id": "MAQ-006",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "Redondeo y decisión de adquisición",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §6.3",
+        "Anexo 5 §3.1 pasos 5–10"
+      ],
+      "formula": "Capacidad: Nm con 2 decimales. Existentes: enteros sin aproximación. Adquisición justificada si necesidad > 0.5 de máquina (1.56→2; 1.46→1). Faltante = necesidad − existentes; causa: faltante o sustitución.",
+      "parametros": [
+        "PAR-04",
+        "PAR-05"
+      ],
+      "entradas": [
+        "B Maq",
+        "Formato 4 filas 36–45"
+      ],
+      "prueba": "Mantener separados los dos usos: fracción de capacidad (no es máquina física) y decisión de adquisición (entero). Existencia = unidades del tipo con independencia de modalidad; condición (bueno/regular, malo, baja) en columnas aparte.",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "Los redondeos del Manual son para decidir adquisición, no acreditan suficiencia de horas.",
+      "hallazgos_conchos": [
+        "C-MAQ-01",
+        "C-MAQ-10"
+      ],
+      "casos_prueba": [
+        "TC-09"
+      ]
+    },
+    {
+      "id": "MAQ-007",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "Condición del parque respecto al parque óptimo",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §6.4 p.78",
+        "Anexo 5 §3.1"
+      ],
+      "formula": "Razón = existentes / requeridas. ≥100 % Excedente; 85–99 % En equilibrio; 65–84 % Medio; 30–64 % Mínimo; ≤29 % Crítico.",
+      "parametros": [
+        "PAR-06"
+      ],
+      "entradas": [
+        "Existentes",
+        "Requeridas"
+      ],
+      "prueba": "Clasificar con fronteras cerradas-abiertas declaradas (la tabla deja huecos entre 99 y 100, 84 y 85, 64 y 65, 29 y 30).",
+      "severidad": "Informativa",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [],
+      "casos_prueba": []
+    },
+    {
+      "id": "MAQ-008",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "Criterio 40-60-80 para rehabilitar maquinaria",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §6.2.2"
+      ],
+      "formula": "Rehabilitar si inversión ≤ 40 % del valor de la unidad nueva ∧ vida útil adicional ≥ 60 % (≥6,000 HE) ∧ eficiencia operativa ≥ 80 % de la nueva (o excepción documentada).",
+      "parametros": [],
+      "entradas": [
+        "Costo de rehabilitación",
+        "Valor nuevo (Precios Base 2025 con IVA)",
+        "Estado"
+      ],
+      "prueba": "Comprobar los tres criterios; Precios Base 2025 incluyen IVA: homologar base antes de comparar.",
+      "severidad": "Media",
+      "puede_cerrar": "Sustentada documentalmente (dictamen mecánico)",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [],
+      "casos_prueba": []
+    },
+    {
+      "id": "MAQ-009",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "Identidad y tipo de máquina en IM-01",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Manual de Conservación 2026 §4.3",
+        "Anexo 4 IM-01 cols.18–22",
+        "Anexo 5 §3.2 col.4 (catálogo de tipos)",
+        "Especificaciones 2026 'Nuevas' (clasificador EGM)"
+      ],
+      "formula": "Máquina = n.º económico + serie + tipo + estado; accesorio ≠ portador; horas en horas (no km/millas).",
+      "parametros": [],
+      "entradas": [
+        "IM-01",
+        "PUM-1",
+        "UM-1",
+        "B Maq"
+      ],
+      "prueba": "Empatar por n.º económico/serie entre formatos; tipo normalizado a catálogo; detectar tipo cambiado entre hojas, accesorio sin portador, camión sin ID y kilometraje en columna de horas.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo · pendiente de inspección",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-MAQ-03",
+        "C-MAQ-04",
+        "C-MAQ-19"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "MAQ-010",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "Selección de rendimiento",
+      "estado_regla": "nueva",
+      "fuente": [
+        "010 Parámetros de rendimientos óptimos",
+        "Manual de Conservación 2026 §5.7",
+        "Anexo 5 Apéndice B"
+      ],
+      "formula": "R = valor tabla según concepto, tipo y capacidad de máquina, condición (tierra/revestido; plantilla ≤4 m o >4 m; m³/km del generador: <1,000, 1,000–3,000, >3,000) y unidad (ha/he, km/he, m³/he).",
+      "parametros": [],
+      "entradas": [
+        "Concepto",
+        "Máquina",
+        "Rendimiento usado"
+      ],
+      "prueba": "Calcular m³/km del generador y verificar el tramo de la tabla. Rangos en texto ('45.00-55.00', '0.048-0.048') y filas con error ('Tractor D-84') se leen con cuidado. No cambiar de equipo por equivalencia nominal.",
+      "severidad": "Media",
+      "puede_cerrar": "Sustentada documentalmente (bitácora/regional) · aclarada por usuario",
+      "nota_discrepancia": "Manual y 010: 'rendimientos óptimos'; Anexo 5 Apéndice B dice 'mínimos' en el texto. El DNMACN supone máquina nueva.",
+      "hallazgos_conchos": [
+        "C-MAQ-13"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "MAQ-011",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "PUM-1: razones de cobertura y costos por columna",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Anexo 5 §3.2 cols.4–15"
+      ],
+      "formula": "Costo necesario = he necesarias × CH; costo disponible = he disponibles × CH; costo programa = he programadas × CH; eficiencia de disponibilidad = disponibles/necesarias; eficiencia de programación PUM = programadas/disponibles.",
+      "parametros": [],
+      "entradas": [
+        "PUM-1",
+        "Anexos 1–3 del PUM"
+      ],
+      "prueba": "Recalcular por fila y por tipo. Comparar con razón de cobertura del Manual §9.4. Anexo 1 titulado 'horas necesarias' puede copiar horas programadas.",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "Mismo nombre, otra fórmula que el Manual §9.4.",
+      "hallazgos_conchos": [
+        "C-MAQ-08",
+        "C-MAQ-16",
+        "C-MAQ-21"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "MAQ-012",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "Capacidad mensual y diaria",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Anexo 5 §3.2",
+        "Anexo 3 §4.2"
+      ],
+      "formula": "Σ horas mensuales por máquina ≤ capacidad mensual; Σ horas por tipo/mes ≤ Σ capacidad elegible.",
+      "parametros": [
+        "PAR-01",
+        "PAR-07"
+      ],
+      "entradas": [
+        "UM-1 meses",
+        "Disponibilidad"
+      ],
+      "prueba": "Detectar concentración (p.ej. todo en 4 meses). Si solo hay meses, la compatibilidad diaria queda pendiente.",
+      "severidad": "Alta",
+      "puede_cerrar": "Pendiente de evidencia (disponibilidad por fecha)",
+      "nota_discrepancia": "Capacidad mensual implícita: 167 h (Anexo 3) vs 1,400/12=117 h vs 1,200/12=100 h.",
+      "hallazgos_conchos": [
+        "C-MAQ-18"
+      ],
+      "casos_prueba": [
+        "TC-11"
+      ]
+    },
+    {
+      "id": "MAQ-013",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "Reparto de obra entre equipos y complementariedad",
+      "estado_regla": "nueva",
+      "fuente": [
+        "references/maquinaria-precios.md"
+      ],
+      "formula": "Σ(cantidad repartida) = cantidad del diagnóstico/programa; en equipos complementarios se suman horas, no el volumen.",
+      "parametros": [],
+      "entradas": [
+        "B Maq",
+        "UM-1"
+      ],
+      "prueba": "Distinguir sustitutos (reparto) de complementarios (carga, acarreo, extendido); cerrar fracciones.",
+      "severidad": "Media",
+      "puede_cerrar": "Verificada en archivo · aclarada por usuario",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-MAQ-05",
+        "C-MAQ-06"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "MAQ-014",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "Ejecución y mantenimiento: bitácora, horómetro y programa",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Anexo 6 §3, §4",
+        "Anexo 5 §4–5 (servicios cada 8–2,000 h)",
+        "Manual de Conservación 2026 §9.3"
+      ],
+      "formula": "Horas ejecutadas = lecturas de horómetro/bitácora; programa de mantenimiento por máquina; costo de mantenimiento en SEG-8.",
+      "parametros": [],
+      "entradas": [
+        "SEG-6",
+        "SEG-8",
+        "Bitácora"
+      ],
+      "prueba": "Blanco ≠ avance cero. Exigir horómetro funcionando y bitácora para considerar horas acreditadas. Mantenimiento programado descuenta disponibilidad.",
+      "severidad": "Media",
+      "puede_cerrar": "Sustentada documentalmente (bitácora) · pendiente de evidencia",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-MAQ-17"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "MAQ-015",
+      "clase": "UTILIZACIÓN DE MAQUINARIA",
+      "regla": "Condiciones de la maquinaria concesionada, subsidiada o adquirida",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Anexo Técnico General §6.1, §6.5",
+        "Manual de Conservación 2026 §9.3",
+        "Anexo 6 §3"
+      ],
+      "formula": "Uso exclusivo en conservación; póliza de cobertura amplia durante la vida útil; fondo de amortización y fondos de reparaciones menores/mayores; inspección física y técnica de cada máquina al término del programa; reserva económica para equipos electromecánicos.",
+      "parametros": [],
+      "entradas": [
+        "IM-01",
+        "Programa de utilización",
+        "Fondos",
+        "Pólizas"
+      ],
+      "prueba": "Marcar horas programadas en actividades distintas de conservación; verificar existencia de póliza y fondos (saldo y evolución de 5 años, Manual §9.3). Solo presencia y coherencia: el saldo real requiere estados de cuenta.",
+      "severidad": "Media",
+      "puede_cerrar": "Sustentada documentalmente (póliza, estados de fondos)",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [],
+      "casos_prueba": []
+    },
+    {
+      "id": "TRV-001",
+      "clase": "TRANSVERSAL",
+      "regla": "Confiabilidad de fórmula/caché",
+      "estado_regla": "vigente",
+      "fuente": [
+        "Reglas_Propuestas.json (vigente)"
+      ],
+      "formula": "tipo de celda antes del valor; error BIFF ≠ cantidad.",
+      "parametros": [],
+      "entradas": [
+        "Todas las hojas"
+      ],
+      "prueba": "Detectar tipo de error, texto, enlaces y funciones no soportadas; declarar recálculo.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo (evaluación con caché) · recálculo nativo pendiente",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DIA-10",
+        "C-DYP-P03",
+        "C-EST-001",
+        "C-EST-002",
+        "C-EST-003"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "TRV-002",
+      "clase": "TRANSVERSAL",
+      "regla": "Cobertura por conjuntos",
+      "estado_regla": "vigente",
+      "fuente": [
+        "Reglas_Propuestas.json (vigente)"
+      ],
+      "formula": "|revisadas ∩ identificadas| / |identificadas| por archivo/versión/hoja/celda.",
+      "parametros": [],
+      "entradas": [
+        "Registro de cobertura"
+      ],
+      "prueba": "Unicidad archivo/versión/hoja/celda; conceptos sin código incluidos.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DYP-S3c"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "TRV-003",
+      "clase": "TRANSVERSAL",
+      "regla": "Preservación institucional",
+      "estado_regla": "vigente",
+      "fuente": [
+        "Reglas_Propuestas.json (vigente)"
+      ],
+      "formula": "estructura y presentación(entrega) = estructura y presentación(original).",
+      "parametros": [],
+      "entradas": [
+        "Original",
+        "Copia"
+      ],
+      "prueba": "Comparar contenido autorizado, estructura, presentación, vínculos e impresión.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [],
+      "casos_prueba": []
+    },
+    {
+      "id": "TRV-004",
+      "clase": "TRANSVERSAL",
+      "regla": "Integridad de referencias, rangos y sumas",
+      "estado_regla": "nueva",
+      "fuente": [
+        "references/validaciones.md",
+        "Casos Conchos capas 2–4"
+      ],
+      "formula": "Para cada fórmula de suma: conjunto de referencias = conjunto de partidas elegibles, misma unidad, mismo mes y modalidad.",
+      "parametros": [],
+      "entradas": [
+        "Fórmulas de PO-2, 2PA, SEG-3, UM-1, PUM-1, B Maq"
+      ],
+      "prueba": "Detectar suma de etiquetas/unidades, autorreferencias, referencias al renglón anterior, rangos incompletos, términos repetidos, último mes omitido, suma de unidades heterogéneas. Distinguir impacto vigente de fragilidad latente.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo (interpretación de fórmula)",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DIA-03",
+        "C-DYP-P01",
+        "C-DYP-P02",
+        "C-DYP-P04",
+        "C-DYP-P05",
+        "C-DYP-P07",
+        "C-DYP-P10",
+        "C-DYP-S3a",
+        "C-INV-003",
+        "C-MAQ-08",
+        "C-MAQ-09",
+        "C-MAQ-20"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "TRV-005",
+      "clase": "TRANSVERSAL",
+      "regla": "Calendario por año-mes real",
+      "estado_regla": "nueva",
+      "fuente": [
+        "Anexo 3 PO-2 (ene–dic) y PO-2 Módulos (oct–sep)",
+        "references/validaciones.md"
+      ],
+      "formula": "clave_mes = (año, mes) derivada del encabezado, no de la posición de columna.",
+      "parametros": [
+        "PAR-12"
+      ],
+      "entradas": [
+        "Encabezados de meses",
+        "Fechas del ciclo"
+      ],
+      "prueba": "Mapear por encabezado; comparar el periodo con el ciclo declarado. PO-2 usa ene–dic, PO-2 Módulos y UM-1 oct–sep.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo · aclarada por usuario (años)",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [
+        "C-DIA-13",
+        "C-MAQ-18"
+      ],
+      "casos_prueba": []
+    },
+    {
+      "id": "TRV-006",
+      "clase": "TRANSVERSAL",
+      "regla": "Origen del hallazgo y conclusión por dimensión",
+      "estado_regla": "nueva",
+      "fuente": [
+        "references/control-calidad.md"
+      ],
+      "formula": "origen ∈ {error del PacOT, ambigüedad del formato institucional, discrepancia de la norma}; conclusión por dimensión: aritmética, dimensiones, frecuencia, condición física, referencias, viabilidad, financiamiento, ejecución.",
+      "parametros": [],
+      "entradas": [
+        "Hallazgos"
+      ],
+      "prueba": "Cada hallazgo declara origen y dimensiones por separado; no condensar en un 'aprobado' único. Una discrepancia de la propia norma no se reporta como error del PacOT.",
+      "severidad": "Alta",
+      "puede_cerrar": "Verificada en archivo",
+      "nota_discrepancia": "",
+      "hallazgos_conchos": [],
+      "casos_prueba": []
+    }
+  ],
+  "casos_prueba": [
+    {
+      "id": "TC-01",
+      "regla": [
+        "MAQ-003",
+        "MAQ-004"
+      ],
+      "fuente": "Manual de Conservación 2026 §6.3.2 p.76–77",
+      "datos": "Desazolve canales 21,890 m³; drenes 22,660 m³; tule canales 4.8 ha; tule drenes 8.6 ha; R=55 m³/he y 0.04 ha/he; Ht=1,200; Eo=0.85",
+      "esperado": "He = 398; 412; 120; 215; Σ = 1,145 h. Nm = 1,145 / (1,200×0.85) = 1.1225 → 1.12 dragas."
+    },
+    {
+      "id": "TC-02",
+      "regla": [
+        "MAQ-003",
+        "MAQ-004",
+        "MAQ-006"
+      ],
+      "fuente": "Anexo 4 §3 p.7",
+      "datos": "Mismos volúmenes; R=35 m³/he y 0.03 ha/he; Ht=1,400 he; Eo=85 %",
+      "esperado": "He exactas = 625.43; 647.43; 160.00; 286.67; Σ = 1,719.52 h. El Anexo reporta 1,718 (truncó 286.67 a 286 y redondeó el resto). Nm = 1,718/1,400 = 1.23 (ignora Eo); con Eo: 1,718/(1,400×0.85) = 1.44. Ambos <1.5 → umbral 0.5 da 1 máquina, pero deja 318 h (sin Eo) o 528 h (con Eo) por cubrir."
+    },
+    {
+      "id": "TC-03",
+      "regla": [
+        "DYP-006"
+      ],
+      "fuente": "Manual de Conservación 2026 p.65 (ejemplo DNMACN La Esperanza I)",
+      "datos": "Reparación revestimiento red de distribución: trabajo 12,407 m³; frecuencia impresa 10; cantidad 1,240.70; PU 925",
+      "esperado": "Despeje F = 1,240.70 / 12,407 = 0.10 (cada 10 años), no 10. Importe 1,240.70 × 925 = 1,147,647.5. Clasificar etiqueta como ambigua."
+    },
+    {
+      "id": "TC-04",
+      "regla": [
+        "DYP-006"
+      ],
+      "fuente": "Manual de Conservación 2026 p.66",
+      "datos": "Terracerías 76,980 m³ cada 20 años (0.05); revestimiento 51,335.2 m³ cada 50 años (0.02); rastreo 119.9 km ×4; terracerías de drenes 115.6 cada 3 años (0.3 mostrado)",
+      "esperado": "3,849.0; 1,026.7; 479.6; 115.6/3 = 38.53 (no 115.6×0.3 = 34.68). Desazolve de drenes: 23,117 m³ / 3 = 7,705.7 (impreso 7,705.7). Revestimiento de caminos 83,419.7 / 15 = 5,561.3 (con 0.067 saldría 5,589). Usar F=1/T exacta. Verificado contra el PDF a 170 dpi (una lectura previa de 13,117 era errónea). Las sumas por tipo de obra del ejemplo concilian (4,169,515.8; 904,041.1; 1,340,444.5; 903,767.5; total 7,367,768.9). Nota: 'plantas acuáticas (T. Agrícola)' en distribución se mide en km, mientras la tabla de unidades del Anexo 3 dice ha."
+    },
+    {
+      "id": "TC-05",
+      "regla": [
+        "DYP-014",
+        "DYP-015"
+      ],
+      "fuente": "Manual de Conservación 2026 §7.7 ejemplo 1",
+      "datos": "Quema de maleza: diésel 280; 2 jornaleros SM 315, FSR 1.78478; 0.2 cabo SM 315, FSR 1.723446, F.esp. 1.539; rendimiento 1.2 ha/jor; tractor CHD 900 / 0.15 ha/he; indirecto 23 %",
+      "esperado": "MO = 1,291.51 → 1,076.26/ha; equipo = 6,000.00; CD = 7,356.26; indirecto 1,691.94; PU = 9,048.20."
+    },
+    {
+      "id": "TC-06",
+      "regla": [
+        "DYP-014",
+        "DYP-015"
+      ],
+      "fuente": "Manual de Conservación 2026 §7.7 ejemplo 3",
+      "datos": "Demolición de losas: jornal 117.25; rendimiento 2.300 m³/jor (el cargo usa 2.310); herramienta 3 %; ind 23 %; fin 2.95 %; util 6 %; Secodam 0.5 %",
+      "esperado": "117.25/2.31 = 50.76; herramienta 1.52; CD 52.28; 64.30; 66.20; 70.17; PU = 70.52. Con 2.300: 50.98 → difiere. Hallazgo de origen normativo."
+    },
+    {
+      "id": "TC-07",
+      "regla": [
+        "DYP-014"
+      ],
+      "fuente": "Manual de Conservación 2026 §7.7 ejemplo 4",
+      "datos": "Draga ¾ yd³: CHD 455.60; R=50 m³/he",
+      "esperado": "Cargo 9.112 → 9.11; ind 2.10 → 11.21; fin 0.33 → 11.54; util 0.69 → 12.23; Secodam 0.06 → PU 12.29."
+    },
+    {
+      "id": "TC-08",
+      "regla": [
+        "DYP-017"
+      ],
+      "fuente": "Anexo 5 Apéndice C (excavadora de largo alcance 165 hp)",
+      "datos": "Va 2,814,374; Vr 10 %; Ve 10,000 he; Hea 1,400; seguro 3 %; Ko 125 %; diésel 0.1032×165 hp a $14.20/L",
+      "esperado": "D = 253.29; Mant = 316.62; seguro (Va+Vr)·3 %/(2×1,400) = 33.17 (con Va−Vr: 27.14). Diésel: 17.028 L × 14.20 = 241.80; el ejemplo usa 187.31 (implica 11.00/L). Salario: So 680.30 / Mo 123.69 = 5.5 h (no 6.4). Total interno 616.26 + 211.41 + 123.69 + 0.85 = 952.21 concilia con sus partes. Todas las cifras se verificaron contra el PDF a 170 dpi (diésel 187.31, 14.20, 0.1032; H = 8 horas × 0.8; inversión 0.6212 % = 13.18). La inversión de 13.18 no se reproduce con 0.6212 % por ninguna de las dos fórmulas."
+    },
+    {
+      "id": "TC-09",
+      "regla": [
+        "MAQ-006"
+      ],
+      "fuente": "Manual de Conservación 2026 §6.3; Anexo 5 §3.1",
+      "datos": "Necesidades 1.56 y 1.46 máquinas",
+      "esperado": "Adquirir 2 y 1 máquinas respectivamente; la capacidad horaria residual de 1.46 se informa aparte."
+    },
+    {
+      "id": "TC-10",
+      "regla": [
+        "DYP-018"
+      ],
+      "fuente": "Manual de Conservación 2026 §9.4 p.126",
+      "datos": "Canales 180/200 y 210/200; estructuras 85/110 y 80/110",
+      "esperado": "0.90 (buena); 1.05 (óptima); 0.77 (regular); 0.727 → 0.73 (regular). Valor 0.995 queda sin banda: definir frontera."
+    },
+    {
+      "id": "TC-11",
+      "regla": [
+        "MAQ-005",
+        "MAQ-012",
+        "DYP-010"
+      ],
+      "fuente": "Anexo 3 §4.2; Manual de Conservación 2026 §6.3; Anexo 5 §3.1",
+      "datos": "Mes = 167 h; año = 12 meses; Ht anual 1,400 o 1,200",
+      "esperado": "167 × 12 = 2,004 h/año frente a 1,400 (116.7 h/mes) o 1,200 (100 h/mes): la capacidad mensual depende de la base elegida; declararla."
+    }
+  ],
+  "pruebas_ejecutadas_conchos": [
+    "INV-002",
+    "INV-003",
+    "DYP-006",
+    "MAQ-003",
+    "MAQ-004",
+    "MAQ-005",
+    "TRV-004",
+    "TRV-001"
+  ],
+  "cobertura_conchos": [
+    {
+      "hallazgo": "C-INV-001",
+      "tema": "ID repetido en estructuras",
+      "reglas": [
+        "INV-002"
+      ]
+    },
+    {
+      "hallazgo": "C-INV-002",
+      "tema": "Longitud efectiva vs PK",
+      "reglas": [
+        "INV-003"
+      ]
+    },
+    {
+      "hallazgo": "C-INV-003",
+      "tema": "Autorreferencias en IO1a",
+      "reglas": [
+        "TRV-004"
+      ]
+    },
+    {
+      "hallazgo": "C-INV-004",
+      "tema": "Represas 13 vs 14",
+      "reglas": [
+        "INV-001"
+      ]
+    },
+    {
+      "hallazgo": "C-INV-005",
+      "tema": "Coordenadas",
+      "reglas": [
+        "INV-005"
+      ]
+    },
+    {
+      "hallazgo": "C-INV-006",
+      "tema": "PK de estructuras > extremo",
+      "reglas": [
+        "INV-003"
+      ]
+    },
+    {
+      "hallazgo": "C-INV-007",
+      "tema": "Reparto fijo mitad/mitad en T_I",
+      "reglas": [
+        "INV-001"
+      ]
+    },
+    {
+      "hallazgo": "C-INV-008",
+      "tema": "Casetas presero vs jefe de zona",
+      "reglas": [
+        "INV-001"
+      ]
+    },
+    {
+      "hallazgo": "C-INV-009",
+      "tema": "Coherencia A y Q",
+      "reglas": [
+        "INV-006"
+      ]
+    },
+    {
+      "hallazgo": "C-INV-010",
+      "tema": "Padrón y superficies T_I",
+      "reglas": [
+        "INV-004"
+      ]
+    },
+    {
+      "hallazgo": "C-EST-001",
+      "tema": "Vínculos externos",
+      "reglas": [
+        "TRV-001"
+      ]
+    },
+    {
+      "hallazgo": "C-EST-002",
+      "tema": "#VALUE! almacenados",
+      "reglas": [
+        "TRV-001"
+      ]
+    },
+    {
+      "hallazgo": "C-EST-003",
+      "tema": "Matrices BIFF",
+      "reglas": [
+        "TRV-001"
+      ]
+    },
+    {
+      "hallazgo": "C-DIA-01",
+      "tema": "Frecuencias rotuladas Ev./Mes",
+      "reglas": [
+        "DYP-006",
+        "DYP-002"
+      ]
+    },
+    {
+      "hallazgo": "C-DIA-02",
+      "tema": "Terracerías m³ vs km",
+      "reglas": [
+        "DYP-007"
+      ]
+    },
+    {
+      "hallazgo": "C-DIA-03",
+      "tema": "Resta de F269 (referencia)",
+      "reglas": [
+        "TRV-004",
+        "DYP-007"
+      ]
+    },
+    {
+      "hallazgo": "C-DIA-04",
+      "tema": "Diferencia diferido $71,985",
+      "reglas": [
+        "DYP-003",
+        "DYP-013",
+        "NOR-005",
+        "DYP-009"
+      ]
+    },
+    {
+      "hallazgo": "C-DIA-05",
+      "tema": "270 vs 269.5 compuertas",
+      "reglas": [
+        "DYP-006",
+        "INV-001"
+      ]
+    },
+    {
+      "hallazgo": "C-DIA-06",
+      "tema": "Radios 7 vs 6",
+      "reglas": [
+        "INV-001"
+      ]
+    },
+    {
+      "hallazgo": "C-DIA-07",
+      "tema": "Constantes en 60 tramos",
+      "reglas": [
+        "DYP-001"
+      ]
+    },
+    {
+      "hallazgo": "C-DIA-08",
+      "tema": "Patrón de desazolve As",
+      "reglas": [
+        "DYP-001"
+      ]
+    },
+    {
+      "hallazgo": "C-DIA-09",
+      "tema": "Acuáticas L×b",
+      "reglas": [
+        "DYP-001"
+      ]
+    },
+    {
+      "hallazgo": "C-DIA-10",
+      "tema": "Fórmulas externas",
+      "reglas": [
+        "TRV-001"
+      ]
+    },
+    {
+      "hallazgo": "C-DIA-11",
+      "tema": "Agregación de 385 + 6",
+      "reglas": [
+        "DYP-007",
+        "INV-001"
+      ]
+    },
+    {
+      "hallazgo": "C-DIA-12",
+      "tema": "PU efectivo derivado",
+      "reglas": [
+        "DYP-003",
+        "DYP-014"
+      ]
+    },
+    {
+      "hallazgo": "C-DIA-13",
+      "tema": "Periodo y corte",
+      "reglas": [
+        "TRV-005",
+        "NOR-004"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-P01",
+      "tema": "36 fórmulas que suman texto",
+      "reglas": [
+        "TRV-004"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-P02",
+      "tema": "NO APLICA en suma",
+      "reglas": [
+        "TRV-004"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-P03",
+      "tema": "#VALUE! en 2PAC",
+      "reglas": [
+        "TRV-001"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-P04",
+      "tema": "Referencias cruzadas km/m³/$",
+      "reglas": [
+        "DYP-007",
+        "TRV-004",
+        "DYP-004"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-P05",
+      "tema": "Falta septiembre / ventanas",
+      "reglas": [
+        "DYP-012",
+        "TRV-004",
+        "DYP-010",
+        "DYP-011"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-P06",
+      "tema": "Mezcla de modalidades",
+      "reglas": [
+        "DYP-012"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-P07",
+      "tema": "Fila 33 duplicada",
+      "reglas": [
+        "TRV-004"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-P08",
+      "tema": "Subtotal omite rubros",
+      "reglas": [
+        "DYP-013"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-P09",
+      "tema": "Suma excluye rehabilitación",
+      "reglas": [
+        "DYP-013"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-P10",
+      "tema": "Precedencia % + $",
+      "reglas": [
+        "TRV-004"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-P11",
+      "tema": "Fracción vs $",
+      "reglas": [
+        "DYP-013"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-01",
+      "tema": "Excavadoras no elegibles",
+      "reglas": [
+        "MAQ-002",
+        "MAQ-006"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-02",
+      "tema": "Tractores 2.045 vs 2",
+      "reglas": [
+        "MAQ-002"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-03",
+      "tema": "Equipo ligero asignado a tractor",
+      "reglas": [
+        "MAQ-009"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-04",
+      "tema": "Faltantes sin parque acreditado",
+      "reglas": [
+        "MAQ-002",
+        "MAQ-009"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-05",
+      "tema": "Reparto de retro",
+      "reglas": [
+        "MAQ-013"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-06",
+      "tema": "Rastreo 150 % / conformación 50 %",
+      "reglas": [
+        "MAQ-013"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-07",
+      "tema": "m³ → km propagado",
+      "reglas": [
+        "DYP-007",
+        "MAQ-003"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-08",
+      "tema": "Costos por tipo mal ubicados",
+      "reglas": [
+        "MAQ-011",
+        "TRV-004"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-09",
+      "tema": "Rango de suma incompleto",
+      "reglas": [
+        "TRV-004"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-10",
+      "tema": "Total de adquisiciones",
+      "reglas": [
+        "MAQ-006"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-11",
+      "tema": "Bases globales de horas",
+      "reglas": [
+        "MAQ-005",
+        "MAQ-004"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-12",
+      "tema": "Costos horarios sin desglose",
+      "reglas": [
+        "DYP-017"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-13",
+      "tema": "Cambios de rendimiento",
+      "reglas": [
+        "MAQ-010"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-14",
+      "tema": "Necesidades auxiliares",
+      "reglas": [
+        "MAQ-001"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-15",
+      "tema": "Truncado 833 h",
+      "reglas": [
+        "MAQ-003"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-16",
+      "tema": "Anexo 1 'horas necesarias'",
+      "reglas": [
+        "MAQ-011"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-17",
+      "tema": "Seguimiento sin horas",
+      "reglas": [
+        "MAQ-014",
+        "DYP-018"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-18",
+      "tema": "Meses vs ventana",
+      "reglas": [
+        "MAQ-012",
+        "TRV-005"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-19",
+      "tema": "IM-01 identidad y unidades",
+      "reglas": [
+        "MAQ-009"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-20",
+      "tema": "Suma 115,877 heterogénea",
+      "reglas": [
+        "TRV-004"
+      ]
+    },
+    {
+      "hallazgo": "C-MAQ-21",
+      "tema": "Cocientes N/O del PUM no son eficiencia operativa",
+      "reglas": [
+        "MAQ-011"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-S3a",
+      "tema": "Subtotales de longitud de SEG-3 distintos de la suma de renglones",
+      "reglas": [
+        "TRV-004",
+        "INV-001"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-S3b",
+      "tema": "PK invertido o con guion en SEG-3",
+      "reglas": [
+        "INV-003",
+        "INV-007"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-S3c",
+      "tema": "117 renglones con código, 103 con cantidad en blanco",
+      "reglas": [
+        "TRV-002"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-S6",
+      "tema": "2PAAB sin generador, PU ni estado de fondos",
+      "reglas": [
+        "DYP-005",
+        "DYP-004"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-S7a",
+      "tema": "Rótulo EJEC. sobre renglones PROG.",
+      "reglas": [
+        "DYP-018"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-S7b",
+      "tema": "Códigos de catálogo con variantes .01/.001",
+      "reglas": [
+        "DYP-016"
+      ]
+    },
+    {
+      "hallazgo": "C-DYP-S12",
+      "tema": "Superficie beneficiada y usuarios capturados como constantes",
+      "reglas": [
+        "DYP-008",
+        "INV-004"
+      ]
+    }
+  ]
+}

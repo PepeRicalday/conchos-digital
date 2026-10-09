@@ -1,6 +1,6 @@
 import { useState, useMemo, type ComponentType } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge, BarChart3, Database, Box, FileText, Upload } from 'lucide-react';
+import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge, BarChart3, Database, Box, FileText, Upload, ClipboardCheck } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useHydraStore } from '../store/useHydraStore';
@@ -69,6 +69,12 @@ const Sidebar = () => {
                 { icon: BarChart3, label: 'Balance Hidráulico', path: '/balance' },
                 { icon: Box, label: 'Modelación Hidráulica', path: '/modelacion-hidraulica' },
                 { icon: Database, label: 'Análisis Histórico', path: '/analisis-historico' },
+            ],
+        },
+        {
+            label: 'Conservación',
+            items: [
+                { icon: ClipboardCheck, label: 'SICA Conservación', path: '/conservacion' },
             ],
         },
         {

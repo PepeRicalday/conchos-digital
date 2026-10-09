@@ -14,7 +14,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const vpName = process.argv[2] || 'desktop';
 const app = process.argv[3] || 'cd';
 const APPS = {
-  cd: { base: 'http://localhost:5173', routes: ['/', '/monitor-publico', '/presas', '/canales', '/escalas', '/hidrometria', '/clima', '/reporte-oficial', '/importar', '/alertas', '/geo-monitor', '/bitacora', '/ciclos', '/infraestructura', '/inteligencia-hidrica', '/balance', '/analisis-historico', '/modelacion-hidraulica', '/login'] },
+  cd: { base: 'http://localhost:5173', routes: ['/', '/monitor-publico', '/presas', '/canales', '/escalas', '/hidrometria', '/clima', '/reporte-oficial', '/importar', '/alertas', '/geo-monitor', '/bitacora', '/ciclos', '/infraestructura', '/inteligencia-hidrica', '/balance', '/analisis-historico', '/modelacion-hidraulica', '/conservacion', '/login'] },
   sc: { base: 'http://localhost:5176', routes: ['/', '/captura', '/hidrometria', '/monitor', '/login'] },   // /nuke es destructiva: excluida
 };
 const VPS = {

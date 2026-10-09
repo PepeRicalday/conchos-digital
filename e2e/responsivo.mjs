@@ -21,7 +21,7 @@ const DEVICES = {
   desktop: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false, phone: false },
 };
 const APPS = {
-  cd: { base: 'http://localhost:5173', routes: ['/', '/monitor-publico', '/presas', '/canales', '/escalas', '/hidrometria', '/clima', '/reporte-oficial', '/importar', '/alertas', '/geo-monitor', '/bitacora', '/ciclos', '/infraestructura', '/inteligencia-hidrica', '/balance', '/analisis-historico', '/modelacion-hidraulica', '/login'] },
+  cd: { base: 'http://localhost:5173', routes: ['/', '/monitor-publico', '/presas', '/canales', '/escalas', '/hidrometria', '/clima', '/reporte-oficial', '/importar', '/alertas', '/geo-monitor', '/bitacora', '/ciclos', '/infraestructura', '/inteligencia-hidrica', '/balance', '/analisis-historico', '/modelacion-hidraulica', '/conservacion', '/login'] },
   sc: { base: 'http://localhost:5176', routes: ['/monitor', '/captura', '/hidrometria', '/login'] },
 };
 const args = process.argv.slice(2);

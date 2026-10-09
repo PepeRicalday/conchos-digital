@@ -177,6 +177,17 @@ describe.skipIf(!hay)('Conchos · reglas implementadas contra datos reales', () 
     expect(hall('MAQ-012').find((x) => x.id.endsWith(':concentracion'))?.severidad).toBe('informativa')
   })
 
+  it('INV-001 · T_I concilia con IO1 e IO3 (101.231 km de canal, 202.462 de caminos, 385 estructuras); el concreto de principales solo con "CANCRETO" (1.96 km)', () => {
+    const r = inf.resultados.find((x) => x.reglaId === 'INV-001')
+    expect(r?.cobertura).toMatchObject({ revisados: 16, identificados: 16 })
+    expect(hall('INV-001').map((x) => x.id).sort()).toEqual(['INV-001:T_I!H52:reparto_fijo', 'INV-001:T_I!H53:reparto_fijo', 'INV-001:T_I!L36:categoria'])
+    const c = hall('INV-001').find((x) => x.id.endsWith('L36:categoria'))
+    expect([c?.esperado, c?.observado, c?.diferencia, c?.severidad]).toEqual(['98.951', '96.991', '-1.96', 'media'])
+    expect(c?.detalle).toContain('"CANCRETO"')
+    // ninguna diferencia dura: los totales de canales, caminos y estructuras concilian
+    expect(hall('INV-001').some((x) => x.id.endsWith(':diferencia') || x.id.endsWith(':estructuras'))).toBe(false)
+  })
+
   it('INV-005 · 4 pares de latitudes capturadas con una longitud (…°O) y 1 suelta; 2 con segundos = 60; los extremos contiguos coinciden (C-INV-005)', () => {
     const h = hall('INV-005')
     expect(inf.resultados.find((x) => x.reglaId === 'INV-005')?.cobertura).toMatchObject({ revisados: 240, identificados: 240 })
@@ -201,10 +212,10 @@ describe.skipIf(!hay)('Conchos · reglas implementadas contra datos reales', () 
     expect(h.find((x) => x.id.endsWith('trapecioidal'))?.titulo).toContain('60 registros')
   })
 
-  it('el informe no declara un "aprobado": resume hallazgos y la cobertura real de reglas (19 de 52)', () => {
-    expect(inf.coberturaReglas).toMatchObject({ implementadas: 19, totales: 52, ejecutadas: 19 })
-    expect(inf.resumen.hallazgos).toBe(335)
-    expect(inf.resumen.alta + inf.resumen.media + inf.resumen.informativa).toBe(335)
+  it('el informe no declara un "aprobado": resume hallazgos y la cobertura real de reglas (20 de 52)', () => {
+    expect(inf.coberturaReglas).toMatchObject({ implementadas: 20, totales: 52, ejecutadas: 20 })
+    expect(inf.resumen.hallazgos).toBe(338)
+    expect(inf.resumen.alta + inf.resumen.media + inf.resumen.informativa).toBe(338)
   })
 
   it('es determinista sobre el libro real', () => {

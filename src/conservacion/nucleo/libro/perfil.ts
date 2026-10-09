@@ -75,6 +75,31 @@ export interface PerfilFormato {
     readonly colRevestimiento: string
     readonly colSeccion: string
   }
+  /** Tarjeta de inventario T_I: totales que deben conciliar con las fichas detalladas. */
+  readonly tarjetaInventario: {
+    readonly hoja: string
+    readonly canalesTotal: string
+    readonly principales: { readonly total: string; readonly concreto: string; readonly mamposteria: string; readonly sinRevestir: string; readonly entubado: string }
+    readonly secundarios: { readonly total: string; readonly concreto: string; readonly mamposteria: string; readonly sinRevestir: string; readonly entubado: string }
+    readonly caminosTotal: string
+    readonly caminosRevestidos: string
+    readonly caminosTerracerias: string
+    readonly caminosPavimentados: string
+    /** Total de estructuras del libro; debe igualar los registros del inventario longitudinal. */
+    readonly estructurasTotal: string
+  }
+  /** Ficha de caminos (I.O.-3): un renglón por margen y tipo de superficie. */
+  readonly fichaCamino: {
+    readonly hoja: string
+    readonly filas: RangoFilas
+    readonly colNombre: string
+    readonly colLongitud: string
+    readonly colRevestimiento: string
+  }
+  /** Columna con la categoría del canal en la ficha I.O.-1 (principal o secundario). */
+  readonly colCategoriaCanal: string
+  /** Celda con la suma de estructuras de la ficha I.O.-1. */
+  readonly celdaTotalEstructurasFicha: string
   readonly inventarioCaminos: {
     readonly hoja: string
     readonly filas: readonly number[]
@@ -172,6 +197,15 @@ export const PERFIL_PACOT_2026_27: PerfilFormato = {
     colLonInicial: 'E', colLatInicial: 'F', colLonFinal: 'H', colLatFinal: 'I', colGasto: 'L', colVelocidad: 'M', colArea: 'O',
     colPlantilla: 'P', colTirante: 'Q', colTalud: 'S', colRevestimiento: 'U', colSeccion: 'V',
   },
+  tarjetaInventario: {
+    hoja: 'T_I', canalesTotal: 'C40',
+    principales: { total: 'F37', concreto: 'L36', mamposteria: 'L37', sinRevestir: 'L38', entubado: 'L39' },
+    secundarios: { total: 'F42', concreto: 'L40', mamposteria: 'L41', sinRevestir: 'L42', entubado: 'L43' },
+    caminosTotal: 'C52', caminosRevestidos: 'H52', caminosTerracerias: 'H53', caminosPavimentados: 'H51', estructurasTotal: 'P21',
+  },
+  fichaCamino: { hoja: 'IO3', filas: { desde: 16, hasta: 215 }, colNombre: 'B', colLongitud: 'I', colRevestimiento: 'M' },
+  colCategoriaCanal: 'C',
+  celdaTotalEstructurasFicha: 'AN15',
   inventarioCaminos: { hoja: 'IO3', filas: [16, 18, 20, 22], colPkInicial: 'C', colPkFinal: 'F', colLongitud: 'I' },
   inventarioEstructuras: { hoja: 'IO4', filas: { desde: 14, hasta: 398 }, colId: 'A', colTipo: 'C', colPk: 'D' },
   calendarioMensual: {

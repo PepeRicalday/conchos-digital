@@ -110,15 +110,32 @@ describe.skipIf(!hay)('Conchos · reglas implementadas contra datos reales', () 
     expect([so?.severidad, so?.origen]).toEqual(['informativa', 'norma'])
   })
 
+  it('DYP-007 · 5 cruces de unidad en PO-2 (4 con impacto vigente, 1 latente) y 2 en 3DND con terracerías en m³ (C-DYP-P04, C-DIA-02, C-DIA-03)', () => {
+    const h = hall('DYP-007')
+    expect(h.map((x) => x.id)).toEqual([
+      'DYP-007:PO-2!C43:PO-2!R42', 'DYP-007:PO-2!C47:PO-2!R46', 'DYP-007:PO-2!C48:PO-2!R47', 'DYP-007:PO-2!C50:PO-2!R49', 'DYP-007:PO-2!C51:PO-2!R50',
+      'DYP-007:3DND!F51:SEG-3!F269', 'DYP-007:3DND!J51:SEG-3!F263',
+    ])
+    // valores que la auditoría documentó: +0.5 ha, +1.25 m3, +$752,939.25 dentro de km, +1.25 m3; 20 km y 35 km dentro de m3
+    expect(h.map((x) => x.diferencia ?? 'blanco')).toEqual(['0.5', 'blanco', '1.25', '752939.25', '1.25', '20', '35'])
+    expect(h.map((x) => x.severidad)).toEqual(['alta', 'media', 'alta', 'alta', 'alta', 'alta', 'alta'])
+    expect(h[1]?.detalle).toContain('latente') // C47: R46 ($) está en blanco
+    expect(h.slice(5).every((x) => x.esperado === 'm3' && x.observado === 'km')).toBe(true)
+    // lo que no se pudo comprobar se declara
+    const r = inf.resultados.find((x) => x.reglaId === 'DYP-007')
+    expect(r?.pendientes.join(' ')).toMatch(/26 referencias a libros externos/)
+    expect(r?.pendientes.join(' ')).toMatch(/29 fórmulas con producto o cociente/)
+  })
+
   it('DYP-014, DYP-015 y DYP-018 quedan "sin datos": Conchos no trae APU (Dt_Maq vacío) ni ejecución; no se dan por superadas', () => {
     expect(inf.reglasSinDatos).toEqual(['DYP-014', 'DYP-015', 'DYP-018'])
     expect(inf.resultados.filter((r) => r.estado === 'no_evaluable').every((r) => (r.motivo ?? '').length > 20)).toBe(true)
   })
 
-  it('el informe no declara un "aprobado": resume hallazgos y la cobertura real de reglas (12 de 52)', () => {
-    expect(inf.coberturaReglas).toMatchObject({ implementadas: 12, totales: 52, ejecutadas: 12 })
-    expect(inf.resumen.hallazgos).toBe(303)
-    expect(inf.resumen.alta + inf.resumen.media + inf.resumen.informativa).toBe(303)
+  it('el informe no declara un "aprobado": resume hallazgos y la cobertura real de reglas (13 de 52)', () => {
+    expect(inf.coberturaReglas).toMatchObject({ implementadas: 13, totales: 52, ejecutadas: 13 })
+    expect(inf.resumen.hallazgos).toBe(310)
+    expect(inf.resumen.alta + inf.resumen.media + inf.resumen.informativa).toBe(310)
   })
 
   it('es determinista sobre el libro real', () => {

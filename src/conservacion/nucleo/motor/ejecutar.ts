@@ -5,6 +5,7 @@ import { reglaDyp006 } from '../reglas/dyp'
 import { reglaInv002, reglaInv003 } from '../reglas/inv'
 import { reglaMaq003, reglaMaq004, reglaMaq005 } from '../reglas/maq'
 import { reglaMaq006 } from '../reglas/balance'
+import { reglaDyp007 } from '../reglas/unidades'
 import { reglaDyp014, reglaDyp015, type ApuDeclarado } from '../reglas/precios'
 import { reglaDyp018, type FilaAvance } from '../reglas/seguimiento'
 import { reglaTrv001, reglaTrv004 } from '../reglas/trv'
@@ -18,10 +19,13 @@ export const REGLAS_PRIMER_CORTE: readonly Regla[] = [
 /** Corte 1b: reglas puras, que no necesitan leer el libro (cierran TC-05 a TC-10). */
 export const REGLAS_CORTE_1B: readonly Regla[] = [reglaMaq006, reglaDyp014, reglaDyp015, reglaDyp018]
 
-export const REGLAS_IMPLEMENTADAS: readonly Regla[] = [...REGLAS_PRIMER_CORTE, ...REGLAS_CORTE_1B]
+/** Corte 2: reglas que leen varias hojas del libro. */
+export const REGLAS_CORTE_2: readonly Regla[] = [reglaDyp007]
+
+export const REGLAS_IMPLEMENTADAS: readonly Regla[] = [...REGLAS_PRIMER_CORTE, ...REGLAS_CORTE_1B, ...REGLAS_CORTE_2]
 
 export const TOTAL_REGLAS_MATRIZ = 52
-export const VERSION_MOTOR = '0.2.0-corte1b'
+export const VERSION_MOTOR = '0.3.0-corte2'
 
 export interface EntradaEjecucion {
   readonly libro: VistaLibro | null

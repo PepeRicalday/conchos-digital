@@ -69,6 +69,21 @@ export interface PerfilFormato {
   }
   /** Hojas donde se revisan sumas de programa y presupuesto. */
   readonly hojasPrograma: readonly string[]
+  /** De dónde sale la unidad de cada columna en cada hoja (DYP-007). */
+  readonly unidades: {
+    readonly hojas: readonly PerfilUnidadesHoja[]
+    /** Hojas cuyas fórmulas se revisan. */
+    readonly hojasAEvaluar: readonly string[]
+  }
+}
+
+/** La unidad de una celda es fija, la dice otra columna de su misma fila, o no aplica (frecuencias, precios, etiquetas). */
+export type FuenteUnidad = { readonly fija: string } | { readonly deColumna: string } | 'omitir'
+
+export interface PerfilUnidadesHoja {
+  readonly hoja: string
+  readonly columnas: Readonly<Record<string, FuenteUnidad>>
+  readonly porDefecto: FuenteUnidad
 }
 
 export const PERFIL_PACOT_2026_27: PerfilFormato = {
@@ -89,4 +104,17 @@ export const PERFIL_PACOT_2026_27: PerfilFormato = {
   inventarioCaminos: { hoja: 'IO3', filas: [16, 18, 20, 22], colPkInicial: 'C', colPkFinal: 'F', colLongitud: 'I' },
   inventarioEstructuras: { hoja: 'IO4', filas: { desde: 14, hasta: 398 }, colId: 'A', colTipo: 'C', colPk: 'D' },
   hojasPrograma: ['PO-2', 'PO-2C', '2PA', '2PAC', '2PAAB', 'UM1', 'PUM1'],
+  unidades: {
+    hojasAEvaluar: ['PO-2', 'PO-2C', '3DND'],
+    hojas: [
+      { hoja: 'PO-2', columnas: { A: 'omitir', B: 'omitir' }, porDefecto: { deColumna: 'B' } },
+      { hoja: 'PO-2C', columnas: { A: 'omitir', B: 'omitir' }, porDefecto: { deColumna: 'B' } },
+      // SEG-3: E longitud (km), F cantidad con su unidad en G, H precio unitario, I importe
+      { hoja: 'SEG-3', columnas: { E: { fija: 'km' }, F: { deColumna: 'G' }, I: { fija: 'MXN' } }, porDefecto: 'omitir' },
+      // 3DN: D cantidad paramétrica (unidad en B), E y H cantidades de trabajo (unidad en C), J importe
+      { hoja: '3DN', columnas: { D: { deColumna: 'B' }, E: { deColumna: 'C' }, H: { deColumna: 'C' }, J: { fija: 'MXN' } }, porDefecto: 'omitir' },
+      // 3DND: D paramétrica (B), E, F y J cantidades de trabajo (C), H y K importes
+      { hoja: '3DND', columnas: { D: { deColumna: 'B' }, E: { deColumna: 'C' }, F: { deColumna: 'C' }, J: { deColumna: 'C' }, H: { fija: 'MXN' }, K: { fija: 'MXN' } }, porDefecto: 'omitir' },
+    ],
+  },
 }

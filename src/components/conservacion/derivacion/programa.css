@@ -1,0 +1,26 @@
+/* Programa de obra (SEG-3): resumen por concepto, lista paginada con enlaces. */
+.cons-pg-sub { margin: 4px 0 0; font-size: var(--sc-fs-2, 14px); color: var(--sc-t2); max-width: 70ch; }
+.cons-pg .cons-filtros .cons-pg-buscar { flex: 1 1 240px; }
+.cons-pg .cons-filtros .cons-pg-buscar input { width: 100%; }
+.cons-pg-resumen td:first-child { white-space: normal; }
+.cons-pg-resumen tr[data-activo] td { background: color-mix(in srgb, var(--sc-sky) 9%, transparent); }
+.cons-pg-resumen .cons-der-enlace { text-align: left; }
+.cons-pg-cuenta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; font: 400 var(--sc-fs-2, 14px) var(--sc-body); color: var(--sc-t2); }
+.cons-pg-cuenta b { font-family: var(--sc-mono); color: var(--sc-t1); }
+.cons-pg-tabla td { vertical-align: top; }
+.cons-pg-tabla th:nth-child(2), .cons-pg-tabla td:nth-child(2), .cons-pg-tabla th:nth-child(6), .cons-pg-tabla td:nth-child(6), .cons-pg-tabla th:nth-child(7) { text-align: left; }
+.cons-pg-resumen small { display: block; font-size: var(--sc-fs-1, 12px); color: var(--sc-t3); font-weight: 400; }
+.cons-pg-tabla td:first-child, .cons-pg-tabla td:nth-child(2) { white-space: normal; min-width: 160px; font-family: var(--sc-body); }
+.cons-pg-tabla small { display: block; font-size: var(--sc-fs-1, 12px); color: var(--sc-t3); overflow-wrap: anywhere; }
+.cons-pg-obra { display: block; font-weight: 600; color: var(--sc-t1); }
+.cons-pg-loc { font-family: var(--sc-mono); }
+.cons-pg-clave { font-family: var(--sc-mono); }
+.cons-pg-ir { white-space: normal !important; }
+.cons-pg-ir { display: flex !important; flex-wrap: wrap; gap: 6px; }
+.cons-pg-ir .sc-btn { flex: 1 1 auto; justify-content: center; white-space: nowrap; padding: 0 12px; }
+.cons-pg-pags { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+@media (max-width: 640px) {
+  .cons-pg-ir .sc-btn { flex: 0 1 auto; }
+  .cons-pg-pags { justify-content: center; }
+  .cons-pg-pags .cons-cuenta { order: -1; flex-basis: 100%; text-align: center; }
+}

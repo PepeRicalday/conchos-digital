@@ -23,14 +23,14 @@ describe('informe imprimible de SICA Conservación', () => {
         expect(html).toContain('Unidad Conchos');
     });
 
-    it('declara el alcance: cobertura parcial y "sin hallazgos no equivale a correcto"', () => {
+    it('declara el alcance: cobertura parcial y "sin hallazgos no es aprobación"', () => {
         expect(html).toContain('3 de 4 reglas');
-        expect(html).toContain('no equivale a que el programa sea correcto');
+        expect(html).toContain('no es aprobación del programa');
     });
 
     it('muestra la regla no implementada como tal y las cifras del resumen', () => {
-        expect(html).toContain('No implementada');
-        expect(html).toContain('Sin datos');
+        expect(html).toContain('No evaluable · aún no implementada');
+        expect(html).toContain('No evaluable · sin datos en el libro');
         expect(html).toContain('Severidad alta');
     });
 

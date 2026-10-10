@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { ArchivoInforme } from '../../conservacion/informe/esquemaInforme';
-import { filasReglas, resumenReglas, TEXTO_ESTADO_REGLA, type EstadoReglaVista } from '../../conservacion/informe/vistas';
+import { etiquetaEstadoRegla, filasReglas, resumenReglas, type EstadoReglaVista } from '../../conservacion/informe/vistas';
 import { InsigniaEstadoRegla } from './Insignias';
 
 export function VistaReglas({ archivo, abrirHallazgos }: { archivo: ArchivoInforme; abrirHallazgos: (regla: string) => void }) {
@@ -14,14 +14,14 @@ export function VistaReglas({ archivo, abrirHallazgos }: { archivo: ArchivoInfor
         <section className="sc-card" aria-labelledby="cons-rg-t" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div><span className="sc-kicker">Matriz norma → regla → prueba</span><h3 id="cons-rg-t" style={{ marginBottom: 0 }}>Las {r.total} reglas</h3></div>
             <p className="sc-aviso cons-honesto" role="note">
-                <span><b>{r.implementadas} de {r.total}</b> reglas están implementadas. Una regla "no implementada" no se evaluó: no equivale a que el programa cumpla.</span>
+                <span><b>{r.implementadas} de {r.total}</b> reglas están implementadas. Una regla «No evaluable · aún no implementada» no se evaluó: no equivale a que el programa cumpla.</span>
             </p>
             <div className="cons-filtros">
                 <div className="sc-campo">
                     <label htmlFor="cons-g-estado">Estado</label>
                     <select id="cons-g-estado" value={estado} onChange={(e) => setEstado(e.target.value as '' | EstadoReglaVista)}>
                         <option value="">Todos ({filas.length})</option>
-                        {estados.map((e) => <option key={e} value={e}>{TEXTO_ESTADO_REGLA[e]} ({filas.filter((f) => f.estado === e).length})</option>)}
+                        {estados.map((e) => <option key={e} value={e}>{etiquetaEstadoRegla(e)} ({filas.filter((f) => f.estado === e).length})</option>)}
                     </select>
                 </div>
             </div>

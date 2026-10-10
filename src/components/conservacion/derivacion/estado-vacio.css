@@ -1,0 +1,13 @@
+/* Vacío o error con una acción: dice qué pasa, por qué y qué hacer. */
+.cons-vacio-accion { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px 16px; align-items: center; padding: 16px 18px; border: 1px dashed var(--sc-line); border-radius: 12px; color: var(--sc-t2); }
+.cons-vacio-accion > svg { flex: none; color: var(--sc-t3); }
+.cons-vacio-accion-t { min-width: 0; }
+.cons-vacio-accion-tit { margin: 0; font: 600 var(--sc-fs-3, 16px)/1.35 var(--sc-body); color: var(--sc-t1); }
+.cons-vacio-accion-txt { margin: 4px 0 0; max-width: 70ch; font-size: var(--sc-fs-2, 14px); line-height: 1.55; color: var(--sc-t2); }
+.cons-vacio-accion-btn { justify-content: center; }
+.cons-vacio-accion-error { border-style: solid; border-color: rgba(248, 113, 113, 0.5); background: rgba(248, 113, 113, 0.06); }
+.cons-vacio-accion-error > svg { color: var(--sc-crit); }
+@media (max-width: 700px) {
+  .cons-vacio-accion { grid-template-columns: auto minmax(0, 1fr); }
+  .cons-vacio-accion-btn { grid-column: 1 / -1; width: 100%; }
+}

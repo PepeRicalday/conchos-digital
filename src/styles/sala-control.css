@@ -23,6 +23,15 @@
     --sc-display: 'Big Shoulders Display', 'JetBrains Mono', sans-serif;
     --sc-body: 'IBM Plex Sans', 'Inter', system-ui, sans-serif;
     --sc-mono: 'JetBrains Mono', ui-monospace, monospace;
+    /* Piso de legibilidad y de toque: nada se dibuja bajo --sc-texto-min ni se ofrece como objetivo bajo --sc-objetivo-min. */
+    --sc-texto-min: 12px;
+    --sc-objetivo-min: 44px;
+    /* Escala tipográfica 12-14-16-20-28. Roles: --sc-display = nombre del concepto y cifra principal; --sc-mono = números, PK y ecuación; --sc-body = explicación. */
+    --sc-fs-1: 12px;
+    --sc-fs-2: 14px;
+    --sc-fs-3: 16px;
+    --sc-fs-4: 20px;
+    --sc-fs-5: 28px;
     font-family: var(--sc-body);
     color: var(--sc-t1);
     max-width: 1600px;

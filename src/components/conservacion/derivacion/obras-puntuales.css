@@ -1,0 +1,35 @@
+/* Obras puntuales (modelo por-pieza): estructuras y edificios. Hereda los tokens --sc-* y los colores por origen de .cons-comp. */
+.op-ficha { gap: 18px; }
+.op-cuentas { display: flex; flex-direction: column; gap: 12px; }
+.op-cuenta-t { margin: 0; font-size: 14px; font-weight: 700; color: var(--sc-t1); }
+.op-cuenta-libro { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 14px; color: var(--sc-t2); }
+.op-cuenta-libro b { color: var(--sc-t1); font-family: var(--sc-mono); }
+.op-cuenta-libro code { font: 12px var(--sc-mono); color: var(--sc-t2); }
+.op-motivo { margin: 0; }
+.op-nota-comp { max-width: none; }
+.op-grupos { display: flex; flex-direction: column; gap: 12px; }
+.op-grupos-cab { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
+.op-grupos h5, .op-lista h5 { margin: 0; font-size: 16px; font-weight: 700; color: var(--sc-t1); }
+.op-lista h5 small { font: 600 13px var(--sc-mono); color: var(--sc-t2); margin-left: 6px; }
+.op-selector { min-width: min(100%, 320px); }
+.op-selector select { min-height: 44px; }
+.op-parte { margin: 0; padding: 10px 14px; border-left: 4px solid var(--o-inv, var(--sc-sky)); background: color-mix(in srgb, var(--o-inv, var(--sc-sky)) 8%, transparent); border-radius: 0 10px 10px 0; font-size: 14px; line-height: 1.5; color: var(--sc-t1); }
+.op-parte em { color: var(--sc-t2); }
+.op-fam { color: var(--sc-t2); font-size: 12px; }
+.op-tabla td, .op-tabla th { font-size: 14px; }
+.op-lista { display: flex; flex-direction: column; gap: 10px; }
+.op-sin-ubic { font-size: 12px; color: var(--sc-t2); padding: 0 8px; }
+.op-datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.op-notas { margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--sc-t2); line-height: 1.5; max-width: 90ch; }
+.op-barra-grupo { flex: 0 1 auto; min-width: 0; }
+.cc-ruta > li.op-grupo { color: var(--sc-t1); font-weight: 600; flex: 0 1 auto; }
+.op-aviso-noaplica { margin: 0; font-size: 13px; color: var(--sc-t2); }
+.op-aviso-noaplica b { color: var(--sc-t1); }
+.cr-pieza .cr-cifras { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 14px; color: var(--sc-t2); }
+@media (max-width: 700px) {
+  .op-datos { grid-template-columns: minmax(0, 1fr); }
+  .op-grupos-cab { align-items: stretch; }
+  .op-selector { width: 100%; }
+}
+.op-selector label { font-size: 12px; }
+.cons-comp .sc-campo.op-selector > label { font-size: 12px; }

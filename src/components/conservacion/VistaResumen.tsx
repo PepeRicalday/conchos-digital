@@ -51,7 +51,7 @@ export function VistaResumen({ archivo, irAHallazgos }: Props) {
             <div className="sc-pulso-3" aria-label="Cobertura del comprobador">
                 <TileCifra etiqueta="Reglas implementadas" icono={<ListChecks size={16} aria-hidden="true" />} valor={`${reglas.implementadas} de ${reglas.total}`}
                     estado={{ texto: `${pctReglas} % de la matriz`, tipo: 'warn' }}
-                    lineas={[<>{reglas.noImplementadas} reglas aún no se ejecutan: <b>sin hallazgos no equivale a correcto</b></>]} acento="var(--sc-warn)" />
+                    lineas={[<>{reglas.noImplementadas} reglas aún no se ejecutan: <b>sin hallazgos no es aprobación del programa</b></>]} acento="var(--sc-warn)" />
                 <TileCifra etiqueta="Reglas sin hallazgos" icono={<Layers size={16} aria-hidden="true" />} valor={fmt(reglas.sinHallazgos)}
                     lineas={[<>{fmt(reglas.sinDatos)} sin datos suficientes en este libro</>]} acento="var(--sc-ok)" />
                 <TileCifra etiqueta="Pendientes declarados" icono={<AlertTriangle size={16} aria-hidden="true" />} valor={fmt(pendientes)}

@@ -18,5 +18,5 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": false
   },
-  "include": ["src/conservacion/nucleo/**/*.ts"]
+  "include": ["src/conservacion/nucleo/**/*.ts", "src/conservacion/derivacion/**/*.ts", "src/conservacion/verificacion/**/*.ts"]
 }

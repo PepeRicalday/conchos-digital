@@ -4,5 +4,5 @@
     "types": ["node"],
     "resolveJsonModule": true
   },
-  "include": ["src/conservacion/**/*.ts"]
+  "include": ["src/conservacion/**/*.ts", "scripts/lib/**/*.ts"]
 }

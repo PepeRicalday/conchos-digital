@@ -5,12 +5,16 @@ import {
     filtrarHallazgos, hallazgosPlanos, TEXTO_EVIDENCIA, TEXTO_ORIGEN, TEXTO_SEVERIDAD, type FiltrosHallazgos, type HallazgoVista,
 } from '../../conservacion/informe/vistas';
 import { InsigniaSeveridad } from './Insignias';
+import { ArrowRight } from 'lucide-react';
+import { referenciaEnlazable } from '../../conservacion/informe/enlaces';
+import './derivacion/centro-revision.css';
 
 const PAGINA = 40;
 const SEVERIDADES: readonly Severidad[] = ['alta', 'media', 'informativa'];
 
-function Tarjeta({ h }: { h: HallazgoVista }) {
+function Tarjeta({ h, verEnDerivacion }: { h: HallazgoVista; verEnDerivacion?: ((hoja: string, fila: number) => void) | undefined }) {
     const dims = Object.entries(h.dimensiones);
+    const enlace = verEnDerivacion ? referenciaEnlazable(h.referencias) : null;
     return (
         <li>
             <details className={`cons-h cons-h-${h.severidad}`}>
@@ -22,6 +26,14 @@ function Tarjeta({ h }: { h: HallazgoVista }) {
                     </span>
                     <p className="cons-h-tit">{h.titulo}</p>
                     <span className="cons-h-id">{h.referencias.slice(0, 3).join(' · ')}{h.referencias.length > 3 ? ` · +${h.referencias.length - 3}` : ''}</span>
+                    {enlace !== null && verEnDerivacion && (
+                        <span className="cr-en-summary">
+                            <button type="button" className="sc-btn cr-abrir" aria-label={`Ver en derivación la celda ${enlace.hoja}, fila ${enlace.fila}`}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); verEnDerivacion(enlace.hoja, enlace.fila); }}>
+                                Ver en derivación <ArrowRight size={16} aria-hidden="true" />
+                            </button>
+                        </span>
+                    )}
                 </summary>
                 <div className="cons-h-cuerpo">
                     <p>{h.detalle}</p>
@@ -53,9 +65,9 @@ function Tarjeta({ h }: { h: HallazgoVista }) {
     );
 }
 
-interface Props { archivo: ArchivoInforme; reglaInicial?: string }
+interface Props { archivo: ArchivoInforme; reglaInicial?: string; verEnDerivacion?: (hoja: string, fila: number) => void }
 
-export function VistaHallazgos({ archivo, reglaInicial = '' }: Props) {
+export function VistaHallazgos({ archivo, reglaInicial = '', verEnDerivacion }: Props) {
     const todos = useMemo(() => hallazgosPlanos(archivo), [archivo]);
     const [f, setF] = useState<FiltrosHallazgos>({ severidades: new Set(), clase: '', origen: '', regla: reglaInicial, texto: '' });
     const [limite, setLimite] = useState(PAGINA);
@@ -91,8 +103,8 @@ export function VistaHallazgos({ archivo, reglaInicial = '' }: Props) {
             </div>
             <p className="cons-cuenta" role="status" aria-live="polite">{visibles.length} de {todos.length} hallazgos</p>
             {visibles.length === 0
-                ? <p className="sc-vacio" role="status">Ningún hallazgo coincide con los filtros. Esto no significa que el programa esté correcto: solo se evaluaron las reglas implementadas.</p>
-                : <ul className="cons-lista">{visibles.slice(0, limite).map((h) => <Tarjeta key={h.id} h={h} />)}</ul>}
+                ? <p className="sc-vacio" role="status">Ningún hallazgo coincide con los filtros. Esto no es una aprobación del programa: solo se evaluaron las reglas implementadas.</p>
+                : <ul className="cons-lista">{visibles.slice(0, limite).map((h) => <Tarjeta key={h.id} h={h} verEnDerivacion={verEnDerivacion} />)}</ul>}
             {visibles.length > limite && (
                 <button type="button" className="sc-btn cons-mas" onClick={() => setLimite(limite + PAGINA)}>Mostrar {Math.min(PAGINA, visibles.length - limite)} más</button>
             )}

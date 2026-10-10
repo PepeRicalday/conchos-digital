@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import tailwindcss from '@tailwindcss/vite'
 import pkg from './package.json' with { type: 'json' }
+import { execFile } from 'node:child_process'
+import path from 'node:path'
 
 // Fuente única de la versión: package.json. Antes estaba escrita a mano aquí,
 // en el nombre del SW y en el <title> de index.html; los tres se desincronizaban
@@ -27,6 +29,31 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      // SICA Conservación: SOLO en el servidor de desarrollo local. Lee la carpeta de PacOT de la SRL
+      // (Conservacion/SRL CONCHOS), admite y registra cada libro con `scripts/conservacion-derivar.mjs --json`
+      // y entrega el resultado a la pantalla. No existe en el build publicado ni acepta rutas del cliente.
+      {
+        name: 'conservacion-carpeta-pacot',
+        apply: 'serve' as const,
+        configureServer(server: import('vite').ViteDevServer) {
+          let cola: Promise<unknown> = Promise.resolve()
+          const correr = () => new Promise<string>((resolve, reject) => {
+            const viteNode = path.resolve(server.config.root, 'node_modules', 'vite-node', 'vite-node.mjs')
+            execFile(process.execPath, [viteNode, 'scripts/conservacion-derivar.mjs', '--', '--json'],
+              { cwd: server.config.root, maxBuffer: 256 * 1024 * 1024, timeout: 10 * 60 * 1000 },
+              (err, stdout, stderr) => (err ? reject(new Error((stderr || err.message).slice(0, 600))) : resolve(stdout)))
+          })
+          server.middlewares.use('/__conservacion/derivacion', (req, res) => {
+            const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '')
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.setHeader('Cache-Control', 'no-store')
+            if (req.method !== 'GET' || !local) { res.statusCode = local ? 405 : 403; res.end('{"error":"no permitido"}'); return }
+            const turno = cola.then(correr)
+            cola = turno.catch(() => undefined) // una corrida lenta o fallida no bloquea las siguientes
+            turno.then((txt) => { res.end(txt) }, (e: Error) => { res.statusCode = 500; res.end(JSON.stringify({ error: e.message })) })
+          })
+        },
+      },
       // Sustituye %APP_VERSION% en index.html para que el <title> siga a package.json.
       {
         name: 'html-app-version',

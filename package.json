@@ -1,7 +1,7 @@
 {
   "name": "conchos-digital",
   "private": true,
-  "version": "2.26.0",
+  "version": "2.27.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,7 +13,8 @@
     "audit:e2e": "node e2e/auditoria.mjs",
     "typecheck:conservacion": "tsc -p tsconfig.conservacion.json && tsc -p tsconfig.conservacion.pruebas.json",
     "test:conservacion": "vitest run src/conservacion",
-    "conservacion:analizar": "vite-node scripts/conservacion-analizar.mjs --"
+    "conservacion:analizar": "vite-node scripts/conservacion-analizar.mjs --",
+    "conservacion:derivar": "vite-node scripts/conservacion-derivar.mjs --"
   },
   "dependencies": {
     "@fontsource/big-shoulders-display": "^5.3.0",

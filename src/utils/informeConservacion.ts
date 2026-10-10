@@ -4,7 +4,7 @@
  */
 import type { ArchivoInforme } from '../conservacion/informe/esquemaInforme';
 import {
-    contarPor, filasReglas, hallazgosPlanos, resumenReglas, TEXTO_ESTADO_REGLA, TEXTO_ORIGEN, TEXTO_SEVERIDAD, totalPendientes, type FilaRegla, type HallazgoVista,
+    contarPor, filasReglas, hallazgosPlanos, resumenReglas, etiquetaEstadoRegla, TEXTO_ORIGEN, TEXTO_SEVERIDAD, totalPendientes, type FilaRegla, type HallazgoVista,
 } from '../conservacion/informe/vistas';
 import { cabeceraInforme, cssInforme, documentoHtml, esc, fechaHoraLegible, folioInforme, pieInforme } from './informeBase';
 
@@ -51,7 +51,7 @@ function tablaReglas(fs: readonly FilaRegla[]): string {
     return `<div class="tabla-wrap"><table>
 <thead><tr><th>Regla</th><th>Clase</th><th>Descripción</th><th>Estado</th><th class="n">Cobertura</th><th class="n">Hallazgos</th></tr></thead>
 <tbody>${fs.map((f) => `<tr><td class="id">${esc(f.id)}</td><td>${esc(f.clase)}</td><td>${esc(f.regla)}</td>
-<td>${esc(TEXTO_ESTADO_REGLA[f.estado])}</td>
+<td>${esc(etiquetaEstadoRegla(f.estado))}</td>
 <td class="n">${f.cobertura ? esc(`${f.cobertura.revisados} / ${f.cobertura.identificados}`) : '<span class="sd">S/D</span>'}</td>
 <td class="n">${f.cobertura ? f.nHallazgos : '<span class="sd">S/D</span>'}</td></tr>`).join('')}</tbody></table></div>`;
 }
@@ -81,7 +81,7 @@ export function generarHtmlInformeConservacion(a: ArchivoInforme, o: OpcionesInf
     const porOrigen = contarPor(hs, (h) => TEXTO_ORIGEN[h.origen] ?? h.origen);
     paginas.push(`<h1>Informe de comprobación del programa de conservación</h1>
 <p class="fuente">Archivo analizado: ${esc(a.origen.archivoNombre)}${a.origen.archivoSha256 ? ` · SHA-256 ${esc(a.origen.archivoSha256.slice(0, 16))}…` : ''} · Motor ${esc(a.informe.versionMotor)} · Valores ${a.informe.baseValores === 'cache' ? 'guardados en el archivo (caché)' : esc(a.informe.baseValores)}</p>
-<div class="aviso"><b>Alcance y límites.</b> Se evaluaron ${rr.implementadas} de ${rr.total} reglas de la matriz norma → regla → prueba; ${rr.noImplementadas} aún no están implementadas. Que no aparezcan hallazgos no equivale a que el programa sea correcto. La aritmética que coincide no acredita la condición física de las obras. El Manual de Conservación 2026 prevalece sobre los Anexos.</div>
+<div class="aviso"><b>Alcance y límites.</b> Se evaluaron ${rr.implementadas} de ${rr.total} reglas de la matriz norma → regla → prueba; ${rr.noImplementadas} aún no están implementadas. Que no aparezcan hallazgos no es aprobación del programa. La aritmética que coincide no acredita la condición física de las obras. El Manual de Conservación 2026 prevalece sobre los Anexos.</div>
 <div class="kpis">
 <div class="kpi"><div class="et">Hallazgos</div><div class="v">${r.hallazgos}</div><div class="s">en ${rr.conHallazgos} reglas</div></div>
 <div class="kpi"><div class="et">Severidad alta</div><div class="v">${r.alta}</div><div class="s">cantidades, importes o cadena de cálculo</div></div>

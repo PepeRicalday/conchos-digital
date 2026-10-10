@@ -1,0 +1,29 @@
+/* Contorno real del tramo: insignia de calidad, avisos de cadenamiento, marcador de posición estimada y edificios aparte.
+   Usa solo los tokens --sc-* de sala-control; no toca conservacion.css. */
+.cons-ubic-calidad { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 14px; border-bottom: 1px solid var(--sc-line); }
+.cons-ubic-insignia { display: inline-flex; align-items: center; min-height: 28px; padding: 3px 12px; border-radius: 999px; border: 1px solid #a78bfa; background: rgba(167, 139, 250, 0.14); color: var(--sc-t1); font: 600 13px/1.3 var(--sc-body); }
+.cons-ubic-insignia-cuerda { border-style: dashed; border-color: var(--sc-t2); background: transparent; }
+.cons-ubic-nota-corta { font-size: 12px; color: var(--sc-t2); overflow-wrap: anywhere; }
+.cons-ubic-alerta { display: inline-flex; align-items: flex-start; gap: 6px; padding: 3px 10px; border-left: 3px solid var(--sc-warn); font-size: 12px; line-height: 1.35; color: var(--sc-t1); overflow-wrap: anywhere; }
+.cons-ubic-alerta svg { flex: none; margin-top: 1px; color: var(--sc-warn); }
+
+/* Posición estimada: anillo punteado hueco alrededor del símbolo (el símbolo ya va con trazo punteado). */
+.cons-mk-est svg { position: relative; z-index: 1; }
+.cons-mk-est::before { content: ''; position: absolute; width: 38px; height: 38px; border: 2px dashed #ffffff; border-radius: 50%; background: rgba(11, 22, 36, 0.35); pointer-events: none; }
+
+.cons-aparte { margin: 6px 0; font-size: 13px; color: var(--sc-t2); }
+.cons-aparte > summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; color: var(--sc-t1); font-weight: 600; }
+.cons-aparte ul { margin: 0; padding: 0 0 6px 18px; }
+.cons-aparte li { margin: 2px 0; }
+.cons-aparte small { font-size: 12px; color: var(--sc-t2); }
+
+/* T-09: avisos de cadenamiento plegables (en teléfono no comen la altura del mapa) y mapa con alto mínimo. */
+.cons-ubic-avisos-det { flex: 1 1 100%; }
+.cons-ubic-avisos-det > summary { display: inline-flex; align-items: center; gap: 8px; min-height: var(--sc-objetivo-min, 44px); cursor: pointer; font-size: var(--sc-fs-2, 14px); color: var(--sc-t1); }
+.cons-ubic-avisos-det > summary svg { color: var(--sc-warn); }
+.cons-ubic-avisos-det .cons-ubic-alerta { display: flex; margin: 0 0 6px; }
+.cons-ubic-aviso { bottom: 12px; font-size: var(--sc-fs-1, 12px); }
+@media (max-width: 900px) { .cons-ubic-mapawrap { min-height: 56dvh; } .cons-ubic-calidad { padding: 4px 14px; } }
+/* El aviso de «sin imagen satelital» va en el flujo, entre el mapa y el pie: encima del mapa tapaba la atribución y el pie en teléfono. */
+.cons-ubic-mapawrap .cons-ubic-aviso { position: static; z-index: auto; left: auto; right: auto; bottom: auto; border-radius: 0; border-width: 1px 0 0; background: rgba(11, 22, 36, 0.92); }
+@media (max-width: 900px) { .cons-ubic .cons-ubic-mapawrap { height: auto; min-height: 56dvh; } .cons-ubic .cons-ubic-mapa { min-height: 46dvh; } }

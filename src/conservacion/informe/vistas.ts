@@ -1,11 +1,13 @@
 import type { Hallazgo, Severidad } from '../nucleo'
 import type { ArchivoInforme } from './esquemaInforme'
+import { describirEstado, desdeRegla, ETIQUETA_SEVERIDAD, ORDEN_SEVERIDAD as ORDEN_SEV } from '../vocabulario'
 
 /** Funciones puras que derivan lo que la interfaz muestra a partir del archivo de informe. */
 
-export const ORDEN_SEVERIDAD: Readonly<Record<Severidad, number>> = { alta: 0, media: 1, informativa: 2 }
+export const ORDEN_SEVERIDAD: Readonly<Record<Severidad, number>> = ORDEN_SEV
 
-export const TEXTO_SEVERIDAD: Readonly<Record<Severidad, string>> = { alta: 'Alta', media: 'Media', informativa: 'Informativa' }
+/** La severidad es un atributo aparte del estado (vocabulario único). */
+export const TEXTO_SEVERIDAD: Readonly<Record<Severidad, string>> = ETIQUETA_SEVERIDAD
 
 export const TEXTO_ORIGEN: Readonly<Record<string, string>> = {
   pacot: 'Error del PacOT',
@@ -23,15 +25,26 @@ export const TEXTO_EVIDENCIA: Readonly<Record<string, string>> = {
 export type EstadoReglaVista =
   | 'superada' | 'hallazgo' | 'no_evaluable' | 'sin_datos' | 'error_interno' | 'no_aplica' | 'no_ejecutada' | 'no_implementada'
 
-export const TEXTO_ESTADO_REGLA: Readonly<Record<EstadoReglaVista, string>> = {
-  superada: 'Sin hallazgos',
-  hallazgo: 'Con hallazgos',
-  no_evaluable: 'No evaluable',
-  sin_datos: 'Sin datos',
-  error_interno: 'Error interno',
-  no_aplica: 'No aplica',
-  no_ejecutada: 'No ejecutada',
-  no_implementada: 'No implementada',
+const ESTADOS_REGLA: readonly EstadoReglaVista[] = ['superada', 'hallazgo', 'no_evaluable', 'sin_datos', 'error_interno', 'no_aplica', 'no_ejecutada', 'no_implementada']
+
+/** Estado canónico de la regla (Coherente · Atípico · No evaluable); el matiz de «no evaluable» va en MOTIVO_ESTADO_REGLA. */
+export const TEXTO_ESTADO_REGLA: Readonly<Record<EstadoReglaVista, string>> =
+  Object.fromEntries(ESTADOS_REGLA.map((e) => [e, describirEstado(desdeRegla(e)).corta])) as Record<EstadoReglaVista, string>
+
+/** Por qué una regla es «No evaluable» (null si el estado no lo es): la información que antes decían «No implementada», «Sin datos»… */
+export const MOTIVO_ESTADO_REGLA: Readonly<Record<EstadoReglaVista, string | null>> =
+  Object.fromEntries(ESTADOS_REGLA.map((e) => [e, describirEstado(desdeRegla(e)).motivo])) as Record<EstadoReglaVista, string | null>
+
+/** Motivo breve para listas y selectores: «aún no implementada», «sin datos en el libro»… */
+export const MOTIVO_CORTO_REGLA: Readonly<Record<EstadoReglaVista, string | null>> = {
+  superada: null, hallazgo: null, no_evaluable: 'faltan datos del libro', sin_datos: 'sin datos en el libro', error_interno: 'falló al ejecutarse',
+  no_aplica: 'no aplica a este libro', no_ejecutada: 'no se ejecutó', no_implementada: 'aún no implementada',
+}
+
+/** «Coherente», «Atípico» o «No evaluable · aún no implementada». */
+export function etiquetaEstadoRegla(e: EstadoReglaVista): string {
+  const m = MOTIVO_CORTO_REGLA[e]
+  return m === null ? TEXTO_ESTADO_REGLA[e] : `${TEXTO_ESTADO_REGLA[e]} · ${m}`
 }
 
 export interface HallazgoVista extends Hallazgo {

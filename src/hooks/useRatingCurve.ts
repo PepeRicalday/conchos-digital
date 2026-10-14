@@ -123,9 +123,6 @@ export function useRatingCurve(diasAtras = 365): RatingCurveResult {
 
                 // Agrupar mediciones por punto_control_id
                 const grupos: Record<string, RatingMeasurement[]> = {};
-                // Guardar geometría del aforo para usar en curva teórica (toma del primer aforo)
-                const geomAforo: Record<string, { plantilla_m: number; talud_z: number }> = {};
-
                 for (const af of aforosDB ?? []) {
                     const pid = af.punto_control_id;
                     if (!grupos[pid]) grupos[pid] = [];
@@ -135,12 +132,6 @@ export function useRatingCurve(diasAtras = 365): RatingCurveResult {
                         gasto:   Number(af.gasto_calculado_m3s),
                         froude:  af.froude != null ? Number(af.froude) : null,
                     });
-                    if (!geomAforo[pid]) {
-                        geomAforo[pid] = {
-                            plantilla_m: Number(af.plantilla_m) || 8,
-                            talud_z:     Number(af.talud_z)     || 1.5,
-                        };
-                    }
                 }
 
                 // Función para encontrar tramo del perfil dado un km
@@ -157,12 +148,15 @@ export function useRatingCurve(diasAtras = 365): RatingCurveResult {
                         const meta   = controlMeta[pid];
                         const kmPto  = meta?.km ?? null;
                         const perfil = findPerfil(kmPto);
-                        const geom   = geomAforo[pid];
+                        // Sin perfil hidráulico del tramo NO se inventa una sección (antes: 8 m, talud 1.5, n 0.015, S0 0.00016):
+                        // la curva teórica solo se dibuja con geometría real del canal.
+                        if (!perfil) return null;
 
-                        const b  = perfil ? Number(perfil.plantilla_m)  : geom.plantilla_m;
-                        const z  = perfil ? Number(perfil.talud_z)       : geom.talud_z;
-                        const n  = perfil ? Number(perfil.rugosidad_n)   : 0.015;
-                        const S0 = perfil ? Number(perfil.pendiente_s0)  : 0.00016;
+                        const b  = Number(perfil.plantilla_m);
+                        const z  = Number(perfil.talud_z);
+                        const n  = Number(perfil.rugosidad_n);
+                        const S0 = Number(perfil.pendiente_s0);
+                        if (![b, z, n, S0].every(Number.isFinite) || b <= 0 || n <= 0 || S0 <= 0) return null;
 
                         // Curva teórica: barrido de tirante 0.05 a 4.0 m en pasos de 0.05
                         const curva_teorica = Array.from({ length: 80 }, (_, i) => {
@@ -185,6 +179,7 @@ export function useRatingCurve(diasAtras = 365): RatingCurveResult {
                             r2,
                         };
                     })
+                    .filter((p): p is RatingCurveData => p !== null)
                     // Ordenar: peor R² primero (más necesitan revisión)
                     .sort((a, b) => {
                         if (a.r2 === null) return 1;

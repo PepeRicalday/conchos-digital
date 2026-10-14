@@ -18,7 +18,6 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getTodayString, addDays } from '../utils/dateHelpers';
 
-const S0_FALLBACK = 0.00016; // pendiente media Canal Principal Conchos
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -145,11 +144,12 @@ export function useManningCalibration(diasAtras = 90): ManningCalibrationResult 
 
                 // S0 mediana del canal como fallback
                 const s0Values = (perfilDB ?? []).map(t => Number(t.pendiente_s0)).filter(v => v > 0);
-                const s0Fallback = s0Values.length > 0 ? median(s0Values) : S0_FALLBACK;
+                // Sin perfil hidráulico no hay pendiente real: no se calibra (antes: 0.00016 supuesto).
+                const s0Fallback = s0Values.length > 0 ? median(s0Values) : null;
 
                 // n de diseño dominante (mediana de rugosidades del perfil)
                 const nDisenoValues = (perfilDB ?? []).map(t => Number(t.rugosidad_n)).filter(v => v > 0);
-                const nDisenoGlobal = nDisenoValues.length > 0 ? median(nDisenoValues) : 0.015;
+                const nDisenoGlobal = nDisenoValues.length > 0 ? median(nDisenoValues) : null;
 
                 // Agrupar n_calculados por punto_control_id
                 const grupos: Record<string, number[]> = {};
@@ -158,7 +158,9 @@ export function useManningCalibration(diasAtras = 90): ManningCalibrationResult 
                     const Q  = Number(af.gasto_calculado_m3s);
                     const y  = Number(af.tirante_calculo_m);
                     const b  = Number(af.plantilla_m);
-                    const z  = af.talud_z != null ? Number(af.talud_z) : 1.5; // default talud
+                    // Un aforo sin talud o sin pendiente real no se calibra (antes: talud 1.5 supuesto).
+                    if (af.talud_z == null || s0Fallback == null) continue;
+                    const z  = Number(af.talud_z);
                     const S0 = s0Fallback;
 
                     const nVal = calcN(Q, b, z, y, S0);
@@ -175,6 +177,7 @@ export function useManningCalibration(diasAtras = 90): ManningCalibrationResult 
                         const nCal  = median(vals);
                         const nMean = vals.reduce((a, b) => a + b, 0) / vals.length;
                         const nStd  = stddev(vals, nMean);
+                        if (nDisenoGlobal == null) return null;
                         const delta = ((nCal - nDisenoGlobal) / nDisenoGlobal) * 100;
 
                         return {
@@ -193,6 +196,7 @@ export function useManningCalibration(diasAtras = 90): ManningCalibrationResult 
                             valores_n:   vals,
                         };
                     })
+                    .filter((r): r is ResultadoCalibPunto => r !== null)
                     .sort((a, b) => Math.abs(b.delta_pct) - Math.abs(a.delta_pct));
 
                 if (!cancelled) {

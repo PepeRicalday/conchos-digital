@@ -2071,8 +2071,10 @@ const ModelingDashboard: React.FC = () => {
   const globalEff    = qDam > 0 && lastCP
     ? Math.min(100, (((lastCP.q_sim ?? 0) + extraccionesSimM3s) / qDam) * 100)
     : 0;
-  const globalEffConfiable = dataStatus.deliveries
-    || !simResults.some(r => r.gate_anchored && r.gate_source === 'AFORO');
+  // Sin gasto de entrada (presa cerrada / sin movimiento) la eficiencia no se mide: S/D, no un 0.0 % que arrastre el IEC.
+  const globalEffMedible = qDam > 0 && !!lastCP;
+  const globalEffConfiable = globalEffMedible && (dataStatus.deliveries
+    || !simResults.some(r => r.gate_anchored && r.gate_source === 'AFORO'));
   const iecSim = simResults.length > 0 && globalEffConfiable ? calcIEC({
     eficiencia:       globalEff,
     n_coherentes:     simResults.filter(r => r.status === 'ESTABLE').length,
@@ -2166,6 +2168,7 @@ const ModelingDashboard: React.FC = () => {
           <div
             className="sim-kpi"
             title={globalEffConfiable ? undefined
+              : !globalEffMedible ? 'Sin gasto de entrada (presa cerrada o sin movimiento): la eficiencia de conducción no aplica'
               : 'Tomas sin reporte del día con gasto anclado a aforos SICA: la caída de Q incluye extracciones no contabilizadas — la conducción no es medible'}
           >
             <div className="sim-kpi-label">Eficiencia Conducción</div>
@@ -2178,7 +2181,7 @@ const ModelingDashboard: React.FC = () => {
             )}
           </div>
           {!iecSim && simResults.length > 0 && (
-            <div className="sim-kpi" title="IEC no calculable: eficiencia de conducción sin dato confiable (tomas sin reporte del día)">
+            <div className="sim-kpi" title={globalEffMedible ? 'IEC no calculable: eficiencia de conducción sin dato confiable (tomas sin reporte del día)' : 'IEC no calculable: sin gasto de entrada (presa cerrada o sin movimiento)'}>
               <div className="sim-kpi-label">IEC Canal</div>
               <div className="sim-kpi-val" style={{ color: '#64748b' }}>S/D</div>
             </div>

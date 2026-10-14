@@ -187,10 +187,12 @@ export function useClimaEstaciones() {
 
                 // Estimación local por radiación: solo de día y con elevación
                 // solar ≥ 10°; de noche devuelve null (no "0 % de nubes").
-                const est = lectura
+                // Sin altitud REAL de la estación no se estima (antes: 1200 m supuestos); fusionaCielo usa pronóstico/satélite.
+                const elevEstacion = e.elevacion_msnm != null && Number.isFinite(Number(e.elevacion_msnm)) && Number(e.elevacion_msnm) > 0 ? Number(e.elevacion_msnm) : null;
+                const est = lectura && elevEstacion != null
                     ? estimaNubosidadPorRadiacion(
                         lectura.rad_solar_wm2, new Date(lectura.ts),
-                        Number(e.latitud), Number(e.longitud), Number(e.elevacion_msnm) || 1200,
+                        Number(e.latitud), Number(e.longitud), elevEstacion,
                     )
                     : null;
 

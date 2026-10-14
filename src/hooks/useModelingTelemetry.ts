@@ -364,7 +364,8 @@ export function useModelingTelemetry(setters: {
       if (lastMovPresa?.gasto_m3s != null) {
         // La simulación utiliza el ÚLTIMO movimiento de presa como "Base"
         const base = safeFloat(lastMovPresa.gasto_m3s, 0);
-        if (base > 0) {
+        // Un 0 REGISTRADO (presa cerrada) es un dato real: antes se descartaba y se simulaba con 62.4 m³/s «estimado».
+        if (base > 0 || (Number.isFinite(Number(lastMovPresa.gasto_m3s)) && Number(lastMovPresa.gasto_m3s) === 0)) {
           qBaseVal = base;
           qDamVal = base; // Ambos inician iguales (Delta 0 hasta que el usuario mueva el slider)
           damFuente = 'movimientos_presas';

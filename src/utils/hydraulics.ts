@@ -511,8 +511,15 @@ export function getM1Factor(nombre?: string, km?: number): number {
         }
         if (bestName) return M1_FACTORS[bestName];
     }
+    // Sin factor calibrado para la escala: 1.0 = sin corrección (NO es un factor medido). Se avisa una sola vez por escala.
+    const clave = String(nombre ?? km ?? "?");
+    if (!_M1_SIN_FACTOR_AVISADO.has(clave)) {
+        _M1_SIN_FACTOR_AVISADO.add(clave);
+        console.warn(`[hydraulics] Escala "${clave}" sin factor M1 calibrado: se usa 1.0 (sin corrección).`);
+    }
     return 1.0;
 }
+const _M1_SIN_FACTOR_AVISADO = new Set<string>();
 
 /**
  * Recalculates gate flow from raw reading data using M1-calibrated factors.

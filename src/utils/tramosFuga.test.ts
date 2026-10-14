@@ -7,7 +7,9 @@ describe('normalizaTramoFuga', () => {
     it('lee las columnas reales de la vista (con sufijo _m3s)', () => {
         const s = normalizaTramoFuga(fila({ q_entrada_m3s: '0.4035', q_salida_m3s: '0.2051', q_extracciones_m3s: '0.1', q_perdida_m3s: '0.1984', eficiencia_pct: '50.83', estatus_hidraulico: 'PREVENTIVA' }));
         expect(s.q_entrada).toBeCloseTo(0.4035);
-        expect(s.q_perdida).toBeCloseTo(0.1984);
+        // Sin verificar frescura de las lecturas, la pérdida en m³/s no se publica (S/D).
+        expect(s.q_perdida).toBeNull();
+        expect(normalizaTramoFuga(fila({ q_entrada_m3s: '0.4035', q_perdida_m3s: '0.1984', eficiencia_pct: '50.83' }), { perdidaVerificada: true }).q_perdida).toBeCloseTo(0.1984);
         expect(s.eficiencia_pct).toBeCloseTo(50.83);
         expect(s.estatus).toBe('PREVENTIVA');
         expect(s.tramo_inicio).toBe('K-29');

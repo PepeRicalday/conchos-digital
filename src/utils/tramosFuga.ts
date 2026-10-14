@@ -37,7 +37,16 @@ export interface FilaVistaFugas {
 
 const num = (v: unknown): number | null => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
 
-export function normalizaTramoFuga(f: FilaVistaFugas): SegmentLoss {
+export interface OpcionesTramoFuga {
+    /**
+     * true solo si se verificó que las lecturas de AMBOS extremos son frescas y medidas. La vista no trae marca de
+     * tiempo y mezcla lecturas reales con la copia automática de medianoche (00:00, gasto arrastrado por cron): sin
+     * esa verificación la pérdida en m³/s NO se publica (null = S/D) para no disparar «Pérdida crítica» con datos viejos.
+     */
+    perdidaVerificada?: boolean;
+}
+
+export function normalizaTramoFuga(f: FilaVistaFugas, { perdidaVerificada = false }: OpcionesTramoFuga = {}): SegmentLoss {
     const qEntrada = num(f.q_entrada_m3s);
     const qSalida = num(f.q_salida_m3s);
     const qPerdidaVista = num(f.q_perdida_m3s);
@@ -56,7 +65,7 @@ export function normalizaTramoFuga(f: FilaVistaFugas): SegmentLoss {
         q_entrada: qEntrada,
         q_salida: qSalida,
         q_entregado: num(f.q_extracciones_m3s),
-        q_perdida: valido ? qPerdidaVista : null,
+        q_perdida: valido && perdidaVerificada ? qPerdidaVista : null,
         eficiencia_pct: valido ? efVista : null,
         estatus: f.estatus_hidraulico ?? '',
     };

@@ -26,7 +26,7 @@ export const useLeakMonitor = () => {
             const filas = (data || []) as FilaVistaFugas[];
             setSegments(filas
                 .filter((f) => !esEscalaReferencia({ nombre: f.escala_inicio_nombre ?? '' }) && !esEscalaReferencia({ nombre: f.escala_fin_nombre ?? '' }))
-                .map(normalizaTramoFuga));
+                .map((f) => normalizaTramoFuga(f)));
         } catch (err: any) {
             setError(err.message);
         } finally {

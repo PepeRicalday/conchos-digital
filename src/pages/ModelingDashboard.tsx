@@ -2077,7 +2077,7 @@ const ModelingDashboard: React.FC = () => {
     eficiencia:       globalEff,
     n_coherentes:     simResults.filter(r => r.status === 'ESTABLE').length,
     total_puntos:     simResults.length,
-    q_fuga_total:     0,
+    q_fuga_total:     null, // sin medición de fugas: el componente se excluye (antes: 0 = 25 pts gratis)
     q_entrada:        qDam,
     escalas_criticas: simResults.filter(r => r.status === 'CRITICO').length,
     total_escalas:    simResults.length,

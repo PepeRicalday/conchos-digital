@@ -268,7 +268,7 @@ const CanalReport: React.FC<CanalReportProps> = ({
                                         <div className="rpt-iec-comp-bar">
                                             <div className={`rpt-iec-comp-fill iec-fill-${key}`} />
                                         </div>
-                                        <span className="rpt-iec-comp-pts">{pts}/{max}</span>
+                                        <span className="rpt-iec-comp-pts">{raw == null && key !== 'ef' ? 'S/D' : `${pts}/${max}`}</span>
                                         {raw != null && <span className="rpt-iec-comp-raw">({raw.toFixed(1)}%)</span>}
                                     </div>
                                 ))}

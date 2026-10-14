@@ -1812,7 +1812,7 @@ const PublicMonitor: React.FC = () => {
             eficiencia:       coherenciaCanal.eficiencia ?? 0,
             n_coherentes:     coherenciaCanal.nCoherentes,
             total_puntos:     coherenciaCanal.totalPuntos,
-            q_fuga_total:     0,
+            q_fuga_total:     null, // sin medición de fugas: el componente se excluye (antes: 0 = 25 pts gratis)
             q_entrada:        coherenciaCanal.qK0Medido,
             escalas_criticas: escalasEnCritico,
             total_escalas:    escalasConDatos.length,
@@ -2866,7 +2866,7 @@ const PublicMonitor: React.FC = () => {
                                         <div
                                             className="health-badge-premium iec-badge"
                                             style={{ borderColor: iecColor(iecData.semaforo) }}
-                                            title={`IEC ${iecData.iec}/100 — ${iecData.texto}\nEficiencia: ${iecData.p_eficiencia}/30 pts\nCoherencia: ${iecData.p_coherencia}/25 pts\nFugas: ${iecData.p_fugas}/25 pts\nCríticos: ${iecData.p_criticos}/20 pts`}
+                                            title={`IEC ${iecData.iec}/100 — ${iecData.texto}\nEficiencia: ${iecData.p_eficiencia}/30 pts\nCoherencia: ${iecData.p_coherencia}/25 pts\nFugas: ${iecData.sin_dato.includes('fugas') ? 'S/D (sin medición, excluido)' : iecData.p_fugas + '/25 pts'}\nCríticos: ${iecData.p_criticos}/20 pts`}
                                         >
                                             <div className="health-dot" style={{ background: iecColor(iecData.semaforo) }}></div>
                                             <span className="iec-score">{iecData.iec}</span>
@@ -2919,7 +2919,7 @@ const PublicMonitor: React.FC = () => {
                                     <div className="iec-breakdown" ref={iecBreakdownRef}>
                                         <div className="iec-breakdown-row">
                                             <span className="iec-bd-title">ÍNDICE DE ESTADO DEL CANAL</span>
-                                            <span className="iec-bd-total">{iecData.iec}/100</span>
+                                            <span className="iec-bd-total" title={iecData.max_evaluado < 100 ? `Calculado sobre ${iecData.max_evaluado} puntos: faltan componentes sin medición (${iecData.sin_dato.join(', ')})` : undefined}>{iecData.iec}/100{iecData.max_evaluado < 100 && <small> · sobre {iecData.max_evaluado} pts</small>}</span>
                                         </div>
                                         <div className="iec-bd-bars">
                                             <div className="iec-bd-item">
@@ -2930,17 +2930,17 @@ const PublicMonitor: React.FC = () => {
                                             <div className="iec-bd-item">
                                                 <span className="iec-bd-label">Coherencia</span>
                                                 <div className="iec-bd-track"><div className="iec-bd-fill iec-fill-coh" /></div>
-                                                <span className="iec-bd-pts">{iecData.p_coherencia}<small>/25</small></span>
+                                                <span className="iec-bd-pts">{iecData.sin_dato.includes('coherencia') ? 'S/D' : <>{iecData.p_coherencia}<small>/25</small></>}</span>
                                             </div>
                                             <div className="iec-bd-item">
                                                 <span className="iec-bd-label">Sin fugas</span>
                                                 <div className="iec-bd-track"><div className="iec-bd-fill iec-fill-fug" /></div>
-                                                <span className="iec-bd-pts">{iecData.p_fugas}<small>/25</small></span>
+                                                <span className="iec-bd-pts">{iecData.sin_dato.includes('fugas') ? 'S/D' : <>{iecData.p_fugas}<small>/25</small></>}</span>
                                             </div>
                                             <div className="iec-bd-item">
                                                 <span className="iec-bd-label">Nivel canal</span>
                                                 <div className="iec-bd-track"><div className="iec-bd-fill iec-fill-crit" /></div>
-                                                <span className="iec-bd-pts">{iecData.p_criticos}<small>/20</small></span>
+                                                <span className="iec-bd-pts">{iecData.sin_dato.includes('criticos') ? 'S/D' : <>{iecData.p_criticos}<small>/20</small></>}</span>
                                             </div>
                                         </div>
                                         <div className="iec-bd-texto">{iecData.texto}</div>

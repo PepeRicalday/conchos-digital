@@ -340,14 +340,17 @@ function analisisTecnico(
     // Lámina de riego: SIEMPRE sobre el ETₒ del DÍA COMPLETO. Usar el acumulado
     // parcial del corte subestimaría la lámina en proporción a las horas de sol
     // que aún faltan (a media mañana, hasta 4-5 veces menos).
-    const ETO = etoDiario ?? etoProm ?? 0;
+    // Sin ETo no hay demanda que calcular: S/D, nunca 0 (un 0 se leería como 'demanda baja').
+    const ETO: number | null = etoDiario ?? etoProm ?? null;
     const usaParcial = etoDiario == null && etoProm != null;
-    const laminaNeta = ETO * 0.85;          // ETc nogal en brotación (Kc 0.85)
-    const laminaBruta = laminaNeta / 0.70;  // corrige por eficiencia de riego
+    const laminaNeta = ETO != null ? ETO * 0.85 : null;          // ETc nogal en brotación (Kc 0.85)
+    const laminaBruta = laminaNeta != null ? laminaNeta / 0.70 : null;  // corrige por eficiencia de riego
 
-    const clasifETo = ETO < 3 ? 'baja' : ETO < 5 ? 'moderada' : ETO < 7 ? 'alta' : 'muy alta';
+    const clasifETo = ETO == null ? null : ETO < 3 ? 'baja' : ETO < 5 ? 'moderada' : ETO < 7 ? 'alta' : 'muy alta';
 
-    const demanda = `La evapotranspiración de referencia del distrito para el <b>día completo</b> es ` +
+    const demanda = ETO == null || laminaNeta == null || laminaBruta == null
+        ? `<b>ETₒ sin dato</b>: no hay total diario ni lectura de estaciones para el corte, por lo que <b>no se calcula la demanda ni la lámina de riego</b> (S/D).`
+        : `La evapotranspiración de referencia del distrito para el <b>día completo</b> es ` +
         `<b>${ETO.toFixed(2)} mm/día</b> (demanda atmosférica <b>${clasifETo}</b>` +
         `${etoDiario != null ? ', según el modelo de pronóstico' : ''}). ` +
         `Para nogal en brotación (Kc 0.85) la demanda del cultivo (ETc) es <b>${laminaNeta.toFixed(2)} mm/día</b>; ` +
@@ -396,7 +399,8 @@ function analisisTecnico(
         : 'Sin lectura de viento disponible.';
 
     const recomendaciones: string[] = [];
-    if (ETO >= 5) recomendaciones.push(`Programar riego para reponer ~${laminaBruta.toFixed(1)} mm/día; priorizar turnos nocturnos o de madrugada para minimizar pérdidas por evaporación.`);
+    if (ETO == null || laminaBruta == null) recomendaciones.push('Sin ETₒ disponible: no se emite recomendación de lámina; consultar la demanda directamente en campo.');
+    else if (ETO >= 5) recomendaciones.push(`Programar riego para reponer ~${laminaBruta.toFixed(1)} mm/día; priorizar turnos nocturnos o de madrugada para minimizar pérdidas por evaporación.`);
     else recomendaciones.push(`Demanda ${clasifETo}: intervalos de riego pueden ampliarse; ajustar según humedad del suelo y etapa del cultivo.`);
     if (vMax != null && vMax > 5) recomendaciones.push('Suspender o posponer riego por aspersión hasta que el viento baje de 5 m/s.');
     if (lluviaTotal > 10) recomendaciones.push('Evaluar cierre preventivo de tomas por precipitación significativa.');

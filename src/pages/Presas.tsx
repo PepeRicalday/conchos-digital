@@ -51,13 +51,14 @@ const ExtractionStreamgraph = ({ movimientos }: { movimientos: MovimientoPresaDa
 
             return {
                 hora: label,
-                gasto: last?.gasto_m3s ?? 0,
+                // Antes del primer movimiento registrado no se sabe: null (hueco), no 0.
+                gasto: last ? last.gasto_m3s : null,
                 fuente: last?.fuente_dato ?? 'DEFAULT',
             };
         });
     }, [movimientos]);
 
-    const hasDatos = data.some(d => d.gasto > 0);
+    const hasDatos = data.some(d => d.gasto != null && d.gasto > 0);
 
     if (!hasDatos) {
         return (
@@ -68,7 +69,7 @@ const ExtractionStreamgraph = ({ movimientos }: { movimientos: MovimientoPresaDa
     }
 
     // Determine dominant fuente for color
-    const fuenteDominante = data.find(d => d.gasto > 0)?.fuente ?? 'DEFAULT';
+    const fuenteDominante = data.find(d => d.gasto != null && d.gasto > 0)?.fuente ?? 'DEFAULT';
     const color = FUENTE_COLOR[fuenteDominante] ?? FUENTE_COLOR.DEFAULT;
 
     return (
@@ -94,7 +95,7 @@ const ExtractionStreamgraph = ({ movimientos }: { movimientos: MovimientoPresaDa
                         contentStyle={{ backgroundColor: '#020617', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
                         itemStyle={{ fontFamily: 'JetBrains Mono', fontSize: '11px', color: '#e2e8f0' }}
                         formatter={(val: number | undefined, _: string | undefined, entry: any) => [
-                            `${(val ?? 0).toFixed(2)} m³/s`,
+                            val == null ? 'S/D' : `${val.toFixed(2)} m³/s`,
                             entry.payload.fuente ?? 'Gasto'
                         ] as [string, string]}
                     />
@@ -407,59 +408,27 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
     // (ej. TB 3.0 m³/s + CFE 14.57 m³/s no es ni remotamente 35/65).
     desglose?: { tomaBaja: number | null; cfe: number | null; tomaIzq: number | null; tomaDer: number | null };
 }) => {
-    // Si no hay extracción, inyectar valores mínimos lógicos para no quebrar el UI (Sankey arroja error en valores negativos)
-    const baseExtraccion = Math.max(extraccionTotal, 0.1);
+    // Solo se dibuja lo MEDIDO: el reparto por obra de toma que reporta sica-capture. No hay estimaciones
+    // (antes: 95 %/35 %/65 %, 5 % de "infiltración", retornos al río y un piso de 0.1 m³/s), porque ninguna
+    // de esas cifras se mide. Lo que la extracción total declara y las obras no explican se muestra como
+    // "Sin asignar a obra", no como pérdida.
+    const obras = desglose == null ? [] : [
+        { name: 'Turbinado CFE', value: desglose.cfe },
+        { name: 'Toma Baja', value: desglose.tomaBaja },
+        { name: 'Toma Izquierda', value: desglose.tomaIzq },
+        { name: 'Toma Derecha', value: desglose.tomaDer },
+    ].filter((o): o is { name: string; value: number } => o.value != null && Number.isFinite(o.value) && o.value > 0);
+    const sumaObras = obras.reduce((acc, o) => acc + o.value, 0);
+    const sinAsignar = extraccionTotal - sumaObras;
+    const hayDesglose = desglose != null && (desglose.tomaBaja != null || desglose.cfe != null || desglose.tomaIzq != null || desglose.tomaDer != null);
+    const motivoSinDiagrama = !hayDesglose ? 'Sin desglose por obra de toma reportado (S/D).'
+        : obras.length === 0 && !(extraccionTotal > 0) ? 'Extracción 0 m³/s: no hay flujo que trazar.'
+        : null;
 
-    const tieneDesgloseReal = desglose != null && (
-        desglose.tomaBaja != null || desglose.cfe != null ||
-        desglose.tomaIzq != null || desglose.tomaDer != null
-    );
-
-    // Con desglose real: CFE y agua de riego (Toma Baja + Izq. + Der.) vienen
-    // directo de lo capturado, y las "pérdidas" son la diferencia contra el
-    // total (no una fracción fija) para que el diagrama balancee sin inventar
-    // un 5% que ya no aplica cuando las obras suman su propio total real.
-    // Sin desglose (presas donde aún no se reporta por obra): se conserva la
-    // estimación 5%/35%/65% como aproximación visual.
-    const cfe = tieneDesgloseReal ? (desglose!.cfe ?? 0) : baseExtraccion * 0.95 * 0.35;
-    const agricola = tieneDesgloseReal
-        ? (desglose!.tomaBaja ?? 0) + (desglose!.tomaIzq ?? 0) + (desglose!.tomaDer ?? 0)
-        : baseExtraccion * 0.95 * 0.65;
-    const netoTomas = tieneDesgloseReal ? cfe + agricola : baseExtraccion * 0.95;
-    const perdidas = Math.max(baseExtraccion - netoTomas, 0);
-    const retornos = cfe * 0.95;
-
-    // Recharts Sankey rompe el layout con un link de value:0 (ej. cuando el
-    // desglose real capturado ya suma el total exacto y no queda margen de
-    // "pérdida" que mostrar). Se construye la lista de nodos dinámicamente,
-    // incluyendo solo los que tienen un flujo real > 0, y se reindexan los
-    // links para no dejar huecos ni referencias a nodos omitidos.
-    const nodosBase = [
-        { name: 'Vaso (Salida)' },
-        { name: 'Pérdida Infiltración' },
-        { name: 'Objeto de Toma' },
-        { name: 'Turbinado CFE' },
-        { name: 'Canal Principal' },
-        { name: 'Retornos Río' },
-    ];
-    const linksBase = [
-        { source: 0, target: 1, value: perdidas },
-        { source: 0, target: 2, value: netoTomas },
-        { source: 2, target: 3, value: cfe },
-        { source: 2, target: 4, value: agricola },
-        { source: 3, target: 5, value: retornos },
-    ].filter(l => l.value > 0);
-
-    const indicesUsados = Array.from(new Set(linksBase.flatMap(l => [l.source, l.target])));
-    const mapaIndices: Record<number, number> = {};
-    indicesUsados.forEach((viejoIndex, nuevoIndex) => { mapaIndices[viejoIndex] = nuevoIndex; });
-    const nodes = indicesUsados.map(i => ({ name: nodosBase[i].name }));
-    const links = linksBase.map(l => ({
-        source: mapaIndices[l.source],
-        target: mapaIndices[l.target],
-        value: l.value,
-    }));
-
+    // Recharts Sankey rompe con links de value:0: solo se incluyen flujos > 0.
+    const flujos = [...obras, ...(sinAsignar > 0.05 ? [{ name: 'Sin asignar a obra', value: sinAsignar }] : [])];
+    const nodes = [{ name: 'Vaso (Salida)' }, ...flujos.map(f => ({ name: f.name }))];
+    const links = flujos.map((f, i) => ({ source: 0, target: i + 1, value: f.value }));
     const dataSankey = { nodes, links };
 
     return (
@@ -467,9 +436,12 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
             <div className="scada-panel-hdr mb-3">
                 <Activity size={12} className="text-sky-400" />
                 <span>MÓDULO 4: Trazabilidad de Flujo a Red Mayor</span>
-                <span className="text-[11px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded ml-2">SIMULACIÓN INTERACTIVA</span>
+                <span className="text-[11px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded ml-2">DESGLOSE REPORTADO POR OBRA</span>
             </div>
             
+            {motivoSinDiagrama ? (
+                <p className="text-[12px] text-slate-400 py-6 text-center" role="status">{motivoSinDiagrama}</p>
+            ) : (
             <div className="h-[180px] w-full">
                 {/* Sankey necesita un lienzo inicial realista: con 1x1 sus márgenes (20/10) dan alturas negativas */}
                 <ResponsiveContainer initialDimension={{ width: 480, height: 180 }} width="100%" height="100%">
@@ -488,9 +460,8 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
                                     // color fijo por índice apuntaría al nodo equivocado.
                                     fill={
                                         payload.name === 'Vaso (Salida)' ? '#38bdf8'
-                                        : payload.name === 'Pérdida Infiltración' ? '#ef4444'
                                         : payload.name === 'Turbinado CFE' ? '#a78bfa'
-                                        : payload.name === 'Retornos Río' ? '#94a3b8'
+                                        : payload.name === 'Sin asignar a obra' ? '#94a3b8'
                                         : '#10b981'
                                     }
                                     fillOpacity="0.8" rx="2"
@@ -513,6 +484,7 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
                     </Sankey>
                 </ResponsiveContainer>
             </div>
+            )}
         </div>
     );
 };
@@ -605,11 +577,14 @@ const Presas = () => {
     // S/D nunca cero: sin fuente que informe la extracción no se presenta el 0 de arranque como medición.
     const extConocida   = lect?.extraccion_conocida ?? false;
     const extTexto      = extConocida ? extraccionTotal.toFixed(2) : 'S/D';
-    const tomas = [
-        { nombre: 'Toma Baja', gasto: lect?.gasto_toma_baja_m3s ?? 0, tipo: 'agua' },
-        { nombre: 'CFE',       gasto: lect?.gasto_cfe_m3s       ?? 0, tipo: 'energia' },
-        { nombre: 'Toma Izq.', gasto: lect?.gasto_toma_izq_m3s  ?? 0, tipo: 'agua' },
-        { nombre: 'Toma Der.', gasto: lect?.gasto_toma_der_m3s  ?? 0, tipo: 'agua' },
+    // Una obra sin reporte es S/D (null), no 0. Solo si la extracción TOTAL conocida es 0, ninguna obra puede estar
+    // pasando agua y entonces sí son 0 por implicación.
+    const obraGasto = (v: number | null | undefined): number | null => v ?? (extConocida && extraccionTotal === 0 ? 0 : null);
+    const tomas: { nombre: string; gasto: number | null; tipo: string }[] = [
+        { nombre: 'Toma Baja', gasto: obraGasto(lect?.gasto_toma_baja_m3s), tipo: 'agua' },
+        { nombre: 'CFE',       gasto: obraGasto(lect?.gasto_cfe_m3s),       tipo: 'energia' },
+        { nombre: 'Toma Izq.', gasto: obraGasto(lect?.gasto_toma_izq_m3s),  tipo: 'agua' },
+        { nombre: 'Toma Der.', gasto: obraGasto(lect?.gasto_toma_der_m3s),  tipo: 'agua' },
     ];
 
     // Dynamic alerts from real data
@@ -637,7 +612,7 @@ const Presas = () => {
         alertas.push({ nivel: 'PREVENTIVA',  msg: `Caída de nivel: ${tendenciaNum.toFixed(3)} m/día. Verificar extracciones.`, tiempo: 'Hoy' });
     if (extConocida && extraccionTotal === 0 && pctLlenado > 25)
         alertas.push({ nivel: 'INFORMATIVA', msg: 'Sin extracción activa registrada. Verificar estado de obras de toma.', tiempo: fechaSeleccionada });
-    if (tomas.find(t => t.nombre === 'CFE' && t.gasto > 0))
+    if (tomas.find(t => t.nombre === 'CFE' && t.gasto != null && t.gasto > 0))
         alertas.push({ nivel: 'INFORMATIVA', msg: `CFE operando: ${(lect?.gasto_cfe_m3s ?? 0).toFixed(2)} m³/s en generación eléctrica.`, tiempo: 'Ahora' });
 
     // ── AUDITORÍA DE CAPTURA (09:00 AM Watchdog) ─────────────────────────────
@@ -816,8 +791,9 @@ const Presas = () => {
 
                     <div className="scada-tomas-grid">
                         {tomas.map(t => {
-                            const abierta = extConocida && t.gasto > 0;
-                            const pctContrib = extraccionTotal > 0 ? (t.gasto / extraccionTotal) * 100 : 0;
+                            const obraSD = t.gasto == null;
+                            const abierta = extConocida && t.gasto != null && t.gasto > 0;
+                            const pctContrib = extraccionTotal > 0 && t.gasto != null ? (t.gasto / extraccionTotal) * 100 : 0;
                             const esCFE = t.nombre === 'CFE';
                             const tomaColor = esCFE ? '#a78bfa' : abierta ? '#38bdf8' : '#334155';
                             const estadoColor = abierta ? '#10b981' : '#475569';
@@ -827,11 +803,11 @@ const Presas = () => {
                                         <span className="scada-toma-nombre">{t.nombre}</span>
                                         <span className="scada-toma-estado-badge"
                                             style={{ color: estadoColor, background: `${estadoColor}18` }}>
-                                            {!extConocida ? 'S/D' : abierta ? 'OPERATIVA' : 'CERRADA'}
+                                            {!extConocida || obraSD ? 'S/D' : abierta ? 'OPERATIVA' : 'CERRADA'}
                                         </span>
                                     </div>
                                     <span className="scada-toma-gasto" style={{ color: tomaColor }}>
-                                        {extConocida ? <>{t.gasto.toFixed(2)}<span className="scada-toma-unit">m³/s</span></> : 'S/D'}
+                                        {extConocida && t.gasto != null ? <>{t.gasto.toFixed(2)}<span className="scada-toma-unit">m³/s</span></> : 'S/D'}
                                     </span>
                                     {abierta && extraccionTotal > 0 && (
                                         <div className="scada-toma-contrib">

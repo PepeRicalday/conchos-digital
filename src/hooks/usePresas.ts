@@ -464,22 +464,22 @@ export function usePresas(fecha: string) {
     const almacenamiento = agregarAlmacenamiento(presas);
     const totalAlmacenamiento = almacenamiento.totalMm3;
     const totalCapacidad = almacenamiento.capacidadCatalogoMm3;
-    // Calculamos el volumen total extraído proyectado para el día (en Millores de m3)
-    const totalVolumenExtraidoMm3 = presas.reduce((acc, p) => {
-        const flow = p.lectura?.extraccion_total_m3s || 0;
-        // Si estamos viendo hoy, calculamos el volumen acumulado hasta este segundo
-        const isTodayReq = fecha === getTodayString();
-        
+    // Solo cuentan las presas con extracción CONOCIDA (extraccion_conocida): una presa sin dato no suma 0.
+    // Si ninguna la reporta, el agregado es null (S/D), no 0.
+    const presasConExtraccion = presas.filter(p => p.lectura?.extraccion_conocida && Number.isFinite(Number(p.lectura.extraccion_total_m3s)));
+    const isTodayReq = fecha === getTodayString();
+    // Volumen total extraído del día (Mm³): hoy, acumulado hasta este segundo; días pasados, gasto reportado × 24 h.
+    const totalVolumenExtraidoMm3: number | null = presasConExtraccion.length === 0 ? null : presasConExtraccion.reduce((acc, p) => {
+        const flow = Number(p.lectura!.extraccion_total_m3s);
         if (isTodayReq) {
             // P1-6: startOfDay uses America/Chihuahua midnight, not browser-local midnight
             const secondsElapsed = (Date.now() - new Date(getStartOfDateISO(fecha)).getTime()) / 1000;
             return acc + (flow * secondsElapsed / 1000000);
-        } else {
-            // Para días pasados, asumimos el gasto constante por 24h
-            return acc + (flow * 24 * 3600 / 1000000);
         }
+        return acc + (flow * 24 * 3600 / 1000000);
     }, 0);
-    const totalExtraccion = presas.reduce((acc, p) => acc + (p.lectura?.extraccion_total_m3s || 0), 0);
+    const totalExtraccion: number | null = presasConExtraccion.length === 0 ? null
+        : presasConExtraccion.reduce((acc, p) => acc + Number(p.lectura!.extraccion_total_m3s), 0);
     const porcentajeLlenado = almacenamiento.porcentaje;
 
     // Vigencia de la lectura más reciente — para el sello de frescura en UI.

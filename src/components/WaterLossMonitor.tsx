@@ -45,8 +45,9 @@ const WaterLossMonitor: React.FC = () => {
                     const estatus = s.estatus || '';
                     const isCritical = estatus.includes('CRÍTICA');
                     const isWarning = estatus.includes('PREVENTIVA');
-                    const safetyQ = isNaN(s.q_perdida) ? 0 : s.q_perdida;
-                    const safetyPct = isNaN(s.eficiencia_pct) ? 100 : s.eficiencia_pct;
+                    // Sin balance válido en el tramo: S/D (antes caía a 0 L/s y 100 % de eficiencia).
+                    const safetyQ = s.q_perdida;
+                    const safetyPct = s.eficiencia_pct;
 
                     let statusClass = 'is-normal';
                     let tagClass = 'normal';
@@ -82,13 +83,13 @@ const WaterLossMonitor: React.FC = () => {
                                         <Zap size={10} style={{ color: '#60a5fa' }} /> Eficiencia
                                     </p>
                                     <div className="wlm-stat-value" style={{ color: isCritical ? '#f87171' : isWarning ? '#fbbf24' : '#34d399' }}>
-                                        {safetyPct}<span className="wlm-stat-unit">%</span>
+                                        {safetyPct != null ? <>{safetyPct}<span className="wlm-stat-unit">%</span></> : 'S/D'}
                                     </div>
                                     <div className="wlm-progress-bg">
                                         <div
                                             className="wlm-progress-bar"
                                             style={{
-                                                width: `${safetyPct}%`,
+                                                width: `${safetyPct ?? 0}%`,
                                                 background: isCritical ? 'linear-gradient(90deg, #dc2626, #f87171)' :
                                                     isWarning ? 'linear-gradient(90deg, #d97706, #fbbf24)' :
                                                         'linear-gradient(90deg, #059669, #34d399)'
@@ -105,7 +106,7 @@ const WaterLossMonitor: React.FC = () => {
                                     </p>
                                     <div className="wlm-loss-value-group">
                                         <span className="wlm-stat-value" style={{ color: '#f8fafc' }}>
-                                            {(safetyQ * 1000).toFixed(0)}
+                                            {safetyQ != null ? (safetyQ * 1000).toFixed(0) : 'S/D'}
                                         </span>
                                         <span className="wlm-stat-unit">L/S</span>
                                     </div>

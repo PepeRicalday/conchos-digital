@@ -99,7 +99,7 @@ export function htmlInfografiaPresas(d: DatosInfografia, logoDataUri: string): s
     const vtxt = d.vigencia?.estado === 'ACTUALIZADO' ? 'ACTUALIZADO' : d.vigencia?.estado === 'DESFASADO' ? 'DESFASADO' : 'SIN DATO';
     const detalleVig = d.vigencia?.texto && d.vigencia.texto !== 'S/D' ? d.vigencia.texto : 'S/D';
     const corte = d.corte?.texto ? d.corte.texto : 'Corte: S/D';
-    const logo = logoDataUri ? `<img class="logo" src="${esc(logoDataUri)}" alt="SRL">` : '<div class="logo-v"></div>';
+    const logo = logoDataUri ? `<img class="logo" src="${esc(logoDataUri)}" alt="SRL" width="110" height="96">` : '<div class="logo-v"></div>';
     const c = d.conjunto;
     const parcial = c?.parcial ? `<span class="parcial">parcial: ${esc(c.presasConDato)} de ${esc(c.presasTotal)} presas</span>` : '';
     const tarjetas = (d.presas ?? []).map(tarjeta).join('');
@@ -112,7 +112,9 @@ html,body{margin:0;background:#FAF6EA}
 body{width:${ANCHO_INFOGRAFIA}px;font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;color:#1B2733;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
 .pagina{width:${ANCHO_INFOGRAFIA}px;padding:26px 48px 0 48px;background:#FAF6EA}
 .enc{display:flex;align-items:center;justify-content:space-between;height:96px}
-.logo,.logo-v{width:150px;height:96px;object-fit:contain;object-position:left center}
+/* Sin object-fit: Safari/iPad no lo respeta dentro de foreignObject y el logo (399x348) salía en blanco.
+   Proporción fija por width/height (110x96) en vez de dejar que el motor la calcule. */
+.logo,.logo-v{display:block;width:110px;height:96px}
 .marca{text-align:center;flex:1}
 .marca .org{font-size:26px;font-weight:700;letter-spacing:.14em;color:#0B2A4A}
 .sello{width:300px;display:flex;justify-content:flex-end}
@@ -157,6 +159,8 @@ h1{font-size:68px;line-height:1.05;font-weight:800;color:#0F5C45;text-align:cent
 .cap b{font-weight:800;color:#1B2733}
 .conj{margin-top:18px;background:#0B2A4A;color:#fff;border-radius:14px;padding:16px 28px;text-align:center;font-size:44px;font-weight:800;letter-spacing:.02em}
 .conj .parcial{display:block;font-size:22px;font-weight:600;color:#F2E3A6;letter-spacing:0;margin-top:2px}
+.nota{margin-top:14px;background:#fff;border:2px solid #C9A227;border-radius:12px;padding:10px 22px;font-size:21px;line-height:1.35;color:#1B2733}
+.nota b{font-weight:800;color:#0B2A4A}
 .pie{display:flex;justify-content:space-between;gap:30px;font-size:20px;color:#3A4856;padding:12px 0 18px;line-height:1.3}
 .pie div:first-child{flex:1}.pie div:last-child{flex:1;text-align:right}
 </style></head>
@@ -171,6 +175,7 @@ h1{font-size:68px;line-height:1.05;font-weight:800;color:#0F5C45;text-align:cent
 <div class="corte">${esc(corte)}</div>
 <div class="fila">${tarjetas}</div>
 <div class="conj">ALMACENAMIENTO CONJUNTO: ${esc(fmtHm3(c?.totalMm3))} hm³${parcial}</div>
+<div class="nota"><b>¿Cómo leer el cambio vs día anterior?</b> <b>hm³</b> = volumen que la presa ganó (▲) o perdió (▼) desde la lectura previa. <b>pp</b> = <b>puntos porcentuales</b>: cuánto se movió el % de llenado (volumen ÷ capacidad de referencia), no un % de crecimiento. Ej.: +0.100 pp = el llenado subió una décima de punto (de 25.300 % a 25.400 %).</div>
 <div class="pie"><div>${esc(d.fuente || 'S/D')}</div><div>${esc(d.limitacion || 'S/D')}</div></div>
 </div></body></html>`;
 }

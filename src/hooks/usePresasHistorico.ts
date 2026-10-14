@@ -55,6 +55,13 @@ function obtener(forzar = false): Promise<FilaSerie[]> {
     return filas;
 }
 
+/** Índice de la serie histórica ya cargado (espera la descarga si sigue en curso). Para acciones puntuales
+ *  —p. ej. la infografía— que no pueden depender del estado del hook: si el usuario pulsa antes de que
+ *  termine la carga, el índice vacío degradaba semáforo y comparativos a S/D. Lanza si la descarga falla. */
+export async function cargarIndiceHistorico(): Promise<Indice> {
+    return indexarSerie(await obtener(false));
+}
+
 export interface EstadoHistorico {
     indice: Indice;
     anios: number[];

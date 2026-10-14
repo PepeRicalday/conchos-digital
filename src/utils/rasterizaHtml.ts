@@ -98,6 +98,11 @@ export async function rasterizaHtml(html: string, { ancho, escala = 2 }: Opcione
         if (!ctx) throw new Error('No se pudo preparar el lienzo de captura.');
         ctx.scale(escala, escala);
         ctx.drawImage(img, 0, 0, ancho, alto);
+        // Safari/WebKit: en el primer dibujo las <img> data URI anidadas en el foreignObject aún no están
+        // decodificadas y salen en blanco (logos ausentes en iPad). Se espera un tick y se redibuja.
+        await new Promise<void>(r => setTimeout(r, 150));
+        ctx.clearRect(0, 0, ancho, alto);
+        ctx.drawImage(img, 0, 0, ancho, alto);
 
         const blobPng: Blob | null = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
         if (!blobPng) throw new Error('No se pudo generar el archivo de imagen.');

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ImageDown, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { usePresasHistorico } from '../hooks/usePresasHistorico';
+import { cargarIndiceHistorico } from '../hooks/usePresasHistorico';
 import type { PresaData } from '../hooks/usePresas';
 import type { PresaId } from '../utils/historicoPresas';
 import { procedenciaNivel } from '../utils/presaMetrics';
@@ -40,7 +40,6 @@ const aLectura = (f: FilaCila): LecturaCilaInf => ({
  * Las lecturas CILA se consultan al pulsar (siempre frescas); elevación y salida vienen de `usePresas` (props).
  */
 export default function BotonInfografiaPresas({ presas }: { presas: PresaData[] }) {
-    const { indice } = usePresasHistorico();
     const [generando, setGenerando] = useState(false);
     const [aviso, setAviso] = useState<string | null>(null);
 
@@ -57,6 +56,11 @@ export default function BotonInfografiaPresas({ presas }: { presas: PresaData[] 
                 .limit(8);
             if (error) throw new Error('No se pudo leer el reporte CILA.');
             const filas = (data ?? []) as FilaCila[];
+
+            // Se espera la serie histórica al pulsar: sin ella el semáforo y «mismo día año anterior» salen S/D.
+            let indice: Awaited<ReturnType<typeof cargarIndiceHistorico>>;
+            try { indice = await cargarIndiceHistorico(); }
+            catch { throw new Error('No se pudo cargar el histórico de presas; intenta de nuevo (sin él la infografía saldría sin clasificación).'); }
 
             const entradas: EntradaPresaInfografia[] = PRESAS_INFOGRAFIA.map(id => {
                 const propias = filas.filter(f => f.presa_id === id); // ya vienen de la más reciente a la más antigua

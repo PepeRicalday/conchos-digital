@@ -107,6 +107,8 @@ const InteligenciaHidrica = () => {
     const [pendingEventLabel, setPendingEventLabel] = useState('');
     const [formGasto, setFormGasto] = useState('60');
     const [formApertura, setFormApertura] = useState('100');
+    const llenadoFormValido = Number.isFinite(parseFloat(formGasto)) && parseFloat(formGasto) > 0
+        && Number.isFinite(parseFloat(formApertura)) && parseFloat(formApertura) > 0 && parseFloat(formApertura) <= 100;
     const [formValvulas, setFormValvulas] = useState('V1, V2');
     const [formNotas, setFormNotas] = useState('');
     const [horaAperturaConfirmada, setHoraAperturaConfirmada] = useState<string | null>(null);
@@ -651,7 +653,7 @@ const InteligenciaHidrica = () => {
                                 <div style={{ marginBottom: '32px' }}>
                                     <LlenadoTracker
                                         eventoId={activeEvent.id}
-                                        qSolicitado={activeEvent.gasto_solicitado_m3s || 60}
+                                        qSolicitado={activeEvent.gasto_solicitado_m3s ?? 0}
                                         horaApertura={horaAperturaConfirmada}
                                         onConfirmarApertura={openConfirmarApertura}
                                         onUpdateGasto={(newGasto) => handleUpdateGasto(newGasto)}
@@ -777,12 +779,14 @@ const InteligenciaHidrica = () => {
                                                 Cancelar
                                             </button>
                                             <button
-                                                disabled={isLoadingEvents}
+                                                disabled={isLoadingEvents || (pendingEventId === 'LLENADO' && !llenadoFormValido)}
+                                                title={pendingEventId === 'LLENADO' && !llenadoFormValido ? 'Captura un gasto solicitado mayor a 0 y una apertura entre 1 y 100 %' : undefined}
                                                 onClick={async () => {
                                                     if (pendingEventId === 'LLENADO') {
+                                                        // Sin valores por defecto escondidos: un campo vacío ya no crea un evento de 60 m³/s al 100 %.
                                                         await activateEvent('LLENADO', {
-                                                            gasto_solicitado_m3s: parseFloat(formGasto) || 60,
-                                                            porcentaje_apertura_presa: parseFloat(formApertura) || 100,
+                                                            gasto_solicitado_m3s: parseFloat(formGasto),
+                                                            porcentaje_apertura_presa: parseFloat(formApertura),
                                                             valvulas_activas: formValvulas.split(',').map(s => s.trim()),
                                                             notas: formNotas,
                                                             // hora_apertura_real se confirma DESPUÉS en el LlenadoTracker

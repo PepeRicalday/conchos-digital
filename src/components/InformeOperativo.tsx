@@ -53,8 +53,13 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
     escalas, coherencia, iec, entregasHoy, balanceModulos, volZonas, onClose,
 }) => {
     // ── Gastos entrada/salida ─────────────────────────────────────────────────
-    const q0   = escalas.find(e => e.km === 0)?.gasto_actual   ?? 0;
-    const q104 = escalas.find(e => e.km === 104)?.gasto_actual ?? 0;
+    // S/D nunca cero: una escala sin gasto no aporta un 0 al balance ni a la eficiencia.
+    const q0n   = escalas.find(e => e.km === 0)?.gasto_actual   ?? null;
+    const q104n = escalas.find(e => e.km === 104)?.gasto_actual ?? null;
+    const q0   = q0n ?? 0;
+    const q104 = q104n ?? 0;
+    const balanceOk = q0n != null && q104n != null && q0n > 0;
+    const f3 = (v: number | null) => (v == null ? 'S/D' : v.toFixed(3));
 
     // ── Demanda por módulo (agrupada por zona) ────────────────────────────────
     const zonaDemandaMap = new Map<string, number>();
@@ -140,21 +145,21 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
         .filter(e => e.km >= 0 && e.km <= 104)
         .sort((a, b) => a.km - b.km)
         .map(e => {
-            const hA   = e.nivel_actual ?? 0;
+            const hA   = e.nivel_actual ?? null;
             const hMax = e.nivel_max_operativo ?? null;
-            const bl   = hMax != null ? +(hMax - hA).toFixed(3) : null;
-            const q    = e.gasto_actual ?? 0;
+            const bl   = hMax != null && hA != null ? +(hMax - hA).toFixed(3) : null;
+            const q    = e.gasto_actual ?? null;
             const tsMins = e.ultima_telemetria ? Math.floor((Date.now() - e.ultima_telemetria) / 60_000) : null;
             const esRef  = e.nombre?.toUpperCase().includes('K-64') || e.nombre?.toUpperCase().includes('K-94+200');
-            const estado = bl != null && bl < 0 ? 'CRÍTICO' : bl != null && bl < 0.10 ? 'PRECAUCIÓN' : q > 0 ? 'Normal' : 'SIN DATOS';
+            const estado = bl != null && bl < 0 ? 'CRÍTICO' : bl != null && bl < 0.10 ? 'PRECAUCIÓN' : q != null && q > 0 ? 'Normal' : 'SIN DATOS';
             return { nombre: e.nombre, km: e.km, hA, hMax, bl, q, tsMins, estado, esRef };
         });
 
     // ── Balance ───────────────────────────────────────────────────────────────
     const perdidas    = q0 - q104 - demandaModulos;
     const variacionAlm = -(perdidas);
-    const eficiencia  = q0 > 0 ? ((q0 - Math.max(0, perdidas)) / q0 * 100) : 0;
-    const eta2        = q0 > 0 ? ((q104 + demandaModulos) / q0 * 100) : 0;
+    const eficiencia  = balanceOk ? ((q0 - Math.max(0, perdidas)) / q0 * 100) : null;
+    const eta2        = balanceOk ? ((q104 + demandaModulos) / q0 * 100) : null;
     const lambda      = perdidas / 104;
 
     const semC  = semColor(iec.semaforo);
@@ -188,7 +193,7 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
                     + ' con bordo libre menor a 10 cm del límite operativo.</div>'
                     + '</div>';
             }
-            const bajas = checkpoints.filter(c => c.hA > 0 && c.hA < 2.5 && !c.esRef);
+            const bajas = checkpoints.filter(c => c.hA != null && c.hA > 0 && c.hA < 2.5 && !c.esRef);
             if (bajas.length > 0) {
                 h += '<div class="obs-item obs-ok">'
                     + '<span class="obs-icon">&#10003;</span>'
@@ -298,9 +303,9 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
             return '<tr class="' + rowClass + '">'
                 + '<td>' + c.nombre + ref + '</td>'
                 + '<td class="num">' + c.km.toFixed(3) + '</td>'
-                + '<td class="num">' + c.hA.toFixed(2) + '</td>'
+                + '<td class="num">' + (c.hA != null ? c.hA.toFixed(2) : 'S/D') + '</td>'
                 + '<td class="num" style="color:' + blColor + ';font-weight:' + (c.bl != null && c.bl < 0.10 ? '700' : '400') + '">' + (c.bl != null ? c.bl.toFixed(2) : '—') + '</td>'
-                + '<td class="num">' + (c.q > 0 ? c.q.toFixed(3) : c.esRef ? '—' : '0.000') + '</td>'
+                + '<td class="num">' + (c.q == null ? 'S/D' : c.q > 0 ? c.q.toFixed(3) : c.esRef ? '—' : '0.000') + '</td>'
                 + '<td style="color:' + estColor + ';font-weight:600">' + c.estado + '</td>'
                 + '<td class="num">' + tsStr + '</td>'
                 + '</tr>';
@@ -497,9 +502,9 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
             + '<div class="exec-row">'
             + '<div class="exec-text">' + ejecutivoText + '</div>'
             + '<div class="exec-kpis">'
-            + '<div class="kpi"><div class="kpi-lbl">Caudal de Entrada<br>(K-0+000)</div><div class="kpi-val">' + q0.toFixed(3) + '</div><div class="kpi-unit">m³/s</div></div>'
+            + '<div class="kpi"><div class="kpi-lbl">Caudal de Entrada<br>(K-0+000)</div><div class="kpi-val">' + f3(q0n) + '</div><div class="kpi-unit">m³/s</div></div>'
             + '<div class="kpi"><div class="kpi-lbl">Demanda Real<br>por Módulos</div><div class="kpi-val" style="color:#16a34a">' + demandaModulos.toFixed(3) + '</div><div class="kpi-unit">m³/s</div></div>'
-            + '<div class="kpi"><div class="kpi-lbl">Caudal en Salida<br>(K-104)</div><div class="kpi-val" style="color:#16a34a">' + q104.toFixed(3) + '</div><div class="kpi-unit">m³/s</div></div>'
+            + '<div class="kpi"><div class="kpi-lbl">Caudal en Salida<br>(K-104)</div><div class="kpi-val" style="color:#16a34a">' + f3(q104n) + '</div><div class="kpi-unit">m³/s</div></div>'
             + '<div class="kpi"><div class="kpi-lbl">Variación de<br>Almacenamiento</div><div class="kpi-val" style="color:' + (variacionAlm < -1 ? '#dc2626' : variacionAlm > 1 ? '#d97706' : '#16a34a') + '">' + (variacionAlm >= 0 ? '+' : '') + variacionAlm.toFixed(3) + '</div><div class="kpi-unit">m³/s</div><div class="kpi-sub">Pérdida (-) / Aporte (+)</div></div>'
             + '</div></div>'
 
@@ -566,8 +571,8 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
             + '<tr><td class="bal-key">Demanda real por módulos:</td><td class="bal-val">' + demandaModulos.toFixed(3) + ' m³/s</td></tr>'
             + '<tr><td class="bal-key">Q Salida (K-104):</td><td class="bal-val">' + q104.toFixed(3) + ' m³/s</td></tr>'
             + '<tr><td class="bal-key">Pérdida / Almacenamiento:</td><td class="bal-val ' + (variacionAlm < 0 ? 'bal-crit' : 'bal-good') + '">' + (variacionAlm >= 0 ? '+' : '') + variacionAlm.toFixed(3) + ' m³/s</td></tr>'
-            + '<tr><td class="bal-key">Eficiencia global (&eta;&#8321;):</td><td class="bal-val ' + (eficiencia >= 90 ? 'bal-good' : 'bal-crit') + '">' + eficiencia.toFixed(2) + ' %</td></tr>'
-            + '<tr><td class="bal-key">Eficiencia total (&eta;&#8322;):</td><td class="bal-val">' + eta2.toFixed(2) + ' %</td></tr>'
+            + '<tr><td class="bal-key">Eficiencia global (&eta;&#8321;):</td><td class="bal-val ' + (eficiencia != null && eficiencia >= 90 ? 'bal-good' : 'bal-crit') + '">' + (eficiencia != null ? eficiencia.toFixed(2) + ' %' : 'S/D') + '</td></tr>'
+            + '<tr><td class="bal-key">Eficiencia total (&eta;&#8322;):</td><td class="bal-val">' + (eta2 != null ? eta2.toFixed(2) + ' %' : 'S/D') + '</td></tr>'
             + '<tr><td class="bal-key">&lambda; (variación lineal):</td><td class="bal-val">' + lambda.toFixed(5) + ' m³/s/km</td></tr>'
             + '</table>'
             + '<div class="nota"><strong>Nota Técnica:</strong><ul>'
@@ -581,8 +586,8 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
             + (iec.semaforo === 'VERDE'
                 ? 'El Canal Principal Conchos opera con estabilidad general. La demanda por módulos se mantiene dentro de los parámetros operativos. Se requiere seguimiento continuo en los puntos identificados.'
                 : iec.semaforo === 'AMARILLO'
-                ? 'Se requiere atención en los puntos de precaución. Eficiencia: ' + eficiencia.toFixed(1) + '%. Monitoreo reforzado recomendado.'
-                : 'Alerta activa. Se requiere intervención operativa inmediata. Eficiencia: ' + eficiencia.toFixed(1) + '%.')
+                ? 'Se requiere atención en los puntos de precaución. Eficiencia: ' + (eficiencia != null ? eficiencia.toFixed(1) + '%' : 'S/D') + '. Monitoreo reforzado recomendado.'
+                : 'Alerta activa. Se requiere intervención operativa inmediata. Eficiencia: ' + (eficiencia != null ? eficiencia.toFixed(1) + '%' : 'S/D') + '.')
             + '</div>'
             + '</div></div>'
 

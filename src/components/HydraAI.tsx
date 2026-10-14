@@ -71,7 +71,9 @@ const HydraAI: React.FC<HydraAIProps> = ({ onUpdateParams, simData }) => {
 
       // Current State reference for relative math and information retrieval
       const lastRes = simData[simData.length - 1];
-      const currentFlow = lastRes ? lastRes.q : 15;
+      // Sin simulación cargada NO hay gasto: antes se inventaba 15 m³/s.
+      const currentFlow: number | null = lastRes ? lastRes.q : null;
+      const SIN_SIM = 'No hay una simulación cargada, así que no tengo un gasto de referencia. Corre la simulación e inténtalo de nuevo.';
 
       // 1. INFORMATION QUERIES (Handling natural questions: "Dame", "Dime", "Cual es", etc.)
       const isQuestion = cmd.includes('cuanto') || cmd.includes('dame') || cmd.includes('dime') || 
@@ -80,6 +82,7 @@ const HydraAI: React.FC<HydraAIProps> = ({ onUpdateParams, simData }) => {
 
       if (isQuestion) {
         if (cmd.includes('gasto') || cmd.includes('caudal') || cmd.includes('flujo')) {
+          if (currentFlow == null) return finalizeResponse(SIN_SIM);
           botResponse = `El gasto actual configurado en el modelo de simulación es de ${currentFlow.toFixed(1)} m³/s.`;
           return finalizeResponse(botResponse);
         }
@@ -103,10 +106,13 @@ const HydraAI: React.FC<HydraAIProps> = ({ onUpdateParams, simData }) => {
       // 2. SCAN Power (Smart Diagnostics)
       if (cmd.includes('escanea') || cmd.includes('analiza') || cmd.includes('diagnostico')) {
         const anomalies = simData.filter(d => d.status === 'REMANSO');
-        if (anomalies.length > 0) {
+        if (anomalies.length > 0 && currentFlow != null) {
+          // Heurística simple (+2 m³/s), NO un cálculo hidráulico: se rotula como tal.
           const suggestedQ = currentFlow + 2; 
-          botResponse = `He detectado ${anomalies.length} anomalías críticas por remanso. Recomiendo incrementar el gasto a ${suggestedQ} m³/s para estabilizar el tirante. ¿Deseas aplicar esta maniobra?`;
-          action = { type: 'SET_FLOW', value: suggestedQ, label: `Optimizar a ${suggestedQ} m³/s` };
+          botResponse = `He detectado ${anomalies.length} anomalías críticas por remanso. Como regla práctica (no un cálculo hidráulico) podrías probar un gasto de ${suggestedQ} m³/s y revisar el perfil. ¿Deseas simular esa maniobra?`;
+          action = { type: 'SET_FLOW', value: suggestedQ, label: `Simular ${suggestedQ} m³/s` };
+        } else if (anomalies.length > 0) {
+          botResponse = `He detectado ${anomalies.length} anomalías críticas por remanso. ${SIN_SIM}`;
         } else {
           botResponse = "Sistema estable. El perfil hidráulico se encuentra en régimen normal con flujo subcrítico controlado.";
         }
@@ -122,7 +128,9 @@ const HydraAI: React.FC<HydraAIProps> = ({ onUpdateParams, simData }) => {
 
       // 4. Relative Gasto Parsing (sube 5, baja 2)
       const relativeFlowMatch = cmd.match(/(?:sube|incrementa|aumenta|baja|disminuye|resta) (\d+(?:\.\d+)?)/i);
-      if (relativeFlowMatch && !cmd.includes(' a ')) { 
+      if (relativeFlowMatch && !cmd.includes(' a ') && currentFlow == null) {
+        botResponse = SIN_SIM;
+      } else if (relativeFlowMatch && !cmd.includes(' a ') && currentFlow != null) { 
         const delta = parseFloat(relativeFlowMatch[1]);
         const isIncrease = cmd.includes('sube') || cmd.includes('incrementa') || cmd.includes('aumenta');
         const newVal = isIncrease ? currentFlow + delta : Math.max(0, currentFlow - delta);
@@ -134,7 +142,7 @@ const HydraAI: React.FC<HydraAIProps> = ({ onUpdateParams, simData }) => {
       // 5. Río Parsing
       if (cmd.includes('río') || cmd.includes('rio') || cmd.includes('presa') || cmd.includes('transito')) {
         if (cmd.includes('activa') || cmd.includes('pon') || cmd.includes('si')) {
-          botResponse = "Entendido. Activando lag de río (36km). La llegada a K-0 se retrasará ~283 minutos según el modelo hidráulico.";
+          botResponse = "Entendido. Activando el tránsito de río. La llegada a K-0 se retrasará según el modelo de tránsito de la simulación (el valor calibrado en campo se consulta en el protocolo de llenado).";
           action = { type: 'TOGGLE_RIVER', value: true, label: 'Activar Tránsito Río' };
         } else if (cmd.includes('no') || cmd.includes('quita') || cmd.includes('desactiva')) {
           botResponse = "Desactivando tránsito de río para simulación directa desde KM 0.";

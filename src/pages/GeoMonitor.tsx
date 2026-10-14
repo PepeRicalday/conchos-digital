@@ -1553,7 +1553,7 @@ const GeoMonitor = () => {
                 }
             },
             {
-                data: escalas.map(e => e.nivel_actual ?? 0),
+                data: escalas.map(e => e.nivel_actual ?? null), // sin lectura = hueco, no 0
                 type: 'line' as const,
                 smooth: true,
                 symbol: 'circle',

@@ -117,8 +117,10 @@ function telemetriaLabel(estado: TelemetriaEstado): string {
 function escalaAlertColor(e: EscalaData, coherencia?: any): string {
     const nivel = e.nivel_actual ?? 0;
     if (nivel <= 0) return '#475569'; // sin datos
-    const nivelMax = e.nivel_max_operativo ?? 3.5;
-    const pct = nivelMax > 0 ? nivel / nivelMax : 0;
+    // Sin bordo operativo registrado no se inventa uno (antes 3.5 m): no hay base para clasificar el riesgo.
+    if (e.nivel_max_operativo == null || e.nivel_max_operativo <= 0) return '#475569';
+    const nivelMax = e.nivel_max_operativo;
+    const pct = nivel / nivelMax;
     const coh = coherencia?.puntos?.find((p: any) => p.id === e.id);
     if (coh && !coh.coherente) return '#ef4444';
     if (pct >= 0.92) return '#ef4444';
@@ -1805,7 +1807,7 @@ const PublicMonitor: React.FC = () => {
         if (coherenciaCanal.eficiencia === null) return null;
         const escalasConDatos = escalas.filter(e => e.nivel_actual !== null && e.nivel_max_operativo !== null);
         const escalasEnCritico = escalasConDatos.filter(e => {
-            const pct = (e.nivel_actual ?? 0) / (e.nivel_max_operativo ?? 3.5);
+            const pct = (e.nivel_actual ?? 0) / (e.nivel_max_operativo as number); // escalasConDatos ya exige bordo
             return pct >= 0.92;
         }).length;
         return calcIEC({
@@ -2226,7 +2228,7 @@ const PublicMonitor: React.FC = () => {
 
         const escalasConDatos = escalas.filter(e => e.nivel_actual !== null && e.nivel_max_operativo !== null);
         const escalasEnCritico = escalasConDatos.filter(e =>
-            (e.nivel_actual ?? 0) / (e.nivel_max_operativo ?? 3.5) >= 0.92
+            (e.nivel_actual ?? 0) / (e.nivel_max_operativo as number) >= 0.92 // escalasConDatos ya exige bordo
         ).length;
 
         supabase.functions.invoke('hydraulic-engine', {

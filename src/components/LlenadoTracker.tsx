@@ -355,7 +355,7 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                             <span className="telemetry-label">Volumen Inyectado</span>
                             <div className="telemetry-value-group">
                                 <span className="telemetry-value" style={{ color: '#4ade80' }}>
-                                    {(telemetria.volumen_estimado_inyectado_mm3 ?? 0).toFixed(4)}
+                                    {telemetria.volumen_estimado_inyectado_mm3 != null ? telemetria.volumen_estimado_inyectado_mm3.toFixed(4) : 'S/D'}
                                 </span>
                                 <span className="telemetry-unit">Mm³</span>
                             </div>
@@ -364,8 +364,8 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                             <span className="telemetry-label">Progreso Total</span>
                             <div className="telemetry-progress-container">
                                 <div className="progress-stats">
-                                    <span className="progress-pct">{(telemetria.avance_porcentaje ?? 0).toFixed(1)}%</span>
-                                    <span className="progress-dist">{(telemetria.distancia_recorrida_km ?? 0).toFixed(1)} / 140 km</span>
+                                    <span className="progress-pct">{telemetria.avance_porcentaje != null ? `${telemetria.avance_porcentaje.toFixed(1)}%` : 'S/D'}</span>
+                                    <span className="progress-dist">{telemetria.distancia_recorrida_km != null ? telemetria.distancia_recorrida_km.toFixed(1) : 'S/D'} / 140 km</span>
                                 </div>
                                 <div className="progress-track">
                                     <div 

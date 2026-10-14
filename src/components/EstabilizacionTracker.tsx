@@ -9,11 +9,12 @@ interface TramoBalance {
     escala_fin_nombre: string;
     km_inicio: number;
     km_fin: number;
-    q_entrada_m3s: number;
-    q_salida_m3s: number;
-    q_extracciones_m3s: number;
-    q_perdida_m3s: number;
-    eficiencia_pct: number;
+    // null = S/D: la vista ya no convierte «sin lectura vigente» en 0.
+    q_entrada_m3s: number | null;
+    q_salida_m3s: number | null;
+    q_extracciones_m3s: number | null;
+    q_perdida_m3s: number | null;
+    eficiencia_pct: number | null;
     estatus_hidraulico: string;
 }
 
@@ -82,13 +83,17 @@ const EstabilizacionTracker: React.FC = () => {
     }, []);
 
     const totalDistribuido = tomasActivas.reduce((acc, t) => acc + (t.caudal_promedio_m3s || 0), 0);
-    const totalConducido = tramos.length > 0 ? tramos[0].q_entrada_m3s : 0; // Gasto en inicio del canal principal
-    const totalPerdidas = tramos.reduce((acc, t) => acc + (t.q_perdida_m3s > 0 ? t.q_perdida_m3s : 0), 0);
-    
-    // Calcular eficiencia global
-    const eficienciaGlobal = totalConducido > 0 
-        ? ((totalConducido - totalPerdidas) / totalConducido * 100).toFixed(1) 
-        : '0.0';
+    const totalConducido = tramos.length > 0 ? tramos[0].q_entrada_m3s : null; // Gasto en inicio del canal principal
+    // Solo tramos con balance válido (entra agua y eficiencia 0–100 %); sin ninguno, la pérdida total es S/D, no 0.
+    const tramosValidos = tramos.filter(t => (t.q_entrada_m3s ?? 0) > 0 && t.q_perdida_m3s != null && t.eficiencia_pct != null && t.eficiencia_pct > 0 && t.eficiencia_pct <= 100);
+    const totalPerdidas: number | null = tramosValidos.length === 0 ? null
+        : tramosValidos.reduce((acc, t) => acc + ((t.q_perdida_m3s as number) > 0 ? (t.q_perdida_m3s as number) : 0), 0);
+    const fmt = (v: number | null | undefined, d: number) => (v == null || !Number.isFinite(v) ? 'S/D' : v.toFixed(d));
+
+    // Calcular eficiencia global (S/D si falta el gasto de entrada o ningún tramo es medible)
+    const eficienciaGlobal = totalConducido != null && totalConducido > 0 && totalPerdidas != null
+        ? ((totalConducido - totalPerdidas) / totalConducido * 100).toFixed(1) + '%'
+        : 'S/D';
 
     if (loading) {
         return <div style={{ color: '#94a3b8', padding: '20px', textAlign: 'center' }}>Cargando telemetría de distribución...</div>;
@@ -110,9 +115,9 @@ const EstabilizacionTracker: React.FC = () => {
                 
                 {/* Global Metrics */}
                 <div style={{ display: 'flex', gap: '16px' }}>
-                    <MetricBox title="Eficiencia Global" value={`${eficienciaGlobal}%`} icon={<Activity size={16} />} color="#10b981" />
+                    <MetricBox title="Eficiencia Global" value={eficienciaGlobal} icon={<Activity size={16} />} color="#10b981" />
                     <MetricBox title="Gasto Derivado" value={`${(totalDistribuido ?? 0).toFixed(2)} m³/s`} icon={<LayoutDashboard size={16} />} color="#3b82f6" />
-                    <MetricBox title="Pérdidas Totales" value={`${(totalPerdidas ?? 0).toFixed(2)} m³/s`} icon={<AlertTriangle size={16} />} color="#ef4444" />
+                    <MetricBox title="Pérdidas Totales" value={totalPerdidas == null ? 'S/D' : `${totalPerdidas.toFixed(2)} m³/s`} icon={<AlertTriangle size={16} />} color="#ef4444" />
                 </div>
             </div>
 
@@ -146,15 +151,15 @@ const EstabilizacionTracker: React.FC = () => {
                                         </div>
                                         <div style={{ color: statusColor, fontSize: '0.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                             {isCritico ? <AlertTriangle size={12} /> : isAdvertencia ? <AlertTriangle size={12} /> : <CheckCircle2 size={12} />}
-                                            {(tramo.eficiencia_pct ?? 0).toFixed(1)}% Efi.
+                                            {tramo.eficiencia_pct != null && tramo.eficiencia_pct > 0 && tramo.eficiencia_pct <= 100 ? `${tramo.eficiencia_pct.toFixed(1)}% Efi.` : 'Efi. S/D'}
                                         </div>
                                     </div>
                                     
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', paddingLeft: '8px' }}>
-                                        <MiniStat label="Entrada" value={`${(tramo.q_entrada_m3s ?? 0).toFixed(2)}`} color="#94a3b8" />
-                                        <MiniStat label="Salida" value={`${(tramo.q_salida_m3s ?? 0).toFixed(2)}`} color="#94a3b8" />
-                                        <MiniStat label="Tomas" value={`${(tramo.q_extracciones_m3s ?? 0).toFixed(2)}`} color="#3b82f6" />
-                                        <MiniStat label="Pérdida" value={`${(tramo.q_perdida_m3s ?? 0) > 0 ? (tramo.q_perdida_m3s ?? 0).toFixed(2) : '0.00'}`} color={(tramo.q_perdida_m3s ?? 0) > 0 ? '#fca5a5' : '#94a3b8'} />
+                                        <MiniStat label="Entrada" value={fmt(tramo.q_entrada_m3s, 2)} color="#94a3b8" />
+                                        <MiniStat label="Salida" value={fmt(tramo.q_salida_m3s, 2)} color="#94a3b8" />
+                                        <MiniStat label="Tomas" value={fmt(tramo.q_extracciones_m3s, 2)} color="#3b82f6" />
+                                        <MiniStat label="Pérdida" value={tramo.q_perdida_m3s == null || (tramo.eficiencia_pct ?? 0) > 100 ? 'S/D' : (tramo.q_perdida_m3s > 0 ? tramo.q_perdida_m3s.toFixed(2) : '0.00')} color={(tramo.q_perdida_m3s ?? 0) > 0 ? '#fca5a5' : '#94a3b8'} />
                                     </div>
                                     
                                     {isCritico && (

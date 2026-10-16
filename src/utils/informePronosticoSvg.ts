@@ -23,8 +23,8 @@ export const ROTULO_NIVEL: Record<NivelRiesgo, string> = {
     normal: '● NORMAL', aviso: '▲ AVISO', critico: '■ CRÍTICO',
 };
 
-const horaLocal = (ts: number) => Number(fmtHora(ts).slice(0, 2));
-const esNoche = (ts: number) => { const h = horaLocal(ts); return h >= 20 || h < 7; };
+export const horaLocal = (ts: number) => Number(fmtHora(ts).slice(0, 2));
+export const esNoche = (ts: number) => { const h = horaLocal(ts); return h >= 20 || h < 7; };
 
 interface UmbralLinea { valor: number; etiqueta: string; color: string }
 

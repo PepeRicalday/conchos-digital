@@ -73,6 +73,10 @@ export interface DecisionModulo {
     resumen: string;
 }
 
+/** Una hora del pronóstico de la estación que representa a un módulo. */
+export interface HoraModulo { ts: number; probPct: number | null; precipMm: number | null; tempC: number | null; vientoMs: number | null }
+export interface ProbDiaModulo { clave: string; etiqueta: string; probMaxPct: number | null; lluviaMm: number | null; parcial: boolean }
+
 export interface ResumenModulo {
     numero: number;
     estacion: string;
@@ -94,6 +98,12 @@ export interface ResumenModulo {
     demandaConLluviaM3: number | null;
     ahorroLluviaM3: number | null;
     entregadoHoyM3: number | null;
+    /** Las horas completas del horizonte (siempre las 24/48 h, aunque el último día llegue cortado). */
+    horas: HoraModulo[];
+    /** true si ninguna estación con pronóstico pudo representar al módulo (no hay dato, no es 'estimado'). */
+    sinEstacion: boolean;
+    /** Probabilidad y lámina por día local, para la lista por módulo del informe básico. */
+    probPorDia: ProbDiaModulo[];
 }
 
 export interface EstacionConfiabilidad {
@@ -595,6 +605,8 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
         if (!est && cen) {
             let mejorD = Infinity;
             for (const s of estacionesGeo) {
+                // Una presa queda fuera del distrito: su clima no representa a un módulo de riego.
+                if (s.rol === 'presa') continue;
                 const d = haversineKm(cen.lat, cen.lon, s.latitud, s.longitud);
                 if (d < mejorD) { mejorD = d; est = s; }
             }
@@ -660,6 +672,18 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
             superficieHa: ha,
             demandaM3: demanda, demandaConLluviaM3: demandaConLluvia, ahorroLluviaM3: ahorro,
             entregadoHoyM3: e.contexto?.entregasPorModulo?.get(n) ?? null,
+            sinEstacion: est == null || pts.length === 0,
+            horas: pts.map(p => ({ ts: p.ts, probPct: p.probPct, precipMm: p.precipMm, tempC: p.tempC, vientoMs: p.vientoMs })),
+            probPorDia: dias.map(dia => {
+                const delDia = pts.filter(p => claveDia(p.ts) === dia.clave);
+                const probs = delDia.map(p => p.probPct).filter((v): v is number => v != null);
+                const mm = delDia.filter(p => p.precipMm != null);
+                return {
+                    clave: dia.clave, etiqueta: dia.etiqueta, parcial: dia.parcial,
+                    probMaxPct: probs.length ? Math.max(...probs) : null,
+                    lluviaMm: mm.length ? Math.round(mm.reduce((a, p) => a + (p.precipMm ?? 0), 0) * 10) / 10 : null,
+                };
+            }),
         };
     });
 

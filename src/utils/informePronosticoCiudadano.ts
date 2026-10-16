@@ -3,10 +3,10 @@
 // ---------------------------------------------------------------------------
 // Mismo `DatosPronostico` que el informe operativo, contado para cualquier
 // persona: sin siglas (m/s, mm/h, S/D, módulos), con km/h, palabras en lugar de
-// umbrales, ilustraciones y recomendaciones concretas. Todas las reglas de
-// lenguaje viven en funciones PURAS y exportadas (describeDia, titularLlano,
-// recomendaciones, resumenSencillo) para poder verificarlas contra la base de
-// datos sin abrir el HTML.
+// umbrales, ilustraciones, un mapa de módulos con su probabilidad de lluvia y
+// una tira hora por hora. Todas las reglas de lenguaje viven en funciones
+// PURAS y exportadas (describeDia, titularLlano, resumenSencillo) para poder
+// verificarlas contra la base de datos sin abrir el HTML.
 //
 // Revisado por tres agentes independientes (veracidad contra la BD, lenguaje
 // claro y diseño/accesibilidad); sus hallazgos están incorporados aquí.
@@ -24,6 +24,8 @@ import { assetToDataURI } from './assetToDataURI';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
 import { rasterizaHtml } from './rasterizaHtml';
+import { MODULOS_SRL_IDS } from './modulosSRL';
+import { RAMPA_PROB, colorProb, mapaProbabilidadSvg, tiraHorariaModulosSvg } from './informePronosticoMapa';
 import { fmtHora, type DatosPronostico, type Franja, type NivelRiesgo, type ResumenDia } from './informePronosticoDatos';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -93,9 +95,9 @@ const lluviaFuerte = (n: LluviaNivel) => n === 'fuerte' || n === 'muy_fuerte';
 export function probFrase(p: number | null): string {
     if (p == null) return '';
     const n = Math.round(p);
-    if (p >= 80) return `Es casi seguro que llueva (${n} de cada 100)`;
-    if (p >= 50) return `Es probable que llueva (${n} de cada 100)`;
-    if (p >= 20) return `Puede llover (${n} de cada 100)`;
+    if (p >= 80) return `Es casi seguro que llueva en la zona (${n} de cada 100)`;
+    if (p >= 50) return `Es probable que llueva en la zona (${n} de cada 100)`;
+    if (p >= 20) return `Puede llover en la zona (${n} de cada 100)`;
     return `Es poco probable que llueva (${n} de cada 100)`;
 }
 
@@ -146,7 +148,7 @@ export function cuandoTexto(dia: ResumenDia): string {
     return cuandoLlueve(dia.franjasLluvia);
 }
 
-export type IconoClave = 'sol' | 'sol_nube' | 'nube' | 'lluvia' | 'lluvia_fuerte' | 'viento' | 'viento_fuerte' | 'frio' | 'calor' | 'paraguas' | 'alerta' | 'ok' | 'sin_dato' | 'sin_lluvia' | 'campo' | 'rayo';
+export type IconoClave = 'sol' | 'sol_nube' | 'nube' | 'lluvia' | 'lluvia_fuerte' | 'viento' | 'viento_fuerte' | 'sin_dato' | 'sin_lluvia';
 
 export interface DiaLlano {
     dia: ResumenDia;
@@ -244,56 +246,6 @@ export const SEMAFORO_LLANO: Record<NivelRiesgo | 'sin_dato', { texto: string; c
     sin_dato: { texto: 'SIN DATOS', color: '#334155', fondo: '#e2e8f0', simbolo: '?' },
 };
 
-// ── Recomendaciones concretas ───────────────────────────────────────────────
-export interface Recomendacion { icono: IconoClave; texto: string }
-
-export function recomendaciones(d: DatosPronostico, u: UmbralesLlanos = umbralesLlanos(d)): Recomendacion[] {
-    const ds = d.dias.map(x => describeDia(x, u));
-    const out: Recomendacion[] = [];
-    const hay = (f: (x: DiaLlano) => boolean) => ds.some(f);
-    const hayViento = hay(x => vientoFuerte(x.viento?.nivel));
-    const hayMuyFuerte = hay(x => x.lluvia.nivel === 'muy_fuerte' || x.viento?.nivel === 'muy_fuerte');
-
-    if (hayMuyFuerte) out.push({ icono: 'alerta', texto: 'Evite salir si no es indispensable.' });
-    if (hay(x => lluviaFuerte(x.lluvia.nivel))) {
-        out.push({ icono: 'lluvia_fuerte', texto: 'No cruce arroyos, canales ni cruces de agua sobre el camino, aunque parezcan poco profundos.' });
-        out.push({ icono: 'paraguas', texto: hayViento ? 'Use impermeable: con este viento el paraguas se voltea. Maneje despacio y con las luces encendidas.' : 'Lleve impermeable o paraguas. Maneje despacio y con las luces encendidas.' });
-        out.push({ icono: 'rayo', texto: 'Si escucha truenos, resguárdese en un lugar cerrado. No se quede en campo abierto, bajo un árbol solo, ni junto a postes o cercas de alambre.' });
-        out.push({ icono: 'alerta', texto: 'No se estacione ni acampe en arroyos o zonas bajas.' });
-    } else if (hay(x => x.lluvia.nivel === 'moderada' || x.lluvia.nivel === 'ligera' || x.lluvia.nivel === 'llovizna')) {
-        out.push({ icono: 'paraguas', texto: hayViento ? 'Lleve impermeable: con viento el paraguas se voltea.' : 'Lleve paraguas o impermeable si va a salir: puede llover en algún momento.' });
-    }
-    if (hayViento) {
-        out.push({ icono: 'viento_fuerte', texto: 'Asegure o guarde objetos sueltos: macetas, láminas, lonas y anuncios.' });
-        out.push({ icono: 'alerta', texto: 'No se detenga bajo árboles, postes ni estructuras débiles. El polvo irrita ojos y garganta: cúbrase y maneje despacio en carretera.' });
-    }
-    if (hay(x => x.dia.tMinC != null && x.dia.tMinC <= u.heladaAvisoC)) {
-        out.push({ icono: 'frio', texto: 'Riesgo de helada: cubra las plantas sensibles, proteja a mascotas, niñas, niños y personas mayores, y no deje agua en tuberías ni mangueras expuestas.' });
-    } else if (hay(x => x.dia.tMinC != null && x.dia.tMinC < 10)) {
-        out.push({ icono: 'frio', texto: 'Las mañanas y las noches estarán frías: abríguese bien.' });
-    }
-    if (hay(x => x.dia.tMaxC != null && x.dia.tMaxC >= u.calorAvisoC)) {
-        out.push({ icono: 'calor', texto: 'Tome agua con frecuencia, use ropa ligera y evite el sol de 12 a 17 h. Si hay mareo, piel seca o confusión, busque sombra y llame al 911.' });
-    }
-    if (ds.every(x => x.lluvia.nivel === 'sin_dato')) out.push({ icono: 'sin_dato', texto: 'Hoy no hay información de lluvia: si ve nubes oscuras o escucha truenos, tome precauciones.' });
-    if (!out.length) out.push({ icono: 'ok', texto: 'No se esperan condiciones que requieran precauciones especiales.' });
-    // Aviso permanente en un distrito de riego: los canales llevan corriente aunque no llueva.
-    out.push({ icono: 'alerta', texto: 'Aunque no llueva, manténgase lejos de las orillas de los canales de riego y no intente cruzarlos: la corriente arrastra aunque parezca tranquila.' });
-    return out;
-}
-
-/** Consejos para quien trabaja en el campo (Delicias es zona agrícola): solo los que aplican. */
-export function consejosCampo(d: DatosPronostico, u: UmbralesLlanos = umbralesLlanos(d)): string[] {
-    const ds = d.dias.map(x => describeDia(x, u));
-    const out: string[] = [];
-    if (ds.some(x => (x.dia.vientoMaxMs ?? 0) >= u.vientoAvisoMs)) out.push(`Con viento de ${kmh(u.vientoAvisoMs)} km/h o más conviene no regar con aspersores (los que lanzan agua al aire): el viento desvía el agua y se desperdicia.`);
-    if (ds.some(x => (x.dia.lluviaMaxMm ?? 0) >= 5)) out.push('Si cae lluvia de 5 mm o más (5 litros por metro cuadrado), puede posponer el siguiente riego.');
-    if (ds.some(x => (x.dia.lluviaMaxMm ?? 0) >= u.lluviaAvisoMm)) out.push('Antes de la lluvia fuerte, revise regaderas, tomas del canal y desagües para que el agua corra libre.');
-    if (ds.some(x => x.dia.tMinC != null && x.dia.tMinC <= u.heladaAvisoC)) out.push('Con riesgo de helada, no riegue de noche y proteja los cultivos sensibles.');
-    if (ds.some(x => x.dia.tMaxC != null && x.dia.tMaxC >= u.calorAvisoC)) out.push('Con calor intenso, trabaje temprano o al atardecer y programe los riegos de madrugada.');
-    return out;
-}
-
 /** Resumen en 1-3 frases, reutilizable en el informe operativo ("En palabras sencillas"). */
 export function resumenSencillo(d: DatosPronostico): string {
     const u = umbralesLlanos(d);
@@ -330,14 +282,7 @@ export function icono(clave: IconoClave, px = 64): string {
         case 'lluvia_fuerte': return f(`<path d="${NUBE}" fill="#94a3b8" stroke="#475569" stroke-width="2" transform="translate(0 -6)"/>${gotas([20, 28, 36, 44], 42)}${gotas([24, 32, 40], 52)}`);
         case 'viento': return f(`<path d="M8 24h30a6 6 0 1 0-6-6M8 34h40a6 6 0 1 1-6 6M8 44h22" fill="none" stroke="#0ea5e9" stroke-width="4" stroke-linecap="round"/>`);
         case 'viento_fuerte': return f(`<path d="M6 22h32a7 7 0 1 0-7-7M6 33h44a7 7 0 1 1-7 7M6 44h24" fill="none" stroke="#0369a1" stroke-width="5.5" stroke-linecap="round"/>`);
-        case 'frio': return f(`<g stroke="#0ea5e9" stroke-width="3.5" stroke-linecap="round"><path d="M32 8v48M10 20l44 24M10 44l44-24"/><path d="M26 12l6 5 6-5M26 52l6-5 6 5"/></g>`);
-        case 'calor': return f(`<rect x="27" y="8" width="10" height="34" rx="5" fill="#fff" stroke="#dc2626" stroke-width="3"/><circle cx="32" cy="48" r="9" fill="#dc2626"/><rect x="30" y="22" width="4" height="26" fill="#dc2626"/>`);
-        case 'paraguas': return f(`<path d="M8 32a24 20 0 0 1 48 0z" fill="#2563eb"/><path d="M32 32v18a5 5 0 0 1-10 0" fill="none" stroke="#1e293b" stroke-width="3.5" stroke-linecap="round"/>`);
-        case 'rayo': return f(`<path d="M36 6L16 36h14l-4 22 22-32H33z" fill="#fbbf24" stroke="#b45309" stroke-width="2.5" stroke-linejoin="round"/>`);
-        case 'alerta': return f(`<path d="M32 8L58 54H6z" fill="#fbbf24" stroke="#b45309" stroke-width="3" stroke-linejoin="round"/><path d="M32 24v14" stroke="#1e293b" stroke-width="5" stroke-linecap="round"/><circle cx="32" cy="46" r="3" fill="#1e293b"/>`);
-        case 'ok': return f(`<circle cx="32" cy="32" r="24" fill="#22c55e"/><path d="M20 33l8 8 16-17" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`);
         case 'sin_lluvia': return f(`<path d="M32 10c9 13 14 20 14 27a14 14 0 0 1-28 0c0-7 5-14 14-27z" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="2.5"/><path d="M12 54L52 12" stroke="#64748b" stroke-width="5" stroke-linecap="round"/>`);
-        case 'campo': return f(`<path d="M6 50h52" stroke="#65a30d" stroke-width="4" stroke-linecap="round"/><path d="M18 50V30M18 36c-6-2-8-8-8-12 6 0 9 5 8 12zM18 40c6-2 8-8 8-12-6 0-9 5-8 12zM42 50V26M42 33c-7-2-9-9-9-13 7 0 10 5 9 13zM42 38c7-2 9-9 9-13-7 0-10 5-9 13z" fill="#84cc16" stroke="#4d7c0f" stroke-width="2" stroke-linecap="round"/>`);
         default: return f(`<path d="${NUBE}" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 3" transform="translate(0 4)"/><text x="32" y="38" text-anchor="middle" font-size="18" font-weight="700" fill="#64748b" font-family="system-ui">?</text>`);
     }
 }
@@ -397,14 +342,64 @@ export interface OpcionesCiudadano {
     compacto?: boolean;
 }
 
+/** Logos de los módulos como data URI; si alguno no carga se omite y el mapa dibuja solo el número. */
+async function cargaLogosModulos(): Promise<Map<number, string>> {
+    const pares = await Promise.all(MODULOS_SRL_IDS.map(async n => [n, await assetToDataURI(`/logos/modulo_${n}.jpg`)] as const));
+    return new Map(pares.filter(([, uri]) => !!uri));
+}
+
+/** Texto agrupado: por día, qué módulos comparten la misma probabilidad ("Módulos 1, 2, 3 y 4: 93 de cada 100"). */
+export function resumenProbModulos(d: DatosPronostico): { etiqueta: string; lineas: string[] }[] {
+    const nombres = (ns: number[]) => ns.length === 1 ? `Módulo ${ns[0]}` : `Módulos ${ns.slice(0, -1).join(', ')} y ${ns[ns.length - 1]}`;
+    return d.dias.map(dia => {
+        const grupos = new Map<string, number[]>();
+        for (const m of d.modulos) {
+            const pd = m.probPorDia.find(x => x.clave === dia.clave);
+            const k = pd?.probMaxPct == null ? 'sin dato' : `${Math.round(pd.probMaxPct)} de cada 100`;
+            if (!grupos.has(k)) grupos.set(k, []);
+            grupos.get(k)!.push(m.numero);
+        }
+        const lineas = [...grupos.entries()].map(([k, ns]) => (grupos.size === 1 && ns.length === d.modulos.length ? `Todos los módulos: ${k}` : `${nombres(ns)}: ${k}`));
+        return { etiqueta: dia.parcial && dia.etiqueta !== 'Hoy' ? `${dia.etiqueta} (hasta ${hhmm(dia.hastaMs)})` : dia.etiqueta, lineas };
+    });
+}
+
+/** Frase sobre cuánto cambia la probabilidad entre módulos: si casi no cambia, el mapa no distingue y se dice. */
+export function fraseDispersion(d: DatosPronostico): string {
+    const ps = d.modulos.map(m => m.probMaxPct).filter((v): v is number => v != null);
+    if (ps.length < 2) return '';
+    const mn = Math.round(Math.min(...ps)), mx = Math.round(Math.max(...ps));
+    if (mx - mn >= 10) return '';
+    return mx >= 50 ? `Se espera lluvia en todos los módulos: la probabilidad es parecida en toda la zona (${mn === mx ? `${mx}` : `${mn} a ${mx}`} de cada 100).`
+        : `La probabilidad de lluvia es parecida en todos los módulos (${mn === mx ? `${mx}` : `${mn} a ${mx}`} de cada 100).`;
+}
+
+/** Lista por módulo: logo, de dónde sale su dato y la probabilidad de cada día (barra + "N de cada 100"). */
+function listaModulosHtml(d: DatosPronostico, logos: Map<number, string>): string {
+    const filas = d.modulos.map(m => {
+        const uri = logos.get(m.numero);
+        const origen = m.sinEstacion ? 'Sin dato: no hay estación con pronóstico' : m.propia ? 'Estación propia' : `Sin estación propia: dato de la estación más cercana${m.distanciaKm != null ? ` (a ${Math.round(m.distanciaKm)} km)` : ''}`;
+        const dias = m.probPorDia.map(pd => {
+            const etq = pd.parcial && pd.etiqueta !== 'Hoy' ? `${esc(pd.etiqueta)} <em>(hasta ${hhmm(d.hastaMs)})</em>` : esc(pd.etiqueta);
+            const ancho = pd.probMaxPct == null ? 0 : Math.max(2, Math.round(pd.probMaxPct));
+            const texto = pd.probMaxPct == null ? 'sin dato' : `${Math.round(pd.probMaxPct)} de cada 100`;
+            const mm = pd.lluviaMm != null && pd.lluviaMm >= 1 ? ` · ${pd.lluviaMm.toFixed(0)} mm` : '';
+            return `<div class="pd"><span class="pe">${etq}</span><span class="barra"><i style="width:${ancho}%;background:${colorProb(pd.probMaxPct)}"></i></span><span class="pt">${texto}${mm}</span></div>`;
+        }).join('');
+        return `<li class="mod">
+          <div class="logo">${uri ? `<img src="${uri}" alt="">` : `<span>${m.numero}</span>`}</div>
+          <div class="info"><b>Módulo ${m.numero}</b><small>${esc(origen)}</small>${dias}</div>
+        </li>`;
+    }).join('');
+    return `<ul class="mods">${filas}</ul>`;
+}
+
 export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: OpcionesCiudadano = {}): Promise<string> {
-    const [logoSrl, logoSica] = await Promise.all([assetToDataURI('/logos/logo-srl.png'), assetToDataURI('/logos/SICA005.png')]);
+    const [logoSrl, logoSica, logos] = await Promise.all([assetToDataURI('/logos/logo-srl.png'), assetToDataURI('/logos/SICA005.png'), cargaLogosModulos()]);
     const u = umbralesLlanos(d);
     const tit = titularLlano(d, u);
     const sem = SEMAFORO_LLANO[tit.sinDatos ? 'sin_dato' : tit.nivel];
     const ds = d.dias.map(x => describeDia(x, u));
-    const recos = recomendaciones(d, u);
-    const campo = consejosCampo(d, u);
     const cola = d.dias.length ? d.dias[d.dias.length - 1] : null;
 
     const tarjetas = ds.map(x => {
@@ -430,9 +425,6 @@ export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: Opci
         </article>`;
     }).join('');
 
-    const filasReco = recos.map(r => `<li><span class="ic">${icono(r.icono, 44)}</span><span>${esc(r.texto)}</span></li>`).join('');
-    const bloqueCampo = campo.length ? `<section class="caja campo"><h2><span class="ic">${icono('campo', 34)}</span> Si trabaja en el campo</h2><ul>${campo.map(c => `<li>${esc(c)}</li>`).join('')}</ul></section>` : '';
-
     // ¿Qué tan seguro es? — cifras reales de verificación, en palabras y contando DÍAS.
     const ver = d.verificacion;
     const temp06 = ver?.variables.find(v => v.variable === 'temperatura' && v.rango === '0-6 h');
@@ -451,6 +443,11 @@ export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: Opci
         ? `<p class="stale">Aviso: este pronóstico tiene ${Math.round((d.modelo.edadCorridaMin ?? 0) / 60)} horas de antigüedad y puede haber cambiado.</p>` : '';
     const cobertura = cola?.parcial && cola.etiqueta !== 'Hoy'
         ? `hoy, mañana y pasado mañana (este último solo hasta las ${hhmm(cola.hastaMs)} h)` : 'hoy, mañana y pasado mañana';
+    const hayEstimados = d.modulos.some(m => !m.propia);
+
+    const dispersion = fraseDispersion(d);
+    const resumenAgrupadoHtml = `<div class="agrupado">${resumenProbModulos(d).map(x => `<div class="ag"><b>${esc(x.etiqueta)}</b>${x.lineas.map(l => `<span>${esc(l)}</span>`).join('')}</div>`).join('')}</div>`;
+    const leyendaProb = RAMPA_PROB.map(r => `<span><i style="background:${r.color}"></i>${r.texto} %</span>`).join('');
 
     return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -464,7 +461,7 @@ export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: Opci
   header .t { flex: 1; text-align: center; }
   header .k { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: ${SRL_MARRON}; font-weight: 800; }
   header h1 { margin: 2px 0 0; font-size: 26px; line-height: 1.15; }
-  .escena { line-height: 0; max-height: 240px; overflow: hidden; }
+  .escena { line-height: 0; max-height: 110px; overflow: hidden; }
   .banner { margin: -14px 22px 0; position: relative; border-radius: 16px; padding: 16px 20px; border: 3px solid ${sem.color}; background: ${sem.fondo}; box-shadow: 0 6px 18px rgba(15,23,42,.15); }
   .banner .sem { font-size: 15px; font-weight: 900; letter-spacing: .12em; color: ${sem.color}; }
   .banner h2 { font-size: 28px; font-weight: 900; line-height: 1.15; margin: 4px 0; }
@@ -473,10 +470,29 @@ export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: Opci
   .emision { margin: 6px 22px 0; font-size: 15px; color: #475569; }
   .stale { margin: 10px 22px 0; background: #fffbeb; border: 1px solid #f59e0b; border-radius: 10px; padding: 8px 12px; font-size: 15px; }
   .caja { margin: 18px 22px 0; border-radius: 16px; padding: 16px 20px; border: 2px solid #e2e8f0; }
-  .caja h2 { font-size: 24px; margin: 0 0 10px; }
+  .caja h2, .seccion h2 { font-size: 24px; margin: 0 0 6px; }
   .caja ul { margin: 0; padding: 0; list-style: none; }
-  .reco li { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid #f1f5f9; font-size: 18px; }
-  .reco li:first-child { border-top: 0; }
+  .seccion { margin: 22px 22px 0; }
+  .sub { margin: 0 0 12px; font-size: 15.5px; color: #334155; }
+  .agrupado { display: grid; gap: 8px; margin-bottom: 10px; }
+  .ag { border: 2px solid #e2e8f0; border-radius: 14px; padding: 8px 12px; background: #f8fafc; }
+  .ag b { display: block; font-size: 16px; } .ag span { display: block; font-size: 15.5px; }
+  .detalle-mod summary { cursor: pointer; font-weight: 700; padding: 6px 0; color: #334155; }
+  .mapa-lista { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .mapa-lista > div { min-width: 0; }
+  .mods { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .mod { min-width: 0; }
+  .mod { display: flex; gap: 10px; border: 2px solid #e2e8f0; border-radius: 14px; padding: 8px 10px; }
+  .mod .logo { flex: none; width: 44px; height: 44px; border-radius: 50%; overflow: hidden; border: 2px solid #cbd5e1; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-weight: 800; }
+  .mod .logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .mod .info { flex: 1; min-width: 0; } .mod b { font-size: 17px; } .mod small { display: block; font-size: 13.5px; color: #475569; margin-bottom: 4px; }
+  .pd { display: grid; grid-template-columns: 104px minmax(40px, 1fr) minmax(0, auto); gap: 8px; align-items: center; font-size: 14px; padding: 2px 0; }
+  .pd .pe { line-height: 1.2; } .pd .pe em { display: inline; font-size: 12px; color: #475569; } .pd .pt { font-weight: 700; text-align: right; line-height: 1.2; }
+  .barra { height: 12px; border-radius: 6px; background: #f1f5f9; border: 1px solid #cbd5e1; overflow: hidden; display: block; } .barra i { display: block; height: 100%; }
+  .leyenda { display: flex; flex-wrap: wrap; gap: 12px; font-size: 14px; color: #334155; margin: 8px 0 0; }
+  .leyenda i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid #94a3b8; vertical-align: -2px; margin-right: 5px; }
+  .tira { border: 2px solid #e2e8f0; border-radius: 14px; padding: 10px 12px; }
+  .nota { font-size: 14px; color: #475569; margin: 8px 0 0; }
   .dias { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 18px 22px 6px; }
   .dia { border: 2px solid #e2e8f0; border-radius: 16px; padding: 14px 14px 12px; text-align: center; background: #fff; }
   .dia h2 { margin: 0; font-size: 22px; }
@@ -490,24 +506,25 @@ export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: Opci
   ul.datos { list-style: none; margin: 8px 0 0; padding: 0; text-align: left; font-size: 15.5px; }
   ul.datos li { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; border-top: 1px solid #f1f5f9; }
   .ic { display: inline-block; flex: none; line-height: 0; }
-  .campo { background: #f7fee7; border-color: #bef264; } .campo li { padding: 5px 0 5px 4px; font-size: 17px; }
-  .campo h2 { display: flex; align-items: center; gap: 10px; }
-  .campo ul { list-style: disc; padding-left: 22px; }
   .seguro { background: #f8fafc; } .seguro ul { list-style: disc; padding-left: 22px; } .seguro li { margin: 5px 0; font-size: 16.5px; }
   .glosario { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; font-size: 15px; }
   .glosario div { background: #f1f5f9; border-radius: 12px; padding: 10px 12px; }
   .glosario b { display: block; margin-bottom: 2px; }
   .oficial { margin: 18px 22px 0; border-radius: 14px; padding: 14px 18px; background: #fef2f2; border: 2px solid #fecaca; font-size: 16px; }
+  .oficial p { margin: 6px 0 0; }
   footer { margin-top: 20px; padding: 14px 22px 20px; border-top: 1px solid #e2e8f0; font-size: 14px; color: #475569; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-  @media screen and (max-width: 720px) { .dias, .glosario { grid-template-columns: 1fr; } header h1 { font-size: 21px; } .banner h2 { font-size: 23px; } }
+  @media screen and (max-width: 480px) { .pd { grid-template-columns: 1fr auto; } .pd .barra { grid-column: 1 / -1; order: 3; } }
+  @media screen and (max-width: 720px) { .dias, .glosario, .mapa-lista { grid-template-columns: 1fr; } header h1 { font-size: 21px; } .banner h2 { font-size: 23px; } }
   /* Versión para imagen compartible: una columna angosta que se lee en el celular sin ampliar. */
-  .compacto .hoja { max-width: 540px; } .compacto .dias, .compacto .glosario { grid-template-columns: 1fr; }
-  .compacto header h1 { font-size: 22px; } .compacto .banner h2 { font-size: 24px; } .compacto .escena { max-height: 150px; }
+  .compacto .hoja { max-width: 540px; } .compacto .dias, .compacto .glosario, .compacto .mapa-lista { grid-template-columns: 1fr; }
+  .compacto header h1 { font-size: 22px; } .compacto .banner h2 { font-size: 24px; } .compacto .escena { max-height: 80px; }
+  .compacto .pd { grid-template-columns: 92px minmax(30px, 1fr) minmax(0, auto); font-size: 13.5px; }
   @media print {
     body { background: #fff; } .hoja { max-width: none; } @page { size: A4; margin: 10mm; }
     .dias { grid-template-columns: repeat(3, 1fr) !important; } .glosario { grid-template-columns: repeat(3, 1fr) !important; }
-    .escena { max-height: 90px; }
-    .dia, .caja, .oficial, .campo, footer { break-inside: avoid; } h2 { break-after: avoid; }
+    .mapa-lista { grid-template-columns: 340px minmax(0, 1fr) !important; }
+    .escena { max-height: 70px; }
+    .dia, .caja, .oficial, .seccion, .mod, .tira, footer { break-inside: avoid; } h2 { break-after: avoid; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style></head><body class="${op.compacto ? 'compacto' : ''}"><div class="hoja">
@@ -526,9 +543,23 @@ export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: Opci
 <p class="emision">Actualizado el ${esc(emisionTxt(d.generadoMs))} (hora de Chihuahua). Pronóstico para Delicias y su zona de riego: ${esc(cobertura)}.</p>
 ${aviso}
 
-<section class="caja reco" style="border-color:${sem.color}"><h2>¿Qué hago?</h2><ul>${filasReco}</ul></section>
 <section class="dias" aria-label="Pronóstico por día">${tarjetas}</section>
-${bloqueCampo}
+
+<section class="seccion" aria-label="Probabilidad de lluvia por módulo">
+  <h2>¿Dónde puede llover?</h2>
+  <p class="sub">Probabilidad de lluvia en cada módulo de riego: la más alta de las próximas horas.${dispersion ? ` <b>${esc(dispersion)}</b>` : ''}${hayEstimados ? ' Un asterisco (*) indica que el módulo no tiene estación propia: su dato es el de la estación más cercana.' : ''}</p>
+  <div class="mapa-lista">
+    <div>${mapaProbabilidadSvg(d.modulos, logos)}</div>
+    <div>${resumenAgrupadoHtml}${op.compacto ? '' : `<details class="detalle-mod" open><summary>Ver módulo por módulo</summary>${listaModulosHtml(d, logos)}</details>`}</div>
+  </div>
+</section>
+
+<section class="seccion" aria-label="Hora por hora">
+  <h2>Hora por hora</h2>
+  <p class="sub">Cada cuadro es una hora, desde ahora y durante las próximas ${d.horizonteH} horas. Mientras más oscuro el azul, más probable es que llueva. Un punto blanco marca una hora con lluvia de 2.5 mm o más; la franja de arriba es amarilla de día y gris oscuro de noche.</p>
+  <div class="tira">${tiraHorariaModulosSvg(d.modulos, d.ejeHoras, logos, op.compacto ? 480 : 720)}</div>
+  <div class="leyenda">${leyendaProb}<span><i style="background:repeating-linear-gradient(45deg,#f8fafc,#f8fafc 3px,#cbd5e1 3px,#cbd5e1 5px)"></i>Sin información (el pronóstico no llega hasta ahí)</span></div>
+</section>
 
 <section class="caja seguro"><h2>¿Qué tan seguro es el pronóstico?</h2><ul>${seguro}</ul></section>
 
@@ -540,10 +571,11 @@ ${op.compacto ? '' : `<section class="caja"><h2>Para entender mejor</h2>
   </div>
 </section>`}
 
-<div class="oficial"><b>Importante:</b> este informe es una orientación de la SRL Unidad Conchos. <b>No sustituye</b> los avisos oficiales de Protección Civil ni del Servicio Meteorológico Nacional. Ante una emergencia, llame al 911 y siga sus indicaciones.</div>
+<div class="oficial"><b>Importante:</b> este informe es una orientación de la SRL Unidad Conchos. <b>No sustituye</b> los avisos oficiales de Protección Civil ni del Servicio Meteorológico Nacional. Ante una emergencia, llame al 911 y siga sus indicaciones.
+  <p><b>Siempre:</b> aunque no llueva, manténgase lejos de las orillas de los canales de riego y no intente cruzarlos: la corriente arrastra aunque parezca tranquila.</p></div>
 <footer>
   <span>SICA 005 · SRL Unidad Conchos · Distrito de Riego 005 Delicias</span>
-  <span>Pronóstico de modelo (${esc(d.modelo.proveedor)}), verificado con las estaciones de la red</span>
+  <span>Pronóstico automático, verificado con las estaciones de la red</span>
 </footer>
 </div></body></html>`;
 }

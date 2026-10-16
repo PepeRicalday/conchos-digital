@@ -113,13 +113,13 @@ export function PronosticoInformeModal({ abierto, onCerrar, onConfirmar }: Prono
                     <div style={{ marginBottom: 6 }}>
                         {rotulo('¿Para quién es el informe?')}
                         <div className="grid grid-cols-1 sm:grid-cols-3" style={{ gap: 10 }}>
-                            {opcion(nivel === 'ciudadano', () => setNivel('ciudadano'), Home, 'Básico', 'Para cualquier persona: lenguaje sencillo, dibujos y qué hacer', 'ciu')}
+                            {opcion(nivel === 'ciudadano', () => setNivel('ciudadano'), Home, 'Básico', 'Para cualquier persona: mapa de módulos con su probabilidad de lluvia, hora por hora y qué esperar cada día', 'ciu')}
                             {opcion(nivel === 'operativo', () => setNivel('operativo'), Users, 'Operativo', 'Veredicto, decisiones por módulo, ventanas de riesgo y gráficas', 'op')}
                             {opcion(nivel === 'tecnico', () => setNivel('tecnico'), FlaskConical, 'Técnico', 'Añade definiciones, nubosidad y la metodología abierta', 'tec')}
                         </div>
                         <p style={{ fontSize: 10.5, color: '#64748b', marginTop: 10, lineHeight: 1.5 }}>
                             {nivel === 'ciudadano'
-                                ? 'Informe para la ciudadanía: hoy, mañana y pasado mañana con temperatura, lluvia y viento en km/h, y recomendaciones concretas. Se puede imprimir o compartir como imagen.'
+                                ? 'Informe para la ciudadanía: mapa de los módulos con su probabilidad de lluvia, hora por hora, y hoy, mañana y pasado mañana con temperatura, lluvia y viento en km/h. Se puede imprimir o compartir como imagen.'
                                 : 'Todo el pronóstico es del modelo (Open-Meteo); lo observado se rotula aparte. Las estaciones con lecturas sospechosas aparecen como S/D.'}
                         </p>
                     </div>

@@ -29,6 +29,8 @@ import { formateaEdad } from './cielo';
 import { VIZ, graficaEvolucionMensual } from './climaCharts';
 import { tablaPrecipitacion, NOTA_TABLA_PRECIPITACION, NOTA_TABLA_PRECIPITACION_PERIODO, NOTA_TABLA_PRECIPITACION_CONSOLA } from './tablaPrecipitacion';
 import type { DiaMaxLluvia } from './climaResumenMensual';
+import type { TendenciasPeriodo } from './climaTendencias';
+import { graficaTendencia, graficaIntensidadBloques } from './climaChartsTendencia';
 import { assetToDataURI } from './assetToDataURI';
 import { resuelveFondoHillshade, LEYENDA_VIIRS, type FondoHillshade, type FondoNocturno } from './mapaHillshadeDEM';
 import { guardaOComparte } from './descargaArchivo';
@@ -124,6 +126,14 @@ export interface OpcionesGeoInforme {
      * quien sí la necesita).
      */
     modoTecnico?: boolean;
+    /** El usuario marcó "Incluir gráficas de tendencias" en el modal. Con
+     *  `false`/ausente el informe sale idéntico al de siempre. */
+    incluirTendencias?: boolean;
+    /** Serie por día/semana/hora del periodo (ver utils/climaTendencias.ts),
+     *  resuelta en Clima.tsx (que sí toca Supabase). Solo se lee si
+     *  `incluirTendencias`. `null` = se pidió pero la consulta falló: el
+     *  informe lo rotula "tendencias no disponibles" en vez de omitirlo. */
+    tendencias?: TendenciasPeriodo | null;
 }
 
 /** Escapa texto para insertarlo dentro de SVG/HTML — un nombre de estación
@@ -1432,6 +1442,103 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
         ? cfg.titulo.replace(/\s*\(día\)\s*$/, opciones.precipitacionEsRealDeConsola ? ' (acumulado real de consola)' : ' (acumulado del periodo)')
         : cfg.titulo;
 
+    // Tendencias dentro del periodo (opcional). Cada variable recibe su gráfica
+    // por día (o por semana si el periodo pasa de MAX_DIAS_DIARIA); precipitación
+    // añade acumulado del periodo, día pico por estación e intensidad por hora.
+    // Sin la casilla marcada devuelve '' y el informe queda idéntico al previo.
+    const NOMBRE_TEND: Record<VariableMapa['clave'], string> = {
+        tempC: 'Temperatura', vientoMs: 'Viento', radSolarWm2: 'Radiación solar', lluviaDiaMm: 'Precipitación',
+    };
+    const fechaCortaTend = (iso: string) => {
+        const [, m, d] = iso.split('-').map(Number);
+        return `${d} ${nombreMes(m).slice(0, 3).toLowerCase()}`;
+    };
+    const bloqueTendencias = (cfg: VariableMapa): string => {
+        if (!opciones.incluirTendencias) return '';
+        const t = opciones.tendencias;
+        const nombre = NOMBRE_TEND[cfg.clave];
+        if (!t) {
+            return `<div class="geoinf-nota" style="margin-top:14px">Tendencias de ${esc(nombre.toLowerCase())} no disponibles: no se pudieron leer las lecturas del periodo.</div>`;
+        }
+        const porDia = t.resolucion === 'diaria';
+        const unidadPaso = porDia ? 'por día' : 'por semana (lunes a domingo)';
+        const notaHuecos = 'Un hueco indica un día sin lecturas suficientes (menos del 60 % de las esperadas): nunca se interpola ni se rellena con 0.';
+        const figura = (titulo: string, nota: string, svg: string) => svg
+            ? `<figure class="fig">
+                    <figcaption><b>${esc(titulo)}</b><span>${nota}</span></figcaption>
+                    ${svg}
+                </figure>`
+            : '';
+
+        if (cfg.clave !== 'lluviaDiaMm') {
+            const series = cfg.clave === 'tempC' ? t.tempC : cfg.clave === 'vientoMs' ? t.vientoMs : t.radSolarWm2;
+            const svg = graficaTendencia({
+                titulo: `${nombre} — tendencia`, unidad: cfg.unidad, etiquetas: t.etiquetas, series,
+                forma: 'linea', pisoEnCero: cfg.clave !== 'tempC',
+            });
+            return figura(`Tendencia ${unidadPaso} — ${nombre}`, `Promedio ${unidadPaso} de cada estación dentro del periodo. ${notaHuecos}`, svg);
+        }
+
+        // ── Precipitación ──
+        const picosTxt = t.picos.map(p => ({ serie: p.nombre, indice: p.indice, texto: p.mm.toFixed(1) }));
+        const svgDiaria = graficaTendencia({
+            titulo: 'Precipitación — lámina', unidad: 'mm', etiquetas: t.etiquetas, series: t.lluvia,
+            forma: 'barras', pisoEnCero: true, picos: porDia ? picosTxt : [],
+        });
+        const svgAcum = graficaTendencia({
+            titulo: 'Precipitación — acumulado del periodo', unidad: 'mm', etiquetas: t.etiquetas, series: t.lluviaAcumulada,
+            forma: 'linea', pisoEnCero: true,
+        });
+        // Episodio por bloques: cada estación conserva el color que tiene en las
+        // demás gráficas (su posición en t.lluvia).
+        const ep = t.horaria;
+        const svgHora = ep ? graficaIntensidadBloques(ep, nombre =>
+            VIZ.serie[Math.max(0, t.lluvia.findIndex(s => s.nombre === nombre)) % VIZ.serie.length]) : '';
+        const hhmm = (h: number) => `${String(h % 24).padStart(2, '0')}:00`;
+        const tituloEpisodio = ep ? (() => {
+            const a = ep.bloques[0], z = ep.bloques[ep.bloques.length - 1];
+            return `Lluvia por bloque de ${ep.anchoH} h — ${fechaCortaTend(a.dia)} ${hhmm(a.hora)} a ${fechaCortaTend(z.dia)} ${hhmm(z.hora + ep.anchoH)}`;
+        })() : '';
+        const notaEpisodio = ep ? (() => {
+            const mmRed = ep.totalRedMm.toFixed(1);
+            const rango = ep.totales.length > 1
+                ? ` (de ${ep.totales[ep.totales.length - 1].mm.toFixed(1)} a ${ep.totales[0].mm.toFixed(1)} mm según la estación)` : '';
+            const sinDetalle = ep.mmSinDetalle > 0
+                ? ` Además cayeron ${ep.mmSinDetalle.toFixed(1)} mm en intervalos de más de 3 h sin lectura, que no se pueden ubicar por hora.` : '';
+            return `Promedio de la red en mm/h: cada diferencia del contador diario se reparte por igual entre las horas que cubre (las estaciones llegan cada ~${Math.round(ep.anchoH * 45)}–${ep.anchoH * 60} min, por eso se agrupa en bloques). `
+                + `Contorno oscuro = bloque pico; rombo = estación más intensa del bloque; gris con trama = sin lectura (no es cero). `
+                + `<b>Total del episodio: ${mmRed} mm promedio de la red${rango}.</b>${sinDetalle}`;
+        })() : '';
+
+        const lecturaPicos = t.picos.length
+            ? `<ul style="margin:8px 0 0;padding-left:18px;font-size:0.72rem;color:#475569">${t.picos
+                .slice().sort((a, b) => b.mm - a.mm)
+                .map(p => `<li><b>${esc(p.nombre)}</b>: día de mayor lluvia ${esc(fechaCortaTend(p.fecha))} — ${p.mm.toFixed(1)} mm</li>`).join('')}</ul>`
+            : '';
+        const tablaCobertura = modoTecnico
+            ? `<div class="geoinf-nota" style="margin-top:10px">
+                <b style="display:block;margin-bottom:8px;color:${SRL_MARRON};font-size:0.8rem">Cobertura de lecturas del periodo</b>
+                <table>
+                    <thead><tr><th>Estación</th><th>Lecturas</th><th>Esperadas</th><th>Cobertura</th></tr></thead>
+                    <tbody>${t.cobertura.map(c => `<tr><td>${esc(c.nombre)}</td><td>${c.lecturas}</td><td>${c.esperadas}</td><td>${c.pct} %</td></tr>`).join('')}</tbody>
+                </table>
+            </div>`
+            : '';
+
+        const sinLluvia = !t.picos.length
+            ? `<div class="geoinf-nota" style="margin-top:14px">Sin lluvia registrada por las estaciones en el periodo (${esc(fechaCortaTend(t.desde))} – ${esc(fechaCortaTend(t.hasta))}).</div>`
+            : '';
+        return `${sinLluvia}
+            ${figura(`Tendencia ${unidadPaso} — Precipitación`,
+                `Lámina de lluvia ${unidadPaso} por estación (último valor del contador de cada día local, hora de Chihuahua).${porDia ? ' El círculo marca el día de mayor lluvia de cada estación.' : ' En periodos largos se agrupa por semana; el día pico de cada estación se lista abajo.'} ${notaHuecos}`,
+                svgDiaria)}
+            ${lecturaPicos}
+            ${figura('Acumulado del periodo — Precipitación',
+                'Lluvia acumulada desde el primer día del periodo, por estación. Cuánto lleva sumando el temporal.', svgAcum)}
+            ${ep ? figura(tituloEpisodio, notaEpisodio, svgHora) : ''}
+            ${tablaCobertura}`;
+    };
+
     const bloques = variablesActivas.map((cfg, i) => {
         const valores = valoresPorModuloTodas.get(cfg.clave)!;
         const svg = mapaVariableSVG(cfg, activas, valores, corteCorto, logosModulo, fondoHillshade, tituloBloque(cfg), modoTecnico);
@@ -1562,6 +1669,7 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
                     ${svgEvolucion}
                 </figure>`;
             })()}
+            ${bloqueTendencias(cfg)}
         </section>`;
     }).join('');
 

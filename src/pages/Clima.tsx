@@ -15,7 +15,7 @@ import { Franja72h } from '../components/clima/Franja72h';
 import { BalanceModulos } from '../components/clima/BalanceModulos';
 import { HeroDistrito } from '../components/clima/HeroDistrito';
 import '../components/clima/ClimaTema.css';
-import { useSaludRed, useAlertasClima, useUmbralesClima, useEntregasDia } from '../hooks/useClimaOperativo';
+import { useSaludRed, useAlertasClima, useUmbralesClima, useEntregasDia, type UmbralClima } from '../hooks/useClimaOperativo';
 import { SUPERFICIE_RIEGO_HA } from '../utils/modulosSRL';
 import { EFICIENCIA_RODADO, KC_REFERENCIA, laminaBruta, laminaNeta, m3PorHa } from '../utils/agronomia';
 import { useFecha } from '../context/FechaContext';
@@ -25,12 +25,17 @@ import { useClimaSkill } from '../hooks/useClimaSkill';
 import { exportClimaReport } from '../utils/exportClimaReport';
 import { exportClimaGeoInforme, type OpcionesGeoInforme } from '../utils/exportClimaGeoInforme';
 import { obtenMesesDisponibles, obtenSerieMensual, estacionesDesdeResumenRango } from '../utils/climaResumenMensual';
+import { obtenTendenciasPeriodo, type TendenciasPeriodo } from '../utils/climaTendencias';
 import { getTodayString } from '../utils/dateHelpers';
 import { GeoInformeOpcionesModal } from '../components/GeoInformeOpcionesModal';
+import { PronosticoInformeModal, type OpcionesInformePronostico } from '../components/PronosticoInformeModal';
+import { construirDatosPronostico, type EntradaVerificacion, type FilaSkillVariable, type FilaSkillLluvia } from '../utils/informePronosticoDatos';
+import { descargarInformePronostico, imprimirInformePronostico } from '../utils/informePronosticoHtml';
+import { useCanalExtremos } from '../hooks/useDashboardPulso';
 import { exportClimaInfografia, imagenClimaInfografia, agrupaPorDia, type DiaHistorico } from '../utils/exportClimaInfografia';
 import { supabase } from '../lib/supabase';
 import { formateaEdad, clasificaCielo, PROCEDENCIA_LABEL } from '../utils/cielo';
-import { Download, Gauge, Image as ImageIcon, Satellite } from 'lucide-react';
+import { Download, Gauge, Image as ImageIcon, Satellite, CloudSun } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { calculaIndices, entradasDesdeEstaciones, etoTotalDelDiaRed, GDD_BASE_C, KP_TANQUE_EVAPORIMETRICO, type Indice } from '../utils/indicesAgro';
 import { obtenNdviModulo, type NdviModulo } from '../utils/kcNdvi';
@@ -77,11 +82,21 @@ interface TechnicalVariable {
  * estación proviene el valor que manda, y toma el pronóstico del modelo horario.
  */
 function buildConditionsRed(
-    ests: EstacionConLectura[], hoyLocal: string,
+    ests: EstacionConLectura[], hoyLocal: string, umbrales: UmbralClima[] = [],
 ): WeatherCondition[] {
     const conLect = ests.filter(e => e.lectura);
     if (!conLect.length) return [];
     const out: WeatherCondition[] = [];
+    // Umbrales: fuente única = tabla clima_umbrales (la misma que usan las alertas y el
+    // informe de pronóstico). Antes este panel tenía constantes propias (helada < 5, viento
+    // > 5…) que contradecían a las alertas (helada ≤ 4, viento ≥ 6): un mismo viento podía
+    // salir "advertencia" aquí y sin alerta allá. Si la tabla aún no cargó, se usan los
+    // valores sembrados de la tabla (no otros distintos).
+    const umb = (clave: string, aviso: number, critico: number) => {
+        const u = umbrales.find(x => x.clave === clave);
+        return { aviso: u ? Number(u.aviso) : aviso, critico: u ? Number(u.critico) : critico };
+    };
+    const uCalor = umb('calor', 36, 40), uHelada = umb('helada', 4, 2), uViento = umb('viento', 6, 10), uLluvia = umb('lluvia', 10, 25);
 
     // Ventana de pronóstico: próximas 24 h.
     const serie = ests.flatMap(e => e.pronosticoSerie.filter(p => (p.horizonte_h ?? 99) <= 24));
@@ -98,9 +113,9 @@ function buildConditionsRed(
             variable: 'Temperatura Máxima',
             current: `${top.v.toFixed(1)} °C`,
             forecast: fcMax.length ? `${Math.max(...fcMax).toFixed(0)} °C` : '—',
-            impact: top.v > 35 ? 'Estrés térmico alto en cultivos' : 'Define el estrés térmico del cultivo',
+            impact: top.v >= uCalor.aviso ? 'Estrés térmico alto en cultivos' : 'Define el estrés térmico del cultivo',
             icon: <Thermometer size={18} />,
-            status: top.v > 38 ? 'alert' : top.v > 35 ? 'warning' : 'normal',
+            status: top.v >= uCalor.critico ? 'alert' : top.v >= uCalor.aviso ? 'warning' : 'normal',
             detalle: `Máx. de la red · ${top.n}`,
         });
     }
@@ -113,9 +128,9 @@ function buildConditionsRed(
             variable: 'Temperatura Mínima',
             current: `${bot.v.toFixed(1)} °C`,
             forecast: fcMin.length ? `${Math.min(...fcMin).toFixed(0)} °C` : '—',
-            impact: bot.v < 5 ? '⚠️ Riesgo de heladas en frutales' : 'Sin riesgo de heladas',
+            impact: bot.v <= uHelada.aviso ? '⚠️ Riesgo de heladas en frutales' : 'Sin riesgo de heladas',
             icon: <Thermometer size={18} />,
-            status: bot.v < 0 ? 'alert' : bot.v < 5 ? 'warning' : 'normal',
+            status: bot.v <= uHelada.critico ? 'alert' : bot.v <= uHelada.aviso ? 'warning' : 'normal',
             detalle: `Mín. de la red · ${bot.n}`,
         });
     }
@@ -130,11 +145,11 @@ function buildConditionsRed(
             variable: 'Viento (máx.)',
             current: `${top.v.toFixed(1)} m/s${top.d != null ? ` · ${top.d.toFixed(0)}°` : ''}`,
             forecast: fcV.length ? `${Math.max(...fcV).toFixed(1)} m/s` : '—',
-            impact: top.v > 5
-                ? 'Suspender riego por aspersión (deriva)'
+            impact: top.v >= uViento.aviso
+                ? 'Evitar riego por aspersión (deriva)'
                 : 'Dentro del rango operativo para aspersión',
             icon: <Wind size={18} />,
-            status: top.v > 6 ? 'alert' : top.v > 5 ? 'warning' : 'normal',
+            status: top.v >= uViento.critico ? 'alert' : top.v >= uViento.aviso ? 'warning' : 'normal',
             detalle: `${top.n}${top.r != null ? ` · ráfaga ${top.r.toFixed(1)} m/s` : ''}`,
         });
     }
@@ -156,9 +171,9 @@ function buildConditionsRed(
         forecast: probs.length
             ? `${Math.max(...probs)} %${mmPrev.length ? ` · ${(mmPrev.reduce((a, b) => a + b, 0) / mmPrev.length).toFixed(1)} mm` : ''}`
             : '—',
-        impact: promLluvia > 10 ? 'Posible suspensión de riegos' : 'Sin impacto en operación',
+        impact: promLluvia >= uLluvia.aviso ? 'Posible suspensión de riegos' : 'Sin impacto en operación',
         icon: <Droplets size={18} />,
-        status: promLluvia > 20 ? 'alert' : promLluvia > 10 ? 'warning' : 'normal',
+        status: promLluvia >= uLluvia.critico ? 'alert' : promLluvia >= uLluvia.aviso ? 'warning' : 'normal',
         detalle: conLluvia.length
             ? `Observada en ${conLluvia.map(x => `${x.n} ${x.v.toFixed(1)} mm`).join(', ')}`
             : `Sin registro en ${conLect.length} estación(es)`,
@@ -464,7 +479,7 @@ const EstacionCard = ({ est, onAbrir, horaCorte, sospechosa }: {
 // Main Component
 const Clima = () => {
     const { fechaSeleccionada } = useFecha();
-    const { clima, loading } = usePresas(fechaSeleccionada);
+    const { clima, loading, presas } = usePresas(fechaSeleccionada);
     const { estaciones, loading: loadingEst, refrescarAhora, refresco } = useClimaEstaciones();
     const { resumen: skillResumen, totalMuestras: skillMuestras, cargando: skillCargando } = useClimaSkill(7);
     const hoyLocalCorte = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
@@ -472,6 +487,7 @@ const Clima = () => {
     const alertasClima = useAlertasClima();
     const umbralesClima = useUmbralesClima();
     const entregasHoy = useEntregasDia(hoyLocalCorte);
+    const canal = useCanalExtremos();
     // Una estación con lectura sospechosa (p. ej. 82 °C, o muy lejos de la mediana de la red) no debe entrar a los
     // promedios, índices ni a la tabla de condiciones del distrito; su tarjeta sigue visible y rotulada.
     const sospechosaIds = useMemo(() => new Set(salud.estaciones.filter(x => x.sospechosa).map(x => x.id)), [salud.estaciones]);
@@ -521,6 +537,60 @@ const Clima = () => {
     );
     const [showWindy, setShowWindy] = useState(false);
     const [showGeoInformeOpciones, setShowGeoInformeOpciones] = useState(false);
+    const [showPronosticoOpciones, setShowPronosticoOpciones] = useState(false);
+    const [generandoPronostico, setGenerandoPronostico] = useState(false);
+
+    // Informe de Pronóstico: todo sale de lo que esta pantalla ya tiene cargado
+    // (estaciones con su serie del modelo, umbrales, alertas, presas, canal,
+    // entregas). `construirDatosPronostico` es pura; aquí solo se arma la entrada.
+    const generarInformePronostico = async (o: OpcionesInformePronostico) => {
+        setGenerandoPronostico(true);
+        try {
+            const boq = presas.find(p => /boquilla/i.test(p.nombre));
+            // Verificación del modelo: si las RPC fallan el informe sale igual, sin esa sección.
+            let verificacion: EntradaVerificacion | null = null;
+            try {
+                const [vars, lluvia, corr] = await Promise.all([
+                    supabase.rpc('fn_clima_skill_variables', { p_dias: 14 }),
+                    supabase.rpc('fn_clima_skill_lluvia_dia', { p_dias: 14 }),
+                    supabase.from('clima_pronostico_snapshot').select('corrida_en').order('corrida_en', { ascending: false }).limit(1000),
+                ]);
+                if (vars.error) throw vars.error;
+                if (lluvia.error) throw lluvia.error;
+                verificacion = {
+                    variables: (vars.data ?? []) as FilaSkillVariable[],
+                    lluviaDias: (lluvia.data ?? []) as FilaSkillLluvia[],
+                    corridasConservadas: new Set((corr.data ?? []).map(r => r.corrida_en as string)).size,
+                };
+            } catch (e) {
+                console.warn('[Clima] verificación del pronóstico no disponible:', e);
+            }
+            const datos = construirDatosPronostico({
+                estaciones, umbrales: umbralesClima, sospechosaIds, alertas: alertasClima.alertas,
+                ahora: new Date(), horizonteH: o.horizonteH, modoTecnico: o.modoTecnico, verificacion,
+                contexto: {
+                    canal: canal.k0 || canal.k104 ? {
+                        k0M3s: canal.k0?.fresca ? canal.k0.gasto : null, k0Fresca: !!canal.k0?.fresca,
+                        k104M3s: canal.k104?.fresca ? canal.k104.gasto : null, k104Fresca: !!canal.k104?.fresca,
+                    } : null,
+                    presa: boq ? {
+                        nombre: boq.nombre, porcentaje: boq.lectura?.porcentaje_llenado ?? null,
+                        almacenamientoMm3: boq.lectura?.almacenamiento_mm3 ?? null,
+                        extraccionM3s: boq.lectura?.extraccion_conocida ? boq.lectura.extraccion_total_m3s : null,
+                        fecha: boq.lectura?.fecha ?? null,
+                    } : null,
+                    entregasPorModulo: entregasHoy.porModulo,
+                },
+            });
+            if (o.accion === 'imprimir') await imprimirInformePronostico(datos);
+            else await descargarInformePronostico(datos);
+        } catch (e) {
+            console.error('[Clima] no se pudo generar el informe de pronóstico:', e);
+            setAvisoUi(e instanceof Error ? e.message : 'No se pudo generar el informe de pronóstico.');
+        } finally {
+            setGenerandoPronostico(false);
+        }
+    };
 
     // Infografía: trae el historial de 7 días para el panel de tendencias. Si la
     // consulta falla se emite igual con historial vacío — ese panel se rotula
@@ -630,8 +700,21 @@ const Clima = () => {
                     return { ...e, lectura: { ...e.lectura, lluvia_dia_mm: real, lluvia_mes_mm: real } };
                 });
             })();
+            // Tendencias (opcional): lecturas crudas del periodo agregadas por día
+            // local. Si la consulta falla el informe sale igual, con ese apartado
+            // rotulado "no disponibles" (mismo patrón que historialInfografia).
+            let tendencias: TendenciasPeriodo | null = null;
+            if (opciones.incluirTendencias && periodoDesde && periodoHasta) {
+                try {
+                    tendencias = await obtenTendenciasPeriodo(
+                        estaciones.map(e => ({ id: e.id, nombre: e.nombre })), periodoDesde, periodoHasta,
+                    );
+                } catch (e) {
+                    console.warn('[Clima] tendencias del periodo no disponibles para el informe geoclimático:', e);
+                }
+            }
             await exportClimaGeoInforme(estacionesInforme, {
-                ...opciones, periodoDesde, periodoHasta, serieMensual,
+                ...opciones, periodoDesde, periodoHasta, serieMensual, tendencias,
                 diaMaxLluviaPorId: resumenRango?.diaMaxLluviaPorId,
                 precipitacionEsRealDeConsola: esTodoElHistorico,
             });
@@ -705,9 +788,9 @@ const Clima = () => {
     // respaldo para cuando no haya ninguna estación reportando.
     const conditions = useMemo(() => {
         const hoyLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
-        const red = buildConditionsRed(estValidas, hoyLocal);
+        const red = buildConditionsRed(estValidas, hoyLocal, umbralesClima);
         return red.length ? red : buildConditions(clima);
-    }, [estValidas, clima]);
+    }, [estValidas, clima, umbralesClima]);
 
     // Build technical variables.
     //
@@ -1047,6 +1130,14 @@ const Clima = () => {
                                 <MapPin size={14} /> {generandoGeoInforme ? 'Generando…' : 'Geoclimático'}
                             </button>
                             <button
+                                className="estaciones-dl"
+                                onClick={() => setShowPronosticoOpciones(true)}
+                                disabled={generandoPronostico}
+                                title="Informe de pronóstico a 24/48 h: qué hacer en cada módulo, ventanas de riesgo y contexto operativo (HTML o imprimir/PDF)"
+                            >
+                                <CloudSun size={14} /> {generandoPronostico ? 'Generando…' : 'Pronóstico'}
+                            </button>
+                            <button
                                 className="estaciones-mapa-animado"
                                 onClick={() => setShowWindy(true)}
                                 title="Ver mapa animado de nubosidad y precipitación (Windy.com)"
@@ -1255,6 +1346,11 @@ const Clima = () => {
                 lat={CENTRO_DISTRITO.lat}
                 lon={CENTRO_DISTRITO.lon}
                 titulo="Clima — Mapa animado"
+            />
+            <PronosticoInformeModal
+                abierto={showPronosticoOpciones}
+                onCerrar={() => setShowPronosticoOpciones(false)}
+                onConfirmar={(opciones) => { void generarInformePronostico(opciones); }}
             />
             <GeoInformeOpcionesModal
                 abierto={showGeoInformeOpciones}

@@ -190,6 +190,17 @@ Deno.serve(async (req) => {
         const eto = etDiaMm != null && etDiaMm > 0 ? etDiaMm : etoPM;
         const gddVal = gdd(tmaxC, tminC);
 
+        // QA/QC de plausibilidad física: antes qa_status/qa_flags quedaban NULL en todas
+        // las lecturas y un sensor averiado (Riego San Rafael reportó 82 °C) pasaba como
+        // dato válido a cualquier consumidor que leyera la tabla cruda. Mismos rangos que
+        // la vista v_clima_alertas_agro_eval y utils/plausibilidadClima.ts. La lectura se
+        // GUARDA igual (trazabilidad de la avería); solo se marca para que se pueda excluir.
+        const qaFlags: string[] = [];
+        if (tempC != null && (tempC < -25 || tempC > 48)) qaFlags.push("out_of_range");
+        if (vientoMs != null && (vientoMs < 0 || vientoMs > 50)) qaFlags.push("out_of_range");
+        if (humPct != null && (humPct < 0 || humPct > 100)) qaFlags.push("out_of_range");
+        const qaStatus = qaFlags.length ? "suspect" : "valid";
+
         // 2. Upsert lectura por estación
         const { error: eIns } = await supabase.from("clima_estacion_lecturas").upsert({
           estacion_id: est.id, station_id: est.station_id, fecha, ts: ts.toISOString(),
@@ -199,6 +210,7 @@ Deno.serve(async (req) => {
           lluvia_mes_mm: lluviaMes, lluvia_anio_mm: lluviaAnio, rad_solar_wm2: radWm2, uv_index: uv,
           et_dia_mm: etDiaMm, et_mes_mm: etMesMm, eto_mm: eto, gdd: gddVal,
           bar_trend_hpa: barTrendHpa,
+          qa_flags: [...new Set(qaFlags)], qa_status: qaStatus,
           payload: { ts: tsSec, records_count: records.length },
         }, { onConflict: "estacion_id,ts" });
         if (eIns) { resultados.push({ estacion: est.nombre, ok: false, motivo: eIns.message }); continue; }
@@ -221,7 +233,7 @@ Deno.serve(async (req) => {
 
         // `arrastre` se reporta para que el operador vea por qué una sincronización
         // de medianoche no trae acumulados, en vez de leerlo como fallo del sensor.
-        resultados.push({ estacion: est.nombre, ok: true, fecha, temp_c: tempC, eto_mm: eto, lluvia_dia_mm: lluviaDiaMm, ...(arrastre ? { arrastre_medianoche: true } : {}) });
+        resultados.push({ estacion: est.nombre, ok: true, fecha, qa: qaStatus, temp_c: tempC, eto_mm: eto, lluvia_dia_mm: lluviaDiaMm, ...(arrastre ? { arrastre_medianoche: true } : {}) });
       } catch (err) {
         resultados.push({ estacion: est.nombre, ok: false, motivo: String(err) });
       }

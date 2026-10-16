@@ -59,7 +59,11 @@ export function AlertasAgro({ alertas, umbrales, cargado, error }: Props) {
                                 </p>
                                 <p className="cl-alerta-msg">{a.mensaje}</p>
                                 {accion && <p className="cl-alerta-acc"><b>Acción:</b> {accion}</p>}
-                                <span className="cl-alerta-t">Detectada {textoHace(a.detectadaEn)}</span>
+                                {/* fecha_deteccion es el inicio del EPISODIO: la alerta se reevalúa cada 30 min y
+                                    sigue vigente mientras la condición se cumpla — no es una alerta vieja sin revisar. */}
+                                <span className="cl-alerta-t" title="La alerta se reevalúa cada 30 min; esta es la fecha en que comenzó el episodio">
+                                    Vigente · episodio iniciado {textoHace(a.detectadaEn)}
+                                </span>
                             </div>
                         </li>
                     );
@@ -82,7 +86,7 @@ export function AlertasAgro({ alertas, umbrales, cargado, error }: Props) {
                             ))}
                         </tbody>
                     </table>
-                    <p>Se evalúan cada 30 min con la última lectura plausible y el pronóstico a 48 h. Editables en la tabla clima_umbrales.</p>
+                    <p>Se evalúan cada 30 min con el mayor valor entre la última lectura plausible y el pronóstico a 48 h; el mensaje de cada alerta indica ambos ("ahora" y "pronóstico"). Editables en la tabla clima_umbrales.</p>
                 </details>
             )}
         </section>

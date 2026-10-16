@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, MapPin, Thermometer, Wind, Sun, CloudRain, Check, Calendar, Users, FlaskConical } from 'lucide-react';
+import { X, MapPin, Thermometer, Wind, Sun, CloudRain, Check, Calendar, Users, FlaskConical, TrendingUp } from 'lucide-react';
 import type { OpcionesGeoInforme } from '../utils/exportClimaGeoInforme';
 import { getTodayString, addDays } from '../utils/dateHelpers';
 
@@ -62,6 +62,10 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
     // null = "Todo el histórico" (comportamiento actual, sin filtro de
     // periodo) — mismo significado que "sin rango" en el resto del informe.
     const [periodo, setPeriodo] = useState<{ desde: string; hasta: string } | null>(null);
+    // Opcional y apagado por defecto: añade a cada variable su tendencia día a
+    // día (y, en lluvia, acumulado e intensidad por hora) dentro del periodo.
+    // Cuesta una consulta de lecturas crudas, por eso solo se pide si se marca.
+    const [incluirTendencias, setIncluirTendencias] = useState(false);
 
     useEffect(() => {
         if (!abierto) return;
@@ -121,6 +125,7 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
             periodoDesde: periodo?.desde,
             periodoHasta: periodo?.hasta,
             modoTecnico,
+            incluirTendencias,
         });
         onCerrar();
     };
@@ -293,6 +298,54 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
                         <p style={{ fontSize: 10.5, color: '#64748b', marginTop: 10, lineHeight: 1.5 }}>
                             Cada variable incluye el mapa del corte (o del periodo elegido abajo) y su evolución mensual (promedio; acumulado en precipitación). Menos variables = archivo más ligero.
                         </p>
+                    </div>
+
+                    <div style={{ marginBottom: 20 }}>
+                        <button
+                            type="button"
+                            onClick={() => setIncluirTendencias(v => !v)}
+                            className="flex items-center transition-colors w-full"
+                            style={{
+                                gap: 10,
+                                padding: '10px 12px',
+                                borderRadius: 12,
+                                border: `1px solid ${incluirTendencias ? 'rgba(52,211,153,0.45)' : 'rgba(255,255,255,0.10)'}`,
+                                background: incluirTendencias ? 'rgba(52,211,153,0.12)' : 'rgba(255,255,255,0.02)',
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                            }}
+                            role="switch"
+                            aria-checked={incluirTendencias}
+                        >
+                            <span
+                                className="flex items-center justify-center"
+                                style={{
+                                    width: 28, height: 28, borderRadius: 8, flex: 'none',
+                                    background: incluirTendencias ? '#34d399' : 'rgba(255,255,255,0.06)',
+                                    transition: 'background 0.15s',
+                                }}
+                            >
+                                <TrendingUp size={14} color={incluirTendencias ? '#0f172a' : '#64748b'} />
+                            </span>
+                            <span style={{ flex: 1 }}>
+                                <span className="font-semibold block" style={{ fontSize: 12.5, color: incluirTendencias ? '#f1f5f9' : '#64748b' }}>
+                                    Incluir gráficas de tendencias
+                                </span>
+                                <span style={{ fontSize: 9.5, color: '#64748b', display: 'block', marginTop: 1, lineHeight: 1.3 }}>
+                                    Evolución día a día de cada variable dentro del periodo; en precipitación añade acumulado, día pico e intensidad por hora. Útil en temporal.
+                                </span>
+                            </span>
+                            <span
+                                className="flex items-center justify-center"
+                                style={{
+                                    width: 18, height: 18, borderRadius: '50%', flex: 'none',
+                                    border: `1.5px solid ${incluirTendencias ? '#34d399' : 'rgba(255,255,255,0.18)'}`,
+                                    background: incluirTendencias ? '#34d399' : 'transparent',
+                                }}
+                            >
+                                {incluirTendencias && <Check size={12} color="#0f172a" strokeWidth={3} />}
+                            </span>
+                        </button>
                     </div>
 
                     <div style={{ marginBottom: 4 }}>

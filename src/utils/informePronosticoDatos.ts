@@ -1,0 +1,651 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Informe de Pronóstico — modelo de datos (función PURA, sin red) — SICA-005
+// ---------------------------------------------------------------------------
+// Convierte lo que ya tiene la pantalla de Clima (estaciones con su serie de
+// pronóstico horario, umbrales de BD, alertas, contexto operativo) en el modelo
+// que dibuja el informe. No consulta nada: así se puede probar con casos reales.
+//
+// Reglas de veracidad (ver auditoría 2026-10-16):
+//   · Todo valor lleva procedencia (observado / pronosticado) y edad; nada
+//     pronosticado se rotula como observado ni al revés.
+//   · Lecturas implausibles o de estaciones "sospechosas" (p. ej. 82 °C) pasan
+//     a S/D (null) y se declaran en la sección de confiabilidad; nunca a 0.
+//   · Los umbrales salen de `clima_umbrales` (fuente única), no de constantes.
+//   · Hora local siempre America/Chihuahua.
+// ═══════════════════════════════════════════════════════════════════════════
+import type { EstacionConLectura, PronosticoHora } from '../hooks/useClimaEstaciones';
+import type { AlertaClima, UmbralClima } from '../hooks/useClimaOperativo';
+import { MODULOS_SRL } from './geoDistrito';
+import { MODULOS_SRL_IDS, numeroModuloDeId, superficieRiegoHa } from './modulosSRL';
+import {
+    EFICIENCIA_RODADO, LLUVIA_MIN_EFECTIVA_MM, laminaBruta, laminaNeta, lluviaEfectivaMm, m3PorHa,
+} from './agronomia';
+import { valorPlausible } from './plausibilidadClima';
+
+export type NivelRiesgo = 'normal' | 'aviso' | 'critico';
+const RANGO_NIVEL: Record<NivelRiesgo, number> = { normal: 0, aviso: 1, critico: 2 };
+const peorNivel = (a: NivelRiesgo, b: NivelRiesgo): NivelRiesgo => (RANGO_NIVEL[b] > RANGO_NIVEL[a] ? b : a);
+
+export type ClaveRiesgo = 'viento' | 'lluvia' | 'helada' | 'calor' | 'eto';
+const CLAVES: ClaveRiesgo[] = ['viento', 'lluvia', 'helada', 'calor', 'eto'];
+
+const TZ = 'America/Chihuahua';
+const MS_H = 3_600_000;
+/** Pronóstico con más de esto de antigüedad (corrida) se rotula "desactualizado". */
+export const CORRIDA_VIEJA_MIN = 180;
+
+// ── Tipos de salida ─────────────────────────────────────────────────────────
+export interface PuntoPronostico {
+    ts: number;
+    tempC: number | null;
+    precipMm: number | null;
+    probPct: number | null;
+    vientoMs: number | null;
+    nubPct: number | null;
+    etoMm: number | null;
+}
+
+export interface VentanaRiesgo { desdeMs: number; hastaMs: number; nivel: NivelRiesgo; estacion: string }
+
+export interface Riesgo {
+    clave: ClaveRiesgo;
+    etiqueta: string;
+    unidad: string;
+    comparador: 'mayor' | 'menor';
+    aviso: number;
+    critico: number;
+    accion: string | null;
+    /** Valor extremo pronosticado en la ventana (null = sin pronóstico). */
+    valor: number | null;
+    nivel: NivelRiesgo;
+    estacion: string | null;
+    /** Instante del extremo. */
+    cuandoMs: number | null;
+    ventanas: VentanaRiesgo[];
+    /** Qué mide exactamente el valor (para no mezclar ventanas). */
+    definicion: string;
+}
+
+export interface DecisionModulo {
+    nivel: NivelRiesgo;
+    acciones: string[];
+    /** Una línea para la tarjeta. */
+    resumen: string;
+}
+
+export interface ResumenModulo {
+    numero: number;
+    estacion: string;
+    /** true = la estación está en el propio módulo; false = estimado con la más cercana. */
+    propia: boolean;
+    distanciaKm: number | null;
+    tMinC: number | null;
+    tMaxC: number | null;
+    vientoMaxMs: number | null;
+    lluviaTotalMm: number | null;
+    lluviaMax24hMm: number | null;
+    probMaxPct: number | null;
+    picoLluvia: { mmh: number; ms: number } | null;
+    riesgos: Record<ClaveRiesgo, { nivel: NivelRiesgo; valor: number | null }>;
+    decision: DecisionModulo;
+    superficieHa: number | null;
+    /** Demanda bruta de las próximas 24 h sin lluvia y con la lluvia efectiva descontada (m³). */
+    demandaM3: number | null;
+    demandaConLluviaM3: number | null;
+    ahorroLluviaM3: number | null;
+    entregadoHoyM3: number | null;
+}
+
+export interface EstacionConfiabilidad {
+    id: string;
+    nombre: string;
+    rol: string;
+    /** Edad de la última lectura observada (min). */
+    edadLecturaMin: number | null;
+    calidad: string;
+    sospechosa: boolean;
+    observado: { tempC: number | null; vientoMs: number | null; lluviaDiaMm: number | null };
+    puntosPronostico: number;
+    corridaEn: string | null;
+    edadCorridaMin: number | null;
+    corridaVieja: boolean;
+}
+
+export interface AlertaInforme {
+    titulo: string;
+    mensaje: string;
+    detectadaEn: string;
+    /** Aclaración de procedencia (observado vs pronosticado) cuando aplica. */
+    aclaracion: string | null;
+}
+
+export interface ContextoOperativo {
+    canal?: { k0M3s: number | null; k0Fresca: boolean; k104M3s: number | null; k104Fresca: boolean } | null;
+    presa?: { nombre: string; porcentaje: number | null; almacenamientoMm3: number | null; extraccionM3s: number | null; fecha: string | null } | null;
+    entregasPorModulo?: Map<number, number | null>;
+}
+
+// ── Verificación del modelo (fn_clima_skill_variables / fn_clima_skill_lluvia_dia) ──
+export interface FilaSkillVariable {
+    estacion_id: string; estacion_nombre: string; rango_horizonte: string;
+    variable: 'temperatura' | 'viento' | string; n: number | string; mae: number | string | null; sesgo: number | string | null;
+}
+export interface FilaSkillLluvia {
+    estacion_id: string; estacion_nombre: string; dia: string;
+    mm_pronosticado: number | string | null; mm_observado: number | string | null; error: number | string | null;
+}
+export interface EntradaVerificacion {
+    variables: FilaSkillVariable[];
+    lluviaDias: FilaSkillLluvia[];
+    /** Corridas de pronóstico conservadas (clima_pronostico_snapshot): habilitan 7-24 h y 25-48 h. */
+    corridasConservadas: number;
+}
+export interface ResumenSkillVariable { variable: 'temperatura' | 'viento'; rango: string; n: number; mae: number; sesgo: number; unidad: string }
+export interface ResumenVerificacion {
+    variables: ResumenSkillVariable[];
+    lluvia: {
+        dias: number; totalPronosticadoMm: number; totalObservadoMm: number;
+        diasConLluviaObservada: number; detectados: number;
+        peor: { estacion: string; dia: string; pronosticadoMm: number; observadoMm: number } | null;
+    } | null;
+    corridasConservadas: number;
+    estacionesExcluidas: string[];
+}
+
+export interface EntradaPronostico {
+    estaciones: EstacionConLectura[];
+    umbrales: UmbralClima[];
+    /** ids de estación marcadas "sospechosa" por fn_clima_salud_red. */
+    sospechosaIds: Set<string>;
+    alertas: AlertaClima[];
+    ahora: Date;
+    horizonteH: 24 | 48;
+    modoTecnico: boolean;
+    contexto?: ContextoOperativo;
+    verificacion?: EntradaVerificacion | null;
+}
+
+export interface FilaLineaTiempo {
+    clave: 'viento' | 'lluvia' | 'helada' | 'calor';
+    etiqueta: string;
+    /** Una celda por hora: nivel semáforo, o intensidad de lluvia 1-3, o null = sin pronóstico. */
+    celdas: ({ nivel: NivelRiesgo } | { lluvia: 0 | 1 | 2 | 3 } | null)[];
+}
+
+export interface BandaHoraria { ts: number; min: number | null; media: number | null; max: number | null }
+
+export interface DatosPronostico {
+    generadoMs: number;
+    horizonteH: number;
+    modoTecnico: boolean;
+    desdeMs: number;
+    hastaMs: number;
+    /** Instante "ahora" redondeado a la hora (inicio de la ventana). */
+    ejeHoras: number[];
+    titular: string;
+    nivel: NivelRiesgo;
+    puntosClave: string[];
+    riesgos: Riesgo[];
+    lineaTiempo: FilaLineaTiempo[];
+    bandas: { temp: BandaHoraria[]; lluvia: BandaHoraria[]; viento: BandaHoraria[]; nubosidad: BandaHoraria[] };
+    modulos: ResumenModulo[];
+    estaciones: EstacionConfiabilidad[];
+    estacionesExcluidas: { nombre: string; motivo: string }[];
+    alertas: AlertaInforme[];
+    contexto: ContextoOperativo;
+    modelo: { proveedor: string; modelo: string; corridaEn: string | null; edadCorridaMin: number | null; vieja: boolean };
+    /** Aviso global de calidad (null = todo en orden). */
+    avisosCalidad: string[];
+    verificacion: ResumenVerificacion | null;
+}
+
+// ── Formato de hora local ───────────────────────────────────────────────────
+const FMT_DIA_HORA = new Intl.DateTimeFormat('es-MX', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const FMT_HORA = new Intl.DateTimeFormat('es-MX', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const FMT_DIA = new Intl.DateTimeFormat('es-MX', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' });
+
+export const fmtDiaHora = (ms: number) => FMT_DIA_HORA.format(new Date(ms)).replace(/\./g, '');
+export const fmtHora = (ms: number) => FMT_HORA.format(new Date(ms));
+export const fmtDia = (ms: number) => FMT_DIA.format(new Date(ms)).replace(/\./g, '');
+/** "vie 16 oct 15:00–19:00" (o con dos días si cruza medianoche). */
+export function fmtVentana(desdeMs: number, hastaMs: number): string {
+    const mismoDia = fmtDia(desdeMs) === fmtDia(hastaMs);
+    return mismoDia
+        ? `${fmtDia(desdeMs)} ${fmtHora(desdeMs)}–${fmtHora(hastaMs + MS_H)}`
+        : `${fmtDiaHora(desdeMs)} → ${fmtDiaHora(hastaMs + MS_H)}`;
+}
+
+// ── Utilidades ──────────────────────────────────────────────────────────────
+const num = (v: number | null | undefined): number | null => (v == null || !Number.isFinite(v) ? null : v);
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371, rad = Math.PI / 180;
+    const dLat = (lat2 - lat1) * rad, dLon = (lon2 - lon1) * rad;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function centroideModulo(n: number): { lat: number; lon: number } | null {
+    const anillo = MODULOS_SRL[n];
+    if (!anillo?.length) return null;
+    const lon = anillo.reduce((s, p) => s + p[0], 0) / anillo.length;
+    const lat = anillo.reduce((s, p) => s + p[1], 0) / anillo.length;
+    return { lat, lon };
+}
+
+function nivelDe(valor: number | null, u: { comparador: 'mayor' | 'menor'; aviso: number; critico: number }): NivelRiesgo {
+    if (valor == null) return 'normal';
+    if (u.comparador === 'mayor') return valor >= u.critico ? 'critico' : valor >= u.aviso ? 'aviso' : 'normal';
+    return valor <= u.critico ? 'critico' : valor <= u.aviso ? 'aviso' : 'normal';
+}
+
+const DEF_RIESGO: Record<ClaveRiesgo, { definicion: string; etiquetaPorDefecto: string; unidadPorDefecto: string }> = {
+    viento: { definicion: 'Viento sostenido máximo pronosticado (no ráfaga) en la ventana.', etiquetaPorDefecto: 'Viento fuerte', unidadPorDefecto: 'm/s' },
+    lluvia: { definicion: 'Mayor lámina acumulada en cualquier ventana móvil de 24 h dentro del horizonte (pronóstico).', etiquetaPorDefecto: 'Lluvia intensa', unidadPorDefecto: 'mm' },
+    helada: { definicion: 'Temperatura mínima pronosticada en la ventana.', etiquetaPorDefecto: 'Riesgo de helada', unidadPorDefecto: '°C' },
+    calor: { definicion: 'Temperatura máxima pronosticada en la ventana.', etiquetaPorDefecto: 'Calor extremo', unidadPorDefecto: '°C' },
+    eto: { definicion: 'ETₒ pronosticada para las próximas 24 h (suma horaria del modelo).', etiquetaPorDefecto: 'Demanda evaporativa alta', unidadPorDefecto: 'mm/día' },
+};
+
+/** Serie del modelo recortada a [desde, hasta] como puntos limpios. */
+function seriePuntos(e: EstacionConLectura, desdeMs: number, hastaMs: number): PuntoPronostico[] {
+    return e.pronosticoSerie
+        .map((p: PronosticoHora): PuntoPronostico => ({
+            ts: new Date(p.valido_en).getTime(),
+            tempC: valorPlausible('tempC', num(p.temp_c)),
+            precipMm: num(p.precip_mm),
+            probPct: num(p.precip_prob_pct),
+            vientoMs: valorPlausible('vientoMs', num(p.viento_ms)),
+            nubPct: num(p.nubosidad_total_pct),
+            etoMm: num(p.eto_fc_mm),
+        }))
+        .filter(p => p.ts >= desdeMs && p.ts <= hastaMs)
+        .sort((a, b) => a.ts - b.ts);
+}
+
+interface EvalSerie {
+    valor: number | null;
+    cuandoMs: number | null;
+    nivel: NivelRiesgo;
+    ventanas: VentanaRiesgo[];
+}
+
+/** Evalúa los 5 riesgos de UNA serie contra los umbrales (misma lógica para la red y para cada módulo). */
+function evaluaSerie(
+    pts: PuntoPronostico[], nombre: string, umb: Map<ClaveRiesgo, UmbralClima>,
+): Record<ClaveRiesgo, EvalSerie> {
+    const out = {} as Record<ClaveRiesgo, EvalSerie>;
+    const vacio = (): EvalSerie => ({ valor: null, cuandoMs: null, nivel: 'normal', ventanas: [] });
+    for (const c of CLAVES) out[c] = vacio();
+
+    const ventanasDe = (cumple: (p: PuntoPronostico) => NivelRiesgo | null): VentanaRiesgo[] => {
+        const vs: VentanaRiesgo[] = [];
+        let act: VentanaRiesgo | null = null;
+        for (const p of pts) {
+            const n = cumple(p);
+            if (n) {
+                if (act && p.ts - act.hastaMs <= MS_H * 1.5) { act.hastaMs = p.ts; act.nivel = peorNivel(act.nivel, n); }
+                else { if (act) vs.push(act); act = { desdeMs: p.ts, hastaMs: p.ts, nivel: n, estacion: nombre }; }
+            } else if (act) { vs.push(act); act = null; }
+        }
+        if (act) vs.push(act);
+        return vs;
+    };
+
+    const extremo = (campo: 'tempC' | 'vientoMs', modo: 'max' | 'min') => {
+        let mejor: PuntoPronostico | null = null;
+        for (const p of pts) {
+            const v = p[campo];
+            if (v == null) continue;
+            if (!mejor || (modo === 'max' ? v > (mejor[campo] as number) : v < (mejor[campo] as number))) mejor = p;
+        }
+        return mejor;
+    };
+
+    const u = (c: ClaveRiesgo) => umb.get(c);
+    const vp = extremo('vientoMs', 'max');
+    if (vp && u('viento')) {
+        const uu = u('viento')!;
+        out.viento = { valor: vp.vientoMs, cuandoMs: vp.ts, nivel: nivelDe(vp.vientoMs, uu),
+            ventanas: ventanasDe(p => { const n = nivelDe(p.vientoMs, uu); return n === 'normal' ? null : n; }) };
+    }
+    const cp = extremo('tempC', 'max');
+    if (cp && u('calor')) {
+        const uu = u('calor')!;
+        out.calor = { valor: cp.tempC, cuandoMs: cp.ts, nivel: nivelDe(cp.tempC, uu),
+            ventanas: ventanasDe(p => { const n = nivelDe(p.tempC, uu); return n === 'normal' ? null : n; }) };
+    }
+    const hp = extremo('tempC', 'min');
+    if (hp && u('helada')) {
+        const uu = u('helada')!;
+        out.helada = { valor: hp.tempC, cuandoMs: hp.ts, nivel: nivelDe(hp.tempC, uu),
+            ventanas: ventanasDe(p => { const n = nivelDe(p.tempC, uu); return n === 'normal' ? null : n; }) };
+    }
+    // Lluvia: mayor acumulado en cualquier ventana móvil de 24 h.
+    const conLluvia = pts.filter(p => p.precipMm != null);
+    if (conLluvia.length && u('lluvia')) {
+        let mejor = 0, mejorTs = conLluvia[0].ts, j = 0, suma = 0;
+        for (let i = 0; i < conLluvia.length; i++) {
+            suma += conLluvia[i].precipMm ?? 0;
+            while (conLluvia[i].ts - conLluvia[j].ts >= 24 * MS_H) { suma -= conLluvia[j].precipMm ?? 0; j++; }
+            if (suma > mejor) { mejor = suma; mejorTs = conLluvia[i].ts; }
+        }
+        const uu = u('lluvia')!;
+        out.lluvia = { valor: Math.round(mejor * 10) / 10, cuandoMs: mejorTs, nivel: nivelDe(mejor, uu),
+            // Ventanas: horas con lluvia perceptible (≥ 0.5 mm/h), para saber CUÁNDO llueve.
+            ventanas: ventanasDe(p => ((p.precipMm ?? 0) >= 0.5 ? (nivelDe(mejor, uu) === 'normal' ? 'normal' : nivelDe(mejor, uu)) : null)) };
+    }
+    // ETₒ próximas 24 h.
+    const conEto = pts.filter(p => p.etoMm != null).slice(0, 24);
+    if (conEto.length >= 12 && u('eto')) {
+        const total = conEto.reduce((s, p) => s + (p.etoMm ?? 0), 0);
+        out.eto = { valor: Math.round(total * 100) / 100, cuandoMs: null, nivel: nivelDe(total, u('eto')!), ventanas: [] };
+    }
+    return out;
+}
+
+const NIVEL_LLUVIA = (mmh: number): 0 | 1 | 2 | 3 => (mmh >= 7.6 ? 3 : mmh >= 2.5 ? 2 : mmh >= 0.2 ? 1 : 0);
+
+function banda(ejeHoras: number[], series: PuntoPronostico[][], campo: keyof Omit<PuntoPronostico, 'ts'>): BandaHoraria[] {
+    return ejeHoras.map(ts => {
+        const vals = series
+            .map(s => s.find(p => p.ts === ts)?.[campo])
+            .filter((v): v is number => v != null);
+        if (!vals.length) return { ts, min: null, media: null, max: null };
+        return { ts, min: Math.min(...vals), media: vals.reduce((a, b) => a + b, 0) / vals.length, max: Math.max(...vals) };
+    });
+}
+
+// ── Verificación: agrega por variable/horizonte, sin estaciones sospechosas ─
+const aNum = (v: number | string | null | undefined): number | null => {
+    if (v == null || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+};
+const ORDEN_RANGO: Record<string, number> = { '0-6 h': 0, '7-24 h': 1, '25-48 h': 2 };
+
+export function resumeVerificacion(v: EntradaVerificacion, sospechosaIds: Set<string>, nombresExcluidos: string[]): ResumenVerificacion {
+    const buenas = v.variables.filter(r => !sospechosaIds.has(r.estacion_id));
+    const grupos = new Map<string, FilaSkillVariable[]>();
+    for (const r of buenas) {
+        const k = `${r.variable}|${r.rango_horizonte}`;
+        if (!grupos.has(k)) grupos.set(k, []);
+        grupos.get(k)!.push(r);
+    }
+    const variables: ResumenSkillVariable[] = [];
+    for (const [k, filas] of grupos) {
+        const [variable, rango] = k.split('|');
+        if (variable !== 'temperatura' && variable !== 'viento') continue;
+        let n = 0, sMae = 0, sSes = 0;
+        for (const f of filas) {
+            const nn = aNum(f.n) ?? 0, mae = aNum(f.mae), ses = aNum(f.sesgo);
+            if (!nn || mae == null || ses == null) continue;
+            n += nn; sMae += mae * nn; sSes += ses * nn;
+        }
+        if (n > 0) variables.push({ variable, rango, n, mae: sMae / n, sesgo: sSes / n, unidad: variable === 'temperatura' ? '°C' : 'm/s' });
+    }
+    variables.sort((a, b) => a.variable.localeCompare(b.variable) || (ORDEN_RANGO[a.rango] ?? 9) - (ORDEN_RANGO[b.rango] ?? 9));
+
+    const dias = v.lluviaDias.filter(r => !sospechosaIds.has(r.estacion_id))
+        .map(r => ({ e: r.estacion_nombre, dia: r.dia, p: aNum(r.mm_pronosticado), o: aNum(r.mm_observado) }))
+        .filter((r): r is { e: string; dia: string; p: number; o: number } => r.p != null && r.o != null);
+    let lluvia: ResumenVerificacion['lluvia'] = null;
+    if (dias.length) {
+        const conLluvia = dias.filter(d => d.o >= 5);
+        const peor = dias.reduce((m, d) => (Math.abs(d.p - d.o) > Math.abs(m.p - m.o) ? d : m), dias[0]);
+        lluvia = {
+            dias: dias.length,
+            totalPronosticadoMm: Math.round(dias.reduce((s, d) => s + d.p, 0) * 10) / 10,
+            totalObservadoMm: Math.round(dias.reduce((s, d) => s + d.o, 0) * 10) / 10,
+            diasConLluviaObservada: conLluvia.length,
+            detectados: conLluvia.filter(d => d.p >= 2.5).length,
+            peor: Math.abs(peor.p - peor.o) >= 2 ? { estacion: peor.e, dia: peor.dia, pronosticadoMm: peor.p, observadoMm: peor.o } : null,
+        };
+    }
+    return { variables, lluvia, corridasConservadas: v.corridasConservadas, estacionesExcluidas: nombresExcluidos };
+}
+
+// ── Construcción principal ──────────────────────────────────────────────────
+export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico {
+    const ahoraMs = e.ahora.getTime();
+    const desdeMs = Math.floor(ahoraMs / MS_H) * MS_H;
+    const hastaMs = desdeMs + e.horizonteH * MS_H;
+    const ejeHoras: number[] = [];
+    for (let t = desdeMs; t <= hastaMs; t += MS_H) ejeHoras.push(t);
+
+    const umb = new Map<ClaveRiesgo, UmbralClima>();
+    for (const u of e.umbrales) if ((CLAVES as string[]).includes(u.clave)) umb.set(u.clave as ClaveRiesgo, u);
+
+    // Estaciones con pronóstico utilizable.
+    const conSerie = e.estaciones
+        .map(est => ({ est, pts: seriePuntos(est, desdeMs, hastaMs) }))
+        .filter(x => x.pts.length > 0);
+    const evalPorEst = new Map(conSerie.map(x => [x.est.id, evaluaSerie(x.pts, x.est.nombre, umb)]));
+
+    // ── Riesgos de la red: peor estación por variable ───────────────────────
+    const riesgos: Riesgo[] = CLAVES.filter(c => umb.has(c)).map(c => {
+        const u = umb.get(c)!;
+        let mejor: { valor: number; nombre: string; cuando: number | null; ev: EvalSerie } | null = null;
+        for (const x of conSerie) {
+            const ev = evalPorEst.get(x.est.id)![c];
+            if (ev.valor == null) continue;
+            const mejorQue = !mejor || (u.comparador === 'mayor' ? ev.valor > mejor.valor : ev.valor < mejor.valor);
+            if (mejorQue) mejor = { valor: ev.valor, nombre: x.est.nombre, cuando: ev.cuandoMs, ev };
+        }
+        const ventanas = conSerie
+            .flatMap(x => evalPorEst.get(x.est.id)![c].ventanas)
+            .sort((a, b) => RANGO_NIVEL[b.nivel] - RANGO_NIVEL[a.nivel] || a.desdeMs - b.desdeMs)
+            .slice(0, 6);
+        return {
+            clave: c,
+            etiqueta: u.etiqueta || DEF_RIESGO[c].etiquetaPorDefecto,
+            unidad: u.unidad || DEF_RIESGO[c].unidadPorDefecto,
+            comparador: u.comparador, aviso: Number(u.aviso), critico: Number(u.critico),
+            accion: u.accion,
+            valor: mejor?.valor ?? null,
+            nivel: mejor ? nivelDe(mejor.valor, { comparador: u.comparador, aviso: Number(u.aviso), critico: Number(u.critico) }) : 'normal',
+            estacion: mejor?.nombre ?? null,
+            cuandoMs: mejor?.cuando ?? null,
+            ventanas,
+            definicion: DEF_RIESGO[c].definicion,
+        };
+    });
+    const riesgoDe = (c: ClaveRiesgo) => riesgos.find(r => r.clave === c);
+
+    // ── Línea de tiempo (una celda por hora) ────────────────────────────────
+    const porHora = (campo: 'vientoMs' | 'tempC' | 'precipMm') => ejeHoras.map(ts => {
+        const vals = conSerie.map(x => x.pts.find(p => p.ts === ts)?.[campo]).filter((v): v is number => v != null);
+        return vals.length ? vals : null;
+    });
+    const celdasNivel = (campo: 'vientoMs' | 'tempC', clave: ClaveRiesgo, modo: 'max' | 'min') =>
+        porHora(campo).map(vals => {
+            const u = umb.get(clave);
+            if (!vals || !u) return null;
+            const v = modo === 'max' ? Math.max(...vals) : Math.min(...vals);
+            return { nivel: nivelDe(v, { comparador: u.comparador, aviso: Number(u.aviso), critico: Number(u.critico) }) };
+        });
+    const lineaTiempo: FilaLineaTiempo[] = [
+        { clave: 'viento', etiqueta: 'Viento', celdas: celdasNivel('vientoMs', 'viento', 'max') },
+        { clave: 'lluvia', etiqueta: 'Lluvia', celdas: porHora('precipMm').map(vals => (vals ? { lluvia: NIVEL_LLUVIA(Math.max(...vals)) } : null)) },
+        { clave: 'helada', etiqueta: 'Frío / helada', celdas: celdasNivel('tempC', 'helada', 'min') },
+        { clave: 'calor', etiqueta: 'Calor', celdas: celdasNivel('tempC', 'calor', 'max') },
+    ];
+
+    // ── Bandas de las gráficas ──────────────────────────────────────────────
+    const series = conSerie.map(x => x.pts);
+    const bandas = {
+        temp: banda(ejeHoras, series, 'tempC'),
+        lluvia: banda(ejeHoras, series, 'precipMm'),
+        viento: banda(ejeHoras, series, 'vientoMs'),
+        nubosidad: banda(ejeHoras, series, 'nubPct'),
+    };
+
+    // ── Módulos ─────────────────────────────────────────────────────────────
+    const estacionesGeo = conSerie.map(x => x.est);
+    const modulos: ResumenModulo[] = MODULOS_SRL_IDS.map(n => {
+        const propias = estacionesGeo.filter(s => numeroModuloDeId(s.modulo_id) === n && s.rol === 'modulo');
+        const cen = centroideModulo(n);
+        let est: EstacionConLectura | null = propias[0] ?? null;
+        let dist: number | null = null;
+        if (!est && cen) {
+            let mejorD = Infinity;
+            for (const s of estacionesGeo) {
+                const d = haversineKm(cen.lat, cen.lon, s.latitud, s.longitud);
+                if (d < mejorD) { mejorD = d; est = s; }
+            }
+            dist = est ? mejorD : null;
+        }
+        const pts = est ? conSerie.find(x => x.est.id === est!.id)?.pts ?? [] : [];
+        const ev = est ? evalPorEst.get(est.id) : undefined;
+        const pico = pts.reduce<{ mmh: number; ms: number } | null>((m, p) => ((p.precipMm ?? 0) > (m?.mmh ?? 0) ? { mmh: p.precipMm!, ms: p.ts } : m), null);
+        const temps = pts.map(p => p.tempC).filter((v): v is number => v != null);
+        const vientos = pts.map(p => p.vientoMs).filter((v): v is number => v != null);
+        const lluviaTotal = pts.some(p => p.precipMm != null) ? pts.reduce((s, p) => s + (p.precipMm ?? 0), 0) : null;
+        const probs = pts.map(p => p.probPct).filter((v): v is number => v != null);
+
+        const riesgosMod = {} as ResumenModulo['riesgos'];
+        for (const c of CLAVES) riesgosMod[c] = { nivel: ev?.[c].nivel ?? 'normal', valor: ev?.[c].valor ?? null };
+
+        // Decisión operativa: cada regla cita el umbral de clima_umbrales que la dispara.
+        const acciones: string[] = [];
+        let nivel: NivelRiesgo = 'normal';
+        const agrega = (c: ClaveRiesgo, texto: string) => {
+            const r = ev?.[c];
+            if (!r || r.nivel === 'normal') return;
+            nivel = peorNivel(nivel, r.nivel);
+            const v = r.ventanas[0];
+            acciones.push(`${texto}${v ? ` (${fmtVentana(v.desdeMs, v.hastaMs)})` : ''}`);
+        };
+        agrega('viento', 'Evitar riego por aspersión: viento fuerte');
+        agrega('lluvia', 'Reducir entregas y revisar tomas y drenes: lluvia intensa');
+        agrega('helada', 'Proteger cultivos sensibles y posponer riegos nocturnos: frío');
+        agrega('calor', 'Programar riegos de madrugada: calor');
+        agrega('eto', 'Subir la lámina de riego: alta demanda evaporativa');
+
+        const ha = superficieRiegoHa(n);
+        const lluvia24 = ev?.lluvia.valor ?? null;
+        const eto24 = ev?.eto.valor ?? null;
+        const bruta = laminaBruta(eto24);
+        const demanda = bruta != null && ha != null ? (m3PorHa(bruta) ?? 0) * ha : null;
+        const efect = lluviaEfectivaMm(lluvia24);
+        let demandaConLluvia: number | null = null;
+        if (eto24 != null && ha != null && efect != null) {
+            const neta = laminaNeta(eto24) ?? 0;
+            const brutaCon = Math.max(0, neta - efect) / EFICIENCIA_RODADO;
+            demandaConLluvia = (m3PorHa(brutaCon) ?? 0) * ha;
+        }
+        const ahorro = demanda != null && demandaConLluvia != null ? Math.max(0, demanda - demandaConLluvia) : null;
+        if (!acciones.length && lluvia24 != null && lluvia24 >= LLUVIA_MIN_EFECTIVA_MM && ahorro != null && ahorro > 0) {
+            acciones.push(`Lluvia aprovechable (${lluvia24.toFixed(1)} mm en 24 h): se puede diferir riego, ahorro estimado ≈ ${Math.round(ahorro).toLocaleString('es-MX')} m³`);
+        }
+        const resumen = acciones[0] ?? 'Operación normal: sin umbrales de aviso en el horizonte.';
+        return {
+            numero: n,
+            estacion: est?.nombre ?? 'S/D',
+            propia: propias.length > 0, distanciaKm: dist != null ? Math.round(dist * 10) / 10 : null,
+            tMinC: temps.length ? Math.min(...temps) : null,
+            tMaxC: temps.length ? Math.max(...temps) : null,
+            vientoMaxMs: vientos.length ? Math.max(...vientos) : null,
+            lluviaTotalMm: lluviaTotal != null ? Math.round(lluviaTotal * 10) / 10 : null,
+            lluviaMax24hMm: lluvia24,
+            probMaxPct: probs.length ? Math.max(...probs) : null,
+            picoLluvia: pico && pico.mmh >= 0.2 ? pico : null,
+            riesgos: riesgosMod,
+            decision: { nivel, acciones, resumen },
+            superficieHa: ha,
+            demandaM3: demanda, demandaConLluviaM3: demandaConLluvia, ahorroLluviaM3: ahorro,
+            entregadoHoyM3: e.contexto?.entregasPorModulo?.get(n) ?? null,
+        };
+    });
+
+    // ── Confiabilidad ───────────────────────────────────────────────────────
+    const estacionesConf: EstacionConfiabilidad[] = e.estaciones.map(est => {
+        const l = est.lectura;
+        const sosp = e.sospechosaIds.has(est.id);
+        const corrida = est.pronostico?.corrida_en ?? est.pronosticoSerie[0]?.corrida_en ?? null;
+        const edadCorrida = corrida ? Math.max(0, Math.round((ahoraMs - new Date(corrida).getTime()) / 60_000)) : null;
+        return {
+            id: est.id, nombre: est.nombre, rol: est.rol,
+            edadLecturaMin: est.calidad.edadMin,
+            calidad: est.calidad.etiqueta,
+            sospechosa: sosp,
+            // Un valor observado de una estación sospechosa o fuera de rango es S/D.
+            observado: {
+                tempC: sosp ? null : valorPlausible('tempC', num(l?.temp_c)),
+                vientoMs: sosp ? null : valorPlausible('vientoMs', num(l?.viento_ms)),
+                lluviaDiaMm: sosp ? null : num(l?.lluvia_dia_mm),
+            },
+            puntosPronostico: conSerie.find(x => x.est.id === est.id)?.pts.length ?? 0,
+            corridaEn: corrida, edadCorridaMin: edadCorrida,
+            corridaVieja: edadCorrida != null && edadCorrida > CORRIDA_VIEJA_MIN,
+        };
+    });
+    const estacionesExcluidas = estacionesConf
+        .filter(c => c.sospechosa)
+        .map(c => ({ nombre: c.nombre, motivo: 'Sensor con lecturas implausibles (fuera de −25…48 °C o muy lejos de la mediana de la red): sus valores observados se muestran S/D y no entran a ningún promedio. Su pronóstico es del modelo y no depende del sensor.' }));
+
+    // ── Alertas vigentes con procedencia explícita ──────────────────────────
+    const alertas: AlertaInforme[] = e.alertas.filter(a => a.categoria === 'agroclimatica').map(a => {
+        let aclaracion: string | null = null;
+        if (/viento/i.test(a.titulo)) {
+            const est = e.estaciones.find(s => a.titulo.includes(s.nombre) || a.mensaje.includes(s.nombre));
+            if (est) {
+                const obs = e.sospechosaIds.has(est.id) ? null : valorPlausible('vientoMs', num(est.lectura?.viento_ms));
+                const fc = evalPorEst.get(est.id)?.viento.valor ?? null;
+                aclaracion = `Procedencia: la alerta toma el mayor entre la última lectura observada y el pronóstico de 48 h (no es un máximo observado de 48 h). `
+                    + `Ahora en ${est.nombre}: observado ${obs != null ? `${obs.toFixed(1)} m/s` : 'S/D'} · pronóstico máx. ${fc != null ? `${fc.toFixed(1)} m/s` : 'S/D'} (sostenido).`;
+            }
+        }
+        return { titulo: a.titulo, mensaje: a.mensaje, detectadaEn: a.detectadaEn, aclaracion };
+    });
+
+    // ── Modelo y avisos de calidad ──────────────────────────────────────────
+    const corridas = estacionesConf.map(c => c.corridaEn).filter((c): c is string => !!c).sort();
+    const corridaReciente = corridas.length ? corridas[corridas.length - 1] : null;
+    const edadModelo = corridaReciente ? Math.max(0, Math.round((ahoraMs - new Date(corridaReciente).getTime()) / 60_000)) : null;
+    const primerPron = e.estaciones.find(s => s.pronostico)?.pronostico ?? null;
+    const avisosCalidad: string[] = [];
+    if (!conSerie.length) avisosCalidad.push('No hay pronóstico disponible en la base de datos: el informe no puede emitir recomendaciones.');
+    if (edadModelo != null && edadModelo > CORRIDA_VIEJA_MIN) avisosCalidad.push(`El pronóstico tiene ${Math.round(edadModelo / 60)} h de antigüedad: la sincronización horaria no se ha actualizado, interprete con cautela.`);
+    if (estacionesExcluidas.length) avisosCalidad.push(`${estacionesExcluidas.map(x => x.nombre).join(', ')}: lecturas observadas excluidas por sensor sospechoso.`);
+    const sinPron = e.estaciones.filter(s => !conSerie.some(x => x.est.id === s.id));
+    if (sinPron.length) avisosCalidad.push(`Sin pronóstico para: ${sinPron.map(s => s.nombre).join(', ')}.`);
+
+    // ── Titular y puntos clave ──────────────────────────────────────────────
+    const nivelGlobal = riesgos.reduce<NivelRiesgo>((n, r) => peorNivel(n, r.nivel), 'normal');
+    const activos = riesgos.filter(r => r.nivel !== 'normal').sort((a, b) => RANGO_NIVEL[b.nivel] - RANGO_NIVEL[a.nivel]);
+    const fmtV = (r: Riesgo) => `${r.valor!.toFixed(r.clave === 'eto' ? 1 : r.clave === 'lluvia' ? 1 : 1)} ${r.unidad}`;
+    const NOMBRE_CORTO: Record<ClaveRiesgo, string> = { viento: 'Viento fuerte', lluvia: 'Lluvia intensa', helada: 'Riesgo de helada', calor: 'Calor extremo', eto: 'Alta demanda evaporativa' };
+    const titular = !conSerie.length
+        ? 'Sin pronóstico disponible'
+        : activos.length
+            ? `${nivelGlobal === 'critico' ? 'Atención' : 'Precaución'}: ${activos.slice(0, 3).map(r => `${NOMBRE_CORTO[r.clave].toLowerCase()} (${fmtV(r)}${r.estacion ? `, ${r.estacion}` : ''})`).join(' · ')}`
+            : `Sin riesgos agroclimáticos en las próximas ${e.horizonteH} h`;
+    const puntosClave: string[] = [];
+    const rV = riesgoDe('viento'), rL = riesgoDe('lluvia'), rH = riesgoDe('helada'), rC = riesgoDe('calor');
+    const todasT = conSerie.flatMap(x => x.pts.map(p => p.tempC)).filter((v): v is number => v != null);
+    if (todasT.length) puntosClave.push(`Temperatura prevista de ${Math.min(...todasT).toFixed(1)} a ${Math.max(...todasT).toFixed(1)} °C en la red.`);
+    if (rL?.valor != null) puntosClave.push(rL.valor >= 0.2
+        ? `Lluvia: hasta ${rL.valor.toFixed(1)} mm en 24 h (${rL.estacion})${rL.cuandoMs ? `, con el máximo acumulado hacia ${fmtDiaHora(rL.cuandoMs)}` : ''}.`
+        : 'Sin lluvia significativa prevista.');
+    if (rV?.valor != null) puntosClave.push(`Viento sostenido máximo ${rV.valor.toFixed(1)} m/s en ${rV.estacion}${rV.cuandoMs ? ` (${fmtDiaHora(rV.cuandoMs)})` : ''}; umbral de aviso ${rV.aviso} m/s.`);
+    if (rH?.valor != null && rH.nivel === 'normal') puntosClave.push(`Sin riesgo de helada: mínima prevista ${rH.valor.toFixed(1)} °C (aviso ≤ ${rH.aviso} °C).`);
+    if (rC?.valor != null && rC.nivel === 'normal') puntosClave.push(`Sin calor extremo: máxima prevista ${rC.valor.toFixed(1)} °C (aviso ≥ ${rC.aviso} °C).`);
+
+    return {
+        generadoMs: ahoraMs, horizonteH: e.horizonteH, modoTecnico: e.modoTecnico,
+        desdeMs, hastaMs, ejeHoras,
+        titular, nivel: conSerie.length ? nivelGlobal : 'normal', puntosClave,
+        riesgos, lineaTiempo, bandas, modulos,
+        estaciones: estacionesConf, estacionesExcluidas, alertas,
+        contexto: e.contexto ?? {},
+        modelo: {
+            proveedor: primerPron?.proveedor ?? 'open-meteo', modelo: primerPron?.modelo ?? 'best_match',
+            corridaEn: corridaReciente, edadCorridaMin: edadModelo,
+            vieja: edadModelo != null && edadModelo > CORRIDA_VIEJA_MIN,
+        },
+        avisosCalidad,
+        verificacion: e.verificacion
+            ? resumeVerificacion(e.verificacion, e.sospechosaIds, estacionesExcluidas.map(x => x.nombre)) : null,
+    };
+}

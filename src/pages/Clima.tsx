@@ -31,6 +31,7 @@ import { GeoInformeOpcionesModal } from '../components/GeoInformeOpcionesModal';
 import { PronosticoInformeModal, type OpcionesInformePronostico } from '../components/PronosticoInformeModal';
 import { construirDatosPronostico, type EntradaVerificacion, type FilaSkillVariable, type FilaSkillLluvia } from '../utils/informePronosticoDatos';
 import { descargarInformePronostico, imprimirInformePronostico } from '../utils/informePronosticoHtml';
+import { descargarInformeCiudadano, imprimirInformeCiudadano, imagenInformeCiudadano } from '../utils/informePronosticoCiudadano';
 import { useCanalExtremos } from '../hooks/useDashboardPulso';
 import { exportClimaInfografia, imagenClimaInfografia, agrupaPorDia, type DiaHistorico } from '../utils/exportClimaInfografia';
 import { supabase } from '../lib/supabase';
@@ -582,7 +583,11 @@ const Clima = () => {
                     entregasPorModulo: entregasHoy.porModulo,
                 },
             });
-            if (o.accion === 'imprimir') await imprimirInformePronostico(datos);
+            if (o.nivel === 'ciudadano') {
+                if (o.accion === 'imagen') await imagenInformeCiudadano(datos);
+                else if (o.accion === 'imprimir') await imprimirInformeCiudadano(datos);
+                else await descargarInformeCiudadano(datos);
+            } else if (o.accion === 'imprimir') await imprimirInformePronostico(datos);
             else await descargarInformePronostico(datos);
         } catch (e) {
             console.error('[Clima] no se pudo generar el informe de pronóstico:', e);

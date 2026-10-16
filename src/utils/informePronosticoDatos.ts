@@ -165,6 +165,35 @@ export interface EntradaPronostico {
     verificacion?: EntradaVerificacion | null;
 }
 
+export type Franja = 'madrugada' | 'mañana' | 'tarde' | 'noche';
+
+/** Resumen de un día LOCAL (America/Chihuahua) del horizonte, para el informe en lenguaje llano. */
+export interface ResumenDia {
+    clave: string;                 // YYYY-MM-DD local
+    etiqueta: 'Hoy' | 'Mañana' | 'Pasado mañana' | string;
+    fechaTxt: string;              // "vie 16 oct"
+    horas: number;                 // horas pronosticadas dentro del horizonte
+    /** true si el día no está completo en el horizonte (resto de hoy, o corte de las 48 h). */
+    parcial: boolean;
+    hastaMs: number;
+    tMinC: number | null;
+    tMaxC: number | null;
+    probMaxPct: number | null;
+    /** Lámina promedio de la zona (media de lo que sumó cada estación) y la del punto más lluvioso. */
+    lluviaPromMm: number | null;
+    lluviaMaxMm: number | null;
+    lugarMasLluvia: string | null;
+    vientoMaxMs: number | null;
+    vientoMaxHoraMs: number | null;
+    nubMediaPct: number | null;
+    /** Franjas del día en que se espera lluvia perceptible (≥ 0.3 mm/h en alguna estación). */
+    franjasLluvia: Franja[];
+    horaPicoLluviaMs: number | null;
+    /** Primera y última hora con lluvia perceptible (≥ 0.3 mm/h en alguna estación); hasta = fin de esa hora. */
+    lluviaDesdeMs: number | null;
+    lluviaHastaMs: number | null;
+}
+
 export interface FilaLineaTiempo {
     clave: 'viento' | 'lluvia' | 'helada' | 'calor';
     etiqueta: string;
@@ -188,6 +217,7 @@ export interface DatosPronostico {
     riesgos: Riesgo[];
     lineaTiempo: FilaLineaTiempo[];
     bandas: { temp: BandaHoraria[]; lluvia: BandaHoraria[]; viento: BandaHoraria[]; nubosidad: BandaHoraria[] };
+    dias: ResumenDia[];
     modulos: ResumenModulo[];
     estaciones: EstacionConfiabilidad[];
     estacionesExcluidas: { nombre: string; motivo: string }[];
@@ -214,6 +244,11 @@ export function fmtVentana(desdeMs: number, hastaMs: number): string {
         ? `${fmtDia(desdeMs)} ${fmtHora(desdeMs)}–${fmtHora(hastaMs + MS_H)}`
         : `${fmtDiaHora(desdeMs)} → ${fmtDiaHora(hastaMs + MS_H)}`;
 }
+
+const FMT_CLAVE_DIA = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const claveDia = (ms: number) => FMT_CLAVE_DIA.format(new Date(ms));
+const horaDe = (ms: number) => Number(fmtHora(ms).slice(0, 2));
+const franjaDe = (ms: number): Franja => { const h = horaDe(ms); return h < 6 ? 'madrugada' : h < 12 ? 'mañana' : h < 18 ? 'tarde' : 'noche'; };
 
 // ── Utilidades ──────────────────────────────────────────────────────────────
 const num = (v: number | null | undefined): number | null => (v == null || !Number.isFinite(v) ? null : v);
@@ -364,8 +399,29 @@ const aNum = (v: number | string | null | undefined): number | null => {
 };
 const ORDEN_RANGO: Record<string, number> = { '0-6 h': 0, '7-24 h': 1, '25-48 h': 2 };
 
+/** Mediana de una lista de números (lista no vacía). */
+const mediana = (xs: number[]) => { const o = [...xs].sort((a, b) => a - b); const m = Math.floor(o.length / 2); return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2; };
+
+/**
+ * Estaciones cuyo error de temperatura a 0-6 h es anómalo frente al resto de la red (≥ 3 °C y más de 3 veces la
+ * mediana): casi siempre es un sensor averiado que la BD aún no marca como sospechoso (Riego San Rafael, 6.4 °C
+ * contra ~1.3 °C de las demás). Se excluyen de TODA la verificación para no contaminar las cifras.
+ */
+export function estacionesConErrorAnomalo(filas: FilaSkillVariable[]): Map<string, string> {
+    const porEst = filas
+        .filter(r => r.variable === 'temperatura' && r.rango_horizonte === '0-6 h' && aNum(r.mae) != null && (aNum(r.n) ?? 0) >= 30)
+        .map(r => ({ id: r.estacion_id, nombre: r.estacion_nombre, mae: aNum(r.mae)! }));
+    const out = new Map<string, string>();
+    if (porEst.length < 3) return out;
+    const med = mediana(porEst.map(x => x.mae));
+    for (const x of porEst) if (x.mae >= 3 && x.mae > 3 * med) out.set(x.id, x.nombre);
+    return out;
+}
+
 export function resumeVerificacion(v: EntradaVerificacion, sospechosaIds: Set<string>, nombresExcluidos: string[]): ResumenVerificacion {
-    const buenas = v.variables.filter(r => !sospechosaIds.has(r.estacion_id));
+    const anomalas = estacionesConErrorAnomalo(v.variables);
+    const fuera = (id: string) => sospechosaIds.has(id) || anomalas.has(id);
+    const buenas = v.variables.filter(r => !fuera(r.estacion_id));
     const grupos = new Map<string, FilaSkillVariable[]>();
     for (const r of buenas) {
         const k = `${r.variable}|${r.rango_horizonte}`;
@@ -386,23 +442,27 @@ export function resumeVerificacion(v: EntradaVerificacion, sospechosaIds: Set<st
     }
     variables.sort((a, b) => a.variable.localeCompare(b.variable) || (ORDEN_RANGO[a.rango] ?? 9) - (ORDEN_RANGO[b.rango] ?? 9));
 
-    const dias = v.lluviaDias.filter(r => !sospechosaIds.has(r.estacion_id))
+    const filasLluvia = v.lluviaDias.filter(r => !fuera(r.estacion_id))
         .map(r => ({ e: r.estacion_nombre, dia: r.dia, p: aNum(r.mm_pronosticado), o: aNum(r.mm_observado) }))
         .filter((r): r is { e: string; dia: string; p: number; o: number } => r.p != null && r.o != null);
     let lluvia: ResumenVerificacion['lluvia'] = null;
-    if (dias.length) {
-        const conLluvia = dias.filter(d => d.o >= 5);
-        const peor = dias.reduce((m, d) => (Math.abs(d.p - d.o) > Math.abs(m.p - m.o) ? d : m), dias[0]);
+    if (filasLluvia.length) {
+        // Se cuentan DÍAS (no estación-día): un mismo temporal cae en varias estaciones y no son eventos independientes.
+        const diasUnicos = new Set(filasLluvia.map(d => d.dia));
+        const diasConLluvia = new Set(filasLluvia.filter(d => d.o >= 5).map(d => d.dia));
+        const diasDetectados = new Set(filasLluvia.filter(d => d.o >= 5 && d.p >= 2.5).map(d => d.dia));
+        const peor = filasLluvia.reduce((m, d) => (Math.abs(d.p - d.o) > Math.abs(m.p - m.o) ? d : m), filasLluvia[0]);
         lluvia = {
-            dias: dias.length,
-            totalPronosticadoMm: Math.round(dias.reduce((s, d) => s + d.p, 0) * 10) / 10,
-            totalObservadoMm: Math.round(dias.reduce((s, d) => s + d.o, 0) * 10) / 10,
-            diasConLluviaObservada: conLluvia.length,
-            detectados: conLluvia.filter(d => d.p >= 2.5).length,
+            dias: diasUnicos.size,
+            totalPronosticadoMm: Math.round(filasLluvia.reduce((s, d) => s + d.p, 0) * 10) / 10,
+            totalObservadoMm: Math.round(filasLluvia.reduce((s, d) => s + d.o, 0) * 10) / 10,
+            diasConLluviaObservada: diasConLluvia.size,
+            detectados: diasDetectados.size,
             peor: Math.abs(peor.p - peor.o) >= 2 ? { estacion: peor.e, dia: peor.dia, pronosticadoMm: peor.p, observadoMm: peor.o } : null,
         };
     }
-    return { variables, lluvia, corridasConservadas: v.corridasConservadas, estacionesExcluidas: nombresExcluidos };
+    const excluidas = [...new Set([...nombresExcluidos, ...anomalas.values()])];
+    return { variables, lluvia, corridasConservadas: v.corridasConservadas, estacionesExcluidas: excluidas };
 }
 
 // ── Construcción principal ──────────────────────────────────────────────────
@@ -479,6 +539,51 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
         viento: banda(ejeHoras, series, 'vientoMs'),
         nubosidad: banda(ejeHoras, series, 'nubPct'),
     };
+
+    // ── Resumen por día local (lenguaje llano) ──────────────────────────────
+    const hoyClave = claveDia(ahoraMs);
+    const porDia = new Map<string, number[]>();
+    for (const ts of ejeHoras) {
+        const k = claveDia(ts);
+        if (!porDia.has(k)) porDia.set(k, []);
+        porDia.get(k)!.push(ts);
+    }
+    const dias: ResumenDia[] = [...porDia.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([clave, horas], idx) => {
+        const set = new Set(horas);
+        const ptsDia = conSerie.map(x => ({ nombre: x.est.nombre, pts: x.pts.filter(p => set.has(p.ts)) }));
+        const todos = ptsDia.flatMap(x => x.pts);
+        const nums = (f: (p: PuntoPronostico) => number | null) => todos.map(f).filter((v): v is number => v != null);
+        const temps = nums(p => p.tempC), vientos = nums(p => p.vientoMs), probs = nums(p => p.probPct), nubs = nums(p => p.nubPct);
+        // Lámina: total por estación en el día; el promedio de la zona es la media de esos totales.
+        const totales = ptsDia
+            .filter(x => x.pts.some(p => p.precipMm != null))
+            .map(x => ({ nombre: x.nombre, mm: x.pts.reduce((s, p) => s + (p.precipMm ?? 0), 0) }));
+        const mejorLluvia = totales.length ? totales.reduce((m, t) => (t.mm > m.mm ? t : m)) : null;
+        const vMax = todos.reduce<PuntoPronostico | null>((m, p) => ((p.vientoMs ?? -1) > (m?.vientoMs ?? -1) ? p : m), null);
+        const franjas = new Set<Franja>();
+        let picoMs: number | null = null, picoMm = 0.3, lluviaDesde: number | null = null, lluviaHasta: number | null = null;
+        for (const ts of horas) {
+            const mmHora = Math.max(0, ...conSerie.map(x => x.pts.find(p => p.ts === ts)?.precipMm ?? 0));
+            if (mmHora >= 0.3) { franjas.add(franjaDe(ts)); if (lluviaDesde == null) lluviaDesde = ts; lluviaHasta = ts + MS_H; }
+            if (mmHora >= picoMm) { picoMm = mmHora; picoMs = ts; }
+        }
+        const etiqueta = clave === hoyClave ? 'Hoy' : idx === 1 ? 'Mañana' : idx === 2 ? 'Pasado mañana' : fmtDia(horas[0]);
+        return {
+            clave, etiqueta, fechaTxt: fmtDia(horas[0]), horas: horas.length,
+            parcial: horas.length < 20, hastaMs: horas[horas.length - 1],
+            tMinC: temps.length ? Math.min(...temps) : null, tMaxC: temps.length ? Math.max(...temps) : null,
+            probMaxPct: probs.length ? Math.max(...probs) : null,
+            lluviaPromMm: totales.length ? Math.round((totales.reduce((s, t) => s + t.mm, 0) / totales.length) * 10) / 10 : null,
+            lluviaMaxMm: mejorLluvia ? Math.round(mejorLluvia.mm * 10) / 10 : null,
+            lugarMasLluvia: mejorLluvia && mejorLluvia.mm >= 0.3 ? mejorLluvia.nombre : null,
+            vientoMaxMs: vientos.length ? Math.max(...vientos) : null,
+            vientoMaxHoraMs: vMax?.vientoMs != null ? vMax.ts : null,
+            nubMediaPct: nubs.length ? nubs.reduce((a, b) => a + b, 0) / nubs.length : null,
+            franjasLluvia: (['madrugada', 'mañana', 'tarde', 'noche'] as Franja[]).filter(f => franjas.has(f)),
+            horaPicoLluviaMs: picoMs,
+            lluviaDesdeMs: lluviaDesde, lluviaHastaMs: lluviaHasta,
+        };
+    });
 
     // ── Módulos ─────────────────────────────────────────────────────────────
     const estacionesGeo = conSerie.map(x => x.est);
@@ -636,7 +741,7 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
         generadoMs: ahoraMs, horizonteH: e.horizonteH, modoTecnico: e.modoTecnico,
         desdeMs, hastaMs, ejeHoras,
         titular, nivel: conSerie.length ? nivelGlobal : 'normal', puntosClave,
-        riesgos, lineaTiempo, bandas, modulos,
+        riesgos, lineaTiempo, bandas, dias, modulos,
         estaciones: estacionesConf, estacionesExcluidas, alertas,
         contexto: e.contexto ?? {},
         modelo: {

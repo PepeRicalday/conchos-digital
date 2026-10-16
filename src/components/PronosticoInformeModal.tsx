@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
-import { X, CloudSun, Users, FlaskConical, Clock, Download, Printer } from 'lucide-react';
+import { X, CloudSun, Users, FlaskConical, Clock, Download, Printer, Home, Image as ImageIcon } from 'lucide-react';
+
+export type NivelInformePronostico = 'ciudadano' | 'operativo' | 'tecnico';
 
 export interface OpcionesInformePronostico {
     horizonteH: 24 | 48;
+    /** 'ciudadano' = informe básico en lenguaje llano para cualquier persona. */
+    nivel: NivelInformePronostico;
     modoTecnico: boolean;
-    /** 'descargar' = archivo HTML; 'imprimir' = abre el informe y lanza imprimir/PDF. */
-    accion: 'descargar' | 'imprimir';
+    /** 'descargar' = archivo HTML; 'imprimir' = abre el informe y lanza imprimir/PDF; 'imagen' = PNG para compartir (solo ciudadano). */
+    accion: 'descargar' | 'imprimir' | 'imagen';
 }
 
 interface PronosticoInformeModalProps {
@@ -24,7 +28,7 @@ const ACENTO = '#38bdf8';
  */
 export function PronosticoInformeModal({ abierto, onCerrar, onConfirmar }: PronosticoInformeModalProps) {
     const [horizonteH, setHorizonteH] = useState<24 | 48>(48);
-    const [modoTecnico, setModoTecnico] = useState(false);
+    const [nivel, setNivel] = useState<NivelInformePronostico>('operativo');
 
     useEffect(() => {
         if (!abierto) return;
@@ -65,7 +69,8 @@ export function PronosticoInformeModal({ abierto, onCerrar, onConfirmar }: Prono
     );
 
     const confirmar = (accion: OpcionesInformePronostico['accion']) => {
-        onConfirmar({ horizonteH, modoTecnico, accion });
+        // El informe básico siempre cubre 48 h (hoy, mañana y pasado): es lo que la gente espera ver.
+        onConfirmar({ horizonteH: nivel === 'ciudadano' ? 48 : horizonteH, nivel, modoTecnico: nivel === 'tecnico', accion });
         onCerrar();
     };
 
@@ -97,22 +102,25 @@ export function PronosticoInformeModal({ abierto, onCerrar, onConfirmar }: Prono
                         </button>
                     </div>
 
-                    <div style={{ marginBottom: 20 }}>
+                    {nivel !== 'ciudadano' && <div style={{ marginBottom: 20 }}>
                         {rotulo('Horizonte')}
                         <div className="grid grid-cols-2" style={{ gap: 10 }}>
                             {opcion(horizonteH === 24, () => setHorizonteH(24), Clock, 'Próximas 24 h', 'Decisiones del día: riego, aspersión y entregas', 24)}
                             {opcion(horizonteH === 48, () => setHorizonteH(48), Clock, 'Próximas 48 h', 'Incluye la ventana completa que evalúan las alertas', 48)}
                         </div>
-                    </div>
+                    </div>}
 
                     <div style={{ marginBottom: 6 }}>
-                        {rotulo('Nivel de detalle')}
-                        <div className="grid grid-cols-2" style={{ gap: 10 }}>
-                            {opcion(!modoTecnico, () => setModoTecnico(false), Users, 'Operativo', 'Veredicto, decisiones por módulo, ventanas de riesgo y gráficas', 'op')}
-                            {opcion(modoTecnico, () => setModoTecnico(true), FlaskConical, 'Técnico', 'Añade definiciones, nubosidad y la metodología abierta', 'tec')}
+                        {rotulo('¿Para quién es el informe?')}
+                        <div className="grid grid-cols-1 sm:grid-cols-3" style={{ gap: 10 }}>
+                            {opcion(nivel === 'ciudadano', () => setNivel('ciudadano'), Home, 'Básico', 'Para cualquier persona: lenguaje sencillo, dibujos y qué hacer', 'ciu')}
+                            {opcion(nivel === 'operativo', () => setNivel('operativo'), Users, 'Operativo', 'Veredicto, decisiones por módulo, ventanas de riesgo y gráficas', 'op')}
+                            {opcion(nivel === 'tecnico', () => setNivel('tecnico'), FlaskConical, 'Técnico', 'Añade definiciones, nubosidad y la metodología abierta', 'tec')}
                         </div>
                         <p style={{ fontSize: 10.5, color: '#64748b', marginTop: 10, lineHeight: 1.5 }}>
-                            Todo el pronóstico es del modelo (Open-Meteo); lo observado se rotula aparte. Las estaciones con lecturas sospechosas aparecen como S/D.
+                            {nivel === 'ciudadano'
+                                ? 'Informe para la ciudadanía: hoy, mañana y pasado mañana con temperatura, lluvia y viento en km/h, y recomendaciones concretas. Se puede imprimir o compartir como imagen.'
+                                : 'Todo el pronóstico es del modelo (Open-Meteo); lo observado se rotula aparte. Las estaciones con lecturas sospechosas aparecen como S/D.'}
                         </p>
                     </div>
                 </div>
@@ -121,6 +129,12 @@ export function PronosticoInformeModal({ abierto, onCerrar, onConfirmar }: Prono
                     <button type="button" onClick={onCerrar} className="font-semibold hover:text-slate-300 transition-colors" style={{ padding: '9px 16px', borderRadius: 10, fontSize: 12, color: '#94a3b8' }}>
                         Cancelar
                     </button>
+                    {nivel === 'ciudadano' && (
+                        <button type="button" onClick={() => confirmar('imagen')} className="font-bold transition-colors whitespace-nowrap flex items-center"
+                            style={{ gap: 6, padding: '9px 16px', borderRadius: 10, fontSize: 12, color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.04)' }}>
+                            <ImageIcon size={13} /> Imagen para compartir
+                        </button>
+                    )}
                     <button type="button" onClick={() => confirmar('imprimir')} className="font-bold transition-colors whitespace-nowrap flex items-center"
                         style={{ gap: 6, padding: '9px 16px', borderRadius: 10, fontSize: 12, color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.04)' }}>
                         <Printer size={13} /> Imprimir / PDF

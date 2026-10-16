@@ -13,6 +13,7 @@ import { getTodayString } from './dateHelpers';
 import {
     fmtDiaHora, fmtVentana, type DatosPronostico, type NivelRiesgo, type Riesgo,
 } from './informePronosticoDatos';
+import { resumenSencillo } from './informePronosticoCiudadano';
 import { COLOR_NIVEL, FONDO_NIVEL, ROTULO_NIVEL, graficaHoraria, lineaTiempoSvg, mapaDecisionSvg } from './informePronosticoSvg';
 
 const SRL_MARRON = '#6B2D2D';
@@ -135,7 +136,7 @@ export async function construyeInformePronosticoHTML(d: DatosPronostico): Promis
         </tr>`).join('');
         const ll = ver.lluvia;
         const lluviaTxt = ll
-            ? `<li><b>Lluvia (lámina diaria, ${ll.dias} estación-día)</b>: el modelo sumó ${ll.totalPronosticadoMm} mm y las estaciones registraron ${ll.totalObservadoMm} mm. `
+            ? `<li><b>Lluvia (lámina diaria, ${ll.dias} días)</b>: el modelo sumó ${ll.totalPronosticadoMm} mm y las estaciones registraron ${ll.totalObservadoMm} mm. `
                 + `${ll.diasConLluviaObservada ? `Detectó (≥ 2.5 mm) ${ll.detectados} de ${ll.diasConLluviaObservada} días con lluvia observada ≥ 5 mm. ` : 'No hubo días con lluvia observada ≥ 5 mm en la ventana. '}`
                 + `${ll.peor ? `Mayor falla: ${esc(ll.peor.estacion)}, ${esc(ll.peor.dia)} — pronosticó ${ll.peor.pronosticadoMm} mm y cayeron ${ll.peor.observadoMm} mm. ` : ''}`
                 + `<em>La lluvia convectiva se acierta mal en lugar y cantidad: use el pronóstico para saber <b>si</b> puede llover, no cuánto en un punto.</em></li>`
@@ -143,7 +144,7 @@ export async function construyeInformePronosticoHTML(d: DatosPronostico): Promis
         bloqueVerif = `<h2>7 · Qué tanto acierta el modelo</h2>
 <p class="sub2">Pronóstico contra la lectura de la estación más cercana en el tiempo (±60 min), últimos 14 días. El horizonte medido hasta hoy es el del último pronóstico antes de la hora (0–6 h): ${ver.corridasConservadas > 0 ? `ya se conservan ${ver.corridasConservadas} corrida(s) guardada(s) para medir también 7–24 h y 25–48 h conforme se acumulen (2 por día).` : 'las corridas de 7–24 h y 25–48 h empezarán a medirse cuando se acumulen corridas guardadas.'}</p>
 ${ver.variables.length ? `<table><thead><tr><th>Variable</th><th>Horizonte</th><th class="num">Comparaciones</th><th class="num">Error medio</th><th class="num">Sesgo</th></tr></thead><tbody>${filasV}</tbody></table>` : '<p class="muted">Aún no hay comparaciones suficientes de temperatura y viento.</p>'}
-<ul style="font-size:12.5px;margin-top:10px">${lluviaTxt}${ver.estacionesExcluidas.length ? `<li>No se incluyen en este cálculo: ${esc(ver.estacionesExcluidas.join(', '))} (sensor sospechoso).</li>` : ''}</ul>`;
+<ul style="font-size:12.5px;margin-top:10px">${lluviaTxt}${ver.estacionesExcluidas.length ? `<li>No se incluyen en este cálculo: ${esc(ver.estacionesExcluidas.join(', '))} (sensor sospechoso o con un error fuera de lo normal frente al resto de la red).</li>` : ''}</ul>`;
     }
 
     const fecha = new Date(d.generadoMs);
@@ -221,6 +222,7 @@ ${ver.variables.length ? `<table><thead><tr><th>Variable</th><th>Horizonte</th><
 <div class="veredicto" style="border-color:${COLOR_NIVEL[d.nivel]};background:${FONDO_NIVEL[d.nivel]}">
   <div class="eyebrow" style="color:${COLOR_NIVEL[d.nivel]}">${ROTULO_NIVEL[d.nivel]} · ${esc(fmtDiaHora(d.desdeMs))} → ${esc(fmtDiaHora(d.hastaMs))}</div>
   <p class="titular">${esc(d.titular)}</p>
+  ${d.dias.length ? `<p style="margin:0 0 8px;font-size:13.5px"><b>En palabras sencillas:</b> ${esc(resumenSencillo(d))}</p>` : ''}
   ${d.puntosClave.length ? `<ul>${d.puntosClave.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
 </div>
 ${avisos}

@@ -162,6 +162,9 @@ export interface ResumenVerificacion {
     estacionesExcluidas: string[];
 }
 
+/** Lectura observada (WeatherLink) de una estación; sirve para la parte "medida" de la franja de 72 h. */
+export interface LecturaObs { estacionId: string; ts: string | number; tempC: number | null; vientoMs: number | null }
+
 export interface EntradaPronostico {
     estaciones: EstacionConLectura[];
     umbrales: UmbralClima[];
@@ -173,6 +176,8 @@ export interface EntradaPronostico {
     modoTecnico: boolean;
     contexto?: ContextoOperativo;
     verificacion?: EntradaVerificacion | null;
+    /** Lecturas de las últimas ~24 h de todas las estaciones (opcional: sin ellas la franja solo muestra pronóstico). */
+    observado?: LecturaObs[];
 }
 
 export type Franja = 'madrugada' | 'mañana' | 'tarde' | 'noche';
@@ -228,6 +233,10 @@ export interface DatosPronostico {
     lineaTiempo: FilaLineaTiempo[];
     bandas: { temp: BandaHoraria[]; lluvia: BandaHoraria[]; viento: BandaHoraria[]; nubosidad: BandaHoraria[] };
     dias: ResumenDia[];
+    /** Parte MEDIDA de la franja de 72 h: una banda por hora, de 24 h antes de la emisión hasta la hora actual (null = sin lectura). */
+    observadas: { ejeHoras: number[]; temp: BandaHoraria[]; viento: BandaHoraria[] };
+    /** Lluvia que YA registraron las estaciones hoy (acumulado del día local), sin estaciones sospechosas. */
+    lluviaHoy: { promMm: number; maxMm: number; lugarMax: string } | null;
     modulos: ResumenModulo[];
     estaciones: EstacionConfiabilidad[];
     estacionesExcluidas: { nombre: string; motivo: string }[];
@@ -595,6 +604,29 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
         };
     });
 
+    // ── Parte medida de la franja de 72 h (últimas 24 h) ────────────────────
+    const ejeObs: number[] = [];
+    for (let t = desdeMs - 24 * MS_H; t <= desdeMs; t += MS_H) ejeObs.push(t);
+    const lecturasBuenas = (e.observado ?? []).filter(o => !e.sospechosaIds.has(o.estacionId));
+    const bandaObs = (campo: 'tempC' | 'vientoMs'): BandaHoraria[] => ejeObs.map(t => {
+        const fin = t === desdeMs ? ahoraMs + 1 : t + MS_H;     // la hora en curso llega hasta "ahora"
+        const vals = lecturasBuenas
+            .filter(o => { const ts = new Date(o.ts).getTime(); return ts >= t && ts < fin; })
+            .map(o => valorPlausible(campo === 'tempC' ? 'tempC' : 'vientoMs', num(o[campo])))
+            .filter((v): v is number => v != null);
+        return vals.length ? { ts: t, min: Math.min(...vals), media: vals.reduce((a, b) => a + b, 0) / vals.length, max: Math.max(...vals) } : { ts: t, min: null, media: null, max: null };
+    });
+    const observadas = { ejeHoras: ejeObs, temp: bandaObs('tempC'), viento: bandaObs('vientoMs') };
+
+    // Lluvia ya registrada hoy: último acumulado del día local de cada estación que reportó HOY.
+    const lluviasHoy = e.estaciones
+        .filter(s => !e.sospechosaIds.has(s.id) && s.lectura?.lluvia_dia_mm != null && claveDia(new Date(s.lectura.ts).getTime()) === hoyClave)
+        .map(s => ({ nombre: s.nombre, mm: Number(s.lectura!.lluvia_dia_mm) }));
+    const lluviaHoy = lluviasHoy.length ? (() => {
+        const mx = lluviasHoy.reduce((m, x) => (x.mm > m.mm ? x : m), lluviasHoy[0]);
+        return { promMm: Math.round((lluviasHoy.reduce((a, x) => a + x.mm, 0) / lluviasHoy.length) * 10) / 10, maxMm: Math.round(mx.mm * 10) / 10, lugarMax: mx.nombre };
+    })() : null;
+
     // ── Módulos ─────────────────────────────────────────────────────────────
     const estacionesGeo = conSerie.map(x => x.est);
     const modulos: ResumenModulo[] = MODULOS_SRL_IDS.map(n => {
@@ -765,7 +797,7 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
         generadoMs: ahoraMs, horizonteH: e.horizonteH, modoTecnico: e.modoTecnico,
         desdeMs, hastaMs, ejeHoras,
         titular, nivel: conSerie.length ? nivelGlobal : 'normal', puntosClave,
-        riesgos, lineaTiempo, bandas, dias, modulos,
+        riesgos, lineaTiempo, bandas, dias, observadas, lluviaHoy, modulos,
         estaciones: estacionesConf, estacionesExcluidas, alertas,
         contexto: e.contexto ?? {},
         modelo: {

@@ -29,7 +29,7 @@ import { obtenTendenciasPeriodo, type TendenciasPeriodo } from '../utils/climaTe
 import { getTodayString } from '../utils/dateHelpers';
 import { GeoInformeOpcionesModal } from '../components/GeoInformeOpcionesModal';
 import { PronosticoInformeModal, type OpcionesInformePronostico } from '../components/PronosticoInformeModal';
-import { construirDatosPronostico, type EntradaVerificacion, type FilaSkillVariable, type FilaSkillLluvia } from '../utils/informePronosticoDatos';
+import { construirDatosPronostico, type EntradaVerificacion, type FilaSkillVariable, type FilaSkillLluvia, type LecturaObs } from '../utils/informePronosticoDatos';
 import { descargarInformePronostico, imprimirInformePronostico } from '../utils/informePronosticoHtml';
 import { descargarInformeCiudadano, imprimirInformeCiudadano, imagenInformeCiudadano } from '../utils/informePronosticoCiudadano';
 import { useCanalExtremos } from '../hooks/useDashboardPulso';
@@ -548,6 +548,20 @@ const Clima = () => {
         setGenerandoPronostico(true);
         try {
             const boq = presas.find(p => /boquilla/i.test(p.nombre));
+            // Lecturas MEDIDAS de las últimas 25 h (parte continua de la franja de 72 h); si falla, la franja solo muestra pronóstico.
+            let observado: LecturaObs[] = [];
+            try {
+                const desdeObs = new Date(Date.now() - 25 * 3_600_000).toISOString();
+                const { data: lect, error: eObs } = await supabase.from('clima_estacion_lecturas')
+                    .select('estacion_id, ts, temp_c, viento_ms').gte('ts', desdeObs).order('ts', { ascending: true }).limit(1000);
+                if (eObs) throw eObs;
+                observado = (lect ?? []).map(r => ({
+                    estacionId: r.estacion_id as string, ts: r.ts as string,
+                    tempC: r.temp_c == null ? null : Number(r.temp_c), vientoMs: r.viento_ms == null ? null : Number(r.viento_ms),
+                }));
+            } catch (e) {
+                console.warn('[Clima] lecturas medidas no disponibles para la franja de 72 h:', e);
+            }
             // Verificación del modelo: si las RPC fallan el informe sale igual, sin esa sección.
             let verificacion: EntradaVerificacion | null = null;
             try {
@@ -568,7 +582,7 @@ const Clima = () => {
             }
             const datos = construirDatosPronostico({
                 estaciones, umbrales: umbralesClima, sospechosaIds, alertas: alertasClima.alertas,
-                ahora: new Date(), horizonteH: o.horizonteH, modoTecnico: o.modoTecnico, verificacion,
+                ahora: new Date(), horizonteH: o.horizonteH, modoTecnico: o.modoTecnico, verificacion, observado,
                 contexto: {
                     canal: canal.k0 || canal.k104 ? {
                         k0M3s: canal.k0?.fresca ? canal.k0.gasto : null, k0Fresca: !!canal.k0?.fresca,

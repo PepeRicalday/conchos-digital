@@ -13,7 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { VIZ } from './climaCharts';
 import { COLOR_MODULO, MODULOS_SRL } from './geoDistrito';
-import { fmtDia, fmtHora, type ResumenModulo } from './informePronosticoDatos';
+import { fmtDia, fmtHora, type BandaHoraria, type ResumenModulo } from './informePronosticoDatos';
 import { esNoche, horaLocal } from './informePronosticoSvg';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -156,5 +156,122 @@ export function tiraHorariaModulosSvg(modulos: ResumenModulo[], ejeHoras: number
     return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Probabilidad de lluvia hora por hora para cada módulo. ${esc(resumen)}">
         <defs><pattern id="${idPrefijo}-sin" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="#f8fafc"/><line x1="0" y1="0" x2="0" y2="5" stroke="${VIZ.axis}" stroke-width="1.5"/></pattern></defs>
         ${franja}${filas}${ahora}${eje}
+    </svg>`;
+}
+
+export interface UmbralFranja { valor: number; etiqueta: string; color: string }
+
+/**
+ * Franja de 72 horas (como el panel de Clima): 24 h MEDIDAS (línea continua) + el pronóstico (línea punteada con su
+ * banda de mínimo-máximo entre estaciones), noche sombreada, marca "AHORA" y líneas de umbral. `factor` convierte
+ * unidades (m/s → km/h = 3.6). Un hueco en lo medido corta la línea: nunca se interpola ni se rellena con 0.
+ */
+export function franja72Svg(o: {
+    titulo: string; unidad: string; obs: BandaHoraria[]; pron: BandaHoraria[]; ahoraMs: number;
+    forma: 'linea' | 'barras'; color: string; factor?: number; umbrales?: UmbralFranja[];
+    ancho?: number; decimales?: number; pisoEnCero?: boolean;
+}): string {
+    const k = o.factor ?? 1, W = o.ancho ?? 720, dec = o.decimales ?? 0;
+    const ML = 46, MR = 14, MT = 26, H = W < 600 ? 190 : 180, MB = 34;
+    const iw = W - ML - MR, ih = H - MT - MB;
+    const todos = [...o.obs, ...o.pron];
+    const conDato = todos.filter(b => b.media != null);
+    if (o.pron.filter(b => b.media != null).length < 2) return '';
+    const t0 = Math.min(...todos.map(b => b.ts)), t1 = Math.max(...todos.map(b => b.ts));
+    const x = (ts: number) => ML + ((ts - t0) / (t1 - t0)) * iw;
+    const hora = 3_600_000;
+
+    const vals = conDato.flatMap(b => [b.min, b.max, b.media]).filter((v): v is number => v != null).map(v => v * k);
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    // Un umbral solo estira el eje si queda cerca de los datos (si no, aplastaría la curva).
+    const holgura = Math.max((hi - lo) * 0.3, 2);
+    const umbrales = (o.umbrales ?? []).filter(u => u.valor >= lo - holgura && u.valor <= hi + holgura);
+    for (const u of umbrales) { lo = Math.min(lo, u.valor); hi = Math.max(hi, u.valor); }
+    const margen = Math.max((hi - lo) * 0.12, 0.5);
+    // Ejes con números "redondos" (múltiplos de 5, 2 o 1 según el rango) en lugar de 0.1 o 39.9.
+    const rango = hi - lo + 2 * margen;
+    const paso = o.forma === 'barras' ? (hi < 2 ? 0.5 : 1) : rango > 24 ? 10 : rango > 10 ? 5 : rango > 4 ? 2 : 1;
+    hi = Math.ceil((hi + margen) / paso) * paso;
+    lo = o.forma === 'barras' || o.pisoEnCero ? 0 : Math.floor((lo - margen) / paso) * paso;
+    const y = (v: number) => MT + ih - ((v - lo) / Math.max(1e-6, hi - lo)) * ih;
+
+    const noche: string[] = [];
+    for (let ts = t0; ts < t1; ts += hora) if (esNoche(ts)) noche.push(`<rect x="${x(ts).toFixed(1)}" y="${MT}" width="${(x(ts + hora) - x(ts) + 0.3).toFixed(1)}" height="${ih}" fill="#eef2f7"/>`);
+
+    const ticksY = [lo, (lo + hi) / 2, hi].map(v => `<line x1="${ML}" y1="${y(v).toFixed(1)}" x2="${W - MR}" y2="${y(v).toFixed(1)}" stroke="${VIZ.grid}"/>
+        <text x="${ML - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="${VIZ.inkSecondary}" font-family="system-ui">${v.toFixed(v % 1 === 0 ? 0 : dec || 1)}</text>`).join('');
+
+    const lineasUmbral = umbrales.map(u => `<line x1="${ML}" y1="${y(u.valor).toFixed(1)}" x2="${W - MR}" y2="${y(u.valor).toFixed(1)}" stroke="${u.color}" stroke-width="1.4" stroke-dasharray="5 4"/>
+        <text x="${ML + 5}" y="${(y(u.valor) - 4).toFixed(1)}" font-size="11" font-weight="700" fill="${VIZ.inkPrimary}" font-family="system-ui" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(u.etiqueta)}</text>`).join('');
+
+    const segmentos = (bs: BandaHoraria[], maxHueco: number) => {
+        const out: string[] = []; let act = '', ultimo = -Infinity;
+        for (const b of bs) {
+            if (b.media == null) continue;
+            if (act && b.ts - ultimo > maxHueco * hora) { out.push(act); act = ''; }
+            act += `${act ? 'L' : 'M'}${x(b.ts).toFixed(1)},${y(b.media * k).toFixed(1)} `; ultimo = b.ts;
+        }
+        if (act) out.push(act);
+        return out;
+    };
+    const banda = (bs: BandaHoraria[]) => {
+        const ok = bs.filter(b => b.min != null && b.max != null);
+        if (ok.length < 2) return '';
+        const arriba = ok.map(b => `${x(b.ts).toFixed(1)},${y(b.max! * k).toFixed(1)}`);
+        const abajo = ok.map(b => `${x(b.ts).toFixed(1)},${y(b.min! * k).toFixed(1)}`).reverse();
+        return `<polygon points="${[...arriba, ...abajo].join(' ')}" fill="${o.color}" opacity="0.13"/>`;
+    };
+
+    let datos = '';
+    if (o.forma === 'linea') {
+        datos = `${banda(o.obs)}${banda(o.pron)}`
+            + segmentos(o.obs, 3).map(d => `<path d="${d}" fill="none" stroke="${o.color}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>`).join('')
+            + segmentos(o.pron, 2).map(d => `<path d="${d}" fill="none" stroke="${o.color}" stroke-width="2.6" stroke-dasharray="7 5" stroke-linejoin="round" stroke-linecap="round"/>`).join('');
+        // Extremos del pronóstico, rotulados con su hora.
+        const p = o.pron.filter(b => b.media != null);
+        const iMax = p.reduce((m, b, i) => (b.media! > p[m].media! ? i : m), 0), iMin = p.reduce((m, b, i) => (b.media! < p[m].media! ? i : m), 0);
+        const etq = (b: BandaHoraria, arriba: boolean) => {
+            const px = x(b.ts), anc = px > W * 0.82 ? 'end' : px < W * 0.2 ? 'start' : 'middle';
+            return `<circle cx="${px.toFixed(1)}" cy="${y(b.media! * k).toFixed(1)}" r="3.6" fill="#fff" stroke="${VIZ.inkPrimary}" stroke-width="1.6"/>
+                <text x="${px.toFixed(1)}" y="${(y(b.media! * k) + (arriba ? -8 : 17)).toFixed(1)}" text-anchor="${anc}" font-size="11.5" font-weight="800" fill="${VIZ.inkPrimary}" font-family="system-ui" paint-order="stroke" stroke="#fff" stroke-width="3">${(b.media! * k).toFixed(dec)} · ${esc(fmtHora(b.ts).slice(0, 5))}</text>`;
+        };
+        datos += etq(p[iMax], true) + (iMin !== iMax ? etq(p[iMin], false) : '');
+    } else {
+        const bw = Math.max(2, (iw / ((t1 - t0) / hora)) * 0.78);
+        datos = o.pron.map(b => {
+            if (b.max == null || b.media == null) return '';
+            const bx = x(b.ts) - bw / 2, hMax = Math.max(0, y(0) - y(b.max * k)), hMed = Math.max(0, y(0) - y(b.media * k));
+            return `${hMax > 0.5 ? `<rect x="${bx.toFixed(1)}" y="${(y(0) - hMax).toFixed(1)}" width="${bw.toFixed(1)}" height="${hMax.toFixed(1)}" rx="1.5" fill="${VIZ.nube[0]}"/>` : ''}${hMed > 0.5 ? `<rect x="${(bx + bw * 0.18).toFixed(1)}" y="${(y(0) - hMed).toFixed(1)}" width="${(bw * 0.64).toFixed(1)}" height="${hMed.toFixed(1)}" rx="1.5" fill="${o.color}"/>` : ''}`;
+        }).join('');
+        const pk = o.pron.reduce<BandaHoraria | null>((m, b) => ((b.max ?? 0) > (m?.max ?? 0) ? b : m), null);
+        if (pk && (pk.max ?? 0) * k >= 0.2) {
+            const px = x(pk.ts), anc = px > W * 0.8 ? 'end' : px < W * 0.25 ? 'start' : 'middle';
+            datos += `<text x="${(anc === 'end' ? px + 6 : anc === 'start' ? px - 4 : px).toFixed(1)}" y="${Math.max(MT + 10, y(pk.max! * k) - 6).toFixed(1)}" text-anchor="${anc}" font-size="11.5" font-weight="800" fill="${VIZ.inkPrimary}" font-family="system-ui" paint-order="stroke" stroke="#fff" stroke-width="3">${(pk.max! * k).toFixed(1)} ${esc(o.unidad)} · ${esc(fmtHora(pk.ts).slice(0, 5))}</text>`;
+        }
+    }
+
+    const xa = x(Math.min(Math.max(o.ahoraMs, t0), t1));
+    const ahora = `<line x1="${xa.toFixed(1)}" y1="${MT - 6}" x2="${xa.toFixed(1)}" y2="${MT + ih}" stroke="${VIZ.inkPrimary}" stroke-width="1.6" stroke-dasharray="3 3"/>
+        <rect x="${(xa - 22).toFixed(1)}" y="${MT - 22}" width="44" height="14" rx="3" fill="#fff" stroke="${VIZ.inkPrimary}"/>
+        <text x="${xa.toFixed(1)}" y="${MT - 12}" text-anchor="middle" font-size="10" font-weight="800" fill="${VIZ.inkPrimary}" font-family="system-ui">AHORA</text>
+        <text x="${(xa - 28).toFixed(1)}" y="${MT - 11}" text-anchor="end" font-size="11" font-weight="700" fill="${VIZ.inkSecondary}" font-family="system-ui">◀ medido</text>
+        <text x="${(xa + 28).toFixed(1)}" y="${MT - 11}" font-size="11" font-weight="700" fill="${VIZ.inkSecondary}" font-family="system-ui">pronóstico ▶</text>`;
+
+    let eje = '';
+    for (let ts = t0; ts <= t1; ts += hora) {
+        const h = horaLocal(ts);
+        if (h % 6 !== 0) continue;
+        const px = x(ts);
+        eje += `<text x="${px.toFixed(1)}" y="${MT + ih + 15}" text-anchor="middle" font-size="11" font-weight="600" fill="${VIZ.inkSecondary}" font-family="system-ui">${String(h).padStart(2, '0')}:00</text>`;
+        if (h === 0) eje += `<text x="${px.toFixed(1)}" y="${MT + ih + 29}" text-anchor="middle" font-size="11" font-weight="800" fill="${VIZ.inkPrimary}" font-family="system-ui">${esc(fmtDia(ts))}</text>`;
+    }
+    // Fecha de la primera columna: solo si la medianoche siguiente queda lejos (si no, se encimarían los textos).
+    let primeraMedianoche = t0; while (horaLocal(primeraMedianoche) !== 0 && primeraMedianoche < t1) primeraMedianoche += hora;
+    if (x(primeraMedianoche) - ML > 110) eje += `<text x="${ML}" y="${MT + ih + 29}" font-size="11" font-weight="800" fill="${VIZ.inkPrimary}" font-family="system-ui">${esc(fmtDia(t0))}</text>`;
+
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(o.titulo)}: ${esc(o.unidad)}, 24 horas medidas y ${Math.round((t1 - o.ahoraMs) / hora)} horas de pronóstico">
+        ${noche.join('')}${ticksY}${lineasUmbral}${datos}
+        <line x1="${ML}" y1="${y(lo).toFixed(1)}" x2="${W - MR}" y2="${y(lo).toFixed(1)}" stroke="${VIZ.axis}"/>
+        ${ahora}${eje}
     </svg>`;
 }

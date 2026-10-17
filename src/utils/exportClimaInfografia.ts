@@ -190,9 +190,11 @@ function tablaPrecipitacion(ests: EstacionConLectura[]): string {
         return `<div style="font-size:0.75rem;color:${T.tintaSec};padding:6px 0">Sin estaciones registradas.</div>`;
     }
 
+    // Promedio entre estaciones con dato (no suma): la lluvia es un campo
+    // espacial, sumar estaciones multiplica la lámina por el nº de estaciones.
     const suma = (k: 'h24' | 'mes' | 'acum') => {
         const vs = filas.map(f => f[k]).filter((v): v is number => v != null);
-        return vs.length ? vs.reduce((a, b) => a + b, 0) : null;
+        return vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null;
     };
     const tot24 = suma('h24'), totMes = suma('mes'), totAcum = suma('acum');
 
@@ -212,7 +214,7 @@ function tablaPrecipitacion(ests: EstacionConLectura[]): string {
       </tr></thead>
       <tbody>${filasHTML}</tbody>
       <tfoot><tr>
-        <td>Total distrito</td>
+        <td>Promedio distrito</td>
         <td class="pp-n">${nf(tot24, 1)}</td>
         <td class="pp-n">${nf(totMes, 1)}</td>
         <td class="pp-n">${nf(totAcum, 1)}</td>
@@ -802,7 +804,7 @@ async function buildHTML(
   ${precipTabla}
   <div style="font-size:0.6rem;color:${T.tintaSec};margin-top:7px">
     24 h y mes según contador acumulado de cada consola WeatherLink; "acum. temporada" es el contador anual de la
-    consola, no un corte de año calendario. Estaciones sin reportar recientemente se muestran atenuadas.
+    consola, no un corte de año calendario. Estaciones sin reportar recientemente se muestran atenuadas. "Promedio distrito" es el promedio entre estaciones con dato (la lluvia no se suma entre estaciones).
   </div>
 </div>
 

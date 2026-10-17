@@ -47,7 +47,8 @@ function tablaPrecipitacionInstante(ests: EstacionConLectura[]): string {
 
     const suma = (k: 'h24' | 'mes' | 'acum') => {
         const vs = filas.map(f => f[k]).filter((v): v is number => v != null);
-        return vs.length ? vs.reduce((a, b) => a + b, 0) : null;
+        // Promedio entre estaciones con dato (no suma): la lluvia es un campo espacial
+        return vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null;
     };
     const tot24 = suma('h24'), totMes = suma('mes'), totAcum = suma('acum');
 
@@ -67,7 +68,7 @@ function tablaPrecipitacionInstante(ests: EstacionConLectura[]): string {
       </tr></thead>
       <tbody>${filasHTML}</tbody>
       <tfoot><tr>
-        <td>Total distrito</td>
+        <td>Promedio distrito</td>
         <td class="geoinf-pp-n">${nf(tot24, 1)}</td>
         <td class="geoinf-pp-n">${nf(totMes, 1)}</td>
         <td class="geoinf-pp-n">${nf(totAcum, 1)}</td>
@@ -122,7 +123,8 @@ function tablaPrecipitacionPeriodo(
     }
 
     const sumaAcum = filas.map(f => f.acum).filter((v): v is number => v != null);
-    const totAcum = sumaAcum.length ? sumaAcum.reduce((a, b) => a + b, 0) : null;
+    // Promedio entre estaciones con dato (no suma)
+    const totAcum = sumaAcum.length ? sumaAcum.reduce((a, b) => a + b, 0) / sumaAcum.length : null;
     const totPromedioDiario = !soloAcumulado && totAcum != null && diasTranscurridos > 0 ? totAcum / diasTranscurridos : null;
     // "Día de mayor lluvia" del distrito: el máximo entre estaciones, no una suma (sumar máximos de días distintos no tiene sentido físico)
     const diasMaxConDato = filas.map(f => f.diaMax).filter((d): d is { fecha: string; mm: number } => d != null);
@@ -146,7 +148,7 @@ function tablaPrecipitacionPeriodo(
       </tr></thead>
       <tbody>${filasHTML}</tbody>
       <tfoot><tr>
-        <td>Total distrito</td>
+        <td>Promedio distrito</td>
         <td class="geoinf-pp-n">${nf(totAcum, 1)}</td>
         ${soloAcumulado ? '' : `<td class="geoinf-pp-n">${nf(totPromedioDiario, 2)}</td>
         <td class="geoinf-pp-n">${diaMaxDistrito ? `${diaMaxDistrito.mm.toFixed(1)} <small>(${formateaFechaCorta(diaMaxDistrito.fecha)})</small>` : '—'}</td>`}
@@ -179,12 +181,12 @@ export function tablaPrecipitacion(
  *  para el modo instante; el modo periodo usa su propia nota (ver llamador). */
 export const NOTA_TABLA_PRECIPITACION = '24 h y mes según contador acumulado de cada consola WeatherLink; '
     + '"acum. temporada" es el contador anual de la consola, no un corte de año calendario. '
-    + 'Estaciones sin reportar recientemente se muestran atenuadas.';
+    + 'Estaciones sin reportar recientemente se muestran atenuadas. "Promedio distrito" es el promedio entre estaciones con dato (la lluvia no se suma entre estaciones).';
 
 export const NOTA_TABLA_PRECIPITACION_PERIODO = 'Acumulado y promedio diario del rango elegido; "día de mayor lluvia" es la lámina '
     + 'más alta registrada en un solo día dentro del periodo — distingue un evento de lluvia fuerte de la misma agua repartida en '
     + 'varios días (relevante para infiltración/escorrentía). Sin entrada: la estación no registró lluvia en el periodo. '
-    + 'Estaciones sin reportar recientemente se muestran atenuadas.';
+    + 'Estaciones sin reportar recientemente se muestran atenuadas. "Promedio distrito" es el promedio entre estaciones con dato (la lluvia no se suma entre estaciones).';
 
 /** "Todo el histórico": el acumulado es el contador REAL de cada consola
  *  física (su ciclo anual), no una suma reconstruida desde las lecturas que
@@ -196,4 +198,4 @@ export const NOTA_TABLA_PRECIPITACION_PERIODO = 'Acumulado y promedio diario del
 export const NOTA_TABLA_PRECIPITACION_CONSOLA = 'Acumulado real del ciclo vigente de cada consola física WeatherLink — puede incluir '
     + 'meses anteriores al alta de la estación en esta red, por eso puede superar lo reconstruible desde el historial capturado aquí. '
     + 'Promedio diario y día de mayor lluvia no se muestran en este modo (requieren el desglose día a día, que solo existe desde el alta '
-    + 'de cada estación); para verlos, elige un rango de fechas explícito. Estaciones sin reportar recientemente se muestran atenuadas.';
+    + 'de cada estación); para verlos, elige un rango de fechas explícito. Estaciones sin reportar recientemente se muestran atenuadas. "Promedio distrito" es el promedio entre estaciones con dato (la lluvia no se suma entre estaciones).';

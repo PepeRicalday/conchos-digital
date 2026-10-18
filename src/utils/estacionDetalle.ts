@@ -25,6 +25,7 @@
  */
 
 import type { EstacionConLectura, LecturaClima } from '../hooks/useClimaEstaciones';
+import { umbralVigente } from './umbralesClima';
 
 // ── Cierre diario: una fila por día, con el máximo de cada acumulado ────────
 
@@ -325,7 +326,7 @@ export interface RiesgoTermico {
  * Diagnóstico térmico nocturno.
  *
  * Spread (T − Td) pequeño ⇒ aire saturado ⇒ rocío/niebla, que retrasa labores
- * y favorece hongos. Mínima bajo 3 °C ⇒ riesgo de helada.
+ * y favorece hongos. Mínima en el umbral de aviso de helada (clima_umbrales, 4 °C) ⇒ riesgo de helada.
  */
 export function riesgoTermico(dias: DiaEstacion[], lecturas: LecturaClima[]): RiesgoTermico {
     const spreads = lecturas
@@ -334,7 +335,7 @@ export function riesgoTermico(dias: DiaEstacion[], lecturas: LecturaClima[]): Ri
     const spreadMin = spreads.length ? Math.min(...spreads) : null;
     const tMin = minOf(dias.map(d => d.tempMinC));
 
-    if (tMin != null && tMin <= 3) return { spreadMinC: spreadMin, tempMinC: tMin, etiqueta: 'Riesgo de helada', color: '#60a5fa' };
+    if (tMin != null && tMin <= umbralVigente(undefined, 'helada').aviso) return { spreadMinC: spreadMin, tempMinC: tMin, etiqueta: 'Riesgo de helada', color: '#60a5fa' };
     if (spreadMin != null && spreadMin <= 2) return { spreadMinC: spreadMin, tempMinC: tMin, etiqueta: 'Rocío / niebla probable', color: '#38bdf8' };
     if (spreadMin != null && spreadMin <= 5) return { spreadMinC: spreadMin, tempMinC: tMin, etiqueta: 'Humedad nocturna alta', color: '#22c55e' };
     if (spreadMin == null) return { spreadMinC: null, tempMinC: tMin, etiqueta: 'Sin dato', color: '#64748b' };

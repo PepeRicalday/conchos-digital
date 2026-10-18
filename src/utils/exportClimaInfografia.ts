@@ -311,7 +311,7 @@ async function buildHTML(
     const procedencias = [...new Set(ests.filter(e => e.cielo.coberturaPct != null)
         .map(e => PROCEDENCIA_LABEL[e.cielo.procedencia]))].join(' · ');
 
-    const preds = ests.filter(e => e.enLinea && e.lectura).map(predice24h);
+    const preds = ests.filter(e => e.enLinea && e.lectura).map(e => predice24h(e));
     const indices = calculaIndices(entradasDesdeEstaciones(ests, etoDiario));
     const idr = indices.find(i => i.clave === 'IDR');
 

@@ -197,7 +197,10 @@ ${ver.variables.length ? `<table><thead><tr><th>Variable</th><th>Horizonte</th><
   summary { cursor: pointer; font-weight: 700; color: ${SRL_MARRON}; }
   details p, details li { font-size: 12.5px; color: ${VIZ.inkSecondary}; }
   footer { margin-top: 22px; padding-top: 10px; border-top: 1px solid ${VIZ.grid}; font-size: 11px; color: ${VIZ.inkMuted}; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-  @media (max-width: 720px) { .hoja { padding: 16px; } .grid-mapa { grid-template-columns: 1fr; } header { flex-wrap: wrap; } th, td { padding: 6px 4px; } }
+  @media (max-width: 720px) { .hoja { padding: 16px; } .grid-mapa { grid-template-columns: 1fr; } header { flex-wrap: wrap; } th, td { padding: 6px 4px; }
+    /* Las tablas anchas se desplazan dentro de su caja en vez de ensanchar toda la página (iPhone). */
+    table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .grid-mapa > div { min-width: 0; } .grid-mapa svg { max-width: 100%; height: auto; } }
   @media print {
     body { background: #fff; }
     .hoja { max-width: none; padding: 0; }

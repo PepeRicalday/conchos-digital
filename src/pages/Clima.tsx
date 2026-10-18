@@ -1137,7 +1137,7 @@ const Clima = () => {
                             >
                                 <ImageIcon size={14} /> {generandoImagen ? 'Generando…' : 'Imagen'}
                             </button>
-                            <button className="estaciones-dl" onClick={() => { void exportClimaReport(estaciones); }} title="Descargar informe técnico de clima (HTML)">
+                            <button className="estaciones-dl" onClick={() => { void exportClimaReport(estaciones, umbralesClima); }} title="Descargar informe técnico de clima (HTML)">
                                 <Download size={14} /> Informe
                             </button>
                             <button

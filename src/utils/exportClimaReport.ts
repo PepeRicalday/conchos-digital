@@ -23,6 +23,8 @@ import { skillPronosticoResumen, calibracionResumen } from './climaVerificacion'
 import { obtenNdviModulo, type NdviModulo } from './kcNdvi';
 import { PRESAS, MODULOS_SRL, COLOR_MODULO, RIO } from './geoDistrito';
 import { assetToDataURI } from './assetToDataURI';
+import { claveVientoDe, umbralVigente } from './umbralesClima';
+import type { UmbralClima } from '../hooks/useClimaOperativo';
 export { assetToDataURI };
 
 const SRL_MARRON = '#6B2D2D';
@@ -327,13 +329,18 @@ interface Analisis { demanda: string; balance: string; termico: string; viento: 
  */
 function analisisTecnico(
     ests: EstacionConLectura[], etoProm: number | null, gddProm: number | null,
-    lluviaTotal: number, etoDiario: number | null,
+    lluviaTotal: number, etoDiario: number | null, umbrales?: UmbralClima[],
 ): Analisis {
+    // Umbrales: los mismos de las alertas (clima_umbrales). 'moderado' = 4 °C debajo del aviso de calor.
+    const uCalor = umbralVigente(umbrales, 'calor'), uHelada = umbralVigente(umbrales, 'helada');
+    const uViento = umbralVigente(umbrales, 'viento'), uLluvia = umbralVigente(umbrales, 'lluvia');
     const enLinea = ests.filter(e => e.enLinea && e.lectura);
     const temps = enLinea.map(e => e.lectura!.temp_c).filter((v): v is number => v != null);
     const hums = enLinea.map(e => e.lectura!.hum_rel_pct).filter((v): v is number => v != null);
     const vientos = enLinea.map(e => e.lectura!.viento_ms).filter((v): v is number => v != null);
     const tMax = temps.length ? Math.max(...temps) : null;
+    const mins = enLinea.map(e => e.lectura!.temp_min_c ?? e.lectura!.temp_c).filter((v): v is number => v != null);
+    const tMin = mins.length ? Math.min(...mins) : null;
     const hrMin = hums.length ? Math.min(...hums) : null;
     const vMax = vientos.length ? Math.max(...vientos) : null;
 
@@ -386,15 +393,18 @@ function analisisTecnico(
 
     const termico = tMax != null
         ? `Temperatura máxima observada <b>${tMax.toFixed(1)} °C</b>${hrMin != null ? ` con humedad relativa mínima ${hrMin.toFixed(0)} %` : ''}. ` +
-          (tMax > 38 ? 'Condición de <b>estrés térmico severo</b>: adelantar riegos a primeras horas y evitar riego al mediodía.'
-            : tMax > 34 ? 'Estrés térmico <b>moderado</b>: monitorear cultivos sensibles.'
+          (tMax >= uCalor.aviso ? 'Condición de <b>estrés térmico severo</b>: adelantar riegos a primeras horas y evitar riego al mediodía.'
+            : tMax >= uCalor.aviso - 4 ? 'Estrés térmico <b>moderado</b>: monitorear cultivos sensibles.'
             : 'Rango térmico dentro de parámetros normales para la operación.') +
+          (tMin != null && tMin <= uHelada.aviso ? ` Mínima de <b>${tMin.toFixed(1)} °C</b>: <b>riesgo de helada</b> (aviso ≤ ${uHelada.aviso} °C), proteger cultivos sensibles.` : '') +
           (gddProm != null ? ` Acumulación térmica de <b>${gddProm.toFixed(0)} °C-día</b> (base ${GDD_BASE_C} °C) para seguimiento fenológico.` : '')
         : 'Sin lectura térmica disponible.';
 
+    // Cada estación contra su propio umbral (las presas, en zona abierta, tienen uno más alto).
+    const ventoso = enLinea.some(e => (e.lectura!.viento_ms ?? 0) >= umbralVigente(umbrales, claveVientoDe(e.rol)).aviso);
     const viento = vMax != null
         ? `Viento máximo <b>${vMax.toFixed(1)} m/s</b>. ` +
-          (vMax > 5 ? '<b>Precaución</b>: por encima del umbral recomendado para riego por aspersión (deriva y pérdida por evaporación).'
+          (ventoso ? '<b>Precaución</b>: por encima del umbral recomendado para riego por aspersión (deriva y pérdida por evaporación).'
             : 'Dentro del rango operativo para todos los métodos de riego.')
         : 'Sin lectura de viento disponible.';
 
@@ -402,9 +412,9 @@ function analisisTecnico(
     if (ETO == null || laminaBruta == null) recomendaciones.push('Sin ETₒ disponible: no se emite recomendación de lámina; consultar la demanda directamente en campo.');
     else if (ETO >= 5) recomendaciones.push(`Programar riego para reponer ~${laminaBruta.toFixed(1)} mm/día; priorizar turnos nocturnos o de madrugada para minimizar pérdidas por evaporación.`);
     else recomendaciones.push(`Demanda ${clasifETo}: intervalos de riego pueden ampliarse; ajustar según humedad del suelo y etapa del cultivo.`);
-    if (vMax != null && vMax > 5) recomendaciones.push('Suspender o posponer riego por aspersión hasta que el viento baje de 5 m/s.');
-    if (lluviaTotal > 10) recomendaciones.push('Evaluar cierre preventivo de tomas por precipitación significativa.');
-    if (tMax != null && tMax > 38) recomendaciones.push('Vigilar estrés hídrico en frutales; considerar riego de auxilio.');
+    if (vMax != null && ventoso) recomendaciones.push(`Suspender o posponer riego por aspersión hasta que el viento baje de ${uViento.aviso} m/s.`);
+    if (lluviaTotal >= uLluvia.aviso) recomendaciones.push('Evaluar cierre preventivo de tomas por precipitación significativa.');
+    if (tMax != null && tMax >= uCalor.aviso) recomendaciones.push('Vigilar estrés hídrico en frutales; considerar riego de auxilio.');
     recomendaciones.push('Contrastar la ETₒ de la red con la programación de entregas del distrito (balance oferta–demanda por módulo).');
     // Recomendación permanente del documento (§11.6): el icono no manda sobre la operación.
     recomendaciones.push('No modificar entregas por el icono meteorológico: decidir con ETₒ validada, humedad de suelo y demanda programada.');
@@ -466,7 +476,7 @@ function pLluviaPorTendencia(l: LecturaClima): number {
     return Math.max(0, Math.min(90, p));
 }
 
-export function predice24h(e: EstacionConLectura): Pred24 {
+export function predice24h(e: EstacionConLectura, umbrales?: UmbralClima[]): Pred24 {
     const l = e.lectura;
     const base = { estacion: e.nombre, lat: e.latitud, lon: e.longitud, enLinea: e.enLinea };
 
@@ -512,7 +522,7 @@ export function predice24h(e: EstacionConLectura): Pred24 {
     // El viento es un AVISO operativo independiente: antes secuestraba el estado
     // del cielo ("Ventoso" desplazaba a la nubosidad), lo que mezclaba variables.
     const viento = l.viento_ms ?? 0;
-    const avisoViento = viento > 6
+    const avisoViento = viento >= umbralVigente(umbrales, claveVientoDe(e.rol)).aviso
         ? `Viento sostenido ${viento.toFixed(1)} m/s: posible deriva en aspersión.`
         : null;
 
@@ -528,7 +538,7 @@ export function predice24h(e: EstacionConLectura): Pred24 {
     };
 }
 
-async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
+async function buildHTML(ests: EstacionConLectura[], umbrales?: UmbralClima[]): Promise<string> {
     const [logoSRL, logoSICA] = await Promise.all([
         assetToDataURI('/logos/logo-srl.png'),
         assetToDataURI('/logos/SICA005.png'),
@@ -551,9 +561,9 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
     const etoFcHoy = etoTotalDelDiaRed(
         ests, new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' }),
     );
-    const an = analisisTecnico(ests, etoProm, gddProm, lluviaTotal, etoFcHoy);
+    const an = analisisTecnico(ests, etoProm, gddProm, lluviaTotal, etoFcHoy, umbrales);
     // Predicción por tendencia (nowcasting) a 24 h por estación en línea
-    const preds = ests.filter(e => e.enLinea && e.lectura).map(predice24h);
+    const preds = ests.filter(e => e.enLinea && e.lectura).map(e => predice24h(e, umbrales));
 
     // Climatología histórica (NASA POWER): promedio de esta misma fecha en años
     // anteriores. No falla el informe si no hay historia suficiente todavía —
@@ -1572,8 +1582,8 @@ async function buildHTML(ests: EstacionConLectura[]): Promise<string> {
 }
 
 /** Genera el informe técnico y lo entrega como archivo HTML autónomo. */
-export async function exportClimaReport(ests: EstacionConLectura[]): Promise<void> {
-    const html = await buildHTML(ests);
+export async function exportClimaReport(ests: EstacionConLectura[], umbrales?: UmbralClima[]): Promise<void> {
+    const html = await buildHTML(ests, umbrales);
     const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
     const date = getTodayString();
     await guardaOComparte(blob, `informe-clima-conchos-${date}.html`, 'text/html');

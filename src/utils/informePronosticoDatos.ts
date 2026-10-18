@@ -15,6 +15,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import type { EstacionConLectura, PronosticoHora } from '../hooks/useClimaEstaciones';
 import type { AlertaClima, UmbralClima } from '../hooks/useClimaOperativo';
+import { sensoresLegibles } from './sensoresEstacion';
 import { MODULOS_SRL } from './geoDistrito';
 import { MODULOS_SRL_IDS, numeroModuloDeId, superficieRiegoHa } from './modulosSRL';
 import {
@@ -831,6 +832,10 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
     if (!conSerie.length) avisosCalidad.push('No hay pronóstico disponible en la base de datos: el informe no puede emitir recomendaciones.');
     if (edadModelo != null && edadModelo > CORRIDA_VIEJA_MIN) avisosCalidad.push(`El pronóstico tiene ${Math.round(edadModelo / 60)} h de antigüedad: la sincronización horaria no se ha actualizado, interprete con cautela.`);
     if (estacionesExcluidas.length) avisosCalidad.push(`${estacionesExcluidas.map(x => x.nombre).join(', ')}: lecturas observadas excluidas por sensor sospechoso.`);
+    for (const s of e.estaciones) {
+        const malos = sensoresLegibles(s.sensores_no_confiables);
+        if (malos) avisosCalidad.push(`${s.nombre}: sensores no confiables (${malos}); sus valores observados se muestran S/D y no entran a los promedios.`);
+    }
     const sinPron = e.estaciones.filter(s => !conSerie.some(x => x.est.id === s.id));
     if (sinPron.length) avisosCalidad.push(`Sin pronóstico para: ${sinPron.map(s => s.nombre).join(', ')}.`);
 

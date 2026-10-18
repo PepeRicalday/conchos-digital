@@ -21,6 +21,8 @@ export interface EstacionClima {
     rol: 'presa' | 'modulo' | 'canal' | 'unidad_riego' | string;
     activa: boolean;
     ult_dato_en: string | null;
+    /** Columnas de lectura que la estación no mide bien: la BD las guarda como NULL (S/D). */
+    sensores_no_confiables?: string[] | null;
 }
 
 export interface LecturaClima {

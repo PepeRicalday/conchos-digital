@@ -41,6 +41,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { calculaIndices, entradasDesdeEstaciones, etoTotalDelDiaRed, GDD_BASE_C, KP_TANQUE_EVAPORIMETRICO, type Indice } from '../utils/indicesAgro';
 import { obtenNdviModulo, type NdviModulo } from '../utils/kcNdvi';
 import EstacionDetalle from '../components/EstacionDetalle';
+import { sensoresLegibles } from '../utils/sensoresEstacion';
 import { WindyMapModal } from '../components/WindyMapModal';
 import { CENTRO_DISTRITO } from '../utils/mapaSatelital';
 
@@ -392,6 +393,9 @@ const EstacionCard = ({ est, onAbrir, horaCorte, sospechosa }: {
     const q = est.calidad;
     const c = est.cielo;
     const fc = est.pronostico;
+    // Columnas que esta estación no mide bien: la BD las guarda como NULL y aquí se rotulan S/D (no un guion).
+    const noConf = (col: string) => !!est.sensores_no_confiables?.includes(col);
+    const sensoresMalos = sensoresLegibles(est.sensores_no_confiables);
 
     /* ETₒ de la tarjeta: `eto_mm` es el ACUMULADO DEL DÍA HASTA LA LECTURA, no el
        total diario. De madrugada vale 0 legítimamente (el día apenas inicia) y la
@@ -443,9 +447,9 @@ const EstacionCard = ({ est, onAbrir, horaCorte, sospechosa }: {
 
             {l ? (
                 <div className="estacion-grid">
-                    <div className="est-var"><Thermometer size={13} /><b>{sospechosa ? 'S/D' : l.temp_c != null ? l.temp_c.toFixed(1) : '—'}</b><small>°C</small></div>
-                    <div className="est-var"><Droplets size={13} /><b>{l.hum_rel_pct != null ? Math.round(l.hum_rel_pct) : '—'}</b><small>% HR</small></div>
-                    <div className="est-var"><Wind size={13} /><b>{l.viento_ms != null ? l.viento_ms.toFixed(1) : '—'}</b><small>m/s</small></div>
+                    <div className="est-var"><Thermometer size={13} /><b>{sospechosa || noConf('temp_c') ? 'S/D' : l.temp_c != null ? l.temp_c.toFixed(1) : '—'}</b><small>°C</small></div>
+                    <div className="est-var"><Droplets size={13} /><b>{noConf('hum_rel_pct') ? 'S/D' : l.hum_rel_pct != null ? Math.round(l.hum_rel_pct) : '—'}</b><small>% HR</small></div>
+                    <div className="est-var"><Wind size={13} /><b>{noConf('viento_ms') ? 'S/D' : l.viento_ms != null ? l.viento_ms.toFixed(1) : '—'}</b><small>m/s</small></div>
                     <div className="est-var"><CloudRain size={13} /><b>{l.lluvia_dia_mm != null ? l.lluvia_dia_mm.toFixed(1) : '—'}</b><small>mm día</small></div>
                     <div className="est-var accent" title={etoParcial
                         ? 'Acumulado del día hasta la hora de la lectura. De madrugada es cercano a 0 porque el día apenas inicia; abre el detalle para ver el cierre del día anterior.'
@@ -454,7 +458,7 @@ const EstacionCard = ({ est, onAbrir, horaCorte, sospechosa }: {
                         <b>{etoVal != null ? etoVal.toFixed(2) : 'S/D'}</b>
                         <small>{etoParcial ? 'ETₒ mm · al corte' : 'ETₒ mm'}</small>
                     </div>
-                    <div className="est-var"><Zap size={13} /><b>{l.gdd != null ? l.gdd.toFixed(0) : '—'}</b><small>GDD</small></div>
+                    <div className="est-var"><Zap size={13} /><b>{noConf('gdd') ? 'S/D' : l.gdd != null ? l.gdd.toFixed(0) : '—'}</b><small>GDD</small></div>
                 </div>
             ) : (
                 <div className="estacion-nodata">Aún sin lecturas registradas.</div>
@@ -462,6 +466,12 @@ const EstacionCard = ({ est, onAbrir, horaCorte, sospechosa }: {
             {sospechosa && (
                 <div className="estacion-sospechosa" role="status">
                     <AlertTriangle size={12} aria-hidden="true" /> Lectura sospechosa: la temperatura no se muestra ni entra a los promedios.
+                </div>
+            )}
+
+            {!sospechosa && sensoresMalos && (
+                <div className="estacion-sospechosa" role="status">
+                    <AlertTriangle size={12} aria-hidden="true" /> Sensores no confiables ({sensoresMalos}): se muestran como S/D y no entran a los promedios. Lluvia, presión y radiación sí son válidas.
                 </div>
             )}
 

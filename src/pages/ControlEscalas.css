@@ -678,20 +678,70 @@
 
 /* Warning Badge */
 .warning-badge {
-    position: absolute;
-    top: var(--spacing-sm);
-    right: var(--spacing-sm);
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 2px 6px;
+    margin-top: var(--spacing-sm);
+    padding: 3px 8px;
     background-color: rgba(239, 68, 68, 0.2);
     border: 1px solid rgba(239, 68, 68, 0.4);
     border-radius: var(--radius-sm);
-    font-size: 0.5rem;
+    font-size: 0.75rem;
     font-weight: 600;
-    color: #ef4444;
+    color: #f87171;
 }
+
+/* Estados no alarmantes (S/D, arrastre, sin telemetría, referencia, vaciado): texto siempre, neutro */
+.ce-estado-badge {
+    margin-top: var(--spacing-sm);
+    padding: 3px 8px;
+    border: 1px dashed rgba(148, 163, 184, 0.5);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    background: rgba(148, 163, 184, 0.08);
+}
+.ce-estado-badge[data-estado="vaciado"] { border-style: solid; border-color: rgba(56, 189, 248, 0.45); color: #7dd3fc; }
+
+.ce-aviso {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: var(--radius-md, 8px);
+    background: rgba(56, 189, 248, 0.08);
+    color: #e0f2fe;
+    font-size: 0.85rem;
+}
+.ce-actualizado { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; font-size: 0.75rem; color: #94a3b8; }
+.ce-aviso-crit { border-color: rgba(248, 113, 113, 0.5); background: rgba(239, 68, 68, 0.1); color: #fecaca; }
+
+.ce-reintentar {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 14px;
+    margin-left: auto;
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+/* Spinner de carga (antes sin animación definida) */
+.escalas-container .spin { animation: spin 1s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .escalas-container .spin { animation: none; } }
+
+/* El diagrama ahora es un <button>: sin apariencia nativa */
+button.radial-diagram-section { background: transparent; border: 0; padding: 0; text-align: left; }
+button.radial-diagram-section:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; border-radius: 6px; }
 
 /* Responsive */
 @media (max-width: 1200px) {

@@ -1,189 +1,82 @@
-import { useState, useEffect } from 'react';
-import { Gauge, Clock, ArrowUp, ArrowDown, Minus, AlertTriangle, Droplets, Activity, Loader, Settings, Waves, Calculator, X, Info } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { onTable } from '../lib/realtimeHub';
-import { useFecha } from '../context/FechaContext';
+import { memo, useId, useMemo, useState } from 'react';
+import { Gauge, Clock, ArrowUp, ArrowDown, Minus, AlertTriangle, Droplets, Activity, Loader, Settings, Waves, Calculator, X, Info, RefreshCw } from 'lucide-react';
+import { useControlEscalas } from '../hooks/useControlEscalas';
+import { useModalA11y } from '../hooks/useModalA11y';
+import { promedioONull, estadoCuentaEnPromedio, resumenCompuertas, porcentajeTubo, maxEjeTubo, type EstadoNivel } from '../utils/controlEscalas';
+import type { ScaleReading, Zone } from '../utils/controlEscalasZonas';
 import './ControlEscalas.css';
 
-// Types from Supabase view
-interface ResumenEscala {
-    escala_id: string;
-    nombre: string;
-    km: number;
-    seccion_id: string;
-    seccion_nombre: string;
-    seccion_color: string;
-    nivel_min_operativo: number;
-    nivel_max_operativo: number;
-    capacidad_max: number;
-    fecha: string;
-    lectura_am: number | null;
-    lectura_pm: number | null;
-    hora_am: string | null;
-    hora_pm: string | null;
-    nivel_actual: number | null;
-    delta_12h: number | null;
-    estado: string;
-}
+const fm = (v: number | null | undefined, d = 2) => (v == null || !Number.isFinite(v) ? 'S/D' : v.toFixed(d));
+const signo = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`;
 
-interface EscalaConfig {
-    id: string;
-    pzas_radiales: number;
-    ancho: number;
-    alto: number;
-}
-
-interface RadialApertura {
-    index: number;
-    apertura_m: number;
-}
-
-interface LecturaRadial {
-    escala_id: string;
-    nivel_m: number;
-    nivel_abajo_m: number;
-    apertura_radiales_m: number;
-    radiales_json: RadialApertura[] | null;
-    gasto_calculado_m3s: number;
-    hora_lectura: string;
-    fecha: string;
-}
-
-interface ScaleReading {
-    id: string;
-    name: string;
-    km: number;
-    currentLevel: number;
-    amReading: number;
-    pmReading: number;
-    // true = NO hubo lectura (amReading/pmReading valen 0 solo por compatibilidad): se muestra S/D, nunca 0.
-    sinAm?: boolean;
-    sinPm?: boolean;
-    minOperational: number;
-    maxOperational: number;
-    maxCapacity: number;
-    // Radial gate data
-    pzasRadiales: number;
-    anchoRadial: number;
-    altoRadial: number;
-    radialAperturas: RadialApertura[];
-    nivelAbajo: number | null;
-    gastoCalculado: number;
-    horaLectura: string;
-}
-
-interface Zone {
-    id: string;
-    name: string;
-    color: string;
-    scales: ScaleReading[];
-}
-
-function mapResumenToZones(
-    data: ResumenEscala[],
-    configs: Map<string, EscalaConfig>,
-    lecturas: Map<string, LecturaRadial>
-): Zone[] {
-    const zonesMap = new Map<string, Zone>();
-
-    for (const row of data) {
-        const secId = row.seccion_id || 'sin-seccion';
-        if (!zonesMap.has(secId)) {
-            zonesMap.set(secId, {
-                id: secId,
-                name: row.seccion_nombre || secId,
-                color: row.seccion_color || '#6b7280',
-                scales: [],
-            });
-        }
-
-        const escalaKey = row.escala_id.trim().toUpperCase();
-        const cfg = configs.get(escalaKey);
-        const lect = lecturas.get(escalaKey);
-
-        zonesMap.get(secId)!.scales.push({
-            id: row.escala_id,
-            name: row.nombre,
-            km: row.km,
-            currentLevel: row.nivel_actual ?? 0,
-            amReading: row.lectura_am ?? 0,
-            pmReading: row.lectura_pm ?? 0,
-            sinAm: row.lectura_am == null,
-            sinPm: row.lectura_pm == null,
-            minOperational: row.nivel_min_operativo,
-            maxOperational: row.nivel_max_operativo,
-            maxCapacity: row.capacidad_max,
-            // Radial gate enrichment
-            pzasRadiales: cfg?.pzas_radiales ?? 0,
-            anchoRadial: cfg?.ancho ?? 0,
-            altoRadial: cfg?.alto ?? 0,
-            radialAperturas: lect?.radiales_json ?? [],
-            nivelAbajo: lect && lect.nivel_abajo_m > 0 ? lect.nivel_abajo_m : null,
-            gastoCalculado: lect?.gasto_calculado_m3s ?? 0,
-            horaLectura: lect?.hora_lectura ?? '',
-        });
-    }
-
-    for (const zone of zonesMap.values()) {
-        zone.scales.sort((a, b) => a.km - b.km);
-    }
-
-    return Array.from(zonesMap.values()).sort((a, b) => {
-        const aKm = a.scales[0]?.km ?? 0;
-        const bKm = b.scales[0]?.km ?? 0;
-        return aKm - bKm;
-    });
+/** Texto corto del estado de la escala (nunca solo color). null = en rango, no se rotula. */
+function etiquetaEstado(s: ScaleReading): string | null {
+    const map: Record<EstadoNivel, string | null> = {
+        sd: 'Sin dato',
+        stale: 'Sin telemetría vigente',
+        arrastre: `Arrastre de continuidad${s.horaLectura ? ` ${s.horaLectura}` : ''} (no es medición)`,
+        referencia: 'Escala de referencia',
+        vaciado: 'Canal en vaciado',
+        bajo: s.desviacionM != null ? `Bajo el mínimo ${signo(s.desviacionM)} m` : 'Bajo el mínimo',
+        alto: s.desviacionM != null ? `Sobre el máximo ${signo(s.desviacionM)} m` : 'Sobre el máximo',
+        en_rango: null,
+    };
+    return map[s.estado];
 }
 
 // ─── COMPONENTE: Modal de Cálculo de Radiales ───
 const RadialModal = ({ scale, onClose }: { scale: ScaleReading; onClose: () => void }) => {
-    if (!scale) return null;
-
-    const { pzasRadiales, anchoRadial, altoRadial, currentLevel, nivelAbajo, gastoCalculado, radialAperturas } = scale;
-    const openRadiales = radialAperturas.filter(r => r.apertura_m > 0);
-    const totalAperturaXAncho = openRadiales.reduce((acc, r) => acc + (Math.min(r.apertura_m, altoRadial) * anchoRadial), 0);
-    const cargaH = currentLevel > 0 && nivelAbajo !== null ? Math.max(0, currentLevel - nivelAbajo) : null;
+    const ref = useModalA11y<HTMLDivElement>(true, onClose);
+    const titleId = useId();
+    const { anchoRadial, altoRadial, currentLevel, nivelAbajo, gasto, aperturas } = scale;
+    const totalAperturaXAncho = aperturas.reduce<number>((acc, ap) => acc + (ap != null && ap > 0 ? Math.min(ap, altoRadial) * anchoRadial : 0), 0);
+    const cargaH = currentLevel != null && currentLevel > 0 && nivelAbajo !== null ? Math.max(0, currentLevel - nivelAbajo) : null;
 
     return (
         <div className="radial-modal-overlay" onClick={onClose} style={{
-            position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+            position: 'fixed', top: 0, left: 'var(--sidebar-w, 0px)', right: 0, bottom: 0,
             backgroundColor: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(4px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '12px'
         }}>
-            <div className="radial-modal-content" onClick={e => e.stopPropagation()} style={{
+            <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+                className="radial-modal-content" onClick={e => e.stopPropagation()} style={{
                 backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px',
-                width: '90%', maxWidth: '600px', padding: '24px', position: 'relative',
+                width: '100%', maxWidth: '600px', maxHeight: '92dvh', overflowY: 'auto', padding: '24px', position: 'relative',
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
             }}>
-                <button onClick={onClose} style={{ position: 'absolute', top: '16px', right: '16px', color: '#94a3b8', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                <button onClick={onClose} aria-label="Cerrar" style={{ position: 'absolute', top: '8px', right: '8px', minWidth: '44px', minHeight: '44px', color: '#94a3b8', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                     <X size={20} />
                 </button>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: '1px solid #1e293b', paddingBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: '1px solid #1e293b', paddingBottom: '16px', paddingRight: '40px' }}>
                     <div style={{ padding: '8px', backgroundColor: 'rgba(14, 165, 233, 0.1)', borderRadius: '8px' }}>
                         <Calculator size={24} color="#0ea5e9" />
                     </div>
                     <div>
-                        <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '18px' }}>Cálculo Hidráulico de Represo</h3>
+                        <h3 id={titleId} style={{ margin: 0, color: '#f8fafc', fontSize: '18px' }}>Cálculo Hidráulico de Represo</h3>
                         <p style={{ margin: 0, color: '#94a3b8', fontSize: '12px' }}>{scale.name} — Km {scale.km}</p>
                     </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
                     <div style={{ backgroundColor: '#1e293b', padding: '16px', borderRadius: '8px', border: '1px solid #334155' }}>
-                        <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '4px', textTransform: 'uppercase' }}>Carga Hidrostática (H)</div>
-                        <div style={{ color: cargaH !== null ? '#0ea5e9' : '#64748b', fontSize: '24px', fontWeight: 'bold' }}>
+                        <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase' }}>Carga Hidrostática (H)</div>
+                        <div style={{ color: cargaH !== null ? '#0ea5e9' : '#94a3b8', fontSize: '24px', fontWeight: 'bold' }}>
                             {cargaH !== null ? <>{cargaH.toFixed(2)} <small style={{ fontSize: '14px' }}>m</small></> : 'S/D'}
                         </div>
-                        <div style={{ color: '#64748b', fontSize: '11px', marginTop: '4px' }}>
-                            Tirante arriba ({currentLevel.toFixed(2)}m) - Tirante abajo ({nivelAbajo !== null ? `${nivelAbajo.toFixed(2)}m` : 'sin dato'})
+                        <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '4px' }}>
+                            Tirante arriba ({fm(currentLevel)}m) - Tirante abajo ({nivelAbajo !== null ? `${nivelAbajo.toFixed(2)}m` : 'sin dato'})
                         </div>
                     </div>
 
                     <div style={{ backgroundColor: '#1e293b', padding: '16px', borderRadius: '8px', border: '1px solid #334155' }}>
-                        <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '4px', textTransform: 'uppercase' }}>Gasto Total Calculado (Q)</div>
-                        <div style={{ color: '#10b981', fontSize: '24px', fontWeight: 'bold' }}>{gastoCalculado.toFixed(3)} <small style={{ fontSize: '14px' }}>m³/s</small></div>
-                        <div style={{ color: '#64748b', fontSize: '11px', marginTop: '4px' }}>Aforo procesado desde lectura móvil</div>
+                        <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase' }}>Gasto Total Calculado (Q)</div>
+                        <div style={{ color: gasto != null ? '#10b981' : '#94a3b8', fontSize: '24px', fontWeight: 'bold' }}>
+                            {gasto != null ? <>{gasto.toFixed(3)} <small style={{ fontSize: '14px' }}>m³/s</small></> : 'S/D'}
+                        </div>
+                        <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '4px' }}>
+                            {gasto != null ? 'Calculado con la lectura de campo más reciente' : 'Sin lectura de campo vigente'}
+                        </div>
                     </div>
                 </div>
 
@@ -202,19 +95,23 @@ const RadialModal = ({ scale, onClose }: { scale: ScaleReading; onClose: () => v
                             </tr>
                         </thead>
                         <tbody>
-                            {Array.from({ length: pzasRadiales }).map((_, i) => {
-                                const ap = radialAperturas[i]?.apertura_m ?? 0;
-                                const area = Math.min(ap, altoRadial) * anchoRadial;
+                            {aperturas.map((ap, i) => {
+                                const area = ap != null ? Math.min(ap, altoRadial) * anchoRadial : null;
+                                const excede = ap != null && ap > altoRadial && altoRadial > 0;
                                 return (
-                                    <tr key={i} style={{ borderTop: '1px solid #334155', backgroundColor: ap > 0 ? 'rgba(14, 165, 233, 0.05)' : 'transparent' }}>
+                                    <tr key={i} style={{ borderTop: '1px solid #334155', backgroundColor: ap != null && ap > 0 ? 'rgba(14, 165, 233, 0.05)' : 'transparent' }}>
                                         <td style={{ padding: '10px 12px', color: '#e2e8f0', fontWeight: 'bold' }}>R{i + 1}</td>
-                                        <td style={{ padding: '10px 12px', color: ap > 0 ? '#38bdf8' : '#64748b' }}>{ap.toFixed(2)} m</td>
-                                        <td style={{ padding: '10px 12px', color: '#e2e8f0' }}>{area.toFixed(2)} m²</td>
+                                        <td style={{ padding: '10px 12px', color: ap != null && ap > 0 ? '#38bdf8' : '#94a3b8' }}>{ap != null ? `${ap.toFixed(2)} m` : 'S/D'}</td>
+                                        <td style={{ padding: '10px 12px', color: '#e2e8f0' }}>{area != null ? `${area.toFixed(2)} m²` : 'S/D'}</td>
                                         <td style={{ padding: '10px 12px' }}>
-                                            {ap > 0 ? (
-                                                <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', border: '1px solid rgba(16,185,129,0.2)' }}>ABIERTA</span>
+                                            {ap == null ? (
+                                                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>S/D</span>
+                                            ) : ap > 0 ? (
+                                                <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', border: '1px solid rgba(16,185,129,0.2)' }}>
+                                                    ABIERTA{excede ? ' (apertura > alto: revisar)' : ''}
+                                                </span>
                                             ) : (
-                                                <span style={{ backgroundColor: 'rgba(100, 116, 139, 0.1)', color: '#94a3b8', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', border: '1px solid rgba(100,116,139,0.2)' }}>CERRADA</span>
+                                                <span style={{ backgroundColor: 'rgba(100, 116, 139, 0.1)', color: '#94a3b8', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', border: '1px solid rgba(100,116,139,0.2)' }}>CERRADA</span>
                                             )}
                                         </td>
                                     </tr>
@@ -228,7 +125,7 @@ const RadialModal = ({ scale, onClose }: { scale: ScaleReading; onClose: () => v
                         <Info size={18} color="#0ea5e9" style={{ flexShrink: 0 }} />
                         <span style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: 1.4 }}>
                             Área total de sección destapada: <b style={{ color: '#fff' }}>{totalAperturaXAncho.toFixed(2)} m²</b>.
-                            El gasto (<b>Q</b>) se calcula a partir de la velocidad dependiente de la carga hidrostática, aproximada localmente durante la bitácora móvil.
+                            El gasto (<b>Q</b>) depende de la carga hidrostática y del factor de calibración de la escala.
                         </span>
                     </div>
                 )}
@@ -239,13 +136,15 @@ const RadialModal = ({ scale, onClose }: { scale: ScaleReading; onClose: () => v
 
 // ─── COMPONENTE: Mini Diagrama de Radiales (SVG inline) ───
 const RadialGateDiagram = ({ scale, onOpenModal }: { scale: ScaleReading; onOpenModal: () => void }) => {
-    const { pzasRadiales, anchoRadial, altoRadial, radialAperturas, currentLevel, nivelAbajo } = scale;
+    const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+    const { pzasRadiales, anchoRadial, altoRadial, aperturas, currentLevel, nivelAbajo } = scale;
     if (pzasRadiales <= 0) return null;
 
+    const nivel = currentLevel ?? 0;
     const W = 150;
     const H = 80;
     const baseLine = 70;
-    const pxPerMeter = 45 / Math.max(altoRadial * 1.3, currentLevel * 1.3, (nivelAbajo ?? 0) * 1.3, 2);
+    const pxPerMeter = 45 / Math.max(altoRadial * 1.3, nivel * 1.3, (nivelAbajo ?? 0) * 1.3, 2);
     const gateAreaW = W - 30; // reserva 20px para franja de aguas abajo
     const gateWidth = gateAreaW / pzasRadiales;
     const pillarW = 4;
@@ -254,71 +153,69 @@ const RadialGateDiagram = ({ scale, onOpenModal }: { scale: ScaleReading; onOpen
     const abajoX = startX + gateAreaW + pillarW + 2;
     const abajoW = W - abajoX - 2;
 
-    const waterY = baseLine - (currentLevel * pxPerMeter);
+    const waterY = baseLine - (nivel * pxPerMeter);
     const waterYAbajo = nivelAbajo !== null ? baseLine - (nivelAbajo * pxPerMeter) : null;
-    const cargaH = nivelAbajo !== null ? Math.max(0, currentLevel - nivelAbajo) : null;
+    const cargaH = currentLevel != null && nivelAbajo !== null ? Math.max(0, currentLevel - nivelAbajo) : null;
 
-    const openCount = radialAperturas.filter(r => r.apertura_m > 0).length;
+    const comp = resumenCompuertas(aperturas);
+    const gArriba = `wGrad${uid}`, gAbajo = `wGradAbajo${uid}`;
 
     return (
-        <div className="radial-diagram-section hover-effect" onClick={onOpenModal} style={{ cursor: 'pointer', transition: 'all 0.2s ease' }} title="Ver Cálculo Hidráulico">
+        <button type="button" className="radial-diagram-section hover-effect" onClick={onOpenModal}
+            style={{ cursor: 'pointer', transition: 'all 0.2s ease', textAlign: 'inherit', font: 'inherit', color: 'inherit' }}
+            aria-label={`Ver cálculo hidráulico de ${scale.name}`}>
             <div className="radial-diagram-header">
                 <Settings size={10} />
                 <span>{pzasRadiales} Radiales ({anchoRadial}m × {altoRadial}m)</span>
             </div>
-            <svg viewBox={`0 0 ${W} ${H}`} className="radial-svg">
+            <svg viewBox={`0 0 ${W} ${H}`} className="radial-svg" role="img" aria-label={`${scale.name}: ${comp.estado === 'S/D' ? 'compuertas sin dato' : `${comp.abiertas} de ${pzasRadiales} compuertas abiertas`}`}>
                 <defs>
-                    <linearGradient id="wGrad" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id={gArriba} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.2" />
                         <stop offset="100%" stopColor="#0284c7" stopOpacity="0.5" />
                     </linearGradient>
-                    <linearGradient id="wGradAbajo" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id={gAbajo} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#a855f7" stopOpacity="0.2" />
                         <stop offset="100%" stopColor="#7e22ce" stopOpacity="0.55" />
                     </linearGradient>
                 </defs>
 
-                {/* Water body aguas arriba (en el vaso de la compuerta) */}
-                {currentLevel > 0 && (
-                    <rect x={startX} y={Math.max(8, waterY)} width={gateAreaW + pillarW} height={baseLine - Math.max(8, waterY)} fill="url(#wGrad)" />
+                {currentLevel != null && currentLevel > 0 && (
+                    <>
+                        <rect x={startX} y={Math.max(8, waterY)} width={gateAreaW + pillarW} height={baseLine - Math.max(8, waterY)} fill={`url(#${gArriba})`} />
+                        <line x1={0} y1={waterY} x2={abajoX} y2={waterY} stroke="#38bdf8" strokeWidth="1" strokeDasharray="3 2" opacity={0.5} />
+                    </>
                 )}
 
-                {/* Water line arriba */}
-                <line x1={0} y1={waterY} x2={abajoX} y2={waterY} stroke="#38bdf8" strokeWidth="1" strokeDasharray="3 2" opacity={0.5} />
-
-                {/* Franja de aguas abajo (canal de salida, después de la última compuerta) */}
                 <line x1={abajoX} y1={12} x2={abajoX} y2={baseLine} stroke="#475569" strokeWidth="1" strokeDasharray="2 2" opacity={0.5} />
                 {waterYAbajo !== null && (
-                    <rect x={abajoX} y={Math.max(8, waterYAbajo)} width={abajoW} height={baseLine - Math.max(8, waterYAbajo)} fill="url(#wGradAbajo)" />
-                )}
-                {waterYAbajo !== null && (
-                    <line x1={abajoX} y1={waterYAbajo} x2={W} y2={waterYAbajo} stroke="#c084fc" strokeWidth="1" strokeDasharray="2 2" opacity={0.8} />
+                    <>
+                        <rect x={abajoX} y={Math.max(8, waterYAbajo)} width={abajoW} height={baseLine - Math.max(8, waterYAbajo)} fill={`url(#${gAbajo})`} />
+                        <line x1={abajoX} y1={waterYAbajo} x2={W} y2={waterYAbajo} stroke="#c084fc" strokeWidth="1" strokeDasharray="2 2" opacity={0.8} />
+                    </>
                 )}
 
-                {/* Base */}
                 <line x1={0} y1={baseLine} x2={W} y2={baseLine} stroke="#475569" strokeWidth="2" />
 
-                {/* Pillars + Gates */}
                 {Array.from({ length: pzasRadiales + 1 }).map((_, i) => {
                     const px = startX + i * gateWidth;
                     return (
                         <g key={i}>
                             <rect x={px} y={12} width={pillarW} height={baseLine - 12} fill="#334155" stroke="#0f172a" strokeWidth="0.5" />
                             {i < pzasRadiales && (() => {
-                                const ap = radialAperturas[i]?.apertura_m ?? 0;
+                                const apRaw = aperturas[i];
+                                const ap = apRaw ?? 0;
                                 const gx = px + pillarW;
                                 const gatePxH = altoRadial * pxPerMeter;
                                 const liftPx = ap * pxPerMeter;
                                 const isOpen = ap > 0;
+                                const sinDato = apRaw == null;
 
                                 return (
-                                    <g>
-                                        {/* Flow through aperture */}
+                                    <g opacity={sinDato ? 0.45 : 1}>
                                         {isOpen && (
                                             <rect x={gx + 1} y={baseLine - liftPx} width={effectiveGW - 2} height={liftPx} fill="#0ea5e9" opacity="0.7" rx="1" />
                                         )}
-
-                                        {/* Gate plate */}
                                         <rect
                                             x={gx}
                                             y={baseLine - gatePxH - liftPx}
@@ -328,18 +225,15 @@ const RadialGateDiagram = ({ scale, onOpenModal }: { scale: ScaleReading; onOpen
                                             stroke={isOpen ? '#f59e0b' : '#475569'}
                                             strokeWidth="1"
                                             rx="2"
+                                            strokeDasharray={sinDato ? '2 1.5' : undefined}
                                         />
-
-                                        {/* Cross bracing */}
                                         <line x1={gx} y1={baseLine - gatePxH - liftPx} x2={gx + effectiveGW} y2={baseLine - liftPx} stroke="#0f172a" strokeWidth="0.5" opacity="0.3" />
-
-                                        {/* Label */}
-                                        <text x={gx + effectiveGW / 2} y={baseLine - gatePxH - liftPx + gatePxH / 2 + 3} textAnchor="middle" fill={isOpen ? '#0f172a' : '#94a3b8'} fontSize="7" fontWeight="bold">
-                                            R{i + 1}
-                                        </text>
-
-                                        {/* Apertura label */}
-                                        {isOpen && (
+                                        {pzasRadiales <= 6 && (
+                                            <text x={gx + effectiveGW / 2} y={baseLine - gatePxH - liftPx + gatePxH / 2 + 3} textAnchor="middle" fill={isOpen ? '#0f172a' : '#94a3b8'} fontSize="7" fontWeight="bold">
+                                                R{i + 1}
+                                            </text>
+                                        )}
+                                        {isOpen && pzasRadiales <= 6 && (
                                             <text x={gx + effectiveGW / 2} y={baseLine - liftPx / 2 + 3} textAnchor="middle" fill="#fff" fontSize="6" fontWeight="bold">
                                                 {ap.toFixed(2)}
                                             </text>
@@ -352,69 +246,67 @@ const RadialGateDiagram = ({ scale, onOpenModal }: { scale: ScaleReading; onOpen
                 })}
             </svg>
             <div className="radial-status-row">
-                <span className={`radial-badge ${openCount > 0 ? 'open' : 'closed'}`}>
-                    {openCount > 0 ? `${openCount}/${pzasRadiales} Abiertas` : 'Todas Cerradas'}
+                <span className={`radial-badge ${comp.estado === 'ABIERTAS' ? 'open' : 'closed'}`}>
+                    {comp.estado === 'S/D' ? 'Compuertas S/D'
+                        : comp.estado === 'ABIERTAS' ? `${comp.abiertas}/${pzasRadiales} Abiertas` : 'Todas Cerradas'}
                 </span>
                 <span className="radial-badge carga" title="Carga hidrostática = nivel arriba - nivel abajo">
                     H {cargaH !== null ? `${cargaH.toFixed(2)}m` : 'S/D'}
                 </span>
             </div>
-        </div>
+        </button>
     );
 };
 
 // ─── COMPONENTE: Barra de Gasto / Volumen en Caja ───
-const GastoVolumeBar = ({ scale }: { scale: ScaleReading }) => {
-    // La capacidad de la caja (volumen relativo) se basa en el nivel máximo físico (asumimos 4m si no hay dato)
-    const MAX_LEVEL_PHYSICAL = scale.maxOperational > 0 ? (scale.maxOperational * 1.2) : 4.0;
-    const volumePercent = Math.min((scale.currentLevel / MAX_LEVEL_PHYSICAL) * 100, 100);
-    const isHigh = scale.currentLevel > scale.maxOperational;
-    const isLow = scale.currentLevel < scale.minOperational;
+const GastoVolumeBar = ({ scale, eje }: { scale: ScaleReading; eje: number }) => {
+    const pct = porcentajeTubo(scale.currentLevel, eje);
+    const isHigh = scale.estado === 'alto';
+    const isLow = scale.estado === 'bajo';
 
     return (
         <div className="gasto-volume-section">
-            {scale.gastoCalculado > 0 && (
-                <div className="gasto-row">
-                    <Waves size={12} />
-                    <span className="gasto-label">Q =</span>
-                    <span className="gasto-value">{scale.gastoCalculado.toFixed(3)}</span>
-                    <span className="gasto-unit">m³/s</span>
-                </div>
-            )}
+            <div className="gasto-row">
+                <Waves size={12} />
+                <span className="gasto-label">Q =</span>
+                <span className="gasto-value">{scale.gasto != null ? scale.gasto.toFixed(3) : 'S/D'}</span>
+                {scale.gasto != null && <span className="gasto-unit">m³/s</span>}
+            </div>
             <div className="nivel-abajo-row">
                 <ArrowDown size={10} />
                 <span>Aguas abajo: {scale.nivelAbajo !== null ? `${scale.nivelAbajo.toFixed(2)}m` : 'S/D'}</span>
             </div>
-            <div className="volume-bar-container">
+            <div className="volume-bar-container" title="Nivel respecto al eje de la escala (no es volumen almacenado)">
                 <div className="volume-bar-track">
                     <div
                         className={`volume-bar-fill ${isHigh ? 'high' : isLow ? 'low' : 'normal'}`}
-                        style={{ width: `${volumePercent}%` }}
+                        style={{ width: `${pct ?? 0}%` }}
                     />
                 </div>
-                <span className="volume-percent">{volumePercent.toFixed(0)}%</span>
+                <span className="volume-percent">{pct != null ? `${pct.toFixed(0)}%` : 'S/D'}</span>
             </div>
         </div>
     );
 };
 
-// ─── COMPONENTE: Scale Gauge (Vertical) — Expandido ───
-const ScaleGauge = ({ scale, zoneColor, onOpenModal }: { scale: ScaleReading; zoneColor: string; onOpenModal: (scale: ScaleReading) => void }) => {
-    const MAX_H = 4.0; // Altura base visual de la escala
-    const levelPercent = (scale.currentLevel / MAX_H) * 100;
-    const minPercent = (scale.minOperational / MAX_H) * 100;
-    const maxPercent = (scale.maxOperational / MAX_H) * 100;
+// ─── COMPONENTE: Scale Gauge (Vertical) ───
+const ScaleGauge = memo(({ scale, zoneColor, onOpenModal }: { scale: ScaleReading; zoneColor: string; onOpenModal: (scale: ScaleReading) => void }) => {
+    const eje = maxEjeTubo(scale.maxOperational, scale.currentLevel);
+    const levelPercent = porcentajeTubo(scale.currentLevel, eje);
+    const minPercent = porcentajeTubo(scale.minOperational, eje);
+    const maxPercent = porcentajeTubo(scale.maxOperational, eje);
+    const marcas = Array.from({ length: Math.floor(eje) + 1 }, (_, i) => Math.floor(eje) - i);
 
-    const sinDelta = !!(scale.sinAm || scale.sinPm);   // variación solo con AMBAS lecturas
-    const delta = sinDelta ? 0 : scale.pmReading - scale.amReading;
-    const isRising = delta > 0.02;
-    const isFalling = delta < -0.02;
+    const delta = scale.deltaM;
+    const isRising = delta != null && delta > 0.02;
+    const isFalling = delta != null && delta < -0.02;
 
-    const isWarning = scale.currentLevel < scale.minOperational || scale.currentLevel > scale.maxOperational;
     const hasRadiales = scale.pzasRadiales > 0;
+    const etiqueta = etiquetaEstado(scale);
+    const dimmed = scale.estado === 'arrastre' || scale.estado === 'stale';
 
     return (
-        <div className={`scale-gauge-card ${isWarning ? 'warning' : ''} ${hasRadiales ? 'has-radiales' : ''}`}>
+        <div className={`scale-gauge-card ${scale.alerta ? 'warning' : ''} ${hasRadiales ? 'has-radiales' : ''}`}>
             <div className="gauge-header">
                 <span className="gauge-name">{scale.name}</span>
                 <span className="gauge-km">Km {scale.km}</span>
@@ -422,47 +314,41 @@ const ScaleGauge = ({ scale, zoneColor, onOpenModal }: { scale: ScaleReading; zo
 
             <div className="gauge-body-row">
                 <div className="gauge-container">
-                    {/* Vertical Gauge */}
                     <div className="gauge-bar">
-                        {/* Background zones */}
-                        <div
-                            className="gauge-zone operational"
-                            style={{
-                                bottom: `${minPercent}%`,
-                                height: `${maxPercent - minPercent}%`,
-                                backgroundColor: `${zoneColor}20`
-                            }}
-                        />
+                        {minPercent != null && maxPercent != null && (
+                            <div
+                                className="gauge-zone operational"
+                                style={{ bottom: `${minPercent}%`, height: `${maxPercent - minPercent}%`, backgroundColor: `${zoneColor}20` }}
+                            />
+                        )}
+                        {minPercent != null && (
+                            <div className="gauge-marker min" style={{ bottom: `${minPercent}%` }}>
+                                <span>Min {fm(scale.minOperational, 1)}</span>
+                            </div>
+                        )}
+                        {maxPercent != null && (
+                            <div className="gauge-marker max" style={{ bottom: `${maxPercent}%` }}>
+                                <span>Max {fm(scale.maxOperational, 1)}</span>
+                            </div>
+                        )}
 
-                        {/* Min/Max markers */}
-                        <div className="gauge-marker min" style={{ bottom: `${minPercent}%` }}>
-                            <span>Min</span>
-                        </div>
-                        <div className="gauge-marker max" style={{ bottom: `${maxPercent}%` }}>
-                            <span>Max</span>
-                        </div>
+                        {levelPercent != null && (
+                            <div
+                                className="gauge-fill"
+                                style={{ height: `${levelPercent}%`, backgroundColor: scale.alerta ? '#ef4444' : zoneColor, opacity: dimmed ? 0.4 : 1 }}
+                            />
+                        )}
 
-                        {/* Water level fill */}
-                        <div
-                            className="gauge-fill"
-                            style={{
-                                height: `${levelPercent}%`,
-                                backgroundColor: isWarning ? '#ef4444' : zoneColor
-                            }}
-                        />
-
-                        {/* Level indicator */}
                         <div
                             className="level-indicator"
-                            style={{ bottom: `${levelPercent}%`, borderColor: zoneColor }}
+                            style={{ bottom: `${Math.min(Math.max(levelPercent ?? 0, 8), 92)}%`, borderColor: zoneColor }}
                         >
-                            <span className="level-value">{(scale.currentLevel ?? 0).toFixed(2)}m</span>
+                            <span className="level-value">{scale.currentLevel != null ? `${scale.currentLevel.toFixed(2)}m` : 'S/D'}</span>
                         </div>
                     </div>
 
-                    {/* Scale markings (0-4m) */}
                     <div className="gauge-scale">
-                        {[4, 3, 2, 1, 0].map(m => (
+                        {marcas.map(m => (
                             <div key={m} className="scale-tick">
                                 <span>{m}m</span>
                             </div>
@@ -470,50 +356,49 @@ const ScaleGauge = ({ scale, zoneColor, onOpenModal }: { scale: ScaleReading; zo
                     </div>
                 </div>
 
-                {/* Radial Gate Diagram (alongside gauge vertically) */}
                 {hasRadiales && <RadialGateDiagram scale={scale} onOpenModal={() => onOpenModal(scale)} />}
             </div>
 
-            {/* Gasto + Volumen en Caja */}
-            {hasRadiales && <GastoVolumeBar scale={scale} />}
+            {hasRadiales && <GastoVolumeBar scale={scale} eje={eje} />}
 
-            {/* 12-Hour Movement */}
             <div className="movement-section">
                 <div className="reading-row">
                     <Clock size={12} className="text-slate-500" />
-                    <span className="reading-label">06:00</span>
-                    <span className="reading-value">{scale.sinAm ? 'S/D' : `${(scale.amReading ?? 0).toFixed(2)}m`}</span>
+                    <span className="reading-label">AM{scale.horaAm ? ` ${scale.horaAm}` : ''}</span>
+                    <span className="reading-value">{fm(scale.amReading)}{scale.amReading != null ? 'm' : ''}</span>
                 </div>
                 <div className="reading-row">
                     <Clock size={12} className="text-slate-500" />
-                    <span className="reading-label">18:00</span>
-                    <span className="reading-value">{scale.sinPm ? 'S/D' : `${(scale.pmReading ?? 0).toFixed(2)}m`}</span>
+                    <span className="reading-label">PM{scale.horaPm ? ` ${scale.horaPm}` : ''}</span>
+                    <span className="reading-value">{fm(scale.pmReading)}{scale.pmReading != null ? 'm' : ''}</span>
                 </div>
                 <div className={`delta-row ${isRising ? 'rising' : isFalling ? 'falling' : 'stable'}`}>
                     {isRising ? <ArrowUp size={14} /> : isFalling ? <ArrowDown size={14} /> : <Minus size={14} />}
-                    <span>{sinDelta ? 'Δ S/D (falta una lectura)' : `Δ ${(delta ?? 0) >= 0 ? '+' : ''}${(delta ?? 0).toFixed(2)}m`}</span>
+                    <span>{delta == null ? 'Δ S/D (falta una lectura)' : `Δ ${signo(delta)}m`}</span>
                 </div>
             </div>
 
-            {isWarning && (
-                <div className="warning-badge">
-                    <AlertTriangle size={12} />
-                    <span>Fuera de rango</span>
-                </div>
+            {etiqueta && (
+                scale.alerta ? (
+                    <div className="warning-badge">
+                        <AlertTriangle size={12} />
+                        <span>{etiqueta}</span>
+                    </div>
+                ) : (
+                    <div className="ce-estado-badge" data-estado={scale.estado}>{etiqueta}</div>
+                )
             )}
         </div>
     );
-};
+});
 
 // Component: Zone Card
-const ZoneCard = ({ zone, onOpenModal }: { zone: Zone; onOpenModal: (scale: ScaleReading) => void }) => {
-    const avgLevel = zone.scales.reduce((sum, s) => sum + s.currentLevel, 0) / zone.scales.length;
-    const hasWarning = zone.scales.some(s => s.currentLevel < s.minOperational || s.currentLevel > s.maxOperational);
-    // Q de zona = gasto de la escala de cabecera (menor km, zone.scales[0] tras el sort por km
-    // en mapResumenToZones). Las escalas de una zona están en serie sobre el mismo cauce, así que
-    // sumar sus gastos no representa un "total" real: es el mismo agua medida varias veces aguas
-    // abajo. El balance tramo a tramo (entrada/salida/tomas/pérdidas) ya vive en BalanceHidraulico.tsx.
-    const qCabecera = zone.scales[0]?.gastoCalculado ?? 0;
+const ZoneCard = memo(({ zone, onOpenModal }: { zone: Zone; onOpenModal: (scale: ScaleReading) => void }) => {
+    const avgLevel = promedioONull(zone.scales.filter(s => estadoCuentaEnPromedio(s.estado)).map(s => s.currentLevel));
+    const hasWarning = zone.scales.some(s => s.alerta);
+    // Q de zona = gasto de la escala de cabecera (menor km). Las escalas de una zona están en serie sobre el
+    // mismo cauce: sumar sus gastos mediría la misma agua varias veces. El balance tramo a tramo vive en BalanceHidraulico.tsx.
+    const qCabecera = zone.scales[0]?.gasto ?? null;
     const radialScales = zone.scales.filter(s => s.pzasRadiales > 0);
 
     return (
@@ -531,12 +416,12 @@ const ZoneCard = ({ zone, onOpenModal }: { zone: Zone; onOpenModal: (scale: Scal
                     )}
                 </div>
                 <div className="zone-summary">
-                    <div className="summary-stat">
+                    <div className="summary-stat" title="Promedio de escalas con medición vigente (sin arrastres ni referencias)">
                         <Droplets size={16} style={{ color: zone.color }} />
-                        <span className="stat-value">{(avgLevel ?? 0).toFixed(2)}m</span>
+                        <span className="stat-value">{avgLevel != null ? `${avgLevel.toFixed(2)}m` : 'S/D'}</span>
                         <span className="stat-label">Promedio</span>
                     </div>
-                    {qCabecera > 0 && (
+                    {qCabecera != null && qCabecera > 0 && (
                         <div className="summary-stat" title={`Gasto medido en ${zone.scales[0]?.name} (cabecera de zona, Km ${zone.scales[0]?.km})`}>
                             <Waves size={16} style={{ color: '#0ea5e9' }} />
                             <span className="stat-value" style={{ color: '#0ea5e9' }}>{qCabecera.toFixed(2)}</span>
@@ -544,7 +429,7 @@ const ZoneCard = ({ zone, onOpenModal }: { zone: Zone; onOpenModal: (scale: Scal
                         </div>
                     )}
                     {hasWarning && (
-                        <div className="zone-warning">
+                        <div className="zone-warning" role="img" aria-label="Hay escalas fuera de rango">
                             <AlertTriangle size={14} />
                         </div>
                     )}
@@ -558,164 +443,54 @@ const ZoneCard = ({ zone, onOpenModal }: { zone: Zone; onOpenModal: (scale: Scal
             </div>
         </div>
     );
-};
+});
+
+const EJE_PROMEDIO_M = 4;
 
 // Main Component
 const ControlEscalas = () => {
-    const { fechaSeleccionada } = useFecha();
-    const [zones, setZones] = useState<Zone[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const { zones, cargado, error, avisos, actualizadoMs, vaciado, esHoy, recargar } = useControlEscalas();
     const [selectedScaleModal, setSelectedScaleModal] = useState<ScaleReading | null>(null);
 
-    useEffect(() => {
-        let cancelled = false;
-
-        async function fetchData() {
-            setLoading(true);
-            setError(null);
-
-            // 1. Fetch Configs and Base Scales
-            const { data: escalasBase, error: e1 } = await supabase
-                .from('escalas')
-                .select('id, nombre, km, seccion_id, nivel_min_operativo, nivel_max_operativo, capacidad_max, pzas_radiales, ancho, alto, activa, secciones(id, nombre, color)')
-                .eq('activa', true)
-                .order('km');
-
-            if (e1) { console.error("Error escalasBase:", e1); setError(e1.message); setLoading(false); return; }
-            if (cancelled) return;
-
-            const configMap = new Map<string, EscalaConfig>();
-            (escalasBase || []).forEach((e: any) => {
-                const key = e.id.trim().toUpperCase();
-                configMap.set(key, {
-                    id: e.id,
-                    pzas_radiales: Number(e.pzas_radiales) || 0,
-                    ancho: Number(e.ancho) || 0,
-                    alto: Number(e.alto) || 0,
-                });
-            });
-
-            // 2. Traer lecturas recientes (Últimos 1000 para asegurar continuidad amplia)
-            const { data: lecturasRaw, error: e2 } = await supabase
-                .from('lecturas_escalas')
-                .select('escala_id, nivel_m, nivel_abajo_m, apertura_radiales_m, radiales_json, gasto_calculado_m3s, hora_lectura, fecha, creado_en')
-                .order('creado_en', { ascending: false })
-                .limit(1000);
-
-            if (e2) console.error("Error lecturasRaw:", e2);
-
-            const lecturasMap = new Map<string, LecturaRadial>();
-            (lecturasRaw || []).forEach((l: any) => {
-                const key = l.escala_id.trim().toUpperCase();
-                if (!lecturasMap.has(key)) {
-                    let parsedRadiales = l.radiales_json;
-                    if (typeof l.radiales_json === 'string') {
-                        try { parsedRadiales = JSON.parse(l.radiales_json); } catch(e) { console.error("Error parsing radiales_json", e); }
-                    }
-
-                    lecturasMap.set(key, {
-                        escala_id: l.escala_id,
-                        nivel_m: Number(l.nivel_m) || 0,
-                        nivel_abajo_m: Number(l.nivel_abajo_m) || 0,
-                        apertura_radiales_m: Number(l.apertura_radiales_m) || 0,
-                        radiales_json: parsedRadiales || null,
-                        gasto_calculado_m3s: Number(l.gasto_calculado_m3s) || 0,
-                        hora_lectura: l.hora_lectura || '',
-                        fecha: l.fecha,
-                    });
-                }
-            });
-
-            // 3. Resumen diario para la fecha seleccionada
-            const { data: resumenData, error: e3 } = await supabase
-                .from('resumen_escalas_diario')
-                .select('*')
-                .eq('fecha', fechaSeleccionada);
-
-            if (e3) console.error("Error resumenData:", e3);
-            if (cancelled) return;
-
-            const resumenMap = new Map<string, any>();
-            (resumenData || []).forEach(r => resumenMap.set(r.escala_id.trim().toUpperCase(), r));
-
-            // 4. Merge Logic - Logica de CONTINUIDAD (Regla: "Un dato, una sola verdad")
-            const mapped: ResumenEscala[] = (escalasBase || []).map((e: any) => {
-                const key = e.id.trim().toUpperCase();
-                const res = resumenMap.get(key);
-                const last = lecturasMap.get(key);
-
-                // Fallback prioritario: Si no hay resumen, usar el dato más reciente
-                return {
-                    escala_id: e.id,
-                    nombre: e.nombre,
-                    km: Number(e.km),
-                    seccion_id: e.secciones?.id || '',
-                    seccion_nombre: e.secciones?.nombre || '',
-                    seccion_color: e.secciones?.color || '#6b7280',
-                    nivel_min_operativo: Number(e.nivel_min_operativo),
-                    nivel_max_operativo: Number(e.nivel_max_operativo),
-                    capacidad_max: Number(e.capacidad_max),
-                    fecha: fechaSeleccionada,
-                    lectura_am: res?.lectura_am != null ? Number(res.lectura_am) : (last?.nivel_m ?? null),
-                    lectura_pm: res?.lectura_pm != null ? Number(res.lectura_pm) : null,
-                    hora_am: res?.hora_am || last?.hora_lectura || null,
-                    hora_pm: res?.hora_pm || null,
-                    nivel_actual: res?.nivel_actual != null ? Number(res.nivel_actual) : (last?.nivel_m ?? null),
-                    delta_12h: res?.delta_12h != null ? Number(res.delta_12h) : 0,
-                    estado: res?.estado || (last ? 'continuo' : 'sin_captura'),
-                };
-            });
-
-            setZones(mapResumenToZones(mapped, configMap, lecturasMap));
-            setLoading(false);
-        }
-
-        fetchData();
-
-        const unsubEscalas = onTable('lecturas_escalas', '*', () => {
-            console.log('🔄 Cambio detectado en lecturas_escalas. Refrescando...');
-            fetchData();
-        });
-
-        return () => {
-            cancelled = true;
-            unsubEscalas();
+    const resumen = useMemo(() => {
+        const all = zones.flatMap(z => z.scales);
+        const contables = all.filter(s => estadoCuentaEnPromedio(s.estado));
+        const conDelta = all.filter(s => s.deltaM != null);
+        const cabecera = zones[0]?.scales[0];
+        return {
+            total: all.length,
+            alertas: all.filter(s => s.alerta).length,
+            sinMedicion: all.filter(s => s.estado === 'sd' || s.estado === 'stale' || s.estado === 'arrastre').length,
+            promedio: promedioONull(contables.map(s => s.currentLevel)),
+            avgDelta: promedioONull(conDelta.map(s => s.deltaM)),
+            represos: all.filter(s => s.pzasRadiales > 0).length,
+            cabecera,
         };
-    }, [fechaSeleccionada]);
+    }, [zones]);
 
-    // Calculate overall stats
-    const allScales = zones.flatMap(z => z.scales);
-    const totalScales = allScales.length;
-    const warningCount = allScales.filter(s => s.currentLevel < s.minOperational || s.currentLevel > s.maxOperational).length;
-    // Promedio SOLO con escalas que tienen lectura de la mañana Y de la tarde: antes un "sin lectura"
-    // contaba como 0 m y arrastraba el promedio (p. ej. Δ −1.66 m falso).
-    const escalasConDelta = allScales.filter(s => !s.sinAm && !s.sinPm);
-    const avgDelta = escalasConDelta.length > 0
-        ? escalasConDelta.reduce((sum, s) => sum + (s.pmReading - s.amReading), 0) / escalasConDelta.length
-        : null;
-    const totalRadiales = allScales.filter(s => s.pzasRadiales > 0).length;
-    // Q de cabecera del canal (menor km) — las escalas están en serie sobre el mismo cauce,
-    // sumar sus gastos mide la misma agua varias veces según avanza. Ver detalle en ZoneCard.
-    const escalaCabecera = zones[0]?.scales[0];
-    const qCabeceraCanal = escalaCabecera?.gastoCalculado ?? 0;
-
-    if (loading) {
+    if (!cargado) {
         return (
-            <div className="escalas-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+            <div className="escalas-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }} role="status" aria-label="Cargando niveles">
                 <Loader size={32} className="spin" style={{ color: 'var(--color-primary)' }} />
             </div>
         );
     }
 
-    if (error) {
+    if (error && zones.length === 0) {
         return (
             <div className="escalas-container" style={{ textAlign: 'center', padding: '3rem' }}>
                 <AlertTriangle size={32} style={{ color: '#ef4444', marginBottom: '1rem' }} />
-                <p style={{ color: '#ef4444' }}>Error: {error}</p>
+                <p style={{ color: '#ef4444' }}>No se pudieron leer las escalas: {error}</p>
+                <button type="button" className="ce-reintentar" onClick={() => { void recargar(); }}><RefreshCw size={14} /> Reintentar</button>
             </div>
         );
     }
+
+    const { total, alertas, sinMedicion, promedio, avgDelta, represos, cabecera } = resumen;
+    const qCabeceraCanal = cabecera?.gasto ?? null;
+    const horaActualizado = actualizadoMs != null
+        ? new Intl.DateTimeFormat('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' }).format(actualizadoMs)
+        : null;
 
     return (
         <div className="escalas-container">
@@ -725,26 +500,31 @@ const ControlEscalas = () => {
                     <p className="text-slate-400 text-sm">Monitoreo de Niveles Operativos y Compuertas Radiales (Km 0 - Km 104)</p>
                 </div>
 
-                {/* Quick Stats */}
                 <div className="header-stats">
                     <div className="stat-chip">
                         <Gauge size={16} />
-                        <span>{totalScales} Escalas</span>
+                        <span>{total} Escalas</span>
                     </div>
                     <div className="stat-chip" style={{ color: '#0ea5e9', borderColor: 'rgba(14,165,233,0.3)', backgroundColor: 'rgba(14,165,233,0.1)' }}>
                         <Settings size={16} />
-                        <span>{totalRadiales} Represos</span>
+                        <span>{represos} Represos</span>
                     </div>
-                    <div className={`stat-chip ${warningCount > 0 ? 'warning' : 'success'}`}>
+                    <div className={`stat-chip ${alertas > 0 ? 'warning' : vaciado ? '' : 'success'}`}>
                         <Activity size={16} />
-                        <span>{warningCount} Alertas</span>
+                        <span>{vaciado ? 'Alertas de riego suspendidas' : `${alertas} Alertas`}</span>
                     </div>
+                    {sinMedicion > 0 && (
+                        <div className="stat-chip" title="Escalas sin lectura de campo vigente (sin dato, vencida o solo arrastre de continuidad)">
+                            <Minus size={16} />
+                            <span>{sinMedicion} sin medición vigente</span>
+                        </div>
+                    )}
                     <div className={`stat-chip ${avgDelta == null ? '' : avgDelta >= 0 ? 'rising' : 'falling'}`}>
                         {avgDelta == null ? <Minus size={16} /> : avgDelta >= 0 ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
-                        <span>{avgDelta == null ? 'Δ S/D (12h)' : `Δ ${avgDelta >= 0 ? '+' : ''}${avgDelta.toFixed(2)}m (12h)`}</span>
+                        <span>{avgDelta == null ? 'Δ S/D (12h)' : `Δ ${signo(avgDelta)}m (12h)`}</span>
                     </div>
-                    {qCabeceraCanal > 0 && (
-                        <div className="stat-chip" style={{ color: '#0ea5e9', borderColor: 'rgba(14,165,233,0.3)', backgroundColor: 'rgba(14,165,233,0.1)' }} title={`Gasto medido en ${escalaCabecera?.name} (cabecera del canal, Km ${escalaCabecera?.km})`}>
+                    {qCabeceraCanal != null && qCabeceraCanal > 0 && (
+                        <div className="stat-chip" style={{ color: '#0ea5e9', borderColor: 'rgba(14,165,233,0.3)', backgroundColor: 'rgba(14,165,233,0.1)' }} title={`Gasto medido en ${cabecera?.name} (cabecera del canal, Km ${cabecera?.km})`}>
                             <Waves size={16} />
                             <span>Q Cabecera: {qCabeceraCanal.toFixed(2)} m³/s</span>
                         </div>
@@ -752,47 +532,63 @@ const ControlEscalas = () => {
                 </div>
             </header>
 
-            {/* Overall Canal Indicator */}
+            {vaciado && esHoy && (
+                <div className="ce-aviso" role="status">
+                    <Info size={16} />
+                    <span>Canal en <b>VACIADO</b>: el rango operativo de riego (mín–máx) no aplica y no se generan alertas por nivel bajo.</span>
+                </div>
+            )}
+            {(avisos.length > 0 || error) && (
+                <div className="ce-aviso ce-aviso-crit" role="alert">
+                    <AlertTriangle size={16} />
+                    <span>Datos incompletos{avisos.length ? `: no se pudo leer ${avisos.join(' y ')}` : `: ${error}`}. Lo mostrado puede estar desactualizado.</span>
+                    <button type="button" className="ce-reintentar" onClick={() => { void recargar(); }}><RefreshCw size={14} /> Reintentar</button>
+                </div>
+            )}
+            {horaActualizado && (
+                <p className="ce-actualizado"><Clock size={12} /> Datos al corte de {horaActualizado} (hora de Chihuahua); se refrescan solos.</p>
+            )}
+
             <section className="overall-indicator">
                 <div className="indicator-header">
                     <h3>Nivel Promedio General del Canal</h3>
-                    <p>Representación integral Km 0 - Km 104</p>
+                    <p>Escalas de control con medición vigente, Km 0 - Km 104 (sin referencias ni arrastres)</p>
                 </div>
 
                 <div className="indicator-content">
-                    {/* Main Average Gauge */}
                     <div className="main-gauge">
                         <div className="gauge-visual">
                             <div className="gauge-track">
                                 {[1, 2, 3, 4].map(m => (
-                                    <div key={m} className="gauge-segment" style={{ left: `${(m / 4) * 100}%` }}>
+                                    <div key={m} className="gauge-segment" style={{ left: `${(m / EJE_PROMEDIO_M) * 100}%` }}>
                                         <span>{m}m</span>
                                     </div>
                                 ))}
-                                <div
-                                    className="gauge-pointer"
-                                    style={{
-                                        left: `${totalScales > 0 ? (allScales.reduce((sum, s) => sum + s.currentLevel, 0) / totalScales / 4) * 100 : 0}%`,
-                                        backgroundColor: warningCount > 0 ? '#f59e0b' : '#10b981'
-                                    }}
-                                />
+                                {promedio != null && (
+                                    <div
+                                        className="gauge-pointer"
+                                        style={{
+                                            left: `${Math.min(100, (promedio / EJE_PROMEDIO_M) * 100)}%`,
+                                            backgroundColor: alertas > 0 ? '#f59e0b' : '#10b981'
+                                        }}
+                                    />
+                                )}
                             </div>
                             <div className="gauge-value-display">
-                                <span className="value">{totalScales > 0 ? (allScales.reduce((sum, s) => sum + s.currentLevel, 0) / totalScales).toFixed(2) : '0.00'}</span>
-                                <span className="unit">m</span>
+                                <span className="value">{promedio != null ? promedio.toFixed(2) : 'S/D'}</span>
+                                {promedio != null && <span className="unit">m</span>}
                             </div>
                         </div>
                     </div>
 
-                    {/* Zone Averages Strip */}
                     <div className="zone-averages-strip">
                         {zones.map(zone => {
-                            const zoneAvg = zone.scales.reduce((sum, s) => sum + s.currentLevel, 0) / zone.scales.length;
+                            const zoneAvg = promedioONull(zone.scales.filter(s => estadoCuentaEnPromedio(s.estado)).map(s => s.currentLevel));
                             return (
                                 <div key={zone.id} className="zone-avg-chip" style={{ borderColor: zone.color }}>
                                     <div className="chip-dot" style={{ backgroundColor: zone.color }} />
                                     <span className="chip-name">{zone.name}</span>
-                                    <span className="chip-value" style={{ color: zone.color }}>{(zoneAvg ?? 0).toFixed(2)}m</span>
+                                    <span className="chip-value" style={{ color: zone.color }}>{zoneAvg != null ? `${zoneAvg.toFixed(2)}m` : 'S/D'}</span>
                                 </div>
                             );
                         })}
@@ -800,22 +596,19 @@ const ControlEscalas = () => {
                 </div>
             </section>
 
-            {/* Zones Grid */}
             <div className="zones-grid">
                 {zones.map(zone => (
                     <ZoneCard key={zone.id} zone={zone} onOpenModal={setSelectedScaleModal} />
                 ))}
             </div>
 
-            {zones.length === 0 && !loading && (
+            {zones.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-text-muted)' }}>
                     <Gauge size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
-                    <p>No hay lecturas de escalas para esta fecha.</p>
-                    <p style={{ fontSize: '0.8rem' }}>Selecciona otra fecha o captura nuevas lecturas.</p>
+                    <p>No hay escalas configuradas.</p>
                 </div>
             )}
 
-            {/* Modal de Radiales */}
             {selectedScaleModal && (
                 <RadialModal scale={selectedScaleModal} onClose={() => setSelectedScaleModal(null)} />
             )}

@@ -97,7 +97,7 @@ function buildConditionsRed(
         const u = umbrales.find(x => x.clave === clave);
         return { aviso: u ? Number(u.aviso) : aviso, critico: u ? Number(u.critico) : critico };
     };
-    const uCalor = umb('calor', 36, 40), uHelada = umb('helada', 4, 2), uViento = umb('viento', 6, 10), uLluvia = umb('lluvia', 10, 25);
+    const uCalor = umb('calor', 38, 42), uHelada = umb('helada', 4, 0), uViento = umb('viento', 6, 10), uLluvia = umb('lluvia', 10, 25);
 
     // Ventana de pronóstico: próximas 24 h.
     const serie = ests.flatMap(e => e.pronosticoSerie.filter(p => (p.horizonte_h ?? 99) <= 24));

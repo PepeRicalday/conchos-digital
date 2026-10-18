@@ -45,8 +45,8 @@ export function umbralesLlanos(d: DatosPronostico): UmbralesLlanos {
     return {
         lluviaAvisoMm: r('lluvia')?.aviso ?? 10, lluviaCriticoMm: r('lluvia')?.critico ?? 25,
         vientoAvisoMs: r('viento')?.aviso ?? 6, vientoCriticoMs: r('viento')?.critico ?? 10,
-        heladaAvisoC: r('helada')?.aviso ?? 4, calorAvisoC: r('calor')?.aviso ?? 36,
-        heladaCriticoC: r('helada')?.critico ?? 2, calorCriticoC: r('calor')?.critico ?? 40,
+        heladaAvisoC: r('helada')?.aviso ?? 4, calorAvisoC: r('calor')?.aviso ?? 38,
+        heladaCriticoC: r('helada')?.critico ?? 0, calorCriticoC: r('calor')?.critico ?? 42,
     };
 }
 
@@ -87,6 +87,8 @@ export function lluviaDe(dia: ResumenDia, u: UmbralesLlanos): { nivel: LluviaNiv
     if (mm < 1) return { nivel: 'llovizna', texto: 'Llovizna' };
     if (mm < 5) return { nivel: 'ligera', texto: 'Lluvia ligera' };
     if (mm < u.lluviaAvisoMm) return { nivel: 'moderada', texto: 'Lluvia moderada' };
+    // La lámina del modelo sobrestima: "fuerte" exige que la lluvia sea probable (≥ 60 %); si no, se queda en "moderada".
+    if (dia.probMaxPct != null && dia.probMaxPct < 60) return { nivel: 'moderada', texto: 'Lluvia moderada' };
     if (mm < u.lluviaCriticoMm) return { nivel: 'fuerte', texto: 'Lluvia fuerte' };
     return { nivel: 'muy_fuerte', texto: 'Lluvia muy fuerte' };
 }

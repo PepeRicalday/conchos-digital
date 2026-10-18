@@ -29,6 +29,9 @@ export const peorNivel = (a: NivelRiesgo, b: NivelRiesgo): NivelRiesgo => (RANGO
 export type ClaveRiesgo = 'viento' | 'lluvia' | 'helada' | 'calor' | 'eto';
 const CLAVES: ClaveRiesgo[] = ['viento', 'lluvia', 'helada', 'calor', 'eto'];
 
+/** Probabilidad máxima (24 h) a partir de la cual la lámina pronosticada cuenta como riesgo de lluvia intensa. */
+export const PROB_LLUVIA_CONFIRMA_PCT = 60;
+
 const TZ = 'America/Chihuahua';
 const MS_H = 3_600_000;
 /** Pronóstico con más de esto de antigüedad (corrida) se rotula "desactualizado". */
@@ -331,7 +334,7 @@ function nivelDe(valor: number | null, u: { comparador: 'mayor' | 'menor'; aviso
 
 const DEF_RIESGO: Record<ClaveRiesgo, { definicion: string; etiquetaPorDefecto: string; unidadPorDefecto: string }> = {
     viento: { definicion: 'Viento sostenido máximo pronosticado (no ráfaga) en la ventana.', etiquetaPorDefecto: 'Viento fuerte', unidadPorDefecto: 'm/s' },
-    lluvia: { definicion: 'Mayor lámina acumulada en cualquier ventana móvil de 24 h dentro del horizonte (pronóstico).', etiquetaPorDefecto: 'Lluvia intensa', unidadPorDefecto: 'mm' },
+    lluvia: { definicion: 'Mayor lámina acumulada en cualquier ventana móvil de 24 h dentro del horizonte (pronóstico). Solo se marca aviso o crítico si la probabilidad máxima de esa ventana es ≥ 60 %.', etiquetaPorDefecto: 'Lluvia intensa', unidadPorDefecto: 'mm' },
     helada: { definicion: 'Temperatura mínima pronosticada en la ventana.', etiquetaPorDefecto: 'Riesgo de helada', unidadPorDefecto: '°C' },
     calor: { definicion: 'Temperatura máxima pronosticada en la ventana.', etiquetaPorDefecto: 'Calor extremo', unidadPorDefecto: '°C' },
     eto: { definicion: 'ETₒ pronosticada para las próximas 24 h (suma horaria del modelo).', etiquetaPorDefecto: 'Demanda evaporativa alta', unidadPorDefecto: 'mm/día' },
@@ -362,7 +365,7 @@ interface EvalSerie {
 
 /** Evalúa los 5 riesgos de UNA serie contra los umbrales (misma lógica para la red y para cada módulo). */
 function evaluaSerie(
-    pts: PuntoPronostico[], nombre: string, umb: Map<ClaveRiesgo, UmbralClima>,
+    pts: PuntoPronostico[], nombre: string, umb: Map<ClaveRiesgo, UmbralClima>, umbViento?: UmbralClima,
 ): Record<ClaveRiesgo, EvalSerie> {
     const out = {} as Record<ClaveRiesgo, EvalSerie>;
     const vacio = (): EvalSerie => ({ valor: null, cuandoMs: null, nivel: 'normal', ventanas: [] });
@@ -394,8 +397,8 @@ function evaluaSerie(
 
     const u = (c: ClaveRiesgo) => umb.get(c);
     const vp = extremo('vientoMs', 'max');
-    if (vp && u('viento')) {
-        const uu = u('viento')!;
+    if (vp && (umbViento ?? u('viento'))) {
+        const uu = (umbViento ?? u('viento'))!;
         out.viento = { valor: vp.vientoMs, cuandoMs: vp.ts, nivel: nivelDe(vp.vientoMs, uu),
             ventanas: ventanasDe(p => { const n = nivelDe(p.vientoMs, uu); return n === 'normal' ? null : n; }) };
     }
@@ -421,9 +424,14 @@ function evaluaSerie(
             if (suma > mejor) { mejor = suma; mejorTs = conLluvia[i].ts; }
         }
         const uu = u('lluvia')!;
-        out.lluvia = { valor: Math.round(mejor * 10) / 10, cuandoMs: mejorTs, nivel: nivelDe(mejor, uu),
+        // El modelo llegó a sobrestimar la lámina al doble (99 mm pronosticados vs 55 mm medidos): el nivel solo se activa
+        // si la probabilidad máxima de la ventana de 24 h es ≥ 60 % (igual que la alerta de BD). El valor se muestra siempre.
+        const probs = pts.filter(p => p.probPct != null && p.ts > mejorTs - 24 * MS_H && p.ts <= mejorTs).map(p => p.probPct as number);
+        const confirmada = !probs.length || Math.max(...probs) >= PROB_LLUVIA_CONFIRMA_PCT;
+        const nivelLluvia: NivelRiesgo = confirmada ? nivelDe(mejor, uu) : 'normal';
+        out.lluvia = { valor: Math.round(mejor * 10) / 10, cuandoMs: mejorTs, nivel: nivelLluvia,
             // Ventanas: horas con lluvia perceptible (≥ 0.5 mm/h), para saber CUÁNDO llueve.
-            ventanas: ventanasDe(p => ((p.precipMm ?? 0) >= 0.5 ? (nivelDe(mejor, uu) === 'normal' ? 'normal' : nivelDe(mejor, uu)) : null)) };
+            ventanas: ventanasDe(p => ((p.precipMm ?? 0) >= 0.5 ? nivelLluvia : null)) };
     }
     // ETₒ próximas 24 h.
     const conEto = pts.filter(p => p.etoMm != null).slice(0, 24);
@@ -535,18 +543,25 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
     const conSerie = e.estaciones
         .map(est => ({ est, pts: seriePuntos(est, desdeMs, hastaMs) }))
         .filter(x => x.pts.length > 0);
-    const evalPorEst = new Map(conSerie.map(x => [x.est.id, evaluaSerie(x.pts, x.est.nombre, umb)]));
+    // Presas (zona abierta): su viento normal supera el umbral de riego por aspersión de los módulos; tienen umbral propio.
+    const umbVientoPresa = e.umbrales.find(u => u.clave === 'viento_presa');
+    const esPresa = (est: EstacionConLectura) => est.rol === 'presa' && !!umbVientoPresa;
+    const evalPorEst = new Map(conSerie.map(x => [x.est.id, evaluaSerie(x.pts, x.est.nombre, umb, esPresa(x.est) ? umbVientoPresa : undefined)]));
 
     // ── Riesgos de la red: peor estación por variable ───────────────────────
     const riesgos: Riesgo[] = CLAVES.filter(c => umb.has(c)).map(c => {
         const u = umb.get(c)!;
-        let mejor: { valor: number; nombre: string; cuando: number | null; ev: EvalSerie } | null = null;
+        let mejor: { valor: number; nombre: string; cuando: number | null; ev: EvalSerie; u: UmbralClima } | null = null;
         for (const x of conSerie) {
             const ev = evalPorEst.get(x.est.id)![c];
             if (ev.valor == null) continue;
-            const mejorQue = !mejor || (u.comparador === 'mayor' ? ev.valor > mejor.valor : ev.valor < mejor.valor);
-            if (mejorQue) mejor = { valor: ev.valor, nombre: x.est.nombre, cuando: ev.cuandoMs, ev };
+            const uEst = c === 'viento' && esPresa(x.est) ? umbVientoPresa! : u;
+            // Gana el peor NIVEL (cada estación con su propio umbral) y, a igual nivel, el valor más extremo.
+            const dn = mejor ? RANGO_NIVEL[ev.nivel] - RANGO_NIVEL[mejor.ev.nivel] : 1;
+            const mejorQue = !mejor || dn > 0 || (dn === 0 && (u.comparador === 'mayor' ? ev.valor > mejor.valor : ev.valor < mejor.valor));
+            if (mejorQue) mejor = { valor: ev.valor, nombre: x.est.nombre, cuando: ev.cuandoMs, ev, u: uEst };
         }
+        const uM = mejor?.u ?? u;
         const ventanas = conSerie
             .flatMap(x => evalPorEst.get(x.est.id)![c].ventanas)
             .sort((a, b) => RANGO_NIVEL[b.nivel] - RANGO_NIVEL[a.nivel] || a.desdeMs - b.desdeMs)
@@ -555,10 +570,10 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
             clave: c,
             etiqueta: u.etiqueta || DEF_RIESGO[c].etiquetaPorDefecto,
             unidad: u.unidad || DEF_RIESGO[c].unidadPorDefecto,
-            comparador: u.comparador, aviso: Number(u.aviso), critico: Number(u.critico),
+            comparador: u.comparador, aviso: Number(uM.aviso), critico: Number(uM.critico),
             accion: u.accion,
             valor: mejor?.valor ?? null,
-            nivel: mejor ? nivelDe(mejor.valor, { comparador: u.comparador, aviso: Number(u.aviso), critico: Number(u.critico) }) : 'normal',
+            nivel: mejor ? mejor.ev.nivel : 'normal',
             estacion: mejor?.nombre ?? null,
             cuandoMs: mejor?.cuando ?? null,
             ventanas,
@@ -579,8 +594,19 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
             const v = modo === 'max' ? Math.max(...vals) : Math.min(...vals);
             return { nivel: nivelDe(v, { comparador: u.comparador, aviso: Number(u.aviso), critico: Number(u.critico) }) };
         });
+    // Viento: cada estación contra su propio umbral (presas aparte); la celda toma el peor nivel de la red.
+    const celdasViento = ejeHoras.map(ts => {
+        let nivelH: NivelRiesgo | null = null;
+        for (const x of conSerie) {
+            const v = x.pts.find(p => p.ts === ts)?.vientoMs;
+            const uu = esPresa(x.est) ? umbVientoPresa : umb.get('viento');
+            if (v == null || !uu) continue;
+            nivelH = peorNivel(nivelH ?? 'normal', nivelDe(v, { comparador: uu.comparador, aviso: Number(uu.aviso), critico: Number(uu.critico) }));
+        }
+        return nivelH ? { nivel: nivelH } : null;
+    });
     const lineaTiempo: FilaLineaTiempo[] = [
-        { clave: 'viento', etiqueta: 'Viento', celdas: celdasNivel('vientoMs', 'viento', 'max') },
+        { clave: 'viento', etiqueta: 'Viento', celdas: celdasViento },
         { clave: 'lluvia', etiqueta: 'Lluvia', celdas: porHora('precipMm').map(vals => (vals ? { lluvia: NIVEL_LLUVIA(Math.max(...vals)) } : null)) },
         { clave: 'helada', etiqueta: 'Frío / helada', celdas: celdasNivel('tempC', 'helada', 'min') },
         { clave: 'calor', etiqueta: 'Calor', celdas: celdasNivel('tempC', 'calor', 'max') },

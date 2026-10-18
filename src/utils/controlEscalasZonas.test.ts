@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { construirZonas, type EscalaMeta, type LecturaEscala } from './controlEscalasZonas';
+import { construirZonas, serieNivel, type EscalaMeta, type LecturaEscala } from './controlEscalasZonas';
 
 const AHORA = Date.UTC(2026, 9, 18, 18, 0, 0);
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -51,5 +51,29 @@ describe('construirZonas', () => {
     it('ordena zonas y escalas por km', () => {
         const zs = construirZonas([esc('B', 50), esc('A', 10)], sec, [], [], op());
         expect(zs[0].scales.map(s => s.name)).toEqual(['A', 'B']);
+    });
+
+    it('desviación vs centro del rango solo con medición vigente en rango de riego', () => {
+        const campo: LecturaEscala = { ...auto('K-23', 3.4), confirmada: true };
+        const [z] = construirZonas([esc('K-23', 23)], sec, [campo], [], op());
+        expect(z.scales[0].deltaCentroM).toBeCloseTo(0.3);    // centro (2.8+3.4)/2 = 3.1
+        const [zv] = construirZonas([esc('K-23', 23)], sec, [campo], [], op({ vaciado: true }));
+        expect(zv.scales[0].deltaCentroM).toBeNull();
+        const [za] = construirZonas([esc('K-23', 23)], sec, [auto('K-23', 3.0)], [], op());
+        expect(za.scales[0].deltaCentroM).toBeNull();         // arrastre: no es medición
+    });
+});
+
+describe('serieNivel', () => {
+    const mk = (fecha: string, hora: string, y: number, confirmada: boolean): LecturaEscala => ({ escala_id: 'K-23', fecha, hora_lectura: hora, nivel_m: y, confirmada });
+    it('excluye arrastres y lecturas fuera de la ventana, ordena por tiempo', () => {
+        const ls = [mk('2026-10-18', '00:00:00', 0.1, false), mk('2026-10-17', '08:00:00', 3.1, true), mk('2026-10-15', '08:00:00', 2.9, true), mk('2026-10-10', '08:00:00', 9, true), mk('2026-10-16', '18:00:00', 3.3, true)];
+        const s = serieNivel(ls, 'K-23', AHORA);
+        // 10-oct queda a más de 7 días: fuera; 15-oct 08:00 sí entra
+        expect(s.map(p => p.y)).toEqual([2.9, 3.3, 3.1]);
+        expect(serieNivel(ls, 'K-23', AHORA, 72).map(p => p.y)).toEqual([3.3, 3.1]);   // ventana explícita de 72 h
+    });
+    it('sin mediciones => serie vacía (no inventa puntos)', () => {
+        expect(serieNivel([mk('2026-10-18', '00:00:00', 0.1, false)], 'K-23', AHORA)).toEqual([]);
     });
 });

@@ -56,6 +56,18 @@ await page.waitForTimeout(200);
 ok(await page.evaluate(() => !document.querySelector('[role=dialog]')), 'Escape cierra el modal');
 ok(await page.evaluate(() => document.activeElement?.classList.contains('ce-btn-calculo')), 'el foco vuelve al botón que abrió el modal');
 
+
+// Perfil longitudinal: un punto por escala, navegable por teclado hasta su tarjeta
+const puntos = await page.locator('.ce-perfil-punto').count();
+ok(puntos === 14, `perfil longitudinal con 14 puntos (hay ${puntos})`);
+await page.locator('.ce-perfil-punto').nth(5).focus();
+await page.keyboard.press('Enter');
+await page.waitForTimeout(800);
+ok(await page.evaluate(() => document.activeElement?.id?.startsWith('ce-esc-')), 'Enter en un punto del perfil lleva el foco a su tarjeta');
+// Series: nunca una línea con menos de 2 mediciones de campo
+const sparksMal = await page.evaluate(() => [...document.querySelectorAll('.ce-spark svg')].filter(s => s.querySelectorAll('circle').length < 2).length);
+ok(sparksMal === 0, 'sparklines solo con 2+ lecturas de campo');
+
 // Sin tormenta de peticiones: 2 tablas × (1 carga × 2 por StrictMode en dev) = 4; el evento de vaciado NO debe relanzar la carga
 ok(peticiones <= 4, `peticiones de lecturas/resumen en la carga inicial (${peticiones}, máx. 4)`);
 ok(errores.length === 0, `sin errores de consola/JS${errores.length ? `: ${errores[0]}` : ''}`);

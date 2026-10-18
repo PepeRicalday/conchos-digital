@@ -48,6 +48,34 @@ export interface ResumenDia {
     nivel_actual?: number | string | null;
 }
 
+export interface PuntoSerie { t: number; y: number }
+
+/** La captura de campo es ~diaria: 72 h dejaba 1 punto por escala. 7 días (lo que ya carga el hook). */
+export const VENTANA_SERIE_H = 168;
+
+/** Instante (ms) de una lectura: fecha + hora_lectura en hora de Chihuahua (UTC−6 fijo desde 2022, sin horario de verano). */
+const instanteLectura = (l: LecturaEscala): number | null => {
+    const t = new Date(`${l.fecha}T${(l.hora_lectura ?? '12:00:00').slice(0, 8)}-06:00`).getTime();
+    return Number.isFinite(t) ? t : null;
+};
+
+/**
+ * Serie de niveles MEDIDOS de una escala en las últimas `horas` (por omisión 7 días). Las filas autogeneradas (confirmada=false) son un
+ * arrastre de continuidad, no mediciones: no entran en la serie.
+ */
+export function serieNivel(lecturas: LecturaEscala[], escalaKey: string, ahoraMs: number, horas = VENTANA_SERIE_H): PuntoSerie[] {
+    const desde = ahoraMs - horas * 3_600_000;
+    const out: PuntoSerie[] = [];
+    for (const l of lecturas) {
+        if (clave(l.escala_id) !== escalaKey || l.confirmada === false) continue;
+        const y = aNumeroONull(l.nivel_m);
+        const t = instanteLectura(l);
+        if (y == null || t == null || t < desde || t > ahoraMs) continue;
+        out.push({ t, y });
+    }
+    return out.sort((a, b) => a.t - b.t);
+}
+
 export type OrigenNivel = 'campo' | 'arrastre' | 'resumen' | null;
 
 export interface ScaleReading {
@@ -79,6 +107,10 @@ export interface ScaleReading {
     nivelAbajo: number | null;
     /** null = S/D; las escalas de referencia nunca tienen gasto. */
     gasto: number | null;
+    /** Nivel − centro del rango operativo (m); solo con medición vigente y rango de riego aplicable. */
+    deltaCentroM: number | null;
+    /** Niveles medidos de los últimos 7 días (sin arrastres). */
+    serie: PuntoSerie[];
 }
 
 export interface Zone {
@@ -147,6 +179,10 @@ export function construirZonas(
             vaciado: op.vaciado && op.esHoy, ahoraMs: op.ahoraMs,
         });
 
+        const minOp = aNumeroONull(e.nivel_min_operativo), maxOp = aNumeroONull(e.nivel_max_operativo);
+        const centro = minOp != null && maxOp != null ? (minOp + maxOp) / 2 : null;
+        const deltaCentroM = (r.estado === 'en_rango' || r.alerta) && currentLevel != null && centro != null ? currentLevel - centro : null;
+
         const am = res ? aNumeroONull(res.lectura_am) : null;
         const pm = res ? aNumeroONull(res.lectura_pm) : null;
 
@@ -175,6 +211,8 @@ export function construirZonas(
             aperturas,
             nivelAbajo: last ? aNumeroONull(last.nivel_abajo_m) : null,
             gasto,
+            deltaCentroM,
+            serie: serieNivel(lecturas, k, op.ahoraMs, VENTANA_SERIE_H),
         });
     }
 

@@ -112,3 +112,32 @@ html[data-device="phone"] .ce-seg { flex: 1 1 auto; padding: 0 8px; }
 
 /* El portal del modal cuelga de <body>: sin el margen/ancho de .sc-root */
 .ce-portal { max-width: none; margin: 0 !important; padding: 0; height: 0; }
+
+/* ── Perfil longitudinal ── */
+.ce-perfil { width: 100%; min-width: 0; }
+.ce-perfil svg { display: block; max-width: 100%; }
+.ce-perfil-rejilla { stroke: var(--sc-line); stroke-width: 1; }
+.ce-perfil-eje { fill: var(--sc-t3); font: 500 12px var(--sc-mono); }
+.ce-perfil-zona { fill: var(--sc-t2); font: 700 12px var(--sc-mono); }
+.ce-perfil-banda { fill: rgba(52, 211, 153, 0.13); stroke: var(--sc-ok); stroke-width: 1; stroke-dasharray: 4 3; }
+.ce-perfil-banda-off { fill: transparent; stroke: rgba(148, 163, 184, 0.5); }
+.ce-perfil-linea { fill: none; stroke: rgba(180, 194, 212, 0.55); stroke-width: 1.5; }
+.ce-perfil-sd { fill: var(--sc-t3); font: 700 12px var(--sc-mono); }
+.ce-perfil-punto { cursor: pointer; outline: none; }
+.ce-perfil-punto:focus-visible circle, .ce-perfil-punto:hover circle { stroke: var(--sc-t1); stroke-width: 2.5; }
+.ce-perfil-punto:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 2px; }
+
+/* ── Sparkline ── */
+.ce-spark { display: flex; flex-direction: column; gap: 2px; }
+.ce-spark svg { width: 100%; height: 44px; display: block; }
+.ce-spark-banda { fill: rgba(52, 211, 153, 0.12); }
+.ce-spark-linea { fill: none; stroke: var(--sc-sky); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.ce-spark-pt { fill: var(--sc-sky); }
+.ce-spark-pie { font: 500 12px var(--sc-mono); color: var(--sc-t3); }
+.ce-spark-vacio { margin: 0; font-size: 12px; color: var(--sc-t3); }
+
+.ce-fuera { color: var(--sc-crit) !important; }
+.ce-escala:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 2px; }
+.ce-resalta { animation: ce-resalta 1.8s ease; }
+@keyframes ce-resalta { 0%, 60% { box-shadow: 0 0 0 3px var(--sc-sky); } 100% { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .ce-resalta { animation: none; box-shadow: 0 0 0 3px var(--sc-sky); } }

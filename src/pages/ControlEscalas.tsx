@@ -5,6 +5,7 @@ import { useControlEscalas } from '../hooks/useControlEscalas';
 import { useModalA11y } from '../hooks/useModalA11y';
 import { PaginaHero } from '../components/ui/PaginaHero';
 import { TileCifra } from '../components/ui/TileCifra';
+import { PerfilNiveles, Sparkline } from '../components/escalas/NivelesGraficos';
 import type { ChipEstado } from '../utils/alertasVivas';
 import { promedioONull, estadoCuentaEnPromedio, resumenCompuertas, porcentajeTubo, maxEjeTubo, type EstadoNivel } from '../utils/controlEscalas';
 import type { ScaleReading, Zone } from '../utils/controlEscalasZonas';
@@ -231,7 +232,7 @@ const TiraCompuertas = ({ scale }: { scale: ScaleReading }) => {
 };
 
 // ─── Tarjeta por escala ───
-const EscalaCard = memo(({ scale, onOpenModal }: { scale: ScaleReading; onOpenModal: (s: ScaleReading) => void }) => {
+const EscalaCard = memo(({ scale, ahoraMs, vaciado, onOpenModal }: { scale: ScaleReading; ahoraMs: number; vaciado: boolean; onOpenModal: (s: ScaleReading) => void }) => {
     const eje = maxEjeTubo(scale.maxOperational, scale.currentLevel);
     const info = infoEstado(scale);
     const delta = scale.deltaM;
@@ -240,7 +241,7 @@ const EscalaCard = memo(({ scale, onOpenModal }: { scale: ScaleReading; onOpenMo
     const tieneRadiales = scale.pzasRadiales > 0;
 
     return (
-        <article className={`ce-escala ${scale.alerta ? 'ce-escala-alerta' : ''}`} aria-label={`Escala ${scale.name}`}>
+        <article id={`ce-esc-${scale.id}`} tabIndex={-1} className={`ce-escala ${scale.alerta ? 'ce-escala-alerta' : ''}`} aria-label={`Escala ${scale.name}`}>
             <header className="ce-escala-cab">
                 <div><h4>{scale.name}</h4><span className="ce-km">Km {scale.km}</span></div>
                 <span className={`sc-estado ${info.clase}`}>{info.corto}</span>
@@ -253,12 +254,20 @@ const EscalaCard = memo(({ scale, onOpenModal }: { scale: ScaleReading; onOpenMo
             <BarraNivel scale={scale} eje={eje} />
             {info.detalle && <p className={`ce-detalle ${scale.alerta ? 'ce-detalle-alerta' : ''}`}>{info.detalle}</p>}
 
+            <Sparkline serie={scale.serie} ahoraMs={ahoraMs} minOp={scale.minOperational} maxOp={scale.maxOperational}
+                mostrarBanda={!vaciado && !scale.referencia} nombre={scale.name} />
+
             {tieneRadiales && <TiraCompuertas scale={scale} />}
 
             <dl className="ce-lecturas">
                 <div><dt>AM{scale.horaAm ? ` ${scale.horaAm}` : ''}</dt><dd>{fm(scale.amReading)}{scale.amReading != null ? ' m' : ''}</dd></div>
                 <div><dt>PM{scale.horaPm ? ` ${scale.horaPm}` : ''}</dt><dd>{fm(scale.pmReading)}{scale.pmReading != null ? ' m' : ''}</dd></div>
                 {tieneRadiales && <div><dt>Aguas abajo</dt><dd>{scale.nivelAbajo != null ? `${scale.nivelAbajo.toFixed(2)} m` : 'S/D'}</dd></div>}
+                {scale.deltaCentroM != null && (
+                    <div title="Nivel menos el centro del rango operativo">
+                        <dt>vs centro</dt><dd className={scale.alerta ? 'ce-fuera' : ''}>{signo(scale.deltaCentroM)} m</dd>
+                    </div>
+                )}
                 <div className="ce-delta">
                     <dt>Δ 12 h</dt>
                     <dd>{sube ? <ArrowUp size={14} aria-hidden="true" /> : baja ? <ArrowDown size={14} aria-hidden="true" /> : <Minus size={14} aria-hidden="true" />}
@@ -276,7 +285,7 @@ const EscalaCard = memo(({ scale, onOpenModal }: { scale: ScaleReading; onOpenMo
 });
 
 // ─── Tarjeta de zona (colapsable) ───
-const ZonaSection = memo(({ zone, acento, abierta, escalas, onOpenModal }: { zone: Zone; acento: string; abierta: boolean; escalas: ScaleReading[]; onOpenModal: (s: ScaleReading) => void }) => {
+const ZonaSection = memo(({ zone, acento, abierta, escalas, ahoraMs, vaciado, onOpenModal }: { zone: Zone; acento: string; abierta: boolean; escalas: ScaleReading[]; ahoraMs: number; vaciado: boolean; onOpenModal: (s: ScaleReading) => void }) => {
     const avgLevel = promedioONull(zone.scales.filter(s => estadoCuentaEnPromedio(s.estado)).map(s => s.currentLevel));
     const alertas = zone.scales.filter(s => s.alerta).length;
     // Q de zona = gasto de la escala de cabecera (menor km): las escalas están en serie sobre el mismo cauce,
@@ -299,7 +308,7 @@ const ZonaSection = memo(({ zone, acento, abierta, escalas, onOpenModal }: { zon
             <div className="ce-escalas">
                 {escalas.length === 0
                     ? <p className="ce-vacio">Ninguna escala de esta zona coincide con el filtro.</p>
-                    : escalas.map(s => <EscalaCard key={s.id} scale={s} onOpenModal={onOpenModal} />)}
+                    : escalas.map(s => <EscalaCard key={s.id} scale={s} ahoraMs={ahoraMs} vaciado={vaciado} onOpenModal={onOpenModal} />)}
             </div>
         </details>
     );
@@ -330,6 +339,18 @@ const ControlEscalas = () => {
             cabecera: zones[0]?.scales[0],
         };
     }, [zones]);
+
+    // Del perfil a la tarjeta: abre su zona (si estaba colapsada), la centra y le da el foco.
+    const irAEscala = (id: string) => {
+        const el = document.getElementById(`ce-esc-${id}`);
+        if (!el) { setFiltro('todas'); return; }
+        const det = el.closest('details');
+        if (det && !det.open) det.open = true;
+        el.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+        el.focus({ preventScroll: true });
+        el.classList.add('ce-resalta');
+        window.setTimeout(() => el.classList.remove('ce-resalta'), 1800);
+    };
 
     const zonasVista = useMemo(() => zones.map(z => {
         let lista = z.scales.filter(s => filtro === 'alertas' ? s.alerta : filtro === 'represos' ? s.pzasRadiales > 0 : true);
@@ -415,6 +436,12 @@ const ControlEscalas = () => {
                 />
             </section>
 
+            <section className="sc-card" aria-labelledby="ce-perfil-t">
+                <span className="sc-kicker">Perfil longitudinal</span>
+                <h3 id="ce-perfil-t">Nivel por kilómetro</h3>
+                <PerfilNiveles zones={zones} vaciado={vaciado && esHoy} onSeleccionar={irAEscala} />
+            </section>
+
             <div className="ce-barra" role="toolbar" aria-label="Filtros y orden">
                 <div className="ce-grupo" role="group" aria-label="Filtrar escalas">
                     {([['todas', 'Todas'], ['alertas', 'Solo alertas'], ['represos', 'Solo represos']] as const).map(([k, t]) => (
@@ -432,7 +459,7 @@ const ControlEscalas = () => {
                 <ZonaSection
                     key={`${zone.id}-${abrirTodas || zone.scales.some(s => s.alerta)}`}
                     zone={zone} acento={ZONA_ACENTOS[i % ZONA_ACENTOS.length]} escalas={lista}
-                    abierta={abrirTodas || zone.scales.some(s => s.alerta)} onOpenModal={setModal}
+                    abierta={abrirTodas || zone.scales.some(s => s.alerta)} ahoraMs={actualizadoMs ?? 0} vaciado={vaciado && esHoy} onOpenModal={setModal}
                 />
             ))}
 

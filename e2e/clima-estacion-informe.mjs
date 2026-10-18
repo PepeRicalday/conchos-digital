@@ -41,7 +41,7 @@ for (let i = 0; i < Math.min(tarjetas.length, 6); i++) {
   const ruta = OUT + `estacion-${i}.html`;
   await dl.saveAs(ruta);
   const html = fs.readFileSync(ruta, 'utf8');
-  const alertaInforme = (html.match(/Sobre \d+(?:\.\d+)? m\/s: deriva en aspersión/) || [''])[0];
+  const alertaInforme = (html.match(/Desde \d+(?:\.\d+)? m\/s: [^<]*/) || [''])[0];
   resumen.push({ i, nombre, panelViento, alertaInforme, riesgo: riesgo.trim().slice(0, 30), kb: Math.round(html.length / 1024) });
   await page.click('[role="dialog"] button[aria-label*="errar"], [role="dialog"] .est-det-cerrar, [role="dialog"] button:has(svg)').catch(() => {});
   await page.keyboard.press('Escape').catch(() => {});

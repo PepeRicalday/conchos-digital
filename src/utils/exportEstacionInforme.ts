@@ -300,7 +300,7 @@ async function construyeHTML(
         <div class="v-fila"><span>Actual</span><b>${f(l?.viento_ms)} m/s</b></div>
         <div class="v-fila"><span>Ráfaga</span><b>${f(l?.viento_rafaga_ms)} m/s</b></div>
         <div class="v-fila"><span>Dirección</span><b>${l?.viento_dir_deg != null ? `${Math.round(l.viento_dir_deg)}°` : 'S/D'}</b></div>
-        ${l?.viento_ms != null && l.viento_ms >= umbralViento ? `<div class="v-alerta">⚠ Sobre ${umbralViento} m/s: deriva en aspersión</div>` : ''}
+        ${l?.viento_ms != null && l.viento_ms >= umbralViento ? `<div class="v-alerta">⚠ Desde ${umbralViento} m/s: ${estacion.rol === 'presa' ? 'viento fuerte en el vaso' : 'deriva en aspersión'}</div>` : ''}
         <div class="v-fila" style="border-top:1px dashed #1e293b;margin-top:6px;padding-top:8px">
           <span>Riesgo térmico</span><b style="color:${detalle.riesgo.color}">${esc(detalle.riesgo.etiqueta)}</b>
         </div>

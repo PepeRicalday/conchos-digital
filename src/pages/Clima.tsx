@@ -42,6 +42,7 @@ import { calculaIndices, entradasDesdeEstaciones, etoTotalDelDiaRed, GDD_BASE_C,
 import { obtenNdviModulo, type NdviModulo } from '../utils/kcNdvi';
 import EstacionDetalle from '../components/EstacionDetalle';
 import { sensoresLegibles } from '../utils/sensoresEstacion';
+import { claveVientoDe, umbralVigente } from '../utils/umbralesClima';
 import { WindyMapModal } from '../components/WindyMapModal';
 import { CENTRO_DISTRITO } from '../utils/mapaSatelital';
 
@@ -98,7 +99,7 @@ function buildConditionsRed(
         const u = umbrales.find(x => x.clave === clave);
         return { aviso: u ? Number(u.aviso) : aviso, critico: u ? Number(u.critico) : critico };
     };
-    const uCalor = umb('calor', 38, 42), uHelada = umb('helada', 4, 0), uViento = umb('viento', 6, 10), uLluvia = umb('lluvia', 10, 25);
+    const uCalor = umb('calor', 38, 42), uHelada = umb('helada', 4, 0), uLluvia = umb('lluvia', 10, 25);
 
     // Ventana de pronóstico: próximas 24 h.
     const serie = ests.flatMap(e => e.pronosticoSerie.filter(p => (p.horizonte_h ?? 99) <= 24));
@@ -138,20 +139,28 @@ function buildConditionsRed(
     }
 
     // ── Viento: manda el MÁXIMO, que es el que restringe la aspersión ───────
-    const vientos = conLect.map(e => ({ n: e.nombre, v: e.lectura!.viento_ms, d: e.lectura!.viento_dir_deg, r: e.lectura!.viento_rafaga_ms }))
-        .filter((x): x is { n: string; v: number; d: number | null; r: number | null } => x.v != null);
+    const vientos = conLect.map(e => ({ n: e.nombre, v: e.lectura!.viento_ms, d: e.lectura!.viento_dir_deg, r: e.lectura!.viento_rafaga_ms, rol: e.rol }))
+        .filter((x): x is { n: string; v: number; d: number | null; r: number | null; rol: string } => x.v != null);
     if (vientos.length) {
         const top = vientos.reduce((a, b) => (b.v > a.v ? b : a));
+        // Cada estación contra su propio umbral (las presas, en zona abierta, tienen uno más alto): el estado del panel es
+        // el del peor nivel, no el del viento máximo, y la advertencia de aspersión solo aplica si lo causa un módulo.
+        const nivelViento = (x: { v: number; rol: string }) => {
+            const u = umbralVigente(umbrales, claveVientoDe(x.rol));
+            return x.v >= u.critico ? 2 : x.v >= u.aviso ? 1 : 0;
+        };
+        const peorNivelViento = Math.max(...vientos.map(nivelViento));
+        const causaModulo = vientos.some(x => x.rol !== 'presa' && nivelViento(x) > 0);
         const fcV = num(serie.map(p => p.viento_ms));
         out.push({
             variable: 'Viento (máx.)',
             current: `${top.v.toFixed(1)} m/s${top.d != null ? ` · ${top.d.toFixed(0)}°` : ''}`,
             forecast: fcV.length ? `${Math.max(...fcV).toFixed(1)} m/s` : '—',
-            impact: top.v >= uViento.aviso
+            impact: causaModulo
                 ? 'Evitar riego por aspersión (deriva)'
-                : 'Dentro del rango operativo para aspersión',
+                : peorNivelViento > 0 ? 'Viento fuerte en el vaso de la presa' : 'Dentro del rango operativo para aspersión',
             icon: <Wind size={18} />,
-            status: top.v >= uViento.critico ? 'alert' : top.v >= uViento.aviso ? 'warning' : 'normal',
+            status: peorNivelViento === 2 ? 'alert' : peorNivelViento === 1 ? 'warning' : 'normal',
             detalle: `${top.n}${top.r != null ? ` · ráfaga ${top.r.toFixed(1)} m/s` : ''}`,
         });
     }
@@ -202,8 +211,10 @@ function buildConditionsRed(
 }
 
 // Build weather conditions from Supabase data
-function buildConditions(climaRecords: ClimaPresaData[]): WeatherCondition[] {
+function buildConditions(climaRecords: ClimaPresaData[], umbrales: UmbralClima[] = []): WeatherCondition[] {
     if (climaRecords.length === 0) return [];
+    // Mismos umbrales que las alertas (clima_umbrales); antes este respaldo tenía los suyos (35/38, 5/0, 10/20).
+    const uCalor = umbralVigente(umbrales, 'calor'), uHelada = umbralVigente(umbrales, 'helada'), uLluvia = umbralVigente(umbrales, 'lluvia');
 
     // Use first record as primary, compare with second if available
     const primary = climaRecords[0];
@@ -217,9 +228,9 @@ function buildConditions(climaRecords: ClimaPresaData[]): WeatherCondition[] {
             variable: 'Temperatura Máxima',
             current: `${tempMax}°C`,
             forecast: secondary?.temp_maxima_c != null ? `${secondary.temp_maxima_c}°C` : '—',
-            impact: tempMax > 35 ? 'Estrés térmico alto en cultivos' : 'Define el estrés térmico del cultivo',
+            impact: tempMax >= uCalor.aviso ? 'Estrés térmico alto en cultivos' : 'Define el estrés térmico del cultivo',
             icon: <Thermometer size={18} />,
-            status: tempMax > 38 ? 'alert' : tempMax > 35 ? 'warning' : 'normal'
+            status: tempMax >= uCalor.critico ? 'alert' : tempMax >= uCalor.aviso ? 'warning' : 'normal'
         });
     }
 
@@ -229,9 +240,9 @@ function buildConditions(climaRecords: ClimaPresaData[]): WeatherCondition[] {
             variable: 'Temperatura Mínima',
             current: `${tempMin}°C`,
             forecast: secondary?.temp_minima_c != null ? `${secondary.temp_minima_c}°C` : '—',
-            impact: tempMin < 5 ? '⚠️ Riesgo de heladas en frutales' : 'Sin riesgo de heladas',
+            impact: tempMin <= uHelada.aviso ? '⚠️ Riesgo de heladas en frutales' : 'Sin riesgo de heladas',
             icon: <Thermometer size={18} />,
-            status: tempMin < 0 ? 'alert' : tempMin < 5 ? 'warning' : 'normal'
+            status: tempMin <= uHelada.critico ? 'alert' : tempMin <= uHelada.aviso ? 'warning' : 'normal'
         });
     }
 
@@ -263,9 +274,9 @@ function buildConditions(climaRecords: ClimaPresaData[]): WeatherCondition[] {
             variable: 'Precipitación',
             current: `${precip} mm`,
             forecast: secondary?.precipitacion_mm != null ? `${secondary.precipitacion_mm} mm` : '—',
-            impact: precip > 10 ? 'Posible suspensión de riegos' : 'Sin impacto en operación',
+            impact: precip >= uLluvia.aviso ? 'Posible suspensión de riegos' : 'Sin impacto en operación',
             icon: <Droplets size={18} />,
-            status: precip > 20 ? 'alert' : precip > 10 ? 'warning' : 'normal'
+            status: precip >= uLluvia.critico ? 'alert' : precip >= uLluvia.aviso ? 'warning' : 'normal'
         });
     }
 
@@ -471,7 +482,7 @@ const EstacionCard = ({ est, onAbrir, horaCorte, sospechosa }: {
 
             {!sospechosa && sensoresMalos && (
                 <div className="estacion-sospechosa" role="status">
-                    <AlertTriangle size={12} aria-hidden="true" /> Sensores no confiables ({sensoresMalos}): se muestran como S/D y no entran a los promedios. Lluvia, presión y radiación sí son válidas.
+                    <AlertTriangle size={12} aria-hidden="true" /> Sensores no confiables ({sensoresMalos}): se muestran como S/D y no entran a los promedios. Los demás sensores de la estación siguen siendo válidos.
                 </div>
             )}
 
@@ -818,7 +829,7 @@ const Clima = () => {
     const conditions = useMemo(() => {
         const hoyLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
         const red = buildConditionsRed(estValidas, hoyLocal, umbralesClima);
-        return red.length ? red : buildConditions(clima);
+        return red.length ? red : buildConditions(clima, umbralesClima);
     }, [estValidas, clima, umbralesClima]);
 
     // Build technical variables.

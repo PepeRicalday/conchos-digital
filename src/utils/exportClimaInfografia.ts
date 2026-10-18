@@ -298,6 +298,8 @@ async function buildHTML(
     const uCalor = umbralVigente(umbrales, 'calor'), uViento = umbralVigente(umbrales, 'viento'), uLluvia = umbralVigente(umbrales, 'lluvia');
     const ventosoA = (holgura: number) => conLectura.some(e => (e.lectura!.viento_ms ?? 0) >= umbralVigente(umbrales, claveVientoDe(e.rol)).aviso - holgura);
     const vRestrictivo = ventosoA(0), vPrecaucion = ventosoA(1);
+    // La recomendación de aspersión solo aplica si el viento lo causa un MÓDULO (las presas no riegan por aspersión).
+    const vRestrictivoModulo = conLectura.some(e => e.rol !== 'presa' && (e.lectura!.viento_ms ?? 0) >= uViento.aviso);
     const etoMed = etos.length ? etos.reduce((a, b) => a + b, 0) / etos.length : null;
     const gddProm = gdds.length ? gdds.reduce((a, b) => a + b, 0) / gdds.length : null;
     // PROMEDIO entre estaciones con lectura, no suma: sumar mm entre pluviómetros
@@ -418,7 +420,7 @@ async function buildHTML(
     } else if (ETO != null) {
         recos.push(`Reponer ≈ ${((ETO * 0.85) / 0.7).toFixed(1)} mm/día; priorizar turnos nocturnos.`);
     }
-    if (vMax != null && vPrecaucion) recos.push(`Posponer riego por aspersión hasta que el viento baje de ${uViento.aviso - 1} m/s.`);
+    if (vRestrictivoModulo) recos.push(`Posponer riego por aspersión hasta que el viento baje de ${uViento.aviso} m/s.`);
     recos.push('Revisar humedad del suelo antes del siguiente turno.');
     recos.push('Continuar monitoreo de estaciones.');
 
@@ -880,9 +882,9 @@ export async function exportClimaInfografia(
  * El CSS `@media print` ya definido en buildHTML() gobierna la paginación.
  */
 export async function imprimirClimaInfografia(
-    ests: EstacionConLectura[], historial: DiaHistorico[] = [],
+    ests: EstacionConLectura[], historial: DiaHistorico[] = [], umbrales?: UmbralClima[],
 ): Promise<void> {
-    const html = await construyeInfografiaHTML(ests, historial);
+    const html = await construyeInfografiaHTML(ests, historial, umbrales);
     // Navegar la pestaña a un Blob URL (en vez de document.write, ya deprecado)
     // deja que el navegador parsee el documento de forma normal, con su propio
     // evento 'load' cuando imágenes y estilos ya resolvieron.

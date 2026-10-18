@@ -486,7 +486,7 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
                                     {/* Aviso de viento de clima_umbrales (el mismo de las alertas; las presas tienen el suyo). */}
                                     {l?.viento_ms != null && l.viento_ms >= umbralViento && (
                                         <div className="v-alerta">
-                                            <AlertTriangle size={12} /> Sobre {umbralViento} m/s: deriva en aspersión
+                                            <AlertTriangle size={12} /> Desde {umbralViento} m/s: {estacion.rol === 'presa' ? 'viento fuerte en el vaso' : 'deriva en aspersión'}
                                         </div>
                                     )}
                                 </div>

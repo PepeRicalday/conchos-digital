@@ -44,7 +44,8 @@ export function umbralesLlanos(d: DatosPronostico): UmbralesLlanos {
     const r = (c: string) => d.riesgos.find(x => x.clave === c);
     return {
         lluviaAvisoMm: r('lluvia')?.aviso ?? 10, lluviaCriticoMm: r('lluvia')?.critico ?? 25,
-        vientoAvisoMs: r('viento')?.aviso ?? 6, vientoCriticoMs: r('viento')?.critico ?? 10,
+        // Umbral base (módulos): el del público no debe cambiar según qué estación (presa o módulo) tenga el viento mayor.
+        vientoAvisoMs: r('viento')?.avisoBase ?? 6, vientoCriticoMs: r('viento')?.criticoBase ?? 10,
         heladaAvisoC: r('helada')?.aviso ?? 4, calorAvisoC: r('calor')?.aviso ?? 38,
         heladaCriticoC: r('helada')?.critico ?? 0, calorCriticoC: r('calor')?.critico ?? 42,
     };
@@ -88,7 +89,7 @@ export function lluviaDe(dia: ResumenDia, u: UmbralesLlanos): { nivel: LluviaNiv
     if (mm < 5) return { nivel: 'ligera', texto: 'Lluvia ligera' };
     if (mm < u.lluviaAvisoMm) return { nivel: 'moderada', texto: 'Lluvia moderada' };
     // La lámina del modelo sobrestima: "fuerte" exige que la lluvia sea probable (≥ 60 %); si no, se queda en "moderada".
-    if (dia.probMaxPct != null && dia.probMaxPct < 60) return { nivel: 'moderada', texto: 'Lluvia moderada' };
+    if (dia.probMaxPct == null || dia.probMaxPct < 60) return { nivel: 'moderada', texto: 'Lluvia moderada' };
     if (mm < u.lluviaCriticoMm) return { nivel: 'fuerte', texto: 'Lluvia fuerte' };
     return { nivel: 'muy_fuerte', texto: 'Lluvia muy fuerte' };
 }
@@ -195,8 +196,13 @@ const nombreDia = (x: DiaLlano) => (x.dia.etiqueta === 'Hoy' ? 'hoy' : x.dia.eti
 export interface TitularLlano { nivel: NivelRiesgo; sinDatos: boolean; titulo: string; detalle: string }
 /** Cuánto cambia la temperatura, sin afirmar "ayer": la comparación es con la misma hora 24 h antes (medida o del modelo). */
 function fraseCambio(c: CambioTemperatura): string {
+    const dir = c.sentido === 'descenso' ? 'menos' : 'más';
     const g = c.gradosC != null ? `${Math.round(c.gradosC)} °C` : 'varios grados';
-    return c.sentido === 'descenso' ? `${g} menos que 24 horas antes` : `${g} más que 24 horas antes`;
+    // Cifra pronosticada mayor que lo ya medido: se dice lo medido y lo esperado, no se afirma como hecho todo el cambio.
+    if (c.obsC != null && c.obsC >= 2 && c.gradosC != null && c.obsC < c.gradosC - 2) {
+        return `${Math.round(c.obsC)} °C ${dir} que 24 horas antes, y se esperan hasta ${g} ${dir}`;
+    }
+    return `${g} ${dir} que 24 horas antes`;
 }
 /** true = las estaciones ya lo miden (≥ 2 °C observados); false = solo lo pronostica el modelo, todavía no ocurre. */
 const cambioYaOcurre = (c: CambioTemperatura) => (c.obsC ?? 0) >= 2;

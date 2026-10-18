@@ -56,8 +56,12 @@ export interface Riesgo {
     etiqueta: string;
     unidad: string;
     comparador: 'mayor' | 'menor';
+    /** Umbrales de la ESTACIÓN que define el nivel (las presas tienen el suyo de viento). */
     aviso: number;
     critico: number;
+    /** Umbrales base de la variable (los de los módulos): los usa el informe para el público, que no debe cambiar según qué estación gane. */
+    avisoBase: number;
+    criticoBase: number;
     accion: string | null;
     /** Valor extremo pronosticado en la ventana (null = sin pronóstico). */
     valor: number | null;
@@ -428,7 +432,8 @@ function evaluaSerie(
         // El modelo llegó a sobrestimar la lámina al doble (99 mm pronosticados vs 55 mm medidos): el nivel solo se activa
         // si la probabilidad máxima de la ventana de 24 h es ≥ 60 % (igual que la alerta de BD). El valor se muestra siempre.
         const probs = pts.filter(p => p.probPct != null && p.ts > mejorTs - 24 * MS_H && p.ts <= mejorTs).map(p => p.probPct as number);
-        const confirmada = !probs.length || Math.max(...probs) >= PROB_LLUVIA_CONFIRMA_PCT;
+        // Sin probabilidad NO se confirma (igual que la vista de alertas: pmax NULL → el pronóstico no cuenta).
+        const confirmada = probs.length > 0 && Math.max(...probs) >= PROB_LLUVIA_CONFIRMA_PCT;
         const nivelLluvia: NivelRiesgo = confirmada ? nivelDe(mejor, uu) : 'normal';
         out.lluvia = { valor: Math.round(mejor * 10) / 10, cuandoMs: mejorTs, nivel: nivelLluvia,
             // Ventanas: horas con lluvia perceptible (≥ 0.5 mm/h), para saber CUÁNDO llueve.
@@ -572,6 +577,7 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
             etiqueta: u.etiqueta || DEF_RIESGO[c].etiquetaPorDefecto,
             unidad: u.unidad || DEF_RIESGO[c].unidadPorDefecto,
             comparador: u.comparador, aviso: Number(uM.aviso), critico: Number(uM.critico),
+            avisoBase: Number(u.aviso), criticoBase: Number(u.critico),
             accion: u.accion,
             valor: mejor?.valor ?? null,
             nivel: mejor ? mejor.ev.nivel : 'normal',

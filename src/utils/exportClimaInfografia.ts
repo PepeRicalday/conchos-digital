@@ -23,6 +23,8 @@ import { skillPronosticoResumen } from './climaVerificacion';
 import { guardaOComparte } from './descargaArchivo';
 import { rasterizaHtml } from './rasterizaHtml';
 import { getTodayString } from './dateHelpers';
+import { claveVientoDe, umbralVigente } from './umbralesClima';
+import type { UmbralClima } from '../hooks/useClimaOperativo';
 
 /** Paleta institucional de la infografía (azul marino SICA + verdes de estado). */
 const T = {
@@ -267,7 +269,7 @@ export function agrupaPorDia(lecturas: LecturaClima[]): DiaHistorico[] {
 
 async function buildHTML(
     ests: EstacionConLectura[], historial: DiaHistorico[], fondo: FondoSatelital | null,
-    capaNubes: CapaNubes | null = null,
+    capaNubes: CapaNubes | null = null, umbrales?: UmbralClima[],
 ): Promise<string> {
     const [logoSRL, logoSICA] = await Promise.all([
         assetToDataURI('/logos/logo-srl.png'),
@@ -291,6 +293,11 @@ async function buildHTML(
     const tMax = temps.length ? Math.max(...temps) : null;
     const hrProm = hums.length ? hums.reduce((a, b) => a + b, 0) / hums.length : null;
     const vMax = vientos.length ? Math.max(...vientos) : null;
+    // Umbrales de clima_umbrales (los mismos de las alertas). Viento: cada estación contra el suyo (presas aparte);
+    // "precaución" = 1 m/s antes del aviso. Calor: "moderado" = 4 °C debajo del aviso.
+    const uCalor = umbralVigente(umbrales, 'calor'), uViento = umbralVigente(umbrales, 'viento'), uLluvia = umbralVigente(umbrales, 'lluvia');
+    const ventosoA = (holgura: number) => conLectura.some(e => (e.lectura!.viento_ms ?? 0) >= umbralVigente(umbrales, claveVientoDe(e.rol)).aviso - holgura);
+    const vRestrictivo = ventosoA(0), vPrecaucion = ventosoA(1);
     const etoMed = etos.length ? etos.reduce((a, b) => a + b, 0) / etos.length : null;
     const gddProm = gdds.length ? gdds.reduce((a, b) => a + b, 0) / gdds.length : null;
     // PROMEDIO entre estaciones con lectura, no suma: sumar mm entre pluviómetros
@@ -311,7 +318,7 @@ async function buildHTML(
     const procedencias = [...new Set(ests.filter(e => e.cielo.coberturaPct != null)
         .map(e => PROCEDENCIA_LABEL[e.cielo.procedencia]))].join(' · ');
 
-    const preds = ests.filter(e => e.enLinea && e.lectura).map(e => predice24h(e));
+    const preds = ests.filter(e => e.enLinea && e.lectura).map(e => predice24h(e, umbrales));
     const indices = calculaIndices(entradasDesdeEstaciones(ests, etoDiario));
     const idr = indices.find(i => i.clave === 'IDR');
 
@@ -328,8 +335,8 @@ async function buildHTML(
         : tProm > 32 ? { txt: 'Caluroso', col: T.rojo }
         : tProm > 26 ? { txt: 'Cálido', col: T.ambar } : { txt: 'Normal', col: T.verde };
     const clasViento = vMax == null ? { txt: 'Sin dato', col: T.tintaSec }
-        : vMax > 6 ? { txt: 'Restrictivo', col: T.rojo }
-        : vMax > 5 ? { txt: 'Precaución', col: T.ambar } : { txt: 'Operable', col: T.verde };
+        : vRestrictivo ? { txt: 'Restrictivo', col: T.rojo }
+        : vPrecaucion ? { txt: 'Precaución', col: T.ambar } : { txt: 'Operable', col: T.verde };
     const clasGDD = gddProm == null ? { txt: 'Sin dato', col: T.tintaSec } : { txt: 'Normal', col: T.verde };
 
     // ── Semáforo operativo y estado general ─────────────────────────────────
@@ -338,9 +345,9 @@ async function buildHTML(
         : ETO >= 5 ? { txt: 'Demanda Alta', col: T.ambar }
         : ETO >= 3 ? { txt: 'Demanda Moderada', col: T.verdeClaro }
         : { txt: 'Demanda Baja', col: T.verdeClaro };
-    const riesgo = (vMax != null && vMax > 6) || (tMax != null && tMax > 38)
+    const riesgo = (vMax != null && vRestrictivo) || (tMax != null && tMax >= uCalor.aviso)
         ? { txt: 'Riesgo Climático Alto', col: T.rojo }
-        : (vMax != null && vMax > 5) || (tMax != null && tMax > 34)
+        : (vMax != null && vPrecaucion) || (tMax != null && tMax >= uCalor.aviso - 4)
         ? { txt: 'Riesgo Climático Moderado', col: T.ambar }
         : { txt: 'Riesgo Climático Bajo', col: T.verdeClaro };
     const canales = enLinea.length === ests.length
@@ -390,10 +397,10 @@ async function buildHTML(
         },
         {
             ico: '🌡️', tit: 'CONDICIÓN AMBIENTAL',
-            val: (tMax != null && tMax > 38) ? 'Estrés' : 'Estable',
-            col: (tMax != null && tMax > 38) ? T.rojo : T.verde,
+            val: (tMax != null && tMax >= uCalor.aviso) ? 'Estrés' : 'Estable',
+            col: (tMax != null && tMax >= uCalor.aviso) ? T.rojo : T.verde,
             txt: `${clasTemp.txt === 'Normal' ? 'Temperaturas normales' : `Ambiente ${clasTemp.txt.toLowerCase()}`}, `
-                + `${clasHR.txt.toLowerCase()}.<br>${(tMax != null && tMax > 38) ? 'Vigilar estrés hídrico.' : 'Sin estrés atmosférico.'}`,
+                + `${clasHR.txt.toLowerCase()}.<br>${(tMax != null && tMax >= uCalor.aviso) ? 'Vigilar estrés hídrico.' : 'Sin estrés atmosférico.'}`,
         },
         {
             ico: '🛡️', tit: 'RIESGO OPERATIVO', val: riesgo.txt.replace('Riesgo Climático ', ''), col: riesgo.col,
@@ -411,15 +418,15 @@ async function buildHTML(
     } else if (ETO != null) {
         recos.push(`Reponer ≈ ${((ETO * 0.85) / 0.7).toFixed(1)} mm/día; priorizar turnos nocturnos.`);
     }
-    if (vMax != null && vMax > 5) recos.push('Posponer riego por aspersión hasta que el viento baje de 5 m/s.');
+    if (vMax != null && vPrecaucion) recos.push(`Posponer riego por aspersión hasta que el viento baje de ${uViento.aviso - 1} m/s.`);
     recos.push('Revisar humedad del suelo antes del siguiente turno.');
     recos.push('Continuar monitoreo de estaciones.');
 
     // ── Alertas ─────────────────────────────────────────────────────────────
     const alertas: string[] = [];
-    if (tMax != null && tMax > 38) alertas.push('Estrés térmico severo.');
-    if (vMax != null && vMax > 6) alertas.push('Viento restrictivo para aspersión.');
-    if (lluviaObs > 10) alertas.push('Precipitación significativa: evaluar cierre de tomas.');
+    if (tMax != null && tMax >= uCalor.aviso) alertas.push('Estrés térmico severo.');
+    if (vMax != null && vRestrictivo) alertas.push('Viento restrictivo para aspersión.');
+    if (lluviaObs >= uLluvia.aviso) alertas.push('Precipitación significativa: evaluar cierre de tomas.');
     if (enLinea.length < ests.length) alertas.push(`${ests.length - enLinea.length} estación(es) sin reportar.`);
     if (cobs.length === 0) alertas.push('Sin fuente de nubosidad: cielo no determinado.');
 
@@ -832,7 +839,7 @@ async function buildHTML(
  * salida ni arriesgar que diverjan entre sí.
  */
 async function construyeInfografiaHTML(
-    ests: EstacionConLectura[], historial: DiaHistorico[],
+    ests: EstacionConLectura[], historial: DiaHistorico[], umbrales?: UmbralClima[],
 ): Promise<string> {
     // Fondo satelital con realce geomorfológico. Es opcional por diseño: sin red
     // (o si el navegador bloquea el canvas por CORS) devuelve null y el plano cae
@@ -847,7 +854,7 @@ async function construyeInfografiaHTML(
             construyeCapaNubes(ext.minLon, ext.maxLon, ext.minLat, ext.maxLat),
         ])
         : [null, null];
-    return buildHTML(ests, historial, fondo, capaNubes);
+    return buildHTML(ests, historial, fondo, capaNubes, umbrales);
 }
 
 /**
@@ -856,9 +863,9 @@ async function construyeInfografiaHTML(
  * tendencias se rotula "sin datos suficientes" en vez de dibujar una línea falsa.
  */
 export async function exportClimaInfografia(
-    ests: EstacionConLectura[], historial: DiaHistorico[] = [],
+    ests: EstacionConLectura[], historial: DiaHistorico[] = [], umbrales?: UmbralClima[],
 ): Promise<void> {
-    const html = await construyeInfografiaHTML(ests, historial);
+    const html = await construyeInfografiaHTML(ests, historial, umbrales);
     const nombreArchivo = `infografia-clima-conchos-${getTodayString()}.html`;
     const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
     await guardaOComparte(blob, nombreArchivo, 'text/html');
@@ -914,9 +921,9 @@ export async function imprimirClimaInfografia(
  * no soporta), y las imágenes (logos, mapa) ya vienen como data URI.
  */
 export async function imagenClimaInfografia(
-    ests: EstacionConLectura[], historial: DiaHistorico[] = [],
+    ests: EstacionConLectura[], historial: DiaHistorico[] = [], umbrales?: UmbralClima[],
 ): Promise<void> {
-    const html = await construyeInfografiaHTML(ests, historial);
+    const html = await construyeInfografiaHTML(ests, historial, umbrales);
     // Escala 2x: nitidez adecuada para impresión/proyección sin generar un archivo desproporcionado.
     const blobPng = await rasterizaHtml(html, { ancho: 1200, escala: 2 });
     const nombreArchivo = `infografia-clima-conchos-${getTodayString()}.png`;

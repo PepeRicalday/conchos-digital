@@ -16,6 +16,7 @@ import type { DetalleEstacion, DiaEstacion, BalanceHidrico } from './estacionDet
 import type { RangoAnalisis } from '../hooks/useEstacionDetalle';
 import { formateaEdad, PROCEDENCIA_LABEL } from './cielo';
 import { assetToDataURI } from './exportClimaReport';
+import { claveVientoDe, umbralVigente } from './umbralesClima';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
 
@@ -297,7 +298,7 @@ async function construyeHTML(
         <div class="v-fila"><span>Actual</span><b>${f(l?.viento_ms)} m/s</b></div>
         <div class="v-fila"><span>Ráfaga</span><b>${f(l?.viento_rafaga_ms)} m/s</b></div>
         <div class="v-fila"><span>Dirección</span><b>${l?.viento_dir_deg != null ? `${Math.round(l.viento_dir_deg)}°` : 'S/D'}</b></div>
-        ${l?.viento_ms != null && l.viento_ms > 4 ? '<div class="v-alerta">⚠ Sobre 4 m/s: deriva en aspersión</div>' : ''}
+        ${l?.viento_ms != null && l.viento_ms >= umbralVigente(undefined, claveVientoDe(estacion.rol)).aviso ? `<div class="v-alerta">⚠ Sobre ${umbralVigente(undefined, claveVientoDe(estacion.rol)).aviso} m/s: deriva en aspersión</div>` : ''}
         <div class="v-fila" style="border-top:1px dashed #1e293b;margin-top:6px;padding-top:8px">
           <span>Riesgo térmico</span><b style="color:${detalle.riesgo.color}">${esc(detalle.riesgo.etiqueta)}</b>
         </div>

@@ -1394,8 +1394,9 @@ const PublicMonitor: React.FC = () => {
                 .select('id, tipo_riesgo, titulo, mensaje, fecha_deteccion')
                 .eq('resuelta', false)
                 .order('fecha_deteccion', { ascending: false })
-                .limit(5);
-            if (data) setActiveAlertas(data as any);
+                .limit(30);
+            // Las críticas primero: con 5 avisos más recientes, una crítica anterior quedaba fuera de la lista.
+            if (data) setActiveAlertas([...(data as any[])].sort((a, b) => Number(b.tipo_riesgo === 'critical') - Number(a.tipo_riesgo === 'critical')).slice(0, 5));
         };
         fetchAlertas();
 

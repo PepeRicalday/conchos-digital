@@ -636,7 +636,7 @@ const Clima = () => {
     };
 
     const descargarInfografia = async () => {
-        await exportClimaInfografia(estaciones, await historialInfografia());
+        await exportClimaInfografia(estaciones, await historialInfografia(), umbralesClima);
     };
 
     // Informe Geoclimático: sin periodo elegido en el modal, el mapa de cada
@@ -733,7 +733,7 @@ const Clima = () => {
                 }
             }
             await exportClimaGeoInforme(estacionesInforme, {
-                ...opciones, periodoDesde, periodoHasta, serieMensual, tendencias,
+                ...opciones, periodoDesde, periodoHasta, serieMensual, tendencias, umbrales: umbralesClima,
                 diaMaxLluviaPorId: resumenRango?.diaMaxLluviaPorId,
                 precipitacionEsRealDeConsola: esTodoElHistorico,
             });
@@ -752,7 +752,7 @@ const Clima = () => {
     const generarImagenInfografia = async () => {
         setGenerandoImagen(true);
         try {
-            await imagenClimaInfografia(estaciones, await historialInfografia());
+            await imagenClimaInfografia(estaciones, await historialInfografia(), umbralesClima);
         } catch (e) {
             console.error('[Clima] no se pudo generar la imagen de la infografía:', e);
             setAvisoUi(e instanceof Error ? e.message : 'No se pudo generar la imagen de la infografía.');

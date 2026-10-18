@@ -19,6 +19,8 @@
 // (auditoría de diseño 2026-09-11, ver memoria de proyecto
 // project_geo_climatico_interpolacion).
 // ═══════════════════════════════════════════════════════════════════════════
+import { umbralVigente } from './umbralesClima';
+import type { UmbralClima } from '../hooks/useClimaOperativo';
 import type { EstacionConLectura } from '../hooks/useClimaEstaciones';
 import { MODULOS_SRL } from './geoDistrito';
 import {
@@ -52,6 +54,8 @@ const SRL_MARRON = '#6B2D2D';
  *  acotada al rango. */
 export interface OpcionesGeoInforme {
     variables: Array<VariableMapa['clave']>;
+    /** Umbrales vigentes (clima_umbrales). Sin ellos se usan los de respaldo, que coinciden con los sembrados. */
+    umbrales?: UmbralClima[];
     /** Rango a mostrar (YYYY-MM-DD, inclusive) — generarGeoInforme en
      *  Clima.tsx siempre lo resuelve antes de llegar aquí (ver arriba);
      *  opcional solo porque otros llamadores hipotéticos podrían omitirlo, en
@@ -1252,12 +1256,11 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
         }
     }
 
-    // Umbral operativo de viento para aspersión (deriva de gota): referencia
-    // agronómica habitual ~3.5 m/s, declarada como guía, no como límite
-    // normativo del distrito — se listan los módulos por encima, con su
-    // procedencia (medido/interpolado) porque la decisión de suspender un
-    // riego por aspersión no debe tomarse solo sobre un valor interpolado.
-    const UMBRAL_VIENTO_ASPERSION = 3.5;
+    // Umbral de viento para aspersión: el MISMO aviso de SICA (clima_umbrales, 6 m/s) que usan las alertas y los demás
+    // informes — antes este informe usaba 3.5 m/s y contradecía a las alertas. Se listan los módulos por encima, con su
+    // procedencia (medido/interpolado) porque la decisión de suspender un riego por aspersión no debe tomarse solo
+    // sobre un valor interpolado.
+    const UMBRAL_VIENTO_ASPERSION = umbralVigente(opciones.umbrales, 'viento').aviso;
     const valoresViento = valoresPorModuloTodas.get('vientoMs')!;
     const modulosVientoAlto = numsModuloOrdenados
         .map(num => ({ num, info: valoresViento.get(num) }))
@@ -1266,7 +1269,7 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
         alertas.push({
             nivel: 'aviso',
             texto: modoTecnico
-                ? `Viento igual o mayor a ${UMBRAL_VIENTO_ASPERSION} m/s (referencia operativa de deriva de gota en aspersión) en `
+                ? `Viento igual o mayor a ${UMBRAL_VIENTO_ASPERSION} m/s (aviso de viento de SICA para aspersión) en `
                     + `${modulosVientoAlto.map(e => `Módulo ${e.num} (${e.info.valor!.toFixed(1)} m/s${!e.info.medido ? ', interpolado' : ''})`).join(', ')}.`
                 : `Viento fuerte en ${modulosVientoAlto.map(e => `Módulo ${e.num} (${e.info.valor!.toFixed(1)} m/s)`).join(', ')} — no recomendable regar por aspersión ahora.`,
         });

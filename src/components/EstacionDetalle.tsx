@@ -26,6 +26,7 @@ import type { BalanceHidrico } from '../utils/estacionDetalle';
 import { formateaEdad, PROCEDENCIA_LABEL } from '../utils/cielo';
 import { exportEstacionInforme } from '../utils/exportEstacionInforme';
 import { supabase } from '../lib/supabase';
+import { claveVientoDe, umbralVigente } from '../utils/umbralesClima';
 import './EstacionDetalle.css';
 
 /** Fila diaria de calibración cruzada (fn_clima_calibracion_cruzada). */
@@ -163,6 +164,7 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
     const [manualHasta, setManualHasta] = useState(hoyISO());
     const [mostrarManual, setMostrarManual] = useState(false);
     const { detalle, loading, error } = useEstacionDetalle(estacion, rango);
+    const umbralViento = umbralVigente(detalle?.umbrales, claveVientoDe(estacion.rol)).aviso;
     const { calib } = useCalibracionCruzada(estacion.id);
     const [generandoInforme, setGenerandoInforme] = useState(false);
 
@@ -481,10 +483,10 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
                                         <span>Dirección</span>
                                         <b>{l?.viento_dir_deg != null ? `${Math.round(l.viento_dir_deg)}°` : 'S/D'}</b>
                                     </div>
-                                    {/* Umbral operativo de aspersión/aplicación foliar. */}
-                                    {l?.viento_ms != null && l.viento_ms > 4 && (
+                                    {/* Aviso de viento de clima_umbrales (el mismo de las alertas; las presas tienen el suyo). */}
+                                    {l?.viento_ms != null && l.viento_ms >= umbralViento && (
                                         <div className="v-alerta">
-                                            <AlertTriangle size={12} /> Sobre 4 m/s: deriva en aspersión
+                                            <AlertTriangle size={12} /> Sobre {umbralViento} m/s: deriva en aspersión
                                         </div>
                                     )}
                                 </div>

@@ -26,6 +26,7 @@
 
 import type { EstacionConLectura, LecturaClima } from '../hooks/useClimaEstaciones';
 import { umbralVigente } from './umbralesClima';
+import type { UmbralClima } from '../hooks/useClimaOperativo';
 
 // ── Cierre diario: una fila por día, con el máximo de cada acumulado ────────
 
@@ -328,14 +329,14 @@ export interface RiesgoTermico {
  * Spread (T − Td) pequeño ⇒ aire saturado ⇒ rocío/niebla, que retrasa labores
  * y favorece hongos. Mínima en el umbral de aviso de helada (clima_umbrales, 4 °C) ⇒ riesgo de helada.
  */
-export function riesgoTermico(dias: DiaEstacion[], lecturas: LecturaClima[]): RiesgoTermico {
+export function riesgoTermico(dias: DiaEstacion[], lecturas: LecturaClima[], umbrales?: UmbralClima[]): RiesgoTermico {
     const spreads = lecturas
         .map(l => { const t = num(l.temp_c), d = num(l.punto_rocio_c); return t != null && d != null ? t - d : null; })
         .filter((v): v is number => v != null);
     const spreadMin = spreads.length ? Math.min(...spreads) : null;
     const tMin = minOf(dias.map(d => d.tempMinC));
 
-    if (tMin != null && tMin <= umbralVigente(undefined, 'helada').aviso) return { spreadMinC: spreadMin, tempMinC: tMin, etiqueta: 'Riesgo de helada', color: '#60a5fa' };
+    if (tMin != null && tMin <= umbralVigente(umbrales, 'helada').aviso) return { spreadMinC: spreadMin, tempMinC: tMin, etiqueta: 'Riesgo de helada', color: '#60a5fa' };
     if (spreadMin != null && spreadMin <= 2) return { spreadMinC: spreadMin, tempMinC: tMin, etiqueta: 'Rocío / niebla probable', color: '#38bdf8' };
     if (spreadMin != null && spreadMin <= 5) return { spreadMinC: spreadMin, tempMinC: tMin, etiqueta: 'Humedad nocturna alta', color: '#22c55e' };
     if (spreadMin == null) return { spreadMinC: null, tempMinC: tMin, etiqueta: 'Sin dato', color: '#64748b' };
@@ -354,6 +355,8 @@ export interface DetalleEstacion {
     balanceVentana: BalanceHidrico;
     rosa: RosaViento[];
     riesgo: RiesgoTermico;
+    /** Umbrales de clima_umbrales con los que se evaluó el riesgo (los usa también el informe exportado). */
+    umbrales?: UmbralClima[];
     /** Acumulados nativos de la estación en la última lectura. */
     lluviaMesMm: number | null;
     lluviaAnioMm: number | null;

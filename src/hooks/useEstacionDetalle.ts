@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import type { EstacionConLectura, LecturaClima } from './useClimaEstaciones';
-import { construyeDetalle, type DetalleEstacion } from '../utils/estacionDetalle';
+import { construyeDetalle, riesgoTermico, type DetalleEstacion } from '../utils/estacionDetalle';
+import { useUmbralesClima } from './useClimaOperativo';
 
 /**
  * Histórico de UNA estación, cargado bajo demanda al abrir su detalle.
@@ -34,6 +35,7 @@ export function useEstacionDetalle(est: EstacionConLectura | null, rango: RangoA
     const [lecturas, setLecturas] = useState<LecturaClima[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const umbrales = useUmbralesClima();
 
     // Límites de consulta: una ventana relativa a "ahora", o el rango manual
     // exacto (hasta el final del día seleccionado, no su medianoche).
@@ -83,5 +85,12 @@ export function useEstacionDetalle(est: EstacionConLectura | null, rango: RangoA
         return () => { cancelado = true; };
     }, [est, desde, hasta, rango]);
 
-    return { detalle, lecturas, loading, error };
+    // Los umbrales (clima_umbrales) llegan por separado y pueden cargar después que las lecturas: solo el riesgo térmico
+    // depende de ellos, así que se recalcula aquí sin volver a consultar el histórico.
+    const detalleConUmbrales = useMemo(
+        () => (detalle ? { ...detalle, umbrales, riesgo: riesgoTermico(detalle.dias, lecturas, umbrales) } : null),
+        [detalle, lecturas, umbrales],
+    );
+
+    return { detalle: detalleConUmbrales, lecturas, loading, error };
 }

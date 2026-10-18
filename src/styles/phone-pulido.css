@@ -112,19 +112,6 @@ html[data-device="phone"] .conchos-modules-grid { gap: 8px; }
 html[data-device="phone"] .conchos-module-card { padding: 10px; }
 html[data-device="phone"] .conchos-modules-header { margin: 12px 0 6px; }
 
-/* ═══ CONTROL DE NIVELES (la página más larga: 8,651 px) ════════════════════ */
-html[data-device="phone"] .header-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-html[data-device="phone"] .stat-chip { justify-content: center; font-size: 0.8rem; padding: 6px 8px; }
-html[data-device="phone"] .scale-gauge-card { padding: 10px; }
-html[data-device="phone"] .gauge-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
-html[data-device="phone"] .gauge-header .warning-badge { position: static; margin-left: auto; }
-html[data-device="phone"] .gauge-km { display: none; }   /* el nombre (K-23) ya indica el km; evitaba el montaje con la insignia */
-/* Cada escala pasa de ~1,100 px a una ficha: nombre, estado, gasto y variación. Gráfica y radiales se omiten. */
-html[data-device="phone"] .gauge-body-row,
-html[data-device="phone"] .radial-diagram-section { display: none; }
-html[data-device="phone"] .reading-row { padding: 2px 0; }
-html[data-device="phone"] .delta-row { padding: 4px 8px; font-size: 0.85rem; }
-
 /* ═══ HIDROMETRÍA ═══════════════════════════════════════════════════════════ */
 html[data-device="phone"] .hidro-grid > * { height: auto !important; min-height: 0; }
 html[data-device="phone"] .hidro-grid .glass-card { padding: 12px 14px; }

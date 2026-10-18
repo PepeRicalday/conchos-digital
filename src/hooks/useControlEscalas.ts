@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { onTable } from '../lib/realtimeHub';
 import { ensureMetadata } from '../store/useMetadataStore';
@@ -24,13 +24,14 @@ export function useControlEscalas() {
     const { activeEvent } = useHydricEvents();
     const vaciado = activeEvent?.evento_tipo === 'VACIADO';
 
-    const [zones, setZones] = useState<Zone[]>([]);
+    interface Crudo { escalas: EscalaMeta[]; secciones: SeccionMeta[]; lecturas: LecturaEscala[]; resumen: ResumenDia[]; ahoraMs: number }
+    const [crudo, setCrudo] = useState<Crudo | null>(null);
     const [cargado, setCargado] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [avisos, setAvisos] = useState<string[]>([]);
-    const [actualizadoMs, setActualizadoMs] = useState<number | null>(null);
     const version = useRef(0);
 
+    // `vaciado` NO es dependencia de la carga: cambia cuando llega el evento activo y no debe relanzar las consultas.
     const cargar = useCallback(async () => {
         const mi = ++version.current;
         try {
@@ -52,23 +53,28 @@ export function useControlEscalas() {
             if (lect.error) faltas.push('lecturas recientes');
             if (res.error) faltas.push('resumen del día');
 
-            const escalas = (meta.escalas as unknown as EscalaMeta[]);
-            const secciones = (meta.secciones as unknown as SeccionMeta[]);
-            setZones(construirZonas(
-                escalas, secciones,
-                (lect.data ?? []) as unknown as LecturaEscala[], (res.data ?? []) as unknown as ResumenDia[],
-                { fecha: fechaSeleccionada, esHoy: esHoy && fechaSeleccionada === getTodayString(), vaciado, ahoraMs: Date.now() },
-            ));
+            setCrudo({
+                escalas: meta.escalas as unknown as EscalaMeta[],
+                secciones: meta.secciones as unknown as SeccionMeta[],
+                lecturas: (lect.data ?? []) as unknown as LecturaEscala[],
+                resumen: (res.data ?? []) as unknown as ResumenDia[],
+                ahoraMs: Date.now(),
+            });
             setAvisos(faltas);
             setError(null);
-            setActualizadoMs(Date.now());
         } catch (err) {
             if (mi !== version.current) return;
             setError(err instanceof Error ? err.message : 'No se pudieron leer las escalas');
         } finally {
             if (mi === version.current) setCargado(true);
         }
-    }, [fechaSeleccionada, esHoy, vaciado]);
+    }, [fechaSeleccionada, esHoy]);
+
+    const zones: Zone[] = useMemo(() => crudo
+        ? construirZonas(crudo.escalas, crudo.secciones, crudo.lecturas, crudo.resumen,
+            { fecha: fechaSeleccionada, esHoy: esHoy && fechaSeleccionada === getTodayString(), vaciado, ahoraMs: crudo.ahoraMs })
+        : [], [crudo, fechaSeleccionada, esHoy, vaciado]);
+    const actualizadoMs = crudo?.ahoraMs ?? null;
 
     usePolling(cargar, POLL_MS);
 

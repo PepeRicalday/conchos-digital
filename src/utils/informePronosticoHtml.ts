@@ -229,6 +229,7 @@ ${avisos}
 
 <h2>1 · Qué hacer en cada módulo</h2>
 <p class="sub2">Decisión operativa por módulo según los umbrales vigentes de SICA (tabla clima_umbrales). Los módulos sin estación propia (2, 4 y 12) usan la estación más cercana y se rotulan como estimados.</p>
+${d.cambioTemp ? `<p class="sub2"><b>Nota:</b> hay un ${esc(d.cambioTemp.sentido)} brusco de temperatura en toda la red (${esc(d.cambioTemp.nivel === 'critico' ? 'crítico' : 'aviso')}; ver el veredicto y la sección 5). La decisión por módulo evalúa viento, lluvia, helada, calor y ETₒ por separado, así que un módulo puede figurar «Normal» aunque la red completa esté bajo este aviso.</p>` : ''}
 <div class="grid-mapa">
   <div>${mapaDecisionSvg(d.modulos)}</div>
   <div><table>

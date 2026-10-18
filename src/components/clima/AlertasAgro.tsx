@@ -86,7 +86,7 @@ export function AlertasAgro({ alertas, umbrales, cargado, error }: Props) {
                             ))}
                         </tbody>
                     </table>
-                    <p>Se evalúan cada 30 min con el mayor valor entre la última lectura plausible y el pronóstico a 48 h; el mensaje de cada alerta indica ambos ("ahora" y "pronóstico"). Editables en la tabla clima_umbrales.</p>
+                    <p>Se evalúan cada 30 min con el mayor valor entre la última lectura plausible y el pronóstico a 48 h; el mensaje de cada alerta indica ambos ("ahora" y "pronóstico"). Los descensos y ascensos bruscos comparan cada hora con la misma hora de 24 h antes y solo alertan cuando al menos 2 estaciones coinciden. Editables en la tabla clima_umbrales.</p>
                 </details>
             )}
         </section>

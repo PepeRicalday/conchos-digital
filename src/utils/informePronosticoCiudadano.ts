@@ -26,7 +26,7 @@ import { getTodayString } from './dateHelpers';
 import { rasterizaHtml } from './rasterizaHtml';
 import { MODULOS_SRL_IDS } from './modulosSRL';
 import { RAMPA_PROB, colorProb, franja72Svg, mapaProbabilidadSvg, tiraHorariaModulosSvg } from './informePronosticoMapa';
-import { fmtHora, type DatosPronostico, type Franja, type NivelRiesgo, type ResumenDia } from './informePronosticoDatos';
+import { fmtHora, peorNivel, type CambioTemperatura, type DatosPronostico, type Franja, type NivelRiesgo, type ResumenDia } from './informePronosticoDatos';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const kmh = (ms: number | null) => (ms == null ? null : Math.round(ms * 3.6));
@@ -38,6 +38,7 @@ export interface UmbralesLlanos {
     lluviaAvisoMm: number; lluviaCriticoMm: number;
     vientoAvisoMs: number; vientoCriticoMs: number;
     heladaAvisoC: number; calorAvisoC: number;
+    heladaCriticoC: number; calorCriticoC: number;
 }
 export function umbralesLlanos(d: DatosPronostico): UmbralesLlanos {
     const r = (c: string) => d.riesgos.find(x => x.clave === c);
@@ -45,6 +46,7 @@ export function umbralesLlanos(d: DatosPronostico): UmbralesLlanos {
         lluviaAvisoMm: r('lluvia')?.aviso ?? 10, lluviaCriticoMm: r('lluvia')?.critico ?? 25,
         vientoAvisoMs: r('viento')?.aviso ?? 6, vientoCriticoMs: r('viento')?.critico ?? 10,
         heladaAvisoC: r('helada')?.aviso ?? 4, calorAvisoC: r('calor')?.aviso ?? 36,
+        heladaCriticoC: r('helada')?.critico ?? 2, calorCriticoC: r('calor')?.critico ?? 40,
     };
 }
 
@@ -189,7 +191,42 @@ export function describeDia(dia: ResumenDia, u: UmbralesLlanos): DiaLlano {
 const nombreDia = (x: DiaLlano) => (x.dia.etiqueta === 'Hoy' ? 'hoy' : x.dia.etiqueta === 'Mañana' ? 'mañana' : x.dia.etiqueta === 'Pasado mañana' ? 'pasado mañana' : x.dia.etiqueta);
 
 export interface TitularLlano { nivel: NivelRiesgo; sinDatos: boolean; titulo: string; detalle: string }
+/** Cuánto cambia la temperatura, sin afirmar "ayer": la comparación es con la misma hora 24 h antes (medida o del modelo). */
+function fraseCambio(c: CambioTemperatura): string {
+    const g = c.gradosC != null ? `${Math.round(c.gradosC)} °C` : 'varios grados';
+    return c.sentido === 'descenso' ? `${g} menos que 24 horas antes` : `${g} más que 24 horas antes`;
+}
+/** true = las estaciones ya lo miden (≥ 2 °C observados); false = solo lo pronostica el modelo, todavía no ocurre. */
+const cambioYaOcurre = (c: CambioTemperatura) => (c.obsC ?? 0) >= 2;
+
+/**
+ * Titular con el cambio brusco de temperatura de la red. Si ya hay un riesgo mayor (lluvia fuerte, viento, helada)
+ * ese manda y el cambio se agrega al detalle; si lo único que hay es normal, el cambio pasa a ser el titular.
+ */
 export function titularLlano(d: DatosPronostico, u: UmbralesLlanos = umbralesLlanos(d)): TitularLlano {
+    const base = titularBase(d, u);
+    const c = d.cambioTemp;
+    // Solo sin ningún día de pronóstico se omite: la alerta de temperatura es independiente de la lluvia.
+    if (!c || !d.dias.length) return base;
+    const ya = cambioYaOcurre(c);
+    const tMin = Math.min(...d.dias.map(x => x.tMinC).filter((v): v is number => v != null));
+    const tMax = Math.max(...d.dias.map(x => x.tMaxC).filter((v): v is number => v != null));
+    const frio = Number.isFinite(tMin) && tMin < 15;
+    const calido = Number.isFinite(tMax) && tMax >= 28;
+    const consejo = c.sentido === 'descenso'
+        ? (frio ? 'Abríguese y proteja plantas sensibles y mascotas.' : 'Refrescará, pero sin llegar a frío.')
+        : (calido ? 'Tome agua y evite el sol del mediodía.' : 'Se sentirá más templado, sin llegar a calor.');
+    const verbo = c.sentido === 'descenso' ? (ya ? 'Baja' : 'Se espera una baja') : (ya ? 'Sube' : 'Se espera una subida');
+    const aviso = `${verbo} brusca de temperatura (${fraseCambio(c)}). ${consejo}`;
+    const infoBase = base.sinDatos || /^Sin riesgos/.test(base.titulo) ? '' : ` ${base.detalle}`;
+    if (base.nivel === 'normal') {
+        // El titular sigue siendo del cambio; la lluvia leve o el calor menor quedan en el detalle.
+        return { nivel: c.nivel, sinDatos: false, titulo: `${verbo} brusca de temperatura: ${fraseCambio(c)}`, detalle: `${consejo}${infoBase ? ` ${base.titulo}.${infoBase}` : ''}` };
+    }
+    return { ...base, nivel: peorNivel(base.nivel, c.nivel), detalle: `${base.detalle} ${aviso}` };
+}
+
+function titularBase(d: DatosPronostico, u: UmbralesLlanos): TitularLlano {
     const ds = d.dias.map(x => describeDia(x, u));
     if (!ds.length) return { nivel: 'normal', sinDatos: true, titulo: 'Sin información de pronóstico por ahora', detalle: 'Intente de nuevo en una hora.' };
 
@@ -224,7 +261,10 @@ export function titularLlano(d: DatosPronostico, u: UmbralesLlanos = umbralesLla
         };
     }
     const helada = ds.find(x => x.dia.tMinC != null && x.dia.tMinC <= u.heladaAvisoC);
-    if (helada) return { nivel: 'aviso', sinDatos: false, titulo: `Riesgo de helada ${nombreDia(helada)} (mínima de ${Math.round(helada.dia.tMinC!)} °C)`, detalle: 'Cubra las plantas sensibles y proteja del frío a personas y mascotas.' };
+    if (helada) return { nivel: helada.dia.tMinC! <= u.heladaCriticoC ? 'critico' : 'aviso', sinDatos: false, titulo: `Riesgo de helada ${nombreDia(helada)} (mínima de ${Math.round(helada.dia.tMinC!)} °C)`, detalle: 'Cubra las plantas sensibles y proteja del frío a personas y mascotas.' };
+    // El calor se evalúa ANTES que la lluvia leve: una llovizna (nivel normal) no debe ocultar un aviso de calor.
+    const calor = ds.find(x => x.dia.tMaxC != null && x.dia.tMaxC >= u.calorAvisoC);
+    if (calor) return { nivel: calor.dia.tMaxC! >= u.calorCriticoC ? 'critico' : 'aviso', sinDatos: false, titulo: `Calor intenso ${nombreDia(calor)} (máxima de ${Math.round(calor.dia.tMaxC!)} °C)`, detalle: 'Tome agua con frecuencia y evite el sol directo entre las 12 y las 17 h.' };
     const posible = ds.find(x => llueveDeVerdad(x.lluvia.nivel) && ((x.dia.probMaxPct ?? 0) >= 40 || (x.dia.lluviaMaxMm ?? 0) >= 1));
     if (posible) {
         const cuando = cuandoTexto(posible.dia);
@@ -232,8 +272,6 @@ export function titularLlano(d: DatosPronostico, u: UmbralesLlanos = umbralesLla
     }
     const posibleLeve = ds.find(x => x.lluvia.nivel === 'posible' && (x.dia.probMaxPct ?? 0) >= 40);
     if (posibleLeve) return { nivel: 'normal', sinDatos: false, titulo: `Podría caer un poco de lluvia ${nombreDia(posibleLeve)}`, detalle: 'Si va a salir, lleve paraguas por si acaso.' };
-    const calor = ds.find(x => x.dia.tMaxC != null && x.dia.tMaxC >= u.calorAvisoC);
-    if (calor) return { nivel: 'aviso', sinDatos: false, titulo: `Calor intenso ${nombreDia(calor)} (máxima de ${Math.round(calor.dia.tMaxC!)} °C)`, detalle: 'Tome agua con frecuencia y evite el sol directo entre las 12 y las 17 h.' };
     // Sin ninguna señal de riesgo: solo se dice "sin riesgos" si realmente hay datos de lluvia.
     if (ds.every(x => x.lluvia.nivel === 'sin_dato')) return { nivel: 'normal', sinDatos: true, titulo: 'Sin información suficiente de lluvia', detalle: 'Revise el cielo y tome precauciones si ve nubes oscuras.' };
     return { nivel: 'normal', sinDatos: false, titulo: 'Sin riesgos en las próximas 48 horas', detalle: 'No se esperan lluvias fuertes, viento fuerte, helada ni calor intenso.' };
@@ -275,6 +313,16 @@ export function consejosPublico(d: DatosPronostico, u: UmbralesLlanos = umbrales
         out.push({ icono: 'viento', texto: 'El polvo irrita ojos y garganta: cúbrase la cara y maneje con cuidado.', tipo: 'viento' });
     } else if (hay(x => x.viento?.nivel === 'moderado' && (x.dia.vientoMaxMs ?? 0) >= 5.5)) {
         out.push({ icono: 'viento', texto: 'Viento moderado: cuide objetos ligeros y lonas.', tipo: 'viento' });
+    }
+    if (d.cambioTemp) {
+        const c = d.cambioTemp, ya = cambioYaOcurre(c);
+        const tMin = Math.min(...d.dias.map(x => x.tMinC).filter((v): v is number => v != null));
+        const tMax = Math.max(...d.dias.map(x => x.tMaxC).filter((v): v is number => v != null));
+        if (c.sentido === 'descenso') {
+            out.push({ icono: 'frio', tipo: 'frio', texto: `${ya ? 'Bajó' : 'Se espera que baje'} la temperatura (${fraseCambio(c)}). ${Number.isFinite(tMin) && tMin < 15 ? 'Lleve ropa de abrigo, sobre todo niñas, niños y personas mayores.' : 'Lleve una prenda extra por si refresca.'}` });
+        } else {
+            out.push({ icono: 'calor', tipo: 'calor', texto: `${ya ? 'Subió' : 'Se espera que suba'} la temperatura (${fraseCambio(c)}). ${Number.isFinite(tMax) && tMax >= 28 ? 'Vista ropa ligera y tome agua seguido.' : 'Se sentirá más templado.'}` });
+        }
     }
     if (hay(x => x.dia.tMinC != null && x.dia.tMinC <= u.heladaAvisoC)) {
         out.push({ icono: 'frio', texto: 'Riesgo de helada: proteja plantas, mascotas y a personas mayores, niñas y niños. No deje agua en tuberías expuestas.', tipo: 'frio' });

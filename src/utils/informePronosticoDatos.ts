@@ -24,7 +24,7 @@ import { valorPlausible } from './plausibilidadClima';
 
 export type NivelRiesgo = 'normal' | 'aviso' | 'critico';
 const RANGO_NIVEL: Record<NivelRiesgo, number> = { normal: 0, aviso: 1, critico: 2 };
-const peorNivel = (a: NivelRiesgo, b: NivelRiesgo): NivelRiesgo => (RANGO_NIVEL[b] > RANGO_NIVEL[a] ? b : a);
+export const peorNivel = (a: NivelRiesgo, b: NivelRiesgo): NivelRiesgo => (RANGO_NIVEL[b] > RANGO_NIVEL[a] ? b : a);
 
 export type ClaveRiesgo = 'viento' | 'lluvia' | 'helada' | 'calor' | 'eto';
 const CLAVES: ClaveRiesgo[] = ['viento', 'lluvia', 'helada', 'calor', 'eto'];
@@ -64,6 +64,40 @@ export interface Riesgo {
     ventanas: VentanaRiesgo[];
     /** Qué mide exactamente el valor (para no mezclar ventanas). */
     definicion: string;
+}
+
+/** Alerta de red por cambio de temperatura en 24 h (BD: claves `descenso` / `ascenso`, umbral 8 °C aviso · 12 °C crítico). */
+export interface CambioTemperatura {
+    sentido: 'descenso' | 'ascenso';
+    nivel: NivelRiesgo;
+    /** Magnitud del cambio (°C, positiva): mediana entre las estaciones que coinciden. */
+    gradosC: number | null;
+    /** Parte observada y parte pronosticada del cambio (°C, null = S/D). */
+    obsC: number | null;
+    fcC: number | null;
+    /** Cuántas estaciones coinciden, tal como lo dice la alerta ("Red de estaciones (N coinciden)"). */
+    estaciones: number | null;
+    detectadaEn: string;
+}
+
+/** Lee una alerta CLIMA-descenso / CLIMA-ascenso de registro_alertas; null si no hay ninguna abierta. */
+export function cambioTempDeAlertas(alertas: AlertaClima[]): CambioTemperatura | null {
+    const cand = alertas
+        .filter(a => a.categoria === 'agroclimatica' && /^CLIMA-(descenso|ascenso)-/.test(a.origenId))
+        .map((a): CambioTemperatura => {
+            const sentido = a.origenId.startsWith('CLIMA-descenso') ? 'descenso' : 'ascenso';
+            const grados = a.mensaje.match(/:\s*(-?\d+(?:\.\d+)?)\s*°C\s*\(umbral/);
+            const proc = a.mensaje.match(/\[ahora:\s*([^·\]]+?)\s*·\s*pronóstico:\s*([^\]]+?)\s*°C\]/);
+            const n = a.titulo.match(/\((\d+)\s+coinciden\)/);
+            const aNumero = (s: string | undefined) => (s != null && s !== 'S/D' && Number.isFinite(Number(s)) ? Number(s) : null);
+            return {
+                sentido, nivel: a.tipoRiesgo === 'critical' ? 'critico' : 'aviso',
+                gradosC: aNumero(grados?.[1]), obsC: aNumero(proc?.[1]), fcC: aNumero(proc?.[2]),
+                estaciones: n ? Number(n[1]) : null, detectadaEn: a.detectadaEn,
+            };
+        });
+    if (!cand.length) return null;
+    return cand.sort((x, y) => RANGO_NIVEL[y.nivel] - RANGO_NIVEL[x.nivel] || (y.gradosC ?? 0) - (x.gradosC ?? 0))[0];
 }
 
 export interface DecisionModulo {
@@ -241,6 +275,8 @@ export interface DatosPronostico {
     estaciones: EstacionConfiabilidad[];
     estacionesExcluidas: { nombre: string; motivo: string }[];
     alertas: AlertaInforme[];
+    /** Cambio brusco de temperatura (24 h) vigente en la red: viene de la alerta de BD, misma fuente que el panel. */
+    cambioTemp: CambioTemperatura | null;
     contexto: ContextoOperativo;
     modelo: { proveedor: string; modelo: string; corridaEn: string | null; edadCorridaMin: number | null; vieja: boolean };
     /** Aviso global de calidad (null = todo en orden). */
@@ -773,16 +809,29 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
     if (sinPron.length) avisosCalidad.push(`Sin pronóstico para: ${sinPron.map(s => s.nombre).join(', ')}.`);
 
     // ── Titular y puntos clave ──────────────────────────────────────────────
-    const nivelGlobal = riesgos.reduce<NivelRiesgo>((n, r) => peorNivel(n, r.nivel), 'normal');
+    const cambioTemp = cambioTempDeAlertas(e.alertas);
+    const nivelGlobal = riesgos.reduce<NivelRiesgo>((n, r) => peorNivel(n, r.nivel), cambioTemp?.nivel ?? 'normal');
     const activos = riesgos.filter(r => r.nivel !== 'normal').sort((a, b) => RANGO_NIVEL[b.nivel] - RANGO_NIVEL[a.nivel]);
+    const textoCambio = cambioTemp
+        ? `${cambioTemp.sentido === 'descenso' ? 'descenso' : 'ascenso'} brusco de temperatura (${cambioTemp.gradosC != null ? `${cambioTemp.gradosC.toFixed(1)} °C en 24 h` : 'en 24 h'}${cambioTemp.estaciones != null ? `, ${cambioTemp.estaciones} estaciones` : ''})`
+        : null;
     const fmtV = (r: Riesgo) => `${r.valor!.toFixed(r.clave === 'eto' ? 1 : r.clave === 'lluvia' ? 1 : 1)} ${r.unidad}`;
     const NOMBRE_CORTO: Record<ClaveRiesgo, string> = { viento: 'Viento fuerte', lluvia: 'Lluvia intensa', helada: 'Riesgo de helada', calor: 'Calor extremo', eto: 'Alta demanda evaporativa' };
     const titular = !conSerie.length
         ? 'Sin pronóstico disponible'
-        : activos.length
-            ? `${nivelGlobal === 'critico' ? 'Atención' : 'Precaución'}: ${activos.slice(0, 3).map(r => `${NOMBRE_CORTO[r.clave].toLowerCase()} (${fmtV(r)}${r.estacion ? `, ${r.estacion}` : ''})`).join(' · ')}`
+        : activos.length || textoCambio
+            ? `${nivelGlobal === 'critico' ? 'Atención' : 'Precaución'}: ${[
+                ...(textoCambio ? [textoCambio] : []),
+                ...activos.slice(0, 3).map(r => `${NOMBRE_CORTO[r.clave].toLowerCase()} (${fmtV(r)}${r.estacion ? `, ${r.estacion}` : ''})`),
+            ].slice(0, 3).join(' · ')}`
             : `Sin riesgos agroclimáticos en las próximas ${e.horizonteH} h`;
     const puntosClave: string[] = [];
+    if (cambioTemp && textoCambio) {
+        const signo = (v: number) => (cambioTemp.sentido === 'descenso' ? -v : v);
+        const fmtC = (v: number) => `${signo(v) > 0 ? '+' : signo(v) < 0 ? '−' : ''}${Math.abs(v).toFixed(1)} °C`;
+        const partes = [cambioTemp.obsC != null ? `cambio medido ${fmtC(cambioTemp.obsC)}` : null, cambioTemp.fcC != null ? `cambio pronosticado ${fmtC(cambioTemp.fcC)}` : null].filter(Boolean).join(' · ');
+        puntosClave.push(`Cambio de temperatura: ${textoCambio}${partes ? ` — ${partes}` : ''}. Compara la misma hora con 24 h antes; no es el ciclo día-noche.`);
+    }
     const rV = riesgoDe('viento'), rL = riesgoDe('lluvia'), rH = riesgoDe('helada'), rC = riesgoDe('calor');
     const todasT = conSerie.flatMap(x => x.pts.map(p => p.tempC)).filter((v): v is number => v != null);
     if (todasT.length) puntosClave.push(`Temperatura prevista de ${Math.min(...todasT).toFixed(1)} a ${Math.max(...todasT).toFixed(1)} °C en la red.`);
@@ -798,7 +847,7 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
         desdeMs, hastaMs, ejeHoras,
         titular, nivel: conSerie.length ? nivelGlobal : 'normal', puntosClave,
         riesgos, lineaTiempo, bandas, dias, observadas, lluviaHoy, modulos,
-        estaciones: estacionesConf, estacionesExcluidas, alertas,
+        estaciones: estacionesConf, estacionesExcluidas, alertas, cambioTemp,
         contexto: e.contexto ?? {},
         modelo: {
             proveedor: primerPron?.proveedor ?? 'open-meteo', modelo: primerPron?.modelo ?? 'best_match',

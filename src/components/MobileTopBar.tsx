@@ -23,6 +23,7 @@ const TITULOS: Record<string, string> = {
     '/reporte-oficial': 'Reporte Oficial',
     '/importar': 'Importar Datos',
     '/inteligencia-hidrica': 'Consultoría IA',
+    '/protocolos': 'Protocolos',
 };
 
 interface Props {

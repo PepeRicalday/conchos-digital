@@ -22,6 +22,8 @@ export const useHydricEvents = () => {
     const [activeEvent, setActiveEvent] = useState<SICAEventLog | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    /** Ya terminó al menos una consulta (con o sin error): antes de eso no se puede afirmar que no hay evento. */
+    const [cargado, setCargado] = useState(false);
 
     const fetchActiveEvent = useCallback(async () => {
         try {
@@ -42,10 +44,12 @@ export const useHydricEvents = () => {
         } catch (err: any) {
             console.error('[HydricEvents] Error fatal en fetch:', err);
             setError(err.message);
+        } finally {
+            setCargado(true);
         }
     }, []);
 
-    const activateEvent = useCallback(async (tipo: HydraulicEvent, extras: Partial<SICAEventLog> = {}) => {
+    const activateEvent = useCallback(async (tipo: HydraulicEvent, extras: Partial<SICAEventLog> = {}): Promise<boolean> => {
         setIsLoading(true);
         setError(null);
 
@@ -77,39 +81,46 @@ export const useHydricEvents = () => {
                 if (rpcError.message?.includes('PROTOCOL_CONFLICT')) {
                     toast.error('⚠️ Conflicto: otro protocolo fue activado simultáneamente. Verifique el estado actual.');
                     await fetchActiveEvent(); // Refrescar para mostrar el que ganó
-                    return;
+                    return false;
                 }
                 throw rpcError;
             }
 
             setActiveEvent(evento);
             toast.success(`✅ Protocolo ${tipo} activado`);
+            return true;
 
         } catch (err: any) {
             console.error('[HydricEvents] Error en activación:', err.message);
             setError(err.message);
             toast.error(`❌ Error: ${err.message}`);
+            return false;
         } finally {
             setIsLoading(false);
         }
     }, [fetchActiveEvent]);
 
-    const updateEvent = useCallback(async (eventId: string, updates: Partial<SICAEventLog>) => {
+    const updateEvent = useCallback(async (eventId: string, updates: Partial<SICAEventLog>): Promise<boolean> => {
         setIsLoading(true);
         setError(null);
         try {
-            const { error: updateError } = await supabase
+            const { data, error: updateError } = await supabase
                 .from('sica_eventos_log')
                 .update(updates)
-                .eq('id', eventId);
-            
+                .eq('id', eventId)
+                .select('id');
+
             if (updateError) throw updateError;
-            
+            // RLS que deja el UPDATE en 0 filas no devuelve error: no se puede dar por guardado.
+            if (!data?.length) throw new Error('No se guardó el cambio (sin permiso o el evento ya no existe).');
+
             await fetchActiveEvent();
             toast.success('✅ Protocolo actualizado');
+            return true;
         } catch (err: any) {
             setError(err.message);
             toast.error(`❌ Error al actualizar: ${err.message}`);
+            return false;
         } finally {
             setIsLoading(false);
         }
@@ -129,6 +140,7 @@ export const useHydricEvents = () => {
         activeEvent,
         isLoading,
         error,
+        cargado,
         activateEvent,
         updateEvent,
         refresh: fetchActiveEvent

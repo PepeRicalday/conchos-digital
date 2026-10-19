@@ -25,7 +25,8 @@ const Bitacora = lazy(() => import('./pages/Bitacora'));
 const Ciclos = lazy(() => import('./pages/Ciclos'));
 const Infraestructura = lazy(() => import('./pages/Infraestructura'));
 const Alertas = lazy(() => import('./pages/Alertas'));
-const InteligenciaHidrica = lazy(() => import('./pages/InteligenciaHidrica'));
+const ConsultoriaIA = lazy(() => import('./pages/ConsultoriaIA'));
+const Protocolos = lazy(() => import('./pages/Protocolos'));
 const BalanceHidraulico = lazy(() => import('./pages/BalanceHidraulico'));
 const AnalisisHistorico = lazy(() => import('./pages/AnalisisHistorico'));
 const PublicMonitor = lazy(() => import('./pages/PublicMonitor'));
@@ -246,7 +247,8 @@ function App() {
                 <Route path="/bitacora" element={<ProtectedRoute><SafePage><RoleGuard><Bitacora /></RoleGuard></SafePage></ProtectedRoute>} />
                 <Route path="/ciclos" element={<ProtectedRoute><SafePage><RoleGuard><Ciclos /></RoleGuard></SafePage></ProtectedRoute>} />
                 <Route path="/infraestructura" element={<ProtectedRoute><SafePage><RoleGuard><Infraestructura /></RoleGuard></SafePage></ProtectedRoute>} />
-                <Route path="/inteligencia-hidrica" element={<ProtectedRoute><SafePage><InteligenciaHidrica /></SafePage></ProtectedRoute>} />
+                <Route path="/inteligencia-hidrica" element={<ProtectedRoute><SafePage><ConsultoriaIA /></SafePage></ProtectedRoute>} />
+                <Route path="/protocolos" element={<ProtectedRoute><SafePage><Protocolos /></SafePage></ProtectedRoute>} />
                 <Route path="/balance" element={<ProtectedRoute><SafePage><BalanceHidraulico /></SafePage></ProtectedRoute>} />
                 <Route path="/analisis-historico" element={<ProtectedRoute><SafePage><AnalisisHistorico /></SafePage></ProtectedRoute>} />
                 <Route path="/modelacion-hidraulica" element={<ProtectedRoute><SafePage><ModelingDashboard /></SafePage></ProtectedRoute>} />

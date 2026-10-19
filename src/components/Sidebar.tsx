@@ -1,6 +1,6 @@
 import { useState, useMemo, type ComponentType } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge, BarChart3, Database, Box, FileText, Upload, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge, BarChart3, Database, Box, FileText, Upload, ClipboardCheck, Siren } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useHydraStore } from '../store/useHydraStore';
@@ -246,6 +246,17 @@ const Sidebar = () => {
                             border: '1px solid rgba(56, 189, 248, 0.2)',
                             letterSpacing: '0.5px',
                         }}>IA</span>
+                    </NavLink>
+                )}
+
+                {profile?.rol === 'SRL' && (
+                    <NavLink
+                        to="/protocolos"
+                        className={({ isActive }) => clsx('nav-item', isActive && 'active')}
+                        style={{ background: 'none', border: 'none', display: 'flex', alignItems: 'center', gap: '12px', position: 'relative' }}
+                    >
+                        <Siren size={20} />
+                        <span>Protocolos</span>
                     </NavLink>
                 )}
 

@@ -5,10 +5,36 @@ import { extractText, getDocumentProxy } from "https://esm.sh/unpdf@0.12.1";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// CORS: solo orígenes propios (el cron de pg_net no usa navegador y no necesita CORS).
+const ORIGENES_FIJOS = new Set([
+    "https://conchos-digital.vercel.app",
+    "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173",
+]);
+const ORIGEN_PREVIEW = /^https:\/\/conchos-digital(-[a-z0-9]+)*-pepericaldays-projects\.vercel\.app$/;
+let corsHeaders: Record<string, string> = {};
+function calculaCors(req: Request): Record<string, string> {
+    const origen = req.headers.get("Origin") ?? "";
+    const permitido = ORIGENES_FIJOS.has(origen) || ORIGEN_PREVIEW.test(origen);
+    return {
+        ...(permitido ? { "Access-Control-Allow-Origin": origen } : {}),
+        "Vary": "Origin",
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Tope de páginas: un PDF enorme agota el worker (WORKER_RESOURCE_LIMIT) y no se puede capturar. */
+const MAX_PAGINAS = 600;
+
+// deno-lint-ignore no-explicit-any
+async function llamadaEsSrl(req: Request, supabase: any): Promise<boolean> {
+    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+    if (!token) return false;
+    const { data: { user }, error } = await supabase.auth.getUser(token);   // la anon key NO es un usuario
+    if (error || !user) return false;
+    const { data: perfil } = await supabase.from("perfiles_usuario").select("rol").eq("id", user.id).maybeSingle();
+    return perfil?.rol === "SRL";
+}
 
 // ─── Chunking inteligente ────────────────────────────────────────────────────
 // gte-small fue entrenado con secuencias de hasta 512 tokens (~400-500 chars en español).
@@ -62,8 +88,14 @@ async function generateEmbedding(text: string): Promise<number[]> {
 // vuelve a invocar con el mismo document_id hasta que done=true.
 const BATCH_SIZE = 5;
 
+/** Fallo atribuible al documento (no al servidor): se informa a la S.R.L. con un mensaje seguro y accionable (HTTP 422). */
+class ErrorDocumento extends Error {
+    constructor(public codigo: "sin_texto" | "demasiadas_paginas" | "sin_fragmentos" | "embedding_fallido", mensaje: string) { super(mensaje); }
+}
+
 Deno.serve(async (req: Request) => {
-    if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+    corsHeaders = calculaCors(req);
+    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -80,7 +112,11 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
-        if (!document_id) throw new Error("Falta document_id");
+        if (!document_id || typeof document_id !== "string" || !UUID.test(document_id)) {
+            return new Response(JSON.stringify({ error: "document_id inválido" }), {
+                status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+        }
 
         // 1. Obtener metadata del documento
         const { data: doc, error: docError } = await supabase
@@ -89,7 +125,21 @@ Deno.serve(async (req: Request) => {
             .eq("id", document_id)
             .single();
 
-        if (docError || !doc) throw new Error("Documento no encontrado");
+        // PGRST116 = ninguna fila: el documento no existe (404). Cualquier otro error es del servidor (500), no "no encontrado".
+        if (docError && docError.code !== "PGRST116") throw docError;
+        if (!doc) {
+            return new Response(JSON.stringify({ error: "Documento no encontrado" }), {
+                status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+        }
+
+        // El cron (anon key) solo debe avanzar documentos PENDIENTES. Reprocesar uno completado o con error es
+        // una acción de la S.R.L. (JWT de usuario): así un llamador anónimo no puede forzar trabajo de embeddings.
+        if (!["pendiente", "procesando"].includes(doc.estado_procesamiento) && !(await llamadaEsSrl(req, supabase))) {
+            return new Response(JSON.stringify({ error: "El documento ya fue procesado" }), {
+                status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+        }
 
         // 2. ¿Ya hay chunks de texto para este documento (de un lote previo o de
         // la fase de extracción)? Solo se piden CONTEOS aquí (barato) — traer los
@@ -118,9 +168,10 @@ Deno.serve(async (req: Request) => {
 
         if (!totalExistente || totalExistente === 0) {
             // Fase de extracción — solo ocurre en la primera invocación del documento.
-            await supabase.from("hydric_documents")
+            const { error: marcaError } = await supabase.from("hydric_documents")
                 .update({ estado_procesamiento: "procesando" })
                 .eq("id", document_id);
+            if (marcaError) console.error("No se pudo marcar el documento como procesando:", marcaError.message);
 
             const { data: fileData, error: storageError } = await supabase.storage
                 .from("hydric-knowledge")
@@ -130,11 +181,14 @@ Deno.serve(async (req: Request) => {
 
             const arrayBuffer = await fileData.arrayBuffer();
             const pdf = await getDocumentProxy(new Uint8Array(arrayBuffer));
+            if (pdf.numPages > MAX_PAGINAS) throw new ErrorDocumento("demasiadas_paginas", `El PDF tiene ${pdf.numPages} páginas (máximo ${MAX_PAGINAS}). Divídelo en partes.`);
             const { text } = await extractText(pdf, { mergePages: true });
 
-            if (!text.trim()) throw new Error("El PDF no tiene texto extraíble (¿escaneado sin OCR?)");
+            if (!text.trim()) throw new ErrorDocumento("sin_texto", "El PDF no tiene texto extraíble (¿escaneado sin OCR?).");
 
             const textChunks = chunkText(text);
+            // Sin fragmentos el documento volvería a "no tener chunks" y cada invocación re-descargaría y re-parsearía el PDF.
+            if (textChunks.length === 0) throw new ErrorDocumento("sin_fragmentos", "No se pudo dividir el texto del PDF en fragmentos útiles.");
             console.log(`Documento "${doc.titulo}": ${textChunks.length} chunks extraídos del PDF`);
 
             // Insertar todos los chunks de texto SIN embedding — se completan por lotes.
@@ -144,10 +198,9 @@ Deno.serve(async (req: Request) => {
                 embedding: null,
                 metadata: { source: doc.titulo, tipo: doc.tipo_documento },
             }));
-            const { data: inserted, error: insertError } = await supabase
+            const { error: insertError } = await supabase
                 .from("hydric_document_chunks")
-                .insert(rows)
-                .select("id, content, embedding");
+                .insert(rows);
 
             if (insertError) throw insertError;
             // La extracción del PDF (descarga + parseo, hasta ~30MB) ya usa buena
@@ -195,6 +248,12 @@ Deno.serve(async (req: Request) => {
             }
         }
 
+        // Un lote que no logró NI UN embedding no avanza: el siguiente reintento tomaría los mismos fragmentos y la cola
+        // quedaría atascada en "procesando" para siempre. Se marca error y se responde con un código HTTP de falla.
+        if (lote.length > 0 && completados === 0) {
+            throw new ErrorDocumento("embedding_fallido", "No se pudieron generar los embeddings del documento. Reintenta más tarde.");
+        }
+
         const totalConEmbeddingAhora = yaConEmbedding + completados;
         const totalChunks = totalExistente && totalExistente > 0
             ? totalExistente
@@ -202,12 +261,14 @@ Deno.serve(async (req: Request) => {
         const done = totalChunks > 0 && totalConEmbeddingAhora >= totalChunks;
 
         // 4. Solo marcar completado cuando el último lote de embeddings terminó
-        await supabase.from("hydric_documents")
+        const { error: cierreError } = await supabase.from("hydric_documents")
             .update({
                 estado_procesamiento: done ? "completado" : "procesando",
                 chunks_generados: totalConEmbeddingAhora,
             })
             .eq("id", document_id);
+        // Si no se pudo guardar el avance, no se responde success: el estado visible quedaría mal.
+        if (cierreError) throw cierreError;
 
         console.log(`Lote completo: ${totalConEmbeddingAhora}/${totalChunks} embeddings — done=${done}`);
 
@@ -222,16 +283,25 @@ Deno.serve(async (req: Request) => {
         });
 
     } catch (e: any) {
-        console.error("Error en process-hydric-doc:", e.message);
+        console.error("Error en process-hydric-doc:", e?.message ?? e);
 
-        if (document_id) {
-            await supabase.from("hydric_documents")
+        if (document_id && UUID.test(document_id)) {
+            // supabase-js no lanza: devuelve {error}. (El builder tampoco tiene .catch(); encadenarlo lanzaba un TypeError
+            // dentro de este mismo catch y el documento nunca pasaba a "error", con lo que el cron lo reintentaba sin fin.)
+            const { error: errorMarca } = await supabase.from("hydric_documents")
                 .update({ estado_procesamiento: "error" })
-                .eq("id", document_id)
-                .catch(() => {});
+                .eq("id", document_id);
+            if (errorMarca) console.error("No se pudo marcar el documento como error:", errorMarca.message);
         }
 
-        return new Response(JSON.stringify({ error: e.message }), {
+        // Fallos del propio documento: mensaje seguro y accionable (422). El resto: genérico (500); el detalle queda en logs.
+        if (e instanceof ErrorDocumento) {
+            return new Response(JSON.stringify({ error: e.message, code: e.codigo }), {
+                status: e.codigo === "embedding_fallido" ? 502 : 422,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+        }
+        return new Response(JSON.stringify({ error: "No se pudo procesar el documento" }), {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

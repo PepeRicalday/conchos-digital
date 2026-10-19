@@ -1,801 +1,305 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { armaSnapshot, hoyLocal, promptDinamico, PROMPT_ESTATICO, type DatosCrudos } from "./contexto.ts";
+import { bloqueDocumentos, esRespuestaParcial, motivoLimite, tituloDe, validaPeticion, type ChunkRag, type FuenteRag, type MensajeHistorial } from "./validacion.ts";
+import { conversar, ErrorProveedor, proveedorActivo, type UsoLlm } from "./llm.ts";
+import type { Tarjeta } from "./herramientas.ts";
 
-const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const AI_MODEL = "llama-3.3-70b-versatile";
-const AI_URL = "https://api.groq.com/openai/v1/chat/completions";
+// ─── CORS: solo orígenes propios (con Bearer no hay cookies, pero no hay motivo para dejarlo abierto) ───────────────
+const ORIGENES_FIJOS = new Set([
+    "https://conchos-digital.vercel.app",
+    "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173",
+]);
+const ORIGEN_PREVIEW = /^https:\/\/conchos-digital(-[a-z0-9]+)*-pepericaldays-projects\.vercel\.app$/;
+const EXTRA = (Deno.env.get("HYDRIC_ALLOWED_ORIGINS") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
-const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-interface ChatRequest {
-    message: string;
-    conversation_id?: string;
-    contexto?: string;
+function cabecerasCors(req: Request): Record<string, string> {
+    const origen = req.headers.get("Origin") ?? "";
+    const permitido = ORIGENES_FIJOS.has(origen) || ORIGEN_PREVIEW.test(origen) || EXTRA.includes(origen);
+    return {
+        ...(permitido ? { "Access-Control-Allow-Origin": origen, "Vary": "Origin" } : { "Vary": "Origin" }),
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+    };
 }
 
-// ─── STAGE 1: Timezone-correct dates ───────────────────────────────────────
-function getTodayChihuahua(): string {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chihuahua" }).format(new Date());
-}
-function getYesterdayChihuahua(): string {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chihuahua" }).format(d);
+function json(req: Request, status: number, codigo: string, message: string, extra: Record<string, unknown> = {}): Response {
+    // `error` y `message` conservan el formato que ya lee el cliente.
+    return new Response(JSON.stringify({ error: true, code: codigo, message, ...extra }), {
+        status, headers: { ...cabecerasCors(req), "Content-Type": "application/json" },
+    });
 }
 
-// ─── STAGE 1: Format timestamps to local time ───────────────────────────────
-function fmtLocal(isoStr: string | null | undefined): string {
-    if (!isoStr) return "—";
-    return new Intl.DateTimeFormat("es-MX", {
-        timeZone: "America/Chihuahua",
-        month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit", hour12: false,
-    }).format(new Date(isoStr));
+// ─── Datos del sistema (service role: solo lectura de datos operativos) ──────────────────────────────────────────────
+// deno-lint-ignore no-explicit-any
+type Admin = any;
+
+async function cargaDatos(admin: Admin, ahoraMs: number): Promise<DatosCrudos> {
+    const hoy = hoyLocal(ahoraMs);
+    const ayer = hoyLocal(ahoraMs - 86_400_000);
+    const hace14 = hoyLocal(ahoraMs - 14 * 86_400_000);
+    const fallos: string[] = [];
+    const LIM_ESCALAS = 600;
+
+    // Cada consulta registra su fallo por nombre: el modelo debe saber que faltan datos, no recibir "Sin datos".
+    // `limite`: si la respuesta llega al tope, puede estar TRUNCADA y se marca (la última lectura medida podría quedar fuera).
+    // deno-lint-ignore no-explicit-any
+    const q = async (nombre: string, p: PromiseLike<{ data: any; error: { message: string } | null }>, vacio: unknown, limite?: number): Promise<any> => {
+        try {
+            const r = await p;
+            if (r.error) { console.error(`consulta ${nombre}:`, r.error.message); fallos.push(nombre); return vacio; }
+            if (limite && Array.isArray(r.data) && r.data.length >= limite) { console.warn(`consulta ${nombre}: llegó al tope (${limite})`); fallos.push(`${nombre} (truncada)`); }
+            return r.data ?? vacio;
+        } catch (e) { console.error(`consulta ${nombre}:`, e); fallos.push(nombre); return vacio; }
+    };
+
+    const [presas, escalasCat, lecturasEsc, modulos, volumenCiclo, ciclo, conocimiento, tomas, perfil, canalStatus, evento, balanceModulos, interescalas, zonas, entregas] = await Promise.all([
+        q("presas", admin.from("lecturas_presas").select("presa_id, fecha, creado_en, escala_msnm, almacenamiento_mm3, porcentaje_llenado, extraccion_total_m3s, presas(nombre, nombre_corto, capacidad_max)").order("fecha", { ascending: false }).order("creado_en", { ascending: false }).limit(30), []),
+        q("catalogo_escalas", admin.from("escalas").select("id, nombre, km, pzas_radiales, ancho, alto, nivel_min_operativo, nivel_max_operativo").eq("activa", true).order("km"), []),
+        q("lecturas_escalas", admin.from("lecturas_escalas").select("escala_id, fecha, hora_lectura, creado_en, nivel_m, nivel_abajo_m, gasto_calculado_m3s, apertura_radiales_m, radiales_json, confirmada, responsable, notas").gte("fecha", hace14).order("fecha", { ascending: false }).order("hora_lectura", { ascending: false, nullsFirst: false }).limit(LIM_ESCALAS), [], LIM_ESCALAS),
+        q("modulos", admin.from("modulos").select("nombre, codigo_corto, autorizaciones_ciclo(ciclo_id, vol_autorizado, caudal_max)"), []),
+        q("volumen_ciclo", admin.from("volumen_ciclo_modulo").select("ciclo_id, modulo_id, codigo_corto, modulo_nombre, numero_modulo, vol_autorizado_miles_m3, vol_hoja_miles_m3, vol_remanente_miles_m3, vol_entregado_miles_m3, vol_saldo_miles_m3, pct_entregado, meses_con_dato, ultimo_mes_hoja, hoja_mes_parcial, remanente_desde, remanente_hasta"), []),
+        q("ciclo", admin.from("ciclos_agricolas").select("id, nombre, fecha_inicio, fecha_fin").eq("activo", true).order("fecha_inicio", { ascending: false }).limit(1).maybeSingle(), null),
+        q("conocimiento", admin.from("hydric_knowledge_base").select("titulo, contenido").eq("activo", true).limit(5), []),
+        q("tomas_activas", admin.from("reportes_operacion").select("caudal_promedio, estado, puntos_entrega(nombre, km)").eq("fecha", hoy).in("estado", ["inicio", "continua", "reabierto", "modificacion"]), []),
+        q("perfil_canal", admin.from("perfil_hidraulico_canal").select("km_inicio, km_fin, nombre_tramo, plantilla_m, talud_z, pendiente_s0, capacidad_diseno_m3s, velocidad_diseno_ms, tirante_diseno_m, bordo_libre_m").order("km_inicio", { ascending: true }), []),
+        q("canal_status", admin.from("sica_canal_status").select("estado_hidraulico, qe_boquilla, alerta_activa, mensaje_alerta").limit(1).maybeSingle(), null),
+        q("evento_oficial", admin.from("sica_eventos_log").select("evento_tipo, fecha_inicio, notas, gasto_solicitado_m3s").eq("esta_activo", true).order("fecha_inicio", { ascending: false }).limit(1).maybeSingle(), null),
+        q("balance_modulos", admin.from("balance_volumen_modulo").select("modulo_nombre, codigo_corto, zona_codigo, vol_base_m3, vol_base_consumido_m3, vol_adicional_consumido_m3, vol_base_disponible_m3, pct_base_consumido, estado_volumen").order("zona_codigo"), []),
+        q("vol_interescalas", admin.from("vol_interescalas").select("km_up, km_down, nivel_up_m, nivel_down_m, vol_m3, vol_mm3").order("km_up", { ascending: true }), []),
+        q("vol_zonas", admin.from("vol_zonas").select("codigo, km_inicio, km_fin, nivel_medio_m, tirante_diseno_m, bordo_libre_m, y_capacidad_m, vol_actual_mm3, vol_capacidad_m3, pct_llenado").order("km_inicio", { ascending: true }), []),
+        q("entregas_modulo", admin.from("entregas_modulo").select("modulo_id, zona_id, tipo_entrega, gasto_m3s, volumen_m3, fecha, estado_operativo").gte("fecha", ayer).or("estado_operativo.is.null,estado_operativo.neq.cierre").order("fecha", { ascending: false }).order("modulo_id"), []),
+    ]);
+
+    // Entregas: la más reciente por módulo + zona + tipo (un módulo multizona —M2→Z2/Z3, M12— tiene una entrega por zona;
+    // deduplicar sin zona descartaba una de ellas y subestimaba la extracción).
+    const vistas = new Map<string, DatosCrudos["entregas"][number]>();
+    for (const e of entregas as DatosCrudos["entregas"]) { const k = `${e.modulo_id}_${e.zona_id ?? ""}_${e.tipo_entrega}`; if (!vistas.has(k)) vistas.set(k, e); }
+
+    return {
+        presas, escalasCat, lecturasEsc, modulos, volumenCiclo, ciclo, evento, canalStatus, perfil, tomas, zonas, interescalas, balanceModulos, conocimiento,
+        entregas: [...vistas.values()], fallos,
+    };
 }
 
-// lecturas_escalas no tiene created_at: fecha es DATE puro (sin hora) y
-// hora_lectura es TIME aparte. Concatenar da la hora REAL de captura en
-// Chihuahua; usar solo `fecha` como Date() la interpreta a medianoche UTC
-// y fmtLocal la corre 6h al día anterior (bug visto: "18:00 del 24/07"
-// para una lectura sin hora real). creado_en es el registro en BD, no la
-// hora de campo — se usa solo si no hay fecha+hora de lectura.
-function fmtLecturaEscala(fecha: string | null | undefined, horaLectura: string | null | undefined, creadoEn: string | null | undefined): string {
-    if (fecha && horaLectura) return fmtLocal(`${fecha}T${horaLectura}`);
-    if (creadoEn) return fmtLocal(creadoEn);
-    if (fecha) return fecha.split("T")[0]; // solo fecha, sin hora conocida — no inventar una
-    return "—";
-}
-
-// ─── STAGE 1: Round a number to N decimals ──────────────────────────────────
-function r(val: number | null | undefined, decimals = 2): string {
-    if (val == null || isNaN(Number(val))) return "—";
-    return Number(val).toFixed(decimals);
-}
-
-async function fetchSystemData(supabaseAdmin: any) {
-    // STAGE 1: Use Chihuahua timezone for "today" — UTC was off 6 h during summer
-    const today = getTodayChihuahua();
-
+// ─── RAG ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+/** `ok:false` = la búsqueda NO funcionó (distinto de "no hay documentos relevantes"). */
+async function buscaDocumentos(admin: Admin, mensaje: string): Promise<{ chunks: ChunkRag[]; ok: boolean }> {
     try {
-        const [
-            presasRes, modulosRes, escalasRawRes, cicloRes,
-            knowledgeRes, operacionRes, perfilRes,
-            canalStatusRes, eventoLogRes,
-            balanceZonasRes,
-            volInterescalasRes, volZonasRes,
-            entregasHoyRes
-        ] = await Promise.all([
-            // limit(30) para garantizar al menos 1 lectura por presa tras dedup
-            supabaseAdmin.from("lecturas_presas")
-                .select("*, presas(nombre, nombre_corto, capacidad_max)")
-                .order("fecha", { ascending: false }).limit(30),
-
-            // ciclo_id incluido para poder filtrar la autorización del ciclo activo
-            supabaseAdmin.from("modulos")
-                .select("*, autorizaciones_ciclo(ciclo_id, vol_autorizado, caudal_max)"),
-
-            // STAGE 1: Fetch 50 rows so we can deduplicate per escala_id below
-            // Include gate dimensions from escalas: ancho, alto, pzas_radiales, coeficiente_descarga
-            // Desempate por hora_lectura: dos lecturas del mismo día (turno AM/PM) deben
-            // quedar ordenadas por hora real, o el dedup de abajo puede tomar la del
-            // turno equivocado como "más reciente".
-            supabaseAdmin.from("lecturas_escalas")
-                .select("*, escalas(nombre, km, ancho, alto, pzas_radiales, coeficiente_descarga)")
-                .order("fecha", { ascending: false })
-                .order("hora_lectura", { ascending: false, nullsFirst: false })
-                .limit(50),
-
-            supabaseAdmin.from("ciclos_agricolas").select("*").eq("activo", true).maybeSingle(),
-
-            supabaseAdmin.from("hydric_knowledge_base")
-                .select("titulo, contenido, categoria").eq("activo", true).limit(5),
-
-            supabaseAdmin.from("reportes_operacion")
-                .select("*, puntos_entrega(nombre, km)")
-                .eq("fecha", today)
-                .in("estado", ["inicio", "continua", "reabierto", "modificacion"]),
-
-            supabaseAdmin.from("perfil_hidraulico_canal")
-                .select("*").order("km_inicio", { ascending: true }),
-
-            supabaseAdmin.from("sica_canal_status").select("*").maybeSingle(),
-
-            supabaseAdmin.from("sica_eventos_log")
-                .select("*").eq("esta_activo", true).maybeSingle(),
-
-            // Control por Zona y Módulo — balance base + adicional del ciclo activo
-            supabaseAdmin.from("balance_volumen_modulo")
-                .select("modulo_nombre, codigo_corto, zona_codigo, vol_base_m3, vol_base_consumido_m3, vol_adicional_consumido_m3, vol_base_disponible_m3, pct_base_consumido, estado_volumen")
-                .order("zona_codigo"),
-
-            // Volumen almacenado entre represas consecutivas (tránsito en canal)
-            supabaseAdmin.from("vol_interescalas")
-                .select("esc_up, km_up, esc_down, km_down, longitud_km, nivel_up_m, nivel_down_m, vol_m3, vol_mm3")
-                .order("km_up", { ascending: true }),
-
-            // Almacenamiento agregado por zona Z1-Z4 con % de llenado real
-            supabaseAdmin.from("vol_zonas")
-                .select("codigo, zona_nombre, km_inicio, km_fin, n_tramos, nivel_medio_m, tirante_diseno_m, bordo_libre_m, y_capacidad_m, vol_actual_m3, vol_actual_mm3, vol_diseno_m3, vol_capacidad_m3, pct_llenado")
-                .order("km_inicio", { ascending: true }),
-
-            // Entregas declaradas: hoy + ayer como fallback si sync del día no ha corrido aún
-            supabaseAdmin.from("entregas_modulo")
-                .select("modulo_id, tipo_entrega, gasto_m3s, volumen_m3, fecha, estado_operativo")
-                .gte("fecha", getYesterdayChihuahua())
-                .or("estado_operativo.is.null,estado_operativo.neq.cierre")
-                .order("fecha", { ascending: false })
-                .order("modulo_id"),
-        ]);
-
-        // Deduplicate presas — keep most recent per presa_id (query ordered desc → first = newest)
-        const presasRaw: any[] = presasRes.data || [];
-        const presasDeduped = new Map<string, any>();
-        for (const row of presasRaw) {
-            const key = row.presa_id ?? row.presas?.nombre ?? row.id;
-            if (!presasDeduped.has(key)) presasDeduped.set(key, row);
-        }
-        const presas = Array.from(presasDeduped.values());
-
-        // STAGE 1: Deduplicate escalas — keep only the most recent reading per escala_id
-        const escalasRaw: any[] = escalasRawRes.data || [];
-        const escalasMap = new Map<string, any>();
-        for (const row of escalasRaw) {
-            const key = row.escala_id ?? row.escalas?.nombre ?? row.id;
-            if (!escalasMap.has(key)) escalasMap.set(key, row); // already ordered desc → first = newest
-        }
-        const escalas = Array.from(escalasMap.values());
-
-        // Deduplicate entregas_hoy — most recent per modulo+tipo (query ordered fecha desc)
-        const entregasRaw: any[] = entregasHoyRes.data || [];
-        const entregasDeduped = new Map<string, any>();
-        for (const row of entregasRaw) {
-            const key = `${row.modulo_id}_${row.tipo_entrega}`;
-            if (!entregasDeduped.has(key)) entregasDeduped.set(key, row);
-        }
-        const entregas_hoy = Array.from(entregasDeduped.values());
-
-        // PRE-CALCULAR tiempos de tránsito por tramo — el LLM lee la tabla, no calcula
-        const perfilData: any[] = perfilRes.data || [];
-        const transitoTramos = perfilData.map((t: any) => {
-            const L_m = Math.round((t.km_fin - t.km_inicio) * 1000);
-            const V = t.velocidad_diseno_ms || 1.0;
-            const t_s = L_m / V;
-            const t_min = Math.round(t_s / 60);
-            return {
-                km_inicio: t.km_inicio,
-                km_fin: t.km_fin,
-                nombre: t.nombre_tramo,
-                L_m,
-                V_ms: Number(V).toFixed(3),
-                t_min,
-                Qmax: t.capacidad_diseno_m3s,
-            };
-        });
-
-        // Acumulado desde KM 0 para cualquier consulta de tránsito KMa → KMb
-        let acum_min = 0;
-        const transitoAcumulado = transitoTramos.map((t: any) => {
-            acum_min += t.t_min;
-            return { ...t, t_acum_min: acum_min };
-        });
-
-        return {
-            presas,
-            modulos: modulosRes.data || [],
-            escalas,
-            ciclo_activo: cicloRes.data,
-            knowledge: knowledgeRes.data || [],
-            tomas_activas: operacionRes.data || [],
-            perfil_canal: perfilData,
-            transito_tramos: transitoAcumulado,
-            canal_status: canalStatusRes.data,
-            evento_oficial: eventoLogRes.data,
-            balance_zonas: balanceZonasRes.data || [],
-            vol_interescalas: volInterescalasRes.data || [],
-            vol_zonas: volZonasRes.data || [],
-            entregas_hoy,
-        };
+        // @ts-ignore: Supabase.ai es un global del runtime de Edge Functions
+        const session = new Supabase.ai.Session("gte-small");
+        const salida = await session.run(mensaje, { mean_pool: true, normalize: true });
+        const embedding = Array.from(salida as unknown as number[]);
+        const { data, error } = await admin.rpc("match_hydric_documents", { query_embedding: embedding, match_threshold: 0.40, match_count: 5 });
+        if (error) { console.error("RAG rpc:", error.message); return { chunks: [], ok: false }; }
+        return { chunks: (data ?? []) as ChunkRag[], ok: true };
     } catch (e) {
-        console.error("Error fetching system data:", e);
-        return {
-            presas: [], modulos: [], escalas: [], knowledge: [],
-            tomas_activas: [], aforos_control: [], perfil_canal: [],
-            canal_status: null, evento_oficial: null,
-        };
+        console.error("RAG embedding:", e);
+        return { chunks: [], ok: false };
     }
 }
 
-// ─── STAGE 2: buildSystemPrompt ─────────────────────────────────────────────
-function buildSystemPrompt(data: any, contexto: string): string {
-
-    // STAGE 1: Rounded floats + timestamps
-    const presasText = data.presas.map((l: any) =>
-        `${l.presas?.nombre || "Presa"}: ` +
-        `Elevación ${r(l.escala_msnm, 3)} msnm, ` +
-        `Almacenamiento ${r(l.almacenamiento_mm3, 3)} Mm³, ` +
-        `Llenado ${r(l.porcentaje_llenado, 1)}%, ` +
-        `Extracción total ${r(l.extraccion_total_m3s, 2)} m³/s ` +
-        `(lectura: ${fmtLocal(l.fecha)})`
-    ).join("\n");
-
-    const modulosText = data.modulos.map((m: any) => {
-        const auth = m.autorizaciones_ciclo?.find((a: any) => a.ciclo_id === data.ciclo_activo?.id)
-                  ?? m.autorizaciones_ciclo?.[0];
-        const volAcum = parseFloat(m.vol_acumulado || "0").toLocaleString("en-US");
-        const volAuth = parseFloat(auth?.vol_autorizado || m.vol_autorizado || "0");
-        const volAuthMm3 = (volAuth / 1000).toFixed(2);
-        return `${m.nombre} (${m.codigo_corto}): ` +
-            `Vol. Acumulado ${volAcum} millares m³, ` +
-            `Vol. Autorizado ${volAuth.toLocaleString("en-US")} millares m³ (${volAuthMm3} Mm³), ` +
-            `Caudal Máx ${auth?.caudal_max || m.caudal_objetivo || 0} m³/s`;
-    }).join("\n");
-
-    // Control por zona — balance base vs adicional por módulo (formato compacto)
-    const ESTADO_ICON: Record<string, string> = {
-        normal: "✅", alerta_base: "⚠️", base_agotado: "🔴"
-    };
-    const balanceZonasText = (data.balance_zonas as any[] || []).length === 0
-        ? "Sin datos."
-        : (data.balance_zonas as any[]).map((b: any) =>
-            `${ESTADO_ICON[b.estado_volumen] || "•"} [${b.zona_codigo || "—"}] ${b.codigo_corto || b.modulo_nombre}: ` +
-            `base=${r(b.vol_base_m3 / 1e6, 3)} usados=${r(b.vol_base_consumido_m3 / 1e6, 4)}(${r(b.pct_base_consumido, 2)}%) ` +
-            `adic=${r(b.vol_adicional_consumido_m3 / 1e6, 4)} disp=${r(b.vol_base_disponible_m3 / 1e6, 4)} Mm³`
-        ).join("\n");
-
-    // STAGE 1: Deduped + rounded + timestamped escalas
-    // Includes gate structure dimensions from escalas table (ancho, alto, pzas_radiales, coeficiente_descarga)
-    const escalasText = data.escalas.map((e: any) => {
-        const esc = e.escalas || {};
-        const pzas = esc.pzas_radiales ?? 0;
-        const ancho = esc.ancho ?? 0;
-        const alto = esc.alto ?? 0;
-        const cd = esc.coeficiente_descarga ?? 0.62;
-        const deltaH = (e.nivel_m ?? 0) - (e.nivel_abajo_m ?? 0);
-
-        // Gate structure line (only if this point has radial gates)
-        let estructuraInfo = "";
-        if (pzas > 0 && ancho > 0) {
-            estructuraInfo = ` | ESTRUCTURA: ${pzas} compuerta(s) radial(es), ancho=${r(ancho, 2)}m c/u, alto_max=${r(alto, 2)}m, Cd=${r(cd, 3)}, L_total=${r(ancho * pzas, 2)}m`;
-        }
-
-        // Current aperture readings
-        let aperturaInfo = "";
-        if ((e.apertura_radiales_m ?? 0) > 0 || (e.radiales_json?.length > 0)) {
-            const aperturas = e.radiales_json
-                ? e.radiales_json.map((rj: any) => `R${rj.index + 1}:${Number(rj.apertura_m).toFixed(2)}m`).join(", ")
-                : `${r(e.apertura_radiales_m, 2)}m`;
-            aperturaInfo = ` | Apertura actual: [${aperturas}]`;
-        }
-
-        return `${esc.nombre || "Escala"} (Km ${r(esc.km, 1)}): ` +
-            `NA=${r(e.nivel_m, 3)}m, NB=${r(e.nivel_abajo_m, 3)}m, ΔH=${r(deltaH, 3)}m` +
-            `${estructuraInfo}` +
-            `${aperturaInfo}` +
-            ` | Q=${r(e.gasto_calculado_m3s, 2)} m³/s` +
-            ` | Lectura: ${fmtLecturaEscala(e.fecha, e.hora_lectura, e.creado_en)}`;
-    }).join("\n");
-
-    const tomasActivasText = (data.tomas_activas || []).map((t: any) =>
-        `Km ${r(t.puntos_entrega?.km, 1)} - ${t.puntos_entrega?.nombre || "Toma"}: ` +
-        `Estado ${t.estado}, Gasto ${r(t.caudal_promedio, 2)} L/s`
-    ).join("\n");
-
-    const cicloText = data.ciclo_activo
-        ? `Ciclo Activo: ${data.ciclo_activo.nombre} (${data.ciclo_activo.fecha_inicio} a ${data.ciclo_activo.fecha_fin}), ` +
-          `Vol. Autorizado Global: ${data.ciclo_activo.volumen_autorizado_mm3} Mm³`
-        : "No hay ciclo agrícola activo.";
-
-    const perfilCanalText = (data.perfil_canal || []).map((t: any) =>
-        `KM ${t.km_inicio}-${t.km_fin} | ${t.nombre_tramo} | ` +
-        `b=${r(t.plantilla_m, 2)}m, z=${r(t.talud_z, 2)}, S₀=${r(t.pendiente_s0, 6)}, ` +
-        `Qmax=${r(t.capacidad_diseno_m3s, 2)} m³/s, V=${r(t.velocidad_diseno_ms, 3)} m/s, ` +
-        `dn=${r(t.tirante_diseno_m, 3)}m, BL=${r(t.bordo_libre_m, 3)}m`
-    ).join("\n");
-
-    // Volumen entre represas — formato compacto (1 línea por tramo)
-    const volInterescalasText = (data.vol_interescalas as any[] || []).length === 0
-        ? "Sin datos."
-        : (data.vol_interescalas as any[]).map((v: any) =>
-            `K${r(v.km_up,1)}→K${r(v.km_down,1)} ↑${r(v.nivel_up_m,3)}↓${r(v.nivel_down_m,3)}m ${Number(v.vol_m3).toLocaleString("en-US")}m³/${r(v.vol_mm3,4)}Mm³`
-        ).join("\n");
-
-    // Almacenamiento por zona — formato compacto
-    const volZonasText2 = (data.vol_zonas as any[] || []).length === 0
-        ? "Sin datos."
-        : (data.vol_zonas as any[]).map((z: any) =>
-            `${z.codigo} K${r(z.km_inicio,0)}-${r(z.km_fin,0)} niv=${r(z.nivel_medio_m,3)}m dn=${r(z.tirante_diseno_m,2)} BL=${r(z.bordo_libre_m,2)} cap=${r(z.y_capacidad_m,2)}m | ${r(z.vol_actual_mm3,4)}/${r((z.vol_capacidad_m3||0)/1e6,4)}Mm³ ${r(z.pct_llenado,1)}%`
-        ).join("\n");
-
-    // Entregas declaradas por módulo hoy — gasto para balance
-    const entregasHoyArr: any[] = data.entregas_hoy || [];
-    const entregasHoyText = entregasHoyArr.length === 0
-        ? "Sin entregas de módulos registradas hoy."
-        : entregasHoyArr.map((e: any) =>
-            `${e.modulo_id} ${e.tipo_entrega}: ${r(e.gasto_m3s, 3)} m³/s ${r(e.volumen_m3, 0)} m³`
-        ).join("\n") +
-        `\nTOTAL: ${r(entregasHoyArr.reduce((a: number, e: any) => a + (parseFloat(e.gasto_m3s) || 0), 0), 3)} m³/s`;
-
-    // STAGE 2: Contexto-specific instruction
-    const contextoInstruction = contexto === "operacion"
-        ? "El usuario es un operador en campo. Prioriza instrucciones claras de acción, valores puntuales y alertas de seguridad."
-        : contexto === "balance"
-        ? "El usuario analiza el balance hídrico del ciclo. Incluye comparativos de vol. acumulado vs autorizado y eficiencia."
-        : contexto === "hidraulica"
-        ? "El usuario realiza análisis hidráulico. Usa las fórmulas de Manning y descarga de compuertas con los datos provistos."
-        : "Responde con rigor técnico. Adapta el nivel de detalle a la pregunta formulada.";
-
-    return `Eres el Asistente de Inteligencia Hídrica del Distrito de Riego 005 Delicias (S.R.L. Unidad Conchos).
-Eres un especialista técnico y estratégico en:
-1. **Hidrometría y Compuertas**: Medición de caudales, niveles, volúmenes. Cálculo de gasto por compuertas radiales.
-2. **Gestión y Distribución**: Análisis de módulos, tomas laterales, balance hídrico por ciclo agrícola.
-3. **Modelado Hidráulico**: Manning Q = (1/n) × A × R^(2/3) × S^(1/2). Perfil de flujo en canal principal.
-4. **Escenarios de Operación**: Proyecciones de disponibilidad, eficiencia de conducción, alerta por capacidad.
-
-=== DATOS OPERATIVOS EN TIEMPO REAL ===
-PRESAS:
-${presasText || "Sin lecturas recientes"}
-
-ESCALAS DE MEDICIÓN (lectura más reciente por punto):
-${escalasText || "Sin lecturas recientes"}
-
-TOMAS ABIERTAS HOY (${getTodayChihuahua()} — zona Chihuahua):
-${tomasActivasText || "No hay tomas laterales activas hoy."}
-
-ENTREGAS MÓDULOS HOY (declaradas en SICA Capture — campo gasto_m3s para balance):
-${entregasHoyText}
-
-MÓDULOS — BALANCE DEL CICLO:
-${cicloText}
-${modulosText || "Sin datos de módulos"}
-
-=== CONTROL POR ZONA — BALANCE BASE vs ADICIONAL (CICLO ACTIVO) ===
-${balanceZonasText}
-
-=== VOLUMEN ALMACENADO EN TRÁNSITO — POR TRAMO INTERESCALA ===
-Volumen en el canal entre represas consecutivas (calculado con perfil trapecial + tirante actual).
-Referencia: 100% llenado = tirante_diseno + bordo_libre (capacidad física real del canal).
-${volInterescalasText}
-
-=== ALMACENAMIENTO HIDRÁULICO POR ZONA (Z1–Z4) ===
-${volZonasText2}
-
-=== PERFIL HIDRÁULICO DEL CANAL PRINCIPAL ===
-${perfilCanalText.substring(0, 1200) || "No hay datos de perfil hidráulico."}
-
-=== TRÁNSITO PRE-CALCULADO: K_inicio→K_fin +tramo acum(desde K0) ===
-${(data.transito_tramos || []).map((t: any) => {
-    const hh = Math.floor(t.t_acum_min / 60);
-    const mm = (t.t_acum_min % 60).toString().padStart(2, "0");
-    const ht = Math.floor(t.t_min / 60);
-    const mt = (t.t_min % 60).toString().padStart(2, "0");
-    return `K${t.km_inicio}→K${t.km_fin}:+${ht}:${mt} acum=${hh}:${mm}`;
-}).join(" | ") || "Sin datos."}
-INSTRUCCIÓN: resta t_acumulado(KMb)−t_acumulado(KMa) para calcular tránsito entre dos puntos.
-
-=== ESTATUS HIDRÁULICO DEL SISTEMA ===
-EVENTO OFICIAL (SRL): ${data.evento_oficial?.evento_tipo || "ESTABILIZACIÓN"}
-  Activado: ${fmtLocal(data.evento_oficial?.fecha_inicio)}
-  Notas: ${data.evento_oficial?.notas || "Sin notas especiales."}
-
-DETECCIÓN AUTOMÁTICA (SENSÓRICA): ${data.canal_status?.estado_hidraulico || "ESTABLE"}
-  Extracción Boquilla: ${r(data.canal_status?.qe_boquilla, 2)} m³/s
-  Alerta Estructural: ${data.canal_status?.alerta_activa ? "SÍ — " + data.canal_status.mensaje_alerta : "Ninguna"}
-
-=== FÓRMULAS HIDRÁULICAS DE REFERENCIA ===
-COMPUERTAS RADIALES (Tainter gates):
-  Q = Cd × L_efectiva × a × √(2 × g × ΔH)
-  Donde: Cd ≈ 0.61, g = 9.81 m/s², ΔH = NA − NB (carga diferencial en metros),
-  a = apertura vertical de la compuerta (m), L_efectiva = longitud efectiva de la compuerta (m).
-
-  CALIBRACIÓN OBLIGATORIA de L_efectiva:
-    Si en los datos de Escalas hay Q, apertura (a) y ΔH disponibles para el punto consultado,
-    DEBES calcular L_eff ANTES de responder:
-      L_eff = Q_actual / (Cd × a_actual × √(2 × g × ΔH))
-    Muestra el cálculo paso a paso y usa ese L_eff para cualquier escenario de la pregunta.
-    NO pidas al usuario datos que ya están en las Escalas de Medición.
-
-  ESCENARIOS DE APERTURA: Con L_eff calibrada, aplica la fórmula con la nueva apertura propuesta.
-  Verifica siempre que Q_resultado ≤ Qmax del tramo aguas abajo (ver Perfil Hidráulico).
-
-MANNING (canal trapezoidal):
-  A = (b + z × y) × y
-  P = b + 2 × y × √(1 + z²)
-  R = A / P
-  Q = (1/n) × A × R^(2/3) × S₀^(1/2)
-
-  LÍMITE DE USO DE MANNING — CRÍTICO:
-  Manning calcula Q (m³/s) — caudal que fluye por una sección. NO calcula volumen almacenado.
-  El volumen almacenado entre dos represas es un concepto distinto:
-    V_almacenado (m³) = integral prismática del perfil entre km_up y km_down con tirante interpolado.
-  Este cálculo ya fue ejecutado por fn_vol_interescala() y el resultado está en:
-    → VOLUMEN EN TRÁNSITO POR TRAMO INTERESCALA (campo vol_m3 / vol_mm3)
-    → ALMACENAMIENTO HIDRÁULICO POR ZONA (campo vol_actual_m3 / vol_actual_mm3)
-  PROHIBIDO recalcular el volumen almacenado usando Manning o A×L simples.
-  Esos valores son los autorizados. Úsalos directamente sin re-derivarlos.
-
-TIEMPO DE TRAVESÍA (tránsito hidráulico):
-  Para calcular cuánto tarda el agua en recorrer un tramo o la ruta completa:
-    t_tramo(s) = L_tramo(m) / velocidad_diseno_ms
-    t_total    = Σ t_tramo para todos los tramos del recorrido
-  Los valores de L_tramo y velocidad_diseno_ms están en el Perfil Hidráulico del Canal.
-  Presenta el resultado en horas y minutos (h:mm).
-
-  SIEMPRE usa la tabla "TIEMPOS DE TRÁNSITO PRE-CALCULADOS" — resta t_acumulado(KMb) − t_acumulado(KMa).
-  PROHIBIDO usar velocidades estimadas o promedios globales. Los valores reales están en esa tabla.
-
-=== INSTRUCCIONES OPERATIVAS ===
-- Contexto actual: ${contextoInstruction}
-- SIEMPRE responde en Español con formato Markdown estructurado.
-
-REGLA DE ORO — BALANCE DE CONTINUIDAD POR TRAMO:
-  Antes de escribir cualquier recomendación operativa, DEBES ejecutar este análisis:
-
-  PASO 1 — Determinar Q de entrada al sistema:
-    Q_entrada = Q medido en la escala más cercana a KM 0 (ESC-000 / K0+000), campo gasto_calculado_m3s.
-    La extracción de la Presa (Boquilla) NO es Q_entrada: entre la presa y K0 existen pérdidas por
-    conducción y posibles derivaciones. Solo úsala como referencia de contexto si ESC-000 no reporta.
-    Si hay más de una escala cerca de KM 0, usa la de menor km con lectura válida.
-
-  PASO 2 — Balance tramo a tramo (aguas abajo):
-    Para cada par de escalas consecutivas (Km_A → Km_B):
-      Q_tomas_tramo = suma de caudal de tomas activas (reportes_operacion) + entregas_modulo del día (ENTREGAS MÓDULOS HOY) cuyos módulos están entre Km_A y Km_B
-      Q_esperado_B  = Q_medido_A − Q_tomas_tramo
-      Diferencia    = Q_medido_B − Q_esperado_B
-      Si Diferencia < −(Q_esperado_B × 0.08): DÉFICIT en el tramo → requiere acción aguas arriba
-      De lo contrario:                          CONSISTENTE
-
-    EVALUACIÓN DE RIESGO DE DESBORDAMIENTO — basada en tirante físico medido:
-      Para cada escala, compara nivel_m con y_capacidad_m de la zona correspondiente
-      (y_capacidad_m = tirante_diseno_m + bordo_libre_m, disponible en ALMACENAMIENTO POR ZONA):
-
-      🔴 CRÍTICO — RIESGO DE DESBORDE:
-         nivel_m > y_capacidad_m
-         El agua supera el bordo libre. Riesgo inmediato de desbordamiento físico.
-         Acción: reducir extracción de inmediato.
-
-      🟡 ALERTA — SOBRE DISEÑO:
-         tirante_diseno_m < nivel_m ≤ y_capacidad_m
-         El canal opera sobre tirante de diseño pero dentro del bordo libre.
-         Acción: monitorear. No aumentar caudal aguas arriba.
-
-      ✅ NORMAL:
-         nivel_m ≤ tirante_diseno_m
-         Operación dentro del rango de diseño.
-
-      NOTA: Q > Qmax_tramo es un indicador secundario de alerta operacional,
-      pero el criterio físico de desbordamiento es siempre nivel_m vs y_capacidad_m.
-
-  PASO 3 — Recomendaciones solo donde hay DÉFICIT o EXCEDENTE:
-    Para DÉFICIT: calcular apertura adicional requerida en la compuerta aguas ARRIBA del tramo deficitario.
-    Para EXCEDENTE: calcular reducción de apertura en la compuerta que alimenta ese tramo.
-    Usa SIEMPRE la fórmula de compuerta con L_eff y datos reales de la escala.
-
-  PASO 3.5 — Cierre del sistema en K104 (escala de mayor km):
-    La escala con el km más alto (ESC-013, ~K104+057) es la SALIDA DEL SISTEMA.
-    Su Q no es una toma lateral ni una pérdida — es una entrega comprometida al sistema receptor
-    aguas abajo del DR-005. No genera reporte_operacion diario.
-
-    Q_salida_sistema = gasto_calculado_m3s de la escala de mayor km
-
-    En el balance del último tramo, el Q esperado se calcula como:
-      Q_esperado_ultima = Q_medido_(penúltima escala) − Q_tomas_tramo_final − Q_salida_sistema
-    Si la diferencia es pequeña (< 8%): balance CONSISTENTE incluyendo entrega de cola.
-    Si hay déficit real: el tramo anterior al K104 no está recibiendo suficiente caudal.
-
-    PROHIBIDO clasificar Q_salida_sistema como pérdida, ineficiencia o excedente.
-    Reportarlo siempre como: "Entrega salida sistema (K104): X.XX m³/s (comprometido)"
-
-  PASO 4 — Presentar tabla resumen:
-    Km | Q_medido | Q_esperado | Diferencia | Estado | Acción
-    Incluir fila final: K104 | Q_salida_sistema | comprometido | — | ENTREGA SISTEMA | —
-
-REGLA DE VOLUMEN — BALANCE dV/dt POR ZONA:
-  Aplica cuando la pregunta involucra capacidad del canal, riesgo de llenado/vaciado,
-  tiempo disponible antes de un límite, o posibilidad de aumentar/reducir caudal.
-
-  PASO A — Q neto por zona:
-    Q_entrada_zona  = Q medido en la escala al inicio de la zona (km_inicio de la zona en vol_zonas)
-    Q_tomas_zona    = Σ gasto de tomas activas (reportes_operacion) + Σ gasto_m3s de ENTREGAS MÓDULOS HOY cuyo módulo pertenece a esta zona (cruza por balance_zonas → zona_codigo)
-    Q_neto_zona     = Q_entrada_zona − Q_tomas_zona
-    Si Q_neto_zona > 0: zona ganando volumen (riesgo de llenado si pct_llenado alto)
-    Si Q_neto_zona < 0: zona perdiendo volumen (riesgo de vaciado si pct_llenado bajo)
-    Si Q_neto_zona ≈ 0: zona en equilibrio dinámico
-
-  PASO B — Volumen disponible y tiempo de llenado/vaciado:
-    Vol_disponible_m3 = vol_capacidad_m3 − vol_actual_m3   (espacio hasta el bordo libre)
-    Vol_en_canal_m3   = vol_actual_m3                       (agua actualmente almacenada)
-
-    Si Q_neto_zona > 0 (llenando):
-      t_llenado_h = Vol_disponible_m3 / (Q_neto_zona × 3600)
-      → "Con Q neto de X m³/s, la zona se llena en t_llenado_h horas"
-
-    Si Q_neto_zona < 0 (vaciando):
-      t_vaciado_h = Vol_en_canal_m3 / (|Q_neto_zona| × 3600)
-      → "Con Q neto de −X m³/s, la zona se vaciaría en t_vaciado_h horas"
-
-  PASO C — Presentar resultado:
-    Zona | Vol_actual_Mm³ | Vol_cap_Mm³ | pct_llenado | Q_neto m³/s | Estado | t_llenado/vaciado
-    Incluye ADVERTENCIA si pct_llenado > 90% y Q_neto > 0 (riesgo inminente de desborde)
-    Incluye ALERTA si pct_llenado < 20% y Q_neto < 0 (riesgo de vaciado en tramo)
-
-  NOTA: Este cálculo asume Q instantáneo constante. Es una estimación de snapshot —
-  en operación real el Q varía. Indícalo siempre en la respuesta.
-
-  PROHIBIDO:
-  - Decir "no requiere ajuste" sin mostrar los números del balance.
-  - Recomendar reducir apertura en el punto de origen (Km 0) cuando el problema es déficit aguas abajo.
-  - Inventar números de compuertas (R7, R8…) que no están en los datos de Escalas.
-  - Dar consejos genéricos si los datos operativos están disponibles.
-
-- NUNCA le pidas al usuario datos que ya están disponibles en las secciones de Escalas, Presas o Perfil de Canal.
-- NUNCA respondas "requiere datos adicionales" si esos datos están en el contexto. Si están, úsalos.
-- AMBIGÜEDAD DE UNIDADES: En preguntas de traslado o tránsito, si el usuario dice "m³" sin contexto claro,
-  ACLARA si se refiere a:
-    (a) 1 m³/s — caudal adicional a sostener en ese tramo
-    (b) 1 Mm³ (millón de m³) — volumen total a trasladar
-    (c) 1 m³ — volumen puntual (inusual en operación de canal)
-  Presenta la aclaración y luego resuelve el escenario más probable dado el contexto operativo.
-- Si una pregunta menciona apertura de compuerta ("habrá Xcm", "abrir Xcm más", "apertura total"),
-  ACLARA si el valor es apertura total o incremento antes de calcular. Si es ambiguo, presenta AMBOS escenarios.
-- Si el Q calculado supera la capacidad del tramo aguas abajo, emite ADVERTENCIA CRÍTICA de desbordamiento.
-- Usa los datos de Escalas provistos para ΔH real. NO inventes valores.
-- Redondea resultados hidráulicos a 2 decimales.
-- Si no hay datos operativos, infórmalo indicando que el ciclo puede estar en reinicio o que los sensores no reportan.`;
-}
-
+// ─── Servidor ────────────────────────────────────────────────────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
-    if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cabecerasCors(req) });
+    if (req.method !== "POST") return json(req, 405, "metodo", "Método no permitido.");
 
     try {
-        console.log("--- Inicio Invocación Groq (Llama 3.3 70B) ---");
+        // 1) Autenticación: JWT de USUARIO válido (la anon key también es un JWT válido y NO basta).
+        const authHeader = req.headers.get("Authorization") ?? "";
+        const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+        if (!token) return json(req, 401, "no_autenticado", "Sesión inválida: falta el token.");
 
-        if (!GROQ_API_KEY) throw new Error("Falta GROQ_API_KEY en los Secrets.");
-
-        // Auth
-        const authHeader = req.headers.get("Authorization");
-        if (!authHeader) throw new Error("Acceso no autorizado (Falta token)");
-        const token = authHeader.split(/\s+/)[1];
-
-        const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-
+        const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const { data: { user }, error: authError } = await admin.auth.getUser(token);
         if (authError || !user) {
-            console.error("Auth Error:", authError);
-            if (!token) throw new Error("Sesión inválida.");
+            // Una caída del servicio de Auth (5xx) no es una sesión vencida: no se manda al usuario a cerrar sesión por eso.
+            if ((authError?.status ?? 0) >= 500) { console.error("auth.getUser:", authError?.message); return json(req, 503, "auth_no_disponible", "El servicio de autenticación no responde. Intenta de nuevo en un momento."); }
+            return json(req, 401, "no_autenticado", "Tu sesión expiró. Vuelve a iniciar sesión.");
         }
 
-        console.log(`Usuario: ${user?.id || "Public/Operator"}`);
+        // 2) Autorización: la Consultoría IA es solo de la S.R.L.
+        const { data: perfil, error: perfilError } = await admin.from("perfiles_usuario").select("rol").eq("id", user.id).maybeSingle();
+        if (perfilError) { console.error("perfil:", perfilError.message); return json(req, 500, "interno", "No se pudo verificar tu perfil."); }
+        if (perfil?.rol !== "SRL") return json(req, 403, "prohibido", "La Consultoría IA está disponible solo para la S.R.L.");
 
-        // STAGE 2: Destructure contexto from request body
-        const { message, conversation_id, contexto = "general" } = await req.json() as ChatRequest;
+        // Cliente con el JWT del usuario: el chat se lee y escribe bajo RLS (solo conversaciones propias).
+        const userDb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { headers: { Authorization: `Bearer ${token}` } } });
 
-        // RAG semántico: embedding de la consulta + búsqueda vectorial por coseno
-        // Corre en paralelo con fetchSystemData para no agregar latencia neta
-        let contextText = "";
-        const [systemData, ragChunks] = await Promise.all([
-            fetchSystemData(supabaseAdmin),
-            (async () => {
-                try {
-                    const session = new Supabase.ai.Session("gte-small");
-                    const output = await session.run(message, { mean_pool: true, normalize: true });
-                    // output YA es el array de 384 floats — no {data: Float32Array}.
-                    const queryEmbedding = Array.from(output as unknown as number[]);
+        // 3) Entrada
+        let cuerpo: unknown;
+        try { cuerpo = await req.json(); } catch { return json(req, 400, "entrada", "Cuerpo JSON inválido."); }
+        const v = validaPeticion(cuerpo);
+        if (!v.ok) return json(req, v.status, "entrada", v.error);
+        const { message, conversationId, contexto, clientMsgId } = v.value;
 
-                    const { data: chunks, error: ragError } = await supabaseAdmin.rpc(
-                        "match_hydric_documents",
-                        { query_embedding: queryEmbedding, match_threshold: 0.40, match_count: 5 }
-                    );
-
-                    if (ragError) {
-                        console.error("RAG RPC error:", ragError.message);
-                        return [];
-                    }
-                    return chunks ?? [];
-                } catch (e) {
-                    console.error("RAG embedding error:", e);
-                    return [];
-                }
-            })(),
+        // 4) Límite de uso, contado POR INVOCACIÓN en una tabla que solo escribe el servidor: no se puede reiniciar
+        // borrando mensajes ni reenviando un client_msg_id. Se registra primero y se cuenta incluyendo esta consulta.
+        // Falla CERRADO: si no se puede contar, no se llama al motor de IA.
+        const ahora = Date.now();
+        const desde = (ms: number) => new Date(ahora - ms).toISOString();
+        const { error: errUso } = await admin.from("hydric_uso").insert({ user_id: user.id });
+        const [rMin, rHora] = await Promise.all([
+            admin.from("hydric_uso").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("ts", desde(60_000)),
+            admin.from("hydric_uso").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("ts", desde(3_600_000)),
         ]);
-
-        if (ragChunks.length > 0) {
-            const rawRag = (ragChunks as any[]).map((c: any) =>
-                `[${c.metadata?.source || "Doc"} ${(c.similarity * 100).toFixed(0)}%] ${c.content}`
-            ).join("\n---\n");
-            contextText = "\n\n=== DOCS TÉCNICOS ===\n" + rawRag.substring(0, 1200);
-            console.log(`RAG: ${ragChunks.length} chunks recuperados`);
+        if (errUso || rMin.error || rHora.error) {
+            console.error("límite de uso:", errUso?.message ?? rMin.error?.message ?? rHora.error?.message);
+            return json(req, 503, "limite_no_disponible", "No se pudo verificar tu límite de uso. Intenta de nuevo en un momento.");
         }
+        const limite = motivoLimite((rMin.count ?? 1) - 1, (rHora.count ?? 1) - 1);
+        if (limite) return json(req, 429, "limite", limite);
 
-        // Build system prompt with contexto
-        const systemPrompt = buildSystemPrompt(systemData, contexto) + contextText;
-
-        // Conversation management
-        let convId = conversation_id;
-        if (!convId && user) {
-            const { data: newConv, error: convError } = await supabaseAdmin
-                .from("chat_conversations")
-                .insert({ user_id: user.id, titulo: message.substring(0, 50), contexto })
-                .select("id").single();
-
-            if (convError) throw new Error(`DB Error (chat_conversations): ${convError.message}`);
-            convId = newConv?.id;
-        }
-
+        // 5) Conversación: existente (y propia, por RLS) o nueva
+        let convId = conversationId;
+        let conversacionExistia = false;
         if (convId) {
-            const { error: msgError } = await supabaseAdmin
-                .from("chat_messages")
-                .insert({ conversation_id: convId, role: "user", content: message });
-            if (msgError) throw new Error(`DB Error (chat_messages): ${msgError.message}`);
+            const { data: c, error: errC } = await userDb.from("chat_conversations").select("id").eq("id", convId).maybeSingle();
+            if (errC) { console.error("buscar conversación:", errC.message); return json(req, 500, "interno", "No se pudo abrir la conversación."); }
+            if (!c) return json(req, 404, "conversacion", "Conversación no encontrada.");
+            conversacionExistia = true;
+        } else {
+            const { data: nueva, error: errConv } = await userDb.from("chat_conversations")
+                .insert({ user_id: user.id, titulo: tituloDe(message), contexto }).select("id").single();
+            if (errConv || !nueva) { console.error("crear conversación:", errConv?.message); return json(req, 500, "interno", "No se pudo crear la conversación."); }
+            convId = nueva.id as string;
         }
 
-        // History: 8 msgs max (4 turnos) — con max_tokens=2500 cada respuesta AI
-        // puede pesar ~1500 tok, 8×~1000 tok promedio ≈ 8000 tok de historial.
-        // Llama-3.3-70B en Groq soporta 128K de contexto, así que el límite real
-        // es la continuidad conversacional: 4 mensajes (2 turnos) cortaba
-        // seguimientos tipo "¿y si en vez de eso cierro R3?" que necesitan
-        // recordar el escenario planteado 2 turnos atrás.
-        const { data: history } = convId
-            ? await supabaseAdmin.from("chat_messages")
-                .select("role, content")
-                .eq("conversation_id", convId)
-                .order("created_at", { ascending: false })
-                .limit(8)
-            : { data: [] };
-        // Revertir a orden cronológico para el contexto
-        const historyOrdered = (history || []).reverse();
-
-        const messages = [
-            { role: "system", content: systemPrompt },
-            ...historyOrdered.map((m: any) => ({ role: m.role, content: m.content })),
-        ];
-
-        if (!historyOrdered.some((h: any) => h.content === message)) {
-            messages.push({ role: "user", content: message });
+        // 6) Mensaje del usuario, idempotente por client_msg_id (índice único parcial en BD).
+        // Un reintento NO duplica el mensaje; si esa consulta ya tiene respuesta, no se vuelve a llamar al motor de IA.
+        let yaGuardado = false;
+        if (clientMsgId && conversacionExistia) {
+            const { data: previo, error: errP } = await userDb.from("chat_messages").select("id, created_at")
+                .eq("conversation_id", convId).eq("metadata->>client_msg_id", clientMsgId).limit(1);
+            if (errP) { console.error("idempotencia:", errP.message); return json(req, 500, "interno", "No se pudo verificar el mensaje."); }
+            if (previo && previo.length > 0) {
+                yaGuardado = true;
+                const { data: respuesta, error: errR } = await userDb.from("chat_messages").select("id")
+                    .eq("conversation_id", convId).eq("role", "assistant").gt("created_at", previo[0].created_at).limit(1);
+                if (errR) { console.error("idempotencia (respuesta):", errR.message); return json(req, 500, "interno", "No se pudo verificar el mensaje."); }
+                if (respuesta && respuesta.length > 0) return json(req, 409, "duplicado", "Esa consulta ya fue respondida. Recarga la conversación para verla.", { conversation_id: convId });
+            }
+        }
+        if (!yaGuardado) {
+            const { error: errMsg } = await userDb.from("chat_messages").insert({
+                conversation_id: convId, role: "user", content: message, metadata: clientMsgId ? { client_msg_id: clientMsgId } : null,
+            });
+            // 23505 = otra petición con el mismo client_msg_id ganó la carrera: ya está guardado.
+            if (errMsg && errMsg.code !== "23505") { console.error("guardar mensaje:", errMsg.message); return json(req, 500, "interno", "No se pudo guardar tu mensaje."); }
         }
 
-        console.log(`Llamando a Groq API (streaming) — modelo: ${AI_MODEL}, contexto: ${contexto}`);
+        // 7) Datos del sistema + RAG en paralelo, e historial
+        const [datos, rag0, hist] = await Promise.all([
+            cargaDatos(admin, ahora),
+            buscaDocumentos(admin, message),
+            userDb.from("chat_messages").select("role, content, metadata").eq("conversation_id", convId).order("created_at", { ascending: false }).limit(8),
+        ]);
+        if (!rag0.ok) datos.fallos.push("busqueda_documental");
+        if (hist.error) { console.error("historial:", hist.error.message); datos.fallos.push("historial"); }
+        const snapshot = armaSnapshot(datos, ahora);
+        const rag = bloqueDocumentos(rag0.chunks);
+        const historial: MensajeHistorial[] = ((hist.data ?? []) as Array<{ role: string; content: string; metadata: unknown }>)
+            .reverse()
+            .filter((m) => (m.role === "user" || m.role === "assistant") && !(m.role === "assistant" && esRespuestaParcial(m.metadata)))
+            .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+        if (!historial.length || historial[historial.length - 1].role !== "user") historial.push({ role: "user", content: message });
 
-        // El prompt de sistema exige tablas de 6 columnas (balance de continuidad)
-        // y hasta 4 pasos de la regla de volumen — 1200 tokens las corta a medio
-        // cálculo sin aviso. El comentario original decía "1500→2500" pero el
-        // valor nunca se actualizó; se sube al valor documentado como intención.
-        // temperature baja (no 0): el prompt exige cálculo numérico determinista,
-        // no creatividad — 0.1 deja margen mínimo de variación de fraseo.
-        const groqResponse = await fetch(AI_URL, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${GROQ_API_KEY}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: AI_MODEL,
-                messages,
-                temperature: 0.1,
-                max_tokens: 2500,
-                stream: true,
-            }),
-        });
-
-        if (!groqResponse.ok || !groqResponse.body) {
-            const errorText = await groqResponse.text();
-            console.error("Groq Error Response:", errorText);
-            throw new Error(`Groq API Error: ${groqResponse.status} — ${errorText}`);
-        }
-
-        // Reenviamos el stream de Groq (SSE, formato OpenAI-compatible) como SSE
-        // propio hacia el cliente: cada evento trae solo el delta de texto nuevo,
-        // así el cliente pinta la respuesta progresivamente en vez de esperar el
-        // bloque completo (8-15s en blanco antes de este cambio). Acumulamos el
-        // texto completo en el servidor para persistirlo igual que antes.
+        // 8) Respuesta en streaming (SSE). Se persiste lo generado aunque el cliente se desconecte a medias.
         const encoder = new TextEncoder();
-        const decoder = new TextDecoder();
-        let fullText = "";
-        let finishReason: string | null = null;
+        const abort = new AbortController();
+        req.signal.addEventListener("abort", () => abort.abort());
+        let clienteConectado = true;
 
         const stream = new ReadableStream({
             async start(controller) {
-                const reader = groqResponse.body!.getReader();
-                let buffer = "";
+                const enviar = (obj: Record<string, unknown>) => {
+                    if (!clienteConectado) return;
+                    try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`)); }
+                    catch { clienteConectado = false; abort.abort(); }
+                };
+                let texto = "";
+                const tarjetas: Tarjeta[] = [];
+                let fin: { razon: string; proveedor: string; modelo: string; truncada: boolean; rechazada: boolean; uso?: UsoLlm } | null = null;
+                let abortada = false;
+                let errorEnviado = false;
+
                 try {
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        buffer += decoder.decode(value, { stream: true });
-                        const lines = buffer.split("\n");
-                        buffer = lines.pop() ?? "";
-                        for (const line of lines) {
-                            const trimmed = line.trim();
-                            if (!trimmed.startsWith("data:")) continue;
-                            const payload = trimmed.slice(5).trim();
-                            if (payload === "[DONE]") continue;
-                            try {
-                                const json = JSON.parse(payload);
-                                const delta = json.choices?.[0]?.delta?.content;
-                                if (json.choices?.[0]?.finish_reason) {
-                                    finishReason = json.choices[0].finish_reason;
-                                }
-                                if (delta) {
-                                    fullText += delta;
-                                    controller.enqueue(encoder.encode(
-                                        `data: ${JSON.stringify({ delta, conversation_id: convId })}\n\n`
-                                    ));
-                                }
-                            } catch {
-                                // línea SSE parcial o no-JSON — se descarta, no rompe el stream
-                            }
-                        }
+                    enviar({ type: "inicio", conversation_id: convId, proveedor: proveedorActivo() });
+                    for await (const ev of conversar({
+                        estatico: PROMPT_ESTATICO, dinamico: promptDinamico(snapshot, contexto, rag.texto),
+                        historial, snapshot, signal: abort.signal,
+                    })) {
+                        if (ev.tipo === "texto") { texto += ev.texto; enviar({ delta: ev.texto, conversation_id: convId }); }
+                        else if (ev.tipo === "pensando") enviar({ type: "pensando", texto: ev.texto });
+                        else if (ev.tipo === "estado") enviar({ type: "estado", texto: ev.texto });
+                        else if (ev.tipo === "tarjetas") { tarjetas.push(...ev.tarjetas); enviar({ type: "tarjetas", tarjetas: ev.tarjetas }); }
+                        else if (ev.tipo === "fin") fin = ev;
                     }
-
-                    // finish_reason "length" = Groq cortó por el límite de tokens, no
-                    // porque el análisis haya terminado. Sin este aviso, una tabla de
-                    // balance a medias se ve idéntica a una completa.
-                    if (finishReason === "length") {
-                        console.warn("Respuesta truncada por max_tokens — finish_reason=length");
-                        const warning = "\n\n---\n⚠️ **Respuesta incompleta**: el análisis se cortó por longitud. Pide continuar o acota la pregunta (por ejemplo, a un solo tramo o zona) para obtener el cálculo completo.";
-                        fullText += warning;
-                        controller.enqueue(encoder.encode(
-                            `data: ${JSON.stringify({ delta: warning, conversation_id: convId })}\n\n`
-                        ));
+                } catch (err) {
+                    abortada = abort.signal.aborted;
+                    if (!abortada) {
+                        console.error("Error del proveedor de IA:", err);
+                        const e = err instanceof ErrorProveedor ? err : new ErrorProveedor("proveedor", "Error del motor de IA.");
+                        enviar({ error: true, code: e.codigo, message: e.message });
+                        errorEnviado = true;
                     }
-
-                    // Persist assistant response — igual que en el flujo no-streaming
-                    if (convId) {
-                        await supabaseAdmin.from("chat_messages").insert({
-                            conversation_id: convId,
-                            role: "assistant",
-                            content: fullText || "No pude generar una respuesta.",
-                        });
-                        await supabaseAdmin.from("chat_conversations")
-                            .update({ updated_at: new Date().toISOString() })
-                            .eq("id", convId);
-                    }
-
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, conversation_id: convId })}\n\n`));
-                    console.log("Respuesta generada con éxito (streaming).");
-                } catch (streamErr: any) {
-                    console.error("Error durante streaming:", streamErr);
-                    controller.enqueue(encoder.encode(
-                        `data: ${JSON.stringify({ error: true, message: streamErr.message || "Error de streaming" })}\n\n`
-                    ));
-                } finally {
-                    controller.close();
                 }
+
+                // Sin texto no hay "respuesta": un 200 con `done` y nada que mostrar dejaba al usuario sin saber qué pasó.
+                if (!errorEnviado && !abortada && texto.trim().length === 0) {
+                    console.warn("respuesta sin texto; razón:", fin?.razon ?? "desconocida");
+                    const msg = fin?.rechazada ? "El motor de IA declinó responder esta consulta. Reformula la pregunta."
+                        : fin?.truncada ? "El motor de IA agotó su límite antes de redactar la respuesta. Acota la pregunta (por ejemplo, a un solo tramo o presa)."
+                            : "El motor de IA no generó una respuesta. Intenta de nuevo.";
+                    enviar({ error: true, code: "sin_respuesta", message: msg });
+                    errorEnviado = true;
+                }
+
+                // Persistir lo generado (completo o parcial) como mensaje del asistente — verificando el resultado:
+                // supabase-js NO lanza excepciones, devuelve {error}.
+                let persistido = true;
+                if (texto.trim().length > 0) {
+                    const fila = {
+                        conversation_id: convId, role: "assistant", content: texto,
+                        metadata: {
+                            proveedor: fin?.proveedor ?? proveedorActivo(), modelo: fin?.modelo ?? null, razon: fin?.razon ?? (abortada ? "abortada" : "error"),
+                            truncada: fin?.truncada ?? false, abortada, uso: fin?.uso ?? null,
+                            tarjetas: tarjetas.length ? tarjetas : undefined, fuentes: rag.fuentes.length ? rag.fuentes : undefined,
+                        },
+                    };
+                    let r = await userDb.from("chat_messages").insert(fila);
+                    if (r.error) {
+                        // JWT vencido en una respuesta larga o RLS: se reintenta con service role (la conversación ya se verificó como propia).
+                        console.error("persistir respuesta (usuario):", r.error.message, "conv:", convId);
+                        r = await admin.from("chat_messages").insert(fila);
+                    }
+                    if (r.error) { persistido = false; console.error("persistir respuesta (admin):", r.error.message, "conv:", convId); }
+                    const u = await userDb.from("chat_conversations").update({ updated_at: new Date().toISOString() }).eq("id", convId);
+                    if (u.error) console.error("actualizar conversación:", u.error.message);
+                }
+
+                if (fin && !errorEnviado) {
+                    enviar({
+                        type: "done", done: true, conversation_id: convId, proveedor: fin.proveedor, modelo: fin.modelo,
+                        truncada: fin.truncada, rechazada: fin.rechazada, fuentes: rag.fuentes as FuenteRag[],
+                        persistido, datos_incompletos: datos.fallos,
+                    });
+                }
+                try { controller.close(); } catch { /* cliente ya desconectado */ }
             },
+            cancel() { clienteConectado = false; abort.abort(); },
         });
 
         return new Response(stream, {
-            headers: {
-                ...corsHeaders,
-                "Content-Type": "text/event-stream",
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-            },
+            headers: { ...cabecerasCors(req), "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive" },
         });
-
-    } catch (e: any) {
-        console.error("DEBUG CRÍTICO (Edge Function):", e);
-
-        let errorMessage = e.message || "Error desconocido en el motor de IA";
-        if (errorMessage.includes("401") || errorMessage.includes("Unauthorized")) {
-            errorMessage = "Autorización fallida en la API de Groq. Verifica GROQ_API_KEY en Supabase Secrets.";
-        } else if (errorMessage.includes("404")) {
-            errorMessage = `Modelo ${AI_MODEL} no encontrado en Groq.`;
-        }
-
-        return new Response(JSON.stringify({
-            error: true,
-            message: errorMessage,
-            details: e.toString(),
-        }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+    } catch (e) {
+        // Detalle solo en logs del servidor; al cliente, un mensaje genérico.
+        console.error("hydric-chat error:", e);
+        return json(req, 500, "interno", "Error interno del servidor. Intenta de nuevo.");
     }
 });

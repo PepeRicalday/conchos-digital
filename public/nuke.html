@@ -136,6 +136,7 @@
                     // de intentos para que, si vuelve a ver versión "menor", se
                     // rinda y deje operar en vez de recargar otra vez.
                     localStorage.setItem('sica_vg_intentos', '99');
+                    localStorage.setItem('sica_vg_intentos_ts', String(Date.now()));
                 } catch (e) { console.warn('storage:', e); }
 
                 // 4. IndexedDB. deleteDatabase() puede quedarse en `blocked`

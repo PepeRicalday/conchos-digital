@@ -127,7 +127,7 @@ const Login: React.FC = () => {
                         <button
                             onClick={() => {
                                 if (window.confirm('¿Deseas FORZAR la limpieza de la aplicación? Se borrará el caché y tendrás que volver a iniciar sesión.')) {
-                                    window.location.href = "/nuke";
+                                    window.location.href = "/nuke.html";
                                 }
                             }}
                             className="nuke-button"

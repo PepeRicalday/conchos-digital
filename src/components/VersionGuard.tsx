@@ -45,7 +45,12 @@ const CURRENT_VERSION = typeof __V2_APP_VERSION__ !== 'undefined' ? __V2_APP_VER
 
 const CANDADO_KEY = 'sica_vg_recargando';
 const INTENTOS_KEY = 'sica_vg_intentos';
+const INTENTOS_TS_KEY = 'sica_vg_intentos_ts';
 const MAX_INTENTOS = 3;
+// La rendición NO es permanente: nuke.html planta intentos=99 y, sin caducidad,
+// un dispositivo que pasó por ahí ignoraba para siempre cualquier versión nueva
+// (iPhone anclado en 2.41.1 con 2.41.2 anunciada). Tras este lapso se reintenta.
+const REINTENTO_TRAS_MS = 60 * 60 * 1000;
 
 /** Storage puede no existir o lanzar (modo privado estricto) — nunca debe tumbar el guardián. */
 const storageSeguro = (storage: Storage) => ({
@@ -125,10 +130,15 @@ export const VersionGuard = ({ children }: { children: ReactNode }) => {
                     // Alcanzamos versión vigente: limpiar el contador de intentos
                     // para que un futuro deploy vuelva a tener sus 3 chances.
                     persistente.remove(INTENTOS_KEY);
+                    persistente.remove(INTENTOS_TS_KEY);
                     return;
                 }
 
-                const intentos = Number(persistente.get(INTENTOS_KEY) || '0') + 1;
+                let previos = Number(persistente.get(INTENTOS_KEY) || '0');
+                const ultimoTs = Number(persistente.get(INTENTOS_TS_KEY) || '0');
+                // Sin marca de tiempo (contador plantado por un nuke.html anterior) cuenta como vencido.
+                if (previos >= MAX_INTENTOS && Date.now() - ultimoTs > REINTENTO_TRAS_MS) previos = 0;
+                const intentos = previos + 1;
                 if (intentos > MAX_INTENTOS) {
                     // La purga no está resolviendo nada (SW/caché fuera de
                     // nuestro control, o el deploy aún no asienta en el edge).
@@ -142,6 +152,7 @@ export const VersionGuard = ({ children }: { children: ReactNode }) => {
                 }
 
                 persistente.set(INTENTOS_KEY, String(intentos));
+                persistente.set(INTENTOS_TS_KEY, String(Date.now()));
                 sesion.set(CANDADO_KEY, '1');
                 recargando.current = true;
                 void purgarYRecargar();

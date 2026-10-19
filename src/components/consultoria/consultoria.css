@@ -85,6 +85,10 @@
 .ci-accion { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--sc-t3); font: 600 12px var(--sc-body); cursor: pointer; }
 .ci-accion:hover { color: var(--sc-t1); background: var(--sc-surface-2); }
 .ci-accion:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 1px; }
+.ci-valorar { display: inline-flex; margin-left: auto; }
+.ci-accion[aria-pressed="true"] { color: var(--sc-sky); background: var(--sc-surface-2); }
+.ci-barra { display: block; height: 4px; margin-top: 3px; border-radius: 2px; background: var(--sc-line); overflow: hidden; min-width: 56px; }
+.ci-barra i { display: block; height: 100%; background: var(--sc-sky); }
 .ci-fuentes { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .ci-fuente { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--sc-line); background: var(--sc-surface); color: var(--sc-t2); font: 500 12px var(--sc-mono); max-width: 100%; }
 .ci-fuente span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

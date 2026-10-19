@@ -18,6 +18,8 @@ interface Props {
     fallido: EnvioFallido | null;
     cooldownUntil: number | null;
     eventoTipo: string | null | undefined;
+    valoraciones: Record<string, 1 | -1>;
+    onValorar: (id: string, valor: 1 | -1) => void;
     onEnviar: (texto: string, contexto?: ContextoChat) => Promise<boolean>;
     onReintentar: (f: EnvioFallido) => void;
     onDetener: () => void;
@@ -124,7 +126,7 @@ export function ChatPanel(p: Props) {
                 <div ref={logRef} className="ci-mensajes" role="log" aria-label="Conversación" aria-live={p.enviando ? 'off' : 'polite'} aria-busy={p.enviando} tabIndex={0} onScroll={alScroll}>
                     {p.cargandoMensajes && <p className="ci-vacio" role="status"><Loader2 size={20} className="spin" aria-hidden="true" /> Cargando la conversación…</p>}
                     {visibles.map((m) => (
-                        <MensajeBurbuja key={m.id} msg={m} transmitiendo={m.id === transmitiendoId}
+                        <MensajeBurbuja key={m.id} msg={m} transmitiendo={m.id === transmitiendoId} valoracion={p.valoraciones[m.id]} onValorar={p.onValorar}
                             esUltimaRespuesta={m.id === ultimaAsistente?.id && !p.enviando}
                             // Solo la última respuesta recibe acciones: las demás conservan props estables y el memo evita re-parsear su markdown.
                             onRegenerar={m.id === ultimaAsistente?.id && ultimoUsuario ? () => void enviar(ultimoUsuario.content) : undefined}

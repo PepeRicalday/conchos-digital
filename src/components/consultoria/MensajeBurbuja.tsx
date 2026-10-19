@@ -1,7 +1,7 @@
 import { memo, useMemo, useState, type ComponentProps } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { AlertTriangle, Brain, Check, Copy, Droplets, FileText, PlayCircle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Brain, Check, Copy, Droplets, FileText, ImageDown, Loader2, PlayCircle, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide-react';
 import type { ChatMessage } from '../../hooks/useHydricChat';
 import { formatTime } from '../../utils/dateHelpers';
 import { hrefSeguro } from '../../utils/consultoria';
@@ -41,16 +41,29 @@ interface Props {
     esUltimaRespuesta?: boolean;
     onRegenerar?: () => void;
     onContinuar?: () => void;
+    /** Valoración guardada (1 útil, -1 no útil); solo se ofrece cuando la respuesta ya está guardada en el servidor. */
+    valoracion?: 1 | -1;
+    onValorar?: (id: string, valor: 1 | -1) => void;
 }
 
-function MensajeBurbujaBase({ msg, transmitiendo, esUltimaRespuesta, onRegenerar, onContinuar }: Props) {
+const ES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function MensajeBurbujaBase({ msg, transmitiendo, esUltimaRespuesta, onRegenerar, onContinuar, valoracion, onValorar }: Props) {
     const [copiado, setCopiado] = useState(false);
+    const [exportando, setExportando] = useState(false);
+    const [falloExportar, setFalloExportar] = useState(false);
     const esAsistente = msg.role === 'assistant';
     const meta = msg.metadata ?? undefined;
     const motor = useMemo(() => etiquetaMotor(meta?.proveedor, meta?.modelo), [meta?.proveedor, meta?.modelo]);
 
     const copiar = async () => {
         if (await copiarTexto(msg.content)) { setCopiado(true); window.setTimeout(() => setCopiado(false), 1800); }
+    };
+
+    const exportar = async () => {
+        setExportando(true); setFalloExportar(false);
+        try { (await import('./exportar')).exportarRespuestaPng(msg).catch(() => setFalloExportar(true)).finally(() => setExportando(false)); }
+        catch { setFalloExportar(true); setExportando(false); }
     };
 
     return (
@@ -108,6 +121,16 @@ function MensajeBurbujaBase({ msg, transmitiendo, esUltimaRespuesta, onRegenerar
                         <button type="button" className="ci-accion" onClick={copiar} aria-label="Copiar la respuesta">
                             {copiado ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />} {copiado ? 'Copiada' : 'Copiar'}
                         </button>
+                        <button type="button" className="ci-accion" onClick={() => void exportar()} disabled={exportando} aria-label="Guardar la respuesta como imagen">
+                            {exportando ? <Loader2 size={14} className="spin" aria-hidden="true" /> : <ImageDown size={14} aria-hidden="true" />} {exportando ? 'Generando…' : 'Imagen'}
+                        </button>
+                        {falloExportar && <span className="ci-sd" role="alert">No se pudo generar la imagen</span>}
+                        {onValorar && ES_UUID.test(msg.id) && (
+                            <span className="ci-valorar" role="group" aria-label="¿Fue útil la respuesta?">
+                                <button type="button" className="ci-accion" aria-pressed={valoracion === 1} onClick={() => onValorar(msg.id, 1)} aria-label="Útil"><ThumbsUp size={14} aria-hidden="true" /></button>
+                                <button type="button" className="ci-accion" aria-pressed={valoracion === -1} onClick={() => onValorar(msg.id, -1)} aria-label="No útil"><ThumbsDown size={14} aria-hidden="true" /></button>
+                            </span>
+                        )}
                         {onRegenerar && esUltimaRespuesta && (
                             <button type="button" className="ci-accion" onClick={onRegenerar}><RefreshCw size={14} aria-hidden="true" /> Regenerar</button>
                         )}

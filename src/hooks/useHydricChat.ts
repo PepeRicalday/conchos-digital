@@ -56,6 +56,7 @@ export interface EnvioFallido { texto: string; contexto: string; clientMsgId: st
 
 interface ErrorHttp extends Error { status?: number; code?: string; convId?: string | null; parcial?: boolean }
 
+const MAX_MENSAJES_CARGADOS = 200;
 const DETENIDA_SIN_TEXTO = 'Respuesta detenida antes de generar texto.';
 
 const nuevoClientMsgId = () => `m_${crypto.randomUUID()}`;
@@ -71,6 +72,7 @@ export function useHydricChat() {
     const [paso, setPaso] = useState<PasoActual>({ estado: null, pensando: '' });
     const [motor, setMotor] = useState<MotorIA | null>(null);
     const [fallido, setFallido] = useState<EnvioFallido | null>(null);
+    const [valoraciones, setValoraciones] = useState<Record<string, 1 | -1>>({});
     const lastSendAtRef = useRef(0);
     const cooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const abortRef = useRef<AbortController | null>(null);
@@ -113,23 +115,32 @@ export function useHydricChat() {
     }, []);
 
     // ─── Mensajes de una conversación ─────────────────────────────────────────────────────────────────────────────
-    const fetchMessages = useCallback(async (conversationId: string) => {
-        setIsLoadingMessages(true);
+    const fetchMessages = useCallback(async (conversationId: string, silent = false) => {
+        if (!silent) setIsLoadingMessages(true);
         try {
             const { data, error: fetchError } = await supabase
                 .from('chat_messages')
                 .select('*')
                 .eq('conversation_id', conversationId)
-                .order('created_at', { ascending: true });
+                .order('created_at', { ascending: false })
+                .limit(MAX_MENSAJES_CARGADOS);          // conversaciones largas: solo lo más reciente
             if (fetchError) throw fetchError;
             // Si el usuario cambió de conversación mientras cargaba, no pisar la actual.
-            if (activeIdRef.current === conversationId) setMessages((data as ChatMessage[]) || []);
+            if (activeIdRef.current === conversationId) {
+                const lista = ((data as ChatMessage[]) || []).slice().reverse();
+                setMessages(lista);
+                const ids = lista.filter((m) => m.role === 'assistant').map((m) => m.id);
+                if (ids.length) {
+                    const { data: val } = await supabase.from('chat_feedback').select('message_id, valor').in('message_id', ids);
+                    if (activeIdRef.current === conversationId) setValoraciones(Object.fromEntries((val ?? []).map((v) => [v.message_id as string, v.valor as 1 | -1])));
+                } else setValoraciones({});
+            }
         } catch (err) {
             console.error('Error fetching messages:', err);
             const msg = (err as Error)?.message ?? '';
             if (!isJwtError(msg)) setError(msg || 'Error al cargar mensajes');
         } finally {
-            setIsLoadingMessages(false);
+            if (!silent) setIsLoadingMessages(false);
         }
     }, []);
 
@@ -157,7 +168,7 @@ export function useHydricChat() {
     // ─── Envío por streaming (SSE) ────────────────────────────────────────────────────────────────────────────────
     const streamChat = useCallback(async (
         content: string, contexto: string, assistantMsgId: string, clientMsgId: string, signal: AbortSignal,
-    ) => {
+    ): Promise<boolean | void> => {
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.access_token;
         if (!token) throw new Error('Tu sesión expiró. Refresca la página o vuelve a iniciar sesión.');
@@ -250,6 +261,7 @@ export function useHydricChat() {
         }
         aplica();
         if (!est.texto) throw new Error('No se recibió respuesta del asistente.');
+        return est.meta.persistido !== false;
     }, [fetchConversations]);
 
     /** Devuelve true si el mensaje se envió y respondió; false si falló (el texto queda en `fallido` para reintentar). */
@@ -281,19 +293,22 @@ export function useHydricChat() {
         setMessages(prev => [...prev, optimisticUserMsg, placeholder]);
 
         try {
+            let guardado: boolean | void = false;
             try {
-                await streamChat(texto, ctx, assistantMsgId, clientMsgId, ac.signal);
+                guardado = await streamChat(texto, ctx, assistantMsgId, clientMsgId, ac.signal);
             } catch (err) {
                 const e = err as ErrorHttp;
                 // 401 = sesión de Supabase vencida (el servidor ya no confunde esto con errores del motor de IA).
                 if (e.status === 401 && !ac.signal.aborted) {
                     const { error: refreshErr } = await supabase.auth.refreshSession();
                     if (refreshErr) throw new Error('Tu sesión ha expirado. Inicia sesión de nuevo.');
-                    await streamChat(texto, ctx, assistantMsgId, clientMsgId, ac.signal);   // mismo client_msg_id: no se duplica
+                    guardado = await streamChat(texto, ctx, assistantMsgId, clientMsgId, ac.signal);   // mismo client_msg_id: no se duplica
                 } else {
                     throw err;
                 }
             }
+            // Ya guardada en el servidor: se recarga en silencio para que los mensajes tengan su id real (valorar, exportar).
+            if (guardado && !ac.signal.aborted && activeIdRef.current) void fetchMessages(activeIdRef.current, true);
             return true;
         } catch (err) {
             if (ac.signal.aborted) {
@@ -342,6 +357,19 @@ export function useHydricChat() {
         setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, titulo: t } : c));
     }, []);
 
+    const valorar = useCallback(async (messageId: string, valor: 1 | -1) => {
+        const previo = valoraciones[messageId];
+        const quitar = previo === valor;
+        setValoraciones((v) => { const n = { ...v }; if (quitar) delete n[messageId]; else n[messageId] = valor; return n; });
+        const { error: e } = quitar
+            ? await supabase.from('chat_feedback').delete().eq('message_id', messageId)
+            : await supabase.from('chat_feedback').upsert({ message_id: messageId, valor }, { onConflict: 'message_id' });
+        if (e) {      // no se afirma una valoración que no quedó guardada
+            setValoraciones((v) => { const n = { ...v }; if (previo) n[messageId] = previo; else delete n[messageId]; return n; });
+            setError('No se pudo guardar tu valoración.');
+        }
+    }, [valoraciones]);
+
     const deleteConversation = useCallback(async (conversationId: string) => {
         try {
             const { data, error: deleteError } = await supabase
@@ -374,6 +402,8 @@ export function useHydricChat() {
         paso,
         motor,
         fallido,
+        valoraciones,
+        valorar,
         sendMessage,
         detener,
         selectConversation,

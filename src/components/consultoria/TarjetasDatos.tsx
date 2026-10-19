@@ -35,7 +35,12 @@ export const TarjetasDatos = memo(function TarjetasDatos({ tarjetas }: { tarjeta
                                             const sd = texto === 'S/D';
                                             return c === 0
                                                 ? <th key={c} scope="row">{texto}</th>
-                                                : <td key={c} className={sd ? 'ci-sd' : undefined}>{texto}</td>;
+                                                : <td key={c} className={sd ? 'ci-sd' : undefined}>
+                                                    {texto}
+                                                    {!sd && /%/.test(t.columnas[c] ?? '') && typeof v === 'number' && Number.isFinite(v) && (
+                                                        <span className="ci-barra" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, v))}%` }} /></span>
+                                                    )}
+                                                </td>;
                                         })}
                                     </tr>
                                 ))}

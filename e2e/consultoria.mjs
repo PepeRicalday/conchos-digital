@@ -15,7 +15,7 @@ const convs = [{ id: CONV, titulo: 'Balance del canal K0→K104', contexto: 'bal
 const msgs = [
     { id: 'm1', conversation_id: CONV, role: 'user', content: 'Haz el balance', metadata: null, created_at: hoy },
     {
-        id: 'm2', conversation_id: CONV, role: 'assistant', created_at: hoy,
+        id: '7c9e6679-7425-40de-944b-e07fc1f90ae7', conversation_id: CONV, role: 'assistant', created_at: hoy,
         content: '## Balance\n\n| Tramo | Q entrada | Estado |\n|---|---|---|\n| K-0 → K-23 | S/D | no aplica |\n\nConsulta [CONAGUA](https://conagua.gob.mx) y [mala](javascript:alert(1)).',
         metadata: {
             proveedor: 'claude', modelo: 'claude-opus-5-5', truncada: true,
@@ -32,6 +32,7 @@ const errores = [];
 page.on('console', (m) => { if (m.type() === 'error' && !IGNORE.test(m.text())) errores.push(m.text()); });
 page.on('pageerror', (e) => errores.push(String(e)));
 await page.route('**/rest/v1/chat_conversations**', (r) => (r.request().method() === 'GET' ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(convs) }) : r.continue()));
+await page.route('**/rest/v1/chat_feedback**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
 await page.route('**/rest/v1/chat_messages**', (r) => (r.request().method() === 'GET' ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(msgs) }) : r.continue()));
 
 // ── Consultoría IA ──
@@ -57,6 +58,11 @@ ok(enlaces.length === 1 && enlaces[0] === 'https://conagua.gob.mx', 'el enlace j
 ok(await page.locator('.ci-fuente').count() === 1, 'fuentes del RAG como chips');
 ok(await page.getByRole('button', { name: 'Continuar' }).count() === 1, 'respuesta incompleta ofrece "Continuar"');
 ok(await page.getByRole('button', { name: 'Copiar la respuesta' }).count() === 1, 'copiar respuesta disponible');
+ok(await page.getByRole('button', { name: 'Guardar la respuesta como imagen' }).count() === 1, 'exportar respuesta a imagen disponible');
+ok(await page.getByRole('button', { name: 'Útil', exact: true }).count() === 1 && await page.getByRole('button', { name: 'No útil' }).count() === 1, 'valoración útil / no útil disponible');
+ok(await page.locator('.ci-tarjeta .ci-barra').count() === 1, 'barra solo para el % con dato (el S/D no dibuja barra)');
+const [descarga] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }).catch(() => null), page.getByRole('button', { name: 'Guardar la respuesta como imagen' }).click()]);
+ok(!!descarga && /^consultoria-ia-.*\.png$/.test(descarga.suggestedFilename()), 'la exportación genera un PNG descargable');
 ok(await page.locator('[role=log]').getAttribute('aria-live') === 'polite', 'mensajes con role=log y aria-live');
 
 // borrar con confirmación, visible sin hover

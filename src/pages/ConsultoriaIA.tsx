@@ -115,7 +115,7 @@ function ConsultoriaIAInterna() {
                     />
                     <ChatPanel
                         mensajes={chat.messages} cargandoMensajes={chat.isLoadingMessages} enviando={chat.isSending} paso={chat.paso}
-                        error={chat.error} fallido={chat.fallido} cooldownUntil={chat.cooldownUntil} eventoTipo={activeEvent?.evento_tipo}
+                        error={chat.error} fallido={chat.fallido} valoraciones={chat.valoraciones} onValorar={(id, v) => { void chat.valorar(id, v); }} cooldownUntil={chat.cooldownUntil} eventoTipo={activeEvent?.evento_tipo}
                         onEnviar={(t, ctx) => chat.sendMessage(t, ctx)} onReintentar={reintentar} onDetener={chat.detener}
                         onNueva={chat.startNewConversation} onAbrirHistorial={() => setHistorialAbierto(true)} onCerrarError={() => { chat.clearError(); chat.clearFallido(); }}
                     />

@@ -16,6 +16,13 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const supabaseUrl = env.VITE_SUPABASE_URL || 'https://dumfyrgwnshcgeibffvr.supabase.co'
 
+  // Sin esta llave los mapas base (Monitor, Geo-Monitor, NDVI, Plano) salen con la marca de agua
+  // "API KEY REQUIRED" de CARTO. Vite la incrusta al compilar, así que un build desde un worktree
+  // limpio (sin .env) la pierde en silencio: mejor fallar aquí que publicarlo.
+  if (mode === 'production' && !env.VITE_CARTO_ACCESS_TOKEN) {
+    throw new Error('Falta VITE_CARTO_ACCESS_TOKEN: el build publicaría mapas con marca de agua. Copia el .env o corre `vercel pull`.')
+  }
+
   // Safe RegExp generation for any dynamic Supabase project URL
   const escapedUrl = supabaseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const supabaseCacheRegex = new RegExp(`^${escapedUrl}\\/rest\\/v1\\/.*`);

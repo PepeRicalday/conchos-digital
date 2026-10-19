@@ -171,7 +171,7 @@ export function useHydricChat() {
     ): Promise<boolean | void> => {
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.access_token;
-        if (!token) throw new Error('Tu sesión expiró. Refresca la página o vuelve a iniciar sesión.');
+        if (!token) throw new Error('No hay una sesión de usuario activa (¿modo local de emergencia?). Cierra sesión e inicia con tu cuenta para usar el asistente.');
 
         const res = await fetch(HYDRIC_CHAT_URL, {
             method: 'POST',

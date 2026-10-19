@@ -118,7 +118,11 @@
 .ci-ir-final { position: absolute; right: 18px; bottom: 96px; z-index: 2; }
 
 /* Bienvenida */
-.ci-bienvenida { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px 16px; text-align: center; }
+.ci-bienvenida { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 24px 16px; text-align: center; }
+/* margin:auto centra cuando sobra espacio y NO recorta el arriba cuando falta (justify-content:center sí lo recortaba). */
+.ci-bienvenida > :first-child { margin-top: auto; }
+.ci-bienvenida > :last-child { margin-bottom: auto; }
+@media (max-height: 820px) { .ci-bienvenida .ci-bienvenida-icono { display: none; } }
 .ci-bienvenida-icono { width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; border-radius: 18px; border: 1px solid rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.1); color: var(--sc-sky); }
 .ci-bienvenida h2 { margin: 0; font-family: var(--sc-display); font-size: clamp(26px, 3vw, 36px); font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; }
 .ci-bienvenida p { margin: 0; max-width: 62ch; color: var(--sc-t2); font-size: 14px; line-height: 1.55; }

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Library, MessageSquare, ShieldOff, Siren } from 'lucide-react';
+import { AlertTriangle, Library, MessageSquare, ShieldOff, Siren } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useHydricChat, type EnvioFallido } from '../hooks/useHydricChat';
 import { useHydricKnowledge } from '../hooks/useHydricKnowledge';
@@ -8,6 +8,7 @@ import { useHydricEvents } from '../hooks/useHydricEvents';
 import { useFrescuraSistema } from '../hooks/useFrescuraSistema';
 import { useDevice } from '../hooks/useDevice';
 import { useAhora } from '../hooks/useAhora';
+import { useSesionReal } from '../hooks/useSesionReal';
 import { PaginaHero } from '../components/ui/PaginaHero';
 import type { ChipEstado } from '../utils/alertasVivas';
 import { edadTexto } from '../utils/consultoria';
@@ -48,6 +49,7 @@ function ConsultoriaIAInterna() {
     const { activeEvent, cargado: eventoCargado, error: eventoError } = useHydricEvents();
     const frescura = useFrescuraSistema();
     const ahoraMs = useAhora(60_000);
+    const sesionReal = useSesionReal();
     const [pestana, setPestana] = useState<Pestana>('chat');
     const [historialAbierto, setHistorialAbierto] = useState(false);
 
@@ -70,9 +72,9 @@ function ConsultoriaIAInterna() {
 
         const indexados = kb.documents.filter((d) => d.estado_procesamiento === 'completado').length;
         const enProceso = kb.documents.filter((d) => d.estado_procesamiento === 'pendiente' || d.estado_procesamiento === 'procesando').length;
-        out.push({ key: 'docs', sev: 'info', texto: kb.cargado ? `${indexados} documentos indexados${enProceso ? ` · ${enProceso} en proceso` : ''}` : 'Documentos: S/D' });
+        out.push({ key: 'docs', sev: 'info', texto: kb.cargado && sesionReal !== false ? `${indexados} documentos indexados${enProceso ? ` · ${enProceso} en proceso` : ''}` : 'Documentos: S/D' });
         return esPhone ? out.slice(0, 3) : out;
-    }, [chat.motor, activeEvent, eventoCargado, eventoError, frescura, kb.documents, kb.cargado, esPhone, ahoraMs]);
+    }, [chat.motor, activeEvent, eventoCargado, eventoError, frescura, kb.documents, kb.cargado, sesionReal, esPhone, ahoraMs]);
 
     const reintentar = (f: EnvioFallido) => { void chat.sendMessage(f.texto, f.contexto, f); };
     const teclasPestanas = (e: React.KeyboardEvent) => {
@@ -94,6 +96,13 @@ function ConsultoriaIAInterna() {
                 // En teléfono, Protocolos ya está en el menú: se ahorra una fila completa de cabecera.
                 acciones={esPhone ? undefined : <Link to="/protocolos" className="sc-btn"><Siren size={16} aria-hidden="true" /> Protocolos</Link>}
             />
+
+            {sesionReal === false && (
+                <p className="sc-aviso sc-aviso-warn" role="alert">
+                    <AlertTriangle size={16} aria-hidden="true" style={{ flexShrink: 0 }} />
+                    <span>Estás en una <b>sesión local de emergencia</b> (sin credenciales de Supabase). El asistente, el historial y la biblioteca necesitan tu usuario real: cierra sesión e inicia con tu cuenta S.R.L. Los conteos de esta pantalla no son confiables en este modo.</span>
+                </p>
+            )}
 
             <div className="ci-tabs" role="tablist" aria-label="Secciones de Consultoría IA" onKeyDown={teclasPestanas}>
                 <button type="button" role="tab" id="ci-tab-chat" aria-selected={pestana === 'chat'} aria-controls="ci-panel-chat" tabIndex={pestana === 'chat' ? 0 : -1} className="ci-tab" onClick={() => setPestana('chat')}>

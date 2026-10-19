@@ -19,3 +19,17 @@ create policy "Usuario cambia su valoración" on public.chat_feedback for update
 create policy "Usuario retira su valoración" on public.chat_feedback for delete to authenticated
     using (user_id = auth.uid());
 revoke all on public.chat_feedback from anon;
+
+-- Endurecimiento (revisión de seguridad): el UPDATE solo puede cambiar `valor`; si pudiera cambiar message_id,
+-- una valoración propia podría reapuntarse a un mensaje ajeno sin pasar por la comprobación del INSERT.
+create or replace function public.chat_feedback_inmutable() returns trigger
+language plpgsql set search_path = public as $$
+begin
+    if new.message_id is distinct from old.message_id or new.user_id is distinct from old.user_id then
+        raise exception 'chat_feedback: message_id y user_id no se pueden modificar';
+    end if;
+    return new;
+end $$;
+revoke all on function public.chat_feedback_inmutable() from public, anon, authenticated;
+create trigger chat_feedback_inmutable before update on public.chat_feedback
+    for each row execute function public.chat_feedback_inmutable();

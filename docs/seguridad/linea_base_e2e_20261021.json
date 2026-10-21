@@ -1,0 +1,797 @@
+[
+ {
+  "route": "/",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 2564,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "21 Octubre 2026 HOY",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Monitor Público",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "1 INFORMATIVA",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Ver balance hidráulico",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/monitor-publico",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 1773,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "×",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "PANORAMA",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "CANAL",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "ALERTAS5",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "DATOS",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "TENDENCIAS",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "PERFIL ●",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "PERFIL",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/presas",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 2631,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "21 Octubre 2026 HOY",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "FCO. I. MADERO",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "BOQUILLA",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "REGISTRAR",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "INFOGRAFÍA",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "VASO OPERATIVO",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "ANALÍTICA Y FORECASTING",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/canales",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 2953,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "Actualizar",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Vista general",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/escalas",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 5291,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "21 Octubre 2026 HOY",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Todas",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Solo alertas",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Solo represos",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Por km",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Por desviación",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Ver cálculo",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/hidrometria",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 2226,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "Actualizar",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Solicitudes semanales",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/clima",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 6575,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "21 Octubre 2026 HOY",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Actualizar datos",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Infografía",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Imagen",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Informe",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Geoclimático",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Pronóstico",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Mapa animado",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/reporte-oficial",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 2275,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": [
+    "http://localhost:5173/logos/conagua_logo.png"
+   ]
+  },
+  "interacciones": [],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/importar",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 1319,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "Presa Boquilla",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Presa Fco. I. Madero",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Delicias",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/alertas",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 2855,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "Actualizar",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "AVISOS VIGENTES 0 Sin avisos",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Críticas 0",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Avisos 0",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Info 0",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Antiguas 21",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Ver todas (21)",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "PE-062 · 1",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "PE-075 · 1",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Vaso (NDWI) · 1",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/geo-monitor",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 1488,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "Capas y leyenda 10/11",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [
+   "warning: z / z2 / zlevel of displayable is invalid, which may cause unexpected errors"
+  ],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/bitacora",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 877,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "21 Octubre 2026 HOY",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/ciclos",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 1138,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/infraestructura",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 14763,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/inteligencia-hidrica",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 1723,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "Consultoría chat",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Base de conocimiento",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/balance",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 4657,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "21 Octubre 2026 HOY",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Actualizar",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/analisis-historico",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 3366,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "Informe",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "2026 BASE",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "2025",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "2024",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "2023",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "2022",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "2021",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Volumen",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Elevación",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Llenado %",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Mes alineado",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Año completo",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/modelacion-hidraulica",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 3294,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "VACIADO",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Operativo",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Comparar",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "Reporte PDF",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "+ Incremento",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "− Decremento",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "✂ Corte",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   },
+   {
+    "el": "◯ Llenado",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/conservacion",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 1338,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "Comprobación de reglas",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ },
+ {
+  "route": "/login",
+  "requestsEnReposo6s": 0,
+  "dom": {
+   "chars": 294,
+   "tokensRotos": [],
+   "errorBoundary": false,
+   "overflowX": false,
+   "imgsRotas": []
+  },
+  "interacciones": [
+   {
+    "el": "Iniciar Sesión",
+    "nuevosConsole": 0,
+    "nuevosJs": 0,
+    "nuevosRed": 0
+   }
+  ],
+  "consola": [],
+  "errJs": [],
+  "red": []
+ }
+]

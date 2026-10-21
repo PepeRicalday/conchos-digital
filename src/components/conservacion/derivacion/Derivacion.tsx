@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import { AlertTriangle, Calculator, CheckCircle2, CircleDashed, ClipboardList, FolderSync, GitBranch, Layers, ListTree, Loader2, RefreshCw, ShieldCheck, Table2, UploadCloud, Waypoints } from 'lucide-react';
+import { AlertTriangle, Calculator, CheckCircle2, CircleDashed, ClipboardList, FolderSync, GitBranch, Layers, ListTree, Loader2, Truck, RefreshCw, ShieldCheck, Table2, UploadCloud, Waypoints } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { PaginaHero } from '../../ui/PaginaHero';
 import { leerArchivoDerivacion } from '../../../conservacion/derivacion/archivo';
@@ -13,6 +13,8 @@ import { atipicosDelLibro, atipicosPorPieza, resolverReferencia, type AtipicoPie
 import { etiquetaAmbito } from './fmt';
 import { DerivacionTramos } from './DerivacionTramos';
 import { DerivacionPrograma } from './DerivacionPrograma';
+import { DerivacionMaquinaria } from './DerivacionMaquinaria';
+import { EXTRACTOR_CON_MAQUINARIA } from '../../../conservacion/derivacion/maquinariaVista';
 import { DerivacionComprobacion } from './DerivacionComprobacion';
 import { DerivacionVerificacion, type FiltroVerif } from './DerivacionVerificacion';
 import { CentroRevision } from './CentroRevision';
@@ -23,7 +25,7 @@ const CLAVE = 'sica-conservacion-derivacion-v1';
 const MAX_BYTES = 60 * 1024 * 1024;
 const RUTA_CARPETA = '/__conservacion/derivacion';
 
-type Sub = 'ciclo' | 'revision' | 'concentrado' | 'cadena' | 'tramos' | 'comprobacion' | 'verificacion' | 'programa';
+type Sub = 'ciclo' | 'revision' | 'concentrado' | 'cadena' | 'tramos' | 'comprobacion' | 'verificacion' | 'programa' | 'maquinaria';
 const SUBS: ReadonlyArray<{ id: Sub; etiqueta: string; icono: typeof Layers }> = [
     { id: 'ciclo', etiqueta: 'PacOT del ciclo', icono: Layers },
     { id: 'revision', etiqueta: 'Revisión', icono: ClipboardList },
@@ -33,6 +35,7 @@ const SUBS: ReadonlyArray<{ id: Sub; etiqueta: string; icono: typeof Layers }> =
     { id: 'comprobacion', etiqueta: 'Comprobación por tramo', icono: Calculator },
     { id: 'verificacion', etiqueta: 'Verificación', icono: ShieldCheck },
     { id: 'programa', etiqueta: 'Programa', icono: ListTree },
+    { id: 'maquinaria', etiqueta: 'Maquinaria', icono: Truck },
 ];
 
 interface Datos { registro: Registro; avisos: ReadonlyMap<string, readonly string[]>; ciclo: string; esperados: readonly number[] }
@@ -171,22 +174,22 @@ export function Derivacion() {
     const atipicosPieza = calculados !== null && calculados.para === pacots ? calculados.piezas : null;
 
     // Enlace desde otra sección (Comprobación de reglas): ?tramo=<fila>&archivo=<nombre>&sha=<hash> abre la comprobación de ese tramo.
-    const filaParam = params.get('fila'), hojaParam = params.get('hoja');
+    const filaParam = params.get('fila'), hojaParam = params.get('hoja'), colParam = params.get('col');
     useEffect(() => {
         if (filaParam === null || hojaParam === null || pacots.length === 0) return;
         const id = window.setTimeout(() => {
             const archivo = params.get('archivo'), sha = params.get('sha');
             const p = pacots.find((x) => (sha !== null && x.libro.sha256 === sha) || (archivo !== null && x.archivoNombre === archivo));
-            const limpio = new URLSearchParams(params); limpio.delete('hoja'); limpio.delete('fila'); limpio.delete('archivo'); limpio.delete('sha');
+            const limpio = new URLSearchParams(params); limpio.delete('hoja'); limpio.delete('fila'); limpio.delete('col'); limpio.delete('archivo'); limpio.delete('sha');
             setParams(limpio, { replace: true });
             if (!p) { setAvisoDestino(`El PacOT de ese informe${archivo ? ` («${archivo}»)` : ''} no está cargado en la derivación; cárguelo para abrir su tramo.`); return; }
-            const e = resolverReferencia(p.libro, etiquetaAmbito(p), hojaParam, Number(filaParam));
+            const e = resolverReferencia(p.libro, etiquetaAmbito(p), hojaParam, Number(filaParam), colParam ?? undefined);
             if (!e) { setAvisoDestino(`La celda ${hojaParam}, fila ${filaParam} no corresponde a un tramo ni a un concepto con cálculo en ${etiquetaAmbito(p)}.`); setAmbito(etiquetaAmbito(p)); return; }
             if (e.tipo === 'tramo') abrirTramo(e.destino);
             else { setAvisoDestino(null); setAmbito(etiquetaAmbito(p)); setConcepto({ bloque: e.bloque, concepto: e.concepto }); setSub('cadena'); }
         }, 0);
         return () => window.clearTimeout(id);
-    }, [filaParam, hojaParam, pacots, params, setParams, abrirTramo]);
+    }, [filaParam, hojaParam, colParam, pacots, params, setParams, abrirTramo]);
 
     const irA = useCallback((d: DestinoPestana) => { setDestino(null); setDestinoPieza(null); setSub(d); }, []);
     const navegacion = useMemo(() => ({ irA, actualizar: hayServidor ? actualizar : null }), [irA, hayServidor]); // eslint-disable-line react-hooks/exhaustive-deps -- `actualizar` solo lee estado por setters
@@ -307,6 +310,7 @@ export function Derivacion() {
                                                 {p && <small>{p.libro.tramos.length} tramos · {p.libro.necesidades.length} conceptos · {p.libro.programa.length} renglones de programa</small>}
                                                 {p && (datos.avisos.get(p.clave) ?? []).map((a) => <small key={a} className="cons-der-aviso">{a}</small>)}
                                                 {p && p.libro.avisos.map((a) => <small key={a} className="cons-der-aviso">{a}</small>)}
+                                                {p && p.libro.extractorVersion < EXTRACTOR_CON_MAQUINARIA && <small className="cons-der-aviso">Leído con una versión anterior del extractor: sin balance de maquinaria. Actualice desde la carpeta.</small>}
                                             </div>
                                         </li>
                                     );
@@ -323,6 +327,7 @@ export function Derivacion() {
                 {sub === 'comprobacion' && <DerivacionComprobacion key={`${destino?.n ?? 0}-${destinoPieza?.n ?? 0}`} pacots={pacots} ambito={ambito} setAmbito={setAmbito} destino={destino?.d ?? null} destinoPieza={destinoPieza?.d ?? null} />}
                 {sub === 'verificacion' && <DerivacionVerificacion key={`${ambito}|${filtroVerif.red}|${filtroVerif.concepto}`} pacots={pacots} ambito={ambito} setAmbito={setAmbito} filtroInicial={filtroVerif} abrirTramo={abrirTramo} />}
                 {sub === 'programa' && <DerivacionPrograma pacots={pacots} ambito={ambito} setAmbito={setAmbito} abrirTramo={abrirTramo} verCadena={verCadena} />}
+                {sub === 'maquinaria' && <DerivacionMaquinaria pacots={pacots} ambito={ambito} setAmbito={setAmbito} />}
             </div>
         </ContextoNavegacion.Provider>
     );

@@ -17,7 +17,7 @@ export type Familia = 'limpia' | 'desazolve' | 'descopete' | 'terracerias' | 're
 export type FamiliaObra = 'canal' | 'dren' | 'camino' | 'estructura' | 'edificio'
 export type TipoDibujo = 'seccion-canal' | 'seccion-camino' | 'ficha-estructura' | 'ficha-edificio' | 'ninguno'
 /** Qué muestra el dibujo de un camino. */
-export type ModoCamino = 'camino-conformacion' | 'camino-rastreo' | 'camino-terraceria' | 'camino-revestimiento'
+export type ModoCamino = 'camino-conformacion' | 'camino-rastreo' | 'camino-cunetas' | 'camino-revestimiento'
 
 /** Clasificador por nombre (sin cambios respecto a la versión previa de criterio.ts). */
 export function familia(concepto: string): Familia {
@@ -89,6 +89,8 @@ const SUPERFICIE_CAMINOS: PoliticaAgrupacion = {
 }
 
 const NOTA_150 = 'El 150 es una inferencia: equivale a 0.15 m × 1000 m/km, pero el libro no declara un espesor de carpeta. Pendiente de confirmar con la SRL.'
+const NOTA_CUNETAS_1 = 'Una cuneta (un solo lado del camino): cantidad = 1 × L. El libro no rotula el factor; el equipo SICA lo confirma como número de cunetas.'
+const NOTA_CUNETAS_2 = 'Dos cunetas (ambos lados del camino): cantidad = 2 × L. El libro no rotula el factor; el equipo SICA lo confirma como número de cunetas.'
 const NOTA_1_PASADA = 'Hipótesis declarada: 1 pasada por kilómetro (1 × L). Se respalda solo si al menos 2 tramos del libro la cumplen.'
 
 /**
@@ -110,10 +112,18 @@ export const CONCEPTOS: readonly ConceptoDef[] = [
     notas: ['El rastreo se mide en km de camino. La superficie de IO3 (revestido o terracería) agrupa los tramos.'],
   },
   {
-    id: 'camino.terracerias', reconoce: /terracer/, redes: ['caminos'], bloque3DN: BLOQUE_RED.caminos, obras: ['camino'], familia: 'terracerias',
-    modelos: ['k·L'], unidadDefecto: 'm³', agrupacion: SUPERFICIE_CAMINOS, dibujo: 'seccion-camino', modoCamino: 'camino-terraceria',
-    declarado: { evidenciaMin: 2, candidatos: [], unidadSospechosa: 'unidad sospechosa' },
-    notas: ['El vínculo de 3DN (E50) con esta cantidad es externo y no se puede resolver. No se convierte ni se recalcula.'],
+    // En la red de caminos «Terracerías» de 3DN es la CONSERVACIÓN DE CUNETAS (confirmado por el equipo SICA 2026-10-12): la cantidad es km de cuneta,
+    // no m³ (el P.U. de 3DN es por km, del orden de conformación y rastreo). Factor = número de cunetas: 1 = un lado, 2 = ambos lados.
+    id: 'camino.cunetas', reconoce: /terracer|cuneta/, redes: ['caminos'], bloque3DN: BLOQUE_RED.caminos, obras: ['camino'], familia: 'terracerias',
+    modelos: ['k·L'], unidadDefecto: 'km', agrupacion: SUPERFICIE_CAMINOS, dibujo: 'seccion-camino', modoCamino: 'camino-cunetas',
+    declarado: {
+      evidenciaMin: 1,
+      candidatos: [
+        { id: '1-cuneta', modelo: 'k·L', k: 1, inferencia: false, nota: NOTA_CUNETAS_1 },
+        { id: '2-cunetas', modelo: 'k·L', k: 2, inferencia: false, nota: NOTA_CUNETAS_2 },
+      ],
+    },
+    notas: ['La cantidad son km de cuneta: número de cunetas × longitud del camino. 3DN rotula la unidad como M3, pero su precio unitario es por km (mismo orden que conformación y rastreo).', 'La sección de la cuneta no tiene medidas en el libro: se dibuja ilustrativa.'],
   },
   {
     id: 'camino.reposicion-revestimiento', reconoce: /reposici|revest/, redes: ['caminos'], bloque3DN: BLOQUE_RED.caminos, obras: ['camino'], familia: 'revestimiento',
@@ -242,12 +252,12 @@ export const CONCEPTOS_PIEZA: readonly ConceptoPiezaDef[] = [
     notas: ['La cantidad es el número de edificios de IO7 (oficinas, central de maquinaria, casetas).'],
   }),
   pieza({
-    id: 'pieza.comunicaciones', kind: 'comunicaciones', nombre: 'Reparación y mantenimiento de la red de comunicación', reconoce: /./, bloque3DN: /^RED DE COMUNICACI/i, obras: ['estructura'], dibujo: 'ninguno', reconstruible: false,
-    notas: ['No se lee una hoja de inventario de comunicaciones: la cantidad del libro no es reconstruible aquí.'],
+    id: 'pieza.comunicaciones', kind: 'comunicaciones', nombre: 'Reparación y mantenimiento de la red de comunicación', reconoce: /./, bloque3DN: /^RED DE COMUNICACI/i, obras: ['estructura'], dibujo: 'ninguno', reconstruible: true,
+    notas: ['La cantidad es el número de equipos de IO6 (estaciones repetidoras, radios).'],
   }),
   pieza({
-    id: 'pieza.otras-obras', kind: 'otras-obras', nombre: 'Presas, pozos y plantas de bombeo', reconoce: /./, bloque3DN: /^(PRESAS ALMACENAMIENTO|PRESAS DERIVADORAS|POZOS|PLANTAS DE BOMBEO)$/i, obras: ['estructura'], dibujo: 'ninguno', reconstruible: false,
-    notas: ['No se lee un inventario de respaldo para estas obras: la cantidad del libro no es reconstruible aquí.'],
+    id: 'pieza.otras-obras', kind: 'otras-obras', nombre: 'Presas, pozos y plantas de bombeo', reconoce: /./, bloque3DN: /^(PRESAS ALMACENAMIENTO|PRESAS DERIVADORAS|POZOS|PLANTAS DE BOMBEO)$/i, obras: ['estructura'], dibujo: 'ninguno', reconstruible: true,
+    notas: ['La cantidad se contrasta con su hoja de inventario: IO5a presas de almacenamiento, IO5b derivadoras, IO5c plantas de bombeo, IO5d pozos. Una hoja que dice NO APLICA cuenta como cero obras.'],
   }),
 ]
 

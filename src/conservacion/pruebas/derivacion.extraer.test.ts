@@ -46,7 +46,8 @@ describe.skipIf(!hay)('Conchos · derivación extraída de las hojas reales', ()
     // La SRL no tiene drenes en su inventario (IO2!J15 = 0): sin tramos de drenaje y SIN aviso, es lo correcto.
     expect(redes).toEqual(new Set(['distribucion', 'caminos']))
     expect(d.inventarioKm.drenaje.valor).toBe('0')
-    expect(d.avisos).toEqual([])
+    // Los avisos de maquinaria (p. ej. la celda suelta de IM01) se prueban en derivacion.maquinaria.test.ts; aquí, lo demás no avisa.
+    expect(d.avisos.filter((a) => !a.startsWith('Maquinaria:'))).toEqual([])
     const primero = d.tramos[0]
     expect(primero?.obra).toBe('CANAL PRINCIPAL CONCHOS')
     expect(primero?.pkInicial).toBe('0+000')

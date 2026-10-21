@@ -140,6 +140,33 @@ export interface FichaCamino {
   readonly revestimiento: string | null
 }
 
+export type HojaOtraObra = 'IO5a' | 'IO5b' | 'IO5c' | 'IO5d' | 'IO6'
+
+/** Una fila de IO5c/IO5d (planta o pozo), una presa de IO5a/IO5b o un renglón de IO6 (equipos de comunicación). */
+export interface ObraOtra {
+  readonly fila: number
+  /** Número de inventario («P1-05», «PB1-05»); null si la hoja no lo trae (presas, comunicaciones). */
+  readonly inventario: string | null
+  /** Nombre de la obra tal cual está en la celda (puede ser un número, como en los pozos del M5). */
+  readonly nombre: string | null
+  /** Cuántas piezas cuenta este renglón: 1 por obra; en IO6, el «NÚMERO» de equipos. null = celda sin número. */
+  readonly cantidad: number | null
+  readonly ref: string
+}
+
+/** Inventario de una de las hojas de obras que no son canal, dren ni camino. Lo que falta es null (S/D), nunca 0. */
+export interface InventarioOtraObra {
+  readonly hoja: HojaOtraObra
+  readonly rotulo: string
+  /** El formato dice «NO APLICA» y no trae obras. */
+  readonly noAplica: boolean
+  /** Celda que dice «NO APLICA», si la hay. */
+  readonly refNoAplica: string | null
+  /** Piezas registradas (suma de `cantidad`); 0 solo cuando la hoja no trae ninguna obra. */
+  readonly cantidad: number
+  readonly obras: readonly ObraOtra[]
+}
+
 export interface FichasInventario {
   readonly canales: readonly FichaCanal[]
   readonly drenes: readonly FichaCanal[]
@@ -148,6 +175,8 @@ export interface FichasInventario {
   readonly estructuras?: readonly Estructura[]
   /** Edificios y obras dispersas de IO7. */
   readonly edificios?: readonly Edificio[]
+  /** Hojas de inventario de presas (IO5a, IO5b), plantas de bombeo (IO5c), pozos (IO5d) y red de comunicación (IO6). Ausente en registros anteriores al extractor v7. */
+  readonly otrasObras?: readonly InventarioOtraObra[]
   /** Fila 15 de IO1: totales declarados por columna (la suma de las filas de tramos). */
   readonly totalesIO1?: ConteosTramo
   /** Cadenamiento del canal principal en el que nace el ramal auxiliar (se lee del nombre «CANAL AUXILIAR K-68+582»), o null. */
@@ -263,6 +292,93 @@ export interface Edificio extends CoordenadasLeidas {
   readonly ref: string
 }
 
+/** Un renglón del balance de maquinaria (hoja B Maq, parte superior): concepto → cantidad anual → rendimiento → horas → máquinas. */
+export type BloqueMaquinaria = 'bombeo' | 'distribucion' | 'drenaje' | 'caminos' | 'parcelario'
+
+export interface RenglonMaquinaria {
+  readonly fila: number
+  /** Bloque del formato 4 donde está el renglón (lo da el último encabezado «Red de …»); null si no se pudo ubicar. */
+  readonly bloque: BloqueMaquinaria | null
+  /** Concepto del renglón; si la celda está vacía hereda el del renglón anterior (`conceptoHeredado`). */
+  readonly concepto: string | null
+  readonly conceptoHeredado: boolean
+  readonly unidad: string | null
+  readonly cantidad: Cifra
+  readonly frecuencia: Cifra
+  readonly anual: Cifra
+  /** Tipo de máquina tal como lo escribe el libro y su nombre canónico (null si no está en el catálogo). */
+  readonly tipo: string
+  readonly tipoCanonico: string | null
+  readonly rendimiento: Cifra
+  readonly horas: Cifra
+  readonly horasDisponibles: Cifra
+  readonly maquinas: Cifra
+}
+
+/** La fila de totales del balance (horas y máquinas) tal como la declara el libro. */
+export interface TotalMaquinaria {
+  readonly fila: number
+  readonly horas: Cifra
+  readonly horasDisponibles: Cifra
+  readonly maquinas: Cifra
+}
+
+/** Una fila de la tabla de balance por tipo de máquina (hoja B Maq, parte inferior). */
+export interface FilaBalanceMaquinaria {
+  readonly fila: number
+  readonly tipo: string
+  readonly tipoCanonico: string | null
+  readonly necesarias: Cifra
+  readonly existentes: Cifra
+  readonly faltante: Cifra
+  readonly sobrante: Cifra
+  readonly buenoRegular: Cifra
+  readonly malo: Cifra
+  readonly baja: Cifra
+  readonly rehabilitacion: Cifra
+  readonly disposicion: Cifra
+  readonly porFaltante: Cifra
+  readonly porSustituir: Cifra
+  readonly suma: Cifra
+}
+
+export type EstadoMecanico = 'bueno' | 'regular' | 'malo' | 'baja'
+
+/** Una unidad del inventario de maquinaria (hoja IM01, formato CNA-DR-IM-01). */
+export interface UnidadMaquinaria {
+  readonly fila: number
+  readonly tipo: string
+  readonly tipoCanonico: string | null
+  /** Accesorio o implemento que no es una máquina portadora (p. ej. una desbrozadora): no cuenta como existente. */
+  readonly accesorio: boolean
+  readonly numeroEconomico: string | null
+  readonly marca: string | null
+  readonly modelo: string | null
+  /** null: sin marca de estado, o con más de una (`estadoConflicto`). */
+  readonly estado: EstadoMecanico | null
+  readonly estadoConflicto: boolean
+  /** Horas trabajadas: número si la celda lo es; si trae texto («171,155 Millas») va en `texto`. */
+  readonly horas: Cifra
+  /** Unidad real de la lectura cuando no son horas. */
+  readonly unidadLectura: 'horas' | 'millas' | 'km' | 'otra' | null
+  readonly observaciones: string | null
+  readonly ref: string
+}
+
+export interface MaquinariaLibro {
+  readonly renglones: readonly RenglonMaquinaria[]
+  readonly totalRenglones: TotalMaquinaria | null
+  readonly balance: readonly FilaBalanceMaquinaria[]
+  readonly totalBalance: FilaBalanceMaquinaria | null
+  readonly inventario: readonly UnidadMaquinaria[]
+  /** false si IM01 no está o no se pudo localizar su tabla: el inventario vacío entonces es S/D, no «cero unidades». */
+  readonly inventarioLeido: boolean
+  /** Qué columnas de IM01 se localizaron; sin ellas no se señala su ausencia unidad por unidad. */
+  readonly columnasInventario: { readonly numeroEconomico: boolean; readonly horas: boolean }
+  /** Lo que no se pudo localizar (hoja ausente, rótulos que no están); nunca se rellena con ceros. */
+  readonly avisos: readonly string[]
+}
+
 export interface LibroDerivado {
   readonly sha256: string
   readonly moduloNombre: string | null
@@ -282,6 +398,8 @@ export interface LibroDerivado {
   readonly inventarioKm: { readonly distribucion: Cifra; readonly drenaje: Cifra; readonly caminos: Cifra }
   /** Fichas de inventario de las que se recalcula el diagnóstico. Vacías en archivos generados con una versión anterior. */
   readonly fichas: FichasInventario
+  /** Balance e inventario de maquinaria (extractor v8). Ausente en archivos anteriores o si el libro no trae B Maq. */
+  readonly maquinaria?: MaquinariaLibro
   /** Versión del extractor que produjo este registro: si cambia, el libro se vuelve a leer aunque su SHA-256 no cambie. */
   readonly extractorVersion: number
   /** Lo que no se pudo leer o interpretar; nunca se rellena con ceros. */

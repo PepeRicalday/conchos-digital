@@ -6,6 +6,8 @@ import type {
 import { limpiarPK } from '../nucleo/num/pk'
 import { construirEjes, pkAMetros } from '../geo/kmALatLng'
 import { estimarEdificios, estimarUbicaciones } from '../geo/estimar'
+import { leerOtrasObras } from './otrasObras'
+import { leerMaquinaria } from './maquinaria'
 import { leerConteosIO1, leerEdificiosIO7, leerEstructurasIO4, leerTotalesIO1, UMBRAL_REINICIO_M } from './estructuras'
 import { describirDefecto, repararLonLat } from './ubicacion'
 
@@ -15,7 +17,7 @@ import { describirDefecto, repararLonLat } from './ubicacion'
  */
 
 /** Sube cuando el extractor produce algo nuevo: los libros ya registrados se vuelven a leer (ver derivacion-carpeta.ts). */
-export const EXTRACTOR_VERSION = 6
+export const EXTRACTOR_VERSION = 10
 
 const H_DIAG = 'DIAG-01'
 const H_3DN = '3DN'
@@ -348,7 +350,21 @@ function leerFichas(libro: VistaLibro): FichasInventario {
   return {
     canales, drenes: leerFichasCanal(libro, 'IO2'), caminos: leerFichasCamino(libro),
     estructuras: estimarUbicaciones(io4.estructuras, ejes), edificios: estimarEdificios(io7.edificios, ejes),
-    totalesIO1: leerTotalesIO1(libro), anclaAuxiliar, avisosGeo,
+    totalesIO1: leerTotalesIO1(libro), otrasObras: leerOtrasObras(libro), anclaAuxiliar, avisosGeo,
+  }
+}
+
+/** El campo solo existe si el libro trae B Maq. */
+const conMaquinaria = (libro: VistaLibro, avisos: string[]): Pick<LibroDerivado, 'maquinaria'> => {
+  // Una falla al leer maquinaria no debe tumbar el diagnóstico, 3DN ni el resto del libro: se avisa y el libro queda sin ese campo.
+  try {
+    const m = leerMaquinaria(libro)
+    if (m === undefined) return {}
+    avisos.push(...m.avisos.map((a) => `Maquinaria: ${a}`))
+    return { maquinaria: m }
+  } catch (e) {
+    avisos.push(`Maquinaria: no se pudo leer el balance (${e instanceof Error ? e.message : 'error desconocido'}).`)
+    return {}
   }
 }
 
@@ -375,6 +391,7 @@ export function extraerLibro(libro: VistaLibro): LibroDerivado {
     programa,
     inventarioKm,
     fichas: leerFichas(libro),
+    ...conMaquinaria(libro, avisos),
     extractorVersion: EXTRACTOR_VERSION,
     avisos,
   }

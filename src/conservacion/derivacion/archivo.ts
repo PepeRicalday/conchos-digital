@@ -29,6 +29,10 @@ const coordenadas = {
 }
 const ramal = z.enum(['principal', 'auxiliar'])
 const puntoCanal = z.object({ pk: z.string().nullable(), ...coordenadas, refPK: z.string(), refLon: z.string(), refLat: z.string() })
+const otraObra = z.object({
+  hoja: z.enum(['IO5a', 'IO5b', 'IO5c', 'IO5d', 'IO6']), rotulo: z.string(), noAplica: z.boolean(), refNoAplica: z.string().nullable(), cantidad: z.number(),
+  obras: z.array(z.object({ fila: z.number(), inventario: z.string().nullable(), nombre: z.string().nullable(), cantidad: z.number().nullable(), ref: z.string() })),
+})
 const conteos = z.object({
   porTipo: z.object(Object.fromEntries(TIPOS_IO1.map((t) => [t, z.number().nullable()])) as Record<TipoIO1, z.ZodNullable<z.ZodNumber>>),
   total: z.number().nullable(),
@@ -64,6 +68,28 @@ const fichaCamino = z.object({
   km: cifra, servicio: z.string().nullable(), ancho: cifra, revestimiento: z.string().nullable(),
 })
 
+const unidadMaq = z.object({
+  fila: z.number(), tipo: z.string(), tipoCanonico: z.string().nullable(), accesorio: z.boolean(), numeroEconomico: z.string().nullable(),
+  marca: z.string().nullable(), modelo: z.string().nullable(), estado: z.enum(['bueno', 'regular', 'malo', 'baja']).nullable(), estadoConflicto: z.boolean(),
+  horas: cifra, unidadLectura: z.enum(['horas', 'millas', 'km', 'otra']).nullable(), observaciones: z.string().nullable(), ref: z.string(),
+})
+const filaBalanceMaq = z.object({
+  fila: z.number(), tipo: z.string(), tipoCanonico: z.string().nullable(),
+  necesarias: cifra, existentes: cifra, faltante: cifra, sobrante: cifra, buenoRegular: cifra, malo: cifra, baja: cifra,
+  rehabilitacion: cifra, disposicion: cifra, porFaltante: cifra, porSustituir: cifra, suma: cifra,
+})
+const maquinaria = z.object({
+  renglones: z.array(z.object({
+    fila: z.number(), bloque: z.enum(['bombeo', 'distribucion', 'drenaje', 'caminos', 'parcelario']).nullable(), concepto: z.string().nullable(), conceptoHeredado: z.boolean(), unidad: z.string().nullable(),
+    cantidad: cifra, frecuencia: cifra, anual: cifra, tipo: z.string(), tipoCanonico: z.string().nullable(),
+    rendimiento: cifra, horas: cifra, horasDisponibles: cifra, maquinas: cifra,
+  })),
+  totalRenglones: z.object({ fila: z.number(), horas: cifra, horasDisponibles: cifra, maquinas: cifra }).nullable(),
+  balance: z.array(filaBalanceMaq), totalBalance: filaBalanceMaq.nullable(), inventario: z.array(unidadMaq),
+  inventarioLeido: z.boolean().default(false), columnasInventario: z.object({ numeroEconomico: z.boolean(), horas: z.boolean() }).default({ numeroEconomico: false, horas: false }),
+  avisos: z.array(z.string()),
+})
+
 const libro = z.object({
   sha256: z.string(),
   moduloNombre: z.string().nullable(),
@@ -93,9 +119,11 @@ const libro = z.object({
   // Archivos generados con una versión anterior no traen fichas: se leen como vacías y el libro se vuelve a leer al actualizar.
   fichas: z.object({
     canales: z.array(fichaCanal), drenes: z.array(fichaCanal), caminos: z.array(fichaCamino),
-    estructuras: z.array(estructura).optional(), edificios: z.array(edificio).optional(), totalesIO1: conteos.optional(),
+    estructuras: z.array(estructura).optional(), edificios: z.array(edificio).optional(), totalesIO1: conteos.optional(), otrasObras: z.array(otraObra).optional(),
     anclaAuxiliar: z.string().nullable().optional(), avisosGeo: z.array(z.string()).optional(),
   }).default({ canales: [], drenes: [], caminos: [] }),
+  // Balance e inventario de maquinaria (extractor v8): un archivo anterior no los trae y se vuelve a leer al actualizar.
+  maquinaria: maquinaria.optional(),
   extractorVersion: z.number().int().default(1),
   avisos: z.array(z.string()),
 })

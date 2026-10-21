@@ -4,10 +4,10 @@
  */
 export type HojaEnlazable = 'DIAG-01' | 'IO1' | 'IO2' | 'IO3' | '3DN'
 
-export interface ReferenciaEnlazable { readonly hoja: HojaEnlazable; readonly fila: number }
+export interface ReferenciaEnlazable { readonly hoja: HojaEnlazable; readonly fila: number; readonly columna: string }
 
 const HOJAS: ReadonlySet<string> = new Set(['DIAG-01', 'IO1', 'IO2', 'IO3', '3DN'])
-const CELDA = /^'?([A-Za-z0-9-]+)'?!\$?[A-Z]{1,3}\$?(\d+)(?::\$?[A-Z]{1,3}\$?\d+)?$/
+const CELDA = /^'?([A-Za-z0-9-]+)'?!\$?([A-Z]{1,3})\$?(\d+)(?::\$?[A-Z]{1,3}\$?\d+)?$/
 
 /** Primera referencia del hallazgo que cae en una hoja enlazable; null si ninguna. */
 export function referenciaEnlazable(referencias: readonly string[]): ReferenciaEnlazable | null {
@@ -15,8 +15,8 @@ export function referenciaEnlazable(referencias: readonly string[]): ReferenciaE
     const m = CELDA.exec(r.trim())
     if (!m) continue
     const hoja = (m[1] ?? '').toUpperCase()
-    const fila = Number(m[2])
-    if (HOJAS.has(hoja) && Number.isInteger(fila) && fila > 0) return { hoja: hoja as HojaEnlazable, fila }
+    const fila = Number(m[3])
+    if (HOJAS.has(hoja) && Number.isInteger(fila) && fila > 0) return { hoja: hoja as HojaEnlazable, fila, columna: m[2] ?? '' }
   }
   return null
 }

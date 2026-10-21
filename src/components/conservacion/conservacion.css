@@ -530,6 +530,11 @@ html[data-device='phone'] .cons-ubic-panel { padding-bottom: calc(14px + env(saf
 /* Caminos */
 .cons-ley-calzada { background: #b08d57; }
 .cons-ley-carpeta { background: repeating-linear-gradient(45deg, #9aa5b1 0 3px, #5f6b78 3px 5px); height: 6px !important; margin-top: 5px !important; }
+.cons-ley-cuneta { background: color-mix(in srgb, var(--o-pac) 38%, transparent); border: 2px solid var(--o-pac); height: 8px !important; margin-top: 4px !important; }
+.cons-seccion-largo { margin-top: 10px; }
+.cf-lectura { margin: 12px 0 0; padding: 10px 14px; border-left: 4px solid var(--sc-line); background: color-mix(in srgb, var(--sc-t1) 4%, transparent); border-radius: 0 10px 10px 0; }
+.cf-lectura h6 { margin: 0 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--sc-t2); }
+.cf-lectura ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.5; color: var(--sc-t1); }
 .cons-ley-ilustrativo { background: transparent; border: 1.5px dashed #8b7d63; height: 8px !important; margin-top: 4px !important; }
 .cons-motivo { margin: 0; }
 

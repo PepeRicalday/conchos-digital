@@ -105,7 +105,7 @@ export const reglaDyp015: Regla = {
   },
   evaluar(ctx): Resultado[] {
     if (!ctx.apus || ctx.apus.length === 0) {
-      return [noEvaluable('DYP-015', 'No se recibió ningún APU: el libro no lo trae (Dt_Maq vacío en Conchos) o no se cargó. Se informa como pendiente de evidencia, no como correcto.')]
+      return [noEvaluable('DYP-015', 'No se recibió ningún APU: el libro no lo trae (Dt_Maq vacío en Conchos) o no se cargó. Se informa como pendiente de evidencia: sin APU no se concluye nada sobre los precios.')]
     }
     const hallazgos: Hallazgo[] = []
     for (const a of ctx.apus) {

@@ -17,7 +17,7 @@ export type EstadoComp = 'cuadra' | 'atipico' | 'no_evaluable'
 /** 'inventario': dimensión de la ficha (IO1/IO2/IO3) · 'diagnostico': dato de DIAG-01 · 'parametro_libre': lo fija el PacOT · 'constante': conversión de unidades. */
 export type OrigenEntrada = 'inventario' | 'diagnostico' | 'parametro_libre' | 'constante'
 export type ModoDiagrama = 'limpia' | 'desazolve' | 'acuaticas' | 'descopete' | 'terracerias' | 'revestimiento'
-  | 'camino-conformacion' | 'camino-rastreo' | 'camino-terraceria' | 'camino-revestimiento'
+  | 'camino-conformacion' | 'camino-rastreo' | 'camino-cunetas' | 'camino-revestimiento'
 
 export interface EntradaComp {
   readonly etiqueta: string
@@ -72,6 +72,10 @@ export interface DiagramaComp {
   readonly superficie?: string | null
   /** Camino, solo reposición de revestimiento: espesor de la carpeta (m) que implica el coeficiente. Es una INFERENCIA. */
   readonly espesor?: number | null
+  /** Camino, conservación de cunetas: cuántas cunetas lleva el tramo (1 = un lado, 2 = ambos lados). */
+  readonly cunetas?: number | null
+  /** Camino: longitud del tramo (km), para dibujar la vista a lo largo del camino. */
+  readonly longitudKm?: number | null
 }
 
 export interface ParametroLibre {
@@ -118,9 +122,15 @@ export interface Comprobacion {
   readonly declarado?: boolean
   /** La constante del modelo es una inferencia (el libro no la declara). */
   readonly inferencia?: boolean
+  /** Qué distingue a este tramo de otros con el mismo nombre y cadenamiento (camino: superficie y ancho de IO3, p. ej. «Revestido · 6 m»). */
+  readonly descripcion?: string
+  /** La cuenta dicha en palabras, paso a paso, con sus cifras: lo que una persona leería en voz alta para seguirla. */
+  readonly lectura?: readonly string[]
 }
 
 const redondear = (x: number): string => String(Number(x.toPrecision(10)))
+/** Cifra para leer en voz alta: con separador de miles, igual que el resto de la pantalla. */
+const miles = (x: number): string => Number(x.toPrecision(10)).toLocaleString('en-US', { maximumFractionDigits: 6 })
 const num = (v: string | null | undefined): number | null => (v === null || v === undefined ? null : Number(v))
 const esCanal = (f: FichaRed | null): f is FichaCanal => f !== null && 'plantilla' in f
 
@@ -164,6 +174,8 @@ interface Cuerpo {
   parametroLibre: ParametroLibre | null
   diagrama: DiagramaComp | null
   controles: ControlComp[]
+  /** La cuenta en palabras (ver `Comprobacion.lectura`). */
+  lectura?: string[]
 }
 
 const op = (simbolo: string): TokenEc => ({ origen: 'operador', simbolo })
@@ -329,6 +341,14 @@ function superficieTexto(f: FichaRed | null): string | null {
   return s === 's/d' ? null : rotuloSuperficie(s)
 }
 
+/** Qué distingue a un tramo de camino de otro con el mismo nombre y cadenamiento: superficie y ancho de IO3 («Revestido · 6 m»). */
+function descripcionObra(f: FichaRed | null): string | undefined {
+  if (f === null || esCanal(f)) return undefined
+  const ancho = num(f.ancho.valor)
+  const partes = [superficieTexto(f), ancho === null ? null : `${redondear(ancho)} m`].filter((x): x is string => x !== null)
+  return partes.length === 0 ? undefined : partes.join(' · ')
+}
+
 /** Dibujo de la sección de calzada: el ancho es la dimensión del inventario (IO3); lo demás es ilustrativo. */
 function diagramaCamino(c: Contexto, modo: Extract<ModoDiagrama, `camino-${string}`>, rotulo: string | null, espesor: number | null): DiagramaComp {
   const f = c.u.ficha
@@ -351,10 +371,36 @@ function cuerpoCaminoPorLongitud(c: Contexto, k: number): Cuerpo {
       ...(f !== null && !esCanal(f) && ancho !== null ? [{ etiqueta: 'Ancho de la calzada (solo para el dibujo)', valor: redondear(ancho), unidad: 'm', origen: 'inventario' as const, ref: f.ancho.ref }] : []),
     ],
     pasos: [paso(`Cantidad (${c.unidad || 'km'})`, `${redondear(k)} × ${redondear(c.L)}`, k * c.L)],
+    lectura: [`El camino mide ${redondear(c.L)} km y el libro le asigna ${redondear(k)} pasada${k === 1 ? '' : 's'} por kilómetro (hipótesis declarada).`, `${redondear(k)} × ${redondear(c.L)} km = ${miles(k * c.L)} km.`],
     ecuacion: [dato('parametro_libre', k, 'pasadas por km', 'pasada/km'), op('×'), dato('diagnostico', c.L, 'longitud', 'km')],
     recalculado: k * c.L,
     parametroLibre: { nombre: 'Pasadas por kilómetro', valor: redondear(k), unidad: 'pasada/km', implicito: redondear(c.X / c.L) },
     diagrama: diagramaCamino(c, modo, `${redondear(k)} pasada/km`, null),
+    controles: [],
+  }
+}
+
+/**
+ * Conservación de cunetas de caminos (la «Terracerías» de 3DN en la red de caminos): n.º de cunetas × L, en km de cuneta.
+ * El factor lo da el registro (1 = un lado, 2 = ambos lados); el libro no lo rotula y la sección de la cuneta no tiene medidas.
+ */
+function cuerpoCunetas(c: Contexto, k: number): Cuerpo {
+  const f = c.u.ficha
+  const ancho = f !== null && !esCanal(f) ? num(f.ancho.valor) : null
+  const lados = k === 1 ? 'una cuneta (un solo lado del camino)' : k === 2 ? 'dos cunetas (una en cada lado del camino)' : `${redondear(k)} cunetas`
+  const d = diagramaCamino(c, 'camino-cunetas', `${redondear(k)} × L`, null)
+  return {
+    entradas: [
+      entradaL(c),
+      { etiqueta: 'Cunetas del tramo (1 = un lado, 2 = ambos lados; el libro no lo rotula)', valor: redondear(k), unidad: k === 1 ? 'cuneta' : 'cunetas', origen: 'parametro_libre', ref: null },
+      ...(f !== null && !esCanal(f) && ancho !== null ? [{ etiqueta: 'Ancho de la calzada (solo para el dibujo)', valor: redondear(ancho), unidad: 'm', origen: 'inventario' as const, ref: f.ancho.ref }] : []),
+    ],
+    pasos: [paso('Cantidad (km de cuneta)', `${redondear(k)} × ${redondear(c.L)}`, k * c.L)],
+    lectura: [`El camino mide ${redondear(c.L)} km y lleva ${lados}.`, `${redondear(k)} × ${redondear(c.L)} km = ${miles(k * c.L)} km de cuneta.`],
+    ecuacion: [dato('parametro_libre', k, k === 1 ? 'cuneta por camino' : 'cunetas por camino'), op('×'), dato('diagnostico', c.L, 'longitud', 'km')],
+    recalculado: k * c.L,
+    parametroLibre: { nombre: 'Cunetas por camino', valor: redondear(k), unidad: k === 1 ? 'cuneta' : 'cunetas', implicito: redondear(c.X / c.L) },
+    diagrama: { ...d, cunetas: k, longitudKm: c.L },
     controles: [],
   }
 }
@@ -369,10 +415,15 @@ function cuerpoPorAncho(c: Contexto, k: number): Cuerpo | null {
     entradas: [entradaL(c), { etiqueta: 'Ancho de la carpeta', valor: redondear(ancho), unidad: 'm', origen: 'inventario', ref: f.ancho.ref },
       { etiqueta: inf ? 'Coeficiente (inferencia: 0.15 m × 1000 m/km; el libro no declara el espesor)' : 'Coeficiente fijado por el PacOT', valor: redondear(k), unidad: `${c.unidad}/(m·km)`, origen: 'parametro_libre', ref: null }],
     pasos: [paso(`Cantidad (${c.unidad})`, `${redondear(k)} × ${redondear(ancho)} × ${redondear(c.L)}`, k * ancho * c.L)],
+    lectura: k === 0 ? [`El libro no asigna reposición de revestimiento a este tramo (${superficieTexto(f) ?? 'superficie S/D'}).`] : [
+      `La calzada mide ${redondear(ancho)} m de ancho (IO3) por ${redondear(c.L)} km de largo: ${redondear(ancho)} × ${redondear(c.L)} × 1000 = ${miles(ancho * c.L * 1000)} m² de superficie.`,
+      `El coeficiente de ${redondear(k)} ${c.unidad}/(m·km) equivale a ${redondear(k / 1000)} m de espesor${inf ? ' (inferencia: el libro no lo declara)' : ''}.`,
+      `${redondear(k / 1000)} m × ${miles(ancho * c.L * 1000)} m² = ${miles(k * ancho * c.L)} ${c.unidad}.`,
+    ],
     ecuacion: [dato('parametro_libre', k, inf ? 'coeficiente (inferencia)' : 'coeficiente'), op('×'), dato('inventario', ancho, 'ancho de la carpeta', 'm'), op('×'), dato('diagnostico', c.L, 'longitud', 'km')],
     recalculado: k * ancho * c.L,
     parametroLibre: { nombre: 'Coeficiente por ancho y kilómetro', valor: redondear(k), unidad: `${c.unidad}/(m·km)`, implicito: redondear(c.X / (ancho * c.L)) },
-    diagrama: c.tramo.red === 'caminos' ? diagramaCamino(c, 'camino-revestimiento', k === 0 ? 'sin reposición' : `${redondear(k)} ${c.unidad}/(m·km)`, k === 0 ? null : k / 1000) : null,
+    diagrama: c.tramo.red === 'caminos' ? { ...diagramaCamino(c, 'camino-revestimiento', k === 0 ? 'sin reposición' : `${redondear(k)} ${c.unidad}/(m·km)`, k === 0 ? null : k / 1000), longitudKm: c.L } : null,
     controles: [],
   }
 }
@@ -402,7 +453,7 @@ function construirCuerpo(c: Contexto): Cuerpo | null {
   if (c.g.modelo === 'k·b·L' && k !== null) return c.unidad === 'ha' && c.unidadVerificada ? cuerpoAcuaticas(c, k) : null
   if (c.g.modelo === 'k·ancho·L' && k !== null) return cuerpoPorAncho(c, k)
   if (c.g.modelo === 'limpia·sección' && k0 !== null && k1 !== null) return cuerpoLimpiaSeccion(c, k0, k1)
-  if (c.g.modelo === 'k·L' && k !== null && c.tramo.red === 'caminos' && c.g.declarado === true) return cuerpoCaminoPorLongitud(c, k)
+  if (c.g.modelo === 'k·L' && k !== null && c.tramo.red === 'caminos' && c.g.declarado === true) return c.fam === 'terracerias' ? cuerpoCunetas(c, k) : cuerpoCaminoPorLongitud(c, k)
   if (c.g.modelo === 'k·L' && k !== null) return c.fam === 'limpia' && c.unidad === 'ha' && c.unidadVerificada && (c.tramo.red === 'distribucion' || c.tramo.red === 'drenaje') && esCanal(c.u.ficha) ? cuerpoLimpiaFranja(c, k) : cuerpoPorLongitud(c, k)
   return null
 }
@@ -422,10 +473,12 @@ export function comprobarTramo(libro: LibroDerivado, criterios: readonly Criteri
   if (!g) return null
   const base = {
     fila, red: tramo.red, inventario: tramo.inventario, obra: tramo.obra, pkInicial: tramo.pkInicial, pkFinal: tramo.pkFinal, longitudKm: num(tramo.km.valor), concepto: crit.concepto,
-    modelo: g.modelo, grupo: pt.grupo, criterio: g.formula,
+    modelo: g.modelo, grupo: pt.grupo, criterio: g.formula, ...(descripcionObra(u.ficha) === undefined ? {} : { descripcion: descripcionObra(u.ficha) }),
   }
   const fam = familia(crit.nombre)
-  const { unidad, verificada: unidadVerificada } = unidadDe(libro, tramo.red, crit.nombre, fam)
+  // Conservación de cunetas (caminos): la cantidad son km de cuneta aunque 3DN rotule la unidad como M3.
+  const esCunetas = tramo.red === 'caminos' && fam === 'terracerias'
+  const { unidad, verificada: unidadVerificada } = esCunetas ? { unidad: 'km', verificada: true } : unidadDe(libro, tramo.red, crit.nombre, fam)
   const L = num(tramo.km.valor)
   const celda = tramo.conceptos[indiceConcepto]?.trabajo
   const X = num(celda?.valor)
@@ -452,6 +505,15 @@ export function comprobarTramo(libro: LibroDerivado, criterios: readonly Criteri
     }
   }
 
+  if (esCunetas) {
+    const n3 = libro.necesidades.find((x) => BLOQUE_RED.caminos.test(x.bloque) && familia(x.concepto) === 'terracerias')
+    const u3 = n3?.unidadTrabajo?.trim()
+    const pu = num(n3?.pu.valor)
+    cuerpo.controles.push({
+      id: 'cunetas-unidad-3dn', base: 'integridad', estado: 'informativo', titulo: 'La cantidad son km de cuneta, no m³',
+      detalle: `En la red de caminos este concepto es la conservación de cunetas. ${u3 ? `3DN rotula su unidad de trabajo como «${u3}»` : '3DN no rotula su unidad'}, pero la cantidad es un múltiplo entero de la longitud del camino (km)${pu === null ? '' : ` y su precio unitario ($${redondear(pu)}) es por km, del mismo orden que conformación y rastreo`}. El rótulo de unidad de 3DN no se corrige: se informa.`,
+    })
+  }
   const estadoCriterio: EstadoComp = pt.sigue ? 'cuadra' : 'atipico'
   if (!unidadVerificada) {
     cuerpo.controles.push({
@@ -468,6 +530,7 @@ export function comprobarTramo(libro: LibroDerivado, criterios: readonly Criteri
     recalculado: redondear(cuerpo.recalculado), enLibro: redondear(X), diferencia: redondear(Number((X - cuerpo.recalculado).toFixed(9))),
     estadoCriterio, estado: estadoCriterio === 'atipico' || peorControl ? 'atipico' : 'cuadra',
     parametroLibre: cuerpo.parametroLibre, diagrama: cuerpo.diagrama, controles: cuerpo.controles, refs: [...new Set(refs)],
+    ...(cuerpo.lectura === undefined ? {} : { lectura: cuerpo.lectura }),
     ...(g.declarado === true ? { declarado: true } : {}), ...(g.inferencia === true ? { inferencia: true } : {}),
   }
 }

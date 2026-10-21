@@ -171,6 +171,8 @@ export function quitarSufijoColumna(r: string): string {
 }
 
 const TERRACERIAS_DESCOPETE = 'Terracerías (descopete)'
+/** En la red de caminos, la «Terracerías» de 3DN es la conservación de cunetas (km de cuneta, no m³). */
+export const CONSERVACION_CUNETAS = 'Conservación de cunetas'
 
 /** clave sin tildes → [nombre canónico, familia]. Solo alias que aparecen en los libros reales. */
 const ALIAS: Readonly<Record<string, readonly [string, Familia]>> = {
@@ -190,6 +192,7 @@ const ALIAS: Readonly<Record<string, readonly [string, Familia]>> = {
   'reparacion obra civil': ['Reparación de obra civil', 'otro'],
   'reparacion compuertas y mecanismos': ['Reparación de compuertas y mecanismos', 'otro'],
   'reparacion mantenimiento': ['Reparación y mantenimiento', 'otro'],
+  'rep. mant. sist. electrom inst. hidr. y electrica': ['Reparación y mantenimiento de sistemas electromecánicos e instalaciones hidráulicas y eléctricas', 'otro'],
 }
 
 const esRedCanales = (c: ContextoConcepto): boolean => {
@@ -197,6 +200,8 @@ const esRedCanales = (c: ContextoConcepto): boolean => {
   if (c.red) return false
   return c.bloque ? /distribuci/.test(claveSinTildes(c.bloque)) : false
 }
+
+const esRedCaminos = (c: ContextoConcepto): boolean => c.red === 'caminos' || (!c.red && c.bloque ? /caminos/.test(claveSinTildes(c.bloque)) : false)
 
 /** Mayúsculas sostenidas → oración. Si ya trae minúsculas se deja como viene. Nunca añade tildes. */
 function aOracion(t: string): string {
@@ -212,6 +217,7 @@ export function nombreConcepto(rotuloLibro: string, contexto: ContextoConcepto =
   const clave = claveSinTildes(limpio)
   // «Terracerías» a secas es ambiguo: en canales es el descopete de bordos; en caminos y drenes es terracería.
   if (clave === 'terracerias') {
+    if (esRedCaminos(contexto)) return { canonico: CONSERVACION_CUNETAS, rotuloLibro, familia: 'terracerias', conocido: true }
     return esRedCanales(contexto)
       ? { canonico: TERRACERIAS_DESCOPETE, rotuloLibro, familia: 'descopete', conocido: true }
       : { canonico: 'Terracerías', rotuloLibro, familia: 'terracerias', conocido: true }

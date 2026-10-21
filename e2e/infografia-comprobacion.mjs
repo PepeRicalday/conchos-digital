@@ -211,8 +211,8 @@ if (opciones56.length > 0) {
 // 7. Caminos de la SRL (T-01): infografías de tramo y de concepto con el dibujo de calzada
 await page.selectOption('#cons-comp-red', 'caminos'); await page.waitForTimeout(250);
 const cCam = await page.locator('#cons-comp-con option').allInnerTexts();
-const iRep = cCam.findIndex((c) => /Reposici/.test(c)), iTer = cCam.findIndex((c) => /Terracer/.test(c)), iConf = cCam.findIndex((c) => /Conformaci/.test(c));
-verifica(iRep >= 0 && iTer >= 0 && iConf >= 0, `caminos: existen reposición, terracerías y conformación (${cCam.join(', ')})`);
+const iRep = cCam.findIndex((c) => /Reposici/.test(c)), iTer = cCam.findIndex((c) => /cunetas/i.test(c)), iConf = cCam.findIndex((c) => /Conformaci/.test(c));
+verifica(iRep >= 0 && iTer >= 0 && iConf >= 0, `caminos: existen reposición, conservación de cunetas y conformación (${cCam.join(', ')})`);
 await elige(iRep); await eligeFila(98);
 const c98 = await descarga(btnTramo(), /^comprobacion-tramo-fila98-/, 'camino reposición f98 (150 × 6 × 98.951)');
 verifica(/<svg[^>]*aria-label="Sección de calzada, Reposición de revestimiento: ancho 6\.00 m/.test(c98.html), 'camino f98: la infografía trae la sección de calzada con el ancho de IO3');
@@ -224,16 +224,17 @@ await eligeFila(100);
 const c100 = await descarga(btnTramo(), /^comprobacion-tramo-fila100-/, 'camino reposición f100 (terracería, 0)');
 verifica(/terracería: no lleva revestimiento/.test(c100.h.texto), 'camino f100: «terracería: no lleva revestimiento»');
 await elige(iTer); await eligeFila(100);
-const t100 = await descarga(btnTramo(), /^comprobacion-tramo-fila100-/, 'camino terracerías f100 (no evaluable)');
-verifica(/unidad sospechosa: el valor equivale a 1·L y 2·L expresados en km/.test(t100.h.texto), 'camino terracerías: dice el motivo (unidad sospechosa) y no convierte');
+const t100 = await descarga(btnTramo(), /^comprobacion-tramo-fila100-/, 'camino cunetas f100 (2 × 98.951 = 197.902 km)');
+verifica(/Conservación de cunetas/.test(t100.h.texto) && /2 × 98\.951 km = 197\.902 km de cuneta/.test(t100.h.texto) && /en palabras/i.test(t100.h.texto) && /longitud 98\.951 km/.test(t100.html + t100.h.texto) && !/unidad sospechosa/.test(t100.h.texto), 'camino cunetas f100: nombre, cuenta en palabras, vista a lo largo y km (sin «unidad sospechosa»)');
+verifica(/<svg[^>]*aria-label="Sección de calzada, Conservación de cunetas/.test(t100.html) && t100.a.violeta > 150, `camino cunetas f100: sección con las dos cunetas en violeta (${t100.a.violeta} px)`);
 await elige(iConf); await eligeFila(98);
 await descarga(btnTramo(), /^comprobacion-tramo-fila98-/, 'camino conformación f98 (1 × L)');
 await elige(iRep);
 const cc = await descarga(btnConcepto(), /^comprobacion-concepto-.*reposicion.*\.png$/, 'camino concepto reposición');
 verifica(/Recorrido del camino/.test(cc.h.texto) && !/Recorrido del canal/.test(cc.h.texto) && /El 150 es una inferencia/.test(cc.h.texto), 'camino concepto: «Recorrido del camino», grupos por superficie e inferencia');
 await elige(iTer);
-const ct = await descarga(btnConcepto(), /^comprobacion-concepto-.*terracer.*\.png$/, 'camino concepto terracerías');
-verifica(/unidad sospechosa/.test(ct.h.texto), 'camino concepto terracerías: motivo visible');
+const ct = await descarga(btnConcepto(), /^comprobacion-concepto-.*cunetas.*\.png$/, 'camino concepto conservación de cunetas');
+verifica(/Conservación de cunetas/.test(ct.h.texto) && /1 × L/.test(ct.h.texto) && /2 × L/.test(ct.h.texto), 'camino concepto cunetas: grupos 1 × L (revestido) y 2 × L (terracería)');
 
 
 // 8. Obras puntuales (T-02/T-03): obra civil, compuertas, edificios (SRL) y un dren de M5

@@ -5,10 +5,11 @@ const f2 = (x: number): string => x.toLocaleString('es-MX', { minimumFractionDig
 /** Exageración de la escala vertical: la sección es ancha y baja, y sin ella un espesor de 0.3 m no se ve. Se declara en la leyenda. */
 export const EXAGERACION_VERTICAL = 2;
 
-export interface ItemLeyenda { readonly muestra: 'hierba' | 'talud' | 'hombro' | 'azolve' | 'plantas' | 'descopete' | 'losa' | 'plantilla' | 'calzada' | 'carpeta' | 'ilustrativo'; readonly texto: string }
+export interface ItemLeyenda { readonly muestra: 'cuneta' | 'hierba' | 'talud' | 'hombro' | 'azolve' | 'plantas' | 'descopete' | 'losa' | 'plantilla' | 'calzada' | 'carpeta' | 'ilustrativo'; readonly texto: string }
 
 /** Lo que el libro no trae del camino: se dice siempre que se dibuja uno. */
 export const NOTA_CAMINO_ILUSTRATIVO = 'El libro no trae medidas de bermas ni cunetas (solo renglones en SEG-3 y PO-1): se dibujan tenues, solo como ilustración. Escala vertical exagerada ×2.';
+export const NOTA_CUNETAS_ILUSTRATIVO = 'Lo que dice el libro de las cunetas es cuántas hay (1 o 2) y cuántos km suman; su sección no tiene medidas, por eso la forma es ilustrativa. Escala vertical exagerada ×2.';
 export const NOTA_150_INFERENCIA = 'El 150 es una inferencia; el libro no declara el espesor.';
 
 function leyendaCamino(d: DiagramaComp): ItemLeyenda[] {
@@ -21,7 +22,11 @@ function leyendaCamino(d: DiagramaComp): ItemLeyenda[] {
         case 'camino-revestimiento': return d.espesor === null || d.espesor === undefined
             ? [calzada, { muestra: 'carpeta', texto: d.superficie === 'Terracería' ? 'terracería: no lleva revestimiento; el libro asigna 0 a este tramo' : 'Sin reposición de revestimiento asignada en este tramo' }, ilus]
             : [calzada, { muestra: 'carpeta', texto: `Carpeta de reposición: espesor ${f2(d.espesor)} m (inferencia)` }, ilus];
-        case 'camino-terraceria': return [calzada, { muestra: 'descopete', texto: 'Terracerías: unidad sospechosa, no se dibuja volumen' }, ilus];
+        case 'camino-cunetas': return [
+            calzada,
+            { muestra: 'cuneta', texto: d.cunetas === 1 ? 'Cuneta: una, en un solo lado del camino (el libro asigna 1 × L). El factor lo confirma el equipo SICA; el libro no lo rotula' : `Cunetas: ${d.cunetas === 2 ? 'dos, una en cada lado del camino (el libro asigna 2 × L)' : 'número S/D'}. El factor lo confirma el equipo SICA; el libro no lo rotula` },
+            { muestra: 'ilustrativo', texto: 'Bermas y forma de la cuneta (tenues): ilustrativas; el libro no trae sus medidas' },
+        ];
         default: return [];
     }
 }

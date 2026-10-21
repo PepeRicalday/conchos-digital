@@ -5,7 +5,7 @@ import type { PacotRegistrado } from '../../../conservacion/derivacion/registro'
 import { ROTULO_RED } from '../../../conservacion/derivacion/vistas';
 import type { TipoRed } from '../../../conservacion/derivacion/tipos';
 import { comprobarTramo, type Comprobacion, type EntradaComp, type OrigenEntrada, type TokenEc } from '../../../conservacion/verificacion/comprobacion';
-import { bloquesNoAplica, comprobarObrasPuntuales, textoEstadoPieza, vistaDeGrupo, type GrupoSel } from '../../../conservacion/verificacion/porPieza';
+import { comprobarObrasPuntuales, contrasteNoAplica, textoEstadoPieza, vistaDeGrupo, type GrupoSel } from '../../../conservacion/verificacion/porPieza';
 import { verificarLibroCacheado } from '../../../conservacion/verificacion/verificar';
 import { atipicosDelLibro, estadoConRazon, type DestinoPieza, type DestinoTramo, type EstadoConRazon, type RazonTramo } from '../../../conservacion/verificacion/revision';
 import { desdeComp, formatoPK, nombreConcepto, nombreRed, TEXTO_RAZON_ATIPICO } from '../../../conservacion/vocabulario';
@@ -24,7 +24,7 @@ import { ContornoRecorrido } from './ContornoRecorrido';
 import { useTrazo } from './TrazoContext';
 import { EstadoVacio } from './EstadoVacio';
 import { useNavegacion } from './navegacion';
-import { EXAGERACION_VERTICAL, NOTA_CAMINO_ILUSTRATIVO, leyendaSeccion } from './seccionLeyenda';
+import { EXAGERACION_VERTICAL, NOTA_CAMINO_ILUSTRATIVO, NOTA_CUNETAS_ILUSTRATIVO, leyendaSeccion } from './seccionLeyenda';
 import './centro-revision.css';
 import './ficha.css';
 
@@ -89,7 +89,7 @@ export function DerivacionComprobacion({ pacots, ambito, setAmbito, destino = nu
     const redes = useMemo(() => (v ? [...new Set(v.criterios.map((c) => c.red))] : []), [v]);
     // Obras puntuales (estructuras y edificios) es una red más del selector, con sus propios conceptos (modelo por-pieza) y grupos en lugar de tramos.
     const piezas = useMemo(() => (pacot ? comprobarObrasPuntuales(pacot.libro) : []), [pacot]);
-    const noAplicaObras = useMemo(() => (pacot ? bloquesNoAplica(pacot.libro) : []), [pacot]);
+    const noAplicaObras = useMemo(() => (pacot ? contrasteNoAplica(pacot.libro) : []), [pacot]);
     const enObras = redSel === 'obras' && piezas.length > 0;
     const red: TipoRed | '' = redSel !== '' && redSel !== 'obras' && redes.includes(redSel) ? redSel : (redes.includes('distribucion') ? 'distribucion' : (redes[0] ?? ''));
     const conceptos = useMemo(() => (v && !enObras ? v.criterios.filter((c) => c.red === red) : []), [v, red, enObras]);
@@ -140,7 +140,7 @@ export function DerivacionComprobacion({ pacots, ambito, setAmbito, destino = nu
 
     // Selector de tramo agrupado por eje con nombre: nunca mezcla el canal principal con un auxiliar sin decirlo.
     const porFila = new Map(visibles.map((c) => [c.fila, c]));
-    const opcion = (c: Comprobacion) => <option key={c.fila} value={c.fila}>{formatoPK(c.pkInicial)} → {formatoPK(c.pkFinal)} · {TEXTO_ESTADO_OPCION[c.estado]}</option>;
+    const opcion = (c: Comprobacion) => <option key={c.fila} value={c.fila}>{formatoPK(c.pkInicial)} → {formatoPK(c.pkFinal)}{c.descripcion ? ` · ${c.descripcion}` : ''} · {TEXTO_ESTADO_OPCION[c.estado]}</option>;
     const grupos = (modelo?.ejes ?? [])
         .map((e) => ({ titulo: e.inventario && !e.titulo.includes(e.inventario) ? `${e.titulo} · ${e.inventario}` : e.titulo, cs: e.tramos.map((t) => porFila.get(t.fila)).filter((c): c is Comprobacion => c !== undefined) }))
         .filter((g) => g.cs.length > 0);
@@ -164,7 +164,7 @@ export function DerivacionComprobacion({ pacots, ambito, setAmbito, destino = nu
                     onAbrirUbicacion={(fila, obraId) => setUbic({ fila, obraId: obraId ?? null })} />
             </div>
         ) : (
-            <TiraTramo modelo={modeloPerfil} fila={actual.fila} posicion={pos + 1} total={visibles.length} titulo={TITULO_RECORRIDO[actual.red]} />
+            <TiraTramo modelo={modeloPerfil} fila={actual.fila} posicion={pos + 1} total={visibles.length} titulo={TITULO_RECORRIDO[actual.red]} {...(actual.descripcion ? { descripcion: actual.descripcion } : {})} />
         )
     ) : null;
     const botonPerfil: ReactNode = modeloPerfil ? (
@@ -195,7 +195,7 @@ export function DerivacionComprobacion({ pacots, ambito, setAmbito, destino = nu
                         <li className="cc-opc" title={`Rótulo en el libro: ${pacot.ficha.moduloTexto}`}>{nombrePacot(pacot)}</li>
                         <li className="cc-opc">{nombreRed(actual.red)}</li>
                         <li className="cc-con" title={`Rótulo en el libro: ${actual.concepto}`}>{conceptoCanon(actual.concepto).canonico}</li>
-                        <li className="cc-pk">{formatoPK(actual.pkInicial)} → {formatoPK(actual.pkFinal)}</li>
+                        <li className="cc-pk">{formatoPK(actual.pkInicial)} → {formatoPK(actual.pkFinal)}{actual.descripcion ? ` · ${actual.descripcion}` : ''}</li>
                     </ol>
                     <span className="cc-est" data-estado={actual.estado} title={razon.texto}>
                         <i aria-hidden="true" />
@@ -240,7 +240,13 @@ export function DerivacionComprobacion({ pacots, ambito, setAmbito, destino = nu
                 </div>
 
                 {enObras && noAplicaObras.length > 0 && (
-                    <p className="op-aviso-noaplica" role="note"><b>No aplican a este PacOT</b> (sin cantidad en 3DN, suma 0): {noAplicaObras.join(', ').toLowerCase()}.</p>
+                    <p className="op-aviso-noaplica" role="note"><b>No aplican a este PacOT</b> (sin cantidad en 3DN, suma 0): {noAplicaObras.map((x) => {
+                        const nombre = x.bloque.toLowerCase();
+                        if (x.estado === 'declara') return `${nombre} (${x.hoja} dice NO APLICA)`;
+                        if (x.estado === 'con_obras') return `${nombre} (¡${x.hoja} sí lista ${x.obras} obras que 3DN no presupuesta!)`;
+                        if (x.estado === 'vacia') return `${nombre} (${x.hoja} sin llenar)`;
+                        return nombre;
+                    }).join('; ')}.</p>
                 )}
                 {enObras ? (
                     piezaActual
@@ -283,7 +289,7 @@ export function DerivacionComprobacion({ pacots, ambito, setAmbito, destino = nu
                                             return (
                                                 <tr key={c.fila} className={c.fila === actual.fila ? 'cons-comp-fila-sel' : ''}>
                                                     <td><button type="button" className="cons-comp-enlace" onClick={() => setFilaSel(c.fila)} aria-label={`Ver la comprobación de la fila ${c.fila}`}>{c.fila}</button></td>
-                                                    <td><small>{c.obra}</small>{formatoPK(c.pkInicial)} → {formatoPK(c.pkFinal)}</td>
+                                                    <td><small>{c.obra}{c.descripcion ? ` · ${c.descripcion}` : ''}</small>{formatoPK(c.pkInicial)} → {formatoPK(c.pkFinal)}</td>
                                                     <td className="cons-n">{cifra(c.enLibro)}</td>
                                                     <td className="cons-n">{cifra(c.recalculado)}</td>
                                                     <td><InsigniaEstado e={desdeComp(c.estado, c.motivo)} {...(c.estado === 'atipico' ? { motivoCorto: r.texto.replace(/^atípico /, '') } : {})} /></td>
@@ -303,7 +309,7 @@ export function DerivacionComprobacion({ pacots, ambito, setAmbito, destino = nu
 }
 
 /** Perfil plegado: una tira con todo el recorrido y el tramo elegido marcado (el botón para desplegar el perfil vive en la cabecera de «Dónde está»). */
-function TiraTramo({ modelo, fila, posicion, total, titulo }: { modelo: ModeloCanal; fila: number; posicion: number; total: number; titulo: string }) {
+function TiraTramo({ modelo, fila, posicion, total, titulo, descripcion }: { modelo: ModeloCanal; fila: number; posicion: number; total: number; titulo: string; descripcion?: string }) {
     const eje = modelo.ejes.find((e) => e.tramos.some((t) => t.fila === fila)) ?? modelo.ejes[0];
     if (!eje) return null;
     const km = Math.max(eje.totalKm, 0.001);
@@ -311,7 +317,7 @@ function TiraTramo({ modelo, fila, posicion, total, titulo }: { modelo: ModeloCa
     return (
         <div className="cc-tira">
             <div className="cc-tira-cab">
-                <p><b>{titulo}</b> · tramo {posicion} de {total}{eje.titulo ? ` · ${eje.titulo}` : ''}</p>
+                <p><b>{titulo}</b> · tramo {posicion} de {total}{descripcion ? <> · <b>{descripcion}</b></> : null}{eje.titulo ? ` · ${eje.titulo}` : ''}</p>
                 <span className="cc-tira-clave" aria-label="Clave de la tira"><span><i className="k-ok" aria-hidden="true" />coherente</span><span><i className="k-at" aria-hidden="true" />atípico</span><span><i className="k-ne" aria-hidden="true" />no evaluable</span><span><i className="k-sel" aria-hidden="true" />tramo elegido</span></span>
             </div>
             <div className="cc-tira-pie">
@@ -412,7 +418,7 @@ function Ficha({ c, razon, otras, irConcepto, ambito, red, modelo, modeloContorn
                     <div className="cf-id">
                         <h4 className="cf-concepto" title={`Rótulo en el libro: ${c.concepto}`}>{nombre.canonico}</h4>
                         <p className="cf-obra">{c.obra}: <span className="cf-pk">{formatoPK(c.pkInicial)} → {formatoPK(c.pkFinal)}</span></p>
-                        <p className="cf-fila">fila {c.fila} de DIAG-01 · inventario {c.inventario}</p>
+                        <p className="cf-fila">fila {c.fila} de DIAG-01 · inventario {c.inventario}{c.descripcion ? <> · <b>{c.descripcion}</b></> : null}</p>
                     </div>
                     <div className="cc-estados">
                         <div className="cc-estado">
@@ -480,13 +486,19 @@ function Ficha({ c, razon, otras, irConcepto, ambito, red, modelo, modeloContorn
                         <ClaveOrigen c={c} />
                     </header>
                     <Ecuacion c={c} />
+                    {c.lectura !== undefined && c.lectura.length > 0 && (
+                        <div className="cf-lectura" role="group" aria-label="La cuenta en palabras">
+                            <h6>En palabras</h6>
+                            <ol>{c.lectura.map((l) => <li key={l}>{l}</li>)}</ol>
+                        </div>
+                    )}
                     <div className="cons-comp-grid">
                         <div className="cons-comp-dibujo">
                             {c.diagrama ? <SeccionCanal d={c.diagrama} /> : <p className="cf-sin-dibujo">Para este concepto no hay dibujo de sección: la cantidad depende solo de la longitud o del ancho de la obra.</p>}
                             {leyenda.length > 0 && (
                                 <ul className="cons-leyenda" aria-label="Qué se ve en el dibujo">
                                     {leyenda.map((i) => <li key={i.texto}><i className={`cons-ley-${i.muestra}`} aria-hidden="true" />{i.texto}</li>)}
-                                    <li className="cons-ley-nota">{esCamino ? NOTA_CAMINO_ILUSTRATIVO : `Escala vertical exagerada ×${EXAGERACION_VERTICAL}; el terreno fuera del hombro es ilustrativo.`}</li>
+                                    <li className="cons-ley-nota">{esCamino ? (c.diagrama?.modo === 'camino-cunetas' ? NOTA_CUNETAS_ILUSTRATIVO : NOTA_CAMINO_ILUSTRATIVO) : `Escala vertical exagerada ×${EXAGERACION_VERTICAL}; el terreno fuera del hombro es ilustrativo.`}</li>
                                 </ul>
                             )}
                         </div>

@@ -11,10 +11,12 @@ export interface PaletaSeccion {
     readonly hombro: string;
     /** Texto tenue de lo ilustrativo (caminos); si falta se usa un gris cálido. */
     readonly tenue?: string;
+    /** Cotas que vienen de DIAG-01 (longitud del tramo). Si falta se usa el color del inventario. */
+    readonly diag?: string;
 }
 
-export const PALETA_APP: PaletaSeccion = { pac: 'var(--o-pac)', inv: 'var(--o-inv)', hombro: 'var(--sc-crit)', tenue: '#b8ad92' };
-export const PALETA_INFOGRAFIA: PaletaSeccion = { pac: '#6D3FC0', inv: '#1C5E95', hombro: '#B3261E', tenue: '#5E533C' };
+export const PALETA_APP: PaletaSeccion = { pac: 'var(--o-pac)', inv: 'var(--o-inv)', hombro: 'var(--sc-crit)', tenue: '#b8ad92', diag: 'var(--o-diag)' };
+export const PALETA_INFOGRAFIA: PaletaSeccion = { pac: '#6D3FC0', inv: '#1C5E95', hombro: '#B3261E', tenue: '#5E533C', diag: '#1B2733' };
 
 const f2 = (x: number): string => x.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const n1 = (x: number): string => x.toFixed(1);

@@ -12,7 +12,7 @@ import './derivacion/centro-revision.css';
 const PAGINA = 40;
 const SEVERIDADES: readonly Severidad[] = ['alta', 'media', 'informativa'];
 
-function Tarjeta({ h, verEnDerivacion }: { h: HallazgoVista; verEnDerivacion?: ((hoja: string, fila: number) => void) | undefined }) {
+function Tarjeta({ h, verEnDerivacion }: { h: HallazgoVista; verEnDerivacion?: ((hoja: string, fila: number, columna: string) => void) | undefined }) {
     const dims = Object.entries(h.dimensiones);
     const enlace = verEnDerivacion ? referenciaEnlazable(h.referencias) : null;
     return (
@@ -29,7 +29,7 @@ function Tarjeta({ h, verEnDerivacion }: { h: HallazgoVista; verEnDerivacion?: (
                     {enlace !== null && verEnDerivacion && (
                         <span className="cr-en-summary">
                             <button type="button" className="sc-btn cr-abrir" aria-label={`Ver en derivación la celda ${enlace.hoja}, fila ${enlace.fila}`}
-                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); verEnDerivacion(enlace.hoja, enlace.fila); }}>
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); verEnDerivacion(enlace.hoja, enlace.fila, enlace.columna); }}>
                                 Ver en derivación <ArrowRight size={16} aria-hidden="true" />
                             </button>
                         </span>
@@ -65,7 +65,7 @@ function Tarjeta({ h, verEnDerivacion }: { h: HallazgoVista; verEnDerivacion?: (
     );
 }
 
-interface Props { archivo: ArchivoInforme; reglaInicial?: string; verEnDerivacion?: (hoja: string, fila: number) => void }
+interface Props { archivo: ArchivoInforme; reglaInicial?: string; verEnDerivacion?: (hoja: string, fila: number, columna: string) => void }
 
 export function VistaHallazgos({ archivo, reglaInicial = '', verEnDerivacion }: Props) {
     const todos = useMemo(() => hallazgosPlanos(archivo), [archivo]);

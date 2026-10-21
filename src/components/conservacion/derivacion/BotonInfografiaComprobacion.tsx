@@ -5,6 +5,7 @@ import type { CriterioInferido } from '../../../conservacion/verificacion/criter
 import { assetToDataURI } from '../../../utils/assetToDataURI';
 import { guardaOComparte } from '../../../utils/descargaArchivo';
 import { rasterizaHtml } from '../../../utils/rasterizaHtml';
+import { nombreConcepto } from '../../../conservacion/vocabulario';
 import { construirDatosConcepto, hoyIso, nombreArchivoConcepto, nombreArchivoTramo } from '../../../utils/infografiaComprobacion';
 import { conTrazo, type ModeloCanal } from './ubicacionModelo';
 import { obtenerTrazo } from './TrazoContext';
@@ -41,7 +42,7 @@ export function BotonInfografiaComprobacion(props: Props) {
             } else {
                 const datos = construirDatosConcepto(props.filas, props.crit, ctx);
                 html = htmlInfografiaConcepto(datos, ctx);
-                nombre = nombreArchivoConcepto(datos.concepto, fecha);
+                nombre = nombreArchivoConcepto(nombreConcepto(datos.concepto, { red: datos.redTipo }).canonico, fecha);
             }
             const png = await rasterizaHtml(html, { ancho: ANCHO_COMPROBACION, escala: 2 });
             await guardaOComparte(png, nombre, 'image/png');

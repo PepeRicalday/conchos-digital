@@ -8,8 +8,8 @@ import type { Comprobacion, EntradaComp, EstadoComp, OrigenEntrada, TokenEc } fr
 import { nombreConcepto } from '../conservacion/vocabulario';
 import { fmt, TEXTO_BASE } from '../components/conservacion/derivacion/fmt';
 import { PALETA_INFOGRAFIA, seccionCanalSvg } from '../components/conservacion/derivacion/seccionCanalSvg';
-import { seccionCaminoSvg } from '../components/conservacion/derivacion/seccionCaminoSvg';
-import { EXAGERACION_VERTICAL, NOTA_150_INFERENCIA, NOTA_CAMINO_ILUSTRATIVO, leyendaSeccion, type ItemLeyenda } from '../components/conservacion/derivacion/seccionLeyenda';
+import { seccionCaminoSvg, vistaCaminoSvg } from '../components/conservacion/derivacion/seccionCaminoSvg';
+import { EXAGERACION_VERTICAL, NOTA_150_INFERENCIA, NOTA_CAMINO_ILUSTRATIVO, NOTA_CUNETAS_ILUSTRATIVO, leyendaSeccion, type ItemLeyenda } from '../components/conservacion/derivacion/seccionLeyenda';
 import { TEXTO_POSICION_ESTIMADA, TEXTO_UBICACION_DECLARADA, conteoPorClave, etiquetaPk, obrasEnTramo, type ModeloCanal } from '../components/conservacion/derivacion/ubicacionModelo';
 import { leyendaFamiliasHtml, miniMapaCanalSvg, miniMapaTramoSvg, perfilesHtml } from './infografiaPerfilSvg';
 import {
@@ -101,6 +101,11 @@ h2{font-size:16px;font-weight:800;color:#6B2D2D;margin-bottom:10px}
 .m-descopete{background:#ef9a3c;height:6px!important;margin-top:6px!important}
 .m-losa{background:repeating-linear-gradient(90deg,#ef9a3c 0 6px,transparent 6px 9px);height:5px!important;margin-top:7px!important}
 .m-calzada{background:#b08d57}
+.m-cuneta{background:#6D3FC061;border:2px solid #6D3FC0;height:8px!important;margin-top:4px!important}
+.lectura{margin-top:14px;padding:12px 16px;border-left:5px solid #C9BE9C;background:#F7F2E2;border-radius:0 10px 10px 0}
+.lectura h3{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#4A5663;margin-bottom:6px}
+.lectura ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:5px;font-size:15px;line-height:1.5;color:#1B2733}
+.dib .largo{margin-top:10px}
 .m-carpeta{background:repeating-linear-gradient(45deg,#9aa5b1 0 3px,#5f6b78 3px 5px);height:6px!important;margin-top:6px!important}
 .m-ilustrativo{background:transparent;border:2px dashed #8b7d63;height:8px!important;margin-top:4px!important}
 .sin-dib{font-size:14px;color:#4A5663;padding:14px;border:1px dashed #8A94A0;border-radius:10px}
@@ -210,7 +215,12 @@ function claveOrigen(c: Comprobacion): string {
 
 function ecuacion(c: Comprobacion): string {
     if (c.ecuacion.length === 0) return '';
-    return `<div class="card"><h2>La cuenta, dato por dato</h2><div class="cuenta">${c.ecuacion.map(token).join('')}<span class="op">=</span><div class="res"><b>${esc(cifra(c.recalculado))}${c.unidad ? ` <small>${esc(c.unidad)}</small>` : ''}</b><span>según el criterio del libro</span></div></div>${claveOrigen(c)}</div>`;
+    return `<div class="card"><h2>La cuenta, dato por dato</h2><div class="cuenta">${c.ecuacion.map(token).join('')}<span class="op">=</span><div class="res"><b>${esc(cifra(c.recalculado))}${c.unidad ? ` <small>${esc(c.unidad)}</small>` : ''}</b><span>según el criterio del libro</span></div></div>${claveOrigen(c)}${lectura(c)}</div>`;
+}
+
+function lectura(c: Comprobacion): string {
+    if (c.lectura === undefined || c.lectura.length === 0) return '';
+    return `<div class="lectura"><h3>En palabras</h3><ol>${c.lectura.map((l) => `<li>${esc(l)}</li>`).join('')}</ol></div>`;
 }
 
 function marcaLeyenda(i: ItemLeyenda): string {
@@ -222,8 +232,10 @@ function dibujo(c: Comprobacion): string {
     if (c.diagrama.familia === 'camino') {
         const svgC = seccionCaminoSvg(c.diagrama, PALETA_INFOGRAFIA, { idPatron: 'inf-trama', estilo: 'display:block;width:100%;height:auto' });
         if (svgC === null) return `<div class="sin-dib">Falta el ancho de la carpeta en el inventario (IO3): S/D, no se puede dibujar.</div>`;
+        const largo = vistaCaminoSvg(c.diagrama, PALETA_INFOGRAFIA, { idPatron: 'inf-trama', estilo: 'display:block;width:100%;height:auto' });
         const leyC = leyendaSeccion(c.diagrama).map(marcaLeyenda).join('');
-        return `<div class="dib">${svgC}<ul class="ley">${leyC}<li class="nota"><span>${esc(NOTA_CAMINO_ILUSTRATIVO)}</span></li></ul></div>`;
+        const nota = c.diagrama.modo === 'camino-cunetas' ? NOTA_CUNETAS_ILUSTRATIVO : NOTA_CAMINO_ILUSTRATIVO;
+        return `<div class="dib">${svgC}${largo === null ? '' : `<div class="largo">${largo}</div>`}<ul class="ley">${leyC}<li class="nota"><span>${esc(nota)}</span></li></ul></div>`;
     }
     const svg = seccionCanalSvg(c.diagrama, PALETA_INFOGRAFIA, { idPatron: 'inf-hierba', estilo: 'display:block;width:100%;height:auto' });
     if (svg === null) return `<div class="sin-dib">Faltan datos de la sección en el inventario (plantilla, talud, tirante o libre bordo): S/D, no se puede dibujar.</div>`;
@@ -315,7 +327,7 @@ export function htmlInfografiaTramo(c: Comprobacion, ctx: ContextoComprobacion):
     const datos = (['inventario', 'diagnostico', 'constante'] as const).map((o) => bloqueDatos(c, o)).join('');
     const cuerpoGrid = c.recalculado === null ? '' : `<div class="card"><div class="grid"><div class="col-dib">${dibujo(c)}</div><div class="col-dat">${bloquePacot(c)}${datos}</div></div></div>`;
     const cuerpo = [
-        cabecera(ctx, 'SICA Conservación · DIAG-01', `${txt(c.obra)}: ${txt(c.pkInicial)} → ${txt(c.pkFinal)}`, `${nombreConcepto(c.concepto, { red: c.red }).canonico} · fila ${c.fila} de DIAG-01 · inventario ${txt(c.inventario)}`),
+        cabecera(ctx, 'SICA Conservación · DIAG-01', `${txt(c.obra)}: ${txt(c.pkInicial)} → ${txt(c.pkFinal)}`, `${nombreConcepto(c.concepto, { red: c.red }).canonico} · fila ${c.fila} de DIAG-01 · inventario ${txt(c.inventario)}${c.descripcion ? ` · ${txt(c.descripcion)}` : ''}`),
         cifras,
         aviso,
         ubicacionTramo(c, ctx.canal),

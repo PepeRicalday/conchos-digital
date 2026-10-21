@@ -106,7 +106,7 @@ export const reglaNor002: Regla = {
       })
       if (aparte.length) pendientes.push(`${lista.fuente.documento} ${lista.fuente.seccion}: ${aparte.length} documento(s) se entregan aparte y no se verifican desde el libro: ${aparte.join('; ')}`)
     }
-    pendientes.push('Las dos listas se informan por separado; la del Manual prevalece. Presencia en el libro no acredita contenido correcto ni firma.')
+    pendientes.push('Las dos listas se informan por separado; la del Manual prevalece. Presencia en el libro no acredita su contenido ni su firma.')
     return [crearResultado({ reglaId: 'NOR-002', hallazgos, calculos, revisados, identificados, unidad: 'documentos exigidos', pendientes })]
   },
 }

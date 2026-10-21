@@ -14,7 +14,7 @@ import { comprobarTramo, type Comprobacion, type DiagramaComp } from '../verific
 import { atipicosDelLibro } from '../verificacion/revision'
 import { verificarLibro } from '../verificacion/verificar'
 import { PALETA_INFOGRAFIA } from '../../components/conservacion/derivacion/seccionCanalSvg'
-import { seccionCaminoSvg } from '../../components/conservacion/derivacion/seccionCaminoSvg'
+import { seccionCaminoSvg, vistaCaminoSvg } from '../../components/conservacion/derivacion/seccionCaminoSvg'
 import { leyendaSeccion } from '../../components/conservacion/derivacion/seccionLeyenda'
 import { construirDatosConcepto } from '../../utils/infografiaComprobacion'
 import { htmlInfografiaConcepto, htmlInfografiaTramo } from '../../utils/infografiaComprobacionHtml'
@@ -55,9 +55,41 @@ describe('registro de conceptos (puro)', () => {
   })
   it('la excepción de agrupación por superficie vive en el registro de caminos, no en los canales', () => {
     expect(conceptoDeCamino('Conformación')?.agrupacion).toMatchObject({ tipo: 'superficie', minTramos: 1 })
-    expect(conceptoDeCamino('Terracerias')?.declarado?.unidadSospechosa).toBeDefined()
+    expect(conceptoDeCamino('Terracerias')?.declarado?.unidadSospechosa).toBeUndefined()
+    expect(conceptoDeCamino('Terracerias')?.declarado?.candidatos.map((c) => [c.k, c.inferencia])).toEqual([[1, false], [2, false]])
+    expect(conceptoDeCamino('Terracerias')?.unidadDefecto).toBe('km')
     expect(conceptoDeCamino('Reposición revestimiento')?.declarado?.candidatos.map((c) => [c.k, c.inferencia])).toEqual([[150, true], [0, false]])
     for (const c of CONCEPTOS.filter((x) => !x.redes.includes('caminos'))) expect(c.agrupacion.tipo).toBe('inferida')
+  })
+})
+
+describe('cunetas: sección y vista a lo largo del camino (puro)', () => {
+  const dc: DiagramaComp = { familia: 'camino', modo: 'camino-cunetas', b: null, z: null, d: null, lb: null, revestido: false, anchoFranja: null, h: null, rotulo: '2 × L', ancho: 4, superficie: 'Terracería', espesor: null, cunetas: 2, longitudKm: 98.951 }
+  it('dos cunetas: las dos se dibujan con el color del PacOT y el rótulo dice «2 cunetas (ambos lados)»', () => {
+    const svg = seccionCaminoSvg(dc, PALETA_INFOGRAFIA)!
+    expect(svg).toContain('2 cunetas (ambos lados)')
+    expect(svg.match(new RegExp(`stroke="${PALETA_INFOGRAFIA.pac}" stroke-width="3.5"`, 'g'))).toHaveLength(2)
+    expect(svg).not.toContain('sin cuneta')
+    expect(svg).not.toContain('var(')
+  })
+  it('una cuneta: se dibuja un solo lado y el otro dice «sin cuneta»', () => {
+    const svg = seccionCaminoSvg({ ...dc, cunetas: 1, rotulo: '1 × L' }, PALETA_INFOGRAFIA)!
+    expect(svg).toContain('1 cuneta (un lado)')
+    expect(svg.match(new RegExp(`stroke="${PALETA_INFOGRAFIA.pac}" stroke-width="3.5"`, 'g'))).toHaveLength(1)
+    expect(svg).toContain('sin cuneta')
+  })
+  it('vista a lo largo: la longitud de DIAG-01 y una franja por cuneta; sin longitud: null (S/D)', () => {
+    const v2 = vistaCaminoSvg(dc, PALETA_INFOGRAFIA)!
+    expect(v2).toContain('longitud 98.951 km')
+    expect(v2).toContain('cuneta × 2 lados')
+    expect(v2).toContain(PALETA_INFOGRAFIA.diag)
+    expect(vistaCaminoSvg({ ...dc, cunetas: 1 }, PALETA_INFOGRAFIA)).toContain('cuneta × 1 lado')
+    expect(vistaCaminoSvg({ ...dc, longitudKm: null }, PALETA_INFOGRAFIA)).toBeNull()
+  })
+  it('la leyenda de cunetas dice cuántas y que el libro no rotula el factor', () => {
+    const t = leyendaSeccion(dc).map((i) => i.texto).join(' | ')
+    expect(t).toContain('dos, una en cada lado del camino (el libro asigna 2 × L)')
+    expect(t).toContain('el libro no lo rotula')
   })
 })
 
@@ -120,15 +152,38 @@ describe.skipIf(!hayEvidencias)('SRL Unidad Conchos · caminos', () => {
       expect(t.motivo).toMatch(/^Muestra insuficiente: un solo tramo/)
     }
   })
-  it('terracerías de caminos: no evaluable por unidad sospechosa (1·L y 2·L en km), sin convertir ni recalcular', () => {
-    for (const fila of [98, 100, 102]) {
-      const c = comp(fila, /Terracer/)
-      expect(c).toMatchObject({ estado: 'no_evaluable', recalculado: null, diferencia: null })
-      expect(c.motivo).toContain('unidad sospechosa: el valor equivale a 1·L y 2·L expresados en km; confirmar con la SRL si la unidad es km o m³')
-    }
-    expect(comp(98, /Terracer/).enLibro).toBe('98.951')
-    expect(comp(100, /Terracer/).enLibro).toBe('197.902')
-    expect(comp(102, /Terracer/).enLibro).toBe('2.28')
+  it('conservación de cunetas (la «Terracerías» de 3DN en caminos): 1 × 98.951 = 98.951 km, 2 × 98.951 = 197.902 km, 1 × 2.28 = 2.28 km; en km, no en m³', () => {
+    expect(1 * 98.951).toBeCloseTo(98.951, 9)
+    expect(2 * 98.951).toBeCloseTo(197.902, 9)
+    const c98 = comp(98, /Terracer/), c100 = comp(100, /Terracer/), c102 = comp(102, /Terracer/)
+    expect(c98).toMatchObject({ recalculado: '98.951', enLibro: '98.951', diferencia: '0', estado: 'cuadra', unidad: 'km', grupo: 'Revestido', criterio: '1 × L', descripcion: 'Revestido · 6 m' })
+    expect(c100).toMatchObject({ recalculado: '197.902', enLibro: '197.902', diferencia: '0', estado: 'cuadra', unidad: 'km', grupo: 'Terracería', criterio: '2 × L', descripcion: 'Terracería · 4 m' })
+    expect(c102).toMatchObject({ recalculado: '2.28', enLibro: '2.28', estado: 'cuadra', unidad: 'km', grupo: 'Revestido', descripcion: 'Revestido · 5.5 m' })
+    expect(c98.diagrama).toMatchObject({ modo: 'camino-cunetas', cunetas: 1, longitudKm: 98.951 })
+    expect(c100.diagrama).toMatchObject({ modo: 'camino-cunetas', cunetas: 2, ancho: 4 })
+    expect(c100.parametroLibre).toMatchObject({ nombre: 'Cunetas por camino', valor: '2', unidad: 'cunetas' })
+    expect(c100.ecuacion.filter((t) => t.origen !== 'operador').map((t) => t.valor)).toEqual(['2', '98.951'])
+    expect(c100.lectura).toEqual(['El camino mide 98.951 km y lleva dos cunetas (una en cada lado del camino).', '2 × 98.951 km = 197.902 km de cuneta.'])
+    expect(c98.lectura?.[0]).toBe('El camino mide 98.951 km y lleva una cuneta (un solo lado del camino).')
+    const u = c100.controles.find((k) => k.id === 'cunetas-unidad-3dn')!
+    expect(u.estado).toBe('informativo')
+    expect(u.detalle).toContain('«M3»')
+    expect(u.detalle).toContain('2056.72')
+  })
+  it('un camino con el mismo nombre y cadenamiento se distingue por superficie y ancho (filas 98 y 100)', () => {
+    const d98 = comp(98, /Conformaci/).descripcion, d100 = comp(100, /Conformaci/).descripcion
+    expect(d98).toBe('Revestido · 6 m')
+    expect(d100).toBe('Terracería · 4 m')
+    expect(comp(98, /Terracer/).pkInicial).toBe(comp(100, /Terracer/).pkInicial)
+  })
+  it('reposición de revestimiento, fila 98, dicha en palabras: 6 × 98.951 × 1000 = 593 706 m² y 0.15 × 593 706 = 89 055.9 m³', () => {
+    expect(6 * 98.951 * 1000).toBeCloseTo(593706, 6)
+    expect(0.15 * 593706).toBeCloseTo(89055.9, 6)
+    const l98 = comp(98, /Reposici/).lectura!
+    expect(l98[0]).toContain('6 × 98.951 × 1000 = 593,706 m²')
+    expect(l98[1]).toContain('0.15 m de espesor (inferencia')
+    expect(l98[2]).toBe('0.15 m × 593,706 m² = 89,055.9 m³.')
+    expect(comp(100, /Reposici/).lectura).toEqual(['El libro no asigna reposición de revestimiento a este tramo (Terracería).'])
   })
   it('ningún atípico de caminos en la verificación ni en el Centro de revisión; los grupos sin modelo quedan no evaluables', () => {
     expect(v.resultados.filter((r) => r.estado === 'atipico' && r.red === 'caminos')).toHaveLength(0)
@@ -163,12 +218,27 @@ describe.skipIf(!hayEvidencias)('SRL Unidad Conchos · caminos', () => {
     expect(t).not.toContain('Dónde está el tramo')
   })
   it('infografía de tramos no evaluables: dice el motivo, sin cifras inventadas', () => {
-    for (const re of [/Terracer/, /Conformaci/]) {
+    for (const re of [/Conformaci/]) {
       const t = textoVisible(htmlInfografiaTramo(comp(100, re), ctx))
       for (const p of PROHIBIDAS) expect(t, p).not.toContain(p)
-      expect(t).toMatch(/unidad sospechosa|Muestra insuficiente/)
+      expect(t).toMatch(/Muestra insuficiente/)
       expect(t).toContain('S/D')
     }
+  })
+  it('infografía de cunetas: nombre, cuenta en palabras, vista a lo largo del camino y la unidad en km', () => {
+    const c100 = comp(100, /Terracer/)
+    const html = htmlInfografiaTramo(c100, ctx)
+    const t = textoVisible(html)
+    for (const p of PROHIBIDAS) expect(t, p).not.toContain(p)
+    expect(t).toContain('Conservación de cunetas')
+    expect(t).toContain('Terracería · 4 m')
+    expect(t).toContain('En palabras')
+    expect(t).toContain('2 × 98.951 km = 197.902 km de cuneta.')
+    expect(t).toContain('2 cunetas (ambos lados)')
+    expect(t).toContain('longitud 98.951 km')
+    expect(t).toContain('197.902')
+    expect(t).not.toContain('unidad sospechosa')
+    expect(t).not.toMatch(/m³ según el criterio/)
   })
   it('infografía del concepto: «Recorrido del camino», grupos por superficie, la inferencia y el motivo', () => {
     const crit = v.criterios.find((c) => c.red === 'caminos' && /Reposici/.test(c.concepto))!
@@ -181,7 +251,10 @@ describe.skipIf(!hayEvidencias)('SRL Unidad Conchos · caminos', () => {
     expect(t).toContain('El 150 es una inferencia')
     const critT = v.criterios.find((c) => c.red === 'caminos' && /Terracer/.test(c.concepto))!
     const filasT = Object.keys(critT.porTramo).map(Number).map((f) => comprobarTramo(l, v.criterios, v.uniones, f, critT.indiceConcepto)!)
-    expect(textoVisible(htmlInfografiaConcepto(construirDatosConcepto(filasT, critT, ctx), ctx))).toContain('unidad sospechosa')
+    const tc = textoVisible(htmlInfografiaConcepto(construirDatosConcepto(filasT, critT, ctx), ctx))
+    expect(tc).toContain('Conservación de cunetas')
+    expect(tc).toContain('1 × L')
+    expect(tc).toContain('2 × L')
   })
   it('todos los tramos de caminos: ninguna infografía imprime palabras prohibidas', () => {
     for (const crit of v.criterios.filter((c) => c.red === 'caminos')) {
@@ -207,11 +280,11 @@ describe.skipIf(!carpetaM5 || !existsSync(path.join(carpetaM5, 'data.json')))('M
     expect(c.grupos.map((g) => [g.clave, g.n, g.siguen, g.formula]).sort()).toEqual([['Revestido', 6, 6, '150 × ancho × L'], ['Terracería', 21, 21, '150 × ancho × L']])
     expect(comp(308, 'caminos', /Reposici/)).toMatchObject({ recalculado: '900', enLibro: '900', estado: 'cuadra', grupo: 'Terracería', inferencia: true })
   })
-  it('caminos: conformación y rastreo 1 × L en 27/27; 310: 1 × 2.5 = 2.5 km; terracerías: no evaluable por unidad', () => {
+  it('caminos: conformación y rastreo 1 × L en 27/27; 310: 1 × 2.5 = 2.5 km; conservación de cunetas 1 × L = 2.5 km (una cuneta)', () => {
     expect(comp(310, 'caminos', /Conformaci/)).toMatchObject({ recalculado: '2.5', enLibro: '2.5', estado: 'cuadra' })
     expect(comp(310, 'caminos', /Rastreo/)).toMatchObject({ recalculado: '2.5', estado: 'cuadra' })
-    expect(comp(310, 'caminos', /Terracer/)).toMatchObject({ estado: 'no_evaluable', enLibro: '2.5' })
-    expect(comp(310, 'caminos', /Terracer/).motivo).toContain('unidad sospechosa: el valor equivale a 1·L expresados en km')
+    expect(comp(310, 'caminos', /Terracer/)).toMatchObject({ recalculado: '2.5', enLibro: '2.5', estado: 'cuadra', unidad: 'km', criterio: '1 × L' })
+    expect(comp(310, 'caminos', /Terracer/).diagrama).toMatchObject({ modo: 'camino-cunetas', cunetas: 1 })
   })
   it('M5 no tiene el «terracería: no lleva revestimiento» de la SRL: allí la terracería lleva 150 × ancho × L', () => {
     expect(comp(308, 'caminos', /Reposici/).controles.map((k) => k.titulo)).not.toContain('terracería: no lleva revestimiento')

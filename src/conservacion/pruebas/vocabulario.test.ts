@@ -75,9 +75,9 @@ describe('conceptos: grafías a canónico, rótulo intacto', () => {
     ['Terracerias', { bloque: 'RED DE DISTRIBUCION' }, 'Terracerías (descopete)'],
     ['Terracerías', { red: 'distribucion' }, 'Terracerías (descopete)'],
     ['TERRACERÍAS', { red: 'distribucion' }, 'Terracerías (descopete)'],
-    ['Terracerias', { red: 'caminos' }, 'Terracerías'],
+    ['Terracerias', { red: 'caminos' }, 'Conservación de cunetas'],
     ['Terracerias', { red: 'drenaje' }, 'Terracerías'],
-    ['Terracerías', { bloque: 'RED DE CAMINOS' }, 'Terracerías'],
+    ['Terracerías', { bloque: 'RED DE CAMINOS' }, 'Conservación de cunetas'],
     ['EXTRAC. PLANTAS ACUATICAS', {}, 'Extracción de plantas acuáticas'],
     ['EXTRACCIÓN DE PLANTAS ACUATICAS', {}, 'Extracción de plantas acuáticas'],
     ['Extracción de plantas acuaticas', {}, 'Extracción de plantas acuáticas'],
@@ -87,7 +87,7 @@ describe('conceptos: grafías a canónico, rótulo intacto', () => {
     ['Reparación revestimiento', {}, 'Reparación de revestimiento'],
     ['Conformación (col. DESAZOLVE)', { red: 'caminos' }, 'Conformación'],
     ['Rastreo (col. LIMPIA Y DESHIERBE)', { red: 'caminos' }, 'Rastreo'],
-    ['Terracerías (col. DESCOPETE BORDOS)', { red: 'caminos' }, 'Terracerías'],
+    ['Terracerías (col. DESCOPETE BORDOS)', { red: 'caminos' }, 'Conservación de cunetas'],
     ['Reposición revestimiento (col. REPARACIÓN DE REVESTIMIENTO)', { red: 'caminos' }, 'Reposición de revestimiento'],
   ]
   it.each(casos)('«%s» %j a «%s»', (rotulo, ctx, esperado) => {
@@ -122,7 +122,7 @@ describe('conceptos: grafías a canónico, rótulo intacto', () => {
       const v = nombreConcepto(n.concepto, { red: r, bloque: n.bloque })
       expect(v.rotuloLibro).toBe(n.concepto)
       expect(v.canonico.length).toBeGreaterThan(0)
-      if (/^RED DE CAMINOS/i.test(n.bloque) && /terracer/i.test(n.concepto)) expect(v.canonico).toBe('Terracerías')
+      if (/^RED DE CAMINOS/i.test(n.bloque) && /terracer/i.test(n.concepto)) expect(v.canonico).toBe('Conservación de cunetas')
       if (/^RED DE DISTRIBUCION/i.test(n.bloque) && /^terracer/i.test(n.concepto)) expect(v.canonico).toBe('Terracerías (descopete)')
     }
   })

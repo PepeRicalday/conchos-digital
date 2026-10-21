@@ -56,9 +56,9 @@ const Conservacion = () => {
     const irA = useCallback((v: Vista) => { const p = new URLSearchParams(params); p.set('vista', v); setParams(p, { replace: true }); }, [params, setParams]);
     const abrirHallazgos = useCallback((regla: string) => { setReglaFiltro(regla); irA('hallazgos'); }, [irA]);
     // «Ver en derivación»: lleva al tramo de DIAG-01 del PacOT de este informe (la derivación lo busca por hash o nombre de archivo).
-    const verEnDerivacion = useCallback((hoja: string, fila: number) => {
+    const verEnDerivacion = useCallback((hoja: string, fila: number, columna: string) => {
         const p = new URLSearchParams(params);
-        p.set('seccion', 'derivacion'); p.delete('vista'); p.set('hoja', hoja); p.set('fila', String(fila));
+        p.set('seccion', 'derivacion'); p.delete('vista'); p.set('hoja', hoja); p.set('fila', String(fila)); p.set('col', columna);
         if (archivo?.origen.archivoNombre) p.set('archivo', archivo.origen.archivoNombre); else p.delete('archivo');
         if (archivo?.origen.archivoSha256) p.set('sha', archivo.origen.archivoSha256); else p.delete('sha');
         setParams(p, { replace: true });

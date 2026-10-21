@@ -37,9 +37,9 @@ describe.skipIf(!hayEvidencias)('SRL Unidad Conchos · estructuras, ubicación y
   const { libro: l, vista } = hayEvidencias ? libroSrl() : ({} as ReturnType<typeof libroSrl>)
   const E = l?.fichas.estructuras ?? []
 
-  it('el extractor es v4 y el libro lo declara', () => {
-    expect(EXTRACTOR_VERSION).toBe(6)
-    expect(l.extractorVersion).toBe(6)
+  it('el extractor es v10 y el libro lo declara', () => {
+    expect(EXTRACTOR_VERSION).toBe(10)
+    expect(l.extractorVersion).toBe(10)
   })
 
   it('IO4: 385 estructuras leídas (filas 14 a 398, una por obra)', () => {

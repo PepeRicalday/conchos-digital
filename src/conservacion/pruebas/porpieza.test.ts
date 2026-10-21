@@ -11,7 +11,7 @@ import { extraerLibro } from '../derivacion/extraer'
 import type { LibroDerivado } from '../derivacion/tipos'
 import { CONCEPTOS, CONCEPTOS_PIEZA, conceptoPiezaDe } from '../derivacion/conceptos'
 import { confiabilidadEstructuras } from '../derivacion/estructuras'
-import { bloquesNoAplica, comprobarObrasPuntuales, opcionesDeGrupo, vistaDeGrupo, type ComprobacionPieza } from '../verificacion/porPieza'
+import { bloquesNoAplica, comprobarObrasPuntuales, contrasteNoAplica, opcionesDeGrupo, vistaDeGrupo, type ComprobacionPieza } from '../verificacion/porPieza'
 import { comprobarTramo } from '../verificacion/comprobacion'
 import { atipicosDelLibro, atipicosPorPieza } from '../verificacion/revision'
 import { verificarLibro } from '../verificacion/verificar'
@@ -53,7 +53,7 @@ describe.skipIf(!hayEvidencias)('SRL · obras puntuales (cuentas a mano)', () =>
     const c = por(l, 54)
     expect(c).toMatchObject({ reconstruida: '385', trabajo: '385', diferencia: '0', estadoCantidad: 'cuadra', estado: 'cuadra', modelo: 'por-pieza', dibujo: 'ficha-estructura', unidad: 'pza' })
     expect(c.fuenteReconstruccion).toContain('IO4')
-    expect(c.vinculoExterno).toBe('<<external>>!E79:E79')
+    expect(c.vinculoExterno).toMatch(/^(<<external>>!E79:E79|'\[\d+\]DNMACN'!E79)$/)
     expect(c.controles.find((k) => k.id === 'pieza-vinculo-externo')?.estado).toBe('informativo')
   })
 
@@ -105,11 +105,19 @@ describe.skipIf(!hayEvidencias)('SRL · obras puntuales (cuentas a mano)', () =>
     expect(c.grupos[0]!.piezas[0]).toMatchObject({ areaPredioM2: 2500, lat: 28.197586111 })
   })
 
-  it('comunicaciones, fila 61: sin hoja de inventario → no_evaluable con motivo; 7 × 1 = 7 y 7 × 1500 = 10 500', () => {
+  it('comunicaciones, fila 61: IO6 trae 7 equipos (7 radios) = 7 de 3DN → coherente; 7 × 1 = 7 y 7 × 1500 = 10 500', () => {
     const c = por(l, 61)
-    expect(c).toMatchObject({ reconstruida: null, estado: 'no_evaluable', dibujo: 'ninguno' })
-    expect(c.motivo).toContain('no es reconstruible')
+    expect(c).toMatchObject({ reconstruida: '7', trabajo: '7', diferencia: '0', estadoCantidad: 'cuadra', estado: 'cuadra', dibujo: 'ninguno' })
+    expect(c.fuenteReconstruccion).toContain('IO6')
     expect(c.cuentas.find((x) => x.id === 'importe')).toMatchObject({ resultado: '10500', estado: 'cuadra' })
+  })
+
+  it('presas, plantas y pozos de la SRL: 3DN no les da cantidad y sus hojas IO5a-d dicen NO APLICA → «declara», cero obras', () => {
+    const otras = l.fichas.otrasObras!
+    expect(otras.map((x) => [x.hoja, x.cantidad, x.noAplica])).toEqual([['IO5a', 0, true], ['IO5b', 0, true], ['IO5c', 0, true], ['IO5d', 0, true], ['IO6', 7, false]])
+    const cont = contrasteNoAplica(l)
+    expect(cont.map((x) => [x.hoja, x.estado]).sort()).toEqual([['IO5a', 'declara'], ['IO5b', 'declara'], ['IO5c', 'declara'], ['IO5d', 'declara']])
+    expect(cont.find((x) => x.hoja === 'IO5d')?.ref).toBe('IO5d!B16')
   })
 
   it('desagregación de la obra civil: 149 toma/entrega · 14 control · 42 cruce · 163 protección · 16 medición · 1 sin clasificar = 385; 21 ambiguas marcadas', () => {
@@ -224,11 +232,26 @@ describe.skipIf(!carpetaM5 || !existsSync(path.join(carpetaM5, 'data.json')))('M
     expect(c.estado).toBe('no_evaluable')
   })
 
-  it('pozos: 3DN trae 5 en la cantidad y 14 en la necesidad anual (5 × 1 ≠ 14) → atípico por la aritmética propia del libro', () => {
+  it('pozos: IO5d lista 14 (P1-05…P14-05) y 3DN trae 5 en la cantidad → atípico por inventario; además 5 × 1 ≠ 14 en la necesidad anual (14 = los pozos de IO5d)', () => {
+    const io5d = l.fichas.otrasObras!.find((x) => x.hoja === 'IO5d')!
+    expect(io5d).toMatchObject({ cantidad: 14, noAplica: false })
+    expect(io5d.obras[0]).toMatchObject({ inventario: 'P1-05', fila: 14 })
+    expect(io5d.obras[13]).toMatchObject({ inventario: 'P14-05' })
     const c = por(l, 22)
+    expect(c).toMatchObject({ reconstruida: '14', trabajo: '5', diferencia: '-9', estadoCantidad: 'atipico', estado: 'atipico' })
+    expect(c.fuenteReconstruccion).toContain('IO5d')
     expect(c.cuentas.find((x) => x.id === 'necesidad')).toMatchObject({ resultado: '5', enLibro: '14', estado: 'atipico' })
-    expect(c.estado).toBe('atipico')
-    expect(c.estadoCantidad).toBe('no_evaluable')
+  })
+
+  it('plantas de bombeo: IO5c lista 4 = 4 de 3DN → coherente; comunicaciones: IO6 trae 10 = 10 de 3DN → coherente', () => {
+    expect(por(l, 26)).toMatchObject({ reconstruida: '4', trabajo: '4', estadoCantidad: 'cuadra' })
+    expect(por(l, 61)).toMatchObject({ reconstruida: '10', trabajo: '10', estadoCantidad: 'cuadra' })
+  })
+
+  it('presas del M5: 3DN sin cantidad; IO5a (D40) e IO5b (D21) dicen NO APLICA', () => {
+    const cont = contrasteNoAplica(l)
+    expect(cont.find((x) => x.hoja === 'IO5a')).toMatchObject({ estado: 'declara', ref: 'IO5a!D40' })
+    expect(cont.find((x) => x.hoja === 'IO5b')).toMatchObject({ estado: 'declara', ref: 'IO5b!D21' })
   })
 
   it('Centro de revisión: aparecen la obra civil (conciliación) y los pozos (aritmética); no las compuertas ni los edificios', () => {

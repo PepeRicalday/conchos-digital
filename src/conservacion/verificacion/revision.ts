@@ -229,6 +229,24 @@ export function destinoDeFila(libro: LibroDerivado, ambito: string, fila: number
   return indice === null ? null : { ambito, red: u.tramo.red, indiceConcepto: indice, fila }
 }
 
+/** Letra de columna de una referencia `hoja!celda` (`DIAG-01!$I$55` → `I`); null si no es una celda. */
+function columnaDeRef(ref: string): string | null {
+  const m = /!\$?([A-Z]{1,3})\$?\d+$/.exec(ref.trim())
+  return m ? (m[1] ?? null) : null
+}
+
+/** Tramo de DIAG-01 abierto en el concepto cuya columna es la que cita el hallazgo; null si esa columna no es de un concepto con cálculo. */
+function destinoDeColumna(libro: LibroDerivado, ambito: string, fila: number, columna: string): DestinoTramo | null {
+  const v = verificarLibroCacheado(libro)
+  const u = v.uniones.uniones.find((x) => x.tramo.fila === fila)
+  if (!u) return null
+  const col = columna.toUpperCase()
+  const idx = u.tramo.conceptos.findIndex((c) => columnaDeRef(c.trabajo.ref) === col || columnaDeRef(c.parametrica.ref) === col)
+  if (idx < 0) return null
+  const crit = v.criterios.find((c) => c.red === u.tramo.red && c.indiceConcepto === idx && c.porTramo[fila] !== undefined)
+  return crit ? { ambito, red: u.tramo.red, indiceConcepto: idx, fila } : null
+}
+
 /** Diferencias de conteo IO4/IO1 que son de todo el PacOT y no de un tramo (no tienen «Abrir tramo»). */
 export function conciliacionesSinTramo(libro: LibroDerivado): number {
   return verificarLibroCacheado(libro).resultados.filter((r) => r.estado === 'atipico' && r.tramoFila === null && razonAtipicoDeId(r.id) === 'conciliacion').length
@@ -296,8 +314,12 @@ export type EnlaceHallazgo =
  * Qué abre un hallazgo cuya celda es `hoja!fila`: un tramo de DIAG-01 (la propia fila, o el tramo que usa esa ficha de IO1, IO2 o IO3)
  * o el concepto de 3DN en la cadena de cálculo. null si esa fila no corresponde a nada con cálculo en este libro.
  */
-export function resolverReferencia(libro: LibroDerivado, ambito: string, hoja: string, fila: number): EnlaceHallazgo | null {
-  if (hoja === 'DIAG-01') { const d = destinoDeFila(libro, ambito, fila); return d ? { tipo: 'tramo', destino: d } : null }
+export function resolverReferencia(libro: LibroDerivado, ambito: string, hoja: string, fila: number, columna?: string): EnlaceHallazgo | null {
+  if (hoja === 'DIAG-01') {
+    const c = columna === undefined ? null : destinoDeColumna(libro, ambito, fila, columna)
+    const d = c ?? destinoDeFila(libro, ambito, fila)
+    return d ? { tipo: 'tramo', destino: d } : null
+  }
   if (hoja === '3DN') {
     const n = libro.necesidades.find((x) => x.fila === fila)
     return n ? { tipo: 'concepto', bloque: n.bloque, concepto: n.concepto } : null

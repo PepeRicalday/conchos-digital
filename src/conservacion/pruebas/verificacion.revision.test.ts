@@ -117,6 +117,16 @@ describe.skipIf(!existsSync(path.join(carpetaSrl, 'data.json')))('SRL Unidad Con
     expect(resolverReferencia(l, 'SRL', '3DN', 999999)).toBeNull()
     expect(resolverReferencia(l, 'SRL', 'IO9', 1)).toBeNull()
   })
+  it('resolverReferencia con columna abre el concepto de esa columna de DIAG-01; una columna sin cálculo cae al primero del tramo', () => {
+    const u = verificarLibroCacheado(l).uniones.uniones.find((x) => x.tramo.fila === 55)!
+    const v = verificarLibroCacheado(l)
+    const idx = u.tramo.conceptos.findIndex((_c, i) => i > 0 && v.criterios.some((k) => k.red === u.tramo.red && k.indiceConcepto === i && k.porTramo[55] !== undefined))
+    if (idx > 0) {
+      const col = /!\$?([A-Z]+)\$?\d+$/.exec(u.tramo.conceptos[idx]!.trabajo.ref)![1]!
+      expect(resolverReferencia(l, 'SRL', 'DIAG-01', 55, col)).toMatchObject({ tipo: 'tramo', destino: { fila: 55, indiceConcepto: idx } })
+    }
+    expect(resolverReferencia(l, 'SRL', 'DIAG-01', 55, 'ZZ')).toEqual(resolverReferencia(l, 'SRL', 'DIAG-01', 55))
+  })
   it('destinoDeFila lleva al concepto en el que el tramo es atípico y devuelve null para una fila inexistente', () => {
     expect(destinoDeFila(l, 'SRL', 76)).toMatchObject({ fila: 76, red: 'distribucion' })
     expect(destinoDeFila(l, 'SRL', 999999)).toBeNull()

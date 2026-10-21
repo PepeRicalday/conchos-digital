@@ -9,9 +9,9 @@
  *  (d) desagrega la cantidad por familia y tipo del catálogo, marcando lo ambiguo y lo sin clasificar.
  *
  * Reglas duras: nunca «correcto»; ausente = S/D (nunca 0); las compuertas NUNCA se reparten entre las estructuras (IO4 no dice cuáles
- * tienen compuerta); los vínculos `<<external>>` de 3DN no se pueden abrir y se declaran. DIAG-02 no se lee todavía (P-13).
+ * tienen compuerta); los vínculos externos de 3DN (`<<external>>` o `'[n]Hoja'!celda`) no se pueden abrir y se declaran. DIAG-02 no se lee todavía (P-13).
  */
-import type { Cifra, EstadoUbicacion, Edificio, Estructura, LibroDerivado, NecesidadMedia } from '../derivacion/tipos'
+import type { Cifra, EstadoUbicacion, Edificio, Estructura, HojaOtraObra, InventarioOtraObra, LibroDerivado, NecesidadMedia } from '../derivacion/tipos'
 import { conceptoPiezaDe, type ConceptoPiezaDef, type KindPieza, type TipoDibujo } from '../derivacion/conceptos'
 import { confiabilidadEstructuras } from '../derivacion/estructuras'
 import { FAMILIAS, FAMILIA_POR_ID, INFO_TIPO, type FamiliaId } from '../estructuras/catalogo'
@@ -127,7 +127,7 @@ export interface ComprobacionPieza {
   /** Los grupos se pueden elegir como unidad de análisis (false en las compuertas: la proporción no es por estructura). */
   readonly gruposSeleccionables: boolean
   readonly totalPiezas: number | null
-  /** Vínculo `<<external>>` de la cantidad (E), p. ej. `<<external>>!E79:E79`; null si no hay. */
+  /** Vínculo externo de la cantidad (E), p. ej. `<<external>>!E79:E79` o `'[6]DNMACN'!E79`; null si no hay. */
   readonly vinculoExterno: string | null
   readonly notas: readonly string[]
   readonly refs: readonly string[]
@@ -144,8 +144,23 @@ const numero = (c: Cifra): number | null => {
 const cerca = (a: number, b: number): boolean => Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(a), Math.abs(b))
 const op = (simbolo: string): TokenEc => ({ origen: 'operador', simbolo })
 const dato = (origen: OrigenEntrada, valor: number | string, etiqueta: string, unidad?: string): TokenEc => ({ origen, valor: typeof valor === 'number' ? redondear(valor) : valor, etiqueta, ...(unidad ? { unidad } : {}) })
-const esExterno = (c: Cifra): boolean => c.formula !== null && c.formula.includes('<<external>>')
+/** Vínculo a otro libro: `<<external>>!E79` (lector antiguo) o `'[6]DNMACN'!E79` (lector actual, con el número del libro externo). */
+const VINCULO_EXTERNO = /<<external>>|\[\d+\][^!]*!/
+const esExterno = (c: Cifra): boolean => c.formula !== null && VINCULO_EXTERNO.test(c.formula)
 const titulo = (s: string): string => { const t = s.toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1) }
+
+/** Hoja de inventario que respalda cada bloque de 3DN que no es estructura ni edificio. */
+const HOJA_DE_BLOQUE: ReadonlyArray<readonly [RegExp, HojaOtraObra]> = [
+  [/^PRESAS\s+ALMACENAMIENTO/i, 'IO5a'], [/^PRESAS\s+DERIVADORAS/i, 'IO5b'], [/^PLANTAS\s+DE\s+BOMBEO/i, 'IO5c'], [/^POZOS/i, 'IO5d'], [/^RED\s+DE\s+COMUNICACI/i, 'IO6'],
+]
+export const hojaDeBloque = (bloque: string): HojaOtraObra | null => {
+  const b = bloque.normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
+  return HOJA_DE_BLOQUE.find(([re]) => re.test(b))?.[1] ?? null
+}
+const inventarioDe = (libro: LibroDerivado, bloque: string): InventarioOtraObra | undefined => {
+  const hoja = hojaDeBloque(bloque)
+  return hoja === null ? undefined : libro.fichas.otrasObras?.find((x) => x.hoja === hoja)
+}
 
 /* ───────────────────────────── desagregación ───────────────────────────── */
 
@@ -254,6 +269,14 @@ function aritmetica(n: NecesidadMedia, unidad: string): { cuentas: CuentaPieza[]
   return { cuentas, controles }
 }
 
+/** Cómo se llama lo que cuenta la hoja que respalda el concepto (para los rótulos de la cuenta). */
+function origenInventario(def: ConceptoPiezaDef, bloque: string): { plural: string; hoja: string } {
+  if (def.kind === 'edificios') return { plural: 'edificios', hoja: 'IO7' }
+  const hoja = hojaDeBloque(bloque)
+  if (hoja === null || (def.kind !== 'comunicaciones' && def.kind !== 'otras-obras')) return { plural: 'estructuras', hoja: 'IO4' }
+  return { plural: hoja === 'IO6' ? 'equipos de comunicación' : hoja === 'IO5d' ? 'pozos' : hoja === 'IO5c' ? 'plantas de bombeo' : 'presas', hoja }
+}
+
 interface Insumos {
   readonly n: NecesidadMedia
   readonly def: ConceptoPiezaDef
@@ -282,6 +305,7 @@ function construir({ n, def, libro, obraCivil }: Insumos): ComprobacionPieza {
   let grupos: GrupoPieza[] = []
   let totalPiezas: number | null = null
   let proporcion: ProporcionDeclarada | null = null
+  const origen = origenInventario(def, n.bloque)
 
   const est = libro.fichas.estructuras
   const edif = libro.fichas.edificios
@@ -310,9 +334,21 @@ function construir({ n, def, libro, obraCivil }: Insumos): ComprobacionPieza {
       fuente = `IO7 · ${edif.length} edificios`
     }
   } else {
-    motivo = def.kind === 'comunicaciones'
-      ? 'No se lee una hoja de inventario de comunicaciones: la cantidad del libro (un vínculo externo) no es reconstruible aquí.'
-      : 'No se lee un inventario de respaldo para estas obras: la cantidad del libro no es reconstruible aquí.'
+    const hoja = hojaDeBloque(n.bloque)
+    const inv = inventarioDe(libro, n.bloque)
+    if (inv === undefined) {
+      motivo = libro.fichas.otrasObras === undefined
+        ? 'El registro es anterior a la lectura v7: no trae las hojas IO5 e IO6. Actualice desde la carpeta.'
+        : `El libro no trae la hoja ${hoja ?? 'de inventario'} de estas obras: la cantidad no es reconstruible aquí.`
+    } else if (inv.cantidad > 0) {
+      reconstruida = inv.cantidad
+      fuente = `${inv.hoja} · ${redondear(inv.cantidad)} ${def.kind === 'comunicaciones' ? 'equipos' : inv.hoja === 'IO5d' ? 'pozos' : inv.hoja === 'IO5c' ? 'plantas' : 'presas'}`
+    } else if (inv.noAplica) {
+      reconstruida = 0
+      fuente = `${inv.hoja} · el formato dice NO APLICA (${inv.refNoAplica ?? inv.hoja}) y no trae obras`
+    } else {
+      motivo = `${inv.hoja} no trae ninguna obra y tampoco dice NO APLICA: la hoja está sin llenar, no se toma como cero.`
+    }
   }
 
   // La reconstrucción contra el inventario.
@@ -343,8 +379,8 @@ function construir({ n, def, libro, obraCivil }: Insumos): ComprobacionPieza {
     estadoCantidad = ok ? 'cuadra' : 'atipico'
     diferencia = redondear(Number((E - reconstruida).toFixed(9)))
     cuentas.push({
-      id: 'cantidad', titulo: def.kind === 'edificios' ? 'Cantidad: edificios del inventario' : 'Cantidad: estructuras del inventario', unidad, resultado: redondear(reconstruida), enLibro: redondear(E), refLibro: n.cantidadTrabajo.ref,
-      tokens: [dato('inventario', reconstruida, def.kind === 'edificios' ? 'edificios de IO7' : 'estructuras de IO4', unidad)], estado: ok ? 'cuadra' : 'atipico',
+      id: 'cantidad', titulo: `Cantidad: ${origen.plural} del inventario`, unidad, resultado: redondear(reconstruida), enLibro: redondear(E), refLibro: n.cantidadTrabajo.ref,
+      tokens: [dato('inventario', reconstruida, `${origen.plural} de ${origen.hoja}`, unidad)], estado: ok ? 'cuadra' : 'atipico',
     })
     controles.push({
       id: 'pieza-cantidad-inventario', base: 'integridad', estado: ok ? 'cuadra' : 'atipico',
@@ -367,7 +403,7 @@ function construir({ n, def, libro, obraCivil }: Insumos): ComprobacionPieza {
   if (ext.length > 0) {
     controles.push({
       id: 'pieza-vinculo-externo', base: 'integridad', estado: 'informativo', titulo: 'Los datos de 3DN vienen de un libro externo',
-      detalle: `La cantidad, la frecuencia y la necesidad anual son vínculos a otro libro (${vinculoExterno ?? '<<external>>'}); el comprobador no puede abrirlo y compara contra el valor guardado en este libro. El P.U. sí es un dato capturado (${n.pu.ref}).`,
+      detalle: `La cantidad, la frecuencia y la necesidad anual son vínculos a otro libro (${vinculoExterno ?? 'libro externo'}); el comprobador no puede abrirlo y compara contra el valor guardado en este libro. El P.U. sí es un dato capturado (${n.pu.ref}).`,
     })
   }
 
@@ -395,7 +431,7 @@ function construir({ n, def, libro, obraCivil }: Insumos): ComprobacionPieza {
   const hayAtipicoControl = controles.some((k) => k.estado === 'atipico')
   const estado: EstadoComp = estadoCantidad === 'atipico' || hayAtipicoControl ? 'atipico' : estadoCantidad === 'cuadra' ? 'cuadra' : 'no_evaluable'
   const entradas: EntradaComp[] = [
-    ...(reconstruida !== null && fuente !== null ? [{ etiqueta: def.kind === 'edificios' ? 'Edificios del inventario' : 'Estructuras del inventario', valor: redondear(reconstruida), unidad, origen: 'inventario' as const, ref: def.kind === 'edificios' ? 'IO7' : 'IO4' }] : []),
+    ...(reconstruida !== null && fuente !== null ? [{ etiqueta: `${titulo(origen.plural)} del inventario`, valor: redondear(reconstruida), unidad, origen: 'inventario' as const, ref: origen.hoja }] : []),
     { etiqueta: 'Cantidad de trabajo', valor: n.cantidadTrabajo.valor ?? 'S/D', unidad, origen: 'diagnostico', ref: n.cantidadTrabajo.ref },
     { etiqueta: 'Frecuencia', valor: n.frecuencia.valor ?? 'S/D', unidad: n.etiquetaFrecuencia ?? '', origen: 'parametro_libre', ref: n.frecuencia.ref },
     { etiqueta: 'Precio unitario', valor: n.pu.valor ?? 'S/D', unidad: `$/${unidad}`, origen: 'parametro_libre', ref: n.pu.ref },
@@ -436,6 +472,28 @@ export function bloquesNoAplica(libro: LibroDerivado): string[] {
     por.set(n.bloque, (por.get(n.bloque) ?? true) && numero(n.cantidadTrabajo) === null)
   }
   return [...por].filter(([, sinCantidad]) => sinCantidad).map(([b]) => titulo(b))
+}
+
+export interface ContrasteNoAplica {
+  readonly bloque: string
+  readonly hoja: HojaOtraObra | null
+  /** 'declara': la hoja dice NO APLICA; 'vacia': sin obras y sin decirlo; 'con_obras': la hoja SÍ trae obras aunque 3DN no les asigne cantidad; 'sin_hoja': no se leyó. */
+  readonly estado: 'declara' | 'vacia' | 'con_obras' | 'sin_hoja'
+  readonly obras: number
+  readonly ref: string | null
+}
+
+/** Para cada bloque que 3DN deja sin cantidad, qué dice su hoja de inventario (IO5a-d, IO6): confirma, o delata una obra sin presupuesto. */
+export function contrasteNoAplica(libro: LibroDerivado): ContrasteNoAplica[] {
+  const crudo = new Map<string, string>()
+  for (const n of libro.necesidades) if (conceptoPiezaDe(n.bloque, n.concepto) && !crudo.has(titulo(n.bloque))) crudo.set(titulo(n.bloque), n.bloque)
+  return bloquesNoAplica(libro).map((b) => {
+    const bloque = crudo.get(b) ?? b
+    const inv = inventarioDe(libro, bloque)
+    const hoja = hojaDeBloque(bloque)
+    if (inv === undefined) return { bloque: b, hoja, estado: 'sin_hoja' as const, obras: 0, ref: null }
+    return { bloque: b, hoja, estado: inv.cantidad > 0 ? 'con_obras' as const : inv.noAplica ? 'declara' as const : 'vacia' as const, obras: inv.cantidad, ref: inv.refNoAplica ?? inv.obras[0]?.ref ?? null }
+  })
 }
 
 /** Nombre del grupo elegido como unidad de análisis: `todo`, `fam:<id>` o `tipo:<clave>`. */

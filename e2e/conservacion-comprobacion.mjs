@@ -94,7 +94,7 @@ for (const nombre of sel === 'all' ? Object.keys(VPS) : [sel]) {
     }
   }
   const F = (c, f) => filasCam[`${c}|${f}`];
-  const rep = cam.find((c) => /Reposici/.test(c)), conf = cam.find((c) => /Conformaci/.test(c)), ter = cam.find((c) => /Terracer/.test(c)), ras = cam.find((c) => /Rastreo/.test(c));
+  const rep = cam.find((c) => /Reposici/.test(c)), conf = cam.find((c) => /Conformaci/.test(c)), ter = cam.find((c) => /cunetas/i.test(c)), ras = cam.find((c) => /Rastreo/.test(c));
   verifica(quien('Reposición f98: dibujo con ancho 6.00 m y espesor «(inferencia)»'), !!F(rep, 98)?.hayDibujo && /ancho 6\.00 m/.test(F(rep, 98).aria) && F(rep, 98).textosSvg.some((x) => /espesor 0\.15 m \(inferencia\)/.test(x.t)));
   verifica(quien('Reposición f98: ecuación 150 · 6 · 98.951 con los tres orígenes'), F(rep, 98)?.tokens.join(',') === 'parametro_libre,inventario,diagnostico' && /89[,.]055[.,]9/.test(F(rep, 98)?.resultado ?? ''), `${F(rep, 98)?.tokens} ${F(rep, 98)?.resultado}`);
   verifica(quien('Reposición f98: dice que el 150 es una inferencia'), /El 150 es una inferencia/.test(F(rep, 98)?.texto ?? ''));
@@ -106,7 +106,12 @@ for (const nombre of sel === 'all' ? Object.keys(VPS) : [sel]) {
     verifica(quien(`${nom} f98 y f102: dibujo y 1 × L`), !!F(c, 98)?.hayDibujo && !!F(c, 102)?.hayDibujo && F(c, 98).tokens.length === 2);
     verifica(quien(`${nom} f100: no evaluable por muestra insuficiente, sin dibujo`), !F(c, 100)?.hayDibujo && /Muestra insuficiente/.test(F(c, 100)?.motivo ?? ''), F(c, 100)?.motivo);
   }
-  for (const f of [98, 100, 102]) verifica(quien(`Terracerías f${f}: no evaluable por unidad sospechosa (sin convertir)`), !F(ter, f)?.hayDibujo && /unidad sospechosa: el valor equivale a 1·L y 2·L expresados en km/.test(F(ter, f)?.motivo ?? '') && F(ter, f).resultado === null);
+  // Conservación de cunetas (la «Terracerías» de 3DN en caminos): n.º de cunetas × L, en km de cuneta (1 = un lado, 2 = ambos).
+  for (const [f, res, cun] of [[98, '98.951', '1 cuneta'], [100, '197.902', '2 cunetas'], [102, '2.28', '1 cuneta']]) {
+    verifica(quien(`Cunetas f${f}: ${cun}, ${res} km, con dibujo, lectura en palabras y sin «unidad sospechosa»`),
+      !!F(ter, f)?.hayDibujo && (F(ter, f)?.resultado ?? '').replace(/\s/g, '') === res && F(ter, f).tokens.join(',') === 'parametro_libre,diagnostico'
+      && F(ter, f).textosSvg.some((x) => x.t.startsWith(cun)) && /en palabras/i.test(F(ter, f).texto ?? '') && !/unidad sospechosa/.test(F(ter, f).texto ?? ''), `${F(ter, f)?.resultado} ${F(ter, f)?.tokens}`);
+  }
   await page.selectOption('#cons-comp-con', { index: cam.indexOf(rep) }); await page.selectOption('#cons-comp-tramo', '98'); await page.waitForTimeout(300);
   await page.locator('.cons-comp-ficha').screenshot({ path: fileURLToPath(new URL(`comprobacion_${nombre}_camino_reposicion.png`, OUT)) });
   await page.selectOption('#cons-comp-tramo', '100'); await page.waitForTimeout(300);

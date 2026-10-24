@@ -232,7 +232,7 @@ Deno.serve(async (req) => {
     // Autorización: la función escribe con service role y gasta cuota de Copernicus,
     // y la anon key es pública. Pasa solo (a) el cron, con el secreto compartido de
     // public.cron_secretos (cabecera x-cron-secret), o (b) un usuario con sesión
-    // real de la app (JWT de usuario; la anon key no es un usuario y se rechaza).
+    // real de la app con rol SRL (la anon key no es un usuario y se rechaza).
     const secretoCron = req.headers.get("x-cron-secret");
     let autorizado = false;
     if (secretoCron) {
@@ -242,8 +242,12 @@ Deno.serve(async (req) => {
     if (!autorizado) {
       const jwt = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
       if (jwt) {
-        const { data: u } = await supabase.auth.getUser(jwt);
-        autorizado = !!u?.user?.id;
+        // Mismo criterio que process-hydric-doc: solo rol SRL; cualquier error de auth o de perfil = no autorizado.
+        const { data: u, error: eUser } = await supabase.auth.getUser(jwt);
+        if (!eUser && u?.user?.id) {
+          const { data: perfil, error: ePerfil } = await supabase.from("perfiles_usuario").select("rol").eq("id", u.user.id).maybeSingle();
+          autorizado = !ePerfil && perfil?.rol === "SRL";
+        }
       }
     }
     if (!autorizado) return json({ error: "No autorizado" }, 401);

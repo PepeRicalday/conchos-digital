@@ -40,8 +40,10 @@ export default function NdviGraficaPrincipal({ filas, meses, mesReferencia }: Pr
         return () => ro.disconnect();
     }, []);
 
-    const params = useMemo(() => ({ vista, anio, modulo, filas, aniosDisponibles: anios, ultimoMesSerie: ultimoMes, angosto: ancho < 560, reducirMovimiento: reducir }),
-        [vista, anio, modulo, filas, anios, ultimoMes, ancho, reducir]);
+    // Mismo clamp que .ndvi-gr-echarts en NdviGrafica.css (320px, 50vw, 460px): el alto sirve para separar las etiquetas finales.
+    const altoPx = Math.min(460, Math.max(320, Math.round(window.innerWidth * 0.5)));
+    const params = useMemo(() => ({ vista, anio, modulo, filas, aniosDisponibles: anios, ultimoMesSerie: ultimoMes, angosto: ancho < 560, reducirMovimiento: reducir, altoPx }),
+        [vista, anio, modulo, filas, anios, ultimoMes, ancho, reducir, altoPx]);
     const opcion = useMemo(() => opcionGraficaPrincipal(params), [params]);
     const tabla = useMemo(() => seriesDeGrafica(params), [params]);
     const hasta = ultimoIdxMedido(anio, ultimoMes);

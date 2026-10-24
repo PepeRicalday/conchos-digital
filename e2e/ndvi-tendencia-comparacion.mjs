@@ -170,7 +170,8 @@ for (const P of PERFILES.filter(() => !SALTAR.includes('perfiles'))) {
     if (/porque|debido a|causa de|por culpa/i.test(titular)) hallazgo('alto', D, 'el titular afirma causa');
     await gr.getByRole('radio', { name: String(ANIO), exact: true }).click(); await page.waitForTimeout(300);
     // vista Comparar años: promedio SRL y cada módulo
-    await gr.getByRole('radio', { name: 'Comparar años' }).click(); await page.waitForTimeout(600);
+    // Espera a que termine la animación de ECharts: una captura a medio dibujo muestra líneas truncadas y etiquetas fuera de lugar.
+    await gr.getByRole('radio', { name: 'Comparar años' }).click(); await page.waitForTimeout(1800);
     await foto('04_grafica_comparar_srl', gr);
     for (const m of ['M1', 'M2', 'M3', 'M4', 'M5', 'M12']) {
       await gr.getByRole('radio', { name: new RegExp(`^${m}$|Módulo ${m.slice(1)}$`) }).click();

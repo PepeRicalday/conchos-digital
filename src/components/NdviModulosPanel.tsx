@@ -210,15 +210,18 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
                             >
                                 <FileText size={14} /> Informe institucional
                             </button>
-                            <button
-                                type="button"
-                                className="vaso-header-3d-btn"
-                                onClick={sincronizarAhora}
-                                disabled={sincronizando}
-                                title="Calcular el último mes cerrado con la serie 2021–2026 (mediana y máscara de nubes), sin esperar al cron del día 3"
-                            >
-                                <RefreshCw size={14} className={sincronizando ? 'ndvi-spin' : ''} /> {sincronizando ? 'Actualizando…' : 'Actualizar ahora'}
-                            </button>
+                            {/* La función de cálculo exige rol SRL (usa cuota de Copernicus y escribe en la BD): al resto no se le ofrece. */}
+                            {profile?.rol === 'SRL' && (
+                                <button
+                                    type="button"
+                                    className="vaso-header-3d-btn"
+                                    onClick={sincronizarAhora}
+                                    disabled={sincronizando}
+                                    title="Calcular el último mes cerrado con la serie 2021–2026 (mediana y máscara de nubes), sin esperar al cron del día 3"
+                                >
+                                    <RefreshCw size={14} className={sincronizando ? 'ndvi-spin' : ''} /> {sincronizando ? 'Actualizando…' : 'Actualizar ahora'}
+                                </button>
+                            )}
                             <button type="button" className="vaso-close" onClick={onClose} aria-label="Cerrar NDVI mensual por módulo">×</button>
                         </div>
                     </header>

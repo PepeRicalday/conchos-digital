@@ -59,6 +59,41 @@ function areaAprox(a: Anillo): number {
 }
 
 /**
+ * Separa rótulos rectangulares (centro x,y; ancho w; alto h) que se pisan: el centro de la caja envolvente de
+ * módulos vecinos y alargados cae muy cerca (M3/M4, M2/M12). Empuja cada par solapado por el eje de menor
+ * solape (a ambos lados por igual) hasta que no haya solapes o se agoten las pasadas, y mantiene cada
+ * rótulo dentro del lienzo. Determinista y sin dependencias.
+ */
+export function separarRotulos(cajas: { x: number; y: number; w: number; h: number }[], ancho: number, alto: number, holgura = 3): { x: number; y: number }[] {
+    const p = cajas.map((c) => ({ x: c.x, y: c.y }));
+    for (let pasada = 0; pasada < 60; pasada++) {
+        let hubo = false;
+        for (let i = 0; i < cajas.length; i++) {
+            for (let j = i + 1; j < cajas.length; j++) {
+                const dx = p[j].x - p[i].x, dy = p[j].y - p[i].y;
+                const solX = (cajas[i].w + cajas[j].w) / 2 + holgura - Math.abs(dx);
+                const solY = (cajas[i].h + cajas[j].h) / 2 + holgura - Math.abs(dy);
+                if (solX <= 0 || solY <= 0) continue;
+                hubo = true;
+                if (solY <= solX) {
+                    const m = solY / 2 + 0.5, s = dy >= 0 ? 1 : -1;
+                    p[i].y -= s * m; p[j].y += s * m;
+                } else {
+                    const m = solX / 2 + 0.5, s = dx >= 0 ? 1 : -1;
+                    p[i].x -= s * m; p[j].x += s * m;
+                }
+            }
+        }
+        for (let i = 0; i < p.length; i++) {
+            p[i].x = Math.min(ancho - cajas[i].w / 2, Math.max(cajas[i].w / 2, p[i].x));
+            p[i].y = Math.min(alto - cajas[i].h / 2 - 22, Math.max(cajas[i].h / 2 + 4, p[i].y));
+        }
+        if (!hubo) break;
+    }
+    return p;
+}
+
+/**
  * Plano general con relleno opaco por clase NDVI, leyenda de escala (barra km), flecha de norte y fuente.
  * Devuelve '' si no hay contornos (el HTML muestra entonces un aviso, no un hueco silencioso).
  */
@@ -73,11 +108,19 @@ export function planoSvg(modulos: ModuloInforme[], contornos: Contornos, w = 520
     const py = (lat: number) => offY + (bb.maxLat - lat) * escala;
     const trazo = (a: Anillo) => `M${a.map(([lon, lat]) => `${f1(px(lon))},${f1(py(lat))}`).join('L')}Z`;
 
-    const piezas = modulos.filter((m) => contornos[m.numero]?.length).map((m) => {
-        const anillos = contornos[m.numero];
-        const principal = anillos.reduce((a, b) => (areaAprox(b) > areaAprox(a) ? b : a));
+    const conContorno = modulos.filter((m) => contornos[m.numero]?.length);
+    const anclas = conContorno.map((m) => {
+        const principal = contornos[m.numero].reduce((a, b) => (areaAprox(b) > areaAprox(a) ? b : a));
         const lons = principal.map(([lon]) => lon), lats = principal.map(([, lat]) => lat);
-        const cx = px((Math.min(...lons) + Math.max(...lons)) / 2), cy = py((Math.min(...lats) + Math.max(...lats)) / 2);
+        return {
+            x: px((Math.min(...lons) + Math.max(...lons)) / 2), y: py((Math.min(...lats) + Math.max(...lats)) / 2),
+            w: Math.max(40, m.nombre.length * 7.8), h: 36,
+        };
+    });
+    const rotulos = separarRotulos(anclas, w, h);
+    const piezas = conContorno.map((m, idx) => {
+        const anillos = contornos[m.numero];
+        const cx = rotulos[idx].x, cy = rotulos[idx].y;
         const fill = m.ndvi != null ? colorNdvi(m.ndvi) : 'url(#sd-hach)';
         return {
             path: `<path d="${anillos.map(trazo).join(' ')}" fill-rule="evenodd" fill="${fill}" stroke="#ffffff" stroke-width="1.4"/>`,

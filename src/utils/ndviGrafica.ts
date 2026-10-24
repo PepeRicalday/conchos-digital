@@ -93,6 +93,8 @@ export interface ParamsGrafica {
     ultimoMesSerie: string;
     angosto: boolean;
     reducirMovimiento: boolean;
+    /** Alto del gráfico en px (para separar etiquetas finales); sin dato se asume 380. */
+    altoPx?: number;
 }
 
 export interface SerieTabla { nombre: string; valores: (number | null)[] }
@@ -155,14 +157,48 @@ export function titularDeAnomalias(sujeto: string, anio: number, todas: Pick<Ano
 export const CAUTELA_TITULAR =
     'Lectura descriptiva de la vegetación en la frontera del módulo: no se explica solo por el volumen entregado y puede reflejar la programación del riego, el cierre del ciclo el 29 de septiembre o más pasos de satélite.';
 
+/**
+ * Desplazamiento vertical (px, + = hacia abajo) de cada etiqueta final para que no se pisen.
+ * El `moveOverlap` de ECharts no separa etiquetas de series distintas cuando los valores casi coinciden
+ * (en la vista de años 2021 y 2024 terminaban a 0.42 y se encimaban). Aquí cada valor se pasa a píxeles,
+ * se ordena y se empuja hasta dejar `gapPx` entre vecinas, repartiendo el empuje a ambos lados.
+ * `null` (serie sin dato) no ocupa lugar y recibe 0.
+ */
+export function separarEtiquetasFinales(ultimos: (number | null)[], rango: readonly [number, number], altoPlotPx: number, gapPx = 15): number[] {
+    const [lo, hi] = rango;
+    const aPx = (v: number) => ((hi - v) / (hi - lo)) * altoPlotPx;
+    const items = ultimos.map((v, i) => ({ i, y: v == null || !Number.isFinite(v) ? null : aPx(v) })).filter((x): x is { i: number; y: number } => x.y != null).sort((a, b) => a.y - b.y);
+    const pos = items.map((x) => x.y);
+    for (let k = 1; k < pos.length; k++) if (pos[k] - pos[k - 1] < gapPx) pos[k] = pos[k - 1] + gapPx;
+    // Si el empuje hacia abajo desplazó a todo el grupo, se recentra sobre su posición original (sin salirse del plot).
+    if (pos.length) {
+        const deriva = pos.reduce((a, y, k) => a + (y - items[k].y), 0) / pos.length;
+        let corr = -deriva;
+        if (pos[pos.length - 1] + corr > altoPlotPx) corr = altoPlotPx - pos[pos.length - 1];
+        if (pos[0] + corr < 0) corr = -pos[0]; // si el grupo no cabe, manda el borde superior
+        for (let k = 0; k < pos.length; k++) pos[k] += corr;
+    }
+    const out = ultimos.map(() => 0);
+    items.forEach((x, k) => { out[x.i] = pos[k] - x.y; });
+    return out;
+}
+
+const ultimoValido = (v: (number | null)[]): number | null => {
+    for (let i = v.length - 1; i >= 0; i--) if (v[i] != null) return v[i];
+    return null;
+};
+
 /** Opción de ECharts de la gráfica principal. */
 export function opcionGraficaPrincipal(p: ParamsGrafica): Record<string, unknown> {
     const texto = '#cbd5e1';
     const hasta = ultimoIdxMedido(p.anio, p.ultimoMesSerie);
     const tabla = seriesDeGrafica(p);
     const previos = p.aniosDisponibles.filter((a) => a !== p.anio);
+    // Alto útil del área de trazado (alto del gráfico menos márgenes superior e inferior del grid).
+    const altoPlot = Math.max(120, (p.altoPx ?? 380) - (p.angosto ? 78 : 44) - 30);
+    const dy = separarEtiquetasFinales(tabla.map((s) => ultimoValido(s.valores)), NDVI_RANGO, altoPlot);
 
-    const series: Record<string, unknown>[] = tabla.map((s) => {
+    const series: Record<string, unknown>[] = tabla.map((s, idx) => {
         if (p.vista === 'anio') {
             const esProm = s.nombre === 'Promedio SRL';
             const m = esProm ? 0 : Number(s.nombre.replace('Módulo ', ''));
@@ -172,7 +208,7 @@ export function opcionGraficaPrincipal(p: ParamsGrafica): Record<string, unknown
                 symbol: esProm ? 'none' : SIMBOLO_MODULO[m], symbolSize: esProm ? 0 : 8,
                 lineStyle: { width: 2, color, type: esProm ? 'dashed' : 'solid' }, itemStyle: { color },
                 z: esProm ? 6 : 3,
-                endLabel: p.angosto ? { show: false } : { show: true, formatter: esProm ? 'SRL' : `M${m}`, color: texto, fontSize: 12, fontWeight: 700 },
+                endLabel: p.angosto ? { show: false } : { show: true, formatter: esProm ? 'SRL' : `M${m}`, color: texto, fontSize: 12, fontWeight: 700, offset: [0, dy[idx]] },
                 labelLayout: { moveOverlap: 'shiftY' },
             };
         }
@@ -183,7 +219,7 @@ export function opcionGraficaPrincipal(p: ParamsGrafica): Record<string, unknown
             name: s.nombre, type: 'line', connectNulls: false, data: s.valores, symbol: foco ? 'circle' : SIMBOLOS_ANIO[(previos.indexOf(a) + 1) % SIMBOLOS_ANIO.length], symbolSize: foco ? 9 : 7,
             lineStyle: { width: foco ? 4 : 1.8, color }, itemStyle: { color, borderColor: foco ? '#0f172a' : undefined, borderWidth: foco ? 2 : 0 },
             z: foco ? 6 : 3,
-            endLabel: p.angosto ? { show: false } : { show: true, formatter: '{a}', color: foco ? COLOR_ANIO_FOCO : texto, fontSize: 12, fontWeight: foco ? 700 : 400 },
+            endLabel: p.angosto ? { show: false } : { show: true, formatter: '{a}', color: foco ? COLOR_ANIO_FOCO : texto, fontSize: 12, fontWeight: foco ? 700 : 400, offset: [0, dy[idx]] },
             labelLayout: { moveOverlap: 'shiftY' },
         };
     });

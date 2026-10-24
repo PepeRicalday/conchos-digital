@@ -229,10 +229,30 @@ Deno.serve(async (req) => {
     if (!SUPABASE_URL || !SERVICE_ROLE) return json({ error: "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY no configurados" }, 500);
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+    // Autorización: la función escribe con service role y gasta cuota de Copernicus,
+    // y la anon key es pública. Pasa solo (a) el cron, con el secreto compartido de
+    // public.cron_secretos (cabecera x-cron-secret), o (b) un usuario con sesión
+    // real de la app (JWT de usuario; la anon key no es un usuario y se rechaza).
+    const secretoCron = req.headers.get("x-cron-secret");
+    let autorizado = false;
+    if (secretoCron) {
+      const { data: s } = await supabase.from("cron_secretos").select("valor").eq("nombre", "ndvi_sync_v2").maybeSingle();
+      autorizado = !!s?.valor && s.valor === secretoCron;
+    }
+    if (!autorizado) {
+      const jwt = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+      if (jwt) {
+        const { data: u } = await supabase.auth.getUser(jwt);
+        autorizado = !!u?.user?.id;
+      }
+    }
+    if (!autorizado) return json({ error: "No autorizado" }, 401);
+
     const body = await req.json().catch(() => ({}));
     const dryRun = body?.dry_run === true;
     const moduloParam: number | undefined = Number.isFinite(Number(body?.numero_modulo)) ? Number(body.numero_modulo) : undefined;
-    const resolucionSolicitada = Number.isFinite(Number(body?.resolucion_m)) && Number(body.resolucion_m) >= 10 ? Number(body.resolucion_m) : RESOLUCION_DEFECTO_M;
+    // Resolución acotada: por debajo de 10 m no hay información nueva y por encima de 60 m se pierde el borde del módulo.
+    const resolucionSolicitada = Number.isFinite(Number(body?.resolucion_m)) ? Math.min(60, Math.max(10, Number(body.resolucion_m))) : RESOLUCION_DEFECTO_M;
 
     const modulosAProcesar = moduloParam !== undefined ? [moduloParam] : Object.keys(MODULOS_SRL_GEOMETRY).map(Number);
     const invalidos = modulosAProcesar.filter((m) => !(m in MODULOS_SRL_GEOMETRY));
@@ -241,11 +261,18 @@ Deno.serve(async (req) => {
     // Ventana: mes calendario explícito, o mes calendario anterior (cron).
     let inicio: Date, fin: Date, mes: string;
     const mesParam: string | undefined = body?.mes;
-    if (mesParam && /^\d{4}-\d{2}$/.test(mesParam)) {
-      const [anio, mesNum] = mesParam.split("-").map(Number);
+    if (mesParam !== undefined && mesParam !== null) {
+      // Mes válido (01–12), desde el inicio de la serie Sentinel-2 L2A usada (2021-03) y ya cerrado.
+      const ok = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(mesParam));
+      const [anio, mesNum] = ok ? String(mesParam).split("-").map(Number) : [0, 0];
+      const hoyUtc = new Date();
+      const primeroMesActual = Date.UTC(hoyUtc.getUTCFullYear(), hoyUtc.getUTCMonth(), 1);
+      if (!ok || Date.UTC(anio, mesNum - 1, 1) < Date.UTC(2021, 2, 1) || Date.UTC(anio, mesNum - 1, 1) >= primeroMesActual) {
+        return json({ error: "mes inválido: usa AAAA-MM entre 2021-03 y el último mes cerrado" }, 400);
+      }
       inicio = new Date(Date.UTC(anio, mesNum - 1, 1));
       fin = new Date(Date.UTC(anio, mesNum, 1));
-      mes = mesParam;
+      mes = String(mesParam);
     } else {
       const hoy = new Date();
       fin = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1));

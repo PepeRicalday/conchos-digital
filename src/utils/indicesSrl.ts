@@ -2,7 +2,7 @@
 // ÍNDICES INSTITUCIONALES SRL — Fase 1 (ICV, IHR, IEHP)
 // ---------------------------------------------------------------------------
 // Tres indicadores 0-100 (más el IEHP, que no es 0-100 sino ha/hm³) derivados
-// de ndvi_modulo_historico + entregas_modulo — mismo espíritu que
+// de ndvi_modulo_mensual_v2 (mediana con máscara de nubes) + volumen provisional — mismo espíritu que
 // src/utils/indicesAgro.ts (ICA/IDR/IRO/IHE): fórmula explícita, procedencia
 // declarada, "S/D" cuando falta un insumo, nunca un 0 que se lea como
 // "condición nula".
@@ -37,6 +37,13 @@ const clamp = (v: number) => Math.max(0, Math.min(100, v));
 // cultivo, 0.75 ≈ vigor pleno típico de los cultivos del DR-005. Referencia
 // agronómica estándar, no un máximo histórico observado — mismo criterio de
 // "constante declarada" que ETO_MAX_REF en indicesAgro.ts.
+//
+// Relación con la rampa de clases (ndviRampa.ts: cortes 0.15 / 0.30 / 0.50 / 0.70): son escalas DISTINTAS y no se alinean
+// a propósito. La rampa clasifica el vigor para el mapa; el ICV es una nota 0-100 continua cuyos cortes de etiqueta
+// (25/50/75) caen en NDVI 0.26 / 0.43 / 0.59. Alinear el ICV a la rampa cambiaría retroactivamente todas las cifras
+// institucionales ya publicadas (informes, fichas) sin una razón estadística: con la serie v2 la media de temporada de
+// cada módulo ronda 0.30-0.55 y el piso 0.10 / techo 0.75 siguen acotando bien. Por eso se conservan; la entrada es la
+// MEDIANA mensual v2 (robusta a nubes residuales), no la media de 30 días de la serie anterior.
 export const NDVI_PISO = 0.10;
 export const NDVI_TECHO = 0.75;
 
@@ -48,7 +55,7 @@ export const NDVI_UMBRAL_ACTIVO = 0.30;
 export interface EntradaModuloSrl {
     numeroModulo: number;
     nombreModulo: string;
-    /** NDVI medio del mes más reciente con dato. */
+    /** NDVI representativo del mes (mediana v2) del mes más reciente con dato. */
     ndviMedio: number | null;
     /** Desviación estándar del NDVI del mismo mes (dispersión espacial). */
     ndviDesv: number | null;
@@ -73,7 +80,7 @@ export function calcICV(e: EntradaModuloSrl): IndiceSrl {
         descripcion: 'Vigor vegetativo del módulo',
         unidad: '/100',
         formula: `ICV = 100 × clamp((NDVI − ${NDVI_PISO}) / (${NDVI_TECHO} − ${NDVI_PISO}), 0, 1)`,
-        procedencia: 'NDVI medio mensual (Sentinel-2, polígono exacto del módulo) — ndvi_modulo_historico',
+        procedencia: 'NDVI mensual = mediana con máscara de nubes (Sentinel-2, polígono exacto del módulo) — ndvi_modulo_mensual_v2',
         implicacion: '',
     };
     if (e.ndviMedio == null) {
@@ -100,7 +107,7 @@ export function calcIHR(e: EntradaModuloSrl): IndiceSrl {
         descripcion: 'Uniformidad espacial del vigor vegetativo',
         unidad: '/100',
         formula: 'IHR = 100 × clamp(1 − ndvi_desv / ndvi_medio, 0, 1)',
-        procedencia: 'Desviación estándar y media del NDVI dentro del polígono del módulo — ndvi_modulo_historico',
+        procedencia: 'Desviación estándar de los píxeles válidos y mediana del NDVI dentro del polígono del módulo — ndvi_modulo_mensual_v2',
         implicacion: '',
     };
     if (e.ndviMedio == null || e.ndviDesv == null || e.ndviMedio <= 0.05) {
@@ -131,7 +138,7 @@ export function calcIEHP(e: EntradaModuloSrl): IndiceSrl {
         descripcion: 'Hectáreas activas por volumen entregado',
         unidad: 'ha/hm³',
         formula: `ha_activas = superficie_ha × fracción(NDVI≥${NDVI_UMBRAL_ACTIVO}) · IEHP = ha_activas / hm³_entregados_acumulado_ciclo`,
-        procedencia: 'superficie_ha y fraccion_cobertura_activa del mes más reciente (ndvi_modulo_historico) · volumen acumulado marzo→mes actual (entregas_modulo)',
+        procedencia: 'superficie_ha y fraccion_cobertura_activa del mes más reciente (ndvi_modulo_mensual_v2) · volumen acumulado marzo→mes actual (entregas_modulo)',
         implicacion: '',
     };
     if (e.superficieHa == null || e.fraccionCoberturaActiva == null) {

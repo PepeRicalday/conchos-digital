@@ -4,15 +4,19 @@
  * Mismo patrón que informeHistoricoConfig.ts. La ventana "Configurar informe" solo edita este objeto.
  */
 import { MODULOS_SRL_IDS } from './modulosSRL';
+import { mesLegible } from './informeBase';
+import type { FilaNdviV2 } from './ndviInteranual';
+import { validarInteranual, type ConfigInteranual } from './informeNdviInteranual';
 
 export type SeccionNdvi = 'portada' | 'resumen' | 'plano' | 'fichas' | 'analisis' | 'serie' | 'anexo' | 'metodologia';
 export type IndicadorNdvi = 'kc' | 'icv' | 'ihr' | 'iehp'; // el NDVI siempre se incluye
 export type PresetPeriodo = 'mesRef' | 'ultimos3' | 'ciclo' | 'mitad1' | 'mitad2' | 'personalizado';
 export type BasePromedio = 'simple' | 'ponderado';
 export type Hoja = 'letter' | 'a4';
-/** Resumen = informe de siempre; Tendencia = pendiente/pico/estabilidad por módulo; Comparativo = A contra B. */
-export type ModoNdvi = 'resumen' | 'tendencia' | 'comparativo';
-/** Mes contra mes y periodo A contra B (dentro del ciclo) · módulo contra módulo · módulo contra el promedio SRL. */
+/** Resumen = informe de siempre; Tendencia = anomalía del periodo contra otros años + evolución año a año por módulo; Comparativo = A contra B;
+ *  Interanual = un año contra los demás (serie v2 marzo–septiembre + superficie/volumen), informe aparte. */
+export type ModoNdvi = 'resumen' | 'tendencia' | 'comparativo' | 'interanual';
+/** Mes contra mes y periodo A contra B (pueden ser de años distintos) · módulo contra módulo · módulo contra el promedio de los demás. */
 export type TipoComparacion = 'mesVsMes' | 'periodos' | 'modulos' | 'vsSRL';
 export interface RangoMes { desde: string; hasta: string }
 export interface ConfigComparacion {
@@ -38,6 +42,8 @@ export interface ConfigInformeNdvi {
     hoja: Hoja;
     modo: ModoNdvi;
     comparacion: ConfigComparacion;
+    /** Solo modo interanual: años a comparar (el último es el año de interés). */
+    interanual?: ConfigInteranual;
 }
 
 export const SECCIONES_NDVI: { id: SeccionNdvi; etiqueta: string; pagina: 'A' | 'B' | 'C' | 'D' | 'E' }[] = [
@@ -81,17 +87,39 @@ export function rangoDePreset(preset: Exclude<PresetPeriodo, 'personalizado'>, m
     const ult = meses[n - 1];
     if (preset === 'mesRef') return { desde: ult, hasta: ult };
     if (preset === 'ultimos3') return { desde: meses[Math.max(0, n - 3)], hasta: ult };
-    if (preset === 'ciclo') return { desde: meses[0], hasta: ult };
-    const mitad = Math.ceil(n / 2);
-    if (preset === 'mitad1') return { desde: meses[0], hasta: meses[mitad - 1] };
-    return { desde: meses[Math.min(mitad, n - 1)], hasta: ult }; // mitad2
+    if (preset === 'ciclo') {
+        // Un ciclo agrícola corre de marzo a septiembre: con varios años en la serie, "ciclo" es solo el del último mes
+        // (nunca arrastra octubre–febrero ni ciclos anteriores).
+        const ini = inicioCiclo(ult);
+        const delCiclo = meses.filter((m) => m >= ini);
+        return { desde: delCiclo[0] ?? meses[0], hasta: ult };
+    }
+    // Las mitades son del ciclo del último mes (con varios años, "primera mitad de toda la serie" no tendría sentido).
+    const ciclo = meses.filter((m) => m >= inicioCiclo(ult));
+    const base = ciclo.length ? ciclo : meses;
+    const mitad = Math.ceil(base.length / 2);
+    if (preset === 'mitad1') return { desde: base[0], hasta: base[mitad - 1] };
+    return { desde: base[Math.min(mitad, base.length - 1)], hasta: ult }; // mitad2
 }
 
-/** Comparación por defecto: primera mitad contra segunda mitad del ciclo (lo más útil con un solo ciclo). */
+/** Mismo rango de meses, `n` años después (negativo = antes): '2026-03'..'2026-09' con -1 → '2025-03'..'2025-09'. */
+export function desplazaAnios(r: RangoMes, n: number): RangoMes {
+    const mueve = (m: string) => (/^\d{4}-\d{2}/.test(m) ? `${Number(m.slice(0, 4)) + n}${m.slice(4, 7)}` : m);
+    return { desde: mueve(r.desde), hasta: mueve(r.hasta) };
+}
+
+/**
+ * Comparación por defecto: el ciclo actual contra el MISMO periodo del año anterior (misma estación, así la diferencia no
+ * es fenología). Sin ese año en la serie, cae a primera contra segunda mitad del ciclo (dentro de un solo año).
+ * A = referencia (anterior), B = el periodo más reciente; la diferencia se lee B − A.
+ */
 export function comparacionPorDefecto(meses: string[]): ConfigComparacion {
-    const a = rangoDePreset('mitad1', meses) ?? { desde: '', hasta: '' };
-    const b = rangoDePreset('mitad2', meses) ?? { desde: '', hasta: '' };
-    return { tipo: 'periodos', a, b, moduloA: MODULOS_SRL_IDS[0], moduloB: MODULOS_SRL_IDS[1] };
+    const b = rangoDePreset('ciclo', meses) ?? { desde: '', hasta: '' };
+    const a = b.desde ? desplazaAnios(b, -1) : { desde: '', hasta: '' };
+    const hayAnterior = !!a.desde && meses.some((m) => m >= a.desde && m <= a.hasta);
+    const mod = { moduloA: MODULOS_SRL_IDS[0], moduloB: MODULOS_SRL_IDS[1] };
+    if (hayAnterior) return { tipo: 'periodos', a, b, ...mod };
+    return { tipo: 'periodos', a: rangoDePreset('mitad1', meses) ?? { desde: '', hasta: '' }, b: rangoDePreset('mitad2', meses) ?? { desde: '', hasta: '' }, ...mod };
 }
 
 /** Configuración por defecto = el informe de siempre (ciclo completo, 6 módulos, todo, modo resumen). */
@@ -138,23 +166,31 @@ export function mesReferenciaDe(filas: { mes: string; numero_modulo: number }[],
     return m[m.length - 1] ?? null;
 }
 
+/** ¿Los rangos A y B cubren los mismos meses del año (aunque sean de años distintos)? */
+export function mismoCalendario(a: RangoMes, b: RangoMes): boolean {
+    const cal = (r: RangoMes) => {
+        const out = new Set<string>();
+        if (!/^\d{4}-\d{2}/.test(r.desde) || !/^\d{4}-\d{2}/.test(r.hasta)) return '';
+        let y = Number(r.desde.slice(0, 4)), m = Number(r.desde.slice(5, 7));
+        const fin = Number(r.hasta.slice(0, 4)) * 12 + Number(r.hasta.slice(5, 7));
+        while (y * 12 + m <= fin && out.size < 12) { out.add(String(m).padStart(2, '0')); m++; if (m > 12) { m = 1; y++; } }
+        return [...out].sort().join();
+    };
+    return cal(a) === cal(b);
+}
+
 /** Errores que bloquean "Generar". */
-export function validarConfig(c: ConfigInformeNdvi, filas: { mes: string; numero_modulo: number }[]): string[] {
+export function validarConfig(c: ConfigInformeNdvi, filas: { mes: string; numero_modulo: number }[], serieV2: FilaNdviV2[] = []): string[] {
+    if (c.modo === 'interanual') return validarInteranual(c.interanual?.anios ?? [], c.modulos, serieV2);
     const e: string[] = [];
     if (!c.modulos.length) e.push('Elige al menos un módulo.');
     if (!c.secciones.length) e.push('Elige al menos una sección.');
     if (!c.desde || !c.hasta) e.push('Elige el periodo.');
     else if (c.desde > c.hasta) e.push('El mes inicial no puede ser posterior al final.');
     else if (c.modulos.length && !filtrarFilas(filas, c).length) e.push(`No hay lecturas de NDVI entre ${c.desde} y ${c.hasta} para los módulos elegidos.`);
-    if (c.modo === 'tendencia' && c.desde && c.hasta && c.desde <= c.hasta) {
-        const n = mesesDisponibles(filtrarFilas(filas, c)).length;
-        if (n > 0 && n < MIN_MESES_TENDENCIA) e.push(`La tendencia necesita al menos ${MIN_MESES_TENDENCIA} meses con dato; el periodo tiene ${n}. Amplíalo.`);
-    }
     if (c.modo === 'comparativo') e.push(...validarComparacion(c, filas));
     return e;
 }
-
-export const MIN_MESES_TENDENCIA = 3;
 
 const hayDatos = (filas: { mes: string; numero_modulo: number }[], r: RangoMes, modulos: number[]) =>
     filas.some((f) => mesDe(f.mes) >= r.desde && mesDe(f.mes) <= r.hasta && modulos.includes(f.numero_modulo));
@@ -173,14 +209,20 @@ function validarComparacion(c: ConfigInformeNdvi, filas: { mes: string; numero_m
         if (k.a.desde === k.b.desde && k.a.hasta === k.b.hasta) e.push('A y B son iguales: elige dos periodos distintos.');
     } else if (k.tipo === 'modulos') {
         if (k.moduloA === k.moduloB) e.push('Elige dos módulos distintos.');
-        for (const m of [k.moduloA, k.moduloB]) if (!filas.some((f) => f.numero_modulo === m)) e.push(`El Módulo ${m} no tiene lecturas.`);
-    } else if (!filas.some((f) => f.numero_modulo === k.moduloA)) e.push(`El Módulo ${k.moduloA} no tiene lecturas.`);
+        for (const m of [k.moduloA, k.moduloB]) {
+            if (!c.modulos.includes(m)) e.push(`El Módulo ${m} no está entre los módulos elegidos del informe.`);
+            else if (!filas.some((f) => f.numero_modulo === m)) e.push(`El Módulo ${m} no tiene lecturas.`);
+        }
+    } else if (!c.modulos.includes(k.moduloA)) e.push(`El Módulo ${k.moduloA} no está entre los módulos elegidos del informe.`);
+    else if (!filas.some((f) => f.numero_modulo === k.moduloA)) e.push(`El Módulo ${k.moduloA} no tiene lecturas.`);
     return e;
 }
 
 /** Avisos que NO bloquean (se muestran en la ventana). */
 export function avisosConfig(c: ConfigInformeNdvi, filas: { mes: string; numero_modulo: number }[]): string[] {
     const a: string[] = [];
+    // El modo interanual no usa la serie de 2026 ni el IEHP: sus avisos propios van en el informe.
+    if (c.modo === 'interanual') return a;
     const ref = mesReferenciaDe(filas, c);
     if (ref) {
         const sin = c.modulos.filter((m) => !filas.some((f) => f.numero_modulo === m && mesDe(f.mes) === ref));
@@ -190,18 +232,26 @@ export function avisosConfig(c: ConfigInformeNdvi, filas: { mes: string; numero_
     if (c.indicadores.includes('iehp') && ref) a.push('El IEHP usa el volumen acumulado del ciclo hasta el mes de referencia.');
     const meses = mesesDisponibles(filtrarFilas(filas, c));
     if (meses.length === 1 && c.modo === 'resumen') a.push('Un solo mes: no habrá serie histórica con tendencia (solo el valor y el cambio contra el mes anterior).');
-    if (c.modo === 'tendencia' && meses.length === MIN_MESES_TENDENCIA) a.push('Con solo 3 meses la pendiente es descriptiva: no se declarará una tendencia.');
-    if (c.modo !== 'resumen') a.push('Comparaciones y tendencias son dentro de un solo ciclo (2026): no hay datos de años anteriores.');
+    // La serie v2 abarca varios años; solo se advierte si la serie cargada realmente tiene pocos.
+    const nAnios = new Set(filas.map((f) => mesDe(f.mes).slice(0, 4))).size;
+    if (c.modo === 'tendencia' && nAnios < 4) a.push(`La serie cargada tiene ${nAnios} ${nAnios === 1 ? 'año' : 'años'}: la comparación con años anteriores y la evolución año a año serán de baja confianza o quedarán S/D.`);
+    if (c.modo !== 'resumen' && nAnios === 1) a.push('La serie cargada abarca un solo año: no hay años anteriores contra los cuales comparar.');
     if (c.modo === 'comparativo' && c.comparacion.tipo === 'periodos' && !(c.comparacion.a.hasta < c.comparacion.b.desde || c.comparacion.b.hasta < c.comparacion.a.desde)) {
         a.push('Los periodos A y B se traslapan: la diferencia entre ellos subestima el cambio.');
+    }
+    if (c.modo === 'comparativo' && (c.comparacion.tipo === 'periodos' || c.comparacion.tipo === 'mesVsMes') && !mismoCalendario(c.comparacion.a, c.comparacion.b)) {
+        a.push('A y B cubren meses del año distintos: parte de la diferencia es estacional (el NDVI sube de marzo a julio sin que cambie nada). Para aislarla compara el mismo periodo de otro año.');
     }
     return a;
 }
 
 /** Cuántas hojas saldrán (portada+resumen, plano+fichas, serie+anexo y metodología comparten hoja). */
 export function paginasEstimadas(c: ConfigInformeNdvi): number {
+    if (c.modo === 'interanual') return 4;
     // La hoja de análisis (E) solo existe si el modo no es "resumen".
-    return new Set(SECCIONES_NDVI.filter((s) => c.secciones.includes(s.id) && (s.pagina !== 'E' || c.modo !== 'resumen')).map((s) => s.pagina)).size;
+    const incluidas = SECCIONES_NDVI.filter((s) => c.secciones.includes(s.id) && (s.pagina !== 'E' || c.modo !== 'resumen'));
+    // El análisis de tendencia ocupa dos hojas (ver informeNdviHtml).
+    return new Set(incluidas.map((s) => s.pagina)).size + (c.modo === 'tendencia' && incluidas.some((s) => s.pagina === 'E') ? 1 : 0);
 }
 
 /** Primer mes (AAAA-03) del ciclo agrícola al que pertenece un mes: el ciclo corre de marzo a septiembre. */
@@ -213,7 +263,7 @@ export function inicioCiclo(mes: string): string {
 }
 
 export function etiquetaPeriodo(c: Pick<ConfigInformeNdvi, 'desde' | 'hasta'>): string {
-    return c.desde === c.hasta ? c.desde : `${c.desde} a ${c.hasta}`;
+    return c.desde === c.hasta ? mesLegible(c.desde) : `${mesLegible(c.desde)} a ${mesLegible(c.hasta)}`;
 }
 
 // ── Presets guardados (por dispositivo). Todo en try/catch: sin localStorage la ventana sigue funcionando. ──

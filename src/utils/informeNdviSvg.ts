@@ -3,9 +3,10 @@
  * Sin librerías ni red. Color de datos = rampa agronómica de ndviRampa.ts (la misma de la pantalla); S/D = gris hachurado.
  */
 import { numeroGeojsonDeSRL, MODULOS_SRL_IDS } from './modulosSRL';
-import { colorNdvi, NDVI_RANGO } from './ndviRampa';
+import { colorNdvi, NDVI_RANGO, NDVI_TICKS } from './ndviRampa';
 import { escSvg } from './informeHistoricoSvg';
 import { mesLegible } from './informeBase';
+import { cabeceraSvg, etiquetaLinea } from './informeNdviSvgComparativo';
 import type { ModuloInforme } from './informeNdviDatos';
 
 export type Anillo = [number, number][];
@@ -81,8 +82,8 @@ export function planoSvg(modulos: ModuloInforme[], contornos: Contornos, w = 520
         return {
             path: `<path d="${anillos.map(trazo).join(' ')}" fill-rule="evenodd" fill="${fill}" stroke="#ffffff" stroke-width="1.4"/>`,
             // Las etiquetas se dibujan DESPUÉS de todos los polígonos: un vecino dibujado más tarde las tapaba.
-            etiqueta: `<text x="${f1(cx)}" y="${f1(cy - 5)}" text-anchor="middle" font-size="11" font-weight="700" fill="${INK}" stroke="#fff" stroke-width="3" paint-order="stroke" ${FONT}>${escSvg(m.nombre)}</text>
-<text x="${f1(cx)}" y="${f1(cy + 10)}" text-anchor="middle" font-size="12" font-weight="700" fill="${INK}" stroke="#fff" stroke-width="3" paint-order="stroke" ${FONT}>${m.ndvi != null ? m.ndvi.toFixed(2) : 'S/D'}</text>`,
+            etiqueta: `<text x="${f1(cx)}" y="${f1(cy - 6)}" text-anchor="middle" font-size="13" font-weight="700" fill="${INK}" stroke="#fff" stroke-width="3.5" paint-order="stroke" ${FONT}>${escSvg(m.nombre)}</text>
+<text x="${f1(cx)}" y="${f1(cy + 12)}" text-anchor="middle" font-size="14" font-weight="700" fill="${INK}" stroke="#fff" stroke-width="3.5" paint-order="stroke" ${FONT}>${m.ndvi != null ? m.ndvi.toFixed(2) : 'S/D'}</text>`,
         };
     });
     const rellenos = piezas.map((p) => p.path).join('\n');
@@ -94,11 +95,12 @@ export function planoSvg(modulos: ModuloInforme[], contornos: Contornos, w = 520
     const barra = km * pxKm;
     const escalaSvg = `<g transform="translate(${f1(14)},${f1(h - 18)})">
   <rect x="0" y="0" width="${f1(barra / 2)}" height="5" fill="${INK}"/><rect x="${f1(barra / 2)}" y="0" width="${f1(barra / 2)}" height="5" fill="#fff" stroke="${INK}" stroke-width="0.8"/>
-  <text x="0" y="-3" font-size="9" fill="${INK2}" ${FONT}>0</text><text x="${f1(barra)}" y="-3" font-size="9" text-anchor="end" fill="${INK2}" ${FONT}>${km} km</text></g>`;
+  <text x="0" y="-4" font-size="12" fill="${INK2}" ${FONT}>0</text><text x="${f1(barra)}" y="-4" font-size="12" text-anchor="end" fill="${INK2}" ${FONT}>${km} km</text></g>`;
     const norteSvg = `<g transform="translate(${f1(w - 22)},26)" aria-label="Norte">
-  <path d="M0,-14 L6,6 L0,2 L-6,6 Z" fill="${INK}"/><text x="0" y="18" font-size="10" font-weight="700" text-anchor="middle" fill="${INK}" ${FONT}>N</text></g>`;
+  <path d="M0,-14 L6,6 L0,2 L-6,6 Z" fill="${INK}"/><text x="0" y="20" font-size="12" font-weight="700" text-anchor="middle" fill="${INK}" ${FONT}>N</text></g>`;
 
-    return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="Plano general de los módulos SRL coloreados por NDVI" style="background:#f6f5f2;border:1px solid ${GRID};border-radius:4px">
+    const cab = cabeceraSvg('Plano general de los módulos SRL coloreados por NDVI', modulos.map((m) => `${m.nombre}: ${m.ndvi != null ? m.ndvi.toFixed(2) : 'S/D'}`).join('; '));
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" ${cab.attrs} style="background:#f6f5f2;border:1px solid ${GRID};border-radius:4px">${cab.tags}
 <defs><pattern id="sd-hach" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#e9e7e2"/><line x1="0" y1="0" x2="0" y2="8" stroke="#a8afb7" stroke-width="2"/></pattern></defs>
 ${rellenos}
 ${etiquetas}
@@ -117,20 +119,21 @@ export function svgSparkline(valores: (number | null)[], w = 96, h = 26): string
     valores.forEach((v, i) => { if (v == null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${f1(x(i))} ${f1(y(v))} `; pen = true; });
     const iUlt = (() => { for (let i = n - 1; i >= 0; i--) if (valores[i] != null) return i; return -1; })();
     const ult = iUlt >= 0 ? (valores[iUlt] as number) : null;
-    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Tendencia mensual de NDVI"><path d="${d}" fill="none" stroke="${INK2}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>${
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Tendencia mensual de NDVI: ${valores.map((v) => (v == null ? 'S/D' : v.toFixed(2))).join(', ')}"><path d="${d}" fill="none" stroke="${INK2}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>${
         ult != null ? `<circle cx="${f1(x(iUlt))}" cy="${f1(y(ult))}" r="3.2" fill="${colorNdvi(ult)}" stroke="${INK}" stroke-width="1"/>` : ''}</svg>`;
 }
 
 /** Serie mensual de NDVI por módulo (línea por módulo + promedio SRL) con etiqueta directa al final de cada línea. */
 export function svgSerieModulos(meses: string[], modulos: ModuloInforme[], promedio: (number | null)[], w = 660, h = 270): string {
     if (meses.length < 1) return '';
-    const L = 38, R = 56, T = 12, B = 28;
+    const L = 38, R = 66, T = 12, B = 28;
     const [lo, hi] = NDVI_RANGO;
     const x = (i: number) => L + (meses.length === 1 ? (w - L - R) / 2 : (i * (w - L - R)) / (meses.length - 1));
     const y = (v: number) => T + (1 - (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * (h - T - B);
-    const ticks = [0, 0.2, 0.4, 0.6, 0.8];
+    const ticks = NDVI_TICKS;
     const grid = ticks.map((t) => `<line x1="${L}" y1="${f1(y(t))}" x2="${w - R}" y2="${f1(y(t))}" stroke="${GRID}"/><text x="${L - 6}" y="${f1(y(t) + 3)}" text-anchor="end" font-size="9" fill="${INK2}" ${FONT}>${t.toFixed(1)}</text>`).join('');
-    const ejeX = meses.map((m, i) => `<text x="${f1(x(i))}" y="${h - 9}" text-anchor="middle" font-size="9" fill="${INK2}" ${FONT}>${escSvg(mesLegible(m, true))}</text>`).join('');
+    const paso = Math.max(1, Math.ceil(meses.length / 12)); // con muchos meses solo se rotula uno de cada `paso`
+    const ejeX = meses.map((m, i) => (i % paso === 0 || i === meses.length - 1 ? `<text x="${f1(x(i))}" y="${h - 9}" text-anchor="middle" font-size="9" fill="${INK2}" ${FONT}>${escSvg(mesLegible(m, true))}</text>` : '')).join('');
     const trazar = (vals: (number | null)[], color: string, ancho: number, dash = '') => {
         let d = '', pen = false;
         vals.forEach((v, i) => { if (v == null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${f1(x(i))} ${f1(y(v))} `; pen = true; });
@@ -146,6 +149,8 @@ export function svgSerieModulos(meses: string[], modulos: ModuloInforme[], prome
     const fin = series.map((s) => { let i = s.vals.length - 1; while (i >= 0 && s.vals[i] == null) i--; return i < 0 ? null : { ...s, yy: y(s.vals[i] as number), xx: x(i) }; })
         .filter((s): s is NonNullable<typeof s> => !!s).sort((a, b) => a.yy - b.yy);
     for (let i = 1; i < fin.length; i++) if (fin[i].yy - fin[i - 1].yy < 11) fin[i].yy = fin[i - 1].yy + 11;
-    const etiquetas = fin.map((s) => `<text x="${f1(Math.min(s.xx, w - R) + 7)}" y="${f1(s.yy + 3)}" font-size="9.5" font-weight="700" fill="${s.color}" ${FONT}>${escSvg(s.etiqueta)}</text>`).join('');
-    return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="Serie mensual de NDVI por módulo y promedio SRL">${grid}${ejeX}${lineas}${etiquetas}</svg>`;
+    const etiquetas = fin.map((s) => etiquetaLinea(Math.min(s.xx, w - R) + 6, s.yy, s.etiqueta, s.color)).join('');
+    const resumen = series.map((s) => { const v = s.vals.filter((x): x is number => x != null); return v.length ? `${s.etiqueta}: último ${v[v.length - 1].toFixed(2)} (de ${Math.min(...v).toFixed(2)} a ${Math.max(...v).toFixed(2)})` : `${s.etiqueta}: S/D`; }).join('; ');
+    const cab = cabeceraSvg('Serie mensual de NDVI por módulo y promedio SRL', resumen);
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" ${cab.attrs}>${cab.tags}${grid}${ejeX}${lineas}${etiquetas}</svg>`;
 }

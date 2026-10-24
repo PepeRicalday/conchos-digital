@@ -15,19 +15,49 @@ import { contornosAAnillos, planoSvg } from './informeNdviSvg';
 import { construirHtmlNdvi } from './informeNdviHtml';
 import { configPorDefecto, inicioCiclo, mesReferenciaDe, mesesDisponibles, type ConfigInformeNdvi } from './informeNdviConfig';
 import { nombreArchivo } from './informeBase';
+import { supabase } from '../lib/supabase';
+import { MODULOS_SRL_IDS } from './modulosSRL';
+import { construirInteranual, type DatosInteranual } from './informeNdviInteranual';
+import { construirHtmlInteranual } from './informeNdviInteranualHtml';
+import type { FilaSupVol } from './ndviInteranual';
+import { cargarSerieNdviV2 } from './ndviSerie';
 
 export interface OpcionesInformeNdvi {
     /** Nombre de quien emite (perfil en sesión). Sin él se rotula "SICA 005". */
     emisor?: string | null;
     /** Filtros de la ventana; sin ella, el informe completo de siempre (todo el ciclo, 6 módulos). */
     config?: ConfigInformeNdvi;
+    /** Modo interanual: datos ya cargados (la ventana los lee al elegir el modo); sin ellos se consultan aquí. */
+    datosInteranual?: DatosInteranual;
 }
 
 const versionApp = (): string => (typeof __V2_APP_VERSION__ !== 'undefined' ? __V2_APP_VERSION__ : 's/d');
 
+/** Lee la serie v2 y el informe de superficie/volumen (solo lectura). Un fallo en superficie/volumen no tumba la serie: queda marcado. */
+export async function cargarDatosInteranual(): Promise<DatosInteranual> {
+    const [a, b] = await Promise.all([
+        cargarSerieNdviV2(supabase),
+        supabase.from('superficie_volumen_anual_modulo').select('anio, numero_modulo, cultivo, superficie_ha, volumen_miles_m3, atipico').limit(2000),
+    ]);
+    if (a.error) throw new Error(`No se pudo leer la serie de NDVI interanual: ${a.error}`);
+    return { ndvi: a.filas, supVol: b.error ? [] : ((b.data ?? []) as FilaSupVol[]), errorSupVol: !!b.error };
+}
+
+async function htmlInteranual(config: ConfigInformeNdvi, o: OpcionesInformeNdvi): Promise<string> {
+    const [datos, logoSrl, logoSica] = await Promise.all([
+        o.datosInteranual ? Promise.resolve(o.datosInteranual) : cargarDatosInteranual(),
+        assetToDataURI('/logos/logo-srl.png').catch(() => ''),
+        assetToDataURI('/logos/SICA005.png').catch(() => ''),
+    ]);
+    const modulos = config.modulos.length ? config.modulos : [...MODULOS_SRL_IDS];
+    const modelo = construirInteranual(datos, { anios: config.interanual?.anios ?? [], modulos }, { ahora: new Date(), emisor: o.emisor ?? null, version: versionApp(), logoSrlOk: !!logoSrl });
+    return construirHtmlInteranual(modelo, { srl: logoSrl, sica: logoSica }, config.hoja);
+}
+
 /** Arma el HTML del informe (sin descargarlo): lo usan la vista previa y la descarga. */
 export async function generarHtmlInformeNdvi(filas: FilaNdviInforme[], o: OpcionesInformeNdvi = {}): Promise<string> {
     const config = o.config ?? configPorDefecto(mesesDisponibles(filas));
+    if (config.modo === 'interanual') return htmlInteranual(config, o);
     const [logoSrl, logoSica, fc] = await Promise.all([
         assetToDataURI('/logos/logo-srl.png').catch(() => ''),
         assetToDataURI('/logos/SICA005.png').catch(() => ''),

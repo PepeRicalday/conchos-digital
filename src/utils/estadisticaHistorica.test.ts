@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anomaliaVsPromedio, huecos, percentil, percentilesHistoricos, resumenSerie, semaforo, tendenciaLineal } from './estadisticaHistorica';
+import { anomaliaVsPromedio, huecos, percentil, percentilesHistoricos, resumenSerie, semaforo, tendenciaLineal, theilSen, r2CriticoAlfa05 } from './estadisticaHistorica';
 
 describe('estadisticaHistorica — S/D nunca cero', () => {
     it('entradas vacías o todo null devuelven null', () => {
@@ -52,5 +52,24 @@ describe('estadisticaHistorica — S/D nunca cero', () => {
             { desde: '2022-03-02', hasta: '2022-03-03', dias: 2 },
             { desde: '2022-03-06', hasta: '2022-03-06', dias: 1 },
         ]);
+    });
+});
+
+describe('theilSen y R² crítico', () => {
+    it('mediana de pendientes por pares; exige 3 puntos; ignora S/D', () => {
+        expect(theilSen([{ x: 1, y: 1 }, { x: 2, y: 2 }, { x: 3, y: 3 }])).toBeCloseTo(1, 9);
+        expect(theilSen([{ x: 1, y: 1 }, { x: 2, y: null }, { x: 3, y: 3 }])).toBeNull();
+        expect(theilSen([])).toBeNull();
+    });
+    it('es robusta a un valor atípico', () => {
+        const pts = [1, 2, 3, 4, 5, 40].map((y, i) => ({ x: i, y }));
+        expect(theilSen(pts)).toBeCloseTo(1, 6);
+        expect(tendenciaLineal(pts)!.pendiente).toBeGreaterThan(5);
+    });
+    it('R² crítico al 5 % decrece con n (≈0.90 con 4, 0.66 con 6) y con n < 3 nunca se alcanza', () => {
+        expect(r2CriticoAlfa05(4)).toBeCloseTo(0.9025, 3);
+        expect(r2CriticoAlfa05(6)).toBeCloseTo(0.658, 2);
+        expect(r2CriticoAlfa05(6)).toBeLessThan(r2CriticoAlfa05(5));
+        expect(r2CriticoAlfa05(2)).toBe(1);
     });
 });

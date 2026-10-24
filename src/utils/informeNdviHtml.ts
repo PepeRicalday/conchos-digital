@@ -9,8 +9,11 @@ import { KC_BASE, KC_MAX, KC_MIN, KC_PENDIENTE } from './kcConstantes';
 import { fmt, fmtMiles, SD } from './formato';
 import { cabeceraInforme, cssInforme, documentoHtml, esc, fechaHoraLegible, mesLegible, pieInforme } from './informeBase';
 import { svgSerieModulos, svgSparkline } from './informeNdviSvg';
+import { CAUTELA_TITULAR, titularDeAnomalias } from './ndviGrafica';
 import { signoDelta, svgBarrasDelta, svgBarrasPareadas, svgLineasSimples, svgPendienteSlope } from './informeNdviSvgComparativo';
-import { TENDENCIA_MIN_N, TENDENCIA_MIN_PENDIENTE, TENDENCIA_MIN_R2, type TendenciaModulo } from './informeNdviAnalisis';
+import { MIN_ANIOS_REFERENCIA, Z_INUSUAL, fraseAnomalia, fraseEvolucion, type AnomaliaPeriodo, type TendenciaModulo } from './informeNdviAnalisis';
+import { UMBRAL_SIN_CAMBIO } from './ndviInteranual';
+import { ROTULO_METODO_NDVI } from './ndviSerie';
 import { etiquetaPeriodo, SECCIONES_NDVI } from './informeNdviConfig';
 import type { InformeNdvi, ModuloInforme } from './informeNdviDatos';
 import type { ClaseNdvi } from './ndviRampa';
@@ -24,7 +27,8 @@ function chipClase(c: ClaseNdvi | null): string {
 /** Delta en tinta neutra con flecha (legible en B/N y para daltónicos): ▲ sube · ▼ baja · ■ sin cambio. */
 function deltaTexto(d: number | null, decimales = 3): string {
     if (d == null || !Number.isFinite(d)) return `<span class="sd">${SD}</span>`;
-    if (Math.abs(d) < 0.0005) return `■ ${(0).toFixed(decimales)}`;
+    // Si el valor se imprimiría como 0.00 no se anuncia una subida o bajada (evita "▲ +0.00").
+    if (Math.abs(d) < 0.5 * 10 ** -decimales) return `■ ${(0).toFixed(decimales)}`;
     return d > 0 ? `▲ +${d.toFixed(decimales)}` : `▼ −${Math.abs(d).toFixed(decimales)}`;
 }
 
@@ -73,14 +77,15 @@ const EXTRA_CSS = `
 .cuerpo{min-width:0}
 .cuerpo>h2:not(:first-child){margin-top:12px}
 .banda{margin:2mm 0 4mm}
-.banda small{display:block;font-size:7.5pt;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);margin-bottom:3px}
+.banda small{display:block;font-size:8pt;color:var(--ink2);margin-bottom:3px}
 .banda h1{font-size:20pt}
 .banda .sub{font:10pt Georgia,serif;color:var(--ink2);margin-top:2px}
 .datos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:4mm 0 3mm}
 .dato{border-top:3px solid var(--inst);padding-top:4px}
-.dato b{display:block;font-size:7.5pt;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.dato b{display:block;font-size:8pt;color:var(--ink2)}
 .dato span{font:600 10pt Georgia,serif}
 .frase{font:10.5pt/1.4 Georgia,serif;margin:2px 0 6px}
+.frase.titular{border-left:4px solid var(--inst);padding-left:8px}
 .kpis{margin:6px 0}
 .dist{display:flex;height:14px;border-radius:3px;overflow:hidden;border:1px solid var(--linea);margin:4px 0 2px}
 .dist span{display:grid;place-items:center;font-size:7.5pt;font-weight:700;color:#1f2328}
@@ -92,7 +97,7 @@ const EXTRA_CSS = `
 .leyenda i{width:12px;height:12px;border-radius:2px;border:1px solid rgba(0,0,0,.35);display:inline-block}
 .leyenda i.hach{background:repeating-linear-gradient(45deg,#e9e7e2 0 3px,#a8afb7 3px 5px)}
 .leyenda.vertical{flex-direction:column;gap:5px;font-size:8pt}
-.mapa{display:grid;grid-template-columns:1.1fr 1fr;gap:10px;align-items:start}
+.mapa{display:grid;grid-template-columns:1.4fr 1fr;gap:10px;align-items:start}
 .mapa .lado h3:first-child{margin-top:0}
 .lado .promedio{border:1px solid var(--linea);border-top:3px solid var(--inst);border-radius:3px;padding:6px 8px;margin-top:8px}
 .lado .promedio .v{font:700 18pt/1.1 Georgia,serif}
@@ -121,7 +126,9 @@ export function construirHtmlNdvi(d: InformeNdvi, logos: LogosInforme, plano: st
     const baseCorta = d.basePromedio;
     // La hoja E (análisis) solo existe si el modo es tendencia/comparativo y hay resultado.
     const hay = (g: 'A' | 'B' | 'C' | 'D' | 'E') => SECCIONES_NDVI.some((s) => s.pagina === g && sec.has(s.id)) && (g !== 'E' || d.analisis != null);
-    const total = (['A', 'B', 'E', 'C', 'D'] as const).filter(hay).length;
+    // La hoja de análisis de TENDENCIA ocupa dos hojas físicas (no cabe en una: sus dos tablas y dos gráficas desbordaban y el PDF salía con una página de más).
+    const divideE = d.analisis?.modo === 'tendencia';
+    const total = (['A', 'B', 'E', 'C', 'D'] as const).filter(hay).length + (divideE && hay('E') ? 1 : 0);
     let pagina = 0;
     let nSec = 0;
     const pie = () => pieInforme(`Folio ${d.folio} · SICA-005 v${d.version}`, ++pagina, total);
@@ -161,6 +168,7 @@ export function construirHtmlNdvi(d: InformeNdvi, logos: LogosInforme, plano: st
         `<tr><td>${chipClase(x.clase)}</td><td class="n">${rangoClase(x.clase)}</td><td class="n">${x.modulos.length ? x.modulos.map((n) => `M${n}`).join(', ') : '—'}</td></tr>`).join('')}</tbody></table></div>`;
     const resumenHtml = () => `<h2><span class="n">${++nSec}</span>Resumen ejecutivo — ${esc(refTxt)}</h2>
 <p class="frase">${frase}</p>
+<div class="aviso"><b>Cómo leer este NDVI:</b> es la mediana mensual de los píxeles limpios sobre la frontera completa del módulo (incluye caminos, canales y suelo sin riego). Sirve para comparar meses y años del mismo módulo; no es el NDVI de una parcela.</div>
 <div class="kpis">
   <div class="kpi"><div class="et">${varios ? `Promedio SRL (${esc(baseCorta)})` : 'NDVI medio'}</div><div class="v">${fmt(d.promedio, 2)}</div><div class="s">${chipClase(clasePromedio)}${varios ? `<br>${otroPromedio}` : ''}</div></div>
   <div class="kpi"><div class="et">Mayor vigor</div><div class="v">${d.mejor ? fmt(d.mejor.ndvi, 2) : SD}</div><div class="s">${d.mejor ? esc(d.mejor.nombre) : ''}</div></div>
@@ -180,13 +188,13 @@ export function construirHtmlNdvi(d: InformeNdvi, logos: LogosInforme, plano: st
             { k: 'Folio', v: d.folio }, { k: 'Emisión', v: fechaHoraLegible(d.emitidoEn) }, { k: 'Emitió', v: d.emisor }, { k: 'Versión', v: `SICA-005 v${d.version}` }] })
         : corrida}
 <div class="cuerpo">${sec.has('portada') ? portadaBanda : ''}${sec.has('resumen') ? resumenHtml() : ''}
-  ${sec.has('portada') ? `<p class="nota-pie">Dirigido a: CONAGUA · Distrito de Riego 005 · Asociaciones de usuarios. Fuente: Sentinel-2 L2A (Copernicus), Statistical API, polígono exacto de cada módulo. Periodo: ${esc(periodoTxt)}. Documento generado automáticamente por SICA-005.</p>` : ''}
+  ${sec.has('portada') ? `<p class="nota-pie">Dirigido a: CONAGUA · Distrito de Riego 005 · Asociaciones de usuarios. Fuente: Sentinel-2 L2A (Copernicus), Statistical API, polígono exacto de cada módulo; ${esc(ROTULO_METODO_NDVI)}. Periodo: ${esc(periodoTxt)}. Documento generado automáticamente por SICA-005.</p>` : ''}
 </div>${pie()}</section>`;
 
     // ── Hoja B: plano + fichas 3×2
     const planoHtml = () => {
         const bloque = plano
-            ? `<figure class="fig" style="margin:0">${plano}<figcaption class="fuente">Fuente: Sentinel-2 L2A · NDVI medio del mes por polígono exacto de cada módulo · ${esc(refTxt)}.</figcaption></figure>`
+            ? `<figure class="fig" style="margin:0">${plano}<figcaption class="fuente">Fuente: Sentinel-2 L2A · NDVI (mediana del mes) por polígono exacto de cada módulo · ${esc(refTxt)}.</figcaption></figure>`
             : '<div class="aviso"><b>Plano no disponible:</b> no se pudieron cargar los contornos de los módulos al generar el informe.</div>';
         return `<h2><span class="n">${++nSec}</span>Plano general — NDVI ${esc(refTxt)}</h2>
 <div class="mapa"><div>${bloque}</div>
@@ -211,74 +219,106 @@ export function construirHtmlNdvi(d: InformeNdvi, logos: LogosInforme, plano: st
     const analisisHtml = (): string => {
         const a = d.analisis;
         if (!a) return '';
-        const cabNota = '<p class="fuente">Dentro del ciclo 2026 (un solo ciclo disponible): no es una comparación entre años.</p>';
+        const cabNota = d.variosAnios ? '' : '<p class="fuente">La serie cargada abarca un solo año: no hay años anteriores contra los cuales comparar.</p>';
         const dd = (v: number | null, dec = 3) => (v == null ? `<span class="sd">${SD}</span>` : signoDelta(v, dec));
+        const avisosAn = (lista: string[]) => lista.map((t) => `<div class="aviso"><b>Atención:</b> ${esc(t)}</div>`).join('');
+        const frontera = '<div class="aviso"><b>Cómo leer este NDVI:</b> frontera completa del módulo (caminos, canales y suelo sin riego incluidos), mediana mensual con máscara de nubes. Compara un periodo con otro del mismo módulo; no es el NDVI de una parcela y una diferencia no prueba su causa.</div>';
+        const pctTxt = (v: number | null) => (v == null ? SD : `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)} %`);
         if (a.modo === 'tendencia') {
             const srl = a.tendencias.find((t) => t.id === 'srl') ?? a.tendencias[0];
-            const lectura = (t: TendenciaModulo) => (t.confianza === 'clara' ? (t.direccion === 'sube' ? '▲ Al alza' : '▼ A la baja')
-                : t.confianza === 'sin-tendencia' ? '■ Sin tendencia clara' : t.confianza === 'descriptiva' ? `Descriptiva (n=${t.n})` : 'S/D');
-            const frase = !srl || srl.pendiente == null
-                ? 'No hay suficientes meses con dato para describir una tendencia.'
-                : srl.confianza === 'clara'
-                    ? `${varios ? 'El NDVI medio de la SRL' : esc(srl.etiqueta)} ${srl.direccion === 'sube' ? 'sube' : 'baja'} <b>${Math.abs(srl.pendiente).toFixed(3)}</b> por mes (R² ${fmt(srl.r2, 2)}, n=${srl.n}); pico en ${esc(mesLegible(srl.pico?.mes ?? null))} (${fmt(srl.pico?.valor ?? null, 2)}).`
-                    : `Sin tendencia clara en el periodo (${esc(lectura(srl).toLowerCase())}; pendiente ${srl.pendiente >= 0 ? '+' : '−'}${Math.abs(srl.pendiente).toFixed(3)} por mes, R² ${fmt(srl.r2, 2)}, n=${srl.n}).`;
-            const filasT = a.tendencias.map((t) => `<tr${t.id === 'srl' ? ' style="font-weight:700"' : ''}><td${t.id === 'srl' ? '' : ` style="border-left:4px solid ${t.color}"`}>${esc(t.etiqueta)}</td>
-<td class="n">${t.n}</td><td class="n">${t.pendiente == null ? SD : (t.pendiente >= 0 ? '+' : '−') + Math.abs(t.pendiente).toFixed(3)}</td><td>${lectura(t)}</td><td class="n">${fmt(t.r2, 2)}</td>
-<td class="n">${t.pico ? `${fmt(t.pico.valor, 2)} · ${esc(mesLegible(t.pico.mes, true))}` : SD}</td><td class="n">${t.minimo ? `${fmt(t.minimo.valor, 2)} · ${esc(mesLegible(t.minimo.mes, true))}` : SD}</td>
-<td class="n">${dd(t.variacion)}</td><td class="n">${t.cv == null ? SD : `${(t.cv * 100).toFixed(0)} %`}</td></tr>`).join('');
-            const barras = svgBarrasDelta(a.tendencias.map((t) => ({ etiqueta: t.etiqueta, valor: t.pendiente })), 3);
+            const sujeto = varios ? 'Promedio SRL' : (srl?.etiqueta ?? '');
+            const lecturaAnom = (an: AnomaliaPeriodo) => (an.nConRef === 0 ? `Insuficiente (sin referencia)` : an.direccion === 'arriba' ? '▲ Por encima de lo habitual'
+                : an.direccion === 'abajo' ? '▼ Por debajo de lo habitual' : '■ En línea con lo habitual') + (an.fueraDeLoHabitual ? ' · fuera de lo habitual' : '');
+            const lecturaAnual = (t: TendenciaModulo) => { const m = t.evolucion.media; return m.patron === 'sube' ? '▲ Sube año tras año' : m.patron === 'baja' ? '▼ Baja año tras año'
+                : m.patron === 'sin-patron' ? '■ Sin patrón claro' : `Insuficiente (n=${m.n})`; };
+            const filasAn = a.tendencias.map((t) => { const an = t.anomalia; return `<tr${t.id === 'srl' ? ' style="font-weight:700"' : ''}><td${t.id === 'srl' ? '' : ` style="border-left:4px solid ${t.color}"`}>${esc(t.etiqueta)}${t.nModulos ? ` <span class="fuente">(${t.nModulos.n} de ${t.nModulos.total})</span>` : ''}</td>
+<td class="n">${fmt(an.mediaValor, 2)}</td><td class="n">${fmt(an.mediaRef, 2)}</td><td class="n">${dd(an.mediaAbs)}</td><td class="n">${pctTxt(an.pct)}</td>
+<td class="n">${an.nConRef ? `${an.mesesArriba} / ${an.mesesAbajo} / ${an.mesesSimilar}` : SD}</td><td>${esc(lecturaAnom(an))}</td><td>${an.bajaConfianza ? 'Baja ⚠' : 'Aceptable'}</td></tr>`; }).join('');
+            const motivos = [...new Set(a.tendencias.flatMap((t) => t.anomalia.motivos))].slice(0, 5);
+            const aniosCols = [...new Set(a.tendencias.flatMap((t) => t.evolucion.anios.map((x) => x.anio)))].sort((x, y) => x - y);
+            const celdaAnio = (t: TendenciaModulo, anio: number) => {
+                const x = t.evolucion.anios.find((q) => q.anio === anio);
+                if (!x || x.media == null) return `<td class="n sd">${SD}</td>`;
+                return `<td class="n">${x.media.toFixed(2)}${x.completo ? '' : '*'}${x.pocoConfiable ? ' ⚠' : ''}</td>`;
+            };
+            const filasAnual = a.tendencias.map((t) => { const m = t.evolucion.media; return `<tr${t.id === 'srl' ? ' style="font-weight:700"' : ''}><td${t.id === 'srl' ? '' : ` style="border-left:4px solid ${t.color}"`}>${esc(t.etiqueta)}</td>
+${aniosCols.map((an) => celdaAnio(t, an)).join('')}<td class="n">${m.sen == null ? SD : signoDelta(m.sen, 3)}</td><td class="n">${m.r2 == null ? SD : `${m.r2.toFixed(2)} (≥ ${(m.r2Umbral as number).toFixed(2)})`}</td><td>${esc(lecturaAnual(t))}</td></tr>`; }).join('');
+            const barras = svgBarrasDelta(a.tendencias.map((t) => ({ etiqueta: t.etiqueta, valor: t.anomalia.mediaAbs })), 3);
+            const lineasAnio = svgLineasSimples(aniosCols.map(String), a.tendencias.map((t) => ({
+                etiqueta: t.id === 'srl' ? 'SRL' : `M${t.id}`, color: t.color, vals: aniosCols.map((an) => t.evolucion.anios.find((q) => q.anio === an)?.media ?? null),
+                ...(t.id === 'srl' ? { dash: '6 3', ancho: 2.6 } : {}),
+            })), 620, 190, aniosCols.map(String));
+            const nSrl = srl?.nModulos;
+            const titular = varios ? titularDeAnomalias(periodoTxt, 0, a.tendencias.filter((t) => t.id !== 'srl').map((t) => t.anomalia)) : null;
             return `<h2 style="margin-top:0"><span class="n">${++nSec}</span>Tendencia del NDVI — ${esc(periodoTxt)}</h2>
-<p class="frase">${frase}</p>
-<div class="tabla-wrap"><table class="compacta"><thead><tr><th>Módulo</th><th class="n">Meses</th><th class="n">Pendiente (NDVI/mes)</th><th>Lectura</th><th class="n">R²</th><th class="n">Pico</th><th class="n">Mínimo</th><th class="n">Variación</th><th class="n">Estabilidad (CV)</th></tr></thead><tbody>${filasT}</tbody></table></div>
-<h3>Pendiente por módulo (NDVI por mes)</h3><figure class="fig" style="margin:0">${barras || '<div class="aviso">Sin pendientes para graficar.</div>'}</figure>
-<div class="aviso"><b>Criterio:</b> se declara tendencia solo con al menos ${TENDENCIA_MIN_N} meses con dato, R² ≥ ${TENDENCIA_MIN_R2} y pendiente mayor a ${TENDENCIA_MIN_PENDIENTE} por mes; con menos meses la pendiente es solo descriptiva. La pendiente usa el mes calendario como eje: un mes sin dato no la distorsiona. Estabilidad = desviación entre meses / media (menor es más estable).</div>
+${srl ? `<p class="frase">${esc(fraseAnomalia(srl.anomalia, sujeto))}</p><p class="frase">${esc(fraseEvolucion(srl.evolucion, sujeto))}</p>` : '<p class="frase">No hay suficientes datos para describir la tendencia.</p>'}
+${titular ? `<p class="frase titular"><b>${esc(titular.texto)}.</b></p><div class="aviso">${esc(CAUTELA_TITULAR)}</div>` : ''}
+${frontera}
+<h3>1 · Frente a lo habitual (mismos meses de los demás años)</h3>
+<div class="tabla-wrap"><table class="compacta"><thead><tr><th>Módulo</th><th class="n">NDVI del periodo</th><th class="n">Habitual</th><th class="n">Diferencia</th><th class="n">%</th><th class="n">Meses ↑ / ↓ / =</th><th>Lectura</th><th>Confianza</th></tr></thead><tbody>${filasAn}</tbody></table></div>
+<figure class="fig" style="margin:0">${barras || '<div class="aviso">Sin diferencias para graficar.</div>'}
+<figcaption class="fuente">Diferencia entre el NDVI del periodo y lo habitual en los mismos meses de otros años (derecha = por encima). ↑ / ↓ / = cuenta meses por encima, por debajo o en línea (menos de ${UMBRAL_SIN_CAMBIO.toFixed(2)}).${nSrl ? ` Promedio SRL: ${nSrl.n} de ${nSrl.total} módulos con referencia.` : ''}</figcaption></figure>
+${motivos.length ? `<div class="aviso"><b>Baja confianza en:</b> ${motivos.map(esc).join(' · ')}</div>` : ''}
+<!--CORTE-->
+<h2 style="margin-top:0">Tendencia del NDVI — año tras año</h2>
+<h3>2 · Año tras año (media de la temporada marzo–septiembre)</h3>
+<div class="tabla-wrap"><table class="compacta"><thead><tr><th>Módulo</th>${aniosCols.map((an) => `<th class="n">${an}</th>`).join('')}<th class="n">Cambio por año</th><th class="n">R² (mínimo)</th><th>Lectura</th></tr></thead><tbody>${filasAnual}</tbody></table></div>
+<figure class="fig" style="margin:0">${lineasAnio || '<div class="aviso">Sin años para graficar.</div>'}</figure>
+<div class="aviso"><b>Cómo se lee:</b> «Frente a lo habitual» compara cada mes del periodo con el mismo mes de los demás años (mínimo ${MIN_ANIOS_REFERENCIA} años de referencia): de marzo a septiembre el NDVI sube siempre por el ciclo del cultivo, por eso no se mide una pendiente dentro del año. «En línea» = diferencia menor a ${UMBRAL_SIN_CAMBIO.toFixed(2)} (cerca de media desviación entre años de la media de temporada, ≈ 0.05). «Fuera de lo habitual» = promedio de ${Z_INUSUAL} o más desviaciones de los otros años. En «Año tras año» solo cuentan las temporadas completas (*: incompleta, no entra); se dice que sube o baja únicamente si el ajuste alcanza el R² mínimo para ese número de años (≈ 0.66 con 6) y el cambio de punta a punta es de ${UMBRAL_SIN_CAMBIO.toFixed(2)} o más (⚠: algún mes con pocas observaciones). Con unos 6 años es una descripción, no una prueba ni una causa.</div>
 ${cabNota}`;
         }
         const c = a.comparacion;
         if (c.kind === 'periodos' || c.kind === 'mesVsMes') {
             const m = c.kind === 'mesVsMes' ? 'Mes contra mes' : 'Periodo A contra periodo B';
+            const dentro = c.delta != null && Math.abs(c.delta) < UMBRAL_SIN_CAMBIO ? ' Es una diferencia dentro de la variación normal entre años (menos de 0.02).' : '';
             const frase = c.promA == null || c.promB == null
                 ? 'Alguno de los dos lados no tiene datos: no se puede calcular la diferencia.'
-                : `El NDVI medio ${varios ? 'de la SRL ' : ''}pasó de <b>${fmt(c.promA, 2)}</b> (A) a <b>${fmt(c.promB, 2)}</b> (B): ${deltaTexto(c.delta)}${c.pct != null ? ` (${c.pct >= 0 ? '+' : '−'}${Math.abs(c.pct).toFixed(1)} %)` : ''}.${
-                    varios && c.mejor && c.peor ? ` Mayor mejora: ${esc(c.mejor.nombre)} (${deltaTexto(c.mejor.delta)}); menor: ${esc(c.peor.nombre)} (${deltaTexto(c.peor.delta)}).` : ''}`;
-            const filasC = c.filas.map((f) => `<tr><td><b>${esc(f.nombre)}</b></td><td class="n">${fmt(f.a, 2)}</td><td class="n">${fmt(f.b, 2)}</td><td class="n">${dd(f.delta)}</td><td class="n">${f.pct == null ? SD : `${f.pct >= 0 ? '+' : '−'}${Math.abs(f.pct).toFixed(1)} %`}</td><td class="n">${f.nA} / ${f.nB}</td></tr>`).join('');
-            const traslape = c.traslapados ? '<div class="aviso"><b>Atención:</b> los periodos A y B comparten meses; la diferencia subestima el cambio.</div>' : '';
+                : `El NDVI medio ${varios ? 'de la SRL ' : ''}fue <b>${fmt(c.promA, 2)}</b> en A (${esc(c.etiquetaA)}) y <b>${fmt(c.promB, 2)}</b> en B (${esc(c.etiquetaB)}): diferencia B − A ${deltaTexto(c.delta)}${c.pct != null ? ` (${c.pct >= 0 ? '+' : '−'}${Math.abs(c.pct).toFixed(1)} %)` : ''}.${dentro}${
+                    varios && c.mayorAumento ? ` Mayor aumento: ${esc(c.mayorAumento.nombre)} (${deltaTexto(c.mayorAumento.delta)}).` : ''}${varios && c.mayorDescenso ? ` Mayor descenso: ${esc(c.mayorDescenso.nombre)} (${deltaTexto(c.mayorDescenso.delta)}).` : ''}`;
+            const filasC = c.filas.map((f) => `<tr><td><b>${esc(f.nombre)}</b></td><td class="n">${fmt(f.a, 2)}</td><td class="n">${fmt(f.b, 2)}</td><td class="n">${dd(f.delta)}</td><td class="n">${pctTxt(f.pct)}</td><td class="n">${f.nA} / ${f.nB}</td></tr>`).join('');
             return `<h2 style="margin-top:0"><span class="n">${++nSec}</span>Comparativo — ${m}</h2>
-<p class="frase">${frase}</p>${traslape}
+<p class="frase">${frase}</p>${avisosAn(c.avisos)}
 <figure class="fig" style="margin:0">${svgPendienteSlope(c.filas.map((f) => ({ etiqueta: f.nombre.replace('Módulo ', 'M'), a: f.a, b: f.b })), c.etiquetaA, c.etiquetaB) || '<div class="aviso">Sin datos para graficar.</div>'}
-<figcaption class="fuente">Cada línea une el NDVI medio del módulo en A y en B: continua = sube, punteada = baja, gris = sin cambio (±0.005). Escala 0–0.8.</figcaption></figure>
-<div class="pares"><div class="tabla-wrap"><table class="compacta"><caption>Diferencia B − A por módulo</caption><thead><tr><th>Módulo</th><th class="n">A</th><th class="n">B</th><th class="n">Δ</th><th class="n">%</th><th class="n">Meses A/B</th></tr></thead><tbody>${filasC}
-<tr style="font-weight:700"><td>Promedio SRL (${esc(baseCorta)})</td><td class="n">${fmt(c.promA, 2)}</td><td class="n">${fmt(c.promB, 2)}</td><td class="n">${dd(c.delta)}</td><td class="n">${c.pct == null ? SD : `${c.pct >= 0 ? '+' : '−'}${Math.abs(c.pct).toFixed(1)} %`}</td><td></td></tr></tbody></table></div>
+<figcaption class="fuente">Cada línea une el NDVI medio del módulo en A y en B: continua = sube, punteada = baja, gris = sin cambio (menos de ${UMBRAL_SIN_CAMBIO.toFixed(2)}). Escala 0–0.8.</figcaption></figure>
+<div class="pares"><div class="tabla-wrap"><table class="compacta"><caption>Diferencia B − A por módulo</caption><thead><tr><th>Módulo</th><th class="n">A</th><th class="n">B</th><th class="n">B − A</th><th class="n">%</th><th class="n">Meses A/B</th></tr></thead><tbody>${filasC}
+<tr style="font-weight:700"><td>Promedio SRL (${esc(baseCorta)}; ${c.nModulosA} de ${c.filas.length} módulos en A y ${c.nModulosB} en B)</td><td class="n">${fmt(c.promA, 2)}</td><td class="n">${fmt(c.promB, 2)}</td><td class="n">${dd(c.delta)}</td><td class="n">${pctTxt(c.pct)}</td><td></td></tr></tbody></table></div>
 <figure class="fig" style="margin:0">${svgBarrasDelta(c.filas.map((f) => ({ etiqueta: f.nombre, valor: f.delta })), 3, 420) || ''}</figure></div>
-<p class="fuente">A = ${esc(c.etiquetaA)} (${c.mesesA.length} meses) · B = ${esc(c.etiquetaB)} (${c.mesesB.length} meses). Cada lado es el promedio de los meses con dato del módulo; un módulo sin dato en un lado queda S/D.</p>
-${cabNota}`;
+<p class="fuente">A = ${esc(c.etiquetaA)} (${c.mesesA.length} meses) · B = ${esc(c.etiquetaB)} (${c.mesesB.length} meses). Cada lado es el promedio de los meses con dato del módulo; un módulo sin dato en un lado queda S/D. Si A y B son de años distintos y cubren los mismos meses, la diferencia no es estacional.</p>
+${frontera}${cabNota}`;
         }
         if (c.kind === 'modulos') {
             const nd = c.indicadores[0];
             const frase = c.delta == null ? 'No hay datos suficientes para comparar los dos módulos.'
-                : `${esc(c.B.nombre)} ${c.delta >= 0 ? 'supera' : 'queda por debajo de'} a ${esc(c.A.nombre)} por <b>${Math.abs(c.delta).toFixed(3)}</b> de NDVI medio en el periodo (${fmt(nd.b, 2)} contra ${fmt(nd.a, 2)}); ${esc(c.A.nombre)} supera a ${esc(c.B.nombre)} en ${c.mesesAMayor} de ${c.mesesComunes} meses.`;
+                : Math.abs(c.delta) < UMBRAL_SIN_CAMBIO
+                    ? `${esc(c.A.nombre)} y ${esc(c.B.nombre)} tienen un NDVI medio casi igual en el periodo (${fmt(nd.a, 2)} y ${fmt(nd.b, 2)}; diferencia menor a ${UMBRAL_SIN_CAMBIO.toFixed(2)}); ${esc(c.A.nombre)} supera a ${esc(c.B.nombre)} en ${c.mesesAMayor} de ${c.mesesComunes} meses.`
+                    : `${esc(c.B.nombre)} ${c.delta >= 0 ? 'supera' : 'queda por debajo de'} a ${esc(c.A.nombre)} por <b>${Math.abs(c.delta).toFixed(3)}</b> de NDVI medio en el periodo (${fmt(nd.b, 2)} contra ${fmt(nd.a, 2)}); ${esc(c.A.nombre)} supera a ${esc(c.B.nombre)} en ${c.mesesAMayor} de ${c.mesesComunes} meses.`;
             const filasM = c.meses.map((mes, i) => `<tr><td>${esc(mesLegible(mes, true))}</td><td class="n">${fmt(c.serieA[i], 2)}</td><td class="n">${fmt(c.serieB[i], 2)}</td><td class="n">${c.serieA[i] != null && c.serieB[i] != null ? dd((c.serieB[i] as number) - (c.serieA[i] as number)) : `<span class="sd">${SD}</span>`}</td></tr>`).join('');
             return `<h2 style="margin-top:0"><span class="n">${++nSec}</span>Comparativo — ${esc(c.A.nombre)} contra ${esc(c.B.nombre)}</h2>
 <p class="frase">${frase}</p>
 <figure class="fig" style="margin:0">${svgBarrasPareadas(c.indicadores.map((i) => ({ etiqueta: i.etiqueta, a: i.a, b: i.b, max: i.max, decimales: i.decimales })), c.A.nombre, c.B.nombre, c.A.color, c.B.color) || ''}
-<figcaption class="fuente">Promedio de cada indicador en el periodo (${esc(periodoTxt)}); cada barra usa la escala de su indicador (NDVI 0–0.8 · ICV/IHR 0–100 · Kc 0–1.05).</figcaption></figure>
+<figcaption class="fuente">Promedio de cada indicador en el periodo (${esc(periodoTxt)}); cada barra usa la escala de su indicador (NDVI 0–0.8 · IHR 0–100). El Kc y el ICV no se comparan aparte: son el NDVI en otra escala y repetirían la misma lectura.</figcaption></figure>
 <figure class="fig" style="margin:0">${svgLineasSimples(c.meses, [{ etiqueta: c.A.nombre, color: c.A.color, vals: c.serieA }, { etiqueta: c.B.nombre, color: c.B.color, vals: c.serieB, dash: '6 3' }]) || ''}</figure>
 <div class="tabla-wrap"><table class="compacta"><caption>NDVI mensual (Δ = ${esc(c.B.nombre)} − ${esc(c.A.nombre)})</caption><thead><tr><th>Mes</th><th class="n">${esc(c.A.nombre)}</th><th class="n">${esc(c.B.nombre)}</th><th class="n">Δ</th></tr></thead><tbody>${filasM}</tbody></table></div>
-${cabNota}`;
+${frontera}${cabNota}`;
         }
-        // Módulo contra el promedio SRL
+        // Módulo contra el promedio de los demás módulos
         if (c.kind !== 'vsSRL') return '';
-        const frase = c.difMedia == null ? 'No hay datos suficientes para comparar el módulo con el promedio SRL.'
-            : `${esc(c.modulo.nombre)} ${c.difMedia >= 0 ? 'está por encima' : 'está por debajo'} del promedio SRL por <b>${Math.abs(c.difMedia).toFixed(3)}</b> de NDVI en promedio; supera al promedio SRL en ${c.mesesPorEncima} de ${c.mesesComunes} meses.`;
-        return `<h2 style="margin-top:0"><span class="n">${++nSec}</span>Comparativo — ${esc(c.modulo.nombre)} contra el promedio SRL</h2>
+        const frase = c.difMedia == null ? 'No hay datos suficientes para comparar el módulo con el promedio de los demás.'
+            : Math.abs(c.difMedia) < UMBRAL_SIN_CAMBIO
+                ? `${esc(c.modulo.nombre)} está en línea con el promedio de los otros ${c.totalOtros} módulos (diferencia media ${signoDelta(c.difMedia, 3)}, menor a ${UMBRAL_SIN_CAMBIO.toFixed(2)}).`
+                : `${esc(c.modulo.nombre)} ${c.difMedia >= 0 ? 'está por encima' : 'está por debajo'} del promedio de los otros ${c.totalOtros} módulos por <b>${Math.abs(c.difMedia).toFixed(3)}</b> de NDVI en promedio; lo supera por ${UMBRAL_SIN_CAMBIO.toFixed(2)} o más en ${c.mesesPorEncima} de ${c.mesesComunes} meses.`;
+        const filasV = c.meses.map((mes, i) => `<tr><td>${esc(mesLegible(mes, true))}</td><td class="n">${fmt(c.serie[i], 2)}</td><td class="n">${fmt(c.srl[i], 2)}</td><td class="n">${c.nOtros[i]} de ${c.totalOtros}</td><td class="n">${dd(c.diferencia[i])}</td></tr>`).join('');
+        return `<h2 style="margin-top:0"><span class="n">${++nSec}</span>Comparativo — ${esc(c.modulo.nombre)} contra el promedio de los demás</h2>
 <p class="frase">${frase}</p>
-<figure class="fig" style="margin:0">${svgLineasSimples(c.meses, [{ etiqueta: c.modulo.nombre, color: c.modulo.color, vals: c.serie }, { etiqueta: 'Promedio SRL', color: '#1f2328', vals: c.srl, dash: '6 3', ancho: 2.6 }]) || ''}
-<figcaption class="fuente">El promedio SRL es el promedio simple de los 6 módulos (referencia institucional, no depende de los módulos filtrados).</figcaption></figure>
-<h3>Diferencia mensual contra el promedio SRL (NDVI)</h3>
+${c.composicionVariable ? '<div class="aviso"><b>Atención:</b> en algunos meses el promedio de referencia se calculó con menos módulos que el total (ver la columna «Módulos»).</div>' : ''}
+<figure class="fig" style="margin:0">${svgLineasSimples(c.meses, [{ etiqueta: c.modulo.nombre, color: c.modulo.color, vals: c.serie }, { etiqueta: 'Otros', color: '#1f2328', vals: c.srl, dash: '6 3', ancho: 2.6 }]) || ''}
+<figcaption class="fuente">La referencia es el promedio simple de los otros ${c.totalOtros} módulos SRL (el módulo no entra en su propia referencia ni depende del filtro de módulos).</figcaption></figure>
+<h3>Diferencia mensual contra el promedio de los demás (NDVI)</h3>
 <figure class="fig" style="margin:0">${svgBarrasDelta(c.meses.map((mes, i) => ({ etiqueta: mesLegible(mes, true), valor: c.diferencia[i] })), 3) || ''}</figure>
-${cabNota}`;
+<div class="tabla-wrap"><table class="compacta"><thead><tr><th>Mes</th><th class="n">${esc(c.modulo.nombre)}</th><th class="n">Otros</th><th class="n">Módulos</th><th class="n">Diferencia</th></tr></thead><tbody>${filasV}</tbody></table></div>
+${frontera}${cabNota}`;
     };
-    const hojaE = !hay('E') ? '' : `<section class="pagina">${corrida}<div class="cuerpo">${analisisHtml()}</div>${pie()}</section>`;
+    const hojaE = !hay('E') ? '' : analisisHtml().split('<!--CORTE-->').map((parte) => `<section class="pagina">${corrida}<div class="cuerpo">${parte}</div>${pie()}</section>`).join('\n');
 
     // ── Hoja C: serie histórica + anexo de datos
     const serieHtml = () => {
@@ -312,7 +352,7 @@ ${calor.join('')}${pares.length ? `<div class="pares">${pares.join('')}</div>` :
     // ── Hoja D: metodología, glosario y limitaciones (3 columnas)
     const p = d.parametros;
     const defs = [
-        '<dt>NDVI</dt><dd>Índice de vegetación de diferencia normalizada, media espacial del polígono exacto de cada módulo (Sentinel-2 L2A, Statistical API).</dd>',
+        '<dt>NDVI</dt><dd>Índice de vegetación de diferencia normalizada: mediana mensual de los píxeles limpios (máscara de nubes por píxel) del polígono exacto de cada módulo (Sentinel-2 L2A, Statistical API). Es el NDVI de la frontera del módulo, no de una parcela.</dd>',
         ind.has('kc') ? `<dt>Kc estimado</dt><dd>Aproximación lineal NDVI→Kc: ${KC_BASE.toFixed(2)} + ${KC_PENDIENTE.toFixed(2)}·NDVI, acotado a ${KC_MIN.toFixed(2)}–${KC_MAX.toFixed(2)}.</dd>` : '',
         ind.has('icv') ? `<dt>ICV (0–100)</dt><dd>Condición vegetativa: escala lineal del NDVI con piso ${p.ndviPiso.toFixed(2)} (suelo desnudo) y techo ${p.ndviTecho.toFixed(2)} (vigor pleno).</dd>` : '',
         ind.has('ihr') ? '<dt>IHR (0–100)</dt><dd>Homogeneidad de riego: 100×(1 − desviación/media) del NDVI dentro del módulo.</dd>' : '',
@@ -323,12 +363,13 @@ ${calor.join('')}${pares.length ? `<div class="pares">${pares.join('')}</div>` :
 <div><h3>Método</h3>
 <p>Periodo del informe: ${esc(periodoTxt)}. Ventana de cálculo del mes de referencia: ${esc(d.ventana.desde ?? 'S/D')} a ${esc(d.ventana.hasta ?? 'S/D')} (mes calendario cerrado). Filtro de nubosidad: ≤ ${d.nubosidadMaxPct != null ? d.nubosidadMaxPct.toFixed(0) : 'S/D'} %. Resolución nativa 10 m.</p>
 <p>Clases de vigor: ${CLASES_NDVI.map((c) => esc(c.etiqueta)).join(' · ')} (límites 0.15 / 0.30 / 0.50 / 0.70).</p>
-<p>Los cambios (Δ) se calculan contra el mes inmediato anterior de toda la serie disponible, aunque quede fuera del periodo elegido.</p></div>
+<p>Serie: ${esc(ROTULO_METODO_NDVI)}. No se mezcla con la serie anterior (promedio de 30 días sin máscara), que es otra magnitud.</p><p>Los cambios (Δ) se calculan contra el mes calendario inmediato anterior; si ese mes no tiene dato, el cambio queda S/D.</p></div>
 <div><h3>Limitaciones</h3>
 <p>• Promedio SRL ${d.basePromedio === 'ponderado' ? '<b>ponderado por superficie</b> (el simple se muestra aparte)' : '<b>simple</b> (cada módulo pesa igual; el ponderado por superficie se muestra aparte)'}.<br>
 • ${d.volumenMesParcial ? 'El volumen del mes de referencia es <b>parcial</b>: el IEHP de este corte no es comparable con meses completos.' : 'El volumen entregado proviene de la carga institucional provisional de la SRL, no de la captura operativa diaria.'}<br>
-• Un solo ciclo disponible: no hay comparación entre años.<br>
-• El NDVI es de un mes calendario cerrado; no describe los últimos días.<br>
+${d.variosAnios ? '• Para comparar un año contra otros use el modo Interanual (serie homogénea desde 2021).' : '• La serie cargada abarca un solo año: no hay años anteriores para comparar.'}<br>
+• Con unos 6 años de serie, tendencias y diferencias son descriptivas: no prueban una causa.<br>
+• El NDVI es de un mes calendario cerrado; no describe los últimos días. El mes en curso puede estar incompleto.<br>
 • IEH e ISH requieren ETa y temperatura superficial satelital: pendientes.<br>
 • Un módulo sin dato del mes aparece como S/D; no se sustituye con otro mes.</p></div></div>
 <div class="aviso"><b>Uso del documento:</b> producto de apoyo a la decisión. No sustituye aforos ni mediciones oficiales en campo.</div>`;

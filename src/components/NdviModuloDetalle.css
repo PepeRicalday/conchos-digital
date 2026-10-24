@@ -5,7 +5,8 @@
 
 .ndvi-detalle-overlay {
     position: fixed;
-    inset: 0;
+    /* Deja libre el menú lateral (mismo criterio que .vaso-screen-overlay): sin esto la ficha se empalmaba con él. */
+    top: 0; right: 0; bottom: 0; left: var(--sidebar-w, 280px);
     z-index: 1500;
     background: rgba(2, 6, 23, 0.85);
     backdrop-filter: blur(4px);
@@ -46,9 +47,8 @@
 
 .ndvi-detalle-badge {
     display: inline-block;
-    font-size: 0.68rem;
+    font-size: 0.78rem;
     font-weight: 800;
-    letter-spacing: 0.08em;
     padding: 5px 12px;
     border-radius: 999px;
     border: 1px solid;
@@ -74,8 +74,8 @@
     background: rgba(30, 41, 59, 0.6);
     border: 1px solid rgba(100, 116, 139, 0.3);
     color: white;
-    width: 38px;
-    height: 38px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -85,6 +85,7 @@
     flex-shrink: 0;
 }
 
+.ndvi-detalle-close:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
 .ndvi-detalle-close:hover {
     background: #ef4444;
     border-color: #ef4444;
@@ -123,7 +124,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #64748b;
+    color: #94a3b8;
     font-size: 0.8rem;
     background: rgba(2, 6, 23, 0.4);
     pointer-events: none;
@@ -152,14 +153,12 @@
 }
 
 .ndvi-detalle-stat-label {
-    font-size: 0.68rem;
+    font-size: 0.78rem;
     color: #94a3b8;
     font-weight: 700;
     display: flex;
     align-items: center;
     gap: 5px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
 }
 
 .ndvi-detalle-stat-value {
@@ -175,8 +174,8 @@
 }
 
 .ndvi-detalle-nota {
-    font-size: 0.72rem;
-    color: #64748b;
+    font-size: 0.8rem;
+    color: #94a3b8;
     line-height: 1.5;
     padding: 0 0.25rem;
 }
@@ -188,10 +187,10 @@
 }
 
 .ndvi-detalle-chart-title {
-    font-size: 0.75rem;
-    font-weight: 800;
+    font-size: 0.95rem;
+    font-weight: 700;
     color: #94a3b8;
-    letter-spacing: 0.06em;
+    
     margin-bottom: 0.75rem;
 }
 
@@ -224,21 +223,22 @@
 }
 
 .ndvi-indice-clave {
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     font-weight: 900;
     color: #cbd5e1;
-    letter-spacing: 0.06em;
+    
     font-family: 'JetBrains Mono', monospace;
 }
 
 .ndvi-indice-etiqueta {
-    font-size: 0.68rem;
+    font-size: 0.78rem;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
 }
 
+.ndvi-indice-etiqueta { display: inline-flex; align-items: center; gap: 6px; color: #e2e8f0; }
+.ndvi-indice-etiqueta i { width: 10px; height: 10px; border-radius: 2px; border: 1px solid rgba(255, 255, 255, 0.5); flex: 0 0 auto; }
 .ndvi-indice-valor {
+    color: #f8fafc;
     font-size: 1.9rem;
     font-weight: 900;
     font-family: 'JetBrains Mono', monospace;
@@ -253,20 +253,20 @@
 }
 
 .ndvi-indice-nombre {
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     color: #94a3b8;
     font-weight: 600;
 }
 
 .ndvi-indice-implicacion {
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     color: #cbd5e1;
     line-height: 1.4;
     margin-top: 2px;
 }
 
 .ndvi-indice-parcial-aviso {
-    font-size: 0.68rem;
+    font-size: 0.78rem;
     color: #fbbf24;
     line-height: 1.4;
     margin-top: 4px;
@@ -274,12 +274,12 @@
 
 .ndvi-indice-metodologia {
     margin-top: 6px;
-    font-size: 0.68rem;
+    font-size: 0.78rem;
 }
 
 .ndvi-indice-metodologia summary {
     cursor: pointer;
-    color: #64748b;
+    color: #94a3b8;
     font-weight: 700;
     letter-spacing: 0.02em;
 }
@@ -298,7 +298,26 @@
 
 .ndvi-indice-procedencia {
     margin-top: 4px;
-    color: #64748b;
+    color: #94a3b8;
     font-style: italic;
     line-height: 1.4;
 }
+
+.ndvi-detalle-chart-cab { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 8px 16px; margin-bottom: 0.5rem; }
+.ndvi-detalle-chart-cab .ndvi-detalle-chart-title { margin-bottom: 0; }
+.ndvi-detalle-chart-card .ndvi-chips { flex-wrap: wrap; overflow-x: visible; }
+.ndvi-detalle-echarts { height: clamp(240px, 38vw, 320px) !important; }
+.ndvi-detalle-echarts-bajo { height: clamp(200px, 30vw, 260px) !important; }
+.ndvi-detalle-vacio { padding: 2rem 0; text-align: center; color: #cbd5e1; font-size: 0.9rem; }
+.ndvi-detalle-chart-card .ndvi-nota { max-width: none; margin-top: 8px; }
+@media (max-width: 600px) {
+    .ndvi-detalle-overlay { padding: 0; }
+    .ndvi-detalle-container { max-height: 100dvh; height: 100dvh; border-radius: 0; }
+    .ndvi-detalle-scroll { max-height: 100dvh; }
+    .ndvi-detalle-header { padding: 1rem; }
+    .ndvi-detalle-body { padding: 1rem; }
+    .ndvi-detalle-chart-card, .ndvi-detalle-indices-card { margin-left: 1rem; margin-right: 1rem; padding: 1rem; }
+}
+.ndvi-detalle-stat-value.ndvi-delta-sube { color: #38bdf8; }
+.ndvi-detalle-stat-value.ndvi-delta-baja { color: #fbbf24; }
+.ndvi-detalle-stat-value.ndvi-delta { display: inline-flex; align-items: center; gap: 6px; }

@@ -1,0 +1,28 @@
+/* Gráfica principal del panel NDVI: la regla agronómica (franjas de vigor + 0.30 + temporada) detrás de las líneas. */
+.ndvi-gr { min-width: 0; }
+.ndvi-gr-cab { margin-bottom: 10px; }
+.ndvi-gr-titulo { margin: 0 0 4px; font-size: 1.1rem; letter-spacing: 0.01em; color: #f1f5f9; }
+.ndvi-gr .ndvi-nota { max-width: none; color: #aab6c8; }
+.ndvi-gr-controles { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: flex-end; margin-bottom: 12px; }
+.ndvi-gr-controles .ndvi-chips { flex-wrap: wrap; overflow-x: visible; }
+.ndvi-gr-titular { margin: 0 0 12px; padding: 10px 14px; border-left: 4px solid #fbbf24; background: rgba(148, 163, 184, 0.08);
+    border-radius: 0 8px 8px 0; font-size: 1rem; line-height: 1.45; color: #f1f5f9; }
+.ndvi-gr-titular span { display: block; margin-top: 4px; font-size: 0.85rem; color: #aab6c8; }
+.ndvi-gr-lienzo { min-width: 0; }
+.ndvi-gr-echarts { height: clamp(320px, 50vw, 460px) !important; }
+.ndvi-gr-simbolos { display: flex; flex-wrap: wrap; gap: 6px 16px; list-style: none; margin: 8px 0 0; padding: 0; font-size: 12px; color: #cbd5e1; }
+.ndvi-gr-simbolos li { display: inline-flex; align-items: center; gap: 6px; }
+.ndvi-gr-guion { display: inline-block; width: 20px; height: 0; border-top: 2px dashed #f1f5f9; }
+.ndvi-gr-aviso { margin-top: 6px; }
+.ndvi-gr-tabla { margin-top: 12px; }
+.ndvi-gr-tabla summary { cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; color: #cbd5e1; font-size: 0.9rem; font-weight: 600; }
+.ndvi-gr-tabla summary:focus-visible, .ndvi-gr-tabla-wrap:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.ndvi-gr-tabla-wrap { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.ndvi-gr-tabla table { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.ndvi-gr-tabla caption { text-align: left; font-weight: 600; color: #e2e8f0; padding-bottom: 6px; }
+.ndvi-gr-tabla th, .ndvi-gr-tabla td { padding: 6px 10px; text-align: right; border-bottom: 1px solid rgba(148, 163, 184, 0.15); white-space: nowrap; }
+.ndvi-gr-tabla th:first-child, .ndvi-gr-tabla td:first-child { text-align: left; }
+.ndvi-gr-tabla thead th { color: #aab6c8; font-weight: 500; }
+.ndvi-gr-tabla tbody th { font-weight: 600; color: #e2e8f0; }
+.ndvi-gr-sd { color: #94a3b8; font-style: italic; }
+@media (max-width: 600px) { .ndvi-gr-titular { font-size: 0.95rem; } }

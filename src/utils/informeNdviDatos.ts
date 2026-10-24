@@ -1,6 +1,6 @@
 /**
  * informeNdviDatos — modelo de datos PURO del informe institucional de NDVI (sin red, sin DOM, sin HTML).
- * Entra la serie mensual de ndvi_modulo_historico, el contexto ya cargado (volumen, contornos, logos) y, opcionalmente, la
+ * Entra la serie mensual v2 (ndvi_modulo_mensual_v2: mediana con máscara de nubes SCL; `ndvi_medio` de la fila = esa mediana), el contexto ya cargado (volumen, contornos, logos) y, opcionalmente, la
  * configuración de filtros (periodo, módulos, base del promedio…); sale un objeto con todo lo que el informe necesita.
  * S/D = null (nunca 0); un módulo SIN fila del mes de referencia queda S/D con aviso: jamás se rellena con el dato de un
  * mes anterior. Los cambios (Δ, tendencia) se calculan contra el mes inmediato anterior de TODA la serie, no solo del periodo.
@@ -9,6 +9,8 @@ import { calcICV, calcIHR, calcIEHP, NDVI_PISO, NDVI_TECHO, NDVI_UMBRAL_ACTIVO }
 import { MODULOS_SRL_IDS, COLOR_MODULO_SRL } from './modulosSRL';
 import { claseNdvi, CLASES_NDVI, type ClaseNdvi } from './ndviRampa';
 import { folioInforme } from './informeBase';
+import { media } from './estadisticaBasica';
+import { mesAnteriorCalendario, mesesContinuos } from './ndviSerie';
 import { configPorDefecto, filtrarFilas, mesesDisponibles, type BasePromedio, type ConfigInformeNdvi } from './informeNdviConfig';
 import { construirAnalisis, type ResultadoAnalisis } from './informeNdviAnalisis';
 
@@ -26,6 +28,9 @@ export interface FilaNdviInforme {
     ventana_desde?: string | null;
     ventana_hasta?: string | null;
     nubosidad_max_pct?: number | null;
+    /** Calidad del mes (serie v2): pasos de satélite limpios y fracción de píxeles válidos. Opcionales: sin ellos no se marca baja confianza. */
+    n_escenas?: number | null;
+    pct_pixeles_validos?: number | null;
 }
 
 export interface ContextoInforme {
@@ -97,6 +102,8 @@ export interface InformeNdvi {
     nubosidadMaxPct: number | null;
     volumenMesParcial: boolean;
     avisos: AvisoInforme[];
+    /** La serie cargada abarca más de un año calendario (si no, las comparaciones son dentro de un solo ciclo). */
+    variosAnios: boolean;
     /** Tendencia o comparación según el modo elegido (null en modo resumen). */
     analisis: ResultadoAnalisis | null;
     /** Parámetros reales del cálculo (se imprimen en la metodología: no se escriben a mano). */
@@ -105,10 +112,7 @@ export interface InformeNdvi {
 
 const mesDe = (m: string) => (m ?? '').slice(0, 7);
 
-export function promedioSimple(valores: (number | null | undefined)[]): number | null {
-    const v = valores.filter((x): x is number => x != null && Number.isFinite(x));
-    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
-}
+export const promedioSimple = media;
 
 /** Promedio ponderado por superficie; ignora módulos sin valor o sin superficie. */
 export function promedioPonderado(pares: { valor: number | null; peso: number | null }[]): number | null {
@@ -124,10 +128,13 @@ export function construirDatosNdvi(filas: FilaNdviInforme[], ctx: ContextoInform
     const todosMeses = mesesDisponibles(filas);
     const cfg = config ?? configPorDefecto(todosMeses);
     const filasPeriodo = filtrarFilas(filas, cfg);
-    const meses = mesesDisponibles(filasPeriodo);
+    // Eje mensual CONTINUO del primer al último mes con dato del periodo: un mes sin fila queda como hueco (S/D), no se comprime.
+    const mesesConDato = mesesDisponibles(filasPeriodo);
+    const meses = mesesConDato.length ? mesesContinuos(mesesConDato[0], mesesConDato[mesesConDato.length - 1]) : [];
     const mesReferencia = meses[meses.length - 1] ?? null;
-    const idxRef = mesReferencia ? todosMeses.indexOf(mesReferencia) : -1;
-    const mesAnterior = idxRef > 0 ? todosMeses[idxRef - 1] : null;
+    // Mes calendario inmediato anterior (si no tiene filas, el cambio queda S/D: no se salta a un mes más lejano).
+    const prev = mesReferencia ? mesAnteriorCalendario(mesReferencia) : null;
+    const mesAnterior = prev && todosMeses.includes(prev) ? prev : null;
     const idsModulos = MODULOS_SRL_IDS.filter((n) => cfg.modulos.includes(n));
 
     // El índice usa TODAS las filas (el mes anterior puede caer fuera del periodo); el periodo solo acota las series.
@@ -229,6 +236,7 @@ export function construirDatosNdvi(filas: FilaNdviInforme[], ctx: ContextoInform
         nubosidadMaxPct: nub.length ? Math.max(...nub) : null,
         volumenMesParcial: ctx.volumenMesParcial,
         avisos,
+        variosAnios: new Set(todosMeses.map((m) => m.slice(0, 4))).size > 1,
         analisis: construirAnalisis(filas, cfg, meses),
         parametros: { ndviPiso: NDVI_PISO, ndviTecho: NDVI_TECHO, umbralActivo: NDVI_UMBRAL_ACTIVO },
     };

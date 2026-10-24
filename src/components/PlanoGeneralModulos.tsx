@@ -1,34 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Map as MapIcon } from 'lucide-react';
+import { Map as MapIcon, Hand } from 'lucide-react';
 import { MapContainer, TileLayer, WMSTileLayer, GeoJSON, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PlanoGeneralModulos.css';
 import './ndvi/ndviVisual.css';
 import { COLOR_MODULO_SRL, numeroGeojsonDeSRL } from '../utils/modulosSRL';
-import { calcICV, calcIHR } from '../utils/indicesSrl';
 import { sentinelWmsUrl } from '../utils/sentinelWms';
 import { cargarContornosModulos } from '../utils/contornosModulos';
-import { NDVI_RANGO, claseNdvi, colorNdvi } from '../utils/ndviRampa';
+import { CLASES_ICV, CLASES_IHR, NDVI_RANGO, claseIndice, claseNdvi, colorNdvi } from '../utils/ndviRampa';
 import { fmt } from '../utils/formato';
+import { deltaVsResto, promedioSrl as calcPromedioSrl, textoNDe, valorIndice, type ClaveIndice } from '../utils/ndviSerie';
+import { MESES_LARGOS } from '../utils/ndviGrafica';
+import { UMBRAL_SIN_CAMBIO } from '../utils/ndviInteranual';
+import type { FilaNdviSerie } from '../utils/ndviSerie';
 import { SelectorChips } from './ndvi/SelectorChips';
+import { SelectorMes } from './ndvi/SelectorMes';
 import { LeyendaNdvi } from './ndvi/LeyendaNdvi';
 
-interface NdviModuloFila {
-    numero_modulo: number;
-    nombre_modulo: string;
-    mes: string;
-    ndvi_medio: number;
-    ndvi_desv: number | null;
-    kc_estimado: number | null;
-    delta_ndvi: number | null;
-    superficie_ha: number | null;
-    fraccion_cobertura_activa: number | null;
-    muestras_validas: number | null;
-}
-
 interface PlanoGeneralModulosProps {
-    filas: NdviModuloFila[];
+    filas: FilaNdviSerie[];
     meses: string[];
     /** Sentinel Hub WMS instance ID — mismo que MiniMapaNdviAgro, para el
      *  overlay "NDVI Agro" recortado por módulo cuando el índice es NDVI. */
@@ -36,6 +27,12 @@ interface PlanoGeneralModulosProps {
 }
 
 const MODULOS_SRL = [1, 2, 3, 4, 5, 12];
+/** Diferencia mínima para llamar "distinto" a un módulo contra los demás: 0.02 de NDVI (UMBRAL_SIN_CAMBIO) o 2 puntos en los índices 0–100. */
+const UMBRAL_DELTA: Record<ClaveIndice, number> = { ndvi: UMBRAL_SIN_CAMBIO, icv: 2, ihr: 2 };
+const mesLegible = (m: string) => (m ? `${MESES_LARGOS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}` : 'sin dato');
+
+/** Dispositivo táctil: el mapa no captura el dedo al desplazar la página; hay que activarlo para moverlo. */
+const esTactil = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
 
 // Mismo basemap CARTO oscuro y mismo criterio de fallback que PublicMonitor.tsx
 // (CARTO_TILE_URL) — sin VITE_CARTO_ACCESS_TOKEN el tile legacy funciona pero
@@ -45,7 +42,6 @@ const CARTO_TILE_URL = CARTO_ACCESS_TOKEN
     ? `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=${CARTO_ACCESS_TOKEN}`
     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
-type ClaveIndice = 'ndvi' | 'icv' | 'ihr';
 const INDICES: { clave: ClaveIndice; etiqueta: string; corta: string; rango: [number, number] }[] = [
     { clave: 'ndvi', etiqueta: 'NDVI', corta: 'NDVI', rango: NDVI_RANGO },
     { clave: 'icv', etiqueta: 'ICV (Condición Vegetativa)', corta: 'ICV', rango: [0, 100] },
@@ -68,36 +64,10 @@ const AjustarVista: React.FC<{ data: GeoJSON.FeatureCollection }> = ({ data }) =
     useEffect(() => {
         if (!data.features.length) return;
         const b = L.geoJSON(data).getBounds();
-        if (b.isValid()) map.fitBounds(b, { padding: [40, 40], maxZoom: 11 });
+        if (b.isValid()) map.fitBounds(b, { padding: [24, 24], maxZoom: 12 });
     }, [data, map]);
     return null;
 };
-
-/** Semáforo rojo→ámbar→verde — solo para ICV/IHR (índices 0-100 derivados). El NDVI usa la rampa agronómica (ndviRampa). */
-function colorSemaforo(t: number): string {
-    const c = Math.max(0, Math.min(1, t));
-    const lerp = (a: number, b: number, f: number) => Math.round(a + (b - a) * f);
-    let r: number, g: number, b: number;
-    if (c < 0.5) {
-        const f = c / 0.5;
-        r = lerp(0xd0, 0xd9, f); g = lerp(0x3b, 0x87, f); b = lerp(0x3b, 0x04, f);
-    } else {
-        const f = (c - 0.5) / 0.5;
-        r = lerp(0xd9, 0x0c, f); g = lerp(0x87, 0xa3, f); b = lerp(0x04, 0x0c, f);
-    }
-    return `rgb(${r},${g},${b})`;
-}
-
-function valorIndice(clave: ClaveIndice, fila: NdviModuloFila | undefined): number | null {
-    if (!fila) return null;
-    if (clave === 'ndvi') return fila.ndvi_medio;
-    const base = {
-        numeroModulo: fila.numero_modulo, nombreModulo: fila.nombre_modulo,
-        ndviMedio: fila.ndvi_medio, ndviDesv: fila.ndvi_desv, fraccionCoberturaActiva: fila.fraccion_cobertura_activa,
-        superficieHa: fila.superficie_ha, volumenAcumuladoHm3: null,
-    };
-    return clave === 'icv' ? calcICV(base).valor : calcIHR(base).valor;
-}
 
 /** Plano general: mapa único con el contorno EXACTO (public/geo/modulos.geojson)
  *  de los 6 módulos SRL, coloreado según el índice y mes elegidos — vista
@@ -110,6 +80,9 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
     const [indiceSeleccionado, setIndiceSeleccionado] = useState<ClaveIndice>('ndvi');
     const [contornos, setContornos] = useState<Record<number, GeoJSON.Feature>>({});
     const [cargandoContornos, setCargandoContornos] = useState(true);
+    const [tactil] = useState(esTactil);
+    const [mapaActivo, setMapaActivo] = useState(false);
+    const moverMapa = !tactil || mapaActivo;
 
     useEffect(() => {
         let cancelado = false;
@@ -129,7 +102,7 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
     }, []);
 
     const filaPorModulo = useMemo(() => {
-        const mapa = new Map<number, NdviModuloFila>();
+        const mapa = new Map<number, FilaNdviSerie>();
         for (const f of filas) if (f.mes === mesSeleccionado) mapa.set(f.numero_modulo, f);
         return mapa;
     }, [filas, mesSeleccionado]);
@@ -143,11 +116,10 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
         return mapa;
     }, [filaPorModulo, indiceSeleccionado]);
 
-    const promedioSrl = useMemo(() => {
-        const valores = MODULOS_SRL.map(m => valoresPorModulo.get(m)).filter((v): v is number => v != null);
-        if (!valores.length) return null;
-        return valores.reduce((a, b) => a + b, 0) / valores.length;
-    }, [valoresPorModulo]);
+    // Promedio de los módulos CON dato del mes, con su "n de 6": un módulo S/D no entra ni cuenta como 0.
+    const promedioSrl = useMemo(() => calcPromedioSrl(MODULOS_SRL.map(m => valoresPorModulo.get(m))), [valoresPorModulo]);
+
+    const deltas = useMemo(() => deltaVsResto(valoresPorModulo), [valoresPorModulo]);
 
     const geoJsonCombinado: GeoJSON.FeatureCollection = useMemo(() => ({
         type: 'FeatureCollection',
@@ -193,12 +165,11 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
     return (
         <div className="plano-general-card glass">
             <div className="plano-general-header">
-                <div className="plano-general-titulo">
-                    <MapIcon size={16} /> PLANO GENERAL — {indiceInfo.corta} · {mesSeleccionado || 'S/D'}
-                </div>
+                <h3 className="plano-general-titulo">
+                    <MapIcon size={16} aria-hidden="true" /> Plano general: {indiceInfo.corta}, {mesLegible(mesSeleccionado)}
+                </h3>
                 <div className="plano-general-controles">
-                    <SelectorChips etiqueta="Mes (plano)" valor={mesSeleccionado} onChange={setMesElegido}
-                        opciones={meses.map(m => ({ valor: m, texto: m }))} />
+                    <SelectorMes etiqueta="Plano" valor={mesSeleccionado} onChange={setMesElegido} meses={meses} />
                     <SelectorChips etiqueta="Índice" valor={indiceSeleccionado} onChange={setIndiceSeleccionado}
                         opciones={INDICES.map(i => ({ valor: i.clave, texto: i.corta, title: i.etiqueta }))} />
                 </div>
@@ -206,8 +177,14 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
 
             <div className="plano-general-body">
                 <div className="plano-general-mapa-col">
-                    <div className="plano-general-map-wrap">
-                        <MapContainer center={center} zoom={9} className="plano-general-map" attributionControl={false}>
+                    <div className="plano-general-map-wrap" role="group" aria-label={`Mapa de los seis módulos coloreados por ${indiceInfo.corta}. Los valores de cada módulo están en la tabla al lado.`}>
+                        {tactil && (
+                            <button type="button" className={`plano-general-mover ${mapaActivo ? 'on' : ''}`} aria-pressed={mapaActivo} onClick={() => setMapaActivo(v => !v)}>
+                                <Hand size={16} aria-hidden="true" /> {mapaActivo ? 'Soltar el mapa' : 'Mover el mapa'}
+                            </button>
+                        )}
+                        <MapContainer center={center} zoom={9} className="plano-general-map" attributionControl={false}
+                            dragging={moverMapa} touchZoom={moverMapa} scrollWheelZoom={false} doubleClickZoom={moverMapa}>
                             <TileLayer url={CARTO_TILE_URL} attribution="&copy; CARTO" />
                             <AjustarVista data={geoJsonCombinado} />
                             {/* Solo para NDVI: imagen real "NDVI Agro" de Sentinel Hub como REFERENCIA (opacidad baja, sin leyenda
@@ -225,9 +202,9 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
                                     const srl = feature.properties?.numero_modulo_srl;
                                     const valor = srl != null ? valoresPorModulo.get(srl) : null;
                                     const nombre = feature.properties?.nombre ?? `Módulo ${srl}`;
-                                    const clase = esNdvi ? claseNdvi(valor) : null;
+                                    const clase = esNdvi ? claseNdvi(valor) : claseIndice(indiceSeleccionado as 'icv' | 'ihr', valor);
                                     layer.bindTooltip(
-                                        `<strong>${nombre}</strong><br/>${indiceInfo.corta}: ${fmt(valor, decimales)}${clase ? ` · ${clase.etiqueta}` : ''}`,
+                                        `<strong>${nombre}</strong><br/>${indiceInfo.corta}: ${valor != null ? fmt(valor, decimales) : 'S/D'}${clase ? ` · ${clase.etiqueta}` : ''}`,
                                         { sticky: true, className: 'plano-general-tooltip' }
                                     );
                                 };
@@ -247,9 +224,7 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
                                             style={(feature) => {
                                                 const srl = feature?.properties?.numero_modulo_srl;
                                                 const valor = srl != null ? valoresPorModulo.get(srl) ?? null : null;
-                                                const [lo, hi] = indiceInfo.rango;
-                                                const t = valor != null ? (valor - lo) / (hi - lo) : null;
-                                                const relleno = esNdvi ? colorNdvi(valor) : (t != null ? colorSemaforo(t) : '#334155');
+                                                                const relleno = esNdvi ? colorNdvi(valor) : (claseIndice(indiceSeleccionado as 'icv' | 'ihr', valor)?.color ?? '#334155');
                                                 return {
                                                     color: '#f8fafc', weight: 2, opacity: 0.95,
                                                     fillColor: relleno,
@@ -273,34 +248,57 @@ export const PlanoGeneralModulos: React.FC<PlanoGeneralModulosProps> = ({ filas,
                             ? 'Relleno de cada módulo = NDVI del mes elegido. La imagen tenue de fondo es la referencia satelital de los últimos 30 días.'
                             : 'Relleno de cada módulo = NDVI del mes elegido.'} />
                     ) : (
-                        <p className="ndvi-ley-nota">Relleno de cada módulo = {indiceInfo.etiqueta} del mes elegido (rojo = bajo, verde = alto; escala 0–100).</p>
+                        <LeyendaIndice clave={indiceSeleccionado as 'icv' | 'ihr'} etiqueta={indiceInfo.etiqueta} />
                     )}
                 </div>
 
                 <div className="plano-general-lateral">
                     <div className="plano-general-promedio-card">
-                        <div className="plano-general-promedio-label">PROMEDIO SRL</div>
-                        <div className="plano-general-promedio-valor">{fmt(promedioSrl, esNdvi ? 2 : 1)}</div>
-                        <div className="plano-general-promedio-sub">{indiceInfo.corta} · promedio simple de los 6 módulos (sin ponderar por superficie)</div>
+                        <div className="plano-general-promedio-label">Promedio SRL</div>
+                        <div className="plano-general-promedio-valor">{fmt(promedioSrl.valor, esNdvi ? 2 : 1)}</div>
+                        <div className="plano-general-promedio-n">{promedioSrl.valor == null ? 'Sin módulos con dato' : `${promedioSrl.n} de ${promedioSrl.total} módulos`}</div>
+                        <div className="plano-general-promedio-sub">{indiceInfo.corta}, promedio simple de los {textoNDe(promedioSrl)} con dato en el mes (sin ponderar por superficie)</div>
                     </div>
-                    <div className="plano-general-tabla">
+                    <ul className="plano-general-tabla" aria-label={`${indiceInfo.corta} por módulo y diferencia contra el promedio de los demás`}>
                         {MODULOS_SRL.map(srl => {
                             const valor = valoresPorModulo.get(srl) ?? null;
-                            const clase = esNdvi ? claseNdvi(valor) : null;
+                            const clase = esNdvi ? claseNdvi(valor) : claseIndice(indiceSeleccionado as 'icv' | 'ihr', valor);
+                            const d = deltas.get(srl);
+                            const dif = d?.delta ?? null;
+                            const umbral = UMBRAL_DELTA[indiceSeleccionado];
+                            const tipo = dif == null ? 'sd' : Math.abs(dif) < umbral ? 'igual' : dif > 0 ? 'sube' : 'baja';
+                            const dec = esNdvi ? 3 : 1;
                             return (
-                                <div key={srl} className="plano-general-fila">
+                                <li key={srl} className="plano-general-fila">
                                     <span className="plano-general-fila-dot" style={{ background: COLOR_MODULO_SRL[srl] ?? '#334155' }} aria-hidden="true" />
                                     <span className="plano-general-fila-nombre">Módulo {srl}</span>
                                     {clase && <span className="ndvi-fila-clase"><i style={{ background: clase.color }} aria-hidden="true" />{clase.etiqueta}</span>}
-                                    <span className="plano-general-fila-valor">{fmt(valor, decimales)}</span>
-                                </div>
+                                    <span className="plano-general-fila-valor">{valor != null ? fmt(valor, decimales) : 'S/D'}</span>
+                                    <span className={`plano-general-fila-delta ${tipo}`} title={dif != null ? `Contra el promedio de los otros ${d?.nResto} módulos con dato` : 'Sin referencia'}>
+                                        {dif == null ? 'S/D' : <>{tipo === 'sube' ? '▲' : tipo === 'baja' ? '▼' : '≈'} {dif >= 0 ? '+' : '−'}{fmt(Math.abs(dif), dec)}</>}
+                                        <span className="ndvi-sr-only"> contra los demás módulos ({d?.nResto} de {MODULOS_SRL.length - 1} con dato)</span>
+                                    </span>
+                                </li>
                             );
                         })}
-                    </div>
+                    </ul>
+                    <p className="ndvi-nota">▲▼ = módulo contra el promedio de los demás ({esNdvi ? '≈ si la diferencia es menor a 0.02' : '≈ si es menor a 2 puntos'}).</p>
                 </div>
             </div>
         </div>
     );
 };
+
+/** Leyenda graduada de ICV/IHR: cortes discretos con etiqueta y rango (el color nunca es el único canal). */
+const LeyendaIndice: React.FC<{ clave: 'icv' | 'ihr'; etiqueta: string }> = ({ clave, etiqueta }) => (
+    <div className="ndvi-ley" role="group" aria-label={`Leyenda de ${etiqueta}`}>
+        <ul className="ndvi-ley-lista">
+            {(clave === 'icv' ? CLASES_ICV : CLASES_IHR).map((c) => (
+                <li key={c.etiqueta}><i style={{ background: c.color }} aria-hidden="true" /><b>{c.etiqueta}</b> <span>{c.desde === 0 ? `< ${c.hasta}` : c.hasta === 100 ? `≥ ${c.desde}` : `${c.desde}–${c.hasta}`}</span></li>
+            ))}
+        </ul>
+        <p className="ndvi-ley-nota">Relleno de cada módulo = {etiqueta} del mes elegido, en clases (escala 0–100). Módulo sin dato: gris.</p>
+    </div>
+);
 
 export default PlanoGeneralModulos;

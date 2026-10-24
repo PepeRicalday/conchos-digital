@@ -26,6 +26,9 @@ export const CLASES_NDVI: ClaseNdvi[] = [
 /** NDVI agrícola real vive en ~0.1–0.8: la escala del mapa va de 0 a 0.8 (no de 0 a 1). */
 export const NDVI_RANGO: [number, number] = [0, 0.8];
 
+/** Marcas del eje de NDVI (cada 0.2 dentro de NDVI_RANGO): una sola definición para gráficas y SVG de informes. */
+export const NDVI_TICKS: number[] = Array.from({ length: Math.round((NDVI_RANGO[1] - NDVI_RANGO[0]) / 0.2) + 1 }, (_, i) => Number((NDVI_RANGO[0] + 0.2 * i).toFixed(1)));
+
 /** Clase de un valor; null/NaN → null (S/D, nunca "suelo desnudo"). */
 export function claseNdvi(v: number | null | undefined): ClaseNdvi | null {
     if (v == null || !Number.isFinite(v)) return null;
@@ -67,4 +70,20 @@ export function luminancia(h: string): number {
         return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
     });
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// ── Clases discretas de ICV / IHR (0–100) para el coroplético: mismas etiquetas y cortes que indicesSrl.ts ──────────────────
+export interface ClaseIndiceDiscreta { etiqueta: string; desde: number; hasta: number; color: string }
+/** Cuatro pasos de una sola rampa (arena → verde oscuro, luminosidad decreciente): no depende del tono para distinguirse. */
+const PASOS_INDICE = [CLASES_NDVI[0].color, CLASES_NDVI[2].color, CLASES_NDVI[3].color, CLASES_NDVI[4].color];
+const clasesDe = (cortes: number[], etiquetas: string[]): ClaseIndiceDiscreta[] =>
+    etiquetas.map((etiqueta, i) => ({ etiqueta, desde: i === 0 ? 0 : cortes[i - 1], hasta: i === cortes.length ? 100 : cortes[i], color: PASOS_INDICE[i] }));
+export const CLASES_ICV = clasesDe([25, 50, 75], ['Crítico', 'Regular', 'Bueno', 'Óptimo']);
+export const CLASES_IHR = clasesDe([40, 60, 80], ['Muy irregular', 'Irregular', 'Aceptable', 'Homogéneo']);
+
+/** Clase de un valor ICV/IHR; null/NaN → null (S/D). El techo (100) cae en la última clase. */
+export function claseIndice(clave: 'icv' | 'ihr', v: number | null | undefined): ClaseIndiceDiscreta | null {
+    if (v == null || !Number.isFinite(v)) return null;
+    const clases = clave === 'icv' ? CLASES_ICV : CLASES_IHR;
+    return clases.find((c) => v >= c.desde && v < c.hasta) ?? clases[clases.length - 1];
 }

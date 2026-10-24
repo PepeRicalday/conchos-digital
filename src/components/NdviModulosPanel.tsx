@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Satellite, RefreshCw, TrendingUp, TrendingDown, FileText } from 'lucide-react';
-import ReactECharts from 'echarts-for-react';
 import { MapContainer, TileLayer, WMSTileLayer } from 'react-leaflet';
 import type { WMSParams } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -16,12 +15,16 @@ import { COLOR_MODULO_SRL } from '../utils/modulosSRL';
 import { bboxDeModulo } from '../utils/modulosBbox';
 import { sentinelWmsUrl } from '../utils/sentinelWms';
 import { claseNdvi } from '../utils/ndviRampa';
+import { ROTULO_METODO_NDVI, cargarSerieNdviV2, filasDeSerie, serieSpark as calcSerieSpark, type FilaNdviSerie } from '../utils/ndviSerie';
 import { fmt } from '../utils/formato';
 import { NdviModuloDetalle } from './NdviModuloDetalle';
 import { PlanoGeneralModulos } from './PlanoGeneralModulos';
-import { SelectorChips } from './ndvi/SelectorChips';
+import { SelectorMes } from './ndvi/SelectorMes';
+import NdviGraficaPrincipal from './ndvi/NdviGraficaPrincipal';
+import { useModalA11y } from './historico/useModalA11y';
 import { SparklineNdvi } from './ndvi/SparklineNdvi';
 import ConfigInformeNdviModal from './ndvi/ConfigInformeNdviModal';
+import NdviInteranual from './ndvi/NdviInteranual';
 
 // Mismo basemap CARTO oscuro y mismo criterio de fallback que GeoMonitor.tsx /
 // PlanoGeneralModulos.tsx — sin él, el WMS de NDVI (transparente) queda flotando
@@ -30,24 +33,6 @@ const CARTO_ACCESS_TOKEN = import.meta.env.VITE_CARTO_ACCESS_TOKEN as string | u
 const CARTO_TILE_URL = CARTO_ACCESS_TOKEN
     ? `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=${CARTO_ACCESS_TOKEN}`
     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-
-interface NdviModuloFila {
-    numero_modulo: number;
-    nombre_modulo: string;
-    mes: string;
-    ndvi_medio: number;
-    ndvi_min: number | null;
-    ndvi_max: number | null;
-    ndvi_desv: number | null;
-    kc_estimado: number | null;
-    delta_ndvi: number | null;
-    superficie_ha: number | null;
-    fraccion_cobertura_activa: number | null;
-    muestras_validas: number | null;
-    ventana_desde?: string | null;
-    ventana_hasta?: string | null;
-    nubosidad_max_pct?: number | null;
-}
 
 interface NdviModulosPanelProps {
     onClose: () => void;
@@ -123,7 +108,7 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
     const [sentinelInstanceId] = useState<string>(() => (
         localStorage.getItem('geo_sentinel_instance_id') || import.meta.env.VITE_SENTINEL_INSTANCE_ID || ''
     ));
-    const [filas, setFilas] = useState<NdviModuloFila[]>([]);
+    const [filas, setFilas] = useState<FilaNdviSerie[]>([]);
     const [cargando, setCargando] = useState(true);
     const [errorCarga, setErrorCarga] = useState<string | null>(null);
     const [sincronizando, setSincronizando] = useState(false);
@@ -140,15 +125,16 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
 
     const [informeAbierto, setInformeAbierto] = useState(false);
     const { profile } = useAuth();
+    const dialogoRef = useRef<HTMLDivElement>(null);
+    // Diálogo modal: foco inicial, Tab atrapado, Escape cierra y el foco vuelve a quien lo abrió (la ficha y el informe quedan encima).
+    useModalA11y(dialogoRef, true, onClose);
 
     const recargar = useCallback(async () => {
-        const { data, error } = await supabase
-            .from('ndvi_modulo_historico')
-            .select('numero_modulo, nombre_modulo, mes, ndvi_medio, ndvi_min, ndvi_max, ndvi_desv, kc_estimado, delta_ndvi, superficie_ha, fraccion_cobertura_activa, muestras_validas, ventana_desde, ventana_hasta, nubosidad_max_pct')
-            .order('mes', { ascending: true });
+        // Serie v2 (mediana con máscara de nubes) vía la carga común; ndvi_medio de cada fila ES la mediana.
+        const { filas: v2, error } = await cargarSerieNdviV2(supabase);
         // Un fallo de lectura NO es "todavía no hay datos": se informa aparte, con reintento.
-        setErrorCarga(error ? error.message : null);
-        setFilas(error || !data ? [] : (data as NdviModuloFila[]));
+        setErrorCarga(error);
+        setFilas(error ? [] : filasDeSerie(v2));
     }, []);
 
     const cargarInicial = useCallback(() => {
@@ -162,19 +148,18 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
         return () => { cancelado = true; };
     }, [recargar]);
 
-    // Sincroniza el mes en curso a demanda — mismo endpoint que invoca el cron
-    // automático (día 3 de cada mes), sin esperar esa fecha. Sin numero_modulo
-    // en el body: procesa los 6 módulos SRL en una sola invocación.
+    // Calcula el último mes cerrado a demanda con la función de la serie v2 (mediana + máscara de nubes), sin esperar
+    // al cron. Sin numero_modulo en el body: procesa los 6 módulos SRL en una sola invocación.
     const sincronizarAhora = useCallback(async () => {
         setSincronizando(true);
         setResultadoSync(null);
         try {
-            const { data, error } = await supabase.functions.invoke('sentinel-ndvi-modulo-sync', { body: {} });
+            const { data, error } = await supabase.functions.invoke('sentinel-ndvi-modulo-sync-v2', { body: {} });
             if (error) throw error;
             if (data?.error) throw new Error(data.error);
             const resultados = (data?.resultados || []) as { insertado?: boolean }[];
             const insertados = resultados.filter(r => r.insertado).length;
-            setResultadoSync(`Actualizado: ${insertados}/${resultados.length} módulos con dato nuevo para ${data?.mes ?? 'el mes actual'}.`);
+            setResultadoSync(`Actualizado: ${insertados}/${resultados.length} módulos con dato nuevo para ${data?.mes ?? 'el último mes cerrado'}.`);
             await recargar();
         } catch (err) {
             setResultadoSync(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -194,57 +179,23 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
     // del histórico. Si el mes elegido no tiene dato para un módulo (hueco
     // en la serie), esa tarjeta cae a "Sin dato aún", no a otro mes.
     const ultimoPorModulo = useMemo(() => {
-        const mapa = new Map<number, NdviModuloFila>();
+        const mapa = new Map<number, FilaNdviSerie>();
         for (const f of filas) if (f.mes === mesTarjetas) mapa.set(f.numero_modulo, f);
         return mapa;
     }, [filas, mesTarjetas]);
 
     // Serie de los últimos 6 meses (hasta el elegido) por módulo, para la sparkline de cada tarjeta.
-    const serieSpark = useMemo(() => {
-        const hasta = meses.filter(m => m <= mesTarjetas).slice(-MESES_SPARK);
-        const mapa = new Map<number, (number | null)[]>();
-        for (const mod of MODULOS_SRL) {
-            const porMes = new Map(filas.filter(f => f.numero_modulo === mod).map(f => [f.mes, f.ndvi_medio]));
-            mapa.set(mod, hasta.map(m => porMes.get(m) ?? null));
-        }
-        return { hasta, mapa };
-    }, [filas, meses, mesTarjetas]);
-
-    const chartOption = useMemo(() => {
-        const series = MODULOS_SRL.map(numeroModulo => {
-            const porMes = new Map(filas.filter(f => f.numero_modulo === numeroModulo).map(f => [f.mes, f.ndvi_medio]));
-            return {
-                name: `Módulo ${numeroModulo}`,
-                type: 'line',
-                connectNulls: true,
-                symbol: 'circle',
-                symbolSize: 6,
-                lineStyle: { width: 2, color: COLOR_MODULO_SRL[numeroModulo] },
-                itemStyle: { color: COLOR_MODULO_SRL[numeroModulo] },
-                data: meses.map(m => porMes.get(m) ?? null),
-            };
-        });
-        return {
-            backgroundColor: 'transparent',
-            grid: { left: 50, right: 20, top: 40, bottom: 40 },
-            legend: { data: series.map(s => s.name), textStyle: { color: '#cbd5e1', fontSize: 12 }, top: 0 },
-            tooltip: { trigger: 'axis' },
-            xAxis: { type: 'category', data: meses, axisLabel: { color: '#cbd5e1', fontSize: 12 }, axisLine: { lineStyle: { color: '#334155' } } },
-            yAxis: { type: 'value', min: 0, max: 0.8, axisLabel: { color: '#cbd5e1', fontSize: 12 }, splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)' } } },
-            series,
-        };
-    }, [filas, meses]);
+    const serieSpark = useMemo(() => calcSerieSpark(filas, meses, mesTarjetas, MODULOS_SRL, MESES_SPARK), [filas, meses, mesTarjetas]);
 
     const abrirDetalle = (n: number) => setModuloDetalle(n);
 
     return (
         <div className="vaso-screen-overlay">
-            <div className="vaso-container animate-in-zoom">
+            <div className="vaso-container animate-in-zoom" ref={dialogoRef} role="dialog" aria-modal="true" aria-labelledby="ndvi-panel-titulo" tabIndex={-1}>
                 <div className="vaso-scroll-content">
                     <header className="vaso-header ndvi-panel-header">
                         <div className="vaso-title-group ndvi-panel-title-group">
-                            <div className="vaso-badge">GEO-MONITOR · TELEDETECCIÓN</div>
-                            <h2>NDVI MENSUAL POR MÓDULO</h2>
+                            <h2 id="ndvi-panel-titulo">NDVI mensual por módulo</h2>
                             <div className="vaso-coords" title="Vigor vegetativo agregado, calculado con el polígono exacto de cada módulo (Sentinel Hub, Statistical API)">
                                 Vigor vegetativo por módulo · polígono exacto · Sentinel Hub
                             </div>
@@ -264,7 +215,7 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
                                 className="vaso-header-3d-btn"
                                 onClick={sincronizarAhora}
                                 disabled={sincronizando}
-                                title="Forzar cálculo del mes actual sin esperar al cron del día 3"
+                                title="Calcular el último mes cerrado con la serie 2021–2026 (mediana y máscara de nubes), sin esperar al cron del día 3"
                             >
                                 <RefreshCw size={14} className={sincronizando ? 'ndvi-spin' : ''} /> {sincronizando ? 'Actualizando…' : 'Actualizar ahora'}
                             </button>
@@ -288,15 +239,14 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
                     ) : filas.length === 0 ? (
                         <div className="ndvi-empty-state">
                             <Satellite size={28} />
-                            <p>Todavía no hay datos históricos. El cron corre el día 3 de cada mes, o usa "Actualizar ahora" para calcular el mes en curso.</p>
+                            <p>Todavía no hay datos históricos. El cron corre el día 3 de cada mes, o usa "Actualizar ahora" para calcular el último mes cerrado.</p>
                         </div>
                     ) : (
                         <>
                             <div className="ndvi-controles">
-                                <SelectorChips etiqueta="Mes (tarjetas)" valor={mesTarjetas} onChange={setMesTarjetas}
-                                    opciones={meses.map(m => ({ valor: m, texto: m }))} />
+                                <SelectorMes etiqueta="Tarjetas" valor={mesTarjetas} onChange={setMesTarjetas} meses={meses} />
                                 <p className="ndvi-nota">
-                                    Los números son del mes elegido. La imagen de cada tarjeta es la referencia satelital de los últimos 30 días.
+                                    Los números son del mes elegido ({ROTULO_METODO_NDVI}). La imagen de cada tarjeta es la referencia satelital de los últimos 30 días.
                                 </p>
                             </div>
                             <div className="vaso-stats-grid">
@@ -331,14 +281,14 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
                                                 <>
                                                     <div className="ndvi-card-valor">
                                                         <span className="ndvi-card-num">{fmt(ultimo.ndvi_medio, 2)}<small>NDVI</small></span>
-                                                        <SparklineNdvi valores={serieSpark.mapa.get(numeroModulo) ?? []}
+                                                        <SparklineNdvi valores={serieSpark.mapa.get(numeroModulo) ?? []} color={COLOR_MODULO_SRL[numeroModulo]}
                                                             etiqueta={`Tendencia NDVI del Módulo ${numeroModulo}, ${serieSpark.hasta.join(', ')}`} />
                                                     </div>
                                                     <div className="ndvi-card-meta">
                                                         {delta != null ? (
                                                             <span className={`ndvi-delta ${delta >= 0 ? 'ndvi-delta-sube' : 'ndvi-delta-baja'}`}>
                                                                 {delta >= 0 ? <TrendingUp size={13} aria-hidden="true" /> : <TrendingDown size={13} aria-hidden="true" />}
-                                                                {delta >= 0 ? '+' : '−'}{fmt(Math.abs(delta), 3)} <span style={{ fontWeight: 400 }}>vs mes anterior</span>
+                                                                {delta >= 0 ? '+' : '−'}{fmt(Math.abs(delta), 3)} <span className="ndvi-delta-txt">vs mes anterior</span>
                                                             </span>
                                                         ) : <span>Sin mes anterior para comparar</span>}
                                                         <br />Kc ≈ {fmt(ultimo.kc_estimado, 2)} · {ultimo.mes}
@@ -364,9 +314,9 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
 
                             <PlanoGeneralModulos filas={filas} meses={meses} sentinelInstanceId={sentinelInstanceId} />
 
-                            <div className="ndvi-chart-card glass">
-                                <ReactECharts option={chartOption} style={{ height: 380, width: '100%' }} notMerge />
-                            </div>
+                            <NdviGraficaPrincipal filas={filas} meses={meses} mesReferencia={mesTarjetas} />
+
+                            <NdviInteranual />
                         </>
                     )}
                 </div>
@@ -378,6 +328,7 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
                 <NdviModuloDetalle
                     numeroModulo={moduloDetalle}
                     instanceId={sentinelInstanceId}
+                    mes={mesTarjetas}
                     onClose={() => setModuloDetalle(null)}
                 />
             )}

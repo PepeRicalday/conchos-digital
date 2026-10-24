@@ -1,16 +1,18 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Download, Eye, Save, Trash2, X } from 'lucide-react';
 import { useModalA11y } from '../historico/useModalA11y';
 import { COLOR_MODULO_SRL, MODULOS_SRL_IDS } from '../../utils/modulosSRL';
 import {
     INDICADORES_NDVI, MAX_PRESETS, ORDEN_SECCIONES, PRESETS_PERIODO, SECCIONES_NDVI, avisosConfig, configPorDefecto, conPreset, etiquetaPeriodo,
-    comparacionPorDefecto, filtrarFilas, guardarPresets, leerPresets, mesesDisponibles, normalizaConfig, paginasEstimadas, validarConfig,
+    comparacionPorDefecto, filtrarFilas, rangoDePreset, guardarPresets, leerPresets, mesesDisponibles, normalizaConfig, paginasEstimadas, validarConfig,
     type ConfigComparacion, type ConfigInformeNdvi, type IndicadorNdvi, type ModoNdvi, type PresetGuardado, type SeccionNdvi, type TipoComparacion,
 } from '../../utils/informeNdviConfig';
 import type { FilaNdviInforme } from '../../utils/informeNdviDatos';
-import { generarInformeInstitucional } from '../../utils/informeNdviInstitucional';
+import { cargarDatosInteranual, generarInformeInstitucional } from '../../utils/informeNdviInstitucional';
+import { aniosConNdvi, aniosConSupVol, type DatosInteranual } from '../../utils/informeNdviInteranual';
 import { SelectorChips } from './SelectorChips';
+import { SelectorMes } from './SelectorMes';
 import VistaPreviaNdvi from './VistaPreviaNdvi';
 import './informeNdviModal.css';
 
@@ -33,6 +35,8 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
     const [avisoPresets, setAvisoPresets] = useState<string | null>(null);
     const [descargando, setDescargando] = useState(false);
     const [errDescarga, setErrDescarga] = useState<string | null>(null);
+    const [datosIA, setDatosIA] = useState<DatosInteranual | null>(null);
+    const [errIA, setErrIA] = useState<string | null>(null);
 
     useModalA11y(dialogRef, previa == null, onCerrar);
 
@@ -41,7 +45,8 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
     // Elegir un modo de análisis activa la sección "Análisis" (si no, el informe no lo mostraría).
     const cambiarModo = (m: ModoNdvi) => setC((prev) => ({
         ...prev, modo: m,
-        secciones: m !== 'resumen' && !prev.secciones.includes('analisis') ? ORDEN_SECCIONES.filter((x) => x === 'analisis' || prev.secciones.includes(x)) : prev.secciones,
+        interanual: m === 'interanual' ? (prev.interanual ?? { anios: datosIA ? aniosConNdvi(datosIA.ndvi) : [] }) : prev.interanual,
+        secciones: m !== 'resumen' && m !== 'interanual' && !prev.secciones.includes('analisis') ? ORDEN_SECCIONES.filter((x) => x === 'analisis' || prev.secciones.includes(x)) : prev.secciones,
     }));
     // Mes contra mes parte de los dos últimos meses; los demás tipos conservan lo elegido.
     const cambiarTipo = (t: TipoComparacion) => setC((prev) => {
@@ -49,11 +54,29 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
         const b = meses[meses.length - 1], a = meses[meses.length - 2];
         return { ...prev, comparacion: { ...prev.comparacion, tipo: t, a: { desde: a, hasta: a }, b: { desde: b, hasta: b } } };
     });
-    const errores = useMemo(() => validarConfig(c, filas), [c, filas]);
+    const interanual = c.modo === 'interanual';
+    // El modo interanual lee la serie v2 y superficie/volumen una sola vez, al elegirlo (solo lectura).
+    useEffect(() => {
+        if (!interanual || datosIA) return;
+        let vivo = true;
+        cargarDatosInteranual()
+            .then((d) => { if (!vivo) return; setDatosIA(d); setErrIA(null); setC((prev) => (prev.interanual?.anios.length ? prev : { ...prev, interanual: { anios: aniosConNdvi(d.ndvi) } })); })
+            .catch((e: unknown) => { if (vivo) setErrIA(e instanceof Error ? e.message : 'No se pudo leer la serie interanual.'); });
+        return () => { vivo = false; };
+    }, [interanual, datosIA]);
+    const aniosIA = useMemo(() => (datosIA ? [...new Set([...aniosConNdvi(datosIA.ndvi), ...aniosConSupVol(datosIA.supVol)])].sort((a, b) => a - b) : []), [datosIA]);
+    const errores = useMemo(() => {
+        if (interanual && errIA) return [errIA];
+        if (interanual && !datosIA) return ['Cargando la serie interanual…'];
+        return validarConfig(c, filas, datosIA?.ndvi ?? []);
+    }, [c, filas, interanual, errIA, datosIA]);
     const avisos = useMemo(() => avisosConfig(c, filas), [c, filas]);
     const hojas = paginasEstimadas(c);
     // Módulos con alguna lectura dentro del periodo (los demás salen atenuados: aparecerían como S/D).
-    const conDato = useMemo(() => new Set(filtrarFilas(filas, { ...c, modulos: [...MODULOS_SRL_IDS] }).map((f) => f.numero_modulo)), [filas, c]);
+    const conDato = useMemo(() => interanual ? new Set<number>(MODULOS_SRL_IDS) : new Set(filtrarFilas(filas, { ...c, modulos: [...MODULOS_SRL_IDS] }).map((f) => f.numero_modulo)), [filas, c, interanual]);
+
+    // Objeto estable: si se creara en cada render, la vista previa regeneraría el informe completo con cada re-render del modal.
+    const opcionesPrevia = useMemo(() => (previa ? { emisor, config: previa, datosInteranual: datosIA ?? undefined } : null), [previa, emisor, datosIA]);
 
     const guardar = () => {
         const n = nombre.trim();
@@ -72,13 +95,13 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
 
     const descargar = async () => {
         setDescargando(true); setErrDescarga(null);
-        try { await generarInformeInstitucional(filas, { emisor, config: c }); }
+        try { await generarInformeInstitucional(filas, { emisor, config: c, datosInteranual: datosIA ?? undefined }); }
         catch (e) { setErrDescarga(e instanceof Error ? e.message : 'No se pudo generar el informe.'); }
         finally { setDescargando(false); }
     };
 
-    const resumen = `Informe ${etiquetaPeriodo(c)} · ${c.modulos.length} ${c.modulos.length === 1 ? 'módulo' : 'módulos'} · ${hojas} ${hojas === 1 ? 'hoja' : 'hojas'} · ${c.hoja === 'letter' ? 'Carta' : 'A4'}`;
-    const opcionesMes = meses.map((m) => ({ valor: m, texto: m }));
+    const periodoTxt = interanual ? `interanual ${(c.interanual?.anios ?? []).join(', ') || 'sin años'}` : etiquetaPeriodo(c);
+    const resumen = `Informe ${periodoTxt} · ${c.modulos.length} ${c.modulos.length === 1 ? 'módulo' : 'módulos'} · ${hojas} ${hojas === 1 ? 'hoja' : 'hojas'} · ${c.hoja === 'letter' ? 'Carta' : 'A4'}`;
     const opcionesModulo = MODULOS_SRL_IDS.map((m) => ({ valor: String(m), texto: `M${m}` }));
     // Mismo orden y regla que el informe: la hoja de análisis (E) va tras plano+fichas y solo existe si el modo no es "resumen".
     const grupos = (['A', 'B', 'E', 'C', 'D'] as const)
@@ -91,7 +114,6 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
                 <div className="ndvi-cfg" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="ndvi-cfg-t" tabIndex={-1}>
                     <header className="ndvi-cfg-head">
                         <div>
-                            <span className="ndvi-cfg-kicker">Geo-Monitor · Teledetección</span>
                             <h2 id="ndvi-cfg-t" className="ndvi-cfg-titulo">Configurar informe institucional NDVI</h2>
                         </div>
                         <button type="button" className="ndvi-cfg-btn ndvi-cfg-btn--icono" onClick={onCerrar} aria-label="Cerrar"><X size={18} aria-hidden="true" /></button>
@@ -102,21 +124,22 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
                             <section className="ndvi-cfg-bloque" aria-label="Modo del informe">
                                 <span className="ndvi-cfg-etq">Modo</span>
                                 <SelectorChips etiqueta="Qué mostrar" valor={c.modo} onChange={cambiarModo}
-                                    opciones={[{ valor: 'resumen', texto: 'Resumen', title: 'El informe de siempre' }, { valor: 'tendencia', texto: 'Tendencia', title: 'Pendiente, pico y estabilidad por módulo' }, { valor: 'comparativo', texto: 'Comparativo', title: 'Dos periodos, dos módulos o un módulo contra el promedio SRL' }]} />
+                                    opciones={[{ valor: 'resumen', texto: 'Resumen', title: 'El informe de siempre' }, { valor: 'tendencia', texto: 'Tendencia', title: 'El periodo contra lo habitual de otros años y la evolución año a año' }, { valor: 'comparativo', texto: 'Comparativo', title: 'Dos periodos, dos módulos o un módulo contra el promedio SRL' }, { valor: 'interanual', texto: 'Interanual', title: 'Un año contra los demás (marzo–septiembre), con superficie y volumen' }]} />
                                 {c.modo === 'comparativo' && (
                                     <div className="ndvi-cfg-bloque" style={{ gap: 10 }}>
                                         <SelectorChips etiqueta="Comparar" valor={c.comparacion.tipo} onChange={cambiarTipo}
                                             opciones={[{ valor: 'periodos', texto: 'Periodo A vs B' }, { valor: 'mesVsMes', texto: 'Mes vs mes' }, { valor: 'modulos', texto: 'Módulo vs módulo' }, { valor: 'vsSRL', texto: 'Módulo vs promedio SRL' }]} />
                                         {c.comparacion.tipo === 'periodos' && (<>
-                                            <SelectorChips etiqueta="A desde" valor={c.comparacion.a.desde} opciones={opcionesMes} onChange={(v) => setCmp({ a: { ...c.comparacion.a, desde: v } })} />
-                                            <SelectorChips etiqueta="A hasta" valor={c.comparacion.a.hasta} opciones={opcionesMes} onChange={(v) => setCmp({ a: { ...c.comparacion.a, hasta: v } })} />
-                                            <SelectorChips etiqueta="B desde" valor={c.comparacion.b.desde} opciones={opcionesMes} onChange={(v) => setCmp({ b: { ...c.comparacion.b, desde: v } })} />
-                                            <SelectorChips etiqueta="B hasta" valor={c.comparacion.b.hasta} opciones={opcionesMes} onChange={(v) => setCmp({ b: { ...c.comparacion.b, hasta: v } })} />
-                                            <button type="button" className="ndvi-cfg-chip" onClick={() => setCmp(comparacionPorDefecto(meses))}>Primera mitad vs segunda mitad</button>
+                                            <SelectorMes etiqueta="Periodo A, desde" valor={c.comparacion.a.desde} meses={meses} onChange={(v) => setCmp({ a: { ...c.comparacion.a, desde: v } })} />
+                                            <SelectorMes etiqueta="Periodo A, hasta" valor={c.comparacion.a.hasta} meses={meses} onChange={(v) => setCmp({ a: { ...c.comparacion.a, hasta: v } })} />
+                                            <SelectorMes etiqueta="Periodo B, desde" valor={c.comparacion.b.desde} meses={meses} onChange={(v) => setCmp({ b: { ...c.comparacion.b, desde: v } })} />
+                                            <SelectorMes etiqueta="Periodo B, hasta" valor={c.comparacion.b.hasta} meses={meses} onChange={(v) => setCmp({ b: { ...c.comparacion.b, hasta: v } })} />
+                                            <button type="button" className="ndvi-cfg-chip" onClick={() => setCmp(comparacionPorDefecto(meses))}>Ciclo actual vs mismo periodo del año anterior</button>
+                                            <button type="button" className="ndvi-cfg-chip" onClick={() => setCmp({ a: rangoDePreset('mitad1', meses) ?? c.comparacion.a, b: rangoDePreset('mitad2', meses) ?? c.comparacion.b })}>Primera mitad vs segunda mitad (mismo ciclo)</button>
                                         </>)}
                                         {c.comparacion.tipo === 'mesVsMes' && (<>
-                                            <SelectorChips etiqueta="Mes A" valor={c.comparacion.a.desde} opciones={opcionesMes} onChange={(v) => setCmp({ a: { desde: v, hasta: v } })} />
-                                            <SelectorChips etiqueta="Mes B" valor={c.comparacion.b.desde} opciones={opcionesMes} onChange={(v) => setCmp({ b: { desde: v, hasta: v } })} />
+                                            <SelectorMes etiqueta="Mes A" valor={c.comparacion.a.desde} meses={meses} onChange={(v) => setCmp({ a: { desde: v, hasta: v } })} />
+                                            <SelectorMes etiqueta="Mes B" valor={c.comparacion.b.desde} meses={meses} onChange={(v) => setCmp({ b: { desde: v, hasta: v } })} />
                                         </>)}
                                         {(c.comparacion.tipo === 'modulos' || c.comparacion.tipo === 'vsSRL') && (<>
                                             <SelectorChips etiqueta={c.comparacion.tipo === 'modulos' ? 'Módulo A' : 'Módulo'} valor={String(c.comparacion.moduloA)} opciones={opcionesModulo} onChange={(v) => setCmp({ moduloA: Number(v) })} />
@@ -126,7 +149,29 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
                                 )}
                             </section>
 
-                            <section className="ndvi-cfg-bloque" aria-label="Periodo">
+                            {interanual && (
+                                <section className="ndvi-cfg-bloque" aria-label="Años a comparar">
+                                    <span className="ndvi-cfg-etq">Años <em>({c.interanual?.anios.length ?? 0} de {aniosIA.length})</em></span>
+                                    <div className="ndvi-cfg-chips" role="group" aria-label="Años a comparar">
+                                        {aniosIA.map((a) => {
+                                            const sel = c.interanual?.anios ?? [];
+                                            const on = sel.includes(a);
+                                            const sinNdvi = !!datosIA && !aniosConNdvi(datosIA.ndvi).includes(a);
+                                            return (
+                                                <button key={a} type="button" aria-pressed={on} className={`ndvi-cfg-chip${sinNdvi ? ' sin-dato' : ''}`}
+                                                    title={sinNdvi ? 'Sin NDVI ese año: aparecerá como S/D' : undefined}
+                                                    onClick={() => set({ interanual: { anios: aniosIA.filter((x) => (x === a ? !on : sel.includes(x))) } })}>
+                                                    {a}{sinNdvi && <span className="sr-only"> (sin NDVI)</span>}
+                                                </button>
+                                            );
+                                        })}
+                                        <button type="button" className="ndvi-cfg-chip" onClick={() => set({ interanual: { anios: datosIA ? aniosConNdvi(datosIA.ndvi) : [] } })}>Todos con NDVI</button>
+                                    </div>
+                                    <p className="ndvi-cfg-ayuda">Temporada fija marzo–septiembre. El último año elegido es el año de interés; los demás forman la referencia.</p>
+                                </section>
+                            )}
+
+                            {!interanual && <section className="ndvi-cfg-bloque" aria-label="Periodo">
                                 <span className="ndvi-cfg-etq">Periodo</span>
                                 <div className="ndvi-cfg-chips" role="radiogroup" aria-label="Preajuste de periodo">
                                     {PRESETS_PERIODO.map((p) => (
@@ -135,9 +180,9 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
                                     ))}
                                     <button type="button" role="radio" aria-checked={c.preset === 'personalizado'} className="ndvi-cfg-preset" onClick={() => set({ preset: 'personalizado' })}>Personalizado</button>
                                 </div>
-                                <SelectorChips etiqueta="Desde" valor={c.desde} opciones={opcionesMes} onChange={(v) => set({ desde: v, preset: 'personalizado' })} />
-                                <SelectorChips etiqueta="Hasta" valor={c.hasta} opciones={opcionesMes} onChange={(v) => set({ hasta: v, preset: 'personalizado' })} />
-                            </section>
+                                <SelectorMes etiqueta="Desde" valor={c.desde} meses={meses} onChange={(v) => set({ desde: v, preset: 'personalizado' })} />
+                                <SelectorMes etiqueta="Hasta" valor={c.hasta} meses={meses} onChange={(v) => set({ hasta: v, preset: 'personalizado' })} />
+                            </section>}
 
                             <section className="ndvi-cfg-bloque" aria-label="Módulos">
                                 <span className="ndvi-cfg-etq">Módulos <em>({c.modulos.length} de {MODULOS_SRL_IDS.length})</em></span>
@@ -157,7 +202,7 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
                                 </div>
                             </section>
 
-                            <section className="ndvi-cfg-bloque" aria-label="Indicadores">
+                            {!interanual && <section className="ndvi-cfg-bloque" aria-label="Indicadores">
                                 <span className="ndvi-cfg-etq">Indicadores</span>
                                 <div className="ndvi-cfg-chips" role="group" aria-label="Indicadores">
                                     <button type="button" className="ndvi-cfg-chip" aria-pressed="true" disabled title="El NDVI siempre se incluye">NDVI</button>
@@ -167,16 +212,16 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
                                             onClick={() => set({ indicadores: INDICADORES_NDVI.map((x) => x.id).filter((x) => (x === i.id ? !on : c.indicadores.includes(x))) as IndicadorNdvi[] })}>{i.etiqueta}</button>;
                                     })}
                                 </div>
-                            </section>
+                            </section>}
 
                             <div className="ndvi-cfg-fila" style={{ alignItems: 'flex-start', gap: 24 }}>
-                                <SelectorChips etiqueta="Promedio SRL" valor={c.basePromedio} onChange={(v) => set({ basePromedio: v })}
-                                    opciones={[{ valor: 'simple', texto: 'Simple', title: 'Cada módulo pesa igual' }, { valor: 'ponderado', texto: 'Ponderado por superficie', title: 'Cada módulo pesa según sus hectáreas' }]} />
+                                {!interanual && <SelectorChips etiqueta="Promedio SRL" valor={c.basePromedio} onChange={(v) => set({ basePromedio: v })}
+                                    opciones={[{ valor: 'simple', texto: 'Simple', title: 'Cada módulo pesa igual' }, { valor: 'ponderado', texto: 'Ponderado por superficie', title: 'Cada módulo pesa según sus hectáreas' }]} />}
                                 <SelectorChips etiqueta="Hoja" valor={c.hoja} onChange={(v) => set({ hoja: v })}
                                     opciones={[{ valor: 'letter', texto: 'Carta' }, { valor: 'a4', texto: 'A4' }]} />
                             </div>
 
-                            <section className="ndvi-cfg-bloque" aria-label="Secciones">
+                            {!interanual && <section className="ndvi-cfg-bloque" aria-label="Secciones">
                                 <span className="ndvi-cfg-etq">Secciones <em>({c.secciones.length} de {SECCIONES_NDVI.length})</em></span>
                                 <div className="ndvi-cfg-secs">
                                     {SECCIONES_NDVI.map((s) => (
@@ -187,13 +232,13 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
                                         </label>
                                     ))}
                                 </div>
-                            </section>
+                            </section>}
                         </div>
 
                         <aside className="ndvi-cfg-col ndvi-cfg-viva" aria-label="Vista general del informe">
-                            <div className="ndvi-cfg-cuenta" aria-live="polite">{hojas} {hojas === 1 ? 'hoja' : 'hojas'}<small>{c.modulos.length} módulos · {etiquetaPeriodo(c)}</small></div>
+                            <div className="ndvi-cfg-cuenta" aria-live="polite">{hojas} {hojas === 1 ? 'hoja' : 'hojas'}<small>{c.modulos.length} módulos · {periodoTxt}</small></div>
                             <div className="ndvi-cfg-hojas" aria-hidden="true">
-                                {grupos.map((g, i) => <div key={i} className="ndvi-cfg-hoja"><b>Hoja {i + 1}</b>{g.map((s) => <span key={s.id}>{s.etiqueta}</span>)}</div>)}
+                                {interanual ? ['Portada, resumen y pulso general', 'Un recuadro por módulo', 'Superficie, volumen y vegetación', 'Metodología y límites'].map((t, i) => <div key={t} className="ndvi-cfg-hoja"><b>Hoja {i + 1}</b><span>{t}</span></div>) : grupos.map((g, i) => <div key={i} className="ndvi-cfg-hoja"><b>Hoja {i + 1}</b>{g.map((s) => <span key={s.id}>{s.etiqueta}</span>)}</div>)}
                             </div>
                             {errores.length > 0 && <ul className="ndvi-cfg-msgs ndvi-cfg-err" role="alert">{errores.map((e) => <li key={e}><span aria-hidden="true">⛔</span>{e}</li>)}</ul>}
                             {avisos.length > 0 && <ul className="ndvi-cfg-msgs ndvi-cfg-avi">{avisos.map((a) => <li key={a}><span aria-hidden="true">⚠</span>{a}</li>)}</ul>}
@@ -230,7 +275,7 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
                     </footer>
                 </div>
             </div>
-            {previa && <VistaPreviaNdvi filas={filas} opciones={{ emisor, config: previa }} onVolver={() => setPrevia(null)} onCerrar={onCerrar} />}
+            {previa && opcionesPrevia && <VistaPreviaNdvi filas={filas} opciones={opcionesPrevia} onVolver={() => setPrevia(null)} onCerrar={onCerrar} />}
         </>,
         document.body,
     );

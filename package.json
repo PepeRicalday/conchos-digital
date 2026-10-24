@@ -1,7 +1,7 @@
 {
   "name": "conchos-digital",
   "private": true,
-  "version": "2.41.3",
+  "version": "2.42.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "audit:e2e": "node e2e/auditoria.mjs",
+    "audit:ndvi": "node e2e/ndvi-tendencia-comparacion.mjs",
     "typecheck:conservacion": "tsc -p tsconfig.conservacion.json && tsc -p tsconfig.conservacion.pruebas.json",
     "test:conservacion": "vitest run src/conservacion",
     "conservacion:analizar": "vite-node scripts/conservacion-analizar.mjs --",

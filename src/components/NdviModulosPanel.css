@@ -48,43 +48,6 @@
     flex-shrink: 0;
 }
 
-.ndvi-tarjetas-filtro {
-    margin: 0 clamp(1.25rem, 4vw, 3rem) 1rem;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-
-.ndvi-tarjetas-filtro-label {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    font-size: 0.68rem;
-    color: #94a3b8;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-
-.ndvi-tarjetas-filtro-label select {
-    background: rgba(15, 23, 42, 0.8);
-    border: 1px solid rgba(148, 163, 184, 0.25);
-    color: #e2e8f0;
-    border-radius: 8px;
-    padding: 6px 10px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.ndvi-tarjetas-filtro-nota {
-    font-size: 0.68rem;
-    color: #64748b;
-    line-height: 1.4;
-    max-width: 480px;
-}
-
 .ndvi-sync-msg {
     margin: 0 clamp(1.25rem, 4vw, 3rem) 1.5rem;
     padding: 0.75rem 1.25rem;
@@ -97,7 +60,7 @@
     margin: 3rem clamp(1.25rem, 4vw, 3rem);
     padding: 3rem 1.5rem;
     text-align: center;
-    color: #64748b;
+    color: #94a3b8;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -108,20 +71,6 @@
     margin: 0 clamp(1.25rem, 4vw, 3rem) 2rem;
     padding: 1.5rem;
     border-radius: 20px;
-}
-
-.ndvi-delta-up {
-    color: #4ade80;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-}
-
-.ndvi-delta-down {
-    color: #f87171;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
 }
 
 .ndvi-modulo-card-clickable {
@@ -152,8 +101,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #64748b;
-    font-size: 0.75rem;
+    color: #94a3b8;
+    font-size: 0.8rem;
     text-align: center;
     padding: 0.5rem;
 }

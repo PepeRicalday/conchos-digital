@@ -19,39 +19,16 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.8rem;
-    font-weight: 800;
-    color: #e2e8f0;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #f1f5f9;
 }
 
 .plano-general-controles {
     display: flex;
     gap: 1rem;
     flex-wrap: wrap;
-}
-
-.plano-general-control {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    font-size: 0.68rem;
-    color: #94a3b8;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-
-.plano-general-control select {
-    background: rgba(15, 23, 42, 0.8);
-    border: 1px solid rgba(148, 163, 184, 0.25);
-    color: #e2e8f0;
-    border-radius: 8px;
-    padding: 6px 10px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
 }
 
 .plano-general-body {
@@ -71,13 +48,35 @@
 .plano-general-map-wrap {
     border-radius: 14px;
     overflow: hidden;
-    min-height: 420px;
+    position: relative;
+    height: min(440px, 62vh);
+    min-height: 300px;
 }
+
+/* En pantallas táctiles el mapa no captura el dedo hasta activarlo: así la página sigue desplazándose con un solo dedo. */
+.plano-general-mover {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    min-height: 44px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    background: rgba(11, 18, 32, 0.92);
+    color: #e2e8f0;
+    font: 600 13px system-ui, sans-serif;
+    cursor: pointer;
+}
+.plano-general-mover.on { border-color: #38bdf8; background: rgba(56, 189, 248, 0.22); }
+.plano-general-mover:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
 
 .plano-general-map {
     width: 100%;
     height: 100%;
-    min-height: 420px;
     background: #0f172a;
 }
 
@@ -96,10 +95,9 @@
 }
 
 .plano-general-promedio-label {
-    font-size: 0.68rem;
-    font-weight: 800;
-    color: #94a3b8;
-    letter-spacing: 0.06em;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #cbd5e1;
 }
 
 .plano-general-promedio-valor {
@@ -111,9 +109,16 @@
     margin: 6px 0 2px;
 }
 
+.plano-general-promedio-n {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
 .plano-general-promedio-sub {
-    font-size: 0.68rem;
-    color: #64748b;
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 4px;
 }
 
 .plano-general-tabla {
@@ -121,6 +126,8 @@
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 14px;
     padding: 0.75rem 1rem;
+    margin: 0;
+    list-style: none;
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
@@ -131,15 +138,6 @@
     align-items: center;
     gap: 8px;
     font-size: 0.82rem;
-}
-
-.plano-general-fila-logo {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    object-fit: cover;
-    flex-shrink: 0;
-    border: 1.5px solid rgba(255, 255, 255, 0.15);
 }
 
 .plano-general-fila-dot {
@@ -158,9 +156,25 @@
     color: white;
     font-weight: 700;
     font-family: 'JetBrains Mono', monospace;
+    min-width: 3.2ch;
+    text-align: right;
 }
+
+/* Δ contra el promedio de los demás: azul = por encima, ámbar = por debajo (igual que las tarjetas); la flecha y el signo repiten el sentido. */
+.plano-general-fila-delta {
+    font: 700 12px 'JetBrains Mono', monospace;
+    min-width: 8ch;
+    text-align: right;
+    color: #cbd5e1;
+}
+.plano-general-fila-delta.sube { color: #38bdf8; }
+.plano-general-fila-delta.baja { color: #fbbf24; }
+.plano-general-fila-delta.sd { color: #94a3b8; font-weight: 500; }
 
 .plano-general-tooltip {
     font-family: var(--geo-font-sans, sans-serif);
     font-size: 12px;
 }
+
+/* Los selectores por chips (meses) no deben ensanchar el panel: se acotan al ancho disponible y hacen scroll propio. */
+.plano-general-controles, .plano-general-controles > * { max-width: 100%; min-width: 0; }

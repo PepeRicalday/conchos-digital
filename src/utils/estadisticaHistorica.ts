@@ -101,3 +101,26 @@ export function huecos(dias: { fecha: string; hayDato: boolean }[]): Hueco[] {
     if (ini != null) out.push({ desde: ini, hasta: fin, dias: n });
     return out;
 }
+
+/**
+ * Pendiente de Theil–Sen: mediana de las pendientes de todos los pares de puntos. Robusta a un año atípico
+ * (una regresión por mínimos cuadrados se mueve mucho con 5-6 puntos). Exige al menos 3 puntos; descriptiva.
+ */
+export function theilSen(pts: { x: number; y: number | null }[]): number | null {
+    const p = pts.filter((q): q is { x: number; y: number } => q.y != null && Number.isFinite(q.y));
+    if (p.length < 3) return null;
+    const pend: number[] = [];
+    for (let i = 0; i < p.length; i++) for (let j = i + 1; j < p.length; j++) if (p[j].x !== p[i].x) pend.push((p[j].y - p[i].y) / (p[j].x - p[i].x));
+    return pend.length ? percentil(pend, 50) : null;
+}
+
+/**
+ * R² mínimo para que una regresión lineal con n puntos sea significativa al 5 % (dos colas): r crítico de Pearson
+ * al cuadrado. Con 6 puntos hace falta R² ≈ 0.66; con 4, ≈ 0.90. n fuera de tabla (<3) → 1 (nunca se alcanza).
+ */
+export function r2CriticoAlfa05(n: number): number {
+    const rCrit: Record<number, number> = { 3: 0.997, 4: 0.950, 5: 0.878, 6: 0.811, 7: 0.754, 8: 0.707, 9: 0.666, 10: 0.632 };
+    if (n < 3) return 1;
+    const r = rCrit[Math.min(n, 10)];
+    return r * r;
+}

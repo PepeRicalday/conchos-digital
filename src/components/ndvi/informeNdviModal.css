@@ -10,13 +10,12 @@ html[data-device="phone"] .ndvi-cfg-overlay { left: 0; padding: 0; }
 html[data-device="phone"] .ndvi-cfg { max-height: 100dvh; height: 100dvh; border-radius: 0; }
 .ndvi-cfg:focus { outline: none; }
 .ndvi-cfg-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 20px 10px; border-bottom: 1px solid rgba(148, 163, 184, 0.17); }
-.ndvi-cfg-kicker { display: block; font: 600 12px 'JetBrains Mono', monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #8396ad; }
-.ndvi-cfg-titulo { margin: 2px 0 0; font: 800 28px 'Big Shoulders Display', 'IBM Plex Sans', sans-serif; letter-spacing: 0.03em; text-transform: uppercase; }
+.ndvi-cfg-titulo { margin: 2px 0 0; font: 800 28px 'Big Shoulders Display', 'IBM Plex Sans', sans-serif;  }
 .ndvi-cfg-cuerpo { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 20px; padding: 16px 20px; }
 @media (max-width: 860px) { .ndvi-cfg-cuerpo { grid-template-columns: 1fr; } }
 .ndvi-cfg-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .ndvi-cfg-bloque { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.ndvi-cfg-etq { font: 600 12px 'JetBrains Mono', monospace; letter-spacing: 0.08em; text-transform: uppercase; color: #8396ad; }
+.ndvi-cfg-etq { font: 700 14px 'IBM Plex Sans', system-ui, sans-serif; color: #b4c2d4; }
 .ndvi-cfg-etq em { font-style: normal; color: #b4c2d4; text-transform: none; letter-spacing: 0; }
 .ndvi-cfg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .ndvi-cfg-chip { min-height: 44px; display: inline-flex; align-items: center; gap: 7px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.3);
@@ -72,3 +71,4 @@ html[data-device="phone"] .ndvi-cfg { max-height: 100dvh; height: 100dvh; border
 .ndvi-cfg .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* Las filas de meses (7+) deben caber sin cortarse: chips más compactos dentro de la ventana. */
 .ndvi-cfg .ndvi-chip { padding: 0 9px; font-size: 12px; }
+.ndvi-cfg-ayuda { margin: 0; font-size: 12px; color: #aab6c8; line-height: 1.4; }

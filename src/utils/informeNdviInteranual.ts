@@ -1,0 +1,136 @@
+/**
+ * informeNdviInteranual — modelo PURO (sin red, sin DOM, sin HTML) del modo INTERANUAL del informe institucional NDVI.
+ * Entra la serie v2 (ndvi_modulo_mensual_v2: SCL + mediana) y el informe anual de superficie/volumen (ACUM_INF);
+ * sale lo que el informe imprime: pico y media por año y módulo, banda típica, lectura en palabras, cruce con superficie/volumen.
+ * S/D = null (nunca 0): un año sin NDVI (2020) o sin informe de superficie/volumen (2025, 2026) queda S/D con aviso.
+ * Los renglones atípicos de ACUM_INF se cuentan y se avisan; no se corrigen ni se ocultan.
+ */
+import { MODULOS_SRL_IDS, COLOR_MODULO_SRL } from './modulosSRL';
+import { media } from './estadisticaBasica';
+import { folioInforme } from './informeBase';
+import {
+    MESES_TEMPORADA, anioDeMes, aniosDisponibles, climatologiaMensual, cruceAnual, lecturaAnio, resumenAnio, serieAnio,
+    type ClimatologiaMes, type CruceAnio, type FilaNdviV2, type FilaSupVol, type LecturaAnio, type ResumenAnio,
+} from './ndviInteranual';
+
+export interface DatosInteranual { ndvi: FilaNdviV2[]; supVol: FilaSupVol[]; errorSupVol?: boolean }
+
+export interface ContextoInteranual { ahora: Date; emisor: string | null; version: string; logoSrlOk: boolean }
+
+export interface ConfigInteranual { anios: number[] }
+
+export interface ModuloInteranual {
+    numero: number;
+    nombre: string;
+    color: string;
+    resumenes: ResumenAnio[];
+    series: { anio: number; vals: (number | null)[] }[];
+    clim: ClimatologiaMes[];
+    lectura: LecturaAnio;
+    cruce: CruceAnio[];
+}
+
+export interface ModeloInteranual {
+    folio: string;
+    emitidoEn: Date;
+    emisor: string;
+    version: string;
+    anios: number[];
+    anioFoco: number;
+    modulos: ModuloInteranual[];
+    /** Pico NDVI medio de los módulos con dato por año (null = ningún módulo con dato). */
+    picoSrlPorAnio: { anio: number; pico: number | null; n: number }[];
+    /** Media de temporada (mar–sep) de los módulos con dato por año; `n` = módulos que aportan. */
+    mediaSrlPorAnio: { anio: number; media: number | null; n: number }[];
+    /** Años elegidos sin NDVI / sin informe de superficie y volumen (derivados de los datos, no escritos a mano). */
+    aniosSinNdvi: number[];
+    aniosSinSupVol: number[];
+    /** NDVI medio mensual de los módulos con dato, por año (para la gráfica general). */
+    serieSrl: { anio: number; vals: (number | null)[] }[];
+    conteo: { arriba: number; abajo: number; similar: number; sd: number };
+    mayorAlza: { modulo: number; abs: number } | null;
+    mayorBaja: { modulo: number; abs: number } | null;
+    avisos: string[];
+}
+
+/** Años que tienen NDVI en la serie (cualquier módulo), ascendentes; los que ofrece el modal. */
+export function aniosConNdvi(ndvi: FilaNdviV2[]): number[] {
+    const s = new Set<number>();
+    for (const m of MODULOS_SRL_IDS) for (const a of aniosDisponibles(ndvi, m)) s.add(a);
+    return [...s].sort((a, b) => a - b);
+}
+
+/** Años con informe de superficie/volumen (cualquier módulo). */
+export function aniosConSupVol(supVol: FilaSupVol[]): number[] {
+    return [...new Set(supVol.map((s) => s.anio))].sort((a, b) => a - b);
+}
+
+/** Errores que bloquean "Generar" en modo interanual. */
+export function validarInteranual(anios: number[], modulos: number[], ndvi: FilaNdviV2[]): string[] {
+    const e: string[] = [];
+    if (!modulos.length) e.push('Elige al menos un módulo.');
+    if (anios.length < 2) e.push('Elige al menos dos años para compararlos.');
+    else if (modulos.length && !anios.some((a) => modulos.some((m) => aniosDisponibles(ndvi, m).includes(a)))) e.push('Los años elegidos no tienen NDVI para los módulos elegidos.');
+    return e;
+}
+
+export function construirInteranual(datos: DatosInteranual, cfg: { anios: number[]; modulos: number[] }, ctx: ContextoInteranual): ModeloInteranual {
+    const anios = [...new Set(cfg.anios)].sort((a, b) => a - b);
+    if (anios.length < 1) throw new Error('El informe interanual necesita al menos un año elegido.');
+    const anioFoco = anios[anios.length - 1];
+    const ids = MODULOS_SRL_IDS.filter((m) => cfg.modulos.includes(m));
+    // Todo se calcula solo con los años elegidos: la banda y el promedio "de los otros años" son de esa selección.
+    const ndvi = datos.ndvi.filter((f) => anios.includes(anioDeMes(f.mes)));
+    const supVol = datos.supVol.filter((s) => anios.includes(s.anio));
+
+    const modulos: ModuloInteranual[] = ids.map((numero) => ({
+        numero, nombre: `Módulo ${numero}`, color: COLOR_MODULO_SRL[numero] ?? '#64748b',
+        resumenes: anios.map((a) => resumenAnio(ndvi, numero, a)),
+        series: anios.map((a) => ({ anio: a, vals: serieAnio(ndvi, numero, a) })),
+        clim: climatologiaMensual(ndvi, numero, anioFoco),
+        lectura: lecturaAnio(ndvi, numero, anioFoco),
+        cruce: anios.map((a) => cruceAnual(ndvi, supVol, numero, a)),
+    }));
+
+    const picoSrlPorAnio = anios.map((a, i) => {
+        const picos = modulos.map((m) => m.resumenes[i].pico).filter((p): p is number => p != null);
+        return { anio: a, pico: media(picos), n: picos.length };
+    });
+    const mediaSrlPorAnio = anios.map((a, i) => {
+        const medias = modulos.map((m) => m.resumenes[i].media).filter((p): p is number => p != null);
+        return { anio: a, media: media(medias), n: medias.length };
+    });
+    const serieSrl = anios.map((a, i) => ({ anio: a, vals: MESES_TEMPORADA.map((_, k) => media(modulos.map((m) => m.series[i].vals[k]))) }));
+
+    const conteo = { arriba: 0, abajo: 0, similar: 0, sd: 0 };
+    for (const m of modulos) {
+        const d = m.lectura.direccion;
+        if (d === 'arriba') conteo.arriba++; else if (d === 'abajo') conteo.abajo++; else if (d === 'similar') conteo.similar++; else conteo.sd++;
+    }
+    const conAn = modulos.filter((m) => m.lectura.anomalia).map((m) => ({ modulo: m.numero, abs: (m.lectura.anomalia as { abs: number }).abs }));
+    const ordenados = [...conAn].sort((a, b) => b.abs - a.abs);
+
+    const avisos: string[] = [];
+    const sinNdvi = anios.filter((a) => !modulos.some((m) => m.resumenes[anios.indexOf(a)].pico != null));
+    for (const a of sinNdvi) avisos.push(`${a} no tiene NDVI (la serie de satélite inicia en marzo de 2021): aparece como S/D.`);
+    const sinSup = anios.filter((a) => !supVol.some((s) => s.anio === a && ids.includes(s.numero_modulo)));
+    const aniosSinSupVol = datos.errorSupVol ? [...anios] : sinSup;
+    if (datos.errorSupVol) avisos.push('No se pudo consultar el informe de superficie y volumen: esa sección aparece como S/D.');
+    else if (sinSup.length) avisos.push(`Sin informe de superficie y volumen para ${sinSup.join(', ')}: aparece como S/D, no como cero.`);
+    const atip = modulos.reduce((n, m) => n + m.cruce.reduce((s, c) => s + c.atipicos, 0), 0);
+    if (atip > 0) avisos.push(`${atip} renglón(es) del informe de superficie y volumen tienen captura atípica en la fuente: se suman tal cual y se marcan con ⚠.`);
+    for (const m of modulos) {
+        for (const r of m.resumenes) if (r.pocoConfiables.length) avisos.push(`${m.nombre}, ${r.anio}: pocas observaciones limpias en ${r.pocoConfiables.join(', ')}.`);
+    }
+    if (anios.length === 2) avisos.push('Con solo dos años no hay banda típica (se necesitan al menos tres): la comparación es directa, año contra año.');
+    if (!ctx.logoSrlOk) avisos.push('No se pudo cargar el logotipo institucional al generar el informe.');
+    if (modulos.length && modulos.every((m) => m.resumenes.every((r) => r.mesesConDato === 0))) avisos.push('Ninguno de los años elegidos tiene lecturas de NDVI.');
+
+    return {
+        folio: folioInforme('NDVI-IA', ctx.ahora), emitidoEn: ctx.ahora, emisor: ctx.emisor?.trim() || 'SICA 005', version: ctx.version,
+        anios, anioFoco, modulos, picoSrlPorAnio, mediaSrlPorAnio, aniosSinNdvi: sinNdvi, aniosSinSupVol, serieSrl, conteo,
+        mayorAlza: ordenados.length && ordenados[0].abs > 0 ? ordenados[0] : null,
+        mayorBaja: ordenados.length && ordenados[ordenados.length - 1].abs < 0 ? ordenados[ordenados.length - 1] : null,
+        avisos,
+    };
+}

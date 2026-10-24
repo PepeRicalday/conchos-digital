@@ -3,7 +3,7 @@
 
 /* Selector por chips (sustituye al <select> nativo, cuyo desplegable tapaba la tarjeta del Módulo 5) */
 .ndvi-selector { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.ndvi-selector-et { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #94a3b8; }
+.ndvi-selector-et { font-size: 13px; font-weight: 600; color: #aab6c8; }
 .ndvi-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
 .ndvi-chip { flex: 0 0 auto; min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.28);
     background: rgba(15, 23, 42, 0.8); color: #cbd5e1; font: 600 13px 'JetBrains Mono', ui-monospace, monospace; cursor: pointer; }
@@ -21,7 +21,7 @@
 .ndvi-card-num { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 2.1rem; font-weight: 800; line-height: 1; color: #fff; }
 .ndvi-card-num small { margin-left: 6px; font-size: 12px; font-weight: 600; color: #94a3b8; }
 .ndvi-spark { flex: 0 0 auto; }
-.ndvi-spark-sd { font-size: 12px; color: #64748b; }
+.ndvi-spark-sd { font-size: 12px; color: #94a3b8; }
 .ndvi-card-meta { margin-top: 8px; font-size: 12px; color: #94a3b8; line-height: 1.5; }
 /* Delta con semántica neutra: azul sube, ámbar baja. Una baja es normal en vaciado/fin de ciclo; el rojo la leía como falla. */
 .ndvi-delta { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
@@ -68,3 +68,9 @@
 .ndvi-btn:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) { .ndvi-skeleton { animation: none; } }
+
+/* Texto solo para lectores de pantalla */
+.ndvi-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.ndvi-selector-mes { display: flex; flex-wrap: wrap; gap: 8px 20px; min-width: 0; max-width: 100%; }
+.ndvi-selector-mes .ndvi-chips { flex-wrap: wrap; overflow-x: visible; }
+.ndvi-delta-txt { font-weight: 400; }

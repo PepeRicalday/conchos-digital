@@ -30,6 +30,17 @@ try {
     Push-Location $wt
     try {
         npx vercel pull --yes --environment=production | Out-Null
+        # `vercel pull` puede bajar variables VITE_* con valor vacío (VAR="") y `vercel build` las inyecta en
+        # process.env, donde ganan sobre el .env copiado: el build falla con "Falta VITE_CARTO_ACCESS_TOKEN" aunque
+        # el .env sí la tenga. Se descartan solo las líneas VITE_* vacías para que valga el .env (no se imprime ningún valor).
+        $pf = Join-Path $wt '.vercel\.env.production.local'
+        if (Test-Path $pf) {
+            $vacias = @(Get-Content $pf | Where-Object { $_ -match '^VITE_[A-Z0-9_]+=""\s*$' })
+            if ($vacias.Count) {
+                Set-Content $pf -Value (Get-Content $pf | Where-Object { $_ -notmatch '^VITE_[A-Z0-9_]+=""\s*$' }) -Encoding utf8
+                Write-Host "vercel pull trajo $($vacias.Count) variable(s) VITE_* vacía(s): ignoradas, se usa el .env local."
+            }
+        }
         npx vercel build --prod
         if ($SinDeploy) { Write-Host 'Build correcto. -SinDeploy: no se publica.' }
         else {

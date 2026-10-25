@@ -319,7 +319,7 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
 
                             <NdviGraficaPrincipal filas={filas} meses={meses} mesReferencia={mesTarjetas} />
 
-                            <NdviInteranual />
+                            <NdviInteranual filas={filas} />
                         </>
                     )}
                 </div>

@@ -16,9 +16,11 @@ const mesLargo = (iso: string) => new Date(iso).toLocaleDateString('es-MX', { mo
 const cambio = (v: number | null, u: string, d = 1) => (v == null ? SD : `${v > 0.05 ? '▲' : v < -0.05 ? '▼' : '■'} ${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(d)} ${u}`);
 
 const EXTRA_CSS = `
-.run{display:flex;justify-content:space-between;gap:10px;font-size:7.5pt;color:var(--ink2);border-bottom:2px solid var(--inst);padding-bottom:5px;margin-bottom:10px}
-.cuerpo{display:flex;flex-direction:column;gap:10px;min-width:0}
-.nota-pie{font-size:7.5pt;color:var(--ink2)}
+/* Variantes del vaso sobre los componentes compartidos de informeBase (.run, .cuerpo, .nota-pie) */
+.run{gap:10px;letter-spacing:normal;text-transform:none;border-bottom-width:2px;border-bottom-color:var(--inst);padding-bottom:5px;margin-bottom:10px}
+.run b{color:inherit}
+.cuerpo{display:flex;flex-direction:column;gap:10px}
+.nota-pie{margin-top:0}
 .estado{display:grid;grid-template-columns:1.1fr 2fr;gap:10px;align-items:stretch}
 .pct{border:1px solid var(--linea);border-top:4px solid var(--inst);border-radius:4px;padding:8px 10px}
 .pct .v{font:700 30pt/1 Georgia,serif}.pct .v small{font-size:13pt;color:var(--ink2)}

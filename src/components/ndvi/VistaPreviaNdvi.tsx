@@ -2,46 +2,49 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Download, Printer, X } from 'lucide-react';
 import { useModalA11y } from '../historico/useModalA11y';
-import { descargarInformeNdviHtml, generarHtmlInformeNdvi, type OpcionesInformeNdvi } from '../../utils/informeNdviInstitucional';
+import { descargarInformeNdviHtml, generarDocumentoNdvi, type DocumentoNdvi, type OpcionesInformeNdvi } from '../../utils/informeNdviInstitucional';
 import type { FilaNdviInforme } from '../../utils/informeNdviDatos';
 import './informeNdviModal.css';
 
 interface Props { filas: FilaNdviInforme[]; opciones: OpcionesInformeNdvi; onVolver: () => void; onCerrar: () => void }
 
-/** Vista previa en pantalla del informe ya configurado: iframe con el HTML real + Imprimir / Descargar. */
+/** Vista previa en pantalla del informe ya configurado: iframe con el HTML real + Imprimir / Descargar (el mismo documento y folio). */
 export default function VistaPreviaNdvi({ filas, opciones, onVolver, onCerrar }: Props) {
     const dialogRef = useRef<HTMLDivElement>(null);
     const frameRef = useRef<HTMLIFrameElement>(null);
-    const [html, setHtml] = useState<string | null>(null);
+    const [doc, setDoc] = useState<DocumentoNdvi | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [urlBlob, setUrlBlob] = useState<string | null>(null);
     const [errDescarga, setErrDescarga] = useState<string | null>(null);
+    const [imagenes, setImagenes] = useState<{ hechos: number; total: number } | null>(null);
 
     useModalA11y(dialogRef, true, onVolver);
 
     useEffect(() => {
         let vivo = true;
-        generarHtmlInformeNdvi(filas, opciones)
-            .then((h) => { if (vivo) setHtml(h); })
+        // generarDocumentoNdvi comparte caché por contenido: mismo contenido, mismo documento (y folio) sin regenerar.
+        setImagenes(null); // eslint-disable-line react-hooks/set-state-in-effect
+        generarDocumentoNdvi(filas, { ...opciones, onProgresoImagenes: (hechos, total) => { if (vivo) setImagenes({ hechos, total }); } })
+            .then((x) => { if (vivo) setDoc(x); })
             .catch((e: unknown) => { if (vivo) setError(e instanceof Error ? e.message : 'No se pudo generar el informe.'); });
         return () => { vivo = false; };
     }, [filas, opciones]);
 
     useEffect(() => {
-        if (html == null) return;
-        const u = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+        if (doc == null) return;
+        const u = URL.createObjectURL(new Blob([doc.html], { type: 'text/html;charset=utf-8' }));
         setUrlBlob(u); // eslint-disable-line react-hooks/set-state-in-effect
         return () => URL.revokeObjectURL(u);
-    }, [html]);
+    }, [doc]);
 
     const imprimir = () => { const w = frameRef.current?.contentWindow; if (w) { w.focus(); w.print(); } };
     const descargar = async () => {
-        if (html == null) return;
+        if (doc == null) return;
         setErrDescarga(null);
-        try { await descargarInformeNdviHtml(html); }
+        try { await descargarInformeNdviHtml(doc); }
         catch (e) { setErrDescarga(e instanceof Error ? e.message : 'No se pudo descargar el archivo.'); }
     };
-    const listo = html != null && urlBlob != null;
+    const listo = doc != null && urlBlob != null;
 
     return createPortal(
         <div className="ndvi-cfg-overlay">
@@ -61,7 +64,8 @@ export default function VistaPreviaNdvi({ filas, opciones, onVolver, onCerrar }:
                         <div className="ndvi-cfg-estado" role="alert"><h3>No se pudo generar el informe</h3><p>{error}</p>
                             <button type="button" className="ndvi-cfg-btn" onClick={onVolver}><ArrowLeft size={16} aria-hidden="true" /> Volver a filtros</button></div>
                     ) : !listo ? (
-                        <div className="ndvi-cfg-estado" role="status" aria-busy="true"><p>Generando informe…</p></div>
+                        <div className="ndvi-cfg-estado" role="status" aria-busy="true"><p>Generando informe…</p>{imagenes && imagenes.total > 0 && (
+                            <p>Imágenes satelitales: {imagenes.hechos} de {imagenes.total} módulos (la primera vez cada módulo tarda unos segundos; si el servicio no responde, el informe sale con un aviso en su lugar).</p>)}</div>
                     ) : (
                         <iframe ref={frameRef} title="Vista previa del informe institucional de NDVI" src={urlBlob} />
                     )}

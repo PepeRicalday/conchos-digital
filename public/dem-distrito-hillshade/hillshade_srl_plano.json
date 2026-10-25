@@ -1,0 +1,19 @@
+{
+  "archivo": "hillshade_srl_plano.jpg",
+  "ancho": 330,
+  "alto": 454,
+  "bytes": 8619,
+  "bbox": [
+    -105.664579,
+    27.707637,
+    -105.121801,
+    28.371681
+  ],
+  "bboxFormato": "[minLon, minLat, maxLon, maxLat] CRS84",
+  "origen": "hillshade_noche_315_45.jpg (ver manifest.json)",
+  "fuenteDEM": "Copernicus DEM GLO-30 (OpenTopography), grilla 401x381 (~30m/px nativo, descargado en 3 franjas horizontales por límite de memoria del edge runtime)",
+  "fuenteTextura": "Sentinel-2 L2A TRUE_COLOR (Sentinel Hub, CDSE) — mosaico de 6 cuadrantes (3 filas x 2 columnas, límite Sentinel Hub de 2500px/lado por request), ~20m/px, cosidos a 2740x5265 y reescalados a la mitad (1370x2632) para el JPG final",
+  "transformacion": "recorte a la caja de los 6 módulos SRL + 10 % de margen, reducción LANCZOS a 330 px, contraste estirado (1 %), aclarado x0.4, JPEG q46 escala de grises",
+  "script": "scripts/recorta_hillshade_srl.py",
+  "generadoEn": "2026-09-14"
+}

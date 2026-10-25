@@ -136,14 +136,18 @@ export function titularAnio(v2: FilaNdviV2[], modulos: readonly number[], anio: 
 }
 
 /** Titular a partir de las anomalías del periodo de cada módulo (la misma pieza sirve al panel y al informe de tendencia). */
-export function titularDeAnomalias(sujeto: string, anio: number, todas: Pick<AnomaliaPeriodo, 'mediaAbs' | 'direccion'>[]): TitularAnio | null {
+export function titularDeAnomalias(
+    sujeto: string, anio: number, todas: Pick<AnomaliaPeriodo, 'mediaAbs' | 'direccion'>[],
+    /** Promedio SRL ya calculado con la base elegida (simple/ponderado); sin él, promedio simple de las diferencias de los módulos. */
+    opciones: { promedioAbs?: number | null; base?: 'simple' | 'ponderado' } = {},
+): TitularAnio | null {
     const anoms = todas.filter((a) => a.mediaAbs != null && a.direccion != null);
     if (!anoms.length) return null;
     let abajo = 0, arriba = 0, similar = 0;
     for (const a of anoms) { if (a.direccion === 'abajo') abajo++; else if (a.direccion === 'arriba') arriba++; else similar++; }
-    const prom = anoms.reduce((s, a) => s + (a.mediaAbs as number), 0) / anoms.length;
+    const prom = opciones.promedioAbs ?? anoms.reduce((s, a) => s + (a.mediaAbs as number), 0) / anoms.length;
     const n = anoms.length;
-    const cifra = `${prom >= 0 ? '+' : '−'}${Math.abs(prom).toFixed(3)} promedio SRL`;
+    const cifra = `${prom >= 0 ? '+' : '−'}${Math.abs(prom).toFixed(3)} promedio SRL${opciones.base === 'ponderado' ? ' ponderado por superficie' : ''}`;
     let cuerpo: string;
     if (abajo === n) cuerpo = `${sujeto} por debajo de lo habitual en los ${n} módulos`;
     else if (arriba === n) cuerpo = `${sujeto} por encima de lo habitual en los ${n} módulos`;

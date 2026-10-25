@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { construirDatosNdvi, promedioPonderado, promedioSimple, type ContextoInforme, type FilaNdviInforme } from './informeNdviDatos';
+import { configPorDefecto, mesesDisponibles, type ConfigInformeNdvi } from './informeNdviConfig';
 import { construirHtmlNdvi } from './informeNdviHtml';
 import { contornosAAnillos, planoSvg, svgSerieModulos, svgSparkline } from './informeNdviSvg';
 import { folioInforme, mesLegible, nombreArchivo } from './informeBase';
@@ -38,7 +39,7 @@ describe('modelo de datos del informe NDVI', () => {
         expect(d.mesAnterior).toBe('2026-08');
         expect(d.promedioSimple).toBeCloseTo(0.387, 3);
         expect(d.tendencia).toBeCloseTo(promedioSimple(SEP)! - promedioSimple(AGO)!, 6);
-        expect(d.folio).toBe('NDVI-20261007-1405');
+        expect(d.folio).toBe('NDVI-2026-08A09-COMPLETO-20261007-1405'); // periodo y alcance en el folio
     });
     it('promedio ponderado por superficie distinto del simple', () => {
         const d = construirDatosNdvi(filas(), ctx());
@@ -90,16 +91,19 @@ const CONTORNO: GeoJSON.FeatureCollection = {
 };
 
 describe('HTML del informe NDVI', () => {
-    const armar = (f = filas(), c = ctx(), logos = LOGOS, conPlano = true) => {
-        const d = construirDatosNdvi(f, c);
+    const TODOS: Partial<ConfigInformeNdvi> = { indicadores: ['kc', 'icv', 'ihr', 'iehp'] };
+    const armar = (f = filas(), c = ctx(), logos = LOGOS, conPlano = true, extra: Partial<ConfigInformeNdvi> = {}) => {
+        const d = construirDatosNdvi(f, c, { ...configPorDefecto(mesesDisponibles(f)), ...extra });
         const plano = conPlano ? planoSvg(d.modulos, contornosAAnillos(CONTORNO)) : '';
         return construirHtmlNdvi(d, logos, plano);
     };
-    it('documento completo de 4 hojas con folio y numeración', () => {
+    it('documento integrado con folio y "Pág. n de N" calculada con las hojas armadas', () => {
         const h = armar();
-        expect((h.match(/class="pagina/g) ?? []).length).toBe(4);
-        expect(h).toContain('NDVI-20261007-1405');
-        expect(h).toContain('Pág. 4 de 4');
+        const n = (h.match(/class="pagina/g) ?? []).length;
+        expect(n).toBe(9); // resumen, situación, tendencia (2), comparación entre años, módulos, serie, metodología (2)
+        expect(h).toContain('NDVI-2026-08A09-COMPLETO-20261007-1405');
+        expect(h).toContain(`Pág. ${n} de ${n}`);
+        expect(h).toContain('Pág. 1 de ' + n);
         expect(h).toContain('@page{size:letter');
         expect(h).toContain('print-color-adjust');
         expect(h).toContain('S R L');
@@ -138,7 +142,7 @@ describe('HTML del informe NDVI', () => {
         expect(h).toContain('Ponderado por superficie');
     });
     it('los parámetros de la metodología salen de las constantes reales', () => {
-        const h = armar();
+        const h = armar(filas(), ctx(), LOGOS, true, TODOS);
         expect(h).toMatch(/piso 0\.10/); expect(h).toMatch(/techo 0\.75/); expect(h).toMatch(/NDVI ≥ 0\.30/);
     });
 });
@@ -169,7 +173,7 @@ describe('kcConstantes (misma fórmula que la edge function sentinel-ndvi-modulo
         expect(ndviAKc(0.6)).toBe(0.81);
     });
     it('la metodología del informe imprime la fórmula desde las constantes', () => {
-        const d = construirDatosNdvi(filas(), ctx());
+        const d = construirDatosNdvi(filas(), ctx(), { ...configPorDefecto(['2026-08', '2026-09']), indicadores: ['kc'] });
         expect(construirHtmlNdvi(d, LOGOS, '')).toMatch(/0\.15 \+ 1\.10·NDVI, acotado a 0\.15–1\.05/);
     });
 });

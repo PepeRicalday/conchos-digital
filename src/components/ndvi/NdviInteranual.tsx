@@ -4,6 +4,9 @@ import { supabase } from '../../lib/supabase';
 import { COLOR_MODULO_SRL } from '../../utils/modulosSRL';
 import { fmt, fmtMiles } from '../../utils/formato';
 import { NDVI_RANGO, cargarSerieNdviV2 } from '../../utils/ndviSerie';
+import { cargarSupVolAnual } from '../../utils/supVolAnual';
+import { aFilasV2 } from '../../utils/informeNdviAnalisis';
+import type { FilaNdviInforme } from '../../utils/informeNdviDatos';
 import {
     COLOR_ANIO_FOCO, ETIQUETA_MES, MESES_TEMPORADA, UMBRAL_SIN_CAMBIO, anomaliaPico, aniosDisponibles, climatologiaMensual, colorAnioPrevio, cruceAnual,
     lecturaAnio, resumenAnio, serieAnio, tendenciaPico, type FilaNdviV2, type FilaSupVol,
@@ -91,8 +94,10 @@ const DispersionLamina: React.FC<{ cruce: ReturnType<typeof cruceAnual>[]; modul
     );
 };
 
-export const NdviInteranual: React.FC = () => {
-    const [ndvi, setNdvi] = useState<FilaNdviV2[]>([]);
+/** `filas`: la serie v2 que el panel ya cargó; con ella el componente solo consulta superficie/volumen (compartido con el informe). Sin ella, carga la serie por su cuenta. */
+export const NdviInteranual: React.FC<{ filas?: FilaNdviInforme[] }> = ({ filas }) => {
+    const compartida = !!filas;
+    const [ndviPropio, setNdvi] = useState<FilaNdviV2[]>([]);
     const [supVol, setSupVol] = useState<FilaSupVol[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [cargando, setCargando] = useState(true);
@@ -109,18 +114,18 @@ export const NdviInteranual: React.FC = () => {
         let cancelado = false;
         (async () => {
             const [a, b] = await Promise.all([
-                cargarSerieNdviV2(supabase),
-                supabase.from('superficie_volumen_anual_modulo').select('anio, numero_modulo, cultivo, superficie_ha, volumen_miles_m3, atipico').limit(2000),
+                compartida ? Promise.resolve(null) : cargarSerieNdviV2(supabase),
+                cargarSupVolAnual(supabase),
             ]);
             if (cancelado) return;
-            const msg = a.error ?? b.error?.message ?? null;
-            setError(msg);
-            setNdvi(a.error ? [] : a.filas);
-            setSupVol(b.error || !b.data ? [] : (b.data as FilaSupVol[]));
+            setError(a?.error ?? b.error);
+            if (a) setNdvi(a.error ? [] : a.filas);
+            setSupVol(b.filas);
             setCargando(false);
         })();
         return () => { cancelado = true; };
-    }, []);
+    }, [compartida]);
+    const ndvi = useMemo(() => (filas ? aFilasV2(filas) : ndviPropio), [filas, ndviPropio]);
 
     const anios = useMemo(() => aniosDisponibles(ndvi, modulo), [ndvi, modulo]);
     const anioFoco = anioElegido != null && anios.includes(anioElegido) ? anioElegido : anios[anios.length - 1];

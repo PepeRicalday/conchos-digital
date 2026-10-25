@@ -1,5 +1,5 @@
 /**
- * informeNdviInteranual — modelo PURO (sin red, sin DOM, sin HTML) del modo INTERANUAL del informe institucional NDVI.
+ * informeNdviInteranual — modelo PURO (sin red, sin DOM, sin HTML) de la comparación ENTRE AÑOS del informe técnico de NDVI.
  * Entra la serie v2 (ndvi_modulo_mensual_v2: SCL + mediana) y el informe anual de superficie/volumen (ACUM_INF);
  * sale lo que el informe imprime: pico y media por año y módulo, banda típica, lectura en palabras, cruce con superficie/volumen.
  * S/D = null (nunca 0): un año sin NDVI (2020) o sin informe de superficie/volumen (2025, 2026) queda S/D con aviso.
@@ -7,17 +7,17 @@
  */
 import { MODULOS_SRL_IDS, COLOR_MODULO_SRL } from './modulosSRL';
 import { media } from './estadisticaBasica';
-import { folioInforme } from './informeBase';
+import { pesosSuperficie, promedioConBase, type BasePromedio } from './ndviPromedio';
+import { MIN_ANIOS_REFERENCIA } from './informeNdviAnalisis';
 import {
-    MESES_TEMPORADA, anioDeMes, aniosDisponibles, climatologiaMensual, cruceAnual, lecturaAnio, resumenAnio, serieAnio,
+    MESES_TEMPORADA, MIN_MESES_ANIO_COMPLETO, anioDeMes, aniosDisponibles, climatologiaMensual, cruceAnual, lecturaAnio, resumenAnio, serieAnio,
     type ClimatologiaMes, type CruceAnio, type FilaNdviV2, type FilaSupVol, type LecturaAnio, type ResumenAnio,
 } from './ndviInteranual';
 
 export interface DatosInteranual { ndvi: FilaNdviV2[]; supVol: FilaSupVol[]; errorSupVol?: boolean }
 
-export interface ContextoInteranual { ahora: Date; emisor: string | null; version: string; logoSrlOk: boolean }
-
-export interface ConfigInteranual { anios: number[] }
+/** Años a comparar (el último es el de interés), módulos y base del promedio SRL. */
+export interface ConfigInteranual { anios: number[]; modulos: number[]; base: BasePromedio }
 
 export interface ModuloInteranual {
     numero: number;
@@ -31,16 +31,15 @@ export interface ModuloInteranual {
 }
 
 export interface ModeloInteranual {
-    folio: string;
-    emitidoEn: Date;
-    emisor: string;
-    version: string;
     anios: number[];
+    base: BasePromedio;
     anioFoco: number;
     modulos: ModuloInteranual[];
-    /** Pico NDVI medio de los módulos con dato por año (null = ningún módulo con dato). */
+    /** Pico NDVI medio de los módulos con dato por año, con la base elegida (null = ningún módulo con dato). */
     picoSrlPorAnio: { anio: number; pico: number | null; n: number }[];
-    /** Media de temporada (mar–sep) de los módulos con dato por año; `n` = módulos que aportan. */
+    /** Pico medio SRL del año de interés menos el promedio del pico medio de los otros años (null: temporada incompleta o menos de 3 años de referencia). */
+    anomaliaPicoSrl: { abs: number; n: number } | null;
+    /** Media de temporada (mar–sep) de los módulos con dato por año, con la base elegida; `n` = módulos que aportan. */
     mediaSrlPorAnio: { anio: number; media: number | null; n: number }[];
     /** Años elegidos sin NDVI / sin informe de superficie y volumen (derivados de los datos, no escritos a mano). */
     aniosSinNdvi: number[];
@@ -65,16 +64,7 @@ export function aniosConSupVol(supVol: FilaSupVol[]): number[] {
     return [...new Set(supVol.map((s) => s.anio))].sort((a, b) => a - b);
 }
 
-/** Errores que bloquean "Generar" en modo interanual. */
-export function validarInteranual(anios: number[], modulos: number[], ndvi: FilaNdviV2[]): string[] {
-    const e: string[] = [];
-    if (!modulos.length) e.push('Elige al menos un módulo.');
-    if (anios.length < 2) e.push('Elige al menos dos años para compararlos.');
-    else if (modulos.length && !anios.some((a) => modulos.some((m) => aniosDisponibles(ndvi, m).includes(a)))) e.push('Los años elegidos no tienen NDVI para los módulos elegidos.');
-    return e;
-}
-
-export function construirInteranual(datos: DatosInteranual, cfg: { anios: number[]; modulos: number[] }, ctx: ContextoInteranual): ModeloInteranual {
+export function construirInteranual(datos: DatosInteranual, cfg: ConfigInteranual): ModeloInteranual {
     const anios = [...new Set(cfg.anios)].sort((a, b) => a - b);
     if (anios.length < 1) throw new Error('El informe interanual necesita al menos un año elegido.');
     const anioFoco = anios[anios.length - 1];
@@ -82,6 +72,8 @@ export function construirInteranual(datos: DatosInteranual, cfg: { anios: number
     // Todo se calcula solo con los años elegidos: la banda y el promedio "de los otros años" son de esa selección.
     const ndvi = datos.ndvi.filter((f) => anios.includes(anioDeMes(f.mes)));
     const supVol = datos.supVol.filter((s) => anios.includes(s.anio));
+    const pesos = pesosSuperficie(ndvi.map((f) => ({ numero_modulo: f.numero_modulo, mes: f.mes, superficie_ha: f.superficie_ha })));
+    const promSrl = (vals: { n: number; v: number | null }[]) => promedioConBase(cfg.base, vals.map((x) => ({ valor: x.v, peso: pesos.get(x.n) ?? null })));
 
     const modulos: ModuloInteranual[] = ids.map((numero) => ({
         numero, nombre: `Módulo ${numero}`, color: COLOR_MODULO_SRL[numero] ?? '#64748b',
@@ -93,14 +85,21 @@ export function construirInteranual(datos: DatosInteranual, cfg: { anios: number
     }));
 
     const picoSrlPorAnio = anios.map((a, i) => {
-        const picos = modulos.map((m) => m.resumenes[i].pico).filter((p): p is number => p != null);
-        return { anio: a, pico: media(picos), n: picos.length };
+        const picos = modulos.map((m) => ({ n: m.numero, v: m.resumenes[i].pico })).filter((x) => x.v != null);
+        return { anio: a, pico: promSrl(picos), n: picos.length };
     });
     const mediaSrlPorAnio = anios.map((a, i) => {
-        const medias = modulos.map((m) => m.resumenes[i].media).filter((p): p is number => p != null);
-        return { anio: a, media: media(medias), n: medias.length };
+        const medias = modulos.map((m) => ({ n: m.numero, v: m.resumenes[i].media })).filter((x) => x.v != null);
+        return { anio: a, media: promSrl(medias), n: medias.length };
     });
-    const serieSrl = anios.map((a, i) => ({ anio: a, vals: MESES_TEMPORADA.map((_, k) => media(modulos.map((m) => m.series[i].vals[k]))) }));
+    const serieSrl = anios.map((a, i) => ({ anio: a, vals: MESES_TEMPORADA.map((_, k) => promSrl(modulos.map((m) => ({ n: m.numero, v: m.series[i].vals[k] })))) }));
+
+    const iFoco = anios.length - 1;
+    const conPico = modulos.filter((m) => m.resumenes[iFoco].pico != null);
+    const focoCompleto = conPico.length > 0 && conPico.every((m) => m.resumenes[iFoco].mesesConDato >= MIN_MESES_ANIO_COMPLETO);
+    const picosOtros = picoSrlPorAnio.slice(0, iFoco).map((p) => p.pico).filter((v): v is number => v != null);
+    const picoFoco = picoSrlPorAnio[iFoco]?.pico ?? null;
+    const anomaliaPicoSrl = focoCompleto && picoFoco != null && picosOtros.length >= MIN_ANIOS_REFERENCIA ? { abs: picoFoco - (media(picosOtros) as number), n: picosOtros.length } : null;
 
     const conteo = { arriba: 0, abajo: 0, similar: 0, sd: 0 };
     for (const m of modulos) {
@@ -118,17 +117,15 @@ export function construirInteranual(datos: DatosInteranual, cfg: { anios: number
     if (datos.errorSupVol) avisos.push('No se pudo consultar el informe de superficie y volumen: esa sección aparece como S/D.');
     else if (sinSup.length) avisos.push(`Sin informe de superficie y volumen para ${sinSup.join(', ')}: aparece como S/D, no como cero.`);
     const atip = modulos.reduce((n, m) => n + m.cruce.reduce((s, c) => s + c.atipicos, 0), 0);
-    if (atip > 0) avisos.push(`${atip} renglón(es) del informe de superficie y volumen tienen captura atípica en la fuente: se suman tal cual y se marcan con ⚠.`);
+    if (atip > 0) avisos.push(`${atip} ${atip === 1 ? 'renglón del informe de superficie y volumen tiene' : 'renglones del informe de superficie y volumen tienen'} captura atípica en la fuente: se suman tal cual y se marcan con ⚠.`);
     for (const m of modulos) {
         for (const r of m.resumenes) if (r.pocoConfiables.length) avisos.push(`${m.nombre}, ${r.anio}: pocas observaciones limpias en ${r.pocoConfiables.join(', ')}.`);
     }
     if (anios.length === 2) avisos.push('Con solo dos años no hay banda típica (se necesitan al menos tres): la comparación es directa, año contra año.');
-    if (!ctx.logoSrlOk) avisos.push('No se pudo cargar el logotipo institucional al generar el informe.');
     if (modulos.length && modulos.every((m) => m.resumenes.every((r) => r.mesesConDato === 0))) avisos.push('Ninguno de los años elegidos tiene lecturas de NDVI.');
 
     return {
-        folio: folioInforme('NDVI-IA', ctx.ahora), emitidoEn: ctx.ahora, emisor: ctx.emisor?.trim() || 'SICA 005', version: ctx.version,
-        anios, anioFoco, modulos, picoSrlPorAnio, mediaSrlPorAnio, aniosSinNdvi: sinNdvi, aniosSinSupVol, serieSrl, conteo,
+        anios, base: cfg.base, anioFoco, anomaliaPicoSrl, modulos, picoSrlPorAnio, mediaSrlPorAnio, aniosSinNdvi: sinNdvi, aniosSinSupVol, serieSrl, conteo,
         mayorAlza: ordenados.length && ordenados[0].abs > 0 ? ordenados[0] : null,
         mayorBaja: ordenados.length && ordenados[ordenados.length - 1].abs < 0 ? ordenados[ordenados.length - 1] : null,
         avisos,

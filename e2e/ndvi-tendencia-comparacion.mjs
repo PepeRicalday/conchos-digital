@@ -1,20 +1,21 @@
-// Auditoría de SOLO LECTURA de las gráficas e informes de TENDENCIA y COMPARACIÓN de NDVI (GEO-MONITOR).
-//   node e2e/ndvi-tendencia-comparacion.mjs <iteracion>      (con `npm run dev` en :5173)   ·   npm run audit:ndvi -- <iteracion>
-// Capturas: ../ciclo_2025_2026/auditoria/ndvi_tendencia_comparacion/iter<N>/ · Resultado: iter<N>/resultado.json
-// Cubre: panel en Chromium 1440/1024/820/430 y WebKit iPhone 15 Pro Max + iPad Pro 11 (vertical y horizontal); gráfica principal (vistas,
-// años, módulos, S/D simulado), selector año+mes por teclado, ficha (Escape, foco, 44 px), plano (Δ, n de 6, leyenda, mapa táctil), modal
-// del informe y los cuatro modos de informe + impresión (PDF). Chequeos: consola/red, desborde, NaN/undefined/0 engañoso, contraste ≥ 4.5,
-// fuente ≥ 12 px, foco visible y cifras de pantalla/informe contra la BD viva (REST con anon key; nada se escribe).
+// Auditoría de SOLO LECTURA de GEO-MONITOR · NDVI mensual por módulo: gráficas del panel + modal + INFORME TÉCNICO INTEGRADO.
+//   npm run audit:ndvi -- <iteracion>        (con `npm run dev` en :5173)       ·  SALTAR=perfiles,sd,informe para omitir fases
+// Capturas y resultado: ../ciclo_2025_2026/auditoria/ndvi_informe_integrado/iter<N>/ (resultado.json, hojas_*, grises_*, PDF, HTML descargados).
+// Fases: (1) panel en Chromium 1440/1024/820/430 y WebKit iPhone 15 Pro Max + iPad Pro 11 (vertical/horizontal): gráfica principal, selector año+mes,
+// ficha, plano, foco/teclado; (2) S/D simulado por respuesta alterada; (3) cifras del panel contra la BD viva (REST con anon key, solo SELECT);
+// (4) informe integrado (e2e/ndvi-informe.mjs): modal, vista previa vs descarga (mismo folio y bytes), 13 configuraciones, impresión (hojas físicas,
+// desbordes en px, pt efectivos, contraste), imagen satelital (falla real, éxito simulado con page.route, parcial, progreso), escala de grises y cifras.
+// La prueba con raster REAL (sesión SRL en producción) NO se hace aquí: la función exige rol SRL o secreto de cron y este script nunca los usa.
 import { chromium, webkit, devices } from 'playwright';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const iter = process.argv[2] || '1';
 const RAIZ = fileURLToPath(new URL('../', import.meta.url));
-const OUT = fileURLToPath(new URL(`../../ciclo_2025_2026/auditoria/ndvi_tendencia_comparacion/iter${iter}/`, import.meta.url));
+const OUT = fileURLToPath(new URL(`../../ciclo_2025_2026/auditoria/ndvi_informe_integrado/iter${iter}/`, import.meta.url));
 fs.mkdirSync(OUT, { recursive: true });
 const SALTAR = (process.env.SALTAR || '').split(',');
-const res = { iter, hallazgos: [], cifras: [], perfiles: {}, informes: {} };
+const res = { iter, hallazgos: [], cifras: [], perfiles: {} };
 const hallazgo = (sev, donde, txt) => { res.hallazgos.push({ sev, donde, txt }); console.log(`[${sev}] ${donde}: ${txt}`); };
 const cifra = (nombre, bd, pantalla) => {
   const ok = String(bd) === String(pantalla);
@@ -319,8 +320,7 @@ if (!SALTAR.includes('sd')) {
   await browser.close();
 }
 
-// ═════════════════ 3) Cifras contra la BD viva + informes (Chromium 1440) ═════════════════
-const informes = {};
+// ═════════════════ 3) Cifras del panel contra la BD viva (Chromium 1440) ═════════════════
 {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
@@ -355,157 +355,35 @@ const informes = {};
     const d1 = v1 - media(MODULOS.filter((m) => m !== 1).map((m) => val(m, ULTIMO)));
     const filaM1 = (await page.locator('.plano-general-fila').first().locator('.plano-general-fila-delta').innerText()).replace(/\s+/g, ' ');
     cifra('M1 Δ vs los demás, sep-2026 (plano)', `${d1 >= 0 ? '+' : '−'}${Math.abs(d1).toFixed(3)}`, (filaM1.match(/([+−]\d\.\d{3})/) ?? [])[1]);
-    // cifra 6: ficha M1 NDVI 0.330 exacto y pico M1 2021 en el comparativo interanual
     cifra('M1 NDVI sep-2026 (valor del plano)', v1.toFixed(2), (await page.locator('.plano-general-fila').first().locator('.plano-general-fila-valor').innerText()).trim());
     const pico21 = await page.evaluate(() => { const t = [...document.querySelectorAll('.ndvi-ia-tabla')].find((x) => x.querySelector('caption')?.textContent.startsWith('Resumen por año')); const tr = [...t.querySelectorAll('tbody tr')].find((x) => x.querySelector('th').textContent.trim().startsWith('2021')); return tr.querySelector('td').textContent.trim(); });
     cifra('M1 pico NDVI 2021 (comparativo interanual)', Math.max(...MESES_T.map((t) => val(1, `2021-${t}`))).toFixed(3), pico21);
-
-    // ── Informes: los cuatro modos ──
-    const MODOS = [
-      { id: 'resumen', modo: 'Resumen' },
-      { id: 'tendencia', modo: 'Tendencia' },
-      { id: 'comp_periodos', modo: 'Comparativo', tipo: 'Periodo A vs B' },
-      { id: 'comp_mes', modo: 'Comparativo', tipo: 'Mes vs mes' },
-      { id: 'comp_modulos', modo: 'Comparativo', tipo: 'Módulo vs módulo' },
-      { id: 'comp_vssrl', modo: 'Comparativo', tipo: 'Módulo vs promedio SRL' },
-      { id: 'interanual', modo: 'Interanual' },
-    ];
-    await page.locator('.vaso-scroll-content').evaluate((e) => e.scrollTo(0, 0));
-    for (const M of MODOS) {
-      const r = { id: M.id };
-      try {
-        await page.getByRole('button', { name: /Informe institucional/ }).click({ timeout: 10000 });
-        await page.waitForSelector('.ndvi-cfg', { timeout: 10000 });
-        const modal = page.locator('.ndvi-cfg');
-        const nChips = await modal.locator('.ndvi-chip').count();
-        r.chipsModal = nChips;
-        if (nChips > 70) hallazgo('alto', `informe ${M.id}`, `el modal tiene ${nChips} chips`);
-        await modal.getByRole('radio', { name: M.modo, exact: true }).click();
-        if (M.tipo) await modal.getByRole('radio', { name: M.tipo, exact: true }).click();
-        if (M.modo === 'Interanual') await page.waitForSelector('.ndvi-cfg [aria-label="Años a comparar"] button', { timeout: 20000 });
-        await page.waitForTimeout(500);
-        const dlgOk = await page.evaluate(() => { const d = document.querySelector('.ndvi-cfg'); return d.getAttribute('role') === 'dialog' && d.getAttribute('aria-modal') === 'true' && d.contains(document.activeElement); });
-        if (!dlgOk) hallazgo('alto', `informe ${M.id}`, 'el modal de configuración no es diálogo con foco dentro');
-        if (M.id === 'tendencia' || M.id === 'comp_periodos') await page.screenshot({ path: `${OUT}informe_modal_${M.id}.png` });
-        const errs = await modal.locator('.ndvi-cfg-err').allTextContents();
-        if (errs.length) hallazgo('alto', `informe ${M.id}`, `el modal muestra errores con la configuración por defecto: ${errs.join(' | ').slice(0, 160)}`);
-        await page.getByRole('button', { name: /Vista previa/ }).click();
-        await page.waitForSelector('.ndvi-cfg-marco iframe', { timeout: 30000 });
-        await page.waitForTimeout(2500);
-        const html = await page.frameLocator('.ndvi-cfg-marco iframe').locator('html').evaluate((e) => e.outerHTML);
-        fs.writeFileSync(`${OUT}informe_${M.id}.html`, '<!doctype html>' + html);
-        await page.screenshot({ path: `${OUT}informe_previa_${M.id}.png` });
-        await page.getByRole('button', { name: /Volver a filtros/ }).click();
-        await page.waitForTimeout(300);
-        await page.keyboard.press('Escape'); await page.waitForTimeout(400);
-        if ((await page.locator('.ndvi-cfg').count()) !== 0) { await page.getByRole('button', { name: 'Cancelar' }).click(); await page.waitForTimeout(300); }
-        r.ok = true;
-      } catch (e) { hallazgo('critico', `informe ${M.id}`, 'fallo: ' + String(e.message).slice(0, 200)); r.ok = false; await page.screenshot({ path: `${OUT}informe_fallo_${M.id}.png` }); await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); }
-      informes[M.id] = r;
-    }
-  } catch (e) { hallazgo('critico', 'cifras/informes', 'fallo: ' + String(e.message).slice(0, 200)); }
-  if (err.length) hallazgo('alto', 'cifras/informes', `errores de consola: ${JSON.stringify(err.slice(0, 3))}`);
-  if (net.length) hallazgo('alto', 'cifras/informes', `fallos de red: ${JSON.stringify(net.slice(0, 3))}`);
+  } catch (e) { hallazgo('critico', 'cifras panel', 'fallo: ' + String(e.message).slice(0, 200)); }
+  if (err.length) hallazgo('alto', 'cifras panel', `errores de consola: ${JSON.stringify(err.slice(0, 3))}`);
+  if (net.length) hallazgo('alto', 'cifras panel', `fallos de red: ${JSON.stringify(net.slice(0, 3))}`);
   await browser.close();
 }
 
-// ═════════════════ 4) Hojas, SVG, contraste e impresión de cada informe ═════════════════
+// ═════════════════ 4) Informe técnico integrado: modal, vista previa, descarga, impresión, imagen, grises y cifras ═════════════════
 const CONTRASTE_SVG = `(() => { ${PARSE}
   const malos = []; for (const t of document.querySelectorAll('svg text')) { const cs = getComputedStyle(t); const f = parse(cs.fill); if (!f || !t.textContent.trim()) continue;
     if (parseFloat(cs.strokeWidth) > 1 && cs.stroke !== 'none') continue; // rotulado con halo blanco (plano): el contraste lo da el halo
-    const fondo = t.closest('svg').style.background ? { r: 246, g: 245, b: 242 } : { r: 255, g: 255, b: 255 };
+    let fondo = t.closest('svg').style.background ? { r: 246, g: 245, b: 242 } : { r: 255, g: 255, b: 255 };
+    const prev = t.previousElementSibling; // rótulo claro sobre una pastilla oscura (p. ej. «SRL»): el fondo es el de la pastilla
+    if (prev && prev.tagName === 'rect' && lum(f) > 0.5) { const pf = parse(getComputedStyle(prev).fill); if (pf && pf.a > 0) fondo = pf; }
     const L1 = lum(f), L2 = lum(fondo); const cr = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05); if (cr < 4.5) malos.push({ t: t.textContent.slice(0, 20), cr: +cr.toFixed(2), fill: cs.fill }); }
   return malos; })()`;
-const PT_SVG = `(() => { const out = []; for (const s of document.querySelectorAll('svg[viewBox]')) { const vb = s.viewBox.baseVal; if (!vb || !vb.width) continue; const k = s.getBoundingClientRect().width / vb.width; if (!k) continue;
-    const ti = s.querySelector('title')?.textContent?.slice(0, 40) ?? s.getAttribute('aria-label')?.slice(0, 40) ?? 'svg';
-    for (const t of s.querySelectorAll('text')) { const fs = parseFloat(getComputedStyle(t).fontSize) * k * 0.75; out.push({ ti, tipo: 'texto', pt: +fs.toFixed(2), txt: t.textContent.slice(0, 14) }); }
-    if (/indicadores/.test(ti)) for (const r of s.querySelectorAll('rect')) { const h = r.height.baseVal.value * k * 0.75; if (h > 0.5) out.push({ ti, tipo: 'barra', pt: +h.toFixed(2), txt: '' }); } }
-  const t = out.filter((x) => x.tipo === 'texto').sort((a, b) => a.pt - b.pt), b = out.filter((x) => x.tipo === 'barra').sort((a, b) => a.pt - b.pt);
-  return { minTexto: t[0]?.pt ?? null, peorTexto: t[0] ?? null, minBarra: b[0]?.pt ?? null, peorBarra: b[0] ?? null }; })()`;
-{
-  const browser = await chromium.launch();
-  for (const id of Object.keys(informes)) {
-    const arch = `${OUT}informe_${id}.html`;
-    if (!fs.existsSync(arch)) continue;
-    const html = fs.readFileSync(arch, 'utf8');
-    const r = informes[id];
-    try {
-      // pantalla 1100: una captura por hoja
-      let ctx = await browser.newContext({ viewport: { width: 1100, height: 1000 } });
-      let p = await ctx.newPage();
-      await p.setContent(html, { waitUntil: 'load' });
-      const hojas = p.locator('.pagina');
-      r.hojas = await hojas.count();
-      for (let i = 0; i < r.hojas; i++) await hojas.nth(i).screenshot({ path: `${OUT}informe_${id}_hoja${i + 1}.png` });
-      const txt = await p.locator('body').innerText();
-      r.chars = txt.length;
-      for (const mal of MALOS_TXT) if (hayMalo(txt, mal)) hallazgo('critico', `informe ${id}`, `aparece "${mal}"`);
-      const sinTitulo = await p.evaluate(() => [...document.querySelectorAll('svg[width="100%"]')].filter((s) => !s.querySelector('title') || !s.querySelector('desc')).length);
-      if (sinTitulo) hallazgo('medio', `informe ${id}`, `${sinTitulo} SVG sin <title>/<desc>`);
-      const nSvg = await p.locator('svg[width="100%"]').count();
-      r.svg = nSvg;
-      const malosSvg = await p.evaluate(CONTRASTE_SVG);
-      if (malosSvg.length) hallazgo('medio', `informe ${id}`, `texto de SVG con contraste < 4.5: ${JSON.stringify(malosSvg.slice(0, 4))}`);
-      const mini = await p.evaluate(() => ({ docOverflow: document.documentElement.scrollWidth > innerWidth + 2 }));
-      if (mini.docOverflow) hallazgo('alto', `informe ${id}`, 'desborde horizontal a 1100');
-      const pie = [...txt.matchAll(/Pág\. (\d+) de (\d+)/gi)].map((m) => Number(m[2]));
-      r.paginasPie = pie.length ? Math.max(...pie) : null;
-      if (!r.paginasPie || pie.some((x) => x !== r.paginasPie)) hallazgo('alto', `informe ${id}`, `numeración "Pág. n de N" inconsistente: ${pie}`);
-      if (r.paginasPie && r.hojas !== r.paginasPie) hallazgo('alto', `informe ${id}`, `${r.hojas} hojas en el HTML y el pie dice ${r.paginasPie}`);
-      await ctx.close();
-      // móvil 430
-      ctx = await browser.newContext({ viewport: { width: 430, height: 900 }, isMobile: true });
-      p = await ctx.newPage();
-      await p.setContent(html, { waitUntil: 'load' });
-      if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2)) hallazgo('alto', `informe ${id}`, 'desborde horizontal a 430');
-      if (id === 'tendencia' || id === 'comp_modulos') await p.screenshot({ path: `${OUT}informe_${id}_movil430.png`, fullPage: true });
-      await ctx.close();
-      // impresión: ancho Carta (816 px) con medio print → tamaños efectivos; PDF → páginas físicas
-      ctx = await browser.newContext({ viewport: { width: 816, height: 1056 } });
-      p = await ctx.newPage();
-      await p.setContent(html, { waitUntil: 'load' });
-      await p.emulateMedia({ media: 'print' });
-      r.puntos = await p.evaluate(PT_SVG);
-      await p.pdf({ path: `${OUT}informe_${id}.pdf`, format: 'Letter', printBackground: true, preferCSSPageSize: true });
-      const pdf = fs.readFileSync(`${OUT}informe_${id}.pdf`);
-      r.paginasPdf = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
-      if (r.paginasPdf !== r.paginasPie) hallazgo('alto', `informe ${id}`, `el PDF sale en ${r.paginasPdf} páginas físicas y el pie dice ${r.paginasPie} (una hoja se desborda)`);
-      if (r.puntos.minTexto != null && r.puntos.minTexto < 6.5) hallazgo('medio', `informe ${id}`, `texto de SVG de ${r.puntos.minTexto} pt efectivos (mínimo 6.5): ${JSON.stringify(r.puntos.peorTexto)}`);
-      if (r.puntos.minBarra != null && r.puntos.minBarra < 6.5) hallazgo('medio', `informe ${id}`, `barra de SVG de ${r.puntos.minBarra} pt efectivos (mínimo 6.5): ${JSON.stringify(r.puntos.peorBarra)}`);
-      await ctx.close();
-    } catch (e) { hallazgo('critico', `informe ${id}`, 'fallo en hojas/impresión: ' + String(e.message).slice(0, 200)); }
-  }
-  await browser.close();
-
-  // ── cifras dentro de los informes ──
-  try {
-    const txtDe = (id) => fs.readFileSync(`${OUT}informe_${id}.html`, 'utf8').replace(/<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
-    const tTend = txtDe('tendencia');
-    const esperadoTit = media(MODULOS.map((m) => anomaliaMod(m, ANIO)));
-    const cadena = `por debajo de lo habitual en los 6 módulos (−${Math.abs(esperadoTit).toFixed(3)} promedio SRL)`;
-    res.cifras.push({ cifra: 'Titular del informe de tendencia', bd: cadena, pantalla: tTend.includes(cadena) ? cadena : '(no aparece)', ok: tTend.includes(cadena) });
-    if (!tTend.includes(cadena)) hallazgo('critico', 'cifras informe', `el informe de tendencia no contiene "${cadena}"`);
-    if (!/programación del riego/.test(tTend) || !/29 de septiembre/.test(tTend)) hallazgo('alto', 'cifras informe', 'el informe de tendencia no lleva la cautela del titular');
-    // fila de M1 en la tabla "Frente a lo habitual": diferencia = anomalía recalculada de M1
-    const a1 = anomaliaMod(1, ANIO).toFixed(3).replace('-', '');
-    const okM1 = new RegExp(`Módulo 1[^|]{0,40}?\\s${val(1, '2026-03') != null ? '' : ''}[\\d.]+\\s+[\\d.]+\\s+▼ −${a1}`).test(tTend);
-    res.cifras.push({ cifra: 'Informe de tendencia: anomalía de M1 (marzo–septiembre 2026)', bd: `▼ −${a1}`, pantalla: okM1 ? `▼ −${a1}` : '(no coincide)', ok: okM1 });
-    if (!okM1) hallazgo('critico', 'cifras informe', `la anomalía de M1 en el informe de tendencia no coincide con ${a1}`);
-    const tRes = txtDe('resumen');
-    const okRes = tRes.includes(val(1, ULTIMO).toFixed(2));
-    res.cifras.push({ cifra: 'Informe resumen: NDVI de M1 sep-2026', bd: val(1, ULTIMO).toFixed(2), pantalla: okRes ? val(1, ULTIMO).toFixed(2) : '(no aparece)', ok: okRes });
-    if (!okRes) hallazgo('critico', 'cifras informe', 'el informe resumen no contiene el NDVI de M1');
-    const tIA = txtDe('interanual');
-    const p26 = Math.max(...MESES_T.map((t) => val(1, `${ANIO}-${t}`))).toFixed(3);
-    const okIA = tIA.includes(p26);
-    res.cifras.push({ cifra: 'Informe interanual: pico M1 2026', bd: p26, pantalla: okIA ? p26 : '(no aparece)', ok: okIA });
-    if (!okIA) hallazgo('critico', 'cifras informe', `el informe interanual no contiene el pico ${p26}`);
-  } catch (e) { hallazgo('critico', 'cifras informe', 'fallo: ' + String(e.message).slice(0, 200)); }
+let informe = {};
+if (!SALTAR.includes('informe')) {
+  const { barridoInforme } = await import('./ndvi-informe.mjs');
+  informe = await barridoInforme({
+    RAIZ, OUT, res, hallazgo, cifra, vigila, abrirPanel, medidas, CONTRASTE, CONTRASTE_SVG, URL_SB, KEY, rest,
+    PERFILES_INFORME: PERFILES.filter((p) => p.id !== 'chromium-1024'),
+  });
 }
 
-res.informes = informes;
 fs.writeFileSync(OUT + 'resultado.json', JSON.stringify(res, null, 2));
 const crit = res.hallazgos.filter((h) => h.sev === 'critico' || h.sev === 'alto').length;
 console.log(`\nIteración ${iter}: ${res.hallazgos.length} hallazgos (${crit} críticos/altos). Cifras cruzadas con la BD: ${res.cifras.filter((c) => c.ok).length}/${res.cifras.length} coinciden.`);
-for (const c of res.cifras) console.log('  ', c.ok ? 'OK ' : 'MAL', c.cifra, '| BD', c.bd, '| pantalla', c.pantalla);
-for (const [k, v] of Object.entries(informes)) console.log('informe', k, JSON.stringify({ hojas: v.hojas, pie: v.paginasPie, pdf: v.paginasPdf, svg: v.svg, puntos: v.puntos }));
+for (const c of res.cifras) console.log('  ', c.ok ? 'OK ' : 'MAL', c.cifra, '| BD', c.bd, '| informe/pantalla', c.pantalla);
+for (const t of res.tablaPdf ?? []) console.log('pdf', JSON.stringify(t));

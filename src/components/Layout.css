@@ -331,6 +331,9 @@ html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait
         calc(12px + var(--sal));
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
+    /* Sin contexto de apilamiento propio: los modales de página (z-index ≥ 1000) deben poder cubrir la barra superior. En iPad vertical
+       el panel NDVI quedaba bajo la barra y su botón «Informe institucional» no se podía tocar (en teléfono ya se liberaba en phone.css). */
+    z-index: auto;
 }
 
 /* Barra superior fija (isla dinámica: padding-top = safe-area superior) */

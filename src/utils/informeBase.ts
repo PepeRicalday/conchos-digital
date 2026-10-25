@@ -1,6 +1,6 @@
 /**
- * informeBase — piezas comunes de los informes institucionales HTML (identidad SRL, hoja Carta, tokens, folio).
- * Hoy lo usa el informe de NDVI; los demás informes repiten su propio CSS y podrán migrar sin prisa.
+ * informeBase — piezas comunes de los informes institucionales HTML (identidad SRL, hoja Carta, tokens, folio, trazabilidad,
+ * bloque de firmas y componentes de hoja compartidos). Lo usan los informes de NDVI, manejo de vaso y conservación.
  * Todo es puro (strings): se prueba con vitest sin navegador.
  */
 import { COLOR_INSTITUCIONAL, escSvg } from './informeHistoricoSvg';
@@ -21,6 +21,25 @@ export function nombreArchivo(base: string, ahora: Date = new Date()): string {
     return `${base}-${ahora.getFullYear()}-${dos(ahora.getMonth() + 1)}-${dos(ahora.getDate())}.html`;
 }
 
+/** Hash corto y estable (FNV-1a de 32 bits, 8 hex) para identificar una configuración o un contenido; no es criptográfico. */
+export function hashCorto(texto: string): string {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < texto.length; i++) { h ^= texto.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(16).padStart(8, '0');
+}
+
+/** Folio con alcance y periodo: PREFIJO-PARTE1-PARTE2-AAAAMMDD-HHMM (las partes se sanean: mayúsculas, sin espacios; se conservan los guiones internos). */
+export function folioConPartes(prefijo: string, partes: string[], ahora: Date = new Date()): string {
+    const limpias = partes.map((p) => p.toUpperCase().replace(/[^A-Z0-9-]+/g, '').replace(/^-+|-+$/g, '')).filter(Boolean);
+    return [prefijo, ...limpias, `${ahora.getFullYear()}${dos(ahora.getMonth() + 1)}${dos(ahora.getDate())}`, `${dos(ahora.getHours())}${dos(ahora.getMinutes())}`].join('-');
+}
+
+/** Nombre de archivo con partes (alcance, periodo): minúsculas con guiones y fecha ISO local de emisión. */
+export function nombreArchivoConPartes(base: string, partes: string[], ahora: Date = new Date()): string {
+    const limpias = partes.map((p) => p.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')).filter(Boolean);
+    return [base, ...limpias, `${ahora.getFullYear()}-${dos(ahora.getMonth() + 1)}-${dos(ahora.getDate())}`].join('-') + '.html';
+}
+
 const MESES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
 /** '2026-09' (o '2026-09-01') → 'septiembre 2026' / 'sep 2026'. Formato inesperado → el texto tal cual. */
@@ -37,13 +56,44 @@ export function fechaHoraLegible(d: Date): string {
     return `${f}, ${dos(d.getHours())}:${dos(d.getMinutes())} h`;
 }
 
+/** '2026-09-01' → '1 de septiembre de 2026'; formato inesperado o vacío → 'S/D' (nunca el ISO crudo). */
+export function fechaLarga(iso: string | null | undefined): string {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? '');
+    if (!m || !MESES_LARGO[Number(m[2]) - 1]) return 'S/D';
+    return `${Number(m[3])} de ${MESES_LARGO[Number(m[2]) - 1]} de ${m[1]}`;
+}
+
+/** Último día incluido de una ventana cuya fecha final es EXCLUSIVA ('2026-10-01' → '2026-09-30'); sin fecha válida → null. */
+export function ultimoDiaIncluido(finExclusivo: string | null | undefined): string | null {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(finExclusivo ?? '');
+    if (!m) return null;
+    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) - 86_400_000);
+    return `${d.getUTCFullYear()}-${dos(d.getUTCMonth() + 1)}-${dos(d.getUTCDate())}`;
+}
+
+/** Familia tipográfica de los textos SVG de los informes: se declara una vez en el CSS en vez de repetirla en cada <text>. */
+export const FUENTE_SVG = 'Segoe UI, Helvetica, Arial, sans-serif';
+
+/** Quita el atributo font-family de los <text> de los SVG ya armados (la regla `svg text` del CSS lo reemplaza): ≈ 55 bytes por rótulo. */
+export function unificaFuenteSvg(html: string): string {
+    return html.split(` font-family="${FUENTE_SVG}"`).join('');
+}
+
+/** Regla CSS que sustituye al atributo quitado por unificaFuenteSvg: va solo en los informes que lo usan (no en el CSS común). */
+export const CSS_FUENTE_SVG = `svg text{font-family:${FUENTE_SVG.split(',').map((f) => f.trim()).map((f) => (f.includes(' ') ? `"${f}"` : f)).join(',')}}`;
+
+/** Quita comentarios y espacios sobrantes del CSS (≈ 15 % menos peso); no cambia ninguna regla. */
+export function minificaCss(css: string): string {
+    return css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s*\n\s*/g, '').replace(/\s*([{};,])\s*/g, '$1').replace(/:\s+/g, ':').trim();
+}
+
 export interface OpcionesCss { formato?: 'letter' | 'a4' }
 
 /** CSS de hoja institucional: tokens, tipografía en pt (mínimo 7.5 pt), componentes y reglas de impresión. */
 export function cssInforme(o: OpcionesCss = {}): string {
     const hoja = o.formato === 'a4' ? 'A4' : 'letter';
     return `
-:root{--inst:${SRL_MARRON};--inst-claro:#f4eaea;--ink:#1f2328;--ink2:#57606a;--linea:#dcd9d2;--papel:#fff;--pantalla:#eceae5;--sd:#8c959f;--aviso:#9a6700;--aviso-bg:#fff8e6}
+:root{--inst:${SRL_MARRON};--inst-claro:#f4eaea;--ink:#1f2328;--ink2:#57606a;--linea:#dcd9d2;--papel:#fff;--pantalla:#eceae5;--sd:#6a737d;--aviso:#9a6700;--aviso-bg:#fff8e6}
 *{box-sizing:border-box}
 html{color-scheme:light;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 body{margin:0;background:var(--pantalla);color:var(--ink);font:9.5pt/1.45 "Segoe UI","Helvetica Neue",Arial,sans-serif}
@@ -94,12 +144,40 @@ caption{text-align:left;font-weight:700;color:var(--inst);padding:6px 0 4px;font
 .aviso{border:1px solid #e3c98a;border-left:5px solid #C27A0E;background:var(--aviso-bg);border-radius:3px;padding:7px 10px;font-size:8.5pt;color:#5c3d00;margin:6px 0}
 .aviso b{color:#5c3d00}
 .btn-imprimir{position:fixed;right:14px;bottom:14px;z-index:10;background:var(--inst);color:#fff;border:0;border-radius:8px;padding:10px 16px;font:600 10pt "Segoe UI",Arial,sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3);min-height:44px}
+/* Componentes de hoja compartidos (corrida, portada, datos clave, frases, columnas, definiciones) */
+.run{display:flex;justify-content:space-between;font-size:7.5pt;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);border-bottom:1px solid var(--linea);padding-bottom:4px;margin-bottom:8px}
+.run b{color:var(--inst)}
+.cuerpo{min-width:0}
+.banda{margin:2mm 0 4mm}
+.banda small{display:block;font-size:8pt;color:var(--ink2);margin-bottom:3px}
+.banda h1{font-size:20pt}
+.banda .sub{font:10pt Georgia,serif;color:var(--ink2);margin-top:2px}
+.datos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:4mm 0 3mm}
+.dato{border-top:3px solid var(--inst);padding-top:4px}
+.dato b{display:block;font-size:8pt;color:var(--ink2)}
+.dato span{font:600 10pt Georgia,serif}
+.frase{font:10.5pt/1.4 Georgia,serif;margin:2px 0 6px}
+.nota-pie{margin-top:6px;font-size:7.5pt;color:var(--ink2)}
+.cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:8.5pt}
+.def dt{font-weight:700;color:var(--inst);margin-top:5px}
+.def dd{margin:0 0 2px;color:var(--ink)}
+/* Bloque de firmas (Elaboró / Revisó / Autorizó) y tabla de trazabilidad */
+.firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:14px;break-inside:avoid}
+.firma{padding-top:30px}
+.firma .linea{border-top:1px solid var(--ink);margin-bottom:3px}
+.firma b{display:block;font-size:8.5pt}
+.firma span{display:block;font-size:7.5pt;color:var(--ink2)}
+table.traza{font-size:8pt} table.traza th{width:34%;text-transform:none;letter-spacing:0;font-size:7.5pt;background:var(--inst-claro);color:var(--inst)}
+table.traza td{overflow-wrap:anywhere}
 @media screen and (max-width:720px){
   .pagina{padding:12px;min-height:0}
   .kpis{grid-template-columns:1fr 1fr}
   .tabla-wrap{overflow-x:auto}
   .hdr{flex-wrap:wrap}
   .hdr .meta{text-align:left}
+  .cols3,.firmas{grid-template-columns:1fr}
+  .datos{grid-template-columns:1fr 1fr}
+  .banda h1{font-size:16pt}
 }
 `;
 }
@@ -121,10 +199,22 @@ export function pieInforme(izq: string, pagina: number, total: number): string {
     return `<footer class="pie-pagina"><span>${esc(izq)}</span><span>Pág. ${pagina} de ${total}</span></footer>`;
 }
 
-export function documentoHtml(o: { titulo: string; css: string; cuerpo: string }): string {
+/** Bloque de firmas reutilizable (opcional por informe). `nombres` pone el nombre ya conocido de quien elabora (p. ej. el emisor). */
+export function bloqueFirmas(o: { roles?: string[]; nombres?: Record<string, string> } = {}): string {
+    const roles = o.roles ?? ['Elaboró', 'Revisó', 'Autorizó'];
+    return `<div class="firmas" aria-label="Firmas">${roles.map((r) => `<div class="firma"><div class="linea"></div><b>${esc(r)}</b><span>${esc(o.nombres?.[r] ?? 'Nombre, cargo y firma')}</span></div>`).join('')}</div>`;
+}
+
+/** Tabla de trazabilidad (clave/valor) para anexos: folio, corte de datos, método, versión, hash… */
+export function tablaTrazabilidad(filas: { k: string; v: string }[]): string {
+    return `<table class="traza"><tbody>${filas.map((f) => `<tr><th scope="row">${esc(f.k)}</th><td>${esc(f.v)}</td></tr>`).join('')}</tbody></table>`;
+}
+
+export function documentoHtml(o: { titulo: string; css: string; cuerpo: string; metas?: Record<string, string> }): string {
+    const metas = Object.entries(o.metas ?? {}).map(([k, v]) => `<meta name="${esc(k)}" content="${esc(v)}">`).join('\n');
     return `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light">
+<meta name="color-scheme" content="light">${metas ? `\n${metas}` : ''}
 <title>${esc(o.titulo)}</title>
 <style>${o.css}</style>
 </head><body>

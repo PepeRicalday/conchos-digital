@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     avisosConfig, configPorDefecto, conPreset, filtrarFilas, inicioCiclo, mesReferenciaDe, mesesDisponibles, normalizaConfig,
-    paginasEstimadas, rangoDePreset, validarConfig, type ConfigInformeNdvi,
+    migrarConfigV1, paginasEstimadas, rangoDePreset, validarConfig, type ConfigInformeNdvi,
 } from './informeNdviConfig';
 import { construirDatosNdvi, type ContextoInforme, type FilaNdviInforme } from './informeNdviDatos';
 import { construirHtmlNdvi } from './informeNdviHtml';
@@ -57,17 +57,28 @@ describe('filtrado y validación', () => {
         expect(validarConfig(cfg({ secciones: [] }), FILAS)).toContain('Elige al menos una sección.');
         expect(validarConfig(cfg({ desde: '2026-09', hasta: '2026-04', preset: 'personalizado' }), FILAS).join(' ')).toMatch(/posterior/);
         expect(validarConfig(cfg({ desde: '2027-01', hasta: '2027-03', preset: 'personalizado' }), FILAS).join(' ')).toMatch(/No hay lecturas/);
-        expect(validarConfig(cfg(), FILAS)).toEqual([]);
+        expect(validarConfig(cfg({ secciones: ['resumen', 'situacion'] }), FILAS)).toEqual([]);
     });
     it('avisos: módulo sin dato en el mes de referencia y un solo módulo', () => {
         const sinM12 = FILAS.filter((f) => !(f.numero_modulo === 12 && f.mes === '2026-09'));
         expect(avisosConfig(cfg(), sinM12).join(' ')).toMatch(/Módulo 12/);
         expect(avisosConfig(cfg({ modulos: [3] }), FILAS).join(' ')).toMatch(/un solo módulo/i);
     });
-    it('páginas estimadas según las secciones elegidas', () => {
-        expect(paginasEstimadas(cfg())).toBe(4);
-        expect(paginasEstimadas(cfg({ secciones: ['portada', 'resumen'] }))).toBe(1);
-        expect(paginasEstimadas(cfg({ secciones: ['plano', 'serie'] }))).toBe(2);
+    it('aviso: el anexo de superficie y volumen se omite con un solo año; el contraste no aplicable se avisa', () => {
+        expect(avisosConfig(cfg(), FILAS).join(' ')).toMatch(/anexo de superficie y volumen necesita al menos dos años/);
+        expect(avisosConfig(cfg({ contraste: 2026 }), FILAS).join(' ')).toMatch(/contraste elegido no es aplicable/);
+        expect(avisosConfig(cfg({ indicadores: ['iehp'] }), FILAS).join(' ')).toMatch(/IEHP exige consultar el volumen/);
+    });
+    it('páginas estimadas según las secciones elegidas (la tendencia y la metodología ocupan dos hojas)', () => {
+        expect(paginasEstimadas(cfg())).toBe(10);
+        expect(paginasEstimadas(cfg({ secciones: ['resumen'] }))).toBe(1);
+        expect(paginasEstimadas(cfg({ secciones: ['resumen', 'situacion', 'anexoSerie'] }))).toBe(3);
+        expect(paginasEstimadas(cfg({ secciones: ['resumen', 'tendencia'], compModulos: { tipo: 'vsSRL', moduloA: 1, moduloB: 2 } }))).toBe(4);
+    });
+    it('errores nuevos: comparación entre años con un solo año y módulos de la comparación fuera de la selección', () => {
+        expect(validarConfig(cfg(), FILAS).join(' ')).toMatch(/al menos dos años/);
+        expect(validarConfig(cfg({ secciones: ['resumen'] }), FILAS)).toEqual([]);
+        expect(validarConfig(cfg({ secciones: ['resumen'], modulos: [1], compModulos: { tipo: 'vsSRL', moduloA: 3, moduloB: 3 } }), FILAS).join(' ')).toMatch(/Módulo 3 de la comparación/);
     });
 });
 
@@ -103,11 +114,14 @@ describe('modelo filtrado', () => {
 
 describe('HTML configurable', () => {
     const html = (c: ConfigInformeNdvi, f = FILAS) => construirHtmlNdvi(construirDatosNdvi(f, ctx(), c), LOGOS, '<svg></svg>');
-    it('hojas y numeración dinámicas según las secciones', () => {
+    it('hojas y numeración calculadas con las hojas realmente armadas', () => {
         const h = html(cfg({ secciones: ['resumen', 'metodologia'] }));
-        expect((h.match(/class="pagina/g) ?? []).length).toBe(2);
-        expect(h).toContain('Pág. 2 de 2');
-        expect(h).not.toContain('Fichas por módulo');
+        expect((h.match(/class="pagina/g) ?? []).length).toBe(3);
+        expect(h).toContain('Pág. 3 de 3');
+        expect(h).not.toContain('Módulo por módulo');
+        const solo = html(cfg({ secciones: ['resumen'] }));
+        expect((solo.match(/class="pagina/g) ?? []).length).toBe(1);
+        expect(solo).toContain('Pág. 1 de 1');
     });
     it('indicadores desactivados no aparecen en fichas, anexo ni glosario', () => {
         const h = html(cfg({ indicadores: ['icv'] }));
@@ -130,11 +144,43 @@ describe('HTML configurable', () => {
     });
     it('base ponderada se rotula en el informe', () => {
         const h = html(cfg({ basePromedio: 'ponderado' }));
-        expect(h).toContain('Promedio SRL (ponderado)');
-        expect(h).toContain('ponderado por superficie');
+        expect(h).toContain('Promedio SRL (ponderado por superficie');
+        expect(h).toContain('ponderado por la superficie de su polígono');
     });
     it('hoja A4 cambia el tamaño de página', () => {
         expect(html(cfg({ hoja: 'a4' }))).toContain('size:A4 portrait');
         expect(html(cfg())).toContain('size:letter portrait');
+    });
+});
+
+describe('compatibilidad con configuraciones guardadas (v1: modo y comparación A/B)', () => {
+    const v1 = (o: Record<string, unknown>) => ({ v: 1 as const, preset: 'ciclo', desde: '2026-03', hasta: '2026-09', modulos: [1, 2], indicadores: ['kc', 'ihr'], basePromedio: 'ponderado', secciones: ['portada', 'resumen', 'plano', 'fichas', 'analisis', 'serie', 'anexo', 'metodologia'], hoja: 'a4', ...o });
+    it('modo resumen: pasa a alcance sin secciones de análisis y conserva lo elegido', () => {
+        const n = normalizaConfig(v1({ modo: 'resumen' }) as never, MESES);
+        expect(n.v).toBe(2);
+        expect(n.secciones).toEqual(['resumen', 'situacion', 'modulos', 'anexoSerie', 'metodologia']);
+        expect(n).toMatchObject({ modulos: [1, 2], indicadores: ['kc', 'ihr'], basePromedio: 'ponderado', hoja: 'a4' });
+        expect(n.contraste).toBe('auto');
+    });
+    it('modo tendencia activa la tendencia; interanual activa comparación entre años y anexo con los años guardados', () => {
+        expect(normalizaConfig(v1({ modo: 'tendencia' }) as never, MESES).secciones).toContain('tendencia');
+        const ia = normalizaConfig(v1({ modo: 'interanual', interanual: { anios: [2024, 2025, 2026] } }) as never, MESES);
+        expect(ia.secciones).toEqual(expect.arrayContaining(['interanual', 'anexoSupVol']));
+        expect(ia.anios).toEqual([2024, 2025, 2026]);
+    });
+    it('comparativo periodo A vs B: el lado B es el periodo y el año de A el contraste (un solo concepto de periodo)', () => {
+        const n = migrarConfigV1(v1({ modo: 'comparativo', comparacion: { tipo: 'periodos', a: { desde: '2023-03', hasta: '2023-09' }, b: { desde: '2026-03', hasta: '2026-09' } } }) as never, MESES);
+        expect(n).toMatchObject({ preset: 'personalizado', desde: '2026-03', hasta: '2026-09', contraste: 2023 });
+        expect(n.secciones).toContain('tendencia');
+        const mod = migrarConfigV1(v1({ modo: 'comparativo', comparacion: { tipo: 'modulos', moduloA: 1, moduloB: 2 } }) as never, MESES);
+        expect(mod.compModulos).toEqual({ tipo: 'modulos', moduloA: 1, moduloB: 2 });
+    });
+    it('un preset v1 sin campos nuevos se completa con los valores por defecto', () => {
+        const n = normalizaConfig({ v: 1 } as never, MESES);
+        expect(n.v).toBe(2);
+        expect(n.secciones).toContain('resumen');
+        expect(n.firmas).toBe(true);
+        expect(n.imagenSatelital).toBe(false);
+        expect(n.mapaRelieve).toBe(true);
     });
 });

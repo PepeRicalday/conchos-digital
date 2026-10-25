@@ -46,9 +46,18 @@ const PARADAS: { v: number; rgb: [number, number, number] }[] = [
     { v: 0.8, rgb: hex(CLASES_NDVI[4].color) },
 ];
 
-/** Color continuo (interpolado entre las clases) para rellenar un polígono; null → gris neutro. */
+/** Color DISCRETO de la clase de vigor (el mismo de la leyenda y del raster); null (S/D) → null: el llamador dibuja el hachurado. */
+export function colorClaseNdvi(v: number | null | undefined): string | null {
+    return claseNdvi(v)?.color ?? null;
+}
+
+/** Fondo y trazo del hachurado S/D (único en plano, tablas, barras y leyenda del informe). */
+export const SD_FONDO = '#e9e7e2';
+export const SD_TRAZO = '#a8afb7';
+
+/** Color continuo (interpolado entre las clases) para la pantalla; null → el fondo neutro de S/D (ya no un slate oscuro). El informe usa colorClaseNdvi. */
 export function colorNdvi(v: number | null | undefined): string {
-    if (v == null || !Number.isFinite(v)) return '#334155';
+    if (v == null || !Number.isFinite(v)) return SD_FONDO;
     if (v <= PARADAS[0].v) return `rgb(${PARADAS[0].rgb.join(',')})`;
     const ult = PARADAS[PARADAS.length - 1];
     if (v >= ult.v) return `rgb(${ult.rgb.join(',')})`;
@@ -70,6 +79,27 @@ export function luminancia(h: string): number {
         return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
     });
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * Tinta del texto sobre un fondo #RRGGBB: negro o blanco, el que dé más contraste. El cruce entre ambos está en L ≈ 0.179
+ * (no 0.3): con 0.3 el texto sobre "Vigor alto" (L 0.197) saldría blanco con solo 4.25:1; en negro llega a 4.94:1.
+ */
+export const UMBRAL_LUMINANCIA_TINTA = 0.179;
+export function tintaSobre(fondoHex: string): '#000000' | '#ffffff' {
+    return luminancia(fondoHex) > UMBRAL_LUMINANCIA_TINTA ? '#000000' : '#ffffff';
+}
+
+/** Contraste WCAG entre dos colores #RRGGBB. */
+export function contraste(a: string, b: string): number {
+    const [x, y] = [luminancia(a), luminancia(b)];
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+/** Gris percibido (0–255, BT.601) de un #RRGGBB: lo que queda al imprimir en escala de grises. */
+export function grisPercibido(h: string): number {
+    const [r, g, b] = hex(h);
+    return 0.299 * r + 0.587 * g + 0.114 * b;
 }
 
 // ── Clases discretas de ICV / IHR (0–100) para el coroplético: mismas etiquetas y cortes que indicesSrl.ts ──────────────────

@@ -45,9 +45,9 @@ html[data-device="phone"] .ndvi-cfg { max-height: 100dvh; height: 100dvh; border
 .ndvi-cfg-viva { position: sticky; top: 0; align-self: start; display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 12px; background: rgba(255, 255, 255, 0.03); }
 .ndvi-cfg-cuenta { font: 700 26px 'Big Shoulders Display', 'IBM Plex Sans', sans-serif; letter-spacing: 0.02em; }
 .ndvi-cfg-cuenta small { font: 400 13px 'IBM Plex Sans', sans-serif; color: #b4c2d4; margin-left: 6px; }
-.ndvi-cfg-hojas { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
-.ndvi-cfg-hoja { aspect-ratio: 0.77; border: 1px solid rgba(232, 238, 246, 0.35); border-top: 4px solid #6B2D2D; border-radius: 3px; background: #f6f5f2; color: #1f2328; padding: 6px; font-size: 11px; line-height: 1.25; overflow: hidden; }
-.ndvi-cfg-hoja b { display: block; font-size: 11px; color: #6B2D2D; margin-bottom: 3px; }
+.ndvi-cfg-hojas { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px; }
+.ndvi-cfg-hoja { aspect-ratio: 0.77; border: 1px solid rgba(232, 238, 246, 0.35); border-top: 4px solid #6B2D2D; border-radius: 3px; background: #f6f5f2; color: #1f2328; padding: 6px; font-size: 12px; line-height: 1.25; overflow: hidden; }
+.ndvi-cfg-hoja b { display: block; font-size: 12px; color: #6B2D2D; margin-bottom: 3px; }
 .ndvi-cfg-hoja span { display: block; }
 .ndvi-cfg-msgs { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
 .ndvi-cfg-msgs li { display: flex; gap: 6px; padding: 8px 10px; border-radius: 8px; border: 1px solid; }

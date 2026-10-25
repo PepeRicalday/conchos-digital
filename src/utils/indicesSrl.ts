@@ -184,7 +184,7 @@ export async function volumenAcumuladoPorModuloHm3(
     hastaMesInclusive: string,
     /** Primer mes del ciclo ('AAAA-MM'): sin él se sumaba desde el inicio de la tabla y, con datos de otro ciclo, los mezclaría. */
     desdeMesInclusive?: string,
-): Promise<{ porModulo: Map<number, number>; ultimoMesEsParcial: boolean }> {
+): Promise<{ porModulo: Map<number, number>; ultimoMesEsParcial: boolean; /** Mensaje si la consulta falló: NO equivale a "sin volumen cargado". */ error: string | null }> {
     const porModulo = new Map<number, number>();
     let consulta = supabase
         .from('volumen_modulo_mensual_provisional')
@@ -192,11 +192,11 @@ export async function volumenAcumuladoPorModuloHm3(
         .lte('mes', hastaMesInclusive);
     if (desdeMesInclusive) consulta = consulta.gte('mes', desdeMesInclusive);
     const { data, error } = await consulta;
-    if (error || !data) return { porModulo, ultimoMesEsParcial: false };
+    if (error || !data) return { porModulo, ultimoMesEsParcial: false, error: error?.message ?? 'Sin respuesta del servidor.' };
     for (const fila of data) {
         const acumulado = (porModulo.get(fila.numero_modulo) ?? 0) + fila.volumen_miles_m3 / 1000;
         porModulo.set(fila.numero_modulo, acumulado);
     }
     const ultimoMesEsParcial = data.some(f => f.mes === hastaMesInclusive && f.es_mes_parcial);
-    return { porModulo, ultimoMesEsParcial };
+    return { porModulo, ultimoMesEsParcial, error: null };
 }

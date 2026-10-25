@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLASES_NDVI, SD_FONDO, claseNdvi, colorClaseNdvi, colorNdvi, contraste, grisPercibido, luminancia, tintaSobre } from './ndviRampa';
+import { CLASES_NDVI, SD_FONDO, SUELO_CONTORNO, claseNdvi, colorClaseNdvi, colorNdvi, contraste, grisPercibido, luminancia, luminosidadL, tintaSobre } from './ndviRampa';
 
 describe('ndviRampa', () => {
     it('clasifica los valores del 2026-09 (M1 0.20, M5 0.34, M3 0.52)', () => {
@@ -26,13 +26,26 @@ describe('ndviRampa', () => {
     });
     it('el color continuo coincide con la clase en las paradas y se interpola entre ellas', () => {
         expect(colorNdvi(0.4)).toBe('rgb(111,177,90)');
-        expect(colorNdvi(0.0)).toBe('rgb(217,201,160)');
+        expect(colorNdvi(0.0)).toBe('rgb(245,235,205)');
         expect(colorNdvi(0.95)).toBe('rgb(20,83,45)');
         expect(colorNdvi(0.31)).not.toBe(colorNdvi(0.4));
     });
     it('colorClaseNdvi es discreto: un valor de cada clase devuelve exactamente el color de la leyenda', () => {
         [0.1, 0.2, 0.4, 0.6, 0.8].forEach((v, i) => expect(colorClaseNdvi(v)).toBe(CLASES_NDVI[i].color));
         expect(colorClaseNdvi(0.31)).toBe(colorClaseNdvi(0.49));
+    });
+    it('clases adyacentes: ΔL* ≥ 12 y razón de luminancia ≥ 1.25, y la luminancia es monótona (suelo más claro, vigor muy alto más oscuro)', () => {
+        for (let i = 1; i < CLASES_NDVI.length; i++) {
+            const a = CLASES_NDVI[i - 1].color, b = CLASES_NDVI[i].color, par = `${CLASES_NDVI[i - 1].clave}→${CLASES_NDVI[i].clave}`;
+            expect(luminosidadL(a) - luminosidadL(b), par).toBeGreaterThanOrEqual(12);
+            expect(contraste(a, b), par).toBeGreaterThanOrEqual(1.25);
+        }
+    });
+    it('Suelo desnudo sigue siendo arena/crema (tono cálido: R ≥ G > B) y su contorno se ve sobre su propio relleno', () => {
+        const [r, g, b] = [1, 3, 5].map((i) => parseInt(CLASES_NDVI[0].color.slice(i, i + 2), 16));
+        expect(r).toBeGreaterThanOrEqual(g);
+        expect(g).toBeGreaterThan(b);
+        expect(contraste(CLASES_NDVI[0].color, SUELO_CONTORNO)).toBeGreaterThanOrEqual(3);
     });
     it('el texto sobre cada clase (negro o blanco) llega a contraste ≥ 4.5:1', () => {
         for (const c of CLASES_NDVI) expect(contraste(c.color, tintaSobre(c.color)), c.clave).toBeGreaterThanOrEqual(4.5);

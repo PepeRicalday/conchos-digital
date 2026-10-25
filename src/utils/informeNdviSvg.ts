@@ -169,6 +169,14 @@ export function puntoInterior(a: [number, number][]): [number, number, number] {
 const rellenoClase = (ndvi: number | null, idHach: string) => colorClaseNdvi(ndvi) ?? `url(#${idHach})`;
 const defsHachurado = (id: string) => `<pattern id="${id}" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="${SD_FONDO}"/><line x1="0" y1="0" x2="0" y2="7" stroke="${SD_TRAZO}" stroke-width="2"/></pattern>`;
 
+/**
+ * Trama de los módulos VECINOS del DR-005 (contexto, no dato): puntos finos con halo claro, SIN relleno de color ni gris plano,
+ * para que en escala de grises no se confundan con ninguna clase de vigor (relleno liso) ni con S/D (franjas diagonales gruesas).
+ * Se ve igual sobre relieve claro u oscuro (punto oscuro + halo blanco) y se rotula en la leyenda.
+ */
+export const TRAMA_VECINOS = { paso: 4, punto: '#2f363d', halo: '#ffffff', contorno: '#2f363d' };
+const defsVecinos = (id: string) => `<pattern id="${id}" width="${TRAMA_VECINOS.paso}" height="${TRAMA_VECINOS.paso}" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.25" fill="${TRAMA_VECINOS.halo}" fill-opacity=".85"/><circle cx="2" cy="2" r=".6" fill="${TRAMA_VECINOS.punto}"/></pattern>`;
+
 /** Altura (u) reservada bajo el mapa para los rótulos de longitud y la escala gráfica. */
 const MB = 50, ML = 50, MT = 8, MR = 8;
 
@@ -203,7 +211,8 @@ export function planoSvg(modulos: ModuloInforme[], contornos: Contornos, w = 470
     const relieve = contexto?.relieveUri
         ? `<image href="${contexto.relieveUri}" x="${f1(px(contexto.bbox[0]))}" y="${f1(py(contexto.bbox[3]))}" width="${f1(px(contexto.bbox[2]) - px(contexto.bbox[0]))}" height="${f1(py(contexto.bbox[1]) - py(contexto.bbox[3]))}" preserveAspectRatio="none"/>`
         : `<rect x="${f1(ox)}" y="${f1(oy)}" width="${f1(mw)}" height="${f1(mh)}" fill="#f1f0ec"/>`;
-    const vecinos = (contexto?.vecinos ?? []).map((a) => `<path d="${trazo(a)}" fill="#8b9097" fill-opacity=".30" stroke="#fff" stroke-width=".8" stroke-opacity=".8"/>`).join('');
+    // Vecinos del DR-005: solo trama punteada + contorno discontinuo claro (halo blanco bajo un trazo oscuro), sin relleno.
+    const vecinos = (contexto?.vecinos ?? []).map((a) => `<path d="${trazo(a)}" fill="url(#plano-vec)" stroke="#fff" stroke-width="1.8" stroke-opacity=".9" stroke-linejoin="round"/><path d="${trazo(a)}" fill="none" stroke="${TRAMA_VECINOS.contorno}" stroke-width=".8" stroke-dasharray="3 2.5" stroke-opacity=".85" stroke-linejoin="round"/>`).join('');
     // Retícula tenue sobre el relieve y bajo los módulos
     const lonTicks: number[] = [], latTicks: number[] = [];
     for (let v = Math.ceil(bb.minLon * 10) / 10; v < bb.maxLon; v = Math.round((v + 0.1) * 10) / 10) lonTicks.push(v);
@@ -266,7 +275,7 @@ export function planoSvg(modulos: ModuloInforme[], contornos: Contornos, w = 470
     const resumen = modulos.map((m) => `Módulo ${m.numero}: ${m.ndvi != null ? m.ndvi.toFixed(2) : 'S/D'}`).join('; ');
     const cab = cabeceraSvg('Plano de los módulos SRL por clase de vigor (NDVI)', resumen);
     return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${w}px;display:block" ${cab.attrs}>${cab.tags}
-<defs>${defsHachurado('plano-hach')}<clipPath id="plano-clip"><rect x="${f1(ox)}" y="${f1(oy)}" width="${f1(mw)}" height="${f1(mh)}"/></clipPath></defs>
+<defs>${defsHachurado('plano-hach')}${defsVecinos('plano-vec')}<clipPath id="plano-clip"><rect x="${f1(ox)}" y="${f1(oy)}" width="${f1(mw)}" height="${f1(mh)}"/></clipPath></defs>
 <g clip-path="url(#plano-clip)">${relieve}${vecinos}<g stroke="#fff" stroke-opacity=".55" stroke-width=".6">${reticula}</g>
 ${rio ? `<path d="${rio}" fill="none" stroke="#fff" stroke-width="3.4" stroke-linejoin="round"/><path d="${rio}" fill="none" stroke="${INK2}" stroke-width="1.6" stroke-linejoin="round"/>` : ''}
 ${piezas}
@@ -288,9 +297,9 @@ export function miniPlanoModuloSvg(numero: number, modulos: ModuloInforme[], con
     const px = (lon: number) => (lon - bb.minLon) * bb.cosLat * k, py = (lat: number) => (bb.maxLat - lat) * k;
     const trazo = (a: Anillo) => trazoRelativo(a.map(([lon, lat]) => [px(lon), py(lat)]), true);
     const m = modulos.find((x) => x.numero === numero);
-    const otros = MODULOS_SRL_IDS.filter((n) => n !== numero && contornos[n]?.length).map((n) => `<path d="${contornos[n].map(trazo).join('')}" fill="#d7d6d1" stroke="#fff" stroke-width=".6"/>`).join('');
+    const otros = MODULOS_SRL_IDS.filter((n) => n !== numero && contornos[n]?.length).map((n) => `<path d="${contornos[n].map(trazo).join('')}" fill="url(#mp-vec)" stroke="${TRAMA_VECINOS.contorno}" stroke-width=".5" stroke-dasharray="2 1.5" stroke-opacity=".7"/>`).join('');
     const propio = `<path d="${contornos[numero].map(trazo).join('')}" fill="${m ? rellenoClase(m.ndvi, `mp-hach-${numero}`) : '#d7d6d1'}" stroke="${INK}" stroke-width="1" stroke-linejoin="round"/>`;
-    return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="Ubicación del Módulo ${numero} en la SRL"><defs>${defsHachurado(`mp-hach-${numero}`)}</defs>${otros}${propio}</svg>`;
+    return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="Ubicación del Módulo ${numero} en la SRL"><defs>${defsHachurado(`mp-hach-${numero}`)}${defsVecinos('mp-vec')}</defs>${otros}${propio}</svg>`;
 }
 
 /**

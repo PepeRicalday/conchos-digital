@@ -14,17 +14,22 @@ export function bboxDe(anillos: Anillo[], margen = 0.02): [number, number, numbe
     return [Math.min(...lons) - mx, Math.min(...lats) - my, Math.max(...lons) + mx, Math.max(...lats) + my];
 }
 
-/** Imagen RGBA a ~33 m/píxel: NDVI = media del módulo + ondulaciones (parcelas) + ruido; parches transparentes tipo nube. */
+/**
+ * Imagen RGBA a 20 m/píxel (como la función real): NDVI = media del módulo + ondulaciones (parcelas) + RUIDO por píxel (±0.12,
+ * salta entre clases vecinas como el moteado real) + parches transparentes tipo nube (~20 % de los píxeles). Un módulo de ≈ 9 × 18 km
+ * da ≈ 461 × 886 px: el peor caso realista para el reductor a PNG indexado.
+ */
 export function rasterSinteticoRgba(bbox: [number, number, number, number], ndviMedio: number, semilla = 1): ImagenRgba {
     const [x0, y0, x1, y1] = bbox;
     const mAncho = (x1 - x0) * 111320 * Math.cos(((y0 + y1) / 2) * Math.PI / 180), mAlto = (y1 - y0) * 111320;
-    const ancho = Math.round(mAncho / 33), alto = Math.round(mAlto / 33);
+    const ancho = Math.round(mAncho / 20), alto = Math.round(mAlto / 20);
     const rgba = new Uint8Array(ancho * alto * 4);
     for (let y = 0; y < alto; y++) for (let x = 0; x < ancho; x++) {
         const u = x / ancho, v = y / alto;
         const campo = Math.sin(u * 23 + semilla) * Math.cos(v * 31 - semilla) * 0.14 + Math.sin((u + v) * 61) * 0.06 + Math.sin(u * 7) * 0.08;
-        const nube = Math.sin(u * 9 + semilla * 2) * Math.sin(v * 11 - semilla) > 0.93;
-        const ndvi = Math.max(-0.05, ndviMedio + campo);
+        const nube = Math.sin(u * 9 + semilla * 2) * Math.sin(v * 11 - semilla) > 0.55;
+        const h = Math.sin((x * 12.9898 + y * 78.233 + semilla * 37.719)) * 43758.5453, ruido = (h - Math.floor(h) - 0.5) * 0.24;
+        const ndvi = Math.max(-0.05, ndviMedio + campo + ruido);
         const o = (y * ancho + x) * 4;
         if (nube) { rgba[o + 3] = 0; continue; }
         const c = hex((claseNdvi(ndvi) ?? CLASES_NDVI[0]).color);
@@ -44,4 +49,4 @@ export function pngRgba(img: ImagenRgba): Uint8Array {
 }
 
 export const rasterOkDe = (numero: number, mes: string, bbox: [number, number, number, number], dataUri: string, ancho: number, alto: number, nEscenas: number | null, pct: number | null): RasterOk =>
-    ({ ok: true, dataUri, bbox, ancho, alto, nEscenas, pctValidos: pct, resolucionM: 33, mes, modulo: numero, nota: 'NDVI de la frontera del módulo' });
+    ({ ok: true, dataUri, bbox, ancho, alto, nEscenas, pctValidos: pct, resolucionM: 20, mes, modulo: numero, nota: 'NDVI de la frontera del módulo' });

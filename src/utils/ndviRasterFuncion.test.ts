@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { deflateSync } from 'node:zlib';
 import { CLASES_NDVI } from './ndviRampa';
 import {
-    CLASES_RASTER, SCL_EXCLUIDAS, alfaDePng, bboxDe, bytesABase64, claveCache, construirEvalscript, construirPeticionProcess,
+    CLASES_RASTER, METODO, PALETA_ID, SCL_EXCLUIDAS, cacheVigente, idPaleta, alfaDePng, bboxDe, bytesABase64, claveCache, construirEvalscript, construirPeticionProcess,
     fraccionValidos, mascaraPoligono, tamanoImagen, validarMes, type Geom,
 } from '../../supabase/functions/sentinel-ndvi-modulo-raster/rasterLogica';
 import { MODULOS_SRL_GEOMETRY } from '../../supabase/functions/sentinel-ndvi-modulo-raster/modulosGeometry';
@@ -38,6 +38,33 @@ describe('clases del raster = CLASES_NDVI', () => {
         expect(f.evaluatePixel([muestra(0.1, 0.9, 9), muestra(0.1, 0.9, 3)])).toEqual([0, 0, 0, 0]);
         expect(f.evaluatePixel([{ B04: 0.1, B08: 0.9, SCL: 4, dataMask: 0 }])).toEqual([0, 0, 0, 0]);
         expect(f.evaluatePixel([])).toEqual([0, 0, 0, 0]);
+    });
+});
+
+describe('paleta y caché del bucket', () => {
+    const esperado = { metodo: METODO, resolucionM: 20, paleta: PALETA_ID };
+    const entrada = { metodo: METODO, resolucion_m: 20, paleta: PALETA_ID, png_base64: 'AAAA' };
+    it('idPaleta: 8 hex, estable y calculado de CLASES_NDVI (si cambia un color o un corte, cambia el id)', () => {
+        expect(PALETA_ID).toMatch(/^[0-9a-f]{8}$/);
+        expect(idPaleta(CLASES_NDVI.map((c) => ({ hasta: c.hasta, color: c.color })))).toBe(PALETA_ID);
+        expect(idPaleta()).toBe(PALETA_ID);
+        const otroColor = CLASES_RASTER.map((c, i) => (i === 0 ? { ...c, color: '#D9C9A0' } : c));
+        expect(idPaleta(otroColor)).not.toBe(PALETA_ID);
+        const otroCorte = CLASES_RASTER.map((c, i) => (i === 1 ? { ...c, hasta: 0.31 } : c));
+        expect(idPaleta(otroCorte)).not.toBe(PALETA_ID);
+    });
+    it('la caché vale solo si coinciden método, resolución y paleta', () => {
+        expect(cacheVigente(entrada, esperado)).toBe(true);
+        expect(cacheVigente({ ...entrada, metodo: 'scl-mediana-v0' }, esperado)).toBe(false);
+        expect(cacheVigente({ ...entrada, resolucion_m: 30 }, esperado)).toBe(false);
+        expect(cacheVigente({ ...entrada, paleta: idPaleta(CLASES_RASTER.map((c, i) => (i === 0 ? { ...c, color: '#D9C9A0' } : c))) }, esperado)).toBe(false);
+    });
+    it('una entrada vieja (PNG con la paleta anterior, sin campo paleta), sin imagen o ilegible se regenera', () => {
+        const { paleta: _viejo, ...sinPaleta } = entrada;
+        expect(cacheVigente(sinPaleta, esperado)).toBe(false);
+        expect(cacheVigente({ ...entrada, png_base64: null }, esperado)).toBe(false);
+        expect(cacheVigente(null, esperado)).toBe(false);
+        expect(cacheVigente(undefined, esperado)).toBe(false);
     });
 });
 

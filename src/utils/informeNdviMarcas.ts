@@ -6,7 +6,7 @@
  * blanco y negro y para daltónicos. Todo es SVG/HTML puro (strings), sin DOM.
  */
 import { SIMBOLO_MODULO } from './ndviGrafica';
-import { CLASES_NDVI, SD_FONDO, SD_TRAZO, tintaSobre } from './ndviRampa';
+import { CLASES_NDVI, SD_FONDO, SD_TRAZO, SUELO_CONTORNO, tintaSobre } from './ndviRampa';
 import { esc } from './informeBase';
 
 /**
@@ -92,7 +92,7 @@ export const CSS_HACHURADO = `.hach{background:repeating-linear-gradient(45deg,$
  * las demás hojas la mencionan en una línea.
  */
 export function leyendaSistemaVisual(modulos: { numero: number; nombre: string }[], o: { indices: boolean; plano?: { canal: boolean; vecinos: boolean; relieve: boolean } }): string {
-    const clases = CLASES_NDVI.map((c) => `<li><i style="background:${c.color}"></i><span>${esc(c.etiqueta)}</span></li>`).join('');
+    const clases = CLASES_NDVI.map((c) => `<li><i style="background:${c.color}${c.clave === 'suelo' ? `;border-color:${SUELO_CONTORNO}` : ''}"></i><span>${esc(c.etiqueta)}</span></li>`).join('');
     const formas = modulos.map((m) => `<li>${marcadorModuloHtml(m.numero, 13)}<b class="mono-t">M${m.numero}</b></li>`).join('');
     const pasos = Array.from({ length: PASOS_TINTA }, (_, i) => `<i style="background:${colorPasoTinta(i).fondo}"></i>`).join('');
     return `<div class="sis" aria-label="Qué significa cada color y cada forma">
@@ -101,7 +101,7 @@ export function leyendaSistemaVisual(modulos: { numero: number; nombre: string }
 <ul class="sis-l">${clases}<li><i class="hach"></i><span>S/D: sin dato</span></li></ul>
 <p class="sis-k"><b>Forma = módulo</b> (nunca color)</p>
 <ul class="sis-f">${formas}</ul>
-${o.plano ? `<p class="sis-k"><b>En el plano:</b> <span class="sis-c"><svg width="26" height="8" aria-hidden="true"><line x1="0" y1="4" x2="26" y2="4" stroke="${INK}" stroke-width="1.5" stroke-dasharray="7 2.5"/></svg> canal Conchos</span> · <span class="sis-c"><i class="gris"></i> otros módulos del DR-005</span> · relieve sombreado de fondo</p>` : ''}
+${o.plano ? `<p class="sis-k"><b>En el plano:</b> <span class="sis-c"><svg width="26" height="8" aria-hidden="true"><line x1="0" y1="4" x2="26" y2="4" stroke="${INK}" stroke-width="1.5" stroke-dasharray="7 2.5"/></svg> canal Conchos</span> · <span class="sis-c"><i class="vec"></i> otros módulos del DR-005 (trama punteada, sin dato)</span> · relieve sombreado de fondo</p>` : ''}
 <p class="sis-k"><b>▲ ▼ ■</b> sube, baja o sin cambio · el texto trae la cifra</p>${o.indices
         ? `<p class="sis-k"><b>Tinta marrón = valor del índice</b> (ICV o IHR, 0–100): más oscuro, mayor valor</p><div class="sis-t">${pasos}<span>0</span><span>100</span></div>` : ''}
 <p class="sis-k"><b>Marrón institucional</b> = solo marca y títulos. <b>Negro grueso</b> = año de interés o promedio SRL.</p>
@@ -123,7 +123,7 @@ ${CSS_HACHURADO}
 .sis-f li{display:inline-flex;align-items:center;gap:3px;width:46px}
 .mono-t{font-size:7.5pt}
 .sis-c{white-space:nowrap}
-.sis-c i.gris{display:inline-block;width:12px;height:9px;background:#b9bcc0;border:1px solid #fff;vertical-align:-1px}
+.sis-c i.vec{display:inline-block;width:16px;height:10px;background:radial-gradient(circle,#2f363d .6px,rgba(255,255,255,.85) .7px 1.25px,transparent 1.35px) 0 0/4px 4px,#fff;border:1px dashed #2f363d;vertical-align:-1px}
 .sis-t{display:flex;align-items:center;gap:0;font-size:7.5pt;margin-top:2px}
 .sis-t i{width:16px;height:9px;display:inline-block;border:1px solid rgba(0,0,0,.25)}
 .sis-t span{margin-left:4px}

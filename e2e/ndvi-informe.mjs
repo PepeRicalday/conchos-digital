@@ -397,7 +397,7 @@ export async function barridoInforme(A) {
     const kb = (id) => grande.configs[id]?.kib;
     if (kb('solo_resumen') > 40) hallazgo('medio', 'pesos', `solo resumen pesa ${kb('solo_resumen')} KiB (presupuesto ≈27)`);
     if (kb('completo') > 160) hallazgo('medio', 'pesos', `completo con relieve pesa ${kb('completo')} KiB (presupuesto ≈140)`);
-    if (kb('imagen_ok') > 200) hallazgo('medio', 'pesos', `con imagen sintética pesa ${kb('imagen_ok')} KiB (presupuesto ≲200)`);
+    if (kb('imagen_ok') > 260) hallazgo('medio', 'pesos', `con imagen sintética RUIDOSA (20 m, moteado, ~20 % sin dato) pesa ${kb('imagen_ok')} KiB (presupuesto ≤260)`);
     if (kb('sin_relieve') > 108 + 25) hallazgo('medio', 'pesos', `sin relieve pesa ${kb('sin_relieve')} KiB (tope de prueba sin plano/imagen 108)`);
   }
 
@@ -407,15 +407,15 @@ export async function barridoInforme(A) {
     const hFalla = leer('imagen_falla'), hOk = leer('imagen_ok'), hPar = leer('imagen_parcial');
     const cuenta = (h, re) => (h.match(re) ?? []).length;
     const ver = { falla: {}, ok: {}, parcial: {} };
-    ver.falla.avisos = cuenta(hFalla, /Imagen no disponible:/g); ver.falla.imagenes = cuenta(hFalla, /<image href="data:image\/png/g);
-    if (ver.falla.avisos < 6 || ver.falla.imagenes) hallazgo('alto', 'imagen_falla', `con la función caída debe haber 6 avisos por módulo y 0 imágenes (hay ${ver.falla.avisos} avisos y ${ver.falla.imagenes} imágenes)`);
+    ver.falla.avisos = cuenta(hFalla, /Imagen satelital no disponible para 6 de 6 módulos:/g); ver.falla.avisosTarjeta = cuenta(hFalla, /Sin imagen satelital:/g); ver.falla.avisosViejos = cuenta(hFalla, /Imagen no disponible:/g); ver.falla.imagenes = cuenta(hFalla, /<image href="data:image\/png/g);
+    if (ver.falla.avisos !== 1 || ver.falla.avisosTarjeta !== 6 || ver.falla.avisosViejos || ver.falla.imagenes) hallazgo('alto', 'imagen_falla', `con la función caída debe haber UN aviso agregado, 6 estados breves por tarjeta y 0 imágenes: ${JSON.stringify(ver.falla)}`);
     if (!/aria-label="Plano del Módulo 1"/.test(hFalla)) hallazgo('alto', 'imagen_falla', 'sin imagen, la tarjeta no conserva el plano vectorial del módulo');
     if (!/sin sesión|no hay sesión/i.test(textoDe(hFalla))) hallazgo('medio', 'imagen_falla', 'el aviso no dice el motivo (sin sesión con permiso)');
-    ver.ok.imagenes = cuenta(hOk, /<image href="data:image\/png/g); ver.ok.clip = cuenta(hOk, /clip-path="url\(#mm\d+c\)"/g); ver.ok.avisos = cuenta(hOk, /Imagen no disponible:/g);
+    ver.ok.imagenes = cuenta(hOk, /<image href="data:image\/png/g); ver.ok.clip = cuenta(hOk, /clip-path="url\(#mm\d+c\)"/g); ver.ok.avisos = cuenta(hOk, /Imagen satelital no disponible para|Sin imagen satelital:/g);
     ver.ok.pies = cuenta(textoDe(hOk), /pasos? de satélite · \d+ % de píxeles válidos/g);
     if (ver.ok.imagenes !== 6 || ver.ok.clip < 6 || ver.ok.avisos || ver.ok.pies !== 6) hallazgo('alto', 'imagen_ok', `esperadas 6 imágenes recortadas con pie y 0 avisos: ${JSON.stringify(ver.ok)}`);
-    ver.parcial.imagenes = cuenta(hPar, /<image href="data:image\/png/g); ver.parcial.avisos = cuenta(hPar, /Imagen no disponible:/g);
-    if (ver.parcial.imagenes !== 4 || ver.parcial.avisos !== 2) hallazgo('alto', 'imagen_parcial', `con M3 y M12 caídos se esperaban 4 imágenes y 2 avisos: ${JSON.stringify(ver.parcial)}`);
+    ver.parcial.imagenes = cuenta(hPar, /<image href="data:image\/png/g); ver.parcial.avisos = cuenta(hPar, /Imagen satelital no disponible para 2 de 6 módulos:/g); ver.parcial.avisosTarjeta = cuenta(hPar, /Sin imagen satelital:/g);
+    if (ver.parcial.imagenes !== 4 || ver.parcial.avisos !== 1 || ver.parcial.avisosTarjeta !== 2) hallazgo('alto', 'imagen_parcial', `con M3 y M12 caídos se esperaban 4 imágenes, 1 aviso agregado y 2 estados breves: ${JSON.stringify(ver.parcial)}`);
     if (!/no respondió/.test(textoDe(hPar))) hallazgo('medio', 'imagen_parcial', 'el aviso de CDSE caído no lo dice');
     const prog = grande.configs.imagen_ok?.progreso ?? [], progP = grande.configs.imagen_ok?.progresoPrevia ?? [];
     ver.progreso = { botonModal: prog, vistaPrevia: progP, llamadas: grande.llamadasRaster };

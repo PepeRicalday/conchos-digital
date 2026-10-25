@@ -39,7 +39,7 @@ describe('modelo de datos del informe NDVI', () => {
         expect(d.mesAnterior).toBe('2026-08');
         expect(d.promedioSimple).toBeCloseTo(0.387, 3);
         expect(d.tendencia).toBeCloseTo(promedioSimple(SEP)! - promedioSimple(AGO)!, 6);
-        expect(d.folio).toBe('NDVI-2026-08A09-COMPLETO-20261007-1405'); // periodo y alcance en el folio
+        expect(d.folio).toBe(`NDVI-2026-08A09-COMPLETO-${d.traza.hashConfig.slice(0, 6).toUpperCase()}-20261007-1405`); // periodo, alcance y variante en el folio
     });
     it('promedio ponderado por superficie distinto del simple', () => {
         const d = construirDatosNdvi(filas(), ctx());
@@ -101,7 +101,7 @@ describe('HTML del informe NDVI', () => {
         const h = armar();
         const n = (h.match(/class="pagina/g) ?? []).length;
         expect(n).toBe(9); // resumen, situación, tendencia (2), comparación entre años, módulos, serie, metodología (2)
-        expect(h).toContain('NDVI-2026-08A09-COMPLETO-20261007-1405');
+        expect(h).toMatch(/NDVI-2026-08A09-COMPLETO-[0-9A-F]{6}-20261007-1405/);
         expect(h).toContain(`Pág. ${n} de ${n}`);
         expect(h).toContain('Pág. 1 de ' + n);
         expect(h).toContain('@page{size:letter');

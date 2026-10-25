@@ -4,11 +4,11 @@ import fs from 'node:fs';
 import { construirDatosNdvi, type ContextoInforme, type FilaNdviInforme, type InformeNdvi } from './informeNdviDatos';
 import { configPorDefecto, mesesDisponibles } from './informeNdviConfig';
 import { construirHtmlNdvi } from './informeNdviHtml';
-import { contornosAAnillos, miniPlanoModuloSvg, planoSvg, separarRotulos, svgSerieModulos, svgSparkline, type ContextoPlano } from './informeNdviSvg';
+import { contornosAAnillos, miniPlanoModuloSvg, planoSvg, separarRotulos, svgSerieModulos, svgSparkline, TRAMA_VECINOS, type ContextoPlano } from './informeNdviSvg';
 import { svgBarrasDelta, svgBarrasPareadas, svgLineasSimples, svgPendienteSlope } from './informeNdviSvgComparativo';
 import { colorPrevioImpreso, svgPulso } from './informeNdviInteranualHtml';
-import { FS_MIN, NOMBRE_FORMA, PASOS_TINTA, TRAZO_MODULO, colorPasoTinta, formaDeModulo, formaSvg, marcadorModuloSvg, rotuloModuloSvg } from './informeNdviMarcas';
-import { CLASES_NDVI, contraste, grisPercibido } from './ndviRampa';
+import { FS_MIN, NOMBRE_FORMA, PASOS_TINTA, TRAZO_MODULO, leyendaSistemaVisual, colorPasoTinta, formaDeModulo, formaSvg, marcadorModuloSvg, rotuloModuloSvg } from './informeNdviMarcas';
+import { CLASES_NDVI, SD_TRAZO, SUELO_CONTORNO, contraste, grisPercibido, luminosidadL } from './ndviRampa';
 import { COLOR_MODULO_SRL, MODULOS_SRL_IDS } from './modulosSRL';
 import { armarContextoPlano } from './contextoPlanoNdvi';
 
@@ -170,7 +170,48 @@ describe('plano cartográfico', () => {
     });
 });
 
+describe('vecinos del DR-005: trama propia, sin relleno de color ni gris plano', () => {
+    const d = datos();
+    const c = contornosAAnillos(GEO);
+    it('el plano los dibuja con trama punteada + contorno discontinuo (no con un gris plano), distinta del hachurado S/D', () => {
+        const p = planoSvg(d.modulos, c, undefined, undefined, contexto());
+        expect(p).toContain('<pattern id="plano-vec"');
+        expect(p).toContain('fill="url(#plano-vec)"');
+        expect(p).toContain('stroke-dasharray="3 2.5"'); // contorno discontinuo claro
+        expect(p).not.toContain('#8b9097'); // el gris plano anterior ya no existe
+        const vec = (p.match(/<path d="[^"]*" fill="url\(#plano-vec\)"/g) ?? []).length;
+        expect(vec).toBe(contexto().vecinos.length);
+        // la trama de vecinos es de PUNTOS (circle) y la de S/D de franjas diagonales (line, rotate 45): no se parecen.
+        const trama = /<pattern id="plano-vec"[^>]*>(.*?)<\/pattern>/.exec(p)?.[1] ?? '';
+        expect(trama).toContain('<circle');
+        expect(trama).not.toContain('<line');
+        expect(trama).not.toContain('<rect'); // sin fondo de color: se ve el relieve
+        expect(/<pattern id="plano-hach"[^>]*rotate\(45\)/.test(p)).toBe(true);
+    });
+    it('en escala de grises no se confunden: cobertura de tinta baja (relleno liso de cada clase = 100 %) y leyenda propia', () => {
+        const { paso, punto } = TRAMA_VECINOS;
+        const areaPunto = Math.PI * 1.25 ** 2; // halo (el punto oscuro mide 0.6 de radio)
+        expect(areaPunto / (paso * paso)).toBeLessThan(0.35); // ≥ 65 % del vecino es el relieve visible, no un tono uniforme
+        expect(punto).not.toBe(SD_TRAZO);
+        const ley = leyendaSistemaVisual([{ numero: 1, nombre: 'M1' }], { indices: false, plano: { canal: true, vecinos: true, relieve: true } });
+        expect(ley).toContain('otros módulos del DR-005 (trama punteada, sin dato)');
+        expect(ley).toContain('class="vec"');
+        expect(ley).not.toContain('class="gris"');
+    });
+    it('el mini-plano de la ficha también usa la trama (no un gris plano) para el resto de la SRL', () => {
+        const mp = miniPlanoModuloSvg(1, d.modulos, c);
+        expect(mp).toContain('fill="url(#mp-vec)"');
+        expect(mp).not.toContain('#d7d6d1');
+    });
+});
+
 describe('contraste y escala de grises', () => {
+    it('Suelo desnudo vs Vigor bajo ya no se confunden en grises (ΔL* ≥ 12, razón ≥ 1.25) y su muestra lleva contorno propio', () => {
+        expect(luminosidadL(CLASES_NDVI[0].color) - luminosidadL(CLASES_NDVI[1].color)).toBeGreaterThanOrEqual(12);
+        expect(contraste(CLASES_NDVI[0].color, CLASES_NDVI[1].color)).toBeGreaterThanOrEqual(1.25);
+        const ley = leyendaSistemaVisual([{ numero: 1, nombre: 'M1' }], { indices: false });
+        expect(ley).toContain(`background:${CLASES_NDVI[0].color};border-color:${SUELO_CONTORNO}`);
+    });
     it('la tinta marrón de ICV/IHR: texto ≥ 4.5:1 y pasos que se separan en grises', () => {
         const pasos = Array.from({ length: PASOS_TINTA }, (_, i) => colorPasoTinta(i));
         for (const p of pasos) expect(contraste(p.fondo, p.texto)).toBeGreaterThanOrEqual(4.5);

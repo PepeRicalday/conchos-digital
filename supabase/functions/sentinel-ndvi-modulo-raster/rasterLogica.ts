@@ -36,12 +36,37 @@ export const NOTA_FRONTERA =
  * (ndviRasterFuncion.test.ts) falla si divergen. `hasta` es el corte superior (exclusivo).
  */
 export const CLASES_RASTER: { hasta: number; color: string }[] = [
-  { hasta: 0.15, color: "#D9C9A0" }, // suelo
-  { hasta: 0.3, color: "#B7C26E" },  // vigor bajo
+  { hasta: 0.15, color: "#F5EBCD" }, // suelo
+  { hasta: 0.3, color: "#C2CB7A" },  // vigor bajo
   { hasta: 0.5, color: "#6FB15A" },  // vigor medio
   { hasta: 0.7, color: "#2E8B57" },  // vigor alto
   { hasta: Infinity, color: "#14532D" }, // vigor muy alto
 ];
+
+/**
+ * Identificador de la paleta (colores + cortes): hash FNV-1a de 32 bits en hexadecimal (8 caracteres). Cambia si cambia
+ * cualquier color o corte de CLASES_RASTER. Va en la respuesta y en la caché del bucket: un PNG cacheado con otra paleta
+ * ya no vale (ver cacheVigente) y se regenera solo.
+ */
+export function idPaleta(clases: { hasta: number; color: string }[] = CLASES_RASTER): string {
+  const texto = clases.map((c) => `${c.color.toUpperCase()}@${c.hasta}`).join("|");
+  let h = 0x811c9dc5;
+  for (let i = 0; i < texto.length; i++) { h ^= texto.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16).padStart(8, "0");
+}
+export const PALETA_ID = idPaleta();
+
+/**
+ * ¿Sirve la entrada de caché? Solo si trae imagen y coinciden método, resolución Y paleta. Una entrada sin `paleta`
+ * (guardada antes de este campo, con los colores anteriores) NO sirve: se recalcula y se sobrescribe.
+ */
+export function cacheVigente(
+  guardado: unknown,
+  esperado: { metodo: string; resolucionM: number; paleta: string },
+): boolean {
+  const g = guardado as { metodo?: unknown; resolucion_m?: unknown; paleta?: unknown; png_base64?: unknown } | null | undefined;
+  return !!g && g.metodo === esperado.metodo && g.resolucion_m === esperado.resolucionM && g.paleta === esperado.paleta && !!g.png_base64;
+}
 
 /** Clases SCL excluidas: 0 sin dato, 1 saturado/defectuoso, 3 sombra de nube, 8-9 nube, 10 cirro, 11 nieve. */
 export const SCL_EXCLUIDAS = [0, 1, 3, 8, 9, 10, 11];

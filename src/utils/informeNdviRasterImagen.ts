@@ -8,7 +8,7 @@
  * Si un módulo falla (sin sesión, CDSE caído, tiempo, sin datos) su tarjeta lleva el plano vectorial con el aviso
  * "imagen no disponible: <motivo>": nunca un hueco silencioso. El NDVI es de la frontera del módulo, no de parcela.
  */
-import { CLASES_NDVI, SD_FONDO, SD_TRAZO, colorClaseNdvi } from './ndviRampa';
+import { CLASES_NDVI, SD_FONDO, SD_TRAZO, SUELO_CONTORNO, colorClaseNdvi } from './ndviRampa';
 import { esc } from './informeBase';
 import { FS_MIN, monogramaHtml } from './informeNdviMarcas';
 import { solicitarRastersDelPeriodo, type ClienteRaster, type MotivoFalloRaster, type RasterFallo, type RasterOk, type ResultadoRaster } from './informeNdviRaster';
@@ -124,10 +124,16 @@ export async function decodificarImagenRgba(dataUri: string): Promise<ImagenRgba
     return { rgba: id.data, ancho: bmp.width, alto: bmp.height };
 }
 
-/** Presupuesto de peso por imagen (bytes del PNG indexado; ≈ 27 KB en base64): seis módulos ≲ 160 KB de HTML. */
-export const PRESUPUESTO_IMAGEN_BYTES = 20 * 1024;
-/** Lados máximos que se prueban, de mayor a menor, hasta entrar en el presupuesto (un módulo muy "ruidoso" baja de resolución antes que pesar de más). */
-export const LADOS_PROBADOS = [MAX_LADO_PX, 340, 280, 220, 180];
+/**
+ * Presupuesto de peso por imagen (bytes del PNG indexado; 12 KiB ≈ 16 KiB en base64): seis módulos ≲ 96 KiB de base64, de modo que
+ * el informe con imagen (≈ 150 KiB sin ellas) quede ≤ 260 KiB aun con rasters RUIDOSOS (moteado entre clases, ~20 % transparente).
+ */
+export const PRESUPUESTO_IMAGEN_BYTES = 12 * 1024;
+/**
+ * Lados máximos que se prueban, de mayor a menor, hasta entrar en el presupuesto (un módulo muy "ruidoso" baja de resolución antes
+ * que pesar de más). Escalones finos (≈ 10 %) para no quedar lejos del presupuesto; el piso (180 px) conserva el patrón espacial.
+ */
+export const LADOS_PROBADOS = [MAX_LADO_PX, 380, 340, 310, 280, 255, 230, 210, 190, 180];
 
 /** Reduce y codifica probando lados cada vez menores hasta que el PNG indexado cabe en `presupuesto`. Siempre devuelve el último intento. */
 export async function reducirAPresupuesto(img: ImagenRgba, presupuesto = PRESUPUESTO_IMAGEN_BYTES): Promise<{ imagen: ImagenRgba; bytes: Uint8Array }> {
@@ -198,15 +204,15 @@ export function miniMapaModuloSvg(modulo: ModuloInforme, anillos: Anillo[], rast
 <use href="#${id}p" fill="none" stroke="${INK}" stroke-width="1.1" stroke-linejoin="round"/>${escala}${norte}</svg>`;
 }
 
-/** Tarjeta de un módulo: encabezado (monograma, NDVI y clase), mini-mapa y pie de la imagen. */
+/** Tarjeta de un módulo: encabezado (monograma, NDVI y clase), mini-mapa y pie de la imagen. El motivo de la falta de imagen va UNA vez en el aviso agregado (avisosSinImagen), no en cada tarjeta. */
 export function tarjetaImagenModulo(modulo: ModuloInforme, anillos: Anillo[] | undefined, r: ResultadoRaster | undefined): string {
     const cab = `<div class="im-cab">${monogramaHtml(modulo.numero)}<b>${esc(modulo.nombre)}</b><span class="im-v">${modulo.ndvi != null ? modulo.ndvi.toFixed(2) : 'S/D'}</span></div>`;
-    if (!anillos?.length) return `<div class="im">${cab}<div class="aviso">Imagen no disponible: no hay contorno del módulo.</div></div>`;
+    if (!anillos?.length) return `<div class="im">${cab}<p class="fuente sin-im"><b>Sin imagen satelital:</b> no hay contorno del módulo.</p></div>`;
     const ok = r && r.ok ? r : null;
     const mapa = miniMapaModuloSvg(modulo, anillos, ok);
     const pie = ok
         ? `<p class="fuente">${ok.nEscenas != null ? `${ok.nEscenas} ${ok.nEscenas === 1 ? 'paso' : 'pasos'} de satélite` : 'pasos S/D'} · ${ok.pctValidos != null ? `${Math.round(ok.pctValidos * 100)} % de píxeles válidos` : 'píxeles válidos S/D'}</p>`
-        : `<div class="aviso"><b>Imagen no disponible:</b> ${esc(r && !r.ok ? textoMotivoRaster(r) : 'no se solicitó')}. Se muestra el plano del módulo.</div>`;
+        : '<p class="fuente sin-im"><b>Sin imagen satelital:</b> se muestra el plano del módulo.</p>';
     return `<div class="im">${cab}${mapa}${pie}</div>`;
 }
 
@@ -220,13 +226,29 @@ export const CSS_IMAGENES = `
 .im .aviso{margin:4px 0 0;font-size:7.5pt}
 `;
 
+/**
+ * Avisos agregados de los módulos sin imagen: UNO por causa ("Imagen satelital no disponible para N de T módulos: <motivo> (M1, M3…)"),
+ * en el orden en que aparece cada causa. Un módulo sin contorno cuenta como causa propia; '' si todos tienen imagen.
+ */
+export function avisosSinImagen(modulos: ModuloInforme[], contornos: Contornos, resultados: Record<number, ResultadoRaster>): string {
+    const porCausa = new Map<string, number[]>();
+    for (const m of modulos) {
+        const r = resultados[m.numero];
+        const sinContorno = !contornos[m.numero]?.length;
+        if (r?.ok && !sinContorno) continue;
+        const causa = sinContorno ? 'no hay contorno del módulo para recortar la imagen' : r && !r.ok ? textoMotivoRaster(r) : 'no se solicitó';
+        porCausa.set(causa, [...(porCausa.get(causa) ?? []), m.numero]);
+    }
+    return [...porCausa].map(([causa, numeros]) => `<div class="aviso"><b>Imagen satelital no disponible para ${numeros.length} de ${modulos.length} módulos:</b> ${esc(causa)} (${numeros.map((n) => `M${n}`).join(', ')}). Esos módulos muestran su plano en el color de su clase de vigor.</div>`).join('');
+}
+
 /** Bloque completo: nota de alcance, leyenda de clases (una sola vez) y una tarjeta por módulo. `resultados` vacío = nada solicitado. */
 export function imagenesHtml(modulos: ModuloInforme[], contornos: Contornos, resultados: Record<number, ResultadoRaster>, mes: string): string {
     const tarjetas = modulos.map((m) => tarjetaImagenModulo(m, contornos[m.numero], resultados[m.numero])).join('');
     const nOk = modulos.filter((m) => resultados[m.numero]?.ok).length;
-    const leyenda = `<ul class="leyenda-im" aria-label="Clases de vigor de la imagen">${CLASES_NDVI.map((c) => `<li><i style="background:${c.color}"></i>${esc(c.etiqueta)}</li>`).join('')}<li><i class="hach"></i>sin dato (nube o sin paso limpio)</li></ul>`;
-    return `<p class="fuente">Fuente: Sentinel-2 L2A (Copernicus), mediana de ${esc(mes)} por píxel con máscara de nubes (SCL); mismas clases de vigor que el plano. NDVI de la frontera del módulo (incluye caminos, canales y suelo sin riego), no de parcela. Imágenes recortadas al polígono de cada módulo${nOk < modulos.length ? `; ${modulos.length - nOk} de ${modulos.length} sin imagen (ver el aviso de cada tarjeta)` : ''}.</p>
-${leyenda}<div class="imgs">${tarjetas}</div>`;
+    const leyenda = `<ul class="leyenda-im" aria-label="Clases de vigor de la imagen">${CLASES_NDVI.map((c) => `<li><i style="background:${c.color}${c.clave === 'suelo' ? `;border-color:${SUELO_CONTORNO}` : ''}"></i>${esc(c.etiqueta)}</li>`).join('')}<li><i class="hach"></i>sin dato (nube o sin paso limpio)</li></ul>`;
+    return `<p class="fuente">Fuente: Sentinel-2 L2A (Copernicus), mediana de ${esc(mes)} por píxel con máscara de nubes (SCL); mismas clases de vigor que el plano. NDVI de la frontera del módulo (incluye caminos, canales y suelo sin riego), no de parcela. Imágenes recortadas al polígono de cada módulo${nOk < modulos.length ? `; ${modulos.length - nOk} de ${modulos.length} sin imagen (ver el aviso de arriba)` : ''}.</p>
+${avisosSinImagen(modulos, contornos, resultados)}${leyenda}<div class="imgs">${tarjetas}</div>`;
 }
 
 export const CSS_LEYENDA_IM = `

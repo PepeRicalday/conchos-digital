@@ -59,7 +59,7 @@ describe('generación única y estable', () => {
     });
     it('el nombre de archivo trae periodo y alcance; la descarga usa ese nombre', async () => {
         const doc = await generarDocumentoNdvi(FILAS, { config: cfg() });
-        expect(doc.nombreArchivo).toMatch(/^informe-ndvi-conchos-2026-03a09-completo-\d{4}-\d{2}-\d{2}\.html$/);
+        expect(doc.nombreArchivo).toMatch(/^informe-ndvi-conchos-2026-03a09-completo-[0-9a-f]{6}-\d{4}-\d{2}-\d{2}\.html$/);
         const solo = await generarDocumentoNdvi(FILAS, { config: cfg({ secciones: ['resumen'] }) });
         expect(solo.nombreArchivo).toContain('-resumen-');
         expect(solo.folio).toContain('-RESUMEN-');
@@ -133,7 +133,8 @@ describe('errores de consulta visibles', () => {
         const { html } = await generarDocumentoNdvi(FILAS, { config: cfg({ secciones: ['resumen', 'situacion', 'metodologia'], imagenSatelital: true }), onProgresoImagenes: (h, t) => avance.push(`${h}/${t}`) });
         expect(avance[0]).toBe('0/3');
         expect(avance[avance.length - 1]).toBe('3/3');
-        expect(html.match(/Imagen no disponible:/g)).toHaveLength(3);
+        expect(html.match(/Imagen satelital no disponible para 3 de 3 módulos:/g)).toHaveLength(1);
+        expect(html.match(/Sin imagen satelital:/g)).toHaveLength(3);
         expect(html).toContain('Imagen satelital por módulo');
     });
     it('el relieve y el contexto del plano se piden solo con "mapa con relieve" activo', async () => {

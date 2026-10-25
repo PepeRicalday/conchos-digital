@@ -83,6 +83,30 @@ describe('reducción y PNG indexado', () => {
         const liso = rgbaDeClases(900, 900, (x) => (x < 450 ? 2 : 3));
         expect((await reducirAPresupuesto(liso)).bytes.length).toBeLessThan(PRESUPUESTO_IMAGEN_BYTES);
     });
+
+    it('PESO con rasters RUIDOSOS realistas (461×886 a 20 m, moteado entre clases, ~20 % transparente): seis módulos ≤ 100 KiB en base64 y cada uno dentro del presupuesto', async () => {
+        const rng = (semilla: number) => { let s = semilla >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
+        const ruidoso = (w: number, h: number, semilla: number, sal: number) => {
+            const r = rng(semilla), c = [3, 7, 19], gw = (k: number) => Math.ceil(w / k) + 2;
+            const capas = c.map((k) => Array.from({ length: gw(k) * (Math.ceil(h / k) + 2) }, () => r())), pesos = [0.25, 0.35, 0.4];
+            return rgbaDeClases(w, h, (x, y) => {
+                const parche = ((Math.imul((Math.floor(x / 11) * 73856093) ^ (Math.floor(y / 11) * 19349663), 2654435761) >>> 0) / 4294967296) < 0.16;
+                if (parche || r() < 0.04) return -1; // ≈ 20 % sin dato
+                const t = c.reduce((a, k, i) => a + capas[i][Math.floor(y / k) * gw(k) + Math.floor(x / k)] * pesos[i], 0);
+                return r() < sal ? Math.floor(r() * 5) : Math.min(4, Math.floor(t * 5));
+            });
+        };
+        for (const sal of [0.1, 0.4]) { // moteado moderado y extremo
+            let total = 0;
+            for (let m = 0; m < 6; m++) {
+                const { imagen, bytes } = await reducirAPresupuesto(ruidoso(461, 886, 100 + m, sal));
+                expect(bytes.length, `M${m} sal ${sal}`).toBeLessThanOrEqual(PRESUPUESTO_IMAGEN_BYTES);
+                expect(Math.max(imagen.ancho, imagen.alto)).toBeGreaterThanOrEqual(LADOS_PROBADOS[LADOS_PROBADOS.length - 1]); // sigue legible
+                total += bytes.length;
+            }
+            expect(Math.ceil((total * 4) / 3) / 1024, `total 6 módulos, sal ${sal}`).toBeLessThanOrEqual(100);
+        }
+    }, 60_000);
 });
 
 describe('tarjetas e imagen HTML', () => {
@@ -103,11 +127,11 @@ describe('tarjetas e imagen HTML', () => {
     it('sin imagen: plano vectorial en el color de su clase y aviso con el motivo (nunca un hueco)', () => {
         const m = d.modulos[2];
         const t = tarjetaImagenModulo(m, CONTORNOS[m.numero], { ok: false, motivo: 'cdse-caido', detalle: 'x', mes: '2026-09', modulo: 3 });
-        expect(t).toContain('Imagen no disponible:');
-        expect(t).toContain('Sentinel (Copernicus) no respondió');
+        expect(t).toContain('Sin imagen satelital:'); // estado breve; el motivo va una sola vez en el aviso agregado
+        expect(t).not.toContain('Sentinel (Copernicus) no respondió');
         expect(t).not.toContain('<image');
         expect(t).toContain(CLASES_NDVI[2].color); // 0.30 → vigor medio (el corte pertenece a la clase superior)
-        expect(tarjetaImagenModulo(m, CONTORNOS[m.numero], undefined)).toContain('no se solicitó');
+        expect(tarjetaImagenModulo(m, CONTORNOS[m.numero], undefined)).toContain('Sin imagen satelital');
         expect(tarjetaImagenModulo(m, undefined, undefined)).toContain('no hay contorno');
     });
     it('NDVI S/D: el plano de la tarjeta va hachurado y el valor dice S/D, nunca 0', () => {
@@ -124,6 +148,10 @@ describe('tarjetas e imagen HTML', () => {
         expect(h).toContain('Vigor muy alto');
         expect(h).toContain('4 de 6 sin imagen');
         expect(h).toContain('no de parcela');
+        expect(h).toContain('Imagen satelital no disponible para 1 de 6 módulos:'); // M3 sin sesión
+        expect(h).toContain('Imagen satelital no disponible para 3 de 6 módulos:'); // M4, M5 y M12 sin resultado: otra causa, otro aviso
+        expect(h).toContain('(M3)');
+        expect(h).toContain('(M4, M5, M12)');
     });
 });
 
@@ -138,6 +166,8 @@ describe('obtenerImagenesNdvi con respuestas simuladas', () => {
         });
         expect(h.match(/<image /g)).toHaveLength(6);
         expect(h).not.toContain('Imagen no disponible');
+        expect(h).not.toContain('Imagen satelital no disponible'); // éxito total: ningún aviso
+        expect(h).not.toContain('Sin imagen satelital');
         expect(maximo).toBeLessThanOrEqual(3);
         expect(progreso[0]).toBe(6);
         expect(progreso[progreso.length - 1]).toBe(606);
@@ -145,23 +175,26 @@ describe('obtenerImagenesNdvi con respuestas simuladas', () => {
     it('401 / sin sesión: ninguna imagen, aviso por módulo y el informe no se cae', async () => {
         const h = await obtenerImagenesNdvi(d, CONTORNOS, { cliente: cliente(async () => http(401, { error: 'No autorizado' })), ...rapido });
         expect(h).not.toContain('<image ');
-        expect(h.match(/Imagen no disponible:/g)).toHaveLength(6);
-        expect(h).toContain('no hay sesión con permiso');
+        expect(h.match(/Imagen satelital no disponible para 6 de 6 módulos:/g)).toHaveLength(1); // UN aviso, no seis
+        expect(h.match(/Sin imagen satelital:/g)).toHaveLength(6);
+        expect(h.match(/no hay sesión con permiso/g)).toHaveLength(1);
+        expect(h).toContain('(M1, M2, M3, M4, M5, M12)');
+        expect(h.match(/class="im"/g)).toHaveLength(6); // el plano vectorial por módulo se conserva
         const h2 = await obtenerImagenesNdvi(d, CONTORNOS, { cliente: cliente(async () => respuestaOk(1), null), ...rapido });
-        expect(h2.match(/Imagen no disponible:/g)).toHaveLength(6);
+        expect(h2.match(/Imagen satelital no disponible para 6 de 6 módulos:/g)).toHaveLength(1);
     });
-    it('CDSE caído (502): aviso "el servicio de Sentinel no respondió" en cada módulo', async () => {
+    it('CDSE caído (502): UN aviso "el servicio de Sentinel no respondió" con los seis módulos', async () => {
         const h = await obtenerImagenesNdvi(d, CONTORNOS, { cliente: cliente(async () => http(502, { error: 'Process API', codigo: 'cdse' })), ...rapido });
-        expect(h.match(/Sentinel \(Copernicus\) no respondió/g)).toHaveLength(6);
+        expect(h.match(/Sentinel \(Copernicus\) no respondió/g)).toHaveLength(1);
     });
     it('timeout por módulo y tope total: lo que no responde queda con aviso y la generación termina', async () => {
         const t0 = Date.now();
         const h = await obtenerImagenesNdvi(d, CONTORNOS, { cliente: cliente(() => new Promise(() => undefined)), reducir: sinReducir, timeoutPorModuloMs: 5000, limiteTotalMs: 80 });
         expect(Date.now() - t0).toBeLessThan(2000);
-        expect(h.match(/Imagen no disponible:/g)).toHaveLength(6);
+        expect(h.match(/Imagen satelital no disponible para 6 de 6 módulos:/g)).toHaveLength(1);
         expect(h).toContain('se agotó el tiempo de espera');
         const h2 = await obtenerImagenesNdvi(d, CONTORNOS, { cliente: cliente(() => new Promise(() => undefined)), reducir: sinReducir, timeoutPorModuloMs: 20 });
-        expect(h2.match(/se agotó el tiempo de espera/g)).toHaveLength(6);
+        expect(h2.match(/se agotó el tiempo de espera/g)).toHaveLength(1);
     });
     it('parcial: unos módulos con imagen y otros con aviso; el recuento lo dice', async () => {
         const h = await obtenerImagenesNdvi(d, CONTORNOS, {
@@ -173,7 +206,11 @@ describe('obtenerImagenesNdvi con respuestas simuladas', () => {
             }), ...rapido,
         });
         expect(h.match(/<image /g)).toHaveLength(4);
-        expect(h.match(/Imagen no disponible:/g)).toHaveLength(2);
+        // Falla parcial: un aviso POR CAUSA (sin sesión → M3; sin píxeles limpios → M12), no uno por módulo.
+        expect(h.match(/Imagen satelital no disponible para 1 de 6 módulos:/g)).toHaveLength(2);
+        expect(h.match(/Sin imagen satelital:/g)).toHaveLength(2);
+        expect(h).toContain('(M3)');
+        expect(h).toContain('(M12)');
         expect(h).toContain('2 de 6 sin imagen');
         expect(h).toContain('no tiene píxeles limpios');
     });

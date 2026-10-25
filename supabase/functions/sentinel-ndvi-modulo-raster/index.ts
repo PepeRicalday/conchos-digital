@@ -23,6 +23,7 @@
 //
 // Respuesta 200: { mes, numero_modulo, bbox, ancho, alto, resolucion_m,
 //   png_base64, n_escenas, pct_pixeles_validos, proveedor, metodo, nota,
+//   paleta (id de la paleta de colores; la caché solo vale si coincide con la actual),
 //   cache: 'hit'|'miss', sin_datos? }
 //   · png_base64 = null y sin_datos = true cuando el mes no tiene ningún píxel
 //     válido (hueco explícito; nunca una imagen "vacía" que parezca dato).
@@ -34,7 +35,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { MODULOS_SRL_GEOMETRY, NOMBRES_MODULO_SRL } from "./modulosGeometry.ts";
 import {
-  METODO, MAX_CLOUD_COVERAGE, NOTA_FRONTERA, alfaDePng, bboxDe, bytesABase64, claveCache,
+  METODO, MAX_CLOUD_COVERAGE, NOTA_FRONTERA, PALETA_ID, alfaDePng, bboxDe, bytesABase64, cacheVigente, claveCache,
   construirPeticionProcess, fraccionValidos, mascaraPoligono, tamanoImagen, validarMes, type Geom,
 } from "./rasterLogica.ts";
 
@@ -184,15 +185,16 @@ Deno.serve(async (req) => {
     const ruta = claveCache(mes, numeroModulo);
 
     if (dryRun) {
-      return json({ dry_run: true, mes, numero_modulo: numeroModulo, nombre_modulo: NOMBRES_MODULO_SRL[numeroModulo], bbox, ancho, alto, resolucion_m: resolucionM, proveedor: provider, metodo: METODO, cache_clave: `${BUCKET}/${ruta}` });
+      return json({ dry_run: true, mes, numero_modulo: numeroModulo, nombre_modulo: NOMBRES_MODULO_SRL[numeroModulo], bbox, ancho, alto, resolucion_m: resolucionM, proveedor: provider, metodo: METODO, paleta: PALETA_ID, cache_clave: `${BUCKET}/${ruta}` });
     }
 
-    // Caché (solo meses cerrados, que es lo único permitido): se usa si coincide la resolución y el método.
+    // Caché (solo meses cerrados, que es lo único permitido): se usa si coinciden método, resolución Y paleta (una entrada
+    // con los colores anteriores o sin el campo `paleta` se regenera sola y se sobrescribe).
     try {
       const { data: blob } = await supabase.storage.from(BUCKET).download(ruta);
       if (blob) {
         const guardado = JSON.parse(await blob.text());
-        if (guardado?.metodo === METODO && guardado?.resolucion_m === resolucionM && guardado?.png_base64) {
+        if (cacheVigente(guardado, { metodo: METODO, resolucionM, paleta: PALETA_ID })) {
           return json({ ...guardado, cache: "hit" });
         }
       }
@@ -224,7 +226,7 @@ Deno.serve(async (req) => {
       mes, numero_modulo: numeroModulo, bbox, ancho, alto, resolucion_m: resolucionM,
       png_base64: sinDatos ? null : bytesABase64(png),
       n_escenas: nEscenas, pct_pixeles_validos: pct,
-      proveedor: provider, metodo: METODO, nota: NOTA_FRONTERA,
+      proveedor: provider, metodo: METODO, paleta: PALETA_ID, nota: NOTA_FRONTERA,
       ...(sinDatos ? { sin_datos: true } : {}),
     };
 

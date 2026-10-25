@@ -16,8 +16,8 @@ export interface ClaseNdvi {
 }
 
 export const CLASES_NDVI: ClaseNdvi[] = [
-    { clave: 'suelo', etiqueta: 'Suelo desnudo', desde: -Infinity, hasta: 0.15, color: '#D9C9A0', significado: 'Sin cobertura vegetal o terreno en barbecho' },
-    { clave: 'bajo', etiqueta: 'Vigor bajo', desde: 0.15, hasta: 0.3, color: '#B7C26E', significado: 'Cultivo en emergencia o con estrés' },
+    { clave: 'suelo', etiqueta: 'Suelo desnudo', desde: -Infinity, hasta: 0.15, color: '#F5EBCD', significado: 'Sin cobertura vegetal o terreno en barbecho' },
+    { clave: 'bajo', etiqueta: 'Vigor bajo', desde: 0.15, hasta: 0.3, color: '#C2CB7A', significado: 'Cultivo en emergencia o con estrés' },
     { clave: 'medio', etiqueta: 'Vigor medio', desde: 0.3, hasta: 0.5, color: '#6FB15A', significado: 'Cobertura en desarrollo' },
     { clave: 'alto', etiqueta: 'Vigor alto', desde: 0.5, hasta: 0.7, color: '#2E8B57', significado: 'Cobertura plena y sana' },
     { clave: 'muyalto', etiqueta: 'Vigor muy alto', desde: 0.7, hasta: Infinity, color: '#14532D', significado: 'Biomasa máxima' },
@@ -72,6 +72,12 @@ export function colorNdvi(v: number | null | undefined): string {
     return `rgb(${ult.rgb.join(',')})`;
 }
 
+/**
+ * Contorno del relleno de "Suelo desnudo" (arena muy clara, L* 93): sobre papel blanco, relieve claro o el tema oscuro del panel
+ * el relleno solo no se delimita. Se usa en leyendas, muestras y celdas; es un trazo, no un color de clase.
+ */
+export const SUELO_CONTORNO = '#8A7A4E';
+
 /** Luminancia relativa WCAG de un color #RRGGBB (para verificar que la rampa es monótona). */
 export function luminancia(h: string): number {
     const [r, g, b] = hex(h).map((x) => {
@@ -79,6 +85,12 @@ export function luminancia(h: string): number {
         return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
     });
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Luminosidad percibida L* (CIE Lab, 0–100) de un #RRGGBB: la separación entre clases en escala de grises se mide en ΔL*. */
+export function luminosidadL(h: string): number {
+    const y = luminancia(h);
+    return y > 0.008856 ? 116 * Math.cbrt(y) - 16 : 903.3 * y;
 }
 
 /**

@@ -199,12 +199,29 @@ describe('módulo por módulo, IHR en piso y notas de indicadores', () => {
     });
 });
 
+describe('folio y nombre de archivo distinguen configuraciones', () => {
+    it('misma configuración en el mismo minuto: mismo folio y mismo nombre; con y sin imagen / relieve: distintos', () => {
+        const a = construirDatosNdvi(MULTI, ctx(), cfg()), b = construirDatosNdvi(MULTI, ctx(), cfg());
+        expect(b.folio).toBe(a.folio);
+        expect(b.traza.nombreArchivo).toBe(a.traza.nombreArchivo);
+        const conImagen = construirDatosNdvi(MULTI, ctx(), cfg(MESES_MULTI, { imagenSatelital: true }));
+        const sinRelieve = construirDatosNdvi(MULTI, ctx(), cfg(MESES_MULTI, { mapaRelieve: false }));
+        for (const otro of [conImagen, sinRelieve]) {
+            expect(otro.folio).not.toBe(a.folio);
+            expect(otro.traza.nombreArchivo).not.toBe(a.traza.nombreArchivo);
+            expect(otro.folio).toMatch(/^NDVI-2026-03A09-COMPLETO-[0-9A-F]{6}-20261007-1405$/); // sigue siendo un folio con partes
+        }
+        expect(conImagen.folio).not.toBe(sinRelieve.folio);
+    });
+});
+
 describe('anexos, trazabilidad y errores visibles', () => {
     it('trazabilidad: folio con periodo y alcance, datos al, método, plantilla, hash y firmas', () => {
         const h = html(MULTI, cfg());
         const d = construirDatosNdvi(MULTI, ctx(), cfg());
-        expect(d.folio).toBe('NDVI-2026-03A09-COMPLETO-20261007-1405');
-        expect(d.traza.nombreArchivo).toBe('informe-ndvi-conchos-2026-03a09-completo-2026-10-07.html');
+        const v = d.traza.hashConfig.slice(0, 6);
+        expect(d.folio).toBe(`NDVI-2026-03A09-COMPLETO-${v.toUpperCase()}-20261007-1405`);
+        expect(d.traza.nombreArchivo).toBe(`informe-ndvi-conchos-2026-03a09-completo-${v}-2026-10-07.html`);
         expect(d.traza.corteDatos).toBe('2026-09-30');
         expect(h).toContain('30 de septiembre de 2026');
         expect(h).toContain('scl-mediana-v1');

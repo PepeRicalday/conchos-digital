@@ -275,11 +275,16 @@ export function construirDatosNdvi(filas: FilaNdviInforme[], ctx: ContextoInform
     const ahora = ctx.ahora;
     const alcance = codigoAlcance(cfg);
     const periodoCodigo = codigoPeriodo(cfg);
+    const hashConfig = hashCorto(huellaConfig(cfg));
+    // Variante = 6 primeros caracteres del hash de configuración: dos informes del mismo periodo y alcance pero con otra configuración
+    // (con/sin imagen satelital, con/sin relieve, otros indicadores…) generados el mismo minuto NO comparten folio ni nombre de archivo;
+    // la misma configuración sí (el hash no depende de la hora ni de los datos).
+    const variante = hashConfig.slice(0, 6);
     const traza: Trazabilidad = {
-        folio: folioConPartes('NDVI', [periodoCodigo, alcance], ahora),
-        hashConfig: hashCorto(huellaConfig(cfg)),
+        folio: folioConPartes('NDVI', [periodoCodigo, alcance, variante], ahora),
+        hashConfig,
         metodo: METODO_NDVI_V2, plantilla: VERSION_PLANTILLA_NDVI, corteDatos, alcance, periodoCodigo,
-        nombreArchivo: nombreArchivoConPartes('informe-ndvi-conchos', [periodoCodigo, alcance], ahora),
+        nombreArchivo: nombreArchivoConPartes('informe-ndvi-conchos', [periodoCodigo, alcance, variante], ahora),
         mesEnCurso,
     };
 

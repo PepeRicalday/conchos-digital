@@ -247,7 +247,8 @@ ${sec.has('calor') ? calorSec(p) : ''}
 ${pieInforme(`SICA 005 · SRL Unidad Conchos · ${folio}`, i + 1, total)}
 </article>`;
     }).join('\n');
-    const boton = modo === 'pantalla' ? '<button class="btn-imprimir" type="button" onclick="window.print()">Imprimir / Guardar PDF</button>' : '';
+    // Sin botón propio: la vista previa vive en un iframe y su botón flotante duplicaba al de la ventana (y no imprime en iOS).
+    const boton = '';
     return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=${ANCHO_INFORME_NT}"><meta name="color-scheme" content="light">
 <title>${esc(`Nivel y tendencia de presas — ${mesTxt}`)}</title><style>${CSS}</style></head><body class="${modo === 'png' ? 'png' : ''}">
 ${hojas}

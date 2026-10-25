@@ -110,10 +110,7 @@ describe('HTML e SVG', () => {
         expect(h.match(/class="hoja"/g)).toHaveLength(2);
         expect(h).not.toMatch(/NaN|undefined|>null<| null /);
         expect(h).toContain('S/D');
-        expect(h).toContain('Imprimir / Guardar PDF');
-    });
-    it('modo png: sin botón de imprimir', () => {
-        expect(htmlNivelTendencia(d, logos, 'png')).not.toContain('btn-imprimir" type');
+        expect(h).not.toContain('<button');
     });
     it('secciones desactivadas no se imprimen', () => {
         const h = htmlNivelTendencia(prepararNivelTendencia(cfg({ secciones: [], aniosComparacion: [2024] }), idx, hoy), logos);
@@ -137,5 +134,25 @@ describe('HTML e SVG', () => {
     });
     it('área del mes sin NaN con un solo dato', () => {
         expect(svgAreaMes([null, 5, null], { unidad: 'Mm³', decimales: 1, titulo: 't' })).not.toContain('NaN');
+    });
+});
+
+describe('pdfDePaginas', () => {
+    it('estructura válida: cabecera, N páginas, xref y %%EOF', async () => {
+        const { pdfDePaginas } = await import('./pdfDeImagenes');
+        const jpg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+        const blob = pdfDePaginas([{ bytes: jpg, ancho: 980, alto: 2126 }, { bytes: jpg, ancho: 980, alto: 2000 }]);
+        const t = new TextDecoder('latin1').decode(new Uint8Array(await blob.arrayBuffer()));
+        expect(t.startsWith('%PDF-1.4')).toBe(true);
+        expect(t).toContain('/Count 2');
+        expect(t).toContain('/MediaBox [0 0 612 1327.67]');
+        expect(t.trimEnd().endsWith('%%EOF')).toBe(true);
+        const sx = Number(/startxref\s+(\d+)/.exec(t)![1]);
+        expect(t.slice(sx, sx + 4)).toBe('xref');
+        expect(blob.type).toBe('application/pdf');
+    });
+    it('sin páginas lanza error', async () => {
+        const { pdfDePaginas } = await import('./pdfDeImagenes');
+        expect(() => pdfDePaginas([])).toThrow();
     });
 });

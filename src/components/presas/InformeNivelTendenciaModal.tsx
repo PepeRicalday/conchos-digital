@@ -14,7 +14,8 @@ import { prepararNivelTendencia } from '../../utils/informeNivelTendenciaDatos';
 import { ANCHO_INFORME_NT, htmlNivelTendencia } from '../../utils/informeNivelTendenciaHtml';
 import { cargarLogosInforme } from '../../utils/logosInforme';
 import { rasterizaHtml } from '../../utils/rasterizaHtml';
-import { guardaOComparte } from '../../utils/descargaArchivo';
+import { esIOS, guardaOComparte } from '../../utils/descargaArchivo';
+import { imagenAJpeg, pdfDePaginas } from '../../utils/pdfDeImagenes';
 import { nombreArchivoConPartes } from '../../utils/informeBase';
 import '../ndvi/informeNdviModal.css';
 
@@ -84,7 +85,23 @@ export default function InformeNivelTendenciaModal({ onCerrar }: Props) {
         } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo generar la imagen.'); }
         finally { setExportando(false); }
     };
-    const imprimir = () => { const w = frameRef.current?.contentWindow; if (w) { w.focus(); w.print(); } };
+    /** PDF: en iOS/iPadOS no se puede imprimir un iframe, así que se rasteriza y se comparte como archivo PDF; en el resto, diálogo de impresión. */
+    const imprimir = async () => {
+        if (!esIOS()) { const w = frameRef.current?.contentWindow; if (w) { w.focus(); w.print(); } return; }
+        setExportando(true); setError(null);
+        try {
+            const logos = await cargarLogosInforme();
+            const datos = prepararNivelTendencia(c, indice);
+            const paginas = [];
+            for (const p of datos.presas) {
+                const png = await rasterizaHtml(htmlNivelTendencia({ ...datos, presas: [p] }, logos, 'png'), { ancho: ANCHO_INFORME_NT, escala: 2 });
+                paginas.push(await imagenAJpeg(png));
+            }
+            const nombre = nombreArchivoConPartes('nivel-tendencia', [c.presas.length > 1 ? 'presas' : c.presas[0] === ID_BOQUILLA ? 'boquilla' : 'madero', `${c.anioBase}-${String(c.mes).padStart(2, '0')}`]).replace(/\.html$/, '.pdf');
+            await guardaOComparte(pdfDePaginas(paginas), nombre, 'application/pdf');
+        } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo generar el PDF.'); }
+        finally { setExportando(false); }
+    };
 
     const chipsComp = [
         { id: '3', et: 'Últimos 3 años', v: ultimosAnios(anios, c.anioBase, 3) },
@@ -102,7 +119,7 @@ export default function InformeNivelTendenciaModal({ onCerrar }: Props) {
                         <div className="ndvi-cfg-acc">
                             <button type="button" className="ndvi-cfg-btn" onClick={volver}><ArrowLeft size={16} aria-hidden="true" /> Volver a filtros</button>
                             <button type="button" className="ndvi-cfg-btn" onClick={() => void exportarPng()} disabled={!html || exportando}><ImageDown size={16} aria-hidden="true" /> {exportando ? 'Generando imagen…' : c.presas.length > 1 ? 'Descargar PNG (1 por presa)' : 'Descargar PNG'}</button>
-                            <button type="button" className="ndvi-cfg-btn ndvi-cfg-btn--pri" onClick={imprimir} disabled={!urlBlob}><Printer size={16} aria-hidden="true" /> Imprimir / PDF</button>
+                            <button type="button" className="ndvi-cfg-btn ndvi-cfg-btn--pri" onClick={() => void imprimir()} disabled={!urlBlob || exportando}><Printer size={16} aria-hidden="true" /> {exportando ? 'Generando…' : 'Imprimir / PDF'}</button>
                             <button type="button" className="ndvi-cfg-btn ndvi-cfg-btn--icono" onClick={onCerrar} aria-label="Cerrar"><X size={18} aria-hidden="true" /></button>
                         </div>
                     </div>

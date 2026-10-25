@@ -147,6 +147,24 @@ export async function barridoVolumenVegetacion(ctx) {
       if (!/45\.5/.test(fila26) || !/0\.167/.test(fila26) || !/provisional/.test(fila26)) hallazgo('critico', D, `fila 2026 de M4 ≠ 45.5 / 0.167 provisional: "${fila26.replace(/\s+/g, ' ')}"`);
       const fila25 = await page.locator('.vv-tabla tbody tr', { has: page.locator('th', { hasText: '2025' }) }).innerText();
       if (!/Sin informe ACUM_INF/.test(fila25)) hallazgo('alto', D, '2025 no dice «Sin informe ACUM_INF»');
+      // Escape: primero cierra el tooltip (el panel sigue abierto, foco en el punto); el segundo Escape cierra el panel y devuelve el foco a su botón
+      if (!tactil) {
+        const cEsc = page.locator('.vv-cuadro').nth(1);
+        await cEsc.locator('.vv-pto').first().focus(); await page.waitForTimeout(250);
+        if (await cEsc.locator('.vv-tip').count() !== 1) hallazgo('alto', D, 'Escape: el tooltip no se abrió para la prueba');
+        await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+        const tras1 = await page.evaluate(() => ({ tip: document.querySelectorAll('.vv-tip').length, panel: document.querySelectorAll('.vv-cuadro').length, enPunto: !!document.activeElement?.classList.contains('vv-pto') }));
+        if (tras1.tip !== 0) hallazgo('alto', D, 'Escape no cierra el tooltip abierto');
+        if (tras1.panel === 0) hallazgo('critico', D, 'Escape con tooltip abierto cerró todo el panel');
+        if (!tras1.enPunto) hallazgo('medio', D, 'Escape cerró el tooltip pero el foco no quedó en el punto que lo abrió');
+        r.escape = { tras1 };
+        await page.screenshot({ path: `${carpeta}${P.id}_escape_tooltip_cerrado.png` });
+        await page.keyboard.press('Escape'); await page.waitForTimeout(700);
+        const tras2 = await page.evaluate(() => ({ panel: document.querySelectorAll('.vv-cuadro').length, foco: `${document.activeElement?.getAttribute('aria-label') ?? ''} ${(document.activeElement?.textContent ?? '').trim()}`.trim().slice(0, 80), enBody: document.activeElement === document.body }));
+        if (tras2.panel !== 0) hallazgo('alto', D, 'el segundo Escape no cerró el panel');
+        if (!/Ver NDVI mensual/.test(tras2.foco)) hallazgo('medio', D, `al cerrar el panel el foco no volvió a su botón («${tras2.foco}»)`);
+        r.escape.tras2 = tras2;
+      }
     } catch (e) { hallazgo('critico', D, 'fallo del recorrido: ' + String(e.message).slice(0, 220)); await page.screenshot({ path: `${carpeta}${P.id}_fallo.png` }).catch(() => {}); }
     if (err.length) hallazgo('alto', D, `errores de consola: ${JSON.stringify(err.slice(0, 3))}`);
     if (net.length) hallazgo('alto', D, `fallos de red: ${JSON.stringify(net.slice(0, 3))}`);

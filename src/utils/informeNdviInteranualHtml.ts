@@ -14,6 +14,9 @@ import { NDVI_RANGO, NDVI_TICKS } from './ndviRampa';
 import { rotuloBase } from './ndviPromedio';
 import type { ModeloInteranual, ModuloInteranual } from './informeNdviInteranual';
 import { cabeceraSvg } from './informeNdviSvgComparativo';
+import { monogramaHtml } from './informeNdviMarcas';
+import { ANIO_ACTUAL, lecturaGeneral, type RelacionVolNdvi } from './ndviVolumen';
+import type { RelacionVolumenInforme } from './informeNdviDatos';
 
 const INK = '#1f2328', INK2 = '#57606a', GRID = '#e3e1dc';
 /** Un solo matiz (azul pizarra), cinco pasos de luminosidad: el más reciente es el más oscuro. */
@@ -104,6 +107,8 @@ table.compacta tr.foco td,table.compacta tr.foco th{background:#ecebe7;font-weig
 .ley{display:flex;flex-wrap:wrap;gap:3px 14px;list-style:none;padding:0;margin:4px 0 0;font-size:7.5pt}
 .ley li{display:inline-flex;align-items:center;gap:5px}
 .ley i{display:inline-block;width:18px;height:3px}
+.anx-vol table.compacta th,.anx-vol table.compacta td{line-height:1.15}
+.anx-vol table.compacta td{padding:1px 5px} .anx-vol .tabla-wrap{margin-bottom:2px}
 .ley i.b{height:9px;background:#d9d6cf} .ley i.p{height:0;border-top:1.5px dashed ${INK2};background:none}
 `;
 
@@ -146,17 +151,45 @@ export function graficaPulsoSrlHtml(d: ModeloInteranual): string {
     return svgPulso({ anios: d.anios, anioFoco: d.anioFoco, series: d.serieSrl, clim: [], titulo: 'NDVI medio mensual de los módulos elegidos, por año' }, { w: 700, h: 250 });
 }
 
-/** Matrices de superficie regada, volumen, lámina y media de NDVI por módulo y año (anexo de superficie y volumen). */
+/** Matrices de superficie regada, volumen y media de NDVI por módulo y año (anexo de superficie y volumen). */
 export function matricesSupVolHtml(d: ModeloInteranual): string {
     const matriz = (titulo: string, valor: (c: ModuloInteranual['cruce'][number]) => string, nota: string) => `<div class="tabla-wrap"><table class="compacta"><caption>${esc(titulo)}</caption><thead><tr><th>Módulo</th>${
         d.anios.map((a) => `<th class="n">${a}</th>`).join('')}</tr></thead><tbody>${d.modulos.map((m) => `<tr><td><b>${esc(m.nombre)}</b></td>${
         m.cruce.map((c) => tdN(valor(c), c.atipicos > 0 ? ' ⚠' : '')).join('')}</tr>`).join('')}</tbody></table></div>${nota ? `<p class="fuente">${nota}</p>` : ''}`;
     const ultimoSup = d.modulos.flatMap((m) => m.cruce).filter((c) => c.volumenHm3 != null).reduce<number | null>((mx, c) => (mx == null || c.anio > mx ? c.anio : mx), null);
-    return `<p class="frase">${ultimoSup != null ? `El informe de superficie y volumen (ACUM_INF) cubre hasta ${ultimoSup}.` : 'Ninguno de los años elegidos tiene informe de superficie y volumen (S/D).'} La tabla permite ver, año contra año, el volumen entregado junto a la vegetación; no prueba relación entre ambos ni causa (la superficie explica parte del volumen).</p>
-${matriz('Superficie regada (informe ACUM_INF, ha)', (c) => fmtMiles(c.superficieHa, 0), 'Informe de distribución al corte de septiembre, suma de cultivos; no es la superficie del polígono del módulo. El volumen está en miles de m³ convertidos a hm³ y la lámina es volumen dividido entre la superficie regada del mismo informe.')}
+    const cobertura = ultimoSup != null ? `El informe (ACUM_INF) cubre hasta ${ultimoSup}.` : 'Ninguno de los años elegidos tiene informe de superficie y volumen (S/D).';
+    return `${matriz('Superficie regada (informe ACUM_INF, ha)', (c) => fmtMiles(c.superficieHa, 0), `${cobertura} Corte de septiembre, suma de cultivos; no es la superficie del polígono del módulo. Volumen: miles de m³ convertidos a hm³.`)}
 ${matriz('Volumen entregado (hm³)', (c) => fmt(c.volumenHm3, 1), '')}
-${matriz('Lámina entregada (m³ por hectárea regada)', (c) => fmtMiles(c.laminaM3Ha, 0), '')}
-${matriz('Media de NDVI de la temporada (mar–sep)', (c) => fmt(c.mediaNdvi, 3), `Media = promedio de los meses con dato de marzo a septiembre; se usa la media y no el pico porque dentro de cada módulo la media acompaña al volumen entregado y el pico no. Una temporada con menos de ${MIN_MESES_ANIO_COMPLETO} meses con dato (p. ej. el año en curso) no es comparable con un año completo.`)}`;
+${matriz('Media de NDVI de la temporada (mar–sep)', (c) => fmt(c.mediaNdvi, 3), `Media de los meses con dato de mar a sep (no el pico: dentro de cada módulo la media acompaña al volumen y el pico no). Con menos de ${MIN_MESES_ANIO_COMPLETO} meses con dato no es comparable con un año completo.`)}`;
+}
+
+const sg = (v: number, d: number) => `${v < 0 ? '−' : '+'}${Math.abs(v).toFixed(d)}`;
+/** Estado del módulo en palabras Y en un símbolo de forma distinta (no depende del color): ✓ firme, ◐ indicativa, ○ sin relación, – sin evidencia. */
+const ESTADO_VOL = { firme: { sim: '✓', txt: 'Firme' }, indicativa: { sim: '◐', txt: 'Indicativa' }, 'sin-relacion': { sim: '○', txt: 'Sin relación' }, 'sin-evidencia': { sim: '–', txt: 'Sin evidencia' } } as const;
+export const claveEstadoVol = (r: RelacionVolNdvi): keyof typeof ESTADO_VOL => (r.estado === 'acompaña' ? (r.firme ? 'firme' : 'indicativa') : r.estado);
+
+/**
+ * Lectura por módulo de la relación volumen–NDVI (la misma del panel «Más agua, más vegetación»): estado con texto y símbolo,
+ * r con signo, años, cambio de NDVI por +10 hm³ y la desviación del punto del año actual (volumen provisional, fuera del ajuste).
+ * Sin volumen del año actual: S/D con aviso, nunca 0. Descriptiva: no afirma causa.
+ */
+export function lecturaVolumenModulosHtml(rv: RelacionVolumenInforme): string {
+    const conActual = rv.incluyeActual;
+    const filas = rv.rels.map((r) => {
+        const clave = claveEstadoVol(r), e = ESTADO_VOL[clave];
+        const a = r.actual;
+        let act: string;
+        if (!a) act = sdSpan;
+        else if (a.desviacion == null) act = `${fmt(a.volumenHm3, 1)} hm³ · sin referencia${a.volumenIncompleto ? ' · incompleto' : ''}`;
+        else act = `${fmt(a.volumenHm3, 1)} hm³ · ${signo(a.desviacion, 2)} vs ${a.referencia === 'recta' ? 'recta' : 'promedio'}${a.volumenIncompleto ? ' · incompleto' : ''}`;
+        return `<tr><td>${monogramaHtml(r.modulo)}</td><td><b>${e.sim} ${e.txt}</b></td>${
+            r.r != null ? `<td class="n">${sg(r.r, 2)}</td>` : `<td class="n sd">${SD}</td>`}<td class="n">${r.n}</td><td class="n">${
+            r.estado === 'acompaña' && r.por10Hm3 != null ? sg(r.por10Hm3, 3) : 'no aplica'}</td>${conActual ? `<td>${act}</td>` : ''}</tr>`;
+    }).join('');
+    const err = rv.incluyeActual && rv.errorVolumenActual ? ` No se pudo leer el volumen ${ANIO_ACTUAL} de la hoja SRL (${esc(rv.errorVolumenActual)}): su punto queda S/D, no cero.` : '';
+    return `<p class="frase">${esc(lecturaGeneral(rv.rels))}</p>
+<div class="tabla-wrap"><table class="compacta"><caption>Lectura por módulo: ¿más volumen, más vegetación? (dentro de cada módulo, años con informe)</caption><thead><tr><th>Módulo</th><th>Estado</th><th class="n">r</th><th class="n">Años</th><th class="n">+10 hm³ ≈ ΔNDVI</th>${conActual ? `<th>${ANIO_ACTUAL} provisional (fuera del ajuste)</th>` : ''}</tr></thead><tbody>${filas}</tbody></table></div>
+<p class="fuente">✓ Firme: r positivo y R² sobre el crítico al 5 % (con 4 años, R² ≥ 0.90). ◐ Indicativa: r ≥ +0.50 sin llegar a firme. ○ Sin relación: r &lt; +0.50. – Sin evidencia: menos de 3 años. ΔNDVI: cambio indicativo de la recta por +10 hm³. ${ANIO_ACTUAL}: hoja SRL, no conciliada con ACUM_INF; cifra = NDVI medido menos lo que sugiere la recta (o el promedio si no hay relación).${err}</p>`;
 }
 
 /** Pulso de un módulo para su ficha: temporada contra los otros años (banda típica y promedio de referencia). */

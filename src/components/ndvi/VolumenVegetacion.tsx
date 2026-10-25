@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { useCapaLocal } from '../historico/useModalA11y';
 import { fmt, fmtMiles } from '../../utils/formato';
 import { SIMBOLO_MODULO } from '../../utils/ndviGrafica';
 import { UMBRAL_SIN_CAMBIO, cruceAnual, type FilaNdviV2, type FilaSupVol } from '../../utils/ndviInteranual';
@@ -61,12 +62,23 @@ const Cuadro: React.FC<{ rel: RelacionVolNdvi; activo: boolean; onElegir: () => 
     const titulo = `Módulo ${rel.modulo}: volumen entregado contra NDVI medio mar–sep. ${fraseRelacion(rel)}`;
     const pares = marcas.map(m => m.texto).join('; ');
     const enfocada = marcas.find(m => m.clave === foco) ?? null;
+    // Escape cierra primero el tooltip y devuelve el foco al punto que lo abrió; con el tooltip cerrado, Escape llega al panel.
+    const sinReabrir = useRef(false);
+    // Tras Escape, el ratón que siga encima del punto no vuelve a abrir el tooltip hasta que salga de él.
+    const descartadoConRaton = useRef(false);
+    useCapaLocal(!!enfocada, () => {
+        const abierto = foco;
+        descartadoConRaton.current = true;
+        setFoco(null);
+        const nodo = abierto ? refs.current[abierto] : null;
+        if (nodo && document.activeElement !== nodo) { sinReabrir.current = true; nodo.focus(); sinReabrir.current = false; }
+    });
 
     const mover = (e: React.KeyboardEvent, i: number) => {
         const orden = [...marcas].sort((a, b) => a.x - b.x);
         const k = orden.findIndex(m => m.clave === marcas[i].clave);
         const sig = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? orden[Math.min(orden.length - 1, k + 1)] : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? orden[Math.max(0, k - 1)] : null;
-        // Enter o espacio abren y cierran el tooltip; Escape lo atiende el diálogo del panel (cierra el panel), así que no se intercepta.
+        // Enter o espacio abren y cierran el tooltip; Escape cierra primero el tooltip (capa local registrada con useCapaLocal) y después el panel.
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFoco(f => (f === marcas[i].clave ? null : marcas[i].clave)); return; }
         if (sig) { e.preventDefault(); refs.current[sig.clave]?.focus(); }
     };
@@ -153,8 +165,8 @@ const Cuadro: React.FC<{ rel: RelacionVolNdvi; activo: boolean; onElegir: () => 
                             return (
                                 <g key={m.clave} ref={el => { refs.current[m.clave] = el; }} className={`vv-pto${m.actual ? ' actual' : ''}${foco === m.clave ? ' on' : ''}`}
                                     tabIndex={i === 0 ? 0 : -1} role="img" aria-label={m.texto}
-                                    onPointerEnter={e => { if (e.pointerType === 'mouse') setFoco(m.clave); }} onPointerLeave={e => { if (e.pointerType === 'mouse') setFoco(null); }}
-                                    onFocus={() => setFoco(m.clave)} onBlur={() => setFoco(f => (f === m.clave ? null : f))}
+                                    onPointerEnter={e => { if (e.pointerType === 'mouse' && !descartadoConRaton.current) setFoco(m.clave); }} onPointerLeave={e => { if (e.pointerType === 'mouse') { descartadoConRaton.current = false; setFoco(null); } }}
+                                    onFocus={() => { if (!sinReabrir.current) { descartadoConRaton.current = false; setFoco(m.clave); } }} onBlur={() => setFoco(f => (f === m.clave ? null : f))}
                                     onClick={() => setFoco(m.clave)} onKeyDown={e => mover(e, i)}>
                                     <circle cx={m.x} cy={m.y} r="19" className="vv-hit" />
                                     {m.atipico && <circle cx={m.x} cy={m.y} r="11.5" className="vv-aro" />}

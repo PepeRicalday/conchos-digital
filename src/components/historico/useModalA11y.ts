@@ -1,9 +1,17 @@
 import { useEffect, useRef, type RefObject } from 'react';
+import { cerrarCapaSuperior, registrarCapaLocal } from '../../utils/capasLocales';
 
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 /** Pila de modales abiertos: solo el de arriba atiende Escape y el Tab atrapado (un modal sobre otro, p. ej. ficha sobre panel). */
 const pila: symbol[] = [];
+
+/** Registra una capa local (tooltip, menú, popover) mientras `abierta`: Escape la cierra antes que al modal que la contiene. */
+export function useCapaLocal(abierta: boolean, cerrar: () => void) {
+    const cerrarRef = useRef(cerrar);
+    useEffect(() => { cerrarRef.current = cerrar; });
+    useEffect(() => (abierta ? registrarCapaLocal(() => cerrarRef.current()) : undefined), [abierta]);
+}
 
 /**
  * Accesibilidad de modal: foco inicial dentro, Tab atrapado, Escape llama a `onEscape`,
@@ -25,7 +33,11 @@ export function useModalA11y(ref: RefObject<HTMLElement | null>, activo: boolean
 
         const onKey = (e: KeyboardEvent) => {
             if (pila[pila.length - 1] !== yo) return;
-            if (e.key === 'Escape') { e.stopPropagation(); escRef.current(); return; }
+            if (e.key === 'Escape') {
+                e.stopPropagation();
+                if (!cerrarCapaSuperior()) escRef.current();
+                return;
+            }
             if (e.key !== 'Tab') return;
             const n = nodos();
             if (!n.length) { e.preventDefault(); return; }

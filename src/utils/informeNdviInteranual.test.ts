@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { construirInteranual, aniosConNdvi } from './informeNdviInteranual';
-import { fraseInteranual, matricesSupVolHtml, svgPulso, tablaPicosHtml } from './informeNdviInteranualHtml';
+import { claveEstadoVol, fraseInteranual, lecturaVolumenModulosHtml, matricesSupVolHtml, svgPulso, tablaPicosHtml } from './informeNdviInteranualHtml';
 import { avisosConfig, configPorDefecto, rangoDePreset } from './informeNdviConfig';
 import type { FilaNdviV2, FilaSupVol } from './ndviInteranual';
+import { relacionVolumenNdvi, type VolumenActual } from './ndviVolumen';
 
 const f = (mes: string, v: number | null, modulo = 1, extra: Partial<FilaNdviV2> = {}): FilaNdviV2 => ({
     numero_modulo: modulo, mes, ndvi_mediana: v, ndvi_p10: null, ndvi_p90: null, fraccion_cobertura_activa: null,
@@ -91,6 +92,11 @@ describe('comparación entre años (bloques HTML)', () => {
         expect(h).not.toMatch(/NaN|undefined|null/);
         expect(h).not.toContain('Pico de NDVI del año');
     });
+    it('la matriz de lámina (m³/ha) ya no se imprime: es redundante con volumen y superficie', () => {
+        const h = matricesSupVolHtml(modelo);
+        expect(h).not.toContain('Lámina entregada');
+        expect(h).toContain('Volumen entregado (hm³)');
+    });
     it('svgPulso omite la banda con menos de 3 años y no dibuja nada para nulos', () => {
         const s = svgPulso({ anios: [2021], anioFoco: 2021, series: [{ anio: 2021, vals: [null, null, null, null, null, null, null] }], clim: [], titulo: 't' }, { w: 300, h: 130 });
         expect(s).toContain('<svg');
@@ -123,5 +129,50 @@ describe('config: ciclo y años', () => {
         const varios = avisosConfig(base, [{ mes: '2025-03', numero_modulo: 1 }, { mes: '2026-03', numero_modulo: 1 }]);
         expect(uno.some((a) => a.includes('un solo año'))).toBe(true);
         expect(varios.some((a) => a.includes('un solo año'))).toBe(false);
+    });
+});
+
+describe('anexo B: lectura por módulo del volumen contra el NDVI', () => {
+    // M1 sube con el volumen (4 años); M2 baja (sin relación); 2026 aparte, con volumen provisional.
+    const nd: FilaNdviV2[] = [];
+    const nivel: Record<number, number[]> = { 1: [0.2, 0.25, 0.3, 0.35, 0.3], 2: [0.4, 0.3, 0.38, 0.28, 0.2] };
+    for (const m of [1, 2]) [2021, 2022, 2023, 2024, 2026].forEach((a, i) => { for (const mm of ['03', '04', '05', '06', '07', '08', '09']) nd.push(f(`${a}-${mm}`, nivel[m][i], m)); });
+    const sup: FilaSupVol[] = [];
+    [2021, 2022, 2023, 2024].forEach((a, i) => { sup.push(sv(a, 1, 1000, 5000 + i * 1000), sv(a, 2, 1000, 5000 + i * 1000)); });
+    const vol = (error: string | null = null): VolumenActual => ({ porModulo: new Map([[1, 9.5]]), mesesPorModulo: new Map([[1, 7]]), mesesParciales: [], error });
+    const rv = (va: VolumenActual | null) => ({ rels: [1, 2].map((m) => relacionVolumenNdvi(nd, sup, va, m)), incluyeActual: true, errorVolumenActual: va == null ? 'no se cargó' : va.error });
+
+    it('cada módulo con estado en texto y símbolo, r con signo, años y +10 hm³; sin color', () => {
+        const h = lecturaVolumenModulosHtml(rv(vol()));
+        expect(h).toMatch(/M1<\/b>/);
+        expect(h).toMatch(/[●◐] (Firme|Indicativa)/);
+        expect(h).toMatch(/○ Sin relación/);
+        expect(h).toMatch(/\+0\.\d\d/);
+        expect(h).toMatch(/−0\.\d\d/);
+        expect(h).toContain('no aplica');
+        expect(h).not.toMatch(/style="[^"]*color|#[0-9a-f]{6}/i);
+        expect(h).not.toMatch(/NaN|undefined|null/);
+    });
+    it('el punto 2026 es provisional y fuera del ajuste; un módulo sin volumen 2026 queda S/D, nunca 0', () => {
+        const h = lecturaVolumenModulosHtml(rv(vol()));
+        expect(h).toContain('2026 provisional (fuera del ajuste)');
+        expect(h).toMatch(/9\.5 hm³ · [▲▼] [+−]0\.\d\d vs recta/);
+        expect(h).toMatch(/<td><span class="sd">S\/D<\/span><\/td><\/tr>/); // M2 no tiene volumen 2026
+        expect(h).not.toMatch(/0\.0 hm³/);
+    });
+    it('si la hoja SRL falla: aviso con el motivo y todo el 2026 en S/D', () => {
+        const h = lecturaVolumenModulosHtml(rv({ porModulo: new Map(), mesesPorModulo: new Map(), mesesParciales: [], error: 'sin red' }));
+        expect(h).toContain('No se pudo leer el volumen 2026 de la hoja SRL (sin red)');
+        expect(h.match(/<span class="sd">S\/D<\/span>/g)?.length).toBe(2);
+    });
+    it('sin 2026 entre los años elegidos no hay columna del año actual', () => {
+        const h = lecturaVolumenModulosHtml({ ...rv(vol()), incluyeActual: false });
+        expect(h).not.toContain('provisional (fuera del ajuste)');
+    });
+    it('claveEstadoVol distingue los cuatro estados', () => {
+        const poco = relacionVolumenNdvi(nd, sup.slice(0, 2), null, 1);
+        expect(claveEstadoVol(poco)).toBe('sin-evidencia');
+        expect(['firme', 'indicativa']).toContain(claveEstadoVol(rv(null).rels[0]));
+        expect(claveEstadoVol(rv(null).rels[1])).toBe('sin-relacion');
     });
 });

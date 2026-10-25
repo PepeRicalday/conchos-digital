@@ -26,7 +26,7 @@ import { r2CriticoAlfa05 } from './estadisticaHistorica';
 import { rotuloBase } from './ndviPromedio';
 import { etiquetaPeriodo, SECCIONES_NDVI } from './informeNdviConfig';
 import { UMBRAL_REVISION_VIGOR, listaModulos } from './informeNdviResumen';
-import { CSS_INTERANUAL, fraseInteranual, graficaPulsoSrlHtml, leyendaAnios, leyendaPulsoFicha, matricesSupVolHtml, pulsoModuloHtml, tablaPicosHtml } from './informeNdviInteranualHtml';
+import { CSS_INTERANUAL, fraseInteranual, graficaPulsoSrlHtml, leyendaAnios, leyendaPulsoFicha, lecturaVolumenModulosHtml, matricesSupVolHtml, pulsoModuloHtml, tablaPicosHtml } from './informeNdviInteranualHtml';
 import type { InformeNdvi, ModuloInforme } from './informeNdviDatos';
 import type { ClaseNdvi } from './ndviRampa';
 
@@ -407,8 +407,9 @@ ${calor}${pares.length ? `<div class="pares${pares.length > 1 && d.meses.length 
         if (d.interanual) {
             const av = d.interanual.avisos.filter((t) => !/pocas observaciones/.test(t));
             agrega(`<h2 style="margin-top:0">Anexo ${letra()} — Superficie regada y volumen entregado por año</h2>
-${matricesSupVolHtml(d.interanual)}
-<div class="aviso">${av.slice(0, 6).map((t) => `${esc(t)} `).join('')}<b>Lectura con cuidado:</b> S/D también marca los años sin NDVI${d.interanual.aniosSinNdvi.length ? ` (${d.interanual.aniosSinNdvi.join(' y ')})` : ''}; ningún dato faltante se rellena ni se estima. La comparación es descriptiva: más lámina y más vegetación el mismo año no prueban relación causal.</div>`);
+<div class="anx-vol">${d.relacionVolumen ? lecturaVolumenModulosHtml(d.relacionVolumen) : ''}
+${matricesSupVolHtml(d.interanual)}</div>
+<div class="aviso">${av.slice(0, 6).map((t) => `${esc(t)} `).join('')}<b>Lectura con cuidado:</b> S/D también marca los años sin NDVI${d.interanual.aniosSinNdvi.length ? ` (${d.interanual.aniosSinNdvi.join(' y ')})`  : ''}; nada se rellena ni se estima. La comparación es descriptiva: más volumen y más vegetación el mismo año no prueban causa (la superficie sembrada explica parte del volumen y no se separa de él). El NDVI es el de la frontera completa del módulo.</div>`);
         } else anexoSupVolOmitido = true;
     }
 

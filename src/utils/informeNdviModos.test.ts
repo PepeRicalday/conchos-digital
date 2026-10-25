@@ -268,6 +268,16 @@ describe('anexos, trazabilidad y errores visibles', () => {
         expect(uno).not.toContain('Superficie regada (informe ACUM_INF, ha)');
         expect(uno).toContain('El anexo de superficie y volumen se omitió');
     });
+    it('anexo B: con superficie y volumen cargados lleva la lectura por módulo (estado en texto, 2026 S/D sin volumen) y no la lámina', () => {
+        const supVol = [1, 2, 3].flatMap((mod) => [2024, 2025, 2026].map((anio, i) => ({ anio, numero_modulo: mod, cultivo: 'Maíz', superficie_ha: 1000, volumen_miles_m3: 20000 + i * 5000 + mod * 100, atipico: false })));
+        const h = html(MULTI, cfg(), { supVol });
+        expect(h).toContain('Lectura por módulo');
+        expect(h).toMatch(/(✓ Firme|◐ Indicativa|○ Sin relación|– Sin evidencia)/);
+        expect(h).toContain('2026 provisional (fuera del ajuste)');
+        expect(h).toContain('No se pudo leer el volumen 2026 de la hoja SRL (no se cargó)');
+        expect(h).not.toContain('Lámina entregada');
+        expect(h).not.toMatch(/0\.0 hm³/);
+    });
     it('imagen satelital: se ubica donde corresponde; pedida y no disponible deja un aviso visible, nunca un hueco', () => {
         const c = cfg(MESES_MULTI, { imagenSatelital: true });
         expect(html(MULTI, c, {}, '<svg></svg>', { imagenes: '<div id="imgs">IMAGENES</div>' })).toContain('<div id="imgs">IMAGENES</div>');

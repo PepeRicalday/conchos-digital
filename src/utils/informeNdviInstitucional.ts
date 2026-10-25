@@ -22,6 +22,7 @@ import { hashCorto } from './informeBase';
 import { supabase } from '../lib/supabase';
 import { cargarLogosInforme } from './logosInforme';
 import { cargarSupVolAnual } from './supVolAnual';
+import { cargarVolumenActual } from './ndviVolumen';
 import type { FilaSupVol } from './ndviInteranual';
 import type { ClienteRaster } from './informeNdviRaster';
 
@@ -68,12 +69,14 @@ async function armarDocumento(filas: FilaNdviInforme[], config: ConfigInformeNdv
 
     const pideVolumen = !!mesRef && config.indicadores.includes('iehp') && sec.has('modulos');
     const pideSupVol = sec.has('anexoSupVol') && aniosRef.length >= 2;
-    const [logos, fc, contexto, volumen, supVol] = await Promise.all([
+    const [logos, fc, contexto, volumen, supVol, volumenActual] = await Promise.all([
         cargarLogosInforme(),
         sec.has('situacion') || config.imagenSatelital ? cargarContornosModulos() : Promise.resolve(null),
         sec.has('situacion') && config.mapaRelieve ? cargarContextoPlano() : Promise.resolve(null),
         pideVolumen ? volumenAcumuladoPorModuloHm3(mesRef as string, inicioCiclo(mesRef as string)).catch((e: unknown) => ({ porModulo: new Map<number, number>(), ultimoMesEsParcial: false, error: e instanceof Error ? e.message : 'Error de red.' })) : Promise.resolve(null),
         pideSupVol ? cargarSupVolAnual(supabase).catch((e: unknown) => ({ filas: [] as FilaSupVol[], error: e instanceof Error ? e.message : 'Error de red.' })) : Promise.resolve(null),
+        // Volumen provisional del año actual: la misma carga (y caché de sesión) del panel «Más agua, más vegetación»; no lanza, devuelve el error.
+        pideSupVol ? cargarVolumenActual() : Promise.resolve(null),
     ]);
     const contornos = fc ? contornosAAnillos(fc) : {};
 
@@ -83,7 +86,7 @@ async function armarDocumento(filas: FilaNdviInforme[], config: ConfigInformeNdv
     const datos = construirDatosNdvi(filas, {
         volumenPorModulo: volumen?.porModulo ?? new Map(), volumenMesParcial: volumen?.ultimoMesEsParcial ?? false,
         volumenConError: !!volumen?.error, volumenSolicitado: pideVolumen,
-        supVol: supVol?.filas ?? [], errorSupVol: !!supVol?.error, erroresConsulta: errores,
+        supVol: supVol?.filas ?? [], errorSupVol: !!supVol?.error, volumenActual, erroresConsulta: errores,
         // Sin sección de situación no se carga el plano: no se avisa de contornos que nadie pidió.
         contornosDisponibles: !sec.has('situacion') || Object.keys(contornos).length > 0,
         logoSrlOk: !!logos.srl, ahora: new Date(), emisor: o.emisor ?? null, version: versionApp(),

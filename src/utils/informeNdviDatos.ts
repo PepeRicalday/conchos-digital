@@ -12,6 +12,7 @@ import { claseNdvi, CLASES_NDVI, type ClaseNdvi } from './ndviRampa';
 import { folioConPartes, hashCorto, mesLegible, nombreArchivoConPartes, ultimoDiaIncluido } from './informeBase';
 import { media } from './estadisticaBasica';
 import { esMesConfiable, type FilaSupVol } from './ndviInteranual';
+import { ANIO_ACTUAL, relacionVolumenNdvi, type RelacionVolNdvi, type VolumenActual } from './ndviVolumen';
 import { METODO_NDVI_V2, mesAnteriorCalendario, mesesContinuos } from './ndviSerie';
 import { promedioConBase, promedioPonderado, type BasePromedio } from './ndviPromedio';
 import {
@@ -59,6 +60,8 @@ export interface ContextoInforme {
     /** Superficie y volumen anual (ACUM_INF); solo se consulta si el anexo lo pide. */
     supVol?: FilaSupVol[];
     errorSupVol?: boolean;
+    /** Volumen del año actual (hoja SRL provisional, misma carga compartida del panel); null/ausente = no se pidió o no cargó. */
+    volumenActual?: VolumenActual | null;
     /** Consultas fallidas (volumen, superficie/volumen anual…). */
     erroresConsulta?: ErrorConsulta[];
     /** ¿Hay contornos reales para dibujar el plano? */
@@ -67,6 +70,15 @@ export interface ContextoInforme {
     ahora: Date;
     emisor: string | null;
     version: string;
+}
+
+/** Lectura volumen–NDVI de los módulos del informe, con los años elegidos; `volumenActual` dice si el punto del año actual existe. */
+export interface RelacionVolumenInforme {
+    rels: RelacionVolNdvi[];
+    /** El año actual está entre los años elegidos (si no, no hay punto actual que mostrar). */
+    incluyeActual: boolean;
+    /** Motivo por el que no hay volumen del año actual (error de lectura o no cargado); null si cargó. */
+    errorVolumenActual: string | null;
 }
 
 export interface AvisoInforme { nivel: 'warn' | 'info'; texto: string }
@@ -156,6 +168,8 @@ export interface InformeNdvi {
     analisis: AnalisisIntegrado;
     /** Comparación entre años (≥ 2 años de referencia); null si no hay con qué comparar. */
     interanual: ModeloInteranual | null;
+    /** Lectura volumen–NDVI por módulo (la misma del panel «Más agua, más vegetación»); null sin comparación entre años. */
+    relacionVolumen: RelacionVolumenInforme | null;
     /** Titular, hallazgos, qué revisar y conciliación de cifras de la hoja 1. */
     resumen: ResumenEjecutivo;
     traza: Trazabilidad;
@@ -270,6 +284,20 @@ export function construirDatosNdvi(filas: FilaNdviInforme[], ctx: ContextoInform
     const interanual = aniosRef.length >= 2
         ? construirInteranual({ ndvi: aFilasV2(filas), supVol: ctx.supVol ?? [], errorSupVol: !!ctx.errorSupVol }, { anios: aniosRef, modulos: idsModulos, base: cfg.basePromedio })
         : null;
+    // Misma relación que el panel, solo con los años elegidos (así n y r coinciden con las matrices impresas).
+    const relacionVolumen: RelacionVolumenInforme | null = interanual
+        ? (() => {
+            const anios = new Set(interanual.anios);
+            const ndviSel = aFilasV2(filas).filter((f) => anios.has(Number(f.mes.slice(0, 4))));
+            const supSel = (ctx.supVol ?? []).filter((x) => anios.has(x.anio));
+            const va = ctx.volumenActual ?? null;
+            return {
+                rels: idsModulos.map((n) => relacionVolumenNdvi(ndviSel, supSel, va, n)),
+                incluyeActual: anios.has(ANIO_ACTUAL),
+                errorVolumenActual: !va ? 'no se cargó' : va.error,
+            };
+        })()
+        : null;
     const analisis = construirAnalisis(filas, cfg, meses);
 
     const ahora = ctx.ahora;
@@ -313,7 +341,7 @@ export function construirDatosNdvi(filas: FilaNdviInforme[], ctx: ContextoInform
         volumenMesParcial: ctx.volumenMesParcial,
         avisos, erroresConsulta: errores,
         variosAnios: aniosDeFilas(filas).length > 1,
-        analisis, interanual, traza,
+        analisis, interanual, relacionVolumen, traza,
         parametros: { ndviPiso: NDVI_PISO, ndviTecho: NDVI_TECHO, umbralActivo: NDVI_UMBRAL_ACTIVO },
     };
     return { ...base, resumen: construirResumen(base) };

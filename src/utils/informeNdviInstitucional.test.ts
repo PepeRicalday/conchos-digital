@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const m = vi.hoisted(() => ({
     logos: vi.fn(async () => ({ srl: 'data:image/jpeg;base64,AAAA', sica: 'data:image/png;base64,BBBB' })),
     contornos: vi.fn(async () => null as GeoJSON.FeatureCollection | null),
-    volumen: vi.fn(async () => ({ porModulo: new Map<number, number>([[1, 5]]), ultimoMesEsParcial: false, error: null as string | null })),
+    volumen: vi.fn(async () => ({ porModulo: new Map<number, number>([[1, 5]]), mesesPorModulo: new Map<number, number>([[1, 7]]), mesesParciales: [] as string[], ultimoMesEsParcial: false, error: null as string | null })),
     supVol: vi.fn(async () => ({ filas: [] as unknown[], error: null as string | null })),
     guarda: vi.fn(async () => undefined),
 }));
@@ -15,6 +15,7 @@ vi.mock('./indicesSrl', async (orig) => ({ ...(await orig<typeof import('./indic
 vi.mock('./supVolAnual', () => ({ cargarSupVolAnual: m.supVol }));
 vi.mock('./descargaArchivo', () => ({ guardaOComparte: m.guarda }));
 
+import { reiniciarCacheVolumenActual } from './ndviVolumen';
 import { claveDocumento, descargarInformeNdviHtml, firmaDatos, generarDocumentoNdvi, generarHtmlInformeNdvi, reiniciarCacheDocumentos } from './informeNdviInstitucional';
 import { configPorDefecto, type ConfigInformeNdvi } from './informeNdviConfig';
 import type { FilaNdviInforme } from './informeNdviDatos';
@@ -30,6 +31,7 @@ const cfg = (o: Partial<ConfigInformeNdvi> = {}): ConfigInformeNdvi => ({ ...con
 
 beforeEach(() => {
     reiniciarCacheDocumentos();
+    reiniciarCacheVolumenActual();
     for (const f of [m.logos, m.contornos, m.volumen, m.supVol, m.guarda]) f.mockClear();
 });
 
@@ -98,7 +100,7 @@ describe('un solo cargador: solo se consulta lo que alguna sección imprime', ()
 
 describe('errores de consulta visibles', () => {
     it('un error de volumen se declara en la calidad del dato y en la trazabilidad (no se traga)', async () => {
-        m.volumen.mockResolvedValueOnce({ porModulo: new Map(), ultimoMesEsParcial: false, error: 'permiso denegado' });
+        m.volumen.mockResolvedValueOnce({ porModulo: new Map(), mesesPorModulo: new Map(), mesesParciales: [], ultimoMesEsParcial: false, error: 'permiso denegado' });
         const { html } = await generarDocumentoNdvi(FILAS, { config: cfg({ secciones: ['resumen', 'modulos', 'metodologia'], indicadores: ['iehp'] }) });
         expect(html).toContain('No se pudo consultar el volumen entregado (permiso denegado)');
         expect(html).toMatch(/Consultas fallidas<\/th><td>el volumen entregado \(permiso denegado\)/);
@@ -143,3 +145,26 @@ describe('errores de consulta visibles', () => {
         expect(html).not.toContain('Relieve: Copernicus');
     });
 });
+
+describe('anexo B: lectura por módulo con el volumen provisional del año actual', () => {
+    const secs: ConfigInformeNdvi['secciones'] = ['resumen', 'anexoSupVol', 'metodologia'];
+    const sup = [1, 2, 3].flatMap((mod) => [2024, 2025].map((anio, i) => ({ anio, numero_modulo: mod, cultivo: 'Maíz', superficie_ha: 1000, volumen_miles_m3: 20000 + i * 5000 + mod * 100, atipico: false })));
+    it('pide una sola vez el volumen del año actual a la carga compartida y lo imprime provisional', async () => {
+        m.supVol.mockResolvedValueOnce({ filas: sup, error: null });
+        m.volumen.mockResolvedValue({ porModulo: new Map([[1, 31.2], [2, 30.8], [3, 29.1]]), mesesPorModulo: new Map([[1, 7], [2, 7], [3, 7]]), mesesParciales: [], ultimoMesEsParcial: false, error: null });
+        const { html } = await generarDocumentoNdvi(FILAS, { config: cfg({ secciones: secs }) });
+        expect(m.volumen).toHaveBeenCalledTimes(1);
+        expect(m.volumen).toHaveBeenCalledWith('2026-09', '2026-03');
+        expect(html).toContain('Lectura por módulo');
+        expect(html).toContain('31.2 hm³');
+        expect(html).toContain('2026 provisional (fuera del ajuste)');
+    });
+    it('si la hoja SRL falla, el 2026 queda S/D con aviso y nunca en cero', async () => {
+        m.supVol.mockResolvedValueOnce({ filas: sup, error: null });
+        m.volumen.mockResolvedValue({ porModulo: new Map(), mesesPorModulo: new Map(), mesesParciales: [], ultimoMesEsParcial: false, error: 'sin red' });
+        const { html } = await generarDocumentoNdvi(FILAS, { config: cfg({ secciones: secs }) });
+        expect(html).toContain('No se pudo leer el volumen 2026 de la hoja SRL (sin red)');
+        expect(html).not.toMatch(/0\.0 hm³/);
+    });
+});
+

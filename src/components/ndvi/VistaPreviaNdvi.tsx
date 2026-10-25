@@ -4,6 +4,7 @@ import { ArrowLeft, Download, Printer, X } from 'lucide-react';
 import { useModalA11y } from '../historico/useModalA11y';
 import { descargarInformeNdviHtml, generarDocumentoNdvi, type DocumentoNdvi, type OpcionesInformeNdvi } from '../../utils/informeNdviInstitucional';
 import type { FilaNdviInforme } from '../../utils/informeNdviDatos';
+import { useImprimirInforme } from '../../hooks/useImprimirInforme';
 import './informeNdviModal.css';
 
 interface Props { filas: FilaNdviInforme[]; opciones: OpcionesInformeNdvi; onVolver: () => void; onCerrar: () => void }
@@ -37,7 +38,7 @@ export default function VistaPreviaNdvi({ filas, opciones, onVolver, onCerrar }:
         return () => URL.revokeObjectURL(u);
     }, [doc]);
 
-    const imprimir = () => { const w = frameRef.current?.contentWindow; if (w) { w.focus(); w.print(); } };
+    const { imprimir, generando, errorPdf } = useImprimirInforme(doc?.html ?? null, frameRef, doc?.nombreArchivo?.replace(/\.html$/, '') ?? 'informe-ndvi');
     const descargar = async () => {
         if (doc == null) return;
         setErrDescarga(null);
@@ -54,11 +55,11 @@ export default function VistaPreviaNdvi({ filas, opciones, onVolver, onCerrar }:
                     <div className="ndvi-cfg-acc">
                         <button type="button" className="ndvi-cfg-btn" onClick={onVolver}><ArrowLeft size={16} aria-hidden="true" /> Volver a filtros</button>
                         <button type="button" className="ndvi-cfg-btn" onClick={descargar} disabled={!listo}><Download size={16} aria-hidden="true" /> Descargar HTML</button>
-                        <button type="button" className="ndvi-cfg-btn ndvi-cfg-btn--pri" onClick={imprimir} disabled={!listo}><Printer size={16} aria-hidden="true" /> Imprimir / PDF</button>
+                        <button type="button" className="ndvi-cfg-btn ndvi-cfg-btn--pri" onClick={() => void imprimir()} disabled={!listo || generando}><Printer size={16} aria-hidden="true" /> {generando ? 'Generando PDF…' : 'Imprimir / PDF'}</button>
                         <button type="button" className="ndvi-cfg-btn ndvi-cfg-btn--icono" onClick={onCerrar} aria-label="Cerrar"><X size={18} aria-hidden="true" /></button>
                     </div>
                 </div>
-                {errDescarga && <ul className="ndvi-cfg-msgs ndvi-cfg-err" role="alert" style={{ margin: 8 }}><li>{errDescarga}</li></ul>}
+                {(errDescarga || errorPdf) && <ul className="ndvi-cfg-msgs ndvi-cfg-err" role="alert" style={{ margin: 8 }}><li>{errDescarga ?? errorPdf}</li></ul>}
                 <div className="ndvi-cfg-marco">
                     {error ? (
                         <div className="ndvi-cfg-estado" role="alert"><h3>No se pudo generar el informe</h3><p>{error}</p>

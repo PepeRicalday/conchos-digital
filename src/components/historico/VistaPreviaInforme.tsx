@@ -5,6 +5,7 @@ import type { Indice } from '../../utils/historicoPresas';
 import type { ConfigInforme } from '../../utils/informeHistoricoConfig';
 import { descargarInformeHtml, generarInformeHtml, nombreArchivoInforme } from '../../utils/exportHistoricoInforme';
 import { useModalA11y } from './useModalA11y';
+import { useImprimirInforme } from '../../hooks/useImprimirInforme';
 
 // Memoización por configuración: no se regenera al abrir/cerrar sin cambios (se invalida si cambia el índice de datos).
 const CACHE = new WeakMap<Indice, Map<string, string>>();
@@ -41,7 +42,7 @@ export default function VistaPreviaInforme({ config, indice, onVolver, onCerrar 
         return () => URL.revokeObjectURL(u);
     }, [html]);
 
-    const imprimir = () => { const w = frameRef.current?.contentWindow; if (w) { w.focus(); w.print(); } };
+    const { imprimir, generando, errorPdf } = useImprimirInforme(html, frameRef, nombreArchivoInforme(config).replace(/\.html$/, ''));
     const descargar = async () => {
         if (html == null) return;
         setErrDescarga(null);
@@ -59,11 +60,11 @@ export default function VistaPreviaInforme({ config, indice, onVolver, onCerrar 
                     <div className="ah-inf-bar-acc">
                         <button type="button" className="ah-btn ah-inf-btn" onClick={onVolver}><ArrowLeft size={16} /> Volver a filtros</button>
                         <button type="button" className="ah-btn ah-inf-btn" onClick={descargar} disabled={!listoParaUsar}><Download size={16} /> Descargar HTML</button>
-                        <button type="button" className="ah-btn ah-inf-btn ah-inf-btn--pri" onClick={imprimir} disabled={!listoParaUsar}><Printer size={16} /> Imprimir / PDF</button>
+                        <button type="button" className="ah-btn ah-inf-btn ah-inf-btn--pri" onClick={() => void imprimir()} disabled={!listoParaUsar || generando}><Printer size={16} /> {generando ? 'Generando PDF…' : 'Imprimir / PDF'}</button>
                         <button type="button" className="ah-btn ah-inf-btn ah-inf-btn--icono" onClick={onCerrar} aria-label="Cerrar"><X size={18} /></button>
                     </div>
                 </div>
-                {errDescarga && <p className="ah-inf-err" role="alert">{errDescarga}</p>}
+                {(errDescarga || errorPdf) && <p className="ah-inf-err" role="alert">{errDescarga ?? errorPdf}</p>}
                 <div className="ah-inf-previa-cuerpo">
                     {error ? (
                         <div className="ah-inf-estado" role="alert">

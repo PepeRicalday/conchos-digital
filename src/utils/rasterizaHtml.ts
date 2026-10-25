@@ -91,12 +91,14 @@ export async function rasterizaHtml(html: string, { ancho, escala = 2 }: Opcione
             img.src = svgDataUri;
         });
 
+        // Safari iOS anula (lienzo en blanco) los canvas de más de ~16.7 M de píxeles: documentos muy altos bajan de escala.
+        const esc = Math.min(escala, Math.sqrt(16_000_000 / (ancho * alto)));
         const canvas = document.createElement('canvas');
-        canvas.width = ancho * escala;
-        canvas.height = alto * escala;
+        canvas.width = Math.floor(ancho * esc);
+        canvas.height = Math.floor(alto * esc);
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new Error('No se pudo preparar el lienzo de captura.');
-        ctx.scale(escala, escala);
+        ctx.scale(esc, esc);
         ctx.drawImage(img, 0, 0, ancho, alto);
         // Safari/WebKit: en el primer dibujo las <img> data URI anidadas en el foreignObject aún no están
         // decodificadas y salen en blanco (logos ausentes en iPad). Se espera un tick y se redibuja.

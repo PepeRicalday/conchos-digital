@@ -7,6 +7,7 @@ import { nombreSeguroArchivo } from '../../conservacion/informe/vistas';
 import { generarHtmlInformeConservacion } from '../../utils/informeConservacion';
 import { assetToDataURI } from '../../utils/assetToDataURI';
 import { guardaOComparte } from '../../utils/descargaArchivo';
+import { useImprimirInforme } from '../../hooks/useImprimirInforme';
 
 interface Props { archivo: ArchivoInforme; onCerrar: () => void }
 
@@ -44,7 +45,7 @@ export function VistaPreviaInforme({ archivo, onCerrar }: Props) {
         return () => URL.revokeObjectURL(u);
     }, [html]);
 
-    const imprimir = () => { const w = frameRef.current?.contentWindow; if (w) { w.focus(); w.print(); } };
+    const { imprimir, generando, errorPdf } = useImprimirInforme(html, frameRef, nombreSeguroArchivo(archivo));
     const descargar = async () => {
         if (html == null) return;
         try { await guardaOComparte(new Blob([html], { type: 'text/html;charset=utf-8' }), `${nombreSeguroArchivo(archivo)}.html`, 'text/html'); }
@@ -58,11 +59,11 @@ export function VistaPreviaInforme({ archivo, onCerrar }: Props) {
                 <div className="cons-previa-barra">
                     <h2 id="cons-previa-t">Informe imprimible</h2>
                     <button type="button" className="sc-btn" onClick={descargar} disabled={!listo}><Download size={16} aria-hidden="true" /> Descargar HTML</button>
-                    <button type="button" className="sc-btn sc-btn-primario" onClick={imprimir} disabled={!listo}><Printer size={16} aria-hidden="true" /> Imprimir / PDF</button>
+                    <button type="button" className="sc-btn sc-btn-primario" onClick={() => void imprimir()} disabled={!listo || generando}><Printer size={16} aria-hidden="true" /> {generando ? 'Generando PDF…' : 'Imprimir / PDF'}</button>
                     <button type="button" className="sc-btn" onClick={onCerrar} aria-label="Cerrar"><X size={18} aria-hidden="true" /></button>
                 </div>
                 <div className="cons-previa-marco">
-                    {error ? <p role="alert">{error}</p>
+                    {error || errorPdf ? <p role="alert">{error ?? errorPdf}</p>
                         : !listo ? <p role="status" aria-busy="true">Generando informe…</p>
                             : <iframe ref={frameRef} title="Vista previa del informe de SICA Conservación" src={url} />}
                 </div>

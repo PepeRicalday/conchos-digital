@@ -7,6 +7,7 @@ import {
     type ConfigInformeVaso, type EscenaVaso, type SeccionVaso,
 } from '../../utils/informeVasoDatos';
 import { descargarInformeVasoHtml, generarHtmlInformeVaso, type EntradaVaso } from '../../utils/informeVaso';
+import { useImprimirInforme } from '../../hooks/useImprimirInforme';
 import '../ndvi/informeNdviModal.css';
 
 interface Props { entrada: EntradaVaso; onCerrar: () => void }
@@ -52,7 +53,7 @@ export default function InformeVasoModal({ entrada, onCerrar }: Props) {
         try { await descargarInformeVasoHtml(h, entrada.nombrePresa); }
         catch (e) { setError(e instanceof Error ? e.message : 'No se pudo descargar el archivo.'); }
     };
-    const imprimir = () => { const w = frameRef.current?.contentWindow; if (w) { w.focus(); w.print(); } };
+    const { imprimir, generando: generandoPdf, errorPdf } = useImprimirInforme(html, frameRef, `informe-vaso-${entrada.nombrePresa}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
 
     const ultimas = (k: number) => setC((p) => ({ ...p, desde: fechas[Math.max(0, fechas.length - k)] ?? null, hasta: null }));
     const activoTodo = c.desde == null && c.hasta == null;
@@ -67,12 +68,12 @@ export default function InformeVasoModal({ entrada, onCerrar }: Props) {
                         <div className="ndvi-cfg-acc">
                             <button type="button" className="ndvi-cfg-btn" onClick={volver}><ArrowLeft size={16} aria-hidden="true" /> Volver a filtros</button>
                             <button type="button" className="ndvi-cfg-btn" onClick={() => html && void descargar(html)} disabled={!html}><Download size={16} aria-hidden="true" /> Descargar HTML</button>
-                            <button type="button" className="ndvi-cfg-btn ndvi-cfg-btn--pri" onClick={imprimir} disabled={!urlBlob}><Printer size={16} aria-hidden="true" /> Imprimir / PDF</button>
+                            <button type="button" className="ndvi-cfg-btn ndvi-cfg-btn--pri" onClick={() => void imprimir()} disabled={!urlBlob || generandoPdf}><Printer size={16} aria-hidden="true" /> {generandoPdf ? 'Generando PDF…' : 'Imprimir / PDF'}</button>
                             <button type="button" className="ndvi-cfg-btn ndvi-cfg-btn--icono" onClick={onCerrar} aria-label="Cerrar"><X size={18} aria-hidden="true" /></button>
                         </div>
                     </div>
                     <div className="ndvi-cfg-marco">
-                        {error ? <div className="ndvi-cfg-estado" role="alert"><h3>No se pudo generar el informe</h3><p>{error}</p></div>
+                        {error || errorPdf ? <div className="ndvi-cfg-estado" role="alert"><h3>{error ? 'No se pudo generar el informe' : 'No se pudo generar el PDF'}</h3><p>{error ?? errorPdf}</p></div>
                             : !urlBlob ? <div className="ndvi-cfg-estado" role="status" aria-busy="true"><p>Generando informe…</p></div>
                                 : <iframe ref={frameRef} title="Vista previa del informe de manejo de vaso" src={urlBlob} />}
                     </div>

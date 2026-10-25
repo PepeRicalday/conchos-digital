@@ -63,3 +63,33 @@ export function pdfDePaginas(paginas: PaginaJpeg[]): Blob {
     emite(`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
     return new Blob(partes as BlobPart[], { type: 'application/pdf' });
 }
+
+/** Relación alto/ancho de una hoja carta. */
+const PROPORCION_CARTA = 11 / 8.5;
+
+/**
+ * Como `imagenAJpeg`, pero una imagen más alta que ~2 hojas (informes largos en un solo bloque) se trocea en hojas de
+ * proporción carta para que el PDF no quede en una tira interminable. Una imagen de alto razonable queda en una página.
+ */
+export async function imagenAJpegPaginas(img: Blob, calidad = 0.92): Promise<PaginaJpeg[]> {
+    const bmp = await createImageBitmap(img);
+    try {
+        if (bmp.height / bmp.width <= PROPORCION_CARTA * 2) return [await imagenAJpeg(img, calidad)];
+        const alto = Math.round(bmp.width * PROPORCION_CARTA);
+        const out: PaginaJpeg[] = [];
+        for (let y = 0; y < bmp.height; y += alto) {
+            const h = Math.min(alto, bmp.height - y);
+            const lienzo = document.createElement('canvas');
+            lienzo.width = bmp.width; lienzo.height = alto;
+            const ctx = lienzo.getContext('2d');
+            if (!ctx) throw new Error('No se pudo preparar el lienzo del PDF.');
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, lienzo.width, lienzo.height);
+            ctx.drawImage(bmp, 0, y, bmp.width, h, 0, 0, bmp.width, h);
+            const jpg = await new Promise<Blob | null>(r => lienzo.toBlob(r, 'image/jpeg', calidad));
+            if (!jpg) throw new Error('No se pudo codificar la imagen del PDF.');
+            out.push({ bytes: new Uint8Array(await jpg.arrayBuffer()), ancho: lienzo.width, alto });
+        }
+        return out;
+    } finally { bmp.close(); }
+}

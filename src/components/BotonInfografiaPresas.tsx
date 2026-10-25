@@ -99,7 +99,7 @@ export default function BotonInfografiaPresas({ presas }: { presas: PresaData[] 
             <button type="button" className="scada-action-btn" onClick={generar} disabled={generando}
                 title="Genera una imagen del estado actual de las presas para enviar por mensaje" aria-busy={generando}>
                 {generando ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> : <ImageDown size={11} />}
-                {generando ? 'Generando…' : 'Infografía'}
+                {generando ? 'Generando…' : 'Infografía estado actual'}
             </button>
             {aviso && <span role="alert" className="scada-action-aviso">{aviso}</span>}
         </>

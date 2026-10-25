@@ -16,6 +16,7 @@ import PresaLecturaBand from '../components/PresaLecturaBand';
 import LimnimetroPresa from '../components/LimnimetroPresa';
 import PresaHistoricoContexto from '../components/PresaHistoricoContexto';
 import BotonInfografiaPresas from '../components/BotonInfografiaPresas';
+import BotonInformeNivelTendencia from '../components/BotonInformeNivelTendencia';
 import AnaliticaPresa from '../components/presas/analitica/AnaliticaPresa';
 
 
@@ -682,6 +683,7 @@ const Presas = () => {
                         <Upload size={11} />Importar
                     </Link>
                     <BotonInfografiaPresas presas={presas} />
+                    <BotonInformeNivelTendencia />
                 </div>
             </header>
 

@@ -6,7 +6,7 @@
  */
 import { COLOR_INSTITUCIONAL, escSvg } from './informeHistoricoSvg';
 import { MESES_CORTO, formatearNumero } from './historicoPresas';
-import type { BarraCierre, FilaCalor, FilaMismoDia, SerieAnioNT } from './informeNivelTendenciaDatos';
+import type { BarraCierre, FilaCalor, FilaMismoDia, MovimientoAnioNT, SerieAnioNT } from './informeNivelTendenciaDatos';
 
 export const COLOR_AGUA = '#1F6FB2';
 const PALETA_COMP = ['#2A6FB5', '#C27A0E', '#13866F', '#7A5AA6', '#B5476B', '#6B7B8C'];
@@ -196,6 +196,49 @@ export function svgCierres(barras: BarraCierre[], o: { ancho?: number; alto?: nu
         g += `<text x="${f1(cx)}" y="${mt + ph + 16}" text-anchor="middle" font-size="11" font-weight="${b.esBase ? 800 : 500}" fill="${b.esBase ? COLOR_INSTITUCIONAL : INK2}">${b.anio}</text>`;
     });
     g += `<line x1="${ml}" x2="${W - mr}" y1="${mt + ph}" y2="${mt + ph}" stroke="${AXIS}"/><text x="${ml - 46}" y="12" font-size="10" fill="${INK2}">${e(o.unidad)}</text>`;
+    return g + '</svg>';
+}
+
+/* ─────────────── 4b. Movimiento mensual por año (barras ±) ─────────────── */
+
+/** Barras de cambio por mes (sube arriba / baja abajo de la línea cero), agrupadas por año. Un mes sin dato no dibuja barra: se rotula "S/D". */
+export function svgMovimientoBarras(
+    anios: MovimientoAnioNT[], meses: number[], metrica: 'escala' | 'volumen',
+    o: { ancho?: number; alto?: number; unidad: string; decimales: number; titulo: string },
+): string {
+    const W = o.ancho ?? 908, H = o.alto ?? 230;
+    const val = (a: MovimientoAnioNT, i: number) => (metrica === 'escala' ? a.meses[i]?.deltaEscala : a.meses[i]?.deltaVolumen) ?? null;
+    const todos = anios.flatMap(a => meses.map((_, i) => val(a, i))).filter(fin);
+    if (!todos.length || !meses.length) return vacio(W, H, o.titulo);
+    const ml = 56, mr = 12, mt = 30, mb = 28, pw = W - ml - mr, ph = H - mt - mb;
+    const { t, lo, hi, dec } = ticks(Math.min(0, ...todos), Math.max(0, ...todos), 4);
+    const y = (v: number) => mt + ph - ((v - lo) / (hi - lo)) * ph;
+    const paso = pw / meses.length, n = anios.length, bw = Math.min(16, (paso * 0.8) / n);
+    const comp = anios.filter(a => !a.esBase);
+    const color = (a: MovimientoAnioNT) => (a.esBase ? COLOR_INSTITUCIONAL : PALETA_COMP[comp.indexOf(a) % PALETA_COMP.length]);
+    let g = abrir(W, H, o.titulo);
+    for (const v of t) {
+        g += `<line x1="${ml}" x2="${W - mr}" y1="${f1(y(v))}" y2="${f1(y(v))}" stroke="${v === 0 ? AXIS : GRID}" stroke-width="${v === 0 ? 1.4 : 1}"/>`
+            + `<text x="${ml - 7}" y="${f1(y(v) + 3.5)}" text-anchor="end" font-size="10.5" fill="${INK2}">${e(formatearNumero(v, dec))}</text>`;
+    }
+    meses.forEach((m, i) => {
+        const cx = ml + paso * i + paso / 2, x0 = cx - (bw * n) / 2;
+        anios.forEach((a, k) => {
+            const v = val(a, i), bx = x0 + k * bw;
+            if (!fin(v)) { g += `<text x="${f1(bx + bw / 2)}" y="${f1(y(0) - 3)}" text-anchor="middle" font-size="7.5" fill="#9aa3ac" font-style="italic">S/D</text>`; return; }
+            const yv = y(v), top = Math.min(yv, y(0)), h = Math.max(1.2, Math.abs(yv - y(0)));
+            g += `<rect x="${f1(bx + 0.5)}" y="${f1(top)}" width="${f1(Math.max(1, bw - 1))}" height="${f1(h)}" fill="${color(a)}"><title>${e(`${a.etiqueta} · ${MESES_CORTO[m - 1]}: ${formatearNumero(v, o.decimales)} ${o.unidad}`)}</title></rect>`;
+        });
+        g += `<text x="${f1(cx)}" y="${H - 9}" text-anchor="middle" font-size="10.5" fill="${INK2}">${MESES_CORTO[m - 1]}</text>`;
+    });
+    // Leyenda directa de los años (arriba a la derecha).
+    let lx = W - mr;
+    for (const a of [...anios].reverse()) {
+        const w = a.etiqueta.length * 6.4 + 22;
+        lx -= w;
+        g += `<rect x="${f1(lx)}" y="7" width="10" height="10" rx="2" fill="${color(a)}"/><text x="${f1(lx + 14)}" y="16" font-size="10.5" font-weight="${a.esBase ? 800 : 500}" fill="${a.esBase ? COLOR_INSTITUCIONAL : INK2}">${e(a.etiqueta)}</text>`;
+    }
+    g += `<text x="${ml - 50}" y="16" font-size="10" fill="${INK2}">${e(o.unidad)}</text>`;
     return g + '</svg>';
 }
 

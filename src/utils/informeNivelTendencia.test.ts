@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { indexarSerie, type FilaSerie } from './historicoPresas';
-import { configNTPorDefecto, ultimosAnios, validarConfigNT } from './informeNivelTendenciaConfig';
+import { configNTPorDefecto, etiquetaAnioPeriodo, mesesDelPeriodo, ultimosAnios, validarConfigNT } from './informeNivelTendenciaConfig';
 import { prepararNivelTendencia, redactarLectura } from './informeNivelTendenciaDatos';
 import { htmlNivelTendencia } from './informeNivelTendenciaHtml';
 import { svgAreaMes, svgCalor, svgCierres, svgCurvasAnios, svgPosicionHistorica } from './informeNivelTendenciaSvg';
@@ -156,3 +156,57 @@ describe('pdfDePaginas', () => {
         expect(() => pdfDePaginas([])).toThrow();
     });
 });
+
+describe('movimiento del periodo', () => {
+    const mov = indexarSerie([
+        fila('PRE-001', '2025-09-30', 100, 1270), fila('PRE-001', '2025-10-31', 110, 1271),
+        fila('PRE-001', '2026-03-31', 300, 1280), fila('PRE-001', '2026-09-30', 250, 1277),
+        fila('PRE-001', '2024-09-30', 50, 1260), fila('PRE-001', '2025-03-31', 80, 1262),
+    ]);
+    const prep = (over = {}) => prepararNivelTendencia(cfg({ presas: ['PRE-001'], aniosComparacion: [2025], ...over }), mov, hoy).presas[0].movimiento;
+
+    it('meses del periodo: el ciclo cruza el año y el año etiqueta donde termina', () => {
+        expect(mesesDelPeriodo({ mesIni: 10, mesFin: 9 }, 2026).map(m => `${m.anio}-${m.mes}`))
+            .toEqual(['2025-10', '2025-11', '2025-12', '2026-1', '2026-2', '2026-3', '2026-4', '2026-5', '2026-6', '2026-7', '2026-8', '2026-9']);
+        expect(mesesDelPeriodo({ mesIni: 5, mesFin: 5 }, 2026)).toEqual([{ anio: 2026, mes: 5 }]);
+        expect(etiquetaAnioPeriodo({ mesIni: 10, mesFin: 9 }, 2026)).toBe('2025–2026');
+    });
+    it('ciclo completo: Δ = cierre final − cierre previo al periodo', () => {
+        const base = prep().anios.find(a => a.esBase)!;
+        expect(base.etiqueta).toBe('2025–2026');
+        expect(base.deltaVolumen).toBeCloseTo(150, 6); // 250 − 100 (cierre de sep 2025)
+        expect(base.deltaEscala).toBeCloseTo(7, 6);
+        expect(base.parcial).toBe(false);
+    });
+    it('mes sin dato es null (S/D), nunca 0', () => {
+        const base = prep().anios.find(a => a.esBase)!;
+        expect(base.meses[0].deltaVolumen).toBeCloseTo(10, 6); // oct: 110 − 100
+        expect(base.meses[1].deltaVolumen).toBeNull(); // nov sin dato
+        expect(base.meses.some(m => m.deltaVolumen === 0)).toBe(false);
+    });
+    it('año de comparación sin dato suficiente: Δ null y no entra al promedio', () => {
+        const m = prep({ aniosComparacion: [2024, 2025] });
+        expect(m.anios.find(a => a.anio === 2024)!.deltaVolumen).toBeNull();
+        expect(m.promedioComp?.n).toBe(1);
+    });
+    it('periodo en curso: llega al último dato y se marca parcial', () => {
+        const m = prep({ periodo: { mesIni: 1, mesFin: 12 } });
+        expect(m.anios.find(a => a.esBase)!.parcial).toBe(true);
+    });
+    it('la lectura nombra el cambio y se emite como S/D si no hay datos', () => {
+        expect(prep().lectura.join(' ')).toMatch(/subió/);
+        const vacio = prepararNivelTendenciaVacio();
+        expect(vacio.join(' ')).toMatch(/S\/D/);
+    });
+    it('el HTML incluye la sección y nunca imprime NaN/undefined', () => {
+        const h = htmlNivelTendencia(prepararNivelTendencia(cfg({ presas: ['PRE-001'], aniosComparacion: [2025] }), mov, hoy), { srl: '', sica: '' });
+        expect(h).toContain('Movimiento del periodo');
+        expect(h).not.toMatch(/NaN|undefined/);
+        const sin = htmlNivelTendencia(prepararNivelTendencia(cfg({ presas: ['PRE-001'], aniosComparacion: [2025], secciones: [] }), mov, hoy), { srl: '', sica: '' });
+        expect(sin).not.toContain('Movimiento del periodo');
+    });
+});
+
+function prepararNivelTendenciaVacio(): string[] {
+    return prepararNivelTendencia(cfg({ presas: ['PRE-001'], aniosComparacion: [] }), indexarSerie([]), hoy).presas[0].movimiento.lectura;
+}

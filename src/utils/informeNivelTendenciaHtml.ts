@@ -9,7 +9,7 @@ import { COTAS_OFICIALES } from './cotasPresas';
 import { MESES_LARGO, formatearNumero } from './historicoPresas';
 import { esc, fechaHoraLegible, fechaLarga, folioConPartes, pieInforme, cabeceraInforme, minificaCss } from './informeBase';
 import {
-    COLOR_AGUA, svgAreaMes, svgCalor, svgCierres, svgCurvasAnios, svgPosicionHistorica,
+    COLOR_AGUA, svgAreaMes, svgCalor, svgCierres, svgCurvasAnios, svgMovimientoBarras, svgPosicionHistorica,
 } from './informeNivelTendenciaSvg';
 import type { DatosNivelTendencia, DatosPresaNT, EstadoTendencia } from './informeNivelTendenciaDatos';
 import type { EstadoSemaforo } from './estadisticaHistorica';
@@ -183,6 +183,37 @@ function tendenciaSec(p: DatosPresaNT): string {
   <div class="lectura"><b>Lectura ejecutiva</b>${p.lectura.map(l => `<p>${esc(l)}</p>`).join('')}</div></section>`;
 }
 
+const celdaDelta = (v: number | null, d: number): string =>
+    `<td class="n ${v == null ? 'sd' : v >= 0 ? 'sube' : 'baja'}">${v == null ? 'S/D' : `${flecha(v)} ${esc(conSigno(v, d))}`}</td>`;
+
+function movimientoSec(p: DatosPresaNT): string {
+    const mv = p.movimiento;
+    const base = mv.anios.find(a => a.esBase);
+    if (!base || mv.anios.every(a => a.deltaEscala == null && a.deltaVolumen == null)) {
+        return `<section class="sec"><h2>Movimiento del periodo<span>${esc(mv.etiquetaPeriodo)}</span></h2><div class="aviso">S/D — no hay datos suficientes en este periodo para medir cuánto se movió la presa.</div></section>`;
+    }
+    const orden = [...mv.anios].reverse(); // más reciente primero
+    const ext = (x: { valor: number } | null, d: number) => (x ? esc(n(x.valor, d)) : '<span class="sd">S/D</span>');
+    const resumen = orden.map(a => `<tr class="${a.esBase ? 'hoy' : ''}"><td class="anio">${esc(a.etiqueta)}${a.parcial ? '<span class="sd"> parcial</span>' : ''}</td>`
+        + `<td class="n">${ext(a.escalaIni, 2)}</td><td class="n">${ext(a.escalaFin, 2)}</td>${celdaDelta(a.deltaEscala, 2)}`
+        + `<td class="n">${ext(a.volumenIni, 1)}</td><td class="n">${ext(a.volumenFin, 1)}</td>${celdaDelta(a.deltaVolumen, 1)}`
+        + `<td class="n ${a.ritmoCmDia == null ? 'sd' : ''}">${a.ritmoCmDia == null ? 'S/D' : esc(conSigno(a.ritmoCmDia, 1))}</td></tr>`).join('');
+    const pc = mv.promedioComp;
+    const filaProm = pc ? `<tr><td class="anio">Promedio de ${pc.n} ${pc.n === 1 ? 'periodo' : 'periodos'}</td><td class="n" colspan="2"></td>${celdaDelta(pc.deltaEscala, 2)}<td class="n" colspan="2"></td>${celdaDelta(pc.deltaVolumen, 1)}<td class="n"></td></tr>` : '';
+    const tabla = (campo: 'deltaEscala' | 'deltaVolumen', unidad: string, d: number) => {
+        const filas = mv.meses.map((m, i) => `<tr><td class="anio">${MESES_LARGO[m - 1].slice(0, 3)}</td>${orden.map(a => celdaDelta(a.meses[i]?.[campo] ?? null, d)).join('')}</tr>`).join('');
+        const total = `<tr class="hoy"><td class="anio">Total</td>${orden.map(a => celdaDelta(a[campo], d)).join('')}</tr>`;
+        return `<div class="graf"><h3>Cambio mensual de ${unidad === 'm' ? 'nivel' : 'volumen'} <em class="est">${unidad}</em></h3><table><thead><tr><th>Mes</th>${orden.map(a => `<th class="n">${esc(a.etiqueta)}</th>`).join('')}</tr></thead><tbody>${filas}${total}</tbody></table></div>`;
+    };
+    const nota = base.parcial ? ' · periodo en curso: el total llega al último dato disponible' : '';
+    return `<section class="sec"><h2>Movimiento del periodo<span>${esc(mv.etiquetaPeriodo)} · Δ = final menos inicial${esc(nota)}</span></h2>
+  <div class="graf" style="margin-top:8px"><table><thead><tr><th>Periodo</th><th class="n">Nivel inicial</th><th class="n">Nivel final</th><th class="n">Δ nivel (m)</th><th class="n">Vol. inicial</th><th class="n">Vol. final</th><th class="n">Δ vol. (Mm³)</th><th class="n">cm/día</th></tr></thead><tbody>${resumen}${filaProm}</tbody></table></div>
+  <div class="g2">${tabla('deltaEscala', 'm', 2)}${tabla('deltaVolumen', 'Mm³', 1)}</div>
+  <div class="graf" style="margin-top:12px"><h3>Cambio mensual de volumen por año <em class="est">Mm³ · arriba sube, abajo baja</em></h3>${svgMovimientoBarras(mv.anios, mv.meses, 'volumen', { unidad: 'Mm³', decimales: 1, titulo: `Cambio mensual de volumen de ${p.nombre} por año` })}</div>
+  <div class="graf" style="margin-top:12px"><h3>Cambio mensual de nivel por año <em class="est">m · arriba sube, abajo baja</em></h3>${svgMovimientoBarras(mv.anios, mv.meses, 'escala', { unidad: 'm', decimales: 2, titulo: `Cambio mensual de nivel de ${p.nombre} por año`, alto: 210 })}</div>
+  <div class="lectura"><b>Lectura del periodo</b>${mv.lectura.map(l => `<p>${esc(l)}</p>`).join('')}</div></section>`;
+}
+
 function mismoDiaSec(p: DatosPresaNT): string {
     const c = p.corte;
     if (!c) return '';
@@ -239,6 +270,7 @@ ${cabeceraInforme({ logoSrl: logos.srl, logoSica: logos.sica, titulo: 'Nivel y t
 ${p.corte?.fueraDelMes ? `<div class="aviso"><b>Sin datos en ${esc(mesTxt)}.</b> Se muestra el último dato disponible (${esc(fechaLarga(p.corte.fecha))}).</div>` : ''}
 ${hero(p)}
 ${p.corte || p.tendencia.diasConDato ? tendenciaSec(p) : ''}
+${sec.has('movimiento') ? movimientoSec(p) : ''}
 ${sec.has('mismoDia') ? mismoDiaSec(p) : ''}
 ${sec.has('curvas') && p.series.length > 1 ? curvasSec(p) : ''}
 ${sec.has('cierres') && p.cierres.length > 1 ? cierresSec(p) : ''}

@@ -7,7 +7,7 @@ import {
     ID_BOQUILLA, ID_MADERO, MESES_LARGO, NOMBRE_PRESA, type PresaId,
 } from '../../utils/historicoPresas';
 import {
-    ORDEN_SECCIONES_NT, SECCIONES_NT, avisosConfigNT, configNTPorDefecto, todosLosAnios, ultimosAnios, validarConfigNT,
+    ORDEN_SECCIONES_NT, SECCIONES_NT, avisosConfigNT, configNTPorDefecto, cruzaAnio, etiquetaAnioPeriodo, todosLosAnios, ultimosAnios, validarConfigNT,
     type ConfigNivelTendencia, type SeccionNT,
 } from '../../utils/informeNivelTendenciaConfig';
 import { prepararNivelTendencia } from '../../utils/informeNivelTendenciaDatos';
@@ -110,6 +110,14 @@ export default function InformeNivelTendenciaModal({ onCerrar }: Props) {
         { id: 'ninguno', et: 'Sin comparación', v: [] as number[] },
     ];
 
+    const atajosPeriodo = [
+        { id: 'ciclo', et: 'Ciclo completo (oct–sep)', v: { mesIni: 10, mesFin: 9 } },
+        { id: 'anio', et: 'Año calendario', v: { mesIni: 1, mesFin: 12 } },
+        { id: 'mes', et: 'Solo el mes elegido', v: { mesIni: c.mes, mesFin: c.mes } },
+        { id: 'ult3', et: 'Últimos 3 meses', v: { mesIni: ((c.mes + 9) % 12) + 1, mesFin: c.mes } },
+        { id: 'ult6', et: 'Últimos 6 meses', v: { mesIni: ((c.mes + 6) % 12) + 1, mesFin: c.mes } },
+    ];
+
     return createPortal(
         <div className="ndvi-cfg-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget && !enPrevia) onCerrar(); }}>
             {enPrevia ? (
@@ -166,6 +174,29 @@ export default function InformeNivelTendenciaModal({ onCerrar }: Props) {
                                         </select></label>
                                 </div>
                             </section>
+                            {c.secciones.includes('movimiento') && (
+                                <section className="ndvi-cfg-bloque" aria-label="Periodo de movimiento">
+                                    <span className="ndvi-cfg-etq">Periodo de movimiento <em>(cuánto se movió la presa)</em></span>
+                                    <div className="ndvi-cfg-chips" role="group" aria-label="Atajos de periodo">
+                                        {atajosPeriodo.map((k) => (
+                                            <button key={k.id} type="button" className="ndvi-cfg-chip" aria-pressed={k.v.mesIni === c.periodo.mesIni && k.v.mesFin === c.periodo.mesFin} onClick={() => set({ periodo: k.v })}>{k.et}</button>
+                                        ))}
+                                    </div>
+                                    <div className="ndvi-cfg-fila">
+                                        <label className="ndvi-cfg-etq" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>Desde
+                                            <select className="ndvi-cfg-in" value={c.periodo.mesIni} onChange={(e) => set({ periodo: { ...c.periodo, mesIni: Number(e.target.value) } })}>
+                                                {MESES_LARGO.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                                            </select></label>
+                                        <label className="ndvi-cfg-etq" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>Hasta
+                                            <select className="ndvi-cfg-in" value={c.periodo.mesFin} onChange={(e) => set({ periodo: { ...c.periodo, mesFin: Number(e.target.value) } })}>
+                                                {MESES_LARGO.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                                            </select></label>
+                                    </div>
+                                    <span className="ndvi-cfg-resumen">{cruzaAnio(c.periodo)
+                                        ? `Cruza el año: el año ${c.anioBase} es ${etiquetaAnioPeriodo(c.periodo, c.anioBase)}.`
+                                        : `Dentro de ${c.anioBase}.`}</span>
+                                </section>
+                            )}
                             <section className="ndvi-cfg-bloque" aria-label="Años de comparación">
                                 <span className="ndvi-cfg-etq">Años de comparación <em>({c.aniosComparacion.length} de {aniosAnt.length})</em></span>
                                 <div className="ndvi-cfg-chips" role="group" aria-label="Atajos de años">

@@ -31,7 +31,6 @@
 .ndvi-ia-leyenda i.dash { height: 0; border-top: 2px dashed #e2e8f0; background: none; }
 .ndvi-ia-leyenda i.band { height: 10px; background: rgba(148, 163, 184, 0.3); }
 
-.ndvi-ia-sub { margin: 22px 0 4px; font-size: 1rem; color: #f1f5f9; }
 .ndvi-ia-tabla-wrap { margin-top: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; max-width: 100%; }
 .ndvi-ia-tabla-wrap:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
 .ndvi-ia-tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
@@ -43,17 +42,6 @@
 .ndvi-ia-tabla tr.foco { background: rgba(251, 191, 36, 0.09); }
 .ndvi-ia-aviso { color: #fbbf24; cursor: help; }
 
-.ndvi-ia-cruce { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
-.ndvi-ia-fig { margin: 14px 0 0; }
-.ndvi-ia-fig figcaption { font-weight: 600; color: #e2e8f0; font-size: 0.85rem; padding-bottom: 4px; }
-.ndvi-ia-fig svg { width: 100%; height: auto; max-width: 340px; }
-.ndvi-ia-cruce .ndvi-ia-tabla th, .ndvi-ia-cruce .ndvi-ia-tabla td { padding: 6px 8px; }
-.ndvi-ia-eje { stroke: #475569; stroke-width: 1; }
-.ndvi-ia-tick { fill: #aab6c8; font-size: 11px; }
-.ndvi-ia-pto { fill: #7dd3fc; stroke: #0f172a; stroke-width: 2; }
-.ndvi-ia-pto.atip { fill: none; stroke: #fbbf24; stroke-width: 2; }
-.ndvi-ia-pto-t { fill: #e2e8f0; font-size: 12px; font-weight: 600; }
-@media (max-width: 1100px) { .ndvi-ia-cruce { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 600px) { .ndvi-ia-minis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ndvi-ia-lectura { font-size: 0.95rem; } }
 @media (prefers-reduced-motion: reduce) { .ndvi-ia * { transition: none !important; animation: none !important; } }
 .ndvi-ia .ndvi-chips { flex-wrap: wrap; overflow-x: visible; }

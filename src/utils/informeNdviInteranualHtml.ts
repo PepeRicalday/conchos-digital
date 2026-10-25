@@ -152,7 +152,7 @@ export function matricesSupVolHtml(d: ModeloInteranual): string {
         d.anios.map((a) => `<th class="n">${a}</th>`).join('')}</tr></thead><tbody>${d.modulos.map((m) => `<tr><td><b>${esc(m.nombre)}</b></td>${
         m.cruce.map((c) => tdN(valor(c), c.atipicos > 0 ? ' ⚠' : '')).join('')}</tr>`).join('')}</tbody></table></div>${nota ? `<p class="fuente">${nota}</p>` : ''}`;
     const ultimoSup = d.modulos.flatMap((m) => m.cruce).filter((c) => c.volumenHm3 != null).reduce<number | null>((mx, c) => (mx == null || c.anio > mx ? c.anio : mx), null);
-    return `<p class="frase">${ultimoSup != null ? `El informe de superficie y volumen (ACUM_INF) cubre hasta ${ultimoSup}.` : 'Ninguno de los años elegidos tiene informe de superficie y volumen (S/D).'} La tabla permite ver, año contra año, el volumen entregado junto a la vegetación; no prueba relación entre ambos.</p>
+    return `<p class="frase">${ultimoSup != null ? `El informe de superficie y volumen (ACUM_INF) cubre hasta ${ultimoSup}.` : 'Ninguno de los años elegidos tiene informe de superficie y volumen (S/D).'} La tabla permite ver, año contra año, el volumen entregado junto a la vegetación; no prueba relación entre ambos ni causa (la superficie explica parte del volumen).</p>
 ${matriz('Superficie regada (informe ACUM_INF, ha)', (c) => fmtMiles(c.superficieHa, 0), 'Informe de distribución al corte de septiembre, suma de cultivos; no es la superficie del polígono del módulo. El volumen está en miles de m³ convertidos a hm³ y la lámina es volumen dividido entre la superficie regada del mismo informe.')}
 ${matriz('Volumen entregado (hm³)', (c) => fmt(c.volumenHm3, 1), '')}
 ${matriz('Lámina entregada (m³ por hectárea regada)', (c) => fmtMiles(c.laminaM3Ha, 0), '')}

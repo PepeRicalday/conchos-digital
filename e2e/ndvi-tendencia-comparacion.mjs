@@ -1,5 +1,5 @@
 // Auditoría de SOLO LECTURA de GEO-MONITOR · NDVI mensual por módulo: gráficas del panel + modal + INFORME TÉCNICO INTEGRADO.
-//   npm run audit:ndvi -- <iteracion>        (con `npm run dev` en :5173)       ·  SALTAR=perfiles,sd,informe para omitir fases
+//   npm run audit:ndvi -- <iteracion>        (con `npm run dev` en :5173)       ·  SALTAR=perfiles,sd,vv,informe para omitir fases
 // Capturas y resultado: ../ciclo_2025_2026/auditoria/ndvi_informe_integrado/iter<N>/ (resultado.json, hojas_*, grises_*, PDF, HTML descargados).
 // Fases: (1) panel en Chromium 1440/1024/820/430 y WebKit iPhone 15 Pro Max + iPad Pro 11 (vertical/horizontal): gráfica principal, selector año+mes,
 // ficha, plano, foco/teclado; (2) S/D simulado por respuesta alterada; (3) cifras del panel contra la BD viva (REST con anon key, solo SELECT);
@@ -362,6 +362,12 @@ if (!SALTAR.includes('sd')) {
   if (err.length) hallazgo('alto', 'cifras panel', `errores de consola: ${JSON.stringify(err.slice(0, 3))}`);
   if (net.length) hallazgo('alto', 'cifras panel', `fallos de red: ${JSON.stringify(net.slice(0, 3))}`);
   await browser.close();
+}
+
+// ═════════════════ 3b) Sección «Más agua, más vegetación» (cuadros volumen–NDVI): perfiles, cifras, S/D, grises ═════════════════
+if (!SALTAR.includes('vv')) {
+  const { barridoVolumenVegetacion } = await import('./ndvi-volumen-vegetacion.mjs');
+  await barridoVolumenVegetacion({ OUT, res, hallazgo, cifra, vigila, abrirPanel, medidas, rest, bd, PERFILES });
 }
 
 // ═════════════════ 4) Informe técnico integrado: modal, vista previa, descarga, impresión, imagen, grises y cifras ═════════════════

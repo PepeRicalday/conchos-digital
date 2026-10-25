@@ -184,19 +184,27 @@ export async function volumenAcumuladoPorModuloHm3(
     hastaMesInclusive: string,
     /** Primer mes del ciclo ('AAAA-MM'): sin él se sumaba desde el inicio de la tabla y, con datos de otro ciclo, los mezclaría. */
     desdeMesInclusive?: string,
-): Promise<{ porModulo: Map<number, number>; ultimoMesEsParcial: boolean; /** Mensaje si la consulta falló: NO equivale a "sin volumen cargado". */ error: string | null }> {
+): Promise<{
+    porModulo: Map<number, number>; ultimoMesEsParcial: boolean; /** Mensaje si la consulta falló: NO equivale a "sin volumen cargado". */ error: string | null;
+    /** Meses con volumen por módulo: dice si la ventana está completa. */ mesesPorModulo: Map<number, number>;
+    /** Todos los meses de la ventana marcados como parciales (no solo el último). */ mesesParciales: string[];
+}> {
     const porModulo = new Map<number, number>();
+    const mesesPorModulo = new Map<number, number>();
     let consulta = supabase
         .from('volumen_modulo_mensual_provisional')
         .select('numero_modulo, mes, volumen_miles_m3, es_mes_parcial')
         .lte('mes', hastaMesInclusive);
     if (desdeMesInclusive) consulta = consulta.gte('mes', desdeMesInclusive);
     const { data, error } = await consulta;
-    if (error || !data) return { porModulo, ultimoMesEsParcial: false, error: error?.message ?? 'Sin respuesta del servidor.' };
+    if (error || !data) return { porModulo, ultimoMesEsParcial: false, error: error?.message ?? 'Sin respuesta del servidor.', mesesPorModulo, mesesParciales: [] };
     for (const fila of data) {
+        if (fila.volumen_miles_m3 == null) continue; // mes sin cifra: no suma ni cuenta (nunca 0)
         const acumulado = (porModulo.get(fila.numero_modulo) ?? 0) + fila.volumen_miles_m3 / 1000;
         porModulo.set(fila.numero_modulo, acumulado);
+        mesesPorModulo.set(fila.numero_modulo, (mesesPorModulo.get(fila.numero_modulo) ?? 0) + 1);
     }
     const ultimoMesEsParcial = data.some(f => f.mes === hastaMesInclusive && f.es_mes_parcial);
-    return { porModulo, ultimoMesEsParcial, error: null };
+    const mesesParciales = [...new Set(data.filter(f => f.es_mes_parcial).map(f => String(f.mes)))].sort();
+    return { porModulo, ultimoMesEsParcial, error: null, mesesPorModulo, mesesParciales };
 }

@@ -2,16 +2,18 @@ import React, { useEffect, useMemo, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { supabase } from '../../lib/supabase';
 import { COLOR_MODULO_SRL } from '../../utils/modulosSRL';
-import { fmt, fmtMiles } from '../../utils/formato';
+import { fmt } from '../../utils/formato';
 import { NDVI_RANGO, cargarSerieNdviV2 } from '../../utils/ndviSerie';
 import { cargarSupVolAnual } from '../../utils/supVolAnual';
 import { aFilasV2 } from '../../utils/informeNdviAnalisis';
 import type { FilaNdviInforme } from '../../utils/informeNdviDatos';
 import {
-    COLOR_ANIO_FOCO, ETIQUETA_MES, MESES_TEMPORADA, UMBRAL_SIN_CAMBIO, anomaliaPico, aniosDisponibles, climatologiaMensual, colorAnioPrevio, cruceAnual,
+    COLOR_ANIO_FOCO, ETIQUETA_MES, MESES_TEMPORADA, UMBRAL_SIN_CAMBIO, anomaliaPico, aniosDisponibles, climatologiaMensual, colorAnioPrevio,
     lecturaAnio, resumenAnio, serieAnio, tendenciaPico, type FilaNdviV2, type FilaSupVol,
 } from '../../utils/ndviInteranual';
+import { cargarVolumenActual, type VolumenActual } from '../../utils/ndviVolumen';
 import { SelectorChips } from './SelectorChips';
+import { VolumenVegetacion } from './VolumenVegetacion';
 import './NdviInteranual.css';
 
 const MODULOS_SRL = [1, 2, 3, 4, 5, 12];
@@ -58,42 +60,6 @@ const MiniPulso: React.FC<{ ndvi: FilaNdviV2[]; modulo: number; anioFoco: number
     );
 };
 
-/** Dispersión volumen entregado (hm³) contra NDVI medio de la temporada: un punto por año con ambos datos; atípico = hueco con marca.
- *  Se usa la media mar–sep y no el pico: con los datos 2021–2024 la media acompaña al volumen dentro de cada módulo
- *  (r de 0.69 a 0.98 en 5 de 6 módulos) y el pico no (r entre −0.74 y 0.54). */
-const DispersionLamina: React.FC<{ cruce: ReturnType<typeof cruceAnual>[]; modulo: number }> = ({ cruce, modulo }) => {
-    const pts = cruce.filter(c => c.volumenHm3 != null && c.mediaNdvi != null);
-    if (pts.length < 3) {
-        return <p className="ndvi-nota">Volumen contra vegetación: <Sd /> (se necesitan al menos 3 años con volumen y NDVI; hay {pts.length}).</p>;
-    }
-    const W = 360, H = 190, L = 46, R = 54, T = 14, B = 34;
-    const xs = pts.map(p => p.volumenHm3 as number), ys = pts.map(p => p.mediaNdvi as number);
-    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-    const px = (v: number) => L + (x1 === x0 ? (W - L - R) / 2 : ((v - x0) / (x1 - x0)) * (W - L - R));
-    const py = (v: number) => T + (y1 === y0 ? (H - T - B) / 2 : (1 - (v - y0) / (y1 - y0)) * (H - T - B));
-    return (
-        <figure className="ndvi-ia-fig">
-            <figcaption>¿Más agua entregada, más vegetación? — Módulo {modulo}</figcaption>
-            <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Volumen entregado contra NDVI medio de la temporada, ${pts.length} años`}>
-                <line x1={L} y1={H - B} x2={W - R} y2={H - B} className="ndvi-ia-eje" /><line x1={L} y1={T} x2={L} y2={H - B} className="ndvi-ia-eje" />
-                <text x={L} y={H - 18} className="ndvi-ia-tick" textAnchor="start">{fmt(x0, 1)}</text>
-                <text x={W - R} y={H - 18} className="ndvi-ia-tick" textAnchor="end">{fmt(x1, 1)}</text>
-                <text x={(L + W - R) / 2} y={H - 3} className="ndvi-ia-tick" textAnchor="middle">Volumen entregado (hm³)</text>
-                <text x={L - 6} y={T + 8} className="ndvi-ia-tick" textAnchor="end">{y1.toFixed(2)}</text>
-                <text x={L - 6} y={H - B} className="ndvi-ia-tick" textAnchor="end">{y0.toFixed(2)}</text>
-                <text x={12} y={(T + H - B) / 2} className="ndvi-ia-tick" textAnchor="middle" transform={`rotate(-90 12 ${(T + H - B) / 2})`}>NDVI medio mar–sep</text>
-                {pts.map(p => (
-                    <g key={p.anio}>
-                        <circle cx={px(p.volumenHm3 as number)} cy={py(p.mediaNdvi as number)} r="6" className={p.atipicos > 0 ? 'ndvi-ia-pto atip' : 'ndvi-ia-pto'} />
-                        <text x={px(p.volumenHm3 as number) + 9} y={py(p.mediaNdvi as number) + 4} className="ndvi-ia-pto-t">{p.anio}{p.atipicos > 0 ? ' ⚠' : ''}</text>
-                    </g>
-                ))}
-            </svg>
-            <p className="ndvi-nota">{pts.length} años con ambos datos. Es una comparación descriptiva entre años, no una relación causal; punto hueco con ⚠ = captura atípica en el informe fuente.</p>
-        </figure>
-    );
-};
-
 /** `filas`: la serie v2 que el panel ya cargó; con ella el componente solo consulta superficie/volumen (compartido con el informe). Sin ella, carga la serie por su cuenta. */
 export const NdviInteranual: React.FC<{ filas?: FilaNdviInforme[] }> = ({ filas }) => {
     const compartida = !!filas;
@@ -104,6 +70,7 @@ export const NdviInteranual: React.FC<{ filas?: FilaNdviInforme[] }> = ({ filas 
     const [modulo, setModulo] = useState<number>(1);
     const [anioElegido, setAnioElegido] = useState<number | null>(null);
     const [reducir, setReducir] = useState(false);
+    const [volActual, setVolActual] = useState<VolumenActual | null>(null);
 
     useEffect(() => {
         const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -125,6 +92,12 @@ export const NdviInteranual: React.FC<{ filas?: FilaNdviInforme[] }> = ({ filas 
         })();
         return () => { cancelado = true; };
     }, [compartida]);
+    // Volumen del año actual (hoja SRL provisional): una consulta por sesión, aparte de ACUM_INF; si falla, el panel lo dice.
+    useEffect(() => {
+        let cancelado = false;
+        cargarVolumenActual().then(v => { if (!cancelado) setVolActual(v); });
+        return () => { cancelado = true; };
+    }, []);
     const ndvi = useMemo(() => (filas ? aFilasV2(filas) : ndviPropio), [filas, ndviPropio]);
 
     const anios = useMemo(() => aniosDisponibles(ndvi, modulo), [ndvi, modulo]);
@@ -183,7 +156,6 @@ export const NdviInteranual: React.FC<{ filas?: FilaNdviInforme[] }> = ({ filas 
         for (const f of supVol) if (f.numero_modulo === modulo) s.add(f.anio);
         return [...s].sort((a, b) => a - b);
     }, [anios, supVol, modulo]);
-    const cruce = useMemo(() => aniosCruce.map(a => cruceAnual(ndvi, supVol, modulo, a)), [aniosCruce, ndvi, supVol, modulo]);
 
     if (cargando) return <div className="ndvi-chart-card glass ndvi-ia-msg" role="status">Cargando comparativo interanual…</div>;
     if (error) return <div className="ndvi-chart-card glass ndvi-ia-msg" role="alert">No se pudo leer el comparativo interanual ({error}). Esto no significa que no haya datos.</div>;
@@ -244,34 +216,8 @@ export const NdviInteranual: React.FC<{ filas?: FilaNdviInforme[] }> = ({ filas 
                 {' '}⚠ = algún mes con menos de 2 pasos de satélite limpios o menos de la mitad de píxeles válidos.
             </p>
 
-            <h4 className="ndvi-ia-sub">Superficie, volumen y vegetación</h4>
-            <div className="ndvi-ia-cruce">
-                <div className="ndvi-ia-tabla-wrap" tabIndex={0} role="region" aria-label={`Superficie, volumen y vegetación por año, Módulo ${modulo}`}>
-                    <table className="ndvi-ia-tabla">
-                        <caption>Superficie · volumen · vegetación por año — Módulo {modulo}</caption>
-                        <thead><tr><th scope="col">Año</th><th scope="col">Superficie (ha)</th><th scope="col">Volumen (hm³)</th><th scope="col">Lámina (m³/ha)</th><th scope="col">ha por hm³</th><th scope="col">NDVI medio</th><th scope="col">Pico NDVI</th></tr></thead>
-                        <tbody>
-                            {cruce.map(c => (
-                                <tr key={c.anio} className={c.anio === anioFoco ? 'foco' : ''}>
-                                    <th scope="row">{c.anio}{c.atipicos > 0 && <span className="ndvi-ia-aviso" title={`${c.atipicos} renglón(es) de cultivo con captura atípica en el informe fuente (se suman tal cual)`}> ⚠</span>}</th>
-                                    <td>{celda(fmtMiles(c.superficieHa, 0))}</td>
-                                    <td>{celda(fmt(c.volumenHm3, 1))}</td>
-                                    <td>{celda(fmtMiles(c.laminaM3Ha, 0))}</td>
-                                    <td>{celda(fmt(c.haPorHm3, 1))}</td>
-                                    <td>{celda(fmt(c.mediaNdvi, 3))}</td>
-                                    <td>{celda(fmt(c.picoNdvi, 3))}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-                <DispersionLamina cruce={cruce} modulo={modulo} />
-            </div>
-            <p className="ndvi-nota">
-                Superficie y volumen: informe de distribución al corte de septiembre (ACUM_INF); no hay informe de 2025 ni de 2026 cargado,
-                y no hay NDVI de 2020 (la serie de satélite inicia en marzo de 2021): esos huecos se muestran como S/D, no como cero.
-                ⚠ = renglones con captura atípica en el informe fuente, sumados sin corregir.
-            </p>
+            <VolumenVegetacion ndvi={ndvi} supVol={supVol} volumenActual={volActual} cargandoVolumen={volActual == null}
+                modulo={modulo} onElegir={setModulo} aniosTabla={aniosCruce} />
         </section>
     );
 };

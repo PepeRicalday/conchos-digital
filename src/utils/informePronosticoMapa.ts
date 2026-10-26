@@ -15,8 +15,8 @@ import { VIZ } from './climaCharts';
 import { COLOR_MODULO, MODULOS_SRL } from './geoDistrito';
 import { fmtDia, fmtHora, type BandaHoraria, type ResumenModulo } from './informePronosticoDatos';
 import { esNoche, horaLocal } from './informePronosticoSvg';
+import { esc } from './informeBase';
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /** Rampa secuencial de un solo tono azul: más oscuro = más probable. `null` = sin dato (trama gris). */
 export const RAMPA_PROB: { max: number; color: string; texto: string }[] = [
@@ -233,10 +233,11 @@ export function franja72Svg(o: {
         // Extremos del pronóstico, rotulados con su hora.
         const p = o.pron.filter(b => b.media != null);
         const iMax = p.reduce((m, b, i) => (b.media! > p[m].media! ? i : m), 0), iMin = p.reduce((m, b, i) => (b.media! < p[m].media! ? i : m), 0);
+        // Un mínimo pegado al piso de la gráfica se rotula ARRIBA del punto: abajo chocaba con las horas del eje.
         const etq = (b: BandaHoraria, arriba: boolean) => {
             const px = x(b.ts), anc = px > W * 0.82 ? 'end' : px < W * 0.2 ? 'start' : 'middle';
             return `<circle cx="${px.toFixed(1)}" cy="${y(b.media! * k).toFixed(1)}" r="3.6" fill="#fff" stroke="${VIZ.inkPrimary}" stroke-width="1.6"/>
-                <text x="${px.toFixed(1)}" y="${(y(b.media! * k) + (arriba ? -8 : 17)).toFixed(1)}" text-anchor="${anc}" font-size="11.5" font-weight="800" fill="${VIZ.inkPrimary}" font-family="system-ui" paint-order="stroke" stroke="#fff" stroke-width="3">${(b.media! * k).toFixed(dec)} · ${esc(fmtHora(b.ts).slice(0, 5))}</text>`;
+                <text x="${px.toFixed(1)}" y="${(y(b.media! * k) + (arriba || y(b.media! * k) > MT + ih - 24 ? -8 : 17)).toFixed(1)}" text-anchor="${anc}" font-size="11.5" font-weight="800" fill="${VIZ.inkPrimary}" font-family="system-ui" paint-order="stroke" stroke="#fff" stroke-width="3">${(b.media! * k).toFixed(dec)} · ${esc(fmtHora(b.ts).slice(0, 5))}</text>`;
         };
         datos += etq(p[iMax], true) + (iMin !== iMax ? etq(p[iMin], false) : '');
     } else {

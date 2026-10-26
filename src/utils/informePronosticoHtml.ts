@@ -15,9 +15,8 @@ import {
 } from './informePronosticoDatos';
 import { resumenSencillo } from './informePronosticoCiudadano';
 import { COLOR_NIVEL, FONDO_NIVEL, ROTULO_NIVEL, graficaHoraria, lineaTiempoSvg, mapaDecisionSvg } from './informePronosticoSvg';
-import { SRL_MARRON } from './informeBase';
+import { SRL_MARRON, esc } from './informeBase';
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const m3 = (v: number | null) => (v == null ? 'S/D' : `${Math.round(v).toLocaleString('es-MX')} m³`);
 const fix = (v: number | null, d = 1, u = '') => (v == null ? 'S/D' : `${v.toFixed(d)}${u ? ' ' + u : ''}`);
 

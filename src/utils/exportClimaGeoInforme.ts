@@ -38,7 +38,7 @@ import { resuelveFondoHillshade, LEYENDA_VIIRS, type FondoHillshade, type FondoN
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
 import { nombreMes } from './nombreMes';
-import { SRL_MARRON } from './informeBase';
+import { SRL_MARRON, esc } from './informeBase';
 
 
 /** Qué variables e periodo incluir — elegido en el modal previo a la
@@ -142,9 +142,6 @@ export interface OpcionesGeoInforme {
 
 /** Escapa texto para insertarlo dentro de SVG/HTML — un nombre de estación
  *  con "&" o "<" en la BD no debe poder romper el documento completo. */
-function esc(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 /** Módulos SRL con estación propia (medición real) — el resto (2, 4, 12) se
  *  resuelve por interpolación y se marca explícitamente como tal. */

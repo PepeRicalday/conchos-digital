@@ -27,9 +27,9 @@ import { rasterizaHtml } from './rasterizaHtml';
 import { MODULOS_SRL_IDS } from './modulosSRL';
 import { RAMPA_PROB, colorProb, franja72Svg, mapaProbabilidadSvg, tiraHorariaModulosSvg } from './informePronosticoMapa';
 import { fmtHora, peorNivel, type CambioTemperatura, type DatosPronostico, type Franja, type NivelRiesgo, type ResumenDia } from './informePronosticoDatos';
-import { SRL_MARRON } from './informeBase';
+import { SRL_MARRON, esc } from './informeBase';
+import { COLOR_SALIR, ROTULO_SALIR, escalasSvg, resumenSalir, semaforoHoras, semaforoSvg, type NivelSalir } from './informePronosticoSalir';
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const kmh = (ms: number | null) => (ms == null ? null : Math.round(ms * 3.6));
 const grados = (v: number | null) => (v == null ? '—' : `${Math.round(v)}°`);
 const hhmm = (ms: number) => fmtHora(ms);
@@ -564,6 +564,15 @@ export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: Opci
     const franjaLluvia = franja72Svg({ titulo: 'Lluvia por hora', unidad: 'mm', obs: d.observadas.temp.map(b => ({ ts: b.ts, min: null, media: null, max: null })), pron: d.bandas.lluvia, ahoraMs: d.generadoMs, forma: 'barras', color: '#1d4ed8', ancho: aw, decimales: 1 });
     const franjaViento = franja72Svg({ titulo: 'Viento', unidad: 'km/h', obs: d.observadas.viento, pron: d.bandas.viento, ahoraMs: d.generadoMs, forma: 'linea', color: '#059669', factor: 3.6, ancho: aw, decimales: 0, pisoEnCero: true,
         umbrales: [{ valor: u2.vientoCriticoMs * 3.6, etiqueta: `Viento fuerte (desde ${Math.round(u2.vientoCriticoMs * 3.6)} km/h)`, color: '#d97706' }, { valor: 15 * 3.6, etiqueta: 'Muy fuerte (desde 54 km/h)', color: '#dc2626' }] });
+    // Infografías nuevas: escalas (máximo previsto de lluvia por hora y de viento) y semáforo "¿Cuándo salir?".
+    const pico = (bs: { ts: number; media: number | null; max: number | null }[], k = 1) => {
+        const v = bs.filter(b => b.ts >= d.desdeMs).map(b => b.max ?? b.media).filter((x): x is number => x != null);
+        return v.length ? Math.max(...v) * k : null;
+    };
+    const escalas = escalasSvg({ maxMmh: pico(d.bandas.lluvia), maxKmh: pico(d.bandas.viento, 3.6) }, aw);
+    const horasSalir = semaforoHoras(d, { vientoAvisoMs: u2.vientoAvisoMs, vientoCriticoMs: u2.vientoCriticoMs });
+    const salir = resumenSalir(horasSalir);
+    const leyendaSalir = (['bueno', 'cuidado', 'evitar', 'sin'] as NivelSalir[]).map(n => `<span><i style="background:${n === 'sin' ? 'repeating-linear-gradient(45deg,#f8fafc,#f8fafc 3px,#cbd5e1 3px,#cbd5e1 5px)' : COLOR_SALIR[n]}"></i>${ROTULO_SALIR[n]}</span>`).join('');
     const lluviaHoyTxt = d.lluviaHoy
         ? (d.lluviaHoy.maxMm >= 0.2 ? `Ya cayeron hoy ${d.lluviaHoy.promMm.toFixed(1)} mm en promedio en la zona (hasta ${d.lluviaHoy.maxMm.toFixed(1)} mm en ${lugarLlano(d.lluviaHoy.lugarMax)}).` : 'Hasta ahora hoy no se ha registrado lluvia en las estaciones.') : '';
     const bloqueGrafica = (icono_: IconoClave, titulo: string, svg: string, nota = '') => svg
@@ -684,6 +693,12 @@ ${aviso}
   ${bloqueGrafica('sol', 'Temperatura (°C)', franjaTemp)}
   ${bloqueGrafica('lluvia', 'Lluvia por hora (mm)', franjaLluvia, lluviaHoyTxt)}
   ${bloqueGrafica('viento', 'Viento (km/h)', franjaViento)}
+</section>
+
+<section class="seccion" aria-label="Qué tan fuerte puede ser">
+  <h2>¿Qué tan fuerte puede ser?</h2>
+  <p class="sub">Así se leen la lluvia y el viento. La flecha negra marca lo más fuerte que se espera en las próximas ${d.horizonteH} horas en alguna parte de la zona.</p>
+  <div class="tira">${escalas}</div>
 </section>` : ''}
 
 ${ver2 ? `<section class="seccion" aria-label="Probabilidad de lluvia por módulo">
@@ -700,6 +715,14 @@ ${ver2 ? `<section class="seccion" aria-label="Probabilidad de lluvia por módul
   <p class="sub">Cada cuadro es una hora, desde ahora y durante las próximas ${d.horizonteH} horas. Mientras más oscuro el azul, más probable es que llueva. Un punto blanco marca una hora con lluvia de 2.5 mm o más; la franja de arriba es amarilla de día y gris oscuro de noche.</p>
   <div class="tira">${tiraHorariaModulosSvg(d.modulos, d.ejeHoras, logos, op.compacto ? 480 : 720)}</div>
   <div class="leyenda">${leyendaProb}<span><i style="background:repeating-linear-gradient(45deg,#f8fafc,#f8fafc 3px,#cbd5e1 3px,#cbd5e1 5px)"></i>Sin información (el pronóstico no llega hasta ahí)</span></div>
+</section>
+
+<section class="seccion" aria-label="Cuándo salir">
+  <h2>¿Cuándo salir?</h2>
+  <p class="sub">Cada cuadro es una hora. Verde: sin lluvia ni viento fuerte. Amarillo: puede llover o hay viento que se nota. Rojo: lluvia probable o viento fuerte. La franja de arriba es amarilla de día y gris oscuro de noche.</p>
+  <div class="tira">${semaforoSvg(horasSalir, aw)}</div>
+  <div class="leyenda">${leyendaSalir}</div>
+  <p class="nota"><b>${esc(salir.mejor)}</b>${salir.evitar ? ` ${esc(salir.evitar)}` : ''}</p>
 </section>
 
 <section class="seccion" aria-label="Qué hacer">

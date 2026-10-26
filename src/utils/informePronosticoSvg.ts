@@ -10,8 +10,8 @@ import { VIZ } from './climaCharts';
 import { COLOR_MODULO, MODULOS_SRL } from './geoDistrito';
 import type { BandaHoraria, FilaLineaTiempo, NivelRiesgo, ResumenModulo } from './informePronosticoDatos';
 import { fmtDia, fmtHora } from './informePronosticoDatos';
+import { esc } from './informeBase';
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export const COLOR_NIVEL: Record<NivelRiesgo, string> = {
     normal: VIZ.estado.bueno, aviso: VIZ.estado.aviso, critico: VIZ.estado.critico,

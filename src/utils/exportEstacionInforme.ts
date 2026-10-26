@@ -19,7 +19,7 @@ import { assetToDataURI } from './exportClimaReport';
 import { claveVientoDe, umbralVigente } from './umbralesClima';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
-import { SRL_MARRON } from './informeBase';
+import { SRL_MARRON, esc } from './informeBase';
 
 const fechaCorta2 = (iso: string) => { const [, m, d] = iso.split('-'); return `${d}/${m}`; };
 const tituloVentana = (r: RangoAnalisis) => r.tipo === 'manual'
@@ -29,7 +29,6 @@ const tituloVentana = (r: RangoAnalisis) => r.tipo === 'manual'
 const AZUL = '#1e5b8f';
 const rolLabel = (rol: string) => (rol === 'presa' ? 'Presa' : rol === 'modulo' ? 'Módulo' : rol === 'unidad_riego' ? 'Unidad de Riego' : 'Canal');
 const f = (v: number | null | undefined, dec = 1, suf = '') => (v == null ? 'S/D' : `${v.toFixed(dec)}${suf}`);
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const fechaCorta = (iso: string) => { const [, m, d] = iso.split('-'); return `${d}/${m}`; };
 
 function bloqueBalance(b: BalanceHidrico, titulo: string): string {

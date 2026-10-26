@@ -159,7 +159,17 @@ Deno.serve(async (req) => {
         // día ya cerrado. El resto de la lectura (temperatura, viento, presión)
         // es instantáneo, válido para el día nuevo, y se conserva intacto.
         const horaLocal = tsLocal.getUTCHours();
-        const arrastre = horaLocal === 0 && etDiaMmRaw != null && etDiaMmRaw > 0;
+        // Segunda señal de arrastre: algunas estaciones (Riego San Rafael) no publican et_day confiable y la señal de arriba
+        // no se activa. Si en la hora 0 el contador de lluvia repite EXACTAMENTE el último valor guardado del día anterior,
+        // es el cierre de ese día y no lluvia nueva (San Rafael, 2026-10-26 00:00: 10.922 mm fantasma, 01:45 ya en 0).
+        let repiteCierre = false;
+        if (horaLocal === 0 && lluviaDia != null && lluviaDia > 0) {
+          const { data: previa } = await supabase.from("clima_estacion_lecturas")
+            .select("lluvia_dia_mm").eq("estacion_id", est.id).lt("fecha", fecha).not("lluvia_dia_mm", "is", null)
+            .order("ts", { ascending: false }).limit(1);
+          repiteCierre = previa?.length === 1 && Number(previa[0].lluvia_dia_mm) === Number(lluviaDia);
+        }
+        const arrastre = horaLocal === 0 && ((etDiaMmRaw != null && etDiaMmRaw > 0) || repiteCierre);
         const etDiaMm = arrastre ? null : etDiaMmRaw;
         const lluviaDiaMm = arrastre ? null : lluviaDia;
 

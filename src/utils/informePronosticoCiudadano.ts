@@ -578,6 +578,9 @@ export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: Opci
     const lluviaHoyTxt = [
         l24 ? (l24.maxMm >= 0.2 ? `En las últimas 24 h cayeron ${l24.promMm.toFixed(1)} mm en promedio en la zona (hasta ${l24.maxMm.toFixed(1)} mm en ${lugarLlano(l24.lugarMax)}).` : 'En las últimas 24 h las estaciones no registraron lluvia.') : '',
         lh && lh.maxMm >= 0.2 ? `Hoy van ${lh.promMm.toFixed(1)} mm en promedio (hasta ${lh.maxMm.toFixed(1)} mm en ${lugarLlano(lh.lugarMax)}).` : '',
+        // Aviso de honestidad: lo que el pronóstico de lluvia ha acertado de verdad (misma verificación del informe técnico).
+        d.verificacion?.lluviaCat && d.verificacion.lluviaCat.eventos > 0
+            ? `Ojo: en los últimos días el pronóstico avisó ${d.verificacion.lluviaCat.aciertos} de ${d.verificacion.lluviaCat.eventos} lluvias que sí ocurrieron; puede llover aunque se vea poca probabilidad.` : '',
     ].filter(Boolean).join(' ');
     const bloqueGrafica = (icono_: IconoClave, titulo: string, svg: string, nota = '') => svg
         ? `<div class="grafica"><h3><span class="ic">${icono(icono_, 30)}</span>${esc(titulo)}</h3>${svg}${nota ? `<p class="nota-g">${esc(nota)}</p>` : ''}</div>` : '';

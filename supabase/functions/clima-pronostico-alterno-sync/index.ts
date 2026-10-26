@@ -132,24 +132,16 @@ Deno.serve(async (req) => {
 
     const ahora = Date.now();
     // Freno anti-abuso: la función acepta la anon key (pública, igual que sus hermanas) y cada llamada consume cuota
-    // de Open-Meteo y de MET Norway (que bloquea a quien abusa). El cron corre cada 12 h; con datos de las
-    // últimas 3 h se omite cada bloque (alternos y diario tienen su propio freno).
-    // Freno por INTENTO (no por éxito) y que falla cerrado: un error al consultar cuenta como "reciente".
-    const intentoReciente = async (bloque: string) => {
-      const { data, error } = await supabase.from("clima_sync_estado").select("intento_en").eq("bloque", bloque).maybeSingle();
-      if (error) return true;
-      return data?.intento_en ? ahora - Date.parse(data.intento_en) < 3 * 3.6e6 : false;
+    // de Open-Meteo y de MET Norway (que bloquea a quien abusa). El cron corre cada 12 h. El turno se RECLAMA de forma
+    // atómica en SQL (solo una de varias llamadas simultáneas lo gana) y por INTENTO; si el reclamo falla, no se consulta.
+    const reclama = async (bloque: string) => {
+      const { data, error } = await supabase.rpc("fn_clima_reclama_sync", { p_bloque: bloque, p_horas: 3 });
+      return !error && data === true;
     };
-    const omiteAlternos = await intentoReciente("alternos");
-    const omiteDiario = await intentoReciente("diario");
+    const hacerAlternos = await reclama("alternos");
+    const hacerDiario = await reclama("diario");
+    const omiteAlternos = !hacerAlternos, omiteDiario = !hacerDiario;
     if (omiteAlternos && omiteDiario) return json({ ok: true, omitido: true, motivo: "intento reciente" }, 200);
-    const marcas = [
-      ...(omiteAlternos ? [] : [{ bloque: "alternos", intento_en: new Date(ahora).toISOString() }]),
-      ...(omiteDiario ? [] : [{ bloque: "diario", intento_en: new Date(ahora).toISOString() }]),
-    ];
-    // Se registra ANTES de consultar a los proveedores; si no se puede registrar, no se consulta.
-    const { error: eMarca } = await supabase.from("clima_sync_estado").upsert(marcas, { onConflict: "bloque" });
-    if (eMarca) return json({ ok: false, error: "No se pudo registrar el intento: " + eMarca.message }, 500);
     const corridaEn = new Date(Math.floor(ahora / 3.6e6) * 3.6e6).toISOString();
     const resultados: Record<string, unknown>[] = [];
 

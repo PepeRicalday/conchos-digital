@@ -27,6 +27,7 @@ import { rasterizaHtml } from './rasterizaHtml';
 import { MODULOS_SRL_IDS } from './modulosSRL';
 import { RAMPA_PROB, colorProb, franja72Svg, mapaProbabilidadSvg, tiraHorariaModulosSvg } from './informePronosticoMapa';
 import { fmtHora, peorNivel, type CambioTemperatura, type DatosPronostico, type Franja, type NivelRiesgo, type ResumenDia } from './informePronosticoDatos';
+import { SRL_MARRON } from './informeBase';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const kmh = (ms: number | null) => (ms == null ? null : Math.round(ms * 3.6));
@@ -441,7 +442,6 @@ export function escenaPara(d: DatosPronostico): EscenaTipo {
 }
 
 // ── HTML ────────────────────────────────────────────────────────────────────
-const SRL_MARRON = '#6B2D2D';
 const FMT_EMISION = new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Chihuahua', weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', hour12: true });
 const emisionTxt = (ms: number) => FMT_EMISION.format(new Date(ms)).replace(/\./g, '').replace(/\s+(am|pm)$/i, (_m, x: string) => ` ${x.toLowerCase() === 'am' ? 'a. m.' : 'p. m.'}`);
 

@@ -25,9 +25,9 @@ import { PRESAS, MODULOS_SRL, COLOR_MODULO, RIO } from './geoDistrito';
 import { assetToDataURI } from './assetToDataURI';
 import { claveVientoDe, umbralVigente } from './umbralesClima';
 import type { UmbralClima } from '../hooks/useClimaOperativo';
+import { SRL_MARRON } from './informeBase';
 export { assetToDataURI };
 
-const SRL_MARRON = '#6B2D2D';
 const AZUL = '#1e5b8f';
 
 // Versión del algoritmo de diagnóstico: se imprime en el informe para poder

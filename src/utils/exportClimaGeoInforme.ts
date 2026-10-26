@@ -38,8 +38,8 @@ import { resuelveFondoHillshade, LEYENDA_VIIRS, type FondoHillshade, type FondoN
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
 import { nombreMes } from './nombreMes';
+import { SRL_MARRON } from './informeBase';
 
-const SRL_MARRON = '#6B2D2D';
 
 /** Qué variables e periodo incluir — elegido en el modal previo a la
  *  descarga (Clima.tsx). generarGeoInforme en Clima.tsx SIEMPRE resuelve un

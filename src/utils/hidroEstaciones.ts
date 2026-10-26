@@ -139,7 +139,7 @@ export function tiraEnlace(mensajes: MensajeHidro[], estacionId: string, ahoraMs
 export type VentanaHidro = '24h' | '7d' | '30d';
 
 export const VENTANAS: Record<VentanaHidro, { etiqueta: string; horas: number; pasoMin: number }> = {
-    '24h': { etiqueta: '24 h', horas: 24, pasoMin: 15 },
+    '24h': { etiqueta: '24 h', horas: 24, pasoMin: 5 },
     '7d': { etiqueta: '7 días', horas: 24 * 7, pasoMin: 30 },
     '30d': { etiqueta: '30 días', horas: 24 * 30, pasoMin: 60 },
 };

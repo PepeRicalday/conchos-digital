@@ -67,7 +67,7 @@ export default function EstacionesGoes({ presaId }: Props) {
             <header className="goes-head">
                 <div>
                     <h3 className="goes-titulo">Estaciones hidrométricas (GOES)</h3>
-                    <p className="goes-sub">Telemetría satelital de nivel y gasto, una lectura cada 15 min · hora de Chihuahua</p>
+                    <p className="goes-sub">Telemetría satelital de nivel y gasto, lecturas cada 15–20 min según la estación · hora de Chihuahua</p>
                 </div>
                 <div className="goes-head-der">
                     <span className="goes-resumen" role="status" aria-live="polite">

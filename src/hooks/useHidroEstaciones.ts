@@ -7,7 +7,7 @@ import {
 
 /**
  * Estaciones hidrométricas GOES (hidro_estaciones / hidro_lecturas / hidro_mensajes).
- * Lecturas cada 15 min: nunca se baja todo. Se pide por estación + variable + ventana, con paginación de 1000 filas
+ * Lecturas cada 15-20 min: nunca se baja todo. Se pide por estación + variable + ventana, con paginación de 1000 filas
  * (tope de PostgREST) y caché con TTL en memoria (patrón de usePresasHistorico). Las deps de los efectos son solo
  * ventana / selección / token de recarga: nada que cambie cada segundo (sin refetch storm).
  */

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useSerieObservada, type UmbralClima } from '../../hooks/useClimaOperativo';
 import type { EstacionConLectura } from '../../hooks/useClimaEstaciones';
+import { lluviaMedidaPorHora } from '../../utils/informePronosticoDatos';
 
 // Paleta categórica validada con validate_palette.js sobre la superficie #020a14 (modo oscuro).
 const C_TEMP = '#d95926';
@@ -13,7 +14,7 @@ const DIA_HORA = new Intl.DateTimeFormat('es-MX', { weekday: 'short', hour: '2-d
 const horaLocal = (ms: number) => Number(HORA.format(ms)) % 24;
 const esNoche = (ms: number) => { const h = horaLocal(ms); return h >= 20 || h < 7; };
 
-interface Punto { ts: number; temp?: number | null; tempFc?: number | null; viento?: number | null; vientoFc?: number | null; lluviaFc?: number | null }
+interface Punto { ts: number; temp?: number | null; tempFc?: number | null; viento?: number | null; vientoFc?: number | null; lluviaFc?: number | null; lluviaObs?: number | null }
 
 interface Props { estaciones: EstacionConLectura[]; umbrales: UmbralClima[] }
 
@@ -31,7 +32,13 @@ export function Franja72h({ estaciones, umbrales }: Props) {
         const hasta = t0 + 48 * 3.6e6;
         const mapa = new Map<number, Punto>();
         const nodo = (ts: number) => { const k = Math.round(ts / 6e4) * 6e4; const p = mapa.get(k) ?? { ts: k }; mapa.set(k, p); return p; };
-        for (const o of obs) { const p = nodo(o.ts); p.temp = o.temp; p.viento = o.viento; }
+        for (const o of obs) { if (o.ts < desde) continue; const p = nodo(o.ts); p.temp = o.temp; p.viento = o.viento; }
+        // Lluvia medida por hora (mm/h): incrementos del acumulado diario de la estación, misma función que el informe.
+        const eje: number[] = [];
+        for (let t = Math.floor(desde / 3.6e6) * 3.6e6; t <= t0; t += 3.6e6) eje.push(t);
+        const { bandas: lluviaObs } = lluviaMedidaPorHora(
+            obs.map((o) => ({ estacionId: est?.id ?? '', ts: o.ts, tempC: null, vientoMs: null, lluviaDiaMm: o.lluvia })), eje);
+        for (const b of lluviaObs) if (b.media != null) nodo(b.ts + 1.8e6).lluviaObs = b.media;   // a media hora, centrada en su hora
         for (const f of est?.pronosticoSerie ?? []) {
             const ts = new Date(f.valido_en).getTime();
             if (ts < desde || ts > hasta) continue;
@@ -111,13 +118,14 @@ export function Franja72h({ estaciones, umbrales }: Props) {
                         </ResponsiveContainer>
                     </figure>
                     <figure>
-                        <figcaption>Lluvia prevista (mm/h)</figcaption>
+                        <figcaption>Lluvia (mm/h) <i className="cl-leyenda"><s style={{ background: C_LLUVIA }} /> medida <s className="cl-disc" style={{ borderColor: C_LLUVIA }} /> pronóstico</i></figcaption>
                         <ResponsiveContainer width="100%" height={110} initialDimension={{ width: 1, height: 1 }}>
-                            <BarChart data={datos.filter((d) => d.lluviaFc != null)} margin={margen}>
+                            <BarChart data={datos.filter((d) => d.lluviaFc != null || d.lluviaObs != null)} margin={margen}>
                                 {fondo}{ejeX}
                                 <YAxis width={38} tick={{ fill: '#8396ad', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals domain={[0, (m: number) => Math.max(1, Math.ceil(m))]} />
                                 {tip('mm')}
-                                <Bar dataKey="lluviaFc" name="Lluvia prevista" fill={C_LLUVIA} radius={[3, 3, 0, 0]} maxBarSize={9} isAnimationActive={false} />
+                                <Bar dataKey="lluviaObs" name="Lluvia medida" fill={C_LLUVIA} radius={[3, 3, 0, 0]} maxBarSize={9} isAnimationActive={false} />
+                                <Bar dataKey="lluviaFc" name="Lluvia prevista" fill={C_LLUVIA} fillOpacity={0.45} radius={[3, 3, 0, 0]} maxBarSize={9} isAnimationActive={false} />
                             </BarChart>
                         </ResponsiveContainer>
                     </figure>

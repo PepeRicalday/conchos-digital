@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resumeVerificacion, resumeSemana, type EntradaVerificacion, type FilaSkillLluviaCat, type FilaPronosticoDiario } from './informePronosticoDatos';
+import { resumeVerificacion, resumeSemana, type EntradaVerificacion, type FilaSkillLluviaCat, type FilaPronosticoDiario, type ResumenDia } from './informePronosticoDatos';
 
 const cat = (id: string, a: number, o: number, f: number, n: number): FilaSkillLluviaCat => ({
     estacion_id: id, estacion_nombre: id, dias: a + o + f + n, aciertos: a, omisiones: o, falsas_alarmas: f, correctos_negativos: n,
@@ -32,6 +32,21 @@ const dia = (est: string, fecha: string, o: Partial<FilaPronosticoDiario> = {}):
     estacion_id: est, fecha, temp_max_c: 25, temp_min_c: 12, precip_mm: 0, precip_prob_pct: 10, viento_max_ms: 4, ...o,
 });
 
+describe('resumeVerificacion · lluvias importantes', () => {
+    const f = (estacion_nombre: string, dia: string, p: number, o: number) =>
+        ({ estacion_id: estacion_nombre, estacion_nombre, dia, mm_pronosticado: String(p), mm_observado: String(o), error: String(p - o) });
+    it('nombra cada día con lluvia observada ≥ 5 mm con lo emitido y lo medido por estación, el más reciente primero', () => {
+        const r = resumeVerificacion({
+            variables: [], corridasConservadas: 0,
+            lluviaDias: [f('Módulo 1', '2026-10-25', 1.5, 21.8), f('Módulo 3', '2026-10-25', 0, 7.9), f('Boquilla', '2026-10-25', 2.6, 3),
+                f('Módulo 1', '2026-10-24', 0.7, 0), f('Boquilla', '2026-10-23', 0, 6)],
+        } as unknown as EntradaVerificacion, new Set(), []);
+        expect(r.lluvia!.eventos.map(e => e.dia)).toEqual(['2026-10-25', '2026-10-23']);
+        expect(r.lluvia!.eventos[0].estaciones[0]).toEqual({ estacion: 'Módulo 1', pronosticadoMm: 1.5, observadoMm: 21.8 });
+        expect(r.lluvia!.eventos[0].estaciones).toHaveLength(3);
+    });
+});
+
 describe('resumeSemana', () => {
     it('promedia la lluvia (no la suma), toma mediana de temperatura y máximo de probabilidad y viento', () => {
         const r = resumeSemana([
@@ -57,5 +72,20 @@ describe('resumeSemana', () => {
         expect(r[0].vientoMaxMs).toBeNull();
         expect(r[0].lluviaMm).toBeNull();
         expect(resumeSemana(undefined, new Set(), '2026-10-26')).toEqual([]);
+    });
+
+    it('la lluvia de hoy y de los días completos sale del pronóstico horario; el día cortado y los siguientes, de la tabla diaria', () => {
+        const hz = (clave: string, etiqueta: string, parcial: boolean, mm: number | null, prob: number | null) =>
+            ({ clave, etiqueta, parcial, lluviaPromMm: mm, probMaxPct: prob }) as unknown as ResumenDia;
+        const filas = ['26', '27', '28', '29'].map(d => dia('A', `2026-10-${d}`, { precip_mm: 0, precip_prob_pct: 3, obtenido_en: '2026-10-26T06:25:00Z' }));
+        const r = resumeSemana(filas, new Set(), '2026-10-26', [
+            hz('2026-10-26', 'Hoy', true, 1.9, 34), hz('2026-10-27', 'Mañana', false, 14.4, 60), hz('2026-10-28', 'Pasado mañana', true, 0.2, 10),
+        ]);
+        expect(r.map(x => [x.lluviaMm, x.fuenteLluvia])).toEqual([[1.9, 'horario'], [14.4, 'horario'], [0, 'diario'], [0, 'diario']]);
+        expect(r[0].lluviaParcial).toBe(true);
+        expect(r[1].lluviaParcial).toBe(false);
+        expect(r[1].probPct).toBe(60);
+        expect(r[2].obtenidoEn).toBe('2026-10-26T06:25:00Z');
+        expect(r[1].obtenidoEn).toBeNull();
     });
 });

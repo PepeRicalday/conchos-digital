@@ -242,15 +242,19 @@ export function franja72Svg(o: {
         datos += etq(p[iMax], true) + (iMin !== iMax ? etq(p[iMin], false) : '');
     } else {
         const bw = Math.max(2, (iw / ((t1 - t0) / hora)) * 0.78);
-        datos = o.pron.map(b => {
+        // Lo MEDIDO (izquierda de AHORA) y lo pronosticado (derecha) usan el mismo trazo; la marca AHORA los separa.
+        datos = [...o.obs, ...o.pron].map(b => {
             if (b.max == null || b.media == null) return '';
             const bx = x(b.ts) - bw / 2, hMax = Math.max(0, y(0) - y(b.max * k)), hMed = Math.max(0, y(0) - y(b.media * k));
             return `${hMax > 0.5 ? `<rect x="${bx.toFixed(1)}" y="${(y(0) - hMax).toFixed(1)}" width="${bw.toFixed(1)}" height="${hMax.toFixed(1)}" rx="1.5" fill="${VIZ.nube[0]}"/>` : ''}${hMed > 0.5 ? `<rect x="${(bx + bw * 0.18).toFixed(1)}" y="${(y(0) - hMed).toFixed(1)}" width="${(bw * 0.64).toFixed(1)}" height="${hMed.toFixed(1)}" rx="1.5" fill="${o.color}"/>` : ''}`;
         }).join('');
-        const pk = o.pron.reduce<BandaHoraria | null>((m, b) => ((b.max ?? 0) > (m?.max ?? 0) ? b : m), null);
-        if (pk && (pk.max ?? 0) * k >= 0.2) {
-            const px = x(pk.ts), anc = px > W * 0.8 ? 'end' : px < W * 0.25 ? 'start' : 'middle';
-            datos += `<text x="${(anc === 'end' ? px + 6 : anc === 'start' ? px - 4 : px).toFixed(1)}" y="${Math.max(MT + 10, y(pk.max! * k) - 6).toFixed(1)}" text-anchor="${anc}" font-size="11.5" font-weight="800" fill="${VIZ.inkPrimary}" font-family="system-ui" paint-order="stroke" stroke="#fff" stroke-width="3">${(pk.max! * k).toFixed(1)} ${esc(o.unidad)} · ${esc(fmtHora(pk.ts).slice(0, 5))}</text>`;
+        // Un rótulo con la hora del máximo en cada lado (medido y pronóstico).
+        for (const lado of [o.obs, o.pron]) {
+            const pk = lado.reduce<BandaHoraria | null>((m, b) => ((b.max ?? 0) > (m?.max ?? 0) ? b : m), null);
+            if (pk && (pk.max ?? 0) * k >= 0.2) {
+                const px = x(pk.ts), anc = px > W * 0.8 ? 'end' : px < W * 0.25 ? 'start' : 'middle';
+                datos += `<text x="${(anc === 'end' ? px + 6 : anc === 'start' ? px - 4 : px).toFixed(1)}" y="${Math.max(MT + 10, y(pk.max! * k) - 6).toFixed(1)}" text-anchor="${anc}" font-size="11.5" font-weight="800" fill="${VIZ.inkPrimary}" font-family="system-ui" paint-order="stroke" stroke="#fff" stroke-width="3">${(pk.max! * k).toFixed(1)} ${esc(o.unidad)} · ${esc(fmtHora(pk.ts).slice(0, 5))}</text>`;
+            }
         }
     }
 

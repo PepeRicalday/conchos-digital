@@ -132,7 +132,8 @@ export function useSerieObservada(estacionId: string | null) {
     useEffect(() => {
         if (!estacionId) return;
         let vivo = true;
-        const desde = new Date(Date.now() - 24 * 3.6e6).toISOString();
+        // 24 h de la franja + 6 h previas: la lluvia por hora sale de incrementos del acumulado y necesita una lectura de arranque.
+        const desde = new Date(Date.now() - 30 * 3.6e6).toISOString();
         void supabase.from('clima_estacion_lecturas')
             .select('ts, temp_c, viento_ms, lluvia_dia_mm')
             .eq('estacion_id', estacionId).gte('ts', desde).order('ts', { ascending: true }).limit(500)

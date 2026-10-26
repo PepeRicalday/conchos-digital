@@ -561,7 +561,7 @@ export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: Opci
     const u2 = umbralesLlanos(d);
     const franjaTemp = franja72Svg({ titulo: 'Temperatura', unidad: '°C', obs: d.observadas.temp, pron: d.bandas.temp, ahoraMs: d.generadoMs, forma: 'linea', color: '#ea580c', ancho: aw, decimales: 0,
         umbrales: [{ valor: u2.heladaAvisoC, etiqueta: `Riesgo de helada (${u2.heladaAvisoC} °C)`, color: '#0ea5e9' }, { valor: u2.calorAvisoC, etiqueta: `Calor intenso (${u2.calorAvisoC} °C)`, color: '#dc2626' }] });
-    const franjaLluvia = franja72Svg({ titulo: 'Lluvia por hora', unidad: 'mm', obs: d.observadas.temp.map(b => ({ ts: b.ts, min: null, media: null, max: null })), pron: d.bandas.lluvia, ahoraMs: d.generadoMs, forma: 'barras', color: '#1d4ed8', ancho: aw, decimales: 1 });
+    const franjaLluvia = franja72Svg({ titulo: 'Lluvia por hora', unidad: 'mm', obs: d.observadas.lluvia, pron: d.bandas.lluvia, ahoraMs: d.generadoMs, forma: 'barras', color: '#1d4ed8', ancho: aw, decimales: 1 });
     const franjaViento = franja72Svg({ titulo: 'Viento', unidad: 'km/h', obs: d.observadas.viento, pron: d.bandas.viento, ahoraMs: d.generadoMs, forma: 'linea', color: '#059669', factor: 3.6, ancho: aw, decimales: 0, pisoEnCero: true,
         umbrales: [{ valor: u2.vientoCriticoMs * 3.6, etiqueta: `Viento fuerte (desde ${Math.round(u2.vientoCriticoMs * 3.6)} km/h)`, color: '#d97706' }, { valor: 15 * 3.6, etiqueta: 'Muy fuerte (desde 54 km/h)', color: '#dc2626' }] });
     // Infografías nuevas: escalas (máximo previsto de lluvia por hora y de viento) y semáforo "¿Cuándo salir?".
@@ -573,8 +573,12 @@ export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: Opci
     const horasSalir = semaforoHoras(d, { vientoAvisoMs: u2.vientoAvisoMs, vientoCriticoMs: u2.vientoCriticoMs });
     const salir = resumenSalir(horasSalir);
     const leyendaSalir = (['bueno', 'cuidado', 'evitar', 'sin'] as NivelSalir[]).map(n => `<span><i style="background:${n === 'sin' ? 'repeating-linear-gradient(45deg,#f8fafc,#f8fafc 3px,#cbd5e1 3px,#cbd5e1 5px)' : COLOR_SALIR[n]}"></i>${ROTULO_SALIR[n]}</span>`).join('');
-    const lluviaHoyTxt = d.lluviaHoy
-        ? (d.lluviaHoy.maxMm >= 0.2 ? `Ya cayeron hoy ${d.lluviaHoy.promMm.toFixed(1)} mm en promedio en la zona (hasta ${d.lluviaHoy.maxMm.toFixed(1)} mm en ${lugarLlano(d.lluviaHoy.lugarMax)}).` : 'Hasta ahora hoy no se ha registrado lluvia en las estaciones.') : '';
+    // Lluvia ya medida: ventana de 24 h de la franja (igual a las barras) y, aparte, lo acumulado hoy.
+    const l24 = d.lluvia24h, lh = d.lluviaHoy;
+    const lluviaHoyTxt = [
+        l24 ? (l24.maxMm >= 0.2 ? `En las últimas 24 h cayeron ${l24.promMm.toFixed(1)} mm en promedio en la zona (hasta ${l24.maxMm.toFixed(1)} mm en ${lugarLlano(l24.lugarMax)}).` : 'En las últimas 24 h las estaciones no registraron lluvia.') : '',
+        lh && lh.maxMm >= 0.2 ? `Hoy van ${lh.promMm.toFixed(1)} mm en promedio (hasta ${lh.maxMm.toFixed(1)} mm en ${lugarLlano(lh.lugarMax)}).` : '',
+    ].filter(Boolean).join(' ');
     const bloqueGrafica = (icono_: IconoClave, titulo: string, svg: string, nota = '') => svg
         ? `<div class="grafica"><h3><span class="ic">${icono(icono_, 30)}</span>${esc(titulo)}</h3>${svg}${nota ? `<p class="nota-g">${esc(nota)}</p>` : ''}</div>` : '';
     const consejos = consejosPublico(d, u);

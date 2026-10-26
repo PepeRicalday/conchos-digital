@@ -205,6 +205,8 @@ export interface ResumenVerificacion {
         dias: number; totalPronosticadoMm: number; totalObservadoMm: number;
         diasConLluviaObservada: number; detectados: number;
         peor: { estacion: string; dia: string; pronosticadoMm: number; observadoMm: number } | null;
+        /** Días con lluvia observada ≥ 5 mm (los más recientes primero): qué se emitió el día previo y qué cayó, por estación. */
+        eventos: { dia: string; estaciones: { estacion: string; pronosticadoMm: number; observadoMm: number }[] }[];
     } | null;
     /** Acierto de "¿llovió ≥ 1 mm?" con el pronóstico del día anterior; null sin comparaciones. */
     lluviaCat: { estacionDias: number; aciertos: number; omisiones: number; falsasAlarmas: number; eventos: number } | null;
@@ -218,12 +220,21 @@ export interface FilaPronosticoDiario {
     temp_max_c: number | string | null; temp_min_c: number | string | null;
     precip_mm: number | string | null; precip_prob_pct: number | string | null;
     viento_max_ms: number | string | null;
+    /** Cuándo se consultó el modelo; la tabla se actualiza cada ~12 h y puede ir por detrás del pronóstico horario. */
+    obtenido_en?: string | null;
 }
 export interface DiaSemana {
     fecha: string;                 // YYYY-MM-DD local
     tMaxC: number | null; tMinC: number | null;
     /** Promedio entre estaciones (nunca suma: un mismo temporal cae en varias). */
     lluviaMm: number | null; probPct: number | null;
+    /**
+     * De dónde sale la lluvia/probabilidad: 'horario' = pronóstico horario vigente (el mismo del resto del informe; hoy es
+     * solo el resto del día), 'diario' = tabla diaria de 7 días, con `obtenidoEn` (puede tener hasta ~12 h de antigüedad).
+     */
+    fuenteLluvia: 'horario' | 'diario';
+    lluviaParcial: boolean;
+    obtenidoEn: string | null;
     /** Máximo entre estaciones: la más expuesta. */
     vientoMaxMs: number | null;
     estaciones: number;
@@ -232,7 +243,11 @@ export interface DiaSemana {
 }
 
 /** Lectura observada (WeatherLink) de una estación; sirve para la parte "medida" de la franja de 72 h. */
-export interface LecturaObs { estacionId: string; ts: string | number; tempC: number | null; vientoMs: number | null }
+export interface LecturaObs {
+    estacionId: string; ts: string | number; tempC: number | null; vientoMs: number | null;
+    /** Acumulado de lluvia del día local (contador de la consola); null = sin dato (p. ej. arrastre de medianoche). */
+    lluviaDiaMm?: number | null;
+}
 
 export interface EntradaPronostico {
     estaciones: EstacionConLectura[];
@@ -305,7 +320,9 @@ export interface DatosPronostico {
     bandas: { temp: BandaHoraria[]; lluvia: BandaHoraria[]; viento: BandaHoraria[]; nubosidad: BandaHoraria[] };
     dias: ResumenDia[];
     /** Parte MEDIDA de la franja de 72 h: una banda por hora, de 24 h antes de la emisión hasta la hora actual (null = sin lectura). */
-    observadas: { ejeHoras: number[]; temp: BandaHoraria[]; viento: BandaHoraria[] };
+    observadas: { ejeHoras: number[]; temp: BandaHoraria[]; viento: BandaHoraria[]; lluvia: BandaHoraria[] };
+    /** Lluvia MEDIDA en esas 24 h (suma de las barras de la franja, por estación); null = ninguna estación con lectura. */
+    lluvia24h: { promMm: number; maxMm: number; lugarMax: string; estaciones: number } | null;
     /** Lluvia que YA registraron las estaciones hoy (acumulado del día local), sin estaciones sospechosas. */
     lluviaHoy: { promMm: number; maxMm: number; lugarMax: string } | null;
     modulos: ResumenModulo[];
@@ -342,10 +359,69 @@ export function fmtVentana(desdeMs: number, hastaMs: number): string {
 const FMT_CLAVE_DIA = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
 const claveDia = (ms: number) => FMT_CLAVE_DIA.format(new Date(ms));
 const horaDe = (ms: number) => Number(fmtHora(ms).slice(0, 2));
+/** Instante en que empezó (00:00 local) el día local de `ms`. */
+const inicioDiaLocalMs = (ms: number) => {
+    const min = Math.floor(ms / 60_000) * 60_000;
+    const [h, m] = fmtHora(min).split(':').map(Number);
+    return min - (h * 60 + m) * 60_000;
+};
 const franjaDe = (ms: number): Franja => { const h = horaDe(ms); return h < 6 ? 'madrugada' : h < 12 ? 'mañana' : h < 18 ? 'tarde' : 'noche'; };
 
 // ── Utilidades ──────────────────────────────────────────────────────────────
 const num = (v: number | null | undefined): number | null => (v == null || !Number.isFinite(v) ? null : v);
+
+/** Una lectura más espaciada que esto ya no permite decir cuándo cayó la lluvia: queda sin dato, no se reparte. */
+const MAX_HUECO_LLUVIA_H = 6;
+
+/**
+ * Lluvia MEDIDA por hora a partir del contador diario de cada estación (`lluviaDiaMm`, que se reinicia a las 00:00 locales).
+ * La lámina de cada intervalo entre lecturas es el incremento del contador y se reparte parejo (mm/h) sobre las horas que
+ * abarca; la primera lectura del día reparte su acumulado desde las 00:00. Una hora sin cobertura es null (nunca 0), un
+ * contador que baja dentro del día o un hueco largo no se inventan. `media`/`max` son entre estaciones, como el pronóstico.
+ * `totalPorEstacion` es la lámina medida dentro del eje, para el texto de "últimas 24 h".
+ */
+export function lluviaMedidaPorHora(lecturas: LecturaObs[], eje: number[]): { bandas: BandaHoraria[]; totalPorEstacion: Map<string, number> } {
+    const porEst = new Map<string, { ts: number; mm: number | null }[]>();
+    for (const l of lecturas) {
+        const ts = new Date(l.ts).getTime();
+        if (!Number.isFinite(ts)) continue;
+        const mm = l.lluviaDiaMm == null || !Number.isFinite(Number(l.lluviaDiaMm)) ? null : Number(l.lluviaDiaMm);
+        (porEst.get(l.estacionId) ?? porEst.set(l.estacionId, []).get(l.estacionId)!).push({ ts, mm });
+    }
+    const hora = (i: number) => eje[i];
+    const valoresPorHora: number[][] = eje.map(() => []);
+    const totalPorEstacion = new Map<string, number>();
+    for (const [id, lects] of porEst) {
+        lects.sort((a, b) => a.ts - b.ts);
+        const mmHora = new Array<number | null>(eje.length).fill(null);
+        let prev: { ts: number; mm: number } | null = null;
+        for (const r of lects) {
+            if (r.mm == null) continue;
+            let desde: number, lamina: number;
+            if (prev && claveDia(prev.ts) === claveDia(r.ts)) {
+                if (r.mm < prev.mm) { prev = { ts: r.ts, mm: r.mm }; continue; }   // contador que baja: lectura dudosa, sin dato
+                desde = prev.ts; lamina = r.mm - prev.mm;
+            } else { desde = inicioDiaLocalMs(r.ts); lamina = r.mm; }
+            prev = { ts: r.ts, mm: r.mm };
+            const dur = r.ts - desde;
+            if (dur <= 0 || dur > MAX_HUECO_LLUVIA_H * MS_H) continue;
+            for (let i = 0; i < eje.length; i++) {
+                const solape = Math.min(r.ts, hora(i) + MS_H) - Math.max(desde, hora(i));
+                if (solape <= 0) continue;
+                const aporte = lamina * (solape / dur);                          // mm que cayeron dentro de esta hora
+                mmHora[i] = (mmHora[i] ?? 0) + aporte;
+            }
+        }
+        let total: number | null = null;
+        mmHora.forEach((v, i) => { if (v != null) { valoresPorHora[i].push(v); total = (total ?? 0) + v; } });
+        if (total != null) totalPorEstacion.set(id, total);
+    }
+    const bandas = eje.map((ts, i) => {
+        const v = valoresPorHora[i];
+        return v.length ? { ts, min: Math.min(...v), media: v.reduce((a, b) => a + b, 0) / v.length, max: Math.max(...v) } : { ts, min: null, media: null, max: null };
+    });
+    return { bandas, totalPorEstacion };
+}
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371, rad = Math.PI / 180;
@@ -550,7 +626,10 @@ export function resumeVerificacion(v: EntradaVerificacion, sospechosaIds: Set<st
         // Se cuentan DÍAS (no estación-día): un mismo temporal cae en varias estaciones y no son eventos independientes.
         const diasUnicos = new Set(filasLluvia.map(d => d.dia));
         const diasConLluvia = new Set(filasLluvia.filter(d => d.o >= 5).map(d => d.dia));
-        const diasDetectados = new Set(filasLluvia.filter(d => d.o >= 5 && d.p >= 2.5).map(d => d.dia));
+        // "Detectado" = el pronóstico promedio de la red ese día llegó a 2.5 mm; que UNA estación acierte no cuenta si la zona
+        // con más lluvia (ej. 21.8 mm contra 1.5 pronosticados) quedó sin aviso.
+        const promPronDia = (dia: string) => { const xs = filasLluvia.filter(d => d.dia === dia); return xs.reduce((s, d) => s + d.p, 0) / xs.length; };
+        const diasDetectados = new Set([...diasConLluvia].filter(dia => promPronDia(dia) >= 2.5));
         const peor = filasLluvia.reduce((m, d) => (Math.abs(d.p - d.o) > Math.abs(m.p - m.o) ? d : m), filasLluvia[0]);
         lluvia = {
             dias: diasUnicos.size,
@@ -559,6 +638,11 @@ export function resumeVerificacion(v: EntradaVerificacion, sospechosaIds: Set<st
             diasConLluviaObservada: diasConLluvia.size,
             detectados: diasDetectados.size,
             peor: Math.abs(peor.p - peor.o) >= 2 ? { estacion: peor.e, dia: peor.dia, pronosticadoMm: peor.p, observadoMm: peor.o } : null,
+            eventos: [...diasConLluvia].sort().reverse().slice(0, 5).map(dia => ({
+                dia,
+                estaciones: filasLluvia.filter(d => d.dia === dia && d.o >= 1).sort((a, b) => b.o - a.o)
+                    .map(d => ({ estacion: d.e, pronosticadoMm: d.p, observadoMm: d.o })),
+            })),
         };
     }
     let lluviaCat: ResumenVerificacion['lluviaCat'] = null;
@@ -579,8 +663,12 @@ export function resumeVerificacion(v: EntradaVerificacion, sospechosaIds: Set<st
  * Resume el pronóstico diario del distrito: mediana de temperaturas, promedio de lluvia (no suma), máximo de probabilidad
  * y de viento. Descarta estaciones sospechosas y días anteriores a `hoyClave`. Un campo sin dato queda null (S/D).
  */
-export function resumeSemana(filas: FilaPronosticoDiario[] | undefined, sospechosaIds: Set<string>, hoyClave: string): DiaSemana[] {
+export function resumeSemana(filas: FilaPronosticoDiario[] | undefined, sospechosaIds: Set<string>, hoyClave: string, horario: ResumenDia[] = []): DiaSemana[] {
     if (!filas?.length) return [];
+    // El pronóstico horario se consulta cada hora y la tabla diaria cada ~12 h: para los días que el horario cubre completos
+    // (y el resto de hoy) la lluvia sale del horario, así el informe no se contradice. El día cortado por el horizonte
+    // (parcial) y los siguientes siguen con la tabla diaria.
+    const delHorario = new Map(horario.filter(h => h.lluviaPromMm != null && (!h.parcial || h.etiqueta === 'Hoy')).map(h => [h.clave, h]));
     const porDia = new Map<string, FilaPronosticoDiario[]>();
     for (const f of filas) {
         if (sospechosaIds.has(f.estacion_id) || f.fecha < hoyClave) continue;
@@ -591,14 +679,22 @@ export function resumeSemana(filas: FilaPronosticoDiario[] | undefined, sospecho
     const med = (v: number[]) => (v.length ? mediana(v) : null);
     const prom = (v: number[]) => (v.length ? v.reduce((a, b) => a + b, 0) / v.length : null);
     const max = (v: number[]) => (v.length ? Math.max(...v) : null);
-    return [...porDia.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, 7).map(([fecha, xs], i) => ({
-        fecha,
-        tMaxC: med(vals(xs, 'temp_max_c')), tMinC: med(vals(xs, 'temp_min_c')),
-        lluviaMm: prom(vals(xs, 'precip_mm')), probPct: max(vals(xs, 'precip_prob_pct')),
-        vientoMaxMs: max(vals(xs, 'viento_max_ms')),
-        estaciones: xs.length,
-        confianza: i < 3 ? 'media' as const : 'baja' as const,
-    }));
+    return [...porDia.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, 7).map(([fecha, xs], i) => {
+        const h = delHorario.get(fecha);
+        const obtenidos = xs.map(x => x.obtenido_en).filter((v): v is string => !!v).sort();
+        return {
+            fecha,
+            tMaxC: med(vals(xs, 'temp_max_c')), tMinC: med(vals(xs, 'temp_min_c')),
+            lluviaMm: h ? h.lluviaPromMm : prom(vals(xs, 'precip_mm')),
+            probPct: h && h.probMaxPct != null ? h.probMaxPct : max(vals(xs, 'precip_prob_pct')),
+            fuenteLluvia: h ? 'horario' as const : 'diario' as const,
+            lluviaParcial: !!h && h.parcial,
+            obtenidoEn: h ? null : (obtenidos.length ? obtenidos[obtenidos.length - 1] : null),
+            vientoMaxMs: max(vals(xs, 'viento_max_ms')),
+            estaciones: xs.length,
+            confianza: i < 3 ? 'media' as const : 'baja' as const,
+        };
+    });
 }
 
 // ── Construcción principal ──────────────────────────────────────────────────
@@ -752,7 +848,15 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
             .filter((v): v is number => v != null);
         return vals.length ? { ts: t, min: Math.min(...vals), media: vals.reduce((a, b) => a + b, 0) / vals.length, max: Math.max(...vals) } : { ts: t, min: null, media: null, max: null };
     });
-    const observadas = { ejeHoras: ejeObs, temp: bandaObs('tempC'), viento: bandaObs('vientoMs') };
+    const { bandas: bandaLluviaObs, totalPorEstacion } = lluviaMedidaPorHora(lecturasBuenas, ejeObs);
+    const observadas = { ejeHoras: ejeObs, temp: bandaObs('tempC'), viento: bandaObs('vientoMs'), lluvia: bandaLluviaObs };
+    const totales24 = e.estaciones
+        .filter(s => totalPorEstacion.has(s.id))
+        .map(s => ({ nombre: s.nombre, mm: totalPorEstacion.get(s.id)! }));
+    const lluvia24h = totales24.length ? (() => {
+        const mx = totales24.reduce((m, x) => (x.mm > m.mm ? x : m), totales24[0]);
+        return { promMm: Math.round((totales24.reduce((a, x) => a + x.mm, 0) / totales24.length) * 10) / 10, maxMm: Math.round(mx.mm * 10) / 10, lugarMax: mx.nombre, estaciones: totales24.length };
+    })() : null;
 
     // Lluvia ya registrada hoy: último acumulado del día local de cada estación que reportó HOY.
     const lluviasHoy = e.estaciones
@@ -950,7 +1054,7 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
         generadoMs: ahoraMs, horizonteH: e.horizonteH, modoTecnico: e.modoTecnico,
         desdeMs, hastaMs, ejeHoras,
         titular, nivel: conSerie.length ? nivelGlobal : 'normal', puntosClave,
-        riesgos, lineaTiempo, bandas, dias, observadas, lluviaHoy, modulos,
+        riesgos, lineaTiempo, bandas, dias, observadas, lluvia24h, lluviaHoy, modulos,
         estaciones: estacionesConf, estacionesExcluidas, alertas, cambioTemp,
         contexto: e.contexto ?? {},
         modelo: {
@@ -959,7 +1063,7 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
             vieja: edadModelo != null && edadModelo > CORRIDA_VIEJA_MIN,
         },
         avisosCalidad,
-        semana: resumeSemana(e.semana, e.sospechosaIds, claveDia(desdeMs)),
+        semana: resumeSemana(e.semana, e.sospechosaIds, claveDia(desdeMs), dias),
         verificacion: e.verificacion
             ? resumeVerificacion(e.verificacion, e.sospechosaIds, estacionesExcluidas.map(x => x.nombre)) : null,
     };

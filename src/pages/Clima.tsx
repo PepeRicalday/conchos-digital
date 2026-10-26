@@ -569,16 +569,17 @@ const Clima = () => {
         setGenerandoPronostico(true);
         try {
             const boq = presas.find(p => /boquilla/i.test(p.nombre));
-            // Lecturas MEDIDAS de las últimas 25 h (parte continua de la franja de 72 h); si falla, la franja solo muestra pronóstico.
+            // Lecturas MEDIDAS de la franja de 72 h (25 h + 5 h previas para que la lluvia tenga lectura de arranque); si falla, la franja solo muestra pronóstico.
             let observado: LecturaObs[] = [];
             try {
-                const desdeObs = new Date(Date.now() - 25 * 3_600_000).toISOString();
+                const desdeObs = new Date(Date.now() - 30 * 3_600_000).toISOString();
                 const { data: lect, error: eObs } = await supabase.from('clima_estacion_lecturas')
-                    .select('estacion_id, ts, temp_c, viento_ms').gte('ts', desdeObs).order('ts', { ascending: true }).limit(1000);
+                    .select('estacion_id, ts, temp_c, viento_ms, lluvia_dia_mm').gte('ts', desdeObs).order('ts', { ascending: true }).limit(1000);
                 if (eObs) throw eObs;
                 observado = (lect ?? []).map(r => ({
                     estacionId: r.estacion_id as string, ts: r.ts as string,
                     tempC: r.temp_c == null ? null : Number(r.temp_c), vientoMs: r.viento_ms == null ? null : Number(r.viento_ms),
+                    lluviaDiaMm: r.lluvia_dia_mm == null ? null : Number(r.lluvia_dia_mm),
                 }));
             } catch (e) {
                 console.warn('[Clima] lecturas medidas no disponibles para la franja de 72 h:', e);
@@ -608,7 +609,7 @@ const Clima = () => {
             let semana: FilaPronosticoDiario[] | undefined;
             try {
                 const { data: dias, error: eDias } = await supabase.from('clima_pronostico_diario')
-                    .select('estacion_id, fecha, temp_max_c, temp_min_c, precip_mm, precip_prob_pct, viento_max_ms');
+                    .select('estacion_id, fecha, temp_max_c, temp_min_c, precip_mm, precip_prob_pct, viento_max_ms, obtenido_en');
                 if (eDias) throw eDias;
                 semana = (dias ?? []) as FilaPronosticoDiario[];
             } catch (e) {

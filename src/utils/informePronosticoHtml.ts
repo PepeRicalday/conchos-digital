@@ -15,6 +15,7 @@ import {
 } from './informePronosticoDatos';
 import { resumenSencillo } from './informePronosticoCiudadano';
 import { COLOR_NIVEL, FONDO_NIVEL, ROTULO_NIVEL, graficaHoraria, lineaTiempoSvg, mapaDecisionSvg } from './informePronosticoSvg';
+import { franja72Svg } from './informePronosticoMapa';
 import { SRL_MARRON, esc } from './informeBase';
 
 const m3 = (v: number | null) => (v == null ? 'S/D' : `${Math.round(v).toLocaleString('es-MX')} m³`);
@@ -53,9 +54,10 @@ export async function construyeInformePronosticoHTML(d: DatosPronostico): Promis
         ...(rH ? [{ valor: rH.aviso, etiqueta: `helada ${rH.aviso}°`, color: VIZ.estado.aviso }] : []),
         ...(rC ? [{ valor: rC.aviso, etiqueta: `calor ${rC.aviso}°`, color: VIZ.estado.aviso }] : []),
     ];
-    const gTemp = graficaHoraria({ titulo: 'Temperatura', unidad: '°C', bandas: d.bandas.temp, forma: 'linea', umbrales: umbralesTemp });
-    const gLluvia = graficaHoraria({ titulo: 'Lluvia', unidad: 'mm/h', bandas: d.bandas.lluvia, forma: 'barras', decimales: 1 });
-    const gViento = graficaHoraria({ titulo: 'Viento sostenido', unidad: 'm/s', bandas: d.bandas.viento, forma: 'linea', umbrales: umbralesViento, pisoEnCero: true });
+    // Temperatura, lluvia y viento: franja de 72 h con las 24 h MEDIDAS por las estaciones (izquierda de AHORA) y el pronóstico.
+    const gTemp = franja72Svg({ titulo: 'Temperatura', unidad: '°C', obs: d.observadas.temp, pron: d.bandas.temp, ahoraMs: d.generadoMs, forma: 'linea', color: '#ea580c', decimales: 0, umbrales: umbralesTemp });
+    const gLluvia = franja72Svg({ titulo: 'Lluvia', unidad: 'mm/h', obs: d.observadas.lluvia, pron: d.bandas.lluvia, ahoraMs: d.generadoMs, forma: 'barras', color: '#1d4ed8', decimales: 1 });
+    const gViento = franja72Svg({ titulo: 'Viento sostenido', unidad: 'm/s', obs: d.observadas.viento, pron: d.bandas.viento, ahoraMs: d.generadoMs, forma: 'linea', color: '#059669', decimales: 1, umbrales: umbralesViento, pisoEnCero: true });
     const gNub = tecnico ? graficaHoraria({ titulo: 'Nubosidad total', unidad: '%', bandas: d.bandas.nubosidad, forma: 'linea', pisoEnCero: true, decimales: 0 }) : '';
     const fig = (titulo: string, nota: string, svg: string) => svg
         ? `<figure class="fig"><figcaption><b>${esc(titulo)}</b><span>${nota}</span></figcaption>${svg}</figure>` : '';
@@ -128,12 +130,14 @@ export async function construyeInformePronosticoHTML(d: DatosPronostico): Promis
     const rLluvia = d.riesgos.find(r => r.clave === 'lluvia');
     const diaSem = (iso: string) => fmtDia(Date.parse(iso + 'T12:00:00-06:00'));
     const bloqueSemana = d.semana.length ? `<h2>5b · Tendencia a 7 días (orientativa)</h2>
-<p class="sub2">Resumen del distrito por día: temperatura (mediana de las estaciones), lluvia (promedio entre estaciones, no suma), probabilidad máxima y viento máximo de la estación más expuesta. <b>Después del tercer día el modelo acierta mucho menos</b>: úsela para anticipar, no para decidir riego o maniobras. No lleva el ajuste de sesgo de las secciones anteriores.</p>
+<p class="sub2">Resumen del distrito por día: temperatura (mediana de las estaciones), lluvia (promedio entre estaciones, no suma), probabilidad máxima y viento máximo de la estación más expuesta. <b>Después del tercer día el modelo acierta mucho menos</b>: úsela para anticipar, no para decidir riego o maniobras. No lleva el ajuste de sesgo de las secciones anteriores. La lluvia de hoy y de los días que el pronóstico horario cubre completos sale de ese pronóstico horario (el mismo del resto del informe, actualizado cada hora); la tabla diaria se consulta cada ~12 h y solo se usa para los días que el horario no cubre, con la hora de su consulta.</p>
 <table><thead><tr><th>Día</th><th class="num">T mín / máx</th><th class="num">Lluvia (promedio) · prob. máx.</th><th class="num">Viento máx.</th><th>Confianza</th></tr></thead><tbody>${d.semana.map(x => {
         const fuerte = x.lluviaMm != null && rLluvia && x.lluviaMm >= rLluvia.aviso;
         return `<tr${x.confianza === 'baja' ? ' style="color:#64748b"' : ''}><td><b>${esc(diaSem(x.fecha))}</b></td>
         <td class="num">${x.tMinC != null ? x.tMinC.toFixed(0) : 'S/D'} / ${x.tMaxC != null ? x.tMaxC.toFixed(0) : 'S/D'} °C</td>
-        <td class="num">${x.lluviaMm != null ? x.lluviaMm.toFixed(1) + ' mm' : 'S/D'} · ${x.probPct != null ? Math.round(x.probPct) + ' %' : 'S/D'}${fuerte ? ' <b style="color:' + COLOR_NIVEL.aviso + '">▲ lluvia fuerte</b>' : ''}</td>
+        <td class="num">${x.lluviaMm != null ? x.lluviaMm.toFixed(1) + ' mm' : 'S/D'} · ${x.probPct != null ? Math.round(x.probPct) + ' %' : 'S/D'}${fuerte ? ' <b style="color:' + COLOR_NIVEL.aviso + '">▲ lluvia fuerte</b>' : ''}<br><small class="muted">${x.fuenteLluvia === 'horario'
+            ? `pronóstico horario${x.lluviaParcial ? ' · solo el resto del día' : ''}`
+            : `tabla diaria${x.obtenidoEn ? ` · consultada ${esc(fmtDiaHora(Date.parse(x.obtenidoEn)))}` : ''}`}</small></td>
         <td class="num">${x.vientoMaxMs != null ? x.vientoMaxMs.toFixed(1) + ' m/s' : 'S/D'}</td>
         <td>${x.confianza === 'media' ? 'Media' : 'Baja'}</td></tr>`;
     }).join('')}</tbody></table>` : '';
@@ -149,11 +153,16 @@ export async function construyeInformePronosticoHTML(d: DatosPronostico): Promis
         </tr>`).join('');
         const ll = ver.lluvia;
         const lluviaTxt = ll
-            ? `<li><b>Lluvia (lámina diaria, ${ll.dias} días)</b>: el modelo sumó ${ll.totalPronosticadoMm} mm y las estaciones registraron ${ll.totalObservadoMm} mm. `
+            ? `<li><b>Lluvia (lámina diaria, ${ll.dias} días)</b>: el pronóstico emitido el día anterior sumó ${ll.totalPronosticadoMm} mm y las estaciones registraron ${ll.totalObservadoMm} mm. `
                 + `${ll.diasConLluviaObservada ? `Detectó (≥ 2.5 mm) ${ll.detectados} de ${ll.diasConLluviaObservada} días con lluvia observada ≥ 5 mm. ` : 'No hubo días con lluvia observada ≥ 5 mm en la ventana. '}`
                 + `${ll.peor ? `Mayor falla: ${esc(ll.peor.estacion)}, ${esc(ll.peor.dia)} — pronosticó ${ll.peor.pronosticadoMm} mm y cayeron ${ll.peor.observadoMm} mm. ` : ''}`
                 + `<em>La lluvia convectiva se acierta mal en lugar y cantidad: use el pronóstico para saber <b>si</b> puede llover, no cuánto en un punto.</em></li>`
             : '<li>Lluvia: sin días completos para comparar.</li>';
+        // Cada día con lluvia importante, nombrado: qué avisó el pronóstico del día previo y qué cayó en cada estación.
+        const eventosTxt = ll && ll.eventos.length
+            ? `<li><b>Lluvias importantes recientes</b> (≥ 5 mm; pronóstico emitido antes de las 00:00 de ese día → lluvia medida):<ul>${ll.eventos.map(ev =>
+                `<li><b>${esc(diaSem(ev.dia))}</b>: ${ev.estaciones.map(s => `${esc(s.estacion)} ${s.pronosticadoMm.toFixed(1)} → <b>${s.observadoMm.toFixed(1)} mm</b>`).join(' · ')}</li>`).join('')}</ul></li>`
+            : '';
         const lc = ver.lluviaCat;
         const lluviaCatTxt = lc
             ? `<li><b>¿Va a llover? (día completo, pronóstico emitido el día anterior, ≥ 1 mm)</b>: ${lc.estacionDias} comparaciones estación-día; `
@@ -164,7 +173,7 @@ export async function construyeInformePronosticoHTML(d: DatosPronostico): Promis
         bloqueVerif = `<h2>7 · Qué tanto acierta el modelo</h2>
 <p class="sub2">Pronóstico contra la lectura de la estación más cercana en el tiempo (±60 min), últimos 14 días. El horizonte medido hasta hoy es el del último pronóstico antes de la hora (0–6 h): ${ver.corridasConservadas > 0 ? `ya se conservan ${ver.corridasConservadas} corrida(s) guardada(s) para medir también 7–24 h y 25–48 h conforme se acumulen (2 por día).` : 'las corridas de 7–24 h y 25–48 h empezarán a medirse cuando se acumulen corridas guardadas.'}</p>
 ${ver.variables.length ? `<table><thead><tr><th>Variable</th><th>Horizonte</th><th class="num">Comparaciones</th><th class="num">Error medio</th><th class="num">Sesgo</th></tr></thead><tbody>${filasV}</tbody></table>` : '<p class="muted">Aún no hay comparaciones suficientes de temperatura y viento.</p>'}
-<ul style="font-size:12.5px;margin-top:10px">${lluviaTxt}${lluviaCatTxt}${ver.estacionesExcluidas.length ? `<li>No se incluyen en este cálculo: ${esc(ver.estacionesExcluidas.join(', '))} (sensor sospechoso o con un error fuera de lo normal frente al resto de la red).</li>` : ''}</ul>`;
+<ul style="font-size:12.5px;margin-top:10px">${lluviaTxt}${eventosTxt}${lluviaCatTxt}${ver.estacionesExcluidas.length ? `<li>No se incluyen en este cálculo: ${esc(ver.estacionesExcluidas.join(', '))} (sensor sospechoso o con un error fuera de lo normal frente al resto de la red).</li>` : ''}</ul>`;
     }
 
     const fecha = new Date(d.generadoMs);
@@ -279,9 +288,9 @@ ${d.cambioTemp ? `<p class="sub2"><b>Nota:</b> hay un ${esc(d.cambioTemp.sentido
 
 <h2>3 · Gráficas del horizonte</h2>
 <p class="sub2">Línea = media de las estaciones; banda = rango entre la estación más baja y la más alta. Todo es pronóstico del modelo; la línea "ahora" separa la hora de emisión.</p>
-${fig('Temperatura', 'Media de la red (línea) y rango entre estaciones (banda). Líneas punteadas: umbrales de helada y calor.', gTemp)}
-${fig('Lluvia', 'Barra oscura = media de la red; barra clara = estación más lluviosa de cada hora. mm por hora.', gLluvia)}
-${fig('Viento sostenido', 'Velocidad media a 10 m (no incluye ráfagas). Líneas punteadas: aviso y crítico para aspersión.', gViento)}
+${fig('Temperatura', 'Izquierda de AHORA: medido por las estaciones (línea continua, últimas 24 h); derecha: pronóstico (línea punteada). Media de la red y rango entre estaciones (banda). Líneas punteadas horizontales: umbrales de helada y calor.', gTemp)}
+${fig('Lluvia', `Izquierda de AHORA: lluvia medida (incrementos del acumulado de cada estación, repartidos por hora${d.lluvia24h ? `; últimas 24 h: ${d.lluvia24h.promMm.toFixed(1)} mm en promedio, hasta ${d.lluvia24h.maxMm.toFixed(1)} mm en ${esc(d.lluvia24h.lugarMax)}` : ''}); derecha: pronóstico. Barra oscura = media de la red; barra clara = estación más lluviosa de cada hora. mm por hora.`, gLluvia)}
+${fig('Viento sostenido', 'Izquierda de AHORA: medido; derecha: pronóstico. Velocidad media a 10 m (no incluye ráfagas). Líneas punteadas: aviso y crítico para aspersión.', gViento)}
 ${tecnico ? fig('Nubosidad total', 'Variable independiente de la lluvia: una hora nublada no implica lluvia ni al revés.', gNub) : ''}
 
 <h2>4 · Contexto operativo de SICA</h2>

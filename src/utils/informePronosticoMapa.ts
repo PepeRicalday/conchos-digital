@@ -133,7 +133,7 @@ export function tiraHorariaModulosSvg(modulos: ResumenModulo[], ejeHoras: number
                         ${ancho >= 600 ? `<text x="${W - MR + 6}" y="${yy + 16}" font-size="11" font-weight="700" fill="${VIZ.inkPrimary}" font-family="system-ui">pico ${Math.round(pk.p)} % · ${esc(horaPk)} h</text>` : ''}`;
             })() : '';
         return `${logoCirculo(`${idPrefijo}-lg${m.numero}`, 18, yy + 13, 10, m.numero, logos.get(m.numero))}
-                <text x="34" y="${yy + 17}" font-size="12" font-weight="800" fill="${VIZ.inkPrimary}" font-family="system-ui">M${m.numero}${esEstimado(m) ? '*' : ''}</text>
+                <text x="32" y="${yy + 17}" font-size="${m.numero >= 10 && esEstimado(m) ? 10 : 12}" font-weight="800" fill="${VIZ.inkPrimary}" font-family="system-ui">M${m.numero}${esEstimado(m) ? '*' : ''}</text>
                 ${celdas}${marca}`;
     }).join('');
 
@@ -142,7 +142,10 @@ export function tiraHorariaModulosSvg(modulos: ResumenModulo[], ejeHoras: number
         const h = horaLocal(ts);
         if (h % 6 !== 0 && !(i === 0 && (6 - (h % 6)) % 6 >= 3)) return '';
         const x = ML + (i + 0.5) * cw;
-        const dia = h === 0 || i === 0 ? `<text x="${x.toFixed(1)}" y="${MT + modulos.length * FILA + 28}" text-anchor="middle" font-size="11.5" font-weight="800" fill="${VIZ.inkPrimary}" font-family="system-ui">${esc(fmtDia(ts))}</text>` : '';
+        // El día de la primera columna se omite si la medianoche siguiente queda más cerca que el ancho de la etiqueta
+        // (~80 px): las dos fechas se montaban una sobre otra.
+        const primeraApretada = i === 0 && h !== 0 && ((24 - h) % 24) * cw < 80;
+        const dia = (h === 0 || i === 0) && !primeraApretada ? `<text x="${x.toFixed(1)}" y="${MT + modulos.length * FILA + 28}" text-anchor="middle" font-size="11.5" font-weight="800" fill="${VIZ.inkPrimary}" font-family="system-ui">${esc(fmtDia(ts))}</text>` : '';
         return `<text x="${x.toFixed(1)}" y="${MT + modulos.length * FILA + 15}" text-anchor="middle" font-size="11.5" font-weight="600" fill="${VIZ.inkSecondary}" font-family="system-ui">${String(h).padStart(2, '0')}:00</text>${dia}`;
     }).join('');
 

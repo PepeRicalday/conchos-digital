@@ -120,7 +120,7 @@ export function PronosticoInformeModal({ abierto, onCerrar, onConfirmar }: Prono
                         <p style={{ fontSize: 10.5, color: '#64748b', marginTop: 10, lineHeight: 1.5 }}>
                             {nivel === 'ciudadano'
                                 ? 'Informe para la ciudadanía: mapa de los módulos con su probabilidad de lluvia, hora por hora, y hoy, mañana y pasado mañana con temperatura, lluvia y viento en km/h. Se puede imprimir o compartir como imagen.'
-                                : 'Todo el pronóstico es del modelo (Open-Meteo); lo observado se rotula aparte. Las estaciones con lecturas sospechosas aparecen como S/D.'}
+                                : 'Todo el pronóstico es del modelo (Open-Meteo), ajustado por su error sistemático medido donde lo hay; lo observado se rotula aparte. Las estaciones con lecturas sospechosas aparecen como S/D.'}
                         </p>
                     </div>
                 </div>

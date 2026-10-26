@@ -52,6 +52,8 @@ export function Franja72h({ estaciones, umbrales }: Props) {
     const u = (clave: string) => umbrales.find((x) => x.clave === clave);
     const helada = u('helada'); const calor = u('calor'); const viento = u('viento');
     const hayDatos = datos.some((d) => d.temp != null || d.tempFc != null);
+    // El pronóstico de esta estación va ajustado por su sesgo medido contra las lecturas (el crudo se conserva en BD).
+    const pronosticoAjustado = (est?.pronosticoSerie ?? []).some((f) => f.corregido);
 
     const ejeX = (
         <XAxis dataKey="ts" type="number" scale="time" domain={dominio} allowDataOverflow
@@ -134,7 +136,7 @@ export function Franja72h({ estaciones, umbrales }: Props) {
                     </figure>
                 </div>
             )}
-            <p className="cl-pie">Fondo oscuro = noche (20:00–07:00). Línea continua = medido por la estación; punteada = modelo Open-Meteo. Las líneas de referencia son los umbrales de aviso.</p>
+            <p className="cl-pie">Fondo oscuro = noche (20:00–07:00). Línea continua = medido por la estación; punteada = modelo Open-Meteo{pronosticoAjustado ? ' ajustado por el error sistemático medido en esta estación' : ''}. Las líneas de referencia son los umbrales de aviso.</p>
         </section>
     );
 }

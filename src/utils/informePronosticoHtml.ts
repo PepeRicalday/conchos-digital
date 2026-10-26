@@ -11,7 +11,7 @@ import { assetToDataURI } from './assetToDataURI';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
 import {
-    fmtDiaHora, fmtVentana, type DatosPronostico, type NivelRiesgo, type Riesgo,
+    fmtDia, fmtDiaHora, fmtVentana, type DatosPronostico, type NivelRiesgo, type Riesgo,
 } from './informePronosticoDatos';
 import { resumenSencillo } from './informePronosticoCiudadano';
 import { COLOR_NIVEL, FONDO_NIVEL, ROTULO_NIVEL, graficaHoraria, lineaTiempoSvg, mapaDecisionSvg } from './informePronosticoSvg';
@@ -125,6 +125,20 @@ export async function construyeInformePronosticoHTML(d: DatosPronostico): Promis
         ? `<div class="avisos">${d.avisosCalidad.map(a => `<p>⚠ ${esc(a)}</p>`).join('')}</div>` : '';
 
     // ── Acierto del modelo ──────────────────────────────────────────────────
+    // Tendencia a 7 días: orientativa. Pasados 3 días el modelo acierta mucho menos, y aquí NO se aplica el ajuste de sesgo.
+    const rLluvia = d.riesgos.find(r => r.clave === 'lluvia');
+    const diaSem = (iso: string) => fmtDia(Date.parse(iso + 'T12:00:00-06:00'));
+    const bloqueSemana = d.semana.length ? `<h2>5b · Tendencia a 7 días (orientativa)</h2>
+<p class="sub2">Resumen del distrito por día: temperatura (mediana de las estaciones), lluvia (promedio entre estaciones, no suma), probabilidad máxima y viento máximo de la estación más expuesta. <b>Después del tercer día el modelo acierta mucho menos</b>: úsela para anticipar, no para decidir riego o maniobras. No lleva el ajuste de sesgo de las secciones anteriores.</p>
+<table><thead><tr><th>Día</th><th class="num">T mín / máx</th><th class="num">Lluvia (promedio) · prob. máx.</th><th class="num">Viento máx.</th><th>Confianza</th></tr></thead><tbody>${d.semana.map(x => {
+        const fuerte = x.lluviaMm != null && rLluvia && x.lluviaMm >= rLluvia.aviso;
+        return `<tr${x.confianza === 'baja' ? ' style="color:#64748b"' : ''}><td><b>${esc(diaSem(x.fecha))}</b></td>
+        <td class="num">${x.tMinC != null ? x.tMinC.toFixed(0) : 'S/D'} / ${x.tMaxC != null ? x.tMaxC.toFixed(0) : 'S/D'} °C</td>
+        <td class="num">${x.lluviaMm != null ? x.lluviaMm.toFixed(1) + ' mm' : 'S/D'} · ${x.probPct != null ? Math.round(x.probPct) + ' %' : 'S/D'}${fuerte ? ' <b style="color:' + COLOR_NIVEL.aviso + '">▲ lluvia fuerte</b>' : ''}</td>
+        <td class="num">${x.vientoMaxMs != null ? x.vientoMaxMs.toFixed(1) + ' m/s' : 'S/D'}</td>
+        <td>${x.confianza === 'media' ? 'Media' : 'Baja'}</td></tr>`;
+    }).join('')}</tbody></table>` : '';
+
     const ver = d.verificacion;
     let bloqueVerif = '';
     if (ver) {
@@ -281,6 +295,8 @@ ${(presa || canal) ? `<ul style="margin-top:10px;font-size:13px">${presa}${canal
 
 <h2>5 · Alertas vigentes</h2>
 ${alertas}
+
+${bloqueSemana}
 
 <h2>6 · Confiabilidad de este informe</h2>
 <p class="sub2">Lo observado (columna "Ahora") es de la estación; lo pronosticado es del modelo. S/D = sin dato confiable; nunca se sustituye por 0. En las estaciones donde el modelo muestra un error sistemático medido contra sus propias lecturas (hoy, sobre todo el viento en Módulos 1, 3 y 5), el viento y la temperatura pronosticados se ajustan restando ese sesgo; las tablas de acierto de la sección 7 siguen midiendo el valor del modelo sin ajustar.</p>

@@ -29,7 +29,7 @@ import { obtenTendenciasPeriodo, type TendenciasPeriodo } from '../utils/climaTe
 import { getTodayString } from '../utils/dateHelpers';
 import { GeoInformeOpcionesModal } from '../components/GeoInformeOpcionesModal';
 import { PronosticoInformeModal, type OpcionesInformePronostico } from '../components/PronosticoInformeModal';
-import { construirDatosPronostico, type EntradaVerificacion, type FilaSkillVariable, type FilaSkillLluvia, type FilaSkillLluviaCat, type LecturaObs } from '../utils/informePronosticoDatos';
+import { construirDatosPronostico, type EntradaVerificacion, type FilaSkillVariable, type FilaSkillLluvia, type FilaSkillLluviaCat, type FilaPronosticoDiario, type LecturaObs } from '../utils/informePronosticoDatos';
 import { descargarInformePronostico, imprimirInformePronostico } from '../utils/informePronosticoHtml';
 import { descargarInformeCiudadano, imprimirInformeCiudadano, imagenInformeCiudadano } from '../utils/informePronosticoCiudadano';
 import { useCanalExtremos } from '../hooks/useDashboardPulso';
@@ -604,9 +604,19 @@ const Clima = () => {
             } catch (e) {
                 console.warn('[Clima] verificación del pronóstico no disponible:', e);
             }
+            // Tendencia a 7 días: fuente opcional; si falla, el informe sale sin esa sección.
+            let semana: FilaPronosticoDiario[] | undefined;
+            try {
+                const { data: dias, error: eDias } = await supabase.from('clima_pronostico_diario')
+                    .select('estacion_id, fecha, temp_max_c, temp_min_c, precip_mm, precip_prob_pct, viento_max_ms');
+                if (eDias) throw eDias;
+                semana = (dias ?? []) as FilaPronosticoDiario[];
+            } catch (e) {
+                console.warn('[Clima] pronóstico a 7 días no disponible:', e);
+            }
             const datos = construirDatosPronostico({
                 estaciones, umbrales: umbralesClima, sospechosaIds, alertas: alertasClima.alertas,
-                ahora: new Date(), horizonteH: o.horizonteH, modoTecnico: o.modoTecnico, verificacion, observado,
+                ahora: new Date(), horizonteH: o.horizonteH, modoTecnico: o.modoTecnico, verificacion, observado, semana,
                 contexto: {
                     canal: canal.k0 || canal.k104 ? {
                         k0M3s: canal.k0?.fresca ? canal.k0.gasto : null, k0Fresca: !!canal.k0?.fresca,

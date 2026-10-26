@@ -212,6 +212,25 @@ export interface ResumenVerificacion {
     estacionesExcluidas: string[];
 }
 
+// ── Tendencia a 7 días (clima_pronostico_diario) ──
+export interface FilaPronosticoDiario {
+    estacion_id: string; fecha: string;
+    temp_max_c: number | string | null; temp_min_c: number | string | null;
+    precip_mm: number | string | null; precip_prob_pct: number | string | null;
+    viento_max_ms: number | string | null;
+}
+export interface DiaSemana {
+    fecha: string;                 // YYYY-MM-DD local
+    tMaxC: number | null; tMinC: number | null;
+    /** Promedio entre estaciones (nunca suma: un mismo temporal cae en varias). */
+    lluviaMm: number | null; probPct: number | null;
+    /** Máximo entre estaciones: la más expuesta. */
+    vientoMaxMs: number | null;
+    estaciones: number;
+    /** Pasados 3 días el modelo acierta mucho menos: se rotula, no se oculta. */
+    confianza: 'media' | 'baja';
+}
+
 /** Lectura observada (WeatherLink) de una estación; sirve para la parte "medida" de la franja de 72 h. */
 export interface LecturaObs { estacionId: string; ts: string | number; tempC: number | null; vientoMs: number | null }
 
@@ -228,6 +247,8 @@ export interface EntradaPronostico {
     verificacion?: EntradaVerificacion | null;
     /** Lecturas de las últimas ~24 h de todas las estaciones (opcional: sin ellas la franja solo muestra pronóstico). */
     observado?: LecturaObs[];
+    /** Pronóstico diario a 7 días por estación (opcional: sin él el informe omite esa sección). */
+    semana?: FilaPronosticoDiario[];
 }
 
 export type Franja = 'madrugada' | 'mañana' | 'tarde' | 'noche';
@@ -298,6 +319,8 @@ export interface DatosPronostico {
     /** Aviso global de calidad (null = todo en orden). */
     avisosCalidad: string[];
     verificacion: ResumenVerificacion | null;
+    /** Tendencia a 7 días del distrito; vacía si no hay datos. */
+    semana: DiaSemana[];
 }
 
 // ── Formato de hora local ───────────────────────────────────────────────────
@@ -550,6 +573,32 @@ export function resumeVerificacion(v: EntradaVerificacion, sospechosaIds: Set<st
     }
     const excluidas = [...new Set([...nombresExcluidos, ...anomalas.values()])];
     return { variables, lluvia, lluviaCat, corridasConservadas: v.corridasConservadas, estacionesExcluidas: excluidas };
+}
+
+/**
+ * Resume el pronóstico diario del distrito: mediana de temperaturas, promedio de lluvia (no suma), máximo de probabilidad
+ * y de viento. Descarta estaciones sospechosas y días anteriores a `hoyClave`. Un campo sin dato queda null (S/D).
+ */
+export function resumeSemana(filas: FilaPronosticoDiario[] | undefined, sospechosaIds: Set<string>, hoyClave: string): DiaSemana[] {
+    if (!filas?.length) return [];
+    const porDia = new Map<string, FilaPronosticoDiario[]>();
+    for (const f of filas) {
+        if (sospechosaIds.has(f.estacion_id) || f.fecha < hoyClave) continue;
+        (porDia.get(f.fecha) ?? porDia.set(f.fecha, []).get(f.fecha)!).push(f);
+    }
+    const vals = (xs: FilaPronosticoDiario[], k: 'temp_max_c' | 'temp_min_c' | 'precip_mm' | 'precip_prob_pct' | 'viento_max_ms') =>
+        xs.map(x => aNum(x[k])).filter((v): v is number => v != null);
+    const med = (v: number[]) => (v.length ? mediana(v) : null);
+    const prom = (v: number[]) => (v.length ? v.reduce((a, b) => a + b, 0) / v.length : null);
+    const max = (v: number[]) => (v.length ? Math.max(...v) : null);
+    return [...porDia.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, 7).map(([fecha, xs], i) => ({
+        fecha,
+        tMaxC: med(vals(xs, 'temp_max_c')), tMinC: med(vals(xs, 'temp_min_c')),
+        lluviaMm: prom(vals(xs, 'precip_mm')), probPct: max(vals(xs, 'precip_prob_pct')),
+        vientoMaxMs: max(vals(xs, 'viento_max_ms')),
+        estaciones: xs.length,
+        confianza: i < 3 ? 'media' as const : 'baja' as const,
+    }));
 }
 
 // ── Construcción principal ──────────────────────────────────────────────────
@@ -910,6 +959,7 @@ export function construirDatosPronostico(e: EntradaPronostico): DatosPronostico 
             vieja: edadModelo != null && edadModelo > CORRIDA_VIEJA_MIN,
         },
         avisosCalidad,
+        semana: resumeSemana(e.semana, e.sospechosaIds, claveDia(desdeMs)),
         verificacion: e.verificacion
             ? resumeVerificacion(e.verificacion, e.sospechosaIds, estacionesExcluidas.map(x => x.nombre)) : null,
     };

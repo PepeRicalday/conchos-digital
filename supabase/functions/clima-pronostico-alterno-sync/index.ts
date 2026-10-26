@@ -134,14 +134,22 @@ Deno.serve(async (req) => {
     // Freno anti-abuso: la función acepta la anon key (pública, igual que sus hermanas) y cada llamada consume cuota
     // de Open-Meteo y de MET Norway (que bloquea a quien abusa). El cron corre cada 12 h; con datos de las
     // últimas 3 h se omite cada bloque (alternos y diario tienen su propio freno).
-    const reciente = async (tabla: string, col: string) => {
-      const { data } = await supabase.from(tabla).select(col).order(col, { ascending: false }).limit(1);
-      const v = (data?.[0] as Record<string, string> | undefined)?.[col];
-      return v ? ahora - Date.parse(v) < 3 * 3.6e6 : false;
+    // Freno por INTENTO (no por éxito) y que falla cerrado: un error al consultar cuenta como "reciente".
+    const intentoReciente = async (bloque: string) => {
+      const { data, error } = await supabase.from("clima_sync_estado").select("intento_en").eq("bloque", bloque).maybeSingle();
+      if (error) return true;
+      return data?.intento_en ? ahora - Date.parse(data.intento_en) < 3 * 3.6e6 : false;
     };
-    const omiteAlternos = await reciente("clima_pronostico_alterno", "corrida_en");
-    const omiteDiario = await reciente("clima_pronostico_diario", "obtenido_en");
-    if (omiteAlternos && omiteDiario) return json({ ok: true, omitido: true, motivo: "corrida reciente" }, 200);
+    const omiteAlternos = await intentoReciente("alternos");
+    const omiteDiario = await intentoReciente("diario");
+    if (omiteAlternos && omiteDiario) return json({ ok: true, omitido: true, motivo: "intento reciente" }, 200);
+    const marcas = [
+      ...(omiteAlternos ? [] : [{ bloque: "alternos", intento_en: new Date(ahora).toISOString() }]),
+      ...(omiteDiario ? [] : [{ bloque: "diario", intento_en: new Date(ahora).toISOString() }]),
+    ];
+    // Se registra ANTES de consultar a los proveedores; si no se puede registrar, no se consulta.
+    const { error: eMarca } = await supabase.from("clima_sync_estado").upsert(marcas, { onConflict: "bloque" });
+    if (eMarca) return json({ ok: false, error: "No se pudo registrar el intento: " + eMarca.message }, 500);
     const corridaEn = new Date(Math.floor(ahora / 3.6e6) * 3.6e6).toISOString();
     const resultados: Record<string, unknown>[] = [];
 

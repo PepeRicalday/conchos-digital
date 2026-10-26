@@ -111,6 +111,14 @@ Deno.serve(async (req) => {
     if (!estaciones?.length) return json({ error: "No hay estaciones activas configuradas" }, 200);
 
     const ahora = Date.now();
+    // Freno anti-abuso: la función acepta la anon key (pública, igual que sus hermanas) y cada llamada consume cuota
+    // de Open-Meteo y de MET Norway (que bloquea a quien abusa). El cron corre cada 12 h; con una corrida de las
+    // últimas 3 h se responde sin consultar a nadie.
+    const { data: ultima } = await supabase.from("clima_pronostico_alterno")
+      .select("corrida_en").order("corrida_en", { ascending: false }).limit(1);
+    if (ultima?.[0] && ahora - Date.parse(ultima[0].corrida_en) < 3 * 3.6e6) {
+      return json({ ok: true, omitido: true, motivo: "corrida reciente", ultima_corrida: ultima[0].corrida_en }, 200);
+    }
     const corridaEn = new Date(Math.floor(ahora / 3.6e6) * 3.6e6).toISOString();
     const resultados: Record<string, unknown>[] = [];
 

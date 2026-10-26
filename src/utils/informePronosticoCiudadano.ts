@@ -448,6 +448,11 @@ const emisionTxt = (ms: number) => FMT_EMISION.format(new Date(ms)).replace(/\./
 export interface OpcionesCiudadano {
     /** Versión angosta (una columna, sin glosario) pensada para compartir como imagen en el celular. */
     compacto?: boolean;
+    /**
+     * Para la imagen compartible: el nivel Básico mide ~1:7 en una sola pieza y en el celular se ve diminuto.
+     * 1 = aviso, días y franja de 72 h; 2 = dónde llueve, hora por hora, qué hacer y confianza. Sin valor = todo.
+     */
+    parte?: 1 | 2;
 }
 
 /** Logos de los módulos como data URI; si alguno no carga se omite y el mapa dibuja solo el número. */
@@ -567,6 +572,7 @@ export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: Opci
     const tarjetasConsejos = consejos.map(c => `<div class="rc rc-${c.tipo}"><span class="ic">${icono(c.icono, 54)}</span><span>${esc(c.texto)}</span></div>`).join('');
     const leyendaProb = RAMPA_PROB.map(r => `<span><i style="background:${r.color}"></i>${r.texto} %</span>`).join('');
 
+    const ver1 = op.parte !== 2, ver2 = op.parte !== 1;
     return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>El clima en Delicias — ${esc(getTodayString())}</title>
@@ -657,10 +663,10 @@ export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: Opci
 </style></head><body class="${op.compacto ? 'compacto' : ''}"><div class="hoja">
 <header>
   ${logoSica ? `<img src="${logoSica}" alt="SICA 005">` : ''}
-  <div class="t"><div class="k">SRL Unidad Conchos · Delicias, Chihuahua</div><h1>¿Cómo estará el clima?</h1></div>
+  <div class="t"><div class="k">SRL Unidad Conchos · Delicias, Chihuahua</div><h1>¿Cómo estará el clima?</h1>${op.parte ? `<div class="k">Parte ${op.parte} de 2</div>` : ''}</div>
   ${logoSrl ? `<img src="${logoSrl}" alt="SRL Unidad Conchos">` : ''}
 </header>
-<div class="escena">${escenaDistrito(escenaPara(d))}</div>
+${ver1 ? `<div class="escena">${escenaDistrito(escenaPara(d))}</div>
 <section class="banner" aria-label="Aviso principal">
   <div class="sem">${sem.simbolo} ${sem.texto}</div>
   <h2>${esc(tit.titulo)}</h2>
@@ -678,9 +684,9 @@ ${aviso}
   ${bloqueGrafica('sol', 'Temperatura (°C)', franjaTemp)}
   ${bloqueGrafica('lluvia', 'Lluvia por hora (mm)', franjaLluvia, lluviaHoyTxt)}
   ${bloqueGrafica('viento', 'Viento (km/h)', franjaViento)}
-</section>
+</section>` : ''}
 
-<section class="seccion" aria-label="Probabilidad de lluvia por módulo">
+${ver2 ? `<section class="seccion" aria-label="Probabilidad de lluvia por módulo">
   <h2>¿Dónde puede llover?</h2>
   <p class="sub">Probabilidad de lluvia en cada módulo de riego: la más alta de las próximas horas.${dispersion ? ` <b>${esc(dispersion)}</b>` : ''}${hayEstimados ? ' Un asterisco (*) indica que el módulo no tiene estación propia: su dato es el de la estación más cercana.' : ''}</p>
   <div class="mapa-lista">
@@ -713,7 +719,7 @@ ${op.compacto ? '' : `<section class="caja"><h2>Para entender mejor</h2>
 </section>`}
 
 <div class="oficial"><b>Importante:</b> este informe es una orientación de la SRL Unidad Conchos. <b>No sustituye</b> los avisos oficiales de Protección Civil ni del Servicio Meteorológico Nacional. Ante una emergencia, llame al 911 y siga sus indicaciones.
-  <p><b>Siempre:</b> aunque no llueva, manténgase lejos de las orillas de los canales de riego y no intente cruzarlos: la corriente arrastra aunque parezca tranquila.</p></div>
+  <p><b>Siempre:</b> aunque no llueva, manténgase lejos de las orillas de los canales de riego y no intente cruzarlos: la corriente arrastra aunque parezca tranquila.</p></div>` : ''}
 <footer>
   <span>SICA 005 · SRL Unidad Conchos · Distrito de Riego 005 Delicias</span>
   <span>Pronóstico automático, verificado con las estaciones de la red</span>
@@ -732,9 +738,12 @@ export async function descargarInformeCiudadano(d: DatosPronostico): Promise<voi
  * 900 px se reduce a ~43 % en un celular y el texto de 15-17 px queda ilegible.
  */
 export async function imagenInformeCiudadano(d: DatosPronostico): Promise<void> {
-    const html = await construyeInformeCiudadanoHTML(d, { compacto: true });
-    const png = await rasterizaHtml(html, { ancho: 540, escala: 3 });
-    await guardaOComparte(png, `clima-delicias-${getTodayString()}.png`, 'image/png');
+    // Dos imágenes (aviso+días+franja / mapa+horas+consejos): una sola de ~1:7 queda diminuta en el celular.
+    for (const parte of [1, 2] as const) {
+        const html = await construyeInformeCiudadanoHTML(d, { compacto: true, parte });
+        const png = await rasterizaHtml(html, { ancho: 540, escala: 3 });
+        await guardaOComparte(png, `clima-delicias-${getTodayString()}-parte${parte}.png`, 'image/png');
+    }
 }
 
 export async function imprimirInformeCiudadano(d: DatosPronostico): Promise<void> {

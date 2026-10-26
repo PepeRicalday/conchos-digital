@@ -9,6 +9,7 @@ import {
 } from '../../../utils/analiticaPresas';
 import GraficaCiclo from './GraficaCiclo';
 import GraficaProyeccion from './GraficaProyeccion';
+import EstacionesGoes from '../goes/EstacionesGoes';
 import './analitica.css';
 
 type Horizonte = 90 | 'ciclo';
@@ -19,11 +20,30 @@ const signo = (v: number, d = 2) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${format
 
 interface Props { presa: PresaData; fechaISO: string }
 
+type Vista = 'ciclo' | 'goes';
+
 /**
- * Pestaña "Analítica y forecasting": ciclo agrícola en curso (1-oct → 30-sep) frente a los ciclos pasados reales y
+ * Pestaña "Analítica y forecasting": dos vistas. «Ciclo y proyección» (volumen del ciclo agrícola) y «Estaciones GOES»
+ * (telemetría satelital de nivel y gasto). El estado de cada vista vive en su propio componente.
+ */
+export default function AnaliticaPresa(props: Props) {
+    const [vista, setVista] = useState<Vista>('ciclo');
+    return (
+        <div className="an-root">
+            <div className="an-vistas" role="group" aria-label="Vista de analítica">
+                <button type="button" className="an-vista-btn" aria-pressed={vista === 'ciclo'} onClick={() => setVista('ciclo')}>Ciclo y proyección</button>
+                <button type="button" className="an-vista-btn" aria-pressed={vista === 'goes'} onClick={() => setVista('goes')}>Estaciones GOES</button>
+            </div>
+            {vista === 'ciclo' ? <AnaliticaCiclo {...props} /> : <EstacionesGoes presaId={props.presa.id} />}
+        </div>
+    );
+}
+
+/**
+ * Vista "Ciclo y proyección": ciclo agrícola en curso (1-oct → 30-sep) frente a los ciclos pasados reales y
  * proyección por trayectorias análogas. Sin datos inventados: lo que no se puede calcular se muestra como S/D.
  */
-export default function AnaliticaPresa({ presa, fechaISO }: Props) {
+function AnaliticaCiclo({ presa, fechaISO }: Props) {
     const { indice, loading, error, recargar } = usePresasHistorico();
     const [horizonte, setHorizonte] = useState<Horizonte>(90);
 

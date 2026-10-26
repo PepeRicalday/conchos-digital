@@ -61,3 +61,10 @@ html[data-device='phone'] .an-titulo { font-size: 20px; }
 html[data-device='phone'] .an-chart { height: 240px; }
 html[data-device='phone'] .an-seg-btn { min-height: 44px; }
 @media (max-width: 760px) { .an-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Selector de sub-vista (Ciclo y proyección | Estaciones GOES) dentro de Analítica */
+.an-vistas { display: flex; flex-wrap: wrap; gap: 6px; }
+.an-vista-btn { min-height: 40px; padding: 6px 16px; border: 1px solid var(--pr-line); border-radius: 999px; background: transparent; color: var(--pr-t2); font: 600 13px var(--pr-body); cursor: pointer; }
+.an-vista-btn[aria-pressed='true'] { background: var(--pr-surface-2); border-color: var(--pr-sky); color: var(--pr-t1); }
+.an-vista-btn:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 2px; }
+html[data-device='phone'] .an-vista-btn { min-height: 44px; }

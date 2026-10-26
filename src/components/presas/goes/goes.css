@@ -1,0 +1,173 @@
+/* Estaciones hidrométricas GOES · prefijo goes- · tokens --pr-* de Presas.css (carta hidrográfica nocturna).
+   Texto ≥ 11 px · el estado nunca depende solo del color · objetivos táctiles ≥ 44 px en teléfono.
+   Categóricos de estación: slots 1-4 validados (dataviz, oscuro): #3987e5 #d95926 #199e70 #c98500. */
+.goes-root {
+    container: goes / inline-size;
+    --g-s1: #3987e5; --g-s2: #d95926; --g-s3: #199e70; --g-s4: #c98500;
+    display: flex; flex-direction: column; gap: 14px; min-width: 0;
+    font-family: var(--pr-body); color: var(--pr-t1); padding-bottom: env(safe-area-inset-bottom);
+}
+.goes-root * { box-sizing: border-box; }
+.goes-sub { margin: 2px 0 0; font-size: 14px; color: var(--pr-t2); }
+.goes-sub--der { margin: 0; font-family: var(--pr-mono); font-size: 12px; color: var(--pr-t3); }
+
+/* ── Cabecera ── */
+.goes-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
+.goes-titulo { margin: 0; font-family: var(--pr-display); font-weight: 800; font-size: 28px; letter-spacing: 0.02em; line-height: 1.05; color: var(--pr-t1); }
+.goes-head-der { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.goes-resumen { font-size: 14px; color: var(--pr-t2); }
+.goes-resumen b { font-family: var(--pr-mono); color: var(--pr-t1); }
+.goes-resumen .goes-resumen-alerta { color: var(--pr-crit); }
+.goes-btn { min-height: 44px; padding: 8px 18px; border: 1px solid var(--pr-sky); border-radius: 10px; background: transparent; color: var(--pr-sky); font: 700 14px var(--pr-body); cursor: pointer; }
+.goes-btn--sec { min-height: 36px; padding: 6px 14px; border-color: var(--pr-line); color: var(--pr-t2); font-weight: 600; font-size: 13px; }
+.goes-btn--sec:hover { border-color: var(--pr-sky); color: var(--pr-sky); }
+.goes-btn:focus-visible, .goes-seg-btn:focus-visible, .goes-chip:focus-visible, .goes-plegar:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 2px; }
+
+/* ── Grupos y fichas ── */
+.goes-grupo { display: flex; flex-direction: column; gap: 8px; }
+.goes-grupo-t { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin: 0; font-size: 16px; font-weight: 700; color: var(--pr-t1); }
+.goes-grupo-marca { padding: 2px 9px; border: 1px solid rgba(56, 189, 248, 0.45); border-radius: 999px; font-family: var(--pr-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--pr-sky); }
+.goes-fichas { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 10px; }
+
+.goes-ficha { --acc: var(--pr-sky); display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px 14px 10px;
+    border: 1px solid var(--pr-line); border-top: 2px solid var(--acc); border-radius: 12px; background: var(--pr-surface); }
+.goes-ficha.is-destacada { background: var(--pr-surface-2); }
+.goes-ficha-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.goes-ficha-id { min-width: 0; }
+.goes-ficha-id h4 { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.25; color: var(--pr-t1); overflow-wrap: anywhere; }
+.goes-dcp { font-family: var(--pr-mono); font-size: 11px; color: var(--pr-t3); }
+
+.goes-sello { display: inline-flex; align-items: center; gap: 5px; flex: none; padding: 3px 9px; border: 1px solid var(--pr-line); border-radius: 999px; font-family: var(--pr-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; white-space: nowrap; color: var(--pr-t2); }
+.goes-sello--en_linea { color: var(--pr-ok); border-color: rgba(52, 211, 153, 0.45); }
+.goes-sello--retraso { color: var(--pr-warn); border-color: rgba(251, 191, 36, 0.5); }
+.goes-sello--sin_transmision { color: var(--pr-crit); border-color: rgba(248, 113, 113, 0.55); background: rgba(248, 113, 113, 0.08); }
+.goes-sello--sd { color: var(--pr-t3); }
+
+.goes-medidas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.goes-medida { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.goes-k { font-family: var(--pr-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pr-t3); }
+.goes-num { font-family: var(--pr-display); font-weight: 800; font-size: 42px; line-height: 1; letter-spacing: 0.005em; font-variant-numeric: tabular-nums; color: var(--pr-t1); white-space: nowrap; }
+.goes-num small { margin-left: 6px; font-family: var(--pr-body); font-size: 13px; font-weight: 600; color: var(--pr-t3); letter-spacing: 0.02em; }
+.goes-num.is-sd { color: var(--pr-t3); }
+.goes-tend { font-family: var(--pr-mono); font-size: 12px; font-weight: 600; color: var(--pr-t2); }
+.goes-tend--sube { color: var(--pr-sky); }
+.goes-tend--baja { color: var(--pr-warn); }
+.goes-tend--sd { color: var(--pr-t3); font-weight: 500; }
+.goes-spark { display: block; width: 100%; height: auto; margin-top: 4px; }
+.goes-spark--sd { border-radius: 4px; }
+.goes-aviso { margin: 0; padding: 7px 10px; border-left: 3px solid var(--pr-warn); background: rgba(251, 191, 36, 0.07); font-size: 12px; line-height: 1.4; color: var(--pr-t2); }
+.goes-extra { margin: 0; font-size: 13px; color: var(--pr-t2); }
+.goes-extra b { font-family: var(--pr-mono); color: var(--pr-t1); }
+.goes-ficha-pie { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: auto; padding-top: 8px; border-top: 1px solid var(--pr-line); font-size: 12px; color: var(--pr-t3); }
+.goes-ficha-pie b { font-family: var(--pr-mono); font-weight: 600; color: var(--pr-t2); }
+.goes-ubic { margin-left: auto; font-family: var(--pr-mono); }
+.goes-ficha.is-apagada { border-top-style: dashed; }
+
+/* ── Tarjetas de sección ── */
+.goes-card { padding: 14px 16px 12px; border: 1px solid var(--pr-line); border-radius: 12px; background: var(--pr-surface); min-width: 0; }
+.goes-h { margin: 0; font-size: 16px; font-weight: 700; color: var(--pr-t1); }
+.goes-h--pie { font-size: 14px; color: var(--pr-t2); }
+.goes-h-fila { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.goes-nota { margin: 8px 0 0; font-size: 12px; line-height: 1.4; color: var(--pr-t3); }
+
+.goes-seg { display: inline-flex; border: 1px solid var(--pr-line); border-radius: 10px; overflow: hidden; }
+.goes-seg-btn { min-height: 36px; padding: 6px 14px; border: 0; background: transparent; color: var(--pr-t2); font: 600 13px var(--pr-body); cursor: pointer; }
+.goes-seg-btn[aria-pressed='true'] { background: var(--pr-sky); color: #04111f; }
+.goes-filtros { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 10px 0 4px; }
+.goes-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 4px 12px; border: 1px solid var(--pr-line); border-radius: 999px; background: transparent; color: var(--pr-t3); font: 600 13px var(--pr-body); cursor: pointer; }
+.goes-chip[aria-pressed='true'] { color: var(--pr-t1); border-color: var(--pr-t3); background: var(--pr-surface-2); }
+.goes-chip[aria-pressed='false'] .goes-sw { opacity: 0.35; }
+.goes-sw { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 3px; flex: none; vertical-align: -1px; }
+.goes-chip .goes-sw { margin-right: 0; }
+
+/* ── Gráfica: dos paneles alineados (nunca doble eje) ── */
+.goes-paneles { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.goes-panel-t { margin: 8px 0 0; font-size: 13px; font-weight: 600; color: var(--pr-t2); }
+.goes-panel-t small { font-family: var(--pr-mono); font-weight: 500; color: var(--pr-t3); }
+.goes-chart { width: 100%; height: 170px; touch-action: pan-y; }
+.goes-chart--eje { height: 196px; }
+.goes-tip { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--pr-line); border-radius: 10px; background: #0b1626; font-size: 12px; color: var(--pr-t2); }
+.goes-tip b { color: var(--pr-t1); }
+.goes-tip-fila { display: flex; align-items: center; gap: 7px; }
+.goes-tip-fila i { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.goes-tip-fila em { font-style: normal; color: var(--pr-warn); }
+
+/* ── Tablas (resumen y enlace) ── */
+.goes-tabla-wrap { margin-top: 10px; }
+.goes-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+.goes-tabla caption { text-align: left; padding: 0 0 8px; font-size: 12px; color: var(--pr-t3); }
+.goes-tabla th, .goes-tabla td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--pr-line); font-weight: 400; vertical-align: middle; }
+.goes-tabla thead th { font-family: var(--pr-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pr-t3); white-space: nowrap; }
+.goes-tabla th[scope='row'] { font-weight: 600; color: var(--pr-t1); }
+.goes-tabla td { font-family: var(--pr-mono); color: var(--pr-t2); font-variant-numeric: tabular-nums; }
+.goes-tabla td small { display: block; font-family: var(--pr-body); font-size: 12px; color: var(--pr-t3); }
+.goes-tabla--enlace td { white-space: nowrap; }
+.goes-tira { display: inline-flex; gap: 2px; }
+.goes-celda { display: inline-block; width: 6px; height: 16px; border-radius: 2px; flex: none; }
+.goes-celda--bueno { background: var(--pr-ok); }
+.goes-celda--falla { background: var(--pr-crit); }
+.goes-celda--sin { background: repeating-linear-gradient(135deg, rgba(148, 163, 184, 0.45) 0 2px, transparent 2px 4px); outline: 1px solid rgba(148, 163, 184, 0.3); outline-offset: -1px; }
+.goes-leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--pr-t2); }
+.goes-leyenda li { display: inline-flex; align-items: center; gap: 7px; }
+
+/* ── Meteorología ── */
+.goes-plegar { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.goes-plegar-estado { font-family: var(--pr-mono); font-size: 12px; font-weight: 600; color: var(--pr-sky); white-space: nowrap; }
+.goes-meteo { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 10px; margin-top: 8px; }
+.goes-meteo-est { --acc: var(--pr-sky); display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px 14px; border: 1px solid var(--pr-line); border-top: 2px solid var(--acc); border-radius: 12px; background: var(--pr-surface); }
+.goes-meteo-est header { display: flex; flex-direction: column; gap: 1px; }
+.goes-meteo-est h4 { margin: 0; font-size: 15px; font-weight: 700; }
+.goes-meteo-cuerpo { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; align-items: center; }
+.goes-rosa { width: 96px; height: 96px; }
+.goes-meteo-datos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 0; }
+.goes-meteo-datos dt { font-family: var(--pr-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pr-t3); }
+.goes-meteo-datos dd { margin: 0; font-family: var(--pr-display); font-weight: 800; font-size: 26px; line-height: 1.1; color: var(--pr-t1); font-variant-numeric: tabular-nums; }
+.goes-meteo-datos dd small { margin-left: 4px; font-family: var(--pr-body); font-size: 12px; font-weight: 600; color: var(--pr-t3); }
+.goes-meteo-datos dd.goes-meteo-sub { font-family: var(--pr-body); font-size: 12px; font-weight: 500; line-height: 1.35; color: var(--pr-t3); }
+.goes-meteo-sparks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+/* ── Pie, vacío, carga ── */
+.goes-pie { padding: 12px 16px; border: 1px dashed var(--pr-line); border-radius: 12px; }
+.goes-pie ul { margin: 6px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.5; color: var(--pr-t3); }
+.goes-pie li + li { margin-top: 3px; }
+.goes-pie b { color: var(--pr-t2); }
+.goes-vacio { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px; border: 1px solid var(--pr-line); border-radius: 12px; background: var(--pr-surface); font-size: 14px; color: var(--pr-t2); }
+.goes-vacio strong { color: var(--pr-t1); font-size: 16px; }
+.goes-skeleton { height: 120px; border-radius: 12px; background: var(--pr-surface-2); animation: goes-pulso 1.4s ease-in-out infinite; }
+.goes-skeleton--alta { height: 300px; }
+@keyframes goes-pulso { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .goes-skeleton { animation: none; } }
+
+/* ── Responsivo: iPad (columna angosta junto a «Obras de toma») y iPhone ── */
+html[data-device='tablet'] .goes-chart { height: 180px; }
+@media (max-width: 760px) {
+    .goes-titulo { font-size: 24px; }
+    .goes-num { font-size: 38px; }
+}
+html[data-device='phone'] .goes-seg-btn, html[data-device='phone'] .goes-chip { min-height: 44px; }
+html[data-device='phone'] .goes-fichas, html[data-device='phone'] .goes-meteo { grid-template-columns: minmax(0, 1fr); }
+html[data-device='phone'] .goes-meteo-cuerpo { grid-template-columns: 84px minmax(0, 1fr); gap: 10px; }
+html[data-device='phone'] .goes-rosa { width: 84px; height: 84px; }
+html[data-device='phone'] .goes-ubic { margin-left: 0; width: 100%; }
+/* Tablas apiladas cuando el contenedor es angosto (columna de Presas junto a «Obras de toma», iPad, iPhone):
+   sin scroll horizontal anidado (trampa táctil conocida). */
+@container goes (max-width: 720px) {
+    .goes-tabla thead { display: none; }
+    .goes-tabla caption { display: block; }
+    .goes-tabla, .goes-tabla tbody { display: block; }
+    .goes-tabla tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 12px; padding: 10px 0; border-bottom: 1px solid var(--pr-line); }
+    .goes-tabla th, .goes-tabla td { display: block; padding: 0; border: 0; text-align: left; }
+    .goes-tabla th[scope='row'] { grid-column: 1 / -1; font-size: 15px; }
+    .goes-tabla td::before { content: attr(data-label); display: block; margin-bottom: 1px; font-family: var(--pr-body); font-size: 12px; color: var(--pr-t3); }
+    .goes-tabla--enlace td:last-child { grid-column: 1 / -1; }
+    .goes-tabla--enlace th[scope='row'] { grid-column: span 2; }
+    .goes-tabla--enlace td:nth-child(2) { text-align: right; }
+    .goes-tabla--enlace td:nth-child(2)::before { display: none; }
+    .goes-tabla--resumen tr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container goes (max-width: 460px) {
+    .goes-tabla tr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .goes-tabla--enlace td:nth-child(2) { grid-column: 1 / -1; text-align: left; }
+}
+html[data-device='phone'] .goes-chart { height: 150px; }
+html[data-device='phone'] .goes-chart--eje { height: 176px; }

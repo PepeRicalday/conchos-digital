@@ -521,8 +521,9 @@ export function predice24h(e: EstacionConLectura, umbrales?: UmbralClima[]): Pre
 
     // El viento es un AVISO operativo independiente: antes secuestraba el estado
     // del cielo ("Ventoso" desplazaba a la nubosidad), lo que mezclaba variables.
-    const viento = l.viento_ms ?? 0;
-    const avisoViento = viento >= umbralVigente(umbrales, claveVientoDe(e.rol)).aviso
+    // Sin lectura de viento (S/D) no se evalúa el aviso: nunca se asume 0.
+    const viento = l.viento_ms;
+    const avisoViento = viento != null && viento >= umbralVigente(umbrales, claveVientoDe(e.rol)).aviso
         ? `Viento sostenido ${viento.toFixed(1)} m/s: posible deriva en aspersión.`
         : null;
 

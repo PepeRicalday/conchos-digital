@@ -141,10 +141,17 @@ export async function construyeInformePronosticoHTML(d: DatosPronostico): Promis
                 + `${ll.peor ? `Mayor falla: ${esc(ll.peor.estacion)}, ${esc(ll.peor.dia)} — pronosticó ${ll.peor.pronosticadoMm} mm y cayeron ${ll.peor.observadoMm} mm. ` : ''}`
                 + `<em>La lluvia convectiva se acierta mal en lugar y cantidad: use el pronóstico para saber <b>si</b> puede llover, no cuánto en un punto.</em></li>`
             : '<li>Lluvia: sin días completos para comparar.</li>';
+        const lc = ver.lluviaCat;
+        const lluviaCatTxt = lc
+            ? `<li><b>¿Va a llover? (día completo, pronóstico emitido el día anterior, ≥ 1 mm)</b>: ${lc.estacionDias} comparaciones estación-día; `
+                + `${lc.eventos >= 5
+                    ? `avisó ${lc.aciertos} de ${lc.eventos} lluvias que sí ocurrieron y dio ${lc.falsasAlarmas} falsa(s) alarma(s).`
+                    : `solo ${lc.eventos} día(s) con lluvia en la ventana: muestra insuficiente para dar un porcentaje de acierto (avisó ${lc.aciertos}, falló ${lc.omisiones}, ${lc.falsasAlarmas} falsa(s) alarma(s)).`}</li>`
+            : '';
         bloqueVerif = `<h2>7 · Qué tanto acierta el modelo</h2>
 <p class="sub2">Pronóstico contra la lectura de la estación más cercana en el tiempo (±60 min), últimos 14 días. El horizonte medido hasta hoy es el del último pronóstico antes de la hora (0–6 h): ${ver.corridasConservadas > 0 ? `ya se conservan ${ver.corridasConservadas} corrida(s) guardada(s) para medir también 7–24 h y 25–48 h conforme se acumulen (2 por día).` : 'las corridas de 7–24 h y 25–48 h empezarán a medirse cuando se acumulen corridas guardadas.'}</p>
 ${ver.variables.length ? `<table><thead><tr><th>Variable</th><th>Horizonte</th><th class="num">Comparaciones</th><th class="num">Error medio</th><th class="num">Sesgo</th></tr></thead><tbody>${filasV}</tbody></table>` : '<p class="muted">Aún no hay comparaciones suficientes de temperatura y viento.</p>'}
-<ul style="font-size:12.5px;margin-top:10px">${lluviaTxt}${ver.estacionesExcluidas.length ? `<li>No se incluyen en este cálculo: ${esc(ver.estacionesExcluidas.join(', '))} (sensor sospechoso o con un error fuera de lo normal frente al resto de la red).</li>` : ''}</ul>`;
+<ul style="font-size:12.5px;margin-top:10px">${lluviaTxt}${lluviaCatTxt}${ver.estacionesExcluidas.length ? `<li>No se incluyen en este cálculo: ${esc(ver.estacionesExcluidas.join(', '))} (sensor sospechoso o con un error fuera de lo normal frente al resto de la red).</li>` : ''}</ul>`;
     }
 
     const fecha = new Date(d.generadoMs);
@@ -276,7 +283,7 @@ ${(presa || canal) ? `<ul style="margin-top:10px;font-size:13px">${presa}${canal
 ${alertas}
 
 <h2>6 · Confiabilidad de este informe</h2>
-<p class="sub2">Lo observado (columna "Ahora") es de la estación; lo pronosticado es del modelo. S/D = sin dato confiable; nunca se sustituye por 0.</p>
+<p class="sub2">Lo observado (columna "Ahora") es de la estación; lo pronosticado es del modelo. S/D = sin dato confiable; nunca se sustituye por 0. En las estaciones donde el modelo muestra un error sistemático medido contra sus propias lecturas (hoy, sobre todo el viento en Módulos 1, 3 y 5), el viento y la temperatura pronosticados se ajustan restando ese sesgo; las tablas de acierto de la sección 7 siguen midiendo el valor del modelo sin ajustar.</p>
 <table>
   <thead><tr><th>Estación</th><th>Calidad</th><th class="num">Edad lectura</th><th class="num">Ahora (T · viento · lluvia día)</th><th class="num">Pronóstico</th><th class="num">Edad corrida</th></tr></thead>
   <tbody>${filasEst}</tbody>

@@ -29,7 +29,7 @@ import { obtenTendenciasPeriodo, type TendenciasPeriodo } from '../utils/climaTe
 import { getTodayString } from '../utils/dateHelpers';
 import { GeoInformeOpcionesModal } from '../components/GeoInformeOpcionesModal';
 import { PronosticoInformeModal, type OpcionesInformePronostico } from '../components/PronosticoInformeModal';
-import { construirDatosPronostico, type EntradaVerificacion, type FilaSkillVariable, type FilaSkillLluvia, type LecturaObs } from '../utils/informePronosticoDatos';
+import { construirDatosPronostico, type EntradaVerificacion, type FilaSkillVariable, type FilaSkillLluvia, type FilaSkillLluviaCat, type LecturaObs } from '../utils/informePronosticoDatos';
 import { descargarInformePronostico, imprimirInformePronostico } from '../utils/informePronosticoHtml';
 import { descargarInformeCiudadano, imprimirInformeCiudadano, imagenInformeCiudadano } from '../utils/informePronosticoCiudadano';
 import { useCanalExtremos } from '../hooks/useDashboardPulso';
@@ -586,9 +586,10 @@ const Clima = () => {
             // Verificación del modelo: si las RPC fallan el informe sale igual, sin esa sección.
             let verificacion: EntradaVerificacion | null = null;
             try {
-                const [vars, lluvia, corr] = await Promise.all([
+                const [vars, lluvia, lluviaCat, corr] = await Promise.all([
                     supabase.rpc('fn_clima_skill_variables', { p_dias: 14 }),
                     supabase.rpc('fn_clima_skill_lluvia_dia', { p_dias: 14 }),
+                    supabase.rpc('fn_clima_skill_lluvia_cat', { p_dias: 30 }),
                     supabase.from('clima_pronostico_snapshot').select('corrida_en').order('corrida_en', { ascending: false }).limit(1000),
                 ]);
                 if (vars.error) throw vars.error;
@@ -596,6 +597,8 @@ const Clima = () => {
                 verificacion = {
                     variables: (vars.data ?? []) as FilaSkillVariable[],
                     lluviaDias: (lluvia.data ?? []) as FilaSkillLluvia[],
+                    // Opcional: si la RPC categórica falla, el resto de la verificación sale igual.
+                    lluviaCat: lluviaCat.error ? undefined : (lluviaCat.data ?? []) as FilaSkillLluviaCat[],
                     corridasConservadas: new Set((corr.data ?? []).map(r => r.corrida_en as string)).size,
                 };
             } catch (e) {

@@ -70,6 +70,11 @@ export interface PronosticoHora {
     precip_mm: number | null;
     temp_c: number | null;
     viento_ms: number | null;
+    /** Valores del modelo sin corregir; temp_c/viento_ms ya traen la corrección por sesgo local. */
+    temp_c_crudo?: number | null;
+    viento_ms_crudo?: number | null;
+    /** true si temp_c o viento_ms difieren del crudo (hay corrección de sesgo aplicada). */
+    corregido?: boolean;
     eto_fc_mm: number | null;
 }
 
@@ -154,13 +159,24 @@ export function useClimaEstaciones() {
             const desde = new Date(Date.now() - 3.6e6).toISOString();
             const { data: fcs } = await supabase
                 .from('clima_pronostico_horario')
-                .select('estacion_id, proveedor, modelo, corrida_en, valido_en, fecha_local, horizonte_h, nubosidad_total_pct, nubosidad_baja_pct, nubosidad_media_pct, nubosidad_alta_pct, precip_prob_pct, precip_mm, temp_c, viento_ms, eto_fc_mm')
+                .select('estacion_id, proveedor, modelo, corrida_en, valido_en, fecha_local, horizonte_h, nubosidad_total_pct, nubosidad_baja_pct, nubosidad_media_pct, nubosidad_alta_pct, precip_prob_pct, precip_mm, temp_c, viento_ms, temp_c_corr, viento_ms_corr, eto_fc_mm')
                 .in('estacion_id', ids)
                 .gte('valido_en', desde)
                 .order('valido_en', { ascending: true });
 
+            // temp_c / viento_ms llevan el valor CORREGIDO por sesgo medido (clima_sesgo_vigente);
+            // el crudo del modelo queda en *_crudo. Sin corrección vigente ambos coinciden.
             const seriePorEstacion = new Map<string, PronosticoHora[]>();
-            for (const f of (fcs ?? []) as PronosticoHora[]) {
+            for (const raw of (fcs ?? []) as Array<PronosticoHora & { temp_c_corr?: number | null; viento_ms_corr?: number | null }>) {
+                const { temp_c_corr, viento_ms_corr, ...resto } = raw;
+                const tCorr = temp_c_corr ?? raw.temp_c;
+                const vCorr = viento_ms_corr ?? raw.viento_ms;
+                const f: PronosticoHora = {
+                    ...resto,
+                    temp_c: tCorr, viento_ms: vCorr,
+                    temp_c_crudo: raw.temp_c, viento_ms_crudo: raw.viento_ms,
+                    corregido: (tCorr ?? null) !== (raw.temp_c ?? null) || (vCorr ?? null) !== (raw.viento_ms ?? null),
+                };
                 const arr = seriePorEstacion.get(f.estacion_id);
                 if (arr) arr.push(f); else seriePorEstacion.set(f.estacion_id, [f]);
             }

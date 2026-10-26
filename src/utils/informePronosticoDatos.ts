@@ -186,9 +186,15 @@ export interface FilaSkillLluvia {
     estacion_id: string; estacion_nombre: string; dia: string;
     mm_pronosticado: number | string | null; mm_observado: number | string | null; error: number | string | null;
 }
+/** fn_clima_skill_lluvia_cat: tabla de contingencia diaria (≥ 1 mm) con el pronóstico emitido el día anterior. */
+export interface FilaSkillLluviaCat {
+    estacion_id: string; estacion_nombre: string; dias: number | string;
+    aciertos: number | string; omisiones: number | string; falsas_alarmas: number | string; correctos_negativos: number | string;
+}
 export interface EntradaVerificacion {
     variables: FilaSkillVariable[];
     lluviaDias: FilaSkillLluvia[];
+    lluviaCat?: FilaSkillLluviaCat[];
     /** Corridas de pronóstico conservadas (clima_pronostico_snapshot): habilitan 7-24 h y 25-48 h. */
     corridasConservadas: number;
 }
@@ -200,6 +206,8 @@ export interface ResumenVerificacion {
         diasConLluviaObservada: number; detectados: number;
         peor: { estacion: string; dia: string; pronosticadoMm: number; observadoMm: number } | null;
     } | null;
+    /** Acierto de "¿llovió ≥ 1 mm?" con el pronóstico del día anterior; null sin comparaciones. */
+    lluviaCat: { estacionDias: number; aciertos: number; omisiones: number; falsasAlarmas: number; eventos: number } | null;
     corridasConservadas: number;
     estacionesExcluidas: string[];
 }
@@ -530,8 +538,18 @@ export function resumeVerificacion(v: EntradaVerificacion, sospechosaIds: Set<st
             peor: Math.abs(peor.p - peor.o) >= 2 ? { estacion: peor.e, dia: peor.dia, pronosticadoMm: peor.p, observadoMm: peor.o } : null,
         };
     }
+    let lluviaCat: ResumenVerificacion['lluviaCat'] = null;
+    const catBuenas = (v.lluviaCat ?? []).filter(r => !fuera(r.estacion_id));
+    if (catBuenas.length) {
+        const suma = (k: 'dias' | 'aciertos' | 'omisiones' | 'falsas_alarmas') => catBuenas.reduce((s, r) => s + (aNum(r[k]) ?? 0), 0);
+        const estacionDias = suma('dias');
+        if (estacionDias > 0) {
+            const aciertos = suma('aciertos'), omisiones = suma('omisiones');
+            lluviaCat = { estacionDias, aciertos, omisiones, falsasAlarmas: suma('falsas_alarmas'), eventos: aciertos + omisiones };
+        }
+    }
     const excluidas = [...new Set([...nombresExcluidos, ...anomalas.values()])];
-    return { variables, lluvia, corridasConservadas: v.corridasConservadas, estacionesExcluidas: excluidas };
+    return { variables, lluvia, lluviaCat, corridasConservadas: v.corridasConservadas, estacionesExcluidas: excluidas };
 }
 
 // ── Construcción principal ──────────────────────────────────────────────────

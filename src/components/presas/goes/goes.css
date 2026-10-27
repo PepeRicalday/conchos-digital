@@ -69,6 +69,7 @@
 .goes-k small { margin-left: 3px; font-size: 11px; font-weight: 500; letter-spacing: 0.02em; text-transform: none; }
 .goes-num { font-family: var(--pr-display); font-weight: 800; font-size: 34px; line-height: 1.05; letter-spacing: 0.005em; font-variant-numeric: tabular-nums; color: var(--pr-t1); white-space: nowrap; }
 .goes-num.is-sd { color: var(--pr-t3); }
+.goes-num.is-obsoleto { color: var(--pr-t2); }
 
 /* Trazo de alto fijo: crece a lo ancho, nunca a lo alto. */
 .goes-spark-wrap { position: relative; height: 40px; margin-top: 4px; }

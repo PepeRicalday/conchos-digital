@@ -47,11 +47,14 @@ function Cifra({ r, campo, dec, cargando }: { r: ResumenEstacion | null | undefi
     return <td>{cargando ? '…' : r ? fmt(r[campo], dec) : 'S/D'}</td>;
 }
 
-/** Último punto solo si es reciente: un valor viejo no se presenta como actual. */
-function vigente(serie: PuntoHidro[] | undefined, ahora: number): PuntoHidro | null {
+/**
+ * Último registro conocido de la serie (de las últimas 24 h), sea o no reciente: con la estación sin transmisión se muestra
+ * ese valor rotulado con su antigüedad («Último dato … hace X»), nunca 0 ni S/D. `obsoleto` avisa que ya no es una lectura actual.
+ */
+function ultimoConocido(serie: PuntoHidro[] | undefined, ahora: number): { p: PuntoHidro; obsoleto: boolean } | null {
     const p = serie ? ultimoPunto(serie) : null;
     if (!p || !ahora) return null;
-    return (ahora - p.t) / 60000 <= STALE_GOES_MIN ? p : null;
+    return { p, obsoleto: (ahora - p.t) / 60000 > STALE_GOES_MIN };
 }
 
 export default function TarjetaEstacion({ estacion, series, serieVentana, estadistica, ventana, mensajes, ahora, destacada }: Props) {
@@ -64,9 +67,12 @@ export default function TarjetaEstacion({ estacion, series, serieVentana, estadi
 
     const sNivel = series?.nivel_m ?? [];
     const sGasto = series?.gasto_m3s ?? [];
-    const pNivel = apagada ? null : vigente(sNivel, ahora);
-    const pGasto = apagada ? null : vigente(sGasto, ahora);
-    const pVel = apagada ? null : vigente(series?.velocidad_ms, ahora);
+    const uNivel = ultimoConocido(sNivel, ahora);
+    const uGasto = ultimoConocido(sGasto, ahora);
+    const pNivel = uNivel?.p ?? null;
+    const pGasto = uGasto?.p ?? null;
+    const pVel = ultimoConocido(series?.velocidad_ms, ahora)?.p ?? null;
+    const obsoleto = apagada || !!uNivel?.obsoleto || !!uGasto?.obsoleto;
     const cero = pGasto != null && ceroSospechoso(estacion.id, pGasto.v, pNivel?.v ?? null);
 
     const { horas, pasoMin } = VENTANAS[ventana];
@@ -103,14 +109,14 @@ export default function TarjetaEstacion({ estacion, series, serieVentana, estadi
             <div className="goes-medidas">
                 <section className="goes-medida" aria-label="Nivel">
                     <span className="goes-k" title="Nivel del sensor en la estación (referencia propia): no es cota msnm ni porcentaje de llenado">Nivel <small>m</small></span>
-                    <span className={`goes-num${pNivel ? '' : ' is-sd'}`}>{pNivel ? fmt(pNivel.v, 2) : 'S/D'}</span>
-                    <Spark serie={apagada ? [] : trazo.nivel} color={color} desdeMs={desdeMs} hastaMs={hastaMs} huecoMs={huecoMs}
+                    <span className={`goes-num${pNivel ? (obsoleto ? ' is-obsoleto' : '') : ' is-sd'}`}>{pNivel ? fmt(pNivel.v, 2) : 'S/D'}</span>
+                    <Spark serie={trazo.nivel} color={color} desdeMs={desdeMs} hastaMs={hastaMs} huecoMs={huecoMs}
                         etiqueta={`Nivel de ${estacion.nombre}`} ventanaTxt={VENTANAS[ventana].etiqueta} />
                 </section>
                 <section className="goes-medida" aria-label="Gasto">
                     <span className="goes-k">Gasto <small>m³/s</small></span>
-                    <span className={`goes-num${pGasto ? '' : ' is-sd'}`}>{pGasto ? (cero ? textoBajoUmbral(estacion.id) : fmt(pGasto.v, 2)) : 'S/D'}</span>
-                    <Spark serie={apagada ? [] : trazo.gasto} color={color} desdeMs={desdeMs} hastaMs={hastaMs} huecoMs={huecoMs}
+                    <span className={`goes-num${pGasto ? (obsoleto ? ' is-obsoleto' : '') : ' is-sd'}`}>{pGasto ? (cero ? textoBajoUmbral(estacion.id) : fmt(pGasto.v, 2)) : 'S/D'}</span>
+                    <Spark serie={trazo.gasto} color={color} desdeMs={desdeMs} hastaMs={hastaMs} huecoMs={huecoMs}
                         etiqueta={`Gasto de ${estacion.nombre}`} ventanaTxt={VENTANAS[ventana].etiqueta} />
                 </section>
                 {cero && (
@@ -124,7 +130,12 @@ export default function TarjetaEstacion({ estacion, series, serieVentana, estadi
                 <thead><tr><th scope="col"><span className="goes-sr">Variable</span></th><th scope="col">mín</th><th scope="col">prom</th><th scope="col">máx</th></tr></thead>
                 <tbody>
                     <tr><th scope="row">Nivel</th>{(['min', 'media', 'max'] as const).map(c => <Cifra key={c} r={estadistica?.nivel} campo={c} dec={2} cargando={cargando} />)}</tr>
-                    <tr><th scope="row">Gasto</th>{(['min', 'media', 'max'] as const).map(c => <Cifra key={c} r={estadistica?.gasto} campo={c} dec={1} cargando={cargando} />)}</tr>
+                    <tr><th scope="row">Gasto</th>{(['min', 'media', 'max'] as const).map(c => (
+                        c === 'media' && estadistica?.censurado
+                            // Con lecturas bajo el umbral, el prom de solo las positivas sobreestima: se da el rango.
+                            ? <td key={c} title="Rango: ceros bajo el umbral como 0 y como el umbral del sensor">{fmt(estadistica.censurado.mediaInf, 1)} – {fmt(estadistica.censurado.mediaSup, 1)}</td>
+                            : <Cifra key={c} r={estadistica?.gasto} campo={c} dec={1} cargando={cargando} />
+                    ))}</tr>
                 </tbody>
             </table>
             <table className="goes-mini goes-mini--var tap-compact">
@@ -139,7 +150,7 @@ export default function TarjetaEstacion({ estacion, series, serieVentana, estadi
             </table>
 
             <div className="goes-ficha-chips">
-                {apagada && <p className="goes-extra goes-extra--sd">Sin dato vigente: las cifras y el trazo no se presentan como actuales.</p>}
+                {obsoleto && <p className="goes-extra goes-extra--sd">Último registro conocido{ultTxt ? <> ({fechaHoraLocal(ultTxt)}, {textoEdad(enlace.edadMin)})</> : ''}: no es una lectura actual.</p>}
                 <span className={`goes-cob${cobBaja ? ' is-baja' : ''}`} title={cob ? `${cob.recibidas} de ${cob.esperadas} lecturas esperadas` : undefined}>
                     {cargando ? 'Cobertura …' : cob ? <>Cobertura <b>{fmt(cob.pct, 0)} %</b>{cobBaja && <> <span aria-hidden="true">▲</span> menos de {COBERTURA_MIN_CONFIABLE} %: pocas lecturas</>}</> : 'Cobertura S/D'}
                 </span>

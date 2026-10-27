@@ -17,7 +17,7 @@ import LimnimetroPresa from '../components/LimnimetroPresa';
 import PresaHistoricoContexto from '../components/PresaHistoricoContexto';
 import BotonInfografiaPresas from '../components/BotonInfografiaPresas';
 import BotonInformeNivelTendencia from '../components/BotonInformeNivelTendencia';
-import AnaliticaPresa from '../components/presas/analitica/AnaliticaPresa';
+import AnaliticaPresa, { type VistaAnalitica } from '../components/presas/analitica/AnaliticaPresa';
 
 
 /** Espejo de los tokens --pr-* de Presas.css (hex porque se componen con alfa: `${color}18`). */
@@ -497,6 +497,7 @@ const Presas = () => {
     const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
     const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'operacion' | 'analitica'>('operacion');
+    const [vistaAnalitica, setVistaAnalitica] = useState<VistaAnalitica>('ciclo');
     const [horaActual, setHoraActual] = useState(() => new Date());
     useEffect(() => {
         const t = setInterval(() => setHoraActual(new Date()), 1000);
@@ -704,7 +705,7 @@ const Presas = () => {
 
             {/* ══ ZONA 2+3: CUERPO PRINCIPAL ══════════════════════════════════ */}
             {/* ── ZONA 2+3 body ─────────────────────────────────────────────── */}
-            <div className="scada-sala-body">
+            <div className={`scada-sala-body${activeTab === 'analitica' && vistaAnalitica === 'goes' ? ' is-goes-full' : ''}`}>
 
                 {/* ZONA 2: Panel Hidráulico Central */}
                 <div className="scada-zona-hidraulica">
@@ -768,7 +769,7 @@ const Presas = () => {
                     </div>
                         </>
                     ) : (
-                        <AnaliticaPresa presa={currentDam} fechaISO={fechaSeleccionada} />
+                        <AnaliticaPresa presa={currentDam} fechaISO={fechaSeleccionada} vista={vistaAnalitica} onVista={setVistaAnalitica} />
                     )}
                 </div>
 

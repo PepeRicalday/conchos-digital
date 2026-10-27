@@ -1830,6 +1830,12 @@
 /* Body */
 .scada-sala-body { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 12px; align-items: start; }
 
+/* Vista «Estaciones GOES»: ancho completo (una columna, sin «Obras de toma»). Solo escritorio; por debajo ya es una columna. */
+@media (min-width: 1281px) {
+    .scada-sala-body.is-goes-full { grid-template-columns: minmax(0, 1fr); }
+    .scada-sala-body.is-goes-full .scada-zona-tomas { display: none; }
+}
+
 /* Zona 2 */
 .scada-zona-hidraulica { display: flex; flex-direction: column; gap: 10px; }
 .scada-vaso-panel {

@@ -116,10 +116,27 @@ function mensajeError(e: Error): string {
         : 'El servidor no respondió como se esperaba. Intente de nuevo en un momento.';
 }
 
+
+/** Cada cuánto se refresca sola la pantalla abierta (el cron ingiere cada hora): sin esto, tras 3 h declararía "Sin transmisión" en falso. */
+const REFRESCO_MS = 10 * 60 * 1000;
+
+/** Incrementa `setToken` cada REFRESCO_MS mientras la pestaña esté visible y al volver a verla si pasó ese tiempo. */
+function useAutoRefresco(setToken: (f: (t: number) => number) => void) {
+    useEffect(() => {
+        let ultimo = Date.now();
+        const refresca = () => { ultimo = Date.now(); setToken(t => t + 1); };
+        const id = window.setInterval(() => { if (!document.hidden) refresca(); }, REFRESCO_MS);
+        const alVolver = () => { if (!document.hidden && Date.now() - ultimo >= REFRESCO_MS) refresca(); };
+        document.addEventListener('visibilitychange', alVolver);
+        return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', alVolver); };
+    }, [setToken]);
+}
+
 interface Cargado<T> { clave: string; datos: T | null; error: string | null }
 
 export function useHidroEstaciones({ ventana, seleccion, meteo }: Opciones) {
     const [token, setToken] = useState(0);
+    useAutoRefresco(setToken);
     const [raiz, setRaiz] = useState<Cargado<{ estaciones: EstacionHidro[]; mensajes: MensajeHidro[]; series24: SeriesPorEstacion; en: number }> | null>(null);
     const [grafica, setGrafica] = useState<Cargado<SeriesPorEstacion> | null>(null);
     const [clima, setClima] = useState<Cargado<SeriesPorEstacion> | null>(null);
@@ -183,4 +200,50 @@ export function useHidroEstaciones({ ventana, seleccion, meteo }: Opciones) {
         errorClima: climaOk?.error ?? null,
         recargar,
     }), [raizOk, raiz, graficaOk, climaOk, meteo, recargar]);
+}
+
+// ── API para estadística e informes ─────────────────────────────────────────────
+
+/** Nivel, gasto (y velocidad en Ojinaga) de las estaciones pedidas, con caché de 5 min. `horas` puede ser cualquier ventana (hasta ~30 d). */
+export function cargarSeriesHidro(ids: string[], horas: number, forzar = false): Promise<SeriesPorEstacion> {
+    return cargarSeries(ids, VARS_HIDRO, horas, forzar);
+}
+
+/** Meteorología de las estaciones que la tienen (sin radiación donde no es confiable). */
+export function cargarSeriesMeteoHidro(ids: string[], horas: number, forzar = false): Promise<SeriesPorEstacion> {
+    return cargarSeries(ids.filter(tieneMeteo), VARS_METEO, horas, forzar);
+}
+
+/** Estaciones y mensajes de las últimas 48 h (salud del enlace). */
+export function cargarBaseHidro(forzar = false) {
+    return base(forzar);
+}
+
+/** Horas de serie que necesita la estadística de una ventana: la propia más 8 días de base para la variación a 7 d. */
+export function horasEstadistica(ventana: VentanaHidro): number {
+    return Math.max(VENTANAS[ventana].horas, 8 * 24);
+}
+
+/**
+ * Series para la estadística de TODAS las estaciones en la ventana global (fichas, tabla de resumen, volumen).
+ * Las deps son ventana + token: sin refetch storm. Con 7 d / 30 d baja varias páginas por serie la primera vez; luego caché.
+ */
+export function useHidroEstadistica(ventana: VentanaHidro, ids: string[]) {
+    const [token, setToken] = useState(0);
+    useAutoRefresco(setToken);
+    const [estado, setEstado] = useState<{ clave: string; datos: SeriesPorEstacion | null; error: string | null } | null>(null);
+    const clave = `${ventana}|${ids.join(',')}|${token}`;
+    useEffect(() => {
+        if (!ids.length) return;
+        let vivo = true;
+        cargarSeries(ids, VARS_HIDRO, horasEstadistica(ventana), token > 0)
+            .then(d => { if (vivo) setEstado({ clave, datos: d, error: null }); })
+            .catch((e: Error) => { if (vivo) setEstado({ clave, datos: null, error: mensajeError(e) }); });
+        return () => { vivo = false; };
+        // `ids` se resume en `clave`.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clave]);
+    const ok = estado && estado.clave === clave ? estado : null;
+    const recargar = useCallback(() => setToken(t => t + 1), []);
+    return { series: ok?.datos ?? estado?.datos ?? null, cargando: !ok && ids.length > 0, error: ok?.error ?? null, recargar };
 }

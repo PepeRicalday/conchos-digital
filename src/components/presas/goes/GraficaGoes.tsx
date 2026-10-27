@@ -104,18 +104,16 @@ export default function GraficaGoes({ estaciones, seleccion, series, ventana, ah
     const hasta = ahora || 0;
     const desde = hasta - horas * 3600000;
 
-    const { trazoG, trazoN, mapaG, mapaN, resumen, hayDatos } = useMemo(() => {
+    const { trazoG, trazoN, mapaG, mapaN, hayDatos } = useMemo(() => {
         const porVar = (v: 'gasto_m3s' | 'nivel_m') => Object.fromEntries(seleccion.map(id => [id, agregarSerie(series[id]?.[v] ?? [], pasoMin)]));
         const sg = porVar('gasto_m3s');
         const sn = porVar('nivel_m');
         const g = fusionarSeries(sg, pasoMin, desde, hasta);
         const n = fusionarSeries(sn, pasoMin, desde, hasta);
-        const rango = (pts: { v: number }[]) => (pts.length ? { min: Math.min(...pts.map(p => p.v)), max: Math.max(...pts.map(p => p.v)) } : null);
         return {
             trazoG: puentearHuecos(g, seleccion, MAX_PUENTE_MIN), trazoN: puentearHuecos(n, seleccion, MAX_PUENTE_MIN),
             mapaG: new Map(g.map(f => [f.t, f])), mapaN: new Map(n.map(f => [f.t, f])),
             hayDatos: seleccion.some(id => sg[id].length > 0 || sn[id].length > 0),
-            resumen: seleccion.map(id => ({ id, g: rango(sg[id]), n: rango(sn[id]) })),
         };
     }, [seleccion, series, pasoMin, desde, hasta]);
 
@@ -130,21 +128,6 @@ export default function GraficaGoes({ estaciones, seleccion, series, ventana, ah
             <div className="goes-paneles" role="img" aria-label={`Gasto y nivel de las estaciones elegidas, ventana de ${VENTANAS[ventana].etiqueta}`}>
                 <Panel titulo="Gasto" unidad="m³/s" dec={1} trazo={trazoG} ids={seleccion} desde={desde} hasta={hasta} ventana={ventana} ultimoPanel={false} onHover={setHover} />
                 <Panel titulo="Nivel" unidad="m" dec={2} trazo={trazoN} ids={seleccion} desde={desde} hasta={hasta} ventana={ventana} ultimoPanel onHover={setHover} />
-            </div>
-            <div className="goes-tabla-wrap">
-                <table className="goes-tabla goes-tabla--resumen">
-                    <caption>Rango en la ventana de {VENTANAS[ventana].etiqueta} ({pasoMin <= 5 ? `lecturas originales de 15 a 20 min` : `promedios de ${pasoMin} min`})</caption>
-                    <thead><tr><th scope="col">Estación</th><th scope="col">Gasto mín – máx (m³/s)</th><th scope="col">Nivel mín – máx (m)</th></tr></thead>
-                    <tbody>
-                        {resumen.map(r => (
-                            <tr key={r.id}>
-                                <th scope="row"><i className="goes-sw" style={{ background: colorEstacion(r.id) }} aria-hidden="true" />{estaciones.find(e => e.id === r.id)?.nombre ?? r.id}</th>
-                                <td data-label="Gasto (m³/s)">{r.g ? `${fmt(r.g.min, 1)} – ${fmt(r.g.max, 1)}` : 'S/D'}</td>
-                                <td data-label="Nivel (m)">{r.n ? `${fmt(r.n.min, 2)} – ${fmt(r.n.max, 2)}` : 'S/D'}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
             </div>
         </>
     );

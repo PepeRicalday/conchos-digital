@@ -1,9 +1,10 @@
 import {
     ORDEN_ESTACIONES, STALE_GOES_MIN, colorEstacion, estadoEnlace, fmt, horaLocal, puntoCardinal, radiacionConfiable, tieneMeteo,
-    ultimoBueno, type EstacionHidro, type MensajeHidro, type PuntoHidro,
+    type EstacionHidro, type MensajeHidro, type PuntoHidro,
 } from '../../../utils/hidroEstaciones';
 import type { SeriesPorEstacion } from '../../../hooks/useHidroEstaciones';
 import Spark from './Spark';
+import { instanteEnlace } from './enlaceGoes';
 
 interface Props {
     estaciones: EstacionHidro[];
@@ -57,7 +58,7 @@ export default function PanelMeteo({ estaciones, mensajes, clima, cargando, erro
         <div className="goes-meteo">
             {lista.map(e => {
                 const s = clima[e.id] ?? {};
-                const enlace = estadoEnlace(ultimoBueno(mensajes, e.id), ahora);
+                const enlace = estadoEnlace(instanteEnlace(e, mensajes), ahora);
                 const apagada = enlace.clave === 'sin_transmision' || enlace.clave === 'sd';
                 const get = (v: keyof typeof s) => (apagada ? null : vigente(s[v], ahora));
                 const t = get('temp_c');
@@ -72,7 +73,7 @@ export default function PanelMeteo({ estaciones, mensajes, clima, cargando, erro
                     <section key={e.id} className="goes-meteo-est" style={{ ['--acc' as string]: color }} aria-label={`Meteorología de ${e.nombre}`}>
                         <header>
                             <h4>{e.nombre}</h4>
-                            <span className="goes-dcp">{apagada ? `Sin transmisión · último ${horaLocal(ultimoBueno(mensajes, e.id))}` : `Lectura de las ${horaLocal(t?.t ?? vi?.t ?? null)}`}</span>
+                            <span className="goes-dcp">{apagada ? `Sin transmisión · último ${horaLocal(instanteEnlace(e, mensajes))}` : `Lectura de las ${horaLocal(t?.t ?? vi?.t ?? null)}`}</span>
                         </header>
                         <div className="goes-meteo-cuerpo">
                             <Rosa dirs={apagada ? [] : dirs24} actual={di ? di.v : null} />

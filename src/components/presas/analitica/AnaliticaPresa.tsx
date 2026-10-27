@@ -18,23 +18,31 @@ const GLIFO: Record<string, string> = { ok: '●', warn: '▲', crit: '■', sd:
 
 const signo = (v: number, d = 2) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatearNumero(Math.abs(v), d)}`;
 
-interface Props { presa: PresaData; fechaISO: string }
+export type VistaAnalitica = 'ciclo' | 'goes';
 
-type Vista = 'ciclo' | 'goes';
+interface Props {
+    presa: PresaData;
+    fechaISO: string;
+    /** Vista elevada a Presas (la de GOES pide ancho completo). Sin ella, el estado es local. */
+    vista?: VistaAnalitica;
+    onVista?: (v: VistaAnalitica) => void;
+}
 
 /**
  * Pestaña "Analítica y forecasting": dos vistas. «Ciclo y proyección» (volumen del ciclo agrícola) y «Estaciones GOES»
  * (telemetría satelital de nivel y gasto). El estado de cada vista vive en su propio componente.
  */
 export default function AnaliticaPresa(props: Props) {
-    const [vista, setVista] = useState<Vista>('ciclo');
+    const [vistaLocal, setVistaLocal] = useState<VistaAnalitica>('ciclo');
+    const vista = props.vista ?? vistaLocal;
+    const setVista = (v: VistaAnalitica) => { setVistaLocal(v); props.onVista?.(v); };
     return (
         <div className="an-root">
             <div className="an-vistas" role="group" aria-label="Vista de analítica">
                 <button type="button" className="an-vista-btn" aria-pressed={vista === 'ciclo'} onClick={() => setVista('ciclo')}>Ciclo y proyección</button>
                 <button type="button" className="an-vista-btn" aria-pressed={vista === 'goes'} onClick={() => setVista('goes')}>Estaciones GOES</button>
             </div>
-            {vista === 'ciclo' ? <AnaliticaCiclo {...props} /> : <EstacionesGoes presaId={props.presa.id} />}
+            {vista === 'ciclo' ? <AnaliticaCiclo presa={props.presa} fechaISO={props.fechaISO} /> : <EstacionesGoes presaId={props.presa.id} />}
         </div>
     );
 }
@@ -43,7 +51,7 @@ export default function AnaliticaPresa(props: Props) {
  * Vista "Ciclo y proyección": ciclo agrícola en curso (1-oct → 30-sep) frente a los ciclos pasados reales y
  * proyección por trayectorias análogas. Sin datos inventados: lo que no se puede calcular se muestra como S/D.
  */
-function AnaliticaCiclo({ presa, fechaISO }: Props) {
+function AnaliticaCiclo({ presa, fechaISO }: Pick<Props, 'presa' | 'fechaISO'>) {
     const { indice, loading, error, recargar } = usePresasHistorico();
     const [horizonte, setHorizonte] = useState<Horizonte>(90);
 

@@ -8,16 +8,26 @@ interface Props {
     /** Un hueco mayor a esto (ms) corta la línea: nunca se une con una recta inventada. */
     huecoMs?: number;
     etiqueta: string;
+    /** Texto de la ventana para el lector de pantalla ("24 horas" por omisión). */
+    ventanaTxt?: string;
 }
 
 const W = 240;
 const H = 40;
 
-/** Línea mínima de 24 h con huecos reales. Sin puntos: banda rayada "S/D". */
-export default function Spark({ serie, color, desdeMs, hastaMs, huecoMs = 50 * 60000, etiqueta }: Props) {
+/**
+ * Línea mínima de la ventana con huecos reales. Sin puntos: banda rayada "S/D".
+ * Alto fijo por CSS (preserveAspectRatio="none" + trazo no escalable): crece a lo ancho sin crecer a lo alto.
+ * El punto del último dato es HTML para que no se deforme en elipse.
+ */
+export default function Spark({ serie, color, desdeMs, hastaMs, huecoMs = 50 * 60000, etiqueta, ventanaTxt = '24 horas' }: Props) {
     const pts = serie.filter(p => p.t >= desdeMs && p.t <= hastaMs);
     if (pts.length < 2) {
-        return <svg className="goes-spark goes-spark--sd" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${etiqueta}: sin datos`}><rect x="0" y="0" width={W} height={H} fill="url(#goes-sd)" /></svg>;
+        return (
+            <div className="goes-spark-wrap">
+                <svg className="goes-spark goes-spark--sd" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={`${etiqueta}: sin datos`}><rect x="0" y="0" width={W} height={H} fill="url(#goes-sd)" /></svg>
+            </div>
+        );
     }
     let min = Infinity;
     let max = -Infinity;
@@ -37,12 +47,14 @@ export default function Spark({ serie, color, desdeMs, hastaMs, huecoMs = 50 * 6
     if (actual.length) tramos.push(actual);
     const ult = pts[pts.length - 1];
     return (
-        <svg className="goes-spark" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${etiqueta}: tendencia de 24 horas`}>
-            {tramos.map((tr, i) => tr.length > 1
-                ? <polyline key={i} points={tr.map(p => `${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ')} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-                : <circle key={i} cx={x(tr[0].t)} cy={y(tr[0].v)} r="1.5" fill={color} />)}
-            <circle cx={x(ult.t)} cy={y(ult.v)} r="3" fill={color} stroke="var(--pr-bg, #020a14)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-        </svg>
+        <div className="goes-spark-wrap">
+            <svg className="goes-spark" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={`${etiqueta}: tendencia de ${ventanaTxt}`}>
+                {tramos.map((tr, i) => tr.length > 1
+                    ? <polyline key={i} points={tr.map(p => `${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ')} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                    : <line key={i} x1={x(tr[0].t)} x2={x(tr[0].t)} y1={y(tr[0].v) - 1} y2={y(tr[0].v) + 1} stroke={color} strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />)}
+            </svg>
+            <i className="goes-spark-fin" style={{ left: `${(x(ult.t) / W) * 100}%`, top: `${(y(ult.v) / H) * 100}%`, background: color }} aria-hidden="true" />
+        </div>
     );
 }
 

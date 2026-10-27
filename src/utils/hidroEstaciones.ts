@@ -201,12 +201,12 @@ export function ultimoPunto(serie: PuntoHidro[]): PuntoHidro | null {
 
 export interface Tendencia { delta: number; horas: number; dir: 'sube' | 'baja' | 'estable' }
 
-/** Cambio entre el último punto y el más cercano a `horas` antes (tolerancia ±40 % del salto). null si no hay base. */
-export function tendencia(serie: PuntoHidro[], horas: number, epsilon: number): Tendencia | null {
+/** Cambio entre el último punto y el más cercano a `horas` antes (tolerancia ±`tolFrac` de la antigüedad, 40 % por defecto). null si no hay base. */
+export function tendencia(serie: PuntoHidro[], horas: number, epsilon: number, tolFrac = 0.4): Tendencia | null {
     const fin = ultimoPunto(serie);
     if (!fin) return null;
     const objetivo = fin.t - horas * 3600000;
-    const tol = horas * 3600000 * 0.4;
+    const tol = horas * 3600000 * tolFrac;
     let mejor: PuntoHidro | null = null;
     for (const p of serie) {
         if (p.t >= fin.t) continue;

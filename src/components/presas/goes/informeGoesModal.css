@@ -1,0 +1,13 @@
+/* Informe GOES — complementos de la ventana de filtros (el resto reutiliza .ndvi-cfg-* de informeNdviModal.css). */
+.ig-modalidades { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 560px) { .ig-modalidades { grid-template-columns: 1fr; } }
+.ig-modalidad { min-height: 44px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 10px 14px; border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.3); background: rgba(15, 23, 42, 0.8); color: #cbd5e1; cursor: pointer; font-family: 'IBM Plex Sans', sans-serif; }
+.ig-modalidad strong { font-size: 15px; color: #f1f5f9; }
+.ig-modalidad span { font-size: 12.5px; color: #aab6c8; line-height: 1.35; }
+.ig-modalidad:hover { border-color: rgba(56, 189, 248, 0.6); }
+.ig-modalidad[aria-checked='true'] { background: rgba(56, 189, 248, 0.16); border-color: #38bdf8; }
+.ig-modalidad:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.ig-campo { display: flex; align-items: center; gap: 8px; flex: 1 1 200px; }
+.ig-fecha { color-scheme: dark; }
+.ig-alerta { margin: 8px 16px 0; padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(248, 113, 113, 0.5); background: rgba(248, 113, 113, 0.08); color: #fca5a5; font-size: 13px; }

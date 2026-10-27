@@ -159,6 +159,10 @@ describe('datos', () => {
         expect(b.est.excluidas).toBeGreaterThan(100);
         expect(b.est.gasto!.min).toBe(12);
         expect(b.est.gasto!.media).toBe(12);
+        // Los ceros son gasto censurado: media y volumen como rango (inferior < superior), no la media de los positivos
+        expect(b.est.censurado).not.toBeNull();
+        expect(b.est.censurado!.mediaInf).toBeLessThan(b.est.censurado!.mediaSup);
+        expect(b.est.censurado!.mediaInf).toBeLessThan(12);
         expect(d.lectura.join(' ')).toMatch(/Babisas \(\d+ lecturas, \d+ % de las recibidas\)/);
         expect(d.lectura.join(' ')).toMatch(/fue más de la mitad/);
         expect(b.est.gastoRepresentativo).toBe(false);

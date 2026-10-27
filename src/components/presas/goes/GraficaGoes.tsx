@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-    VENTANAS, agregarSerie, ceroSospechoso, colorEstacion, fechaHoraLocal, fmt, fusionarSeries, puentearHuecos, rotuloEje,
+    VENTANAS, agregarSerie, ceroSospechoso, colorEstacion, textoBajoUmbral, fechaHoraLocal, fmt, fusionarSeries, puentearHuecos, rotuloEje,
     type EstacionHidro, type FilaGrafica, type VentanaHidro,
 } from '../../../utils/hidroEstaciones';
 import type { SeriesPorEstacion } from '../../../hooks/useHidroEstaciones';
@@ -58,8 +58,8 @@ function Lectura({ label, estaciones, seleccion, mapaG, mapaN }: PropsLectura) {
                 return (
                     <span key={id} className="goes-tip-fila">
                         <i style={{ background: colorEstacion(id) }} aria-hidden="true" />
-                        {e?.nombre ?? id}: <b>{g == null ? 'S/D' : `${fmt(g, 1)} m³/s`}</b> · nivel <b>{n == null ? 'S/D' : `${fmt(n, 2)} m`}</b>
-                        {ceroSospechoso(id, g, n) && <em> ◇ 0 reportado</em>}
+                        {e?.nombre ?? id}: <b>{g == null ? 'S/D' : ceroSospechoso(id, g, n) ? `${textoBajoUmbral(id)} m³/s` : `${fmt(g, 1)} m³/s`}</b> · nivel <b>{n == null ? 'S/D' : `${fmt(n, 2)} m`}</b>
+                        {ceroSospechoso(id, g, n) && <em> ◇ bajo umbral del sensor (reporta 0)</em>}
                     </span>
                 );
             })}

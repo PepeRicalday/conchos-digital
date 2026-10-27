@@ -7,7 +7,7 @@
  */
 import { percentil, resumenSerie, theilSen } from './estadisticaHistorica';
 import {
-    ceroSospechoso, STALE_GOES_MIN, tendencia, VENTANAS,
+    GASTO_UMBRAL_CENSURA_M3S, ceroSospechoso, STALE_GOES_MIN, tendencia, VENTANAS,
     type PuntoHidro, type Tendencia, type VentanaHidro,
 } from './hidroEstaciones';
 
@@ -60,6 +60,21 @@ export interface Volumen {
     gastoMedio: number | null;
 }
 
+/**
+ * Gasto con lecturas censuradas: cada cero vale «entre 0 y el umbral». Cota inferior = ceros como 0, cota superior = ceros como
+ * umbral; el valor real está en el intervalo. La media y el volumen de las lecturas no censuradas sola (sesgada al alza) no se usan.
+ */
+export interface GastoCensurado {
+    umbral: number;
+    /** Lecturas censuradas y % del total de lecturas de gasto. */
+    n: number;
+    pct: number;
+    mediaInf: number;
+    mediaSup: number;
+    volInfMm3: number | null;
+    volSupMm3: number | null;
+}
+
 export interface Variacion { h24: Tendencia | null; d7: Tendencia | null }
 
 export interface EstadisticaEstacion {
@@ -79,6 +94,8 @@ export interface EstadisticaEstacion {
     pctExcluidas: number | null;
     /** false cuando más de la mitad de las lecturas de gasto fueron excluidas: la cifra no representa el periodo. */
     gastoRepresentativo: boolean;
+    /** Gasto y volumen como rango cuando hay ceros censurados (Babisas); null si no aplica. */
+    censurado: GastoCensurado | null;
     variacionNivel: Variacion;
     variacionGasto: Variacion;
     /** Cambio del gasto en m³/s por día (Theil-Sen, robusto a huecos y picos); null con pocos datos. */
@@ -104,6 +121,24 @@ export function sinCerosSospechosos(
         else validos.push(p);
     }
     return { validos, excluidas: tExcluidos.size, tExcluidos };
+}
+
+/** Rango del gasto medio y del volumen con los ceros censurados como 0 (inferior) y como umbral (superior). null sin censuradas. */
+export function gastoCensurado(
+    estacionId: string, crudo: PuntoHidro[], tExcluidos: Set<number>, desde: number, hasta: number,
+): GastoCensurado | null {
+    const umbral = GASTO_UMBRAL_CENSURA_M3S[estacionId];
+    if (umbral == null || !tExcluidos.size || !crudo.length) return null;
+    const con = (cero: number) => crudo.map(p => (tExcluidos.has(p.t) ? { t: p.t, v: cero } : p));
+    const media = (s: PuntoHidro[]) => s.reduce((a, p) => a + p.v, 0) / s.length;
+    const inf = con(0);
+    const sup = con(umbral);
+    return {
+        umbral, n: tExcluidos.size, pct: (tExcluidos.size / crudo.length) * 100,
+        mediaInf: media(inf), mediaSup: media(sup),
+        volInfMm3: volumenMm3(inf, desde, hasta)?.mm3 ?? null,
+        volSupMm3: volumenMm3(sup, desde, hasta)?.mm3 ?? null,
+    };
 }
 
 /** Recorta una serie a [desde, hasta]. */
@@ -215,6 +250,7 @@ export function estadisticaEstacion(
         gastoRecibidas: gastoCrudo.length,
         pctExcluidas,
         gastoRepresentativo: pctExcluidas == null || pctExcluidas <= 50,
+        censurado: gastoCensurado(id, gastoCrudo, tExcluidos, desde, hasta),
         variacionNivel: variacion(enVentana(series.nivel_m, desde - 8 * DIA, hasta), EPSILON_NIVEL_M, ahoraMs),
         variacionGasto: variacion(sinCerosSospechosos(id, enVentana(series.gasto_m3s, desde - 8 * DIA, hasta), series.nivel_m ?? []).validos, EPSILON_GASTO_M3S, ahoraMs),
         pendienteGastoDia: pendientePorDia(gasto),

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    comparaPresaRio, cobertura, estadisticaEstacion, pendientePorDia, resumenEstacion, sinCerosSospechosos, variacion, volumenMm3,
+    comparaPresaRio, cobertura, estadisticaEstacion, gastoCensurado, pendientePorDia, resumenEstacion, sinCerosSospechosos, variacion, volumenMm3,
 } from './hidroEstadistica';
 import type { PuntoHidro } from './hidroEstaciones';
 
@@ -23,6 +23,32 @@ describe('resumenEstacion', () => {
     });
     it('sin datos = null, nunca 0', () => {
         expect(resumenEstacion([])).toBeNull();
+    });
+});
+
+describe('gastoCensurado (Babisas: 0 = bajo umbral)', () => {
+    const n = 6;
+    const nivel = serie(Array(n).fill(6.2));
+    const gasto = serie([0, 0, 30, 30, 0, 0]);
+    const desde = T0;
+    const hasta = T0 + (n - 1) * 15 * MIN;
+    it('rango de media: ceros como 0 (inferior) y como umbral 15 (superior)', () => {
+        const { tExcluidos } = sinCerosSospechosos('C6301416', gasto, nivel);
+        const c = gastoCensurado('C6301416', gasto, tExcluidos, desde, hasta)!;
+        expect(c.n).toBe(4);
+        expect(c.mediaInf).toBeCloseTo(10);
+        expect(c.mediaSup).toBeCloseTo(20);
+        expect(c.mediaInf).toBeLessThan(c.mediaSup);
+    });
+    it('el volumen se integra con los ceros como 0 y como umbral (no puentea)', () => {
+        const { tExcluidos } = sinCerosSospechosos('C6301416', gasto, nivel);
+        const c = gastoCensurado('C6301416', gasto, tExcluidos, desde, hasta)!;
+        expect(c.volInfMm3!).toBeLessThan(c.volSupMm3!);
+        expect(c.volInfMm3!).toBeGreaterThan(0);
+    });
+    it('sin censuradas u otra estación = null', () => {
+        expect(gastoCensurado('C6301416', serie([30, 30]), new Set(), desde, hasta)).toBeNull();
+        expect(gastoCensurado('C6301AC4', gasto, new Set([T0]), desde, hasta)).toBeNull();
     });
 });
 

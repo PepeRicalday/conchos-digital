@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import {
-    STALE_GOES_MIN, TITULO_GRUPO, VENTANAS, agregarSerie, ceroSospechoso, colorEstacion, estadoEnlace, fechaHoraLocal, fmt, fmtDelta,
+    GASTO_UMBRAL_CENSURA_M3S, STALE_GOES_MIN, TITULO_GRUPO, textoBajoUmbral, VENTANAS, agregarSerie, ceroSospechoso, colorEstacion, estadoEnlace, fechaHoraLocal, fmt, fmtDelta,
     grupoDeEstacion, horaLocal, saludEnlace, textoEdad, ultimoBueno, ultimoPunto,
     type EstacionHidro, type MensajeHidro, type PuntoHidro, type Tendencia, type VentanaHidro,
 } from '../../../utils/hidroEstaciones';
@@ -109,13 +109,13 @@ export default function TarjetaEstacion({ estacion, series, serieVentana, estadi
                 </section>
                 <section className="goes-medida" aria-label="Gasto">
                     <span className="goes-k">Gasto <small>m³/s</small></span>
-                    <span className={`goes-num${pGasto ? '' : ' is-sd'}`}>{pGasto ? fmt(pGasto.v, 2) : 'S/D'}</span>
+                    <span className={`goes-num${pGasto ? '' : ' is-sd'}`}>{pGasto ? (cero ? textoBajoUmbral(estacion.id) : fmt(pGasto.v, 2)) : 'S/D'}</span>
                     <Spark serie={apagada ? [] : trazo.gasto} color={color} desdeMs={desdeMs} hastaMs={hastaMs} huecoMs={huecoMs}
                         etiqueta={`Gasto de ${estacion.nombre}`} ventanaTxt={VENTANAS[ventana].etiqueta} />
                 </section>
                 {cero && (
-                    <span className="goes-marca" title={`La estación reporta gasto 0 con nivel de ${fmt(pNivel?.v, 2)} m: posible corte de curva de gasto, sin confirmar. Se muestra tal cual.`}>
-                        <span aria-hidden="true">◇</span> 0 reportado, sin confirmar<span className="goes-sr">: posible corte de curva de gasto con nivel de {fmt(pNivel?.v, 2)} m. Se muestra tal cual.</span>
+                    <span className="goes-marca" title={`La estación reporta 0, pero su sensor no mide valores entre 0 y ~${GASTO_UMBRAL_CENSURA_M3S[estacion.id]} m³/s: es «por debajo del umbral», no caudal nulo. Causa sin confirmar.`}>
+                        <span aria-hidden="true">◇</span> bajo umbral del sensor (reporta 0)<span className="goes-sr">: el sensor no mide por debajo de {GASTO_UMBRAL_CENSURA_M3S[estacion.id]} metros cúbicos por segundo; no es caudal nulo.</span>
                     </span>
                 )}
             </div>
@@ -145,7 +145,10 @@ export default function TarjetaEstacion({ estacion, series, serieVentana, estadi
                 </span>
                 {estadistica && estadistica.excluidas > 0 && (
                     <span className={`goes-cob${estadistica.gastoRepresentativo ? '' : ' is-baja'}`}>
-                        Gasto sin ceros sospechosos ({estadistica.gastoRecibidas - estadistica.excluidas} de {estadistica.gastoRecibidas} lecturas){!estadistica.gastoRepresentativo && <> <span aria-hidden="true">▲</span> <b>poco representativa</b></>}
+                        {estadistica.censurado
+                            ? <>Gasto medio <b>{fmt(estadistica.censurado.mediaInf, 1)} – {fmt(estadistica.censurado.mediaSup, 1)}</b> m³/s ({estadistica.excluidas} de {estadistica.gastoRecibidas} lecturas bajo umbral)</>
+                            : <>Gasto sin ceros sospechosos ({estadistica.gastoRecibidas - estadistica.excluidas} de {estadistica.gastoRecibidas} lecturas)</>}
+                        {!estadistica.gastoRepresentativo && <> <span aria-hidden="true">▲</span> <b>poco representativa</b></>}
                     </span>
                 )}
                 {!tieneUbicacion && <span className="goes-chip-sutil" title="La estación no tiene coordenadas registradas; no se dibuja en mapa">Ubicación pendiente</span>}

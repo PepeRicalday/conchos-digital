@@ -211,7 +211,7 @@ export function avisosConfigGoes(c: ConfigInformeGoes, ahoraMs: number = Date.no
         if (c.periodo.tipo === '24h') a.push('Comparación presa ↔ río: con 24 h el tránsito del agua distorsiona la diferencia; se publica solo con 7 días o más.');
         else if (!(c.estaciones.includes('C6300760') && c.estaciones.some((id) => id !== 'C6300760'))) a.push('Comparación presa ↔ río: requiere Ojinaga y al menos una estación de presa.');
     }
-    if (c.estaciones.includes('C6301416') && c.variables.includes('gasto')) a.push('Babisas: las lecturas de gasto 0.00 con nivel alto se excluyen de promedios y volumen (probable corte de la curva de gasto, sin confirmar).');
+    if (c.estaciones.includes('C6301416') && c.variables.includes('gasto')) a.push('Babisas: el gasto 0.00 se trata como «bajo el umbral del sensor» (~15 m³/s, causa sin confirmar); la media y el volumen se dan como rango.');
     return a;
 }
 

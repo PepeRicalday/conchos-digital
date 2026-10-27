@@ -35,7 +35,15 @@ function Cob({ e }: { e: EstadisticaEstacion }) {
     return <span className={c.confiable ? '' : 'goes-est-baja'}>{fmt(c.pct, 0)} %{!c.confiable && <> <span aria-hidden="true">▲</span><span className="goes-sr"> menos de {COBERTURA_MIN_CONFIABLE} %</span></>}</span>;
 }
 
+/** Gasto medio: con lecturas censuradas (0 = bajo el umbral del sensor) es un rango, no la media de las lecturas positivas. */
+function mediaGasto(s: EstadisticaEstacion | undefined, dec: number): string {
+    const c = s?.censurado;
+    return c ? `${fmt(c.mediaInf, dec)} – ${fmt(c.mediaSup, dec)}` : valor(s?.gasto, 'media', dec);
+}
+
 function Vol({ e }: { e: EstadisticaEstacion }) {
+    const c = e.censurado;
+    if (c && c.volInfMm3 != null && c.volSupMm3 != null) return <>{fmtMm3(c.volInfMm3)} – {fmtMm3(c.volSupMm3)}</>;
     const v = e.volumen;
     if (!v) return <>S/D</>;
     return <>{fmtMm3(v.mm3)}</>;
@@ -83,7 +91,7 @@ export default function PanelEstadistica({ estaciones, estadisticas, ventana, er
                                         {CAMPOS.map(({ campo, rotulo }) => (
                                             <tr key={k + campo}>
                                                 <th scope="row">{rotulo}</th>
-                                                {estaciones.map(e => { const s = estadisticas[e.id]; const marca = k === 'gasto' && s != null && !s.gastoRepresentativo && (campo === 'media' || campo === 'p90'); return <td key={e.id} className={marca ? 'goes-est-baja' : undefined}>{marca && <span aria-hidden="true">▲ </span>}{valor(s?.[k], campo, dec)}</td>; })}
+                                                {estaciones.map(e => { const s = estadisticas[e.id]; const marca = k === 'gasto' && s != null && !s.gastoRepresentativo && (campo === 'media' || campo === 'p90'); return <td key={e.id} className={marca ? 'goes-est-baja' : undefined}>{marca && <span aria-hidden="true">▲ </span>}{k === 'gasto' && campo === 'media' ? mediaGasto(s, dec) : valor(s?.[k], campo, dec)}</td>; })}
                                             </tr>
                                         ))}
                                     </Fragment>
@@ -94,7 +102,7 @@ export default function PanelEstadistica({ estaciones, estadisticas, ventana, er
                                 </tr>
                                 <tr className="goes-est-grupo"><th scope="colgroup" colSpan={estaciones.length + 1}>Volumen y calidad de la serie</th></tr>
                                 <tr className="goes-est-vol">
-                                    <th scope="row">Volumen integrado, mínimo <small>Mm³</small></th>
+                                    <th scope="row">Volumen integrado <small>Mm³ (mínimo, o rango si hay ceros censurados)</small></th>
                                     {estaciones.map(e => <td key={e.id}>{estadisticas[e.id] ? <Vol e={estadisticas[e.id]} /> : 'S/D'}</td>)}
                                 </tr>
                                 <tr>
@@ -123,7 +131,7 @@ export default function PanelEstadistica({ estaciones, estadisticas, ventana, er
                                         <dl>
                                             <div><dt>Nivel media</dt><dd>{valor(s.nivel, 'media', 2)} <small>m</small></dd></div>
                                             <div><dt>Nivel mín – máx</dt><dd>{valor(s.nivel, 'min', 2)} – {valor(s.nivel, 'max', 2)}</dd></div>
-                                            <div><dt>Gasto media</dt><dd>{valor(s.gasto, 'media', 1)} <small>m³/s</small></dd></div>
+                                            <div><dt>Gasto media</dt><dd>{mediaGasto(s, 1)} <small>m³/s</small></dd></div>
                                             <div><dt>Gasto mín – máx</dt><dd>{valor(s.gasto, 'min', 1)} – {valor(s.gasto, 'max', 1)}</dd></div>
                                             <div><dt>Gasto p90</dt><dd>{valor(s.gasto, 'p90', 1)}</dd></div>
                                             <div><dt>Volumen integrado (mínimo)</dt><dd><Vol e={s} /> <small>Mm³{s.volumen ? ` · ${fmt(s.volumen.pctIntegrado, 0)} % del tiempo` : ''}</small></dd></div>
@@ -140,7 +148,7 @@ export default function PanelEstadistica({ estaciones, estadisticas, ventana, er
                     <ul className="goes-est-notas">
                         <li><b>Volumen integrado:</b> gasto integrado entre lecturas vecinas (huecos de más de 45 min no se rellenan), por eso es un mínimo que solo cubre el «tiempo integrado». No es el volumen del periodo ni un aforo, y no se compara con entregas.</li>
                         {hayExcluidas && (
-                            <li><b>Lecturas excluidas:</b> gasto 0 con nivel alto en Babisas (posible corte de curva, sin confirmar). Se muestran en la ficha y la gráfica tal cual, pero no entran a promedios ni al volumen: media, p90 y volumen de gasto son «sin ceros sospechosos», y si más de la mitad se excluyó, la cifra es poco representativa del periodo.</li>
+                            <li><b>Gasto censurado (Babisas):</b> el sensor no reporta valores entre 0 y ~15 m³/s, así que su «0» significa «por debajo del umbral», no caudal nulo. Media y volumen se dan como <b>rango</b>: el límite inferior toma esos ceros como 0 y el superior como 15 m³/s; el valor real está entre ambos. Mínimo, máximo y p90 usan solo las lecturas por encima del umbral, y si más de la mitad quedó bajo el umbral la cifra es poco representativa del periodo. Causa sin confirmar: falta contrastar con un aforo.</li>
                         )}
                     </ul>
                 </>

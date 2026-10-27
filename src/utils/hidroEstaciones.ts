@@ -237,6 +237,15 @@ export function fmtDelta(v: number | null | undefined, dec = 2): string {
  */
 export const CERO_SOSPECHOSO_NIVEL_M: Record<string, number> = { C6301416: 5.7 };
 
+/**
+ * Babisas nunca reporta gasto entre 0 y ~15 m³/s (mínimo positivo observado 15.42, p05 17.6; 73 % de lecturas en 0, nivel sin relación
+ * con el gasto): el 0 es un dato CENSURADO («por debajo del umbral de medición del sensor»), no un caudal nulo. Valor = umbral, m³/s.
+ */
+export const GASTO_UMBRAL_CENSURA_M3S: Record<string, number> = { C6301416: 15 };
+
+/** Texto del gasto censurado: «< 15 m³/s» (el 0 de la estación no se presenta como caudal). */
+export const textoBajoUmbral = (estacionId: string): string => `< ${GASTO_UMBRAL_CENSURA_M3S[estacionId] ?? 0}`;
+
 export function ceroSospechoso(estacionId: string, gasto: number | null, nivel: number | null): boolean {
     const umbral = CERO_SOSPECHOSO_NIVEL_M[estacionId];
     return umbral != null && gasto === 0 && nivel != null && nivel >= umbral;

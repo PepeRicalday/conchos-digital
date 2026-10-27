@@ -6,11 +6,11 @@
  */
 import {
     COBERTURA_MIN_CONFIABLE, EPSILON_GASTO_M3S, LATENCIA_COBERTURA_MIN, MAX_HUECO_VOLUMEN_MIN, EPSILON_NIVEL_M, comparaPresaRio, cobertura, enVentana, pendientePorDia, resumenEstacion,
-    sinCerosSospechosos, variacion, volumenMm3,
-    type Cobertura, type ComparacionPresaRio, type ResumenEstacion, type Variacion, type Volumen,
+    gastoCensurado, sinCerosSospechosos, variacion, volumenMm3,
+    type Cobertura, type GastoCensurado, type ComparacionPresaRio, type ResumenEstacion, type Variacion, type Volumen,
 } from './hidroEstadistica';
 import {
-    CERO_SOSPECHOSO_NIVEL_M, ORDEN_ESTACIONES, TITULO_GRUPO, ceroSospechoso, colorEstacion, edadMin, estadoEnlace, fmt, fmtDelta, fechaHoraLocal, grupoDeEstacion,
+    CERO_SOSPECHOSO_NIVEL_M, GASTO_UMBRAL_CENSURA_M3S, ORDEN_ESTACIONES, TITULO_GRUPO, ceroSospechoso, colorEstacion, edadMin, estadoEnlace, fmt, fmtDelta, fechaHoraLocal, grupoDeEstacion,
     radiacionConfiable, saludEnlace, tieneMeteo, tiraEnlace, ultimoBueno,
     type CeldaEnlace, type EstacionHidro, type EstadoEnlace, type MensajeHidro, type PuntoHidro, type SaludEnlace, type Tendencia,
 } from './hidroEstaciones';
@@ -52,6 +52,8 @@ export interface EstadisticaRango {
     cobertura: Cobertura | null; volumen: Volumen | null; excluidas: number;
     /** Lecturas de gasto recibidas (con las excluidas), % excluido y si la cifra representa el periodo (≤ 50 % excluido). */
     gastoRecibidas: number; pctExcluidas: number | null; gastoRepresentativo: boolean;
+    /** Media y volumen como rango cuando hay ceros censurados (Babisas: 0 = bajo el umbral del sensor); null si no aplica. */
+    censurado: GastoCensurado | null;
     variacionNivel: Variacion; variacionGasto: Variacion; pendienteGastoDia: number | null;
 }
 
@@ -70,6 +72,7 @@ export function estadisticaRango(id: string, intervaloMin: number | null, series
         // Se integra la serie cruda cortando los tramos con extremo excluido (no se puentean los ceros descartados).
         volumen: volumenMm3(gastoCrudo, desde, hasta, MAX_HUECO_VOLUMEN_MIN, tExcluidos),
         excluidas, gastoRecibidas: gastoCrudo.length, pctExcluidas, gastoRepresentativo: pctExcluidas == null || pctExcluidas <= 50,
+        censurado: gastoCensurado(id, gastoCrudo, tExcluidos, desde, hasta),
         variacionNivel: variacion(enVentana(series.nivel_m, desde - 8 * DIA, hasta), EPSILON_NIVEL_M, hasta),
         variacionGasto: variacion(sinCerosSospechosos(id, enVentana(series.gasto_m3s, desde - 8 * DIA, hasta), series.nivel_m ?? []).validos, EPSILON_GASTO_M3S, hasta),
         pendienteGastoDia: pendientePorDia(gasto),
@@ -267,7 +270,7 @@ export function redactarLecturaGoes(d: Parcial): string[] {
     }
 
     const ex = d.estaciones.filter((e) => usaGasto && e.est.excluidas > 0);
-    if (ex.length) out.push(`${lista(ex.map((e) => `${e.nombreCorto} (${e.est.excluidas} ${e.est.excluidas === 1 ? 'lectura' : 'lecturas'}, ${fmt(e.est.pctExcluidas, 0)} % de las recibidas)`))}: se excluyeron lecturas de gasto 0.00 con nivel alto, probable corte de la curva de gasto del sensor (sin confirmar); no entran a promedios ni al volumen.${ex.some((e) => !e.est.gastoRepresentativo) ? ` En ${lista(ex.filter((e) => !e.est.gastoRepresentativo).map((e) => e.nombreCorto))} fue más de la mitad: su gasto describe solo el tiempo con lectura válida, no todo el periodo.` : ''}`);
+    if (ex.length) out.push(`${lista(ex.map((e) => `${e.nombreCorto} (${e.est.excluidas} ${e.est.excluidas === 1 ? 'lectura' : 'lecturas'}, ${fmt(e.est.pctExcluidas, 0)} % de las recibidas)`))}: reportaron gasto 0.00, que el sensor emite cuando mide por debajo de su umbral (~${GASTO_UMBRAL_CENSURA_M3S.C6301416} m³/s), no caudal nulo (causa sin confirmar). Su media y volumen se dan como rango: ${lista(ex.filter((e) => e.est.censurado).map((e) => `${e.nombreCorto} media ${fmt(e.est.censurado!.mediaInf, 1)} a ${fmt(e.est.censurado!.mediaSup, 1)} m³/s`))}.${ex.some((e) => !e.est.gastoRepresentativo) ? ` En ${lista(ex.filter((e) => !e.est.gastoRepresentativo).map((e) => e.nombreCorto))} fue más de la mitad: el mínimo, máximo y percentiles describen solo el tiempo sobre el umbral, no todo el periodo.` : ''}`);
 
     const sinTx = d.estaciones.filter((e) => e.enlace.clave === 'sin_transmision' || e.enlace.clave === 'sd');
     const ok = d.estaciones.length - sinTx.length;
@@ -280,7 +283,7 @@ export function notasCalidadGoes(d: Parcial): string[] {
     const ids = d.estaciones.map((e) => e.id);
     if (ids.includes('C6301416') && d.config.variables.includes('gasto')) {
         const e = d.estaciones.find((x) => x.id === 'C6301416')!;
-        n.push(`Babisas: ${e.est.excluidas > 0 ? `${e.est.excluidas} ${e.est.excluidas === 1 ? 'lectura' : 'lecturas'} de gasto 0.00 con nivel igual o superior a ${CERO_SOSPECHOSO_NIVEL_M.C6301416} m se excluyeron de promedios, estadística y volumen` : `no hubo lecturas de gasto 0.00 con nivel alto en el periodo; el criterio de exclusión (gasto 0.00 con nivel ≥ ${CERO_SOSPECHOSO_NIVEL_M.C6301416} m) sigue vigente`}. La estación reporta ese cero con frecuencia aun con nivel alto; se interpreta como probable corte de la curva de gasto y NO está confirmado. Al excluirlas, el porcentaje de tiempo integrado del volumen disminuye.${e.est.excluidas > 0 && !e.est.gastoRepresentativo ? ` Como se excluyó el ${fmt(e.est.pctExcluidas, 0)} % de las lecturas de gasto (más de la mitad), la media, los percentiles y el volumen de Babisas describen solo el tiempo con lectura válida: son condicionados y no representan todo el periodo.` : ''}`);
+        n.push(`Babisas: ${e.est.excluidas > 0 ? `${e.est.excluidas} ${e.est.excluidas === 1 ? 'lectura' : 'lecturas'} de gasto 0.00 con nivel igual o superior a ${CERO_SOSPECHOSO_NIVEL_M.C6301416} m se tratan como gasto censurado («por debajo del umbral del sensor», ~${GASTO_UMBRAL_CENSURA_M3S.C6301416} m³/s)` : `no hubo lecturas de gasto 0.00 con nivel alto en el periodo; el criterio (gasto 0.00 con nivel ≥ ${CERO_SOSPECHOSO_NIVEL_M.C6301416} m) sigue vigente`}. El sensor no reporta valores entre 0 y ~${GASTO_UMBRAL_CENSURA_M3S.C6301416} m³/s, así que ese cero no es caudal nulo; la causa NO está confirmada y falta contrastarla con un aforo.${e.est.censurado ? ` La media y el volumen se dan como rango: límite inferior con esos ceros como 0, límite superior como ${e.est.censurado.umbral} m³/s; el valor real está entre ambos.` : ''}${e.est.excluidas > 0 && !e.est.gastoRepresentativo ? ` Como el ${fmt(e.est.pctExcluidas, 0)} % de las lecturas quedó bajo el umbral (más de la mitad), el mínimo, máximo y percentiles de Babisas describen solo el tiempo sobre el umbral.` : ''}`);
     }
     if (ids.includes('C6301AC4') && d.config.variables.includes('meteo')) n.push('Madero–Vírgenes: la radiación solar reporta un valor casi fijo (889–907 W/m²); el canal no es confiable y no se publica.');
     if (ids.includes('C6300760') && d.config.variables.includes('meteo')) n.push('Ojinaga es estación de río: mide nivel, gasto y velocidad; no tiene sensores meteorológicos (S/D).');

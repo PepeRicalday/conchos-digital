@@ -209,7 +209,7 @@ export function avisosConfigGoes(c: ConfigInformeGoes, ahoraMs: number = Date.no
     if (c.variables.includes('velocidad') && !c.estaciones.includes('C6300760')) a.push('Solo Ojinaga mide velocidad del agua: sin esa estación la velocidad saldrá como S/D.');
     if (c.secciones.includes('comparacion')) {
         if (c.periodo.tipo === '24h') a.push('Comparación presa ↔ río: con 24 h el tránsito del agua distorsiona la diferencia; se publica solo con 7 días o más.');
-        else if (!(c.estaciones.includes('C6300760') && c.estaciones.some((id) => id !== 'C6300760'))) a.push('Comparación presa ↔ río: requiere Ojinaga y al menos una estación de presa.');
+        else a.push('Comparación presa ↔ río: hoy ninguna estación mide la salida de una presa (Boca del Río y Madero–Vírgenes son entradas, Babisas es de río); saldrá sin comparación.');
     }
     if (c.estaciones.includes('C6301416') && c.variables.includes('gasto')) a.push('Babisas: el gasto 0.00 se trata como «bajo el umbral del sensor» (~15 m³/s, causa sin confirmar); la media y el volumen se dan como rango.');
     return a;

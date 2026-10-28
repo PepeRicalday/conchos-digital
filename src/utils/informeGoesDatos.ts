@@ -10,7 +10,7 @@ import {
     type Cobertura, type GastoCensurado, type ComparacionPresaRio, type ResumenEstacion, type Variacion, type Volumen,
 } from './hidroEstadistica';
 import {
-    CERO_SOSPECHOSO_NIVEL_M, GASTO_UMBRAL_CENSURA_M3S, ORDEN_ESTACIONES, TITULO_GRUPO, ceroSospechoso, colorEstacion, edadMin, estadoEnlace, fmt, fmtDelta, fechaHoraLocal, grupoDeEstacion,
+    CERO_SOSPECHOSO_NIVEL_M, GASTO_UMBRAL_CENSURA_M3S, ORDEN_ESTACIONES, TITULO_GRUPO, type GrupoHidro, esEntradaPresa, ceroSospechoso, colorEstacion, edadMin, estadoEnlace, fmt, fmtDelta, fechaHoraLocal, grupoDeEstacion,
     radiacionConfiable, saludEnlace, tieneMeteo, tiraEnlace, ultimoBueno,
     type CeldaEnlace, type EstacionHidro, type EstadoEnlace, type MensajeHidro, type PuntoHidro, type SaludEnlace, type Tendencia,
 } from './hidroEstaciones';
@@ -92,7 +92,7 @@ export interface MeteoResumen {
 
 export interface DatosEstacionGoes {
     id: string; nombre: string; nombreCorto: string; color: string;
-    grupo: 'PRE-001' | 'PRE-002' | 'rio'; grupoTitulo: string; intervaloMin: number;
+    grupo: GrupoHidro; entrada: boolean; grupoTitulo: string; intervaloMin: number;
     ultimoNivel: UltimoValor | null; ultimoGasto: UltimoValor | null; ultimaVelocidad: UltimoValor | null;
     /** La última lectura cruda de gasto fue un 0 sospechoso (excluido): se declara en la ficha. */
     ceroReciente: boolean;
@@ -181,7 +181,7 @@ export function prepararInformeGoes(entrada: EntradaInformeGoes): InformeGoes {
         const enlace = estadoEnlace(Number.isFinite(ultimoMsg as number) ? ultimoMsg : null, ahoraMs);
         return [{
             id, nombre: e.nombre, nombreCorto: NOMBRE_CORTO[id] ?? e.nombre, color: colorEstacion(id),
-            grupo: grupoDeEstacion(e), grupoTitulo: TITULO_GRUPO[grupoDeEstacion(e)], intervaloMin: intervalo,
+            grupo: grupoDeEstacion(e), entrada: esEntradaPresa(e), grupoTitulo: TITULO_GRUPO[grupoDeEstacion(e)], intervaloMin: intervalo,
             ultimoNivel: ultimo(nivelTodo, ahoraMs), ultimoGasto: ultimo(gastoTodo, ahoraMs), ultimaVelocidad: ultimo(velTodo, ahoraMs),
             ceroReciente: !!ultCrudo && ceroSospechoso(id, ultCrudo.v, nivelCerca) && (!gastoTodo.length || ultCrudo.t > gastoTodo[gastoTodo.length - 1].t),
             enlace, salud: saludEnlace(entrada.mensajes, id, ahoraMs - DIA), tira: tiraEnlace(entrada.mensajes, id, ahoraMs, 24),
@@ -202,9 +202,11 @@ export function prepararInformeGoes(entrada: EntradaInformeGoes): InformeGoes {
 
 function calcularComparacion(estaciones: DatosEstacionGoes[], entrada: EntradaInformeGoes, horas: number): DatosComparacion {
     const rio = estaciones.find((e) => e.id === 'C6300760');
-    const presas = estaciones.filter((e) => e.grupo !== 'rio');
+    // Solo una estación que mida la SALIDA de una presa sustenta esta comparación: Boca del Río y Madero–Vírgenes son entradas y Babisas es de río.
+    const presas = estaciones.filter((e) => (e.grupo === 'PRE-001' || e.grupo === 'PRE-002') && !e.entrada);
     if (!entrada.config.variables.includes('gasto')) return { sustentable: false, motivo: 'No se incluyó el gasto entre las variables.', filas: [] };
-    if (!rio || presas.length === 0) return { sustentable: false, motivo: 'Se necesita Ojinaga (río) y al menos una estación de presa en la selección.', filas: [] };
+    if (presas.length === 0) return { sustentable: false, motivo: 'Ninguna estación de la red mide la salida de una presa: Boca del Río y Madero–Vírgenes miden la entrada a su presa y Babisas es estación de río (San Pedro), por lo que no hay base para comparar presa y río.', filas: [] };
+    if (!rio) return { sustentable: false, motivo: 'Se necesita Ojinaga (río) en la selección.', filas: [] };
     if (horas < 24 * 7 - 1) return { sustentable: false, motivo: 'El periodo es menor a 7 días: el tránsito del agua entre la presa y el río (sin medir) distorsiona la diferencia.', filas: [] };
     if (!rio.est.cobertura?.confiable) return { sustentable: false, motivo: `Ojinaga tiene cobertura insuficiente (${fmt(rio.est.cobertura?.pct, 0)} % de las lecturas esperadas).`, filas: [] };
     const { desde, hasta } = rio.est;

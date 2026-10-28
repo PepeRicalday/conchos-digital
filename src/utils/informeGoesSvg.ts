@@ -37,10 +37,10 @@ export function ticksNice(min: number, max: number, n = 4): { t: number[]; lo: n
 const horaTxt = (ms: number) => new Date(ms).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ_SICA });
 const diaTxt = (ms: number) => new Date(ms).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: TZ_SICA }).replace('.', '');
 
-/** Marcas de tiempo alineadas a la hora local: paso limpio con ~5-7 marcas. */
-export function ticksTiempo(desde: number, hasta: number): { t: number; hora: string; dia: string | null }[] {
+/** Marcas de tiempo alineadas a la hora local: paso limpio con ~5-7 marcas (`maxMarcas` las acota para gráficas angostas). */
+export function ticksTiempo(desde: number, hasta: number, maxMarcas = 6): { t: number; hora: string; dia: string | null }[] {
     const spanH = (hasta - desde) / HORA;
-    const paso = [1, 2, 3, 4, 6, 12, 24, 48, 72, 120, 168].find((p) => p >= spanH / 6) ?? 168;
+    const paso = [1, 2, 3, 4, 6, 12, 24, 48, 72, 120, 168].find((p) => p >= spanH / maxMarcas) ?? 168;
     const out: { t: number; hora: string; dia: string | null }[] = [];
     const base = Math.ceil((desde + OFFSET_CHIHUAHUA_MS) / (paso * HORA)) * paso * HORA - OFFSET_CHIHUAHUA_MS;
     for (let t = base; t <= hasta + 1; t += paso * HORA) {

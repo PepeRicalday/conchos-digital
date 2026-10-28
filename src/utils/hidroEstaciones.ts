@@ -290,13 +290,23 @@ export function rotuloEje(ms: number, ventana: VentanaHidro): string {
     return new Date(ms).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: TZ_SICA }).replace('.', '');
 }
 
-/** Agrupación por presa para las tarjetas. */
-export function grupoDeEstacion(e: Pick<EstacionHidro, 'presa_id'>): 'PRE-001' | 'PRE-002' | 'rio' {
+export type GrupoHidro = 'PRE-001' | 'PRE-002' | 'san_pedro' | 'rio';
+
+/**
+ * Agrupación para las tarjetas. Boca del Río (PRE-001) y Madero–Vírgenes (PRE-002) son ENTRADAS a su presa; Babisas
+ * (rol 'rio_san_pedro') es estación de RÍO sobre el cauce del San Pedro hacia la presa El Granero; Ojinaga es río.
+ */
+export function grupoDeEstacion(e: Pick<EstacionHidro, 'presa_id'> & { rol?: string | null }): GrupoHidro {
+    if (e.rol === 'rio_san_pedro') return 'san_pedro';
     return e.presa_id === 'PRE-001' ? 'PRE-001' : e.presa_id === 'PRE-002' ? 'PRE-002' : 'rio';
 }
 
-export const TITULO_GRUPO: Record<'PRE-001' | 'PRE-002' | 'rio', string> = {
+export const TITULO_GRUPO: Record<GrupoHidro, string> = {
     'PRE-001': 'La Boquilla',
     'PRE-002': 'Francisco I. Madero',
+    san_pedro: 'Río San Pedro',
     rio: 'Río Conchos',
 };
+
+/** Estación que mide lo que ENTRA a una presa (aportación), no lo que sale de ella. */
+export const esEntradaPresa = (e: { rol?: string | null }): boolean => e.rol === 'entrada';

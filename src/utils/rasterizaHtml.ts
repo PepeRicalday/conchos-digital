@@ -13,6 +13,11 @@ export interface OpcionesRaster {
     ancho: number;
     /** Factor de escala del canvas (2 = nitidez de impresión). */
     escala?: number;
+    /**
+     * Alto exacto en px para documentos de tamaño fijo (hojas de papel de media Carta, etc.). Sin él se mide el contenido, con un
+     * mínimo igual al alto del iframe (800 px): una hoja más baja saldría con una franja vacía debajo.
+     */
+    alto?: number;
 }
 
 /**
@@ -39,7 +44,7 @@ function esperaImagenes(doc: Document): Promise<void> {
     ).then(() => undefined);
 }
 
-export async function rasterizaHtml(html: string, { ancho, escala = 2 }: OpcionesRaster): Promise<Blob> {
+export async function rasterizaHtml(html: string, { ancho, escala = 2, alto: altoFijo }: OpcionesRaster): Promise<Blob> {
     const blobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8;' }));
     const iframe = document.createElement('iframe');
     iframe.style.cssText = `position:fixed;top:-99999px;left:-99999px;width:${ancho}px;height:800px;border:0;visibility:hidden;`;
@@ -60,7 +65,7 @@ export async function rasterizaHtml(html: string, { ancho, escala = 2 }: Opcione
         await esperaImagenes(doc);
 
         // Alto real del documento ya renderizado: el contenido es dinámico y no puede fijarse a mano.
-        const alto = Math.ceil(doc.documentElement.scrollHeight);
+        const alto = altoFijo ?? Math.ceil(doc.documentElement.scrollHeight);
 
         const svgNS = 'http://www.w3.org/2000/svg';
         const svg = document.createElementNS(svgNS, 'svg');

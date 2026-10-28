@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import {
-    GASTO_UMBRAL_CENSURA_M3S, STALE_GOES_MIN, TITULO_GRUPO, textoBajoUmbral, VENTANAS, agregarSerie, ceroSospechoso, colorEstacion, estadoEnlace, fechaHoraLocal, fmt, fmtDelta,
+    GASTO_UMBRAL_CENSURA_M3S, STALE_GOES_MIN, esEntradaPresa, TITULO_GRUPO, textoBajoUmbral, VENTANAS, agregarSerie, ceroSospechoso, colorEstacion, estadoEnlace, fechaHoraLocal, fmt, fmtDelta,
     grupoDeEstacion, horaLocal, saludEnlace, textoEdad, ultimoBueno, ultimoPunto,
     type EstacionHidro, type MensajeHidro, type PuntoHidro, type Tendencia, type VentanaHidro,
 } from '../../../utils/hidroEstaciones';
@@ -99,11 +99,11 @@ export default function TarjetaEstacion({ estacion, series, serieVentana, estadi
         <article className={`goes-ficha${destacada ? ' is-destacada' : ''}${apagada ? ' is-apagada' : ''}`} style={{ ['--acc' as string]: color }} aria-label={`Estación ${estacion.nombre}`}>
             <header className="goes-ficha-cab">
                 <div className="goes-ficha-fila">
-                    <span className={`goes-origen goes-origen--${grupo === 'rio' ? 'rio' : 'presa'}`}>{TITULO_GRUPO[grupo]}</span>
+                    <span className={`goes-origen goes-origen--${grupo === 'PRE-001' || grupo === 'PRE-002' ? 'presa' : 'rio'}`}>{TITULO_GRUPO[grupo]}</span>
                     <span className={`goes-sello goes-sello--${enlace.clave}`}><span aria-hidden="true">{GLIFO_ENLACE[enlace.clave]}</span> {enlace.etiqueta}</span>
                 </div>
                 <h4>{estacion.nombre}</h4>
-                <span className="goes-dcp">DCP {estacion.id}</span>
+                <span className="goes-dcp">DCP {estacion.id}{esEntradaPresa(estacion) ? ' · entrada a la presa' : ''}</span>
             </header>
 
             <div className="goes-medidas">

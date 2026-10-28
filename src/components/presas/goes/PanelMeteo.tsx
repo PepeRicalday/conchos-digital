@@ -60,7 +60,8 @@ export default function PanelMeteo({ estaciones, mensajes, clima, cargando, erro
                 const s = clima[e.id] ?? {};
                 const enlace = estadoEnlace(instanteEnlace(e, mensajes), ahora);
                 const apagada = enlace.clave === 'sin_transmision' || enlace.clave === 'sd';
-                const get = (v: keyof typeof s) => (apagada ? null : vigente(s[v], ahora));
+                // Estación apagada: se muestra el ÚLTIMO REGISTRO conocido (el encabezado dice de cuándo), nunca S/D ni 0. En línea: regla de 90 min por variable.
+                const get = (v: keyof typeof s) => (apagada ? (s[v]?.length ? s[v]![s[v]!.length - 1] : null) : vigente(s[v], ahora));
                 const t = get('temp_c');
                 const hr = get('hr_pct');
                 const pr = get('presion_hpa');
@@ -73,10 +74,10 @@ export default function PanelMeteo({ estaciones, mensajes, clima, cargando, erro
                     <section key={e.id} className="goes-meteo-est" style={{ ['--acc' as string]: color }} aria-label={`Meteorología de ${e.nombre}`}>
                         <header>
                             <h4>{e.nombre}</h4>
-                            <span className="goes-dcp">{apagada ? `Sin transmisión · último ${horaLocal(instanteEnlace(e, mensajes))}` : `Lectura de las ${horaLocal(t?.t ?? vi?.t ?? null)}`}</span>
+                            <span className="goes-dcp">{apagada ? `Sin transmisión · valores del último registro (mensaje de las ${horaLocal(instanteEnlace(e, mensajes))})` : `Lectura de las ${horaLocal(t?.t ?? vi?.t ?? null)}`}</span>
                         </header>
                         <div className="goes-meteo-cuerpo">
-                            <Rosa dirs={apagada ? [] : dirs24} actual={di ? di.v : null} />
+                            <Rosa dirs={dirs24} actual={di ? di.v : null} />
                             <dl className="goes-meteo-datos">
                                 <div><dt>Temperatura</dt><dd>{t ? fmt(t.v, 0) : 'S/D'}<small>°C</small></dd></div>
                                 <div><dt>Humedad relativa</dt><dd>{hr ? fmt(hr.v, 0) : 'S/D'}<small>%</small></dd></div>
@@ -88,8 +89,8 @@ export default function PanelMeteo({ estaciones, mensajes, clima, cargando, erro
                             </dl>
                         </div>
                         <div className="goes-meteo-sparks">
-                            <div><span className="goes-k">Temperatura 24 h</span><Spark serie={apagada ? [] : s.temp_c ?? []} color={color} desdeMs={desde} hastaMs={ahora || desde + 1} etiqueta={`Temperatura de ${e.nombre}`} huecoMs={STALE_GOES_MIN * 60000 / 2} /></div>
-                            <div><span className="goes-k">Viento 24 h</span><Spark serie={apagada ? [] : s.viento_ms ?? []} color={color} desdeMs={desde} hastaMs={ahora || desde + 1} etiqueta={`Viento de ${e.nombre}`} huecoMs={STALE_GOES_MIN * 60000 / 2} /></div>
+                            <div><span className="goes-k">Temperatura 24 h</span><Spark serie={s.temp_c ?? []} color={color} desdeMs={desde} hastaMs={ahora || desde + 1} etiqueta={`Temperatura de ${e.nombre}`} huecoMs={STALE_GOES_MIN * 60000 / 2} /></div>
+                            <div><span className="goes-k">Viento 24 h</span><Spark serie={s.viento_ms ?? []} color={color} desdeMs={desde} hastaMs={ahora || desde + 1} etiqueta={`Viento de ${e.nombre}`} huecoMs={STALE_GOES_MIN * 60000 / 2} /></div>
                         </div>
                     </section>
                 );

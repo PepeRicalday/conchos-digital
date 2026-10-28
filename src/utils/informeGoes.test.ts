@@ -17,9 +17,9 @@ const HORA = 60 * MIN;
 const AHORA = Date.UTC(2026, 9, 26, 18, 0); // 26-oct-2026 12:00 hora de Chihuahua
 const EST: EstacionHidro[] = [
     { id: 'C6300760', nombre: 'Ojinaga', presa_id: null, rol: 'rio', latitud: null, longitud: null, intervalo_min: 15, activa: true, ult_sync_en: null, ult_dato_en: null },
-    { id: 'C63009B2', nombre: 'Boca del Río', presa_id: 'PRE-001', rol: 'presa', latitud: null, longitud: null, intervalo_min: 20, activa: true, ult_sync_en: null, ult_dato_en: null },
-    { id: 'C6301416', nombre: 'Babisas', presa_id: 'PRE-001', rol: 'presa', latitud: null, longitud: null, intervalo_min: 20, activa: true, ult_sync_en: null, ult_dato_en: null },
-    { id: 'C6301AC4', nombre: 'Francisco y Madero - Vírgenes', presa_id: 'PRE-002', rol: 'presa', latitud: null, longitud: null, intervalo_min: 20, activa: true, ult_sync_en: null, ult_dato_en: null },
+    { id: 'C63009B2', nombre: 'Boca del Río', presa_id: 'PRE-001', rol: 'entrada', latitud: null, longitud: null, intervalo_min: 20, activa: true, ult_sync_en: null, ult_dato_en: null },
+    { id: 'C6301416', nombre: 'Babisas', presa_id: null, rol: 'rio_san_pedro', latitud: null, longitud: null, intervalo_min: 20, activa: true, ult_sync_en: null, ult_dato_en: null },
+    { id: 'C6301AC4', nombre: 'Francisco y Madero - Vírgenes', presa_id: 'PRE-002', rol: 'entrada', latitud: null, longitud: null, intervalo_min: 20, activa: true, ult_sync_en: null, ult_dato_en: null },
 ];
 
 function serie(paso: number, dias: number, f: (i: number, t: number) => number | null): PuntoHidro[] {
@@ -83,11 +83,11 @@ describe('config', () => {
         expect(cambiarModalidadGoes(cambiarModalidadGoes(c, 'tecnico'), 'basico').secciones).toEqual(['resumen', 'estado', 'tendencia', 'grafica']);
     });
     it('atajos de agrupación presa / río / todas', () => {
-        expect(estacionesDeAtajo(EST, 'presas')).toEqual(['C63009B2', 'C6301416', 'C6301AC4']);
-        expect(estacionesDeAtajo(EST, 'rio')).toEqual(['C6300760']);
+        expect(estacionesDeAtajo(EST, 'presas')).toEqual(['C63009B2', 'C6301AC4']);
+        expect(estacionesDeAtajo(EST, 'rio')).toEqual(['C6300760', 'C6301416']);
         expect(estacionesDeAtajo(EST, 'todas')).toHaveLength(4);
-        expect(atajoActivo(EST, ['C6300760'])).toBe('rio');
-        expect(atajoActivo(EST, ['C6300760', 'C6301416'])).toBeNull();
+        expect(atajoActivo(EST, ['C6300760', 'C6301416'])).toBe('rio');
+        expect(atajoActivo(EST, ['C6300760', 'C63009B2'])).toBeNull();
     });
     it('valida: sin estaciones, variables o secciones; rango incompleto, invertido o fuera de 30 días', () => {
         const base = configGoesPorDefecto();
@@ -123,7 +123,7 @@ describe('config', () => {
         expect(a.join('\n')).toMatch(/solo llegan a 30 días/);
         const t = { ...cambiarModalidadGoes(base, 'tecnico') };
         expect(avisosConfigGoes(t, AHORA).join('\n')).toMatch(/Comparación presa ↔ río: con 24 h/);
-        expect(avisosConfigGoes({ ...t, periodo: { tipo: '7d', desde: '', hasta: '' }, estaciones: ['C6301416'] }, AHORA).join('\n')).toMatch(/requiere Ojinaga/);
+        expect(avisosConfigGoes({ ...t, periodo: { tipo: '7d', desde: '', hasta: '' }, estaciones: ['C6301416'] }, AHORA).join('\n')).toMatch(/ninguna estación mide la salida de una presa/);
         expect(avisosConfigGoes({ ...t, estaciones: ['C6300760'] }, AHORA).join('\n')).toMatch(/no mide meteorología/);
         expect(avisosConfigGoes({ ...t, estaciones: ['C6301416'] }, AHORA).join('\n')).toMatch(/Solo Ojinaga mide velocidad/);
         expect(avisosConfigGoes(t, AHORA).join('\n')).toMatch(/Babisas/);
@@ -194,14 +194,20 @@ describe('datos', () => {
         expect(o.serieGasto[0].t).toBeGreaterThanOrEqual(d.desdeMs - 3 * HORA);
         expect(d.etiquetaPeriodo).toBe('20 oct 2026 – 21 oct 2026');
     });
-    it('comparación presa↔río: no sustentable con 24 h o sin Ojinaga; sustentable con 7 d y cobertura', () => {
-        expect(prepararInformeGoes(entrada({ periodo: { tipo: '24h', desde: '', hasta: '' } })).comparacion.sustentable).toBe(false);
-        expect(prepararInformeGoes(entrada({ estaciones: ['C6301416', 'C63009B2'] })).comparacion.motivo).toMatch(/Ojinaga/);
+    it('comparación presa↔río: sin estación de salida de presa no hay base (las entradas y el río no cuentan)', () => {
         const c = prepararInformeGoes(entrada()).comparacion;
-        expect(c.sustentable).toBe(true);
-        // Babisas (67 % excluido) no representa el periodo y Madero no tiene lecturas: solo Boca del Río compara.
-        expect(c.filas.map((f) => f.estacionId)).toEqual(['C63009B2']);
-        expect(c.filas[0].c.gastoRio).toBeGreaterThan(0);
+        expect(c.sustentable).toBe(false);
+        expect(c.filas).toEqual([]);
+        expect(c.motivo).toMatch(/salida de una presa/);
+        expect(prepararInformeGoes(entrada({ periodo: { tipo: '24h', desde: '', hasta: '' } })).comparacion.sustentable).toBe(false);
+    });
+    it('agrupación: Babisas es río (San Pedro) y Boca del Río / Madero–Vírgenes son entradas', () => {
+        const d = prepararInformeGoes(entrada());
+        const g = (id: string) => d.estaciones.find((e) => e.id === id)!;
+        expect(g('C6301416').grupoTitulo).toBe('Río San Pedro');
+        expect(g('C63009B2').entrada).toBe(true);
+        expect(g('C6301AC4').entrada).toBe(true);
+        expect(g('C6300760').entrada).toBe(false);
     });
     it('meteorología: Ojinaga sin sensores, radiación de Madero nunca publicada, valores físicos', () => {
         const d = prepararInformeGoes(entrada());
@@ -299,7 +305,7 @@ describe('html', () => {
     });
     it('comparación no sustentable se declara; sustentable lleva la advertencia de que no es balance', () => {
         expect(tecnico({ periodo: { tipo: '24h', desde: '', hasta: '' } })).toMatch(/No se publica la comparación/);
-        expect(tecnico()).toMatch(/Orientativa, no es un balance/);
+        expect(tecnico()).toMatch(/Ninguna estación de la red mide la salida de una presa/);
     });
     it('trazabilidad y firmas en el Técnico', () => {
         const h = tecnico();

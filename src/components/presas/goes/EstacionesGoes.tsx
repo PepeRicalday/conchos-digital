@@ -13,12 +13,13 @@ import PanelMeteo from './PanelMeteo';
 import PanelEstadistica from './PanelEstadistica';
 import TablaEnlace from './TablaEnlace';
 import InformeGoesBoton from './InformeGoesBoton';
+import InfografiaGoesBoton from './InfografiaGoesBoton';
 import { DefsGoes } from './Spark';
 import './goes.css';
 
 interface Props { presaId: string }
 
-const GRUPOS = ['PRE-001', 'PRE-002', 'rio'] as const;
+const GRUPOS = ['PRE-001', 'PRE-002', 'san_pedro', 'rio'] as const;
 /** Constante de módulo: su referencia no cambia, así no hay refetch por identidad de arreglo. */
 const IDS: string[] = [...ORDEN_ESTACIONES];
 
@@ -112,6 +113,7 @@ export default function EstacionesGoes({ presaId }: Props) {
                     </div>
                     <div className="goes-acciones">
                         <InformeGoesBoton estaciones={h.estaciones} ventana={ventana} />
+                        <InfografiaGoesBoton estaciones={h.estaciones} ventana={ventana} />
                         <button type="button" className="goes-btn goes-btn--sec" onClick={recargarTodo}>Actualizar</button>
                     </div>
                 </div>

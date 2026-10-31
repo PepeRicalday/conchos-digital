@@ -610,7 +610,7 @@
     width: fit-content;
 }
 
-.cpc-km small { font-size: 0.5rem; opacity: 0.7; }
+.cpc-km small { font-size: 0.6875rem; opacity: 0.9; }
 
 .cpc-body {
     display: flex;

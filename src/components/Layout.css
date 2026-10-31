@@ -1,5 +1,11 @@
 /* Layout.css */
 
+/* Tope único de ancho del contenido. "none" = aprovecha todo el ancho de la pantalla.
+   Para volver a limitarlo en monitores ultra-anchos basta con poner aquí, p. ej., 2800px. */
+:root {
+    --content-max: none;
+}
+
 .layout-container {
     display: flex;
     height: 100vh;
@@ -28,7 +34,8 @@
     margin-left: var(--sidebar-w, 280px);
     padding: var(--spacing-xl);
     padding-top: var(--spacing-lg);
-    max-width: 1800px;
+    max-width: var(--content-max, none);
+    min-width: 0;
     height: 100vh;
     height: 100dvh;
     overflow-y: auto;
@@ -37,6 +44,15 @@
     z-index: 10;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+/* Monitores anchos: el contenido ocupa todo el ancho; el relleno lateral crece con la pantalla. */
+@media (min-width: 1920px) {
+    html[data-device="desktop"] .main-content,
+    html:not([data-device]) .main-content {
+        padding-left: clamp(24px, 1.6vw, 44px);
+        padding-right: clamp(24px, 1.6vw, 44px);
+    }
 }
 
 .main-content::-webkit-scrollbar {

@@ -34,7 +34,7 @@
     --sc-fs-5: 28px;
     font-family: var(--sc-body);
     color: var(--sc-t1);
-    max-width: 1600px;
+    max-width: var(--content-max, none);
     margin-top: 0 !important;
     gap: 18px !important;
 }

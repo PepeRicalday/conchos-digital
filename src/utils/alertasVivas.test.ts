@@ -8,6 +8,14 @@ const base = (over: Partial<EntradaAlertas> = {}): EntradaAlertas => ({
 const presa = (id: string, cap: number, alm: number | null) => ({ id, nombre: id, capacidad_max_mm3: cap, lectura: alm == null ? null : { almacenamiento_mm3: alm, fecha: '2026-10-05' } });
 
 describe('alertas vivas', () => {
+    it('GOES sin transmisión genera un aviso; sin dato de GOES (null) no afirma nada', () => {
+        const a = construyeAlertasVivas(base({ goes: { total: 4, sinTransmision: 4 } }));
+        expect(a.map(x => x.id)).toEqual(['goes-sin-senal']);
+        expect(a[0]).toMatchObject({ type: 'warning' });
+        expect(a[0].message).toContain('4 de 4');
+        expect(construyeAlertasVivas(base({ goes: null })).map(x => x.id)).toEqual(['ok']);
+        expect(construyeAlertasVivas(base({ goes: { total: 4, sinTransmision: 0 } })).map(x => x.id)).toEqual(['ok']);
+    });
     it('sin nada que reportar → "Sistema Estable" informativa', () => {
         const a = construyeAlertasVivas(base());
         expect(a).toHaveLength(1);
@@ -86,6 +94,10 @@ describe('chips de estado', () => {
         expect(c.find(x => x.key === 'fresc-Boquilla')!.sev).toBe('ok');
         expect(c.find(x => x.key === 'fresc-Otra')!.texto).toContain('sin lectura');
         expect(c[c.length - 1].sev).toBe('ok');
+    });
+    it('todas las presas al día → un solo chip agrupado', () => {
+        const c = construyeChips(entrada({ frescuraPresas: [{ nombre: 'A', texto: 'hace 1 h', stale: false }, { nombre: 'B', texto: 'hace 2 h', stale: false }] }));
+        expect(c.filter(x => x.key.startsWith('fresc'))).toEqual([{ key: 'fresc-ok', sev: 'ok', texto: 'Presas al día · 2 de 2 con lectura reciente' }]);
     });
     it('protocolo > 30 d pide revisar cierre', () => {
         const c = construyeChips(entrada({ protocolo: { id: 'p', evento_tipo: 'LLENADO', gasto_solicitado_m3s: 25 }, diasProtocolo: 40 }));

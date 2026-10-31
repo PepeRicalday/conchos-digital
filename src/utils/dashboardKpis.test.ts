@@ -84,6 +84,10 @@ describe('alertas: una sola fuente', () => {
         const r = resumenAlertas(fusionaAlertas([viva('leak-1', 'critical')], [antigua]));
         expect(r).toMatchObject({ criticas: 1, avisos: 0, accionables: 1, antiguas: 1 });
     });
+    it('"Sistema Estable" (id ok) no cuenta como informativa', () => {
+        expect(resumenAlertas([viva('ok', 'info')])).toMatchObject({ informativas: 0, accionables: 0 });
+        expect(resumenAlertas([viva('ok', 'info'), viva('x', 'info')]).informativas).toBe(1);
+    });
     it('la vigencia se corta en DIAS_ALERTA_VIGENTE', () => {
         const hace = (d: number) => new Date(ahora - d * 86_400_000).toISOString();
         expect(alertaDesdeRegistro(fila({ fecha_deteccion: hace(DIAS_ALERTA_VIGENTE - 1) }), ahora).antigua).toBe(false);

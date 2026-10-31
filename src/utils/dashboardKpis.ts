@@ -204,6 +204,7 @@ export interface ResumenAlertas {
 export function resumenAlertas(alertas: AlertaSistema[]): ResumenAlertas {
     let criticas = 0, avisos = 0, informativas = 0, antiguas = 0;
     for (const a of alertas) {
+        if (a.id === 'ok') continue; // "Sistema Estable" es un mensaje de ausencia de alertas, no una informativa
         if (a.type === 'info') { informativas++; continue; }
         if (a.antigua) { antiguas++; continue; }
         if (a.type === 'critical') criticas++; else avisos++;

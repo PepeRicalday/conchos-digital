@@ -19,7 +19,8 @@ const RUTAS_CON_SELECTOR_FECHA = new Set(['/', '/presas', '/escalas', '/clima', 
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
     const location = useLocation();
-    const mostrarSelectorFecha = RUTAS_CON_SELECTOR_FECHA.has(location.pathname);
+    // El Dashboard ('/') lleva su propio selector de fecha en la barra superior de la página: así no pierde una fila entera.
+    const mostrarSelectorFecha = RUTAS_CON_SELECTOR_FECHA.has(location.pathname) && location.pathname !== '/';
     // En teléfono y en tablet vertical el menú lateral es un panel deslizable que se abre desde la
     // barra superior; en tablet horizontal y escritorio queda fijo (ver --sidebar-w en Layout.css).
     const { esPhone, esTablet, orientacion } = useDevice();

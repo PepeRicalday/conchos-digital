@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { ArrowRight } from 'lucide-react';
 
-export interface FilaModulo { clave: string; nombre: string; pct: number | null; volumenMm3: number }
+export interface FilaModulo { clave: string; nombre: string; pct: number | null; volumenMm3: number | null }
 
 // Bandas con texto en la leyenda (el color nunca es el único portador de significado).
 const BANDAS = [
@@ -34,7 +34,7 @@ export const CumplimientoModulos = memo(function CumplimientoModulos({ filas, ca
                                     {m.pct != null && <i style={{ width: `${(Math.min(m.pct, escala) / escala) * 100}%`, background: colorDe(m.pct) }} />}
                                     {m.pct != null && m.pct > 100 && <u title="Volumen autorizado (100 %)" style={{ left: `${(100 / escala) * 100}%` }} />}
                                 </div>
-                                <div className="sc-mod-valor"><b>{m.pct == null ? 'S/D' : `${m.pct.toFixed(1)} %`}</b><span>{m.volumenMm3.toFixed(3)} Mm³</span></div>
+                                <div className="sc-mod-valor"><b>{m.pct == null ? 'S/D' : `${m.pct.toFixed(1)} %`}</b><span>{m.volumenMm3 == null ? 'S/D' : `${m.volumenMm3.toFixed(3)} Mm³`}</span></div>
                             </li>
                         );
                     })}

@@ -6,7 +6,11 @@ import type { ConduccionTramo } from '../../utils/conduccion';
 import { etiquetaEficiencia } from '../../utils/conduccion';
 import type { ClimaPulso } from '../../hooks/useDashboardPulso';
 
+import { Sparkline } from '../ui/Sparkline';
+import { textoEdad } from '../../utils/hidroEstaciones';
+
 const f = (v: number | null | undefined, d = 1) => (v == null ? null : v.toFixed(d));
+const edadMinutos = (iso: string) => Math.max(0, (Date.now() - new Date(iso).getTime()) / 60000);
 
 function Numero({ valor, unidad }: { valor: string | null; unidad?: string }) {
     return valor == null
@@ -27,6 +31,8 @@ interface Props {
     presas: {
         pct: number | null; almacenadoMm3: number | null; capacidadMm3: number; conDato: number; total: number;
         extraccion: ExtraccionTotal; frescuraTexto: string | null; stale: boolean;
+        /** Almacenamiento total de los últimos 7 días; null = día sin todas las presas (hueco). */
+        serieAlmacenamiento: (number | null)[];
     };
     canal: {
         conduccion: ConduccionTramo; qEntrada: number | null; qSalida: number | null; k0Fresca: boolean; k104Fresca: boolean; cargado: boolean;
@@ -34,10 +40,12 @@ interface Props {
     };
     clima: ClimaPulso & { cargado: boolean };
     alertas: ResumenAlertas;
+    /** true cuando la fecha seleccionada no es hoy: Canal, Clima y Alertas siguen siendo de AHORA y se rotula. */
+    enVivoFuera?: boolean;
 }
 
 /** "Pulso del sistema": cuatro numerales en orden de prioridad, cada uno con su cobertura y su frescura. */
-export const PulsoSistema = memo(function PulsoSistema({ presas, canal, clima, alertas }: Props) {
+export const PulsoSistema = memo(function PulsoSistema({ presas, canal, clima, alertas, enVivoFuera = false }: Props) {
     const c = canal.conduccion;
     const etiqueta = etiquetaEficiencia(c.eficienciaPct);
     return (
@@ -51,10 +59,11 @@ export const PulsoSistema = memo(function PulsoSistema({ presas, canal, clima, a
                     <li>Extracción <b>{presas.extraccion.valorM3s != null ? `${presas.extraccion.valorM3s.toFixed(1)} m³/s` : 'S/D'}</b>
                         {presas.extraccion.valorM3s != null && presas.extraccion.conMedicion < presas.extraccion.total ? ` (${presas.extraccion.conMedicion} de ${presas.extraccion.total} medidas)` : ''}</li>
                 </ul>
+                <div className="sc-tile-spark"><Sparkline valores={presas.serieAlmacenamiento} etiqueta="Almacenamiento total, últimos 7 días" unidad="Mm³" decimales={1} color="var(--sc-s1)" /><small>7 d</small></div>
                 <span className={`sc-fresco ${presas.stale ? 'sc-viejo' : ''}`}>{presas.frescuraTexto ?? 'Sin lectura'}{presas.stale ? ' · dato antiguo' : ''}</span>
             </Tile>
 
-            <Tile clase="sc-tile-canal" to="/monitor-publico" etiqueta="Canal · K-0 → K-104" icono={<Gauge size={18} aria-hidden="true" />}
+            <Tile clase="sc-tile-canal" to="/monitor-publico" etiqueta={`Canal · K-0 → K-104${enVivoFuera ? ' · en vivo' : ''}`} icono={<Gauge size={18} aria-hidden="true" />}
                 aria={`Canal: eficiencia de conducción ${f(c.eficienciaPct) ?? 'sin dato'}. Abrir Monitor Público`}>
                 <Numero valor={f(c.eficienciaPct)} unidad="%" />
                 <ul className="sc-lineas">
@@ -68,7 +77,7 @@ export const PulsoSistema = memo(function PulsoSistema({ presas, canal, clima, a
                 </span>
             </Tile>
 
-            <Tile clase="sc-tile-clima" to="/clima" etiqueta="Clima · demanda de riego" icono={<CloudSun size={18} aria-hidden="true" />}
+            <Tile clase="sc-tile-clima" to="/clima" etiqueta={`Clima${enVivoFuera ? ' · en vivo' : ' · demanda de riego'}`} icono={<CloudSun size={18} aria-hidden="true" />}
                 aria={`Clima: temperatura máxima ${f(clima.tempMax) ?? 'sin dato'} grados. Abrir Clima`}>
                 <Numero valor={f(clima.tempMax)} unidad="°C" />
                 <ul className="sc-lineas">
@@ -76,10 +85,12 @@ export const PulsoSistema = memo(function PulsoSistema({ presas, canal, clima, a
                     <li>Lluvia hoy <b>{f(clima.lluviaProm) ?? 'S/D'} mm</b> · ETₒ al corte <b>{f(clima.etoProm, 2) ?? 'S/D'} mm</b></li>
                     <li>Estaciones válidas <b>{clima.estacionesValidas} de {clima.estacionesTotal}</b>{clima.excluidas.length > 0 ? ` · fuera: ${clima.excluidas.join(', ')}` : ''}</li>
                 </ul>
-                <span className="sc-fresco">{clima.cargado ? 'Promedios sin estaciones sospechosas ni sin señal' : 'Consultando…'}</span>
+                <span className={`sc-fresco ${clima.cargado && clima.ultimaObs && edadMinutos(clima.ultimaObs) > 180 ? 'sc-viejo' : ''}`}>
+                    {!clima.cargado ? 'Consultando…' : clima.ultimaObs ? `Última observación ${textoEdad(edadMinutos(clima.ultimaObs))} · ${clima.excluidas.length === 0 ? 'todas las estaciones válidas' : `${clima.excluidas.length} fuera del promedio`}` : 'Sin observación reciente'}
+                </span>
             </Tile>
 
-            <Tile clase={`sc-tile-alertas ${alertas.criticas > 0 ? 'sc-hay-crit' : alertas.avisos > 0 ? 'sc-hay-aviso' : ''}`} to="/alertas" etiqueta="Alertas vigentes" icono={<ShieldAlert size={18} aria-hidden="true" />}
+            <Tile clase={`sc-tile-alertas ${alertas.criticas > 0 ? 'sc-hay-crit' : alertas.avisos > 0 ? 'sc-hay-aviso' : ''}`} to="/alertas" etiqueta={`Alertas vigentes${enVivoFuera ? ' · en vivo' : ''}`} icono={<ShieldAlert size={18} aria-hidden="true" />}
                 aria={`${alertas.accionables} alertas vigentes. Abrir Alertas`}>
                 <Numero valor={String(alertas.accionables)} />
                 <ul className="sc-lineas">
@@ -87,7 +98,7 @@ export const PulsoSistema = memo(function PulsoSistema({ presas, canal, clima, a
                     <li><b>{alertas.informativas}</b> informativa(s)</li>
                     <li>{alertas.antiguas > 0 ? <><b>{alertas.antiguas}</b> pendiente(s) con más de 14 d sin resolver</> : 'Sin pendientes antiguos'}</li>
                 </ul>
-                <span className="sc-fresco">Misma cifra que el menú lateral</span>
+                <span className="sc-fresco">Incluye alertas calculadas en vivo y guardadas</span>
             </Tile>
         </section>
     );

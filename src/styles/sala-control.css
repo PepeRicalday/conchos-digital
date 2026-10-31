@@ -1,8 +1,6 @@
 /* sala-control.css — lenguaje visual compartido por las páginas operativas (Dashboard, Hidrometría, Distribución,
    Balance): carta hidrográfica nocturna, mismo que Presas, Histórico, Clima y Geo-Monitor.
-   Texto ≥ 11 px · el estado nunca depende solo del color · objetivos táctiles ≥ 44 px. */
-/* Sala de control — carta hidrográfica nocturna (mismo lenguaje que Presas, Histórico, Clima y Geo-Monitor).
-   Texto ≥ 11 px · el estado nunca depende solo del color · objetivos táctiles ≥ 44 px. */
+   Texto ≥ 12 px · el estado nunca depende solo del color · objetivos táctiles ≥ 44 px. */
 .sc-root {
     --sc-bg: #020a14;
     --sc-surface: rgba(255, 255, 255, 0.03);
@@ -39,7 +37,7 @@
     gap: 18px !important;
 }
 .sc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.sc-kicker { display: block; font-family: var(--sc-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sc-t3); }
+.sc-kicker { display: block; font-family: var(--sc-mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sc-t3); }
 .sc-card { background: var(--sc-surface); border: 1px solid var(--sc-line); border-radius: 14px; padding: 16px 18px; min-width: 0; animation: sc-entra 0.45s ease both; }
 @keyframes sc-entra { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .sc-card, .sc-hero { animation: none !important; } .sc-barra i { transition: none !important; } }
@@ -61,7 +59,7 @@
 .sc-btn:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 2px; }
 .sc-btn-primario { background: linear-gradient(180deg, #2b8fd6, #1d6fb0); border-color: transparent; }
 .sc-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
-.sc-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--sc-line); background: var(--sc-surface); font-family: var(--sc-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--sc-t2); }
+.sc-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--sc-line); background: var(--sc-surface); font-family: var(--sc-mono); font-size: 12px; font-weight: 600; letter-spacing: 0.03em; color: var(--sc-t2); }
 .sc-chip-ok { color: var(--sc-ok); border-color: rgba(52, 211, 153, 0.4); }
 .sc-chip-warn { color: var(--sc-warn); border-color: rgba(251, 191, 36, 0.45); }
 .sc-chip-crit { color: var(--sc-crit); border-color: rgba(248, 113, 113, 0.5); background: rgba(248, 113, 113, 0.08); }
@@ -85,7 +83,7 @@
 .sc-num-sd { color: var(--sc-t3); }
 .sc-lineas { display: flex; flex-direction: column; gap: 3px; margin: 2px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--sc-t2); }
 .sc-lineas b { color: var(--sc-t1); font-family: var(--sc-mono); font-weight: 600; }
-.sc-fresco { margin-top: auto; padding-top: 6px; font-family: var(--sc-mono); font-size: 11px; color: var(--sc-t3); }
+.sc-fresco { margin-top: auto; padding-top: 6px; font-family: var(--sc-mono); font-size: 12px; color: var(--sc-t3); }
 .sc-fresco.sc-viejo { color: var(--sc-warn); }
 
 
@@ -151,6 +149,6 @@
 .sc-barra i { display: block; height: 100%; border-radius: 999px; background: var(--sc-s1); transition: width 1s ease; }
 .sc-barra i.sc-alta { background: var(--sc-warn); }
 .sc-barra.sc-sd { background: repeating-linear-gradient(135deg, rgba(148,163,184,0.25) 0 6px, transparent 6px 12px); }
-.sc-barra-pie { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-family: var(--sc-mono); font-size: 11px; color: var(--sc-t3); }
+.sc-barra-pie { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-family: var(--sc-mono); font-size: 12px; color: var(--sc-t3); }
 .sc-leyenda { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 10px; padding: 0; list-style: none; font-size: 12px; color: var(--sc-t2); }
 .sc-leyenda i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }

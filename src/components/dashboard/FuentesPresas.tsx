@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { porcentajeLlenadoPresa, calcularFrescura } from '../../utils/presaMetrics';
-import { extraccionDePresa, PRESA_ALTA_PCT } from '../../utils/dashboardKpis';
+import { extraccionDePresa, PRESA_ALTA_PCT, PRESA_BAJA_PCT } from '../../utils/dashboardKpis';
+import { AnilloProgreso } from '../ui/AnilloProgreso';
 import type { PresaData } from '../../hooks/usePresas';
 
 const fx = (v: number | null, d = 1) => (v == null ? null : v.toFixed(d));
@@ -38,16 +39,14 @@ export const FuentesPresas = memo(function FuentesPresas({ presas }: { presas: P
                                     {fr ? fr.texto : 'Sin lectura'}{fr?.stale ? ' · antiguo' : ''}
                                 </span>
                             </div>
-                            <div className="sc-presa-cifras">
-                                <Cifra etiqueta="% llenado" valor={fx(pct)} unidad="%" />
-                                <Cifra etiqueta="Almacenamiento" valor={fx(alm)} unidad="Mm³" />
-                                <Cifra etiqueta="Elevación" valor={fx(l?.escala_msnm ?? null, 2)} unidad="msnm" />
-                                <Cifra etiqueta="Extracción" valor={fx(ext)} unidad="m³/s" />
-                            </div>
-                            <div className={`sc-barra ${pct == null ? 'sc-sd' : ''}`} role="progressbar" aria-label={`Llenado de ${p.nombre}`}
-                                aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct == null ? undefined : Math.round(pct)}
-                                aria-valuetext={pct == null ? 'Sin dato' : `${pct.toFixed(1)} por ciento`}>
-                                {pct != null && <i className={pct > PRESA_ALTA_PCT ? 'sc-alta' : ''} style={{ width: `${Math.min(pct, 100)}%` }} />}
+                            <div className="sc-presa-cuerpo">
+                                <AnilloProgreso pct={pct} etiqueta={`Llenado de ${p.nombre}`} alerta={pct != null && pct > PRESA_ALTA_PCT}
+                                    marcas={[{ pct: PRESA_BAJA_PCT, texto: `Umbral crítico ${PRESA_BAJA_PCT} %` }, { pct: PRESA_ALTA_PCT, texto: `Umbral alto ${PRESA_ALTA_PCT} % (NAMO)` }]} />
+                                <div className="sc-presa-cifras">
+                                    <Cifra etiqueta="Almacenamiento" valor={fx(alm)} unidad="Mm³" />
+                                    <Cifra etiqueta="Elevación" valor={fx(l?.escala_msnm ?? null, 2)} unidad="msnm" />
+                                    <Cifra etiqueta="Extracción" valor={fx(ext)} unidad="m³/s" />
+                                </div>
                             </div>
                             <div className="sc-barra-pie">
                                 <span>NAMO {p.capacidad_max_mm3.toFixed(0)} Mm³</span>

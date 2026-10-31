@@ -26,6 +26,8 @@ export interface EntradaAlertas {
     protocolo: ProtocoloEntrada | null;
     predictivas: AlertaSistema[];
     ahoraMs: number;
+    /** Telemetría GOES: estaciones activas y cuántas están sin transmisión. null = aún no se sabe (no se afirma nada). */
+    goes?: { total: number; sinTransmision: number } | null;
 }
 
 /** Nombre legible de un tramo (la vista no siempre trae tramo_inicio). */
@@ -117,6 +119,17 @@ export function construyeAlertasVivas(e: EntradaAlertas): AlertaSistema[] {
         if (!alertas.some((a) => norm(a.id) === norm(pa.id))) alertas.push(pa);
     }
 
+    // 6. Telemetría GOES: es la fuente que respalda el gasto de entrada a presas y río; su silencio es un aviso operativo.
+    if (e.goes && e.goes.total > 0 && e.goes.sinTransmision > 0) {
+        const todas = e.goes.sinTransmision >= e.goes.total;
+        alertas.push({
+            id: 'goes-sin-senal', type: 'warning',
+            title: todas ? 'Telemetría GOES sin transmisión' : 'Estaciones GOES sin transmisión',
+            message: `${e.goes.sinTransmision} de ${e.goes.total} estaciones hidrométricas sin mensaje válido en más de 3 h. Sus gastos se muestran S/D.`,
+            timestamp: 'Ahora',
+        });
+    }
+
     if (alertas.length === 0) {
         alertas.push({ id: 'ok', type: 'info', title: 'Sistema Estable', message: 'Operando dentro de parámetros normales.', timestamp: 'Ahora' });
     }
@@ -157,9 +170,15 @@ export function construyeChips(e: EntradaChips): ChipEstado[] {
         });
     }
     if (e.fuentesCaidas.length > 0) chips.push({ key: 'fuentes-caidas', sev: 'crit', texto: `Sin respuesta: ${e.fuentesCaidas.join(', ')}` });
-    for (const f of e.frescuraPresas) {
-        if (!f.texto) chips.push({ key: `fresc-${f.nombre}`, sev: 'warn', texto: `${f.nombre}: sin lectura` });
-        else chips.push({ key: `fresc-${f.nombre}`, sev: f.stale ? 'warn' : 'ok', texto: `${f.nombre}: ${f.texto}` });
+    // Si TODAS las presas están al día, un solo chip: repetir "lectura hace 2 h" por presa solo agrega ruido.
+    const todasAlDia = e.frescuraPresas.length > 0 && e.frescuraPresas.every((f) => f.texto && !f.stale);
+    if (todasAlDia) {
+        chips.push({ key: 'fresc-ok', sev: 'ok', texto: `Presas al día · ${e.frescuraPresas.length} de ${e.frescuraPresas.length} con lectura reciente` });
+    } else {
+        for (const f of e.frescuraPresas) {
+            if (!f.texto) chips.push({ key: `fresc-${f.nombre}`, sev: 'warn', texto: `${f.nombre}: sin lectura` });
+            else chips.push({ key: `fresc-${f.nombre}`, sev: f.stale ? 'warn' : 'ok', texto: `${f.nombre}: ${f.texto}` });
+        }
     }
     return chips.sort((a, b) => PESO[a.sev] - PESO[b.sev]);
 }

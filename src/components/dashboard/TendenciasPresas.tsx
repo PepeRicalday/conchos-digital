@@ -8,7 +8,7 @@ const C_EXT = '#199e70';
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const etiquetaDia = (f: string) => `${Number(f.slice(8, 10))} ${MESES[Number(f.slice(5, 7)) - 1]}`;
 
-const TICK = { fill: '#8396ad', fontSize: 11 };
+const TICK = { fill: '#8396ad', fontSize: 12 };
 const Tip = ({ active, payload, label, unidad }: { active?: boolean; payload?: { name?: string; value?: number | null }[]; label?: string; unidad: string }) => {
     if (!active || !payload?.length) return null;
     return (
@@ -20,7 +20,7 @@ const Tip = ({ active, payload, label, unidad }: { active?: boolean; payload?: {
 };
 
 /** Almacenamiento por presa y extracción de 7 días. Los días/presas sin dato quedan en blanco: nunca se dibujan como 0. */
-export const TendenciasPresas = memo(function TendenciasPresas({ presas, serie, esHoy }: { presas: PresaGrafica[]; serie: PuntoSerie[]; esHoy: boolean }) {
+export const TendenciasPresas = memo(function TendenciasPresas({ presas, serie, esHoy, extraccionActual }: { presas: PresaGrafica[]; serie: PuntoSerie[]; esHoy: boolean; extraccionActual: number | null }) {
     const hayExt = serie.some((p) => p.total != null);
     const datosExt = serie.map((p) => ({ label: etiquetaDia(p.fecha), extraccion: p.total }));
     return (
@@ -31,7 +31,7 @@ export const TendenciasPresas = memo(function TendenciasPresas({ presas, serie, 
             <figure className="sc-grafica">
                 <figcaption><span>Almacenamiento actual contra capacidad NAMO · Mm³</span></figcaption>
                 <div role="img" aria-label={`Almacenamiento por presa: ${presas.map(p => `${p.nombre} ${p.actual != null ? p.actual.toFixed(0) + ' de ' + p.capacidad.toFixed(0) + ' millones de metros cúbicos' : 'sin dato'}`).join('; ')}`}>
-                    <ResponsiveContainer width="100%" height={230} initialDimension={{ width: 1, height: 1 }}>
+                    <ResponsiveContainer width="100%" height={190} initialDimension={{ width: 1, height: 1 }}>
                         <BarChart data={presas} margin={{ top: 8, right: 12, left: 0, bottom: 0 }} barGap={4}>
                             <CartesianGrid vertical={false} stroke="rgba(148,163,184,.12)" />
                             <XAxis dataKey="nombre" tick={TICK} axisLine={false} tickLine={false} />
@@ -61,7 +61,10 @@ export const TendenciasPresas = memo(function TendenciasPresas({ presas, serie, 
                         </ResponsiveContainer>
                     </div>
                 ) : (
-                    <p className="sc-vacio">Sin extracción medida del {etiquetaDia(serie[0].fecha)} al {etiquetaDia(serie[serie.length - 1].fecha)}.</p>
+                    <p className="sc-franja-vacia">
+                        Sin lecturas diarias de extracción del {etiquetaDia(serie[0].fecha)} al {etiquetaDia(serie[serie.length - 1].fecha)}.
+                        {extraccionActual != null && <> Extracción vigente (último movimiento registrado): <b>{extraccionActual.toFixed(1)} m³/s</b>.</>}
+                    </p>
                 )}
             </figure>
         </section>

@@ -15,7 +15,7 @@ for (const c of casos) {
   const err = []; page.on('pageerror', e => err.push(String(e)));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|WebSocket/.test(m.text())) err.push(m.text().slice(0, 140)); });
   await page.goto('http://localhost:5173/', { waitUntil: 'networkidle' }).catch(() => {});
-  await page.waitForSelector('.sc-root .sc-pulso', { timeout: 30000 }).catch(() => err.push('sin .sc-pulso'));
+  await page.waitForSelector('.sc-root .kp-grid', { timeout: 30000 }).catch(() => err.push('sin .kp-grid'));
   await page.waitForTimeout(5000);
   const r = await page.evaluate(() => {
     const raiz = document.querySelector('.sc-root'); if (!raiz) return { ok: false };
@@ -29,7 +29,7 @@ for (const c of casos) {
     }
     const txt = raiz.innerText;
     return { ok: true, desborde: document.documentElement.scrollWidth - document.documentElement.clientWidth, chicos: chicos.slice(0, 6), peques: peques.slice(0, 6),
-      nan: /NaN|undefined|Infinity/.test(txt), tiles: raiz.querySelectorAll('.sc-tile').length, graficas: raiz.querySelectorAll('.recharts-wrapper').length };
+      nan: /NaN|undefined|Infinity/.test(txt), tiles: raiz.querySelectorAll('.kp-tile').length, graficas: raiz.querySelectorAll('.recharts-wrapper').length };
   });
   if (!r.ok || r.chicos?.length || r.peques?.length || r.desborde > 1 || r.nan || err.length) obs++;
   console.log(c.nombre, JSON.stringify(r), err.length ? 'ERRORES: ' + err.join(' | ') : '');

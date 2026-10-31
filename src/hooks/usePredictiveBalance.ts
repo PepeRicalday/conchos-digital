@@ -105,6 +105,9 @@ export function usePredictiveBalance(): PredictiveBalanceResult {
                         .select('escala_id, fecha, gasto_calculado_m3s')
                         .gte('fecha', dias8[0])
                         .lte('fecha', hoy)
+                        // Solo mediciones de campo: las filas de arrastre y el gasto copiado por el cron a las 00:00 (método null)
+                        // no son medición y generaban "fugas" falsas (p. ej. K23→K29, K64→K68).
+                        .eq('confirmada', true)
                         .not('gasto_calculado_m3s', 'is', null)
                         .gt('gasto_calculado_m3s', 0),
                     supabase

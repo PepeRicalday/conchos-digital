@@ -88,10 +88,12 @@ export interface ClimaPulso {
     vientoMax: number | null;
     lluviaProm: number | null;
     etoProm: number | null;
+    /** Observación más reciente entre las estaciones válidas (ISO); null = S/D. */
+    ultimaObs: string | null;
 }
 
 interface FilaActual {
-    estacion_id: string; nombre: string; temp_obs_c: number | string | null; viento_obs_ms: number | string | null;
+    estacion_id: string; nombre: string; obs_ts: string | null; temp_obs_c: number | string | null; viento_obs_ms: number | string | null;
     lluvia_obs_mm: number | string | null; eto_obs_mm: number | string | null;
 }
 
@@ -106,7 +108,7 @@ export function useClimaPulso() {
     const cargar = useCallback(async () => {
         const { data, error: e } = await supabase
             .from('v_clima_estacion_actual')
-            .select('estacion_id, nombre, temp_obs_c, viento_obs_ms, lluvia_obs_mm, eto_obs_mm');
+            .select('estacion_id, nombre, obs_ts, temp_obs_c, viento_obs_ms, lluvia_obs_mm, eto_obs_mm');
         if (e) { setError(e.message); setCargado(true); return; }
         setError(null);
         setFilas((data ?? []) as FilaActual[]);
@@ -130,6 +132,7 @@ export function useClimaPulso() {
             vientoMax: v.length ? Math.max(...v) : null,
             lluviaProm: prom(l),
             etoProm: prom(et),
+            ultimaObs: validas.map((f) => f.obs_ts).filter((s): s is string => !!s).sort().pop() ?? null,
         };
     }, [filas, salud.estaciones]);
 

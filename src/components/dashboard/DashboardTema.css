@@ -53,3 +53,121 @@
     .sc-presa-cifras { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .sc-mod { grid-template-columns: 18px 38px minmax(40px, 1fr) minmax(64px, auto); gap: 8px; }
 }
+
+/* ── Presa: anillo + cifras ── */
+.sc-presa-cuerpo { display: flex; align-items: center; gap: 16px; margin: 12px 0 10px; }
+.sc-presa-cuerpo .sc-presa-cifras { flex: 1; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.sc-anillo { position: relative; flex: none; }
+.sc-anillo svg { width: 100%; height: 100%; display: block; }
+.sc-anillo-pista { fill: none; stroke: rgba(255,255,255,0.09); stroke-width: 9; }
+.sc-anillo-sd { stroke: rgba(148,163,184,0.3); stroke-dasharray: 4 5; }
+.sc-anillo-valor { fill: none; stroke: var(--sc-s1); stroke-width: 9; stroke-linecap: round; transition: stroke-dasharray 0.9s ease; }
+.sc-anillo-valor.sc-anillo-alerta { stroke: var(--sc-warn); }
+.sc-anillo-marca { stroke: var(--sc-t1); stroke-width: 2; opacity: 0.85; }
+.sc-anillo-cifra { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--sc-display); font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sc-anillo-cifra small { font-family: var(--sc-mono); font-size: 12px; font-weight: 500; color: var(--sc-t3); margin-left: 1px; }
+.sc-anillo-cifra-sd { font-size: 18px; color: var(--sc-t3); }
+@media (prefers-reduced-motion: reduce) { .sc-anillo-valor { transition: none; } }
+
+/* ── Sparkline (en tiles y bloques) ── */
+.sc-spark { display: block; min-width: 0; overflow: visible; }
+.sc-spark-sd { font-family: var(--sc-mono); font-size: 12px; color: var(--sc-t3); }
+.sc-tile-spark { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.sc-tile-spark .sc-spark { flex: 1; }
+.sc-tile-spark small { font-family: var(--sc-mono); font-size: 12px; color: var(--sc-t3); }
+
+/* ── Alertas vigentes (resumen, sin scroll interno) ── */
+.sc-alr-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.sc-alr-total { min-width: 44px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--sc-line); text-align: center; font-family: var(--sc-display); font-size: 26px; font-weight: 800; line-height: 1.1; color: var(--sc-ok); }
+.sc-alr-total.sc-crit { color: var(--sc-crit); border-color: rgba(248,113,113,0.5); background: rgba(248,113,113,0.08); }
+.sc-alr-total.sc-aviso-t { color: var(--sc-warn); border-color: rgba(251,191,36,0.45); }
+.sc-alr-lista { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 0; padding: 0; list-style: none; }
+.sc-alr { display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--sc-line); border-left-width: 3px; background: var(--sc-surface); }
+.sc-alr svg { flex: none; margin-top: 2px; }
+.sc-alr-critical { border-left-color: var(--sc-crit); } .sc-alr-critical svg { color: var(--sc-crit); }
+.sc-alr-warning { border-left-color: var(--sc-warn); } .sc-alr-warning svg { color: var(--sc-warn); }
+.sc-alr b { font-size: 14px; font-weight: 600; }
+.sc-alr-sev { font-family: var(--sc-mono); font-size: 12px; font-weight: 500; color: var(--sc-t3); }
+.sc-alr p { margin: 2px 0 0; font-size: 13px; color: var(--sc-t2); overflow-wrap: anywhere; }
+.sc-alr-t { display: block; margin-top: 4px; font-family: var(--sc-mono); font-size: 12px; color: var(--sc-t3); }
+.sc-alr-ok { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 14px; color: var(--sc-ok); }
+.sc-alr-pie { margin: 10px 0 0; font-size: 12px; color: var(--sc-t3); }
+.sc-alertas-res .sc-pie-boton { text-decoration: none; }
+
+/* ── Bloques complementarios (GOES, pronóstico, NDVI) ── */
+.sc-extras { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+.sc-extra { display: flex; flex-direction: column; }
+.sc-extra .sc-pie-boton { margin-top: auto; text-decoration: none; }
+.sc-extra-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; color: var(--sc-t3); }
+.sc-extra-cifra { display: flex; flex-direction: column; margin: 2px 0 8px; }
+.sc-extra-cifra b { font-family: var(--sc-display); font-size: 44px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.sc-extra-cifra span { font-family: var(--sc-mono); font-size: 12px; color: var(--sc-t3); }
+.sc-kv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; margin: 4px 0 8px; }
+.sc-kv dt { font-family: var(--sc-mono); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--sc-t3); }
+.sc-kv dd { margin: 2px 0 0; font-family: var(--sc-display); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sc-kv dd small { font-family: var(--sc-mono); font-size: 12px; font-weight: 500; color: var(--sc-t3); }
+.sc-nota { margin: 0 0 12px; font-size: 12px; color: var(--sc-t3); }
+.sc-vacio-chico { padding: 1rem 0; }
+.sc-vacio-error { color: var(--sc-crit); }
+.sc-goes { display: flex; flex-direction: column; margin: 4px 0 12px; padding: 0; list-style: none; }
+.sc-goes li { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(60px, 0.8fr); align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--sc-line); }
+.sc-goes-nom { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.sc-goes-nom b { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.sc-goes-val { display: flex; flex-direction: column; line-height: 1.15; }
+.sc-goes-val b { font-family: var(--sc-mono); font-size: 16px; }
+.sc-goes-val small, .sc-goes-val span { font-family: var(--sc-mono); font-size: 12px; color: var(--sc-t3); }
+
+/* ── Estados de carga ── */
+.sc-esqueleto { border-radius: 8px; background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.09), rgba(255,255,255,0.04)); background-size: 200% 100%; animation: sc-brillo 1.4s linear infinite; }
+@keyframes sc-brillo { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .sc-esqueleto { animation: none; } }
+
+/* ── Responsivo por dispositivo ── */
+.sc-chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 1280px) { .sc-extras { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1000px) and (max-width: 1280px) { html[data-device='tablet'] .sc-pulso { grid-template-columns: repeat(4, minmax(0, 1fr)); } html[data-device='tablet'] .sc-num { font-size: 40px; } }
+@media (max-width: 760px) { .sc-extras { grid-template-columns: minmax(0, 1fr); } .sc-presa-cuerpo { flex-direction: column; align-items: flex-start; } .sc-presa-cuerpo .sc-presa-cifras { width: 100%; } }
+@media (max-width: 560px) { .sc-presa-cuerpo .sc-presa-cifras { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sc-kv dd { font-size: 20px; } }
+
+/* ── Ronda 2: alertas compactas (ceden espacio a las infografías) ── */
+.sc-alr { padding: 8px 10px; gap: 8px; }
+.sc-alr b { font-size: 13px; }
+.sc-alr-msg { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sc-alr-lista { gap: 6px; }
+.sc-alertas-res { padding: 14px 16px; }
+.sc-alertas-res h3 { margin-bottom: 4px; }
+.sc-alr-pie { margin: 8px 0 0; }
+.sc-alertas-res .sc-pie-boton { margin-top: 8px; }
+
+/* ── Franja GOES (bajo el Pulso) ── */
+.sc-goes-franja { display: flex; flex-direction: column; gap: 6px; }
+.sc-goes-cuenta { font-family: var(--sc-mono); font-size: 14px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--sc-t2); }
+.sc-goes-colapsada { padding-top: 12px; padding-bottom: 12px; }
+.sc-goes-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 0; padding: 0; list-style: none; }
+.sc-goes-franja .sc-goes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 6px 0 4px; }
+.sc-goes-franja .sc-goes li { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 8px 12px; border: 1px solid var(--sc-line); border-radius: 12px; background: var(--sc-surface); }
+.sc-goes-enlace { align-self: flex-start; margin-top: 6px; text-decoration: none; }
+.sc-goes-colapsada .sc-goes-enlace { margin-top: 2px; }
+@media (max-width: 1100px) { .sc-goes-franja .sc-goes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .sc-goes-franja .sc-goes { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── Esqueleto, vacíos en franja, error con reintento ── */
+.sc-esqueleto-bloque { height: 120px; margin: 6px 0 12px; }
+.sc-franja-vacia { margin: 8px 0 0; padding: 10px 12px; border: 1px dashed var(--sc-line); border-radius: 10px; font-size: 13px; color: var(--sc-t2); }
+.sc-franja-vacia b { font-family: var(--sc-mono); color: var(--sc-t1); }
+.sc-vacio-error p { margin: 0 0 8px; }
+.sc-extras { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 760px) { .sc-extras { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── Tiles: S/D discreto, kicker en una línea, frases con la fuente de texto ── */
+.sc-num-sd { font-size: clamp(34px, 3.2vw, 42px); }
+.sc-tile .sc-kicker { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.08em; }
+.sc-lineas { font-family: var(--sc-body); }
+.sc-lineas b { font-family: var(--sc-body); font-variant-numeric: tabular-nums; }
+
+/* ── Mínimo 12 px en lo que aún bajaba de ahí ── */
+.sc-cifra span, .sc-mod-rank, .sc-mod-valor span, .sc-alertas .alert-time, .sc-estado, .sc-tabla thead th,
+.sc-campo label, .sc-campo small, .sc-barra-nav .sc-rango small { font-size: 12px; }
+
+/* ── Teléfono: sin "Generar reporte" (no tiene sentido en móvil) ── */
+html[data-device='phone'] .sc-hero .sc-btn-primario { display: none; }

@@ -83,6 +83,8 @@ export interface ClimaPulso {
     estacionesValidas: number;
     estacionesTotal: number;
     excluidas: string[];
+    /** Ids de las estaciones excluidas (sospechosas o sin señal): el pronóstico las descarta con la misma regla. */
+    excluidasIds: string[];
     tempMax: number | null;
     tempMin: number | null;
     vientoMax: number | null;
@@ -127,6 +129,7 @@ export function useClimaPulso() {
             estacionesValidas: validas.length,
             estacionesTotal: filas.length,
             excluidas: [...malas.values()],
+            excluidasIds: [...malas.keys()],
             tempMax: t.length ? Math.max(...t) : null,
             tempMin: t.length ? Math.min(...t) : null,
             vientoMax: v.length ? Math.max(...v) : null,

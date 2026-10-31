@@ -3,7 +3,9 @@ import { supabase } from '../lib/supabase';
 import { usePolling } from './useClimaOperativo';
 import { cargarBaseHidro, cargarSeriesHidro, type SeriesPorEstacion } from './useHidroEstaciones';
 import { cargarSerieNdviV2 } from '../utils/ndviSerie';
-import { resumenPronostico, resumenNdvi, serieHoraria48, type FilaPronostico, type ResumenPronostico, type ResumenNdvi, type PuntoHora } from '../utils/dashboardExtra';
+import { resumenPronostico, resumenNdvi, serieHoraria48, demanda24h, type FilaPronostico, type ResumenPronostico, type ResumenNdvi, type PuntoHora, type DemandaRiego24h } from '../utils/dashboardExtra';
+import { cargarIndiceHistorico } from './usePresasHistorico';
+import type { Indice } from '../utils/historicoPresas';
 import {
     ORDEN_ESTACIONES, estadoEnlace, ultimoBueno, ultimoPunto, ceroSospechoso, GASTO_UMBRAL_CENSURA_M3S,
     type EstadoEnlace, type EstacionHidro,
@@ -36,11 +38,12 @@ function useToken(): [number, () => void] {
     return [t, useCallback(() => setT((n) => n + 1), [])];
 }
 
-// ── Pronóstico 48 h ───────────────────────────────────────────────────────────
-export function usePronostico48h(activo: boolean): BloqueEstado<ResumenPronostico> & { horas: PuntoHora[] } {
+// ── Pronóstico 48 h + demanda de las próximas 24 h ──────────────────────────
+export function usePronostico48h(activo: boolean, excluidasIds: string[]): BloqueEstado<ResumenPronostico> & { horas: PuntoHora[]; demanda: DemandaRiego24h | null } {
     const [token, recargar] = useToken();
-    const [est, setEst] = useState<Omit<BloqueEstado<ResumenPronostico>, 'recargar'>>({ datos: null, cargado: false, error: null });
-    const [horas, setHoras] = useState<PuntoHora[]>([]);
+    const [filas, setFilas] = useState<FilaPronostico[] | null>(null);
+    const [aCorte, setACorte] = useState(0);
+    const [meta, setMeta] = useState<{ cargado: boolean; error: string | null }>({ cargado: false, error: null });
     const cargar = useCallback(async () => {
         void token; // un reintento manual cambia `cargar` y vuelve a pedir
         if (!activo) return;
@@ -48,15 +51,20 @@ export function usePronostico48h(activo: boolean): BloqueEstado<ResumenPronostic
         const hasta = new Date(Date.now() + 48 * 3_600_000).toISOString();
         const { data, error } = await supabase
             .from('clima_pronostico_horario')
-            .select('estacion_id, valido_en, precip_mm, precip_prob_pct, temp_c, temp_c_corr, viento_ms, viento_ms_corr, eto_fc_mm')
+            .select('estacion_id, valido_en, corrida_en, precip_mm, precip_prob_pct, temp_c, temp_c_corr, viento_ms, viento_ms_corr, eto_fc_mm')
             .gte('valido_en', desde).lte('valido_en', hasta).order('valido_en', { ascending: true }).limit(2000);
-        if (error) { setEst({ datos: null, cargado: true, error: mensajeAmable(error.message) }); return; }
-        const filas = ((data ?? []) as unknown as FilaPronostico[]);
-        setHoras(serieHoraria48(filas));
-        setEst({ datos: filas.length ? resumenPronostico(filas) : null, cargado: true, error: null });
+        if (error) { setMeta({ cargado: true, error: mensajeAmable(error.message) }); return; }
+        setFilas((data ?? []) as unknown as FilaPronostico[]);
+        setACorte(Date.now());
+        setMeta({ cargado: true, error: null });
     }, [activo, token]);
     usePolling(cargar, 30 * 60_000);
-    return { ...est, horas, recargar };
+    const claveExcl = excluidasIds.join(',');
+    return useMemo(() => {
+        const horas = filas ? serieHoraria48(filas) : [];
+        const demanda = filas && filas.length ? demanda24h(filas, aCorte, claveExcl ? claveExcl.split(',') : []) : null;
+        return { datos: filas && filas.length ? resumenPronostico(filas) : null, cargado: meta.cargado, error: meta.error, horas, demanda, recargar };
+    }, [filas, aCorte, claveExcl, meta, recargar]);
 }
 
 // ── NDVI ──────────────────────────────────────────────────────────────────────
@@ -137,11 +145,26 @@ export function useGoesResumen(activo: boolean): BloqueEstado<FilaGoes[]> {
     return { ...est, recargar };
 }
 
-/** Los tres bloques con un solo retardo de arranque. */
-export function useDashboardExtra() {
+// ── Histórico de presas (diferido; reutiliza la caché compartida de 10 min) ───
+export function useHistoricoPresas(activo: boolean): { indice: Indice | null; cargado: boolean; error: string | null } {
+    const [est, setEst] = useState<{ indice: Indice | null; cargado: boolean; error: string | null }>({ indice: null, cargado: false, error: null });
+    useEffect(() => {
+        if (!activo) return;
+        let vivo = true;
+        cargarIndiceHistorico()
+            .then((indice) => { if (vivo) setEst({ indice, cargado: true, error: null }); })
+            .catch((e: Error) => { if (vivo) setEst({ indice: null, cargado: true, error: mensajeAmable(e.message) }); });
+        return () => { vivo = false; };
+    }, [activo]);
+    return est;
+}
+
+/** Los bloques con un solo retardo de arranque. */
+export function useDashboardExtra(excluidasIds: string[] = []) {
     const listo = useListo(RETARDO_MS);
-    const pronostico = usePronostico48h(listo);
+    const pronostico = usePronostico48h(listo, excluidasIds);
     const ndvi = useNdviResumen(listo);
     const goes = useGoesResumen(listo);
-    return useMemo(() => ({ pronostico, ndvi, goes }), [pronostico, ndvi, goes]);
+    const historico = useHistoricoPresas(listo);
+    return useMemo(() => ({ pronostico, ndvi, goes, historico }), [pronostico, ndvi, goes, historico]);
 }

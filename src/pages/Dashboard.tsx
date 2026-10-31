@@ -22,8 +22,9 @@ import { PanelKpis, estadosTarjetas, type ModeloKpis } from '../components/dashb
 import { BarraCentro } from '../components/dashboard/BarraCentro';
 import { AlertasDrawer } from '../components/dashboard/AlertasDrawer';
 import { avanceDistrito } from '../utils/distribucion';
+import { modeloSuficiencia } from '../utils/suficiencia';
 import {
-    estadoPresas, diasSuficiencia, avanceCiclo, brechaCiclo, estadoModulo, demandaRiego, confianzaTablero, tendenciaTexto,
+    estadoPresas, avanceCiclo, brechaCiclo, estadoModulo, demandaRiego, confianzaTablero, tendenciaTexto,
     type EstadoKpi, type FuenteConfianza,
 } from '../utils/dashboardKpisEjecutivos';
 import type { VwAlertaTomaVaradaRow } from '../types/sica.types';
@@ -83,7 +84,7 @@ const Dashboard = () => {
     const [extraccionFilas, setExtraccionFilas] = useState<{ fecha: string; presa_id: string; almacenamiento_mm3: number | null; extraccion_total_m3s: number | null }[]>([]);
     const [fuentesCaidas, setFuentesCaidas] = useState<string[]>([]);
     const [cicloAct, setCicloAct] = useState<{ clave: string; fecha_inicio: string; fecha_fin: string } | null>(null);
-    const extra = useDashboardExtra();
+    const extra = useDashboardExtra(clima.excluidasIds);
 
     // Reloj de alertas (5 min): también refresca las consultas propias (tomas varadas cambian con el día), sin pedir con la pestaña oculta.
     const ahoraAlertas = useReloj(5 * 60_000, true);
@@ -176,6 +177,12 @@ const Dashboard = () => {
         return { estado: { tipo: 'ok', texto: 'Operación normal' }, detalle: 'Sin alertas vigentes' };
     }, [resumen, confianza]);
 
+    // Suficiencia: volumen útil (descuenta el muerto), cobertura y posición histórica; por modo (pre-ciclo / temporada).
+    const suficiencia = useMemo(() => modeloSuficiencia({
+        presas: presas.map((p) => ({ id: p.id, nombre: p.nombre_corto || p.nombre, almacenadoMm3: p.lectura?.almacenamiento_mm3 ?? null, capacidadMm3: p.capacidad_max_mm3, curva: p.curva_capacidad })),
+        extraccionM3s: extraccion.valorM3s, hoyISO, indice: extra.historico.indice,
+    }), [presas, extraccion.valorM3s, hoyISO, extra.historico.indice]);
+
     const modeloKpis: ModeloKpis = useMemo(() => ({
         enVivoFuera: !esHoy,
         presas: {
@@ -186,14 +193,14 @@ const Dashboard = () => {
             tendencia: tendenciaTexto(serieAlm, 'Mm³', 1, 0),
             frescura: frescuraLectura?.texto ?? null, stale: !!frescuraLectura?.stale,
         },
-        suficiencia: diasSuficiencia(totalAlmacenamiento, extraccion.valorM3s),
+        suficiencia: { ...suficiencia, historicoCargado: extra.historico.cargado, historicoError: extra.historico.error },
         ciclo: { entregadoPct: avanceDist.pct, acumMm3: avanceDist.acumuladoMm3, autMm3: avanceDist.autorizadoMm3, avance, brecha: brechaCiclo(avanceDist.pct, avance) },
         canal: {
             conduccion: canal.conduccion, cargado: canal.cargado,
             k0: canal.k0 ? { gasto: canal.k0.gasto, fresca: canal.k0.fresca, ms: canal.k0.telemetriaMs } : null,
             k104: canal.k104 ? { gasto: canal.k104.gasto, fresca: canal.k104.fresca, ms: canal.k104.telemetriaMs } : null,
         },
-        demanda: { d: demandaRiego(clima.etoProm, clima.lluviaProm), etoMm: clima.etoProm, lluviaMm: clima.lluviaProm, tMax: clima.tempMax, pron: extra.pronostico.datos, horas: extra.pronostico.horas, ultimaObs: clima.ultimaObs },
+        demanda: { d24: extra.pronostico.demanda, cargado: extra.pronostico.cargado, error: extra.pronostico.error, medido: { d: demandaRiego(clima.etoProm, clima.lluviaProm), etoMm: clima.etoProm, lluviaMm: clima.lluviaProm, tMax: clima.tempMax, ultimaObs: clima.ultimaObs } },
         modulos: modules.map((m) => {
             const pct = cumplimientoModulo(m.accumulated_vol, m.authorized_vol);
             const e = estadoModulo(pct, avance);
@@ -203,7 +210,7 @@ const Dashboard = () => {
         alertas: { resumen, top: topAlertas, onAbrir: () => setDrawerAbierto(true) },
         goes: { cargado: extra.goes.cargado, error: extra.goes.error, estaciones: (extra.goes.datos ?? []).map((g) => ({ id: g.id, nombre: g.nombre, clave: g.enlace.clave, edadMin: g.enlace.edadMin, serieGasto: g.serieGasto })) },
         ndvi: { cargado: extra.ndvi.cargado, error: extra.ndvi.error, r: extra.ndvi.datos },
-    }), [extra.goes, extra.ndvi, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, extraccion, avanceDist, avance, canal, extra.goes.datos, enLineaGoes, clima, extra.pronostico.datos, extra.pronostico.horas, modules, confianza, resumen, topAlertas]);
+    }), [extra.goes, extra.ndvi, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, suficiencia, extra.historico.cargado, extra.historico.error, extra.pronostico.demanda, extra.pronostico.cargado, extra.pronostico.error, avanceDist, avance, canal, extra.goes.datos, enLineaGoes, clima, extra.pronostico.datos, extra.pronostico.horas, modules, confianza, resumen, topAlertas]);
 
     const pulso = estadosTarjetas(modeloKpis);
 

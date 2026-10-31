@@ -7,17 +7,20 @@ import { BarraSeveridad } from '../ui/BarraSeveridad';
 import { MedidorSemicircular } from '../ui/MedidorSemicircular';
 import { ColumnasEmbalse, type ColumnaEmbalse } from '../ui/ColumnasEmbalse';
 import { EsquemaCanal } from '../ui/EsquemaCanal';
-import { PronosticoBarras } from '../ui/PronosticoBarras';
+import { RelojClima24 } from '../ui/RelojClima24';
+import { BandaCiclos } from '../ui/BandaCiclos';
+import { BarraUtil } from '../ui/BarraUtil';
 import { FilaEstaciones, type EstacionFila } from '../ui/FilaEstaciones';
 import { AnilloSegmentado } from '../ui/AnilloSegmentado';
 import { MapaCalorModulos, type CeldaModulo } from '../ui/MapaCalorModulos';
 import {
-    SUFICIENCIA_CRIT_DIAS, SUFICIENCIA_OK_DIAS, estadoGoes, estadoNdvi,
-    type EstadoKpi, type Suficiencia, type BrechaCiclo, type AvanceCiclo, type DemandaRiego, type Confianza, type TendenciaTexto,
+    estadoGoes, estadoNdvi,
+    type EstadoKpi, type BrechaCiclo, type AvanceCiclo, type DemandaRiego, type Confianza, type TendenciaTexto,
 } from '../../utils/dashboardKpisEjecutivos';
 import { textoEdad } from '../../utils/hidroEstaciones';
 import type { ResumenAlertas, AlertaSistema } from '../../utils/dashboardKpis';
-import type { ResumenPronostico, ResumenNdvi, PuntoHora } from '../../utils/dashboardExtra';
+import { estadoDemanda24h, type ResumenNdvi, type DemandaRiego24h } from '../../utils/dashboardExtra';
+import type { ModeloSuficiencia } from '../../utils/suficiencia';
 import { etiquetaEficiencia, type ConduccionTramo } from '../../utils/conduccion';
 
 const f = (v: number | null | undefined, d = 1) => (v == null ? null : v.toFixed(d));
@@ -28,10 +31,10 @@ interface ExtremoKpi { gasto: number | null; fresca: boolean; ms: number | null 
 export interface ModeloKpis {
     enVivoFuera: boolean;
     presas: { pct: number | null; estado: EstadoKpi; almacenadoMm3: number | null; capacidadMm3: number; conDato: number; total: number; serie: (number | null)[]; items: ColumnaEmbalse[]; tendencia: TendenciaTexto; frescura: string | null; stale: boolean };
-    suficiencia: Suficiencia;
+    suficiencia: ModeloSuficiencia & { historicoCargado: boolean; historicoError: string | null };
     ciclo: { entregadoPct: number | null; acumMm3: number | null; autMm3: number | null; avance: AvanceCiclo; brecha: BrechaCiclo };
     canal: { conduccion: ConduccionTramo; k0: ExtremoKpi | null; k104: ExtremoKpi | null; cargado: boolean };
-    demanda: { d: DemandaRiego; etoMm: number | null; lluviaMm: number | null; tMax: number | null; pron: ResumenPronostico | null; horas: PuntoHora[]; ultimaObs: string | null };
+    demanda: { d24: DemandaRiego24h | null; cargado: boolean; error: string | null; medido: { d: DemandaRiego; etoMm: number | null; lluviaMm: number | null; tMax: number | null; ultimaObs: string | null } };
     modulos: CeldaModulo[];
     confianza: Confianza;
     alertas: { resumen: ResumenAlertas; top: AlertaSistema[]; onAbrir: () => void };
@@ -41,7 +44,6 @@ export interface ModeloKpis {
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const mesTexto = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
-const ZONAS_SUF = [{ hasta: SUFICIENCIA_CRIT_DIAS, tipo: 'crit' as const }, { hasta: SUFICIENCIA_OK_DIAS, tipo: 'warn' as const }, { hasta: 90, tipo: 'ok' as const }];
 const NDVI_MAX = 0.8;
 const LEYENDA_MOD: Record<string, string> = { C: 'concluido', R: 'en ritmo', A: 'adelantado', T: 'atrasado', S: 'sobregiro', '—': 'sin dato' };
 
@@ -60,7 +62,12 @@ export function derivaEstados(m: ModeloKpis) {
     const nd = ndvi.r && ndvi.r.mes ? ndvi.r : null;
     const ndviE: EstadoKpi = ndvi.error ? { tipo: 'sd', texto: 'Sin lectura' } : !ndvi.cargado ? { tipo: 'sd', texto: 'Consultando' } : estadoNdvi(nd?.anomalia);
     const modulosE: EstadoKpi = m.ciclo.brecha.estado.tipo === 'sd' ? { tipo: 'sd', texto: 'S/D' } : m.ciclo.avance.concluido ? { tipo: 'info', texto: 'Ciclo concluido' } : { tipo: 'ok', texto: 'Por módulo' };
-    return { canalE, alertasE, goesE, ndviE, modulosE, enLinea, nd };
+    const d24 = m.demanda.d24;
+    const usa24 = !!d24 && d24.netaMm != null && !d24.viejo;
+    const demandaE: EstadoKpi = usa24 ? estadoDemanda24h(d24)
+        : d24?.viejo ? estadoDemanda24h(d24)
+        : !m.demanda.cargado && m.demanda.medido.d.netaMm == null ? { tipo: 'sd', texto: 'Consultando' } : m.demanda.medido.d.estado;
+    return { canalE, alertasE, goesE, ndviE, modulosE, enLinea, nd, demandaE, usa24 };
 }
 
 export function estadosTarjetas(m: ModeloKpis): { id: string; nombre: string; tipo: EstadoKpi['tipo'] }[] {
@@ -68,7 +75,7 @@ export function estadosTarjetas(m: ModeloKpis): { id: string; nombre: string; ti
     return [
         { id: 'kp-presas', nombre: 'Presas', tipo: m.presas.estado.tipo }, { id: 'kp-suficiencia', nombre: 'Suficiencia', tipo: m.suficiencia.estado.tipo },
         { id: 'kp-ciclo', nombre: 'Ciclo', tipo: m.ciclo.brecha.estado.tipo }, { id: 'kp-canal', nombre: 'Canal', tipo: e.canalE.tipo },
-        { id: 'kp-alertas', nombre: 'Alertas', tipo: e.alertasE.tipo }, { id: 'kp-demanda', nombre: 'Demanda de riego', tipo: m.demanda.d.estado.tipo },
+        { id: 'kp-alertas', nombre: 'Alertas', tipo: e.alertasE.tipo }, { id: 'kp-demanda', nombre: 'Demanda de riego', tipo: e.demandaE.tipo },
         { id: 'kp-modulos', nombre: 'Módulos', tipo: e.modulosE.tipo }, { id: 'kp-ndvi', nombre: 'Vegetación', tipo: e.ndviE.tipo },
         { id: 'kp-goes', nombre: 'Telemetría GOES', tipo: e.goesE.tipo }, { id: 'kp-confianza', nombre: 'Confianza', tipo: m.confianza.estado.tipo },
     ];
@@ -77,7 +84,7 @@ export function estadosTarjetas(m: ModeloKpis): { id: string; nombre: string; ti
 /** Las 10 tarjetas de la pantalla única del Dashboard. Cada gráfico degrada por container query (kp) según el espacio de su celda. */
 export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
     const { presas, suficiencia, ciclo, canal, demanda, modulos, confianza, alertas, goes, ndvi } = m;
-    const { canalE, alertasE, goesE, ndviE, modulosE, enLinea, nd } = derivaEstados(m);
+    const { canalE, alertasE, goesE, ndviE, modulosE, enLinea, nd, demandaE, usa24 } = derivaEstados(m);
     const c = canal.conduccion;
     const crit = alertas.resumen.criticas, avi = alertas.resumen.avisos, inf = alertas.resumen.informativas;
     const sinSenal = goes.estaciones.filter((g) => g.clave === 'sin_transmision' || g.clave === 'sd');
@@ -85,7 +92,10 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
     const ext = (e: ExtremoKpi | null) => ({ gasto: e?.gasto ?? null, vigente: !!e?.fresca, edadTexto: e?.ms != null ? textoEdad(edadMin(e.ms)).replace('hace ', 'hace ') : null });
     const pcts = modulos.map((x) => x.pct).filter((v): v is number => v != null);
     const letras = [...new Set(modulos.map((x) => x.letra))];
-    const inactivoSuf = suficiencia.estado.tipo === 'info';
+    const d24 = demanda.d24;
+    const sf = suficiencia;
+    const posTxt = sf.banda?.posicion ? `${sf.banda.posicion.posicion}.º más bajo de ${sf.banda.posicion.de} años` : null;
+    const maxMedidor = Math.max(90, Math.ceil((sf.diasRestantes ?? 0) * 1.3));
 
     return (
         <section className="kp-grid" aria-label="Indicadores clave del distrito">
@@ -95,11 +105,16 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
                 contexto={<><b>{presas.almacenadoMm3 != null ? `${presas.almacenadoMm3.toFixed(0)} / ${presas.capacidadMm3.toFixed(0)} Mm³` : 'Sin lectura'}</b> · {presas.tendencia.texto}</>}
                 fresco={presas.frescura} stale={presas.stale} />
 
-            <KpiTile id="kp-suficiencia" titulo="Suficiencia" icono={<Hourglass size={18} />}
-                valor={inactivoSuf ? f(presas.almacenadoMm3, 0) : suficiencia.dias == null ? null : f(suficiencia.dias, 0)} unidad={inactivoSuf ? 'Mm³' : 'd'} estado={suficiencia.estado}
-                aria={`Días de suficiencia: ${suficiencia.dias == null ? suficiencia.estado.texto : `${suficiencia.dias.toFixed(0)} días`}`}
-                viz={<MedidorSemicircular valor={suficiencia.dias} max={90} zonas={ZONAS_SUF} etiqueta="Días de suficiencia" unidad="días" inactivo={inactivoSuf} />}
-                contexto={inactivoSuf ? <>Almacenados. Sin extracción no hay ritmo con qué estimar los días.</> : <>{suficiencia.nota}. Sin descontar volumen muerto.</>} />
+            <KpiTile id="kp-suficiencia" to="/presas" titulo={sf.modo === 'preciclo' ? 'Suficiencia · útil' : 'Suficiencia · alcance'} icono={<Hourglass size={18} />}
+                valor={sf.modo === 'preciclo' ? f(sf.utilTotalMm3, 0) : f(sf.diasAlcance, 0)} unidad={sf.modo === 'preciclo' ? 'Mm³' : 'd'} estado={sf.estado}
+                aria={sf.modo === 'preciclo' ? `Suficiencia: ${f(sf.utilTotalMm3, 0) ?? 'sin dato'} millones de metros cúbicos útiles, ${sf.estado.texto}${posTxt ? `, ${posTxt}` : ''}. Abrir Presas` : `Suficiencia: alcanza ${f(sf.diasAlcance, 0) ?? 'sin dato'} días de ${sf.diasRestantes} que faltan. Abrir Presas`}
+                viz={sf.modo === 'temporada'
+                    ? <MedidorSemicircular valor={sf.diasAlcance} max={maxMedidor} zonas={[{ hasta: (sf.diasRestantes ?? 0) * 0.6, tipo: 'crit' }, { hasta: sf.diasRestantes ?? 0, tipo: 'warn' }, { hasta: maxMedidor, tipo: 'ok' }]} etiqueta="Días que alcanza el volumen útil" unidad="días" />
+                    : <div className="kp-suf-viz">{sf.banda ? <BandaCiclos banda={sf.banda} /> : <div className="kp-banda kp-banda-sd" role="status">{sf.historicoError ? 'Histórico no disponible' : sf.historicoCargado ? 'Sin base histórica suficiente' : 'Cargando histórico…'}</div>}<BarraUtil presas={sf.presas} /></div>}
+                contexto={sf.modo === 'preciclo'
+                    ? <>{posTxt ? <><b>{posTxt}</b>{sf.banda?.vsMedianaPct != null ? ` · ${sf.banda.vsMedianaPct.toFixed(0)} % de la mediana` : ''}</> : <>Útil = almacenado − volumen muerto</>}{sf.cobertura != null ? <> · cobertura <b>{sf.cobertura.toFixed(1)}×</b> (ref. provisional)</> : null}</>
+                    : <>Alcanza <b>{f(sf.diasAlcance, 0) ?? 'S/D'} d</b> al ritmo actual; faltan <b>{sf.diasRestantes} d</b> al 30-sep</>}
+                fresco={presas.frescura} stale={presas.stale} />
 
             <KpiTile id="kp-ciclo" to="/distribucion" titulo={`Ciclo ${ciclo.avance.etiqueta ?? ''}`.trim()} icono={<CalendarClock size={18} />} valor={f(ciclo.entregadoPct)} unidad="%" estado={ciclo.brecha.estado}
                 aria={`Volumen entregado ${f(ciclo.entregadoPct) ?? 'sin dato'} por ciento del autorizado, ${ciclo.brecha.estado.texto}. Abrir Distribución`}
@@ -132,11 +147,15 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
                 <button type="button" className="kp-ver" onClick={alertas.onAbrir}>Ver detalle{alertas.resumen.antiguas > 0 ? ` (+${alertas.resumen.antiguas} antiguas)` : ''}</button>
             </div></section>
 
-            <KpiTile id="kp-demanda" to="/clima" vivo titulo={`Demanda riego${m.enVivoFuera ? ' · en vivo' : ''}`} icono={<Droplets size={18} />} valor={f(demanda.d.netaMm)} unidad="mm" estado={demanda.d.estado}
-                aria={`Demanda de riego neta ${f(demanda.d.netaMm) ?? 'sin dato'} milímetros, ${demanda.d.estado.texto}. Abrir Clima`}
-                viz={demanda.horas.length > 0 ? <PronosticoBarras horas={demanda.horas} /> : <div className="kp-par" aria-hidden="true"><span>ETₒ<b>{f(demanda.etoMm, 2) ?? 'S/D'}</b></span><span>Lluvia<b>{f(demanda.lluviaMm, 1) ?? 'S/D'}</b></span><span>Tmáx<b>{f(demanda.tMax) ?? 'S/D'}°</b></span></div>}
-                contexto={<>ETₒ <b>{f(demanda.etoMm, 2) ?? 'S/D'}</b> − lluvia <b>{f(demanda.lluviaMm, 1) ?? 'S/D'}</b> mm{demanda.pron ? <> · 48 h (previsión): lluvia <b>{f(demanda.pron.lluviaMm) ?? 'S/D'} mm</b>, prob. <b>{f(demanda.pron.probMax, 0) ?? 'S/D'} %</b>, viento <b>{f(demanda.pron.vientoMax) ?? 'S/D'} m/s</b></> : null}</>}
-                fresco={demanda.ultimaObs ? `Observación ${textoEdad(edadMin(Date.parse(demanda.ultimaObs)))}` : 'Sin observación reciente'} />
+            <KpiTile id="kp-demanda" to="/clima" vivo titulo={usa24 ? 'Demanda 24 h' : 'Demanda hoy (medida)'} icono={<Droplets size={18} />}
+                valor={usa24 ? f(d24!.netaMm) : f(demanda.medido.d.netaMm)} unidad="mm" estado={demandaE}
+                aria={`Demanda de riego ${usa24 ? 'prevista a 24 horas' : 'medida hoy'}: ${(usa24 ? f(d24!.netaMm) : f(demanda.medido.d.netaMm)) ?? 'sin dato'} milímetros, ${demandaE.texto}. Abrir Clima`}
+                viz={usa24 ? <RelojClima24 horas={d24!.horas} ventanaLibre={d24!.ventanaLibreHoras} />
+                    : <div className="kp-par" aria-hidden="true"><span>ETₒ<b>{f(demanda.medido.etoMm, 2) ?? 'S/D'}</b></span><span>Lluvia<b>{f(demanda.medido.lluviaMm, 1) ?? 'S/D'}</b></span><span>Tmáx<b>{f(demanda.medido.tMax) ?? 'S/D'}°</b></span></div>}
+                contexto={usa24
+                    ? <>ETₒ <b>{f(d24!.eto24Mm, 1) ?? 'S/D'}</b> − lluvia ef. <b>{f(d24!.lluviaEfectivaMm, 1) ?? 'S/D'}</b> mm{d24!.rangoMm ? ` (${d24!.rangoMm.min.toFixed(1)}–${d24!.rangoMm.max.toFixed(1)})` : ''}{d24!.ventanaLibreHoras != null ? <> · libre <b>{d24!.ventanaLibreHoras} h</b></> : null}{demanda.medido.etoMm != null ? <> · medido hoy ETₒ <b>{demanda.medido.etoMm.toFixed(1)}</b></> : null}</>
+                    : <>{d24?.viejo ? 'Pronóstico con más de 3 h de antigüedad: ' : demanda.error ? 'Sin pronóstico: ' : 'Medición del día al corte: '}ETₒ <b>{f(demanda.medido.etoMm, 2) ?? 'S/D'}</b> − lluvia <b>{f(demanda.medido.lluviaMm, 1) ?? 'S/D'}</b> mm</>}
+                fresco={usa24 ? `Previsión ${d24!.edadMin != null ? textoEdad(d24!.edadMin) : 'sin hora'} · ${d24!.estacionesUsadas}/${d24!.estacionesTotal} est.` : demanda.medido.ultimaObs ? `Observación ${textoEdad(edadMin(Date.parse(demanda.medido.ultimaObs)))}` : 'Sin observación reciente'} />
 
             <KpiTile id="kp-modulos" to="/balance" titulo="Módulos" icono={<LayoutGrid size={18} />}
                 valor={pcts.length ? (Math.min(...pcts) === Math.max(...pcts) ? f(pcts[0], 0) : `${Math.min(...pcts).toFixed(0)}–${Math.max(...pcts).toFixed(0)}`) : null} unidad="%" estado={modulosE}

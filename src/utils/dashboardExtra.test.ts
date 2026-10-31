@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resumenPronostico, resumenNdvi, segmentosSpark, serieAlmacenamiento, serieHoraria48, type FilaPronostico } from './dashboardExtra';
+import { resumenPronostico, resumenNdvi, segmentosSpark, serieAlmacenamiento, serieHoraria48, demanda24h, estadoDemanda24h, type FilaPronostico } from './dashboardExtra';
 
 const h = (estacion_id: string, o: Partial<FilaPronostico> = {}): FilaPronostico => ({
     estacion_id, valido_en: '2026-11-01T00:00:00Z', precip_mm: null, precip_prob_pct: null, temp_c: null, temp_c_corr: null,
@@ -96,5 +96,65 @@ describe('resumenNdvi.serieMensual', () => {
         expect(r.serieMensual[11]).toBeCloseTo(0.5);
         expect(r.serieMensual[10]).toBeNull();
         expect(r.serieMensual[9]).toBeCloseTo(0.3);
+    });
+});
+
+describe('demanda24h', () => {
+    const AHORA = Date.parse('2026-11-01T12:00:00Z');
+    // 24 horas (13:00 → 12:00 siguiente) de una estación con ETo por hora y lluvia opcional
+    const dia = (id: string, etoHora: number, extra: Partial<FilaPronostico> = {}, horas = 24): FilaPronostico[] =>
+        Array.from({ length: horas }, (_, i) => h(id, { valido_en: new Date(AHORA + (i + 1) * 3_600_000).toISOString(), eto_fc_mm: etoHora, corrida_en: '2026-11-01T11:00:00Z', viento_ms: 2, ...extra }));
+
+    it('ETo de 24 h menos lluvia efectiva; la lluvia solo cuenta con probabilidad ≥ 60 %', () => {
+        const sinProb = demanda24h(dia('A', 0.2, { precip_mm: 0.5, precip_prob_pct: 30 }), AHORA);
+        expect(sinProb.netaMm).toBeCloseTo(4.8);          // 24·0.2, lluvia ignorada por prob < 60
+        const conProb = demanda24h(dia('A', 0.2, { precip_mm: 0.5, precip_prob_pct: 80 }), AHORA);
+        expect(conProb.lluvia24Mm).toBeCloseTo(12);       // 24·0.5
+        expect(conProb.lluviaEfectivaMm).toBeCloseTo(9.6); // 80 % de 12 (≥ 5 mm)
+        expect(conProb.netaMm).toBeCloseTo(0);             // 4.8 − 9.6 → 0
+    });
+    it('lluvia bajo 5 mm no descuenta aunque la probabilidad sea alta', () => {
+        const d = demanda24h(dia('A', 0.2, { precip_mm: 0.1, precip_prob_pct: 90 }), AHORA);
+        expect(d.lluviaEfectivaMm).toBe(0);
+        expect(d.netaMm).toBeCloseTo(4.8);
+    });
+    it('una estación con menos de 22 horas de ETo es S/D y no entra al agregado', () => {
+        const d = demanda24h([...dia('A', 0.2), ...dia('B', 0.5, {}, 20)], AHORA);
+        expect(d.estacionesUsadas).toBe(1);
+        expect(d.estacionesTotal).toBe(2);
+        expect(d.netaMm).toBeCloseTo(4.8);
+    });
+    it('mediana con 3 estaciones, promedio con 2, y rango min–máx', () => {
+        const tres = demanda24h([...dia('A', 0.1), ...dia('B', 0.2), ...dia('C', 0.4)], AHORA);
+        expect(tres.netaMm).toBeCloseTo(4.8);              // mediana de 2.4, 4.8, 9.6
+        expect(tres.rangoMm).toEqual({ min: expect.closeTo(2.4), max: expect.closeTo(9.6) });
+        const dos = demanda24h([...dia('A', 0.1), ...dia('B', 0.3)], AHORA);
+        expect(dos.netaMm).toBeCloseTo(4.8);               // promedio de 2.4 y 7.2
+    });
+    it('estaciones excluidas (sospechosas / sin señal) no cuentan', () => {
+        const d = demanda24h([...dia('A', 0.1), ...dia('B', 0.4)], AHORA, ['B']);
+        expect(d.estacionesUsadas).toBe(1);
+        expect(d.excluidas).toEqual(['B']);
+        expect(d.netaMm).toBeCloseTo(2.4);
+    });
+    it('pronóstico viejo (> 3 h) → S/D con texto, no un número viejo', () => {
+        const filas = dia('A', 0.2).map((f) => ({ ...f, corrida_en: '2026-11-01T06:00:00Z' }));
+        const d = demanda24h(filas, AHORA);
+        expect(d.viejo).toBe(true);
+        expect(d.netaMm).toBeNull();
+        expect(estadoDemanda24h(d)).toEqual({ tipo: 'sd', texto: 'Pronóstico viejo' });
+    });
+    it('sin filas → S/D; estados por umbral', () => {
+        const d = demanda24h([], AHORA);
+        expect(d.netaMm).toBeNull();
+        expect(estadoDemanda24h(d).tipo).toBe('sd');
+        expect(estadoDemanda24h(demanda24h(dia('A', 0.05), AHORA)).texto).toBe('Baja');   // 1.2 mm
+        expect(estadoDemanda24h(demanda24h(dia('A', 0.15), AHORA)).texto).toBe('Media');  // 3.6 mm
+        expect(estadoDemanda24h(demanda24h(dia('A', 0.3), AHORA)).texto).toBe('Alta');    // 7.2 mm
+    });
+    it('ventana libre: horas con viento bajo y sin lluvia; null si no hay viento prevista', () => {
+        expect(demanda24h(dia('A', 0.2), AHORA).ventanaLibreHoras).toBe(24);
+        expect(demanda24h(dia('A', 0.2, { viento_ms: 9 }), AHORA).ventanaLibreHoras).toBe(0);
+        expect(demanda24h(dia('A', 0.2, { viento_ms: null }), AHORA).ventanaLibreHoras).toBeNull();
     });
 });

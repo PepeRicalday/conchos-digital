@@ -408,3 +408,25 @@ a.kp-tile:focus-visible, .kp-ver:focus-visible, .kp-sev-btn:focus-visible { outl
 }
 
 @media (max-width: 699px) and (min-height: 560px) { .kp-cifra { font-size: clamp(26px, 10cqw, 36px); } .kp-cifra-texto { font-size: clamp(22px, 8cqw, 28px); } .kp-tile { padding: 6px 10px; } }
+
+/* ═══════════ Ronda 6 — Demanda 24 h y Suficiencia ═══════════ */
+.kp-rc-eto { fill: var(--sc-warn); opacity: 0.55; } .kp-rc-lluvia { fill: var(--sc-sky); opacity: 0.9; }
+.kp-rc-temp { stroke: var(--sc-t1); stroke-width: 1.6; opacity: 0.85; stroke-linejoin: round; } .kp-rc-base { stroke: var(--sc-line); stroke-width: 1; }
+.kp-rc-v-ok { fill: var(--sc-ok); } .kp-rc-v-warn { fill: var(--sc-warn); } .kp-rc-v-crit { fill: var(--sc-crit); }
+.kp-banda { width: 100%; height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.kp-banda svg { flex: 1 1 0; min-height: 26px; width: 100%; }
+.kp-bc-env { fill: var(--sc-sky); opacity: 0.16; } .kp-bc-med { stroke: var(--sc-t2); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.kp-bc-act { stroke: var(--sc-s1); stroke-width: 2.4; stroke-linejoin: round; } .kp-bc-hoy { stroke: var(--sc-t1); stroke-width: 1; stroke-dasharray: 2 2; opacity: 0.7; }
+.kp-bc-pto { stroke: var(--sc-s1); stroke-width: 8; stroke-linecap: round; }
+.kp-banda-sd { align-items: center; justify-content: center; border: 1px dashed var(--sc-line); border-radius: 8px; font: 12px var(--sc-mono); color: var(--sc-t3); text-align: center; padding: 4px; }
+.kp-suf-viz { display: flex; flex-direction: column; gap: 6px; width: 100%; height: 100%; min-height: 0; }
+.kp-util { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; flex: none; }
+.kp-util li { display: grid; grid-template-columns: minmax(0, 5.5em) 1fr auto; gap: 6px; align-items: center; font: 12px var(--sc-mono); }
+.kp-util-n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sc-t2); }
+.kp-util-barra { display: flex; height: 8px; border-radius: 999px; background: rgba(255,255,255,0.07); overflow: hidden; }
+.kp-u-muerto { background: repeating-linear-gradient(135deg, rgba(148,163,184,0.6) 0 3px, transparent 3px 6px); } .kp-u-util { background: var(--sc-s1); }
+.kp-util-sd { background: repeating-linear-gradient(135deg, rgba(148,163,184,0.28) 0 4px, transparent 4px 8px); } .kp-util-v { color: var(--sc-t1); }
+@container kp (min-width: 185px) and (max-height: 205px) { .kp-util { display: none; } .kp-suf-viz { gap: 0; } }
+@container kp (max-height: 235px) { .kp-suf-viz { gap: 4px; } .kp-util { gap: 2px; } }
+
+#kp-suficiencia .kp-contexto, #kp-demanda .kp-contexto { -webkit-line-clamp: 2; }

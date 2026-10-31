@@ -1,3 +1,5 @@
+import { lluviaEfectivaMm } from './agronomia';
+
 /**
  * dashboardExtra — cifras ejecutivas nuevas del Dashboard (pronóstico 48 h, NDVI del último mes cerrado, GOES).
  * Funciones puras, sin red. Regla: S/D (null) nunca 0; los promedios de red PROMEDIAN (no suman) estaciones.
@@ -10,6 +12,8 @@ export interface FilaPronostico {
     temp_c: number | null; temp_c_corr: number | null;
     viento_ms: number | null; viento_ms_corr: number | null;
     eto_fc_mm: number | null;
+    /** Momento de la corrida del modelo (frescura del pronóstico). */
+    corrida_en?: string | null;
 }
 
 export interface ResumenPronostico {
@@ -172,4 +176,111 @@ export function serieHoraria48(filas: FilaPronostico[]): PuntoHora[] {
         const pr = hs.map((h) => h.precip_prob_pct).filter(fin);
         return { t, lluviaMm: prom(ll), tempC: prom(tp), probPct: pr.length ? Math.max(...pr) : null };
     });
+}
+
+// ── Demanda de riego de las PRÓXIMAS 24 h (previsión) ────────────────────────
+/** Probabilidad a partir de la cual la lluvia prevista cuenta (misma regla que v_clima_alertas_agro_eval). */
+export const PROB_LLUVIA_CUENTA_PCT = 60;
+/** Horas con ETo prevista que exige una estación para entrar al cálculo (de 24). */
+export const HORAS_MIN_ESTACION = 22;
+/** Viento máximo (m/s) para una "ventana libre" de aspersión. PROVISIONAL. */
+export const VIENTO_VENTANA_MS = 4;
+/** Antigüedad máxima de la corrida del pronóstico (min); más vieja = S/D con texto. */
+export const EDAD_MAX_PRONOSTICO_MIN = 180;
+
+export interface PuntoHora24 {
+    t: number;
+    etoMm: number | null;       // promedio de estaciones válidas
+    lluviaMm: number | null;    // promedio de estaciones válidas (nunca suma entre estaciones)
+    probPct: number | null;     // máxima entre estaciones (peor caso)
+    tempC: number | null;       // promedio
+    vientoMs: number | null;    // máximo entre estaciones (peor caso para aspersión)
+}
+
+export interface DemandaEstacion {
+    estacionId: string; excluida: boolean; horasConDato: number;
+    eto24Mm: number | null; lluvia24Mm: number | null; probMaxPct: number | null; lluviaEfectivaMm: number | null; netaMm: number | null;
+}
+
+export interface DemandaRiego24h {
+    /** ETo prevista − lluvia efectiva prevista, en mm, agregada entre estaciones (mediana ≥3, promedio 2, única 1). */
+    netaMm: number | null;
+    rangoMm: { min: number; max: number } | null;
+    eto24Mm: number | null;
+    lluviaEfectivaMm: number | null;
+    lluvia24Mm: number | null;
+    probMaxPct: number | null;
+    estacionesUsadas: number;
+    estacionesTotal: number;
+    excluidas: string[];
+    porEstacion: DemandaEstacion[];
+    horas: PuntoHora24[];
+    /** Horas de las próximas 24 con viento ≤ VIENTO_VENTANA_MS y sin lluvia probable; null si no hay viento prevista. */
+    ventanaLibreHoras: number | null;
+    corridaEn: string | null;
+    edadMin: number | null;
+    /** Pronóstico demasiado viejo: la cifra no se afirma. */
+    viejo: boolean;
+}
+
+function agrega(valores: number[]): number | null {
+    if (!valores.length) return null;
+    if (valores.length >= 3) { const s = [...valores].sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+    return valores.reduce((a, b) => a + b, 0) / valores.length;
+}
+
+export function demanda24h(filas: FilaPronostico[], ahoraMs: number, excluidasIds: ReadonlySet<string> | string[] = []): DemandaRiego24h {
+    const excl = excluidasIds instanceof Set ? excluidasIds : new Set(excluidasIds);
+    const hasta = ahoraMs + 24 * 3_600_000;
+    const ventana = filas.filter((f) => { const t = Date.parse(f.valido_en); return Number.isFinite(t) && t > ahoraMs && t <= hasta; });
+    const porEst = new Map<string, FilaPronostico[]>();
+    for (const f of ventana) { const a = porEst.get(f.estacion_id); if (a) a.push(f); else porEst.set(f.estacion_id, [f]); }
+
+    const porEstacion: DemandaEstacion[] = [...porEst.entries()].map(([estacionId, hs]) => {
+        const eto = hs.map((h) => h.eto_fc_mm).filter(fin);
+        const ll = hs.map((h) => h.precip_mm).filter(fin);
+        const pr = hs.map((h) => h.precip_prob_pct).filter(fin);
+        const probMax = pr.length ? Math.max(...pr) : null;
+        const completa = eto.length >= HORAS_MIN_ESTACION;
+        const eto24 = completa ? eto.reduce((a, b) => a + b, 0) : null;
+        const lluvia24 = ll.length ? ll.reduce((a, b) => a + b, 0) : null;
+        const cuenta = probMax != null && probMax >= PROB_LLUVIA_CUENTA_PCT && lluvia24 != null ? lluvia24 : 0;
+        const pef = lluviaEfectivaMm(cuenta);
+        return { estacionId, excluida: excl.has(estacionId), horasConDato: eto.length, eto24Mm: eto24, lluvia24Mm: lluvia24, probMaxPct: probMax, lluviaEfectivaMm: pef, netaMm: eto24 != null ? Math.max(0, eto24 - (pef ?? 0)) : null };
+    });
+    const validas = porEstacion.filter((e) => !e.excluida && e.netaMm != null);
+    const netas = validas.map((e) => e.netaMm as number);
+    const clavesHora = [...new Set(ventana.filter((f) => !excl.has(f.estacion_id)).map((f) => Date.parse(f.valido_en)))].sort((a, b) => a - b);
+    const horas: PuntoHora24[] = clavesHora.map((t) => {
+        const hs = ventana.filter((f) => Date.parse(f.valido_en) === t && !excl.has(f.estacion_id));
+        const e = hs.map((h) => h.eto_fc_mm).filter(fin), l = hs.map((h) => h.precip_mm).filter(fin), p = hs.map((h) => h.precip_prob_pct).filter(fin);
+        const tp = hs.map((h) => h.temp_c_corr ?? h.temp_c).filter(fin), v = hs.map((h) => h.viento_ms_corr ?? h.viento_ms).filter(fin);
+        const prom = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+        return { t, etoMm: prom(e), lluviaMm: prom(l), probPct: p.length ? Math.max(...p) : null, tempC: prom(tp), vientoMs: v.length ? Math.max(...v) : null };
+    });
+    const conViento = horas.filter((h) => h.vientoMs != null);
+    const ventanaLibreHoras = conViento.length ? conViento.filter((h) => (h.vientoMs as number) <= VIENTO_VENTANA_MS && (h.probPct ?? 0) < 30 && (h.lluviaMm ?? 0) <= 0.2).length : null;
+    const corridas = filas.map((f) => f.corrida_en).filter((c): c is string => !!c).sort();
+    const corridaEn = corridas.length ? corridas[corridas.length - 1] : null;
+    const edadMin = corridaEn ? Math.max(0, (ahoraMs - Date.parse(corridaEn)) / 60000) : null;
+    const viejo = edadMin != null && edadMin > EDAD_MAX_PRONOSTICO_MIN;
+    return {
+        netaMm: viejo ? null : agrega(netas),
+        rangoMm: !viejo && netas.length ? { min: Math.min(...netas), max: Math.max(...netas) } : null,
+        eto24Mm: viejo ? null : agrega(validas.map((e) => e.eto24Mm as number)),
+        lluviaEfectivaMm: viejo ? null : agrega(validas.map((e) => e.lluviaEfectivaMm ?? 0)),
+        lluvia24Mm: agrega(validas.map((e) => e.lluvia24Mm).filter(fin)),
+        probMaxPct: validas.length ? Math.max(0, ...validas.map((e) => e.probMaxPct ?? 0)) : null,
+        estacionesUsadas: validas.length, estacionesTotal: porEst.size,
+        excluidas: porEstacion.filter((e) => e.excluida).map((e) => e.estacionId),
+        porEstacion, horas, ventanaLibreHoras, corridaEn, edadMin, viejo,
+    };
+}
+
+/** Umbrales operativos (mm de lámina neta por día). PROVISIONALES: <2 baja, 2–5 media, >5 alta. */
+export function estadoDemanda24h(d: DemandaRiego24h | null): { tipo: 'ok' | 'info' | 'warn' | 'sd'; texto: string } {
+    if (!d || d.estacionesTotal === 0) return { tipo: 'sd', texto: 'S/D' };
+    if (d.viejo) return { tipo: 'sd', texto: 'Pronóstico viejo' };
+    if (d.netaMm == null) return { tipo: 'sd', texto: 'S/D' };
+    return d.netaMm < 2 ? { tipo: 'ok', texto: 'Baja' } : d.netaMm <= 5 ? { tipo: 'info', texto: 'Media' } : { tipo: 'warn', texto: 'Alta' };
 }

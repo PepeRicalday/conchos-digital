@@ -34,54 +34,6 @@
     --sica-hairline: rgba(255, 255, 255, 0.08);
 }
 
-/* ─── Barra de identidad comprimida ────────────────────────────
-   La identidad institucional ocupaba la franja de mayor valor de
-   la pantalla — la que el ojo recorre primero — sin aportar dato
-   operativo. Aquí queda como firma delgada; el bloque completo
-
-/* ─── Impresión ────────────────────────────────────────────────
-   La identidad completa sí es el propósito del reporte impreso. */
-.print-only {
-    display: none;
-}
-
-@media print {
-    .print-only {
-        display: flex !important;
-        align-items: center;
-        gap: 20px;
-        margin-bottom: 18px;
-        padding-bottom: 14px;
-        border-bottom: 3px solid var(--sica-brand);
-    }
-
-    .dash-print-header h3 {
-        font-size: 9pt;
-        color: var(--sica-brand);
-        font-weight: 700;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        margin: 0 0 2px;
-    }
-
-    .dash-print-header h1 {
-        font-size: 20pt;
-        font-weight: 900;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        line-height: 1;
-        margin: 0 0 3px;
-    }
-
-    .dash-print-header h4 {
-        font-size: 7.5pt;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        font-weight: 500;
-        margin: 0;
-    }
-}
-
 .dashboard-container {
     display: flex;
     flex-direction: column;

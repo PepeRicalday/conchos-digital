@@ -145,7 +145,6 @@ a.kp-tile:focus-visible, .kp-ver:focus-visible, .kp-sev-btn:focus-visible { outl
 .kp-drawer-pie .sc-btn { text-decoration: none; justify-content: center; width: 100%; }
 @media (max-width: 699px) { .kp-drawer { width: 100%; border-left: 0; } }
 
-@media print { .kp-drawer { display: none; } .dash-fold { height: auto !important; } .kp-grid { grid-template-rows: none; grid-auto-rows: auto; } }
 @media (prefers-reduced-motion: reduce) { .kp-barra i { transition: none; } }
 
 .kp-canal-viz small, .kp-par small { font-size: 12px; }

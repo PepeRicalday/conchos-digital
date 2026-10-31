@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Loader } from 'lucide-react';
 import { useHydraEngine } from '../hooks/useHydraEngine';
 import { usePresas } from '../hooks/usePresas';
@@ -28,10 +28,13 @@ import {
     type EstadoKpi, type FuenteConfianza,
 } from '../utils/dashboardKpisEjecutivos';
 import type { VwAlertaTomaVaradaRow } from '../types/sica.types';
+import type { EntradaInformeGeneral } from '../utils/informeGeneralHtml';
 import './Dashboard.css';
 import '../styles/sala-control.css';
 import '../components/dashboard/DashboardTema.css';
 import '../components/dashboard/KpiPanel.css';
+
+const InformeGeneralModal = lazy(() => import('../components/dashboard/InformeGeneralModal'));
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const fechaCorta = (s: string) => { const [y, m, d] = s.split('-'); return `${parseInt(d, 10)} ${MESES[parseInt(m, 10) - 1]} ${y}`; };
@@ -69,6 +72,7 @@ function useAlturaVisible(): number | null {
 const Dashboard = () => {
     const alturaFold = useAlturaVisible();
     const [drawerAbierto, setDrawerAbierto] = useState(false);
+    const [informeAbierto, setInformeAbierto] = useState(false);
     const { fechaSeleccionada, esHoy } = useFecha();
     const { activeEvent } = useHydricEvents();
     const { modules, loading: loadingModules } = useHydraEngine();
@@ -210,6 +214,15 @@ const Dashboard = () => {
 
     const pulso = estadosTarjetas(modeloKpis);
 
+    /** Fotografía de lo que ve el Dashboard en este instante, para el Informe general (mismas cifras, misma fuente). */
+    const armarEntradaInforme = (): Omit<EntradaInformeGeneral, 'emitido'> => ({
+        m: modeloKpis, alertas, veredicto: veredicto.estado, detalleVeredicto: veredicto.detalle, protocolo,
+        fechaCorteISO: fechaSeleccionada || hoyISO, fechaCorteTexto: fechaCorta(fechaSeleccionada || hoyISO),
+        clima: { tempMax: clima.tempMax, tempMin: clima.tempMin, vientoMax: clima.vientoMax, estacionesValidas: clima.estacionesValidas, estacionesTotal: clima.estacionesTotal, excluidas: clima.excluidas },
+        extraccionM3s: extraccion.valorM3s, erroresPagina: [errorPresas && `Presas: ${errorPresas}`, canal.error && `Canal: ${canal.error}`, errorRegistro && `Alertas guardadas: ${errorRegistro}`, ...fuentesCaidas].filter((x): x is string => !!x),
+        ahoraMs: Date.now(), version: typeof __V2_APP_VERSION__ !== 'undefined' ? __V2_APP_VERSION__ : undefined,
+    });
+
     if ((loadingModules || loadingPresas || loadingLeaks) && presas.length === 0) {
         return (
             <div className="dashboard-container sc-root flex items-center justify-center min-h-[60vh]" role="status">
@@ -225,17 +238,17 @@ const Dashboard = () => {
 
     return (
         <div className="dashboard-container sc-root sc-fit" style={alturaFold != null ? ({ ['--fold-h' as string]: `${alturaFold}px` } as CSSProperties) : undefined}>
-            <div className="print-only dash-print-header">
-                <img src="/logos/logo-srl.png" alt="SRL Unidad Conchos" style={{ height: '64px', width: 'auto', objectFit: 'contain' }} />
-                <div><h3>Sociedad de Asociaciones de Usuarios</h3><h1>Unidad Conchos</h1><h4>S. de R.L. de I.P. y C.V.</h4></div>
-            </div>
-
             <div className="dash-fold">
                 <BarraCentro pulso={pulso} protocolo={protocolo} version={__V2_APP_VERSION__} veredicto={veredicto.estado} detalleVeredicto={veredicto.detalle} fechaTexto={fechaCorta(fechaSeleccionada)} esHoy={esHoy}
-                    erroresPagina={erroresPagina as string[]} onMonitor={() => window.open('/monitor-publico', '_blank')} onImprimir={() => window.print()} />
+                    erroresPagina={erroresPagina as string[]} onMonitor={() => window.open('/monitor-publico', '_blank')} onImprimir={() => setInformeAbierto(true)} />
                 <PanelKpis m={modeloKpis} />
             </div>
 
+            {informeAbierto && (
+                <Suspense fallback={null}>
+                    <InformeGeneralModal onCerrar={() => setInformeAbierto(false)} armarEntrada={armarEntradaInforme} />
+                </Suspense>
+            )}
             <AlertasDrawer abierto={drawerAbierto} onCerrar={() => setDrawerAbierto(false)} alertas={alertas} resumen={resumen} />
         </div>
     );

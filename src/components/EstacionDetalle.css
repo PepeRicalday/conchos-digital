@@ -134,7 +134,7 @@
     margin-left: auto;
     font-style: normal;
     font-size: 0.65rem;
-    color: #64748b;
+    color: #8396ad;
 }
 
 .est-det-informe {
@@ -259,7 +259,7 @@
     margin: 0.5rem 0 0;
     font-size: 0.65rem;
     line-height: 1.5;
-    color: #64748b;
+    color: #8396ad;
 }
 
 .est-det-nota.aviso {
@@ -326,7 +326,7 @@
     margin-top: 0.2rem;
     font-style: normal;
     font-size: 0.62rem;
-    color: #64748b;
+    color: #8396ad;
     line-height: 1.4;
 }
 
@@ -429,7 +429,7 @@
     display: block;
     font-style: normal;
     font-size: 0.6rem;
-    color: #64748b;
+    color: #8396ad;
     margin-top: 0.15rem;
 }
 
@@ -551,7 +551,7 @@
 }
 
 .v-sec-pct { text-align: right; color: #cbd5e1; }
-.v-sec-vel { text-align: right; color: #64748b; }
+.v-sec-vel { text-align: right; color: #8396ad; }
 
 .riesgo-term b {
     display: block;
@@ -592,7 +592,7 @@
 .cielo-det-estado em {
     font-style: normal;
     font-size: 0.62rem;
-    color: #64748b;
+    color: #8396ad;
 }
 
 .cielo-det-vars {

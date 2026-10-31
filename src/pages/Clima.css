@@ -397,7 +397,7 @@
     padding: var(--spacing-sm) var(--spacing-md);
     background-color: var(--color-bg-secondary);
     border-radius: var(--radius-md);
-    border-left: 3px solid var(--color-text-muted);
+    border-left: 3px solid var(--color-line-muted);
 }
 
 .alert-item.active {
@@ -409,7 +409,7 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background-color: var(--color-text-muted);
+    background-color: var(--color-line-muted);
 }
 
 .alert-item.active .alert-indicator {
@@ -601,7 +601,7 @@
 .est-var.accent { background: rgba(56,189,248,0.08); }
 .est-var.accent b { color: #38bdf8; }
 .estacion-nodata { font-size: 0.72rem; color: #94a3b8; text-align: center; padding: 10px 0; }
-.estaciones-foot { font-size: 0.6875rem; color: #64748b; margin-top: var(--spacing-sm); }
+.estaciones-foot { font-size: 0.6875rem; color: #8396ad; margin-top: var(--spacing-sm); }
 .estaciones-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .estaciones-dl {
     display: inline-flex; align-items: center; gap: 5px;
@@ -732,12 +732,12 @@
 .estaciones-hint {
     margin: 0.5rem 0 0;
     font-size: 0.6875rem;
-    color: #64748b;
+    color: #8396ad;
     text-align: center;
 }
 
 /* Subtítulo de gráficas */
-.chart-sub { font-size: 0.72rem; color: #64748b; margin: -4px 0 8px; }
+.chart-sub { font-size: 0.72rem; color: #8396ad; margin: -4px 0 8px; }
 
 /* Sección estaciones: encabezado con respiración */
 .estaciones-section h3, .conditions-section h3, .tech-section h3,
@@ -764,7 +764,7 @@
 .cielo-panel-txt p { font-size: 0.72rem; color: #94a3b8; margin: 0; line-height: 1.45; max-width: 52ch; }
 .cielo-panel-label {
     font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em;
-    color: #64748b; font-weight: 700;
+    color: #8396ad; font-weight: 700;
 }
 /* Precipitación: bloque propio, nunca fusionado con el estado del cielo */
 .cielo-panel-precip {
@@ -778,7 +778,7 @@
     font-size: 0.74rem; color: #cbd5e1;
 }
 .precip-linea b { color: #93c5fd; }
-.precip-linea em { color: #64748b; font-style: italic; font-size: 0.7rem; }
+.precip-linea em { color: #8396ad; font-style: italic; font-size: 0.7rem; }
 
 /* Tarjeta de estación: bloque de cielo y de lluvia prevista */
 .estacion-cielo {
@@ -790,7 +790,7 @@
 }
 .cielo-estado { display: flex; align-items: center; gap: 5px; font-size: 0.74rem; font-weight: 700; }
 .cielo-icono { font-size: 0.95rem; }
-.cielo-meta { display: flex; align-items: center; gap: 6px; font-size: 0.6875rem; color: #64748b; }
+.cielo-meta { display: flex; align-items: center; gap: 6px; font-size: 0.6875rem; color: #8396ad; }
 .estacion-precip {
     display: flex; align-items: center; gap: 5px;
     margin-top: var(--spacing-sm); padding-top: 7px;
@@ -841,7 +841,7 @@
     border-radius: 5px; font-size: 0.6875rem; color: #cbd5e1;
 }
 .refresco-estado.con-error { background: rgba(245,158,11,0.08); border-left-color: #f59e0b; }
-.refresco-hora { color: #64748b; font-family: monospace; }
+.refresco-hora { color: #8396ad; font-family: monospace; }
 .refresco-err { color: #fbbf24; }
 
 /* ═══ TABLERO EJECUTIVO DEL DISTRITO ═══════════════════════════════════════

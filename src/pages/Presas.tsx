@@ -64,7 +64,7 @@ const ExtractionStreamgraph = ({ movimientos }: { movimientos: MovimientoPresaDa
     if (!hasDatos) {
         return (
             <div className="h-48 w-full mt-4 bg-black/20 rounded-xl flex items-center justify-center border border-white/5">
-                <p className="text-xs text-slate-600 font-bold uppercase tracking-widest">Sin movimientos en los últimos 7 días</p>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Sin movimientos en los últimos 7 días</p>
             </div>
         );
     }
@@ -85,7 +85,7 @@ const ExtractionStreamgraph = ({ movimientos }: { movimientos: MovimientoPresaDa
                     </defs>
                     <XAxis
                         dataKey="hora"
-                        tick={{ fontFamily: 'JetBrains Mono', fontSize: 11, fill: '#475569' }}
+                        tick={{ fontFamily: 'JetBrains Mono', fontSize: 11, fill: '#8396ad' }}
                         interval={3}
                         axisLine={false}
                         tickLine={false}
@@ -194,7 +194,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
                             <span className="text-lg" style={{ color: tipoMeta.color }}>{tipoMeta.icon}</span>
                             Orden de Operación — {presa.nombre_corto}
                         </h3>
-                        <p className="text-[11px] text-slate-500 font-bold mt-0.5 uppercase tracking-widest">Movimientos Presa · Registro con Trazabilidad</p>
+                        <p className="text-[11px] text-slate-400 font-bold mt-0.5 uppercase tracking-widest">Movimientos Presa · Registro con Trazabilidad</p>
                     </div>
                 </div>
 
@@ -202,7 +202,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
 
                     {/* Tipo de movimiento */}
                     <div className="space-y-2">
-                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Tipo de Movimiento</label>
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Tipo de Movimiento</label>
                         <div className="grid grid-cols-5 gap-1.5">
                             {(Object.keys(TIPO_MOV_META) as TipoMovimiento[]).map(t => {
                                 const m = TIPO_MOV_META[t];
@@ -213,7 +213,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
                                         style={{
                                             borderColor: active ? m.color : 'rgba(255,255,255,0.07)',
                                             background:  active ? `${m.color}18` : 'rgba(255,255,255,0.02)',
-                                            color:       active ? m.color : '#475569',
+                                            color:       active ? m.color : '#8396ad',
                                         }}>
                                         <span className="text-base font-black">{m.icon}</span>
                                         <span className="text-[8px] font-black uppercase leading-none">{t}</span>
@@ -221,12 +221,12 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
                                 );
                             })}
                         </div>
-                        <p className="text-[11px] text-slate-600 font-bold">{tipoMeta.desc}</p>
+                        <p className="text-[11px] text-slate-400 font-bold">{tipoMeta.desc}</p>
                     </div>
 
                     {/* Gasto */}
                     <div className="space-y-2">
-                        <label htmlFor="rmm-gasto" className="text-[11px] font-black text-slate-500 uppercase tracking-widest">
+                        <label htmlFor="rmm-gasto" className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
                             Gasto Liberado (Q)
                             {tipo === 'CORTE' && <span className="ml-2 text-red-400">→ se registrará como 0.00 m³/s</span>}
                         </label>
@@ -239,7 +239,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
                                 style={{ borderColor: validErr && (!gasto || gastoNum > qMax) ? '#ef4444' : undefined }}
                                 placeholder={tipo === 'CORTE' ? '0.00' : '0.00'}
                             />
-                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs uppercase">m³/s</span>
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs uppercase">m³/s</span>
                         </div>
                         {gastoNum > 0 && gastoNum <= qMax && (
                             <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
@@ -250,7 +250,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
 
                     {/* Fecha y hora */}
                     <div className="space-y-2">
-                        <label htmlFor="rmm-fecha" className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Fecha y Hora Efectiva del Movimiento</label>
+                        <label htmlFor="rmm-fecha" className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Fecha y Hora Efectiva del Movimiento</label>
                         <input id="rmm-fecha" type="datetime-local" value={fechaHora}
                             onChange={e => setFechaHora(e.target.value)}
                             className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-sm focus:outline-none"
@@ -259,7 +259,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
 
                     {/* Responsable */}
                     <div className="space-y-2">
-                        <label htmlFor="rmm-resp" className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Responsable de la Orden</label>
+                        <label htmlFor="rmm-resp" className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Responsable de la Orden</label>
                         <input id="rmm-resp" type="text" value={responsable}
                             onChange={e => { setResp(e.target.value); setValidErr(null); }}
                             className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm font-bold focus:outline-none transition-all"
@@ -270,7 +270,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
 
                     {/* Notas */}
                     <div className="space-y-2">
-                        <label htmlFor="rmm-notas" className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Notas Operativas <span className="text-slate-700">(opcional)</span></label>
+                        <label htmlFor="rmm-notas" className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Notas Operativas <span className="text-slate-400">(opcional)</span></label>
                         <textarea id="rmm-notas" rows={2} value={notas}
                             onChange={e => setNotas(e.target.value)}
                             className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm resize-none focus:outline-none"
@@ -367,7 +367,7 @@ const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                     <XAxis
                         dataKey="fecha"
-                        tick={{ fill: '#475569', fontSize: 11 }}
+                        tick={{ fill: '#8396ad', fontSize: 11 }}
                         tickFormatter={v => v.slice(5)}
                         interval="preserveStartEnd"
                         axisLine={false}
@@ -375,7 +375,7 @@ const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
                     />
                     <YAxis
                         domain={[minNivel, maxNivel]}
-                        tick={{ fill: '#475569', fontSize: 11 }}
+                        tick={{ fill: '#8396ad', fontSize: 11 }}
                         tickFormatter={v => `${v.toFixed(0)}`}
                         width={38}
                     />
@@ -437,7 +437,7 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
             <div className="scada-panel-hdr mb-3">
                 <Activity size={12} className="text-sky-400" />
                 <span>MÓDULO 4: Trazabilidad de Flujo a Red Mayor</span>
-                <span className="text-[11px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded ml-2">DESGLOSE REPORTADO POR OBRA</span>
+                <span className="text-[11px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded ml-2">DESGLOSE REPORTADO POR OBRA</span>
             </div>
             
             {motivoSinDiagrama ? (
@@ -798,8 +798,8 @@ const Presas = () => {
                             const abierta = extConocida && t.gasto != null && t.gasto > 0;
                             const pctContrib = extraccionTotal > 0 && t.gasto != null ? (t.gasto / extraccionTotal) * 100 : 0;
                             const esCFE = t.nombre === 'CFE';
-                            const tomaColor = esCFE ? '#a78bfa' : abierta ? '#38bdf8' : '#334155';
-                            const estadoColor = abierta ? '#10b981' : '#475569';
+                            const tomaColor = esCFE ? '#a78bfa' : abierta ? '#38bdf8' : '#8396ad';
+                            const estadoColor = abierta ? '#10b981' : '#8396ad';
                             return (
                                 <div key={t.nombre} className={`scada-toma-card${esCFE ? ' scada-toma-card--cfe' : ''}`}>
                                     <div className="scada-toma-header">
@@ -829,7 +829,7 @@ const Presas = () => {
                     </div>
 
                     <div className="scada-panel-hdr scada-panel-hdr--sub">
-                        <Activity size={11} className="text-slate-500" />
+                        <Activity size={11} className="text-slate-400" />
                         <span>TENDENCIA DE EXTRACCIÓN 48H</span>
                     </div>
                     <ExtractionStreamgraph movimientos={movimientosHistorial.filter(m => m.presa_id === currentDam.id)} />
@@ -939,7 +939,7 @@ const Presas = () => {
                     )}
 
                     <div className="scada-panel-hdr scada-panel-hdr--sub">
-                        <Clock size={11} className="text-slate-500" />
+                        <Clock size={11} className="text-slate-400" />
                         <span>HISTORIAL DE OPERACIONES</span>
                         <button type="button" onClick={() => setIsMoveModalOpen(true)} className="scada-hist-btn">
                             <PlusCircle size={9} />Registrar
@@ -963,7 +963,7 @@ const Presas = () => {
                     </div>
 
                     <div className="scada-panel-hdr scada-panel-hdr--sub">
-                        <Activity size={11} className="text-slate-500" />
+                        <Activity size={11} className="text-slate-400" />
                         <span>COMPARATIVA DE CUENCA</span>
                     </div>
                     <div className="scada-cuenca-list">

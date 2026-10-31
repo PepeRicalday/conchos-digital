@@ -7,7 +7,7 @@ const WaterLossMonitor: React.FC = () => {
     const { segments, loading } = useLeakMonitor();
 
     if (loading && segments.length === 0) {
-        return <div className="p-8 text-center text-slate-500 animate-pulse font-mono text-xs">Sincronizando Balances Hídricos...</div>;
+        return <div className="p-8 text-center text-slate-400 animate-pulse font-mono text-xs">Sincronizando Balances Hídricos...</div>;
     }
 
     return (

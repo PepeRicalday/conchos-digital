@@ -41,7 +41,7 @@
     padding: 1px 6px;
     border-radius: var(--radius-full);
     background: var(--color-success);
-    color: white;
+    color: #04251b;
     letter-spacing: 0.05em;
 }
 

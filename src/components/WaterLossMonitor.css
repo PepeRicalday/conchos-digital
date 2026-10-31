@@ -190,7 +190,7 @@
 .wlm-label {
     font-size: 9px;
     font-weight: 900;
-    color: #64748b;
+    color: #8396ad;
     text-transform: uppercase;
     letter-spacing: 0.2em;
     margin-bottom: 0.5rem;
@@ -276,7 +276,7 @@
 .wlm-stat-label {
     font-size: 10px;
     font-weight: 900;
-    color: #64748b;
+    color: #8396ad;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     display: flex;
@@ -295,7 +295,7 @@
 .wlm-stat-unit {
     font-size: 12px;
     font-weight: 900;
-    color: #64748b;
+    color: #8396ad;
     margin-left: 0.25rem;
 }
 
@@ -327,7 +327,7 @@
     font-size: 9px;
     font-weight: 900;
     font-family: var(--font-mono, monospace);
-    color: #475569;
+    color: #8396ad;
     text-transform: uppercase;
     margin-top: 0.25rem;
 }
@@ -363,7 +363,7 @@
     font-size: 9px;
     font-weight: 900;
     font-family: var(--font-mono, monospace);
-    color: #475569;
+    color: #8396ad;
     text-transform: uppercase;
     letter-spacing: 0.2em;
 }

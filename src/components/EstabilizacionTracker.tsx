@@ -170,7 +170,7 @@ const EstabilizacionTracker: React.FC = () => {
                                 </div>
                             );
                         })}
-                        {tramos.length === 0 && <div style={{ color: '#64748b', fontSize: '0.8rem' }}>No hay tramos configurados.</div>}
+                        {tramos.length === 0 && <div style={{ color: '#8396ad', fontSize: '0.8rem' }}>No hay tramos configurados.</div>}
                     </div>
                 </div>
 
@@ -193,13 +193,13 @@ const EstabilizacionTracker: React.FC = () => {
                                             <div style={{ color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase' }}>{toma.modulo_nombre}</div>
                                         </div>
                                         <div style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa', padding: '4px 8px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900 }}>
-                                            {(toma.caudal_promedio_m3s ?? 0).toFixed(2)} <span style={{ fontSize: '0.65rem', color: '#475569' }}>m³/s</span>
+                                            {(toma.caudal_promedio_m3s ?? 0).toFixed(2)} <span style={{ fontSize: '0.65rem', color: '#8396ad' }}>m³/s</span>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '0.8rem' }}>
+                            <div style={{ padding: '20px', textAlign: 'center', color: '#8396ad', fontSize: '0.8rem' }}>
                                 No hay entregas en curso registradas para hoy.
                             </div>
                         )}
@@ -224,7 +224,7 @@ const MetricBox: React.FC<{ title: string, value: string, icon: React.ReactNode,
 // Subcomponente de Mini-Estadística
 const MiniStat: React.FC<{ label: string, value: string, color: string }> = ({ label, value, color }) => (
     <div>
-        <div style={{ color: '#64748b', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>{label}</div>
+        <div style={{ color: '#8396ad', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>{label}</div>
         <div style={{ color, fontSize: '0.85rem', fontWeight: 800 }}>{value}</div>
     </div>
 );

@@ -438,10 +438,10 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                 data: ['Área esperada (CONAGUA)', 'Área medida (NDWI)'],
                 textStyle: { color: '#94a3b8', fontSize: 10 }, top: 0,
             },
-            xAxis: { type: 'category', data: fechas, axisLabel: { color: '#64748b', fontSize: 10 } },
+            xAxis: { type: 'category', data: fechas, axisLabel: { color: '#8396ad', fontSize: 10 } },
             yAxis: {
                 type: 'value', name: 'km²',
-                axisLabel: { color: '#64748b', fontSize: 10 },
+                axisLabel: { color: '#8396ad', fontSize: 10 },
                 splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)' } },
             },
             series: [
@@ -538,7 +538,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
             grid: { left: 50, right: 50, top: 30, bottom: 30 },
             tooltip: { trigger: 'axis' },
             legend: { data: ['Área (km²)', 'Perímetro (km)'], textStyle: { color: '#94a3b8', fontSize: 10 }, top: 0 },
-            xAxis: { type: 'category', data: fechas, axisLabel: { color: '#64748b', fontSize: 10 } },
+            xAxis: { type: 'category', data: fechas, axisLabel: { color: '#8396ad', fontSize: 10 } },
             yAxis: [
                 { type: 'value', name: 'km²', position: 'left', axisLabel: { color: '#22d3ee', fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)' } } },
                 { type: 'value', name: 'km', position: 'right', axisLabel: { color: '#a78bfa', fontSize: 10 }, splitLine: { show: false } },

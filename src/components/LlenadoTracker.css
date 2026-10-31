@@ -171,7 +171,7 @@
 .tech-tag span:first-child {
     font-size: 0.55rem;
     font-weight: 950;
-    color: #475569; /* Darker gray from image */
+    color: #8396ad; /* Darker gray from image */
     text-transform: uppercase;
     letter-spacing: 0.1em;
 }
@@ -225,7 +225,7 @@
 .eta-label {
     font-size: 0.6rem;
     font-weight: 950;
-    color: #475569;
+    color: #8396ad;
     margin-top: 6px;
     text-transform: uppercase;
     display: flex;
@@ -235,7 +235,7 @@
 }
 
 .eta-value {
-    color: #475569;
+    color: #8396ad;
 }
 
 /* Panel de Telemetría Avanzada */
@@ -267,7 +267,7 @@
 }
 
 .telemetry-label {
-    color: #64748b;
+    color: #8396ad;
     font-size: 8px;
     font-weight: 900;
     text-transform: uppercase;
@@ -289,7 +289,7 @@
 }
 
 .telemetry-unit {
-    color: #64748b;
+    color: #8396ad;
     font-size: 9px;
     font-weight: 700;
 }
@@ -320,7 +320,7 @@
 .progress-dist {
     font-size: 9px;
     font-weight: 600;
-    color: #64748b;
+    color: #8396ad;
 }
 
 .progress-track {

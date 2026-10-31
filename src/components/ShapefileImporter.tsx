@@ -107,7 +107,7 @@ export const ShapefileImporter = ({ onLayerImported, onClose }: ShapefileImporte
                         </div>
                         <div>
                             <h2 className="text-white font-bold text-lg">Importar Capa Geográfica</h2>
-                            <p className="text-slate-500 text-xs">Shapefile (.zip) o GeoJSON (.geojson)</p>
+                            <p className="text-slate-400 text-xs">Shapefile (.zip) o GeoJSON (.geojson)</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg transition">
@@ -128,7 +128,7 @@ export const ShapefileImporter = ({ onLayerImported, onClose }: ShapefileImporte
                                     onClick={() => setSelectedPreset(preset)}
                                     className={`p-2 rounded-lg text-[10px] font-bold uppercase transition-all border ${selectedPreset.id === preset.id
                                             ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400'
-                                            : 'bg-slate-800/50 border-slate-700 text-slate-500 hover:border-slate-600'
+                                            : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
                                         }`}
                                 >
                                     {preset.name}
@@ -152,11 +152,11 @@ export const ShapefileImporter = ({ onLayerImported, onClose }: ShapefileImporte
                             }`}>
                             {status === 'idle' && (
                                 <>
-                                    <Upload className="mx-auto text-slate-500 mb-2" size={32} />
+                                    <Upload className="mx-auto text-slate-400 mb-2" size={32} />
                                     <p className="text-slate-400 text-sm font-semibold">
                                         Arrastra o selecciona archivo
                                     </p>
-                                    <p className="text-slate-600 text-xs mt-1">
+                                    <p className="text-slate-400 text-xs mt-1">
                                         .zip (Shapefile) • .geojson • .json
                                     </p>
                                 </>

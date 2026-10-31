@@ -12,7 +12,8 @@
 
   --color-text-primary: #f8fafc;
   --color-text-secondary: #94a3b8;
-  --color-text-muted: #475569;
+  --color-text-muted: #8396ad;   /* ≥ 4.5:1 sobre los fondos oscuros (antes #475569 ≈ 2.4:1); para bordes/rellenos decorativos usar --color-line-muted */
+  --color-line-muted: #475569;
 
   /* Neon Technical Accents */
   --color-primary: #38bdf8;
@@ -166,7 +167,7 @@ h6 {
 
 .btn-tech.active {
   background: var(--color-primary);
-  color: white;
+  color: #04111f;
   border-color: var(--color-primary);
   box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
 }
@@ -193,7 +194,7 @@ h6 {
 
 .btn-primary {
   background-color: var(--color-primary);
-  color: white;
+  color: #04111f;
 }
 
 .btn-primary:hover {
@@ -273,7 +274,7 @@ h6 {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-muted);
+  background: var(--color-line-muted);
 }
 
 @keyframes spin {
@@ -392,6 +393,22 @@ html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
+
+/* Controles nativos en oscuro y LISTAS DESPLEGABLES LEGIBLES.
+   El popup de un <select> se pinta sobre blanco: si la <option> hereda un fondo translúcido del select
+   (p. ej. rgba(255,255,255,.05)) y texto claro, solo se lee la opción bajo el cursor. Se fija un fondo SÓLIDO.
+   :where() deja la especificidad en 0 para que un estilo local pueda sobrescribirlo a propósito. */
+:root { color-scheme: dark; }
+:where(select, input, textarea) { color-scheme: dark; }
+:where(select option, select optgroup) { background-color: #0f1a2b; color: #e8eef6; }
+:where(select option:checked) { background-color: #1d3a5c; color: #ffffff; }
+:where(select option:disabled) { color: #8396ad; }
+:where(input, textarea)::placeholder { color: #8396ad; opacity: 1; }
+
+/* Foco visible con teclado (WCAG 2.4.7 · 3:1). Botones, enlaces, pestañas y elementos con tabindex: especificidad 0 (un diseño propio gana).
+   Campos de formulario: se impone, porque Tailwind (focus:outline-none) los deja sin indicador. */
+:where(button, a[href], summary, [role="button"], [role="tab"], [tabindex]:not([tabindex="-1"])):focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+input:not([type="hidden"]):focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #38bdf8 !important; outline-offset: 1px; }
 
 /* Táctil: sin resaltado gris al tocar y sin zoom de doble toque */
 html[data-touch="true"] {

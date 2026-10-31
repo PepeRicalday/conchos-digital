@@ -199,7 +199,7 @@ const CanalLongitudinalProfile = React.memo(({ escalas, coherencia, fgvProfile, 
     // neutro, no un juicio de riesgo (rojo está reservado para alerta real).
     if (d > 0.01)  return { symbol: '▲', color: '#38bdf8' };
     if (d < -0.01) return { symbol: '▼', color: '#22c55e' };
-    return { symbol: '—', color: '#475569' };
+    return { symbol: '—', color: '#8396ad' };
   };
 
   // ── Spline Catmull-Rom → curva suave (superficie de agua fluida) ─────────
@@ -516,9 +516,9 @@ const CanalLongitudinalProfile = React.memo(({ escalas, coherencia, fgvProfile, 
       {/* Indicador de dirección de flujo — eje superior */}
       {pts.length >= 2 && (
         <g opacity="0.5">
-          <text x={PAD_L} y={PAD_T - 6} fill="#475569" fontSize="6.5"
+          <text x={PAD_L} y={PAD_T - 6} fill="#8396ad" fontSize="6.5"
             fontFamily="monospace" fontWeight="bold" letterSpacing="0.5">K-0 ENTRADA</text>
-          <text x={PAD_L + plotW} y={PAD_T - 6} fill="#475569" fontSize="6.5"
+          <text x={PAD_L + plotW} y={PAD_T - 6} fill="#8396ad" fontSize="6.5"
             textAnchor="end" fontFamily="monospace" fontWeight="bold" letterSpacing="0.5">K-104 SALIDA →</text>
         </g>
       )}
@@ -626,7 +626,7 @@ const CheckpointsGrid = React.memo(({ escalas, coherenciaCanal, displayMaxKm, is
                                     // datos de 20h sugiere estabilidad EN VIVO que nadie midió.
                                     const ageMin = e.ultima_telemetria ? (Date.now() - e.ultima_telemetria) / 60000 : Infinity;
                                     if (ageMin > 240) return (
-                                        <span style={{ color: '#64748b', fontSize: '11px' }} title="Tendencia 12h no disponible — telemetría vencida (>4 h)">·</span>
+                                        <span style={{ color: '#8396ad', fontSize: '11px' }} title="Tendencia 12h no disponible — telemetría vencida (>4 h)">·</span>
                                     );
                                     const d = e.delta_12h ?? 0;
                                     const tChar = d > 0.01 ? '▲' : d < -0.01 ? '▼' : '—';
@@ -2341,7 +2341,7 @@ const PublicMonitor: React.FC = () => {
 
                     <div className="phb-efficiency">
                         <span className="phb-label">PRESA:</span>
-                        <span className="phb-val" style={{ color: executiveMetrics.fresh ? undefined : '#64748b' }} title={executiveMetrics.fresh ? undefined : 'Sin lectura/movimiento de presa en las últimas 24 h'}>
+                        <span className="phb-val" style={{ color: executiveMetrics.fresh ? undefined : '#8396ad' }} title={executiveMetrics.fresh ? undefined : 'Sin lectura/movimiento de presa en las últimas 24 h'}>
                             {executiveMetrics.fresh ? `${executiveMetrics.totalReal.toFixed(2)} m³/s` : 'S/D'}
                         </span>
                     </div>
@@ -2352,7 +2352,7 @@ const PublicMonitor: React.FC = () => {
                         <span className="phb-label">{modoActual.kpi0Label}</span>
                         <span
                             className="phb-val"
-                            style={{ color: !flowAtZeroFresh ? '#64748b' : sessionStorage.getItem('has_hydraulic_violation') === 'true' ? '#ef4444' : statusColor }}
+                            style={{ color: !flowAtZeroFresh ? '#8396ad' : sessionStorage.getItem('has_hydraulic_violation') === 'true' ? '#ef4444' : statusColor }}
                             title={flowAtZeroFresh ? undefined : 'K-0 sin lectura de gasto fresca (<4 h)'}
                         >
                             {flowAtZeroFresh ? `${flowAtZero.toFixed(2)} m³/s` : 'S/D'}
@@ -2364,7 +2364,7 @@ const PublicMonitor: React.FC = () => {
                      activeEvent?.gasto_solicitado_m3s && activeEvent.gasto_solicitado_m3s > 0 && (
                         <div className="phb-efficiency">
                             <span className="phb-label">META:</span>
-                            <span className="phb-val" style={{ color: '#64748b' }}>
+                            <span className="phb-val" style={{ color: '#8396ad' }}>
                                 {activeEvent.gasto_solicitado_m3s.toFixed(1)} m³/s
                             </span>
                         </div>
@@ -2559,7 +2559,7 @@ const PublicMonitor: React.FC = () => {
                                     <span className="bst-label">PÉRDIDA EN TRÁNSITO</span>
                                     <span
                                         className="bst-val"
-                                        style={{ color: !ambosFrescos ? '#64748b' : (executiveMetrics.totalReal - flowAtZero) > 5 ? '#ef4444' : '#22c55e' }}
+                                        style={{ color: !ambosFrescos ? '#8396ad' : (executiveMetrics.totalReal - flowAtZero) > 5 ? '#ef4444' : '#22c55e' }}
                                         title={ambosFrescos ? undefined : motivo}
                                     >
                                         {ambosFrescos ? `${(executiveMetrics.totalReal - flowAtZero).toFixed(2)} m³/s` : 'S/D'}

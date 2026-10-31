@@ -46,7 +46,7 @@ html[data-device="phone"] .scada-status-badge { font-size: 11px; padding: 6px 12
 html[data-device="phone"] .scada-sala-body { grid-template-columns: minmax(0, 1fr); }
 html[data-device="phone"] .scada-design-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 html[data-device="phone"] .scada-panel-hdr { font-size: 11px; }
-html[data-device="phone"] .scada-design-kpi span:first-child { font-size: 11px; color: #64748b; }
+html[data-device="phone"] .scada-design-kpi span:first-child { font-size: 11px; color: #8396ad; }
 
 /* ── Control de Niveles ──────────────────────────────────────────────────── */
 html[data-device="phone"] .zone-summary { flex-wrap: wrap; gap: 8px 16px; }

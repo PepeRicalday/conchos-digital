@@ -47,7 +47,7 @@
 }
 
 .alert-badge {
-    background: #ef4444;
+    background: #dc2626;
     border: 1px solid rgba(255, 255, 255, 0.3);
     color: #ffffff;
     font-size: 0.8rem;
@@ -76,7 +76,7 @@
 }
 
 .alert-empty {
-    color: #64748b;
+    color: #8396ad;
     font-size: 0.85rem;
     text-align: center;
     padding: 1.5rem 0;
@@ -119,7 +119,7 @@
 
 .alert-group-chevron {
     transition: transform 0.2s ease;
-    color: #64748b;
+    color: #8396ad;
     flex-shrink: 0;
 }
 

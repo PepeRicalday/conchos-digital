@@ -172,7 +172,7 @@ export default function Ciclos() {
                             </div>
                             <div className="text-right bg-slate-900 p-3 rounded-xl border border-slate-700">
                                 <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Balance Autorizado</div>
-                                <div className="text-2xl font-mono text-white leading-none">{volCiclo != null ? <>{volCiclo} <span className="text-sm text-slate-500">Mm³</span></> : 'S/D'}</div>
+                                <div className="text-2xl font-mono text-white leading-none">{volCiclo != null ? <>{volCiclo} <span className="text-sm text-slate-400">Mm³</span></> : 'S/D'}</div>
                                 {volCiclo == null && <div className="text-[11px] text-amber-400 mt-1">Sin presupuesto cargado</div>}
                                 {cicloVencido && <div className="text-[11px] text-amber-400 mt-1">Pasó su fecha de cierre ({selectedCiclo.fecha_fin}) y sigue activo (remanente/vaciado). Desactívalo al terminar.</div>}
                             </div>
@@ -260,7 +260,7 @@ function PresupuestoRow({ modulo, cicloId, vinculacion, onSave }: PresupuestoRow
         <tr className="border-b border-slate-700/50 hover:bg-slate-750 transition-colors group">
             <td className="py-3 px-2 w-1/3">
                 <div className="font-bold text-white text-sm">{modulo.nombre}</div>
-                <div className="text-xs text-slate-500">{modulo.codigo_corto}</div>
+                <div className="text-xs text-slate-400">{modulo.codigo_corto}</div>
             </td>
             <td className="py-3 px-2 w-1/3">
                 {isEditing ? (

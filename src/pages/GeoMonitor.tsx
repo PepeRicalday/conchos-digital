@@ -1493,7 +1493,7 @@ const GeoMonitor = () => {
             },
             axisTick: { show: false },
             splitLine: { distance: -18, length: 12, lineStyle: { color: 'rgba(255, 255, 255, 0.1)', width: 2 } },
-            axisLabel: { distance: 18, color: '#526079', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' },
+            axisLabel: { distance: 18, color: '#8396ad', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' },
             detail: {
                 valueAnimation: true,
                 formatter: (v: number | null) => (v == null || Number.isNaN(v) ? 'S/D' : `${v}%`),
@@ -1525,7 +1525,7 @@ const GeoMonitor = () => {
         xAxis: {
             type: 'category' as const,
             data: escalas.map(e => `K${Math.round(e.km)}`),
-            axisLabel: { color: '#526079', fontSize: 8, rotate: 0, fontWeight: 700 },
+            axisLabel: { color: '#8396ad', fontSize: 8, rotate: 0, fontWeight: 700 },
             axisLine: { lineStyle: { color: 'rgba(28, 43, 66, 0.6)' } },
             axisTick: { show: false }
         },
@@ -1533,7 +1533,7 @@ const GeoMonitor = () => {
             type: 'value' as const,
             min: 0,
             max: 4.5,
-            axisLabel: { color: '#526079', fontSize: 9, formatter: '{value}m', fontFamily: 'JetBrains Mono, monospace' },
+            axisLabel: { color: '#8396ad', fontSize: 9, formatter: '{value}m', fontFamily: 'JetBrains Mono, monospace' },
             axisLine: { show: false },
             splitLine: { lineStyle: { color: 'rgba(28, 43, 66, 0.5)', type: 'dashed' } },
         },
@@ -2570,13 +2570,13 @@ const GeoMonitor = () => {
                                                         Δ12h: <span className={(esc.delta_12h ?? 0) > 0 ? 'geo-text-success' : 'geo-text-danger'}>{esc.delta_12h ?? 0} m</span><br />
                                                     </>
                                                 ) : (
-                                                    <span className="text-slate-500">Sin lectura hoy</span>
+                                                    <span className="text-slate-400">Sin lectura hoy</span>
                                                 )}
                                                 {layers.mostrarAperturas && esc.pzas_radiales > 0 && (
                                                     <div className="geo-apertura-badge">
                                                         <span className="text-[11px] text-slate-400">Apertura Compuertas:</span><br />
                                                         <b className="text-white text-[13px]">{esc.apertura_radiales_m == null ? 'S/D' : esc.apertura_radiales_m > 0 ? `${esc.apertura_radiales_m.toFixed(2)} m` : 'CERRADAS'}</b>
-                                                        <div className="text-[11px] text-slate-500">{esc.pzas_radiales} radiales ({esc.ancho}×{esc.alto}m)</div>
+                                                        <div className="text-[11px] text-slate-400">{esc.pzas_radiales} radiales ({esc.ancho}×{esc.alto}m)</div>
                                                     </div>
                                                 )}
                                             </div>
@@ -2599,7 +2599,7 @@ const GeoMonitor = () => {
                                                             <span className="text-[11px]">{m.fecha} @ {m.hora_inicio}</span>
                                                         </div>
                                                     ) : (
-                                                        <span className="text-slate-500 text-[11px]">{layers.mostrarAforosQ ? 'Sin mediciones recientes' : ''}</span>
+                                                        <span className="text-slate-400 text-[11px]">{layers.mostrarAforosQ ? 'Sin mediciones recientes' : ''}</span>
                                                     )}
                                                 </div>
                                             </Tooltip>
@@ -2671,7 +2671,7 @@ const GeoMonitor = () => {
                                                     Modulo: {t.modulo} | Km: {t.km?.toFixed(3)}
                                                 </div>
                                                 <div style={{ padding: '4px 8px', borderRadius: 4, background: isBlocked ? '#f8fafc' : (t.estado === 'cierre' ? '#f1f5f9' : '#f0fdf4'), fontSize: 11 }}>
-                                                    Estado: <b className={isBlocked ? 'text-slate-500' : ''}>{isBlocked ? 'ESPERANDO ARRIBO' : t.estado.toUpperCase()}</b><br />
+                                                    Estado: <b className={isBlocked ? 'text-slate-400' : ''}>{isBlocked ? 'ESPERANDO ARRIBO' : t.estado.toUpperCase()}</b><br />
                                                     {!isBlocked && t.estado !== 'cierre' && <div>Caudal: <b>{t.caudal?.toFixed(3)} m³/s</b></div>}
                                                 </div>
                                             </div>
@@ -2834,7 +2834,7 @@ const GeoMonitor = () => {
                                         <>
                                             <div className="detail-stat">
                                                 <label>Gasto (m³/s)</label>
-                                                <strong>{selectedPoint.data.caudal?.toFixed(3) ?? '0.000'} <small className="text-slate-500 lowercase font-bold">m³/s</small></strong>
+                                                <strong>{selectedPoint.data.caudal?.toFixed(3) ?? '0.000'} <small className="text-slate-400 lowercase font-bold">m³/s</small></strong>
                                             </div>
                                             <div className="detail-stat full geo-volume-panel">
                                                 <div className="geo-volume-row">
@@ -3101,7 +3101,7 @@ const GeoMonitor = () => {
                                 <Activity size={24} className="text-primary" />
                                 <div>
                                     <h2 className="text-xl font-black text-white uppercase tracking-wider">{selectedPoint.data.nombre}</h2>
-                                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-[0.2em]">Historial Operativo (Últimos 14 Días)</p>
+                                    <p className="text-[11px] text-slate-400 font-bold uppercase tracking-[0.2em]">Historial Operativo (Últimos 14 Días)</p>
                                 </div>
                             </div>
                             <button className="p-2 bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors" onClick={() => setShowHistoryModal(false)}>
@@ -3110,9 +3110,9 @@ const GeoMonitor = () => {
                         </div>
                         <div className="h-[400px] w-full mt-4">
                             {historyLoading ? (
-                                <div className="h-full w-full flex items-center justify-center text-slate-500 text-sm">Cargando historial…</div>
+                                <div className="h-full w-full flex items-center justify-center text-slate-400 text-sm">Cargando historial…</div>
                             ) : !historySeries?.values.length ? (
-                                <div className="h-full w-full flex items-center justify-center text-slate-500 text-sm">Sin lecturas registradas en los últimos 14 días</div>
+                                <div className="h-full w-full flex items-center justify-center text-slate-400 text-sm">Sin lecturas registradas en los últimos 14 días</div>
                             ) : (
                                 <ReactECharts option={fullHistoryOptions} style={{ height: '100%', width: '100%' }} />
                             )}

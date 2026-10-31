@@ -40,7 +40,7 @@
 .pg-title-group p {
     font-size: 10px;
     font-weight: 900;
-    color: #64748b;
+    color: #8396ad;
     text-transform: uppercase;
     letter-spacing: 0.2em;
     margin-top: 0.4rem;
@@ -117,7 +117,7 @@
 
 .pg-step-desc {
     font-size: 0.825rem;
-    color: #64748b;
+    color: #8396ad;
     line-height: 1.5;
     max-width: 500px;
 }
@@ -130,7 +130,7 @@
     padding: 0.25rem 0.625rem;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 2rem;
-    color: #475569;
+    color: #8396ad;
 }
 
 @keyframes ap-fade-in {

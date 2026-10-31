@@ -472,7 +472,7 @@ const CanalSection: React.FC<{
         ▲ {borda}m libre
       </text>
       {/* Info tramo */}
-      <text x={CX} y={H - 4} fill="#334155" fontSize="7.5" fontFamily="monospace" textAnchor="middle">
+      <text x={CX} y={H - 4} fill="#8396ad" fontSize="7.5" fontFamily="monospace" textAnchor="middle">
         b={plantilla}m · z={talud}:1 · H={freeboard.toFixed(1)}m
       </text>
       {/* Barra % bordo libre */}
@@ -1552,10 +1552,10 @@ const ModelingDashboard: React.FC = () => {
           <div>Nivel real SQL&nbsp;&nbsp;<b style="color:#f59e0b">${rpcRow && Number.isFinite(rpcRow.nivel) ? rpcRow.nivel.toFixed(2)+' m' : '—'}</b>&nbsp;<span style="color:${estadoClr};font-size:9px">${estadoLabel}</span></div>
           <div>Tirante actual &nbsp;&nbsp;<b style="color:#38bdf8">${(r.y_base??0).toFixed(2)} m</b></div>
           <div>Tirante simulado<b style="color:${statusColor(r.status)}">&nbsp;${(r.y_sim??0).toFixed(2)} m</b></div>
-          <div>Tirante crítico &nbsp;<b style="color:rgba(251,146,60,0.9)">${criticalDepth(r.q_sim, findTramo(r.km, tramoGeom).plantilla_m, findTramo(r.km, tramoGeom).talud_z).toFixed(2)} m</b>&nbsp;<span style="color:#475569;font-size:9px">(Fr=1)</span></div>
+          <div>Tirante crítico &nbsp;<b style="color:rgba(251,146,60,0.9)">${criticalDepth(r.q_sim, findTramo(r.km, tramoGeom).plantilla_m, findTramo(r.km, tramoGeom).talud_z).toFixed(2)} m</b>&nbsp;<span style="color:#8396ad;font-size:9px">(Fr=1)</span></div>
           <div>Variación &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b style="color:${movClr}">${sign}${dCm} cm</b></div>
           <div>Q llegada &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b style="color:#a78bfa">${(r.q_sim??0).toFixed(1)} m³/s</b></div>
-          ${r.n_tomas_activas > 0 ? `<div style="color:#64748b;font-size:9px">−${r.q_extraido.toFixed(2)} m³/s · ${r.n_tomas_activas} tomas activas</div>` : ''}
+          ${r.n_tomas_activas > 0 ? `<div style="color:#8396ad;font-size:9px">−${r.q_extraido.toFixed(2)} m³/s · ${r.n_tomas_activas} tomas activas</div>` : ''}
           <div style="margin-top:3px;padding-top:3px;border-top:1px solid #1e3a5f">Arribo: <b style="color:#c084fc">${r.arrival_time} &nbsp;(T+${Math.round(r.cumulative_min??0)} min)</b></div>
         </div>`;
       }
@@ -1586,8 +1586,8 @@ const ModelingDashboard: React.FC = () => {
         {
           gridIndex: 0, type: 'value', min: 0, max: 110,
           name: 'Km del canal', nameLocation: 'middle', nameGap: 22,
-          nameTextStyle: { color: '#64748b', fontSize: 10 },
-          axisLabel: { color: '#64748b', fontSize: 10, formatter: 'K{value}' },
+          nameTextStyle: { color: '#8396ad', fontSize: 10 },
+          axisLabel: { color: '#8396ad', fontSize: 10, formatter: 'K{value}' },
           axisLine: { lineStyle: { color: '#1e3a5f' } },
           axisTick: { lineStyle: { color: '#1e3a5f' } },
           splitLine: { lineStyle: { color: 'rgba(30,58,95,0.3)', type: 'dashed' } },
@@ -1596,9 +1596,9 @@ const ModelingDashboard: React.FC = () => {
         {
           gridIndex: 1, type: 'value', min: 0, max: maxHr,
           name: 'Tiempo desde el evento (horas)', nameLocation: 'middle', nameGap: 28,
-          nameTextStyle: { color: '#64748b', fontSize: 10 },
+          nameTextStyle: { color: '#8396ad', fontSize: 10 },
           axisLabel: {
-            color: '#64748b', fontSize: 10,
+            color: '#8396ad', fontSize: 10,
             formatter: (v: number) => v === 0 ? 'T0' : `+${v}h`,
           },
           axisLine: { lineStyle: { color: '#1e3a5f' } },
@@ -1610,8 +1610,8 @@ const ModelingDashboard: React.FC = () => {
         // Grid 0 izq — tirante (m)
         {
           gridIndex: 0, type: 'value', name: 'Tirante (m)', min: 0, max: +yMax.toFixed(1),
-          nameTextStyle: { color: '#64748b', fontSize: 10, padding: [0, 0, 0, -22] },
-          axisLabel: { color: '#64748b', fontSize: 10, formatter: '{value}m' },
+          nameTextStyle: { color: '#8396ad', fontSize: 10, padding: [0, 0, 0, -22] },
+          axisLabel: { color: '#8396ad', fontSize: 10, formatter: '{value}m' },
           splitLine: { lineStyle: { color: '#080f1c', type: 'dashed' } },
           axisLine: { lineStyle: { color: '#1e3a5f' } },
         },
@@ -1627,8 +1627,8 @@ const ModelingDashboard: React.FC = () => {
         // Grid 1 — kilómetro del canal
         {
           gridIndex: 1, type: 'value', name: 'Kilómetro del Canal', min: 0, max: 110,
-          nameTextStyle: { color: '#64748b', fontSize: 10 },
-          axisLabel: { color: '#64748b', fontSize: 10, formatter: 'K{value}' },
+          nameTextStyle: { color: '#8396ad', fontSize: 10 },
+          axisLabel: { color: '#8396ad', fontSize: 10, formatter: 'K{value}' },
           splitLine: { lineStyle: { color: '#080f1c', type: 'dashed' } },
           axisLine: { lineStyle: { color: '#1e3a5f' } },
           inverse: true,
@@ -1992,14 +1992,14 @@ const ModelingDashboard: React.FC = () => {
       grid: { top: 28, bottom: 36, left: 58, right: 16 },
       xAxis: {
         type: 'value', min: 0, max: 110,
-        axisLabel: { color: '#64748b', fontSize: 10, formatter: 'K{value}' },
+        axisLabel: { color: '#8396ad', fontSize: 10, formatter: 'K{value}' },
         axisLine: { lineStyle: { color: '#1e3a5f' } },
         splitLine: { lineStyle: { color: 'rgba(30,58,95,0.3)', type: 'dashed' } },
       },
       yAxis: {
         type: 'value', name: 'Q (m³/s)', min: +yMin.toFixed(1), max: +qMax.toFixed(qMax < 10 ? 1 : 0),
-        nameTextStyle: { color: '#64748b', fontSize: 10 },
-        axisLabel: { color: '#64748b', fontSize: 10, formatter: (v: number) => v >= 0 ? `${v}` : '' },
+        nameTextStyle: { color: '#8396ad', fontSize: 10 },
+        axisLabel: { color: '#8396ad', fontSize: 10, formatter: (v: number) => v >= 0 ? `${v}` : '' },
         splitLine: { lineStyle: { color: '#080f1c', type: 'dashed' } },
         axisLine: { lineStyle: { color: '#1e3a5f' } },
       },
@@ -2177,13 +2177,13 @@ const ModelingDashboard: React.FC = () => {
                 {(globalEff ?? 0).toFixed(1)}<span>%</span>
               </div>
             ) : (
-              <div className="sim-kpi-val" style={{ color: '#64748b' }}>S/D</div>
+              <div className="sim-kpi-val" style={{ color: '#8396ad' }}>S/D</div>
             )}
           </div>
           {!iecSim && simResults.length > 0 && (
             <div className="sim-kpi" title={globalEffMedible ? 'IEC no calculable: eficiencia de conducción sin dato confiable (tomas sin reporte del día)' : 'IEC no calculable: sin gasto de entrada (presa cerrada o sin movimiento)'}>
               <div className="sim-kpi-label">IEC Canal</div>
-              <div className="sim-kpi-val" style={{ color: '#64748b' }}>S/D</div>
+              <div className="sim-kpi-val" style={{ color: '#8396ad' }}>S/D</div>
             </div>
           )}
           {iecSim && (
@@ -2300,7 +2300,7 @@ const ModelingDashboard: React.FC = () => {
           </div>
           <div className="sim-flow-hints">
             <span>0</span>
-            <span style={{ color: '#64748b' }}>
+            <span style={{ color: '#8396ad' }}>
               Q diseño 80 m³/s&nbsp;·&nbsp;
               {dataStatus.damFuente === 'movimientos_presas'
                 ? `Fuente: mov. presa`
@@ -3060,7 +3060,7 @@ const ModelingDashboard: React.FC = () => {
                       borderColor: sc,
                     }} />
                     <div className="sim-track-km">K{r.km}</div>
-                    <div className="sim-track-time" style={{ color: arrived ? '#fbbf24' : '#475569' }}>{r.arrival_time}</div>
+                    <div className="sim-track-time" style={{ color: arrived ? '#fbbf24' : '#8396ad' }}>{r.arrival_time}</div>
                   </div>
                 );
               })}
@@ -3147,9 +3147,9 @@ const ModelingDashboard: React.FC = () => {
                         </div>
                       )}
                       {!simpleMode && isOrificio && (
-                        <div className="sim-gate-orif-row" style={{ color: '#475569', fontSize: '8px' }}>
+                        <div className="sim-gate-orif-row" style={{ color: '#8396ad', fontSize: '8px' }}>
                           <span>Cd·{activeCPResult.area_gate.toFixed(1)}m²·√(2g·{activeCPResult.y_base.toFixed(2)}m)</span>
-                          <span style={{ color: '#64748b' }}>sin aforo</span>
+                          <span style={{ color: '#8396ad' }}>sin aforo</span>
                         </div>
                       )}
                       {incoherente && (
@@ -3320,7 +3320,7 @@ const ModelingDashboard: React.FC = () => {
                         ['Lectura AM / PM',
                           tel?.lectura_am != null || tel?.lectura_pm != null
                           ? `${tel?.lectura_am?.toFixed(2) ?? '—'} / ${tel?.lectura_pm?.toFixed(2) ?? '—'} m`
-                          : 'Sin lecturas del día', '#64748b'],
+                          : 'Sin lecturas del día', '#8396ad'],
                         ['Tendencia 12h Δ',
                           tel?.delta_12h != null && Math.abs(tel.delta_12h) > 0.001
                           ? `${tel.delta_12h > 0 ? '+' : ''}${(tel.delta_12h * 100).toFixed(0)} cm`
@@ -3341,12 +3341,12 @@ const ModelingDashboard: React.FC = () => {
                     </div>
                     {[
                       ['Motor hidráulico',    'Saint-Venant 1D + Orificio',  '#64748b'],
-                      ['Fórmula',            'Δy = Q²/(Cd²·A²·2g) − Q₀²/(…)', '#475569'],
+                      ['Fórmula',            'Δy = Q²/(Cd²·A²·2g) − Q₀²/(…)', '#8396ad'],
                       ['Q₀ (base presa)',    `${qBase.toFixed(3)} m³/s`,      '#38bdf8'],
                       ['Q (simulado)',       `${(activeCPResult.q_sim??0).toFixed(3)} m³/s`, '#2dd4bf'],
                       ['Cd (descarga)',      `${activeCPResult.cd_used.toFixed(3)}${activeCPData.coeficiente_descarga ? ' (real BD)' : ' (global)'}`, '#94a3b8'],
                       ['Área compuerta A',   `${activeCPResult.area_gate.toFixed(3)} m²`,    '#94a3b8'],
-                      ['Carga base H₀',      `${(activeCPResult.head_base??0).toFixed(4)} m`, '#64748b'],
+                      ['Carga base H₀',      `${(activeCPResult.head_base??0).toFixed(4)} m`, '#8396ad'],
                       ['Carga simulada H',   `${(activeCPResult.head_sim??0).toFixed(4)} m`,  '#64748b'],
                       ['ΔH (carga orificio)',`${(activeCPResult.head_delta??0) >= 0 ? '+' : ''}${(activeCPResult.head_delta??0).toFixed(4)} m`, '#fbbf24'],
                       ['── Lógica operativa ──', '────────────────', '#1e3a5f'],
@@ -3374,7 +3374,7 @@ const ModelingDashboard: React.FC = () => {
                       const tr = findTramo(activeCPResult.km, tramoGeom);
                       const yn = normalDepth(activeCPResult.q_sim ?? 0, tr.pendiente_s0, tr.plantilla_m, tr.talud_z, tr.rugosidad_n);
                       return [
-                      ['Plantilla / Talud / n',  `${tr.plantilla_m}m · ${tr.talud_z}:1 · n=${tr.rugosidad_n}`, '#475569'],
+                      ['Plantilla / Talud / n',  `${tr.plantilla_m}m · ${tr.talud_z}:1 · n=${tr.rugosidad_n}`, '#8396ad'],
                       ['Tirante normal y_n',     `${yn.toFixed(3)} m`, '#38bdf8'],
                       // Modelo perturbacional: y_sim = y_base + [y_n(Q_sim) − y_n(Q_base)]
                       ...((() => {

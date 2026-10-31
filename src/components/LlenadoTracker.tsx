@@ -68,7 +68,7 @@ const PuntoCard: React.FC<{
             <div className="punto-header">
                 <div className="punto-status-group">
                     <div className={`status-dot ${isConfirmado ? 'green' : isPendiente ? 'gray' : 'blue'}`} />
-                    <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
+                    <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
                         {punto.km === -36 ? 'KM -36' : punto.km === 0 ? 'ENTRADA CANAL' : `KM ${punto.km}`}
                     </span>
                     {isAncla && (
@@ -208,7 +208,7 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
 
     if (loading || puntos.length === 0) {
         return (
-            <div style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
+            <div style={{ padding: '24px', textAlign: 'center', color: '#8396ad' }}>
                 <Timer size={24} style={{ margin: '0 auto 8px', opacity: 0.5 }} />
                 <p style={{ fontSize: '0.8rem' }}>Inicializando puntos de control...</p>
             </div>
@@ -241,7 +241,7 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                                 Tránsito de Onda Positiva
                             </h3>
                             <div className="flex items-center gap-2 mt-0.5">
-                                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+                                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
                                     36km Río + 104km Canal | Q=
                                 </p>
                                 {isEditingGasto ? (
@@ -299,11 +299,11 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                     {horaApertura ? (
                         <>
                             <div className="flex-1 min-w-[120px] p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 shadow-inner">
-                                <div className="text-slate-500 text-[9px] font-black uppercase mb-1">Hora de Apertura</div>
+                                <div className="text-slate-400 text-[9px] font-black uppercase mb-1">Hora de Apertura</div>
                                 <div className="text-emerald-400 text-lg font-black tracking-tight">{formatHora(horaApertura)}</div>
                             </div>
                             <div className="flex-1 min-w-[120px] p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20 shadow-inner">
-                                <div className="text-slate-500 text-[9px] font-black uppercase mb-1">Tiempo de Tránsito</div>
+                                <div className="text-slate-400 text-[9px] font-black uppercase mb-1">Tiempo de Tránsito</div>
                                 <div className="text-blue-400 text-lg font-black font-mono tracking-tighter">
                                     {formatCountdown(tiempoTranscurrido)}
                                 </div>
@@ -315,8 +315,8 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                                 </div>
                             </div>
                             <div className="flex-1 min-w-[120px] p-3 bg-cyan-500/10 rounded-2xl border border-cyan-500/20 shadow-inner">
-                                <div className="text-slate-500 text-[9px] font-black uppercase mb-1">Checkpoints</div>
-                                <div className="text-cyan-400 text-lg font-black">{confirmados} <span className="text-slate-600 font-normal">/ {total}</span></div>
+                                <div className="text-slate-400 text-[9px] font-black uppercase mb-1">Checkpoints</div>
+                                <div className="text-cyan-400 text-lg font-black">{confirmados} <span className="text-slate-400 font-normal">/ {total}</span></div>
                             </div>
                         </>
                     ) : (

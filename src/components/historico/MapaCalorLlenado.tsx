@@ -25,6 +25,16 @@ function colorRampa(t: number): string {
     return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * f)).join(',')})`;
 }
 
+/** ¿Con texto oscuro (#04101f) la celda contrasta más que con texto claro (#e8eef6)? Se compara el contraste real, no un umbral fijo. */
+function textoOscuroGanaEn(rgb: string): boolean {
+    const [r, g, b] = (rgb.match(/\d+/g) ?? ['0', '0', '0']).map(Number);
+    const lin = (v: number) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+    const lum = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    const conOscuro = (lum + 0.05) / 0.05;   // #000
+    const conClaro = 1.05 / (lum + 0.05);    // #fff
+    return conOscuro >= conClaro;
+}
+
 interface Props {
     mapa: MapaPresa | undefined;
     anios: number[];
@@ -65,7 +75,7 @@ export default function MapaCalorLlenado({ mapa, anios, metrica, serie, mesSelec
                                     const mes = i + 1;
                                     const sd = c.valor == null;
                                     const t = sd ? 0 : max === min ? 0.5 : (c.valor! - min) / (max - min);
-                                    const claro = t > 0.52;
+                                    const claro = !sd && textoOscuroGanaEn(colorRampa(t));
                                     const incompleto = !sd && c.dias < c.diasMes;
                                     const titulo = sd
                                         ? `${MESES_LARGO[i]} ${a}: sin datos (S/D)`
@@ -75,7 +85,7 @@ export default function MapaCalorLlenado({ mapa, anios, metrica, serie, mesSelec
                                             key={mes}
                                             type="button"
                                             className={`ah-celda${sd ? ' is-sd' : ''}${incompleto ? ' is-parcial' : ''}${mes === mesSeleccionado ? ' is-mes' : ''}${mes === mesSeleccionado && rango ? ' is-foco' : ''}`}
-                                            style={sd ? undefined : { background: colorRampa(t), color: claro ? '#04101f' : '#e8eef6' }}
+                                            style={sd ? undefined : { background: colorRampa(t), color: claro ? '#000000' : '#ffffff' }}
                                             title={titulo}
                                             aria-label={titulo}
                                             onClick={() => onSeleccionar(a, mes)}

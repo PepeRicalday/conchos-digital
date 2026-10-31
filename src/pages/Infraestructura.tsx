@@ -84,7 +84,7 @@ export default function Infraestructura() {
                             onChange={e => setBusqueda(e.target.value)}
                             placeholder="Buscar por nombre, tipo, km o módulo…"
                             aria-label="Buscar punto de infraestructura"
-                            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 outline-none focus:border-blue-500"
+                            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-400 outline-none focus:border-blue-500"
                         />
                     </div>
                     <div className="flex-1 overflow-auto custom-scrollbar">
@@ -100,21 +100,21 @@ export default function Infraestructura() {
                             </thead>
                             <tbody className="divide-y divide-slate-700/50">
                                 {loading ? (
-                                    <tr><td colSpan={5} className="text-center py-8 text-slate-500">Cargando catálogo...</td></tr>
+                                    <tr><td colSpan={5} className="text-center py-8 text-slate-400">Cargando catálogo...</td></tr>
                                 ) : (
                                     puntosFiltrados.map(p => (
                                         <tr key={p.id} className="hover:bg-slate-750 transition-colors group">
                                             <td className="py-3 px-4 font-mono text-blue-400">{fmt(p.km, 3)}</td>
                                             <td className="py-3 px-4">
                                                 <div className="font-bold text-white uppercase text-xs">{p.nombre}</div>
-                                                <div className="text-[10px] text-slate-500 bg-slate-900 inline-block px-1.5 py-0.5 rounded mt-1 uppercase">{p.tipo}</div>
+                                                <div className="text-[10px] text-slate-400 bg-slate-900 inline-block px-1.5 py-0.5 rounded mt-1 uppercase">{p.tipo}</div>
                                             </td>
                                             <td className="py-3 px-4">
                                                 <div className="text-slate-300 font-medium text-xs">{p.m_codigo_corto || 'N/A'}</div>
-                                                <div className="text-[10px] text-slate-500">{p.s_nombre || p.seccion_texto || 'S/S'}</div>
+                                                <div className="text-[10px] text-slate-400">{p.s_nombre || p.seccion_texto || 'S/S'}</div>
                                             </td>
                                             <td className="py-3 px-4 text-right font-mono text-emerald-400 font-bold">
-                                                {fmtMiles(p.capacidad_max_lps ?? (p.capacidad_max > 0 ? p.capacidad_max : null), 0)} <span className="text-[10px] text-slate-500 font-sans">L/s</span>
+                                                {fmtMiles(p.capacidad_max_lps ?? (p.capacidad_max > 0 ? p.capacidad_max : null), 0)} <span className="text-[10px] text-slate-400 font-sans">L/s</span>
                                             </td>
                                             <td className="py-3 px-4 text-right">
                                                 <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -192,7 +192,7 @@ export default function Infraestructura() {
                             </div>
 
                             <div className="pt-4 border-t border-slate-700/50">
-                                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Opcional: Ubicación Física GPS</h3>
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Opcional: Ubicación Física GPS</h3>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Latitud (Y)</label>

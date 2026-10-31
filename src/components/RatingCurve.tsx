@@ -17,7 +17,7 @@ import { useRatingCurve, type RatingCurveData } from '../hooks/useRatingCurve';
 // ─── Subcomponente por punto ──────────────────────────────────────────────────
 
 const R2Badge = ({ r2 }: { r2: number | null }) => {
-    if (r2 === null) return <span className="text-[11px] text-slate-600 font-bold">R² —</span>;
+    if (r2 === null) return <span className="text-[11px] text-slate-400 font-bold">R² —</span>;
     const color = r2 >= 0.9 ? '#10b981' : r2 >= 0.75 ? '#f59e0b' : '#ef4444';
     return (
         <span className="text-[11px] font-black font-mono" style={{ color }}>
@@ -57,24 +57,24 @@ const PuntoCard = ({ data }: { data: RatingCurveData }) => {
                     }
                     <span className="text-[11px] font-black text-white">{data.nombre_punto}</span>
                     {data.km_punto !== null && (
-                        <span className="text-[11px] text-slate-600 font-mono">K{data.km_punto}</span>
+                        <span className="text-[11px] text-slate-400 font-mono">K{data.km_punto}</span>
                     )}
                 </div>
                 <div className="flex items-center gap-3">
-                    <span className="text-[11px] text-slate-600">{data.mediciones.length} aforos</span>
+                    <span className="text-[11px] text-slate-400">{data.mediciones.length} aforos</span>
                     <R2Badge r2={r2} />
                     <span className="text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded"
                         style={{ color, background: `${color}18` }}>
                         {estado === 'ok' ? 'Conforme' : estado === 'atencion' ? 'Atención' : estado === 'revision' ? 'Revisión' : 'Sin datos'}
                     </span>
-                    {expanded ? <ChevronUp size={12} className="text-slate-500" /> : <ChevronDown size={12} className="text-slate-500" />}
+                    {expanded ? <ChevronUp size={12} className="text-slate-400" /> : <ChevronDown size={12} className="text-slate-400" />}
                 </div>
             </button>
 
             {/* Gráfica expandida */}
             {expanded && (
                 <div className="px-4 pb-4">
-                    <div className="flex gap-4 mb-2 text-[11px] text-slate-500">
+                    <div className="flex gap-4 mb-2 text-[11px] text-slate-400">
                         <span>b={data.plantilla_m.toFixed(1)}m</span>
                         <span>z={data.talud_z.toFixed(2)}</span>
                         <span>n={data.rugosidad_n.toFixed(4)}</span>
@@ -88,11 +88,11 @@ const PuntoCard = ({ data }: { data: RatingCurveData }) => {
                                 type="number"
                                 domain={['auto', 'auto']}
                                 label={{ value: 'Tirante (m)', position: 'insideBottom', offset: -12, fill: '#475569', fontSize: 11 }}
-                                tick={{ fill: '#64748b', fontSize: 11 }}
+                                tick={{ fill: '#8396ad', fontSize: 11 }}
                             />
                             <YAxis
                                 label={{ value: 'Q (m³/s)', angle: -90, position: 'insideLeft', offset: 12, fill: '#475569', fontSize: 11 }}
-                                tick={{ fill: '#64748b', fontSize: 11 }}
+                                tick={{ fill: '#8396ad', fontSize: 11 }}
                             />
                             <Tooltip
                                 contentStyle={{ background: 'rgba(4,11,22,0.97)', border: '1px solid #1e3a5f', borderRadius: 6 }}
@@ -127,7 +127,7 @@ const PuntoCard = ({ data }: { data: RatingCurveData }) => {
                             />
                         </ComposedChart>
                     </ResponsiveContainer>
-                    <p className="text-[11px] text-slate-700 mt-1">
+                    <p className="text-[11px] text-slate-400 mt-1">
                         Puntos fuera de la curva azul indican cambio de sección o necesidad de recalibración física.
                     </p>
                 </div>
@@ -144,7 +144,7 @@ export const RatingCurve = ({ diasAtras = 365 }: { diasAtras?: number }) => {
     if (loading) {
         return (
             <div className="flex items-center justify-center py-10">
-                <span className="text-[11px] text-slate-600 font-bold uppercase tracking-widest animate-pulse">
+                <span className="text-[11px] text-slate-400 font-bold uppercase tracking-widest animate-pulse">
                     Calculando curvas Q-h ({diasAtras} días)...
                 </span>
             </div>
@@ -162,10 +162,10 @@ export const RatingCurve = ({ diasAtras = 365 }: { diasAtras?: number }) => {
 
     if (puntos.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-10 gap-3 text-slate-600">
+            <div className="flex flex-col items-center justify-center py-10 gap-3 text-slate-400">
                 <TrendingUp size={28} />
                 <p className="text-xs font-bold uppercase tracking-widest">Sin aforos suficientes</p>
-                <p className="text-[11px] text-slate-700 text-center max-w-sm">
+                <p className="text-[11px] text-slate-400 text-center max-w-sm">
                     Se requieren ≥2 aforos por punto de control en los últimos {diasAtras} días.
                 </p>
             </div>
@@ -180,7 +180,7 @@ export const RatingCurve = ({ diasAtras = 365 }: { diasAtras?: number }) => {
             {/* KPIs */}
             <div className="grid grid-cols-3 gap-3 mb-2">
                 <div className="bg-slate-950/50 rounded-xl p-3 border border-white/5">
-                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Puntos con aforos</p>
+                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Puntos con aforos</p>
                     <p className="text-2xl font-black text-white font-mono mt-1">{puntos.length}</p>
                 </div>
                 <div className="bg-emerald-950/30 rounded-xl p-3 border border-emerald-900/30">
@@ -196,7 +196,7 @@ export const RatingCurve = ({ diasAtras = 365 }: { diasAtras?: number }) => {
             {/* Lista de puntos */}
             {puntos.map(p => <PuntoCard key={p.punto_control_id} data={p} />)}
 
-            <p className="text-[11px] text-slate-700 text-right font-mono">
+            <p className="text-[11px] text-slate-400 text-right font-mono">
                 Ventana: {diasAtras} días · Curva teórica: Manning Q=(1/n)·A·R^(2/3)·√S₀
             </p>
         </div>

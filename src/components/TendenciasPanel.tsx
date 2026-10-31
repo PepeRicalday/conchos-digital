@@ -45,7 +45,7 @@ const TndBlockSkeleton: React.FC<{ titulo: string; color: string; height: number
 // Con el canal en VACIADO un tirante bajo es lo esperado, no un desabasto: se rotula 'vaciado' en tono neutro.
 const VaciadoCtx = React.createContext(false);
 const estadoLlenado = (pct: number | null, vaciado = false): { color: string; label: string; icon: string } => {
-  if (pct == null) return { color: '#64748b', label: 's/diseño', icon: '' };
+  if (pct == null) return { color: '#8396ad', label: 's/diseño', icon: '' };
   if (vaciado && pct < 60) return { color: '#94a3b8', label: 'vaciado', icon: '' };
   if (pct > 105) return { color: '#ef4444', label: 'alto', icon: '⚠' };   // invade bordo libre
   if (pct >= 85) return { color: '#22c55e', label: 'óptimo', icon: '' };  // cerca del diseño

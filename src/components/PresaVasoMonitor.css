@@ -246,7 +246,7 @@
 
 .sim-value-display small {
     font-size: 0.75rem;
-    color: #64748b;
+    color: #8396ad;
 }
 
 .sim-reset-btn {
@@ -316,7 +316,7 @@
 
 .vaso-stat-value small {
     font-size: 1rem;
-    color: #64748b;
+    color: #8396ad;
     font-weight: 500;
 }
 
@@ -451,7 +451,7 @@
 .vaso-validacion-detalle {
     grid-column: 1 / -1;
     font-size: 0.65rem;
-    color: #64748b;
+    color: #8396ad;
     line-height: 1.4;
 }
 
@@ -519,7 +519,7 @@
 .vaso3d-empty {
     padding: 2rem;
     text-align: center;
-    color: #64748b;
+    color: #8396ad;
     font-size: 0.85rem;
 }
 
@@ -927,7 +927,7 @@
 
 .vaso-ndwi-value small {
     font-size: 0.85rem;
-    color: #64748b;
+    color: #8396ad;
     font-weight: 500;
 }
 

@@ -369,7 +369,7 @@ const ImportReport = () => {
                             Captura Manual
                             <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
                         </label>
-                        <label className="cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded text-xs flex items-center gap-2 transition-colors shadow-lg shadow-emerald-900/20">
+                        <label className="cursor-pointer bg-emerald-700 hover:bg-emerald-500 text-white px-3 py-1.5 rounded text-xs flex items-center gap-2 transition-colors shadow-lg shadow-emerald-900/20">
                             <FileSpreadsheet size={14} />
                             Importar Excel
                             <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleExcelUpload} />
@@ -393,7 +393,7 @@ const ImportReport = () => {
                                 <table className="w-full text-left text-[10px] border-collapse">
                                     <thead className="bg-slate-950 sticky top-0 shadow-lg">
                                         <tr>
-                                            <th className="p-2.5 border-b border-r border-slate-800 text-slate-500 font-bold uppercase tracking-tighter">Día</th>
+                                            <th className="p-2.5 border-b border-r border-slate-800 text-slate-400 font-bold uppercase tracking-tighter">Día</th>
                                             <th className="p-2.5 border-b border-blue-900 bg-blue-500/10 text-blue-400 font-bold uppercase">Boq (Escala)</th>
                                             <th className="p-2.5 border-b border-blue-900 bg-blue-500/10 text-blue-400 font-bold uppercase">Boq (Mm³)</th>
                                             <th className="p-2.5 border-b border-cyan-900 bg-cyan-500/10 text-cyan-400 font-bold uppercase">Boq (m³/s)</th>
@@ -454,18 +454,18 @@ const ImportReport = () => {
                             <img src={imagePreview} alt="Reporte Escaneado" className="max-w-full shadow-2xl border border-slate-600 rounded-lg" />
                         </div>
                     ) : (
-                        <div className="text-center text-slate-500 p-8 max-w-sm">
+                        <div className="text-center text-slate-400 p-8 max-w-sm">
                             <div className="w-24 h-24 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-8 border border-slate-700/50 shadow-inner">
                                 <Upload size={40} className="opacity-20" />
                             </div>
                             <h3 className="text-white font-bold text-lg mb-3 uppercase tracking-wide">Fuente de Información</h3>
-                            <p className="text-xs leading-relaxed opacity-60">Sube el reporte oficial impreso para validación visual o inyecta una base de datos histórica mediante Excel.</p>
+                            <p className="text-xs leading-relaxed opacity-90">Sube el reporte oficial impreso para validación visual o inyecta una base de datos histórica mediante Excel.</p>
                         </div>
                     )}
 
                     {importLog.length > 0 && (
                         <div className="absolute bottom-6 left-6 right-6 max-h-48 bg-slate-950/90 backdrop-blur-md border border-slate-700/50 rounded-xl overflow-y-auto p-3 text-[9px] font-mono shadow-2xl scrollbar-thin">
-                            <div className="sticky top-0 bg-slate-900/50 backdrop-blur pb-2 border-b border-slate-800 mb-2 flex justify-between items-center text-slate-500 font-bold">
+                            <div className="sticky top-0 bg-slate-900/50 backdrop-blur pb-2 border-b border-slate-800 mb-2 flex justify-between items-center text-slate-400 font-bold">
                                 <span className="flex items-center gap-2"><TableIcon size={12} /> BITÁCORA DE TRANSACCIONES</span>
                                 <button onClick={() => setImportLog([])} className="hover:text-white transition-colors">[CERRAR]</button>
                             </div>
@@ -591,9 +591,9 @@ const ImportReport = () => {
                         {/* Constantes Informativas */}
                         {activeTab !== 'delicias' && (
                             <section className="bg-slate-900/50 p-4 rounded-xl border border-dashed border-slate-700 mt-8 mb-4">
-                                <h4 className="text-[9px] font-mono text-slate-500 uppercase tracking-[0.3em] mb-2 text-center">Referencia Técnica</h4>
+                                <h4 className="text-[9px] font-mono text-slate-400 uppercase tracking-[0.3em] mb-2 text-center">Referencia Técnica</h4>
                                 <div className="flex justify-around text-[10px] text-slate-400 font-mono">
-                                    <div><span className="opacity-50">ÁREA:</span> <span className="text-blue-300 font-bold">{AREAS[activeTab]} ha</span></div>
+                                    <div><span className="opacity-80">ÁREA:</span> <span className="text-blue-300 font-bold">{AREAS[activeTab]} ha</span></div>
                                     <div><span className="opacity-50">CAPACIDAD NAMO:</span> <span className="text-blue-300 font-bold">{CAPACIDAD_TOTAL[activeTab]} Mm³</span></div>
                                 </div>
                             </section>
@@ -619,7 +619,7 @@ const TabButton = ({ id, label, active, onClick }: { id: string, label: string, 
         onClick={onClick}
         className={`flex-1 px-4 py-2.5 text-xs font-bold transition-all rounded-md ${active === id
             ? 'bg-blue-600/10 text-blue-400 shadow-sm'
-            : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300'
+            : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-300'
             }`}
     >
         {label}
@@ -628,7 +628,7 @@ const TabButton = ({ id, label, active, onClick }: { id: string, label: string, 
 
 const InputGroup = ({ label, placeholder, value, onChange, type = "number" }: any) => (
     <div className="group">
-        <label className="block text-[9px] uppercase text-slate-500 font-bold mb-1.5 tracking-wider transition-colors group-focus-within:text-blue-400">{label}</label>
+        <label className="block text-[9px] uppercase text-slate-400 font-bold mb-1.5 tracking-wider transition-colors group-focus-within:text-blue-400">{label}</label>
         <div className="relative">
             <input
                 type={type}
@@ -643,7 +643,7 @@ const InputGroup = ({ label, placeholder, value, onChange, type = "number" }: an
 
 const SelectGroup = ({ label, value, onChange, options }: any) => (
     <div className="group">
-        <label className="block text-[9px] uppercase text-slate-500 font-bold mb-1.5 tracking-wider transition-colors group-focus-within:text-blue-400">{label}</label>
+        <label className="block text-[9px] uppercase text-slate-400 font-bold mb-1.5 tracking-wider transition-colors group-focus-within:text-blue-400">{label}</label>
         <select
             value={value || ''}
             onChange={e => onChange(e.target.value)}

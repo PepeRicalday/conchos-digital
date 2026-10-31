@@ -59,7 +59,7 @@ const AnomalyMatrix: React.FC<AnomalyMatrixProps> = ({ modules, onSelectModule }
 
     if (anomalies.length === 0) {
         return (
-            <div className="bg-slate-900/40 rounded-2xl p-6 border border-white/5 h-full flex flex-col items-center justify-center text-slate-500 shadow-inner backdrop-blur-md">
+            <div className="bg-slate-900/40 rounded-2xl p-6 border border-white/5 h-full flex flex-col items-center justify-center text-slate-400 shadow-inner backdrop-blur-md">
                 <div className="w-16 h-16 rounded-full bg-emerald-500/5 flex items-center justify-center mb-4 border border-emerald-500/10">
                     <Activity size={32} className="text-emerald-500/40 animate-pulse" />
                 </div>
@@ -102,7 +102,7 @@ const AnomalyMatrix: React.FC<AnomalyMatrixProps> = ({ modules, onSelectModule }
                             <div className={`absolute left-0 top-0 bottom-0 w-1 ${isCritical ? 'bg-red-500' : 'bg-amber-500'} group-hover:w-1.5 transition-all`} />
 
                             <div className="flex justify-between items-start mb-2">
-                                <span className="text-[9px] font-black font-mono text-slate-500 uppercase tracking-widest">{issue.moduleName}</span>
+                                <span className="text-[9px] font-black font-mono text-slate-400 uppercase tracking-widest">{issue.moduleName}</span>
                                 <div className="p-1 rounded bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <ArrowRight size={10} className="text-white" />
                                 </div>
@@ -123,7 +123,7 @@ const AnomalyMatrix: React.FC<AnomalyMatrixProps> = ({ modules, onSelectModule }
             </div>
 
             <footer className="px-5 py-3 border-t border-white/5 bg-white/5">
-                <p className="text-[9px] text-slate-500 font-mono text-center tracking-tighter">
+                <p className="text-[9px] text-slate-400 font-mono text-center tracking-tighter">
                     © Hidro-Sincronía Digital · SRL Unidad Conchos
                 </p>
             </footer>

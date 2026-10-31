@@ -144,7 +144,7 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
                 </div>
 
                 <span style={{
-                    color: '#64748b', fontSize: '0.7rem', fontWeight: 700,
+                    color: '#8396ad', fontSize: '0.7rem', fontWeight: 700,
                     padding: '4px 10px', background: 'rgba(30,41,59,0.5)', borderRadius: '6px'
                 }}>
                     📅 Día {dia_llenado} de Llenado
@@ -321,7 +321,7 @@ const CriterioCard: React.FC<{
             </div>
         )}
         {detail && (
-            <div style={{ color: '#64748b', fontSize: '0.55rem', fontWeight: 600, marginTop: '4px' }}>{detail}</div>
+            <div style={{ color: '#8396ad', fontSize: '0.55rem', fontWeight: 600, marginTop: '4px' }}>{detail}</div>
         )}
     </div>
 );

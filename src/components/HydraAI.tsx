@@ -203,7 +203,7 @@ const HydraAI: React.FC<HydraAIProps> = ({ onUpdateParams, simData }) => {
                 </div>
               </div>
             </div>
-            <button onClick={() => setIsOpen(false)} title="Cerrar Asistente"><X size={14} className="text-slate-500" /></button>
+            <button onClick={() => setIsOpen(false)} title="Cerrar Asistente"><X size={14} className="text-slate-400" /></button>
           </div>
 
           <div className="hydra-ai-chat" ref={scrollRef}>

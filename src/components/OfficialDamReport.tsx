@@ -62,7 +62,7 @@ const OfficialDamReport = () => {
                                 <h3 className="text-sm font-bold uppercase text-slate-500">Distrito de Riego 005</h3>
                             </div>
                             <div className="text-right flex flex-col items-end">
-                                <span className="block text-xs font-bold uppercase text-slate-400">Fecha</span>
+                                <span className="block text-xs font-bold uppercase text-slate-600">Fecha</span>
                                 <span className="text-lg font-serif font-bold text-slate-800 uppercase">{reportDateLabel}</span>
                                 {isHistorical && (
                                     <span className="text-[10px] font-bold uppercase text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full mt-1 border border-amber-300 print:hidden shadow-sm animate-pulse">
@@ -270,7 +270,7 @@ const Prev24hColumn = ({ data, last = false }: { data?: any, last?: boolean }) =
     <div className={`${!last ? 'border-r border-slate-400' : ''} p-2 space-y-1`}>
         <div className="flex justify-between items-center">
             <span className="text-xs text-slate-500 uppercase">Edo. Tiempo</span>
-            <div className="flex items-center gap-1 font-bold text-xs text-slate-400">
+            <div className="flex items-center gap-1 font-bold text-xs text-slate-600">
                 {data?.edo_tiempo_24h && <WeatherIcon state={data.edo_tiempo_24h} size={12} />}
                 {data?.edo_tiempo_24h || SD}
             </div>

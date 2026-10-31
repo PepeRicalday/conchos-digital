@@ -211,7 +211,7 @@ html[data-device="phone"] .geo-sidebar-scroll::-webkit-scrollbar { display: none
 /* ═══ MENÚ LATERAL ══════════════════════════════════════════════════════════ */
 html[data-device="phone"] .sidebar-header { padding-top: 12px; padding-bottom: 12px; }
 html[data-device="phone"] .nav-item { min-height: 44px; padding: 8px 12px; }
-html[data-device="phone"] .nav-section-label { margin-top: 12px; color: #64748b; font-size: 0.7rem; }
+html[data-device="phone"] .nav-section-label { margin-top: 12px; color: #8396ad; font-size: 0.7rem; }
 
 /* ═══ LOGIN ═════════════════════════════════════════════════════════════════ */
 html[data-device="phone"] a[href*="nuke"], html[data-device="phone"] .login-clear-cache { color: #fb923c; }

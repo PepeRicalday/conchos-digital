@@ -26,7 +26,7 @@ const ChartWidget: React.FC<ChartWidgetProps> = ({
                 <div>
                     <h3 className="chart-title">{title}</h3>
                     {subtitle && (
-                        <p style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '3px', letterSpacing: '0.04em' }}>
+                        <p style={{ fontSize: '0.65rem', color: '#8396ad', marginTop: '3px', letterSpacing: '0.04em' }}>
                             {subtitle}
                         </p>
                     )}

@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { onTable } from '../lib/realtimeHub';
 import { ensureMetadata } from '../store/useMetadataStore';
-import { gastoDeLectura, esFrescaEscala } from '../utils/geoKpis';
-import { conduccionTramo, type ConduccionTramo } from '../utils/conduccion';
 import { usePolling, useSaludRed } from './useClimaOperativo';
+import { modeloPerfilCanal, type EscalaCanalKpi, type ExtremoCanalKpi } from '../utils/perfilCanal';
+import type { EscalaMeta, LecturaEscala } from '../utils/controlEscalasZonas';
 
 // ── Canal: gasto en los extremos K-0+000 y K-104 ────────────────────────────
 export interface ExtremoCanal {
@@ -18,64 +18,24 @@ export interface ExtremoCanal {
 }
 
 /**
- * Gasto de entrada (K-0) y salida (K-104) del canal con el criterio de Geo-Monitor / Monitor Público
- * (utils/geoKpis.gastoDeLectura + frescura de 240 min). La eficiencia sale de utils/conduccion.ts: una sola fórmula.
+ * Gasto de entrada (K-0) y salida (K-104) del canal. Vista del MISMO modelo que la tarjeta Canal del Dashboard
+ * (`useCanalPerfil` → `utils/perfilCanal`): solo cuenta la medición de campo (confirmada), con la edad medida por
+ * fecha + hora_lectura (UTC−6) y no por `creado_en`. Antes tomaba la fila de arrastre de continuidad como "última lectura"
+ * y por eso siempre salía vieja. La eficiencia sale de utils/conduccion.ts: una sola fórmula. Interfaz sin cambios para
+ * Clima, Hidrometría, Distribución y Balance (useEficienciaCanal).
  */
 export function useCanalExtremos() {
-    const [extremos, setExtremos] = useState<{ k0: ExtremoCanal | null; k104: ExtremoCanal | null }>({ k0: null, k104: null });
-    const [error, setError] = useState<string | null>(null);
-    const [cargado, setCargado] = useState(false);
-
-    const cargar = useCallback(async () => {
-        try {
-            const meta = await ensureMetadata();
-            // La fila de metadatos trae pzas_radiales/ancho (select *), aunque los tipos generados aún no los declaran.
-            const dos = meta.escalas
-                .filter((e) => Number(e.km) === 0 || Number(e.km) === 104)
-                .map((e) => e as typeof e & { pzas_radiales?: number | null; ancho?: number | null });
-            const leidos = await Promise.all(dos.map(async (esc) => {
-                const { data, error: e } = await supabase
-                    .from('lecturas_escalas')
-                    .select('nivel_m, nivel_abajo_m, radiales_json, gasto_calculado_m3s, gasto_metodo, creado_en')
-                    .eq('escala_id', esc.id)
-                    .order('fecha', { ascending: false })
-                    .order('hora_lectura', { ascending: false })
-                    .limit(1);
-                if (e) throw e;
-                const l = data?.[0];
-                const ts = l?.creado_en ? new Date(l.creado_en as string).getTime() : null;
-                const extremo: ExtremoCanal = {
-                    km: Number(esc.km),
-                    nombre: esc.nombre,
-                    gasto: l ? gastoDeLectura(l, { pzas_radiales: esc.pzas_radiales, ancho: esc.ancho, nombre: esc.nombre, km: Number(esc.km) }) : null,
-                    fresca: esFrescaEscala(ts, Date.now()),
-                    telemetriaMs: ts,
-                };
-                return extremo;
-            }));
-            setExtremos({ k0: leidos.find((x) => x.km === 0) ?? null, k104: leidos.find((x) => x.km === 104) ?? null });
-            setError(null);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'No se pudo leer el gasto del canal');
-        } finally {
-            setCargado(true);
-        }
-    }, []);
-
-    usePolling(cargar, 5 * 60_000);
-    useEffect(() => {
-        const unsub = onTable('lecturas_escalas', '*', () => { void cargar(); });
-        return () => unsub();
-    }, [cargar]);
-
-    const conduccion: ConduccionTramo = useMemo(
-        () => conduccionTramo(
-            { gasto: extremos.k0?.gasto, fresca: !!extremos.k0?.fresca },
-            { gasto: extremos.k104?.gasto, fresca: !!extremos.k104?.fresca },
-        ),
-        [extremos],
-    );
-    return { ...extremos, conduccion, error, cargado, recargar: cargar };
+    const p = useCanalPerfil(false);
+    return useMemo(() => {
+        const m = p.modelo;
+        const a = (e: EscalaCanalKpi | undefined, x: ExtremoCanalKpi): ExtremoCanal | null =>
+            e ? { km: e.km, nombre: e.nombre, gasto: x.gasto, fresca: x.vigente, telemetriaMs: x.medicionMs } : null;
+        return {
+            k0: a(m.escalas.find((e) => Math.abs(e.km) < 0.01), m.k0),
+            k104: a(m.escalas.find((e) => Math.abs(e.km - 104) < 0.5), m.k104),
+            conduccion: m.conduccion, error: p.error, cargado: p.cargado, recargar: p.recargar,
+        };
+    }, [p]);
 }
 
 // ── Clima: resumen ligero de la red (sin cargar todo el módulo de Clima) ────
@@ -140,4 +100,49 @@ export function useClimaPulso() {
     }, [filas, salud.estaciones]);
 
     return { pulso, error, cargado };
+}
+
+// ── Canal: las 14 escalas con su última MEDICIÓN DE CAMPO (no arrastre) ─────
+/**
+ * Una sola consulta (30 días) para las 14 escalas. A diferencia de `useCanalExtremos`, separa la medición de campo del arrastre de
+ * continuidad (confirmada = false) y mide la edad con fecha + hora_lectura, no con `creado_en` (que para el arrastre es 00:00 local).
+ */
+export function useCanalPerfil(vaciado: boolean) {
+    const [metas, setMetas] = useState<EscalaMeta[]>([]);
+    const [lecturas, setLecturas] = useState<LecturaEscala[]>([]);
+    const [ahora, setAhora] = useState(() => Date.now());
+    const [error, setError] = useState<string | null>(null);
+    const [cargado, setCargado] = useState(false);
+
+    const cargar = useCallback(async () => {
+        try {
+            const meta = await ensureMetadata();
+            const desde = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+            const { data, error: e } = await supabase
+                .from('lecturas_escalas')
+                .select('escala_id, fecha, hora_lectura, nivel_m, nivel_abajo_m, radiales_json, gasto_calculado_m3s, gasto_metodo, confirmada')
+                .gte('fecha', desde)
+                .order('fecha', { ascending: false })
+                .order('hora_lectura', { ascending: false })
+                .limit(1500);
+            if (e) throw e;
+            setMetas(meta.escalas as unknown as EscalaMeta[]);
+            setLecturas((data ?? []) as unknown as LecturaEscala[]);
+            setAhora(Date.now());
+            setError(null);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'No se pudo leer el perfil del canal');
+        } finally {
+            setCargado(true);
+        }
+    }, []);
+
+    usePolling(cargar, 5 * 60_000);
+    useEffect(() => {
+        const unsub = onTable('lecturas_escalas', '*', () => { void cargar(); });
+        return () => unsub();
+    }, [cargar]);
+
+    const modelo = useMemo(() => modeloPerfilCanal(metas, lecturas, ahora, vaciado), [metas, lecturas, ahora, vaciado]);
+    return { modelo, error, cargado, recargar: cargar };
 }

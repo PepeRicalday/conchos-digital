@@ -6,7 +6,7 @@ import { BarraSegmentada } from '../ui/BarraSegmentada';
 import { BarraSeveridad } from '../ui/BarraSeveridad';
 import { MedidorSemicircular } from '../ui/MedidorSemicircular';
 import { ColumnasEmbalse, type ColumnaEmbalse } from '../ui/ColumnasEmbalse';
-import { EsquemaCanal } from '../ui/EsquemaCanal';
+import { PerfilCanalMini } from '../ui/PerfilCanalMini';
 import { RelojClima24 } from '../ui/RelojClima24';
 import { BandaCiclos } from '../ui/BandaCiclos';
 import { BarraUtil } from '../ui/BarraUtil';
@@ -21,19 +21,19 @@ import { textoEdad } from '../../utils/hidroEstaciones';
 import type { ResumenAlertas, AlertaSistema } from '../../utils/dashboardKpis';
 import { estadoDemanda24h, type ResumenNdvi, type DemandaRiego24h } from '../../utils/dashboardExtra';
 import type { ModeloSuficiencia } from '../../utils/suficiencia';
-import { etiquetaEficiencia, type ConduccionTramo } from '../../utils/conduccion';
+import { etiquetaEficiencia } from '../../utils/conduccion';
+import type { CanalKpiModelo } from '../../utils/perfilCanal';
 
 const f = (v: number | null | undefined, d = 1) => (v == null ? null : v.toFixed(d));
 const edadMin = (ms: number | null) => (ms == null ? null : Math.max(0, (Date.now() - ms) / 60000));
 
-interface ExtremoKpi { gasto: number | null; fresca: boolean; ms: number | null }
 
 export interface ModeloKpis {
     enVivoFuera: boolean;
     presas: { pct: number | null; estado: EstadoKpi; almacenadoMm3: number | null; capacidadMm3: number; conDato: number; total: number; serie: (number | null)[]; items: ColumnaEmbalse[]; tendencia: TendenciaTexto; frescura: string | null; stale: boolean };
     suficiencia: ModeloSuficiencia & { historicoCargado: boolean; historicoError: string | null };
     ciclo: { entregadoPct: number | null; acumMm3: number | null; autMm3: number | null; avance: AvanceCiclo; brecha: BrechaCiclo };
-    canal: { conduccion: ConduccionTramo; k0: ExtremoKpi | null; k104: ExtremoKpi | null; cargado: boolean };
+    canal: { modelo: CanalKpiModelo; cargado: boolean };
     demanda: { d24: DemandaRiego24h | null; cargado: boolean; error: string | null; medido: { d: DemandaRiego; etoMm: number | null; lluviaMm: number | null; tMax: number | null; ultimaObs: string | null } };
     modulos: CeldaModulo[];
     confianza: Confianza;
@@ -50,11 +50,17 @@ const LEYENDA_MOD: Record<string, string> = { C: 'concluido', R: 'en ritmo', A: 
 /** Estados derivados de cada tarjeta: los comparten las tarjetas y la barra de pulso global. */
 export function derivaEstados(m: ModeloKpis) {
     const { canal, alertas, goes, ndvi } = m;
-    const c = canal.conduccion;
+    const cm = canal.modelo;
+    const c = cm.conduccion;
     const etiqueta = etiquetaEficiencia(c.eficienciaPct);
-    const canalE: EstadoKpi = c.eficienciaPct == null
-        ? { tipo: 'sd', texto: canal.cargado ? 'Sin lectura vigente' : 'Consultando', corto: canal.cargado ? 'Sin lectura' : undefined }
-        : { tipo: etiqueta === 'Óptima' ? 'ok' : etiqueta === 'Aceptable' ? 'warn' : 'crit', texto: etiqueta };
+    const canalE: EstadoKpi = c.eficienciaPct != null
+        ? { tipo: etiqueta === 'Óptima' ? 'ok' : etiqueta === 'Aceptable' ? 'warn' : 'crit', texto: etiqueta }
+        : !canal.cargado ? { tipo: 'sd', texto: 'Consultando' }
+        : cm.total === 0 ? { tipo: 'sd', texto: 'Sin escalas' }
+        : cm.conMedicion === 0 ? { tipo: 'sd', texto: 'Sin vigentes' }
+        : (cm.fueraDeRango ?? 0) > 0 ? { tipo: 'warn', texto: `${cm.fueraDeRango} fuera de rango`, corto: `${cm.fueraDeRango} fuera` }
+        : cm.vaciado ? { tipo: 'info', texto: 'Vaciado' }
+        : cm.conMedicion < cm.total ? { tipo: 'info', texto: 'Parcial' } : { tipo: 'ok', texto: 'En rango' };
     const crit = alertas.resumen.criticas, avi = alertas.resumen.avisos;
     const alertasE: EstadoKpi = crit > 0 ? { tipo: 'crit', texto: `${crit} crítica${crit === 1 ? '' : 's'}` } : avi > 0 ? { tipo: 'warn', texto: 'Con avisos' } : { tipo: 'ok', texto: 'Sin alertas' };
     const enLinea = goes.estaciones.filter((g) => g.clave === 'en_linea' || g.clave === 'retraso').length;
@@ -85,11 +91,13 @@ export function estadosTarjetas(m: ModeloKpis): { id: string; nombre: string; ti
 export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
     const { presas, suficiencia, ciclo, canal, demanda, modulos, confianza, alertas, goes, ndvi } = m;
     const { canalE, alertasE, goesE, ndviE, modulosE, enLinea, nd, demandaE, usa24 } = derivaEstados(m);
-    const c = canal.conduccion;
+    const cm = canal.modelo;
+    const c = cm.conduccion;
     const crit = alertas.resumen.criticas, avi = alertas.resumen.avisos, inf = alertas.resumen.informativas;
     const sinSenal = goes.estaciones.filter((g) => g.clave === 'sin_transmision' || g.clave === 'sd');
     const refNdvi = nd && nd.valor != null && nd.anomalia != null ? nd.valor - nd.anomalia : null;
-    const ext = (e: ExtremoKpi | null) => ({ gasto: e?.gasto ?? null, vigente: !!e?.fresca, edadTexto: e?.ms != null ? textoEdad(edadMin(e.ms)).replace('hace ', 'hace ') : null });
+    const k0 = cm.escalas[0];
+    const k0Nivel = k0 && k0.nivelM != null ? k0.nivelM : null;
     const pcts = modulos.map((x) => x.pct).filter((v): v is number => v != null);
     const letras = [...new Set(modulos.map((x) => x.letra))];
     const d24 = demanda.d24;
@@ -123,10 +131,16 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
                     ? <><b>{f(ciclo.acumMm3, 0)} de {f(ciclo.autMm3, 0)} Mm³</b> · sin entregar {Math.max(0, ciclo.autMm3 - ciclo.acumMm3).toFixed(0)} Mm³ ({Math.max(0, 100 - ciclo.entregadoPct).toFixed(0)} %)</>
                     : <>Tiempo <b>{f(ciclo.avance.pct, 0) ?? 'S/D'} %</b>{ciclo.brecha.brechaPP != null ? ` · brecha ${ciclo.brecha.brechaPP > 0 ? '+' : '−'}${Math.abs(ciclo.brecha.brechaPP).toFixed(0)} pp` : ''}</>} />
 
-            <KpiTile id="kp-canal" to="/monitor-publico" vivo titulo="Canal K-0 → K-104" icono={<Gauge size={18} />} valor={f(c.eficienciaPct)} unidad="%" estado={canalE}
-                aria={`Canal: eficiencia de conducción ${f(c.eficienciaPct) ?? 'sin dato'}. Abrir Monitor Público`}
-                viz={<EsquemaCanal k0={ext(canal.k0)} k104={ext(canal.k104)} perdidaPct={c.perdidaPct} />}
-                contexto={c.perdidaM3s != null ? <>Pérdida <b>{c.perdidaM3s.toFixed(2)} m³/s</b> ({f(c.perdidaPct)} %)</> : <>Lectura de más de 4 h · K-0 <b>{canal.k0?.ms != null ? textoEdad(edadMin(canal.k0.ms)).replace('hace ', '') : 'sin dato'}</b> · K-104 <b>{canal.k104?.ms != null ? textoEdad(edadMin(canal.k104.ms)).replace('hace ', '') : 'sin dato'}</b></>} />
+            <KpiTile id="kp-canal" to="/escalas" vivo titulo="Canal K-0 → K-104" icono={<Gauge size={18} />}
+                valor={c.eficienciaPct != null ? f(c.eficienciaPct) : canal.cargado && cm.total > 0 ? String(cm.conMedicion) : null} unidad={c.eficienciaPct != null ? '%' : canal.cargado && cm.total > 0 ? `de ${cm.total}` : undefined} estado={canalE}
+                aria={`Canal: ${cm.conMedicion} de ${cm.total} escalas con medición vigente${cm.ultimaMedicionMs != null ? `, la última medición de campo ${textoEdad(edadMin(cm.ultimaMedicionMs))}` : ', sin mediciones de campo recientes'}${cm.vaciado ? ', canal en vaciado' : ''}${c.eficienciaPct != null ? `, eficiencia de conducción ${f(c.eficienciaPct)} por ciento` : ''}. Abrir Control de Niveles`}
+                viz={<PerfilCanalMini modelo={cm} />}
+                contexto={c.perdidaM3s != null
+                    ? <>Pérdida <b>{c.perdidaM3s.toFixed(2)} m³/s</b> ({f(c.perdidaPct)} %) · entra <b>{f(cm.k0.gasto, 1)}</b> sale <b>{f(cm.k104.gasto, 1)}</b> m³/s</>
+                    : cm.ultimaMedicionMs != null
+                        ? <>Última medición <b>{textoEdad(edadMin(cm.ultimaMedicionMs))}</b>{k0Nivel != null ? <> · K-0 <b>{k0Nivel.toFixed(2)} m</b></> : null}{cm.vaciado ? ' · canal en vaciado' : ''}</>
+                        : <>{canal.cargado ? 'Sin mediciones de campo en 30 días' : 'Consultando escalas…'}{cm.vaciado ? ' · canal en vaciado' : ''}</>}
+                fresco={cm.ultimaMedicionMs != null ? `Medición vigente: ${cm.conMedicion} de ${cm.total}` : null} stale={cm.conMedicion === 0} />
 
             <section id="kp-alertas" className={`kp-tile kp-alertas ${crit > 0 ? 'kp-dest-crit' : avi > 0 ? 'kp-dest-warn' : ''}`} data-estado={alertasE.tipo} aria-label="Alertas vigentes"><div className="kp-in">
                 <div className="kp-cab"><span className="kp-titulo">Alertas</span><span className="kp-vivo" title="Fuente en tiempo real" aria-hidden="true" /><span className="kp-icono" aria-hidden="true"><ShieldAlert size={18} /></span></div>

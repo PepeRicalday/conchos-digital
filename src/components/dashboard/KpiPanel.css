@@ -430,3 +430,27 @@ a.kp-tile:focus-visible, .kp-ver:focus-visible, .kp-sev-btn:focus-visible { outl
 @container kp (max-height: 235px) { .kp-suf-viz { gap: 4px; } .kp-util { gap: 2px; } }
 
 #kp-suficiencia .kp-contexto, #kp-demanda .kp-contexto { -webkit-line-clamp: 2; }
+
+/* ═══════════ Ronda 7 — Canal: mini-perfil de las 14 escalas ═══════════ */
+.kp-pc { width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; position: relative; }
+.kp-pc-svg { width: 100%; flex: 0 1 auto; min-height: 0; max-height: 100%; }
+.kp-pc-mini, .kp-pc-full { display: none; }
+.kp-pc-banda { fill: rgba(56, 189, 248, 0.11); stroke: rgba(56, 189, 248, 0.35); stroke-width: 0.6; }
+.kp-pc-banda-off { fill: none; stroke: var(--sc-t3); stroke-dasharray: 3 3; opacity: 0.6; }
+.kp-pc-base { stroke: var(--sc-line); stroke-width: 1; }
+.kp-pc-hacha { stroke: var(--sc-t3); stroke-width: 1.2; opacity: 0.55; }
+.kp-pc-linea { stroke: var(--sc-t2); stroke-width: 1.2; opacity: 0.8; }
+.kp-pc-ok { fill: var(--sc-ok); } .kp-pc-crit { fill: var(--sc-crit); } .kp-pc-ref { fill: var(--sc-violet); }
+.kp-pc-vaciado { fill: var(--sc-bg); stroke: var(--sc-sky); stroke-width: 1.6; }
+.kp-pc-viejo { fill: none; stroke: var(--sc-t3); stroke-width: 1.5; }
+.kp-pc-sd { stroke: var(--sc-t3); stroke-width: 1.4; stroke-linecap: round; opacity: 0.7; fill: none; }
+.kp-pc-ejes { margin-top: 0; }
+/* Tabla alternativa solo para lectores de pantalla (sin tamaños de fuente pequeños) */
+.kp-sr-tabla { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Densidades por contenedor: mini en celdas bajas, full en celdas grandes */
+@container kp (min-width: 185px) and (max-height: 205px) { .kp-pc-med, .kp-pc-full { display: none; } .kp-pc-mini { display: block; } .kp-pc-ejes { display: none; } }
+@container kp (min-height: 300px) and (min-width: 230px) { .kp-pc-med { display: none; } .kp-pc-full { display: block; } }
+@container kp (min-width: 440px) and (max-height: 205px) { .kp-pc-mini { display: none; } .kp-pc-med { display: block; } .kp-pc-ejes { display: none; } }
+
+/* Canal en celdas bajas pero anchas (iPad vertical ~390 px): perfil mediano en lugar del mini */
+@container kp (min-width: 300px) and (max-width: 439px) and (max-height: 205px) { #kp-canal .kp-viz { width: clamp(130px, 52cqw, 240px); } #kp-canal .kp-pc-mini { display: none; } #kp-canal .kp-pc-med { display: block; } }

@@ -6,7 +6,7 @@ import { useLeakMonitor } from '../hooks/useLeakMonitor';
 import { useHydricEvents } from '../hooks/useHydricEvents';
 import { usePredictiveBalance } from '../hooks/usePredictiveBalance';
 import { useAlertasRegistro } from '../hooks/useAlertasSistema';
-import { useCanalExtremos, useClimaPulso } from '../hooks/useDashboardPulso';
+import { useCanalPerfil, useClimaPulso } from '../hooks/useDashboardPulso';
 import { useFecha } from '../context/FechaContext';
 import { supabase } from '../lib/supabase';
 import { getTodayString } from '../utils/dateHelpers';
@@ -76,7 +76,7 @@ const Dashboard = () => {
     const { segments, loading: loadingLeaks } = useLeakMonitor();
     const { alertas: predictivas } = usePredictiveBalance();
     const { alertas: alertasRegistro, error: errorRegistro } = useAlertasRegistro();
-    const canal = useCanalExtremos();
+    const canal = useCanalPerfil(activeEvent?.evento_tipo === 'VACIADO');
     const { pulso: clima, cargado: climaCargado } = useClimaPulso();
 
     // ── Consultas propias del Dashboard (columnas explícitas; historial de 7 días de lecturas_presas) ──
@@ -160,13 +160,13 @@ const Dashboard = () => {
         const mesMin = (() => { const d = new Date(ahoraAlertas); const idx = d.getUTCFullYear() * 12 + d.getUTCMonth() - 1; return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, '0')}`; })();
         const fuentes: FuenteConfianza[] = [
             { clave: 'presas', nombre: 'Presas', ok: loadingPresas && presas.length === 0 ? null : almacenamiento.presasConDato > 0 && !frescuraLectura?.stale },
-            { clave: 'escalas', nombre: 'Escalas K-0/K-104', ok: canal.cargado ? !!(canal.k0?.fresca && canal.k104?.fresca) : null },
+            { clave: 'escalas', nombre: 'Escalas', ok: canal.cargado ? canal.modelo.conMedicion > 0 : null },
             { clave: 'goes', nombre: 'GOES', ok: enLineaGoes != null ? enLineaGoes > 0 : extra.goes.cargado ? false : null },
             { clave: 'clima', nombre: 'Clima', ok: climaCargado ? (clima.ultimaObs ? (edadH(clima.ultimaObs) ?? 99) <= 3 : false) : null },
             { clave: 'ndvi', nombre: 'NDVI', ok: extra.ndvi.datos?.mes ? extra.ndvi.datos.mes >= mesMin : extra.ndvi.cargado ? false : null },
         ];
         return confianzaTablero(fuentes);
-    }, [ahoraAlertas, loadingPresas, presas.length, almacenamiento.presasConDato, frescuraLectura, canal.cargado, canal.k0, canal.k104, enLineaGoes, extra.goes.cargado, climaCargado, clima.ultimaObs, extra.ndvi.datos, extra.ndvi.cargado]);
+    }, [ahoraAlertas, loadingPresas, presas.length, almacenamiento.presasConDato, frescuraLectura, canal.cargado, canal.modelo.conMedicion, enLineaGoes, extra.goes.cargado, climaCargado, clima.ultimaObs, extra.ndvi.datos, extra.ndvi.cargado]);
 
     const topAlertas = useMemo(() => alertas.filter((a) => a.id !== 'ok' && a.type !== 'info' && !a.antigua).slice(0, 2), [alertas]);
 
@@ -195,11 +195,7 @@ const Dashboard = () => {
         },
         suficiencia: { ...suficiencia, historicoCargado: extra.historico.cargado, historicoError: extra.historico.error },
         ciclo: { entregadoPct: avanceDist.pct, acumMm3: avanceDist.acumuladoMm3, autMm3: avanceDist.autorizadoMm3, avance, brecha: brechaCiclo(avanceDist.pct, avance) },
-        canal: {
-            conduccion: canal.conduccion, cargado: canal.cargado,
-            k0: canal.k0 ? { gasto: canal.k0.gasto, fresca: canal.k0.fresca, ms: canal.k0.telemetriaMs } : null,
-            k104: canal.k104 ? { gasto: canal.k104.gasto, fresca: canal.k104.fresca, ms: canal.k104.telemetriaMs } : null,
-        },
+        canal: { modelo: canal.modelo, cargado: canal.cargado },
         demanda: { d24: extra.pronostico.demanda, cargado: extra.pronostico.cargado, error: extra.pronostico.error, medido: { d: demandaRiego(clima.etoProm, clima.lluviaProm), etoMm: clima.etoProm, lluviaMm: clima.lluviaProm, tMax: clima.tempMax, ultimaObs: clima.ultimaObs } },
         modulos: modules.map((m) => {
             const pct = cumplimientoModulo(m.accumulated_vol, m.authorized_vol);
@@ -210,7 +206,7 @@ const Dashboard = () => {
         alertas: { resumen, top: topAlertas, onAbrir: () => setDrawerAbierto(true) },
         goes: { cargado: extra.goes.cargado, error: extra.goes.error, estaciones: (extra.goes.datos ?? []).map((g) => ({ id: g.id, nombre: g.nombre, clave: g.enlace.clave, edadMin: g.enlace.edadMin, serieGasto: g.serieGasto })) },
         ndvi: { cargado: extra.ndvi.cargado, error: extra.ndvi.error, r: extra.ndvi.datos },
-    }), [extra.goes, extra.ndvi, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, suficiencia, extra.historico.cargado, extra.historico.error, extra.pronostico.demanda, extra.pronostico.cargado, extra.pronostico.error, avanceDist, avance, canal, extra.goes.datos, enLineaGoes, clima, extra.pronostico.datos, extra.pronostico.horas, modules, confianza, resumen, topAlertas]);
+    }), [extra.goes, extra.ndvi, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, suficiencia, extra.historico.cargado, extra.historico.error, extra.pronostico.demanda, extra.pronostico.cargado, extra.pronostico.error, avanceDist, avance, canal.modelo, canal.cargado, extra.goes.datos, enLineaGoes, clima, extra.pronostico.datos, extra.pronostico.horas, modules, confianza, resumen, topAlertas]);
 
     const pulso = estadosTarjetas(modeloKpis);
 

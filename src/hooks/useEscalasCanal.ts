@@ -5,6 +5,7 @@ import { ensureMetadata } from '../store/useMetadataStore';
 import { gastoDeLectura, esFrescaEscala } from '../utils/geoKpis';
 import { usePolling } from './useClimaOperativo';
 import { esEscalaReferencia } from '../utils/escalasReferencia';
+import { instanteDeLectura } from '../utils/perfilCanal';
 
 export interface EscalaCanal {
     id: string;
@@ -31,26 +32,33 @@ export function useEscalasCanal() {
         try {
             const meta = await ensureMetadata();
             const esc = (meta.escalas as unknown as EscalaMeta[]).filter((e) => Number.isFinite(Number(e.km)) && Number(e.km) >= 0 && Number(e.km) <= 104);
-            const desde = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
+            const desde = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
             const { data, error: e } = await supabase
                 .from('lecturas_escalas')
-                .select('escala_id, nivel_m, nivel_abajo_m, radiales_json, gasto_calculado_m3s, gasto_metodo, creado_en')
+                .select('escala_id, fecha, hora_lectura, nivel_m, nivel_abajo_m, radiales_json, gasto_calculado_m3s, gasto_metodo, confirmada')
                 .gte('fecha', desde)
                 .order('fecha', { ascending: false })
                 .order('hora_lectura', { ascending: false })
-                .limit(800);
+                .limit(1500);
             if (e) throw e;
             const ultima = new Map<string, NonNullable<typeof data>[number]>();
-            for (const l of data ?? []) if (!ultima.has(l.escala_id as string)) ultima.set(l.escala_id as string, l);
+            // Última fila (puede ser arrastre: solo para el nivel) y última MEDICIÓN DE CAMPO (confirmada): gasto y frescura salen solo de esta.
+            const campo = new Map<string, NonNullable<typeof data>[number]>();
+            for (const l of data ?? []) {
+                if (!ultima.has(l.escala_id as string)) ultima.set(l.escala_id as string, l);
+                if (l.confirmada !== false && !campo.has(l.escala_id as string)) campo.set(l.escala_id as string, l);
+            }
             const ahora = Date.now();
             setEscalas(esc.map((m) => {
                 const l = ultima.get(m.id);
-                const ts = l?.creado_en ? new Date(l.creado_en as string).getTime() : null;
+                const c = campo.get(m.id);
+                // Edad por fecha + hora_lectura (UTC−6), no por creado_en (00:00 local en arrastre y en filas promovidas)
+                const ts = c ? instanteDeLectura(c.fecha as string, c.hora_lectura as string | null) : null;
                 const referencia = esEscalaReferencia(m);
                 return {
                     id: m.id, nombre: m.nombre, km: Number(m.km), referencia,
                     nivelM: l?.nivel_m != null ? Number(l.nivel_m) : null,
-                    gasto: l && !referencia ? gastoDeLectura(l, { pzas_radiales: m.pzas_radiales, ancho: m.ancho, nombre: m.nombre, km: Number(m.km) }) : null,
+                    gasto: c && !referencia ? gastoDeLectura(c, { pzas_radiales: m.pzas_radiales, ancho: m.ancho, nombre: m.nombre, km: Number(m.km) }) : null,
                     fresca: esFrescaEscala(ts, ahora),
                     telemetriaMs: ts,
                 };

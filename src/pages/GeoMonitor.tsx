@@ -1,5 +1,6 @@
 import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain, Satellite, PanelRight, CalendarRange, Box, Download } from 'lucide-react';
 import { conduccionTramo } from '../utils/conduccion';
+import { instanteDeLectura } from '../utils/perfilCanal';
 import { exportaMapaPng } from '../utils/exportMapaPng';
 import { GeoLeyenda, type CapaLeyenda } from '../components/geo/GeoLeyenda';
 import { extraccionPresa, presaBaja, valorGrafica, escapaHtml as esc } from '../utils/geoKpis';
@@ -1078,7 +1079,7 @@ const GeoMonitor = () => {
                 { data: modStaticData }
             ] = await Promise.all([
                 supabase.from('resumen_escalas_diario').select('escala_id, nivel_actual, delta_12h, estado, fecha, lectura_am, lectura_pm').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }),
-                supabase.from('lecturas_escalas').select('escala_id, apertura_radiales_m, nivel_m, nivel_abajo_m, radiales_json, gasto_calculado_m3s, gasto_metodo, fecha, hora_lectura, creado_en').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_lectura', { ascending: false }),
+                supabase.from('lecturas_escalas').select('escala_id, apertura_radiales_m, nivel_m, nivel_abajo_m, radiales_json, gasto_calculado_m3s, gasto_metodo, fecha, hora_lectura, confirmada').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_lectura', { ascending: false }),
                 supabase.from('lecturas_presas').select('presa_id, almacenamiento_mm3, porcentaje_llenado, extraccion_total_m3s, escala_msnm, fecha, notas').order('fecha', { ascending: false }).limit(12),
                 supabase.from('aforos').select('punto_control_id, gasto_calculado_m3s, fecha, hora_inicio').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_inicio', { ascending: false }),
                 supabase.from('vw_alertas_tomas_varadas').select('*'),
@@ -1120,14 +1121,15 @@ const GeoMonitor = () => {
             // registro por escala_id es la lectura más reciente.
             const gastoMap = new Map<string, { gasto: number; telemetria: number | null }>();
             lecData?.forEach((l: any) => {
-                if (gastoMap.has(l.escala_id)) return;
+                // Las filas de arrastre de continuidad (confirmada = false) no son mediciones: ni gasto ni telemetría
+                if (l.confirmada === false || gastoMap.has(l.escala_id)) return;
                 const esc = (escData || []).find((e: any) => e.id === l.escala_id) as any;
                 const gasto = l.gasto_metodo === 'curva_nivel'
                     ? (l.gasto_calculado_m3s || 0)
                     : esc?.pzas_radiales
                     ? calcRadialFlow(l.nivel_m, l.nivel_abajo_m || 0, l.radiales_json, esc.ancho, esc.pzas_radiales, esc.nombre, esc.km)
                     : (l.gasto_calculado_m3s || 0);
-                const telemetria = l.creado_en ? new Date(l.creado_en).getTime() : null;
+                const telemetria = instanteDeLectura(l.fecha, l.hora_lectura);
                 gastoMap.set(l.escala_id, { gasto, telemetria });
             });
 

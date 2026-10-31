@@ -168,8 +168,10 @@ export function construirZonas(
         const currentLevel = op.esHoy ? (nivelLast ?? nivelRes) : nivelRes;
         const origen: OrigenNivel = currentLevel == null ? null
             : op.esHoy && nivelLast != null ? (last!.confirmada === false ? 'arrastre' : 'campo') : 'resumen';
+        // Edad por fecha + hora_lectura (UTC−6), NO por `creado_en`: una fila autogenerada o promovida a confirmada conserva
+        // el `creado_en` de las 00:00 locales y siempre saldría "vieja" (o, peor, "fresca" a destiempo).
         const telemetriaMs = op.esHoy
-            ? (last?.creado_en ? new Date(last.creado_en).getTime() : null)
+            ? (last ? instanteLectura(last) : null)
             : op.ahoraMs; // fecha histórica: la frescura no aplica
 
         const r: ResultadoEstado = estadoNivel({

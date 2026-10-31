@@ -23,29 +23,38 @@ describe('construirZonas', () => {
     });
 
     it('lectura de campo reciente fuera de rango => alerta con magnitud', () => {
-        const l: LecturaEscala = { ...auto('K-23', 2.5), confirmada: true };
+        const l: LecturaEscala = { ...auto('K-23', 2.5), confirmada: true, hora_lectura: '11:30:00' };
         const [z] = construirZonas([esc('K-23', 23)], sec, [l], [], op());
         expect(z.scales[0]).toMatchObject({ estado: 'bajo', alerta: true });
         expect(z.scales[0].desviacionM).toBeCloseTo(-0.3);
     });
 
     it('en vaciado una lectura de campo baja no alarma', () => {
-        const l: LecturaEscala = { ...auto('K-23', 0.2), confirmada: true };
+        const l: LecturaEscala = { ...auto('K-23', 0.2), confirmada: true, hora_lectura: '11:30:00' };
         const [z] = construirZonas([esc('K-23', 23)], sec, [l], [], op({ vaciado: true }));
         expect(z.scales[0]).toMatchObject({ estado: 'vaciado', alerta: false });
     });
 
     it('escala de referencia: nunca gasto ni alerta', () => {
-        const l: LecturaEscala = { ...auto('K-64', 1), confirmada: true, gasto_calculado_m3s: 53 };
+        const l: LecturaEscala = { ...auto('K-64', 1), confirmada: true, hora_lectura: '11:30:00', gasto_calculado_m3s: 53 };
         const [z] = construirZonas([esc('K-64', 64)], sec, [l], [], op());
         expect(z.scales[0]).toMatchObject({ referencia: true, gasto: null, alerta: false, estado: 'referencia' });
     });
 
     it('compuertas sin radiales_json en lectura confirmada => S/D, gasto crudo (no 0 inventado)', () => {
-        const l: LecturaEscala = { ...auto('K-0', 3), confirmada: true, gasto_calculado_m3s: null };
+        const l: LecturaEscala = { ...auto('K-0', 3), confirmada: true, hora_lectura: '11:30:00', gasto_calculado_m3s: null };
         const [z] = construirZonas([esc('K-0', 0, { pzas_radiales: 12, ancho: 1.5, alto: 1.8 })], sec, [l], [], op());
         expect(z.scales[0].aperturas.every(a => a === null)).toBe(true);
         expect(z.scales[0].gasto).toBeNull();
+    });
+
+    it('la frescura sale de fecha + hora_lectura, no de creado_en', () => {
+        // medida hace 30 min pero con creado_en de las 00:00 locales (fila promovida a confirmada): vigente
+        const fresca: LecturaEscala = { ...auto('K-23', 3.1), confirmada: true, hora_lectura: '11:30:00', creado_en: iso(AHORA - 12 * 3_600_000) };
+        expect(construirZonas([esc('K-23', 23)], sec, [fresca], [], op())[0].scales[0].estado).toBe('en_rango');
+        // creado_en reciente pero medida hace 12 h: vieja
+        const vieja: LecturaEscala = { ...auto('K-23', 3.1), confirmada: true, hora_lectura: '00:00:00', creado_en: iso(AHORA - 60_000) };
+        expect(construirZonas([esc('K-23', 23)], sec, [vieja], [], op())[0].scales[0].estado).toBe('stale');
     });
 
     it('ordena zonas y escalas por km', () => {
@@ -54,7 +63,7 @@ describe('construirZonas', () => {
     });
 
     it('desviación vs centro del rango solo con medición vigente en rango de riego', () => {
-        const campo: LecturaEscala = { ...auto('K-23', 3.4), confirmada: true };
+        const campo: LecturaEscala = { ...auto('K-23', 3.4), confirmada: true, hora_lectura: '11:30:00' };
         const [z] = construirZonas([esc('K-23', 23)], sec, [campo], [], op());
         expect(z.scales[0].deltaCentroM).toBeCloseTo(0.3);    // centro (2.8+3.4)/2 = 3.1
         const [zv] = construirZonas([esc('K-23', 23)], sec, [campo], [], op({ vaciado: true }));

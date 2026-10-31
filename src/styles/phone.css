@@ -21,7 +21,7 @@ html[data-device="phone"] :is(.grid-col-left, .grid-col-right) { min-width: 0; }
 html[data-device="phone"] :is(.grid-col-left, .grid-col-right) { gap: 12px; }
 html[data-device="phone"] .dashboard-grid-kpi > .kpi-card.kpi-sev-critical { grid-column: auto; }
 html[data-device="phone"] .dash-identity { flex-wrap: wrap; row-gap: 2px; }
-html[data-device="phone"] .dash-identity-sub { letter-spacing: 0.06em; font-size: 0.66rem; }
+html[data-device="phone"] .dash-identity-sub { letter-spacing: 0.06em; font-size: 0.6875rem; }
 
 /* ── Presas (sala de control SCADA) ──────────────────────────────────────── */
 html[data-device="phone"] .scada-sala-root { padding: 8px 0 24px; min-height: 0; }
@@ -35,8 +35,8 @@ html[data-device="phone"] .scada-header-org { font-size: 11px; }
 html[data-device="phone"] .scada-header-dam-selector { flex-wrap: wrap; gap: 8px; }
 html[data-device="phone"] .scada-dam-btn { font-size: 11px; padding: 8px 14px; min-height: 40px; }
 html[data-device="phone"] .scada-header-kpi-strip { justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-html[data-device="phone"] .scada-header-kpi-label { font-size: 9px; }
-html[data-device="phone"] .scada-header-kpi-unit { font-size: 10px; }
+html[data-device="phone"] .scada-header-kpi-label { font-size: 11px; }
+html[data-device="phone"] .scada-header-kpi-unit { font-size: 11px; }
 html[data-device="phone"] .scada-header-kpi-val { font-size: 22px; }
 html[data-device="phone"] .scada-header-right { flex-wrap: wrap; justify-content: space-between; gap: 8px; }
 html[data-device="phone"] .scada-clock { font-size: 14px; align-items: flex-start; }

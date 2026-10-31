@@ -390,7 +390,7 @@ const ImportReport = () => {
                                 </button>
                             </div>
                             <div className="flex-1 overflow-auto">
-                                <table className="w-full text-left text-[10px] border-collapse">
+                                <table className="w-full text-left text-[11px] border-collapse">
                                     <thead className="bg-slate-950 sticky top-0 shadow-lg">
                                         <tr>
                                             <th className="p-2.5 border-b border-r border-slate-800 text-slate-400 font-bold uppercase tracking-tighter">Día</th>
@@ -439,7 +439,7 @@ const ImportReport = () => {
                                 </table>
                             </div>
                             <div className="p-4 border-t border-slate-700 bg-slate-950 flex flex-col gap-3">
-                                <div className="flex items-center gap-3 text-emerald-400 text-[10px] bg-emerald-400/5 p-3 rounded-lg border border-emerald-400/20 leading-relaxed font-mono">
+                                <div className="flex items-center gap-3 text-emerald-400 text-[11px] bg-emerald-400/5 p-3 rounded-lg border border-emerald-400/20 leading-relaxed font-mono">
                                     <CheckCircle size={14} className="flex-shrink-0" />
                                     <span>Sistema de mapeo visual activo. Los datos de Boquilla (Izquierda) y Madero (Derecha) se inyectarán de forma concurrente para los 31 días.</span>
                                 </div>
@@ -464,7 +464,7 @@ const ImportReport = () => {
                     )}
 
                     {importLog.length > 0 && (
-                        <div className="absolute bottom-6 left-6 right-6 max-h-48 bg-slate-950/90 backdrop-blur-md border border-slate-700/50 rounded-xl overflow-y-auto p-3 text-[9px] font-mono shadow-2xl scrollbar-thin">
+                        <div className="absolute bottom-6 left-6 right-6 max-h-48 bg-slate-950/90 backdrop-blur-md border border-slate-700/50 rounded-xl overflow-y-auto p-3 text-[11px] font-mono shadow-2xl scrollbar-thin">
                             <div className="sticky top-0 bg-slate-900/50 backdrop-blur pb-2 border-b border-slate-800 mb-2 flex justify-between items-center text-slate-400 font-bold">
                                 <span className="flex items-center gap-2"><TableIcon size={12} /> BITÁCORA DE TRANSACCIONES</span>
                                 <button onClick={() => setImportLog([])} className="hover:text-white transition-colors">[CERRAR]</button>
@@ -491,7 +491,7 @@ const ImportReport = () => {
                     <div className="flex justify-between items-center">
                         <h2 className="font-bold text-lg mb-0 flex items-center gap-2">
                             Captura de Datos Oficiales
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-mono ${isOnline ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+                            <span className={`text-[11px] px-2 py-0.5 rounded-full flex items-center gap-1 font-mono ${isOnline ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
                                 {isOnline ? <Wifi size={10} /> : <WifiOff size={10} />}
                                 {isOnline ? 'CONECTADO' : 'SIN CONEXIÓN'}
                             </span>
@@ -510,7 +510,7 @@ const ImportReport = () => {
                         {/* DATOS HIDRAULICOS (Solo Presas) */}
                         {activeTab !== 'delicias' && (
                             <section className="bg-slate-800/30 p-5 rounded-xl border border-slate-700/50 shadow-sm">
-                                <h3 className="text-blue-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-5 flex items-center gap-3">
+                                <h3 className="text-blue-400 text-[11px] font-bold uppercase tracking-[0.2em] mb-5 flex items-center gap-3">
                                     <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
                                     Datos Hidráulicos
                                 </h3>
@@ -542,7 +542,7 @@ const ImportReport = () => {
 
                         {/* CLIMA */}
                         <section className="bg-slate-800/30 p-5 rounded-xl border border-slate-700/50 shadow-sm">
-                            <h3 className="text-amber-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-5 flex items-center gap-3">
+                            <h3 className="text-amber-400 text-[11px] font-bold uppercase tracking-[0.2em] mb-5 flex items-center gap-3">
                                 <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></div>
                                 Datos Climatológicos
                             </h3>
@@ -565,7 +565,7 @@ const ImportReport = () => {
 
                         {/* 24 HORAS ANTERIORES */}
                         <section className="bg-slate-800/30 p-5 rounded-xl border border-slate-700/50 shadow-sm">
-                            <h3 className="text-purple-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-5 flex items-center gap-3">
+                            <h3 className="text-purple-400 text-[11px] font-bold uppercase tracking-[0.2em] mb-5 flex items-center gap-3">
                                 <div className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]"></div>
                                 24 Horas Anteriores
                             </h3>
@@ -578,7 +578,7 @@ const ImportReport = () => {
 
                         {/* AFOROS */}
                         <section className="bg-slate-800/30 p-5 rounded-xl border border-slate-700/50 shadow-sm">
-                            <h3 className="text-emerald-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-5 flex items-center gap-3">
+                            <h3 className="text-emerald-400 text-[11px] font-bold uppercase tracking-[0.2em] mb-5 flex items-center gap-3">
                                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
                                 Aforos Principales ({activeTab === 'boquilla' ? 'Km 0+580' : activeTab === 'madero' ? 'Km 106' : 'Km 104'})
                             </h3>
@@ -591,8 +591,8 @@ const ImportReport = () => {
                         {/* Constantes Informativas */}
                         {activeTab !== 'delicias' && (
                             <section className="bg-slate-900/50 p-4 rounded-xl border border-dashed border-slate-700 mt-8 mb-4">
-                                <h4 className="text-[9px] font-mono text-slate-400 uppercase tracking-[0.3em] mb-2 text-center">Referencia Técnica</h4>
-                                <div className="flex justify-around text-[10px] text-slate-400 font-mono">
+                                <h4 className="text-[11px] font-mono text-slate-400 uppercase tracking-[0.3em] mb-2 text-center">Referencia Técnica</h4>
+                                <div className="flex justify-around text-[11px] text-slate-400 font-mono">
                                     <div><span className="opacity-80">ÁREA:</span> <span className="text-blue-300 font-bold">{AREAS[activeTab]} ha</span></div>
                                     <div><span className="opacity-50">CAPACIDAD NAMO:</span> <span className="text-blue-300 font-bold">{CAPACIDAD_TOTAL[activeTab]} Mm³</span></div>
                                 </div>
@@ -628,7 +628,7 @@ const TabButton = ({ id, label, active, onClick }: { id: string, label: string, 
 
 const InputGroup = ({ label, placeholder, value, onChange, type = "number" }: any) => (
     <div className="group">
-        <label className="block text-[9px] uppercase text-slate-400 font-bold mb-1.5 tracking-wider transition-colors group-focus-within:text-blue-400">{label}</label>
+        <label className="block text-[11px] uppercase text-slate-400 font-bold mb-1.5 tracking-wider transition-colors group-focus-within:text-blue-400">{label}</label>
         <div className="relative">
             <input
                 type={type}
@@ -643,7 +643,7 @@ const InputGroup = ({ label, placeholder, value, onChange, type = "number" }: an
 
 const SelectGroup = ({ label, value, onChange, options }: any) => (
     <div className="group">
-        <label className="block text-[9px] uppercase text-slate-400 font-bold mb-1.5 tracking-wider transition-colors group-focus-within:text-blue-400">{label}</label>
+        <label className="block text-[11px] uppercase text-slate-400 font-bold mb-1.5 tracking-wider transition-colors group-focus-within:text-blue-400">{label}</label>
         <select
             value={value || ''}
             onChange={e => onChange(e.target.value)}

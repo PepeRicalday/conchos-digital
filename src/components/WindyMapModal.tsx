@@ -66,7 +66,7 @@ export function WindyMapModal({
                         <Satellite size={22} className="text-primary" />
                         <div>
                             <h2 className="text-lg font-black text-white uppercase tracking-wider">{titulo}</h2>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">
+                            <p className="text-[11px] text-slate-500 font-bold uppercase tracking-[0.2em]">
                                 Nubosidad y precipitación en vivo · Windy.com
                             </p>
                         </div>

@@ -398,7 +398,7 @@
     text-orientation: mixed;
     transform: rotate(180deg);
     font-family: var(--geo-font-sans);
-    font-size: 9.5px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -570,7 +570,7 @@
 }
 
 .geo-baselayer-chip {
-    font-size: 9.5px;
+    font-size: 11px;
     padding: 2px 5px;
     border-radius: 5px;
     background: rgba(255, 255, 255, 0.06);
@@ -1158,7 +1158,7 @@
     color: var(--geo-text-3);
     line-height: 1;
 }
-.geo-balance-prog small { font-size: 8.5px; }
+.geo-balance-prog small { font-size: 11px; }
 
 .geo-tomas-label {
     font-size: 11px;
@@ -1717,7 +1717,7 @@
 }
 
 .geo-sentinel-date-modo {
-    font-size: 9.5px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--geo-neon-emerald);

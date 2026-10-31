@@ -59,7 +59,7 @@ export function PronosticoInformeModal({ abierto, onCerrar, onConfirmar }: Prono
             </span>
             <span style={{ flex: 1 }}>
                 <span className="font-semibold block" style={{ fontSize: 12.5, color: activo ? '#f1f5f9' : '#64748b' }}>{label}</span>
-                <span style={{ fontSize: 9.5, color: '#64748b', display: 'block', marginTop: 1, lineHeight: 1.3 }}>{desc}</span>
+                <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginTop: 1, lineHeight: 1.3 }}>{desc}</span>
             </span>
         </button>
     );
@@ -94,7 +94,7 @@ export function PronosticoInformeModal({ abierto, onCerrar, onConfirmar }: Prono
                             </div>
                             <div>
                                 <h2 className="font-black text-white uppercase" style={{ fontSize: 16, letterSpacing: '0.04em', margin: 0 }}>Informe de Pronóstico</h2>
-                                <p className="font-bold uppercase" style={{ fontSize: 10, letterSpacing: '0.18em', color: '#64748b', margin: '2px 0 0' }}>Qué hacer en las próximas horas</p>
+                                <p className="font-bold uppercase" style={{ fontSize: 11, letterSpacing: '0.18em', color: '#64748b', margin: '2px 0 0' }}>Qué hacer en las próximas horas</p>
                             </div>
                         </div>
                         <button className="hover:bg-slate-800 transition-colors" style={{ padding: 8, background: 'rgba(15,23,42,0.9)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }} onClick={onCerrar} title="Cerrar">
@@ -117,7 +117,7 @@ export function PronosticoInformeModal({ abierto, onCerrar, onConfirmar }: Prono
                             {opcion(nivel === 'operativo', () => setNivel('operativo'), Users, 'Operativo', 'Veredicto, decisiones por módulo, ventanas de riesgo y gráficas', 'op')}
                             {opcion(nivel === 'tecnico', () => setNivel('tecnico'), FlaskConical, 'Técnico', 'Añade definiciones, nubosidad y la metodología abierta', 'tec')}
                         </div>
-                        <p style={{ fontSize: 10.5, color: '#64748b', marginTop: 10, lineHeight: 1.5 }}>
+                        <p style={{ fontSize: 11, color: '#64748b', marginTop: 10, lineHeight: 1.5 }}>
                             {nivel === 'ciudadano'
                                 ? 'Informe para la ciudadanía: mapa de los módulos con su probabilidad de lluvia, hora por hora, y hoy, mañana y pasado mañana con temperatura, lluvia y viento en km/h. Se puede imprimir o compartir como imagen.'
                                 : 'Todo el pronóstico es del modelo (Open-Meteo), ajustado por su error sistemático medido donde lo hay; lo observado se rotula aparte. Las estaciones con lecturas sospechosas aparecen como S/D.'}

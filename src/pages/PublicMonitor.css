@@ -100,7 +100,7 @@
 }
 
 .phb-label {
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     color: #94a3b8;
     letter-spacing: 0.5px;
@@ -238,7 +238,7 @@
 }
 
 .fdm-name {
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     color: #94a3b8;
     letter-spacing: 0.5px;
@@ -251,7 +251,7 @@
     color: #fff;
 }
 
-.fdm-val small { font-size: 0.6rem; opacity: 0.6; }
+.fdm-val small { font-size: 0.6875rem; opacity: 0.6; }
 
 .summary-gasto {
     display: flex;
@@ -321,7 +321,7 @@
     background: rgba(15, 23, 42, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 20px;
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     font-weight: 900;
     letter-spacing: 0.5px;
     -webkit-backdrop-filter: blur(4px);
@@ -344,7 +344,7 @@
     color: #f8fafc;
 }
 .iec-label {
-    font-size: 0.6rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     letter-spacing: 0.8px;
     color: rgba(248,250,252,0.6);
@@ -368,7 +368,7 @@
     align-items: center;
 }
 .iec-bd-title {
-    font-size: 0.52rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     letter-spacing: 0.6px;
     color: rgba(248,250,252,0.45);
@@ -391,7 +391,7 @@
     gap: 5px;
 }
 .iec-bd-label {
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     color: rgba(248,250,252,0.6);
     white-space: nowrap;
 }
@@ -412,7 +412,7 @@
 .iec-fill-fug  { width: var(--iec-pfug,  0%); }
 .iec-fill-crit { width: var(--iec-pcrit, 0%); }
 .iec-bd-pts {
-    font-size: 0.58rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     color: rgba(248,250,252,0.8);
     text-align: right;
@@ -422,7 +422,7 @@
     color: rgba(248,250,252,0.4);
 }
 .iec-bd-texto {
-    font-size: 0.56rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     color: var(--iec-color, #22c55e);
     letter-spacing: 0.2px;
@@ -442,7 +442,7 @@
     border: 1px solid rgba(255,255,255,0.06);
 }
 .iec-sp-label {
-    font-size: 0.5rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     letter-spacing: 0.5px;
     color: rgba(248,250,252,0.35);
@@ -455,7 +455,7 @@
     overflow: visible;
 }
 .iec-sp-val {
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     font-weight: 900;
     color: rgba(248,250,252,0.7);
     white-space: nowrap;
@@ -470,7 +470,7 @@
 .dock-action-btn {
     flex: 1;
     padding: 4px 8px;
-    font-size: 0.57rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     letter-spacing: 0.4px;
     border-radius: 5px;
@@ -601,7 +601,7 @@
 
 .cpc-km {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     color: #94a3b8;
     background: rgba(0,0,0,0.2);
@@ -640,7 +640,7 @@
     color: #fff;
 }
 
-.cpc-unit { font-size: 0.6rem; color: #7d8ea3; }
+.cpc-unit { font-size: 0.6875rem; color: #7d8ea3; }
 
 .cpc-status-bar {
     width: 100%;
@@ -656,7 +656,7 @@
 }
 
 .cpc-time {
-    font-size: 0.6rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     color: #7d8ea3;
     text-align: right;
@@ -719,7 +719,7 @@
 }
 
 .fuente-status {
-    font-size: 0.6rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     color: #8396ad;
     text-transform: uppercase;
@@ -733,7 +733,7 @@
 }
 
 .fuente-val small {
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     color: #7d8ea3;
 }
 
@@ -885,7 +885,7 @@
 }
 
 .ml-title {
-    font-size: 8px;
+    font-size: 11px;
     font-family: 'JetBrains Mono', monospace;
     font-weight: 700;
     letter-spacing: 0.8px;
@@ -898,7 +898,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 9px;
+    font-size: 11px;
     font-family: 'JetBrains Mono', monospace;
     color: #94a3b8;
 }
@@ -1057,7 +1057,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     color: #94a3b8;
     text-transform: uppercase;
@@ -1122,7 +1122,7 @@
 }
 
 .tech-label {
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     color: #8396ad;
 }
@@ -1137,10 +1137,10 @@
     gap: 2px;
 }
 
-.tech-main-val small { font-size: 0.6rem; opacity: 0.6; }
+.tech-main-val small { font-size: 0.6875rem; opacity: 0.6; }
 
 .tech-sub {
-    font-size: 0.5rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     color: #7d8ea3;
 }
@@ -1153,7 +1153,7 @@
 }
 
 .tech-dist {
-    font-size: 0.5rem;
+    font-size: 0.6875rem;
     font-weight: 900;
 }
 
@@ -1165,7 +1165,7 @@
 }
 
 .rb-header {
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     color: #22d3ee;
     margin-bottom: 6px;
@@ -1185,7 +1185,7 @@
 }
 
 .rb-st-label {
-    font-size: 0.45rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     color: #8396ad;
 }
@@ -1209,7 +1209,7 @@
 }
 
 .bst-label {
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     color: #8396ad;
 }
@@ -1244,7 +1244,7 @@
     min-width: 120px;
 }
 .tooltip-km {
-    font-size: 10px;
+    font-size: 11px;
     text-transform: uppercase;
     opacity: 0.7;
 }
@@ -1263,7 +1263,7 @@
 }
 .tooltip-footer {
     margin-top: 10px;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     color: #7d8ea3;
     text-transform: uppercase;
@@ -1309,10 +1309,10 @@
     margin-bottom: 8px;
 }
 .telemetry-tag {
-    font-size: 0.6rem;
+    font-size: 0.6875rem;
 }
 .fuente-val-unit {
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     color: #7d8ea3;
 }
 
@@ -1324,7 +1324,7 @@
         gap: 12px;
     }
     .protocol-title { font-size: 1rem; }
-    .protocol-subtitle { font-size: 0.6rem; }
+    .protocol-subtitle { font-size: 0.6875rem; }
     .logo-srl-header, .logo-sica-header { height: 35px; width: 35px; }
     
     .telemetry-floating-card {
@@ -1345,7 +1345,7 @@
 }
 
 .balance-title {
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     color: #8396ad;
     letter-spacing: 1px;
@@ -1373,7 +1373,7 @@
     background: transparent;
     color: #7d8ea3;
     font-weight: 800;
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     text-transform: uppercase;
     padding-bottom: 2px;
 }
@@ -1402,7 +1402,7 @@
 }
 
 .bs-label {
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     color: #8396ad;
     text-transform: uppercase;
@@ -1520,7 +1520,7 @@
 .wait-badge-pulse {
     background: #f59e0b;
     color: #000;
-    font-size: 0.6rem;
+    font-size: 0.6875rem;
     font-weight: 900;
     padding: 2px 8px;
     border-radius: 4px;
@@ -1787,7 +1787,7 @@
     
     .prediction-divider { display: none; }
     
-    .cpc-name { font-size: 0.6rem; }
+    .cpc-name { font-size: 0.6875rem; }
     .cpc-value { font-size: 0.8rem; }
 
     /* Forcing larger tooltips on extremely small screens */
@@ -1869,8 +1869,8 @@
     }
 
     .gasto-value { font-size: 1.1rem; letter-spacing: -0.5px; }
-    .gasto-unit { font-size: 0.6rem; }
-    .summary-info-title { font-size: 0.65rem; }
+    .gasto-unit { font-size: 0.6875rem; }
+    .summary-info-title { font-size: 0.6875rem; }
     .summary-gasto { display: flex; flex-direction: column; gap: 2px; }
 
     /* 3. Red de Puntos Swipeables Nativo - Snap Obligatorio */
@@ -1908,8 +1908,8 @@
 
     .cpc-name { font-size: 0.7rem; }
     .cpc-value { font-size: 0.95rem; }
-    .cpc-time { font-size: 0.5rem; text-align: center; }
-    .cpc-km { font-size: 0.6rem; padding: 1px 4px; }
+    .cpc-time { font-size: 0.6875rem; text-align: center; }
+    .cpc-km { font-size: 0.6875rem; padding: 1px 4px; }
 
     /* 4. Botones Flotantes Circulares (FABs) de Acción */
     .floating-ui-controls-v2 {
@@ -1985,7 +1985,7 @@
 }
 
 .cpc-gasto {
-    font-size: 0.62rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     color: #22d3ee;
     font-variant-numeric: tabular-nums;
@@ -1993,7 +1993,7 @@
 }
 
 .cpc-apertura {
-    font-size: 0.6rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     color: #a78bfa;
     font-variant-numeric: tabular-nums;
@@ -2028,7 +2028,7 @@
 }
 
 .cfc-label {
-    font-size: 0.6rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     color: #7d8ea3;
     text-transform: uppercase;
@@ -2044,7 +2044,7 @@
 }
 
 .cfc-unit {
-    font-size: 0.58rem;
+    font-size: 0.6875rem;
     color: #8396ad;
     font-weight: 600;
 }
@@ -2066,14 +2066,14 @@
 }
 
 .cfc-loss {
-    font-size: 0.6rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     color: #ef4444;
     font-variant-numeric: tabular-nums;
 }
 
 .cfc-dist {
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     color: #8396ad;
     font-weight: 600;
     text-transform: uppercase;
@@ -2082,7 +2082,7 @@
 
 .coherencia-resumen {
     margin-top: 5px;
-    font-size: 0.6rem;
+    font-size: 0.6875rem;
     color: #7d8ea3;
     font-weight: 700;
     text-transform: uppercase;
@@ -2090,7 +2090,7 @@
 }
 
 .coherencia-sin-datos {
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     color: #8396ad;
     font-weight: 600;
     text-align: center;
@@ -2133,7 +2133,7 @@
     border-radius: 14px;
     padding: 3px 8px;
     color: #06b6d4;
-    font-size: 0.58rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -2164,7 +2164,7 @@
 }
 
 .dpf-label {
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     color: #7d8ea3;
     text-transform: uppercase;
@@ -2172,7 +2172,7 @@
 }
 
 .dpf-val {
-    font-size: 0.62rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     color: #94a3b8;
     font-variant-numeric: tabular-nums;
@@ -2216,7 +2216,7 @@
 }
 
 .scp-km {
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     font-weight: 900;
     color: #7d8ea3;
     letter-spacing: 0.08em;
@@ -2224,7 +2224,7 @@
 }
 
 .scp-badge {
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     letter-spacing: 0.07em;
     text-transform: uppercase;
@@ -2255,7 +2255,7 @@
 
 .scp-field-label {
     display: block;
-    font-size: 0.58rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     color: #8396ad;
     letter-spacing: 0.1em;
@@ -2296,7 +2296,7 @@
 
 .scp-ref {
     display: block;
-    font-size: 0.58rem;
+    font-size: 0.6875rem;
     color: #8396ad;
     font-weight: 600;
     margin-top: 3px;
@@ -2328,7 +2328,7 @@
 }
 
 .scp-metric-label {
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     color: #8396ad;
     letter-spacing: 0.08em;
@@ -2344,7 +2344,7 @@
 }
 
 .scp-metric-unit {
-    font-size: 0.58rem;
+    font-size: 0.6875rem;
     color: #7d8ea3;
     font-weight: 600;
 }
@@ -2388,7 +2388,7 @@
 }
 
 .scp-footer-time {
-    font-size: 0.58rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     color: #7d8ea3;
 }
@@ -2399,7 +2399,7 @@
 .scp-footer-time[data-tel="FUERA_DE_LINEA"] { color: #7d8ea3; }
 
 .scp-footer-signal {
-    font-size: 0.52rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     letter-spacing: 0.3px;
     text-transform: uppercase;
@@ -2432,7 +2432,7 @@
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 0.58rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -2504,7 +2504,7 @@
 }
 .fgv-stat--critbox::before { background: linear-gradient(180deg, #ef4444, transparent); }
 .fgv-stat-label {
-    font-size: 0.5rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     letter-spacing: 0.06em;
     color: #8396ad;
@@ -2520,7 +2520,7 @@
     align-items: baseline;
     gap: 3px;
 }
-.fgv-stat-val small { font-size: 0.55rem; font-weight: 600; color: #7d8ea3; }
+.fgv-stat-val small { font-size: 0.6875rem; font-weight: 600; color: #7d8ea3; }
 .fgv-stat--cyan  { color: #22d3ee; }
 .fgv-stat--blue  { color: #38bdf8; }
 .fgv-stat--green { color: #22c55e; }
@@ -2641,7 +2641,7 @@
     }
     .perfil-modal-title-text::before {
         content: 'PERFIL HIDRÁULICO';
-        font-size: 0.65rem;
+        font-size: 0.6875rem;
     }
 }
 
@@ -2691,7 +2691,7 @@
     border-radius: 20px;
     padding: 5px 12px;
     color: #06b6d4;
-    font-size: 0.62rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     letter-spacing: 0.07em;
     text-transform: uppercase;
@@ -2706,7 +2706,7 @@
 }
 
 .ptb-badge {
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     color: #22c55e;
     letter-spacing: 0.05em;
@@ -2737,13 +2737,13 @@
 }
 .elb-val {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 8.5px;
+    font-size: 11px;
     font-weight: 700;
     color: #e2e8f0;
     letter-spacing: -0.3px;
 }
 .elb-arrow {
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 700;
 }
 /* Cian/verde/gris — NO rojo: la dirección de la tendencia es un hecho
@@ -2794,7 +2794,7 @@
     display: flex;
     justify-content: space-between;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 7.5px;
+    font-size: 11px;
     color: #8396ad;
     letter-spacing: 0.6px;
     margin-bottom: 3px;
@@ -2837,7 +2837,7 @@
 .hud-km-label {
     display: block;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 7px;
+    font-size: 11px;
     color: #8396ad;
     text-align: center;
     margin-top: 2px;
@@ -2878,7 +2878,7 @@
 }
 .hud-front-label {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 7.5px;
+    font-size: 11px;
     font-weight: 700;
     color: #22d3ee;
     white-space: nowrap;
@@ -2897,8 +2897,8 @@
 
 @media (max-width: 600px) {
     .hud-progress { bottom: 8px; padding: 6px 10px 8px; }
-    .hud-km-label { font-size: 6px; }
-    .hud-front-label { font-size: 7px; }
+    .hud-km-label { font-size: 11px; }
+    .hud-front-label { font-size: 11px; }
 }
 
 /* ── Barra de pestañas del dock ─────────────────────────────────────── */
@@ -2917,7 +2917,7 @@
     border-bottom: 2px solid transparent;
     padding: 4px 10px 6px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.6px;
     color: #8396ad;
@@ -2941,7 +2941,7 @@
 /* Móvil: objetivos táctiles más grandes y legibles para la navegación */
 @media (max-width: 600px) {
     .dock-tab {
-        font-size: 10.5px;
+        font-size: 11px;
         padding: 10px 14px 9px;
         min-height: 40px;
     }
@@ -2956,7 +2956,7 @@
     padding: 0 3px;
     background: #dc2626;
     border-radius: 7px;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 700;
     color: #fff;
     vertical-align: middle;
@@ -2990,7 +2990,7 @@
     padding: 24px 0;
     color: #8396ad;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
+    font-size: 11px;
 }
 .dap-empty-icon {
     font-size: 20px;
@@ -3044,7 +3044,7 @@
 }
 .dap-titulo {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 9.5px;
+    font-size: 11px;
     font-weight: 600;
     color: #cbd5e1;
     white-space: nowrap;
@@ -3054,7 +3054,7 @@
 }
 .dap-fecha {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 8px;
+    font-size: 11px;
     color: #7d8ea3;
 }
 .dap-footer {
@@ -3064,7 +3064,7 @@
 }
 .dap-link {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 9px;
+    font-size: 11px;
     color: #38bdf8;
     text-decoration: none;
     opacity: 0.8;
@@ -3078,7 +3078,7 @@
        de @media(max-width:600px) en la cascada y también aplica a esos
        mismos viewports — sin repetirlo, anulaba en silencio el área táctil
        ampliada de 40px justo en el rango de tablet donde más importa. */
-    .dock-tab  { font-size: 9px; padding: 6px 7px; min-height: 40px; }
+    .dock-tab  { font-size: 11px; padding: 6px 7px; min-height: 40px; }
     .dap-titulo { max-width: 160px; }
 }
 
@@ -3099,7 +3099,7 @@
         flex-shrink: 0;
     }
     .dock-tab {
-        font-size: 8.5px;
+        font-size: 11px;
         padding: 7px 4px 8px;
         text-align: center;
         border-radius: 8px 8px 0 0;
@@ -3137,12 +3137,12 @@
         gap: 0;
     }
     .cfc-val  { font-size: 0.88rem; }
-    .cfc-unit { font-size: 0.52rem; }
-    .cfc-label { font-size: 0.52rem; letter-spacing: 0; }
+    .cfc-unit { font-size: 0.6875rem; }
+    .cfc-label { font-size: 0.6875rem; letter-spacing: 0; }
     .cfc-arrow { min-width: 22px; gap: 0; }
     .cfc-arrow::before { font-size: 0.7rem; }
-    .cfc-loss  { font-size: 0.52rem; }
-    .cfc-dist  { font-size: 0.46rem; }
+    .cfc-loss  { font-size: 0.6875rem; }
+    .cfc-dist  { font-size: 0.6875rem; }
 
     /* ── 5. IEC breakdown — barras compactas, sin sparkline ni botones */
     .iec-breakdown {
@@ -3155,9 +3155,9 @@
         gap: 4px;
     }
     .iec-bd-track  { height: 3px; }
-    .iec-bd-label  { font-size: 0.5rem; }
-    .iec-bd-pts    { font-size: 0.52rem; }
-    .iec-bd-texto  { font-size: 0.52rem; margin-top: 1px; }
+    .iec-bd-label  { font-size: 0.6875rem; }
+    .iec-bd-pts    { font-size: 0.6875rem; }
+    .iec-bd-texto  { font-size: 0.6875rem; margin-top: 1px; }
 
     /* Ocultar sparkline y botones PDF/CSV en móvil */
     .iec-sparkline-wrap { display: none !important; }
@@ -3172,8 +3172,8 @@
         margin-top: 0;
     }
     .dock-panel-footer::-webkit-scrollbar { display: none; }
-    .dpf-label { font-size: 0.5rem; }
-    .dpf-val   { font-size: 0.58rem; }
+    .dpf-label { font-size: 0.6875rem; }
+    .dpf-val   { font-size: 0.6875rem; }
 
     /* ── 7. Tarjetas de checkpoints: 105px, snap ───────────────────── */
     .checkpoint-card-compact {
@@ -3183,13 +3183,13 @@
         border-radius: 10px;
         scroll-snap-align: center;
     }
-    .cpc-km    { font-size: 0.55rem; padding: 1px 3px; }
-    .cpc-name  { font-size: 0.65rem; }
+    .cpc-km    { font-size: 0.6875rem; padding: 1px 3px; }
+    .cpc-name  { font-size: 0.6875rem; }
     .cpc-value { font-size: 0.9rem; }
-    .cpc-unit  { font-size: 0.55rem; }
-    .cpc-time  { font-size: 0.46rem; margin-top: 2px; }
-    .cpc-gasto    { font-size: 0.55rem; }
-    .cpc-apertura { font-size: 0.52rem; }
+    .cpc-unit  { font-size: 0.6875rem; }
+    .cpc-time  { font-size: 0.6875rem; margin-top: 2px; }
+    .cpc-gasto    { font-size: 0.6875rem; }
+    .cpc-apertura { font-size: 0.6875rem; }
     .cpc-extra { gap: 2px; margin-top: 1px; }
 
     /* ── 8. Indicadores de navegación del scroll ───────────────────── */
@@ -3199,8 +3199,8 @@
     }
 
     /* ── 9. Alertas compactas ──────────────────────────────────────── */
-    .dap-titulo  { max-width: 200px; font-size: 9px; }
-    .dap-fecha   { font-size: 7.5px; }
+    .dap-titulo  { max-width: 200px; font-size: 11px; }
+    .dap-fecha   { font-size: 11px; }
     .dap-item    { padding: 5px 8px; gap: 5px; }
     .dap-list    { max-height: 140px; }
 
@@ -3209,12 +3209,12 @@
     .iec-score { font-size: 0.72rem; }
 
     /* ── 11. Coherencia resumen ────────────────────────────────────── */
-    .coherencia-resumen { font-size: 0.52rem; margin-top: 2px; }
+    .coherencia-resumen { font-size: 0.6875rem; margin-top: 2px; }
 
     /* ── 12. perfil inline btn ─────────────────────────────────────── */
     .perfil-inline-btn {
         padding: 2px 6px;
-        font-size: 0.52rem;
+        font-size: 0.6875rem;
     }
 }
 
@@ -3269,7 +3269,7 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 0.6rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     letter-spacing: 0.03em;
     padding: 2px 8px;
@@ -3315,7 +3315,7 @@
 .dsk-state-banner--off   .dsk-sb-icon { color: #8396ad; }
 .dsk-sb-text { display: flex; flex-direction: column; gap: 2px; }
 .dsk-sb-text strong { font-size: 0.7rem; font-weight: 800; color: #e2e8f0; letter-spacing: 0.01em; }
-.dsk-sb-text span   { font-size: 0.62rem; color: #94a3b8; line-height: 1.35; }
+.dsk-sb-text span   { font-size: 0.6875rem; color: #94a3b8; line-height: 1.35; }
 
 /* Balance row */
 .dsk-balance-row {
@@ -3335,7 +3335,7 @@
     min-width: 60px;
 }
 .dsk-bal-label {
-    font-size: 0.55rem;
+    font-size: 0.6875rem;
     color: #7d8ea3;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -3349,7 +3349,7 @@
     color: #94a3b8;
     line-height: 1.1;
 }
-.dsk-bal-unit { font-size: 0.5rem; color: #7d8ea3; }
+.dsk-bal-unit { font-size: 0.6875rem; color: #7d8ea3; }
 .dsk-val--green { color: #22c55e; }
 .dsk-val--blue  { color: #38bdf8; }
 .dsk-val--amber { color: #f59e0b; }
@@ -3357,7 +3357,7 @@
 /* Histórico: último dato conocido (telemetría vencida). Atenuado + cursiva
    para que se lea como referencia, NO como medición en vivo. */
 .dsk-val--hist  { color: #8396ad; font-style: italic; font-weight: 700; }
-.dsk-bal-age    { font-size: 0.5rem; color: #7d8ea3; font-style: normal; font-weight: 600; }
+.dsk-bal-age    { font-size: 0.6875rem; color: #7d8ea3; font-style: normal; font-weight: 600; }
 
 /* Alerts strip */
 .dsk-alerts-strip {
@@ -3366,7 +3366,7 @@
     gap: 4px;
 }
 .dsk-alert-tag {
-    font-size: 0.58rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     padding: 2px 6px;
     border-radius: 3px;
@@ -3388,7 +3388,7 @@
     width: 100%;
     border-collapse: collapse;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.68rem;
+    font-size: 0.6875rem;
     white-space: nowrap;
 }
 .dsk-table thead th {
@@ -3396,7 +3396,7 @@
     top: 0;
     background: #0f1e35;
     color: #7d8ea3;
-    font-size: 0.56rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     text-transform: uppercase;
     padding: 4px 7px;
@@ -3410,7 +3410,7 @@
 .dsk-td-nombre { text-align: left !important; color: #94a3b8 !important; font-weight: 600; }
 .dsk-td-num { font-variant-numeric: tabular-nums; }
 .dsk-td--q    { color: #38bdf8 !important; font-weight: 700; }
-.dsk-td--ref  { color: #8396ad !important; font-size: 9px !important; }
+.dsk-td--ref  { color: #8396ad !important; font-size: 11px !important; }
 .dsk-td--zero { color: #8396ad !important; }
 .dsk-td--m1   { color: #a78bfa !important; }
 .dsk-td--red  { color: #ef4444 !important; font-weight: 700; }
@@ -3436,7 +3436,7 @@
     flex-shrink: 0;
 }
 .dsk-ts {
-    font-size: 0.58rem;
+    font-size: 0.6875rem;
     color: #8396ad;
     font-family: 'JetBrains Mono', monospace;
     white-space: nowrap;
@@ -3451,7 +3451,7 @@
     color: #38bdf8;
     border-radius: 4px;
     padding: 4px 9px;
-    font-size: 0.62rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
@@ -3467,10 +3467,10 @@
 /* ── Volumetría interescalas ── */
 .dsk-section-block { margin-top: 10px; }
 .dsk-sub-header {
-    font-size: 0.5rem; font-weight: 700; letter-spacing: 0.08em;
+    font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.08em;
     color: #7d8ea3; text-transform: uppercase; margin-bottom: 4px;
 }
-.dsk-td-tramo { text-align: left !important; color: #94a3b8 !important; font-size: 9px !important; }
+.dsk-td-tramo { text-align: left !important; color: #94a3b8 !important; font-size: 11px !important; }
 
 /* ── Zonas cards ── */
 .dsk-zonas-grid {
@@ -3481,15 +3481,15 @@
     border-radius: 5px; padding: 5px 6px;
 }
 .dsk-zona-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
-.dsk-zona-code { font-size: 0.6rem; font-weight: 700; color: #94a3b8; }
-.dsk-zona-pct  { font-size: 0.65rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dsk-zona-code { font-size: 0.6875rem; font-weight: 700; color: #94a3b8; }
+.dsk-zona-pct  { font-size: 0.6875rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .dsk-zona-bar-bg {
     height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; margin-bottom: 4px;
 }
 .dsk-zona-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
 .dsk-zona-stats { display: flex; flex-direction: column; gap: 1px; }
-.dsk-zona-stats span { font-size: 0.48rem; color: #7d8ea3; font-variant-numeric: tabular-nums; }
-.dsk-zona-total { font-size: 0.5rem; color: #8396ad; text-align: right; }
+.dsk-zona-stats span { font-size: 0.6875rem; color: #7d8ea3; font-variant-numeric: tabular-nums; }
+.dsk-zona-total { font-size: 0.6875rem; color: #8396ad; text-align: right; }
 .dsk-zona-total strong { color: #38bdf8; }
 
 /* ── Tabla de entregas hoy — cabeceras de grupo ─────────────────── */
@@ -3510,12 +3510,12 @@
 
 /* celdas pequeñas (horario, motivo) */
 .dsk-td-horario {
-    font-size: 9px !important;
+    font-size: 11px !important;
     color: #94a3b8 !important;
 }
 .dsk-td-motivo {
     text-align: left !important;
-    font-size: 9px !important;
+    font-size: 11px !important;
     color: #a78bfa !important;
     max-width: 100px;
     white-space: nowrap;
@@ -3533,27 +3533,27 @@
 
 /* ── Skill panel — nuevas secciones ─────────────────────────────── */
 .dsk-tr--reciente { background: rgba(34,197,94,0.06) !important; }
-.dsk-td-src { text-align: left !important; color: #8396ad !important; font-size: 0.55rem !important; }
+.dsk-td-src { text-align: left !important; color: #8396ad !important; font-size: 0.6875rem !important; }
 .dsk-nota {
-    font-size: 0.5rem; color: #8396ad; margin-top: 4px;
+    font-size: 0.6875rem; color: #8396ad; margin-top: 4px;
     line-height: 1.5; letter-spacing: 0.01em;
 }
 
 /* Modelación paralela */
 .dsk-model-form { display: flex; flex-direction: column; gap: 6px; }
 .dsk-model-input-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.dsk-model-label { font-size: 0.55rem; color: #8396ad; white-space: nowrap; }
+.dsk-model-label { font-size: 0.6875rem; color: #8396ad; white-space: nowrap; }
 .dsk-model-input {
     width: 70px; padding: 3px 6px;
     background: rgba(15,23,42,0.8); border: 1px solid rgba(56,189,248,0.25);
-    border-radius: 4px; color: #e2e8f0; font-size: 0.6rem;
+    border-radius: 4px; color: #e2e8f0; font-size: 0.6875rem;
     font-variant-numeric: tabular-nums;
 }
 .dsk-model-input:focus { outline: none; border-color: rgba(56,189,248,0.5); }
 .dsk-btn--calc {
     background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.30);
     color: #38bdf8; border-radius: 4px; padding: 3px 8px;
-    font-size: 0.55rem; font-weight: 700; cursor: pointer; letter-spacing: 0.06em;
+    font-size: 0.6875rem; font-weight: 700; cursor: pointer; letter-spacing: 0.06em;
 }
 .dsk-btn--calc:hover { background: rgba(56,189,248,0.22); }
 .dsk-model-results {
@@ -3562,8 +3562,8 @@
     border-radius: 5px; padding: 6px 8px;
 }
 .dsk-model-res-item { display: flex; flex-direction: column; gap: 1px; }
-.dsk-model-res-label { font-size: 0.48rem; color: #7d8ea3; text-transform: uppercase; letter-spacing: 0.06em; }
-.dsk-model-res-val { font-size: 0.65rem; font-weight: 700; font-variant-numeric: tabular-nums; color: #94a3b8; }
+.dsk-model-res-label { font-size: 0.6875rem; color: #7d8ea3; text-transform: uppercase; letter-spacing: 0.06em; }
+.dsk-model-res-val { font-size: 0.6875rem; font-weight: 700; font-variant-numeric: tabular-nums; color: #94a3b8; }
 
 /* Skill informe colapsable */
 .dsk-sub-header--toggle {
@@ -3582,14 +3582,14 @@
 }
 .dsk-informe-section { display: flex; flex-direction: column; gap: 3px; }
 .dsk-informe-title {
-    font-size: 0.5rem; font-weight: 700; letter-spacing: 0.08em;
+    font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.08em;
     color: #38bdf8; text-transform: uppercase;
 }
 .dsk-informe-formula {
-    font-size: 0.62rem; color: #a78bfa; font-family: 'Courier New', monospace;
+    font-size: 0.6875rem; color: #a78bfa; font-family: 'Courier New', monospace;
     background: rgba(167,139,250,0.06); border-radius: 3px; padding: 3px 6px;
 }
-.dsk-informe-params { font-size: 0.5rem; color: #7d8ea3; }
+.dsk-informe-params { font-size: 0.6875rem; color: #7d8ea3; }
 .dsk-modulos-grid {
     display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;
 }
@@ -3598,13 +3598,13 @@
     background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
     border-radius: 4px; padding: 3px 6px;
 }
-.dsk-mod-code { font-size: 0.55rem; font-weight: 700; color: #38bdf8; white-space: nowrap; }
-.dsk-mod-zona { font-size: 0.5rem; color: #a78bfa; white-space: nowrap; }
-.dsk-mod-desc { font-size: 0.5rem; color: #7d8ea3; }
+.dsk-mod-code { font-size: 0.6875rem; font-weight: 700; color: #38bdf8; white-space: nowrap; }
+.dsk-mod-zona { font-size: 0.6875rem; color: #a78bfa; white-space: nowrap; }
+.dsk-mod-desc { font-size: 0.6875rem; color: #7d8ea3; }
 .dsk-informe-list {
     margin: 0; padding-left: 14px; display: flex; flex-direction: column; gap: 2px;
 }
-.dsk-informe-list li { font-size: 0.52rem; color: #8396ad; line-height: 1.5; }
+.dsk-informe-list li { font-size: 0.6875rem; color: #8396ad; line-height: 1.5; }
 
 /* Botón Skill .md */
 .dsk-btn--skill-md {
@@ -3634,10 +3634,10 @@
 }
 .dsk-aforo-icon { font-size: 0.95rem; line-height: 1.1; flex-shrink: 0; }
 .dsk-aforo-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.dsk-aforo-text strong { font-size: 0.68rem; font-weight: 800; color: #e2e8f0; letter-spacing: 0.01em; }
+.dsk-aforo-text strong { font-size: 0.6875rem; font-weight: 800; color: #e2e8f0; letter-spacing: 0.01em; }
 .dsk-aforo-list { display: flex; flex-wrap: wrap; gap: 4px; }
 .dsk-aforo-chip {
-    font-size: 0.58rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     font-family: 'JetBrains Mono', monospace;
     padding: 2px 6px;
@@ -3652,7 +3652,7 @@
     border-color: rgba(239, 68, 68, 0.3);
     color: #fca5a5;
 }
-.dsk-aforo-nota { font-size: 0.6rem; color: #fca5a5; font-weight: 600; line-height: 1.3; }
+.dsk-aforo-nota { font-size: 0.6875rem; color: #fca5a5; font-weight: 600; line-height: 1.3; }
 .bt-alert-item {
     display: flex;
     align-items: center;
@@ -3685,7 +3685,7 @@
 .bt-alert-q     { color: #e2e8f0; font-weight: 600; }
 
 /* columna Estado en tabla */
-.bt-estado { font-size: 9px !important; font-weight: 700 !important; letter-spacing: 0.03em; }
+.bt-estado { font-size: 11px !important; font-weight: 700 !important; letter-spacing: 0.03em; }
 .bt-estado--alta           { color: #ef4444 !important; }
 .bt-estado--media          { color: #eab308 !important; }
 .bt-estado--inconsistencia { color: #a78bfa !important; }
@@ -3710,7 +3710,7 @@
 }
 .tr-onda-q {
     color: #8396ad;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 400;
     margin-left: 4px;
 }
@@ -3738,23 +3738,23 @@
   padding: 8px 10px; background: rgba(56,189,248,0.05); border: 1px solid rgba(56,189,248,0.12);
   border-radius: 8px; }
 .tnd-dates { display: flex; gap: 10px; }
-.tnd-dates label { font-size: 0.6rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;
+.tnd-dates label { font-size: 0.6875rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;
   display: flex; flex-direction: column; gap: 3px; font-family: var(--font-mono, monospace); }
 .tnd-dates input[type=date] { background: #0a1220; border: 1px solid rgba(148,163,184,0.25);
-  color: #e2e8f0; border-radius: 5px; padding: 3px 6px; font-size: 0.68rem; font-family: var(--font-mono, monospace); }
+  color: #e2e8f0; border-radius: 5px; padding: 3px 6px; font-size: 0.6875rem; font-family: var(--font-mono, monospace); }
 .tnd-presets, .tnd-gran { display: flex; gap: 4px; }
 .tnd-presets button, .tnd-gran button { background: #0a1220; border: 1px solid rgba(148,163,184,0.2);
-  color: #94a3b8; border-radius: 5px; padding: 4px 9px; font-size: 0.62rem; cursor: pointer;
+  color: #94a3b8; border-radius: 5px; padding: 4px 9px; font-size: 0.6875rem; cursor: pointer;
   font-family: var(--font-mono, monospace); transition: all .15s; }
 .tnd-presets button:hover, .tnd-gran button:hover { border-color: rgba(56,189,248,0.5); color: #e2e8f0; }
 .tnd-presets button.on, .tnd-gran button.on { background: #38bdf8; color: #06121f; border-color: #38bdf8; font-weight: 700; }
 .tnd-gran { margin-left: auto; }
 .tnd-btn-analisis { display: flex; align-items: center; gap: 5px; background: #6B2D2D; border: 1px solid #6B2D2D;
-  color: #fff; border-radius: 5px; padding: 5px 11px; font-size: 0.66rem; font-weight: 700; cursor: pointer;
+  color: #fff; border-radius: 5px; padding: 5px 11px; font-size: 0.6875rem; font-weight: 700; cursor: pointer;
   letter-spacing: 0.3px; font-family: var(--font-mono, monospace); transition: all .15s; }
 .tnd-btn-analisis:hover:not(:disabled) { background: #7d3535; border-color: #7d3535; }
 .tnd-btn-analisis:disabled { opacity: 0.5; cursor: not-allowed; }
-.tnd-live { display: flex; align-items: center; gap: 5px; font-size: 0.6rem; color: #4ade80;
+.tnd-live { display: flex; align-items: center; gap: 5px; font-size: 0.6875rem; color: #4ade80;
   font-family: var(--font-mono, monospace); letter-spacing: 0.3px; font-weight: 700; }
 .tnd-live i { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; display: inline-block;
   animation: tnd-live-pulse 1.8s ease-in-out infinite; }
@@ -3781,22 +3781,22 @@
 .tnd-h { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; font-weight: 700; color: #e2e8f0; }
 .tnd-n { width: 20px; height: 20px; border-radius: 6px; display: inline-flex; align-items: center;
   justify-content: center; font-size: 0.72rem; font-weight: 800; color: #fff; font-family: var(--font-mono, monospace); }
-.tnd-calc { font-size: 0.66rem; font-weight: 600; color: #c98500; background: rgba(201,133,0,0.14);
+.tnd-calc { font-size: 0.6875rem; font-weight: 600; color: #c98500; background: rgba(201,133,0,0.14);
   padding: 1px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
-.tnd-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.68rem; color: #a8b8cc; }
+.tnd-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.6875rem; color: #a8b8cc; }
 .tnd-legend span { display: flex; align-items: center; gap: 4px; }
 .tnd-legend i { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
 
 /* ── Filtro por punto de control (Bloque 1) ─────────────────────────────
    La tabla y la leyenda funcionan como filtro activo del gráfico. */
-.tnd-filtro-info { margin-left: auto; font-size: 0.66rem; font-weight: 600; color: #7dd3fc;
+.tnd-filtro-info { margin-left: auto; font-size: 0.6875rem; font-weight: 600; color: #7dd3fc;
   font-family: var(--font-mono, monospace); background: rgba(56,189,248,0.1);
   padding: 2px 7px; border-radius: 20px; letter-spacing: 0.3px; }
 .tnd-filtro-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.tnd-filtro-lbl { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.6px;
+.tnd-filtro-lbl { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.6px;
   color: #8396ad; font-family: var(--font-mono, monospace); }
 .tnd-filtro-bar button { background: #0a1220; border: 1px solid rgba(148,163,184,0.2);
-  color: #94a3b8; border-radius: 5px; padding: 3px 9px; font-size: 0.6rem; cursor: pointer;
+  color: #94a3b8; border-radius: 5px; padding: 3px 9px; font-size: 0.6875rem; cursor: pointer;
   font-family: var(--font-mono, monospace); transition: all .15s; }
 .tnd-filtro-bar button:hover { border-color: rgba(56,189,248,0.5); color: #e2e8f0; }
 .tnd-filtro-bar button.on { background: rgba(56,189,248,0.16); color: #e2e8f0; border-color: rgba(56,189,248,0.5); font-weight: 700; }
@@ -3804,7 +3804,7 @@
 /* Leyenda interactiva: cada chip es un botón toggle */
 .tnd-legend-int .tnd-chip { display: inline-flex; align-items: center; gap: 4px;
   background: transparent; border: 1px solid rgba(148,163,184,0.18); border-radius: 20px;
-  color: #94a3b8; font-size: 0.58rem; padding: 2px 8px; cursor: pointer; transition: all .12s;
+  color: #94a3b8; font-size: 0.6875rem; padding: 2px 8px; cursor: pointer; transition: all .12s;
   font-family: inherit; }
 .tnd-legend-int .tnd-chip:hover { border-color: rgba(56,189,248,0.45); color: #e2e8f0; }
 .tnd-legend-int .tnd-chip i { width: 14px; height: 5px; border-radius: 2px; display: inline-block; transition: opacity .12s; }
@@ -3820,7 +3820,7 @@
   margin-right: 6px; vertical-align: middle; transition: opacity .12s; }
 .tnd-solo-cell { width: 1%; padding-left: 4px !important; padding-right: 6px !important; text-align: right; }
 .tnd-solo-btn { background: transparent; border: 1px solid rgba(148,163,184,0.22);
-  color: #8396ad; border-radius: 4px; font-size: 0.52rem; padding: 1px 6px; cursor: pointer;
+  color: #8396ad; border-radius: 4px; font-size: 0.6875rem; padding: 1px 6px; cursor: pointer;
   font-family: var(--font-mono, monospace); text-transform: uppercase; letter-spacing: 0.4px;
   opacity: 0; transition: opacity .12s, border-color .12s, color .12s; }
 .tnd-table-int tbody tr:hover .tnd-solo-btn { opacity: 1; }
@@ -3828,11 +3828,11 @@
 @media (hover: none) { .tnd-solo-btn { opacity: 1; } }  /* táctil: siempre visible */
 
 /* Pista de la banda de nivel máximo operativo (aparece con ≤3 escalas) */
-.tnd-band-hint { font-size: 0.66rem; color: #a8b8cc; font-family: var(--font-mono, monospace);
+.tnd-band-hint { font-size: 0.6875rem; color: #a8b8cc; font-family: var(--font-mono, monospace);
   letter-spacing: 0.2px; opacity: 0.8; }
 
 /* ── Tira de secciones transversales por tramo (Bloque 2) ───────────────── */
-.tnd-secline { font-size: 0.66rem; color: #94a3b8; font-family: var(--font-mono, monospace);
+.tnd-secline { font-size: 0.6875rem; color: #94a3b8; font-family: var(--font-mono, monospace);
   letter-spacing: 0.2px; margin-bottom: 2px; }
 .tnd-secstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(92px, 1fr);
   gap: 4px; overflow-x: auto; padding: 4px 2px 2px; background: #0a1220;
@@ -3871,7 +3871,7 @@
 .tnd-modal-head > div { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .tnd-modal-badge { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; }
 .tnd-modal-head b { color: #f1f5f9; font-size: 0.95rem; letter-spacing: .3px; }
-.tnd-modal-km { font-family: var(--font-mono, monospace); font-size: 0.6rem; color: #7dd3fc;
+.tnd-modal-km { font-family: var(--font-mono, monospace); font-size: 0.6875rem; color: #7dd3fc;
   background: rgba(56,189,248,.1); padding: 2px 8px; border-radius: 20px; }
 .tnd-modal-close { background: transparent; border: 1px solid rgba(148,163,184,.25);
   color: #94a3b8; width: 28px; height: 28px; border-radius: 7px; cursor: pointer; font-size: 0.8rem;
@@ -3885,9 +3885,9 @@
 .tnd-modal-estado-lbl { display: flex; flex-direction: column; gap: 2px; font-size: 0.72rem; color: #94a3b8; }
 
 .tnd-modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px; }
-.tnd-modal-grid section h5 { margin: 0 0 7px; font-size: 0.62rem; text-transform: uppercase;
+.tnd-modal-grid section h5 { margin: 0 0 7px; font-size: 0.6875rem; text-transform: uppercase;
   letter-spacing: 1px; color: #8396ad; font-weight: 700; display: flex; align-items: center; gap: 6px; }
-.tnd-modal-tag { font-style: normal; font-size: 0.52rem; color: #22c55e; background: rgba(34,197,94,.14);
+.tnd-modal-tag { font-style: normal; font-size: 0.6875rem; color: #22c55e; background: rgba(34,197,94,.14);
   padding: 1px 6px; border-radius: 4px; letter-spacing: .4px; }
 .tnd-modal-tag.warn { color: #f59e0b; background: rgba(245,158,11,.14); }
 .tnd-modal-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
@@ -3896,17 +3896,17 @@
 .tnd-modal-v { color: #e2e8f0; font-family: var(--font-mono, monospace); text-align: right; }
 .tnd-modal-v b { color: #f8fafc; }
 .tnd-modal-chart { margin-top: 16px; }
-.tnd-modal-chart h5 { margin: 0 0 6px; font-size: 0.62rem; text-transform: uppercase;
+.tnd-modal-chart h5 { margin: 0 0 6px; font-size: 0.6875rem; text-transform: uppercase;
   letter-spacing: 1px; color: #8396ad; font-weight: 700; }
 @media (max-width: 480px) { .tnd-modal-grid { grid-template-columns: 1fr; } }
 
 .tnd-secline-hint { display: flex; align-items: center; gap: 8px; }
 .tnd-sec-clear { background: rgba(56,189,248,0.14); border: 1px solid rgba(56,189,248,0.4);
-  color: #7dd3fc; border-radius: 5px; padding: 2px 9px; font-size: 0.56rem; cursor: pointer;
+  color: #7dd3fc; border-radius: 5px; padding: 2px 9px; font-size: 0.6875rem; cursor: pointer;
   font-family: var(--font-mono, monospace); }
 .tnd-sec-clear:hover { background: rgba(56,189,248,0.24); }
-.tnd-empty { text-align: center; color: #7d8ea3; padding: 18px; font-size: 0.66rem; font-style: italic; }
-.tnd-note { font-size: 0.68rem; color: #94a3b8; line-height: 1.5; padding: 6px 8px;
+.tnd-empty { text-align: center; color: #7d8ea3; padding: 18px; font-size: 0.6875rem; font-style: italic; }
+.tnd-note { font-size: 0.6875rem; color: #94a3b8; line-height: 1.5; padding: 6px 8px;
   background: rgba(148,163,184,0.05); border-radius: 6px; }
 .tnd-note.tnd-warn { background: rgba(245,158,11,0.1); color: #fbbf24; }
 .tnd-note code { background: rgba(148,163,184,0.15); padding: 0 3px; border-radius: 3px; font-size: 0.9em; }
@@ -3993,9 +3993,9 @@
 /* ── Tendencias: resumen ejecutivo, vista por escala (small multiples) y controles (2026-10-05) ── */
 .tnd-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0 0 10px; }
 .tnd-kpi { background: #0a1220; border: 1px solid #16233a; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.tnd-kpi span { font-size: 0.66rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; }
+.tnd-kpi span { font-size: 0.6875rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; }
 .tnd-kpi b { font: 700 1.15rem/1.2 var(--font-mono, monospace); color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tnd-kpi small { font-size: 0.66rem; color: #94a3b8; }
+.tnd-kpi small { font-size: 0.6875rem; color: #94a3b8; }
 @media (max-width: 760px) { .tnd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .tnd-seg { display: inline-flex; gap: 0; margin: 2px 0 8px; border: 1px solid rgba(148,163,184,0.25); border-radius: 8px; overflow: hidden; }
@@ -4007,7 +4007,7 @@
 .tnd-mini { background: #0a1220; border: 1px solid #16233a; border-radius: 8px; padding: 7px 8px 6px; cursor: pointer; text-align: left; color: inherit; font: inherit; min-width: 0; }
 .tnd-mini:hover, .tnd-mini:focus-visible { border-color: #38bdf8; outline: none; }
 .tnd-mini-h { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font: 700 0.72rem/1.2 var(--font-mono, monospace); color: #e2e8f0; }
-.tnd-mini-h small { font-weight: 500; color: #94a3b8; font-size: 0.62rem; }
+.tnd-mini-h small { font-weight: 500; color: #94a3b8; font-size: 0.6875rem; }
 .tnd-mini-v { font-weight: 700; }
 .tnd-mini svg { display: block; width: 100%; height: auto; margin: 3px 0 2px; }
 .tnd-mini-f { display: flex; justify-content: space-between; font: 500 0.64rem/1.2 var(--font-mono, monospace); color: #94a3b8; }
@@ -4056,7 +4056,7 @@
 .tnd-kpi:nth-child(2)::before { background: #5aa9ff; }
 .tnd-kpi:nth-child(3)::before { background: #f59e0b; }
 .tnd-kpi:nth-child(4)::before { background: #94a3b8; }
-.tnd-legend-int .tnd-chip { border-radius: 14px; padding: 3px 10px 3px 8px; font-size: 0.68rem; }
+.tnd-legend-int .tnd-chip { border-radius: 14px; padding: 3px 10px 3px 8px; font-size: 0.6875rem; }
 .tnd-legend-int .tnd-chip i { border-radius: 3px; width: 10px; height: 10px; }
 .tnd-swatch { border-radius: 3px; }
 .tnd-mini { transition: transform .15s, border-color .15s, opacity .18s; }

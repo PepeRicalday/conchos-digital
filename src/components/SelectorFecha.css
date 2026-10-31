@@ -36,7 +36,7 @@
 }
 
 .fecha-badge-hoy {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     padding: 1px 6px;
     border-radius: var(--radius-full);
@@ -113,7 +113,7 @@
 
 .cal-dia-label {
     text-align: center;
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     color: var(--color-text-muted);
     text-transform: uppercase;

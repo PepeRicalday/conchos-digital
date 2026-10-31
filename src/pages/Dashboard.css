@@ -67,7 +67,7 @@
 }
 
 .dash-identity-sub {
-    font-size: 0.62rem;
+    font-size: 0.6875rem;
     color: var(--sica-muted);
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -91,7 +91,7 @@
     align-items: center;
     gap: 6px;
     font-family: var(--font-mono);
-    font-size: 0.66rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.03em;
     padding: 5px 10px;
@@ -343,7 +343,7 @@
 }
 
 .presa-stats .stat span {
-    font-size: 0.68rem;
+    font-size: 0.6875rem;
     text-transform: uppercase;
     font-weight: 600;
     color: #94a3b8;

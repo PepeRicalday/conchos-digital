@@ -436,12 +436,12 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
             tooltip: { trigger: 'axis' },
             legend: {
                 data: ['Área esperada (CONAGUA)', 'Área medida (NDWI)'],
-                textStyle: { color: '#94a3b8', fontSize: 10 }, top: 0,
+                textStyle: { color: '#94a3b8', fontSize: 11 }, top: 0,
             },
-            xAxis: { type: 'category', data: fechas, axisLabel: { color: '#8396ad', fontSize: 10 } },
+            xAxis: { type: 'category', data: fechas, axisLabel: { color: '#8396ad', fontSize: 11 } },
             yAxis: {
                 type: 'value', name: 'km²',
-                axisLabel: { color: '#8396ad', fontSize: 10 },
+                axisLabel: { color: '#8396ad', fontSize: 11 },
                 splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)' } },
             },
             series: [
@@ -537,11 +537,11 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
         return {
             grid: { left: 50, right: 50, top: 30, bottom: 30 },
             tooltip: { trigger: 'axis' },
-            legend: { data: ['Área (km²)', 'Perímetro (km)'], textStyle: { color: '#94a3b8', fontSize: 10 }, top: 0 },
-            xAxis: { type: 'category', data: fechas, axisLabel: { color: '#8396ad', fontSize: 10 } },
+            legend: { data: ['Área (km²)', 'Perímetro (km)'], textStyle: { color: '#94a3b8', fontSize: 11 }, top: 0 },
+            xAxis: { type: 'category', data: fechas, axisLabel: { color: '#8396ad', fontSize: 11 } },
             yAxis: [
-                { type: 'value', name: 'km²', position: 'left', axisLabel: { color: '#22d3ee', fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)' } } },
-                { type: 'value', name: 'km', position: 'right', axisLabel: { color: '#a78bfa', fontSize: 10 }, splitLine: { show: false } },
+                { type: 'value', name: 'km²', position: 'left', axisLabel: { color: '#22d3ee', fontSize: 11 }, splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)' } } },
+                { type: 'value', name: 'km', position: 'right', axisLabel: { color: '#a78bfa', fontSize: 11 }, splitLine: { show: false } },
             ],
             series: [
                 {
@@ -883,7 +883,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                                     promedio histórico ({fragmentacionVaso.baseIslas!.toFixed(1)}) — señal compuesta.</>
                                             )}
                                         </div>
-                                        <div className="vaso-prediction" style={{ fontSize: 10, opacity: 0.6, marginTop: 6 }}>
+                                        <div className="vaso-prediction" style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
                                             Índice de Fragmentación: compara el ratio de elongación (perímetro real / perímetro de
                                             círculo de igual área) del mes más reciente contra el promedio histórico de esta presa.
                                             Un ratio muy por encima de lo habitual indica que el vaso se está angostando en brazos
@@ -1083,7 +1083,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                 {opcionesSerieMensual && (
                                     <ReactECharts option={opcionesSerieMensual} style={{ height: '220px', width: '100%' }} opts={{ renderer: 'svg' }} />
                                 )}
-                                <div className="vaso-prediction" style={{ fontSize: 10.5, opacity: 0.65, marginTop: 8 }}>
+                                <div className="vaso-prediction" style={{ fontSize: 11, opacity: 0.65, marginTop: 8 }}>
                                     Área neta (bancos de tierra excluidos) y perímetro real vía NDWI de Sentinel-2 (10-20m/pixel),
                                     vectorizado con marching squares. Un hueco en la línea indica un mes sin escena confiable
                                     por nubosidad excesiva — nunca se registra como cero.
@@ -1129,7 +1129,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                                 );
                                             })}
                                         </div>
-                                        <div className="vaso-prediction" style={{ fontSize: 10, opacity: 0.6, marginTop: 8 }}>
+                                        <div className="vaso-prediction" style={{ fontSize: 11, opacity: 0.6, marginTop: 8 }}>
                                             Para cada mes con imagen satelital, se busca la lectura de campo (escala) más cercana en fecha
                                             (máx. {UMBRAL_DIAS_VALIDACION} días de diferencia) y se interpola su área esperada sobre la curva
                                             Elevación-Área-Capacidad oficial de la presa. 100% = coincidencia perfecta; desviaciones grandes
@@ -1175,7 +1175,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                                 <span className="vaso-ndwi-value" style={{ fontSize: '1.15rem' }}>{resumenRecalibracion.totalBandas}</span>
                                             </div>
                                         </div>
-                                        <div className="vaso-prediction" style={{ fontSize: 10, opacity: 0.6, marginTop: 8 }}>
+                                        <div className="vaso-prediction" style={{ fontSize: 11, opacity: 0.6, marginTop: 8 }}>
                                             Factor de corrección por banda de 1m de elevación, recalculado mensualmente comparando el área NDWI
                                             real contra el área que la curva oficial CONAGUA predice en cada lectura de campo cercana. Desviación
                                             negativa = el vaso mide menos área real de la esperada a esa elevación (posible azolve acumulado desde

@@ -216,7 +216,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
                                             color:       active ? m.color : '#8396ad',
                                         }}>
                                         <span className="text-base font-black">{m.icon}</span>
-                                        <span className="text-[8px] font-black uppercase leading-none">{t}</span>
+                                        <span className="text-[11px] font-black uppercase leading-none">{t}</span>
                                     </button>
                                 );
                             })}

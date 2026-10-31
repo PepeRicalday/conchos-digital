@@ -96,7 +96,7 @@ export default function Ciclos() {
                                 >
                                     <div className="flex justify-between items-start mb-1">
                                         <h3 className="font-bold text-white">{ciclo.nombre}</h3>
-                                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${ciclo.activo ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-300'}`}>
+                                        <span className={`text-[11px] uppercase font-bold px-2 py-0.5 rounded-full ${ciclo.activo ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-300'}`}>
                                             {ciclo.activo ? 'activo' : 'inactivo'}
                                         </span>
                                     </div>

@@ -186,7 +186,7 @@
 
 .sim-slider-group label {
     display: block;
-    font-size: 0.68rem;
+    font-size: 0.6875rem;
     color: #94a3b8;
     margin-bottom: 0.5rem;
     font-weight: 600;
@@ -256,7 +256,7 @@
     border: 1px solid rgba(34, 211, 238, 0.4);
     color: #22d3ee;
     border-radius: 8px;
-    font-size: 0.68rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     cursor: pointer;
     text-transform: uppercase;
@@ -368,7 +368,7 @@
 /* Badge de confiabilidad — distingue la estimación en vivo (aproximada,
    sin banda infrarroja real) del histórico validado por Sentinel-2. */
 .vaso-confiabilidad-badge {
-    font-size: 0.6rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     padding: 3px 9px;
     border-radius: 100px;
@@ -450,7 +450,7 @@
 
 .vaso-validacion-detalle {
     grid-column: 1 / -1;
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     color: #8396ad;
     line-height: 1.4;
 }
@@ -498,7 +498,7 @@
 
 .vaso3d-badge {
     align-self: flex-start;
-    font-size: 0.6rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     padding: 3px 9px;
     border-radius: 100px;
@@ -570,7 +570,7 @@
     border: 1px solid rgba(34, 211, 238, 0.35);
     color: #22d3ee;
     border-radius: 8px;
-    font-size: 0.68rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -621,7 +621,7 @@
     border: 1px solid rgba(148, 163, 184, 0.3);
     color: #e2e8f0;
     border-radius: 8px;
-    font-size: 0.68rem;
+    font-size: 0.6875rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -771,7 +771,7 @@
 }
 
 .vaso-galeria-fecha {
-    font-size: 0.68rem;
+    font-size: 0.6875rem;
     color: #94a3b8;
     text-transform: capitalize;
     margin-top: 0.5rem;

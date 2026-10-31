@@ -38,7 +38,7 @@ const EstadoBadge: React.FC<{ estado: LlenadoEstado }> = ({ estado }) => {
     };
     const c = config[estado];
     return (
-        <span className={`px-3.5 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase border ${c.class}`}>
+        <span className={`px-3.5 py-1.5 rounded-full text-[11px] font-black tracking-widest uppercase border ${c.class}`}>
             {c.label}
         </span>
     );
@@ -68,7 +68,7 @@ const PuntoCard: React.FC<{
             <div className="punto-header">
                 <div className="punto-status-group">
                     <div className={`status-dot ${isConfirmado ? 'green' : isPendiente ? 'gray' : 'blue'}`} />
-                    <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
+                    <span className="text-slate-400 text-[11px] font-black uppercase tracking-widest whitespace-nowrap">
                         {punto.km === -36 ? 'KM -36' : punto.km === 0 ? 'ENTRADA CANAL' : `KM ${punto.km}`}
                     </span>
                     {isAncla && (
@@ -86,7 +86,7 @@ const PuntoCard: React.FC<{
             </h4>
             
             {punto.km === 0 ? (
-                <span className="text-[9px] text-[#3d85f6] font-black uppercase tracking-tighter mb-2">
+                <span className="text-[11px] text-[#3d85f6] font-black uppercase tracking-tighter mb-2">
                     Transferencia Río → Canal
                 </span>
             ) : <div className="h-4" />} {/* Spacer to maintain height consistency */}
@@ -96,7 +96,7 @@ const PuntoCard: React.FC<{
                 {isPendiente ? (
                     <>
                         <div className="text-slate-800 font-mono text-3xl font-black tracking-tighter">--:--:--</div>
-                        <div className="text-slate-800 text-[9px] font-black uppercase tracking-wider mt-1">ESPERANDO APERTURA</div>
+                        <div className="text-slate-800 text-[11px] font-black uppercase tracking-wider mt-1">ESPERANDO APERTURA</div>
                     </>
                 ) : isConfirmado ? (
                     <div className="arribo-text">
@@ -241,7 +241,7 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                                 Tránsito de Onda Positiva
                             </h3>
                             <div className="flex items-center gap-2 mt-0.5">
-                                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                                <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
                                     36km Río + 104km Canal | Q=
                                 </p>
                                 {isEditingGasto ? (
@@ -250,7 +250,7 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                                             type="number" 
                                             value={tempGasto} 
                                             onChange={e => setTempGasto(e.target.value)}
-                                            className="w-16 bg-slate-800 border-2 border-mobile-accent text-white text-[10px] font-black rounded px-1.5 py-0.5"
+                                            className="w-16 bg-slate-800 border-2 border-mobile-accent text-white text-[11px] font-black rounded px-1.5 py-0.5"
                                         />
                                         <button onClick={() => {
                                             if (onUpdateGasto) onUpdateGasto(parseFloat(tempGasto));
@@ -286,7 +286,7 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                     </div>
                     <div className="flex items-center gap-3">
                         {diaLlenado > 0 && (
-                            <span className="px-3 py-1.5 rounded-lg text-[10px] font-black text-white bg-slate-800 border border-slate-700 shadow-inner">
+                            <span className="px-3 py-1.5 rounded-lg text-[11px] font-black text-white bg-slate-800 border border-slate-700 shadow-inner">
                                 📅 Día {diaLlenado}
                             </span>
                         )}
@@ -299,23 +299,23 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                     {horaApertura ? (
                         <>
                             <div className="flex-1 min-w-[120px] p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 shadow-inner">
-                                <div className="text-slate-400 text-[9px] font-black uppercase mb-1">Hora de Apertura</div>
+                                <div className="text-slate-400 text-[11px] font-black uppercase mb-1">Hora de Apertura</div>
                                 <div className="text-emerald-400 text-lg font-black tracking-tight">{formatHora(horaApertura)}</div>
                             </div>
                             <div className="flex-1 min-w-[120px] p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20 shadow-inner">
-                                <div className="text-slate-400 text-[9px] font-black uppercase mb-1">Tiempo de Tránsito</div>
+                                <div className="text-slate-400 text-[11px] font-black uppercase mb-1">Tiempo de Tránsito</div>
                                 <div className="text-blue-400 text-lg font-black font-mono tracking-tighter">
                                     {formatCountdown(tiempoTranscurrido)}
                                 </div>
                                 <div
-                                    className="text-amber-500/80 text-[8px] font-bold uppercase tracking-wide mt-1"
+                                    className="text-amber-500/80 text-[11px] font-bold uppercase tracking-wide mt-1"
                                     title={`Celeridad de onda calibrada con confianza ${WAVE_CELERITY_CONFIANZA.celeridad_pct}% (${WAVE_CELERITY_CONFIANZA.fuente})`}
                                 >
                                     Estimado · confianza {WAVE_CELERITY_CONFIANZA.celeridad_pct}%
                                 </div>
                             </div>
                             <div className="flex-1 min-w-[120px] p-3 bg-cyan-500/10 rounded-2xl border border-cyan-500/20 shadow-inner">
-                                <div className="text-slate-400 text-[9px] font-black uppercase mb-1">Checkpoints</div>
+                                <div className="text-slate-400 text-[11px] font-black uppercase mb-1">Checkpoints</div>
                                 <div className="text-cyan-400 text-lg font-black">{confirmados} <span className="text-slate-400 font-normal">/ {total}</span></div>
                             </div>
                         </>

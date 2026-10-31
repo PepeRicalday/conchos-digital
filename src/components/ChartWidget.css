@@ -71,7 +71,7 @@
 }
 
 .chart-badge {
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     font-weight: 800;
     color: #38bdf8;
     background: rgba(56, 189, 248, 0.1);
@@ -192,7 +192,7 @@
 }
 
 .chart-info-stat-label {
-    font-size: 0.6rem;
+    font-size: 0.6875rem;
     color: #8396ad;
     text-transform: uppercase;
     letter-spacing: 0.08em;

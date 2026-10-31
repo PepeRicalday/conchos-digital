@@ -153,7 +153,7 @@ const ArrivalPredictor: React.FC = () => {
 
                             <h4 className="ap-point-name">
                                 {p.nombre}
-                                {p.km === 0 && <span className="block text-[10px] text-primary opacity-70 mt-1 uppercase font-black">Transferencia Río-Canal</span>}
+                                {p.km === 0 && <span className="block text-[11px] text-primary opacity-70 mt-1 uppercase font-black">Transferencia Río-Canal</span>}
                             </h4>
 
                             <div className="ap-time-group">

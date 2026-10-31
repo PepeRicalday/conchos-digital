@@ -37,12 +37,12 @@ html[data-device="phone"] .dashboard-grid-kpi > .kpi-card.kpi-sev-critical { gri
 html[data-device="phone"] .dashboard-grid-kpi > .kpi-card:nth-child(3):nth-last-child(2) { grid-column: 1 / -1; }   /* evita el KPI huérfano */
 html[data-device="phone"] .kpi-card { padding: 12px; gap: 6px; border-radius: var(--pl-radius); min-height: 0; }
 html[data-device="phone"] .kpi-header { gap: 6px; }
-html[data-device="phone"] .kpi-title { font-size: 0.66rem; letter-spacing: 0.06em; line-height: 1.25; }
+html[data-device="phone"] .kpi-title { font-size: 0.6875rem; letter-spacing: 0.06em; line-height: 1.25; }
 html[data-device="phone"] .kpi-icon { display: none; }
 html[data-device="phone"] .kpi-value { font-size: 1.9rem; line-height: 1.05; }
 html[data-device="phone"] .kpi-unit { font-size: 0.75rem; }
 html[data-device="phone"] .kpi-subtext { font-size: 0.7rem; line-height: 1.3; color: var(--pl-muted); }
-html[data-device="phone"] .kpi-freshness { font-family: inherit; font-size: 0.66rem; letter-spacing: 0; }
+html[data-device="phone"] .kpi-freshness { font-family: inherit; font-size: 0.6875rem; letter-spacing: 0; }
 html[data-device="phone"] .kpi-aside { display: none; }
 html[data-device="phone"] .kpi-spark { display: none; }
 
@@ -82,7 +82,7 @@ html[data-device="phone"] .dock-close-btn { top: 8px; right: 10px; width: 36px; 
 html[data-device="phone"] .cpc-extra, html[data-device="phone"] .cpc-time { font-size: 11px; line-height: 1.3; }
 html[data-device="phone"] .dap-link { font-size: 0.8rem; }
 html[data-device="phone"] .dsk-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: 100%; }
-html[data-device="phone"] .dsk-actions .dsk-btn { font-size: 0.68rem; padding: 8px 4px; white-space: nowrap; justify-content: center; min-height: 44px; }
+html[data-device="phone"] .dsk-actions .dsk-btn { font-size: 0.6875rem; padding: 8px 4px; white-space: nowrap; justify-content: center; min-height: 44px; }
 html[data-device="phone"] .tnd-legend button, html[data-device="phone"] .tnd-chips button { padding: 4px 10px; font-size: 0.7rem; min-height: 32px; }
 
 /* ═══ PRESAS ════════════════════════════════════════════════════════════════ */
@@ -198,7 +198,7 @@ html[data-device="phone"] .imp-form label { display: block; margin-bottom: 5px; 
 /* ═══ REPORTE OFICIAL: el documento A4 se desliza, no se rompe ═══════════════ */
 @media screen {
     html[data-device="phone"] .report-paper { overflow-x: auto; }
-    html[data-device="phone"] .report-paper table { min-width: 560px; table-layout: fixed; font-size: 10px; word-break: break-word; }
+    html[data-device="phone"] .report-paper table { min-width: 560px; table-layout: fixed; font-size: 11px; word-break: break-word; }
     html[data-device="phone"] .report-paper :is(.flex, .grid) { flex-wrap: nowrap; }
 }
 
@@ -224,7 +224,7 @@ html[data-device="phone"] .info-cards-dock { background: rgba(2, 6, 23, 0.98); }
 html[data-device="phone"] .info-cards-dock .dock-tabs { padding-right: 52px; }
 html[data-device="phone"] .dock-minimized { white-space: nowrap; padding: 10px 22px; font-size: 0.78rem; min-height: 44px; width: auto; }
 html[data-device="phone"] .dsk-aforo-list { display: flex; flex-wrap: wrap; gap: 4px; }
-html[data-device="phone"] .dsk-aforo-chip { font-size: 0.66rem; padding: 2px 8px; white-space: nowrap; }
+html[data-device="phone"] .dsk-aforo-chip { font-size: 0.6875rem; padding: 2px 8px; white-space: nowrap; }
 /* Con el tablero abierto, el HUD y el banner de atrás no deben transparentarse a través de la hoja */
 html[data-device="phone"] .public-monitor-container:has(.info-cards-dock) :is(.public-header-badge, .hydraulic-violation-banner) { visibility: hidden; }
 /* Escalas sin reporte: lista corta desplazable (12 filas ocupaban media pantalla) */

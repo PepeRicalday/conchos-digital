@@ -172,7 +172,7 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
                                 <h2 className="font-black text-white uppercase" style={{ fontSize: 16, letterSpacing: '0.04em', margin: 0 }}>
                                     Informe Geoclimático
                                 </h2>
-                                <p className="font-bold uppercase" style={{ fontSize: 10, letterSpacing: '0.18em', color: '#64748b', margin: '2px 0 0' }}>
+                                <p className="font-bold uppercase" style={{ fontSize: 11, letterSpacing: '0.18em', color: '#64748b', margin: '2px 0 0' }}>
                                     Elige qué incluir
                                 </p>
                             </div>
@@ -231,7 +231,7 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
                                             >
                                                 {label}
                                             </span>
-                                            <span style={{ fontSize: 9.5, color: '#64748b', display: 'block', marginTop: 1, lineHeight: 1.3 }}>
+                                            <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginTop: 1, lineHeight: 1.3 }}>
                                                 {desc}
                                             </span>
                                         </span>
@@ -295,7 +295,7 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
                                 );
                             })}
                         </div>
-                        <p style={{ fontSize: 10.5, color: '#64748b', marginTop: 10, lineHeight: 1.5 }}>
+                        <p style={{ fontSize: 11, color: '#64748b', marginTop: 10, lineHeight: 1.5 }}>
                             Cada variable incluye el mapa del corte (o del periodo elegido abajo) y su evolución mensual (promedio; acumulado en precipitación). Menos variables = archivo más ligero.
                         </p>
                     </div>
@@ -331,7 +331,7 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
                                 <span className="font-semibold block" style={{ fontSize: 12.5, color: incluirTendencias ? '#f1f5f9' : '#64748b' }}>
                                     Incluir gráficas de tendencias
                                 </span>
-                                <span style={{ fontSize: 9.5, color: '#64748b', display: 'block', marginTop: 1, lineHeight: 1.3 }}>
+                                <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginTop: 1, lineHeight: 1.3 }}>
                                     Evolución día a día de cada variable dentro del periodo; en precipitación añade acumulado, día pico e intensidad por hora. Útil en temporal.
                                 </span>
                             </span>
@@ -422,7 +422,7 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
                                 />
                             </label>
                         </div>
-                        <p style={{ fontSize: 10.5, color: '#64748b', marginTop: 10, lineHeight: 1.5 }}>
+                        <p style={{ fontSize: 11, color: '#64748b', marginTop: 10, lineHeight: 1.5 }}>
                             {periodo
                                 ? 'El informe mostrará el promedio (o acumulado, en precipitación) global del rango elegido, además del desglose mes a mes dentro de ese rango.'
                                 : 'Todo el histórico: el informe mostrará el promedio (o acumulado, en precipitación) desde el primer dato de la red hasta hoy — no solo la lectura del día en que se genera.'}

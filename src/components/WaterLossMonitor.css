@@ -93,7 +93,7 @@
 }
 
 .wlm-subtitle p {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 900;
     font-family: var(--font-mono, monospace);
     color: rgba(96, 165, 250, 0.8);
@@ -113,7 +113,7 @@
 }
 
 .wlm-status-badge span {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 900;
     color: #94a3b8;
     text-transform: uppercase;
@@ -188,7 +188,7 @@
 }
 
 .wlm-label {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 900;
     color: #8396ad;
     text-transform: uppercase;
@@ -228,7 +228,7 @@
     padding: 0.4rem 0.75rem;
     border-radius: 1rem;
     border: 1px solid transparent;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -274,7 +274,7 @@
 }
 
 .wlm-stat-label {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 900;
     color: #8396ad;
     text-transform: uppercase;
@@ -324,7 +324,7 @@
 }
 
 .wlm-stat-desc {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 900;
     font-family: var(--font-mono, monospace);
     color: #8396ad;
@@ -360,7 +360,7 @@
 }
 
 .wlm-version {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 900;
     font-family: var(--font-mono, monospace);
     color: #8396ad;
@@ -377,7 +377,7 @@
     border: 1px solid rgba(59, 130, 246, 0.2);
     border-radius: 0.75rem;
     color: #60a5fa;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.1em;

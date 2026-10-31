@@ -64,7 +64,7 @@ const AnomalyMatrix: React.FC<AnomalyMatrixProps> = ({ modules, onSelectModule }
                     <Activity size={32} className="text-emerald-500/40 animate-pulse" />
                 </div>
                 <span className="text-xs font-black uppercase tracking-[0.2em] text-emerald-500/60 mb-1">Estatus Operativo</span>
-                <span className="text-[10px] font-mono opacity-40">Sincronía Digital Optimizada</span>
+                <span className="text-[11px] font-mono opacity-40">Sincronía Digital Optimizada</span>
             </div>
         );
     }
@@ -80,7 +80,7 @@ const AnomalyMatrix: React.FC<AnomalyMatrixProps> = ({ modules, onSelectModule }
                 </div>
                 <div className="flex items-center gap-2 bg-red-500/10 px-2 py-1 rounded-full border border-red-500/20">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                    <span className="text-[10px] font-mono font-black text-red-400">{anomalies.length}</span>
+                    <span className="text-[11px] font-mono font-black text-red-400">{anomalies.length}</span>
                 </div>
             </header>
 
@@ -102,7 +102,7 @@ const AnomalyMatrix: React.FC<AnomalyMatrixProps> = ({ modules, onSelectModule }
                             <div className={`absolute left-0 top-0 bottom-0 w-1 ${isCritical ? 'bg-red-500' : 'bg-amber-500'} group-hover:w-1.5 transition-all`} />
 
                             <div className="flex justify-between items-start mb-2">
-                                <span className="text-[9px] font-black font-mono text-slate-400 uppercase tracking-widest">{issue.moduleName}</span>
+                                <span className="text-[11px] font-black font-mono text-slate-400 uppercase tracking-widest">{issue.moduleName}</span>
                                 <div className="p-1 rounded bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <ArrowRight size={10} className="text-white" />
                                 </div>
@@ -114,7 +114,7 @@ const AnomalyMatrix: React.FC<AnomalyMatrixProps> = ({ modules, onSelectModule }
                                 </div>
                                 <div className="flex flex-col">
                                     <h4 className="text-xs font-bold text-white mb-1 group-hover:text-red-100 transition-colors">{issue.title}</h4>
-                                    <p className={`text-[10px] font-mono ${isCritical ? 'text-red-400/80' : 'text-amber-400/80'}`}>{issue.desc}</p>
+                                    <p className={`text-[11px] font-mono ${isCritical ? 'text-red-400/80' : 'text-amber-400/80'}`}>{issue.desc}</p>
                                 </div>
                             </div>
                         </div>
@@ -123,7 +123,7 @@ const AnomalyMatrix: React.FC<AnomalyMatrixProps> = ({ modules, onSelectModule }
             </div>
 
             <footer className="px-5 py-3 border-t border-white/5 bg-white/5">
-                <p className="text-[9px] text-slate-400 font-mono text-center tracking-tighter">
+                <p className="text-[11px] text-slate-400 font-mono text-center tracking-tighter">
                     © Hidro-Sincronía Digital · SRL Unidad Conchos
                 </p>
             </footer>

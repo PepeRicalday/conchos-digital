@@ -433,11 +433,11 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
                                     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height={240}>
                                         <ComposedChart data={serie} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" />
-                                            <XAxis dataKey="fecha" tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                                            <YAxis yAxisId="mm" tick={{ fontSize: 10, fill: '#94a3b8' }}
-                                                   label={{ value: 'mm', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 10 }} />
-                                            <YAxis yAxisId="t" orientation="right" tick={{ fontSize: 10, fill: '#94a3b8' }}
-                                                   label={{ value: '°C', angle: 90, position: 'insideRight', fill: '#94a3b8', fontSize: 10 }} />
+                                            <XAxis dataKey="fecha" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                                            <YAxis yAxisId="mm" tick={{ fontSize: 11, fill: '#94a3b8' }}
+                                                   label={{ value: 'mm', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 11 }} />
+                                            <YAxis yAxisId="t" orientation="right" tick={{ fontSize: 11, fill: '#94a3b8' }}
+                                                   label={{ value: '°C', angle: 90, position: 'insideRight', fill: '#94a3b8', fontSize: 11 }} />
                                             <Tooltip
                                                 contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, fontSize: 12 }}
                                                 labelStyle={{ color: '#e2e8f0' }}

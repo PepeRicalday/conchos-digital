@@ -284,7 +284,7 @@
 .kpi-rose .kpi-spark { color: var(--color-danger); }
 
 .kpi-freshness {
-    font-size: 0.68rem;
+    font-size: 0.6875rem;
     font-family: var(--font-mono);
     color: var(--color-text-muted);
     margin-top: 8px;

@@ -1493,7 +1493,7 @@ const GeoMonitor = () => {
             },
             axisTick: { show: false },
             splitLine: { distance: -18, length: 12, lineStyle: { color: 'rgba(255, 255, 255, 0.1)', width: 2 } },
-            axisLabel: { distance: 18, color: '#8396ad', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' },
+            axisLabel: { distance: 18, color: '#8396ad', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' },
             detail: {
                 valueAnimation: true,
                 formatter: (v: number | null) => (v == null || Number.isNaN(v) ? 'S/D' : `${v}%`),
@@ -1510,7 +1510,7 @@ const GeoMonitor = () => {
             title: {
                 offsetCenter: [0, '75%'],
                 color: '#7c8ba3',
-                fontSize: 10,
+                fontSize: 11,
                 fontFamily: 'Manrope, sans-serif',
                 fontWeight: 700,
                 textTransform: 'uppercase'
@@ -1525,7 +1525,7 @@ const GeoMonitor = () => {
         xAxis: {
             type: 'category' as const,
             data: escalas.map(e => `K${Math.round(e.km)}`),
-            axisLabel: { color: '#8396ad', fontSize: 8, rotate: 0, fontWeight: 700 },
+            axisLabel: { color: '#8396ad', fontSize: 11, rotate: 0, fontWeight: 700 },
             axisLine: { lineStyle: { color: 'rgba(28, 43, 66, 0.6)' } },
             axisTick: { show: false }
         },
@@ -1533,7 +1533,7 @@ const GeoMonitor = () => {
             type: 'value' as const,
             min: 0,
             max: 4.5,
-            axisLabel: { color: '#8396ad', fontSize: 9, formatter: '{value}m', fontFamily: 'JetBrains Mono, monospace' },
+            axisLabel: { color: '#8396ad', fontSize: 11, formatter: '{value}m', fontFamily: 'JetBrains Mono, monospace' },
             axisLine: { show: false },
             splitLine: { lineStyle: { color: 'rgba(28, 43, 66, 0.5)', type: 'dashed' } },
         },
@@ -1633,8 +1633,8 @@ const GeoMonitor = () => {
             valueFormatter: (v: number | null) => (v == null ? "S/D" : `${v} ${historySeries?.unit ?? ""}`),
         },
         grid: { left: 40, right: 20, top: 40, bottom: 30 },
-        xAxis: { type: 'category', data: historySeries?.labels ?? [], axisLabel: { color: '#7c8ba3', fontSize: 10, fontWeight: 'bold' } },
-        yAxis: { type: 'value', axisLabel: { color: '#7c8ba3', fontSize: 10, fontFamily: 'JetBrains Mono, monospace', formatter: `{value} ${historySeries?.unit ?? ''}` }, splitLine: { lineStyle: { color: '#1c2b42', type: 'dashed' } } },
+        xAxis: { type: 'category', data: historySeries?.labels ?? [], axisLabel: { color: '#7c8ba3', fontSize: 11, fontWeight: 'bold' } },
+        yAxis: { type: 'value', axisLabel: { color: '#7c8ba3', fontSize: 11, fontFamily: 'JetBrains Mono, monospace', formatter: `{value} ${historySeries?.unit ?? ''}` }, splitLine: { lineStyle: { color: '#1c2b42', type: 'dashed' } } },
         series: [{
             name: historySeries?.seriesName ?? '',
             data: historySeries?.values ?? [],
@@ -2657,7 +2657,7 @@ const GeoMonitor = () => {
                                         }}
                                     >
                                         <Tooltip direction="top" offset={[0, -5]}>
-                                            <div style={{ fontFamily: 'monospace', fontSize: 10 }}>
+                                            <div style={{ fontFamily: 'monospace', fontSize: 11 }}>
                                                 <b>{isBlocked ? '🔒 ' : ''}{t.nombre}</b><br />
                                                 Estado: <span style={{ color: isBlocked ? '#94a3b8' : (t.estado === 'cierre' ? '#94a3b8' : '#4ade80') }}>
                                                 </span><br />
@@ -2694,7 +2694,7 @@ const GeoMonitor = () => {
                                             fillOpacity={e.enLinea ? 0.85 : 0.5}
                                         >
                                             <Tooltip direction="top" offset={[0, -6]}>
-                                                <div style={{ fontFamily: 'monospace', fontSize: 10 }}>
+                                                <div style={{ fontFamily: 'monospace', fontSize: 11 }}>
                                                     <b>🌦️ {e.nombre}</b>{e.enLinea ? '' : ' (sin datos)'}<br />
                                                     {l?.temp_c != null && <span>{l.temp_c.toFixed(1)}°C · {l.hum_rel_pct != null ? Math.round(l.hum_rel_pct) : '—'}% HR</span>}
                                                 </div>
@@ -2872,7 +2872,7 @@ const GeoMonitor = () => {
                                         {historySeries?.values.length ? (
                                             <ReactECharts option={miniHistoryOptions} style={{ height: '100%', width: '100%' }} />
                                         ) : (
-                                            <div style={{ height: '100%', display: 'flex', alignItems: 'center', fontSize: 10, color: 'var(--geo-text-3)' }}>
+                                            <div style={{ height: '100%', display: 'flex', alignItems: 'center', fontSize: 11, color: 'var(--geo-text-3)' }}>
                                                 {historyLoading ? 'Cargando…' : 'Sin lecturas recientes'}
                                             </div>
                                         )}

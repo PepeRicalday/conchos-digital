@@ -101,7 +101,7 @@
 /* Teléfono: cada tipo es una tarjeta; arriba el nombre y el estado, luego las tres cifras que más pesan. */
 @media (max-width: 640px) {
   .mq-kpi { padding: 10px 12px; }
-  .mq-kpi dt { font-size: 10px; letter-spacing: 0.04em; }
+  .mq-kpi dt { font-size: 11px; letter-spacing: 0.04em; }
   .mq-kpi dd { font-size: 24px; }
   .mq-kpi:not([data-alerta]) small { display: none; }
   .mq-fila { padding: 12px !important; }

@@ -118,7 +118,7 @@ export const ShapefileImporter = ({ onLayerImported, onClose }: ShapefileImporte
                 <div className="p-4 space-y-4">
                     {/* Tipo de Capa */}
                     <div>
-                        <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2 block">
+                        <label className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mb-2 block">
                             Tipo de Capa
                         </label>
                         <div className="grid grid-cols-3 gap-2">
@@ -126,7 +126,7 @@ export const ShapefileImporter = ({ onLayerImported, onClose }: ShapefileImporte
                                 <button
                                     key={preset.id}
                                     onClick={() => setSelectedPreset(preset)}
-                                    className={`p-2 rounded-lg text-[10px] font-bold uppercase transition-all border ${selectedPreset.id === preset.id
+                                    className={`p-2 rounded-lg text-[11px] font-bold uppercase transition-all border ${selectedPreset.id === preset.id
                                             ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400'
                                             : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
                                         }`}
@@ -196,7 +196,7 @@ export const ShapefileImporter = ({ onLayerImported, onClose }: ShapefileImporte
                                 </span></div>
                                 {preview.features[0]?.properties && (
                                     <div className="col-span-2 text-slate-400">
-                                        Campos: <span className="text-white font-mono text-[10px]">
+                                        Campos: <span className="text-white font-mono text-[11px]">
                                             {Object.keys(preview.features[0].properties).slice(0, 5).join(', ')}
                                             {Object.keys(preview.features[0].properties).length > 5 ? '...' : ''}
                                         </span>

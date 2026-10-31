@@ -107,14 +107,14 @@ export default function Infraestructura() {
                                             <td className="py-3 px-4 font-mono text-blue-400">{fmt(p.km, 3)}</td>
                                             <td className="py-3 px-4">
                                                 <div className="font-bold text-white uppercase text-xs">{p.nombre}</div>
-                                                <div className="text-[10px] text-slate-400 bg-slate-900 inline-block px-1.5 py-0.5 rounded mt-1 uppercase">{p.tipo}</div>
+                                                <div className="text-[11px] text-slate-400 bg-slate-900 inline-block px-1.5 py-0.5 rounded mt-1 uppercase">{p.tipo}</div>
                                             </td>
                                             <td className="py-3 px-4">
                                                 <div className="text-slate-300 font-medium text-xs">{p.m_codigo_corto || 'N/A'}</div>
-                                                <div className="text-[10px] text-slate-400">{p.s_nombre || p.seccion_texto || 'S/S'}</div>
+                                                <div className="text-[11px] text-slate-400">{p.s_nombre || p.seccion_texto || 'S/S'}</div>
                                             </td>
                                             <td className="py-3 px-4 text-right font-mono text-emerald-400 font-bold">
-                                                {fmtMiles(p.capacidad_max_lps ?? (p.capacidad_max > 0 ? p.capacidad_max : null), 0)} <span className="text-[10px] text-slate-400 font-sans">L/s</span>
+                                                {fmtMiles(p.capacidad_max_lps ?? (p.capacidad_max > 0 ? p.capacidad_max : null), 0)} <span className="text-[11px] text-slate-400 font-sans">L/s</span>
                                             </td>
                                             <td className="py-3 px-4 text-right">
                                                 <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -143,18 +143,18 @@ export default function Infraestructura() {
                         <form id="form-punto" onSubmit={handleSubmit} className="p-5 flex-1 overflow-y-auto custom-scrollbar space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Nombre</label>
+                                    <label className="block text-[11px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Nombre</label>
                                     <input type="text" required value={formData.nombre || ''} onChange={e => setFormData({ ...formData, nombre: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white text-sm focus:border-blue-500 outline-none" placeholder="Ej. Toma La Esperanza" />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Kilometraje (Km)</label>
+                                    <label className="block text-[11px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Kilometraje (Km)</label>
                                     <input type="number" step="0.001" required value={formData.km ?? ''} onChange={e => setFormData({ ...formData, km: e.target.value === '' ? undefined : parseFloat(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-blue-400 font-mono text-sm focus:border-blue-500 outline-none" />
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Tipo</label>
+                                    <label className="block text-[11px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Tipo</label>
                                     <select value={formData.tipo || 'toma'} onChange={e => setFormData({ ...formData, tipo: e.target.value as PuntoEntrega['tipo'] })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white text-sm focus:border-blue-500 outline-none uppercase font-bold">
                                         <option value="toma">Toma Agrícola</option>
                                         <option value="lateral">Canal Lateral</option>
@@ -162,13 +162,13 @@ export default function Infraestructura() {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Diseño Max (L/s)</label>
+                                    <label className="block text-[11px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Diseño Max (L/s)</label>
                                     <input type="number" step="0.001" required value={formData.capacidad_max_lps ?? formData.capacidad_max ?? ''} onChange={e => { const v = e.target.value === '' ? undefined : parseFloat(e.target.value); setFormData({ ...formData, capacidad_max: v, capacidad_max_lps: v ?? null }); }} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-emerald-400 font-mono text-sm focus:border-blue-500 outline-none" />
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider" htmlFor="punto-zona">Zona de riego</label>
+                                <label className="block text-[11px] text-slate-400 mb-1 uppercase font-bold tracking-wider" htmlFor="punto-zona">Zona de riego</label>
                                 <select id="punto-zona" value={formData.zona || ''} onChange={e => setFormData({ ...formData, zona: e.target.value || null })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white text-sm focus:border-blue-500 outline-none">
                                     <option value="">-- Sin zona --</option>
                                     {['ZONA #1', 'ZONA #2', 'ZONA #3', 'ZONA #4'].map(z => <option key={z} value={z}>{z}</option>)}
@@ -176,7 +176,7 @@ export default function Infraestructura() {
                             </div>
 
                             <div>
-                                <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Módulo Destino / Custodia</label>
+                                <label className="block text-[11px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Módulo Destino / Custodia</label>
                                 <select value={formData.modulo_id || ''} onChange={e => setFormData({ ...formData, modulo_id: e.target.value || null })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white text-sm focus:border-blue-500 outline-none">
                                     <option value="">-- Sin Módulo / Control SRL --</option>
                                     {modulos.map(m => <option key={m.id} value={m.id}>{m.codigo_corto} - {m.nombre}</option>)}
@@ -184,7 +184,7 @@ export default function Infraestructura() {
                             </div>
 
                             <div>
-                                <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Sección Hidráulica Relacional</label>
+                                <label className="block text-[11px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Sección Hidráulica Relacional</label>
                                 <select value={formData.seccion_id || ''} onChange={e => setFormData({ ...formData, seccion_id: e.target.value || null })} className="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white text-sm focus:border-blue-500 outline-none">
                                     <option value="">-- Sin Sección --</option>
                                     {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
@@ -195,11 +195,11 @@ export default function Infraestructura() {
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Opcional: Ubicación Física GPS</h3>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Latitud (Y)</label>
+                                        <label className="block text-[11px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Latitud (Y)</label>
                                         <input type="number" step="0.0000001" value={formData.coords_y ?? ''} onChange={e => setFormData({ ...formData, coords_y: e.target.value === '' ? null : parseFloat(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-slate-300 font-mono text-xs focus:border-blue-500 outline-none" />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Longitud (X)</label>
+                                        <label className="block text-[11px] text-slate-400 mb-1 uppercase font-bold tracking-wider">Longitud (X)</label>
                                         <input type="number" step="0.0000001" value={formData.coords_x ?? ''} onChange={e => setFormData({ ...formData, coords_x: e.target.value === '' ? null : parseFloat(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-slate-300 font-mono text-xs focus:border-blue-500 outline-none" />
                                     </div>
                                 </div>

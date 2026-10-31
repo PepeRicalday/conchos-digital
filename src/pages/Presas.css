@@ -37,7 +37,7 @@
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.15em;
@@ -74,7 +74,7 @@
     transition: width 0.6s ease;
 }
 .presa-kpi-namo-val {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 900;
     font-family: 'JetBrains Mono', monospace;
     text-align: right;
@@ -91,7 +91,7 @@
     gap: 1px;
 }
 .presa-kpi-mlabel {
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 900;
     color: #8396ad;
     text-transform: uppercase;
@@ -108,7 +108,7 @@
     color: #a78bfa;
 }
 .presa-kpi-munit {
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 700;
     color: #8396ad;
 }
@@ -117,7 +117,7 @@
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 8px;
+    font-size: 11px;
     color: #8396ad;
     font-weight: 700;
     border-top: 1px solid rgba(255,255,255,0.04);
@@ -254,7 +254,7 @@
     background-color: rgba(59, 130, 246, 0.15);
     border: 1px solid rgba(59, 130, 246, 0.3);
     border-radius: var(--radius-full);
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     color: #60a5fa;
     text-transform: uppercase;
@@ -323,7 +323,7 @@
     display: flex;
     align-items: center;
     gap: var(--spacing-xs);
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     color: var(--color-text-muted);
     margin-bottom: var(--spacing-md);
 }
@@ -343,7 +343,7 @@
 }
 
 .status-metric .metric-label {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     color: var(--color-text-muted);
     text-transform: uppercase;
     margin-bottom: var(--spacing-xs);
@@ -364,7 +364,7 @@
 }
 
 .status-metric .metric-unit {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     color: var(--color-text-muted);
 }
 
@@ -429,7 +429,7 @@
 }
 
 .extraction-label {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     color: var(--color-text-muted);
     text-transform: uppercase;
     margin-bottom: var(--spacing-xs);
@@ -454,7 +454,7 @@
 }
 
 .destination-tag {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     color: var(--color-text-secondary);
     margin-top: var(--spacing-xs);
 }
@@ -470,7 +470,7 @@
 }
 
 .valves-title {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     color: var(--color-text-muted);
     text-transform: uppercase;
     margin-bottom: var(--spacing-xs);
@@ -584,7 +584,7 @@
 }
 
 .presas-exec-kpi-title {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     color: #e2e8f0;
     text-transform: uppercase;
@@ -613,7 +613,7 @@
 }
 
 .presas-exec-kpi-sub {
-    font-size: 10px;
+    font-size: 11px;
     color: #94a3b8;
     margin-top: 4px;
 }
@@ -629,7 +629,7 @@
     border: 2px dashed rgba(255, 255, 255, 0.1);
     border-radius: var(--radius-md);
     color: var(--color-text-muted);
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     text-transform: uppercase;
     cursor: pointer;
     transition: all 0.2s;
@@ -652,7 +652,7 @@
 }
 
 .signature-label {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     color: var(--color-text-muted);
 }
 
@@ -953,7 +953,7 @@
 }
 
 .mini-chart-label {
-    font-size: 10px;
+    font-size: 11px;
     color: #8396ad;
     font-weight: 800;
     text-transform: uppercase;
@@ -1076,7 +1076,7 @@
     line-height: 1.2;
 }
 .presas-v3-estado-dam-sub {
-    font-size: 9px;
+    font-size: 11px;
     color: #8396ad;
     font-weight: 700;
     margin-top: 2px;
@@ -1084,7 +1084,7 @@
     letter-spacing: 0.05em;
 }
 .presas-v3-estado-type {
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 900;
     color: #38bdf8;
     background: rgba(56, 189, 248, 0.1);
@@ -1132,7 +1132,7 @@
 
 /* ── Shared KPI typography ────────────────────────────────── */
 .presas-v3-kpi-label {
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 900;
     color: #8396ad;
     text-transform: uppercase;
@@ -1147,7 +1147,7 @@
     letter-spacing: -0.02em;
 }
 .presas-v3-kpi-unit {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     color: #8396ad;
 }
@@ -1196,7 +1196,7 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 .presas-v3-section-hdr span {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 900;
     color: #8396ad;
     text-transform: uppercase;
@@ -1209,7 +1209,7 @@
     padding-top: 12px;
 }
 .presas-v3-section-hdr--sub span {
-    font-size: 8px;
+    font-size: 11px;
     color: #8396ad;
 }
 
@@ -1220,7 +1220,7 @@
     margin-left: auto;
 }
 .presas-v3-delta-badge {
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 900;
     font-family: 'JetBrains Mono', monospace;
     padding: 2px 8px;
@@ -1263,7 +1263,7 @@
 .presas-v3-risk-labels {
     display: flex;
     gap: 8px;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -1271,7 +1271,7 @@
 }
 .presas-v3-risk-badge {
     margin-left: auto;
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 900;
     border: 1px solid;
     border-radius: 999px;
@@ -1303,7 +1303,7 @@
     border-radius: 10px;
 }
 .presas-v3-design-kpi span:first-child {
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 900;
     color: #8396ad;
     text-transform: uppercase;
@@ -1334,7 +1334,7 @@
     flex-shrink: 0;
 }
 .presas-v3-eac-legend-item span {
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 700;
     color: #8396ad;
     text-transform: uppercase;
@@ -1358,7 +1358,7 @@
     border-radius: 10px;
 }
 .presas-v3-cap-metric-label {
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 900;
     color: #8396ad;
     text-transform: uppercase;
@@ -1373,7 +1373,7 @@
     line-height: 1;
 }
 .presas-v3-cap-metric-unit {
-    font-size: 7px;
+    font-size: 11px;
     color: #8396ad;
     font-weight: 700;
 }
@@ -1421,7 +1421,7 @@
     line-height: 1;
 }
 .presas-v3-clima-empty {
-    font-size: 10px;
+    font-size: 11px;
     color: #8396ad;
     font-style: italic;
     text-align: center;
@@ -1466,7 +1466,7 @@
 .presas-v3-mov-row:last-child { border-bottom: none; }
 .presas-v3-mov-row:hover { background: rgba(255, 255, 255, 0.03); }
 .presas-v3-mov-fecha {
-    font-size: 9px;
+    font-size: 11px;
     font-family: 'JetBrains Mono', monospace;
     color: #8396ad;
 }
@@ -1477,12 +1477,12 @@
     color: #10b981;
 }
 .presas-v3-mov-gasto small {
-    font-size: 8px;
+    font-size: 11px;
     color: #8396ad;
     font-weight: 700;
 }
 .presas-v3-mov-fuente {
-    font-size: 7px;
+    font-size: 11px;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -1624,7 +1624,7 @@
 }
 
 .scada-panel-title {
-    font-size: 10px;
+    font-size: 11px;
     color: #cbd5e1;
     font-weight: 700;
     text-transform: uppercase;
@@ -1710,7 +1710,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 8px;
+    font-size: 11px;
     color: #94a3b8;
     margin: 4px auto;
 }
@@ -1738,8 +1738,8 @@
 .scada-chart-grid-left { border-right: 1px solid #334155; padding-right: 16px; display: flex; flex-direction: column; }
 .scada-chart-grid-right { display: flex; flex-direction: column; gap: 12px; }
 .scada-chart-flex { flex: 1; min-height: 0; position: relative; }
-.scada-chart-legend { display: flex; align-items: center; gap: 12px; font-size: 9px; color: #94a3b8; margin: 4px 0 8px; }
-.scada-chart-note { text-align: center; width: 100%; font-size: 9px; color: #8396ad; margin-top: 4px; }
+.scada-chart-legend { display: flex; align-items: center; gap: 12px; font-size: 11px; color: #94a3b8; margin: 4px 0 8px; }
+.scada-chart-note { text-align: center; width: 100%; font-size: 11px; color: #8396ad; margin-top: 4px; }
 
 /* ==============================================================================
    SCADA SALA DE CONTROL — DISTRITO DE RIEGO 005 DELICIAS
@@ -1814,7 +1814,7 @@
     font-family: 'JetBrains Mono', monospace; line-height: 1.2;
 }
 .scada-clock-date { font-size: 11px; color: #8396ad; font-weight: 700; }
-.scada-action-aviso { font-size: 10px; color: #f59e0b; max-width: 220px; line-height: 1.25; }
+.scada-action-aviso { font-size: 11px; color: #f59e0b; max-width: 220px; line-height: 1.25; }
 .scada-action-btn:disabled { opacity: 0.6; cursor: progress; }
 .scada-action-btn {
     display: flex; align-items: center; gap: 5px; padding: 6px 11px;

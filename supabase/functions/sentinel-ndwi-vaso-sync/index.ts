@@ -31,8 +31,8 @@
 //   mes?: "2026-03"            ventana = ese mes (backfill/reproceso)
 //   fecha?: "2026-03-25"       un día exacto (reproceso puntual)
 //   fecha_referencia?: "2017-09-01"  ±45 d, es_referencia_historica=true
-//   indice?: "union"|"ndwi"|"mndwi"  (diagnóstico; por defecto union)
-//   apertura_px?: 0..6         (diagnóstico; por defecto APERTURA_PX)
+//   indice?: "union"|"ndwi"|"mndwi"  (diagnóstico, solo con dry_run; por defecto union)
+//   apertura_px?: 0..6         (diagnóstico, solo con dry_run; por defecto APERTURA_PX)
 //   dry_run?: true             calcula y devuelve, no guarda
 //   debug_catalogo?: true      solo lista candidatas del Catalog
 // }
@@ -598,8 +598,10 @@ Deno.serve(async (req) => {
     const presaId: string = body?.presa_id || "PRE-001";
     const config = BBOXES_PRESA[presaId];
     if (!config) return json({ error: `Presa no configurada: ${presaId}. Disponibles: ${Object.keys(BBOXES_PRESA).join(", ")}` }, 400);
-    const indice: Indice = ["ndwi", "mndwi", "union"].includes(body?.indice) ? body.indice : "union";
     const dryRun = body?.dry_run === true;
+    // Parámetros de diagnóstico SOLO en dry_run: lo que se guarda usa siempre el método canónico (la función es
+    // invocable con la clave anon — el cron la usa —, así que nadie puede persistir una variante del método).
+    const indice: Indice = dryRun && ["ndwi", "mndwi", "union"].includes(body?.indice) ? body.indice : "union";
 
     // Ventana de búsqueda.
     let inicio: Date, fin: Date;
@@ -687,7 +689,7 @@ Deno.serve(async (req) => {
     if (huella) for (let p = 0; p < W * H; p++) if (huella[p]) { totH++; if (!ndwi[p]) invH++; }
     const nubesVasoPct = huella && totH ? (100 * invH) / totH : elegido.invalido;
 
-    const aperturaPx = Number.isInteger(body?.apertura_px) && body.apertura_px >= 0 && body.apertura_px <= 6 ? body.apertura_px : APERTURA_PX;
+    const aperturaPx = dryRun && Number.isInteger(body?.apertura_px) && body.apertura_px >= 0 && body.apertura_px <= 6 ? body.apertura_px : APERTURA_PX;
     const res = analiza(ndwi, mndwi, W, H, bbox, config.ancla, huella, indice, aperturaPx);
     if ("error" in res) return json({ ok: true, insertado: false, presa_id: presaId, fecha: elegido.dia, mensaje: res.error, sondas }, 200);
     if (res.tocaBorde) {

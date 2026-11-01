@@ -157,4 +157,14 @@ describe('demanda24h', () => {
         expect(demanda24h(dia('A', 0.2, { viento_ms: 9 }), AHORA).ventanaLibreHoras).toBe(0);
         expect(demanda24h(dia('A', 0.2, { viento_ms: null }), AHORA).ventanaLibreHoras).toBeNull();
     });
+    it('usa el ETo corregido por estación cuando existe y lo señala', () => {
+        const cruda = demanda24h(dia('A', 0.2), AHORA);
+        expect(cruda.eto24Mm).toBeCloseTo(4.8);
+        expect(cruda.etoCorregido).toBe(false);
+        const corr = demanda24h(dia('A', 0.2, { eto_fc_mm_corr: 0.18 }), AHORA);
+        expect(corr.eto24Mm).toBeCloseTo(4.32);
+        expect(corr.etoCorregido).toBe(true);
+        // factor 1 (corr = crudo) no cuenta como corrección
+        expect(demanda24h(dia('A', 0.2, { eto_fc_mm_corr: 0.2 }), AHORA).etoCorregido).toBe(false);
+    });
 });

@@ -44,14 +44,18 @@ export function usePronostico48h(activo: boolean, excluidasIds: string[]): Bloqu
     const [filas, setFilas] = useState<FilaPronostico[] | null>(null);
     const [aCorte, setACorte] = useState(0);
     const [meta, setMeta] = useState<{ cargado: boolean; error: string | null }>({ cargado: false, error: null });
+    const [presaIds, setPresaIds] = useState<string[]>([]);
     const cargar = useCallback(async () => {
         void token; // un reintento manual cambia `cargar` y vuelve a pedir
         if (!activo) return;
+        // Rol de cada estación: las de presa no cuentan para el viento agrícola (umbral y régimen propios).
+        const est = await supabase.from('clima_estaciones').select('id, rol');
+        if (!est.error && est.data) setPresaIds((est.data as { id: string; rol: string | null }[]).filter((e) => e.rol === 'presa').map((e) => e.id));
         const desde = new Date().toISOString();
         const hasta = new Date(Date.now() + 48 * 3_600_000).toISOString();
         const { data, error } = await supabase
             .from('clima_pronostico_horario')
-            .select('estacion_id, valido_en, corrida_en, precip_mm, precip_prob_pct, temp_c, temp_c_corr, viento_ms, viento_ms_corr, eto_fc_mm')
+            .select('estacion_id, valido_en, corrida_en, precip_mm, precip_prob_pct, temp_c, temp_c_corr, viento_ms, viento_ms_corr, eto_fc_mm, eto_fc_mm_corr, viento_rafaga_ms, viento_rafaga_ms_corr, hum_rel_pct, temp_min_c, nubosidad_total_pct')
             .gte('valido_en', desde).lte('valido_en', hasta).order('valido_en', { ascending: true }).limit(2000);
         if (error) { setMeta({ cargado: true, error: mensajeAmable(error.message) }); return; }
         setFilas((data ?? []) as unknown as FilaPronostico[]);
@@ -62,9 +66,9 @@ export function usePronostico48h(activo: boolean, excluidasIds: string[]): Bloqu
     const claveExcl = excluidasIds.join(',');
     return useMemo(() => {
         const horas = filas ? serieHoraria48(filas) : [];
-        const demanda = filas && filas.length ? demanda24h(filas, aCorte, claveExcl ? claveExcl.split(',') : []) : null;
+        const demanda = filas && filas.length ? demanda24h(filas, aCorte, claveExcl ? claveExcl.split(',') : [], presaIds) : null;
         return { datos: filas && filas.length ? resumenPronostico(filas) : null, cargado: meta.cargado, error: meta.error, horas, demanda, recargar };
-    }, [filas, aCorte, claveExcl, meta, recargar]);
+    }, [filas, aCorte, claveExcl, meta, recargar, presaIds]);
 }
 
 // ── NDVI ──────────────────────────────────────────────────────────────────────

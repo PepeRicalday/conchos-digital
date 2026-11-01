@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Waves, Hourglass, CalendarClock, Gauge, Droplets, LayoutGrid, ShieldCheck, ShieldAlert, Radio, Sprout, TriangleAlert, OctagonAlert } from 'lucide-react';
+import { Waves, Hourglass, CalendarClock, Gauge, LayoutGrid, ShieldCheck, ShieldAlert, Radio, Sprout, TriangleAlert, OctagonAlert } from 'lucide-react';
 import { KpiTile } from './KpiTile';
 import { Sparkline } from '../ui/Sparkline';
 import { BarraSegmentada } from '../ui/BarraSegmentada';
@@ -7,7 +7,6 @@ import { BarraSeveridad } from '../ui/BarraSeveridad';
 import { MedidorSemicircular } from '../ui/MedidorSemicircular';
 import { ColumnasEmbalse, type ColumnaEmbalse } from '../ui/ColumnasEmbalse';
 import { PerfilCanalMini } from '../ui/PerfilCanalMini';
-import { RelojClima24 } from '../ui/RelojClima24';
 import { BandaCiclos } from '../ui/BandaCiclos';
 import { BarraUtil } from '../ui/BarraUtil';
 import { FilaEstaciones, type EstacionFila } from '../ui/FilaEstaciones';
@@ -23,9 +22,21 @@ import { estadoDemanda24h, type ResumenNdvi, type DemandaRiego24h } from '../../
 import type { ModeloSuficiencia } from '../../utils/suficiencia';
 import { etiquetaEficiencia } from '../../utils/conduccion';
 import type { CanalKpiModelo } from '../../utils/perfilCanal';
+import type { VolumenCanal, EtoReciente } from '../../hooks/useDashboardPulso';
+import { resumenVariables24h, VISTAS_CLIMA, severidadVista, type UmbralesVistas } from '../../utils/climaVistas';
+import { TarjetaClimaAgro } from './TarjetaClimaAgro';
 
 const f = (v: number | null | undefined, d = 1) => (v == null ? null : v.toFixed(d));
 const edadMin = (ms: number | null) => (ms == null ? null : Math.max(0, (Date.now() - ms) / 60000));
+/** Días completos transcurridos desde un instante ISO; null sin fecha. */
+const diasDesde = (iso: string | null | undefined) => {
+    const t = iso ? Date.parse(iso) : NaN;
+    return Number.isFinite(t) ? Math.max(0, Math.floor((Date.now() - t) / 86_400_000)) : null;
+};
+/** Variación porcentual de la ETo prevista frente a la medida de los últimos días (null sin ambas). */
+export function etoVsReciente(eto24: number | null | undefined, promMmDia: number | null | undefined): number | null {
+    return eto24 != null && promMmDia != null && promMmDia > 0.2 ? ((eto24 / promMmDia) - 1) * 100 : null;
+}
 
 
 export interface ModeloKpis {
@@ -33,8 +44,18 @@ export interface ModeloKpis {
     presas: { pct: number | null; estado: EstadoKpi; almacenadoMm3: number | null; capacidadMm3: number; conDato: number; total: number; serie: (number | null)[]; items: ColumnaEmbalse[]; tendencia: TendenciaTexto; frescura: string | null; stale: boolean };
     suficiencia: ModeloSuficiencia & { historicoCargado: boolean; historicoError: string | null };
     ciclo: { entregadoPct: number | null; acumMm3: number | null; autMm3: number | null; avance: AvanceCiclo; brecha: BrechaCiclo };
-    canal: { modelo: CanalKpiModelo; cargado: boolean };
-    demanda: { d24: DemandaRiego24h | null; cargado: boolean; error: string | null; medido: { d: DemandaRiego; etoMm: number | null; lluviaMm: number | null; tMax: number | null; ultimaObs: string | null } };
+    canal: { modelo: CanalKpiModelo; cargado: boolean; volumen?: VolumenCanal; vaciadoDesde?: string | null };
+    demanda: {
+        d24: DemandaRiego24h | null; cargado: boolean; error: string | null;
+        medido: { d: DemandaRiego; etoMm: number | null; lluviaMm: number | null; tMax: number | null; ultimaObs: string | null };
+        /** Ciclo de riego concluido o canal en vaciado: la cifra es ETo de REFERENCIA, no demanda de cultivo. */
+        cicloCerrado?: boolean;
+        etoReciente?: EtoReciente;
+        heladaAvisoC?: number;
+        vientoAvisoMs?: number;
+        /** Umbrales de aviso/crítico (helada, viento, ráfaga, lluvia) para las vistas por variable. */
+        umbralesVistas?: UmbralesVistas;
+    };
     modulos: CeldaModulo[];
     confianza: Confianza;
     alertas: { resumen: ResumenAlertas; top: AlertaSistema[]; onAbrir: () => void };
@@ -59,7 +80,7 @@ export function derivaEstados(m: ModeloKpis) {
         : cm.total === 0 ? { tipo: 'sd', texto: 'Sin escalas' }
         : cm.conMedicion === 0 ? { tipo: 'sd', texto: 'Sin vigentes' }
         : (cm.fueraDeRango ?? 0) > 0 ? { tipo: 'warn', texto: `${cm.fueraDeRango} fuera de rango`, corto: `${cm.fueraDeRango} fuera` }
-        : cm.vaciado ? { tipo: 'info', texto: 'Vaciado' }
+        : cm.vaciado ? { tipo: 'info', texto: diasDesde(canal.vaciadoDesde) != null ? `Vaciado · ${diasDesde(canal.vaciadoDesde)} d` : 'Vaciado' }
         : cm.conMedicion < cm.total ? { tipo: 'info', texto: 'Parcial' } : { tipo: 'ok', texto: 'En rango' };
     const crit = alertas.resumen.criticas, avi = alertas.resumen.avisos;
     const alertasE: EstadoKpi = crit > 0 ? { tipo: 'crit', texto: `${crit} crítica${crit === 1 ? '' : 's'}` } : avi > 0 ? { tipo: 'warn', texto: 'Con avisos' } : { tipo: 'ok', texto: 'Sin alertas' };
@@ -70,10 +91,24 @@ export function derivaEstados(m: ModeloKpis) {
     const modulosE: EstadoKpi = m.ciclo.brecha.estado.tipo === 'sd' ? { tipo: 'sd', texto: 'S/D' } : m.ciclo.avance.concluido ? { tipo: 'info', texto: 'Ciclo concluido' } : { tipo: 'ok', texto: 'Por módulo' };
     const d24 = m.demanda.d24;
     const usa24 = !!d24 && d24.netaMm != null && !d24.viejo;
-    const demandaE: EstadoKpi = usa24 ? estadoDemanda24h(d24)
+    const cerrado = !!m.demanda.cicloCerrado;
+    const vs7 = usa24 ? etoVsReciente(d24!.eto24Mm, m.demanda.etoReciente?.promMmDia) : null;
+    // Ciclo cerrado: no hay demanda de cultivo que calificar; el chip compara la ETo prevista con la MEDIDA la semana pasada.
+    const demandaE: EstadoKpi = cerrado && usa24
+        ? { tipo: 'info', texto: vs7 != null ? `${vs7 >= 0 ? '+' : '−'}${Math.abs(vs7).toFixed(0)} % vs 7 d` : 'Referencia' }
+        : usa24 ? estadoDemanda24h(d24)
         : d24?.viejo ? estadoDemanda24h(d24)
         : !m.demanda.cargado && m.demanda.medido.d.netaMm == null ? { tipo: 'sd', texto: 'Consultando' } : m.demanda.medido.d.estado;
-    return { canalE, alertasE, goesE, ndviE, modulosE, enLinea, nd, demandaE, usa24 };
+    return { canalE, alertasE, goesE, ndviE, modulosE, enLinea, nd, demandaE, usa24, cerrado, vs7 };
+}
+
+/** Para la barra de pulso: si alguna vista del pronóstico (helada, viento, lluvia) está en aviso o crítico, manda sobre la ETₒ. */
+function tipoClimaPulso(m: ModeloKpis, base: EstadoKpi['tipo']): EstadoKpi['tipo'] {
+    const d = m.demanda.d24;
+    if (!d || d.viejo) return base;
+    const r = resumenVariables24h(d, m.demanda.umbralesVistas);
+    const sev = VISTAS_CLIMA.map((v) => severidadVista(r, v));
+    return sev.includes('crit') ? 'crit' : sev.includes('warn') ? 'warn' : base;
 }
 
 export function estadosTarjetas(m: ModeloKpis): { id: string; nombre: string; tipo: EstadoKpi['tipo'] }[] {
@@ -81,7 +116,7 @@ export function estadosTarjetas(m: ModeloKpis): { id: string; nombre: string; ti
     return [
         { id: 'kp-presas', nombre: 'Presas', tipo: m.presas.estado.tipo }, { id: 'kp-suficiencia', nombre: 'Suficiencia', tipo: m.suficiencia.estado.tipo },
         { id: 'kp-ciclo', nombre: 'Ciclo', tipo: m.ciclo.brecha.estado.tipo }, { id: 'kp-canal', nombre: 'Canal', tipo: e.canalE.tipo },
-        { id: 'kp-alertas', nombre: 'Alertas', tipo: e.alertasE.tipo }, { id: 'kp-demanda', nombre: 'Demanda de riego', tipo: e.demandaE.tipo },
+        { id: 'kp-alertas', nombre: 'Alertas', tipo: e.alertasE.tipo }, { id: 'kp-demanda', nombre: e.cerrado ? 'Clima agro' : 'Demanda de riego', tipo: tipoClimaPulso(m, e.demandaE.tipo) },
         { id: 'kp-modulos', nombre: 'Módulos', tipo: e.modulosE.tipo }, { id: 'kp-ndvi', nombre: 'Vegetación', tipo: e.ndviE.tipo },
         { id: 'kp-goes', nombre: 'Telemetría GOES', tipo: e.goesE.tipo }, { id: 'kp-confianza', nombre: 'Confianza', tipo: m.confianza.estado.tipo },
     ];
@@ -90,7 +125,7 @@ export function estadosTarjetas(m: ModeloKpis): { id: string; nombre: string; ti
 /** Las 10 tarjetas de la pantalla única del Dashboard. Cada gráfico degrada por container query (kp) según el espacio de su celda. */
 export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
     const { presas, suficiencia, ciclo, canal, demanda, modulos, confianza, alertas, goes, ndvi } = m;
-    const { canalE, alertasE, goesE, ndviE, modulosE, enLinea, nd, demandaE, usa24 } = derivaEstados(m);
+    const { canalE, alertasE, goesE, ndviE, modulosE, enLinea, nd, demandaE, usa24, cerrado } = derivaEstados(m);
     const cm = canal.modelo;
     const c = cm.conduccion;
     const crit = alertas.resumen.criticas, avi = alertas.resumen.avisos, inf = alertas.resumen.informativas;
@@ -100,7 +135,6 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
     const k0Nivel = k0 && k0.nivelM != null ? k0.nivelM : null;
     const pcts = modulos.map((x) => x.pct).filter((v): v is number => v != null);
     const letras = [...new Set(modulos.map((x) => x.letra))];
-    const d24 = demanda.d24;
     const sf = suficiencia;
     const posTxt = sf.banda?.posicion ? `${sf.banda.posicion.posicion}.º más bajo de ${sf.banda.posicion.de} años` : null;
     const maxMedidor = Math.max(90, Math.ceil((sf.diasRestantes ?? 0) * 1.3));
@@ -131,16 +165,31 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
                     ? <><b>{f(ciclo.acumMm3, 0)} de {f(ciclo.autMm3, 0)} Mm³</b> · sin entregar {Math.max(0, ciclo.autMm3 - ciclo.acumMm3).toFixed(0)} Mm³ ({Math.max(0, 100 - ciclo.entregadoPct).toFixed(0)} %)</>
                     : <>Tiempo <b>{f(ciclo.avance.pct, 0) ?? 'S/D'} %</b>{ciclo.brecha.brechaPP != null ? ` · brecha ${ciclo.brecha.brechaPP > 0 ? '+' : '−'}${Math.abs(ciclo.brecha.brechaPP).toFixed(0)} pp` : ''}</>} />
 
-            <KpiTile id="kp-canal" to="/escalas" vivo titulo="Canal K-0 → K-104" icono={<Gauge size={18} />}
-                valor={c.eficienciaPct != null ? f(c.eficienciaPct) : canal.cargado && cm.total > 0 ? String(cm.conMedicion) : null} unidad={c.eficienciaPct != null ? '%' : canal.cargado && cm.total > 0 ? `de ${cm.total}` : undefined} estado={canalE}
-                aria={`Canal: ${cm.conMedicion} de ${cm.total} escalas con medición vigente${cm.ultimaMedicionMs != null ? `, la última medición de campo ${textoEdad(edadMin(cm.ultimaMedicionMs))}` : ', sin mediciones de campo recientes'}${cm.vaciado ? ', canal en vaciado' : ''}${c.eficienciaPct != null ? `, eficiencia de conducción ${f(c.eficienciaPct)} por ciento` : ''}. Abrir Control de Niveles`}
+            {(() => {
+                const vol = canal.volumen;
+                const dVac = diasDesde(canal.vaciadoDesde);
+                const enVaciado = cm.vaciado && c.eficienciaPct == null;
+                const valor = c.eficienciaPct != null ? f(c.eficienciaPct)
+                    : enVaciado ? (vol?.totalMm3 != null ? vol.totalMm3.toFixed(3) : null)
+                    : canal.cargado && cm.totalControl > 0 ? String(cm.conMedicionControl) : null;
+                const unidad = c.eficienciaPct != null ? '%' : enVaciado ? (vol?.totalMm3 != null ? 'Mm³' : undefined) : canal.cargado && cm.totalControl > 0 ? `de ${cm.totalControl}` : undefined;
+                const k0Txt = cm.k0EdadMin == null ? 'K-0 sin medición en 30 d'
+                    : cm.k0EdadMin <= 240 ? `K-0 medido ${textoEdad(cm.k0EdadMin)}` : `K-0 sin medición ${textoEdad(cm.k0EdadMin)}`;
+                return (
+            <KpiTile id="kp-canal" to="/escalas" vivo titulo={enVaciado ? 'Canal · volumen' : 'Canal K-0 → K-104'} icono={<Gauge size={18} />}
+                valor={valor} unidad={unidad} estado={canalE}
+                aria={`Canal${enVaciado ? ` en vaciado${dVac != null ? ` desde hace ${dVac} días` : ''}: volumen almacenado ${vol?.totalMm3 != null ? `${vol.totalMm3.toFixed(3)} millones de metros cúbicos en ${vol.tramosMedidos} de ${vol.tramosTotal} tramos medidos` : 'sin dato'}` : ''}. ${cm.conMedicionControl} de ${cm.totalControl} escalas de control con medición vigente; ${k0Txt}${c.eficienciaPct != null ? `; eficiencia de conducción ${f(c.eficienciaPct)} por ciento` : ''}. Abrir Control de Niveles`}
                 viz={<PerfilCanalMini modelo={cm} />}
                 contexto={c.perdidaM3s != null
                     ? <>Pérdida <b>{c.perdidaM3s.toFixed(2)} m³/s</b> ({f(c.perdidaPct)} %) · entra <b>{f(cm.k0.gasto, 1)}</b> sale <b>{f(cm.k104.gasto, 1)}</b> m³/s</>
-                    : cm.ultimaMedicionMs != null
-                        ? <>Última medición <b>{textoEdad(edadMin(cm.ultimaMedicionMs))}</b>{k0Nivel != null ? <> · K-0 <b>{k0Nivel.toFixed(2)} m</b></> : null}{cm.vaciado ? ' · canal en vaciado' : ''}</>
-                        : <>{canal.cargado ? 'Sin mediciones de campo en 30 días' : 'Consultando escalas…'}{cm.vaciado ? ' · canal en vaciado' : ''}</>}
-                fresco={cm.ultimaMedicionMs != null ? `Medición vigente: ${cm.conMedicion} de ${cm.total}` : null} stale={cm.conMedicion === 0} />
+                    : enVaciado
+                        ? <><b>{cm.descendiendo}</b> de {cm.conMedicionControl} vigentes bajando vs lectura previa{cm.secas > 0 ? <> · <b>{cm.secas}</b> seca{cm.secas === 1 ? '' : 's'}</> : null}{vol && vol.tramosTotal > 0 ? <> · {vol.tramosMedidos}/{vol.tramosTotal} tramos con volumen</> : null}</>
+                        : cm.ultimaMedicionMs != null
+                            ? <>Última medición <b>{textoEdad(edadMin(cm.ultimaMedicionMs))}</b>{k0Nivel != null ? <> · K-0 <b>{k0Nivel.toFixed(2)} m</b>{cm.k0EdadMin != null && cm.k0EdadMin > 240 ? ` (${textoEdad(cm.k0EdadMin)})` : ''}</> : null}</>
+                            : <>{canal.cargado ? 'Sin mediciones de campo en 30 días' : 'Consultando escalas…'}</>}
+                fresco={canal.cargado && cm.totalControl > 0 ? `Control ${cm.conMedicionControl}/${cm.totalControl} vigentes · ${k0Txt}` : null} stale={cm.conMedicionControl === 0} />
+                );
+            })()}
 
             <section id="kp-alertas" className={`kp-tile kp-alertas ${crit > 0 ? 'kp-dest-crit' : avi > 0 ? 'kp-dest-warn' : ''}`} data-estado={alertasE.tipo} aria-label="Alertas vigentes"><div className="kp-in">
                 <div className="kp-cab"><span className="kp-titulo">Alertas</span><span className="kp-vivo" title="Fuente en tiempo real" aria-hidden="true" /><span className="kp-icono" aria-hidden="true"><ShieldAlert size={18} /></span></div>
@@ -161,15 +210,7 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
                 <button type="button" className="kp-ver" onClick={alertas.onAbrir}>Ver detalle{alertas.resumen.antiguas > 0 ? ` (+${alertas.resumen.antiguas} antiguas)` : ''}</button>
             </div></section>
 
-            <KpiTile id="kp-demanda" to="/clima" vivo titulo={usa24 ? 'Demanda 24 h' : 'Demanda hoy (medida)'} icono={<Droplets size={18} />}
-                valor={usa24 ? f(d24!.netaMm) : f(demanda.medido.d.netaMm)} unidad="mm" estado={demandaE}
-                aria={`Demanda de riego ${usa24 ? 'prevista a 24 horas' : 'medida hoy'}: ${(usa24 ? f(d24!.netaMm) : f(demanda.medido.d.netaMm)) ?? 'sin dato'} milímetros, ${demandaE.texto}. Abrir Clima`}
-                viz={usa24 ? <RelojClima24 horas={d24!.horas} ventanaLibre={d24!.ventanaLibreHoras} />
-                    : <div className="kp-par" aria-hidden="true"><span>ETₒ<b>{f(demanda.medido.etoMm, 2) ?? 'S/D'}</b></span><span>Lluvia<b>{f(demanda.medido.lluviaMm, 1) ?? 'S/D'}</b></span><span>Tmáx<b>{f(demanda.medido.tMax) ?? 'S/D'}°</b></span></div>}
-                contexto={usa24
-                    ? <>ETₒ <b>{f(d24!.eto24Mm, 1) ?? 'S/D'}</b> − lluvia ef. <b>{f(d24!.lluviaEfectivaMm, 1) ?? 'S/D'}</b> mm{d24!.rangoMm ? ` (${d24!.rangoMm.min.toFixed(1)}–${d24!.rangoMm.max.toFixed(1)})` : ''}{d24!.ventanaLibreHoras != null ? <> · libre <b>{d24!.ventanaLibreHoras} h</b></> : null}{demanda.medido.etoMm != null ? <> · medido hoy ETₒ <b>{demanda.medido.etoMm.toFixed(1)}</b></> : null}</>
-                    : <>{d24?.viejo ? 'Pronóstico con más de 3 h de antigüedad: ' : demanda.error ? 'Sin pronóstico: ' : 'Medición del día al corte: '}ETₒ <b>{f(demanda.medido.etoMm, 2) ?? 'S/D'}</b> − lluvia <b>{f(demanda.medido.lluviaMm, 1) ?? 'S/D'}</b> mm</>}
-                fresco={usa24 ? `Previsión ${d24!.edadMin != null ? textoEdad(d24!.edadMin) : 'sin hora'} · ${d24!.estacionesUsadas}/${d24!.estacionesTotal} est.` : demanda.medido.ultimaObs ? `Observación ${textoEdad(edadMin(Date.parse(demanda.medido.ultimaObs)))}` : 'Sin observación reciente'} />
+            <TarjetaClimaAgro demanda={demanda} usa24={usa24} cerrado={cerrado} demandaE={demandaE} />
 
             <KpiTile id="kp-modulos" to="/balance" titulo="Módulos" icono={<LayoutGrid size={18} />}
                 valor={pcts.length ? (Math.min(...pcts) === Math.max(...pcts) ? f(pcts[0], 0) : `${Math.min(...pcts).toFixed(0)}–${Math.max(...pcts).toFixed(0)}`) : null} unidad="%" estado={modulosE}

@@ -120,7 +120,7 @@ export function useCanalPerfil(vaciado: boolean) {
             const desde = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
             const { data, error: e } = await supabase
                 .from('lecturas_escalas')
-                .select('escala_id, fecha, hora_lectura, nivel_m, nivel_abajo_m, radiales_json, gasto_calculado_m3s, gasto_metodo, confirmada')
+                .select('escala_id, fecha, hora_lectura, nivel_m, nivel_abajo_m, radiales_json, gasto_calculado_m3s, gasto_metodo, confirmada, responsable, notas')
                 .gte('fecha', desde)
                 .order('fecha', { ascending: false })
                 .order('hora_lectura', { ascending: false })
@@ -145,4 +145,83 @@ export function useCanalPerfil(vaciado: boolean) {
 
     const modelo = useMemo(() => modeloPerfilCanal(metas, lecturas, ahora, vaciado), [metas, lecturas, ahora, vaciado]);
     return { modelo, error, cargado, recargar: cargar };
+}
+
+// ── Canal: volumen almacenado (vol_interescalas, solo lecturas de campo) ────
+export interface VolumenCanal {
+    /** Suma de los tramos con volumen calculable (Mm³); null si ningún tramo tiene dato. */
+    totalMm3: number | null;
+    tramosMedidos: number;
+    tramosTotal: number;
+}
+
+/**
+ * Volumen en el canal desde la vista `vol_interescalas`, que desde la migración 20261101180000 ya NO usa los
+ * arrastres de medianoche de Chronos: un tramo sin lectura de campo en 2 días queda sin volumen (S/D) y se
+ * reporta la cobertura (tramos medidos / totales) en lugar de inventar el faltante.
+ */
+export function useVolumenCanal() {
+    const [vol, setVol] = useState<VolumenCanal>({ totalMm3: null, tramosMedidos: 0, tramosTotal: 0 });
+    const [cargado, setCargado] = useState(false);
+    const cargar = useCallback(async () => {
+        const { data, error } = await supabase.from('vol_interescalas').select('esc_up, vol_mm3');
+        if (!error && data) {
+            const filas = data as { esc_up: string; vol_mm3: number | string | null }[];
+            const conVol = filas.map((f) => (f.vol_mm3 == null ? null : Number(f.vol_mm3))).filter((v): v is number => v != null && Number.isFinite(v));
+            setVol({ totalMm3: conVol.length ? conVol.reduce((a, b) => a + b, 0) : null, tramosMedidos: conVol.length, tramosTotal: filas.length });
+        }
+        setCargado(true);
+    }, []);
+    usePolling(cargar, 5 * 60_000);
+    useEffect(() => {
+        const unsub = onTable('lecturas_escalas', '*', () => { void cargar(); });
+        return () => unsub();
+    }, [cargar]);
+    return { vol, cargado };
+}
+
+// ── Clima: ETo MEDIDO de los últimos días (referencia para la previsión) ────
+export interface EtoReciente {
+    /** Promedio diario (mm/d) de los últimos días completos, promedio entre estaciones; null = S/D. */
+    promMmDia: number | null;
+    dias: number;
+    estaciones: number;
+}
+
+/**
+ * ETo diario observado (WeatherLink `et_dia_mm`, máximo del día local con lectura ≥ 20 h) de los últimos 7 días completos.
+ * No hay climatología satelital de años previos para comparar "contra lo normal"; esto es la referencia honesta disponible:
+ * cuánto evaporó realmente la semana pasada.
+ */
+export function useEtoReciente(dias = 7) {
+    const [r, setR] = useState<EtoReciente>({ promMmDia: null, dias: 0, estaciones: 0 });
+    const cargar = useCallback(async () => {
+        const desde = new Date(Date.now() - (dias + 1) * 86_400_000).toISOString();
+        const { data, error } = await supabase.from('clima_estacion_lecturas')
+            .select('estacion_id, ts, et_dia_mm').gte('ts', desde).not('et_dia_mm', 'is', null).limit(5000);
+        if (error || !data) return;
+        const hoy = new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10);
+        const porDia = new Map<string, { max: number; ultH: number }>();
+        for (const f of data as { estacion_id: string; ts: string; et_dia_mm: number | string }[]) {
+            const loc = new Date(Date.parse(f.ts) - 6 * 3_600_000);
+            const dia = loc.toISOString().slice(0, 10);
+            if (dia >= hoy) continue;
+            const v = Number(f.et_dia_mm);
+            if (!Number.isFinite(v) || v < 0 || v > 20) continue;
+            const k = `${f.estacion_id}|${dia}`;
+            const p = porDia.get(k);
+            porDia.set(k, { max: Math.max(p?.max ?? 0, v), ultH: Math.max(p?.ultH ?? 0, loc.getUTCHours()) });
+        }
+        const completos = [...porDia.entries()].filter(([, x]) => x.ultH >= 20);
+        const porFecha = new Map<string, number[]>();
+        for (const [k, x] of completos) { const d = k.split('|')[1]; (porFecha.get(d) ?? porFecha.set(d, []).get(d)!).push(x.max); }
+        const medias = [...porFecha.entries()].sort((a, b) => b[0].localeCompare(a[0])).slice(0, dias)
+            .map(([, a]) => a.reduce((s, v) => s + v, 0) / a.length);
+        setR({
+            promMmDia: medias.length ? medias.reduce((s, v) => s + v, 0) / medias.length : null,
+            dias: medias.length, estaciones: new Set(completos.map(([k]) => k.split('|')[0])).size,
+        });
+    }, [dias]);
+    usePolling(cargar, 60 * 60_000);
+    return r;
 }

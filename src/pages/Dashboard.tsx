@@ -6,7 +6,9 @@ import { useLeakMonitor } from '../hooks/useLeakMonitor';
 import { useHydricEvents } from '../hooks/useHydricEvents';
 import { usePredictiveBalance } from '../hooks/usePredictiveBalance';
 import { useAlertasRegistro } from '../hooks/useAlertasSistema';
-import { useCanalPerfil, useClimaPulso } from '../hooks/useDashboardPulso';
+import { useCanalPerfil, useClimaPulso, useVolumenCanal, useEtoReciente } from '../hooks/useDashboardPulso';
+import { useUmbralesClima } from '../hooks/useClimaOperativo';
+import { umbralVigente } from '../utils/umbralesClima';
 import { useFecha } from '../context/FechaContext';
 import { supabase } from '../lib/supabase';
 import { getTodayString } from '../utils/dateHelpers';
@@ -82,6 +84,10 @@ const Dashboard = () => {
     const { alertas: alertasRegistro, error: errorRegistro } = useAlertasRegistro();
     const canal = useCanalPerfil(activeEvent?.evento_tipo === 'VACIADO');
     const { pulso: clima, cargado: climaCargado } = useClimaPulso();
+    const { vol: volumenCanal } = useVolumenCanal();
+    const etoReciente = useEtoReciente(7);
+    const umbralesClima = useUmbralesClima();
+    const vaciadoDesde = activeEvent?.evento_tipo === 'VACIADO' ? activeEvent.fecha_inicio ?? null : null;
 
     // ── Consultas propias del Dashboard (columnas explícitas; historial de 7 días de lecturas_presas) ──
     const [tomasVaradas, setTomasVaradas] = useState<VwAlertaTomaVaradaRow[]>([]);
@@ -199,8 +205,11 @@ const Dashboard = () => {
         },
         suficiencia: { ...suficiencia, historicoCargado: extra.historico.cargado, historicoError: extra.historico.error },
         ciclo: { entregadoPct: avanceDist.pct, acumMm3: avanceDist.acumuladoMm3, autMm3: avanceDist.autorizadoMm3, avance, brecha: brechaCiclo(avanceDist.pct, avance) },
-        canal: { modelo: canal.modelo, cargado: canal.cargado },
-        demanda: { d24: extra.pronostico.demanda, cargado: extra.pronostico.cargado, error: extra.pronostico.error, medido: { d: demandaRiego(clima.etoProm, clima.lluviaProm), etoMm: clima.etoProm, lluviaMm: clima.lluviaProm, tMax: clima.tempMax, ultimaObs: clima.ultimaObs } },
+        canal: { modelo: canal.modelo, cargado: canal.cargado, volumen: volumenCanal, vaciadoDesde },
+        demanda: { d24: extra.pronostico.demanda, cargado: extra.pronostico.cargado, error: extra.pronostico.error, medido: { d: demandaRiego(clima.etoProm, clima.lluviaProm), etoMm: clima.etoProm, lluviaMm: clima.lluviaProm, tMax: clima.tempMax, ultimaObs: clima.ultimaObs },
+            cicloCerrado: avance.concluido || canal.modelo.vaciado, etoReciente,
+            heladaAvisoC: umbralVigente(umbralesClima, 'helada').aviso, vientoAvisoMs: umbralVigente(umbralesClima, 'viento').aviso,
+            umbralesVistas: { helada: umbralVigente(umbralesClima, 'helada'), viento: umbralVigente(umbralesClima, 'viento'), rafaga: umbralVigente(umbralesClima, 'rafaga'), lluvia: umbralVigente(umbralesClima, 'lluvia') } },
         modulos: modules.map((m) => {
             const pct = cumplimientoModulo(m.accumulated_vol, m.authorized_vol);
             const e = estadoModulo(pct, avance);
@@ -210,7 +219,7 @@ const Dashboard = () => {
         alertas: { resumen, top: topAlertas, onAbrir: () => setDrawerAbierto(true) },
         goes: { cargado: extra.goes.cargado, error: extra.goes.error, estaciones: (extra.goes.datos ?? []).map((g) => ({ id: g.id, nombre: g.nombre, clave: g.enlace.clave, edadMin: g.enlace.edadMin, serieGasto: g.serieGasto })) },
         ndvi: { cargado: extra.ndvi.cargado, error: extra.ndvi.error, r: extra.ndvi.datos },
-    }), [extra.goes, extra.ndvi, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, suficiencia, extra.historico.cargado, extra.historico.error, extra.pronostico.demanda, extra.pronostico.cargado, extra.pronostico.error, avanceDist, avance, canal.modelo, canal.cargado, extra.goes.datos, enLineaGoes, clima, extra.pronostico.datos, extra.pronostico.horas, modules, confianza, resumen, topAlertas]);
+    }), [extra.goes, extra.ndvi, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, suficiencia, extra.historico.cargado, extra.historico.error, extra.pronostico.demanda, extra.pronostico.cargado, extra.pronostico.error, avanceDist, avance, canal.modelo, canal.cargado, volumenCanal, vaciadoDesde, etoReciente, umbralesClima, extra.goes.datos, enLineaGoes, clima, extra.pronostico.datos, extra.pronostico.horas, modules, confianza, resumen, topAlertas]);
 
     const pulso = estadosTarjetas(modeloKpis);
 

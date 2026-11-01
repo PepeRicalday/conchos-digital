@@ -8,7 +8,7 @@ const sd = { tipo: 'sd' as const, texto: 'S/D' };
 
 const escala = (i: number, p: Partial<EscalaCanalKpi> = {}): EscalaCanalKpi => ({
     id: `E${i}`, nombre: `K-${i * 8}`, km: i * 8, referencia: false, nivelM: null, nivelArrastreM: null, rangoMin: 1, rangoMax: 3, u: null,
-    estado: 'sd', origen: 'sin_dato', medicionMs: null, edadMin: null, vigente: false, gastoM3s: null, ...p,
+    estado: 'sd', origen: 'sin_dato', medicionMs: null, edadMin: null, vigente: false, gastoM3s: null, pctMax: null, deltaCm: null, deltaHoras: null, ...p,
 });
 
 function modelo(conDatos: boolean): ModeloKpis {
@@ -30,7 +30,7 @@ function modelo(conDatos: boolean): ModeloKpis {
             demanda: { mm3: 506, provisional: true }, cobertura: conDatos ? 1.7 : null, diasAlcance: null, diasRestantes: null, banda: null, aviso: [], historicoCargado: true, historicoError: null,
         },
         ciclo: { entregadoPct: conDatos ? 78.7 : null, acumMm3: conDatos ? 222 : null, autMm3: conDatos ? 281 : null, avance: { pct: 100, concluido: true, etiqueta: '2025-2026' }, brecha: { brechaPP: null, estado: conDatos ? { tipo: 'info', texto: 'Ciclo concluido' } : sd } },
-        canal: { cargado: true, modelo: { vaciado: true, escalas, conMedicion: conDatos ? 2 : 0, total: 4, ultimaMedicionMs: null, fueraDeRango: null,
+        canal: { cargado: true, modelo: { vaciado: true, escalas, conMedicion: conDatos ? 2 : 0, total: 4, conMedicionControl: conDatos ? 2 : 0, totalControl: 4, descendiendo: 0, secas: 0, k0EdadMin: conDatos ? 30 : null, ultimaMedicionMs: null, fueraDeRango: null,
             k0: { gasto: conDatos ? 20 : null, vigente: conDatos, medicionMs: null, ultimoAforoM3s: conDatos ? 20 : null, ultimoAforoMs: null },
             k104: { gasto: null, vigente: false, medicionMs: null, ultimoAforoM3s: null, ultimoAforoMs: null },
             conduccion: { completo: false, eficienciaPct: null, perdidaPct: null, perdidaM3s: null, incoherente: false } } },

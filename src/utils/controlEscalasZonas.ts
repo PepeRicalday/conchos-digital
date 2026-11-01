@@ -37,6 +37,9 @@ export interface LecturaEscala {
     gasto_calculado_m3s?: number | string | null;
     gasto_metodo?: string | null;
     confirmada?: boolean | null;
+    /** Quién capturó; 'SICA Chronos' = arrastre de medianoche (no es medición de campo). */
+    responsable?: string | null;
+    notas?: string | null;
 }
 
 export interface ResumenDia {

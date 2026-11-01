@@ -1,17 +1,27 @@
-import { useId, useRef, type KeyboardEvent } from 'react';
+import { useId, useRef, type KeyboardEvent, type ReactNode } from 'react';
 
 /** Selector por chips (radiogroup): reemplaza al <select> nativo, cuyo desplegable se dibuja encima del contenido y lo tapa.
  *  Teclado de radiogroup: una sola parada de Tab (el elegido) y flechas / Inicio / Fin para moverse y elegir. */
-interface Opcion<T extends string> { valor: T; texto: string; title?: string; /** Nombre accesible si el texto visible es corto ("Mar" → "marzo 2026"). */ aria?: string }
+interface Opcion<T extends string> {
+    valor: T; texto: string; title?: string; /** Nombre accesible si el texto visible es corto ("Mar" → "marzo 2026"). */ aria?: string;
+    /** Ícono opcional antes del texto (en espacios estrechos el texto puede ocultarse por CSS). */
+    icono?: ReactNode;
+    /** Marca de severidad junto al chip: 'crit' | 'warn' | 'info' (forma + color). */
+    marca?: 'crit' | 'warn' | 'info' | null;
+}
 
 interface Props<T extends string> {
     etiqueta: string;
     valor: T;
     opciones: Opcion<T>[];
     onChange: (v: T) => void;
+    /** La etiqueta queda solo para lectores de pantalla (p. ej. dentro de una tarjeta). */
+    etiquetaOculta?: boolean;
+    /** Clase extra del contenedor (estilos propios del lugar donde se usa). */
+    clase?: string;
 }
 
-export function SelectorChips<T extends string>({ etiqueta, valor, opciones, onChange }: Props<T>) {
+export function SelectorChips<T extends string>({ etiqueta, valor, opciones, onChange, etiquetaOculta, clase }: Props<T>) {
     const id = useId();
     const grupo = useRef<HTMLDivElement>(null);
     const hayElegido = opciones.some((o) => o.valor === valor);
@@ -30,8 +40,8 @@ export function SelectorChips<T extends string>({ etiqueta, valor, opciones, onC
     };
 
     return (
-        <div className="ndvi-selector">
-            <span className="ndvi-selector-et" id={`sel-${id}`}>{etiqueta}</span>
+        <div className={`ndvi-selector${clase ? ` ${clase}` : ''}`}>
+            <span className={etiquetaOculta ? 'sc-sr' : 'ndvi-selector-et'} id={`sel-${id}`}>{etiqueta}</span>
             <div className="ndvi-chips" role="radiogroup" aria-labelledby={`sel-${id}`} ref={grupo}>
                 {opciones.map((o, i) => {
                     const on = valor === o.valor;
@@ -39,7 +49,8 @@ export function SelectorChips<T extends string>({ etiqueta, valor, opciones, onC
                         <button key={o.valor} type="button" role="radio" aria-checked={on} title={o.title} aria-label={o.aria}
                             tabIndex={on || (!hayElegido && i === 0) ? 0 : -1} onKeyDown={(e) => mover(e, i)}
                             className={`ndvi-chip ${on ? 'ndvi-chip-on' : ''}`} onClick={() => onChange(o.valor)}>
-                            {o.texto}
+                            {o.icono}{o.icono ? <span className="ndvi-chip-txt">{o.texto}</span> : o.texto}
+                            {o.marca && <i className={`ndvi-chip-marca ndvi-chip-marca-${o.marca}`} aria-hidden="true" />}
                         </button>
                     );
                 })}

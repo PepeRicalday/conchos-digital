@@ -38,7 +38,7 @@ for (const [nombre, ruta] of RUTAS[app]) {
     await page.screenshot({ path: `${OUT}monitor_mapa.png` });
     await page.evaluate(() => { [...document.querySelectorAll('button')].find(e => /TABLERO T/i.test(e.innerText))?.click(); });
     await page.waitForTimeout(1000);
-    for (const t of ['PANORAMA', 'CANAL', 'ALERTAS', 'DATOS', 'TENDENCIAS']) {
+    for (const t of ['PANORAMA', 'CANAL', 'ALERTAS', 'TÉCNICO', 'TENDENCIAS']) {
       await page.evaluate(x => { [...document.querySelectorAll('button,[role=tab]')].find(e => new RegExp('^\\s*' + x, 'i').test((e.innerText || '').trim()))?.click(); }, t);
       await page.waitForTimeout(1200);
       await page.screenshot({ path: `${OUT}monitor_tablero_${t}.png` });

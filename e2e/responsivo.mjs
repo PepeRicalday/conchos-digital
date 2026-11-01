@@ -152,7 +152,7 @@ if (app === 'cd' && nombres.some(n => DEVICES[n].phone) && !flag('rutas')) {
     await mp.goto(APPS.cd.base + '/monitor-publico', { waitUntil: 'networkidle' }).catch(() => {}); await mp.waitForTimeout(5000);
     await mp.addStyleTag({ content: ':root{--sat:59px !important;--sab:34px !important}' });
     await mp.getByRole('button', { name: /TABLERO T/i }).tap().catch(() => {}); await mp.waitForTimeout(1200);
-    for (const tab of ['PANORAMA', 'CANAL', 'ALERTAS', 'DATOS', 'TENDENCIAS']) {
+    for (const tab of ['PANORAMA', 'CANAL', 'ALERTAS', 'TÉCNICO', 'TENDENCIAS']) {
       await mp.evaluate(t => { const b = [...document.querySelectorAll('button,[role=tab]')].find(e => new RegExp('^\s*' + t, 'i').test((e.innerText || '').trim())); b && b.click(); }, tab);
       await mp.waitForTimeout(1300);
       const m = await mp.evaluate(MEDIR);

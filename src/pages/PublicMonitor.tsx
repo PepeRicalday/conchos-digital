@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, ZoomControl, Marker, useMap, Popup } from 'react-leaflet';
 import { supabase } from '../lib/supabase';
 import { useHydricEvents } from '../hooks/useHydricEvents';
-import { Timer, Activity, Clock, ArrowRightCircle, MapPin, Waves, X, AlertTriangle, Download, Copy, Map as MapIconLucide } from 'lucide-react';
+import { Timer, Activity, Clock, ArrowRightCircle, MapPin, Waves, AlertTriangle, Download, Copy, Map as MapIconLucide } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -19,6 +19,11 @@ import TendenciasPanel from '../components/TendenciasPanel';
 import PresasNivelStrip from '../components/PresasNivelStrip';
 import { useTendenciasHistoricas } from '../hooks/useTendenciasHistoricas';
 import { fetchVolumenCiclo, totalesVolumenCiclo, estadoVolumen, type VolumenCicloModulo } from '../utils/volumenCiclo';
+import FitCanal from '../components/monitor/FitCanal';
+import { PanelEjecutivo, VistaVaciado, type DatosEjecutivos, type DatosVaciado } from '../components/monitor/PanelEjecutivo';
+import { STALE_MIN_ESCALA } from '../utils/geoKpis';
+import { CAPACIDAD_CONDUCCION_M3S, DIAS_ALERTA_VIGENTE } from '../utils/dashboardKpis';
+import { useDevice } from '../hooks/useDevice';
 
 // Escalas de referencia: tienen nivel pero no controlan Q (sin compuerta propia).
 const ESC_SIN_CONTROL = new Set(['K-64', 'K-94+200']);
@@ -46,6 +51,11 @@ const CARTO_TILE_URL = CARTO_ACCESS_TOKEN
 // no es confiable (telemetría vencida) y por tanto la λ dinámica es null.
 // Nunca se presenta como medición en vivo: el panel muestra "S/D" en ese caso.
 const LAMBDA_REF = 0.00703; // m³/s·km⁻¹
+
+// Capacidad de conducción en K-0+000 (umbral de violación hidráulica): 80 m³/s,
+// confirmada por Gerencia el 2026-11-01. Misma constante que el Dashboard
+// (antes el Monitor usaba 70.42 y el Dashboard 80).
+const CAPACIDAD_DISENO_K0 = CAPACIDAD_CONDUCCION_M3S; // m³/s
 
 // Custom Marker for Water Front
 const waterFrontIcon = L.divIcon({
@@ -113,19 +123,35 @@ function telemetriaLabel(estado: TelemetriaEstado): string {
     }
 }
 
+// ── UMBRALES ÚNICOS de nivel (fracción del máximo operativo) ─────────────
+// Una sola fuente para mapa, tarjetas, popup, perfil y leyenda (antes 92/95/80
+// según el lugar, y un "≥ 2.8 m = normal" absoluto sin relación con la escala).
+const UMBRAL_ALERTA = 0.80;
+const UMBRAL_CRITICO = 0.92;
+const UMBRAL_NORMAL = 0.50;   // por debajo: "flujo bajo" (o descenso en vaciado)
+const COLOR_VENCIDO = '#64748b';
+
+/** Lectura con más de STALE_MIN_ESCALA (4 h) o sin telemetría. */
+function escalaVencida(e: { ultima_telemetria?: number | null }): boolean {
+    return e.ultima_telemetria == null || (Date.now() - e.ultima_telemetria) / 60000 > STALE_MIN_ESCALA;
+}
+
 // ── COLOR DE ALERTA POR ESCALA (reutilizado en mapa y perfil) ───────────
 function escalaAlertColor(e: EscalaData, coherencia?: any): string {
     const nivel = e.nivel_actual ?? 0;
-    if (nivel <= 0) return '#475569'; // sin datos
+    if (e.nivel_actual == null || nivel <= 0) return '#475569'; // sin datos
+    // Dato vencido: gris. Un tramo rojo/ámbar sobre una lectura de hace 10 h
+    // insinuaba un riesgo EN VIVO que nadie está midiendo.
+    if (escalaVencida(e)) return COLOR_VENCIDO;
     // Sin bordo operativo registrado no se inventa uno (antes 3.5 m): no hay base para clasificar el riesgo.
     if (e.nivel_max_operativo == null || e.nivel_max_operativo <= 0) return '#475569';
     const nivelMax = e.nivel_max_operativo;
     const pct = nivel / nivelMax;
     const coh = coherencia?.puntos?.find((p: any) => p.id === e.id);
     if (coh && !coh.coherente) return '#ef4444';
-    if (pct >= 0.92) return '#ef4444';
-    if (pct >= 0.80) return '#f59e0b';
-    if (nivel >= 2.8) return '#22c55e';
+    if (pct >= UMBRAL_CRITICO) return '#ef4444';
+    if (pct >= UMBRAL_ALERTA) return '#f59e0b';
+    if (pct >= UMBRAL_NORMAL) return '#22c55e';
     return '#38bdf8';
 }
 
@@ -564,6 +590,16 @@ function haversineDist(lon1: number, lat1: number, lon2: number, lat2: number) {
     return R * c;
 }
 
+// "29-sep 12:00" en hora del canal (America/Chihuahua)
+function formatFechaCorta(iso?: string | null): string {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    const f = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', timeZone: 'America/Chihuahua' }).replace('.', '').replace(' ', '-');
+    const h = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Chihuahua' });
+    return `${f} ${h}`;
+}
+
 // Map Controller to handle dynamic centering with offset for mobile UI
 const MapController = ({ center, zoom, active }: { center: [number, number], zoom: number, active: boolean }) => {
     const map = useMap();
@@ -609,67 +645,74 @@ const CheckpointsGrid = React.memo(({ escalas, coherenciaCanal, displayMaxKm, is
                     // Coherencia individual: marcar punto incoherente
                     const puntoCoh = coherenciaCanal?.puntos.find((p: any) => p.id === e.id);
                     const incoherente = puntoCoh && !puntoCoh.coherente;
-                    const hasFlow = isEstabilizacion && !ESC_SIN_CONTROL.has(e.nombre) && (e.gasto_actual ?? 0) > 0;
+                    const referencia = ESC_SIN_CONTROL.has(e.nombre);
+                    const vencida = escalaVencida(e);
+                    const hayNivel = e.nivel_actual != null;
+                    const nMax = e.nivel_max_operativo && e.nivel_max_operativo > 0 ? e.nivel_max_operativo : null;
+                    const pct = nMax && hayNivel ? (e.nivel_actual as number) / nMax : null;
+                    const margenCm = nMax && hayNivel ? Math.round((nMax - (e.nivel_actual as number)) * 100) : null;
+                    const nivelCol = vencida || pct === null ? COLOR_VENCIDO
+                        : pct >= UMBRAL_CRITICO ? '#ef4444' : pct >= UMBRAL_ALERTA ? '#f59e0b' : pct >= UMBRAL_NORMAL ? '#22c55e' : '#38bdf8';
+                    const tieneGasto = isEstabilizacion && !referencia && e.gasto_actual != null;
+                    const cerrada = tieneGasto && (e.gasto_actual as number) === 0 && (e.apertura_actual ?? 0) === 0;
+                    const capQ = e.capacidad_max && e.capacidad_max > 0 ? e.capacidad_max : null;
+                    const pctQ = tieneGasto && capQ ? Math.min(1, (e.gasto_actual as number) / capQ) : null;
+                    const d = e.delta_12h;
+                    const dCm = d != null ? Math.round(d * 100) : null;
                     return (
                     <div
-                        className={`checkpoint-card-compact ${e.km <= displayMaxKm ? 'active' : ''} ${incoherente ? 'cpc-incoherente' : ''}`}
+                        className={`checkpoint-card-compact ${e.km <= displayMaxKm ? 'active' : ''} ${incoherente ? 'cpc-incoherente' : ''} ${vencida ? 'cpc-vencida' : ''}`}
                         key={e.id}
+                        title={vencida ? 'Lectura con más de 4 h: dato de referencia, no estado en vivo' : undefined}
                     >
-                        <div className="cpc-km">{e.km.toFixed(1)} <small>KM</small></div>
+                        <div className="cpc-km">{e.km.toFixed(1)} <small>KM</small>{referencia && <span className="cpc-ref-tag" title="Escala de referencia: sin compuertas propias">REF</span>}</div>
                         <div className="cpc-body">
                             <span className="cpc-name">{e.nombre}</span>
-                            <div className="cpc-data" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span className="cpc-value">{e.nivel_actual != null ? e.nivel_actual.toFixed(2) : 'S/D'}</span>
+                            <div className="cpc-data">
+                                <span className="cpc-value" style={{ color: hayNivel && !vencida ? undefined : '#8396ad' }}>{hayNivel ? (e.nivel_actual as number).toFixed(2) : 'S/D'}</span>
                                 <small className="cpc-unit">m</small>
-                                {(() => {
-                                    // Tendencia solo con lectura fresca (<4h): un "— 0.00" sobre
-                                    // datos de 20h sugiere estabilidad EN VIVO que nadie midió.
-                                    const ageMin = e.ultima_telemetria ? (Date.now() - e.ultima_telemetria) / 60000 : Infinity;
-                                    if (ageMin > 240) return (
-                                        <span style={{ color: '#8396ad', fontSize: '11px' }} title="Tendencia 12h no disponible — telemetría vencida (>4 h)">·</span>
-                                    );
-                                    const d = e.delta_12h ?? 0;
-                                    const tChar = d > 0.01 ? '▲' : d < -0.01 ? '▼' : '—';
-                                    // Cian/verde/gris — NO rojo: la dirección de la tendencia es un
-                                    // hecho neutro, no un juicio de riesgo. Rojo aquí se confundía
-                                    // visualmente con las tarjetas realmente en alerta (cpc-incoherente).
-                                    const tCol = d > 0.01 ? '#38bdf8' : d < -0.01 ? '#22c55e' : '#cbd5e1';
-                                    return (
-                                        <span style={{ color: tCol, fontSize: '12px', fontWeight: '900', textShadow: '0 0 4px rgba(0,0,0,0.8)' }} title={`Tendencia 12h: ${d > 0 ? '+' : ''}${d.toFixed(2)}m`}>
-                                            {tChar} {Math.abs(d).toFixed(2)}
-                                        </span>
-                                    );
-                                })()}
+                                {!vencida && dCm != null && (
+                                    <span className={`cpc-trend ${dCm > 0 ? 'is-up' : dCm < 0 ? 'is-down' : ''}`}
+                                        title={`Variación del nivel en 12 h: ${dCm > 0 ? '+' : ''}${dCm} cm`}>
+                                        {dCm > 0 ? '▲' : dCm < 0 ? '▼' : '—'} {Math.abs(dCm)} cm
+                                    </span>
+                                )}
                             </div>
-                            {/* ESTABILIZACIÓN: mostrar gasto y apertura si disponibles */}
-                            {isEstabilizacion && (
+                            {nMax && (
+                                <div className="cpc-ctx" title={`Máximo operativo ${nMax.toFixed(2)} m`}>
+                                    {pct !== null ? <><b style={{ color: nivelCol }}>{Math.round(pct * 100)}%</b> máx. · <span title="Margen al máximo operativo">{margenCm! >= 0 ? `+${margenCm}` : margenCm} cm</span></> : <>máx. {nMax.toFixed(2)} m</>}
+                                </div>
+                            )}
+                            {isEstabilizacion && !referencia && (
                                 <div className="cpc-extra">
-                                    {hasFlow && (
-                                        <span className="cpc-gasto">{(e.gasto_actual ?? 0).toFixed(2)} m³/s</span>
+                                    {tieneGasto ? (
+                                        <span className="cpc-gasto">{cerrada ? 'Cerrada · 0.00 m³/s' : `${(e.gasto_actual as number).toFixed(2)} m³/s`}{pctQ !== null && !cerrada ? <small> · {Math.round(pctQ * 100)}% cap.</small> : null}</span>
+                                    ) : (
+                                        <span className="cpc-gasto cpc-sd">Gasto S/D</span>
                                     )}
                                     {(e.apertura_actual ?? 0) > 0 && (
                                         <span className="cpc-apertura">
-                                            ⊿ {(e.apertura_actual ?? 0).toFixed(2)}m
+                                            ⊿ {(e.apertura_actual ?? 0).toFixed(2)} m
                                             {e.puertas_abiertas != null && e.pzas_radiales != null
-                                                ? ` (${e.puertas_abiertas}/${e.pzas_radiales})`
+                                                ? ` · ${e.puertas_abiertas}/${e.pzas_radiales} comp.`
                                                 : ''}
                                         </span>
                                     )}
                                 </div>
                             )}
                         </div>
-                        <div className="cpc-status-bar">
+                        <div className="cpc-status-bar" title={pct !== null ? `Nivel al ${Math.round(pct * 100)}% del máximo operativo` : 'Sin nivel / sin máximo operativo'}>
                             <div
                                 className="cpc-progress"
                                 style={{
                                     width: isEstabilizacion
-                                        ? (hasFlow ? `${Math.min(100, ((e.gasto_actual ?? 0) / Math.max(coherenciaCanal?.qK0Medido ?? 1, 1)) * 100)}%` : '0%')
+                                        ? (pct !== null ? `${Math.min(100, pct * 100)}%` : '0%')
                                         : (e.km <= displayMaxKm ? '100%' : '0%'),
-                                    background: incoherente ? '#ef4444' : (e.estado === 'OPERANDO' ? '#22c55e' : statusColor)
+                                    background: incoherente ? '#ef4444' : isEstabilizacion ? nivelCol : statusColor
                                 }}
                             />
                         </div>
-                        <div className="cpc-time">{formatTimeAgo(e.ultima_telemetria)}</div>
+                        <div className="cpc-time" style={{ color: vencida ? '#fbbf24' : undefined }}>{formatTimeAgo(e.ultima_telemetria)}</div>
                     </div>
                     );
                 })}
@@ -690,9 +733,11 @@ const EscalaMarker = React.memo(({ esc, displayMaxKm, isEstabilizacion, coherenc
 }) => {
     // Valores compartidos entre CircleMarker props, Tooltip y Popup
     const nivel     = esc.nivel_actual ?? 0;
+    const hayNivel  = esc.nivel_actual != null;
+    const vencida   = escalaVencida(esc);
     const nivelMax  = esc.nivel_max_operativo && esc.nivel_max_operativo > 0 ? esc.nivel_max_operativo : null;
-    const nivelPct  = nivelMax ? Math.min(100, (nivel / nivelMax) * 100) : null;
-    const barColor  = nivelPct === null ? '#38bdf8' : nivelPct >= 95 ? '#ef4444' : nivelPct >= 80 ? '#f59e0b' : '#38bdf8';
+    const nivelPct  = nivelMax && hayNivel ? Math.min(100, (nivel / nivelMax) * 100) : null;
+    const barColor  = vencida ? COLOR_VENCIDO : nivelPct === null ? '#38bdf8' : nivelPct >= UMBRAL_CRITICO * 100 ? '#ef4444' : nivelPct >= UMBRAL_ALERTA * 100 ? '#f59e0b' : '#38bdf8';
     const gasto     = esc.gasto_actual ?? 0;
     const apertura  = esc.apertura_actual ?? 0;
     const telEstado = telemetriaEstado(esc.ultima_telemetria);
@@ -714,8 +759,8 @@ const EscalaMarker = React.memo(({ esc, displayMaxKm, isEstabilizacion, coherenc
     // Clase CSS para animaciones de estado
     const markerClass = [
         isOffline ? 'esc-offline' : '',
-        nivelPct !== null && nivelPct >= 92 ? 'esc-critical' : '',
-        nivelPct !== null && nivelPct >= 80 && nivelPct < 92 ? 'esc-warning' : '',
+        !vencida && nivelPct !== null && nivelPct >= UMBRAL_CRITICO * 100 ? 'esc-critical' : '',
+        !vencida && nivelPct !== null && nivelPct >= UMBRAL_ALERTA * 100 && nivelPct < UMBRAL_CRITICO * 100 ? 'esc-warning' : '',
     ].filter(Boolean).join(' ') || undefined;
 
     // Badge operativo en popup
@@ -764,9 +809,9 @@ const EscalaMarker = React.memo(({ esc, displayMaxKm, isEstabilizacion, coherenc
                             <div className="scp-bar-track">
                                 <div className="scp-bar-fill" style={{ '--bar-w': nivelPct !== null ? `${nivelPct}%` : '0%', '--bar-color': barColor } as React.CSSProperties} />
                             </div>
-                            <span className="scp-bar-val" style={{ '--bar-color': barColor } as React.CSSProperties}>{nivel.toFixed(2)} m</span>
+                            <span className="scp-bar-val" style={{ '--bar-color': barColor } as React.CSSProperties}>{hayNivel ? `${nivel.toFixed(2)} m` : 'S/D'}</span>
                         </div>
-                        {nivelMax && <span className="scp-ref">capacidad {nivelMax.toFixed(2)} m</span>}
+                        {nivelMax && <span className="scp-ref">máx. operativo {nivelMax.toFixed(2)} m{nivelPct !== null ? ` · ${nivelPct.toFixed(0)}%` : ''}{vencida && hayNivel ? ' · dato vencido' : ''}</span>}
                     </div>
                     {(gasto > 0 || apertura > 0) && (
                         <div className="scp-metrics">
@@ -799,7 +844,7 @@ const EscalaMarker = React.memo(({ esc, displayMaxKm, isEstabilizacion, coherenc
 
             {/* Mini-badge permanente cuando hay nivel; tooltip hover cuando no hay datos */}
             <Tooltip
-                className={nivel > 0 ? 'esc-level-badge' : 'custom-tooltip'}
+                className={nivel > 0 ? `esc-level-badge${vencida ? ' esc-level-badge--vencida' : ''}` : 'custom-tooltip'}
                 direction="top"
                 offset={[0, -8]}
                 permanent={nivel > 0}
@@ -809,7 +854,7 @@ const EscalaMarker = React.memo(({ esc, displayMaxKm, isEstabilizacion, coherenc
                 {nivel > 0
                     ? <span className="elb-content">
                         <span className="elb-val">{nivel.toFixed(2)}m</span>
-                        <span className="elb-arrow" data-dir={delta > 0.01 ? 'up' : delta < -0.01 ? 'down' : 'flat'}>{trendSym}</span>
+                        {!vencida && <span className="elb-arrow" data-dir={delta > 0.01 ? 'up' : delta < -0.01 ? 'down' : 'flat'}>{trendSym}</span>}
                       </span>
                     : <span>{esc.nombre}</span>
                 }
@@ -837,9 +882,23 @@ const PublicMonitor: React.FC = () => {
         return (['resumen', 'canal', 'alertas', 'skill', 'tendencias'] as const).includes(t as any) ? t : null;
     })();
 
-    // Panel Visibility States - Start minimized on mobile for total map priority
-    const isMobile = typeof window !== 'undefined' ? window.innerWidth <= 900 : false;
+    // Panel Visibility States - Start minimized on phone for total map priority
+    const dispositivo = useDevice();
+    const isMobile = dispositivo.tipo === 'phone';
     const [isDockVisible, setIsDockVisible] = useState(!isMobile || !!tabInicialUrl);
+    // Ancho real del contenedor (área a la derecha del sidebar): decide si el
+    // tablero va como PANEL LATERAL (el canal queda libre y centrado en el
+    // resto) o como franja inferior (tableta vertical / pantallas angostas).
+    const contRef = useRef<HTMLDivElement>(null);
+    const [anchoCont, setAnchoCont] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1400);
+    useEffect(() => {
+        const el = contRef.current;
+        if (!el || typeof ResizeObserver === 'undefined') return;
+        const ro = new ResizeObserver(([e]) => setAnchoCont(Math.round(e.contentRect.width)));
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+    const recentrarCanalRef = useRef<(() => void) | null>(null);
     const [dockTab, setDockTab] = useState<'resumen' | 'canal' | 'alertas' | 'skill' | 'tendencias'>(
         (tabInicialUrl as any) || 'resumen'
     );
@@ -857,7 +916,6 @@ const PublicMonitor: React.FC = () => {
     const [modelQ0, setModelQ0] = useState('');
     const [modelResult, setModelResult] = useState<null | { q104: number; qZonas: number; perdidasLin: number; ef: number; transitH: number }>(null);
     const [isPredictionVisible, setIsPredictionVisible] = useState(false);
-    const [showPerfilModal, setShowPerfilModal] = useState(false);
     const [fgvData, setFgvData] = useState<any>(null);
     const [fgvLoading, setFgvLoading] = useState(false);
     const [showReport, setShowReport] = useState(false);
@@ -990,8 +1048,9 @@ const PublicMonitor: React.FC = () => {
                     .eq('fecha', todayDate),
                 supabase
                     .from('lecturas_escalas')
-                    .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, radiales_json, gasto_calculado_m3s, gasto_metodo, creado_en')
+                    .select('escala_id, nivel_m, nivel_abajo_m, fecha, hora_lectura, apertura_radiales_m, radiales_json, gasto_calculado_m3s, gasto_metodo, creado_en, responsable, notas, confirmada')
                     .gte('creado_en', eventStart)
+                    .or('responsable.is.null,responsable.not.ilike.*chronos*')
                     .order('creado_en', { ascending: false })
                     .limit(500),
                 supabase
@@ -1012,13 +1071,24 @@ const PublicMonitor: React.FC = () => {
             readings = readings2; mData = mData2; trackResult = trackResult2;
             } // fin fallback sin RPC
 
+            // Veracidad: SICA Chronos copia a las 00:00 el último nivel de cada
+            // escala (responsable='SICA Chronos'). Ese arrastre NO es una lectura de campo:
+            // en VACIADO mostraba niveles de agua que ya no está y, entre 00:00 y
+            // 04:00, contaba las 14 escalas como "vigentes". Se descartan aquí
+            // (mismo criterio que useTendenciasHistoricas); la escala queda con su
+            // última lectura REAL (y su edad real) o en S/D.
+            readings = (readings || []).filter((r: any) =>
+                !/chronos|autogenerad|medianoche/i.test(`${r.responsable || ''} ${r.notas || ''}`));
+
             // Sincronía Digital: Solo tomamos la última lectura de cada presa
             const uniquePresasMap = new Map();
             (pData || []).forEach(p => {
                 if (!uniquePresasMap.has(p.presa_id)) {
                     uniquePresasMap.set(p.presa_id, {
                         ...p,
-                        extraccion_total: p.extraccion_total_m3s
+                        extraccion_total: p.extraccion_total_m3s,
+                        extraccion_fuente: p.extraccion_total_m3s != null ? 'lectura' : null,
+                        extraccion_desde: p.fecha,
                     });
                 }
             });
@@ -1044,6 +1114,8 @@ const PublicMonitor: React.FC = () => {
                         id: `mov-${presaId}`,
                         presa_id: presaId,
                         extraccion_total: Number(mov.gasto_m3s),
+                        extraccion_fuente: 'movimiento',
+                        extraccion_desde: mov.fecha_hora,
                         fecha: mov.fecha_hora,
                         presas: mov.presas ?? null,
                         almacenamiento_mm3: null,
@@ -1052,7 +1124,7 @@ const PublicMonitor: React.FC = () => {
                     });
                 } else if (fechaMov > fechaLectura || lectura.extraccion_total == null) {
                     // Filas de nivel (CILA) no traen extracción: el último movimiento sigue vigente.
-                    uniquePresasMap.set(presaId, { ...lectura, extraccion_total: Number(mov.gasto_m3s) });
+                    uniquePresasMap.set(presaId, { ...lectura, extraccion_total: Number(mov.gasto_m3s), extraccion_fuente: 'movimiento', extraccion_desde: mov.fecha_hora });
                 }
             });
 
@@ -1075,6 +1147,8 @@ const PublicMonitor: React.FC = () => {
                             id: 'fallback-plb',
                             presa_id: 'PRE-001',
                             extraccion_total: activeEvent.gasto_solicitado_m3s,
+                            extraccion_fuente: 'protocolo',
+                            extraccion_desde: activeEvent.fecha_inicio,
                             fecha: new Date().toISOString(),
                             presas: { nombre: 'La Boquilla', nombre_corto: 'Boquilla' }
                         },
@@ -1347,7 +1421,7 @@ const PublicMonitor: React.FC = () => {
             }
 
             // Sin check vs presa — K0 puede superar Q_presa por almacenamiento en tramo 36km
-            const hasViolation = currentFlowAtZero > 70.42;
+            const hasViolation = currentFlowAtZero > CAPACIDAD_DISENO_K0;
             
             sessionStorage.setItem('zero_radial_apertura', (zeroReading?.apertura || 0).toString());
             sessionStorage.setItem('zero_nivel_abajo', (zeroReading?.nivel_abajo || 0).toString());
@@ -1394,9 +1468,13 @@ const PublicMonitor: React.FC = () => {
                 .select('id, tipo_riesgo, titulo, mensaje, fecha_deteccion')
                 .eq('resuelta', false)
                 .order('fecha_deteccion', { ascending: false })
-                .limit(30);
+                .limit(200);
             // Las críticas primero: con 5 avisos más recientes, una crítica anterior quedaba fuera de la lista.
-            if (data) setActiveAlertas([...(data as any[])].sort((a, b) => Number(b.tipo_riesgo === 'critical') - Number(a.tipo_riesgo === 'critical')).slice(0, 5));
+            // Todas las sin resolver, por severidad y luego fecha. El conteo usa el
+            // MISMO criterio que el menú lateral y el Dashboard (useAlertasRegistro):
+            // solo las vigentes (≤ DIAS_ALERTA_VIGENTE días); las antiguas van aparte.
+            const rango = (t: string) => t === 'critical' ? 0 : t === 'warning' ? 1 : 2;
+            if (data) setActiveAlertas([...(data as any[])].sort((a, b) => rango(a.tipo_riesgo) - rango(b.tipo_riesgo)));
         };
         fetchAlertas();
 
@@ -1420,7 +1498,9 @@ const PublicMonitor: React.FC = () => {
     }, []);
 
     // 5. Predicted Front Position (Hydra Engine Logic)
-    const vRio = 3.0; // km/h (Referencia: 36km / 12h)
+    // Tránsito calibrado Presa Boquilla → K-0+000 = 7.56 h (454 min, medido en
+    // protocolo de llenado). Antes 3.0 km/h ⇒ 12 h, sobreestimando 4.4 h la llegada.
+    const vRio = 36 / 7.56; // ≈ 4.76 km/h
     const vCanalDefault = 4.17; // km/h (diseño)
 
     const predictedMaxKm = useMemo(() => {
@@ -1681,24 +1761,36 @@ const PublicMonitor: React.FC = () => {
     // 6. Executive/Managerial Metrics
     const executiveMetrics = useMemo(() => {
         const totalRequested = activeEvent?.gasto_solicitado_m3s || 0;
-        let totalReal = 0;
-        presasData.forEach(p => { totalReal += (p.extraccion_total || 0); });
+
+        // Vigencia de la extracción según su PROCEDENCIA:
+        //  · movimiento de compuertas → sigue vigente hasta el siguiente
+        //    movimiento (un cierre del 29-sep es "0 m³/s, cerrada" hoy, no S/D);
+        //  · lectura diaria → vigente 24 h (captura diaria, no continua);
+        //  · protocolo (LLENADO sin medición) → instrucción vigente.
+        // Antes la frescura se medía con lecturas_presas.fecha aunque la
+        // extracción viniera de un movimiento posterior: el encabezado decía
+        // S/D mientras el pie del panel decía "BOQUILLA 0.0 m³/s".
+        const vigente = (p: any): boolean => {
+            if (p.extraccion_total == null || Number.isNaN(Number(p.extraccion_total))) return false;
+            if (p.extraccion_fuente === 'movimiento' || p.extraccion_fuente === 'protocolo') return true;
+            const t = p.extraccion_desde ? new Date(String(p.extraccion_desde).length <= 10 ? `${p.extraccion_desde}T12:00:00-06:00` : p.extraccion_desde).getTime() : NaN;
+            return Number.isFinite(t) && (Date.now() - t) / 3_600_000 <= 24;
+        };
+        const vigentes = presasData.filter(vigente);
+        const totalReal = vigentes.reduce((acc, p) => acc + Number(p.extraccion_total), 0);
+        const fresh = vigentes.length > 0;
+        // Boquilla es la ÚNICA fuente de K-0+000 (Madero aporta en la cola, K>100):
+        // el balance río PRESA→K0 debe usar solo Boquilla.
+        const boq = presasData.find(p => p.presa_id === 'PRE-001' || p.presas?.nombre_corto === 'Boquilla');
+        const qBoquilla = boq && vigente(boq) ? Number(boq.extraccion_total) : null;
+        // Todas las presas vigentes cerradas por movimiento → "cerrada desde …"
+        const cerradaDesde = fresh && totalReal === 0 && vigentes.every(p => p.extraccion_fuente === 'movimiento')
+            ? vigentes.map(p => p.extraccion_desde).sort().slice(-1)[0] as string
+            : null;
 
         const efficiency = totalRequested > 0 ? (totalReal / totalRequested) * 100 : 0;
         const healthStatus = efficiency > 95 ? 'OPTIMO' : efficiency > 85 ? 'PRECAUCIÓN' : 'REVISIÓN';
         const healthColor = efficiency > 95 ? '#22c55e' : efficiency > 85 ? '#eab308' : '#ef4444';
-
-        // Frescura: al menos una presa con lectura/movimiento <24h. Umbral
-        // más laxo que K-0 (4h) porque la captura de presa suele ser diaria,
-        // no continua — con 4h mostraría S/D casi todo el día aunque el dato
-        // siga siendo el vigente. Sin esto, totalReal=0 por falta de lectura
-        // se mostraba igual que un "0.00 m³/s" real medido, ambos indistinguibles.
-        const masReciente = presasData.reduce<number | null>((max, p) => {
-            const t = p.fecha ? new Date(p.fecha).getTime() : null;
-            if (t === null) return max;
-            return max === null || t > max ? t : max;
-        }, null);
-        const fresh = masReciente !== null && (Date.now() - masReciente) / 3_600_000 <= 24;
 
         return {
             totalReal,
@@ -1706,6 +1798,9 @@ const PublicMonitor: React.FC = () => {
             healthStatus,
             healthColor,
             fresh,
+            qBoquilla,
+            cerradaDesde,
+            vigente,
         };
     }, [activeEvent, presasData]);
 
@@ -1724,7 +1819,8 @@ const PublicMonitor: React.FC = () => {
         // su gasto se colaba aquí como "gasto de la presa" del Canal Conchos,
         // divergiendo del header (que sí usa executiveMetrics.totalReal) en
         // la misma pantalla al mismo tiempo.
-        const qPresa = executiveMetrics.totalReal;
+        const qPresa = executiveMetrics.qBoquilla ?? 0;
+        const qPresaVigente = executiveMetrics.qBoquilla != null;
         // Solo lecturas de gasto FRESCAS (<4 h). Una lectura vencida no debe
         // alimentar eficiencia/pérdidas/IEC y presentarse como estado en vivo
         // (mismo criterio que el panel SKILL y el perfil hidráulico).
@@ -1769,11 +1865,12 @@ const PublicMonitor: React.FC = () => {
         // Eficiencia de conducción SOLO válida de extremo a extremo (K-0→K-104).
         // Antes: qFinal/qK0 con un solo punto daba 100% imposible presentado como real.
         const eficiencia  = (tramoCompleto && qK0Medido > 0) ? (qFinal / qK0Medido) * 100 : null;
-        const perdidaRio  = (escK0 && qPresa > 0) ? qPresa - qK0Medido : null;
+        const perdidaRio  = (escK0 && qPresaVigente && qPresa > 0) ? qPresa - qK0Medido : null;
         const perdidaCanal = (tramoCompleto && qK0Medido > 0) ? qK0Medido - qFinal : null;
 
         return {
             qPresa,
+            qPresaVigente,
             qK0Esperado,
             qK0Medido,
             k0Disponible,
@@ -1789,6 +1886,17 @@ const PublicMonitor: React.FC = () => {
         };
     }, [activeEvent, executiveMetrics, escalas, currentTime]);
 
+    // Modelo FGV (flujo permanente gradualmente variado): solo con gasto VIGENTE
+    // medido en K-0 y fuera de VACIADO. Antes, sin lectura fresca se enviaba
+    // q = 0 y el motor (que fija un piso numérico de 0.5 m³/s) devolvía
+    // "Q salida 0.5 · tránsito 19.5 h": cifras que nadie midió.
+    const fgvAplicable = !!coherenciaCanal && coherenciaCanal.k0Disponible
+        && coherenciaCanal.qK0Medido >= 1 && modoVisualizacion !== 'VACIADO';
+    const fgvMotivo = !coherenciaCanal || !coherenciaCanal.k0Disponible
+        ? 'K-0+000 sin gasto medido en las últimas 4 h'
+        : modoVisualizacion === 'VACIADO' ? 'el canal está en vaciado (el modelo supone flujo permanente)'
+        : 'gasto en K-0+000 menor a 1 m³/s';
+
     // isEstabilizacion: true para ESTABILIZACION y SIN_EVENTO (comportamiento visual idéntico).
     // No incluye CONTINGENCIA/VACIADO/ANOMALIA — esos modos conservan el mapa de alertas
     // pero podrán tener su propia capa de indicadores en futuras iteraciones.
@@ -1797,6 +1905,9 @@ const PublicMonitor: React.FC = () => {
                           || modoVisualizacion === 'CONTINGENCIA'
                           || modoVisualizacion === 'VACIADO'
                           || modoVisualizacion === 'ANOMALIA';
+    // El perfil longitudinal se dibuja dentro de la pestaña CANAL (antes era un
+    // modal a pantalla completa que tapaba el canal).
+    const perfilVisible = isDockVisible && dockTab === 'canal';
 
     // ── IEC — Índice de Estado del Canal ─────────────────────────────────────
     const iecData = useMemo(() => {
@@ -2020,17 +2131,18 @@ const PublicMonitor: React.FC = () => {
             .filter(e => e.km >= 0 && e.km <= 104)
             .sort((a, b) => a.km - b.km)
             .map(e => {
-                const bl = e.nivel_max_operativo ? +(e.nivel_max_operativo - (e.nivel_actual ?? 0)).toFixed(3) : null;
+                // S/D = null, nunca 0 (un 0.000 se lee como "canal seco medido").
+                const bl = e.nivel_max_operativo && e.nivel_actual != null ? +(e.nivel_max_operativo - e.nivel_actual).toFixed(3) : null;
                 const ts_min = e.ultima_telemetria ? +((Date.now() - e.ultima_telemetria) / 60000).toFixed(0) : null;
                 const telEst: TelemetriaEstado = telemetriaEstado(e.ultima_telemetria);
                 return {
                     nombre:          e.nombre,
                     km:              e.km,
-                    hA:              +(e.nivel_actual ?? 0).toFixed(3),
+                    hA:              e.nivel_actual != null ? +e.nivel_actual.toFixed(3) : null,
                     hB:              e.nivel_abajo != null ? +e.nivel_abajo.toFixed(3) : null,
-                    q:               +(e.gasto_actual  ?? 0).toFixed(3),
+                    q:               e.gasto_actual != null ? +e.gasto_actual.toFixed(3) : null,
                     m1:              +getM1Factor(e.nombre, e.km).toFixed(4),
-                    apertura:        +(e.apertura_actual ?? 0).toFixed(3),
+                    apertura:        e.apertura_actual != null ? +e.apertura_actual.toFixed(3) : null,
                     puertas_abiertas: e.puertas_abiertas ?? 0,
                     nivel_max:       e.nivel_max_operativo ?? null,
                     bl,
@@ -2053,7 +2165,7 @@ const PublicMonitor: React.FC = () => {
         const frescos   = conTel.filter(c => (c.ts_min ?? 0) < 60).length;
         const atrasados = conTel.filter(c => (c.ts_min ?? 0) >= 60 && (c.ts_min ?? 0) <= MAX_STALE_MIN).length;
         const stale     = checkpoints.filter(c => c.ts_min === null || (c.ts_min ?? 0) > MAX_STALE_MIN).length;
-        const sinFlujo  = conTel.filter(c => c.q <= 0).length;   // nivel presente pero sin gasto
+        const sinFlujo  = conTel.filter(c => c.q == null || c.q <= 0).length;   // nivel presente pero sin gasto
         // Edad de la lectura más reciente del sistema (min). null si nada reportó.
         const tsMin = conTel.reduce<number | null>((min, c) => {
             const t = c.ts_min ?? Infinity;
@@ -2143,7 +2255,7 @@ const PublicMonitor: React.FC = () => {
                 nombre:           p.presas?.nombre       ?? p.presas?.nombre_corto ?? '—',
                 almacenamiento_mm3: p.almacenamiento_mm3 != null ? +Number(p.almacenamiento_mm3).toFixed(3) : null,
                 porcentaje_llenado: p.porcentaje_llenado != null ? +Number(p.porcentaje_llenado).toFixed(1) : null,
-                extraccion_m3s:   +(p.extraccion_total_m3s ?? p.extraccion_total ?? 0).toFixed(3),
+                extraccion_m3s:   executiveMetrics.vigente(p) ? +Number(p.extraccion_total).toFixed(3) : null,
                 escala_msnm:      p.escala_msnm != null ? +Number(p.escala_msnm).toFixed(3) : null,
                 fecha:            p.fecha,
             })),
@@ -2195,15 +2307,12 @@ const PublicMonitor: React.FC = () => {
             } : null,
             timestamp: new Date().toISOString(),
         };
-    }, [escalas, volInterescalas, volZonas, balanceModulos, entregasHoy, presasData, tomasActivas, activeEvent, volCiclo]);
+    }, [escalas, volInterescalas, volZonas, balanceModulos, entregasHoy, presasData, tomasActivas, activeEvent, volCiclo, executiveMetrics]);
 
     // Cerrar el modal de perfil con Escape (accesibilidad de teclado)
     useEffect(() => {
-        if (!showPerfilModal) return;
-        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowPerfilModal(false); };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, [showPerfilModal]);
+        // El perfil ya no es modal (vive en la pestaña CANAL): nada que cerrar.
+    }, []);
 
     const iecBreakdownRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -2218,7 +2327,8 @@ const PublicMonitor: React.FC = () => {
 
     // ── Motor hidráulico FGV — se invoca al abrir el modal de perfil ────────
     useEffect(() => {
-        if (!showPerfilModal || !coherenciaCanal || !isEstabilizacion) return;
+        if (!perfilVisible || !coherenciaCanal || !isEstabilizacion) return;
+        if (!fgvAplicable) return;
         if (fgvData) return; // ya cargado en esta sesión de modal
 
         setFgvLoading(true);
@@ -2248,7 +2358,7 @@ const PublicMonitor: React.FC = () => {
         }).then(({ data, error }) => {
             if (!error && data) setFgvData(data);
         }).finally(() => setFgvLoading(false));
-    }, [showPerfilModal, coherenciaCanal, isEstabilizacion]);
+    }, [perfilVisible, coherenciaCanal, isEstabilizacion, fgvAplicable]);
 
     // Limpiar cache FGV cuando cambia el gasto real que alimenta el motor —
     // NO en cada recálculo de coherenciaCanal (ese memo se recrea cada 60s
@@ -2317,12 +2427,90 @@ const PublicMonitor: React.FC = () => {
     // En pestañas de DATOS (Tendencias, Datos) el plano no aporta y resta espacio:
     // se oculta el mapa y el dock ocupa toda el área para ver mejor la información.
     // En Panorama, Canal y Alertas sí se muestra el plano.
+    // ── Alertas: vigentes vs pendientes antiguas (mismo criterio que el menú) ──
+    const { alertasVigentes, alertasAntiguas } = useMemo(() => {
+        const corte = Date.now() - DIAS_ALERTA_VIGENTE * 86_400_000;
+        const vig: typeof activeAlertas = [], ant: typeof activeAlertas = [];
+        activeAlertas.forEach(a => (new Date(a.fecha_deteccion).getTime() >= corte ? vig : ant).push(a));
+        return { alertasVigentes: vig, alertasAntiguas: ant };
+    }, [activeAlertas]);
+
+    // ── Franja ejecutiva y vista de VACIADO ─────────────────────────────────
+    const datosEjecutivos: DatosEjecutivos = useMemo(() => {
+        // Presas: % ponderado por capacidad (capacidad_i = alm_i / pct_i)
+        const conAlm = presasData.filter(p => p.almacenamiento_mm3 != null && Number.isFinite(Number(p.almacenamiento_mm3)));
+        const totalMm3 = conAlm.length ? conAlm.reduce((a, p) => a + Number(p.almacenamiento_mm3), 0) : null;
+        const conCap = conAlm.filter(p => Number(p.porcentaje_llenado) > 0);
+        const capMm3 = conCap.reduce((a, p) => a + Number(p.almacenamiento_mm3) / (Number(p.porcentaje_llenado) / 100), 0);
+        const pct = conCap.length && capMm3 > 0 ? (conCap.reduce((a, p) => a + Number(p.almacenamiento_mm3), 0) / capMm3) * 100 : null;
+        const extraccion = !executiveMetrics.fresh ? 'S/D'
+            : executiveMetrics.cerradaDesde ? `cerrada desde ${formatFechaCorta(executiveMetrics.cerradaDesde)}`
+            : `${executiveMetrics.totalReal.toFixed(2)} m³/s`;
+        const vol = volZonas.length ? volZonas.reduce((a: number, z: any) => a + Number(z.vol_actual_mm3 ?? 0), 0) : null;
+        const tot = volCiclo.length ? totalesVolumenCiclo(volCiclo) : null;
+        return {
+            presas: { totalMm3, pct, conDato: conAlm.length, total: presasData.length, extraccion },
+            canal: { vigentes: skillSnapshot.telemetria.vigentes, total: skillSnapshot.telemetria.total, volumenMm3: vol },
+            entregas: {
+                entregadoMm3: tot ? tot.entregadoMm3 : null,
+                autorizadoMm3: tot ? tot.autorizadoMm3 : null,
+                pct: tot ? tot.pctEntregado : null,
+                remanenteMm3: tot ? tot.remanenteMm3 : null,
+                ciclo: volCiclo[0]?.cicloNombre ?? null,
+            },
+            alertas: {
+                crit: alertasVigentes.filter(a => a.tipo_riesgo === 'critical').length,
+                avisos: alertasVigentes.filter(a => a.tipo_riesgo === 'warning').length,
+                info: alertasVigentes.filter(a => a.tipo_riesgo !== 'critical' && a.tipo_riesgo !== 'warning').length,
+                antiguas: alertasAntiguas.length,
+            },
+        };
+    }, [presasData, executiveMetrics, volZonas, volCiclo, skillSnapshot, alertasVigentes, alertasAntiguas]);
+
+    const datosVaciado: DatosVaciado | null = useMemo(() => {
+        if (modoVisualizacion !== 'VACIADO') return null;
+        const control = [...escalas].filter(e => e.km >= 0 && e.km <= 104 && !ESC_SIN_CONTROL.has(e.nombre)).sort((a, b) => a.km - b.km);
+        const edadTxt = (ts?: number | null) => {
+            if (!ts) return 'sin lectura';
+            const m = Math.max(0, Math.round((Date.now() - ts) / 60000));
+            return m < 60 ? `${m} min` : m < 48 * 60 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} d`;
+        };
+        const filas = control.map(e => {
+            const v = escalaVencida(e);
+            return { nombre: e.nombre, km: e.km, nivel: e.nivel_actual ?? null, dCm: e.delta_12h != null ? Math.round(e.delta_12h * 100) : null, vencida: v, edad: edadTxt(e.ultima_telemetria) };
+        });
+        const vigentes = filas.filter(f => !f.vencida);
+        const cierre = executiveMetrics.cerradaDesde;
+        const tot = volCiclo.length ? totalesVolumenCiclo(volCiclo) : null;
+        return {
+            cerradaDesde: cierre ? formatFechaCorta(cierre) : null,
+            diasCierre: cierre ? Math.floor((Date.now() - new Date(cierre).getTime()) / 86_400_000) : null,
+            descendiendo: vigentes.filter(f => (f.dCm ?? 0) < 0).length,
+            estables: vigentes.filter(f => (f.dCm ?? 0) >= 0).length,
+            sinLectura: filas.length - vigentes.length,
+            totalControl: filas.length,
+            volumenMm3: datosEjecutivos.canal.volumenMm3,
+            remanenteMm3: tot ? tot.remanenteMm3 : null,
+            filas,
+        };
+    }, [modoVisualizacion, escalas, executiveMetrics, volCiclo, datosEjecutivos]);
+
     const tabSinMapa = isDockVisible && (dockTab === 'tendencias' || dockTab === 'skill');
+    // Panel lateral derecho cuando hay ancho (escritorio / tableta horizontal):
+    // el mapa ocupa solo el área libre y el canal se encuadra ahí, sin nada encima.
+    const layoutLateral = !isMobile && anchoCont >= 860 && !tabSinMapa;
+    const claseLayout = tabSinMapa ? ' pm-sin-mapa'
+        : layoutLateral ? (isDockVisible ? ' pm-lateral' : ' pm-lateral pm-panel-cerrado')
+        : (isDockVisible ? ' pm-inferior' : ' pm-panel-cerrado');
+    // Derivado del estado (antes se leía sessionStorage en el render: no se
+    // re-renderizaba al cambiar y podía quedar pegado con un K-0 ya vencido).
+    const hayViolacion = flowAtZeroFresh && flowAtZero > CAPACIDAD_DISENO_K0;
+    const modoExtra = modoVisualizacion === 'CONTINGENCIA' || modoVisualizacion === 'VACIADO' || modoVisualizacion === 'ANOMALIA';
 
     return (
-        <div className={`public-monitor-container${tabSinMapa ? ' pm-sin-mapa' : ''}`}>
+        <div ref={contRef} className={`public-monitor-container${claseLayout}`}>
             {/* Compact Header Badge - Floating over map */}
-            <div className="public-header-badge animate-in">
+            <div className="public-header-badge animate-in" data-pm-overlay>
                 <div className="phb-main">
                     <div className="phb-logos">
                         <img src="/logos/logo-srl.png" alt="SRL" className="phb-logo" />
@@ -2341,9 +2529,14 @@ const PublicMonitor: React.FC = () => {
 
                     <div className="phb-efficiency">
                         <span className="phb-label">PRESA:</span>
-                        <span className="phb-val" style={{ color: executiveMetrics.fresh ? undefined : '#8396ad' }} title={executiveMetrics.fresh ? undefined : 'Sin lectura/movimiento de presa en las últimas 24 h'}>
+                        <span className="phb-val" style={{ color: executiveMetrics.fresh ? undefined : '#8396ad' }}
+                            title={!executiveMetrics.fresh ? 'Sin extracción vigente (ni movimiento de compuertas ni lectura <24 h)'
+                                : executiveMetrics.cerradaDesde ? `Presas cerradas desde ${formatFechaCorta(executiveMetrics.cerradaDesde)} (último movimiento de compuertas)` : undefined}>
                             {executiveMetrics.fresh ? `${executiveMetrics.totalReal.toFixed(2)} m³/s` : 'S/D'}
                         </span>
+                        {executiveMetrics.cerradaDesde && (
+                            <span className="phb-sub">cerrada desde {formatFechaCorta(executiveMetrics.cerradaDesde)}</span>
+                        )}
                     </div>
 
                     <div className="phb-divider"></div>
@@ -2352,7 +2545,7 @@ const PublicMonitor: React.FC = () => {
                         <span className="phb-label">{modoActual.kpi0Label}</span>
                         <span
                             className="phb-val"
-                            style={{ color: !flowAtZeroFresh ? '#8396ad' : sessionStorage.getItem('has_hydraulic_violation') === 'true' ? '#ef4444' : statusColor }}
+                            style={{ color: !flowAtZeroFresh ? '#8396ad' : hayViolacion ? '#ef4444' : statusColor }}
                             title={flowAtZeroFresh ? undefined : 'K-0 sin lectura de gasto fresca (<4 h)'}
                         >
                             {flowAtZeroFresh ? `${flowAtZero.toFixed(2)} m³/s` : 'S/D'}
@@ -2382,35 +2575,6 @@ const PublicMonitor: React.FC = () => {
                     <div className="phb-version">v{__V2_APP_VERSION__}</div>
                 </div>
             </div>
-
-            {/* Banner de estado extraordinario — CONTINGENCIA / VACIADO / ANOMALIA */}
-            {(modoVisualizacion === 'CONTINGENCIA' || modoVisualizacion === 'VACIADO' || modoVisualizacion === 'ANOMALIA') && (
-                <div
-                    className="hydraulic-violation-banner hvb-modo-extra animate-in"
-                    style={{ '--modo-color': modoActual.color } as React.CSSProperties}
-                >
-                    <div className="hvb-content">
-                        <Activity size={18} className="hvb-icon hvb-modo-icon" />
-                        <div className="hvb-text">
-                            <b className="hvb-modo-label">{modoActual.label}</b>
-                            {activeEvent?.notas && <p>{activeEvent.notas}</p>}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Hydraulic Violation Banner */}
-            {sessionStorage.getItem('has_hydraulic_violation') === 'true' && (
-                <div className="hydraulic-violation-banner animate-in">
-                    <div className="hvb-content">
-                        <Activity size={18} className="hvb-icon" />
-                        <div className="hvb-text">
-                            <b>VIOLACIÓN HIDRÁULICA DETECTADA: K-0+000</b>
-                            <p>El gasto de entrada ({flowAtZero.toFixed(2)} m³/s) EXCEDE la capacidad de diseño de 70.42 m³/s. Riesgo de desbordamiento.</p>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Predicted position badge - Managerial Transit Report */}
             {activeEvent?.evento_tipo === 'LLENADO' && isPredictionVisible && (
@@ -2586,6 +2750,8 @@ const PublicMonitor: React.FC = () => {
                 <MapContainer 
                     center={[28.25, -105.45]} 
                     zoom={10} 
+                    zoomSnap={0.25}
+                    zoomDelta={0.5}
                     zoomControl={false}
                     style={{ height: "100%", width: "100%" }}
                 >
@@ -2593,6 +2759,13 @@ const PublicMonitor: React.FC = () => {
                         center={frontCoords as [number, number]} 
                         zoom={11} 
                         active={activeEvent?.evento_tipo === 'LLENADO'} 
+                    />
+                    {/* Fuera de LLENADO el canal se encuadra en el área libre */}
+                    <FitCanal
+                        puntos={canalFullLength}
+                        activo={activeEvent?.evento_tipo !== 'LLENADO' && !tabSinMapa}
+                        trigger={`${claseLayout}|${dockTab}|${canalFullLength.length}|${anchoCont}`}
+                        recentrarRef={recentrarCanalRef}
                     />
                     <TileLayer
                         url={CARTO_TILE_URL}
@@ -2660,7 +2833,7 @@ const PublicMonitor: React.FC = () => {
                                         <Timer size={12} color={isWaitingAtZero ? '#f59e0b' : statusColor} />
                                         <span className="tooltip-value">{isWaitingAtZero ? 'ESPERANDO CAPTURA' : 'AVANCE ESTIMADO'}</span>
                                     </div>
-                                    <div className="tooltip-footer">{isWaitingAtZero ? 'ALERTA: PUNTO DE CONTROL CERRADO' : 'SICA INTELIGENCIA v3.2'}</div>
+                                    <div className="tooltip-footer">{isWaitingAtZero ? 'ALERTA: PUNTO DE CONTROL CERRADO' : 'Frente de avance estimado'}</div>
                                 </div>
                             </Popup>
                         </Marker>
@@ -2681,26 +2854,39 @@ const PublicMonitor: React.FC = () => {
                     <ZoomControl position="bottomright" />
                 </MapContainer>
 
+                {/* Recentrar el canal tras hacer zoom/arrastre */}
+                {activeEvent?.evento_tipo !== 'LLENADO' && (
+                    <button type="button" className="pm-recentrar" data-pm-overlay
+                        onClick={() => recentrarCanalRef.current?.()}
+                        title="Centrar el canal en la vista" aria-label="Centrar el canal en la vista">
+                        <MapPin size={15} /> <span>Centrar canal</span>
+                    </button>
+                )}
+
                 {/* ── Leyenda de mapa — overlay persistente ── */}
-                <div className="map-legend">
+                <div className="map-legend" data-pm-overlay>
                     {isEstabilizacion ? (
                         <>
                             <div className="ml-title">NIVEL DE AGUA</div>
                             <div className="ml-item">
                                 <span className="ml-dot ml-dot--critico" />
-                                <span>Crítico ≥ 92%</span>
+                                <span>Crítico ≥ {UMBRAL_CRITICO * 100}% máx.</span>
                             </div>
                             <div className="ml-item">
                                 <span className="ml-dot ml-dot--alerta" />
-                                <span>Alerta ≥ 80%</span>
+                                <span>Alerta ≥ {UMBRAL_ALERTA * 100}% máx.</span>
                             </div>
                             <div className="ml-item">
                                 <span className="ml-dot ml-dot--normal" />
-                                <span>Normal</span>
+                                <span>Normal ≥ {UMBRAL_NORMAL * 100}%</span>
                             </div>
                             <div className="ml-item">
                                 <span className="ml-dot ml-dot--bajo" />
                                 <span>Flujo bajo</span>
+                            </div>
+                            <div className="ml-item">
+                                <span className="ml-dot ml-dot--vencido" />
+                                <span>Dato vencido (&gt;4 h)</span>
                             </div>
                             <div className="ml-item">
                                 <span className="ml-dot ml-dot--sin" />
@@ -2768,21 +2954,46 @@ const PublicMonitor: React.FC = () => {
 
             {/* Bottom Dock - Balanced layout to avoid 'heavy right' look */}
             {isDockVisible ? (
-                <div className="info-cards-dock animate-in" style={{ animationDelay: '0.4s' }}>
-                    <button type="button" className="dock-close-btn" onClick={() => setIsDockVisible(false)} title="Cerrar tablero">×</button>
+                <div className="info-cards-dock animate-in" data-pm-overlay style={{ animationDelay: '0.4s' }}>
+                    <button type="button" className="dock-close-btn" onClick={() => setIsDockVisible(false)}
+                        title="Ocultar tablero (el mapa toma todo el ancho)" aria-label="Ocultar tablero">×</button>
+
+                    {/* Avisos de estado — dentro del tablero, nunca sobre el canal */}
+                    {modoExtra && (
+                        <div className="pm-aviso pm-aviso--modo" style={{ '--modo-color': modoActual.color } as React.CSSProperties} role="status">
+                            <Activity size={16} className="pm-aviso-icono" />
+                            <div className="pm-aviso-texto">
+                                <b>{modoActual.label}</b>
+                                {activeEvent?.notas && <p>{activeEvent.notas}</p>}
+                            </div>
+                        </div>
+                    )}
+                    {hayViolacion && (
+                        <div className="pm-aviso pm-aviso--crit" role="alert">
+                            <AlertTriangle size={16} className="pm-aviso-icono" />
+                            <div className="pm-aviso-texto">
+                                <b>Violación hidráulica detectada: K-0+000</b>
+                                <p>El gasto de entrada ({flowAtZero.toFixed(2)} m³/s) excede la capacidad de diseño de {CAPACIDAD_DISENO_K0} m³/s. Riesgo de desbordamiento.</p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* ── Barra de pestañas ── */}
-                    <div className="dock-tabs">
+                    <div className="dock-tabs" role="tablist" aria-label="Secciones del tablero">
                         <button
                             type="button"
                             className={`dock-tab${dockTab === 'resumen' ? ' dock-tab--active' : ''}`}
+                            role="tab"
+                            aria-selected={dockTab === 'resumen'}
                             onClick={() => setDockTab('resumen')}
                         >
-                            {isEstabilizacion ? 'PANORAMA' : 'BALANCE'}
+                            PANORAMA
                         </button>
                         <button
                             type="button"
                             className={`dock-tab${dockTab === 'canal' ? ' dock-tab--active' : ''}`}
+                            role="tab"
+                            aria-selected={dockTab === 'canal'}
                             onClick={() => setDockTab('canal')}
                         >
                             CANAL
@@ -2790,24 +3001,31 @@ const PublicMonitor: React.FC = () => {
                         <button
                             type="button"
                             className={`dock-tab${dockTab === 'alertas' ? ' dock-tab--active' : ''}`}
+                            role="tab"
+                            aria-selected={dockTab === 'alertas'}
                             onClick={() => setDockTab('alertas')}
                         >
                             ALERTAS
-                            {activeAlertas.length > 0 && (
-                                <span className="dock-tab-badge">{activeAlertas.length}</span>
+                            {datosEjecutivos.alertas.crit + datosEjecutivos.alertas.avisos > 0 && (
+                                <span className={`dock-tab-badge${datosEjecutivos.alertas.crit === 0 ? ' dock-tab-badge--warn' : ''}`}
+                                    title={`${datosEjecutivos.alertas.crit} críticas · ${datosEjecutivos.alertas.avisos} avisos vigentes${datosEjecutivos.alertas.antiguas ? ` · ${datosEjecutivos.alertas.antiguas} pendientes antiguas` : ''}`}>{datosEjecutivos.alertas.crit + datosEjecutivos.alertas.avisos}</span>
                             )}
                         </button>
                         <button
                             type="button"
                             className={`dock-tab dock-tab--skill${dockTab === 'skill' ? ' dock-tab--active' : ''}`}
+                            role="tab"
+                            aria-selected={dockTab === 'skill'}
                             onClick={() => setDockTab('skill')}
-                            title="Datos actuales para modelación con Claude"
+                            title="Datos técnicos: balance, tramos, zonas, módulos y modelación"
                         >
-                            DATOS
+                            TÉCNICO
                         </button>
                         <button
                             type="button"
                             className={`dock-tab${dockTab === 'tendencias' ? ' dock-tab--active' : ''}`}
+                            role="tab"
+                            aria-selected={dockTab === 'tendencias'}
                             onClick={() => setDockTab('tendencias')}
                             title="Análisis histórico por periodo: escalas, tramos, compuertas, gasto"
                         >
@@ -2835,7 +3053,7 @@ const PublicMonitor: React.FC = () => {
                                         {executiveMetrics.fresh && <span className="gasto-unit">m³/s</span>}
                                     </span>
                                     <div className="summary-info-row">
-                                        <span className="summary-info-title">📊 PROGRESO: <span className="summary-info-value" style={{ color: statusColor }}>{Math.max(0, Math.min(100, ((displayMaxKm + 36) / 140) * 100)).toFixed(1)}%</span></span>
+                                        <span className="summary-info-title">PROGRESO: <span className="summary-info-value" style={{ color: statusColor }}>{Math.max(0, Math.min(100, ((displayMaxKm + 36) / 140) * 100)).toFixed(1)}%</span></span>
                                     </div>
                                 </div>
                                 <PresasNivelStrip presas={presasData} />
@@ -2844,7 +3062,11 @@ const PublicMonitor: React.FC = () => {
                                     {presasData.map(p => (
                                         <span key={p.id} className="dpf-item">
                                             <span className="dpf-label">{p.presas?.nombre_corto?.toUpperCase() || 'PRESA'}</span>
-                                            <span className="dpf-val">{p.extraccion_total?.toFixed(1)} m³/s</span>
+                                            <span className="dpf-val" title={p.extraccion_fuente === 'movimiento' ? `Último movimiento de compuertas: ${formatFechaCorta(p.extraccion_desde)}` : undefined}>
+                                                {executiveMetrics.vigente(p)
+                                                    ? `${Number(p.extraccion_total).toFixed(1)} m³/s${Number(p.extraccion_total) === 0 && p.extraccion_fuente === 'movimiento' ? ' · cerrada' : ''}`
+                                                    : 'S/D'}
+                                            </span>
                                         </span>
                                     ))}
                                     {damMovements[0]?.fecha_hora && (
@@ -2862,6 +3084,7 @@ const PublicMonitor: React.FC = () => {
                         ) : (
                             // ── Vista ESTABILIZACIÓN ──
                             <>
+                                <PanelEjecutivo d={datosEjecutivos} onAlertas={() => setDockTab('alertas')} />
                                 {/* Header: título + badge + botón perfil */}
                                 <div className="dock-panel-header">
                                     <span className="card-label">PANORAMA DEL CANAL</span>
@@ -2876,19 +3099,23 @@ const PublicMonitor: React.FC = () => {
                                             <span className="iec-label">IEC</span>
                                         </div>
                                     )}
-                                    <button type="button" className="perfil-inline-btn" onClick={() => setShowPerfilModal(true)} title="Ver perfil hidráulico">
+                                    <button type="button" className="perfil-inline-btn" onClick={() => setDockTab('canal')} title="Ver perfil hidráulico en la pestaña CANAL">
                                         <Waves size={12} />
                                         <span>PERFIL</span>
                                         <span className="ptb-badge">●</span>
                                     </button>
                                 </div>
 
+                                {datosVaciado && <VistaVaciado d={datosVaciado} />}
+                                {/* En VACIADO la cadena PRESA→K0→Kfinal y el IEC describen un canal
+                                    en distribución: no aplican con la presa cerrada. */}
+                                {!datosVaciado && (<>
                                 {/* Cadena de flujo */}
                                 {coherenciaCanal ? (
                                     <div className="coherencia-flow-chain">
                                         <div className="cfc-node">
-                                            <span className="cfc-label">PRESA</span>
-                                            <span className="cfc-val">{coherenciaCanal.qPresa.toFixed(1)}</span>
+                                            <span className="cfc-label">BOQUILLA</span>
+                                            <span className="cfc-val">{coherenciaCanal.qPresaVigente ? coherenciaCanal.qPresa.toFixed(1) : 'S/D'}</span>
                                             <span className="cfc-unit">m³/s</span>
                                         </div>
                                         <div className="cfc-arrow">
@@ -2977,6 +3204,8 @@ const PublicMonitor: React.FC = () => {
                                     </div>
                                 )}
 
+                                </>)}
+
                                 {/* Acciones: Reporte PDF + CSV */}
                                 {(iecData && coherenciaCanal) && (
                                     <div className="dock-action-row">
@@ -3005,7 +3234,11 @@ const PublicMonitor: React.FC = () => {
                                     {presasData.map(p => (
                                         <span key={p.id} className="dpf-item">
                                             <span className="dpf-label">{p.presas?.nombre_corto?.toUpperCase() || 'PRESA'}</span>
-                                            <span className="dpf-val">{p.extraccion_total?.toFixed(1)} m³/s</span>
+                                            <span className="dpf-val" title={p.extraccion_fuente === 'movimiento' ? `Último movimiento de compuertas: ${formatFechaCorta(p.extraccion_desde)}` : undefined}>
+                                                {executiveMetrics.vigente(p)
+                                                    ? `${Number(p.extraccion_total).toFixed(1)} m³/s${Number(p.extraccion_total) === 0 && p.extraccion_fuente === 'movimiento' ? ' · cerrada' : ''}`
+                                                    : 'S/D'}
+                                            </span>
                                         </span>
                                     ))}
                                     {damMovements[0]?.fecha_hora && (
@@ -3028,7 +3261,9 @@ const PublicMonitor: React.FC = () => {
                         )}
                     </div>
 
-                    {/* ── Checkpoints siempre visibles en RESUMEN (layout original) ── */}
+                    {/* ── Red de puntos: en LLENADO es el seguimiento del frente y se queda
+                        aquí; en los demás modos vive en CANAL (antes duplicada). ── */}
+                    {!isEstabilizacion ? (
                     <div className="dock-section checkpoints-section">
                         <div className="dock-section-header">
                             <span className="card-label">RED DE PUNTOS DE CONTROL</span>
@@ -3043,12 +3278,80 @@ const PublicMonitor: React.FC = () => {
                             currentTime={currentTime}
                         />
                     </div>
+                    ) : (
+                    <button type="button" className="pm-ir-canal" onClick={() => setDockTab('canal')}>
+                        <span>
+                            <b>Red de puntos de control y perfil hidráulico</b>
+                            <small>Nivel, margen al máximo operativo, gasto y compuertas por escala</small>
+                        </span>
+                        {renderStateTag('MONITOREO ACTIVO')}
+                        <ArrowRightCircle size={18} />
+                    </button>
+                    )}
                     </>
                     )}
 
                     {/* ── Pestaña CANAL (checkpoints standalone — móvil usa esta vista) ── */}
                     {dockTab === 'canal' && (
                     <div className="dock-section checkpoints-section">
+                        {isEstabilizacion && (
+                            <div className="pm-perfil-inline">
+                                <div className="dock-section-header">
+                                    <span className="card-label"><Waves size={13} /> PERFIL HIDRÁULICO — CANAL CONCHOS</span>
+                                </div>
+                                <div className="perfil-modal-body">
+                            <div className="perfil-svg-scroll">
+                                <CanalLongitudinalProfile
+                                    escalas={escalas}
+                                    coherencia={coherenciaCanal}
+                                    fgvProfile={fgvAplicable ? fgvData?.profile : undefined}
+                                    fgvLoading={fgvAplicable && fgvLoading}
+                                />
+                            </div>
+                            <div className="canal-profile-legend">
+                                <span className="cpl-item cpl-green">Operativo (&lt;80% bordo)</span>
+                                <span className="cpl-item cpl-amber">Alerta (80–92% bordo)</span>
+                                <span className="cpl-item cpl-red">Crítico (&gt;92%) / Incoherente</span>
+                                <span className="cpl-item cpl-blue">Bajo / sin rango op.</span>
+                                <span className="cpl-item cpl-bordo">— — Bordo real por escala</span>
+                                <span className="cpl-item cpl-trend">▲ sube · ▼ baja · — estable (Δ12h)</span>
+                                {fgvData && fgvAplicable && <span className="cpl-item cpl-fgv" title="Superficie libre calculada por el modelo de Flujo Gradualmente Variado para el caudal actual">— — FGV · perfil teórico (modelo)</span>}
+                                {fgvData?.criticos?.length > 0 && <span className="cpl-item cpl-jump">| Salto hidráulico</span>}
+                            </div>
+                            {!fgvAplicable && (
+                                <p className="pm-fgv-nota">Modelo de perfil teórico (FGV) no calculado: {fgvMotivo}. Se muestran solo niveles medidos.</p>
+                            )}
+                            {fgvData && fgvAplicable && (
+                                <div className="fgv-stat-grid">
+                                    <div className="fgv-stat">
+                                        <span className="fgv-stat-label">Q ENTRADA</span>
+                                        <span className="fgv-stat-val fgv-stat--cyan">{fgvData.q_entrada != null ? fgvData.q_entrada.toFixed(1) : '—'}<small>m³/s</small></span>
+                                    </div>
+                                    <div className="fgv-stat">
+                                        <span className="fgv-stat-label">Q SALIDA</span>
+                                        <span className="fgv-stat-val fgv-stat--blue">{fgvData.q_salida != null ? fgvData.q_salida.toFixed(1) : '—'}<small>m³/s</small></span>
+                                    </div>
+                                    <div className="fgv-stat">
+                                        <span className="fgv-stat-label">EF. CONDUCCIÓN</span>
+                                        <span className={`fgv-stat-val ${fgvData.eficiencia_conduccion == null ? '' : fgvData.eficiencia_conduccion >= 95 ? 'fgv-stat--green' : fgvData.eficiencia_conduccion >= 90 ? 'fgv-stat--amber' : 'fgv-stat--red'}`}>
+                                            {fgvData.eficiencia_conduccion != null ? fgvData.eficiencia_conduccion.toFixed(1) : '—'}<small>%</small>
+                                        </span>
+                                    </div>
+                                    <div className="fgv-stat">
+                                        <span className="fgv-stat-label">TRÁNSITO K-0→104</span>
+                                        <span className="fgv-stat-val">{fgvData.transit_time_h != null ? fgvData.transit_time_h.toFixed(1) : '—'}<small>h</small></span>
+                                    </div>
+                                    {fgvData.criticos?.length > 0 && (
+                                        <div className="fgv-stat fgv-stat--critbox">
+                                            <span className="fgv-stat-label">PUNTOS CRÍTICOS</span>
+                                            <span className="fgv-stat-val fgv-stat--red">⚠ {fgvData.criticos.length}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                            </div>
+                        )}
                         <div className="dock-section-header">
                             <span className="card-label">RED DE PUNTOS DE CONTROL</span>
                             {renderStateTag('MONITOREO ACTIVO')}
@@ -3077,22 +3380,67 @@ const PublicMonitor: React.FC = () => {
                                 <span>Sin alertas activas</span>
                             </div>
                         ) : (
-                            <div className="dap-list">
-                                {activeAlertas.map(a => (
-                                    <div key={a.id} className={`dap-item dap-item--${a.tipo_riesgo}`}>
-                                        <AlertTriangle size={12} className="dap-icon" />
-                                        <div className="dap-body">
-                                            <span className="dap-titulo">{a.titulo}</span>
-                                            <span className="dap-fecha">
-                                                {new Date(a.fecha_deteccion).toLocaleString('es-MX', {
-                                                    day: '2-digit', month: 'short',
-                                                    hour: '2-digit', minute: '2-digit',
-                                                    hour12: true, timeZone: 'America/Chihuahua'
-                                                })}
-                                            </span>
+                            <div className="dap-grupos">
+                                <div className="pm-ejec-sevbar dap-sevbar" role="img"
+                                    aria-label={`${datosEjecutivos.alertas.crit} críticas, ${datosEjecutivos.alertas.avisos} avisos, ${datosEjecutivos.alertas.info} informativas`}>
+                                    {datosEjecutivos.alertas.crit > 0 && <i className="c" style={{ flex: datosEjecutivos.alertas.crit }} />}
+                                    {datosEjecutivos.alertas.avisos > 0 && <i className="w" style={{ flex: datosEjecutivos.alertas.avisos }} />}
+                                    {datosEjecutivos.alertas.info > 0 && <i className="n" style={{ flex: datosEjecutivos.alertas.info }} />}
+                                </div>
+                                {([
+                                    ['critical', 'Críticas'],
+                                    ['warning', 'Avisos'],
+                                    ['info', 'Informativas'],
+                                ] as const).map(([tipo, titulo]) => {
+                                    const grupo = alertasVigentes.filter(a => tipo === 'info'
+                                        ? a.tipo_riesgo !== 'critical' && a.tipo_riesgo !== 'warning'
+                                        : a.tipo_riesgo === tipo);
+                                    if (grupo.length === 0) return null;
+                                    return (
+                                        <div key={tipo} className={`dap-grupo dap-grupo--${tipo}`}>
+                                            <div className="dap-grupo-cab"><span>{titulo}</span><b>{grupo.length}</b></div>
+                                            <div className="dap-list">
+                                                {grupo.map(a => (
+                                                    <div key={a.id} className={`dap-item dap-item--${a.tipo_riesgo}`}>
+                                                        <AlertTriangle size={13} className="dap-icon" />
+                                                        <div className="dap-body">
+                                                            <span className="dap-titulo">{a.titulo}</span>
+                                                            {a.mensaje && <span className="dap-msg">{a.mensaje}</span>}
+                                                            <span className="dap-fecha">
+                                                                {new Date(a.fecha_deteccion).toLocaleString('es-MX', {
+                                                                    day: '2-digit', month: 'short',
+                                                                    hour: '2-digit', minute: '2-digit',
+                                                                    hour12: true, timeZone: 'America/Chihuahua'
+                                                                })}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
+                                {alertasVigentes.length === 0 && (
+                                    <div className="dap-empty"><span className="dap-empty-icon">✓</span><span>Sin alertas vigentes (últimos {DIAS_ALERTA_VIGENTE} días)</span></div>
+                                )}
+                                {alertasAntiguas.length > 0 && (
+                                    <details className="dap-grupo dap-grupo--antiguas">
+                                        <summary className="dap-grupo-cab">
+                                            <span>Pendientes antiguas (&gt;{DIAS_ALERTA_VIGENTE} d, sin resolver)</span><b>{alertasAntiguas.length}</b>
+                                        </summary>
+                                        <p className="dap-msg">No cuentan como alertas de hoy: conviene revisarlas y marcarlas como resueltas en el módulo Alertas.</p>
+                                        <div className="dap-list">
+                                            {alertasAntiguas.map(a => (
+                                                <div key={a.id} className="dap-item dap-item--antigua">
+                                                    <div className="dap-body">
+                                                        <span className="dap-titulo">{a.titulo}</span>
+                                                        <span className="dap-fecha">{new Date(a.fecha_deteccion).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Chihuahua' })}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </details>
+                                )}
                             </div>
                         )}
                         <div className="dap-footer">
@@ -3232,13 +3580,13 @@ const PublicMonitor: React.FC = () => {
                                             <tr key={c.nombre} className={c.alerta === 'NIVEL_CRITICO' ? 'dsk-tr--critico' : c.alerta === 'PRECAUCION' ? 'dsk-tr--warn' : ''}>
                                                 <td className="dsk-td-nombre">{c.nombre}</td>
                                                 <td className="dsk-td-num">{c.km}</td>
-                                                <td className="dsk-td-num">{c.hA.toFixed(3)}</td>
+                                                <td className="dsk-td-num">{c.hA != null ? c.hA.toFixed(3) : 'S/D'}</td>
                                                 <td className="dsk-td-num">{c.hB !== null && c.hB !== undefined ? c.hB.toFixed(3) : '—'}</td>
-                                                <td className={`dsk-td-num ${c.q > 0 ? 'dsk-td--q' : 'dsk-td--zero'}`}
-                                                    title={c.q > 0 ? undefined : (c.ts_min === null ? 'Sin telemetría' : 'Nivel reportado, sin medición de gasto')}>
-                                                    {c.q > 0 ? c.q.toFixed(3) : '—'}</td>
+                                                <td className={`dsk-td-num ${c.q != null && c.q > 0 ? 'dsk-td--q' : 'dsk-td--zero'}`}
+                                                    title={c.q != null ? (c.q === 0 ? 'Gasto medido: 0 (compuertas cerradas)' : undefined) : (c.ts_min === null ? 'Sin telemetría' : 'Nivel reportado, sin medición de gasto')}>
+                                                    {c.q != null ? c.q.toFixed(3) : 'S/D'}</td>
                                                 <td className="dsk-td-num dsk-td--m1">{c.m1.toFixed(4)}</td>
-                                                <td className="dsk-td-num">{c.apertura > 0 ? c.apertura.toFixed(3) : '—'}</td>
+                                                <td className="dsk-td-num">{c.apertura != null ? c.apertura.toFixed(3) : 'S/D'}</td>
                                                 <td className={`dsk-td-num ${c.bl !== null && c.bl < 0 ? 'dsk-td--red' : c.bl !== null && c.bl < 0.10 ? 'dsk-td--amber' : ''}`}>
                                                     {c.bl !== null ? c.bl.toFixed(3) : '—'}
                                                 </td>
@@ -3262,7 +3610,8 @@ const PublicMonitor: React.FC = () => {
                                     .filter(c => (c.ts_min === null || c.ts_min > 240) && !ESC_SIN_CONTROL.has(c.nombre))
                                     .map(c => ({ nombre: c.nombre, ts: c.ts_min }))
                                     .sort((a, b) => (b.ts ?? 1e9) - (a.ts ?? 1e9));
-                                if (vencidas.length === 0) return null;
+                                // En VACIADO el canal se está desaguando: pedir aforos es ruido operativo.
+                                if (vencidas.length === 0 || modoVisualizacion === 'VACIADO') return null;
                                 const fmt = (m: number | null) => m == null ? 'sin lectura' : m < 60 ? `sin reporte hace ${m} min` : `sin reporte hace ${(m / 60).toFixed(1)} h`;
                                 // Críticas = sin lectura o >12 h (las que más bloquean)
                                 const criticas = vencidas.filter(v => v.ts === null || (v.ts ?? 0) > 720);
@@ -3429,10 +3778,11 @@ const PublicMonitor: React.FC = () => {
                             {/* Alertas de zona — vaciándose (<40%) Y sobrellenado (≥90%).
                                 Una zona al 100% (riesgo de desbordamiento) es tan crítica como
                                 una al 20%; antes solo se alertaban las zonas bajas. */}
-                            {volZonas.some((z: any) => { const p = Number(z.pct_llenado ?? 0); return p < 40 || p >= 90; }) && (
+                            {/* En VACIADO las zonas bajas son lo ESPERADO (no "críticas"): solo se alerta sobrellenado. */}
+                            {volZonas.some((z: any) => { const p = Number(z.pct_llenado ?? 0); return (p < 40 && modoVisualizacion !== 'VACIADO') || p >= 90; }) && (
                                 <div className="bt-alert-strip" style={{marginBottom:'6px'}}>
                                     {volZonas
-                                        .filter((z: any) => { const p = Number(z.pct_llenado ?? 0); return p < 40 || p >= 90; })
+                                        .filter((z: any) => { const p = Number(z.pct_llenado ?? 0); return (p < 40 && modoVisualizacion !== 'VACIADO') || p >= 90; })
                                         .map((z: any) => {
                                             const pct = Number(z.pct_llenado ?? 0);
                                             const sev = pct >= 100 || pct < 20 ? 'alta' : 'media';
@@ -3931,93 +4281,21 @@ const PublicMonitor: React.FC = () => {
                 />
             )}
 
-            {/* Modal — Perfil Longitudinal */}
-            {showPerfilModal && (
-                <div className="perfil-modal-overlay" onClick={() => setShowPerfilModal(false)}>
-                    <div className="perfil-modal" onClick={e => e.stopPropagation()}
-                        role="dialog" aria-modal="true" aria-labelledby="perfil-modal-title">
-                        <div className="perfil-modal-header">
-                            <div className="perfil-modal-title">
-                                <Waves size={15} className="perfil-modal-icon" />
-                                <span id="perfil-modal-title" className="perfil-modal-title-text">PERFIL HIDRÁULICO — CANAL CONCHOS</span>
-                                {renderStateTag()}
-                            </div>
-                            <button type="button" className="perfil-modal-close" title="Cerrar perfil" aria-label="Cerrar perfil" onClick={() => setShowPerfilModal(false)}>
-                                <X size={16} />
-                            </button>
-                        </div>
-                        <div className="perfil-modal-body">
-                            <div className="perfil-svg-scroll">
-                                <CanalLongitudinalProfile
-                                    escalas={escalas}
-                                    coherencia={coherenciaCanal}
-                                    fgvProfile={fgvData?.profile}
-                                    fgvLoading={fgvLoading}
-                                />
-                            </div>
-                            <div className="canal-profile-legend">
-                                <span className="cpl-item cpl-green">Operativo (&lt;80% bordo)</span>
-                                <span className="cpl-item cpl-amber">Alerta (80–92% bordo)</span>
-                                <span className="cpl-item cpl-red">Crítico (&gt;92%) / Incoherente</span>
-                                <span className="cpl-item cpl-blue">Bajo / sin rango op.</span>
-                                <span className="cpl-item cpl-bordo">— — Bordo real por escala</span>
-                                <span className="cpl-item cpl-trend">▲ sube · ▼ baja · — estable (Δ12h)</span>
-                                {fgvData && <span className="cpl-item cpl-fgv" title="Superficie libre calculada por el modelo de Flujo Gradualmente Variado para el caudal actual">— — FGV · perfil teórico (modelo)</span>}
-                                {fgvData?.criticos?.length > 0 && <span className="cpl-item cpl-jump">| Salto hidráulico</span>}
-                            </div>
-                            {fgvData && (
-                                <div className="fgv-stat-grid">
-                                    <div className="fgv-stat">
-                                        <span className="fgv-stat-label">Q ENTRADA</span>
-                                        <span className="fgv-stat-val fgv-stat--cyan">{fgvData.q_entrada != null ? fgvData.q_entrada.toFixed(1) : '—'}<small>m³/s</small></span>
-                                    </div>
-                                    <div className="fgv-stat">
-                                        <span className="fgv-stat-label">Q SALIDA</span>
-                                        <span className="fgv-stat-val fgv-stat--blue">{fgvData.q_salida != null ? fgvData.q_salida.toFixed(1) : '—'}<small>m³/s</small></span>
-                                    </div>
-                                    <div className="fgv-stat">
-                                        <span className="fgv-stat-label">EF. CONDUCCIÓN</span>
-                                        <span className={`fgv-stat-val ${fgvData.eficiencia_conduccion == null ? '' : fgvData.eficiencia_conduccion >= 95 ? 'fgv-stat--green' : fgvData.eficiencia_conduccion >= 90 ? 'fgv-stat--amber' : 'fgv-stat--red'}`}>
-                                            {fgvData.eficiencia_conduccion != null ? fgvData.eficiencia_conduccion.toFixed(1) : '—'}<small>%</small>
-                                        </span>
-                                    </div>
-                                    <div className="fgv-stat">
-                                        <span className="fgv-stat-label">TRÁNSITO K-0→104</span>
-                                        <span className="fgv-stat-val">{fgvData.transit_time_h != null ? fgvData.transit_time_h.toFixed(1) : '—'}<small>h</small></span>
-                                    </div>
-                                    {fgvData.criticos?.length > 0 && (
-                                        <div className="fgv-stat fgv-stat--critbox">
-                                            <span className="fgv-stat-label">PUNTOS CRÍTICOS</span>
-                                            <span className="fgv-stat-val fgv-stat--red">⚠ {fgvData.criticos.length}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            <div className="floating-ui-controls-v2">
-                {!isPredictionVisible && activeEvent?.evento_tipo === 'LLENADO' && (
+            {!isPredictionVisible && activeEvent?.evento_tipo === 'LLENADO' && (
+                <div className="floating-ui-controls-v2" data-pm-overlay>
                     <button type="button" className="control-btn-premium" onClick={() => setIsPredictionVisible(true)} title="Mostrar avance del frente">
                         <Timer size={18} />
                         <span className="btn-label">TRAYECTO</span>
                     </button>
-                )}
-                {isEstabilizacion && (
-                    <button type="button" className="control-btn-premium" onClick={() => setShowPerfilModal(true)} title="Perfil hidráulico del canal">
-                        <Waves size={18} />
-                        <span className="btn-label">PERFIL</span>
-                    </button>
-                )}
-                {!isDockVisible && (
-                    <button type="button" className="control-btn-premium" onClick={() => setIsDockVisible(true)} title="Mostrar tablero">
-                        <Activity size={18} />
-                        <span className="btn-label">TABLERO</span>
-                    </button>
-                )}
-            </div>
+                </div>
+            )}
+            {!isDockVisible && (
+                <button type="button" className="pm-reabrir" onClick={() => setIsDockVisible(true)}
+                    title="Mostrar tablero" aria-label="Mostrar tablero">
+                    <Activity size={16} />
+                    <span>TABLERO</span>
+                </button>
+            )}
         </div>
     );
 };

@@ -812,7 +812,7 @@
     top: 0;
     left: 0;
     width: 100%;      /* área útil, no 100vw (respeta el sidebar) */
-    height: 100vh;
+    height: 100%;     /* antes 100vh: más alto que el contenedor → centro del mapa desplazado */
     z-index: 1;
     pointer-events: auto; /* Allow map interactions */
     transition: opacity 0.25s ease;
@@ -1733,7 +1733,7 @@
     }
 
     .cycle-top-label { display: none; }
-    .public-map-wrapper { height: 100vh; }
+    .public-map-wrapper { height: 100%; }
 }
 
 /* Optimization for Portrait mode on 7-inch devices */
@@ -4076,3 +4076,312 @@
 .pr-strip-pct--ok { color: #34d399; } .pr-strip-pct--warn { color: #fbbf24; } .pr-strip-pct--crit { color: #f87171; } .pr-strip-pct--mute { color: #8396ad; }
 .pr-strip-det { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: #cbd5e1; }
 .pr-strip-fecha { font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 11px; color: #8396ad; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DISTRIBUCIÓN v3 (2026-11-01) — el canal SIEMPRE libre y centrado
+   · pm-lateral   : tablero como panel fijo a la derecha; el mapa ocupa solo el
+                    área libre y FitCanal encuadra el trazo ahí (escritorio y
+                    tableta horizontal, contenedor ≥1000 px).
+   · pm-inferior  : franja inferior de alto fijo (tableta vertical / teléfono);
+                    FitCanal mide la franja y deja el canal centrado arriba.
+   · pm-panel-cerrado : mapa a todo el ancho + pestaña "TABLERO" en el borde.
+   Ningún aviso flota sobre el mapa: VACIADO/violación viven dentro del panel.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.public-monitor-container { --pm-panel-w: clamp(400px, 32%, 520px); --pm-panel-bg: #0a1222; }
+
+/* ── Panel lateral ── */
+.public-monitor-container.pm-lateral .public-map-wrapper {
+    top: 0; left: 0; bottom: 0; right: var(--pm-panel-w);
+    width: auto; height: auto;
+}
+.public-monitor-container.pm-lateral.pm-panel-cerrado .public-map-wrapper { right: 0; }
+
+.public-monitor-container.pm-lateral .info-cards-dock {
+    top: 0; right: 0; bottom: 0; left: auto;
+    transform: none;
+    width: var(--pm-panel-w);
+    max-width: none; max-height: none;
+    padding: 0 16px 18px;
+    gap: 12px;
+    border: none;
+    border-left: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 0;
+    background: var(--pm-panel-bg);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    box-shadow: -14px 0 36px rgba(0, 0, 0, 0.45);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(56, 189, 248, 0.25) transparent;
+}
+.public-monitor-container.pm-lateral .info-cards-dock > * { flex-shrink: 0; }
+
+/* Pestañas pegadas arriba al desplazar el panel */
+.public-monitor-container.pm-lateral .dock-tabs {
+    position: sticky; top: 0; z-index: 6;
+    margin: 0 -16px 0; padding: 14px 52px 0 16px;
+    background: var(--pm-panel-bg);
+    flex-wrap: wrap;
+    row-gap: 4px;
+}
+.public-monitor-container.pm-lateral .dock-close-btn {
+    position: absolute; top: 10px; right: 12px; z-index: 8;
+    width: 32px; height: 32px;
+    background: rgba(148, 163, 184, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow: none; font-size: 18px; line-height: 1;
+}
+.public-monitor-container.pm-lateral .dock-close-btn:hover { background: rgba(56, 189, 248, 0.18); border-color: #38bdf8; }
+.public-monitor-container.pm-lateral .dock-tabs { order: -2; }
+.public-monitor-container.pm-lateral .pm-aviso { order: -1; }
+
+/* Contenido apilado a todo el ancho del panel */
+.public-monitor-container.pm-lateral .dock-panel-left {
+    min-width: 0; max-width: none;
+    padding: 0 0 12px;
+    border-right: none;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+.public-monitor-container.pm-lateral .checkpoints-scroll-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+    gap: 8px;
+    overflow: visible;
+    padding-bottom: 0;
+}
+.public-monitor-container.pm-lateral .checkpoint-card-compact { min-width: 0; max-width: none; }
+.public-monitor-container.pm-lateral .perfil-modal-body { overflow: visible; padding: 4px 0 6px; }
+.public-monitor-container.pm-lateral .perfil-svg-scroll svg { min-width: 0; }
+
+/* Botón de reapertura: pestaña vertical en el borde derecho */
+.pm-reabrir {
+    position: absolute; top: 50%; right: 0; z-index: 1001;
+    transform: translateY(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 14px 10px; min-width: 44px;
+    background: var(--pm-panel-bg);
+    border: 1px solid rgba(56, 189, 248, 0.35); border-right: none;
+    border-radius: 12px 0 0 12px;
+    color: #38bdf8; cursor: pointer; pointer-events: auto;
+    box-shadow: -6px 0 18px rgba(0, 0, 0, 0.45);
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; letter-spacing: 0.18em;
+}
+.pm-reabrir span { writing-mode: vertical-rl; transform: rotate(180deg); }
+.pm-reabrir:hover { background: #0f1b31; border-color: #38bdf8; }
+.pm-reabrir:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+
+/* Controles del modo LLENADO: dentro del área del mapa, no fijos a la ventana */
+.public-monitor-container.pm-lateral .floating-ui-controls-v2 {
+    position: absolute; top: 20px; bottom: auto; right: calc(var(--pm-panel-w) + 16px);
+}
+.public-monitor-container.pm-lateral .hud-progress { left: calc((100% - var(--pm-panel-w)) / 2); }
+
+/* ── Franja inferior (tableta vertical / pantallas angostas, no teléfono) ── */
+html:not([data-device="phone"]) .public-monitor-container.pm-inferior .info-cards-dock {
+    height: 44dvh; max-height: 44dvh;
+    overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y;
+}
+html:not([data-device="phone"]) .public-monitor-container.pm-inferior .info-cards-dock > * { flex-shrink: 0; }
+
+/* ── Botón "Centrar canal" (dentro del área del mapa) ── */
+.pm-recentrar {
+    position: absolute; top: 16px; right: 16px; z-index: 900;
+    display: inline-flex; align-items: center; gap: 6px;
+    min-height: 36px; padding: 0 12px;
+    background: rgba(10, 18, 34, 0.88);
+    border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 10px;
+    color: #cbd5e1; cursor: pointer; pointer-events: auto;
+    font-family: 'IBM Plex Sans', 'Inter', system-ui, sans-serif; font-size: 12px; font-weight: 600;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+.pm-recentrar svg { color: #38bdf8; }
+.pm-recentrar:hover { border-color: #38bdf8; color: #fff; }
+.pm-recentrar:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+html[data-device="phone"] .pm-recentrar span { display: none; }
+html[data-device="phone"] .pm-recentrar { top: auto; bottom: 16px; right: 56px; width: 40px; justify-content: center; padding: 0; }
+
+/* ── Avisos dentro del tablero (reemplazan los banners flotantes) ── */
+.pm-aviso {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--modo-color, #a855f7) 45%, transparent);
+    border-left: 3px solid var(--modo-color, #a855f7);
+    background: color-mix(in srgb, var(--modo-color, #a855f7) 9%, #0b1426);
+}
+.pm-aviso-icono { flex-shrink: 0; margin-top: 2px; color: var(--modo-color, #a855f7); }
+.pm-aviso-texto b {
+    display: block;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 800; letter-spacing: 0.08em;
+    color: var(--modo-color, #a855f7); text-transform: uppercase;
+}
+.pm-aviso-texto p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.45; color: #cbd5e1; }
+.pm-aviso--crit { --modo-color: #f87171; }
+.public-monitor-container:not(.pm-lateral) .pm-aviso { margin: 0 4px; }
+
+/* Perfil inline en CANAL */
+.pm-perfil-inline { display: flex; flex-direction: column; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid rgba(148, 163, 184, 0.12); margin-bottom: 4px; }
+.pm-perfil-inline .card-label { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Ajustes tras revisión por captura (1366 / iPad vertical) */
+.public-monitor-container.pm-lateral .dock-tab { padding: 6px 8px 8px; letter-spacing: 0.4px; }
+html:not([data-device="phone"]) .public-monitor-container.pm-inferior .public-map-wrapper { bottom: 44dvh; height: auto; }
+.public-monitor-container.pm-inferior .dock-panel-left { min-width: 0; max-width: none; border-right: none; padding-right: 0; }
+
+/* ── Tarjeta de escala con contexto hidráulico (Fase 2) ── */
+.checkpoint-card-compact .cpc-data { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
+.cpc-trend { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 800; color: #cbd5e1; white-space: nowrap; }
+.cpc-trend.is-up { color: #38bdf8; }
+.cpc-trend.is-down { color: #34d399; }
+.cpc-ctx { font-size: 12px; color: #8396ad; line-height: 1.3; }
+.cpc-ctx b { font-family: 'JetBrains Mono', monospace; font-weight: 800; }
+.cpc-gasto small { color: #8396ad; font-weight: 600; }
+.cpc-sd { color: #8396ad !important; font-weight: 600; }
+.cpc-ref-tag {
+    margin-left: 6px; padding: 0 5px; border-radius: 4px;
+    border: 1px solid rgba(148, 163, 184, 0.35); color: #94a3b8;
+    font-size: 10.5px; letter-spacing: 0.08em; vertical-align: 1px;
+}
+/* Lectura vencida (>4 h): toda la tarjeta atenuada, borde punteado */
+.checkpoint-card-compact.cpc-vencida { opacity: 0.72; border-style: dashed; border-color: rgba(148, 163, 184, 0.28); background: rgba(15, 23, 42, 0.35); }
+.checkpoint-card-compact.cpc-vencida .cpc-km { color: #8396ad; }
+/* Etiqueta permanente del mapa con dato vencido */
+.esc-level-badge.esc-level-badge--vencida { opacity: 0.6; filter: grayscale(1); }
+.ml-dot--vencido { background: #64748b; border-style: dashed; }
+
+/* Ajustes 2.ª captura */
+.phb-sub { display: block; margin-top: 1px; font-family: 'IBM Plex Sans', 'Inter', sans-serif; font-size: 11.5px; font-weight: 600; color: #8396ad; white-space: nowrap; }
+.pm-recentrar { top: auto; bottom: 96px; right: 10px; }
+.public-monitor-container.pm-lateral .dock-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.public-monitor-container.pm-lateral .dock-tabs::-webkit-scrollbar { display: none; }
+.public-monitor-container.pm-lateral .dock-tab { padding: 6px 7px 8px; letter-spacing: 0.2px; flex: 0 0 auto; }
+/* Perfil en el panel: legible (desplazable a lo ancho) y leyenda compacta */
+.public-monitor-container.pm-lateral .perfil-svg-scroll { overflow-x: auto; }
+.public-monitor-container.pm-lateral .perfil-svg-scroll svg { min-width: 640px; }
+.pm-perfil-inline .canal-profile-legend { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.pm-perfil-inline .canal-profile-legend .cpl-item { font-size: 11px; padding: 2px 8px; }
+.public-monitor-container.pm-lateral .fgv-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* ═══ FASE 3 — lenguaje sala-control en el tablero del Monitor ═══════════════
+   Tokens de src/styles/sala-control.css (.sc-root) replicados localmente para
+   no arrastrar las reglas de página de sala-control al mapa. Texto ≥ 12 px. */
+.info-cards-dock {
+    --sc-t1: #e8eef6; --sc-t2: #b4c2d4; --sc-t3: #8396ad;
+    --sc-line: rgba(148, 163, 184, 0.17); --sc-surface: rgba(255, 255, 255, 0.03); --sc-surface-2: rgba(255, 255, 255, 0.055);
+    --sc-sky: #38bdf8; --sc-ok: #34d399; --sc-warn: #fbbf24; --sc-crit: #f87171;
+    --sc-display: 'Big Shoulders Display', 'JetBrains Mono', sans-serif;
+    --sc-body: 'IBM Plex Sans', 'Inter', system-ui, sans-serif;
+    --sc-mono: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: var(--sc-body);
+}
+.info-cards-dock .card-label { font-family: var(--sc-mono); font-size: 12px; letter-spacing: 0.12em; color: var(--sc-t2); }
+.info-cards-dock .dock-tab { font-size: 12px; min-height: 36px; }
+.dock-tab-badge--warn { background: #b45309 !important; }
+
+/* Franja ejecutiva */
+.pm-ejec { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 2px 0 12px; }
+.public-monitor-container.pm-inferior .pm-ejec, .pm-sin-mapa .pm-ejec { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+html[data-device="phone"] .public-monitor-container .pm-ejec { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pm-ejec-tile {
+    --acc: var(--sc-sky);
+    position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+    padding: 12px 12px 10px; border-radius: 12px; text-align: left; color: var(--sc-t1);
+    background: var(--sc-surface); border: 1px solid var(--sc-line);
+    box-shadow: inset 0 2px 0 var(--acc);
+    font: inherit;
+}
+.pm-ejec-tile header { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-family: var(--sc-mono); font-size: 12px; letter-spacing: 0.1em; color: var(--sc-t3); }
+.pm-ejec-tile header span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-ejec-tile header svg { color: var(--acc); flex-shrink: 0; }
+.pm-ejec-num { font-family: var(--sc-display); font-weight: 800; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; }
+.pm-ejec-num small { margin-left: 4px; font-family: var(--sc-mono); font-size: 13px; font-weight: 500; color: var(--sc-t3); }
+.pm-ejec-tile p { margin: 0; font-size: 12px; line-height: 1.35; color: var(--sc-t2); }
+.pm-ejec-tile p.pm-ejec-sub { color: var(--sc-t3); }
+.pm-ejec-tile--btn { cursor: pointer; min-height: 44px; }
+.pm-ejec-tile--btn:hover { background: var(--sc-surface-2); }
+.pm-ejec-tile--btn:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 2px; }
+.pm-ejec-tile--btn.is-crit { background: rgba(248, 113, 113, 0.06); border-color: rgba(248, 113, 113, 0.4); }
+.pm-ejec-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--sc-line); font-family: var(--sc-mono); font-size: 11.5px; font-weight: 600; }
+.pm-ejec-chip--ok { color: var(--sc-ok); border-color: rgba(52, 211, 153, 0.4); }
+.pm-ejec-chip--warn { color: var(--sc-warn); border-color: rgba(251, 191, 36, 0.45); }
+.pm-ejec-chip--crit { color: var(--sc-crit); border-color: rgba(248, 113, 113, 0.45); }
+.pm-ejec-chip--sd { color: var(--sc-t3); }
+.pm-ejec-bar { height: 6px; border-radius: 3px; background: rgba(148, 163, 184, 0.15); overflow: hidden; margin: 2px 0; }
+.pm-ejec-bar i { display: block; height: 100%; background: var(--acc); border-radius: 3px; }
+.pm-ejec-tile p .pm-sev { margin-right: 8px; white-space: nowrap; }
+.pm-sev--crit { color: var(--sc-crit); } .pm-sev--warn { color: var(--sc-warn); } .pm-sev--info { color: var(--sc-sky); }
+.pm-ejec-sevbar { display: flex; gap: 2px; height: 6px; border-radius: 3px; overflow: hidden; background: rgba(148, 163, 184, 0.12); }
+.pm-ejec-sevbar i.c { background: var(--sc-crit); } .pm-ejec-sevbar i.w { background: var(--sc-warn); } .pm-ejec-sevbar i.n { background: var(--sc-sky); }
+
+/* Vista de VACIADO */
+.pm-vac { display: flex; flex-direction: column; gap: 10px; padding: 12px; margin: 4px 0 10px; border-radius: 12px; border: 1px solid rgba(167, 139, 250, 0.3); background: rgba(167, 139, 250, 0.05); }
+.pm-vac-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.pm-vac-kicker { font-family: var(--sc-mono); font-size: 12px; letter-spacing: 0.12em; color: #c4b5fd; }
+.pm-vac-cierre { font-size: 12px; color: var(--sc-t2); }
+.pm-vac-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.public-monitor-container.pm-inferior .pm-vac-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.pm-vac-kpis > div { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: rgba(2, 10, 20, 0.45); border: 1px solid var(--sc-line); }
+.pm-vac-kpis b { font-family: var(--sc-display); font-size: 26px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--sc-t1); }
+.pm-vac-kpis span { font-size: 12px; color: var(--sc-t3); line-height: 1.3; }
+.pm-vac-tabla { display: flex; flex-direction: column; border: 1px solid var(--sc-line); border-radius: 10px; overflow: hidden; }
+.pm-vac-fila { display: grid; grid-template-columns: 1.3fr 0.9fr 0.8fr 1fr; gap: 6px; padding: 6px 10px; font-family: var(--sc-mono); font-size: 12px; color: var(--sc-t1); border-top: 1px solid rgba(148, 163, 184, 0.08); }
+.pm-vac-fila span:nth-child(n+2) { text-align: right; font-variant-numeric: tabular-nums; }
+.pm-vac-fila--cab { border-top: none; background: rgba(148, 163, 184, 0.06); color: var(--sc-t3); letter-spacing: 0.06em; text-transform: uppercase; }
+.pm-vac-fila.is-vencida { color: var(--sc-t3); }
+.pm-vac-fila .is-down { color: var(--sc-ok); } .pm-vac-fila .is-up { color: var(--sc-sky); }
+.pm-vac-nota { margin: 0; font-size: 12px; color: var(--sc-t3); line-height: 1.4; }
+
+/* Ruido retirado */
+.perfil-inline-btn .ptb-badge { display: none; }
+.public-monitor-container.pm-lateral .dock-tabs { margin: 0 32px 0 -16px; padding: 14px 8px 0 16px; }
+.pm-vac-fila { grid-template-columns: 1.4fr 0.9fr 0.8fr 0.8fr; white-space: nowrap; }
+
+/* Enlace de PANORAMA a la pestaña CANAL */
+.pm-ir-canal {
+    display: flex; align-items: center; gap: 10px; width: 100%; min-height: 56px;
+    padding: 12px 14px; border-radius: 12px; text-align: left; cursor: pointer;
+    background: var(--sc-surface, rgba(255,255,255,0.03)); border: 1px solid var(--sc-line, rgba(148,163,184,0.17));
+    color: var(--sc-t1, #e8eef6); font: inherit; flex-wrap: wrap;
+}
+.pm-ir-canal > span:first-child { display: flex; flex-direction: column; gap: 2px; flex: 1 1 200px; min-width: 0; }
+.pm-ir-canal b { font-size: 13px; font-weight: 700; }
+.pm-ir-canal small { font-size: 12px; color: var(--sc-t3, #8396ad); }
+.pm-ir-canal svg { color: var(--sc-sky, #38bdf8); flex-shrink: 0; }
+.pm-ir-canal:hover { background: var(--sc-surface-2, rgba(255,255,255,0.055)); border-color: rgba(56, 189, 248, 0.45); }
+.pm-ir-canal:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+
+/* ALERTAS por severidad */
+.dap-grupos { display: flex; flex-direction: column; gap: 12px; }
+.dap-sevbar { height: 8px; }
+.dap-grupo-cab { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-family: var(--sc-mono, monospace); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sc-t3, #8396ad); }
+.dap-grupo-cab b { font-size: 13px; color: var(--sc-t1, #e8eef6); }
+.dap-grupo--critical .dap-grupo-cab span { color: #f87171; }
+.dap-grupo--warning .dap-grupo-cab span { color: #fbbf24; }
+.dap-grupo--info .dap-grupo-cab span { color: #38bdf8; }
+.dap-msg { display: block; font-size: 12px; line-height: 1.4; color: var(--sc-t2, #b4c2d4); margin: 2px 0; }
+.dap-titulo { font-size: 13px !important; }
+.dap-fecha { font-size: 12px !important; color: var(--sc-t3, #8396ad) !important; }
+.public-monitor-container.pm-lateral .dap-list { max-height: none; overflow: visible; }
+.public-monitor-container { --pm-panel-w: clamp(440px, 33%, 540px); }
+.public-monitor-container.pm-lateral .dock-tab { padding: 6px 6px 8px; }
+.public-monitor-container:not(.pm-lateral) .pm-aviso { padding-right: 52px; }
+html[data-device="phone"] .pm-aviso-texto p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; }
+html[data-device="phone"] .pm-aviso { margin: 4px 6px 0; padding: 8px 48px 8px 10px; }
+/* Teléfono: objetivos ≥44 px y perfil contenido en el ancho de la hoja */
+html[data-device="phone"] .pm-recentrar { width: 44px; min-height: 44px; }
+html[data-device="phone"] .dock-close-btn { width: 44px; height: 44px; }
+.pm-perfil-inline, .pm-perfil-inline > *, .pm-perfil-inline .perfil-modal-body { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.pm-perfil-inline .perfil-svg-scroll { max-width: 100%; overflow-x: auto; }
+.pm-perfil-inline .fgv-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Contraste AA */
+.pm-aviso-texto b { color: color-mix(in srgb, var(--modo-color, #a855f7) 62%, #ffffff); }
+.public-monitor-container .leaflet-control-attribution a { color: #00557a; }
+.dap-grupo--antiguas summary { cursor: pointer; list-style: none; min-height: 32px; align-items: center; }
+.dap-grupo--antiguas summary::-webkit-details-marker { display: none; }
+.dap-grupo--antiguas summary span::before { content: '▸ '; }
+.dap-grupo--antiguas[open] summary span::before { content: '▾ '; }
+.dap-item--antigua { opacity: 0.8; border-left-color: #64748b !important; }
+.pm-fgv-nota { margin: 4px 0 2px; font-size: 12px; line-height: 1.4; color: #8396ad; }

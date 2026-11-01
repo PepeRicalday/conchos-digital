@@ -55,8 +55,8 @@ Deno.serve(async (req) => {
     const nuevasBandas = new Set((factores ?? []).map((f: any) => Number(f.banda_elevacion_msnm)));
 
     // Limpia bandas que ya no tienen ninguna observación respaldándolas (ej.
-    // la lectura de campo que las sustentaba quedó fuera de la ventana de
-    // ±20 días tras un backfill/corrección de datos) — un factor sin
+    // el nivel del día que las sustentaba ya no existe, o la escena dejó de
+    // ser vigente al reprocesarse con el método v2) — un factor sin
     // observaciones vigentes es peor que no tener factor.
     const { data: existentes } = await supabase
       .from("curva_batimetrica_correccion")
@@ -84,6 +84,7 @@ Deno.serve(async (req) => {
       .select("fecha_escena")
       .eq("presa_id", presaId)
       .eq("es_referencia_historica", false)
+      .eq("vigente", true) // solo escenas vigentes (las v1 reprocesadas quedan como no vigentes)
       .order("fecha_escena", { ascending: false })
       .limit(1)
       .maybeSingle();

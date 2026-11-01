@@ -122,22 +122,49 @@ export interface FuenteSuperficie {
     etiqueta: string;
     km2: number;
     detalle: string;
-    /** true = medición validada (curva oficial / Sentinel-2 multiespectral); false = estimación visual. */
+    /** true = medición validada (curva oficial / Sentinel-2 multiespectral); false = referencia visual. */
     validada: boolean;
-    /** Diferencia contra la curva oficial, en %. null para la propia curva o si no hay curva. */
+    /** Diferencia contra la curva oficial, en %. null para la propia curva o si no hay curva comparable. */
     difVsCurvaPct: number | null;
+    /** Contra qué cota se calculó la diferencia (la del día de los píxeles para Sentinel). */
+    difContra?: string;
+    /** Metadatos cortos (fecha de píxeles, nubes sobre el vaso, método) — S/D explícito si falta. */
+    meta?: string[];
 }
 
+const fechaLarga = (iso: string) => new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Chihuahua' });
+
+/**
+ * Tres fuentes de superficie, cada una comparada contra la curva oficial a la cota CORRECTA:
+ * la curva al nivel de hoy; Sentinel-2 contra la curva a la cota del DÍA DE SUS PÍXELES (antes se comparaba
+ * una escena de semanas atrás contra el nivel de hoy, −31 % en vez de −22 %); la referencia visual
+ * (mosaico ArcGIS de fecha desconocida, sin infrarrojo) contra la de hoy, solo como orientación.
+ */
 export function conciliaSuperficie(p: {
     curvaKm2: number | null;
-    sentinel: { km2: number; fecha: string; nubesPct: number | null } | null;
+    sentinel: {
+        km2: number; fecha: string; nubesPct: number | null;
+        /** Curva a la cota del día de la escena; null = no hay nivel registrado ese día. */
+        curvaKm2Escena?: number | null; metodo?: string | null; resolucionM?: number | null; fechaPixelesConocida?: boolean;
+    } | null;
     visual: { km2: number; cobertura: number } | null;
 }): FuenteSuperficie[] {
-    const dif = (km2: number) => (p.curvaKm2 != null && p.curvaKm2 > 0 ? ((km2 - p.curvaKm2) / p.curvaKm2) * 100 : null);
+    const dif = (km2: number, ref: number | null | undefined) => (ref != null && ref > 0 ? ((km2 - ref) / ref) * 100 : null);
     const out: FuenteSuperficie[] = [];
     if (p.curvaKm2 != null) out.push({ clave: 'curva', etiqueta: 'Curva oficial al nivel actual', km2: p.curvaKm2, detalle: 'Batimetría 2020 (elevación → área)', validada: true, difVsCurvaPct: null });
-    if (p.sentinel) out.push({ clave: 'sentinel', etiqueta: 'Sentinel-2 (NDWI)', km2: p.sentinel.km2, detalle: `Escena del ${new Date(p.sentinel.fecha).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric", timeZone: "America/Chihuahua" })}${p.sentinel.nubesPct != null ? ` · ${p.sentinel.nubesPct.toFixed(1)} % de nubes` : ''}`, validada: true, difVsCurvaPct: dif(p.sentinel.km2) });
-    if (p.visual) out.push({ clave: 'visual', etiqueta: 'Estimación visual de hoy', km2: p.visual.km2, detalle: `ArcGIS World Imagery, sin infrarrojo · cobertura ${(p.visual.cobertura * 100).toFixed(0)} %`, validada: false, difVsCurvaPct: dif(p.visual.km2) });
+    if (p.sentinel) {
+        const s = p.sentinel;
+        const meta = [
+            `${s.fechaPixelesConocida === false ? 'Escena del' : 'Píxeles del'} ${fechaLarga(s.fecha)}`,
+            `nubes sobre el vaso ${s.nubesPct != null ? `${s.nubesPct.toFixed(1)} %` : 'S/D'}`,
+            s.metodo === 'v2' ? `NDWI v2 · ${s.resolucionM ?? 10} m` : `NDWI v1 · ${s.resolucionM ?? 20} m (mosaico de 30 d)`,
+        ];
+        out.push({
+            clave: 'sentinel', etiqueta: 'Sentinel-2 (NDWI)', km2: s.km2, detalle: meta.join(' · '), meta, validada: true,
+            difVsCurvaPct: dif(s.km2, s.curvaKm2Escena), difContra: s.curvaKm2Escena != null ? 'contra la curva a la cota de ese día' : undefined,
+        });
+    }
+    if (p.visual) out.push({ clave: 'visual', etiqueta: 'Referencia visual (mosaico de archivo)', km2: p.visual.km2, detalle: 'ArcGIS World Imagery: fecha de la imagen desconocida, sin infrarrojo. Orientativa, no es medición.', validada: false, difVsCurvaPct: dif(p.visual.km2, p.curvaKm2), difContra: p.curvaKm2 != null ? 'contra la curva de hoy' : undefined });
     return out;
 }
 

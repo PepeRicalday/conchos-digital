@@ -1080,7 +1080,8 @@ const GeoMonitor = () => {
             ] = await Promise.all([
                 supabase.from('resumen_escalas_diario').select('escala_id, nivel_actual, delta_12h, estado, fecha, lectura_am, lectura_pm').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }),
                 supabase.from('lecturas_escalas').select('escala_id, apertura_radiales_m, nivel_m, nivel_abajo_m, radiales_json, gasto_calculado_m3s, gasto_metodo, fecha, hora_lectura, confirmada').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_lectura', { ascending: false }),
-                supabase.from('lecturas_presas').select('presa_id, almacenamiento_mm3, porcentaje_llenado, extraccion_total_m3s, escala_msnm, fecha, notas').order('fecha', { ascending: false }).limit(12),
+                // Últimos 30 días de TODAS las presas (antes limit(12) compartido: con huecos de captura una presa quedaba en S/D).
+                supabase.from('lecturas_presas').select('presa_id, almacenamiento_mm3, porcentaje_llenado, extraccion_total_m3s, escala_msnm, fecha, notas').gte('fecha', new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10)).order('fecha', { ascending: false }),
                 supabase.from('aforos').select('punto_control_id, gasto_calculado_m3s, fecha, hora_inicio').gte('fecha', fiveDaysAgoStr).order('fecha', { ascending: false }).order('hora_inicio', { ascending: false }),
                 supabase.from('vw_alertas_tomas_varadas').select('*'),
                 supabase.from('reportes_operacion').select('punto_id, estado, caudal_promedio, hora_apertura, volumen_acumulado', { count: 'exact' }).eq('fecha', todayStr),
@@ -3070,6 +3071,7 @@ const GeoMonitor = () => {
                 nunca un valor fijo por presa_id (ver informe de auditoría). */}
             {showVaso && selectedPoint?.type === 'presa' && (
                 <PresaVasoMonitor
+                    key={selectedPoint.data.presa_id}
                     data={{
                         nombre: selectedPoint.data.nombre,
                         nivel_msnm: selectedPoint.data.escala_msnm,

@@ -9,6 +9,7 @@ import { mesLegible } from './informeBase';
 import type { MapaPresa } from './historicoPresas';
 import { construirInteranual, type Interanual } from './informeVasoInteranual';
 import { estadoEmbalse, type EstadoEmbalse } from './presaNiveles';
+import { DESVIO_ATENCION_PCT, DIAS_ESCENA_VIEJA, DIAS_NIVEL_ESCENA } from './vasoUmbrales';
 
 export interface EscenaVaso {
     fecha_escena: string;
@@ -20,6 +21,13 @@ export interface EscenaVaso {
     delta_area_km2: number | null;
     pct_del_maximo_ciclo: number | null;
     contorno_geojson: { type: 'Polygon'; coordinates: [number, number][][] };
+    /** 'v1' (NDWI 20 m, mosaico 30 d) o 'v2' (NDWI∪MNDWI 10 m, un solo día). */
+    metodo?: 'v1' | 'v2' | null;
+    /** Fecha real de los píxeles (v2); null en v1. */
+    fecha_pixeles?: string | null;
+    /** % de la huella del vaso nublada/sin dato el día de los píxeles (v2). */
+    cobertura_nubes_vaso_pct?: number | null;
+    resolucion_m?: number | null;
 }
 
 export interface ValidacionVaso {
@@ -31,6 +39,10 @@ export interface ValidacionVaso {
     diasDiferencia?: number;
     areaEsperadaKm2?: number;
     pctCoincidencia?: number | null;
+    /** De dónde salió el nivel del día: histórico diario CILA o captura. */
+    fuenteNivel?: 'historico' | 'captura';
+    /** Por qué no hay referencia: escena nublada, sin nivel del día o sin curva. */
+    motivo?: 'nubes' | 'sin_nivel' | 'sin_curva';
 }
 
 export interface TexturaVaso { urlPublica: string; bbox: [number, number, number, number]; fechaEscena: string | null }
@@ -109,8 +121,9 @@ export function mesesSinEscena(escenas: Pick<EscenaVaso, 'fecha_escena'>[]): str
 }
 
 export const UMBRAL_NUBES_AVISO_PCT = 10;
-export const UMBRAL_DESVIO_PCT = 12;
-export const DIAS_ESCENA_VIEJA = 20;
+/** Desvío a partir del cual una escena se reporta como "a revisar" (vasoUmbrales: una sola definición). */
+export const UMBRAL_DESVIO_PCT = DESVIO_ATENCION_PCT;
+export { DIAS_ESCENA_VIEJA };
 
 export interface EntradaInformeVaso {
     nombrePresa: string;
@@ -182,7 +195,7 @@ export function construirDatosVaso(e: EntradaInformeVaso, config: ConfigInformeV
         }
     }
     const conRef = validacion.filter((v) => !v.sinReferencia && v.pctCoincidencia != null);
-    const desvios = conRef.filter((v) => Math.abs((v.pctCoincidencia ?? 100) - 100) > UMBRAL_DESVIO_PCT);
+    const desvios = conRef.filter((v) => Math.abs(v.pctCoincidencia! - 100) > UMBRAL_DESVIO_PCT);
     if (conRef.length && desvios.length) hallazgos.push(`Validación cruzada con desviación relevante: ${desvios.length} de ${conRef.length} escena(s) difieren más de ${UMBRAL_DESVIO_PCT} % del área esperada por la curva oficial.`);
     else if (conRef.length) hallazgos.push('Validación cruzada consistente: el área satelital coincide con la curva oficial dentro del margen en las escenas con lectura de campo cercana.');
 
@@ -191,14 +204,17 @@ export function construirDatosVaso(e: EntradaInformeVaso, config: ConfigInformeV
     if (!e.logoSrlOk) avisos.push({ texto: 'No se pudo cargar el logotipo institucional; la cabecera muestra solo el texto.' });
     if (e.estado.nivel == null || e.estado.pct == null) avisos.push({ texto: 'La presa no tiene lectura oficial vigente: el estado actual se muestra como S/D.' });
     if (ultimo) {
-        const edad = (e.ahora.getTime() - new Date(ultimo.fecha_escena).getTime()) / 864e5;
+        const edad = (e.ahora.getTime() - new Date(ultimo.fecha_pixeles ?? ultimo.fecha_escena).getTime()) / 864e5;
+        const nubes = ultimo.cobertura_nubes_vaso_pct ?? ultimo.nubosidad_pct ?? null;
         if (edad > DIAS_ESCENA_VIEJA) avisos.push({ texto: `La escena satelital más reciente del periodo tiene ${Math.floor(edad)} días: la superficie puede no reflejar el nivel de hoy.` });
-        if (ultimo.nubosidad_pct != null && ultimo.nubosidad_pct > UMBRAL_NUBES_AVISO_PCT) avisos.push({ texto: `La escena más reciente (${fechaCorta(ultimo.fecha_escena)}) tiene ${ultimo.nubosidad_pct.toFixed(1)} % de nubes; el contorno puede subestimar el espejo de agua.` });
+        if (nubes != null && nubes > UMBRAL_NUBES_AVISO_PCT) avisos.push({ texto: `La escena más reciente (${fechaCorta(ultimo.fecha_escena)}) tiene ${nubes.toFixed(1)} % de nubes; el contorno puede subestimar el espejo de agua.` });
     }
     if (huecos.length) avisos.push({ texto: `${huecos.length} mes(es) sin escena confiable dentro del periodo (nubosidad o cobertura): ${huecos.map((m) => mesLegible(m, true)).join(', ')}. No se rellenan ni se cuentan como cero.` });
     if (desvios.length) avisos.push({ texto: `El área satelital se aparta más de ${UMBRAL_DESVIO_PCT} % de la curva oficial en ${desvios.length} escena(s); revisar la curva batimétrica o el umbral NDWI antes de decidir con la superficie.` });
     if (config.secciones.includes('relieve') && !e.imagenRelieve && !e.textura) avisos.push({ texto: 'No hay modelo de relieve ni imagen satelital de contexto disponibles para esta presa; esa sección se omite.' });
-    if (config.secciones.includes('validacion') && conRef.length === 0) avisos.push({ texto: 'Ninguna escena tiene una lectura de campo a menos de 20 días: no hay validación cruzada que mostrar.' });
+    if (config.secciones.includes('validacion') && conRef.length === 0) avisos.push({ texto: `Ninguna escena despejada tiene nivel del embalse registrado a ±${DIAS_NIVEL_ESCENA} días de la fecha de sus píxeles: no hay validación cruzada que mostrar.` });
+    const metodos = new Set(escenas.map((x) => x.metodo ?? 'v1'));
+    if (metodos.size > 1) avisos.push({ texto: 'El periodo mezcla escenas de dos métodos de delimitación (v1 a 20 m y v2 a 10 m): el perímetro y el número de islas no son comparables entre ellos.' });
 
     if (config.secciones.includes('interanual') && (!interanual || interanual.filas.length === 0)) avisos.push({ texto: 'No hay histórico 2021-2025 comparable para la fecha de la lectura vigente: el comparativo interanual se omite.' });
     return {

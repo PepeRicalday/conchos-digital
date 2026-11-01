@@ -142,22 +142,6 @@
    encimándolo con otras secciones. Luego: columna vertical de ancho fijo
    (320px), que con solo un slider y un botón dejaba medio panel vacío.
    Ahora: fila horizontal que crece solo lo que su contenido necesita. */
-.vaso-sim-controls {
-    margin: 0 clamp(1.25rem, 4vw, 3rem) 1.5rem;
-    padding: 1.1rem 1.5rem;
-    border-radius: 18px;
-    position: relative;
-    z-index: 10;
-    background: rgba(15, 23, 42, 0.75);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(34, 211, 238, 0.3);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    gap: 1.75rem;
-    flex-wrap: wrap;
-}
 
 .sim-header {
     font-size: 0.72rem;
@@ -179,75 +163,8 @@
     flex-wrap: wrap;
 }
 
-.sim-slider-group {
-    flex: 1 1 220px;
-    min-width: 180px;
-}
-
-.sim-slider-group label {
-    display: block;
-    font-size: 0.6875rem;
-    color: #94a3b8;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-}
-
-.sim-input-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.sim-input-row button {
-    background: rgba(30, 41, 59, 0.5);
-    border: 1px solid rgba(226, 232, 240, 0.1);
-    color: white;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    flex-shrink: 0;
-}
-
-.sim-input-row input[type=range] {
-    flex: 1;
-    accent-color: #22d3ee;
-    height: 4px;
-}
-
-.sim-value-display {
-    text-align: center;
-    font-family: 'JetBrains Mono', monospace;
-    color: white;
-    font-size: 1.15rem;
-    padding: 0.5rem 0.9rem;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 8px;
-    flex: 0 0 auto;
-    white-space: nowrap;
-}
-
 /* Mensajes largos (sin lectura / sin curva) no son la cifra del slider:
    necesitan ancho y volver a envolver texto. */
-.sim-value-display.sim-msg {
-    white-space: normal;
-    flex: 1 1 260px;
-    text-align: left;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.85rem;
-}
-
-.sim-value-display strong {
-    color: #22d3ee;
-}
-
-.sim-value-display small {
-    font-size: 0.75rem;
-    color: #8396ad;
-}
 
 .sim-reset-btn {
     flex: 0 0 auto;
@@ -289,11 +206,6 @@
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.simulated-highlight {
-    border-color: rgba(34, 211, 238, 0.5);
-    box-shadow: 0 0 20px rgba(34, 211, 238, 0.1);
-}
-
 .vaso-stat-label {
     font-size: 0.8rem;
     color: #94a3b8;
@@ -305,155 +217,14 @@
     letter-spacing: 0.08em;
 }
 
-.vaso-stat-value {
-    font-size: 2.75rem;
-    font-weight: 900;
-    color: white;
-    font-family: 'JetBrains Mono', monospace;
-    margin: 10px 0;
-    line-height: 1;
-}
-
-.vaso-stat-value small {
-    font-size: 1rem;
-    color: #8396ad;
-    font-weight: 500;
-}
-
-.vaso-progress-bar {
-    height: 8px;
-    background: rgba(0, 0, 0, 0.4);
-    border-radius: 100px;
-    width: 100%;
-    margin-top: 10px;
-    overflow: hidden;
-}
-
-.vaso-progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #0ea5e9, #22d3ee);
-    box-shadow: 0 0 15px rgba(34, 211, 238, 0.4);
-    border-radius: 100px;
-    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
 /* ANALYTICS */
-.vaso-analytics {
-    margin: 0 clamp(1.25rem, 4vw, 3rem) 2.5rem;
-    padding: 1.5rem;
-    border-radius: 20px;
-    position: relative;
-    z-index: 10;
-}
-
-.vaso-analytics-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 0.75rem;
-    font-weight: 800;
-    color: #22d3ee;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 1rem;
-}
-
-.vaso-analytics-body {
-    display: grid;
-    grid-template-columns: 1.8fr 1fr;
-    gap: 2rem;
-    align-items: center;
-}
 
 /* Badge de confiabilidad — distingue la estimación en vivo (aproximada,
    sin banda infrarroja real) del histórico validado por Sentinel-2. */
-.vaso-confiabilidad-badge {
-    font-size: 0.6875rem;
-    font-weight: 800;
-    padding: 3px 9px;
-    border-radius: 100px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-left: 4px;
-}
-
-.vaso-confiabilidad-badge.aproximado {
-    color: #f59e0b;
-    background: rgba(245, 158, 11, 0.12);
-    border: 1px solid rgba(245, 158, 11, 0.35);
-}
-
-.vaso-confiabilidad-badge.validado {
-    color: #10b981;
-    background: rgba(16, 185, 129, 0.12);
-    border: 1px solid rgba(16, 185, 129, 0.35);
-}
 
 /* Validación cruzada: área NDWI (satélite) vs. área esperada por la curva
    batimétrica oficial (interpolada sobre la lectura de campo más cercana
    en fecha) — una barra de coincidencia por mes con referencia disponible. */
-.vaso-validacion-cruzada {
-    margin-top: 1.5rem;
-    padding-top: 1.25rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.vaso-validacion-titulo {
-    font-size: 0.7rem;
-    color: #94a3b8;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-weight: 700;
-    margin-bottom: 0.85rem;
-}
-
-.vaso-validacion-lista {
-    display: flex;
-    flex-direction: column;
-    gap: 0.65rem;
-}
-
-.vaso-validacion-item {
-    display: grid;
-    grid-template-columns: 72px 1fr 44px;
-    align-items: center;
-    gap: 10px;
-    row-gap: 3px;
-}
-
-.vaso-validacion-fecha {
-    font-size: 0.7rem;
-    color: #cbd5e1;
-    text-transform: capitalize;
-    font-weight: 600;
-}
-
-.vaso-validacion-barra {
-    height: 8px;
-    background: rgba(0, 0, 0, 0.35);
-    border-radius: 100px;
-    overflow: hidden;
-}
-
-.vaso-validacion-fill {
-    height: 100%;
-    border-radius: 100px;
-    transition: width 0.5s ease;
-}
-
-.vaso-validacion-pct {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    font-weight: 800;
-    text-align: right;
-}
-
-.vaso-validacion-detalle {
-    grid-column: 1 / -1;
-    font-size: 0.6875rem;
-    color: #8396ad;
-    line-height: 1.4;
-}
 
 /* Visor 3D del cuerpo de agua (VasoVisor3D.tsx) — Canvas de React Three
    Fiber con overlay de badge/leyenda posicionado encima. */
@@ -655,96 +426,19 @@
 /* Índice de Fragmentación — semáforo de conectividad hidráulica. Color por
    nivel via clase modificadora (nivel-normal/atencion/critico), mismo patrón
    de currentColor que .vaso-alert-box para heredar al borde izquierdo. */
-.vaso-fragmentacion-box {
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-left: 4px solid currentColor;
-    border-radius: 12px;
-    padding: 0.9rem 1.1rem;
-    margin-bottom: 1.25rem;
-}
-
-.vaso-fragmentacion-box.nivel-normal { color: #10b981; }
-.vaso-fragmentacion-box.nivel-atencion { color: #f59e0b; }
-.vaso-fragmentacion-box.nivel-critico { color: #ef4444; }
-
-.vaso-fragmentacion-semaforo {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 0.5rem;
-}
-
-.vaso-fragmentacion-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: currentColor;
-    box-shadow: 0 0 10px currentColor;
-    flex-shrink: 0;
-}
-
-.vaso-fragmentacion-nivel {
-    font-size: 0.85rem;
-    font-weight: 800;
-    color: currentColor;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-.vaso-fragmentacion-detalle {
-    font-size: 0.78rem;
-    color: #cbd5e1;
-    line-height: 1.5;
-}
-
-.vaso-fragmentacion-detalle strong {
-    color: currentColor;
-    font-family: 'JetBrains Mono', monospace;
-}
 
 /* Gráfica de Desviación: área esperada CONAGUA vs. área NDWI, dentro del
    bloque de validación cruzada existente. */
-.vaso-desviacion-chart {
-    margin: 0.75rem 0 1.25rem;
-    padding: 0.75rem 0.5rem 0.25rem;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 12px;
-}
 
 /* Recalibración Dinámica: resumen del factor de corrección por banda de
    elevación (curva_batimetrica_correccion), poblado por el job mensual
    recalibra-curva-batimetrica — mismo patrón visual que
    .vaso-validacion-cruzada, con el que convive en la misma sección. */
-.vaso-recalibracion {
-    margin-top: 1.5rem;
-    padding-top: 1.25rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.vaso-recalibracion-resumen {
-    display: flex;
-    gap: 2rem;
-    flex-wrap: wrap;
-    margin-top: 0.85rem;
-}
 
 /* Galería mensual: un mini-mapa por cada mes del histórico en fila
    horizontal con scroll, todos dibujados sobre el MISMO bbox (ver
    calculaBboxComun) para que la progresión completa del vaso sea
    comparable a simple vista sin tener que elegir pares uno a uno. */
-.vaso-galeria-mensual {
-    margin-bottom: 1.5rem;
-}
-
-.vaso-galeria-titulo {
-    font-size: 0.7rem;
-    color: #94a3b8;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-weight: 700;
-    margin-bottom: 0.75rem;
-}
 
 .vaso-galeria-tira {
     display: flex;
@@ -788,12 +482,6 @@
 /* Selectores de mes para el mini-mapa comparativo — permiten elegir
    cualquier par de meses ya presentes en vaso_geometria_historico, no solo
    apertura de ciclo vs. más reciente. */
-.vaso-mes-selectores {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-    margin-bottom: 0.85rem;
-}
 
 .vaso-mes-selector {
     display: flex;
@@ -826,30 +514,6 @@
 
 /* Filtro de Renderizado Espacial — toggle del visor de azolve. Mismo tamaño
    que un select de vaso-mes-selector para alinear en la misma fila. */
-.vaso-azolve-toggle {
-    align-self: center;
-    padding: 7px 14px;
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    color: #f87171;
-    border-radius: 8px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.vaso-azolve-toggle:hover {
-    background: rgba(239, 68, 68, 0.18);
-}
-
-.vaso-azolve-toggle.activo {
-    background: rgba(239, 68, 68, 0.28);
-    border-color: #ef4444;
-    color: #fecaca;
-}
 
 /* Mini-mapa comparativo: contornos de los dos meses elegidos arriba
    superpuestos sobre un bbox común (ver anilloASvgPath/poligonoASvgPath). */
@@ -899,37 +563,6 @@
 }
 
 /* Manejo de Vaso — comparación NDWI vs. captura de campo */
-.vaso-ndwi-compare {
-    display: flex;
-    gap: 1.5rem;
-}
-
-.vaso-ndwi-col {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.vaso-ndwi-label {
-    font-size: 0.7rem;
-    color: #94a3b8;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-weight: 700;
-}
-
-.vaso-ndwi-value {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: #22d3ee;
-}
-
-.vaso-ndwi-value small {
-    font-size: 0.85rem;
-    color: #8396ad;
-    font-weight: 500;
-}
 
 .animate-spin {
     animation: spin 1s linear infinite;
@@ -938,22 +571,6 @@
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
-}
-
-.vaso-alert-box {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-    background: rgba(0, 0, 0, 0.3);
-    padding: 1rem 1.5rem;
-    border-radius: 12px;
-    border-left: 4px solid currentColor;
-}
-
-.vaso-prediction strong {
-    color: #10b981;
-    font-size: 1.25rem;
-    font-family: 'JetBrains Mono', monospace;
 }
 
 /* ANIMATIONS */

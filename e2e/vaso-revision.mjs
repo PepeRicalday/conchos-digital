@@ -8,11 +8,12 @@ const OUT = fileURLToPath(new URL('./out/vaso/', import.meta.url));
 fs.mkdirSync(OUT, { recursive: true });
 const casos = [
   { nombre: 'escritorio', motor: chromium, ctx: { viewport: { width: 1600, height: 1000 } } },
+  { nombre: 'ipad', motor: webkit, ctx: { ...devices['iPad Pro 11 landscape'] } },
   { nombre: 'iphone', motor: webkit, ctx: { ...devices['iPhone 15 Pro Max'] } },
 ];
 for (const c of casos) {
   const b = await c.motor.launch();
-  const page = await (await b.newContext(c.ctx)).newPage();
+  const page = await (await b.newContext({ ...c.ctx, serviceWorkers: 'block' })).newPage();
   const err = [];
   page.on('pageerror', (e) => err.push(String(e).slice(0, 200)));
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|WebSocket|tile|arcgis/i.test(m.text())) err.push(m.text().slice(0, 200)); });
@@ -32,12 +33,23 @@ for (const c of casos) {
     mensaje: document.querySelector('.vaso-mensaje')?.textContent,
     datos: [...document.querySelectorAll('.vaso-datos > div')].map((e) => e.textContent.replace(/\s+/g, ' ').trim()),
     limnimetro: !!document.querySelector('.pr-lim-svg'),
-    fuentes: [...document.querySelectorAll('.vaso-sup-item')].map((e) => e.textContent.replace(/\s+/g, ' ').trim().slice(0, 90)),
+    fuentes: [...document.querySelectorAll('.vaso-sup-item')].map((e) => e.textContent.replace(/\s+/g, ' ').trim().slice(0, 160)),
+    evolucion: { kpis: [...document.querySelectorAll('.vaso-evo-kpis .vaso-kpi')].map((e) => e.textContent.replace(/\s+/g, ' ').trim()).slice(0, 3),
+      galeria: document.querySelectorAll('.vaso-galeria-item').length, validacion: [...document.querySelectorAll('.vaso-valid li')].map((e) => e.textContent.replace(/\s+/g, ' ').trim().slice(0, 70)),
+      metodo: document.querySelector('.vaso-evo-cab .vaso-chip')?.textContent, viejo: !!document.querySelector('.vaso-analytics') },
+    textoMenor12: [...document.querySelectorAll('.vaso-sc *')].filter((e) => e.childElementCount === 0 && e.textContent.trim() && parseFloat(getComputedStyle(e).fontSize) < 11.5).map((e) => e.className + ':' + getComputedStyle(e).fontSize).slice(0, 5),
     desborde: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     mensajeFijoViejo: /estable basada en el aforo/.test(document.body.innerText) || /anillo de sequ/.test(document.body.innerText),
   }));
   console.log(c.nombre, JSON.stringify(info, null, 1));
   await page.screenshot({ path: `${OUT}${c.nombre}.png` });
+  await page.locator('.vaso-evo').scrollIntoViewIfNeeded().catch(() => {});
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${OUT}${c.nombre}_evolucion.png` });
+  // diferencia de polígonos (azolve) en km² reales
+  await page.getByRole('button', { name: /Mostrar diferencia/ }).click({ timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+  console.log(c.nombre, 'diferencia:', await page.evaluate(() => [...document.querySelectorAll('.vaso-mapa-leyenda .leyenda-item')].map((e) => e.textContent.trim())));
   // simula -2 m con el teclado (PageDown ×4) y revisa el resultado junto al control
   await page.locator('.vaso-sim-ctl input[type=range]').focus().catch(() => {});
   for (let i = 0; i < 4; i++) await page.keyboard.press('PageDown');

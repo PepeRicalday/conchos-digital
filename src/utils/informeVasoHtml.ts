@@ -2,7 +2,7 @@
 import { cabeceraInforme, cssInforme, documentoHtml, esc, fechaHoraLegible, folioInforme, pieInforme } from './informeBase';
 import { UMBRAL_BAJO_PCT, UMBRAL_CRITICO_PCT } from './presaNiveles';
 import type { InformeVaso, SeccionVaso } from './informeVasoDatos';
-import { UMBRAL_DESVIO_PCT } from './informeVasoDatos';
+import { DESVIO_ATENCION_PCT, DESVIO_CRITICO_PCT, DIAS_NIVEL_ESCENA, semaforoDesvio } from './vasoUmbrales';
 import { interanualSvg } from './informeVasoInteranual';
 import { comparativoSvg, contextoSvg, galeriaSvg, tendenciaSvg } from './informeVasoSvg';
 
@@ -142,20 +142,20 @@ ${!img && !ctx ? '<div class="aviso"><b>No disponible:</b> esta presa no tiene m
     // ── Hoja 5: validación y metodología ──
     const validacion = () => {
         const v = d.validacion.filter((x) => !x.sinReferencia && x.pctCoincidencia != null);
-        if (!v.length) return `<h2><span class="n">${++nSec}</span>Validación cruzada</h2><div class="aviso"><b>Sin referencia:</b> ninguna escena del periodo tiene una lectura de campo a 20 días o menos.</div>`;
+        if (!v.length) return `<h2><span class="n">${++nSec}</span>Validación cruzada</h2><div class="aviso"><b>Sin referencia:</b> ninguna escena despejada del periodo tiene nivel del embalse registrado a ±${DIAS_NIVEL_ESCENA} días de la fecha de sus píxeles.</div>`;
         const filas = v.map((x) => {
-            const desvio = Math.abs(x.pctCoincidencia! - 100);
-            const marca = desvio <= 5 ? '✓ coincide' : desvio <= UMBRAL_DESVIO_PCT ? '△ revisar' : '✕ desvío alto';
+            const sem = semaforoDesvio(x.pctCoincidencia! - 100);
+            const marca = sem.clave === 'ok' ? '✓ coincide' : sem.clave === 'warn' ? '△ revisar' : '✕ discrepa';
             return `<tr><td><b>${esc(fecha(x.fecha_escena))}</b></td><td class="n">${n(x.areaSatelite)}</td><td class="n">${n(x.areaEsperadaKm2)}</td><td class="n">${n(x.pctCoincidencia, 0)} %</td><td>${marca}</td>
-<td>${esc(fecha(x.fechaLectura))} (${x.diasDiferencia ?? 0} d)</td></tr>`;
+<td>${esc(fecha(x.fechaLectura))} · ${n(x.escalaLectura, 2)} msnm${x.diasDiferencia ? ` (${x.diasDiferencia} d)` : ''}${x.fuenteNivel === 'historico' ? ' · CILA' : x.fuenteNivel === 'captura' ? ' · captura' : ''}</td></tr>`;
         }).join('');
-        return `<h2><span class="n">${++nSec}</span>Validación cruzada: satélite vs. curva oficial</h2><div class="tabla-wrap"><table><thead><tr><th>Escena</th><th class="n">Área satélite (km²)</th><th class="n">Área esperada (km²)</th><th class="n">Coincidencia</th><th>Resultado</th><th>Lectura de campo usada</th></tr></thead><tbody>${filas}</tbody></table></div>
-<p class="fuente">Área esperada = interpolación de la curva elevación–área–capacidad en la escala de la lectura de campo más cercana (máx. 20 días). 100 % = coincidencia perfecta; se marca "revisar" arriba de 5 % y "desvío alto" arriba de ${UMBRAL_DESVIO_PCT} %.</p>`;
+        return `<h2><span class="n">${++nSec}</span>Validación cruzada: satélite vs. curva oficial</h2><div class="tabla-wrap"><table><thead><tr><th>Escena</th><th class="n">Área satélite (km²)</th><th class="n">Área esperada (km²)</th><th class="n">Coincidencia</th><th>Resultado</th><th>Nivel del día usado</th></tr></thead><tbody>${filas}</tbody></table></div>
+<p class="fuente">Área esperada = curva elevación–área–capacidad (batimetría 2020) a la cota del embalse el día de los píxeles (±${DIAS_NIVEL_ESCENA} d; histórico diario CILA y, de respaldo, captura). Escenas con nubes sobre el vaso no se validan. 100 % = coincidencia; "revisar" arriba de ${DESVIO_ATENCION_PCT} % y "discrepa" arriba de ${DESVIO_CRITICO_PCT} %. Un área satelital algo menor es normal: el píxel pierde la orilla somera y el agua turbia de las colas.</p>`;
     };
     const metodologia = () => `<h3>Metodología y limitaciones</h3>
-<p><b>Fuente.</b> Escenas Sentinel-2 L2A (Copernicus). El espejo de agua se detecta con NDWI a 20 m por píxel y se vectoriza (marching squares); el área excluye los bancos de tierra expuestos.</p>
-<p><b>Limitaciones.</b> Las nubes y sombras pueden subestimar el contorno; la resolución de 20 m limita el perímetro en orillas muy irregulares; una escena representa un día, no el mes completo.</p>
-<p><b>Cómo leer el estado.</b> El llenado, volumen y nivel provienen de la lectura oficial vigente (no del satélite). La superficie satelital es una verificación independiente: cuando difiere más de ${UMBRAL_DESVIO_PCT} % de la curva oficial, se debe confiar primero en la lectura de campo.</p>
+<p><b>Fuente.</b> Escenas Sentinel-2 L2A (Copernicus). Método v2: un solo día de píxeles (el más reciente del mes con ≤3 % del vaso cubierto por nubes, máscara SCL), 10 m por píxel, agua = NDWI (B03/B08) o MNDWI (B03/B11) sobre su umbral Otsu, mancha 8-conexa anclada al vaso, contorno subpíxel (marching squares) simplificado con Douglas-Peucker (≈6 m). El área es la del polígono final y excluye los bancos de tierra expuestos. Escenas anteriores con método v1 (20 m, mosaico de 30 días) se conservan como referencia, sin uso en pantalla.</p>
+<p><b>Limitaciones.</b> Brazos o colas que se desconectan del cuerpo principal no se cuentan; el agua muy somera o con vegetación puede quedar fuera; una escena representa un día, no el mes completo.</p>
+<p><b>Cómo leer el estado.</b> El llenado, volumen y nivel provienen de la lectura oficial vigente (no del satélite). La superficie satelital es una verificación independiente: cuando difiere más de ${DESVIO_ATENCION_PCT} % de la curva oficial, se debe confiar primero en la lectura de campo.</p>
 <p class="fuente">Documento generado automáticamente por SICA-005. No sustituye los informes oficiales de CONAGUA/CILA.</p>`;
 
     // ── Armado: cada hoja lleva corrida, cuerpo y pie con "Pág. X de Y" ──

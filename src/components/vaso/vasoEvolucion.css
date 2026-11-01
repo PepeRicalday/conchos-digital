@@ -1,0 +1,93 @@
+/* Manejo de vaso — bloque "Evolución del vaso" y superficie jerarquizada, sobre los tokens de vasoNiveles.css (.vaso-sc).
+   Reemplaza la sección vieja `vaso-analytics glass` con estilos en línea: texto ≥ 12 px sin opacidad, estado con icono + palabra. */
+
+/* Medidas por ancho real del modal (no del viewport: el sidebar resta 240-280 px en iPad). */
+.vaso-scroll-content { container: vaso / inline-size; }
+
+/* ── Superficie: 2 fuentes principales + referencia visual secundaria ── */
+.vaso-sup-lista--jer { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.vaso-sup-item--ref { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; border-style: dashed; background: var(--sc-surface); }
+.vaso-sup-item--ref .v { font-size: 22px; color: var(--sc-t2); }
+.vaso-sup-item--ref .d { flex: 1 1 260px; }
+.vaso-sup-item--ref .vaso-btn { margin-left: auto; }
+.vaso-sup-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 0; padding: 0; list-style: none; font: 500 12px var(--sc-mono); color: var(--sc-t2); }
+.vaso-sup-meta li + li::before { content: '·'; margin-right: 10px; color: var(--sc-t3); }
+.vaso-sup-dif { display: flex; flex-direction: column; gap: 6px; }
+.vaso-sup-dif b { font: 600 14px var(--sc-mono); }
+.vaso-sup-dif small { font-size: 12px; color: var(--sc-t2); }
+.vaso-divbar { position: relative; height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); }
+.vaso-divbar::after { content: ''; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px; background: var(--sc-t3); }
+.vaso-divbar i { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: var(--c, var(--sc-sky)); }
+
+/* ── Semáforo (icono + palabra, nunca solo color) ── */
+.vaso-sem { display: inline-flex; align-items: center; gap: 6px; font: 600 12px var(--sc-mono); color: var(--c, var(--sc-t2)); }
+.vaso-sem--ok { --c: var(--sc-ok); } .vaso-sem--warn { --c: var(--sc-warn); } .vaso-sem--crit { --c: var(--sc-crit); } .vaso-sem--sd { --c: var(--sc-t3); }
+
+/* ── Evolución ── */
+.vaso-evo { display: flex; flex-direction: column; gap: 16px; }
+.vaso-evo-cab { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.vaso-evo-cab .vaso-kicker { display: inline-flex; align-items: center; gap: 8px; }
+.vaso-evo-sub { border-top: 1px solid var(--sc-line); padding-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+.vaso-evo-sub > h3 { margin: 0; font: 600 13px var(--sc-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--sc-t3); }
+.vaso-nota { margin: 0; font: 400 13px/1.5 var(--sc-body); color: var(--sc-t2); max-width: 78ch; }
+.vaso-nota strong { color: var(--sc-t1); }
+.vaso-evo-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.vaso-kpi { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--sc-line); background: var(--sc-surface-2); min-width: 0; }
+.vaso-kpi dt { font: 600 12px var(--sc-mono); letter-spacing: 0.05em; color: var(--sc-t3); }
+.vaso-kpi dd { margin: 4px 0 0; font: 700 26px var(--sc-display); letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+.vaso-kpi dd small { font: 500 13px var(--sc-mono); color: var(--sc-t3); margin-left: 4px; }
+.vaso-kpi .sub { display: block; margin-top: 2px; font: 400 12px var(--sc-body); color: var(--sc-t2); }
+.vaso-delta--sube { color: var(--sc-ok); } .vaso-delta--baja { color: var(--sc-warn); }
+
+/* Pestañas Contorno | Relieve 3D */
+.vaso-tabs { display: inline-flex; border: 1px solid var(--sc-line); border-radius: 10px; overflow: hidden; }
+.vaso-tabs button { min-height: 44px; padding: 0 16px; border: 0; background: transparent; color: var(--sc-t2); font: 600 13px var(--sc-body); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.vaso-tabs button[aria-selected='true'] { background: rgba(56, 189, 248, 0.14); color: var(--sc-t1); }
+.vaso-tabs button:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: -2px; }
+.vaso-comparar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.vaso-comparar .vaso-mes-selector { flex: 1 1 180px; }
+.vaso-comparar .vaso-mes-selector span { font: 600 12px var(--sc-mono); color: var(--sc-t3); }
+.vaso-comparar select { min-height: 44px; font-size: 14px; }
+.vaso-sc .vaso-mes-selector select:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 2px; }
+.vaso-sc .vaso-mapa-leyenda { font: 12px var(--sc-mono); color: var(--sc-t2); }
+.leyenda-swatch--azolve { background: rgba(248, 113, 113, 0.75) !important; border: none !important; }
+.leyenda-swatch--nueva { background: rgba(56, 189, 248, 0.45) !important; border: none !important; }
+
+/* Galería: tira con desplazamiento táctil */
+.vaso-sc .vaso-galeria-tira { scroll-snap-type: x mandatory; }
+.vaso-sc .vaso-galeria-item { scroll-snap-align: start; }
+.vaso-sc .vaso-galeria-fecha, .vaso-sc .vaso-galeria-kpi { font-size: 12px; }
+.vaso-galeria-metodo { font: 500 11.5px var(--sc-mono); color: var(--sc-t3); }
+
+/* Validación cruzada */
+.vaso-valid { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.vaso-valid li { display: grid; grid-template-columns: 110px minmax(80px, 1fr) 64px 100px; gap: 6px 12px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--sc-surface-2); }
+.vaso-valid .f { font: 600 12.5px var(--sc-mono); color: var(--sc-t1); }
+.vaso-valid .pct { font: 700 14px var(--sc-mono); text-align: right; color: var(--c, var(--sc-t1)); }
+.vaso-valid .det { grid-column: 1 / -1; font-size: 12px; color: var(--sc-t2); }
+.vaso-valid .bar { position: relative; height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); }
+.vaso-valid .bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: var(--c, var(--sc-sky)); }
+.vaso-valid .bar b { position: absolute; left: 100%; top: -3px; bottom: -3px; width: 2px; background: var(--sc-t3); transform: translateX(-100%); }
+.vaso-valid .sin { grid-template-columns: 110px 1fr; color: var(--sc-t3); font-size: 12px; }
+
+/* Plegables (fragmentación, recalibración) */
+.vaso-plegable { border: 1px solid var(--sc-line); border-radius: 12px; padding: 0 14px; background: var(--sc-surface); }
+.vaso-plegable > summary { min-height: 44px; display: flex; align-items: center; gap: 10px; cursor: pointer; font: 600 14px var(--sc-body); color: var(--sc-t1); }
+.vaso-plegable[open] > summary { border-bottom: 1px solid var(--sc-line); margin-bottom: 12px; }
+.vaso-plegable > div { padding-bottom: 14px; display: flex; flex-direction: column; gap: 10px; }
+
+@container vaso (max-width: 860px) {
+    .vaso-hero, .vaso-sim-fila { grid-template-columns: 1fr; }
+    .vaso-datos { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@container vaso (max-width: 560px) {
+    .vaso-sup-lista--jer, .vaso-evo-kpis { grid-template-columns: 1fr; }
+    .vaso-datos { grid-template-columns: 1fr; }
+    .vaso-valid li { grid-template-columns: 1fr 64px; }
+    .vaso-valid .bar { grid-column: 1 / -1; order: 3; }
+    .vaso-evo-acciones, .vaso-evo-acciones .vaso-btn { width: 100%; }
+    .vaso-evo-acciones .vaso-btn { flex: 1 1 auto; }
+    .vaso-tabs { width: 100%; } .vaso-tabs button { flex: 1; justify-content: center; }
+    .vaso-sc .vaso-galeria-item { min-width: 140px; }
+}
+@media (prefers-reduced-motion: reduce) { .vaso-container.animate-in-zoom { animation: none; } }

@@ -149,7 +149,7 @@ function realceGeomorfologico(
 
 /**
  * Superficie mínima (píxeles) para aceptar una mancha como vaso de presa.
- * A zoom 11 cada píxel ≈ 0.0019 km²; 2000 px ≈ 3.8 km². El vaso de Boquilla
+ * A zoom 11 y 27.5° N cada píxel mide ≈ 68 m (≈ 0.0046 km²); 2000 px ≈ 9 km². El vaso de Boquilla
  * ronda los 100 km² a capacidad, mientras una parcela regada grande no pasa de
  * unas decenas de hectáreas: el corte los separa con holgura.
  */
@@ -337,7 +337,7 @@ export async function construyeFondoSatelital(
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface SuperficieVaso {
-    /** km² de superficie clasificada como agua dentro del radio del vaso. */
+    /** km² de la mancha de agua anclada al vaso (escala Web Mercator por fila). */
     areaKm2: number;
     /** Contorno del vaso como anillo [lon, lat][] (orden GeoJSON), ya cerrado. */
     contorno: [number, number][];
@@ -347,77 +347,137 @@ export interface SuperficieVaso {
     cobertura: number;
 }
 
-/**
- * Traza el contorno real de la mancha principal de una máscara binaria con
- * Moore-Neighbor tracing: camina píxel a píxel por el borde siguiendo el
- * vecino de contacto más próximo (8-conectado), en vez de ordenar puntos por
- * ángulo respecto al centroide. Necesario porque un vaso de presa suele ser
- * dendrítico (varios brazos alargados) — dos puntos en brazos distintos
- * pueden tener ángulos casi iguales vistos desde el centroide, lo que hacía
- * que el orden angular saltara entre brazos no adyacentes y dibujara líneas
- * rectas cruzando el polígono (bug confirmado en GEO-MONITOR sep-2026: el
- * contorno de La Boquilla salía con "púas" en vez de la silueta del embalse).
- * Solo separa la mancha conexa más grande — igual que el trazador anterior,
- * no resuelve islas/huecos internos.
- */
-function contornoDeMascara(mascara: Uint8Array, W: number, H: number): [number, number][] {
-    const esAgua = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && mascara[y * W + x] === 1;
+/** Metros por píxel de Web Mercator a la latitud dada (ecuador: 156 543 m a z0). */
+export const mPorPxMercator = (lat: number, zoom: number) => (40_075_016.686 * Math.cos((lat * Math.PI) / 180)) / (TILE_PX * 2 ** zoom);
 
-    // Punto de partida: primer píxel de agua en el borde de la mancha,
-    // recorriendo en orden de lectura (arriba-izquierda primero).
-    let inicio: [number, number] | null = null;
-    for (let y = 0; y < H && !inicio; y++) {
-        for (let x = 0; x < W; x++) {
-            if (esAgua(x, y) && (!esAgua(x - 1, y) || !esAgua(x + 1, y) || !esAgua(x, y - 1) || !esAgua(x, y + 1))) {
-                inicio = [x, y];
-                break;
+const tileALon = (x: number, z: number) => (x / 2 ** z) * 360 - 180;
+const tileALat = (y: number, z: number) => {
+    const n = Math.PI - (2 * Math.PI * y) / 2 ** z;
+    return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+};
+
+/** Componente 8-conexa de la máscara que contiene (o queda más cerca de) el ancla. */
+export function componenteAnclada(mascara: Uint8Array, W: number, H: number, ax: number, ay: number): Uint8Array {
+    const N = W * H;
+    const etiqueta = new Int32Array(N);
+    const pila = new Int32Array(N);
+    let mejor = 0, mejorD = Infinity, n = 0;
+    for (let s = 0; s < N; s++) {
+        if (!mascara[s] || etiqueta[s]) continue;
+        n++;
+        let tope = 0, dMin = Infinity;
+        pila[tope++] = s; etiqueta[s] = n;
+        while (tope) {
+            const p = pila[--tope], x = p % W, y = (p / W) | 0;
+            const d = (x - ax) ** 2 + (y - ay) ** 2;
+            if (d < dMin) dMin = d;
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                const xx = x + dx, yy = y + dy;
+                if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+                const q = yy * W + xx;
+                if (mascara[q] && !etiqueta[q]) { etiqueta[q] = n; pila[tope++] = q; }
             }
         }
+        if (dMin < mejorD) { mejorD = dMin; mejor = n; }
     }
-    if (!inicio) return [];
+    const out = new Uint8Array(N);
+    if (mejor) for (let p = 0; p < N; p++) if (etiqueta[p] === mejor) out[p] = 1;
+    return out;
+}
 
-    // 8 direcciones en orden horario empezando arriba, para Moore-Neighbor tracing.
+/**
+ * Contorno exterior de una mancha 8-conexa por Moore-Neighbor tracing, con el
+ * criterio de parada de Jacob (se detiene al volver al inicio ENTRANDO por el mismo
+ * movimiento): el criterio simple "volver al inicio" cortaba el trazo en cuellos de
+ * un píxel, comunes en los brazos dendríticos de La Boquilla. Devuelve centros de píxel.
+ */
+export function contornoDeMascara(mascara: Uint8Array, W: number, H: number): [number, number][] {
+    const esAgua = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && mascara[y * W + x] === 1;
+    let inicio: [number, number] | null = null;
+    for (let p = 0; p < W * H && !inicio; p++) if (mascara[p]) inicio = [p % W, (p / W) | 0];
+    if (!inicio) return [];
+    // Orden horario empezando al norte. Se llega al inicio "desde el oeste" (el barrido es por filas).
     const dirs: [number, number][] = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
     const contorno: [number, number][] = [inicio];
-    let actual = inicio;
-    // Dirección desde la que se "entró" al píxel actual — se empieza buscando
-    // desde la dirección opuesta a "izquierda" para no salir disparado hacia adentro.
-    let dirEntrada = 6; // '-1,0' — como si se hubiera llegado desde el oeste
-    const maxPasos = W * H * 4;
-
-    for (let paso = 0; paso < maxPasos; paso++) {
-        let encontrado = false;
+    let actual = inicio, dirEntrada = 6;
+    let primerMov = -1;
+    for (let paso = 0; paso < W * H * 4; paso++) {
+        let mov = -1;
         for (let i = 0; i < 8; i++) {
-            const dir = (dirEntrada + 1 + i) % 8;
-            const [dx, dy] = dirs[dir];
-            const nx = actual[0] + dx, ny = actual[1] + dy;
-            if (esAgua(nx, ny)) {
-                actual = [nx, ny];
-                dirEntrada = (dir + 4) % 8; // dirección opuesta = por dónde se llegó
-                encontrado = true;
-                break;
-            }
+            const d = (dirEntrada + 1 + i) % 8;
+            if (esAgua(actual[0] + dirs[d][0], actual[1] + dirs[d][1])) { mov = d; break; }
         }
-        if (!encontrado) break; // píxel aislado (no debería pasar en una mancha conexa)
-        if (actual[0] === inicio[0] && actual[1] === inicio[1]) break; // vuelta completa
+        if (mov < 0) break; // píxel aislado
+        if (actual[0] === inicio[0] && actual[1] === inicio[1]) {
+            if (primerMov === mov) break; // Jacob: mismo inicio, mismo movimiento → vuelta completa
+            if (primerMov < 0) primerMov = mov;
+        }
+        actual = [actual[0] + dirs[mov][0], actual[1] + dirs[mov][1]];
+        dirEntrada = (mov + 4) % 8;
         contorno.push(actual);
+    }
+    if (contorno.length > 1) {
+        const [a, b] = [contorno[0], contorno[contorno.length - 1]];
+        if (a[0] === b[0] && a[1] === b[1]) contorno.pop();
     }
     return contorno;
 }
 
-/**
- * Cierra el anillo trazado por `contornoDeMascara` y lo reduce a como máximo
- * `maxPuntos`, muestreados uniformemente a lo largo del recorrido (ya viene en
- * orden de contorno real, no se reordena) — evita un GeoJSON de miles de vértices.
- */
-function simplificaAnillo(puntos: [number, number][], maxPuntos = 240): [number, number][] {
-    if (puntos.length < 3) return puntos;
-    const paso = Math.max(1, Math.floor(puntos.length / maxPuntos));
-    const anillo = puntos.filter((_, i) => i % paso === 0);
-    if (anillo.length && (anillo[0][0] !== anillo[anillo.length - 1][0] || anillo[0][1] !== anillo[anillo.length - 1][1])) {
-        anillo.push(anillo[0]);
+/** Douglas-Peucker sobre un anillo cerrado (sin punto final repetido); tolerancia en las mismas unidades. */
+export function douglasPeuckerAnillo(anillo: [number, number][], tol: number): [number, number][] {
+    if (anillo.length < 8) return anillo;
+    let lejos = 0, dMax = -1;
+    for (let i = 1; i < anillo.length; i++) {
+        const d = (anillo[i][0] - anillo[0][0]) ** 2 + (anillo[i][1] - anillo[0][1]) ** 2;
+        if (d > dMax) { dMax = d; lejos = i; }
     }
-    return anillo;
+    const dp = (pts: [number, number][]) => {
+        const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1;
+        const pila: [number, number][] = [[0, pts.length - 1]];
+        while (pila.length) {
+            const [a, b] = pila.pop()!;
+            const [ax, ay] = pts[a], [bx, by] = pts[b];
+            const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1e-12;
+            let im = -1, dm = tol;
+            for (let i = a + 1; i < b; i++) {
+                const d = Math.abs(dy * pts[i][0] - dx * pts[i][1] + bx * ay - by * ax) / L;
+                if (d > dm) { dm = d; im = i; }
+            }
+            if (im > 0) { keep[im] = 1; pila.push([a, im], [im, b]); }
+        }
+        return pts.filter((_, i) => keep[i]);
+    };
+    const a = dp(anillo.slice(0, lejos + 1));
+    const b = dp([...anillo.slice(lejos), anillo[0]]);
+    return [...a, ...b.slice(1, -1)];
+}
+
+/**
+ * Superficie y contorno de la MISMA mancha (la anclada al vaso) sobre un mosaico
+ * Web Mercator de teselas completas cuya esquina superior izquierda es la tesela
+ * (x0, y0). Área = Σ por fila de píxeles de agua × (m/px a la latitud de esa fila)²
+ * — antes se usaba la extensión del bbox PEDIDO dividida entre el ancho del lienzo
+ * de teselas completas (más grande), lo que subestimaba el área ~36 %.
+ */
+export function superficieDeMascara(
+    mascara: Uint8Array, W: number, H: number, x0: number, y0: number, zoom: number, ancla: { lon: number; lat: number },
+): { areaKm2: number; contorno: [number, number][] } {
+    const ax = (lon2tile(ancla.lon, zoom) - x0) * TILE_PX;
+    const ay = (lat2tile(ancla.lat, zoom) - y0) * TILE_PX;
+    const mancha = componenteAnclada(mascara, W, H, ax, ay);
+    let areaM2 = 0;
+    for (let y = 0; y < H; y++) {
+        let n = 0;
+        for (let x = 0; x < W; x++) n += mancha[y * W + x];
+        if (n) areaM2 += n * mPorPxMercator(tileALat(y0 + (y + 0.5) / TILE_PX, zoom), zoom) ** 2;
+    }
+    const borde = douglasPeuckerAnillo(contornoDeMascara(mancha, W, H), 0.5);
+    const contorno: [number, number][] = borde.map(([px, py]) => [
+        tileALon(x0 + (px + 0.5) / TILE_PX, zoom),
+        tileALat(y0 + (py + 0.5) / TILE_PX, zoom),
+    ]);
+    if (contorno.length) contorno.push(contorno[0]);
+    return { areaKm2: areaM2 / 1e6, contorno };
 }
 
 /**
@@ -483,24 +543,8 @@ export async function detectaSuperficieVaso(nombreVaso: string, zoom = ZOOM): Pr
         const datos = ctx.getImageData(0, 0, W, H);
         const mascara = mascaraVasos(datos.data, W, H, cercaDeVaso);
 
-        // km² reales: cada píxel cubre (grado/W)*(grado/H) en superficie geográfica.
-        const kmPorPxX = ((maxLon - minLon) * 111.32 * Math.cos((vaso.lat * Math.PI) / 180)) / W;
-        const kmPorPxY = ((maxLat - minLat) * 111.32) / H;
-        let pxAgua = 0;
-        for (let i = 0; i < mascara.length; i++) if (mascara[i]) pxAgua++;
-        const areaKm2 = pxAgua * kmPorPxX * kmPorPxY;
-
-        // Contorno: píxeles de borde → lon/lat, ordenados como anillo.
-        const tile2lon = (x: number) => (x / 2 ** zoom) * 360 - 180;
-        const tile2lat = (y: number) => {
-            const n = Math.PI - (2 * Math.PI * y) / 2 ** zoom;
-            return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
-        };
-        const bordePx = simplificaAnillo(contornoDeMascara(mascara, W, H));
-        const contorno: [number, number][] = bordePx.map(([px, py]: [number, number]) => [
-            tile2lon(x0 + px / TILE_PX),
-            tile2lat(y0 + py / TILE_PX),
-        ]);
+        // Área y contorno de la mancha anclada al vaso (la misma para ambos), escala Mercator real.
+        const { areaKm2, contorno } = superficieDeMascara(mascara, W, H, x0, y0, zoom, vaso);
 
         // Mismo tratamiento visual que construyeFondoSatelital, recortado al vaso.
         realceGeomorfologico(datos.data, W, (px, py) => mascara[py * W + px] === 1);

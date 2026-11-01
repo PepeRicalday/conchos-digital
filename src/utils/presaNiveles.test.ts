@@ -97,13 +97,23 @@ describe('mensaje de estado (nunca "estable" sin datos)', () => {
 
 describe('conciliación de superficies', () => {
     it('ordena curva, Sentinel y visual con su diferencia contra la curva (58.86 / 44.27 / 47.5 km²)', () => {
-        const r = conciliaSuperficie({ curvaKm2: 58.86, sentinel: { km2: 44.27, fecha: '2026-10-01', nubesPct: 15.9 }, visual: { km2: 47.5, cobertura: 1 } });
+        // Sentinel se compara con la curva a la cota DEL DÍA de sus píxeles (56.88), no con la de hoy (58.86).
+        const r = conciliaSuperficie({ curvaKm2: 58.86, sentinel: { km2: 44.27, fecha: '2026-10-01T17:46:25Z', nubesPct: 15.9, curvaKm2Escena: 56.88, metodo: 'v1', resolucionM: 20, fechaPixelesConocida: false }, visual: { km2: 47.5, cobertura: 1 } });
         expect(r.map((f) => f.clave)).toEqual(['curva', 'sentinel', 'visual']);
         expect(r[0].difVsCurvaPct).toBeNull();
-        expect(r[1].difVsCurvaPct).toBeCloseTo(-24.8, 0);
+        expect(r[1].difVsCurvaPct).toBeCloseTo(-22.2, 0);
+        expect(r[1].difContra).toContain('cota de ese día');
         expect(r[2].difVsCurvaPct).toBeCloseTo(-19.3, 0);
         expect(r[1].validada).toBe(true); expect(r[2].validada).toBe(false);
-        expect(r[1].detalle).toContain('15.9 % de nubes');
+        expect(r[1].detalle).toContain('nubes sobre el vaso 15.9 %');
+        expect(r[1].detalle).toContain('v1');
+        expect(r[2].etiqueta).toContain('mosaico de archivo');
+    });
+    it('Sentinel sin nivel del día: sin diferencia (S/D), nunca contra el nivel de hoy; nubes S/D explícito', () => {
+        const r = conciliaSuperficie({ curvaKm2: 58.86, sentinel: { km2: 44.27, fecha: '2026-10-01', nubesPct: null, curvaKm2Escena: null, metodo: 'v2' }, visual: null });
+        expect(r[1].difVsCurvaPct).toBeNull();
+        expect(r[1].detalle).toContain('nubes sobre el vaso S/D');
+        expect(r[1].detalle).toContain('v2 · 10 m');
     });
     it('sin curva no inventa diferencias; sin fuentes devuelve lista vacía', () => {
         const r = conciliaSuperficie({ curvaKm2: null, sentinel: null, visual: { km2: 47.5, cobertura: 1 } });

@@ -18,6 +18,7 @@ import PresaHistoricoContexto from '../components/PresaHistoricoContexto';
 import BotonInfografiaPresas from '../components/BotonInfografiaPresas';
 import BotonInformeNivelTendencia from '../components/BotonInformeNivelTendencia';
 import AnaliticaPresa, { type VistaAnalitica } from '../components/presas/analitica/AnaliticaPresa';
+import { estadoEmbalse } from '../utils/presaNiveles';
 
 
 /** Espejo de los tokens --pr-* de Presas.css (hex porque se componen con alfa: `${color}18`). */
@@ -968,15 +969,18 @@ const Presas = () => {
                     </div>
                     <div className="scada-cuenca-list">
                         {presas.map(p => {
-                            const pct = p.lectura?.porcentaje_llenado || 0;
-                            const color = pct < 20 ? '#ef4444' : pct < 40 ? '#f59e0b' : '#10b981';
+                            // S/D nunca 0; umbrales únicos de presaNiveles (20/40).
+                            const pctDato = p.lectura?.porcentaje_llenado;
+                            const pct = pctDato != null && Number.isFinite(Number(pctDato)) ? Number(pctDato) : null;
+                            const est = estadoEmbalse(pct).clave;
+                            const color = est === 'crit' ? '#ef4444' : est === 'warn' ? '#f59e0b' : est === 'ok' ? '#10b981' : '#8fa3ba';
                             return (
                                 <div key={p.id} className="scada-cuenca-row">
                                     <span className="scada-cuenca-nombre">{p.nombre_corto}</span>
                                     <div className="scada-cuenca-bar">
-                                        <div style={{ width: `${Math.min(pct,100)}%`, background: color }}/>
+                                        <div style={{ width: `${Math.min(pct ?? 0, 100)}%`, background: color }}/>
                                     </div>
-                                    <span className="scada-cuenca-pct" style={{ color }}>{pct.toFixed(1)}%</span>
+                                    <span className="scada-cuenca-pct" style={{ color }}>{pct != null ? `${pct.toFixed(1)}%` : 'S/D'}</span>
                                 </div>
                             );
                         })}

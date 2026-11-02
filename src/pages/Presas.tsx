@@ -64,9 +64,8 @@ const ExtractionStreamgraph = ({ movimientos }: { movimientos: MovimientoPresaDa
 
     if (!hasDatos) {
         return (
-            <div className="h-48 w-full mt-4 bg-black/20 rounded-xl flex items-center justify-center border border-white/5">
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Sin movimientos en los últimos 7 días</p>
-            </div>
+            // Estado vacío de una línea: antes era un panel de 192 px sin nada dentro.
+            <p className="scada-vacio-linea">Sin movimientos de extracción en los últimos 7 días.</p>
         );
     }
 
@@ -554,8 +553,11 @@ const Presas = () => {
     // Variación real día-a-día, calculada en usePresas.ts contra la lectura
     // anterior — ya no depende de que alguien escriba "Dif Elev: Xm" en notas.
     const difElev = lect?.variacion_elevacion_m != null ? lect.variacion_elevacion_m : null;
-    const riskColor = pctLlenado >= 90 ? PR.crit : pctLlenado >= 70 ? PR.warn : PR.ok;
-    const riskLabel = pctLlenado >= 90 ? 'ALTO'   : pctLlenado >= 70 ? 'MEDIO'   : 'BAJO';
+    // Sin porcentaje de llenado medido (o sin nivel) no hay riesgo, diagnóstico ni amortiguamiento que afirmar: S/D, nunca el 0 de relleno.
+    const sinLlenado = sinNivel || lect?.porcentaje_llenado == null;
+    const riskColor = sinLlenado ? PR.mute : pctLlenado >= 90 ? PR.crit : pctLlenado >= 70 ? PR.warn : PR.ok;
+    const riskLabel = sinLlenado ? 'S/D' : pctLlenado >= 90 ? 'ALTO'   : pctLlenado >= 70 ? 'MEDIO'   : 'BAJO';
+    const amortTexto = sinLlenado || lect?.almacenamiento_mm3 == null ? null : amortiguamiento.toFixed(1);
     // const volNAMO   = currentDam.capacidad_max_mm3;
     const movsActuales = movimientos.filter((m: MovimientoPresaData) => m.presa_id === currentDam.id);
 
@@ -631,7 +633,9 @@ const Presas = () => {
         });
     }
 
-    const diagnostico = pctLlenado >= 90
+    const diagnostico = sinLlenado
+        ? 'Sin lectura de nivel ni porcentaje de llenado: no es posible diagnosticar el embalse.'
+        : pctLlenado >= 90
         ? `Vaso próximo a capacidad máxima (${pctLlenado.toFixed(1)}%). Monitoreo intensivo requerido.`
         : pctLlenado >= 70
         ? `Almacenamiento sobre nivel operativo óptimo (${pctLlenado.toFixed(1)}%). Condición de atención.`
@@ -639,7 +643,9 @@ const Presas = () => {
         ? `Condición operativa dentro de parámetros normales (${pctLlenado.toFixed(1)}%). Sistema estable.`
         : `Almacenamiento bajo nivel mínimo operativo (${pctLlenado.toFixed(1)}%). Atención requerida.`;
 
-    const recomendacion = pctLlenado >= 90
+    const recomendacion = sinLlenado
+        ? 'Capturar la lectura del día antes de decidir extracciones.'
+        : pctLlenado >= 90
         ? 'Verificar compuertas de desfogue. Coordinar vertimiento controlado con CONAGUA.'
         : pctLlenado >= 70
         ? 'Mantener extracción programada. Preparar plan contingencia ante avenida.'
@@ -750,24 +756,6 @@ const Presas = () => {
 
                     <NivelHistoricoChart presaId={currentDam.id} />
 
-                    <div className="scada-design-kpis">
-                        <div className="scada-design-kpi">
-                            <span>Corona</span>
-                            <span>{currentDam.elevacion_corona_msnm.toFixed(2)} msnm</span>
-                        </div>
-                        <div className="scada-design-kpi">
-                            <span>Cap. Total</span>
-                            <span>{currentDam.capacidad_max_mm3.toFixed(1)} Mm³</span>
-                        </div>
-                        <div className="scada-design-kpi">
-                            <span>Amortiguamiento</span>
-                            <span className="scada-kpi-violet">{amortiguamiento.toFixed(1)} hm³</span>
-                        </div>
-                        <div className="scada-design-kpi">
-                            <span>Extracción</span>
-                            <span className={extConocida && extraccionTotal > 0 ? 'scada-kpi-sky' : 'scada-kpi-muted'}>{extTexto}{extConocida ? ' m³/s' : ''}</span>
-                        </div>
-                    </div>
                         </>
                     ) : (
                         <AnaliticaPresa presa={currentDam} fechaISO={fechaSeleccionada} vista={vistaAnalitica} onVista={setVistaAnalitica} />
@@ -834,6 +822,34 @@ const Presas = () => {
                         <span>TENDENCIA DE EXTRACCIÓN 48H</span>
                     </div>
                     <ExtractionStreamgraph movimientos={movimientosHistorial.filter(m => m.presa_id === currentDam.id)} />
+
+                    {/* Datos de diseño del vaso: en esta columna equilibran la altura con el vaso y dejan la extracción junto a las tomas. */}
+                    {activeTab === 'operacion' && (
+                        <>
+                            <div className="scada-panel-hdr scada-panel-hdr--sub">
+                                <Waves size={11} className="text-slate-400" />
+                                <span>DATOS DE DISEÑO DEL VASO</span>
+                            </div>
+                            <div className="scada-design-kpis">
+                                <div className="scada-design-kpi">
+                                    <span>Corona</span>
+                                    <span>{currentDam.elevacion_corona_msnm.toFixed(2)} msnm</span>
+                                </div>
+                                <div className="scada-design-kpi">
+                                    <span>Cap. Total</span>
+                                    <span>{currentDam.capacidad_max_mm3.toFixed(1)} Mm³</span>
+                                </div>
+                                <div className="scada-design-kpi">
+                                    <span>Amortiguamiento</span>
+                                    <span className={amortTexto ? 'scada-kpi-violet' : 'scada-kpi-muted'}>{amortTexto ? `${amortTexto} hm³` : 'S/D'}</span>
+                                </div>
+                                <div className="scada-design-kpi">
+                                    <span>Extracción</span>
+                                    <span className={extConocida && extraccionTotal > 0 ? 'scada-kpi-sky' : 'scada-kpi-muted'}>{extTexto}{extConocida ? ' m³/s' : ''}</span>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -858,15 +874,10 @@ const Presas = () => {
                     </div>
 
                     <div className="scada-gestion-kpis">
+                        {/* Extracción y amortiguamiento ya están en la franja de diseño del vaso: aquí no se repiten. */}
                         <div className="scada-gestion-kpi">
-                            <span>EXTRACCIÓN TOTAL</span>
-                            <strong className={extConocida && extraccionTotal > 0 ? 'scada-kpi-sky' : 'scada-kpi-muted'}>
-                                {extTexto} {extConocida && <small>m³/s</small>}
-                            </strong>
-                        </div>
-                        <div className="scada-gestion-kpi">
-                            <span>AMORTIGUAMIENTO</span>
-                            <strong className="scada-kpi-violet">{amortiguamiento.toFixed(1)} <small>hm³</small></strong>
+                            <span>LLENADO</span>
+                            <strong style={{ color: riskColor }}>{sinLlenado ? 'S/D' : <>{pctLlenado.toFixed(1)} <small>%</small></>}</strong>
                         </div>
                         <div className="scada-gestion-kpi">
                             <span>NIVEL ACTUAL</span>
@@ -880,7 +891,7 @@ const Presas = () => {
 
                     <div className="scada-risk-wrap">
                         <div className="scada-risk-bar-track">
-                            <div className="scada-risk-bar-fill" style={{ width: `${Math.min(pctLlenado,100)}%`, background: riskColor }}/>
+                            {!sinLlenado && <div className="scada-risk-bar-fill" style={{ width: `${Math.min(pctLlenado,100)}%`, background: riskColor }}/>}
                             <span className="scada-risk-mark" style={{ left: '70%' }}/>
                             <span className="scada-risk-mark" style={{ left: '90%' }}/>
                         </div>

@@ -1914,7 +1914,7 @@
     background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.06);
     border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px;
 }
-.scada-gestion-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.scada-gestion-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .scada-gestion-kpi {
     display: flex; flex-direction: column; gap: 2px;
     padding: 10px; background: rgba(0,0,0,0.2);
@@ -1987,9 +1987,16 @@
     .scada-sala-header { grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 12px; }
     .scada-header-kpi-strip { justify-content: flex-start; }
     .scada-header-right { grid-column: 2; justify-content: flex-end; }
+}
+/* Cuerpo y pie en 2 columnas también en iPad horizontal (1180–1280 px): antes colapsaban a 1 columna en ≤ 1280 px
+   y el vaso quedaba como una franja angosta en un panel de todo el ancho. Una columna solo en ≤ 1100 px. */
+@media (max-width: 1100px) {
     .scada-sala-body { grid-template-columns: 1fr; }
     .scada-sala-footer { grid-template-columns: 1fr; }
-    .scada-gestion-kpis { grid-template-columns: repeat(2, 1fr); }
+    .scada-design-kpis { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1101px) and (max-width: 1280px) {
+    .scada-sala-body { grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr); }
     .scada-design-kpis { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 768px) {
@@ -2141,3 +2148,15 @@ html[data-device="phone"] .pr-sello { min-height: 32px; }
 .pr-hist-dif { grid-area: d; text-align: right; font-family: var(--pr-mono); font-size: 12px; font-weight: 700; color: var(--pr-t3); }
 .pr-hist-dif.is-up { color: #7dd3fc; } .pr-hist-dif.is-down { color: var(--pr-warn); }
 .pr-hist-nota { grid-area: n; font-size: 11px; color: var(--pr-t3); }
+
+/* Estado vacío de una línea (tendencia de extracción sin movimientos) */
+.scada-vacio-linea { margin: 8px 0 0; padding: 10px 12px; border: 1px dashed rgba(255, 255, 255, 0.08); border-radius: 10px;
+    font-size: 12px; color: #94a3b8; text-align: center; }
+
+/* Identidad de la sala en una línea en iPad horizontal (antes "Sala de / control / hidráulico" en 3 líneas). */
+.scada-header-org, .scada-header-title { white-space: nowrap; }
+@media (max-width: 1280px) {
+    /* Tablet: identidad + selector de presa arriba; acciones en su propia fila a todo el ancho (se acomodan si no caben). */
+    .scada-sala-header { grid-template-columns: auto 1fr; }
+    .scada-header-right { grid-column: 1 / -1; flex-wrap: wrap; justify-content: flex-end; }
+}

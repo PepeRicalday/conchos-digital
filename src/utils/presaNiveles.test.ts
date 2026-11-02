@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     UMBRAL_BAJO_PCT, UMBRAL_CRITICO_PCT, areaKm2PorElevacion, conciliaSuperficie, cotasDePresa, deficitBajoNamo, estadoEmbalse, mensajeEstado,
-    sinComillas, tendenciaNivel, volumenPorElevacion, type PuntoCurva,
+    sinComillas, tendenciaNivel, volumenPorElevacion, elevacionPorVolumen, type PuntoCurva,
 } from './presaNiveles';
 
 const CURVA: PuntoCurva[] = [
@@ -120,6 +120,15 @@ describe('conciliación de superficies', () => {
         expect(r).toHaveLength(1);
         expect(r[0].difVsCurvaPct).toBeNull();
         expect(conciliaSuperficie({ curvaKm2: null, sentinel: null, visual: null })).toEqual([]);
+    });
+});
+
+describe('elevación por volumen (inversa de la curva)', () => {
+    it('interpola y devuelve null fuera de la curva', () => {
+        expect(elevacionPorVolumen(CURVA, 650)).toBeCloseTo(1295, 6);
+        expect(elevacionPorVolumen(CURVA, 1300)).toBeCloseTo(1310, 6);
+        expect(elevacionPorVolumen(CURVA, 2000)).toBeNull();
+        expect(elevacionPorVolumen(undefined, 650)).toBeNull();
     });
 });
 

@@ -26,7 +26,6 @@
 /* ── Evolución ── */
 .vaso-evo { display: flex; flex-direction: column; gap: 16px; }
 .vaso-evo-cab { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.vaso-evo-cab .vaso-kicker { display: inline-flex; align-items: center; gap: 8px; }
 .vaso-evo-sub { border-top: 1px solid var(--sc-line); padding-top: 16px; display: flex; flex-direction: column; gap: 12px; }
 .vaso-evo-sub > h3 { margin: 0; font: 600 13px var(--sc-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--sc-t3); }
 .vaso-nota { margin: 0; font: 400 13px/1.5 var(--sc-body); color: var(--sc-t2); max-width: 78ch; }
@@ -77,7 +76,7 @@
 .vaso-plegable > div { padding-bottom: 14px; display: flex; flex-direction: column; gap: 10px; }
 
 @container vaso (max-width: 860px) {
-    .vaso-hero, .vaso-sim-fila { grid-template-columns: 1fr; }
+    .vaso-hero { grid-template-columns: 1fr; }
     .vaso-datos { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @container vaso (max-width: 560px) {
@@ -91,3 +90,76 @@
     .vaso-sc .vaso-galeria-item { min-width: 140px; }
 }
 @media (prefers-reduced-motion: reduce) { .vaso-container.animate-in-zoom { animation: none; } }
+
+/* ── Jerarquía de superficies: secciones con radio 16 y paneles internos sin fondo (antes 4 niveles de tarjeta igual) ── */
+.vaso-sc .vaso-kpi, .vaso-sc .vaso-sup-item:not(.vaso-sup-item--ref) { background: transparent; border: 0; border-top: 1px solid var(--sc-line); border-radius: 0; padding: 12px 0 0; }
+.vaso-sc .vaso-sup-item--ref, .vaso-sc .vaso-plegable, .vaso-sc .vaso-vacio, .vaso-sc .vaso-mensaje { border-radius: 10px; }
+.vaso-sup-item--ref .v { font-size: 22px; }
+
+/* ── Encabezado del modal (M1): título institucional + línea de contexto ── */
+.vaso-header--sc { align-items: flex-start; }
+.vaso-header--sc .vaso-title-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.vaso-cab-kicker { font: 600 12px 'JetBrains Mono', ui-monospace, monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #8fa3ba; }
+.vaso-header--sc .vaso-title-group h2 { margin: 0; font: 800 44px/1 'Big Shoulders Display', 'JetBrains Mono', sans-serif; letter-spacing: 0.01em; color: #e8eef6; text-transform: uppercase; }
+.vaso-cab-contexto { margin: 0; font: 400 13px 'IBM Plex Sans', system-ui, sans-serif; color: #b4c2d4; }
+.vaso-header--sc .vaso-close { min-width: 44px; min-height: 44px; }
+
+/* ── Carga con silueta del vaso (B1) ── */
+.vaso-skel { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px; border: 1px dashed var(--sc-line); border-radius: 10px; color: var(--sc-t2); font-size: 13px; }
+.vaso-skel svg { width: min(320px, 80%); height: auto; }
+.vaso-skel path { fill: rgba(148, 163, 184, 0.12); stroke: var(--sc-line); stroke-width: 2; animation: vasoPulso 1.6s ease-in-out infinite; }
+@keyframes vasoPulso { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .vaso-skel path { animation: none; } }
+
+.vaso-evo-sub--primero { border-top: 0; padding-top: 0; }
+.vaso-h3-nota { font: 400 12px var(--sc-body); letter-spacing: 0; text-transform: none; color: var(--sc-t2); }
+
+/* ── Mapa comparativo (M3): proporción real, escala, norte y capas ── */
+.vaso-mapa { display: flex; flex-direction: column; gap: 10px; }
+.vaso-mapa svg { display: block; width: 100%; height: auto; max-height: min(56vh, 520px); border-radius: 10px; background: rgba(2, 6, 23, 0.55); border: 1px solid var(--sc-line); }
+.vaso-mapa-escala text, .vaso-mapa-norte text { font: 600 12px var(--sc-mono); fill: #e8eef6; }
+.vaso-mapa-norte path { fill: #e8eef6; }
+.vaso-capas { display: flex; flex-wrap: wrap; gap: 8px; }
+.vaso-capa { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--sc-line); background: transparent; color: var(--sc-t1); font: 600 13px var(--sc-mono); cursor: pointer; }
+.vaso-capa b { font-weight: 600; color: var(--sc-t1); }
+.vaso-capa[aria-pressed='false'] { color: var(--sc-t3); border-style: dashed; }
+.vaso-capa[aria-pressed='false'] .leyenda-swatch { opacity: 0.35; }
+.vaso-capa:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 2px; }
+.vaso-capa .leyenda-swatch { width: 16px; height: 16px; flex: none; }
+
+/* ── Galería (M5): miniaturas fluidas, mes comparado resaltado, clic para comparar ── */
+.vaso-galeria { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px;
+    -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+.vaso-galeria-mes { flex: 0 0 clamp(150px, 14cqi, 200px); scroll-snap-align: start; display: flex; flex-direction: column; gap: 2px; padding: 8px; border-radius: 10px; border: 1px solid var(--sc-line); background: var(--sc-surface); color: var(--sc-t1); text-align: left; cursor: pointer; }
+.vaso-galeria-mes:hover { border-color: rgba(56, 189, 248, 0.5); }
+.vaso-galeria-mes:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 2px; }
+.vaso-galeria-mes.es-comparado { border-color: var(--sc-sky); box-shadow: inset 0 0 0 1px var(--sc-sky); }
+.vaso-galeria-mes.es-base { border-style: dashed; }
+.vaso-galeria-mes .fecha { font: 600 12px var(--sc-mono); }
+.vaso-galeria-mes .kpi { font: 700 14px var(--sc-mono); color: var(--sc-sky); }
+.vaso-galeria-mes .meta { font: 500 11.5px var(--sc-mono); color: var(--sc-t3); }
+
+/* ── Validación como gráfica de puntos (M4): eje 70-105 %, bandas por umbral ── */
+.vaso-puntos { --banda: linear-gradient(90deg, rgba(248, 113, 113, 0.10) 0 14.29%, rgba(251, 191, 36, 0.10) 14.29% 42.86%, rgba(52, 211, 153, 0.08) 42.86% 100%); display: flex; flex-direction: column; gap: 4px; }
+.vaso-puntos-eje, .vaso-punto-fila { display: grid; grid-template-columns: 104px minmax(120px, 1fr) 52px 104px; gap: 10px; align-items: center; }
+.vaso-puntos-eje { position: relative; height: 18px; display: block; margin-left: 114px; margin-right: 166px; font: 11px var(--sc-mono); color: var(--sc-t3); }
+.vaso-puntos-eje span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.vaso-punto-fila { min-height: 30px; }
+.vaso-punto-fila .f { font: 600 12.5px var(--sc-mono); }
+.vaso-punto-fila .pista { position: relative; height: 22px; border-radius: 6px; background: var(--banda); }
+.vaso-punto-fila .pista::after { content: ''; position: absolute; left: 85.71%; top: 2px; bottom: 2px; width: 2px; background: var(--sc-t3); }
+.vaso-punto-fila .pista i { position: absolute; top: 50%; width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--sc-sky)); border: 2px solid #020617; transform: translate(-50%, -50%); z-index: 1; }
+.vaso-punto-fila .pct { font: 700 14px var(--sc-mono); text-align: right; color: var(--c, var(--sc-t1)); }
+.vaso-punto-fila.sin { grid-template-columns: 104px 1fr; color: var(--sc-t3); font-size: 12.5px; }
+.vaso-detalle-lista { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--sc-t2); }
+.vaso-detalle-lista b { color: var(--sc-t1); }
+
+@container vaso (max-width: 560px) {
+    .vaso-header--sc .vaso-title-group h2 { font-size: 34px; }
+    .vaso-puntos-eje { display: none; }
+    .vaso-punto-fila { grid-template-columns: 1fr 52px; }
+    .vaso-punto-fila .pista { grid-column: 1 / -1; order: 3; }
+    .vaso-punto-fila .vaso-sem { display: none; }
+    .vaso-galeria-mes { flex-basis: 140px; }
+    .vaso-hero-limn { max-width: 380px; margin: 0 auto; width: 100%; }
+}

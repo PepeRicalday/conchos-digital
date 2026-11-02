@@ -69,6 +69,21 @@ export function areaKm2PorElevacion(curva: PuntoCurva[] | undefined, elevacion: 
     return ha == null ? null : ha / 100;
 }
 
+/** Elevación (msnm) a la que la curva alcanza un volumen dado (Mm³); null fuera de la curva o sin curva. */
+export function elevacionPorVolumen(curva: PuntoCurva[] | undefined, volumen: number): number | null {
+    if (!curva || curva.length < 2 || !Number.isFinite(volumen)) return null;
+    const pts = [...curva].sort((a, b) => a.elevacion_msnm - b.elevacion_msnm);
+    if (volumen < pts[0].volumen_mm3 || volumen > pts[pts.length - 1].volumen_mm3) return null;
+    for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i], b = pts[i + 1];
+        if (volumen >= a.volumen_mm3 && volumen <= b.volumen_mm3) {
+            const t = b.volumen_mm3 === a.volumen_mm3 ? 0 : (volumen - a.volumen_mm3) / (b.volumen_mm3 - a.volumen_mm3);
+            return a.elevacion_msnm + t * (b.elevacion_msnm - a.elevacion_msnm);
+        }
+    }
+    return null;
+}
+
 // ── Tendencia real del nivel ─────────────────────────────────────────────────
 export type DireccionNivel = 'sube' | 'baja' | 'estable' | 'sd';
 export interface TendenciaNivel { mPorDia: number | null; dias: number | null; direccion: DireccionNivel }
@@ -103,7 +118,7 @@ export function mensajeEstado(p: {
     if (!p.tieneNivel) return { severidad: 'sd', titulo: 'Sin lectura de nivel', detalle: 'Todavía no hay una lectura de nivel del día: las cifras aparecen como S/D.' };
     if (p.simulado) {
         const d = p.deltaSimM ?? 0;
-        return { severidad: 'info', titulo: 'Simulación activa', detalle: `${d >= 0 ? '+' : '−'}${m2(Math.abs(d))} m sobre la lectura base de hoy. El déficit bajo el NAMO y el volumen se recalculan.` };
+        return { severidad: 'info', titulo: 'Simulación activa', detalle: `${d >= 0 ? '+' : '−'}${m2(Math.abs(d))} m ${d >= 0 ? 'sobre' : 'por debajo de'} la lectura base de hoy. El déficit bajo el NAMO y el volumen se recalculan.` };
     }
     const titulo = p.estado.clave === 'ok' ? 'Embalse en nivel normal' : p.estado.clave === 'warn' ? 'Embalse bajo' : p.estado.clave === 'crit' ? 'Embalse en nivel crítico' : 'Estado sin clasificar';
     const partes: string[] = [];

@@ -63,7 +63,7 @@ function SuperficieVaso({ fuentes, cargandoVisual, errorVisual, sinDeteccion, on
                     {(visual || cargandoVisual || errorVisual) && !sinDeteccion && (
                         <li className="vaso-sup-item vaso-sup-item--ref">
                             <span className="et"><Eye size={13} aria-hidden="true" /> Referencia visual — mosaico de archivo, fecha desconocida</span>
-                            {visual && <span className="v">{visual.km2.toFixed(1)}<small>km²</small></span>}
+                            <span className="v">{visual ? <>{visual.km2.toFixed(1)}<small>km²</small></> : 'S/D'}</span>
                             <span className="d">
                                 {cargandoVisual ? 'Analizando el mosaico…'
                                     : visual ? `${visual.difVsCurvaPct != null ? `${firmado(visual.difVsCurvaPct)} contra la curva de hoy. ` : ''}Imagen en color sin infrarrojo: orientativa, no es medición.`

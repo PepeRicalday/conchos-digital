@@ -131,7 +131,7 @@
 .vaso-close:hover {
     background: #ef4444;
     border-color: #ef4444;
-    transform: rotate(180deg) scale(1.1);
+    transform: scale(1.06);
 }
 
 /* SIMULATION CONTROLS — tarjeta horizontal de ancho completo en flujo

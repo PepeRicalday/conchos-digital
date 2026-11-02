@@ -12,7 +12,6 @@ import { useAuth } from '../context/AuthContext';
 import { usePresasHistorico } from '../hooks/usePresasHistorico';
 import InformeVasoModal from './vaso/InformeVasoModal';
 import HeroVaso from './vaso/HeroVaso';
-import SimuladorVaso from './vaso/SimuladorVaso';
 import InteranualVaso from './vaso/InteranualVaso';
 import { construirInteranual } from '../utils/informeVasoInteranual';
 import TarjetaSuperficieVaso from './vaso/SuperficieVaso';
@@ -226,21 +225,6 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
     const conReferencia = validacion.filter(v => !v.sinReferencia);
     const fragmentacion = useMemo(() => indiceFragmentacion(historicoVaso), [historicoVaso]);
 
-    const opcionesDesviacion = useMemo(() => {
-        if (conReferencia.length < 2) return null;
-        return {
-            grid: { left: 50, right: 20, top: 36, bottom: 30 },
-            tooltip: { trigger: 'axis' },
-            legend: { data: ['Curva oficial a la cota del día', 'Sentinel-2'], textStyle: { color: '#b4c2d4', fontSize: 12 }, top: 0 },
-            xAxis: { type: 'category', data: conReferencia.map(v => fMesCorto(v.fecha_escena)), axisLabel: { color: '#8fa3ba', fontSize: 12 } },
-            yAxis: { type: 'value', name: 'km²', axisLabel: { color: '#8fa3ba', fontSize: 12 }, splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)' } } },
-            series: [
-                { name: 'Curva oficial a la cota del día', type: 'line', data: conReferencia.map(v => v.areaEsperadaKm2), lineStyle: { color: '#b4c2d4', width: 2, type: 'dashed' }, itemStyle: { color: '#b4c2d4' } },
-                { name: 'Sentinel-2', type: 'line', data: conReferencia.map(v => v.areaSatelite), lineStyle: { color: '#38bdf8', width: 2.5 }, itemStyle: { color: '#38bdf8' }, areaStyle: { color: 'rgba(56,189,248,0.08)' } },
-            ],
-        };
-    }, [conReferencia]);
-
     // ── Comparar dos meses ──
     const [idxBase, setIdxBase] = useState(0);
     const [idxComparado, setIdxComparado] = useState(0);
@@ -254,42 +238,57 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
     const deltaArea = filaBase && filaComparada ? filaComparada.area_km2 - filaBase.area_km2 : null;
     const mismoMetodo = filaBase && filaComparada && (filaBase.metodo ?? 'v1') === (filaComparada.metodo ?? 'v1');
 
-    const opcionesSerie = useMemo(() => {
+    // Área y perímetro en gráficas separadas (sin doble eje) y con el eje de área recortado (empezar en 0 aplanaba la variación).
+    const ejeX = useMemo(() => ({ type: 'category', data: historicoVaso.map(f => fMesCorto(f.fecha_escena)), axisLabel: { color: '#8fa3ba', fontSize: 12 } }), [historicoVaso]);
+    const opcionesArea = useMemo(() => {
         if (!historicoVaso.length) return null;
         return {
-            grid: { left: 50, right: 50, top: 30, bottom: 30 },
-            tooltip: { trigger: 'axis' },
-            legend: { data: ['Área (km²)', 'Perímetro (km)'], textStyle: { color: '#b4c2d4', fontSize: 12 }, top: 0 },
-            xAxis: { type: 'category', data: historicoVaso.map(f => fMesCorto(f.fecha_escena)), axisLabel: { color: '#8fa3ba', fontSize: 12 } },
-            yAxis: [
-                { type: 'value', name: 'km²', position: 'left', axisLabel: { color: '#38bdf8', fontSize: 12 }, splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)' } } },
-                { type: 'value', name: 'km', position: 'right', axisLabel: { color: '#a78bfa', fontSize: 12 }, splitLine: { show: false } },
-            ],
-            series: [
-                { name: 'Área (km²)', type: 'line', yAxisIndex: 0, data: historicoVaso.map(f => f.area_km2), lineStyle: { color: '#38bdf8', width: 2 }, itemStyle: { color: '#38bdf8' }, areaStyle: { color: 'rgba(56,189,248,0.08)' }, connectNulls: false },
-                { name: 'Perímetro (km)', type: 'line', yAxisIndex: 1, data: historicoVaso.map(f => f.perimetro_km), lineStyle: { color: '#a78bfa', width: 2, type: 'dashed' }, itemStyle: { color: '#a78bfa' }, connectNulls: false },
-            ],
+            grid: { left: 48, right: 16, top: 16, bottom: 28 }, tooltip: { trigger: 'axis', valueFormatter: (v: number) => `${v.toFixed(1)} km²` },
+            xAxis: ejeX,
+            yAxis: { type: 'value', name: 'km²', scale: true, min: (v: { min: number }) => Math.floor((v.min - 4) / 5) * 5, axisLabel: { color: '#8fa3ba', fontSize: 12 }, splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)' } } },
+            series: [{ name: 'Área', type: 'line', data: historicoVaso.map(f => f.area_km2), lineStyle: { color: '#38bdf8', width: 2.5 }, itemStyle: { color: '#38bdf8' }, areaStyle: { color: 'rgba(56,189,248,0.10)', origin: 'start' }, connectNulls: false, symbolSize: 7 }],
         };
-    }, [historicoVaso]);
+    }, [historicoVaso, ejeX]);
+    const opcionesPerimetro = useMemo(() => {
+        if (!historicoVaso.length) return null;
+        return {
+            grid: { left: 48, right: 16, top: 10, bottom: 24 }, tooltip: { trigger: 'axis', valueFormatter: (v: number) => `${v.toFixed(0)} km` },
+            xAxis: { ...ejeX, axisLabel: { show: false } },
+            yAxis: { type: 'value', name: 'km', scale: true, splitNumber: 2, axisLabel: { color: '#8fa3ba', fontSize: 11 }, splitLine: { show: false } },
+            series: [{ name: 'Perímetro', type: 'line', data: historicoVaso.map(f => f.perimetro_km), lineStyle: { color: '#a78bfa', width: 1.8, type: 'dashed' }, itemStyle: { color: '#a78bfa' }, connectNulls: false, symbolSize: 5 }],
+        };
+    }, [historicoVaso, ejeX]);
 
-    const MAPA_W = 640, MAPA_H = 380;
+    // Mapa comparativo: el lienzo toma la proporción real del encuadre (antes ~40 % del alto quedaba vacío) + escala gráfica.
+    const MAPA_W = 640;
     const mapaComparativo = useMemo(() => {
         if (!filaBase || !filaComparada) return null;
         const b = bboxComun([filaBase.contorno_geojson.coordinates[0], filaComparada.contorno_geojson.coordinates[0]]);
-        return { b, pathBase: poligonoPath(filaBase.contorno_geojson.coordinates, b, MAPA_W, MAPA_H), pathComparado: poligonoPath(filaComparada.contorno_geojson.coordinates, b, MAPA_W, MAPA_H) };
+        const spanLon = (b.maxLon - b.minLon) * b.cosLat, spanLat = b.maxLat - b.minLat;
+        const H = Math.round(Math.min(480, Math.max(200, (MAPA_W * spanLat) / spanLon)));
+        const k = Math.min(MAPA_W / spanLon, H / spanLat);
+        const kmPorPx = 111.32 / k;
+        const escalaKm = [1, 2, 5, 10, 20, 50].find(km => km / kmPorPx >= 70) ?? 50;
+        return {
+            b, H, escalaKm, escalaPx: escalaKm / kmPorPx,
+            pathBase: poligonoPath(filaBase.contorno_geojson.coordinates, b, MAPA_W, H),
+            pathComparado: poligonoPath(filaComparada.contorno_geojson.coordinates, b, MAPA_W, H),
+        };
     }, [filaBase, filaComparada]);
 
-    const [mostrarAzolve, setMostrarAzolve] = useState(false);
+    // Capas del mapa: la leyenda enciende/apaga cada una (sustituye el botón "Mostrar diferencia").
+    const [capas, setCapas] = useState({ base: true, comparado: true, diferencia: false });
+    const alternaCapa = (c: keyof typeof capas) => setCapas(v => ({ ...v, [c]: !v[c] }));
     const diffAzolve = useMemo(() => {
-        if (!mostrarAzolve || !filaBase || !filaComparada || !mapaComparativo) return null;
-        return diferenciaPoligonos(filaBase.contorno_geojson.coordinates, filaComparada.contorno_geojson.coordinates, mapaComparativo.b, MAPA_W, MAPA_H, 3);
-    }, [mostrarAzolve, filaBase, filaComparada, mapaComparativo]);
+        if (!capas.diferencia || !filaBase || !filaComparada || !mapaComparativo) return null;
+        return diferenciaPoligonos(filaBase.contorno_geojson.coordinates, filaComparada.contorno_geojson.coordinates, mapaComparativo.b, MAPA_W, mapaComparativo.H, 3);
+    }, [capas.diferencia, filaBase, filaComparada, mapaComparativo]);
 
     const galeriaMensual = useMemo(() => {
         if (!historicoVaso.length) return null;
         const W = 220, H = 150;
         const b = bboxComun(historicoVaso.map(f => f.contorno_geojson.coordinates[0]));
-        return historicoVaso.map(f => ({ f, path: poligonoPath(f.contorno_geojson.coordinates, b, W, H), W, H }));
+        return historicoVaso.map((f, i) => ({ f, i, path: poligonoPath(f.contorno_geojson.coordinates, b, W, H), W, H }));
     }, [historicoVaso]);
 
     // ── Informe institucional (espera la captura del relieve 3D; ver comentarios históricos en git) ──
@@ -314,13 +313,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
 
     // ── Contorno | Relieve 3D ──
     const [vista, setVista] = useState<'contorno' | '3d'>('contorno');
-    const [avisoSinHistorico, setAvisoSinHistorico] = useState(false);
     const seccionCicloRef = React.useRef<HTMLElement>(null);
-    const irARelieve = useCallback(() => {
-        if (!historicoVaso.length) { setAvisoSinHistorico(true); return; }
-        setVista('3d');
-        seccionCicloRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, [historicoVaso.length]);
     useEffect(() => {
         if (seccionInicial === 'relieve3d') setVista('3d');
         if ((seccionInicial === 'ciclo' || seccionInicial === 'relieve3d') && seccionCicloRef.current) {
@@ -336,33 +329,24 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
         <div className="vaso-screen-overlay">
             <div className="vaso-container animate-in-zoom">
                 <div className="vaso-scroll-content">
-                <header className="vaso-header">
+                <header className="vaso-header vaso-header--sc">
                     <div className="vaso-title-group">
-                        <div className="vaso-badge">SITUACIÓN E INTERACTIVIDAD DE VASO</div>
-                        <h2>{sinComillas(data.nombre).toUpperCase()}</h2>
+                        <span className="vaso-cab-kicker">Manejo de vaso</span>
+                        <h2>{sinComillas(data.nombre)}</h2>
+                        <p className="vaso-cab-contexto">
+                            Río Conchos · capacidad al NAMO {data.capacidad_total != null ? `${data.capacidad_total.toLocaleString('es-MX', { maximumFractionDigits: 1, minimumFractionDigits: 1 })} Mm³` : 'S/D'}
+                            {' · '}{data.fecha_lectura ? `lectura ${new Date(data.fecha_lectura + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'sin lectura'}
+                        </p>
                     </div>
-                    <button type="button" className="vaso-btn" onClick={irARelieve} aria-disabled={!historicoVaso.length}
-                        title={historicoVaso.length ? 'Ir al relieve 3D con terreno real' : 'Relieve 3D · sin escenas mensuales todavía'}>
-                        <Box size={16} aria-hidden="true" /> Relieve 3D
-                    </button>
                     <button type="button" className="vaso-close" aria-label="Cerrar manejo de vaso" onClick={onClose}>×</button>
                 </header>
-                {avisoSinHistorico && !historicoVaso.length && (
-                    <div className="vaso-sc" style={{ margin: '0 clamp(1.25rem, 4vw, 3rem) 1rem' }}>
-                        <div className="vaso-mensaje vaso-mensaje--info" role="status"><HelpCircle size={18} aria-hidden="true" />
-                            <span>Aún no hay escenas mensuales de esta presa; el relieve 3D aparecerá con la primera escena despejada.</span></div>
-                    </div>
-                )}
 
                 <HeroVaso
-                    presaId={data.presa_id} nivel={nivelMostrado} pct={stats.porcentaje} volumen={stats.almacenamiento} capacidad={data.capacidad_total}
-                    namo={namo} deficit={deficit} estado={estadoVaso} mensaje={mensaje} simulado={stats.isSimulated} frescura={frescura} procedencia={procedencia}
-                />
-
-                <SimuladorVaso
-                    nivelBase={data.nivel_msnm} nivel={simNivel} min={tieneNivel ? data.nivel_msnm! - 10 : 0} max={tieneNivel ? (namo ?? data.nivel_msnm! + 5) + 2 : 1}
-                    namo={namo} tieneCurva={tieneCurva} volumenBase={volumenBase} volumenSim={stats.almacenamiento} pctBase={pctBase} pctSim={stats.porcentaje}
-                    deficitSim={deficit} onNivel={setSimNivel}
+                    presaId={data.presa_id} nivelBase={data.nivel_msnm} nivel={nivelMostrado} pct={stats.porcentaje} volumen={stats.almacenamiento}
+                    pctBase={pctBase} volumenBase={volumenBase} capacidad={data.capacidad_total} namo={namo} deficit={deficit} estado={estadoVaso} mensaje={mensaje}
+                    simulado={stats.isSimulated} frescura={frescura} procedencia={procedencia} fechaLectura={data.fecha_lectura ?? null}
+                    curva={data.curva} tieneCurva={tieneCurva}
+                    simMin={tieneNivel ? data.nivel_msnm! - 10 : 0} simMax={tieneNivel ? (namo ?? data.nivel_msnm! + 5) + 2 : 1} onNivel={setSimNivel}
                 />
 
                 <TarjetaSuperficieVaso
@@ -393,13 +377,16 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                     {resultadoSyncManual && <p className="vaso-nota" role="status" aria-live="polite">{resultadoSyncManual}</p>}
 
                     {cargandoHistorico ? (
-                        <div className="vaso-vacio" role="status">Cargando escenas del vaso…</div>
+                        <div className="vaso-skel" role="status">
+                            <svg viewBox="0 0 320 120" aria-hidden="true"><path d="M14 64c22-30 52-18 74-34s48-8 66 4 40 2 58-10 46-4 62 12 26 30 32 42-26 20-50 16-40 10-64 6-34-14-58-2-46 18-70 6S-2 86 14 64Z" /></svg>
+                            <span>Cargando escenas del vaso…</span>
+                        </div>
                     ) : !historicoVaso.length ? (
                         <div className="vaso-vacio">Todavía no hay meses registrados para esta presa — el sincronizador mensual de Sentinel-2 llenará esta línea de tiempo con la próxima escena despejada.</div>
                     ) : (
                         <>
                             {/* Comparar dos meses: contorno 2D o relieve 3D */}
-                            <div className="vaso-evo-sub" style={{ borderTop: 0, paddingTop: 0 }}>
+                            <div className="vaso-evo-sub vaso-evo-sub--primero">
                                 <div className="vaso-comparar">
                                     {historicoVaso.length > 1 && (
                                         <>
@@ -415,33 +402,37 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                         <button type="button" role="tab" aria-selected={vista === 'contorno'} onClick={() => setVista('contorno')}><MapaIcono size={15} aria-hidden="true" /> Contorno</button>
                                         <button type="button" role="tab" aria-selected={vista === '3d'} onClick={() => setVista('3d')}><Box size={15} aria-hidden="true" /> Relieve 3D</button>
                                     </div>
-                                    {vista === 'contorno' && historicoVaso.length > 1 && (
-                                        <button type="button" className="vaso-btn" aria-pressed={mostrarAzolve} onClick={() => setMostrarAzolve(v => !v)} title="Zonas que eran agua en el mes base y ya no lo son (y al revés)">
-                                            {mostrarAzolve ? 'Ocultar' : 'Mostrar'} diferencia
-                                        </button>
-                                    )}
                                 </div>
 
                                 {vista === 'contorno' && mapaComparativo && filaBase && filaComparada && (
-                                    <div className="vaso-mapa-comparativo">
-                                        <svg viewBox={`0 0 ${MAPA_W} ${MAPA_H}`} width="100%" role="img" aria-label={`Contorno del vaso en ${fMes(filaBase.fecha_escena)} comparado con ${fMes(filaComparada.fecha_escena)}`}>
-                                            <path d={mapaComparativo.pathBase} fill="none" stroke="#b4c2d4" strokeWidth="2" strokeDasharray="6 4" fillRule="evenodd" />
-                                            <path d={mapaComparativo.pathComparado} fill="rgba(56,189,248,0.18)" stroke="#38bdf8" strokeWidth="2" fillRule="evenodd" />
+                                    <div className="vaso-mapa">
+                                        <svg viewBox={`0 0 ${MAPA_W} ${mapaComparativo.H}`} width="100%" role="img" aria-label={`Contorno del vaso en ${fMes(filaBase.fecha_escena)} comparado con ${fMes(filaComparada.fecha_escena)}`}>
+                                            {capas.base && <path d={mapaComparativo.pathBase} fill="none" stroke="#b4c2d4" strokeWidth="2" strokeDasharray="6 4" fillRule="evenodd" />}
+                                            {capas.comparado && <path d={mapaComparativo.pathComparado} fill="rgba(56,189,248,0.18)" stroke="#38bdf8" strokeWidth="2" fillRule="evenodd" />}
                                             {diffAzolve && (
                                                 <g>
                                                     {diffAzolve.celdasAzolve.map(([x, y]) => <rect key={`a${x},${y}`} x={x} y={y} width={diffAzolve.RES} height={diffAzolve.RES} fill="#f87171" opacity={0.75} />)}
                                                     {diffAzolve.celdasNuevaAgua.map(([x, y]) => <rect key={`n${x},${y}`} x={x} y={y} width={diffAzolve.RES} height={diffAzolve.RES} fill="#38bdf8" opacity={0.45} />)}
                                                 </g>
                                             )}
+                                            {/* escala gráfica y norte */}
+                                            <g transform={`translate(14 ${mapaComparativo.H - 18})`} className="vaso-mapa-escala">
+                                                <rect x="0" y="-6" width={mapaComparativo.escalaPx} height="6" fill="#e8eef6" />
+                                                <rect x="0" y="-6" width={mapaComparativo.escalaPx / 2} height="6" fill="#020617" stroke="#e8eef6" strokeWidth="1" />
+                                                <text x="0" y="-12">0</text><text x={mapaComparativo.escalaPx} y="-12" textAnchor="end">{mapaComparativo.escalaKm} km</text>
+                                            </g>
+                                            <g transform={`translate(${MAPA_W - 24} 30)`} className="vaso-mapa-norte" aria-hidden="true">
+                                                <path d="M0 -16 L7 6 L0 1 L-7 6 Z" /><text x="0" y="20" textAnchor="middle">N</text>
+                                            </g>
                                         </svg>
-                                        <div className="vaso-mapa-leyenda">
-                                            <span className="leyenda-item"><span className="leyenda-swatch marzo"></span>{fCorta(fechaPixeles(filaBase))}</span>
-                                            <span className="leyenda-item"><span className="leyenda-swatch reciente"></span>{fCorta(fechaPixeles(filaComparada))}</span>
-                                            {diffAzolve && (
-                                                <>
-                                                    <span className="leyenda-item"><span className="leyenda-swatch leyenda-swatch--azolve"></span>Banco expuesto: {diffAzolve.areaAzolveKm2.toFixed(2)} km²</span>
-                                                    <span className="leyenda-item"><span className="leyenda-swatch leyenda-swatch--nueva"></span>Nueva inundación: {diffAzolve.areaNuevaKm2.toFixed(2)} km²</span>
-                                                </>
+                                        <div className="vaso-capas" role="group" aria-label="Capas del mapa">
+                                            <button type="button" className="vaso-capa" aria-pressed={capas.base} onClick={() => alternaCapa('base')}><span className="leyenda-swatch marzo" />{fCorta(fechaPixeles(filaBase))}</button>
+                                            <button type="button" className="vaso-capa" aria-pressed={capas.comparado} onClick={() => alternaCapa('comparado')}><span className="leyenda-swatch reciente" />{fCorta(fechaPixeles(filaComparada))}</button>
+                                            {historicoVaso.length > 1 && (
+                                                <button type="button" className="vaso-capa" aria-pressed={capas.diferencia} onClick={() => alternaCapa('diferencia')} title="Zonas que eran agua en el mes base y ya no lo son (y al revés)">
+                                                    <span className="leyenda-swatch leyenda-swatch--azolve" />Diferencia
+                                                    {diffAzolve && <b> · expuesto {diffAzolve.areaAzolveKm2.toFixed(2)} km² · nueva agua {diffAzolve.areaNuevaKm2.toFixed(2)} km²</b>}
+                                                </button>
                                             )}
                                         </div>
                                     </div>
@@ -474,56 +465,77 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                 )}
                             </div>
 
-                            {opcionesSerie && (
-                                <div className="vaso-evo-sub">
-                                    <h3>Área y perímetro por mes</h3>
-                                    <ReactECharts option={opcionesSerie} style={{ height: '220px', width: '100%' }} opts={{ renderer: 'svg' }} />
-                                    <p className="vaso-nota">Área neta (sin bancos de tierra) y perímetro del polígono. Un mes sin escena despejada queda como hueco, nunca como cero.</p>
-                                </div>
-                            )}
-
                             {galeriaMensual && (
                                 <div className="vaso-evo-sub">
-                                    <h3>Una imagen por mes, mismo encuadre</h3>
-                                    <div className="vaso-galeria-tira">
-                                        {galeriaMensual.map(({ f, path, W, H }) => (
-                                            <div className="vaso-galeria-item" key={f.fecha_escena}>
-                                                <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={`Contorno del vaso en ${fMes(f.fecha_escena)}`}>
+                                    <h3>Una imagen por mes, mismo encuadre <span className="vaso-h3-nota">· toca un mes para compararlo</span></h3>
+                                    <div className="vaso-galeria">
+                                        {galeriaMensual.map(({ f, i, path, W, H }) => (
+                                            <button type="button" key={f.fecha_escena} aria-pressed={i === idxComparado}
+                                                className={`vaso-galeria-mes${i === idxComparado ? ' es-comparado' : ''}${i === idxBase ? ' es-base' : ''}`}
+                                                onClick={() => { setIdxComparado(i); setVista('contorno'); }} aria-label={`Comparar ${fMes(f.fecha_escena)}: ${f.area_km2.toFixed(1)} km²`}>
+                                                <svg viewBox={`0 0 ${W} ${H}`} width="100%" aria-hidden="true">
                                                     <path d={path} fill="rgba(56,189,248,0.22)" stroke="#38bdf8" strokeWidth="1.2" fillRule="evenodd" />
                                                 </svg>
-                                                <div className="vaso-galeria-fecha">{fCorta(fechaPixeles(f))}</div>
-                                                <div className="vaso-galeria-kpi">{f.area_km2.toFixed(1)} km²</div>
-                                                <div className="vaso-galeria-metodo">{(f.metodo ?? 'v1')} · nubes {nubesEscena(f) != null ? `${nubesEscena(f)!.toFixed(1)} %` : 'S/D'}</div>
-                                            </div>
+                                                <span className="fecha">{fCorta(fechaPixeles(f))}</span>
+                                                <span className="kpi">{f.area_km2.toFixed(1)} km²</span>
+                                                <span className="meta">{(f.metodo ?? 'v1')} · nubes {nubesEscena(f) != null ? `${nubesEscena(f)!.toFixed(1)} %` : 'S/D'}{i === idxBase ? ' · base' : ''}</span>
+                                            </button>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
+                            {opcionesArea && (
+                                <div className="vaso-evo-sub">
+                                    <h3>Área por mes <span className="vaso-h3-nota">· eje recortado</span></h3>
+                                    <ReactECharts option={opcionesArea} style={{ height: '200px', width: '100%' }} opts={{ renderer: 'svg' }} />
+                                    {opcionesPerimetro && <ReactECharts option={opcionesPerimetro} style={{ height: '90px', width: '100%' }} opts={{ renderer: 'svg' }} />}
+                                    <p className="vaso-nota">Área neta (sin bancos de tierra) arriba y perímetro del polígono abajo (línea discontinua). Un mes sin escena despejada queda como hueco, nunca como cero.</p>
+                                </div>
+                            )}
+
                             <div className="vaso-evo-sub">
                                 <h3>Validación: satélite vs. curva oficial a la cota del día</h3>
-                                {opcionesDesviacion && <ReactECharts option={opcionesDesviacion} style={{ height: '200px', width: '100%' }} opts={{ renderer: 'svg' }} />}
-                                <ul className="vaso-valid">
+                                {/* Gráfica de puntos en un eje 70-105 % con bandas por umbral (una barra 0-100 % no dejaba ver 83 vs. 95 %). */}
+                                <div className="vaso-puntos" role="list">
+                                    <div className="vaso-puntos-eje" aria-hidden="true">
+                                        {[70, 75, 85, 100, 105].map(t => <span key={t} style={{ left: `${((t - 70) / 35) * 100}%` }}>{t} %</span>)}
+                                    </div>
                                     {validacion.map(v => {
                                         if (v.sinReferencia) {
-                                            return <li key={v.fecha_escena} className="sin"><span className="f">{fCorta(v.fecha_escena)}</span>
-                                                <span>Sin validar · {v.motivo === 'nubes' ? `nubes sobre el vaso > ${NUBES_VASO_MAX_PCT} %` : v.motivo === 'sin_curva' ? 'sin curva a esa cota' : `sin nivel registrado a ±${DIAS_NIVEL_ESCENA} días`}</span></li>;
+                                            return (
+                                                <div role="listitem" key={v.fecha_escena} className="vaso-punto-fila sin">
+                                                    <span className="f">{fCorta(v.fecha_escena)}</span>
+                                                    <span className="motivo">Sin validar · {v.motivo === 'nubes' ? `nubes sobre el vaso > ${NUBES_VASO_MAX_PCT} %` : v.motivo === 'sin_curva' ? 'sin curva a esa cota' : `sin nivel a ±${DIAS_NIVEL_ESCENA} d`}</span>
+                                                </div>
+                                            );
                                         }
                                         const pct = v.pctCoincidencia!;
                                         const sem = semaforoDesvio(pct - 100);
                                         const Icono = ICONO_SEM[sem.clave];
+                                        const x = Math.min(100, Math.max(0, ((pct - 70) / 35) * 100));
                                         return (
-                                            <li key={v.fecha_escena} className={`vaso-sem--${sem.clave}`}>
+                                            <div role="listitem" key={v.fecha_escena} className={`vaso-punto-fila vaso-sem--${sem.clave}`}>
                                                 <span className="f">{fCorta(v.fecha_escena)}</span>
-                                                <span className="bar" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)} aria-valuetext={`${pct.toFixed(0)} % de la curva`}><i style={{ width: `${Math.min(100, pct)}%` }} /><b /></span>
+                                                <span className="pista" role="meter" aria-valuemin={70} aria-valuemax={105} aria-valuenow={Math.round(pct)} aria-valuetext={`${pct.toFixed(0)} % de la curva · ${sem.etiqueta}`}>
+                                                    <i style={{ left: `${x}%` }} />
+                                                </span>
                                                 <span className="pct">{pct.toFixed(0)} %</span>
                                                 <span className={`vaso-sem vaso-sem--${sem.clave}`}><Icono size={14} aria-hidden="true" />{sem.etiqueta}</span>
-                                                <span className="det">{v.areaSatelite.toFixed(1)} km² satélite vs. {v.areaEsperadaKm2!.toFixed(1)} km² de la curva a {v.escalaLectura!.toFixed(2)} msnm
-                                                    ({v.fuenteNivel === 'historico' ? 'CILA' : 'captura'} {fCorta(v.fechaLectura! + 'T18:00:00Z')}{v.diasDiferencia ? `, ${v.diasDiferencia} d` : ''})</span>
-                                            </li>
+                                            </div>
                                         );
                                     })}
-                                </ul>
+                                </div>
+                                <details className="vaso-plegable">
+                                    <summary>Detalle por escena</summary>
+                                    <div>
+                                        <ul className="vaso-detalle-lista">
+                                            {conReferencia.map(v => (
+                                                <li key={v.fecha_escena}><b>{fCorta(v.fecha_escena)}</b> — {v.areaSatelite.toFixed(1)} km² satélite vs. {v.areaEsperadaKm2!.toFixed(1)} km² de la curva a {v.escalaLectura!.toFixed(2)} msnm ({v.fuenteNivel === 'historico' ? 'CILA' : 'captura'} {fCorta(v.fechaLectura! + 'T18:00:00Z')}{v.diasDiferencia ? `, ${v.diasDiferencia} d` : ''})</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </details>
                                 <p className="vaso-nota">100 % = el satélite mide exactamente el área de la curva a esa cota. Un área satelital ~10 % menor es el sesgo normal del método (el píxel de 10 m pierde la orilla somera y la cola con vegetación): "Revisar" a partir de {DESVIO_ATENCION_PCT} % y "Discrepa" a partir de {DESVIO_CRITICO_PCT} %. Una brecha mayor y sostenida en todas las cotas sugiere revisar la curva (no la corrige).</p>
                             </div>
 

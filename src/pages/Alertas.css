@@ -77,3 +77,31 @@
     .al-barras li { grid-template-columns: 1fr auto; }
     .al-barras li .sc-barra { grid-column: 1 / -1; order: 3; }
 }
+
+/* Tendencia en las tarjetas */
+.al-tile-spark { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.al-tile-spark small { font-family: var(--sc-mono); font-size: 11px; color: var(--sc-t3); }
+
+/* Actividad del periodo */
+.al-act h3 { margin-bottom: 8px; }
+.al-act-leyenda { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 10px; padding: 0; list-style: none; font-size: 12px; color: var(--sc-t2); }
+.al-act-leyenda li { display: inline-flex; align-items: center; gap: 6px; }
+.al-act-leyenda b { font-family: var(--sc-mono); color: var(--sc-t1); }
+.al-act-leyenda i, .al-cerradas > li > i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.al-act-crit { background: var(--sc-crit); }
+.al-act-warn { background: var(--sc-warn); }
+.al-act-info { background: var(--sc-sky); }
+.al-act-graf { display: flex; align-items: stretch; gap: 3px; height: 172px; }
+.al-act-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 3px; }
+.al-act-n { font-family: var(--sc-mono); font-size: 11px; line-height: 1; text-align: center; color: var(--sc-t2); min-height: 11px; }
+.al-act-pila { display: flex; flex-direction: column-reverse; min-height: 2px; border-radius: 4px 4px 1px 1px; overflow: hidden; background: rgba(148, 163, 184, 0.12); }
+.al-act-pila > span { display: block; min-height: 3px; }
+.al-act-col:hover .al-act-pila { outline: 1px solid rgba(226, 232, 240, 0.5); }
+.al-act-et small { display: block; font-size: 11px; color: var(--sc-t2); }
+.al-act-et { height: 28px; margin-top: 4px; font-family: var(--sc-mono); font-size: 11px; color: var(--sc-t3); text-align: center; white-space: nowrap; overflow: visible; }
+.al-act-sub { margin: 16px 0 6px; font-family: var(--sc-mono); font-size: 11px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sc-t3); }
+.al-cerradas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.al-cerradas > li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--sc-line); }
+.al-cerradas > li > i { margin-top: 5px; }
+.al-cerradas b { display: block; font-size: 13px; font-weight: 600; color: var(--sc-t1); line-height: 1.3; }
+.al-cerradas small { display: block; margin-top: 2px; font-family: var(--sc-mono); font-size: 11px; color: var(--sc-t3); }

@@ -3,9 +3,11 @@ import { RefreshCw } from 'lucide-react';
 import { PaginaHero } from '../components/ui/PaginaHero';
 import { DespachoAlertas } from '../components/alertas/DespachoAlertas';
 import { CanalAlertas } from '../components/alertas/CanalAlertas';
-import { PERIODOS, useAlertasPantalla, type Periodo } from '../hooks/useAlertasPantalla';
+import { ActividadAlertas } from '../components/alertas/ActividadAlertas';
+import { Sparkline } from '../components/ui/Sparkline';
+import { PERIODOS, periodoInicioISO, useAlertasPantalla, type Periodo } from '../hooks/useAlertasPantalla';
 import {
-    contarPorTab, etiquetaCategoria, lugarDeAlerta, ordenaDespacho, resumenPeriodo, tabDeAlerta, type TabAlerta,
+    actividadPeriodo, contarPorTab, etiquetaCategoria, ultimasCerradas, lugarDeAlerta, ordenaDespacho, resumenPeriodo, tabDeAlerta, type TabAlerta,
 } from '../utils/alertasPantalla';
 import type { ChipEstado } from '../utils/alertasVivas';
 import '../styles/sala-control.css';
@@ -38,6 +40,16 @@ const Alertas = () => {
     );
     const periodoRes = useMemo(() => resumenPeriodo(periodoFilas), [periodoFilas]);
     const maxCat = Math.max(1, ...periodoRes.porCategoria.map((c) => c.distintas));
+    // Actividad del periodo (mismas filas que el resumen; sin consultas nuevas). El fin es el corte de la última lectura.
+    const actividad = useMemo(
+        () => actividadPeriodo(periodoFilas, new Date(periodoInicioISO(periodo, new Date(corteMs || Date.now()))).getTime(), corteMs || Date.now()),
+        [periodoFilas, periodo, corteMs],
+    );
+    const cerradas = useMemo(() => ultimasCerradas(periodoFilas, 5), [periodoFilas]);
+    // Tendencia diaria para las tarjetas (solo si el periodo se agrupa por días; con horas/semanas no se compara igual).
+    const serieDiaria = (k: 'critical' | 'warning') => (actividad.granularidad === 'dias' ? actividad.cubetas.map((c) => c[k]) : null);
+    const spCrit = serieDiaria('critical');
+    const spAviso = serieDiaria('warning');
 
     const elegirTab = (t: TabAlerta) => { setTabElegida(t); setLugar(null); };
 
@@ -89,12 +101,14 @@ const Alertas = () => {
                     <span className="sc-kicker">Críticas vigentes</span>
                     <span className="sc-num">{conteo.criticas}</span>
                     <span className="sc-fresco">{conteo.criticas > 0 ? 'Requieren atención hoy' : 'Sin críticas'}</span>
+                    {spCrit && <span className="al-tile-spark"><Sparkline valores={spCrit} etiqueta={`Aperturas críticas por día, ${periodo.toLowerCase()}`} decimales={0} color="var(--sc-crit)" area alto={24} /><small>aperturas/día · {periodo.toLowerCase()}</small></span>}
                 </button>
                 <button type="button" onClick={() => elegirTab('avisos')}
                     className={`sc-tile sc-tile-alertas ${conteo.avisos > 0 ? 'sc-hay-aviso' : ''}`} aria-label={`Ver ${conteo.avisos} avisos vigentes`}>
                     <span className="sc-kicker">Avisos vigentes</span>
                     <span className="sc-num">{conteo.avisos}</span>
                     <span className="sc-fresco">{conteo.avisos > 0 ? 'En monitoreo' : 'Sin avisos'}</span>
+                    {spAviso && <span className="al-tile-spark"><Sparkline valores={spAviso} etiqueta={`Aperturas de aviso por día, ${periodo.toLowerCase()}`} decimales={0} color="var(--sc-warn)" area alto={24} /><small>aperturas/día · {periodo.toLowerCase()}</small></span>}
                 </button>
                 <button type="button" onClick={() => elegirTab('antiguas')} className="sc-tile al-tile-antiguas" aria-label={`Ver ${conteo.antiguas} alertas antiguas sin resolver`}>
                     <span className="sc-kicker">Antiguas sin resolver</span>
@@ -163,6 +177,8 @@ const Alertas = () => {
                             </>
                         )}
                     </section>
+
+                    <ActividadAlertas cubetas={actividad.cubetas} granularidad={actividad.granularidad} cerradas={cerradas} ahoraMs={corteMs} periodo={periodo} />
                 </div>
             </div>
         </div>

@@ -83,3 +83,42 @@ describe('resumen del periodo: alertas distintas, no filas', () => {
         expect(r.porCategoria[0].criticas).toBe(1);
     });
 });
+
+describe('actividad del periodo', () => {
+    const fila = (id: string, tipo: string, iso: string | null, extra: Partial<import('./alertasPantalla').AlertaFila> = {}) =>
+        ({ id, tipo_riesgo: tipo, categoria: 'agroclima', titulo: id, mensaje: null, origen_id: null, fecha_deteccion: iso, ...extra });
+    it('agrupa por día local (Chihuahua) y separa por severidad; fuera de rango o sin fecha no cuenta', async () => {
+        const { actividadPeriodo } = await import('./alertasPantalla');
+        const ini = Date.parse('2026-10-25T06:00:00Z'); // 25-oct 00:00 en Chihuahua
+        const fin = Date.parse('2026-11-01T18:00:00Z');
+        const r = actividadPeriodo([
+            fila('a', 'warning', '2026-10-25T07:00:00Z'),
+            fila('b', 'critical', '2026-10-26T05:59:00Z'), // 25-oct 23:59 local
+            fila('c', 'warning', '2026-10-26T06:01:00Z'), // 26-oct
+            fila('d', 'info', '2026-10-01T00:00:00Z'), // fuera
+            fila('e', 'warning', null),
+        ], ini, fin);
+        expect(r.granularidad).toBe('dias');
+        expect(r.cubetas[0]).toMatchObject({ etiqueta: '25', mes: 'oct', warning: 1, critical: 1, info: 0 });
+        expect(r.cubetas[1]).toMatchObject({ etiqueta: '26', warning: 1 });
+        expect(r.cubetas.reduce((n, c) => n + c.critical + c.warning + c.info, 0)).toBe(3);
+    });
+    it('granularidad: ≤ 2 días por horas, > 35 días por semanas', async () => {
+        const { actividadPeriodo } = await import('./alertasPantalla');
+        const t = Date.parse('2026-11-01T00:00:00Z');
+        expect(actividadPeriodo([], t - 86_400_000, t).granularidad).toBe('horas');
+        expect(actividadPeriodo([], t - 90 * 86_400_000, t).granularidad).toBe('semanas');
+    });
+    it('últimas cerradas: solo resueltas con fecha, recientes primero, con horas abiertas', async () => {
+        const { ultimasCerradas } = await import('./alertasPantalla');
+        const r = ultimasCerradas([
+            fila('x', 'warning', '2026-11-01T00:00:00Z', { resuelta: true, fecha_resolucion: '2026-11-01T05:00:00Z' }),
+            fila('y', 'warning', '2026-11-01T00:00:00Z', { resuelta: true, fecha_resolucion: '2026-11-01T10:00:00Z' }),
+            fila('z', 'warning', '2026-11-01T00:00:00Z', { resuelta: false, fecha_resolucion: null }),
+            fila('w', 'warning', null, { resuelta: true, fecha_resolucion: '2026-11-01T01:00:00Z' }),
+        ]);
+        expect(r.map((f) => f.id)).toEqual(['y', 'x', 'w']);
+        expect(r[0].abiertaH).toBe(10);
+        expect(r[2].abiertaH).toBeNull();
+    });
+});

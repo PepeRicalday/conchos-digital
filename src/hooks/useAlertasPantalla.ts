@@ -46,7 +46,8 @@ export function useAlertasPantalla(periodo: Periodo) {
     }, []);
 
     const cargarPeriodo = useCallback(async () => {
-        const { data, error } = await supabase.from('registro_alertas').select(COLS)
+        // + resuelta/fecha_resolucion: solo para "Últimas cerradas" del periodo.
+        const { data, error } = await supabase.from('registro_alertas').select(`${COLS}, resuelta, fecha_resolucion`)
             .gte('fecha_deteccion', periodoInicioISO(periodo)).order('fecha_deteccion', { ascending: true }).limit(2000);
         if (error) setErrorPeriodo(error.message);
         else { setErrorPeriodo(null); setPeriodoFilas((data ?? []) as AlertaFila[]); }

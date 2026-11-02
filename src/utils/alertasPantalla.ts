@@ -17,6 +17,9 @@ export interface AlertaFila {
     origen_id: string | null;
     fecha_deteccion: string | null;
     coordenadas?: { lat: number; lng: number } | null;
+    /** Solo en la consulta del periodo (para "Últimas cerradas"). */
+    resuelta?: boolean | null;
+    fecha_resolucion?: string | null;
 }
 
 export const MAX_KM_CANAL = 104;
@@ -129,4 +132,72 @@ export function resumenPeriodo(filas: AlertaFila[]): ResumenPeriodo {
             .map(([clave, v]) => ({ clave, etiqueta: etiquetaCategoria(clave), ...v }))
             .sort((a, b) => b.distintas - a.distintas),
     };
+}
+
+/* ── Actividad del periodo ─────────────────────────────────────────────────────────────────────────────────────── */
+
+export interface CubetaActividad {
+    inicioMs: number;
+    /** Etiqueta corta del eje: hora ("14"), o número de día ("26"). */
+    etiqueta: string;
+    /** Mes abreviado ("oct"): para rotular el primer intervalo y cada cambio de mes (días/semanas). */
+    mes: string;
+    critical: number;
+    warning: number;
+    info: number;
+}
+export type Granularidad = 'horas' | 'dias' | 'semanas';
+
+const TZ = 'America/Chihuahua';
+const H = 3_600_000;
+const D = 24 * H;
+
+/** Medianoche local (America/Chihuahua, sin horario de verano desde 2022: UTC−6) del instante dado. */
+function medianocheLocal(ms: number): number {
+    const OFF = 6 * H;
+    return Math.floor((ms - OFF) / D) * D + OFF;
+}
+
+/**
+ * Aperturas por intervalo, separadas por severidad. Cada fila es una apertura (una alerta que se cierra y reabre
+ * cuenta en cada intervalo donde abrió: es actividad, no "alertas distintas"). Granularidad según el largo del
+ * periodo: ≤ 2 días → bloques de 2 h; ≤ 35 días → días; más → semanas. Filas sin fecha o fuera del rango no cuentan.
+ */
+export function actividadPeriodo(filas: AlertaFila[], inicioMs: number, finMs: number): { cubetas: CubetaActividad[]; granularidad: Granularidad } {
+    const span = finMs - inicioMs;
+    const granularidad: Granularidad = span <= 2 * D ? 'horas' : span <= 35 * D ? 'dias' : 'semanas';
+    const paso = granularidad === 'horas' ? 2 * H : granularidad === 'dias' ? D : 7 * D;
+    const origen = granularidad === 'horas' ? Math.floor(inicioMs / paso) * paso : medianocheLocal(inicioMs);
+    const cubetas: CubetaActividad[] = [];
+    for (let t = origen; t < finMs; t += paso) {
+        const d = new Date(t);
+        const etiqueta = granularidad === 'horas'
+            ? d.toLocaleTimeString('es-MX', { hour: '2-digit', hour12: false, timeZone: TZ })
+            : d.toLocaleDateString('es-MX', { day: 'numeric', timeZone: TZ });
+        const mes = d.toLocaleDateString('es-MX', { month: 'short', timeZone: TZ }).replace('.', '');
+        cubetas.push({ inicioMs: t, etiqueta, mes, critical: 0, warning: 0, info: 0 });
+    }
+    for (const f of filas) {
+        if (!f.fecha_deteccion) continue;
+        const ms = new Date(f.fecha_deteccion).getTime();
+        if (!(ms >= inicioMs && ms < finMs)) continue;
+        const i = Math.floor((ms - origen) / paso);
+        const c = cubetas[i];
+        if (c) c[norm(f.tipo_riesgo)]++;
+    }
+    return { cubetas, granularidad };
+}
+
+/** Últimas alertas cerradas del periodo (más reciente primero), con cuánto estuvieron abiertas. */
+export function ultimasCerradas(filas: AlertaFila[], n = 5): (AlertaFila & { abiertaH: number | null })[] {
+    return filas
+        .filter((f) => f.resuelta && f.fecha_resolucion)
+        .sort((a, b) => (b.fecha_resolucion as string).localeCompare(a.fecha_resolucion as string))
+        .slice(0, n)
+        .map((f) => ({
+            ...f,
+            abiertaH: f.fecha_deteccion
+                ? Math.max(0, (new Date(f.fecha_resolucion as string).getTime() - new Date(f.fecha_deteccion).getTime()) / H)
+                : null,
+        }));
 }

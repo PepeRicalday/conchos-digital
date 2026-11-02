@@ -594,16 +594,26 @@ Deno.serve(async (req) => {
     if (!SUPABASE_URL || !SERVICE_ROLE) return json({ error: "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY no configurados" }, 500);
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // Autorización: usuario con sesión (botón "Actualizar mes actual") o el cron con el secreto de Vault.
-    // La clave anon es pública (va en la app del navegador): por sí sola ya no basta (2026-11-01).
-    const rol = rolDelJwt(req.headers.get("Authorization"));
-    let autorizado = rol === "authenticated" || rol === "service_role";
+    // Autorización (mismo criterio que sentinel-ndvi-modulo-sync-v2 / process-hydric-doc): el cron con el secreto de
+    // Vault, o un usuario con rol SRL (botón "Actualizar mes actual"). La clave anon es pública: no basta. Cualquier
+    // error de auth, de perfil o de RPC = no autorizado.
+    let autorizado = false;
     const secretoCron = req.headers.get("x-cron-secret");
-    if (!autorizado && secretoCron) {
-      const { data: valido } = await supabase.rpc("fn_vaso_sync_secreto_valido", { p_secreto: secretoCron });
-      autorizado = valido === true;
+    if (secretoCron) {
+      const { data: valido, error: eSec } = await supabase.rpc("fn_vaso_sync_secreto_valido", { p_secreto: secretoCron });
+      autorizado = !eSec && valido === true;
     }
-    if (!autorizado) return json({ error: "No autorizado: inicia sesión en SICA para actualizar la escena del vaso." }, 401);
+    if (!autorizado) {
+      const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+      if (jwt) {
+        const { data: u, error: eUser } = await supabase.auth.getUser(jwt); // la anon key NO es un usuario
+        if (!eUser && u?.user?.id) {
+          const { data: perfil, error: ePerfil } = await supabase.from("perfiles_usuario").select("rol").eq("id", u.user.id).maybeSingle();
+          autorizado = !ePerfil && perfil?.rol === "SRL";
+        }
+      }
+    }
+    if (!autorizado) return json({ error: "No autorizado: la actualización de la escena del vaso es solo para la S.R.L." }, 401);
 
     const body = await req.json().catch(() => ({}));
     const presaId: string = body?.presa_id || "PRE-001";
@@ -770,19 +780,6 @@ Deno.serve(async (req) => {
     return json({ error: String(err) }, 500);
   }
 });
-
-/** Rol del JWT (la firma ya la validó el gateway con verify_jwt=true); null si no se puede leer. */
-function rolDelJwt(authorization: string | null): string | null {
-  try {
-    const token = (authorization ?? "").replace(/^Bearer\s+/i, "");
-    const payload = token.split(".")[1];
-    if (!payload) return null;
-    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
-    return JSON.parse(atob(b64))?.role ?? null;
-  } catch {
-    return null;
-  }
-}
 
 function json(obj: unknown, status = 200) {
   return new Response(JSON.stringify(obj, null, 2), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });

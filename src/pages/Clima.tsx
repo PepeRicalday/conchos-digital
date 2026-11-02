@@ -10,6 +10,7 @@ import {
 import './Clima.css';
 import '../components/clima/ClimaObservatorio.css';
 import { RedSalud } from '../components/clima/RedSalud';
+import { RegistroDia } from '../components/clima/RegistroDia';
 import { AlertasAgro } from '../components/clima/AlertasAgro';
 import { Franja72h } from '../components/clima/Franja72h';
 import { BalanceModulos } from '../components/clima/BalanceModulos';
@@ -1020,10 +1021,17 @@ const Clima = () => {
             )}
 
             {/* Observatorio operativo: salud de la red, alertas accionables, franja 72 h y balance clima ↔ canal. */}
+            {/* Fila 1: alertas (izq., su lista se desplaza dentro para no dejar hueco) | red + registro del día (der.).
+                Fila 2: franja de 72 h a todo el ancho. Fila 3: balance clima ↔ canal. */}
             <div className="cl-obs">
-                <AlertasAgro alertas={alertasClima.alertas} umbrales={umbralesClima} cargado={alertasClima.cargado} error={alertasClima.error} />
-                <div className="cl-span2"><RedSalud estaciones={salud.estaciones} cargado={salud.cargado} error={salud.error} onAbrir={setEstacionSel} /></div>
-                <Franja72h estaciones={estaciones} umbrales={umbralesClima} />
+                <div className="cl-obs-izq">
+                    <AlertasAgro alertas={alertasClima.alertas} umbrales={umbralesClima} cargado={alertasClima.cargado} error={alertasClima.error} />
+                </div>
+                <div className="cl-obs-der">
+                    <RedSalud estaciones={salud.estaciones} cargado={salud.cargado} error={salud.error} onAbrir={setEstacionSel} />
+                    <RegistroDia estaciones={estaciones} salud={salud.estaciones} hoy={hoyLocalCorte} onAbrir={setEstacionSel} />
+                </div>
+                <div className="cl-ancho"><Franja72h estaciones={estaciones} umbrales={umbralesClima} /></div>
                 <div className="cl-ancho">
                     <BalanceModulos
                         modulos={Object.keys(SUPERFICIE_RIEGO_HA).map(Number).map(n => ({ modulo: n, nombre: `Módulo ${n}` }))}
@@ -1356,7 +1364,7 @@ const Clima = () => {
                         <h3><TrendingDown size={18} /> Precipitación y Evaporación — Presas del Distrito</h3>
                         <p className="chart-sub">Del día, medido en la estación de cada presa (mm)</p>
                         <div className="chart-container">
-                            <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height={210}>
+                            <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%" minHeight={210}>
                                 <BarChart data={precipData} margin={{ top: 16, right: 12, left: 0, bottom: 0 }} barGap={2} barCategoryGap="34%">
                                     <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.06)" />
                                     <XAxis dataKey="station" tick={{ fill: '#cbd5e1', fontSize: 11, fontWeight: 600 }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} />

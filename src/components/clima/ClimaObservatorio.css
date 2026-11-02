@@ -132,6 +132,65 @@
     .cl-red-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Distribución: alertas + franja de 72 h a la izquierda, la red (alta) a la derecha. */
-.cl-obs .cl-span2 { grid-row: span 2; min-width: 0; }
-@media (max-width: 1100px) { .cl-obs .cl-span2 { grid-row: auto; } }
+/* ── Distribución ──
+   Fila 1: alertas | red + registro del día. La columna de alertas NO dicta la altura de la fila
+   (contain: size): se estira a la altura de la columna derecha y su lista se desplaza por dentro,
+   así ninguna de las dos columnas deja un hueco. En una columna (≤ 1100 px) vuelve al flujo normal. */
+.cl-obs-izq, .cl-obs-der { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cl-obs-izq > .cl-seccion { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+@media (min-width: 1101px) {
+    .cl-obs { align-items: stretch; }
+    .cl-obs-izq { contain: size; min-height: 520px; }
+    .cl-obs-izq .cl-alertas { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px;
+        -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+        mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); }
+    .cl-obs-izq .cl-alertas > li:last-child { margin-bottom: 20px; }
+}
+
+/* ── Registro del día ── */
+.cl-rd-exts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 4px 0 12px; }
+.cl-rd-ext { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--cl-surface-2); border: 1px solid var(--cl-line); min-width: 0; }
+.cl-rd-ext-et { display: inline-flex; align-items: center; gap: 4px; font-family: var(--cl-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cl-t3); white-space: nowrap; }
+.cl-rd-ext b { font-family: var(--cl-display); font-size: 26px; font-weight: 800; line-height: 1; color: var(--cl-t1); font-variant-numeric: tabular-nums; }
+.cl-rd-ext b small { margin-left: 2px; font-family: var(--cl-body); font-size: 11px; font-weight: 500; color: var(--cl-t3); }
+.cl-rd-ext-est { font-size: 11px; color: var(--cl-t2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-rd-sd { color: var(--cl-t3) !important; font-family: var(--cl-mono); font-size: 12px; }
+.cl-rd-ext b.cl-rd-sd { font-size: 22px; font-family: var(--cl-display); }
+
+.cl-rd-tabla { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+.cl-rd-tabla thead th { padding: 0 6px 6px; font-family: var(--cl-mono); font-size: 11px; font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cl-t3); text-align: right; border-bottom: 1px solid var(--cl-line); }
+.cl-rd-tabla thead th:first-child { text-align: left; width: 27%; }
+.cl-rd-tabla thead th:not(:first-child):not(.cl-rd-col-rango) { width: 11%; }
+.cl-rd-tabla thead th.cl-rd-col-rango { text-align: center; }
+.cl-rd-tabla thead abbr { text-decoration: none; }
+.cl-rd-tabla tbody th, .cl-rd-tabla td { padding: 7px 6px; border-bottom: 1px solid var(--cl-line); vertical-align: middle; }
+.cl-rd-tabla tbody th { text-align: left; font-weight: 400; }
+.cl-rd-tabla td { text-align: right; font-family: var(--cl-mono); font-variant-numeric: tabular-nums; color: var(--cl-t1); }
+.cl-rd-tabla td.cl-rd-col-rango { text-align: left; }
+.cl-rd-est { all: unset; box-sizing: border-box; display: block; min-height: 24px; font-size: 13px; font-weight: 600; color: var(--cl-t1); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.cl-rd-est:hover { color: var(--cl-sky); }
+.cl-rd-est:focus-visible { outline: 2px solid var(--cl-sky); outline-offset: 2px; border-radius: 4px; }
+.cl-rd-edad { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--cl-t3); }
+.cl-rd-sin .cl-rd-edad { color: var(--cl-warn); }
+.cl-rd-sin td { color: var(--cl-t3); }
+
+.cl-rd-rango { display: grid; grid-template-columns: 28px minmax(0, 1fr) 28px; align-items: center; gap: 5px; }
+.cl-rd-num { font-size: 11px; color: var(--cl-t2); }
+.cl-rd-min { text-align: right; color: #7dd3fc; }
+.cl-rd-max { color: #fdba74; }
+.cl-rd-pista { position: relative; height: 8px; border-radius: 999px; background: rgba(148, 163, 184, 0.12); }
+.cl-rd-barra { position: absolute; top: 0; bottom: 0; border-radius: 999px; min-width: 4px; background: linear-gradient(90deg, #38bdf8, #f59e0b 70%, #f97316); }
+.cl-rd-ahora { position: absolute; top: 50%; width: 10px; height: 10px; margin-left: -5px; transform: translateY(-50%); border-radius: 50%; background: var(--cl-t1); box-shadow: 0 0 0 2px #020a14; }
+.cl-rd-top { color: var(--cl-warn) !important; font-weight: 700; }
+.cl-rd-lluvia { color: var(--cl-sky) !important; font-weight: 700; }
+
+@media (max-width: 480px) {
+    .cl-rd-exts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cl-rd-tabla thead th:first-child { width: 34%; }
+    .cl-rd-rango { grid-template-columns: 26px minmax(0, 1fr) 26px; gap: 4px; }
+}
+
+/* En la columna derecha (≈ 450 px) la red va en 2 columnas de tarjetas compactas. */
+.cl-obs-der .cl-red-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.cl-obs-der .cl-est { padding: 10px 12px; gap: 8px; }
+.cl-obs-der .cl-est-pie { gap: 2px 10px; }

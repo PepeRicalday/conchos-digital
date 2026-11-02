@@ -79,7 +79,8 @@
 .cielo-panel-txt p, .cielo-panel-label { color: var(--cl-t2); font-size: 12px; }
 
 /* ── Estaciones en tiempo real: tarjetas más aireadas ── */
-.estaciones-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important; gap: 12px !important; }
+/* 300 px de mínimo: con las 6 estaciones da 3×2 en iPad horizontal y 2×3 en iPad 11", sin filas a medias. */
+.estaciones-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)) !important; gap: 12px !important; }
 .estacion-card { background: var(--cl-surface); border: 1px solid var(--cl-line); border-radius: 12px; }
 .estacion-head { flex-wrap: wrap; gap: 6px 10px; }
 .estacion-title { font-family: var(--cl-body); font-size: 15px; font-weight: 600; color: var(--cl-t1); }
@@ -108,3 +109,8 @@
     .cl-kpi dd { font-size: 40px; }
 }
 @media (prefers-reduced-motion: reduce) { .cl-hero { animation: none; } }
+
+/* Precipitación y evaporación: la tarjeta se estira a la altura de "Variables técnicas" (misma fila);
+   la gráfica ocupa ese alto en vez de dejar la mitad inferior vacía. */
+.clima-grid > .history-section { display: flex; flex-direction: column; }
+.clima-grid > .history-section .chart-container { flex: 1; min-height: 210px; height: auto; }

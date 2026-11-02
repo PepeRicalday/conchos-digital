@@ -30,8 +30,9 @@ export const FilaEstaciones = memo(function FilaEstaciones({ estaciones }: { est
                 const tipo = e.clave === 'en_linea' ? 'ok' : e.clave === 'retraso' ? 'warn' : 'crit';
                 const viejo = e.clave === 'sin_transmision' || e.clave === 'retraso';
                 const d = textoDato(e.ultimoDato);
-                const dur = e.estadia?.duracionMin ?? e.edadMin;
-                const acot = e.estadia?.acotada ? '≥ ' : '';
+                // Retraso = tiempo sin dato nuevo (edad del último bueno), NO la duración de la racha de mensajes buenos (daba "2 d").
+                const dur = e.clave === 'retraso' ? (e.edadMin ?? e.estadia?.duracionMin ?? null) : (e.estadia?.duracionMin ?? e.edadMin);
+                const acot = e.clave !== 'retraso' && e.estadia?.acotada ? '≥ ' : '';
                 const estado = e.clave === 'en_linea' ? 'En línea' : e.clave === 'retraso' ? 'Retraso' : e.clave === 'sd' ? 'Sin datos' : 'Sin señal';
                 const estadia = e.clave === 'sd' || dur == null ? estado : `${estado} · ${acot}${textoDuracion(dur)}`;
                 const sello = e.ultimoDato ? `último ${fechaHoraLocal(e.ultimoDato.t)}` : 'sin dato en 7 d';

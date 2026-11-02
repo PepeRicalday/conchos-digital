@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { ETIQUETA_CUMPLIMIENTO, type EstadoCumplimiento, type FilaSemana } from '../../utils/hidrometria';
 import { fmt, fmtPct } from '../../utils/formato';
 
@@ -9,7 +9,10 @@ const CLASE: Record<EstadoCumplimiento, string> = {
 export interface FilaConCiclo extends FilaSemana { avanceCicloPct: number | null }
 
 /** Cumplimiento por módulo (más desviado primero). El estado va siempre en texto, no solo en color. */
-export const TablaCumplimiento = memo(function TablaCumplimiento({ filas }: { filas: FilaConCiclo[] }) {
+export const TablaCumplimiento = memo(function TablaCumplimiento({ filas, resaltarId }: { filas: FilaConCiclo[]; resaltarId?: string | null }) {
+    const filaRef = useRef<HTMLTableRowElement>(null);
+    // Llegada desde el Dashboard (?modulo=): se lleva la fila a la vista.
+    useEffect(() => { if (resaltarId) filaRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, [resaltarId, filas.length]);
     return (
         <section className="sc-card" aria-labelledby="hid-tabla-t">
             <span className="sc-kicker">Cumplimiento por módulo</span>
@@ -29,7 +32,8 @@ export const TablaCumplimiento = memo(function TablaCumplimiento({ filas }: { fi
                     </thead>
                     <tbody>
                         {filas.map((f) => (
-                            <tr key={f.moduloId}>
+                            <tr key={f.moduloId} ref={f.moduloId === resaltarId ? filaRef : undefined} aria-current={f.moduloId === resaltarId ? 'true' : undefined}
+                                style={f.moduloId === resaltarId ? { background: 'rgba(63, 178, 243, 0.14)', boxShadow: 'inset 3px 0 0 var(--sc-sky)' } : undefined}>
                                 <th scope="row">{f.nombre}</th>
                                 <td>{fmt(f.programadoMm3, 3)}</td>
                                 <td>{fmt(f.entregadoMm3, 3)}</td>

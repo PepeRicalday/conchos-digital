@@ -1,0 +1,130 @@
+/* ClimaHero.css — tarjeta Clima destacada del Dashboard: panel "Ahora + Pronóstico" junto al detalle por variable.
+   Piso de texto 12 px · estado = icono + texto + color · se degrada por container query según el alto de la celda. */
+
+.kc-hero { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); gap: var(--kp-gap); min-width: 0; min-height: 0; }
+.kc-hero > * { min-width: 0; min-height: 0; }
+
+.kc-ahora { --acc: var(--sc-sky); position: relative; display: flex; flex-direction: column; gap: 8px; overflow: hidden; padding: clamp(10px, 1.2vw, 16px) clamp(12px, 1.4vw, 18px);
+    border: 1px solid var(--sc-line); border-radius: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.065), rgba(255,255,255,0.018)); container-type: size; container-name: kc; }
+.kc-ahora::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; border-radius: 14px 14px 0 0; background: linear-gradient(90deg, var(--acc), transparent 85%); }
+.kc-ahora[data-estado='ok'] { --acc: var(--sc-ok); }
+.kc-ahora[data-estado='warn'] { --acc: var(--sc-warn); border-color: rgba(251, 191, 36, 0.45); }
+.kc-ahora[data-estado='crit'] { --acc: var(--sc-crit); border-color: rgba(248, 113, 113, 0.5); background: rgba(248, 113, 113, 0.07); }
+.kc-ahora[data-estado='sd'] { --acc: var(--sc-t3); }
+
+.kc-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.kc-titulo { font-family: var(--sc-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sc-t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.kc-cab .kp-estado { flex: none; }
+
+/* Hero "Ahora" */
+.kc-hero-fila { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.kc-cielo { flex: none; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; color: var(--sc-t1);
+    background: radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--acc) 38%, transparent), color-mix(in srgb, var(--acc) 8%, transparent)); border: 1px solid color-mix(in srgb, var(--acc) 45%, var(--sc-line)); }
+.kc-cielo svg { width: 36px; height: 36px; stroke-width: 1.7; }
+.kc-hero-txt { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.kc-temp { font-family: var(--sc-display); font-size: clamp(40px, 9cqw, 72px); font-weight: 800; line-height: 0.95; font-variant-numeric: tabular-nums; color: var(--sc-t1); }
+.kc-temp small { margin-left: 3px; font-family: var(--sc-mono); font-size: 0.34em; font-weight: 500; color: var(--sc-t2); }
+.kc-frase { font-family: var(--sc-body); font-size: 16px; font-weight: 600; color: var(--sc-t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kc-sub { font-family: var(--sc-mono); font-size: 12px; color: var(--sc-t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Franja de 5 KPI */
+.kc-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.kc-kpi { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding: 6px 7px; border: 1px solid var(--sc-line); border-radius: 10px; background: rgba(255, 255, 255, 0.03); }
+.kc-kpi-et { display: flex; align-items: center; gap: 4px; font: 500 12px var(--sc-body); color: var(--sc-t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kc-kpi-et > span { display: inline-flex; flex: none; color: var(--sc-sky); }
+.kc-kpi-v { font-family: var(--sc-display); font-size: 24px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; color: var(--sc-t1); white-space: nowrap; }
+.kc-kpi-v small { margin-left: 3px; font: 500 12px var(--sc-mono); color: var(--sc-t2); }
+.kc-kpi[data-sd] .kc-kpi-v { color: var(--sc-t3); }
+.kc-kpi-x { font: 12px var(--sc-mono); color: var(--sc-t3); }
+
+/* Pronóstico Hoy / Mañana */
+.kc-pron { display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1 1 auto; }
+.kc-dias { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.kc-dia { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px; border: 1px solid var(--sc-line); border-radius: 10px; background: rgba(255, 255, 255, 0.03); }
+.kc-dia[data-cond='lluvia'] { border-color: rgba(63, 178, 243, 0.5); background: rgba(63, 178, 243, 0.08); }
+.kc-dia-ico { flex: none; display: inline-flex; color: var(--sc-warn); } .kc-dia[data-cond='lluvia'] .kc-dia-ico, .kc-dia[data-cond='posible'] .kc-dia-ico { color: var(--sc-sky); } .kc-dia[data-cond='sd'] .kc-dia-ico { color: var(--sc-t3); }
+.kc-dia-ico svg { width: 28px; height: 28px; stroke-width: 1.7; }
+.kc-dia-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.kc-dia-txt b { font: 700 12px var(--sc-marca); letter-spacing: 0.04em; text-transform: uppercase; color: var(--sc-t2); }
+.kc-dia-t { font-family: var(--sc-display); font-size: 24px; font-weight: 800; color: var(--sc-t1); white-space: nowrap; }
+.kc-dia-t i { margin-left: 3px; font-style: normal; font-size: 17px; color: var(--sc-sky); }
+.kc-dia-ll { font: 12px var(--sc-mono); color: var(--sc-t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kc-resumen { margin: 0; font: 14px/1.3 var(--sc-body); color: var(--sc-t1); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.kc-spark { display: flex; flex-direction: column; gap: 1px; flex: 1 1 0; min-height: 34px; }
+.kc-spark svg { flex: 1 1 0; height: 100%; min-height: 34px; max-height: 140px; }
+.kc-spark small { font: 12px var(--sc-mono); color: var(--sc-t3); }
+
+/* Sensores */
+.kc-sens { display: flex; align-items: center; gap: 8px; margin-top: auto; min-width: 0; font: 12px var(--sc-mono); color: var(--sc-t2); white-space: nowrap; overflow: hidden; }
+.kc-sens svg { flex: none; color: var(--sc-sky); } .kc-sens span:last-child { overflow: hidden; text-overflow: ellipsis; } .kc-sens b { color: var(--sc-warn); font-weight: 600; }
+.kc-puntos { display: inline-flex; gap: 4px; flex: none; }
+.kc-puntos i { width: 10px; height: 10px; border-radius: 50%; border: 2px solid transparent; }
+.kc-p-ok { background: var(--sc-ok); } .kc-p-mal { border-color: var(--sc-crit) !important; border-radius: 2px !important; }
+
+/* ── Degradación por alto de la celda (la gráfica y los textos largos ceden primero) ── */
+@container kc (max-height: 330px) { .kc-spark { display: none; } }
+@container kc (max-height: 280px) { .kc-resumen, .kc-sens { display: none; } .kc-cielo { width: 52px; height: 52px; } .kc-cielo svg { width: 30px; height: 30px; } }
+@container kc (max-height: 235px) { .kc-sub, .kc-dia-ll { display: none; } .kc-kpi-x { display: none; } .kc-ahora { gap: 6px; } .kc-dia-t { font-size: 20px; } .kc-kpi-v { font-size: 20px; } }
+@container kc (max-height: 200px) { .kc-pron { display: none; } .kc-cielo { width: 44px; height: 44px; } .kc-cielo svg { width: 26px; height: 26px; } .kc-temp { font-size: 36px; } .kc-frase { font-size: 14px; } }
+/* Poco ancho: menos KPI (se conservan los tres esenciales) y una sola columna de pronóstico */
+@container kc (max-width: 330px) { .kc-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .kc-kpi:nth-child(n+4) { display: none; } .kc-kpi-et { font-size: 12px; } }
+@container kc (max-width: 270px) { .kc-cielo { display: none; } .kc-dia-ico svg { width: 24px; height: 24px; } }
+
+/* ── Cuadrícula: la tarjeta Clima manda en la pantalla ── */
+#kp-clima { grid-column: 1 / -1; }
+
+/* Horizontal (iPad, laptop): mitad del ancho y una fila más alta que las demás */
+@media (orientation: landscape) {
+    @container fold (min-width: 700px) {
+        .kp-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: minmax(0, 1.3fr) repeat(2, minmax(0, 1fr)); }
+        #kp-clima { grid-column: span 2; }
+        #kp-alertas { grid-column: auto; }
+        #kp-goes { grid-column: span 2; }
+    }
+}
+/* Pantalla grande: 6 columnas, Clima ocupa 3 (la mitad) */
+@container fold (min-width: 1250px) {
+    .kp-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); grid-template-rows: minmax(0, 1.3fr) minmax(0, 1fr); }
+    #kp-clima { grid-column: span 3; }
+    #kp-goes { grid-column: auto; }
+}
+/* Vertical con ancho de tableta: 3 columnas, Clima a todo el ancho y dos filas de alto */
+@media (orientation: portrait) {
+    @container fold (min-width: 700px) {
+        .kp-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(5, minmax(0, 1fr)); }
+        #kp-clima { grid-column: 1 / -1; grid-row: span 2; }
+        #kp-confianza { grid-column: auto; }
+    }
+}
+/* Vertical/teléfono estrecho: 2 columnas, Clima a todo el ancho y Confianza ocupa la última fila entera */
+@container fold (max-width: 699px) {
+    #kp-confianza { grid-column: 1 / -1; }
+}
+
+/* Teléfono: el panel y el detalle se apilan; la pantalla se desplaza (con Clima destacado no cabe todo en una vista) */
+@media (max-width: 699px), (max-height: 559px) {
+    .kc-hero { grid-template-columns: minmax(0, 1fr); }
+    .kc-ahora { container-type: inline-size; }
+    .kc-sens, .kc-resumen { display: flex; }
+    .kc-resumen { display: -webkit-box; }
+    .kc-spark, .kc-pron { display: flex; }
+    .kc-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .kc-kpi:nth-child(n+4) { display: flex; }
+}
+@media (max-width: 699px) {
+    .dash-fold { height: auto !important; }
+    .kp-grid { grid-template-rows: none !important; grid-auto-rows: auto !important; }
+    .kc-kpis { overflow-x: auto; display: flex; scrollbar-width: none; }
+    .kc-kpi { flex: 0 0 74px; }
+    .kc-kpis::-webkit-scrollbar { display: none; }
+    .kc-hero > * { min-height: auto; }
+    .kc-ahora { flex-shrink: 0; }
+    .kc-pron { flex: none; }
+    .kc-spark { flex: none; height: 52px; }
+    .kc-spark svg { flex: none; height: 34px; }
+}
+@media (prefers-reduced-motion: no-preference) { .kc-ahora { animation: kp-entra 0.5s cubic-bezier(.2,.8,.2,1) both; } }
+
+/* Alertas ahora es una celda de 1 columna: en celdas angostas el botón «info» queda dentro del cajón */
+@container kp (max-width: 215px) { .kp-sev-btn.kp-info { display: none; } }
+@container kp (max-width: 260px) { .kp-sev-btn { min-width: 0; padding: 0 5px; gap: 3px; font-size: 12px; } .kp-sev-btn b { font-size: 18px; } }

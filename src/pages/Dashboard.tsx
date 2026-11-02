@@ -26,15 +26,17 @@ import { AlertasDrawer } from '../components/dashboard/AlertasDrawer';
 import { avanceDistrito } from '../utils/distribucion';
 import { modeloSuficiencia } from '../utils/suficiencia';
 import {
-    estadoPresas, avanceCiclo, brechaCiclo, estadoModulo, demandaRiego, confianzaTablero, tendenciaTexto,
+    estadoPresas, avanceCiclo, diasCiclo, brechaCiclo, estadoModulo, demandaRiego, confianzaTablero, tendenciaTexto,
     type EstadoKpi, type FuenteConfianza,
 } from '../utils/dashboardKpisEjecutivos';
+import { getLogoPath } from '../utils/uiHelpers';
 import type { VwAlertaTomaVaradaRow } from '../types/sica.types';
 import type { EntradaInformeGeneral } from '../utils/informeGeneralHtml';
 import './Dashboard.css';
 import '../styles/sala-control.css';
 import '../components/dashboard/DashboardTema.css';
 import '../components/dashboard/KpiPanel.css';
+import '../components/dashboard/ClimaHero.css';
 
 const InformeGeneralModal = lazy(() => import('../components/dashboard/InformeGeneralModal'));
 
@@ -204,22 +206,24 @@ const Dashboard = () => {
             frescura: frescuraLectura?.texto ?? null, stale: !!frescuraLectura?.stale,
         },
         suficiencia: { ...suficiencia, historicoCargado: extra.historico.cargado, historicoError: extra.historico.error },
-        ciclo: { entregadoPct: avanceDist.pct, acumMm3: avanceDist.acumuladoMm3, autMm3: avanceDist.autorizadoMm3, avance, brecha: brechaCiclo(avanceDist.pct, avance) },
+        ciclo: { entregadoPct: avanceDist.pct, acumMm3: avanceDist.acumuladoMm3, autMm3: avanceDist.autorizadoMm3, avance, brecha: brechaCiclo(avanceDist.pct, avance), dias: diasCiclo(hoyISO, cicloAct?.fecha_inicio, cicloAct?.fecha_fin) },
         canal: { modelo: canal.modelo, cargado: canal.cargado, volumen: volumenCanal, vaciadoDesde },
         demanda: { d24: extra.pronostico.demanda, cargado: extra.pronostico.cargado, error: extra.pronostico.error, medido: { d: demandaRiego(clima.etoProm, clima.lluviaProm), etoMm: clima.etoProm, lluviaMm: clima.lluviaProm, tMax: clima.tempMax, ultimaObs: clima.ultimaObs },
+            ahora: { tempProm: clima.tempProm, tempMax: clima.tempMax, tempMin: clima.tempMin, vientoMax: clima.vientoMax, estacionesValidas: clima.estacionesValidas, estacionesTotal: clima.estacionesTotal, excluidas: clima.excluidas },
+            horas48: extra.pronostico.horas,
             cicloCerrado: avance.concluido || canal.modelo.vaciado, etoReciente,
             heladaAvisoC: umbralVigente(umbralesClima, 'helada').aviso, vientoAvisoMs: umbralVigente(umbralesClima, 'viento').aviso,
             umbralesVistas: { helada: umbralVigente(umbralesClima, 'helada'), viento: umbralVigente(umbralesClima, 'viento'), rafaga: umbralVigente(umbralesClima, 'rafaga'), lluvia: umbralVigente(umbralesClima, 'lluvia') } },
         modulos: modules.map((m) => {
             const pct = cumplimientoModulo(m.accumulated_vol, m.authorized_vol);
             const e = estadoModulo(pct, avance);
-            return { clave: m.id, nombre: m.short_code || (m.name || '').slice(0, 6), pct, letra: e.letra, estado: e.estado };
+            return { clave: m.id, nombre: m.short_code || (m.name || '').slice(0, 6), pct, letra: e.letra, estado: e.estado, codigo: m.short_code || null, nombreLargo: m.name || null, logo: getLogoPath(m.name, m.short_code ?? '', m.logo_url) };
         }),
         confianza,
         alertas: { resumen, top: topAlertas, onAbrir: () => setDrawerAbierto(true) },
         goes: { cargado: extra.goes.cargado, error: extra.goes.error, estaciones: (extra.goes.datos ?? []).map((g) => ({ id: g.id, nombre: g.nombre, clave: g.enlace.clave, edadMin: g.enlace.edadMin, serieGasto: g.serieGasto, ultimoDato: g.ultimoDato, estadia: g.estadia })) },
         ndvi: { cargado: extra.ndvi.cargado, error: extra.ndvi.error, r: extra.ndvi.datos },
-    }), [extra.goes, extra.ndvi, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, suficiencia, extra.historico.cargado, extra.historico.error, extra.pronostico.demanda, extra.pronostico.cargado, extra.pronostico.error, avanceDist, avance, canal.modelo, canal.cargado, volumenCanal, vaciadoDesde, etoReciente, umbralesClima, extra.goes.datos, enLineaGoes, clima, extra.pronostico.datos, extra.pronostico.horas, modules, confianza, resumen, topAlertas]);
+    }), [hoyISO, cicloAct, extra.goes, extra.ndvi, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, suficiencia, extra.historico.cargado, extra.historico.error, extra.pronostico.demanda, extra.pronostico.cargado, extra.pronostico.error, avanceDist, avance, canal.modelo, canal.cargado, volumenCanal, vaciadoDesde, etoReciente, umbralesClima, extra.goes.datos, enLineaGoes, clima, extra.pronostico.datos, extra.pronostico.horas, modules, confianza, resumen, topAlertas]);
 
     const pulso = estadosTarjetas(modeloKpis);
 

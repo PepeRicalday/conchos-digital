@@ -47,6 +47,8 @@ export interface ClimaPulso {
     excluidasIds: string[];
     tempMax: number | null;
     tempMin: number | null;
+    /** Promedio de temperatura observada entre estaciones válidas; null = S/D. */
+    tempProm: number | null;
     vientoMax: number | null;
     lluviaProm: number | null;
     etoProm: number | null;
@@ -92,6 +94,7 @@ export function useClimaPulso() {
             excluidasIds: [...malas.keys()],
             tempMax: t.length ? Math.max(...t) : null,
             tempMin: t.length ? Math.min(...t) : null,
+            tempProm: prom(t),
             vientoMax: v.length ? Math.max(...v) : null,
             lluviaProm: prom(l),
             etoProm: prom(et),

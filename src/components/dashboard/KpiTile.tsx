@@ -29,11 +29,13 @@ interface Props {
     acciones?: ReactNode;
     /** Texto del enlace explícito cuando hay acciones (p. ej. "Abrir Clima"). */
     enlaceTexto?: string;
+    /** La tarjeta contiene enlaces propios (p. ej. una celda por módulo): se vuelve <section> y la navegación a `to` queda en un enlace explícito. */
+    enlaceInterno?: boolean;
 }
 
 /** Celda de KPI: título + estado, cifra grande, infografía, contexto y frescura. Se adapta a la altura que le toque. */
-export const KpiTile = memo(function KpiTile({ id, titulo, icono, valor, unidad, textoValor, estado, contexto, viz, fresco, stale, to, aria, destacado, vivo, acciones, enlaceTexto }: Props) {
-    const conAcciones = !!acciones;
+export const KpiTile = memo(function KpiTile({ id, titulo, icono, valor, unidad, textoValor, estado, contexto, viz, fresco, stale, to, aria, destacado, vivo, acciones, enlaceTexto, enlaceInterno }: Props) {
+    const conAcciones = !!acciones || !!enlaceInterno;
     const cuerpo = (
         <div className="kp-in">
             <div className="kp-cab"><span className="kp-titulo">{titulo}</span>{vivo && <span className={`kp-vivo ${stale || estado.tipo === 'sd' || estado.tipo === 'crit' ? 'kp-vivo-off' : ''}`} title="Fuente en tiempo real" aria-hidden="true" />}
@@ -46,7 +48,7 @@ export const KpiTile = memo(function KpiTile({ id, titulo, icono, valor, unidad,
                         : <div className="kp-cifra">{valor}{unidad && <small>{unidad}</small>}</div>}
                 <EstadoChip estado={estado} />
             </div>
-            {conAcciones && <div className="kp-acciones">{acciones}</div>}
+            {acciones && <div className="kp-acciones">{acciones}</div>}
             {viz && <div className="kp-viz">{viz}</div>}
             <div className="kp-contexto">{contexto}</div>
             {fresco && <div className={`kp-fresco ${stale ? 'kp-viejo' : ''}`}>{fresco}</div>}

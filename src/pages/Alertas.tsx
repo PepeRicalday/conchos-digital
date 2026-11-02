@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import { PaginaHero } from '../components/ui/PaginaHero';
 import { DespachoAlertas } from '../components/alertas/DespachoAlertas';
@@ -22,7 +23,9 @@ const TABS: { clave: TabAlerta; etiqueta: string; vacio: string }[] = [
 
 const Alertas = () => {
     const [periodo, setPeriodo] = useState<Periodo>('Última Semana');
-    const [tabElegida, setTabElegida] = useState<TabAlerta | null>(null);
+    // Enlace profundo del Dashboard: ?tab=criticas|avisos|info|antiguas (inválido = pestaña por defecto).
+    const [params] = useSearchParams();
+    const [tabElegida, setTabElegida] = useState<TabAlerta | null>(() => TABS.find((t) => t.clave === params.get('tab'))?.clave ?? null);
     const [lugar, setLugar] = useState<string | null>(null);
     const { activas, periodoFilas, cargando, corteMs, error, recargar, atender } = useAlertasPantalla(periodo);
 

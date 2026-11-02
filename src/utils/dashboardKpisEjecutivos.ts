@@ -41,6 +41,21 @@ export function diasSuficiencia(almacenadoMm3: number | null | undefined, extrac
 // ── Ciclo agrícola ───────────────────────────────────────────────────────────
 export interface AvanceCiclo { pct: number | null; concluido: boolean; etiqueta: string | null }
 
+export interface DiasCiclo { total: number; transcurridos: number; restantes: number; concluido: boolean; haceDias: number | null }
+const DIA_MS = 86_400_000;
+const msDe = (iso: string) => Date.parse(`${iso.slice(0, 10)}T00:00:00Z`);
+
+/** Días del ciclo [inicio, fin] (AAAA-MM-DD, ambos incluidos). null sin fechas válidas (S/D, nunca 0). */
+export function diasCiclo(hoyISO: string, inicio: string | null | undefined, fin: string | null | undefined): DiasCiclo | null {
+    if (!inicio || !fin) return null;
+    const i = msDe(inicio), f = msDe(fin), h = msDe(hoyISO);
+    if (![i, f, h].every(Number.isFinite) || f < i) return null;
+    const total = Math.round((f - i) / DIA_MS) + 1;
+    if (h > f) return { total, transcurridos: total, restantes: 0, concluido: true, haceDias: Math.round((h - f) / DIA_MS) };
+    const transcurridos = h < i ? 0 : Math.round((h - i) / DIA_MS) + 1;
+    return { total, transcurridos, restantes: total - transcurridos, concluido: false, haceDias: null };
+}
+
 /** Avance temporal del ciclo [inicio, fin] (AAAA-MM-DD). Hoy fuera del rango: 0 % (aún no inicia) o 100 % concluido. */
 export function avanceCiclo(hoyISO: string, inicio: string | null | undefined, finCiclo: string | null | undefined, etiqueta: string | null = null): AvanceCiclo {
     if (!inicio || !finCiclo) return { pct: null, concluido: false, etiqueta };

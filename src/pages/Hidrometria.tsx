@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CalendarCheck, Loader, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useHydraEngine } from '../hooks/useHydraEngine';
@@ -43,6 +44,10 @@ const Hidrometria = () => {
         modulos: modules.map((m) => ({ id: m.id, short_code: m.short_code, name: m.name, daily_vol: m.daily_vol, current_flow: m.current_flow, target_flow: m.target_flow })),
         solicitudes: datos.solicitudes, entregas: datos.entregas, inicio, fin, hoy,
     }), [modules, datos.solicitudes, datos.entregas, inicio, fin, hoy]);
+    // Enlace profundo del Dashboard: ?modulo=M1 resalta ese módulo en la tabla (código desconocido = sin resaltar).
+    const [params] = useSearchParams();
+    const codigoModulo = (params.get('modulo') ?? '').toLowerCase();
+    const moduloResaltado = codigoModulo ? modules.find((m) => (m.short_code ?? '').toLowerCase() === codigoModulo)?.id ?? null : null;
     const filasTabla: FilaConCiclo[] = useMemo(() => {
         const ciclo = new Map(modules.map((m) => [m.id, cumplimientoModulo(m.accumulated_vol, m.authorized_vol)]));
         return ordenaPorDesviacion(filas).map((f) => ({ ...f, avanceCicloPct: ciclo.get(f.moduloId) ?? null }));
@@ -114,7 +119,7 @@ const Hidrometria = () => {
             <KpisHidrometria canal={canal} ahoraMs={ahora} entregaM3s={entregaM3s} ultimaCaptura={datos.ultimaCaptura} hoy={hoy} resumen={resumen} cumplimientoEtiqueta={etiquetaCumpl} />
 
             <GraficaProgramado filas={filas} rango={`Semana ${inicio} al ${fin}`} />
-            <TablaCumplimiento filas={filasTabla} />
+            <TablaCumplimiento filas={filasTabla} resaltarId={moduloResaltado} />
 
             {modalAbierto && (
                 <ModalSolicitudes

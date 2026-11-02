@@ -6,7 +6,7 @@ import {
     Gauge, Waves, Clock, Upload, Loader,
     Map, PlusCircle
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Sankey } from 'recharts';
 import './Presas.css';
 import { useFecha } from '../context/FechaContext';
@@ -496,8 +496,10 @@ const Presas = () => {
     const { presas, aforos, movimientos, movimientosHistorial, loading, error } = usePresas(fechaSeleccionada);
     const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
     const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<'operacion' | 'analitica'>('operacion');
-    const [vistaAnalitica, setVistaAnalitica] = useState<VistaAnalitica>('ciclo');
+    // Enlaces profundos del Dashboard: ?tab=analitica&vista=goes|ciclo (valores inválidos se ignoran).
+    const [params] = useSearchParams();
+    const [activeTab, setActiveTab] = useState<'operacion' | 'analitica'>(() => (params.get('tab') === 'analitica' ? 'analitica' : 'operacion'));
+    const [vistaAnalitica, setVistaAnalitica] = useState<VistaAnalitica>(() => (params.get('vista') === 'goes' ? 'goes' : 'ciclo'));
     const [horaActual, setHoraActual] = useState(() => new Date());
     useEffect(() => {
         const t = setInterval(() => setHoraActual(new Date()), 1000);

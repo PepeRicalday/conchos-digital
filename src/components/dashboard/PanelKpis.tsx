@@ -15,17 +15,17 @@ import { AnilloSegmentado } from '../ui/AnilloSegmentado';
 import { MapaCalorModulos, type CeldaModulo } from '../ui/MapaCalorModulos';
 import {
     estadoGoes, estadoNdvi,
-    type EstadoKpi, type BrechaCiclo, type AvanceCiclo, type DemandaRiego, type Confianza, type TendenciaTexto,
+    type EstadoKpi, type DiasCiclo, type BrechaCiclo, type AvanceCiclo, type DemandaRiego, type Confianza, type TendenciaTexto,
 } from '../../utils/dashboardKpisEjecutivos';
 import { textoEdad } from '../../utils/hidroEstaciones';
 import type { ResumenAlertas, AlertaSistema } from '../../utils/dashboardKpis';
-import { estadoDemanda24h, type ResumenNdvi, type DemandaRiego24h } from '../../utils/dashboardExtra';
+import { estadoDemanda24h, type ResumenNdvi, type DemandaRiego24h, type PuntoHora } from '../../utils/dashboardExtra';
 import type { ModeloSuficiencia } from '../../utils/suficiencia';
 import { etiquetaEficiencia } from '../../utils/conduccion';
 import type { CanalKpiModelo } from '../../utils/perfilCanal';
 import type { VolumenCanal, EtoReciente } from '../../hooks/useDashboardPulso';
 import { resumenVariables24h, VISTAS_CLIMA, severidadVista, type UmbralesVistas } from '../../utils/climaVistas';
-import { TarjetaClimaAgro } from './TarjetaClimaAgro';
+import { TarjetaClimaHero } from './TarjetaClimaHero';
 
 const f = (v: number | null | undefined, d = 1) => (v == null ? null : v.toFixed(d));
 const edadMin = (ms: number | null) => (ms == null ? null : Math.max(0, (Date.now() - ms) / 60000));
@@ -44,7 +44,7 @@ export interface ModeloKpis {
     enVivoFuera: boolean;
     presas: { pct: number | null; estado: EstadoKpi; almacenadoMm3: number | null; capacidadMm3: number; conDato: number; total: number; serie: (number | null)[]; items: ColumnaEmbalse[]; tendencia: TendenciaTexto; frescura: string | null; stale: boolean };
     suficiencia: ModeloSuficiencia & { historicoCargado: boolean; historicoError: string | null };
-    ciclo: { entregadoPct: number | null; acumMm3: number | null; autMm3: number | null; avance: AvanceCiclo; brecha: BrechaCiclo };
+    ciclo: { entregadoPct: number | null; acumMm3: number | null; autMm3: number | null; avance: AvanceCiclo; brecha: BrechaCiclo; dias?: DiasCiclo | null };
     canal: { modelo: CanalKpiModelo; cargado: boolean; volumen?: VolumenCanal; vaciadoDesde?: string | null };
     demanda: {
         d24: DemandaRiego24h | null; cargado: boolean; error: string | null;
@@ -56,6 +56,10 @@ export interface ModeloKpis {
         vientoAvisoMs?: number;
         /** Umbrales de aviso/crítico (helada, viento, ráfaga, lluvia) para las vistas por variable. */
         umbralesVistas?: UmbralesVistas;
+        /** Observación actual de la red de estaciones (para la tarjeta Clima). */
+        ahora?: { tempProm: number | null; tempMax: number | null; tempMin: number | null; vientoMax: number | null; estacionesValidas: number; estacionesTotal: number; excluidas: string[] };
+        /** Serie horaria de 48 h (promedio entre estaciones) para Hoy / Mañana. */
+        horas48?: PuntoHora[];
     };
     modulos: CeldaModulo[];
     confianza: Confianza;
@@ -123,7 +127,26 @@ export function estadosTarjetas(m: ModeloKpis): { id: string; nombre: string; ti
     ];
 }
 
-/** Las 10 tarjetas de la pantalla única del Dashboard. Cada gráfico degrada por container query (kp) según el espacio de su celda. */
+/** Contexto de la tarjeta Ciclo: volumen, tiempo del ciclo y los dos módulos más rezagados. Cada tramo no se parte a media frase. */
+function contextoCiclo(ciclo: ModeloKpis['ciclo'], modulos: CeldaModulo[]) {
+    const d = ciclo.dias;
+    const rez = modulos.filter((m) => m.pct != null).sort((a, b) => (a.pct as number) - (b.pct as number)).slice(0, 2);
+    const vol = ciclo.entregadoPct != null && ciclo.autMm3 != null && ciclo.acumMm3 != null
+        ? <><b>{f(ciclo.acumMm3, 0)} de {f(ciclo.autMm3, 0)} Mm³</b>{ciclo.avance.concluido
+            ? <> · <span className="kp-nw">sin entregar {Math.max(0, ciclo.autMm3 - ciclo.acumMm3).toFixed(0)} Mm³ ({Math.max(0, 100 - ciclo.entregadoPct).toFixed(0)} %)</span></>
+            : <> · <span className="kp-nw">tiempo {f(ciclo.avance.pct, 0) ?? 'S/D'} %{ciclo.brecha.brechaPP != null ? ` · brecha ${ciclo.brecha.brechaPP > 0 ? '+' : '−'}${Math.abs(ciclo.brecha.brechaPP).toFixed(0)} pp` : ''}</span></>}</>
+        : <>Sin volumen autorizado capturado</>;
+    const tiempo = d ? (d.concluido ? <>Concluyó hace <b>{d.haceDias} d</b> ({d.total} d de ciclo)</> : <>Día <b>{d.transcurridos}</b> de {d.total} · faltan <b>{d.restantes} d</b></>) : null;
+    return (
+        <>
+            <span className="kp-ciclo-l">{vol}</span>
+            {tiempo && <span className="kp-ciclo-l kp-ciclo-t">{tiempo}</span>}
+            {rez.length >= 2 && <span className="kp-ciclo-l kp-ciclo-r">Más bajos: {rez.map((m, i) => <span key={m.clave} className="kp-nw">{i > 0 ? ' · ' : ''}<b>{m.nombre}</b> {(m.pct as number).toFixed(0)} %</span>)}</span>}
+        </>
+    );
+}
+
+/** Las 10 tarjetas (Clima destacada primero) de la pantalla única del Dashboard. Cada gráfico degrada por container query (kp) según el espacio de su celda. */
 export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
     const { presas, suficiencia, ciclo, canal, demanda, modulos, confianza, alertas, goes, ndvi } = m;
     const { canalE, alertasE, goesE, ndviE, modulosE, enLinea, nd, demandaE, usa24, cerrado } = derivaEstados(m);
@@ -142,15 +165,18 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
 
     return (
         <section className="kp-grid" aria-label="Indicadores clave del distrito">
+            {/* Clima manda en la pantalla: va primero y ocupa la mitad del ancho (ver ClimaHero.css) */}
+            <TarjetaClimaHero demanda={demanda} usa24={usa24} cerrado={cerrado} demandaE={demandaE} />
+
             <KpiTile id="kp-presas" to="/presas" titulo="Presas" icono={<Waves size={18} />} valor={f(presas.pct)} unidad="%" estado={presas.estado}
                 aria={`Presas: almacenamiento ${f(presas.pct) ?? 'sin dato'} por ciento, ${presas.estado.texto}. Abrir Presas`}
                 viz={<div className="kp-presas-viz"><ColumnasEmbalse items={presas.items} /><div className="kp-presas-spark"><Sparkline valores={presas.serie} etiqueta="Almacenamiento total, últimos 7 días" unidad="Mm³" color="var(--sc-s1)" alto={44} area /><small>7 días</small></div></div>}
                 contexto={<><b>{presas.almacenadoMm3 != null ? `${presas.almacenadoMm3.toFixed(0)} / ${presas.capacidadMm3.toFixed(0)} Mm³` : 'Sin lectura'}</b> · {presas.tendencia.texto}</>}
                 fresco={presas.frescura} stale={presas.stale} />
 
-            <KpiTile id="kp-suficiencia" to="/presas" titulo={sf.modo === 'preciclo' ? 'Suficiencia · útil' : 'Suficiencia · alcance'} icono={<Hourglass size={18} />}
+            <KpiTile id="kp-suficiencia" to="/analisis-historico" titulo={sf.modo === 'preciclo' ? 'Suficiencia · útil' : 'Suficiencia · alcance'} icono={<Hourglass size={18} />}
                 valor={sf.modo === 'preciclo' ? f(sf.utilTotalMm3, 0) : f(sf.diasAlcance, 0)} unidad={sf.modo === 'preciclo' ? 'Mm³' : 'd'} estado={sf.estado}
-                aria={sf.modo === 'preciclo' ? `Suficiencia: ${f(sf.utilTotalMm3, 0) ?? 'sin dato'} millones de metros cúbicos útiles, ${sf.estado.texto}${posTxt ? `, ${posTxt}` : ''}. Abrir Presas` : `Suficiencia: alcanza ${f(sf.diasAlcance, 0) ?? 'sin dato'} días de ${sf.diasRestantes} que faltan. Abrir Presas`}
+                aria={sf.modo === 'preciclo' ? `Suficiencia: ${f(sf.utilTotalMm3, 0) ?? 'sin dato'} millones de metros cúbicos útiles, ${sf.estado.texto}${posTxt ? `, ${posTxt}` : ''}. Abrir Análisis histórico` : `Suficiencia: alcanza ${f(sf.diasAlcance, 0) ?? 'sin dato'} días de ${sf.diasRestantes} que faltan. Abrir Análisis histórico`}
                 viz={sf.modo === 'temporada'
                     ? <MedidorSemicircular valor={sf.diasAlcance} max={maxMedidor} zonas={[{ hasta: (sf.diasRestantes ?? 0) * 0.6, tipo: 'crit' }, { hasta: sf.diasRestantes ?? 0, tipo: 'warn' }, { hasta: maxMedidor, tipo: 'ok' }]} etiqueta="Días que alcanza el volumen útil" unidad="días" />
                     : <div className="kp-suf-viz">{sf.banda ? <BandaCiclos banda={sf.banda} /> : <div className="kp-banda kp-banda-sd" role="status">{sf.historicoError ? 'Histórico no disponible' : sf.historicoCargado ? 'Sin base histórica suficiente' : 'Cargando histórico…'}</div>}<BarraUtil presas={sf.presas} /></div>}
@@ -159,12 +185,10 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
                     : <>Alcanza <b>{f(sf.diasAlcance, 0) ?? 'S/D'} d</b> al ritmo actual; faltan <b>{sf.diasRestantes} d</b> al 30-sep</>}
                 fresco={presas.frescura} stale={presas.stale} />
 
-            <KpiTile id="kp-ciclo" to="/distribucion" titulo={`Ciclo ${ciclo.avance.etiqueta ?? ''}`.trim()} icono={<CalendarClock size={18} />} valor={f(ciclo.entregadoPct)} unidad="%" estado={ciclo.brecha.estado}
-                aria={`Volumen entregado ${f(ciclo.entregadoPct) ?? 'sin dato'} por ciento del autorizado, ${ciclo.brecha.estado.texto}. Abrir Distribución`}
+            <KpiTile id="kp-ciclo" to="/canales" titulo={`Ciclo ${ciclo.avance.etiqueta ?? ''}`.trim()} icono={<CalendarClock size={18} />} valor={f(ciclo.entregadoPct)} unidad="%" estado={ciclo.brecha.estado}
+                aria={`Volumen entregado ${f(ciclo.entregadoPct) ?? 'sin dato'} por ciento del autorizado, ${ciclo.brecha.estado.texto}${ciclo.dias ? (ciclo.dias.concluido ? `; el ciclo concluyó hace ${ciclo.dias.haceDias} días` : `; día ${ciclo.dias.transcurridos} de ${ciclo.dias.total}`) : ''}. Abrir Distribución`}
                 viz={<BarraSegmentada pct={ciclo.entregadoPct} marcaPct={ciclo.avance.concluido ? null : ciclo.avance.pct} concluido={ciclo.avance.concluido} etiqueta="Volumen entregado frente al autorizado" />}
-                contexto={ciclo.avance.concluido && ciclo.entregadoPct != null && ciclo.autMm3 != null && ciclo.acumMm3 != null
-                    ? <><b>{f(ciclo.acumMm3, 0)} de {f(ciclo.autMm3, 0)} Mm³</b> · sin entregar {Math.max(0, ciclo.autMm3 - ciclo.acumMm3).toFixed(0)} Mm³ ({Math.max(0, 100 - ciclo.entregadoPct).toFixed(0)} %)</>
-                    : <>Tiempo <b>{f(ciclo.avance.pct, 0) ?? 'S/D'} %</b>{ciclo.brecha.brechaPP != null ? ` · brecha ${ciclo.brecha.brechaPP > 0 ? '+' : '−'}${Math.abs(ciclo.brecha.brechaPP).toFixed(0)} pp` : ''}</>} />
+                contexto={contextoCiclo(ciclo, modulos)} />
 
             {(() => {
                 const vol = canal.volumen;
@@ -211,16 +235,14 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
                 <button type="button" className="kp-ver" onClick={alertas.onAbrir}>Ver detalle{alertas.resumen.antiguas > 0 ? ` (+${alertas.resumen.antiguas} antiguas)` : ''}</button>
             </div></section>
 
-            <TarjetaClimaAgro demanda={demanda} usa24={usa24} cerrado={cerrado} demandaE={demandaE} />
-
-            <KpiTile id="kp-modulos" to="/balance" titulo="Módulos" icono={<LayoutGrid size={18} />}
+            <KpiTile id="kp-modulos" to="/hidrometria" enlaceInterno enlaceTexto="Abrir Hidrometría" titulo="Módulos" icono={<LayoutGrid size={18} />}
                 valor={pcts.length ? (Math.min(...pcts) === Math.max(...pcts) ? f(pcts[0], 0) : `${Math.min(...pcts).toFixed(0)}–${Math.max(...pcts).toFixed(0)}`) : null} unidad="%" estado={modulosE}
-                aria={`Avance por módulo: ${pcts.length ? `de ${Math.min(...pcts).toFixed(0)} a ${Math.max(...pcts).toFixed(0)} por ciento` : 'sin dato'}. Abrir Balance hidráulico`}
+                aria={`Avance por módulo: ${pcts.length ? `de ${Math.min(...pcts).toFixed(0)} a ${Math.max(...pcts).toFixed(0)} por ciento` : 'sin dato'}. Cada módulo abre Hidrometría`}
                 viz={<MapaCalorModulos celdas={modulos} />}
                 contexto={<>{pcts.length} de {modulos.length} con dato · {letras.map((l) => `${l} ${LEYENDA_MOD[l] ?? ''}`).join(' · ')}</>} />
 
-            <KpiTile id="kp-ndvi" to="/geo-monitor" titulo="Vegetación NDVI" icono={<IconoUsoAgricola size={18} />} valor={nd ? f(nd.valor, 3) : null} estado={ndviE}
-                aria={`Vegetación NDVI ${nd ? f(nd.valor, 3) : 'sin dato'}${nd?.anomalia != null ? `, anomalía ${nd.anomalia.toFixed(3)}` : ''}. Abrir Geo-Monitor`}
+            <KpiTile id="kp-ndvi" to="/geo-monitor?panel=ndvi" titulo="Vegetación NDVI" icono={<IconoUsoAgricola size={18} />} valor={nd ? f(nd.valor, 3) : null} estado={ndviE}
+                aria={`Vegetación NDVI ${nd ? f(nd.valor, 3) : 'sin dato'}${nd?.anomalia != null ? `, anomalía ${nd.anomalia.toFixed(3)}` : ''}. Abrir NDVI mensual por módulo en Geo-Monitor`}
                 viz={nd && nd.valor != null ? (
                     <div className="kp-ndvi-viz">
                         <div className="kp-ndvi-pista" role="img" aria-label={`NDVI ${nd.valor.toFixed(3)}${refNdvi != null ? `, media del mismo mes en años previos ${refNdvi.toFixed(3)}` : ''}`}>
@@ -234,8 +256,8 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
                 contexto={nd ? <>{mesTexto(nd.mes as string)} · anomalía <b>{nd.anomalia == null ? 'S/D' : `${nd.anomalia > 0 ? '+' : '−'}${Math.abs(nd.anomalia).toFixed(3)}`}</b>{nd.peor ? ` · menor: mód. ${nd.peor.modulo} (${nd.peor.valor.toFixed(2)})` : ''}</> : (ndvi.error ?? 'Sin serie NDVI')}
                 fresco="Último mes cerrado (Sentinel-2)" />
 
-            <KpiTile id="kp-goes" to="/presas" vivo titulo="Telemetría GOES" icono={<IconoTelemetria size={18} />} valor={goes.estaciones.length ? String(enLinea) : null} unidad={goes.estaciones.length ? `de ${goes.estaciones.length}` : undefined} estado={goesE}
-                aria={`Telemetría GOES: ${enLinea} de ${goes.estaciones.length} estaciones transmiten. Abrir Presas`}
+            <KpiTile id="kp-goes" to="/presas?tab=analitica&vista=goes" vivo titulo="Telemetría GOES" icono={<IconoTelemetria size={18} />} valor={goes.estaciones.length ? String(enLinea) : null} unidad={goes.estaciones.length ? `de ${goes.estaciones.length}` : undefined} estado={goesE}
+                aria={`Telemetría GOES: ${enLinea} de ${goes.estaciones.length} estaciones transmiten. Abrir la vista GOES de Presas`}
                 viz={goes.estaciones.length ? <FilaEstaciones estaciones={goes.estaciones} /> : undefined}
                 contexto={goes.estaciones.length === 0 ? (goes.error ?? 'Sin estaciones activas') : sinSenal.length ? <>Sin señal: <b>{sinSenal.length} de {goes.estaciones.length}</b> · sus gastos se muestran S/D</> : <>Todas transmiten</>} />
 

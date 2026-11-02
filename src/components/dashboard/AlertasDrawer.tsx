@@ -60,7 +60,7 @@ export const AlertasDrawer = memo(function AlertasDrawer({ abierto, onCerrar, al
                         </section>
                     ))}
                 </div>
-                <footer className="kp-drawer-pie"><Link to="/alertas" className="sc-btn">Abrir página de alertas <ArrowRight size={14} aria-hidden="true" /></Link></footer>
+                <footer className="kp-drawer-pie"><Link to={resumen.criticas > 0 ? '/alertas?tab=criticas' : resumen.avisos > 0 ? '/alertas?tab=avisos' : '/alertas'} className="sc-btn">Abrir página de alertas <ArrowRight size={14} aria-hidden="true" /></Link></footer>
             </div>
         </dialog>
     );

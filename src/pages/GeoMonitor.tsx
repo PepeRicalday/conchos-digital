@@ -30,7 +30,7 @@ import { detectaSuperficieVaso, VASOS_CONOCIDOS } from '../utils/mapaSatelital';
 import { NdviModulosPanel } from '../components/NdviModulosPanel';
 import { WindyMapModal } from '../components/WindyMapModal';
 import { ensureMetadata } from '../store/useMetadataStore';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 // Fix for Leaflet icons in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -318,7 +318,9 @@ const GeoMonitor = () => {
     // Sección dedicada de NDVI mensual por módulo (histórico, polígono exacto
     // vía sentinel-ndvi-modulo-sync) — separada del NDVI puntual bajo-demanda
     // de consultarNdviModulo/moduloNdvi (clic en el polígono), que sigue intacto.
-    const [showNdviModulos, setShowNdviModulos] = useState(false);
+    // Enlace profundo del Dashboard (tarjeta Vegetación NDVI): ?panel=ndvi abre «NDVI mensual por módulo».
+    const [paramsGeo] = useSearchParams();
+    const [showNdviModulos, setShowNdviModulos] = useState(() => paramsGeo.get('panel') === 'ndvi');
 
     // Eventos Hidro-Sincrónicos
     const { activeEvent } = useHydricEvents();

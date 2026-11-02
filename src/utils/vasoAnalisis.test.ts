@@ -51,10 +51,11 @@ describe('validación cruzada', () => {
 });
 
 describe('semáforo de desvío', () => {
-    it('10 / 20 % y S/D', () => {
-        expect(semaforoDesvio(-8).clave).toBe('ok');
-        expect(semaforoDesvio(-15).clave).toBe('warn');
-        expect(semaforoDesvio(25).clave).toBe('crit');
+    it('15 / 25 % y S/D (el sesgo −11 % del sensor coincide)', () => {
+        expect(semaforoDesvio(-11.6).clave).toBe('ok');
+        expect(semaforoDesvio(-15).clave).toBe('ok');
+        expect(semaforoDesvio(-16.9).clave).toBe('warn');
+        expect(semaforoDesvio(26).clave).toBe('crit');
         expect(semaforoDesvio(null).clave).toBe('sd');
     });
 });

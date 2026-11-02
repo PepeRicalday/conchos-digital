@@ -8,10 +8,14 @@
 export const DIAS_NIVEL_ESCENA = 2;
 /** Escenas con más % de la huella del vaso nublada/sin dato no se validan contra la curva. */
 export const NUBES_VASO_MAX_PCT = 5;
-/** Desvío área satelital vs. curva oficial: hasta aquí "coincide" (el NDWI pierde orilla somera: −3…−8 % es normal). */
-export const DESVIO_ATENCION_PCT = 10;
+/**
+ * Desvío área satelital vs. curva oficial: hasta aquí "coincide". Calibrado con las 7 escenas v2 (10 m) de 2026 con nivel
+ * del día: 83-95 % de la curva, media −11.6 % ± 4 — sesgo sistemático del píxel en la orilla somera y la cola con
+ * vegetación, no azolve. Con 10 % casi todas salían "Revisar" y la alerta de BD se disparaba cada mes (2026-11-01).
+ */
+export const DESVIO_ATENCION_PCT = 15;
 /** Más allá de esto "discrepa" (alerta crítica en BD). */
-export const DESVIO_CRITICO_PCT = 20;
+export const DESVIO_CRITICO_PCT = 25;
 /** Índice de fragmentación: desvío del ratio de elongación contra el promedio de la propia presa. */
 export const FRAGMENTACION_ATENCION_PCT = 15;
 export const FRAGMENTACION_CRITICA_PCT = 30;

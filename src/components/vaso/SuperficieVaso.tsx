@@ -81,8 +81,8 @@ function SuperficieVaso({ fuentes, cargandoVisual, errorVisual, sinDeteccion, on
                 <p>
                     <b>Curva oficial:</b> área que la batimetría 2020 asigna al nivel actual. <b>Sentinel-2:</b> espejo de agua del día más reciente con
                     el vaso despejado (máscara de nubes por píxel), a 10 m: agua por NDWI o MNDWI sobre su umbral Otsu, sin el cauce del río. Se compara
-                    contra la curva <i>a la cota de ese mismo día</i>; un área algo menor (hasta {DESVIO_ATENCION_PCT} %) es normal porque el píxel pierde
-                    la orilla somera. Más de {DESVIO_CRITICO_PCT} % pide revisar escena y curva. <b>Referencia visual:</b> mosaico en color de ArcGIS cuya
+                    contra la curva <i>a la cota de ese mismo día</i>; un área ~10 % menor es el sesgo normal del método porque el píxel pierde
+                    la orilla somera (coincide hasta {DESVIO_ATENCION_PCT} %). Más de {DESVIO_CRITICO_PCT} % pide revisar escena y curva. <b>Referencia visual:</b> mosaico en color de ArcGIS cuya
                     fecha se desconoce; solo orienta, no se usa para decidir.
                 </p>
             </details>

@@ -28,7 +28,7 @@ import {
     diferenciaPoligonos, fechaPixeles, indiceFragmentacion, nivelEnFecha, nubesEscena, resumenRecalibracion, unirNiveles, validacionCruzada,
     type FactorCorreccion, type NivelDia,
 } from '../utils/vasoAnalisis';
-import { DIAS_NIVEL_ESCENA, NUBES_VASO_MAX_PCT, semaforoDesvio, type ClaveSemaforo } from '../utils/vasoUmbrales';
+import { DESVIO_ATENCION_PCT, DESVIO_CRITICO_PCT, DIAS_NIVEL_ESCENA, NUBES_VASO_MAX_PCT, semaforoDesvio, type ClaveSemaforo } from '../utils/vasoUmbrales';
 
 interface CurvaPunto { elevacion_msnm: number; volumen_mm3: number; area_ha: number | null }
 
@@ -524,7 +524,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                         );
                                     })}
                                 </ul>
-                                <p className="vaso-nota">100 % = el satélite mide exactamente el área de la curva a esa cota. Hasta −10 % es esperable: el píxel de 10 m pierde la orilla somera y la cola con vegetación; una brecha mayor y sostenida en todas las cotas sugiere revisar la curva (no la corrige).</p>
+                                <p className="vaso-nota">100 % = el satélite mide exactamente el área de la curva a esa cota. Un área satelital ~10 % menor es el sesgo normal del método (el píxel de 10 m pierde la orilla somera y la cola con vegetación): "Revisar" a partir de {DESVIO_ATENCION_PCT} % y "Discrepa" a partir de {DESVIO_CRITICO_PCT} %. Una brecha mayor y sostenida en todas las cotas sugiere revisar la curva (no la corrige).</p>
                             </div>
 
                             <details className="vaso-plegable">

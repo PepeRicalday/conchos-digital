@@ -2159,4 +2159,5 @@ html[data-device="phone"] .pr-sello { min-height: 32px; }
     /* Tablet: identidad + selector de presa arriba; acciones en su propia fila a todo el ancho (se acomodan si no caben). */
     .scada-sala-header { grid-template-columns: auto 1fr; }
     .scada-header-right { grid-column: 1 / -1; flex-wrap: wrap; justify-content: flex-end; }
+    .scada-action-btn { min-height: 44px; }
 }

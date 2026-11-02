@@ -7,8 +7,8 @@ import { resumenPronostico, resumenNdvi, serieHoraria48, demanda24h, type FilaPr
 import { cargarIndiceHistorico } from './usePresasHistorico';
 import type { Indice } from '../utils/historicoPresas';
 import {
-    ORDEN_ESTACIONES, estadoEnlace, ultimoBueno, ultimoPunto, ceroSospechoso, GASTO_UMBRAL_CENSURA_M3S,
-    type EstadoEnlace, type EstacionHidro,
+    ORDEN_ESTACIONES, estadoEnlace, ultimoBueno, ultimoPunto, ceroSospechoso, GASTO_UMBRAL_CENSURA_M3S, estadiaEnlace, ultimoConocido,
+    type EstadoEnlace, type EstacionHidro, type EstadiaEnlace,
 } from '../utils/hidroEstaciones';
 
 /**
@@ -96,9 +96,23 @@ export interface FilaGoes {
     bajoUmbral: number | null;
     nivel: number | null;
     serieGasto: (number | null)[];
+    /** Último dato conocido (aunque la estación esté sin señal): se rotula siempre con su hora real. null = nunca hubo dato en 7 d. */
+    ultimoDato: UltimoDatoGoes | null;
+    estadia: EstadiaEnlace;
+}
+
+export interface UltimoDatoGoes {
+    /** 'bajo' = gasto censurado (< umbral); 'nivel' cuando no hay gasto utilizable. */
+    tipo: 'gasto' | 'nivel' | 'bajo';
+    /** m³/s o m según tipo; para 'bajo' es el umbral. */
+    valor: number;
+    t: number;
+    edadMin: number;
 }
 
 const BUCKETS = 24;
+/** Ventana de series del Dashboard: 7 d para conocer el último dato aun tras un apagón largo; la sparkline usa solo las últimas 24 h. */
+const HORAS_SERIES = 168;
 function serieHoraria(puntos: { t: number; v: number }[], ahora: number): (number | null)[] {
     const out: (number | null)[] = Array(BUCKETS).fill(null);
     const ult: number[] = Array(BUCKETS).fill(-Infinity);
@@ -118,7 +132,7 @@ export function useGoesResumen(activo: boolean): BloqueEstado<FilaGoes[]> {
             const forzar = token > 0;
             const base = await cargarBaseHidro(forzar);
             const ids = base.estaciones.map((e: EstacionHidro) => e.id);
-            const series: SeriesPorEstacion = await cargarSeriesHidro(ids, 24, forzar);
+            const series: SeriesPorEstacion = await cargarSeriesHidro(ids, HORAS_SERIES, forzar);
             const ahora = Date.now();
             const filas: FilaGoes[] = base.estaciones
                 .filter((e: EstacionHidro) => e.activa)
@@ -132,7 +146,17 @@ export function useGoesResumen(activo: boolean): BloqueEstado<FilaGoes[]> {
                     // Estación con umbral de censura (Babisas): un valor bajo el umbral es "< umbral", no un caudal nulo.
                     const censurado = vigente && umbral != null && g.v < umbral;
                     const sospechoso = vigente && !censurado && ceroSospechoso(e.id, g.v, n?.v ?? null);
+                    // Último dato conocido con sus mismas reglas de veracidad: censura de Babisas y cero sospechoso → nivel; nunca un 0 inventado.
+                    const ug = ultimoConocido(series[e.id]?.gasto_m3s ?? [], ahora);
+                    const un = ultimoConocido(series[e.id]?.nivel_m ?? [], ahora);
+                    const ugCens = ug != null && umbral != null && ug.v < umbral;
+                    const ugSosp = ug != null && !ugCens && ceroSospechoso(e.id, ug.v, un?.v ?? null);
+                    const ultimoDato: UltimoDatoGoes | null = ug && ugCens ? { tipo: 'bajo', valor: umbral as number, t: ug.t, edadMin: ug.edadMin }
+                        : ug && !ugSosp ? { tipo: 'gasto', valor: ug.v, t: ug.t, edadMin: ug.edadMin }
+                        : un ? { tipo: 'nivel', valor: un.v, t: un.t, edadMin: un.edadMin } : null;
                     return {
+                        ultimoDato,
+                        estadia: estadiaEnlace(base.mensajes, e.id, ahora, ahora - HORAS_SERIES * 3_600_000),
                         id: e.id, nombre: e.nombre, enlace,
                         gasto: vigente && !sospechoso && !censurado ? g.v : null,
                         bajoUmbral: censurado ? umbral : null,

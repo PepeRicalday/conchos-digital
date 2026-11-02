@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     agregarSerie, ceroSospechoso, estadoEnlace, fmt, fmtDelta, fusionarSeries, horaLocal, puntoCardinal, saludEnlace,
-    puentearHuecos, tendencia, textoEdad, tiraEnlace, ultimoBueno, radiacionConfiable, tieneMeteo, colorEstacion, type MensajeHidro,
+    puentearHuecos, tendencia, textoEdad, estadiaEnlace, ultimoConocido, textoDuracion, tiraEnlace, ultimoBueno, radiacionConfiable, tieneMeteo, colorEstacion, type MensajeHidro,
 } from './hidroEstaciones';
 
 const MIN = 60000;
@@ -149,5 +149,49 @@ describe('veracidad', () => {
     it('hora local de Chihuahua (UTC-6)', () => {
         expect(horaLocal(Date.UTC(2026, 9, 26, 21, 0, 0))).toBe('15:00');
         expect(horaLocal(null)).toBe('S/D');
+    });
+});
+
+describe('estadía del enlace y último dato conocido', () => {
+    const H = 60 * MIN;
+    const msg = (t: number, c = 'G'): MensajeHidro => ({ estacion_id: 'X', ts_msg: new Date(t).toISOString(), codigo_falla: c, senal_dbm: null });
+    it('racha en línea continua: desde el primer bueno', () => {
+        const ms = Array.from({ length: 10 }, (_, i) => msg(T0 - i * H));
+        const r = estadiaEnlace(ms, 'X', T0, T0 - 100 * H);
+        expect(r.desdeMs).toBe(T0 - 9 * H);
+        expect(r.duracionMin).toBe(9 * 60);
+        expect(r.acotada).toBe(false);
+    });
+    it('un hueco > 3 h corta la racha', () => {
+        const ms = [msg(T0), msg(T0 - H), msg(T0 - 6 * H), msg(T0 - 7 * H)];
+        const r = estadiaEnlace(ms, 'X', T0, T0 - 100 * H);
+        expect(r.desdeMs).toBe(T0 - H);
+    });
+    it('un mensaje con falla no rompe ni cuenta', () => {
+        const ms = [msg(T0), msg(T0 - H, '?'), msg(T0 - 2 * H)];
+        expect(estadiaEnlace(ms, 'X', T0, T0 - 100 * H).desdeMs).toBe(T0 - 2 * H);
+    });
+    it('racha pegada al borde de la ventana queda acotada (≥)', () => {
+        const ms = Array.from({ length: 5 }, (_, i) => msg(T0 - i * H));
+        expect(estadiaEnlace(ms, 'X', T0, T0 - 4 * H).acotada).toBe(true);
+    });
+    it('sin transmisión: desde el último bueno', () => {
+        const r = estadiaEnlace([msg(T0 - 5 * H)], 'X', T0, T0 - 100 * H);
+        expect(r.desdeMs).toBe(T0 - 5 * H);
+        expect(r.duracionMin).toBe(300);
+    });
+    it('sin mensajes o sin ahora: null, nunca 0', () => {
+        expect(estadiaEnlace([], 'X', T0)).toEqual({ desdeMs: null, duracionMin: null, acotada: false });
+        expect(estadiaEnlace([msg(T0)], 'X', 0).duracionMin).toBeNull();
+    });
+    it('último conocido: serie vacía → null; un 0 real se conserva', () => {
+        expect(ultimoConocido([], T0)).toBeNull();
+        expect(ultimoConocido([{ t: T0 - 30 * MIN, v: 0 }], T0)).toEqual({ v: 0, t: T0 - 30 * MIN, edadMin: 30 });
+    });
+    it('textoDuracion', () => {
+        expect(textoDuracion(null)).toBe('S/D');
+        expect(textoDuracion(35)).toBe('35 min');
+        expect(textoDuracion(200)).toBe('3 h 20 min');
+        expect(textoDuracion(1560)).toBe('1 d 2 h');
     });
 });

@@ -217,7 +217,7 @@ const Dashboard = () => {
         }),
         confianza,
         alertas: { resumen, top: topAlertas, onAbrir: () => setDrawerAbierto(true) },
-        goes: { cargado: extra.goes.cargado, error: extra.goes.error, estaciones: (extra.goes.datos ?? []).map((g) => ({ id: g.id, nombre: g.nombre, clave: g.enlace.clave, edadMin: g.enlace.edadMin, serieGasto: g.serieGasto })) },
+        goes: { cargado: extra.goes.cargado, error: extra.goes.error, estaciones: (extra.goes.datos ?? []).map((g) => ({ id: g.id, nombre: g.nombre, clave: g.enlace.clave, edadMin: g.enlace.edadMin, serieGasto: g.serieGasto, ultimoDato: g.ultimoDato, estadia: g.estadia })) },
         ndvi: { cargado: extra.ndvi.cargado, error: extra.ndvi.error, r: extra.ndvi.datos },
     }), [extra.goes, extra.ndvi, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, suficiencia, extra.historico.cargado, extra.historico.error, extra.pronostico.demanda, extra.pronostico.cargado, extra.pronostico.error, avanceDist, avance, canal.modelo, canal.cargado, volumenCanal, vaciadoDesde, etoReciente, umbralesClima, extra.goes.datos, enLineaGoes, clima, extra.pronostico.datos, extra.pronostico.horas, modules, confianza, resumen, topAlertas]);
 

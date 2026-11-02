@@ -14,7 +14,8 @@ import {
 
 const PAGINA = 1000;
 const TTL_MS = 5 * 60 * 1000;
-const HORAS_MENSAJES = 48;
+/** 7 días: alcanza para la estadía de un enlace (≈ 4 estaciones × 168 mensajes < tope de 1000 filas). */
+const HORAS_MENSAJES = 168;
 
 type Serie = PuntoHidro[];
 export type SeriesEstacion = Partial<Record<VariableHidro, Serie>>;

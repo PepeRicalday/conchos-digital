@@ -82,6 +82,57 @@ export function ultimoBueno(mensajes: MensajeHidro[], estacionId: string): numbe
     return max;
 }
 
+export interface EstadiaEnlace {
+    /** Instante en que empezó el estado actual: primer mensaje bueno de la racha (en línea/retraso) o último bueno (sin transmisión). */
+    desdeMs: number | null;
+    /** Minutos transcurridos desde `desdeMs`; null sin base. */
+    duracionMin: number | null;
+    /** La racha llega al borde de los mensajes cargados: la duración real es MAYOR (se muestra "≥"). */
+    acotada: boolean;
+}
+
+/**
+ * Tiempo de estadía en el estado actual del enlace. En línea/retraso: racha continua de mensajes buenos ('G'), que se rompe
+ * si dos consecutivos se separan más de STALE_GOES_MIN. Sin transmisión: desde el último bueno. Los mensajes con falla no cuentan.
+ * `ventanaDesdeMs` = inicio de los mensajes cargados (para saber si la racha está acotada).
+ */
+export function estadiaEnlace(mensajes: MensajeHidro[], estacionId: string, ahoraMs: number, ventanaDesdeMs: number | null = null): EstadiaEnlace {
+    const buenos = mensajes
+        .filter(m => m.estacion_id === estacionId && m.codigo_falla === 'G')
+        .map(m => Date.parse(m.ts_msg)).filter(Number.isFinite).sort((a, b) => b - a);
+    if (!buenos.length || !ahoraMs) return { desdeMs: null, duracionMin: null, acotada: false };
+    const ultimo = buenos[0];
+    if ((ahoraMs - ultimo) / 60000 > STALE_GOES_MIN) return { desdeMs: ultimo, duracionMin: Math.max(0, (ahoraMs - ultimo) / 60000), acotada: false };
+    let ini = ultimo;
+    let cortada = false;
+    for (let i = 1; i < buenos.length; i++) {
+        if ((ini - buenos[i]) / 60000 > STALE_GOES_MIN) { cortada = true; break; }
+        ini = buenos[i];
+    }
+    // Sin hueco que la corte: si el primer bueno está pegado al borde de la ventana, la racha podría seguir hacia atrás.
+    const acotada = !cortada && (ventanaDesdeMs == null || (ini - ventanaDesdeMs) / 60000 <= STALE_GOES_MIN);
+    return { desdeMs: ini, duracionMin: Math.max(0, (ahoraMs - ini) / 60000), acotada };
+}
+
+export interface UltimoConocido { v: number; t: number; edadMin: number }
+
+/** Último punto de una serie con su edad. Serie vacía → null (nunca 0); un 0 real se conserva. */
+export function ultimoConocido(serie: PuntoHidro[], ahoraMs: number): UltimoConocido | null {
+    const p = ultimoPunto(serie);
+    if (!p || !ahoraMs) return null;
+    return { v: p.v, t: p.t, edadMin: Math.max(0, (ahoraMs - p.t) / 60000) };
+}
+
+/** Duración compacta sin "hace": "35 min", "3 h 20 min", "2 d 4 h". */
+export function textoDuracion(min: number | null): string {
+    if (min == null) return 'S/D';
+    if (min < 1) return '<1 min';
+    if (min < 60) return `${Math.round(min)} min`;
+    if (min < 1440) { const h = Math.floor(min / 60); const m = Math.round(min - h * 60); return m ? `${h} h ${m} min` : `${h} h`; }
+    const d = Math.floor(min / 1440); const h = Math.floor((min - d * 1440) / 60);
+    return h ? `${d} d ${h} h` : `${d} d`;
+}
+
 export interface SaludEnlace {
     estacion_id: string;
     buenos: number;

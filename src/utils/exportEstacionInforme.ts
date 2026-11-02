@@ -16,6 +16,7 @@ import type { DetalleEstacion, DiaEstacion, BalanceHidrico } from './estacionDet
 import type { RangoAnalisis } from '../hooks/useEstacionDetalle';
 import { formateaEdad, PROCEDENCIA_LABEL } from './cielo';
 import { assetToDataURI } from './exportClimaReport';
+import { cargarLogoSicaInforme } from './logosInforme';
 import { claveVientoDe, umbralVigente } from './umbralesClima';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
@@ -115,7 +116,7 @@ async function construyeHTML(
     const umbralViento = umbralVigente(detalle.umbrales, claveVientoDe(estacion.rol)).aviso;
     const [logoSRL, logoSICA] = await Promise.all([
         assetToDataURI('/logos/logo-srl.png'),
-        assetToDataURI('/logos/SICA005.png'),
+        cargarLogoSicaInforme(),
     ]);
     const logoImg = (src: string, alt: string) => src
         ? `<img src="${src}" alt="${alt}" style="height:46px;width:auto;object-fit:contain">`

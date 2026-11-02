@@ -188,7 +188,7 @@ function fichaCarta(e: DatosEstacionInfoGoes, d: DatosInfografiaGoes, orient: 'v
     const leyenda = orient === 'v' ? '<small>línea = promedio por intervalo; banda = mínimo a máximo</small>' : '<small>línea = promedio; banda = mín a máx</small>';
     const graficas = `${p.noRep || !p.t.serieGasto.length ? '' : `<div class="gb"><h3>Gasto, m³/s ${leyenda}</h3>${gr(p.t.serieGasto, { titulo: `Gasto de ${e.nombreCorto}`, color: AZUL, dec: 1 })}</div>`}
 <div class="gb"><h3>Nivel, m ${p.noRep ? leyenda : ''}</h3>${gr(p.t.serieNivel, { titulo: `Nivel de ${e.nombreCorto}`, color: VERDE, dec: 2 })}${p.noRep ? `<p class="aviso-g">El gasto no se grafica: más de la mitad de las lecturas quedó bajo el umbral del sensor (~${e.gastoRango?.umbral ?? 15} m³/s) y la serie sin ceros engañaría.</p>` : ''}</div>`;
-    const marca = `<header class="marca">${logos(op, { srl: 'lg-srl', sica: 'lg-sica' }, { srl: [55, 48], sica: [46, 48] })}<div class="mt"><b>SRL Unidad Conchos</b><span>Distrito de Riego 005 Delicias</span></div><div class="fn"><b>Estaciones hidrométricas GOES</b><span>Ficha técnica. ${esc(d.corteTexto)}</span></div></header>`;
+    const marca = `<header class="marca">${logos(op, { srl: 'lg-srl', sica: 'lg-sica' }, { srl: [55, 48], sica: [48, 48] })}<div class="mt"><b>SRL Unidad Conchos</b><span>Distrito de Riego 005 Delicias</span></div><div class="fn"><b>Estaciones hidrométricas GOES</b><span>Ficha técnica. ${esc(d.corteTexto)}</span></div></header>`;
     const pie = `<footer class="pie"><span>${esc(d.fuente)} Sin dato = S/D, nunca 0.</span><span class="fol">Folio ${esc(folioGoes(d))}, ficha ${op.n} de ${op.total}</span></footer>`;
     const ident = `<section class="ident" style="border-left-color:${p.rolColor}"><h2>${p.ident.nombre}</h2><div class="id-t"><div class="rol" style="color:${p.rolColor}">${p.ident.rol}</div><div class="meta">${p.ident.meta}</div>${p.ident.estado}${p.ident.ult}</div>
 <div class="hero"><div><div class="lb">Gasto actual</div><div class="num${p.hero.gastoCls}">${p.hero.gasto}<span class="u">m³/s</span></div></div><div><div class="lb">Nivel actual</div><div class="num2${p.hero.nivelCls}">${p.hero.nivel}<span class="u">m</span></div></div></div></section>
@@ -289,7 +289,7 @@ function fichaMedia(e: DatosEstacionInfoGoes, d: DatosInfografiaGoes, orient: 'v
     const li: string[] = [];
     if (gr) li.push(`<li><b>▲ Gasto bajo el umbral del sensor (~${esc(gr.umbral)} m³/s).</b> El 0.00 que reporta no es caudal nulo; causa sin confirmar. Media y volumen son rangos${p.noRep ? '; mín, máx y percentiles solo describen lo que está sobre el umbral' : ''}.</li>`);
     const notas = `${li.length ? `<ul class="notas">${li.join('')}</ul>` : ''}${e.entrada ? '<p class="nota-e">Mide la entrada a la presa, no la extracción.</p>' : ''}`;
-    const cab = `<header class="enc">${logos(op, { srl: 'logo-img', sica: 'logo-sica' }, { srl: [46, 40], sica: [38, 40] })}<div class="marca"><b>SRL Unidad Conchos</b><span>Distrito de Riego 005 Delicias</span></div><div class="tit"><b>Ficha técnica</b><span>${esc(d.etiquetaVentana)}</span></div></header>`;
+    const cab = `<header class="enc">${logos(op, { srl: 'logo-img', sica: 'logo-sica' }, { srl: [46, 40], sica: [40, 40] })}<div class="marca"><b>SRL Unidad Conchos</b><span>Distrito de Riego 005 Delicias</span></div><div class="tit"><b>Ficha técnica</b><span>${esc(d.etiquetaVentana)}</span></div></header>`;
     const pie = `<footer class="pie"><div>Ficha ${op.n} de ${op.total}. ${esc(d.corteTexto)}.</div><div>DCP ${esc(e.id)}. Folio ${esc(folioGoes(d))}. Fuente: telemetría GOES, monitor Sutron. Versión resumida; la ficha completa está en tamaño Carta.</div></footer>`;
     const cuerpo = orient === 'v'
         ? `${nombre}${hero}${graf}${stat}${ind}${enlace}${notas}`
@@ -305,7 +305,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;colo
 .ficha::before{content:"";position:absolute;left:0;right:0;top:0;height:8px;background:${MARRON}}
 .ficha::after{content:"";position:absolute;left:0;right:0;top:8px;height:3px;background:${ORO}}
 .marca{display:flex;align-items:center;gap:10px;padding-top:2px}
-.lg-srl{display:block;width:55px;height:48px;flex:none}.lg-sica{display:block;width:46px;height:48px;flex:none}.vac{border:1px dashed #B9B3A2}
+.lg-srl{display:block;width:55px;height:48px;flex:none}.lg-sica{display:block;width:48px;height:48px;flex:none}.vac{border:1px dashed #B9B3A2}
 .mt{flex:1;margin-left:4px;border-left:2px solid ${ORO};padding-left:12px}.mt b{display:block;font-size:17px;color:${MARRON};line-height:1.15}.mt span{display:block;font-size:13px;color:${TINTA2};margin-top:2px}
 .fn{text-align:right;font-size:12px;color:${TINTA2}}.fn b{display:block;font-size:15px;color:${MARINO}}
 .ident{display:grid;grid-template-columns:1fr auto;column-gap:20px;align-items:end;border-left:6px solid ${VERDE};padding:0 0 2px 16px}
@@ -351,7 +351,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;colo
 .ficha{position:relative;background:#FAF6EA;overflow:hidden;padding:30px;display:flex;flex-direction:column}
 .ficha.v{width:528px;height:816px}.ficha.h{width:816px;height:528px}
 .enc{display:flex;align-items:center;gap:8px;padding-bottom:7px;border-bottom:2px solid ${ORO};flex:none}
-.logo-img,.logo-sica{display:block;flex:none}.logo-img{width:46px;height:40px}.logo-sica{width:38px;height:40px}.vac{border:1px dashed #B9B3A2}
+.logo-img,.logo-sica{display:block;flex:none}.logo-img{width:46px;height:40px}.logo-sica{width:40px;height:40px}.vac{border:1px dashed #B9B3A2}
 .marca{margin-left:6px;line-height:1.15;flex:1;min-width:0}.marca b{display:block;font-size:15px;font-weight:700;color:${MARRON}}.marca span{display:block;font-size:12px;font-weight:600;color:${TINTA2}}
 .tit{text-align:right;line-height:1.15;flex:none}.tit b{display:block;font-size:15px;font-weight:800;color:${VERDE}}.tit span{display:block;font-size:12px;font-weight:600;color:${TINTA2}}
 .sd{display:inline-block;border:1.5px solid #7A8591;border-radius:5px;padding:0 5px;font-weight:800;color:#3F4852;background:#E6E9EC;font-size:12px;vertical-align:middle}

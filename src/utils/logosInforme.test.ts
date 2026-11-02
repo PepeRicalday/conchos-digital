@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const asset = vi.hoisted(() => ({ cargar: vi.fn(async (ruta: string) => `data:x;base64,${ruta.length}`) }));
 vi.mock('./assetToDataURI', () => ({ assetToDataURI: asset.cargar }));
 
-import { RUTA_LOGO_SICA_INFORME, RUTA_LOGO_SRL_INFORME, cargarLogosInforme, reiniciarCacheLogos } from './logosInforme';
+import { RUTA_LOGO_SICA_INFORME, RUTA_LOGO_SRL_INFORME, cargarLogoSicaInforme, cargarLogosInforme, reiniciarCacheLogos } from './logosInforme';
 import { reiniciarCacheSupVol, cargarSupVolAnual } from './supVolAnual';
 
 beforeEach(() => { reiniciarCacheLogos(); reiniciarCacheSupVol(); asset.cargar.mockClear(); });
@@ -17,6 +17,11 @@ describe('logos de informe: optimizados y con caché', () => {
         expect(asset.cargar).toHaveBeenCalledWith(RUTA_LOGO_SRL_INFORME);
         expect(asset.cargar).toHaveBeenCalledWith(RUTA_LOGO_SICA_INFORME);
         expect(RUTA_LOGO_SRL_INFORME).toMatch(/-informe\.jpg$/); // el logo SRL es JPEG: la extensión ya no miente
+    });
+    it('cargarLogoSicaInforme devuelve solo el sello y reutiliza la misma caché', async () => {
+        const sica = await cargarLogoSicaInforme();
+        expect(sica).toBe((await cargarLogosInforme()).sica);
+        expect(asset.cargar).toHaveBeenCalledTimes(2);
     });
     it('un fallo de carga no se guarda: la siguiente generación vuelve a intentar', async () => {
         asset.cargar.mockResolvedValueOnce('').mockResolvedValueOnce('data:x;base64,ok');

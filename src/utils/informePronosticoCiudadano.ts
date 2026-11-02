@@ -21,6 +21,7 @@
 //   · no sustituye los avisos oficiales de Protección Civil ni del SMN.
 // ═══════════════════════════════════════════════════════════════════════════
 import { assetToDataURI } from './assetToDataURI';
+import { cargarLogoSicaInforme } from './logosInforme';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
 import { rasterizaHtml } from './rasterizaHtml';
@@ -508,7 +509,7 @@ function listaModulosHtml(d: DatosPronostico, logos: Map<number, string>): strin
 }
 
 export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: OpcionesCiudadano = {}): Promise<string> {
-    const [logoSrl, logoSica, logos] = await Promise.all([assetToDataURI('/logos/logo-srl.png'), assetToDataURI('/logos/SICA005.png'), cargaLogosModulos()]);
+    const [logoSrl, logoSica, logos] = await Promise.all([assetToDataURI('/logos/logo-srl.png'), cargarLogoSicaInforme(), cargaLogosModulos()]);
     const u = umbralesLlanos(d);
     const tit = titularLlano(d, u);
     const sem = SEMAFORO_LLANO[tit.sinDatos ? 'sin_dato' : tit.nivel];

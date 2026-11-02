@@ -16,6 +16,7 @@ import type { EstacionConLectura, LecturaClima } from '../hooks/useClimaEstacion
 import { clasificaCielo, PROCEDENCIA_LABEL } from './cielo';
 import { calculaIndices, entradasDesdeEstaciones, etoTotalDelDiaRed } from './indicesAgro';
 import { mapaSVG, predice24h, assetToDataURI, extensionMapa } from './exportClimaReport';
+import { cargarLogoSicaInforme } from './logosInforme';
 import { construyeFondoSatelital, type FondoSatelital } from './mapaSatelital';
 import { construyeCapaNubes, type CapaNubes } from './capaNubesGIBS';
 import { obtenNdviModulo, type NdviModulo } from './kcNdvi';
@@ -273,7 +274,7 @@ async function buildHTML(
 ): Promise<string> {
     const [logoSRL, logoSICA] = await Promise.all([
         assetToDataURI('/logos/logo-srl.png'),
-        assetToDataURI('/logos/SICA005.png'),
+        cargarLogoSicaInforme(),
     ]);
 
     const ahora = new Date();
@@ -702,7 +703,7 @@ async function buildHTML(
 
 <header>
   ${logoSRL ? `<img src="${logoSRL}" alt="SRL Unidad Conchos">` : ''}
-  ${logoSICA ? `<img src="${logoSICA}" alt="SICA-005" style="border-radius:8px">` : ''}
+  ${logoSICA ? `<img src="${logoSICA}" alt="SICA-005">` : ''}
   <div class="h-tit">
     <h1>SICA-005 <span>| CENTRO DE INTELIGENCIA AGROCLIMÁTICA</span></h1>
     <div class="h-sub">SRL Unidad Conchos – Distrito de Riego 005</div>

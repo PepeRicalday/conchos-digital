@@ -73,7 +73,7 @@ async function escenario(nombre: string, conFalta: boolean, extra: Partial<Confi
     }, { ...configPorDefecto(mesesDisponibles(f)), ...extra });
     const contornos = contornosAAnillos(fc);
     const sinRelieve = nombre.includes('sin_relieve');
-    const html = construirHtmlNdvi(datos, { srl: logo('/logos/logo-srl-informe.jpg', 'image/jpeg'), sica: logo('/logos/SICA005-informe.png', 'image/png') },
+    const html = construirHtmlNdvi(datos, { srl: logo('/logos/logo-srl-informe.jpg', 'image/jpeg'), sica: logo('/logos/sica/sica005-sello.svg', 'image/svg+xml') },
         planoSvg(datos.modulos, contornos, 470, 700, sinRelieve ? null : contexto), { contornos, conContexto: !sinRelieve, ...(imagenes ? { imagenes: await imagenesSinteticas(datos, contornos, imagenes) } : {}) });
     fs.writeFileSync(`${OUT}${nombre}.html`, html);
     console.log(nombre, `${(Buffer.byteLength(html) / 1024).toFixed(0)} KiB`, datos.folio);

@@ -34,6 +34,7 @@ import type { DiaMaxLluvia } from './climaResumenMensual';
 import type { TendenciasPeriodo } from './climaTendencias';
 import { graficaTendencia, graficaIntensidadBloques } from './climaChartsTendencia';
 import { assetToDataURI } from './assetToDataURI';
+import { cargarLogoSicaInforme } from './logosInforme';
 import { resuelveFondoHillshade, LEYENDA_VIIRS, type FondoHillshade, type FondoNocturno } from './mapaHillshadeDEM';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
@@ -1023,7 +1024,7 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
     const numsModulo = Object.keys(MODULOS_SRL).map(Number);
     const [logoSRL, logoSICA, ...logosArr] = await Promise.all([
         assetToDataURI('/logos/logo-srl.png'),
-        assetToDataURI('/logos/SICA005.png'),
+        cargarLogoSicaInforme(),
         ...numsModulo.map(n => assetToDataURI(`/logos/modulo_${n}.jpg`)),
     ]);
     // Mapa módulo→logo A.C.U.: un módulo cuyo archivo no cargó (404, offline)

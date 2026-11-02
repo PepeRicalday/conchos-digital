@@ -9,6 +9,7 @@ import {
     type Metrica, type TipoSerie,
 } from '../utils/historicoPresas';
 import './AnalisisHistorico.css';
+import { LogoSica } from '../components/marca/LogoSica';
 
 const PRESAS = ['PRE-001', 'PRE-002'] as const;
 const MAX_ANIOS = 3;
@@ -107,7 +108,7 @@ const AnalisisHistorico = () => {
                 </div>
                 <div className="ah-hero-acc">
                     <button type="button" className="ah-btn ah-btn--pri" onClick={() => setInformeAbierto(true)} disabled={!informeDisponible} title={informeDisponible ? 'Generar informe histórico' : 'Disponible cuando carguen los datos'}><FileText size={14} /> Informe</button>
-                    <img className="ah-logo" src="/logos/SICA005.png" alt="SICA 005" />
+                    <LogoSica tamano={56} className="ah-logo" />
                 </div>
             </header>
 

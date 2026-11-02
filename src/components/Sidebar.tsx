@@ -8,6 +8,7 @@ import { useAlertasRegistro } from '../hooks/useAlertasSistema';
 
 import './Layout.css';
 import SupabaseStatus from './SupabaseStatus';
+import { LogoSica } from './marca/LogoSica';
 
 const Sidebar = () => {
     const { profile, signOut } = useAuth();
@@ -90,7 +91,7 @@ const Sidebar = () => {
         <aside className="sidebar" id="sidebar-principal">
             <div className="sidebar-header">
                 <div className="brand-logo-container">
-                    <img src="/logos/SICA005.png" alt="SICA 005" className="brand-logo" />
+                    <LogoSica tamano={58} className="brand-logo" />
                 </div>
                 <div className="brand-text">
                     <h1 className="text-sm font-bold text-white tracking-widest uppercase mt-1">

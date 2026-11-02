@@ -179,7 +179,7 @@ ${hayBase ? `<g transform="translate(34,${MAPA_ALTO - 56})"><path d="M0 0v16h${f
 const CSS = `*{box-sizing:border-box;margin:0;padding:0}html,body{margin:0;background:#FAF6EA}
 body{width:1080px;font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;color:#1B2733;font-variant-numeric:tabular-nums}
 .pagina{width:1080px;padding:30px 36px 0;background:#FAF6EA}
-.enc{display:flex;align-items:center;gap:22px}.logo-img{display:block;width:110px;height:96px;flex:none}.logo-sica{display:block;width:92px;height:96px;flex:none}
+.enc{display:flex;align-items:center;gap:22px}.logo-img{display:block;width:110px;height:96px;flex:none}.logo-sica{display:block;width:96px;height:96px;flex:none}
 .sep{width:2px;height:80px;background:#C9A227;flex:none}
 .marca b{display:block;font-size:32px;font-weight:700;color:#6B2D2D;line-height:1.1}.marca span{display:block;font-size:28px;font-weight:600;color:#3A4856;margin-top:4px}
 h1{font-size:62px;line-height:1.05;font-weight:800;color:#0F5C45;margin-top:22px}
@@ -348,7 +348,7 @@ ${graficas}${tabla}${indicadores}${enlaceBloque}${notas ? `<ul class="notas-t">$
 
 const CSS_TEC = `
 .pagina{margin:0 auto 28px}
-.pagina.tec{padding-bottom:20px}.enc.compacto{gap:16px}.enc.compacto .logo-img{width:82px;height:72px}.enc.compacto .logo-sica{width:70px;height:72px}.enc.compacto .sep{height:60px}.enc.compacto .marca b{font-size:28px}.enc.compacto .marca span{font-size:26px}
+.pagina.tec{padding-bottom:20px}.enc.compacto{gap:16px}.enc.compacto .logo-img{width:82px;height:72px}.enc.compacto .logo-sica{width:72px;height:72px}.enc.compacto .sep{height:60px}.enc.compacto .marca b{font-size:28px}.enc.compacto .marca span{font-size:26px}
 .tec-cab{background:#fff;border:2px solid #E1D6AE;border-top:12px solid #0F5C45;border-radius:14px;padding:16px 24px;margin-top:18px}.tec-cab h2{font-size:54px;font-weight:800;color:#0B2A4A;line-height:1.05}
 .tec-cab .meta{font-size:26px;color:#3A4856;margin-top:6px;line-height:1.3}.tec-cab .rol{font-size:30px}
 .tec-actual{margin-top:16px}.tec-hero{display:flex;gap:40px;align-items:flex-end}.tec-hero .num{font-size:104px}.tec-hero .num2{font-size:76px;font-weight:800;color:#0B2A4A;line-height:1}
@@ -366,7 +366,7 @@ table.stat{width:100%;border-collapse:collapse;margin-top:22px;font-size:28px}.s
 @media print{html,body{background:#FAF6EA!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pagina{margin:0!important;break-after:page;page-break-after:always}.pagina:last-child{break-after:auto;page-break-after:auto}}`;
 
 export interface OpcionesInfografiaGoes {
-    /** Logo institucional del sistema SICA 005 (public/logos/SICA005.png) como data URI; sin él, hueco vacío. */
+    /** Logo institucional del sistema SICA 005 (sello vectorial, utils/logosInforme) como data URI; sin él, hueco vacío. */
     logoSica?: string;
     /** Contornos de vaso (Manejo de vaso: detectaSuperficieVaso). Sin ellos solo se marcan las presas. */
     vasos?: VasoContorno[];
@@ -402,7 +402,7 @@ export function htmlInfografiaGoes(d: DatosInfografiaGoes, { logo = '', logoSica
     const detalleSello = peor == null ? 'Sin mensajes (S/D)' : ok ? `Último mensaje más antiguo: ${textoEdad(peor.enlace.edadMin)}` : `${peor.nombreCorto}: último mensaje ${textoEdad(peor.enlace.edadMin)}`;
     const lectura = d.lectura.map((p) => `<p>${esc(p)}</p>`).join('');
     const logoImg = logo ? `<img class="logo-img" src="${esc(logo)}" alt="SRL Unidad Conchos, Delicias" width="110" height="96">` : '<div class="logo-img"></div>';
-    const logoSicaImg = logoSica ? `<img class="logo-sica" src="${esc(logoSica)}" alt="SICA 005, Distrito 005" width="92" height="96">` : '<div class="logo-sica"></div>';
+    const logoSicaImg = logoSica ? `<img class="logo-sica" src="${esc(logoSica)}" alt="SICA 005, Distrito 005" width="96" height="96">` : '<div class="logo-sica"></div>';
     const encabezado = (compacto: boolean) => `<div class="enc${compacto ? ' compacto' : ''}">${logoImg}<div class="sep"></div>${logoSicaImg}<div class="marca"><b>SRL Unidad Conchos</b><span>Distrito de Riego 005 Delicias</span></div></div>`;
     const m = cfg.mapa ? mapa(d.estaciones, teselas, cfg.vasos ? vasos : []) : null;
     const hayMapa = !!m && m.svg.startsWith('<svg');

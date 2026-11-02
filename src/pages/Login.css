@@ -236,36 +236,23 @@
     font-weight: 700;
 }
 
+/* El sello SICA-005 trae su disco y contorno (components/marca/LogoSica): sin fondo blanco, recorte ni opacidad. */
 .sica-badge {
     width: 80px;
-    /* Tamaño grande y equilibrado */
     height: 80px;
-    background: white;
-    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 4px;
-    /* Un pequeñísimo margen blanco al logo interno */
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    opacity: 0.9;
-    transition: all 0.3s ease;
-    overflow: hidden;
+    transition: transform 0.3s ease;
 }
 
 .footer-logo-section:hover .sica-badge {
-    opacity: 1;
     transform: scale(1.05);
-    /* Escala suave al hover */
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
 }
 
 .logo-sica {
     width: 100%;
     height: 100%;
-    object-fit: contain;
-    /* 'contain' para asegurar que el engranaje esté completo dentro del círculo */
-    border-radius: 50%;
 }
 
 

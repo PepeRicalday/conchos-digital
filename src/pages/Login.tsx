@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, Lock, Mail } from 'lucide-react';
 import './Login.css';
+import { LogoSica } from '../components/marca/LogoSica';
 
 const APP_VERSION = typeof __V2_APP_VERSION__ !== 'undefined' ? __V2_APP_VERSION__ : '0.0.0';
 const BUILD_HASH = typeof __V2_BUILD_HASH__ !== 'undefined' ? __V2_BUILD_HASH__ : 'dev';
@@ -116,7 +117,7 @@ const Login: React.FC = () => {
                 <div className="footer-logo-section">
                     <span className="footer-tagline">Respaldo Tecnológico</span>
                     <div className="sica-badge">
-                        <img src="/logos/SICA005.png" alt="SICA 005" className="logo-sica" />
+                        <LogoSica tamano={80} className="logo-sica" />
                     </div>
 
                     <div className="version-info">

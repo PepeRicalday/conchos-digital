@@ -5,6 +5,7 @@
  * También la preparación de la vista previa (zoom) y de la impresión a PDF del iframe.
  */
 import { assetToDataURI } from './assetToDataURI';
+import { cargarLogoSicaInforme } from './logosInforme';
 import { detectaSuperficieVaso } from './mapaSatelital';
 import { descargarTeselas, type TeselaConUri } from './mapaTeselas';
 import { vistaInfografiaGoes, vistaVaso, ANCHO_INFOGRAFIA_GOES, type OpcionesInfografiaGoes, type VasoContorno } from './infografiaGoesHtml';
@@ -32,7 +33,7 @@ export async function cargarVasos(): Promise<VasoContorno[]> {
 export async function cargarRecursosInfografiaGoes(datos: DatosInfografiaGoes, cfg: ConfigInfografiaGoes): Promise<Omit<OpcionesInfografiaGoes, 'config'>> {
     const vista = cfg.mapa ? vistaInfografiaGoes(datos.estaciones) : null;
     const [logo, logoSica, teselas, vasos] = await Promise.all([
-        assetToDataURI('/logos/logo-srl.png'), assetToDataURI('/logos/SICA005.png'),
+        assetToDataURI('/logos/logo-srl.png'), cargarLogoSicaInforme(),
         vista ? descargarTeselas(vista) : Promise.resolve([] as TeselaConUri[]),
         vista && cfg.vasos ? cargarVasos() : Promise.resolve([] as VasoContorno[]),
     ]);

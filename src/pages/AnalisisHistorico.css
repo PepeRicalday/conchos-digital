@@ -42,7 +42,7 @@
 .ah-title { margin: 2px 0 6px; font-family: var(--ah-display); font-weight: 800; font-size: 48px; line-height: 0.95; letter-spacing: 0.02em; text-transform: uppercase; }
 .ah-lede { margin: 0; max-width: 62ch; font-size: 14px; line-height: 1.5; color: var(--ah-t2); }
 .ah-lede b { color: var(--ah-t1); font-family: var(--ah-mono); }
-.ah-logo { height: 54px; width: auto; opacity: 0.92; }
+.ah-logo { margin-left: 4px; } /* sello vectorial: ver components/marca/LogoSica */
 
 /* Controles */
 .ah-controles {

@@ -23,6 +23,7 @@ import { skillPronosticoResumen, calibracionResumen } from './climaVerificacion'
 import { obtenNdviModulo, type NdviModulo } from './kcNdvi';
 import { PRESAS, MODULOS_SRL, COLOR_MODULO, RIO } from './geoDistrito';
 import { assetToDataURI } from './assetToDataURI';
+import { cargarLogoSicaInforme } from './logosInforme';
 import { claveVientoDe, umbralVigente } from './umbralesClima';
 import type { UmbralClima } from '../hooks/useClimaOperativo';
 import { SRL_MARRON } from './informeBase';
@@ -542,7 +543,7 @@ export function predice24h(e: EstacionConLectura, umbrales?: UmbralClima[]): Pre
 async function buildHTML(ests: EstacionConLectura[], umbrales?: UmbralClima[]): Promise<string> {
     const [logoSRL, logoSICA] = await Promise.all([
         assetToDataURI('/logos/logo-srl.png'),
-        assetToDataURI('/logos/SICA005.png'),
+        cargarLogoSicaInforme(),
     ]);
 
     const hoy = new Date().toLocaleString('es-MX', { dateStyle: 'full', timeStyle: 'short' });

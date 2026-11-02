@@ -8,6 +8,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { VIZ } from './climaCharts';
 import { assetToDataURI } from './assetToDataURI';
+import { cargarLogoSicaInforme } from './logosInforme';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
 import {
@@ -37,7 +38,7 @@ function umbralTexto(r: Riesgo): string {
 
 export async function construyeInformePronosticoHTML(d: DatosPronostico): Promise<string> {
     const [logoSrl, logoSica] = await Promise.all([
-        assetToDataURI('/logos/logo-srl.png'), assetToDataURI('/logos/SICA005.png'),
+        assetToDataURI('/logos/logo-srl.png'), cargarLogoSicaInforme(),
     ]);
     const tecnico = d.modoTecnico;
     const rV = d.riesgos.find(r => r.clave === 'viento');

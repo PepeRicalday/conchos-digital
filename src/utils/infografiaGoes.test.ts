@@ -143,10 +143,10 @@ describe('htmlInfografiaGoes', () => {
         expect(sin).not.toMatch(/textLength/);
         expect(sin).toMatch(/<div class="logo-img"><\/div>/);
     });
-    it('segundo logo (SICA 005): con data URI lleva <img> 92×96; sin él, hueco vacío', () => {
+    it('segundo logo (SICA 005): con data URI lleva <img> 96×96 (sello cuadrado); sin él, hueco vacío', () => {
         const d = construirDatosInfografiaGoes(entrada());
         const con = htmlInfografiaGoes(d, { logo: 'data:image/jpeg;base64,AAAA', logoSica: 'data:image/png;base64,BBBB' });
-        expect(con).toMatch(/<img class="logo-sica" src="data:image\/png;base64,BBBB"[^>]*width="92" height="96"/);
+        expect(con).toMatch(/<img class="logo-sica" src="data:image\/png;base64,BBBB"[^>]*width="96" height="96"/);
         expect(con.indexOf('logo-img')).toBeLessThan(con.indexOf('logo-sica"'));
         expect(htmlInfografiaGoes(d)).toMatch(/<div class="logo-sica"><\/div>/);
     });

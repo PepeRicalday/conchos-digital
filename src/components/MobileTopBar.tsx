@@ -1,5 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
+import { LogoSica } from './marca/LogoSica';
 
 // Barra superior fija que solo existe en teléfono (data-device="phone", ver hooks/useDevice.ts).
 // Respeta la isla dinámica del iPhone (padding-top: var(--sat)) y abre/cierra el menú lateral
@@ -47,7 +48,7 @@ export default function MobileTopBar({ abierto, onAlternar }: Props) {
             >
                 {abierto ? <X size={24} /> : <Menu size={24} />}
             </button>
-            <img src="/logos/SICA005.png" alt="" className="mobile-topbar__logo" width={30} height={30} />
+            <LogoSica tamano={30} etiqueta="" className="mobile-topbar__logo" />
             <h1 className="mobile-topbar__titulo">{titulo}</h1>
         </header>
     );

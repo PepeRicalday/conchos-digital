@@ -1,13 +1,14 @@
+import { LogoSica } from '../marca/LogoSica';
 import type { OrigenInforme } from '../../conservacion/informe/esquemaInforme';
 
-/** Barra de identidad institucional: logos de la SRL y de SICA-005 (derivados con fondo transparente, ver Conservacion/Logos/derivados). */
+/** Barra de identidad institucional: logo SRL (derivado claro, ver Conservacion/Logos/derivados) y sello vectorial SICA-005. */
 export function CabeceraMarca({ origen, generadoEn }: { origen?: OrigenInforme; generadoEn?: string }) {
     return (
         <div className="cons-marca">
             <div className="cons-marca-logos">
                 <img src="/logos/conservacion/logo-srl-claro.png" alt="S R L Unidad Conchos, Delicias" />
                 <span className="cons-marca-sep" aria-hidden="true" />
-                <img src="/logos/conservacion/sica005-transparente.png" alt="SICA-005, Distrito 005" />
+                <LogoSica tamano={56} />
             </div>
             <div className="cons-marca-texto">
                 <b>SICA Conservación</b>

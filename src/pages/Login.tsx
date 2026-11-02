@@ -119,7 +119,7 @@ const Login: React.FC = () => {
 
                 <div className="footer-logo-section">
                     <span className="footer-tagline">Operado por</span>
-                    <img src="/logos/conservacion/logo-srl-claro.png" alt="SRL Unidad Conchos" className="logo-srl-pie" />
+                    <img src="/logos/srl/logo-srl-claro.svg" alt="SRL Unidad Conchos" className="logo-srl-pie" />
 
                     <div className="version-info">
                         <span className="version-label">

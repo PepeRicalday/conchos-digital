@@ -15,8 +15,9 @@
 import type { EstacionConLectura, LecturaClima } from '../hooks/useClimaEstaciones';
 import { clasificaCielo, PROCEDENCIA_LABEL } from './cielo';
 import { calculaIndices, entradasDesdeEstaciones, etoTotalDelDiaRed } from './indicesAgro';
-import { mapaSVG, predice24h, assetToDataURI, extensionMapa } from './exportClimaReport';
-import { cargarLogoSicaInforme } from './logosInforme';
+import { mapaSVG, predice24h, extensionMapa } from './exportClimaReport';
+import { cargarLogoSicaInforme, cargarLogoSrlClaroInforme } from './logosInforme';
+import { CSS_MEMBRETE, membreteDual } from './membreteDual';
 import { construyeFondoSatelital, type FondoSatelital } from './mapaSatelital';
 import { construyeCapaNubes, type CapaNubes } from './capaNubesGIBS';
 import { obtenNdviModulo, type NdviModulo } from './kcNdvi';
@@ -273,7 +274,7 @@ async function buildHTML(
     capaNubes: CapaNubes | null = null, umbrales?: UmbralClima[],
 ): Promise<string> {
     const [logoSRL, logoSICA] = await Promise.all([
-        assetToDataURI('/logos/logo-srl.png'),
+        cargarLogoSrlClaroInforme(),   // fondo oscuro: escudo en crema, nunca el marrón (1,5-1,8:1)
         cargarLogoSicaInforme(),
     ]);
 
@@ -566,12 +567,7 @@ async function buildHTML(
 
   /* ── Cabecera ───────────────────────────────────────────── */
   header{display:flex;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap}
-  /* Los logos institucionales NO se recortan en redondo: el de la SRL es
-     apaisado (399x348) y lleva "DELICIAS" en el borde inferior, que un recorte
-     circular decapitaba. Se respeta su proporción con width:auto y solo se
-     redondea levemente la placa blanca que los aloja. */
-  header img{height:62px;width:auto;background:#fff;border-radius:6px;padding:5px 7px;
-             box-shadow:0 1px 4px rgba(0,0,0,0.25)}
+  ${CSS_MEMBRETE}
   .h-tit{flex:1;min-width:260px;color:#fff}
   .h-tit h1{margin:0;font-size:1.55rem;font-weight:800;letter-spacing:-0.01em}
   .h-tit h1 span{font-weight:400;opacity:0.92}
@@ -701,9 +697,8 @@ async function buildHTML(
   @media print{body{padding:0}}
 </style></head><body><div class="wrap">
 
+${membreteDual({ logoSrl: logoSRL, logoSica: logoSICA, titulo: '', fondo: 'oscuro', alto: 72 })}
 <header>
-  ${logoSRL ? `<img src="${logoSRL}" alt="SRL Unidad Conchos">` : ''}
-  ${logoSICA ? `<img src="${logoSICA}" alt="SICA 005">` : ''}
   <div class="h-tit">
     <h1>SICA 005 <span>| CENTRO DE INTELIGENCIA AGROCLIMÁTICA</span></h1>
     <div class="h-sub">SRL Unidad Conchos – Distrito de Riego 005</div>

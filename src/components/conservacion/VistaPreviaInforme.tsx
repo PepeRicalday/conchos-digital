@@ -5,8 +5,7 @@ import { useModalA11y } from '../historico/useModalA11y';
 import type { ArchivoInforme } from '../../conservacion/informe/esquemaInforme';
 import { nombreSeguroArchivo } from '../../conservacion/informe/vistas';
 import { generarHtmlInformeConservacion } from '../../utils/informeConservacion';
-import { assetToDataURI } from '../../utils/assetToDataURI';
-import { cargarLogoSicaInforme } from '../../utils/logosInforme';
+import { cargarLogoSicaInforme, cargarLogoSrlInforme } from '../../utils/logosInforme';
 import { guardaOComparte } from '../../utils/descargaArchivo';
 import { useImprimirInforme } from '../../hooks/useImprimirInforme';
 
@@ -27,7 +26,7 @@ export function VistaPreviaInforme({ archivo, onCerrar }: Props) {
         (async () => {
             try {
                 const [logoSrl, logoSica] = await Promise.all([
-                    assetToDataURI('/logos/conservacion/logo-srl-transparente.png'),
+                    cargarLogoSrlInforme(),
                     cargarLogoSicaInforme(),
                 ]);
                 const h = generarHtmlInformeConservacion(archivo, { logoSrl, logoSica });

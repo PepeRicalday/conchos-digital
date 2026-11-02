@@ -6,7 +6,7 @@ export function CabeceraMarca({ origen, generadoEn }: { origen?: OrigenInforme; 
     return (
         <div className="cons-marca">
             <div className="cons-marca-logos">
-                <img src="/logos/conservacion/logo-srl-claro.png" alt="S R L Unidad Conchos, Delicias" />
+                <img src="/logos/srl/logo-srl-claro.svg" alt="S R L Unidad Conchos, Delicias" />
                 <span className="cons-marca-sep" aria-hidden="true" />
                 <LogoSica tamano={56} />
             </div>

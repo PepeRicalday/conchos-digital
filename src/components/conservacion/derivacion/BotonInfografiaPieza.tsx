@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ImageDown, Loader2 } from 'lucide-react';
 import type { ComprobacionPieza, GrupoSel } from '../../../conservacion/verificacion/porPieza';
 import { vistaDeGrupo } from '../../../conservacion/verificacion/porPieza';
-import { assetToDataURI } from '../../../utils/assetToDataURI';
+import { cargarLogoSicaInforme, cargarLogoSrlInforme } from '../../../utils/logosInforme';
 import { guardaOComparte } from '../../../utils/descargaArchivo';
 import { rasterizaHtml } from '../../../utils/rasterizaHtml';
 import { hoyIso } from '../../../utils/infografiaComprobacion';
@@ -23,8 +23,7 @@ export function BotonInfografiaPieza(props: Props) {
         setAviso(null);
         try {
             const fecha = hoyIso();
-            const logo = await assetToDataURI('/logos/logo-srl.png');
-            const logoSica = await assetToDataURI('/logos/sica/sica005-emblema.svg');
+            const [logo, logoSica] = await Promise.all([cargarLogoSrlInforme(), cargarLogoSicaInforme()]); // '' si falla: queda solo el texto
             const ctx = { fecha, logo, logoSica, ambito: props.ambito, red: props.red, canal: null };
             let html: string;
             let nombre: string;

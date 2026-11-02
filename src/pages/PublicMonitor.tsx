@@ -2517,7 +2517,7 @@ const PublicMonitor: React.FC = () => {
                         <LogoSica tamano={40} className="phb-sica" etiqueta="SICA 005" />
                         <span className="phb-marca">SICA 005</span>
                         <span className="phb-sep" aria-hidden="true" />
-                        <img src="/logos/logo-srl.png" alt="SRL" className="phb-logo" />
+                        <img src="/logos/srl/logo-srl-claro.svg" alt="SRL" className="phb-logo" />
                     </div>
                     
                     <div className="phb-status">

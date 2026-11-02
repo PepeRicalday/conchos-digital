@@ -5,6 +5,7 @@
  * imágenes solo como data URI, sin fuentes web, sin JS, sin filter/backdrop-filter ni position:fixed.
  * Regla rectora: S/D nunca cero; jamás se imprime NaN/undefined/null.
  */
+import { CSS_MEMBRETE, membreteDual, altoMembretePorAncho } from './membreteDual';
 import { fmtConSigno, fmtHm3, type DatosInfografia, type DatosPresaInfografia } from './infografiaPresas';
 import type { EstadoSemaforo } from './estadisticaHistorica';
 
@@ -99,8 +100,6 @@ export function htmlInfografiaPresas(d: DatosInfografia, logoDataUri: string, lo
     const vtxt = d.vigencia?.estado === 'ACTUALIZADO' ? 'ACTUALIZADO' : d.vigencia?.estado === 'DESFASADO' ? 'DESFASADO' : 'SIN DATO';
     const detalleVig = d.vigencia?.texto && d.vigencia.texto !== 'S/D' ? d.vigencia.texto : 'S/D';
     const corte = d.corte?.texto ? d.corte.texto : 'Corte: S/D';
-    const logo = logoDataUri ? `<img class="logo" src="${esc(logoDataUri)}" alt="SRL" width="110" height="96">` : '<div class="logo-v"></div>';
-    const sica = logoSicaDataUri ? `<img class="logo" src="${esc(logoSicaDataUri)}" alt="SICA 005" width="96" height="96">` : '';
     const c = d.conjunto;
     const parcial = c?.parcial ? `<span class="parcial">parcial: ${esc(c.presasConDato)} de ${esc(c.presasTotal)} presas</span>` : '';
     const tarjetas = (d.presas ?? []).map(tarjeta).join('');
@@ -112,20 +111,11 @@ export function htmlInfografiaPresas(d: DatosInfografia, logoDataUri: string, lo
 html,body{margin:0;background:#F4F8FC}
 body{width:${ANCHO_INFOGRAFIA}px;font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;color:#1B2733;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
 .pagina{width:${ANCHO_INFOGRAFIA}px;padding:26px 48px 0 48px;background:#F4F8FC}
-.enc{display:flex;align-items:center;justify-content:space-between;height:96px}
-/* Sin object-fit: Safari/iPad no lo respeta dentro de foreignObject y el logo (399x348) salía en blanco.
-   Proporción fija por width/height (110x96) en vez de dejar que el motor la calcule. */
-.logo,.logo-v{display:block;width:110px;height:96px}
-.marca{text-align:center;flex:1;display:flex;flex-direction:column;align-items:center}
-.prod{font-family:'Montserrat','Segoe UI',Arial,sans-serif;font-weight:800;font-size:34px;color:#0B3170;letter-spacing:.01em}
-.oper .logo,.oper .logo-v{width:44px;height:38px;margin-top:4px}
-.marca .org{font-size:26px;font-weight:700;letter-spacing:.14em;color:#0B3170}
-.sello{width:300px;display:flex;justify-content:flex-end}
+${CSS_MEMBRETE}
+.sello{display:flex;justify-content:center;margin:2px 0 6px}
 .sello-i{border:3px solid;border-radius:14px;padding:8px 16px;text-align:center;line-height:1.15}
 .sello-i b{display:block;font-size:24px;font-weight:800;letter-spacing:.06em}
 .sello-i span{display:block;font-size:20px;font-weight:600}
-.filete{height:0;border-top:3px solid #3FB2F3;margin:10px 0 0}
-.filete2{height:0;border-top:1px solid #3FB2F3;margin:4px 0 0}
 h1{font-size:68px;line-height:1.05;font-weight:800;color:#0B3170;text-align:center;letter-spacing:.01em;margin-top:14px}
 .corte{text-align:center;font-size:28px;font-weight:600;color:#0B3170;margin:8px 0 18px}
 .fila{display:flex;gap:28px}
@@ -168,12 +158,8 @@ h1{font-size:68px;line-height:1.05;font-weight:800;color:#0B3170;text-align:cent
 .pie div:first-child{flex:1}.pie div:last-child{flex:1;text-align:right}
 </style></head>
 <body><div class="pagina">
-<div class="enc">
-  <div style="width:300px;display:flex;align-items:center;gap:14px">${sica}<span class="prod">SICA 005</span></div>
-  <div class="marca"><div class="org">SRL UNIDAD CONCHOS · DR-005</div><div class="oper">${logo}</div></div>
-  <div class="sello"><div class="sello-i" style="background:${vg.fondo};color:${vg.tinta};border-color:${vg.borde}"><b>${vg.glifo} ${esc(vtxt)}</b><span>${esc(detalleVig)}</span></div></div>
-</div>
-<div class="filete"></div><div class="filete2"></div>
+${membreteDual({ logoSrl: logoDataUri, logoSica: logoSicaDataUri, titulo: '', alto: altoMembretePorAncho(ANCHO_INFOGRAFIA) })}
+<div class="sello"><div class="sello-i" style="background:${vg.fondo};color:${vg.tinta};border-color:${vg.borde}"><b>${vg.glifo} ${esc(vtxt)}</b><span>${esc(detalleVig)}</span></div></div>
 <h1>ESTADO ACTUAL DE LAS PRESAS</h1>
 <div class="corte">${esc(corte)}</div>
 <div class="fila">${tarjetas}</div>

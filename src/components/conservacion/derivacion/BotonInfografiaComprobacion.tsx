@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ImageDown, Loader2 } from 'lucide-react';
 import type { Comprobacion } from '../../../conservacion/verificacion/comprobacion';
 import type { CriterioInferido } from '../../../conservacion/verificacion/criterio';
-import { assetToDataURI } from '../../../utils/assetToDataURI';
+import { cargarLogoSicaInforme, cargarLogoSrlInforme } from '../../../utils/logosInforme';
 import { guardaOComparte } from '../../../utils/descargaArchivo';
 import { rasterizaHtml } from '../../../utils/rasterizaHtml';
 import { nombreConcepto } from '../../../conservacion/vocabulario';
@@ -29,8 +29,7 @@ export function BotonInfografiaComprobacion(props: Props) {
         setAviso(null);
         try {
             const fecha = hoyIso();
-            const logo = await assetToDataURI('/logos/logo-srl.png'); // '' si falla: la plantilla lo omite
-            const logoSica = await assetToDataURI('/logos/sica/sica005-emblema.svg');
+            const [logo, logoSica] = await Promise.all([cargarLogoSrlInforme(), cargarLogoSicaInforme()]); // '' si falla: queda solo el texto
             // El contorno real viaja incrustado en el SVG (el PNG no tiene red): se espera al trazo y se reconstruye el modelo con él, igual que la ventana de ubicación.
             const tz = await obtenerTrazo();
             const canal = props.modelo ? conTrazo(props.modelo, tz.trazo) : null;

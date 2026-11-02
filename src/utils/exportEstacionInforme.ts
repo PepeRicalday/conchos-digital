@@ -15,12 +15,12 @@ import type { EstacionConLectura } from '../hooks/useClimaEstaciones';
 import type { DetalleEstacion, DiaEstacion, BalanceHidrico } from './estacionDetalle';
 import type { RangoAnalisis } from '../hooks/useEstacionDetalle';
 import { formateaEdad, PROCEDENCIA_LABEL } from './cielo';
-import { assetToDataURI } from './exportClimaReport';
-import { cargarLogoSicaInforme } from './logosInforme';
+import { cargarLogoSicaInforme, cargarLogoSrlClaroInforme } from './logosInforme';
+import { CSS_MEMBRETE, membreteDual } from './membreteDual';
 import { claveVientoDe, umbralVigente } from './umbralesClima';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
-import { SRL_MARRON, esc } from './informeBase';
+import { esc } from './informeBase';
 
 const fechaCorta2 = (iso: string) => { const [, m, d] = iso.split('-'); return `${d}/${m}`; };
 const tituloVentana = (r: RangoAnalisis) => r.tipo === 'manual'
@@ -115,13 +115,9 @@ async function construyeHTML(
     // Aviso de viento de la tabla clima_umbrales (los de las alertas); las presas tienen el suyo.
     const umbralViento = umbralVigente(detalle.umbrales, claveVientoDe(estacion.rol)).aviso;
     const [logoSRL, logoSICA] = await Promise.all([
-        assetToDataURI('/logos/logo-srl.png'),
+        cargarLogoSrlClaroInforme(),
         cargarLogoSicaInforme(),
     ]);
-    const logoImg = (src: string, alt: string) => src
-        ? `<img src="${src}" alt="${alt}" style="height:46px;width:auto;object-fit:contain">`
-        : `<div style="height:46px;display:flex;align-items:center;color:#94a3b8;font-size:0.7rem">${esc(alt)}</div>`;
-
     const l = estacion.lectura;
     const q = estacion.calidad;
     const hoy = new Date().toLocaleString('es-MX', { dateStyle: 'full', timeStyle: 'short' });
@@ -146,12 +142,10 @@ async function construyeHTML(
   body { margin: 0; padding: 24px; background: #0b1220; color: #e2e8f0;
          font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; }
   .wrap { max-width: 820px; margin: 0 auto; }
-  header { display: flex; align-items: center; gap: 16px; padding-bottom: 16px;
-           border-bottom: 2px solid ${SRL_MARRON}; margin-bottom: 20px; }
-  header .titulo { flex: 1; text-align: center; }
-  header .sub { color: #86efac; font-weight: 700; font-size: 0.8rem; letter-spacing: 0.03em; }
-  header h1 { margin: 2px 0; font-size: 1.3rem; color: #f1f5f9; }
-  header .meta { color: #94a3b8; font-size: 0.78rem; }
+  ${CSS_MEMBRETE}
+  .encabezado { margin: 0 0 18px; }
+  .encabezado h1 { color: #f1f5f9; margin: 2px 0; font-size: 1.5rem; letter-spacing: -0.01em; }
+  .encabezado .meta { color: #94a3b8; font-size: 0.78rem; }
   .est-cab { display: flex; justify-content: space-between; align-items: flex-start;
              background: #111a2e; border: 1px solid #1e293b; border-radius: 10px;
              padding: 14px 18px; margin-bottom: 18px; }
@@ -215,15 +209,11 @@ async function construyeHTML(
     .est-cab, .panel, .fig, .bal-card, .acum-item, .eto-principal, .eto-secundario { break-inside: avoid; }
   }
 </style></head><body><div class="wrap">
-  <header>
-    ${logoImg(logoSICA, 'SICA 005')}
-    <div class="titulo">
-      <div class="sub">S R L Unidad Conchos · Delicias, Chihuahua</div>
-      <h1>Informe de Estación</h1>
-      <div class="meta">Distrito de Riego 005 · Red WeatherLink (Davis) · Corte: ${hoy}</div>
-    </div>
-    ${logoImg(logoSRL, 'SRL Unidad Conchos')}
-  </header>
+  ${membreteDual({ logoSrl: logoSRL, logoSica: logoSICA, titulo: 'Informe de estación', fondo: 'oscuro' })}
+  <div class="encabezado">
+    <h1>Informe de Estación</h1>
+    <div class="meta">Distrito de Riego 005 · Red WeatherLink (Davis) · Corte: ${hoy}</div>
+  </div>
 
   <div class="est-cab">
     <div>

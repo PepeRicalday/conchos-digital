@@ -31,6 +31,9 @@
 @media print {
     .no-print { display: none !important; }
     .print-only { display: block; }
+    .print-only.bal-marcas { display: flex; align-items: center; gap: 14px; margin: 6px 0 8px; }
+    .bal-marcas img { height: 48px; width: auto; }
+    .bal-marcas img + img { height: 44px; }
     .sc-root { background: #fff !important; color: #111 !important; }
     .sc-card, .sc-tile { break-inside: avoid; background: #fff !important; border-color: #bbb !important; }
     .sc-root * { color: #111 !important; }

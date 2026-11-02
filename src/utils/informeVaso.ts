@@ -1,6 +1,5 @@
 // INFORME DEL VASO — orquestador (única capa con efectos: carga de logos). Datos → HTML son funciones puras.
-import { assetToDataURI } from './assetToDataURI';
-import { cargarLogoSicaInforme } from './logosInforme';
+import { cargarLogoSicaInforme, cargarLogoSrlInforme } from './logosInforme';
 import { guardaOComparte } from './descargaArchivo';
 import { nombreArchivo } from './informeBase';
 import { construirDatosVaso, type ConfigInformeVaso, type EntradaInformeVaso } from './informeVasoDatos';
@@ -12,7 +11,7 @@ const versionApp = (): string => (typeof __V2_APP_VERSION__ !== 'undefined' ? __
 
 export async function generarHtmlInformeVaso(e: EntradaVaso, config: ConfigInformeVaso): Promise<string> {
     const [srl, sica] = await Promise.all([
-        assetToDataURI('/logos/logo-srl.png').catch(() => ''),
+        cargarLogoSrlInforme().catch(() => ''),
         cargarLogoSicaInforme(),
     ]);
     const datos = construirDatosVaso({ ...e, logoSrlOk: !!srl, ahora: new Date(), version: versionApp() }, config);

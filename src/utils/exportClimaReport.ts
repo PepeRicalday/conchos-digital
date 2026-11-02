@@ -23,7 +23,8 @@ import { skillPronosticoResumen, calibracionResumen } from './climaVerificacion'
 import { obtenNdviModulo, type NdviModulo } from './kcNdvi';
 import { PRESAS, MODULOS_SRL, COLOR_MODULO, RIO } from './geoDistrito';
 import { assetToDataURI } from './assetToDataURI';
-import { cargarLogoSicaInforme } from './logosInforme';
+import { cargarLogoSicaInforme, cargarLogoSrlInforme } from './logosInforme';
+import { CSS_MEMBRETE, membreteDual } from './membreteDual';
 import { claveVientoDe, umbralVigente } from './umbralesClima';
 import type { UmbralClima } from '../hooks/useClimaOperativo';
 import { SRL_MARRON } from './informeBase';
@@ -542,7 +543,7 @@ export function predice24h(e: EstacionConLectura, umbrales?: UmbralClima[]): Pre
 
 async function buildHTML(ests: EstacionConLectura[], umbrales?: UmbralClima[]): Promise<string> {
     const [logoSRL, logoSICA] = await Promise.all([
-        assetToDataURI('/logos/logo-srl.png'),
+        cargarLogoSrlInforme(),
         cargarLogoSicaInforme(),
     ]);
 
@@ -937,10 +938,6 @@ async function buildHTML(ests: EstacionConLectura[], umbrales?: UmbralClima[]): 
             fcRef.corrida_en ? new Date(fcRef.corrida_en).toLocaleString('es-MX') : 's/d'}`
         : 'no sincronizado en este corte (ejecutar <code>clima-pronostico-sync</code>)';
 
-    const logoImg = (src: string, alt: string) => src
-        ? `<img src="${src}" alt="${alt}" style="height:52px;width:auto;object-fit:contain">`
-        : `<div style="height:52px;display:flex;align-items:center;color:#94a3b8;font-size:0.7rem">${alt}</div>`;
-
     return `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Informe Técnico de Clima — SRL Unidad Conchos</title>
@@ -948,12 +945,10 @@ async function buildHTML(ests: EstacionConLectura[], umbrales?: UmbralClima[]): 
   * { box-sizing: border-box; }
   body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 26px; color: #1e293b; background: #fff; line-height: 1.5; }
   .wrap { max-width: 920px; margin: 0 auto; }
-  header { display: flex; align-items: center; gap: 18px; border-bottom: 3px solid ${SRL_MARRON}; padding-bottom: 16px; margin-bottom: 22px; }
-  header .titulo { flex: 1; }
-  header .sub { color: #64748b; font-size: 0.78rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
-  header h1 { color: ${SRL_MARRON}; margin: 2px 0; font-size: 1.5rem; letter-spacing: -0.01em; }
-  header .meta { color: #94a3b8; font-size: 0.74rem; }
-  .logos { display: flex; align-items: center; gap: 14px; }
+  ${CSS_MEMBRETE}
+  .encabezado { margin: 0 0 18px; }
+  .encabezado h1 { color: ${SRL_MARRON}; margin: 2px 0; font-size: 1.5rem; letter-spacing: -0.01em; }
+  .encabezado .meta { color: #64748b; font-size: 0.78rem; }
 
   /* ── Tablero ejecutivo: lectura de un vistazo para dirección ───────────── */
   .tablero {
@@ -1177,20 +1172,15 @@ async function buildHTML(ests: EstacionConLectura[], umbrales?: UmbralClima[]): 
     .kpis { grid-template-columns: repeat(2, 1fr); }
     .duo { grid-template-columns: 1fr; }
     .indices { grid-template-columns: repeat(2, 1fr); }
-    header { flex-wrap: wrap; }
     table { font-size: 0.72rem; }
     .tab-cab { flex-wrap: wrap; gap: 6px; }
   }
 </style></head><body><div class="wrap">
-  <header>
-    <div class="logos">${logoImg(logoSICA, 'SICA 005')}</div>
-    <div class="titulo">
-      <div class="sub">S R L Unidad Conchos · Delicias, Chihuahua</div>
-      <h1>Centro de Inteligencia Agroclimática</h1>
-      <div class="meta">Distrito de Riego 005 · Red WeatherLink (Davis) + modelo de pronóstico · Corte: ${hoy}</div>
-    </div>
-    <div class="logos">${logoImg(logoSRL, 'SRL Unidad Conchos')}</div>
-  </header>
+  ${membreteDual({ logoSrl: logoSRL, logoSica: logoSICA, titulo: 'Informe técnico de clima' })}
+  <div class="encabezado">
+    <h1>Centro de Inteligencia Agroclimática</h1>
+    <div class="meta">Distrito de Riego 005 · Red WeatherLink (Davis) + modelo de pronóstico · Corte: ${hoy}</div>
+  </div>
 
   <!-- ══ TABLERO EJECUTIVO ══════════════════════════════════════════════ -->
   <!-- Lectura de un vistazo para dirección; el detalle técnico va debajo. -->

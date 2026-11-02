@@ -114,10 +114,11 @@
 }
 
 .rpt-logo {
-    height: 44px;
+    height: 52px;
     width: auto;
     object-fit: contain;
 }
+.rpt-logo-sica { height: 48px; }   /* el emblema SICA pesa más ópticamente: se dibuja un poco menor para igualar el peso */
 
 .rpt-title {
     font-size: 13pt;

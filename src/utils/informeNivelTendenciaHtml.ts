@@ -8,6 +8,7 @@ import { COLOR_INSTITUCIONAL } from './informeHistoricoSvg';
 import { COTAS_OFICIALES } from './cotasPresas';
 import { MESES_LARGO, formatearNumero } from './historicoPresas';
 import { esc, fechaHoraLegible, fechaLarga, folioConPartes, pieInforme, cabeceraInforme, minificaCss } from './informeBase';
+import { CSS_MEMBRETE } from './membreteDual';
 import {
     COLOR_AGUA, svgAreaMes, svgCalor, svgCierres, svgCurvasAnios, svgMovimientoBarras, svgPosicionHistorica,
 } from './informeNivelTendenciaSvg';
@@ -45,12 +46,7 @@ body{margin:0;background:var(--fondo);color:var(--ink);font:14px/1.45 "Segoe UI"
 body.png{background:#fff}
 .hoja{width:${ANCHO_INFORME_NT}px;margin:14px auto;background:var(--papel);padding:30px 36px 22px;border-radius:6px;box-shadow:0 1px 10px rgba(0,0,0,.14);position:relative}
 body.png .hoja{margin:0;box-shadow:none;border-radius:0}
-.hdr{display:flex;align-items:center;gap:16px;border-bottom:4px solid var(--inst);padding-bottom:12px;margin-bottom:18px}
-.hdr img{height:60px;width:auto}
-.hdr .org{flex:1;min-width:0}
-.hdr .org b{display:block;font:700 17px Georgia,serif;letter-spacing:.2em;color:var(--inst)}
-.hdr .org span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)}
-.hdr .meta{font-size:11px;color:var(--ink2);text-align:right;line-height:1.55}
+${CSS_MEMBRETE}
 .titulo{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px}
 .titulo small{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink2);margin-bottom:2px}
 .titulo h1{margin:0;font:700 32px/1.05 Georgia,serif;color:var(--inst)}
@@ -265,7 +261,7 @@ export function htmlNivelTendencia(d: DatosNivelTendencia, logos: LogosNT, modo:
     const hojas = d.presas.map((p, i) => {
         const sec = new Set(c.secciones);
         return `<article class="hoja">
-${cabeceraInforme({ logoSrl: logos.srl, logoSica: logos.sica, titulo: 'Nivel y tendencia de presas', meta: [{ k: 'Folio', v: folio }, { k: 'Emitido', v: fechaHoraLegible(d.emitido) }, { k: 'Serie', v: c.serie === 'normalizada' ? 'Normalizada (curva vigente)' : 'Reportada' }] })}
+${cabeceraInforme({ logoSrl: logos.srl, logoSica: logos.sica, titulo: 'Nivel y tendencia de presas', alto: 72, meta: [{ k: 'Folio', v: folio }, { k: 'Emitido', v: fechaHoraLegible(d.emitido) }, { k: 'Serie', v: c.serie === 'normalizada' ? 'Normalizada (curva vigente)' : 'Reportada' }] })}
 <div class="titulo"><div><small>Sala de Control Hidráulico · Presa</small><h1>${esc(p.nombre)}</h1></div><div class="periodo">${esc(mesTxt)}<br><span style="font:12px 'Segoe UI',sans-serif">Comparado con ${esc(comp)}</span></div></div>
 ${p.corte?.fueraDelMes ? `<div class="aviso"><b>Sin datos en ${esc(mesTxt)}.</b> Se muestra el último dato disponible (${esc(fechaLarga(p.corte.fecha))}).</div>` : ''}
 ${hero(p)}

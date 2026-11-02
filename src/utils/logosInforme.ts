@@ -8,7 +8,10 @@
  */
 import { assetToDataURI } from './assetToDataURI';
 
-export const RUTA_LOGO_SRL_INFORME = '/logos/logo-srl-informe.jpg';
+/** Escudo SRL vectorizado (scripts/logo/generar-logo-srl.mjs): marrón institucional, sin caja blanca, nítido a cualquier tamaño. */
+export const RUTA_LOGO_SRL_INFORME = '/logos/srl/logo-srl.svg';
+/** Mismo escudo en crema, para fondos oscuros (el marrón sobre navy da 1,5-1,8:1). */
+export const RUTA_LOGO_SRL_CLARO_INFORME = '/logos/srl/logo-srl-claro.svg';
 /** Emblema vectorial SICA 005 (scripts/logo/generar-logo-sica.mjs), cuadrado y sin leyendas: el membrete lo pinta a 52 px. */
 export const RUTA_LOGO_SICA_INFORME = '/logos/sica/sica005-emblema.svg';
 
@@ -27,10 +30,22 @@ export function cargarLogosInforme(): Promise<LogosData> {
     return cache;
 }
 
+/** Escudo SRL en versión clara (data URI SVG) para informes sobre fondo oscuro. Caché propia: solo se pide cuando se usa. */
+let cacheClaro: Promise<string> | null = null;
+export function cargarLogoSrlClaroInforme(): Promise<string> {
+    if (!cacheClaro) cacheClaro = assetToDataURI(RUTA_LOGO_SRL_CLARO_INFORME).then((d) => { if (!d) cacheClaro = null; return d; });
+    return cacheClaro;
+}
+
+/** Solo el escudo SRL (data URI SVG). Comparte la caché. */
+export async function cargarLogoSrlInforme(): Promise<string> {
+    return (await cargarLogosInforme()).srl;
+}
+
 /** Solo el emblema SICA 005 (data URI SVG), para informes que cargan su propio logo SRL. Comparte la caché. */
 export async function cargarLogoSicaInforme(): Promise<string> {
     return (await cargarLogosInforme()).sica;
 }
 
 /** Solo para pruebas: vacía la caché. */
-export function reiniciarCacheLogos(): void { cache = null; }
+export function reiniciarCacheLogos(): void { cache = null; cacheClaro = null; }

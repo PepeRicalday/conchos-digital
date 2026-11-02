@@ -231,6 +231,10 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
             <div className="rpt-sys">SICA 005 · Sistema Integral de Control del Agua</div>
           </div>
           <div className="rpt-header-right">
+            <div className="rpt-marcas">
+              <img src="/logos/srl/logo-srl.svg" alt="SRL Unidad Conchos" />
+              <img src="/logos/sica/sica005-emblema.svg" alt="SICA 005" />
+            </div>
             <div className="rpt-date">{scenario.date}</div>
             <div className="rpt-time">T₀ {scenario.startTime} h</div>
             <div className="rpt-folio">HYDRA ENGINE v1D</div>

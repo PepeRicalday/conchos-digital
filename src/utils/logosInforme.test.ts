@@ -9,14 +9,14 @@ import { reiniciarCacheSupVol, cargarSupVolAnual } from './supVolAnual';
 beforeEach(() => { reiniciarCacheLogos(); reiniciarCacheSupVol(); asset.cargar.mockClear(); });
 
 describe('logos de informe: optimizados y con caché', () => {
-    it('usa las versiones "-informe" (regeneradas al doble del tamaño efectivo) y las comparte entre generaciones', async () => {
+    it('usa el escudo SRL vectorial y el emblema SICA, y los comparte entre generaciones', async () => {
         const a = await cargarLogosInforme();
         const b = await cargarLogosInforme();
         expect(b).toBe(a);
         expect(asset.cargar).toHaveBeenCalledTimes(2); // uno por logo, una sola vez
         expect(asset.cargar).toHaveBeenCalledWith(RUTA_LOGO_SRL_INFORME);
         expect(asset.cargar).toHaveBeenCalledWith(RUTA_LOGO_SICA_INFORME);
-        expect(RUTA_LOGO_SRL_INFORME).toMatch(/-informe\.jpg$/); // el logo SRL es JPEG: la extensión ya no miente
+        expect(RUTA_LOGO_SRL_INFORME).toMatch(/\/srl\/logo-srl\.svg$/); // vectorial: sin caja blanca y nítido en impresión
     });
     it('cargarLogoSicaInforme devuelve solo el emblema y reutiliza la misma caché', async () => {
         const sica = await cargarLogoSicaInforme();

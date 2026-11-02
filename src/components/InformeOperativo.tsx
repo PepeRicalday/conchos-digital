@@ -10,6 +10,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Printer, X } from 'lucide-react';
 import './CanalReport.css';
+import { membreteDual, CSS_MEMBRETE } from '../utils/membreteDual';
 
 interface CoherenciaCanal {
     qPresa: number; qK0Medido: number; qFinal: number;
@@ -169,7 +170,6 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
         const now     = new Date();
         const dateDMY = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Chihuahua' });
         const timeStr = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' });
-        const logoUrl = window.location.origin + '/logos/logo-srl.png';
 
         // Observaciones auto-generadas
         const criticos   = checkpoints.filter(c => c.estado === 'CRÍTICO' && !c.esRef);
@@ -377,19 +377,8 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
             + 'body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:8.5pt;color:#1a1a1a;background:#fff}'
 
             // Header
-            + '.hdr{display:flex;justify-content:space-between;align-items:stretch;border-bottom:3px solid #0B3170;margin-bottom:8px;padding-bottom:7px;gap:12px}'
-            + '.hdr-left{display:flex;align-items:center;gap:10px}'
-            + '.hdr-logo{width:52px;height:52px;object-fit:contain}'
-            + '.hdr-op{display:flex;flex-direction:column;align-items:center;gap:2px;margin-left:10px}.hdr-op small{font-size:5.5pt;letter-spacing:.08em;color:#57606a}.hdr-logo-op{height:30px;width:auto;object-fit:contain}'
-            + '.hdr-org{font-size:13pt;font-weight:900;color:#0B3170;letter-spacing:1px;line-height:1.1}'
-            + '.hdr-sys{font-size:8pt;color:#555;font-weight:600;letter-spacing:0.5px}'
-            + '.hdr-rpt{font-size:9pt;font-weight:800;color:#1a1a1a;letter-spacing:0.3px;margin-top:2px}'
-            + '.hdr-canal{font-size:7.5pt;color:#444}'
-            + '.hdr-right{display:flex;flex-direction:column;justify-content:center;gap:4px;text-align:right;font-size:7.5pt;color:#333;border-left:1px solid #e0d8d8;padding-left:12px}'
-            + '.hdr-meta-row{display:flex;align-items:center;gap:5px;justify-content:flex-end}'
-            + '.hdr-meta-key{color:#888;font-size:6.5pt;text-transform:uppercase}'
-            + '.hdr-meta-val{font-weight:700;color:#0B3170}'
-            + '.hdr-meta-big{font-size:11pt;font-weight:900;color:#0B3170}'
+            + CSS_MEMBRETE
+            + '.hdr-cond{font-size:7.5pt;color:#444;margin:-2px 0 8px;text-align:right}'
             + '.sem-badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:6.5pt;font-weight:700;color:#fff;background:' + semC + ';letter-spacing:0.8px}'
 
             // Sección títulos
@@ -482,23 +471,13 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
             + '</head><body>'
 
             // ── HEADER ──
-            + '<div class="hdr">'
-            + '<div class="hdr-left">'
-            + '<img src="' + window.location.origin + '/logos/sica/sica005-emblema.svg" class="hdr-logo" alt="SICA 005" onerror="this.style.display=\'none\'">'
-            + '<div>'
-            + '<div class="hdr-org">SICA 005</div>'
-            + '<div class="hdr-sys">SRL UNIDAD CONCHOS · DISTRITO DE RIEGO 005 DELICIAS</div>'
-            + '<div class="hdr-rpt">INFORME OPERATIVO ACTUALIZADO</div>'
-            + '<div class="hdr-canal">CANAL PRINCIPAL CONCHOS &nbsp;·&nbsp; DISTRITO DE RIEGO 005 DELICIAS</div>'
-            + '</div>'
-            + '<div class="hdr-op"><small>OPERADO POR</small><img src="' + logoUrl + '" class="hdr-logo-op" alt="SRL Unidad Conchos" onerror="this.style.display=\'none\'"></div>'
-            + '</div>'
-            + '<div class="hdr-right">'
-            + '<div class="hdr-meta-row"><span class="hdr-meta-key">Fecha del informe:</span><span class="hdr-meta-val">' + dateDMY + '</span></div>'
-            + '<div class="hdr-meta-row"><span class="hdr-meta-key">Hora de corte:</span><span class="hdr-meta-big">' + timeStr + ' hrs</span></div>'
-            + '<div class="hdr-meta-row"><span class="hdr-meta-key">Condición:</span><span class="sem-badge">' + condicion + '</span></div>'
-            + '<div class="hdr-meta-row"><span class="hdr-meta-key">Ubicación:</span><span class="hdr-meta-val">DR-005 DELICIAS, CHIH.</span></div>'
-            + '</div></div>'
+            + membreteDual({
+                logoSrl: window.location.origin + '/logos/srl/logo-srl.svg',
+                logoSica: window.location.origin + '/logos/sica/sica005-emblema.svg',
+                titulo: 'Informe operativo actualizado · Canal Principal Conchos',
+                meta: [{ k: 'Fecha del informe', v: dateDMY }, { k: 'Hora de corte', v: timeStr + ' hrs' }, { k: 'Ubicación', v: 'DR-005 Delicias, Chih.' }],
+            })
+            + '<div class="hdr-cond">Condición del canal: <span class="sem-badge">' + condicion + '</span></div>'
 
             // ── RESUMEN EJECUTIVO ──
             + '<div class="sec-title">Resumen Ejecutivo</div>'

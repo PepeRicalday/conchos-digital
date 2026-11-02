@@ -16,6 +16,7 @@ export const ReporteEjecutivo = memo(function ReporteEjecutivo({ fecha }: { fech
                 </div>
                 <button type="button" className="sc-btn no-print" onClick={() => window.print()}><Printer size={16} aria-hidden="true" /> Imprimir / PDF</button>
             </div>
+            <div className="print-only bal-marcas"><img src="/logos/srl/logo-srl.svg" alt="SRL Unidad Conchos" /><img src="/logos/sica/sica005-emblema.svg" alt="SICA 005" /></div>
             <p className="sc-fresco print-only">Canal Principal Conchos — Reporte de balance hídrico · Fecha {fecha} · Generado {new Date().toLocaleString('es-MX', { timeZone: 'America/Chihuahua' })}</p>
 
             {loading ? <p className="sc-vacio">Calculando…</p> : alertas.length === 0 && anomalias.length === 0 ? (

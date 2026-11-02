@@ -348,7 +348,7 @@ dl.ind>div{padding:4px 0;border-top:1px solid #DDD6BF}dl.ind dt{font-size:13px;f
 
 const CSS_MEDIA = `*{box-sizing:border-box;margin:0;padding:0}html,body{margin:0;background:#E9E4D3}
 body{font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;color:${TINTA};font-variant-numeric:tabular-nums;font-size:12px;line-height:1.3}
-.ficha{position:relative;background:#FAF6EA;overflow:hidden;padding:30px;display:flex;flex-direction:column}
+.ficha{position:relative;background:#F4F8FC;overflow:hidden;padding:30px;display:flex;flex-direction:column}
 .ficha.v{width:528px;height:816px}.ficha.h{width:816px;height:528px}
 .enc{display:flex;align-items:center;gap:8px;padding-bottom:7px;border-bottom:2px solid ${ORO};flex:none}
 .logo-img,.logo-sica{display:block;flex:none}.logo-img{width:46px;height:40px}.logo-sica{width:40px;height:40px}.vac{border:1px dashed #B9B3A2}
@@ -387,7 +387,7 @@ table.stat{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px;tab
 
 /** Hoja (`.pagina`): en pantalla centrada con aire; al imprimir, una por página sin margen. */
 const CSS_HOJA = `.pagina{margin:18px auto;width:max-content;background:transparent}
-.pagina.dos{width:816px;height:1056px;background:#FAF6EA;overflow:hidden}.pagina.dos .ficha+.ficha{border-top:1px dashed #A89F86}
+.pagina.dos{width:816px;height:1056px;background:#F4F8FC;overflow:hidden}.pagina.dos .ficha+.ficha{border-top:1px dashed #A89F86}
 @media print{html,body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pagina{margin:0!important;break-after:page;page-break-after:always}.pagina:last-child{break-after:auto;page-break-after:auto}}`;
 
 const TAMANO_PAGINA: Record<HojaInfografiaGoes, string> = {

@@ -12,15 +12,16 @@ import { prepararInforme, type BloqueMetrica, type CoberturaAnio, type DatosInfo
 import {
     COLOR_INSTITUCIONAL, escSvg as esc, svgBandaClimatologia, svgBarrasCierre, svgBarrasDelta, svgLineasComparadas, svgMapaCalor, svgSemaforo, svgTendencia,
 } from './informeHistoricoSvg';
-import { assetToDataURI } from './assetToDataURI';
+import { cargarLogoSicaInforme, cargarLogoSrlInforme } from './logosInforme';
+import { CSS_MEMBRETE, membreteDual } from './membreteDual';
 import { guardaOComparte } from './descargaArchivo';
 
 /* ───────────────────────── API pública ───────────────────────── */
 
 export async function generarInformeHtml(config: ConfigInforme, idx: Indice): Promise<string> {
     const d = prepararInforme(config, idx);
-    const logo = await assetToDataURI('/logos/logo-srl.png');
-    logoSicaActual = await assetToDataURI('/logos/sica/sica005-emblema.svg');
+    const logo = await cargarLogoSrlInforme();
+    logoSicaActual = await cargarLogoSicaInforme();
     return config.modalidad === 'tecnico' ? buildHTMLTecnico(d, logo) : buildHTMLBasico(d, logo);
 }
 
@@ -85,12 +86,7 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 body{margin:0;background:var(--fondo);color:var(--ink);font-family:"Segoe UI","Helvetica Neue",Helvetica,Arial,sans-serif;font-size:11pt;line-height:1.45}
 .hoja{width:8.5in;max-width:100%;margin:14px auto;background:#fff;padding:12mm 14mm;box-shadow:0 1px 8px rgba(0,0,0,.14)}
 h1,h2,h3,h4{font-family:Georgia,"Times New Roman",serif;color:var(--inst);margin:0;font-weight:700;break-after:avoid;page-break-after:avoid}
-.cab{display:flex;align-items:center;gap:16px;border-bottom:3px solid var(--inst);padding-bottom:9px;margin-bottom:12px}
-.cab img{height:54px;width:auto;display:block}
-.marca{font-family:"Segoe UI",Arial,sans-serif;color:var(--inst);line-height:1.15}
-.marca b{display:block;font-size:15pt;letter-spacing:.32em}.marca span{display:block;font-size:9pt;letter-spacing:.5em;margin-top:2px}
-.cab .tit{margin-left:auto;text-align:right}
-.cab .tit h1{font-size:15pt;line-height:1.15}.cab .tit p{margin:2px 0 0;color:var(--ink2);font-size:8.5pt}
+${CSS_MEMBRETE}
 .meta{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:8.5pt;color:var(--ink2);margin:0 0 10px}
 .meta b{color:var(--ink);font-weight:600}
 .presa-h{font-size:21pt;margin:2px 0 8px;display:flex;align-items:baseline;gap:10px}
@@ -127,12 +123,12 @@ td.sd{color:var(--ink2);font-style:italic}
 .pagina:last-child,.pagina.ultima{break-after:auto;page-break-after:auto}
 @page{size:letter portrait;margin:12mm 14mm;@bottom-left{content:"Informe Histórico de Presas · SRL Unidad Conchos";font:7.5pt "Segoe UI",sans-serif;color:#57606a}@bottom-right{content:"Pág. " counter(page) " de " counter(pages);font:7.5pt "Segoe UI",sans-serif;color:#57606a}}
 @media print{body{background:#fff}.hoja{box-shadow:none;margin:0;padding:0;width:auto}}
-@media screen and (max-width:720px){.kpis{grid-template-columns:repeat(2,1fr)}.dos{grid-template-columns:1fr}.fila{flex-direction:column}.caja.sem{flex-basis:auto}.hoja{padding:12px}.cab{flex-wrap:wrap}}
+@media screen and (max-width:720px){.kpis{grid-template-columns:repeat(2,1fr)}.dos{grid-template-columns:1fr}.fila{flex-direction:column}.caja.sem{flex-basis:auto}.hoja{padding:12px}}
 `;
 
 const CSS_BASICO = `
 body{font-size:10.5pt;line-height:1.38}
-.cab{padding-bottom:6px;margin-bottom:8px}.cab img{height:44px}.marca b{font-size:13pt}
+.mb{margin-bottom:6px}
 .meta{margin-bottom:6px;font-size:8pt}
 .presa-h{font-size:19pt;margin:0 0 6px}
 .fila{margin-bottom:8px}.caja{padding:6px 10px}
@@ -167,11 +163,7 @@ h4{font-size:9.5pt;margin:7px 0 3px;font-family:"Segoe UI",sans-serif;color:var(
 let logoSicaActual = '';
 
 function cabecera(logo: string, titulo: string, subtitulo: string): string {
-    const sica = logoSicaActual ? `<img src="${esc(logoSicaActual)}" alt="SICA 005">` : '';
-    const srl = logo
-        ? `<img src="${esc(logo)}" alt="SRL Unidad Conchos, Delicias">`
-        : `<div class="marca"><b>SRL</b><span>UNIDAD CONCHOS</span></div>`;
-    return `<div class="cab">${sica}${srl}<div class="tit"><h1>${esc(titulo)}</h1><p>${esc(subtitulo)}</p></div></div>`;
+    return membreteDual({ logoSrl: logo, logoSica: logoSicaActual, titulo: `${titulo} · ${subtitulo}` });
 }
 
 function metaLinea(d: DatosInforme, presas: string): string {

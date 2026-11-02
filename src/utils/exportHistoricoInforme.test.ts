@@ -62,7 +62,7 @@ describe('Informe básico', () => {
     });
     it('sin logo usa la marca de texto', () => {
         const sinLogo = buildHTMLBasico(d, '');
-        expect(sinLogo).toContain('UNIDAD CONCHOS');
+        expect(sinLogo).toContain('SRL Unidad Conchos');
         limpio(sinLogo);
     });
 });

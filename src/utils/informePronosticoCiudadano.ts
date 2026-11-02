@@ -21,7 +21,8 @@
 //   · no sustituye los avisos oficiales de Protección Civil ni del SMN.
 // ═══════════════════════════════════════════════════════════════════════════
 import { assetToDataURI } from './assetToDataURI';
-import { cargarLogoSicaInforme } from './logosInforme';
+import { cargarLogoSicaInforme, cargarLogoSrlInforme } from './logosInforme';
+import { CSS_MEMBRETE, membreteDual } from './membreteDual';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
 import { rasterizaHtml } from './rasterizaHtml';
@@ -509,7 +510,7 @@ function listaModulosHtml(d: DatosPronostico, logos: Map<number, string>): strin
 }
 
 export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: OpcionesCiudadano = {}): Promise<string> {
-    const [logoSrl, logoSica, logos] = await Promise.all([assetToDataURI('/logos/logo-srl.png'), cargarLogoSicaInforme(), cargaLogosModulos()]);
+    const [logoSrl, logoSica, logos] = await Promise.all([cargarLogoSrlInforme(), cargarLogoSicaInforme(), cargaLogosModulos()]);
     const u = umbralesLlanos(d);
     const tit = titularLlano(d, u);
     const sem = SEMAFORO_LLANO[tit.sinDatos ? 'sin_dato' : tit.nivel];
@@ -597,11 +598,11 @@ export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: Opci
   * { box-sizing: border-box; }
   body { margin: 0; background: #eef2f7; color: #0f172a; font: 17px/1.55 system-ui, -apple-system, 'Segoe UI', Arial, sans-serif; }
   .hoja { max-width: 900px; margin: 0 auto; background: #fff; }
-  header { display: flex; align-items: center; gap: 14px; padding: 16px 22px; border-bottom: 4px solid ${SRL_MARRON}; }
-  header img { height: 54px; width: auto; }
-  header .t { flex: 1; text-align: center; }
-  header .k { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: ${SRL_MARRON}; font-weight: 800; }
-  header h1 { margin: 2px 0 0; font-size: 26px; line-height: 1.15; }
+  ${CSS_MEMBRETE}
+  .cab-wrap { padding: 16px 22px 0; }
+  .cab-wrap .t { text-align: center; padding: 4px 0 6px; }
+  .cab-wrap .k { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: ${SRL_MARRON}; font-weight: 800; }
+  .cab-wrap h1 { margin: 2px 0 0; font-size: 26px; line-height: 1.15; }
   .escena { line-height: 0; max-height: 110px; overflow: hidden; }
   .banner { margin: -14px 22px 0; position: relative; border-radius: 16px; padding: 16px 20px; border: 3px solid ${sem.color}; background: ${sem.fondo}; box-shadow: 0 6px 18px rgba(15,23,42,.15); }
   .banner .sem { font-size: 15px; font-weight: 900; letter-spacing: .12em; color: ${sem.color}; }
@@ -678,11 +679,8 @@ export async function construyeInformeCiudadanoHTML(d: DatosPronostico, op: Opci
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style></head><body class="${op.compacto ? 'compacto' : ''}"><div class="hoja">
-<header>
-  ${logoSica ? `<img src="${logoSica}" alt="SICA 005">` : ''}
-  <div class="t"><div class="k">SRL Unidad Conchos · Delicias, Chihuahua</div><h1>¿Cómo estará el clima?</h1>${op.parte ? `<div class="k">Parte ${op.parte} de 2</div>` : ''}</div>
-  ${logoSrl ? `<img src="${logoSrl}" alt="SRL Unidad Conchos">` : ''}
-</header>
+<div class="cab-wrap">${membreteDual({ logoSrl, logoSica, titulo: 'Pronóstico del clima para la ciudadanía' })}
+  <div class="t"><h1>¿Cómo estará el clima?</h1>${op.parte ? `<div class="k">Parte ${op.parte} de 2</div>` : ''}</div></div>
 ${ver1 ? `<div class="escena">${escenaDistrito(escenaPara(d))}</div>
 <section class="banner" aria-label="Aviso principal">
   <div class="sem">${sem.simbolo} ${sem.texto}</div>

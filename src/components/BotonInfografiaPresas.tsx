@@ -8,7 +8,7 @@ import { procedenciaNivel } from '../utils/presaMetrics';
 import { construirDatosInfografia, type EntradaPresaInfografia, type LecturaCilaInf } from '../utils/infografiaPresas';
 import { ANCHO_INFOGRAFIA, htmlInfografiaPresas } from '../utils/infografiaPresasHtml';
 import { rasterizaHtml } from '../utils/rasterizaHtml';
-import { assetToDataURI } from '../utils/assetToDataURI';
+import { cargarLogoSicaInforme, cargarLogoSrlInforme } from '../utils/logosInforme';
 import { guardaOComparte } from '../utils/descargaArchivo';
 
 const PRESAS_INFOGRAFIA: PresaId[] = ['PRE-001', 'PRE-002'];
@@ -84,8 +84,7 @@ export default function BotonInfografiaPresas({ presas }: { presas: PresaData[] 
                 return;
             }
 
-            const logo = await assetToDataURI('/logos/logo-srl.png'); // '' si falla: la plantilla lo omite
-            const logoSica = await assetToDataURI('/logos/sica/sica005-emblema.svg');
+            const [logo, logoSica] = await Promise.all([cargarLogoSrlInforme(), cargarLogoSicaInforme()]); // '' si falla: la plantilla deja solo el texto
             const png = await rasterizaHtml(htmlInfografiaPresas(datos, logo, logoSica), { ancho: ANCHO_INFOGRAFIA, escala: 2 });
             await guardaOComparte(png, `estado-presas-conchos-${datos.corte.fechaDato ?? 'sin-fecha'}.png`, 'image/png');
         } catch (e) {

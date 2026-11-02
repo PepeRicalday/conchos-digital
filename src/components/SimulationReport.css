@@ -82,6 +82,10 @@
   object-fit: contain;
 }
 
+.rpt-marcas { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-bottom: 4px; }
+.rpt-marcas img { height: 40px; width: auto; object-fit: contain; }
+.rpt-marcas img + img { height: 37px; }   /* SICA pesa más ópticamente: un poco menor para igualar el peso */
+
 .rpt-header-center {
   text-align: center;
   flex: 1;

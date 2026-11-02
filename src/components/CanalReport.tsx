@@ -110,6 +110,8 @@ const CanalReport: React.FC<CanalReportProps> = ({
         const bodyHtml = bodyEl.innerHTML
             .split('/logos/logo-srl.png')
             .join(window.location.origin + '/logos/logo-srl.png')
+            .split('/logos/srl/logo-srl.svg')
+            .join(window.location.origin + '/logos/srl/logo-srl.svg')
             .split('/logos/sica/sica005-emblema.svg')
             .join(window.location.origin + '/logos/sica/sica005-emblema.svg');
 
@@ -119,7 +121,7 @@ const CanalReport: React.FC<CanalReportProps> = ({
             + 'body{font-family:"Segoe UI",Arial,sans-serif;font-size:10pt;color:#0f172a;background:#fff;padding:28px 36px}'
             + '.rpt-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:2px solid #0f172a;margin-bottom:18px;gap:12px}'
             + '.rpt-header-brand{display:flex;align-items:center;gap:12px}'
-            + '.rpt-logo{height:42px;width:auto}'
+            + '.rpt-logo{height:52px;width:auto}.rpt-logo-sica{height:48px}'
             + '.rpt-title{font-size:13pt;font-weight:700;color:#0f172a;letter-spacing:.4px;font-family:Arial,sans-serif}'
             + '.rpt-subtitle{font-size:8pt;color:#475569;font-family:Arial,sans-serif;margin-top:2px}'
             + '.rpt-header-meta{text-align:right}'
@@ -237,7 +239,8 @@ const CanalReport: React.FC<CanalReportProps> = ({
                     {/* Encabezado */}
                     <div className="rpt-header">
                         <div className="rpt-header-brand">
-                            <img src="/logos/sica/sica005-emblema.svg" alt="SICA 005" className="rpt-logo" />
+                            <img src="/logos/srl/logo-srl.svg" alt="SRL Unidad Conchos" className="rpt-logo" />
+                            <img src="/logos/sica/sica005-emblema.svg" alt="SICA 005" className="rpt-logo rpt-logo-sica" />
                             <div>
                                 <div className="rpt-title">REPORTE DE ESTADO HIDRÁULICO</div>
                                 <div className="rpt-subtitle">CANAL PRINCIPAL CONCHOS — DISTRITO 005</div>

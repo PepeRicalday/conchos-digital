@@ -34,7 +34,8 @@ import type { DiaMaxLluvia } from './climaResumenMensual';
 import type { TendenciasPeriodo } from './climaTendencias';
 import { graficaTendencia, graficaIntensidadBloques } from './climaChartsTendencia';
 import { assetToDataURI } from './assetToDataURI';
-import { cargarLogoSicaInforme } from './logosInforme';
+import { cargarLogoSicaInforme, cargarLogoSrlInforme } from './logosInforme';
+import { CSS_MEMBRETE, membreteDual } from './membreteDual';
 import { resuelveFondoHillshade, LEYENDA_VIIRS, type FondoHillshade, type FondoNocturno } from './mapaHillshadeDEM';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
@@ -1023,7 +1024,7 @@ function graficaBarrasLluviaEstacion(datos: { nombre: string; mm: number }[]): s
 async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeoInforme): Promise<string> {
     const numsModulo = Object.keys(MODULOS_SRL).map(Number);
     const [logoSRL, logoSICA, ...logosArr] = await Promise.all([
-        assetToDataURI('/logos/logo-srl.png'),
+        cargarLogoSrlInforme(),
         cargarLogoSicaInforme(),
         ...numsModulo.map(n => assetToDataURI(`/logos/modulo_${n}.jpg`)),
     ]);
@@ -1687,10 +1688,6 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
         </tr>`;
     }).join('');
 
-    const logoImg = (src: string, alt: string) => src
-        ? `<img src="${src}" alt="${alt}" style="height:52px;width:auto;object-fit:contain">`
-        : `<div style="height:52px;display:flex;align-items:center;color:#94a3b8;font-size:0.7rem">${alt}</div>`;
-
     return `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
@@ -1699,12 +1696,10 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
   * { box-sizing: border-box; }
   body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 26px; color: #1e293b; background: #fff; line-height: 1.5; }
   .wrap { max-width: 920px; margin: 0 auto; }
-  header { display: flex; align-items: center; gap: 18px; border-bottom: 3px solid ${SRL_MARRON}; padding-bottom: 16px; margin-bottom: 22px; }
-  header .titulo { flex: 1; }
-  header .sub { color: #64748b; font-size: 0.78rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
-  header h1 { color: ${SRL_MARRON}; margin: 2px 0; font-size: 1.5rem; letter-spacing: -0.01em; }
-  header .meta { color: #94a3b8; font-size: 0.74rem; }
-  .logos { display: flex; align-items: center; gap: 14px; }
+  ${CSS_MEMBRETE}
+  .encabezado { margin: 0 0 18px; }
+  .encabezado h1 { color: ${SRL_MARRON}; margin: 2px 0; font-size: 1.5rem; letter-spacing: -0.01em; }
+  .encabezado .meta { color: #64748b; font-size: 0.78rem; }
 
   .franja { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.7rem;
             background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; margin: 4px 0 18px; }
@@ -1870,21 +1865,16 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
   @media (max-width: 720px) {
     body { padding: 14px; }
     .kpis { grid-template-columns: repeat(2, 1fr); }
-    header { flex-wrap: wrap; }
     table { font-size: 0.72rem; }
     .veredicto-titular { font-size: 1.02rem; }
   }
 </style>
 </head><body><div class="wrap">
-  <header>
-    <div class="logos">${logoImg(logoSICA, 'SICA 005')}</div>
-    <div class="titulo">
-      <div class="sub">S R L Unidad Conchos · Delicias, Chihuahua</div>
-      <h1>Informe Geoclimático por Módulo</h1>
-      <div class="meta">Distrito de Riego 005${modoTecnico ? ' · Red WeatherLink (Davis) + interpolación IDW' : ''} · ${periodoDesde && periodoHasta ? `Periodo: ${esc(etiquetaPeriodo)} · Generado: ${hoy}` : `Corte: ${hoy}`}</div>
-    </div>
-    <div class="logos">${logoImg(logoSRL, 'SRL Unidad Conchos')}</div>
-  </header>
+  ${membreteDual({ logoSrl: logoSRL, logoSica: logoSICA, titulo: 'Informe geoclimático por módulo' })}
+  <div class="encabezado">
+    <h1>Informe Geoclimático por Módulo</h1>
+    <div class="meta">Distrito de Riego 005${modoTecnico ? ' · Red WeatherLink (Davis) + interpolación IDW' : ''} · ${periodoDesde && periodoHasta ? `Periodo: ${esc(etiquetaPeriodo)} · Generado: ${hoy}` : `Corte: ${hoy}`}</div>
+  </div>
 
   ${modoTecnico ? `<div class="franja">
     <b class="geoinf-badge geoinf-badge--medido">MEDIDO</b> estación propia (Módulo 1, 3, 5)

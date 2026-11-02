@@ -176,9 +176,9 @@ ${hayBase ? `<g transform="translate(34,${MAPA_ALTO - 56})"><path d="M0 0v16h${f
     return { svg, hayBase };
 }
 
-const CSS = `*{box-sizing:border-box;margin:0;padding:0}html,body{margin:0;background:#FAF6EA}
+const CSS = `*{box-sizing:border-box;margin:0;padding:0}html,body{margin:0;background:#F4F8FC}
 body{width:1080px;font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;color:#1B2733;font-variant-numeric:tabular-nums}
-.pagina{width:1080px;padding:30px 36px 0;background:#FAF6EA}
+.pagina{width:1080px;padding:30px 36px 0;background:#F4F8FC}
 .enc{display:flex;align-items:center;gap:22px}.logo-img{display:block;width:110px;height:96px;flex:none}.logo-sica{display:block;width:96px;height:96px;flex:none}
 .sep{width:2px;height:80px;background:#0A7FDB;flex:none}
 .marca b{display:block;font-size:32px;font-weight:700;color:#0B3170;line-height:1.1}.marca span{display:block;font-size:28px;font-weight:600;color:#3A4856;margin-top:4px}
@@ -363,7 +363,7 @@ table.stat{width:100%;border-collapse:collapse;margin-top:22px;font-size:28px}.s
 .tira{display:block;width:100%;height:auto}.enl-txt{font-size:28px;color:#3A4856;margin-top:4px}
 .notas-t{margin:20px 0 0;padding:12px 16px 12px 40px;font-size:28px;line-height:1.35;color:#4A2E00;background:#FCEBC4;border:2px solid #D9920B;border-radius:10px}.notas-t li{margin:4px 0}
 .folio-t{font-size:26px;color:#3A4856;text-align:right;margin-top:18px}
-@media print{html,body{background:#FAF6EA!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pagina{margin:0!important;break-after:page;page-break-after:always}.pagina:last-child{break-after:auto;page-break-after:auto}}`;
+@media print{html,body{background:#F4F8FC!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pagina{margin:0!important;break-after:page;page-break-after:always}.pagina:last-child{break-after:auto;page-break-after:auto}}`;
 
 export interface OpcionesInfografiaGoes {
     /** Logo institucional del sistema SICA 005 (sello vectorial, utils/logosInforme) como data URI; sin él, hueco vacío. */

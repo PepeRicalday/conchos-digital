@@ -7,8 +7,8 @@
 //   5 contexto SICA · 6 alertas con procedencia · 7 confiabilidad · metodología.
 // ═══════════════════════════════════════════════════════════════════════════
 import { VIZ } from './climaCharts';
-import { assetToDataURI } from './assetToDataURI';
-import { cargarLogoSicaInforme } from './logosInforme';
+import { cargarLogoSicaInforme, cargarLogoSrlInforme } from './logosInforme';
+import { CSS_MEMBRETE, membreteDual } from './membreteDual';
 import { guardaOComparte } from './descargaArchivo';
 import { getTodayString } from './dateHelpers';
 import {
@@ -38,7 +38,7 @@ function umbralTexto(r: Riesgo): string {
 
 export async function construyeInformePronosticoHTML(d: DatosPronostico): Promise<string> {
     const [logoSrl, logoSica] = await Promise.all([
-        assetToDataURI('/logos/logo-srl.png'), cargarLogoSicaInforme(),
+        cargarLogoSrlInforme(), cargarLogoSicaInforme(),
     ]);
     const tecnico = d.modoTecnico;
     const rV = d.riesgos.find(r => r.clave === 'viento');
@@ -189,12 +189,10 @@ ${ver.variables.length ? `<table><thead><tr><th>Variable</th><th>Horizonte</th><
   * { box-sizing: border-box; }
   body { margin: 0; background: #f1f5f9; color: ${VIZ.inkPrimary}; font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; }
   .hoja { max-width: 980px; margin: 0 auto; background: #fff; padding: 26px 30px 34px; }
-  header { display: flex; align-items: center; gap: 16px; border-bottom: 3px solid ${SRL_MARRON}; padding-bottom: 14px; margin-bottom: 18px; }
-  header img { height: 56px; width: auto; }
-  header .titulo { flex: 1; text-align: center; }
-  header .sub { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: ${SRL_MARRON}; font-weight: 700; }
-  header h1 { margin: 2px 0; font-size: 22px; color: ${VIZ.inkPrimary}; }
-  header .meta { font-size: 11.5px; color: ${VIZ.inkSecondary}; }
+  ${CSS_MEMBRETE}
+  .encabezado { margin: 0 0 14px; }
+  .encabezado h1 { margin: 2px 0; font-size: 22px; color: ${VIZ.inkPrimary}; }
+  .encabezado .meta { font-size: 11.5px; color: ${VIZ.inkSecondary}; }
   h2 { font-size: 15px; margin: 26px 0 8px; color: ${SRL_MARRON}; text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid ${VIZ.grid}; padding-bottom: 4px; }
   .sub2 { font-size: 12px; color: ${VIZ.inkMuted}; margin: -2px 0 10px; max-width: 80ch; }
   .veredicto { border-radius: 12px; padding: 16px 18px; border: 2px solid; margin-bottom: 12px; }
@@ -242,15 +240,11 @@ ${ver.variables.length ? `<table><thead><tr><th>Variable</th><th>Horizonte</th><
   }
 </style></head>
 <body><div class="hoja">
-<header>
-  ${logoSica ? `<img src="${logoSica}" alt="SICA 005">` : ''}
-  <div class="titulo">
-    <div class="sub">S R L Unidad Conchos · Delicias, Chihuahua</div>
+${membreteDual({ logoSrl, logoSica, titulo: 'Informe de pronóstico' })}
+<div class="encabezado">
     <h1>Informe de Pronóstico — próximas ${d.horizonteH} h</h1>
     <div class="meta">Emitido ${esc(generado)} (hora de Chihuahua) · ${tecnico ? 'Nivel técnico' : 'Nivel operativo'} · modelo ${esc(d.modelo.proveedor)} ${esc(d.modelo.modelo)}${d.modelo.edadCorridaMin != null ? ` · corrida hace ${esc(fmtEdad(d.modelo.edadCorridaMin))}` : ''}</div>
   </div>
-  ${logoSrl ? `<img src="${logoSrl}" alt="SRL Conchos">` : ''}
-</header>
 
 <div class="veredicto" style="border-color:${COLOR_NIVEL[d.nivel]};background:${FONDO_NIVEL[d.nivel]}">
   <div class="eyebrow" style="color:${COLOR_NIVEL[d.nivel]}">${ROTULO_NIVEL[d.nivel]} · ${esc(fmtDiaHora(d.desdeMs))} → ${esc(fmtDiaHora(d.hastaMs))}</div>

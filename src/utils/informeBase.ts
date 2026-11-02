@@ -3,18 +3,12 @@
  * bloque de firmas y componentes de hoja compartidos). Lo usan los informes de NDVI, manejo de vaso y conservación.
  * Todo es puro (strings): se prueba con vitest sin navegador.
  */
-import { COLOR_INSTITUCIONAL, escSvg } from './informeHistoricoSvg';
-// Montserrat 800 (tipografía del logo SICA 005) embebida como data URI: el informe es un HTML autónomo y se abre sin red.
-import montserrat800 from '../assets/fonts/montserrat-800-informe.woff2?inline';
+import { COLOR_INSTITUCIONAL } from './informeHistoricoSvg';
+import { MARCA, FUENTE_MARCA, esc } from './marcaInforme';
+import { CSS_MEMBRETE, membreteDual } from './membreteDual';
+export { MARCA, FUENTE_MARCA, esc };
 
 export const SRL_MARRON = COLOR_INSTITUCIONAL;
-/** Colores de marca SICA 005 en los informes. El marrón de SRL queda solo en su logo. */
-export const MARCA = { navy: '#0B3170', agua: '#0A7FDB', aguaClaro: '#3FB2F3', hoja: '#2E9A1E', rojo: '#E0242A', cielo: '#CBEAF9' } as const;
-/** Pila tipográfica de títulos y cifras héroe; el cuerpo y las tablas usan Segoe UI. */
-export const FUENTE_MARCA = '"Montserrat","Segoe UI",Arial,sans-serif';
-
-/** Escape de texto dinámico para HTML/atributos (nombres de módulo, emisor, avisos). */
-export const esc = escSvg;
 
 const dos = (n: number) => String(n).padStart(2, '0');
 
@@ -100,11 +94,11 @@ export interface OpcionesCss { formato?: 'letter' | 'a4' }
 export function cssInforme(o: OpcionesCss = {}): string {
     const hoja = o.formato === 'a4' ? 'A4' : 'letter';
     return `
-@font-face{font-family:"Montserrat";font-style:normal;font-weight:800;src:url(${montserrat800}) format("woff2")}
+${CSS_MEMBRETE}
 :root{--inst:${SRL_MARRON};--inst-claro:#E6EEF8;--agua:${MARCA.agua};--agua-claro:${MARCA.aguaClaro};--hoja:${MARCA.hoja};--marca:${FUENTE_MARCA};--ink:#1f2328;--ink2:#57606a;--linea:#dcd9d2;--papel:#fff;--pantalla:#eceae5;--sd:#6a737d;--aviso:#9a6700;--aviso-bg:#fff8e6}
 *{box-sizing:border-box}
 html{color-scheme:light;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-body{margin:0;background:var(--pantalla);color:var(--ink);font:9.5pt/1.45 "Segoe UI","Helvetica Neue",Arial,sans-serif}
+body{margin:0;background:var(--pantalla);color:var(--ink);font:9.5pt/1.45 "Segoe UI","Helvetica Neue",Arial,sans-serif;font-variant-numeric:tabular-nums}
 .num,td.n,th.n{font-family:Consolas,"SF Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;text-align:right}
 .sd{color:var(--sd);font-style:italic}
 .pagina{position:relative;background:var(--papel);width:100%;max-width:${o.formato === 'a4' ? '210mm' : '215.9mm'};margin:12px auto;padding:12mm;min-height:${o.formato === 'a4' ? '287mm' : '270mm'};display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto;box-shadow:0 1px 8px rgba(0,0,0,.15)}
@@ -121,16 +115,7 @@ body{margin:0;background:var(--pantalla);color:var(--ink);font:9.5pt/1.45 "Segoe
 h2,h3,caption{break-after:avoid}
 thead{display:table-header-group}
 /* Cabecera y pie */
-.hdr{display:flex;align-items:center;gap:14px;border-bottom:2px solid var(--inst);box-shadow:0 3px 0 var(--agua-claro);padding-bottom:10px;margin-bottom:16px}
-.hdr img{height:52px;width:auto;object-fit:contain}
-.hdr img.sica{height:56px}
-.hdr .org{flex:1;min-width:0}
-.hdr .org b{display:block;font-family:var(--marca);font-weight:800;font-size:15pt;letter-spacing:.01em;color:var(--inst)}
-.hdr .org span{font-size:8pt;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
-.hdr .op{display:flex;flex-direction:column;align-items:center;gap:2px}
-.hdr .op small{font-size:6.5pt;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
-.hdr .op img{height:34px}
-.hdr .meta{font-size:7.5pt;color:var(--ink2);text-align:right;line-height:1.5}
+.pie-pagina .pie-org{flex:1;text-align:center;letter-spacing:.04em}
 .pie-pagina{margin-top:10px;padding-top:6px;border-top:2px solid var(--agua);display:flex;justify-content:space-between;gap:12px;font-size:7.5pt;color:var(--ink2);text-transform:uppercase;letter-spacing:.06em}
 /* Secciones */
 h1{font:800 17pt/1.15 var(--marca);color:var(--inst);margin:0 0 4px}
@@ -143,6 +128,7 @@ p{margin:0 0 6px}
 table{width:100%;border-collapse:collapse;font-size:8.5pt}
 th{background:var(--inst);color:#fff;padding:5px 6px;text-align:left;font-size:7.5pt;letter-spacing:.04em;text-transform:uppercase}
 td{padding:4px 6px;border-bottom:1px solid var(--linea)}
+tbody tr:nth-child(even) td{background:#F6F9FC}
 caption{text-align:left;font-weight:700;color:var(--inst);padding:6px 0 4px;font-size:8.5pt;text-transform:uppercase;letter-spacing:.04em}
 /* KPI y chips */
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}
@@ -185,8 +171,6 @@ table.traza td{overflow-wrap:anywhere}
   .pagina{padding:12px;min-height:0}
   .kpis{grid-template-columns:1fr 1fr}
   .tabla-wrap{overflow-x:auto}
-  .hdr{flex-wrap:wrap}
-  .hdr .meta{text-align:left}
   .cols3,.firmas{grid-template-columns:1fr}
   .datos{grid-template-columns:1fr 1fr}
   .banda h1{font-size:16pt}
@@ -197,24 +181,15 @@ table.traza td{overflow-wrap:anywhere}
 export interface MetaCabecera { k: string; v: string }
 
 /**
- * Cabecera institucional: emblema SICA 005 (el producto) a la izquierda, nombre y título del informe, y el logo de SRL Unidad Conchos
- * (quien opera el sistema) a la derecha, más pequeño. Si el logo SRL no cargó, queda su nombre en texto.
+ * Cabecera institucional con los dos logos al mismo peso (escudo SRL a la izquierda, emblema SICA 005 a la derecha, cada uno con su
+ * nombre en texto). Ver membreteDual.ts. `logoSrl` y `logoSica` son data URI; '' deja solo el texto.
  */
-export function cabeceraInforme(o: { logoSrl: string; logoSica?: string; titulo: string; meta: MetaCabecera[] }): string {
-    const sica = o.logoSica ? `<img class="sica" src="${esc(o.logoSica)}" alt="SICA 005">` : '';
-    const srl = o.logoSrl
-        ? `<div class="op"><small>Operado por</small><img src="${esc(o.logoSrl)}" alt="SRL Unidad Conchos"></div>`
-        : `<div class="op"><small>Operado por</small><b>SRL Unidad Conchos</b></div>`;
-    return `<header class="hdr">
-  ${sica}
-  <div class="org"><b>SICA 005</b><span>SRL Unidad Conchos · Distrito de Riego 005 · ${esc(o.titulo)}</span></div>
-  ${srl}
-  <div class="meta">${o.meta.map((m) => `<div><b>${esc(m.k)}:</b> ${esc(m.v)}</div>`).join('')}</div>
-</header>`;
+export function cabeceraInforme(o: { logoSrl: string; logoSica?: string; titulo: string; meta: MetaCabecera[]; alto?: number; fondo?: 'claro' | 'oscuro' }): string {
+    return membreteDual({ logoSrl: o.logoSrl, logoSica: o.logoSica ?? '', titulo: o.titulo, meta: o.meta, alto: o.alto, fondo: o.fondo });
 }
 
 export function pieInforme(izq: string, pagina: number, total: number): string {
-    return `<footer class="pie-pagina"><span>${esc(izq)}</span><span>Pág. ${pagina} de ${total}</span></footer>`;
+    return `<footer class="pie-pagina"><span>${esc(izq)}</span><span class="pie-org">SRL Unidad Conchos · Delicias</span><span>Pág. ${pagina} de ${total}</span></footer>`;
 }
 
 /** Bloque de firmas reutilizable (opcional por informe). `nombres` pone el nombre ya conocido de quien elabora (p. ej. el emisor). */

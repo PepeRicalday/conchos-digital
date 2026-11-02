@@ -4,6 +4,7 @@
  * sin filter/backdrop-filter/position:fixed. Regla rectora: S/D nunca cero; jamás NaN/undefined/null.
  * El color nunca va solo: el parámetro del PacOT lleva caja punteada, la constante subrayado punteado, el estado un glifo.
  */
+import { CSS_MEMBRETE, membreteDual, altoMembretePorAncho } from './membreteDual';
 import type { Comprobacion, EntradaComp, EstadoComp, OrigenEntrada, TokenEc } from '../conservacion/verificacion/comprobacion';
 import { nombreConcepto } from '../conservacion/vocabulario';
 import { fmt, TEXTO_BASE } from '../components/conservacion/derivacion/fmt';
@@ -46,10 +47,8 @@ export const CSS = `
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:${ANCHO_COMPROBACION}px;background:#F4F8FC;color:#1B2733;font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;font-size:16px;line-height:1.4;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .pag{width:${ANCHO_COMPROBACION}px;padding:36px 40px 28px;display:flex;flex-direction:column;gap:18px;background:#F4F8FC}
-.cab{display:flex;align-items:center;gap:20px;padding-bottom:16px;border-bottom:3px solid #3FB2F3}
-.cab img{width:84px;height:84px;object-fit:contain;flex:none}
-.cab img.srl{width:52px;height:52px}
-.cab-t{min-width:0;flex:1 1 0}
+${CSS_MEMBRETE}
+.cab-t{min-width:0}
 .kick{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#0B3170}
 h1{font-size:28px;line-height:1.2;font-weight:800;color:#1B2733;margin-top:4px}
 .sub{font-size:16px;color:#4A5663;margin-top:4px}
@@ -187,9 +186,8 @@ function insignia(estado: EstadoComp): string {
 }
 
 export function cabecera(ctx: ContextoComprobacion, kicker: string, titulo: string, sub: string): string {
-    const sica = ctx.logoSica ? `<img src="${esc(ctx.logoSica)}" alt="SICA 005">` : '';
-    const logo = ctx.logo ? `<img class="srl" src="${esc(ctx.logo)}" alt="SRL Unidad Conchos">` : '';
-    return `<div class="cab">${sica}<div class="cab-t"><div class="kick">${esc(kicker)}</div><h1>${esc(titulo)}</h1><div class="sub">${esc(sub)}</div></div>${logo}</div>`;
+    const marcas = membreteDual({ logoSrl: ctx.logo, logoSica: ctx.logoSica ?? '', titulo: '', alto: altoMembretePorAncho(ANCHO_COMPROBACION) });
+    return `${marcas}<div class="cab-t"><div class="kick">${esc(kicker)}</div><h1>${esc(titulo)}</h1><div class="sub">${esc(sub)}</div></div>`;
 }
 
 export function pie(ctx: ContextoComprobacion, queValores: string): string {

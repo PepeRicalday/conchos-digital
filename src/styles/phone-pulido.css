@@ -187,9 +187,6 @@ html[data-device="phone"] .infra-root tbody td:nth-child(5) > div { opacity: 1; 
 html[data-device="phone"] .infra-head p { font-size: 0.85rem; }
 
 /* ═══ CICLOS ════════════════════════════════════════════════════════════════ */
-html[data-device="phone"] .ciclos-body > * { width: 100%; min-width: 0; }
-html[data-device="phone"] .ciclos-root td, html[data-device="phone"] .ciclos-root th { padding: 8px 10px; }
-html[data-device="phone"] .ciclos-root input { min-height: 44px; width: 100%; }
 
 /* ═══ IMPORTAR DATOS ════════════════════════════════════════════════════════ */
 html[data-device="phone"] .imp-form .grid { row-gap: 12px; }

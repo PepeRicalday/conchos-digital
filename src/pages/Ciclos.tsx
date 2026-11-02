@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import { useCiclos, type CicloAgricola, type Modulo, type ModuloCiclo } from '../hooks/useCiclos';
-import { CalendarDays, Save, Edit2, Plus, Users } from 'lucide-react';
+import { Save, Edit2, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { fmt } from '../utils/formato';
+import { PaginaHero } from '../components/ui/PaginaHero';
+import { TileCifra } from '../components/ui/TileCifra';
+import type { ChipEstado } from '../utils/alertasVivas';
+import '../styles/sala-control.css';
+import './Ciclos.css';
 
 export default function Ciclos() {
     const { ciclos, modulos, modulosCiclos, loading, saveCiclo, saveModuloCiclo } = useCiclos();
@@ -12,7 +17,9 @@ export default function Ciclos() {
     const [formData, setFormData] = useState<Partial<CicloAgricola>>({});
     const [isEditing, setIsEditing] = useState(false);
 
-    if (loading && ciclos.length === 0) return <div className="p-8 text-white">Cargando Ciclos...</div>;
+    if (loading && ciclos.length === 0) {
+        return <div className="sc-root sc-pagina ci-root"><div className="ci-vacio" role="status">Cargando ciclos…</div></div>;
+    }
 
     // Ciclo seleccionado; por defecto el ACTIVO (no el más reciente por fecha de alta).
     const selectedCiclo = ciclos.find(c => c.id === selectedCicloId) || ciclos.find(c => c.activo) || ciclos[0];
@@ -22,12 +29,33 @@ export default function Ciclos() {
     // Volumen 0 / vacío = "sin presupuesto cargado", no un presupuesto de cero.
     const volCiclo = selectedCiclo && Number(selectedCiclo.volumen_autorizado_mm3) > 0 ? Number(selectedCiclo.volumen_autorizado_mm3) : null;
 
-    // Cálculos de Volumen
-    const totalAutorizadoModulos = modulosCiclos
-        .filter(mc => mc.ciclo_id === selectedCiclo?.id)
-        .reduce((sum, mc) => sum + Number(mc.volumen_autorizado_mm3 || 0), 0);
+    // Cálculos de Volumen. Sin ninguna asignación capturada el total es S/D (no "0 asignado").
+    const asignaciones = modulosCiclos.filter(mc => mc.ciclo_id === selectedCiclo?.id && mc.volumen_autorizado_mm3 != null);
+    const totalAutorizadoModulos = asignaciones.length
+        ? asignaciones.reduce((sum, mc) => sum + Number(mc.volumen_autorizado_mm3 || 0), 0)
+        : null;
+    const restante = volCiclo != null ? volCiclo - (totalAutorizadoModulos ?? 0) : null;
+    const pctAsignado = volCiclo != null && totalAutorizadoModulos != null ? (totalAutorizadoModulos / volCiclo) * 100 : null;
+    const sobregiro = restante != null && restante < 0;
 
-    const restante = volCiclo != null ? volCiclo - totalAutorizadoModulos : null;
+    // Módulos en orden numérico (M1, M2 … M12), no alfabético (M1, M12, M2).
+    const numMod = (m: Modulo) => Number((m.codigo_corto || m.nombre).match(/\d+/)?.[0] ?? Infinity);
+    const modulosOrden = [...modulos].sort((a, b) => numMod(a) - numMod(b));
+
+    // Calendario del ciclo: avance por fechas (no por volumen).
+    const DIA = 86_400_000;
+    const tIni = selectedCiclo?.fecha_inicio ? Date.parse(`${selectedCiclo.fecha_inicio}T00:00:00`) : NaN;
+    const tFin = selectedCiclo?.fecha_fin ? Date.parse(`${selectedCiclo.fecha_fin}T00:00:00`) : NaN;
+    const tHoy = Date.parse(`${hoy}T00:00:00`);
+    const calendario = Number.isFinite(tIni) && Number.isFinite(tFin) && tFin > tIni
+        ? {
+            total: Math.round((tFin - tIni) / DIA),
+            transcurridos: Math.max(0, Math.min(Math.round((tFin - tIni) / DIA), Math.round((tHoy - tIni) / DIA))),
+            restantes: Math.round((tFin - tHoy) / DIA),
+            pct: Math.max(0, Math.min(100, ((tHoy - tIni) / (tFin - tIni)) * 100)),
+            porIniciar: tHoy < tIni,
+        }
+        : null;
 
     const fillFormForEdit = (ciclo: CicloAgricola) => {
         setFormData(ciclo);
@@ -66,143 +94,193 @@ export default function Ciclos() {
         }
     };
 
+    const chips: ChipEstado[] = [];
+    if (selectedCiclo) {
+        chips.push({ key: 'c', sev: selectedCiclo.activo ? 'ok' : 'info', texto: `${selectedCiclo.nombre} · ${selectedCiclo.activo ? 'activo' : 'histórico'}` });
+        if (selectedCiclo.fecha_inicio && selectedCiclo.fecha_fin) chips.push({ key: 'f', sev: 'info', texto: `${selectedCiclo.fecha_inicio} → ${selectedCiclo.fecha_fin}` });
+        if (volCiclo == null) chips.push({ key: 'p', sev: 'warn', texto: 'Sin presupuesto cargado' });
+        if (sobregiro) chips.push({ key: 's', sev: 'crit', texto: 'Asignado supera lo autorizado' });
+    }
+
     return (
-        <div className="ciclos-root h-full bg-slate-900 p-6 flex flex-col overflow-hidden text-slate-200">
-            <div className="ciclos-head mb-6 flex justify-between items-end">
-                <div>
-                    <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                        <CalendarDays className="text-blue-400" size={28} />
-                        Plan Hidrológico y Ciclos Agrícolas
-                    </h1>
-                    <p className="text-slate-400">Distribución de volúmenes concesionados de la Red Mayor</p>
+        <div className="sc-root sc-pagina ci-root">
+            <PaginaHero
+                kicker="Plan hidrológico · DR 005 Delicias"
+                titulo="Ciclos agrícolas"
+                subtitulo="Distribución de los volúmenes concesionados de la Red Mayor entre las asociaciones (módulos)."
+                chips={chips}
+                acciones={<button type="button" className="sc-btn sc-btn-primario" onClick={handleNew}><Plus size={16} aria-hidden="true" /> Nuevo plan anual</button>}
+            />
+
+            {cicloVencido && selectedCiclo && (
+                <p className="sc-aviso sc-aviso-warn" role="status">
+                    {selectedCiclo.nombre} pasó su fecha de cierre ({selectedCiclo.fecha_fin}) y sigue activo (remanente / vaciado). Desactívalo al terminar.
+                </p>
+            )}
+
+            {selectedCiclo && (
+                <div className="sc-pulso-3">
+                    <TileCifra
+                        etiqueta="Volumen autorizado"
+                        valor={volCiclo != null ? fmt(volCiclo, 2) : null}
+                        unidad="Mm³"
+                        lineas={[volCiclo == null ? 'Sin presupuesto cargado para el ciclo' : `Ciclo ${selectedCiclo.nombre}`]}
+                        acento="var(--sc-sky)"
+                    />
+                    <TileCifra
+                        etiqueta="Asignado a módulos"
+                        valor={totalAutorizadoModulos != null ? fmt(totalAutorizadoModulos, 2) : null}
+                        unidad="Mm³"
+                        lineas={[totalAutorizadoModulos == null
+                            ? 'Ningún módulo tiene volumen asignado'
+                            : `${asignaciones.length} de ${modulos.length} módulos${pctAsignado != null ? ` · ${pctAsignado.toFixed(1)} % de lo autorizado` : ''}`]}
+                        acento="#34d399"
+                    />
+                    <TileCifra
+                        etiqueta={sobregiro ? 'Sobregiro' : 'Sin asignar'}
+                        valor={restante != null ? fmt(Math.abs(restante), 2) : null}
+                        unidad="Mm³"
+                        estado={sobregiro ? { texto: 'Asignado > autorizado', tipo: 'crit' } : null}
+                        lineas={[restante == null ? 'Requiere el volumen autorizado' : sobregiro ? 'Revisar las cuotas por módulo' : 'Disponible para asignar']}
+                        acento={sobregiro ? 'var(--sc-crit)' : 'var(--sc-t3)'}
+                    />
                 </div>
-                <button onClick={handleNew} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors">
-                    <Plus size={18} /> Nuevo Plan Anual
-                </button>
-            </div>
+            )}
 
-            <div className="ciclos-body flex gap-6 flex-1 min-h-0">
-                {/* Lado Izquierdo: Lista de Ciclos y Formulario */}
-                <div className="ciclos-list w-1/3 flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
-                    {/* Lista de Ciclos */}
-                    <div className="bg-slate-800 rounded-xl p-4 shadow-lg border border-slate-700">
-                        <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Ciclos Registrados</h2>
-                        <div className="flex flex-col gap-2">
-                            {ciclos.map(ciclo => (
-                                <div
-                                    key={ciclo.id}
-                                    onClick={() => setSelectedCicloId(ciclo.id)}
-                                    className={`p-3 rounded-lg cursor-pointer border transition-all ${selectedCiclo?.id === ciclo.id ? 'bg-blue-900/40 border-blue-500/50' : 'bg-slate-900/50 border-slate-700 hover:border-slate-500'}`}
-                                >
-                                    <div className="flex justify-between items-start mb-1">
-                                        <h3 className="font-bold text-white">{ciclo.nombre}</h3>
-                                        <span className={`text-[11px] uppercase font-bold px-2 py-0.5 rounded-full ${ciclo.activo ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-300'}`}>
-                                            {ciclo.activo ? 'activo' : 'inactivo'}
-                                        </span>
-                                    </div>
-                                    <div className="text-xs text-slate-400">
-                                        Vol. Autorizado: <span className="text-blue-300 font-mono">{Number(ciclo.volumen_autorizado_mm3) > 0 ? `${ciclo.volumen_autorizado_mm3} Mm³` : 'S/D'}</span>
-                                    </div>
-                                    <button onClick={(e) => { e.stopPropagation(); fillFormForEdit(ciclo); }} className="mt-2 text-xs text-blue-400 flex items-center gap-1 hover:text-blue-300">
-                                        <Edit2 size={12} /> Editar
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+            <div className="ci-grid">
+                {/* Ciclos y formulario */}
+                <div className="ci-lateral">
+                    <section className="sc-card" aria-labelledby="ci-lista-t">
+                        <span className="sc-kicker">Plan anual</span>
+                        <h3 id="ci-lista-t">Ciclos registrados</h3>
+                        {ciclos.length === 0 ? (
+                            <p className="ci-nota">Aún no hay ciclos. Crea el plan anual con "Nuevo plan anual".</p>
+                        ) : (
+                            <ul className="ci-ciclos">
+                                {ciclos.map(ciclo => {
+                                    const sel = selectedCiclo?.id === ciclo.id;
+                                    return (
+                                        <li key={ciclo.id} className={`ci-ciclo ${sel ? 'ci-ciclo-sel' : ''}`}>
+                                            <button type="button" className="ci-ciclo-btn" onClick={() => setSelectedCicloId(ciclo.id)} aria-pressed={sel}>
+                                                <span className="ci-ciclo-top">
+                                                    <b>{ciclo.nombre}</b>
+                                                    <span className={`sc-chip ${ciclo.activo ? 'sc-chip-ok' : ''}`}>{ciclo.activo ? 'Activo' : 'Histórico'}</span>
+                                                </span>
+                                                <span className="ci-ciclo-meta">
+                                                    {ciclo.fecha_inicio || 's/f'} → {ciclo.fecha_fin || 's/f'} · Autorizado <b>{Number(ciclo.volumen_autorizado_mm3) > 0 ? `${fmt(Number(ciclo.volumen_autorizado_mm3), 2)} Mm³` : 'S/D'}</b>
+                                                </span>
+                                            </button>
+                                            <button type="button" className="sc-btn ci-editar" onClick={() => fillFormForEdit(ciclo)} aria-label={`Editar ${ciclo.nombre}`}>
+                                                <Edit2 size={14} aria-hidden="true" /> Editar
+                                            </button>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
+                    </section>
 
-                    {/* Formulario Ciclo */}
+                    {selectedCiclo && (
+                        <section className="sc-card" aria-labelledby="ci-cal-t">
+                            <span className="sc-kicker">Calendario · {selectedCiclo.nombre}</span>
+                            <h3 id="ci-cal-t">Avance del ciclo</h3>
+                            {calendario ? (
+                                <>
+                                    <p className="ci-cal-cifra">
+                                        <b>{calendario.porIniciar ? 0 : calendario.transcurridos}</b><small> de {calendario.total} días</small>
+                                    </p>
+                                    <div className="sc-barra ci-barra" role="img" aria-label={`Avance del calendario: ${calendario.pct.toFixed(0)} %`}>
+                                        <i className={calendario.restantes < 0 ? 'sc-alta' : undefined} style={{ width: `${calendario.pct}%` }} />
+                                    </div>
+                                    <div className="ci-cal-et">
+                                        <span>{selectedCiclo.fecha_inicio}</span>
+                                        <span>{selectedCiclo.fecha_fin}</span>
+                                    </div>
+                                    <p className="ci-nota">
+                                        {calendario.porIniciar ? `Inicia en ${Math.round((tIni - tHoy) / DIA)} días.`
+                                            : calendario.restantes > 0 ? `Faltan ${calendario.restantes} días para el cierre.`
+                                            : calendario.restantes === 0 ? 'Hoy es la fecha de cierre.'
+                                            : `Cerró hace ${-calendario.restantes} días${selectedCiclo.activo ? ' y sigue activo' : ''}.`}
+                                    </p>
+                                </>
+                            ) : <p className="ci-nota">Fechas de inicio y cierre sin capturar: S/D.</p>}
+                        </section>
+                    )}
+
                     {isEditing && (
-                        <form onSubmit={submitCiclo} className="bg-slate-800 rounded-xl p-4 shadow-lg border border-blue-500/30">
-                            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-widest mb-4 border-b border-slate-700 pb-2">
-                                {formData.id ? 'Editar Plan Anual' : 'Nuevo Plan Anual'}
-                            </h2>
-                            <div className="space-y-3">
-                                <div>
-                                    <label className="block text-xs text-slate-400 mb-1 uppercase font-bold tracking-wider">Nombre del Ciclo (Ej. Ciclo 2024-2025)</label>
-                                    <input type="text" required value={formData.nombre || ''} onChange={e => setFormData({ ...formData, nombre: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:border-blue-500 outline-none" />
+                        <form onSubmit={submitCiclo} className="sc-card ci-form" aria-labelledby="ci-form-t">
+                            <span className="sc-kicker">{formData.id ? 'Edición' : 'Alta'}</span>
+                            <h3 id="ci-form-t">{formData.id ? 'Editar plan anual' : 'Nuevo plan anual'}</h3>
+                            <div className="sc-campo">
+                                <label htmlFor="ci-nombre">Nombre del ciclo</label>
+                                <input id="ci-nombre" type="text" required placeholder="Ciclo 2026-2027" value={formData.nombre || ''} onChange={e => setFormData({ ...formData, nombre: e.target.value })} />
+                            </div>
+                            <div className="sc-campo">
+                                <label htmlFor="ci-clave">Clave única</label>
+                                <input id="ci-clave" type="text" required placeholder="2026-2027" value={formData.clave || ''} onChange={e => setFormData({ ...formData, clave: e.target.value })} />
+                            </div>
+                            <div className="ci-fechas">
+                                <div className="sc-campo">
+                                    <label htmlFor="ci-ini">Inicio</label>
+                                    <input id="ci-ini" type="date" required value={formData.fecha_inicio || ''} onChange={e => setFormData({ ...formData, fecha_inicio: e.target.value })} />
                                 </div>
-                                <div>
-                                    <label className="block text-xs text-slate-400 mb-1 uppercase font-bold tracking-wider" htmlFor="ciclo-clave">Clave (única, ej. 2025-2026)</label>
-                                    <input id="ciclo-clave" type="text" required value={formData.clave || ''} onChange={e => setFormData({ ...formData, clave: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:border-blue-500 outline-none font-mono" />
+                                <div className="sc-campo">
+                                    <label htmlFor="ci-fin">Cierre</label>
+                                    <input id="ci-fin" type="date" required value={formData.fecha_fin || ''} onChange={e => setFormData({ ...formData, fecha_fin: e.target.value })} />
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-xs text-slate-400 mb-1 uppercase font-bold tracking-wider">Inicio</label>
-                                        <input type="date" required value={formData.fecha_inicio || ''} onChange={e => setFormData({ ...formData, fecha_inicio: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:border-blue-500 outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-slate-400 mb-1 uppercase font-bold tracking-wider">Cierre</label>
-                                        <input type="date" required value={formData.fecha_fin || ''} onChange={e => setFormData({ ...formData, fecha_fin: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:border-blue-500 outline-none" />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs text-slate-400 mb-1 uppercase font-bold tracking-wider">Millones de M3 Generales Autorizados</label>
-                                    <input type="number" step="0.01" required value={formData.volumen_autorizado_mm3 ?? ''} onChange={e => setFormData({ ...formData, volumen_autorizado_mm3: e.target.value === '' ? undefined : parseFloat(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:border-blue-500 outline-none font-mono text-lg" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs text-slate-400 mb-1 uppercase font-bold tracking-wider">Estado de Ciclo</label>
-                                    <select value={formData.activo ? 'activo' : 'inactivo'} onChange={e => setFormData({ ...formData, activo: e.target.value === 'activo' })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none">
-                                        <option value="activo">Activo</option>
-                                        <option value="inactivo">Inactivo / Histórico</option>
-                                    </select>
-                                </div>
-                                <div className="flex gap-2 pt-2">
-                                    <button type="submit" className="flex-1 bg-green-600 hover:bg-green-500 text-white p-2 rounded-lg font-bold flex items-center justify-center gap-2">
-                                        <Save size={16} /> Guardar
-                                    </button>
-                                    <button type="button" onClick={() => setIsEditing(false)} className="bg-slate-700 hover:bg-slate-600 p-2 rounded-lg text-white font-bold px-4">
-                                        Cancelar
-                                    </button>
-                                </div>
+                            </div>
+                            <div className="sc-campo">
+                                <label htmlFor="ci-vol">Volumen autorizado (Mm³)</label>
+                                <input id="ci-vol" type="number" inputMode="decimal" step="0.01" required value={formData.volumen_autorizado_mm3 ?? ''} onChange={e => setFormData({ ...formData, volumen_autorizado_mm3: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
+                                <small>0 = sin presupuesto cargado (se muestra como S/D).</small>
+                            </div>
+                            <div className="sc-campo">
+                                <label htmlFor="ci-estado">Estado del ciclo</label>
+                                <select id="ci-estado" className="ci-select" value={formData.activo ? 'activo' : 'inactivo'} onChange={e => setFormData({ ...formData, activo: e.target.value === 'activo' })}>
+                                    <option value="activo">Activo</option>
+                                    <option value="inactivo">Inactivo / histórico</option>
+                                </select>
+                            </div>
+                            <div className="sc-acciones">
+                                <button type="submit" className="sc-btn sc-btn-primario"><Save size={16} aria-hidden="true" /> Guardar ciclo</button>
+                                <button type="button" className="sc-btn" onClick={() => setIsEditing(false)}>Cancelar</button>
                             </div>
                         </form>
                     )}
                 </div>
 
-                {/* Lado Derecho: Asignación a Módulos */}
+                {/* Presupuesto por módulo */}
                 {selectedCiclo && (
-                    <div className="w-2/3 bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-700 flex flex-col">
-                        <div className="flex justify-between items-start mb-6">
-                            <div>
-                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                    <Users className="text-blue-400" /> Presupuesto por Asociación Civil
-                                </h2>
-                                <p className="text-slate-400 text-sm mt-1">Asigna la cuota hídrica a los Módulos para el ciclo <span className="text-white font-bold">{selectedCiclo.nombre}</span></p>
-                            </div>
-                            <div className="text-right bg-slate-900 p-3 rounded-xl border border-slate-700">
-                                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Balance Autorizado</div>
-                                <div className="text-2xl font-mono text-white leading-none">{volCiclo != null ? <>{volCiclo} <span className="text-sm text-slate-400">Mm³</span></> : 'S/D'}</div>
-                                {volCiclo == null && <div className="text-[11px] text-amber-400 mt-1">Sin presupuesto cargado</div>}
-                                {cicloVencido && <div className="text-[11px] text-amber-400 mt-1">Pasó su fecha de cierre ({selectedCiclo.fecha_fin}) y sigue activo (remanente/vaciado). Desactívalo al terminar.</div>}
-                            </div>
-                        </div>
+                    <section className="sc-card ci-presupuesto" aria-labelledby="ci-pres-t">
+                        <span className="sc-kicker">Presupuesto por asociación civil · {selectedCiclo.nombre}</span>
+                        <h3 id="ci-pres-t">Cuota hídrica por módulo</h3>
 
-                        {/* Indicador Visual de Balance */}
-                        <div className="mb-6">
-                            <div className="flex justify-between text-xs font-bold uppercase tracking-wide mb-2">
-                                <span className="text-blue-400">Asignado: {fmt(totalAutorizadoModulos, 2)} Mm³</span>
-                                <span className={restante != null && restante < 0 ? 'text-red-400' : 'text-slate-400'}>
-                                    {restante == null ? 'Sin Asignar: S/D' : <>{restante < 0 ? 'Déficit/Sobregiro: ' : 'Sin Asignar: '} {fmt(Math.abs(restante), 2)} Mm³</>}
+                        <div className="ci-balance" aria-hidden={volCiclo == null}>
+                            <div className="ci-balance-et">
+                                <span>Asignado <b>{totalAutorizadoModulos != null ? `${fmt(totalAutorizadoModulos, 2)} Mm³` : 'S/D'}</b></span>
+                                <span className={sobregiro ? 'ci-crit' : undefined}>
+                                    {restante == null ? 'Sin asignar: S/D' : <>{sobregiro ? 'Sobregiro' : 'Sin asignar'} <b>{fmt(Math.abs(restante), 2)} Mm³</b></>}
                                 </span>
                             </div>
-                            <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden flex">
-                                <div className={`h-full transition-all ${restante != null && restante < 0 ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${volCiclo != null ? Math.min(100, (totalAutorizadoModulos / volCiclo) * 100) : 0}%` }}></div>
+                            <div className="sc-barra ci-barra" role="img"
+                                aria-label={pctAsignado != null ? `${pctAsignado.toFixed(1)} % del volumen autorizado asignado` : 'Sin volumen autorizado: no se puede calcular la proporción asignada'}>
+                                {pctAsignado != null && <i className={sobregiro ? 'ci-barra-crit' : undefined} style={{ width: `${Math.min(100, pctAsignado)}%` }} />}
                             </div>
                         </div>
 
-                        {/* Listado de Módulos (Tabla Minimalista Interactiva) */}
-                        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                            <table className="w-full text-left border-collapse">
+                        <div className="sc-tabla-wrap">
+                            <table className="sc-tabla ci-tabla">
+                                <caption className="sc-sr">Volumen asignado a cada módulo en {selectedCiclo.nombre}</caption>
                                 <thead>
-                                    <tr className="border-b-2 border-slate-700 text-xs text-slate-400 uppercase tracking-wider">
-                                        <th className="pb-3 px-2 w-1/3">ACU / Módulo</th>
-                                        <th className="pb-3 px-2 w-1/3">Volumen Asignado (Mm³)</th>
-                                        <th className="pb-3 px-2 text-right">Acción</th>
+                                    <tr>
+                                        <th scope="col">Módulo</th>
+                                        <th scope="col">Asignado (Mm³)</th>
+                                        <th scope="col" className="ci-col-part">Parte de lo autorizado</th>
+                                        <th scope="col"><span className="sc-sr">Acción</span></th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {modulos.map(mod => {
+                                    {modulosOrden.map(mod => {
                                         const vinculacion = modulosCiclos.find(mc => mc.modulo_id === mod.id && mc.ciclo_id === selectedCiclo.id);
                                         return (
                                             <PresupuestoRow
@@ -210,6 +288,7 @@ export default function Ciclos() {
                                                 modulo={mod}
                                                 cicloId={selectedCiclo.id}
                                                 vinculacion={vinculacion}
+                                                volCiclo={volCiclo}
                                                 onSave={saveModuloCiclo}
                                             />
                                         );
@@ -217,7 +296,8 @@ export default function Ciclos() {
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                        <p className="ci-nota">S/D = módulo sin cuota capturada para este ciclo (no es una cuota de cero).</p>
+                    </section>
                 )}
             </div>
         </div>
@@ -229,10 +309,11 @@ interface PresupuestoRowProps {
     modulo: Modulo;
     cicloId: string;
     vinculacion?: ModuloCiclo;
+    volCiclo: number | null;
     onSave: (id: string | null, cicloId: string, moduloId: string, vol: number) => Promise<boolean | undefined>;
 }
 
-function PresupuestoRow({ modulo, cicloId, vinculacion, onSave }: PresupuestoRowProps) {
+function PresupuestoRow({ modulo, cicloId, vinculacion, volCiclo, onSave }: PresupuestoRowProps) {
     const [isEditing, setIsEditing] = useState(false);
     const guardado = vinculacion?.volumen_autorizado_mm3 ?? null;
     const [vol, setVol] = useState<string>(guardado != null ? String(guardado) : '');
@@ -256,37 +337,49 @@ function PresupuestoRow({ modulo, cicloId, vinculacion, onSave }: PresupuestoRow
         if (ok) setIsEditing(false);
     };
 
+    const pct = guardado != null && volCiclo != null ? (Number(guardado) / volCiclo) * 100 : null;
+
     return (
-        <tr className="border-b border-slate-700/50 hover:bg-slate-750 transition-colors group">
-            <td className="py-3 px-2 w-1/3">
-                <div className="font-bold text-white text-sm">{modulo.nombre}</div>
-                <div className="text-xs text-slate-400">{modulo.codigo_corto}</div>
-            </td>
-            <td className="py-3 px-2 w-1/3">
+        <tr>
+            <th scope="row">
+                <span className="ci-mod">{modulo.nombre}</span>
+                <span className="ci-mod-cod">{modulo.codigo_corto}</span>
+            </th>
+            <td>
                 {isEditing ? (
                     <input
                         type="number"
+                        inputMode="decimal"
                         step="0.01"
                         autoFocus
                         value={vol}
                         onChange={e => setVol(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') void handleSaveRow(); if (e.key === 'Escape') setIsEditing(false); }}
                         aria-label={`Volumen asignado a ${modulo.nombre} (Mm³)`}
-                        className="bg-slate-900 border border-blue-500 rounded p-1 text-white font-mono outline-none w-32"
+                        className="ci-input"
                     />
                 ) : (
-                    <span className="font-mono text-slate-300 font-bold bg-slate-900 px-3 py-1 rounded">
-                        {guardado != null ? `${guardado} Mm³` : 'S/D'}
-                    </span>
+                    <span className={guardado != null ? 'ci-val' : 'ci-val sc-sd'}>{guardado != null ? fmt(Number(guardado), 2) : 'S/D'}</span>
                 )}
             </td>
-            <td className="py-3 px-2 text-right">
+            <td className="ci-col-part">
+                {pct != null ? (
+                    <span className="ci-part">
+                        <span className="sc-barra"><i style={{ width: `${Math.min(100, pct)}%` }} /></span>
+                        <small>{pct.toFixed(1)} %</small>
+                    </span>
+                ) : <span className="sc-sd">S/D</span>}
+            </td>
+            <td className="ci-col-acc">
                 {isEditing ? (
-                    <button onClick={handleSaveRow} className="bg-green-600/20 text-green-400 hover:bg-green-600/40 px-3 py-1 rounded border border-green-500/50 font-bold text-xs uppercase transition-colors">
-                        Guardar
-                    </button>
+                    <span className="ci-acc">
+                        <button type="button" className="sc-btn sc-btn-primario" onClick={handleSaveRow}><Save size={14} aria-hidden="true" /> Guardar</button>
+                        <button type="button" className="sc-btn" onClick={() => setIsEditing(false)} aria-label="Cancelar"><X size={14} aria-hidden="true" /></button>
+                    </span>
                 ) : (
-                    <button onClick={() => setIsEditing(true)} className="text-blue-400 hover:text-blue-300 px-3 py-2 rounded font-bold text-xs uppercase flex items-center justify-end gap-1 w-full md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity">
-                        <Edit2 size={12} /> Modificar
+                    /* Siempre visible: antes aparecía solo con el cursor encima y en iPad no se veía. */
+                    <button type="button" className="sc-btn" onClick={() => setIsEditing(true)} aria-label={`Modificar volumen de ${modulo.nombre}`}>
+                        <Edit2 size={14} aria-hidden="true" /> Modificar
                     </button>
                 )}
             </td>

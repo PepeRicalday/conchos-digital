@@ -1,0 +1,60 @@
+/* Ciclos agrícolas — sobre el sistema "sala de control" (tokens --sc-* de sala-control.css). Texto ≥ 11 px, táctil ≥ 44 px. */
+.ci-root { padding: 0 0 2rem; }
+.ci-vacio { display: flex; justify-content: center; padding: 32px 16px; color: var(--sc-t3); border: 1px dashed var(--sc-line); border-radius: 14px; }
+.ci-nota { margin: 10px 0 0; font-size: 12px; color: var(--sc-t3); }
+.ci-root .sc-sd { color: var(--sc-t3); font-family: var(--sc-mono); }
+.ci-crit { color: var(--sc-crit); }
+
+/* Lista de ciclos (1/3) | presupuesto por módulo (2/3) */
+.ci-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 18px; align-items: start; }
+.ci-lateral { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+
+.ci-ciclos { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ci-ciclo { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--sc-line); background: var(--sc-surface); }
+.ci-ciclo-sel { border-color: rgba(56, 189, 248, 0.55); background: rgba(56, 189, 248, 0.08); }
+.ci-ciclo-btn { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; min-height: 44px; cursor: pointer; }
+.ci-ciclo-btn:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 4px; border-radius: 8px; }
+.ci-ciclo-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ci-ciclo-top b { font-size: 15px; color: var(--sc-t1); }
+.ci-ciclo-meta { font-size: 12px; color: var(--sc-t2); }
+.ci-ciclo-meta b { font-family: var(--sc-mono); color: var(--sc-t1); font-weight: 600; }
+.ci-editar { align-self: flex-start; }
+
+.ci-form { display: flex; flex-direction: column; gap: 12px; border-color: rgba(56, 189, 248, 0.35); }
+.ci-form h3 { margin-bottom: 2px; }
+.ci-fechas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ci-select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--sc-line); background: var(--sc-surface-2); color: var(--sc-t1); font: 600 14px var(--sc-body); }
+.ci-select:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 1px; }
+
+/* Presupuesto */
+.ci-balance { margin: 10px 0 14px; }
+.ci-balance-et { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 8px; font-size: 13px; color: var(--sc-t2); }
+.ci-balance-et b { font-family: var(--sc-mono); color: var(--sc-t1); }
+.ci-barra { height: 12px; }
+.ci-barra i.ci-barra-crit { background: var(--sc-crit); }
+.ci-tabla th[scope='row'] { white-space: normal; }
+.ci-mod { display: block; font-size: 14px; }
+.ci-mod-cod { display: block; font-family: var(--sc-mono); font-size: 11px; font-weight: 400; color: var(--sc-t3); }
+.ci-val { font-size: 15px; font-weight: 600; color: var(--sc-t1); }
+.ci-col-part { width: 34%; }
+.ci-tabla td.ci-col-part { text-align: left; }
+.ci-part { display: grid; grid-template-columns: minmax(60px, 1fr) auto; align-items: center; gap: 10px; }
+.ci-part small { font-family: var(--sc-mono); font-size: 12px; color: var(--sc-t2); }
+.ci-col-acc { width: 1%; }
+.ci-acc { display: inline-flex; gap: 6px; }
+.ci-input { width: 120px; min-height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--sc-sky); background: var(--sc-surface-2); color: var(--sc-t1); font: 600 15px var(--sc-mono); text-align: right; }
+.ci-input:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 1px; }
+
+@media (max-width: 1100px) {
+    .ci-grid { grid-template-columns: minmax(0, 1fr); }
+    .ci-presupuesto { order: -1; }
+}
+html[data-device="phone"] .ci-col-part { display: none; }
+html[data-device="phone"] .ci-fechas { grid-template-columns: 1fr; }
+html[data-device="phone"] .ci-input { width: 100%; font-size: 16px; }
+
+/* Calendario del ciclo */
+.ci-cal-cifra { margin: 6px 0 10px; color: var(--sc-t2); }
+.ci-cal-cifra b { font-family: var(--sc-display); font-size: 44px; font-weight: 800; line-height: 1; color: var(--sc-t1); font-variant-numeric: tabular-nums; }
+.ci-cal-cifra small { font-family: var(--sc-mono); font-size: 13px; color: var(--sc-t3); }
+.ci-cal-et { display: flex; justify-content: space-between; margin-top: 6px; font-family: var(--sc-mono); font-size: 11px; color: var(--sc-t3); }

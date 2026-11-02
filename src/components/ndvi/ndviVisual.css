@@ -7,9 +7,9 @@
 .ndvi-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
 .ndvi-chip { flex: 0 0 auto; min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.28);
     background: rgba(15, 23, 42, 0.8); color: #cbd5e1; font: 600 13px 'JetBrains Mono', ui-monospace, monospace; cursor: pointer; }
-.ndvi-chip:hover { border-color: rgba(56, 189, 248, 0.6); }
-.ndvi-chip:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
-.ndvi-chip-on { background: rgba(56, 189, 248, 0.16); border-color: #38bdf8; color: #f1f5f9; }
+.ndvi-chip:hover { border-color: rgba(63, 178, 243, 0.6); }
+.ndvi-chip:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
+.ndvi-chip-on { background: rgba(63, 178, 243, 0.16); border-color: #3FB2F3; color: #f1f5f9; }
 
 /* Tarjeta de módulo */
 .ndvi-card-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; margin-bottom: 8px; }
@@ -25,10 +25,10 @@
 .ndvi-card-meta { margin-top: 8px; font-size: 12px; color: #94a3b8; line-height: 1.5; }
 /* Delta con semántica neutra: azul sube, ámbar baja. Una baja es normal en vaciado/fin de ciclo; el rojo la leía como falla. */
 .ndvi-delta { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
-.ndvi-delta-sube { color: #38bdf8; }
+.ndvi-delta-sube { color: #3FB2F3; }
 .ndvi-delta-baja { color: #fbbf24; }
 .ndvi-card-sd { margin-top: 10px; font-size: 14px; color: #94a3b8; }
-.ndvi-modulo-card-clickable:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.ndvi-modulo-card-clickable:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
 
 /* Mini-mapa: etiqueta de qué periodo muestra la imagen (distinto del mes de los números) */
 .ndvi-minimap-wrap { position: relative; }
@@ -65,7 +65,7 @@
     background: rgba(248, 113, 113, 0.07); color: #fca5a5; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .ndvi-btn { min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.35); background: rgba(15, 23, 42, 0.85);
     color: #e2e8f0; font: 600 13px system-ui, sans-serif; cursor: pointer; }
-.ndvi-btn:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.ndvi-btn:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) { .ndvi-skeleton { animation: none; } }
 

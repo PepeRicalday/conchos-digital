@@ -85,7 +85,8 @@ export default function BotonInfografiaPresas({ presas }: { presas: PresaData[] 
             }
 
             const logo = await assetToDataURI('/logos/logo-srl.png'); // '' si falla: la plantilla lo omite
-            const png = await rasterizaHtml(htmlInfografiaPresas(datos, logo), { ancho: ANCHO_INFOGRAFIA, escala: 2 });
+            const logoSica = await assetToDataURI('/logos/sica/sica005-emblema.svg');
+            const png = await rasterizaHtml(htmlInfografiaPresas(datos, logo, logoSica), { ancho: ANCHO_INFOGRAFIA, escala: 2 });
             await guardaOComparte(png, `estado-presas-conchos-${datos.corte.fechaDato ?? 'sin-fecha'}.png`, 'image/png');
         } catch (e) {
             setAviso(e instanceof Error ? e.message : 'No se pudo generar la infografía.');

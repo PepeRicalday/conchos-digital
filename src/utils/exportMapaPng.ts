@@ -58,7 +58,7 @@ export async function exportaMapaPng(nodo: HTMLElement, opciones: OpcionesExport
     const fecha = ahora.toLocaleString('es-MX', { dateStyle: 'long', timeStyle: 'short', timeZone: 'America/Chihuahua' });
     ctx.fillStyle = '#e8eef6';
     ctx.font = '700 28px "IBM Plex Sans", system-ui, sans-serif';
-    ctx.fillText(`Geo-Monitor · SICA-005 · ${fecha}`, 28, img.height + 44);
+    ctx.fillText(`Geo-Monitor · SICA 005 · ${fecha}`, 28, img.height + 44);
     ctx.fillStyle = '#b4c2d4';
     ctx.font = '400 22px "IBM Plex Sans", system-ui, sans-serif';
     const linea2 = [`Base: ${opciones.capaBase}`, opciones.escena ? `Escena: ${opciones.escena}` : null,

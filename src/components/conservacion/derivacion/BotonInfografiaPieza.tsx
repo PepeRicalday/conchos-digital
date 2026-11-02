@@ -24,7 +24,8 @@ export function BotonInfografiaPieza(props: Props) {
         try {
             const fecha = hoyIso();
             const logo = await assetToDataURI('/logos/logo-srl.png');
-            const ctx = { fecha, logo, ambito: props.ambito, red: props.red, canal: null };
+            const logoSica = await assetToDataURI('/logos/sica/sica005-emblema.svg');
+            const ctx = { fecha, logo, logoSica, ambito: props.ambito, red: props.red, canal: null };
             let html: string;
             let nombre: string;
             if (props.tipo === 'concepto') {

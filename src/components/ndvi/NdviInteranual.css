@@ -11,8 +11,8 @@
 .ndvi-ia-minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 4px; }
 .ndvi-ia-mini { display: block; width: 100%; padding: 6px 8px 4px; text-align: left; color: var(--ia-texto); background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(148, 163, 184, 0.22); border-top: 3px solid var(--c); border-radius: 8px; cursor: pointer; min-height: 44px; }
 .ndvi-ia-mini:hover { border-color: rgba(148, 163, 184, 0.5); border-top-color: var(--c); }
-.ndvi-ia-mini:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
-.ndvi-ia-mini.on { background: rgba(56, 189, 248, 0.12); border-color: #38bdf8; border-top-color: var(--c); }
+.ndvi-ia-mini:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
+.ndvi-ia-mini.on { background: rgba(63, 178, 243, 0.12); border-color: #3FB2F3; border-top-color: var(--c); }
 .ndvi-ia-mini-cab { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.85rem; }
 .ndvi-ia-mini-an { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ia-suave); }
 .ndvi-ia-mini-an.sube { color: #5eead4; }
@@ -32,7 +32,7 @@
 .ndvi-ia-leyenda i.band { height: 10px; background: rgba(148, 163, 184, 0.3); }
 
 .ndvi-ia-tabla-wrap { margin-top: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; max-width: 100%; }
-.ndvi-ia-tabla-wrap:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.ndvi-ia-tabla-wrap:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
 .ndvi-ia-tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 .ndvi-ia-tabla caption { text-align: left; font-weight: 600; color: #e2e8f0; padding-bottom: 6px; }
 .ndvi-ia-tabla th, .ndvi-ia-tabla td { padding: 6px 10px; text-align: right; border-bottom: 1px solid rgba(148, 163, 184, 0.15); white-space: nowrap; }

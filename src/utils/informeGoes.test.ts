@@ -267,11 +267,11 @@ describe('html', () => {
     it('portada: logos, folio, periodo y lectura en palabras', () => {
         const h = basico();
         expect(h).toContain(LOGOS.srl);
-        expect(h).toContain('S R L&nbsp;&nbsp;Unidad Conchos');
+        expect(h).toContain('SRL Unidad Conchos');
         expect(h).toMatch(/GOES-BAS-7D-20261026-1205/);
         expect(h).toMatch(/Lectura del periodo/);
         expect(h).toMatch(/Últimos 7 días/);
-        expect(h).toContain('--inst:#6B2D2D');
+        expect(h).toContain('--inst:#0B3170');
     });
     it('folio y nombres de archivo', () => {
         const d = prepararInformeGoes(entrada());

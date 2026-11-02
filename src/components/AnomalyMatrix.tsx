@@ -70,7 +70,7 @@ const AnomalyMatrix: React.FC<AnomalyMatrixProps> = ({ modules, onSelectModule }
     }
 
     return (
-        <div className="flex flex-col h-full bg-[#020617]/80 rounded-2xl border border-white/10 overflow-hidden shadow-2xl backdrop-blur-xl">
+        <div className="flex flex-col h-full bg-[#061532]/80 rounded-2xl border border-white/10 overflow-hidden shadow-2xl backdrop-blur-xl">
             <header className="px-5 py-4 border-b border-white/10 flex justify-between items-center bg-gradient-to-b from-white/5 to-transparent">
                 <div className="flex items-center gap-2">
                     <div className="p-1.5 bg-red-500/10 rounded-lg border border-red-500/20">

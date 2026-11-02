@@ -43,10 +43,13 @@ const Login: React.FC = () => {
 
             <div className="login-card">
                 <div className="login-header">
-                    <h1 className="login-title">SRL UNIDAD CONCHOS</h1>
-                    <span className="login-subtitle">HIDRO-SINCRONÍA DIGITAL</span>
+                    <div className="login-emblema">
+                        <LogoSica tamano={112} className="logo-sica" />
+                    </div>
+                    <h1 className="login-title">SICA 005</h1>
+                    <span className="login-subtitle">Sistema Integral de Control del Agua</span>
                     <p className="login-description">
-                        Sociedad de Asociaciones de Usuarios Unidad Conchos S.R.L. De I.P. y C.V.
+                        Distrito de Riego 005 · Delicias, Chihuahua
                     </p>
                 </div>
 
@@ -115,14 +118,12 @@ const Login: React.FC = () => {
                 </form>
 
                 <div className="footer-logo-section">
-                    <span className="footer-tagline">Respaldo Tecnológico</span>
-                    <div className="sica-badge">
-                        <LogoSica tamano={80} className="logo-sica" />
-                    </div>
+                    <span className="footer-tagline">Operado por</span>
+                    <img src="/logos/conservacion/logo-srl-claro.png" alt="SRL Unidad Conchos" className="logo-srl-pie" />
 
                     <div className="version-info">
                         <span className="version-label">
-                            SICA v{APP_VERSION} • {BUILD_HASH}
+                            v{APP_VERSION}{BUILD_HASH.replace(/^v/, '') === APP_VERSION ? '' : ` • ${BUILD_HASH}`}
                         </span>
 
                         <button

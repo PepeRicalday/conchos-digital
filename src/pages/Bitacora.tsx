@@ -129,7 +129,7 @@ export default function Bitacora() {
     };
 
     return (
-        <div className="p-6 w-full space-y-6 fade-in h-[calc(100vh-80px)] overflow-auto pb-20">
+        <div className="tw-espaciado p-6 w-full space-y-6 fade-in h-[calc(100vh-80px)] overflow-auto pb-20">
             <header className="mb-6">
                 <h1 className="text-3xl font-bold flex items-center gap-3">
                     <Activity className="text-blue-500" />

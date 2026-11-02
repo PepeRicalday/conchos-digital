@@ -106,8 +106,8 @@ describe('HTML del informe NDVI', () => {
         expect(h).toContain('Pág. 1 de ' + n);
         expect(h).toContain('@page{size:letter');
         expect(h).toContain('print-color-adjust');
-        expect(h).toContain('S R L');
-        expect(h).toContain('#6B2D2D');
+        expect(h).toContain('SRL Unidad Conchos');
+        expect(h).toContain('#0B3170');
     });
     it('sin NaN / undefined / null en el texto', () => {
         for (const h of [armar(), armar(filas({ sinModuloEnSep: 12 })), armar([], ctx())]) {
@@ -133,7 +133,7 @@ describe('HTML del informe NDVI', () => {
     it('sin logo conserva la marca en texto; sin plano muestra un aviso visible', () => {
         const h = armar(filas(), ctx({ logoSrlOk: false }), { srl: '', sica: '' }, false);
         expect(h).not.toContain('<img');
-        expect(h).toContain('S R L');
+        expect(h).toContain('SRL Unidad Conchos');
         expect(h).toContain('Plano no disponible');
     });
     it('rotula el promedio como simple y muestra el ponderado aparte', () => {

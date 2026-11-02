@@ -1,11 +1,12 @@
-/* Sello SICA-005: tamaño fijo, sin recortes ni opacidad. La sombra separa el disco de fondos oscuros.
-   :where() = especificidad 0, para que cada página pueda ocultarlo o redimensionarlo sin pelear con el orden de carga. */
+/* Marca SICA 005: tamaño fijo, sin recortes ni opacidad. Cada versión trae su filo blanco; la sombra la separa de fondos oscuros.
+   :where() = especificidad 0, para que cada página pueda ocultarla o redimensionarla sin pelear con el orden de carga.
+   La proporción (aspect-ratio) la pone LogoSica en línea según la versión. */
 :where(.logo-sica-marca) {
     display: block;
     flex-shrink: 0;
-    aspect-ratio: 1;
     object-fit: contain;
     filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.35)) drop-shadow(0 4px 10px rgb(0 0 0 / 0.18));
+    -webkit-user-select: none;
     user-select: none;
 }
 @media print {

@@ -54,7 +54,7 @@ export default function Infraestructura() {
     };
 
     return (
-        <div className="infra-root h-full bg-slate-900 p-6 flex flex-col overflow-hidden text-slate-200">
+        <div className="infra-root tw-espaciado h-full bg-slate-900 p-6 flex flex-col overflow-hidden text-slate-200">
             <div className="infra-head mb-6 flex justify-between items-end">
                 <div>
                     <h1 className="text-2xl font-bold text-white flex items-center gap-3">

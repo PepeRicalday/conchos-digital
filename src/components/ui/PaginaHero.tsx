@@ -1,6 +1,7 @@
 import { memo, type ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, Clock, Radio } from 'lucide-react';
 import type { ChipEstado, SeveridadChip } from '../../utils/alertasVivas';
+import { LogoSica } from '../marca/LogoSica';
 
 const ICONO: Record<SeveridadChip, typeof Radio> = { crit: AlertTriangle, warn: Clock, info: Radio, ok: CheckCircle2 };
 
@@ -26,7 +27,10 @@ export const PaginaHero = memo(function PaginaHero({ kicker, titulo, subtitulo, 
                     <h1 id={id} className="sc-titulo">{titulo}</h1>
                     {subtitulo && <p className="sc-hero-sub">{subtitulo}</p>}
                 </div>
-                {acciones && <div className="sc-acciones">{acciones}</div>}
+                <div className="sc-hero-lado">
+                    {acciones && <div className="sc-acciones">{acciones}</div>}
+                    <LogoSica tamano={48} etiqueta="" className="sc-hero-marca" />
+                </div>
             </div>
             {chips && chips.length > 0 && (
                 <ul className="sc-chips" aria-label="Estado de las fuentes" aria-live="polite">

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// INFORME GEOCLIMÁTICO POR MÓDULO — SICA-005
+// INFORME GEOCLIMÁTICO POR MÓDULO — SICA 005
 // ---------------------------------------------------------------------------
 // Informe HTML autónomo con un mapa por variable (temperatura, viento,
 // radiación solar, precipitación), coloreando la geofrontera real de los 6
@@ -99,7 +99,7 @@ export interface OpcionesGeoInforme {
      * física WeatherLink, en vez del acumulado reconstruido desde la BD —
      * solo ocurre en modo "todo el histórico" (el usuario no eligió fechas en
      * el modal). La consola puede llevar registrando lluvia desde ANTES de
-     * que la red se diera de alta en SICA-005 (confirmado 2026-09-16: Módulo
+     * que la red se diera de alta en SICA 005 (confirmado 2026-09-16: Módulo
      * 3 real = 174.8 mm "anual como de Jan" en la app WeatherLink nativa,
      * reconstruido desde BD = solo 74.7 mm porque la BD únicamente tiene
      * lecturas desde julio) — 174.8 es la cifra real de cuánto ha llovido,
@@ -850,7 +850,7 @@ function mapaVariableSVG(
     // Modo simple: se omite del todo — atribución de fuente/método técnico,
     // sin valor operativo para quien no audita el dato.
     const atribucionSVG = modoTecnico ? `<line x1="${leyX}" y1="${(H + HL - 20).toFixed(1)}" x2="${W - P}" y2="${(H + HL - 20).toFixed(1)}" stroke="${VIZ.grid}" stroke-width="1"/>
-        <text x="${(leyX).toFixed(1)}" y="${(H + HL - 6).toFixed(1)}" font-size="7.5" fill="${VIZ.inkMuted}" font-family="system-ui">Fuente: red WeatherLink (Davis) · interpolación IDW p=2 · proyección geográfica WGS-84 (aspecto corregido por cos φ) · SICA-005</text>` : '';
+        <text x="${(leyX).toFixed(1)}" y="${(H + HL - 6).toFixed(1)}" font-size="7.5" fill="${VIZ.inkMuted}" font-family="system-ui">Fuente: red WeatherLink (Davis) · interpolación IDW p=2 · proyección geográfica WGS-84 (aspecto corregido por cos φ) · SICA 005</text>` : '';
 
     return `<svg viewBox="0 0 ${W} ${H + HL + 6}" width="100%" xmlns="http://www.w3.org/2000/svg" style="background:#f8fafc;border-radius:10px" font-family="system-ui">
         <defs>
@@ -1877,7 +1877,7 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
 </style>
 </head><body><div class="wrap">
   <header>
-    <div class="logos">${logoImg(logoSICA, 'SICA-005')}</div>
+    <div class="logos">${logoImg(logoSICA, 'SICA 005')}</div>
     <div class="titulo">
       <div class="sub">S R L Unidad Conchos · Delicias, Chihuahua</div>
       <h1>Informe Geoclimático por Módulo</h1>
@@ -1964,7 +1964,7 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
 
   <div class="foot">
     <span>
-      <b>Informe Geoclimático por Módulo · SICA-005</b><br>
+      <b>Informe Geoclimático por Módulo · SICA 005</b><br>
       Estaciones Davis/WeatherLink · Interpolación IDW p=2 sobre la geofrontera real de los 6 módulos SRL.<br>
       Documento generado automáticamente.
     </span>

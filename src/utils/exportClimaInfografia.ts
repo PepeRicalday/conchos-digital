@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// INFOGRAFÍA DE CLIMA ACTUAL — SICA-005 · Centro de Inteligencia Agroclimática
+// INFOGRAFÍA DE CLIMA ACTUAL — SICA 005 · Centro de Inteligencia Agroclimática
 // ---------------------------------------------------------------------------
 // Pieza de lectura RÁPIDA: indicadores KPI y plano activo del distrito, sobre
 // lienzo azul institucional. Es deliberadamente distinta al informe técnico
@@ -553,7 +553,7 @@ async function buildHTML(
 
     return `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SICA-005 · Estado Operativo del Distrito · ${fechaLarga}</title>
+<title>SICA 005 · Estado Operativo del Distrito · ${fechaLarga}</title>
 <style>
   *{box-sizing:border-box}
   body{margin:0;background:${T.marino};color:${T.tinta};
@@ -703,9 +703,9 @@ async function buildHTML(
 
 <header>
   ${logoSRL ? `<img src="${logoSRL}" alt="SRL Unidad Conchos">` : ''}
-  ${logoSICA ? `<img src="${logoSICA}" alt="SICA-005">` : ''}
+  ${logoSICA ? `<img src="${logoSICA}" alt="SICA 005">` : ''}
   <div class="h-tit">
-    <h1>SICA-005 <span>| CENTRO DE INTELIGENCIA AGROCLIMÁTICA</span></h1>
+    <h1>SICA 005 <span>| CENTRO DE INTELIGENCIA AGROCLIMÁTICA</span></h1>
     <div class="h-sub">SRL Unidad Conchos – Distrito de Riego 005</div>
     <div class="h-sub2">Estado Operativo del Distrito</div>
   </div>

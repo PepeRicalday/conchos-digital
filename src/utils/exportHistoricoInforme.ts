@@ -20,6 +20,7 @@ import { guardaOComparte } from './descargaArchivo';
 export async function generarInformeHtml(config: ConfigInforme, idx: Indice): Promise<string> {
     const d = prepararInforme(config, idx);
     const logo = await assetToDataURI('/logos/logo-srl.png');
+    logoSicaActual = await assetToDataURI('/logos/sica/sica005-emblema.svg');
     return config.modalidad === 'tecnico' ? buildHTMLTecnico(d, logo) : buildHTMLBasico(d, logo);
 }
 
@@ -86,7 +87,7 @@ body{margin:0;background:var(--fondo);color:var(--ink);font-family:"Segoe UI","H
 h1,h2,h3,h4{font-family:Georgia,"Times New Roman",serif;color:var(--inst);margin:0;font-weight:700;break-after:avoid;page-break-after:avoid}
 .cab{display:flex;align-items:center;gap:16px;border-bottom:3px solid var(--inst);padding-bottom:9px;margin-bottom:12px}
 .cab img{height:54px;width:auto;display:block}
-.marca{font-family:Georgia,serif;color:var(--inst);line-height:1.15}
+.marca{font-family:"Segoe UI",Arial,sans-serif;color:var(--inst);line-height:1.15}
 .marca b{display:block;font-size:15pt;letter-spacing:.32em}.marca span{display:block;font-size:9pt;letter-spacing:.5em;margin-top:2px}
 .cab .tit{margin-left:auto;text-align:right}
 .cab .tit h1{font-size:15pt;line-height:1.15}.cab .tit p{margin:2px 0 0;color:var(--ink2);font-size:8.5pt}
@@ -104,7 +105,7 @@ h1,h2,h3,h4{font-family:Georgia,"Times New Roman",serif;color:var(--inst);margin
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:10px}
 .kpi{border:1px solid var(--linea);border-top:4px solid var(--inst);border-radius:6px;padding:7px 10px;break-inside:avoid;page-break-inside:avoid;background:#fff}
 .kpi .l{font-size:8pt;text-transform:uppercase;letter-spacing:.07em;color:var(--ink2);font-weight:600}
-.kpi .v{font:700 20pt/1.1 Georgia,serif;color:var(--ink);margin-top:2px;font-variant-numeric:tabular-nums}
+.kpi .v{font:700 20pt/1.1 "Segoe UI",Arial,sans-serif;color:var(--ink);margin-top:2px;font-variant-numeric:tabular-nums}
 .kpi .v small{font:500 9pt "Segoe UI",sans-serif;color:var(--ink2)}
 .kpi .s{font-size:8.5pt;color:var(--ink2);margin-top:1px}
 .fig{border:1px solid var(--linea);border-radius:6px;padding:6px 8px 4px;margin-bottom:10px;break-inside:avoid;page-break-inside:avoid;background:#fff}
@@ -162,11 +163,15 @@ h4{font-size:9.5pt;margin:7px 0 3px;font-family:"Segoe UI",sans-serif;color:var(
 .pct-t{max-width:5in}
 `;
 
+/** Emblema SICA 005 (data URI) del informe en curso; lo fija generarInformeHtml antes de armar el HTML. */
+let logoSicaActual = '';
+
 function cabecera(logo: string, titulo: string, subtitulo: string): string {
-    const marca = logo
+    const sica = logoSicaActual ? `<img src="${esc(logoSicaActual)}" alt="SICA 005">` : '';
+    const srl = logo
         ? `<img src="${esc(logo)}" alt="SRL Unidad Conchos, Delicias">`
-        : `<div class="marca"><b>S R L</b><span>UNIDAD CONCHOS</span><span>DELICIAS</span></div>`;
-    return `<div class="cab">${marca}<div class="tit"><h1>${esc(titulo)}</h1><p>${esc(subtitulo)}</p></div></div>`;
+        : `<div class="marca"><b>SRL</b><span>UNIDAD CONCHOS</span></div>`;
+    return `<div class="cab">${sica}${srl}<div class="tit"><h1>${esc(titulo)}</h1><p>${esc(subtitulo)}</p></div></div>`;
 }
 
 function metaLinea(d: DatosInforme, presas: string): string {

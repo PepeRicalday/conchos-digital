@@ -30,10 +30,11 @@ export function BotonInfografiaComprobacion(props: Props) {
         try {
             const fecha = hoyIso();
             const logo = await assetToDataURI('/logos/logo-srl.png'); // '' si falla: la plantilla lo omite
+            const logoSica = await assetToDataURI('/logos/sica/sica005-emblema.svg');
             // El contorno real viaja incrustado en el SVG (el PNG no tiene red): se espera al trazo y se reconstruye el modelo con él, igual que la ventana de ubicación.
             const tz = await obtenerTrazo();
             const canal = props.modelo ? conTrazo(props.modelo, tz.trazo) : null;
-            const ctx = { fecha, logo, ambito: props.ambito, red: props.red, canal };
+            const ctx = { fecha, logo, logoSica, ambito: props.ambito, red: props.red, canal };
             let html: string;
             let nombre: string;
             if (props.tipo === 'tramo') {

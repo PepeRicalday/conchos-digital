@@ -1453,11 +1453,11 @@ const GeoMonitor = () => {
     const lotesCargados = Object.values(geoLotesPorModulo).reduce((a, fc) => a + (fc.features?.length ?? 0), 0);
     const capasLeyenda: CapaLeyenda[] = [
         { key: 'canal', etiqueta: 'Canal Principal', detalle: 'Trazado por secciones', simbolo: 'linea', color: '#22d3ee', conteo: secciones.length || null },
-        { key: 'escalas', etiqueta: 'Escalas y aforos', detalle: 'Puntos de control con nivel y gasto', simbolo: 'punto', color: '#38bdf8', conteo: escalas.length + aforos.length || null },
+        { key: 'escalas', etiqueta: 'Escalas y aforos', detalle: 'Puntos de control con nivel y gasto', simbolo: 'punto', color: '#3FB2F3', conteo: escalas.length + aforos.length || null },
         { key: 'tomas', etiqueta: 'Presas y tomas', detalle: 'Presas y tomas de módulos', simbolo: 'punto', color: '#3b82f6', conteo: presas.length + filteredTomas.length || null },
         { key: 'rioShape', etiqueta: 'Río Conchos', detalle: 'Trazado del cauce', simbolo: 'linea', color: '#60a5fa', conteo: null },
         { key: 'modulos', etiqueta: 'Módulos de riego', detalle: 'Polígonos por módulo SRL', simbolo: 'poligono', color: '#a78bfa', conteo: geoModulos?.features?.length ?? null },
-        { key: 'presasShape', etiqueta: 'Vasos de presa', detalle: 'Contorno del espejo de agua', simbolo: 'poligono', color: '#38bdf8', conteo: geoPresas?.features?.length ?? null },
+        { key: 'presasShape', etiqueta: 'Vasos de presa', detalle: 'Contorno del espejo de agua', simbolo: 'poligono', color: '#3FB2F3', conteo: geoPresas?.features?.length ?? null },
         { key: 'lotes', etiqueta: 'Lotes de productores', detalle: 'Catastro; se carga desde zoom ' + LOTES_MIN_ZOOM, simbolo: 'poligono', color: '#fbbf24',
           conteo: lotesCargados || null, nota: layers.lotes && mapZoom < LOTES_MIN_ZOOM ? 'Acerca el mapa (zoom ' + LOTES_MIN_ZOOM + ') para verlos' : undefined },
         { key: 'estaciones', etiqueta: 'Estaciones climáticas', detalle: 'WeatherLink / Davis', simbolo: 'rombo', color: '#34d399', conteo: estacionesClima.length || null },
@@ -2685,7 +2685,7 @@ const GeoMonitor = () => {
                                 {/* Estaciones climáticas WeatherLink */}
                                 {layers.estaciones && estacionesClima.map(e => {
                                     const l = e.lectura;
-                                    const col = e.enLinea ? '#38bdf8' : '#64748b';
+                                    const col = e.enLinea ? '#3FB2F3' : '#64748b';
                                     return (
                                         <CircleMarker
                                             key={`est-${e.id}`}

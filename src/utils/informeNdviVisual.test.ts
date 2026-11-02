@@ -107,7 +107,7 @@ describe('color solo para el vigor; módulos por forma', () => {
         for (let i = 1; i < l.length; i++) expect(l[i]).toBeLessThan(l[i - 1]);
         const pulso = svgPulso({ anios: [2025, 2026], anioFoco: 2026, series: [{ anio: 2025, vals: [0.2, 0.3, 0.4, 0.4, 0.4, 0.3, 0.3] }, { anio: 2026, vals: [0.2, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3] }], clim: [], titulo: 't' }, { w: 700, h: 250 });
         expect(pulso).toContain('stroke="#000000"');
-        expect(pulso).not.toContain('#6B2D2D');
+        expect(pulso).not.toContain('#0B3170');
     });
     it('el delta usa flecha y texto, no color', () => {
         expect(html).toMatch(/[▲▼■] [+−]?\d/);

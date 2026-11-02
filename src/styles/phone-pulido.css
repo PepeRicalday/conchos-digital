@@ -13,7 +13,7 @@
 /* ── Tokens de pulido ────────────────────────────────────────────────────── */
 html[data-device="phone"] {
     --pl-radius: 16px;
-    --pl-muted: #94a3b8;          /* texto secundario legible sobre #020617 (≈7:1) */
+    --pl-muted: #94a3b8;          /* texto secundario legible sobre #061532 (≈7:1) */
     --pl-gap: 10px;
 }
 
@@ -75,7 +75,7 @@ html[data-device="phone"] .info-cards-dock .dock-tab {
     flex: 0 0 auto; min-width: 0; padding: 0 14px; height: 40px; min-height: 40px;
     font-size: 11px; color: var(--pl-muted); white-space: nowrap;
 }
-html[data-device="phone"] .info-cards-dock .dock-tab--active { color: #38bdf8; }
+html[data-device="phone"] .info-cards-dock .dock-tab--active { color: #3FB2F3; }
 /* Cerrar: dentro de la hoja, no cortado por su borde */
 html[data-device="phone"] .dock-close-btn { top: 8px; right: 10px; width: 36px; height: 36px; z-index: 5; }
 /* Contenido del tablero */

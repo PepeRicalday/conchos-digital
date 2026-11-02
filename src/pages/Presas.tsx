@@ -22,12 +22,12 @@ import { estadoEmbalse } from '../utils/presaNiveles';
 
 
 /** Espejo de los tokens --pr-* de Presas.css (hex porque se componen con alfa: `${color}18`). */
-const PR = { ok: '#34d399', warn: '#fbbf24', crit: '#f87171', mute: '#94a3b8', sky: '#38bdf8', violet: '#a78bfa' } as const;
+const PR = { ok: '#34d399', warn: '#fbbf24', crit: '#f87171', mute: '#94a3b8', sky: '#3FB2F3', violet: '#a78bfa' } as const;
 
 const FUENTE_COLOR: Record<string, string> = {
     GERENCIA_ADMIN: '#f59e0b',
     CAMPO:          '#10b981',
-    AUTOMATICO:     '#38bdf8',
+    AUTOMATICO:     '#3FB2F3',
     DEFAULT:        '#6366f1',
 };
 
@@ -93,7 +93,7 @@ const ExtractionStreamgraph = ({ movimientos }: { movimientos: MovimientoPresaDa
                     <YAxis hide domain={[0, 'auto']} />
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                     <Tooltip
-                        contentStyle={{ backgroundColor: '#020617', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                        contentStyle={{ backgroundColor: '#061532', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
                         itemStyle={{ fontFamily: 'JetBrains Mono', fontSize: '11px', color: '#e2e8f0' }}
                         formatter={(val: number | undefined, _: string | undefined, entry: any) => [
                             val == null ? 'S/D' : `${val.toFixed(2)} m³/s`,
@@ -122,7 +122,7 @@ const TIPO_MOV_META: Record<TipoMovimiento, { color: string; icon: string; desc:
     INCREMENTO: { color: '#10b981', icon: '↑', desc: 'Aumenta el gasto liberado' },
     DECREMENTO: { color: '#f59e0b', icon: '↓', desc: 'Reduce el gasto liberado'  },
     CORTE:      { color: '#ef4444', icon: '✕', desc: 'Cierre total de la obra'   },
-    APERTURA:   { color: '#38bdf8', icon: '⊙', desc: 'Apertura inicial de obra'  },
+    APERTURA:   { color: '#3FB2F3', icon: '⊙', desc: 'Apertura inicial de obra'  },
     AJUSTE:     { color: '#a78bfa', icon: '≈', desc: 'Ajuste operativo menor'    },
 };
 
@@ -360,8 +360,8 @@ const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
                 <AreaChart data={histData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                     <defs>
                         <linearGradient id={`nivelGrad-${presaId}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%"  stopColor="#38bdf8" stopOpacity={0.35} />
-                            <stop offset="95%" stopColor="#38bdf8" stopOpacity={0.02} />
+                            <stop offset="5%"  stopColor="#3FB2F3" stopOpacity={0.35} />
+                            <stop offset="95%" stopColor="#3FB2F3" stopOpacity={0.02} />
                         </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
@@ -388,7 +388,7 @@ const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
                     <Area
                         type="monotone"
                         dataKey="nivel"
-                        stroke="#38bdf8"
+                        stroke="#3FB2F3"
                         strokeWidth={1.5}
                         fill={`url(#nivelGrad-${presaId})`}
                         dot={false}
@@ -433,7 +433,7 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
     const dataSankey = { nodes, links };
 
     return (
-        <div className="mt-4 mb-2 p-4 bg-[#0f172a] rounded-lg" style={{ border: '1px solid rgba(56, 189, 248, 0.15)' }}>
+        <div className="mt-4 mb-2 p-4 bg-[#0f172a] rounded-lg" style={{ border: '1px solid rgba(63, 178, 243, 0.15)' }}>
             <div className="scada-panel-hdr mb-3">
                 <Activity size={12} className="text-sky-400" />
                 <span>MÓDULO 4: Trazabilidad de Flujo a Red Mayor</span>
@@ -450,7 +450,7 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
                         data={dataSankey}
                         nodePadding={30}
                         margin={{ left: 20, right: 20, top: 10, bottom: 10 }}
-                        link={{ stroke: '#38bdf8', strokeOpacity: 0.15 }}
+                        link={{ stroke: '#3FB2F3', strokeOpacity: 0.15 }}
                         node={({ x, y, width, height, payload }: any) => (
                             <g>
                                 <rect
@@ -460,7 +460,7 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
                                     // ya suma el total exacto) se omiten del arreglo, así que un
                                     // color fijo por índice apuntaría al nodo equivocado.
                                     fill={
-                                        payload.name === 'Vaso (Salida)' ? '#38bdf8'
+                                        payload.name === 'Vaso (Salida)' ? '#3FB2F3'
                                         : payload.name === 'Turbinado CFE' ? '#a78bfa'
                                         : payload.name === 'Sin asignar a obra' ? '#94a3b8'
                                         : '#10b981'
@@ -719,13 +719,13 @@ const Presas = () => {
                     {/* TABS DE ZONA 2 */}
                     <div className="flex bg-[#0f172a] p-1 rounded-md mb-3" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
                         <button 
-                            className={`flex-1 py-2 text-[11px] font-bold tracking-wider rounded transition-colors ${activeTab === 'operacion' ? 'bg-[#38bdf8] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
+                            className={`flex-1 py-2 text-[11px] font-bold tracking-wider rounded transition-colors ${activeTab === 'operacion' ? 'bg-[#3FB2F3] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
                             onClick={() => setActiveTab('operacion')}
                         >
                             VASO OPERATIVO
                         </button>
                         <button 
-                            className={`flex-1 py-2 text-[11px] font-bold tracking-wider rounded transition-colors ${activeTab === 'analitica' ? 'bg-[#38bdf8] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
+                            className={`flex-1 py-2 text-[11px] font-bold tracking-wider rounded transition-colors ${activeTab === 'analitica' ? 'bg-[#3FB2F3] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
                             onClick={() => setActiveTab('analitica')}
                         >
                             ANALÍTICA Y FORECASTING
@@ -787,7 +787,7 @@ const Presas = () => {
                             const abierta = extConocida && t.gasto != null && t.gasto > 0;
                             const pctContrib = extraccionTotal > 0 && t.gasto != null ? (t.gasto / extraccionTotal) * 100 : 0;
                             const esCFE = t.nombre === 'CFE';
-                            const tomaColor = esCFE ? '#a78bfa' : abierta ? '#38bdf8' : '#8396ad';
+                            const tomaColor = esCFE ? '#a78bfa' : abierta ? '#3FB2F3' : '#8396ad';
                             const estadoColor = abierta ? '#10b981' : '#8396ad';
                             return (
                                 <div key={t.nombre} className={`scada-toma-card${esCFE ? ' scada-toma-card--cfe' : ''}`}>
@@ -927,7 +927,7 @@ const Presas = () => {
                                 <span>Sin alertas activas — sistema nominal</span>
                             </div>
                         ) : alertas.map((a, i) => {
-                            const ac = a.nivel === 'CRÍTICA' ? '#ef4444' : a.nivel === 'PREVENTIVA' ? '#f59e0b' : '#38bdf8';
+                            const ac = a.nivel === 'CRÍTICA' ? '#ef4444' : a.nivel === 'PREVENTIVA' ? '#f59e0b' : '#3FB2F3';
                             return (
                                 <div key={i} className={`scada-alerta-item${a.nivel === 'CRÍTICA' ? ' scada-alerta-item--critica' : ''}`}
                                     style={{ borderLeftColor: ac }}>
@@ -967,7 +967,7 @@ const Presas = () => {
                                 </span>
                                 <span className="scada-hist-gasto">{m.gasto_m3s.toFixed(2)} <small>m³/s</small></span>
                                 <span className="scada-hist-fuente"
-                                    style={{ color: m.fuente_dato === 'GERENCIA_ADMIN' ? '#f59e0b' : '#38bdf8' }}>
+                                    style={{ color: m.fuente_dato === 'GERENCIA_ADMIN' ? '#f59e0b' : '#3FB2F3' }}>
                                     {m.fuente_dato === 'GERENCIA_ADMIN' ? 'GERENCIA' : m.fuente_dato}
                                 </span>
                             </div>

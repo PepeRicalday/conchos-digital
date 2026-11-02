@@ -109,12 +109,14 @@ const CanalReport: React.FC<CanalReportProps> = ({
         // Reemplazar ruta relativa del logo por URL absoluta en la copia del DOM
         const bodyHtml = bodyEl.innerHTML
             .split('/logos/logo-srl.png')
-            .join(window.location.origin + '/logos/logo-srl.png');
+            .join(window.location.origin + '/logos/logo-srl.png')
+            .split('/logos/sica/sica005-emblema.svg')
+            .join(window.location.origin + '/logos/sica/sica005-emblema.svg');
 
         // CSS embebido — construido con concatenación, sin template literal en el body HTML
         const css = '@page{size:A4;margin:14mm 12mm}'
             + '*{box-sizing:border-box;margin:0;padding:0}'
-            + 'body{font-family:Georgia,serif;font-size:10pt;color:#0f172a;background:#fff;padding:28px 36px}'
+            + 'body{font-family:"Segoe UI",Arial,sans-serif;font-size:10pt;color:#0f172a;background:#fff;padding:28px 36px}'
             + '.rpt-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:2px solid #0f172a;margin-bottom:18px;gap:12px}'
             + '.rpt-header-brand{display:flex;align-items:center;gap:12px}'
             + '.rpt-logo{height:42px;width:auto}'
@@ -235,7 +237,7 @@ const CanalReport: React.FC<CanalReportProps> = ({
                     {/* Encabezado */}
                     <div className="rpt-header">
                         <div className="rpt-header-brand">
-                            <img src="/logos/logo-srl.png" alt="SRL" className="rpt-logo" />
+                            <img src="/logos/sica/sica005-emblema.svg" alt="SICA 005" className="rpt-logo" />
                             <div>
                                 <div className="rpt-title">REPORTE DE ESTADO HIDRÁULICO</div>
                                 <div className="rpt-subtitle">CANAL PRINCIPAL CONCHOS — DISTRITO 005</div>
@@ -402,7 +404,7 @@ const CanalReport: React.FC<CanalReportProps> = ({
 
                     {/* Footer */}
                     <div className="rpt-footer">
-                        <span>SICA 005 — Conchos Digital · Generado automáticamente</span>
+                        <span>SICA 005 · SRL Unidad Conchos · Generado automáticamente</span>
                         <span>{fecha}</span>
                     </div>
                 </div>

@@ -85,7 +85,7 @@
     flex-shrink: 0;
 }
 
-.ndvi-detalle-close:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.ndvi-detalle-close:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
 .ndvi-detalle-close:hover {
     background: #ef4444;
     border-color: #ef4444;
@@ -318,6 +318,6 @@
     .ndvi-detalle-body { padding: 1rem; }
     .ndvi-detalle-chart-card, .ndvi-detalle-indices-card { margin-left: 1rem; margin-right: 1rem; padding: 1rem; }
 }
-.ndvi-detalle-stat-value.ndvi-delta-sube { color: #38bdf8; }
+.ndvi-detalle-stat-value.ndvi-delta-sube { color: #3FB2F3; }
 .ndvi-detalle-stat-value.ndvi-delta-baja { color: #fbbf24; }
 .ndvi-detalle-stat-value.ndvi-delta { display: inline-flex; align-items: center; gap: 6px; }

@@ -156,7 +156,7 @@ ${!img && !ctx ? '<div class="aviso"><b>No disponible:</b> esta presa no tiene m
 <p><b>Fuente.</b> Escenas Sentinel-2 L2A (Copernicus). Método v2: un solo día de píxeles (el más reciente del mes con ≤3 % del vaso cubierto por nubes, máscara SCL), 10 m por píxel, agua = NDWI (B03/B08) o MNDWI (B03/B11) sobre su umbral Otsu, mancha 8-conexa anclada al vaso, contorno subpíxel (marching squares) simplificado con Douglas-Peucker (≈6 m). El área es la del polígono final y excluye los bancos de tierra expuestos. Escenas anteriores con método v1 (20 m, mosaico de 30 días) se conservan como referencia, sin uso en pantalla.</p>
 <p><b>Limitaciones.</b> Brazos o colas que se desconectan del cuerpo principal no se cuentan; el agua muy somera o con vegetación puede quedar fuera; una escena representa un día, no el mes completo.</p>
 <p><b>Cómo leer el estado.</b> El llenado, volumen y nivel provienen de la lectura oficial vigente (no del satélite). La superficie satelital es una verificación independiente: cuando difiere más de ${DESVIO_ATENCION_PCT} % de la curva oficial, se debe confiar primero en la lectura de campo.</p>
-<p class="fuente">Documento generado automáticamente por SICA-005. No sustituye los informes oficiales de CONAGUA/CILA.</p>`;
+<p class="fuente">Documento generado automáticamente por SICA 005. No sustituye los informes oficiales de CONAGUA/CILA.</p>`;
 
     // ── Armado: cada hoja lleva corrida, cuerpo y pie con "Pág. X de Y" ──
     const bloques: string[] = [];
@@ -167,7 +167,7 @@ ${!img && !ctx ? '<div class="aviso"><b>No disponible:</b> esta presa no tiene m
     if (sec.has('interanual')) bloques.push(interanual());
     if (sec.has('validacion') || sec.has('metodologia')) bloques.push(`${sec.has('validacion') ? validacion() : ''}${sec.has('metodologia') ? metodologia() : ''}`);
     const total = bloques.length;
-    const pie = (i: number) => pieInforme(`Folio ${folio} · SICA-005 v${d.version}`, i + 1, total);
+    const pie = (i: number) => pieInforme(`Folio ${folio} · SICA 005 v${d.version}`, i + 1, total);
     bloques.forEach((b, i) => {
         const cab = i === 0
             ? cabeceraInforme({ logoSrl: logos.srl, logoSica: logos.sica, titulo: `Manejo de vaso · Presa ${d.nombrePresa}`, meta: [

@@ -94,12 +94,13 @@ function tarjeta(p: DatosPresaInfografia): string {
 </section>`;
 }
 
-export function htmlInfografiaPresas(d: DatosInfografia, logoDataUri: string): string {
+export function htmlInfografiaPresas(d: DatosInfografia, logoDataUri: string, logoSicaDataUri = ''): string {
     const vg = VIGENCIA[d.vigencia?.estado] ?? VIGENCIA.SD;
     const vtxt = d.vigencia?.estado === 'ACTUALIZADO' ? 'ACTUALIZADO' : d.vigencia?.estado === 'DESFASADO' ? 'DESFASADO' : 'SIN DATO';
     const detalleVig = d.vigencia?.texto && d.vigencia.texto !== 'S/D' ? d.vigencia.texto : 'S/D';
     const corte = d.corte?.texto ? d.corte.texto : 'Corte: S/D';
     const logo = logoDataUri ? `<img class="logo" src="${esc(logoDataUri)}" alt="SRL" width="110" height="96">` : '<div class="logo-v"></div>';
+    const sica = logoSicaDataUri ? `<img class="logo" src="${esc(logoSicaDataUri)}" alt="SICA 005" width="96" height="96">` : '';
     const c = d.conjunto;
     const parcial = c?.parcial ? `<span class="parcial">parcial: ${esc(c.presasConDato)} de ${esc(c.presasTotal)} presas</span>` : '';
     const tarjetas = (d.presas ?? []).map(tarjeta).join('');
@@ -108,66 +109,68 @@ export function htmlInfografiaPresas(d: DatosInfografia, logoDataUri: string): s
 <html lang="es"><head><meta charset="utf-8"><title>Estado actual de las presas</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{margin:0;background:#FAF6EA}
+html,body{margin:0;background:#F4F8FC}
 body{width:${ANCHO_INFOGRAFIA}px;font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;color:#1B2733;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
-.pagina{width:${ANCHO_INFOGRAFIA}px;padding:26px 48px 0 48px;background:#FAF6EA}
+.pagina{width:${ANCHO_INFOGRAFIA}px;padding:26px 48px 0 48px;background:#F4F8FC}
 .enc{display:flex;align-items:center;justify-content:space-between;height:96px}
 /* Sin object-fit: Safari/iPad no lo respeta dentro de foreignObject y el logo (399x348) salía en blanco.
    Proporción fija por width/height (110x96) en vez de dejar que el motor la calcule. */
 .logo,.logo-v{display:block;width:110px;height:96px}
-.marca{text-align:center;flex:1}
-.marca .org{font-size:26px;font-weight:700;letter-spacing:.14em;color:#0B2A4A}
+.marca{text-align:center;flex:1;display:flex;flex-direction:column;align-items:center}
+.prod{font-family:'Montserrat','Segoe UI',Arial,sans-serif;font-weight:800;font-size:34px;color:#0B3170;letter-spacing:.01em}
+.oper .logo,.oper .logo-v{width:44px;height:38px;margin-top:4px}
+.marca .org{font-size:26px;font-weight:700;letter-spacing:.14em;color:#0B3170}
 .sello{width:300px;display:flex;justify-content:flex-end}
 .sello-i{border:3px solid;border-radius:14px;padding:8px 16px;text-align:center;line-height:1.15}
 .sello-i b{display:block;font-size:24px;font-weight:800;letter-spacing:.06em}
 .sello-i span{display:block;font-size:20px;font-weight:600}
-.filete{height:0;border-top:3px solid #C9A227;margin:10px 0 0}
-.filete2{height:0;border-top:1px solid #C9A227;margin:4px 0 0}
-h1{font-size:68px;line-height:1.05;font-weight:800;color:#0F5C45;text-align:center;letter-spacing:.01em;margin-top:14px}
-.corte{text-align:center;font-size:28px;font-weight:600;color:#0B2A4A;margin:8px 0 18px}
+.filete{height:0;border-top:3px solid #3FB2F3;margin:10px 0 0}
+.filete2{height:0;border-top:1px solid #3FB2F3;margin:4px 0 0}
+h1{font-size:68px;line-height:1.05;font-weight:800;color:#0B3170;text-align:center;letter-spacing:.01em;margin-top:14px}
+.corte{text-align:center;font-size:28px;font-weight:600;color:#0B3170;margin:8px 0 18px}
 .fila{display:flex;gap:28px}
-.card{flex:1;background:#fff;border:3px solid #C9A227;border-radius:18px;overflow:hidden}
-.card-h{background:#0F5C45;color:#fff;font-size:40px;font-weight:800;padding:12px 24px;text-align:center;letter-spacing:.01em}
+.card{flex:1;background:#fff;border:3px solid #3FB2F3;border-radius:18px;overflow:hidden}
+.card-h{background:#0B3170;color:#fff;font-size:40px;font-weight:800;padding:12px 24px;text-align:center;letter-spacing:.01em}
 .card-h .sub{font-size:26px;font-weight:600;opacity:.95}
 .card-b{padding:12px 28px 14px}
 .heroe{display:flex;align-items:baseline;justify-content:center;gap:12px;line-height:1.02}
-.heroe .n{font-size:104px;font-weight:800;color:#0B5FB0;letter-spacing:-.01em}
-.heroe .u{font-size:44px;font-weight:700;color:#0B5FB0}
+.heroe .n{font-size:104px;font-weight:800;color:#0A5BB0;letter-spacing:-.01em}
+.heroe .u{font-size:44px;font-weight:700;color:#0A5BB0}
 .lbl{text-align:center;font-size:26px;font-weight:600;color:#3A4856;margin-bottom:6px}
 .pctfila{display:flex;align-items:baseline;justify-content:center;gap:12px;margin:2px 0 4px;white-space:nowrap}
 .pillfila{text-align:center;margin:0 0 10px}
-.pct{font-size:50px;font-weight:800;color:#0B2A4A}
+.pct{font-size:50px;font-weight:800;color:#0B3170}
 .lbl2{font-size:24px;font-weight:600;color:#3A4856}
 .pill{display:inline-flex;align-items:center;gap:10px;border:2px solid;border-radius:999px;padding:5px 18px 5px 6px;font-size:22px;font-weight:800;white-space:nowrap}
 .pg{display:inline-block;width:32px;height:32px;border-radius:50%;color:#fff;text-align:center;line-height:32px;font-size:18px;font-weight:800}
 .barra-bloque{margin:0 0 8px}
-.barra{position:relative;height:42px;background:#E4E8EC;border:2px solid #0B2A4A;border-radius:10px;overflow:hidden}
+.barra{position:relative;height:42px;background:#E4E8EC;border:2px solid #0B3170;border-radius:10px;overflow:hidden}
 .relleno{height:100%;display:flex;align-items:center;justify-content:flex-end}
 .b-et{color:#fff;font-weight:800;font-size:22px;padding-right:12px;text-shadow:0 0 3px rgba(0,0,0,.45)}
-.b-et-fuera{position:absolute;left:10px;top:0;line-height:38px;font-weight:800;font-size:22px;color:#0B2A4A}
+.b-et-fuera{position:absolute;left:10px;top:0;line-height:38px;font-weight:800;font-size:22px;color:#0B3170}
 .escala{display:flex;justify-content:space-between;font-size:20px;font-weight:600;color:#4A5663;margin-top:3px}
 .cambio{display:flex;align-items:center;gap:10px;font-size:26px;font-weight:700;margin:4px 0}
 .flecha{font-size:28px;font-weight:800;width:34px;text-align:center}
 .sube{color:#0B5A3A}.baja{color:#8E1414}.eq{color:#3F4852}
 .vs{font-size:22px;font-weight:600;color:#3A4856}
-.comp{font-size:24px;font-weight:500;color:#1B2733;line-height:1.3;margin:4px 0;padding:6px 0;border-top:1px solid #E1D6AE}
+.comp{font-size:24px;font-weight:500;color:#1B2733;line-height:1.3;margin:4px 0;padding:6px 0;border-top:1px solid #D3DEEB}
 .comp b{font-weight:800}.comp .dif{font-weight:700;color:#3A4856}
-.comp .pos{font-weight:700;color:#0B2A4A}
-.chica{display:flex;justify-content:space-between;font-size:22px;color:#3A4856;font-weight:500;padding-top:6px;border-top:1px solid #E1D6AE}
-.chica b{font-weight:800;color:#1B2733}.chica i{font-style:normal;font-size:20px;font-weight:700;color:#0F5C45;border:1px solid #0F5C45;border-radius:6px;padding:0 6px;margin-left:4px}
+.comp .pos{font-weight:700;color:#0B3170}
+.chica{display:flex;justify-content:space-between;font-size:22px;color:#3A4856;font-weight:500;padding-top:6px;border-top:1px solid #D3DEEB}
+.chica b{font-weight:800;color:#1B2733}.chica i{font-style:normal;font-size:20px;font-weight:700;color:#0B3170;border:1px solid #0B3170;border-radius:6px;padding:0 6px;margin-left:4px}
 .cap{font-size:22px;font-weight:500;color:#3A4856;padding-top:4px;text-align:center}
 .cap b{font-weight:800;color:#1B2733}
-.conj{margin-top:18px;background:#0B2A4A;color:#fff;border-radius:14px;padding:16px 28px;text-align:center;font-size:44px;font-weight:800;letter-spacing:.02em}
-.conj .parcial{display:block;font-size:22px;font-weight:600;color:#F2E3A6;letter-spacing:0;margin-top:2px}
-.nota{margin-top:14px;background:#fff;border:2px solid #C9A227;border-radius:12px;padding:10px 22px;font-size:21px;line-height:1.35;color:#1B2733}
-.nota b{font-weight:800;color:#0B2A4A}
+.conj{margin-top:18px;background:#0B3170;color:#fff;border-radius:14px;padding:16px 28px;text-align:center;font-size:44px;font-weight:800;letter-spacing:.02em}
+.conj .parcial{display:block;font-size:22px;font-weight:600;color:#CBEAF9;letter-spacing:0;margin-top:2px}
+.nota{margin-top:14px;background:#fff;border:2px solid #3FB2F3;border-radius:12px;padding:10px 22px;font-size:21px;line-height:1.35;color:#1B2733}
+.nota b{font-weight:800;color:#0B3170}
 .pie{display:flex;justify-content:space-between;gap:30px;font-size:20px;color:#3A4856;padding:12px 0 18px;line-height:1.3}
 .pie div:first-child{flex:1}.pie div:last-child{flex:1;text-align:right}
 </style></head>
 <body><div class="pagina">
 <div class="enc">
-  <div style="width:300px">${logo}</div>
-  <div class="marca"><div class="org">SRL UNIDAD CONCHOS · DR-005</div></div>
+  <div style="width:300px;display:flex;align-items:center;gap:14px">${sica}<span class="prod">SICA 005</span></div>
+  <div class="marca"><div class="org">SRL UNIDAD CONCHOS · DR-005</div><div class="oper">${logo}</div></div>
   <div class="sello"><div class="sello-i" style="background:${vg.fondo};color:${vg.tinta};border-color:${vg.borde}"><b>${vg.glifo} ${esc(vtxt)}</b><span>${esc(detalleVig)}</span></div></div>
 </div>
 <div class="filete"></div><div class="filete2"></div>

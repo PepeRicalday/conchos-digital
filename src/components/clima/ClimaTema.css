@@ -1,14 +1,14 @@
 /* Tema "observatorio" para el resto de la página de Clima. Se carga DESPUÉS de Clima.css y sustituye sus colores
    y tipografías fijos por los tokens --cl-*; el comportamiento y la estructura de cada sección no cambian. */
 .clima-container {
-    --cl-bg: #020a14;
+    --cl-bg: #061532;
     --cl-surface: rgba(255, 255, 255, 0.028);
     --cl-surface-2: rgba(255, 255, 255, 0.05);
     --cl-line: rgba(148, 163, 184, 0.16);
     --cl-t1: #e8eef6;
     --cl-t2: #b4c2d4;
     --cl-t3: #8396ad;
-    --cl-sky: #38bdf8;
+    --cl-sky: #3FB2F3;
     --cl-ok: #34d399;
     --cl-warn: #fbbf24;
     --cl-crit: #f87171;
@@ -26,14 +26,14 @@
     margin-bottom: 18px; padding: 22px 24px 18px;
     border: 1px solid var(--cl-line); border-radius: 16px;
     background:
-        radial-gradient(900px 260px at 100% -20%, rgba(56, 189, 248, 0.14), transparent 60%),
+        radial-gradient(900px 260px at 100% -20%, rgba(63, 178, 243, 0.14), transparent 60%),
         linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
     animation: cl-entra 0.45s ease both;
 }
 /* Líneas de nivel muy sutiles: guiño a la carta hidrográfica */
 .cl-hero::before {
     content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
-    background: repeating-linear-gradient(172deg, transparent 0 22px, rgba(56, 189, 248, 0.05) 22px 23px);
+    background: repeating-linear-gradient(172deg, transparent 0 22px, rgba(63, 178, 243, 0.05) 22px 23px);
     -webkit-mask-image: linear-gradient(90deg, transparent 35%, #000 100%);
     mask-image: linear-gradient(90deg, transparent 35%, #000 100%);
 }

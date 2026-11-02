@@ -17,9 +17,9 @@ const tablaTarjeta = (t: Tarjeta) =>
         .join('')}</tbody></table>${t.nota ? `<p class="n">${esc(t.nota)}</p>` : ''}`;
 
 const ESTILO = `*{box-sizing:border-box}body{margin:0;width:${ANCHO}px;background:#fff;color:#1c2330;font:15px/1.55 Arial,Helvetica,sans-serif}
-.w{padding:28px 32px}.cab{display:flex;align-items:center;gap:14px;border-bottom:3px solid #6B2D2D;padding-bottom:12px;margin-bottom:16px}
-.cab img{height:44px}.cab b{display:block;font-size:17px;color:#6B2D2D}.cab span{font-size:12px;color:#5b6575}
-h1,h2,h3{color:#6B2D2D;margin:14px 0 6px}h3{font-size:14px;text-transform:uppercase;letter-spacing:.04em}
+.w{padding:28px 32px}.cab{display:flex;align-items:center;gap:14px;border-bottom:3px solid #0B3170;padding-bottom:12px;margin-bottom:16px}
+.cab img{height:44px}.cab b{display:block;font-size:17px;color:#0B3170}.cab span{font-size:12px;color:#5b6575}
+h1,h2,h3{color:#0B3170;margin:14px 0 6px}h3{font-size:14px;text-transform:uppercase;letter-spacing:.04em}
 table{border-collapse:collapse;width:100%;margin:6px 0 10px;font-size:13px}th,td{border:1px solid #d5dae2;padding:5px 8px;text-align:right}
 th{background:#f3eded}th:first-child,td:first-child{text-align:left}td.p{font-weight:700}td.sd{color:#8a5a00;font-style:italic}
 .n,.pie{font-size:11.5px;color:#5b6575}.pie{border-top:1px solid #d5dae2;margin-top:18px;padding-top:8px}p{margin:6px 0}`;

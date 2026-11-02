@@ -12,7 +12,7 @@ import { elevacionPorVolumen, type PuntoCurva } from '../../utils/presaNiveles';
  * - Manija arrastrable (puntero/táctil) y operable con teclado (role="slider"). Sin nivel → S/D, nunca 0.
  */
 
-const COLOR: Record<TonoCota, string> = { muted: '#8fa3ba', warn: '#fbbf24', alert: '#f87171', info: '#38bdf8' };
+const COLOR: Record<TonoCota, string> = { muted: '#8fa3ba', warn: '#fbbf24', alert: '#f87171', info: '#3FB2F3' };
 const W = 380, TOP = 24, BOT = 332, TX = 64, TW = 110;
 const PASO_TECLA = 0.1, PASO_PAGINA = 0.5;
 const f2 = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -102,14 +102,14 @@ function ReglaVivaVaso({ presaId, nivelBase, nivel, min, max, curva, capacidad, 
             <svg ref={svgRef} viewBox={`0 0 ${W} ${BOT + 30}`} className="vaso-regla-svg" role="group" aria-label={resumen} preserveAspectRatio="xMidYMid meet">
                 <defs>
                     <linearGradient id={`agua-${uid}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.85" />
+                        <stop offset="0%" stopColor="#3FB2F3" stopOpacity="0.85" />
                         <stop offset="100%" stopColor="#0b3a5c" stopOpacity="0.95" />
                     </linearGradient>
                     <pattern id={`muerto-${uid}`} width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
                         <line x1="0" y1="0" x2="0" y2="7" stroke="#8fa3ba" strokeWidth="1.6" strokeOpacity="0.35" />
                     </pattern>
                     <pattern id={`sube-${uid}`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                        <line x1="0" y1="0" x2="0" y2="6" stroke="#38bdf8" strokeWidth="1.6" strokeOpacity="0.8" />
+                        <line x1="0" y1="0" x2="0" y2="6" stroke="#3FB2F3" strokeWidth="1.6" strokeOpacity="0.8" />
                     </pattern>
                     <pattern id={`baja-${uid}`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
                         <line x1="0" y1="0" x2="0" y2="6" stroke="#fbbf24" strokeWidth="1.4" strokeOpacity="0.7" />
@@ -141,7 +141,7 @@ function ReglaVivaVaso({ presaId, nivelBase, nivel, min, max, curva, capacidad, 
                     )}
                     {/* tramo simulado */}
                     {simulado && yBase != null && yNivel != null && (yNivel < yBase
-                        ? <rect x={TX} y={yNivel} width={TW} height={yBase - yNivel} fill="rgba(56,189,248,0.35)" />
+                        ? <rect x={TX} y={yNivel} width={TW} height={yBase - yNivel} fill="rgba(63, 178, 243,0.35)" />
                         : <rect x={TX} y={yBase} width={TW} height={yNivel - yBase} fill="rgba(251,191,36,0.06)" />)}
                     {simulado && yBase != null && yNivel != null && (yNivel < yBase
                         ? <rect x={TX} y={yNivel} width={TW} height={yBase - yNivel} fill={`url(#sube-${uid})`} />
@@ -171,7 +171,7 @@ function ReglaVivaVaso({ presaId, nivelBase, nivel, min, max, curva, capacidad, 
                         <line x1={TX - 8} x2={TX + TW + 14} y1={0} y2={0} stroke={COLOR.info} strokeWidth="2.4" pointerEvents="none" />
                         {simulado && deltaTexto && (
                             <g pointerEvents="none">
-                                <rect x={TX + 6} y={-24} width={TW - 26} height={18} rx="4" fill="#020617" fillOpacity="0.85" />
+                                <rect x={TX + 6} y={-24} width={TW - 26} height={18} rx="4" fill="#061532" fillOpacity="0.85" />
                                 <text x={TX + 10} y={-11} className="vaso-regla-delta">{deltaTexto.split(' · ')[0]}</text>
                             </g>
                         )}
@@ -185,8 +185,8 @@ function ReglaVivaVaso({ presaId, nivelBase, nivel, min, max, curva, capacidad, 
                                 onPointerUp={() => setArrastrando(false)} onPointerCancel={() => setArrastrando(false)}>
                                 <rect x={TX + TW - 22} y={-22} width={44} height={44} fill="transparent" />
                                 <rect x={TX + TW - 14} y={-7} width={28} height={14} rx="7" className="vaso-regla-pildora" />
-                                <line x1={TX + TW - 5} x2={TX + TW - 5} y1={-3} y2={3} stroke="#020617" strokeWidth="1.4" />
-                                <line x1={TX + TW + 5} x2={TX + TW + 5} y1={-3} y2={3} stroke="#020617" strokeWidth="1.4" />
+                                <line x1={TX + TW - 5} x2={TX + TW - 5} y1={-3} y2={3} stroke="#061532" strokeWidth="1.4" />
+                                <line x1={TX + TW + 5} x2={TX + TW + 5} y1={-3} y2={3} stroke="#061532" strokeWidth="1.4" />
                             </g>
                         )}
                     </g>

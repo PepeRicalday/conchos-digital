@@ -108,7 +108,7 @@ const PuntoCard = ({ data }: { data: RatingCurveData }) => {
                                 data={data.curva_teorica}
                                 dataKey="gasto"
                                 type="monotone"
-                                stroke="rgba(56,189,248,0.6)"
+                                stroke="rgba(63, 178, 243,0.6)"
                                 strokeWidth={1.5}
                                 dot={false}
                                 name="Manning"

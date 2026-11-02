@@ -28,7 +28,7 @@
 .goes-resumen .goes-resumen-alerta { color: var(--pr-crit); }
 .goes-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 18px; border: 1px solid var(--pr-sky); border-radius: 10px; background: transparent; color: var(--pr-sky); font: 700 14px var(--pr-body); cursor: pointer; }
 .goes-btn--sec { min-height: 40px; padding: 6px 14px; border-color: var(--pr-line); color: var(--pr-t2); font-weight: 600; font-size: 13px; }
-.goes-btn--sec:hover, .goes-btn:not(.goes-btn--sec):hover { border-color: var(--pr-sky); color: var(--pr-sky); background: rgba(56, 189, 248, 0.08); }
+.goes-btn--sec:hover, .goes-btn:not(.goes-btn--sec):hover { border-color: var(--pr-sky); color: var(--pr-sky); background: rgba(63, 178, 243, 0.08); }
 .goes-seg-btn:not([aria-pressed='true']):hover, .goes-chip:hover { background: var(--pr-surface-2); color: var(--pr-t1); }
 .goes-btn:focus-visible, .goes-seg-btn:focus-visible, .goes-chip:focus-visible, .goes-plegar:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 2px; }
 
@@ -54,7 +54,7 @@
 .goes-ficha-cab h4 { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.25; color: var(--pr-t1); overflow-wrap: anywhere; }
 .goes-dcp { font-family: var(--pr-mono); font-size: 11px; color: var(--pr-t3); }
 .goes-origen { white-space: nowrap; padding: 1px 8px; border: 1px solid var(--pr-line); border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.5; color: var(--pr-t2); }
-.goes-origen--presa { border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.08); color: var(--pr-sky); }
+.goes-origen--presa { border-color: rgba(63, 178, 243, 0.4); background: rgba(63, 178, 243, 0.08); color: var(--pr-sky); }
 .goes-origen--rio { border-color: rgba(167, 139, 250, 0.45); background: rgba(167, 139, 250, 0.09); color: var(--pr-violet); }
 
 .goes-sello { display: inline-flex; align-items: center; gap: 5px; flex: none; padding: 3px 9px; border: 1px solid var(--pr-line); border-radius: 999px; font-family: var(--pr-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; white-space: nowrap; color: var(--pr-t2); }

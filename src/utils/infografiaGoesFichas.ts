@@ -20,7 +20,7 @@ export interface OpcionesFicha { n: number; total: number; logo?: string; logoSi
 
 const HORA = 3600000;
 const OFFSET = -6 * HORA;
-const AZUL = '#0B5FB0', VERDE = '#0F5C45', MARINO = '#0B2A4A', MARRON = '#6B2D2D', ORO = '#C9A227', TINTA = '#1B2733', TINTA2 = '#3A4856', AMBAR = '#7A4A00';
+const AZUL = '#0B5FB0', VERDE = '#0F5C45', MARINO = '#0B3170', MARRON = '#0B3170', ORO = '#0A7FDB', TINTA = '#1B2733', TINTA2 = '#3A4856', AMBAR = '#7A4A00';
 
 const esc = (s: unknown): string =>
     String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');

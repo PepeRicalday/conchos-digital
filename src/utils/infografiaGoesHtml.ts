@@ -87,7 +87,7 @@ function tarjeta(e: DatosEstacionInfoGoes, d: DatosInfografiaGoes, conSpark = tr
     const cob = e.coberturaPct != null ? ` Cobertura ${esc(fmt(e.coberturaPct, 0))} %.` : '';
     // Antigüedad del REGISTRO respecto al corte (no la del mensaje, que es otro reloj).
     const edadReg = ult ? Math.max(0, (d.corteMs - ult) / 60000) : null;
-    return `<section class="card${apag ? ' apag' : ''}" style="border-top-color:${e.entrada ? '#6B2D2D' : '#0F5C45'}">
+    return `<section class="card${apag ? ' apag' : ''}" style="border-top-color:${e.entrada ? '#0B3170' : '#0F5C45'}">
 <div class="nm">${esc(e.nombreCorto)}</div><div class="rol">${glifoRol} ${esc(e.rolTexto)}</div>
 <div class="estado ${enl.clase}">${enl.glifo} ${enl.texto}${e.enlace.edadMin != null ? `, ${esc(textoEdad(e.enlace.edadMin))}` : ''}.${cob}</div>
 ${apag ? `<div class="ult">Último registro ${ult ? esc(fechaHoraLocal(ult)) : SD}${edadReg != null ? ` (${esc(textoEdad(edadReg))})` : ''}</div>` : ''}
@@ -119,14 +119,14 @@ function recuadroVaso(v: VasoContorno, teselas: TeselaConUri[]): string {
     const d = v.contorno.map(([lon, lat], i) => { const [x, y] = aPantalla(vista, lat, lon); return `${i ? 'L' : 'M'}${f(x)},${f(y)}`; }).join('');
     const pxy = presa ? aPantalla(vista, presa.lat, presa.lon) : null;
     const marca = pxy && pxy[0] > 12 && pxy[0] < INSET_ANCHO - 12 && pxy[1] > 12 && pxy[1] < INSET_ALTO - 12
-        ? `<rect x="${f(pxy[0] - 14)}" y="${f(pxy[1] - 14)}" width="28" height="28" rx="4" fill="#0B2A4A" stroke="#fff" stroke-width="3"/>` : '';
+        ? `<rect x="${f(pxy[0] - 14)}" y="${f(pxy[1] - 14)}" width="28" height="28" rx="4" fill="#0B3170" stroke="#fff" stroke-width="3"/>` : '';
     const latC = v.contorno.reduce((a, q) => a + q[1], 0) / v.contorno.length;
     const e = barraEscala(vista.z, latC, 150);
     return `<figure class="inset"><svg viewBox="0 0 ${INSET_ANCHO} ${INSET_ALTO}" width="${INSET_ANCHO}" height="${INSET_ALTO}" role="img" aria-label="Espejo de agua de ${esc(NOMBRE_PRESA[v.id] ?? v.id)}">
 <defs><clipPath id="ic${esc(v.id)}"><rect width="${INSET_ANCHO}" height="${INSET_ALTO}" rx="14"/></clipPath></defs>
 <g clip-path="url(#ic${esc(v.id)})"><rect width="${INSET_ANCHO}" height="${INSET_ALTO}" fill="#E9EEF1"/>${base}<path d="${d}Z" fill="${AZUL}" fill-opacity=".35" stroke="${AZUL}" stroke-width="3" stroke-dasharray="9 5" stroke-linejoin="round"/>${marca}</g>
-<rect width="${INSET_ANCHO}" height="${INSET_ALTO}" rx="14" fill="none" stroke="#C9A227" stroke-width="3"/>
-<g transform="translate(22,${INSET_ALTO - 40})"><path d="M0 0v12h${f(e.px)}v-12" fill="none" stroke="#0B2A4A" stroke-width="4"/><text x="${f(e.px / 2)}" y="-8" text-anchor="middle" font-size="26" font-weight="800" fill="#0B2A4A" stroke="#fff" stroke-width="7" paint-order="stroke">${e.km} km</text></g></svg>
+<rect width="${INSET_ANCHO}" height="${INSET_ALTO}" rx="14" fill="none" stroke="#0A7FDB" stroke-width="3"/>
+<g transform="translate(22,${INSET_ALTO - 40})"><path d="M0 0v12h${f(e.px)}v-12" fill="none" stroke="#0B3170" stroke-width="4"/><text x="${f(e.px / 2)}" y="-8" text-anchor="middle" font-size="26" font-weight="800" fill="#0B3170" stroke="#fff" stroke-width="7" paint-order="stroke">${e.km} km</text></g></svg>
 <figcaption><b>${esc(NOMBRE_PRESA[v.id] ?? v.id)}</b> Espejo de agua estimado: ${esc(fmt(v.areaKm2, 1))} km²</figcaption></figure>`;
 }
 
@@ -158,10 +158,10 @@ function mapa(estaciones: DatosEstacionInfoGoes[], teselas: TeselaConUri[], vaso
         const [x, y] = m.xy;
         if (m.tipo === 'entrada') return `<path d="M${f(x - 26)},${f(y - 22)}h52l-26,48z" fill="#C2570C" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>`;
         if (m.tipo === 'rio') return `<circle cx="${f(x)}" cy="${f(y)}" r="22" fill="#0F5C45" stroke="#fff" stroke-width="4"/>`;
-        return `<rect x="${f(x - 22)}" y="${f(y - 22)}" width="44" height="44" rx="6" fill="#0B2A4A" stroke="#fff" stroke-width="4"/>`;
+        return `<rect x="${f(x - 22)}" y="${f(y - 22)}" width="44" height="44" rx="6" fill="#0B3170" stroke="#fff" stroke-width="4"/>`;
     };
     const lab = (e: ReturnType<typeof colocarEtiquetas>[number]): string =>
-        `<text text-anchor="${e.anchor}" font-size="${e.tam}" font-weight="800" fill="#0B2A4A" stroke="#fff" stroke-width="10" stroke-linejoin="round" paint-order="stroke">${e.lineas.map((l, i) => `<tspan x="${f(e.x)}" y="${f(e.y + i * e.tam * 1.15)}">${esc(l)}</tspan>`).join('')}</text>`;
+        `<text text-anchor="${e.anchor}" font-size="${e.tam}" font-weight="800" fill="#0B3170" stroke="#fff" stroke-width="10" stroke-linejoin="round" paint-order="stroke">${e.lineas.map((l, i) => `<tspan x="${f(e.x)}" y="${f(e.y + i * e.tam * 1.15)}">${esc(l)}</tspan>`).join('')}</text>`;
     const centro = vista.oy + vista.alto / 2;
     const latCentro = (Math.atan(Math.sinh(Math.PI * (1 - (2 * centro) / (TESELA_PX * 2 ** vista.z)))) * 180) / Math.PI;
     const esc_ = barraEscala(vista.z, latCentro, 190);
@@ -170,9 +170,9 @@ function mapa(estaciones: DatosEstacionInfoGoes[], teselas: TeselaConUri[], vaso
 <defs><clipPath id="mc"><rect width="${MAPA_ANCHO}" height="${MAPA_ALTO}" rx="18"/></clipPath></defs>
 <g clip-path="url(#mc)"><rect width="${MAPA_ANCHO}" height="${MAPA_ALTO}" fill="#E9EEF1"/>${base}${contornos}
 ${marcadores.map(marca).join('')}${etiquetas.map(lab).join('')}</g>
-<rect width="${MAPA_ANCHO}" height="${MAPA_ALTO}" rx="18" fill="none" stroke="#C9A227" stroke-width="4"/>
-${hayBase ? `<g transform="translate(34,${MAPA_ALTO - 56})"><path d="M0 0v16h${f(esc_.px)}v-16" fill="none" stroke="#0B2A4A" stroke-width="5"/><text x="${f(esc_.px / 2)}" y="-10" text-anchor="middle" font-size="30" font-weight="800" fill="#0B2A4A" stroke="#fff" stroke-width="8" paint-order="stroke">${esc_.km} km</text></g>` : ''}
-<g transform="translate(${MAPA_ANCHO - 50},84)"><path d="M0 44V-8M-13 8L0 -10L13 8" stroke="#0B2A4A" stroke-width="6" fill="none" stroke-linejoin="round"/><text x="0" y="-24" text-anchor="middle" font-size="32" font-weight="800" fill="#0B2A4A" stroke="#fff" stroke-width="8" paint-order="stroke">N</text></g></svg>`;
+<rect width="${MAPA_ANCHO}" height="${MAPA_ALTO}" rx="18" fill="none" stroke="#0A7FDB" stroke-width="4"/>
+${hayBase ? `<g transform="translate(34,${MAPA_ALTO - 56})"><path d="M0 0v16h${f(esc_.px)}v-16" fill="none" stroke="#0B3170" stroke-width="5"/><text x="${f(esc_.px / 2)}" y="-10" text-anchor="middle" font-size="30" font-weight="800" fill="#0B3170" stroke="#fff" stroke-width="8" paint-order="stroke">${esc_.km} km</text></g>` : ''}
+<g transform="translate(${MAPA_ANCHO - 50},84)"><path d="M0 44V-8M-13 8L0 -10L13 8" stroke="#0B3170" stroke-width="6" fill="none" stroke-linejoin="round"/><text x="0" y="-24" text-anchor="middle" font-size="32" font-weight="800" fill="#0B3170" stroke="#fff" stroke-width="8" paint-order="stroke">N</text></g></svg>`;
     return { svg, hayBase };
 }
 
@@ -180,37 +180,37 @@ const CSS = `*{box-sizing:border-box;margin:0;padding:0}html,body{margin:0;backg
 body{width:1080px;font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;color:#1B2733;font-variant-numeric:tabular-nums}
 .pagina{width:1080px;padding:30px 36px 0;background:#FAF6EA}
 .enc{display:flex;align-items:center;gap:22px}.logo-img{display:block;width:110px;height:96px;flex:none}.logo-sica{display:block;width:96px;height:96px;flex:none}
-.sep{width:2px;height:80px;background:#C9A227;flex:none}
-.marca b{display:block;font-size:32px;font-weight:700;color:#6B2D2D;line-height:1.1}.marca span{display:block;font-size:28px;font-weight:600;color:#3A4856;margin-top:4px}
+.sep{width:2px;height:80px;background:#0A7FDB;flex:none}
+.marca b{display:block;font-size:32px;font-weight:700;color:#0B3170;line-height:1.1}.marca span{display:block;font-size:28px;font-weight:600;color:#3A4856;margin-top:4px}
 h1{font-size:62px;line-height:1.05;font-weight:800;color:#0F5C45;margin-top:22px}
 .fila{display:flex;gap:16px;align-items:stretch;margin:14px 0 20px}
 .sello{flex:1;border:3px solid;border-radius:14px;padding:10px 20px;line-height:1.2}.sello b{display:block;font-size:36px;font-weight:800}.sello span{display:block;font-size:30px;font-weight:600}
 .sello.ok{border-color:#1B8A5A;background:#DDF3E6;color:#0B5A3A}.sello.warn{border-color:#D9920B;background:#FCEBC4;color:#7A4A00}
-.corte{border:3px solid #0B2A4A;border-radius:14px;padding:10px 20px;background:#fff;line-height:1.2;font-size:30px;font-weight:600;color:#0B2A4A;text-align:center}.corte b{display:block;font-size:34px;font-weight:800}
+.corte{border:3px solid #0B3170;border-radius:14px;padding:10px 20px;background:#fff;line-height:1.2;font-size:30px;font-weight:600;color:#0B3170;text-align:center}.corte b{display:block;font-size:34px;font-weight:800}
 .mapacol svg{display:block}.atrib{font-size:24px;color:#3A4856;line-height:1.3;margin-top:8px}
-.leyenda{display:flex;flex-wrap:wrap;gap:8px 26px;margin:12px 0 4px;font-size:30px;font-weight:600;color:#0B2A4A}.lg{display:flex;align-items:center;gap:10px}.lg svg{flex:none}
+.leyenda{display:flex;flex-wrap:wrap;gap:8px 26px;margin:12px 0 4px;font-size:30px;font-weight:600;color:#0B3170}.lg{display:flex;align-items:center;gap:10px}.lg svg{flex:none}
 .nota-m{font-size:26px;line-height:1.3;color:#3A4856;margin:6px 0 18px}
-.insets{display:flex;gap:24px;margin:0 0 24px}.inset{width:492px;margin:0}.inset svg{display:block}.inset figcaption{font-size:28px;line-height:1.25;color:#3A4856;margin-top:8px}.inset figcaption b{display:block;color:#0B2A4A;font-size:30px}
+.insets{display:flex;gap:24px;margin:0 0 24px}.inset{width:492px;margin:0}.inset svg{display:block}.inset figcaption{font-size:28px;line-height:1.25;color:#3A4856;margin-top:8px}.inset figcaption b{display:block;color:#0B3170;font-size:30px}
 .inset-sd{align-self:flex-start;background:#fff;border:2px dashed #9AA3AC;border-radius:14px;padding:18px 20px}.inset-sd figcaption{margin-top:0}
-.lectura{background:#0B2A4A;color:#fff;border-radius:16px;padding:24px 30px;margin-bottom:24px}.lectura h2{font-size:34px;color:#F2E3A6;margin-bottom:10px}
+.lectura{background:#0B3170;color:#fff;border-radius:16px;padding:24px 30px;margin-bottom:24px}.lectura h2{font-size:34px;color:#F2E3A6;margin-bottom:10px}
 .lectura p{font-size:32px;line-height:1.3;font-weight:500;margin:0 0 12px}
 .grid{display:flex;flex-wrap:wrap;gap:24px}
 .card{width:492px;background:#fff;border:2px solid #E1D6AE;border-top:12px solid #0F5C45;border-radius:14px;padding:16px 20px 18px}
-.nm{font-size:42px;font-weight:700;line-height:1.1;color:#0B2A4A}.rol{font-size:28px;font-weight:600;color:#3A4856;margin-top:4px;line-height:1.2}
+.nm{font-size:42px;font-weight:700;line-height:1.1;color:#0B3170}.rol{font-size:28px;font-weight:600;color:#3A4856;margin-top:4px;line-height:1.2}
 .estado{font-size:28px;font-weight:600;margin-top:10px;line-height:1.25}.estado.on{color:#0B5A3A}.estado.ret,.estado.off{color:#7A4A00}
 .ult{font-size:30px;font-weight:800;color:#7A4A00;margin-top:6px;line-height:1.2}
 .lb{font-size:28px;font-weight:600;color:#3A4856;margin-top:10px}
 .num{font-size:88px;font-weight:800;color:${AZUL};line-height:1.02;white-space:nowrap}.num.lt{font-size:80px}.num .u{font-size:32px;font-weight:700;margin-left:8px}.num.sdn{font-size:60px}
-.niv{display:flex;align-items:baseline;gap:12px;margin-top:2px}.niv .lb{margin-top:0}.niv b{font-size:52px;font-weight:800;color:#0B2A4A}.u2{font-size:30px;font-weight:700;color:#0B2A4A}
+.niv{display:flex;align-items:baseline;gap:12px;margin-top:2px}.niv .lb{margin-top:0}.niv b{font-size:52px;font-weight:800;color:#0B3170}.u2{font-size:30px;font-weight:700;color:#0B3170}
 .camb{display:flex;flex-wrap:wrap;gap:6px 10px;margin:12px 0 8px;padding:10px 0;border-top:1px solid #E1D6AE;font-size:28px}
-.cl{font-weight:600;color:#3A4856;width:100%}.cv{white-space:nowrap;font-weight:800;color:#0B2A4A;background:#EEF2F6;border-radius:8px;padding:2px 10px}.cv i{font-style:normal;font-weight:600;color:#3A4856}
-.mpm{font-size:28px;line-height:1.3;color:#3A4856;margin:4px 0 8px}.mpm b{color:#0B2A4A;font-weight:800}.mpm.rng b{color:#7A4A00;font-size:32px}
+.cl{font-weight:600;color:#3A4856;width:100%}.cv{white-space:nowrap;font-weight:800;color:#0B3170;background:#EEF2F6;border-radius:8px;padding:2px 10px}.cv i{font-style:normal;font-weight:600;color:#3A4856}
+.mpm{font-size:28px;line-height:1.3;color:#3A4856;margin:4px 0 8px}.mpm b{color:#0B3170;font-weight:800}.mpm.rng b{color:#7A4A00;font-size:32px}
 .spk{display:block;width:100%;height:auto;margin-top:4px}.plana{font-size:28px;color:#3A4856;margin-top:4px}
 .nota-c{margin-top:10px;background:#FCEBC4;border:2px solid #D9920B;border-radius:10px;padding:10px 14px;font-size:28px;color:#4A2E00;line-height:1.3}
 .apag .num,.apag .niv b,.apag .u2{color:#566370}.apag .cv{background:#E6E9EC}
 .pie{font-size:26px;color:#3A4856;padding:22px 0 8px;line-height:1.35}.folio{font-size:26px;color:#3A4856;text-align:right;padding:0 0 26px}
 .sd{display:inline-block;border:2px solid #7A8591;border-radius:8px;padding:0 8px;font-weight:800;color:#3F4852;background:#E6E9EC;font-size:.8em;vertical-align:middle}
-.mapa-sd{width:1008px;height:260px;display:flex;align-items:center;justify-content:center;font-size:30px;background:#F4F8FB;border:3px solid #C9A227;border-radius:18px}`;
+.mapa-sd{width:1008px;height:260px;display:flex;align-items:center;justify-content:center;font-size:30px;background:#F4F8FB;border:3px solid #0A7FDB;border-radius:18px}`;
 
 // ── Ficha técnica por estación ─────────────────────────────────────────────────
 
@@ -295,7 +295,7 @@ const celdaStat = (r: RangoStat | null, dec: number, campo: CampoStat): string =
 function fichaTecnica(e: DatosEstacionInfoGoes, d: DatosInfografiaGoes, cfg: ConfigInfografiaGoes, n: number, total: number, encabezado: string): string {
     const enl = ENLACE[e.enlace.clave];
     const t = e.tec;
-    const rolColor = e.entrada ? '#6B2D2D' : '#0F5C45';
+    const rolColor = e.entrada ? '#0B3170' : '#0F5C45';
     const apag = e.obsoleto;
     const ult = Math.max(e.ultimoNivel?.t ?? 0, e.ultimoGasto?.t ?? 0);
     const edadReg = ult ? Math.max(0, (d.corteMs - ult) / 60000) : null;
@@ -349,16 +349,16 @@ ${graficas}${tabla}${indicadores}${enlaceBloque}${notas ? `<ul class="notas-t">$
 const CSS_TEC = `
 .pagina{margin:0 auto 28px}
 .pagina.tec{padding-bottom:20px}.enc.compacto{gap:16px}.enc.compacto .logo-img{width:82px;height:72px}.enc.compacto .logo-sica{width:72px;height:72px}.enc.compacto .sep{height:60px}.enc.compacto .marca b{font-size:28px}.enc.compacto .marca span{font-size:26px}
-.tec-cab{background:#fff;border:2px solid #E1D6AE;border-top:12px solid #0F5C45;border-radius:14px;padding:16px 24px;margin-top:18px}.tec-cab h2{font-size:54px;font-weight:800;color:#0B2A4A;line-height:1.05}
+.tec-cab{background:#fff;border:2px solid #E1D6AE;border-top:12px solid #0F5C45;border-radius:14px;padding:16px 24px;margin-top:18px}.tec-cab h2{font-size:54px;font-weight:800;color:#0B3170;line-height:1.05}
 .tec-cab .meta{font-size:26px;color:#3A4856;margin-top:6px;line-height:1.3}.tec-cab .rol{font-size:30px}
-.tec-actual{margin-top:16px}.tec-hero{display:flex;gap:40px;align-items:flex-end}.tec-hero .num{font-size:104px}.tec-hero .num2{font-size:76px;font-weight:800;color:#0B2A4A;line-height:1}
+.tec-actual{margin-top:16px}.tec-hero{display:flex;gap:40px;align-items:flex-end}.tec-hero .num{font-size:104px}.tec-hero .num2{font-size:76px;font-weight:800;color:#0B3170;line-height:1}
 .tec-actual .camb{margin:10px 0 0;padding:8px 0;flex-wrap:nowrap;align-items:center}.tec-actual .cl{width:auto;flex:none;min-width:150px}
-h3{font-size:32px;font-weight:700;color:#0B2A4A;margin:20px 0 6px}.graf{display:block;width:100%;height:auto}.grafica-sd{font-size:28px;color:#3A4856;padding:40px 0;text-align:center;border:2px dashed #9AA3AC;border-radius:12px}
-table.stat{width:100%;border-collapse:collapse;margin-top:22px;font-size:28px}.stat caption{text-align:left;font-size:32px;font-weight:700;color:#0B2A4A;padding-bottom:8px}
-.stat th,.stat td{border-top:1px solid #E1D6AE;padding:6px 10px;text-align:right;font-weight:600;color:#0B2A4A}.stat th[scope=row]{text-align:left;color:#3A4856}.stat thead th{border-top:0;font-size:28px;font-weight:800;vertical-align:bottom}
+h3{font-size:32px;font-weight:700;color:#0B3170;margin:20px 0 6px}.graf{display:block;width:100%;height:auto}.grafica-sd{font-size:28px;color:#3A4856;padding:40px 0;text-align:center;border:2px dashed #9AA3AC;border-radius:12px}
+table.stat{width:100%;border-collapse:collapse;margin-top:22px;font-size:28px}.stat caption{text-align:left;font-size:32px;font-weight:700;color:#0B3170;padding-bottom:8px}
+.stat th,.stat td{border-top:1px solid #E1D6AE;padding:6px 10px;text-align:right;font-weight:600;color:#0B3170}.stat th[scope=row]{text-align:left;color:#3A4856}.stat thead th{border-top:0;font-size:28px;font-weight:800;vertical-align:bottom}
 .stat small{display:block;font-size:26px;font-weight:500;color:#3A4856}
 .ind{display:flex;flex-wrap:wrap;gap:14px;margin-top:20px}.ind>div{width:497px;background:#fff;border:2px solid #E1D6AE;border-radius:12px;padding:12px 16px}
-.ind i{display:block;font-style:normal;font-size:28px;font-weight:600;color:#3A4856}.ind b{display:block;font-size:42px;font-weight:800;color:#0B2A4A;line-height:1.15}.ind small{display:block;font-size:26px;color:#3A4856;line-height:1.25}
+.ind i{display:block;font-style:normal;font-size:28px;font-weight:600;color:#3A4856}.ind b{display:block;font-size:42px;font-weight:800;color:#0B3170;line-height:1.15}.ind small{display:block;font-size:26px;color:#3A4856;line-height:1.25}
 .cobsvg{display:block;margin-top:8px;width:100%;height:auto}.cob-txt{font-size:30px;font-weight:800;margin-top:2px}.cob-sd{font-size:30px;margin-top:4px}
 .tira{display:block;width:100%;height:auto}.enl-txt{font-size:28px;color:#3A4856;margin-top:4px}
 .notas-t{margin:20px 0 0;padding:12px 16px 12px 40px;font-size:28px;line-height:1.35;color:#4A2E00;background:#FCEBC4;border:2px solid #D9920B;border-radius:10px}.notas-t li{margin:4px 0}
@@ -409,7 +409,7 @@ export function htmlInfografiaGoes(d: DatosInfografiaGoes, { logo = '', logoSica
     const vasosOk = cfg.mapa && cfg.vasos ? vasos.filter((v) => v.contorno.length >= 4) : [];
     const hayBabisas = d.estaciones.some((e) => e.gastoRango);
     const leyenda = m == null ? '' : hayMapa
-        ? `<div class="leyenda"><span class="lg"><svg width="36" height="34"><path d="M3 3h30l-15 28z" fill="#C2570C"/></svg>Entrada a presa</span><span class="lg"><svg width="34" height="34"><circle cx="17" cy="17" r="13" fill="#0F5C45"/></svg>Estación de río</span><span class="lg"><svg width="34" height="34"><rect x="3" y="3" width="28" height="28" rx="4" fill="#0B2A4A"/></svg>Presa</span>${vasosOk.length ? `<span class="lg"><svg width="40" height="34"><path d="M4 24C8 9 22 5 36 11C32 26 16 31 4 24Z" fill="${AZUL}" fill-opacity=".35" stroke="${AZUL}" stroke-width="3" stroke-dasharray="6 4"/></svg>Espejo de agua</span>` : ''}</div>
+        ? `<div class="leyenda"><span class="lg"><svg width="36" height="34"><path d="M3 3h30l-15 28z" fill="#C2570C"/></svg>Entrada a presa</span><span class="lg"><svg width="34" height="34"><circle cx="17" cy="17" r="13" fill="#0F5C45"/></svg>Estación de río</span><span class="lg"><svg width="34" height="34"><rect x="3" y="3" width="28" height="28" rx="4" fill="#0B3170"/></svg>Presa</span>${vasosOk.length ? `<span class="lg"><svg width="40" height="34"><path d="M4 24C8 9 22 5 36 11C32 26 16 31 4 24Z" fill="${AZUL}" fill-opacity=".35" stroke="${AZUL}" stroke-width="3" stroke-dasharray="6 4"/></svg>Espejo de agua</span>` : ''}</div>
 <div class="nota-m">Solo se marcan ubicaciones registradas; no se dibuja el trazo de los ríos.${vasosOk.length ? ` El espejo de agua es una estimación por imagen satelital (fecha de la escena S/D; ${vasosOk.map((v) => `${v.id === 'PRE-001' ? 'La Boquilla' : 'Fco. I. Madero'} ${fmt(v.areaKm2, 1)} km²`).join(', ')}), no una medición de campo.` : ''}${hayBabisas ? ' Babisas está sobre el Río San Pedro, hacia la presa El Granero (fuera del mapa).' : ''}</div>`
         : `<div class="nota-m">Ubicaciones pendientes: ${SD}</div>`;
     const atrib = m == null ? '' : m.hayBase ? `<div class="atrib">${esc(TESELA_ATRIBUCION)}</div>` : hayMapa ? '<div class="atrib">Sin imagen base: ubicaciones aproximadas, sin escala.</div>' : '';

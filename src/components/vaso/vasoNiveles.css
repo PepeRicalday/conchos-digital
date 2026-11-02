@@ -2,7 +2,7 @@
    alterar el resto del modal. Texto ≥ 12 px · objetivos ≥ 44 px · el estado nunca depende solo del color. */
 .vaso-sc {
     --sc-surface: rgba(255, 255, 255, 0.03); --sc-surface-2: rgba(255, 255, 255, 0.055); --sc-line: rgba(148, 163, 184, 0.2);
-    --sc-t1: #e8eef6; --sc-t2: #b4c2d4; --sc-t3: #8fa3ba; --sc-sky: #38bdf8; --sc-ok: #34d399; --sc-warn: #fbbf24; --sc-crit: #f87171;
+    --sc-t1: #e8eef6; --sc-t2: #b4c2d4; --sc-t3: #8fa3ba; --sc-sky: #3FB2F3; --sc-ok: #34d399; --sc-warn: #fbbf24; --sc-crit: #f87171;
     --sc-display: 'Big Shoulders Display', 'JetBrains Mono', sans-serif; --sc-mono: 'JetBrains Mono', ui-monospace, monospace; --sc-body: 'IBM Plex Sans', system-ui, sans-serif;
     font-family: var(--sc-body); color: var(--sc-t1);
 }
@@ -12,8 +12,8 @@
 
 /* Botones */
 .vaso-btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--sc-line, rgba(148,163,184,.3)); background: rgba(15, 23, 42, 0.85); color: #e8eef6; font: 600 14px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer; }
-.vaso-btn:hover:not([disabled]) { border-color: rgba(56, 189, 248, 0.6); background: rgba(56, 189, 248, 0.1); }
-.vaso-btn:focus-visible, .vaso-sc input[type='range']:focus-visible, .vaso-sc summary:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.vaso-btn:hover:not([disabled]) { border-color: rgba(63, 178, 243, 0.6); background: rgba(63, 178, 243, 0.1); }
+.vaso-btn:focus-visible, .vaso-sc input[type='range']:focus-visible, .vaso-sc summary:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
 .vaso-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
 .vaso-btn--pri { background: linear-gradient(180deg, #2b8fd6, #1d6fb0); border-color: transparent; }
 .vaso-btn--icono { min-width: 44px; padding: 0; }
@@ -21,7 +21,7 @@
 
 /* Bloque principal */
 .vaso-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 380px); gap: 28px; align-items: start;
-    background: linear-gradient(180deg, rgba(56, 189, 248, 0.06), transparent 60%), var(--sc-surface); border-color: rgba(56, 189, 248, 0.25); }
+    background: linear-gradient(180deg, rgba(63, 178, 243, 0.06), transparent 60%), var(--sc-surface); border-color: rgba(63, 178, 243, 0.25); }
 .vaso-hero--sim { border-color: var(--sc-sky); }
 .vaso-delta-linea { display: block; margin-top: 2px; font: 600 12px var(--sc-mono); color: var(--sc-t2); }
 .vaso-delta-linea.vaso-delta--sube { color: var(--sc-ok); } .vaso-delta-linea.vaso-delta--baja { color: var(--sc-warn); }
@@ -45,7 +45,7 @@
 .vaso-chip--ok { color: var(--sc-ok); border-color: rgba(52, 211, 153, 0.45); }
 .vaso-chip--warn { color: var(--sc-warn); border-color: rgba(251, 191, 36, 0.5); background: rgba(251, 191, 36, 0.07); }
 .vaso-chip--crit { color: var(--sc-crit); border-color: rgba(248, 113, 113, 0.55); background: rgba(248, 113, 113, 0.08); }
-.vaso-chip--info { color: var(--sc-sky); border-color: rgba(56, 189, 248, 0.45); background: rgba(56, 189, 248, 0.07); }
+.vaso-chip--info { color: var(--sc-sky); border-color: rgba(63, 178, 243, 0.45); background: rgba(63, 178, 243, 0.07); }
 .vaso-chip--sd { color: var(--sc-t3); }
 .vaso-mensaje { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--sc-line); background: var(--sc-surface-2); }
 .vaso-mensaje b { display: block; font-size: 14px; } .vaso-mensaje span { font-size: 13px; color: var(--sc-t2); }
@@ -72,7 +72,7 @@
 .vaso-regla-tubo { cursor: ns-resize; touch-action: none; }
 .vaso-regla-manija { cursor: grab; touch-action: none; outline: none; }
 .vaso-regla.arrastrando .vaso-regla-manija { cursor: grabbing; }
-.vaso-regla-pildora { fill: #38bdf8; stroke: #e0f2fe; stroke-width: 1.5; }
+.vaso-regla-pildora { fill: #3FB2F3; stroke: #e0f2fe; stroke-width: 1.5; }
 .vaso-regla-manija:focus-visible .vaso-regla-pildora { stroke: #fbbf24; stroke-width: 3; }
 .vaso-regla-ctl { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .vaso-regla-ayuda { display: none; margin: 0; font: 12px var(--sc-body); color: var(--sc-t2); text-align: center; }

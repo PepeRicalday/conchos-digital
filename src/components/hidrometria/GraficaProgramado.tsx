@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { FilaSemana } from '../../utils/hidrometria';
 
-// Paleta categórica validada sobre #020a14: azul = programado, aqua = entregado.
+// Paleta categórica validada sobre #061532: azul = programado, aqua = entregado.
 const C_PROG = '#3987e5';
 const C_ENT = '#199e70';
 const TICK = { fill: '#8396ad', fontSize: 11 };

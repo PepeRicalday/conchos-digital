@@ -73,13 +73,13 @@ export default defineConfig(({ mode }) => {
         filename: `sw-v${APP_VERSION}.js`,
         includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
         manifest: {
-          name: 'SICA 005 - Conchos Digital',
+          name: 'SICA 005 · Sistema Integral de Control del Agua',
           short_name: 'SICA 005',
-          description: 'Sistema de Integridad y Control de Agua - Distrito 005',
+          description: 'Sistema Integral de Control del Agua - Distrito de Riego 005, Delicias',
           // Mismos colores que la app (fondo oscuro): sin destello blanco al abrir desde
           // la pantalla de inicio del iPhone y barra de estado integrada.
-          theme_color: '#020617',
-          background_color: '#020617',
+          theme_color: '#061532',
+          background_color: '#061532',
           display: 'standalone',
           orientation: 'any',
           start_url: '/',

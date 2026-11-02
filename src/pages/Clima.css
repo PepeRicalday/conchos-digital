@@ -598,14 +598,14 @@
 }
 .est-var b { font-size: 0.95rem; color: #f1f5f9; line-height: 1.1; }
 .est-var small { font-size: 0.6875rem; color: #94a3b8; }
-.est-var.accent { background: rgba(56,189,248,0.08); }
-.est-var.accent b { color: #38bdf8; }
+.est-var.accent { background: rgba(63, 178, 243,0.08); }
+.est-var.accent b { color: #3FB2F3; }
 .estacion-nodata { font-size: 0.72rem; color: #94a3b8; text-align: center; padding: 10px 0; }
 .estaciones-foot { font-size: 0.6875rem; color: #8396ad; margin-top: var(--spacing-sm); }
 .estaciones-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .estaciones-dl {
     display: inline-flex; align-items: center; gap: 5px;
-    background: #6B2D2D; color: #fff; border: none; border-radius: 6px;
+    background: #0A5BB0; color: #fff; border: none; border-radius: 6px;
     padding: 6px 12px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
     transition: opacity 0.15s;
 }
@@ -613,11 +613,11 @@
 /* Infografía: misma jerarquía que "Informe" pero secundaria — el técnico manda. */
 .estaciones-info {
     display: inline-flex; align-items: center; gap: 5px;
-    background: transparent; color: #38bdf8; border: 1px solid #38bdf8; border-radius: 6px;
+    background: transparent; color: #3FB2F3; border: 1px solid #3FB2F3; border-radius: 6px;
     padding: 6px 12px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
     transition: background 0.15s;
 }
-.estaciones-info:hover { background: rgba(56, 189, 248, 0.12); }
+.estaciones-info:hover { background: rgba(63, 178, 243, 0.12); }
 /* Imagen: misma jerarquía secundaria que Infografía, tono neutro para no competir
    con el acento azul de esa acción ni con el marrón institucional de Informe. */
 .estaciones-pdf {
@@ -645,19 +645,19 @@
     position: relative;
     overflow: hidden;
     background:
-        radial-gradient(120% 140% at 100% 0%, rgba(56,189,248,0.14) 0%, transparent 55%),
+        radial-gradient(120% 140% at 100% 0%, rgba(63, 178, 243,0.14) 0%, transparent 55%),
         linear-gradient(135deg, #0d1a2e 0%, #0a1524 100%);
-    border: 1px solid rgba(56,189,248,0.18);
+    border: 1px solid rgba(63, 178, 243,0.18);
     box-shadow: 0 8px 30px -12px rgba(2,8,20,0.7);
 }
 .station-card::before {
     content: '';
     position: absolute; inset: 0 0 auto 0; height: 2px;
-    background: linear-gradient(90deg, #38bdf8, #3b82f6 40%, transparent);
+    background: linear-gradient(90deg, #3FB2F3, #3b82f6 40%, transparent);
     opacity: 0.7;
 }
 .station-icon {
-    background: linear-gradient(140deg, #38bdf8, #2563eb);
+    background: linear-gradient(140deg, #3FB2F3, #2563eb);
     box-shadow: 0 6px 18px -6px rgba(37,99,235,0.6);
 }
 .station-details h3 { letter-spacing: -0.01em; }
@@ -673,9 +673,9 @@
 }
 .quick-stat::before {
     content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-    background: var(--kpi-accent, #38bdf8); opacity: 0.85;
+    background: var(--kpi-accent, #3FB2F3); opacity: 0.85;
 }
-.quick-stat:hover { transform: translateY(-2px); border-color: rgba(56,189,248,0.3); }
+.quick-stat:hover { transform: translateY(-2px); border-color: rgba(63, 178, 243,0.3); }
 .quick-stat:nth-child(1) { --kpi-accent: #f97316; }  /* temp máx */
 .quick-stat:nth-child(2) { --kpi-accent: #3b82f6; }  /* precip */
 .quick-stat:nth-child(3) { --kpi-accent: #22c55e; }  /* evap/ETo */
@@ -707,13 +707,13 @@
     100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
 }
 .est-var { transition: background 0.15s; }
-.estacion-card:hover .est-var.accent { background: rgba(56,189,248,0.14); }
+.estacion-card:hover .est-var.accent { background: rgba(63, 178, 243,0.14); }
 
 /* Tarjeta seleccionable: abre el panel de análisis por estación.
    Se marca con cursor y foco visible porque es un control, no solo una vista. */
 .estacion-card.clicable { cursor: pointer; }
 .estacion-card.clicable:focus-visible {
-    outline: 2px solid rgba(56,189,248,0.75);
+    outline: 2px solid rgba(63, 178, 243,0.75);
     outline-offset: 2px;
 }
 .estacion-card.clicable::after {
@@ -752,7 +752,7 @@
 .cielo-panel {
     display: flex; align-items: center; justify-content: space-between;
     flex-wrap: wrap; gap: var(--spacing-md);
-    border-left: 3px solid #38bdf8;
+    border-left: 3px solid #3FB2F3;
 }
 .cielo-panel.sin-fuente { border-left-color: #f59e0b; background: rgba(245,158,11,0.05); }
 .cielo-panel-main { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 260px; }
@@ -821,13 +821,13 @@
 .estaciones-acciones { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .estaciones-refresh {
     display: inline-flex; align-items: center; gap: 5px;
-    background: transparent; color: #38bdf8;
-    border: 1px solid rgba(56,189,248,0.45); border-radius: 6px;
+    background: transparent; color: #3FB2F3;
+    border: 1px solid rgba(63, 178, 243,0.45); border-radius: 6px;
     padding: 6px 12px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
     transition: background 0.15s, border-color 0.15s, opacity 0.15s;
 }
 .estaciones-refresh:hover:not(:disabled) {
-    background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.75);
+    background: rgba(63, 178, 243,0.12); border-color: rgba(63, 178, 243,0.75);
 }
 .estaciones-refresh:disabled { opacity: 0.6; cursor: progress; }
 .girando { animation: refresco-spin 1s linear infinite; }
@@ -837,7 +837,7 @@
 .refresco-estado {
     display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
     margin-top: var(--spacing-sm); padding: 6px 10px;
-    background: rgba(56,189,248,0.07); border-left: 2px solid #38bdf8;
+    background: rgba(63, 178, 243,0.07); border-left: 2px solid #3FB2F3;
     border-radius: 5px; font-size: 0.6875rem; color: #cbd5e1;
 }
 .refresco-estado.con-error { background: rgba(245,158,11,0.08); border-left-color: #f59e0b; }

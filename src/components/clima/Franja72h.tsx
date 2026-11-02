@@ -4,7 +4,7 @@ import { useSerieObservada, type UmbralClima } from '../../hooks/useClimaOperati
 import type { EstacionConLectura } from '../../hooks/useClimaEstaciones';
 import { lluviaMedidaPorHora } from '../../utils/informePronosticoDatos';
 
-// Paleta categórica validada con validate_palette.js sobre la superficie #020a14 (modo oscuro).
+// Paleta categórica validada con validate_palette.js sobre la superficie #061532 (modo oscuro).
 const C_TEMP = '#d95926';
 const C_VIENTO = '#199e70';
 const C_LLUVIA = '#3987e5';
@@ -109,7 +109,7 @@ export function Franja72h({ estaciones, umbrales }: Props) {
                             <LineChart data={datos} margin={margen}>
                                 {fondo}{ejeX}
                                 <YAxis width={38} tick={{ fill: '#8396ad', fontSize: 11 }} axisLine={false} tickLine={false} domain={['auto', 'auto']} />
-                                {helada && <ReferenceLine y={helada.aviso} stroke="#38bdf8" strokeDasharray="4 3" label={{ value: `helada ${helada.aviso}°`, fill: '#7dd3fc', fontSize: 11, position: 'insideBottomLeft' }} />}
+                                {helada && <ReferenceLine y={helada.aviso} stroke="#3FB2F3" strokeDasharray="4 3" label={{ value: `helada ${helada.aviso}°`, fill: '#7dd3fc', fontSize: 11, position: 'insideBottomLeft' }} />}
                                 {calor && <ReferenceLine y={calor.aviso} stroke="#fbbf24" strokeDasharray="4 3" label={{ value: `calor ${calor.aviso}°`, fill: '#fcd34d', fontSize: 11, position: 'insideTopLeft' }} />}
                                 {tip('°C')}
                                 <Line type="monotone" dataKey="temp" name="Observada" stroke={C_TEMP} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />

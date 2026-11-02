@@ -9,9 +9,9 @@
 .ce-barra { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
 .ce-grupo { display: inline-flex; padding: 4px; gap: 4px; border: 1px solid var(--sc-line); border-radius: 12px; background: var(--sc-surface); }
 .ce-seg { min-height: 44px; padding: 0 14px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--sc-t2); font: 600 13px var(--sc-body); cursor: pointer; }
-.ce-seg:hover { background: rgba(56, 189, 248, 0.1); }
+.ce-seg:hover { background: rgba(63, 178, 243, 0.1); }
 .ce-seg:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 2px; }
-.ce-seg-on { color: var(--sc-t1); border-color: rgba(56, 189, 248, 0.5); background: rgba(56, 189, 248, 0.14); }
+.ce-seg-on { color: var(--sc-t1); border-color: rgba(63, 178, 243, 0.5); background: rgba(63, 178, 243, 0.14); }
 
 /* ── Zona (colapsable) ── */
 .ce-zona { --ce-acento: var(--sc-sky); border-left: 3px solid var(--ce-acento); padding: 0; }

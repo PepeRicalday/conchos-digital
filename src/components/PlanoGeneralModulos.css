@@ -71,8 +71,8 @@
     font: 600 13px system-ui, sans-serif;
     cursor: pointer;
 }
-.plano-general-mover.on { border-color: #38bdf8; background: rgba(56, 189, 248, 0.22); }
-.plano-general-mover:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.plano-general-mover.on { border-color: #3FB2F3; background: rgba(63, 178, 243, 0.22); }
+.plano-general-mover:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
 
 .plano-general-map {
     width: 100%;
@@ -167,7 +167,7 @@
     text-align: right;
     color: #cbd5e1;
 }
-.plano-general-fila-delta.sube { color: #38bdf8; }
+.plano-general-fila-delta.sube { color: #3FB2F3; }
 .plano-general-fila-delta.baja { color: #fbbf24; }
 .plano-general-fila-delta.sd { color: #94a3b8; font-weight: 500; }
 

@@ -1,14 +1,14 @@
 /* Observatorio agroclimático — carta hidrográfica nocturna (mismo lenguaje que Presas / Histórico).
    Texto ≥ 11 px, color nunca como único portador de significado, objetivos táctiles ≥ 44 px. */
 .cl-obs {
-    --cl-bg: #020a14;
+    --cl-bg: #061532;
     --cl-surface: rgba(255, 255, 255, 0.028);
     --cl-surface-2: rgba(255, 255, 255, 0.05);
     --cl-line: rgba(148, 163, 184, 0.16);
     --cl-t1: #e8eef6;
     --cl-t2: #b4c2d4;
     --cl-t3: #8396ad;
-    --cl-sky: #38bdf8;
+    --cl-sky: #3FB2F3;
     --cl-ok: #34d399;
     --cl-warn: #fbbf24;
     --cl-crit: #f87171;
@@ -61,7 +61,7 @@
 /* ── Red de estaciones ── */
 .cl-red-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
 .cl-est { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; min-height: 44px; border-radius: 12px; border: 1px solid var(--cl-line); background: var(--cl-surface); cursor: pointer; transition: border-color 0.2s, background 0.2s; }
-.cl-est:hover { background: var(--cl-surface-2); border-color: rgba(56, 189, 248, 0.45); }
+.cl-est:hover { background: var(--cl-surface-2); border-color: rgba(63, 178, 243, 0.45); }
 .cl-est:focus-visible { outline: 2px solid var(--cl-sky); outline-offset: 2px; }
 .cl-est-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .cl-est-nombre { display: block; font-weight: 600; font-size: 14px; color: var(--cl-t1); }
@@ -179,8 +179,8 @@
 .cl-rd-min { text-align: right; color: #7dd3fc; }
 .cl-rd-max { color: #fdba74; }
 .cl-rd-pista { position: relative; height: 8px; border-radius: 999px; background: rgba(148, 163, 184, 0.12); }
-.cl-rd-barra { position: absolute; top: 0; bottom: 0; border-radius: 999px; min-width: 4px; background: linear-gradient(90deg, #38bdf8, #f59e0b 70%, #f97316); }
-.cl-rd-ahora { position: absolute; top: 50%; width: 10px; height: 10px; margin-left: -5px; transform: translateY(-50%); border-radius: 50%; background: var(--cl-t1); box-shadow: 0 0 0 2px #020a14; }
+.cl-rd-barra { position: absolute; top: 0; bottom: 0; border-radius: 999px; min-width: 4px; background: linear-gradient(90deg, #3FB2F3, #f59e0b 70%, #f97316); }
+.cl-rd-ahora { position: absolute; top: 50%; width: 10px; height: 10px; margin-left: -5px; transform: translateY(-50%); border-radius: 50%; background: var(--cl-t1); box-shadow: 0 0 0 2px #061532; }
 .cl-rd-top { color: var(--cl-warn) !important; font-weight: 700; }
 .cl-rd-lluvia { color: var(--cl-sky) !important; font-weight: 700; }
 

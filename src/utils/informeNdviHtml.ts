@@ -175,7 +175,7 @@ export function construirHtmlNdvi(d: InformeNdvi, logos: LogosInforme, plano: st
         const revisar = rs.revisar.length
             ? `<ul class="revisar">${rs.revisar.map((r) => `<li><b>${esc(listaModulos(r.modulos))}:</b> ${esc(r.criterio)}${r.cifras && !/^M\d+$/.test(r.cifras) ? ` <span class="fuente">(${esc(r.cifras)})</span>` : ''}</li>`).join('')}</ul><p class="fuente">${esc(rs.accionRevisar)}</p>`
             : d.mesReferencia ? '<p>Ningún módulo cumple los criterios de revisión en este corte.</p>' : '<p class="sd">Sin datos en el periodo: no se pueden evaluar los criterios de revisión.</p>';
-        agrega(`<div class="banda"><small>Centro de Inteligencia Agroclimática · SICA-005</small>
+        agrega(`<div class="banda"><small>Centro de Inteligencia Agroclimática · SICA 005</small>
   <h1>Informe técnico de vigor de cultivos (NDVI)</h1>
   <div class="sub">Distrito de Riego 005 Delicias, Chihuahua · ${d.modulos.length} ${d.modulos.length === 1 ? 'módulo' : 'módulos'} SRL</div></div>
 <div class="datos">
@@ -197,10 +197,10 @@ ${rs.hallazgos.length ? `<ol class="hallazgos">${rs.hallazgos.map((h) => `<li>${
 </div>
 <p class="fuente">${esc(rs.definicionSrl)}</p>
 ${avisosHtml}
-<p class="nota-pie">Dirigido a: CONAGUA · Distrito de Riego 005 · Asociaciones de usuarios. Fuente: Sentinel-2 L2A (Copernicus), Statistical API, polígono exacto de cada módulo; ${esc(ROTULO_METODO_NDVI)}. NDVI de la frontera del módulo, no de una parcela. Documento generado automáticamente por SICA-005.</p>`);
+<p class="nota-pie">Dirigido a: CONAGUA · Distrito de Riego 005 · Asociaciones de usuarios. Fuente: Sentinel-2 L2A (Copernicus), Statistical API, polígono exacto de cada módulo; ${esc(ROTULO_METODO_NDVI)}. NDVI de la frontera del módulo, no de una parcela. Documento generado automáticamente por SICA 005.</p>`);
         paginas[0].cabecera = cabeceraInforme({ logoSrl: logos.srl, logoSica: logos.sica, titulo: 'Distrito de Riego 005', meta: [
             { k: 'Folio', v: d.folio }, { k: 'Emisión', v: fechaHoraLegible(d.emitidoEn) }, { k: 'Emitió', v: d.emisor },
-            { k: 'Datos al', v: d.traza.corteDatos ? fechaLarga(d.traza.corteDatos) : SD }, { k: 'Versión', v: `SICA-005 v${d.version}` }] });
+            { k: 'Datos al', v: d.traza.corteDatos ? fechaLarga(d.traza.corteDatos) : SD }, { k: 'Versión', v: `SICA 005 v${d.version}` }] });
     }
 
     // ── Situación del periodo: plano + ranking
@@ -464,7 +464,7 @@ ${matricesSupVolHtml(d.interanual)}</div>
             { k: 'Promedio SRL', v: base },
             { k: 'Método del NDVI', v: `${d.traza.metodo} — ${ROTULO_METODO_NDVI}` },
             { k: 'Versión de plantilla', v: d.traza.plantilla },
-            { k: 'Versión de SICA-005', v: d.version },
+            { k: 'Versión de SICA 005', v: d.version },
             { k: 'Hash de configuración', v: d.traza.hashConfig },
             { k: 'Fuente', v: 'Sentinel-2 L2A (Copernicus), Statistical API; superficie y volumen anual: informe ACUM_INF de la SRL' },
             { k: 'Consultas fallidas', v: d.erroresConsulta.length ? d.erroresConsulta.map((e) => `${e.fuente}${e.mensaje ? ` (${e.mensaje})` : ''}`).join('; ') : 'Ninguna' },
@@ -477,7 +477,7 @@ ${d.config.firmas ? `<h3>Firmas</h3>${bloqueFirmas({ nombres: { Elaboró: d.emis
     }
 
     const total = paginas.length;
-    const cuerpo = paginas.map((p, i) => `<section class="pagina">${p.cabecera}<div class="cuerpo">${p.cuerpo}</div>${pieInforme(`Folio ${d.folio} · SICA-005 v${d.version}`, i + 1, total)}</section>`).join('\n');
+    const cuerpo = paginas.map((p, i) => `<section class="pagina">${p.cabecera}<div class="cuerpo">${p.cuerpo}</div>${pieInforme(`Folio ${d.folio} · SICA 005 v${d.version}`, i + 1, total)}</section>`).join('\n');
     return documentoHtml({
         titulo: `Informe técnico NDVI — SRL Unidad Conchos — ${periodoTxt}`,
         css: minificaCss(cssInforme({ formato: d.config.hoja }) + EXTRA_CSS + (d.config.imagenSatelital ? CSS_IMAGENES + CSS_LEYENDA_IM : '')),

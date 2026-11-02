@@ -3,7 +3,7 @@
 :root {
     --geo-font-sans: 'IBM Plex Sans', 'Inter', system-ui, sans-serif;
     --geo-font-display: 'Big Shoulders Display', 'JetBrains Mono', sans-serif;
-    --geo-bg-main: #020a14;
+    --geo-bg-main: #061532;
     --geo-bg-shell: #040e1b;
     --geo-surface: rgba(255, 255, 255, 0.032);
     --geo-surface-raised: rgba(255, 255, 255, 0.055);
@@ -13,11 +13,11 @@
     --geo-text-1: #b4c2d4;
     --geo-text-2: #8fa3bb;
     --geo-text-3: #8396ad;
-    --geo-neon-cyan: #38bdf8;
+    --geo-neon-cyan: #3FB2F3;
 }
 
 /* Título y numerales con la voz de Presas/Clima */
-.geo-title { font-family: var(--geo-font-display); font-size: 1.7rem; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; line-height: 1; }
+.geo-title { font-family: var(--brand-display); font-size: 1.4rem; font-weight: 800; letter-spacing: 0.01em; text-transform: uppercase; line-height: 1; }
 .geo-title .font-light { font-family: var(--geo-font-sans); text-transform: none; letter-spacing: 0; }
 
 .geo-kpi-card { border-top: 2px solid var(--geo-border); border-radius: 12px; padding: 0.8rem 0.9rem; }
@@ -28,7 +28,7 @@
 .geo-kpi-card:focus-visible { outline: 2px solid var(--geo-neon-cyan); outline-offset: 2px; }
 
 .geo-chart-card { border-radius: 14px; border-color: var(--geo-border); }
-.geo-chart-card:hover { border-color: rgba(56, 189, 248, 0.35); }
+.geo-chart-card:hover { border-color: rgba(63, 178, 243, 0.35); }
 
 /* Las cifras de los paneles de detalle usan los mismos numerales */
 .detail-stat strong, .geo-gate-stat-value .num { font-family: var(--geo-font-display); font-weight: 800; letter-spacing: 0.01em; }

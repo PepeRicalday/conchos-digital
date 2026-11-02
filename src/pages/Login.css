@@ -6,28 +6,28 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #0b1120;
+    background-color: var(--brand-fondo);
     position: relative;
     overflow: hidden;
     padding: 1rem;
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family: var(--font-sans);
 }
 
 .login-bg-glow {
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at 50% 0%, rgba(30, 58, 138, 0.3) 0%, transparent 60%);
+    background: radial-gradient(circle at 50% 0%, rgba(11, 49, 112, 0.65) 0%, transparent 62%);
     pointer-events: none;
 }
 
 .login-card {
     width: 100%;
     max-width: 420px;
-    background: rgba(17, 24, 39, 0.8);
+    background: rgba(11, 33, 71, 0.82);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid #1e293b;
-    border-radius: 1.5rem;
+    border: 1px solid #1E4A8C;
+    border-radius: 1.375rem;
     padding: 2.5rem 2rem;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     z-index: 10;
@@ -65,27 +65,34 @@
     width: 100%;
 }
 
+.login-emblema {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
 .login-title {
-    font-size: 1.75rem;
+    font-family: var(--brand-display);
+    font-size: 2rem;
     font-weight: 800;
     color: white;
-    letter-spacing: -0.025em;
-    margin-bottom: 0.5rem;
+    letter-spacing: 0.01em;
+    margin-bottom: 0.4rem;
 }
 
 .login-subtitle {
-    color: #f59e0b;
-    font-size: 0.6875rem;
+    color: var(--brand-agua-claro);
+    font-size: 0.75rem;
     font-weight: 700;
-    letter-spacing: 0.15em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     margin-bottom: 1rem;
     display: block;
 }
 
 .login-description {
-    color: #cbd5e1;
-    font-size: 0.6875rem;
+    color: var(--brand-cielo);
+    font-size: 0.8125rem;
     line-height: 1.625;
     padding: 0 1rem;
 }
@@ -142,10 +149,10 @@
 
 .login-input {
     width: 100%;
-    background: #1e293b;
-    border: 1px solid #334155;
+    background: #10284F;
+    border: 1px solid #1E4A8C;
     color: white;
-    border-radius: 1rem;
+    border-radius: 0.875rem;
     padding: 1rem 1rem 1rem 2.75rem;
     font-size: 0.9375rem;
     transition: all 0.2s ease;
@@ -153,17 +160,18 @@
 
 .login-input:focus {
     outline: none;
-    border-color: #f97316;
-    box-shadow: 0 0 0 1px #f97316;
+    border-color: var(--brand-agua-claro);
+    box-shadow: 0 0 0 2px rgba(63, 178, 243, 0.45);
 }
 
 .login-button {
     width: 100%;
-    background: #ea580c;
+    background: var(--brand-agua-osc);
     color: white;
-    font-weight: 700;
+    font-family: var(--brand-display);
+    font-weight: 800;
     padding: 1.125rem;
-    border-radius: 1rem;
+    border-radius: 0.875rem;
     border: none;
     display: flex;
     align-items: center;
@@ -172,12 +180,17 @@
     cursor: pointer;
     transition: all 0.2s ease;
     margin-top: 1rem;
-    box-shadow: 0 10px 15px -3px rgba(124, 45, 18, 0.2);
+    box-shadow: 0 10px 15px -3px rgba(6, 32, 77, 0.5);
     font-size: 1rem;
 }
 
 .login-button:hover {
-    background: #c2410c;
+    background: var(--brand-navy);
+}
+
+.login-button:focus-visible {
+    outline: 3px solid var(--brand-agua-claro);
+    outline-offset: 2px;
 }
 
 .login-button:active {
@@ -236,7 +249,7 @@
     font-weight: 700;
 }
 
-/* El sello SICA-005 trae su disco y contorno (components/marca/LogoSica): sin fondo blanco, recorte ni opacidad. */
+/* El emblema SICA 005 trae su filo blanco (components/marca/LogoSica): sin fondo blanco, recorte ni opacidad. */
 .sica-badge {
     width: 80px;
     height: 80px;
@@ -251,8 +264,14 @@
 }
 
 .logo-sica {
-    width: 100%;
-    height: 100%;
+    width: 112px;
+    height: 112px;
+}
+
+.logo-srl-pie {
+    height: 44px;
+    width: auto;
+    object-fit: contain;
 }
 
 
@@ -277,7 +296,7 @@
     background: none;
     border: none;
     font-size: 0.6875rem;
-    color: rgba(249, 115, 22, 0.6);
+    color: rgba(63, 178, 243, 0.8);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.025em;
@@ -288,7 +307,7 @@
 }
 
 .nuke-button:hover {
-    color: #f97316;
+    color: var(--brand-agua-claro);
 }
 
 @media (max-width: 480px) {

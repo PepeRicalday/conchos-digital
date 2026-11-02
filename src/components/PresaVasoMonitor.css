@@ -13,7 +13,7 @@
     right: 0;
     bottom: 0;
     z-index: 1000;
-    background: #020617;
+    background: #061532;
     display: flex;
     flex-direction: column;
 }
@@ -21,7 +21,7 @@
 .vaso-container {
     width: 100%;
     height: 100%;
-    background: #020617;
+    background: #061532;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -53,7 +53,7 @@
     position: sticky;
     top: 0;
     z-index: 10;
-    background: #020617;
+    background: #061532;
     border-bottom: 1px solid rgba(148, 163, 184, 0.1);
 }
 
@@ -234,7 +234,7 @@
     height: 460px;
     border-radius: 14px;
     overflow: hidden;
-    background: radial-gradient(ellipse at center, #0f1b2e 0%, #020617 100%);
+    background: radial-gradient(ellipse at center, #0f1b2e 0%, #061532 100%);
     border: 1px solid rgba(255, 255, 255, 0.06);
 }
 

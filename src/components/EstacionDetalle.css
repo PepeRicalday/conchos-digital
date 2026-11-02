@@ -50,7 +50,7 @@
     gap: 1rem;
     padding: 1rem 1.15rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(180deg, rgba(56, 189, 248, 0.06), transparent);
+    background: linear-gradient(180deg, rgba(63, 178, 243, 0.06), transparent);
 }
 
 .est-det-ident h3 {
@@ -122,11 +122,11 @@
     transition: all 0.15s;
 }
 
-.est-det-ventana button:hover { background: rgba(56, 189, 248, 0.14); }
+.est-det-ventana button:hover { background: rgba(63, 178, 243, 0.14); }
 
 .est-det-ventana button.activa {
-    background: rgba(56, 189, 248, 0.20);
-    border-color: rgba(56, 189, 248, 0.45);
+    background: rgba(63, 178, 243, 0.20);
+    border-color: rgba(63, 178, 243, 0.45);
     color: #7dd3fc;
 }
 
@@ -141,8 +141,8 @@
     display: flex;
     align-items: center;
     gap: 0.35rem;
-    background: rgba(56, 189, 248, 0.14);
-    border: 1px solid rgba(56, 189, 248, 0.35);
+    background: rgba(63, 178, 243, 0.14);
+    border: 1px solid rgba(63, 178, 243, 0.35);
     border-radius: 6px;
     color: #7dd3fc;
     padding: 0.22rem 0.6rem;
@@ -152,7 +152,7 @@
     transition: background 0.15s;
 }
 
-.est-det-informe:hover:not(:disabled) { background: rgba(56, 189, 248, 0.24); }
+.est-det-informe:hover:not(:disabled) { background: rgba(63, 178, 243, 0.24); }
 .est-det-informe:disabled { opacity: 0.6; cursor: default; }
 
 /* ── Periodo manual ─────────────────────────────────────────────────────── */
@@ -164,7 +164,7 @@
     gap: 0.6rem;
     padding: 0.55rem 1.15rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(56, 189, 248, 0.05);
+    background: rgba(63, 178, 243, 0.05);
     font-size: 0.7rem;
     color: #94a3b8;
 }
@@ -546,7 +546,7 @@
 
 .v-barra-fill {
     height: 100%;
-    background: linear-gradient(90deg, #38bdf8, #7dd3fc);
+    background: linear-gradient(90deg, #3FB2F3, #7dd3fc);
     border-radius: 3px;
 }
 
@@ -615,8 +615,8 @@
     gap: 0.35rem;
     margin-top: 0.6rem;
     padding: 0.6rem 0.8rem;
-    background: rgba(56, 189, 248, 0.07);
-    border: 1px solid rgba(56, 189, 248, 0.18);
+    background: rgba(63, 178, 243, 0.07);
+    border: 1px solid rgba(63, 178, 243, 0.18);
     border-radius: 10px;
     font-size: 0.6875rem;
     color: #94a3b8;

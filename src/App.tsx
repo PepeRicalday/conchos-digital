@@ -9,6 +9,7 @@ import { Toaster } from 'sonner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { VersionGuard } from './components/VersionGuard';
 import { RoleGuard } from './components/ui/RoleGuard';
+import { LogoSica } from './components/marca/LogoSica';
 
 // ── Lazy-loaded pages (Code Splitting) ───────────────────────── //
 // Each page is loaded on-demand, reducing initial bundle by ~60%.
@@ -44,11 +45,12 @@ const PageLoader = () => (
     justifyContent: 'center',
     gap: '1.5rem',
   }}>
+    <LogoSica tamano={72} etiqueta="" />
     <div style={{
-      width: '48px',
-      height: '48px',
-      border: '3px solid rgba(56, 189, 248, 0.15)',
-      borderTopColor: '#38bdf8',
+      width: '28px',
+      height: '28px',
+      border: '3px solid rgba(63, 178, 243, 0.15)',
+      borderTopColor: '#3FB2F3',
       borderRadius: '50%',
       animation: 'spin 0.8s linear infinite',
     }} />
@@ -63,12 +65,12 @@ const PageLoader = () => (
         fontWeight: 700,
         letterSpacing: '3px',
         textTransform: 'uppercase',
-        color: '#38bdf8',
+        color: '#3FB2F3',
         fontFamily: 'var(--font-mono)',
       }}>SICA 005</span>
       <span style={{
         fontSize: '0.7rem',
-        color: '#475569',
+        color: '#8FA7C8',
         letterSpacing: '1px',
       }}>Cargando módulo…</span>
     </div>
@@ -102,7 +104,7 @@ const PageLoaderConRescate = () => {
       alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '2rem',
       textAlign: 'center',
     }}>
-      <span style={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
+      <span style={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#3FB2F3', fontFamily: 'var(--font-mono)' }}>
         SICA 005
       </span>
       <p style={{ color: '#94a3b8', fontSize: '0.85rem', maxWidth: '38ch', margin: 0 }}>
@@ -112,8 +114,8 @@ const PageLoaderConRescate = () => {
       <button
         onClick={() => window.location.reload()}
         style={{
-          background: 'rgba(56,189,248,0.12)', color: '#38bdf8',
-          border: '1px solid rgba(56,189,248,0.3)', borderRadius: '10px',
+          background: 'rgba(63, 178, 243,0.12)', color: '#3FB2F3',
+          border: '1px solid rgba(63, 178, 243,0.3)', borderRadius: '10px',
           padding: '0.6rem 1.4rem', fontSize: '0.8rem', fontWeight: 700,
           cursor: 'pointer', fontFamily: 'inherit',
         }}
@@ -148,14 +150,14 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#020617',
+        background: '#061532',
         gap: '1.5rem',
       }}>
         <div style={{
           width: '64px',
           height: '64px',
-          border: '3px solid rgba(56, 189, 248, 0.1)',
-          borderTopColor: '#38bdf8',
+          border: '3px solid rgba(63, 178, 243, 0.1)',
+          borderTopColor: '#3FB2F3',
           borderRadius: '50%',
           animation: 'spin 0.8s linear infinite',
         }} />
@@ -170,7 +172,7 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
             fontWeight: 800,
             letterSpacing: '4px',
             textTransform: 'uppercase',
-            background: 'linear-gradient(to right, #38bdf8, #22d3ee)',
+            background: 'linear-gradient(to right, #3FB2F3, #22d3ee)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             fontFamily: 'var(--font-mono)',
@@ -184,7 +186,7 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
           <div style={{
             width: '120px',
             height: '2px',
-            background: 'rgba(56, 189, 248, 0.1)',
+            background: 'rgba(63, 178, 243, 0.1)',
             borderRadius: '1px',
             overflow: 'hidden',
             marginTop: '0.5rem',
@@ -192,7 +194,7 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
             <div style={{
               width: '40%',
               height: '100%',
-              background: 'linear-gradient(to right, #38bdf8, #22d3ee)',
+              background: 'linear-gradient(to right, #3FB2F3, #22d3ee)',
               borderRadius: '1px',
               animation: 'loading-bar 1.5s ease-in-out infinite',
             }} />

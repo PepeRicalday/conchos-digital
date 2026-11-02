@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { Zap } from 'lucide-react';
 import type { ClasificacionConduccion, EstadoVisual } from '../../utils/eficienciaCanal';
 
-const COLOR: Record<EstadoVisual, string> = { ok: '#34d399', warn: '#fbbf24', crit: '#f87171', info: '#38bdf8', sd: '#8396ad' };
+const COLOR: Record<EstadoVisual, string> = { ok: '#34d399', warn: '#fbbf24', crit: '#f87171', info: '#3FB2F3', sd: '#8396ad' };
 const R = 74;
 const ARCO = Math.PI * R; // longitud del semicírculo
 

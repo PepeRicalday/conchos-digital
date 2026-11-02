@@ -4,8 +4,15 @@
  * Todo es puro (strings): se prueba con vitest sin navegador.
  */
 import { COLOR_INSTITUCIONAL, escSvg } from './informeHistoricoSvg';
+// Montserrat 800 (tipografía del logo SICA 005) embebida como data URI: el informe es un HTML autónomo y se abre sin red.
+import montserrat800 from '../assets/fonts/montserrat-800-informe.woff2?inline';
 
 export const SRL_MARRON = COLOR_INSTITUCIONAL;
+/** Colores de marca SICA 005 en los informes. El marrón de SRL queda solo en su logo. */
+export const MARCA = { navy: '#0B3170', agua: '#0A7FDB', aguaClaro: '#3FB2F3', hoja: '#2E9A1E', rojo: '#E0242A', cielo: '#CBEAF9' } as const;
+/** Pila tipográfica de títulos y cifras héroe; el cuerpo y las tablas usan Segoe UI. */
+export const FUENTE_MARCA = '"Montserrat","Segoe UI",Arial,sans-serif';
+
 /** Escape de texto dinámico para HTML/atributos (nombres de módulo, emisor, avisos). */
 export const esc = escSvg;
 
@@ -93,7 +100,8 @@ export interface OpcionesCss { formato?: 'letter' | 'a4' }
 export function cssInforme(o: OpcionesCss = {}): string {
     const hoja = o.formato === 'a4' ? 'A4' : 'letter';
     return `
-:root{--inst:${SRL_MARRON};--inst-claro:#f4eaea;--ink:#1f2328;--ink2:#57606a;--linea:#dcd9d2;--papel:#fff;--pantalla:#eceae5;--sd:#6a737d;--aviso:#9a6700;--aviso-bg:#fff8e6}
+@font-face{font-family:"Montserrat";font-style:normal;font-weight:800;src:url(${montserrat800}) format("woff2")}
+:root{--inst:${SRL_MARRON};--inst-claro:#E6EEF8;--agua:${MARCA.agua};--agua-claro:${MARCA.aguaClaro};--hoja:${MARCA.hoja};--marca:${FUENTE_MARCA};--ink:#1f2328;--ink2:#57606a;--linea:#dcd9d2;--papel:#fff;--pantalla:#eceae5;--sd:#6a737d;--aviso:#9a6700;--aviso-bg:#fff8e6}
 *{box-sizing:border-box}
 html{color-scheme:light;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 body{margin:0;background:var(--pantalla);color:var(--ink);font:9.5pt/1.45 "Segoe UI","Helvetica Neue",Arial,sans-serif}
@@ -113,16 +121,20 @@ body{margin:0;background:var(--pantalla);color:var(--ink);font:9.5pt/1.45 "Segoe
 h2,h3,caption{break-after:avoid}
 thead{display:table-header-group}
 /* Cabecera y pie */
-.hdr{display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--inst);padding-bottom:10px;margin-bottom:12px}
+.hdr{display:flex;align-items:center;gap:14px;border-bottom:2px solid var(--inst);box-shadow:0 3px 0 var(--agua-claro);padding-bottom:10px;margin-bottom:16px}
 .hdr img{height:52px;width:auto;object-fit:contain}
+.hdr img.sica{height:56px}
 .hdr .org{flex:1;min-width:0}
-.hdr .org b{display:block;font-family:Georgia,serif;font-size:13pt;letter-spacing:.18em;color:var(--inst)}
-.hdr .org span{font-size:8pt;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)}
+.hdr .org b{display:block;font-family:var(--marca);font-weight:800;font-size:15pt;letter-spacing:.01em;color:var(--inst)}
+.hdr .org span{font-size:8pt;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
+.hdr .op{display:flex;flex-direction:column;align-items:center;gap:2px}
+.hdr .op small{font-size:6.5pt;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
+.hdr .op img{height:34px}
 .hdr .meta{font-size:7.5pt;color:var(--ink2);text-align:right;line-height:1.5}
-.pie-pagina{margin-top:10px;padding-top:6px;border-top:3px solid var(--inst);display:flex;justify-content:space-between;gap:12px;font-size:7.5pt;color:var(--ink2);text-transform:uppercase;letter-spacing:.06em}
+.pie-pagina{margin-top:10px;padding-top:6px;border-top:2px solid var(--agua);display:flex;justify-content:space-between;gap:12px;font-size:7.5pt;color:var(--ink2);text-transform:uppercase;letter-spacing:.06em}
 /* Secciones */
-h1{font:700 18pt/1.15 Georgia,serif;color:var(--inst);margin:0 0 4px}
-h2{font:700 13pt/1.2 Georgia,serif;color:var(--inst);margin:0 0 8px;padding-bottom:4px;border-bottom:1.5px solid var(--linea)}
+h1{font:800 17pt/1.15 var(--marca);color:var(--inst);margin:0 0 4px}
+h2{font:800 12.5pt/1.2 var(--marca);color:var(--inst);margin:0 0 8px;padding-bottom:4px;border-bottom:1.5px solid var(--linea)}
 h2 .n{display:inline-block;min-width:1.4em;color:#fff;background:var(--inst);border-radius:3px;text-align:center;font-size:10pt;margin-right:6px;padding:0 4px}
 h3{font:700 10.5pt/1.2 "Segoe UI",Arial,sans-serif;color:var(--ink);margin:10px 0 4px}
 p{margin:0 0 6px}
@@ -134,9 +146,9 @@ td{padding:4px 6px;border-bottom:1px solid var(--linea)}
 caption{text-align:left;font-weight:700;color:var(--inst);padding:6px 0 4px;font-size:8.5pt;text-transform:uppercase;letter-spacing:.04em}
 /* KPI y chips */
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}
-.kpi{border:1px solid var(--linea);border-top:4px solid var(--inst);border-radius:4px;padding:8px 10px;background:#fff}
+.kpi{border:1px solid var(--linea);border-top:4px solid var(--agua);border-radius:8px;padding:8px 10px;background:#fff}
 .kpi .et{font-size:7.5pt;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
-.kpi .v{font:700 20pt/1.1 Georgia,serif;color:var(--ink);margin:2px 0}
+.kpi .v{font:800 18pt/1.1 var(--marca);color:var(--inst);margin:2px 0;font-variant-numeric:tabular-nums}
 .kpi .s{font-size:8pt;color:var(--ink2)}
 .chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--linea);border-radius:999px;padding:1px 8px;font-size:8pt;font-weight:600;color:var(--ink);white-space:nowrap}
 .chip i{width:10px;height:10px;border-radius:2px;border:1px solid rgba(0,0,0,.35);display:inline-block}
@@ -150,13 +162,13 @@ caption{text-align:left;font-weight:700;color:var(--inst);padding:6px 0 4px;font
 .cuerpo{min-width:0}
 .banda{margin:2mm 0 4mm}
 .banda small{display:block;font-size:8pt;color:var(--ink2);margin-bottom:3px}
-.banda h1{font-size:20pt}
-.banda .sub{font:10pt Georgia,serif;color:var(--ink2);margin-top:2px}
+.banda h1{font-size:19pt}
+.banda .sub{font:10.5pt "Segoe UI",Arial,sans-serif;color:var(--ink2);margin-top:2px}
 .datos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:4mm 0 3mm}
-.dato{border-top:3px solid var(--inst);padding-top:4px}
+.dato{border-top:3px solid var(--agua);padding-top:4px}
 .dato b{display:block;font-size:8pt;color:var(--ink2)}
-.dato span{font:600 10pt Georgia,serif}
-.frase{font:10.5pt/1.4 Georgia,serif;margin:2px 0 6px}
+.dato span{font:600 10pt "Segoe UI",Arial,sans-serif}
+.frase{font:10.5pt/1.45 "Segoe UI",Arial,sans-serif;margin:2px 0 6px}
 .nota-pie{margin-top:6px;font-size:7.5pt;color:var(--ink2)}
 .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:8.5pt}
 .def dt{font-weight:700;color:var(--inst);margin-top:5px}
@@ -184,13 +196,19 @@ table.traza td{overflow-wrap:anywhere}
 
 export interface MetaCabecera { k: string; v: string }
 
-/** Cabecera institucional: logo SRL (si falló, queda el texto de la marca), bloque de organización y metadatos. */
+/**
+ * Cabecera institucional: emblema SICA 005 (el producto) a la izquierda, nombre y título del informe, y el logo de SRL Unidad Conchos
+ * (quien opera el sistema) a la derecha, más pequeño. Si el logo SRL no cargó, queda su nombre en texto.
+ */
 export function cabeceraInforme(o: { logoSrl: string; logoSica?: string; titulo: string; meta: MetaCabecera[] }): string {
-    const img = (src: string | undefined, alt: string) => (src ? `<img src="${esc(src)}" alt="${esc(alt)}">` : '');
+    const sica = o.logoSica ? `<img class="sica" src="${esc(o.logoSica)}" alt="SICA 005">` : '';
+    const srl = o.logoSrl
+        ? `<div class="op"><small>Operado por</small><img src="${esc(o.logoSrl)}" alt="SRL Unidad Conchos"></div>`
+        : `<div class="op"><small>Operado por</small><b>SRL Unidad Conchos</b></div>`;
     return `<header class="hdr">
-  ${img(o.logoSrl, 'S R L Unidad Conchos')}
-  <div class="org"><b>S R L&nbsp;&nbsp;Unidad Conchos</b><span>DELICIAS · ${esc(o.titulo)}</span></div>
-  ${img(o.logoSica, 'SICA-005')}
+  ${sica}
+  <div class="org"><b>SICA 005</b><span>SRL Unidad Conchos · Distrito de Riego 005 · ${esc(o.titulo)}</span></div>
+  ${srl}
   <div class="meta">${o.meta.map((m) => `<div><b>${esc(m.k)}:</b> ${esc(m.v)}</div>`).join('')}</div>
 </header>`;
 }

@@ -40,6 +40,8 @@ export interface ContextoComprobacion {
     readonly fecha: string;
     /** Logo como data URI; '' si no se pudo cargar (se omite). */
     readonly logo: string;
+    /** Emblema SICA 005 como data URI (opcional; si falta se omite). */
+    readonly logoSica?: string;
     /** "SRL" o "M5". */
     readonly ambito: string;
     /** Rótulo de la red ("Red de distribución (canales)"). */

@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { estadoTramo, type TramoBalance } from '../../utils/balanceTramos';
 import { fmt } from '../../utils/formato';
 
-const COLOR = { ok: '#34d399', warn: '#fbbf24', crit: '#f87171', sd: '#8396ad', info: '#38bdf8' } as const;
+const COLOR = { ok: '#34d399', warn: '#fbbf24', crit: '#f87171', sd: '#8396ad', info: '#3FB2F3' } as const;
 
 /** Esquema del canal: cada tramo con su entrada, % de capacidad de diseño usada y estado en texto. */
 export const EsquemaCanal = memo(function EsquemaCanal({ tramos }: { tramos: TramoBalance[] }) {

@@ -1,16 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="SICA-005">
-  <title>SICA-005</title>
-  <defs>
-    <linearGradient id="sica-agua" x1="150" y1="140" x2="230" y2="420" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#5BB8EC"/><stop offset="1" stop-color="#1A74B8"/></linearGradient>
-    <linearGradient id="sica-hoja" x1="390" y1="170" x2="290" y2="410" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#5CC46F"/><stop offset="1" stop-color="#2A8A45"/></linearGradient>
-  </defs>
-  <circle cx="256" cy="256" r="256" fill="#FFFFFF"/>
-  <circle cx="256" cy="256" r="236" fill="none" stroke="#0B4F8A" stroke-width="22"/>
-  <clipPath id="sica-clip"><circle cx="256" cy="256" r="217"/></clipPath>
-    <g clip-path="url(#sica-clip)"><g transform="translate(256 256) scale(1.55) translate(-256 -256)"><path d="M100 174 C166 142 242 150 268 188 C292 224 278 266 252 300 C224 336 224 378 248 424 L140 424 C128 372 144 322 182 284 C208 258 226 238 222 216 C218 198 172 194 100 214 Z" fill="url(#sica-agua)"/><path d="M288 410 C258 330 300 234 400 182 C430 280 388 382 288 410 Z" fill="url(#sica-hoja)"/><g fill="none" stroke="#FFFFFF" stroke-linecap="round">
-      <path d="M130 186 C168 171 210 171 236 186" stroke-width="8" opacity=".85"/><path d="M184 354 C189 328 203 307 222 289" stroke-width="7" opacity=".85"/>
-      <path d="M294 398 C320 318 352 250 394 196" stroke-width="8"/>
-    </g></g></g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SICA 005">
+  <title>SICA 005</title>
+  
+  <rect x="0" y="0" width="512" height="512" rx="116" fill="#FFFFFF"/>
+  <rect x="18" y="18" width="476" height="476" rx="100" fill="#0B3170"/>
+  <clipPath id="s-v"><rect x="62" y="62" width="388" height="388" rx="64"/></clipPath>
+  <g clip-path="url(#s-v)">
+    <rect x="0" y="0" width="512" height="512" fill="#CBEAF9"/>
+    <path fill="#5DB22A" d="M0 200H512V512H0Z"/>
+    <path fill="#DCD6CC" d="M150 250H330L520 520H-40Z"/>
+    <path fill="#0A7FDB" d="M178 266H302L470 520H10Z"/>
+  </g>
+  <path d="M155 268H273L214 362.4Z" fill="#FFFFFF" stroke="#0B3170" stroke-width="12" stroke-linejoin="round"/>
+  <rect x="326" y="96" width="84" height="300" rx="12" fill="#FFFFFF" stroke="#06204D" stroke-width="12"/>
+  <rect x="368" y="150" width="30" height="64" fill="#E0242A"/>
 </svg>

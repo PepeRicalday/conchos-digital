@@ -12,7 +12,7 @@ const COLOR: Record<TonoCota, string> = {
     muted: '#8aa0b8',
     warn: '#f59e0b',
     alert: '#f87171',
-    info: '#38bdf8',
+    info: '#3FB2F3',
 };
 
 interface Props {
@@ -83,7 +83,7 @@ export default function LimnimetroPresa({ presaId, nivel, estimada = false, ince
             <svg viewBox={`0 0 ${W} ${BOT + 28}`} className="pr-lim-svg" role="img" aria-label={resumen} preserveAspectRatio="xMidYMid meet">
                 <defs>
                     <linearGradient id={`agua-${uid}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.85" />
+                        <stop offset="0%" stopColor="#3FB2F3" stopOpacity="0.85" />
                         <stop offset="100%" stopColor="#0b3a5c" stopOpacity="0.95" />
                     </linearGradient>
                     <pattern id={`hatch-${uid}`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">

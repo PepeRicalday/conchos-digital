@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// INFORME INDIVIDUAL POR ESTACIÓN — SICA-005 · Centro de Inteligencia Agroclimática
+// INFORME INDIVIDUAL POR ESTACIÓN — SICA 005 · Centro de Inteligencia Agroclimática
 // ---------------------------------------------------------------------------
 // Versión compartible del panel de detalle (EstacionDetalle.tsx): mismas
 // secciones (demanda evaporativa, balance hídrico, acumulados y extremos,
@@ -216,7 +216,7 @@ async function construyeHTML(
   }
 </style></head><body><div class="wrap">
   <header>
-    ${logoImg(logoSICA, 'SICA-005')}
+    ${logoImg(logoSICA, 'SICA 005')}
     <div class="titulo">
       <div class="sub">S R L Unidad Conchos · Delicias, Chihuahua</div>
       <h1>Informe de Estación</h1>

@@ -14,8 +14,8 @@
     background: rgba(8, 16, 30, 0.94); border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 12px;
     color: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
 }
-.geo-ley-cab b { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #38bdf8; }
-.geo-ley-cab:focus-visible, .geo-ley-fila:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.geo-ley-cab b { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #3FB2F3; }
+.geo-ley-cab:focus-visible, .geo-ley-fila:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
 .geo-ley-chev { transition: transform 0.2s; }
 .geo-ley[data-abierto='true'] .geo-ley-chev { transform: rotate(180deg); }
 
@@ -39,7 +39,7 @@
 
 .geo-ley-sim { display: inline-block; width: 20px; height: 14px; }
 .geo-ley-linea { border-top: 3px solid var(--c); height: 0; margin-top: 2px; }
-.geo-ley-punto { width: 12px; height: 12px; border-radius: 50%; background: var(--c); border: 2px solid #020a14; box-shadow: 0 0 0 1px var(--c); margin-left: 4px; }
+.geo-ley-punto { width: 12px; height: 12px; border-radius: 50%; background: var(--c); border: 2px solid #061532; box-shadow: 0 0 0 1px var(--c); margin-left: 4px; }
 .geo-ley-poligono { border: 2px dashed var(--c); background: color-mix(in srgb, var(--c) 22%, transparent); border-radius: 3px; }
 .geo-ley-rombo { width: 11px; height: 11px; background: var(--c); transform: rotate(45deg); margin-left: 5px; }
 

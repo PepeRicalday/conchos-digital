@@ -18,7 +18,7 @@
     transition: box-shadow 0.2s;
 }
 .presa-kpi-card:hover {
-    box-shadow: 0 0 24px rgba(56,189,248,0.07);
+    box-shadow: 0 0 24px rgba(63, 178, 243,0.07);
 }
 
 .presa-kpi-header {
@@ -1040,7 +1040,7 @@
     align-items: center;
     gap: 0;
     background: rgba(15, 23, 42, 0.85);
-    border: 1px solid rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(63, 178, 243, 0.12);
     border-radius: 16px;
     padding: 0;
     overflow: hidden;
@@ -1053,7 +1053,7 @@
     gap: 12px;
     padding: 20px 24px;
     min-width: 220px;
-    background: rgba(56, 189, 248, 0.04);
+    background: rgba(63, 178, 243, 0.04);
 }
 .presas-v3-estado-dot {
     width: 10px;
@@ -1086,9 +1086,9 @@
 .presas-v3-estado-type {
     font-size: 11px;
     font-weight: 900;
-    color: #38bdf8;
-    background: rgba(56, 189, 248, 0.1);
-    border: 1px solid rgba(56, 189, 248, 0.2);
+    color: #3FB2F3;
+    background: rgba(63, 178, 243, 0.1);
+    border: 1px solid rgba(63, 178, 243, 0.2);
     border-radius: 999px;
     padding: 3px 10px;
     text-transform: uppercase;
@@ -1184,7 +1184,7 @@
     transition: border-color 0.2s;
 }
 .presas-v3-card:hover {
-    border-color: rgba(56, 189, 248, 0.14);
+    border-color: rgba(63, 178, 243, 0.14);
 }
 
 /* ── Section header ──────────────────────────────────────── */
@@ -1649,8 +1649,8 @@
     height: 120px;
     border-radius: 50%;
     border: 8px solid #334155;
-    border-top-color: #38bdf8;
-    border-left-color: #38bdf8;
+    border-top-color: #3FB2F3;
+    border-left-color: #3FB2F3;
     transform: rotate(45deg);
     display: flex;
     align-items: center;
@@ -1678,7 +1678,7 @@
 
 /* Range Slider */
 .scada-range-container {
-    background: linear-gradient(to right, #a855f7, #38bdf8, #f97316);
+    background: linear-gradient(to right, #a855f7, #3FB2F3, #f97316);
     height: 6px;
     border-radius: 999px;
     width: 100%;
@@ -1729,7 +1729,7 @@
     align-items: center;
     justify-content: center;
 }
-.scada-comp-half1 { width: 6px; height: 100%; background: linear-gradient(to bottom, #38bdf8 50%, transparent 50%); clip-path: polygon(50% 0%, 100% 50%, 50% 50%, 0% 50%); }
+.scada-comp-half1 { width: 6px; height: 100%; background: linear-gradient(to bottom, #3FB2F3 50%, transparent 50%); clip-path: polygon(50% 0%, 100% 50%, 50% 50%, 0% 50%); }
 .scada-comp-half2 { position: absolute; width: 6px; height: 100%; background: linear-gradient(to top, #64748b 50%, transparent 50%); clip-path: polygon(50% 100%, 100% 50%, 50% 50%, 0% 50%); }
 
 /* Chart Heights */
@@ -1750,7 +1750,7 @@
     flex-direction: column;
     gap: 12px;
     padding: 16px 20px 28px;
-    background: #020a14;
+    background: #061532;
     min-height: 100vh;
     color: #e2e8f0;
 }
@@ -1764,7 +1764,7 @@
     padding: 12px 18px;
     background: rgba(255,255,255,0.02);
     border: 1px solid rgba(255,255,255,0.06);
-    border-top: 2px solid #38bdf8;
+    border-top: 2px solid #3FB2F3;
     border-radius: 10px;
 }
 .scada-header-identity { display: flex; flex-direction: column; gap: 2px; }
@@ -1787,7 +1787,7 @@
     letter-spacing: 0.1em; cursor: pointer; transition: all 0.15s;
     font-family: 'JetBrains Mono', monospace;
 }
-.scada-dam-btn.active { background: rgba(56,189,248,0.1); border-color: rgba(56,189,248,0.4); color: #38bdf8; }
+.scada-dam-btn.active { background: rgba(63, 178, 243,0.1); border-color: rgba(63, 178, 243,0.4); color: #3FB2F3; }
 .scada-dam-btn:hover:not(.active) { border-color: rgba(255,255,255,0.14); color: #94a3b8; }
 .scada-header-kpi-strip { display: flex; justify-content: center; gap: 32px; }
 .scada-header-kpi { display: flex; flex-direction: column; align-items: center; gap: 0; }
@@ -1867,7 +1867,7 @@
     text-transform: uppercase; letter-spacing: 0.1em;
 }
 .scada-design-kpi span:last-child { font-size: 14px; font-weight: 900; color: #8396ad; font-family: 'JetBrains Mono', monospace; }
-.scada-kpi-sky    { color: #38bdf8 !important; }
+.scada-kpi-sky    { color: #3FB2F3 !important; }
 .scada-kpi-violet { color: #a78bfa !important; }
 .scada-kpi-muted  { color: #8396ad !important; }
 
@@ -1887,7 +1887,7 @@
 .scada-ext-unit { font-size: 11px; color: #8396ad; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
 .scada-ext-bar { width: 100%; height: 4px; border-radius: 999px; background: rgba(255,255,255,0.04); overflow: hidden; margin-top: 5px; }
 .scada-ext-bar > div { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
-.scada-ext-bar-fill--active   { background: #38bdf8; }
+.scada-ext-bar-fill--active   { background: #3FB2F3; }
 .scada-ext-bar-fill--inactive { background: #1e293b; }
 .scada-tomas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .scada-toma-card {
@@ -2010,14 +2010,14 @@
    Todo texto ≥ 11 px; el color nunca es el único portador de significado (chips y etiquetas).
    ============================================================================== */
 .scada-sala-root {
-    --pr-bg: #020a14;
+    --pr-bg: #061532;
     --pr-surface: rgba(255, 255, 255, 0.028);
     --pr-surface-2: rgba(255, 255, 255, 0.05);
     --pr-line: rgba(148, 163, 184, 0.16);
     --pr-t1: #e8eef6;
     --pr-t2: #b4c2d4;
     --pr-t3: #8396ad;
-    --pr-sky: #38bdf8;
+    --pr-sky: #3FB2F3;
     --pr-ok: #34d399;
     --pr-warn: #fbbf24;
     --pr-crit: #f87171;
@@ -2027,7 +2027,7 @@
     --pr-mono: 'JetBrains Mono', ui-monospace, monospace;
     font-family: var(--pr-body);
 }
-.scada-header-title { font-family: var(--pr-display); font-size: 26px; font-weight: 800; letter-spacing: 0.04em; }
+.scada-header-title { font-family: var(--brand-display); font-size: 21px; font-weight: 800; letter-spacing: 0.01em; }
 .scada-header-org { letter-spacing: 0.2em; }
 .scada-sala-header { grid-template-columns: auto 1fr auto; }
 .scada-header-dam-selector { justify-self: start; }
@@ -2048,7 +2048,7 @@
     border-top: 2px solid var(--pr-sky);
     border-radius: 12px;
     background:
-        linear-gradient(180deg, rgba(56, 189, 248, 0.07), transparent 46%),
+        linear-gradient(180deg, rgba(63, 178, 243, 0.07), transparent 46%),
         repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.045) 0 1px, transparent 1px 30px),
         var(--pr-surface);
 }

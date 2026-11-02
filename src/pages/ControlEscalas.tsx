@@ -74,7 +74,7 @@ const RadialSvg = ({ scale }: { scale: ScaleReading }) => {
             {currentLevel != null && currentLevel > 0 && (
                 <>
                     <rect x={startX} y={Math.max(8, waterY)} width={gateAreaW + pillarW} height={baseLine - Math.max(8, waterY)} fill={`url(#${gArriba})`} />
-                    <line x1={0} y1={waterY} x2={abajoX} y2={waterY} stroke="#38bdf8" strokeWidth="1" strokeDasharray="3 2" opacity={0.5} />
+                    <line x1={0} y1={waterY} x2={abajoX} y2={waterY} stroke="#3FB2F3" strokeWidth="1" strokeDasharray="3 2" opacity={0.5} />
                 </>
             )}
             <line x1={abajoX} y1={12} x2={abajoX} y2={baseLine} stroke="#475569" strokeWidth="1" strokeDasharray="2 2" opacity={0.5} />

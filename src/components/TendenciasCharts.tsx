@@ -17,7 +17,7 @@ import type { SerieEscala, SerieTramo, SeriePunto } from '../utils/tendencias';
 
 // Paleta categórica validada (blue, aqua, yellow, green, violet, red, magenta, orange…) — identidad de TRAMO.
 export const PAL = ['#3987e5', '#199e70', '#c98500', '#2fb35a', '#9085e9', '#e66767', '#d55181', '#d95926',
-                    '#38bdf8', '#22c55e', '#eab308', '#f472b6', '#a78bfa', '#fb7185'];
+                    '#3FB2F3', '#22c55e', '#eab308', '#f472b6', '#a78bfa', '#fb7185'];
 
 // Un color por TRAMO del canal (sección entre dos escalas), en orden de recorrido. Paleta de 13 tonos generada y
 // validada con validate_palette.js (modo oscuro, pares vecinos): luminosidad en banda, croma >= 0.1, separación CVD

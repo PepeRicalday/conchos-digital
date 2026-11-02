@@ -110,7 +110,7 @@ function svgBanda(b: BandaHistorica): string {
     for (let i = 0; i < n; i++) if (fin(b.min[i]) && fin(b.max[i])) { area.push(`${x(i).toFixed(1)},${y(b.max[i] as number).toFixed(1)}`); rev.unshift(`${x(i).toFixed(1)},${y(b.min[i] as number).toFixed(1)}`); }
     const hoy = Math.min(n - 1, Math.max(0, b.diaHoy));
     const ticks = [0, 0.5, 1].map((f) => { const v = mn + (mx - mn) * f; return `<line x1="${pl}" x2="${W - pr}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="#e5e2db" stroke-width=".6"/><text x="${pl - 4}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#57606a">${Math.round(v)}</text>`; }).join('');
-    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Almacenamiento del ciclo frente a ${b.ciclosUsados} ciclos anteriores"><text x="2" y="8" font-size="9.5" fill="#57606a">Mm³</text>${ticks}<polygon points="${[...area, ...rev].join(' ')}" fill="#efe3e3" stroke="none"/><path d="${trazo(b.mediana, x, y)}" fill="none" stroke="#9a8585" stroke-width="1.2" stroke-dasharray="4 3"/><path d="${trazo(b.actual, x, y)}" fill="none" stroke="#6B2D2D" stroke-width="2"/><line x1="${x(hoy).toFixed(1)}" x2="${x(hoy).toFixed(1)}" y1="${pt}" y2="${H - pb}" stroke="#1f2328" stroke-width=".8" stroke-dasharray="2 2"/><text x="${x(hoy).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="9.5" fill="#1f2328">hoy</text>${hoy > n * 0.12 ? `<text x="${pl}" y="${H - 6}" font-size="9.5" fill="#57606a">1-oct</text>` : ''}<text x="${W - pr}" y="${H - 6}" text-anchor="end" font-size="9.5" fill="#57606a">30-sep</text></svg>`;
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Almacenamiento del ciclo frente a ${b.ciclosUsados} ciclos anteriores"><text x="2" y="8" font-size="9.5" fill="#57606a">Mm³</text>${ticks}<polygon points="${[...area, ...rev].join(' ')}" fill="#efe3e3" stroke="none"/><path d="${trazo(b.mediana, x, y)}" fill="none" stroke="#9a8585" stroke-width="1.2" stroke-dasharray="4 3"/><path d="${trazo(b.actual, x, y)}" fill="none" stroke="#0B3170" stroke-width="2"/><line x1="${x(hoy).toFixed(1)}" x2="${x(hoy).toFixed(1)}" y1="${pt}" y2="${H - pb}" stroke="#1f2328" stroke-width=".8" stroke-dasharray="2 2"/><text x="${x(hoy).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="9.5" fill="#1f2328">hoy</text>${hoy > n * 0.12 ? `<text x="${pl}" y="${H - 6}" font-size="9.5" fill="#57606a">1-oct</text>` : ''}<text x="${W - pr}" y="${H - 6}" text-anchor="end" font-size="9.5" fill="#57606a">30-sep</text></svg>`;
 }
 
 /** Perfil del canal: una marca por escala sobre K-0 → K-104; el estado se lee por la FORMA (no solo por color). */
@@ -122,13 +122,13 @@ function svgPerfilCanal(esc14: EscalaCanalKpi[]): string {
         const cx = x(e.km);
         const rot = `<text x="${cx.toFixed(1)}" y="${base + 14}" text-anchor="middle" font-size="10">${Math.round(e.km)}</text>`;
         if (e.origen === 'campo' && e.u != null) {
-            const f = e.vigente ? '#6B2D2D' : '#fff';
-            return `<circle cx="${cx.toFixed(1)}" cy="${y(e.u).toFixed(1)}" r="4.6" fill="${f}" stroke="#6B2D2D" stroke-width="1.6"/>${e.vigente ? '' : `<line x1="${(cx - 3).toFixed(1)}" x2="${(cx + 3).toFixed(1)}" y1="${y(e.u).toFixed(1)}" y2="${y(e.u).toFixed(1)}" stroke="#6B2D2D" stroke-width="1.2"/>`}<line x1="${cx.toFixed(1)}" x2="${cx.toFixed(1)}" y1="${(y(e.u) + 5).toFixed(1)}" y2="${base}" stroke="#d6d1c7" stroke-width=".6" stroke-dasharray="2 2"/>${rot}`;
+            const f = e.vigente ? '#0B3170' : '#fff';
+            return `<circle cx="${cx.toFixed(1)}" cy="${y(e.u).toFixed(1)}" r="4.6" fill="${f}" stroke="#0B3170" stroke-width="1.6"/>${e.vigente ? '' : `<line x1="${(cx - 3).toFixed(1)}" x2="${(cx + 3).toFixed(1)}" y1="${y(e.u).toFixed(1)}" y2="${y(e.u).toFixed(1)}" stroke="#0B3170" stroke-width="1.2"/>`}<line x1="${cx.toFixed(1)}" x2="${cx.toFixed(1)}" y1="${(y(e.u) + 5).toFixed(1)}" y2="${base}" stroke="#d6d1c7" stroke-width=".6" stroke-dasharray="2 2"/>${rot}`;
         }
         const ref = e.referencia ? `<rect x="${(cx - 4).toFixed(1)}" y="${base - 4}" width="8" height="8" fill="none" stroke="#57606a" stroke-width="1.2"/>` : `<path d="M${(cx - 4).toFixed(1)} ${base - 4}l8 8m0-8l-8 8" stroke="#6a737d" stroke-width="1.4"/>`;
         return `${ref}${rot}`;
     }).join('');
-    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Perfil del canal: posición del nivel de cada escala dentro de su rango operativo"><rect x="${pl}" y="${y(1).toFixed(1)}" width="${W - pl - pr}" height="${(y(0) - y(1)).toFixed(1)}" fill="#f4eaea" stroke="#e6d3d3"/><text x="${pl + 4}" y="${(y(1) + 9).toFixed(1)}" font-size="10" fill="#6B2D2D">máx. operativo</text><text x="${pl + 4}" y="${(y(0) - 3).toFixed(1)}" font-size="10" fill="#6B2D2D">mín. operativo</text><line x1="${pl}" x2="${W - pr}" y1="${base}" y2="${base}" stroke="#57606a" stroke-width="1"/>${marcas}<text x="${pl - 4}" y="${base + 14}" text-anchor="end" font-size="10" fill="#57606a">km</text></svg>`;
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Perfil del canal: posición del nivel de cada escala dentro de su rango operativo"><rect x="${pl}" y="${y(1).toFixed(1)}" width="${W - pl - pr}" height="${(y(0) - y(1)).toFixed(1)}" fill="#E6EEF8" stroke="#e6d3d3"/><text x="${pl + 4}" y="${(y(1) + 9).toFixed(1)}" font-size="10" fill="#0B3170">máx. operativo</text><text x="${pl + 4}" y="${(y(0) - 3).toFixed(1)}" font-size="10" fill="#0B3170">mín. operativo</text><line x1="${pl}" x2="${W - pr}" y1="${base}" y2="${base}" stroke="#57606a" stroke-width="1"/>${marcas}<text x="${pl - 4}" y="${base + 14}" text-anchor="end" font-size="10" fill="#57606a">km</text></svg>`;
 }
 
 function svgDemanda(horas: { etoMm: number | null; lluviaMm: number | null }[]): string {
@@ -237,7 +237,7 @@ function hojaAgua(d: EntradaInformeGeneral): string {
 ${bloque('Almacenamiento por presa (Mm³)', `<table><thead><tr><th>Presa</th><th class="n">Almacenado</th><th class="n">Capacidad</th><th class="n">Llenado %</th><th class="n">V. muerto</th><th class="n">Útil</th></tr></thead><tbody>${filas}${tot}</tbody></table>`,
         `Útil = almacenado − volumen muerto. ${m.presas.conDato} de ${m.presas.total} presas con lectura${m.presas.frescura ? ` · ${esc(m.presas.frescura)}` : ''}${m.presas.stale ? ' · <b>lectura vencida</b>' : ''}. “est.” = piso de la curva, no es un muerto oficial. Un total con una presa sin lectura se muestra S/D, nunca como suma parcial.`)}
 <div class="cols">
-${bloque('Almacenamiento total, últimos 7 días', svgSerie(m.presas.serie, etiquetas, 'Mm³', '#6B2D2D'), `${esc(m.presas.tendencia.texto)}.`)}
+${bloque('Almacenamiento total, últimos 7 días', svgSerie(m.presas.serie, etiquetas, 'Mm³', '#0B3170'), `${esc(m.presas.tendencia.texto)}.`)}
 ${bloque(`Ciclo actual frente a ${b?.ciclosUsados ?? 0} ciclos anteriores`, b ? svgBanda(b) : '<div class="vacio-fig">Sin base histórica suficiente</div>', 'Banda = mínimo–máximo histórico; línea punteada = mediana; línea continua = ciclo actual.')}
 </div>
 ${bloque('Suficiencia', dl([
@@ -392,7 +392,7 @@ table.alertas td{vertical-align:top} table.alertas td span{font-size:7.5pt}
 /** Documento completo: 6 hojas Carta (resumen, agua, canal, distribución y alertas, clima y sensores, anexo). */
 export function construirHtmlInformeGeneral(d: EntradaInformeGeneral, logos: LogosData): string {
     const folio = folioInforme('IGS', d.emitido);
-    const pie = (i: number) => pieInforme(`Folio ${folio}${d.version ? ` · SICA-005 v${d.version}` : ''}`, i, HOJAS_INFORME_GENERAL);
+    const pie = (i: number) => pieInforme(`Folio ${folio}${d.version ? ` · SICA 005 v${d.version}` : ''}`, i, HOJAS_INFORME_GENERAL);
     const cab = cabeceraInforme({
         logoSrl: logos.srl, logoSica: logos.sica, titulo: 'Informe general del sistema',
         meta: [{ k: 'Folio', v: folio }, { k: 'Emisión', v: fechaHoraLegible(d.emitido) }, { k: 'Corte', v: d.fechaCorteTexto }],

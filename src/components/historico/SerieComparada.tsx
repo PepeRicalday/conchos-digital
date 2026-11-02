@@ -102,7 +102,7 @@ export default function SerieComparada({ mapa, anios, mes, vista, metrica, serie
                         <LineChart data={filas} margin={{ top: 8, right: 14, bottom: 4, left: 0 }}>
                             <CartesianGrid stroke="#16233a" vertical={false} />
                             {vista === 'anio' && (
-                                <ReferenceArea x1={diaDelAnio(mes, 1)} x2={diaDelAnio(mes, diasDelMes(2000, mes))} fill="#38bdf8" fillOpacity={0.08} stroke="none" ifOverflow="hidden" />
+                                <ReferenceArea x1={diaDelAnio(mes, 1)} x2={diaDelAnio(mes, diasDelMes(2000, mes))} fill="#3FB2F3" fillOpacity={0.08} stroke="none" ifOverflow="hidden" />
                             )}
                             <XAxis
                                 dataKey="x" type="number" domain={vista === 'mes' ? [1, 31] : [0, 365]} ticks={ticksX}
@@ -146,10 +146,10 @@ export default function SerieComparada({ mapa, anios, mes, vista, metrica, serie
                                             const i0 = p.index ?? 0;
                                             const aislado = p.value != null && filas[i0 - 1]?.[k] == null && filas[i0 + 1]?.[k] == null;
                                             return aislado && p.cx != null && p.cy != null
-                                                ? <circle key={`${k}-${i0}`} cx={p.cx} cy={p.cy} r={4.5} fill={est.color} stroke="#020a14" strokeWidth={2} />
+                                                ? <circle key={`${k}-${i0}`} cx={p.cx} cy={p.cy} r={4.5} fill={est.color} stroke="#061532" strokeWidth={2} />
                                                 : <g key={`${k}-${i0}`} />;
                                         }}
-                                        activeDot={{ r: 5, stroke: '#020a14', strokeWidth: 2, fill: est.color }}
+                                        activeDot={{ r: 5, stroke: '#061532', strokeWidth: 2, fill: est.color }}
                                     />
                                 );
                             })}

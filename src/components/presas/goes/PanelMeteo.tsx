@@ -39,7 +39,7 @@ function Rosa({ dirs, actual }: { dirs: PuntoHidro[]; actual: number | null }) {
     return (
         <svg className="goes-rosa" viewBox="0 0 100 100" role="img" aria-label={actual == null ? 'Rosa de vientos, dirección actual S/D' : `Rosa de vientos, dirección actual del ${puntoCardinal(actual)}`}>
             <circle cx={C} cy={C} r={R} fill="none" stroke="rgba(148,163,184,.22)" strokeDasharray="2 3" />
-            {cont.map((c, i) => c > 0 && <path key={i} d={petalo(i, c / max)} fill="rgba(56,189,248,.38)" stroke="rgba(56,189,248,.8)" strokeWidth="0.6" />)}
+            {cont.map((c, i) => c > 0 && <path key={i} d={petalo(i, c / max)} fill="rgba(63, 178, 243,.38)" stroke="rgba(63, 178, 243,.8)" strokeWidth="0.6" />)}
             {actual != null && <line x1={C} y1={C} x2={C + (R + 4) * Math.sin((actual * Math.PI) / 180)} y2={C - (R + 4) * Math.cos((actual * Math.PI) / 180)} stroke="#e8eef6" strokeWidth="2.2" strokeLinecap="round" />}
             <circle cx={C} cy={C} r="2.6" fill="#e8eef6" />
             {['N', 'E', 'S', 'O'].map((l, i) => <text key={l} x={C + 46 * Math.sin((i * Math.PI) / 2)} y={C - 46 * Math.cos((i * Math.PI) / 2) + 3.5} textAnchor="middle" fontSize="9" fill="#8396ad">{l}</text>)}

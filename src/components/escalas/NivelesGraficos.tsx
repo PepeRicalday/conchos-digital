@@ -121,7 +121,7 @@ export const PerfilNiveles = memo(function PerfilNiveles({ zones, vaciado, onSel
                             ) : s.referencia ? (
                                 <rect x={cx - 5} y={y(s.currentLevel) - 5} width={10} height={10} transform={`rotate(45 ${cx} ${y(s.currentLevel)})`} fill={color} />
                             ) : (
-                                <circle cx={cx} cy={y(s.currentLevel)} r={6} fill={color} stroke="#020a14" strokeWidth={1.5} />
+                                <circle cx={cx} cy={y(s.currentLevel)} r={6} fill={color} stroke="#061532" strokeWidth={1.5} />
                             )}
                         </g>
                     );

@@ -56,7 +56,7 @@ describe('informe general del sistema', () => {
         expect((h.match(/<section class="pagina">/g) ?? []).length).toBe(HOJAS_INFORME_GENERAL);
         expect(h).toContain('IGS-20261031-1205');
         expect(h).toContain('Pág. 6 de 6');
-        expect(h).toContain('SICA-005 v2.57.0');
+        expect(h).toContain('SICA 005 v2.57.0');
         expect(h).toContain('size:letter portrait');
     });
 

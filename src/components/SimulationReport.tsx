@@ -228,7 +228,7 @@ const SimulationReport: React.FC<SimulationReportProps> = ({
           <div className="rpt-header-center">
             <div className="rpt-org">Comisión Nacional del Agua</div>
             <div className="rpt-sub">Dirección Local Chihuahua · Distrito de Riego No. 005 Delicias</div>
-            <div className="rpt-sys">Sistema de Información de Canales Autómatas — SICA 005</div>
+            <div className="rpt-sys">SICA 005 · Sistema Integral de Control del Agua</div>
           </div>
           <div className="rpt-header-right">
             <div className="rpt-date">{scenario.date}</div>

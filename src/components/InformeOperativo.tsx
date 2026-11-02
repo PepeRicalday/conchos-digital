@@ -377,22 +377,23 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
             + 'body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:8.5pt;color:#1a1a1a;background:#fff}'
 
             // Header
-            + '.hdr{display:flex;justify-content:space-between;align-items:stretch;border-bottom:3px solid #6B2D2D;margin-bottom:8px;padding-bottom:7px;gap:12px}'
+            + '.hdr{display:flex;justify-content:space-between;align-items:stretch;border-bottom:3px solid #0B3170;margin-bottom:8px;padding-bottom:7px;gap:12px}'
             + '.hdr-left{display:flex;align-items:center;gap:10px}'
             + '.hdr-logo{width:52px;height:52px;object-fit:contain}'
-            + '.hdr-org{font-size:13pt;font-weight:900;color:#6B2D2D;letter-spacing:1px;line-height:1.1}'
+            + '.hdr-op{display:flex;flex-direction:column;align-items:center;gap:2px;margin-left:10px}.hdr-op small{font-size:5.5pt;letter-spacing:.08em;color:#57606a}.hdr-logo-op{height:30px;width:auto;object-fit:contain}'
+            + '.hdr-org{font-size:13pt;font-weight:900;color:#0B3170;letter-spacing:1px;line-height:1.1}'
             + '.hdr-sys{font-size:8pt;color:#555;font-weight:600;letter-spacing:0.5px}'
             + '.hdr-rpt{font-size:9pt;font-weight:800;color:#1a1a1a;letter-spacing:0.3px;margin-top:2px}'
             + '.hdr-canal{font-size:7.5pt;color:#444}'
             + '.hdr-right{display:flex;flex-direction:column;justify-content:center;gap:4px;text-align:right;font-size:7.5pt;color:#333;border-left:1px solid #e0d8d8;padding-left:12px}'
             + '.hdr-meta-row{display:flex;align-items:center;gap:5px;justify-content:flex-end}'
             + '.hdr-meta-key{color:#888;font-size:6.5pt;text-transform:uppercase}'
-            + '.hdr-meta-val{font-weight:700;color:#6B2D2D}'
-            + '.hdr-meta-big{font-size:11pt;font-weight:900;color:#6B2D2D}'
+            + '.hdr-meta-val{font-weight:700;color:#0B3170}'
+            + '.hdr-meta-big{font-size:11pt;font-weight:900;color:#0B3170}'
             + '.sem-badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:6.5pt;font-weight:700;color:#fff;background:' + semC + ';letter-spacing:0.8px}'
 
             // Sección títulos
-            + '.sec-title{font-size:7pt;font-weight:800;color:#fff;background:#6B2D2D;text-transform:uppercase;letter-spacing:1.2px;padding:3px 8px;margin-bottom:5px}'
+            + '.sec-title{font-size:7pt;font-weight:800;color:#fff;background:#0B3170;text-transform:uppercase;letter-spacing:1.2px;padding:3px 8px;margin-bottom:5px}'
 
             // Resumen ejecutivo
             + '.exec-row{display:flex;gap:10px;margin-bottom:8px}'
@@ -400,7 +401,7 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
             + '.exec-kpis{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:6px}'
             + '.kpi{border:1px solid #e5e0e0;border-radius:6px;padding:7px 10px;text-align:center;background:#fafafa}'
             + '.kpi-lbl{font-size:6.5pt;color:#666;text-transform:uppercase;letter-spacing:0.5px;line-height:1.2}'
-            + '.kpi-val{font-size:16pt;font-weight:900;color:#6B2D2D;line-height:1.1;margin:2px 0}'
+            + '.kpi-val{font-size:16pt;font-weight:900;color:#0B3170;line-height:1.1;margin:2px 0}'
             + '.kpi-unit{font-size:7pt;color:#888}'
             + '.kpi-sub{font-size:6.5pt;color:#555;margin-top:1px}'
 
@@ -418,7 +419,7 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
 
             // Tablas
             + 'table{width:100%;border-collapse:collapse;font-size:7.5pt}'
-            + 'th{background:#6B2D2D;color:#fff;padding:3px 5px;text-align:left;font-size:7pt;font-weight:700}'
+            + 'th{background:#0B3170;color:#fff;padding:3px 5px;text-align:left;font-size:7pt;font-weight:700}'
             + 'td{padding:2.5px 5px;border-bottom:1px solid #f0eded}'
             + 'tr:nth-child(even) td{background:#faf8f8}'
             + '.num{text-align:right;font-family:monospace}'
@@ -458,7 +459,7 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
             + '.conclusion{background:#f0fdf4;border:1px solid #86efac;border-radius:3px;padding:5px 7px;font-size:7.5pt;font-weight:600;color:#15803d;margin-top:5px}'
 
             // Footer
-            + '.footer{border-top:3px solid #6B2D2D;margin-top:8px;padding-top:5px;text-align:center;font-size:6.5pt;color:#6B2D2D;font-weight:700;letter-spacing:1px;text-transform:uppercase}'
+            + '.footer{border-top:3px solid #0B3170;margin-top:8px;padding-top:5px;text-align:center;font-size:6.5pt;color:#0B3170;font-weight:700;letter-spacing:1px;text-transform:uppercase}'
 
             + '@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}';
 
@@ -483,13 +484,15 @@ const InformeOperativo: React.FC<InformeOperativoProps> = ({
             // ── HEADER ──
             + '<div class="hdr">'
             + '<div class="hdr-left">'
-            + '<img src="' + logoUrl + '" class="hdr-logo" alt="SRL" onerror="this.style.display=\'none\'">'
+            + '<img src="' + window.location.origin + '/logos/sica/sica005-emblema.svg" class="hdr-logo" alt="SICA 005" onerror="this.style.display=\'none\'">'
             + '<div>'
-            + '<div class="hdr-org">SRL UNIDAD CONCHOS</div>'
-            + '<div class="hdr-sys">SISTEMA DE RIEGO DELICIAS</div>'
+            + '<div class="hdr-org">SICA 005</div>'
+            + '<div class="hdr-sys">SRL UNIDAD CONCHOS · DISTRITO DE RIEGO 005 DELICIAS</div>'
             + '<div class="hdr-rpt">INFORME OPERATIVO ACTUALIZADO</div>'
             + '<div class="hdr-canal">CANAL PRINCIPAL CONCHOS &nbsp;·&nbsp; DISTRITO DE RIEGO 005 DELICIAS</div>'
-            + '</div></div>'
+            + '</div>'
+            + '<div class="hdr-op"><small>OPERADO POR</small><img src="' + logoUrl + '" class="hdr-logo-op" alt="SRL Unidad Conchos" onerror="this.style.display=\'none\'"></div>'
+            + '</div>'
             + '<div class="hdr-right">'
             + '<div class="hdr-meta-row"><span class="hdr-meta-key">Fecha del informe:</span><span class="hdr-meta-val">' + dateDMY + '</span></div>'
             + '<div class="hdr-meta-row"><span class="hdr-meta-key">Hora de corte:</span><span class="hdr-meta-big">' + timeStr + ' hrs</span></div>'

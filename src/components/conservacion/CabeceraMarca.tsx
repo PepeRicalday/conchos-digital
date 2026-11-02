@@ -1,7 +1,7 @@
 import { LogoSica } from '../marca/LogoSica';
 import type { OrigenInforme } from '../../conservacion/informe/esquemaInforme';
 
-/** Barra de identidad institucional: logo SRL (derivado claro, ver Conservacion/Logos/derivados) y sello vectorial SICA-005. */
+/** Barra de identidad institucional: logo SRL (derivado claro, ver Conservacion/Logos/derivados) y emblema vectorial SICA 005. */
 export function CabeceraMarca({ origen, generadoEn }: { origen?: OrigenInforme; generadoEn?: string }) {
     return (
         <div className="cons-marca">

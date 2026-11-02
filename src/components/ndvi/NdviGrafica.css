@@ -16,7 +16,7 @@
 .ndvi-gr-aviso { margin-top: 6px; }
 .ndvi-gr-tabla { margin-top: 12px; }
 .ndvi-gr-tabla summary { cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; color: #cbd5e1; font-size: 0.9rem; font-weight: 600; }
-.ndvi-gr-tabla summary:focus-visible, .ndvi-gr-tabla-wrap:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.ndvi-gr-tabla summary:focus-visible, .ndvi-gr-tabla-wrap:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
 .ndvi-gr-tabla-wrap { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
 .ndvi-gr-tabla table { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 .ndvi-gr-tabla caption { text-align: left; font-weight: 600; color: #e2e8f0; padding-bottom: 6px; }

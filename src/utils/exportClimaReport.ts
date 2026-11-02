@@ -1183,7 +1183,7 @@ async function buildHTML(ests: EstacionConLectura[], umbrales?: UmbralClima[]): 
   }
 </style></head><body><div class="wrap">
   <header>
-    <div class="logos">${logoImg(logoSICA, 'SICA-005')}</div>
+    <div class="logos">${logoImg(logoSICA, 'SICA 005')}</div>
     <div class="titulo">
       <div class="sub">S R L Unidad Conchos · Delicias, Chihuahua</div>
       <h1>Centro de Inteligencia Agroclimática</h1>
@@ -1515,7 +1515,7 @@ async function buildHTML(ests: EstacionConLectura[], umbrales?: UmbralClima[]): 
   <div class="analisis">
     <h4>Fuentes</h4>
     <p>
-      <b>Observación:</b> red de estaciones Davis/WeatherLink (API v2), convertida a métrico por SICA-005.
+      <b>Observación:</b> red de estaciones Davis/WeatherLink (API v2), convertida a métrico por SICA 005.
       <b>Pronóstico:</b> ${provTxt}. <b>Satélite:</b> NASA GIBS (GOES-East GeoColor de día, Band13
       infrarrojo de noche) provee nubosidad observada puntual por estación, con jerarquía de evidencia
       superior al modelo y a la radiación local (§6). NASA POWER aporta clima histórico/casi-tiempo-real
@@ -1569,7 +1569,7 @@ async function buildHTML(ests: EstacionConLectura[], umbrales?: UmbralClima[]): 
 
   <div class="foot">
     <span>
-      <b>Centro de Inteligencia Agroclimática · SICA-005</b><br>
+      <b>Centro de Inteligencia Agroclimática · SICA 005</b><br>
       Estaciones Davis/WeatherLink · ETₒ FAO-56 Penman-Monteith · nubosidad por modelo horario.<br>
       Documento generado automáticamente; la condición del cielo y la precipitación se
       reportan como variables independientes.

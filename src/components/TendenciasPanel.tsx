@@ -49,7 +49,7 @@ const estadoLlenado = (pct: number | null, vaciado = false): { color: string; la
   if (vaciado && pct < 60) return { color: '#94a3b8', label: 'vaciado', icon: '' };
   if (pct > 105) return { color: '#ef4444', label: 'alto', icon: '⚠' };   // invade bordo libre
   if (pct >= 85) return { color: '#22c55e', label: 'óptimo', icon: '' };  // cerca del diseño
-  if (pct >= 60) return { color: '#38bdf8', label: 'normal', icon: '' };  // operativo, sin llenar
+  if (pct >= 60) return { color: '#3FB2F3', label: 'normal', icon: '' };  // operativo, sin llenar
   return { color: '#f59e0b', label: 'bajo', icon: '▽' };                  // posible desabasto
 };
 
@@ -229,7 +229,7 @@ const ModalTramo: React.FC<{ tramo: SerieTramo; color: string; t0: number; t1: n
               <Fila k="Mínimo (periodo)" v={n3(st.min) + ' Mm³'} />
               <Fila k="Máximo (periodo)" v={n3(st.max) + ' Mm³'} />
               <Fila k="Δ periodo" v={st.delta != null ? `${st.delta > 0 ? '▲' : st.delta < 0 ? '▼' : ''} ${n3(Math.abs(st.delta))} Mm³` : '—'}
-                    c={st.delta != null && st.delta > 0 ? '#38bdf8' : '#f59e0b'} />
+                    c={st.delta != null && st.delta > 0 ? '#3FB2F3' : '#f59e0b'} />
             </section>
 
             {/* Geometría del canal */}
@@ -700,7 +700,7 @@ const TendenciasPanel: React.FC<Props> = ({
                 </div>
                 <div className="tnd-legend">
                   <span><i style={{ background: '#22c55e' }} />óptimo 85–105%</span>
-                  <span><i style={{ background: '#38bdf8' }} />normal 60–85%</span>
+                  <span><i style={{ background: '#3FB2F3' }} />normal 60–85%</span>
                   <span><i style={{ background: '#f59e0b' }} />bajo &lt;60%</span>
                   <span><i style={{ background: '#ef4444' }} />alto &gt;105% (a bordo)</span>
                 </div>
@@ -715,7 +715,7 @@ const TendenciasPanel: React.FC<Props> = ({
                 <tbody>
                   {volTramos.map(tr => { const st = statsSerie(tr.puntos); const { color, label } = estadoLlenado(tr.estado.pctDiseno, enVaciado); return (
                     <tr key={tr.key}><td style={{ fontSize: '0.7rem', fontWeight: 700 }}><span className="tnd-swatch" style={{ background: colorTramo(tr.key) }} />{tr.etiqueta}</td><td>{n3(st.min)}</td><td>{n3(st.max)}</td>
-                      <td style={{ color: st.delta! > 0 ? '#38bdf8' : '#f59e0b' }}>{n3(st.delta)}</td>
+                      <td style={{ color: st.delta! > 0 ? '#3FB2F3' : '#f59e0b' }}>{n3(st.delta)}</td>
                       <td>{tr.estado.tiranteActual != null ? tr.estado.tiranteActual.toFixed(2) : '—'}</td>
                       <td style={{ color, fontWeight: 700 }}>{tr.estado.pctDiseno != null ? `${Math.round(tr.estado.pctDiseno)}% ${label}` : '—'}</td>
                     </tr>

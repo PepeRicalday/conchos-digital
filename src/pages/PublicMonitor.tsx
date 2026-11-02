@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PublicMonitor.css';
+import { LogoSica } from '../components/marca/LogoSica';
 import { formatDate, getTodayString } from '../utils/dateHelpers';
 import type { MovimientoPresaConNombreRow, RegistroAlertaRow } from '../types/sica.types';
 import { calcIEC, iecColor } from '../utils/canalIndex';
@@ -152,7 +153,7 @@ function escalaAlertColor(e: EscalaData, coherencia?: any): string {
     if (pct >= UMBRAL_CRITICO) return '#ef4444';
     if (pct >= UMBRAL_ALERTA) return '#f59e0b';
     if (pct >= UMBRAL_NORMAL) return '#22c55e';
-    return '#38bdf8';
+    return '#3FB2F3';
 }
 
 // ── PERFIL LONGITUDINAL DEL CANAL (ESTABILIZACIÓN) ──────────────────────
@@ -223,7 +224,7 @@ const CanalLongitudinalProfile = React.memo(({ escalas, coherencia, fgvProfile, 
     const d = e.delta_12h ?? 0;
     // Cian/verde/gris — NO rojo: la dirección de la tendencia es un hecho
     // neutro, no un juicio de riesgo (rojo está reservado para alerta real).
-    if (d > 0.01)  return { symbol: '▲', color: '#38bdf8' };
+    if (d > 0.01)  return { symbol: '▲', color: '#3FB2F3' };
     if (d < -0.01) return { symbol: '▼', color: '#22c55e' };
     return { symbol: '—', color: '#8396ad' };
   };
@@ -264,13 +265,13 @@ const CanalLongitudinalProfile = React.memo(({ escalas, coherencia, fgvProfile, 
         {/* Cuerpo de agua — degradado vertical glassy */}
         <linearGradient id="cpWater" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%"   stopColor="#22d3ee" stopOpacity="0.34" />
-          <stop offset="45%"  stopColor="#38bdf8" stopOpacity="0.16" />
+          <stop offset="45%"  stopColor="#3FB2F3" stopOpacity="0.16" />
           <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.02" />
         </linearGradient>
         {/* Línea de superficie — degradado horizontal (entrada → salida) */}
         <linearGradient id="cpSurface" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%"   stopColor="#67e8f9" />
-          <stop offset="55%"  stopColor="#38bdf8" />
+          <stop offset="55%"  stopColor="#3FB2F3" />
           <stop offset="100%" stopColor="#818cf8" />
         </linearGradient>
         {/* Brillo móvil que recorre la superficie (sensación de flujo) */}
@@ -363,7 +364,7 @@ const CanalLongitudinalProfile = React.memo(({ escalas, coherencia, fgvProfile, 
 
         {/* Superficie — halo suave */}
         {pts.length >= 2 && (
-          <path d={waterLinePath} fill="none" stroke="rgba(56,189,248,0.16)"
+          <path d={waterLinePath} fill="none" stroke="rgba(63, 178, 243,0.16)"
             strokeWidth="7.5" strokeLinejoin="round" strokeLinecap="round" />
         )}
         {/* Superficie — línea principal. En vivo: degradado + glow. Vencida:
@@ -652,7 +653,7 @@ const CheckpointsGrid = React.memo(({ escalas, coherenciaCanal, displayMaxKm, is
                     const pct = nMax && hayNivel ? (e.nivel_actual as number) / nMax : null;
                     const margenCm = nMax && hayNivel ? Math.round((nMax - (e.nivel_actual as number)) * 100) : null;
                     const nivelCol = vencida || pct === null ? COLOR_VENCIDO
-                        : pct >= UMBRAL_CRITICO ? '#ef4444' : pct >= UMBRAL_ALERTA ? '#f59e0b' : pct >= UMBRAL_NORMAL ? '#22c55e' : '#38bdf8';
+                        : pct >= UMBRAL_CRITICO ? '#ef4444' : pct >= UMBRAL_ALERTA ? '#f59e0b' : pct >= UMBRAL_NORMAL ? '#22c55e' : '#3FB2F3';
                     const tieneGasto = isEstabilizacion && !referencia && e.gasto_actual != null;
                     const cerrada = tieneGasto && (e.gasto_actual as number) === 0 && (e.apertura_actual ?? 0) === 0;
                     const capQ = e.capacidad_max && e.capacidad_max > 0 ? e.capacidad_max : null;
@@ -737,7 +738,7 @@ const EscalaMarker = React.memo(({ esc, displayMaxKm, isEstabilizacion, coherenc
     const vencida   = escalaVencida(esc);
     const nivelMax  = esc.nivel_max_operativo && esc.nivel_max_operativo > 0 ? esc.nivel_max_operativo : null;
     const nivelPct  = nivelMax && hayNivel ? Math.min(100, (nivel / nivelMax) * 100) : null;
-    const barColor  = vencida ? COLOR_VENCIDO : nivelPct === null ? '#38bdf8' : nivelPct >= UMBRAL_CRITICO * 100 ? '#ef4444' : nivelPct >= UMBRAL_ALERTA * 100 ? '#f59e0b' : '#38bdf8';
+    const barColor  = vencida ? COLOR_VENCIDO : nivelPct === null ? '#3FB2F3' : nivelPct >= UMBRAL_CRITICO * 100 ? '#ef4444' : nivelPct >= UMBRAL_ALERTA * 100 ? '#f59e0b' : '#3FB2F3';
     const gasto     = esc.gasto_actual ?? 0;
     const apertura  = esc.apertura_actual ?? 0;
     const telEstado = telemetriaEstado(esc.ultima_telemetria);
@@ -772,7 +773,7 @@ const EscalaMarker = React.memo(({ esc, displayMaxKm, isEstabilizacion, coherenc
     } else if (esc.estado === 'LLENADO') {
         badgeLabel = 'EN LLENADO'; badgeColor = '#06b6d4';
     } else if (nivel > 0) {
-        badgeLabel = 'CON NIVEL'; badgeColor = '#38bdf8';
+        badgeLabel = 'CON NIVEL'; badgeColor = '#3FB2F3';
     }
 
     const tiempoLectura = tsAge === null ? 'Sin datos'
@@ -2513,6 +2514,9 @@ const PublicMonitor: React.FC = () => {
             <div className="public-header-badge animate-in" data-pm-overlay>
                 <div className="phb-main">
                     <div className="phb-logos">
+                        <LogoSica tamano={40} className="phb-sica" etiqueta="SICA 005" />
+                        <span className="phb-marca">SICA 005</span>
+                        <span className="phb-sep" aria-hidden="true" />
                         <img src="/logos/logo-srl.png" alt="SRL" className="phb-logo" />
                     </div>
                     
@@ -3870,7 +3874,7 @@ const PublicMonitor: React.FC = () => {
                                                     <td className="dsk-td-num dsk-td--q">{fmt(b.entregado_mm3)}</td>
                                                     <td className="dsk-td-num" style={{ minWidth: 92 }}>
                                                         <div className="dsk-zona-bar-bg" style={{ marginBottom: 2 }}>
-                                                            <div className="dsk-zona-bar-fill" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: estado === 'agotado' ? '#ef4444' : estado === 'alerta' ? '#f59e0b' : '#38bdf8' }} />
+                                                            <div className="dsk-zona-bar-fill" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: estado === 'agotado' ? '#ef4444' : estado === 'alerta' ? '#f59e0b' : '#3FB2F3' }} />
                                                         </div>
                                                         {b.pct_entregado != null ? `${pct.toFixed(1)}%` : 'S/D'}
                                                     </td>

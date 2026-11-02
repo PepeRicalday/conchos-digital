@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { Waves, Hourglass, CalendarClock, Gauge, LayoutGrid, ShieldCheck, ShieldAlert, Radio, Sprout, TriangleAlert, OctagonAlert } from 'lucide-react';
+import { Waves, Hourglass, CalendarClock, LayoutGrid, ShieldCheck, ShieldAlert, TriangleAlert, OctagonAlert } from 'lucide-react';
+import { IconoMedicion, IconoTelemetria, IconoUsoAgricola } from '../marca/IconoSica';
 import { KpiTile } from './KpiTile';
 import { Sparkline } from '../ui/Sparkline';
 import { BarraSegmentada } from '../ui/BarraSegmentada';
@@ -176,7 +177,7 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
                 const k0Txt = cm.k0EdadMin == null ? 'K-0 sin medición en 30 d'
                     : cm.k0EdadMin <= 240 ? `K-0 medido ${textoEdad(cm.k0EdadMin)}` : `K-0 sin medición ${textoEdad(cm.k0EdadMin)}`;
                 return (
-            <KpiTile id="kp-canal" to="/escalas" vivo titulo={enVaciado ? 'Canal · volumen' : 'Canal K-0 → K-104'} icono={<Gauge size={18} />}
+            <KpiTile id="kp-canal" to="/escalas" vivo titulo={enVaciado ? 'Canal · volumen' : 'Canal K-0 → K-104'} icono={<IconoMedicion size={18} />}
                 valor={valor} unidad={unidad} estado={canalE}
                 aria={`Canal${enVaciado ? ` en vaciado${dVac != null ? ` desde hace ${dVac} días` : ''}: volumen almacenado ${vol?.totalMm3 != null ? `${vol.totalMm3.toFixed(3)} millones de metros cúbicos en ${vol.tramosMedidos} de ${vol.tramosTotal} tramos medidos` : 'sin dato'}` : ''}. ${cm.conMedicionControl} de ${cm.totalControl} escalas de control con medición vigente; ${k0Txt}${c.eficienciaPct != null ? `; eficiencia de conducción ${f(c.eficienciaPct)} por ciento` : ''}. Abrir Control de Niveles`}
                 viz={<PerfilCanalMini modelo={cm} />}
@@ -218,7 +219,7 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
                 viz={<MapaCalorModulos celdas={modulos} />}
                 contexto={<>{pcts.length} de {modulos.length} con dato · {letras.map((l) => `${l} ${LEYENDA_MOD[l] ?? ''}`).join(' · ')}</>} />
 
-            <KpiTile id="kp-ndvi" to="/geo-monitor" titulo="Vegetación NDVI" icono={<Sprout size={18} />} valor={nd ? f(nd.valor, 3) : null} estado={ndviE}
+            <KpiTile id="kp-ndvi" to="/geo-monitor" titulo="Vegetación NDVI" icono={<IconoUsoAgricola size={18} />} valor={nd ? f(nd.valor, 3) : null} estado={ndviE}
                 aria={`Vegetación NDVI ${nd ? f(nd.valor, 3) : 'sin dato'}${nd?.anomalia != null ? `, anomalía ${nd.anomalia.toFixed(3)}` : ''}. Abrir Geo-Monitor`}
                 viz={nd && nd.valor != null ? (
                     <div className="kp-ndvi-viz">
@@ -233,7 +234,7 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
                 contexto={nd ? <>{mesTexto(nd.mes as string)} · anomalía <b>{nd.anomalia == null ? 'S/D' : `${nd.anomalia > 0 ? '+' : '−'}${Math.abs(nd.anomalia).toFixed(3)}`}</b>{nd.peor ? ` · menor: mód. ${nd.peor.modulo} (${nd.peor.valor.toFixed(2)})` : ''}</> : (ndvi.error ?? 'Sin serie NDVI')}
                 fresco="Último mes cerrado (Sentinel-2)" />
 
-            <KpiTile id="kp-goes" to="/presas" vivo titulo="Telemetría GOES" icono={<Radio size={18} />} valor={goes.estaciones.length ? String(enLinea) : null} unidad={goes.estaciones.length ? `de ${goes.estaciones.length}` : undefined} estado={goesE}
+            <KpiTile id="kp-goes" to="/presas" vivo titulo="Telemetría GOES" icono={<IconoTelemetria size={18} />} valor={goes.estaciones.length ? String(enLinea) : null} unidad={goes.estaciones.length ? `de ${goes.estaciones.length}` : undefined} estado={goesE}
                 aria={`Telemetría GOES: ${enLinea} de ${goes.estaciones.length} estaciones transmiten. Abrir Presas`}
                 viz={goes.estaciones.length ? <FilaEstaciones estaciones={goes.estaciones} /> : undefined}
                 contexto={goes.estaciones.length === 0 ? (goes.error ?? 'Sin estaciones activas') : sinSenal.length ? <>Sin señal: <b>{sinSenal.length} de {goes.estaciones.length}</b> · sus gastos se muestran S/D</> : <>Todas transmiten</>} />

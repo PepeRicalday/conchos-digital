@@ -1371,7 +1371,7 @@ const Clima = () => {
                                     <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} unit=" mm" axisLine={false} tickLine={false} />
                                     <Tooltip
                                         cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                                        contentStyle={{ backgroundColor: '#0f1c30', border: '1px solid rgba(56,189,248,0.35)', borderRadius: '8px', fontSize: '11px' }}
+                                        contentStyle={{ backgroundColor: '#0f1c30', border: '1px solid rgba(63, 178, 243,0.35)', borderRadius: '8px', fontSize: '11px' }}
                                         labelStyle={{ color: '#e2e8f0', fontWeight: 700 }}
                                         formatter={(v, n) => [`${Number(v).toFixed(1)} mm`, n]}
                                         labelFormatter={(label, payload) => {

@@ -287,10 +287,10 @@ describe('anexos, trazabilidad y errores visibles', () => {
 });
 
 describe('peso del documento', () => {
-    it('sin imagen satelital ni plano y con logos optimizados queda por debajo de 108 KB (100 KB + la leyenda única de colores y formas, las marcas de módulo y su CSS)', () => {
+    it('sin imagen satelital ni plano y con logos optimizados queda por debajo de 120 KB (100 KB + la leyenda única de colores y formas, las marcas de módulo, su CSS y la fuente de marca Montserrat 800 embebida, ≈ 11 KB)', () => {
         const logoSrl = `data:image/jpeg;base64,${'A'.repeat(7700)}`, logoSica = `data:image/png;base64,${'B'.repeat(4800)}`;
         const h = construirHtmlNdvi(construirDatosNdvi(MULTI, ctx(), cfg()), { srl: logoSrl, sica: logoSica }, '');
-        expect(h.length).toBeLessThan(108 * 1024);
+        expect(h.length).toBeLessThan(120 * 1024);
     });
 });
 

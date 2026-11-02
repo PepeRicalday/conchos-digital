@@ -89,7 +89,7 @@ function Panel({ titulo, unidad, dec, trazo, ids, desde, hasta, ventana, ultimoP
                         <Tooltip isAnimationActive={false} cursor={{ stroke: 'var(--pr-t2, #b4c2d4)', strokeDasharray: '3 3' }} content={() => null} />
                         {ids.map(id => (
                             <Line key={id} dataKey={id} stroke={colorEstacion(id)} strokeWidth={2} dot={false} connectNulls={false}
-                                activeDot={{ r: 4, stroke: 'var(--pr-bg, #020a14)', strokeWidth: 2 }} isAnimationActive={false} />
+                                activeDot={{ r: 4, stroke: 'var(--pr-bg, #061532)', strokeWidth: 2 }} isAnimationActive={false} />
                         ))}
                     </LineChart>
                 </ResponsiveContainer>

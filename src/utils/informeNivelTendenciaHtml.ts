@@ -38,7 +38,7 @@ const TEND: Record<EstadoTendencia, { cls: string; glifo: string; txt: string }>
 };
 
 const CSS = minificaCss(`
-:root{--inst:${COLOR_INSTITUCIONAL};--inst2:#f4eaea;--agua:${COLOR_AGUA};--ink:#1b2430;--ink2:#56616e;--linea:#e4e1da;--fondo:#f5f3ee;--papel:#fff;--sd:#6a737d}
+:root{--inst:${COLOR_INSTITUCIONAL};--inst2:#E6EEF8;--agua:${COLOR_AGUA};--ink:#1b2430;--ink2:#56616e;--linea:#e4e1da;--fondo:#f5f3ee;--papel:#fff;--sd:#6a737d}
 *{box-sizing:border-box}
 html{color-scheme:light;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 body{margin:0;background:var(--fondo);color:var(--ink);font:14px/1.45 "Segoe UI","Helvetica Neue",Arial,sans-serif}
@@ -57,7 +57,7 @@ body.png .hoja{margin:0;box-shadow:none;border-radius:0}
 .titulo .periodo{font:600 15px Georgia,serif;color:var(--ink2);text-align:right}
 .hero{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:12px;margin-bottom:6px}
 .card{border:1px solid var(--linea);border-radius:10px;padding:14px 16px;background:#fff;min-width:0}
-.card.nivel{background:linear-gradient(160deg,#6B2D2D,#4a1f1f);color:#fff;border:0}
+.card.nivel{background:linear-gradient(160deg,#0B3170,#4a1f1f);color:#fff;border:0}
 .card.nivel .et{color:#e9cfcf}
 .et{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);font-weight:700}
 .big{font:700 46px/1 Georgia,serif;font-variant-numeric:tabular-nums;margin:6px 0 2px}

@@ -246,7 +246,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
             grid: { left: 48, right: 16, top: 16, bottom: 28 }, tooltip: { trigger: 'axis', valueFormatter: (v: number) => `${v.toFixed(1)} km²` },
             xAxis: ejeX,
             yAxis: { type: 'value', name: 'km²', scale: true, min: (v: { min: number }) => Math.floor((v.min - 4) / 5) * 5, axisLabel: { color: '#8fa3ba', fontSize: 12 }, splitLine: { lineStyle: { color: 'rgba(148,163,184,0.1)' } } },
-            series: [{ name: 'Área', type: 'line', data: historicoVaso.map(f => f.area_km2), lineStyle: { color: '#38bdf8', width: 2.5 }, itemStyle: { color: '#38bdf8' }, areaStyle: { color: 'rgba(56,189,248,0.10)', origin: 'start' }, connectNulls: false, symbolSize: 7 }],
+            series: [{ name: 'Área', type: 'line', data: historicoVaso.map(f => f.area_km2), lineStyle: { color: '#3FB2F3', width: 2.5 }, itemStyle: { color: '#3FB2F3' }, areaStyle: { color: 'rgba(63, 178, 243,0.10)', origin: 'start' }, connectNulls: false, symbolSize: 7 }],
         };
     }, [historicoVaso, ejeX]);
     const opcionesPerimetro = useMemo(() => {
@@ -408,17 +408,17 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                     <div className="vaso-mapa">
                                         <svg viewBox={`0 0 ${MAPA_W} ${mapaComparativo.H}`} width="100%" role="img" aria-label={`Contorno del vaso en ${fMes(filaBase.fecha_escena)} comparado con ${fMes(filaComparada.fecha_escena)}`}>
                                             {capas.base && <path d={mapaComparativo.pathBase} fill="none" stroke="#b4c2d4" strokeWidth="2" strokeDasharray="6 4" fillRule="evenodd" />}
-                                            {capas.comparado && <path d={mapaComparativo.pathComparado} fill="rgba(56,189,248,0.18)" stroke="#38bdf8" strokeWidth="2" fillRule="evenodd" />}
+                                            {capas.comparado && <path d={mapaComparativo.pathComparado} fill="rgba(63, 178, 243,0.18)" stroke="#3FB2F3" strokeWidth="2" fillRule="evenodd" />}
                                             {diffAzolve && (
                                                 <g>
                                                     {diffAzolve.celdasAzolve.map(([x, y]) => <rect key={`a${x},${y}`} x={x} y={y} width={diffAzolve.RES} height={diffAzolve.RES} fill="#f87171" opacity={0.75} />)}
-                                                    {diffAzolve.celdasNuevaAgua.map(([x, y]) => <rect key={`n${x},${y}`} x={x} y={y} width={diffAzolve.RES} height={diffAzolve.RES} fill="#38bdf8" opacity={0.45} />)}
+                                                    {diffAzolve.celdasNuevaAgua.map(([x, y]) => <rect key={`n${x},${y}`} x={x} y={y} width={diffAzolve.RES} height={diffAzolve.RES} fill="#3FB2F3" opacity={0.45} />)}
                                                 </g>
                                             )}
                                             {/* escala gráfica y norte */}
                                             <g transform={`translate(14 ${mapaComparativo.H - 18})`} className="vaso-mapa-escala">
                                                 <rect x="0" y="-6" width={mapaComparativo.escalaPx} height="6" fill="#e8eef6" />
-                                                <rect x="0" y="-6" width={mapaComparativo.escalaPx / 2} height="6" fill="#020617" stroke="#e8eef6" strokeWidth="1" />
+                                                <rect x="0" y="-6" width={mapaComparativo.escalaPx / 2} height="6" fill="#061532" stroke="#e8eef6" strokeWidth="1" />
                                                 <text x="0" y="-12">0</text><text x={mapaComparativo.escalaPx} y="-12" textAnchor="end">{mapaComparativo.escalaKm} km</text>
                                             </g>
                                             <g transform={`translate(${MAPA_W - 24} 30)`} className="vaso-mapa-norte" aria-hidden="true">
@@ -474,7 +474,7 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                                                 className={`vaso-galeria-mes${i === idxComparado ? ' es-comparado' : ''}${i === idxBase ? ' es-base' : ''}`}
                                                 onClick={() => { setIdxComparado(i); setVista('contorno'); }} aria-label={`Comparar ${fMes(f.fecha_escena)}: ${f.area_km2.toFixed(1)} km²`}>
                                                 <svg viewBox={`0 0 ${W} ${H}`} width="100%" aria-hidden="true">
-                                                    <path d={path} fill="rgba(56,189,248,0.22)" stroke="#38bdf8" strokeWidth="1.2" fillRule="evenodd" />
+                                                    <path d={path} fill="rgba(63, 178, 243,0.22)" stroke="#3FB2F3" strokeWidth="1.2" fillRule="evenodd" />
                                                 </svg>
                                                 <span className="fecha">{fCorta(fechaPixeles(f))}</span>
                                                 <span className="kpi">{f.area_km2.toFixed(1)} km²</span>

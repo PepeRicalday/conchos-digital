@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SICA 005 · Sistema Integral de Control del Agua">
+  <title>SICA 005 · Sistema Integral de Control del Agua</title>
+  <defs><linearGradient id="e-cielo" x1="0" y1="46" x2="0" y2="250" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9FD6F4"/><stop offset="1" stop-color="#CBEAF9"/></linearGradient>
+    <linearGradient id="e-agua" x1="0" y1="300" x2="0" y2="470" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3FB2F3"/><stop offset="1" stop-color="#0A7FDB"/></linearGradient>
+    <linearGradient id="e-hoja" x1="500" y1="250" x2="270" y2="470" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7CC520"/><stop offset="1" stop-color="#2E9A1E"/></linearGradient>
+    <linearGradient id="e-ola" x1="0" y1="0" x2="400" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3FB2F3"/><stop offset="1" stop-color="#0A5BB0"/></linearGradient></defs>
+  <rect x="8" y="8" width="496" height="496" rx="112" fill="#FFFFFF"/>
+    <rect x="20" y="20" width="472" height="472" rx="100" fill="#0B3170"/>
+    <clipPath id="e-ventana"><rect x="46" y="46" width="420" height="420" rx="76"/></clipPath>
+    <g clip-path="url(#e-ventana)"><rect x="0" y="0" width="512" height="252" fill="url(#e-cielo)"/>
+    <path fill="#2B66B1" d="M30 222 L92 182 L128 196 L190 150 L236 186 L286 160 L344 200 L398 172 L480 214 L480 248 L30 248 Z"/>
+    <path fill="#5B97D5" d="M30 236 L110 206 L170 222 L232 200 L300 220 L360 204 L430 224 L480 214 L480 248 L30 248 Z"/><rect x="0" y="242" width="512" height="270" fill="#1F7F14"/>
+    <path fill="#5DB22A" d="M221.08 242L224.79 242L-358.18 480L-420 480ZM228.5 242L232.21 242L-234.55 480L-296.36 480ZM235.92 242L239.63 242L-110.91 480L-172.73 480ZM243.33 242L247.04 242L12.73 480L-49.09 480ZM250.75 242L254.46 242L136.36 480L74.55 480ZM258.17 242L261.88 242L260 480L198.18 480ZM265.59 242L269.3 242L383.64 480L321.82 480ZM273.01 242L276.72 242L507.27 480L445.45 480ZM280.43 242L284.13 242L630.91 480L569.09 480ZM287.84 242L291.55 242L754.55 480L692.73 480ZM295.26 242L298.97 242L878.18 480L816.36 480Z"/><path fill="#DCD6CC" d="M190 288 L338 288 L560 520 L-40 520 Z"/>
+    <path fill="#A69F93" d="M204 294 L324 294 L470 520 L42 520 Z"/>
+    <path fill="url(#e-agua)" d="M212 302 L316 302 L452 520 L62 520 Z"/>
+    <g fill="none" stroke="#FFFFFF" stroke-linecap="round" opacity=".9"><path d="M196 330C255.4 318 321.4 318 361 330S466.6 342 526 330" stroke-width="5"/><path d="M160 366C224.8 353 296.8 353 340 366S455.2 379 520 366" stroke-width="6"/><path d="M122 404C193.28 390 272.48 390 320 404S446.72 418 518 404" stroke-width="7"/><path d="M80 446C158.48 431 245.68 431 298 446S437.52 461 516 446" stroke-width="8"/></g><path d="M241 304H287L264 340.8Z" fill="#FFFFFF" stroke="#0B3170" stroke-width="5" stroke-linejoin="round"/><path d="M192.3 166.3A42 42 0 0 1 251.7 166.3M166.85 140.85A78 78 0 0 1 277.15 140.85M141.39 115.39A114 114 0 0 1 302.61 115.39" fill="none" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round"/><circle cx="222" cy="196" r="21" fill="#FFFFFF"/>
+    <path d="M192.3 166.3A42 42 0 0 1 251.7 166.3M166.85 140.85A78 78 0 0 1 277.15 140.85M141.39 115.39A114 114 0 0 1 302.61 115.39" fill="none" stroke="#2E9B2E" stroke-width="20" stroke-linecap="round"/><circle cx="222" cy="196" r="15" fill="#2E9B2E"/><rect x="352" y="104" width="58" height="278" rx="9" fill="#FFFFFF" stroke="#0B3170" stroke-width="7"/>
+    <rect x="360" y="124" width="29" height="6" rx="1.5" fill="#06204D"/><rect x="360" y="139" width="17.4" height="6" rx="1.5" fill="#06204D"/><rect x="360" y="154" width="29" height="6" rx="1.5" fill="#06204D"/><rect x="360" y="169" width="17.4" height="6" rx="1.5" fill="#06204D"/><rect x="360" y="184" width="29" height="6" rx="1.5" fill="#06204D"/><rect x="360" y="199" width="17.4" height="6" rx="1.5" fill="#06204D"/><rect x="360" y="214" width="29" height="6" rx="1.5" fill="#06204D"/><rect x="360" y="229" width="17.4" height="6" rx="1.5" fill="#E0242A"/><rect x="360" y="244" width="29" height="6" rx="1.5" fill="#E0242A"/><rect x="360" y="259" width="17.4" height="6" rx="1.5" fill="#E0242A"/><rect x="360" y="274" width="29" height="6" rx="1.5" fill="#E0242A"/><rect x="360" y="289" width="17.4" height="6" rx="1.5" fill="#E0242A"/><rect x="360" y="304" width="29" height="6" rx="1.5" fill="#06204D"/><rect x="360" y="319" width="17.4" height="6" rx="1.5" fill="#06204D"/><rect x="360" y="334" width="29" height="6" rx="1.5" fill="#06204D"/><rect x="360" y="349" width="17.4" height="6" rx="1.5" fill="#06204D"/><rect x="360" y="364" width="29" height="6" rx="1.5" fill="#06204D"/><rect x="386.8" y="162" width="16.24" height="36.14" fill="#E0242A"/></g>
+    <path d="M250 478C292 382 384 300 506 252C506 364 434 456 250 478Z" fill="url(#e-hoja)" stroke="#FFFFFF" stroke-width="12" stroke-linejoin="round" paint-order="stroke"/>
+    <path d="M268 468C336 398 410 336 494 268" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" opacity=".75"/>
+    <path d="M2 446C86 404 186 412 262 446C318 470 376 474 430 456C372 498 300 504 238 482C170 458 94 446 2 470Z" fill="url(#e-ola)" stroke="#FFFFFF" stroke-width="12" stroke-linejoin="round" paint-order="stroke"/>
+</svg>

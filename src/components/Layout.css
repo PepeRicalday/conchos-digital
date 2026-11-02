@@ -24,7 +24,7 @@
     left: 20vw;
     width: 60vw;
     height: 60vh;
-    background: radial-gradient(circle, rgba(56, 189, 248, 0.05) 0%, transparent 60%);
+    background: radial-gradient(circle, rgba(63, 178, 243, 0.05) 0%, transparent 60%);
     pointer-events: none;
     z-index: 0;
 }
@@ -124,7 +124,7 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* El sello SICA-005 trae su propio disco y contorno (components/marca/LogoSica): sin círculo blanco ni recorte. */
+/* El emblema SICA 005 trae su propio filo blanco (components/marca/LogoSica): sin círculo blanco ni recorte. */
 .brand-logo-container {
     width: 58px;
     height: 58px;
@@ -146,8 +146,9 @@
 }
 
 .brand-text h1 {
-    font-size: 1.05rem;
-    font-weight: 700;
+    font-family: var(--brand-display);
+    font-size: 1.15rem;
+    font-weight: 800;
     line-height: 1.2;
 }
 

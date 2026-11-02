@@ -355,7 +355,7 @@ const ImportReport = () => {
     const currentData = formData[activeTab];
 
     return (
-        <div className="imp-root flex h-screen bg-slate-900 text-slate-100 overflow-hidden">
+        <div className="imp-root tw-espaciado flex h-screen bg-slate-900 text-slate-100 overflow-hidden">
             {/* LEFT: Source / Preview */}
             <div className="imp-ref w-1/2 h-full border-r border-slate-700 flex flex-col bg-slate-800/50">
                 <header className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/40">

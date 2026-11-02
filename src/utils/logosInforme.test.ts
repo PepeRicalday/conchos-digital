@@ -18,7 +18,7 @@ describe('logos de informe: optimizados y con caché', () => {
         expect(asset.cargar).toHaveBeenCalledWith(RUTA_LOGO_SICA_INFORME);
         expect(RUTA_LOGO_SRL_INFORME).toMatch(/-informe\.jpg$/); // el logo SRL es JPEG: la extensión ya no miente
     });
-    it('cargarLogoSicaInforme devuelve solo el sello y reutiliza la misma caché', async () => {
+    it('cargarLogoSicaInforme devuelve solo el emblema y reutiliza la misma caché', async () => {
         const sica = await cargarLogoSicaInforme();
         expect(sica).toBe((await cargarLogosInforme()).sica);
         expect(asset.cargar).toHaveBeenCalledTimes(2);

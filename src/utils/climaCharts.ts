@@ -31,7 +31,7 @@ export const VIZ = {
     // Estado / calidad (orden validado, CVD ΔE 15.1) — siempre con icono + texto
     estado: { bueno: '#0ca30c', aviso: '#d98704', serio: '#ec835a', critico: '#d03b3b' },
     lluvia: '#2a78d6',
-    srl: '#6B2D2D',
+    srl: '#0B3170',
 };
 
 /** Color de la rampa de nubosidad para una cobertura 0-100. */

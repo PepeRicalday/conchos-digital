@@ -1,6 +1,6 @@
 import { useState, useMemo, type ComponentType } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Droplets, Waves, Activity, Bell, Cloud, Map, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, Gauge, BarChart3, Database, Box, FileText, Upload, ClipboardCheck, Siren } from 'lucide-react';
+import { LayoutDashboard, Waves, Bell, Cloud, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, BarChart3, Database, FileText, Upload, ClipboardCheck, Siren } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useHydraStore } from '../store/useHydraStore';
@@ -9,6 +9,7 @@ import { useAlertasRegistro } from '../hooks/useAlertasSistema';
 import './Layout.css';
 import SupabaseStatus from './SupabaseStatus';
 import { LogoSica } from './marca/LogoSica';
+import { IconoCompuertas, IconoDistribucion, IconoMedicion, IconoMonitoreo, IconoTelemetria, IconoUsoAgricola } from './marca/IconoSica';
 
 const Sidebar = () => {
     const { profile, signOut } = useAuth();
@@ -50,7 +51,7 @@ const Sidebar = () => {
             label: 'Tiempo Real',
             items: [
                 { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-                { icon: Activity, label: 'Monitor Público', path: '/monitor-publico' },
+                { icon: IconoMonitoreo, label: 'Monitor Público', path: '/monitor-publico' },
                 { icon: Bell, label: 'Alertas', path: '/alertas', badge: criticalAlertsCount > 0 ? `${criticalAlertsCount}` : alertasAntiguas > 0 ? `${alertasAntiguas}` : undefined, badgeColor: criticalAlertsCount > 0 ? '#f43f5e' : alertasAntiguas > 0 ? '#94a3b8' : undefined,
                   badgeTitle: criticalAlertsCount > 0 ? `${criticalAlertsCount} alerta(s) vigente(s)${alertasAntiguas > 0 ? ` · ${alertasAntiguas} pendiente(s) antigua(s)` : ''}` : alertasAntiguas > 0 ? `${alertasAntiguas} pendiente(s) antigua(s) sin resolver (más de 14 días). Las alertas calculadas en vivo están en el Dashboard.` : undefined },
             ],
@@ -59,16 +60,16 @@ const Sidebar = () => {
             label: 'Captura y Operación',
             items: [
                 { icon: Waves, label: 'Presas', path: '/presas' },
-                { icon: Gauge, label: 'Control de Niveles', path: '/escalas' },
-                { icon: Activity, label: 'Hidrometría', path: '/hidrometria' },
-                { icon: Droplets, label: 'Distribución', path: '/canales', badge: liveStats.activePoints > 0 ? `${liveStats.activePoints}` : undefined },
+                { icon: IconoMedicion, label: 'Control de Niveles', path: '/escalas' },
+                { icon: IconoTelemetria, label: 'Hidrometría', path: '/hidrometria' },
+                { icon: IconoDistribucion, label: 'Distribución', path: '/canales', badge: liveStats.activePoints > 0 ? `${liveStats.activePoints}` : undefined },
             ],
         },
         {
             label: 'Análisis e Histórico',
             items: [
                 { icon: BarChart3, label: 'Balance Hidráulico', path: '/balance' },
-                { icon: Box, label: 'Modelación Hidráulica', path: '/modelacion-hidraulica' },
+                { icon: IconoCompuertas, label: 'Modelación Hidráulica', path: '/modelacion-hidraulica' },
                 { icon: Database, label: 'Análisis Histórico', path: '/analisis-historico' },
             ],
         },
@@ -82,7 +83,7 @@ const Sidebar = () => {
             label: 'Clima y Geo',
             items: [
                 { icon: Cloud, label: 'Clima', path: '/clima' },
-                { icon: Map, label: 'Geo-Monitor', path: '/geo-monitor' },
+                { icon: IconoUsoAgricola, label: 'Geo-Monitor', path: '/geo-monitor' },
             ],
         },
     ];
@@ -95,7 +96,7 @@ const Sidebar = () => {
                 </div>
                 <div className="brand-text">
                     <h1 className="text-sm font-bold text-white tracking-widest uppercase mt-1">
-                        Control Digital
+                        SICA 005
                     </h1>
                 </div>
             </div>
@@ -242,9 +243,9 @@ const Sidebar = () => {
                             fontWeight: 800,
                             padding: '2px 6px',
                             borderRadius: '9999px',
-                            background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(129, 140, 248, 0.2))',
-                            color: '#38bdf8',
-                            border: '1px solid rgba(56, 189, 248, 0.2)',
+                            background: 'linear-gradient(135deg, rgba(63, 178, 243, 0.2), rgba(129, 140, 248, 0.2))',
+                            color: '#3FB2F3',
+                            border: '1px solid rgba(63, 178, 243, 0.2)',
                             letterSpacing: '0.5px',
                         }}>IA</span>
                     </NavLink>

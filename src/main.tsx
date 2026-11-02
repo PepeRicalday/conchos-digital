@@ -134,6 +134,10 @@ import '@fontsource/inter/latin-600.css'
 import '@fontsource/inter/latin-700.css'
 import '@fontsource/inter/latin-800.css'
 import '@fontsource/inter/latin-900.css'
+// Tipografía de marca (logo SICA 005): títulos y nombre del producto
+import '@fontsource/montserrat/latin-600.css'
+import '@fontsource/montserrat/latin-700.css'
+import '@fontsource/montserrat/latin-800.css'
 import '@fontsource/jetbrains-mono/latin-400.css'
 import '@fontsource/jetbrains-mono/latin-500.css'
 import '@fontsource/jetbrains-mono/latin-700.css'
@@ -145,6 +149,7 @@ import '@fontsource/ibm-plex-sans/latin-400'
 import '@fontsource/ibm-plex-sans/latin-500'
 import '@fontsource/ibm-plex-sans/latin-600'
 import './index.css'
+import './styles/tailwind-espaciado.css'   // puente de espaciado (Infraestructura, Importar, Bitácora)
 import './styles/phone.css'   // adaptaciones de página para teléfono (html[data-device="phone"])
 import './styles/phone-pulido.css'   // pulido visual/gerencial para teléfono (auditoría con agentes)
 import App from './App.tsx'

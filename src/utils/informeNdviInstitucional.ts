@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// INFORME TÉCNICO NDVI — SRL Unidad Conchos / SICA-005
+// INFORME TÉCNICO NDVI — SRL Unidad Conchos / SICA 005
 // ---------------------------------------------------------------------------
 // Orquestador (única parte con efectos). UN solo cargador por generación: parte de la serie v2 que el panel ya cargó (no se
 // vuelve a consultar), y solo pide lo que alguna sección imprime — contornos (plano), volumen (IEHP en las fichas) y

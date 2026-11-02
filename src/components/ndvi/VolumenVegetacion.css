@@ -26,13 +26,13 @@
 
 .vv-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 12px; }
 .vv-cuadro { margin: 0; padding: 8px 12px 10px; background: var(--vv-fondo); border: 1px solid var(--vv-borde); border-radius: 12px; min-width: 0; }
-.vv-cuadro.on { border-color: #38bdf8; box-shadow: 0 0 0 1px #38bdf8 inset; background: rgba(56, 189, 248, 0.09); }
+.vv-cuadro.on { border-color: #3FB2F3; box-shadow: 0 0 0 1px #3FB2F3 inset; background: rgba(63, 178, 243, 0.09); }
 .vv-cuadro.est-firme { border-color: rgba(94, 234, 212, 0.55); }
-.vv-cuadro.est-firme.on { border-color: #38bdf8; }
+.vv-cuadro.est-firme.on { border-color: #3FB2F3; }
 
 .vv-cab { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 4px 2px; background: none; border: 0; color: var(--vv-texto); font: inherit; font-size: 0.95rem; text-align: left; cursor: pointer; border-radius: 8px; }
 .vv-cab:hover { background: rgba(148, 163, 184, 0.1); }
-.vv-cab:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+.vv-cab:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
 .vv-sim { width: 22px; height: 22px; flex: none; }
 .vv-sim path { fill: var(--vv-punto); stroke: #0f172a; stroke-width: 1.2; }
 .vv-chip { margin-left: auto; padding: 3px 10px; border: 1.5px solid var(--vv-eje); border-radius: 999px; font-size: 0.8rem; font-weight: 600; color: var(--vv-suave); white-space: nowrap; }
@@ -59,7 +59,7 @@
 .vv-rombo { fill: rgba(15, 23, 42, 0.9); stroke: var(--vv-rombo); stroke-width: 2.4; stroke-dasharray: 4 2.5; }
 .vv-anio { fill: var(--vv-texto); font-size: 12.5px; font-weight: 600; paint-order: stroke; stroke: #0f172a; stroke-width: 3px; stroke-linejoin: round; }
 .vv-anio.actual { fill: var(--vv-rombo); font-weight: 700; }
-.vv-pto:focus-visible .vv-hit, .vv-pto.on .vv-hit { fill: rgba(56, 189, 248, 0.16); stroke: #38bdf8; stroke-width: 2; }
+.vv-pto:focus-visible .vv-hit, .vv-pto.on .vv-hit { fill: rgba(63, 178, 243, 0.16); stroke: #3FB2F3; stroke-width: 2; }
 .vv-pto.on .vv-forma { stroke: #f8fafc; }
 
 .vv-tip { position: absolute; transform: translate(-50%, calc(-100% - 16px)); z-index: 2; display: grid; gap: 2px; padding: 7px 10px; min-width: 150px; white-space: nowrap; background: #0b1220; border: 1px solid #475569; border-radius: 8px; font-size: 0.8rem; line-height: 1.35; color: #f1f5f9; pointer-events: none; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); }

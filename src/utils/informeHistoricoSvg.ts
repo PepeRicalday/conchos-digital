@@ -4,7 +4,7 @@
  * Funciones puras, sin dependencias de DOM/React, viewBox fijo, fuentes del sistema, sin JS.
  * Reglas (skill dataviz):
  *  - Paleta categórica validada (validate_palette.js, modo claro): azul/ocre/verde-azulado con L 0.43–0.77,
- *    CVD ΔE ≥ 10 entre adyacentes; el año base usa el marrón institucional #6B2D2D (excepción deliberada de marca,
+ *    CVD ΔE ≥ 10 entre adyacentes; el año base usa el marrón institucional #0B3170 (excepción deliberada de marca,
  *    reforzada con trazo más grueso). Cada serie lleva además un trazo distinto (sólido/discontinuo/punteado)
  *    como codificación secundaria → legible en blanco y negro.
  *  - Secuencial: un solo tono (azul) de claro a oscuro. Divergente: azul (aumento) vs rojo-ocre (disminución).
@@ -16,9 +16,9 @@ import type { EstadoSemaforo, Tendencia } from './estadisticaHistorica';
 import type { PosicionAnual, CeldaMatriz } from './historicoPresas';
 import { MESES_CORTO, formatearNumero } from './historicoPresas';
 
-export const COLOR_INSTITUCIONAL = '#6B2D2D';
+export const COLOR_INSTITUCIONAL = '#0B3170';
 /** Orden fijo: base, comparación 1, 2, 3. */
-export const PALETA_SERIES = [COLOR_INSTITUCIONAL, '#2A6FB5', '#C27A0E', '#13866F'];
+export const PALETA_SERIES = [COLOR_INSTITUCIONAL, '#0A7FDB', '#C27A0E', '#2E9A1E'];
 const DASHES = ['', '7 4', '2 3', '9 3 2 3'];
 const INK = '#1f2328';
 const INK2 = '#57606a';
@@ -155,7 +155,7 @@ export function svgBarrasCierre(cierres: CierreAnio[], o: OpcionesSvg = {}): str
 
     let g = abrir(W, H, titulo);
     g += `<defs>
-<pattern id="${idB}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#ead9d9"/><line x1="0" y1="0" x2="0" y2="6" stroke="${COLOR_INSTITUCIONAL}" stroke-width="2.4"/></pattern>
+<pattern id="${idB}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#D6E3F3"/><line x1="0" y1="0" x2="0" y2="6" stroke="${COLOR_INSTITUCIONAL}" stroke-width="2.4"/></pattern>
 <pattern id="${idO}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#e6ebf1"/><line x1="0" y1="0" x2="0" y2="6" stroke="${SLATE}" stroke-width="2.4"/></pattern></defs>`;
     if (o.unidad) g += `<text x="4" y="13" font-size="10" fill="${INK2}">${e(o.unidad)}</text>`;
     for (const t of ticks) {

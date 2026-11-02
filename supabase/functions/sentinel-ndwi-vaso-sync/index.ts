@@ -43,7 +43,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -594,6 +594,17 @@ Deno.serve(async (req) => {
     if (!SUPABASE_URL || !SERVICE_ROLE) return json({ error: "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY no configurados" }, 500);
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+    // Autorización: usuario con sesión (botón "Actualizar mes actual") o el cron con el secreto de Vault.
+    // La clave anon es pública (va en la app del navegador): por sí sola ya no basta (2026-11-01).
+    const rol = rolDelJwt(req.headers.get("Authorization"));
+    let autorizado = rol === "authenticated" || rol === "service_role";
+    const secretoCron = req.headers.get("x-cron-secret");
+    if (!autorizado && secretoCron) {
+      const { data: valido } = await supabase.rpc("fn_vaso_sync_secreto_valido", { p_secreto: secretoCron });
+      autorizado = valido === true;
+    }
+    if (!autorizado) return json({ error: "No autorizado: inicia sesión en SICA para actualizar la escena del vaso." }, 401);
+
     const body = await req.json().catch(() => ({}));
     const presaId: string = body?.presa_id || "PRE-001";
     const config = BBOXES_PRESA[presaId];
@@ -759,6 +770,19 @@ Deno.serve(async (req) => {
     return json({ error: String(err) }, 500);
   }
 });
+
+/** Rol del JWT (la firma ya la validó el gateway con verify_jwt=true); null si no se puede leer. */
+function rolDelJwt(authorization: string | null): string | null {
+  try {
+    const token = (authorization ?? "").replace(/^Bearer\s+/i, "");
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    return JSON.parse(atob(b64))?.role ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function json(obj: unknown, status = 200) {
   return new Response(JSON.stringify(obj, null, 2), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });

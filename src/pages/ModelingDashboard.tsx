@@ -1260,6 +1260,7 @@ const ModelingDashboard: React.FC = () => {
   // Badge de estado (header) → Motor de Decisión: al hacer clic, desplaza y
   // resalta brevemente el panel para que el operador no tenga que buscarlo.
   const decisionPanelRef = useRef<HTMLDivElement>(null);
+  const perfilChartRef = useRef<ReactECharts>(null);
   const [decisionPanelPulse, setDecisionPanelPulse] = useState(false);
   const focusDecisionPanel = () => {
     decisionPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2085,6 +2086,20 @@ const ModelingDashboard: React.FC = () => {
     total_escalas:    simResults.length,
   }) : null;
 
+  // Perfil: si el contenedor cambia de tamaño (rotación del iPad, barra de Safari, primer layout tras cargar datos)
+  // o llegan datos nuevos, se redibuja. Sin esto a veces el perfil quedaba con el tamaño del primer render.
+  useEffect(() => {
+    const inst = () => { try { return perfilChartRef.current?.getEchartsInstance(); } catch { return undefined; } };
+    const redibujar = () => { const c = inst(); if (c && !c.isDisposed()) c.resize(); };
+    const t1 = window.setTimeout(redibujar, 60);
+    const t2 = window.setTimeout(redibujar, 600);
+    const el = (perfilChartRef.current as any)?.ele?.parentElement as HTMLElement | undefined;
+    const ro = el && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(redibujar) : null;
+    if (ro && el) ro.observe(el);
+    window.addEventListener('orientationchange', redibujar);
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); ro?.disconnect(); window.removeEventListener('orientationchange', redibujar); };
+  }, [opsChartOption]);
+
   const iecSimRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = iecSimRef.current;
@@ -2712,7 +2727,7 @@ const ModelingDashboard: React.FC = () => {
               </div>
             </div>
             <div className="sim-chart-wrap">
-              <ReactECharts option={opsChartOption} style={{ height: '100%', width: '100%' }} notMerge={true} />
+              <ReactECharts ref={perfilChartRef} option={opsChartOption} style={{ position: 'absolute', inset: 0, height: '100%', width: '100%' }} notMerge={true} />
             </div>
           </div>
 

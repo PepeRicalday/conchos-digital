@@ -745,7 +745,9 @@
 .tag-m1 { color: #f97316; border-color: rgba(249,115,22,0.3); background: rgba(249,115,22,0.07); }
 .tag-m2 { color: #60a5fa; border-color: rgba(96,165,250,0.3); background: rgba(96,165,250,0.07); }
 
-.sim-chart-wrap { flex: 1; min-height: 360px; }
+/* Alto propio y definido: el gráfico (absolute inset 0) nunca depende de un % sobre un padre sin alto,
+   que en Safari/iPad dejaba el perfil con ~50 px de alto o sin dibujarse (2026-11-02). */
+.sim-chart-wrap { flex: 1 0 auto; min-height: 400px; position: relative; }
 
 /* ── PANEL B: HIDROGRAMA DE GASTO ───────────────────────────────── */
 .sim-qflow-card {

@@ -2155,9 +2155,15 @@ html[data-device="phone"] .pr-sello { min-height: 32px; }
 
 /* Identidad de la sala en una línea en iPad horizontal (antes "Sala de / control / hidráulico" en 3 líneas). */
 .scada-header-org, .scada-header-title { white-space: nowrap; }
-@media (max-width: 1280px) {
-    /* Tablet: identidad + selector de presa arriba; acciones en su propia fila a todo el ancho (se acomodan si no caben). */
-    .scada-sala-header { grid-template-columns: auto 1fr; }
+/* Hasta 1600 px (iPad horizontal 1366 px incluido, con el menú lateral de 224 px): identidad + selector arriba y las
+   acciones (estado, reloj y 4 botones) en su propia fila a todo el ancho. Antes el corte era 1280 px y a 1366 px los
+   botones «Infografía» e «Informe nivel y tendencia» se salían del marco por la derecha (2026-11-02). */
+.scada-sala-header { min-width: 0; }
+.scada-header-right { min-width: 0; }
+@media (max-width: 1600px) {
+    .scada-sala-header { grid-template-columns: auto minmax(0, 1fr); }
     .scada-header-right { grid-column: 1 / -1; flex-wrap: wrap; justify-content: flex-end; }
+}
+@media (max-width: 1280px) {
     .scada-action-btn { min-height: 44px; }
 }

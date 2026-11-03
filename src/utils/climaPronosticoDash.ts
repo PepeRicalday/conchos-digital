@@ -80,7 +80,7 @@ const txtT = (v: number | null) => (v == null ? 'S/D' : `${v.toFixed(0)}°`);
 
 /** Frase corta y fácil de entender: "Hoy máx 29°, sin lluvia · Mañana máx 31°, lluvia probable (70 %)". */
 /** Rótulo de «Hoy»: de noche y con solo el tramo final, «Esta noche»; a otras horas con tramo parcial, «Resto de hoy». */
-export const nombreHoy = (d: ResumenDia, hora: number): string => (!d.parcial ? 'Hoy' : hora >= 18 || hora < 6 ? 'Esta noche' : 'Resto de hoy');
+export const nombreHoy = (d: ResumenDia, hora: number, corto = false): string => (!d.parcial ? 'Hoy' : hora >= 18 || hora < 6 ? (corto ? 'Noche' : 'Esta noche') : (corto ? 'Resto hoy' : 'Resto de hoy'));
 
 export function fraseResumen(dias: ResumenDia[], horaActual = 12): string {
     const parte = (d: ResumenDia, nombre: string) => {

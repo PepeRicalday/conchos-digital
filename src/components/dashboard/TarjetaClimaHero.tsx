@@ -99,7 +99,7 @@ const PanelAhoraClima = memo(function PanelAhoraClima({ demanda }: { demanda: Mo
                         <div key={d.clave} className="kc-dia" data-cond={d.condicion}>
                             <span className="kc-dia-ico" aria-hidden="true">{ICONO_DIA[d.condicion]}</span>
                             <span className="kc-dia-txt">
-                                <b>{d.clave === 'hoy' ? nombreHoy(d, horaLocal(nowMs)) : 'Mañana'}</b>
+                                <b>{d.clave === 'hoy' ? nombreHoy(d, horaLocal(nowMs), true) : 'Mañana'}</b>
                                 <span className="kc-dia-t">{d.tMax != null ? <>{d.tMax.toFixed(0)}°<i>/{d.tMin != null ? d.tMin.toFixed(0) : 'S/D'}°</i></> : 'S/D'}</span>
                                 <span className="kc-dia-ll" title={`${TXT_DIA[d.condicion]}${d.probMax != null ? ` · prob. máx. ${d.probMax.toFixed(0)} %` : ''}`}>{TXT_DIA[d.condicion]}</span>
                             </span>

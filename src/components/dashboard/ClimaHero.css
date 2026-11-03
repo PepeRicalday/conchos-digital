@@ -150,4 +150,4 @@
 @container kc (max-width: 260px) { .kc-dia-t { font-size: 18px; } .kc-dia-t i { font-size: 13px; } .kc-dia-ico svg { width: 18px; height: 18px; } .kc-dia { gap: 4px; padding: 4px 5px; } }
 @container kc (max-width: 260px) { .kc-dia-ico { display: none; } }
 .kc-dia-t { font-size: clamp(16px, 7cqw, 24px); } .kc-dia-t i { font-size: clamp(12px, 5cqw, 17px); } .kc-dia-txt { min-width: 0; }
-.kc-dia-t { font-size: clamp(15px, 6.4cqw, 24px); } .kc-dia { padding-inline: 5px; gap: 4px; }
+.kc-dia-t { font-size: clamp(15px, 6.4cqw, 24px); } .kc-dia-txt b { white-space: nowrap; letter-spacing: 0.02em; } .kc-dia { padding-inline: 5px; gap: 4px; }

@@ -6,9 +6,11 @@ import { UMBRAL_SIN_CAMBIO, cruceAnual, type FilaNdviV2, type FilaSupVol } from 
 import {
     ANIO_ACTUAL, escalaEje, fraseActual, fraseRelacion, lecturaGeneral, relacionVolumenNdvi, type RelacionVolNdvi, type VolumenActual,
 } from '../../utils/ndviVolumen';
+import { VolumenCultivos, type VistaCultivo } from './VolumenCultivos';
 import './VolumenVegetacion.css';
 
 const MODULOS = [1, 2, 3, 4, 5, 12];
+const VISTAS: ['ndvi' | VistaCultivo, string][] = [['ndvi', 'Agua y NDVI'], ['lamina', 'Lámina por cultivo'], ['mezcla', 'Mezcla de cultivos'], ['ciclo', 'Ciclo actual']];
 
 /** Contorno de cada símbolo del módulo (centro 0,0; «s» = radio). La forma, no el color, identifica al módulo. */
 function trazoSimbolo(forma: string | undefined, s: number): string {
@@ -205,6 +207,7 @@ export const VolumenVegetacion: React.FC<{
     ndvi: FilaNdviV2[]; supVol: FilaSupVol[]; volumenActual: VolumenActual | null; cargandoVolumen: boolean;
     modulo: number; onElegir: (m: number) => void; aniosTabla: number[];
 }> = ({ ndvi, supVol, volumenActual, cargandoVolumen, modulo, onElegir, aniosTabla }) => {
+    const [vista, setVista] = useState<'ndvi' | VistaCultivo>('ndvi');
     const rels = useMemo(() => MODULOS.map(m => relacionVolumenNdvi(ndvi, supVol, volumenActual, m)), [ndvi, supVol, volumenActual]);
     const ejeY = useMemo(() => {
         const vals = rels.flatMap(r => [...r.puntos.map(p => p.ndviMedio), ...(r.actual ? [r.actual.ndviMedio] : [])]);
@@ -233,9 +236,25 @@ export const VolumenVegetacion: React.FC<{
         return { anio, c, punto, lectura, atipico: !!punto?.atipico || c.atipicos > 0 };
     }), [aniosTabla, ndvi, supVol, modulo, relSel]);
 
+    const selector = (
+        <div className="vv-vistas" role="group" aria-label="Vista del panel">
+            {VISTAS.map(([v, t]) => <button key={v} type="button" aria-pressed={vista === v} onClick={() => setVista(v)}>{t}</button>)}
+        </div>
+    );
+    if (vista !== 'ndvi') {
+        return (
+            <div className="vv">
+                <h4 className="vv-titulo">Consumo por cultivo (informe ACUM_INF)</h4>
+                {selector}
+                <VolumenCultivos vista={vista} supVol={supVol} volumenActual={volumenActual} />
+            </div>
+        );
+    }
+
     return (
         <div className="vv">
             <h4 className="vv-titulo">Más agua, más vegetación</h4>
+            {selector}
             <p className="vv-lectura">{lecturaGeneral(rels)}</p>
             {cargandoVolumen && <p className="ndvi-nota" role="status">Cargando el volumen provisional de {ANIO_ACTUAL}…</p>}
             {errorVol && <p className="vv-error" role="alert">No se pudo leer el volumen {ANIO_ACTUAL} de la hoja SRL ({errorVol}). Se dibujan solo los años con informe; el punto {ANIO_ACTUAL} queda sin dato (S/D), no en cero.</p>}

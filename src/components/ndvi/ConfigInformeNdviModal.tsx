@@ -10,6 +10,7 @@ import {
 } from '../../utils/informeNdviConfig';
 import type { FilaNdviInforme } from '../../utils/informeNdviDatos';
 import { generarInformeInstitucional } from '../../utils/informeNdviInstitucional';
+import { descargarInformeVolumenCultivo } from '../../utils/informeVolumenCultivo';
 import { SelectorChips } from './SelectorChips';
 import { SelectorMes } from './SelectorMes';
 import VistaPreviaNdvi from './VistaPreviaNdvi';
@@ -37,6 +38,8 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
     const [descargando, setDescargando] = useState(false);
     const [avanceImg, setAvanceImg] = useState<{ hechos: number; total: number } | null>(null);
     const [errDescarga, setErrDescarga] = useState<string | null>(null);
+    const [generandoCultivo, setGenerandoCultivo] = useState(false);
+    const [msgCultivo, setMsgCultivo] = useState<string | null>(null);
 
     useModalA11y(dialogRef, previa == null, onCerrar);
 
@@ -88,6 +91,14 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
         try { await generarInformeInstitucional(filas, { emisor, config: c, onProgresoImagenes: (hechos, total) => setAvanceImg({ hechos, total }) }); }
         catch (e) { setErrDescarga(e instanceof Error ? e.message : 'No se pudo generar el informe.'); }
         finally { setDescargando(false); setAvanceImg(null); }
+    };
+
+    // Informe estadístico aparte (no depende del periodo ni de los módulos de arriba): consumo por año, módulo y cultivo de ACUM_INF.
+    const descargarCultivo = async () => {
+        setGenerandoCultivo(true); setMsgCultivo(null);
+        try { const doc = await descargarInformeVolumenCultivo({ emisor }); setMsgCultivo(`Informe generado (folio ${doc.folio}).`); }
+        catch (e) { setMsgCultivo(e instanceof Error ? e.message : 'No se pudo generar el informe de consumo por cultivo.'); }
+        finally { setGenerandoCultivo(false); }
     };
 
     const resumen = `Informe ${etiquetaPeriodo(c)} · ${c.modulos.length} ${c.modulos.length === 1 ? 'módulo' : 'módulos'} · ${hojas} ${hojas === 1 ? 'hoja' : 'hojas'} · ${c.hoja === 'letter' ? 'Carta' : 'A4'}`;
@@ -226,6 +237,13 @@ function Contenido({ onCerrar, filas, emisor }: Props) {
                             </div>
                             {errores.length > 0 && <ul className="ndvi-cfg-msgs ndvi-cfg-err" role="alert">{errores.map((e) => <li key={e}><span aria-hidden="true">⛔</span>{e}</li>)}</ul>}
                             {avisos.length > 0 && <ul className="ndvi-cfg-msgs ndvi-cfg-avi">{avisos.map((a) => <li key={a}><span aria-hidden="true">⚠</span>{a}</li>)}</ul>}
+
+                            <section className="ndvi-cfg-bloque" aria-label="Informe de consumo por cultivo">
+                                <span className="ndvi-cfg-etq">Otro informe: consumo por cultivo</span>
+                                <p className="ndvi-cfg-ayuda">Consumo por año, módulo y cultivo (ACUM_INF 2020-2024): lámina, mezcla, años altos y bajos y ciclo actual. No usa el periodo ni los módulos de arriba.</p>
+                                <button type="button" className="ndvi-cfg-btn" disabled={generandoCultivo} onClick={() => void descargarCultivo()}><Download size={16} aria-hidden="true" /> {generandoCultivo ? 'Generando…' : 'Descargar informe por cultivo'}</button>
+                                {msgCultivo && <p className="ndvi-cfg-ayuda" role="status">{msgCultivo}</p>}
+                            </section>
 
                             <section className="ndvi-cfg-bloque" aria-label="Configuraciones guardadas">
                                 <span className="ndvi-cfg-etq">Mis configuraciones <em>({presets.length}/{MAX_PRESETS})</em></span>

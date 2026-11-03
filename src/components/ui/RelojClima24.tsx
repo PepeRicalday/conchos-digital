@@ -38,7 +38,7 @@ function Marco({ aria, horas, children, puntos, leyenda, alto = H }: { aria: str
             </div>
             <div className="kp-pron-ejes kp-rc-ejes" aria-hidden="true">
                 <span>ahora</span>
-                {medianoche != null && <span className="kp-rc-eje-0h" style={{ left: `${((x(medianoche) + SLOT / 2) / W) * 100}%` }}>0 h</span>}
+                {medianoche != null && (() => { const pos = ((x(medianoche) + SLOT / 2) / W) * 100; return pos >= 24 && pos <= 76 ? <span className="kp-rc-eje-0h" style={{ left: `${pos}%` }}>0 h</span> : null; })()}
                 <span>+24 h</span>
             </div>
             <div className="kp-rc-ley" aria-hidden="true">{leyenda}</div>

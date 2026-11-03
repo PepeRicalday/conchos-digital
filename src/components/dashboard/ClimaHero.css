@@ -128,3 +128,26 @@
 /* Alertas ahora es una celda de 1 columna: en celdas angostas el botón «info» queda dentro del cajón */
 @container kp (max-width: 215px) { .kp-sev-btn.kp-info { display: none; } }
 @container kp (max-width: 260px) { .kp-sev-btn { min-width: 0; padding: 0 5px; gap: 3px; font-size: 12px; } .kp-sev-btn b { font-size: 18px; } }
+
+/* ═══ Auditoría de solapes (2026-11-02): textos que no se cortan ni se encima el pronóstico con el pie de sensores ═══ */
+.kc-ahora { gap: 6px; }
+.kc-pron { overflow: hidden; }                       /* lo que no cabe se recorta DENTRO del bloque, nunca sobre el pie */
+.kc-sens { flex: none; min-height: 18px; }           /* el pie de sensores conserva su alto */
+.kc-titulo, .kc-kpi-et { text-overflow: clip; }
+.kc-kpi-et { font-size: 12px; letter-spacing: -0.01em; }
+.kc-dia-ll { white-space: normal; line-height: 1.15; }
+.kc-sub { white-space: normal; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* Menos alto: el sparkline y su rótulo salen antes (la regla anterior de 330 px no se aplicaba en iPad real) */
+@container kc (max-height: 360px) { .kc-spark { display: none; } }
+@container kc (max-height: 300px) { .kc-resumen { display: none; } }
+@container kc (max-height: 270px) { .kc-sens { display: none; } }
+/* Poco ancho: título y KPI con abreviaturas cortas */
+@container kc (max-width: 300px) { .kc-titulo { font-size: 12px; letter-spacing: 0.02em; } .kc-kpi { padding: 5px 5px; } .kc-kpi-v { font-size: 22px; } }
+/* Teléfono: los KPI se desplazan en horizontal a propósito (no es desborde) */
+@media (max-width: 699px) { .kc-kpi-et { white-space: nowrap; } }
+@container kc (max-width: 300px) { .kc-cab { flex-wrap: wrap; row-gap: 3px; } .kc-cab .kp-estado { font-size: 12px; padding: 2px 6px; gap: 3px; } .kc-titulo { letter-spacing: 0; } .kc-kpi-et > span { display: none; } }
+@container kc (max-width: 300px) { .kc-dia { gap: 5px; padding: 5px 6px; } .kc-dia-t { font-size: 20px; } .kc-dia-t i { font-size: 15px; margin-left: 2px; } .kc-dia-ico svg { width: 22px; height: 22px; } }
+@container kc (max-width: 260px) { .kc-dia-t { font-size: 18px; } .kc-dia-t i { font-size: 13px; } .kc-dia-ico svg { width: 18px; height: 18px; } .kc-dia { gap: 4px; padding: 4px 5px; } }
+@container kc (max-width: 260px) { .kc-dia-ico { display: none; } }
+.kc-dia-t { font-size: clamp(16px, 7cqw, 24px); } .kc-dia-t i { font-size: clamp(12px, 5cqw, 17px); } .kc-dia-txt { min-width: 0; }
+.kc-dia-t { font-size: clamp(15px, 6.4cqw, 24px); } .kc-dia { padding-inline: 5px; gap: 4px; }

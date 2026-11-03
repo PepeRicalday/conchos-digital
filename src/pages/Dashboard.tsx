@@ -201,7 +201,7 @@ const Dashboard = () => {
             pct: almacenamiento.porcentaje, estado: estadoPresas(almacenamiento.porcentaje), almacenadoMm3: totalAlmacenamiento, capacidadMm3: almacenamiento.capacidadContabilizadaMm3,
             conDato: almacenamiento.presasConDato, total: almacenamiento.presasTotal,
             serie: serieAlm,
-            items: presas.map((p) => { const pct = porcentajeLlenadoPresa(p); return { nombre: p.nombre_corto || p.nombre, pct, capacidadMm3: p.capacidad_max_mm3, alerta: pct != null && pct > PRESA_ALTA_PCT }; }),
+            items: presas.map((p) => { const pct = porcentajeLlenadoPresa(p); return { nombre: (p.nombre_corto || p.nombre).trim().split(/\s+/).slice(-1)[0], pct, capacidadMm3: p.capacidad_max_mm3, alerta: pct != null && pct > PRESA_ALTA_PCT }; }),
             tendencia: tendenciaTexto(serieAlm, 'Mm³', 1, 0),
             frescura: frescuraLectura?.texto ?? null, stale: !!frescuraLectura?.stale,
         },

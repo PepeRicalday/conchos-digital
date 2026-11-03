@@ -1,7 +1,7 @@
 {
   "name": "conchos-digital",
   "private": true,
-  "version": "2.68.2",
+  "version": "2.68.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "audit:solapes": "node e2e/dashboard-solapes.mjs",
     "audit:e2e": "node e2e/auditoria.mjs",
     "audit:espacio": "node e2e/espacio.mjs",
     "audit:ndvi": "node e2e/ndvi-tendencia-comparacion.mjs",

@@ -81,7 +81,7 @@ const PanelAhoraClima = memo(function PanelAhoraClima({ demanda }: { demanda: Mo
                 <div className="kc-hero-txt">
                     <div className="kc-temp" aria-label={tempNow == null ? 'Temperatura: sin dato' : `Temperatura ${tempNow.toFixed(1)} grados`}>{tempNow == null ? 'S/D' : tempNow.toFixed(0)}{tempNow != null && <small>°C</small>}</div>
                     <div className="kc-frase" aria-live="polite">{frase}</div>
-                    <div className="kc-sub">{ahora?.tempMin != null && ahora.tempMax != null ? `Red ${ahora.tempMin.toFixed(0)}–${ahora.tempMax.toFixed(0)} °C · ` : ''}{edad != null ? `dato ${textoEdad(edad)}` : 'sin observación reciente'}</div>
+                    <div className="kc-sub">{ahora?.tempMin != null && ahora.tempMax != null ? `${ahora.tempMin.toFixed(0)}–${ahora.tempMax.toFixed(0)} °C · ` : ''}{edad != null ? textoEdad(edad) : 'sin observación'}</div>
                 </div>
             </div>
 
@@ -101,7 +101,7 @@ const PanelAhoraClima = memo(function PanelAhoraClima({ demanda }: { demanda: Mo
                             <span className="kc-dia-txt">
                                 <b>{d.clave === 'hoy' ? 'Hoy' : 'Mañana'}</b>
                                 <span className="kc-dia-t">{d.tMax != null ? <>{d.tMax.toFixed(0)}°<i>/{d.tMin != null ? d.tMin.toFixed(0) : 'S/D'}°</i></> : 'S/D'}</span>
-                                <span className="kc-dia-ll">{TXT_DIA[d.condicion]}{d.probMax != null ? ` · ${d.probMax.toFixed(0)} %` : ''}</span>
+                                <span className="kc-dia-ll" title={`${TXT_DIA[d.condicion]}${d.probMax != null ? ` · prob. máx. ${d.probMax.toFixed(0)} %` : ''}`}>{TXT_DIA[d.condicion]}</span>
                             </span>
                         </div>
                     ))}
@@ -115,7 +115,7 @@ const PanelAhoraClima = memo(function PanelAhoraClima({ demanda }: { demanda: Mo
                 {sinRed ? <span>Sin lectura de estaciones</span> : (
                     <>
                         <span className="kc-puntos" role="img" aria-label={`${validas} de ${total} estaciones válidas`}>{Array.from({ length: total }, (_, i) => <i key={i} className={i < validas ? 'kc-p-ok' : 'kc-p-mal'} />)}</span>
-                        <span>{validas}/{total} estaciones{ahora && ahora.excluidas.length > 0 ? <> · fuera: <b>{ahora.excluidas.join(', ')}</b></> : ' · todas válidas'}</span>
+                        <span title={ahora && ahora.excluidas.length > 0 ? `Fuera: ${ahora.excluidas.join(', ')}` : 'Todas las estaciones son válidas'}>{validas}/{total} estaciones{ahora && ahora.excluidas.length > 0 ? <> · <b>{ahora.excluidas.length} fuera</b></> : ''}</span>
                     </>
                 )}
             </footer>

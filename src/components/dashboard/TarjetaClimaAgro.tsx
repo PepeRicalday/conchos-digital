@@ -52,7 +52,7 @@ export const TarjetaClimaAgro = memo(function TarjetaClimaAgro({ demanda, usa24,
 
     const rec = demanda.etoReciente;
     const medHoy = demanda.medido.ultimaObs ? hora(Date.parse(demanda.medido.ultimaObs)) : null;
-    const titulo = cerrado ? 'Clima agro 24 h' : usa24 ? 'Demanda de riego 24 h' : 'Demanda hoy (medida)';
+    const titulo = cerrado ? 'Clima agro' : usa24 ? 'Demanda de riego 24 h' : 'Demanda hoy (medida)';
     const hayPronostico = !!d24 && d24.horas.length > 0 && !d24.viejo;
 
     // ── Contenido por vista ──
@@ -132,7 +132,7 @@ export const TarjetaClimaAgro = memo(function TarjetaClimaAgro({ demanda, usa24,
                 : <div className="kp-par" aria-hidden="true"><span>ETₒ<b>{f(demanda.medido.etoMm, 2) ?? 'S/D'}</b></span><span>Lluvia<b>{f(demanda.medido.lluviaMm, 1) ?? 'S/D'}</b></span><span>Tmáx<b>{f(demanda.medido.tMax) ?? 'S/D'}°</b></span></div>}
             contexto={contexto}
             fresco={hayPronostico
-                ? `Previsión ${d24!.edadMin != null ? textoEdad(d24!.edadMin) : 'sin hora'} · ${d24!.estacionesUsadas}/${d24!.estacionesTotal} est.${vista === 'eto' && d24!.etoCorregido ? ' · ETₒ corregida por estación' : ''}${vista === 'temp' ? ' · corregido por estación' : vista === 'viento' ? ' · corregido · sin estaciones de presa' : vista === 'lluvia' || vista === 'hr' ? ' · modelo' : ''}`
+                ? `${d24!.edadMin != null ? textoEdad(d24!.edadMin) : 'sin hora'} · ${d24!.estacionesUsadas}/${d24!.estacionesTotal} est.${vista === 'eto' && d24!.etoCorregido ? ' · ETₒ corregida por estación' : ''}${vista === 'temp' ? ' · corregido por estación' : vista === 'viento' ? ' · corregido · sin estaciones de presa' : vista === 'lluvia' || vista === 'hr' ? ' · modelo' : ''}`
                 : demanda.medido.ultimaObs ? `Observación ${textoEdad(edadMin(Date.parse(demanda.medido.ultimaObs)))}` : 'Sin observación reciente'} />
     );
 });

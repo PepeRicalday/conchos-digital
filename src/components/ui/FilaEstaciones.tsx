@@ -34,8 +34,9 @@ export const FilaEstaciones = memo(function FilaEstaciones({ estaciones }: { est
                 const dur = e.clave === 'retraso' ? (e.edadMin ?? e.estadia?.duracionMin ?? null) : (e.estadia?.duracionMin ?? e.edadMin);
                 const acot = e.clave !== 'retraso' && e.estadia?.acotada ? '≥ ' : '';
                 const estado = e.clave === 'en_linea' ? 'En línea' : e.clave === 'retraso' ? 'Retraso' : e.clave === 'sd' ? 'Sin datos' : 'Sin señal';
-                const estadia = e.clave === 'sd' || dur == null ? estado : `${estado} · ${acot}${textoDuracion(dur)}`;
-                const sello = e.ultimoDato ? `último ${fechaHoraLocal(e.ultimoDato.t)}` : 'sin dato en 7 d';
+                const durTxt = textoDuracion(dur).replace(/^(\d+) ([hd]) .*$/, '$1 $2');   // «3 h 8 min» → «3 h» (la duración exacta va en el aria-label)
+                const estadia = e.clave === 'sd' || dur == null ? estado : `${estado} · ${acot}${durTxt}`;
+                const sello = e.ultimoDato ? fechaHoraLocal(e.ultimoDato.t) : 'sin dato 7 d';
                 const aria = `${e.nombre}, ${estado.toLowerCase()}${dur != null ? ` desde hace ${acot}${textoDuracion(dur)}` : ''}. ${e.ultimoDato ? `${viejo ? 'Último dato conocido' : 'Dato'} ${d.valor} ${d.unidad}${viejo ? `, de ${fechaHoraLocal(e.ultimoDato.t)}` : ''}` : 'Sin dato'}`;
                 return (
                     <li key={e.id} className={`kp-est-i kp-t-${tipo}`} data-vigencia={viejo ? 'viejo' : 'vigente'} aria-label={aria}>
@@ -44,7 +45,7 @@ export const FilaEstaciones = memo(function FilaEstaciones({ estaciones }: { est
                             <strong className="kp-est-num">{d.valor}</strong>{d.unidad && <small>{d.unidad}</small>}
                         </div>
                         <span className="kp-est-estado">{estadia}</span>
-                        {viejo && <span className="kp-est-sello">{sello}</span>}
+                        {viejo && <span className="kp-est-sello" title={e.ultimoDato ? `Último dato: ${sello}` : undefined}>{sello}</span>}
                         <div className="kp-est-spark"><Sparkline valores={e.serieGasto} etiqueta={`Gasto de ${e.nombre}, últimas 24 horas`} unidad="m³/s" decimales={2} alto={22} color="var(--sc-s3)" /></div>
                     </li>
                 );

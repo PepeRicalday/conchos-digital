@@ -719,3 +719,40 @@ a.kp-celda .kp-celda-barra { position: absolute; left: 6px; right: 6px; bottom: 
 @container kp (max-height: 260px) { .kp-ciclo-r { display: none; } #kp-ciclo .kp-contexto { -webkit-line-clamp: 3; } }
 @container kp (max-height: 215px) { .kp-ciclo-t { display: none; } #kp-ciclo .kp-contexto { -webkit-line-clamp: 2; } }
 a.kp-celda { min-height: 44px; }
+
+/* ═══ Auditoría de solapes (2026-11-02) ═══ */
+/* La infografía nunca invade el texto de la tarjeta */
+.kp-viz { overflow: hidden; }
+#kp-canal .kp-pc, #kp-canal .kp-pc-svg { overflow: hidden; }
+/* GOES: nombre y estado pueden ocupar 2 líneas en vez de cortarse a media palabra */
+.kp-est-i b { white-space: normal; overflow: visible; overflow-wrap: anywhere; text-overflow: clip; display: block; line-height: 1.15; }
+.kp-est-estado, .kp-est-sello { white-space: normal; line-height: 1.15; text-overflow: clip; }
+/* Alertas: el título puede ocupar 2 líneas y la hora baja */
+.kp-top li { align-items: flex-start; }
+.kp-top b { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* Ciclo: en teléfono solo volumen (las líneas de tiempo y rezagados caben en la tarjeta de escritorio/iPad) */
+@media (max-width: 699px) { .kp-ciclo-t, .kp-ciclo-r { display: none; } .kp-ciclo-l { white-space: normal; } .kp-nw { white-space: normal; } }
+/* Etiquetas de columnas de embalse: sin elipsis a media palabra */
+.kp-col-nombre { text-overflow: clip; letter-spacing: -0.02em; }
+
+/* Teléfono: chips de variable solo con icono (44 px no alcanzan para icono + texto); el nombre queda en aria-label */
+html[data-device="phone"] #kp-demanda .kp-vistas .ndvi-chip-txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+@media (max-width: 699px) { .kp-ciclo-l { display: inline; } .kp-ciclo-t, .kp-ciclo-r { display: none !important; } .kp-titulo { letter-spacing: 0; } }
+/* GOES: icono más chico y gasto + unidad pueden bajar de línea; nombre completo */
+.kp-est-i { padding: 5px 5px; }
+.kp-est-cab { gap: 3px; } .kp-est-cab svg { width: 12px; height: 12px; }
+.kp-est-dato { flex-wrap: wrap; gap: 0 3px; } .kp-est-num { overflow: visible; text-overflow: clip; }
+/* Presas: en tarjeta angosta las columnas toman todo el ancho (sin la tendencia) para que quepa el nombre de cada presa */
+@container kp (max-width: 260px) { .kp-presas-spark { display: none; } .kp-cols { flex: 1 1 100%; } }
+/* Títulos en celdas angostas: menos tracking para no cortarse */
+@container kp (max-width: 260px) { .kp-titulo { letter-spacing: 0.02em; } }
+@container kp (max-height: 300px) { .kp-est-spark, .kp-est-sello { display: none; } }
+@media (max-width: 699px) { .kp-vivo { display: none; } }
+/* GOES en celda ancha y baja (iPad vertical): las 4 estaciones van a todo el ancho, debajo del valor (el glifo en columna de ~80 px las desbordaba) */
+@container kp (min-width: 185px) and (max-height: 205px) {
+    #kp-goes .kp-in { grid-template-columns: minmax(0, 1fr); grid-template-areas: "cab" "cifra" "viz" "ctx"; grid-template-rows: auto auto minmax(0, 1fr) auto; }
+    #kp-goes .kp-cifra-fila { flex-direction: row; align-items: center; align-self: auto; }
+    #kp-goes .kp-viz { width: 100%; align-self: stretch; }
+    #kp-goes .kp-est { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #kp-goes .kp-contexto { display: none; }
+}

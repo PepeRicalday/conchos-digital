@@ -21,6 +21,8 @@ export interface ResumenDia {
     lluviaMm: number | null;
     horas: number;
     condicion: CondicionDia;
+    /** Solo queda un tramo del día (la lámina y los extremos son de ese tramo, no de las 24 h). */
+    parcial: boolean;
 }
 
 const fin = (v: number | null | undefined): v is number => v != null && Number.isFinite(v);
@@ -36,8 +38,11 @@ export function condicionDe(probMax: number | null, lluviaMm: number | null): Co
     return 'seco';
 }
 
-/** Mínimo de horas con dato para afirmar un día (con menos se muestra S/D). */
-const HORAS_MIN_DIA = 3;
+/** Mínimo de horas con dato para afirmar un día. «Hoy» solo cuenta las horas que le quedan (el pronóstico se pide desde ahora),
+ *  así que de noche basta 1 hora; «Mañana» es un día completo y exige 3. */
+const HORAS_MIN_DIA: Record<'hoy' | 'manana', number> = { hoy: 1, manana: 3 };
+/** Con menos de estas horas restantes, «Hoy» es solo el tramo final del día y se rotula «Esta noche»/«Resto de hoy». */
+const HORAS_DIA_COMPLETO = 12;
 
 /** Hoy (lo que resta del día) y Mañana a partir de la serie horaria de 48 h. */
 export function resumenDias(horas: PuntoHora[], ahoraMs: number): ResumenDia[] {
@@ -48,12 +53,12 @@ export function resumenDias(horas: PuntoHora[], ahoraMs: number): ResumenDia[] {
         const temps = hs.map((h) => h.tempC).filter(fin);
         const probs = hs.map((h) => h.probPct).filter(fin);
         const ll = hs.map((h) => h.lluviaMm).filter(fin);
-        const sd = hs.length < HORAS_MIN_DIA;
+        const sd = hs.length < HORAS_MIN_DIA[clave];
         const tMax = !sd && temps.length ? Math.max(...temps) : null;
         const tMin = !sd && temps.length ? Math.min(...temps) : null;
         const probMax = !sd && probs.length ? Math.max(...probs) : null;
         const lluviaMm = !sd && ll.length ? ll.reduce((a, b) => a + b, 0) : null;
-        return { clave, tMax, tMin, probMax, lluviaMm, horas: hs.length, condicion: sd ? 'sd' : condicionDe(probMax, lluviaMm) };
+        return { clave, tMax, tMin, probMax, lluviaMm, horas: hs.length, condicion: sd ? 'sd' : condicionDe(probMax, lluviaMm), parcial: clave === 'hoy' && hs.length < HORAS_DIA_COMPLETO };
     });
 }
 
@@ -74,15 +79,18 @@ export const horaLocal = (ms: number): number => Number(new Intl.DateTimeFormat(
 const txtT = (v: number | null) => (v == null ? 'S/D' : `${v.toFixed(0)}°`);
 
 /** Frase corta y fácil de entender: "Hoy máx 29°, sin lluvia · Mañana máx 31°, lluvia probable (70 %)". */
-export function fraseResumen(dias: ResumenDia[]): string {
+/** Rótulo de «Hoy»: de noche y con solo el tramo final, «Esta noche»; a otras horas con tramo parcial, «Resto de hoy». */
+export const nombreHoy = (d: ResumenDia, hora: number): string => (!d.parcial ? 'Hoy' : hora >= 18 || hora < 6 ? 'Esta noche' : 'Resto de hoy');
+
+export function fraseResumen(dias: ResumenDia[], horaActual = 12): string {
     const parte = (d: ResumenDia, nombre: string) => {
-        if (d.condicion === 'sd') return `${nombre}: sin pronóstico suficiente`;
+        if (d.condicion === 'sd') return d.clave === 'hoy' ? null : `${nombre}: sin pronóstico suficiente`;
         const lluvia = d.condicion === 'lluvia' ? `lluvia probable${fin(d.probMax) ? ` (${d.probMax.toFixed(0)} %)` : ''}`
             : d.condicion === 'posible' ? `lluvia posible${fin(d.probMax) ? ` (${d.probMax.toFixed(0)} %)` : ''}` : 'sin lluvia';
-        return `${nombre} máx ${txtT(d.tMax)}, ${lluvia}`;
+        return `${nombre} ${d.parcial ? 'hasta' : 'máx'} ${txtT(d.tMax)}, ${lluvia}`;
     };
     const [hoy, manana] = dias;
-    return [hoy && parte(hoy, 'Hoy'), manana && parte(manana, 'Mañana')].filter(Boolean).join(' · ');
+    return [hoy && parte(hoy, nombreHoy(hoy, horaActual)), manana && parte(manana, 'Mañana')].filter(Boolean).join(' · ');
 }
 
 /** Frase de condición para el hero: combina cielo, lluvia observada/prevista y temperatura. */

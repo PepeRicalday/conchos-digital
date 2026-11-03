@@ -6,7 +6,7 @@ import {
 import { Sparkline } from '../ui/Sparkline';
 import { textoEdad } from '../../utils/hidroEstaciones';
 import { resumenVariables24h, severidadVista, UMBRALES_RESPALDO, VISTAS_CLIMA, type Severidad, type VistaClima, type UmbralesVistas } from '../../utils/climaVistas';
-import { cieloAhora, fraseAhora, fraseResumen, horaLocal, resumenDias, type CondicionDia, type TipoCielo } from '../../utils/climaPronosticoDash';
+import { cieloAhora, fraseAhora, fraseResumen, horaLocal, resumenDias, nombreHoy, type CondicionDia, type TipoCielo } from '../../utils/climaPronosticoDash';
 import { TarjetaClimaAgro } from './TarjetaClimaAgro';
 import type { EstadoKpi } from '../../utils/dashboardKpisEjecutivos';
 import type { ModeloKpis } from './PanelKpis';
@@ -99,14 +99,14 @@ const PanelAhoraClima = memo(function PanelAhoraClima({ demanda }: { demanda: Mo
                         <div key={d.clave} className="kc-dia" data-cond={d.condicion}>
                             <span className="kc-dia-ico" aria-hidden="true">{ICONO_DIA[d.condicion]}</span>
                             <span className="kc-dia-txt">
-                                <b>{d.clave === 'hoy' ? 'Hoy' : 'Mañana'}</b>
+                                <b>{d.clave === 'hoy' ? nombreHoy(d, horaLocal(nowMs)) : 'Mañana'}</b>
                                 <span className="kc-dia-t">{d.tMax != null ? <>{d.tMax.toFixed(0)}°<i>/{d.tMin != null ? d.tMin.toFixed(0) : 'S/D'}°</i></> : 'S/D'}</span>
                                 <span className="kc-dia-ll" title={`${TXT_DIA[d.condicion]}${d.probMax != null ? ` · prob. máx. ${d.probMax.toFixed(0)} %` : ''}`}>{TXT_DIA[d.condicion]}</span>
                             </span>
                         </div>
                     ))}
                 </div>
-                {hayDias && <p className="kc-resumen">{fraseResumen(dias)}</p>}
+                {hayDias && <p className="kc-resumen">{fraseResumen(dias, horaLocal(nowMs))}</p>}
                 {serieT.some((v) => v != null) && <div className="kc-spark"><Sparkline valores={serieT} etiqueta="Temperatura prevista, próximas 48 horas" unidad="°C" decimales={0} color="var(--sc-warn)" alto={34} area /><small>Temperatura 48 h</small></div>}
             </div>
 

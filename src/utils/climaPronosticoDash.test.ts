@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resumenDias, condicionDe, cieloAhora, fraseResumen, fraseAhora, horaLocal } from './climaPronosticoDash';
+import { resumenDias, condicionDe, cieloAhora, fraseResumen, fraseAhora, horaLocal, nombreHoy } from './climaPronosticoDash';
 import type { PuntoHora } from './dashboardExtra';
 
 // 2026-11-02 12:00 en Chihuahua (UTC−6) = 18:00 UTC
@@ -20,9 +20,20 @@ describe('resumenDias', () => {
         expect(hoy.tMax).toBe(29); expect(hoy.tMin).toBe(25); expect(hoy.condicion).toBe('seco');
         expect(man.tMax).toBe(26); expect(man.condicion).toBe('lluvia');
     });
-    it('pocas horas = S/D, nunca 0', () => {
-        const [hoy, man] = resumenDias([h(0), h(1)], AHORA);
-        expect(hoy.tMax).toBeNull(); expect(hoy.condicion).toBe('sd'); expect(man.horas).toBe(0);
+    it('mañana con pocas horas = S/D, nunca 0', () => {
+        const [, man] = resumenDias([h(13), h(14)], AHORA);
+        expect(man.tMax).toBeNull(); expect(man.condicion).toBe('sd');
+    });
+    it('de noche «Hoy» con solo 2 horas restantes SÍ se muestra y es parcial', () => {
+        const noche = Date.UTC(2026, 10, 3, 3, 0, 0);   // 21:00 en Chihuahua
+        const hs = [0, 1].map((i) => ({ t: noche + i * 3_600_000, lluviaMm: 0, tempC: 19 - i, probPct: 5 }));
+        const [hoy] = resumenDias(hs as PuntoHora[], noche);
+        expect(hoy.horas).toBe(2); expect(hoy.tMax).toBe(19); expect(hoy.parcial).toBe(true); expect(hoy.condicion).toBe('seco');
+        expect(nombreHoy(hoy, 21)).toBe('Esta noche');
+    });
+    it('sin ninguna hora restante, «Hoy» queda S/D y la frase no lo menciona', () => {
+        const dias = resumenDias([h(13), h(14), h(15)], AHORA);
+        expect(fraseResumen(dias)).not.toContain('Hoy');
     });
 });
 

@@ -11,15 +11,17 @@ import { fmt, fmtMiles, SD } from './formato';
 import {
     bloqueFirmas, cabeceraInforme, cssInforme, documentoHtml, esc, fechaHoraLegible, folioConPartes, hashCorto, minificaCss, pieInforme, tablaTrazabilidad, unificaFuenteSvg,
 } from './informeBase';
+import { RANGO_INFORME, ANIOS_SIN_CICLO, TEXTO_SIN_CICLO, esAnioSinCiclo } from './estadoAnio';
 import type { FilaSupVol } from './ndviInteranual';
 import type { VolumenActual } from './ndviVolumen';
 import {
-    UMBRAL_HA_MUESTRA, Z_ATIPICA, contrasteRegimenes, esAlfalfaNogal, kpiCiclo, kpiLamina, kpiMezcla, laminaPorCultivo, listaAtipicos, matrizModuloAnio, mezclaCultivos,
+    UMBRAL_HA_MUESTRA, Z_ATIPICA, cifraContraste, contrasteRegimenes, esAlfalfaNogal, fraseContrasteSuperficie, kpiCiclo, lecturaVsTipico, kpiLamina, kpiMezcla, laminaPorCultivo, listaAtipicos, matrizModuloAnio, mezclaCultivos,
     referenciaCicloActual, type PosicionCiclo, type ReferenciaModulo, type SerieCultivo,
 } from './volumenCultivo';
 
 export const MODULOS_INFORME_VC = [1, 2, 3, 4, 5, 12];
-export const TITULO_INFORME_VC = 'Consumo por año, módulo y cultivo (ACUM_INF 2020-2024)';
+export const TITULO_INFORME_VC = `Consumo por año, módulo y cultivo (ACUM_INF ${RANGO_INFORME})`;
+const NOTA_SIN_CICLO = `${ANIOS_SIN_CICLO.join(', ')}: ${TEXTO_SIN_CICLO.replace(/^Sin ciclo: /, 'sin ciclo de riego, ')} No tiene cifras de volumen ni superficie y no entra a promedios, año típico ni rangos.`;
 const PLANTILLA = 'volumen-cultivo-v1';
 
 export interface DatosInformeVolumenCultivo {
@@ -38,7 +40,7 @@ const f1 = (n: number) => String(Number(n.toFixed(1)));
 const FS = 10.4;
 const sg = (v: number, d = 0) => `${v < 0 ? '−' : '+'}${Math.abs(v).toFixed(d)}`;
 const tdN = (txt: string, extra = '') => (txt === SD ? `<td class="n sd">${SD}</td>` : `<td class="n">${esc(txt)}${extra}</td>`);
-const TXT_POS: Record<PosicionCiclo, string> = { 'bajo-rango': '▼ Bajo el mínimo', dentro: '● Dentro del rango', 'sobre-rango': '▲ Sobre el máximo', 'sin-dato': 'Sin dato (S/D)' };
+const TXT_POS: Record<PosicionCiclo, string> = { 'bajo-rango': '▼ Debajo del rango', dentro: '● Dentro del rango', 'sobre-rango': '▲ Arriba del rango', 'sin-dato': 'Sin dato (S/D)' };
 
 /** Folio por hash del contenido (mismos datos → mismo folio, sin importar el emisor ni la hora). */
 export function claveContenidoVC(d: Pick<DatosInformeVolumenCultivo, 'filas' | 'volumenActual' | 'errorSupVol'>): string {
@@ -75,7 +77,7 @@ export function svgLaminaMiniaturas(series: SerieCultivo[], anios: number[]): st
         return `<g transform="translate(${ox} ${oy})"><text x="4" y="12" font-size="11.5" font-weight="700" fill="${INK}">${esc(s.cultivo)}</text><line x1="4" x2="${PW - 4}" y1="${base}" y2="${base}" stroke="${GRID}"/>${barras}</g>`;
     }).join('');
     const resumen = top.map((s) => `${s.cultivo}: ${anios.map((a) => { const c = s.celdas.find((x) => x.anio === a); return `${a} ${c?.laminaCm != null ? `${Math.round(c.laminaCm)} cm` : 'S/D'}`; }).join(', ')}`).join('. ');
-    return `<svg viewBox="0 0 ${W} ${filas * PH}" width="100%" style="max-width:${W}px;display:block" role="img" aria-label="Lámina bruta en centímetros por año de los ${top.length} cultivos de mayor volumen. ${esc(resumen)}"><title>Lámina bruta (cm) por cultivo y año, misma escala desde cero</title>${paneles}</svg>`;
+    return `<svg viewBox="0 0 ${W} ${filas * PH}" width="100%" style="max-width:${W}px;display:block" role="img" aria-label="Agua entregada por hectárea, en centímetros, por año de los ${top.length} cultivos que más agua reciben. ${esc(resumen)}"><title>Agua entregada por hectárea (cm) por cultivo y año, misma escala desde cero</title>${paneles}</svg>`;
 }
 
 const COL_ALFALFA = '#1f6f14', COL_NOGAL = '#7a4a1c', COL_OTROS = '#5b6573';
@@ -101,8 +103,8 @@ export function svgMezclaApilada(filas: FilaSupVol[], anios: number[]): string {
         }).join('');
         return `<text x="4" y="${y + 15}" font-size="${FS}" font-weight="700" fill="${INK}">${a}</text><text x="${X0 - 6}" y="${y + 15}" text-anchor="end" font-size="${FS}" fill="${INK2}">${fmt(tot, 0)} hm³</text>${segs}`;
     }).join('');
-    const desc = anios.map((a) => { const k = kpiMezcla(filas, null, a); return `${a}: alfalfa y nogal ${k.pctVolumenAlfalfaNogal != null ? `${Math.round(k.pctVolumenAlfalfaNogal)} %` : 'S/D'} del volumen`; }).join('; ');
-    return `<svg viewBox="0 0 ${W} ${anios.length * RH + 8}" width="100%" style="max-width:${W}px;display:block" role="img" aria-label="Participación en el volumen por año. ${esc(desc)}"><title>Participación de alfalfa, nogal y otros cultivos en el volumen de cada año</title>${rows}</svg>
+    const desc = anios.map((a) => { const k = kpiMezcla(filas, null, a); return `${a}: alfalfa y nogal ${k.pctVolumenAlfalfaNogal != null ? `${Math.round(k.pctVolumenAlfalfaNogal)} %` : 'S/D'} del agua entregada`; }).join('; ');
+    return `<svg viewBox="0 0 ${W} ${anios.length * RH + 8}" width="100%" style="max-width:${W}px;display:block" role="img" aria-label="Parte del agua entregada que recibe cada cultivo, por año. ${esc(desc)}"><title>Parte del agua entregada que reciben alfalfa, nogal y otros cultivos en cada año</title>${rows}</svg>
 <ul class="ley" aria-label="Leyenda"><li><i style="background:${COL_ALFALFA}"></i>Alfalfa</li><li><i style="background:${COL_NOGAL}"></i>Nogal</li><li><i style="background:${COL_OTROS}"></i>Otros cultivos</li></ul>`;
 }
 
@@ -118,12 +120,12 @@ export function svgRangoCiclo(refs: ReferenciaModulo[]): string {
         const x = (v: number) => X0 + (v / tope) * (X1 - X0);
         const act = r.actualHm3 != null ? `<path d="M${f1(x(r.actualHm3))} ${cy - 9}l8 9l-8 9l-8 -9z" fill="${r.posicion === 'bajo-rango' ? '#fff' : AZUL}" stroke="${INK}" stroke-width="1.6"/>` : '';
         const med = r.medianaHm3 != null ? `<line x1="${f1(x(r.medianaHm3))}" x2="${f1(x(r.medianaHm3))}" y1="${cy - 8}" y2="${cy + 8}" stroke="${INK2}" stroke-width="2.2"/>` : '';
-        const txt = `Rango ${fmt(r.minHm3, 1)}–${fmt(r.maxHm3, 1)} · mediana ${fmt(r.medianaHm3, 1)} · actual ${r.actualHm3 != null ? `${fmt(r.actualHm3, 1)} hm³` : SD}`;
+        const txt = `Rango ${fmt(r.minHm3, 1)}–${fmt(r.maxHm3, 1)} · año típico ${fmt(r.medianaHm3, 1)} · actual ${r.actualHm3 != null ? `${fmt(r.actualHm3, 1)} hm³` : SD}`;
         return `${rot}<line x1="${X0}" x2="${X1}" y1="${cy}" y2="${cy}" stroke="${GRID}"/><rect x="${f1(x(r.minHm3))}" y="${cy - 6}" width="${f1(Math.max(2, x(r.maxHm3) - x(r.minHm3)))}" height="12" rx="2" fill="#c9ced6"/>${med}${act}<text x="${X1 + 22}" y="${cy + 4}" font-size="${FS}" fill="${INK}">${esc(txt)}</text>`;
     }).join('');
     const desc = refs.map((r) => `Módulo ${r.modulo}: ${r.actualHm3 != null ? `${fmt(r.actualHm3, 1)} hm³, ${TXT_POS[r.posicion].replace(/^[▲▼●] /, '').toLowerCase()}` : 'sin dato actual'}`).join('; ');
-    return `<svg viewBox="0 0 ${W} ${refs.length * RH + 8}" width="100%" style="max-width:${W}px;display:block" role="img" aria-label="Ciclo actual contra el rango 2020-2024 por módulo. ${esc(desc)}"><title>Ciclo actual contra el rango 2020-2024 por módulo (escala propia de cada módulo)</title>${rows}</svg>
-<ul class="ley" aria-label="Leyenda"><li><i class="b"></i>Rango 2020-2024</li><li><i class="m"></i>Mediana</li><li><i class="r"></i>Ciclo actual provisional (rombo; hueco = bajo el mínimo)</li></ul>`;
+    return `<svg viewBox="0 0 ${W} ${refs.length * RH + 8}" width="100%" style="max-width:${W}px;display:block" role="img" aria-label="Ciclo actual contra el rango ${RANGO_INFORME} por módulo. ${esc(desc)}"><title>Ciclo actual contra el rango ${RANGO_INFORME} por módulo (escala propia de cada módulo)</title>${rows}</svg>
+<ul class="ley" aria-label="Leyenda"><li><i class="b"></i>Rango ${RANGO_INFORME}</li><li><i class="m"></i>Año típico</li><li><i class="r"></i>Ciclo actual provisional (rombo; hueco = bajo el mínimo)</li></ul>`;
 }
 
 // ───────────────────────── Estilos propios ─────────────────────────
@@ -160,7 +162,8 @@ const nHaz = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno :
 export function construirHtmlVolumenCultivo(d: DatosInformeVolumenCultivo, logos: LogosVC): string {
     const folio = folioVolumenCultivo(d);
     const hash = claveContenidoVC(d);
-    const filas = d.filas;
+    // Un renglón de un año sin ciclo (2025) no es dato: se descarta antes de cualquier cálculo o tabla.
+    const filas = d.filas.filter((f) => !esAnioSinCiclo(f.anio));
     const paginas: { cabecera: string; cuerpo: string }[] = [];
     const corrida = `<div class="run"><span><b>SRL Unidad Conchos</b> · Informe estadístico de consumo por cultivo</span><span>${esc(folio)}</span></div>`;
     const agrega = (cuerpo: string) => paginas.push({ cabecera: corrida, cuerpo });
@@ -188,17 +191,18 @@ export function construirHtmlVolumenCultivo(d: DatosInformeVolumenCultivo, logos
     {
         const haz: string[] = [];
         if (kl.anio != null) {
-            haz.push(`En ${kl.anio}, la lámina bruta media del distrito fue ${kl.laminaMediaCm != null ? `de ${fmt(kl.laminaMediaCm, 0)} cm` : 'S/D'}${kl.cultivoMayor ? `; el cultivo de mayor lámina fue ${kl.cultivoMayor.cultivo} (${fmt(kl.cultivoMayor.laminaCm, 0)} cm)` : ''}.`);
+            haz.push(`En ${kl.anio}, el agua entregada por hectárea en el distrito fue ${kl.laminaMediaCm != null ? `de ${fmt(kl.laminaMediaCm, 0)} cm` : 'S/D'}${kl.cultivoMayor ? `; el cultivo que más agua recibió por hectárea fue ${kl.cultivoMayor.cultivo} (${fmt(kl.cultivoMayor.laminaCm, 0)} cm)` : ''}.`);
         }
-        if (km.pctVolumenAlfalfaNogal != null) haz.push(`Alfalfa y nogal suman ${fmt(km.pctVolumenAlfalfaNogal, 0)} % del volumen de ${anioUlt}.`);
-        if (km.altosVsBajos) haz.push(`La superficie regada de los años ${km.altosVsBajos.altos.join(' y ')} (media ${fmtMiles(km.altosVsBajos.altosHa, 0)} ha) es ${fmt(km.altosVsBajos.veces, 1)} veces la de ${km.altosVsBajos.bajos.join(', ')} (media ${fmtMiles(km.altosVsBajos.bajosHa, 0)} ha). Es una descripción de las cifras del informe: no se explica el porqué.`);
-        if (kc.modulosConDato) haz.push(`Ciclo actual (provisional): ${kc.dentro} de ${kc.modulosTotal} módulos dentro del rango 2020-2024, ${kc.sobre} sobre el máximo y ${kc.bajo} bajo el mínimo${kc.sinDato ? `, ${kc.sinDato} sin dato` : ''}.`);
+        if (km.pctVolumenAlfalfaNogal != null) haz.push(`Alfalfa y nogal suman ${fmt(km.pctVolumenAlfalfaNogal, 0)} % del agua entregada en ${anioUlt}.`);
+        if (km.altosVsBajos) haz.push(`${fraseContrasteSuperficie(km.altosVsBajos)} Superficie media de los años de más superficie: ${fmtMiles(km.altosVsBajos.altosHa, 0)} ha; de los años de menos superficie: ${fmtMiles(km.altosVsBajos.bajosHa, 0)} ha. Es una descripción de las cifras del informe: no se explica el porqué.`);
+        haz.push(NOTA_SIN_CICLO);
+        if (kc.modulosConDato) haz.push(`Ciclo actual (provisional): ${kc.dentro} de ${kc.modulosTotal} módulos dentro del rango ${RANGO_INFORME}, ${kc.sobre} arriba del máximo y ${kc.bajo} debajo del mínimo${kc.sinDato ? `, ${kc.sinDato} sin dato` : ''}.`);
         else haz.push('Ciclo actual: S/D (no se pudo leer el volumen provisional de la hoja SRL; no se estima ni se llena con cero).');
-        if (atipicos.length) haz.push(`${nHaz(atipicos.length, 'celda marcada', 'celdas marcadas')} con ⚠ (lámina lejos de los demás años, superficie menor a ${UMBRAL_HA_MUESTRA} ha o captura atípica en la fuente); se listan en el anexo A y no se corrigen.`);
+        if (atipicos.length) haz.push(`${nHaz(atipicos.length, 'celda', 'celdas')} por revisar, marcadas con ⚠ (cifra lejos de los demás años, superficie menor a ${UMBRAL_HA_MUESTRA} ha o captura atípica en la fuente); se listan en el anexo A y no se corrigen.`);
         const kpiHtml = (et: string, v: string | null, unidad: string, ctx: string, texto = false) =>
             `<div class="kpi${v == null ? ' sd' : ''}"><div class="et">${esc(et)}</div><div class="v${texto ? ' t' : ''}">${v == null ? SD : esc(v)}${v != null && unidad ? `<small>${esc(unidad)}</small>` : ''}</div><div class="s">${ctx}</div></div>`;
         agrega(`<div class="banda"><small>Centro de Inteligencia Agroclimática · SICA 005</small>
-  <h1>Consumo por año, módulo y cultivo <span style="white-space:nowrap">(ACUM_INF 2020-2024)</span></h1>
+  <h1>Consumo por año, módulo y cultivo <span style="white-space:nowrap">(ACUM_INF ${RANGO_INFORME})</span></h1>
   <div class="sub">Distrito de Riego 005 Delicias, Chihuahua · 6 módulos SRL · informe estadístico descriptivo</div></div>
 <div class="datos">
   <div class="dato"><b>Años cubiertos</b><span>${esc(periodo)}</span></div>
@@ -209,19 +213,19 @@ export function construirHtmlVolumenCultivo(d: DatosInformeVolumenCultivo, logos
 <h2><span class="n">${++nSec}</span>Resumen ejecutivo</h2>
 ${sinDatos ? `<div class="aviso"><b>Sin datos:</b> ${d.errorSupVol ? `no se pudo leer el informe ACUM_INF (${esc(d.errorSupVol)}). Esto no significa que no haya datos.` : 'el informe ACUM_INF no tiene renglones cargados.'} Todas las secciones aparecen como S/D.</div>` : ''}
 <div class="kpis tres">
-${kpiHtml(`Lámina media ${kl.anio ?? ''}`.trim(), kl.laminaMediaCm != null ? fmt(kl.laminaMediaCm, 0) : null, 'cm', 'Volumen ÷ superficie, todo el distrito')}
-${kpiHtml('Cultivo de mayor lámina', kl.cultivoMayor?.cultivo ?? null, '', kl.cultivoMayor ? `<b>${fmt(kl.cultivoMayor.laminaCm, 0)} cm</b> en ${kl.anio} (cultivos de ${UMBRAL_HA_MUESTRA} ha o más)` : 'Sin cultivo con superficie suficiente', true)}
-${kpiHtml('Celdas con ⚠', kl.celdas ? String(kl.alertas) : null, kl.celdas ? `de ${kl.celdas}` : '', 'Se muestran, no se corrigen')}
-${kpiHtml('Alfalfa + nogal', km.pctVolumenAlfalfaNogal != null ? fmt(km.pctVolumenAlfalfaNogal, 0) : null, '% del volumen', `${anioUlt ?? 'S/D'}, todo el distrito`)}
-${kpiHtml(`Superficie total ${anioUlt ?? ''}`.trim(), km.superficieTotalHa != null ? fmtMiles(km.superficieTotalHa, 0) : null, 'ha', 'Suma de cultivos del informe ACUM_INF')}
-${kpiHtml('Años altos contra bajos', km.altosVsBajos ? `${fmt(km.altosVsBajos.veces, 1)}×` : null, '', km.altosVsBajos ? `<b>${fmtMiles(km.altosVsBajos.altosHa, 0)} ha</b> (${km.altosVsBajos.altos.join(', ')}) frente a <b>${fmtMiles(km.altosVsBajos.bajosHa, 0)} ha</b> (${km.altosVsBajos.bajos.join(', ')})` : 'Sin contraste claro')}
-${kpiHtml('Módulos dentro del rango', kc.modulosConDato ? `${kc.dentro} de ${kc.modulosTotal}` : null, '', kc.modulosConDato ? `${kc.sobre} sobre el máximo · ${kc.bajo} bajo el mínimo${kc.sinDato ? ` · ${kc.sinDato} S/D` : ''}` : 'Ciclo actual sin dato', true)}
+${kpiHtml(`Agua por hectárea ${kl.anio ?? ''}`.trim(), kl.laminaMediaCm != null ? fmt(kl.laminaMediaCm, 0) : null, 'cm', 'Entregada, no lo que gastó la planta; todo el distrito')}
+${kpiHtml('Cultivo que más agua recibe por hectárea', kl.cultivoMayor?.cultivo ?? null, '', kl.cultivoMayor ? `<b>${fmt(kl.cultivoMayor.laminaCm, 0)} cm</b> en ${kl.anio} (cultivos de ${UMBRAL_HA_MUESTRA} ha o más)` : 'Sin cultivo con superficie suficiente', true)}
+${kpiHtml('Cifras por revisar', kl.celdas ? String(kl.alertas) : null, kl.celdas ? `de ${kl.celdas}` : '', 'Se muestran marcadas, no se corrigen')}
+${kpiHtml('Alfalfa y nogal', km.pctVolumenAlfalfaNogal != null ? fmt(km.pctVolumenAlfalfaNogal, 0) : null, '% del agua entregada', `en ${anioUlt ?? 'S/D'}, todo el distrito`)}
+${kpiHtml(`Superficie regada ${anioUlt ?? ''}`.trim(), km.superficieTotalHa != null ? fmtMiles(km.superficieTotalHa, 0) : null, 'ha', 'Suma de cultivos del informe ACUM_INF')}
+${kpiHtml('Cambio de superficie entre años', cifraContraste(km.altosVsBajos), '', km.altosVsBajos ? `${esc(fraseContrasteSuperficie(km.altosVsBajos) ?? '')} <b>${fmtMiles(km.altosVsBajos.altosHa, 0)} ha</b> contra <b>${fmtMiles(km.altosVsBajos.bajosHa, 0)} ha</b> en promedio.` : 'Sin contraste claro', true)}
+${kpiHtml('Módulos dentro del rango', kc.modulosConDato ? `${kc.dentro} de ${kc.modulosTotal}` : null, '', kc.modulosConDato ? `${kc.sobre} arriba del máximo · ${kc.bajo} debajo del mínimo${kc.sinDato ? ` · ${kc.sinDato} S/D` : ''}` : 'Ciclo actual sin dato', true)}
 ${kpiHtml('Volumen actual (mar–sep)', kc.actualHm3 != null ? fmt(kc.actualHm3, 1) : null, 'hm³ provisional', kc.modulosConDato && kc.modulosConDato < kc.modulosTotal ? `Suma de ${kc.modulosConDato} de ${kc.modulosTotal} módulos con dato` : 'Hoja SRL, sin conciliar con ACUM_INF')}
-${kpiHtml('Contra la mediana', kc.pctVsMediana != null ? `${sg(kc.pctVsMediana, 0)} %` : null, '', kc.medianaHm3 != null ? `Mediana 2020-2024 de esos módulos: <b>${fmt(kc.medianaHm3, 1)} hm³</b>` : 'Sin base de comparación')}
+${kpiHtml(`Frente a un año típico ${RANGO_INFORME}`, kc.pctVsMediana != null ? `${sg(kc.pctVsMediana, 0)} %` : null, '', kc.medianaHm3 != null ? `${esc(lecturaVsTipico(kc.pctVsMediana)?.frase ?? '')} Año típico de esos módulos: <b>${fmt(kc.medianaHm3, 1)} hm³</b>` : 'Sin base de comparación')}
 </div>
-<h3>Hallazgos</h3>
+<h3>Lo que dicen las cifras</h3>
 ${haz.length ? `<ol class="hallazgos">${haz.map((h) => `<li>${esc(h)}</li>`).join('')}</ol>` : '<p class="sd">Sin hallazgos que reportar: no hay datos suficientes.</p>'}
-<div class="aviso frontera"><b>Cómo leer este informe:</b> es lámina bruta entregada (volumen del informe ÷ superficie), no consumo de la planta ni eficiencia. Describe qué dicen las cifras de ACUM_INF; no atribuye causas a los cambios entre años.</div>
+<div class="aviso frontera"><b>Cómo leer este informe:</b> es agua entregada por hectárea (volumen del informe ÷ superficie), no consumo de la planta ni eficiencia. Describe qué dicen las cifras de ACUM_INF; no atribuye causas a los cambios entre años.</div>
 <p class="nota-pie">Dirigido a: CONAGUA · Distrito de Riego 005 · Asociaciones de usuarios. Fuente: informe ACUM_INF de la SRL (corte de septiembre) y hoja SRL provisional para el ciclo actual. Documento generado automáticamente por SICA 005.</p>`);
         paginas[0].cabecera = cabeceraInforme({ logoSrl: logos.srl, logoSica: logos.sica, titulo: 'Distrito de Riego 005', meta });
     }
@@ -237,13 +241,13 @@ ${haz.length ? `<ol class="hallazgos">${haz.map((h) => `<li>${esc(h)}</li>`).joi
         }).join('')}${s.mediaLaminaCm != null ? tdN(fmt(s.mediaLaminaCm, 0)) : tdN(SD)}</tr>`).join('');
         const mat = matrizModuloAnio(filas, MODULOS_INFORME_VC);
         const filasMod = mat.map((m) => `<tr><th scope="row" class="cul">Módulo ${m.modulo}</th>${m.celdas.map((c) => (c.laminaCm == null ? `<td class="n sd">${SD}</td>` : `<td class="n">${fmt(c.laminaCm, 0)}<small>${fmtMiles(c.superficieHa, 0)} ha · ${fmt(c.volumenHm3, 1)} hm³</small></td>`)).join('')}</tr>`).join('');
-        agrega(`<h2 style="margin-top:0"><span class="n">${++nSec}</span>Lámina por cultivo</h2>
+        agrega(`<h2 style="margin-top:0"><span class="n">${++nSec}</span>Agua entregada por hectárea, por cultivo</h2>
 ${series.length ? `<figure class="fig" style="margin:0 0 6px">${svgLaminaMiniaturas(series, anios)}</figure>
-<p class="fuente">Los seis cultivos de mayor volumen, con una sola escala desde cero. Barra hueca = superficie menor a ${UMBRAL_HA_MUESTRA} ha (muestra pequeña). ⚠ = lámina lejos de los demás años, muestra pequeña o captura atípica en la fuente.</p>
-<div class="tabla-wrap"><table class="compacta"><caption>Lámina bruta (cm) = volumen ÷ superficie, todo el distrito (la superficie va debajo de cada cifra)</caption><thead><tr><th>Cultivo</th>${anios.map((a) => `<th class="n">${a}</th>`).join('')}<th class="n">Media</th></tr></thead><tbody>${filasTabla}</tbody></table></div>
-<p class="fuente">La media usa solo los años con superficie de ${UMBRAL_HA_MUESTRA} ha o más. Una lámina se marca como atípica cuando se aleja más de ${Z_ATIPICA} desviaciones de la de los otros años del mismo cultivo (se pide al menos 4 años).</p>
-<div class="tabla-wrap"><table class="compacta"><caption>Lámina media por módulo, todos los cultivos (cm; superficie y volumen debajo)</caption><thead><tr><th>Módulo</th>${anios.map((a) => `<th class="n">${a}</th>`).join('')}</tr></thead><tbody>${filasMod}</tbody></table></div>`
-    : `<div class="aviso"><b>S/D:</b> no hay renglones del informe ACUM_INF para calcular la lámina.</div>`}`);
+<p class="fuente">Los seis cultivos que más agua reciben, con una sola escala desde cero. Barra hueca = superficie menor a ${UMBRAL_HA_MUESTRA} ha (poca superficie). ⚠ = cifra por revisar: lejos de los demás años, poca superficie o captura atípica en la fuente.</p>
+<div class="tabla-wrap"><table class="compacta"><caption>Agua entregada por hectárea (cm) = volumen ÷ superficie, todo el distrito (la superficie va debajo de cada cifra)</caption><thead><tr><th>Cultivo</th>${anios.map((a) => `<th class="n">${a}</th>`).join('')}<th class="n">Promedio</th></tr></thead><tbody>${filasTabla}</tbody></table></div>
+<p class="fuente">${esc(NOTA_SIN_CICLO)} El promedio usa solo los años con superficie de ${UMBRAL_HA_MUESTRA} ha o más. Una cifra se marca como atípica cuando se aleja más de ${Z_ATIPICA} desviaciones de la de los otros años del mismo cultivo (se pide al menos 4 años).</p>
+<div class="tabla-wrap"><table class="compacta"><caption>Agua por hectárea en cada módulo, todos los cultivos (cm; superficie y volumen debajo)</caption><thead><tr><th>Módulo</th>${anios.map((a) => `<th class="n">${a}</th>`).join('')}</tr></thead><tbody>${filasMod}</tbody></table></div>`
+    : `<div class="aviso"><b>S/D:</b> no hay renglones del informe ACUM_INF cargados para calcular el agua por hectárea. Es un dato que falta cargar, no un año sin riego.</div>`}`);
     }
 
     // ── Mezcla y contraste
@@ -251,12 +255,12 @@ ${series.length ? `<figure class="fig" style="margin:0 0 6px">${svgLaminaMiniatu
         const m = anioUlt != null ? mezclaCultivos(filas, null, anioUlt) : [];
         const filasMezcla = m.map((p) => `<tr><th scope="row" class="cul">${esc(p.cultivo)}</th>${tdN(p.superficieHa != null ? fmtMiles(p.superficieHa, 0) : SD)}${tdN(p.pctSuperficie != null ? fmt(p.pctSuperficie, 1) : SD)}${tdN(p.volumenHm3 != null ? fmt(p.volumenHm3, 1) : SD)}${tdN(p.pctVolumen != null ? fmt(p.pctVolumen, 1) : SD)}</tr>`).join('');
         const filasContr = contraste ? contraste.cultivos.slice(0, 8).map((c) => `<tr><th scope="row" class="cul">${esc(c.cultivo)}</th>${tdN(c.pctVolAltos != null ? fmt(c.pctVolAltos, 1) : SD)}${tdN(c.pctVolBajos != null ? fmt(c.pctVolBajos, 1) : SD)}${tdN(c.deltaPp != null ? sg(c.deltaPp, 1) : SD)}</tr>`).join('') : '';
-        agrega(`<h2 style="margin-top:0"><span class="n">${++nSec}</span>Mezcla de cultivos y contraste entre años altos y bajos</h2>
-${anios.length ? `<h3>Participación en el volumen por año</h3><figure class="fig" style="margin:0 0 4px">${svgMezclaApilada(filas, anios)}</figure>` : ''}
-${m.length ? `<div class="tabla-wrap"><table class="compacta"><caption>Peso por cultivo, ${anioUlt}, todo el distrito</caption><thead><tr><th>Cultivo</th><th class="n">Superficie (ha)</th><th class="n">% sup.</th><th class="n">Volumen (hm³)</th><th class="n">% vol.</th></tr></thead><tbody>${filasMezcla}</tbody></table></div>` : `<div class="aviso"><b>S/D:</b> sin renglones para la mezcla.</div>`}
-${contraste ? `<div class="tabla-wrap"><table class="compacta"><caption>Años altos (${contraste.altos.join(', ')}) contra años bajos (${contraste.bajos.join(', ')}): peso de cada cultivo en el volumen</caption><thead><tr><th>Cultivo</th><th class="n">% vol. altos</th><th class="n">% vol. bajos</th><th class="n">Diferencia (pp)</th></tr></thead><tbody>${filasContr}</tbody></table></div>
-<p class="fuente">Los años «altos» y «bajos» se separan por la superficie total regada (punto medio entre el mínimo y el máximo; superficie por año: ${contraste.superficiePorAnio.map((s) => `${s.anio} ${fmtMiles(s.ha, 0)} ha`).join(', ')}). Es una descripción: no dice por qué cambió la superficie.</p>`
-    : '<div class="aviso frontera"><b>Sin contraste claro:</b> se pide al menos 4 años y una superficie máxima 1.5 veces la mínima. No se inventa uno.</div>'}`);
+        agrega(`<h2 style="margin-top:0"><span class="n">${++nSec}</span>Mezcla de cultivos y cambio de superficie entre años</h2>
+${anios.length ? `<h3>Parte del agua que recibe cada cultivo, por año</h3><figure class="fig" style="margin:0 0 4px">${svgMezclaApilada(filas, anios)}</figure><p class="fuente">${esc(NOTA_SIN_CICLO)}</p>` : ''}
+${m.length ? `<div class="tabla-wrap"><table class="compacta"><caption>Peso por cultivo, ${anioUlt}, todo el distrito</caption><thead><tr><th>Cultivo</th><th class="n">Superficie (ha)</th><th class="n">% de la superficie</th><th class="n">Agua (hm³)</th><th class="n">% del agua</th></tr></thead><tbody>${filasMezcla}</tbody></table></div>` : `<div class="aviso"><b>S/D:</b> sin renglones del informe ACUM_INF cargados para la mezcla (dato por cargar, no un año sin riego).</div>`}
+${contraste ? `<div class="tabla-wrap"><table class="compacta"><caption>Años de más superficie (${contraste.altos.join(', ')}) y de menos superficie (${contraste.bajos.join(', ')}): parte del agua que recibió cada cultivo</caption><thead><tr><th>Cultivo</th><th class="n">% del agua, más superficie</th><th class="n">% del agua, menos superficie</th><th class="n">Diferencia (puntos de %)</th></tr></thead><tbody>${filasContr}</tbody></table></div>
+<p class="fuente">Los años de «más superficie» y de «menos superficie» se separan por la superficie total regada (punto medio entre el año con menos y el año con más; superficie por año: ${contraste.superficiePorAnio.map((s) => `${s.anio} ${fmtMiles(s.ha, 0)} ha`).join(', ')}). Es una descripción: no dice por qué cambió la superficie.</p>`
+    : '<div class="aviso frontera"><b>Sin contraste claro entre años:</b> se pide al menos 4 años y que el de más superficie tenga 1.5 veces la del de menos. No se inventa uno.</div>'}`);
     }
 
     // ── Ciclo actual
@@ -265,11 +269,11 @@ ${contraste ? `<div class="tabla-wrap"><table class="compacta"><caption>Años al
         const aviso = d.volumenActual == null
             ? '<div class="aviso"><b>S/D:</b> el volumen provisional del ciclo actual no se cargó al generar el informe. Queda sin dato, no en cero.</div>'
             : d.volumenActual.error ? `<div class="aviso"><b>S/D:</b> no se pudo leer el volumen de la hoja SRL (${esc(d.volumenActual.error)}). El ciclo actual queda sin dato, no en cero.</div>` : '';
-        agrega(`<h2 style="margin-top:0"><span class="n">${++nSec}</span>Ciclo actual contra el rango 2020-2024</h2>
+        agrega(`<h2 style="margin-top:0"><span class="n">${++nSec}</span>Ciclo actual contra el rango ${RANGO_INFORME}</h2>
 ${aviso}<figure class="fig" style="margin:0 0 4px">${svgRangoCiclo(refs)}</figure>
-<div class="tabla-wrap"><table class="compacta"><caption>Volumen entregado mar–sep por módulo (hm³): ciclo actual provisional contra 2020-2024</caption><thead><tr><th>Módulo</th><th class="n">Mín.</th><th class="n">Mediana</th><th class="n">Máx.</th><th class="n">Actual</th><th class="n">vs mediana</th><th>Lectura</th></tr></thead><tbody>${filasCiclo}</tbody></table></div>
-<p class="fuente">La hoja SRL no desglosa por cultivo: la comparación es solo por módulo. ⚠ = faltan meses de la ventana mar–sep o alguno es parcial; ese volumen no es comparable con un año completo. Con 5 años el rango es una referencia, no un intervalo estadístico.</p>
-<div class="aviso"><b>Fuentes distintas:</b> 2020-2024 sale de ACUM_INF (corte de septiembre) y el ciclo actual de la hoja SRL, provisional. Ambas no están conciliadas; una diferencia entre ellas puede ser de método y no del agua entregada.</div>`);
+<div class="tabla-wrap"><table class="compacta"><caption>Agua entregada de marzo a septiembre por módulo (hm³): ciclo actual provisional contra ${RANGO_INFORME}</caption><thead><tr><th>Módulo</th><th class="n">Mínimo</th><th class="n">Año típico</th><th class="n">Máximo</th><th class="n">Actual</th><th class="n">Frente al año típico</th><th>Lectura</th></tr></thead><tbody>${filasCiclo}</tbody></table></div>
+<p class="fuente">La hoja SRL no desglosa por cultivo: la comparación es solo por módulo. ⚠ = faltan meses de la ventana mar–sep o alguno es parcial; ese volumen no es comparable con un año completo. Con 5 años el rango es una referencia, no un intervalo estadístico. ${esc(NOTA_SIN_CICLO)}</p>
+<div class="aviso"><b>Fuentes distintas:</b> ${RANGO_INFORME} sale de ACUM_INF (corte de septiembre) y el ciclo actual de la hoja SRL, provisional. Ambas no están conciliadas; una diferencia entre ellas puede ser de método y no del agua entregada.</div>`);
     }
 
     // ── Anexo A: atípicos
@@ -277,7 +281,7 @@ ${aviso}<figure class="fig" style="margin:0 0 4px">${svgRangoCiclo(refs)}</figur
         const f = atipicos.map((a) => `<tr><th scope="row" class="cul">${esc(a.cultivo)}</th><td class="n">${a.anio}</td>${tdN(a.laminaCm != null ? fmt(a.laminaCm, 0) : SD)}${tdN(a.superficieHa != null ? fmtMiles(a.superficieHa, 0) : SD)}<td>${esc(a.motivos.join('; '))}</td></tr>`).join('');
         agrega(`<h2 style="margin-top:0">Anexo ${letra()} — Celdas y renglones atípicos</h2>
 <p>Se muestran tal como vienen en la fuente; ninguna cifra se corrige, se omite ni se sustituye. La fuente marca ${nHaz(renglonesAtipicosFuente, 'renglón', 'renglones')} de ${fmtMiles(filas.length, 0)} como captura atípica.</p>
-${atipicos.length ? `<div class="tabla-wrap"><table class="compacta"><caption>Celdas cultivo-año con ⚠ (${atipicos.length})</caption><thead><tr><th>Cultivo</th><th class="n">Año</th><th class="n">Lámina (cm)</th><th class="n">Superficie (ha)</th><th>Motivo</th></tr></thead><tbody>${f}</tbody></table></div>` : '<div class="aviso ok">Ninguna celda cultivo-año cumple los criterios de alerta.</div>'}`);
+${atipicos.length ? `<div class="tabla-wrap"><table class="compacta"><caption>Celdas cultivo-año con ⚠ (${atipicos.length})</caption><thead><tr><th>Cultivo</th><th class="n">Año</th><th class="n">Agua por hectárea (cm)</th><th class="n">Superficie (ha)</th><th>Motivo</th></tr></thead><tbody>${f}</tbody></table></div>` : '<div class="aviso ok">Ninguna celda cultivo-año cumple los criterios de alerta.</div>'}`);
     }
 
     // ── Anexo B: notas de fuente, método y trazabilidad
@@ -295,20 +299,21 @@ ${atipicos.length ? `<div class="tabla-wrap"><table class="compacta"><caption>Ce
         ]);
         agrega(`<h2 style="margin-top:0">Anexo ${letra()} — Notas de fuente, método y trazabilidad</h2>
 <div class="cols3"><div><h3>Fuente</h3><ul style="margin:0;padding-left:14px">
-<li><b>ACUM_INF 2020-2024:</b> informe anual de la SRL con superficie y volumen por módulo y cultivo, con corte de septiembre.</li>
+<li><b>ACUM_INF ${RANGO_INFORME}:</b> informe anual de la SRL con superficie y volumen por módulo y cultivo, con corte de septiembre.</li>
 <li><b>2026 (ciclo actual):</b> hoja SRL, provisional y no conciliada con ACUM_INF.</li>
+<li><b>${ANIOS_SIN_CICLO.join(', ')}:</b> sin ciclo de riego (las presas no se abrieron); no es un dato faltante.</li>
 <li><b>Año calendario:</b> se asume que cada año del informe es el año calendario de su corte; la fuente no lo declara por renglón.</li>
 <li>Los módulos son 1, 2, 3, 4, 5 y 12; el distrito es su suma.</li></ul></div>
 <div><h3>Método</h3>
-<p>Lámina bruta (cm) = volumen (miles de m³) ÷ superficie (ha) × 10.</p>
-<p>Años «altos» y «bajos»: punto medio entre la superficie total mínima y máxima, solo si el máximo es al menos 1.5 veces el mínimo y hay 4 años o más.</p>
-<p>Ciclo actual: suma de mar–sep por módulo contra el mínimo, la mediana y el máximo de 2020-2024.</p>
+<p>Agua entregada por hectárea (cm) = volumen (miles de m³) ÷ superficie (ha) × 10.</p>
+<p>Años de «más superficie» y de «menos superficie»: punto medio entre la superficie total mínima y máxima, solo si el máximo es al menos 1.5 veces el mínimo y hay 4 años o más.</p>
+<p>Ciclo actual: suma de mar–sep por módulo contra el mínimo, el año típico (la mediana) y el máximo de ${RANGO_INFORME}.</p>
 <p>Un dato faltante es S/D; nunca se muestra como 0.</p></div>
 <div><h3>Límites</h3><ul style="margin:0;padding-left:14px">
 <li>Descriptivo: no atribuye causas a los cambios entre años.</li>
-<li>Es lámina entregada, no consumo de la planta ni eficiencia de riego.</li>
+<li>Es agua entregada por hectárea, no consumo de la planta ni eficiencia de riego.</li>
 <li>Con 5 años no hay inferencia estadística; el rango es una referencia.</li>
-<li>La lámina de un cultivo con menos de ${UMBRAL_HA_MUESTRA} ha es poco representativa y se marca.</li></ul></div></div>
+<li>La cifra de un cultivo con menos de ${UMBRAL_HA_MUESTRA} ha es poco representativa y se marca.</li></ul></div></div>
 <h3>Trazabilidad</h3>${traza}
 <h3>Firmas</h3>${bloqueFirmas({ nombres: { Elaboró: d.emisor } })}`);
     }

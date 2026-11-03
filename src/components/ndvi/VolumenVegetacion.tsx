@@ -6,11 +6,12 @@ import { UMBRAL_SIN_CAMBIO, cruceAnual, type FilaNdviV2, type FilaSupVol } from 
 import {
     ANIO_ACTUAL, escalaEje, fraseActual, fraseRelacion, lecturaGeneral, relacionVolumenNdvi, type RelacionVolNdvi, type VolumenActual,
 } from '../../utils/ndviVolumen';
+import { RANGO_INFORME, TEXTO_SIN_CICLO } from '../../utils/estadoAnio';
 import { VolumenCultivos, type VistaCultivo } from './VolumenCultivos';
 import './VolumenVegetacion.css';
 
 const MODULOS = [1, 2, 3, 4, 5, 12];
-const VISTAS: ['ndvi' | VistaCultivo, string][] = [['ndvi', 'Agua y NDVI'], ['lamina', 'Lámina por cultivo'], ['mezcla', 'Mezcla de cultivos'], ['ciclo', 'Ciclo actual']];
+const VISTAS: ['ndvi' | VistaCultivo, string][] = [['ndvi', 'Agua y NDVI'], ['lamina', 'Agua por hectárea'], ['mezcla', 'Mezcla de cultivos'], ['ciclo', 'Ciclo actual']];
 
 /** Contorno de cada símbolo del módulo (centro 0,0; «s» = radio). La forma, no el color, identifica al módulo. */
 function trazoSimbolo(forma: string | undefined, s: number): string {
@@ -226,7 +227,8 @@ export const VolumenVegetacion: React.FC<{
         const punto = relSel.puntos.find(p => p.anio === anio) ?? null;
         let lectura: React.ReactNode;
         if (anio === ANIO_ACTUAL) lectura = relSel.actual ? fraseActual(relSel).replace(/^\d{4}: /, '') : (relSel.motivoSinActual ?? 'Sin dato (S/D).');
-        else if (!punto) lectura = c.volumenHm3 == null ? 'Sin informe ACUM_INF' : c.mediaNdvi == null ? 'Sin NDVI (la serie de satélite inicia en 2021)' : 'Temporada de NDVI incompleta: fuera del ajuste';
+        else if (c.sinCiclo) lectura = 'Sin ciclo: presas cerradas. Su NDVI es de toda la frontera del módulo y no mide riego de presa.';
+        else if (!punto) lectura = c.volumenHm3 == null ? 'Informe ACUM_INF no cargado para este año (S/D)' : c.mediaNdvi == null ? 'Sin NDVI (la serie de satélite inicia en 2021)' : 'Temporada de NDVI incompleta: fuera del ajuste';
         else if (relSel.estado === 'acompaña' && relSel.pendiente != null && relSel.intercepto != null) {
             const d = punto.ndviMedio - (relSel.intercepto + relSel.pendiente * punto.volumenHm3);
             lectura = Math.abs(d) < UMBRAL_SIN_CAMBIO / 2 ? 'En la recta' : `${sg(d, 3)} ${d > 0 ? 'sobre' : 'bajo'} la recta`;
@@ -282,12 +284,14 @@ export const VolumenVegetacion: React.FC<{
                             const vol = actual ? relSel.actual?.volumenHm3 ?? null : c.volumenHm3;
                             const ndviMedio = actual ? relSel.actual?.ndviMedio ?? c.mediaNdvi : punto?.ndviMedio ?? c.mediaNdvi;
                             const sd = <span className="ndvi-ia-sd">S/D</span>;
+                            const sinCiclo = c.sinCiclo;
+                            const celdaSC = <span className="vc-sc" title={TEXTO_SIN_CICLO}>Sin ciclo</span>;
                             return (
                                 <tr key={anio}>
                                     <th scope="row">{anio}</th>
-                                    <td>{c.superficieHa != null && !actual ? fmtMiles(c.superficieHa, 0) : sd}</td>
-                                    <td>{vol != null ? <>{fmt(vol, 1)}{actual && <span className="vv-prov"> provisional</span>}</> : sd}</td>
-                                    <td>{ndviMedio != null ? fmt(ndviMedio, 3) : sd}</td>
+                                    <td>{sinCiclo ? celdaSC : c.superficieHa != null && !actual ? fmtMiles(c.superficieHa, 0) : sd}</td>
+                                    <td>{sinCiclo ? celdaSC : vol != null ? <>{fmt(vol, 1)}{actual && <span className="vv-prov"> provisional</span>}</> : sd}</td>
+                                    <td>{ndviMedio != null ? <>{fmt(ndviMedio, 3)}{sinCiclo && <small className="vc-sc-nota"> sin riego de presa</small>}</> : sd}</td>
                                     <td className="vv-lect">{lectura}{atipico && <span className="vv-warn"> ⚠ captura atípica en el informe fuente</span>}</td>
                                 </tr>
                             );
@@ -297,10 +301,11 @@ export const VolumenVegetacion: React.FC<{
             </div>
 
             <p className="ndvi-nota vv-comparabilidad">
-                <b>Cómo leerlo.</b> Es una comparación descriptiva entre años, no una relación de causa y efecto: la superficie sembrada explica buena parte del volumen
+                <b>Cómo leerlo.</b> Es una comparación descriptiva entre años, no una relación de causa y efecto: la superficie sembrada va de la mano del volumen
                 (más agua suele ir con más hectáreas) y no se puede separar de él. El NDVI es el de la frontera completa del módulo (incluye caminos, canales y suelo sin riego).
-                Los años 2021–2024 salen del informe ACUM_INF de septiembre; {ANIO_ACTUAL} sale de la hoja SRL, provisional, y ambas fuentes no están conciliadas.
-                No hay informe de 2025 ni NDVI de 2020: se muestran como S/D, no como cero.
+                Los años con informe ({RANGO_INFORME}) salen del informe ACUM_INF de septiembre; {ANIO_ACTUAL} sale de la hoja SRL, provisional, y ambas fuentes no están conciliadas.
+                2025 es un año sin ciclo: las presas no se abrieron, así que no tiene volumen ni superficie (no es dato faltante) y no entra al ajuste; su NDVI es de la frontera completa del módulo y no mide riego de presa.
+                El NDVI de 2020 no existe (la serie de satélite inicia en 2021) y aparece como S/D. Con solo {relSel.n} años la recta es una referencia, no una prueba.
             </p>
         </div>
     );

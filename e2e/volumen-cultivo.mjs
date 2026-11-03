@@ -1,4 +1,4 @@
-// Auditoría de SOLO LECTURA de «Consumo por cultivo» (ACUM_INF 2020-2024): las 3 vistas del panel «Más agua, más vegetación» (GEO-MONITOR ·
+// Auditoría de SOLO LECTURA de «Consumo por cultivo» (ACUM_INF 2020-2024; iter4+: lectura simple, 2025 = sin ciclo): las 3 vistas del panel «Más agua, más vegetación» (GEO-MONITOR ·
 // NDVI mensual por módulo) y el informe estadístico descargado desde el modal de informes NDVI.
 //   node e2e/volumen-cultivo.mjs <iteracion>        (con `npm run dev` en :5173)
 // Perfiles: Chromium 430 / 820 / 1440 y WebKit iPhone 15 Pro Max + iPad Pro 11. Detecta desborde horizontal, solapes entre piezas de las tarjetas KPI,
@@ -39,7 +39,7 @@ const laminaDistrito = (() => { const r = sv.filter((x) => x.anio === ULT && x.s
 const celdasCultivo = (() => {
   const out = [];
   for (const c of [...new Set(sv.map((x) => x.cultivo))]) {
-    const cel = ANIOS.map((a) => { const r = sv.filter((x) => x.cultivo === c && x.anio === a); if (!r.length) return null; const ha = suma(r.map((x) => x.superficie_ha)), mi = suma(r.map((x) => x.volumen_miles_m3)); return { c, a, ha, lam: ha > 0 && mi != null ? (mi / ha) * 10 : null, fuente: r.some((x) => x.atipico) }; }).filter(Boolean);
+    const cel = ANIOS.map((a) => { const r = sv.filter((x) => x.cultivo === c && x.anio === a); if (!r.length) return null; const ha = suma(r.map((x) => x.superficie_ha)), mi = suma(r.map((x) => x.volumen_miles_m3)); const cero = mi === 0 && ha > 0; return { c, a, ha, cero, lam: ha > 0 && mi != null && !cero ? (mi / ha) * 10 : null, fuente: r.some((x) => x.atipico) }; }).filter(Boolean);
     const firmes = cel.filter((x) => (x.ha ?? 0) >= 50 && x.lam != null).map((x) => x.lam);
     let media = null, desv = null; if (firmes.length >= 2) { media = suma(firmes) / firmes.length; desv = Math.sqrt(firmes.reduce((p, q) => p + (q - media) ** 2, 0) / (firmes.length - 1)); }
     for (const x of cel) { x.chica = (x.ha ?? 0) < 50; x.lejos = media != null && desv > 0 && firmes.length >= 4 && !x.chica && x.lam != null && Math.abs(x.lam - media) / desv > 1.5; }
@@ -48,8 +48,8 @@ const celdasCultivo = (() => {
   return out;
 })();
 const mayor = (() => { let b = null; for (const x of celdasCultivo.filter((y) => y.a === ULT && !y.chica && y.lam != null)) if (!b || x.lam > b.lam) b = x; return b; })();
-const alertas = celdasCultivo.filter((x) => x.lam != null && (x.lejos || x.chica || x.fuente)).length;
-const celdasLam = celdasCultivo.filter((x) => x.lam != null).length;
+const alertas = celdasCultivo.filter((x) => (x.lam != null || x.cero) && (x.lejos || x.chica || x.fuente || x.cero)).length;
+const celdasLam = celdasCultivo.filter((x) => x.lam != null || x.cero).length;
 const pctAN = (() => { const r = sv.filter((x) => x.anio === ULT); const t = suma(r.map((x) => x.volumen_miles_m3)); const an = suma(r.filter((x) => /^(alfalfa|nogal)/i.test(x.cultivo)).map((x) => x.volumen_miles_m3)); return (an / t) * 100; })();
 const supTot = (a) => suma(sv.filter((x) => x.anio === a).map((x) => x.superficie_ha));
 const veces = (() => { const s = ANIOS.map((a) => ({ a, ha: supTot(a) })); const mn = Math.min(...s.map((x) => x.ha)), mx = Math.max(...s.map((x) => x.ha)); const corte = (mn + mx) / 2; const alt = s.filter((x) => x.ha >= corte), baj = s.filter((x) => x.ha < corte); return { veces: suma(alt.map((x) => x.ha)) / alt.length / (suma(baj.map((x) => x.ha)) / baj.length), altos: alt.map((x) => x.a), bajos: baj.map((x) => x.a) }; })();
@@ -65,6 +65,8 @@ const ciclo = (() => {
   }
   return { dentro, sobre, bajo, n, act, med, pct: n ? ((act - med) / med) * 100 : null };
 })();
+const act26 = suma(MODULOS.map((m) => vol26(m)).filter((x) => x != null));
+const lista = (a) => (a.length <= 1 ? a.join('') : `${a.slice(0, -1).join(', ')} y ${a[a.length - 1]}`);
 const num = (t) => Number(String(t).replace(/[^\d.\-−]/g, '').replace('−', '-'));
 
 const PERFILES = [
@@ -86,6 +88,19 @@ async function abrirPanel(page) {
   await page.getByRole('button', { name: /Ver NDVI mensual por módulo/ }).click({ timeout: 20000 });
   await page.waitForSelector('.ndvi-gr .ndvi-gr-echarts canvas', { timeout: 30000 });
   await page.waitForTimeout(2200);
+}
+
+
+// El panel vive dentro de un modal con scroll: para ver TODO el panel se agranda el viewport un momento y se restituye.
+async function captura(page, ruta) {
+  const vp = page.viewportSize();
+  try {
+    await page.setViewportSize({ width: vp.width, height: 4200 });
+    await page.waitForTimeout(350);
+    await page.locator('.vv').screenshot({ path: ruta });
+  } catch { /* la captura no es un criterio de aprobación */ }
+  await page.setViewportSize(vp).catch(() => {});
+  await page.waitForTimeout(250);
 }
 
 // ── medidores dentro de la página ──
@@ -115,7 +130,7 @@ const SOLAPES = `(() => {
   for (let i = 0; i < ts.length; i++) for (let j = i + 1; j < ts.length; j++) if (inter(ts[i], ts[j])) malos.push('tarjetas KPI solapadas');
   return malos;
 })()`;
-const OBJETIVOS = `(() => [...document.querySelectorAll('.vv-vistas button, .vc-sel select')].map((e) => { const b = e.getBoundingClientRect(); return { t: (e.textContent || e.value || e.tagName).trim().slice(0, 24), w: Math.round(b.width), h: Math.round(b.height) }; }).filter((x) => x.h < 35.5 || x.w < 35.5))()`;
+const OBJETIVOS = `(() => [...document.querySelectorAll('.vv-vistas button, .vc-seg-btn, .vc-detalle > summary, .vv select')].map((e) => { const b = e.getBoundingClientRect(); return { t: (e.textContent || e.value || e.tagName).trim().slice(0, 24), w: Math.round(b.width), h: Math.round(b.height) }; }).filter((x) => x.h < 35.5 || x.w < 35.5))()`;
 const MALOS_TXT = ['NaN', 'undefined', 'Infinity', '[object Object]'];
 const hayNull = (t) => /(^|[^a-záéíóúñ])null([^a-záéíóúñ]|$)/.test(t);
 
@@ -135,7 +150,9 @@ async function revisar(page, D, raiz, r, minPx = 10.95) {
 }
 
 // ═════════════ 1) Vistas del panel por perfil ═════════════
-const VISTAS = [['lamina', 'Lámina por cultivo'], ['mezcla', 'Mezcla de cultivos'], ['ciclo', 'Ciclo actual']];
+const VISTAS = [['lamina', 'Agua por hectárea'], ['mezcla', 'Mezcla de cultivos'], ['ciclo', 'Ciclo actual']];
+const JERGA = /\d\.\d\s?×|\bpp\b|\brazón\b|lámina bruta|\bmediana\b|Diferencia \(pp\)|\baltos\b|\bbajos\b/i;
+const abreDetalles = (page) => page.evaluate(() => document.querySelectorAll('.vv details').forEach((d) => { d.open = true; }));
 let htmlInforme = null;
 for (const P of PERFILES) {
   const browser = await P.motor.launch();
@@ -147,6 +164,18 @@ for (const P of PERFILES) {
   try {
     await abrirPanel(page);
     await page.waitForSelector('.vv-vistas', { timeout: 30000 });
+    {
+      const D = `agua y ndvi ${P.id}`;
+      const fila = await page.locator('.vv-tabla tbody tr', { has: page.locator('th', { hasText: /^2025$/ }) }).first().innerText().catch(() => '');
+      if (!/Sin ciclo/.test(fila)) hallazgo('alto', D, `la fila 2025 no dice «Sin ciclo»: "${fila.replace(/\s+/g, ' ')}"`);
+      if (/S\/D/.test(fila)) hallazgo('alto', D, `la fila 2025 trae S/D: "${fila.replace(/\s+/g, ' ')}"`);
+      if (/sin riego de presa/.test(fila) === false) hallazgo('medio', D, 'el NDVI de 2025 no está rotulado «sin riego de presa»');
+      const f20 = await page.locator('.vv-tabla tbody tr', { has: page.locator('th', { hasText: /^2020$/ }) }).first().innerText().catch(() => '');
+      if (!/S\/D/.test(f20)) hallazgo('medio', D, 'el NDVI de 2020 (faltante real) debería seguir como S/D');
+      const nota = await page.locator('.vv-comparabilidad').innerText().catch(() => '');
+      if (/No hay informe de 2025/.test(nota) || !/sin ciclo/i.test(nota)) hallazgo('alto', D, 'la nota de comparabilidad no trata 2025 como sin ciclo');
+      await captura(page, `${OUT}${P.id}_aguaNdvi.png`);
+    }
     for (const [id, nombre] of VISTAS) {
       const D = `vistas ${P.id} ${id}`;
       await page.locator('.vv-vistas').scrollIntoViewIfNeeded();
@@ -156,8 +185,18 @@ for (const P of PERFILES) {
       await page.waitForTimeout(900);
       const k = await page.locator('.vc-kpi').count();
       if (k !== 3) hallazgo('alto', D, `${k} tarjetas KPI (esperadas 3)`);
+      const sinFrase = await page.locator('.vc-kpi').evaluateAll((els) => els.filter((e) => (e.querySelector('.vc-kpi-ctx')?.textContent ?? '').trim().length < 20 || !e.querySelector('.vc-estado svg') || !(e.querySelector('.vc-estado')?.textContent ?? '').trim()).length);
+      if (sinFrase) hallazgo('alto', D, `${sinFrase} tarjetas KPI sin frase de lectura o sin estado con ícono y texto`);
       const txt = await revisar(page, D, '.vv', r);
       r[id] = {};
+      if (await page.locator('.vv select').count()) hallazgo('alto', D, 'quedó un <select> nativo en el panel');
+      if (id !== 'ciclo' && !(await page.locator('.vc-seg-btn').count())) hallazgo('alto', D, 'no hay botones segmentados');
+      await abreDetalles(page); await page.waitForTimeout(150);
+      const txtTodo = await page.locator('.vv').innerText();
+      const jerga = txtTodo.match(JERGA);
+      if (jerga) hallazgo('alto', D, `jerga prohibida: «${jerga[0]}»`);
+      if (/por eso|explica\b|debido a|gracias a|a causa de/i.test(txtTodo.replace(/no explica|Describe, no explica/gi, ''))) hallazgo('alto', D, 'lenguaje causal');
+      await page.evaluate(() => document.querySelectorAll('.vv details').forEach((d) => { d.open = false; }));
       const cifras = await page.locator('.vc-kpi-cifra').allInnerTexts();
       const ctx = await page.locator('.vc-kpi-ctx').allInnerTexts();
       r[id].kpi = cifras;
@@ -166,35 +205,82 @@ for (const P of PERFILES) {
         cifra(`${P.id} lámina media ${ULT} (cm)`, Math.round(laminaDistrito), num(cifras[0]));
         cifra(`${P.id} cultivo de mayor lámina`, mayor.c, cifras[1].trim());
         cifra(`${P.id} lámina del cultivo mayor (cm)`, Math.round(mayor.lam), num(ctx[1].match(/(\d+)\s*cm/)?.[1]));
-        cifra(`${P.id} celdas con alerta`, alertas, num(cifras[2].split(/\s/)[0]));
-        cifra(`${P.id} celdas con lámina`, celdasLam, num(cifras[2].replace(/^\S+\s*(de)?/, '')));
-        // lámina de alfalfa del último año: celda de la tabla = BD
+        cifra(`${P.id} cifras por revisar`, alertas, num(cifras[2].split(/\s/)[0]));
+        cifra(`${P.id} cifras con dato (denominador)`, celdasLam, num(cifras[2].replace(/^\S+\s*(de)?/, '')));
+        if (!/^Agua por hectárea en \d{4}/.test(await page.locator('.vc-kpi-et').first().innerText())) hallazgo('medio', D, 'la primera tarjeta no se titula «Agua por hectárea en AAAA»');
+        // lámina de alfalfa del último año: celda de la tabla de detalle (plegada) = BD
+        await abreDetalles(page);
         const alf = celdasCultivo.find((x) => x.c === 'Alfalfa' && x.a === ULT);
         const fila = page.locator('.vc-tabla tbody tr', { has: page.locator('th', { hasText: /^Alfalfa$/ }) }).first();
         const tdUlt = await fila.locator('td').nth(ANIOS.length - 1).innerText();
         cifra(`${P.id} lámina alfalfa ${ULT} (cm)`, Math.round(alf.lam), num(tdUlt.split('\n')[0]));
-        const minis = await page.locator('.vc-mini').count();
-        if (!minis) hallazgo('medio', D, 'no hay mini-barras en la tabla');
+        // columna 2025 de la tabla: «Sin ciclo» en todas las filas, nunca S/D ni 0
+        const idx25 = await page.locator('.vc-tabla thead th').allInnerTexts().then((h) => h.indexOf('2025'));
+        const col25 = await page.locator('.vc-tabla tbody tr').evaluateAll((trs, i) => trs.map((tr) => tr.children[i]?.textContent.trim()), idx25);
+        if (idx25 < 0 || !col25.length || col25.some((t) => t !== 'Sin ciclo')) hallazgo('alto', D, `columna 2025 de la tabla: ${JSON.stringify([...new Set(col25)])} (esperado solo «Sin ciclo»)`);
+        await page.evaluate(() => document.querySelectorAll('.vv details').forEach((d) => { d.open = false; }));
+        const puntos = await page.locator('.vc-track[role=img]').count();
+        if (puntos < 3) hallazgo('alto', D, `solo ${puntos} filas de puntos con banda`);
+        const sinAriaP = await page.locator('.vc-track[role=img]').evaluateAll((els) => els.filter((e) => !e.getAttribute('aria-label')).length);
+        if (sinAriaP) hallazgo('alto', D, `${sinAriaP} filas de puntos sin aria-label`);
       } else if (id === 'mezcla') {
         cifra(`${P.id} % alfalfa+nogal ${ULT}`, Math.round(pctAN), num(cifras[0]));
         cifra(`${P.id} superficie total ${ULT} (ha)`, Math.round(supTot(ULT)), num(cifras[1]));
-        cifra(`${P.id} veces altos/bajos`, veces.veces.toFixed(1), num(cifras[2]).toFixed(1));
-        if (!ctx[2].includes(veces.altos.join(', ')) || !ctx[2].includes(veces.bajos.join(', '))) hallazgo('alto', D, `años altos/bajos en la tarjeta: ${ctx[2]} vs BD ${veces.altos}/${veces.bajos}`);
+        const fraseBD = `En ${lista(veces.altos)} se regó`, finBD = `que en ${lista(veces.bajos)}.`;
+        if (!ctx[2].startsWith(fraseBD) || !ctx[2].trim().endsWith(finBD)) hallazgo('alto', D, `frase de superficie: «${ctx[2]}» vs BD «${fraseBD} … ${finBD}»`);
+        const cuant = veces.veces >= 2.15 ? 'Más del doble' : veces.veces >= 1.85 ? 'El doble' : veces.veces >= 1.6 ? 'Casi el doble' : `${veces.veces.toFixed(1)} veces`;
+        cifra(`${P.id} cifra de superficie (de ${veces.veces.toFixed(2)}x)`, cuant, cifras[2].trim());
+        // barras de participación: top 5 + otros, ordenadas, con %
+        const pcts = await page.locator('.vc-part').first().locator('li .vc-part-val b').allInnerTexts();
+        const nums = pcts.map(num);
+        if (pcts.length < 2 || pcts.length > 6) hallazgo('alto', D, `barras de participación: ${pcts.length} renglones (esperado 2 a 6)`);
+        const sinOtros = nums.slice(0, 5);
+        if (sinOtros.some((v, i) => i > 0 && v > sinOtros[i - 1])) hallazgo('alto', D, `barras de agua no ordenadas: ${nums}`);
+        const sumaP = nums.reduce((a, b) => a + b, 0);
+        if (Math.abs(sumaP - 100) > 3) hallazgo('alto', D, `las barras de agua suman ${sumaP} % (esperado ≈100)`);
+        // el cultivo líder y su % contra la BD
+        const rowsAnio = sv.filter((x) => x.anio === ULT);
+        const porCult = {}; for (const x of rowsAnio) porCult[x.cultivo] = (porCult[x.cultivo] ?? 0) + (x.volumen_miles_m3 ?? 0);
+        const totV = suma(Object.values(porCult)); const lider = Object.entries(porCult).sort((a, b) => b[1] - a[1])[0];
+        cifra(`${P.id} cultivo que más agua recibe ${ULT}`, lider[0], (await page.locator('.vc-part').first().locator('li .vc-part-nom').first().innerText()).trim());
+        cifra(`${P.id} % del líder`, Math.round((lider[1] / totV) * 100), nums[0]);
+        // 2025: tarjeta de explicación, sin S/D ni cero
+        await page.getByRole('group', { name: 'Año' }).getByRole('button', { name: /2025/ }).click();
+        await page.waitForTimeout(400);
+        const t25 = await page.locator('.vv').innerText();
+        if (!(await page.locator('.vc-sinciclo').count())) hallazgo('alto', D, 'al elegir 2025 no aparece la tarjeta «sin ciclo»');
+        if (!/2025: sin ciclo de riego/.test(t25) || !/No es un dato faltante/.test(t25)) hallazgo('alto', D, 'la tarjeta de 2025 no explica que no hubo ciclo');
+        if (/S\/D/.test(t25)) hallazgo('alto', D, '2025 aparece con S/D');
+        if (!/Sin ciclo/.test(await page.locator('.vc-col.sin-ciclo').first().innerText().catch(() => ''))) hallazgo('alto', D, 'la barra de 2025 no es un hueco rotulado «Sin ciclo»');
+        if (await page.locator('.vc-kpi').count()) hallazgo('medio', D, 'con 2025 elegido no deben mostrarse tarjetas KPI');
+        await captura(page, `${OUT}${P.id}_mezcla2025.png`);
+        await page.getByRole('group', { name: 'Año' }).getByRole('button', { name: '2024', exact: true }).click();
+        await page.waitForTimeout(300);
       } else {
         await page.waitForTimeout(800);
         const hayVol = ciclo.n > 0;
         if (hayVol) {
-          cifra(`${P.id} módulos dentro/sobre/bajo`, `${ciclo.dentro}/${ciclo.sobre}/${ciclo.bajo}`, (await page.locator('.vc-pos b').allInnerTexts()).slice(0, 3).join('/'));
-          cifra(`${P.id} módulos comparados`, ciclo.n, num(cifras[0].split(' ')[0]) + num(0));
-          cifra(`${P.id} volumen actual (hm³)`, ciclo.act.toFixed(1), num(cifras[1]).toFixed(1));
-          cifra(`${P.id} % vs mediana`, Math.round(ciclo.pct), num(cifras[2]));
+          const chips = await page.locator('.vc-mod .vc-chip').allInnerTexts();
+          const cuenta = (re) => chips.filter((t) => re.test(t)).length;
+          cifra(`${P.id} módulos dentro/arriba/debajo`, `${ciclo.dentro}/${ciclo.sobre}/${ciclo.bajo}`, `${cuenta(/Dentro del rango/)}/${cuenta(/Arriba del rango/)}/${cuenta(/Debajo del rango/)}`);
+          cifra(`${P.id} módulos dentro del rango`, ciclo.dentro, num(cifras[2].split(' ')[0]));
+          cifra(`${P.id} de cuántos módulos (denominador)`, MODULOS.length, num(cifras[2].split(' ').pop()));
+          cifra(`${P.id} volumen 2026 mar–sep (hm³)`, act26.toFixed(1), num(cifras[0]).toFixed(1));
+          cifra(`${P.id} volumen 2026 = 221.2 hm³ (cifra de la hoja SRL)`, '221.2', num(cifras[0]).toFixed(1));
+          cifra(`${P.id} % frente a un año típico`, Math.round(Math.abs(ciclo.pct)), num(cifras[1]));
+          cifra(`${P.id} menos/más`, ciclo.pct < 0 ? 'menos' : 'más', /menos/.test(cifras[1]) ? 'menos' : /más/.test(cifras[1]) ? 'más' : '?');
+          if (!/2025 no cuenta/.test(ctx[1])) hallazgo('alto', D, 'la tarjeta del año típico no aclara que 2025 no cuenta');
         }
+        const hueco = await page.locator('.vc-col.sin-ciclo').first().innerText().catch(() => '');
+        if (!/Sin ciclo/.test(hueco) || !/presas cerradas/.test(hueco)) hallazgo('alto', D, `el hueco de 2025 no está rotulado «Sin ciclo / presas cerradas»: "${hueco}"`);
+        if (await page.locator('.vc-col.provisional').count() !== 1) hallazgo('alto', D, 'falta la barra provisional de 2026');
+        if (await page.locator('.vc-col.con-informe').count() !== ANIOS.length) hallazgo('alto', D, `barras con informe: ${await page.locator('.vc-col.con-informe').count()} (esperadas ${ANIOS.length})`);
         const rangos = await page.locator('.vc-rango').count();
         if (rangos !== MODULOS.length) hallazgo('alto', D, `${rangos} gráficos de rango (esperados ${MODULOS.length})`);
         const sinAria = await page.locator('.vc-rango').evaluateAll((els) => els.filter((e) => !e.getAttribute('aria-label')).length);
         if (sinAria) hallazgo('alto', D, `${sinAria} gráficos de rango sin aria-label`);
       }
-      await page.locator('.vv').screenshot({ path: `${OUT}${P.id}_${id}.png` }).catch(() => {});
+      await captura(page, `${OUT}${P.id}_${id}.png`);
       r[id].texto = txt.length;
     }
     // ═════ 2) Informe: se descarga desde el modal (solo se baja una vez; luego se revisa en todos los perfiles) ═════
@@ -251,7 +337,9 @@ if (htmlInforme) {
   cifra('informe: lámina alfalfa último año', true, tieneNum(Math.round(alf.lam)));
   cifra('informe: superficie total último año', true, tieneNum(Math.round(supTot(ULT))));
   cifra('informe: % alfalfa+nogal', true, new RegExp(`${Math.round(pctAN)}\\s*%`).test(textoDoc));
-  cifra('informe: veces altos/bajos', true, textoDoc.includes(`${veces.veces.toFixed(1)}×`) || textoDoc.includes(`${veces.veces.toFixed(1)} veces`));
+  cifra('informe: frase de superficie (años de más y de menos)', true, textoDoc.includes(`En ${lista(veces.altos)} se regó`) && textoDoc.includes(`que en ${lista(veces.bajos)}.`));
+  cifra('informe: 2025 explicado como sin ciclo', true, /2025: sin ciclo de riego/.test(textoDoc) && /No es un dato faltante/.test(textoDoc));
+  cifra('informe: sin jerga (×, pp, razón)', true, !/\d\.\d\s?×|\bpp\b|\brazón\b|Diferencia \(pp\)/.test(textoDoc));
   if (ciclo.n) cifra('informe: volumen actual (hm³)', true, textoDoc.includes(ciclo.act.toFixed(1)));
   for (const mal of MALOS_TXT) if (textoDoc.includes(mal)) hallazgo('critico', 'informe', `aparece "${mal}"`);
   if (hayNull(textoDoc)) hallazgo('critico', 'informe', 'aparece "null"');

@@ -2,13 +2,15 @@
  * informeNdviInteranual — modelo PURO (sin red, sin DOM, sin HTML) de la comparación ENTRE AÑOS del informe técnico de NDVI.
  * Entra la serie v2 (ndvi_modulo_mensual_v2: SCL + mediana) y el informe anual de superficie/volumen (ACUM_INF);
  * sale lo que el informe imprime: pico y media por año y módulo, banda típica, lectura en palabras, cruce con superficie/volumen.
- * S/D = null (nunca 0): un año sin NDVI (2020) o sin informe de superficie/volumen (2025, 2026) queda S/D con aviso.
+ * S/D = null (nunca 0): un año sin NDVI (2020) o sin informe de superficie/volumen (2026, provisional) queda S/D con aviso.
+ * 2025 es «sin ciclo» (presas cerradas): no es S/D; se rotula aparte y su NDVI se lee como «sin riego de presa».
  * Los renglones atípicos de ACUM_INF se cuentan y se avisan; no se corrigen ni se ocultan.
  */
 import { MODULOS_SRL_IDS, COLOR_MODULO_SRL } from './modulosSRL';
 import { media } from './estadisticaBasica';
 import { pesosSuperficie, promedioConBase, type BasePromedio } from './ndviPromedio';
 import { MIN_ANIOS_REFERENCIA } from './informeNdviAnalisis';
+import { esAnioSinCiclo } from './estadoAnio';
 import {
     MESES_TEMPORADA, MIN_MESES_ANIO_COMPLETO, anioDeMes, aniosDisponibles, climatologiaMensual, cruceAnual, lecturaAnio, resumenAnio, serieAnio,
     type ClimatologiaMes, type CruceAnio, type FilaNdviV2, type FilaSupVol, type LecturaAnio, type ResumenAnio,
@@ -44,6 +46,8 @@ export interface ModeloInteranual {
     /** Años elegidos sin NDVI / sin informe de superficie y volumen (derivados de los datos, no escritos a mano). */
     aniosSinNdvi: number[];
     aniosSinSupVol: number[];
+    /** Años elegidos sin ciclo de riego (2025, presas cerradas): no son faltantes. */
+    aniosSinCiclo: number[];
     /** NDVI medio mensual de los módulos con dato, por año (para la gráfica general). */
     serieSrl: { anio: number; vals: (number | null)[] }[];
     conteo: { arriba: number; abajo: number; similar: number; sd: number };
@@ -112,8 +116,10 @@ export function construirInteranual(datos: DatosInteranual, cfg: ConfigInteranua
     const avisos: string[] = [];
     const sinNdvi = anios.filter((a) => !modulos.some((m) => m.resumenes[anios.indexOf(a)].pico != null));
     for (const a of sinNdvi) avisos.push(`${a} no tiene NDVI (la serie de satélite inicia en marzo de 2021): aparece como S/D.`);
-    const sinSup = anios.filter((a) => !supVol.some((s) => s.anio === a && ids.includes(s.numero_modulo)));
-    const aniosSinSupVol = datos.errorSupVol ? [...anios] : sinSup;
+    const aniosSinCiclo = anios.filter(esAnioSinCiclo);
+    for (const a of aniosSinCiclo) avisos.push(`${a} es un año sin ciclo de riego (las presas no se abrieron): no tiene superficie ni volumen y no es un dato faltante. Su NDVI es de la frontera completa del módulo y no mide riego de presa.`);
+    const sinSup = anios.filter((a) => !esAnioSinCiclo(a) && !supVol.some((s) => s.anio === a && ids.includes(s.numero_modulo)));
+    const aniosSinSupVol = datos.errorSupVol ? anios.filter((a) => !esAnioSinCiclo(a)) : sinSup;
     if (datos.errorSupVol) avisos.push('No se pudo consultar el informe de superficie y volumen: esa sección aparece como S/D.');
     else if (sinSup.length) avisos.push(`Sin informe de superficie y volumen para ${sinSup.join(', ')}: aparece como S/D, no como cero.`);
     const atip = modulos.reduce((n, m) => n + m.cruce.reduce((s, c) => s + c.atipicos, 0), 0);
@@ -125,7 +131,7 @@ export function construirInteranual(datos: DatosInteranual, cfg: ConfigInteranua
     if (modulos.length && modulos.every((m) => m.resumenes.every((r) => r.mesesConDato === 0))) avisos.push('Ninguno de los años elegidos tiene lecturas de NDVI.');
 
     return {
-        anios, base: cfg.base, anioFoco, anomaliaPicoSrl, modulos, picoSrlPorAnio, mediaSrlPorAnio, aniosSinNdvi: sinNdvi, aniosSinSupVol, serieSrl, conteo,
+        anios, base: cfg.base, anioFoco, anomaliaPicoSrl, modulos, picoSrlPorAnio, mediaSrlPorAnio, aniosSinNdvi: sinNdvi, aniosSinSupVol, aniosSinCiclo, serieSrl, conteo,
         mayorAlza: ordenados.length && ordenados[0].abs > 0 ? ordenados[0] : null,
         mayorBaja: ordenados.length && ordenados[ordenados.length - 1].abs < 0 ? ordenados[ordenados.length - 1] : null,
         avisos,

@@ -1,11 +1,13 @@
 /**
  * volumenCultivo — estadística del informe ACUM_INF (2020-2024) desglosada por cultivo.
- * Lámina, mezcla de cultivos, contraste entre años altos y bajos y referencia del ciclo actual.
+ * Agua por hectárea, mezcla de cultivos, contraste entre años de más y de menos superficie y referencia del ciclo actual.
  * Reglas: S/D es null (nunca 0); los renglones atípicos del informe se cuentan y se avisan, no se corrigen ni se ocultan.
+ * 2025 (presas cerradas) es «sin ciclo» (estadoAnio): se descarta de todo cálculo aunque llegara un renglón con 0.
  * Descriptivo: no atribuye causas.
  */
 import type { FilaSupVol } from './ndviInteranual';
 import type { VolumenActual } from './ndviVolumen';
+import { ANIOS_CON_INFORME, ANIO_PROVISIONAL, RANGO_INFORME, esAnioSinCiclo, listaAnios } from './estadoAnio';
 
 /** Superficie mínima (ha) para que una lámina cuente como muestra firme; menos de eso se marca. */
 export const UMBRAL_HA_MUESTRA = 50;
@@ -14,7 +16,7 @@ export const MIN_ANIOS_ATIPICA = 4;
 /** Desviaciones estándar (entre años del mismo cultivo) a partir de las cuales una lámina se marca. */
 export const Z_ATIPICA = 1.5;
 
-/** Lámina bruta (cm) = volumen / superficie. miles de m³ ÷ ha × 10. null si falta algún dato o la superficie es 0. */
+/** Agua entregada por hectárea (cm) = volumen / superficie. miles de m³ ÷ ha × 10. null si falta algún dato o la superficie es 0. */
 export function laminaCm(volumenMilesM3: number | null | undefined, superficieHa: number | null | undefined): number | null {
     if (volumenMilesM3 == null || superficieHa == null || !Number.isFinite(volumenMilesM3) || !Number.isFinite(superficieHa) || superficieHa <= 0) return null;
     return (volumenMilesM3 / superficieHa) * 10;
@@ -29,7 +31,9 @@ const mediana = (v: number[]): number | null => {
     const s = [...v].sort((a, b) => a - b), m = Math.floor(s.length / 2);
     return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
-const sel = (filas: FilaSupVol[], modulo: number | null) => (modulo == null ? filas : filas.filter(f => f.numero_modulo === modulo));
+/** Renglones útiles: los años sin ciclo (2025) se descartan siempre, incluso si la fuente trajera un renglón con 0. */
+const utiles = (filas: FilaSupVol[]) => filas.filter(f => !esAnioSinCiclo(f.anio));
+const sel = (filas: FilaSupVol[], modulo: number | null) => { const u = utiles(filas); return modulo == null ? u : u.filter(f => f.numero_modulo === modulo); };
 
 export interface CeldaCultivo {
     anio: number;
@@ -39,6 +43,8 @@ export interface CeldaCultivo {
     laminaCm: number | null;
     /** Algún renglón fuente marcado atípico. */
     atipicoFuente: boolean;
+    /** Volumen 0 con superficie: captura atípica de la fuente. Se avisa y se excluye de la lámina y de la media (laminaCm = null). */
+    capturaCero: boolean;
     /** Superficie bajo el umbral: la lámina es poco representativa. */
     muestraChica: boolean;
     /** Lámina lejos de la de los demás años del mismo cultivo. */
@@ -66,9 +72,10 @@ export function laminaPorCultivo(filas: FilaSupVol[], modulo: number | null): Se
             if (!r.length) return [];
             const ha = suma(r.map(f => f.superficie_ha));
             const miles = suma(r.map(f => f.volumen_miles_m3));
+            const capturaCero = miles === 0 && ha != null && ha > 0;
             return [{
-                anio, cultivo, superficieHa: ha, volumenHm3: miles != null ? miles / 1000 : null, laminaCm: laminaCm(miles, ha),
-                atipicoFuente: r.some(f => f.atipico), muestraChica: ha == null || ha < UMBRAL_HA_MUESTRA, laminaAtipica: false,
+                anio, cultivo, superficieHa: ha, volumenHm3: miles != null ? miles / 1000 : null, laminaCm: capturaCero ? null : laminaCm(miles, ha),
+                atipicoFuente: r.some(f => f.atipico), capturaCero, muestraChica: ha == null || ha < UMBRAL_HA_MUESTRA, laminaAtipica: false,
             }];
         });
         const firmes = celdas.filter(c => !c.muestraChica && c.laminaCm != null).map(c => c.laminaCm as number);
@@ -122,7 +129,7 @@ export interface ContrasteRegimen {
 }
 
 /**
- * Separa los años en «altos» y «bajos» por la superficie total (punto medio entre el mínimo y el máximo) y compara el peso de
+ * Separa los años en «de más superficie» (altos) y «de menos superficie» (bajos) por la superficie total (punto medio entre el mínimo y el máximo) y compara el peso de
  * cada cultivo en el volumen de cada grupo. null si hay menos de 4 años o si no se pueden formar dos grupos (la serie no tiene
  * contraste claro: no se inventa uno). Descriptivo; no explica por qué.
  */
@@ -171,8 +178,9 @@ export interface ReferenciaModulo {
 
 const MESES_VENTANA = 7; // mar–sep
 
-/** Compara el volumen provisional del ciclo actual (hoja SRL) con el rango 2020-2024 de cada módulo. Solo nivel módulo. */
+/** Compara el volumen provisional del ciclo actual (hoja SRL) con el rango de los años con informe de cada módulo. Solo nivel módulo. 2025 (sin ciclo) no cuenta. */
 export function referenciaCicloActual(filas: FilaSupVol[], actual: VolumenActual | null, modulos: number[]): ReferenciaModulo[] {
+    filas = utiles(filas);
     return modulos.map(modulo => {
         const historico = [...new Set(filas.filter(f => f.numero_modulo === modulo).map(f => f.anio))].sort((a, b) => a - b)
             .map(anio => ({ anio, miles: suma(filas.filter(f => f.numero_modulo === modulo && f.anio === anio).map(f => f.volumen_miles_m3)) }))
@@ -215,8 +223,8 @@ export interface KpiLamina {
 export function kpiLamina(filas: FilaSupVol[], modulo: number | null): KpiLamina {
     const base = sel(filas, modulo);
     const series = laminaPorCultivo(filas, modulo);
-    const celdas = series.flatMap(s => s.celdas).filter(c => c.laminaCm != null);
-    const alertas = celdas.filter(c => c.laminaAtipica || c.muestraChica || c.atipicoFuente).length;
+    const celdas = series.flatMap(s => s.celdas).filter(c => c.laminaCm != null || c.capturaCero);
+    const alertas = celdas.filter(c => c.laminaAtipica || c.muestraChica || c.atipicoFuente || c.capturaCero).length;
     if (!base.length) return { anio: null, laminaMediaCm: null, cultivoMayor: null, alertas, celdas: celdas.length };
     const anio = Math.max(...base.map(f => f.anio));
     const completos = base.filter(f => f.anio === anio && f.superficie_ha != null && f.volumen_miles_m3 != null);
@@ -296,7 +304,7 @@ export function listaAtipicos(filas: FilaSupVol[]): AtipicoCelda[] {
     const out: AtipicoCelda[] = [];
     for (const s of laminaPorCultivo(filas, null)) {
         for (const c of s.celdas) {
-            const motivos = [c.laminaAtipica && `lámina a más de ${Z_ATIPICA} desviaciones de los demás años del cultivo`, c.muestraChica && `superficie menor a ${UMBRAL_HA_MUESTRA} ha`, c.atipicoFuente && 'captura atípica en el informe fuente'].filter((m): m is string => !!m);
+            const motivos = [c.laminaAtipica && `lámina a más de ${Z_ATIPICA} desviaciones de los demás años del cultivo`, c.muestraChica && `superficie menor a ${UMBRAL_HA_MUESTRA} ha`, c.capturaCero && 'volumen 0 con superficie en el informe fuente: captura atípica, fuera de la lámina', c.atipicoFuente && !c.capturaCero && 'captura atípica en el informe fuente'].filter((m): m is string => !!m);
             if (motivos.length) out.push({ cultivo: s.cultivo, anio: c.anio, laminaCm: c.laminaCm, superficieHa: c.superficieHa, motivos });
         }
     }
@@ -307,6 +315,7 @@ export interface CeldaModuloAnio { anio: number; superficieHa: number | null; vo
 
 /** Superficie, volumen y lámina media (todos los cultivos) por módulo y año. Año sin renglones del módulo → celda con null (S/D). */
 export function matrizModuloAnio(filas: FilaSupVol[], modulos: number[]): { modulo: number; celdas: CeldaModuloAnio[] }[] {
+    filas = utiles(filas);
     const anios = [...new Set(filas.map(f => f.anio))].sort((a, b) => a - b);
     return modulos.map(modulo => ({
         modulo,
@@ -317,3 +326,99 @@ export function matrizModuloAnio(filas: FilaSupVol[], modulos: number[]): { modu
         }),
     }));
 }
+
+// ───────────────────────── Gráficas y frases de lectura (funciones puras) ─────────────────────────
+
+export interface BarraAnio {
+    anio: number;
+    /** 'con-informe' barra sólida; 'sin-ciclo' hueco rotulado; 'provisional' barra con trama; 'sd' faltante real. */
+    estado: 'con-informe' | 'sin-ciclo' | 'provisional' | 'sd';
+    /** Valor de la barra (hm³ o ha). null en sin-ciclo (nunca 0) y en faltantes reales. */
+    valor: number | null;
+    /** Provisional con meses faltantes o parciales. */
+    incompleto?: boolean;
+}
+
+/**
+ * Volumen del distrito (o de un módulo) por año: años con informe, 2025 como hueco «sin ciclo» y 2026 provisional (hoja SRL).
+ * Sin renglones del informe → lista vacía. `modulos` = módulos que suman el distrito en la hoja SRL.
+ */
+export function barrasVolumenAnual(filas: FilaSupVol[], actual: VolumenActual | null, modulo: number | null, modulos: number[]): BarraAnio[] {
+    const base = sel(filas, modulo);
+    const anios = [...new Set(base.map(f => f.anio))].sort((a, b) => a - b);
+    if (!anios.length) return [];
+    const out: BarraAnio[] = anios.map(anio => {
+        const miles = suma(base.filter(f => f.anio === anio).map(f => f.volumen_miles_m3));
+        return { anio, estado: miles != null ? 'con-informe' : 'sd', valor: miles != null ? miles / 1000 : null };
+    });
+    out.push({ anio: 2025, estado: 'sin-ciclo', valor: null });
+    const ids = modulo == null ? modulos : [modulo];
+    const vals = actual && !actual.error ? ids.map(m => actual.porModulo.get(m)).filter((v): v is number => v != null && Number.isFinite(v)) : [];
+    const incompleto = !!actual && (actual.mesesParciales.length > 0 || ids.some(m => (actual.mesesPorModulo.get(m) ?? 0) < MESES_VENTANA));
+    out.push({ anio: ANIO_PROVISIONAL, estado: vals.length ? 'provisional' : 'sd', valor: vals.length ? vals.reduce((a, b) => a + b, 0) : null, incompleto: vals.length ? incompleto : undefined });
+    return out;
+}
+
+/** Superficie regada por año (ha): años con informe y 2025 como hueco «sin ciclo». 2026 no tiene superficie en la hoja SRL y no se dibuja. */
+export function barrasSuperficieAnual(filas: FilaSupVol[], modulo: number | null): BarraAnio[] {
+    const base = sel(filas, modulo);
+    const anios = [...new Set(base.map(f => f.anio))].sort((a, b) => a - b);
+    if (!anios.length) return [];
+    const out: BarraAnio[] = anios.map(anio => {
+        const ha = suma(base.filter(f => f.anio === anio).map(f => f.superficie_ha));
+        return { anio, estado: ha != null ? 'con-informe' : 'sd', valor: ha };
+    });
+    out.push({ anio: 2025, estado: 'sin-ciclo', valor: null });
+    return out;
+}
+
+export interface ParteTop { nombre: string; pct: number; valor: number | null; esOtros: boolean; cultivos: string[] }
+
+/** Los `n` cultivos con más peso (por volumen o por superficie) y un renglón «Otros» con el resto. Un cultivo sin dato no se inventa: se omite. */
+export function topConOtros(mezcla: ParticipacionCultivo[], campo: 'volumen' | 'superficie', n = 5): ParteTop[] {
+    const v = (p: ParticipacionCultivo) => (campo === 'volumen' ? p.pctVolumen : p.pctSuperficie);
+    const val = (p: ParticipacionCultivo) => (campo === 'volumen' ? p.volumenHm3 : p.superficieHa);
+    const con = mezcla.filter(p => v(p) != null).sort((a, b) => (v(b) as number) - (v(a) as number));
+    const top: ParteTop[] = con.slice(0, n).map(p => ({ nombre: p.cultivo, pct: v(p) as number, valor: val(p), esOtros: false, cultivos: [p.cultivo] }));
+    const resto = con.slice(n);
+    if (resto.length) {
+        const vals = resto.map(val).filter((x): x is number => x != null);
+        top.push({ nombre: resto.length === 1 ? resto[0].cultivo : `Otros ${resto.length} cultivos`, pct: resto.reduce((a, p) => a + (v(p) as number), 0), valor: vals.length ? vals.reduce((a, b) => a + b, 0) : null, esOtros: resto.length > 1, cultivos: resto.map(p => p.cultivo) });
+    }
+    return top;
+}
+
+const dec1 = (x: number) => x.toFixed(1);
+/**
+ * «En 2020 y 2023 se regó más del doble de superficie que en 2021, 2022 y 2024». Se deriva del contraste de los datos; null sin contraste claro.
+ * Describe, no explica: no dice por qué cambió la superficie.
+ */
+export function fraseContrasteSuperficie(av: KpiMezcla['altosVsBajos']): string | null {
+    if (!av) return null;
+    const v = av.veces;
+    const magnitud = v >= 2.15 ? 'más del doble de superficie' : v >= 1.85 ? 'el doble de superficie' : v >= 1.6 ? 'casi el doble de superficie' : `${dec1(v)} veces la superficie`;
+    return `En ${listaAnios(av.altos)} se regó ${magnitud} que en ${listaAnios(av.bajos)}.`;
+}
+
+/** Palabra corta del contraste, para la cifra de la tarjeta: «Más del doble», «El doble», «Casi el doble», «1.6 veces». */
+export function cifraContraste(av: KpiMezcla['altosVsBajos']): string | null {
+    if (!av) return null;
+    const v = av.veces;
+    return v >= 2.15 ? 'Más del doble' : v >= 1.85 ? 'El doble' : v >= 1.6 ? 'Casi el doble' : `${dec1(v)} veces`;
+}
+
+export interface LecturaVsTipico { cifra: string; frase: string; tendencia: 'menos' | 'mas' | 'igual' }
+/**
+ * Lectura del ciclo actual frente a un año típico (la mediana de los años con informe). No dice si es ahorro, sequía ni causa.
+ * 2025 no cuenta: las presas estuvieron cerradas. null sin comparación.
+ */
+export function lecturaVsTipico(pct: number | null): LecturaVsTipico | null {
+    if (pct == null || !Number.isFinite(pct)) return null;
+    const r = Math.round(Math.abs(pct));
+    if (r === 0) return { cifra: 'Igual', frase: `Casi igual que un año típico ${RANGO_INFORME}. 2025 no cuenta: las presas estuvieron cerradas.`, tendencia: 'igual' };
+    const menos = pct < 0;
+    return { cifra: `${r} % ${menos ? 'menos' : 'más'}`, frase: `${menos ? 'Menos' : 'Más'} agua que un año típico ${RANGO_INFORME}. 2025 no cuenta: las presas estuvieron cerradas.`, tendencia: menos ? 'menos' : 'mas' };
+}
+
+/** Años con informe presentes en los datos (para rótulos que antes decían «2020-2024» a mano). */
+export const aniosConInforme = (filas: FilaSupVol[]): number[] => [...new Set(utiles(filas).map(f => f.anio))].filter(a => ANIOS_CON_INFORME.includes(a)).sort((a, b) => a - b);

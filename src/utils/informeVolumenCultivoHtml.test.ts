@@ -45,7 +45,7 @@ describe('construirHtmlVolumenCultivo', () => {
         expect(html).toContain('mb-srl');
     });
     it('trae las secciones pedidas', () => {
-        for (const t of ['Resumen ejecutivo', 'Lámina por cultivo', 'Mezcla de cultivos y contraste', 'Ciclo actual contra el rango 2020-2024', 'Celdas y renglones atípicos', 'Notas de fuente, método y trazabilidad']) expect(html).toContain(t);
+        for (const t of ['Resumen ejecutivo', 'Agua entregada por hectárea, por cultivo', 'Mezcla de cultivos y cambio de superficie', 'Ciclo actual contra el rango 2020-2024', 'Celdas y renglones atípicos', 'Notas de fuente, método y trazabilidad']) expect(html).toContain(t);
         for (const t of ['ACUM_INF', 'corte', 'provisional', 'no conciliad', 'año calendario', 'no atribuye causas']) expect(html.toLowerCase()).toContain(t.toLowerCase());
     });
     it('no deja basura de formato ni lenguaje causal', () => {

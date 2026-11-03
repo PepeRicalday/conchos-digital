@@ -153,14 +153,18 @@ export function graficaPulsoSrlHtml(d: ModeloInteranual): string {
 
 /** Matrices de superficie regada, volumen y media de NDVI por módulo y año (anexo de superficie y volumen). */
 export function matricesSupVolHtml(d: ModeloInteranual): string {
-    const matriz = (titulo: string, valor: (c: ModuloInteranual['cruce'][number]) => string, nota: string) => `<div class="tabla-wrap"><table class="compacta"><caption>${esc(titulo)}</caption><thead><tr><th>Módulo</th>${
+    // El año sin ciclo (2025) se rotula «Sin ciclo»: no es S/D ni cero, y no se le suma ningún renglón.
+    const celdaMatriz = (c: ModuloInteranual['cruce'][number], txt: string, sinCicloAplica: boolean) =>
+        (c.sinCiclo && sinCicloAplica ? '<td class="n"><i>Sin ciclo</i></td>' : tdN(txt, c.atipicos > 0 ? ' ⚠' : ''));
+    const matriz = (titulo: string, valor: (c: ModuloInteranual['cruce'][number]) => string, nota: string, sinCicloAplica = true) => `<div class="tabla-wrap"><table class="compacta"><caption>${esc(titulo)}</caption><thead><tr><th>Módulo</th>${
         d.anios.map((a) => `<th class="n">${a}</th>`).join('')}</tr></thead><tbody>${d.modulos.map((m) => `<tr><td><b>${esc(m.nombre)}</b></td>${
-        m.cruce.map((c) => tdN(valor(c), c.atipicos > 0 ? ' ⚠' : '')).join('')}</tr>`).join('')}</tbody></table></div>${nota ? `<p class="fuente">${nota}</p>` : ''}`;
+        m.cruce.map((c) => celdaMatriz(c, valor(c), sinCicloAplica)).join('')}</tr>`).join('')}</tbody></table></div>${nota ? `<p class="fuente">${nota}</p>` : ''}`;
     const ultimoSup = d.modulos.flatMap((m) => m.cruce).filter((c) => c.volumenHm3 != null).reduce<number | null>((mx, c) => (mx == null || c.anio > mx ? c.anio : mx), null);
-    const cobertura = ultimoSup != null ? `El informe (ACUM_INF) cubre hasta ${ultimoSup}.` : 'Ninguno de los años elegidos tiene informe de superficie y volumen (S/D).';
+    const sinCicloTxt = d.aniosSinCiclo.length ? ` ${d.aniosSinCiclo.join(', ')}: sin ciclo (las presas no se abrieron), no es un dato faltante.` : '';
+    const cobertura = (ultimoSup != null ? `El informe (ACUM_INF) cubre hasta ${ultimoSup}.` : d.aniosSinCiclo.length && d.anios.every((a) => d.aniosSinCiclo.includes(a)) ? 'Los años elegidos no tienen ciclo de riego.' : 'Ninguno de los años elegidos tiene informe de superficie y volumen (S/D).') + sinCicloTxt;
     return `${matriz('Superficie regada (informe ACUM_INF, ha)', (c) => fmtMiles(c.superficieHa, 0), `${cobertura} Corte de septiembre, suma de cultivos; no es la superficie del polígono del módulo. Volumen: miles de m³ convertidos a hm³.`)}
 ${matriz('Volumen entregado (hm³)', (c) => fmt(c.volumenHm3, 1), '')}
-${matriz('Media de NDVI de la temporada (mar–sep)', (c) => fmt(c.mediaNdvi, 3), `Media de los meses con dato de mar a sep (no el pico: dentro de cada módulo la media acompaña al volumen y el pico no). Con menos de ${MIN_MESES_ANIO_COMPLETO} meses con dato no es comparable con un año completo.`)}`;
+${matriz('Media de NDVI de la temporada (mar–sep)', (c) => fmt(c.mediaNdvi, 3), `Media de los meses con dato de mar a sep (no el pico: dentro de cada módulo la media acompaña al volumen y el pico no). Con menos de ${MIN_MESES_ANIO_COMPLETO} meses con dato no es comparable con un año completo.${d.aniosSinCiclo.length ? ` El NDVI de ${d.aniosSinCiclo.join(', ')} es de la frontera completa del módulo y no mide riego de presa.` : ''}`, false)}`;
 }
 
 const sg = (v: number, d: number) => `${v < 0 ? '−' : '+'}${Math.abs(v).toFixed(d)}`;

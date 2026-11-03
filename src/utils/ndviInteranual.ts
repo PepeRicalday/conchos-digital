@@ -3,8 +3,10 @@
  * y cruce con superficie/volumen anual por módulo (ACUM_INF).
  *
  * Regla "S/D nunca cero": un mes sin píxeles válidos llega con ndvi_mediana = null y se queda en null;
- * un año sin informe de superficie/volumen devuelve null, no 0.
+ * un año sin informe de superficie/volumen devuelve null, no 0. 2025 es un caso aparte: presas cerradas, sin ciclo de riego
+ * (`sinCiclo`), que no es un faltante; su NDVI de satélite sí se calcula pero no mide riego de presa.
  */
+import { esAnioSinCiclo } from './estadoAnio';
 import { anomaliaVsPromedio, percentil, resumenSerie, tendenciaLineal, type Anomalia, type Tendencia } from './estadisticaHistorica';
 
 export interface FilaNdviV2 {
@@ -165,15 +167,19 @@ export interface CruceAnio {
     picoNdvi: number | null;
     mediaNdvi: number | null;
     atipicos: number;
+    /** Año sin ciclo de riego (2025, presas cerradas): superficie y volumen no existen; no es S/D ni 0. */
+    sinCiclo: boolean;
 }
 
 /**
  * Cruza superficie/volumen anual de un módulo con el NDVI de ese año.
- * Un año sin filas de superficie/volumen (p. ej. 2025) queda con null — no con 0.
+ * Un año sin filas de superficie/volumen queda con null — no con 0. El año sin ciclo (2025) además lleva `sinCiclo: true`
+ * y no se le toma ningún renglón, aunque la fuente trajera uno.
  * Los renglones atípicos se SUMAN (no se corrigen) y se cuentan para advertirlo.
  */
 export function cruceAnual(filasNdvi: FilaNdviV2[], supVol: FilaSupVol[], modulo: number, anio: number): CruceAnio {
-    const delAnio = supVol.filter(s => s.numero_modulo === modulo && s.anio === anio);
+    const sinCiclo = esAnioSinCiclo(anio);
+    const delAnio = sinCiclo ? [] : supVol.filter(s => s.numero_modulo === modulo && s.anio === anio);
     const conDato = delAnio.length > 0;
     // Suma solo lo que tiene valor; si TODAS las filas son nulas el resultado es null (S/D), nunca 0.
     const suma = (vals: (number | null)[]): number | null => {
@@ -193,6 +199,7 @@ export function cruceAnual(filasNdvi: FilaNdviV2[], supVol: FilaSupVol[], modulo
         picoNdvi: r.pico,
         mediaNdvi: r.media,
         atipicos: delAnio.filter(s => s.atipico).length,
+        sinCiclo,
     };
 }
 

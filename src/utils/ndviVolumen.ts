@@ -3,11 +3,12 @@
  *
  * Por qué por módulo: mezclar los seis módulos da r ≈ −0.27 (efecto de módulo: tamaño y suelo de cada uno), mientras que
  * dentro de cada módulo el volumen y el NDVI medio mar–sep suben juntos en 2021–2024 (r de 0.69 a 0.98, salvo M4: −0.18).
- * Con solo 4 años únicamente M2 supera el R² crítico (0.90): el resto es indicativo. La relación es descriptiva: la
- * superficie sembrada explica casi tanto como el volumen y no se puede separar de él.
+ * Con solo 4 años únicamente M2 supera el R² crítico (0.90): el resto es indicativo (referencia, no prueba). La relación es
+ * descriptiva: la superficie sembrada va de la mano del volumen y no se puede separar de él.
  *
  * El año actual (2026) se dibuja aparte y NO entra al ajuste: su volumen viene de otra fuente (hoja SRL provisional) y no
- * está conciliado con ACUM_INF (2021–2024).
+ * está conciliado con ACUM_INF. 2025 (presas cerradas, sin ciclo de riego) tampoco entra: no tiene volumen; su NDVI es de la
+ * frontera completa del módulo y no mide riego de presa. El ajuste usa solo 2021–2024 (años con informe y con NDVI).
  *
  * Regla «S/D nunca cero»: sin volumen o sin NDVI no hay punto; nada se rellena con 0.
  */
@@ -16,6 +17,7 @@ import {
     MESES_TEMPORADA, MIN_MESES_ANIO_COMPLETO, UMBRAL_SIN_CAMBIO, cruceAnual, resumenAnio, type FilaNdviV2, type FilaSupVol,
 } from './ndviInteranual';
 import { volumenAcumuladoPorModuloHm3 } from './indicesSrl';
+import { ANIOS_CON_INFORME, esAnioSinCiclo } from './estadoAnio';
 
 export type EstadoRelacion = 'acompaña' | 'sin-relacion' | 'sin-evidencia';
 
@@ -76,6 +78,10 @@ export interface RelacionVolNdvi {
     motivoSinActual: string | null;
     /** Años con volumen y NDVI pero temporada de NDVI incompleta: no entran al ajuste. */
     excluidos: number[];
+    /** Años sin ciclo de riego (2025, presas cerradas): no son «temporada incompleta» ni faltante; no entran al ajuste. */
+    sinCiclo: number[];
+    /** Años con informe que podrían entrar al ajuste (catálogo): para rotular el panel sin escribir «2021-2024» a mano. */
+    aniosAjuste: number[];
 }
 
 const media = (v: number[]) => v.reduce((a, b) => a + b, 0) / v.length;
@@ -93,7 +99,10 @@ export function relacionVolumenNdvi(
 
     const puntos: PuntoVolNdvi[] = [];
     const excluidos: number[] = [];
+    const sinCiclo: number[] = [];
     for (const anio of [...anios].filter(a => a < anioActual).sort((a, b) => a - b)) {
+        // Año sin ciclo (2025): motivo propio. No cuenta como «temporada incompleta» ni como faltante, y nunca entra al ajuste.
+        if (esAnioSinCiclo(anio)) { sinCiclo.push(anio); continue; }
         const c = cruceAnual(filasNdvi, supVol, modulo, anio);
         if (c.volumenHm3 == null || c.mediaNdvi == null) continue;
         const mesesNdvi = resumenAnio(filasNdvi, modulo, anio).mesesConDato;
@@ -136,7 +145,7 @@ export function relacionVolumenNdvi(
 
     return {
         modulo, puntos, n, pendiente: t?.pendiente ?? null, intercepto: t?.intercepto ?? null, r, r2: t?.r2 ?? null,
-        firme, estado, por10Hm3: t ? t.pendiente * 10 : null, actual, motivoSinActual, excluidos,
+        firme, estado, por10Hm3: t ? t.pendiente * 10 : null, actual, motivoSinActual, excluidos, sinCiclo, aniosAjuste: ANIOS_CON_INFORME.filter(a => puntos.some(p => p.anio === a)),
     };
 }
 

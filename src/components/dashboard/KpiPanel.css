@@ -663,12 +663,26 @@ html[data-device="phone"] #kp-demanda .kp-vistas .ndvi-chip { flex: 0 0 44px; mi
 a.kp-celda { flex: 1 1 auto; min-width: 0; color: inherit; text-decoration: none; cursor: pointer; transition: border-color 0.15s, transform 0.15s; }
 a.kp-celda:hover { border-color: var(--sc-sky); transform: translateY(-1px); }
 a.kp-celda:focus-visible { outline: 2px solid var(--sc-t1); outline-offset: 2px; }
-.kp-celda-logo { display: grid; place-items: center; width: min(78%, 56px); height: clamp(18px, 6cqh, 30px); padding: 2px 3px; border-radius: 6px; background: #fff; overflow: hidden; flex: none; }
-.kp-celda-logo img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
-.kp-celda { gap: 2px; }
-/* Celdas bajas, angostas y teléfono: sin logo (el código del módulo ya identifica) */
-@container kp (max-height: 250px) { .kp-celda-logo { display: none; } }
-@media (max-width: 699px) { .kp-celda-logo { display: none; } }
+/* Celda de módulo: logo vectorial (sin placa ni fondo) + insignia de estado + «M1 89 %»; nada se desborda (overflow oculto, alturas mínimas) */
+a.kp-celda { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "logo ins" "txt txt"; align-items: center; justify-items: start; gap: 3px 4px; padding: 5px 6px 9px; min-height: 52px; overflow: hidden; }
+.kp-celda-logo { grid-area: logo; display: grid; place-items: center; justify-self: stretch; height: 30px; min-width: 0; }
+.kp-celda-logo img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.9)) drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45)); }
+a.kp-celda.kp-celda .kp-celda-letra { grid-area: ins; justify-self: end; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font: 800 12px/1 var(--sc-display); color: #0b1220; background: var(--tono, var(--sc-t3)); }
+a.kp-celda b, a.kp-celda small { grid-area: txt; display: inline; font-size: 12px; white-space: nowrap; }
+a.kp-celda b { margin-right: 5px; }
+a.kp-celda small { justify-self: end; margin-left: auto; }
+a.kp-celda .kp-celda-barra { position: absolute; left: 6px; right: 6px; bottom: 3px; width: auto; height: 3px; }
+.kp-mapa { grid-auto-rows: minmax(44px, auto); }
+/* Celdas bajas, teléfono o sin logo: una sola fila, código + insignia; el % queda en el título y la etiqueta accesible */
+@container kp (max-height: 250px) {
+    .kp-celda-logo { display: none; }
+    a.kp-celda { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "txt ins"; min-height: 44px; padding: 4px 6px 7px; }
+    a.kp-celda small { display: none; }
+}
+@media (max-width: 699px) {
+    .kp-celda-logo { display: none; }
+    a.kp-celda { grid-template-areas: "txt ins"; min-height: 44px; }
+}
 
 /* Ciclo: cada tramo en su línea y sin partirse a media frase */
 .kp-nw { white-space: nowrap; }

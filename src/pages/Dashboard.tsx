@@ -29,7 +29,7 @@ import {
     estadoPresas, avanceCiclo, diasCiclo, brechaCiclo, estadoModulo, demandaRiego, confianzaTablero, tendenciaTexto,
     type EstadoKpi, type FuenteConfianza,
 } from '../utils/dashboardKpisEjecutivos';
-import { getLogoPath } from '../utils/uiHelpers';
+import { getLogoVector } from '../utils/uiHelpers';
 import type { VwAlertaTomaVaradaRow } from '../types/sica.types';
 import type { EntradaInformeGeneral } from '../utils/informeGeneralHtml';
 import './Dashboard.css';
@@ -217,7 +217,7 @@ const Dashboard = () => {
         modulos: modules.map((m) => {
             const pct = cumplimientoModulo(m.accumulated_vol, m.authorized_vol);
             const e = estadoModulo(pct, avance);
-            return { clave: m.id, nombre: m.short_code || (m.name || '').slice(0, 6), pct, letra: e.letra, estado: e.estado, codigo: m.short_code || null, nombreLargo: m.name || null, logo: getLogoPath(m.name, m.short_code ?? '', m.logo_url) };
+            return { clave: m.id, nombre: m.short_code || (m.name || '').slice(0, 6), pct, letra: e.letra, estado: e.estado, codigo: m.short_code || null, nombreLargo: m.name || null, logo: getLogoVector(m.short_code) };
         }),
         confianza,
         alertas: { resumen, top: topAlertas, onAbrir: () => setDrawerAbierto(true) },

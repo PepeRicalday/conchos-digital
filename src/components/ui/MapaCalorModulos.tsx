@@ -11,7 +11,7 @@ export interface CeldaModulo {
     logo?: string | null;
 }
 
-/** Logo del módulo: miniatura sobre fondo claro (los logos son JPG con fondo blanco). Si no carga, se omite sin romper la celda. */
+/** Logo vectorial del módulo (SVG sin fondo). Si no carga, se omite sin romper la celda. */
 function Logo({ src }: { src: string }) {
     const [roto, setRoto] = useState(false);
     if (roto) return null;

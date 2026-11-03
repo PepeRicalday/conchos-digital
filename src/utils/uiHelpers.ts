@@ -22,6 +22,13 @@ export const getLogoPath = (_moduleName: string | null | undefined, shortCode: s
     return localLogos[codeLower] || '/logos/logo-srl.png';
 };
 
+/** Logo VECTORIAL (SVG, fondo transparente) de la A.C.U. de cada módulo SRL; null si el módulo no tiene (la celda queda solo con el código).
+ *  Trazado de los logos oficiales con scripts/logo/vectorizar-modulos.mjs. */
+export const getLogoVector = (shortCode: string | null | undefined): string | null => {
+    const m = /^m(\d+)$/i.exec((shortCode ?? '').trim());
+    return m && [1, 2, 3, 4, 5, 12].includes(Number(m[1])) ? `/logos/modulos/modulo-${Number(m[1])}.svg` : null;
+};
+
 // Default Sections (Hardcoded from Business Rules "4 Zonas")
 export const defaultSections = [
     { id: 'sec-1', nombre: 'Sección 1: La Boquilla - Km 25', color: '#3b82f6' },

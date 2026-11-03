@@ -1,6 +1,7 @@
 /* Consumo por cultivo (ACUM_INF). Tokens del panel NDVI (oscuro); [data-theme="light"] los invierte si la app llega a tener tema claro. */
 .vc-kpis, .vc-tabla, .vc-seg, .vc-tarjeta, .vc-sinciclo, .vc-fig, .vc-detalle, .vc-leyenda {
     --vc-fondo: rgba(15, 23, 42, 0.55);
+    --vc-fondo-sup: rgba(30, 41, 59, 0.5);
     --vc-borde: rgba(148, 163, 184, 0.24);
     --vc-texto: #f1f5f9;
     --vc-suave: #b8c4d6;
@@ -14,18 +15,24 @@
     --vc-sup-fondo: rgba(124, 197, 32, 0.4);
 }
 :root[data-theme="light"] .vc-kpis, :root[data-theme="light"] .vc-tabla, :root[data-theme="light"] .vc-seg, :root[data-theme="light"] .vc-tarjeta, :root[data-theme="light"] .vc-sinciclo, :root[data-theme="light"] .vc-fig, :root[data-theme="light"] .vc-detalle, :root[data-theme="light"] .vc-leyenda {
-    --vc-fondo: #ffffff; --vc-borde: #cbd5e1; --vc-texto: #0f172a; --vc-suave: #475569; --vc-agua: #0A5BB0; --vc-agua-fondo: rgba(10, 91, 176, 0.35);
+    --vc-fondo: #ffffff; --vc-fondo-sup: #f8fafc; --vc-borde: #cbd5e1; --vc-texto: #0f172a; --vc-suave: #475569; --vc-agua: #0A5BB0; --vc-agua-fondo: rgba(10, 91, 176, 0.35);
     --vc-pista: rgba(71, 85, 105, 0.14); --vc-ok: #0f766e; --vc-aviso: #92400e; --vc-banda: rgba(71, 85, 105, 0.3); --vc-sup: #2E9A1E; --vc-sup-fondo: rgba(46, 154, 30, 0.3);
 }
 
 /* Tarjetas KPI: mismo lenguaje que las del Dashboard (cifra grande en tipografía de marca, filete de acento arriba, etiqueta y contexto sobrios) */
 .vc-kpis { list-style: none; margin: 6px 0 4px; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 10px; }
-.vc-kpi { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 12px 14px 12px; background: var(--vc-fondo); border: 1px solid var(--vc-borde); border-radius: 12px; color: var(--vc-texto); }
-.vc-kpi::before { content: ''; position: absolute; left: 14px; right: 14px; top: 0; height: 2px; border-radius: 0 0 2px 2px; background: var(--vc-agua); opacity: .85; }
-.vc-kpi-et { font-size: 13px; color: var(--vc-suave); font-weight: 600; line-height: 1.25; }
+.vc-kpi { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 14px 16px 12px; background: linear-gradient(180deg, var(--vc-fondo-sup), var(--vc-fondo)); border: 1px solid var(--vc-borde); border-radius: 16px; color: var(--vc-texto); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); overflow: hidden; }
+.vc-kpi::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--c, var(--vc-agua)); opacity: .95; }
+.vc-kpi.dos::before { background: linear-gradient(90deg, var(--c), var(--c2)); }
+.vc-kpi.dos { --c2: var(--cu2); }
+:root[data-theme="light"] .vc-kpi.dos { --c2: var(--cu2-l); }
+.vc-kpi-ico { display: inline-flex; gap: 4px; flex: none; }
+.vc-kpi-ico1 { display: inline-flex; vertical-align: middle; margin-right: 10px; }
+.vc-kpi-ico1 .vc-ncu-ico { width: 34px; height: 34px; border-radius: 10px; }
+.vc-kpi-et { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--vc-suave); font-weight: 600; line-height: 1.25; }
 .vc-kpi-cifra { font-family: var(--brand-display, 'Montserrat', system-ui, sans-serif); font-weight: 800; font-size: clamp(28px, 4.2vw, 36px); line-height: 1.05; font-variant-numeric: tabular-nums; color: var(--vc-texto); overflow-wrap: anywhere; }
 .vc-kpi-cifra small { margin-left: 6px; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--vc-suave); letter-spacing: 0; }
-.vc-kpi-cifra.txt { font-size: clamp(22px, 3.2vw, 28px); line-height: 1.1; }
+.vc-kpi-cifra.txt { display: flex; align-items: center; font-size: clamp(22px, 3.2vw, 28px); line-height: 1.1; }
 .vc-kpi-cifra.sd { color: var(--vc-suave); font-style: italic; font-weight: 600; }
 .vc-kpi-ctx { font-size: 13px; line-height: 1.35; color: var(--vc-suave); overflow-wrap: anywhere; }
 .vc-kpi-ctx b { color: var(--vc-texto); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -50,7 +57,7 @@
 .vc-seg-btn[aria-pressed="true"] { background: var(--vc-agua-fondo); border-color: var(--vc-agua); font-weight: 700; }
 
 /* Tarjetas de gráfica: una idea por tarjeta */
-.vc-tarjeta { margin: 12px 0; padding: 12px 14px 12px; background: var(--vc-fondo); border: 1px solid var(--vc-borde); border-radius: 12px; color: var(--vc-texto); min-width: 0; }
+.vc-tarjeta { margin: 14px 0; padding: 14px 16px 14px; background: linear-gradient(180deg, var(--vc-fondo-sup), var(--vc-fondo)); border: 1px solid var(--vc-borde); border-radius: 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,.05); color: var(--vc-texto); min-width: 0; }
 .vc-tarjeta h5 { margin: 0 0 4px; font-size: 14px; font-weight: 700; line-height: 1.3; color: var(--vc-texto); }
 .vc-sub { margin: 0 0 8px; font-size: 13px; line-height: 1.4; color: var(--vc-suave); }
 .vc-dos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 0 12px; }
@@ -61,10 +68,10 @@
 .vc-sw.tra { background: repeating-linear-gradient(45deg, var(--vc-agua) 0 3px, transparent 3px 6px); border: 1px solid var(--vc-agua); }
 .vc-sw.hue { border: 1.5px dashed var(--vc-suave); }
 .vc-pt { display: inline-block; width: 11px; height: 11px; border-radius: 50%; box-sizing: border-box; }
-.vc-pt.sol { background: var(--vc-agua); }
-.vc-pt.ult { background: var(--vc-agua); box-shadow: 0 0 0 2px var(--vc-fondo), 0 0 0 3.5px var(--vc-texto); }
-.vc-pt.chica { border: 2px solid var(--vc-agua); background: transparent; }
-.vc-pt.revisar { background: var(--vc-aviso); border-radius: 2px; transform: rotate(45deg); }
+.vc-pt.sol { background: var(--vc-suave); }
+.vc-pt.ult { background: var(--vc-suave); box-shadow: 0 0 0 2px var(--vc-fondo), 0 0 0 3.5px var(--vc-texto); }
+.vc-pt.chica { border: 2px solid var(--vc-suave); background: transparent; }
+.vc-pt.revisar { background: var(--vc-suave); border: 2.5px solid var(--vc-aviso); border-radius: 2px; transform: rotate(45deg); }
 
 /* Tarjeta «sin ciclo» (2025, presas cerradas) */
 .vc-sinciclo { display: flex; gap: 12px; margin: 12px 0; padding: 14px; border: 1.5px dashed var(--vc-suave); border-radius: 12px; background: var(--vc-fondo); color: var(--vc-texto); }
@@ -76,7 +83,7 @@
 /* Agua por hectárea: puntos con banda de rango */
 .vc-eje-x { display: flex; justify-content: space-between; margin: 6px 0 0; font-size: 11px; color: var(--vc-suave); font-variant-numeric: tabular-nums; }
 .vc-lista-lam, .vc-lista-mod, .vc-part { list-style: none; margin: 0; padding: 0; }
-.vc-fila-lam { display: grid; grid-template-columns: 112px minmax(0, 1fr) 118px; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--vc-pista); }
+.vc-fila-lam { display: grid; grid-template-columns: 150px minmax(0, 1fr) 118px; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--vc-pista); }
 .vc-fila-lam:first-child { border-top: 0; }
 .vc-fila-nom { font-size: 13px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
 .vc-fila-val { font-size: 13px; line-height: 1.25; font-variant-numeric: tabular-nums; }
@@ -85,10 +92,11 @@
 .vc-fila-val .vc-rev { color: var(--vc-aviso); }
 .vc-track { position: relative; height: 30px; margin: 0 8px; }
 .vc-track-eje { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--vc-borde); }
-.vc-track-banda { position: absolute; top: 50%; height: 14px; margin-top: -7px; border-radius: 3px; background: var(--vc-banda); }
-.vc-pto { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--vc-agua); box-sizing: border-box; box-shadow: 0 0 0 1.5px var(--vc-fondo); }
-.vc-pto.chica { background: var(--vc-fondo); border: 2px solid var(--vc-agua); }
-.vc-pto.revisar { background: var(--vc-aviso); border-radius: 2px; transform: rotate(45deg); }
+.vc-track-banda { position: absolute; top: 50%; height: 14px; margin-top: -7px; border-radius: 999px; background: var(--vc-banda); }
+.vc-track-cu .vc-track-banda { background: color-mix(in srgb, var(--c) 30%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 42%, transparent); }
+.vc-pto { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--c, var(--vc-agua)); box-sizing: border-box; box-shadow: 0 0 0 1.5px var(--vc-fondo), 0 0 8px color-mix(in srgb, var(--c, var(--vc-agua)) 55%, transparent); }
+.vc-pto.chica { background: var(--vc-fondo); border: 2px solid var(--c, var(--vc-agua)); box-shadow: none; }
+.vc-pto.revisar { background: var(--c, var(--vc-agua)); border: 2.5px solid var(--vc-aviso); border-radius: 2px; transform: rotate(45deg); box-shadow: 0 0 0 1.5px var(--vc-fondo); }
 .vc-pto.ult { width: 16px; height: 16px; margin: -8px 0 0 -8px; box-shadow: 0 0 0 2px var(--vc-fondo), 0 0 0 3.5px var(--vc-texto); }
 .vc-track.vacio { display: flex; align-items: center; font-size: 13px; }
 .vc-raya { position: absolute; top: 50%; width: 3px; height: 22px; margin: -11px 0 0 -1.5px; background: var(--vc-texto); border-radius: 1px; }
@@ -97,13 +105,11 @@
 .vc-rombo.bajo-rango { background: var(--vc-fondo); }
 
 /* Participación: barras horizontales ordenadas, un solo color por tarjeta */
-.vc-part li { display: grid; grid-template-columns: minmax(84px, 120px) minmax(0, 1fr) 84px; gap: 8px; align-items: center; padding: 5px 0; }
+.vc-part li { display: grid; grid-template-columns: minmax(118px, 150px) minmax(0, 1fr) 84px; gap: 8px; align-items: center; padding: 5px 0; }
 .vc-part-nom { font-size: 13px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
-.vc-part-pista { display: block; height: 14px; border-radius: 3px; background: var(--vc-pista); overflow: hidden; }
-.vc-part-pista i { display: block; height: 100%; border-radius: 3px; }
-.vc-part-pista i.agua { background: var(--vc-agua); }
-.vc-part-pista i.sup { background: var(--vc-sup); }
-.vc-part-pista i.otros { background: repeating-linear-gradient(45deg, var(--vc-suave) 0 3px, transparent 3px 6px); opacity: .8; }
+.vc-part-pista { display: block; height: 14px; border-radius: 999px; background: var(--vc-pista); overflow: hidden; }
+.vc-part-pista i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 70%, #000), var(--c)); }
+.vc-part-pista i.otros { background: repeating-linear-gradient(45deg, var(--c) 0 3px, transparent 3px 6px); opacity: .85; }
 .vc-part-val { font-size: 13px; line-height: 1.2; text-align: right; font-variant-numeric: tabular-nums; }
 .vc-part-val b { font-size: 15px; }
 .vc-part-val small { display: block; font-size: 11px; color: var(--vc-suave); }
@@ -116,9 +122,9 @@
 .vc-col-val { font-size: 12px; font-weight: 700; min-height: 16px; font-variant-numeric: tabular-nums; color: var(--vc-texto); }
 .vc-col.sin-ciclo .vc-col-val, .vc-col.sd .vc-col-val { color: var(--vc-suave); font-style: italic; font-weight: 600; }
 .vc-col-zona { display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 130px; border-bottom: 1px solid var(--vc-borde); }
-.vc-col-barra { width: min(44px, 78%); border-radius: 4px 4px 0 0; background: var(--vc-agua); }
-.vc-col.provisional .vc-col-barra { background: repeating-linear-gradient(45deg, var(--vc-agua) 0 4px, transparent 4px 8px); border: 1.5px solid var(--vc-agua); border-bottom: 0; }
-.vc-hueco { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 100%; height: 100%; box-sizing: border-box; padding: 4px 2px; border: 1.5px dashed var(--vc-suave); border-bottom: 0; border-radius: 4px 4px 0 0; font-size: 11px; line-height: 1.2; color: var(--vc-suave); font-weight: 600; overflow-wrap: anywhere; }
+.vc-col-barra { width: min(44px, 78%); border-radius: 9px 9px 2px 2px; background: linear-gradient(180deg, color-mix(in srgb, var(--vc-agua) 78%, #fff), var(--vc-agua)); }
+.vc-col.provisional .vc-col-barra { background: repeating-linear-gradient(45deg, var(--vc-agua) 0 4px, transparent 4px 8px); border: 1.5px solid var(--vc-agua); border-bottom: 0; border-radius: 9px 9px 2px 2px; }
+.vc-hueco { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 100%; height: 100%; box-sizing: border-box; padding: 4px 2px; border: 1.5px dashed var(--vc-suave); border-bottom: 0; border-radius: 9px 9px 2px 2px; font-size: 11px; line-height: 1.2; color: var(--vc-suave); font-weight: 600; overflow-wrap: anywhere; }
 .vc-col-anio { margin-top: 4px; font-size: 12px; font-weight: 700; color: var(--vc-texto); }
 .vc-col-sub { min-height: 14px; font-size: 11px; line-height: 1.2; color: var(--vc-suave); }
 
@@ -167,3 +173,67 @@
 /* Año sin ciclo en la tabla de Agua y NDVI */
 .vv-tabla .vc-sc { font-style: italic; color: #b8c4d6; white-space: nowrap; }
 .vv-tabla .vc-sc-nota { font-size: 11px; color: #b8c4d6; white-space: normal; }
+
+/* ───────── Identidad de cultivo: color + ícono + nombre escrito (el color nunca va solo) ───────── */
+.vc-cu { --c: var(--cu); --ct: var(--cu-t); }
+:root[data-theme="light"] .vc-cu { --c: var(--cu-l); --ct: var(--cu-lt); }
+.vc-ncu { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.vc-ncu-ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 9px; color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 38%, transparent); }
+.vc-ncu.compacto { gap: 6px; }
+.vc-ncu.compacto .vc-ncu-ico { width: 22px; height: 22px; border-radius: 7px; }
+.vc-ncu-txt { color: var(--vc-texto); font-size: 13px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.vc-tabla th[scope="row"] .vc-ncu-txt { font-size: inherit; font-weight: inherit; }
+.vc-ico { display: block; flex: none; }
+
+/* Composición por año: barras apiladas al 100 % */
+.vc-comp-filas { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.vc-comp-fila { min-width: 0; }
+.vc-comp-btn { display: grid; grid-template-columns: 48px minmax(0, 1fr) 64px; gap: 8px; align-items: center; width: 100%; min-height: 40px; padding: 0 4px; border: 0; border-radius: 12px; background: transparent; color: var(--vc-texto); cursor: pointer; font: inherit; text-align: left; }
+.vc-comp-btn:hover, .vc-comp-btn[aria-pressed="true"] { background: color-mix(in srgb, var(--vc-texto) 7%, transparent); }
+.vc-comp-btn:focus-visible { outline: 2px solid var(--vc-agua); outline-offset: 1px; }
+.vc-comp-anio { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.vc-comp-total { font-size: 12px; text-align: right; color: var(--vc-suave); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vc-comp-barra { display: flex; gap: 2px; height: 30px; min-width: 0; }
+.vc-segm { display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex-basis: 0; min-width: 2px; overflow: hidden; border-radius: 7px; color: var(--ct); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--c) 86%, #fff), var(--c)); transition: opacity .2s; }
+.vc-segm:first-child { border-radius: 12px 7px 7px 12px; }
+.vc-segm:last-child { border-radius: 7px 12px 12px 7px; }
+.vc-segm:only-child { border-radius: 12px; }
+.vc-segm.otros { color: var(--vc-texto); outline: 1.5px dotted color-mix(in srgb, var(--vc-texto) 85%, transparent); outline-offset: -3px; }
+.vc-segm.otros span { background: var(--vc-fondo); padding: 1px 5px; border-radius: 6px; }
+.vc-segm.tenue { opacity: .22; }
+.vc-comp-fila.hueco { display: grid; grid-template-columns: 48px minmax(0, 1fr) 64px; gap: 8px; align-items: center; padding: 0 4px; min-height: 36px; }
+.vc-comp-fila.hueco .vc-comp-cuerpo { display: flex; align-items: center; min-height: 30px; padding: 4px 12px; line-height: 1.2; border: 1.5px dashed var(--vc-suave); border-radius: 12px; font-size: 12px; font-weight: 600; color: var(--vc-suave); }
+.vc-comp-fila.aparte { margin-top: 4px; padding-top: 8px; border-top: 1px dashed var(--vc-borde); }
+.vc-chips-cu { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.vc-chip-cu { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px 0 6px; border: 1px solid var(--vc-borde); border-radius: 18px; background: transparent; color: var(--vc-texto); font-size: 13px; font-weight: 600; cursor: pointer; }
+.vc-chip-cu .vc-ncu-ico { width: 24px; height: 24px; border-radius: 8px; }
+.vc-chip-cu.otros { border-style: dotted; border-width: 2px; }
+.vc-chip-cu:hover { border-color: var(--c); }
+.vc-chip-cu:focus-visible { outline: 2px solid var(--vc-agua); outline-offset: 2px; }
+.vc-chip-cu[aria-pressed="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 18%, transparent); }
+.vc-lectura { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--vc-texto) 5%, transparent); font-size: 13px; line-height: 1.4; }
+.vc-lectura > b { display: block; font-size: 14px; margin-bottom: 6px; }
+.vc-lectura ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.vc-lectura li { display: inline-flex; align-items: center; gap: 6px; color: var(--vc-suave); font-variant-numeric: tabular-nums; }
+.vc-lectura li b { color: var(--vc-texto); }
+.vc-comp-aviso { color: var(--vc-aviso, #f5b942); }
+.vc-lectura .vc-otros-lista { margin: 0 0 8px; color: var(--vc-texto); }
+.vc-lectura .vc-aviso-datos { margin: 0 0 8px; color: var(--vc-texto); }
+.vc-lectura .vc-ncu-ico { width: 24px; height: 24px; border-radius: 8px; }
+
+/* Entradas cortas (solo si la persona no pidió menos movimiento) */
+@keyframes vc-crece-x { from { transform: scaleX(0); opacity: .2; } to { transform: scaleX(1); opacity: 1; } }
+@keyframes vc-crece-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@media (prefers-reduced-motion: no-preference) {
+    .vc-part-pista i { transform-origin: left; animation: vc-crece-x .45s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+    .vc-segm { transform-origin: left; animation: vc-crece-x .45s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+    .vc-col-barra { transform-origin: bottom; animation: vc-crece-y .45s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+}
+
+@media (max-width: 520px) {
+    .vc-comp-btn, .vc-comp-fila.hueco { grid-template-columns: 34px minmax(0, 1fr) 54px; gap: 6px; }
+    .vc-comp-total { font-size: 11px; }
+    .vc-segm { font-size: 11px; }
+    .vc-segm .chico { display: none; }
+}

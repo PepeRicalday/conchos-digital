@@ -11,12 +11,13 @@ import { fmt, fmtMiles, SD } from './formato';
 import {
     bloqueFirmas, cabeceraInforme, cssInforme, documentoHtml, esc, fechaHoraLegible, folioConPartes, hashCorto, minificaCss, pieInforme, tablaTrazabilidad, unificaFuenteSvg,
 } from './informeBase';
-import { RANGO_INFORME, ANIOS_SIN_CICLO, TEXTO_SIN_CICLO, esAnioSinCiclo } from './estadoAnio';
+import { RANGO_INFORME, ANIOS_SIN_CICLO, ANIO_PROVISIONAL, TEXTO_SIN_CICLO, esAnioSinCiclo } from './estadoAnio';
+import { fondoTramaCss, iconoCultivoG, iconoCultivoSvg, infoCultivo, patronTrama } from './cultivos';
 import type { FilaSupVol } from './ndviInteranual';
 import type { VolumenActual } from './ndviVolumen';
 import {
-    UMBRAL_HA_MUESTRA, Z_ATIPICA, cifraContraste, contrasteRegimenes, esAlfalfaNogal, fraseContrasteSuperficie, kpiCiclo, lecturaVsTipico, kpiLamina, kpiMezcla, laminaPorCultivo, listaAtipicos, matrizModuloAnio, mezclaCultivos,
-    referenciaCicloActual, type PosicionCiclo, type ReferenciaModulo, type SerieCultivo,
+    UMBRAL_HA_MUESTRA, Z_ATIPICA, cifraContraste, contrasteRegimenes, fraseContrasteSuperficie, kpiCiclo, lecturaVsTipico, kpiLamina, kpiMezcla, laminaPorCultivo, listaAtipicos, matrizModuloAnio, mezclaCultivos,
+    referenciaCicloActual, composicionAnual, notaIncompleta, type PosicionCiclo, type ReferenciaModulo, type SerieCultivo,
 } from './volumenCultivo';
 
 export const MODULOS_INFORME_VC = [1, 2, 3, 4, 5, 12];
@@ -39,6 +40,8 @@ const INK = '#1f2328', INK2 = '#57606a', GRID = '#dcd9d2', AZUL = '#0A5BB0';
 const f1 = (n: number) => String(Number(n.toFixed(1)));
 const FS = 10.4;
 const sg = (v: number, d = 0) => `${v < 0 ? '−' : '+'}${Math.abs(v).toFixed(d)}`;
+/** Encabezado de fila de un cultivo: ícono en su color y nombre escrito. */
+const cultivoTh = (nombre: string): string => `<th scope="row" class="cul">${iconoCultivoSvg(nombre, 12, infoCultivo(nombre).colorClaro)}${esc(nombre)}</th>`;
 const tdN = (txt: string, extra = '') => (txt === SD ? `<td class="n sd">${SD}</td>` : `<td class="n">${esc(txt)}${extra}</td>`);
 const TXT_POS: Record<PosicionCiclo, string> = { 'bajo-rango': '▼ Debajo del rango', dentro: '● Dentro del rango', 'sobre-rango': '▲ Arriba del rango', 'sin-dato': 'Sin dato (S/D)' };
 
@@ -61,6 +64,7 @@ export function svgLaminaMiniaturas(series: SerieCultivo[], anios: number[]): st
     const maxL = Math.max(1, ...top.flatMap((s) => s.celdas.map((c) => c.laminaCm ?? 0)));
     const base = 88, alto = 58, slot = (PW - 8) / anios.length, bw = Math.min(28, slot - 8);
     const paneles = top.map((s, i) => {
+        const col = infoCultivo(s.cultivo).colorClaro;
         const ox = (i % 3) * (PW + GAP), oy = Math.floor(i / 3) * PH;
         const barras = anios.map((a, k) => {
             const c = s.celdas.find((x) => x.anio === a);
@@ -70,42 +74,60 @@ export function svgLaminaMiniaturas(series: SerieCultivo[], anios: number[]): st
             const h = Math.max(2, (c.laminaCm / maxL) * alto);
             const marca = c.laminaAtipica || c.atipicoFuente || c.muestraChica ? ' ⚠' : '';
             const rect = c.muestraChica
-                ? `<rect x="${f1(cx - bw / 2)}" y="${f1(base - h)}" width="${f1(bw)}" height="${f1(h)}" rx="2" fill="#fff" stroke="${AZUL}" stroke-width="1.6"/>`
-                : `<rect x="${f1(cx - bw / 2)}" y="${f1(base - h)}" width="${f1(bw)}" height="${f1(h)}" rx="2" fill="${AZUL}"/>`;
+                ? `<rect x="${f1(cx - bw / 2)}" y="${f1(base - h)}" width="${f1(bw)}" height="${f1(h)}" rx="2" fill="#fff" stroke="${col}" stroke-width="1.6"/>`
+                : `<rect x="${f1(cx - bw / 2)}" y="${f1(base - h)}" width="${f1(bw)}" height="${f1(h)}" rx="2" fill="${col}"/>`;
             return `${rect}<text x="${f1(cx)}" y="${f1(base - h - 3)}" text-anchor="middle" font-size="${FS}" font-weight="700" fill="${INK}">${Math.round(c.laminaCm)}${marca}</text>${rotA}`;
         }).join('');
-        return `<g transform="translate(${ox} ${oy})"><text x="4" y="12" font-size="11.5" font-weight="700" fill="${INK}">${esc(s.cultivo)}</text><line x1="4" x2="${PW - 4}" y1="${base}" y2="${base}" stroke="${GRID}"/>${barras}</g>`;
+        return `<g transform="translate(${ox} ${oy})">${iconoCultivoG(s.cultivo, 3, -1, 16, col)}<text x="23" y="12" font-size="11.5" font-weight="700" fill="${INK}">${esc(s.cultivo)}</text><line x1="4" x2="${PW - 4}" y1="${base}" y2="${base}" stroke="${GRID}"/>${barras}</g>`;
     }).join('');
     const resumen = top.map((s) => `${s.cultivo}: ${anios.map((a) => { const c = s.celdas.find((x) => x.anio === a); return `${a} ${c?.laminaCm != null ? `${Math.round(c.laminaCm)} cm` : 'S/D'}`; }).join(', ')}`).join('. ');
     return `<svg viewBox="0 0 ${W} ${filas * PH}" width="100%" style="max-width:${W}px;display:block" role="img" aria-label="Agua entregada por hectárea, en centímetros, por año de los ${top.length} cultivos que más agua reciben. ${esc(resumen)}"><title>Agua entregada por hectárea (cm) por cultivo y año, misma escala desde cero</title>${paneles}</svg>`;
 }
 
-const COL_ALFALFA = '#1f6f14', COL_NOGAL = '#7a4a1c', COL_OTROS = '#5b6573';
-/** Barras 100 % apiladas por año: alfalfa, nogal y el resto de cultivos, con su porcentaje escrito dentro del segmento cuando cabe. */
+/** Cultivo con color, ícono y trama en una leyenda HTML (se lee también en blanco y negro). */
+const leyendaCultivo = (nombre: string, esOtros = false, titulo?: string): string => {
+    const i = esOtros ? infoCultivo('Otros') : infoCultivo(nombre);
+    return `<li${titulo ? ` title="${esc(titulo)}"` : ''}><i class="sw" style="background:${fondoTramaCss(i.trama, i.colorClaro, 'rgba(0,0,0,.38)')}"></i>${iconoCultivoSvg(i.nombre, 12, i.colorClaro)}${esc(nombre)}</li>`;
+};
+
+/**
+ * Barras 100 % apiladas por año, con los cultivos de siempre en el mismo orden, su color, su trama (legible en blanco y negro) y su porcentaje escrito.
+ * 2025 sale como hueco «sin ciclo»; un año sin renglones, S/D. Leyenda con ícono y nombre.
+ */
 export function svgMezclaApilada(filas: FilaSupVol[], anios: number[]): string {
     if (!anios.length) return '';
-    const W = 660, X0 = 168, X1 = 650, RH = 28;
-    const rows = anios.map((a, i) => {
-        const m = mezclaCultivos(filas, null, a);
-        const tot = m.reduce((s, x) => s + (x.volumenHm3 ?? 0), 0);
-        const alf = m.filter((x) => x.cultivo.toLowerCase().startsWith('alfalfa')).reduce((s, x) => s + (x.volumenHm3 ?? 0), 0);
-        const nog = m.filter((x) => esAlfalfaNogal(x.cultivo) && !x.cultivo.toLowerCase().startsWith('alfalfa')).reduce((s, x) => s + (x.volumenHm3 ?? 0), 0);
+    const comp = composicionAnual(filas, null, 'volumen');
+    const W = 660, X0 = 54, X1 = 566, RH = 28;
+    const extra = ANIOS_SIN_CICLO.filter((a) => !anios.includes(a));
+    const tramas = new Map(comp.leyenda.map((l) => { const i = infoCultivo(l.esOtros ? 'Otros' : l.nombre); return [l.clave + l.nombre, { id: `tr-mz-${i.clave}`, i }] as const; }));
+    const defs = [...tramas.values()].filter((t) => t.i.trama !== 'liso').map((t) => patronTrama(t.id, t.i.trama, 'rgba(0,0,0,.34)')).join('');
+    const rows = [...anios.map((a) => ({ a, sin: false, prov: false })), ...extra.map((a) => ({ a, sin: true, prov: false })), { a: ANIO_PROVISIONAL, sin: false, prov: true }].map(({ a, sin, prov }, i) => {
         const y = 6 + i * RH;
-        if (!tot) return `<text x="4" y="${y + 15}" font-size="${FS}" fill="${INK}">${a}</text><text x="${X0}" y="${y + 15}" font-size="${FS}" font-style="italic" fill="#6a737d">S/D</text>`;
-        const partes = [{ v: alf, c: COL_ALFALFA, n: 'Alfalfa' }, { v: nog, c: COL_NOGAL, n: 'Nogal' }, { v: Math.max(0, tot - alf - nog), c: COL_OTROS, n: 'Otros' }];
+        if (prov) return `<text x="4" y="${y + 15}" font-size="${FS}" font-weight="700" fill="${INK}">${a}</text><rect x="${X0}" y="${y}" width="${X1 - X0}" height="20" rx="6" fill="none" stroke="${INK2}" stroke-width="1.2" stroke-dasharray="1.5 3.5" stroke-linecap="round"/><text x="${X0 + 8}" y="${y + 14.5}" font-size="${FS}" font-style="italic" fill="${INK2}">Provisional: sin desglose por cultivo</text>`;
+        if (sin) return `<text x="4" y="${y + 15}" font-size="${FS}" font-weight="700" fill="${INK}">${a}</text><rect x="${X0}" y="${y}" width="${X1 - X0}" height="20" rx="6" fill="none" stroke="${INK2}" stroke-width="1.2" stroke-dasharray="4 3"/><text x="${X0 + 8}" y="${y + 14.5}" font-size="${FS}" font-style="italic" fill="${INK2}">Sin ciclo: presas cerradas</text>`;
+        const fila = comp.filas.find((x) => x.anio === a && x.estado === 'con-informe');
+        if (!fila || !fila.total) return `<text x="4" y="${y + 15}" font-size="${FS}" font-weight="700" fill="${INK}">${a}</text><text x="${X0}" y="${y + 15}" font-size="${FS}" font-style="italic" fill="#6a737d">S/D</text>`;
         let x = X0;
-        const segs = partes.map((p) => {
-            const w = (p.v / tot) * (X1 - X0);
+        const segs = fila.partes.map((p) => {
+            const w = (p.pct / 100) * (X1 - X0);
             const ini = x; x += w;
             if (w < 0.5) return '';
-            const pct = (p.v / tot) * 100;
-            return `<rect x="${f1(ini)}" y="${y}" width="${f1(Math.max(0, w - 2))}" height="20" rx="2" fill="${p.c}"/>${w > 40 ? `<text x="${f1(ini + (w - 2) / 2)}" y="${y + 14.5}" text-anchor="middle" font-size="${FS}" font-weight="700" fill="#fff">${pct.toFixed(0)} %</text>` : ''}`;
+            const t = tramas.get(p.clave + p.nombre) ?? { id: '', i: infoCultivo(p.nombre) };
+            const ww = Math.max(0, w - 2);
+            const pillW = w > 78 ? 40 : 25, cx = ini + ww / 2;
+            const etiqueta = w > 30
+                ? `<rect x="${f1(cx - pillW / 2)}" y="${y + 3.5}" width="${pillW}" height="13" rx="4" fill="#fff" fill-opacity=".92"/>${w > 78 ? iconoCultivoG(p.nombre, cx - pillW / 2 + 3, y + 4.5, 11, t.i.colorClaro) : ''}<text x="${f1(w > 78 ? cx + 5 : cx)}" y="${y + 13.6}" text-anchor="middle" font-size="${FS}" font-weight="700" fill="${INK}">${p.pct.toFixed(0)} %</text>`
+                : '';
+            return `<rect x="${f1(ini)}" y="${y}" width="${f1(ww)}" height="20" rx="4" fill="${t.i.colorClaro}"/>${t.i.trama !== 'liso' ? `<rect x="${f1(ini)}" y="${y}" width="${f1(ww)}" height="20" rx="4" fill="url(#${t.id})"/>` : ''}${etiqueta}`;
         }).join('');
-        return `<text x="4" y="${y + 15}" font-size="${FS}" font-weight="700" fill="${INK}">${a}</text><text x="${X0 - 6}" y="${y + 15}" text-anchor="end" font-size="${FS}" fill="${INK2}">${fmt(tot, 0)} hm³</text>${segs}`;
+        return `<text x="4" y="${y + 15}" font-size="${FS}" font-weight="700" fill="${INK}">${a}${fila.incompleta ? ' ⚠' : ''}</text>${segs}<text x="${X1 + 6}" y="${y + 15}" font-size="${FS}" fill="${INK2}">${fmt(fila.total, 0)} hm³</text>`;
     }).join('');
     const desc = anios.map((a) => { const k = kpiMezcla(filas, null, a); return `${a}: alfalfa y nogal ${k.pctVolumenAlfalfaNogal != null ? `${Math.round(k.pctVolumenAlfalfaNogal)} %` : 'S/D'} del agua entregada`; }).join('; ');
-    return `<svg viewBox="0 0 ${W} ${anios.length * RH + 8}" width="100%" style="max-width:${W}px;display:block" role="img" aria-label="Parte del agua entregada que recibe cada cultivo, por año. ${esc(desc)}"><title>Parte del agua entregada que reciben alfalfa, nogal y otros cultivos en cada año</title>${rows}</svg>
-<ul class="ley" aria-label="Leyenda"><li><i style="background:${COL_ALFALFA}"></i>Alfalfa</li><li><i style="background:${COL_NOGAL}"></i>Nogal</li><li><i style="background:${COL_OTROS}"></i>Otros cultivos</li></ul>`;
+    const avisos = comp.filas.filter((x) => x.estado === 'con-informe' && anios.includes(x.anio)).map((x) => notaIncompleta(x, 'volumen')).filter((n): n is string => !!n);
+    const alto = (anios.length + extra.length + 1) * RH + 8;
+    return `<svg viewBox="0 0 ${W} ${alto}" width="100%" style="max-width:${W}px;display:block" role="img" aria-label="Parte del agua entregada que recibe cada cultivo, por año. ${esc(desc)}"><title>Parte del agua entregada que recibe cada cultivo en cada año</title><defs>${defs}</defs>${rows}</svg>
+<ul class="ley" aria-label="Leyenda de cultivos">${comp.leyenda.map((l) => leyendaCultivo(l.esOtros ? `${l.nombre} (${l.cultivos.join(', ')})` : l.nombre, l.esOtros)).join('')}</ul>
+<p class="fuente">Los porcentajes se redondean; pueden sumar 99 o 101 %. «Varios» = cultivos sin desglose en el informe.${avisos.map((n) => ` ${esc(n)}`).join('')}</p>`;
 }
 
 /** Rango 2020-2024 (banda), mediana (raya) y ciclo actual (rombo) por módulo; escala propia de cada módulo desde cero. Los números van escritos a la derecha. */
@@ -142,11 +164,13 @@ td.alerta{font-weight:700}
 tbody th.cul{background:none;color:var(--ink);text-transform:none;letter-spacing:0;font-size:8pt;text-align:left;white-space:nowrap;border-bottom:1px solid var(--linea)}
 tbody tr:nth-child(even) th.cul{background:#F6F9FC}
 .mini{display:block;height:3px;margin:2px 0 0 auto;width:48px;background:#e6e3dc;border-radius:2px}
-.mini i{display:block;height:100%;background:${AZUL};border-radius:2px}
-.mini.hueca i{background:#fff;box-shadow:inset 0 0 0 1px ${AZUL}}
+.mini i{display:block;height:100%;background:var(--cu,${AZUL});border-radius:2px}
+.mini.hueca i{background:#fff;box-shadow:inset 0 0 0 1px var(--cu,${AZUL})}
 .ley{display:flex;flex-wrap:wrap;gap:3px 14px;list-style:none;padding:0;margin:4px 0 0;font-size:7.5pt}
 .ley li{display:inline-flex;align-items:center;gap:5px}
 .ley i{display:inline-block;width:16px;height:9px;border-radius:2px}
+.ley i.sw{width:18px;height:11px;border-radius:3px;border:1px solid rgba(0,0,0,.25)} .ley .ico-cul{margin-right:-2px}
+th.cul .ico-cul{margin-right:4px}
 .ley i.b{background:#c9ced6} .ley i.m{width:3px;height:12px;background:${INK2}} .ley i.r{width:10px;height:10px;transform:rotate(45deg);background:${AZUL};border:1.5px solid ${INK};border-radius:0}
 .hallazgos{margin:0 0 6px;padding-left:18px} .hallazgos li{margin-bottom:3px}
 .aviso.ok{border-left-color:#13866F;background:#effaf6;color:#0f5a49}
@@ -233,11 +257,11 @@ ${haz.length ? `<ol class="hallazgos">${haz.map((h) => `<li>${esc(h)}</li>`).joi
     // ── Lámina por cultivo
     {
         const maxL = Math.max(1, ...series.flatMap((s) => s.celdas.map((c) => c.laminaCm ?? 0)));
-        const filasTabla = series.map((s) => `<tr><th scope="row" class="cul">${esc(s.cultivo)}</th>${anios.map((a) => {
+        const filasTabla = series.map((s) => `<tr>${cultivoTh(s.cultivo)}${anios.map((a) => {
             const c = s.celdas.find((x) => x.anio === a);
             if (!c || c.laminaCm == null) return `<td class="n sd">${SD}</td>`;
             const marca = c.laminaAtipica || c.atipicoFuente || c.muestraChica;
-            return `<td class="n${c.laminaAtipica || c.atipicoFuente ? ' alerta' : ''}">${fmt(c.laminaCm, 0)}${marca ? ' ⚠' : ''}<span class="mini${c.muestraChica ? ' hueca' : ''}"><i style="width:${Math.max(3, (c.laminaCm / maxL) * 100).toFixed(0)}%"></i></span><small>${fmtMiles(c.superficieHa, 0)} ha</small></td>`;
+            return `<td class="n${c.laminaAtipica || c.atipicoFuente ? ' alerta' : ''}">${fmt(c.laminaCm, 0)}${marca ? ' ⚠' : ''}<span class="mini${c.muestraChica ? ' hueca' : ''}" style="--cu:${infoCultivo(s.cultivo).colorClaro}"><i style="width:${Math.max(3, (c.laminaCm / maxL) * 100).toFixed(0)}%"></i></span><small>${fmtMiles(c.superficieHa, 0)} ha</small></td>`;
         }).join('')}${s.mediaLaminaCm != null ? tdN(fmt(s.mediaLaminaCm, 0)) : tdN(SD)}</tr>`).join('');
         const mat = matrizModuloAnio(filas, MODULOS_INFORME_VC);
         const filasMod = mat.map((m) => `<tr><th scope="row" class="cul">Módulo ${m.modulo}</th>${m.celdas.map((c) => (c.laminaCm == null ? `<td class="n sd">${SD}</td>` : `<td class="n">${fmt(c.laminaCm, 0)}<small>${fmtMiles(c.superficieHa, 0)} ha · ${fmt(c.volumenHm3, 1)} hm³</small></td>`)).join('')}</tr>`).join('');
@@ -253,8 +277,8 @@ ${series.length ? `<figure class="fig" style="margin:0 0 6px">${svgLaminaMiniatu
     // ── Mezcla y contraste
     {
         const m = anioUlt != null ? mezclaCultivos(filas, null, anioUlt) : [];
-        const filasMezcla = m.map((p) => `<tr><th scope="row" class="cul">${esc(p.cultivo)}</th>${tdN(p.superficieHa != null ? fmtMiles(p.superficieHa, 0) : SD)}${tdN(p.pctSuperficie != null ? fmt(p.pctSuperficie, 1) : SD)}${tdN(p.volumenHm3 != null ? fmt(p.volumenHm3, 1) : SD)}${tdN(p.pctVolumen != null ? fmt(p.pctVolumen, 1) : SD)}</tr>`).join('');
-        const filasContr = contraste ? contraste.cultivos.slice(0, 8).map((c) => `<tr><th scope="row" class="cul">${esc(c.cultivo)}</th>${tdN(c.pctVolAltos != null ? fmt(c.pctVolAltos, 1) : SD)}${tdN(c.pctVolBajos != null ? fmt(c.pctVolBajos, 1) : SD)}${tdN(c.deltaPp != null ? sg(c.deltaPp, 1) : SD)}</tr>`).join('') : '';
+        const filasMezcla = m.map((p) => `<tr>${cultivoTh(p.cultivo)}${tdN(p.superficieHa != null ? fmtMiles(p.superficieHa, 0) : SD)}${tdN(p.pctSuperficie != null ? fmt(p.pctSuperficie, 1) : SD)}${tdN(p.volumenHm3 != null ? fmt(p.volumenHm3, 1) : SD)}${tdN(p.pctVolumen != null ? fmt(p.pctVolumen, 1) : SD)}</tr>`).join('');
+        const filasContr = contraste ? contraste.cultivos.slice(0, 8).map((c) => `<tr>${cultivoTh(c.cultivo)}${tdN(c.pctVolAltos != null ? fmt(c.pctVolAltos, 1) : SD)}${tdN(c.pctVolBajos != null ? fmt(c.pctVolBajos, 1) : SD)}${tdN(c.deltaPp != null ? sg(c.deltaPp, 1) : SD)}</tr>`).join('') : '';
         agrega(`<h2 style="margin-top:0"><span class="n">${++nSec}</span>Mezcla de cultivos y cambio de superficie entre años</h2>
 ${anios.length ? `<h3>Parte del agua que recibe cada cultivo, por año</h3><figure class="fig" style="margin:0 0 4px">${svgMezclaApilada(filas, anios)}</figure><p class="fuente">${esc(NOTA_SIN_CICLO)}</p>` : ''}
 ${m.length ? `<div class="tabla-wrap"><table class="compacta"><caption>Peso por cultivo, ${anioUlt}, todo el distrito</caption><thead><tr><th>Cultivo</th><th class="n">Superficie (ha)</th><th class="n">% de la superficie</th><th class="n">Agua (hm³)</th><th class="n">% del agua</th></tr></thead><tbody>${filasMezcla}</tbody></table></div>` : `<div class="aviso"><b>S/D:</b> sin renglones del informe ACUM_INF cargados para la mezcla (dato por cargar, no un año sin riego).</div>`}
@@ -278,7 +302,7 @@ ${aviso}<figure class="fig" style="margin:0 0 4px">${svgRangoCiclo(refs)}</figur
 
     // ── Anexo A: atípicos
     {
-        const f = atipicos.map((a) => `<tr><th scope="row" class="cul">${esc(a.cultivo)}</th><td class="n">${a.anio}</td>${tdN(a.laminaCm != null ? fmt(a.laminaCm, 0) : SD)}${tdN(a.superficieHa != null ? fmtMiles(a.superficieHa, 0) : SD)}<td>${esc(a.motivos.join('; '))}</td></tr>`).join('');
+        const f = atipicos.map((a) => `<tr>${cultivoTh(a.cultivo)}<td class="n">${a.anio}</td>${tdN(a.laminaCm != null ? fmt(a.laminaCm, 0) : SD)}${tdN(a.superficieHa != null ? fmtMiles(a.superficieHa, 0) : SD)}<td>${esc(a.motivos.join('; '))}</td></tr>`).join('');
         agrega(`<h2 style="margin-top:0">Anexo ${letra()} — Celdas y renglones atípicos</h2>
 <p>Se muestran tal como vienen en la fuente; ninguna cifra se corrige, se omite ni se sustituye. La fuente marca ${nHaz(renglonesAtipicosFuente, 'renglón', 'renglones')} de ${fmtMiles(filas.length, 0)} como captura atípica.</p>
 ${atipicos.length ? `<div class="tabla-wrap"><table class="compacta"><caption>Celdas cultivo-año con ⚠ (${atipicos.length})</caption><thead><tr><th>Cultivo</th><th class="n">Año</th><th class="n">Agua por hectárea (cm)</th><th class="n">Superficie (ha)</th><th>Motivo</th></tr></thead><tbody>${f}</tbody></table></div>` : '<div class="aviso ok">Ninguna celda cultivo-año cumple los criterios de alerta.</div>'}`);

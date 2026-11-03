@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { FilaSupVol } from './ndviInteranual';
 import type { VolumenActual } from './ndviVolumen';
+import { infoCultivo } from './cultivos';
 import {
-    contrasteRegimenes, esAlfalfaNogal, kpiCiclo, kpiLamina, kpiMezcla, laminaCm, laminaPorCultivo, listaAtipicos, matrizModuloAnio, mezclaCultivos, referenciaCicloActual,
+    composicionAnual, contrasteRegimenes, esAlfalfaNogal, estadoCultivoEnAnio, notaIncompleta, fraseCambioMezcla, kpiCiclo, kpiLamina, kpiMezcla, laminaCm, laminaPorCultivo, listaAtipicos, matrizModuloAnio, mezclaCultivos, referenciaCicloActual,
     type ReferenciaModulo,
 } from './volumenCultivo';
 
@@ -209,5 +210,89 @@ describe('matrizModuloAnio', () => {
         expect(c.superficieHa).toBe(4400);
         expect(c.laminaCm).toBeCloseTo((58000 / 4400) * 10, 6);
         expect(m[1].celdas.every(x => x.laminaCm === null && x.superficieHa === null)).toBe(true);
+    });
+});
+
+describe('composicionAnual (barras apiladas)', () => {
+    const MIX: FilaSupVol[] = [
+        ...FILAS,
+        f(2020, 1, 'Maíz', 500, 4000), f(2021, 1, 'Maíz', 300, 2000), f(2022, 1, 'Chile', 200, 3000),
+        f(2022, 1, 'Cebolla', 50, 500), f(2023, 1, 'Cebolla', 60, 700), f(2024, 1, 'Nogal ', 100, 1000),
+        f(2025, 1, 'Alfalfa', 100, 0), // un renglón con 0 en un año sin ciclo no debe aparecer
+    ];
+    it('cada año con informe suma 100 % y el total es la suma de las partes', () => {
+        for (const campo of ['volumen', 'superficie'] as const) {
+            const c = composicionAnual(MIX, null, campo);
+            for (const fila of c.filas.filter(x => x.estado === 'con-informe')) {
+                expect(fila.partes.reduce((a, p) => a + p.pct, 0)).toBeCloseTo(100, 6);
+                expect(fila.partes.reduce((a, p) => a + p.valor, 0)).toBeCloseTo(fila.total as number, 6);
+            }
+        }
+    });
+    it('el total de 2020 en volumen es la suma de los renglones de la fuente (hm³)', () => {
+        const c = composicionAnual(MIX, null, 'volumen');
+        expect(c.filas.find(x => x.anio === 2020)?.total).toBeCloseTo((40000 + 18000 + 4000) / 1000, 6);
+        expect(c.unidad).toBe('hm³');
+        expect(composicionAnual(MIX, null, 'superficie').filas.find(x => x.anio === 2020)?.total).toBeCloseTo(3000 + 1400 + 500, 6);
+    });
+    it('2025 queda como hueco «sin ciclo» (sin total ni partes, nunca 0) y 2026 como «sin desglose»', () => {
+        const c = composicionAnual(MIX, null, 'volumen');
+        const f25 = c.filas.find(x => x.anio === 2025)!;
+        expect(f25.estado).toBe('sin-ciclo');
+        expect(f25.total).toBeNull();
+        expect(f25.partes).toHaveLength(0);
+        const f26 = c.filas.find(x => x.anio === 2026)!;
+        expect(f26.estado).toBe('sin-desglose');
+        expect(f26.total).toBeNull();
+        expect(c.filas.map(x => x.anio)).toEqual([2020, 2021, 2022, 2023, 2024, 2025, 2026]);
+    });
+    it('un módulo sin renglones en un año da S/D (null), no 0 ni una barra vacía', () => {
+        const c = composicionAnual(MIX, 2, 'volumen');
+        expect(c.filas.find(x => x.anio === 2020)).toMatchObject({ estado: 'sd', total: null });
+        expect(c.filas.find(x => x.anio === 2024)?.estado).toBe('con-informe');
+    });
+    it('los cultivos van en el orden fijo del catálogo, con «Otros» al final, y el nombre con espacios se unifica', () => {
+        const c = composicionAnual(MIX, null, 'volumen', 3);
+        expect(c.leyenda.map(l => l.nombre).slice(0, 3)).toEqual(['Alfalfa', 'Nogal', 'Maíz']);
+        expect(c.leyenda[c.leyenda.length - 1].esOtros).toBe(true);
+        expect(c.filas.find(x => x.anio === 2024)?.partes.find(p => p.nombre === 'Nogal')?.valor).toBeCloseTo(14, 6);
+    });
+    it('un volumen faltante (null) no se vuelve 0: el cultivo no aparece', () => {
+        const c = composicionAnual([f(2020, 1, 'Alfalfa', 100, 1000), f(2020, 1, 'Maíz', 50, null)], null, 'volumen');
+        const parte = c.filas.find(x => x.anio === 2020)!.partes;
+        expect(parte.map(p => p.nombre)).toEqual(['Alfalfa']);
+        expect(composicionAnual([], null, 'volumen').filas.every(x => x.estado !== 'con-informe')).toBe(true);
+    });
+    it('renglón con volumen nulo o 0 ≠ cultivo ausente: se marca la barra como incompleta y se explica', () => {
+        const filas = [f(2020, 1, 'Alfalfa', 100, 1000), f(2020, 1, 'Maíz', 50, null), f(2020, 1, 'Chile', 20, 0), f(2021, 1, 'Alfalfa', 100, 1000)];
+        const c = composicionAnual(filas, null, 'volumen');
+        const a20 = c.filas.find(x => x.anio === 2020)!, a21 = c.filas.find(x => x.anio === 2021)!;
+        expect(a20.sinCifra.sort()).toEqual(['Chile', 'Maíz']);
+        expect(a20.incompleta).toBe(true);
+        expect(a21.incompleta).toBe(false);
+        expect(notaIncompleta(a21, 'volumen')).toBeNull();
+        expect(notaIncompleta(a20, 'volumen')).toMatch(/⚠ 2020: el informe trae Chile, Maíz sin volumen\..*datos incompletos/);
+        const l = (nombre: string) => ({ nombre, clave: infoCultivo(nombre).clave, esOtros: false, cultivos: [nombre] });
+        expect(estadoCultivoEnAnio(a20, l('Maíz')).tipo).toBe('sin-cifra');
+        expect(estadoCultivoEnAnio(a21, l('Maíz')).tipo).toBe('ausente');
+        expect(estadoCultivoEnAnio(a20, l('Alfalfa')).tipo).toBe('parte');
+    });
+    it('un renglón atípico de la fuente también marca la barra como incompleta', () => {
+        const c = composicionAnual([f(2020, 1, 'Alfalfa', 100, 1000, true), f(2020, 1, 'Maíz', 50, 400)], null, 'volumen');
+        const a = c.filas.find(x => x.anio === 2020)!;
+        expect(a.atipicos).toEqual(['Alfalfa']);
+        expect(notaIncompleta(a, 'volumen')).toMatch(/captura atípica/);
+    });
+    it('un nombre compuesto («Maíz/Frijol») cae en «Otros» y no se cuenta como Maíz', () => {
+        const c = composicionAnual([f(2020, 1, 'Maíz', 100, 1000), f(2020, 1, 'Maíz/Frijol', 40, 300)], null, 'volumen');
+        expect(c.filas.find(x => x.anio === 2020)!.partes.map(p => p.nombre).sort()).toEqual(['Maíz', 'Otros']);
+        expect(c.leyenda.filter(l => l.clave === 'otros').length).toBeLessThanOrEqual(1);
+    });
+    it('frase de cambio: simple, sin causas, con los años', () => {
+        const fr = fraseCambioMezcla(composicionAnual(MIX, null, 'volumen'));
+        expect(fr).toMatch(/^Entre el primer y el último año con informe, Alfalfa recibió \d+ % del agua entregada en 2020 y \d+ % en 2024 \(2025 sin ciclo\)\.$/);
+        expect(fr).not.toMatch(/porque|debido|causa/i);
+        expect(fraseCambioMezcla(composicionAnual(MIX, null, 'superficie'))).toMatch(/ocupó \d+ % de la superficie regada/);
+        expect(fraseCambioMezcla(composicionAnual([], null, 'volumen'))).toBeNull();
     });
 });

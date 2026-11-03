@@ -1,4 +1,4 @@
-// Auditoría de SOLO LECTURA de «Consumo por cultivo» (ACUM_INF 2020-2024; iter4+: lectura simple, 2025 = sin ciclo): las 3 vistas del panel «Más agua, más vegetación» (GEO-MONITOR ·
+// Auditoría de SOLO LECTURA de «Agua entregada por cultivo» (ACUM_INF 2020-2024; iter4+: lectura simple, 2025 = sin ciclo): las 3 vistas del panel «Más agua, más vegetación» (GEO-MONITOR ·
 // NDVI mensual por módulo) y el informe estadístico descargado desde el modal de informes NDVI.
 //   node e2e/volumen-cultivo.mjs <iteracion>        (con `npm run dev` en :5173)
 // Perfiles: Chromium 430 / 820 / 1440 y WebKit iPhone 15 Pro Max + iPad Pro 11. Detecta desborde horizontal, solapes entre piezas de las tarjetas KPI,
@@ -130,7 +130,26 @@ const SOLAPES = `(() => {
   for (let i = 0; i < ts.length; i++) for (let j = i + 1; j < ts.length; j++) if (inter(ts[i], ts[j])) malos.push('tarjetas KPI solapadas');
   return malos;
 })()`;
-const OBJETIVOS = `(() => [...document.querySelectorAll('.vv-vistas button, .vc-seg-btn, .vc-detalle > summary, .vv select')].map((e) => { const b = e.getBoundingClientRect(); return { t: (e.textContent || e.value || e.tagName).trim().slice(0, 24), w: Math.round(b.width), h: Math.round(b.height) }; }).filter((x) => x.h < 35.5 || x.w < 35.5))()`;
+const OBJETIVOS = `(() => [...document.querySelectorAll('.vv-vistas button, .vc-seg-btn, .vc-detalle > summary, .vc-comp-btn, .vc-chip-cu, .vv select')].map((e) => { const b = e.getBoundingClientRect(); return { t: (e.textContent || e.value || e.tagName).trim().slice(0, 24), w: Math.round(b.width), h: Math.round(b.height) }; }).filter((x) => x.h < 35.5 || x.w < 35.5))()`;
+// Identidad de cultivo: cada ficha (.vc-ncu / chip / lectura) con ícono SVG con trazos, color propio y nombre escrito; el color de un cultivo es el mismo en todas las vistas.
+const IDENTIDAD = String.raw`(() => [...document.querySelectorAll('.vv .vc-ncu, .vv .vc-chip-cu, .vv .vc-lectura li.vc-cu')].map((e) => {
+  const ico = e.querySelector('.vc-ncu-ico'), svg = e.querySelector('svg.vc-ico');
+  const nombre = (e.querySelector('.vc-ncu-txt')?.textContent ?? e.textContent).replace(/\s*\d+ %\s*$/, '').trim();
+  return { nombre, color: ico ? getComputedStyle(ico).color : '', trazos: svg ? svg.querySelectorAll('path,ellipse,circle').length : 0, oculto: svg?.getAttribute('aria-hidden') === 'true', ancho: svg ? Math.round(svg.getBoundingClientRect().width) : 0 };
+}))()`;
+const COLOR_DE = {};
+async function revisaIdentidad(page, D) {
+  const fichas = await page.evaluate(IDENTIDAD);
+  if (!fichas.length) { hallazgo('alto', D, 'no hay fichas de cultivo (ícono + nombre)'); return 0; }
+  for (const x of fichas) {
+    if (!x.nombre) hallazgo('alto', D, 'ficha de cultivo sin nombre escrito');
+    if (!x.trazos || x.ancho < 14) hallazgo('alto', D, `cultivo «${x.nombre}» sin ícono visible (trazos ${x.trazos}, ancho ${x.ancho})`);
+    if (!x.oculto) hallazgo('medio', D, `el ícono de «${x.nombre}» no es aria-hidden`);
+    if (!x.color || /rgba\(0, 0, 0, 0\)|transparent/.test(x.color)) hallazgo('alto', D, `cultivo «${x.nombre}» sin color de identificación`);
+    else if (!/^Otros/.test(x.nombre)) { const k = x.nombre; if (COLOR_DE[k] && COLOR_DE[k] !== x.color) hallazgo('alto', D, `«${k}» cambia de color entre vistas: ${COLOR_DE[k]} → ${x.color}`); COLOR_DE[k] = x.color; }
+  }
+  return fichas.length;
+}
 const MALOS_TXT = ['NaN', 'undefined', 'Infinity', '[object Object]'];
 const hayNull = (t) => /(^|[^a-záéíóúñ])null([^a-záéíóúñ]|$)/.test(t);
 
@@ -189,6 +208,7 @@ for (const P of PERFILES) {
       if (sinFrase) hallazgo('alto', D, `${sinFrase} tarjetas KPI sin frase de lectura o sin estado con ícono y texto`);
       const txt = await revisar(page, D, '.vv', r);
       r[id] = {};
+      if (id !== 'ciclo') r[id].fichas = await revisaIdentidad(page, D);
       if (await page.locator('.vv select').count()) hallazgo('alto', D, 'quedó un <select> nativo en el panel');
       if (id !== 'ciclo' && !(await page.locator('.vc-seg-btn').count())) hallazgo('alto', D, 'no hay botones segmentados');
       await abreDetalles(page); await page.waitForTimeout(150);
@@ -221,6 +241,11 @@ for (const P of PERFILES) {
         await page.evaluate(() => document.querySelectorAll('.vv details').forEach((d) => { d.open = false; }));
         const puntos = await page.locator('.vc-track[role=img]').count();
         if (puntos < 3) hallazgo('alto', D, `solo ${puntos} filas de puntos con banda`);
+        const filasLam = await page.locator('.vc-fila-lam').count();
+        const conIco = await page.locator('.vc-fila-lam svg.vc-ico').count();
+        if (!filasLam || conIco !== filasLam) hallazgo('alto', D, `filas de cultivo con ícono: ${conIco} de ${filasLam}`);
+        const colsFila = await page.locator('.vc-fila-lam').evaluateAll((els) => els.map((e) => getComputedStyle(e.querySelector('.vc-pto')).backgroundColor));
+        if (new Set(colsFila).size !== colsFila.length) hallazgo('alto', D, `dos filas de cultivo comparten color de punto: ${JSON.stringify(colsFila)}`);
         const sinAriaP = await page.locator('.vc-track[role=img]').evaluateAll((els) => els.filter((e) => !e.getAttribute('aria-label')).length);
         if (sinAriaP) hallazgo('alto', D, `${sinAriaP} filas de puntos sin aria-label`);
       } else if (id === 'mezcla') {
@@ -244,6 +269,43 @@ for (const P of PERFILES) {
         const totV = suma(Object.values(porCult)); const lider = Object.entries(porCult).sort((a, b) => b[1] - a[1])[0];
         cifra(`${P.id} cultivo que más agua recibe ${ULT}`, lider[0], (await page.locator('.vc-part').first().locator('li .vc-part-nom').first().innerText()).trim());
         cifra(`${P.id} % del líder`, Math.round((lider[1] / totV) * 100), nums[0]);
+        const filasPart = await page.locator('.vc-part li').count(), icoPart = await page.locator('.vc-part li svg.vc-ico').count();
+        if (!filasPart || icoPart !== filasPart) hallazgo('alto', D, `barras de participación con ícono: ${icoPart} de ${filasPart}`);
+        const barraCols = await page.locator('.vc-part').first().locator('li .vc-part-pista i').evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundImage));
+        if (barraCols.some((b) => !b || b === 'none')) hallazgo('alto', D, 'una barra de participación sin color propio');
+        // apilada por año
+        const filasComp = await page.locator('.vc-comp-btn').count();
+        if (filasComp !== ANIOS.length) hallazgo('alto', D, `barras apiladas con informe: ${filasComp} (esperadas ${ANIOS.length})`);
+        if ((await page.locator('.vc-comp-fila.hueco').count()) !== 2) hallazgo('alto', D, 'la apilada debe traer 2025 («sin ciclo») y 2026 («sin desglose») como huecos');
+        const t25h = await page.locator('.vc-comp-fila.hueco').first().innerText();
+        if (!/2025/.test(t25h) || !/Sin ciclo/.test(t25h) || /S\/D|\b0 hm/.test(t25h)) hallazgo('alto', D, `hueco de 2025 en la apilada: "${t25h.replace(/\s+/g, ' ')}"`);
+        const lbls = await page.locator('.vc-comp-btn').evaluateAll((els) => els.map((e) => ({ l: e.getAttribute('aria-label'), n: e.querySelectorAll('.vc-segm').length })));
+        for (const x of lbls) {
+          const ps = [...(x.l ?? '').matchAll(/(\d+|<1) %/g)].map((m) => (m[1] === '<1' ? 0.5 : Number(m[1])));
+          const sp = ps.reduce((a, b) => a + b, 0);
+          if (!x.n || Math.abs(sp - 100) > 4) hallazgo('alto', D, `apilada «${x.l?.slice(0, 20)}»: suma ${sp} % con ${x.n} segmentos`);
+        }
+        // el último año de la apilada = BD
+        const lbl24 = lbls[lbls.length - 1].l ?? '';
+        const alf24 = (lbl24.match(/Alfalfa (\d+) %/) ?? [])[1];
+        cifra(`${P.id} apilada: % alfalfa ${ULT}`, Math.round((porCult['Alfalfa'] / totV) * 100), Number(alf24));
+        cifra(`${P.id} apilada: total ${ULT} (hm³)`, Math.round(totV / 1000), num((lbl24.match(/, ([\d,.]+) hm³/) ?? [])[1]));
+        // interacción: resaltar un cultivo atenúa a los demás y cambia la lectura; tocar una barra cambia el año de la lectura
+        await page.locator('.vc-chip-cu', { hasText: 'Nogal' }).click();
+        const tenues = await page.locator('.vc-segm.tenue').count(), vivos = await page.locator('.vc-segm:not(.tenue)').count();
+        if (!tenues || vivos !== ANIOS.length) hallazgo('alto', D, `resaltar «Nogal»: ${vivos} segmentos vivos (esperados ${ANIOS.length}) y ${tenues} atenuados`);
+        if (!/Nogal: su parte/.test(await page.locator('.vc-lectura').innerText())) hallazgo('alto', D, 'la lectura no sigue al cultivo resaltado');
+        await page.locator('.vc-chip-cu', { hasText: 'Nogal' }).click();
+        await page.locator('.vc-comp-btn').first().click();
+        if (!new RegExp(`^${ANIOS[0]}:`).test(await page.locator('.vc-lectura b').first().innerText())) hallazgo('alto', D, 'tocar la primera barra no cambia la lectura a su año');
+        await page.locator('.vc-comp-btn').last().click();
+        await page.locator('.vc-comp-btn').first().focus();
+        if (!(await page.evaluate(() => document.activeElement?.classList.contains('vc-comp-btn')))) hallazgo('alto', D, 'las barras apiladas no reciben foco de teclado');
+        // superficie: cambia la medida
+        await page.getByRole('group', { name: 'Medir' }).getByRole('button', { name: 'Superficie regada' }).click();
+        const sup24 = (await page.locator('.vc-comp-btn').last().getAttribute('aria-label')) ?? '';
+        cifra(`${P.id} apilada: superficie ${ULT} (ha)`, Math.round(supTot(ULT)), num((sup24.match(/, ([\d,.]+) ha/) ?? [])[1]));
+        await page.getByRole('group', { name: 'Medir' }).getByRole('button', { name: 'Agua entregada' }).click();
         // 2025: tarjeta de explicación, sin S/D ni cero
         await page.getByRole('group', { name: 'Año' }).getByRole('button', { name: /2025/ }).click();
         await page.waitForTimeout(400);
@@ -343,6 +405,15 @@ if (htmlInforme) {
   if (ciclo.n) cifra('informe: volumen actual (hm³)', true, textoDoc.includes(ciclo.act.toFixed(1)));
   for (const mal of MALOS_TXT) if (textoDoc.includes(mal)) hallazgo('critico', 'informe', `aparece "${mal}"`);
   if (hayNull(textoDoc)) hallazgo('critico', 'informe', 'aparece "null"');
+  {
+    const nIco = (htmlInforme.match(/class="ico-cul"/g) ?? []).length;
+    cifra('informe: íconos de cultivo (>= 20 en tablas, leyenda y paneles)', true, nIco >= 20);
+    cifra('informe: trama distintiva en la apilada (pattern)', true, /<pattern id="tr-mz-/.test(htmlInforme));
+    const nombres = [...new Set(sv.map((x) => x.cultivo))];
+    const sinIcono = nombres.filter((n) => !new RegExp(`class="ico-cul"[^>]*>[^]*?</svg>${n}</th>`).test(htmlInforme));
+    cifra('informe: cada cultivo con ícono en su encabezado de fila', '', sinIcono.join(','));
+    cifra('informe: leyenda de cultivos con ícono', true, /aria-label="Leyenda de cultivos"><li[^>]*><i class="sw"[^>]*><\/i><svg class="ico-cul"/.test(htmlInforme));
+  }
   if (!/Anexo A/.test(textoDoc) || !/Anexo B/.test(textoDoc)) hallazgo('alto', 'informe', 'faltan los anexos A/B');
 
   for (const P of PERFILES) {
@@ -378,7 +449,7 @@ if (htmlInforme) {
 fs.writeFileSync(`${OUT}resultado.json`, JSON.stringify(res, null, 2));
 const sev = (s) => res.hallazgos.filter((h) => h.sev === s).length;
 const fallas = res.cifras.filter((x) => !x.ok).length;
-const md = `# Bitácora · Consumo por cultivo (iteración ${iter})
+const md = `# Bitácora · Agua entregada por cultivo (iteración ${iter})
 
 - Perfiles: ${PERFILES.map((p) => p.id).join(', ')}
 - Hallazgos: ${res.hallazgos.length} (críticos ${sev('critico')}, altos ${sev('alto')}, medios ${sev('medio')})

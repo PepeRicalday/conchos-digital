@@ -88,7 +88,8 @@ describe('gráficas SVG', () => {
         const svg = svgLaminaMiniaturas(series, [2020, 2021, 2022, 2023, 2024]);
         expect(svg).toContain('role="img"');
         expect(svg).toContain('S/D');
-        expect(svg).toContain('fill="#fff" stroke="#0A5BB0"');
+        expect(svg).toContain('fill="#fff" stroke="#7A5C14"');
+        expect(svg).toContain('aria-hidden="true"');
         expect(svg).toMatch(/Alfalfa: 2020 \d+ cm/);
         expect(svg).not.toContain('NaN');
         expect(svgLaminaMiniaturas([], [2020])).toBe('');
@@ -105,5 +106,36 @@ describe('gráficas SVG', () => {
         expect(svg.match(/l-8 -9z/g)?.length).toBe(1);
         expect(svg).toContain('actual S/D');
         expect(svg).not.toContain('NaN');
+    });
+});
+
+describe('«Otros N cultivos» y datos incompletos en el informe', () => {
+    const MUCHOS: FilaSupVol[] = ['Alfalfa', 'Nogal', 'Maíz', 'Chile', 'Cacahuate', 'Varios', 'Trigo', 'Sandía', 'Avena'].map((c, i) => ({ anio: 2020, numero_modulo: 1, cultivo: c, superficie_ha: 100, volumen_miles_m3: c === 'Avena' ? null : 1000 - i * 50, atipico: false }));
+    it('la leyenda enlista como texto visible los cultivos que agrupa «Otros» y la barra marca ⚠ si hay un renglón sin volumen', () => {
+        const svg = svgMezclaApilada(MUCHOS, [2020]);
+        expect(svg).toMatch(/Otros 2 cultivos \([^)]+\)<\/li>/);
+        expect(svg).toContain('2020 ⚠</text>');
+        expect(svg).toContain('El total y los porcentajes de ese año son sobre datos incompletos');
+        expect(svg).not.toMatch(/title="[^"]*Trigo/);
+    });
+});
+
+describe('identidad de cultivo en el informe', () => {
+    const html = construirHtmlVolumenCultivo(base(), LOGOS);
+    it('cada encabezado de fila de cultivo lleva su ícono y su nombre escrito', () => {
+        for (const c of ['Alfalfa', 'Nogal', 'Sorgo']) expect(html, c).toMatch(new RegExp(`<th scope="row" class="cul"><svg class="ico-cul"[^>]*aria-hidden="true"[^]*?</svg>${c}</th>`));
+    });
+    it('la mezcla apilada usa el color claro de cada cultivo, trama para leer en blanco y negro y leyenda con ícono', () => {
+        const svg = svgMezclaApilada(FILAS, [2020, 2021, 2022, 2023, 2024]);
+        expect(svg).toContain('#2E7D32'); // alfalfa
+        expect(svg).toContain('#7A4A1C'); // nogal
+        expect(svg).toContain('<pattern id="tr-mz-nogal"');
+        expect(svg).toContain('Sin ciclo: presas cerradas');
+        expect(svg).toContain('2026</text>');
+        expect(svg).toContain('Provisional: sin desglose por cultivo');
+        expect(svg).toContain('Los porcentajes se redondean; pueden sumar 99 o 101 %');
+        expect(svg).toContain('«Varios» = cultivos sin desglose en el informe');
+        expect(svg).toMatch(/<ul class="ley" aria-label="Leyenda de cultivos"><li><i class="sw"[^>]*><\/i><svg class="ico-cul"/);
+        expect(svg).not.toMatch(/NaN|undefined/);
     });
 });

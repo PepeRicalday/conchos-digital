@@ -7,7 +7,8 @@
  */
 import type { FilaSupVol } from './ndviInteranual';
 import type { VolumenActual } from './ndviVolumen';
-import { ANIOS_CON_INFORME, ANIO_PROVISIONAL, RANGO_INFORME, esAnioSinCiclo, listaAnios } from './estadoAnio';
+import { ANIOS_CON_INFORME, ANIOS_SIN_CICLO, ANIO_PROVISIONAL, RANGO_INFORME, esAnioSinCiclo, listaAnios } from './estadoAnio';
+import { CATALOGO_CULTIVOS, infoCultivo } from './cultivos';
 
 /** Superficie mínima (ha) para que una lámina cuente como muestra firme; menos de eso se marca. */
 export const UMBRAL_HA_MUESTRA = 50;
@@ -422,3 +423,111 @@ export function lecturaVsTipico(pct: number | null): LecturaVsTipico | null {
 
 /** Años con informe presentes en los datos (para rótulos que antes decían «2020-2024» a mano). */
 export const aniosConInforme = (filas: FilaSupVol[]): number[] => [...new Set(utiles(filas).map(f => f.anio))].filter(a => ANIOS_CON_INFORME.includes(a)).sort((a, b) => a - b);
+
+// ───────────────────────── Composición por año (barras apiladas al 100 %) ─────────────────────────
+
+export interface ParteComposicion { nombre: string; clave: string; valor: number; pct: number; esOtros: boolean; cultivos: string[] }
+export interface FilaComposicion {
+    anio: number;
+    /** 'con-informe' trae partes; 'sin-ciclo' (2025) es un hueco rotulado; 'sin-desglose' (2026: la hoja SRL no separa cultivos); 'sd' falta real en el ámbito. */
+    estado: 'con-informe' | 'sin-ciclo' | 'sin-desglose' | 'sd';
+    /** Suma de las partes (hm³ o ha). null si no hay dato (nunca 0 por falta de dato). */
+    total: number | null;
+    partes: ParteComposicion[];
+    /** Cultivos (nombre del catálogo) que SÍ tienen renglón ese año pero con la cifra medida nula o 0: están en el informe, sin dato. No son «ausentes». */
+    sinCifra: string[];
+    /** Cultivos con algún renglón marcado atípico en la fuente. */
+    atipicos: string[];
+    /** true = algún renglón fuente sin cifra o atípico: el total y los porcentajes de esa barra son sobre datos incompletos. */
+    incompleta: boolean;
+}
+export interface Composicion {
+    campo: 'volumen' | 'superficie';
+    unidad: 'hm³' | 'ha';
+    /** Cultivos con color propio, en el ORDEN FIJO del catálogo (el color sigue al cultivo, no al ranking), y «Otros» al final si hace falta. */
+    leyenda: { nombre: string; clave: string; esOtros: boolean; cultivos: string[] }[];
+    filas: FilaComposicion[];
+}
+
+/**
+ * Mezcla de cultivos año por año: los `n` cultivos que más pesan en todo el periodo van cada uno con su color y el resto se junta en «Otros».
+ * Los cultivos se apilan siempre en el mismo orden (el del catálogo), para que se vea el cambio y no el reordenamiento.
+ * 2025 es un hueco «sin ciclo» (nunca 0 ni S/D) y 2026 se marca «sin desglose»: la hoja SRL no separa cultivos.
+ */
+export function composicionAnual(filas: FilaSupVol[], modulo: number | null, campo: 'volumen' | 'superficie', n = 6): Composicion {
+    const base = sel(filas, modulo);
+    const anios = aniosConInforme(filas);
+    const val = (f: FilaSupVol) => (campo === 'volumen' ? (f.volumen_miles_m3 != null ? f.volumen_miles_m3 / 1000 : null) : f.superficie_ha);
+    const suma1 = (m: Map<string, number>, f: FilaSupVol) => { const v = val(f); if (v != null && Number.isFinite(v)) { const c = infoCultivo(f.cultivo).nombre; m.set(c, (m.get(c) ?? 0) + v); } };
+    const peso = new Map<string, number>();
+    for (const f of base) suma1(peso, f);
+    const ordenCat = (nombre: string) => { const i = CATALOGO_CULTIVOS.findIndex(c => c.nombre === nombre); return i < 0 ? 999 : i; };
+    const elegidos = new Set([...peso.entries()].filter(e => infoCultivo(e[0]).clave !== 'otros').sort((a, b) => b[1] - a[1]).slice(0, n).map(e => e[0]));
+    const ordenados = [...elegidos].sort((a, b) => ordenCat(a) - ordenCat(b) || a.localeCompare(b, 'es'));
+    const resto = [...peso.keys()].filter(c => !elegidos.has(c));
+    const leyenda: Composicion['leyenda'] = ordenados.map(nombre => ({ nombre, clave: infoCultivo(nombre).clave, esOtros: false, cultivos: [nombre] }));
+    if (resto.length) leyenda.push({ nombre: resto.length === 1 ? resto[0] : `Otros ${resto.length} cultivos`, clave: resto.length === 1 ? infoCultivo(resto[0]).clave : 'otros', esOtros: resto.length > 1, cultivos: resto });
+    const out: FilaComposicion[] = anios.map(anio => {
+        const porCultivo = new Map<string, number>();
+        for (const f of base.filter(x => x.anio === anio)) suma1(porCultivo, f);
+        const delAnio = base.filter(x => x.anio === anio);
+        const total = porCultivo.size ? [...porCultivo.values()].reduce((a, b) => a + b, 0) : null;
+        // Renglón presente con la cifra nula o 0 ≠ cultivo ausente: se distingue para no decir «no aparece» de lo que el informe sí trae.
+        const sinCifra = [...new Set(delAnio.filter(x => { const v = val(x); return v == null || !Number.isFinite(v) || v <= 0; }).map(x => infoCultivo(x.cultivo).nombre))];
+        const atipicos = [...new Set(delAnio.filter(x => x.atipico).map(x => infoCultivo(x.cultivo).nombre))];
+        const incompleta = sinCifra.length > 0 || atipicos.length > 0;
+        if (total == null || total <= 0) return { anio, estado: 'sd' as const, total: null, partes: [], sinCifra, atipicos, incompleta };
+        const partes: ParteComposicion[] = [];
+        for (const l of leyenda) {
+            const v = l.cultivos.reduce((a, c) => a + (porCultivo.get(c) ?? 0), 0);
+            if (v > 0) partes.push({ nombre: l.nombre, clave: l.clave, valor: v, pct: (v / total) * 100, esOtros: l.esOtros, cultivos: l.cultivos });
+        }
+        return { anio, estado: 'con-informe' as const, total, partes, sinCifra, atipicos, incompleta };
+    });
+    for (const a of ANIOS_SIN_CICLO) out.push({ anio: a, estado: 'sin-ciclo', total: null, partes: [], sinCifra: [], atipicos: [], incompleta: false });
+    out.push({ anio: ANIO_PROVISIONAL, estado: 'sin-desglose', total: null, partes: [], sinCifra: [], atipicos: [], incompleta: false });
+    out.sort((a, b) => a.anio - b.anio);
+    return { campo, unidad: campo === 'volumen' ? 'hm³' : 'ha', leyenda, filas: out };
+}
+
+/** Cómo decir «sin cifra» según lo que se mide. */
+export const textoSinCifra = (campo: 'volumen' | 'superficie'): string => (campo === 'volumen' ? 'sin volumen en el informe' : 'sin superficie en el informe');
+
+/** Cómo se lee la parte de un cultivo en un año: «45 %», «sin volumen en el informe» (renglón presente sin cifra) o «no aparece» (no hay renglón). */
+export function estadoCultivoEnAnio(f: FilaComposicion, l: Composicion['leyenda'][number]): { tipo: 'parte'; pct: number } | { tipo: 'sin-cifra' | 'ausente' } {
+    const p = f.partes.find(x => x.clave === l.clave && x.nombre === l.nombre) ?? f.partes.find(x => x.clave === l.clave);
+    if (p) return { tipo: 'parte', pct: p.pct };
+    return l.cultivos.some(c => f.sinCifra.includes(c)) ? { tipo: 'sin-cifra' } : { tipo: 'ausente' };
+}
+
+/** Aviso de una barra con datos incompletos (⚠); null si la barra es completa. */
+export function notaIncompleta(f: FilaComposicion, campo: 'volumen' | 'superficie'): string | null {
+    if (!f.incompleta) return null;
+    const lista = (v: string[]) => v.join(', ');
+    const partes = [
+        f.sinCifra.length ? `el informe trae ${lista(f.sinCifra)} sin ${campo === 'volumen' ? 'volumen' : 'superficie'}` : null,
+        f.atipicos.length ? `${f.atipicos.length === 1 ? 'tiene' : 'tienen'} captura atípica en el informe: ${lista(f.atipicos)}` : null,
+    ].filter(Boolean);
+    return `⚠ ${f.anio}: ${partes.join('; ')}. El total y los porcentajes de ese año son sobre datos incompletos.`;
+}
+
+/**
+ * Frase simple del cultivo líder del último año con informe: «Entre el primer y el último año con informe, Alfalfa recibió 45 % del agua entregada en 2020 y 41 % en 2024 (2025 sin ciclo).»
+ * Describe, no explica. null sin datos.
+ */
+export function fraseCambioMezcla(c: Composicion): string | null {
+    const con = c.filas.filter(f => f.estado === 'con-informe');
+    if (!con.length) return null;
+    const ult = con[con.length - 1], pri = con[0];
+    const lider = [...ult.partes].filter(p => !p.esOtros).sort((a, b) => b.pct - a.pct)[0];
+    if (!lider) return null;
+    const verbo = c.campo === 'volumen' ? 'recibió' : 'ocupó';
+    const de = c.campo === 'volumen' ? 'del agua entregada' : 'de la superficie regada';
+    const sinCiclo = c.filas.filter(f => f.estado === 'sin-ciclo').map(f => f.anio);
+    const nota = sinCiclo.length ? ` (${listaAnios(sinCiclo)} sin ciclo)` : '';
+    const antes = pri.anio === ult.anio ? undefined : pri.partes.find(p => p.clave === lider.clave);
+    if (!antes) return `${lider.nombre} ${verbo} ${Math.round(lider.pct)} % ${de} en ${ult.anio}${nota}.`;
+    const a = Math.round(antes.pct), b = Math.round(lider.pct);
+    const marco = 'Entre el primer y el último año con informe,';
+    return a === b ? `${marco} ${lider.nombre} ${verbo} cerca de ${b} % ${de} en ${pri.anio} y en ${ult.anio}${nota}.` : `${marco} ${lider.nombre} ${verbo} ${a} % ${de} en ${pri.anio} y ${b} % en ${ult.anio}${nota}.`;
+}

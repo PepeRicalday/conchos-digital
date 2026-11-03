@@ -9,6 +9,9 @@ import {
     laminaPorCultivo, lecturaVsTipico, mezclaCultivos, referenciaCicloActual, topConOtros,
     type BarraAnio, type CeldaCultivo, type ParteTop, type PosicionCiclo, type ReferenciaModulo, type SerieCultivo,
 } from '../../utils/volumenCultivo';
+import { composicionAnual, estadoCultivoEnAnio, fraseCambioMezcla, notaIncompleta, textoSinCifra, type FilaComposicion } from '../../utils/volumenCultivo';
+import { CULTIVO_OTROS, infoCultivo, fondoTramaCss } from '../../utils/cultivos';
+import { IconoCultivo, NombreCultivo, estiloCultivo } from './IconoCultivo';
 import './VolumenCultivos.css';
 
 export type VistaCultivo = 'lamina' | 'mezcla' | 'ciclo';
@@ -25,14 +28,23 @@ const IconoEstado: React.FC<{ tipo: TipoEstado }> = ({ tipo }) => (tipo === 'ok'
 /** Tarjeta KPI: una idea, la cifra grande, una frase de lectura y un estado con ícono y texto (el color no va solo). S/D si no hay dato, nunca 0. */
 const Kpi: React.FC<{
     etiqueta: string; valor: string | null; unidad?: string; texto?: boolean; lectura: React.ReactNode; estado?: { tipo: TipoEstado; texto: string };
-}> = ({ etiqueta, valor, unidad, texto, lectura, estado }) => (
-    <li className="vc-kpi">
-        <span className="vc-kpi-et">{etiqueta}</span>
-        <span className={`vc-kpi-cifra${valor == null ? ' sd' : ''}${texto && valor != null ? ' txt' : ''}`}>{valor ?? 'S/D'}{valor != null && unidad && <small>{unidad}</small>}</span>
+    /** Cultivos que menciona la tarjeta: sus íconos van junto a la etiqueta y el filete toma su color. */
+    cultivos?: string[];
+    /** Cultivo que ES el valor (la cifra grande): ícono delante del nombre. */
+    cultivoValor?: string | null;
+}> = ({ etiqueta, valor, unidad, texto, lectura, estado, cultivos, cultivoValor }) => {
+    const ids = cultivos?.length ? cultivos : cultivoValor ? [cultivoValor] : [];
+    // Filete de acento: el color del cultivo; con dos cultivos, un degradado de uno al otro.
+    const estilo = ids.length ? { ...estiloCultivo(ids[0]), ...(ids[1] ? { '--cu2': infoCultivo(ids[1]).color, '--cu2-l': infoCultivo(ids[1]).colorClaro } : {}) } as React.CSSProperties : undefined;
+    return (
+    <li className={`vc-kpi${ids.length ? ' vc-cu' : ''}${ids.length > 1 ? ' dos' : ''}`} style={estilo}>
+        <span className="vc-kpi-et"><span>{etiqueta}</span>{cultivos?.length ? <span className="vc-kpi-ico" aria-hidden="true">{cultivos.map(c => <span key={c} className="vc-cu" style={estiloCultivo(c)}><span className="vc-ncu-ico"><IconoCultivo nombre={c} size={18} /></span></span>)}</span> : null}</span>
+        <span className={`vc-kpi-cifra${valor == null ? ' sd' : ''}${texto && valor != null ? ' txt' : ''}`}>{cultivoValor && valor != null && <span className="vc-cu vc-kpi-ico1" style={estiloCultivo(cultivoValor)}><span className="vc-ncu-ico"><IconoCultivo nombre={cultivoValor} size={22} /></span></span>}{valor ?? 'S/D'}{valor != null && unidad && <small>{unidad}</small>}</span>
         <span className="vc-kpi-ctx">{lectura}</span>
         {estado && <span className={`vc-estado ${estado.tipo}`}><IconoEstado tipo={estado.tipo} />{estado.texto}</span>}
     </li>
-);
+    );
+};
 const FilaKpi: React.FC<{ etiqueta: string; children: React.ReactNode }> = ({ etiqueta, children }) => <ul className="vc-kpis" aria-label={etiqueta}>{children}</ul>;
 
 /** Botones segmentados (en lugar de un <select> nativo): táctiles, todos visibles, el elegido con aria-pressed. */
@@ -87,8 +99,8 @@ const BarrasAnio: React.FC<{ barras: BarraAnio[]; unidad: string; decimales: num
         <figure className="vc-fig">
             <figcaption>{titulo}</figcaption>
             <div className="vc-barras" role="img" aria-label={`${titulo}. ${resumen}`} style={{ gridTemplateColumns: barras.map(b => (b.estado === 'provisional' ? 'minmax(62px, 1.5fr)' : 'minmax(0, 1fr)')).join(' ') }}>
-                {barras.map(b => (
-                    <div key={b.anio} className={`vc-col ${b.estado}`}>
+                {barras.map((b, i) => (
+                    <div key={b.anio} className={`vc-col ${b.estado}`} style={{ '--i': i } as React.CSSProperties}>
                         <span className="vc-col-val">{b.estado === 'sin-ciclo' ? '' : b.valor != null ? (unidad === 'ha' ? fmtMiles(b.valor, 0) : fmt(b.valor, decimales)) : 'S/D'}</span>
                         <div className="vc-col-zona">
                             {b.estado === 'sin-ciclo'
@@ -124,9 +136,9 @@ const FilaLamina: React.FC<{ s: SerieCultivo; techo: number; anioUlt: number | n
     const revisar = s.celdas.filter(c => c.capturaCero).length;
     const aria = `${s.cultivo}. ${s.celdas.map(textoCelda).join('; ')}.${mn != null && mx != null ? ` La banda va de ${fmt(mn, 0)} a ${fmt(mx, 0)} cm.` : ''}`;
     return (
-        <li className="vc-fila-lam">
-            <span className="vc-fila-nom">{s.cultivo}</span>
-            <div className="vc-track" role="img" aria-label={aria}>
+        <li className="vc-fila-lam vc-cu" style={estiloCultivo(s.cultivo)}>
+            <span className="vc-fila-nom"><NombreCultivo nombre={s.cultivo} /></span>
+            <div className="vc-track vc-track-cu" role="img" aria-label={aria}>
                 <div className="vc-track-eje" />
                 {mn != null && mx != null && <div className="vc-track-banda" style={{ left: pos(mn), width: `max(6px, calc(${pos(mx)} - ${pos(mn)}))` }} />}
                 {con.map(c => (
@@ -157,7 +169,7 @@ const Lamina: React.FC<{ supVol: FilaSupVol[] }> = ({ supVol }) => {
             <FilaKpi etiqueta="Resumen del agua por hectárea">
                 <Kpi etiqueta={`Agua por hectárea en ${kpi.anio ?? 'el último año'}`} valor={kpi.laminaMediaCm != null ? fmt(kpi.laminaMediaCm, 0) : null} unidad="cm"
                     lectura={`Es lo que se entregó por hectárea (${ambito(modulo)}), no lo que gastó la planta.`} estado={{ tipo: 'info', texto: 'Dato del informe ACUM_INF' }} />
-                <Kpi etiqueta="Cultivo que más agua recibe por hectárea" texto valor={kpi.cultivoMayor?.cultivo ?? null}
+                <Kpi etiqueta="Cultivo que más agua recibe por hectárea" texto valor={kpi.cultivoMayor?.cultivo ?? null} cultivoValor={kpi.cultivoMayor?.cultivo ?? null}
                     lectura={kpi.cultivoMayor ? <><b>{fmt(kpi.cultivoMayor.laminaCm, 0)} cm</b> por hectárea en {kpi.anio}, entre cultivos de {UMBRAL_HA_MUESTRA} ha o más.</> : 'Ningún cultivo tiene superficie suficiente para compararse.'}
                     estado={kpi.cultivoMayor ? { tipo: 'info', texto: 'Solo cultivos con muestra firme' } : undefined} />
                 <Kpi etiqueta="Cifras por revisar" valor={kpi.celdas ? String(kpi.alertas) : null} unidad={kpi.celdas ? `de ${kpi.celdas}` : undefined}
@@ -166,7 +178,7 @@ const Lamina: React.FC<{ supVol: FilaSupVol[] }> = ({ supVol }) => {
             </FilaKpi>
             <section className="vc-tarjeta" aria-labelledby="vc-t-lam">
                 <h5 id="vc-t-lam">Agua entregada por hectárea, cada cultivo y año</h5>
-                <p className="vc-sub">Cada punto es un año. La banda gris va del año con menos agua al año con más. Más a la derecha = más agua por hectárea.</p>
+                <p className="vc-sub">Cada punto es un año. La banda va del año con menos agua al año con más. Más a la derecha = más agua por hectárea.</p>
                 <div className="vc-eje-x" aria-hidden="true"><span>0</span><span>{techo / 2} cm</span><span>{techo} cm</span></div>
                 <ol className="vc-lista-lam">{top.map(s => <FilaLamina key={s.cultivo} s={s} techo={techo} anioUlt={kpi.anio} />)}</ol>
                 <p className="vc-leyenda">
@@ -184,7 +196,7 @@ const Lamina: React.FC<{ supVol: FilaSupVol[] }> = ({ supVol }) => {
                         <tbody>
                             {series.map(s => (
                                 <tr key={s.cultivo}>
-                                    <th scope="row">{s.cultivo}</th>
+                                    <th scope="row"><NombreCultivo nombre={s.cultivo} compacto /></th>
                                     {colsTabla.map(a => {
                                         if (esAnioSinCiclo(a)) return <td key={a} className="vc-sc">Sin ciclo</td>;
                                         const c = s.celdas.find(x => x.anio === a);
@@ -222,15 +234,104 @@ const BarrasPart: React.FC<{ partes: ParteTop[]; titulo: string; tipo: 'agua' | 
             <h5>{titulo}</h5>
             {partes.length === 0 ? <p className="vc-sub">{SD} sin cifras para este año.</p> : (
                 <ol className="vc-part" aria-label={aria}>
-                    {partes.map(p => (
-                        <li key={p.nombre} title={p.esOtros ? p.cultivos.join(', ') : undefined}>
-                            <span className="vc-part-nom">{p.nombre}</span>
-                            <span className="vc-part-pista" aria-hidden="true"><i className={`${tipo}${p.esOtros ? ' otros' : ''}`} style={{ width: `${Math.max(1.5, (p.pct / max) * 100)}%` }} /></span>
+                    {partes.map((p, k) => (
+                        <li key={p.nombre} className="vc-cu" style={{ ...estiloCultivo(p.esOtros ? CULTIVO_OTROS.nombre : p.nombre), '--i': k } as React.CSSProperties} title={p.esOtros ? p.cultivos.join(', ') : undefined}>
+                            <span className="vc-part-nom"><NombreCultivo nombre={p.esOtros ? CULTIVO_OTROS.nombre : p.nombre} texto={p.nombre} /></span>
+                            <span className="vc-part-pista" aria-hidden="true"><i className={`${tipo}${p.esOtros ? ' otros' : ''}`} style={{ ...(p.esOtros ? { background: fondoTramaCss(CULTIVO_OTROS.trama, 'var(--c)') } : {}), width: `${Math.max(1.5, (p.pct / max) * 100)}%` }} /></span>
                             <span className="vc-part-val"><b>{fmt(p.pct, 0)} %</b>{p.valor != null && <small>{unidad === 'ha' ? fmtMiles(p.valor, 0) : fmt(p.valor, dec)} {unidad}</small>}</span>
                         </li>
                     ))}
                 </ol>
             )}
+        </section>
+    );
+};
+
+// ───────────────────────── Composición por año: barras apiladas al 100 % ─────────────────────────
+
+const OPC_CAMPO: { valor: 'volumen' | 'superficie'; texto: string; nombre: string }[] = [
+    { valor: 'volumen', texto: 'Agua entregada', nombre: 'Medir por agua entregada' },
+    { valor: 'superficie', texto: 'Superficie regada', nombre: 'Medir por superficie regada' },
+];
+const totalTxt = (f: FilaComposicion, unidad: string) => (f.total == null ? 'S/D' : unidad === 'ha' ? `${fmtMiles(f.total, 0)} ha` : `${fmt(f.total, 0)} hm³`);
+const pctTxt = (p: number) => `${p < 1 ? '<1' : Math.round(p)} %`;
+
+/** Cada barra es un año completo (100 %) dividido por cultivo, siempre en el mismo orden y con el mismo color. 2025 queda hueco «sin ciclo»; 2026 aparte, sin desglose. */
+const ComposicionAnual: React.FC<{ supVol: FilaSupVol[]; modulo: number | null }> = ({ supVol, modulo }) => {
+    const [campo, setCampo] = useState<'volumen' | 'superficie'>('volumen');
+    const [foco, setFoco] = useState<string | null>(null);
+    const [anioSel, setAnioSel] = useState<number | null>(null);
+    const comp = useMemo(() => composicionAnual(supVol, modulo, campo), [supVol, modulo, campo]);
+    const frase = fraseCambioMezcla(comp);
+    const con = comp.filas.filter(f => f.estado === 'con-informe');
+    const actual = con.find(f => f.anio === anioSel) ?? con[con.length - 1] ?? null;
+    const focoInfo = comp.leyenda.find(l => l.clave === foco) ?? null;
+    const queMide = campo === 'volumen' ? 'del agua entregada' : 'de la superficie regada';
+    const hayDatos = con.length > 0;
+    return (
+        <section className="vc-tarjeta vc-comp" aria-labelledby="vc-t-comp">
+            <h5 id="vc-t-comp">¿Cómo cambió la mezcla de cultivos?</h5>
+            <p className="vc-sub">{hayDatos ? <>{frase} Cada barra es un año completo (100 %); toque una barra para ver sus cifras.</> : <>{SD} sin renglones del informe para este ámbito.</>}</p>
+            <Segmentos etiqueta="Medir" valor={campo} opciones={OPC_CAMPO} onChange={v => { setCampo(v); setFoco(null); }} />
+            <ol className="vc-comp-filas" aria-label={`Parte ${queMide} que recibió cada cultivo, por año`}>
+                {comp.filas.map((f, r) => {
+                    if (f.estado === 'sin-ciclo') return <li key={f.anio} className="vc-comp-fila hueco"><span className="vc-comp-anio">{f.anio}</span><span className="vc-comp-cuerpo">Sin ciclo: presas cerradas</span><span className="vc-comp-total" /></li>;
+                    if (f.estado === 'sin-desglose') return <li key={f.anio} className="vc-comp-fila hueco aparte"><span className="vc-comp-anio">{f.anio}</span><span className="vc-comp-cuerpo">Provisional: sin desglose por cultivo</span><span className="vc-comp-total" /></li>;
+                    if (f.estado === 'sd') return <li key={f.anio} className="vc-comp-fila hueco"><span className="vc-comp-anio">{f.anio}</span><span className="vc-comp-cuerpo">{SD}</span><span className="vc-comp-total" /></li>;
+                    return (
+                        <li key={f.anio} className="vc-comp-fila">
+                            <button type="button" className="vc-comp-btn" aria-pressed={actual?.anio === f.anio} onClick={() => setAnioSel(f.anio)} onFocus={() => setAnioSel(f.anio)} onMouseEnter={() => setAnioSel(f.anio)}
+                                aria-label={`${f.anio}, ${totalTxt(f, comp.unidad)}: ${f.partes.map(p => `${p.nombre} ${pctTxt(p.pct)}`).join(', ')}${f.incompleta ? '. Datos incompletos en el informe' : ''}`}>
+                                <span className="vc-comp-anio">{f.anio}{f.incompleta && <span className="vc-comp-aviso" aria-hidden="true"> ⚠</span>}</span>
+                                <span className="vc-comp-barra" aria-hidden="true">
+                                    {f.partes.map((p, k) => (
+                                        <span key={p.clave + k} className={`vc-segm vc-cu${p.esOtros ? ' otros' : ''}${foco && foco !== p.clave ? ' tenue' : ''}`}
+                                            style={{ ...estiloCultivo(p.esOtros ? CULTIVO_OTROS.nombre : p.nombre), flexGrow: p.pct, '--i': r, ...(p.esOtros ? { background: fondoTramaCss(CULTIVO_OTROS.trama, 'var(--c)') } : {}) } as React.CSSProperties}>
+                                            {p.pct >= 22 && !p.esOtros && <IconoCultivo nombre={p.nombre} size={16} />}
+                                            {p.pct >= 7 && <span className={p.pct < 12 ? "chico" : undefined}>{Math.round(p.pct)} %</span>}
+                                        </span>
+                                    ))}
+                                </span>
+                                <span className="vc-comp-total">{totalTxt(f, comp.unidad)}</span>
+                            </button>
+                        </li>
+                    );
+                })}
+            </ol>
+            {hayDatos && (
+                <div className="vc-chips-cu" role="group" aria-label="Resaltar un cultivo">
+                    {comp.leyenda.map(l => (
+                        <button key={l.clave + l.nombre} type="button" className={`vc-chip-cu vc-cu${l.esOtros ? ' otros' : ''}`} aria-pressed={foco === l.clave} title={l.esOtros ? l.cultivos.join(', ') : undefined}
+                            style={estiloCultivo(l.esOtros ? CULTIVO_OTROS.nombre : l.nombre)} onClick={() => setFoco(foco === l.clave ? null : l.clave)}>
+                            <span className="vc-ncu-ico"><IconoCultivo nombre={l.esOtros ? CULTIVO_OTROS.nombre : l.nombre} size={16} /></span>{l.nombre}
+                        </button>
+                    ))}
+                </div>
+            )}
+            {hayDatos && (
+                <div className="vc-lectura" aria-live="polite">
+                    {focoInfo ? (
+                        <>
+                            <b>{focoInfo.nombre}: su parte {queMide}, año por año</b>
+                            {focoInfo.esOtros && <p className="vc-otros-lista"><b>Agrupa {focoInfo.cultivos.length} cultivos:</b> {focoInfo.cultivos.join(', ')}.</p>}
+                            <ul>{con.map(f => {
+                                const e = estadoCultivoEnAnio(f, focoInfo);
+                                return <li key={f.anio}>{f.anio}{f.incompleta && <span aria-label="datos incompletos"> ⚠</span>} <b>{e.tipo === 'parte' ? pctTxt(e.pct) : e.tipo === 'sin-cifra' ? textoSinCifra(campo) : 'no aparece'}</b></li>;
+                            })}</ul>
+                        </>
+                    ) : actual && (
+                        <>
+                            <b>{actual.anio}: {totalTxt(actual, comp.unidad)} {campo === 'volumen' ? 'de agua entregada' : 'regadas'}</b>
+                            {notaIncompleta(actual, campo) && <p className="vc-aviso-datos" role="note">{notaIncompleta(actual, campo)}</p>}
+                            <ul>{[...actual.partes].sort((a, b) => b.pct - a.pct).map(p => (
+                                <li key={p.clave + p.nombre} className="vc-cu" style={estiloCultivo(p.esOtros ? CULTIVO_OTROS.nombre : p.nombre)}>
+                                    <span className="vc-ncu-ico"><IconoCultivo nombre={p.esOtros ? CULTIVO_OTROS.nombre : p.nombre} size={16} /></span>{p.nombre} <b>{pctTxt(p.pct)}</b>
+                                </li>))}</ul>
+                        </>
+                    )}
+                </div>
+            )}
+            {hayDatos && <p className="ndvi-nota">Los porcentajes se redondean; pueden sumar 99 o 101 %. «Varios» = cultivos sin desglose en el informe.{con.some(f => f.incompleta) ? ' ⚠ = el informe trae un renglón sin cifra o con captura atípica: el total y los porcentajes de ese año son sobre datos incompletos.' : ''}</p>}
         </section>
     );
 };
@@ -257,7 +358,7 @@ const Mezcla: React.FC<{ supVol: FilaSupVol[] }> = ({ supVol }) => {
             {sinCiclo && anioSel != null ? <TarjetaSinCiclo anio={anioSel} /> : (
                 <>
                     <FilaKpi etiqueta="Resumen de la mezcla">
-                        <Kpi etiqueta="Alfalfa y nogal" valor={kpi.pctVolumenAlfalfaNogal != null ? `${fmt(kpi.pctVolumenAlfalfaNogal, 0)} %` : null}
+                        <Kpi etiqueta="Alfalfa y nogal" cultivos={['Alfalfa', 'Nogal']} valor={kpi.pctVolumenAlfalfaNogal != null ? `${fmt(kpi.pctVolumenAlfalfaNogal, 0)} %` : null}
                             lectura={`del agua entregada en ${anioSel ?? 'el último año'} (${ambito(modulo)}).`}
                             estado={kpi.pctVolumenAlfalfaNogal != null ? { tipo: 'info', texto: kpi.pctVolumenAlfalfaNogal >= 50 ? 'Más de la mitad del agua' : 'Menos de la mitad del agua' } : undefined} />
                         <Kpi etiqueta={`Superficie regada en ${anioSel ?? 'el último año'}`} valor={kpi.superficieTotalHa != null ? fmtMiles(kpi.superficieTotalHa, 0) : null} unidad="ha"
@@ -272,6 +373,7 @@ const Mezcla: React.FC<{ supVol: FilaSupVol[] }> = ({ supVol }) => {
                     </div>
                 </>
             )}
+            <ComposicionAnual supVol={supVol} modulo={modulo} />
             <section className="vc-tarjeta" aria-label="Superficie regada por año">
                 <BarrasAnio barras={barrasSup} unidad="ha" decimales={0} titulo={`Superficie regada por año, ${ambito(modulo)}`} />
             </section>
@@ -285,7 +387,7 @@ const Mezcla: React.FC<{ supVol: FilaSupVol[] }> = ({ supVol }) => {
                                 {mezcla.length === 0 && <tr><td colSpan={5}>{SD} sin renglones para este año.</td></tr>}
                                 {mezcla.map(p => (
                                     <tr key={p.cultivo}>
-                                        <th scope="row">{p.cultivo}</th>
+                                        <th scope="row"><NombreCultivo nombre={p.cultivo} compacto /></th>
                                         <td className="vc-num">{p.superficieHa != null ? fmtMiles(p.superficieHa, 0) : SD}</td>
                                         <td className="vc-num">{p.pctSuperficie != null ? `${fmt(p.pctSuperficie, 1)} %` : SD}</td>
                                         <td className="vc-num">{p.volumenHm3 != null ? fmt(p.volumenHm3, 1) : SD}</td>
@@ -303,7 +405,7 @@ const Mezcla: React.FC<{ supVol: FilaSupVol[] }> = ({ supVol }) => {
                                 <tbody>
                                     {contraste.cultivos.slice(0, 8).map(c => (
                                         <tr key={c.cultivo}>
-                                            <th scope="row">{c.cultivo}</th>
+                                            <th scope="row"><NombreCultivo nombre={c.cultivo} compacto /></th>
                                             <td className="vc-num">{c.pctVolAltos != null ? fmt(c.pctVolAltos, 1) : SD}</td>
                                             <td className="vc-num">{c.pctVolBajos != null ? fmt(c.pctVolBajos, 1) : SD}</td>
                                             <td className="vc-num">{c.deltaPp != null ? sg(c.deltaPp, 1) : SD}</td>

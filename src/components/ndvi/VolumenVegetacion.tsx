@@ -246,7 +246,7 @@ export const VolumenVegetacion: React.FC<{
     if (vista !== 'ndvi') {
         return (
             <div className="vv">
-                <h4 className="vv-titulo">Consumo por cultivo (informe ACUM_INF)</h4>
+                <h4 className="vv-titulo">Agua entregada por cultivo (informe ACUM_INF)</h4>
                 {selector}
                 <VolumenCultivos vista={vista} supVol={supVol} volumenActual={volumenActual} />
             </div>

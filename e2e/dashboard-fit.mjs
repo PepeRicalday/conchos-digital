@@ -51,8 +51,10 @@ for (const c of casos) {
   });
   await page.screenshot({ path: OUT + `${c.n}.png` });
   
-  const cabe = r.ok && r.sobra <= 1;
-  const limpio = r.ok && r.tiles === 10 && !r.scrollPagina && cabe && r.recortadas.length === 0 && r.chicos.length === 0 && r.peques.length === 0 && !r.nan && err.length === 0;
+  // Teléfono: con la tarjeta Clima destacada (v2.68.0) la pantalla se desplaza a propósito; solo se exige que no haya recortes.
+  const telefono = c.n.startsWith('iphone');
+  const cabe = telefono || (r.ok && r.sobra <= 1);
+  const limpio = r.ok && r.tiles === 10 && (telefono || !r.scrollPagina) && cabe && r.recortadas.length === 0 && r.chicos.length === 0 && r.peques.length === 0 && !r.nan && err.length === 0;
   if (!limpio) fallos++;
   console.log(limpio ? 'OK  ' : 'FALLA', c.n, JSON.stringify({ ...r, err }));
   await b.close();

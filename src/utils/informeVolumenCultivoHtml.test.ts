@@ -46,7 +46,7 @@ describe('construirHtmlVolumenCultivo', () => {
     });
     it('trae las secciones pedidas', () => {
         for (const t of ['Resumen ejecutivo', 'Agua entregada por hectárea, por cultivo', 'Mezcla de cultivos y cambio de superficie', 'Ciclo actual contra el rango 2020-2024', 'Celdas y renglones atípicos', 'Notas de fuente, método y trazabilidad']) expect(html).toContain(t);
-        for (const t of ['ACUM_INF', 'corte', 'provisional', 'no conciliad', 'año calendario', 'no atribuye causas']) expect(html.toLowerCase()).toContain(t.toLowerCase());
+        for (const t of ['ACUM_INF', 'corte', 'ciclo terminado', 'no están conciliadas', 'año calendario', 'no atribuye causas']) expect(html.toLowerCase()).toContain(t.toLowerCase());
     });
     it('no deja basura de formato ni lenguaje causal', () => {
         for (const m of MALOS) expect(html).not.toContain(m);
@@ -117,6 +117,21 @@ describe('«Otros N cultivos» y datos incompletos en el informe', () => {
         expect(svg).toContain('2020 ⚠</text>');
         expect(svg).toContain('El total y los porcentajes de ese año son sobre datos incompletos');
         expect(svg).not.toMatch(/title="[^"]*Trigo/);
+    });
+});
+
+describe('informe: ⚠ por año vs nota única', () => {
+    const fx = (anio: number, cultivo: string, vol: number | null): FilaSupVol => ({ anio, numero_modulo: 1, cultivo, superficie_ha: 100, volumen_miles_m3: vol, atipico: false });
+    it('todos los años marcados: sin ⚠ junto a cada año y una sola nota general', () => {
+        const svg = svgMezclaApilada([fx(2020, 'Alfalfa', 1000), fx(2020, 'Maíz', null), fx(2021, 'Alfalfa', 900), fx(2021, 'Chile', null)], [2020, 2021]);
+        expect(svg).not.toMatch(/>202[01] ⚠<\/text>/);
+        expect(svg.split('Todos los años traen renglones atípicos o sin volumen').length - 1).toBe(1);
+    });
+    it('solo algunos años marcados: se mantiene el ⚠ por año', () => {
+        const svg = svgMezclaApilada([fx(2020, 'Alfalfa', 1000), fx(2020, 'Maíz', null), fx(2021, 'Alfalfa', 900)], [2020, 2021]);
+        expect(svg).toContain('2020 ⚠</text>');
+        expect(svg).not.toContain('2021 ⚠</text>');
+        expect(svg).not.toContain('Todos los años traen');
     });
 });
 

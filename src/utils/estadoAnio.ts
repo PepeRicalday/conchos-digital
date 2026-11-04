@@ -1,23 +1,30 @@
 /**
  * estadoAnio — catálogo ÚNICO de lo que significa cada año en el panel «Consumo por cultivo» y en los informes NDVI.
  *
- *  - con-informe: 2020-2024. Tienen renglones del informe ACUM_INF. Entran a la mediana, al rango, al ajuste y al contraste.
+ *  - con-informe: 2020-2024 y 2026. Tienen renglones del informe ACUM_INF. Entran al contraste y a la mezcla. La mediana y el rango
+ *                 de referencia («año típico») son solo 2020-2024 (ANIOS_REFERENCIA): 2026 se compara contra ellos.
  *  - sin-ciclo:   2025. Las presas no se abrieron: no hubo ciclo de riego. No es un dato faltante (nunca «S/D», nunca 0).
  *                 Queda fuera de promedios, medianas, rangos, contraste y ajuste volumen–NDVI. Su NDVI de satélite sí se
  *                 muestra, rotulado «sin riego de presa».
- *  - provisional: 2026. Volumen de la hoja SRL (mar–sep): se muestra y se compara, pero no entra a la mediana ni al ajuste.
+ *  - provisional: años posteriores al último informe cargado (volumen de la hoja SRL, mar–sep): se muestra y se compara, sin mediana ni ajuste.
  *  - sd:          solo faltantes reales (p. ej. el NDVI de 2020, anterior a la serie de satélite).
  */
 export type EstadoAnioId = 'con-informe' | 'sin-ciclo' | 'provisional' | 'sd';
 
 export const ANIO_INFORME_INI = 2020;
-export const ANIO_INFORME_FIN = 2024;
+/** Último año con informe ACUM_INF (2026 ya está cargado: ciclo terminado, corte de septiembre). */
+export const ANIO_INFORME_FIN = 2026;
 export const ANIOS_SIN_CICLO: readonly number[] = [2025];
-export const ANIO_PROVISIONAL = 2026;
-/** «2020-2024», derivado del catálogo (no se escribe a mano en los textos). */
-export const RANGO_INFORME = `${ANIO_INFORME_INI}-${ANIO_INFORME_FIN}`;
-/** Años con informe, ascendentes. */
-export const ANIOS_CON_INFORME: readonly number[] = Array.from({ length: ANIO_INFORME_FIN - ANIO_INFORME_INI + 1 }, (_, i) => ANIO_INFORME_INI + i);
+/** Último año de la REFERENCIA histórica («año típico», rango): 2026 se compara contra ella, no entra a su propia mediana. */
+export const ANIO_REF_FIN = 2024;
+/** «2020-2024»: años que forman la referencia (mediana y rango) contra la que se compara el ciclo más reciente. */
+export const RANGO_INFORME = `${ANIO_INFORME_INI}-${ANIO_REF_FIN}`;
+/** «2020-2026»: años cubiertos por el informe ACUM_INF (2025 sin ciclo dentro del rango). */
+export const RANGO_ACUM = `${ANIO_INFORME_INI}-${ANIO_INFORME_FIN}`;
+/** Años con informe, ascendentes (sin los años sin ciclo). */
+export const ANIOS_CON_INFORME: readonly number[] = Array.from({ length: ANIO_INFORME_FIN - ANIO_INFORME_INI + 1 }, (_, i) => ANIO_INFORME_INI + i).filter(a => !ANIOS_SIN_CICLO.includes(a));
+/** Años de la referencia histórica (con informe y hasta ANIO_REF_FIN). */
+export const ANIOS_REFERENCIA: readonly number[] = ANIOS_CON_INFORME.filter(a => a <= ANIO_REF_FIN);
 
 export interface EstadoAnio {
     id: EstadoAnioId;
@@ -45,7 +52,7 @@ const CATALOGO: Record<EstadoAnioId, EstadoAnio> = {
 export function estadoAnio(anio: number, faltante = false): EstadoAnio {
     if (ANIOS_SIN_CICLO.includes(anio)) return CATALOGO['sin-ciclo'];
     if (faltante) return CATALOGO.sd;
-    if (anio >= ANIO_PROVISIONAL) return CATALOGO.provisional;
+    if (anio > ANIO_INFORME_FIN) return CATALOGO.provisional;
     return CATALOGO['con-informe'];
 }
 

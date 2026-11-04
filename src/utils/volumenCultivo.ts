@@ -7,7 +7,7 @@
  */
 import type { FilaSupVol } from './ndviInteranual';
 import type { VolumenActual } from './ndviVolumen';
-import { ANIOS_CON_INFORME, ANIOS_SIN_CICLO, ANIO_PROVISIONAL, RANGO_INFORME, esAnioSinCiclo, listaAnios } from './estadoAnio';
+import { ANIOS_CON_INFORME, ANIOS_REFERENCIA, ANIOS_SIN_CICLO, ANIO_INFORME_FIN, RANGO_INFORME, esAnioSinCiclo, listaAnios } from './estadoAnio';
 import { CATALOGO_CULTIVOS, infoCultivo } from './cultivos';
 
 /** Superficie mínima (ha) para que una lámina cuente como muestra firme; menos de eso se marca. */
@@ -169,7 +169,16 @@ export interface ReferenciaModulo {
     minHm3: number | null;
     maxHm3: number | null;
     medianaHm3: number | null;
+    /** Volumen del ciclo que se compara con la referencia: el informe ACUM_INF del último año (misma fuente que la referencia) y, si falta, la hoja SRL (mar–sep). */
     actualHm3: number | null;
+    /** De dónde sale `actualHm3`: 'informe' (ACUM_INF, ciclo terminado), 'srl' (hoja provisional) o null sin dato. */
+    fuenteActual: 'informe' | 'srl' | null;
+    /** Volumen del último año con informe ACUM_INF (2026, corte de septiembre) para el módulo; null si el informe no lo trae (S/D). */
+    informeHm3: number | null;
+    /** Volumen de la hoja SRL (mar–sep) del módulo; null si no hay lectura (S/D). */
+    srlHm3: number | null;
+    /** Hoja SRL − informe ACUM_INF (hm³): fuentes no conciliadas. null si falta alguna de las dos. */
+    difSrlInformeHm3: number | null;
     /** Faltan meses o alguno es parcial: no comparable con un año completo. */
     actualIncompleto: boolean;
     posicion: PosicionCiclo;
@@ -179,9 +188,13 @@ export interface ReferenciaModulo {
 
 const MESES_VENTANA = 7; // mar–sep
 
-/** Compara el volumen provisional del ciclo actual (hoja SRL) con el rango de los años con informe de cada módulo. Solo nivel módulo. 2025 (sin ciclo) no cuenta. */
+/**
+ * Compara el volumen del ciclo más reciente (hoja SRL, mar–sep) con el rango de la REFERENCIA histórica de cada módulo (2020-2024, ANIOS_REFERENCIA).
+ * Solo nivel módulo. 2025 (sin ciclo) no cuenta y 2026 no entra a su propio rango; su cifra ACUM_INF se devuelve aparte (`informeHm3`) para ver la diferencia entre fuentes.
+ */
 export function referenciaCicloActual(filas: FilaSupVol[], actual: VolumenActual | null, modulos: number[]): ReferenciaModulo[] {
-    filas = utiles(filas);
+    const todas = utiles(filas);
+    filas = todas.filter(f => ANIOS_REFERENCIA.includes(f.anio));
     return modulos.map(modulo => {
         const historico = [...new Set(filas.filter(f => f.numero_modulo === modulo).map(f => f.anio))].sort((a, b) => a - b)
             .map(anio => ({ anio, miles: suma(filas.filter(f => f.numero_modulo === modulo && f.anio === anio).map(f => f.volumen_miles_m3)) }))
@@ -190,12 +203,20 @@ export function referenciaCicloActual(filas: FilaSupVol[], actual: VolumenActual
         const vals = historico.map(h => h.volumenHm3);
         const minHm3 = vals.length ? Math.min(...vals) : null, maxHm3 = vals.length ? Math.max(...vals) : null;
         const med = mediana(vals);
-        const act = actual && !actual.error ? actual.porModulo.get(modulo) ?? null : null;
-        const incompleto = !!actual && (actual.mesesParciales.length > 0 || (actual.mesesPorModulo.get(modulo) ?? 0) < MESES_VENTANA);
+        const srl = actual && !actual.error ? actual.porModulo.get(modulo) ?? null : null;
+        const incompletoSrl = !!actual && (actual.mesesParciales.length > 0 || (actual.mesesPorModulo.get(modulo) ?? 0) < MESES_VENTANA);
+        const milesInf = suma(todas.filter(f => f.numero_modulo === modulo && f.anio === ANIO_INFORME_FIN).map(f => f.volumen_miles_m3));
+        const informeHm3 = milesInf != null ? milesInf / 1000 : null;
+        // Se compara con la misma fuente de la referencia (ACUM_INF); la hoja SRL solo cubre el hueco si el informe del año falta.
+        const act = informeHm3 ?? srl;
+        const fuenteActual: ReferenciaModulo['fuenteActual'] = informeHm3 != null ? 'informe' : srl != null ? 'srl' : null;
+        const incompleto = fuenteActual === 'srl' && incompletoSrl;
         let posicion: PosicionCiclo = 'sin-dato';
         if (act != null && minHm3 != null && maxHm3 != null) posicion = act < minHm3 ? 'bajo-rango' : act > maxHm3 ? 'sobre-rango' : 'dentro';
         return {
-            modulo, historico, minHm3, maxHm3, medianaHm3: med, actualHm3: act, actualIncompleto: act != null && incompleto, posicion,
+            modulo, historico, minHm3, maxHm3, medianaHm3: med, actualHm3: act, fuenteActual, informeHm3, srlHm3: srl,
+            difSrlInformeHm3: srl != null && informeHm3 != null ? srl - informeHm3 : null,
+            actualIncompleto: act != null && incompleto, posicion,
             pctVsMediana: act != null && med ? ((act - med) / med) * 100 : null,
         };
     });
@@ -263,6 +284,125 @@ export function kpiMezcla(filas: FilaSupVol[], modulo: number | null, anio: numb
         if (altosHa != null && bajosHa != null && bajosHa > 0) altosVsBajos = { altosHa, bajosHa, veces: altosHa / bajosHa, altos: c.altos, bajos: c.bajos };
     }
     return { anio, pctVolumenAlfalfaNogal: pct, superficieTotalHa: suma(mezcla.map(m => m.superficieHa)), altosVsBajos };
+}
+
+export interface KpiTecnico {
+    anio: number | null;
+    /** Último año con informe anterior a `anio` (2025 sin ciclo se salta); null si no hay. */
+    anioAnterior: number | null;
+    volumenHm3: number | null;
+    superficieHa: number | null;
+    /** Lámina media (cm) = volumen ÷ superficie, solo con renglones que traen las dos cifras. null si falta alguna. */
+    laminaMediaCm: number | null;
+    /** Variación frente al año anterior con informe (%). null si falta el dato de alguno de los dos años (nunca 0 por faltante). */
+    volumenVsAnteriorPct: number | null;
+    superficieVsAnteriorPct: number | null;
+}
+
+/** Cifras técnicas del año elegido (volumen, superficie, lámina) y su variación frente al año anterior con informe. Descriptivo: no explica causas. */
+export function kpiTecnico(filas: FilaSupVol[], modulo: number | null, anio: number | null): KpiTecnico {
+    const vacio: KpiTecnico = { anio, anioAnterior: null, volumenHm3: null, superficieHa: null, laminaMediaCm: null, volumenVsAnteriorPct: null, superficieVsAnteriorPct: null };
+    if (anio == null || esAnioSinCiclo(anio)) return vacio;
+    const base = sel(filas, modulo);
+    const cifras = (a: number) => {
+        const r = base.filter(f => f.anio === a);
+        const miles = suma(r.map(f => f.volumen_miles_m3)), ha = suma(r.map(f => f.superficie_ha));
+        const comp = r.filter(f => f.superficie_ha != null && f.volumen_miles_m3 != null);
+        return { vol: miles != null ? miles / 1000 : null, ha, lam: laminaCm(suma(comp.map(f => f.volumen_miles_m3)), suma(comp.map(f => f.superficie_ha))) };
+    };
+    const cur = cifras(anio);
+    const previos = [...new Set(base.map(f => f.anio))].filter(a => a < anio).sort((a, b) => b - a);
+    const anioAnterior = previos[0] ?? null;
+    const prev = anioAnterior != null ? cifras(anioAnterior) : null;
+    const delta = (a: number | null, b: number | null | undefined) => (a != null && b != null && b > 0 ? ((a - b) / b) * 100 : null);
+    return { anio, anioAnterior, volumenHm3: cur.vol, superficieHa: cur.ha, laminaMediaCm: cur.lam, volumenVsAnteriorPct: delta(cur.vol, prev?.vol), superficieVsAnteriorPct: delta(cur.ha, prev?.ha) };
+}
+
+export interface IntensidadCultivo {
+    cultivo: string;
+    pctAgua: number;
+    pctSuperficie: number;
+    /** % del agua ÷ % de la superficie. 1 = recibe el agua que le toca por su superficie; > 1 recibe más; < 1 recibe menos. */
+    indice: number;
+    laminaCm: number | null;
+    volumenHm3: number | null;
+    superficieHa: number | null;
+}
+
+/**
+ * Intensidad hídrica por cultivo: cuánta agua recibe respecto de la superficie que ocupa. Solo cultivos con muestra firme
+ * (≥ UMBRAL_HA_MUESTRA) y con las dos cifras; los demás no se inventan. Ordenado por agua descendente. Descriptivo: no dice si es eficiente.
+ */
+export function intensidadHidrica(mezcla: ParticipacionCultivo[]): IntensidadCultivo[] {
+    return mezcla
+        .filter(p => p.pctVolumen != null && p.pctSuperficie != null && p.pctSuperficie > 0 && p.superficieHa != null && p.superficieHa >= UMBRAL_HA_MUESTRA && (p.volumenHm3 ?? 0) > 0)
+        .map(p => ({
+            cultivo: p.cultivo, pctAgua: p.pctVolumen as number, pctSuperficie: p.pctSuperficie as number, indice: (p.pctVolumen as number) / (p.pctSuperficie as number),
+            laminaCm: laminaCm((p.volumenHm3 as number) * 1000, p.superficieHa), volumenHm3: p.volumenHm3, superficieHa: p.superficieHa,
+        }))
+        .sort((a, b) => (b.volumenHm3 ?? 0) - (a.volumenHm3 ?? 0));
+}
+
+export interface FilaReporteCiclo {
+    /** null = total del distrito. */
+    modulo: number | null;
+    /** Volumen autorizado del ciclo (hm³); null si no hay autorización cargada (S/D). */
+    autorizadoHm3: number | null;
+    /** Agua entregada del ciclo según el informe ACUM_INF (hm³); null si falta (S/D). */
+    entregadoHm3: number | null;
+    /** entregado ÷ autorizado × 100; null si falta alguno. */
+    pctAutorizado: number | null;
+    /** autorizado − entregado (hm³); negativo = entregó más de lo autorizado. null si falta alguno. */
+    saldoHm3: number | null;
+    superficieHa: number | null;
+    laminaCm: number | null;
+    cultivoLider: { cultivo: string; pctAgua: number } | null;
+    posicion: PosicionCiclo;
+    pctVsTipico: number | null;
+}
+
+/**
+ * Reporte del ciclo más reciente por módulo: volumen autorizado contra agua entregada (informe ACUM_INF), superficie, lámina, cultivo que más agua recibe
+ * y posición frente al año típico. El «plan» es el volumen autorizado del ciclo (no hay plan de cultivos cargado). Lo que falta es null, nunca 0.
+ * `autorizados` = hm³ por número de módulo. La última fila (modulo null) suma solo los módulos con ambas cifras para que el % sea de la misma base.
+ */
+export function reporteCiclo(filas: FilaSupVol[], refs: ReferenciaModulo[], autorizados: Map<number, number>, anio: number = ANIO_INFORME_FIN): FilaReporteCiclo[] {
+    const fila = (modulo: number | null): FilaReporteCiclo => {
+        const ref = modulo == null ? null : refs.find(r => r.modulo === modulo) ?? null;
+        const mezcla = mezclaCultivos(filas, modulo, anio);
+        const tec = kpiTecnico(filas, modulo, anio);
+        const entregado = tec.volumenHm3;
+        const autorizado = modulo == null ? null : autorizados.get(modulo) ?? null;
+        const lider = [...mezcla].filter(p => p.pctVolumen != null).sort((a, b) => (b.pctVolumen as number) - (a.pctVolumen as number))[0];
+        return {
+            modulo, autorizadoHm3: autorizado, entregadoHm3: entregado,
+            pctAutorizado: autorizado != null && autorizado > 0 && entregado != null ? (entregado / autorizado) * 100 : null,
+            saldoHm3: autorizado != null && entregado != null ? autorizado - entregado : null,
+            superficieHa: tec.superficieHa, laminaCm: tec.laminaMediaCm,
+            cultivoLider: lider ? { cultivo: lider.cultivo, pctAgua: lider.pctVolumen as number } : null,
+            posicion: ref?.posicion ?? 'sin-dato', pctVsTipico: ref?.pctVsMediana ?? null,
+        };
+    };
+    const mods = refs.map(r => fila(r.modulo));
+    const total = fila(null);
+    // Total del distrito: autorizado y saldo solo con los módulos que traen las dos cifras (misma base para el %).
+    const comp = mods.filter(m => m.autorizadoHm3 != null && m.entregadoHm3 != null);
+    const aut = comp.length ? comp.reduce((a, m) => a + (m.autorizadoHm3 as number), 0) : null;
+    const ent = comp.length ? comp.reduce((a, m) => a + (m.entregadoHm3 as number), 0) : null;
+    total.autorizadoHm3 = aut;
+    total.pctAutorizado = aut != null && aut > 0 && ent != null ? (ent / aut) * 100 : null;
+    total.saldoHm3 = aut != null && ent != null ? aut - ent : null;
+    // El distrito no tiene «rango» propio (el rango es por módulo): solo se da su % frente al año típico, sumado sobre los mismos módulos.
+    total.posicion = 'sin-dato';
+    total.pctVsTipico = kpiCiclo(refs).pctVsMediana;
+    return [...mods, total];
+}
+
+/** Lectura llana del índice de intensidad (sin «×»): «40 % más», «25 % menos» o «Lo justo» (dentro de ±5 %). La referencia es lo que le toca por su superficie. */
+export function lecturaIntensidad(indice: number): { cifra: string; tendencia: 'mas' | 'menos' | 'justo' } {
+    const pct = Math.round((indice - 1) * 100);
+    if (Math.abs(pct) < 5) return { cifra: 'Lo justo', tendencia: 'justo' };
+    return pct > 0 ? { cifra: `${pct} % más`, tendencia: 'mas' } : { cifra: `${-pct} % menos`, tendencia: 'menos' };
 }
 
 export interface KpiCiclo {
@@ -352,12 +492,15 @@ export function barrasVolumenAnual(filas: FilaSupVol[], actual: VolumenActual | 
         const miles = suma(base.filter(f => f.anio === anio).map(f => f.volumen_miles_m3));
         return { anio, estado: miles != null ? 'con-informe' : 'sd', valor: miles != null ? miles / 1000 : null };
     });
-    out.push({ anio: 2025, estado: 'sin-ciclo', valor: null });
-    const ids = modulo == null ? modulos : [modulo];
-    const vals = actual && !actual.error ? ids.map(m => actual.porModulo.get(m)).filter((v): v is number => v != null && Number.isFinite(v)) : [];
-    const incompleto = !!actual && (actual.mesesParciales.length > 0 || ids.some(m => (actual.mesesPorModulo.get(m) ?? 0) < MESES_VENTANA));
-    out.push({ anio: ANIO_PROVISIONAL, estado: vals.length ? 'provisional' : 'sd', valor: vals.length ? vals.reduce((a, b) => a + b, 0) : null, incompleto: vals.length ? incompleto : undefined });
-    return out;
+    for (const a of ANIOS_SIN_CICLO) out.push({ anio: a, estado: 'sin-ciclo', valor: null });
+    // El último año ya está en el informe ACUM_INF: la hoja SRL solo cubre el hueco si el informe de ese año faltara en la base.
+    if (!anios.includes(ANIO_INFORME_FIN)) {
+        const ids = modulo == null ? modulos : [modulo];
+        const vals = actual && !actual.error ? ids.map(m => actual.porModulo.get(m)).filter((v): v is number => v != null && Number.isFinite(v)) : [];
+        const incompleto = !!actual && (actual.mesesParciales.length > 0 || ids.some(m => (actual.mesesPorModulo.get(m) ?? 0) < MESES_VENTANA));
+        out.push({ anio: ANIO_INFORME_FIN, estado: vals.length ? 'provisional' : 'sd', valor: vals.length ? vals.reduce((a, b) => a + b, 0) : null, incompleto: vals.length ? incompleto : undefined });
+    }
+    return out.sort((a, b) => a.anio - b.anio);
 }
 
 /** Superficie regada por año (ha): años con informe y 2025 como hueco «sin ciclo». 2026 no tiene superficie en la hoja SRL y no se dibuja. */
@@ -369,8 +512,8 @@ export function barrasSuperficieAnual(filas: FilaSupVol[], modulo: number | null
         const ha = suma(base.filter(f => f.anio === anio).map(f => f.superficie_ha));
         return { anio, estado: ha != null ? 'con-informe' : 'sd', valor: ha };
     });
-    out.push({ anio: 2025, estado: 'sin-ciclo', valor: null });
-    return out;
+    for (const a of ANIOS_SIN_CICLO) out.push({ anio: a, estado: 'sin-ciclo', valor: null });
+    return out.sort((a, b) => a.anio - b.anio);
 }
 
 export interface ParteTop { nombre: string; pct: number; valor: number | null; esOtros: boolean; cultivos: string[] }
@@ -447,12 +590,22 @@ export interface Composicion {
     /** Cultivos con color propio, en el ORDEN FIJO del catálogo (el color sigue al cultivo, no al ranking), y «Otros» al final si hace falta. */
     leyenda: { nombre: string; clave: string; esOtros: boolean; cultivos: string[] }[];
     filas: FilaComposicion[];
+    /** true = TODOS los años con informe del ámbito (al menos 2) traen renglones atípicos o sin cifra: el ⚠ por año sería ruido y se sustituye por una nota única. */
+    todosIncompletos: boolean;
 }
+
+/** Nota única que sustituye al ⚠ repetido cuando todos los años del ámbito están marcados. */
+export const NOTA_TODOS_INCOMPLETOS = 'Todos los años traen renglones atípicos o sin volumen en el informe fuente; los porcentajes son sobre lo capturado.';
+export const NOTA_TODOS_INCOMPLETOS_SUP = 'Todos los años traen renglones atípicos o sin superficie en el informe fuente; los porcentajes son sobre lo capturado.';
+export const notaTodosIncompletos = (campo: 'volumen' | 'superficie'): string => (campo === 'volumen' ? NOTA_TODOS_INCOMPLETOS : NOTA_TODOS_INCOMPLETOS_SUP);
+
+/** ¿Se pinta el ⚠ junto al año? Solo si el año está marcado y NO lo están todos (si lo están, manda la nota única; el detalle del año conserva el aviso completo). */
+export const marcaAnioIncompleto = (c: Composicion, f: FilaComposicion): boolean => f.incompleta && !c.todosIncompletos;
 
 /**
  * Mezcla de cultivos año por año: los `n` cultivos que más pesan en todo el periodo van cada uno con su color y el resto se junta en «Otros».
  * Los cultivos se apilan siempre en el mismo orden (el del catálogo), para que se vea el cambio y no el reordenamiento.
- * 2025 es un hueco «sin ciclo» (nunca 0 ni S/D) y 2026 se marca «sin desglose»: la hoja SRL no separa cultivos.
+ * 2025 es un hueco «sin ciclo» (nunca 0 ni S/D). 2026 ya trae desglose del informe ACUM_INF; sin él se marcaría «sin desglose».
  */
 export function composicionAnual(filas: FilaSupVol[], modulo: number | null, campo: 'volumen' | 'superficie', n = 6): Composicion {
     const base = sel(filas, modulo);
@@ -485,9 +638,12 @@ export function composicionAnual(filas: FilaSupVol[], modulo: number | null, cam
         return { anio, estado: 'con-informe' as const, total, partes, sinCifra, atipicos, incompleta };
     });
     for (const a of ANIOS_SIN_CICLO) out.push({ anio: a, estado: 'sin-ciclo', total: null, partes: [], sinCifra: [], atipicos: [], incompleta: false });
-    out.push({ anio: ANIO_PROVISIONAL, estado: 'sin-desglose', total: null, partes: [], sinCifra: [], atipicos: [], incompleta: false });
+    // Solo si el informe del último año no está en la base: hueco rotulado (nunca 0).
+    if (!anios.includes(ANIO_INFORME_FIN)) out.push({ anio: ANIO_INFORME_FIN, estado: 'sin-desglose', total: null, partes: [], sinCifra: [], atipicos: [], incompleta: false });
     out.sort((a, b) => a.anio - b.anio);
-    return { campo, unidad: campo === 'volumen' ? 'hm³' : 'ha', leyenda, filas: out };
+    const conInf = out.filter(f => f.estado === 'con-informe');
+    const todosIncompletos = conInf.length >= 2 && conInf.every(f => f.incompleta);
+    return { campo, unidad: campo === 'volumen' ? 'hm³' : 'ha', leyenda, filas: out, todosIncompletos };
 }
 
 /** Cómo decir «sin cifra» según lo que se mide. */

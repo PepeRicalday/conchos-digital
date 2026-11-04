@@ -11,17 +11,17 @@ import { fmt, fmtMiles, SD } from './formato';
 import {
     bloqueFirmas, cabeceraInforme, cssInforme, documentoHtml, esc, fechaHoraLegible, folioConPartes, hashCorto, minificaCss, pieInforme, tablaTrazabilidad, unificaFuenteSvg,
 } from './informeBase';
-import { RANGO_INFORME, ANIOS_SIN_CICLO, ANIO_PROVISIONAL, TEXTO_SIN_CICLO, esAnioSinCiclo } from './estadoAnio';
+import { RANGO_INFORME, RANGO_ACUM, ANIOS_SIN_CICLO, ANIO_INFORME_FIN, TEXTO_SIN_CICLO, esAnioSinCiclo } from './estadoAnio';
 import { fondoTramaCss, iconoCultivoG, iconoCultivoSvg, infoCultivo, patronTrama } from './cultivos';
 import type { FilaSupVol } from './ndviInteranual';
 import type { VolumenActual } from './ndviVolumen';
 import {
     UMBRAL_HA_MUESTRA, Z_ATIPICA, cifraContraste, contrasteRegimenes, fraseContrasteSuperficie, kpiCiclo, lecturaVsTipico, kpiLamina, kpiMezcla, laminaPorCultivo, listaAtipicos, matrizModuloAnio, mezclaCultivos,
-    referenciaCicloActual, composicionAnual, notaIncompleta, type PosicionCiclo, type ReferenciaModulo, type SerieCultivo,
+    referenciaCicloActual, composicionAnual, notaIncompleta, marcaAnioIncompleto, NOTA_TODOS_INCOMPLETOS, type PosicionCiclo, type ReferenciaModulo, type SerieCultivo,
 } from './volumenCultivo';
 
 export const MODULOS_INFORME_VC = [1, 2, 3, 4, 5, 12];
-export const TITULO_INFORME_VC = `Consumo por año, módulo y cultivo (ACUM_INF ${RANGO_INFORME})`;
+export const TITULO_INFORME_VC = `Consumo por año, módulo y cultivo (ACUM_INF ${RANGO_ACUM})`;
 const NOTA_SIN_CICLO = `${ANIOS_SIN_CICLO.join(', ')}: ${TEXTO_SIN_CICLO.replace(/^Sin ciclo: /, 'sin ciclo de riego, ')} No tiene cifras de volumen ni superficie y no entra a promedios, año típico ni rangos.`;
 const PLANTILLA = 'volumen-cultivo-v1';
 
@@ -101,7 +101,9 @@ export function svgMezclaApilada(filas: FilaSupVol[], anios: number[]): string {
     const extra = ANIOS_SIN_CICLO.filter((a) => !anios.includes(a));
     const tramas = new Map(comp.leyenda.map((l) => { const i = infoCultivo(l.esOtros ? 'Otros' : l.nombre); return [l.clave + l.nombre, { id: `tr-mz-${i.clave}`, i }] as const; }));
     const defs = [...tramas.values()].filter((t) => t.i.trama !== 'liso').map((t) => patronTrama(t.id, t.i.trama, 'rgba(0,0,0,.34)')).join('');
-    const rows = [...anios.map((a) => ({ a, sin: false, prov: false })), ...extra.map((a) => ({ a, sin: true, prov: false })), { a: ANIO_PROVISIONAL, sin: false, prov: true }].map(({ a, sin, prov }, i) => {
+    // 2026 ya trae desglose del informe; «sin desglose» solo si ese año faltara en la base. Filas en orden cronológico (2025 queda entre 2024 y 2026).
+    const filasAnio = [...anios.map((a) => ({ a, sin: false, prov: false })), ...extra.map((a) => ({ a, sin: true, prov: false })), ...(anios.includes(ANIO_INFORME_FIN) ? [] : [{ a: ANIO_INFORME_FIN, sin: false, prov: true }])].sort((x, y) => x.a - y.a);
+    const rows = filasAnio.map(({ a, sin, prov }, i) => {
         const y = 6 + i * RH;
         if (prov) return `<text x="4" y="${y + 15}" font-size="${FS}" font-weight="700" fill="${INK}">${a}</text><rect x="${X0}" y="${y}" width="${X1 - X0}" height="20" rx="6" fill="none" stroke="${INK2}" stroke-width="1.2" stroke-dasharray="1.5 3.5" stroke-linecap="round"/><text x="${X0 + 8}" y="${y + 14.5}" font-size="${FS}" font-style="italic" fill="${INK2}">Provisional: sin desglose por cultivo</text>`;
         if (sin) return `<text x="4" y="${y + 15}" font-size="${FS}" font-weight="700" fill="${INK}">${a}</text><rect x="${X0}" y="${y}" width="${X1 - X0}" height="20" rx="6" fill="none" stroke="${INK2}" stroke-width="1.2" stroke-dasharray="4 3"/><text x="${X0 + 8}" y="${y + 14.5}" font-size="${FS}" font-style="italic" fill="${INK2}">Sin ciclo: presas cerradas</text>`;
@@ -120,11 +122,13 @@ export function svgMezclaApilada(filas: FilaSupVol[], anios: number[]): string {
                 : '';
             return `<rect x="${f1(ini)}" y="${y}" width="${f1(ww)}" height="20" rx="4" fill="${t.i.colorClaro}"/>${t.i.trama !== 'liso' ? `<rect x="${f1(ini)}" y="${y}" width="${f1(ww)}" height="20" rx="4" fill="url(#${t.id})"/>` : ''}${etiqueta}`;
         }).join('');
-        return `<text x="4" y="${y + 15}" font-size="${FS}" font-weight="700" fill="${INK}">${a}${fila.incompleta ? ' ⚠' : ''}</text>${segs}<text x="${X1 + 6}" y="${y + 15}" font-size="${FS}" fill="${INK2}">${fmt(fila.total, 0)} hm³</text>`;
+        return `<text x="4" y="${y + 15}" font-size="${FS}" font-weight="700" fill="${INK}">${a}${marcaAnioIncompleto(comp, fila) ? ' ⚠' : ''}</text>${segs}<text x="${X1 + 6}" y="${y + 15}" font-size="${FS}" fill="${INK2}">${fmt(fila.total, 0)} hm³</text>`;
     }).join('');
     const desc = anios.map((a) => { const k = kpiMezcla(filas, null, a); return `${a}: alfalfa y nogal ${k.pctVolumenAlfalfaNogal != null ? `${Math.round(k.pctVolumenAlfalfaNogal)} %` : 'S/D'} del agua entregada`; }).join('; ');
-    const avisos = comp.filas.filter((x) => x.estado === 'con-informe' && anios.includes(x.anio)).map((x) => notaIncompleta(x, 'volumen')).filter((n): n is string => !!n);
-    const alto = (anios.length + extra.length + 1) * RH + 8;
+    const avisos = comp.todosIncompletos
+        ? [`⚠ ${NOTA_TODOS_INCOMPLETOS}`]
+        : comp.filas.filter((x) => x.estado === 'con-informe' && anios.includes(x.anio)).map((x) => notaIncompleta(x, 'volumen')).filter((n): n is string => !!n);
+    const alto = filasAnio.length * RH + 8;
     return `<svg viewBox="0 0 ${W} ${alto}" width="100%" style="max-width:${W}px;display:block" role="img" aria-label="Parte del agua entregada que recibe cada cultivo, por año. ${esc(desc)}"><title>Parte del agua entregada que recibe cada cultivo en cada año</title><defs>${defs}</defs>${rows}</svg>
 <ul class="ley" aria-label="Leyenda de cultivos">${comp.leyenda.map((l) => leyendaCultivo(l.esOtros ? `${l.nombre} (${l.cultivos.join(', ')})` : l.nombre, l.esOtros)).join('')}</ul>
 <p class="fuente">Los porcentajes se redondean; pueden sumar 99 o 101 %. «Varios» = cultivos sin desglose en el informe.${avisos.map((n) => ` ${esc(n)}`).join('')}</p>`;
@@ -147,7 +151,7 @@ export function svgRangoCiclo(refs: ReferenciaModulo[]): string {
     }).join('');
     const desc = refs.map((r) => `Módulo ${r.modulo}: ${r.actualHm3 != null ? `${fmt(r.actualHm3, 1)} hm³, ${TXT_POS[r.posicion].replace(/^[▲▼●] /, '').toLowerCase()}` : 'sin dato actual'}`).join('; ');
     return `<svg viewBox="0 0 ${W} ${refs.length * RH + 8}" width="100%" style="max-width:${W}px;display:block" role="img" aria-label="Ciclo actual contra el rango ${RANGO_INFORME} por módulo. ${esc(desc)}"><title>Ciclo actual contra el rango ${RANGO_INFORME} por módulo (escala propia de cada módulo)</title>${rows}</svg>
-<ul class="ley" aria-label="Leyenda"><li><i class="b"></i>Rango ${RANGO_INFORME}</li><li><i class="m"></i>Año típico</li><li><i class="r"></i>Ciclo actual provisional (rombo; hueco = bajo el mínimo)</li></ul>`;
+<ul class="ley" aria-label="Leyenda"><li><i class="b"></i>Rango ${RANGO_INFORME}</li><li><i class="m"></i>Año típico</li><li><i class="r"></i>Ciclo ${ANIO_INFORME_FIN} (rombo; hueco = bajo el mínimo)</li></ul>`;
 }
 
 // ───────────────────────── Estilos propios ─────────────────────────
@@ -201,6 +205,9 @@ export function construirHtmlVolumenCultivo(d: DatosInformeVolumenCultivo, logos
     const km = kpiMezcla(filas, null, anioUlt);
     const refs = referenciaCicloActual(filas, d.volumenActual, MODULOS_INFORME_VC);
     const kc = kpiCiclo(refs);
+    // El último año ya está en el informe ACUM_INF (ciclo terminado): se compara con la misma fuente que la referencia; la hoja SRL queda como contraste.
+    const cicloInforme = refs.some((r) => r.fuenteActual === 'informe');
+    const soloSrl = refs.some((r) => r.fuenteActual === 'srl');
     const series = laminaPorCultivo(filas, null);
     const contraste = contrasteRegimenes(filas, null);
     const atipicos = listaAtipicos(filas);
@@ -218,21 +225,21 @@ export function construirHtmlVolumenCultivo(d: DatosInformeVolumenCultivo, logos
             haz.push(`En ${kl.anio}, el agua entregada por hectárea en el distrito fue ${kl.laminaMediaCm != null ? `de ${fmt(kl.laminaMediaCm, 0)} cm` : 'S/D'}${kl.cultivoMayor ? `; el cultivo que más agua recibió por hectárea fue ${kl.cultivoMayor.cultivo} (${fmt(kl.cultivoMayor.laminaCm, 0)} cm)` : ''}.`);
         }
         if (km.pctVolumenAlfalfaNogal != null) haz.push(`Alfalfa y nogal suman ${fmt(km.pctVolumenAlfalfaNogal, 0)} % del agua entregada en ${anioUlt}.`);
-        if (km.altosVsBajos) haz.push(`${fraseContrasteSuperficie(km.altosVsBajos)} Superficie media de los años de más superficie: ${fmtMiles(km.altosVsBajos.altosHa, 0)} ha; de los años de menos superficie: ${fmtMiles(km.altosVsBajos.bajosHa, 0)} ha. Es una descripción de las cifras del informe: no se explica el porqué.`);
+        if (km.altosVsBajos) haz.push(`${fraseContrasteSuperficie(km.altosVsBajos)} Superficie media de los años de más superficie: ${fmtMiles(km.altosVsBajos.altosHa, 0)} ha; de los años de menos superficie: ${fmtMiles(km.altosVsBajos.bajosHa, 0)} ha.`);
         haz.push(NOTA_SIN_CICLO);
-        if (kc.modulosConDato) haz.push(`Ciclo actual (provisional): ${kc.dentro} de ${kc.modulosTotal} módulos dentro del rango ${RANGO_INFORME}, ${kc.sobre} arriba del máximo y ${kc.bajo} debajo del mínimo${kc.sinDato ? `, ${kc.sinDato} sin dato` : ''}.`);
-        else haz.push('Ciclo actual: S/D (no se pudo leer el volumen provisional de la hoja SRL; no se estima ni se llena con cero).');
+        // Con dato, el ciclo actual ya está en las tarjetas «Módulos dentro del rango» y «Frente a un año típico»; solo el S/D se repite aquí para que no pase en silencio.
+        if (!kc.modulosConDato) haz.push('Ciclo actual: S/D (el informe ACUM_INF no trae el último año y no se pudo leer la hoja SRL; no se estima ni se llena con cero).');
         if (atipicos.length) haz.push(`${nHaz(atipicos.length, 'celda', 'celdas')} por revisar, marcadas con ⚠ (cifra lejos de los demás años, superficie menor a ${UMBRAL_HA_MUESTRA} ha o captura atípica en la fuente); se listan en el anexo A y no se corrigen.`);
         const kpiHtml = (et: string, v: string | null, unidad: string, ctx: string, texto = false) =>
             `<div class="kpi${v == null ? ' sd' : ''}"><div class="et">${esc(et)}</div><div class="v${texto ? ' t' : ''}">${v == null ? SD : esc(v)}${v != null && unidad ? `<small>${esc(unidad)}</small>` : ''}</div><div class="s">${ctx}</div></div>`;
         agrega(`<div class="banda"><small>Centro de Inteligencia Agroclimática · SICA 005</small>
-  <h1>Consumo por año, módulo y cultivo <span style="white-space:nowrap">(ACUM_INF ${RANGO_INFORME})</span></h1>
+  <h1>Consumo por año, módulo y cultivo <span style="white-space:nowrap">(ACUM_INF ${RANGO_ACUM})</span></h1>
   <div class="sub">Distrito de Riego 005 Delicias, Chihuahua · 6 módulos SRL · informe estadístico descriptivo</div></div>
 <div class="datos">
   <div class="dato"><b>Años cubiertos</b><span>${esc(periodo)}</span></div>
   <div class="dato"><b>Renglones de la fuente</b><span>${fmtMiles(filas.length, 0)}</span></div>
   <div class="dato"><b>Cultivos</b><span>${series.length || SD}</span></div>
-  <div class="dato"><b>Ciclo actual</b><span>${d.volumenActual && !d.volumenActual.error ? 'Provisional (hoja SRL)' : 'S/D'}</span></div>
+  <div class="dato"><b>Ciclo actual</b><span>${cicloInforme && !soloSrl ? `${ANIO_INFORME_FIN} · ACUM_INF (terminado)` : d.volumenActual && !d.volumenActual.error ? 'Provisional (hoja SRL)' : 'S/D'}</span></div>
 </div>
 <h2><span class="n">${++nSec}</span>Resumen ejecutivo</h2>
 ${sinDatos ? `<div class="aviso"><b>Sin datos:</b> ${d.errorSupVol ? `no se pudo leer el informe ACUM_INF (${esc(d.errorSupVol)}). Esto no significa que no haya datos.` : 'el informe ACUM_INF no tiene renglones cargados.'} Todas las secciones aparecen como S/D.</div>` : ''}
@@ -242,15 +249,14 @@ ${kpiHtml('Cultivo que más agua recibe por hectárea', kl.cultivoMayor?.cultivo
 ${kpiHtml('Cifras por revisar', kl.celdas ? String(kl.alertas) : null, kl.celdas ? `de ${kl.celdas}` : '', 'Se muestran marcadas, no se corrigen')}
 ${kpiHtml('Alfalfa y nogal', km.pctVolumenAlfalfaNogal != null ? fmt(km.pctVolumenAlfalfaNogal, 0) : null, '% del agua entregada', `en ${anioUlt ?? 'S/D'}, todo el distrito`)}
 ${kpiHtml(`Superficie regada ${anioUlt ?? ''}`.trim(), km.superficieTotalHa != null ? fmtMiles(km.superficieTotalHa, 0) : null, 'ha', 'Suma de cultivos del informe ACUM_INF')}
-${kpiHtml('Cambio de superficie entre años', cifraContraste(km.altosVsBajos), '', km.altosVsBajos ? `${esc(fraseContrasteSuperficie(km.altosVsBajos) ?? '')} <b>${fmtMiles(km.altosVsBajos.altosHa, 0)} ha</b> contra <b>${fmtMiles(km.altosVsBajos.bajosHa, 0)} ha</b> en promedio.` : 'Sin contraste claro', true)}
+${kpiHtml('Cambio de superficie entre años', cifraContraste(km.altosVsBajos), '', km.altosVsBajos ? `<b>${fmtMiles(km.altosVsBajos.altosHa, 0)} ha</b> contra <b>${fmtMiles(km.altosVsBajos.bajosHa, 0)} ha</b> en promedio (años de más y de menos superficie).` : 'Sin contraste claro', true)}
 ${kpiHtml('Módulos dentro del rango', kc.modulosConDato ? `${kc.dentro} de ${kc.modulosTotal}` : null, '', kc.modulosConDato ? `${kc.sobre} arriba del máximo · ${kc.bajo} debajo del mínimo${kc.sinDato ? ` · ${kc.sinDato} S/D` : ''}` : 'Ciclo actual sin dato', true)}
-${kpiHtml('Volumen actual (mar–sep)', kc.actualHm3 != null ? fmt(kc.actualHm3, 1) : null, 'hm³ provisional', kc.modulosConDato && kc.modulosConDato < kc.modulosTotal ? `Suma de ${kc.modulosConDato} de ${kc.modulosTotal} módulos con dato` : 'Hoja SRL, sin conciliar con ACUM_INF')}
-${kpiHtml(`Frente a un año típico ${RANGO_INFORME}`, kc.pctVsMediana != null ? `${sg(kc.pctVsMediana, 0)} %` : null, '', kc.medianaHm3 != null ? `${esc(lecturaVsTipico(kc.pctVsMediana)?.frase ?? '')} Año típico de esos módulos: <b>${fmt(kc.medianaHm3, 1)} hm³</b>` : 'Sin base de comparación')}
+${kpiHtml(cicloInforme && !soloSrl ? `Agua entregada en el ciclo ${ANIO_INFORME_FIN}` : 'Volumen actual (mar–sep)', kc.actualHm3 != null ? fmt(kc.actualHm3, 1) : null, cicloInforme && !soloSrl ? 'hm³' : 'hm³ provisional', kc.modulosConDato && kc.modulosConDato < kc.modulosTotal ? `Suma de ${kc.modulosConDato} de ${kc.modulosTotal} módulos con dato` : cicloInforme && !soloSrl ? 'Informe ACUM_INF, ciclo terminado; la hoja SRL se muestra aparte como contraste' : 'Hoja SRL, sin conciliar con ACUM_INF')}
+${kpiHtml(`Frente a un año típico ${RANGO_INFORME}`, kc.pctVsMediana != null ? `${sg(kc.pctVsMediana, 0)} %` : null, '', kc.medianaHm3 != null ? `${esc(lecturaVsTipico(kc.pctVsMediana)?.frase ?? '')}` : 'Sin base de comparación')}
 </div>
 <h3>Lo que dicen las cifras</h3>
 ${haz.length ? `<ol class="hallazgos">${haz.map((h) => `<li>${esc(h)}</li>`).join('')}</ol>` : '<p class="sd">Sin hallazgos que reportar: no hay datos suficientes.</p>'}
-<div class="aviso frontera"><b>Cómo leer este informe:</b> es agua entregada por hectárea (volumen del informe ÷ superficie), no consumo de la planta ni eficiencia. Describe qué dicen las cifras de ACUM_INF; no atribuye causas a los cambios entre años.</div>
-<p class="nota-pie">Dirigido a: CONAGUA · Distrito de Riego 005 · Asociaciones de usuarios. Fuente: informe ACUM_INF de la SRL (corte de septiembre) y hoja SRL provisional para el ciclo actual. Documento generado automáticamente por SICA 005.</p>`);
+<div class="aviso frontera"><b>Cómo leer este informe:</b> es agua entregada por hectárea (volumen ÷ superficie), no consumo de la planta ni eficiencia. Describe las cifras de ACUM_INF; no atribuye causas.</div>`);
         paginas[0].cabecera = cabeceraInforme({ logoSrl: logos.srl, logoSica: logos.sica, titulo: 'Distrito de Riego 005', meta });
     }
 
@@ -263,14 +269,11 @@ ${haz.length ? `<ol class="hallazgos">${haz.map((h) => `<li>${esc(h)}</li>`).joi
             const marca = c.laminaAtipica || c.atipicoFuente || c.muestraChica;
             return `<td class="n${c.laminaAtipica || c.atipicoFuente ? ' alerta' : ''}">${fmt(c.laminaCm, 0)}${marca ? ' ⚠' : ''}<span class="mini${c.muestraChica ? ' hueca' : ''}" style="--cu:${infoCultivo(s.cultivo).colorClaro}"><i style="width:${Math.max(3, (c.laminaCm / maxL) * 100).toFixed(0)}%"></i></span><small>${fmtMiles(c.superficieHa, 0)} ha</small></td>`;
         }).join('')}${s.mediaLaminaCm != null ? tdN(fmt(s.mediaLaminaCm, 0)) : tdN(SD)}</tr>`).join('');
-        const mat = matrizModuloAnio(filas, MODULOS_INFORME_VC);
-        const filasMod = mat.map((m) => `<tr><th scope="row" class="cul">Módulo ${m.modulo}</th>${m.celdas.map((c) => (c.laminaCm == null ? `<td class="n sd">${SD}</td>` : `<td class="n">${fmt(c.laminaCm, 0)}<small>${fmtMiles(c.superficieHa, 0)} ha · ${fmt(c.volumenHm3, 1)} hm³</small></td>`)).join('')}</tr>`).join('');
         agrega(`<h2 style="margin-top:0"><span class="n">${++nSec}</span>Agua entregada por hectárea, por cultivo</h2>
 ${series.length ? `<figure class="fig" style="margin:0 0 6px">${svgLaminaMiniaturas(series, anios)}</figure>
 <p class="fuente">Los seis cultivos que más agua reciben, con una sola escala desde cero. Barra hueca = superficie menor a ${UMBRAL_HA_MUESTRA} ha (poca superficie). ⚠ = cifra por revisar: lejos de los demás años, poca superficie o captura atípica en la fuente.</p>
 <div class="tabla-wrap"><table class="compacta"><caption>Agua entregada por hectárea (cm) = volumen ÷ superficie, todo el distrito (la superficie va debajo de cada cifra)</caption><thead><tr><th>Cultivo</th>${anios.map((a) => `<th class="n">${a}</th>`).join('')}<th class="n">Promedio</th></tr></thead><tbody>${filasTabla}</tbody></table></div>
-<p class="fuente">${esc(NOTA_SIN_CICLO)} El promedio usa solo los años con superficie de ${UMBRAL_HA_MUESTRA} ha o más. Una cifra se marca como atípica cuando se aleja más de ${Z_ATIPICA} desviaciones de la de los otros años del mismo cultivo (se pide al menos 4 años).</p>
-<div class="tabla-wrap"><table class="compacta"><caption>Agua por hectárea en cada módulo, todos los cultivos (cm; superficie y volumen debajo)</caption><thead><tr><th>Módulo</th>${anios.map((a) => `<th class="n">${a}</th>`).join('')}</tr></thead><tbody>${filasMod}</tbody></table></div>`
+<p class="fuente">2025 no tiene cifras: sin ciclo, no es dato faltante. El promedio usa solo años con ${UMBRAL_HA_MUESTRA} ha o más. Atípica = a más de ${Z_ATIPICA} desviaciones de los otros años del mismo cultivo (mínimo 4 años).</p>`
     : `<div class="aviso"><b>S/D:</b> no hay renglones del informe ACUM_INF cargados para calcular el agua por hectárea. Es un dato que falta cargar, no un año sin riego.</div>`}`);
     }
 
@@ -289,15 +292,20 @@ ${contraste ? `<div class="tabla-wrap"><table class="compacta"><caption>Años de
 
     // ── Ciclo actual
     {
-        const filasCiclo = refs.map((r) => `<tr><th scope="row" class="cul">Módulo ${r.modulo}</th>${tdN(r.minHm3 != null ? fmt(r.minHm3, 1) : SD)}${tdN(r.medianaHm3 != null ? fmt(r.medianaHm3, 1) : SD)}${tdN(r.maxHm3 != null ? fmt(r.maxHm3, 1) : SD)}${r.actualHm3 != null ? `<td class="n">${fmt(r.actualHm3, 1)}${r.actualIncompleto ? ' ⚠' : ''}</td>` : `<td class="n sd">${SD}</td>`}${tdN(r.pctVsMediana != null ? `${sg(r.pctVsMediana, 0)} %` : SD)}<td>${esc(TXT_POS[r.posicion])}${r.actualIncompleto ? ' · volumen incompleto' : ''}</td></tr>`).join('');
-        const aviso = d.volumenActual == null
+        const mat = matrizModuloAnio(filas, MODULOS_INFORME_VC);
+        const filasMod = mat.map((m) => `<tr><th scope="row" class="cul">Módulo ${m.modulo}</th>${m.celdas.map((c) => (c.laminaCm == null ? `<td class="n sd">${SD}</td>` : `<td class="n">${fmt(c.laminaCm, 0)}<small>${fmtMiles(c.superficieHa, 0)} ha · ${fmt(c.volumenHm3, 1)} hm³</small></td>`)).join('')}</tr>`).join('');
+        const tablaMod = `<h3>Agua por hectárea en cada módulo, ${periodo}</h3><div class="tabla-wrap"><table class="compacta"><caption>Agua por hectárea en cada módulo, todos los cultivos (cm; superficie y volumen debajo)</caption><thead><tr><th>Módulo</th>${anios.map((a) => `<th class="n">${a}</th>`).join('')}</tr></thead><tbody>${filasMod}</tbody></table></div>`;
+        const filasCiclo = refs.map((r) => `<tr><th scope="row" class="cul">Módulo ${r.modulo}</th>${tdN(r.minHm3 != null ? fmt(r.minHm3, 1) : SD)}${tdN(r.medianaHm3 != null ? fmt(r.medianaHm3, 1) : SD)}${tdN(r.maxHm3 != null ? fmt(r.maxHm3, 1) : SD)}${r.actualHm3 != null ? `<td class="n">${fmt(r.actualHm3, 1)}${r.actualIncompleto ? ' ⚠' : ''}</td>` : `<td class="n sd">${SD}</td>`}${tdN(r.pctVsMediana != null ? `${sg(r.pctVsMediana, 0)} %` : SD)}${r.srlHm3 != null ? `<td class="n">${fmt(r.srlHm3, 1)}${r.difSrlInformeHm3 != null && Math.abs(r.difSrlInformeHm3) >= 0.05 ? `<small>${sg(r.difSrlInformeHm3, 1)} hm³ frente al informe</small>` : ''}</td>` : `<td class="n sd">${SD}</td>`}<td>${esc(TXT_POS[r.posicion])}${r.actualIncompleto ? ' · volumen incompleto' : ''}</td></tr>`).join('');
+        const aviso = cicloInforme ? ''
+            : d.volumenActual == null
             ? '<div class="aviso"><b>S/D:</b> el volumen provisional del ciclo actual no se cargó al generar el informe. Queda sin dato, no en cero.</div>'
             : d.volumenActual.error ? `<div class="aviso"><b>S/D:</b> no se pudo leer el volumen de la hoja SRL (${esc(d.volumenActual.error)}). El ciclo actual queda sin dato, no en cero.</div>` : '';
         agrega(`<h2 style="margin-top:0"><span class="n">${++nSec}</span>Ciclo actual contra el rango ${RANGO_INFORME}</h2>
 ${aviso}<figure class="fig" style="margin:0 0 4px">${svgRangoCiclo(refs)}</figure>
-<div class="tabla-wrap"><table class="compacta"><caption>Agua entregada de marzo a septiembre por módulo (hm³): ciclo actual provisional contra ${RANGO_INFORME}</caption><thead><tr><th>Módulo</th><th class="n">Mínimo</th><th class="n">Año típico</th><th class="n">Máximo</th><th class="n">Actual</th><th class="n">Frente al año típico</th><th>Lectura</th></tr></thead><tbody>${filasCiclo}</tbody></table></div>
-<p class="fuente">La hoja SRL no desglosa por cultivo: la comparación es solo por módulo. ⚠ = faltan meses de la ventana mar–sep o alguno es parcial; ese volumen no es comparable con un año completo. Con 5 años el rango es una referencia, no un intervalo estadístico. ${esc(NOTA_SIN_CICLO)}</p>
-<div class="aviso"><b>Fuentes distintas:</b> ${RANGO_INFORME} sale de ACUM_INF (corte de septiembre) y el ciclo actual de la hoja SRL, provisional. Ambas no están conciliadas; una diferencia entre ellas puede ser de método y no del agua entregada.</div>`);
+<div class="tabla-wrap"><table class="compacta"><caption>Agua entregada por ciclo y módulo (hm³): ciclo ${ANIO_INFORME_FIN} contra ${RANGO_INFORME}${cicloInforme ? ', con la hoja SRL (mar–sep) como contraste' : ' (hoja SRL provisional)'}</caption><thead><tr><th>Módulo</th><th class="n">Mínimo</th><th class="n">Año típico</th><th class="n">Máximo</th><th class="n">Ciclo ${ANIO_INFORME_FIN}</th><th class="n">Frente al año típico</th><th class="n">Hoja SRL (mar–sep)</th><th>Lectura</th></tr></thead><tbody>${filasCiclo}</tbody></table></div>
+<p class="fuente">${cicloInforme ? `El ciclo ${ANIO_INFORME_FIN} y ${RANGO_INFORME} salen del mismo informe ACUM_INF, así que se comparan entre iguales; su desglose por cultivo está en la sección de mezcla.` : 'La hoja SRL no desglosa por cultivo: la comparación es solo por módulo.'} ⚠ = faltan meses de la ventana mar–sep o alguno es parcial; ese volumen no es comparable con un año completo. Con 5 años el rango es una referencia, no un intervalo estadístico. ${esc(NOTA_SIN_CICLO)}</p>
+<div class="aviso"><b>Fuentes distintas:</b> ${cicloInforme ? `la hoja SRL (mar–sep) no está conciliada con el informe ACUM_INF (corte de septiembre)` : `${RANGO_INFORME} sale de ACUM_INF (corte de septiembre) y el ciclo actual de la hoja SRL, provisional; ambas no están conciliadas`}; una diferencia entre ellas puede ser de método y no del agua entregada.</div>
+${anios.length ? tablaMod : ''}`);
     }
 
     // ── Anexo A: atípicos
@@ -315,7 +323,7 @@ ${atipicos.length ? `<div class="tabla-wrap"><table class="compacta"><caption>Ce
             { k: 'Emisión', v: `${fechaHoraLegible(d.emitidoEn)} · ${d.emisor}` },
             { k: 'Años cubiertos', v: anios.length ? anios.join(', ') : 'S/D' },
             { k: 'Renglones de ACUM_INF', v: String(filas.length) },
-            { k: 'Ciclo actual', v: d.volumenActual && !d.volumenActual.error ? `Hoja SRL, provisional${d.volumenActual.mesesParciales.length ? ` (meses parciales: ${d.volumenActual.mesesParciales.join(', ')})` : ''}` : 'S/D' },
+            { k: 'Ciclo actual', v: cicloInforme && !soloSrl ? `${ANIO_INFORME_FIN}: informe ACUM_INF (ciclo terminado). Hoja SRL como contraste.` : d.volumenActual && !d.volumenActual.error ? `Hoja SRL, provisional${d.volumenActual.mesesParciales.length ? ` (meses parciales: ${d.volumenActual.mesesParciales.join(', ')})` : ''}` : 'S/D' },
             { k: 'Versión de plantilla', v: PLANTILLA },
             { k: 'Versión de SICA 005', v: d.version },
             { k: 'Hash del contenido', v: hash },
@@ -323,15 +331,15 @@ ${atipicos.length ? `<div class="tabla-wrap"><table class="compacta"><caption>Ce
         ]);
         agrega(`<h2 style="margin-top:0">Anexo ${letra()} — Notas de fuente, método y trazabilidad</h2>
 <div class="cols3"><div><h3>Fuente</h3><ul style="margin:0;padding-left:14px">
-<li><b>ACUM_INF ${RANGO_INFORME}:</b> informe anual de la SRL con superficie y volumen por módulo y cultivo, con corte de septiembre.</li>
-<li><b>2026 (ciclo actual):</b> hoja SRL, provisional y no conciliada con ACUM_INF.</li>
+<li><b>ACUM_INF ${RANGO_ACUM}:</b> informe anual de la SRL con superficie y volumen por módulo y cultivo, con corte de septiembre.</li>
+<li><b>${ANIO_INFORME_FIN} (ciclo terminado):</b> viene del mismo informe ACUM_INF. La hoja SRL (mar–sep) solo se usa para comparar el ciclo contra el año típico ${RANGO_INFORME}; ambas fuentes no están conciliadas.</li>
 <li><b>${ANIOS_SIN_CICLO.join(', ')}:</b> sin ciclo de riego (las presas no se abrieron); no es un dato faltante.</li>
 <li><b>Año calendario:</b> se asume que cada año del informe es el año calendario de su corte; la fuente no lo declara por renglón.</li>
 <li>Los módulos son 1, 2, 3, 4, 5 y 12; el distrito es su suma.</li></ul></div>
 <div><h3>Método</h3>
 <p>Agua entregada por hectárea (cm) = volumen (miles de m³) ÷ superficie (ha) × 10.</p>
 <p>Años de «más superficie» y de «menos superficie»: punto medio entre la superficie total mínima y máxima, solo si el máximo es al menos 1.5 veces el mínimo y hay 4 años o más.</p>
-<p>Ciclo actual: suma de mar–sep por módulo contra el mínimo, el año típico (la mediana) y el máximo de ${RANGO_INFORME}.</p>
+<p>Ciclo ${ANIO_INFORME_FIN}: volumen del informe ACUM_INF por módulo contra el mínimo, el año típico (la mediana) y el máximo de ${RANGO_INFORME}; si el informe del año falta, se usa la suma de mar–sep de la hoja SRL.</p>
 <p>Un dato faltante es S/D; nunca se muestra como 0.</p></div>
 <div><h3>Límites</h3><ul style="margin:0;padding-left:14px">
 <li>Descriptivo: no atribuye causas a los cambios entre años.</li>
@@ -339,6 +347,7 @@ ${atipicos.length ? `<div class="tabla-wrap"><table class="compacta"><caption>Ce
 <li>Con 5 años no hay inferencia estadística; el rango es una referencia.</li>
 <li>La cifra de un cultivo con menos de ${UMBRAL_HA_MUESTRA} ha es poco representativa y se marca.</li></ul></div></div>
 <h3>Trazabilidad</h3>${traza}
+<p class="nota-pie">Dirigido a: CONAGUA · Distrito de Riego 005 · Asociaciones de usuarios. Fuente: informe ACUM_INF de la SRL (corte de septiembre) y, como contraste, la hoja SRL (mar–sep). Documento generado automáticamente por SICA 005.</p>
 <h3>Firmas</h3>${bloqueFirmas({ nombres: { Elaboró: d.emisor } })}`);
     }
 

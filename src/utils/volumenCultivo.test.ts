@@ -3,7 +3,7 @@ import type { FilaSupVol } from './ndviInteranual';
 import type { VolumenActual } from './ndviVolumen';
 import { infoCultivo } from './cultivos';
 import {
-    composicionAnual, contrasteRegimenes, esAlfalfaNogal, estadoCultivoEnAnio, notaIncompleta, fraseCambioMezcla, kpiCiclo, kpiLamina, kpiMezcla, laminaCm, laminaPorCultivo, listaAtipicos, matrizModuloAnio, mezclaCultivos, referenciaCicloActual,
+    composicionAnual, contrasteRegimenes, esAlfalfaNogal, estadoCultivoEnAnio, marcaAnioIncompleto, notaIncompleta, notaTodosIncompletos, fraseCambioMezcla, kpiCiclo, kpiLamina, kpiMezcla, kpiTecnico, intensidadHidrica, lecturaIntensidad, reporteCiclo, laminaCm, laminaPorCultivo, listaAtipicos, matrizModuloAnio, mezclaCultivos, referenciaCicloActual,
     type ReferenciaModulo,
 } from './volumenCultivo';
 
@@ -166,7 +166,7 @@ describe('kpiMezcla', () => {
 
 describe('kpiCiclo', () => {
     const ref = (modulo: number, posicion: ReferenciaModulo['posicion'], actualHm3: number | null, medianaHm3: number | null, actualIncompleto = false): ReferenciaModulo => ({
-        modulo, historico: [], minHm3: 1, maxHm3: 100, medianaHm3, actualHm3, actualIncompleto, posicion,
+        modulo, historico: [], minHm3: 1, maxHm3: 100, medianaHm3, actualHm3, fuenteActual: actualHm3 != null ? 'srl' : null, informeHm3: null, srlHm3: actualHm3, difSrlInformeHm3: null, actualIncompleto, posicion,
         pctVsMediana: actualHm3 != null && medianaHm3 ? ((actualHm3 - medianaHm3) / medianaHm3) * 100 : null,
     });
     it('cuenta posiciones y compara el volumen contra la mediana de los mismos módulos', () => {
@@ -283,6 +283,21 @@ describe('composicionAnual (barras apiladas)', () => {
         expect(a.atipicos).toEqual(['Alfalfa']);
         expect(notaIncompleta(a, 'volumen')).toMatch(/captura atípica/);
     });
+    it('si TODOS los años con informe están marcados: una nota única y sin ⚠ por año; si solo algunos, ⚠ por año', () => {
+        const todos = composicionAnual([f(2020, 1, 'Alfalfa', 100, 1000), f(2020, 1, 'Maíz', 50, null), f(2021, 1, 'Alfalfa', 100, 1000, true), f(2021, 1, 'Maíz', 50, 400)], null, 'volumen');
+        expect(todos.todosIncompletos).toBe(true);
+        expect(todos.filas.filter(x => x.estado === 'con-informe').some(x => marcaAnioIncompleto(todos, x))).toBe(false);
+        // el detalle del año sigue completo
+        expect(notaIncompleta(todos.filas.find(x => x.anio === 2020)!, 'volumen')).toMatch(/Maíz sin volumen/);
+        expect(notaTodosIncompletos('volumen')).toBe('Todos los años traen renglones atípicos o sin volumen en el informe fuente; los porcentajes son sobre lo capturado.');
+        expect(notaTodosIncompletos('superficie')).toMatch(/sin superficie/);
+        const algunos = composicionAnual([f(2020, 1, 'Alfalfa', 100, 1000), f(2020, 1, 'Maíz', 50, null), f(2021, 1, 'Alfalfa', 100, 1000)], null, 'volumen');
+        expect(algunos.todosIncompletos).toBe(false);
+        expect(algunos.filas.filter(x => marcaAnioIncompleto(algunos, x)).map(x => x.anio)).toEqual([2020]);
+        // un solo año con informe: no hay «resto» con qué compararlo, se queda el ⚠ propio
+        const uno = composicionAnual([f(2020, 1, 'Alfalfa', 100, 1000), f(2020, 1, 'Maíz', 50, null)], null, 'volumen');
+        expect(uno.todosIncompletos).toBe(false);
+    });
     it('un nombre compuesto («Maíz/Frijol») cae en «Otros» y no se cuenta como Maíz', () => {
         const c = composicionAnual([f(2020, 1, 'Maíz', 100, 1000), f(2020, 1, 'Maíz/Frijol', 40, 300)], null, 'volumen');
         expect(c.filas.find(x => x.anio === 2020)!.partes.map(p => p.nombre).sort()).toEqual(['Maíz', 'Otros']);
@@ -294,5 +309,85 @@ describe('composicionAnual (barras apiladas)', () => {
         expect(fr).not.toMatch(/porque|debido|causa/i);
         expect(fraseCambioMezcla(composicionAnual(MIX, null, 'superficie'))).toMatch(/ocupó \d+ % de la superficie regada/);
         expect(fraseCambioMezcla(composicionAnual([], null, 'volumen'))).toBeNull();
+    });
+});
+
+describe('kpiTecnico', () => {
+    it('volumen, superficie y lámina del año, con variación frente al año anterior con informe (2025 se salta)', () => {
+        const F = [f(2024, 1, 'Alfalfa', 1000, 10000), f(2026, 1, 'Alfalfa', 1200, 9000), f(2025, 1, 'Alfalfa', 0, 0)];
+        const k = kpiTecnico(F, null, 2026);
+        expect(k.anioAnterior).toBe(2024);
+        expect(k.volumenHm3).toBeCloseTo(9, 5);
+        expect(k.superficieHa).toBe(1200);
+        expect(k.laminaMediaCm).toBeCloseTo(75, 5);
+        expect(k.volumenVsAnteriorPct).toBeCloseTo(-10, 5);
+        expect(k.superficieVsAnteriorPct).toBeCloseTo(20, 5);
+    });
+    it('sin año anterior o sin ciclo: null, nunca 0', () => {
+        expect(kpiTecnico([f(2020, 1, 'Alfalfa', 100, 1000)], null, 2020)).toMatchObject({ anioAnterior: null, volumenVsAnteriorPct: null, superficieVsAnteriorPct: null });
+        expect(kpiTecnico(FILAS, null, 2025)).toMatchObject({ volumenHm3: null, superficieHa: null, laminaMediaCm: null });
+        expect(kpiTecnico(FILAS, null, null).volumenHm3).toBeNull();
+    });
+});
+
+describe('intensidadHidrica', () => {
+    it('índice = % del agua ÷ % de la superficie; solo muestra firme y con las dos cifras', () => {
+        const m = mezclaCultivos([f(2024, 1, 'Alfalfa', 500, 8000), f(2024, 1, 'Nogal', 500, 2000), f(2024, 1, 'Sorgo', 10, 100), f(2024, 1, 'Chile', 100, null)], null, 2024);
+        const r = intensidadHidrica(m);
+        const alf = r.find(x => x.cultivo === 'Alfalfa')!, nog = r.find(x => x.cultivo === 'Nogal')!;
+        expect(alf.indice).toBeGreaterThan(1);
+        expect(nog.indice).toBeLessThan(1);
+        expect(alf.laminaCm).toBeCloseTo(160, 5);
+        expect(r.some(x => x.cultivo === 'Sorgo')).toBe(false); // 10 ha: muestra chica
+        expect(r.some(x => x.cultivo === 'Chile')).toBe(false); // sin volumen: no se inventa
+        expect(r[0].cultivo).toBe('Alfalfa'); // orden por agua
+    });
+    it('vacío si no hay datos', () => { expect(intensidadHidrica([])).toEqual([]); });
+});
+
+describe('reporteCiclo', () => {
+    const F = [
+        f(2024, 1, 'Alfalfa', 100, 5000), f(2024, 2, 'Alfalfa', 100, 5000),
+        f(2026, 1, 'Alfalfa', 200, 6000), f(2026, 1, 'Nogal', 100, 4000),
+        f(2026, 2, 'Nogal', 100, 8000),
+    ];
+    const refs = referenciaCicloActual(F, null, [1, 2]);
+    it('autorizado contra entregado (ACUM_INF) por módulo, con cultivo líder y lámina', () => {
+        const r = reporteCiclo(F, refs, new Map([[1, 12], [2, 10]]));
+        const m1 = r.find(x => x.modulo === 1)!, m2 = r.find(x => x.modulo === 2)!;
+        expect(m1.entregadoHm3).toBeCloseTo(10, 5);
+        expect(m1.pctAutorizado).toBeCloseTo(83.33, 1);
+        expect(m1.saldoHm3).toBeCloseTo(2, 5);
+        expect(m1.superficieHa).toBe(300);
+        expect(m1.laminaCm).toBeCloseTo(333.3, 1);
+        expect(m1.cultivoLider).toMatchObject({ cultivo: 'Alfalfa' });
+        expect(m2.saldoHm3).toBeCloseTo(2, 5);
+        expect(m1.posicion).toBe('sobre-rango'); // referencia = solo 2024 (5 hm³); 10 hm³ queda arriba
+        expect(m1.pctVsTipico).toBeCloseTo(100, 5);
+    });
+    it('total: suma solo módulos con autorizado y entregado; sin autorización queda S/D (null), no 0', () => {
+        const t = reporteCiclo(F, refs, new Map([[1, 12]])).at(-1)!;
+        expect(t.modulo).toBeNull();
+        expect(t.entregadoHm3).toBeCloseTo(18, 5);
+        expect(t.autorizadoHm3).toBe(12);
+        expect(t.pctAutorizado).toBeCloseTo(83.33, 1); // 10 / 12: solo el M1 tiene las dos cifras
+        const sin = reporteCiclo(F, refs, new Map()).at(-1)!;
+        expect(sin).toMatchObject({ autorizadoHm3: null, pctAutorizado: null, saldoHm3: null });
+    });
+    it('saldo negativo si se entregó más de lo autorizado; módulo sin informe 2026 = null', () => {
+        const r = reporteCiclo(F, refs, new Map([[1, 8], [2, 10]]));
+        expect(r.find(x => x.modulo === 1)!.saldoHm3).toBeCloseTo(-2, 5);
+        const sinInf = reporteCiclo(F.filter(x => x.anio !== 2026), referenciaCicloActual(F.filter(x => x.anio !== 2026), null, [1]), new Map([[1, 8]]));
+        expect(sinInf[0]).toMatchObject({ entregadoHm3: null, pctAutorizado: null, saldoHm3: null, cultivoLider: null });
+    });
+});
+
+describe('lecturaIntensidad', () => {
+    it('palabras llanas, sin «×»: más, menos o lo justo (±5 %)', () => {
+        expect(lecturaIntensidad(1.4)).toEqual({ cifra: '40 % más', tendencia: 'mas' });
+        expect(lecturaIntensidad(0.5)).toEqual({ cifra: '50 % menos', tendencia: 'menos' });
+        expect(lecturaIntensidad(1.03)).toEqual({ cifra: 'Lo justo', tendencia: 'justo' });
+        expect(lecturaIntensidad(0.97).cifra).toBe('Lo justo');
+        expect(lecturaIntensidad(1.4).cifra).not.toMatch(/×/);
     });
 });

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { ANIOS_CON_INFORME, RANGO_INFORME, TEXTO_SIN_CICLO, estadoAnio, listaAnios, rotuloAnio } from './estadoAnio';
+import { ANIOS_CON_INFORME, ANIOS_REFERENCIA, RANGO_ACUM, RANGO_INFORME, TEXTO_SIN_CICLO, estadoAnio, listaAnios, rotuloAnio } from './estadoAnio';
 import { cruceAnual, type FilaNdviV2, type FilaSupVol } from './ndviInteranual';
 import { relacionVolumenNdvi, type VolumenActual } from './ndviVolumen';
 import { construirInteranual } from './informeNdviInteranual';
 import { matricesSupVolHtml } from './informeNdviInteranualHtml';
 import { construirHtmlVolumenCultivo } from './informeVolumenCultivoHtml';
 import {
-    barrasSuperficieAnual, barrasVolumenAnual, cifraContraste, contrasteRegimenes, fraseContrasteSuperficie, kpiCiclo, kpiLamina, kpiMezcla, laminaPorCultivo, lecturaVsTipico,
+    barrasSuperficieAnual, barrasVolumenAnual, cifraContraste, composicionAnual, contrasteRegimenes, fraseContrasteSuperficie, kpiCiclo, kpiLamina, kpiMezcla, laminaPorCultivo, lecturaVsTipico,
     listaAtipicos, matrizModuloAnio, mezclaCultivos, referenciaCicloActual, topConOtros,
 } from './volumenCultivo';
 
@@ -28,16 +28,22 @@ const FILAS: FilaSupVol[] = [
 const CON_2025_CERO: FilaSupVol[] = [...FILAS, sv(2025, 1, 'Alfalfa', 0, 0), sv(2025, 1, 'Nogal', 0, 0)];
 
 describe('estadoAnio: catálogo único', () => {
-    it('2020-2024 con informe; 2025 sin ciclo; 2026 provisional; faltante real = sd', () => {
+    it('2020-2024 y 2026 con informe; 2025 sin ciclo; años posteriores provisionales; faltante real = sd', () => {
+        expect(ANIOS_CON_INFORME).toEqual([2020, 2021, 2022, 2023, 2024, 2026]);
         for (const a of ANIOS_CON_INFORME) expect(estadoAnio(a).id).toBe('con-informe');
         expect(estadoAnio(2025).id).toBe('sin-ciclo');
-        expect(estadoAnio(2026).id).toBe('provisional');
+        expect(estadoAnio(2027).id).toBe('provisional');
         expect(estadoAnio(2020, true).id).toBe('sd');
+    });
+    it('la referencia («año típico») son solo 2020-2024: 2026 se compara contra ella, no la forma', () => {
+        expect(ANIOS_REFERENCIA).toEqual([2020, 2021, 2022, 2023, 2024]);
+        expect(RANGO_ACUM).toBe('2020-2026');
     });
     it('solo los años con informe entran a mediana y ajuste', () => {
         expect(estadoAnio(2022)).toMatchObject({ entraAMediana: true, entraAAjuste: true, tieneVolumen: true });
         expect(estadoAnio(2025)).toMatchObject({ entraAMediana: false, entraAAjuste: false, tieneVolumen: false });
-        expect(estadoAnio(2026)).toMatchObject({ entraAMediana: false, entraAAjuste: false, tieneVolumen: true });
+        expect(estadoAnio(2026)).toMatchObject({ entraAMediana: true, entraAAjuste: true, tieneVolumen: true });
+        expect(estadoAnio(2027)).toMatchObject({ entraAMediana: false, entraAAjuste: false, tieneVolumen: true });
     });
     it('2025 nunca es sd, aunque se marque como faltante', () => {
         expect(estadoAnio(2025, true).id).toBe('sin-ciclo');
@@ -46,7 +52,8 @@ describe('estadoAnio: catálogo único', () => {
     it('rótulos y rango salen del catálogo', () => {
         expect(RANGO_INFORME).toBe('2020-2024');
         expect(rotuloAnio(2025)).toBe('2025 · Sin ciclo');
-        expect(rotuloAnio(2026)).toBe('2026 · Provisional');
+        expect(rotuloAnio(2026)).toBe('2026');
+        expect(rotuloAnio(2027)).toBe('2027 · Provisional');
         expect(rotuloAnio(2023)).toBe('2023');
         expect(listaAnios([2021, 2022, 2024])).toBe('2021, 2022 y 2024');
         expect(listaAnios([2020])).toBe('2020');
@@ -183,6 +190,36 @@ describe('gráficas: datos para barras', () => {
         expect(b.map(x => x.anio)).toEqual([2020, 2021, 2022, 2023, 2024, 2025]);
         expect(b[5]).toMatchObject({ estado: 'sin-ciclo', valor: null });
         expect(b[0].valor).toBe(4400);
+    });
+    it('con el informe 2026 cargado: barra sólida de 2026 desde ACUM_INF, en orden, sin duplicar con la hoja SRL', () => {
+        const F26 = [...FILAS, sv(2026, 1, 'Alfalfa', 1800, 21000), sv(2026, 1, 'Nogal', 1500, 14000)];
+        const b = barrasVolumenAnual(F26, ACTUAL, null, [1, 2]);
+        expect(b.map(x => x.anio)).toEqual([2020, 2021, 2022, 2023, 2024, 2025, 2026]);
+        expect(b[6]).toMatchObject({ anio: 2026, estado: 'con-informe', valor: 35 });
+        expect(barrasSuperficieAnual(F26, null).map(x => x.anio)).toEqual([2020, 2021, 2022, 2023, 2024, 2025, 2026]);
+    });
+    it('con el informe 2026: la composición lo trae con desglose y 2025 queda entre 2024 y 2026', () => {
+        const F26 = [...FILAS, sv(2026, 1, 'Alfalfa', 1800, 21000), sv(2026, 1, 'Nogal', 1500, 14000)];
+        const c = composicionAnual(F26, null, 'volumen');
+        expect(c.filas.map(f => `${f.anio}:${f.estado}`)).toEqual(['2020:con-informe', '2021:con-informe', '2022:con-informe', '2023:con-informe', '2024:con-informe', '2025:sin-ciclo', '2026:con-informe']);
+        expect(c.filas[6].total).toBeCloseTo(35, 5);
+        expect(composicionAnual(FILAS, null, 'volumen').filas.at(-1)).toMatchObject({ anio: 2026, estado: 'sin-desglose', total: null });
+    });
+    it('el ciclo 2026 se compara contra 2020-2024: su propio informe no entra al rango y se devuelve aparte', () => {
+        const F26 = [...FILAS, sv(2026, 1, 'Alfalfa', 1800, 21000), sv(2026, 1, 'Nogal', 1500, 14000)];
+        const [r] = referenciaCicloActual(F26, { porModulo: new Map([[1, 34]]), mesesPorModulo: new Map([[1, 7]]), mesesParciales: [], error: null }, [1]);
+        expect(r.historico.map(h => h.anio)).toEqual([2020, 2021, 2022, 2023, 2024]);
+        expect(r.maxHm3).toBe(58); // 2020: 40000 + 18000 miles m³; 2026 (35 hm³) no entra
+        expect(r.informeHm3).toBeCloseTo(35, 5);
+        // Se compara con la misma fuente de la referencia (ACUM_INF); la hoja SRL queda como contraste.
+        expect(r).toMatchObject({ fuenteActual: 'informe', srlHm3: 34 });
+        expect(r.actualHm3).toBeCloseTo(35, 5);
+        expect(r.actualIncompleto).toBe(false);
+        expect(r.difSrlInformeHm3).toBeCloseTo(-1, 5);
+        // Sin informe del último año, el hueco lo cubre la hoja SRL (provisional).
+        const sinInforme = referenciaCicloActual(FILAS, { porModulo: new Map([[1, 34]]), mesesPorModulo: new Map([[1, 7]]), mesesParciales: [], error: null }, [1])[0];
+        expect(sinInforme).toMatchObject({ fuenteActual: 'srl', actualHm3: 34, informeHm3: null, difSrlInformeHm3: null });
+        expect(referenciaCicloActual(FILAS, null, [1])[0]).toMatchObject({ fuenteActual: null, actualHm3: null, informeHm3: null, difSrlInformeHm3: null });
     });
     it('sin renglones no inventa años', () => {
         expect(barrasVolumenAnual([], ACTUAL, null, [1])).toEqual([]);

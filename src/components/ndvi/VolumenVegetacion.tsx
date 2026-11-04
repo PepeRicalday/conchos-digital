@@ -209,6 +209,7 @@ export const VolumenVegetacion: React.FC<{
     modulo: number; onElegir: (m: number) => void; aniosTabla: number[];
 }> = ({ ndvi, supVol, volumenActual, cargandoVolumen, modulo, onElegir, aniosTabla }) => {
     const [vista, setVista] = useState<'ndvi' | VistaCultivo>('ndvi');
+    const [moduloCultivo, setModuloCultivo] = useState<number | null>(null);
     const rels = useMemo(() => MODULOS.map(m => relacionVolumenNdvi(ndvi, supVol, volumenActual, m)), [ndvi, supVol, volumenActual]);
     const ejeY = useMemo(() => {
         const vals = rels.flatMap(r => [...r.puntos.map(p => p.ndviMedio), ...(r.actual ? [r.actual.ndviMedio] : [])]);
@@ -240,7 +241,7 @@ export const VolumenVegetacion: React.FC<{
 
     const selector = (
         <div className="vv-vistas" role="group" aria-label="Vista del panel">
-            {VISTAS.map(([v, t]) => <button key={v} type="button" aria-pressed={vista === v} onClick={() => setVista(v)}>{t}</button>)}
+            {VISTAS.map(([v, t]) => <button key={v} type="button" aria-pressed={vista === v} onClick={() => { setVista(v); if (v !== 'mezcla') setModuloCultivo(null); }}>{t}</button>)}
         </div>
     );
     if (vista !== 'ndvi') {
@@ -248,7 +249,8 @@ export const VolumenVegetacion: React.FC<{
             <div className="vv">
                 <h4 className="vv-titulo">Agua entregada por cultivo (informe ACUM_INF)</h4>
                 {selector}
-                <VolumenCultivos vista={vista} supVol={supVol} volumenActual={volumenActual} />
+                <VolumenCultivos vista={vista} supVol={supVol} volumenActual={volumenActual} moduloInicial={moduloCultivo}
+                    onVerCultivos={(m) => { setModuloCultivo(m); setVista('mezcla'); requestAnimationFrame(() => document.querySelector('.vv-titulo')?.scrollIntoView({ block: 'start', behavior: 'smooth' })); }} />
             </div>
         );
     }

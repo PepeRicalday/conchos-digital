@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import { usePolling } from './useClimaOperativo';
 import { cargarBaseHidro, cargarSeriesHidro, type SeriesPorEstacion } from './useHidroEstaciones';
 import { cargarSerieNdviV2 } from '../utils/ndviSerie';
+import { cargarSupVolAnual } from '../utils/supVolAnual';
+import type { FilaSupVol } from '../utils/ndviInteranual';
 import { resumenPronostico, resumenNdvi, serieHoraria48, demanda24h, type FilaPronostico, type ResumenPronostico, type ResumenNdvi, type PuntoHora, type DemandaRiego24h } from '../utils/dashboardExtra';
 import { cargarIndiceHistorico } from './usePresasHistorico';
 import type { Indice } from '../utils/historicoPresas';
@@ -81,6 +83,23 @@ export function useNdviResumen(activo: boolean): BloqueEstado<ResumenNdvi> {
         void cargarSerieNdviV2(supabase).then(({ filas, error }) => {
             if (!vivo) return;
             setEst(error ? { datos: null, cargado: true, error: mensajeAmable(error) } : { datos: resumenNdvi(filas), cargado: true, error: null });
+        });
+        return () => { vivo = false; };
+    }, [activo, token]);
+    return { ...est, recargar };
+}
+
+// ── Cultivos del ciclo (ACUM_INF) ─────────────────────────────────────────────
+/** Filas de superficie y volumen por cultivo. La carga se comparte (caché de sesión) con Geo-Monitor: no hay consulta extra si ya se abrió. */
+export function useCultivosCiclo(activo: boolean): BloqueEstado<FilaSupVol[]> {
+    const [token, recargar] = useToken();
+    const [est, setEst] = useState<Omit<BloqueEstado<FilaSupVol[]>, 'recargar'>>({ datos: null, cargado: false, error: null });
+    useEffect(() => {
+        if (!activo) return;
+        let vivo = true;
+        void cargarSupVolAnual(supabase).then(({ filas, error }) => {
+            if (!vivo) return;
+            setEst(error ? { datos: null, cargado: true, error: mensajeAmable(error) } : { datos: filas, cargado: true, error: null });
         });
         return () => { vivo = false; };
     }, [activo, token]);
@@ -192,7 +211,8 @@ export function useDashboardExtra(excluidasIds: string[] = []) {
     const listo = useListo(RETARDO_MS);
     const pronostico = usePronostico48h(listo, excluidasIds);
     const ndvi = useNdviResumen(listo);
+    const cultivos = useCultivosCiclo(listo);
     const goes = useGoesResumen(listo);
     const historico = useHistoricoPresas(listo);
-    return useMemo(() => ({ pronostico, ndvi, goes, historico }), [pronostico, ndvi, goes, historico]);
+    return useMemo(() => ({ pronostico, ndvi, cultivos, goes, historico }), [pronostico, ndvi, cultivos, goes, historico]);
 }

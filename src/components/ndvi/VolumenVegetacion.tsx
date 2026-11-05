@@ -1,4 +1,5 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useCapaLocal } from '../historico/useModalA11y';
 import { fmt, fmtMiles } from '../../utils/formato';
 import { SIMBOLO_MODULO } from '../../utils/ndviGrafica';
@@ -210,8 +211,18 @@ export const VolumenVegetacion: React.FC<{
     ndvi: FilaNdviV2[]; supVol: FilaSupVol[]; volumenActual: VolumenActual | null; cargandoVolumen: boolean;
     modulo: number; onElegir: (m: number) => void; aniosTabla: number[];
 }> = ({ ndvi, supVol, volumenActual, cargandoVolumen, modulo, onElegir, aniosTabla }) => {
-    const [vista, setVista] = useState<'ndvi' | VistaCultivo>('ndvi');
-    const [moduloCultivo, setModuloCultivo] = useState<number | null>(null);
+    // Enlace profundo del Dashboard (tarjeta Ciclo): ?panel=ndvi&vista=ciclo|mezcla|lamina[&modulo=N] abre directo la vista de cultivos.
+    const [params] = useSearchParams();
+    const vistaParam = params.get('vista');
+    const vistaInicial = vistaParam === 'ciclo' || vistaParam === 'mezcla' || vistaParam === 'lamina' ? vistaParam : null;
+    const moduloParam = Number(params.get('modulo'));
+    const [vista, setVista] = useState<'ndvi' | VistaCultivo>(vistaInicial ?? 'ndvi');
+    const [moduloCultivo, setModuloCultivo] = useState<number | null>(vistaInicial === 'mezcla' && MODULOS.includes(moduloParam) ? moduloParam : null);
+    useEffect(() => {
+        if (!vistaInicial) return;
+        const t = window.setTimeout(() => document.querySelector('.vv-titulo')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 450);
+        return () => window.clearTimeout(t);
+    }, [vistaInicial]);
     const rels = useMemo(() => MODULOS.map(m => relacionVolumenNdvi(ndvi, supVol, volumenActual, m)), [ndvi, supVol, volumenActual]);
     const ejeY = useMemo(() => {
         const vals = rels.flatMap(r => [...r.puntos.map(p => p.ndviMedio), ...(r.actual ? [r.actual.ndviMedio] : [])]);

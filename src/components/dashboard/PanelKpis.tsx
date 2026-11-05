@@ -26,6 +26,8 @@ import type { CanalKpiModelo } from '../../utils/perfilCanal';
 import type { VolumenCanal, EtoReciente } from '../../hooks/useDashboardPulso';
 import { resumenVariables24h, VISTAS_CLIMA, severidadVista, type UmbralesVistas } from '../../utils/climaVistas';
 import { TarjetaClimaHero } from './TarjetaClimaHero';
+import { CultivosCicloMini, ENLACE_CULTIVOS_CICLO } from './CultivosCicloMini';
+import type { ResumenCultivosCiclo } from '../../utils/cultivosCiclo';
 
 const f = (v: number | null | undefined, d = 1) => (v == null ? null : v.toFixed(d));
 const edadMin = (ms: number | null) => (ms == null ? null : Math.max(0, (Date.now() - ms) / 60000));
@@ -44,7 +46,7 @@ export interface ModeloKpis {
     enVivoFuera: boolean;
     presas: { pct: number | null; estado: EstadoKpi; almacenadoMm3: number | null; capacidadMm3: number; conDato: number; total: number; serie: (number | null)[]; items: ColumnaEmbalse[]; tendencia: TendenciaTexto; frescura: string | null; stale: boolean };
     suficiencia: ModeloSuficiencia & { historicoCargado: boolean; historicoError: string | null };
-    ciclo: { entregadoPct: number | null; acumMm3: number | null; autMm3: number | null; avance: AvanceCiclo; brecha: BrechaCiclo; dias?: DiasCiclo | null };
+    ciclo: { entregadoPct: number | null; acumMm3: number | null; autMm3: number | null; avance: AvanceCiclo; brecha: BrechaCiclo; dias?: DiasCiclo | null; cultivos?: { r: ResumenCultivosCiclo; cargado: boolean; error: string | null } };
     canal: { modelo: CanalKpiModelo; cargado: boolean; volumen?: VolumenCanal; vaciadoDesde?: string | null };
     demanda: {
         d24: DemandaRiego24h | null; cargado: boolean; error: string | null;
@@ -185,9 +187,9 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
                     : <>Alcanza <b>{f(sf.diasAlcance, 0) ?? 'S/D'} d</b> al ritmo actual; faltan <b>{sf.diasRestantes} d</b> al 30-sep</>}
                 fresco={presas.frescura} stale={presas.stale} />
 
-            <KpiTile id="kp-ciclo" to="/canales" titulo={`Ciclo ${ciclo.avance.etiqueta ?? ''}`.trim()} icono={<CalendarClock size={18} />} valor={f(ciclo.entregadoPct)} unidad="%" estado={ciclo.brecha.estado}
-                aria={`Volumen entregado ${f(ciclo.entregadoPct) ?? 'sin dato'} por ciento del autorizado, ${ciclo.brecha.estado.texto}${ciclo.dias ? (ciclo.dias.concluido ? `; el ciclo concluyó hace ${ciclo.dias.haceDias} días` : `; día ${ciclo.dias.transcurridos} de ${ciclo.dias.total}`) : ''}. Abrir Distribución`}
-                viz={<BarraSegmentada pct={ciclo.entregadoPct} marcaPct={ciclo.avance.concluido ? null : ciclo.avance.pct} concluido={ciclo.avance.concluido} etiqueta="Volumen entregado frente al autorizado" />}
+            <KpiTile id="kp-ciclo" to={ENLACE_CULTIVOS_CICLO} enlaceInterno enlaceTexto="Ver cultivos del ciclo en Geo-Monitor" titulo={`Ciclo ${ciclo.avance.etiqueta ?? ''}`.trim()} icono={<CalendarClock size={18} />} valor={f(ciclo.entregadoPct)} unidad="%" estado={ciclo.brecha.estado}
+                aria={`Volumen entregado ${f(ciclo.entregadoPct) ?? 'sin dato'} por ciento del autorizado, ${ciclo.brecha.estado.texto}${ciclo.dias ? (ciclo.dias.concluido ? `; el ciclo concluyó hace ${ciclo.dias.haceDias} días` : `; día ${ciclo.dias.transcurridos} de ${ciclo.dias.total}`) : ''}. Ver cultivos del ciclo`}
+                viz={<><BarraSegmentada pct={ciclo.entregadoPct} marcaPct={ciclo.avance.concluido ? null : ciclo.avance.pct} concluido={ciclo.avance.concluido} etiqueta="Volumen entregado frente al autorizado" />{ciclo.cultivos && <CultivosCicloMini r={ciclo.cultivos.r} cargado={ciclo.cultivos.cargado} error={ciclo.cultivos.error} />}</>}
                 contexto={contextoCiclo(ciclo, modulos)} />
 
             {(() => {

@@ -521,6 +521,9 @@
 /* ── BODY ───────────────────────────────────────────────────────── */
 .sim-body {
   display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 0;
   flex: 1;
   overflow: hidden;
   min-height: 0;

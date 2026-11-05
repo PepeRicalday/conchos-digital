@@ -143,7 +143,9 @@
    (320px), que con solo un slider y un botón dejaba medio panel vacío.
    Ahora: fila horizontal que crece solo lo que su contenido necesita. */
 
-.sim-header {
+/* Con ámbito vaso-: antes eran .sim-header/.sim-body globales y contaminaban
+   el layout de Modelación Hidráulica (align-items:center) tras visitar Geo/Presas. */
+.vaso-sim-header {
     font-size: 0.72rem;
     font-weight: 800;
     color: #22d3ee;
@@ -155,7 +157,7 @@
     flex: 0 0 auto;
 }
 
-.sim-body {
+.vaso-sim-body {
     display: flex;
     align-items: center;
     gap: 1.25rem;

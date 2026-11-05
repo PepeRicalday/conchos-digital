@@ -2,7 +2,7 @@
  * informeNdviInteranual — modelo PURO (sin red, sin DOM, sin HTML) de la comparación ENTRE AÑOS del informe técnico de NDVI.
  * Entra la serie v2 (ndvi_modulo_mensual_v2: SCL + mediana) y el informe anual de superficie/volumen (ACUM_INF);
  * sale lo que el informe imprime: pico y media por año y módulo, banda típica, lectura en palabras, cruce con superficie/volumen.
- * S/D = null (nunca 0): un año sin NDVI (2020) o sin informe de superficie/volumen (2026, provisional) queda S/D con aviso.
+ * S/D = null (nunca 0): un año sin NDVI (2020) o sin informe de superficie/volumen queda S/D con aviso (2026 ya tiene informe ACUM_INF).
  * 2025 es «sin ciclo» (presas cerradas): no es S/D; se rotula aparte y su NDVI se lee como «sin riego de presa».
  * Los renglones atípicos de ACUM_INF se cuentan y se avisan; no se corrigen ni se ocultan.
  */

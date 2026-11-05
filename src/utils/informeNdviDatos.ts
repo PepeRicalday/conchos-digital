@@ -60,7 +60,7 @@ export interface ContextoInforme {
     /** Superficie y volumen anual (ACUM_INF); solo se consulta si el anexo lo pide. */
     supVol?: FilaSupVol[];
     errorSupVol?: boolean;
-    /** Volumen del año actual (hoja SRL provisional, misma carga compartida del panel); null/ausente = no se pidió o no cargó. */
+    /** Volumen del año actual de la hoja SRL (respaldo y contraste; ACUM_INF manda si trae el año), misma carga compartida del panel; null/ausente = no se pidió o no cargó. */
     volumenActual?: VolumenActual | null;
     /** Consultas fallidas (volumen, superficie/volumen anual…). */
     erroresConsulta?: ErrorConsulta[];

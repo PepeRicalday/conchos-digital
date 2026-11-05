@@ -137,16 +137,17 @@ export async function barridoVolumenVegetacion(ctx) {
         const enPunto = await page.evaluate(() => document.activeElement?.classList.contains('vv-pto'));
         if (!enPunto) hallazgo('alto', D, 'Tab desde el encabezado no llega a un punto');
       }
-      // elegir M4: queda resaltado y la tabla cambia a M4 con 2026 = 45.5 provisional
+      // elegir M4: queda resaltado y la tabla cambia a M4 con 2026 = ACUM_INF (46.1, no provisional)
       await page.locator('.vv-cuadro').nth(3).locator('.vv-cab').click(); await page.waitForTimeout(500);
       const sel = await page.locator('.vv-cuadro.on').count();
       if (sel !== 1) hallazgo('alto', D, `${sel} cuadros resaltados (esperado 1)`);
       const tabla = await page.locator('.vv-tabla').innerText();
       if (!/Módulo 4/.test(tabla)) hallazgo('alto', D, 'la tabla no cambió a M4');
       const fila26 = await page.locator('.vv-tabla tbody tr', { has: page.locator('th', { hasText: '2026' }) }).innerText();
-      if (!/45\.5/.test(fila26) || !/0\.167/.test(fila26) || !/provisional/.test(fila26)) hallazgo('critico', D, `fila 2026 de M4 ≠ 45.5 / 0.167 provisional: "${fila26.replace(/\s+/g, ' ')}"`);
+      const celdas26 = fila26.split(/	+/).map((x) => x.trim());
+      if (!fila26.includes(volBd(4, 2026).toFixed(1)) || !/0\.167/.test(fila26) || /provisional/.test(fila26) || /S\/D/.test(celdas26[1] ?? 'S/D')) hallazgo('critico', D, `fila 2026 de M4 ≠ ACUM_INF ${volBd(4, 2026).toFixed(1)} / 0.167 sin «provisional» y con superficie: "${fila26.replace(/\s+/g, ' ')}"`);
       const fila25 = await page.locator('.vv-tabla tbody tr', { has: page.locator('th', { hasText: '2025' }) }).innerText();
-      if (!/Sin informe ACUM_INF/.test(fila25)) hallazgo('alto', D, '2025 no dice «Sin informe ACUM_INF»');
+      if (!/Sin ciclo/.test(fila25)) hallazgo('alto', D, '2025 no dice «Sin ciclo»');
       // Escape: primero cierra el tooltip (el panel sigue abierto, foco en el punto); el segundo Escape cierra el panel y devuelve el foco a su botón
       if (!tactil) {
         const cEsc = page.locator('.vv-cuadro').nth(1);
@@ -194,7 +195,7 @@ export async function barridoVolumenVegetacion(ctx) {
           cifra(`M${m} ${a} volumen hm³`, vb.toFixed(1), pant?.vol); cifra(`M${m} ${a} NDVI medio`, nb.toFixed(3), pant?.ndvi); n += 2;
         }
         const p26 = lee(m, 2026);
-        cifra(`M${m} 2026 volumen hm³ (hoja SRL)`, vol26(m).toFixed(1), p26?.vol); cifra(`M${m} 2026 NDVI medio`, ndviMedio(m, 2026).toFixed(3), p26?.ndvi); n += 2;
+        cifra(`M${m} 2026 volumen hm³ (ACUM_INF)`, volBd(m, 2026).toFixed(1), p26?.vol); cifra(`M${m} 2026 NDVI medio`, ndviMedio(m, 2026).toFixed(3), p26?.ndvi); n += 2;
       }
       res.vv.cifrasPuntos = n;
       // r de cada módulo recalculado desde la BD contra la frase de pantalla
@@ -209,7 +210,8 @@ export async function barridoVolumenVegetacion(ctx) {
       const celdas = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.vv-tabla tbody tr')].map((tr) => [tr.querySelector('th').textContent.trim(), [...tr.querySelectorAll('td')].map((td) => td.textContent.trim())])));
       cifra('M1 2021 tabla: volumen', volBd(1, 2021).toFixed(1), celdas['2021']?.[1]);
       cifra('M1 2021 tabla: NDVI medio', ndviMedio(1, 2021).toFixed(3), celdas['2021']?.[2]);
-      cifra('M1 2026 tabla: volumen provisional', `${vol26(1).toFixed(1)} provisional`, celdas['2026']?.[1]);
+      cifra('M1 2026 tabla: volumen (ACUM_INF, sin «provisional»)', volBd(1, 2026).toFixed(1), celdas['2026']?.[1]);
+      cifra('M1 2026 tabla: superficie ha (ACUM_INF)', Math.round(sv.filter((s) => s.numero_modulo === 1 && s.anio === 2026).reduce((x, s) => x + (s.superficie_ha ?? 0), 0)).toLocaleString('en-US'), celdas['2026']?.[0]);
       cifra('M1 2021 tabla: superficie ha', Math.round(sv.filter((s) => s.numero_modulo === 1 && s.anio === 2021).reduce((x, s) => x + (s.superficie_ha ?? 0), 0)).toLocaleString('en-US'), celdas['2021']?.[0]);
       // lectura general
       const lect = await page.locator('.vv-lectura').innerText();
@@ -247,6 +249,12 @@ export async function barridoVolumenVegetacion(ctx) {
         if (await page.locator('.vv-pto').count() !== 24) hallazgo('alto', D, 'los años con informe deberían seguir dibujados');
         if (/\b0\.0 hm³/.test(await page.locator('.vv').innerText())) hallazgo('critico', D, 'aparece un volumen en cero');
       } },
+    { id: 'hoja-caida-con-informe', conInforme: true, ruta: async (route) => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'simulado', code: 'X' }) }),
+      verifica: async (page, D) => {
+        if (await page.locator('.vv-pto.actual').count() !== 6) hallazgo('critico', D, 'con ACUM_INF 2026 el punto debe dibujarse aunque la hoja SRL falle');
+        if (await page.locator('.vv-error').count() !== 0) hallazgo('alto', D, 'avisa error de la hoja SRL aunque ningún módulo depende de ella');
+        if (/provisional/.test(await page.locator('.vv-tabla').innerText())) hallazgo('alto', D, 'la tabla dice «provisional» con informe 2026');
+      } },
     { id: 'mes-parcial', ruta: async (route) => { const resp = await route.fetch(); const f = await resp.json(); await route.fulfill({ response: resp, json: f.map((x) => (x.mes === '2026-09' ? { ...x, es_mes_parcial: true } : x)) }); },
       verifica: async (page, D) => {
         const t = await page.locator('.vv').innerText();
@@ -261,6 +269,8 @@ export async function barridoVolumenVegetacion(ctx) {
     const err = [], net = [];
     vigila(page, err, net);
     await c.route('**/rest/v1/volumen_modulo_mensual_provisional*', esc.ruta);
+    // Por defecto se quita 2026 de ACUM_INF para probar el respaldo con la hoja SRL; `conInforme` lo deja intacto.
+    if (!esc.conInforme) await c.route('**/rest/v1/superficie_volumen_anual_modulo*', async (route) => { const resp = await route.fetch(); const f = await resp.json(); await route.fulfill({ response: resp, json: f.filter((x) => x.anio !== 2026) }); });
     const D = `vv S/D ${esc.id}`;
     try {
       await abrirVV(page, abrirPanel, false);
@@ -270,8 +280,8 @@ export async function barridoVolumenVegetacion(ctx) {
       await page.waitForTimeout(100);
     } catch (e) { hallazgo('critico', D, 'fallo: ' + String(e.message).slice(0, 220)); }
     // con la lectura caída el navegador registra el 500 simulado: es esperado y no cuenta
-    const netReal = net.filter((x) => !(esc.id === 'lectura-caida' && /volumen_modulo_mensual_provisional/.test(x)));
-    const errReal = err.filter((x) => !(esc.id === 'lectura-caida' && /500|volumen_modulo_mensual_provisional/.test(x)));
+    const netReal = net.filter((x) => !(/lectura-caida|hoja-caida/.test(esc.id) && /volumen_modulo_mensual_provisional/.test(x)));
+    const errReal = err.filter((x) => !(/lectura-caida|hoja-caida/.test(esc.id) && /500|volumen_modulo_mensual_provisional/.test(x)));
     if (errReal.length) hallazgo('alto', D, `errores de consola: ${JSON.stringify(errReal.slice(0, 2))}`);
     if (netReal.length) hallazgo('alto', D, `fallos de red: ${JSON.stringify(netReal.slice(0, 2))}`);
     await browser.close();

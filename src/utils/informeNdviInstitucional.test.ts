@@ -159,6 +159,17 @@ describe('anexo B: lectura por módulo con el volumen provisional del año actua
         expect(html).toContain('31.2 hm³');
         expect(html).toContain('2026 provisional (fuera del ajuste)');
     });
+    it('si ACUM_INF trae 2026, el anexo B usa ese volumen, no lo rotula provisional y cita la diferencia con la hoja SRL', async () => {
+        const con26 = [...sup, ...[1, 2, 3].map((mod) => ({ anio: 2026, numero_modulo: mod, cultivo: 'Maíz', superficie_ha: 1000, volumen_miles_m3: 30000 + mod * 100, atipico: false }))];
+        m.supVol.mockResolvedValueOnce({ filas: con26, error: null });
+        m.volumen.mockResolvedValue({ porModulo: new Map([[1, 29.9], [2, 30.2], [3, 30.3]]), mesesPorModulo: new Map([[1, 7], [2, 7], [3, 7]]), mesesParciales: [], ultimoMesEsParcial: false, error: null });
+        const { html } = await generarDocumentoNdvi(FILAS, { config: cfg({ secciones: secs }) });
+        expect(html).toContain('30.1 hm³');
+        expect(html).not.toContain('2026 provisional (fuera del ajuste)');
+        expect(html).toContain('2026 (fuera del ajuste)');
+        expect(html).toContain('volumen del informe ACUM_INF');
+        expect(html).toContain('la hoja SRL difiere en M1');
+    });
     it('si la hoja SRL falla, el 2026 queda S/D con aviso y nunca en cero', async () => {
         m.supVol.mockResolvedValueOnce({ filas: sup, error: null });
         m.volumen.mockResolvedValue({ porModulo: new Map(), mesesPorModulo: new Map(), mesesParciales: [], ultimoMesEsParcial: false, error: 'sin red' });

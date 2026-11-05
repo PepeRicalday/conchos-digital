@@ -172,7 +172,7 @@
 
 /* Año sin ciclo en la tabla de Agua y NDVI */
 .vv-tabla .vc-sc { font-style: italic; color: #b8c4d6; white-space: nowrap; }
-.vv-tabla .vc-sc-nota { font-size: 11px; color: #b8c4d6; white-space: normal; }
+.vv-tabla .vc-sc-nota { font-size: 12px; color: #b8c4d6; white-space: normal; }
 
 /* ───────── Identidad de cultivo: color + ícono + nombre escrito (el color nunca va solo) ───────── */
 .vc-cu { --c: var(--cu); --ct: var(--cu-t); }

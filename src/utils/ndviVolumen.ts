@@ -6,8 +6,9 @@
  * Con solo 4 años únicamente M2 supera el R² crítico (0.90): el resto es indicativo (referencia, no prueba). La relación es
  * descriptiva: la superficie sembrada va de la mano del volumen y no se puede separar de él.
  *
- * El año actual (2026) se dibuja aparte y NO entra al ajuste: su volumen viene de otra fuente (hoja SRL provisional) y no
- * está conciliado con ACUM_INF. 2025 (presas cerradas, sin ciclo de riego) tampoco entra: no tiene volumen; su NDVI es de la
+ * El año actual (2026) se dibuja aparte y NO entra al ajuste (se compara contra la recta de los años anteriores). Su volumen
+ * y superficie salen de ACUM_INF, igual que los demás años; la hoja SRL solo es contraste, o respaldo «provisional» si el
+ * informe no trae el año. 2025 (presas cerradas, sin ciclo de riego) tampoco entra: no tiene volumen; su NDVI es de la
  * frontera completa del módulo y no mide riego de presa. El ajuste usa solo 2021–2024 (años con informe y con NDVI).
  *
  * Regla «S/D nunca cero»: sin volumen o sin NDVI no hay punto; nada se rellena con 0.
@@ -48,7 +49,13 @@ export interface VolumenActual {
 }
 
 export interface PuntoActual extends PuntoVolNdvi {
-    provisional: true;
+    /** true solo si el volumen viene de la hoja SRL porque ACUM_INF no trae el año. */
+    provisional: boolean;
+    fuente: 'informe' | 'hoja-srl';
+    /** Superficie sembrada del año actual (ACUM_INF); null si no hay informe. */
+    superficieHa: number | null;
+    /** Volumen de la hoja SRL como contraste cuando el punto sale de ACUM_INF; null si no hay hoja. */
+    srlHm3: number | null;
     /** Faltan meses de la ventana o alguno está marcado como parcial: no es comparable con un año completo. */
     volumenIncompleto: boolean;
     /** Diferencia de NDVI contra la referencia (positivo = por encima). null si no hay referencia. */
@@ -117,26 +124,35 @@ export function relacionVolumenNdvi(
     const firme = !!t && estado === 'acompaña' && t.r2 >= r2CriticoAlfa05(t.n);
 
     // Punto del año actual, aparte del ajuste.
+    // Una sola verdad: si ACUM_INF trae el año actual, de ahí salen volumen y superficie (la hoja SRL solo queda de contraste).
+    // Solo si el informe no lo trae se recurre a la hoja SRL, y entonces sí es «provisional».
     let actual: PuntoActual | null = null;
     let motivoSinActual: string | null = null;
-    if (!volumenActual) {
-        motivoSinActual = `Volumen ${anioActual} de la hoja SRL no cargado.`;
-    } else if (volumenActual.error) {
-        motivoSinActual = `No se pudo leer el volumen ${anioActual} de la hoja SRL (${volumenActual.error}). No significa que sea cero.`;
+    const cAct = cruceAnual(filasNdvi, supVol, modulo, anioActual);
+    const volInforme = cAct.volumenHm3 != null && Number.isFinite(cAct.volumenHm3) ? cAct.volumenHm3 : null;
+    const volSrl = volumenActual && !volumenActual.error ? volumenActual.porModulo.get(modulo) ?? null : null;
+    const srlHm3 = volSrl != null && Number.isFinite(volSrl) ? volSrl : null;
+    const vol = volInforme ?? srlHm3;
+    const fuente: PuntoActual['fuente'] = volInforme != null ? 'informe' : 'hoja-srl';
+    if (vol == null) {
+        if (!volumenActual) motivoSinActual = `Volumen ${anioActual} no cargado (ni en el informe ACUM_INF ni en la hoja SRL).`;
+        else if (volumenActual.error) motivoSinActual = `${anioActual} no está en el informe ACUM_INF y no se pudo leer la hoja SRL (${volumenActual.error}). No significa que sea cero.`;
+        else motivoSinActual = `Sin volumen ${anioActual} cargado para el módulo (S/D).`;
     } else {
-        const vol = volumenActual.porModulo.get(modulo);
         const ra = resumenAnio(filasNdvi, modulo, anioActual);
-        if (vol == null || !Number.isFinite(vol)) motivoSinActual = `Sin volumen ${anioActual} cargado para el módulo (S/D).`;
-        else if (ra.media == null) motivoSinActual = `Sin NDVI ${anioActual} para el módulo (S/D).`;
+        if (ra.media == null) motivoSinActual = `Sin NDVI ${anioActual} para el módulo (S/D).`;
         else {
-            const incompleto = (volumenActual.mesesPorModulo.get(modulo) ?? 0) < MESES_TEMPORADA.length || volumenActual.mesesParciales.length > 0;
+            const incompleto = fuente === 'hoja-srl' && !!volumenActual
+                && ((volumenActual.mesesPorModulo.get(modulo) ?? 0) < MESES_TEMPORADA.length || volumenActual.mesesParciales.length > 0);
             let desviacion: number | null = null;
             let referencia: PuntoActual['referencia'] = null;
             if (t && estado === 'acompaña') { desviacion = ra.media - (t.intercepto + t.pendiente * vol); referencia = 'recta'; }
             else if (n >= MIN_PUNTOS_AJUSTE) { desviacion = ra.media - media(puntos.map(p => p.ndviMedio)); referencia = 'promedio'; }
             const vols = puntos.map(p => p.volumenHm3);
             actual = {
-                anio: anioActual, volumenHm3: vol, ndviMedio: ra.media, atipico: false, mesesNdvi: ra.mesesConDato, provisional: true,
+                anio: anioActual, volumenHm3: vol, ndviMedio: ra.media, atipico: fuente === 'informe' && cAct.atipicos > 0, mesesNdvi: ra.mesesConDato,
+                provisional: fuente === 'hoja-srl', fuente, superficieHa: fuente === 'informe' ? cAct.superficieHa : null,
+                srlHm3: fuente === 'informe' ? srlHm3 : null,
                 volumenIncompleto: incompleto, desviacion, referencia,
                 fueraDeRango: vols.length > 0 && (vol < Math.min(...vols) || vol > Math.max(...vols)),
             };

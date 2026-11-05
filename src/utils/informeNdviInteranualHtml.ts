@@ -174,7 +174,7 @@ export const claveEstadoVol = (r: RelacionVolNdvi): keyof typeof ESTADO_VOL => (
 
 /**
  * Lectura por módulo de la relación volumen–NDVI (la misma del panel «Más agua, más vegetación»): estado con texto y símbolo,
- * r con signo, años, cambio de NDVI por +10 hm³ y la desviación del punto del año actual (volumen provisional, fuera del ajuste).
+ * r con signo, años, cambio de NDVI por +10 hm³ y la desviación del punto del año actual (fuera del ajuste; volumen de ACUM_INF o, sin informe, provisional de la hoja SRL).
  * Sin volumen del año actual: S/D con aviso, nunca 0. Descriptiva: no afirma causa.
  */
 export function lecturaVolumenModulosHtml(rv: RelacionVolumenInforme): string {
@@ -190,10 +190,19 @@ export function lecturaVolumenModulosHtml(rv: RelacionVolumenInforme): string {
             r.r != null ? `<td class="n">${sg(r.r, 2)}</td>` : `<td class="n sd">${SD}</td>`}<td class="n">${r.n}</td><td class="n">${
             r.estado === 'acompaña' && r.por10Hm3 != null ? sg(r.por10Hm3, 3) : 'no aplica'}</td>${conActual ? `<td>${act}</td>` : ''}</tr>`;
     }).join('');
-    const err = rv.incluyeActual && rv.errorVolumenActual ? ` No se pudo leer el volumen ${ANIO_ACTUAL} de la hoja SRL (${esc(rv.errorVolumenActual)}): su punto queda S/D, no cero.` : '';
+    // Con ACUM_INF el año actual ya no es provisional; la hoja SRL solo es respaldo y contraste.
+    const hayInforme = rv.rels.some(r => r.actual && !r.actual.provisional);
+    const hayProvisional = rv.rels.some(r => !r.actual || r.actual.provisional);
+    const difSrl = rv.rels.filter(r => r.actual && !r.actual.provisional && r.actual.srlHm3 != null && Math.abs(r.actual.srlHm3 - r.actual.volumenHm3) >= 0.05)
+        .map(r => `M${r.modulo} (${fmt(r.actual!.volumenHm3, 2)} en el informe, ${fmt(r.actual!.srlHm3!, 2)} en la hoja SRL)`);
+    const err = rv.incluyeActual && rv.errorVolumenActual && hayProvisional ? ` No se pudo leer el volumen ${ANIO_ACTUAL} de la hoja SRL (${esc(rv.errorVolumenActual)}): su punto queda S/D, no cero.` : '';
+    const fuenteActual = hayInforme
+        ? `${ANIO_ACTUAL}: volumen del informe ACUM_INF${hayProvisional ? ' (en los módulos sin informe, hoja SRL provisional)' : ''}${difSrl.length ? `; la hoja SRL difiere en ${difSrl.join('; ')} y solo es contraste` : ''}`
+        : `${ANIO_ACTUAL}: hoja SRL, no conciliada con ACUM_INF`;
+    const encActual = hayInforme && !hayProvisional ? `${ANIO_ACTUAL} (fuera del ajuste)` : `${ANIO_ACTUAL} provisional (fuera del ajuste)`;
     return `<p class="frase">${esc(lecturaGeneral(rv.rels))}</p>
-<div class="tabla-wrap"><table class="compacta"><caption>Lectura por módulo: ¿más volumen, más vegetación? (dentro de cada módulo, años con informe)</caption><thead><tr><th>Módulo</th><th>Estado</th><th class="n">r</th><th class="n">Años</th><th class="n">+10 hm³ ≈ ΔNDVI</th>${conActual ? `<th>${ANIO_ACTUAL} provisional (fuera del ajuste)</th>` : ''}</tr></thead><tbody>${filas}</tbody></table></div>
-<p class="fuente">✓ Firme: r positivo y R² sobre el crítico al 5 % (con 4 años, R² ≥ 0.90). ◐ Indicativa: r ≥ +0.50 sin llegar a firme. ○ Sin relación: r &lt; +0.50. – Sin evidencia: menos de 3 años. ΔNDVI: cambio indicativo de la recta por +10 hm³. ${ANIO_ACTUAL}: hoja SRL, no conciliada con ACUM_INF; cifra = NDVI medido menos lo que sugiere la recta (o el promedio si no hay relación).${err}</p>`;
+<div class="tabla-wrap"><table class="compacta"><caption>Lectura por módulo: ¿más volumen, más vegetación? (dentro de cada módulo, años con informe)</caption><thead><tr><th>Módulo</th><th>Estado</th><th class="n">r</th><th class="n">Años</th><th class="n">+10 hm³ ≈ ΔNDVI</th>${conActual ? `<th>${encActual}</th>` : ''}</tr></thead><tbody>${filas}</tbody></table></div>
+<p class="fuente">✓ Firme: r positivo y R² sobre el crítico al 5 % (con 4 años, R² ≥ 0.90). ◐ Indicativa: r ≥ +0.50 sin llegar a firme. ○ Sin relación: r &lt; +0.50. – Sin evidencia: menos de 3 años. ΔNDVI: cambio indicativo de la recta por +10 hm³. ${fuenteActual}; cifra = NDVI medido menos lo que sugiere la recta (o el promedio si no hay relación).${err}</p>`;
 }
 
 /** Pulso de un módulo para su ficha: temporada contra los otros años (banda típica y promedio de referencia). */

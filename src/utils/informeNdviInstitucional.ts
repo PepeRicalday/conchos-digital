@@ -75,7 +75,7 @@ async function armarDocumento(filas: FilaNdviInforme[], config: ConfigInformeNdv
         sec.has('situacion') && config.mapaRelieve ? cargarContextoPlano() : Promise.resolve(null),
         pideVolumen ? volumenAcumuladoPorModuloHm3(mesRef as string, inicioCiclo(mesRef as string)).catch((e: unknown) => ({ porModulo: new Map<number, number>(), ultimoMesEsParcial: false, error: e instanceof Error ? e.message : 'Error de red.' })) : Promise.resolve(null),
         pideSupVol ? cargarSupVolAnual(supabase).catch((e: unknown) => ({ filas: [] as FilaSupVol[], error: e instanceof Error ? e.message : 'Error de red.' })) : Promise.resolve(null),
-        // Volumen provisional del año actual: la misma carga (y caché de sesión) del panel «Más agua, más vegetación»; no lanza, devuelve el error.
+        // Volumen del año actual de la hoja SRL (respaldo/contraste de ACUM_INF): la misma carga (y caché de sesión) del panel «Más agua, más vegetación»; no lanza, devuelve el error.
         pideSupVol ? cargarVolumenActual() : Promise.resolve(null),
     ]);
     const contornos = fc ? contornosAAnillos(fc) : {};

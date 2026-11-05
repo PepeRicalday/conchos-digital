@@ -126,7 +126,7 @@ describe('relacionVolumenNdvi — S/D y casos límite', () => {
     it('error de lectura del volumen: sin punto y mensaje que no confunde con cero', () => {
         const r = rel(2, volActual({ error: 'timeout', porModulo: new Map() }));
         expect(r.actual).toBeNull();
-        expect(r.motivoSinActual).toMatch(/No se pudo leer.*timeout.*No significa que sea cero/);
+        expect(r.motivoSinActual).toMatch(/no se pudo leer.*timeout.*No significa que sea cero/);
     });
 
     it('sin NDVI 2026 no hay punto actual', () => {
@@ -168,6 +168,35 @@ describe('relacionVolumenNdvi — S/D y casos límite', () => {
     it('volumen fuera del rango de los años comparados se marca', () => {
         const alto = volActual({ porModulo: new Map([[2, 120]]) });
         expect(rel(2, alto).actual!.fueraDeRango).toBe(true);
+    });
+});
+
+describe('año actual con informe ACUM_INF (una sola verdad)', () => {
+    // ACUM_INF 2026 de M4 = 46.05; la hoja SRL da 45.5 (contraste).
+    const conInforme = (m: number, vol: number): FilaSupVol[] => [
+        ...supVolDe(m), { anio: 2026, numero_modulo: m, cultivo: 'X', superficie_ha: 3500, volumen_miles_m3: vol * 1000, atipico: false },
+    ];
+    it('toma volumen y superficie de ACUM_INF, no es provisional y guarda la hoja SRL como contraste', () => {
+        const r = relacionVolumenNdvi(ndviDe(4), conInforme(4, 46.05), volActual(), 4);
+        expect(r.actual!.provisional).toBe(false);
+        expect(r.actual!.fuente).toBe('informe');
+        expect(r.actual!.volumenHm3).toBeCloseTo(46.05, 6);
+        expect(r.actual!.superficieHa).toBe(3500);
+        expect(r.actual!.srlHm3).toBeCloseTo(45.5, 6);
+        expect(r.actual!.volumenIncompleto).toBe(false);
+        expect(r.puntos.map(p => p.anio)).toEqual([2021, 2022, 2023, 2024]);
+    });
+    it('no depende de que la hoja SRL cargue (ni de su error)', () => {
+        const r = relacionVolumenNdvi(ndviDe(2), conInforme(2, 30.79), volActual({ error: 'timeout', porModulo: new Map() }), 2);
+        expect(r.actual!.fuente).toBe('informe');
+        expect(r.actual!.srlHm3).toBeNull();
+        expect(relacionVolumenNdvi(ndviDe(2), conInforme(2, 30.79), null, 2).actual!.volumenHm3).toBeCloseTo(30.79, 6);
+    });
+    it('sin informe cae a la hoja SRL y sí es provisional', () => {
+        const r = rel(2);
+        expect(r.actual!.provisional).toBe(true);
+        expect(r.actual!.fuente).toBe('hoja-srl');
+        expect(r.actual!.superficieHa).toBeNull();
     });
 });
 

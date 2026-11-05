@@ -330,16 +330,17 @@ if (!SALTAR.includes('sd')) {
   try {
     await abrirPanel(page);
     // cifra 1–2: tarjeta de M1 y delta (septiembre 2026)
-    const v1 = val(1, ULTIMO), v1prev = val(1, '2026-08');
+    const mesAnt = (() => { const [a, m] = ULTIMO.split('-').map(Number); return m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, '0')}`; })();
+    const v1 = val(1, ULTIMO), v1prev = val(1, mesAnt);
     const tarjeta1 = await page.locator('.ndvi-modulo-card-clickable').first().innerText();
-    cifra('M1 NDVI sep-2026 (tarjeta, 2 decimales)', v1.toFixed(2), (tarjeta1.match(/(\d\.\d\d)\s*NDVI/) ?? [])[1]);
+    cifra(`M1 NDVI ${ULTIMO} (tarjeta, 2 decimales)`, v1.toFixed(2), (tarjeta1.match(/(\d\.\d\d)\s*NDVI/) ?? [])[1]);
     const dlt = (v1 - v1prev); const dltTxt = `${dlt >= 0 ? '+' : '−'}${Math.abs(dlt).toFixed(3)}`;
-    cifra('M1 Δ vs agosto (tarjeta)', dltTxt, (tarjeta1.match(/([+−]\d\.\d{3})\s+vs mes anterior/) ?? [])[1]);
+    cifra(`M1 Δ vs ${mesAnt} (tarjeta)`, dltTxt, (tarjeta1.match(/([+−]\d\.\d{3})\s+vs mes anterior/) ?? [])[1]);
     // cifra 3: promedio SRL sep-2026 en la tabla de la gráfica (3 decimales)
     await page.locator('.ndvi-gr').scrollIntoViewIfNeeded();
     await page.locator('.ndvi-gr-tabla summary').click(); await page.waitForTimeout(300);
     const promSep = await page.evaluate(() => { const t = document.querySelector('.ndvi-gr-tabla table'); const col = [...t.querySelectorAll('thead th')].findIndex((x) => x.textContent === 'Promedio SRL'); const fila = [...t.querySelectorAll('tbody tr')].find((x) => x.querySelector('th').textContent === 'Sep'); return fila.children[col].textContent; });
-    cifra('Promedio SRL sep-2026 (tabla de la gráfica)', media(MODULOS.map((m) => val(m, ULTIMO))).toFixed(3), promSep);
+    cifra('Promedio SRL sep-2026 (tabla de la gráfica)', media(MODULOS.map((m) => val(m, '2026-09'))).toFixed(3), promSep);
     // M2 en mayo-2025 desde la tabla (año 2025)
     await page.locator('.ndvi-gr').getByRole('radio', { name: '2025', exact: true }).click(); await page.waitForTimeout(400);
     const m2may25 = await page.evaluate(() => { const t = document.querySelector('.ndvi-gr-tabla table'); const col = [...t.querySelectorAll('thead th')].findIndex((x) => x.textContent === 'Módulo 2'); const fila = [...t.querySelectorAll('tbody tr')].find((x) => x.querySelector('th').textContent === 'May'); return fila.children[col].textContent; });

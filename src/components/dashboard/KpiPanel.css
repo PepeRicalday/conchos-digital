@@ -780,5 +780,6 @@ html[data-device="phone"] #kp-demanda .kp-vistas .ndvi-chip-txt { position: abso
 /* Tarjeta mediana: sin leyenda, queda cabecera + barra + enlace */
 @container kp (max-height: 330px) { .kp-cc-lista { display: none; } }
 /* Tarjeta baja o ancha: la barra de avance y el texto mandan */
-@container kp (max-height: 250px) { .kp-ciclo-cult { display: none; } }
-@container kp (min-width: 185px) and (max-height: 205px) { #kp-ciclo .kp-ciclo-cult { display: none; } }
+@container kp (max-height: 250px) { .kp-cc-ver, .kp-cc-cab > span:first-child { display: none; } }
+/* Solo en tarjetas muy bajas desaparece todo el bloque de cultivos */
+@container kp (max-height: 190px) { .kp-ciclo-cult { display: none; } }

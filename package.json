@@ -1,7 +1,7 @@
 {
   "name": "conchos-digital",
   "private": true,
-  "version": "2.73.0",
+  "version": "2.73.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,7 @@
     "audit:solapes": "node e2e/dashboard-solapes.mjs",
     "audit:e2e": "node e2e/auditoria.mjs",
     "audit:espacio": "node e2e/espacio.mjs",
+    "audit:scroll-ipad": "node e2e/auditoria-scroll-ipad.mjs",
     "audit:ndvi": "node e2e/ndvi-tendencia-comparacion.mjs",
     "typecheck:conservacion": "tsc -p tsconfig.conservacion.json && tsc -p tsconfig.conservacion.pruebas.json",
     "test:conservacion": "vitest run src/conservacion",

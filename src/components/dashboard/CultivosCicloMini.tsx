@@ -35,7 +35,7 @@ export const CultivosCicloMini = memo(function CultivosCicloMini({ r, cargado, e
                         <li key={p.nombre} style={estiloCultivo(p.esOtros ? 'Otros' : p.nombre)} title={p.esOtros ? `${p.cultivos.join(', ')}` : undefined}>
                             <span className="kp-cc-ico"><IconoCultivo nombre={p.esOtros ? 'Otros' : p.nombre} size={14} /></span>
                             <span className="kp-cc-nom">{nombre}</span>
-                            <span className="kp-cc-num">{f1(p.valor)} hm³ · {Math.round(p.pct)} %</span>
+                            <span className="kp-cc-num"><span className="kp-cc-hm">{f1(p.valor)} hm³</span><span className="kp-cc-pct">{Math.round(p.pct)}%</span></span>
                         </li>
                     );
                 })}

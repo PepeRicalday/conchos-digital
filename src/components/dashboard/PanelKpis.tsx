@@ -135,8 +135,8 @@ function contextoCiclo(ciclo: ModeloKpis['ciclo'], modulos: CeldaModulo[]) {
     const rez = modulos.filter((m) => m.pct != null).sort((a, b) => (a.pct as number) - (b.pct as number)).slice(0, 2);
     const vol = ciclo.entregadoPct != null && ciclo.autMm3 != null && ciclo.acumMm3 != null
         ? <><b>{f(ciclo.acumMm3, 0)} de {f(ciclo.autMm3, 0)} Mm³</b>{ciclo.avance.concluido
-            ? <> · <span className="kp-nw">sin entregar {Math.max(0, ciclo.autMm3 - ciclo.acumMm3).toFixed(0)} Mm³ ({Math.max(0, 100 - ciclo.entregadoPct).toFixed(0)} %)</span></>
-            : <> · <span className="kp-nw">tiempo {f(ciclo.avance.pct, 0) ?? 'S/D'} %{ciclo.brecha.brechaPP != null ? ` · brecha ${ciclo.brecha.brechaPP > 0 ? '+' : '−'}${Math.abs(ciclo.brecha.brechaPP).toFixed(0)} pp` : ''}</span></>}</>
+            ? <><span className="kp-sep"> · </span><span className="kp-nw">sin entregar {Math.max(0, ciclo.autMm3 - ciclo.acumMm3).toFixed(0)} Mm³ ({Math.max(0, 100 - ciclo.entregadoPct).toFixed(0)} %)</span></>
+            : <><span className="kp-sep"> · </span><span className="kp-nw">tiempo {f(ciclo.avance.pct, 0) ?? 'S/D'} %{ciclo.brecha.brechaPP != null ? ` · brecha ${ciclo.brecha.brechaPP > 0 ? '+' : '−'}${Math.abs(ciclo.brecha.brechaPP).toFixed(0)} pp` : ''}</span></>}</>
         : <>Sin volumen autorizado capturado</>;
     const tiempo = d ? (d.concluido ? <>Concluyó hace <b>{d.haceDias} d</b> ({d.total} d de ciclo)</> : <>Día <b>{d.transcurridos}</b> de {d.total} · faltan <b>{d.restantes} d</b></>) : null;
     return (

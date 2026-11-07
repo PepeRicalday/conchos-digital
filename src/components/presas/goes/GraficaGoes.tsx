@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-    VENTANAS, agregarSerie, ceroSospechoso, colorEstacion, textoBajoUmbral, fechaHoraLocal, fmt, fusionarSeries, puentearHuecos, rotuloEje,
+    VENTANAS, agregarSerie, ceroSospechoso, colorEstacion, textoBajoUmbral, fechaHoraLocal, fmt, fusionarSeries, puentearHuecos, puenteMin, rotuloEje,
     type EstacionHidro, type FilaGrafica, type VentanaHidro,
 } from '../../../utils/hidroEstaciones';
 import type { SeriesPorEstacion } from '../../../hooks/useHidroEstaciones';
@@ -111,7 +111,7 @@ export default function GraficaGoes({ estaciones, seleccion, series, ventana, ah
         const g = fusionarSeries(sg, pasoMin, desde, hasta);
         const n = fusionarSeries(sn, pasoMin, desde, hasta);
         return {
-            trazoG: puentearHuecos(g, seleccion, MAX_PUENTE_MIN), trazoN: puentearHuecos(n, seleccion, MAX_PUENTE_MIN),
+            trazoG: puentearHuecos(g, seleccion, id => puenteMin(id, MAX_PUENTE_MIN)), trazoN: puentearHuecos(n, seleccion, id => puenteMin(id, MAX_PUENTE_MIN)),
             mapaG: new Map(g.map(f => [f.t, f])), mapaN: new Map(n.map(f => [f.t, f])),
             hayDatos: seleccion.some(id => sg[id].length > 0 || sn[id].length > 0),
         };

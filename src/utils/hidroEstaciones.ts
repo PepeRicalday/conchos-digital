@@ -50,6 +50,9 @@ export const RETRASO_GOES_MIN = 90;
 export const STALE_IBWC_MIN = 300;
 export const RETRASO_IBWC_MIN = 200;
 export const staleMin = (id?: string) => (id && esFuenteIbwc(id) ? STALE_IBWC_MIN : STALE_GOES_MIN);
+/** Máximo hueco que se une con línea al dibujar: Sutron 45 min; USIBWC guarda cada 2 h, se une hasta 4 h 30 min (tolera una lectura faltante). */
+export const MAX_PUENTE_IBWC_MIN = 270;
+export const puenteMin = (id: string, baseMin: number) => (esFuenteIbwc(id) ? Math.max(baseMin, MAX_PUENTE_IBWC_MIN) : baseMin);
 export const retrasoMin = (id?: string) => (id && esFuenteIbwc(id) ? RETRASO_IBWC_MIN : RETRASO_GOES_MIN);
 
 export type ClaveEnlace = 'en_linea' | 'retraso' | 'sin_transmision' | 'sd';
@@ -239,10 +242,10 @@ export function fusionarSeries(series: Record<string, PuntoHidro[]>, pasoMin: nu
 /** Los DCP entregan 3-4 lecturas por hora (suele faltar la de :30): un hueco corto es cadencia normal, no ausencia.
  *  Para DIBUJAR se unen los vecinos reales con una recta si los separa ≤ `maxMin`; más allá la línea se corta.
  *  Solo afecta al trazo: el tooltip y las cifras usan las filas crudas (ahí el hueco sigue siendo S/D). */
-export function puentearHuecos(filas: FilaGrafica[], ids: string[], maxMin: number): FilaGrafica[] {
+export function puentearHuecos(filas: FilaGrafica[], ids: string[], maxMin: number | ((id: string) => number)): FilaGrafica[] {
     const salida = filas.map(f => ({ ...f }));
-    const maxMs = maxMin * 60000;
     for (const id of ids) {
+        const maxMs = (typeof maxMin === 'function' ? maxMin(id) : maxMin) * 60000;
         let prev = -1;
         for (let i = 0; i < filas.length; i++) {
             if (filas[i][id] == null) continue;

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     agregarSerie, ceroSospechoso, estadoEnlace, fmt, fmtDelta, fusionarSeries, horaLocal, puntoCardinal, saludEnlace,
-    puentearHuecos, tendencia, textoEdad, estadiaEnlace, ultimoConocido, textoDuracion, tiraEnlace, ultimoBueno, radiacionConfiable, tieneMeteo, colorEstacion, type MensajeHidro,
+    puentearHuecos, puenteMin, tendencia, textoEdad, estadiaEnlace, ultimoConocido, textoDuracion, tiraEnlace, ultimoBueno, radiacionConfiable, tieneMeteo, colorEstacion, type MensajeHidro,
 } from './hidroEstaciones';
 
 const MIN = 60000;
@@ -208,5 +208,19 @@ describe('umbrales de enlace por fuente (USIBWC se guarda cada 2 h)', () => {
   });
   it('sin id mantiene el criterio Sutron', () => {
     expect(estadoEnlace(hace(100), ahora).clave).toBe('retraso');
+  });
+});
+
+describe('puente de huecos por fuente (USIBWC cada 2 h)', () => {
+  const filas = [0, 1, 2, 3, 4].map(i => ({ t: i * 3600000, a: i === 0 ? 1 : i === 2 ? 3 : null, b: i === 0 ? 1 : i === 2 ? 3 : null } as Record<string, number | null> & { t: number }));
+  it('con 45 min no une dos lecturas separadas 2 h; con la función por estación sí une la USIBWC y no la Sutron', () => {
+    expect(puentearHuecos(filas, ['a'], 45)[1].a).toBeNull();
+    const r = puentearHuecos(filas, ['a', 'b'], (id) => (id === 'a' ? puenteMin('IBWC-08373000', 45) : puenteMin('C6300760', 45)));
+    expect(r[1].a).toBe(2);
+    expect(r[1].b).toBeNull();
+  });
+  it('un hueco de 6 h en USIBWC sí corta la línea (no inventa tramo)', () => {
+    const f = [{ t: 0, a: 1 }, { t: 3600000, a: null }, { t: 6 * 3600000, a: 3 }] as (Record<string, number | null> & { t: number })[];
+    expect(puentearHuecos(f, ['a'], () => puenteMin('IBWC-08373000', 45))[1].a).toBeNull();
   });
 });

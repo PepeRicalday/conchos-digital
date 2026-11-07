@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import {
-    GASTO_UMBRAL_CENSURA_M3S, staleMin, esEntradaPresa, esFuenteIbwc, TITULO_GRUPO, textoBajoUmbral, VENTANAS, agregarSerie, ceroSospechoso, colorEstacion, estadoEnlace, fechaHoraLocal, fmt, fmtDelta,
+    GASTO_UMBRAL_CENSURA_M3S, staleMin, puenteMin, esEntradaPresa, esFuenteIbwc, TITULO_GRUPO, textoBajoUmbral, VENTANAS, agregarSerie, ceroSospechoso, colorEstacion, estadoEnlace, fechaHoraLocal, fmt, fmtDelta,
     grupoDeEstacion, horaLocal, saludEnlace, textoEdad, ultimoBueno, ultimoPunto,
     type EstacionHidro, type MensajeHidro, type PuntoHidro, type Tendencia, type VentanaHidro,
 } from '../../../utils/hidroEstaciones';
@@ -86,7 +86,7 @@ export default function TarjetaEstacion({ estacion, series, serieVentana, estadi
         };
         return { nivel: una('nivel_m'), gasto: una('gasto_m3s') };
     }, [serieVentana, series, desdeMs, hastaMs, ventana, pasoMin]);
-    const huecoMs = Math.max(50, pasoMin * 3) * 60000;
+    const huecoMs = puenteMin(estacion.id, Math.max(50, pasoMin * 3)) * 60000;
 
     const color = colorEstacion(estacion.id);
     const grupo = grupoDeEstacion(estacion);

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { invitadoPuedeVer } from './lib/auth/accesoInvitado';
@@ -143,21 +143,25 @@ const SafePage = ({ children }: { children: ReactNode }) => (
   </ErrorBoundary>
 );
 
+let ultimaComprobacionVigencia = 0;
+
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   const { session, loading, profile, signOut } = useAuth();
   const { pathname } = useLocation();
 
   // Invitado caducado o desactivado: cerrar sesión. El bloqueo real lo hace
   // fn_invitados_expirar() en Auth; esto cubre el token que aún no vence.
+  // Como mucho una comprobación por minuto (no por render ni por ruta: signOut cambia en cada render).
   const esInvitado = profile?.rol === 'INVITADO';
+  const signOutRef = useRef(signOut);
+  signOutRef.current = signOut;
   useEffect(() => {
-    if (!esInvitado) return;
-    let cancelado = false;
+    if (!esInvitado || Date.now() - ultimaComprobacionVigencia < 60_000) return;
+    ultimaComprobacionVigencia = Date.now();
     supabase.rpc('auth_cuenta_vigente').then(({ data, error }) => {
-      if (!cancelado && !error && data === false) void signOut();
+      if (!error && data === false) void signOutRef.current();
     });
-    return () => { cancelado = true; };
-  }, [esInvitado, pathname, signOut]);
+  }, [esInvitado, pathname]);
 
   if (loading) {
     return (

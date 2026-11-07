@@ -493,7 +493,7 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
 
 // Main Component
 const Presas = () => {
-    const { puedeEscribir } = useRol();
+    const { puedeEscribir, esSRL } = useRol();
     const { fechaSeleccionada } = useFecha();
     const { presas, aforos, movimientos, movimientosHistorial, loading, error } = usePresas(fechaSeleccionada);
     const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
@@ -693,9 +693,11 @@ const Presas = () => {
                         <PlusCircle size={11} />Registrar
                     </button>
                     )}
+                    {esSRL && (
                     <Link to="/importar" className="scada-action-btn">
                         <Upload size={11} />Importar
                     </Link>
+                    )}
                     <BotonInfografiaPresas presas={presas} />
                     <BotonInformeNivelTendencia />
                 </div>

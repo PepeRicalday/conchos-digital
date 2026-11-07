@@ -17,7 +17,7 @@ const fallos = []; const ok = [];
 const check = (cond, msg) => { (cond ? ok : fallos).push(msg); console.log(`${cond ? 'OK  ' : 'FALLO'} ${msg}`); };
 
 const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
 const page = await ctx.newPage();
 const errsJs = []; const writes = [];
 page.on('pageerror', e => errsJs.push(String(e.message).slice(0, 160)));

@@ -28,6 +28,7 @@ import { resumenVariables24h, VISTAS_CLIMA, severidadVista, type UmbralesVistas 
 import { TarjetaClimaHero } from './TarjetaClimaHero';
 import { CultivosCicloMini, ENLACE_CULTIVOS_CICLO } from './CultivosCicloMini';
 import type { ResumenCultivosCiclo } from '../../utils/cultivosCiclo';
+import { useRol } from '../../lib/auth/roles';
 
 const f = (v: number | null | undefined, d = 1) => (v == null ? null : v.toFixed(d));
 const edadMin = (ms: number | null) => (ms == null ? null : Math.max(0, (Date.now() - ms) / 60000));
@@ -150,6 +151,7 @@ function contextoCiclo(ciclo: ModeloKpis['ciclo'], modulos: CeldaModulo[]) {
 
 /** Las 10 tarjetas (Clima destacada primero) de la pantalla única del Dashboard. Cada gráfico degrada por container query (kp) según el espacio de su celda. */
 export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
+    const { esInvitado } = useRol();
     const { presas, suficiencia, ciclo, canal, demanda, modulos, confianza, alertas, goes, ndvi } = m;
     const { canalE, alertasE, goesE, ndviE, modulosE, enLinea, nd, demandaE, usa24, cerrado } = derivaEstados(m);
     const cm = canal.modelo;
@@ -237,7 +239,7 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
                 <button type="button" className="kp-ver" onClick={alertas.onAbrir}>Ver detalle{alertas.resumen.antiguas > 0 ? ` (+${alertas.resumen.antiguas} antiguas)` : ''}</button>
             </div></section>
 
-            <KpiTile id="kp-modulos" to="/hidrometria" enlaceInterno enlaceTexto="Abrir Hidrometría" titulo="Módulos" icono={<LayoutGrid size={18} />}
+            <KpiTile id="kp-modulos" to={esInvitado ? undefined : '/hidrometria'} enlaceInterno enlaceTexto="Abrir Hidrometría" titulo="Módulos" icono={<LayoutGrid size={18} />}
                 valor={pcts.length ? (Math.min(...pcts) === Math.max(...pcts) ? f(pcts[0], 0) : `${Math.min(...pcts).toFixed(0)}–${Math.max(...pcts).toFixed(0)}`) : null} unidad="%" estado={modulosE}
                 aria={`Avance por módulo: ${pcts.length ? `de ${Math.min(...pcts).toFixed(0)} a ${Math.max(...pcts).toFixed(0)} por ciento` : 'sin dato'}. Cada módulo abre Hidrometría`}
                 viz={<MapaCalorModulos celdas={modulos} />}

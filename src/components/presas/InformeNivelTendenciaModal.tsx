@@ -17,6 +17,7 @@ import { rasterizaHtml } from '../../utils/rasterizaHtml';
 import { esIOS, guardaOComparte } from '../../utils/descargaArchivo';
 import { imagenAJpeg, pdfDePaginas } from '../../utils/pdfDeImagenes';
 import { nombreArchivoConPartes } from '../../utils/informeBase';
+import { marcarDocumento } from '../../utils/marcaInvitado';
 import '../ndvi/informeNdviModal.css';
 
 interface Props { onCerrar: () => void }
@@ -87,7 +88,7 @@ export default function InformeNivelTendenciaModal({ onCerrar }: Props) {
     };
     /** PDF: en iOS/iPadOS no se puede imprimir un iframe, así que se rasteriza y se comparte como archivo PDF; en el resto, diálogo de impresión. */
     const imprimir = async () => {
-        if (!esIOS()) { const w = frameRef.current?.contentWindow; if (w) { w.focus(); w.print(); } return; }
+        if (!esIOS()) { const w = frameRef.current?.contentWindow; if (w) { marcarDocumento(w.document); w.focus(); w.print(); } return; }
         setExportando(true); setError(null);
         try {
             const logos = await cargarLogosInforme();

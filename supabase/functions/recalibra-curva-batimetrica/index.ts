@@ -26,6 +26,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { rechazarInvitado } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,6 +36,10 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  // Cuentas INVITADO (solo lectura) no disparan sincronizaciones. La anon key de los crones sigue pasando.
+  const _g = await rechazarInvitado(req);
+  if (!_g.ok) return new Response(JSON.stringify({ error: _g.error }), { status: _g.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   if (req.method !== "POST") return json({ error: "Usa POST" }, 405);
 
   try {

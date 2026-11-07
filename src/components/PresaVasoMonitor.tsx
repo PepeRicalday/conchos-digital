@@ -361,11 +361,13 @@ export const PresaVasoMonitor: React.FC<PresaVasoMonitorProps> = ({ data, seccio
                         <span className="vaso-kicker" id="vaso-evo-t"><CalendarRange size={13} aria-hidden="true" /> Evolución del vaso · Sentinel-2</span>
                         {masReciente && <span className="vaso-chip vaso-chip--ok"><CheckCircle2 size={14} aria-hidden="true" />{(masReciente.metodo ?? 'v1') === 'v2' ? 'Método v2 · 10 m · un día de píxeles' : 'Método v1 · 20 m'}</span>}
                         <div className="vaso-evo-acciones">
+                            {profile?.rol !== 'INVITADO' && (
                             <button type="button" className="vaso-btn" onClick={sincronizarMesActual} disabled={sincronizandoMes}
                                 title="Busca la escena más reciente con el vaso despejado (últimos 30 días) sin esperar al cron del día 3">
                                 <RefreshCw size={16} className={sincronizandoMes ? 'animate-spin' : undefined} aria-hidden="true" />
                                 {sincronizandoMes ? 'Buscando escena…' : 'Actualizar mes actual'}
                             </button>
+                            )}
                             {historicoVaso.length > 0 && (
                                 <button type="button" className="vaso-btn" onClick={abrirInforme} disabled={preparandoInforme} title="Informe institucional SRL Conchos / SICA 005">
                                     <FileText size={16} className={preparandoInforme ? 'animate-spin' : undefined} aria-hidden="true" />

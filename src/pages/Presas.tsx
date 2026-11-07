@@ -17,6 +17,7 @@ import LimnimetroPresa from '../components/LimnimetroPresa';
 import PresaHistoricoContexto from '../components/PresaHistoricoContexto';
 import BotonInfografiaPresas from '../components/BotonInfografiaPresas';
 import BotonInformeNivelTendencia from '../components/BotonInformeNivelTendencia';
+import { useRol } from '../lib/auth/roles';
 import AnaliticaPresa, { type VistaAnalitica } from '../components/presas/analitica/AnaliticaPresa';
 import { estadoEmbalse } from '../utils/presaNiveles';
 
@@ -492,6 +493,7 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
 
 // Main Component
 const Presas = () => {
+    const { puedeEscribir } = useRol();
     const { fechaSeleccionada } = useFecha();
     const { presas, aforos, movimientos, movimientosHistorial, loading, error } = usePresas(fechaSeleccionada);
     const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
@@ -686,9 +688,11 @@ const Presas = () => {
                         <span>{horaActual.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</span>
                         <span className="scada-clock-date">{horaActual.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                     </div>
+                    {puedeEscribir && (
                     <button type="button" onClick={() => setIsMoveModalOpen(true)} className="scada-action-btn scada-action-btn--primary">
                         <PlusCircle size={11} />Registrar
                     </button>
+                    )}
                     <Link to="/importar" className="scada-action-btn">
                         <Upload size={11} />Importar
                     </Link>
@@ -955,9 +959,11 @@ const Presas = () => {
                     <div className="scada-panel-hdr scada-panel-hdr--sub">
                         <Clock size={11} className="text-slate-400" />
                         <span>HISTORIAL DE OPERACIONES</span>
+                        {puedeEscribir && (
                         <button type="button" onClick={() => setIsMoveModalOpen(true)} className="scada-hist-btn">
                             <PlusCircle size={9} />Registrar
                         </button>
+                        )}
                     </div>
                     <div className="scada-historial-list">
                         {movsActuales.length === 0 ? (

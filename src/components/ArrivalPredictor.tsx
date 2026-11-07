@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Timer, MapPin, Clock, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useRol } from '../lib/auth/roles';
 import { toast } from 'sonner';
 import { formatTime as formatTimeTZ } from '../utils/dateHelpers';
 import './ArrivalPredictor.css';
@@ -17,6 +18,7 @@ interface ArrivalInfo {
 }
 
 const ArrivalPredictor: React.FC = () => {
+    const { puedeEscribir } = useRol();
     const [predictions, setPredictions] = useState<ArrivalInfo[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -168,7 +170,7 @@ const ArrivalPredictor: React.FC = () => {
                                 </div>
                             </div>
 
-                            {p.seconds_remaining < 600 && p.seconds_remaining > 0 && (
+                            {puedeEscribir && p.seconds_remaining < 600 && p.seconds_remaining > 0 && (
                                 <button 
                                     className="ap-manual-fix-btn"
                                     onClick={() => markRealArrival(p)}

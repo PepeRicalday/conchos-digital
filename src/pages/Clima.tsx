@@ -46,6 +46,7 @@ import { sensoresLegibles } from '../utils/sensoresEstacion';
 import { claveVientoDe, umbralVigente } from '../utils/umbralesClima';
 import { WindyMapModal } from '../components/WindyMapModal';
 import { CENTRO_DISTRITO } from '../utils/mapaSatelital';
+import { useRol } from '../lib/auth/roles';
 
 // Types for display
 interface WeatherCondition {
@@ -503,6 +504,7 @@ const EstacionCard = ({ est, onAbrir, horaCorte, sospechosa }: {
 const Clima = () => {
     const { fechaSeleccionada } = useFecha();
     const { clima, loading, presas } = usePresas(fechaSeleccionada);
+    const { puedeEscribir } = useRol();
     const { estaciones, loading: loadingEst, refrescarAhora, refresco } = useClimaEstaciones();
     const { resumen: skillResumen, totalMuestras: skillMuestras, cargando: skillCargando } = useClimaSkill(7);
     const hoyLocalCorte = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chihuahua' });
@@ -1157,6 +1159,7 @@ const Clima = () => {
                         <div className="estaciones-acciones">
                             {/* Refresco manual: fuerza el sync de estaciones y modelo antes de
                                 emitir el informe, sin alterar los crones automáticos. */}
+                            {puedeEscribir && (
                             <button
                                 className="estaciones-refresh"
                                 onClick={() => { void refrescarAhora(); }}
@@ -1166,6 +1169,7 @@ const Clima = () => {
                                 <RefreshCw size={14} className={refresco.activo ? 'girando' : ''} />
                                 {refresco.activo ? 'Actualizando…' : 'Actualizar datos'}
                             </button>
+                            )}
                             {/* Lectura rápida: KPI + plano activo, sin metodología ni tablas horarias.
                                 El historial de 7 días alimenta el panel de tendencias; si la consulta
                                 falla se emite igual y ese panel se rotula "sin datos suficientes". */}

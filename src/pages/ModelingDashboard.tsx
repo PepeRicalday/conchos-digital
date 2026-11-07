@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 import { supabase } from '../lib/supabase';
+import { useRol } from '../lib/auth/roles';
 import { formatDate, getTodayString } from '../utils/dateHelpers';
 import SimulationReport from '../components/SimulationReport';
 import { calcIEC, iecColor } from '../utils/canalIndex';
@@ -1228,6 +1229,7 @@ function runSimulation(
 
 // ── COMPONENTE PRINCIPAL ────────────────────────────────────────────────
 const ModelingDashboard: React.FC = () => {
+  const { puedeEscribir } = useRol();
   const [gateOverrides, setGateOverrides] = useState<Record<string, number>>({});
   // Aperturas REALES de SICA Capture (lectura original, no modificada)
   const [gateBase,      setGateBase]      = useState<Record<string, number>>({});
@@ -1379,6 +1381,7 @@ const ModelingDashboard: React.FC = () => {
   // re-render. La clave es `punto|accion` — se limpia cuando no hay URGENTEs.
   const _alertasPersitidasRef = useRef<Set<string>>(new Set());
   useEffect(() => {
+    if (!puedeEscribir) return; // INVITADO/AUDITORIA no persisten alertas
     const urgentes = decisions.filter(d => d.prioridad === 'URGENTE');
     if (urgentes.length === 0) {
       // Sin URGENTEs activos → resetear el set para la próxima activación
@@ -1415,7 +1418,7 @@ const ModelingDashboard: React.FC = () => {
         nuevas.forEach(d => _alertasPersitidasRef.current.add(`${d.punto}|${d.accion}`));
       }
     });
-  }, [decisions]);
+  }, [decisions, puedeEscribir]);
 
   // ── RPC: Simulación de escenario en servidor ──────────────────────────
   const runScenarioRpc = async () => {

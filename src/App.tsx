@@ -1,5 +1,8 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { supabase } from './lib/supabase';
+import { invitadoPuedeVer } from './lib/auth/accesoInvitado';
+import { AccesoRestringido } from './components/ui/AccesoRestringido';
 import type { ReactNode } from 'react';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -25,6 +28,7 @@ const GeoMonitor = lazy(() => import('./pages/GeoMonitor'));
 const Bitacora = lazy(() => import('./pages/Bitacora'));
 const Ciclos = lazy(() => import('./pages/Ciclos'));
 const Infraestructura = lazy(() => import('./pages/Infraestructura'));
+const AdminInvitados = lazy(() => import('./pages/AdminInvitados'));
 const Alertas = lazy(() => import('./pages/Alertas'));
 const ConsultoriaIA = lazy(() => import('./pages/ConsultoriaIA'));
 const Protocolos = lazy(() => import('./pages/Protocolos'));
@@ -140,7 +144,20 @@ const SafePage = ({ children }: { children: ReactNode }) => (
 );
 
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
-  const { session, loading } = useAuth();
+  const { session, loading, profile, signOut } = useAuth();
+  const { pathname } = useLocation();
+
+  // Invitado caducado o desactivado: cerrar sesión. El bloqueo real lo hace
+  // fn_invitados_expirar() en Auth; esto cubre el token que aún no vence.
+  const esInvitado = profile?.rol === 'INVITADO';
+  useEffect(() => {
+    if (!esInvitado) return;
+    let cancelado = false;
+    supabase.rpc('auth_cuenta_vigente').then(({ data, error }) => {
+      if (!cancelado && !error && data === false) void signOut();
+    });
+    return () => { cancelado = true; };
+  }, [esInvitado, pathname, signOut]);
 
   if (loading) {
     return (
@@ -208,6 +225,15 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
     return <Navigate to="/login" replace />;
   }
 
+  // INVITADO (solo lectura): lista blanca de rutas. Barrera de UX; la seguridad real es el RLS.
+  if (profile?.rol === 'INVITADO' && !invitadoPuedeVer(pathname)) {
+    return (
+      <Layout>
+        <AccesoRestringido detalle="Esta sección no está disponible para cuentas de invitado." />
+      </Layout>
+    );
+  }
+
   return <Layout>{children}</Layout>;
 };
 
@@ -249,6 +275,7 @@ function App() {
                 <Route path="/bitacora" element={<ProtectedRoute><SafePage><RoleGuard><Bitacora /></RoleGuard></SafePage></ProtectedRoute>} />
                 <Route path="/ciclos" element={<ProtectedRoute><SafePage><RoleGuard><Ciclos /></RoleGuard></SafePage></ProtectedRoute>} />
                 <Route path="/infraestructura" element={<ProtectedRoute><SafePage><RoleGuard><Infraestructura /></RoleGuard></SafePage></ProtectedRoute>} />
+                <Route path="/admin/invitados" element={<ProtectedRoute><SafePage><RoleGuard><AdminInvitados /></RoleGuard></SafePage></ProtectedRoute>} />
                 <Route path="/inteligencia-hidrica" element={<ProtectedRoute><SafePage><ConsultoriaIA /></SafePage></ProtectedRoute>} />
                 <Route path="/protocolos" element={<ProtectedRoute><SafePage><Protocolos /></SafePage></ProtectedRoute>} />
                 <Route path="/balance" element={<ProtectedRoute><SafePage><BalanceHidraulico /></SafePage></ProtectedRoute>} />

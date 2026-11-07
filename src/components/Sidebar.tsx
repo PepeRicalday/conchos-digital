@@ -1,6 +1,6 @@
 import { useState, useMemo, type ComponentType } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Waves, Bell, Cloud, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, BarChart3, Database, FileText, Upload, ClipboardCheck, Siren } from 'lucide-react';
+import { LayoutDashboard, Waves, Bell, Cloud, LogOut, User as UserIcon, BookOpen, CalendarDays, MapPin, ChevronDown, ChevronUp, FolderKanban, Brain, BarChart3, Database, FileText, Upload, ClipboardCheck, Siren, UserPlus } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useHydraStore } from '../store/useHydraStore';
@@ -9,6 +9,7 @@ import { useAlertasRegistro } from '../hooks/useAlertasSistema';
 import './Layout.css';
 import SupabaseStatus from './SupabaseStatus';
 import { LogoSica } from './marca/LogoSica';
+import { invitadoPuedeVer } from '../lib/auth/accesoInvitado';
 import { IconoCompuertas, IconoDistribucion, IconoMedicion, IconoMonitoreo, IconoTelemetria, IconoUsoAgricola } from './marca/IconoSica';
 
 const Sidebar = () => {
@@ -108,7 +109,7 @@ const Sidebar = () => {
                     </div>
                     <div className="profile-info">
                         <span className="profile-name">{profile.nombre}</span>
-                        <span className="profile-role">{profile.rol === 'SRL' ? 'SRL Conchos' : `Módulo ${profile.modulo_id}`}</span>
+                        <span className="profile-role">{profile.rol === 'SRL' ? 'SRL Conchos' : profile.rol === 'INVITADO' ? 'Invitado · solo lectura' : `Módulo ${profile.modulo_id}`}</span>
                     </div>
                 </div>
             )}
@@ -152,7 +153,11 @@ const Sidebar = () => {
             )}
 
             <nav className="sidebar-nav">
-                {navSections.map((section) => (
+                {navSections.map((section) => ({
+                    ...section,
+                    // INVITADO solo ve las rutas de su lista blanca; sin ítems no se muestra la sección.
+                    items: profile?.rol === 'INVITADO' ? section.items.filter((i) => invitadoPuedeVer(i.path)) : section.items,
+                })).filter((section) => section.items.length > 0).map((section) => (
                     <div key={section.label}>
                         <div className="nav-section-label">{section.label}</div>
                         {section.items.map((item) => (
@@ -215,6 +220,10 @@ const Sidebar = () => {
                             <NavLink to="/infraestructura" className={({ isActive }) => clsx('nav-item', isActive && 'active')} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
                                 <MapPin size={16} />
                                 <span>Infraestructura</span>
+                            </NavLink>
+                            <NavLink to="/admin/invitados" className={({ isActive }) => clsx('nav-item', isActive && 'active')} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                                <UserPlus size={16} />
+                                <span>Cuentas de invitado</span>
                             </NavLink>
                             <NavLink to="/reporte-oficial" className={({ isActive }) => clsx('nav-item', isActive && 'active')} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
                                 <FileText size={16} />

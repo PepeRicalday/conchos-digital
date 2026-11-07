@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { FlaskConical, RefreshCw, TrendingDown } from 'lucide-react';
 import ManningCalibrador from '../components/ManningCalibrador';
+import { useRol } from '../lib/auth/roles';
 import RatingCurve from '../components/RatingCurve';
 import { useFecha } from '../context/FechaContext';
 import { useBalanceDia } from '../hooks/useBalanceDia';
@@ -20,6 +21,7 @@ import '../styles/sala-control.css';
 import '../components/balance/balance.css';
 
 const BalanceHidraulico = () => {
+    const { puedeEscribir } = useRol();
     const { fechaSeleccionada, esHoy } = useFecha();
     const datos = useBalanceDia(fechaSeleccionada);
     const canal = useEficienciaCanal();
@@ -77,11 +79,13 @@ const BalanceHidraulico = () => {
                 <RatingCurve diasAtras={365} />
             </section>
 
+            {puedeEscribir && (
             <section className="sc-card no-print bal-seccion-externa" aria-labelledby="bal-calib-t">
                 <span className="sc-kicker"><FlaskConical size={12} aria-hidden="true" /> Aforos de sica-capture · ventana de 90 días</span>
                 <h3 id="bal-calib-t">Calibración automática de la rugosidad de Manning (n)</h3>
                 <ManningCalibrador />
             </section>
+            )}
 
             <ReporteEjecutivo fecha={fechaSeleccionada} />
         </div>

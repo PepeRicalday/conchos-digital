@@ -2,10 +2,11 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { type Session, type User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { setMarcaInvitado } from '../utils/marcaInvitado';
 
 interface UserProfile {
     id: string;
-    rol: 'SRL' | 'ACU' | 'AUDITORIA';
+    rol: 'SRL' | 'ACU' | 'AUDITORIA' | 'INVITADO';
     modulo_id: string | null;
     nombre: string | null;
 }
@@ -36,9 +37,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             if (error) throw error;
             setProfile(data);
+            setMarcaInvitado(data?.rol === 'INVITADO');
         } catch (err) {
             console.error('Error fetching profile:', err);
             setProfile(null);
+            setMarcaInvitado(false);
         }
     };
 

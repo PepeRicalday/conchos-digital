@@ -15,6 +15,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { rechazarInvitado } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -79,6 +80,10 @@ interface WLStation { station_id: number; sensors: { data: Record<string, unknow
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  // Cuentas INVITADO (solo lectura) no disparan sincronizaciones. La anon key de los crones sigue pasando.
+  const _g = await rechazarInvitado(req);
+  if (!_g.ok) return new Response(JSON.stringify({ error: _g.error }), { status: _g.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   try {
     const API_KEY = Deno.env.get("WEATHERLINK_API_KEY");
     const API_SECRET = Deno.env.get("WEATHERLINK_API_SECRET");

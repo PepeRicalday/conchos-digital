@@ -8,6 +8,7 @@
 import { rasterizaHtml } from './rasterizaHtml';
 import { esIOS, guardaOComparte } from './descargaArchivo';
 import { imagenAJpegPaginas, pdfDePaginas, type PaginaJpeg } from './pdfDeImagenes';
+import { conMarcaInvitado, marcarDocumento } from './marcaInvitado';
 
 const ANCHO_CARTA_PX = 816;
 const ANCHO_A4_PX = 794;
@@ -50,10 +51,10 @@ export async function htmlAPdf(html: string, anchoForzado?: number): Promise<Blo
 export async function imprimirOPdf(opts: { html: string | null; frame: HTMLIFrameElement | null; nombre: string; ancho?: number }): Promise<boolean> {
     if (!esIOS()) {
         const w = opts.frame?.contentWindow;
-        if (w) { w.focus(); w.print(); }
+        if (w) { marcarDocumento(w.document); w.focus(); w.print(); }
         return false;
     }
     if (!opts.html) throw new Error('El informe aún no está listo.');
-    await guardaOComparte(await htmlAPdf(opts.html, opts.ancho), `${opts.nombre}.pdf`, 'application/pdf');
+    await guardaOComparte(await htmlAPdf(conMarcaInvitado(opts.html), opts.ancho), `${opts.nombre}.pdf`, 'application/pdf');
     return true;
 }

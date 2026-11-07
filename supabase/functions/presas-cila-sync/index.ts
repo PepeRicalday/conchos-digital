@@ -15,7 +15,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { parseReporte, parseShef, PRESAS_CILA } from "./parser.ts";
 import { curvaValida, resolverNivel, type PuntoCurva } from "./resolver.ts";
 import { estadoReporteCila } from "./vigencia.ts";
-import { rechazarInvitado } from "../_shared/auth.ts";
+import { exigirRol } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -111,8 +111,8 @@ async function gestionarAlerta(sb: Sb, estado: string, fechaReporte: string | nu
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  // Cuentas INVITADO (solo lectura) no disparan sincronizaciones. La anon key de los crones sigue pasando.
-  const _g = await rechazarInvitado(req);
+  // Solo usuarios ['SRL'] o cron. Los crones se identifican con x-cron-secret (tabla cron_secretos); la anon key sola ya no basta.
+  const _g = await exigirRol(req, ['SRL'], { nombreSecreto: "presas_cila_sync" });
   if (!_g.ok) return new Response(JSON.stringify({ error: _g.error }), { status: _g.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   const sb: Sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   let archivoLM: string | null = null;

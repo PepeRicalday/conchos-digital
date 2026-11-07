@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { rechazarInvitado } from "../_shared/auth.ts";
+import { exigirRol } from "../_shared/auth.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -79,8 +79,8 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  // Esta función gasta cuota de Gemini: un usuario INVITADO no puede dispararla.
-  const _g = await rechazarInvitado(req);
+  // Solo usuarios ['SRL','ACU']. Los crones se identifican con x-cron-secret (tabla cron_secretos); la anon key sola ya no basta.
+  const _g = await exigirRol(req, ['SRL','ACU'], {});
   if (!_g.ok) return new Response(JSON.stringify({ error: _g.error }), { status: _g.status, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
 
   if (req.method !== "POST") {

@@ -72,9 +72,10 @@ Deno.serve(async (req: Request) => {
         const password = passwordTemporal();
         const { data: u, error } = await sb.auth.admin.createUser({ email, password, email_confirm: true });
         if (error || !u?.user) return resp(req, 400, { error: error?.message ?? "No se pudo crear el usuario." });
-        const { error: eP } = await sb.from("perfiles_usuario").insert({
+        // El trigger handle_new_user ya creó la fila (INVITADO, inactiva): se completa y activa aquí.
+        const { error: eP } = await sb.from("perfiles_usuario").upsert({
           id: u.user.id, rol: "INVITADO", nombre, modulo_id: null, activo: true, vigente_hasta: vig, creado_por: auth.userId,
-        });
+        }, { onConflict: "id" });
         if (eP) {
           await sb.auth.admin.deleteUser(u.user.id); // no dejar un usuario sin perfil
           return resp(req, 500, { error: `No se pudo crear el perfil: ${eP.message}` });

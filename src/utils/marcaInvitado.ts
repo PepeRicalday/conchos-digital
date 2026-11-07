@@ -64,6 +64,23 @@ function instalarMarcaGlobal(): void {
         return write.apply(this, texto.map((t) => (activa && typeof t === 'string' && /<!doctype|<html/i.test(t) ? conMarcaInvitado(t) : t)) as [string]);
     };
 
+    // 3b) Ventanas emergentes: tienen su propio Document.prototype, así que se parchea el de cada una al abrirla.
+    const abrir = window.open.bind(window);
+    window.open = (...args: Parameters<typeof window.open>) => {
+        const w = abrir(...args);
+        try {
+            const proto = (w as (Window & { Document: typeof Document }) | null)?.Document?.prototype;
+            if (proto && !Object.prototype.hasOwnProperty.call(proto, '__sicaMarca')) {
+                const escribe = proto.write;
+                proto.write = function (this: Document, ...texto: string[]) {
+                    return escribe.apply(this, texto.map((t) => (activa && typeof t === 'string' && /<!doctype|<html/i.test(t) ? conMarcaInvitado(t) : t)) as [string]);
+                };
+                Object.defineProperty(proto, '__sicaMarca', { value: true });
+            }
+        } catch { /* ventana de otro origen */ }
+        return w;
+    };
+
     // 4) Vistas previas en iframe (srcdoc / blob del mismo origen): se marcan al cargar.
     const marca = (f: HTMLIFrameElement) => {
         const poner = () => { try { marcarDocumento(f.contentDocument); } catch { /* otro origen */ } };

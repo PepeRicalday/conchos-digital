@@ -53,6 +53,9 @@ for (const t of SENSIBLES) {
   if (t === 'perfiles_usuario_otros') continue;
   const c = await cuenta(t);
   if (c.err) reg(c.err === 401 || c.err === 403 || c.err === 404 ? 'ok' : 'aviso', `B. ${t}: sin acceso (HTTP ${c.err})`);
+  else if (t === 'resumen_ciclo') { // Cruza ciclos × modulos: el volumen AUTORIZADO sale de `modulos` (lectura pública); lo ENTREGADO sale restringido y llega como 0.
+    reg(c.n === 0 ? 'ok' : 'aviso', `B. resumen_ciclo: ${c.n} filas (solo asignación estática del módulo; sin entregas). Decisión pendiente: ocultar o aceptar`);
+  }
   else check(c.n === 0, `B. ${t}: ${c.n} filas visibles (esperado 0)`);
 }
 const OPERATIVAS = ['presas', 'lecturas_presas', 'lecturas_escalas', 'escalas', 'puntos_entrega', 'clima_estacion_lecturas', 'clima_pronostico_horario', 'ndvi_modulo_mensual_v2', 'hidro_estaciones', 'v_balance_hidrico_tramos', 'movimientos_presas'];

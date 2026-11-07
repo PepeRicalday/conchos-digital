@@ -10,7 +10,7 @@ import {
     type Cobertura, type GastoCensurado, type ComparacionPresaRio, type ResumenEstacion, type Variacion, type Volumen,
 } from './hidroEstadistica';
 import {
-    CERO_SOSPECHOSO_NIVEL_M, GASTO_UMBRAL_CENSURA_M3S, ORDEN_ESTACIONES, TITULO_GRUPO, type GrupoHidro, esEntradaPresa, ceroSospechoso, colorEstacion, edadMin, estadoEnlace, fmt, fmtDelta, fechaHoraLocal, grupoDeEstacion,
+    CERO_SOSPECHOSO_NIVEL_M, GASTO_UMBRAL_CENSURA_M3S, staleMin, ORDEN_ESTACIONES, TITULO_GRUPO, type GrupoHidro, esEntradaPresa, ceroSospechoso, colorEstacion, edadMin, estadoEnlace, fmt, fmtDelta, fechaHoraLocal, grupoDeEstacion,
     radiacionConfiable, saludEnlace, tieneMeteo, tiraEnlace, ultimoBueno,
     type CeldaEnlace, type EstacionHidro, type EstadoEnlace, type MensajeHidro, type PuntoHidro, type SaludEnlace, type Tendencia,
 } from './hidroEstaciones';
@@ -21,7 +21,7 @@ const HORA = 3600000;
 const DIA = 24 * HORA;
 
 export const NOMBRE_CORTO: Record<string, string> = {
-    C6300760: 'Ojinaga', C63009B2: 'Boca del Río', C6301416: 'Babisas', C6301AC4: 'Madero–Vírgenes',
+    C6300760: 'Ojinaga', C63009B2: 'Boca del Río', C6301416: 'Babisas', C6301AC4: 'Madero–Vírgenes', 'IBWC-08373000': 'Water Data USA',
 };
 
 export interface PuntoBanda { t: number; v: number; min: number; max: number }
@@ -73,8 +73,8 @@ export function estadisticaRango(id: string, intervaloMin: number | null, series
         volumen: volumenMm3(gastoCrudo, desde, hasta, MAX_HUECO_VOLUMEN_MIN, tExcluidos),
         excluidas, gastoRecibidas: gastoCrudo.length, pctExcluidas, gastoRepresentativo: pctExcluidas == null || pctExcluidas <= 50,
         censurado: gastoCensurado(id, gastoCrudo, tExcluidos, desde, hasta),
-        variacionNivel: variacion(enVentana(series.nivel_m, desde - 8 * DIA, hasta), EPSILON_NIVEL_M, hasta),
-        variacionGasto: variacion(sinCerosSospechosos(id, enVentana(series.gasto_m3s, desde - 8 * DIA, hasta), series.nivel_m ?? []).validos, EPSILON_GASTO_M3S, hasta),
+        variacionNivel: variacion(enVentana(series.nivel_m, desde - 8 * DIA, hasta), EPSILON_NIVEL_M, hasta, staleMin(id)),
+        variacionGasto: variacion(sinCerosSospechosos(id, enVentana(series.gasto_m3s, desde - 8 * DIA, hasta), series.nivel_m ?? []).validos, EPSILON_GASTO_M3S, hasta, staleMin(id)),
         pendienteGastoDia: pendientePorDia(gasto),
     };
 }
@@ -178,7 +178,7 @@ export function prepararInformeGoes(entrada: EntradaInformeGoes): InformeGoes {
         const nivelCerca = ultCrudo ? nivelTodo.filter((p) => Math.abs(p.t - ultCrudo.t) <= 600000).map((p) => p.v)[0] ?? null : null;
         const ultimoMsg = ultimoBueno(entrada.mensajes, id) ?? (e.ult_dato_en ? Date.parse(e.ult_dato_en) : null);
         const gastoVentana = gastoTodo.filter((p) => p.t >= desdeMs);
-        const enlace = estadoEnlace(Number.isFinite(ultimoMsg as number) ? ultimoMsg : null, ahoraMs);
+        const enlace = estadoEnlace(Number.isFinite(ultimoMsg as number) ? ultimoMsg : null, ahoraMs, id);
         return [{
             id, nombre: e.nombre, nombreCorto: NOMBRE_CORTO[id] ?? e.nombre, color: colorEstacion(id),
             grupo: grupoDeEstacion(e), entrada: esEntradaPresa(e), grupoTitulo: TITULO_GRUPO[grupoDeEstacion(e)], intervaloMin: intervalo,

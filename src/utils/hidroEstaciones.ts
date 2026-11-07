@@ -26,10 +26,16 @@ export interface EstacionHidro {
 export interface MensajeHidro { estacion_id: string; ts_msg: string; codigo_falla: string | null; senal_dbm: number | null }
 
 /** Orden fijo = color por entidad (la estación conserva su color aunque cambie la selección). */
-export const ORDEN_ESTACIONES = ['C6300760', 'C63009B2', 'C6301416', 'C6301AC4'] as const;
+export const ORDEN_ESTACIONES = ['C6300760', 'C63009B2', 'C6301416', 'C6301AC4', 'IBWC-08373000'] as const;
 
-/** Slots 1-4 del categórico validado (dataviz, modo oscuro, adyacentes ΔE CVD ≥ 8.4). */
-export const COLOR_SERIE = ['#3987e5', '#d95926', '#199e70', '#c98500'] as const;
+/** Id de la estación oficial USIBWC en Ojinaga (mismo sitio que la Sutron C6300760; ingesta ibwc-telemetry-sync). */
+export const ID_OJINAGA_SUTRON = 'C6300760';
+export const ID_OJINAGA_IBWC = 'IBWC-08373000';
+/** Estaciones que no vienen del monitor Sutron/GOES (sin "DCP", sin señal en dBm). */
+export const esFuenteIbwc = (id: string) => id.startsWith('IBWC-');
+
+/** Slots 1-5 del categórico (1-4 validados: dataviz, modo oscuro, adyacentes ΔE CVD ≥ 8.4; 5.º violeta, junto al azul de Ojinaga Sutron). */
+export const COLOR_SERIE = ['#3987e5', '#d95926', '#199e70', '#c98500', '#a06ee1'] as const;
 
 export function colorEstacion(id: string): string {
     const i = ORDEN_ESTACIONES.indexOf(id as typeof ORDEN_ESTACIONES[number]);
@@ -40,6 +46,11 @@ export function colorEstacion(id: string): string {
 export const STALE_GOES_MIN = 180;
 /** Por encima de esto (pero dentro de STALE) se avisa retraso. */
 export const RETRASO_GOES_MIN = 90;
+/** Estaciones USIBWC: se guarda 1 lectura cada 2 h y el archivo publica con ~40 min de retraso → el último dato tiene 0.7-4 h. */
+export const STALE_IBWC_MIN = 300;
+export const RETRASO_IBWC_MIN = 200;
+export const staleMin = (id?: string) => (id && esFuenteIbwc(id) ? STALE_IBWC_MIN : STALE_GOES_MIN);
+export const retrasoMin = (id?: string) => (id && esFuenteIbwc(id) ? RETRASO_IBWC_MIN : RETRASO_GOES_MIN);
 
 export type ClaveEnlace = 'en_linea' | 'retraso' | 'sin_transmision' | 'sd';
 
@@ -50,11 +61,11 @@ export function edadMin(ahoraMs: number, ultMs: number | null): number | null {
     return Math.max(0, (ahoraMs - ultMs) / 60000);
 }
 
-export function estadoEnlace(ultimoBuenoMs: number | null, ahoraMs: number): EstadoEnlace {
+export function estadoEnlace(ultimoBuenoMs: number | null, ahoraMs: number, id?: string): EstadoEnlace {
     const edad = edadMin(ahoraMs, ultimoBuenoMs);
     if (edad == null) return { clave: 'sd', etiqueta: ahoraMs ? 'Sin mensajes' : 'Calculando', edadMin: null };
-    if (edad > STALE_GOES_MIN) return { clave: 'sin_transmision', etiqueta: 'Sin transmisión', edadMin: edad };
-    if (edad > RETRASO_GOES_MIN) return { clave: 'retraso', etiqueta: 'Con retraso', edadMin: edad };
+    if (edad > staleMin(id)) return { clave: 'sin_transmision', etiqueta: 'Sin transmisión', edadMin: edad };
+    if (edad > retrasoMin(id)) return { clave: 'retraso', etiqueta: 'Con retraso', edadMin: edad };
     return { clave: 'en_linea', etiqueta: 'En línea', edadMin: edad };
 }
 
@@ -305,7 +316,7 @@ export function ceroSospechoso(estacionId: string, gasto: number | null, nivel: 
 /** Madero (C6301AC4) reporta radiación fija 889-907 W/m²: canal no confiable. */
 export const SIN_RADIACION = new Set(['C6301AC4']);
 /** Ojinaga es estación de río: solo nivel, gasto y velocidad. */
-export const SIN_METEO = new Set(['C6300760']);
+export const SIN_METEO = new Set(['C6300760', 'IBWC-08373000']);
 
 export const tieneMeteo = (id: string) => !SIN_METEO.has(id);
 export const radiacionConfiable = (id: string) => !SIN_RADIACION.has(id);

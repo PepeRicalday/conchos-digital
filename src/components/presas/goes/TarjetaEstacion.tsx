@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import {
-    GASTO_UMBRAL_CENSURA_M3S, STALE_GOES_MIN, esEntradaPresa, TITULO_GRUPO, textoBajoUmbral, VENTANAS, agregarSerie, ceroSospechoso, colorEstacion, estadoEnlace, fechaHoraLocal, fmt, fmtDelta,
+    GASTO_UMBRAL_CENSURA_M3S, staleMin, esEntradaPresa, esFuenteIbwc, TITULO_GRUPO, textoBajoUmbral, VENTANAS, agregarSerie, ceroSospechoso, colorEstacion, estadoEnlace, fechaHoraLocal, fmt, fmtDelta,
     grupoDeEstacion, horaLocal, saludEnlace, textoEdad, ultimoBueno, ultimoPunto,
     type EstacionHidro, type MensajeHidro, type PuntoHidro, type Tendencia, type VentanaHidro,
 } from '../../../utils/hidroEstaciones';
@@ -51,27 +51,27 @@ function Cifra({ r, campo, dec, cargando }: { r: ResumenEstacion | null | undefi
  * Último registro conocido de la serie (de las últimas 24 h), sea o no reciente: con la estación sin transmisión se muestra
  * ese valor rotulado con su antigüedad («Último dato … hace X»), nunca 0 ni S/D. `obsoleto` avisa que ya no es una lectura actual.
  */
-function ultimoConocido(serie: PuntoHidro[] | undefined, ahora: number): { p: PuntoHidro; obsoleto: boolean } | null {
+function ultimoConocido(serie: PuntoHidro[] | undefined, ahora: number, id?: string): { p: PuntoHidro; obsoleto: boolean } | null {
     const p = serie ? ultimoPunto(serie) : null;
     if (!p || !ahora) return null;
-    return { p, obsoleto: (ahora - p.t) / 60000 > STALE_GOES_MIN };
+    return { p, obsoleto: (ahora - p.t) / 60000 > staleMin(id) };
 }
 
 export default function TarjetaEstacion({ estacion, series, serieVentana, estadistica, ventana, mensajes, ahora, destacada }: Props) {
     const ultBueno = ultimoBueno(mensajes, estacion.id);
     const ultDato = estacion.ult_dato_en ? Date.parse(estacion.ult_dato_en) : null;
-    const enlace = estadoEnlace(instanteEnlace(estacion, mensajes), ahora);
+    const enlace = estadoEnlace(instanteEnlace(estacion, mensajes), ahora, estacion.id);
     const salud = saludEnlace(mensajes, estacion.id, ahora - 24 * 3600000);
     const apagada = enlace.clave === 'sin_transmision' || enlace.clave === 'sd';
     const cargando = estadistica == null;
 
     const sNivel = series?.nivel_m ?? [];
     const sGasto = series?.gasto_m3s ?? [];
-    const uNivel = ultimoConocido(sNivel, ahora);
-    const uGasto = ultimoConocido(sGasto, ahora);
+    const uNivel = ultimoConocido(sNivel, ahora, estacion.id);
+    const uGasto = ultimoConocido(sGasto, ahora, estacion.id);
     const pNivel = uNivel?.p ?? null;
     const pGasto = uGasto?.p ?? null;
-    const pVel = ultimoConocido(series?.velocidad_ms, ahora)?.p ?? null;
+    const pVel = ultimoConocido(series?.velocidad_ms, ahora, estacion.id)?.p ?? null;
     const obsoleto = apagada || !!uNivel?.obsoleto || !!uGasto?.obsoleto;
     const cero = pGasto != null && ceroSospechoso(estacion.id, pGasto.v, pNivel?.v ?? null);
 
@@ -103,7 +103,7 @@ export default function TarjetaEstacion({ estacion, series, serieVentana, estadi
                     <span className={`goes-sello goes-sello--${enlace.clave}`}><span aria-hidden="true">{GLIFO_ENLACE[enlace.clave]}</span> {enlace.etiqueta}</span>
                 </div>
                 <h4>{estacion.nombre}</h4>
-                <span className="goes-dcp">DCP {estacion.id}{esEntradaPresa(estacion) ? ' · entrada a la presa' : ''}</span>
+                <span className="goes-dcp">{esFuenteIbwc(estacion.id) ? `USIBWC ${estacion.id.slice(5)} · datos provisionales` : `DCP ${estacion.id}`}{esEntradaPresa(estacion) ? ' · entrada a la presa' : ''}</span>
             </header>
 
             <div className="goes-medidas">

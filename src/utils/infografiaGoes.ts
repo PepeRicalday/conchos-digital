@@ -90,7 +90,7 @@ export interface EntradaInfografiaGoes {
 }
 
 /** Orden de lectura de la infografía (pedido del distrito): Boca del Río, Madero–Vírgenes, Babisas y al final Ojinaga. */
-export const ORDEN_INFOGRAFIA_GOES = ['C63009B2', 'C6301AC4', 'C6301416', 'C6300760'] as const;
+export const ORDEN_INFOGRAFIA_GOES = ['C63009B2', 'C6301AC4', 'C6301416', 'C6300760', 'IBWC-08373000'] as const;
 const posicion = (id: string): number => { const i = (ORDEN_INFOGRAFIA_GOES as readonly string[]).indexOf(id); return i < 0 ? 99 : i; };
 
 const TOPE_PUNTOS_SPARK = 40;

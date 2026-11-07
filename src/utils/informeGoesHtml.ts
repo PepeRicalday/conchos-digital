@@ -9,7 +9,7 @@ import {
     nombreArchivoConPartes, pieInforme, tablaTrazabilidad,
 } from './informeBase';
 import { COBERTURA_MIN_CONFIABLE } from './hidroEstadistica';
-import { TZ_SICA, fechaHoraLocal, fmt, fmtDelta, horaLocal, textoEdad, STALE_GOES_MIN, type CeldaEnlace, type Tendencia } from './hidroEstaciones';
+import { TZ_SICA, fechaHoraLocal, fmt, fmtDelta, horaLocal, textoEdad, staleMin, type CeldaEnlace, type Tendencia } from './hidroEstaciones';
 import { VARIABLES_INFORME, codigoPeriodoGoes, seccionesGoesDe, type SeccionGoes } from './informeGoesConfig';
 import { dirDe, movimiento24h, pasoParaSpan, type DatosEstacionGoes, type DirTendencia, type InformeGoes } from './informeGoesDatos';
 import {
@@ -169,7 +169,7 @@ function ficha(d: InformeGoes, e: DatosEstacionGoes): string {
     const filas = (usa(d, 'gasto') ? fila('Gasto', e.est.variacionGasto.h24, e.est.variacionGasto.d7, 1, 'm³/s') : '')
         + (usa(d, 'nivel') ? fila('Nivel', e.est.variacionNivel.h24, e.est.variacionNivel.d7, 2, 'm') : '');
     const viejo = (e.ultimoGasto ?? e.ultimoNivel)?.edadMin;
-    const obsoleto = viejo != null && viejo > STALE_GOES_MIN;
+    const obsoleto = viejo != null && viejo > staleMin(e.id);
     const ult = e.ultimoGasto ?? e.ultimoNivel;
     const pg = usa(d, 'gasto');
     const principal = pg ? e.ultimoGasto : e.ultimoNivel;

@@ -13,7 +13,7 @@ interface Props {
 
 /** Nombre corto para encabezados de columna (el completo va en el título de la celda). */
 const NOMBRE_CORTO: Record<string, string> = {
-    C6300760: 'Ojinaga', C63009B2: 'Boca del Río', C6301416: 'Babisas', C6301AC4: 'Madero-Vírgenes',
+    C6300760: 'Ojinaga', C63009B2: 'Boca del Río', C6301416: 'Babisas', C6301AC4: 'Madero-Vírgenes', 'IBWC-08373000': 'Water Data USA',
 };
 const corto = (e: EstacionHidro) => NOMBRE_CORTO[e.id] ?? e.nombre;
 

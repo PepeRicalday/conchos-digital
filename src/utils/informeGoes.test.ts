@@ -61,10 +61,10 @@ const LOGOS = { srl: 'data:image/png;base64,AAAA', sica: 'data:image/png;base64,
 const textoVisible = (html: string) => html.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<svg[\s\S]*?<\/svg>/g, (m) => m.replace(/<(?!text|title)[^>]*>/g, ' ')).replace(/<[^>]+>/g, ' ');
 
 describe('config', () => {
-    it('por defecto: Básico, 4 estaciones, ventana inicial, todas las variables y secciones básicas', () => {
+    it('por defecto: Básico, 5 estaciones, ventana inicial, todas las variables y secciones básicas', () => {
         const c = configGoesPorDefecto('7d');
         expect(c.modalidad).toBe('basico');
-        expect(c.estaciones).toHaveLength(4);
+        expect(c.estaciones).toHaveLength(5);
         expect(c.periodo.tipo).toBe('7d');
         expect(c.variables).toEqual(['nivel', 'gasto', 'velocidad', 'meteo']);
         expect(c.secciones).toEqual(['resumen', 'estado', 'tendencia', 'grafica']);

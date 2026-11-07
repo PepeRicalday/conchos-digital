@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react';
 import { useHidroEstaciones, useHidroEstadistica, type SeriesPorEstacion } from '../../../hooks/useHidroEstaciones';
 import { useAhora } from '../../../hooks/useAhora';
 import {
-    ORDEN_ESTACIONES, VENTANAS, colorEstacion, estadoEnlace, grupoDeEstacion, horaLocal,
+    ID_OJINAGA_IBWC, ID_OJINAGA_SUTRON, ORDEN_ESTACIONES, VENTANAS, colorEstacion, estadoEnlace, fmt, grupoDeEstacion, horaLocal,
     type VentanaHidro,
 } from '../../../utils/hidroEstaciones';
+import { compararOjinaga } from '../../../utils/hidroComparacion';
 import { enVentana, estadisticaEstacion, type EstadisticaEstacion } from '../../../utils/hidroEstadistica';
 import TarjetaEstacion from './TarjetaEstacion';
 import { instanteEnlace } from './enlaceGoes';
@@ -40,7 +41,7 @@ export default function EstacionesGoes({ presaId }: Props) {
     const h = useHidroEstaciones({ ventana: '24h', seleccion: IDS, meteo: meteoAbierto });
     const est = useHidroEstadistica(ventana, IDS);
 
-    const estados = useMemo(() => h.estaciones.map(e => ({ e, enlace: estadoEnlace(instanteEnlace(e, h.mensajes), ahora) })), [h.estaciones, h.mensajes, ahora]);
+    const estados = useMemo(() => h.estaciones.map(e => ({ e, enlace: estadoEnlace(instanteEnlace(e, h.mensajes), ahora, e.id) })), [h.estaciones, h.mensajes, ahora]);
     const enLinea = estados.filter(x => x.enlace.clave === 'en_linea' || x.enlace.clave === 'retraso').length;
     const sinTx = estados.filter(x => x.enlace.clave === 'sin_transmision').length;
 
@@ -58,6 +59,12 @@ export default function EstacionesGoes({ presaId }: Props) {
         const desde = ahora - VENTANAS[ventana].horas * 3600000;
         return Object.fromEntries(Object.entries(est.series).map(([id, s]) => [id, Object.fromEntries(Object.entries(s).map(([v, pts]) => [v, enVentana(pts, desde, ahora)]))]));
     }, [est.series, ventana, ahora]);
+
+    const comparacion = useMemo(() => {
+        const s = serieVentana?.[ID_OJINAGA_SUTRON], i = serieVentana?.[ID_OJINAGA_IBWC];
+        if (!s || !i) return null;
+        return compararOjinaga({ nivel: s.nivel_m, gasto: s.gasto_m3s }, { nivel: i.nivel_m, gasto: i.gasto_m3s });
+    }, [serieVentana]);
 
     const estadisticas = useMemo<Record<string, EstadisticaEstacion> | null>(() => {
         if (!est.series || !ahora) return null;
@@ -126,6 +133,13 @@ export default function EstacionesGoes({ presaId }: Props) {
                         destacada={grupoDeEstacion(e) === presaId} />
                 ))}
             </div>
+            {comparacion?.discrepante && comparacion.razonGasto != null && (
+                <p className="goes-aviso" role="status">
+                    <b>Ojinaga: el gasto de las dos fuentes no coincide.</b> En {VENTANAS[ventana].etiqueta} (mediana de {comparacion.pares} pares) Sutron reporta
+                    {' '}{fmt(comparacion.difGastoM3s, 1)} m³/s {(comparacion.difGastoM3s ?? 0) >= 0 ? 'más' : 'menos'} que USIBWC (razón {fmt(comparacion.razonGasto, 1)}×), con nivel {fmt(comparacion.offsetNivelM, 2)} m de diferencia.
+                    {' '}USIBWC es la fuente oficial (datos provisionales); no se corrigió ninguna cifra de Sutron.
+                </p>
+            )}
             {est.error && !estadisticas && (
                 <p className="goes-aviso" role="alert">No se pudo calcular la estadística de {VENTANAS[ventana].etiqueta}: {est.error} Las cifras vigentes de arriba siguen siendo las últimas lecturas.</p>
             )}

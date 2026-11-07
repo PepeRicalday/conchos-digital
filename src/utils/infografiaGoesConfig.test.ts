@@ -9,7 +9,7 @@ describe('configInfografiaPorDefecto y formato', () => {
     it('el resumen es ligero (plano, vasos, lectura, minigráficas) y no trae estadística ni enlace', () => {
         const c = configInfografiaPorDefecto('24h');
         expect(c).toMatchObject({ formato: 'resumen', mapa: true, vasos: true, lectura: true, minigraficas: true, estadistica: false, enlace: false });
-        expect(c.estaciones).toHaveLength(4);
+        expect(c.estaciones).toHaveLength(5);
         expect(c.periodo.tipo).toBe('24h');
     });
     it('cambiar a técnico agrega estadística y enlace; estaciones y periodo se conservan', () => {
@@ -51,8 +51,8 @@ describe('contarPaginasInfografia', () => {
     it('el resumen es una imagen; el técnico, panorama (si hay plano o lectura) más una ficha por estación', () => {
         expect(contarPaginasInfografia(configInfografiaPorDefecto('24h'))).toBe(1);
         const t = cambiarFormatoInfografia(configInfografiaPorDefecto('24h'), 'tecnico');
-        expect(contarPaginasInfografia(t)).toBe(5);
-        expect(contarPaginasInfografia({ ...t, mapa: false, lectura: false })).toBe(4);
+        expect(contarPaginasInfografia(t)).toBe(6);
+        expect(contarPaginasInfografia({ ...t, mapa: false, lectura: false })).toBe(5);
         expect(contarPaginasInfografia({ ...t, estaciones: ['C63009B2'] })).toBe(2);
     });
 });
@@ -75,13 +75,13 @@ describe('hoja', () => {
     });
     it('«dos por hoja» agrupa las fichas de a dos; la media hoja avisa que es compacta', () => {
         const t = { ...cambiarFormatoInfografia(configInfografiaPorDefecto('24h'), 'tecnico'), mapa: false, lectura: false };
-        expect(contarPaginasInfografia({ ...t, hoja: 'mitad-2' })).toBe(2);
+        expect(contarPaginasInfografia({ ...t, hoja: 'mitad-2' })).toBe(3);
         expect(contarPaginasInfografia({ ...t, hoja: 'mitad-2', estaciones: ['C63009B2', 'C6301AC4', 'C6301416'] })).toBe(2);
-        expect(contarPaginasInfografia({ ...t, hoja: 'carta-v' })).toBe(4);
+        expect(contarPaginasInfografia({ ...t, hoja: 'carta-v' })).toBe(5);
         // Con plano y lectura activos, el papel sigue siendo solo fichas; la pantalla suma el panorama.
         const conPlano = { ...cambiarFormatoInfografia(configInfografiaPorDefecto('24h'), 'tecnico') };
-        expect(contarPaginasInfografia({ ...conPlano, hoja: 'carta-v' })).toBe(4);
-        expect(contarPaginasInfografia({ ...conPlano, hoja: 'pantalla' })).toBe(5);
+        expect(contarPaginasInfografia({ ...conPlano, hoja: 'carta-v' })).toBe(5);
+        expect(contarPaginasInfografia({ ...conPlano, hoja: 'pantalla' })).toBe(6);
         expect(avisosConfigInfografia({ ...t, hoja: 'media-h' }, AHORA).join(' ')).toMatch(/media hoja es compacta/);
         expect(avisosConfigInfografia({ ...t, hoja: 'carta-v' }, AHORA).join(' ')).not.toMatch(/media hoja es compacta/);
     });

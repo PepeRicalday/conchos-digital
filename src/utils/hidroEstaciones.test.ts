@@ -195,3 +195,18 @@ describe('estadía del enlace y último dato conocido', () => {
         expect(textoDuracion(1560)).toBe('1 d 2 h');
     });
 });
+
+describe('umbrales de enlace por fuente (USIBWC se guarda cada 2 h)', () => {
+  const ahora = Date.UTC(2026, 10, 7, 20, 0);
+  const hace = (min: number) => ahora - min * 60000;
+  it('un dato de 2 h 50 min es normal en USIBWC pero retraso/sin transmisión en Sutron', () => {
+    expect(estadoEnlace(hace(170), ahora, 'IBWC-08373000').clave).toBe('en_linea');
+    expect(estadoEnlace(hace(170), ahora, 'C6300760').clave).toBe('retraso');
+    expect(estadoEnlace(hace(190), ahora, 'C6300760').clave).toBe('sin_transmision');
+    expect(estadoEnlace(hace(250), ahora, 'IBWC-08373000').clave).toBe('retraso');
+    expect(estadoEnlace(hace(310), ahora, 'IBWC-08373000').clave).toBe('sin_transmision');
+  });
+  it('sin id mantiene el criterio Sutron', () => {
+    expect(estadoEnlace(hace(100), ahora).clave).toBe('retraso');
+  });
+});

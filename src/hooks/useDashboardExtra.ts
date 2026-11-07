@@ -157,7 +157,7 @@ export function useGoesResumen(activo: boolean): BloqueEstado<FilaGoes[]> {
                 .filter((e: EstacionHidro) => e.activa)
                 .sort((a: EstacionHidro, b: EstacionHidro) => ORDEN_ESTACIONES.indexOf(a.id as never) - ORDEN_ESTACIONES.indexOf(b.id as never))
                 .map((e: EstacionHidro) => {
-                    const enlace = estadoEnlace(ultimoBueno(base.mensajes, e.id), ahora);
+                    const enlace = estadoEnlace(ultimoBueno(base.mensajes, e.id), ahora, e.id);
                     const g = ultimoPunto(series[e.id]?.gasto_m3s ?? []);
                     const n = ultimoPunto(series[e.id]?.nivel_m ?? []);
                     const umbral = GASTO_UMBRAL_CENSURA_M3S[e.id] ?? null;

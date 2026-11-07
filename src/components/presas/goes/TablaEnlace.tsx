@@ -23,7 +23,7 @@ export default function TablaEnlace({ estaciones, mensajes, ahora }: Props) {
                 <tbody>
                     {estaciones.map(e => {
                         const ub = instanteEnlace(e, mensajes);
-                        const enl = estadoEnlace(ub, ahora);
+                        const enl = estadoEnlace(ub, ahora, e.id);
                         const s = saludEnlace(mensajes, e.id, ahora - 24 * 3600000);
                         const tira = tiraEnlace(mensajes, e.id, ahora, 24);
                         return (

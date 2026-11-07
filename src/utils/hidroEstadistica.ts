@@ -7,7 +7,7 @@
  */
 import { percentil, resumenSerie, theilSen } from './estadisticaHistorica';
 import {
-    GASTO_UMBRAL_CENSURA_M3S, ceroSospechoso, STALE_GOES_MIN, tendencia, VENTANAS,
+    GASTO_UMBRAL_CENSURA_M3S, ceroSospechoso, STALE_GOES_MIN, staleMin, tendencia, VENTANAS,
     type PuntoHidro, type Tendencia, type VentanaHidro,
 } from './hidroEstaciones';
 
@@ -213,10 +213,10 @@ export function pendientePorDia(serie: PuntoHidro[]): number | null {
 }
 
 /** Variación a 24 h y 7 d (el último punto contra el más cercano a esa antigüedad). */
-export function variacion(serie: PuntoHidro[], epsilon: number, ahoraMs?: number): Variacion {
+export function variacion(serie: PuntoHidro[], epsilon: number, ahoraMs?: number, staleMinutos: number = STALE_GOES_MIN): Variacion {
     // Con la estación apagada (último dato más viejo que STALE) el delta sería de otro periodo: S/D.
     const ult = serie.length ? serie[serie.length - 1].t : null;
-    if (ahoraMs && (ult == null || ahoraMs - ult > STALE_GOES_MIN * 60000)) return { h24: null, d7: null };
+    if (ahoraMs && (ult == null || ahoraMs - ult > staleMinutos * 60000)) return { h24: null, d7: null };
     return { h24: tendencia(serie, 24, epsilon, TOLERANCIA_VARIACION), d7: tendencia(serie, 24 * 7, epsilon, TOLERANCIA_VARIACION) };
 }
 
@@ -251,8 +251,8 @@ export function estadisticaEstacion(
         pctExcluidas,
         gastoRepresentativo: pctExcluidas == null || pctExcluidas <= 50,
         censurado: gastoCensurado(id, gastoCrudo, tExcluidos, desde, hasta),
-        variacionNivel: variacion(enVentana(series.nivel_m, desde - 8 * DIA, hasta), EPSILON_NIVEL_M, ahoraMs),
-        variacionGasto: variacion(sinCerosSospechosos(id, enVentana(series.gasto_m3s, desde - 8 * DIA, hasta), series.nivel_m ?? []).validos, EPSILON_GASTO_M3S, ahoraMs),
+        variacionNivel: variacion(enVentana(series.nivel_m, desde - 8 * DIA, hasta), EPSILON_NIVEL_M, ahoraMs, staleMin(id)),
+        variacionGasto: variacion(sinCerosSospechosos(id, enVentana(series.gasto_m3s, desde - 8 * DIA, hasta), series.nivel_m ?? []).validos, EPSILON_GASTO_M3S, ahoraMs, staleMin(id)),
         pendienteGastoDia: pendientePorDia(gasto),
     };
 }

@@ -3,7 +3,7 @@
  * Básico = lectura ejecutiva para directivos; Técnico = además estadística, volumen, enlace, meteorología, calidad y metodología.
  * Las series de telemetría solo llegan a 30 días: un rango más antiguo se recorta y se avisa (nunca se inventa lo que falta).
  */
-import { ORDEN_ESTACIONES, VENTANAS, type EstacionHidro, type VentanaHidro } from './hidroEstaciones';
+import { ORDEN_ESTACIONES, SIN_METEO, VENTANAS, type EstacionHidro, type VentanaHidro } from './hidroEstaciones';
 
 export type ModalidadGoes = 'basico' | 'tecnico';
 export type VariableInforme = 'nivel' | 'gasto' | 'velocidad' | 'meteo';
@@ -205,7 +205,7 @@ export function avisosConfigGoes(c: ConfigInformeGoes, ahoraMs: number = Date.no
         if (!c.secciones.includes(s.id) || !s.requiere) continue;
         if (s.requiere.every(sinVar)) a.push(`«${s.etiqueta}» necesita ${s.requiere.map((v) => VARIABLES_INFORME.find((x) => x.id === v)?.etiqueta ?? v).join(' o ')}: saldrá como S/D.`);
     }
-    if (c.variables.includes('meteo') && c.estaciones.length > 0 && c.estaciones.every((id) => id === 'C6300760')) a.push('Ojinaga es estación de río y no mide meteorología: esa sección saldrá como S/D.');
+    if (c.variables.includes('meteo') && c.estaciones.length > 0 && c.estaciones.every((id) => SIN_METEO.has(id))) a.push('Ojinaga es estación de río y no mide meteorología: esa sección saldrá como S/D.');
     if (c.variables.includes('velocidad') && !c.estaciones.includes('C6300760')) a.push('Solo Ojinaga mide velocidad del agua: sin esa estación la velocidad saldrá como S/D.');
     if (c.secciones.includes('comparacion')) {
         if (c.periodo.tipo === '24h') a.push('Comparación presa ↔ río: con 24 h el tránsito del agua distorsiona la diferencia; se publica solo con 7 días o más.');

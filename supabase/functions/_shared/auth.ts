@@ -18,12 +18,28 @@ type Sb = any;
 
 const bearer = (req: Request) => (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
 
-/** Lee el claim `role` del JWT sin verificarlo (solo para distinguir anon/service_role; la verificación la hace Auth). */
+/** Lee el claim `role` del JWT SIN verificarlo: solo sirve como pista, nunca para autorizar por sí solo. */
 function claimRole(jwt: string): string | null {
   try {
     const b64 = jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
     return JSON.parse(atob(b64.padEnd(Math.ceil(b64.length / 4) * 4, "=")))?.role ?? null;
   } catch { return null; }
+}
+
+/**
+ * ¿Es de verdad la anon key (firmada por este proyecto)? Un JWT con `role: "anon"` falsificado NO debe pasar.
+ * 1) coincide con la clave del entorno → válida; 2) si no, la API REST valida la firma del `apikey`.
+ * La service_role solo se acepta si coincide exactamente con la del entorno.
+ */
+async function esClaveDelProyecto(jwt: string): Promise<boolean> {
+  if (jwt === Deno.env.get("SUPABASE_ANON_KEY") || jwt === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) return true;
+  if (claimRole(jwt) !== "anon") return false;
+  try {
+    const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/rest/v1/`, {
+      headers: { apikey: jwt, Authorization: `Bearer ${jwt}` }, signal: AbortSignal.timeout(5_000),
+    });
+    return r.status === 200;
+  } catch { return false; }
 }
 
 export function clienteAdmin(): Sb {
@@ -44,12 +60,17 @@ function vigente(p: { activo?: boolean; vigente_hasta?: string | null } | null):
   return !p.vigente_hasta || p.vigente_hasta >= new Date().toISOString().slice(0, 10);
 }
 
-/** Modo 1 — compatible con crones. Rechaza INVITADO e invitados vencidos; deja pasar anon/service/otros roles. */
+/**
+ * Modo 1 — compatible con crones. Rechaza INVITADO e invitados vencidos; deja pasar la anon key REAL, la service
+ * y a los demás roles. Un token falsificado cae en getUser() y recibe 401.
+ * LÍMITE CONOCIDO: la anon key es pública, así que quien la use directamente sigue pasando (también un invitado), y sin
+ * cabecera Authorization solo corta si la función tiene verify_jwt activo (extract-aforo-imagen lo tiene desactivado).
+ * El cierre completo es migrar los crones a `x-cron-secret` y usar `exigirRol`.
+ */
 export async function rechazarInvitado(req: Request, sb: Sb = clienteAdmin()): Promise<Resultado> {
   const jwt = bearer(req);
   if (!jwt) return { ok: true, userId: null, rol: null, via: "anon" };
-  const r = claimRole(jwt);
-  if (r === "anon" || r === "service_role") return { ok: true, userId: null, rol: null, via: "anon" };
+  if (await esClaveDelProyecto(jwt)) return { ok: true, userId: null, rol: null, via: "anon" };
   const { userId, perfil, authCaida } = await perfilDe(sb, jwt);
   if (authCaida) return { ok: false, status: 503, error: "El servicio de autenticación no responde." };
   if (!userId) return { ok: false, status: 401, error: "Sesión inválida o vencida." };

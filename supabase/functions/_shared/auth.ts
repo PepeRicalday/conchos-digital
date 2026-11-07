@@ -35,10 +35,10 @@ async function esClaveDelProyecto(jwt: string): Promise<boolean> {
   if (jwt === Deno.env.get("SUPABASE_ANON_KEY") || jwt === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) return true;
   if (claimRole(jwt) !== "anon") return false;
   try {
-    const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/rest/v1/`, {
+    const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/rest/v1/presas?select=id&limit=1`, { // presas tiene SELECT público; /rest/v1/ a secas rechaza la anon key
       headers: { apikey: jwt, Authorization: `Bearer ${jwt}` }, signal: AbortSignal.timeout(5_000),
     });
-    return r.status === 200;
+    return r.status === 200; // 401 = firma inválida (token falsificado)
   } catch { return false; }
 }
 

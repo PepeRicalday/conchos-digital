@@ -11,6 +11,7 @@ import FilaTanques from './FilaTanques';
 import DetallePresaCuenca from './DetallePresaCuenca';
 import PequenosMultiplos from './PequenosMultiplos';
 import TiraLluvia from './TiraLluvia';
+import RedEstacionesCuenca from './RedEstacionesCuenca';
 import SemaforoBadge from './SemaforoBadge';
 import { GLIFO_ESTADO } from './TanquePresa';
 import '../analitica/analitica.css';
@@ -242,6 +243,8 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                     </div>
                 </section>
             )}
+
+            <RedEstacionesCuenca />
 
             <TiraLluvia lluvia={datos.lluvia} serie={datos.lluviaSerie} />
 

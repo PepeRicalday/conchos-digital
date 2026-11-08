@@ -42,7 +42,9 @@ for (const [nombre, vista, esPhone] of [
   // Chihuahua: último dato con la marca (no S/D)
   const chi = page.locator('.cu-tanque[data-ubicacion="538"], .cu-movil[data-ubicacion="538"]').first();
   const chiTxt = await chi.innerText();
-  verifica(/38[.,]\d/.test(chiTxt) && /Igual 47 d/.test(chiTxt) && !/S\/D\s*%?/.test(chiTxt.replace(/Mm³/g, '')), `[${nombre}] Chihuahua conserva 38.x % y la marca "Igual 47 d" (no S/D)`);
+  // Chihuahua depende del dato real: CONAGUA estuvo 47 días sin actualizar y reanudó el 8-nov-2026. Se acepta cualquiera de los dos estados.
+  const chiAtrasada = /Igual \d+ d/.test(chiTxt);
+  verifica(/38[.,]\d/.test(chiTxt) && !/S\/D\s*%?/.test(chiTxt.replace(/Mm³/g, '')), `[${nombre}] Chihuahua muestra su 38.x % (no S/D)${chiAtrasada ? ' con la marca "Igual N d"' : ' y ya no está marcada'}`);
 
   // Selección: tocar una presa abre su detalle
   const pico = page.locator('.cu-tanque[data-ubicacion="540"], .cu-movil[data-ubicacion="540"]').first();
@@ -80,11 +82,11 @@ for (const [nombre, vista, esPhone] of [
   verifica(/Distrito/.test(await boq.innerText()) && /819[.,]8/.test(await boq.innerText()), `[${nombre}] Boquilla: presa del distrito con 819.8 Mm³`);
   verifica(/Diferencia contra CILA: 0[.,]00 %/.test(await boq.innerText()), `[${nombre}] Boquilla muestra la diferencia contra CILA`);
   const chiFila = await page.locator(filasSel, { hasText: 'Chihuahua' }).innerText();
-  verifica(/8[.,]9/.test(chiFila) && /38[.,]\d\s*%/.test(chiFila) && /Sin actualizar/i.test(chiFila), `[${nombre}] tabla: Chihuahua con su último dato y "sin actualizar"`);
-  verifica(/desde el 22-sep-2026/i.test(chiFila) && /47 días/.test(chiFila), `[${nombre}] tabla: Chihuahua indica desde cuándo y cuántos días`);
+  verifica(/8[.,]9/.test(chiFila) && /38[.,]\d\s*%/.test(chiFila) && (!chiAtrasada || /Sin actualizar/i.test(chiFila)), `[${nombre}] tabla: Chihuahua con su último dato${chiAtrasada ? ' y "sin actualizar"' : ''}`);
+  if (chiAtrasada) verifica(/desde el \d+/i.test(chiFila) && /\d+ días/.test(chiFila), `[${nombre}] tabla: Chihuahua indica desde cuándo y cuántos días`);
   const mad = await page.locator(filasSel, { hasText: 'Madero' }).innerText();
   verifica(!/Sin actualizar/i.test(mad), `[${nombre}] Madero no se marca como sin actualizar`);
-  verifica(/Lecturas? sin actualizar/i.test(await panel.innerText()), `[${nombre}] aviso de lecturas sin actualizar visible`);
+  if (chiAtrasada) verifica(/Lecturas? sin actualizar/i.test(await panel.innerText()), `[${nombre}] aviso de lecturas sin actualizar visible`);
   await page.getByRole('button', { name: 'Tanques', exact: true }).click();
 
   // ── Lluvia: 3 pluviómetros, tira de 30 días, ciclo agrícola
@@ -100,7 +102,7 @@ for (const [nombre, vista, esPhone] of [
 
   // ── Notas plegables
   const notas = page.locator('details.cu-notas');
-  verifica(await notas.count() === 1 && await notas.getAttribute('open') === null, `[${nombre}] las notas están plegadas por defecto`);
+  verifica(await notas.count() === 2 && await notas.evaluateAll((els) => els.every((e) => !e.hasAttribute('open'))), `[${nombre}] las 2 notas (presas y red JCAS) están plegadas por defecto`);
   await notas.locator('summary').click();
   verifica(/Nivel GOES de Luis L\. Le[oó]n/.test(await notas.innerText()) && /San Gabriel, Dgo\./.test(await notas.innerText()), `[${nombre}] al abrir las notas se explican el nivel GOES y San Gabriel, Dgo.`);
 

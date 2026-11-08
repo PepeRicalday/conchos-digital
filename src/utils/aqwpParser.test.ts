@@ -93,10 +93,22 @@ describe('AQWP · MexResScript', () => {
 });
 
 describe('AQWP · detectarEstancamiento', () => {
-  it('caso real Chihuahua: 8.924 × 7 días con aportación 0.137 y extracción 0.09 → estancada', () => {
-    const alm = dias([8.924, 8.924, 8.924, 8.924, 8.924, 8.924, 8.924]);
-    const ap = dias(Array(7).fill(0.137)), ex = dias(Array(7).fill(0.09));
-    expect(detectarEstancamiento(alm, ap, ex).size).toBe(7);
+  const diasLargos = (v: (number | null)[]) => v.map((x, i) => f(new Date(Date.UTC(2026, 9, 1 + i)).toISOString().slice(0, 10), x));
+  it('caso real Chihuahua: 8.924 durante 29 días con aportación 0.137 y extracción 0.09 → estancada', () => {
+    const alm = diasLargos(Array(29).fill(8.924));
+    const ap = diasLargos(Array(29).fill(0.137)), ex = diasLargos(Array(29).fill(0.09));
+    expect(detectarEstancamiento(alm, ap, ex).size).toBe(29);
+  });
+  it('umbral por defecto = 21 días: 20 iguales no se marcan, 21 sí', () => {
+    const n = (k: number) => [diasLargos(Array(k).fill(5.5)), diasLargos(Array(k).fill(0.2)), diasLargos(Array(k).fill(0.1))] as const;
+    expect(MIN_DIAS_ESTANCADA).toBe(21);
+    expect(detectarEstancamiento(...n(20)).size).toBe(0);
+    expect(detectarEstancamiento(...n(21)).size).toBe(21);
+  });
+  it('Madero actualiza POR TRAMOS (231.754 ×8 d, 231.486 ×16 d): no se marca estancada', () => {
+    const alm = diasLargos([...Array(8).fill(231.754), ...Array(16).fill(231.486), 231.2]);
+    const ap = diasLargos(Array(25).fill(0.25)), ex = diasLargos(Array(25).fill(0));
+    expect(detectarEstancamiento(alm, ap, ex).size).toBe(0);
   });
   it('embalse realmente quieto (flujos mínimos, caso El Rejón 0.011 m³/s) NO se marca', () => {
     const alm = dias(Array(7).fill(2.264));
@@ -119,7 +131,7 @@ describe('AQWP · detectarEstancamiento', () => {
   it('marca solo el tramo repetido, no el resto', () => {
     const alm = dias([10, 11, 12, 12, 12, 12, 13]);
     const ap = dias(Array(7).fill(0.5)), ex = dias(Array(7).fill(0));
-    expect([...detectarEstancamiento(alm, ap, ex)].sort()).toEqual(['2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06']);
+    expect([...detectarEstancamiento(alm, ap, ex, 4)].sort()).toEqual(['2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06']);
   });
 });
 
@@ -136,7 +148,20 @@ describe('AQWP · urlExport', () => {
   });
 });
 
-import { parseCsvRaw, precipitacionDiaria } from '../../supabase/functions/aqwp-sync/parser';
+import { parseCsvRaw, precipitacionDiaria, MIN_DIAS_ESTANCADA, diasIgualFinal } from '../../supabase/functions/aqwp-sync/parser';
+
+describe('AQWP · diasIgualFinal', () => {
+  it('cuenta los días consecutivos con el mismo valor hasta el último dato', () => {
+    expect(diasIgualFinal(dias([1, 2, 3, 3, 3]))).toBe(3);
+    expect(diasIgualFinal(dias([5, 5, 5, 5, 6]))).toBe(1);
+    expect(diasIgualFinal(dias([7]))).toBe(1);
+  });
+  it('ignora S/D y datos desordenados; sin datos = 0', () => {
+    expect(diasIgualFinal([f('2026-11-03', 4), f('2026-11-01', 4), f('2026-11-02', 4), f('2026-11-04', null)])).toBe(3);
+    expect(diasIgualFinal([])).toBe(0);
+    expect(diasIgualFinal(dias([null, null]))).toBe(0);
+  });
+});
 
 /** Muestras cada 10 min de un día con el acumulado dado por función de la hora decimal. */
 const dia10min = (fecha: string, f: (h: number) => number) =>

@@ -17,7 +17,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { exigirRol } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import {
-  aFecha, BASE_AQWP, detectarEstancamiento, type FilaDiaria, parseCsvExport, parseCsvRaw, parseMexResScript,
+  aFecha, BASE_AQWP, detectarEstancamiento, diasIgualFinal, type FilaDiaria, parseCsvExport, parseCsvRaw, parseMexResScript,
   precipitacionDiaria, urlExport,
 } from "./parser.ts";
 import { descomprimirPrimero } from "./zip.ts";
@@ -160,9 +160,10 @@ async function modoExport(sb: Sb, body: Record<string, unknown>) {
         `AQWP: ${u.nombre} sin dato nuevo`,
         `Sin almacenamiento nuevo de ${u.nombre} en el portal USIBWC desde ${ultFecha ?? "nunca"}. Se muestra S/D.`);
       const estancadaHoy = !!ultFecha && marcadas.has(ultFecha);
+      const diasIg = diasIgualFinal(serieDe("almacenamiento"));
       await gestionarAlerta(sb, `AQWP-ESTANCADA:${u.codigo}`, estancadaHoy,
-        `AQWP: serie estancada en ${u.nombre}`,
-        `El almacenamiento de ${u.nombre} repite el mismo valor varios días con aportación/extracción activas. Se trata como S/D.`);
+        `AQWP: lectura sin actualizar en ${u.nombre}`,
+        `El almacenamiento de ${u.nombre} no cambia desde hace ${diasIg} días aunque hay aportación/extracción activas: la fuente no está actualizando la lectura. Se excluye de los totales de la cuenca.`);
     }
     // Pluviómetros GOES: alerta si lleva más de 3 días sin un día completo con dato (transmiten cada 10–15 min).
     const dsLluvia = dePor("precipitacion_dia");

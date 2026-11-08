@@ -6,7 +6,7 @@ import {
 
 const est = (o: Partial<EstadoUbicacion> & { ubicacionId: number }): EstadoUbicacion => ({
   codigo: 'X', nombre: 'X', tipo: 'presa', presaId: null, fecha: '2026-11-07', almacenamientoMm3: null,
-  estancado: false, namoMm3: null, muertoMm3: null, pctNamo: null, aportacionM3s: null,
+  estancado: false, diasIgual: null, igualDesde: null, namoMm3: null, muertoMm3: null, pctNamo: null, aportacionM3s: null,
   extraccionTotalM3s: null, vertidoM3s: null, gastoM3s: null, ...o,
 });
 

@@ -86,17 +86,22 @@ export function parseMexResScript(json: unknown): FilaMexRes[] {
 }
 
 /**
- * Serie estancada: el almacenamiento repite EXACTAMENTE el mismo valor ≥ minDias días seguidos
+ * Lectura sin actualizar ("estancada"): el almacenamiento repite EXACTAMENTE el mismo valor ≥ minDias días seguidos
  * aunque hay actividad hidráulica (|aportación| + |extracción total| ≥ actividadMin m³/s en cada día).
  * Con 0.05 m³/s el cambio esperado es ≥ ~0.004 Mm³/día, visible en los 3 decimales que publica CONAGUA.
+ * minDias = 21: CONAGUA actualiza algunas presas POR TRAMOS (Madero repite 8–16 días y luego salta), y con 4 días se
+ * marcaba la mitad de su año. Una lectura que no cambia en 3 semanas con flujos activos sí es una lectura sin actualizar
+ * (Chihuahua: 8.924 Mm³ desde el 22-sep, con cambio de almacenamiento 0 reportado por la propia CONAGUA).
  * Un embalse realmente quieto (sin flujos o con flujos mínimos) NO se marca.
  * Devuelve el conjunto de fechas marcadas (todas las del tramo repetido).
  */
+export const MIN_DIAS_ESTANCADA = 21;
+
 export function detectarEstancamiento(
   almacenamiento: FilaDiaria[],
   aportacion: FilaDiaria[],
   extraccionTotal: FilaDiaria[],
-  minDias = 4,
+  minDias = MIN_DIAS_ESTANCADA,
   actividadMin = 0.05,
 ): Set<string> {
   const flujo = (serie: FilaDiaria[]) => new Map(serie.map((f) => [f.fecha, f.valor]));
@@ -190,4 +195,14 @@ export function precipitacionDiaria(
     .filter(([dia]) => dia < hoy)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([dia, hs]) => ({ fecha: dia, valor: hs.size >= minHoras ? Math.round((suma.get(dia) ?? 0) * 100) / 100 : null }));
+}
+
+/** Días consecutivos, hasta el último día con dato, en que el valor no cambia (1 = cambió en el último día). 0 sin datos. */
+export function diasIgualFinal(serie: FilaDiaria[]): number {
+  const s = serie.filter((f) => f.valor !== null).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  if (s.length === 0) return 0;
+  const ult = s[s.length - 1].valor;
+  let n = 0;
+  for (let i = s.length - 1; i >= 0 && s[i].valor === ult; i--) n++;
+  return n;
 }

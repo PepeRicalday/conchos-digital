@@ -25,6 +25,9 @@ export interface EstadoUbicacion {
   fecha: string | null;
   almacenamientoMm3: number | null;
   estancado: boolean;
+  /** Días consecutivos que el último almacenamiento lleva IGUAL y desde qué fecha (v_aqwp_presas_estado). */
+  diasIgual: number | null;
+  igualDesde: string | null;
   namoMm3: number | null;
   muertoMm3: number | null;
   pctNamo: number | null;
@@ -42,6 +45,7 @@ export function normalizarEstado(r: Record<string, unknown>): EstadoUbicacion {
     ubicacionId: Number(r.ubicacion_id), codigo: String(r.codigo ?? ''), nombre: String(r.nombre ?? ''),
     tipo: String(r.tipo ?? ''), presaId: (r.presa_id as string | null) ?? null, fecha: (r.fecha as string | null) ?? null,
     almacenamientoMm3: num(r.almacenamiento_mm3), estancado: r.almacenamiento_estancado === true,
+    diasIgual: num(r.almacenamiento_dias_igual), igualDesde: (r.almacenamiento_igual_desde as string | null) ?? null,
     namoMm3: num(r.namo_mm3), muertoMm3: num(r.muerto_mm3), pctNamo: num(r.pct_namo),
     aportacionM3s: num(r.aportacion_m3s), extraccionTotalM3s: num(r.extraccion_total_m3s),
     vertidoM3s: num(r.vertido_m3s), gastoM3s: num(r.gasto_m3s),

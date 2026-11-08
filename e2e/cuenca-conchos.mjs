@@ -38,9 +38,11 @@ for (const [nombre, vista] of [
   // S/D nunca 0: la serie estancada (Chihuahua) debe mostrar S/D y la etiqueta, no su valor repetido.
   const chi = page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr', { hasText: 'Chihuahua' });
   const chiTxt = await chi.innerText();
-  verifica(/ESTANCADA/.test(chiTxt) && /S\/D/.test(chiTxt), `[${nombre}] Chihuahua estancada se muestra como S/D con etiqueta`);
+  verifica(/SIN ACTUALIZAR/.test(chiTxt) && /ref\./.test(chiTxt) && /S\/D/.test(chiTxt), `[${nombre}] Chihuahua: "sin actualizar", valor como referencia y % S/D`);
+  verifica(/desde el 22-Sep-2026/i.test(chiTxt) || /desde el 22-sep/i.test(chiTxt), `[${nombre}] Chihuahua indica desde cuándo no se actualiza`);
+  verifica(/Madero/.test(await page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr', { hasText: 'Madero' }).innerText()) && !/SIN ACTUALIZAR/.test(await page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr', { hasText: 'Madero' }).innerText()), `[${nombre}] Madero ya no se marca como sin actualizar`);
   verifica(!/(^|\s)0(\.0+)? Mm/.test(chiTxt), `[${nombre}] ninguna celda convierte S/D en 0`);
-  verifica(/Series? estancadas?/i.test(txt), `[${nombre}] aviso de series estancadas visible`);
+  verifica(/Lecturas? sin actualizar/i.test(txt), `[${nombre}] aviso de lecturas sin actualizar visible`);
 
   const kpis = await page.locator('.an-kpi').count();
   verifica(kpis === 4, `[${nombre}] 4 indicadores (${kpis})`);

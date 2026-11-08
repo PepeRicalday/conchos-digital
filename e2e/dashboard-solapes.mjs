@@ -12,6 +12,7 @@ const OUT = fileURLToPath(new URL('./out/solapes/', import.meta.url)); fs.mkdirS
 
 const casos = [
   { n: 'desktop-1500x1000', motor: chromium, ctx: { viewport: { width: 1500, height: 1000 } } },
+  { n: 'sala-2545x870', motor: chromium, ctx: { viewport: { width: 2545, height: 870 } } },
   { n: 'ipad-h-1366x1024', motor: webkit, ctx: { ...devices['iPad Pro 11 landscape'], viewport: { width: 1366, height: 1024 } } },
   { n: 'ipad-h-1180x820', motor: webkit, ctx: { ...devices['iPad Pro 11 landscape'] } },
   { n: 'ipad-v-1024x1366', motor: webkit, ctx: { ...devices['iPad Pro 11'], viewport: { width: 1024, height: 1366 } } },

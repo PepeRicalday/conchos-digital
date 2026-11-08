@@ -130,7 +130,8 @@ a.kp-tile:focus-visible, .kp-ver:focus-visible, .kp-sev-btn:focus-visible { outl
 }
 @media (max-width: 420px) { .kp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .kp-estado { font-size: 12px; padding: 2px 7px; } .kp-contexto { -webkit-line-clamp: 2; } .kp-titulo { font-size: 12px; letter-spacing: 0.04em; } }
 /* Pantalla de sala: cifras y texto más grandes */
-@media (min-width: 1700px) and (min-height: 880px) { .kp-contexto { font-size: 15px; } .kp-titulo { font-size: 13px; } .kp-estado { font-size: 13px; } .kp-bc-detalle { font-size: 15px; } }
+/* (antes exigía alto ≥ 880 px: el monitor de sala 2545×870 quedaba fuera; la densidad se decide también por ANCHO) */
+@media (min-width: 1700px) and (min-height: 700px) { .kp-contexto { font-size: 15px; } .kp-titulo { font-size: 14px; } .kp-bc-detalle { font-size: 15px; } }
 
 /* ── Cajón de alertas ── */
 .kp-drawer { margin: 0 0 0 auto; padding: 0; height: 100dvh; max-height: 100dvh; width: min(480px, 100%); border: 0; border-left: 1px solid var(--sc-line); background: #07121f; color: var(--sc-t1); font-family: var(--sc-body); }
@@ -778,7 +779,7 @@ html[data-device="phone"] #kp-demanda .kp-vistas .ndvi-chip-txt { position: abso
 .kp-cc-ver { align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; font: 600 13px var(--sc-body); color: var(--sc-sky); text-decoration: underline; text-underline-offset: 3px; }
 .kp-cc-ver:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 2px; }
 .kp-cc-pct { color: var(--sc-t1); font-weight: 600; }
-.kp-cc-hm { color: var(--sc-t2); } .kp-cc-hm::after { content: '  b7'; }
+.kp-cc-hm { color: var(--sc-t2); } .kp-cc-hm::after { content: ' \00b7'; }
 /* >= 250 px: cabecera + barra + leyenda con hm³ y % + enlace. */
 /* < 250 px (iPad): leyenda en chips 2x2 (ícono + nombre + %) en fila propia a todo el ancho; el hm³ queda en aria-label */
 @container kp (max-height: 249px) {
@@ -803,3 +804,65 @@ html[data-device="phone"] #kp-demanda .kp-vistas .ndvi-chip-txt { position: abso
 @container kp (max-height: 189px) { .kp-cc-barra { display: none; } #kp-ciclo .kp-in { row-gap: 3px; } }
 /* 250-330 px: sin leyenda, queda cabecera + barra + enlace */
 @container kp (min-height: 250px) and (max-height: 330px) { .kp-cc-lista { display: none; } }
+
+/* ═══ GOES en celda de ancho medio y alto suficiente (sala, escritorio): una estación por línea, legible ═══
+   Con 5 estaciones la rejilla de 4 columnas desbordaba y fichas de ~60 px partían "Sin señal · 1 d". */
+@container kp (min-width: 250px) and (max-width: 560px) and (min-height: 250px) {
+    #kp-goes .kp-est { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    #kp-goes .kp-est-i { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 10px; padding: 3px 8px; font-size: 13px; }
+    #kp-goes .kp-est-cab { grid-column: 1; }
+    #kp-goes .kp-est-i b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #kp-goes .kp-est-dato { grid-column: 2; margin-top: 0; flex-wrap: nowrap; justify-content: flex-end; }
+    #kp-goes .kp-est-num { font-size: 15px; }
+    #kp-goes .kp-est-dato small, #kp-goes .kp-est-estado { font-size: 13px; }
+    #kp-goes .kp-est-estado { grid-column: 3; white-space: nowrap; text-align: right; }
+    #kp-goes .kp-est-sello, #kp-goes .kp-est-spark { display: none; }
+}
+
+/* ═══ Llenar el alto en celdas medianas/altas (sala, escritorio): Módulos, NDVI y Confianza dejaban un vacío central ═══ */
+.kp-ndvi-esc { display: none; }
+.kp-anseg-n { fill: var(--sc-t1); font: 700 22px var(--sc-mono); }
+@container kp (min-width: 290px) and (min-height: 270px) {
+    #kp-modulos .kp-viz, #kp-ndvi .kp-viz { align-items: stretch; }
+    #kp-modulos .kp-mapa { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 6px; height: 100%; }
+    #kp-modulos .kp-mapa-i { min-height: 0; }
+    #kp-modulos a.kp-celda { min-height: 0; height: 100%; }
+    #kp-modulos .kp-celda-logo { height: clamp(30px, 9cqh, 48px); }
+    #kp-modulos .kp-celda b, #kp-modulos .kp-celda small { font-size: 13px; }
+    #kp-ndvi .kp-ndvi-viz { height: 100%; justify-content: center; gap: 6px; }
+    #kp-ndvi .kp-ndvi-pista { height: 18px; }
+    #kp-ndvi .kp-ndvi-esc { display: flex; justify-content: space-between; font: 12px var(--sc-mono); color: var(--sc-t3); margin-top: -2px; }
+    #kp-ndvi .kp-ndvi-viz .sc-spark { height: clamp(46px, 24cqh, 110px); }
+    #kp-confianza .kp-anseg svg { max-height: 150px; }
+    #kp-confianza .kp-anseg-leyenda { font-size: 13px; gap: 4px; }
+}
+
+/* GOES: celda de lista angosta (250-299 px): el estado se omite (lo dicen el icono y el aria-label); así nada se sale de la ficha */
+@container kp (min-width: 250px) and (max-width: 299px) and (min-height: 250px) {
+    #kp-goes .kp-est-i { grid-template-columns: minmax(0, 1fr) auto; }
+    #kp-goes .kp-est-estado { display: none; }
+}
+/* GOES en celda ancha y baja (iPad): una columna por estación (antes 2 columnas × 3 filas desbordaban con 5 estaciones) */
+@container kp (min-width: 340px) and (max-height: 260px) {
+    #kp-goes .kp-est { grid-template-columns: repeat(var(--kp-est-n, 4), minmax(0, 1fr)); gap: 4px; }
+    #kp-goes .kp-est-num { font-size: 14px; } #kp-goes .kp-est-i { padding: 3px 4px; }
+}
+
+/* GOES en celda pequeña (iPad: ~260×180 px): 5 estaciones con valor no caben; solo icono + nombre (el detalle está en Presas → Analítica → Estaciones GOES) */
+@container kp (min-width: 185px) and (max-width: 339px) and (max-height: 260px) {
+    #kp-goes .kp-est { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 4px; }
+    #kp-goes .kp-est-i { display: flex; flex-direction: row; align-items: center; padding: 2px 5px; }
+    #kp-goes .kp-est-dato, #kp-goes .kp-est-estado, #kp-goes .kp-est-sello, #kp-goes .kp-est-spark { display: none; }
+    #kp-goes .kp-est-i b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+
+/* Confianza en celda baja (iPad): la leyenda de 5 filas no cabe y se cortaba arriba y abajo; el anillo (con su n/5) y el contexto la resumen */
+@container kp (max-height: 230px) {
+    #kp-confianza .kp-anseg { justify-content: center; }
+    #kp-confianza .kp-anseg-leyenda { display: none; }
+    #kp-confianza .kp-anseg svg { max-height: 96px; }
+}
+
+/* GOES: estado en fuente proporcional (más angosta que la mono) para que el nombre quepa; sin cortar palabras en celdas de 5 columnas */
+@container kp (min-width: 250px) and (max-width: 560px) and (min-height: 250px) { #kp-goes .kp-est-estado { font-family: var(--sc-body); } }
+@container kp (min-width: 340px) and (max-height: 260px) { #kp-goes .kp-est-i b { overflow-wrap: normal; hyphens: none; } }

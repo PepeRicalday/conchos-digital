@@ -11,9 +11,11 @@ const casos = [
   { n: 'desktop-1500x1000', motor: chromium, ctx: { viewport: { width: 1500, height: 1000 } } },
   { n: 'laptop-1366x768', motor: chromium, ctx: { viewport: { width: 1366, height: 768 } } },
   { n: 'tv-1920x1080', motor: chromium, ctx: { viewport: { width: 1920, height: 1080 } } },
+  { n: 'sala-2545x870', motor: chromium, ctx: { viewport: { width: 2545, height: 870 } } },
   { n: 'ipad-h-1180x820', motor: webkit, ctx: { ...devices['iPad Pro 11 landscape'] } },
   { n: 'ipad-v-820x1180', motor: webkit, ctx: { ...devices['iPad Pro 11'], viewport: { width: 820, height: 1180 } } },
   { n: 'iphone-430x932', motor: webkit, ctx: { ...devices['iPhone 15 Pro Max'] } },
+  { n: 'iphone-390x844', motor: webkit, ctx: { ...devices['iPhone 14'] } },
 ];
 const filtro = process.argv[2];
 let fallos = 0;

@@ -11,7 +11,9 @@ export interface EstacionFila {
     estadia?: EstadiaEnlace;
 }
 
-const corto = (n: string) => { const base = n.split(' - ')[0]; return base.length > 14 ? base.split(' ').slice(0, 2).join(' ') : base; };
+/** Nombres cortos por estación (el recorte genérico partía "Francisco y"). Estación sin entrada: primeras palabras del nombre. */
+const NOMBRE_CORTO: Record<string, string> = { C6301AC4: 'Madero', C63009B2: 'Boca del Río', C6301416: 'Babisas', C6300760: 'Ojinaga', 'IBWC-08373000': 'Water Data USA' };
+const corto = (n: string, id?: string) => { if (id && NOMBRE_CORTO[id]) return NOMBRE_CORTO[id]; const base = n.split(' - ')[0]; return base.length > 14 ? base.split(' ').slice(0, 2).join(' ') : base; };
 
 /** Texto + unidad del último dato. El 0 nunca se inventa: sin dato = S/D; el gasto censurado se escribe "< umbral". */
 export function textoDato(d: UltimoDatoFila | null | undefined): { valor: string; unidad: string } {
@@ -24,7 +26,7 @@ export function textoDato(d: UltimoDatoFila | null | undefined): { valor: string
 /** Una columna por estación: antena (forma distinta por estado), nombre, último dato conocido, estadía en el estado y gasto de 24 h. */
 export const FilaEstaciones = memo(function FilaEstaciones({ estaciones }: { estaciones: EstacionFila[] }) {
     return (
-        <ul className="kp-est" aria-label="Estaciones GOES">
+        <ul className="kp-est" aria-label="Estaciones GOES" style={{ ['--kp-est-n' as string]: Math.max(1, estaciones.length) }}>
             {estaciones.map((e) => {
                 const I = e.clave === 'en_linea' ? Radio : e.clave === 'retraso' ? TriangleAlert : CircleX;
                 const tipo = e.clave === 'en_linea' ? 'ok' : e.clave === 'retraso' ? 'warn' : 'crit';
@@ -40,7 +42,7 @@ export const FilaEstaciones = memo(function FilaEstaciones({ estaciones }: { est
                 const aria = `${e.nombre}, ${estado.toLowerCase()}${dur != null ? ` desde hace ${acot}${textoDuracion(dur)}` : ''}. ${e.ultimoDato ? `${viejo ? 'Último dato conocido' : 'Dato'} ${d.valor} ${d.unidad}${viejo ? `, de ${fechaHoraLocal(e.ultimoDato.t)}` : ''}` : 'Sin dato'}`;
                 return (
                     <li key={e.id} className={`kp-est-i kp-t-${tipo}`} data-vigencia={viejo ? 'viejo' : 'vigente'} aria-label={aria}>
-                        <div className="kp-est-cab"><I size={14} aria-hidden="true" /><b>{corto(e.nombre)}</b></div>
+                        <div className="kp-est-cab"><I size={14} aria-hidden="true" /><b>{corto(e.nombre, e.id)}</b></div>
                         <div className="kp-est-dato" title={e.ultimoDato ? `${e.ultimoDato.tipo === 'nivel' ? 'Nivel' : 'Gasto'} · ${viejo ? 'último dato conocido, ' : ''}${horaLocal(e.ultimoDato.t)} (${textoEdad(e.ultimoDato.edadMin)})` : undefined}>
                             <strong className="kp-est-num">{d.valor}</strong>{d.unidad && <small>{d.unidad}</small>}
                         </div>

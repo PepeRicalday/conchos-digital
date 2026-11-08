@@ -17,6 +17,7 @@ export const AnilloSegmentado = memo(function AnilloSegmentado({ fuentes }: { fu
                     return <path key={f.clave} d={`M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${R} ${R} 0 ${a2 - a1 > 180 ? 1 : 0} 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`} fill="none" strokeWidth={9} strokeLinecap="round"
                         className={f.ok === true ? 'kp-seg-ok' : f.ok === false ? 'kp-seg-crit' : 'kp-seg-nd'} />;
                 })}
+                <text x="50" y="50" textAnchor="middle" dominantBaseline="central" className="kp-anseg-n">{fuentes.filter((f) => f.ok === true).length}/{fuentes.length}</text>
             </svg>
             <ul className="kp-anseg-leyenda" aria-label="Fuentes de datos">
                 {fuentes.map((f) => (

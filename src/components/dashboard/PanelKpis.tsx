@@ -254,6 +254,7 @@ export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
                             {refNdvi != null && <u className="kp-ndvi-ref" style={{ left: `${refNdvi / NDVI_MAX * 100}%` }} title={`Media años previos ${refNdvi.toFixed(3)}`} />}
                             <b className="kp-ndvi-val" style={{ left: `${Math.min(100, nd.valor / NDVI_MAX * 100)}%` }} />
                         </div>
+                        <div className="kp-ndvi-esc" aria-hidden="true"><span>0</span><span>{(NDVI_MAX / 2).toFixed(1).replace('.', ',')}</span><span>{NDVI_MAX.toFixed(1).replace('.', ',')}</span></div>
                         <Sparkline valores={nd.serieMensual} etiqueta="NDVI promedio de los módulos, últimos 12 meses" decimales={2} color="var(--sc-ok)" alto={30} area />
                     </div>
                 ) : undefined}

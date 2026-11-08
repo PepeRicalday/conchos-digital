@@ -501,7 +501,7 @@ const Presas = () => {
     // Enlaces profundos del Dashboard: ?tab=analitica&vista=goes|ciclo (valores inválidos se ignoran).
     const [params] = useSearchParams();
     const [activeTab, setActiveTab] = useState<'operacion' | 'analitica'>(() => (params.get('tab') === 'analitica' ? 'analitica' : 'operacion'));
-    const [vistaAnalitica, setVistaAnalitica] = useState<VistaAnalitica>(() => (params.get('vista') === 'goes' ? 'goes' : 'ciclo'));
+    const [vistaAnalitica, setVistaAnalitica] = useState<VistaAnalitica>(() => { const v = params.get('vista'); return v === 'goes' || v === 'cuenca' ? v : 'ciclo'; });
     const [horaActual, setHoraActual] = useState(() => new Date());
     useEffect(() => {
         const t = setInterval(() => setHoraActual(new Date()), 1000);
@@ -720,7 +720,7 @@ const Presas = () => {
 
             {/* ══ ZONA 2+3: CUERPO PRINCIPAL ══════════════════════════════════ */}
             {/* ── ZONA 2+3 body ─────────────────────────────────────────────── */}
-            <div className={`scada-sala-body${activeTab === 'analitica' && vistaAnalitica === 'goes' ? ' is-goes-full' : ''}`}>
+            <div className={`scada-sala-body${activeTab === 'analitica' && (vistaAnalitica === 'goes' || vistaAnalitica === 'cuenca') ? ' is-goes-full' : ''}`}>
 
                 {/* ZONA 2: Panel Hidráulico Central */}
                 <div className="scada-zona-hidraulica">

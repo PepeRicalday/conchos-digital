@@ -10,6 +10,7 @@ import {
 import GraficaCiclo from './GraficaCiclo';
 import GraficaProyeccion from './GraficaProyeccion';
 import EstacionesGoes from '../goes/EstacionesGoes';
+import PanelCuencaConchos from '../cuenca/PanelCuencaConchos';
 import './analitica.css';
 
 type Horizonte = 90 | 'ciclo';
@@ -18,7 +19,7 @@ const GLIFO: Record<string, string> = { ok: '●', warn: '▲', crit: '■', sd:
 
 const signo = (v: number, d = 2) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatearNumero(Math.abs(v), d)}`;
 
-export type VistaAnalitica = 'ciclo' | 'goes';
+export type VistaAnalitica = 'ciclo' | 'goes' | 'cuenca';
 
 interface Props {
     presa: PresaData;
@@ -41,8 +42,11 @@ export default function AnaliticaPresa(props: Props) {
             <div className="an-vistas" role="group" aria-label="Vista de analítica">
                 <button type="button" className="an-vista-btn" aria-pressed={vista === 'ciclo'} onClick={() => setVista('ciclo')}>Ciclo y proyección</button>
                 <button type="button" className="an-vista-btn" aria-pressed={vista === 'goes'} onClick={() => setVista('goes')}>Estaciones GOES</button>
+                <button type="button" className="an-vista-btn" aria-pressed={vista === 'cuenca'} onClick={() => setVista('cuenca')}>Cuenca del Conchos</button>
             </div>
-            {vista === 'ciclo' ? <AnaliticaCiclo presa={props.presa} fechaISO={props.fechaISO} /> : <EstacionesGoes presaId={props.presa.id} />}
+            {vista === 'ciclo' ? <AnaliticaCiclo presa={props.presa} fechaISO={props.fechaISO} />
+                : vista === 'goes' ? <EstacionesGoes presaId={props.presa.id} />
+                : <PanelCuencaConchos />}
         </div>
     );
 }

@@ -1,0 +1,42 @@
+/* Cuenca del Conchos · prefijo cu- · se apoya en los estilos an-* y los tokens --pr-* de Presas.css */
+.cu-tabla-wrap { margin-top: 10px; overflow-x: auto; }
+.cu-tabla { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.cu-tabla th, .cu-tabla td { padding: 10px 10px; border-bottom: 1px solid var(--pr-line); text-align: left; vertical-align: top; }
+.cu-tabla thead th { font-size: 12px; font-weight: 700; color: var(--pr-t3); white-space: nowrap; }
+.cu-tabla tbody th { font-weight: 600; color: var(--pr-t1); }
+.cu-tabla .cu-num { text-align: right; white-space: nowrap; }
+.cu-tabla tbody tr:last-child th, .cu-tabla tbody tr:last-child td { border-bottom: 0; }
+
+.cu-presa { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 150px; }
+.cu-nombre { color: var(--pr-t1); }
+.cu-tag { padding: 1px 8px; border: 1px solid var(--pr-sky); border-radius: 999px; font-size: 11px; font-weight: 700; color: var(--pr-sky); letter-spacing: 0.03em; }
+.cu-tabla td .cu-nota-fila { display: block; }
+.cu-nota-fila { flex-basis: 100%; font-size: 12px; font-weight: 400; color: var(--pr-t3); line-height: 1.35; }
+
+.cu-estado { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; white-space: nowrap; }
+.cu-estado--ok { color: var(--pr-ok); }
+.cu-estado--warn { color: var(--pr-warn); }
+.cu-estado--crit { color: var(--pr-crit); }
+.cu-estado--sd { color: var(--pr-t2); }
+.cu-estado--stale { color: var(--pr-violet); }
+
+.cu-fecha { white-space: nowrap; color: var(--pr-t2); }
+.cu-fecha--vieja { color: var(--pr-warn); }
+
+.cu-lluvia-fuerte { font-weight: 800; color: var(--pr-t1); background: rgba(63, 178, 243, 0.14); }
+.cu-subh { margin: 20px 0 0; font-size: 14px; color: var(--pr-t2); }
+.cu-chart-lluvia { height: 220px; }
+html[data-device='phone'] .cu-chart-lluvia { height: 200px; }
+.cu-leyenda { gap: 8px 10px; }
+.cu-leyenda-nota { flex-basis: 100%; color: var(--pr-t3); font-size: 12px; }
+.cu-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 12px; border: 1px solid var(--pr-line); border-radius: 999px; background: transparent; color: var(--pr-t2); font: 600 13px var(--pr-body); cursor: pointer; }
+.cu-chip[aria-pressed='true'] { border-color: var(--pr-t3); color: var(--pr-t1); background: var(--pr-surface-2); }
+.cu-chip[aria-pressed='false'] { opacity: 0.6; }
+.cu-chip:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 2px; }
+
+/* iPad */
+html[data-device='tablet'] .cu-tabla { font-size: 13px; }
+/* iPhone: objetivos táctiles de 44 px y primera columna fija al desplazar la tabla */
+html[data-device='phone'] .cu-chip { min-height: 44px; }
+html[data-device='phone'] .cu-tabla { font-size: 13px; }
+html[data-device='phone'] .cu-tabla tbody th, html[data-device='phone'] .cu-tabla thead th:first-child { position: sticky; left: 0; background: var(--pr-bg); z-index: 1; }

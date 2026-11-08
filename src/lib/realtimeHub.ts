@@ -76,6 +76,48 @@ export function onTable(
 }
 
 /**
+ * Variante "agrupada" de onTable: una ráfaga de eventos de la misma tabla (p. ej. la carga por lote de las 14 escalas
+ * genera 14 eventos) dispara cada handler UNA sola vez, `esperaMs` después del último evento, y todos los handlers
+ * agrupados bajo la misma tabla/evento comparten ese único temporizador. Sin esto, cada evento lanzaba una consulta
+ * completa por hook (perfil del canal, volumen, fugas…): 14 eventos × 4 consultas.
+ */
+interface GrupoAgrupado { handlers: Set<() => void>; timer: ReturnType<typeof setTimeout> | null; unsub: UnsubscribeFn }
+const agrupados = new Map<string, GrupoAgrupado>();
+
+export function onTableCoalesced(
+    table: string,
+    event: RealtimeEventType,
+    handler: () => void,
+    esperaMs = 1500,
+): UnsubscribeFn {
+    const key = `${table}:${event}:${esperaMs}`;
+    let g = agrupados.get(key);
+    if (!g) {
+        const grupo: GrupoAgrupado = { handlers: new Set(), timer: null, unsub: () => {} };
+        grupo.unsub = onTable(table, event, () => {
+            if (grupo.timer) clearTimeout(grupo.timer);
+            grupo.timer = setTimeout(() => {
+                grupo.timer = null;
+                // copia: un handler puede desuscribirse al ejecutarse
+                [...grupo.handlers].forEach((h) => { try { h(); } catch (e) { console.error('[RealtimeHub] handler agrupado falló', e); } });
+            }, esperaMs);
+        });
+        agrupados.set(key, grupo);
+        g = grupo;
+    }
+    const grupo = g;
+    grupo.handlers.add(handler);
+    return () => {
+        grupo.handlers.delete(handler);
+        if (grupo.handlers.size === 0) {
+            if (grupo.timer) clearTimeout(grupo.timer);
+            grupo.unsub();
+            agrupados.delete(key);
+        }
+    };
+}
+
+/**
  * Start the single centralized Realtime channel.
  * Call once from Layout on mount. Idempotent.
  */

@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { onTable } from '../lib/realtimeHub';
+import { onTableCoalesced } from '../lib/realtimeHub';
 import { esEscalaReferencia } from '../utils/escalasReferencia';
 import { normalizaTramoFuga, type FilaVistaFugas, type SegmentLoss } from '../utils/tramosFuga';
 
@@ -14,7 +14,6 @@ export const useLeakMonitor = () => {
 
     const fetchLeaks = async () => {
         try {
-            setLoading(true);
             const { data, error: err } = await supabase
                 .from('dashboard_vulnerabilidad_fugas')
                 .select('*')
@@ -36,8 +35,8 @@ export const useLeakMonitor = () => {
 
     useEffect(() => {
         fetchLeaks();
-        const unsubEscalas  = onTable('lecturas_escalas',   '*', () => fetchLeaks());
-        const unsubReportes = onTable('reportes_operacion',  '*', () => fetchLeaks());
+        const unsubEscalas  = onTableCoalesced('lecturas_escalas', '*', () => fetchLeaks());
+        const unsubReportes = onTableCoalesced('reportes_operacion', '*', () => fetchLeaks());
 
         return () => {
             unsubEscalas();

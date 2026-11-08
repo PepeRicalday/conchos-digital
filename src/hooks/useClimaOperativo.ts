@@ -8,8 +8,10 @@ import { numeroModuloDeId } from '../utils/modulosSRL';
 /** `cargar` DEBE ser estable (useCallback): una función nueva en cada render reiniciaría el efecto en bucle. */
 export function usePolling(cargar: () => unknown, ms: number) {
     useEffect(() => {
+        let ultimo = Date.now();
         void cargar();
-        const tick = () => { if (document.visibilityState === 'visible') void cargar(); };
+        // Guarda de 15 s: al volver a ver la pestaña (o con eventos de visibilidad en ráfaga) no se repite una consulta recién hecha.
+        const tick = () => { if (document.visibilityState === 'visible' && Date.now() - ultimo >= 15_000) { ultimo = Date.now(); void cargar(); } };
         const id = window.setInterval(tick, ms);
         document.addEventListener('visibilitychange', tick);
         return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', tick); };

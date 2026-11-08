@@ -86,7 +86,7 @@ export function useNdviResumen(activo: boolean): BloqueEstado<ResumenNdvi> {
         });
         return () => { vivo = false; };
     }, [activo, token]);
-    return { ...est, recargar };
+    return useMemo(() => ({ ...est, recargar }), [est, recargar]);
 }
 
 // ── Cultivos del ciclo (ACUM_INF) ─────────────────────────────────────────────
@@ -103,7 +103,7 @@ export function useCultivosCiclo(activo: boolean): BloqueEstado<FilaSupVol[]> {
         });
         return () => { vivo = false; };
     }, [activo, token]);
-    return { ...est, recargar };
+    return useMemo(() => ({ ...est, recargar }), [est, recargar]);
 }
 
 // ── GOES (telemetría satelital de 4 estaciones) ───────────────────────────────
@@ -189,7 +189,7 @@ export function useGoesResumen(activo: boolean): BloqueEstado<FilaGoes[]> {
         }
     }, [activo, token]);
     usePolling(cargar, 10 * 60_000);
-    return { ...est, recargar };
+    return useMemo(() => ({ ...est, recargar }), [est, recargar]);
 }
 
 // ── Histórico de presas (diferido; reutiliza la caché compartida de 10 min) ───

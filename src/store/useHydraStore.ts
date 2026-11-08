@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import { onTable } from '../lib/realtimeHub';
+import { onTable, onTableCoalesced } from '../lib/realtimeHub';
 import { getTodayString, getStartOfTodayISO } from '../utils/dateHelpers';
 import { ensureMetadata } from './useMetadataStore';
 import type {
@@ -374,11 +374,11 @@ export const useHydraStore = create<HydraState>((set, get) => ({
             console.log('🗑️ Medición eliminada. Refrescando datos completos...');
             get().fetchHydraulicData();
         });
-        const unsubEscalas = onTable('lecturas_escalas', '*', () => {
+        const unsubEscalas = onTableCoalesced('lecturas_escalas', '*', () => {
             console.log('🔄 Cambio en escalas detectado. Sincronizando...');
             get().fetchHydraulicData();
         });
-        const unsubPreasas = onTable('lecturas_presas', '*', () => {
+        const unsubPreasas = onTableCoalesced('lecturas_presas', '*', () => {
             console.log('🏔️ Cambio en lecturas de presas detectado. Sincronizando...');
             get().fetchHydraulicData();
         });

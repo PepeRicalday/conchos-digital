@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { onTable } from '../lib/realtimeHub';
+import { onTableCoalesced } from '../lib/realtimeHub';
 import { ensureMetadata } from '../store/useMetadataStore';
 import { usePolling, useSaludRed } from './useClimaOperativo';
 import { modeloPerfilCanal, type EscalaCanalKpi, type ExtremoCanalKpi } from '../utils/perfilCanal';
@@ -142,7 +142,7 @@ export function useCanalPerfil(vaciado: boolean) {
 
     usePolling(cargar, 5 * 60_000);
     useEffect(() => {
-        const unsub = onTable('lecturas_escalas', '*', () => { void cargar(); });
+        const unsub = onTableCoalesced('lecturas_escalas', '*', () => { void cargar(); });
         return () => unsub();
     }, [cargar]);
 
@@ -177,7 +177,7 @@ export function useVolumenCanal() {
     }, []);
     usePolling(cargar, 5 * 60_000);
     useEffect(() => {
-        const unsub = onTable('lecturas_escalas', '*', () => { void cargar(); });
+        const unsub = onTableCoalesced('lecturas_escalas', '*', () => { void cargar(); });
         return () => unsub();
     }, [cargar]);
     return { vol, cargado };

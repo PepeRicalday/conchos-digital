@@ -119,8 +119,7 @@ function tipoClimaPulso(m: ModeloKpis, base: EstadoKpi['tipo']): EstadoKpi['tipo
     return sev.includes('crit') ? 'crit' : sev.includes('warn') ? 'warn' : base;
 }
 
-export function estadosTarjetas(m: ModeloKpis): { id: string; nombre: string; tipo: EstadoKpi['tipo'] }[] {
-    const e = derivaEstados(m);
+export function estadosTarjetas(m: ModeloKpis, e: ReturnType<typeof derivaEstados> = derivaEstados(m)): { id: string; nombre: string; tipo: EstadoKpi['tipo'] }[] {
     return [
         { id: 'kp-presas', nombre: 'Presas', tipo: m.presas.estado.tipo }, { id: 'kp-suficiencia', nombre: 'Suficiencia', tipo: m.suficiencia.estado.tipo },
         { id: 'kp-ciclo', nombre: 'Ciclo', tipo: m.ciclo.brecha.estado.tipo }, { id: 'kp-canal', nombre: 'Canal', tipo: e.canalE.tipo },
@@ -150,10 +149,10 @@ function contextoCiclo(ciclo: ModeloKpis['ciclo'], modulos: CeldaModulo[]) {
 }
 
 /** Las 10 tarjetas (Clima destacada primero) de la pantalla única del Dashboard. Cada gráfico degrada por container query (kp) según el espacio de su celda. */
-export const PanelKpis = memo(function PanelKpis({ m }: { m: ModeloKpis }) {
+export const PanelKpis = memo(function PanelKpis({ m, derivados }: { m: ModeloKpis; derivados?: ReturnType<typeof derivaEstados> }) {
     const { esInvitado } = useRol();
     const { presas, suficiencia, ciclo, canal, demanda, modulos, confianza, alertas, goes, ndvi } = m;
-    const { canalE, alertasE, goesE, ndviE, modulosE, enLinea, nd, demandaE, usa24, cerrado } = derivaEstados(m);
+    const { canalE, alertasE, goesE, ndviE, modulosE, enLinea, nd, demandaE, usa24, cerrado } = derivados ?? derivaEstados(m);
     const cm = canal.modelo;
     const c = cm.conduccion;
     const crit = alertas.resumen.criticas, avi = alertas.resumen.avisos, inf = alertas.resumen.informativas;

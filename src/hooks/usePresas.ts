@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { ensureMetadata } from '../store/useMetadataStore';
 import { getStartOfDateISO, getTodayString } from '../utils/dateHelpers';
@@ -461,7 +461,7 @@ export function usePresas(fecha: string) {
     // Derived values — agregación vía módulo compartido (ver presaMetrics.ts).
     // Excluye presas sin lectura en lugar de contarlas como 0: incluirlas metía
     // su capacidad en el denominador y hundía el porcentaje a 0.0%.
-    const almacenamiento = agregarAlmacenamiento(presas);
+    const almacenamiento = useMemo(() => agregarAlmacenamiento(presas), [presas]);
     const totalAlmacenamiento = almacenamiento.totalMm3;
     const totalCapacidad = almacenamiento.capacidadCatalogoMm3;
     // Solo cuentan las presas con extracción CONOCIDA (extraccion_conocida): una presa sin dato no suma 0.
@@ -483,7 +483,10 @@ export function usePresas(fecha: string) {
     const porcentajeLlenado = almacenamiento.porcentaje;
 
     // Vigencia de la lectura más reciente — para el sello de frescura en UI.
-    const frescuraLectura = calcularFrescura(lecturaMasReciente(presas));
+    // Depende del reloj ("hace 7 h"): se recalcula por minuto o al cambiar las presas, no en cada render (una referencia nueva por render invalidaba el memo de todo el Dashboard).
+    const minutoActual = Math.floor(Date.now() / 60_000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const frescuraLectura = useMemo(() => calcularFrescura(lecturaMasReciente(presas)), [presas, minutoActual]);
 
     return {
         presas,

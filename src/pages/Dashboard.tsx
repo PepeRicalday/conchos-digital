@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Loader } from 'lucide-react';
 import { useHydraEngine } from '../hooks/useHydraEngine';
 import { usePresas } from '../hooks/usePresas';
@@ -20,7 +20,7 @@ import {
 import { construyeAlertasVivas, diasDesde } from '../utils/alertasVivas';
 import { useDashboardExtra } from '../hooks/useDashboardExtra';
 import { serieAlmacenamiento } from '../utils/dashboardExtra';
-import { PanelKpis, estadosTarjetas, type ModeloKpis } from '../components/dashboard/PanelKpis';
+import { PanelKpis, derivaEstados, estadosTarjetas, type ModeloKpis } from '../components/dashboard/PanelKpis';
 import { BarraCentro } from '../components/dashboard/BarraCentro';
 import { AlertasDrawer } from '../components/dashboard/AlertasDrawer';
 import { avanceDistrito } from '../utils/distribucion';
@@ -66,10 +66,13 @@ function useAlturaVisible(): number | null {
             setH(Math.max(0, Math.round(main.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom))));
         };
         medir();
-        const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(medir);
+        // Un resize dispara decenas de eventos por segundo: se mide una sola vez por frame (antes, un render completo del Dashboard por evento).
+        let raf = 0;
+        const programar = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; medir(); }); };
+        const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(programar);
         ro?.observe(main);
-        window.addEventListener('resize', medir);
-        return () => { ro?.disconnect(); window.removeEventListener('resize', medir); };
+        window.addEventListener('resize', programar);
+        return () => { if (raf) cancelAnimationFrame(raf); ro?.disconnect(); window.removeEventListener('resize', programar); };
     }, []);
     return h;
 }
@@ -78,6 +81,7 @@ const Dashboard = () => {
     const alturaFold = useAlturaVisible();
     const [drawerAbierto, setDrawerAbierto] = useState(false);
     const [informeAbierto, setInformeAbierto] = useState(false);
+    const abrirDrawer = useCallback(() => setDrawerAbierto(true), []);   // estable: si fuera una función nueva, el memo de PanelKpis no serviría de nada
     const { fechaSeleccionada, esHoy } = useFecha();
     const { activeEvent } = useHydricEvents();
     const { modules, loading: loadingModules } = useHydraEngine();
@@ -222,12 +226,14 @@ const Dashboard = () => {
             return { clave: m.id, nombre: m.short_code || (m.name || '').slice(0, 6), pct, letra: e.letra, estado: e.estado, codigo: m.short_code || null, nombreLargo: m.name || null, logo: getLogoVector(m.short_code) };
         }),
         confianza,
-        alertas: { resumen, top: topAlertas, onAbrir: () => setDrawerAbierto(true) },
+        alertas: { resumen, top: topAlertas, onAbrir: abrirDrawer },
         goes: { cargado: extra.goes.cargado, error: extra.goes.error, estaciones: (extra.goes.datos ?? []).map((g) => ({ id: g.id, nombre: g.nombre, clave: g.enlace.clave, edadMin: g.enlace.edadMin, serieGasto: g.serieGasto, ultimoDato: g.ultimoDato, estadia: g.estadia })) },
         ndvi: { cargado: extra.ndvi.cargado, error: extra.ndvi.error, r: extra.ndvi.datos },
-    }), [hoyISO, cicloAct, extra.goes, extra.ndvi, extra.cultivos, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, suficiencia, extra.historico.cargado, extra.historico.error, extra.pronostico.demanda, extra.pronostico.cargado, extra.pronostico.error, avanceDist, avance, canal.modelo, canal.cargado, volumenCanal, vaciadoDesde, etoReciente, umbralesClima, extra.goes.datos, enLineaGoes, clima, extra.pronostico.datos, extra.pronostico.horas, modules, confianza, resumen, topAlertas]);
+    }), [hoyISO, cicloAct, extra.goes, extra.ndvi, extra.cultivos, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, suficiencia, extra.historico.cargado, extra.historico.error, extra.pronostico.demanda, extra.pronostico.cargado, extra.pronostico.error, avanceDist, avance, canal.modelo, canal.cargado, volumenCanal, vaciadoDesde, etoReciente, umbralesClima, clima, extra.pronostico.horas, modules, confianza, resumen, topAlertas, abrirDrawer]);
 
-    const pulso = estadosTarjetas(modeloKpis);
+    // Estados derivados: una sola vez por cambio del modelo (los comparten la barra de pulso y las tarjetas).
+    const derivados = useMemo(() => derivaEstados(modeloKpis), [modeloKpis]);
+    const pulso = useMemo(() => estadosTarjetas(modeloKpis, derivados), [modeloKpis, derivados]);
 
     /** Fotografía de lo que ve el Dashboard en este instante, para el Informe general (mismas cifras, misma fuente). */
     const armarEntradaInforme = (): Omit<EntradaInformeGeneral, 'emitido'> => ({
@@ -256,7 +262,7 @@ const Dashboard = () => {
             <div className="dash-fold">
                 <BarraCentro pulso={pulso} protocolo={protocolo} version={__V2_APP_VERSION__} veredicto={veredicto.estado} detalleVeredicto={veredicto.detalle} fechaTexto={fechaCorta(fechaSeleccionada)} esHoy={esHoy}
                     erroresPagina={erroresPagina as string[]} onMonitor={() => window.open('/monitor-publico', '_blank')} onImprimir={() => setInformeAbierto(true)} />
-                <PanelKpis m={modeloKpis} />
+                <PanelKpis m={modeloKpis} derivados={derivados} />
             </div>
 
             {informeAbierto && (

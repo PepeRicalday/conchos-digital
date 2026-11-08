@@ -8,6 +8,7 @@ import {
 import { fechaCorta } from '../../../utils/analiticaPresas';
 import GraficaLlenadoCuenca from './GraficaLlenadoCuenca';
 import LluviaCuenca from './LluviaCuenca';
+import '../analitica/analitica.css';
 import './cuenca.css';
 
 const GLIFO: Record<string, string> = { ok: '●', warn: '▲', crit: '■', sd: '◇' };
@@ -29,8 +30,11 @@ function FilaTabla({ f, difCila }: { f: FilaPresaCuenca; difCila: number | null 
             <th scope="row" className="cu-presa">
                 <span className="cu-nombre">{f.nombre}</span>
                 {f.delDistrito && <span className="cu-tag">Distrito</span>}
-                {f.estancado && f.almacenamientoMm3 != null && (
+                {f.excluida && f.almacenamientoMm3 != null && (
                     <span className="cu-nota-fila">Serie estancada: repite {formatearNumero(f.almacenamientoMm3, 3)} Mm³; se trata como S/D.</span>
+                )}
+                {f.repetida && f.almacenamientoMm3 != null && (
+                    <span className="cu-nota-fila">Valor repetido varios días ({formatearNumero(f.almacenamientoMm3, 3)} Mm³): CONAGUA lo actualiza por tramos. Se usa porque se contrasta contra CILA.</span>
                 )}
                 {f.delDistrito && difCila != null && (
                     <span className="cu-nota-fila">Diferencia contra CILA: {difCila > 0 ? '+' : difCila < 0 ? '−' : ''}{formatearNumero(Math.abs(difCila), 2)} %</span>
@@ -39,8 +43,8 @@ function FilaTabla({ f, difCila }: { f: FilaPresaCuenca; difCila: number | null 
             <td className="cu-num">{fmt(f.almacenamientoValido, 1)}</td>
             <td className="cu-num">{f.pct == null ? 'S/D' : `${formatearNumero(f.pct, 1)} %`}</td>
             <td>
-                <span className={`cu-estado cu-estado--${f.estancado ? 'stale' : f.estado.clave}`}>
-                    <span aria-hidden="true">{f.estancado ? '◆' : GLIFO[f.estado.clave]}</span> {f.estancado ? 'ESTANCADA' : f.estado.etiqueta}
+                <span className={`cu-estado cu-estado--${f.excluida ? 'stale' : f.estado.clave}`}>
+                    <span aria-hidden="true">{f.excluida ? '◆' : GLIFO[f.estado.clave]}</span> {f.excluida ? 'ESTANCADA' : f.estado.etiqueta}
                 </span>
             </td>
             <td className="cu-num">{fmtFlujo(f.aportacionM3s)}</td>
@@ -79,11 +83,11 @@ export default function PanelCuencaConchos() {
     }, [datos]);
 
     if (loading) {
-        return <div className="an-root" aria-busy="true" aria-label="Cargando cuenca del Conchos"><div className="an-skeleton" /><div className="an-skeleton an-skeleton--alta" /></div>;
+        return <div className="an-root cu-root" aria-busy="true" aria-label="Cargando cuenca del Conchos"><div className="an-skeleton" /><div className="an-skeleton an-skeleton--alta" /></div>;
     }
     if (error) {
         return (
-            <div className="an-root"><div className="an-vacio" role="alert">
+            <div className="an-root cu-root"><div className="an-vacio" role="alert">
                 <strong>No se pudo cargar la cuenca del Conchos.</strong>
                 <span>{error}</span>
                 <button type="button" className="an-btn" onClick={recargar}>Reintentar</button>
@@ -91,16 +95,17 @@ export default function PanelCuencaConchos() {
         );
     }
     if (!datos || !calc || calc.filas.length === 0) {
-        return <div className="an-root"><div className="an-vacio" role="status"><strong>Sin datos de la cuenca (S/D)</strong><span>Todavía no hay presas cargadas desde el portal USIBWC.</span></div></div>;
+        return <div className="an-root cu-root"><div className="an-vacio" role="status"><strong>Sin datos de la cuenca (S/D)</strong><span>Todavía no hay presas cargadas desde el portal USIBWC.</span></div></div>;
     }
 
     const { filas, ojinaga, cuenca, dist, aport, frescura } = calc;
-    const estancadas = filas.filter(f => f.estancado);
+    const estancadas = filas.filter(f => f.excluida);
+    const repetidas = filas.filter(f => f.repetida);
     const boquilla = filas.find(f => f.ubicacionId === 536);
     const madero = filas.find(f => f.ubicacionId === 537);
 
     return (
-        <div className="an-root pr-reveal">
+        <div className="an-root cu-root pr-reveal">
             <header className="an-head">
                 <div>
                     <h3 className="an-titulo">Cuenca del Conchos</h3>
@@ -138,9 +143,10 @@ export default function PanelCuencaConchos() {
                 </div>
             </div>
 
-            {estancadas.length > 0 && (
+            {(estancadas.length > 0 || repetidas.length > 0) && (
                 <p className="an-aviso" role="status">
-                    <b>{estancadas.length === 1 ? 'Serie estancada' : 'Series estancadas'}:</b> {estancadas.map(f => f.nombre).join(', ')}. Su almacenamiento repite el mismo valor varios días aunque hay aportación o extracción; no se usa en los totales y se muestra como S/D hasta que vuelva a moverse.
+                    {estancadas.length > 0 && <><b>{estancadas.length === 1 ? 'Serie estancada' : 'Series estancadas'}:</b> {estancadas.map(f => f.nombre).join(', ')}. Su almacenamiento repite el mismo valor varios días aunque hay aportación o extracción; no se usa en los totales y se muestra como S/D hasta que vuelva a moverse. </>}
+                    {repetidas.length > 0 && <><b>{estancadas.length > 0 ? 'Valor repetido' : 'Serie estancada'}:</b> {repetidas.map(f => f.nombre).join(' y ')} {repetidas.length === 1 ? 'repite' : 'repiten'} el valor varios días, pero se {repetidas.length === 1 ? 'usa' : 'usan'} porque se contrasta contra CILA.</>}
                 </p>
             )}
 

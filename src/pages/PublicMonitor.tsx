@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, ZoomControl, Marker, useMap, Popup } from 'react-leaflet';
 import { supabase } from '../lib/supabase';
 import { useHydricEvents } from '../hooks/useHydricEvents';
@@ -18,6 +18,8 @@ import { exportEscalasCSV } from '../utils/exportCanal';
 import { toast } from 'sonner';
 import TendenciasPanel from '../components/TendenciasPanel';
 import PresasNivelStrip from '../components/PresasNivelStrip';
+// Cuenca del Conchos (portal USIBWC): carga diferida, el hook solo consulta cuando la pestaña está abierta (sin realtime ni polling del Monitor).
+const PanelCuencaConchos = lazy(() => import('../components/presas/cuenca/PanelCuencaConchos'));
 import { useTendenciasHistoricas } from '../hooks/useTendenciasHistoricas';
 import { fetchVolumenCiclo, totalesVolumenCiclo, estadoVolumen, type VolumenCicloModulo } from '../utils/volumenCiclo';
 import FitCanal from '../components/monitor/FitCanal';
@@ -880,7 +882,7 @@ const PublicMonitor: React.FC = () => {
     const tabInicialUrl = (() => {
         if (typeof window === 'undefined') return null;
         const t = new URLSearchParams(window.location.search).get('tab');
-        return (['resumen', 'canal', 'alertas', 'skill', 'tendencias'] as const).includes(t as any) ? t : null;
+        return (['resumen', 'canal', 'alertas', 'skill', 'tendencias', 'cuenca'] as const).includes(t as any) ? t : null;
     })();
 
     // Panel Visibility States - Start minimized on phone for total map priority
@@ -900,7 +902,7 @@ const PublicMonitor: React.FC = () => {
         return () => ro.disconnect();
     }, []);
     const recentrarCanalRef = useRef<(() => void) | null>(null);
-    const [dockTab, setDockTab] = useState<'resumen' | 'canal' | 'alertas' | 'skill' | 'tendencias'>(
+    const [dockTab, setDockTab] = useState<'resumen' | 'canal' | 'alertas' | 'skill' | 'tendencias' | 'cuenca'>(
         (tabInicialUrl as any) || 'resumen'
     );
 
@@ -2496,7 +2498,7 @@ const PublicMonitor: React.FC = () => {
         };
     }, [modoVisualizacion, escalas, executiveMetrics, volCiclo, datosEjecutivos]);
 
-    const tabSinMapa = isDockVisible && (dockTab === 'tendencias' || dockTab === 'skill');
+    const tabSinMapa = isDockVisible && (dockTab === 'tendencias' || dockTab === 'skill' || dockTab === 'cuenca');
     // Panel lateral derecho cuando hay ancho (escritorio / tableta horizontal):
     // el mapa ocupa solo el área libre y el canal se encuadra ahí, sin nada encima.
     const layoutLateral = !isMobile && anchoCont >= 860 && !tabSinMapa;
@@ -3034,6 +3036,16 @@ const PublicMonitor: React.FC = () => {
                             title="Análisis histórico por periodo: escalas, tramos, compuertas, gasto"
                         >
                             TENDENCIAS
+                        </button>
+                        <button
+                            type="button"
+                            className={`dock-tab${dockTab === 'cuenca' ? ' dock-tab--active' : ''}`}
+                            role="tab"
+                            aria-selected={dockTab === 'cuenca'}
+                            onClick={() => setDockTab('cuenca')}
+                            title="Presas de la cuenca del Conchos y lluvia GOES (portal USIBWC, dato provisional)"
+                        >
+                            CUENCA
                         </button>
                     </div>
 
@@ -4259,6 +4271,20 @@ const PublicMonitor: React.FC = () => {
                                 gasto={tndData.gasto}
                                 vaciadoDesde={tndData.vaciadoDesde}
                             />
+                        </div>
+                    </div>
+                    )}
+
+                    {/* ── Pestaña CUENCA: mismo wrapper que TENDENCIAS/DATOS (altura acotada + scroll propio) ── */}
+                    {dockTab === 'cuenca' && (
+                    <div className="dock-section dock-skill-panel">
+                        <div className="dock-section-header">
+                            <span className="card-label">CUENCA DEL CONCHOS — PRESAS Y LLUVIA</span>
+                        </div>
+                        <div className="dsk-scroll-body">
+                            <Suspense fallback={<div className="an-root cu-root" aria-busy="true"><div className="an-skeleton" /></div>}>
+                                <PanelCuencaConchos />
+                            </Suspense>
                         </div>
                     </div>
                     )}

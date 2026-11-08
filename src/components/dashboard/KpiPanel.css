@@ -884,3 +884,14 @@ html[data-device="phone"] #kp-demanda .kp-vistas .ndvi-chip-txt { position: abso
 @container kp (min-height: 255px) { #kp-alertas .kp-top b { -webkit-line-clamp: 3; } }
 /* …y si no caben dos de 3 líneas, se muestra completa solo la más grave (el detalle y los conteos siguen a un toque) */
 @container kp (min-height: 255px) and (max-height: 330px) { #kp-alertas .kp-top li:nth-child(2) { display: none; } }
+
+/* ── Línea de cuenca (portal USIBWC) en la tarjeta Presas ─────────────────────────────────────────────────────
+   Se muestra SOLO si la celda tiene altura para 3-4 líneas de contexto (en celdas bajas y teléfono el contexto se
+   reduce a 1-2 líneas): ahí se oculta, nunca se recorta a media frase. */
+.kp-cuenca-l { display: none; margin-top: 2px; }
+@media (min-width: 700px) {
+    @container kp (min-height: 216px) {
+        .kp-cuenca-l { display: block; }
+        #kp-presas .kp-contexto { -webkit-line-clamp: 4; }
+    }
+}

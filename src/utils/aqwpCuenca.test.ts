@@ -166,3 +166,83 @@ describe('AQWP cuenca · resumenLluvia', () => {
     expect(LLUVIA_FUERTE_MM).toBeGreaterThan(0);
   });
 });
+
+import { cuencaCompacta } from './aqwpCuenca';
+
+describe('AQWP cuenca · cuencaCompacta (Dashboard)', () => {
+  const ubicDe = new Map([[1, 551], [2, 526], [3, 549]]);
+  const L = (datasetId: number, fecha: string, valor: number | null) => ({ datasetId, fecha, valor, estancada: false });
+  const dias = (id: number, vals: (number | null)[]) => vals.map((v, i) => L(id, `2026-11-0${i + 1}`, v));
+  const presas = [
+    est({ ubicacionId: 536, almacenamientoMm3: 800, namoMm3: 2000 }),
+    est({ ubicacionId: 538, almacenamientoMm3: 9, namoMm3: 23, estancado: true }),
+  ];
+
+  it('agrega presas con dato y cuenta las estancadas sin sumarlas', () => {
+    const r = cuencaCompacta(presas, resumenLluvia([], ubicDe));
+    expect(r.almacenadoMm3).toBe(800);
+    expect(r.pct).toBeCloseTo(40, 5);
+    expect(r.conDato).toBe(1);
+    expect(r.total).toBe(2);
+    expect(r.estancadas).toBe(1);
+    expect(r.fecha).toBe('2026-11-07');
+  });
+  it('lluvia: promedio de pluviómetros con ≥4 días de dato; el de pocos días no entra', () => {
+    const ll = resumenLluvia([
+      ...dias(1, [0, 0, 10, 0, 0, 2, 3]),          // 15 mm, 7 días
+      ...dias(2, [1, 1, 1, 1, 0, 0, 0]),           // 4 mm, 7 días
+      ...dias(3, [5, null, null, null, null, null, 7]), // 2 de 7 días: S/D, no entra
+    ], ubicDe);
+    const r = cuencaCompacta(presas, ll);
+    expect(r.lluvia.pluviometros).toBe(2);
+    expect(r.lluvia.total).toBe(3);
+    expect(r.lluvia.promedio7Mm).toBe(9.5);
+    expect(r.lluvia.maxNombre).toBe('Villalba');
+    expect(r.lluvia.maxMm).toBe(15);
+  });
+  it('sin pluviómetros válidos: lluvia S/D (null), nunca 0', () => {
+    const r = cuencaCompacta(presas, resumenLluvia([L(1, '2026-11-07', null)], ubicDe));
+    expect(r.lluvia.promedio7Mm).toBeNull();
+    expect(r.lluvia.maxNombre).toBeNull();
+    expect(r.lluvia.maxMm).toBeNull();
+  });
+  it('sin presas con dato: almacenamiento y % S/D', () => {
+    const r = cuencaCompacta([est({ ubicacionId: 536, namoMm3: 100 })], resumenLluvia([], ubicDe));
+    expect(r.almacenadoMm3).toBeNull();
+    expect(r.pct).toBeNull();
+  });
+});
+
+describe('AQWP cuenca · presas del distrito con valor repetido (se contrastan contra CILA)', () => {
+  const madero = est({ ubicacionId: 537, nombre: 'Madero', presaId: 'PRE-002', almacenamientoMm3: 180.785, namoMm3: 333.318, estancado: true, pctNamo: 54.2 });
+  const chihuahua = est({ ubicacionId: 538, nombre: 'Chihuahua', almacenamientoMm3: 8.924, namoMm3: 23.383, estancado: true, pctNamo: 38.2 });
+
+  it('una presa del distrito estancada SÍ se usa y se marca "repetida" (no S/D)', () => {
+    const f = filasPresas([madero])[0];
+    expect(f.repetida).toBe(true);
+    expect(f.excluida).toBe(false);
+    expect(f.almacenamientoValido).toBe(180.785);
+    expect(f.pct).toBeCloseTo(54.24, 1);
+  });
+  it('una estancada sin contraste (Chihuahua) sigue excluida como S/D', () => {
+    const f = filasPresas([chihuahua])[0];
+    expect(f.excluida).toBe(true);
+    expect(f.repetida).toBe(false);
+    expect(f.almacenamientoValido).toBeNull();
+    expect(f.pct).toBeNull();
+  });
+  it('el total de la cuenca nunca queda por debajo de las presas del distrito', () => {
+    const boq = est({ ubicacionId: 536, presaId: 'PRE-001', almacenamientoMm3: 819.803, namoMm3: 2846.78 });
+    const filas = filasPresas([boq, madero, chihuahua]);
+    const cuenca = agregadoCuenca(filas), distrito = agregadoCuenca(filas.filter((x) => x.delDistrito));
+    expect(distrito.totalMm3).toBeCloseTo(1000.588, 3);
+    expect(cuenca.totalMm3!).toBeGreaterThanOrEqual(distrito.totalMm3!);
+    expect(cuenca.presasConDato).toBe(2);
+    expect(cuenca.presasTotal).toBe(3);
+  });
+  it('cuencaCompacta solo cuenta como estancadas las excluidas', () => {
+    const r = cuencaCompacta([madero, chihuahua], resumenLluvia([], new Map()));
+    expect(r.estancadas).toBe(1);
+    expect(r.almacenadoMm3).toBe(180.785);
+  });
+});

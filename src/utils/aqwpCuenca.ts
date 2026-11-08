@@ -1,7 +1,7 @@
 /**
  * aqwpCuenca — lógica PURA de la vista "Cuenca del Conchos" (datos USIBWC AQUARIUS vía aqwp-sync).
  * Sin React ni Supabase. Fuente TERCERA y solo contexto: no sustituye la captura de campo ni CILA.
- * Reglas: S/D nunca es 0 (null); una serie marcada "estancada" se trata como S/D; el % y el agregado salen de
+ * Reglas: S/D nunca es 0 (null); una serie "estancada" sin contraste se trata como S/D (las del distrito se contrastan contra CILA y no se excluyen); el % y el agregado salen de
  * presaMetrics (fuente única), usando como capacidad el NAMO que publica CONAGUA en el portal.
  */
 import { agregarAlmacenamiento, calcularFrescura, porcentajeLlenadoPresa, type AlmacenamientoAgregado, type Frescura } from './presaMetrics';
@@ -50,8 +50,15 @@ export function normalizarEstado(r: Record<string, unknown>): EstadoUbicacion {
 
 export interface FilaPresaCuenca extends EstadoUbicacion {
   delDistrito: boolean;
-  /** Almacenamiento utilizable: null si no hay dato o la serie está estancada (se muestra S/D). */
+  /** Almacenamiento utilizable: null si no hay dato o si la serie está estancada y NO se puede contrastar (se muestra S/D). */
   almacenamientoValido: number | null;
+  /** Estancada y sin contraste: se excluye de totales y se muestra S/D (p. ej. Chihuahua). */
+  excluida: boolean;
+  /**
+   * Estancada pero de una presa del distrito (Boquilla/Madero): sí se usa, porque se contrasta contra CILA (en Madero
+   * coincide exacto) y CONAGUA la actualiza por tramos de 8-16 días. Se muestra con una nota, no como S/D.
+   */
+  repetida: boolean;
   pct: number | null;
   estado: EstadoEmbalse;
   /** CONAGUA publica a diario: se marca viejo pasadas 48 h. */
@@ -63,13 +70,15 @@ export function filasPresas(estados: EstadoUbicacion[]): FilaPresaCuenca[] {
   return ORDEN_PRESAS_CUENCA.flatMap((id) => {
     const e = porId.get(id);
     if (!e) return [];
-    const valido = e.estancado ? null : e.almacenamientoMm3;
+    const delDistrito = e.presaId != null;
+    const excluida = e.estancado && !delDistrito;
+    const valido = excluida ? null : e.almacenamientoMm3;
     const pct = porcentajeLlenadoPresa({
       capacidad_max_mm3: e.namoMm3 ?? 0,
-      lectura: { almacenamiento_mm3: valido, porcentaje_llenado: e.estancado ? null : e.pctNamo },
+      lectura: { almacenamiento_mm3: valido, porcentaje_llenado: excluida ? null : e.pctNamo },
     });
     return [{
-      ...e, delDistrito: e.presaId != null, almacenamientoValido: valido, pct,
+      ...e, delDistrito, almacenamientoValido: valido, pct, excluida, repetida: e.estancado && delDistrito,
       estado: estadoEmbalse(pct), frescura: calcularFrescura(e.fecha, 48),
     }];
   });
@@ -195,4 +204,48 @@ export function resumenLluvia(
     return fila;
   });
   return { fechas: f7, hasta, filas, serie30 };
+}
+
+// ── Resumen compacto (Dashboard): una línea de cuenca dentro de la tarjeta Presas ─────────────────────────────
+/** Un pluviómetro cuenta en el promedio si tiene al menos 4 de los 7 días con dato (menos = S/D, no se promedia). */
+export const MIN_DIAS_LLUVIA_7D = 4;
+
+export interface CuencaCompacta {
+  /** Suma del almacenamiento de las presas con dato vigente (excluye estancadas y sin dato). null si ninguna. */
+  almacenadoMm3: number | null;
+  /** % sobre el NAMO de CONAGUA de las presas contabilizadas. */
+  pct: number | null;
+  conDato: number;
+  total: number;
+  fecha: string | null;
+  /** Presas estancadas SIN contraste, excluidas del total (las del distrito no se excluyen). */
+  estancadas: number;
+  frescura: Frescura | null;
+  lluvia: {
+    /** Promedio de lluvia a 7 días entre pluviómetros con cobertura suficiente; null = S/D. */
+    promedio7Mm: number | null;
+    pluviometros: number;
+    total: number;
+    maxNombre: string | null;
+    maxMm: number | null;
+    hasta: string | null;
+  };
+}
+
+export function cuencaCompacta(estados: EstadoUbicacion[], lluvia: ResumenLluvia): CuencaCompacta {
+  const filas = filasPresas(estados);
+  const ag = agregadoCuenca(filas);
+  const fechas = filas.map((f) => f.fecha).filter((x): x is string => !!x).sort();
+  const fecha = fechas.length ? fechas[fechas.length - 1] : null;
+  const validos = lluvia.filas.filter((f) => f.total7.mm != null && f.total7.conDato >= MIN_DIAS_LLUVIA_7D);
+  const maximo = validos.reduce<FilaLluvia | null>((m, f) => (m == null || (f.total7.mm as number) > (m.total7.mm as number) ? f : m), null);
+  return {
+    almacenadoMm3: ag.totalMm3, pct: ag.porcentaje, conDato: ag.presasConDato, total: ag.presasTotal,
+    fecha, estancadas: filas.filter((f) => f.excluida).length, frescura: calcularFrescura(fecha, 48),
+    lluvia: {
+      promedio7Mm: validos.length ? Math.round((validos.reduce((a, f) => a + (f.total7.mm as number), 0) / validos.length) * 10) / 10 : null,
+      pluviometros: validos.length, total: lluvia.filas.length,
+      maxNombre: maximo?.nombre ?? null, maxMm: maximo ? (maximo.total7.mm as number) : null, hasta: lluvia.hasta,
+    },
+  };
 }

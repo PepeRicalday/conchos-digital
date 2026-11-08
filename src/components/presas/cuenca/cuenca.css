@@ -1,4 +1,13 @@
-/* Cuenca del Conchos · prefijo cu- · se apoya en los estilos an-* y los tokens --pr-* de Presas.css */
+/* Cuenca del Conchos · prefijo cu- · se apoya en los estilos an-* (analitica.css) y los tokens --pr-* */
+/* Autosuficiente: se usa también en el Monitor (pestaña CUENCA), que NO define --pr-*. Mismos valores que .scada-sala-root
+   de Presas.css (ahí no cambia nada). */
+.cu-root {
+    --pr-bg: #061532; --pr-surface: rgba(255, 255, 255, 0.028); --pr-surface-2: rgba(255, 255, 255, 0.05);
+    --pr-line: rgba(148, 163, 184, 0.16); --pr-t1: #e8eef6; --pr-t2: #b4c2d4; --pr-t3: #8396ad;
+    --pr-sky: #3FB2F3; --pr-ok: #34d399; --pr-warn: #fbbf24; --pr-crit: #f87171; --pr-violet: #a78bfa;
+    --pr-display: 'Big Shoulders Display', 'JetBrains Mono', sans-serif;
+    --pr-body: 'IBM Plex Sans', 'Inter', system-ui, sans-serif;
+}
 .cu-tabla-wrap { margin-top: 10px; overflow-x: auto; }
 .cu-tabla { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
 .cu-tabla th, .cu-tabla td { padding: 10px 10px; border-bottom: 1px solid var(--pr-line); text-align: left; vertical-align: top; }
@@ -9,7 +18,7 @@
 
 .cu-presa { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 150px; }
 .cu-nombre { color: var(--pr-t1); }
-.cu-tag { padding: 1px 8px; border: 1px solid var(--pr-sky); border-radius: 999px; font-size: 11px; font-weight: 700; color: var(--pr-sky); letter-spacing: 0.03em; }
+.cu-tag { padding: 1px 8px; border: 1px solid var(--pr-sky); border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--pr-sky); letter-spacing: 0.03em; }
 .cu-tabla td .cu-nota-fila { display: block; }
 .cu-nota-fila { flex-basis: 100%; font-size: 12px; font-weight: 400; color: var(--pr-t3); line-height: 1.35; }
 

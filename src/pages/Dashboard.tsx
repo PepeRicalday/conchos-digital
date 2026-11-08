@@ -19,6 +19,8 @@ import {
 } from '../utils/dashboardKpis';
 import { construyeAlertasVivas, diasDesde } from '../utils/alertasVivas';
 import { useDashboardExtra } from '../hooks/useDashboardExtra';
+import { useAqwpCuenca } from '../hooks/useAqwpCuenca';
+import { cuencaCompacta } from '../utils/aqwpCuenca';
 import { serieAlmacenamiento } from '../utils/dashboardExtra';
 import { PanelKpis, derivaEstados, estadosTarjetas, type ModeloKpis } from '../components/dashboard/PanelKpis';
 import { BarraCentro } from '../components/dashboard/BarraCentro';
@@ -102,6 +104,10 @@ const Dashboard = () => {
     const [fuentesCaidas, setFuentesCaidas] = useState<string[]>([]);
     const [cicloAct, setCicloAct] = useState<{ clave: string; fecha_inicio: string; fecha_fin: string } | null>(null);
     const extra = useDashboardExtra(clima.excluidasIds);
+    // Cuenca del Conchos (portal USIBWC): solo contexto. Modo ligero (sin serie de 12 meses) y refresco lento (30 min):
+    // el portal publica una vez al día y la sala queda abierta todo el día. No toca realtime ni el modelo estable salvo al cambiar.
+    const cuenca = useAqwpCuenca({ conSerie: false, refrescoMs: 30 * 60_000 });
+    const cuencaR = useMemo(() => (cuenca.datos ? cuencaCompacta(cuenca.datos.estados, cuenca.datos.lluvia) : null), [cuenca.datos]);
 
     // Reloj de alertas (5 min): también refresca las consultas propias (tomas varadas cambian con el día), sin pedir con la pestaña oculta.
     const ahoraAlertas = useReloj(5 * 60_000, true);
@@ -229,7 +235,8 @@ const Dashboard = () => {
         alertas: { resumen, top: topAlertas, onAbrir: abrirDrawer },
         goes: { cargado: extra.goes.cargado, error: extra.goes.error, estaciones: (extra.goes.datos ?? []).map((g) => ({ id: g.id, nombre: g.nombre, clave: g.enlace.clave, edadMin: g.enlace.edadMin, serieGasto: g.serieGasto, ultimoDato: g.ultimoDato, estadia: g.estadia })) },
         ndvi: { cargado: extra.ndvi.cargado, error: extra.ndvi.error, r: extra.ndvi.datos },
-    }), [hoyISO, cicloAct, extra.goes, extra.ndvi, extra.cultivos, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, suficiencia, extra.historico.cargado, extra.historico.error, extra.pronostico.demanda, extra.pronostico.cargado, extra.pronostico.error, avanceDist, avance, canal.modelo, canal.cargado, volumenCanal, vaciadoDesde, etoReciente, umbralesClima, clima, extra.pronostico.horas, modules, confianza, resumen, topAlertas, abrirDrawer]);
+        cuenca: { cargado: !cuenca.loading, error: cuenca.error, r: cuencaR },
+    }), [cuencaR, cuenca.loading, cuenca.error, hoyISO, cicloAct, extra.goes, extra.ndvi, extra.cultivos, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, suficiencia, extra.historico.cargado, extra.historico.error, extra.pronostico.demanda, extra.pronostico.cargado, extra.pronostico.error, avanceDist, avance, canal.modelo, canal.cargado, volumenCanal, vaciadoDesde, etoReciente, umbralesClima, clima, extra.pronostico.horas, modules, confianza, resumen, topAlertas, abrirDrawer]);
 
     // Estados derivados: una sola vez por cambio del modelo (los comparten la barra de pulso y las tarjetas).
     const derivados = useMemo(() => derivaEstados(modeloKpis), [modeloKpis]);

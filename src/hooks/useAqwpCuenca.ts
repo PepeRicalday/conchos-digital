@@ -26,13 +26,27 @@ const num = (v: unknown): number | null => (v == null ? null : Number.isFinite(N
  * Cuenca del Conchos: contexto de las presas CONAGUA de Chihuahua + aforo Ojinaga (portal USIBWC AQUARIUS).
  * Fuente tercera, solo lectura (tablas aqwp_*, cargadas por aqwp-sync). Sin realtime: el portal publica una vez al día.
  */
-export function useAqwpCuenca() {
+export interface OpcionesCuenca {
+    /** false = modo ligero (Dashboard): no baja la serie de 12 meses de llenado, solo estado actual y lluvia. */
+    conSerie?: boolean;
+    /** Refresco silencioso cada N ms (0 = sin refresco). Se omite con la pestaña oculta. Sin loading ni parpadeo. */
+    refrescoMs?: number;
+}
+
+export function useAqwpCuenca({ conSerie = true, refrescoMs = 0 }: OpcionesCuenca = {}) {
     const [datos, setDatos] = useState<CuencaConchos | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [version, setVersion] = useState(0);
 
     const recargar = useCallback(() => { setLoading(true); setError(null); setVersion(v => v + 1); }, []);
+
+    // El portal publica una vez al día: un refresco lento basta para una pantalla de sala que queda abierta todo el día.
+    useEffect(() => {
+        if (!refrescoMs) return;
+        const t = setInterval(() => { if (!document.hidden) setVersion(v => v + 1); }, refrescoMs);
+        return () => clearInterval(t);
+    }, [refrescoMs]);
 
     useEffect(() => {
         let vivo = true;
@@ -60,7 +74,7 @@ export function useAqwpCuenca() {
                 const desde = ultFecha ? restarDias(ultFecha, DIAS_GRAFICA) : null;
 
                 const lecturas: LecturaDiariaAqwp[] = [];
-                if (desde && delPresas.length) {
+                if (conSerie && desde && delPresas.length) {
                     const ids = delPresas.map(d => d.id_number);
                     for (let from = 0; ; from += PAGINA) {
                         const { data, error: e } = await supabase.from('aqwp_lecturas_diarias')
@@ -111,7 +125,7 @@ export function useAqwpCuenca() {
             }
         })();
         return () => { vivo = false; };
-    }, [version]);
+    }, [version, conSerie]);
 
     return { datos, loading, error, recargar };
 }

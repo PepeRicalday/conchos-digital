@@ -29,6 +29,7 @@ import { TarjetaClimaHero } from './TarjetaClimaHero';
 import { CultivosCicloMini, ENLACE_CULTIVOS_CICLO } from './CultivosCicloMini';
 import type { ResumenCultivosCiclo } from '../../utils/cultivosCiclo';
 import { useRol } from '../../lib/auth/roles';
+import type { CuencaCompacta } from '../../utils/aqwpCuenca';
 
 const f = (v: number | null | undefined, d = 1) => (v == null ? null : v.toFixed(d));
 const edadMin = (ms: number | null) => (ms == null ? null : Math.max(0, (Date.now() - ms) / 60000));
@@ -69,6 +70,23 @@ export interface ModeloKpis {
     alertas: { resumen: ResumenAlertas; top: AlertaSistema[]; onAbrir: () => void };
     goes: { cargado: boolean; error: string | null; estaciones: EstacionFila[] };
     ndvi: { cargado: boolean; error: string | null; r: ResumenNdvi | null };
+    /** Contexto de cuenca (portal USIBWC/AQUARIUS): una línea dentro de la tarjeta Presas. Opcional: solo contexto, nunca bloquea el tablero. */
+    cuenca?: { cargado: boolean; error: string | null; r: CuencaCompacta | null };
+}
+
+/** Línea "Cuenca: X Mm³ · Y % · lluvia 7 d Z mm" de la tarjeta Presas. S/D explícito; sin datos no se afirma nada. */
+function LineaCuenca({ c }: { c: NonNullable<ModeloKpis['cuenca']> }) {
+    if (!c.cargado) return null;
+    const r = c.r;
+    if (!r) return <span className="kp-cuenca-l">Cuenca del Conchos: sin lectura</span>;
+    const parcial = r.conDato < r.total ? ` (${r.conDato}/${r.total} presas)` : '';
+    return (
+        <span className="kp-cuenca-l">
+            Cuenca: <b>{r.almacenadoMm3 != null ? `${r.almacenadoMm3.toFixed(0)} Mm³` : 'S/D'}</b>{r.pct != null ? ` · ${r.pct.toFixed(0)} %` : ''}{parcial}
+            <span className="kp-sep"> · </span><span className="kp-nw">lluvia 7 d <b>{r.lluvia.promedio7Mm != null ? `${r.lluvia.promedio7Mm.toFixed(1)} mm` : 'S/D'}</b></span>
+            {r.frescura?.stale ? <span className="kp-viejo"> · dato atrasado</span> : null}
+        </span>
+    );
 }
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -174,7 +192,7 @@ export const PanelKpis = memo(function PanelKpis({ m, derivados }: { m: ModeloKp
             <KpiTile id="kp-presas" to="/presas" titulo="Presas" icono={<Waves size={18} />} valor={f(presas.pct)} unidad="%" estado={presas.estado}
                 aria={`Presas: almacenamiento ${f(presas.pct) ?? 'sin dato'} por ciento, ${presas.estado.texto}. Abrir Presas`}
                 viz={<div className="kp-presas-viz"><ColumnasEmbalse items={presas.items} /><div className="kp-presas-spark"><Sparkline valores={presas.serie} etiqueta="Almacenamiento total, últimos 7 días" unidad="Mm³" color="var(--sc-s1)" alto={44} area /><small>7 días</small></div></div>}
-                contexto={<><b>{presas.almacenadoMm3 != null ? `${presas.almacenadoMm3.toFixed(0)} / ${presas.capacidadMm3.toFixed(0)} Mm³` : 'Sin lectura'}</b> · {presas.tendencia.texto}</>}
+                contexto={<><b>{presas.almacenadoMm3 != null ? `${presas.almacenadoMm3.toFixed(0)} / ${presas.capacidadMm3.toFixed(0)} Mm³` : 'Sin lectura'}</b> · {presas.tendencia.texto}{m.cuenca && <LineaCuenca c={m.cuenca} />}</>}
                 fresco={presas.frescura} stale={presas.stale} />
 
             <KpiTile id="kp-suficiencia" to="/analisis-historico" titulo={sf.modo === 'preciclo' ? 'Suficiencia · útil' : 'Suficiencia · alcance'} icono={<Hourglass size={18} />}

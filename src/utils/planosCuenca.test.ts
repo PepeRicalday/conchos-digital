@@ -39,6 +39,7 @@ describe('construirPlano · lluvia observada 30 d', () => {
         expect(m.titulo).toBe('Isoyetas observadas · últimos 30 días');
         expect(tituloPlano('lluvia', { tipo: 'pron', dias: 7 })).toBe('Isoyetas pronosticadas · próximos 7 días');
         expect(tituloPlano('temperatura', { tipo: 'obs', dias: 7 })).toBe('Temperatura media observada · últimos 7 días');
+        expect(tituloPlano('viento', { tipo: 'pron', dias: 3 })).toBe('Viento medio pronosticado · próximos 3 días');
     });
 });
 

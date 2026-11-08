@@ -771,8 +771,26 @@ const Clima = () => {
                     console.warn('[Clima] tendencias del periodo no disponibles para el informe geoclimático:', e);
                 }
             }
+            // Alcance «cuenca»: se añade la sección de toda la cuenca (red JCAS + propias). Si la carga falla, la sección sale con S/D
+            // explícito y el informe del distrito se genera igual.
+            let cuencaHtml: string | undefined;
+            if (opciones.alcance === 'cuenca') {
+                const [{ cargarDatosJcas }, { construirRedJcas }, { cargarDemCuenca }, { seccionCuencaGeo }] = await Promise.all([
+                    import('../hooks/useJcasCuenca'), import('../utils/jcasModelo'), import('../utils/camposCuenca'), import('../utils/geoInformeCuenca'),
+                ]);
+                let red = null, contorno = null;
+                try {
+                    const d = await cargarDatosJcas();
+                    contorno = d.contorno;
+                    red = d.contorno ? construirRedJcas(d.est, d.lec, new Date(Date.now() - 7 * 3_600_000).toISOString().slice(0, 10), d.contorno.poligonos, d.hoy, d.propia) : null;
+                } catch (e) {
+                    console.warn('[Clima] red de la cuenca no disponible para el informe geoclimático:', e);
+                }
+                const dem = await cargarDemCuenca().catch(() => null);
+                cuencaHtml = seccionCuencaGeo({ red, contorno, dem, variables: opciones.variables, periodoDesde, periodoHasta, hoy: new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10) });
+            }
             await exportClimaGeoInforme(estacionesInforme, {
-                ...opciones, periodoDesde, periodoHasta, serieMensual, tendencias, umbrales: umbralesClima,
+                ...opciones, cuencaHtml, periodoDesde, periodoHasta, serieMensual, tendencias, umbrales: umbralesClima,
                 diaMaxLluviaPorId: resumenRango?.diaMaxLluviaPorId,
                 precipitacionEsRealDeConsola: esTodoElHistorico,
             });

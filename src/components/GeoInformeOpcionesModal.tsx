@@ -56,6 +56,8 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
     // usuario 2026-09-16: la subtabla de precipitación con 3 columnas
     // numéricas y ceros repetidos era ilegible para personal no técnico).
     const [modoTecnico, setModoTecnico] = useState(false);
+    // Alcance: 'distrito' (default) = solo los 6 módulos; 'cuenca' = los 6 módulos y, además, toda la cuenca del Conchos (red JCAS + propias).
+    const [alcance, setAlcance] = useState<'distrito' | 'cuenca'>('distrito');
     const [variables, setVariables] = useState<Set<OpcionesGeoInforme['variables'][number]>>(
         new Set(['tempC', 'vientoMs', 'radSolarWm2', 'lluviaDiaMm']),
     );
@@ -126,6 +128,7 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
             periodoHasta: periodo?.hasta,
             modoTecnico,
             incluirTendencias,
+            alcance,
         });
         onCerrar();
     };
@@ -185,6 +188,43 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
                         >
                             <X size={16} className="text-slate-400" />
                         </button>
+                    </div>
+
+                    <div style={{ marginBottom: 20 }} role="radiogroup" aria-label="Alcance del informe">
+                        <p className="font-bold uppercase" style={{ fontSize: 11, letterSpacing: '0.08em', color: '#94a3b8', margin: '0 0 10px' }}>
+                            Alcance
+                        </p>
+                        <div className="grid grid-cols-2" style={{ gap: 10 }}>
+                            {([
+                                { valor: 'distrito', label: 'Solo distrito', desc: 'Los 6 módulos de la SRL, como siempre' },
+                                { valor: 'cuenca', label: 'Distrito y toda la cuenca', desc: 'Añade planos de lluvia, temperatura y viento de toda la cuenca del Conchos' },
+                            ] as const).map(({ valor, label, desc }) => {
+                                const activo = alcance === valor;
+                                return (
+                                    <button
+                                        key={valor}
+                                        type="button"
+                                        role="radio"
+                                        aria-checked={activo}
+                                        onClick={() => setAlcance(valor)}
+                                        className="transition-colors"
+                                        style={{
+                                            minHeight: 44, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
+                                            border: `1px solid ${activo ? 'rgba(56,189,248,0.45)' : 'rgba(255,255,255,0.10)'}`,
+                                            background: activo ? 'rgba(56,189,248,0.14)' : 'rgba(255,255,255,0.02)',
+                                        }}
+                                    >
+                                        <span className="font-semibold block" style={{ fontSize: 12.5, color: activo ? '#f1f5f9' : '#94a3b8' }}>{activo ? '● ' : '○ '}{label}</span>
+                                        <span style={{ fontSize: 11.5, color: '#94a3b8', display: 'block', marginTop: 2, lineHeight: 1.3 }}>{desc}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {alcance === 'cuenca' && (
+                            <p style={{ fontSize: 11.5, color: '#94a3b8', margin: '8px 0 0', lineHeight: 1.4 }}>
+                                La cuenca usa la red JCAS/UACJ y las estaciones propias (dato provisional de contexto). Su periodo es la ventana disponible más cercana al elegido (hoy, ayer, 7 o 30 días); la radiación solar no tiene red en la cuenca.
+                            </p>
+                        )}
                     </div>
 
                     <div style={{ marginBottom: 20 }}>

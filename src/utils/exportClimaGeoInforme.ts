@@ -140,6 +140,10 @@ export interface OpcionesGeoInforme {
      *  `incluirTendencias`. `null` = se pidió pero la consulta falló: el
      *  informe lo rotula "tendencias no disponibles" en vez de omitirlo. */
     tendencias?: TendenciasPeriodo | null;
+    /** Alcance del informe: 'distrito' (default, solo los 6 módulos SRL) o 'cuenca' (los 6 módulos y, además, toda la cuenca del Conchos). */
+    alcance?: 'distrito' | 'cuenca';
+    /** HTML ya armado de la sección «Cuenca del Conchos» (utils/geoInformeCuenca.ts); solo se inserta con alcance 'cuenca'. */
+    cuencaHtml?: string;
 }
 
 /** Escapa texto para insertarlo dentro de SVG/HTML — un nombre de estación
@@ -1906,6 +1910,8 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
   <p class="geoinf-grupo-sub">Mapa de ${esc(etiquetaPeriodo)}, tabla por módulo con procedencia del dato y evolución mensual — una sección por variable.</p>
   ${bloques}
 
+  ${opciones.alcance === 'cuenca' && opciones.cuencaHtml ? opciones.cuencaHtml : ''}
+
   ${modoTecnico ? `<h2>Estaciones de la red (fuente de los mapas anteriores)</h2>
   <div class="geoinf-tabla-scroll"><table>
     <thead><tr><th>Estación</th><th>Rol</th><th>Temp.</th><th>Viento</th><th>Radiación</th><th>Precipitación${hayPeriodo ? ' (periodo)' : ''}</th><th>${hayPeriodo ? 'Cobertura' : 'Frescura'}</th></tr></thead>
@@ -1955,7 +1961,7 @@ async function buildHTML(estaciones: EstacionConLectura[], opciones: OpcionesGeo
   <div class="foot">
     <span>
       <b>Informe Geoclimático por Módulo · SICA 005</b><br>
-      Estaciones Davis/WeatherLink · Interpolación IDW p=2 sobre la geofrontera real de los 6 módulos SRL.<br>
+      Estaciones Davis/WeatherLink · Interpolación IDW p=2 sobre la geofrontera real de los 6 módulos SRL${opciones.alcance === 'cuenca' ? ' y, en la sección Cuenca del Conchos, sobre el contorno oficial INEGI-CONAGUA (red JCAS/UACJ, dato provisional)' : ''}.<br>
       Documento generado automáticamente.
     </span>
     <span class="foot-sello">
@@ -1985,7 +1991,7 @@ export async function exportClimaGeoInforme(
     const html = await buildHTML(estaciones, opciones);
     const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
     const date = getTodayString();
-    await guardaOComparte(blob, `informe-geoclimatico-modulos-${date}.html`, 'text/html');
+    await guardaOComparte(blob, `informe-geoclimatico-${opciones.alcance === 'cuenca' ? 'distrito-y-cuenca' : 'modulos'}-${date}.html`, 'text/html');
 }
 
 // Exportado para pruebas fuera de la UI (ver scratchpad de la auditoría).

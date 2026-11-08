@@ -47,7 +47,7 @@ export interface EntradaPlano {
 export function tituloPlano(variable: VariablePlano, periodo: PeriodoPlano): string {
     const que = variable === 'lluvia' ? 'Isoyetas' : VARIABLES_PLANO[variable].titulo;
     const cuando = periodo.tipo === 'obs' ? cuandoVentana(periodo.dias) : `próximos ${periodo.dias} días`;
-    return `${que} ${periodo.tipo === 'obs' ? 'observadas' : 'pronosticadas'} · ${cuando}`.replace(/^(Temperatura media|Viento medio|Humedad relativa) (observadas|pronosticadas)/, (_, a, b) => `${a} ${b.replace('adas', 'ada')}`);
+    return `${que} ${periodo.tipo === 'obs' ? 'observadas' : 'pronosticadas'} · ${cuando}`.replace(/^(Temperatura media|Viento medio|Humedad relativa) (observadas|pronosticadas)/, (_, a, b) => `${a} ${b.replace('adas', a === 'Viento medio' ? 'ado' : 'ada')}`);
 }
 
 /** Área (grados²) de un anillo, para descartar islas diminutas. */

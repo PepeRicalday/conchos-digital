@@ -32,7 +32,7 @@ export const VARIABLES_PLANO: Record<VariablePlano, ConfigVariable> = {
 };
 
 /** Isoyetas: mm acumulados en la ventana (observada o pronosticada). 1 mm es el umbral de "día con lluvia". */
-export const NIVELES_LLUVIA = [1, 5, 10, 25, 50, 75, 100, 150];
+export const NIVELES_LLUVIA = [1, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100, 150];
 export const NIVELES_VIENTO = [2, 4, 6, 8, 10, 15, 20];
 export const NIVELES_HUMEDAD = [20, 30, 40, 50, 60, 70, 80, 90];
 

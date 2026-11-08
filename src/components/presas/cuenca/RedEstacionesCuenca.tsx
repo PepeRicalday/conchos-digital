@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useJcasCuenca } from '../../../hooks/useJcasCuenca';
+import type { useJcasCuenca } from '../../../hooks/useJcasCuenca';
 import { formatearNumero } from '../../../utils/historicoPresas';
 import { fechaCorta } from '../../../utils/analiticaPresas';
 import type { LluviaAreal } from '../../../utils/jcasCuenca';
@@ -34,8 +34,8 @@ function KpiAreal({ etiqueta, a }: { etiqueta: string; a: LluviaAreal }) {
  * Red de estaciones JCAS/UACJ dentro de la cuenca del Conchos: mapa propio, lluvia areal (7 y 30 días) y tabla por estación.
  * CONTEXTO de fuente TERCERA y provisional (portal público sin API): no sustituye las estaciones propias ni entra a KPIs del distrito.
  */
-export default function RedEstacionesCuenca() {
-    const { red, loading, error, recargar } = useJcasCuenca();
+export default function RedEstacionesCuenca({ jcas }: { jcas: ReturnType<typeof useJcasCuenca> }) {
+    const { red, loading, error, recargar } = jcas;
     const [ventana, setVentana] = useState<7 | 30>(30);
     const [sel, setSel] = useState<number | null>(null);
 

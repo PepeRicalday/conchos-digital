@@ -81,3 +81,23 @@ describe('construirRedJcas', () => {
         expect(m4.total).toBe(0);
     });
 });
+
+describe('promedios de temperatura, humedad y viento', () => {
+    const conMedias = (n: number) => Array.from({ length: n }, (_, i) => ({
+        estacion_id: 5, lluvia_mm: 0, temp_c: 10 + (i % 2), hum_pct: 60, viento_kmh: 5,
+        fecha: new Date(Date.parse('2026-11-07T00:00:00Z') - (n - 1 - i) * 86_400_000).toISOString().slice(0, 10),
+    }));
+    it('promedia la ventana cuando hay ≥ 80 % de los días y devuelve S/D si no', async () => {
+        const { mediaVentana } = await import('./jcasModelo');
+        expect(mediaVentana(conMedias(30), 'hum_pct', '2026-11-07', 30)).toBe(60);
+        expect(mediaVentana(conMedias(30), 'temp_c', '2026-11-07', 7)).toBeCloseTo(10.6, 1);
+        expect(mediaVentana(conMedias(5), 'viento_kmh', '2026-11-07', 7)).toBeNull(); // 5 de 7 = 71 %
+        expect(mediaVentana([], 'temp_c', '2026-11-07', 7)).toBeNull();
+    });
+    it('la red expone las medias y la elevación DEM por estación', () => {
+        const m = construirRedJcas([est(5, 'Camargo', 27.696, -105.174, { elevacion_dem_m: 1226 })], conMedias(30), HOY, c.poligonos);
+        expect(m.puntos[0].elevM).toBe(1226);
+        expect(m.puntos[0].medias.hum30).toBe(60);
+        expect(m.puntos[0].medias.viento7).toBe(5);
+    });
+});

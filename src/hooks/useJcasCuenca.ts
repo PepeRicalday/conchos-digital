@@ -34,7 +34,7 @@ export function useJcasCuenca(refrescoMs = 30 * 60_000) {
                 const [contorno, rEst] = await Promise.all([
                     cargarContornoCuenca(),
                     supabase.from('jcas_estaciones')
-                        .select('id_jcas, nombre, latitud, longitud, altitud_m, zona, grupo_ciudad, tiene_pluviometro, activa, ult_fecha, ult_sync_en')
+                        .select('id_jcas, nombre, latitud, longitud, altitud_m, zona, grupo_ciudad, tiene_pluviometro, activa, ult_fecha, ult_sync_en, elevacion_dem_m')
                         .in('zona', ['cuenca', 'salida']).eq('sincronizar', true).order('id_jcas'),
                 ]);
                 if (rEst.error) throw new Error(rEst.error.message);
@@ -42,15 +42,16 @@ export function useJcasCuenca(refrescoMs = 30 * 60_000) {
                     id_jcas: Number(r.id_jcas), nombre: String(r.nombre), latitud: Number(r.latitud), longitud: Number(r.longitud),
                     altitud_m: r.altitud_m == null ? null : Number(r.altitud_m), zona: r.zona as ZonaCuenca, grupo_ciudad: (r.grupo_ciudad as string | null) ?? null,
                     tiene_pluviometro: !!r.tiene_pluviometro, activa: !!r.activa, ult_fecha: (r.ult_fecha as string | null) ?? null,
+                    elevacion_dem_m: r.elevacion_dem_m == null ? null : Number(r.elevacion_dem_m),
                 }));
                 const ids = est.map((e) => e.id_jcas);
                 const lec: FilaLecturaJcas[] = [];
                 for (let from = 0; ids.length; from += PAGINA) {
                     const { data, error: e2 } = await supabase.from('jcas_lecturas_diarias')
-                        .select('estacion_id, fecha, lluvia_mm, temp_c').in('estacion_id', ids).gte('fecha', desde)
+                        .select('estacion_id, fecha, lluvia_mm, temp_c, hum_pct, viento_kmh').in('estacion_id', ids).gte('fecha', desde)
                         .order('estacion_id').order('fecha').range(from, from + PAGINA - 1);
                     if (e2) throw new Error(e2.message);
-                    for (const r of data ?? []) lec.push({ estacion_id: Number(r.estacion_id), fecha: String(r.fecha), lluvia_mm: r.lluvia_mm == null ? null : Number(r.lluvia_mm), temp_c: r.temp_c == null ? null : Number(r.temp_c) });
+                    for (const r of data ?? []) lec.push({ estacion_id: Number(r.estacion_id), fecha: String(r.fecha), lluvia_mm: r.lluvia_mm == null ? null : Number(r.lluvia_mm), temp_c: r.temp_c == null ? null : Number(r.temp_c), hum_pct: r.hum_pct == null ? null : Number(r.hum_pct), viento_kmh: r.viento_kmh == null ? null : Number(r.viento_kmh) });
                     if ((data?.length ?? 0) < PAGINA) break;
                 }
                 const syncs = (rEst.data ?? []).map((r) => r.ult_sync_en as string | null).filter((x): x is string => !!x).sort();

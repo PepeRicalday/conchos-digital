@@ -77,3 +77,20 @@ describe('suavizaAnillo / rotuloEnAnillos / anillosAPath', () => {
         expect((d.match(/Z/g) ?? []).length).toBe(1);
     });
 });
+
+describe('simplificaAnillo', () => {
+    it('reduce vértices de un círculo suavizado sin cambiar el área más de ~2 %', async () => {
+        const { simplificaAnillo } = await import('./isolineas');
+        const m = malla(41, (x, y) => -Math.hypot(x - 20, y - 20));
+        const [disco] = regionMayorQue(m, -10);
+        const s = suavizaAnillo(disco, 2), q = simplificaAnillo(s, 0.06);
+        expect(q.length).toBeLessThan(s.length * 0.6);
+        expect(area(q)).toBeGreaterThan(area(s) * 0.97);
+        expect(area(q)).toBeLessThan(area(s) * 1.01);
+    });
+    it('un anillo corto se devuelve igual', async () => {
+        const { simplificaAnillo } = await import('./isolineas');
+        const a: Anillo = [[0, 0], [1, 0], [1, 1], [0, 0]];
+        expect(simplificaAnillo(a, 0.5)).toEqual(a);
+    });
+});

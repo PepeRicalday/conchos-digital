@@ -22,6 +22,25 @@ export interface PuntoCampo {
     /** Elevación del DEM (m), no la que reporta la fuente. */
     elevM?: number | null;
     sospechosa?: boolean;
+    /** Estaciones del mismo sitio (p. ej. 4 en Chihuahua): pesan UNA vez. */
+    grupo?: string | null;
+}
+
+/** Estaciones de un mismo grupo → un punto con la mediana de su valor, coordenadas y elevación medias (las S/D y sospechosas no cuentan). */
+export function colapsaGrupos(puntos: PuntoCampo[]): PuntoCampo[] {
+    const sueltos = puntos.filter((p) => !p.grupo), grupos = new Map<string, PuntoCampo[]>();
+    for (const p of puntos) if (p.grupo) grupos.set(p.grupo, [...(grupos.get(p.grupo) ?? []), p]);
+    for (const [g, ps] of grupos) {
+        const v = ps.filter((x) => x.valor != null && !x.sospechosa).map((x) => x.valor as number).sort((a, b) => a - b);
+        const med = v.length ? (v.length % 2 ? v[v.length >> 1] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : null;
+        const el = ps.filter((x) => x.elevM != null).map((x) => x.elevM as number);
+        sueltos.push({
+            id: `grupo:${g}`, nombre: `${g.charAt(0).toUpperCase()}${g.slice(1)} (${ps.length} est.)`,
+            lat: ps.reduce((a, x) => a + x.lat, 0) / ps.length, lon: ps.reduce((a, x) => a + x.lon, 0) / ps.length,
+            valor: med == null ? null : Math.round(med * 10) / 10, elevM: el.length ? el.reduce((a, x) => a + x, 0) / el.length : null,
+        });
+    }
+    return sueltos;
 }
 
 /** Malla de elevación generada por scripts/cuenca_dem_grid.mjs (public/geo/cuenca_dem_grid.json). */

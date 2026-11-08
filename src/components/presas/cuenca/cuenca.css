@@ -195,3 +195,12 @@ html[data-device='phone'] .cu-dia { height: 24px; }
 .cu-leyenda-viz svg { flex: none; }
 html[data-device='phone'] .cu-red-kpi .an-kpi-val { font-size: 28px; }
 html[data-device='phone'] .cu-mapa-txt { font-size: 13.5px; stroke-width: 3.5px; }
+
+/* ── Planos de la cuenca (isoyetas y planos climáticos) ───────────────────────── */
+.cu-pl-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 12px; align-items: start; }
+@media (min-width: 900px) { .cu-pl-cuerpo { grid-template-columns: minmax(0, 560px) minmax(0, 1fr); } }
+.cu-plano { margin: 0; min-width: 0; }
+.cu-plano-img { display: block; width: 100%; height: auto; border: 1px solid var(--pr-line); border-radius: 12px; background: rgba(255, 255, 255, 0.02); }
+.cu-pl-res { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cu-pl-dato { margin: 0; font-size: 14px; line-height: 1.45; color: var(--pr-t2); }
+.cu-pl-dato b { color: var(--pr-t1); }

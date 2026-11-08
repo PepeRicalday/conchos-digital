@@ -12,8 +12,10 @@ import type { PoligonoGeo, ZonaCuenca } from './geoCuenca';
 export interface FilaEstacionJcas {
     id_jcas: number; nombre: string; latitud: number; longitud: number; altitud_m: number | null;
     zona: ZonaCuenca; grupo_ciudad: string | null; tiene_pluviometro: boolean; activa: boolean; ult_fecha: string | null;
+    /** Elevación del DEM (m); la altitud que reporta JCAS no es confiable. */
+    elevacion_dem_m?: number | null;
 }
-export interface FilaLecturaJcas { estacion_id: number; fecha: string; lluvia_mm: number | null; temp_c: number | null }
+export interface FilaLecturaJcas { estacion_id: number; fecha: string; lluvia_mm: number | null; temp_c: number | null; hum_pct?: number | null; viento_kmh?: number | null }
 
 export type EstadoEstacion = 'vigente' | 'atrasada' | 'sin-datos';
 
@@ -25,6 +27,9 @@ export interface PuntoRedJcas {
     sospechosa: boolean; motivo: string | null;
     /** Temperatura media del último día completo con dato (°C). */
     tempUltima: number | null;
+    elevM: number | null;
+    /** Promedios de la ventana (≥ 80 % de los días con dato; si no, null = S/D). */
+    medias: { temp7: number | null; temp30: number | null; hum7: number | null; hum30: number | null; viento7: number | null; viento30: number | null };
 }
 
 export interface ModeloRedJcas {
@@ -33,6 +38,19 @@ export interface ModeloRedJcas {
     fin: string;
     areal7: LluviaAreal; areal30: LluviaAreal;
     vigentes: number; total: number; conLluvia: number;
+}
+
+/** Promedio de un campo diario en los `dias` que terminan en `fin`; null si hay menos del 80 % de los días con dato. */
+export function mediaVentana(ls: FilaLecturaJcas[], campo: 'temp_c' | 'hum_pct' | 'viento_kmh', fin: string, dias: number): number | null {
+    const t1 = Date.parse(`${fin}T00:00:00Z`), t0 = t1 - (dias - 1) * 86_400_000;
+    const v = new Map<string, number>();
+    for (const l of ls) {
+        const t = Date.parse(`${l.fecha}T00:00:00Z`), x = l[campo];
+        if (t >= t0 && t <= t1 && x != null && Number.isFinite(x)) v.set(l.fecha, x);
+    }
+    if (v.size < Math.ceil(dias * 0.8)) return null;
+    let s = 0; for (const x of v.values()) s += x;
+    return Math.round((s / v.size) * 10) / 10;
 }
 
 const ISO = (t: number) => new Date(t).toISOString().slice(0, 10);
@@ -62,7 +80,12 @@ export function construirRedJcas(
             id: e.id_jcas, nombre: e.nombre, lat: e.latitud, lon: e.longitud, altitudM: e.altitud_m, zona: e.zona, grupo: e.grupo_ciudad,
             sinPluviometro: !e.tiene_pluviometro, mm7: a7.mm, mm30: a30.mm, diasConDato30: a30.diasConDato,
             ultFecha: ult, atrasoDias: atraso, estado: ult == null ? 'sin-datos' : (atraso ?? 99) <= DIAS_ATRASO ? 'vigente' : 'atrasada',
-            sospechosa: false, motivo: null, tempUltima: ultTemp,
+            sospechosa: false, motivo: null, tempUltima: ultTemp, elevM: e.elevacion_dem_m ?? null,
+            medias: {
+                temp7: mediaVentana(ls, 'temp_c', fin, 7), temp30: mediaVentana(ls, 'temp_c', fin, 30),
+                hum7: mediaVentana(ls, 'hum_pct', fin, 7), hum30: mediaVentana(ls, 'hum_pct', fin, 30),
+                viento7: mediaVentana(ls, 'viento_kmh', fin, 7), viento30: mediaVentana(ls, 'viento_kmh', fin, 30),
+            },
         };
     });
 

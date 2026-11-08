@@ -89,6 +89,28 @@ export function suavizaAnillo(a: Anillo, iteraciones = 2): Anillo {
     return p;
 }
 
+/** Douglas-Peucker sobre un anillo cerrado (tolerancia en grados): quita vértices redundantes tras el suavizado. */
+export function simplificaAnillo(a: Anillo, tol: number): Anillo {
+    if (a.length < 8) return a;
+    const pts = a.length > 1 && a[0][0] === a[a.length - 1][0] && a[0][1] === a[a.length - 1][1] ? a.slice(0, -1) : a.slice();
+    // se parte el anillo en dos mitades para que DP tenga extremos distintos
+    const mitad = pts.length >> 1;
+    const dp = (p: Anillo): Anillo => {
+        if (p.length < 3) return p;
+        const [ax, ay] = p[0], [bx, by] = p[p.length - 1];
+        const L = Math.hypot(bx - ax, by - ay) || 1e-12;
+        let mx = -1, k = -1;
+        for (let i = 1; i < p.length - 1; i++) {
+            const d = Math.abs((bx - ax) * (ay - p[i][1]) - (ax - p[i][0]) * (by - ay)) / L;
+            if (d > mx) { mx = d; k = i; }
+        }
+        if (mx <= tol) return [p[0], p[p.length - 1]];
+        return [...dp(p.slice(0, k + 1)).slice(0, -1), ...dp(p.slice(k))];
+    };
+    const h1 = dp(pts.slice(0, mitad + 1)), h2 = dp([...pts.slice(mitad), pts[0]]);
+    return [...h1.slice(0, -1), ...h2.slice(0, -1)];
+}
+
 export interface Rotulo { lon: number; lat: number; /** grados, en [-90, 90], en coordenadas de pantalla (y hacia abajo) */ angulo: number }
 
 /**

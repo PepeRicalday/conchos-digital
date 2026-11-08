@@ -74,3 +74,6 @@ html[data-device='phone'] .an-vista-btn { min-height: 44px; }
 .an-kpi-sub, .an-leyenda { font-size: 13px; }
 .an-ctl-etq { font: 600 12px var(--pr-mono, monospace); color: var(--pr-t2); margin-right: 8px; }
 .an-h-fila { flex-wrap: wrap; }
+
+/* Táctil: objetivos de 44 px en selectores segmentados y sub-vistas (antes 36 y 40) */
+@media (pointer: coarse) { .an-seg-btn, .an-vista-btn { min-height: 44px; } }

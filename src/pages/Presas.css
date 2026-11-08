@@ -1838,7 +1838,8 @@
 }
 
 /* Zona 2 */
-.scada-zona-hidraulica { display: flex; flex-direction: column; gap: 10px; }
+.scada-zona-hidraulica { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.scada-sala-body.is-goes-full { grid-template-columns: minmax(0, 1fr); }
 .scada-vaso-panel {
     background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.06);
     border-radius: 12px; padding: 14px;

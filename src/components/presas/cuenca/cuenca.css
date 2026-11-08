@@ -133,7 +133,7 @@
 .cu-fecha--vieja { color: var(--pr-warn); }
 
 /* ── Lluvia: tira de 30 días ───────────────────────────────────────────────── */
-.cu-tira-td { width: 44%; min-width: 220px; container-type: inline-size; }
+.cu-tira-td { width: 58%; min-width: 220px; container-type: inline-size; }
 .cu-tira { display: grid; grid-template-columns: repeat(30, minmax(0, 1fr)); gap: 2px; }
 .cu-dia {
     position: relative; display: flex; align-items: center; justify-content: center; height: 28px; border-radius: 3px;
@@ -201,9 +201,8 @@ html[data-device='phone'] .cu-mapa-txt { font-size: 13.5px; stroke-width: 3.5px;
 
 /* ── Planos de la cuenca (isoyetas y planos climáticos) ───────────────────────── */
 .cu-pl-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 12px; align-items: start; }
-@media (min-width: 900px) { .cu-pl-cuerpo { grid-template-columns: minmax(0, 560px) minmax(0, 1fr); } }
-.cu-plano { margin: 0; min-width: 0; }
-.cu-plano-img { display: block; width: 100%; height: auto; border: 1px solid var(--pr-line); border-radius: 12px; background: rgba(255, 255, 255, 0.02); }
+.cu-plano { margin: 0; min-width: 0; padding: 8px; border: 1px solid var(--pr-line); border-radius: 12px; background: rgba(255, 255, 255, 0.02); }
+.cu-plano-img { display: block; width: 100%; height: auto; border-radius: 10px; }
 .cu-pl-res { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .cu-pl-dato { margin: 0; font-size: 14px; line-height: 1.45; color: var(--pr-t2); }
 .cu-pl-dato b { color: var(--pr-t1); }
@@ -217,3 +216,71 @@ html[data-device='phone'] .cu-mapa-txt { font-size: 13.5px; stroke-width: 3.5px;
 .cu-capa-chip:focus-visible, .cu-capas-sum:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 2px; }
 .cu-capas-sum { min-height: 44px; display: flex; align-items: center; font-size: 13px; font-weight: 700; cursor: pointer; color: var(--pr-t1); }
 html[data-device='phone'] .cu-capa-chip { min-height: 44px; font-size: 14px; padding: 0 14px; }
+
+/* ══ Rediseño de la cuenca (v2.91): jerarquía, mapas protagonistas y uso del ancho ═════════════════════════════════════════════
+   Contenedores locales (.cu-cq) en vez de media queries: los bloques responden al ancho REAL disponible (con barra lateral, Monitor, iPad).
+   Ojo: container-type no va en .cu-root porque contiene los modales de informe (position: fixed). */
+.cu-cq { container: cu / inline-size; min-width: 0; }
+
+/* Navegación interna fija: la pestaña mide varias pantallas */
+.cu-nav { position: sticky; top: 0; z-index: 6; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; margin: -4px 0; background: linear-gradient(180deg, var(--pr-bg) 70%, transparent); }
+.cu-nav-btn { min-height: 36px; padding: 6px 16px; border: 1px solid var(--pr-line); border-radius: 999px; background: var(--pr-bg); color: var(--pr-t2); font: 600 13px var(--pr-body); cursor: pointer; }
+.cu-nav-btn:hover { border-color: var(--pr-sky); color: var(--pr-t1); }
+.cu-nav-btn:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 2px; }
+#cu-presas, #cu-planos, #cu-estaciones, #cu-lluvia { scroll-margin-top: 56px; }
+
+/* Cabecera: 6 indicadores */
+@container cu (min-width: 560px) { .an-kpis.an-kpis--6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container cu (min-width: 880px) { .an-kpis.an-kpis--6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container cu (min-width: 1360px) { .an-kpis.an-kpis--6 { grid-template-columns: repeat(6, minmax(0, 1fr)); } .an-kpis--6 .an-kpi-val { font-size: 30px; } }
+
+/* Presas: tanques + detalle lado a lado; los 7 múltiplos ocupan todo el ancho */
+.cu-presas-grid { display: flex; flex-direction: column; gap: 14px; }
+@container cu (min-width: 1280px) {
+    .cu-presas-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: stretch; }
+    .cu-presas-multiplos { grid-column: 1 / -1; }
+    .cu-presas-grid .cu-datos { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+
+/* Planos: controles | mapa | lectura */
+.cu-pl-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 12px; align-items: start; }
+.cu-pl-ctl { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+@container cu (min-width: 880px) {
+    .cu-pl-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+    .cu-pl-ctl { grid-column: 1 / -1; }
+    .cu-pl-estado { grid-column: 1 / -1; }
+}
+@container cu (min-width: 1360px) {
+    .cu-pl-grid { grid-template-columns: 250px minmax(0, 1.15fr) minmax(0, 1fr); }
+    .cu-pl-ctl { grid-column: auto; position: sticky; top: 64px; }
+    .cu-pl-estado { grid-column: 2 / -1; }
+    .cu-pl-ctl .cu-controles { flex-direction: column; align-items: stretch; gap: 12px; }
+    .cu-pl-ctl .an-seg { display: flex; flex-wrap: wrap; }
+    .cu-pl-ctl .an-seg-btn { flex: 1 1 auto; }
+}
+.cu-plano .cu-plano-img { max-height: min(86vh, 960px); object-fit: contain; }
+.cu-pl-res { gap: 12px; }
+.cu-pl-res .cu-red-kpi .an-kpi-val { font-size: 44px; }
+.cu-rank { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--pr-line); border-radius: 12px; background: var(--pr-surface); }
+.cu-rank-lista { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.cu-rank-fila { position: relative; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 5px 8px; border-radius: 6px; font-size: 13.5px; background: linear-gradient(90deg, rgba(63, 178, 243, 0.26) var(--w), transparent 0); }
+.cu-rank-nom { color: var(--pr-t1); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.cu-rank-val { font-family: var(--pr-mono); font-weight: 700; color: var(--pr-t1); font-variant-numeric: tabular-nums; }
+.cu-rank-pie { font-size: 12px; color: var(--pr-t3); }
+
+/* Red de estaciones: mapa fijo a la izquierda, tabla a la derecha */
+.cu-red-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+.cu-red-cuerpo .cu-mapa { margin: 12px 0 0; }
+@container cu (min-width: 1100px) {
+    .cu-red-cuerpo { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.25fr); }
+    .cu-red-cuerpo .cu-mapa { position: sticky; top: 64px; }
+    .cu-red-cuerpo .cu-mapa-svg { max-width: none; margin-inline: 0; }
+}
+.cu-tabla-wrap--red .cu-tabla th, .cu-tabla-wrap--red .cu-tabla td { padding: 8px 8px; }
+.cu-barra { background-image: linear-gradient(90deg, rgba(63, 178, 243, 0.24) var(--w, 0%), transparent 0); background-repeat: no-repeat; }
+.cu-tabla .cu-nota-fila.cu-fecha { display: block; margin-top: 2px; font-family: var(--pr-mono); }
+
+/* Táctil: objetivos de 44 px */
+@media (pointer: coarse) {
+    .cu-nav-btn, .cu-capa-chip { min-height: 44px; }
+}

@@ -12,7 +12,7 @@ import { construirPlano, planoSvg, type PeriodoPlano } from '../../../utils/plan
 import { puntosObservados, puntosPronostico } from '../../../utils/planosDatos';
 import type { CapasCuenca } from '../../../hooks/useCapasCuenca';
 import SelectorCapas from './SelectorCapas';
-import { VENTANAS_OBS, type VentanaObs } from '../../../utils/jcasModelo';
+import { arealDe, VENTANAS_OBS, type VentanaObs } from '../../../utils/jcasModelo';
 
 type Modo = 'obs' | 'pron';
 const VARIABLES: { v: VariablePlano; t: string }[] = [{ v: 'lluvia', t: 'Lluvia' }, { v: 'temperatura', t: 'Temperatura' }, { v: 'viento', t: 'Viento' }, { v: 'humedad', t: 'Humedad' }];
@@ -28,6 +28,27 @@ function Segmentado<T extends string | number>({ etiqueta, valor, opciones, onCh
             </div>
         </div>
     );
+}
+
+interface FilaRanking { clave: string; nombre: string; valor: number }
+const mediana = (v: number[]) => { const a = [...v].sort((x, y) => x - y); const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+/** Una fila por ciudad (las estaciones de un mismo grupo pesan una vez, como en el promedio) y sin las excluidas por sospechosas; S/D no entra. */
+function rankingDe(puntos: PuntoCampo[]): { filas: FilaRanking[]; sinDato: number } {
+    const util = puntos.filter((p) => !p.sospechosa);
+    const grupos = new Map<string, PuntoCampo[]>();
+    const sueltos: FilaRanking[] = [];
+    let sinDato = 0;
+    for (const p of util) {
+        if (p.grupo) grupos.set(p.grupo, [...(grupos.get(p.grupo) ?? []), p]);
+        else if (p.valor == null) sinDato++;
+        else sueltos.push({ clave: p.id, nombre: p.nombre, valor: p.valor });
+    }
+    for (const [g, ps] of grupos) {
+        const v = ps.filter((x) => x.valor != null).map((x) => x.valor as number);
+        if (!v.length) { sinDato++; continue; }
+        sueltos.push({ clave: `g:${g}`, nombre: `${g.charAt(0).toUpperCase()}${g.slice(1)} (${ps.length} est.)`, valor: mediana(v) });
+    }
+    return { filas: sueltos.sort((a, b) => b.valor - a.valor), sinDato };
 }
 
 const hoyLocal = () => new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10);
@@ -80,6 +101,12 @@ export default function PlanosCuenca({ jcas, capas }: { jcas: { red: RedJcas | n
     }, [modo, pron.datos, hoy, diasPron]);
 
     const cfg = VARIABLES_PLANO[variable];
+    const ranking = useMemo(() => (puntos ? rankingDe(puntos) : { filas: [], sinDato: 0 }), [puntos]);
+    // Una sola verdad: la lluvia areal observada es la MISMA que muestran el resumen y la red de estaciones (arealDe), no un segundo cálculo.
+    const arealUnico = variable === 'lluvia' && modo === 'obs' && jcas.red?.modelo ? arealDe(jcas.red.modelo, diasObs) : null;
+    const mediaKpi = arealUnico && arealUnico.mm != null ? arealUnico.mm : plano?.resumen.media ?? null;
+    const decRank = variable === 'temperatura' ? 1 : 0;
+    const maxRank = ranking.filas.length ? Math.max(...ranking.filas.map((f) => Math.abs(f.valor)), 0.0001) : 1;
     const cargando = jcas.loading || (modo === 'pron' && pron.loading);
     const falla = modo === 'obs' ? jcas.error : pron.error;
 
@@ -94,48 +121,67 @@ export default function PlanosCuenca({ jcas, capas }: { jcas: { red: RedJcas | n
                 </div>
                 <BotonInformeClimaCuenca red={jcas.red} pron={pron.datos} dem={dem} />
             </div>
-            <div className="cu-controles" role="group" aria-label="Variable y periodo del plano">
-                <Segmentado<VariablePlano> etiqueta="Variable" valor={variable} onChange={setVariable} opciones={VARIABLES} />
-                <Segmentado<Modo> etiqueta="Datos" valor={modo} onChange={setModo} opciones={[{ v: 'obs', t: 'Observado' }, { v: 'pron', t: 'Pronóstico' }]} />
-                {modo === 'obs'
-                    ? <Segmentado<VentanaObs> etiqueta="Periodo" valor={diasObs} onChange={setDiasObs} opciones={VENTANAS_OBS} />
-                    : <Segmentado<3 | 7> etiqueta="Periodo" valor={diasPron} onChange={setDiasPron} opciones={[{ v: 3, t: '3 días' }, { v: 7, t: '7 días' }]} />}
-            </div>
-
-            {capas && <SelectorCapas ids={capas.ids} onAlternar={capas.alternar} onTodas={capas.todas} onNinguna={capas.ninguna} nombre="planos" />}
-
-            {cargando && <div className="an-skeleton an-skeleton--alta" aria-busy="true" />}
-            {!cargando && (falla || !plano) && (
-                <div className="an-vacio" role="status"><strong>Sin plano por ahora (S/D)</strong><span>{falla ?? 'Todavía no hay estaciones o contorno cargados.'}</span></div>
-            )}
-
-            {!cargando && plano && (
-                <div className="cu-pl-cuerpo">
-                    <figure className="cu-plano">
-                        <img className="cu-plano-img" alt={descripcion} src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`} />
-                        <figcaption className="cu-leyenda-viz">{plano.titulo} · {cfg.titulo} en {cfg.unidad}. Escala fija por datos registrados: dos planos de fechas distintas se comparan a ojo.</figcaption>
-                    </figure>
-                    <div className="cu-pl-res">
-                        <div className="cu-red-kpi">
-                            <span className="an-kpi-lbl">{variable === 'lluvia' ? (modo === 'obs' ? 'Lluvia promedio de la cuenca' : 'Lluvia pronosticada promedio') : `${cfg.titulo} promedio`}</span>
-                            <span className="an-kpi-val">{plano.resumen.media == null ? 'S/D' : formatearNumero(plano.resumen.media, variable === 'temperatura' || plano.resumen.media < 10 ? 1 : 0)}{plano.resumen.media != null && <small> {cfg.unidad}</small>}</span>
-                            <span className="an-kpi-sub">
-                                {plano.motivoSD ? plano.motivoSD : `${plano.resumen.min != null && plano.resumen.max != null ? `rango ${formatearNumero(plano.resumen.min, 0)}–${formatearNumero(plano.resumen.max, 0)} ${cfg.unidad} · ` : ''}n = ${plano.resumen.n} estaciones · cobertura ${plano.resumen.coberturaPct.toFixed(0)} % del área`}
-                            </span>
+            <div className="cu-cq" id="cu-planos">
+                <div className="cu-pl-grid">
+                    <div className="cu-pl-ctl">
+                        <div className="cu-controles" role="group" aria-label="Variable y periodo del plano">
+                            <Segmentado<VariablePlano> etiqueta="Variable" valor={variable} onChange={setVariable} opciones={VARIABLES} />
+                            <Segmentado<Modo> etiqueta="Datos" valor={modo} onChange={setModo} opciones={[{ v: 'obs', t: 'Observado' }, { v: 'pron', t: 'Pronóstico' }]} />
+                            {modo === 'obs'
+                                ? <Segmentado<VentanaObs> etiqueta="Periodo" valor={diasObs} onChange={setDiasObs} opciones={VENTANAS_OBS} />
+                                : <Segmentado<3 | 7> etiqueta="Periodo" valor={diasPron} onChange={setDiasPron} opciones={[{ v: 3, t: '3 días' }, { v: 7, t: '7 días' }]} />}
                         </div>
-                        {plano.resumen.maxEn && <p className="cu-pl-dato"><b>Mayor valor:</b> {plano.resumen.maxEn.nombre}, {formatearNumero(plano.resumen.maxEn.valor, variable === 'temperatura' ? 1 : 0)} {cfg.unidad}</p>}
-                        <p className="cu-pl-dato"><b>Altitud:</b> {plano.ajuste.motivo}.</p>
-                        {plano.excluidos.length > 0 && <p className="an-aviso" role="status"><b>Excluida del plano:</b> {plano.excluidos.map((p) => p.nombre).join(', ')} (pluviómetro sospechoso).</p>}
-                        {modo === 'pron' && (
-                            <div className="cu-red-kpi">
-                                <span className="an-kpi-lbl">Confiabilidad del pronóstico</span>
-                                <span className="an-kpi-sub">{confiab.texto}</span>
-                                <span className="an-kpi-sub">Corrida {hace(pron.datos?.corridaEn ?? null)} · rango entre modelos en la tabla</span>
-                            </div>
-                        )}
+                        {capas && <SelectorCapas ids={capas.ids} onAlternar={capas.alternar} onTodas={capas.todas} onNinguna={capas.ninguna} nombre="planos" />}
                     </div>
+
+                    {cargando && <div className="an-skeleton an-skeleton--alta cu-pl-estado" aria-busy="true" />}
+                    {!cargando && (falla || !plano) && (
+                        <div className="an-vacio cu-pl-estado" role="status"><strong>Sin plano por ahora (S/D)</strong><span>{falla ?? 'Todavía no hay estaciones o contorno cargados.'}</span></div>
+                    )}
+
+                    {!cargando && plano && (
+                        <>
+                            <figure className="cu-plano">
+                                <img className="cu-plano-img" alt={descripcion} src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`} />
+                                <figcaption className="cu-leyenda-viz">{plano.titulo} · {cfg.titulo} en {cfg.unidad}. Escala fija por datos registrados: dos planos de fechas distintas se comparan a ojo.</figcaption>
+                            </figure>
+                            <div className="cu-pl-res">
+                                <div className="cu-red-kpi">
+                                    <span className="an-kpi-lbl">{variable === 'lluvia' ? (modo === 'obs' ? 'Lluvia promedio de la cuenca' : 'Lluvia pronosticada promedio') : `${cfg.titulo} promedio`}</span>
+                                    <span className="an-kpi-val">{mediaKpi == null ? 'S/D' : formatearNumero(mediaKpi, variable === 'temperatura' || mediaKpi < 10 ? 1 : 0)}{mediaKpi != null && <small> {cfg.unidad}</small>}</span>
+                                    <span className="an-kpi-sub">
+                                        {plano.motivoSD ? plano.motivoSD : `${plano.resumen.min != null && plano.resumen.max != null ? `rango ${formatearNumero(plano.resumen.min, 0)}–${formatearNumero(plano.resumen.max, 0)} ${cfg.unidad} · ` : ''}n = ${plano.resumen.n} estaciones · cobertura ${plano.resumen.coberturaPct.toFixed(0)} % del área`}
+                                    </span>
+                                </div>
+                                {plano.resumen.maxEn && <p className="cu-pl-dato"><b>Mayor valor:</b> {plano.resumen.maxEn.nombre}, {formatearNumero(plano.resumen.maxEn.valor, variable === 'temperatura' ? 1 : 0)} {cfg.unidad}</p>}
+                                <p className="cu-pl-dato"><b>Altitud:</b> {plano.ajuste.motivo}.</p>
+                                {plano.excluidos.length > 0 && <p className="an-aviso" role="status"><b>Excluida del plano:</b> {plano.excluidos.map((p) => p.nombre).join(', ')} (pluviómetro sospechoso).</p>}
+                                {ranking.filas.length > 0 && (
+                                    <div className="cu-rank" role="group" aria-label={`Estaciones ordenadas por ${cfg.titulo.toLowerCase()}`}>
+                                        <span className="cu-ctl-etq">Mayor a menor · {cfg.titulo.toLowerCase()} ({cfg.unidad})</span>
+                                        <ol className="cu-rank-lista">
+                                            {ranking.filas.slice(0, 8).map((f) => (
+                                                <li key={f.clave} className="cu-rank-fila" style={{ ['--w' as string]: `${Math.max(2, Math.round((Math.abs(f.valor) / maxRank) * 100))}%` }}>
+                                                    <span className="cu-rank-nom">{f.nombre}</span>
+                                                    <span className="cu-rank-val">{formatearNumero(f.valor, decRank)}</span>
+                                                </li>
+                                            ))}
+                                        </ol>
+                                        {(ranking.filas.length > 8 || ranking.sinDato > 0) && <span className="cu-rank-pie">{ranking.filas.length > 8 ? `${ranking.filas.length - 8} más en la tabla` : ''}{ranking.filas.length > 8 && ranking.sinDato > 0 ? ' · ' : ''}{ranking.sinDato > 0 ? `${ranking.sinDato} sin dato (S/D)` : ''}</span>}
+                                    </div>
+                                )}
+                                {modo === 'pron' && (
+                                    <div className="cu-red-kpi">
+                                        <span className="an-kpi-lbl">Confiabilidad del pronóstico</span>
+                                        <span className="an-kpi-sub">{confiab.texto}</span>
+                                        <span className="an-kpi-sub">Corrida {hace(pron.datos?.corridaEn ?? null)} · rango entre modelos en la tabla</span>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
                 </div>
-            )}
+            </div>
 
             {modo === 'pron' && !cargando && filasPron.length > 0 && (
                 <div className="cu-tabla-wrap" tabIndex={0} role="region" aria-label="Pronóstico por estación (desplazable)">

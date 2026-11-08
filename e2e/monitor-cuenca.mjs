@@ -34,7 +34,7 @@ for (const [nombre, vista] of [['escritorio', { width: 1440, height: 900 }], ['i
   verifica(filasTabla === 7, `[${nombre}] vista Tabla con las 7 presas (${filasTabla})`);
   await page.getByRole('button', { name: 'Tanques', exact: true }).click();
   await page.locator('.cu-tanque, .cu-movil').first().waitFor({ timeout: 15000 });
-  verifica(await page.locator('.an-kpi').count() === 4, `[${nombre}] 4 indicadores`);
+  verifica(await page.locator('.an-kpi').count() === 6, `[${nombre}] 6 indicadores (4 de presas + lluvia 30 d + estaciones útiles)`);
   verifica(await page.locator('section[aria-label="Lluvia en la cuenca"] tbody tr').count() === 3, `[${nombre}] lluvia: 3 pluviómetros`);
   const txt = await panel.innerText();
   verifica(/provisionales/i.test(txt) && /USIBWC/.test(txt), `[${nombre}] rotulado provisional / USIBWC`);

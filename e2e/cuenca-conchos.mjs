@@ -32,7 +32,7 @@ for (const [nombre, vista, esPhone] of [
   const n = await item.count();
   verifica(n === 7, `[${nombre}] 7 presas en la vista Tanques (${n}, ${esPhone ? 'lista' : 'tanques'})`);
   verifica(esPhone ? await page.locator('.cu-movil').count() === 7 : await page.locator('.cu-tanque').count() === 7, `[${nombre}] ${esPhone ? 'lista móvil' : 'tanques proporcionales'} según el dispositivo`);
-  verifica(await page.locator('.an-kpi').count() === 4, `[${nombre}] 4 indicadores`);
+  verifica(await page.locator('.an-kpi').count() === 6, `[${nombre}] 6 indicadores (4 de presas + lluvia 30 d + estaciones útiles)`);
 
   const txt = await panel.innerText();
   verifica(/San Gabriel, Dgo\./.test(txt), `[${nombre}] San Gabriel se rotula con su estado: "San Gabriel, Dgo."`);

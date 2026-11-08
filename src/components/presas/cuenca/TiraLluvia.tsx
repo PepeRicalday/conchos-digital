@@ -29,7 +29,7 @@ export default function TiraLluvia({ lluvia, serie }: Props) {
 
     if (lluvia.filas.length === 0 || lluvia.hasta == null || !ciclo) {
         return (
-            <section className="an-card" aria-label="Lluvia en la cuenca">
+            <section className="an-card" id="cu-lluvia" aria-label="Lluvia en la cuenca">
                 <h4 className="an-h">Lluvia en la cuenca · pluviómetros GOES</h4>
                 <div className="an-vacio" role="status"><strong>Sin lluvia reciente (S/D)</strong><span>Todavía no hay lluvia diaria cargada de los pluviómetros GOES del portal.</span></div>
             </section>

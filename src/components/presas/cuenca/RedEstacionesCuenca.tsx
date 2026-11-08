@@ -50,7 +50,7 @@ export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<
     if (loading) return <section className="an-card" aria-busy="true" aria-label="Cargando red de estaciones"><div className="an-skeleton" /></section>;
     if (error || !red?.modelo || !red.contorno) {
         return (
-            <section className="an-card" aria-label="Red de estaciones de la cuenca">
+            <section className="an-card" id="cu-estaciones" aria-label="Red de estaciones de la cuenca">
                 <h4 className="an-h">Red de estaciones de la cuenca · JCAS</h4>
                 <div className="an-vacio" role="status">
                     <strong>Sin estaciones JCAS por ahora (S/D)</strong>
@@ -63,9 +63,11 @@ export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<
     const m = red.modelo;
     const areal = arealDe(m, ventana);
     const excluidas = m.puntos.filter((p) => p.sospechosa);
+    const max30 = Math.max(0.0001, ...m.puntos.filter((p) => !p.sospechosa).map((p) => p.mm30 ?? 0), ...m.propias.map((p) => p.mm30 ?? 0));
+    const barra = (v: number | null) => (v == null ? undefined : { ['--w' as string]: `${Math.max(0, Math.min(100, Math.round((v / max30) * 100)))}%` });
 
     return (
-        <section className="an-card cu-red" aria-label="Red de estaciones de la cuenca">
+        <section className="an-card cu-red" id="cu-estaciones" aria-label="Red de estaciones de la cuenca">
             <div className="cu-red-cab">
                 <div>
                     <h4 className="an-h">Red de estaciones de la cuenca · JCAS</h4>
@@ -99,9 +101,10 @@ export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<
                 </p>
             )}
 
+            <div className="cu-cq"><div className="cu-red-cuerpo">
             <MapaCuenca contorno={red.contorno} puntos={m.puntos} seleccionada={sel} onSelect={setSel} ventana={ventana} propias={m.propias} capas={capas} />
 
-            <div className="cu-tabla-wrap" tabIndex={0} role="region" aria-label="Tabla de estaciones JCAS (desplazable)">
+            <div className="cu-tabla-wrap cu-tabla-wrap--red" tabIndex={0} role="region" aria-label="Tabla de estaciones JCAS (desplazable)">
                 <table className="cu-tabla">
                     <thead>
                         <tr>
@@ -111,8 +114,7 @@ export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<
                             <th scope="col" className="cu-num">Lluvia 7 d</th>
                             <th scope="col" className="cu-num">Lluvia 30 d</th>
                             <th scope="col" className="cu-num">Temp. último día</th>
-                            <th scope="col">Estado</th>
-                            <th scope="col">Último día</th>
+                            <th scope="col">Estado · último día</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -129,25 +131,24 @@ export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<
                                     <td className="cu-num">{fmtMm(p.hoy?.mm ?? null)}</td>
                                     <td className="cu-num">{fmtMm(p.ayer.mm)}</td>
                                     <td className="cu-num">{fmtMm(p.mm7)}</td>
-                                    <td className="cu-num">{fmtMm(p.mm30)}</td>
+                                    <td className="cu-num cu-barra" style={barra(p.sospechosa ? null : p.mm30)}>{fmtMm(p.mm30)}</td>
                                     <td className="cu-num">{p.tempUltima == null ? 'S/D' : `${formatearNumero(p.tempUltima, 1)} °C`}</td>
-                                    <td><span className={`cu-estado cu-estado--${e.clase}`}><span aria-hidden="true">{e.glifo}</span> {e.texto}</span></td>
-                                    <td className="cu-fecha">{p.ultFecha ? fechaCorta(p.ultFecha) : 'S/D'}</td>
+                                    <td><span className={`cu-estado cu-estado--${e.clase}`}><span aria-hidden="true">{e.glifo}</span> {e.texto}</span><span className="cu-nota-fila cu-fecha">{p.ultFecha ? fechaCorta(p.ultFecha) : 'S/D'}</span></td>
                                 </tr>
                             );
                         })}
                         {m.propias.map((p) => (
                             <tr key={p.id}>
                                 <th scope="row"><div className="cu-presa"><span className="cu-nombre">{p.nombre}</span><span className="cu-tag">Propia</span><span className="cu-nota-fila">Estación WeatherLink del distrito: solo aporta lluvia</span></div></th>
-                                <td className="cu-num">{fmtMm(p.mmHoy)}</td><td className="cu-num">{fmtMm(p.mm1)}</td><td className="cu-num">{fmtMm(p.mm7)}</td><td className="cu-num">{fmtMm(p.mm30)}</td>
+                                <td className="cu-num">{fmtMm(p.mmHoy)}</td><td className="cu-num">{fmtMm(p.mm1)}</td><td className="cu-num">{fmtMm(p.mm7)}</td><td className="cu-num cu-barra" style={barra(p.mm30)}>{fmtMm(p.mm30)}</td>
                                 <td className="cu-num">S/D</td>
-                                <td><span className="cu-estado cu-estado--ok"><span aria-hidden="true">●</span> Al día</span></td>
-                                <td className="cu-fecha">{p.ultFecha ? fechaCorta(p.ultFecha) : 'S/D'}</td>
+                                <td><span className="cu-estado cu-estado--ok"><span aria-hidden="true">●</span> Al día</span><span className="cu-nota-fila cu-fecha">{p.ultFecha ? fechaCorta(p.ultFecha) : 'S/D'}</span></td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
+            </div></div>
 
             <details className="an-pie cu-notas">
                 <summary className="cu-notas-sum">Cómo se calcula y qué límites tiene la red JCAS</summary>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { arealDe } from '../../../utils/jcasModelo';
 import { useAqwpCuenca } from '../../../hooks/useAqwpCuenca';
 import { formatearNumero } from '../../../utils/historicoPresas';
 import { calcularFrescura } from '../../../utils/presaMetrics';
@@ -47,6 +48,16 @@ function Segmentado<T extends string | number>({ etiqueta, valor, opciones, onCh
             </div>
         </div>
     );
+}
+
+const SECCIONES_NAV: { id: string; t: string }[] = [
+    { id: 'cu-presas', t: 'Presas' }, { id: 'cu-planos', t: 'Clima y planos' }, { id: 'cu-estaciones', t: 'Estaciones' }, { id: 'cu-lluvia', t: 'Pluviómetros GOES' },
+];
+function irA(id: string) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const reducido = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ behavior: reducido ? 'auto' : 'smooth', block: 'start' });
 }
 
 function FilaTabla({ m, difCila }: { m: PresaCuencaModelo; difCila: number | null | undefined }) {
@@ -149,6 +160,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
     const actual = visibles.find((m) => m.fila.ubicacionId === sel) ?? visibles[0] ?? null;
     const seleccionId = actual?.fila.ubicacionId ?? null;
     const hayClim = datos.climatologia != null;
+    const areal30 = jcas.red?.modelo ? arealDe(jcas.red.modelo, 30) : null;
 
     return (
         <div className="an-root cu-root pr-reveal">
@@ -165,7 +177,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                 </div>
             </header>
 
-            <div className="an-kpis" role="list">
+            <div className="cu-cq"><div className="an-kpis an-kpis--6" role="list">
                 <div className="an-kpi" role="listitem">
                     <span className="an-kpi-lbl">Almacenamiento de la cuenca</span>
                     <span className="an-kpi-val">{fmt(cuenca.totalMm3, 1)}<small> Mm³</small></span>
@@ -190,7 +202,21 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                     <span className="an-kpi-val">{fmtFlujo(ojinaga?.gastoM3s ?? null)}<small> m³/s</small></span>
                     <span className="an-kpi-sub">Aforo USIBWC 08373000{ojinaga?.fecha ? ` · ${fechaCorta(ojinaga.fecha)}` : ''}</span>
                 </div>
-            </div>
+                <div className="an-kpi" role="listitem">
+                    <span className="an-kpi-lbl">Lluvia de la cuenca · 30 días</span>
+                    <span className="an-kpi-val">{areal30?.mm == null ? 'S/D' : formatearNumero(areal30.mm, 1)}{areal30?.mm != null && <small> mm</small>}</span>
+                    <span className="an-kpi-sub">{areal30?.mm == null ? (areal30?.motivoSD ?? 'Sin estaciones JCAS por ahora') : `n = ${areal30.nEstaciones} estaciones · cobertura ${areal30.coberturaPct.toFixed(0)} % · contexto provisional`}</span>
+                </div>
+                <div className="an-kpi" role="listitem">
+                    <span className="an-kpi-lbl">Estaciones con lluvia útil</span>
+                    <span className="an-kpi-val">{jcas.red?.modelo ? jcas.red.modelo.conLluvia : 'S/D'}{jcas.red?.modelo && <small> de {jcas.red.modelo.total}</small>}</span>
+                    <span className="an-kpi-sub">JCAS/UACJ y propias del distrito · una por ciudad en el promedio</span>
+                </div>
+            </div></div>
+
+            <nav className="cu-nav" aria-label="Secciones de la cuenca">
+                {SECCIONES_NAV.map((x) => <button key={x.id} type="button" className="cu-nav-btn" onClick={() => irA(x.id)}>{x.t}</button>)}
+            </nav>
 
             {sinActualizar.length > 0 && (
                 <p className="an-aviso" role="status">
@@ -211,17 +237,19 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
             </div>
 
             {vista === 'tanques' ? (
-                <>
+                <div className="cu-cq" id="cu-presas">
+                  <div className="cu-presas-grid">
                     <section className="an-card" aria-label="Tanques de las presas de la cuenca">
                         <h4 className="an-h">Presas de la cuenca</h4>
                         <p className="an-nota">Toque una presa para ver su detalle. El tamaño de cada tanque es su capacidad real; el estado usa los umbrales de referencia de SICA (20 % y 40 % del NAMO de CONAGUA).</p>
                         <FilaTanques modelos={visibles} seleccionada={seleccionId} onSelect={setSel} />
                     </section>
                     {actual && <DetallePresaCuenca m={actual} difCila={actual.fila.presaId ? calc.cila.get(actual.fila.presaId) : undefined} />}
-                    <PequenosMultiplos modelos={visibles} meses={meses} seleccionada={seleccionId} onSelect={setSel} />
-                </>
+                    <div className="cu-presas-multiplos"><PequenosMultiplos modelos={visibles} meses={meses} seleccionada={seleccionId} onSelect={setSel} /></div>
+                  </div>
+                </div>
             ) : (
-                <section className="an-card" aria-label="Estado de las presas de la cuenca">
+                <section className="an-card" id="cu-presas" aria-label="Estado de las presas de la cuenca">
                     <h4 className="an-h">Presas de la cuenca</h4>
                     <p className="an-nota">Porcentaje sobre el NAMO que publica CONAGUA; los umbrales de estado son referencia interna de SICA. El % útil descuenta el volumen muerto y la posición compara con el mismo día de 2017 a {new Date().getFullYear() - 1}. Caudales del día en m³/s.</p>
                     <div className="cu-tabla-wrap" tabIndex={0} role="region" aria-label="Tabla de presas (desplazable)">

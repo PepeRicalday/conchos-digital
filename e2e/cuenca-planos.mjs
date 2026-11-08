@@ -33,7 +33,7 @@ for (const [nombre, vista] of [['escritorio', { width: 1440, height: 900 }], ['i
   verifica(/Altitud:/.test(txt), `[${nombre}] declara si se ajustó por altitud`);
   verifica(/provisional/i.test(txt) && /JCAS/.test(txt), `[${nombre}] rotulado como provisional y fuente JCAS`);
   verifica(!/Aquarius/i.test(txt) && !/(^|[\s>(])(NaN|undefined|Infinity|null)([\s<).,]|$)/.test(txt), `[${nombre}] sin Aquarius ni NaN/undefined/null`);
-  verifica(await page.locator('.an-kpi').count() === 4, `[${nombre}] los 4 indicadores de presas siguen intactos`);
+  verifica(await page.locator('.an-kpi').count() === 6, `[${nombre}] los 4 indicadores de presas siguen intactos + 2 de lluvia`);
 
   // Variables observadas
   for (const [boton, titulo] of [['Temperatura', 'Temperatura media'], ['Viento', 'Viento medio'], ['Humedad', 'Humedad relativa'], ['Lluvia', 'Isoyetas']]) {

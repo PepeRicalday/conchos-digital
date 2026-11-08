@@ -52,6 +52,30 @@ export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, v
     const marcas = useMemo(() => colapsaMarcas(puntos, ventana), [puntos, ventana]);
     // Capas de referencia (los módulos SRL ya se dibujan siempre en este mapa): el SVG sale de capasSvg (texto escapado, datos estáticos propios), recortado a la cuenca
     const capasG = useMemo(() => (capas && capas.ids.some((i) => i !== 'srl') ? capasSvg(capas.datos, capas.ids.filter((i) => i !== 'srl'), p, { px: 12, tema: 'pantalla', ancho: p.ancho, alto: p.alto }) : null), [capas, p]);
+    // Anti-solape de rótulos: se colocan de mayor a menor lluvia; cada uno prueba su lado habitual, el opuesto y, si ambos chocan,
+    // conserva solo la cifra (el nombre sigue en el título, en la tabla y para lectores de pantalla).
+    const rotulos = useMemo(() => {
+        const cajas: { x0: number; x1: number; y0: number; y1: number }[] = [];
+        const choca = (c: { x0: number; x1: number; y0: number; y1: number }) => c.x0 < 2 || c.x1 > p.ancho - 2 || cajas.some((o) => c.x0 < o.x1 && c.x1 > o.x0 && c.y0 < o.y1 && c.y1 > o.y0);
+        const m = new Map<number, { alinea: boolean; nombre: boolean }>();
+        const orden = [...marcas].sort((a, b) => (mmDe(b, ventana) ?? -1) - (mmDe(a, ventana) ?? -1));
+        for (const pt of orden) {
+            const x = p.x(pt.lon), y = p.y(pt.lat), mm = mmDe(pt, ventana);
+            const r = mm == null ? 7 : 7 + 9 * Math.sqrt(Math.min(mm, 150) / 150);
+            const pref = pt.lon > contorno.bbox.maxLon - (contorno.bbox.maxLon - contorno.bbox.minLon) * 0.22;
+            const wN = pt.nombre.length * 6.6 + 4, wM = 40;
+            const caja = (alinea: boolean, nombre: boolean) => {
+                const w = nombre ? Math.max(wN, wM) : wM;
+                const x0 = alinea ? x - r - 4 - w : x + r + 4;
+                return { x0, x1: x0 + w, y0: y - r + (nombre ? -9 : 5), y1: y - r + 19 };
+            };
+            const opciones: [boolean, boolean][] = [[pref, true], [!pref, true], [pref, false], [!pref, false]];
+            const ok = opciones.find(([a, n]) => !choca(caja(a, n))) ?? opciones[2];
+            cajas.push(caja(ok[0], ok[1]));
+            m.set(pt.id, { alinea: ok[0], nombre: ok[1] });
+        }
+        return m;
+    }, [marcas, ventana, p, contorno]);
     const salida = { x: p.x(SALIDA_CUENCA.lon), y: p.y(SALIDA_CUENCA.lat) };
 
     return (
@@ -90,7 +114,8 @@ export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, v
                     const r = mm == null ? 7 : 7 + 9 * Math.sqrt(Math.min(mm, 150) / 150);
                     const alfa = mm == null ? 0.08 : 0.28 + 0.6 * Math.min(mm / 120, 1);
                     const etiqueta = `${pt.nombre}: ${mm == null ? 'lluvia S/D' : `${mm.toFixed(1)} mm ${cuandoVentana(ventana)}`}${pt.sospechosa ? ', pluviómetro excluido por sospechoso' : ''}${pt.estado === 'atrasada' ? ', dato atrasado' : ''}${pt.sinPluviometro ? ', sin pluviómetro' : ''}`;
-                    const alinea = pt.lon > contorno.bbox.maxLon - (contorno.bbox.maxLon - contorno.bbox.minLon) * 0.22;
+                    const rot = rotulos.get(pt.id) ?? { alinea: false, nombre: true };
+                    const alinea = rot.alinea;
                     return (
                         <g key={pt.id} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`} className={`cu-est${sel ? ' cu-est--sel' : ''}`}
                             role="button" tabIndex={0} aria-label={etiqueta} aria-pressed={sel}
@@ -101,7 +126,7 @@ export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, v
                                 ? <path d="M0,-9 L9,0 L0,9 L-9,0 Z" className="cu-est-rombo" />
                                 : <circle r={r} className={`cu-est-c${pt.estado !== 'vigente' ? ' cu-est-c--atras' : ''}${pt.sospechosa ? ' cu-est-c--sosp' : ''}`} style={{ fill: `rgba(63,178,243,${alfa})` }} />}
                             {pt.sospechosa && <path d="M-5,-5 L5,5 M5,-5 L-5,5" className="cu-est-x" />}
-                            <text x={alinea ? -r - 4 : r + 4} y={-r + 2} textAnchor={alinea ? 'end' : 'start'} className="cu-mapa-txt">{pt.nombre}</text>
+                            {rot.nombre && <text x={alinea ? -r - 4 : r + 4} y={-r + 2} textAnchor={alinea ? 'end' : 'start'} className="cu-mapa-txt">{pt.nombre}</text>}
                             <text x={alinea ? -r - 4 : r + 4} y={-r + 16} textAnchor={alinea ? 'end' : 'start'} className="cu-mapa-txt cu-mapa-txt--mm">{mm == null ? 'S/D' : `${mm.toFixed(0)} mm`}</text>
                         </g>
                     );

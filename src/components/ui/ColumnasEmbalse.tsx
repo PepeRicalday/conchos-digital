@@ -24,6 +24,7 @@ export const ColumnasEmbalse = memo(function ColumnasEmbalse({ items }: { items:
                         </svg>
                         <b className={`kp-col-pct kp-t-${tipo}`}>{i.pct == null ? 'S/D' : `${i.pct.toFixed(0)}%`}</b>
                         <span className="kp-col-nombre">{i.nombre}</span>
+                        {i.pct != null && i.capacidadMm3 > 0 && <small className="kp-col-vol">{Math.round(i.pct / 100 * i.capacidadMm3)} Mm³</small>}
                     </div>
                 );
             })}

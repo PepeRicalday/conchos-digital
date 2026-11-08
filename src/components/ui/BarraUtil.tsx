@@ -16,7 +16,7 @@ export const BarraUtil = memo(function BarraUtil({ presas }: { presas: PresaSufi
                         <div className={`kp-util-barra ${completo ? '' : 'kp-util-sd'}`} aria-hidden="true">
                             {completo && <><i className="kp-u-muerto" style={{ width: w(p.muertoMm3 as number) }} /><i className="kp-u-util" style={{ width: w((p.almacenadoMm3 as number) - (p.muertoMm3 as number)) }} /></>}
                         </div>
-                        <b className="kp-util-v" title={p.muertoOficial ? undefined : 'Volumen muerto estimado (piso de la curva): no es un dato oficial'}>{completo ? `${(p.utilMm3 as number).toFixed(0)}${p.muertoOficial ? '' : '*'}` : 'S/D'}</b>
+                        <b className="kp-util-v" title={p.muertoOficial ? undefined : 'Volumen muerto estimado (piso de la curva): no es un dato oficial'}>{completo ? `${(p.utilMm3 as number).toFixed(0)}${p.muertoOficial ? '' : '*'}` : 'S/D'}{completo && <small className="kp-util-u"> Mm³</small>}</b>
                     </li>
                 );
             })}

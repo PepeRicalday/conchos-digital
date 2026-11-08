@@ -51,12 +51,15 @@
 .kc-dia-ll { font: 12px var(--sc-mono); color: var(--sc-t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kc-resumen { margin: 0; font: 14px/1.3 var(--sc-body); color: var(--sc-t1); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .kc-spark { display: flex; flex-direction: column; gap: 1px; flex: 1 1 0; min-height: 34px; }
-.kc-spark svg { flex: 1 1 0; height: 100%; min-height: 34px; max-height: 140px; }
-.kc-spark small { font: 12px var(--sc-mono); color: var(--sc-t3); }
+.kc-spark svg { flex: 1 1 0; height: auto; min-height: 26px; max-height: 140px; }
+/* La etiqueta no cabe sin tapar el resumen; el nombre va en el <title> del SVG y el rango 48 h en el pie (.kc-rango) */
+.kc-spark small { display: none; }
 
 /* Sensores */
 .kc-sens { display: flex; align-items: center; gap: 8px; margin-top: auto; min-width: 0; font: 12px var(--sc-mono); color: var(--sc-t2); white-space: nowrap; overflow: hidden; }
 .kc-sens svg { flex: none; color: var(--sc-sky); } .kc-sens span:last-child { overflow: hidden; text-overflow: ellipsis; } .kc-sens b { color: var(--sc-warn); font-weight: 600; }
+.kc-sens .kc-rango { margin-left: auto; flex: none; color: var(--sc-t2); } .kc-sens .kc-rango b { color: var(--sc-t1); }
+@container kc (max-width: 480px) { .kc-rango { display: none; } }
 .kc-puntos { display: inline-flex; gap: 4px; flex: none; }
 .kc-puntos i { width: 10px; height: 10px; border-radius: 50%; border: 2px solid transparent; }
 .kc-p-ok { background: var(--sc-ok); } .kc-p-mal { border-color: var(--sc-crit) !important; border-radius: 2px !important; }
@@ -151,3 +154,5 @@
 @container kc (max-width: 260px) { .kc-dia-ico { display: none; } }
 .kc-dia-t { font-size: clamp(16px, 7cqw, 24px); } .kc-dia-t i { font-size: clamp(12px, 5cqw, 17px); } .kc-dia-txt { min-width: 0; }
 .kc-dia-t { font-size: clamp(15px, 6.4cqw, 24px); } .kc-dia-txt b { white-space: nowrap; letter-spacing: 0.02em; } .kc-dia { padding-inline: 5px; gap: 4px; }
+/* Tarjeta angosta (iPad): el subtítulo con la edad del dato ('hace 1 h 17 min') ya no se parte en 2 líneas ni empuja los pronósticos fuera */
+@container kc (max-width: 260px) { .kc-sub { display: block; white-space: nowrap; -webkit-line-clamp: unset; overflow: hidden; text-overflow: ellipsis; } }

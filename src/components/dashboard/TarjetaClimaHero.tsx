@@ -65,6 +65,7 @@ const PanelAhoraClima = memo(function PanelAhoraClima({ demanda }: { demanda: Mo
     const dias = useMemo(() => resumenDias(demanda.horas48 ?? [], nowMs), [demanda.horas48, nowMs]);
     const hayDias = dias.some((d) => d.condicion !== 'sd');
     const serieT = useMemo(() => (demanda.horas48 ?? []).map((h) => h.tempC), [demanda.horas48]);
+    const tRango = useMemo(() => { const v = serieT.filter((x): x is number => x != null); return v.length ? { min: Math.round(Math.min(...v)), max: Math.round(Math.max(...v)) } : null; }, [serieT]);
     const edad = demanda.medido.ultimaObs ? Math.max(0, (nowMs - Date.parse(demanda.medido.ultimaObs)) / 60000) : null;
     const validas = ahora?.estacionesValidas ?? 0, total = ahora?.estacionesTotal ?? 0;
     const sinRed = total === 0;
@@ -116,6 +117,7 @@ const PanelAhoraClima = memo(function PanelAhoraClima({ demanda }: { demanda: Mo
                     <>
                         <span className="kc-puntos" role="img" aria-label={`${validas} de ${total} estaciones válidas`}>{Array.from({ length: total }, (_, i) => <i key={i} className={i < validas ? 'kc-p-ok' : 'kc-p-mal'} />)}</span>
                         <span title={ahora && ahora.excluidas.length > 0 ? `Fuera: ${ahora.excluidas.join(', ')}` : 'Todas las estaciones son válidas'}>{validas}/{total} estaciones{ahora && ahora.excluidas.length > 0 ? <> · <b>{ahora.excluidas.length} fuera</b></> : ''}</span>
+                        {tRango && <span className="kc-rango" title="Temperatura prevista, próximas 48 horas">48 h: <b>{tRango.min}°</b>–<b>{tRango.max}°</b></span>}
                     </>
                 )}
             </footer>

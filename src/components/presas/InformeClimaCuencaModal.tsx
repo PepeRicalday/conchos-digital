@@ -14,6 +14,7 @@ import {
     ANCHO_PNG_CLIMA, LAMINA_CLIMA_PX, MAX_PLANOS_LAMINA, MAX_PLANOS_PNG, htmlInformeClimaCuenca, type FormatoInformeClima,
 } from '../../utils/informeClimaCuencaHtml';
 import { VENTANAS_OBS } from '../../utils/jcasModelo';
+import { CAPAS_INFO, cargarCapas, type CapaId, type DatosCapas } from '../../utils/capasCuenca';
 import type { VariablePlano } from '../../utils/paletasClima';
 import { cargarLogosInforme } from '../../utils/logosInforme';
 import { rasterizaHtml } from '../../utils/rasterizaHtml';
@@ -47,6 +48,7 @@ export default function InformeClimaCuencaModal({ red, pron, dem, onCerrar }: Pr
     const [exportando, setExportando] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [anchoMarco, setAnchoMarco] = useState(900);
+    const [capasDatos, setCapasDatos] = useState<DatosCapas>({});
 
     const enPrevia = emitido != null || generando || error != null;
     const volver = () => { setEmitido(null); setError(null); setGenerando(false); };
@@ -61,7 +63,7 @@ export default function InformeClimaCuencaModal({ red, pron, dem, onCerrar }: Pr
     }), [c, pron, red]);
     const nPlanos = cuentaPlanos(c);
 
-    const informe = useMemo(() => (emitido && red?.contorno ? construirDatosClima(c, { red: red.modelo, contorno: red.contorno, dem, pron, hoy, ultSyncJcas: red.ultSyncEn }) : null), [emitido, c, red, dem, pron, hoy]);
+    const informe = useMemo(() => (emitido && red?.contorno ? construirDatosClima(c, { red: red.modelo, contorno: red.contorno, dem, pron, hoy, ultSyncJcas: red.ultSyncEn, capasDatos }) : null), [emitido, c, red, dem, pron, hoy, capasDatos]);
     const html = useMemo(() => (informe && emitido && logos ? htmlInformeClimaCuenca(informe, { formato, logoSrl: logos.srl, logoSica: logos.sica, emitido }) : null), [informe, emitido, logos, formato]);
     const htmlPrevia = useMemo(() => {
         if (!html) return null;
@@ -86,7 +88,7 @@ export default function InformeClimaCuencaModal({ red, pron, dem, onCerrar }: Pr
 
     const generar = async () => {
         setGenerando(true); setError(null);
-        try { setLogos(await cargarLogosInforme()); setEmitido(new Date()); }
+        try { const [lg, cd] = await Promise.all([cargarLogosInforme(), cargarCapas([...c.capas, 'rios', 'presas'] as CapaId[])]); setLogos(lg); setCapasDatos(cd); setEmitido(new Date()); }
         catch (e) { setError(e instanceof Error ? e.message : 'No se pudo generar el informe.'); }
         finally { setGenerando(false); }
     };
@@ -174,6 +176,18 @@ export default function InformeClimaCuencaModal({ red, pron, dem, onCerrar }: Pr
                                         {([3, 7] as const).map((d) => <button key={d} type="button" role="radio" aria-checked={c.diasPron === d} className="ndvi-cfg-chip" onClick={() => set({ diasPron: d })}>Próximos {d} días</button>)}
                                     </div>
                                 )}
+                            </section>
+                            <section className="ndvi-cfg-bloque" aria-label="Capas de referencia">
+                                <span className="ndvi-cfg-etq">Capas de referencia <em>({c.capas.length} de {CAPAS_INFO.length})</em></span>
+                                <div className="ndvi-cfg-chips" role="group" aria-label="Capas de referencia de los planos">
+                                    {CAPAS_INFO.map((k) => {
+                                        const on = c.capas.includes(k.id);
+                                        return <button key={k.id} type="button" className="ndvi-cfg-chip" aria-pressed={on} title={k.ayuda} onClick={() => set({ capas: CAPAS_INFO.map((x) => x.id).filter((id) => (id === k.id ? !on : c.capas.includes(id))) })}>{on ? '✓ ' : '+ '}{k.titulo}</button>;
+                                    })}
+                                </div>
+                            </section>
+                            <section className="ndvi-cfg-bloque" aria-label="Distrito">
+                                <label className="ndvi-cfg-check" title="Plano de lluvia sobre los 6 módulos con las estaciones propias; solo en el PDF carta"><input type="checkbox" checked={c.distrito} onChange={() => set({ distrito: !c.distrito })} /><span className="ndvi-cfg-etq">Apartado del distrito (módulos SRL con sus estaciones propias)</span></label>
                             </section>
                             <section className="ndvi-cfg-bloque" aria-label="Tabla de estaciones">
                                 <label className="ndvi-cfg-check"><input type="checkbox" checked={c.estaciones} onChange={() => set({ estaciones: !c.estaciones })} /><span className="ndvi-cfg-etq">Tabla de estaciones</span></label>

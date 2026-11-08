@@ -18,7 +18,7 @@ export function puntosObservados(red: ModeloRedJcas, variable: VariablePlano, di
         sospechosa: variable === 'lluvia' ? p.sospechosa : false,
     }));
     // Las estaciones propias aportan SOLO lluvia (sus otros sensores no se mezclan con los de JCAS).
-    const propias = variable === 'lluvia' ? (red.propias ?? []).map((p) => ({ id: p.id, nombre: p.nombre, lat: p.lat, lon: p.lon, valor: mmPropio(p, dias), elevM: null, grupo: null })) : [];
+    const propias = variable === 'lluvia' ? (red.propias ?? []).map((p) => ({ id: p.id, nombre: p.nombre, lat: p.lat, lon: p.lon, valor: mmPropio(p, dias), elevM: null, grupo: null, propia: true })) : [];
     return [...jcas, ...propias];
 }
 

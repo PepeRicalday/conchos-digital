@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { anilloAPath, proyectorCuenca, SALIDA_CUENCA, type ContornoCuenca } from '../../../utils/geoCuenca';
 import { MODULOS_SRL, PRESAS } from '../../../utils/geoDistrito';
+import type { CapasCuenca } from '../../../hooks/useCapasCuenca';
+import { capasSvg } from '../../../utils/capasCuenca';
 import { cuandoVentana, mmPropio, valorObs, type PuntoPropio, type PuntoRedJcas, type VentanaObs } from '../../../utils/jcasModelo';
 
 interface Props {
@@ -11,6 +13,8 @@ interface Props {
     ventana: VentanaObs;
     /** Estaciones propias (WeatherLink): cuadrado con su lluvia; los nombres van en la tabla (en el Distrito quedan muy juntas). */
     propias?: PuntoPropio[];
+    /** Capas de referencia activas (el mismo estado que los planos). */
+    capas?: CapasCuenca;
 }
 
 const W = 500; // ≈ tamaño de pantalla de escritorio: el texto del mapa queda cerca de 12 px
@@ -35,7 +39,7 @@ function colapsaMarcas(puntos: PuntoRedJcas[], v: VentanaObs): PuntoRedJcas[] {
  * El estado nunca va solo en color: círculo = con lluvia · círculo punteado = dato atrasado · rombo = sin pluviómetro · círculo con ✕ = pluviómetro
  * excluido por sospechoso. La cifra de lluvia va junto a cada estación y toda la información está también en la tabla de abajo.
  */
-export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, ventana, propias = [] }: Props) {
+export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, ventana, propias = [], capas }: Props) {
     const g = useMemo(() => {
         const p = proyectorCuenca(contorno.bbox, W);
         return {
@@ -46,12 +50,17 @@ export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, v
     }, [contorno]);
     const { p } = g;
     const marcas = useMemo(() => colapsaMarcas(puntos, ventana), [puntos, ventana]);
+    // Capas de referencia (los módulos SRL ya se dibujan siempre en este mapa): el SVG sale de capasSvg (texto escapado, datos estáticos propios), recortado a la cuenca
+    const capasG = useMemo(() => (capas && capas.ids.some((i) => i !== 'srl') ? capasSvg(capas.datos, capas.ids.filter((i) => i !== 'srl'), p, { px: 12, tema: 'pantalla', ancho: p.ancho, alto: p.alto }) : null), [capas, p]);
     const salida = { x: p.x(SALIDA_CUENCA.lon), y: p.y(SALIDA_CUENCA.lat) };
 
     return (
         <figure className="cu-mapa" aria-label="Mapa de la cuenca del Conchos con las estaciones JCAS">
             <svg viewBox={`0 0 ${p.ancho} ${p.alto}`} className="cu-mapa-svg" role="group" aria-label={`Estaciones JCAS y propias en la cuenca, lluvia ${cuandoVentana(ventana)}`}>
+                <defs><clipPath id="cu-mapa-cl"><path d={g.cuenca} /></clipPath></defs>
                 <path d={g.cuenca} className="cu-mapa-cuenca" />
+                {capasG && <g clipPath="url(#cu-mapa-cl)" aria-hidden="true" dangerouslySetInnerHTML={{ __html: capasG.bajo }} />}
+                {capasG && <g aria-hidden="true" dangerouslySetInnerHTML={{ __html: capasG.alto }} />}
                 {g.modulos.map((m) => <path key={m.k} d={m.d} className="cu-mapa-modulo"><title>{`Módulo ${m.k} · SRL Conchos`}</title></path>)}
                 {PRESAS.map((pr) => (
                     <g key={pr.nombre} transform={`translate(${p.x(pr.lon).toFixed(1)} ${p.y(pr.lat).toFixed(1)})`}>

@@ -10,7 +10,9 @@ import { colapsaGrupos, construirCampo, type CampoCuenca, type DemGrid, type Pun
 import { anilloAPath, proyectorCuenca, SALIDA_CUENCA, type ContornoCuenca, type ProyectorMapa } from './geoCuenca';
 import { anillosAPath, regionMayorQue, rotuloEnAnillos, simplificaAnillo, suavizaAnillo, type Anillo } from './isolineas';
 import { cuandoVentana, type VentanaObs } from './jcasModelo';
-import { colorBanda, fmtNivel, nivelesDe, VARIABLES_PLANO, type VariablePlano } from './paletasClima';
+import { capasSvg, type CapaId, type DatosCapas } from './capasCuenca';
+import { escalaDe } from './escalasCuenca';
+import { colorBanda, fmtNivel, VARIABLES_PLANO, type VariablePlano } from './paletasClima';
 
 export type PeriodoPlano = { tipo: 'obs'; dias: VentanaObs } | { tipo: 'pron'; dias: 3 | 7 };
 
@@ -23,6 +25,8 @@ export interface PlanoModelo {
     titulo: string;
     unidad: string;
     niveles: number[];
+    /** Base de la escala de color («escala basada en n = … lecturas, periodo …»); se muestra en la leyenda. */
+    escalaBase: string;
     colorBase: string;
     bandas: BandaPlano[];
     rotulos: RotuloPlano[];
@@ -69,9 +73,13 @@ export function construirPlano(e: EntradaPlano): PlanoModelo {
         resumen: { media: campo.media, min: campo.min, max: campo.max, coberturaPct: campo.coberturaPct, n: campo.nEstaciones, nExcluidas: excluidos.length, maxEn: mayor ? { nombre: mayor.nombre, valor: mayor.valor as number } : null },
         ajuste: campo.ajuste, motivoSD: campo.motivoSD,
     };
-    if (campo.motivoSD) return { ...base, niveles: [], colorBase: colorBanda(e.variable, 0, 1), bandas: [], rotulos: [], sinCobertura: [] };
+    const diasEscala = e.periodo.dias === 'hoy' ? 1 : e.periodo.dias;
+    const escala = escalaDe(e.variable, diasEscala);
+    if (campo.motivoSD) return { ...base, niveles: [], escalaBase: escala.base, colorBase: colorBanda(e.variable, 0, 1), bandas: [], rotulos: [], sinCobertura: [] };
 
-    const niveles = nivelesDe(e.variable, campo.min ?? undefined, campo.max ?? undefined);
+    const niveles = escala.niveles;
+    // Escala fija: los niveles por debajo del mínimo del campo cubren todo el plano y no dibujan contorno; el fondo toma el color de la banda en que cae el mínimo.
+    const k0 = campo.min == null ? 0 : niveles.filter((n) => n <= (campo.min as number)).length;
     const { malla, cubierta, dentro } = campo;
     const latRef = (e.contorno.bbox.minLat + e.contorno.bbox.maxLat) / 2;
     const valido = (lon: number, lat: number) => {
@@ -80,6 +88,7 @@ export function construirPlano(e: EntradaPlano): PlanoModelo {
     };
     const bandas: BandaPlano[] = [], rotulos: RotuloPlano[] = [];
     niveles.forEach((nivel, k) => {
+        if (k < k0) return;
         // En campos de gradiente (temperatura, viento, humedad) las islas de pocas celdas son ruido del relieve: no se dibujan.
         const minArea = e.variable === 'lluvia' ? 0 : malla.paso * malla.paso * 5;
         const anillos = regionMayorQue(malla, nivel).filter((a) => areaGrados(a) >= minArea).map((a) => simplificaAnillo(suavizaAnillo(a, 2), malla.paso * 0.06));
@@ -103,7 +112,7 @@ export function construirPlano(e: EntradaPlano): PlanoModelo {
             } else i++;
         }
     }
-    return { ...base, niveles, colorBase: colorBanda(e.variable, 0, niveles.length), bandas, rotulos, sinCobertura };
+    return { ...base, niveles, escalaBase: escala.base, colorBase: colorBanda(e.variable, k0, niveles.length), bandas, rotulos, sinCobertura };
 }
 
 // ───────────────────────────── SVG ─────────────────────────────
@@ -118,6 +127,12 @@ export interface OpcionesSvg {
     leyenda?: boolean;
     /** Texto alternativo del dibujo (role="img"). */
     descripcion?: string;
+    /** Capas de referencia (municipios, ríos, presas…) ya cargadas (utils/capasCuenca.ts). Sin esto el plano sale como siempre. */
+    capas?: { ids: CapaId[]; datos: DatosCapas };
+    /** Largo de la barra de escala en km (100 en la cuenca; 10 en el acercamiento al distrito). */
+    escalaKm?: number;
+    /** false = sin la flecha «Salida · Ojinaga» (acercamientos que no la contienen). */
+    salida?: boolean;
 }
 
 const TEMAS: Record<TemaPlano, { texto: string; suave: string; halo: string; borde: string; velo: string; trama: string; punto: string; excluido: string }> = {
@@ -133,7 +148,32 @@ export function planoSvg(m: PlanoModelo, c: ContornoCuenca, op: OpcionesSvg = {}
     const p: ProyectorMapa = proyectorCuenca(c.bbox, W);
     const cuenca = c.poligonos.map((poli) => anilloAPath(poli[0], p)).join(' ');
     const hayLeyenda = op.leyenda !== false;
-    const nLey = m.niveles.length + 1, altoLey = hayLeyenda ? Math.round(px * 5.4) : 0;
+    // las cifras de las estaciones tienen prioridad: los rótulos de las capas no se colocan encima de ellas
+    const reservados: [number, number, number, number][] = m.puntos.flatMap((s) => {
+        const x = p.x(s.lon), y = p.y(s.lat), w = (s.valor == null ? 3 : s.valor.toFixed(1).length) * px * 0.62 + 4;
+        return [[x - 6, y + 6, 12, 12], [x > W * 0.86 ? x - 5 - w : x + 5, y - 3, w, px + 2]] as [number, number, number, number][];
+    });
+    const capas = op.capas && op.capas.ids.length ? capasSvg(op.capas.datos, op.capas.ids, p, { px, tema: op.tema ?? 'pantalla', ancho: W, alto: p.alto, reservados }) : null;
+    // leyenda de capas: filas con salto automático (ancho estimado por entrada)
+    const filasCapas: { glifo: string; texto: string; x: number }[][] = [];
+    if (hayLeyenda && capas && capas.leyenda.length) {
+        let fila: { glifo: string; texto: string; x: number }[] = [], x = px;
+        for (const it of capas.leyenda) {
+            const w = 22 + it.texto.length * px * 0.55 + 12;
+            if (x + w > W - px && fila.length) { filasCapas.push(fila); fila = []; x = px; }
+            fila.push({ ...it, x }); x += w;
+        }
+        if (fila.length) filasCapas.push(fila);
+    }
+    // base de la escala (rótulo honesto: de qué datos salen los cortes de color), en líneas de ancho acotado
+    const lineasBase: string[] = [];
+    if (hayLeyenda && m.escalaBase) {
+        const maxCar = Math.max(30, Math.floor((W - px * 2) / (px * 0.8 * 0.52)));
+        let l = 'Escala basada en ';
+        for (const w of m.escalaBase.split(' ')) { if ((l + w).length > maxCar && l.trim()) { lineasBase.push(l.trim()); l = ''; } l += `${w} `; }
+        if (l.trim()) lineasBase.push(l.trim());
+    }
+    const nLey = m.niveles.length + 1, altoLey = hayLeyenda ? Math.round(px * 5.4) + Math.round(filasCapas.length * px * 1.7) + (lineasBase.length ? Math.round(px * 0.5 + lineasBase.length * px * 1.15) : 0) : 0;
     const H = p.alto + altoLey;
     const fuente = "font-family=\"'Segoe UI',system-ui,sans-serif\"";
     const out: string[] = [];
@@ -143,6 +183,7 @@ export function planoSvg(m: PlanoModelo, c: ContornoCuenca, op: OpcionesSvg = {}
 
     if (m.motivoSD) {
         out.push(`<path d="${cuenca}" fill="url(#${id}-tr)" fill-opacity="0.55" stroke="${T.borde}" stroke-width="1.6" stroke-linejoin="round"/>`);
+        if (capas) out.push(`<g clip-path="url(#${id}-cl)">${capas.bajo}</g>`);
         const cx = p.x((c.bbox.minLon + c.bbox.maxLon) / 2), cy = p.y((c.bbox.minLat + c.bbox.maxLat) / 2);
         out.push(`<text x="${n1(cx)}" y="${n1(cy - px)}" text-anchor="middle" font-size="${px * 1.6}" font-weight="800" fill="${T.texto}" stroke="${T.halo}" stroke-width="${px * 0.35}" paint-order="stroke">S/D</text>`);
         const palabras = m.motivoSD.split(' ');
@@ -160,16 +201,21 @@ export function planoSvg(m: PlanoModelo, c: ContornoCuenca, op: OpcionesSvg = {}
         }
         out.push('</g>');
         out.push(`<path d="${cuenca}" fill="none" stroke="${T.borde}" stroke-width="1.8" stroke-linejoin="round"/>`);
+        if (capas) out.push(`<g clip-path="url(#${id}-cl)">${capas.bajo}</g>`);
         for (const r of m.rotulos) {
             out.push(`<text transform="translate(${n1(p.x(r.lon))} ${n1(p.y(r.lat))}) rotate(${r.angulo.toFixed(0)})" text-anchor="middle" dy="${n1(px * 0.35)}" font-size="${px * 0.95}" font-weight="700" fill="${T.texto}" stroke="${T.halo}" stroke-width="${px * 0.3}" paint-order="stroke">${esc(String(r.nivel))}</text>`);
         }
     }
 
+    if (capas) out.push(capas.alto);
+
     // estaciones: punto + cifra del periodo (las excluidas con ✕ y sin cifra; las S/D con "S/D")
     for (const s of m.puntos) {
         const x = p.x(s.lon), y = p.y(s.lat);
         if (s.sospechosa) { out.push(`<path d="M${n1(x - 4)},${n1(y - 4)}L${n1(x + 4)},${n1(y + 4)}M${n1(x + 4)},${n1(y - 4)}L${n1(x - 4)},${n1(y + 4)}" stroke="${T.excluido}" stroke-width="2" stroke-linecap="round"><title>${esc(s.nombre)}: excluida</title></path>`); continue; }
-        out.push(`<circle cx="${n1(x)}" cy="${n1(y)}" r="3.2" fill="${T.punto}" stroke="${T.halo}" stroke-width="1.2"><title>${esc(s.nombre)}</title></circle>`);
+        out.push(s.propia
+            ? `<rect x="${n1(x - 3.4)}" y="${n1(y - 3.4)}" width="6.8" height="6.8" rx="1" fill="${T.punto}" stroke="${T.halo}" stroke-width="1.2"><title>${esc(s.nombre)} (estación propia)</title></rect>`
+            : `<circle cx="${n1(x)}" cy="${n1(y)}" r="3.2" fill="${T.punto}" stroke="${T.halo}" stroke-width="1.2"><title>${esc(s.nombre)}</title></circle>`);
         // flecha de viento (solo pronóstico): apunta HACIA donde sopla (dirección meteorológica + 180°); su largo es fijo, la cifra da la velocidad
         if (m.variable === 'viento' && s.valor != null && s.dirDeg != null) {
             const L = px * 1.5;
@@ -181,14 +227,15 @@ export function planoSvg(m: PlanoModelo, c: ContornoCuenca, op: OpcionesSvg = {}
     }
     // salida de la cuenca
     const sx = p.x(SALIDA_CUENCA.lon), sy = p.y(SALIDA_CUENCA.lat);
-    out.push(`<path d="M${n1(sx - 7)},${n1(sy + 11)}L${n1(sx)},${n1(sy + 19)}L${n1(sx + 7)},${n1(sy + 11)}" fill="none" stroke="${T.suave}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`);
-    out.push(`<text x="${n1(sx + 8)}" y="${n1(sy + 30)}" text-anchor="end" font-size="${px * 0.9}" font-weight="700" fill="${T.texto}" stroke="${T.halo}" stroke-width="${px * 0.3}" paint-order="stroke">Salida · Ojinaga</text>`);
+    if (op.salida !== false) out.push(`<path d="M${n1(sx - 7)},${n1(sy + 11)}L${n1(sx)},${n1(sy + 19)}L${n1(sx + 7)},${n1(sy + 11)}" fill="none" stroke="${T.suave}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`);
+    if (op.salida !== false) out.push(`<text x="${n1(sx + 8)}" y="${n1(sy + 30)}" text-anchor="end" font-size="${px * 0.9}" font-weight="700" fill="${T.texto}" stroke="${T.halo}" stroke-width="${px * 0.3}" paint-order="stroke">Salida · Ojinaga</text>`);
     // norte y escala (100 km)
     out.push(`<g transform="translate(${n1(px * 1.6)} ${n1(px * 3.2)})"><path d="M0,${n1(-px * 1.1)}L${n1(px * 0.55)},${n1(px * 0.4)}L0,${n1(-px * 0.1)}L${n1(-px * 0.55)},${n1(px * 0.4)}Z" fill="${T.texto}"/><text y="${n1(px * 1.6)}" text-anchor="middle" font-size="${px}" font-weight="700" fill="${T.texto}">N</text></g>`);
     const cosLat = Math.cos((((c.bbox.minLat + c.bbox.maxLat) / 2) * Math.PI) / 180);
-    const km100 = (100 / (111.32 * cosLat)) * (p.x(c.bbox.minLon + 1) - p.x(c.bbox.minLon));
+    const kmEscala = op.escalaKm ?? 100;
+    const km100 = (kmEscala / (111.32 * cosLat)) * (p.x(c.bbox.minLon + 1) - p.x(c.bbox.minLon));
     const bx = px * 1.2, by = p.alto - px * 1.6;
-    out.push(`<g><path d="M${n1(bx)},${n1(by)}h${n1(km100)}M${n1(bx)},${n1(by - 4)}v8M${n1(bx + km100)},${n1(by - 4)}v8" stroke="${T.texto}" stroke-width="1.6" fill="none"/><text x="${n1(bx)}" y="${n1(by - 7)}" font-size="${px * 0.9}" fill="${T.texto}">100 km</text></g>`);
+    out.push(`<g><path d="M${n1(bx)},${n1(by)}h${n1(km100)}M${n1(bx)},${n1(by - 4)}v8M${n1(bx + km100)},${n1(by - 4)}v8" stroke="${T.texto}" stroke-width="1.6" fill="none"/><text x="${n1(bx)}" y="${n1(by - 7)}" font-size="${px * 0.9}" fill="${T.texto}">${kmEscala} km</text></g>`);
 
     if (hayLeyenda) {
         const x0 = px, ancho = W - px * 2, w = ancho / nLey, y0 = p.alto + px * 0.8, hSw = px * 1.1;
@@ -200,7 +247,16 @@ export function planoSvg(m: PlanoModelo, c: ContornoCuenca, op: OpcionesSvg = {}
         out.push(`<text x="${n1(x0)}" y="${n1(y0 + hSw + px * 1.15)}" font-size="${px * 0.9}" fill="${T.suave}">${esc(m.unidad)}</text>`);
         const yh = y0 + hSw + px * 2.3;
         out.push(`<rect x="${n1(x0)}" y="${n1(yh - px * 0.8)}" width="${n1(px * 1.6)}" height="${n1(px * 0.9)}" fill="${T.velo}" stroke="${T.suave}" stroke-width="0.6"/><rect x="${n1(x0)}" y="${n1(yh - px * 0.8)}" width="${n1(px * 1.6)}" height="${n1(px * 0.9)}" fill="url(#${id}-tr)"/>`);
-        out.push(`<text x="${n1(x0 + px * 2.1)}" y="${n1(yh)}" font-size="${px * 0.9}" fill="${T.texto}">sin cobertura (a más de 90 km de una estación)</text></g>`);
+        out.push(`<text x="${n1(x0 + px * 2.1)}" y="${n1(yh)}" font-size="${px * 0.9}" fill="${T.texto}">sin cobertura (a más de 90 km de una estación)</text>`);
+        filasCapas.forEach((fila, i) => {
+            const yf = yh + px * 1.7 * (i + 1);
+            for (const it of fila) out.push(`<g transform="translate(${n1(it.x)} ${n1(yf - px * 0.8)}) scale(${n1(px / 12)})">${it.glifo}</g><text x="${n1(it.x + 22 * (px / 12))}" y="${n1(yf)}" font-size="${px * 0.9}" fill="${T.texto}">${esc(it.texto)}</text>`);
+        });
+        if (lineasBase.length) {
+            const yb = yh + px * 1.7 * filasCapas.length + px * 1.5;
+            lineasBase.forEach((t, i) => out.push(`<text x="${n1(x0)}" y="${n1(yb + i * px * 1.15)}" font-size="${px * 0.8}" fill="${T.suave}">${esc(t)}</text>`));
+        }
+        out.push('</g>');
     }
     out.push('</svg>');
     return out.join('');

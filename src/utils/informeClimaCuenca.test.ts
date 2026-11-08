@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { interpretaContorno, type ContornoCuenca } from './geoCuenca';
 import { type DemGrid } from './camposCuenca';
+import type { DatosCapas } from './capasCuenca';
 import type { ModeloRedJcas, PuntoRedJcas } from './jcasModelo';
 import type { PronosticoCuenca } from '../hooks/useCuencaPronostico';
 import { avisosConfigClima, configClimaPorDefecto, cuentaPlanos, etiquetaAlcanceClima, validarConfigClima } from './informeClimaCuencaConfig';
@@ -11,6 +12,8 @@ import { ANCHO_PNG_CLIMA, MAX_PLANOS_LAMINA, MAX_PLANOS_PNG, folioClima, htmlInf
 const c = interpretaContorno(JSON.parse(readFileSync('public/geo/cuenca_conchos.geojson', 'utf8'))) as ContornoCuenca;
 const dem = JSON.parse(readFileSync('public/geo/cuenca_dem_grid.json', 'utf8')) as DemGrid;
 
+const G = (f: string) => JSON.parse(readFileSync(`public/geo/${f}`, 'utf8'));
+const CAPAS: DatosCapas = { municipios: G('ref_municipios.geojson'), poblaciones: G('ref_poblaciones.geojson'), rios: G('ref_rios.geojson'), rotulosRios: G('ref_rios_rotulos.json').rotulos, carreteras: G('ref_carreteras.geojson'), subcuencas: G('cuenca_conchos_subcuencas.geojson'), vasos: G('ref_presas_vasos.geojson') };
 const RED: [string, number, number, number, number][] = [
   ['Chihuahua', 28.64, -106.08, 55, 1415], ['Aldama', 28.84, -105.91, 70, 1274], ['Satevó', 27.96, -106.11, 55, 1387], ['Camargo', 27.7, -105.17, 76, 1226],
   ['Valle de Zaragoza', 27.46, -105.81, 29, 1343], ['Jiménez', 27.12, -104.9, 89, 1380], ['Balleza', 26.95, -106.35, 63, 1570], ['Coronado', 26.74, -105.16, 118, 1522],
@@ -33,7 +36,7 @@ const pron = (): PronosticoCuenca => {
   return { puntos, filas, verificacion: [], corridaEn: '2026-11-08T18:00:00Z' };
 };
 const datos = (cfg = configClimaPorDefecto(), r: ModeloRedJcas | null = red(), p: PronosticoCuenca | null = pron()) =>
-  construirDatosClima(cfg, { red: r, contorno: c, dem, pron: p, hoy: '2026-11-08', ultSyncJcas: '2026-11-08T17:15:00Z' });
+  construirDatosClima(cfg, { red: r, contorno: c, dem, pron: p, hoy: '2026-11-08', ultSyncJcas: '2026-11-08T17:15:00Z', capasDatos: CAPAS });
 const OPC = (formato: FormatoInformeClima) => ({ formato, logoSrl: 'data:image/png;base64,AAAA', logoSica: 'data:image/png;base64,BBBB', emitido: new Date('2026-11-08T20:00:00Z') });
 
 describe('configuración', () => {
@@ -115,7 +118,7 @@ describe('HTML del informe', () => {
   it('carta: todos los planos, dos por hoja, con tablas, trazabilidad y firmas', () => {
     const h = htmlInformeClimaCuenca(datos(), OPC('carta'));
     expect((h.match(/<figure class="plano"/g) ?? []).length).toBe(8);
-    expect((h.match(/<section class="pagina"/g) ?? []).length).toBe(4 + 2 + 1); // 4 de planos, observado, pronóstico y anexo
+    expect((h.match(/<section class="pagina"/g) ?? []).length).toBe(4 + 1 + 2 + 1); // 4 de planos, distrito, observado, pronóstico y anexo
     expect(h).toMatch(/Estaciones observadas/);
     expect(h).toMatch(/Pronóstico por estación/);
     expect(h).toMatch(/Trazabilidad/);
@@ -135,5 +138,30 @@ describe('HTML del informe', () => {
     const h = htmlInformeClimaCuenca(datos(configClimaPorDefecto(), null, null), OPC('png'));
     expect(h).toMatch(/S\/D/);
     expect(h.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, ' ')).not.toMatch(/\b(NaN|undefined|Infinity|null)\b/);
+  });
+});
+
+describe('capas y distrito', () => {
+  it('por defecto: capas de informe (ríos, municipios, presas) y apartado del distrito activos', () => {
+    const c0 = configClimaPorDefecto();
+    expect(c0.capas).toEqual(['rios', 'municipios', 'presas']);
+    expect(c0.distrito).toBe(true);
+  });
+  it('sin el apartado del distrito la carta vuelve a 7 hojas y no lo menciona', () => {
+    const h = htmlInformeClimaCuenca(datos({ ...configClimaPorDefecto(), distrito: false }), OPC('carta'));
+    expect((h.match(/<section class="pagina"/g) ?? []).length).toBe(7);
+    expect(h).not.toMatch(/Distrito de Riego 005 · SRL Conchos/);
+  });
+  it('el apartado del distrito trae plano sobre los módulos, tabla de propias y S/D (nunca 0) sin estaciones propias', () => {
+    const d = datos();
+    expect(d.distrito).not.toBeNull();
+    const h = htmlInformeClimaCuenca(d, OPC('carta'));
+    expect(h).toMatch(/Distrito de Riego 005 · SRL Conchos/);
+    expect(h).toMatch(/Estación propia/);
+    expect(h).toMatch(/Solo se muestra la lluvia/);
+  });
+  it('con capas el SVG de los planos lleva su leyenda; sin capas (config vacía) no', () => {
+    expect(htmlInformeClimaCuenca(datos(), OPC('carta'))).toMatch(/límite municipal/);
+    expect(htmlInformeClimaCuenca(datos({ ...configClimaPorDefecto(), capas: [] }), OPC('carta'))).not.toMatch(/límite municipal/);
   });
 });

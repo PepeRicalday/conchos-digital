@@ -5,6 +5,7 @@ import { fechaCorta } from '../../../utils/analiticaPresas';
 import type { LluviaAreal } from '../../../utils/jcasCuenca';
 import { arealDe, etiquetaVentana, valorObs, VENTANAS_OBS, type PuntoRedJcas, type VentanaObs } from '../../../utils/jcasModelo';
 import MapaCuenca from './MapaCuenca';
+import type { CapasCuenca } from '../../../hooks/useCapasCuenca';
 
 const horaLectura = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('es-MX', { timeZone: 'America/Chihuahua', hour: '2-digit', minute: '2-digit', hour12: false }) : 'S/D');
 const fmtMm = (v: number | null) => (v == null ? 'S/D' : `${formatearNumero(v, 1)} mm`);
@@ -35,7 +36,7 @@ function KpiAreal({ etiqueta, a }: { etiqueta: string; a: LluviaAreal }) {
  * Red de estaciones JCAS/UACJ dentro de la cuenca del Conchos: mapa propio, lluvia areal (hoy, ayer, 7 y 30 días) y tabla por estación.
  * CONTEXTO de fuente TERCERA y provisional (portal público sin API): no sustituye las estaciones propias ni entra a KPIs del distrito.
  */
-export default function RedEstacionesCuenca({ jcas }: { jcas: ReturnType<typeof useJcasCuenca> }) {
+export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<typeof useJcasCuenca>; capas?: CapasCuenca }) {
     const { red, loading, error, recargar } = jcas;
     const [ventana, setVentana] = useState<VentanaObs>(30);
     const [sel, setSel] = useState<number | null>(null);
@@ -98,7 +99,7 @@ export default function RedEstacionesCuenca({ jcas }: { jcas: ReturnType<typeof 
                 </p>
             )}
 
-            <MapaCuenca contorno={red.contorno} puntos={m.puntos} seleccionada={sel} onSelect={setSel} ventana={ventana} propias={m.propias} />
+            <MapaCuenca contorno={red.contorno} puntos={m.puntos} seleccionada={sel} onSelect={setSel} ventana={ventana} propias={m.propias} capas={capas} />
 
             <div className="cu-tabla-wrap" tabIndex={0} role="region" aria-label="Tabla de estaciones JCAS (desplazable)">
                 <table className="cu-tabla">

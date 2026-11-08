@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { X, MapPin, Thermometer, Wind, Sun, CloudRain, Check, Calendar, Users, FlaskConical, TrendingUp } from 'lucide-react';
 import type { OpcionesGeoInforme } from '../utils/exportClimaGeoInforme';
+import { CAPAS_INFO, CAPAS_INFORME, type CapaId } from '../utils/capasCuenca';
 import { getTodayString, addDays } from '../utils/dateHelpers';
 
 interface GeoInformeOpcionesModalProps {
@@ -58,6 +59,7 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
     const [modoTecnico, setModoTecnico] = useState(false);
     // Alcance: 'distrito' (default) = solo los 6 módulos; 'cuenca' = los 6 módulos y, además, toda la cuenca del Conchos (red JCAS + propias).
     const [alcance, setAlcance] = useState<'distrito' | 'cuenca'>('distrito');
+    const [capas, setCapas] = useState<CapaId[]>([...CAPAS_INFORME]);
     const [variables, setVariables] = useState<Set<OpcionesGeoInforme['variables'][number]>>(
         new Set(['tempC', 'vientoMs', 'radSolarWm2', 'lluviaDiaMm']),
     );
@@ -129,6 +131,7 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
             modoTecnico,
             incluirTendencias,
             alcance,
+            capas,
         });
         onCerrar();
     };
@@ -220,6 +223,23 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
                                 );
                             })}
                         </div>
+                        {alcance === 'cuenca' && (
+                            <div style={{ marginTop: 10 }} role="group" aria-label="Capas de referencia de los planos de la cuenca">
+                                <p style={{ fontSize: 11.5, color: '#94a3b8', margin: '0 0 6px' }}>Capas de referencia de los planos (se activan o no según la necesidad):</p>
+                                <div className="flex flex-wrap" style={{ gap: 6 }}>
+                                    {CAPAS_INFO.map((k) => {
+                                        const on = capas.includes(k.id);
+                                        return (
+                                            <button key={k.id} type="button" aria-pressed={on} title={k.ayuda}
+                                                onClick={() => setCapas(CAPAS_INFO.map((x) => x.id).filter((id) => (id === k.id ? !on : capas.includes(id))))}
+                                                style={{ minHeight: 36, padding: '0 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: on ? '#f1f5f9' : '#94a3b8', border: `1px solid ${on ? 'rgba(56,189,248,0.45)' : 'rgba(255,255,255,0.12)'}`, background: on ? 'rgba(56,189,248,0.14)' : 'transparent' }}>
+                                                {on ? '✓ ' : '+ '}{k.titulo}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                         {alcance === 'cuenca' && (
                             <p style={{ fontSize: 11.5, color: '#94a3b8', margin: '8px 0 0', lineHeight: 1.4 }}>
                                 La cuenca usa la red JCAS/UACJ y las estaciones propias (dato provisional de contexto). Su periodo es la ventana disponible más cercana al elegido (hoy, ayer, 7 o 30 días); la radiación solar no tiene red en la cuenca.

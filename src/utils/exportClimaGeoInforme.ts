@@ -144,6 +144,8 @@ export interface OpcionesGeoInforme {
     alcance?: 'distrito' | 'cuenca';
     /** HTML ya armado de la sección «Cuenca del Conchos» (utils/geoInformeCuenca.ts); solo se inserta con alcance 'cuenca'. */
     cuencaHtml?: string;
+    /** Capas de referencia de los planos de la cuenca (municipios, ríos, presas…) elegidas en el modal. */
+    capas?: import('./capasCuenca').CapaId[];
 }
 
 /** Escapa texto para insertarlo dentro de SVG/HTML — un nombre de estación

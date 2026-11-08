@@ -7,7 +7,9 @@ import type { DemGrid } from './camposCuenca';
 import { consensoPorPunto, resumenConfiabilidad, valorPronosticoPeriodo, type Confiabilidad } from './cuencaPronostico';
 import type { ConfigInformeClima } from './informeClimaCuencaConfig';
 import { ORDEN_VARIABLES, etiquetaAlcanceClima } from './informeClimaCuencaConfig';
-import type { ModeloRedJcas, PuntoRedJcas, VentanaObs } from './jcasModelo';
+import { type ModeloRedJcas, type PuntoPropio, type PuntoRedJcas, type VentanaObs } from './jcasModelo';
+import type { DatosCapas } from './capasCuenca';
+import { MODULOS_SRL } from './geoDistrito';
 import type { VariablePlano } from './paletasClima';
 import { construirPlano, type PlanoModelo } from './planosCuenca';
 import { puntosObservados, puntosPronostico, type PuntoCuenca } from './planosDatos';
@@ -35,13 +37,45 @@ export interface DatosInformeClima {
   estacionesPron: FilaEstacionPron[];
   excluidas: string[];
   ultSyncJcas: string | null;
+  /** Archivos de las capas de referencia ya cargados (el informe es síncrono; la ventana los pide antes). */
+  capasDatos: DatosCapas;
+  /** Apartado del distrito: plano de lluvia sobre los 6 módulos con las estaciones propias + JCAS cercanas, y la tabla de las propias. */
+  distrito: DatosDistrito | null;
+}
+
+export interface DatosDistrito {
+  ventana: VentanaObs;
+  contorno: ContornoCuenca;
+  plano: PlanoModelo;
+  filas: { nombre: string; mm: number | null; ayer: number | null; mm7: number | null; mm30: number | null }[];
+}
+
+/** Contorno «de los 6 módulos» para reutilizar el motor de planos con un acercamiento al distrito (mismo bbox + margen). */
+export function contornoDistrito(): ContornoCuenca {
+  const poligonos = Object.values(MODULOS_SRL).map((r) => [r]) as unknown as ContornoCuenca['poligonos'];
+  let minLon = 99, maxLon = -999, minLat = 99, maxLat = -999;
+  for (const r of Object.values(MODULOS_SRL)) for (const [x, y] of r) { minLon = Math.min(minLon, x); maxLon = Math.max(maxLon, x); minLat = Math.min(minLat, y); maxLat = Math.max(maxLat, y); }
+  const m = 0.03;
+  return { poligonos, bbox: { minLon: minLon - m, maxLon: maxLon + m, minLat: minLat - m, maxLat: maxLat + m }, areaKm2: null, fuente: 'SRL Conchos (módulos)' };
+}
+
+/** Lluvia del distrito: las estaciones propias y las JCAS a ≤ 70 km del centro del distrito, sobre el contorno de los 6 módulos. */
+export function construirDistrito(red: ModeloRedJcas | null, ventana: VentanaObs): DatosDistrito | null {
+  if (!red) return null;
+  const contorno = contornoDistrito();
+  const cx = (contorno.bbox.minLon + contorno.bbox.maxLon) / 2, cy = (contorno.bbox.minLat + contorno.bbox.maxLat) / 2;
+  const km = (lon: number, lat: number) => Math.hypot((lon - cx) * 111.32 * Math.cos((cy * Math.PI) / 180), (lat - cy) * 111.2);
+  const puntos = puntosObservados(red, 'lluvia', ventana).filter((p) => km(p.lon, p.lat) <= 70);
+  const plano = construirPlano({ variable: 'lluvia', periodo: { tipo: 'obs', dias: ventana }, puntos, contorno, dem: null });
+  const filas = red.propias.map((p: PuntoPropio) => ({ nombre: p.nombre, mm: p.mmHoy, ayer: p.mm1, mm7: p.mm7, mm30: p.mm30 }));
+  return { ventana, contorno, plano, filas };
 }
 
 const ESTADO: Record<string, string> = { vigente: 'Al día', atrasada: 'Atrasada', 'sin-datos': 'Sin datos' };
 
 export function construirDatosClima(
   config: ConfigInformeClima,
-  e: { red: ModeloRedJcas | null; contorno: ContornoCuenca; dem: DemGrid | null; pron: PronosticoCuenca | null; hoy: string; ultSyncJcas: string | null },
+  e: { red: ModeloRedJcas | null; contorno: ContornoCuenca; dem: DemGrid | null; pron: PronosticoCuenca | null; hoy: string; ultSyncJcas: string | null; capasDatos?: DatosCapas },
 ): DatosInformeClima {
   const planos: PlanoInforme[] = [];
   const variables = ORDEN_VARIABLES.filter((v) => config.variables.includes(v));
@@ -81,5 +115,6 @@ export function construirDatosClima(
     config, contorno: e.contorno, corte: config.observado && config.diasObs === 'hoy' && e.red?.fechaHoy ? e.red.fechaHoy : (e.red?.fin ?? e.hoy), hoy: e.hoy, alcance: etiquetaAlcanceClima(config), planos, lluviaObs, lluviaPron,
     vigentes: e.red?.vigentes ?? 0, totalEstaciones: e.red?.total ?? 0, confiabilidad: resumenConfiabilidad(e.pron?.verificacion ?? []), corridaEn: e.pron?.corridaEn ?? null,
     estacionesObs, estacionesPron, excluidas: estacionesObs.filter((x) => x.excluida).map((x) => x.nombre), ultSyncJcas: e.ultSyncJcas,
+    capasDatos: e.capasDatos ?? {}, distrito: config.distrito && config.observado ? construirDistrito(e.red, config.diasObs) : null,
   };
 }

@@ -16,7 +16,8 @@ const pts = (o: Partial<PuntoCampo> = {}): PuntoCampo[] => RED.map(([nombre, lat
 describe('construirPlano · lluvia observada 30 d', () => {
     const m = construirPlano({ variable: 'lluvia', periodo: { tipo: 'obs', dias: 30 }, puntos: pts(), contorno: c, dem });
     it('niveles fijos de isoyetas y una banda por nivel alcanzado', () => {
-        expect(m.niveles).toEqual([1, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100, 150]);
+        expect(m.niveles).toEqual([5, 15, 25, 40, 65, 85, 110, 130, 170, 190]); // escala de 30 días derivada de lo registrado
+        expect(m.escalaBase).toMatch(/n = 2,048 ventanas/);
         expect(m.bandas.length).toBeGreaterThanOrEqual(5);
         expect(m.bandas.every((b) => b.anillos.length > 0)).toBe(true);
         const niv = m.bandas.map((b) => b.nivel);
@@ -65,11 +66,11 @@ describe('construirPlano · reglas S/D', () => {
 });
 
 describe('construirPlano · otras variables', () => {
-    it('temperatura: niveles de 2 °C que cubren el rango y ajuste por altitud declarado', () => {
+    it('temperatura: escala fija de 2 °C (2–34) igual en cualquier plano y ajuste por altitud declarado', () => {
         const p = pts().map((x) => ({ ...x, valor: 30 - 0.0065 * (x.elevM ?? 1500) }));
         const m = construirPlano({ variable: 'temperatura', periodo: { tipo: 'obs', dias: 7 }, puntos: p, contorno: c, dem });
         expect(m.niveles.every((n) => n % 2 === 0)).toBe(true);
-        expect(m.niveles.length).toBeGreaterThanOrEqual(3);
+        expect(m.niveles).toEqual([2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34]);
         expect(m.ajuste.n).toBe(12);
         expect(m.ajuste.aplicado).toBe(true);
     });
@@ -81,7 +82,7 @@ describe('construirPlano · otras variables', () => {
     it('viento: niveles en km/h', () => {
         const m = construirPlano({ variable: 'viento', periodo: { tipo: 'obs', dias: 7 }, puntos: pts().map((x, i) => ({ ...x, valor: 3 + i })), contorno: c, dem });
         expect(m.unidad).toBe('km/h');
-        expect(m.niveles).toEqual([2, 4, 6, 8, 10, 15, 20]);
+        expect(m.niveles).toEqual([1, 2, 3, 4, 5, 6, 8, 10, 12, 14]);
     });
 });
 

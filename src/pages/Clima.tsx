@@ -787,7 +787,9 @@ const Clima = () => {
                     console.warn('[Clima] red de la cuenca no disponible para el informe geoclimático:', e);
                 }
                 const dem = await cargarDemCuenca().catch(() => null);
-                cuencaHtml = seccionCuencaGeo({ red, contorno, dem, variables: opciones.variables, periodoDesde, periodoHasta, hoy: new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10) });
+                const capasIds = opciones.capas ?? [];
+                const capasDatos = capasIds.length ? await (await import('../utils/capasCuenca')).cargarCapas(capasIds) : {};
+                cuencaHtml = seccionCuencaGeo({ red, contorno, dem, variables: opciones.variables, periodoDesde, periodoHasta, capas: capasIds.length ? { ids: capasIds, datos: capasDatos } : undefined, hoy: new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10) });
             }
             await exportClimaGeoInforme(estacionesInforme, {
                 ...opciones, cuencaHtml, periodoDesde, periodoHasta, serieMensual, tendencias, umbrales: umbralesClima,

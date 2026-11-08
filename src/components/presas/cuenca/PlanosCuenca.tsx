@@ -10,6 +10,8 @@ import { fechaCorta } from '../../../utils/analiticaPresas';
 import { VARIABLES_PLANO, type VariablePlano } from '../../../utils/paletasClima';
 import { construirPlano, planoSvg, type PeriodoPlano } from '../../../utils/planosCuenca';
 import { puntosObservados, puntosPronostico } from '../../../utils/planosDatos';
+import type { CapasCuenca } from '../../../hooks/useCapasCuenca';
+import SelectorCapas from './SelectorCapas';
 import { VENTANAS_OBS, type VentanaObs } from '../../../utils/jcasModelo';
 
 type Modo = 'obs' | 'pron';
@@ -40,7 +42,7 @@ const hace = (iso: string | null) => {
  * Planos de la cuenca del Conchos: isoyetas y planos de temperatura, viento y humedad, observados (red JCAS) o pronosticados (3 modelos en 24 puntos).
  * CONTEXTO provisional de fuente tercera. El dibujo es el mismo SVG que usa el informe (utils/planosCuenca): una sola definición.
  */
-export default function PlanosCuenca({ jcas }: { jcas: { red: RedJcas | null; loading: boolean; error: string | null } }) {
+export default function PlanosCuenca({ jcas, capas }: { jcas: { red: RedJcas | null; loading: boolean; error: string | null }; capas?: CapasCuenca }) {
     const [variable, setVariable] = useState<VariablePlano>('lluvia');
     const [modo, setModo] = useState<Modo>('obs');
     const [diasObs, setDiasObs] = useState<VentanaObs>(30);
@@ -66,7 +68,7 @@ export default function PlanosCuenca({ jcas }: { jcas: { red: RedJcas | null; lo
 
     const descripcion = plano ? `${plano.titulo}. ${plano.motivoSD ? `Sin dato: ${plano.motivoSD}` : `Promedio ${fmt(plano.resumen.media)} ${plano.unidad} con ${plano.resumen.n} estaciones`}` : '';
     // El SVG se muestra como imagen (data URL): no puede ejecutar nada aunque un nombre de estación trajera marcado.
-    const svg = useMemo(() => (plano && contorno ? planoSvg(plano, contorno, { tema: 'pantalla', textoPx: dev.esPhone ? 17 : 12, idPrefijo: 'pnl', descripcion }) : ''), [plano, contorno, dev.esPhone, descripcion]);
+    const svg = useMemo(() => (plano && contorno ? planoSvg(plano, contorno, { tema: 'pantalla', textoPx: dev.esPhone ? 17 : 12, idPrefijo: 'pnl', descripcion, capas: capas && capas.ids.length ? { ids: capas.ids, datos: capas.datos } : undefined }) : ''), [plano, contorno, dev.esPhone, descripcion, capas?.ids, capas?.datos]);
 
     const confiab = useMemo(() => resumenConfiabilidad(pron.datos?.verificacion ?? []), [pron.datos]);
     const filasPron = useMemo(() => {
@@ -100,6 +102,8 @@ export default function PlanosCuenca({ jcas }: { jcas: { red: RedJcas | null; lo
                     : <Segmentado<3 | 7> etiqueta="Periodo" valor={diasPron} onChange={setDiasPron} opciones={[{ v: 3, t: '3 días' }, { v: 7, t: '7 días' }]} />}
             </div>
 
+            {capas && <SelectorCapas ids={capas.ids} onAlternar={capas.alternar} onTodas={capas.todas} onNinguna={capas.ninguna} nombre="planos" />}
+
             {cargando && <div className="an-skeleton an-skeleton--alta" aria-busy="true" />}
             {!cargando && (falla || !plano) && (
                 <div className="an-vacio" role="status"><strong>Sin plano por ahora (S/D)</strong><span>{falla ?? 'Todavía no hay estaciones o contorno cargados.'}</span></div>
@@ -109,7 +113,7 @@ export default function PlanosCuenca({ jcas }: { jcas: { red: RedJcas | null; lo
                 <div className="cu-pl-cuerpo">
                     <figure className="cu-plano">
                         <img className="cu-plano-img" alt={descripcion} src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`} />
-                        <figcaption className="cu-leyenda-viz">{plano.titulo} · {cfg.titulo} en {cfg.unidad}. Niveles fijos: dos planos de fechas distintas se comparan a ojo.</figcaption>
+                        <figcaption className="cu-leyenda-viz">{plano.titulo} · {cfg.titulo} en {cfg.unidad}. Escala fija por datos registrados: dos planos de fechas distintas se comparan a ojo.</figcaption>
                     </figure>
                     <div className="cu-pl-res">
                         <div className="cu-red-kpi">

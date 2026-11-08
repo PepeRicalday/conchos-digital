@@ -69,7 +69,7 @@ for (const [nombre, vista, esPhone] of [
   verifica(/Luis L\. León/.test(primero), `[${nombre}] Orden "% llenado": la menos llena (Luis L. León) va primero`);
   await page.getByRole('button', { name: 'Solo distrito' }).click();
   verifica(await item.count() === 2, `[${nombre}] Alcance "Solo distrito": 2 presas (${await item.count()})`);
-  await page.getByRole('button', { name: 'Todas', exact: true }).click();
+  await page.getByRole('button', { name: 'Todas', exact: true }).first().click();
   await page.getByRole('button', { name: 'Cuenca', exact: true }).first().click().catch(() => {});
 
   // ── Vista Tabla: se conserva la tabla con las 7 presas

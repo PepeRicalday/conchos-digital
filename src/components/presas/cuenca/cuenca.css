@@ -207,3 +207,13 @@ html[data-device='phone'] .cu-mapa-txt { font-size: 13.5px; stroke-width: 3.5px;
 .cu-pl-res { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .cu-pl-dato { margin: 0; font-size: 14px; line-height: 1.45; color: var(--pr-t2); }
 .cu-pl-dato b { color: var(--pr-t1); }
+
+/* ── Filtro de capas de referencia (municipios, ríos, presas…) */
+.cu-capas { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 4px; }
+.cu-capas-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cu-capa-chip { min-height: 32px; padding: 0 12px; border: 1px solid var(--pr-line); border-radius: 999px; background: transparent; color: var(--pr-t2); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.cu-capa-chip[aria-pressed='true'] { background: rgba(63, 178, 243, 0.16); border-color: var(--pr-sky); color: var(--pr-t1); }
+.cu-capa-chip--accion { border-style: dashed; }
+.cu-capa-chip:focus-visible, .cu-capas-sum:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 2px; }
+.cu-capas-sum { min-height: 44px; display: flex; align-items: center; font-size: 13px; font-weight: 700; cursor: pointer; color: var(--pr-t1); }
+html[data-device='phone'] .cu-capa-chip { min-height: 44px; font-size: 14px; padding: 0 14px; }

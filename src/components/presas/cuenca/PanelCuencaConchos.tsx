@@ -14,6 +14,7 @@ import TiraLluvia from './TiraLluvia';
 import RedEstacionesCuenca from './RedEstacionesCuenca';
 import PlanosCuenca from './PlanosCuenca';
 import { useJcasCuenca } from '../../../hooks/useJcasCuenca';
+import { useCapasCuenca } from '../../../hooks/useCapasCuenca';
 import SemaforoBadge from './SemaforoBadge';
 import { GLIFO_ESTADO } from './TanquePresa';
 import '../analitica/analitica.css';
@@ -93,6 +94,7 @@ function FilaTabla({ m, difCila }: { m: PresaCuencaModelo; difCila: number | nul
  */
 export default function PanelCuencaConchos({ conInforme = false }: { conInforme?: boolean }) {
     const { datos, loading, error, recargar } = useAqwpCuenca();
+    const capas = useCapasCuenca(); // las mismas capas de referencia en los planos y en el mapa de la red
     const jcas = useJcasCuenca(); // una sola carga de la red JCAS para los planos y la tabla de estaciones
     const [vista, setVista] = useState<Vista>('tanques');
     const [orden, setOrden] = useState<OrdenCuenca>('cuenca');
@@ -247,9 +249,9 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                 </section>
             )}
 
-            <PlanosCuenca jcas={jcas} />
+            <PlanosCuenca jcas={jcas} capas={capas} />
 
-            <RedEstacionesCuenca jcas={jcas} />
+            <RedEstacionesCuenca jcas={jcas} capas={capas} />
 
             <TiraLluvia lluvia={datos.lluvia} serie={datos.lluviaSerie} />
 

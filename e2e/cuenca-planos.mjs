@@ -87,6 +87,47 @@ for (const [nombre, vista] of [['escritorio', { width: 1440, height: 900 }], ['i
   const obs = decodeURIComponent(await sc.locator('img.cu-plano-img').getAttribute('src')).match(/hacia donde sopla/g)?.length ?? 0;
   verifica(obs === 0, 'viento observado: sin flechas (JCAS no entrega dirección)');
 }
+
+// ── Capas de referencia (filtro activable): ríos y presas por defecto; municipios/poblaciones/carreteras a demanda
+for (const [nombre, vista, esPhone] of [['escritorio', { width: 1440, height: 900 }, false], ['iphone', { width: 390, height: 844 }, true]]) {
+  const pgc = await (await navegador.newContext({ viewport: vista })).newPage();
+  const errc = [];
+  pgc.on('pageerror', (e) => errc.push(e.message));
+  await pgc.goto(`${BASE}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
+  const sc = pgc.locator('section[aria-label="Planos de la cuenca"]');
+  await sc.locator('img.cu-plano-img').waitFor({ timeout: 45000 });
+  const svgTxt = async () => decodeURIComponent(await sc.locator('img.cu-plano-img').getAttribute('src'));
+  if (esPhone) {
+    verifica(await sc.locator('details.cu-capas--plegable summary').count() === 1, `[${nombre}] el filtro de capas va plegado en iPhone`);
+    await sc.locator('details.cu-capas--plegable summary').click();
+  }
+  const chip = (t) => sc.getByRole('button', { name: new RegExp(t) }).first();
+  await pgc.waitForTimeout(1200);
+  let t0 = await svgTxt();
+  verifica(/>río</.test(t0) && /presa/.test(t0), `[${nombre}] por defecto el plano trae ríos y presas`);
+  verifica(!/límite municipal/.test(t0), `[${nombre}] los municipios no vienen activos por defecto`);
+  verifica(await chip('Municipios').getAttribute('aria-pressed') === 'false', `[${nombre}] el chip Municipios está apagado (aria-pressed)`);
+  await chip('Municipios').click();
+  await pgc.waitForTimeout(1500);
+  verifica(/límite municipal/.test(await svgTxt()) && await chip('Municipios').getAttribute('aria-pressed') === 'true', `[${nombre}] activar Municipios los dibuja y marca el chip`);
+  const alto = await chip('Municipios').boundingBox();
+  verifica(!esPhone || (alto && alto.height >= 43.5), `[${nombre}] objetivo táctil ≥ 44 px${alto ? ` (${Math.round(alto.height)} px)` : ''}`);
+  await sc.getByRole('button', { name: 'Ninguna' }).click();
+  await pgc.waitForTimeout(1200);
+  t0 = await svgTxt();
+  verifica(!/límite municipal|>río</.test(t0), `[${nombre}] «Ninguna» deja el plano solo con la variable`);
+  await sc.getByRole('button', { name: 'Todas' }).click();
+  await pgc.waitForTimeout(1800);
+  t0 = await svgTxt();
+  verifica(/límite municipal/.test(t0) && /carretera/.test(t0) && /subcuencas/.test(t0) && /módulos SRL/.test(t0), `[${nombre}] «Todas» activa las 7 capas`);
+  verifica(/Escala basada en/.test(t0), `[${nombre}] la leyenda declara la base de la escala de color`);
+  await pgc.reload({ waitUntil: 'domcontentloaded' });
+  await sc.locator('img.cu-plano-img').waitFor({ timeout: 45000 });
+  await pgc.waitForTimeout(1500);
+  verifica(/límite municipal/.test(await svgTxt()), `[${nombre}] la elección de capas se recuerda al recargar`);
+  verifica(errc.length === 0, `[${nombre}] capas sin errores de consola (${errc.slice(0, 2).join(' | ')})`);
+  await sc.screenshot({ path: `${OUT}capas-${nombre}.png` }).catch(() => {});
+}
 await navegador.close();
 console.log(fallos.length ? `\n${fallos.length} FALLO(S)` : '\nTodo OK');
 process.exit(fallos.length ? 1 : 0);

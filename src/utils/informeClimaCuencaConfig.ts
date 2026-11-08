@@ -7,6 +7,7 @@
  */
 import type { VariablePlano } from './paletasClima';
 import { etiquetaVentana, type VentanaObs } from './jcasModelo';
+import { CAPAS_INFORME, type CapaId } from './capasCuenca';
 
 export const VARIABLES_INFORME: { id: VariablePlano; etiqueta: string; ayuda: string }[] = [
   { id: 'lluvia', etiqueta: 'Lluvia (isoyetas)', ayuda: 'Líneas de igual lluvia en mm, con niveles fijos' },
@@ -24,10 +25,14 @@ export interface ConfigInformeClima {
   diasPron: 3 | 7;
   /** Tabla de estaciones (observado y pronóstico). */
   estaciones: boolean;
+  /** Capas de referencia de los planos (municipios, ríos, presas…). */
+  capas: CapaId[];
+  /** Apartado del distrito (módulos SRL con las estaciones propias) en el PDF carta. */
+  distrito: boolean;
 }
 
 export function configClimaPorDefecto(): ConfigInformeClima {
-  return { variables: [...ORDEN_VARIABLES], observado: true, pronostico: true, diasObs: 30, diasPron: 7, estaciones: true };
+  return { variables: [...ORDEN_VARIABLES], observado: true, pronostico: true, diasObs: 30, diasPron: 7, estaciones: true, capas: [...CAPAS_INFORME], distrito: true };
 }
 
 /** Errores que BLOQUEAN la generación. */

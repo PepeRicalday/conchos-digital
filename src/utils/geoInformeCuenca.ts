@@ -13,6 +13,7 @@ import { VARIABLES_PLANO, type VariablePlano } from './paletasClima';
 import { construirPlano, planoSvg } from './planosCuenca';
 import { puntosObservados } from './planosDatos';
 import { esc } from './informeBase';
+import type { CapaId, DatosCapas } from './capasCuenca';
 
 export type ClaveGeo = 'tempC' | 'vientoMs' | 'radSolarWm2' | 'lluviaDiaMm';
 const A_PLANO: Partial<Record<ClaveGeo, VariablePlano>> = { lluviaDiaMm: 'lluvia', tempC: 'temperatura', vientoMs: 'viento' };
@@ -47,6 +48,8 @@ export interface EntradaGeoCuenca {
     periodoHasta?: string;
     /** Fecha local de hoy (YYYY-MM-DD). */
     hoy: string;
+    /** Capas de referencia elegidas y sus datos ya cargados (sin ellas, los planos salen sin capas). */
+    capas?: { ids: CapaId[]; datos: DatosCapas };
 }
 
 const fmt = (v: number | null, d = 1) => (v == null || !Number.isFinite(v) ? 'S/D' : v.toFixed(d));
@@ -68,7 +71,7 @@ export function seccionCuencaGeo(e: EntradaGeoCuenca): string {
         const plano = construirPlano({ variable: v, periodo: { tipo: 'obs', dias: ventana }, puntos: puntosObservados(red, v, ventana), contorno, dem: e.dem });
         const cfg = VARIABLES_PLANO[v];
         const dec = v === 'temperatura' || (plano.resumen.media != null && plano.resumen.media < 10) ? 1 : 0;
-        const svg = planoSvg(plano, contorno, { tema: 'papel', idPrefijo: `gcu-${v}`, textoPx: 11, descripcion: plano.titulo });
+        const svg = planoSvg(plano, contorno, { tema: 'papel', idPrefijo: `gcu-${v}`, textoPx: 11, descripcion: plano.titulo, capas: e.capas && e.capas.ids.length ? e.capas : undefined });
         const res = plano.motivoSD
             ? `<b>S/D</b> — ${esc(plano.motivoSD)}`
             : `Promedio de la cuenca <b>${fmt(plano.resumen.media, dec)} ${esc(cfg.unidad)}</b> · rango ${fmt(plano.resumen.min, 0)}–${fmt(plano.resumen.max, 0)} · n = ${plano.resumen.n} estaciones · cobertura ${plano.resumen.coberturaPct.toFixed(0)} % del área${plano.resumen.maxEn ? ` · mayor: ${esc(plano.resumen.maxEn.nombre)}, ${fmt(plano.resumen.maxEn.valor, dec)} ${esc(cfg.unidad)}` : ''}`;

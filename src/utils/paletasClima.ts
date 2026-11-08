@@ -31,6 +31,8 @@ export const VARIABLES_PLANO: Record<VariablePlano, ConfigVariable> = {
         rampa: ['#f0f7f4', '#d3ebe3', '#a9d9cc', '#7cc5b4', '#4aa99a', '#2b8a7e', '#17675f', '#0b443f'] },
 };
 
+import { escalaDe } from './escalasCuenca';
+
 /** Isoyetas: mm acumulados en la ventana (observada o pronosticada). 1 mm es el umbral de "día con lluvia". */
 export const NIVELES_LLUVIA = [1, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100, 150];
 export const NIVELES_VIENTO = [2, 4, 6, 8, 10, 15, 20];
@@ -47,11 +49,13 @@ export function nivelesTemperatura(min: number, max: number, paso = 2): number[]
     return out;
 }
 
-export function nivelesDe(v: VariablePlano, min?: number, max?: number): number[] {
-    if (v === 'lluvia') return NIVELES_LLUVIA;
-    if (v === 'viento') return NIVELES_VIENTO;
-    if (v === 'humedad') return NIVELES_HUMEDAD;
-    return nivelesTemperatura(min ?? 0, max ?? 0);
+/**
+ * Cortes del plano: la ESCALA FIJA por variable derivada de lo registrado (utils/escalasCuenca.ts), la misma en pantalla, informes y lámina.
+ * Para lluvia depende de los días que acumula el plano (hoy/ayer, 7 d, 30 d). Sin `dias` se usa la escala mensual.
+ * `min`/`max` solo se usan si la escala registrada no aplica (compatibilidad): la temperatura ya no se ajusta al rango de cada plano.
+ */
+export function nivelesDe(v: VariablePlano, _min?: number, _max?: number, dias = 30): number[] {
+    return escalaDe(v, dias).niveles;
 }
 
 const hexN = (h: string) => parseInt(h.slice(1), 16);

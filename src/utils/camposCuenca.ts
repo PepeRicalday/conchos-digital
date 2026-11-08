@@ -26,6 +26,8 @@ export interface PuntoCampo {
     grupo?: string | null;
     /** Viento: grados desde donde sopla (solo pronóstico; JCAS no entrega dirección). */
     dirDeg?: number | null;
+    /** Estación propia (WeatherLink): se dibuja como cuadrado, no como círculo. */
+    propia?: boolean;
 }
 
 function mediaCircularSimple(ds: (number | null | undefined)[]): number | null {

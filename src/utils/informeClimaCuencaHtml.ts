@@ -43,10 +43,25 @@ function textoPlano(pl: PlanoInforme): string {
 /** Un plano con su leyenda y cifras. `anchoPx` es el ancho en pantalla/papel donde se coloca: el texto del SVG se escala para quedar en `fPx`. */
 function figura(pl: PlanoInforme, d: DatosInformeClima, id: string, anchoPx: number, fPx: number): string {
   const textoPx = Math.round(((fPx * 500) / anchoPx) * 10) / 10;
-  const svg = planoSvg(pl.modelo, d.contorno, { tema: 'papel', idPrefijo: id, textoPx });
+  const svg = planoSvg(pl.modelo, d.contorno, { tema: 'papel', idPrefijo: id, textoPx, capas: d.config.capas.length ? { ids: d.config.capas, datos: d.capasDatos } : undefined });
   const aj = pl.modelo.ajuste.aplicado ? ` Corregido por altitud ${esc(pl.modelo.ajuste.motivo.replace(/^ajustado por altitud /, ''))}.` : '';
   const ex = pl.modelo.excluidos.length ? ` Excluida: ${esc(pl.modelo.excluidos.map((p) => p.nombre).join(', '))} (pluviómetro sospechoso).` : '';
   return `<figure class="plano"><figcaption><b>${esc(pl.modelo.titulo)}</b><span>${textoPlano(pl)}</span></figcaption>${svg}<p class="fuente">${pl.tipo === 'obs' ? 'Observado: estaciones JCAS/UACJ.' : `Pronóstico: mediana de 3 modelos (ECMWF, GFS, ICON); el rango entre ellos está en la tabla.`}${aj}${ex}</p></figure>`;
+}
+
+/** Apartado del distrito: lluvia sobre los 6 módulos SRL con las estaciones propias (y JCAS cercanas) y la tabla de las propias. Solo PDF carta. */
+function bloqueDistrito(d: DatosInformeClima): string {
+  const x = d.distrito;
+  if (!x) return '';
+  const capasIds = d.config.capas.filter((c) => c !== 'srl' && c !== 'subcuencas' && c !== 'carreteras');
+  const svg = planoSvg(x.plano, x.contorno, { tema: 'papel', idPrefijo: 'dis', textoPx: 13, escalaKm: 10, salida: false, capas: capasIds.length ? { ids: capasIds, datos: d.capasDatos } : undefined });
+  const u = VARIABLES_PLANO.lluvia.unidad;
+  const resumen = x.plano.motivoSD ? `S/D: ${esc(x.plano.motivoSD)}` : `Promedio del distrito <b>${num(x.plano.resumen.media, (x.plano.resumen.media ?? 99) < 10 ? 1 : 0)} ${u}</b> · rango ${numTxt(x.plano.resumen.min, 0)}–${numTxt(x.plano.resumen.max, 0)} ${u} · n = ${x.plano.resumen.n} estaciones (propias y JCAS a ≤ 70 km) · cobertura ${numTxt(x.plano.resumen.coberturaPct, 0)} %`;
+  const filas = x.filas.map((f) => `<tr><th scope="row">${esc(f.nombre)} <small>(propia)</small></th><td class="n">${num(f.mm)}</td><td class="n">${num(f.ayer)}</td><td class="n">${num(f.mm7)}</td><td class="n">${num(f.mm30)}</td></tr>`).join('');
+  return `<section class="bloque"><h2>Distrito de Riego 005 · SRL Conchos <small>${esc(cuandoVentana(x.ventana))}</small></h2>
+<div class="distrito-grid"><figure class="plano distrito"><figcaption><b>${esc(x.plano.titulo)} · distrito</b><span>${resumen}</span></figcaption>${svg}<p class="fuente">Contorno: los 6 módulos de la SRL. Las estaciones propias (WeatherLink) se marcan con cuadrado; las JCAS cercanas, con círculo.</p></figure>
+<div><table class="cifras"><thead><tr><th>Estación propia</th><th class="n">Hoy (parcial, mm)</th><th class="n">Ayer (mm)</th><th class="n">7 d (mm)</th><th class="n">30 d (mm)</th></tr></thead><tbody>${filas || `<tr><td colspan="5">${SD}</td></tr>`}</tbody></table>
+<p class="leyenda">El valor del día es la última lectura del contador de lluvia de cada estación (día local). Una estación sin lectura es S/D, nunca 0. Solo se muestra la lluvia: la temperatura y el viento propios no se mezclan con los de JCAS.</p></div></div></section>`;
 }
 
 function kpis(d: DatosInformeClima): string {
@@ -90,7 +105,7 @@ function notas(d: DatosInformeClima): string {
   return `<section class="notas"><h3>Cómo se lee y qué límites tiene</h3><ul>
 <li><b>Contexto provisional:</b> estaciones de JCAS/UACJ (portal público, sin API ni términos publicados), pronóstico de Open-Meteo (uso no comercial) y estaciones propias. No sustituye a las estaciones propias, a los aforos ni a CILA.</li>
 <li><b>Interpolación:</b> inverso de la distancia al cuadrado, limitada a 90 km de una estación. Donde no hay estación a esa distancia el plano queda con trama y no entra a los promedios. Con menos de 5 estaciones útiles o menos del 50 % del área cubierta, el plano es S/D.</li>
-<li><b>Niveles fijos:</b> las isoyetas usan los mismos niveles (1, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100 y 150 mm) en todos los informes: dos planos de fechas distintas se comparan a ojo.</li>
+<li><b>Escala por datos registrados:</b> cada variable usa la misma escala de color en todos los informes y en pantalla (la lluvia, según acumule un día, 7 o 30 días), calculada con lo que el sistema ha registrado (JCAS, estaciones propias y GOES): el mismo color es el mismo valor y dos planos de fechas distintas se comparan a ojo. La base se declara en cada plano («escala basada en n = … lecturas»). No es una climatología: con menos de 8 años de historia no se habla de «normal», anomalía ni percentiles.</li>
 <li><b>Altitud:</b> el ajuste usa la elevación del modelo digital (la que reporta JCAS no es confiable) y solo se aplica con 12 o más estaciones y R² de 0.5 o más.</li>
 <li><b>Pronóstico:</b> mediana de 3 modelos; la lluvia de un periodo es la suma de la mediana diaria. ${esc(d.confiabilidad.texto)}</li>
 ${d.excluidas.length ? `<li><b>Pluviómetros excluidos:</b> ${esc(d.excluidas.join(', '))} (0 mm en 30 días mientras estaciones vecinas registran lluvia). Es un criterio de SICA, no un dictamen.</li>` : ''}
@@ -157,7 +172,7 @@ body{width:${ancho}px;${alto ? `height:${alto}px;overflow:hidden;` : ''}font:17p
 .lam .plano figcaption{margin-bottom:2px}
 .lam .planos{--cap:3.4em}
 .lam .plano .fuente{display:none}
-.lam .plano{max-width:470px;margin-inline:auto;width:100%}
+.lam .plano{max-width:440px;margin-inline:auto;width:100%}
 ${CSS_COMUN}
 ${CSS_PLANOS}
 `;
@@ -172,6 +187,8 @@ ${CSS_PLANOS}
 table.cifras{font-size:7.6pt}
 table.cifras th{font-size:6.8pt;padding:4px 4px}
 table.cifras td,table.cifras tbody th{padding:3px 4px}
+.distrito-grid{display:grid;grid-template-columns:minmax(0,52%) minmax(0,1fr);gap:14px;align-items:start}
+.distrito-grid .plano{width:100%}
 `;
 
 // ── Formatos ──────────────────────────────────────────────────────────────────
@@ -201,13 +218,15 @@ function carta(d: DatosInformeClima, o: OpcionesHtmlClima): string {
   for (let i = 0; i < d.planos.length; i += porHoja) grupos.push(d.planos.slice(i, i + porHoja));
   const conTablas = d.config.estaciones;
   const paginasTabla = conTablas ? (d.config.observado ? 1 : 0) + (d.config.pronostico ? 1 : 0) : 0;
-  const total = grupos.length + paginasTabla + 1;
+  const conDistrito = !!d.distrito;
+  const total = grupos.length + (conDistrito ? 1 : 0) + paginasTabla + 1;
   let n = 0;
   const hoja = (cuerpo: string, cabecera: string) => `<section class="pagina">${cabecera}<div class="cuerpo">${cuerpo}</div>${pieInforme(`Folio ${folioClima(d, o.emitido)}`, ++n, total)}</section>`;
   grupos.forEach((g, k) => {
     const planos = `<div class="planos${k === 0 ? ' chico' : ''}" style="--cols:${g.length}">${g.map((p, i) => figura(p, d, `c${k}${i}`, 340, 10)).join('')}</div>`;
     hojas.push(hoja(k === 0 ? `${titular(d, false)}${kpis(d)}${planos}` : planos, membrete(o, d)));
   });
+  if (conDistrito) hojas.push(hoja(bloqueDistrito(d), membrete(o, d)));
   if (conTablas && d.config.observado) hojas.push(hoja(tablaObs(d), membrete(o, d)));
   if (conTablas && d.config.pronostico) hojas.push(hoja(tablaPron(d), membrete(o, d)));
   hojas.push(hoja([notas(d), `<section class="bloque"><h2>Trazabilidad</h2>${tablaTrazabilidad(filasTrazabilidad(d, o.emitido))}</section>`, `<section class="bloque"><h2>Firmas</h2>${bloqueFirmas()}</section>`].join(''), membrete(o, d)));

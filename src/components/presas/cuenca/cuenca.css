@@ -186,6 +186,9 @@ html[data-device='phone'] .cu-dia { height: 24px; }
 .cu-est-c { stroke: var(--pr-sky); stroke-width: 2; }
 .cu-est-c--atras { stroke-dasharray: 3 3; stroke: var(--pr-warn); }
 .cu-est-c--sosp { stroke: var(--pr-crit); stroke-dasharray: none; }
+.cu-prop-c { stroke: var(--pr-t1); stroke-width: 1.6; }
+.cu-prop-c--sd { stroke-dasharray: 3 2; }
+.cu-mapa-txt--prop { font-size: 12px; }
 .cu-est-rombo { fill: none; stroke: var(--pr-t2); stroke-width: 2; }
 .cu-est-x { fill: none; stroke: var(--pr-crit); stroke-width: 2.2; stroke-linecap: round; }
 .cu-est:hover .cu-est-c, .cu-est--sel .cu-est-c { stroke: var(--pr-t1); stroke-width: 3; }

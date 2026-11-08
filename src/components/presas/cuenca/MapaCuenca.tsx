@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { anilloAPath, proyectorCuenca, SALIDA_CUENCA, type ContornoCuenca } from '../../../utils/geoCuenca';
 import { MODULOS_SRL, PRESAS } from '../../../utils/geoDistrito';
-import { cuandoVentana, valorObs, type PuntoRedJcas, type VentanaObs } from '../../../utils/jcasModelo';
+import { cuandoVentana, mmPropio, valorObs, type PuntoPropio, type PuntoRedJcas, type VentanaObs } from '../../../utils/jcasModelo';
 
 interface Props {
     contorno: ContornoCuenca;
@@ -9,6 +9,8 @@ interface Props {
     seleccionada: number | null;
     onSelect: (id: number) => void;
     ventana: VentanaObs;
+    /** Estaciones propias (WeatherLink): cuadrado con su lluvia; los nombres van en la tabla (en el Distrito quedan muy juntas). */
+    propias?: PuntoPropio[];
 }
 
 const W = 500; // ≈ tamaño de pantalla de escritorio: el texto del mapa queda cerca de 12 px
@@ -33,7 +35,7 @@ function colapsaMarcas(puntos: PuntoRedJcas[], v: VentanaObs): PuntoRedJcas[] {
  * El estado nunca va solo en color: círculo = con lluvia · círculo punteado = dato atrasado · rombo = sin pluviómetro · círculo con ✕ = pluviómetro
  * excluido por sospechoso. La cifra de lluvia va junto a cada estación y toda la información está también en la tabla de abajo.
  */
-export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, ventana }: Props) {
+export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, ventana, propias = [] }: Props) {
     const g = useMemo(() => {
         const p = proyectorCuenca(contorno.bbox, W);
         return {
@@ -48,7 +50,7 @@ export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, v
 
     return (
         <figure className="cu-mapa" aria-label="Mapa de la cuenca del Conchos con las estaciones JCAS">
-            <svg viewBox={`0 0 ${p.ancho} ${p.alto}`} className="cu-mapa-svg" role="group" aria-label={`Estaciones JCAS en la cuenca, lluvia ${cuandoVentana(ventana)}`}>
+            <svg viewBox={`0 0 ${p.ancho} ${p.alto}`} className="cu-mapa-svg" role="group" aria-label={`Estaciones JCAS y propias en la cuenca, lluvia ${cuandoVentana(ventana)}`}>
                 <path d={g.cuenca} className="cu-mapa-cuenca" />
                 {g.modulos.map((m) => <path key={m.k} d={m.d} className="cu-mapa-modulo"><title>{`Módulo ${m.k} · SRL Conchos`}</title></path>)}
                 {PRESAS.map((pr) => (
@@ -60,6 +62,19 @@ export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, v
                     <path d="M-14,16 L0,30 L14,16" className="cu-mapa-flecha" />
                     <text x={14} y={46} textAnchor="end" className="cu-mapa-txt cu-mapa-txt--salida">Salida · Ojinaga</text>
                 </g>
+                {/* Propias primero: los rótulos de JCAS (con halo) quedan encima y siguen legibles donde se juntan */}
+                {propias.map((pp) => {
+                    const x = p.x(pp.lon), y = p.y(pp.lat), mm = mmPropio(pp, ventana);
+                    const etiqueta = `${pp.nombre} (estación propia): ${mm == null ? 'lluvia S/D' : `${mm.toFixed(1)} mm ${cuandoVentana(ventana)}`}`;
+                    const alfa = mm == null ? 0.08 : 0.3 + 0.6 * Math.min(mm / 120, 1);
+                    return (
+                        <g key={pp.id} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`} role="img" aria-label={etiqueta}>
+                            <title>{etiqueta}</title>
+                            <rect x={-6} y={-6} width={12} height={12} rx={2} className={`cu-prop-c${mm == null ? ' cu-prop-c--sd' : ''}`} style={{ fill: `rgba(94,196,138,${alfa})` }} />
+                            <text x={9} y={4} className="cu-mapa-txt cu-mapa-txt--mm cu-mapa-txt--prop">{mm == null ? 'S/D' : mm.toFixed(0)}</text>
+                        </g>
+                    );
+                })}
                 {marcas.map((pt) => {
                     const x = p.x(pt.lon), y = p.y(pt.lat), mm = mmDe(pt, ventana);
                     const sel = pt.id === seleccionada;
@@ -89,6 +104,7 @@ export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, v
                 <span><svg width="14" height="14" viewBox="-8 -8 16 16" aria-hidden="true"><path d="M0,-6 L6,0 L0,6 L-6,0 Z" className="cu-est-rombo" /></svg> sin pluviómetro</span>
                 <span><svg width="14" height="14" viewBox="-8 -8 16 16" aria-hidden="true"><circle r="6" className="cu-est-c cu-est-c--sosp" style={{ fill: 'none' }} /><path d="M-4,-4 L4,4 M4,-4 L-4,4" className="cu-est-x" /></svg> excluida (sospechosa)</span>
                 <span><svg width="14" height="14" viewBox="-8 -8 16 16" aria-hidden="true"><path d="M0,-6 L6,5 L-6,5 Z" className="cu-mapa-presa" /></svg> presa del distrito</span>
+                {propias.length > 0 && <span><svg width="14" height="14" viewBox="-8 -8 16 16" aria-hidden="true"><rect x="-6" y="-6" width="12" height="12" rx="2" className="cu-prop-c" style={{ fill: 'rgba(94,196,138,0.6)' }} /></svg> estación propia (mm)</span>}
             </figcaption>
         </figure>
     );

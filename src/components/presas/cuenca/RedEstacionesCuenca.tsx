@@ -98,7 +98,7 @@ export default function RedEstacionesCuenca({ jcas }: { jcas: ReturnType<typeof 
                 </p>
             )}
 
-            <MapaCuenca contorno={red.contorno} puntos={m.puntos} seleccionada={sel} onSelect={setSel} ventana={ventana} />
+            <MapaCuenca contorno={red.contorno} puntos={m.puntos} seleccionada={sel} onSelect={setSel} ventana={ventana} propias={m.propias} />
 
             <div className="cu-tabla-wrap" tabIndex={0} role="region" aria-label="Tabla de estaciones JCAS (desplazable)">
                 <table className="cu-tabla">

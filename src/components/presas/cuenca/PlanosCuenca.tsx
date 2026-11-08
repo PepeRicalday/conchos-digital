@@ -87,7 +87,7 @@ export default function PlanosCuenca({ jcas }: { jcas: { red: RedJcas | null; lo
                 <div>
                     <h4 className="an-h">Planos de la cuenca</h4>
                     <p className="an-nota">
-                        {modo === 'obs' ? 'Lo observado por las estaciones JCAS/UACJ' : 'Pronóstico de 3 modelos (ECMWF, GFS e ICON) en 24 puntos de la cuenca'} · contexto provisional, no medición oficial.
+                        {modo === 'obs' ? 'Lo observado por las estaciones JCAS/UACJ y, en lluvia, también las propias' : 'Pronóstico de 3 modelos (ECMWF, GFS e ICON) en 24 puntos de la cuenca'} · contexto provisional, no medición oficial.
                     </p>
                 </div>
                 <BotonInformeClimaCuenca red={jcas.red} pron={pron.datos} dem={dem} />
@@ -164,7 +164,7 @@ export default function PlanosCuenca({ jcas }: { jcas: { red: RedJcas | null; lo
                     <li><b>Una estación por ciudad:</b> las 4 de Chihuahua pesan una vez (mediana). Los pluviómetros sospechosos se excluyen solo de la lluvia.</li>
                     <li><b>Pronóstico:</b> mediana de 3 modelos (ECMWF, GFS, ICON) en las coordenadas de cada estación; la lluvia de un periodo es la suma de la mediana diaria; un «día con lluvia» es aquel en que al menos 2 de los 3 modelos dan 1 mm o más. Los modelos pueden discrepar mucho en tormentas: por eso se muestra el rango entre ellos. Se compara con lo que midió JCAS (pronóstico de víspera) y, con menos de {60} pares día-estación, la confiabilidad se rotula «en construcción».</li>
                     <li><b>Fuente:</b> estaciones de JCAS/UACJ (portal público, datos provisionales) y pronóstico de Open-Meteo (uso no comercial). Son contexto: no sustituyen las estaciones propias ni los aforos.</li>
-                    <li>Sin dirección del viento: JCAS solo entrega la velocidad media diaria.{plano?.periodo.tipo === 'obs' ? ` ${diasObs === 'hoy' ? ` Lectura parcial del ${fechaCorta(jcas.red?.modelo?.fechaHoy ?? hoy)}, hasta ${horaLectura(jcas.red?.modelo?.hoyEn ?? null)}.` : ` Días completos al ${fechaCorta(jcas.red?.modelo?.fin ?? hoy)}.`}` : ''}</li>
+                    <li>Flechas de viento: solo en el pronóstico (hacia donde sopla; media circular de los modelos y de los días, ponderada por la velocidad). JCAS solo entrega la velocidad media diaria, sin dirección.{plano?.periodo.tipo === 'obs' ? ` ${diasObs === 'hoy' ? ` Lectura parcial del ${fechaCorta(jcas.red?.modelo?.fechaHoy ?? hoy)}, hasta ${horaLectura(jcas.red?.modelo?.hoyEn ?? null)}.` : ` Días completos al ${fechaCorta(jcas.red?.modelo?.fin ?? hoy)}.`}` : ''}</li>
                 </ul>
             </details>
         </section>

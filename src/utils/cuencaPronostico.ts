@@ -9,6 +9,8 @@
 export interface FilaPronostico {
     punto_id: string; modelo: string; fecha: string;
     precip_mm: number | null; temp_media_c: number | null; hum_media_pct: number | null; viento_medio_kmh: number | null;
+    /** Grados desde donde sopla el viento (0 = norte); null = S/D. */
+    viento_dir_deg?: number | null;
 }
 
 export interface DiaConsenso {
@@ -17,6 +19,8 @@ export interface DiaConsenso {
     /** % de modelos que dan ≥ 1 mm. */
     probPct: number | null;
     temp: number | null; hum: number | null; viento: number | null;
+    /** Dirección del viento (grados desde donde sopla) como media circular de los modelos; null si no hay o los modelos se contradicen. */
+    dirDeg?: number | null;
     nModelos: number;
 }
 
@@ -30,6 +34,18 @@ const mediana = (v: number[]): number | null => {
     const a = [...v].sort((x, y) => x - y), m = a.length >> 1;
     return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
 };
+/**
+ * Media CIRCULAR de direcciones (grados), opcionalmente ponderada. 350° y 10° dan 0°, no 180°. Si los vectores casi se anulan (resultante < 0.25)
+ * la dirección no es representativa y devuelve null (S/D): un promedio de vientos contrarios no es un viento.
+ */
+export function mediaCircular(dirs: { deg: number; peso?: number }[]): number | null {
+    const v = dirs.filter((d) => Number.isFinite(d.deg));
+    if (!v.length) return null;
+    let sx = 0, sy = 0, sw = 0;
+    for (const d of v) { const w = d.peso ?? 1, r = (d.deg * Math.PI) / 180; sx += Math.sin(r) * w; sy += Math.cos(r) * w; sw += w; }
+    if (sw <= 0 || Math.hypot(sx, sy) / sw < 0.25) return null;
+    return Math.round(((Math.atan2(sx, sy) * 180) / Math.PI + 360) % 360);
+}
 const r1 = (x: number | null) => (x == null ? null : Math.round(x * 10) / 10);
 const validos = (v: (number | null)[]) => v.filter((x): x is number => x != null && Number.isFinite(x));
 
@@ -49,6 +65,7 @@ export function consensoPorPunto(filas: FilaPronostico[], puntoId: string, desde
             temp: r1(mediana(validos(fs.map((x) => x.temp_media_c)))),
             hum: r1(mediana(validos(fs.map((x) => x.hum_media_pct)))),
             viento: r1(mediana(validos(fs.map((x) => x.viento_medio_kmh)))),
+            dirDeg: mediaCircular(fs.filter((x) => x.viento_dir_deg != null).map((x) => ({ deg: x.viento_dir_deg as number }))),
             nModelos: new Set(fs.map((x) => x.modelo)).size,
         };
     });
@@ -124,4 +141,12 @@ export function corrigeSesgo(valor: number | null, sesgo: number | null, pares: 
     if (valor == null) return { valor: null, corregido: false };
     if (sesgo == null || pares < 30 || Math.abs(sesgo) < umbral) return { valor, corregido: false };
     return { valor: Math.round((valor - sesgo) * 10) / 10, corregido: true };
+}
+
+/** Dirección del viento de un periodo (media circular de los días, ponderada por la velocidad). null = S/D. */
+export function direccionPronosticoPeriodo(dias: DiaConsenso[], desde: string, n: number): number | null {
+    const fin = new Date(Date.parse(`${desde}T00:00:00Z`) + (n - 1) * 86_400_000).toISOString().slice(0, 10);
+    const sel = dias.filter((d) => d.fecha >= desde && d.fecha <= fin && d.dirDeg != null);
+    if (sel.length < Math.ceil(n * MIN_COBERTURA_DIAS)) return null;
+    return mediaCircular(sel.map((d) => ({ deg: d.dirDeg as number, peso: Math.max(d.viento ?? 0, 0.1) })));
 }

@@ -126,3 +126,19 @@ describe('planoSvg', () => {
         expect(planoSvg(m, c, { leyenda: false }).length).toBeLessThan(planoSvg(m, c, { leyenda: true }).length);
     });
 });
+
+describe('planoSvg · flechas de viento', () => {
+    const viento = (dir: number | null) => construirPlano({ variable: 'viento', periodo: { tipo: 'pron', dias: 3 }, puntos: pts({ dirDeg: dir }).map((x, i) => ({ ...x, valor: 6 + (i % 4) })), contorno: c, dem });
+    it('con dirección dibuja una flecha por estación hacia donde sopla (dirección + 180°)', () => {
+        const s = planoSvg(viento(270), c, { tema: 'papel' });
+        expect((s.match(/rotate\(90\)/g) ?? []).length).toBeGreaterThanOrEqual(10); // viento del oeste → flecha hacia el este
+        expect(s).toContain('hacia donde sopla la flecha');
+    });
+    it('sin dirección (observado o S/D) no dibuja flechas', () => {
+        expect(planoSvg(viento(null), c, { tema: 'papel' })).not.toContain('hacia donde sopla la flecha');
+    });
+    it('la lluvia nunca lleva flechas aunque el punto traiga dirección', () => {
+        const l = construirPlano({ variable: 'lluvia', periodo: { tipo: 'obs', dias: 30 }, puntos: pts({ dirDeg: 90 }), contorno: c, dem });
+        expect(planoSvg(l, c, { tema: 'papel' })).not.toContain('hacia donde sopla la flecha');
+    });
+});

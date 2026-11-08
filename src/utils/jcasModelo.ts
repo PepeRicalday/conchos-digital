@@ -8,6 +8,7 @@ import {
     acumuladoLluvia, colapsarGrupos, lluviaAreal, marcarSospechosos, type LluviaAreal, type PuntoLluvia,
 } from './jcasCuenca';
 import type { PoligonoGeo, ZonaCuenca } from './geoCuenca';
+import { dentroDelPoligono } from './vasoAnalisis';
 
 export interface FilaEstacionJcas {
     id_jcas: number; nombre: string; latitud: number; longitud: number; altitud_m: number | null;
@@ -19,6 +20,11 @@ export interface FilaLecturaJcas { estacion_id: number; fecha: string; lluvia_mm
 
 /** Lectura PARCIAL del día en curso (jcas_lecturas_hoy): lo acumulado/promediado hasta `actualizadoEn`. */
 export interface FilaHoyJcas { estacion_id: number; fecha: string; lluvia_mm: number | null; temp_c: number | null; hum_pct: number | null; viento_kmh: number | null; actualizado_en: string }
+
+/** Lluvia diaria de una estación PROPIA (WeatherLink), de fn_cuenca_lluvia_propia: el valor del día es la última lectura del contador del día local. */
+export interface FilaLluviaPropia { estacion_id: string; nombre: string; latitud: number; longitud: number; fecha: string; lluvia_mm: number; ult_lectura: string }
+/** Estación propia con su lluvia por ventana. Solo lluvia: sus otros sensores no se mezclan con los planos de JCAS. */
+export interface PuntoPropio { id: string; nombre: string; lat: number; lon: number; mmHoy: number | null; mm1: number | null; mm7: number | null; mm30: number | null; ultFecha: string | null; hoyEn: string | null }
 
 /** Ventana de lo observado: el día en curso (parcial), el último día completo (ayer) o los últimos 7 / 30 días completos. */
 export type VentanaObs = 'hoy' | 1 | 7 | 30;
@@ -60,6 +66,8 @@ export interface ModeloRedJcas {
     areal1: LluviaAreal; arealHoy: LluviaAreal;
     /** Fecha del día en curso con lectura (null si ninguna estación tiene) y la hora de la lectura parcial más reciente. */
     fechaHoy: string | null; hoyEn: string | null;
+    /** Estaciones propias (WeatherLink) dentro de la cuenca: suman a la lluvia observada. */
+    propias: PuntoPropio[];
     vigentes: number; total: number; conLluvia: number;
 }
 
@@ -87,6 +95,7 @@ export function valorObs(p: PuntoRedJcas, variable: 'lluvia' | 'temperatura' | '
     return variable === 'lluvia' ? (v === 7 ? p.mm7 : p.mm30) : variable === 'temperatura' ? (v === 7 ? m.temp7 : m.temp30)
         : variable === 'viento' ? (v === 7 ? m.viento7 : m.viento30) : (v === 7 ? m.hum7 : m.hum30);
 }
+export const mmPropio = (p: PuntoPropio, v: VentanaObs): number | null => (v === 'hoy' ? p.mmHoy : v === 1 ? p.mm1 : v === 7 ? p.mm7 : p.mm30);
 export const arealDe = (m: ModeloRedJcas, v: VentanaObs): LluviaAreal => (v === 'hoy' ? m.arealHoy : v === 1 ? m.areal1 : v === 7 ? m.areal7 : m.areal30);
 
 const ISO = (t: number) => new Date(t).toISOString().slice(0, 10);
@@ -95,7 +104,7 @@ const diasEntre = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:0
 export const DIAS_ATRASO = 3;
 
 export function construirRedJcas(
-    estaciones: FilaEstacionJcas[], lecturas: FilaLecturaJcas[], hoyLocalISO: string, poligonos: PoligonoGeo[], lecturasHoy: FilaHoyJcas[] = [],
+    estaciones: FilaEstacionJcas[], lecturas: FilaLecturaJcas[], hoyLocalISO: string, poligonos: PoligonoGeo[], lecturasHoy: FilaHoyJcas[] = [], lluviaPropia: FilaLluviaPropia[] = [],
 ): ModeloRedJcas {
     const fin = ISO(Date.parse(`${hoyLocalISO}T00:00:00Z`) - 86_400_000);
     const porEst = new Map<number, FilaLecturaJcas[]>();
@@ -106,6 +115,17 @@ export function construirRedJcas(
     for (const h of lecturasHoy) if (h.fecha >= hoyLocalISO) hoyPorEst.set(h.estacion_id, h);
     const fechaHoy = [...hoyPorEst.values()].map((h) => h.fecha).sort().pop() ?? null;
     const hoyEnGlobal = [...hoyPorEst.values()].map((h) => h.actualizado_en).sort().pop() ?? null;
+
+    // Estaciones propias: una fila por (estación, día local). El día en curso (≥ hoy) es parcial y va aparte de los días completos.
+    const porPropia = new Map<string, FilaLluviaPropia[]>();
+    for (const r of lluviaPropia) porPropia.set(r.estacion_id, [...(porPropia.get(r.estacion_id) ?? []), r]);
+    const propias: PuntoPropio[] = [...porPropia.entries()].map(([id, rs]) => {
+        const dias = rs.filter((r) => r.fecha <= fin).map((r) => ({ fecha: r.fecha, lluviaMm: r.lluvia_mm }));
+        const h = rs.filter((r) => r.fecha >= hoyLocalISO).sort((a, b) => a.fecha.localeCompare(b.fecha)).pop();
+        const ult = rs.map((r) => r.fecha).sort().pop() ?? null;
+        return { id: `wl:${id}`, nombre: rs[0].nombre, lat: rs[0].latitud, lon: rs[0].longitud, mmHoy: h ? h.lluvia_mm : null,
+            mm1: acumuladoLluvia(dias, fin, 1).mm, mm7: acumuladoLluvia(dias, fin, 7).mm, mm30: acumuladoLluvia(dias, fin, 30).mm, ultFecha: ult, hoyEn: h?.ult_lectura ?? null };
+    }).filter((p) => poligonos.some((g) => dentroDelPoligono(g, p.lon, p.lat))).sort((a, b) => a.nombre.localeCompare(b.nombre));
 
     const base: (PuntoLluvia & { grupo: string | null })[] = [];
     const puntos: PuntoRedJcas[] = estaciones.map((e) => {
@@ -142,10 +162,10 @@ export function construirRedJcas(
     for (const p of puntos) { const m = sosp.get(String(p.id)); if (m != null) { p.sospechosa = true; p.motivo = m; } }
 
     const arma = (ventana: VentanaObs): LluviaAreal => {
-        const pts = colapsarGrupos(puntos.map((p) => ({
-            id: String(p.id), fuente: 'jcas' as const, nombre: p.nombre, lat: p.lat, lon: p.lon,
+        const pts = colapsarGrupos(puntos.map((p): PuntoLluvia & { grupo: string | null } => ({
+            id: String(p.id), fuente: 'jcas', nombre: p.nombre, lat: p.lat, lon: p.lon,
             mm: p.sospechosa || p.sinPluviometro ? null : valorObs(p, 'lluvia', ventana), grupo: p.grupo,
-        })));
+        })).concat(propias.map((p) => ({ id: p.id, fuente: 'weatherlink' as const, nombre: p.nombre, lat: p.lat, lon: p.lon, mm: mmPropio(p, ventana), grupo: null }))));
         // El promedio se calcula DENTRO del polígono de la cuenca; Ojinaga (a la salida) aporta como vecina en el borde.
         return { ...lluviaAreal(poligonos, pts, ventana === 'hoy' ? 1 : ventana), nExcluidas: puntos.filter((p) => p.sospechosa).length };
     };
@@ -153,6 +173,6 @@ export function construirRedJcas(
     return {
         puntos, fin, areal7: arma(7), areal30: arma(30), areal1: arma(1), arealHoy: arma('hoy'), fechaHoy, hoyEn: hoyEnGlobal,
         vigentes: puntos.filter((p) => p.estado === 'vigente').length, total: puntos.length,
-        conLluvia: puntos.filter((p) => p.mm30 != null && !p.sospechosa).length,
+        conLluvia: puntos.filter((p) => p.mm30 != null && !p.sospechosa).length + propias.filter((p) => p.mm30 != null).length, propias,
     };
 }

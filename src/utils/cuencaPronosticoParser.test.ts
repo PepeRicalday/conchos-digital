@@ -42,6 +42,22 @@ describe('Open-Meteo · respuesta multipunto', () => {
   });
 });
 
+describe('Open-Meteo · dirección del viento (opcional)', () => {
+  it('la URL la pide y la respuesta sin ese bloque da S/D sin fallar', () => {
+    expect(urlPronostico([{ lat: 27.5, lon: -105.1 }], 'gfs_seamless')).toContain('wind_direction_10m_dominant');
+    const r = parseRespuesta(fx('ecmwf_2puntos.json'), 2);
+    expect(r[0].dias.every((x) => x.viento_dir_deg === null)).toBe(true);
+  });
+  it('lee la dirección cuando viene y descarta lo fuera de 0–360', () => {
+    const j = JSON.parse(JSON.stringify(fx('icon_1punto.json')));
+    const n = j.daily.time.length;
+    j.daily.wind_direction_10m_dominant = Array.from({ length: n }, (_, i) => (i === 0 ? 225 : 999));
+    const r = parseRespuesta(j, 1);
+    expect(r[0].dias[0].viento_dir_deg).toBe(225);
+    expect(r[0].dias.slice(1).every((x) => x.viento_dir_deg === null)).toBe(true);
+  });
+});
+
 describe('Open-Meteo · formato inesperado → error explícito', () => {
   it('cantidad de puntos distinta de la pedida', () => {
     expect(() => parseRespuesta(fx('ecmwf_2puntos.json'), 3)).toThrow(FormatoOpenMeteoError);

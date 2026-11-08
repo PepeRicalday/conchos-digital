@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
         if (!elevaciones) elevaciones = datos.map((d) => d.elevacion);
         const filas = datos.flatMap((d, k) => d.dias.map((x) => ({
           punto_id: lista[k].id, modelo, corrida_en: corrida, fecha: x.fecha, precip_mm: x.precip_mm, precip_prob_pct: x.precip_prob_pct,
-          temp_media_c: x.temp_media_c, temp_max_c: x.temp_max_c, temp_min_c: x.temp_min_c, hum_media_pct: x.hum_media_pct, viento_medio_kmh: x.viento_medio_kmh,
+          temp_media_c: x.temp_media_c, temp_max_c: x.temp_max_c, temp_min_c: x.temp_min_c, hum_media_pct: x.hum_media_pct, viento_medio_kmh: x.viento_medio_kmh, viento_dir_deg: x.viento_dir_deg,
         })));
         for (let i = 0; i < filas.length; i += LOTE) {
           const { error } = await sb.from("cuenca_pronostico_diario").upsert(filas.slice(i, i + LOTE), { onConflict: "punto_id,modelo,corrida_en,fecha" });

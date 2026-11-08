@@ -23,7 +23,7 @@ const punto = (i: number, [nombre, lat, lon, mm, elev]: (typeof RED)[number], o:
 });
 const red = (extra: Partial<PuntoRedJcas> = {}): ModeloRedJcas => {
   const puntos = RED.map((r, i) => punto(i, r, i === 3 ? extra : {}));
-  return { puntos, fin: '2026-11-07', areal7: {} as never, areal30: {} as never, areal1: {} as never, arealHoy: {} as never, fechaHoy: null, hoyEn: null, vigentes: puntos.length, total: puntos.length, conLluvia: puntos.length };
+  return { puntos, fin: '2026-11-07', areal7: {} as never, areal30: {} as never, areal1: {} as never, arealHoy: {} as never, fechaHoy: null, hoyEn: null, propias: [], vigentes: puntos.length, total: puntos.length, conLluvia: puntos.length };
 };
 const pron = (): PronosticoCuenca => {
   const puntos = RED.map(([nombre, lat, lon, , elev], i) => ({ id: `jcas:${i + 1}`, nombre, lat, lon, elevM: elev, grupo: null, fuente: 'jcas' as const }));

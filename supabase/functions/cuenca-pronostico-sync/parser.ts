@@ -13,12 +13,14 @@ export const VARIABLES_DIARIAS = [
   "precipitation_sum", "precipitation_probability_max", "temperature_2m_mean", "temperature_2m_max", "temperature_2m_min",
   "relative_humidity_2m_mean", "wind_speed_10m_mean",
 ] as const;
+/** Opcional: si Open-Meteo no la entrega, la dirección queda S/D y no falla la corrida. */
+const VARIABLE_DIRECCION = "wind_direction_10m_dominant";
 
 export interface FilaDia {
   fecha: string;
   precip_mm: number | null; precip_prob_pct: number | null;
   temp_media_c: number | null; temp_max_c: number | null; temp_min_c: number | null;
-  hum_media_pct: number | null; viento_medio_kmh: number | null;
+  hum_media_pct: number | null; viento_medio_kmh: number | null; viento_dir_deg: number | null;
 }
 export interface PuntoRespuesta { elevacion: number | null; dias: FilaDia[] }
 
@@ -27,7 +29,7 @@ const num = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 /** URL de una petición con todos los puntos y un solo modelo. */
 export function urlPronostico(puntos: { lat: number; lon: number }[], modelo: string, dias = 7): string {
   const lat = puntos.map((p) => p.lat.toFixed(4)).join(","), lon = puntos.map((p) => p.lon.toFixed(4)).join(",");
-  return `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=${VARIABLES_DIARIAS.join(",")}` +
+  return `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=${[...VARIABLES_DIARIAS, VARIABLE_DIRECCION].join(",")}` +
     `&models=${modelo}&timezone=America%2FChihuahua&forecast_days=${dias}&wind_speed_unit=kmh`;
 }
 
@@ -47,6 +49,7 @@ export function parseRespuesta(json: unknown, nPuntos: number): PuntoRespuesta[]
       return a;
     };
     const c = Object.fromEntries(VARIABLES_DIARIAS.map((v) => [v, col(v)])) as Record<(typeof VARIABLES_DIARIAS)[number], unknown[]>;
+    const dirCol = Array.isArray(o.daily[VARIABLE_DIRECCION]) && (o.daily[VARIABLE_DIRECCION] as unknown[]).length === t.length ? (o.daily[VARIABLE_DIRECCION] as unknown[]) : null;
     const dias: FilaDia[] = (t as string[]).map((fecha, i) => {
       const mm = num(c.precipitation_sum[i]), vi = num(c.wind_speed_10m_mean[i]);
       return {
@@ -56,6 +59,7 @@ export function parseRespuesta(json: unknown, nPuntos: number): PuntoRespuesta[]
         temp_media_c: num(c.temperature_2m_mean[i]), temp_max_c: num(c.temperature_2m_max[i]), temp_min_c: num(c.temperature_2m_min[i]),
         hum_media_pct: num(c.relative_humidity_2m_mean[i]),
         viento_medio_kmh: vi != null && vi >= 0 ? vi : null,
+        viento_dir_deg: dirCol ? (() => { const d = num(dirCol[i]); return d != null && d >= 0 && d <= 360 ? d : null; })() : null,
       };
     });
     return { elevacion: num(o.elevation), dias };

@@ -170,6 +170,11 @@ export function planoSvg(m: PlanoModelo, c: ContornoCuenca, op: OpcionesSvg = {}
         const x = p.x(s.lon), y = p.y(s.lat);
         if (s.sospechosa) { out.push(`<path d="M${n1(x - 4)},${n1(y - 4)}L${n1(x + 4)},${n1(y + 4)}M${n1(x + 4)},${n1(y - 4)}L${n1(x - 4)},${n1(y + 4)}" stroke="${T.excluido}" stroke-width="2" stroke-linecap="round"><title>${esc(s.nombre)}: excluida</title></path>`); continue; }
         out.push(`<circle cx="${n1(x)}" cy="${n1(y)}" r="3.2" fill="${T.punto}" stroke="${T.halo}" stroke-width="1.2"><title>${esc(s.nombre)}</title></circle>`);
+        // flecha de viento (solo pronóstico): apunta HACIA donde sopla (dirección meteorológica + 180°); su largo es fijo, la cifra da la velocidad
+        if (m.variable === 'viento' && s.valor != null && s.dirDeg != null) {
+            const L = px * 1.5;
+            out.push(`<g transform="translate(${n1(x)} ${n1(y)}) rotate(${((s.dirDeg + 180) % 360).toFixed(0)})"><path d="M0,${n1(L * 0.5)}L0,${n1(-L)}M${n1(-L * 0.38)},${n1(-L * 0.55)}L0,${n1(-L)}L${n1(L * 0.38)},${n1(-L * 0.55)}" fill="none" stroke="${T.halo}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M0,${n1(L * 0.5)}L0,${n1(-L)}M${n1(-L * 0.38)},${n1(-L * 0.55)}L0,${n1(-L)}L${n1(L * 0.38)},${n1(-L * 0.55)}" fill="none" stroke="${T.texto}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><title>${esc(s.nombre)}: viento del ${s.dirDeg.toFixed(0)}° (hacia donde sopla la flecha)</title></g>`);
+        }
         const txt = s.valor == null ? 'S/D' : s.valor.toFixed(m.variable === 'temperatura' || (m.variable === 'lluvia' && s.valor < 10) ? 1 : 0);
         const alDerecha = x > W * 0.86;
         out.push(`<text x="${n1(alDerecha ? x - 5 : x + 5)}" y="${n1(y - 4)}"${alDerecha ? ' text-anchor="end"' : ''} font-size="${px}" font-weight="700" fill="${T.texto}" stroke="${T.halo}" stroke-width="${px * 0.3}" paint-order="stroke">${esc(txt)}</text>`);

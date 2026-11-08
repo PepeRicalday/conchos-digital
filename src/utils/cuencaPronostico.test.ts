@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { consensoPorPunto, valorPronosticoPeriodo, resumenConfiabilidad, corrigeSesgo, type FilaPronostico, type FilaVerificacion } from './cuencaPronostico';
+import { mediaCircular, direccionPronosticoPeriodo, consensoPorPunto, valorPronosticoPeriodo, resumenConfiabilidad, corrigeSesgo, type FilaPronostico, type FilaVerificacion } from './cuencaPronostico';
 
 const f = (modelo: string, fecha: string, mm: number | null, t = 15, h = 60, v = 8): FilaPronostico => ({ punto_id: 'jcas:5', modelo, fecha, precip_mm: mm, temp_media_c: t, hum_media_pct: h, viento_medio_kmh: v });
 const modelos = ['ecmwf_ifs025', 'gfs_seamless', 'icon_seamless'];
@@ -78,5 +78,25 @@ describe('corrigeSesgo', () => {
         expect(corrigeSesgo(20, 2, 29, 0.5)).toEqual({ valor: 20, corregido: false });
         expect(corrigeSesgo(20, 0.2, 40, 0.5)).toEqual({ valor: 20, corregido: false });
         expect(corrigeSesgo(null, 2, 40, 0.5)).toEqual({ valor: null, corregido: false });
+    });
+});
+
+describe('dirección del viento (media circular)', () => {
+    it('350° y 10° promedian 0° (norte), no 180°', () => {
+        expect(mediaCircular([{ deg: 350 }, { deg: 10 }])).toBe(0);
+    });
+    it('vientos contrarios se anulan: S/D, no un rumbo inventado', () => {
+        expect(mediaCircular([{ deg: 90 }, { deg: 270 }])).toBeNull();
+        expect(mediaCircular([])).toBeNull();
+    });
+    it('el consenso de 3 modelos trae dirDeg y S/D cuando ningún modelo la da', () => {
+        const con = modelos.map((m, i) => ({ ...f(m, '2026-11-09', 1), viento_dir_deg: [260, 280, 270][i] }));
+        expect(consensoPorPunto(con, 'jcas:5', '2026-11-09')[0].dirDeg).toBe(270);
+        expect(consensoPorPunto(modelos.map((m) => f(m, '2026-11-09', 1)), 'jcas:5', '2026-11-09')[0].dirDeg).toBeNull();
+    });
+    it('periodo: exige ≥ 80 % de los días con dirección y pondera por velocidad', () => {
+        const d = (fecha: string, dirDeg: number | null, viento: number) => ({ fecha, mm: 0, mmMin: 0, mmMax: 0, probPct: 0, temp: 10, hum: 50, viento, dirDeg, nModelos: 3 });
+        expect(direccionPronosticoPeriodo([d('2026-11-09', 90, 10), d('2026-11-10', 90, 10), d('2026-11-11', null, 10)], '2026-11-09', 3)).toBeNull(); // 2 de 3 < 80 %
+        expect(direccionPronosticoPeriodo([d('2026-11-09', 90, 10), d('2026-11-10', 90, 10), d('2026-11-11', 90, 10)], '2026-11-09', 3)).toBe(90);
     });
 });

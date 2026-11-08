@@ -44,6 +44,7 @@ import { obtenNdviModulo, type NdviModulo } from '../utils/kcNdvi';
 import EstacionDetalle from '../components/EstacionDetalle';
 import { sensoresLegibles } from '../utils/sensoresEstacion';
 import { claveVientoDe, umbralVigente } from '../utils/umbralesClima';
+import ClimaCuencaResumen from '../components/clima/ClimaCuencaResumen';
 import { WindyMapModal } from '../components/WindyMapModal';
 import { CENTRO_DISTRITO } from '../utils/mapaSatelital';
 import { useRol } from '../lib/auth/roles';
@@ -1262,6 +1263,8 @@ const Clima = () => {
                     <p className="text-xs" style={{ marginTop: 4 }}>Los datos mostrados podrían ser de la lectura más reciente disponible.</p>
                 </div>
             )}
+
+            <ClimaCuencaResumen />
 
             <div className="clima-grid">
                 {/* Section: Current Conditions */}

@@ -94,7 +94,7 @@ function notas(d: DatosInformeClima): string {
 <li><b>Altitud:</b> el ajuste usa la elevación del modelo digital (la que reporta JCAS no es confiable) y solo se aplica con 12 o más estaciones y R² de 0.5 o más.</li>
 <li><b>Pronóstico:</b> mediana de 3 modelos; la lluvia de un periodo es la suma de la mediana diaria. ${esc(d.confiabilidad.texto)}</li>
 ${d.excluidas.length ? `<li><b>Pluviómetros excluidos:</b> ${esc(d.excluidas.join(', '))} (0 mm en 30 días mientras estaciones vecinas registran lluvia). Es un criterio de SICA, no un dictamen.</li>` : ''}
-<li><b>Contorno:</b> cuencas J–N de la región hidrológica RH24 (INEGI-CONAGUA, difundidas por CONABIO, licencia CC BY-NC 2.5 MX). Sin dirección del viento: JCAS solo entrega la velocidad media.</li></ul></section>`;
+<li><b>Contorno:</b> cuencas J–N de la región hidrológica RH24 (INEGI-CONAGUA, difundidas por CONABIO, licencia CC BY-NC 2.5 MX). Flechas de viento solo en el pronóstico (JCAS no entrega dirección): JCAS solo entrega la velocidad media.</li></ul></section>`;
 }
 
 export function folioClima(d: DatosInformeClima, ahora: Date): string {

@@ -28,7 +28,7 @@ for (const [nombre, vista] of [
 
   const n = await sec.locator('.cu-est').count();
   verifica(n === 15, `[${nombre}] 15 marcadores en el mapa: 18 estaciones, con las 4 de Chihuahua en uno (${n})`);
-  verifica(await sec.locator('tbody tr').count() === 18, `[${nombre}] la tabla lista las 18 estaciones`);
+  verifica(await sec.locator('tbody tr').count() >= 18, `[${nombre}] la tabla lista las 18 estaciones JCAS más las propias`);
   verifica(await page.locator('.an-kpi').count() === 4, `[${nombre}] los 4 indicadores de presas siguen intactos`);
 
   const txt = await sec.innerText();
@@ -52,6 +52,7 @@ for (const [nombre, vista] of [
   verifica(/Lluvia areal de la cuenca · hoy \(parcial\)/.test(tHoy), `[${nombre}] ventana «Hoy» rotulada como parcial`);
   verifica(/hoy \d+-\w+-\d{4} \(parcial, lectura de las \d{2}:\d{2}\)/.test(tHoy) || /hoy sin lectura \(S\/D\)/.test(tHoy), `[${nombre}] el encabezado indica la fecha de hoy y la hora de la lectura (o S/D)`);
   verifica(/Lluvia hoy \(parcial\)/.test(tHoy) && /Lluvia ayer/.test(tHoy), `[${nombre}] la tabla trae las columnas hoy (parcial) y ayer`);
+  verifica(await sec.locator('.cu-tag', { hasText: 'Propia' }).count() >= 1, `[${nombre}] la tabla incluye las estaciones propias (etiqueta «Propia»)`);
   await sec.getByRole('button', { name: 'Ayer', exact: true }).click();
   verifica(/Lluvia areal de la cuenca · ayer/.test(await sec.innerText()), `[${nombre}] ventana «Ayer» rotulada`);
   await sec.getByRole('button', { name: '30 días' }).click();

@@ -1,0 +1,16 @@
+.clima-cuenca { margin-bottom: var(--spacing-lg); }
+.clima-cuenca-cab { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.clima-cuenca-cab h3 { margin: 0; }
+.clima-cuenca-seg { display: inline-flex; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 10px; overflow: hidden; }
+.clima-cuenca-seg button { min-height: 44px; padding: 0 14px; background: transparent; border: 0; color: inherit; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.clima-cuenca-seg button[aria-pressed="true"] { background: #38bdf8; color: #04203a; }
+.clima-cuenca-seg button:focus-visible { outline: 2px solid #38bdf8; outline-offset: -2px; }
+.clima-cuenca-kpi { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.clima-cuenca-val { font-size: 34px; font-weight: 800; line-height: 1.1; }
+.clima-cuenca-val small { font-size: 14px; font-weight: 600; opacity: 0.75; }
+.clima-cuenca-sub, .clima-cuenca-nota { font-size: 12px; opacity: 0.85; margin: 0; }
+.clima-cuenca-nota { margin-top: 8px; }
+.clima-cuenca-nota a { color: #38bdf8; text-decoration: underline; }
+.clima-cuenca-top { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.clima-cuenca-top li { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid rgba(148, 163, 184, 0.18); }
+.clima-cuenca-top em { font-style: normal; opacity: 0.7; }

@@ -24,6 +24,15 @@ export interface PuntoCampo {
     sospechosa?: boolean;
     /** Estaciones del mismo sitio (p. ej. 4 en Chihuahua): pesan UNA vez. */
     grupo?: string | null;
+    /** Viento: grados desde donde sopla (solo pronóstico; JCAS no entrega dirección). */
+    dirDeg?: number | null;
+}
+
+function mediaCircularSimple(ds: (number | null | undefined)[]): number | null {
+    const v = ds.filter((d): d is number => d != null && Number.isFinite(d));
+    if (!v.length) return null;
+    const sx = v.reduce((a, d) => a + Math.sin((d * Math.PI) / 180), 0), sy = v.reduce((a, d) => a + Math.cos((d * Math.PI) / 180), 0);
+    return Math.hypot(sx, sy) / v.length < 0.25 ? null : Math.round(((Math.atan2(sx, sy) * 180) / Math.PI + 360) % 360);
 }
 
 /** Estaciones de un mismo grupo → un punto con la mediana de su valor, coordenadas y elevación medias (las S/D y sospechosas no cuentan). */
@@ -37,7 +46,7 @@ export function colapsaGrupos(puntos: PuntoCampo[]): PuntoCampo[] {
         sueltos.push({
             id: `grupo:${g}`, nombre: `${g.charAt(0).toUpperCase()}${g.slice(1)} (${ps.length} est.)`,
             lat: ps.reduce((a, x) => a + x.lat, 0) / ps.length, lon: ps.reduce((a, x) => a + x.lon, 0) / ps.length,
-            valor: med == null ? null : Math.round(med * 10) / 10, elevM: el.length ? el.reduce((a, x) => a + x, 0) / el.length : null,
+            dirDeg: ps.some((x) => x.dirDeg != null) ? mediaCircularSimple(ps.map((x) => x.dirDeg)) : null, valor: med == null ? null : Math.round(med * 10) / 10, elevM: el.length ? el.reduce((a, x) => a + x, 0) / el.length : null,
         });
     }
     return sueltos;

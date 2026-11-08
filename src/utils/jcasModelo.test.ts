@@ -137,6 +137,16 @@ describe('ventanas «hoy» (parcial) y «ayer»', () => {
         expect(arealDe(s, 'hoy').mm).toBeNull();
         expect(arealDe(s, 1).mm).not.toBeNull();
     });
+    it('las estaciones propias suman a la lluvia observada y solo a ella', () => {
+        const prop = (id: string, la: number, lo: number, d: [string, number][]) => d.map(([fecha, lluvia_mm]) => ({ estacion_id: id, nombre: id, latitud: la, longitud: lo, fecha, lluvia_mm, ult_lectura: '2026-11-08T19:45:00Z' }));
+        const propias = [...prop('Módulo 1', 27.97, -105.28, [['2026-11-07', 18.8], ['2026-11-08', 10.2]]), ...prop('Fuera', 40, -90, [['2026-11-08', 99]])];
+        const c1 = construirRedJcas(red, lecturas, HOY, c.poligonos, filasHoy, propias);
+        expect(c1.propias).toHaveLength(1); // la de 40°N queda fuera de la cuenca
+        expect(c1.propias[0].mmHoy).toBe(10.2);
+        expect(c1.propias[0].mm1).toBe(18.8);
+        expect(c1.propias[0].mm7).toBeNull(); // 2 días de 7: menos del 80 % → S/D, nunca 0
+        expect(c1.arealHoy.nEstaciones).toBe(m.arealHoy.nEstaciones + 1);
+    });
     it('areal de hoy con cobertura suficiente y rótulos de ventana', () => {
         expect(m.arealHoy.mm).not.toBeNull();
         expect(arealDe(m, 'hoy')).toBe(m.arealHoy);

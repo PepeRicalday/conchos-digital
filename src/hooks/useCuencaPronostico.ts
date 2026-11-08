@@ -39,11 +39,11 @@ export function useCuencaPronostico(refrescoMs = 30 * 60_000) {
                 let corridaEn: string | null = null;
                 for (let from = 0; ; from += PAGINA) {
                     const { data, error: e2 } = await supabase.from('v_cuenca_pronostico_vigente')
-                        .select('punto_id, modelo, fecha, precip_mm, temp_media_c, hum_media_pct, viento_medio_kmh, corrida_en')
+                        .select('punto_id, modelo, fecha, precip_mm, temp_media_c, hum_media_pct, viento_medio_kmh, viento_dir_deg, corrida_en')
                         .order('punto_id').order('modelo').order('fecha').range(from, from + PAGINA - 1);
                     if (e2) throw new Error(e2.message);
                     for (const r of data ?? []) {
-                        filas.push({ punto_id: String(r.punto_id), modelo: String(r.modelo), fecha: String(r.fecha), precip_mm: n(r.precip_mm), temp_media_c: n(r.temp_media_c), hum_media_pct: n(r.hum_media_pct), viento_medio_kmh: n(r.viento_medio_kmh) });
+                        filas.push({ punto_id: String(r.punto_id), modelo: String(r.modelo), fecha: String(r.fecha), precip_mm: n(r.precip_mm), temp_media_c: n(r.temp_media_c), hum_media_pct: n(r.hum_media_pct), viento_medio_kmh: n(r.viento_medio_kmh), viento_dir_deg: n(r.viento_dir_deg) });
                         const c = r.corrida_en as string | null;
                         if (c && (!corridaEn || c > corridaEn)) corridaEn = c;
                     }

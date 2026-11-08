@@ -71,6 +71,23 @@ for (const [nombre, vista] of [['escritorio', { width: 1440, height: 900 }], ['i
   verifica(errores.length === 0, `[${nombre}] sin errores de consola${errores.length ? `: ${errores.slice(0, 2).join(' | ')}` : ''}`);
   await ctx.close();
 }
+// ── Flechas de viento del pronóstico (solo pronóstico; JCAS no da dirección)
+{
+  const pg = await (await navegador.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+  await pg.goto(`${BASE}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
+  const sc = pg.locator('section[aria-label="Planos de la cuenca"]');
+  await sc.locator('img.cu-plano-img').waitFor({ timeout: 45000 });
+  await sc.getByRole('button', { name: 'Viento' }).click();
+  await sc.getByRole('button', { name: 'Pronóstico' }).click();
+  await pg.waitForTimeout(2000);
+  const arrows = decodeURIComponent(await sc.locator('img.cu-plano-img').getAttribute('src')).match(/hacia donde sopla/g)?.length ?? 0;
+  verifica(arrows >= 5, `viento pronosticado: flechas de dirección por estación (${arrows}; 0 si la corrida aún no trae dirección)`);
+  await sc.getByRole('button', { name: 'Observado' }).click();
+  await pg.waitForTimeout(1500);
+  const obs = decodeURIComponent(await sc.locator('img.cu-plano-img').getAttribute('src')).match(/hacia donde sopla/g)?.length ?? 0;
+  verifica(obs === 0, 'viento observado: sin flechas (JCAS no entrega dirección)');
+}
 await navegador.close();
 console.log(fallos.length ? `\n${fallos.length} FALLO(S)` : '\nTodo OK');
 process.exit(fallos.length ? 1 : 0);
+

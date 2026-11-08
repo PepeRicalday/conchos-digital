@@ -10,6 +10,15 @@ const pr = (o: Partial<PuntoRedJcas>): PuntoRedJcas => ({
 });
 const red = (ps: PuntoRedJcas[]) => ({ puntos: ps } as unknown as ModeloRedJcas);
 
+describe('puntosObservados con estaciones propias', () => {
+    const m = { puntos: [pr({})], propias: [{ id: 'wl:a', nombre: 'Módulo 3', lat: 28.2, lon: -105.38, mmHoy: 20, mm1: 8, mm7: 30, mm30: 60, ultFecha: '2026-11-08', hoyEn: null }] } as unknown as ModeloRedJcas;
+    it('la lluvia incluye las propias; la temperatura no', () => {
+        expect(puntosObservados(m, 'lluvia', 'hoy').map((x) => x.nombre)).toContain('Módulo 3');
+        expect(puntosObservados(m, 'lluvia', 'hoy').find((x) => x.nombre === 'Módulo 3')!.valor).toBe(20);
+        expect(puntosObservados(m, 'temperatura', 30).map((x) => x.nombre)).not.toContain('Módulo 3');
+    });
+});
+
 describe('puntosObservados', () => {
     it('toma la variable y la ventana pedidas', () => {
         const p = (v: 'lluvia' | 'temperatura' | 'viento' | 'humedad', d: 7 | 30) => puntosObservados(red([pr({})]), v, d)[0].valor;

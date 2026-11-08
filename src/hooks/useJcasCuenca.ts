@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { cargarContornoCuenca, type ContornoCuenca, type ZonaCuenca } from '../utils/geoCuenca';
-import { construirRedJcas, type FilaEstacionJcas, type FilaHoyJcas, type FilaLecturaJcas, type ModeloRedJcas } from '../utils/jcasModelo';
+import { construirRedJcas, type FilaEstacionJcas, type FilaHoyJcas, type FilaLecturaJcas, type FilaLluviaPropia, type ModeloRedJcas } from '../utils/jcasModelo';
 
 const PAGINA = 1000;
 const DIAS = 36; // 30 días de acumulado + margen para el corte (ayer) y estaciones atrasadas
@@ -19,7 +19,7 @@ export interface RedJcas {
  */
 export function useJcasCuenca(refrescoMs = 30 * 60_000, opciones: { activo?: boolean; dias?: number } = {}) {
     const { activo = true, dias: diasLecturas = DIAS } = opciones;
-    const [datos, setDatos] = useState<{ est: FilaEstacionJcas[]; lec: FilaLecturaJcas[]; ultSyncEn: string | null; contorno: ContornoCuenca | null; hoy: FilaHoyJcas[] } | null>(null);
+    const [datos, setDatos] = useState<{ est: FilaEstacionJcas[]; lec: FilaLecturaJcas[]; ultSyncEn: string | null; contorno: ContornoCuenca | null; hoy: FilaHoyJcas[]; propia: FilaLluviaPropia[] } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [tick, setTick] = useState(0);
@@ -63,8 +63,17 @@ export function useJcasCuenca(refrescoMs = 30 * 60_000, opciones: { activo?: boo
                     const num = (x: unknown) => (x == null ? null : Number(x));
                     for (const r of rHoy.data ?? []) hoyFilas.push({ estacion_id: Number(r.estacion_id), fecha: String(r.fecha), lluvia_mm: num(r.lluvia_mm), temp_c: num(r.temp_c), hum_pct: num(r.hum_pct), viento_kmh: num(r.viento_kmh), actualizado_en: String(r.actualizado_en) });
                 }
+                // Estaciones propias (WeatherLink): su lluvia suma a la observada; si falla, la red JCAS sigue sola.
+                const propia: FilaLluviaPropia[] = [];
+                const rProp = await supabase.rpc('fn_cuenca_lluvia_propia', { p_desde: desde });
+                if (!rProp.error) {
+                    for (const r of (rProp.data ?? []) as Record<string, unknown>[]) {
+                        const mm = r.lluvia_mm == null ? null : Number(r.lluvia_mm), la = Number(r.latitud), lo = Number(r.longitud);
+                        if (mm != null && Number.isFinite(mm) && Number.isFinite(la) && Number.isFinite(lo)) propia.push({ estacion_id: String(r.estacion_id), nombre: String(r.nombre), latitud: la, longitud: lo, fecha: String(r.fecha), lluvia_mm: mm, ult_lectura: String(r.ult_lectura) });
+                    }
+                }
                 const syncs = (rEst.data ?? []).map((r) => r.ult_sync_en as string | null).filter((x): x is string => !!x).sort();
-                if (vivo) { setDatos({ est, lec, ultSyncEn: syncs.length ? syncs[syncs.length - 1] : null, contorno, hoy: hoyFilas }); setError(null); }
+                if (vivo) { setDatos({ est, lec, ultSyncEn: syncs.length ? syncs[syncs.length - 1] : null, contorno, hoy: hoyFilas, propia }); setError(null); }
             } catch (e) {
                 if (vivo) setError((e as Error).message || 'No se pudo cargar la red JCAS');
             } finally {
@@ -85,7 +94,7 @@ export function useJcasCuenca(refrescoMs = 30 * 60_000, opciones: { activo?: boo
         const hoy = ISO(Date.now() - 7 * 3_600_000);
         return {
             contorno: datos.contorno, ultSyncEn: datos.ultSyncEn,
-            modelo: datos.contorno ? construirRedJcas(datos.est, datos.lec, hoy, datos.contorno.poligonos, datos.hoy) : null,
+            modelo: datos.contorno ? construirRedJcas(datos.est, datos.lec, hoy, datos.contorno.poligonos, datos.hoy, datos.propia) : null,
         };
     }, [datos]);
 

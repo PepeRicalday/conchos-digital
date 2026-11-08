@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { RedJcas } from '../../../hooks/useJcasCuenca';
 import { useCuencaPronostico } from '../../../hooks/useCuencaPronostico';
+import BotonInformeClimaCuenca from '../../BotonInformeClimaCuenca';
 import { useDevice } from '../../../hooks/useDevice';
 import { cargarDemCuenca, type DemGrid, type PuntoCampo } from '../../../utils/camposCuenca';
 import { consensoPorPunto, resumenConfiabilidad, valorPronosticoPeriodo } from '../../../utils/cuencaPronostico';
@@ -87,6 +88,7 @@ export default function PlanosCuenca({ jcas }: { jcas: { red: RedJcas | null; lo
                         {modo === 'obs' ? 'Lo observado por las estaciones JCAS/UACJ' : 'Pronóstico de 3 modelos (ECMWF, GFS e ICON) en 24 puntos de la cuenca'} · contexto provisional, no medición oficial.
                     </p>
                 </div>
+                <BotonInformeClimaCuenca red={jcas.red} pron={pron.datos} dem={dem} />
             </div>
             <div className="cu-controles" role="group" aria-label="Variable y periodo del plano">
                 <Segmentado<VariablePlano> etiqueta="Variable" valor={variable} onChange={setVariable} opciones={VARIABLES} />

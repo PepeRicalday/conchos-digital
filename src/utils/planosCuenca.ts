@@ -43,12 +43,17 @@ export interface EntradaPlano {
     dem?: DemGrid | null;
 }
 
-const NOMBRE_PERIODO = (p: PeriodoPlano) => (p.tipo === 'obs' ? `observada, últimos ${p.dias} días` : `pronóstico, próximos ${p.dias} días`);
-
 export function tituloPlano(variable: VariablePlano, periodo: PeriodoPlano): string {
-    const v = VARIABLES_PLANO[variable].titulo;
-    if (variable === 'lluvia') return `${periodo.tipo === 'obs' ? 'Isoyetas' : 'Isoyetas pronosticadas'} · ${NOMBRE_PERIODO(periodo)}`;
-    return `${v} · ${NOMBRE_PERIODO(periodo)}`;
+    const que = variable === 'lluvia' ? 'Isoyetas' : VARIABLES_PLANO[variable].titulo;
+    const cuando = periodo.tipo === 'obs' ? `últimos ${periodo.dias} días` : `próximos ${periodo.dias} días`;
+    return `${que} ${periodo.tipo === 'obs' ? 'observadas' : 'pronosticadas'} · ${cuando}`.replace(/^(Temperatura media|Viento medio|Humedad relativa) (observadas|pronosticadas)/, (_, a, b) => `${a} ${b.replace('adas', 'ada')}`);
+}
+
+/** Área (grados²) de un anillo, para descartar islas diminutas. */
+function areaGrados(a: Anillo): number {
+    let s = 0;
+    for (let i = 0, j = a.length - 1; i < a.length; j = i++) s += a[j][0] * a[i][1] - a[i][0] * a[j][1];
+    return Math.abs(s / 2);
 }
 
 export function construirPlano(e: EntradaPlano): PlanoModelo {
@@ -74,7 +79,9 @@ export function construirPlano(e: EntradaPlano): PlanoModelo {
     };
     const bandas: BandaPlano[] = [], rotulos: RotuloPlano[] = [];
     niveles.forEach((nivel, k) => {
-        const anillos = regionMayorQue(malla, nivel).map((a) => simplificaAnillo(suavizaAnillo(a, 2), malla.paso * 0.06));
+        // En campos de gradiente (temperatura, viento, humedad) las islas de pocas celdas son ruido del relieve: no se dibujan.
+        const minArea = e.variable === 'lluvia' ? 0 : malla.paso * malla.paso * 5;
+        const anillos = regionMayorQue(malla, nivel).filter((a) => areaGrados(a) >= minArea).map((a) => simplificaAnillo(suavizaAnillo(a, 2), malla.paso * 0.06));
         if (!anillos.length) return;
         bandas.push({ nivel, color: colorBanda(e.variable, k + 1, niveles.length), anillos });
         const r = rotuloEnAnillos(anillos, valido, latRef);

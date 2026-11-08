@@ -212,7 +212,7 @@ function ficha(d: DatosInformeCuenca, p: PresaInforme): string {
 }
 
 // ── CSS ───────────────────────────────────────────────────────────────────────
-const CSS_COMUN = `
+export const CSS_COMUN = `
 .sd{color:${COLOR_PAPEL.sd};font-style:italic}
 .bloque{margin:0 0 18px;min-width:0}
 .bloque h2{font:800 1.15em/1.2 ${FUENTE_MARCA};color:#0B3170;margin:0 0 8px;padding-bottom:4px;border-bottom:2px solid #D8E2EC}

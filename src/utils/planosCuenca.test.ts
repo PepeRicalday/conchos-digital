@@ -36,9 +36,9 @@ describe('construirPlano · lluvia observada 30 d', () => {
         expect(m.rotulos.every((r) => Math.abs(r.angulo) <= 90)).toBe(true);
     });
     it('título legible', () => {
-        expect(m.titulo).toBe('Isoyetas · observada, últimos 30 días');
-        expect(tituloPlano('lluvia', { tipo: 'pron', dias: 7 })).toBe('Isoyetas pronosticadas · pronóstico, próximos 7 días');
-        expect(tituloPlano('temperatura', { tipo: 'obs', dias: 7 })).toBe('Temperatura media · observada, últimos 7 días');
+        expect(m.titulo).toBe('Isoyetas observadas · últimos 30 días');
+        expect(tituloPlano('lluvia', { tipo: 'pron', dias: 7 })).toBe('Isoyetas pronosticadas · próximos 7 días');
+        expect(tituloPlano('temperatura', { tipo: 'obs', dias: 7 })).toBe('Temperatura media observada · últimos 7 días');
     });
 });
 

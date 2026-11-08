@@ -102,7 +102,7 @@ for (const [nombre, vista, esPhone] of [
 
   // ── Notas plegables
   const notas = page.locator('details.cu-notas');
-  verifica(await notas.count() === 2 && await notas.evaluateAll((els) => els.every((e) => !e.hasAttribute('open'))), `[${nombre}] las 2 notas (presas y red JCAS) están plegadas por defecto`);
+  verifica(await notas.count() === 3 && await notas.evaluateAll((els) => els.every((e) => !e.hasAttribute('open'))), `[${nombre}] las 3 notas (presas, planos y red JCAS) están plegadas por defecto`);
   await notas.locator('summary').click();
   verifica(/Nivel GOES de Luis L\. Le[oó]n/.test(await notas.innerText()) && /San Gabriel, Dgo\./.test(await notas.innerText()), `[${nombre}] al abrir las notas se explican el nivel GOES y San Gabriel, Dgo.`);
 

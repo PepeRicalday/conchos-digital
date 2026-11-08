@@ -901,3 +901,17 @@ html[data-device="phone"] #kp-demanda .kp-vistas .ndvi-chip-txt { position: abso
 .kp-tq-mini { display: none; vertical-align: -2px; margin-right: 6px; color: var(--sc-t2, #b4c2d4); }
 @container kp (min-width: 300px) { .kp-tq-mini { display: inline-block; } }
 .kp-cuenca-l b { white-space: nowrap; }
+
+/* ── Tarjeta Presas: selector Distrito | Cuenca (mismo patrón que Clima) y columnas de la cuenca ───────────── */
+.kp-col-trama { fill: url(#kp-trama-sa); pointer-events: none; }
+#kp-presas .kp-vistas .ndvi-chip { min-height: 44px; }
+#kp-presas .kp-presas-viz-cuenca .kp-cols { flex: 1 1 100%; }
+#kp-presas .kp-presas-viz-cuenca .kp-col-nombre { font-size: 12px; }
+@container kp (max-width: 300px) { #kp-presas .kp-vistas .ndvi-chip-txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } }
+@media (max-width: 699px) { #kp-presas .kp-vistas .ndvi-chip { min-height: 44px; } #kp-presas .kp-acciones { display: block; } }
+/* Cuenca: 7 columnas estrechas → nombre vertical (legible a 12 px sin chocar con el vecino) y sin volumen bajo cada columna */
+#kp-presas .kp-presas-viz-cuenca .kp-col-vol { display: none; }
+#kp-presas .kp-presas-viz-cuenca .kp-col-nombre { writing-mode: vertical-rl; transform: rotate(180deg); max-height: 104px; max-width: none; text-overflow: ellipsis; font-size: 12px; letter-spacing: 0; padding: 2px 0; }
+@container kp (max-height: 235px) { #kp-presas .kp-presas-viz-cuenca .kp-col-nombre { display: none; } }
+/* Celdas bajas: el selector se queda (es la única forma de cambiar de vista) y toma una fila compacta; la gráfica cede */
+@container kp (max-height: 205px) { #kp-presas .kp-acciones { display: block; } #kp-presas .kp-viz { display: none; } #kp-presas .kp-vistas .ndvi-chip { min-height: 36px; } }

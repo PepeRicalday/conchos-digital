@@ -107,6 +107,8 @@ function AnaliticaCiclo({ presa, fechaISO }: Pick<Props, 'presa' | 'fechaISO'>) 
     const ultimo = p?.puntos[p.puntos.length - 1];
     const seco = calc.cruces?.find(c => c.escenario === 'seco');
     const mediana = calc.cruces?.find(c => c.escenario === 'mediana');
+    // Con menos de 8 ciclos no hay percentiles: mínimo, valor central y máximo son orientativos (regla del proyecto).
+    const fragil = calc.usados.length < 8;
     const agotaria = !!p && p.puntos.some(x => x.min != null && x.min <= 0);
 
     const resumenCruce = !p || calc.umbralCritico == null ? null
@@ -145,7 +147,7 @@ function AnaliticaCiclo({ presa, fechaISO }: Pick<Props, 'presa' | 'fechaISO'>) 
                 <div className="an-kpi" role="listitem">
                     <span className="an-kpi-lbl">Proyección {p ? `al ${fechaCorta(p.puntos[p.puntos.length - 1].fecha)}` : ''}</span>
                     <span className="an-kpi-val an-kpi-val--rango">{ultimo?.min != null && ultimo.max != null ? `${formatearNumero(ultimo.min, 0)} – ${formatearNumero(ultimo.max, 0)}` : 'S/D'}<small> Mm³</small></span>
-                    <span className="an-kpi-sub">{ultimo?.mediana != null ? `Mediana ${formatearNumero(ultimo.mediana, 0)} Mm³ · ${p!.trayectorias.length} trayectorias` : 'Sin base suficiente'}</span>
+                    <span className="an-kpi-sub">{ultimo?.mediana != null ? `${fragil ? 'Valor central' : 'Mediana'} ${formatearNumero(ultimo.mediana, 0)} Mm³ · n = ${p!.trayectorias.length} ciclos${fragil ? ' (orientativo)' : ''}` : 'Sin base suficiente'}</span>
                 </div>
             </div>
 
@@ -161,13 +163,15 @@ function AnaliticaCiclo({ presa, fechaISO }: Pick<Props, 'presa' | 'fechaISO'>) 
             <section className="an-card" aria-label="Proyección del volumen">
                 <div className="an-h-fila">
                     <h4 className="an-h">Proyección del volumen</h4>
-                    <div className="an-seg" role="group" aria-label="Horizonte de la proyección">
+                    <span className="an-ctl-etq" id="an-hor">Horizonte:</span>
+                    <div className="an-seg" role="group" aria-labelledby="an-hor">
                         <button type="button" className="an-seg-btn" aria-pressed={horizonte === 90} onClick={() => setHorizonte(90)}>90 días</button>
                         <button type="button" className="an-seg-btn" aria-pressed={horizonte === 'ciclo'} onClick={() => setHorizonte('ciclo')}>Hasta fin de ciclo</button>
                     </div>
                 </div>
                 {p ? (
                     <>
+                        {fragil && <p className="an-aviso">Basado en {calc.usados.length} ciclos (menos de 8): mínimo, valor central y máximo son orientativos, no percentiles. Proyección orientativa y provisional; no sustituye el plan de riego.</p>}
                         {resumenCruce && <p className="an-resumen" aria-live="polite">{resumenCruce}</p>}
                         <GraficaProyeccion proy={p} umbralCritico={calc.umbralCritico} umbralBajo={calc.umbralBajo} capacidad={capacidad} />
                         {agotaria && <p className="an-aviso">En el escenario seco la analogía agota el volumen: la banda se corta en 0 Mm³. No es una predicción, indica que ese ciclo pasado perdió más agua de la que hoy hay almacenada.</p>}
@@ -181,10 +185,10 @@ function AnaliticaCiclo({ presa, fechaISO }: Pick<Props, 'presa' | 'fechaISO'>) 
             <footer className="an-pie">
                 <h4 className="an-h an-h--pie">Cómo se calcula y qué falta</h4>
                 <ul>
-                    <li><b>Método:</b> volumen de hoy más el cambio que tuvo el almacenamiento en cada ciclo pasado desde este mismo día del ciclo. Ese cambio ya incluye aportaciones, evaporación y la extracción de riego de aquel ciclo.</li>
+                    <li><b>Método:</b> el cambio absoluto de cada ciclo pasado se suma al volumen de hoy; supone que ese cambio no depende del nivel de partida, lo que con pocos ciclos no puede comprobarse. Volumen de hoy más el cambio que tuvo el almacenamiento en cada ciclo pasado desde este mismo día del ciclo. Ese cambio ya incluye aportaciones, evaporación y la extracción de riego de aquel ciclo.</li>
                     <li><b>Ciclos usados:</b> {calc.usados.map(c => `${c.etiqueta} (${Math.round(c.cobertura * 100)} % de días con dato)`).join(' · ')}.{calc.excluidos.length > 0 ? ` Excluidos por poca cobertura: ${calc.excluidos.map(c => c.etiqueta).join(', ')}.` : ''} Huecos de hasta 10 días se interpolan solo en ciclos pasados, nunca en el actual.</li>
-                    <li><b>Volumen autorizado {etiquetaActual}:</b> pendiente; aún no está definido, por eso no se compara contra la demanda del ciclo.</li>
-                    <li><b>Umbrales {UMBRAL_CRITICO_PCT} % y {UMBRAL_BAJO_PCT} %:</b> referencia interna de SICA, no una norma de operación.</li>
+                    <li><b>Volumen autorizado {etiquetaActual}:</b> no cargado en SICA, por eso no se compara contra la demanda del ciclo.</li>
+                    <li><b>Umbrales {UMBRAL_CRITICO_PCT} % y {UMBRAL_BAJO_PCT} %:</b> sobre la capacidad al NAMO (CONAGUA); referencia interna de SICA, no una norma de operación.</li>
                     <li>Orientativa: no sustituye el plan de riego ni la programación oficial.</li>
                 </ul>
             </footer>

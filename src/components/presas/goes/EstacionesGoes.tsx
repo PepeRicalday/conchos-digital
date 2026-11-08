@@ -44,6 +44,7 @@ export default function EstacionesGoes({ presaId }: Props) {
     const estados = useMemo(() => h.estaciones.map(e => ({ e, enlace: estadoEnlace(instanteEnlace(e, h.mensajes), ahora, e.id) })), [h.estaciones, h.mensajes, ahora]);
     const enLinea = estados.filter(x => x.enlace.clave === 'en_linea' || x.enlace.clave === 'retraso').length;
     const sinTx = estados.filter(x => x.enlace.clave === 'sin_transmision').length;
+    const sinMsj = estados.filter(x => x.enlace.clave === 'sd').length;
 
     // Fichas en una sola rejilla; la presa abierta en pantalla va primero.
     const ordenadas = useMemo(() => {
@@ -101,7 +102,7 @@ export default function EstacionesGoes({ presaId }: Props) {
             <header className="goes-head">
                 <div className="goes-head-id">
                     <h3 className="goes-titulo">Estaciones hidrométricas (GOES)</h3>
-                    <p className="goes-sub">Telemetría satelital de nivel y gasto, lecturas cada 15–20 min según la estación · hora de Chihuahua</p>
+                    <p className="goes-sub">Telemetría satelital de nivel y gasto, lecturas cada 15–20 min según la estación · hora de Chihuahua · datos provisionales</p>
                 </div>
                 <div className="goes-head-der">
                     <div className="goes-ventana">
@@ -114,7 +115,7 @@ export default function EstacionesGoes({ presaId }: Props) {
                     </div>
                     <div className="goes-estado">
                         <span className="goes-resumen" role="status" aria-live="polite">
-                            <b>{enLinea}</b> de {estados.length} en línea{sinTx > 0 && <> · <b className="goes-resumen-alerta">{sinTx} sin transmisión</b></>}
+                            <b>{enLinea}</b> de {estados.length} en línea{sinTx > 0 && <> · <b className="goes-resumen-alerta">{sinTx} sin transmisión</b></>}{sinMsj > 0 && <> · <b className="goes-resumen-alerta">{sinMsj} sin mensajes</b></>}
                         </span>
                         <span className="goes-sub goes-sub--der">Actualizado {horaLocal(h.actualizadoEn)}</span>
                     </div>
@@ -191,7 +192,7 @@ export default function EstacionesGoes({ presaId }: Props) {
                     <li><b>Babisas:</b> la estación reporta gasto 0 en la mayor parte de las lecturas aun con el nivel alto. Se muestra tal cual, con marca de posible corte de curva de gasto; no está confirmado, y esas lecturas no entran a promedios ni al volumen.</li>
                     <li><b>Francisco I. Madero:</b> no se muestra su radiación (valor fijo, canal no confiable) y el viento tiene huecos que se leen S/D.</li>
                     <li><b>Hora de las lecturas:</b> se estima a partir de la hora del mensaje satelital; cada estación lee cada 15 min (Ojinaga) o 20 min (las demás).</li>
-                    <li><b>Ubicación:</b> solo una estación tiene coordenadas registradas; las demás indican «Ubicación pendiente» y no se dibujan en mapa.</li>
+                    <li><b>Ubicación:</b> {h.estaciones.filter(e => e.latitud != null).length} de {h.estaciones.length} estaciones tienen coordenadas registradas; las demás indican «Ubicación pendiente» y no se dibujan en mapa.</li>
                     <li><b>Presa y río:</b> no se compara la salida de la presa con Ojinaga: entre ambas hay tomas, aportes de afluentes y un tránsito de días que no está calibrado, así que la diferencia no sería un balance.</li>
                 </ul>
             </footer>

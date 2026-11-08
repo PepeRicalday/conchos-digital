@@ -164,3 +164,5 @@ html[data-device='phone'] .cu-tira-td { min-width: 180px; }
 html[data-device='phone'] .cu-dia { height: 24px; }
 
 .cu-head-acc{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+/* Día de lluvia fuerte (≥ 10 mm): marco además del color, también cuando la cifra se oculta por falta de espacio */
+.cu-dia--fuerte { outline: 2px solid var(--pr-t1); outline-offset: -2px; }

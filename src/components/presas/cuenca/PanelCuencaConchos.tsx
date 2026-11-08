@@ -49,7 +49,7 @@ function FilaTabla({ m, difCila }: { m: PresaCuencaModelo; difCila: number | nul
     const f = m.fila;
     return (
         <tr>
-            <th scope="row" className="cu-presa">
+            <th scope="row"><div className="cu-presa">
                 <span className="cu-nombre">{f.etiqueta}</span>
                 {f.delDistrito && <span className="cu-tag">Distrito</span>}
                 {f.sinActualizar && <span className="cu-tag cu-tag--aviso">Sin actualizar</span>}
@@ -61,7 +61,7 @@ function FilaTabla({ m, difCila }: { m: PresaCuencaModelo; difCila: number | nul
                 {f.delDistrito && difCila != null && (
                     <span className="cu-nota-fila">Diferencia contra CILA: {difCila > 0 ? '+' : difCila < 0 ? '−' : ''}{formatearNumero(Math.abs(difCila), 2)} %</span>
                 )}
-            </th>
+            </div></th>
             <td className="cu-num">{fmt(f.almacenamientoValido, 1)}</td>
             <td className="cu-num">{f.pct == null ? 'S/D' : `${formatearNumero(f.pct, 1)} %`}</td>
             <td>
@@ -149,7 +149,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
             <header className="an-head">
                 <div>
                     <h3 className="an-titulo">Cuenca del Conchos</h3>
-                    <p className="an-sub">Presas CONAGUA de Chihuahua y Durango y aforo de Ojinaga · portal USIBWC (AQUARIUS) · datos provisionales</p>
+                    <p className="an-sub">Presas CONAGUA de Chihuahua y Durango y aforo de Ojinaga · CONAGUA vía USIBWC · datos provisionales</p>
                 </div>
                 <div className="cu-head-acc">
                     <span className={`an-chip an-chip--${frescura == null ? 'sd' : frescura.stale ? 'warn' : 'ok'}`}>
@@ -175,9 +175,9 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                     </span>
                 </div>
                 <div className="an-kpi" role="listitem">
-                    <span className="an-kpi-lbl">Aportación a las presas</span>
+                    <span className="an-kpi-lbl">Aportaciones reportadas</span>
                     <span className="an-kpi-val">{fmtFlujo(aport.total)}<small> m³/s</small></span>
-                    <span className="an-kpi-sub">Suma del día · {aport.conDato} de {filas.length} presas con dato</span>
+                    <span className="an-kpi-sub">Última lectura de cada presa · {aport.conDato} de {filas.length} con dato · puede repetir agua en cascada</span>
                 </div>
                 <div className="an-kpi" role="listitem">
                     <span className="an-kpi-lbl">Salida de la cuenca · Ojinaga</span>
@@ -192,7 +192,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                 </p>
             )}
 
-            <div className="cu-controles" role="toolbar" aria-label="Vista y filtros de la cuenca">
+            <div className="cu-controles" role="group" aria-label="Vista y filtros de la cuenca">
                 <Segmentado<Vista> etiqueta="Vista" valor={vista} onChange={setVista}
                     opciones={[{ v: 'tanques', t: 'Tanques' }, { v: 'tabla', t: 'Tabla' }]} />
                 <Segmentado<OrdenCuenca> etiqueta="Orden" valor={orden} onChange={setOrden}
@@ -218,7 +218,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                 <section className="an-card" aria-label="Estado de las presas de la cuenca">
                     <h4 className="an-h">Presas de la cuenca</h4>
                     <p className="an-nota">Porcentaje sobre el NAMO que publica CONAGUA; los umbrales de estado son referencia interna de SICA. El % útil descuenta el volumen muerto y la posición compara con el mismo día de 2017 a {new Date().getFullYear() - 1}. Caudales del día en m³/s.</p>
-                    <div className="cu-tabla-wrap">
+                    <div className="cu-tabla-wrap" tabIndex={0} role="region" aria-label="Tabla de presas (desplazable)">
                         <table className="cu-tabla">
                             <thead>
                                 <tr>

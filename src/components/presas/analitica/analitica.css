@@ -68,3 +68,9 @@ html[data-device='phone'] .an-seg-btn { min-height: 44px; }
 .an-vista-btn[aria-pressed='true'] { background: var(--pr-surface-2); border-color: var(--pr-sky); color: var(--pr-t1); }
 .an-vista-btn:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 2px; }
 html[data-device='phone'] .an-vista-btn { min-height: 44px; }
+
+/* Auditoría Presas: advertencias metodológicas legibles (13 px, contraste t2) y etiqueta visible del horizonte */
+.an-pie ul { font-size: 13px; color: var(--pr-t2); }
+.an-kpi-sub, .an-leyenda { font-size: 13px; }
+.an-ctl-etq { font: 600 12px var(--pr-mono, monospace); color: var(--pr-t2); margin-right: 8px; }
+.an-h-fila { flex-wrap: wrap; }

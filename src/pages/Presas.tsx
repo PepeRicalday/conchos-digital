@@ -61,17 +61,18 @@ const ExtractionStreamgraph = ({ movimientos }: { movimientos: MovimientoPresaDa
         });
     }, [movimientos]);
 
-    const hasDatos = data.some(d => d.gasto != null && d.gasto > 0);
+    // Un CORTE medido (0 m³/s) es información operativa: solo la ausencia de dato (S/D) vacía el panel.
+    const hasDatos = data.some(d => d.gasto != null);
 
     if (!hasDatos) {
         return (
             // Estado vacío de una línea: antes era un panel de 192 px sin nada dentro.
-            <p className="scada-vacio-linea">Sin movimientos de extracción en los últimos 7 días.</p>
+            <p className="scada-vacio-linea">Sin movimientos de extracción registrados en las últimas 48 h (S/D).</p>
         );
     }
 
     // Determine dominant fuente for color
-    const fuenteDominante = data.find(d => d.gasto != null && d.gasto > 0)?.fuente ?? 'DEFAULT';
+    const fuenteDominante = data.find(d => d.gasto != null)?.fuente ?? 'DEFAULT';
     const color = FUENTE_COLOR[fuenteDominante] ?? FUENTE_COLOR.DEFAULT;
 
     return (
@@ -307,7 +308,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
 
 // ─── Nivel Histórico 30d ──────────────────────────────────────────────────────
 const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
-    const [histData, setHistData] = useState<{ fecha: string; nivel: number; vol: number; pct: number }[]>([]);
+    const [histData, setHistData] = useState<{ fecha: string; nivel: number; vol: number; pct: number | null }[]>([]);
     const [loadingHist, setLoadingHist] = useState(true);
 
     useEffect(() => {
@@ -327,17 +328,18 @@ const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
                     fecha: r.fecha,
                     nivel: Number(r.escala_msnm),
                     vol: Number(r.almacenamiento_mm3),
-                    pct: Number(r.porcentaje_llenado),
+                    pct: r.porcentaje_llenado == null ? null : Number(r.porcentaje_llenado),
                 })));
                 setLoadingHist(false);
             });
     }, [presaId]);
 
-    if (loadingHist || histData.length < 2) return null;
+    if (loadingHist) return null;
+    if (histData.length < 2) return <p className="scada-vacio-linea">Sin lecturas de nivel suficientes en 30 días (S/D).</p>;
 
     const minNivel = Math.min(...histData.map(d => d.nivel)) - 0.5;
     const maxNivel = Math.max(...histData.map(d => d.nivel)) + 0.5;
-    const ultimoPct = histData.at(-1)?.pct ?? 0;
+    const ultimoPct = histData.at(-1)?.pct ?? null;
     const tendencia = histData.length >= 2
         ? histData.at(-1)!.nivel - histData[0].nivel
         : 0;
@@ -354,7 +356,7 @@ const NivelHistoricoChart = ({ presaId }: { presaId: string }) => {
                         style={{ color: tColor, background: `${tColor}18`, border: `1px solid ${tColor}40` }}>
                         {tendencia > 0 ? '▲' : tendencia < 0 ? '▼' : '─'} {Math.abs(tendencia).toFixed(2)} m
                     </span>
-                    <span className="text-[11px] font-black text-sky-400 font-mono">{ultimoPct.toFixed(1)}% NAMO</span>
+                    <span className="text-[11px] font-black text-sky-400 font-mono">{ultimoPct == null ? 'S/D' : `${ultimoPct.toFixed(1)} % del NAMO`}</span>
                 </div>
             </div>
             <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height={160}>
@@ -437,7 +439,7 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
         <div className="mt-4 mb-2 p-4 bg-[#0f172a] rounded-lg" style={{ border: '1px solid rgba(63, 178, 243, 0.15)' }}>
             <div className="scada-panel-hdr mb-3">
                 <Activity size={12} className="text-sky-400" />
-                <span>MÓDULO 4: Trazabilidad de Flujo a Red Mayor</span>
+                <span>Flujo por obra de toma hacia la red mayor</span>
                 <span className="text-[11px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded ml-2">DESGLOSE REPORTADO POR OBRA</span>
             </div>
             
@@ -725,15 +727,15 @@ const Presas = () => {
                 {/* ZONA 2: Panel Hidráulico Central */}
                 <div className="scada-zona-hidraulica">
                     {/* TABS DE ZONA 2 */}
-                    <div className="flex bg-[#0f172a] p-1 rounded-md mb-3" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
-                        <button 
-                            className={`flex-1 py-2 text-[11px] font-bold tracking-wider rounded transition-colors ${activeTab === 'operacion' ? 'bg-[#3FB2F3] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
+                    <div role="tablist" aria-label="Zona de presas" className="flex bg-[#0f172a] p-1 rounded-md mb-3" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <button role="tab" aria-selected={activeTab === 'operacion'}
+                            className={`flex-1 py-2 min-h-[44px] text-[12px] font-bold tracking-wider rounded transition-colors ${activeTab === 'operacion' ? 'bg-[#3FB2F3] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
                             onClick={() => setActiveTab('operacion')}
                         >
                             VASO OPERATIVO
                         </button>
-                        <button 
-                            className={`flex-1 py-2 text-[11px] font-bold tracking-wider rounded transition-colors ${activeTab === 'analitica' ? 'bg-[#3FB2F3] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
+                        <button role="tab" aria-selected={activeTab === 'analitica'}
+                            className={`flex-1 py-2 min-h-[44px] text-[12px] font-bold tracking-wider rounded transition-colors ${activeTab === 'analitica' ? 'bg-[#3FB2F3] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
                             onClick={() => setActiveTab('analitica')}
                         >
                             ANALÍTICA Y FORECASTING
@@ -785,7 +787,7 @@ const Presas = () => {
                         <span className="scada-ext-unit">m³/s</span>
                         <div className="scada-ext-bar">
                             <div className={extraccionTotal > 0 ? 'scada-ext-bar-fill--active' : 'scada-ext-bar-fill--inactive'}
-                                style={{ width: `${Math.min((extraccionTotal / 80) * 100, 100)}%` }}/>
+                                style={{ width: `${extConocida ? Math.min((extraccionTotal / 80) * 100, 100) : 0}%` }} title={extConocida ? 'Escala de 0 a 80 m³/s' : 'Sin dato de extracción (S/D)'}/>
                         </div>
                     </div>
 
@@ -844,12 +846,12 @@ const Presas = () => {
                                     <span>{currentDam.elevacion_corona_msnm.toFixed(2)} msnm</span>
                                 </div>
                                 <div className="scada-design-kpi">
-                                    <span>Cap. Total</span>
+                                    <span>Cap. al NAMO</span>
                                     <span>{currentDam.capacidad_max_mm3.toFixed(1)} Mm³</span>
                                 </div>
                                 <div className="scada-design-kpi">
-                                    <span>Amortiguamiento</span>
-                                    <span className={amortTexto ? 'scada-kpi-violet' : 'scada-kpi-muted'}>{amortTexto ? `${amortTexto} hm³` : 'S/D'}</span>
+                                    <span title="Volumen que falta para llegar al NAMO (capacidad al NAMO menos almacenado)">Disponible a NAMO</span>
+                                    <span className={amortTexto ? 'scada-kpi-violet' : 'scada-kpi-muted'}>{amortTexto ? `${amortTexto} Mm³` : 'S/D'}</span>
                                 </div>
                                 <div className="scada-design-kpi">
                                     <span>Extracción</span>

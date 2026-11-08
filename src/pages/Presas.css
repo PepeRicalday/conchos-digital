@@ -2168,3 +2168,8 @@ html[data-device="phone"] .pr-sello { min-height: 32px; }
 @media (max-width: 1280px) {
     .scada-action-btn { min-height: 44px; }
 }
+
+/* Objetivos táctiles ≥44 px en iPad/iPhone (selector de presa e historial): la auditoría de Presas los encontró en 20-36 px */
+@media (max-width: 1280px) {
+  .scada-dam-btn, .scada-hist-btn { min-height: 44px; padding-inline: 14px; }
+}

@@ -66,7 +66,7 @@ verifica(/Trazabilidad/.test(txtCarta) && (await marco.locator('.firma').count()
 const altos = await marco.locator('.pagina').evaluateAll((els) => els.map((e) => e.scrollHeight));
 verifica(altos.every((h) => h <= 1060), `carta: cada hoja cabe en una Carta (alturas ${altos.join(', ')})`);
 await page.screenshot({ path: OUT + 'previa-carta.png' });
-for (let i = 0; i < 10; i++) await marco.locator('.pagina').nth(i).screenshot({ path: `${OUT}carta-${i + 1}.png` });
+for (let i = 0; i < 10; i++) { try { await marco.locator(".pagina").nth(i).screenshot({ path: `${OUT}carta-${i + 1}.png` }); } catch { /* captura opcional: el iframe puede refrescarse */ } }
 
 // Infografía PNG: sin desbordes horizontales, 7 tanques, tabla
 await previa.getByRole('radio', { name: 'Infografía PNG' }).click();

@@ -65,7 +65,7 @@ export default function TiraLluvia({ lluvia, serie }: Props) {
                             const maximo = Math.max(0, ...dias30.map((d) => d.v ?? 0));
                             return (
                                 <tr key={f.ubicacionId}>
-                                    <th scope="row" className="cu-presa"><span className="cu-nombre">{NOMBRE_LLUVIA[f.ubicacionId] ?? f.nombre}</span></th>
+                                    <th scope="row"><div className="cu-presa"><span className="cu-nombre">{NOMBRE_LLUVIA[f.ubicacionId] ?? f.nombre}</span></div></th>
                                     <td className="cu-tira-td">
                                         <div className="cu-tira" role="img"
                                             aria-label={`${f.nombre}: 30 días, ${conLluvia} con lluvia de 1 mm o más, máximo ${formatearNumero(maximo, 1)} mm`}>

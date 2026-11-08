@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { formatearNumero } from '../../../utils/historicoPresas';
+import { UMBRAL_BAJO_PCT, UMBRAL_CRITICO_PCT } from '../../../utils/presaNiveles';
 import { fechaCorta, type Proyeccion } from '../../../utils/analiticaPresas';
 
 interface Props {
@@ -55,11 +56,11 @@ export default function GraficaProyeccion({ proy, umbralCritico, umbralBajo, cap
                         <Tooltip content={<TooltipProy valorHoy={proy.valorHoy} />} isAnimationActive={false} />
                         {umbralBajo != null && umbralBajo < (capacidad ?? Infinity) && (
                             <ReferenceLine y={umbralBajo} stroke="var(--pr-warn)" strokeDasharray="4 4"
-                                label={{ value: `BAJO 40 % · ${formatearNumero(umbralBajo, 0)} Mm³ (referencia)`, position: 'insideBottomLeft', fill: 'var(--pr-warn)', fontSize: 12 }} />
+                                label={{ value: `BAJO ${UMBRAL_BAJO_PCT} % · ${formatearNumero(umbralBajo, 0)} Mm³ (referencia)`, position: 'insideBottomLeft', fill: 'var(--pr-warn)', fontSize: 12 }} />
                         )}
                         {umbralCritico != null && (
                             <ReferenceLine y={umbralCritico} stroke="var(--pr-crit)" strokeDasharray="4 4"
-                                label={{ value: `CRÍTICO 20 % · ${formatearNumero(umbralCritico, 0)} Mm³ (referencia)`, position: 'insideBottomLeft', fill: 'var(--pr-crit)', fontSize: 12 }} />
+                                label={{ value: `CRÍTICO ${UMBRAL_CRITICO_PCT} % · ${formatearNumero(umbralCritico, 0)} Mm³ (referencia)`, position: 'insideBottomLeft', fill: 'var(--pr-crit)', fontSize: 12 }} />
                         )}
                         <Area dataKey="base" stackId="p" stroke="none" fill="none" isAnimationActive={false} connectNulls={false} />
                         <Area dataKey="delta" stackId="p" stroke="none" fill="var(--pr-sky)" fillOpacity={0.2} isAnimationActive={false} connectNulls={false} />
@@ -72,9 +73,9 @@ export default function GraficaProyeccion({ proy, umbralCritico, umbralBajo, cap
                 </ResponsiveContainer>
             </div>
             <ul className="an-leyenda" aria-label="Leyenda">
-                <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--pr-sky)" strokeWidth="3" /></svg> Mediana de las trayectorias</li>
-                <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--pr-warn)" strokeWidth="1.5" strokeDasharray="2 3" /></svg> Escenario seco (el peor ciclo pasado)</li>
-                <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--pr-ok)" strokeWidth="1.5" strokeDasharray="8 4" /></svg> Escenario húmedo (el mejor ciclo pasado)</li>
+                <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--pr-sky)" strokeWidth="3" /></svg> Valor central (mediana) de los ciclos pasados</li>
+                <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--pr-warn)" strokeWidth="1.5" strokeDasharray="2 3" /></svg> Escenario seco: mínimo día a día de los ciclos pasados</li>
+                <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="30" y2="5" stroke="var(--pr-ok)" strokeWidth="1.5" strokeDasharray="8 4" /></svg> Escenario húmedo: máximo día a día de los ciclos pasados</li>
                 <li><svg width="30" height="10" aria-hidden="true"><rect x="0" y="1" width="30" height="8" fill="var(--pr-sky)" fillOpacity="0.35" /></svg> Rango entre escenarios</li>
             </ul>
         </>

@@ -5,7 +5,7 @@ import type { FilaPronostico } from './cuencaPronostico';
 
 const pr = (o: Partial<PuntoRedJcas>): PuntoRedJcas => ({
     id: 5, nombre: 'Camargo', lat: 27.7, lon: -105.17, altitudM: 1250, zona: 'cuenca', grupo: null, sinPluviometro: false, mm7: 10, mm30: 75, diasConDato30: 30,
-    ultFecha: '2026-11-07', atrasoDias: 0, estado: 'vigente', sospechosa: false, motivo: null, tempUltima: 15, elevM: 1226,
+    ultFecha: '2026-11-07', atrasoDias: 0, estado: 'vigente', sospechosa: false, motivo: null, tempUltima: 15, elevM: 1226, ayer: { mm: null, temp: null, hum: null, viento: null }, hoy: null, hoyEn: null, 
     medias: { temp7: 14, temp30: 16, hum7: 50, hum30: 55, viento7: 6, viento30: 7 }, ...o,
 });
 const red = (ps: PuntoRedJcas[]) => ({ puntos: ps } as unknown as ModeloRedJcas);

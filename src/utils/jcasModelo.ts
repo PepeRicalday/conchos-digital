@@ -17,6 +17,20 @@ export interface FilaEstacionJcas {
 }
 export interface FilaLecturaJcas { estacion_id: number; fecha: string; lluvia_mm: number | null; temp_c: number | null; hum_pct?: number | null; viento_kmh?: number | null }
 
+/** Lectura PARCIAL del día en curso (jcas_lecturas_hoy): lo acumulado/promediado hasta `actualizadoEn`. */
+export interface FilaHoyJcas { estacion_id: number; fecha: string; lluvia_mm: number | null; temp_c: number | null; hum_pct: number | null; viento_kmh: number | null; actualizado_en: string }
+
+/** Ventana de lo observado: el día en curso (parcial), el último día completo (ayer) o los últimos 7 / 30 días completos. */
+export type VentanaObs = 'hoy' | 1 | 7 | 30;
+export const VENTANAS_OBS: { v: VentanaObs; t: string }[] = [{ v: 'hoy', t: 'Hoy' }, { v: 1, t: 'Ayer' }, { v: 7, t: '7 días' }, { v: 30, t: '30 días' }];
+/** Rótulo corto de una ventana para títulos y tarjetas ("hoy (parcial)", "ayer", "7 d"). */
+export const etiquetaVentana = (v: VentanaObs): string => (v === 'hoy' ? 'hoy (parcial)' : v === 1 ? 'ayer' : `${v} d`);
+/** Rótulo largo ("hoy, parcial", "ayer", "últimos 7 días"). */
+export const cuandoVentana = (v: VentanaObs): string => (v === 'hoy' ? 'hoy, día en curso (parcial)' : v === 1 ? 'ayer (día completo)' : `últimos ${v} días`);
+
+/** Valores de una ventana corta (un día): lluvia acumulada y medias de temperatura, humedad y viento. */
+export interface ValoresDia { mm: number | null; temp: number | null; hum: number | null; viento: number | null }
+
 export type EstadoEstacion = 'vigente' | 'atrasada' | 'sin-datos';
 
 export interface PuntoRedJcas {
@@ -28,6 +42,11 @@ export interface PuntoRedJcas {
     /** Temperatura media del último día completo con dato (°C). */
     tempUltima: number | null;
     elevM: number | null;
+    /** Último día COMPLETO (ayer): lluvia y medias del día. */
+    ayer: ValoresDia;
+    /** Día en curso, PARCIAL (hasta `hoyEn`); null si la estación no tiene lectura de hoy. */
+    hoy: ValoresDia | null;
+    hoyEn: string | null;
     /** Promedios de la ventana (≥ 80 % de los días con dato; si no, null = S/D). */
     medias: { temp7: number | null; temp30: number | null; hum7: number | null; hum30: number | null; viento7: number | null; viento30: number | null };
 }
@@ -37,6 +56,10 @@ export interface ModeloRedJcas {
     /** Último día COMPLETO sobre el que se calculan los acumulados (ayer, hora local conservadora). */
     fin: string;
     areal7: LluviaAreal; areal30: LluviaAreal;
+    /** Lluvia areal del último día completo y del día en curso (parcial). */
+    areal1: LluviaAreal; arealHoy: LluviaAreal;
+    /** Fecha del día en curso con lectura (null si ninguna estación tiene) y la hora de la lectura parcial más reciente. */
+    fechaHoy: string | null; hoyEn: string | null;
     vigentes: number; total: number; conLluvia: number;
 }
 
@@ -53,17 +76,36 @@ export function mediaVentana(ls: FilaLecturaJcas[], campo: 'temp_c' | 'hum_pct' 
     return Math.round((s / v.size) * 10) / 10;
 }
 
+/** Valor de un punto en una ventana: una sola definición para la tabla, el mapa, los planos y el informe. */
+export function valorObs(p: PuntoRedJcas, variable: 'lluvia' | 'temperatura' | 'viento' | 'humedad', v: VentanaObs): number | null {
+    if (v === 'hoy' || v === 1) {
+        const d = v === 'hoy' ? p.hoy : p.ayer;
+        if (!d) return null;
+        return variable === 'lluvia' ? d.mm : variable === 'temperatura' ? d.temp : variable === 'viento' ? d.viento : d.hum;
+    }
+    const m = p.medias;
+    return variable === 'lluvia' ? (v === 7 ? p.mm7 : p.mm30) : variable === 'temperatura' ? (v === 7 ? m.temp7 : m.temp30)
+        : variable === 'viento' ? (v === 7 ? m.viento7 : m.viento30) : (v === 7 ? m.hum7 : m.hum30);
+}
+export const arealDe = (m: ModeloRedJcas, v: VentanaObs): LluviaAreal => (v === 'hoy' ? m.arealHoy : v === 1 ? m.areal1 : v === 7 ? m.areal7 : m.areal30);
+
 const ISO = (t: number) => new Date(t).toISOString().slice(0, 10);
 const diasEntre = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
 /** Una estación con su último día completo a más de 3 días del corte se considera atrasada. */
 export const DIAS_ATRASO = 3;
 
 export function construirRedJcas(
-    estaciones: FilaEstacionJcas[], lecturas: FilaLecturaJcas[], hoyLocalISO: string, poligonos: PoligonoGeo[],
+    estaciones: FilaEstacionJcas[], lecturas: FilaLecturaJcas[], hoyLocalISO: string, poligonos: PoligonoGeo[], lecturasHoy: FilaHoyJcas[] = [],
 ): ModeloRedJcas {
     const fin = ISO(Date.parse(`${hoyLocalISO}T00:00:00Z`) - 86_400_000);
     const porEst = new Map<number, FilaLecturaJcas[]>();
     for (const l of lecturas) porEst.set(l.estacion_id, [...(porEst.get(l.estacion_id) ?? []), l]);
+
+    // Día en curso: solo lecturas de HOY (o posteriores por el desfase de huso); una fila de ayer que no se actualizó es S/D, no se arrastra.
+    const hoyPorEst = new Map<number, FilaHoyJcas>();
+    for (const h of lecturasHoy) if (h.fecha >= hoyLocalISO) hoyPorEst.set(h.estacion_id, h);
+    const fechaHoy = [...hoyPorEst.values()].map((h) => h.fecha).sort().pop() ?? null;
+    const hoyEnGlobal = [...hoyPorEst.values()].map((h) => h.actualizado_en).sort().pop() ?? null;
 
     const base: (PuntoLluvia & { grupo: string | null })[] = [];
     const puntos: PuntoRedJcas[] = estaciones.map((e) => {
@@ -71,6 +113,8 @@ export function construirRedJcas(
         const dias = ls.map((l) => ({ fecha: l.fecha, lluviaMm: e.tiene_pluviometro ? l.lluvia_mm : null }));
         const a7 = e.tiene_pluviometro ? acumuladoLluvia(dias, fin, 7) : { mm: null, diasConDato: 0 };
         const a30 = e.tiene_pluviometro ? acumuladoLluvia(dias, fin, 30) : { mm: null, diasConDato: 0 };
+        const a1 = e.tiene_pluviometro ? acumuladoLluvia(dias, fin, 1) : { mm: null, diasConDato: 0 };
+        const h = hoyPorEst.get(e.id_jcas);
         const conDato = ls.filter((l) => l.temp_c != null || l.lluvia_mm != null).map((l) => l.fecha).sort();
         const ult = conDato.length ? conDato[conDato.length - 1] : e.ult_fecha;
         const atraso = ult ? Math.max(0, diasEntre(ult, fin)) : null;
@@ -81,6 +125,9 @@ export function construirRedJcas(
             sinPluviometro: !e.tiene_pluviometro, mm7: a7.mm, mm30: a30.mm, diasConDato30: a30.diasConDato,
             ultFecha: ult, atrasoDias: atraso, estado: ult == null ? 'sin-datos' : (atraso ?? 99) <= DIAS_ATRASO ? 'vigente' : 'atrasada',
             sospechosa: false, motivo: null, tempUltima: ultTemp, elevM: e.elevacion_dem_m ?? null,
+            ayer: { mm: a1.mm, temp: mediaVentana(ls, 'temp_c', fin, 1), hum: mediaVentana(ls, 'hum_pct', fin, 1), viento: mediaVentana(ls, 'viento_kmh', fin, 1) },
+            hoy: h ? { mm: e.tiene_pluviometro ? h.lluvia_mm : null, temp: h.temp_c, hum: h.hum_pct, viento: h.viento_kmh } : null,
+            hoyEn: h?.actualizado_en ?? null,
             medias: {
                 temp7: mediaVentana(ls, 'temp_c', fin, 7), temp30: mediaVentana(ls, 'temp_c', fin, 30),
                 hum7: mediaVentana(ls, 'hum_pct', fin, 7), hum30: mediaVentana(ls, 'hum_pct', fin, 30),
@@ -94,17 +141,17 @@ export function construirRedJcas(
     const sosp = new Map(marcadas.filter((p) => p.sospechosa).map((p) => [p.id, p.motivo ?? '']));
     for (const p of puntos) { const m = sosp.get(String(p.id)); if (m != null) { p.sospechosa = true; p.motivo = m; } }
 
-    const arma = (ventana: 7 | 30): LluviaAreal => {
+    const arma = (ventana: VentanaObs): LluviaAreal => {
         const pts = colapsarGrupos(puntos.map((p) => ({
             id: String(p.id), fuente: 'jcas' as const, nombre: p.nombre, lat: p.lat, lon: p.lon,
-            mm: p.sospechosa || p.sinPluviometro ? null : (ventana === 7 ? p.mm7 : p.mm30), grupo: p.grupo,
+            mm: p.sospechosa || p.sinPluviometro ? null : valorObs(p, 'lluvia', ventana), grupo: p.grupo,
         })));
         // El promedio se calcula DENTRO del polígono de la cuenca; Ojinaga (a la salida) aporta como vecina en el borde.
-        return { ...lluviaAreal(poligonos, pts, ventana), nExcluidas: puntos.filter((p) => p.sospechosa).length };
+        return { ...lluviaAreal(poligonos, pts, ventana === 'hoy' ? 1 : ventana), nExcluidas: puntos.filter((p) => p.sospechosa).length };
     };
 
     return {
-        puntos, fin, areal7: arma(7), areal30: arma(30),
+        puntos, fin, areal7: arma(7), areal30: arma(30), areal1: arma(1), arealHoy: arma('hoy'), fechaHoy, hoyEn: hoyEnGlobal,
         vigentes: puntos.filter((p) => p.estado === 'vigente').length, total: puntos.length,
         conLluvia: puntos.filter((p) => p.mm30 != null && !p.sospechosa).length,
     };

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  parseEstaciones, parseSerie, depuraPunto, diasCompletos, hoyConservador, FormatoJcasError, LIMITES_MES, type PuntoSerie,
+  parseEstaciones, parseSerie, depuraPunto, diasCompletos, hoyConservador, puntoParcial, FormatoJcasError, LIMITES_MES, type PuntoSerie,
 } from '../../supabase/functions/jcas-sync/parser';
 
 const fx = (n: string) => readFileSync(`supabase/functions/jcas-sync/fixtures/${n}`, 'utf8');
@@ -60,6 +60,15 @@ describe('JCAS · serie mensual (por día)', () => {
     const d = diasCompletos(puntos, REF, true);
     expect(d.at(-1)!.fecha).toBe('2026-11-07');
     expect(d).toHaveLength(31);
+  });
+  it('puntoParcial devuelve el día en curso (8-nov, 15.6 mm) y nunca un día completo', () => {
+    const p = puntoParcial(puntos, REF, true)!;
+    expect(p.fecha).toBe('2026-11-08');
+    expect(p.punto.lluvia_mm).toBe(15.6);
+    expect(puntoParcial(puntos.filter((x) => x.clave < '2026-11-08'), REF, true)).toBeNull();
+  });
+  it('puntoParcial: sin pluviómetro la lluvia de hoy es S/D (el 0.0 del portal no es "no llovió")', () => {
+    expect(puntoParcial(puntos, REF, false)!.punto.lluvia_mm).toBeNull();
   });
   it('estación que dejó de transmitir: se enlaza por etiqueta, no por posición (Temósachi, 6 días)', () => {
     const r = parseSerie(fx('temosachi_mes.js.html'), REF);

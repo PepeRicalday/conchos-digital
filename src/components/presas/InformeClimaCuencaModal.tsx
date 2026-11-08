@@ -13,6 +13,7 @@ import { construirDatosClima } from '../../utils/informeClimaCuencaDatos';
 import {
     ANCHO_PNG_CLIMA, LAMINA_CLIMA_PX, MAX_PLANOS_LAMINA, MAX_PLANOS_PNG, htmlInformeClimaCuenca, type FormatoInformeClima,
 } from '../../utils/informeClimaCuencaHtml';
+import { VENTANAS_OBS } from '../../utils/jcasModelo';
 import type { VariablePlano } from '../../utils/paletasClima';
 import { cargarLogosInforme } from '../../utils/logosInforme';
 import { rasterizaHtml } from '../../utils/rasterizaHtml';
@@ -162,7 +163,7 @@ export default function InformeClimaCuencaModal({ red, pron, dem, onCerrar }: Pr
                                 <label className="ndvi-cfg-check"><input type="checkbox" checked={c.observado} onChange={() => set({ observado: !c.observado })} /><span className="ndvi-cfg-etq">Lo observado (estaciones JCAS)</span></label>
                                 {c.observado && (
                                     <div className="ndvi-cfg-chips" role="radiogroup" aria-label="Periodo observado">
-                                        {([7, 30] as const).map((d) => <button key={d} type="button" role="radio" aria-checked={c.diasObs === d} className="ndvi-cfg-chip" onClick={() => set({ diasObs: d })}>Últimos {d} días</button>)}
+                                        {VENTANAS_OBS.map(({ v, t }) => <button key={String(v)} type="button" role="radio" aria-checked={c.diasObs === v} className="ndvi-cfg-chip" onClick={() => set({ diasObs: v })}>{typeof v === 'number' && v > 1 ? `Últimos ${v} días` : v === 'hoy' ? 'Hoy (parcial)' : t}</button>)}
                                     </div>
                                 )}
                             </section>

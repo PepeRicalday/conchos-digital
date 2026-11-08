@@ -1,29 +1,29 @@
 import { useMemo } from 'react';
 import { anilloAPath, proyectorCuenca, SALIDA_CUENCA, type ContornoCuenca } from '../../../utils/geoCuenca';
 import { MODULOS_SRL, PRESAS } from '../../../utils/geoDistrito';
-import type { PuntoRedJcas } from '../../../utils/jcasModelo';
+import { cuandoVentana, valorObs, type PuntoRedJcas, type VentanaObs } from '../../../utils/jcasModelo';
 
 interface Props {
     contorno: ContornoCuenca;
     puntos: PuntoRedJcas[];
     seleccionada: number | null;
     onSelect: (id: number) => void;
-    ventana: 7 | 30;
+    ventana: VentanaObs;
 }
 
 const W = 500; // ≈ tamaño de pantalla de escritorio: el texto del mapa queda cerca de 12 px
-const mmDe = (p: PuntoRedJcas, v: 7 | 30) => (v === 7 ? p.mm7 : p.mm30);
+const mmDe = (p: PuntoRedJcas, v: VentanaObs) => valorObs(p, 'lluvia', v);
 const mediana = (v: number[]) => { const a = [...v].sort((x, y) => x - y); const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
 
 /** Estaciones de una misma ciudad (p. ej. 4 en Chihuahua) = un solo marcador con la mediana: así no se encima el texto. */
-function colapsaMarcas(puntos: PuntoRedJcas[], v: 7 | 30): PuntoRedJcas[] {
+function colapsaMarcas(puntos: PuntoRedJcas[], v: VentanaObs): PuntoRedJcas[] {
     const sueltos = puntos.filter((x) => !x.grupo), grupos = new Map<string, PuntoRedJcas[]>();
     for (const x of puntos) if (x.grupo) grupos.set(x.grupo, [...(grupos.get(x.grupo) ?? []), x]);
     for (const [g, ps] of grupos) {
         const ok = ps.filter((x) => mmDe(x, v) != null && !x.sospechosa);
         const m = ok.length ? Math.round(mediana(ok.map((x) => mmDe(x, v) as number)) * 10) / 10 : null;
         const base = ok[0] ?? ps[0];
-        sueltos.push({ ...base, id: ps[0].id, nombre: `${g.charAt(0).toUpperCase()}${g.slice(1)} (${ps.length} est.)`, lat: ps.reduce((a, x) => a + x.lat, 0) / ps.length, lon: ps.reduce((a, x) => a + x.lon, 0) / ps.length, mm7: v === 7 ? m : base.mm7, mm30: v === 30 ? m : base.mm30, sinPluviometro: ok.length === 0 && ps.every((x) => x.sinPluviometro), sospechosa: false, estado: ps.some((x) => x.estado === 'vigente') ? 'vigente' : base.estado });
+        sueltos.push({ ...base, id: ps[0].id, nombre: `${g.charAt(0).toUpperCase()}${g.slice(1)} (${ps.length} est.)`, lat: ps.reduce((a, x) => a + x.lat, 0) / ps.length, lon: ps.reduce((a, x) => a + x.lon, 0) / ps.length, mm7: v === 7 ? m : base.mm7, mm30: v === 30 ? m : base.mm30, ayer: { ...base.ayer, mm: v === 1 ? m : base.ayer.mm }, hoy: v === 'hoy' ? { mm: m, temp: null, hum: null, viento: null } : base.hoy, sinPluviometro: ok.length === 0 && ps.every((x) => x.sinPluviometro), sospechosa: false, estado: ps.some((x) => x.estado === 'vigente') ? 'vigente' : base.estado });
     }
     return sueltos;
 }
@@ -48,7 +48,7 @@ export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, v
 
     return (
         <figure className="cu-mapa" aria-label="Mapa de la cuenca del Conchos con las estaciones JCAS">
-            <svg viewBox={`0 0 ${p.ancho} ${p.alto}`} className="cu-mapa-svg" role="group" aria-label={`Estaciones JCAS en la cuenca, lluvia de ${ventana} días`}>
+            <svg viewBox={`0 0 ${p.ancho} ${p.alto}`} className="cu-mapa-svg" role="group" aria-label={`Estaciones JCAS en la cuenca, lluvia ${cuandoVentana(ventana)}`}>
                 <path d={g.cuenca} className="cu-mapa-cuenca" />
                 {g.modulos.map((m) => <path key={m.k} d={m.d} className="cu-mapa-modulo"><title>{`Módulo ${m.k} · SRL Conchos`}</title></path>)}
                 {PRESAS.map((pr) => (
@@ -65,7 +65,7 @@ export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, v
                     const sel = pt.id === seleccionada;
                     const r = mm == null ? 7 : 7 + 9 * Math.sqrt(Math.min(mm, 150) / 150);
                     const alfa = mm == null ? 0.08 : 0.28 + 0.6 * Math.min(mm / 120, 1);
-                    const etiqueta = `${pt.nombre}: ${mm == null ? 'lluvia S/D' : `${mm.toFixed(1)} mm en ${ventana} días`}${pt.sospechosa ? ', pluviómetro excluido por sospechoso' : ''}${pt.estado === 'atrasada' ? ', dato atrasado' : ''}${pt.sinPluviometro ? ', sin pluviómetro' : ''}`;
+                    const etiqueta = `${pt.nombre}: ${mm == null ? 'lluvia S/D' : `${mm.toFixed(1)} mm ${cuandoVentana(ventana)}`}${pt.sospechosa ? ', pluviómetro excluido por sospechoso' : ''}${pt.estado === 'atrasada' ? ', dato atrasado' : ''}${pt.sinPluviometro ? ', sin pluviómetro' : ''}`;
                     const alinea = pt.lon > contorno.bbox.maxLon - (contorno.bbox.maxLon - contorno.bbox.minLon) * 0.22;
                     return (
                         <g key={pt.id} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`} className={`cu-est${sel ? ' cu-est--sel' : ''}`}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { cargarContornoCuenca, type ContornoCuenca, type ZonaCuenca } from '../utils/geoCuenca';
-import { construirRedJcas, type FilaEstacionJcas, type FilaLecturaJcas, type ModeloRedJcas } from '../utils/jcasModelo';
+import { construirRedJcas, type FilaEstacionJcas, type FilaHoyJcas, type FilaLecturaJcas, type ModeloRedJcas } from '../utils/jcasModelo';
 
 const PAGINA = 1000;
 const DIAS = 36; // 30 días de acumulado + margen para el corte (ayer) y estaciones atrasadas
@@ -17,8 +17,9 @@ export interface RedJcas {
  * Red de estaciones JCAS/UACJ dentro de la cuenca del Conchos (tablas jcas_*, separadas de WeatherLink). Solo contexto.
  * Si falla la red o el contorno, devuelve error y la vista de la cuenca sigue funcionando sin esta sección.
  */
-export function useJcasCuenca(refrescoMs = 30 * 60_000) {
-    const [datos, setDatos] = useState<{ est: FilaEstacionJcas[]; lec: FilaLecturaJcas[]; ultSyncEn: string | null; contorno: ContornoCuenca | null } | null>(null);
+export function useJcasCuenca(refrescoMs = 30 * 60_000, opciones: { activo?: boolean; dias?: number } = {}) {
+    const { activo = true, dias: diasLecturas = DIAS } = opciones;
+    const [datos, setDatos] = useState<{ est: FilaEstacionJcas[]; lec: FilaLecturaJcas[]; ultSyncEn: string | null; contorno: ContornoCuenca | null; hoy: FilaHoyJcas[] } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [tick, setTick] = useState(0);
@@ -26,11 +27,12 @@ export function useJcasCuenca(refrescoMs = 30 * 60_000) {
     const recargar = useCallback(() => setTick((t) => t + 1), []);
 
     useEffect(() => {
+        if (!activo) return undefined;
         let vivo = true;
         (async () => {
             try {
                 const hoy = ISO(Date.now() - 7 * 3_600_000); // día local conservador (UTC-7)
-                const desde = ISO(Date.parse(`${hoy}T00:00:00Z`) - DIAS * 86_400_000);
+                const desde = ISO(Date.parse(`${hoy}T00:00:00Z`) - diasLecturas * 86_400_000);
                 const [contorno, rEst] = await Promise.all([
                     cargarContornoCuenca(),
                     supabase.from('jcas_estaciones')
@@ -54,8 +56,15 @@ export function useJcasCuenca(refrescoMs = 30 * 60_000) {
                     for (const r of data ?? []) lec.push({ estacion_id: Number(r.estacion_id), fecha: String(r.fecha), lluvia_mm: r.lluvia_mm == null ? null : Number(r.lluvia_mm), temp_c: r.temp_c == null ? null : Number(r.temp_c), hum_pct: r.hum_pct == null ? null : Number(r.hum_pct), viento_kmh: r.viento_kmh == null ? null : Number(r.viento_kmh) });
                     if ((data?.length ?? 0) < PAGINA) break;
                 }
+                // Día en curso (parcial): tabla aparte; si falla, la red sigue funcionando con días completos (hoy = S/D).
+                const hoyFilas: FilaHoyJcas[] = [];
+                const rHoy = await supabase.from('jcas_lecturas_hoy').select('estacion_id, fecha, lluvia_mm, temp_c, hum_pct, viento_kmh, actualizado_en').in('estacion_id', ids);
+                if (!rHoy.error) {
+                    const num = (x: unknown) => (x == null ? null : Number(x));
+                    for (const r of rHoy.data ?? []) hoyFilas.push({ estacion_id: Number(r.estacion_id), fecha: String(r.fecha), lluvia_mm: num(r.lluvia_mm), temp_c: num(r.temp_c), hum_pct: num(r.hum_pct), viento_kmh: num(r.viento_kmh), actualizado_en: String(r.actualizado_en) });
+                }
                 const syncs = (rEst.data ?? []).map((r) => r.ult_sync_en as string | null).filter((x): x is string => !!x).sort();
-                if (vivo) { setDatos({ est, lec, ultSyncEn: syncs.length ? syncs[syncs.length - 1] : null, contorno }); setError(null); }
+                if (vivo) { setDatos({ est, lec, ultSyncEn: syncs.length ? syncs[syncs.length - 1] : null, contorno, hoy: hoyFilas }); setError(null); }
             } catch (e) {
                 if (vivo) setError((e as Error).message || 'No se pudo cargar la red JCAS');
             } finally {
@@ -63,19 +72,20 @@ export function useJcasCuenca(refrescoMs = 30 * 60_000) {
             }
         })();
         return () => { vivo = false; };
-    }, [tick]);
+    }, [tick, activo, diasLecturas]);
 
     useEffect(() => {
+        if (!activo) return undefined;
         const t = window.setInterval(recargar, refrescoMs);
         return () => window.clearInterval(t);
-    }, [recargar, refrescoMs]);
+    }, [recargar, refrescoMs, activo]);
 
     const red: RedJcas | null = useMemo(() => {
         if (!datos) return null;
         const hoy = ISO(Date.now() - 7 * 3_600_000);
         return {
             contorno: datos.contorno, ultSyncEn: datos.ultSyncEn,
-            modelo: datos.contorno ? construirRedJcas(datos.est, datos.lec, hoy, datos.contorno.poligonos) : null,
+            modelo: datos.contorno ? construirRedJcas(datos.est, datos.lec, hoy, datos.contorno.poligonos, datos.hoy) : null,
         };
     }, [datos]);
 

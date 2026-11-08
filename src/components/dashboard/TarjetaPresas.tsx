@@ -7,6 +7,7 @@ import { SelectorChips } from '../ndvi/SelectorChips';
 import { estadoPresas } from '../../utils/dashboardKpisEjecutivos';
 import TanquesMini from './TanquesMini';
 import type { ModeloKpis } from './PanelKpis';
+import { useJcasCuenca } from '../../hooks/useJcasCuenca';
 
 export type VistaPresas = 'distrito' | 'cuenca';
 const CLAVE = 'sica.dashboard.presas.vista';
@@ -32,6 +33,9 @@ export const TarjetaPresas = memo(function TarjetaPresas({ m }: { m: ModeloKpis 
 
     const { presas, cuenca } = m;
     const r = cuenca?.r ?? null;
+    // Lluvia areal de la red JCAS (hoy parcial y ayer): solo se pide al abrir la vista Cuenca y con 3 días de lecturas (no los 36 de Presas).
+    const { red: redJcas } = useJcasCuenca(30 * 60_000, { activo: vista === 'cuenca', dias: 3 });
+    const arealHoy = redJcas?.modelo?.arealHoy ?? null, arealAyer = redJcas?.modelo?.areal1 ?? null;
 
     const itemsCuenca: ColumnaEmbalse[] = useMemo(() => (r?.presas ?? []).map((p) => ({
         nombre: p.etiqueta, pct: p.pct, capacidadMm3: p.namoMm3 ?? 0, alerta: false, sinActualizar: p.sinActualizar,
@@ -59,6 +63,7 @@ export const TarjetaPresas = memo(function TarjetaPresas({ m }: { m: ModeloKpis 
                     ? <><b>{r.almacenadoMm3 != null ? `${r.almacenadoMm3.toFixed(0)} / ${namoCuenca.toFixed(0)} Mm³` : 'S/D'}</b>
                         {r.conDato < r.total ? ` (${r.conDato}/${r.total} presas)` : ` · ${r.total} presas`}
                         <span className="kp-sep"> · </span><span className="kp-nw">lluvia 7 d <b>{r.lluvia.promedio7Mm != null ? `${r.lluvia.promedio7Mm.toFixed(1)} mm` : 'S/D'}</b></span>
+                        <span className="kp-sep"> · </span><span className="kp-nw" title="Red JCAS/UACJ: lluvia areal de la cuenca; hoy es parcial (día en curso)">JCAS hoy <b>{arealHoy?.mm != null ? `${arealHoy.mm.toFixed(1)} mm` : 'S/D'}</b>{arealAyer?.mm != null ? <> · ayer <b>{arealAyer.mm.toFixed(1)} mm</b></> : null}</span>
                         {r.sinActualizar > 0 ? <span className="kp-nw"> · {r.sinActualizar} sin actualizar (trama)</span> : null}</>
                     : <>Contexto CONAGUA vía USIBWC: sin lectura</>}
                 fresco={r?.frescura ? `${r.frescura.texto} · dato provisional` : 'Sin lectura (S/D)'} stale={!!r?.frescura?.stale} />

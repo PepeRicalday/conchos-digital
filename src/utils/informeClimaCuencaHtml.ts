@@ -13,6 +13,7 @@
 import { CSS_MEMBRETE, altoMembretePorAncho, membreteDual } from './membreteDual';
 import { bloqueFirmas, cssInforme, documentoHtml, esc, fechaHoraLegible, fechaLarga, folioConPartes, hashCorto, pieInforme, tablaTrazabilidad, FUENTE_MARCA } from './informeBase';
 import { CSS_COMUN } from './informeCuencaHtml';
+import { cuandoVentana, etiquetaVentana } from './jcasModelo';
 import { planoSvg } from './planosCuenca';
 import { VARIABLES_PLANO } from './paletasClima';
 import type { DatosInformeClima, PlanoInforme } from './informeClimaCuencaDatos';
@@ -52,7 +53,7 @@ function kpis(d: DatosInformeClima): string {
   const o = d.lluviaObs, p = d.lluviaPron, c = d.confiabilidad;
   const tarjeta = (et: string, v: string, s: string) => `<div class="kpi"><div class="et">${esc(et)}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
   return `<div class="kpis">${[
-    tarjeta(`Lluvia observada · ${o?.dias ?? d.config.diasObs} d`, o ? `${num(o.media, (o.media ?? 99) < 10 ? 1 : 0)}<small> mm</small>` : SD, o ? (o.motivoSD ? esc(o.motivoSD) : `promedio de la cuenca · n = ${o.n} estaciones · cobertura ${numTxt(o.cobertura, 0)} %`) : 'no incluida en este informe'),
+    tarjeta(`Lluvia observada · ${etiquetaVentana(o?.dias ?? d.config.diasObs)}`, o ? `${num(o.media, (o.media ?? 99) < 10 ? 1 : 0)}<small> mm</small>` : SD, o ? (o.motivoSD ? esc(o.motivoSD) : `promedio de la cuenca · n = ${o.n} estaciones · cobertura ${numTxt(o.cobertura, 0)} %`) : 'no incluida en este informe'),
     tarjeta(`Lluvia pronosticada · ${p?.dias ?? d.config.diasPron} d`, p ? `${num(p.media, (p.media ?? 99) < 10 ? 1 : 0)}<small> mm</small>` : SD, p ? (p.motivoSD ? esc(p.motivoSD) : `entre ${numTxt(p.min, 0)} y ${numTxt(p.max, 0)} mm según la estación · n = ${p.n}`) : 'no incluido en este informe'),
     tarjeta('Estaciones JCAS al día', `${d.vigentes}<small> de ${d.totalEstaciones}</small>`, `dato de los últimos 3 días · corte ${esc(fechaCorta(d.corte))}`),
     tarjeta('Confiabilidad del pronóstico', c.estado === 'medida' ? `${c.pod != null ? Math.round(c.pod * 100) : 'S/D'}<small> % de días con lluvia acertados</small>` : '<small>En construcción</small>', esc(c.texto)),
@@ -62,7 +63,7 @@ function kpis(d: DatosInformeClima): string {
 function titular(d: DatosInformeClima, conTitulo = true): string {
   const o = d.lluviaObs, p = d.lluviaPron;
   const partes: string[] = [];
-  if (o) partes.push(o.media == null ? `La lluvia observada de los últimos ${o.dias} días es S/D (${o.motivoSD ?? 'sin datos'})` : `En los últimos ${o.dias} días llovió en promedio ${numTxt(o.media, (o.media ?? 99) < 10 ? 1 : 0)} mm en la cuenca`);
+  if (o) partes.push(o.media == null ? `La lluvia observada (${cuandoVentana(o.dias)}) es S/D (${o.motivoSD ?? 'sin datos'})` : `${cuandoVentana(o.dias).replace(/^./, (c) => c.toUpperCase())} llovió en promedio ${numTxt(o.media, (o.media ?? 99) < 10 ? 1 : 0)} mm en la cuenca`);
   if (p) partes.push(p.media == null ? `el pronóstico a ${p.dias} días es S/D` : `el pronóstico a ${p.dias} días indica ${numTxt(p.media, (p.media ?? 99) < 10 ? 1 : 0)} mm en promedio, con diferencias de ${numTxt(p.min, 0)} a ${numTxt(p.max, 0)} mm entre estaciones`);
   const frase = partes.length ? `${partes.join('; ')}.` : 'Informe de clima de la cuenca.';
   return `<div class="titulo">${conTitulo ? '<h1>Clima y pronóstico de la cuenca del Conchos</h1>' : ''}<p>${esc(frase.charAt(0).toUpperCase() + frase.slice(1))} Corte: ${esc(fechaLarga(d.corte))} · dato provisional de contexto.</p></div>`;

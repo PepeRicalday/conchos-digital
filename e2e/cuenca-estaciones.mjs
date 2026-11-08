@@ -46,6 +46,15 @@ for (const [nombre, vista] of [
   await sec.getByRole('button', { name: '7 días' }).click();
   verifica(/Lluvia areal de la cuenca · 7 días/.test(await sec.innerText()), `[${nombre}] el selector cambia la ventana a 7 días`);
   await sec.getByRole('button', { name: '30 días' }).click();
+  // Día en curso (parcial) y último día completo: la lectura de hoy se rotula parcial y no se mezcla con los acumulados
+  await sec.getByRole('button', { name: 'Hoy', exact: true }).click();
+  const tHoy = await sec.innerText();
+  verifica(/Lluvia areal de la cuenca · hoy \(parcial\)/.test(tHoy), `[${nombre}] ventana «Hoy» rotulada como parcial`);
+  verifica(/hoy \d+-\w+-\d{4} \(parcial, lectura de las \d{2}:\d{2}\)/.test(tHoy) || /hoy sin lectura \(S\/D\)/.test(tHoy), `[${nombre}] el encabezado indica la fecha de hoy y la hora de la lectura (o S/D)`);
+  verifica(/Lluvia hoy \(parcial\)/.test(tHoy) && /Lluvia ayer/.test(tHoy), `[${nombre}] la tabla trae las columnas hoy (parcial) y ayer`);
+  await sec.getByRole('button', { name: 'Ayer', exact: true }).click();
+  verifica(/Lluvia areal de la cuenca · ayer/.test(await sec.innerText()), `[${nombre}] ventana «Ayer» rotulada`);
+  await sec.getByRole('button', { name: '30 días' }).click();
 
   // Selección desde el mapa (teclado) resalta la fila
   const est = sec.locator('.cu-est').nth(3);

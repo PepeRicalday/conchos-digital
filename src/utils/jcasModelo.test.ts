@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { interpretaContorno, type ContornoCuenca } from './geoCuenca';
-import { construirRedJcas, type FilaEstacionJcas, type FilaLecturaJcas } from './jcasModelo';
+import { arealDe, construirRedJcas, etiquetaVentana, valorObs, type FilaEstacionJcas, type FilaHoyJcas, type FilaLecturaJcas } from './jcasModelo';
 
 const c = interpretaContorno(JSON.parse(readFileSync('public/geo/cuenca_conchos.geojson', 'utf8'))) as ContornoCuenca;
 const HOY = '2026-11-08'; // fin = 2026-11-07
@@ -99,5 +99,47 @@ describe('promedios de temperatura, humedad y viento', () => {
         expect(m.puntos[0].elevM).toBe(1226);
         expect(m.puntos[0].medias.hum30).toBe(60);
         expect(m.puntos[0].medias.viento7).toBe(5);
+    });
+});
+
+describe('ventanas «hoy» (parcial) y «ayer»', () => {
+    const hoyFila = (id: number, mm: number | null, temp: number | null = 14, fecha = '2026-11-08'): FilaHoyJcas =>
+        ({ estacion_id: id, fecha, lluvia_mm: mm, temp_c: temp, hum_pct: 40, viento_kmh: 9, actualizado_en: '2026-11-08T18:35:00Z' });
+    const filasHoy = [2, 13, 18, 3, 5, 7, 8, 9, 4, 28, 33, 6, 38, 30].map((id, i) => hoyFila(id, id === 38 ? 0 : i % 3 === 0 ? 14.6 : 2.4));
+    const m = construirRedJcas(red, lecturas, HOY, c.poligonos, filasHoy);
+    const por = (n: string) => m.puntos.find((p) => p.nombre === n)!;
+
+    it('«ayer» es el último día completo (7-nov) y «hoy» el parcial (8-nov), sin mezclarse', () => {
+        expect(por('Camargo').ayer.mm).toBe(2.5);
+        expect(valorObs(por('Camargo'), 'lluvia', 1)).toBe(2.5);
+        expect(m.fechaHoy).toBe('2026-11-08');
+        expect(m.hoyEn).toBe('2026-11-08T18:35:00Z');
+        expect(por('Camargo').mm7).toBe(17.5); // el acumulado de 7 días NO incluye el día parcial
+        expect(por('Camargo').mm30).toBe(75);
+    });
+    it('hoy: sin pluviómetro es S/D; con pluviómetro lleva la cifra parcial', () => {
+        expect(por('San Antonio').hoy?.mm).toBeNull();
+        expect(valorObs(por('Camargo'), 'lluvia', 'hoy')).not.toBeNull();
+        expect(valorObs(por('Camargo'), 'temperatura', 'hoy')).toBe(14);
+        expect(valorObs(por('Camargo'), 'viento', 'hoy')).toBe(9);
+    });
+    it('hoy: una lectura de un día anterior no se arrastra (S/D, nunca 0)', () => {
+        const viejo = construirRedJcas(red, lecturas, HOY, c.poligonos, filasHoy.map((f) => ({ ...f, fecha: '2026-11-07' })));
+        expect(viejo.fechaHoy).toBeNull();
+        expect(viejo.puntos.every((p) => p.hoy === null)).toBe(true);
+        expect(valorObs(viejo.puntos[0], 'lluvia', 'hoy')).toBeNull();
+        expect(viejo.arealHoy.mm).toBeNull();
+    });
+    it('sin tabla de hoy (por defecto) la red sigue funcionando con días completos', () => {
+        const s = construirRedJcas(red, lecturas, HOY, c.poligonos);
+        expect(s.fechaHoy).toBeNull();
+        expect(s.areal30.mm).not.toBeNull();
+        expect(arealDe(s, 'hoy').mm).toBeNull();
+        expect(arealDe(s, 1).mm).not.toBeNull();
+    });
+    it('areal de hoy con cobertura suficiente y rótulos de ventana', () => {
+        expect(m.arealHoy.mm).not.toBeNull();
+        expect(arealDe(m, 'hoy')).toBe(m.arealHoy);
+        expect([etiquetaVentana('hoy'), etiquetaVentana(1), etiquetaVentana(7)]).toEqual(['hoy (parcial)', 'ayer', '7 d']);
     });
 });

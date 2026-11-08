@@ -18,12 +18,12 @@ const RED: [string, number, number, number, number][] = [
 ];
 const punto = (i: number, [nombre, lat, lon, mm, elev]: (typeof RED)[number], o: Partial<PuntoRedJcas> = {}): PuntoRedJcas => ({
   id: i + 1, nombre, lat, lon, altitudM: elev, zona: nombre === 'Ojinaga' ? 'salida' : 'cuenca', grupo: null, sinPluviometro: false, mm7: Math.round(mm / 4), mm30: mm, diasConDato30: 30,
-  ultFecha: '2026-11-07', atrasoDias: 0, estado: 'vigente', sospechosa: false, motivo: null, tempUltima: 15, elevM: elev,
+  ultFecha: '2026-11-07', atrasoDias: 0, estado: 'vigente', sospechosa: false, motivo: null, tempUltima: 15, elevM: elev, ayer: { mm: null, temp: null, hum: null, viento: null }, hoy: null, hoyEn: null, 
   medias: { temp7: 30 - 0.0065 * elev, temp30: 30 - 0.0065 * elev, hum7: 55 + (i % 5), hum30: 58, viento7: 5 + (i % 4), viento30: 6 }, ...o,
 });
 const red = (extra: Partial<PuntoRedJcas> = {}): ModeloRedJcas => {
   const puntos = RED.map((r, i) => punto(i, r, i === 3 ? extra : {}));
-  return { puntos, fin: '2026-11-07', areal7: {} as never, areal30: {} as never, vigentes: puntos.length, total: puntos.length, conLluvia: puntos.length };
+  return { puntos, fin: '2026-11-07', areal7: {} as never, areal30: {} as never, areal1: {} as never, arealHoy: {} as never, fechaHoy: null, hoyEn: null, vigentes: puntos.length, total: puntos.length, conLluvia: puntos.length };
 };
 const pron = (): PronosticoCuenca => {
   const puntos = RED.map(([nombre, lat, lon, , elev], i) => ({ id: `jcas:${i + 1}`, nombre, lat, lon, elevM: elev, grupo: null, fuente: 'jcas' as const }));

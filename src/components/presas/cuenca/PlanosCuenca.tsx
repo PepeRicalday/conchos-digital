@@ -10,6 +10,7 @@ import { fechaCorta } from '../../../utils/analiticaPresas';
 import { VARIABLES_PLANO, type VariablePlano } from '../../../utils/paletasClima';
 import { construirPlano, planoSvg, type PeriodoPlano } from '../../../utils/planosCuenca';
 import { puntosObservados, puntosPronostico } from '../../../utils/planosDatos';
+import { VENTANAS_OBS, type VentanaObs } from '../../../utils/jcasModelo';
 
 type Modo = 'obs' | 'pron';
 const VARIABLES: { v: VariablePlano; t: string }[] = [{ v: 'lluvia', t: 'Lluvia' }, { v: 'temperatura', t: 'Temperatura' }, { v: 'viento', t: 'Viento' }, { v: 'humedad', t: 'Humedad' }];
@@ -28,6 +29,7 @@ function Segmentado<T extends string | number>({ etiqueta, valor, opciones, onCh
 }
 
 const hoyLocal = () => new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10);
+const horaLectura = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('es-MX', { timeZone: 'America/Chihuahua', hour: '2-digit', minute: '2-digit', hour12: false }) : 'S/D');
 const hace = (iso: string | null) => {
     if (!iso) return 'sin corrida';
     const h = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 3_600_000));
@@ -41,7 +43,7 @@ const hace = (iso: string | null) => {
 export default function PlanosCuenca({ jcas }: { jcas: { red: RedJcas | null; loading: boolean; error: string | null } }) {
     const [variable, setVariable] = useState<VariablePlano>('lluvia');
     const [modo, setModo] = useState<Modo>('obs');
-    const [diasObs, setDiasObs] = useState<7 | 30>(30);
+    const [diasObs, setDiasObs] = useState<VentanaObs>(30);
     const [diasPron, setDiasPron] = useState<3 | 7>(7);
     const [dem, setDem] = useState<DemGrid | null>(null);
     const dev = useDevice();
@@ -94,7 +96,7 @@ export default function PlanosCuenca({ jcas }: { jcas: { red: RedJcas | null; lo
                 <Segmentado<VariablePlano> etiqueta="Variable" valor={variable} onChange={setVariable} opciones={VARIABLES} />
                 <Segmentado<Modo> etiqueta="Datos" valor={modo} onChange={setModo} opciones={[{ v: 'obs', t: 'Observado' }, { v: 'pron', t: 'Pronóstico' }]} />
                 {modo === 'obs'
-                    ? <Segmentado<7 | 30> etiqueta="Periodo" valor={diasObs} onChange={setDiasObs} opciones={[{ v: 7, t: '7 días' }, { v: 30, t: '30 días' }]} />
+                    ? <Segmentado<VentanaObs> etiqueta="Periodo" valor={diasObs} onChange={setDiasObs} opciones={VENTANAS_OBS} />
                     : <Segmentado<3 | 7> etiqueta="Periodo" valor={diasPron} onChange={setDiasPron} opciones={[{ v: 3, t: '3 días' }, { v: 7, t: '7 días' }]} />}
             </div>
 
@@ -162,7 +164,7 @@ export default function PlanosCuenca({ jcas }: { jcas: { red: RedJcas | null; lo
                     <li><b>Una estación por ciudad:</b> las 4 de Chihuahua pesan una vez (mediana). Los pluviómetros sospechosos se excluyen solo de la lluvia.</li>
                     <li><b>Pronóstico:</b> mediana de 3 modelos (ECMWF, GFS, ICON) en las coordenadas de cada estación; la lluvia de un periodo es la suma de la mediana diaria; un «día con lluvia» es aquel en que al menos 2 de los 3 modelos dan 1 mm o más. Los modelos pueden discrepar mucho en tormentas: por eso se muestra el rango entre ellos. Se compara con lo que midió JCAS (pronóstico de víspera) y, con menos de {60} pares día-estación, la confiabilidad se rotula «en construcción».</li>
                     <li><b>Fuente:</b> estaciones de JCAS/UACJ (portal público, datos provisionales) y pronóstico de Open-Meteo (uso no comercial). Son contexto: no sustituyen las estaciones propias ni los aforos.</li>
-                    <li>Sin dirección del viento: JCAS solo entrega la velocidad media diaria.{plano?.periodo.tipo === 'obs' ? ` Corte al ${fechaCorta(jcas.red?.modelo?.fin ?? hoy)}.` : ''}</li>
+                    <li>Sin dirección del viento: JCAS solo entrega la velocidad media diaria.{plano?.periodo.tipo === 'obs' ? ` ${diasObs === 'hoy' ? ` Lectura parcial del ${fechaCorta(jcas.red?.modelo?.fechaHoy ?? hoy)}, hasta ${horaLectura(jcas.red?.modelo?.hoyEn ?? null)}.` : ` Días completos al ${fechaCorta(jcas.red?.modelo?.fin ?? hoy)}.`}` : ''}</li>
                 </ul>
             </details>
         </section>

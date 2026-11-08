@@ -7,13 +7,13 @@ import type { DemGrid } from './camposCuenca';
 import { consensoPorPunto, resumenConfiabilidad, valorPronosticoPeriodo, type Confiabilidad } from './cuencaPronostico';
 import type { ConfigInformeClima } from './informeClimaCuencaConfig';
 import { ORDEN_VARIABLES, etiquetaAlcanceClima } from './informeClimaCuencaConfig';
-import type { ModeloRedJcas, PuntoRedJcas } from './jcasModelo';
+import type { ModeloRedJcas, PuntoRedJcas, VentanaObs } from './jcasModelo';
 import type { VariablePlano } from './paletasClima';
 import { construirPlano, type PlanoModelo } from './planosCuenca';
 import { puntosObservados, puntosPronostico, type PuntoCuenca } from './planosDatos';
 import type { PronosticoCuenca } from '../hooks/useCuencaPronostico';
 
-export interface PlanoInforme { variable: VariablePlano; tipo: 'obs' | 'pron'; dias: number; modelo: PlanoModelo }
+export interface PlanoInforme { variable: VariablePlano; tipo: 'obs' | 'pron'; dias: VentanaObs | 3; modelo: PlanoModelo }
 
 export interface FilaEstacionObs { nombre: string; zona: string; lluvia7: number | null; lluvia30: number | null; temp: number | null; hum: number | null; viento: number | null; estado: string; ultFecha: string | null; excluida: boolean; sinPluviometro: boolean; motivo: string | null }
 export interface FilaEstacionPron { nombre: string; propia: boolean; lluvia: number | null; min: number | null; max: number | null; diasLluvia: number | null; temp: number | null; viento: number | null }
@@ -26,8 +26,8 @@ export interface DatosInformeClima {
   hoy: string;
   alcance: string;
   planos: PlanoInforme[];
-  lluviaObs: { dias: number; media: number | null; n: number; cobertura: number; motivoSD: string | null } | null;
-  lluviaPron: { dias: number; media: number | null; n: number; cobertura: number; motivoSD: string | null; min: number | null; max: number | null } | null;
+  lluviaObs: { dias: VentanaObs; media: number | null; n: number; cobertura: number; motivoSD: string | null } | null;
+  lluviaPron: { dias: VentanaObs | 3; media: number | null; n: number; cobertura: number; motivoSD: string | null; min: number | null; max: number | null } | null;
   vigentes: number; totalEstaciones: number;
   confiabilidad: Confiabilidad;
   corridaEn: string | null;
@@ -57,7 +57,7 @@ export function construirDatosClima(
   }
   const resumen = (tipo: 'obs' | 'pron') => {
     const p = planos.find((x) => x.variable === 'lluvia' && x.tipo === tipo);
-    return p ? { dias: p.dias, media: p.modelo.resumen.media, n: p.modelo.resumen.n, cobertura: p.modelo.resumen.coberturaPct, motivoSD: p.modelo.motivoSD, min: p.modelo.resumen.min, max: p.modelo.resumen.max } : null;
+    return p ? { dias: p.dias as VentanaObs, media: p.modelo.resumen.media, n: p.modelo.resumen.n, cobertura: p.modelo.resumen.coberturaPct, motivoSD: p.modelo.motivoSD, min: p.modelo.resumen.min, max: p.modelo.resumen.max } : null;
   };
   const lluviaObs = resumen('obs'), lluviaPron = resumen('pron');
 
@@ -78,7 +78,7 @@ export function construirDatosClima(
   }).sort((a, b) => (b.lluvia ?? -1) - (a.lluvia ?? -1) || a.nombre.localeCompare(b.nombre));
 
   return {
-    config, contorno: e.contorno, corte: e.red?.fin ?? e.hoy, hoy: e.hoy, alcance: etiquetaAlcanceClima(config), planos, lluviaObs, lluviaPron,
+    config, contorno: e.contorno, corte: config.observado && config.diasObs === 'hoy' && e.red?.fechaHoy ? e.red.fechaHoy : (e.red?.fin ?? e.hoy), hoy: e.hoy, alcance: etiquetaAlcanceClima(config), planos, lluviaObs, lluviaPron,
     vigentes: e.red?.vigentes ?? 0, totalEstaciones: e.red?.total ?? 0, confiabilidad: resumenConfiabilidad(e.pron?.verificacion ?? []), corridaEn: e.pron?.corridaEn ?? null,
     estacionesObs, estacionesPron, excluidas: estacionesObs.filter((x) => x.excluida).map((x) => x.nombre), ultSyncJcas: e.ultSyncJcas,
   };

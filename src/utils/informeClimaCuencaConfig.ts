@@ -6,6 +6,7 @@
  * confiabilidad todavía en construcción) en lugar de rellenarlo.
  */
 import type { VariablePlano } from './paletasClima';
+import { etiquetaVentana, type VentanaObs } from './jcasModelo';
 
 export const VARIABLES_INFORME: { id: VariablePlano; etiqueta: string; ayuda: string }[] = [
   { id: 'lluvia', etiqueta: 'Lluvia (isoyetas)', ayuda: 'Líneas de igual lluvia en mm, con niveles fijos' },
@@ -19,7 +20,7 @@ export interface ConfigInformeClima {
   variables: VariablePlano[];
   observado: boolean;
   pronostico: boolean;
-  diasObs: 7 | 30;
+  diasObs: VentanaObs;
   diasPron: 3 | 7;
   /** Tabla de estaciones (observado y pronóstico). */
   estaciones: boolean;
@@ -55,6 +56,6 @@ export function cuentaPlanos(c: ConfigInformeClima): number {
 
 /** Texto corto del alcance para folio, nombre de archivo y membrete: "4 variables · obs 30 d + pron 7 d". */
 export function etiquetaAlcanceClima(c: ConfigInformeClima): string {
-  const partes = [c.observado ? `obs ${c.diasObs} d` : null, c.pronostico ? `pron ${c.diasPron} d` : null].filter(Boolean).join(' + ');
+  const partes = [c.observado ? `obs ${etiquetaVentana(c.diasObs)}` : null, c.pronostico ? `pron ${c.diasPron} d` : null].filter(Boolean).join(' + ');
   return `${c.variables.length} ${c.variables.length === 1 ? 'variable' : 'variables'} · ${partes || 'sin datos'}`;
 }

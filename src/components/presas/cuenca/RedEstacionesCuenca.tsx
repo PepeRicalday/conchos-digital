@@ -3,9 +3,10 @@ import type { useJcasCuenca } from '../../../hooks/useJcasCuenca';
 import { formatearNumero } from '../../../utils/historicoPresas';
 import { fechaCorta } from '../../../utils/analiticaPresas';
 import type { LluviaAreal } from '../../../utils/jcasCuenca';
-import type { PuntoRedJcas } from '../../../utils/jcasModelo';
+import { arealDe, etiquetaVentana, valorObs, VENTANAS_OBS, type PuntoRedJcas, type VentanaObs } from '../../../utils/jcasModelo';
 import MapaCuenca from './MapaCuenca';
 
+const horaLectura = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('es-MX', { timeZone: 'America/Chihuahua', hour: '2-digit', minute: '2-digit', hour12: false }) : 'S/D');
 const fmtMm = (v: number | null) => (v == null ? 'S/D' : `${formatearNumero(v, 1)} mm`);
 
 function estadoTexto(p: PuntoRedJcas): { glifo: string; texto: string; clase: string } {
@@ -31,17 +32,17 @@ function KpiAreal({ etiqueta, a }: { etiqueta: string; a: LluviaAreal }) {
 }
 
 /**
- * Red de estaciones JCAS/UACJ dentro de la cuenca del Conchos: mapa propio, lluvia areal (7 y 30 días) y tabla por estación.
+ * Red de estaciones JCAS/UACJ dentro de la cuenca del Conchos: mapa propio, lluvia areal (hoy, ayer, 7 y 30 días) y tabla por estación.
  * CONTEXTO de fuente TERCERA y provisional (portal público sin API): no sustituye las estaciones propias ni entra a KPIs del distrito.
  */
 export default function RedEstacionesCuenca({ jcas }: { jcas: ReturnType<typeof useJcasCuenca> }) {
     const { red, loading, error, recargar } = jcas;
-    const [ventana, setVentana] = useState<7 | 30>(30);
+    const [ventana, setVentana] = useState<VentanaObs>(30);
     const [sel, setSel] = useState<number | null>(null);
 
     const filas = useMemo(() => {
         const ps = red?.modelo?.puntos ?? [];
-        const mm = (p: PuntoRedJcas) => (ventana === 7 ? p.mm7 : p.mm30);
+        const mm = (p: PuntoRedJcas) => valorObs(p, 'lluvia', ventana);
         return [...ps].sort((a, b) => (mm(b) ?? -1) - (mm(a) ?? -1) || a.nombre.localeCompare(b.nombre));
     }, [red, ventana]);
 
@@ -59,7 +60,7 @@ export default function RedEstacionesCuenca({ jcas }: { jcas: ReturnType<typeof 
         );
     }
     const m = red.modelo;
-    const areal = ventana === 7 ? m.areal7 : m.areal30;
+    const areal = arealDe(m, ventana);
     const excluidas = m.puntos.filter((p) => p.sospechosa);
 
     return (
@@ -68,22 +69,22 @@ export default function RedEstacionesCuenca({ jcas }: { jcas: ReturnType<typeof 
                 <div>
                     <h4 className="an-h">Red de estaciones de la cuenca · JCAS</h4>
                     <p className="an-nota">
-                        {m.vigentes} de {m.total} estaciones JCAS/UACJ con dato de los últimos 3 días · corte al {fechaCorta(m.fin)} · fuente: portal público de JCAS (UACJ),
+                        {m.vigentes} de {m.total} estaciones JCAS/UACJ con dato de los últimos 3 días · días completos al {fechaCorta(m.fin)}{m.fechaHoy ? <> · <b>hoy {fechaCorta(m.fechaHoy)} (parcial, lectura de las {horaLectura(m.hoyEn)})</b></> : ' · hoy sin lectura (S/D)'} · fuente: portal público de JCAS (UACJ),
                         dato provisional; <b>contexto</b>, no sustituye las estaciones propias.
                     </p>
                 </div>
                 <div className="cu-ctl">
                     <span className="cu-ctl-etq" id="cu-red-ventana">Ventana</span>
                     <div className="an-seg" role="group" aria-labelledby="cu-red-ventana">
-                        {([7, 30] as const).map((v) => (
-                            <button key={v} type="button" className="an-seg-btn" aria-pressed={ventana === v} onClick={() => setVentana(v)}>{v} días</button>
+                        {VENTANAS_OBS.map(({ v, t }) => (
+                            <button key={String(v)} type="button" className="an-seg-btn" aria-pressed={ventana === v} onClick={() => setVentana(v)}>{t}</button>
                         ))}
                     </div>
                 </div>
             </div>
 
             <div className="cu-red-kpis">
-                <KpiAreal etiqueta={`Lluvia areal de la cuenca · ${ventana} días`} a={areal} />
+                <KpiAreal etiqueta={`Lluvia areal de la cuenca · ${typeof ventana === 'number' && ventana > 1 ? `${ventana} días` : etiquetaVentana(ventana)}`} a={areal} />
                 <div className="cu-red-kpi">
                     <span className="an-kpi-lbl">Estaciones con lluvia útil</span>
                     <span className="an-kpi-val">{m.conLluvia}<small> de {m.total}</small></span>
@@ -104,6 +105,8 @@ export default function RedEstacionesCuenca({ jcas }: { jcas: ReturnType<typeof 
                     <thead>
                         <tr>
                             <th scope="col">Estación</th>
+                            <th scope="col" className="cu-num">Lluvia hoy (parcial)</th>
+                            <th scope="col" className="cu-num">Lluvia ayer</th>
                             <th scope="col" className="cu-num">Lluvia 7 d</th>
                             <th scope="col" className="cu-num">Lluvia 30 d</th>
                             <th scope="col" className="cu-num">Temp. último día</th>
@@ -122,6 +125,8 @@ export default function RedEstacionesCuenca({ jcas }: { jcas: ReturnType<typeof 
                                         {p.grupo && <span className="cu-nota-fila">Misma ciudad que otras estaciones: pesa una vez en el promedio</span>}
                                         {p.sospechosa && p.motivo && <span className="cu-nota-fila">{p.motivo}</span>}
                                     </div></th>
+                                    <td className="cu-num">{fmtMm(p.hoy?.mm ?? null)}</td>
+                                    <td className="cu-num">{fmtMm(p.ayer.mm)}</td>
                                     <td className="cu-num">{fmtMm(p.mm7)}</td>
                                     <td className="cu-num">{fmtMm(p.mm30)}</td>
                                     <td className="cu-num">{p.tempUltima == null ? 'S/D' : `${formatearNumero(p.tempUltima, 1)} °C`}</td>
@@ -137,9 +142,9 @@ export default function RedEstacionesCuenca({ jcas }: { jcas: ReturnType<typeof 
             <details className="an-pie cu-notas">
                 <summary className="cu-notas-sum">Cómo se calcula y qué límites tiene la red JCAS</summary>
                 <ul>
-                    <li><b>Fuente:</b> JCAS (Junta Central de Agua y Saneamiento de Chihuahua) con la UACJ publica sus estaciones en un portal abierto sin API ni términos de uso publicados. SICA lee solo las páginas públicas de cada estación, con pausas, y lo copia a tablas propias (última sincronización: {red.ultSyncEn ? new Date(red.ultSyncEn).toLocaleString('es-MX', { timeZone: 'America/Chihuahua', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'nunca'}). Si el portal cambia de formato, la lectura se detiene y se muestra S/D.</li>
+                    <li><b>Fuente:</b> JCAS (Junta Central de Agua y Saneamiento de Chihuahua) con la UACJ publica sus estaciones en un portal abierto sin API ni términos de uso publicados. SICA lee solo las páginas públicas de cada estación, con pausas, y lo copia a tablas propias (última sincronización: {red.ultSyncEn ? new Date(red.ultSyncEn).toLocaleString('es-MX', { timeZone: 'America/Chihuahua', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }) : 'nunca'}). Si el portal cambia de formato, la lectura se detiene y se muestra S/D.</li>
                     <li><b>Contorno:</b> cuencas J–N de la región hidrológica RH24 (INEGI-CONAGUA, 28 subcuencas, ≈ {formatearNumero(red.contorno.areaKm2 ?? 0, 0)} km²). Ojinaga queda en el borde de salida.</li>
-                    <li><b>Días completos:</b> se usan días cerrados del reloj de cada estación; el día en curso no entra. Un acumulado con menos del 80 % de los días con dato es S/D.</li>
+                    <li><b>Días completos y hoy:</b> los acumulados de ayer, 7 y 30 días usan solo días cerrados del reloj de cada estación. «Hoy» es el día en curso y es PARCIAL: lluvia acumulada y medias hasta la última lectura (cada 2 h aprox.); no se mezcla con los días completos ni con la verificación del pronóstico. Un acumulado con menos del 80 % de los días con dato es S/D.</li>
                     <li><b>Promedio areal:</b> interpolación por inverso de la distancia al cuadrado sobre una malla de 0.1°, limitada a 90 km de cada estación; con menos de 5 estaciones útiles o menos del 50 % del área cubierta, el resultado es S/D (nunca 0 mm).</li>
                     <li><b>Pluviómetros sospechosos:</b> 0 mm en 30 días mientras al menos dos vecinas a ≤ 90 km registran 20 mm o más. Se excluyen del promedio y se avisa.</li>
                     <li>Sin pluviómetro, el 0.0 que muestra el portal no significa «no llovió»: se trata como S/D. La serie JCAS es corta, así que no se dice qué es lo normal ni se calculan anomalías.</li>

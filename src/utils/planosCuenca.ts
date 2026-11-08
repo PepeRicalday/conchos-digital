@@ -9,9 +9,10 @@
 import { colapsaGrupos, construirCampo, type CampoCuenca, type DemGrid, type PuntoCampo, type AjusteAltitud } from './camposCuenca';
 import { anilloAPath, proyectorCuenca, SALIDA_CUENCA, type ContornoCuenca, type ProyectorMapa } from './geoCuenca';
 import { anillosAPath, regionMayorQue, rotuloEnAnillos, simplificaAnillo, suavizaAnillo, type Anillo } from './isolineas';
+import { cuandoVentana, type VentanaObs } from './jcasModelo';
 import { colorBanda, fmtNivel, nivelesDe, VARIABLES_PLANO, type VariablePlano } from './paletasClima';
 
-export type PeriodoPlano = { tipo: 'obs'; dias: 7 | 30 } | { tipo: 'pron'; dias: 3 | 7 };
+export type PeriodoPlano = { tipo: 'obs'; dias: VentanaObs } | { tipo: 'pron'; dias: 3 | 7 };
 
 export interface BandaPlano { nivel: number; color: string; anillos: Anillo[] }
 export interface RotuloPlano { nivel: number; lon: number; lat: number; angulo: number }
@@ -45,7 +46,7 @@ export interface EntradaPlano {
 
 export function tituloPlano(variable: VariablePlano, periodo: PeriodoPlano): string {
     const que = variable === 'lluvia' ? 'Isoyetas' : VARIABLES_PLANO[variable].titulo;
-    const cuando = periodo.tipo === 'obs' ? `últimos ${periodo.dias} días` : `próximos ${periodo.dias} días`;
+    const cuando = periodo.tipo === 'obs' ? cuandoVentana(periodo.dias) : `próximos ${periodo.dias} días`;
     return `${que} ${periodo.tipo === 'obs' ? 'observadas' : 'pronosticadas'} · ${cuando}`.replace(/^(Temperatura media|Viento medio|Humedad relativa) (observadas|pronosticadas)/, (_, a, b) => `${a} ${b.replace('adas', 'ada')}`);
 }
 

@@ -152,6 +152,17 @@ export function hoyConservador(ref: Date): string {
   return new Date(ref.getTime() - 7 * 3_600_000).toISOString().slice(0, 10);
 }
 
+/**
+ * Lectura PARCIAL del día en curso: el último punto de la serie mensual cuya fecha es ≥ a hoy (conservador). Es lo acumulado/promediado
+ * hasta el momento de la consulta; va a jcas_lecturas_hoy, nunca a las lecturas diarias completas. null si la serie no trae día en curso.
+ */
+export function puntoParcial(puntos: PuntoSerie[], ref: Date, tienePluviometro: boolean): { fecha: string; punto: PuntoSerie } | null {
+  const hoy = hoyConservador(ref);
+  const en = puntos.filter((p) => p.clave >= hoy).sort((a, b) => a.clave.localeCompare(b.clave));
+  const p = en[en.length - 1];
+  return p ? { fecha: p.clave, punto: depuraPunto(p, tienePluviometro).punto } : null;
+}
+
 /** Días completos de una serie mensual, listos para guardar. */
 export function diasCompletos(puntos: PuntoSerie[], ref: Date, tienePluviometro: boolean): { fecha: string; punto: PuntoSerie }[] {
   const hoy = hoyConservador(ref);

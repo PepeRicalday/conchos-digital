@@ -162,3 +162,5 @@ html[data-device='phone'] .cu-notas-sum { min-height: 44px; display: flex; align
 html[data-device='phone'] .cu-dia-num { display: none; }
 html[data-device='phone'] .cu-tira-td { min-width: 180px; }
 html[data-device='phone'] .cu-dia { height: 24px; }
+
+.cu-head-acc{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}

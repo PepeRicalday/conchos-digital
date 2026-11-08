@@ -6,6 +6,7 @@ import { agregadoCuenca, aportacionTotal, UBICACION_OJINAGA } from '../../../uti
 import { construirModeloCuenca, type PresaCuencaModelo } from '../../../utils/cuencaModelo';
 import { ordenarPresas, type OrdenCuenca } from '../../../utils/cuencaViz';
 import { fechaCorta } from '../../../utils/analiticaPresas';
+import BotonInformeCuenca from '../../BotonInformeCuenca';
 import FilaTanques from './FilaTanques';
 import DetallePresaCuenca from './DetallePresaCuenca';
 import PequenosMultiplos from './PequenosMultiplos';
@@ -87,7 +88,7 @@ function FilaTabla({ m, difCila }: { m: PresaCuencaModelo; difCila: number | nul
  * del portal USIBWC. CONTEXTO de solo lectura: no sustituye la captura de campo ni CILA, ni entra a balance ni proyección.
  * Todo sale de construirModeloCuenca: el informe institucional usa el MISMO modelo, así las cifras nunca divergen.
  */
-export default function PanelCuencaConchos() {
+export default function PanelCuencaConchos({ conInforme = false }: { conInforme?: boolean }) {
     const { datos, loading, error, recargar } = useAqwpCuenca();
     const [vista, setVista] = useState<Vista>('tanques');
     const [orden, setOrden] = useState<OrdenCuenca>('cuenca');
@@ -150,9 +151,12 @@ export default function PanelCuencaConchos() {
                     <h3 className="an-titulo">Cuenca del Conchos</h3>
                     <p className="an-sub">Presas CONAGUA de Chihuahua y Durango y aforo de Ojinaga · portal USIBWC (AQUARIUS) · datos provisionales</p>
                 </div>
-                <span className={`an-chip an-chip--${frescura == null ? 'sd' : frescura.stale ? 'warn' : 'ok'}`}>
-                    <span aria-hidden="true">{frescura == null ? '◇' : frescura.stale ? '▲' : '●'}</span> {frescura ? frescura.texto : 'Sin lectura (S/D)'}
-                </span>
+                <div className="cu-head-acc">
+                    <span className={`an-chip an-chip--${frescura == null ? 'sd' : frescura.stale ? 'warn' : 'ok'}`}>
+                        <span aria-hidden="true">{frescura == null ? '◇' : frescura.stale ? '▲' : '●'}</span> {frescura ? frescura.texto : 'Sin lectura (S/D)'}
+                    </span>
+                    {conInforme && <BotonInformeCuenca datos={datos} />}
+                </div>
             </header>
 
             <div className="an-kpis" role="list">

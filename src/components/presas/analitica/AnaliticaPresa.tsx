@@ -46,7 +46,7 @@ export default function AnaliticaPresa(props: Props) {
             </div>
             {vista === 'ciclo' ? <AnaliticaCiclo presa={props.presa} fechaISO={props.fechaISO} />
                 : vista === 'goes' ? <EstacionesGoes presaId={props.presa.id} />
-                : <PanelCuencaConchos />}
+                : <PanelCuencaConchos conInforme />}
         </div>
     );
 }

@@ -28,7 +28,7 @@
 .cu-estado--crit { color: var(--pr-crit); }
 .cu-estado--sd { color: var(--pr-t2); }
 .cu-estado--stale { color: var(--pr-violet); }
-.cu-ref { color: var(--pr-t3); font-style: italic; }
+.cu-tag--aviso { border-color: var(--pr-violet); color: var(--pr-violet); }
 
 .cu-fecha { white-space: nowrap; color: var(--pr-t2); }
 .cu-fecha--vieja { color: var(--pr-warn); }

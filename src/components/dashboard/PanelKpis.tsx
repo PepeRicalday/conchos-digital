@@ -84,6 +84,7 @@ function LineaCuenca({ c }: { c: NonNullable<ModeloKpis['cuenca']> }) {
         <span className="kp-cuenca-l">
             Cuenca: <b>{r.almacenadoMm3 != null ? `${r.almacenadoMm3.toFixed(0)} Mm³` : 'S/D'}</b>{r.pct != null ? ` · ${r.pct.toFixed(0)} %` : ''}{parcial}
             <span className="kp-sep"> · </span><span className="kp-nw">lluvia 7 d <b>{r.lluvia.promedio7Mm != null ? `${r.lluvia.promedio7Mm.toFixed(1)} mm` : 'S/D'}</b></span>
+            {r.sinActualizar > 0 ? <span className="kp-nw"> · {r.sinActualizar} sin actualizar</span> : null}
             {r.frescura?.stale ? <span className="kp-viejo"> · dato atrasado</span> : null}
         </span>
     );

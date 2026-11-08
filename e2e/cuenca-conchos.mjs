@@ -35,13 +35,13 @@ for (const [nombre, vista] of [
   verifica(/819[.,]8/.test(await boq.innerText()), `[${nombre}] Boquilla muestra 819.8 Mm³ del portal`);
   verifica(/Diferencia contra CILA: 0[.,]00 %/.test(await boq.innerText()), `[${nombre}] Boquilla muestra diferencia contra CILA`);
 
-  // S/D nunca 0: la serie estancada (Chihuahua) debe mostrar S/D y la etiqueta, no su valor repetido.
+  // Una lectura sin actualizar (Chihuahua) NO se oculta: muestra su último dato, su % del NAMO y la marca con desde cuándo.
   const chi = page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr', { hasText: 'Chihuahua' });
   const chiTxt = await chi.innerText();
-  verifica(/SIN ACTUALIZAR/.test(chiTxt) && /ref\./.test(chiTxt) && /S\/D/.test(chiTxt), `[${nombre}] Chihuahua: "sin actualizar", valor como referencia y % S/D`);
-  verifica(/desde el 22-Sep-2026/i.test(chiTxt) || /desde el 22-sep/i.test(chiTxt), `[${nombre}] Chihuahua indica desde cuándo no se actualiza`);
+  verifica(/8[.,]9/.test(chiTxt) && /38[.,]\d\s*%/.test(chiTxt) && /Sin actualizar/i.test(chiTxt), `[${nombre}] Chihuahua conserva su último dato (8.9 Mm³, 38.x %) con la marca "sin actualizar"`);
+  verifica(!/S\/D/.test(chiTxt), `[${nombre}] Chihuahua no aparece sin almacenamiento (sin S/D)`);
   verifica(/Madero/.test(await page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr', { hasText: 'Madero' }).innerText()) && !/SIN ACTUALIZAR/.test(await page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr', { hasText: 'Madero' }).innerText()), `[${nombre}] Madero ya no se marca como sin actualizar`);
-  verifica(!/(^|\s)0(\.0+)? Mm/.test(chiTxt), `[${nombre}] ninguna celda convierte S/D en 0`);
+  verifica(/desde el 22-sep-2026/i.test(chiTxt) && /47 días/.test(chiTxt), `[${nombre}] Chihuahua indica desde cuándo y cuántos días`);
   verifica(/Lecturas? sin actualizar/i.test(txt), `[${nombre}] aviso de lecturas sin actualizar visible`);
 
   const kpis = await page.locator('.an-kpi').count();

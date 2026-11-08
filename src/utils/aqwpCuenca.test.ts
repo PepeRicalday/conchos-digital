@@ -44,11 +44,15 @@ describe('AQWP cuenca · filasPresas', () => {
     expect(filas[0].pct).toBeCloseTo(28.797, 2);
     expect(filas[0].estado.clave).toBe('warn');
   });
-  it('serie estancada = S/D: sin almacenamiento utilizable, sin % y sin estado', () => {
+  it('lectura sin actualizar (Chihuahua): SIGUE mostrando el último dato, su % y su estado, con la marca', () => {
     const ch = filas.find((f) => f.ubicacionId === 538)!;
-    expect(ch.almacenamientoValido).toBeNull();
-    expect(ch.pct).toBeNull();
-    expect(ch.estado.clave).toBe('sd');
+    expect(ch.sinActualizar).toBe(true);
+    expect(ch.almacenamientoValido).toBe(8.924);
+    expect(ch.pct).toBeCloseTo(38.16, 1);
+    expect(ch.estado.clave).toBe('warn');
+  });
+  it('una presa al día no lleva la marca', () => {
+    expect(filas.find((f) => f.ubicacionId === 536)!.sinActualizar).toBe(false);
   });
   it('sin NAMO ni % grabado → S/D (no 0 %)', () => {
     const f = filasPresas([est({ ubicacionId: 540, almacenamientoMm3: 25, namoMm3: null })])[0];
@@ -57,18 +61,18 @@ describe('AQWP cuenca · filasPresas', () => {
 });
 
 describe('AQWP cuenca · agregados', () => {
-  it('el agregado excluye estancadas y sin dato en vez de contarlas como 0', () => {
+  it('el agregado usa el último dato de cada presa (incluida la sin actualizar) y excluye las sin dato, nunca como 0', () => {
     const filas = filasPresas([
       est({ ubicacionId: 536, almacenamientoMm3: 800, namoMm3: 2000 }),
       est({ ubicacionId: 538, almacenamientoMm3: 9, namoMm3: 23, estancado: true }),
       est({ ubicacionId: 539, almacenamientoMm3: null, namoMm3: 6 }),
     ]);
     const a = agregadoCuenca(filas);
-    expect(a.totalMm3).toBe(800);
-    expect(a.presasConDato).toBe(1);
+    expect(a.totalMm3).toBe(809);
+    expect(a.presasConDato).toBe(2);
     expect(a.presasTotal).toBe(3);
     expect(a.parcial).toBe(true);
-    expect(a.porcentaje).toBeCloseTo(40, 5);
+    expect(a.porcentaje).toBeCloseTo((809 / 2023) * 100, 5);
   });
   it('sin ninguna lectura válida: total null', () => {
     expect(agregadoCuenca(filasPresas([est({ ubicacionId: 536, namoMm3: 100 })])).totalMm3).toBeNull();
@@ -178,13 +182,13 @@ describe('AQWP cuenca · cuencaCompacta (Dashboard)', () => {
     est({ ubicacionId: 538, almacenamientoMm3: 9, namoMm3: 23, estancado: true }),
   ];
 
-  it('agrega presas con dato y cuenta las estancadas sin sumarlas', () => {
+  it('agrega el último dato de cada presa y cuenta cuántas están sin actualizar', () => {
     const r = cuencaCompacta(presas, resumenLluvia([], ubicDe));
-    expect(r.almacenadoMm3).toBe(800);
-    expect(r.pct).toBeCloseTo(40, 5);
-    expect(r.conDato).toBe(1);
+    expect(r.almacenadoMm3).toBe(809);
+    expect(r.pct).toBeCloseTo((809 / 2023) * 100, 5);
+    expect(r.conDato).toBe(2);
     expect(r.total).toBe(2);
-    expect(r.estancadas).toBe(1);
+    expect(r.sinActualizar).toBe(1);
     expect(r.fecha).toBe('2026-11-07');
   });
   it('lluvia: promedio de pluviómetros con ≥4 días de dato; el de pocos días no entra', () => {
@@ -213,36 +217,45 @@ describe('AQWP cuenca · cuencaCompacta (Dashboard)', () => {
   });
 });
 
-describe('AQWP cuenca · presas del distrito con valor repetido (se contrastan contra CILA)', () => {
-  const madero = est({ ubicacionId: 537, nombre: 'Madero', presaId: 'PRE-002', almacenamientoMm3: 180.785, namoMm3: 333.318, estancado: true, pctNamo: 54.2 });
-  const chihuahua = est({ ubicacionId: 538, nombre: 'Chihuahua', almacenamientoMm3: 8.924, namoMm3: 23.383, estancado: true, pctNamo: 38.2 });
+describe('AQWP cuenca · lectura sin actualizar: se muestra el último dato, nunca la presa sin almacenamiento', () => {
+  const madero = est({ ubicacionId: 537, nombre: 'Madero', presaId: 'PRE-002', almacenamientoMm3: 180.785, namoMm3: 333.318, estancado: true, pctNamo: 54.2, diasIgual: 22, igualDesde: '2026-10-17' });
+  const chihuahua = est({ ubicacionId: 538, nombre: 'Chihuahua', almacenamientoMm3: 8.924, namoMm3: 23.383, estancado: true, pctNamo: 38.2, diasIgual: 47, igualDesde: '2026-09-22' });
 
-  it('una presa del distrito estancada SÍ se usa y se marca "repetida" (no S/D)', () => {
+  it('Chihuahua conserva valor, % del NAMO y estado, y lleva la marca con sus días', () => {
+    const f = filasPresas([chihuahua])[0];
+    expect(f.sinActualizar).toBe(true);
+    expect(f.almacenamientoValido).toBe(8.924);
+    expect(f.pct).toBeCloseTo(38.16, 1);
+    expect(f.estado.clave).toBe('warn');
+    expect(f.diasIgual).toBe(47);
+    expect(f.igualDesde).toBe('2026-09-22');
+  });
+  it('una presa del distrito sin actualizar tampoco se oculta', () => {
     const f = filasPresas([madero])[0];
-    expect(f.repetida).toBe(true);
-    expect(f.excluida).toBe(false);
+    expect(f.sinActualizar).toBe(true);
     expect(f.almacenamientoValido).toBe(180.785);
     expect(f.pct).toBeCloseTo(54.24, 1);
   });
-  it('una estancada sin contraste (Chihuahua) sigue excluida como S/D', () => {
-    const f = filasPresas([chihuahua])[0];
-    expect(f.excluida).toBe(true);
-    expect(f.repetida).toBe(false);
-    expect(f.almacenamientoValido).toBeNull();
-    expect(f.pct).toBeNull();
-  });
-  it('el total de la cuenca nunca queda por debajo de las presas del distrito', () => {
+  it('el total de la cuenca incluye todas las presas con su último dato (7/7) y no queda bajo las del distrito', () => {
     const boq = est({ ubicacionId: 536, presaId: 'PRE-001', almacenamientoMm3: 819.803, namoMm3: 2846.78 });
     const filas = filasPresas([boq, madero, chihuahua]);
     const cuenca = agregadoCuenca(filas), distrito = agregadoCuenca(filas.filter((x) => x.delDistrito));
     expect(distrito.totalMm3).toBeCloseTo(1000.588, 3);
-    expect(cuenca.totalMm3!).toBeGreaterThanOrEqual(distrito.totalMm3!);
-    expect(cuenca.presasConDato).toBe(2);
+    expect(cuenca.totalMm3).toBeCloseTo(1009.512, 3);
+    expect(cuenca.presasConDato).toBe(3);
     expect(cuenca.presasTotal).toBe(3);
+    expect(cuenca.parcial).toBe(false);
   });
-  it('cuencaCompacta solo cuenta como estancadas las excluidas', () => {
+  it('cuencaCompacta cuenta las sin actualizar pero las incluye en el total', () => {
     const r = cuencaCompacta([madero, chihuahua], resumenLluvia([], new Map()));
-    expect(r.estancadas).toBe(1);
-    expect(r.almacenadoMm3).toBe(180.785);
+    expect(r.sinActualizar).toBe(2);
+    expect(r.almacenadoMm3).toBeCloseTo(189.709, 3);
+    expect(r.conDato).toBe(2);
+  });
+  it('una presa que NUNCA trajo dato sigue siendo S/D (no se inventa)', () => {
+    const f = filasPresas([est({ ubicacionId: 539, almacenamientoMm3: null, namoMm3: 6 })])[0];
+    expect(f.almacenamientoValido).toBeNull();
+    expect(f.pct).toBeNull();
+    expect(f.estado.clave).toBe('sd');
   });
 });

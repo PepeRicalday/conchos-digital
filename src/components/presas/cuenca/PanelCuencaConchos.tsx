@@ -30,25 +30,21 @@ function FilaTabla({ f, difCila }: { f: FilaPresaCuenca; difCila: number | null 
             <th scope="row" className="cu-presa">
                 <span className="cu-nombre">{f.nombre}</span>
                 {f.delDistrito && <span className="cu-tag">Distrito</span>}
-                {f.excluida && f.almacenamientoMm3 != null && (
+                {f.sinActualizar && <span className="cu-tag cu-tag--aviso">Sin actualizar</span>}
+                {f.sinActualizar && (
                     <span className="cu-nota-fila">
-                        Sin actualizar{f.igualDesde ? ` desde el ${fechaCorta(f.igualDesde)}` : ''}{f.diasIgual ? ` (${f.diasIgual} días)` : ''}: repite {formatearNumero(f.almacenamientoMm3, 3)} Mm³ aunque CONAGUA reporta aportación y extracción. Se excluye de los totales.
+                        Sin actualizar{f.igualDesde ? ` desde el ${fechaCorta(f.igualDesde)}` : ''}{f.diasIgual ? ` (${f.diasIgual} días)` : ''}: CONAGUA repite el último dato obtenido{f.almacenamientoMm3 != null ? ` (${formatearNumero(f.almacenamientoMm3, 3)} Mm³)` : ''} aunque reporta aportación y extracción.
                     </span>
-                )}
-                {f.repetida && f.almacenamientoMm3 != null && (
-                    <span className="cu-nota-fila">Valor repetido varios días ({formatearNumero(f.almacenamientoMm3, 3)} Mm³): CONAGUA lo actualiza por tramos. Se usa porque se contrasta contra CILA.</span>
                 )}
                 {f.delDistrito && difCila != null && (
                     <span className="cu-nota-fila">Diferencia contra CILA: {difCila > 0 ? '+' : difCila < 0 ? '−' : ''}{formatearNumero(Math.abs(difCila), 2)} %</span>
                 )}
             </th>
-            <td className="cu-num">{f.excluida && f.almacenamientoMm3 != null
-                ? <span className="cu-ref" title="Último valor reportado; la fuente no lo ha actualizado">ref. {fmt(f.almacenamientoMm3, 1)}</span>
-                : fmt(f.almacenamientoValido, 1)}</td>
+            <td className="cu-num">{fmt(f.almacenamientoValido, 1)}</td>
             <td className="cu-num">{f.pct == null ? 'S/D' : `${formatearNumero(f.pct, 1)} %`}</td>
             <td>
-                <span className={`cu-estado cu-estado--${f.excluida ? 'stale' : f.estado.clave}`}>
-                    <span aria-hidden="true">{f.excluida ? '◆' : GLIFO[f.estado.clave]}</span> {f.excluida ? 'SIN ACTUALIZAR' : f.estado.etiqueta}
+                <span className={`cu-estado cu-estado--${f.estado.clave}`}>
+                    <span aria-hidden="true">{GLIFO[f.estado.clave]}</span> {f.estado.etiqueta}
                 </span>
             </td>
             <td className="cu-num">{fmtFlujo(f.aportacionM3s)}</td>
@@ -103,8 +99,7 @@ export default function PanelCuencaConchos() {
     }
 
     const { filas, ojinaga, cuenca, dist, aport, frescura } = calc;
-    const estancadas = filas.filter(f => f.excluida);
-    const repetidas = filas.filter(f => f.repetida);
+    const sinActualizar = filas.filter(f => f.sinActualizar);
     const boquilla = filas.find(f => f.ubicacionId === 536);
     const madero = filas.find(f => f.ubicacionId === 537);
 
@@ -147,10 +142,9 @@ export default function PanelCuencaConchos() {
                 </div>
             </div>
 
-            {(estancadas.length > 0 || repetidas.length > 0) && (
+            {sinActualizar.length > 0 && (
                 <p className="an-aviso" role="status">
-                    {estancadas.length > 0 && <><b>{estancadas.length === 1 ? 'Lectura sin actualizar' : 'Lecturas sin actualizar'}:</b> {estancadas.map(f => `${f.nombre}${f.diasIgual ? ` (${f.diasIgual} días igual)` : ''}`).join(', ')}. La fuente repite el último valor aunque hay aportación o extracción; se muestra como referencia y no entra en los totales hasta que vuelva a cambiar. </>}
-                    {repetidas.length > 0 && <><b>{estancadas.length > 0 ? 'Valor repetido' : 'Lectura repetida'}:</b> {repetidas.map(f => f.nombre).join(' y ')} {repetidas.length === 1 ? 'repite' : 'repiten'} el valor varios días, pero se {repetidas.length === 1 ? 'usa' : 'usan'} porque se contrasta contra CILA.</>}
+                    <b>{sinActualizar.length === 1 ? 'Lectura sin actualizar' : 'Lecturas sin actualizar'}:</b> {sinActualizar.map(f => `${f.nombre}${f.diasIgual ? ` (${f.diasIgual} días igual)` : ''}`).join(', ')}. La fuente repite el último dato obtenido aunque hay aportación o extracción; se sigue mostrando ese último dato (y entra en los totales) hasta que vuelva a cambiar.
                 </p>
             )}
 
@@ -192,7 +186,7 @@ export default function PanelCuencaConchos() {
                     <li><b>Fuente:</b> CONAGUA publica a diario y el portal de USIBWC lo reparte. SICA lo copia a tablas propias (última sincronización: {fechaHoraLocal(datos.ultSyncEn)}). Dato provisional sujeto a revisión; USIBWC no lo garantiza.</li>
                     <li><b>Solo contexto:</b> no sustituye la captura de campo ni el reporte CILA, y no entra al balance ni a la proyección. Para Boquilla y Madero se muestra la diferencia contra CILA; una alerta se abre si pasa de 2 %.</li>
                     <li><b>NAMO de CONAGUA:</b> el porcentaje usa el NAMO del portal, que puede diferir del que usa SICA en la pestaña Vaso operativo (Boquilla: 2,846.78 Mm³ en el portal), por eso los porcentajes pueden no coincidir exactamente.</li>
-                    <li><b>Lectura sin actualizar:</b> mismo valor 21 días o más con aportación o extracción activas (≥ 0.05 m³/s). CONAGUA actualiza algunas presas por tramos de 8 a 16 días (Madero) y esas no se marcan. Es un criterio de SICA, no un dictamen: indica que la fuente probablemente arrastra el último valor medido.</li>
+                    <li><b>Lectura sin actualizar:</b> mismo valor 21 días o más con aportación o extracción activas (≥ 0.05 m³/s). CONAGUA actualiza algunas presas por tramos de 8 a 16 días (Madero) y esas no se marcan. Es un criterio de SICA, no un dictamen: indica que la fuente probablemente arrastra el último valor medido. Ese último dato se sigue mostrando, con la marca y desde cuándo, para que la presa no aparezca sin almacenamiento.</li>
                     <li><b>Ojinaga:</b> el gasto es el diario del aforo USIBWC 08373000; el sensor Sutron del mismo sitio reporta cifras muy distintas (ver Estaciones GOES).</li>
                     <li><b>Lluvia GOES:</b> el portal publica el acumulado del pluviómetro cada 10–15 minutos, con ruido y reinicios. SICA suma solo los incrementos positivos para obtener mm por día; un día con menos de 18 horas con muestra queda S/D. Validado contra las estaciones propias en los eventos de octubre y noviembre.</li>
                     <li><b>Nivel GOES de Luis L. León:</b> no se usa. La telemetría está congelada (1,025.43 msnm de mayo a septiembre y 1,018.78 msnm desde fines de septiembre) y su almacenamiento no coincide con el diario de CONAGUA. Babisas, Peguis y Boca del Río ya no transmiten en el portal.</li>

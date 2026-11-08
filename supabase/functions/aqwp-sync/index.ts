@@ -163,7 +163,7 @@ async function modoExport(sb: Sb, body: Record<string, unknown>) {
       const diasIg = diasIgualFinal(serieDe("almacenamiento"));
       await gestionarAlerta(sb, `AQWP-ESTANCADA:${u.codigo}`, estancadaHoy,
         `AQWP: lectura sin actualizar en ${u.nombre}`,
-        `El almacenamiento de ${u.nombre} no cambia desde hace ${diasIg} días aunque hay aportación/extracción activas: la fuente no está actualizando la lectura. Se excluye de los totales de la cuenca.`);
+        `El almacenamiento de ${u.nombre} no cambia desde hace ${diasIg} días aunque hay aportación/extracción activas: la fuente no está actualizando la lectura. Se sigue mostrando el último dato obtenido, con la marca "sin actualizar".`);
     }
     // Pluviómetros GOES: alerta si lleva más de 3 días sin un día completo con dato (transmiten cada 10–15 min).
     const dsLluvia = dePor("precipitacion_dia");

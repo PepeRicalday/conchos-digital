@@ -7,6 +7,8 @@
  */
 import { agregarAlmacenamiento, calcularFrescura, porcentajeLlenadoPresa, type AlmacenamientoAgregado, type Frescura } from './presaMetrics';
 import { estadoEmbalse, type EstadoEmbalse } from './presaNiveles';
+import { etiquetaPresa } from './presasCuencaMeta';
+import { filtrarAtipicos, type Descarte } from './aqwpCalidad';
 
 /** Orden de presentación: primero las del distrito (PRE-001/002), luego aguas arriba → abajo en la cuenca. */
 export const ORDEN_PRESAS_CUENCA = [536, 537, 541, 540, 526, 538, 539] as const;
@@ -54,6 +56,8 @@ export function normalizarEstado(r: Record<string, unknown>): EstadoUbicacion {
 }
 
 export interface FilaPresaCuenca extends EstadoUbicacion {
+  /** Nombre para mostrar: lleva el estado si no es Chihuahua ("San Gabriel, Dgo."). Usar este en vez de `nombre`. */
+  etiqueta: string;
   delDistrito: boolean;
   /** Último almacenamiento obtenido (null solo si el portal nunca trajo dato). Una lectura sin actualizar SÍ se usa. */
   almacenamientoValido: number | null;
@@ -80,7 +84,7 @@ export function filasPresas(estados: EstadoUbicacion[]): FilaPresaCuenca[] {
       lectura: { almacenamiento_mm3: valido, porcentaje_llenado: e.pctNamo },
     });
     return [{
-      ...e, delDistrito: e.presaId != null, almacenamientoValido: valido, pct, sinActualizar: e.estancado,
+      ...e, etiqueta: etiquetaPresa(e.ubicacionId, e.nombre), delDistrito: e.presaId != null, almacenamientoValido: valido, pct, sinActualizar: e.estancado,
       estado: estadoEmbalse(pct), frescura: calcularFrescura(e.fecha, 48),
     }];
   });
@@ -223,6 +227,8 @@ export interface CuencaCompacta {
   /** Presas cuya lectura no se actualiza (se muestran con su último dato y la marca; entran al total). */
   sinActualizar: number;
   frescura: Frescura | null;
+  /** Una entrada por presa (orden de la cuenca) para dibujar los tanques en miniatura del Dashboard. */
+  presas: { ubicacionId: number; etiqueta: string; namoMm3: number | null; pct: number | null; estado: 'ok' | 'warn' | 'crit' | 'sd'; sinActualizar: boolean }[];
   lluvia: {
     /** Promedio de lluvia a 7 días entre pluviómetros con cobertura suficiente; null = S/D. */
     promedio7Mm: number | null;
@@ -244,10 +250,38 @@ export function cuencaCompacta(estados: EstadoUbicacion[], lluvia: ResumenLluvia
   return {
     almacenadoMm3: ag.totalMm3, pct: ag.porcentaje, conDato: ag.presasConDato, total: ag.presasTotal,
     fecha, sinActualizar: filas.filter((f) => f.sinActualizar).length, frescura: calcularFrescura(fecha, 48),
+    presas: filas.map((f) => ({ ubicacionId: f.ubicacionId, etiqueta: f.etiqueta, namoMm3: f.namoMm3, pct: f.pct, estado: f.estado.clave, sinActualizar: f.sinActualizar })),
     lluvia: {
       promedio7Mm: validos.length ? Math.round((validos.reduce((a, f) => a + (f.total7.mm as number), 0) / validos.length) * 10) / 10 : null,
       pluviometros: validos.length, total: lluvia.filas.length,
       maxNombre: maximo?.nombre ?? null, maxMm: maximo ? (maximo.total7.mm as number) : null, hasta: lluvia.hasta,
     },
   };
+}
+
+// ── Limpieza de la serie de almacenamiento (antes de graficar o calcular estadística) ─────────────────────────
+/**
+ * Quita de las lecturas de ALMACENAMIENTO los atípicos (ver aqwpCalidad.filtrarAtipicos): picos de un día y la fila
+ * mezclada del 2020-09-08. Las demás magnitudes pasan intactas. Devuelve también los descartes por presa para rotularlos
+ * ("se excluyó la lectura del 06-abr-2026") en informes. No modifica la base: el dato original se conserva.
+ */
+export function limpiarAlmacenamiento(
+  lecturas: LecturaDiariaAqwp[],
+  ubicacionDeDataset: Map<number, number>,
+  namoPorUbicacion: Map<number, number | null>,
+): { lecturas: LecturaDiariaAqwp[]; descartes: Record<number, Descarte[]> } {
+  const porDataset = new Map<number, LecturaDiariaAqwp[]>();
+  for (const l of lecturas) (porDataset.get(l.datasetId) ?? porDataset.set(l.datasetId, []).get(l.datasetId)!).push(l);
+
+  const out: LecturaDiariaAqwp[] = [];
+  const descartes: Record<number, Descarte[]> = {};
+  for (const [datasetId, filas] of porDataset) {
+    const ubic = ubicacionDeDataset.get(datasetId);
+    if (ubic == null) { out.push(...filas); continue; }
+    const { descartadas } = filtrarAtipicos(filas.map((f) => ({ fecha: f.fecha, valor: f.valor })), namoPorUbicacion.get(ubic) ?? null);
+    if (descartadas.length) descartes[ubic] = descartadas;
+    const quitadas = new Set(descartadas.map((d) => d.fecha));
+    out.push(...filas.filter((f) => !quitadas.has(f.fecha)));
+  }
+  return { lecturas: out, descartes };
 }

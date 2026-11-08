@@ -259,3 +259,56 @@ describe('AQWP cuenca · lectura sin actualizar: se muestra el último dato, nun
     expect(f.estado.clave).toBe('sd');
   });
 });
+
+import { limpiarAlmacenamiento } from './aqwpCuenca';
+
+describe('AQWP cuenca · etiqueta y limpieza de atípicos', () => {
+  it('filasPresas trae la etiqueta: San Gabriel lleva su estado y las de Chihuahua el nombre limpio', () => {
+    const f = filasPresas([
+      est({ ubicacionId: 541, nombre: 'San Gabriel', almacenamientoMm3: 106.6, namoMm3: 245.4 }),
+      est({ ubicacionId: 536, nombre: 'La Boquilla', almacenamientoMm3: 819.8, namoMm3: 2846.78 }),
+    ]);
+    expect(f.find((x) => x.ubicacionId === 541)!.etiqueta).toBe('San Gabriel, Dgo.');
+    expect(f.find((x) => x.ubicacionId === 536)!.etiqueta).toBe('La Boquilla');
+  });
+
+  it('quita el pico de Madero (06-abr-2026) del almacenamiento y lo reporta; no toca otras magnitudes', () => {
+    const L = (datasetId: number, fecha: string, valor: number | null) => ({ datasetId, fecha, valor, estancada: false });
+    const lect = [
+      L(10, '2026-04-03', 229.343), L(10, '2026-04-06', 319.462), L(10, '2026-04-07', 228.808),
+      L(11, '2026-04-06', 500), // otra magnitud/dataset sin mapear: pasa intacta
+    ];
+    const r = limpiarAlmacenamiento(lect, new Map([[10, 537]]), new Map<number, number | null>([[537, 333.318]]));
+    expect(r.lecturas.filter((l) => l.datasetId === 10).map((l) => l.fecha)).toEqual(['2026-04-03', '2026-04-07']);
+    expect(r.lecturas.find((l) => l.datasetId === 11)!.valor).toBe(500);
+    expect(r.descartes[537]).toHaveLength(1);
+    expect(r.descartes[537][0]).toMatchObject({ fecha: '2026-04-06', valor: 319.462 });
+  });
+
+  it('una serie limpia no genera descartes', () => {
+    const L = (fecha: string, valor: number) => ({ datasetId: 10, fecha, valor, estancada: false });
+    const r = limpiarAlmacenamiento([L('2026-01-01', 100), L('2026-01-02', 101), L('2026-01-03', 102)], new Map([[10, 536]]), new Map<number, number | null>([[536, 2846]]));
+    expect(r.descartes).toEqual({});
+    expect(r.lecturas).toHaveLength(3);
+  });
+});
+
+describe('AQWP cuenca · cuencaCompacta.presas (tanques en miniatura del Dashboard)', () => {
+  it('trae una entrada por presa con etiqueta, NAMO, %, estado y marca de sin actualizar', () => {
+    const r = cuencaCompacta([
+      est({ ubicacionId: 536, nombre: 'La Boquilla', presaId: 'PRE-001', almacenamientoMm3: 819.8, namoMm3: 2846.78 }),
+      est({ ubicacionId: 541, nombre: 'San Gabriel', almacenamientoMm3: 106.6, namoMm3: 245.4 }),
+      est({ ubicacionId: 538, nombre: 'Chihuahua', almacenamientoMm3: 8.924, namoMm3: 23.383, estancado: true }),
+    ], resumenLluvia([], new Map()));
+    expect(r.presas.map((p) => p.ubicacionId)).toEqual([536, 541, 538]);
+    expect(r.presas[1].etiqueta).toBe('San Gabriel, Dgo.');
+    expect(r.presas[0].estado).toBe('warn');
+    expect(r.presas[2].sinActualizar).toBe(true);
+    expect(r.presas[2].pct).toBeCloseTo(38.2, 1);
+  });
+  it('una presa sin dato queda con pct null (se dibuja con trama, nunca como 0 %)', () => {
+    const r = cuencaCompacta([est({ ubicacionId: 539, nombre: 'El Rejón', almacenamientoMm3: null, namoMm3: 6.5 })], resumenLluvia([], new Map()));
+    expect(r.presas[0].pct).toBeNull();
+    expect(r.presas[0].estado).toBe('sd');
+  });
+});

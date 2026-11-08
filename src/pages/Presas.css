@@ -1830,8 +1830,9 @@
 /* Body */
 .scada-sala-body { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 12px; align-items: start; }
 
-/* Vista «Estaciones GOES»: ancho completo (una columna, sin «Obras de toma»). Solo escritorio; por debajo ya es una columna. */
-@media (min-width: 1281px) {
+/* Vistas «Estaciones GOES» y «Cuenca del Conchos»: ancho completo (una columna, sin «Obras de toma»). Desde 1101 px: entre 1101 y
+   1280 px (iPad horizontal) el grid de dos columnas dejaba el panel en ~480 px con la otra columna vacía. Por debajo ya es una columna. */
+@media (min-width: 1101px) {
     .scada-sala-body.is-goes-full { grid-template-columns: minmax(0, 1fr); }
     .scada-sala-body.is-goes-full .scada-zona-tomas { display: none; }
 }

@@ -25,9 +25,15 @@ for (const [nombre, vista] of [['escritorio', { width: 1440, height: 900 }], ['i
 
   const panel = page.locator('.cu-root', { has: page.getByRole('heading', { name: 'Cuenca del Conchos' }) }).first();
   await panel.waitFor({ timeout: 45000 });
-  await page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr').first().waitFor({ timeout: 45000 });
-  const filas = await page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr').count();
-  verifica(filas === 7, `[${nombre}] 7 presas en la tabla (${filas})`);
+  // El dock del Monitor es angosto: la vista Tanques cae a la lista móvil (<560 px) o muestra tanques si el panel es ancho.
+  await page.locator('.cu-tanque, .cu-movil').first().waitFor({ timeout: 45000 });
+  const filas = await page.locator('.cu-tanque, .cu-movil').count();
+  verifica(filas === 7, `[${nombre}] 7 presas en la vista Tanques (${filas})`);
+  await page.getByRole('button', { name: 'Tabla', exact: true }).click();
+  const filasTabla = await page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr').count();
+  verifica(filasTabla === 7, `[${nombre}] vista Tabla con las 7 presas (${filasTabla})`);
+  await page.getByRole('button', { name: 'Tanques', exact: true }).click();
+  await page.locator('.cu-tanque, .cu-movil').first().waitFor({ timeout: 15000 });
   verifica(await page.locator('.an-kpi').count() === 4, `[${nombre}] 4 indicadores`);
   verifica(await page.locator('section[aria-label="Lluvia en la cuenca"] tbody tr').count() === 3, `[${nombre}] lluvia: 3 pluviómetros`);
   const txt = await panel.innerText();
@@ -44,9 +50,9 @@ for (const [nombre, vista] of [['escritorio', { width: 1440, height: 900 }], ['i
   verifica(!!estilos.borde && estilos.borde !== 'rgba(0, 0, 0, 0)' && estilos.borde !== 'rgb(0, 0, 0)', `[${nombre}] tarjetas con borde del tema (${estilos.borde})`);
   verifica(!!estilos.fondo && estilos.fondo !== 'rgba(0, 0, 0, 0)', `[${nombre}] tarjetas con fondo del tema (${estilos.fondo})`);
 
-  // Gráficas
-  await page.locator('.recharts-line-curve').first().waitFor({ timeout: 20000 }).catch(() => {});
-  verifica(await page.locator('.recharts-line-curve').count() >= 5, `[${nombre}] gráfica de llenado con líneas`);
+  // Pequeños múltiplos y rotulado de San Gabriel
+  verifica(await page.locator('.cu-mini').count() === 7, `[${nombre}] 7 mini-series de llenado`);
+  verifica(/San Gabriel, Dgo./.test(txt), `[${nombre}] San Gabriel rotulada con su estado`);
 
   // Sin desborde horizontal de la página y texto ≥ 12 px (regla del dock)
   const ancho = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));

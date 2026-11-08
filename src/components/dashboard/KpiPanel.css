@@ -895,3 +895,9 @@ html[data-device="phone"] #kp-demanda .kp-vistas .ndvi-chip-txt { position: abso
         #kp-presas .kp-contexto { -webkit-line-clamp: 4; }
     }
 }
+
+/* Los tanques en miniatura solo se muestran si la celda es ancha (el texto de al lado no se parte ni se recorta);
+   en celdas angostas queda solo la línea de texto. La cifra de cuenca nunca se parte. */
+.kp-tq-mini { display: none; vertical-align: -2px; margin-right: 6px; color: var(--sc-t2, #b4c2d4); }
+@container kp (min-width: 300px) { .kp-tq-mini { display: inline-block; } }
+.kp-cuenca-l b { white-space: nowrap; }

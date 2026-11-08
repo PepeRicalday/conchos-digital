@@ -1,18 +1,18 @@
-// Cuenca del Conchos (Presas → Analítica → «Cuenca del Conchos»): datos USIBWC AQUARIUS ya cargados en aqwp_*.
-//   PORT=5182 node e2e/cuenca-conchos.mjs      (requiere dev server; bypass de login en localhost)
+// Cuenca del Conchos (Presas → Analítica → «Cuenca del Conchos») v2: tanques proporcionales, detalle, múltiplos, lluvia.
+//   PORT=5173 node e2e/cuenca-conchos.mjs      (requiere dev server; bypass de login en localhost)
 import { chromium } from 'playwright';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
-const BASE = `http://localhost:${process.env.PORT || 5182}`;
+const BASE = `http://localhost:${process.env.PORT || 5173}`;
 const OUT = fileURLToPath(new URL('./out/cuenca-conchos/', import.meta.url));
 fs.mkdirSync(OUT, { recursive: true });
 const fallos = [];
 const verifica = (ok, msg) => { console.log(`${ok ? 'OK  ' : 'FAIL'} ${msg}`); if (!ok) fallos.push(msg); };
 
 const navegador = await chromium.launch();
-for (const [nombre, vista] of [
-  ['escritorio', { width: 1440, height: 900 }], ['ipad', { width: 820, height: 1180 }], ['iphone', { width: 390, height: 844 }],
+for (const [nombre, vista, esPhone] of [
+  ['escritorio', { width: 1440, height: 900 }, false], ['ipad', { width: 820, height: 1180 }, false], ['iphone', { width: 390, height: 844 }, true],
 ]) {
   const ctx = await navegador.newContext({ viewport: vista });
   const page = await ctx.newPage();
@@ -20,70 +20,102 @@ for (const [nombre, vista] of [
   page.on('pageerror', (e) => errores.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error' && !/favicon|Failed to load resource/i.test(m.text())) errores.push(m.text()); });
 
-  await page.goto(`${BASE}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'networkidle' }).catch(() => {});
-  const panel = page.locator('.an-root', { has: page.getByRole('heading', { name: 'Cuenca del Conchos' }) }).first();
-  await panel.waitFor({ timeout: 30000 });
+  await page.goto(`${BASE}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
+  const panel = page.locator('.cu-root', { has: page.getByRole('heading', { name: 'Cuenca del Conchos' }) }).first();
+  await panel.waitFor({ timeout: 45000 });
   verifica(await page.getByRole('button', { name: 'Cuenca del Conchos' }).getAttribute('aria-pressed') === 'true', `[${nombre}] enlace profundo abre la vista Cuenca del Conchos`);
 
-  await page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr').first().waitFor({ timeout: 30000 });
-  const filas = await page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr').count();
-  verifica(filas === 7, `[${nombre}] tabla con las 7 presas (${filas})`);
+  // ── Vista Tanques (predeterminada): tanques en pantallas anchas, lista en iPhone y contenedores estrechos
+  const item = page.locator('.cu-tanque, .cu-movil');
+  await item.first().waitFor({ timeout: 45000 });
+  await page.waitForTimeout(1500);
+  const n = await item.count();
+  verifica(n === 7, `[${nombre}] 7 presas en la vista Tanques (${n}, ${esPhone ? 'lista' : 'tanques'})`);
+  verifica(esPhone ? await page.locator('.cu-movil').count() === 7 : await page.locator('.cu-tanque').count() === 7, `[${nombre}] ${esPhone ? 'lista móvil' : 'tanques proporcionales'} según el dispositivo`);
+  verifica(await page.locator('.an-kpi').count() === 4, `[${nombre}] 4 indicadores`);
+
   const txt = await panel.innerText();
-
-  const boq = page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr', { hasText: 'La Boquilla' });
-  verifica(/Distrito/.test(await boq.innerText()), `[${nombre}] Boquilla marcada como presa del distrito`);
-  verifica(/819[.,]8/.test(await boq.innerText()), `[${nombre}] Boquilla muestra 819.8 Mm³ del portal`);
-  verifica(/Diferencia contra CILA: 0[.,]00 %/.test(await boq.innerText()), `[${nombre}] Boquilla muestra diferencia contra CILA`);
-
-  // Una lectura sin actualizar (Chihuahua) NO se oculta: muestra su último dato, su % del NAMO y la marca con desde cuándo.
-  const chi = page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr', { hasText: 'Chihuahua' });
-  const chiTxt = await chi.innerText();
-  verifica(/8[.,]9/.test(chiTxt) && /38[.,]\d\s*%/.test(chiTxt) && /Sin actualizar/i.test(chiTxt), `[${nombre}] Chihuahua conserva su último dato (8.9 Mm³, 38.x %) con la marca "sin actualizar"`);
-  verifica(!/S\/D/.test(chiTxt), `[${nombre}] Chihuahua no aparece sin almacenamiento (sin S/D)`);
-  verifica(/Madero/.test(await page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr', { hasText: 'Madero' }).innerText()) && !/SIN ACTUALIZAR/.test(await page.locator('section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr', { hasText: 'Madero' }).innerText()), `[${nombre}] Madero ya no se marca como sin actualizar`);
-  verifica(/desde el 22-sep-2026/i.test(chiTxt) && /47 días/.test(chiTxt), `[${nombre}] Chihuahua indica desde cuándo y cuántos días`);
-  verifica(/Lecturas? sin actualizar/i.test(txt), `[${nombre}] aviso de lecturas sin actualizar visible`);
-
-  const kpis = await page.locator('.an-kpi').count();
-  verifica(kpis === 4, `[${nombre}] 4 indicadores (${kpis})`);
+  verifica(/San Gabriel, Dgo\./.test(txt), `[${nombre}] San Gabriel se rotula con su estado: "San Gabriel, Dgo."`);
   verifica(/Ojinaga/.test(txt) && /USIBWC/.test(txt) && /provisionales/i.test(txt), `[${nombre}] rotulado como Ojinaga / USIBWC / provisional`);
+  verifica(!/(^|[\s>])(NaN|undefined|Infinity)([\s<]|$)/.test(txt), `[${nombre}] sin NaN/undefined/Infinity`);
 
-  // Lluvia GOES: 3 pluviómetros, 7 días + totales, S/D distinto de 0, gráfica de 30 días
+  // Chihuahua: último dato con la marca (no S/D)
+  const chi = page.locator('.cu-tanque[data-ubicacion="538"], .cu-movil[data-ubicacion="538"]').first();
+  const chiTxt = await chi.innerText();
+  verifica(/38[.,]\d/.test(chiTxt) && /Igual 47 d/.test(chiTxt) && !/S\/D\s*%?/.test(chiTxt.replace(/Mm³/g, '')), `[${nombre}] Chihuahua conserva 38.x % y la marca "Igual 47 d" (no S/D)`);
+
+  // Selección: tocar una presa abre su detalle
+  const pico = page.locator('.cu-tanque[data-ubicacion="540"], .cu-movil[data-ubicacion="540"]').first();
+  await pico.click();
+  verifica(await pico.getAttribute('aria-pressed') === 'true', `[${nombre}] seleccionar una presa marca aria-pressed`);
+  const detalle = page.locator('section[aria-label="Detalle de Pico del Águila"]');
+  verifica(await detalle.isVisible(), `[${nombre}] se abre el detalle de la presa seleccionada`);
+  const detTxt = await detalle.innerText();
+  verifica(/Volumen útil/.test(detTxt) && /Posición histórica/.test(detTxt) && /Tendencia 30 d/.test(detTxt) && /n = \d+ años/.test(detTxt), `[${nombre}] el detalle trae volumen útil, posición histórica (n = N años) y tendencia`);
+  verifica(/Coronado/.test(detTxt) && /DR-103/.test(detTxt), `[${nombre}] la ficha de Pico del Águila muestra su municipio y DR-103 verificados`);
+  await page.locator('.cu-tanque[data-ubicacion="541"], .cu-movil[data-ubicacion="541"]').first().click();
+  const sg = await page.locator('section[aria-label="Detalle de San Gabriel, Dgo."]').innerText();
+  verifica(/Ocampo, Dgo\./.test(sg) && /Río Florido/.test(sg), `[${nombre}] la ficha de San Gabriel muestra Ocampo, Dgo. y Río Florido`);
+
+  // Pequeños múltiplos: una mini-serie por presa, con la banda rotulada
+  verifica(await page.locator('.cu-mini').count() === 7, `[${nombre}] 7 mini-series (pequeños múltiplos)`);
+  verifica(/n = \d+ años/.test(await page.locator('section[aria-label^="Llenado de las presas"]').innerText()), `[${nombre}] los múltiplos rotulan "n = N años" (o el rango de 12 meses)`);
+
+  // Filtros: orden por % llenado pone primero la MENOS llena (Luis L. León, 12.9 %); alcance distrito deja 2
+  await page.getByRole('button', { name: '% llenado' }).click();
+  const primero = await item.first().innerText();
+  verifica(/Luis L\. León/.test(primero), `[${nombre}] Orden "% llenado": la menos llena (Luis L. León) va primero`);
+  await page.getByRole('button', { name: 'Solo distrito' }).click();
+  verifica(await item.count() === 2, `[${nombre}] Alcance "Solo distrito": 2 presas (${await item.count()})`);
+  await page.getByRole('button', { name: 'Todas', exact: true }).click();
+  await page.getByRole('button', { name: 'Cuenca', exact: true }).first().click().catch(() => {});
+
+  // ── Vista Tabla: se conserva la tabla con las 7 presas
+  await page.getByRole('button', { name: 'Tabla', exact: true }).click();
+  const filasSel = 'section[aria-label="Estado de las presas de la cuenca"] .cu-tabla tbody tr';
+  await page.locator(filasSel).first().waitFor({ timeout: 15000 });
+  const filas = await page.locator(filasSel).count();
+  verifica(filas === 7, `[${nombre}] vista Tabla con las 7 presas (${filas})`);
+  const boq = page.locator(filasSel, { hasText: 'La Boquilla' });
+  verifica(/Distrito/.test(await boq.innerText()) && /819[.,]8/.test(await boq.innerText()), `[${nombre}] Boquilla: presa del distrito con 819.8 Mm³`);
+  verifica(/Diferencia contra CILA: 0[.,]00 %/.test(await boq.innerText()), `[${nombre}] Boquilla muestra la diferencia contra CILA`);
+  const chiFila = await page.locator(filasSel, { hasText: 'Chihuahua' }).innerText();
+  verifica(/8[.,]9/.test(chiFila) && /38[.,]\d\s*%/.test(chiFila) && /Sin actualizar/i.test(chiFila), `[${nombre}] tabla: Chihuahua con su último dato y "sin actualizar"`);
+  verifica(/desde el 22-sep-2026/i.test(chiFila) && /47 días/.test(chiFila), `[${nombre}] tabla: Chihuahua indica desde cuándo y cuántos días`);
+  const mad = await page.locator(filasSel, { hasText: 'Madero' }).innerText();
+  verifica(!/Sin actualizar/i.test(mad), `[${nombre}] Madero no se marca como sin actualizar`);
+  verifica(/Lecturas? sin actualizar/i.test(await panel.innerText()), `[${nombre}] aviso de lecturas sin actualizar visible`);
+  await page.getByRole('button', { name: 'Tanques', exact: true }).click();
+
+  // ── Lluvia: 3 pluviómetros, tira de 30 días, ciclo agrícola
   const lluvia = page.locator('section[aria-label="Lluvia en la cuenca"]');
   await lluvia.waitFor({ timeout: 15000 });
-  const filasLluvia = await lluvia.locator('tbody tr').count();
-  verifica(filasLluvia === 3, `[${nombre}] lluvia: 3 pluviómetros (${filasLluvia})`);
-  verifica(await lluvia.locator('thead th').count() === 10, `[${nombre}] lluvia: pluviómetro + 7 días + 2 totales`);
-  const textoLluvia = await lluvia.innerText();
-  verifica(/Villalba/.test(textoLluvia) && /Luis L\. Le[oó]n/.test(textoLluvia) && /Bajo Luis L\. Le[oó]n/.test(textoLluvia), `[${nombre}] lluvia: rotulados Villalba / Luis L. León / Bajo Luis L. León`);
-  const celdas = await lluvia.locator('tbody td').allInnerTexts();
-  verifica(celdas.some(c => /^\d/.test(c.trim())) , `[${nombre}] lluvia: hay cifras en mm`);
-  verifica(celdas.every(c => !/^(NaN|undefined|null)/.test(c.trim())), `[${nombre}] lluvia: sin NaN/undefined/null en celdas`);
-  verifica(await lluvia.locator('.recharts-bar-rectangle').count() > 0 || /Sin lluvia registrada/.test(textoLluvia), `[${nombre}] lluvia: gráfica de 30 días (o aviso de sin lluvia)`);
-  verifica(/Nivel GOES de Luis L\. Le[oó]n/.test(txt), `[${nombre}] se explica por qué no se usa el nivel GOES de Luis L. León`);
+  verifica(await lluvia.locator('tbody tr').count() === 3, `[${nombre}] lluvia: 3 pluviómetros`);
+  verifica(await lluvia.locator('thead th').count() === 5, `[${nombre}] lluvia: pluviómetro, tira de 30 días, 7 d, 30 d y ciclo`);
+  verifica(await lluvia.locator('.cu-tira').count() === 3 && await lluvia.locator('.cu-dia').count() === 90, `[${nombre}] lluvia: tira de 30 días por pluviómetro (90 celdas)`);
+  const lt = await lluvia.innerText();
+  verifica(/Villalba/.test(lt) && /Luis L\. Le[oó]n/.test(lt) && /Bajo Luis L\. Le[oó]n/.test(lt), `[${nombre}] lluvia: rotulados los 3 pluviómetros`);
+  verifica(/frente al ciclo anterior \(n = 1\)/.test(lt) && !/normal|anomal/i.test(lt.replace(/«0» es un día seco medido/, '')), `[${nombre}] lluvia: compara con el ciclo anterior (n = 1) y no habla de "normal"/anomalía`);
+  verifica(!/(^|[\s>])(NaN|undefined)([\s<]|$)/.test(lt), `[${nombre}] lluvia: sin NaN/undefined`);
 
-  // Gráfica: una línea por presa y chips que ocultan/muestran
-  await page.locator('.recharts-line-curve').first().waitFor({ timeout: 15000 }).catch(() => {});
-  const lineas = await page.locator('.recharts-line-curve').count();
-  verifica(lineas >= 5, `[${nombre}] gráfica con líneas (${lineas})`);
-  const chip = page.getByRole('button', { name: /Pico del Águila/ });
-  await chip.click();
-  verifica(await chip.getAttribute('aria-pressed') === 'false', `[${nombre}] chip oculta la presa`);
-  const despues = await page.locator('.recharts-line-curve').count();
-  verifica(despues < lineas, `[${nombre}] las líneas de la presa desaparecen de la gráfica (${lineas} → ${despues})`);
-  verifica(/Punteado/.test(await panel.innerText()), `[${nombre}] la leyenda explica el trazo punteado`);
-  await chip.click();
+  // ── Notas plegables
+  const notas = page.locator('details.cu-notas');
+  verifica(await notas.count() === 1 && await notas.getAttribute('open') === null, `[${nombre}] las notas están plegadas por defecto`);
+  await notas.locator('summary').click();
+  verifica(/Nivel GOES de Luis L\. Le[oó]n/.test(await notas.innerText()) && /San Gabriel, Dgo\./.test(await notas.innerText()), `[${nombre}] al abrir las notas se explican el nivel GOES y San Gabriel, Dgo.`);
 
-  // Sin desborde horizontal de la página
+  // ── Layout
   const ancho = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
   verifica(ancho.sw <= ancho.cw + 1, `[${nombre}] sin scroll horizontal de página (${ancho.sw} ≤ ${ancho.cw})`);
-
-  // Texto mínimo 11 px (regla del proyecto)
-  const chico = await panel.evaluate((el) => [...el.querySelectorAll('*')].filter((n) => n.childNodes.length && [...n.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim()) && parseFloat(getComputedStyle(n).fontSize) < 11).length);
-  verifica(chico === 0, `[${nombre}] texto no menor a 11 px (${chico} elementos)`);
+  const chico = await panel.evaluate((el) => [...el.querySelectorAll('*:not(svg *)')].filter((x) => [...x.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim()) && parseFloat(getComputedStyle(x).fontSize) < 11.95).map((x) => x.className || x.tagName).slice(0, 5));
+  verifica(chico.length === 0, `[${nombre}] texto no menor a 12 px (${chico.join(', ') || 'ok'})`);
+  if (!esPhone) {
+    const tq = await page.locator('.cu-tanque').evaluateAll((els) => els.map((e) => e.querySelector('svg').getBoundingClientRect().width));
+    verifica(tq[0] > tq[1] && tq[1] >= tq[tq.length - 1] * 0.9 && Math.min(...tq) >= 40, `[${nombre}] el ancho de los tanques sigue la capacidad (Boquilla > Madero ≥ El Rejón; ${tq.map(Math.round).join(', ')})`);
+  }
   verifica(errores.length === 0, `[${nombre}] sin errores de consola${errores.length ? ': ' + errores.slice(0, 2).join(' | ') : ''}`);
-
-  await panel.screenshot({ path: `${OUT}${nombre}-panel.png` });
+  await panel.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${OUT}${nombre}-panel.png` });
   await ctx.close();
 }
 await navegador.close();

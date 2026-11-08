@@ -30,6 +30,7 @@ import { CultivosCicloMini, ENLACE_CULTIVOS_CICLO } from './CultivosCicloMini';
 import type { ResumenCultivosCiclo } from '../../utils/cultivosCiclo';
 import { useRol } from '../../lib/auth/roles';
 import type { CuencaCompacta } from '../../utils/aqwpCuenca';
+import TanquesMini from './TanquesMini';
 
 const f = (v: number | null | undefined, d = 1) => (v == null ? null : v.toFixed(d));
 const edadMin = (ms: number | null) => (ms == null ? null : Math.max(0, (Date.now() - ms) / 60000));
@@ -82,7 +83,7 @@ function LineaCuenca({ c }: { c: NonNullable<ModeloKpis['cuenca']> }) {
     const parcial = r.conDato < r.total ? ` (${r.conDato}/${r.total} presas)` : '';
     return (
         <span className="kp-cuenca-l">
-            Cuenca: <b>{r.almacenadoMm3 != null ? `${r.almacenadoMm3.toFixed(0)} Mm³` : 'S/D'}</b>{r.pct != null ? ` · ${r.pct.toFixed(0)} %` : ''}{parcial}
+            <TanquesMini presas={r.presas} /> Cuenca: <b>{r.almacenadoMm3 != null ? `${r.almacenadoMm3.toFixed(0)} Mm³` : 'S/D'}</b>{r.pct != null ? ` · ${r.pct.toFixed(0)} %` : ''}{parcial}
             <span className="kp-sep"> · </span><span className="kp-nw">lluvia 7 d <b>{r.lluvia.promedio7Mm != null ? `${r.lluvia.promedio7Mm.toFixed(1)} mm` : 'S/D'}</b></span>
             {r.sinActualizar > 0 ? <span className="kp-nw"> · {r.sinActualizar} sin actualizar</span> : null}
             {r.frescura?.stale ? <span className="kp-viejo"> · dato atrasado</span> : null}

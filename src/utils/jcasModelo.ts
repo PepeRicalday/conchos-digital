@@ -10,6 +10,35 @@ import {
 import type { PoligonoGeo, ZonaCuenca } from './geoCuenca';
 import { dentroDelPoligono } from './vasoAnalisis';
 import { anioInicioCiclo, diaDeCiclo } from './analiticaPresas';
+import { acumularHorasFrio, extremosVentana, temporadaFrio } from './horasFrio';
+
+/**
+ * Día de una estación de fn_cuenca_horas_frio: horas ≤ 7.2 °C y ≤ 0 °C (null = menos de 20/24 horas con dato) y los extremos del día.
+ * `fuente` no se mezcla: 'propia' (WeatherLink ≈ 15 min) o 'jcas' (portal, serie horaria; solo existe desde que se activó el sync horario).
+ */
+export interface FilaHorasFrio { fuente: 'propia' | 'jcas'; estacion_id: string; fecha: string; horas_frio: number | null; horas_helada: number | null; horas_con_dato: number; tmax: number | null; tmin: number | null }
+/** Extremos y horas frío de una estación. Todo null = S/D (sin serie horaria o cobertura < 80 %). */
+export interface FrioEstacion {
+    /** Extremos del día en curso (parcial) y de los últimos 7 días completos. */
+    tmaxHoy: number | null; tminHoy: number | null; tmax7: number | null; tmin7: number | null;
+    /** Horas frío y de helada acumuladas en la temporada (1-nov → ayer), desde `desde` (el primer día con serie horaria si es posterior al 1-nov). */
+    horasFrio: number | null; horasHelada: number | null; desde: string | null; diasConDato: number; diasTotal: number;
+}
+export const FRIO_VACIO: FrioEstacion = { tmaxHoy: null, tminHoy: null, tmax7: null, tmin7: null, horasFrio: null, horasHelada: null, desde: null, diasConDato: 0, diasTotal: 0 };
+
+/** Extremos y horas frío de UNA estación a partir de sus filas diarias. `hoy` = día en curso, `fin` = ayer. */
+export function frioDeEstacion(filas: FilaHorasFrio[], hoy: string, fin: string): FrioEstacion {
+    if (!filas.length) return FRIO_VACIO;
+    const h = filas.filter((f) => f.fecha >= hoy).sort((a, b) => a.fecha.localeCompare(b.fecha)).pop();
+    const comp = filas.filter((f) => f.fecha <= fin);
+    const ext = extremosVentana(comp.map((f) => ({ fecha: f.fecha, tmax: f.tmax, tmin: f.tmin })), fin, 7);
+    const temp = temporadaFrio(hoy);
+    const primero = filas.map((f) => f.fecha).sort()[0];
+    const desde = primero > temp.inicio ? primero : temp.inicio;
+    const hasta = fin < temp.fin ? fin : temp.fin;
+    const ac = acumularHorasFrio(comp.map((f) => ({ fecha: f.fecha, horas: f.horas_frio, helada: f.horas_helada })), desde, hasta);
+    return { tmaxHoy: h?.tmax ?? null, tminHoy: h?.tmin ?? null, tmax7: ext.tmax, tmin7: ext.tmin, horasFrio: ac.horas, horasHelada: ac.helada, desde: ac.horas == null ? null : desde, diasConDato: ac.diasConDato, diasTotal: ac.diasTotal };
+}
 
 export interface FilaEstacionJcas {
     id_jcas: number; nombre: string; latitud: number; longitud: number; altitud_m: number | null;
@@ -31,9 +60,11 @@ export interface FilaClimaPropio { estacion_id: string; fecha: string; temp_c: n
  * Misma forma de valores que PuntoRedJcas (`ayer`, `hoy`, `medias`, `mm7`, `mm30`): `valorObs` sirve para ambas fuentes.
  */
 export interface PuntoPropio {
-    id: string; nombre: string; lat: number; lon: number; mmHoy: number | null; mm1: number | null; mm7: number | null; mm30: number | null; ultFecha: string | null; hoyEn: string | null;
+    id: string; nombre: string; lat: number; lon: number; mmHoy: number | null; mm1: number | null; mm7: number | null; mm30: number | null; /** Acumulado del mes en curso (días completos desde el 1.º + parcial de hoy). */ mmMes?: number | null; ultFecha: string | null; hoyEn: string | null;
     ayer: ValoresDia; hoy: ValoresDia | null; medias: PuntoRedJcas['medias']; tempUltima: number | null;
     largas?: Record<string, ValoresDia>;
+    /** Extremos de temperatura y horas frío (fn_cuenca_horas_frio); ausente = sin cargar. */
+    frio?: FrioEstacion;
 }
 /** Lo mínimo que `valorObs` necesita de un punto (JCAS o propio). */
 export type PuntoConValores = Pick<PuntoRedJcas, 'hoy' | 'ayer' | 'medias' | 'mm7' | 'mm30' | 'largas'>;
@@ -96,6 +127,8 @@ export interface PuntoRedJcas {
     medias: { temp7: number | null; temp30: number | null; hum7: number | null; hum30: number | null; viento7: number | null; viento30: number | null };
     /** Ventanas largas (60 d, 90 d, ciclo): lluvia acumulada y medias, con la misma regla del 80 % de días con dato. Clave: '60' | '90' | 'ciclo'. */
     largas?: Record<string, ValoresDia>;
+    /** Extremos de temperatura y horas frío (fn_cuenca_horas_frio); ausente = sin cargar. */
+    frio?: FrioEstacion;
 }
 
 export interface ModeloRedJcas {
@@ -162,9 +195,11 @@ export const DIAS_ATRASO = 3;
 
 export function construirRedJcas(
     estaciones: FilaEstacionJcas[], lecturas: FilaLecturaJcas[], hoyLocalISO: string, poligonos: PoligonoGeo[], lecturasHoy: FilaHoyJcas[] = [], lluviaPropia: FilaLluviaPropia[] = [],
-    climaPropio: FilaClimaPropio[] = [],
+    climaPropio: FilaClimaPropio[] = [], horasFrio: FilaHorasFrio[] = [],
 ): ModeloRedJcas {
     const fin = ISO(Date.parse(`${hoyLocalISO}T00:00:00Z`) - 86_400_000);
+    const frioPor = new Map<string, FilaHorasFrio[]>();
+    for (const f of horasFrio) { const k = `${f.fuente}:${f.estacion_id}`; frioPor.set(k, [...(frioPor.get(k) ?? []), f]); }
     const porEst = new Map<number, FilaLecturaJcas[]>();
     for (const l of lecturas) porEst.set(l.estacion_id, [...(porEst.get(l.estacion_id) ?? []), l]);
 
@@ -197,8 +232,12 @@ export function construirRedJcas(
         }
         const mm1 = acumuladoLluvia(dias, fin, 1).mm, mm7 = acumuladoLluvia(dias, fin, 7).mm, mm30 = acumuladoLluvia(dias, fin, 30).mm;
         const mmHoy = h ? h.lluvia_mm : null;
+        // Mes en curso: días completos del 1.º hasta ayer (≥ 80 % con dato) + parcial de hoy. Sin día completo aún (día 1) vale solo el parcial.
+        const diaDelMes = Number(hoyLocalISO.slice(8, 10)) - 1;
+        const compMes = diaDelMes >= 1 ? acumuladoLluvia(dias, fin, diaDelMes).mm : 0;
+        const mmMes = compMes == null || (diaDelMes < 1 && mmHoy == null) ? null : compMes + (mmHoy ?? 0);
         const ultTemp = [...cl].sort((x, y) => y.fecha.localeCompare(x.fecha)).find((l) => l.temp_c != null)?.temp_c ?? null;
-        return { id: `wl:${id}`, nombre: rs[0].nombre, lat: rs[0].latitud, lon: rs[0].longitud, mmHoy, mm1, mm7, mm30, ultFecha: ult, hoyEn: h?.ult_lectura ?? null,
+        return { id: `wl:${id}`, nombre: rs[0].nombre, lat: rs[0].latitud, lon: rs[0].longitud, mmHoy, mm1, mm7, mm30, mmMes, ultFecha: ult, hoyEn: h?.ult_lectura ?? null,
             ayer: { mm: mm1, temp: mediaVentana(cl, 'temp_c', fin, 1), hum: mediaVentana(cl, 'hum_pct', fin, 1), viento: mediaVentana(cl, 'viento_kmh', fin, 1) },
             hoy: h || ch ? { mm: mmHoy, temp: ch?.temp_c ?? null, hum: ch?.hum_pct ?? null, viento: ch?.viento_kmh ?? null } : null,
             medias: {
@@ -206,7 +245,7 @@ export function construirRedJcas(
                 hum7: mediaVentana(cl, 'hum_pct', fin, 7), hum30: mediaVentana(cl, 'hum_pct', fin, 30),
                 viento7: mediaVentana(cl, 'viento_kmh', fin, 7), viento30: mediaVentana(cl, 'viento_kmh', fin, 30),
             },
-            tempUltima: ultTemp, largas };
+            tempUltima: ultTemp, largas, frio: frioDeEstacion(frioPor.get(`propia:${id}`) ?? [], hoyLocalISO, fin) };
     }).filter((p) => poligonos.some((g) => dentroDelPoligono(g, p.lon, p.lat))).sort((a, b) => a.nombre.localeCompare(b.nombre));
 
     const base: (PuntoLluvia & { grupo: string | null })[] = [];
@@ -218,7 +257,9 @@ export function construirRedJcas(
         const a1 = e.tiene_pluviometro ? acumuladoLluvia(dias, fin, 1) : { mm: null, diasConDato: 0 };
         const h = hoyPorEst.get(e.id_jcas);
         const conDato = ls.filter((l) => l.temp_c != null || l.lluvia_mm != null).map((l) => l.fecha).sort();
-        const ult = conDato.length ? conDato[conDato.length - 1] : e.ult_fecha;
+        // Mismo criterio que las propias: la última fecha con dato incluye la lectura parcial de hoy (si existe).
+        const ultCompleto = conDato.length ? conDato[conDato.length - 1] : e.ult_fecha;
+        const ult = h && (h.lluvia_mm != null || h.temp_c != null) && (!ultCompleto || h.fecha > ultCompleto) ? h.fecha : ultCompleto;
         const atraso = ult ? Math.max(0, diasEntre(ult, fin)) : null;
         const ultTemp = [...ls].sort((x, y) => y.fecha.localeCompare(x.fecha)).find((l) => l.temp_c != null)?.temp_c ?? null;
         const largas: Record<string, ValoresDia> = {};
@@ -235,7 +276,7 @@ export function construirRedJcas(
             sospechosa: false, motivo: null, tempUltima: ultTemp, elevM: e.elevacion_dem_m ?? null,
             ayer: { mm: a1.mm, temp: mediaVentana(ls, 'temp_c', fin, 1), hum: mediaVentana(ls, 'hum_pct', fin, 1), viento: mediaVentana(ls, 'viento_kmh', fin, 1) },
             hoy: h ? { mm: e.tiene_pluviometro ? h.lluvia_mm : null, temp: h.temp_c, hum: h.hum_pct, viento: h.viento_kmh } : null,
-            hoyEn: h?.actualizado_en ?? null, largas,
+            hoyEn: h?.actualizado_en ?? null, largas, frio: frioDeEstacion(frioPor.get(`jcas:${e.id_jcas}`) ?? [], hoyLocalISO, fin),
             medias: {
                 temp7: mediaVentana(ls, 'temp_c', fin, 7), temp30: mediaVentana(ls, 'temp_c', fin, 30),
                 hum7: mediaVentana(ls, 'hum_pct', fin, 7), hum30: mediaVentana(ls, 'hum_pct', fin, 30),

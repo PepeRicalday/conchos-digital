@@ -207,6 +207,22 @@ describe('capas y distrito', () => {
     expect(h).toMatch(/Esta tabla muestra la lluvia/); // la temperatura, humedad y viento de las propias entran a los planos y a la tabla de estaciones
     expect(h).not.toMatch(/no se mezclan con los de JCAS/);
   });
+  it('distrito: columna «Mes actual» en lugar de 30 d; estaciones observadas con columna «Lluvia hoy»', () => {
+    const h = htmlInformeClimaCuenca(datos(), OPC('carta'));
+    expect(h).toMatch(/Mes actual \(1–\d+ [a-z]{3}, mm\)/);
+    expect(h).not.toMatch(/<th class="n">30 d \(mm\)<\/th>/);
+    expect(h).toMatch(/Lluvia hoy \(parcial, mm\)/);
+    expect(h).toMatch(/«Último día» es la fecha de la última lectura/);
+  });
+  it('temperatura: T máx / T mín y horas frío en estaciones observadas; T máx / T mín en el pronóstico; S/D sin serie horaria', () => {
+    const h = htmlInformeClimaCuenca(datos(), OPC('carta'));
+    expect(h).toMatch(/Horas frío \(temporada\)/);
+    expect(h).toMatch(/T máx 7 d \(°C\)/);
+    expect(h).toMatch(/T mín 7 d \(°C\)/);
+    expect(h).toMatch(/≤ 7\.2 °C/);
+    expect(h).toMatch(/<th class="n">T máx \(°C\)<\/th><th class="n">T mín \(°C\)<\/th>/);
+    expect(h.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, ' ')).not.toMatch(/\b(NaN|undefined|Infinity|null)\b/);
+  });
   it('con capas el SVG de los planos lleva su leyenda; sin capas (config vacía) no', () => {
     expect(htmlInformeClimaCuenca(datos(), OPC('carta'))).toMatch(/límite municipal/);
     expect(htmlInformeClimaCuenca(datos({ ...configClimaPorDefecto(), capas: [] }), OPC('carta'))).not.toMatch(/límite municipal/);

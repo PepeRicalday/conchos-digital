@@ -82,6 +82,41 @@ describe('construirRedJcas', () => {
     });
 });
 
+describe('extremos y horas frío por estación', () => {
+    const fila = (fuente: 'propia' | 'jcas', id: string, fecha: string, horas: number | null, tmax = 18, tmin = 3, helada: number | null = 0) =>
+        ({ fuente, estacion_id: id, fecha, horas_frio: horas, horas_helada: helada, horas_con_dato: horas == null ? 10 : 24, tmax, tmin });
+    const dias = (id: string, fuente: 'propia' | 'jcas', desde: number, hasta: number, horas: number | null) =>
+        Array.from({ length: hasta - desde + 1 }, (_, i) => fila(fuente, id, `2026-11-${String(desde + i).padStart(2, '0')}`, horas));
+    it('las propias acumulan desde el 1-nov; los extremos salen de 7 días completos y del parcial de hoy', async () => {
+        const { frioDeEstacion } = await import('./jcasModelo');
+        const f = frioDeEstacion([...dias('p1', 'propia', 1, 7, 6), fila('propia', 'p1', '2026-11-08', 3, 12, -1, 2)], HOY, '2026-11-07');
+        expect(f.horasFrio).toBe(42);
+        expect(f.desde).toBe('2026-11-01');
+        expect(f.tmaxHoy).toBe(12);
+        expect(f.tminHoy).toBe(-1);
+        expect(f.tmax7).toBe(18);
+        expect(f.tmin7).toBe(3);
+    });
+    it('JCAS horario: el conteo empieza el primer día con serie y no se rellena hacia atrás', async () => {
+        const { frioDeEstacion } = await import('./jcasModelo');
+        const f = frioDeEstacion(dias('5', 'jcas', 5, 7, 4), HOY, '2026-11-07');
+        expect(f.horasFrio).toBe(12);
+        expect(f.desde).toBe('2026-11-05');
+    });
+    it('sin serie horaria o con días sin dato suficiente: S/D, nunca 0', async () => {
+        const { frioDeEstacion } = await import('./jcasModelo');
+        expect(frioDeEstacion([], HOY, '2026-11-07').horasFrio).toBeNull();
+        expect(frioDeEstacion(dias('p', 'propia', 1, 7, null), HOY, '2026-11-07').horasFrio).toBeNull();
+    });
+    it('construirRedJcas enlaza cada fuente con su estación sin mezclarlas', () => {
+        const prop = [{ estacion_id: 'p1', nombre: 'Módulo 1', latitud: 27.97, longitud: -105.28, fecha: '2026-11-07', lluvia_mm: 1, ult_lectura: '2026-11-08T10:00:00Z' }];
+        const r = construirRedJcas(red, lecturas, HOY, c.poligonos, [], prop, [], [...dias('p1', 'propia', 1, 7, 6), ...dias('5', 'jcas', 1, 7, 2)]);
+        expect(r.propias[0].frio?.horasFrio).toBe(42);
+        expect(r.puntos.find((p) => p.nombre === 'Camargo')!.frio?.horasFrio).toBe(14);
+        expect(r.puntos.find((p) => p.nombre === 'Satevó')!.frio?.horasFrio).toBeNull();
+    });
+});
+
 describe('promedios de temperatura, humedad y viento', () => {
     const conMedias = (n: number) => Array.from({ length: n }, (_, i) => ({
         estacion_id: 5, lluvia_mm: 0, temp_c: 10 + (i % 2), hum_pct: 60, viento_kmh: 5,
@@ -165,6 +200,30 @@ describe('ventanas «hoy» (parcial) y «ayer»', () => {
         expect(m1.tempUltima).toBe(20);
         expect(sr.medias.temp7).toBeNull(); expect(sr.ayer.hum).toBeNull(); expect(sr.tempUltima).toBeNull();
         expect(sr.mm7).toBe(7); // su lluvia sigue valiendo
+    });
+    it('mes actual de las propias: días completos desde el 1.º + parcial de hoy; <80 % de días → S/D', () => {
+        const ll = (id: string, d: [string, number][]) => d.map(([fecha, lluvia_mm]) => ({ estacion_id: id, nombre: id, latitud: 27.97, longitud: -105.28, fecha, lluvia_mm, ult_lectura: '2026-11-08T19:45:00Z' }));
+        const dia = (n: number) => `2026-11-0${n}`;
+        const completo = [1, 2, 3, 4, 5, 6, 7].map((n) => [dia(n), 1] as [string, number]);
+        const incompleto = [6, 7].map((n) => [dia(n), 1] as [string, number]); // 2 de 7 días
+        const propias = [...ll('Completa', [...completo, ['2026-11-08', 10.2]]), ...ll('Incompleta', [...incompleto, ['2026-11-08', 10.2]])];
+        const r = construirRedJcas(red, lecturas, HOY, c.poligonos, filasHoy, propias);
+        expect(r.propias.find((p) => p.nombre === 'Completa')!.mmMes).toBeCloseTo(17.2, 5);
+        expect(r.propias.find((p) => p.nombre === 'Incompleta')!.mmMes).toBeNull();
+    });
+    it('mes actual: el día 1 solo cuenta el parcial de hoy; sin lectura de hoy es S/D, nunca 0', () => {
+        const fila = (fecha: string, lluvia_mm: number) => ({ estacion_id: 'P', nombre: 'P', latitud: 27.97, longitud: -105.28, fecha, lluvia_mm, ult_lectura: '2026-11-01T19:45:00Z' });
+        const con = construirRedJcas(red, lecturas, '2026-11-01', c.poligonos, [], [fila('2026-11-01', 3.5)]);
+        expect(con.propias[0].mmMes).toBe(3.5);
+        const sin = construirRedJcas(red, lecturas, '2026-11-01', c.poligonos, [], [fila('2026-10-31', 3.5)]);
+        expect(sin.propias[0].mmMes).toBeNull();
+    });
+    it('Último día unificado: JCAS con lectura de hoy muestra hoy; sin ella, su último día con dato', () => {
+        const sinCamargo = filasHoy.filter((f) => f.estacion_id !== 5);
+        const r = construirRedJcas(red, lecturas, HOY, c.poligonos, sinCamargo);
+        expect(r.puntos.find((p) => p.nombre === 'Jiménez')!.ultFecha).toBe('2026-11-08');
+        expect(r.puntos.find((p) => p.nombre === 'Camargo')!.ultFecha).toBe('2026-11-07');
+        expect(r.puntos.find((p) => p.nombre === 'Jiménez')!.estado).toBe('vigente');
     });
     it('areal de hoy con cobertura suficiente y rótulos de ventana', () => {
         expect(m.arealHoy.mm).not.toBeNull();

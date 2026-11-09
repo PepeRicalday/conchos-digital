@@ -6,7 +6,8 @@
 // Cortesía: User-Agent identificable, una petición a la vez con pausa de 1 s, ≤ 20 estaciones, cron 2 veces al día + 1 semanal.
 // Nada de esto toca clima_estaciones / clima_estacion_lecturas (WeatherLink) ni los KPIs del distrito.
 // Modos (body.modo): "diario" (default) catálogo + últimos ~30 días · "anio" meses completos de los últimos 12 (reanudable, body.forzar=true recarga todo) ·
-//                    "catalogo" solo la lista de estaciones · "hoy" solo la lectura PARCIAL del día en curso (tabla jcas_lecturas_hoy, cron cada 2 h).
+//                    "catalogo" solo la lista de estaciones · "hoy" solo la lectura PARCIAL del día en curso (tabla jcas_lecturas_hoy, cron cada 2 h) ·
+//                    "horario" temperatura de las últimas 24 h (?mode=day → jcas_lecturas_horarias; base de las horas frío; cron cada 4 h, SIN activar).
 //                    Opcional body.estaciones = [ids]. El día en curso nunca entra a jcas_lecturas_diarias (solo días completos).
 // Estricto: si el HTML cambia (FormatoJcasError) no se guarda nada de esa estación y se levanta la alerta JCAS-FORMATO.
 // S/D = NULL, nunca 0. Datos provisionales.
@@ -15,7 +16,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { exigirRol } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { BASE_JCAS, depuraPunto, diasCompletos, FormatoJcasError, hoyConservador, LIMITES_MES, parseEstaciones, parseSerie, puntoParcial } from "./parser.ts";
+import { BASE_JCAS, depuraPunto, diasCompletos, FormatoJcasError, hoyConservador, LIMITES_MES, parseEstaciones, parseSerie, puntoParcial, puntosHorarios } from "./parser.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,7 +73,7 @@ async function sincronizaCatalogo(sb: Sb) {
   return { estaciones: est.length, nuevas };
 }
 
-async function modoSerie(sb: Sb, modo: "diario" | "anio" | "hoy", ids: number[] | undefined, t0: number, forzar: boolean) {
+async function modoSerie(sb: Sb, modo: "diario" | "anio" | "hoy" | "horario", ids: number[] | undefined, t0: number, forzar: boolean) {
   let q = sb.from("jcas_estaciones").select("id_jcas, nombre, tiene_pluviometro").eq("sincronizar", true).order("id_jcas");
   if (ids?.length) q = q.in("id_jcas", ids);
   const { data: lista, error } = await q.limit(MAX_ESTACIONES);
@@ -90,6 +91,21 @@ async function modoSerie(sb: Sb, modo: "diario" | "anio" | "hoy", ids: number[] 
     if (hechas.has(e.id_jcas)) continue;
     if (modo === "anio" && Date.now() - t0 > PRESUPUESTO_MS) { r.pendientes++; continue; }
     try {
+      if (modo === "horario") {
+        // Serie horaria de las últimas 24 h (temperatura): base de las horas frío. Tabla aparte; nunca toca las lecturas diarias.
+        const htmlH = await (await pedir(`/estacion/view/${e.id_jcas}?mode=day`)).text();
+        const serieH = parseSerie(htmlH, ref);
+        if (serieH.modo !== "dia") throw new FormatoJcasError(`modo inesperado "${serieH.modo}"`);
+        const horas = puntosHorarios(serieH.puntos, ref).filter((h) => h.temp_c != null)
+          .map((h) => ({ estacion_id: e.id_jcas, ts: h.ts, temp_c: h.temp_c }));
+        if (horas.length) {
+          const { error: eHr } = await sb.from("jcas_lecturas_horarias").upsert(horas, { onConflict: "estacion_id,ts" });
+          if (eHr) throw new Error(`horario: ${eHr.message}`);
+        }
+        r.estaciones++; r.filas += horas.length;
+        await pausa();
+        continue;
+      }
       const html = await (await pedir(`/estacion/view/${e.id_jcas}?mode=${modo === "anio" ? "year" : "month"}`)).text();
       const serie = parseSerie(html, ref);
       if (serie.modo !== (modo === "anio" ? "anio" : "mes")) throw new FormatoJcasError(`modo inesperado "${serie.modo}"`);
@@ -148,12 +164,12 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const sb: Sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const t0 = Date.now();
-  let modo: "diario" | "anio" | "catalogo" | "hoy" = "diario";
+  let modo: "diario" | "anio" | "catalogo" | "hoy" | "horario" = "diario";
   try {
     const auth = await exigirRol(req, ["SRL"], { nombreSecreto: "jcas_sync" }, sb);
     if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status);
     const body = await req.json().catch(() => ({}));
-    modo = body?.modo === "anio" ? "anio" : body?.modo === "catalogo" ? "catalogo" : body?.modo === "hoy" ? "hoy" : "diario";
+    modo = body?.modo === "anio" ? "anio" : body?.modo === "catalogo" ? "catalogo" : body?.modo === "hoy" ? "hoy" : body?.modo === "horario" ? "horario" : "diario";
     const ids = Array.isArray(body?.estaciones) ? body.estaciones.map(Number).filter(Number.isInteger) : undefined;
 
     let cat: { estaciones: number; nuevas: number } | null = null;

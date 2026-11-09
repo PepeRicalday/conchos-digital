@@ -11,6 +11,8 @@ export interface FilaPronostico {
     precip_mm: number | null; temp_media_c: number | null; hum_media_pct: number | null; viento_medio_kmh: number | null;
     /** Grados desde donde sopla el viento (0 = norte); null = S/D. */
     viento_dir_deg?: number | null;
+    /** Extremos diarios del modelo (temperature_2m_max/min); null = S/D. */
+    temp_max_c?: number | null; temp_min_c?: number | null;
 }
 
 export interface DiaConsenso {
@@ -21,6 +23,8 @@ export interface DiaConsenso {
     temp: number | null; hum: number | null; viento: number | null;
     /** Dirección del viento (grados desde donde sopla) como media circular de los modelos; null si no hay o los modelos se contradicen. */
     dirDeg?: number | null;
+    /** Máxima y mínima del día: mediana de los modelos; null = S/D. */
+    tMax?: number | null; tMin?: number | null;
     nModelos: number;
 }
 
@@ -63,6 +67,8 @@ export function consensoPorPunto(filas: FilaPronostico[], puntoId: string, desde
             mm: r1(mediana(mm)), mmMin: mm.length ? r1(Math.min(...mm)) : null, mmMax: mm.length ? r1(Math.max(...mm)) : null,
             probPct: mm.length ? Math.round((mm.filter((x) => x >= UMBRAL_LLUVIA_MM).length / mm.length) * 100) : null,
             temp: r1(mediana(validos(fs.map((x) => x.temp_media_c)))),
+            tMax: r1(mediana(validos(fs.map((x) => x.temp_max_c ?? null)))),
+            tMin: r1(mediana(validos(fs.map((x) => x.temp_min_c ?? null)))),
             hum: r1(mediana(validos(fs.map((x) => x.hum_media_pct)))),
             viento: r1(mediana(validos(fs.map((x) => x.viento_medio_kmh)))),
             dirDeg: mediaCircular(fs.filter((x) => x.viento_dir_deg != null).map((x) => ({ deg: x.viento_dir_deg as number }))),
@@ -141,6 +147,18 @@ export function corrigeSesgo(valor: number | null, sesgo: number | null, pares: 
     if (valor == null) return { valor: null, corregido: false };
     if (sesgo == null || pares < 30 || Math.abs(sesgo) < umbral) return { valor, corregido: false };
     return { valor: Math.round((valor - sesgo) * 10) / 10, corregido: true };
+}
+
+/**
+ * Extremos de un periodo de `n` días: máxima = la mayor de las máximas diarias (consenso), mínima = la menor de las mínimas.
+ * Exige ≥ 80 % de los días con dato; null = S/D (nunca 0).
+ */
+export function extremosPronosticoPeriodo(dias: DiaConsenso[], desde: string, n: number): { tMax: number | null; tMin: number | null } {
+    const fin = new Date(Date.parse(`${desde}T00:00:00Z`) + (n - 1) * 86_400_000).toISOString().slice(0, 10);
+    const sel = dias.filter((d) => d.fecha >= desde && d.fecha <= fin);
+    const min = Math.ceil(n * MIN_COBERTURA_DIAS);
+    const mx = validos(sel.map((d) => d.tMax ?? null)), mn = validos(sel.map((d) => d.tMin ?? null));
+    return { tMax: mx.length >= min ? Math.max(...mx) : null, tMin: mn.length >= min ? Math.min(...mn) : null };
 }
 
 /** Dirección del viento de un periodo (media circular de los días, ponderada por la velocidad). null = S/D. */

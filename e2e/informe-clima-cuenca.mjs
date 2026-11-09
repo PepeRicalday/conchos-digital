@@ -65,6 +65,22 @@ verifica(!SIN_BASURA.test(txtCarta), 'carta: sin NaN/undefined/null/Aquarius');
 verifica(/Trazabilidad/.test(txtCarta) && (await marco.locator('.firma').count()) === 3, 'carta: anexo de trazabilidad y 3 firmas');
 verifica(/En construcción/.test(txtCarta) && !/acierta \d+ %/.test(txtCarta), 'carta: la confiabilidad se declara en construcción, sin afirmar acierto');
 verifica(/Estaciones observadas/.test(txtCarta) && /Pronóstico por estación/.test(txtCarta), 'carta: tablas de estaciones observadas y pronóstico');
+// Distrito: Hoy · Ayer · 7 d · Mes actual (ya no 30 d); estaciones observadas con «Lluvia hoy» y «Último día» coherente
+const encDistrito = await marco.locator('section.bloque:has(h2:has-text("Distrito de Riego 005")) table.cifras thead th').allInnerTexts();
+verifica(encDistrito.length === 5 && /Hoy/i.test(encDistrito[1]) && /Ayer/i.test(encDistrito[2]) && /7 d/i.test(encDistrito[3]) && /Mes actual \(1–\d+ [a-z]{3}/i.test(encDistrito[4]) && !encDistrito.some((x) => /^30 d/i.test(x)), `distrito: columnas Hoy, Ayer, 7 d y Mes actual (${encDistrito.map((x) => x.replace(/\s+/g, ' ')).join(' | ')})`);
+const encObs = await marco.locator('section.bloque:has(h2:has-text("Estaciones observadas")) table.cifras thead th').allInnerTexts();
+verifica(encObs.some((x) => /Lluvia hoy/i.test(x)), 'estaciones observadas: trae la columna «Lluvia hoy (parcial)»');
+verifica(['T máx 7 d', 'T mín 7 d', 'Horas frío'].every((c) => encObs.some((x) => x.toLowerCase().includes(c.toLowerCase()))), 'estaciones observadas: columnas T máx, T mín y Horas frío (S/D mientras no haya serie horaria)');
+const encPron = await marco.locator('section.bloque:has(h2:has-text("Pronóstico por estación")) table.cifras thead th').allInnerTexts();
+verifica(encPron.some((x) => /^T máx/i.test(x)) && encPron.some((x) => /^T mín/i.test(x)), 'pronóstico por estación: columnas T máx y T mín');
+const idxUlt = encObs.findIndex((x) => /Último día/i.test(x));
+const fechas = (await marco.locator('section.bloque:has(h2:has-text("Estaciones observadas")) table.cifras tbody tr').evaluateAll((trs, i) => trs.map((tr) => ({ n: tr.querySelector('th')?.innerText.split('\n')[0], f: tr.querySelectorAll('td')[i - 1]?.innerText.trim(), estado: tr.querySelectorAll('td')[i - 2]?.innerText.trim() })), idxUlt));
+const parse = (s) => { const m = /^(\d\d)\/(\d\d)\/(\d\d)$/.exec(s ?? ''); return m ? Date.UTC(2000 + +m[3], +m[2] - 1, +m[1]) : null; };
+const maxF = Math.max(...fechas.map((x) => parse(x.f)).filter((x) => x != null));
+verifica(fechas.every((x) => parse(x.f) != null), 'estaciones observadas: todas las filas traen fecha de último día válida');
+// las propias y las JCAS «Al día» no pueden diferir más de 1 día de la fecha más reciente de la tabla; las demás deben decir «Atrasada»/«Sin…»/«Excluida»
+const incoherentes = fechas.filter((x) => /^Al día/.test(x.estado) && maxF - parse(x.f) > 86_400_000).map((x) => x.n);
+verifica(incoherentes.length === 0, `último día: ninguna estación «Al día» queda a más de 1 día de la fecha más reciente (${incoherentes.join(', ') || 'ok'})`);
 const altos = await marco.locator('.pagina').evaluateAll((els) => els.map((e) => e.scrollHeight));
 verifica(altos.every((h) => h <= 1060), `carta: cada hoja cabe en una Carta (alturas ${altos.join(', ')})`);
 // los planos no se salen de su hoja ni de su columna

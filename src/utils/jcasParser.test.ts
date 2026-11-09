@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  parseEstaciones, parseSerie, depuraPunto, diasCompletos, hoyConservador, puntoParcial, FormatoJcasError, LIMITES_MES, type PuntoSerie,
+  parseEstaciones, parseSerie, depuraPunto, diasCompletos, hoyConservador, puntoParcial, puntosHorarios, FormatoJcasError, LIMITES_MES, type PuntoSerie,
 } from '../../supabase/functions/jcas-sync/parser';
 
 const fx = (n: string) => readFileSync(`supabase/functions/jcas-sync/fixtures/${n}`, 'utf8');
@@ -89,6 +89,26 @@ describe('JCAS · serie anual (mensual) y horaria', () => {
     expect(r.modo).toBe('dia');
     expect(r.puntos).toHaveLength(24);
     expect(r.puntos[0].clave).toBe('10:00');
+  });
+  it('horaria → instantes UTC: la última hora (09:00 local) es la hora de consulta y las demás retroceden hora por hora', () => {
+    const r = parseSerie(fx('ojinaga_dia.js.html'), REF);
+    const h = puntosHorarios(r.puntos, new Date('2026-11-08T15:20:00Z')); // 09:20 hora local (UTC-6)
+    expect(h).toHaveLength(24);
+    expect(h[23].ts).toBe('2026-11-08T15:00:00.000Z');
+    expect(h[0].ts).toBe('2026-11-07T16:00:00.000Z'); // 10:00 local del día anterior
+    expect(h[0].temp_c).toBe(16.24);
+    expect(new Set(h.map((x) => x.ts)).size).toBe(24);
+  });
+  it('horaria: si la última etiqueta no coincide con la hora local de consulta (huso distinto) no guarda nada', () => {
+    const r = parseSerie(fx('ojinaga_dia.js.html'), REF);
+    expect(() => puntosHorarios(r.puntos, new Date('2026-11-08T22:00:00Z'))).toThrow(FormatoJcasError);
+  });
+  it('horaria: horas no consecutivas o temperatura fuera de rango (S/D, no se corrige)', () => {
+    const r = parseSerie(fx('ojinaga_dia.js.html'), REF);
+    const roto = r.puntos.map((p, i) => (i === 5 ? { ...p, clave: '20:00' } : p));
+    expect(() => puntosHorarios(roto, new Date('2026-11-08T15:20:00Z'))).toThrow(/consecutivas/);
+    const raro = r.puntos.map((p, i) => (i === 3 ? { ...p, temp_c: 80 } : p));
+    expect(puntosHorarios(raro, new Date('2026-11-08T15:20:00Z'))[3].temp_c).toBeNull();
   });
 });
 

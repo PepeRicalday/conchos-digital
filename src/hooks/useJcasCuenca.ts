@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { cargarContornoCuenca, type ContornoCuenca, type ZonaCuenca } from '../utils/geoCuenca';
-import { construirRedJcas, diasDeCarga, type FilaClimaPropio, type FilaEstacionJcas, type FilaHoyJcas, type FilaLecturaJcas, type FilaLluviaPropia, type ModeloRedJcas } from '../utils/jcasModelo';
+import { temporadaFrio } from '../utils/horasFrio';
+import { construirRedJcas, diasDeCarga, type FilaClimaPropio, type FilaEstacionJcas, type FilaHorasFrio, type FilaHoyJcas, type FilaLecturaJcas, type FilaLluviaPropia, type ModeloRedJcas } from '../utils/jcasModelo';
 import { hoyJcasISO } from '../utils/hoyLocal';
 
 const PAGINA = 1000;
@@ -13,7 +14,7 @@ export interface RedJcas {
     ultSyncEn: string | null;
 }
 
-export interface DatosJcas { est: FilaEstacionJcas[]; lec: FilaLecturaJcas[]; ultSyncEn: string | null; contorno: ContornoCuenca | null; hoy: FilaHoyJcas[]; propia: FilaLluviaPropia[]; clima: FilaClimaPropio[] }
+export interface DatosJcas { est: FilaEstacionJcas[]; lec: FilaLecturaJcas[]; ultSyncEn: string | null; contorno: ContornoCuenca | null; hoy: FilaHoyJcas[]; propia: FilaLluviaPropia[]; clima: FilaClimaPropio[]; frio?: FilaHorasFrio[] }
 
 /** Carga las filas de la red JCAS (+ día en curso + estaciones propias). Lanza si falla el catálogo; lo opcional (hoy, propias) degrada a vacío. Lo usan el hook y el Informe Geoclimático. */
 /** Sin `diasLecturas` trae lo necesario para todas las ventanas (90 d y el ciclo en curso: diasDeCarga). */
@@ -69,8 +70,19 @@ export async function cargarDatosJcas(diasLecturas?: number): Promise<DatosJcas>
             clima.push({ estacion_id: String(r.estacion_id), fecha: String(r.fecha), temp_c: num(r.temp_c), hum_pct: num(r.hum_pct), viento_kmh: num(r.viento_kmh) });
         }
     }
+    // Extremos y horas frío (fn_cuenca_horas_frio): desde el inicio de la temporada (1-nov) o los últimos 8 días, lo que sea más antiguo. Opcional: sin la función quedan S/D.
+    const frio: FilaHorasFrio[] = [];
+    const desdeFrio = [temporadaFrio(hoy).inicio, ISO(Date.parse(`${hoy}T00:00:00Z`) - 8 * 86_400_000)].sort()[0];
+    const rFrio = await supabase.rpc('fn_cuenca_horas_frio', { p_desde: desdeFrio });
+    if (!rFrio.error) {
+        const num = (x: unknown) => (x == null || !Number.isFinite(Number(x)) ? null : Number(x));
+        for (const r of (rFrio.data ?? []) as Record<string, unknown>[]) {
+            if (r.fuente !== 'propia' && r.fuente !== 'jcas') continue;
+            frio.push({ fuente: r.fuente, estacion_id: String(r.estacion_id), fecha: String(r.fecha), horas_frio: num(r.horas_frio), horas_helada: num(r.horas_helada), horas_con_dato: Number(r.horas_con_dato) || 0, tmax: num(r.tmax), tmin: num(r.tmin) });
+        }
+    }
     const syncs = (rEst.data ?? []).map((r) => r.ult_sync_en as string | null).filter((x): x is string => !!x).sort();
-    return { est, lec, ultSyncEn: syncs.length ? syncs[syncs.length - 1] : null, contorno, hoy: hoyFilas, propia, clima };
+    return { est, lec, ultSyncEn: syncs.length ? syncs[syncs.length - 1] : null, contorno, hoy: hoyFilas, propia, clima, frio };
 }
 
 /**
@@ -113,7 +125,7 @@ export function useJcasCuenca(refrescoMs = 30 * 60_000, opciones: { activo?: boo
         const hoy = hoyJcasISO();
         return {
             contorno: datos.contorno, ultSyncEn: datos.ultSyncEn,
-            modelo: datos.contorno ? construirRedJcas(datos.est, datos.lec, hoy, datos.contorno.poligonos, datos.hoy, datos.propia, datos.clima) : null,
+            modelo: datos.contorno ? construirRedJcas(datos.est, datos.lec, hoy, datos.contorno.poligonos, datos.hoy, datos.propia, datos.clima, datos.frio ?? []) : null,
         };
     }, [datos]);
 

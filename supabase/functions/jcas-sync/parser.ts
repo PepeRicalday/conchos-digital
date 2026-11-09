@@ -163,6 +163,29 @@ export function puntoParcial(puntos: PuntoSerie[], ref: Date, tienePluviometro: 
   return p ? { fecha: p.clave, punto: depuraPunto(p, tienePluviometro).punto } : null;
 }
 
+/**
+ * Serie HORARIA (?mode=day): 24 puntos "HH:00" de las últimas 24 h, el último es la hora más reciente (no trae fecha). Se asignan fechas retrocediendo
+ * desde `ref` con la hora local de Chihuahua (UTC-6, sin horario de verano). Estricto como el resto del parser: si las horas no son consecutivas o la
+ * última etiqueta no coincide (≤ 3 h de rezago) con la hora local de `ref`, el huso del portal no es el supuesto y NO se guarda nada (FormatoJcasError).
+ * Devuelve el inicio de cada hora en UTC y su temperatura depurada (fuera de rango = null).
+ */
+export function puntosHorarios(puntos: PuntoSerie[], ref: Date): { ts: string; temp_c: number | null }[] {
+  if (puntos.length < 2) throw new FormatoJcasError("serie horaria vacía");
+  const horas = puntos.map((p) => { const m = /^(\d{2}):00$/.exec(p.clave); if (!m || +m[1] > 23) throw new FormatoJcasError(`etiqueta horaria ilegible "${p.clave}"`); return +m[1]; });
+  for (let i = 1; i < horas.length; i++) if (horas[i] !== (horas[i - 1] + 1) % 24) throw new FormatoJcasError("horas no consecutivas en la serie horaria");
+  const LOC = 6 * 3_600_000, H = 3_600_000;
+  const refLocal = ref.getTime() - LOC; // «reloj local» expresado como UTC
+  const inicioHoraRef = Math.floor(refLocal / H) * H;
+  const hUltima = horas[horas.length - 1];
+  let fin = Math.floor(inicioHoraRef / 86_400_000) * 86_400_000 + hUltima * H;
+  if (fin > inicioHoraRef) fin -= 86_400_000;
+  if (inicioHoraRef - fin > 3 * H) throw new FormatoJcasError(`la última hora de la serie (${puntos[puntos.length - 1].clave}) no coincide con la hora local de consulta`);
+  return puntos.map((p, i) => ({
+    ts: new Date(fin - (puntos.length - 1 - i) * H + LOC).toISOString(),
+    temp_c: p.temp_c != null && p.temp_c >= LIMITES.temp_c[0] && p.temp_c <= LIMITES.temp_c[1] ? p.temp_c : null,
+  }));
+}
+
 /** Días completos de una serie mensual, listos para guardar. */
 export function diasCompletos(puntos: PuntoSerie[], ref: Date, tienePluviometro: boolean): { fecha: string; punto: PuntoSerie }[] {
   const hoy = hoyConservador(ref);

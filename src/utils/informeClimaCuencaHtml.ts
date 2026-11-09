@@ -16,7 +16,8 @@ import { CSS_COMUN } from './informeCuencaHtml';
 import { cuandoVentana, etiquetaVentana } from './jcasModelo';
 import { planoSvg } from './planosCuenca';
 import { VARIABLES_PLANO } from './paletasClima';
-import type { DatosInformeClima, PlanoInforme } from './informeClimaCuencaDatos';
+import type { DatosInformeClima, FrioFila, PlanoInforme } from './informeClimaCuencaDatos';
+import { temporadaFrio } from './horasFrio';
 
 export type FormatoInformeClima = 'png' | 'lamina' | 'carta';
 export const ANCHO_PNG_CLIMA = 1600;
@@ -57,11 +58,11 @@ function bloqueDistrito(d: DatosInformeClima): string {
   const svg = planoSvg(x.plano, x.contorno, { tema: 'papel', idPrefijo: 'dis', textoPx: 13, escalaKm: 10, salida: false, capas: capasIds.length ? { ids: capasIds, datos: d.capasDatos } : undefined });
   const u = VARIABLES_PLANO.lluvia.unidad;
   const resumen = x.plano.motivoSD ? `S/D: ${esc(x.plano.motivoSD)}` : `Promedio del distrito <b>${num(x.plano.resumen.media, (x.plano.resumen.media ?? 99) < 10 ? 1 : 0)} ${u}</b> · rango ${numTxt(x.plano.resumen.min, 0)}–${numTxt(x.plano.resumen.max, 0)} ${u} · n = ${x.plano.resumen.n} estaciones (propias y JCAS a ≤ 70 km) · cobertura ${numTxt(x.plano.resumen.coberturaPct, 0)} %`;
-  const filas = x.filas.map((f) => `<tr><th scope="row">${esc(f.nombre)} <small>(propia)</small></th><td class="n">${num(f.mm)}</td><td class="n">${num(f.ayer)}</td><td class="n">${num(f.mm7)}</td><td class="n">${num(f.mm30)}</td></tr>`).join('');
+  const filas = x.filas.map((f) => `<tr><th scope="row">${esc(f.nombre)} <small>(propia)</small></th><td class="n">${num(f.mm)}</td><td class="n">${num(f.ayer)}</td><td class="n">${num(f.mm7)}</td><td class="n"><b>${num(f.mes)}</b></td></tr>`).join('');
   return `<section class="bloque"><h2>Distrito de Riego 005 · SRL Conchos <small>${esc(cuandoVentana(x.ventana))}</small></h2>
 <div class="distrito-grid"><figure class="plano distrito"><figcaption><b>${esc(x.plano.titulo)} · distrito</b><span>${resumen}</span></figcaption>${svg}<p class="fuente">Contorno: los 6 módulos de la SRL. Las estaciones propias (WeatherLink) se marcan con cuadrado; las JCAS cercanas, con círculo.</p></figure>
-<div><table class="cifras"><thead><tr><th>Estación propia</th><th class="n">Hoy (parcial, mm)</th><th class="n">Ayer (mm)</th><th class="n">7 d (mm)</th><th class="n">30 d (mm)</th></tr></thead><tbody>${filas || `<tr><td colspan="5">${SD}</td></tr>`}</tbody></table>
-<p class="leyenda">El valor del día es la última lectura del contador de lluvia de cada estación (día local). Una estación sin lectura es S/D, nunca 0. Esta tabla muestra la lluvia; la temperatura, la humedad y el viento de las propias entran a los planos y a la tabla de estaciones (un sensor no confiable es S/D).</p></div></div></section>`;
+<div><table class="cifras"><thead><tr><th>Estación propia</th><th class="n">Hoy (parcial, mm)</th><th class="n">Ayer (mm)</th><th class="n">7 d (mm)</th><th class="n">Mes actual (${esc(x.etiquetaMes)}, mm)</th></tr></thead><tbody>${filas || `<tr><td colspan="5">${SD}</td></tr>`}</tbody></table>
+<p class="leyenda">El valor del día es la última lectura del contador de lluvia de cada estación (día local). «Mes actual» suma los días completos desde el 1.º más el parcial de hoy; el mapa de arriba sigue en ${esc(cuandoVentana(x.ventana))}. Una estación sin lectura es S/D, nunca 0. Esta tabla muestra la lluvia; la temperatura, la humedad y el viento de las propias entran a los planos y a la tabla de estaciones (un sensor no confiable es S/D).</p></div></div></section>`;
 }
 
 function kpis(d: DatosInformeClima): string {
@@ -84,21 +85,31 @@ function titular(d: DatosInformeClima, conTitulo = true): string {
   return `<div class="titulo">${conTitulo ? '<h1>Clima y pronóstico de la cuenca del Conchos</h1>' : ''}<p>${esc(frase.charAt(0).toUpperCase() + frase.slice(1))} Corte: ${esc(fechaLarga(d.corte))} · dato provisional de contexto.</p></div>`;
 }
 
+/** T mín: una mínima ≤ 0 °C (helada) se marca en azul y en negrita; S/D en gris (num lo rotula). */
+const celdaTmin = (v: number | null): string => (v != null && v <= 0 ? `<b style="color:#1d4ed8">${num(v)}</b>` : num(v));
+/** Horas frío de la temporada; si la serie horaria empezó después del 1-nov se declara «desde dd/mm» (no se rellena hacia atrás). */
+function celdaFrio(f: FrioFila | undefined, inicioTemporada: string): string {
+  if (!f || f.horasFrio == null) return num(null);
+  const desde = f.frioDesde && f.frioDesde > inicioTemporada ? `<br><small>desde ${esc(fechaCorta(f.frioDesde).slice(0, 5))}</small>` : '';
+  return `<b>${num(f.horasFrio, 0)}</b>${desde}`;
+}
+
 function tablaObs(d: DatosInformeClima, max?: number): string {
+  const inicioTemporada = temporadaFrio(d.hoy).inicio;
   const filas = (max ? d.estacionesObs.slice(0, max) : d.estacionesObs).map((e) => `<tr><th scope="row">${esc(e.nombre)}${e.zona === 'Salida' ? ' <small>(salida)</small>' : ''}${e.motivo ? `<br><small>${esc(e.motivo)}</small>` : ''}</th>
-<td class="n">${num(e.lluvia7)}</td><td class="n">${num(e.lluvia30)}</td><td class="n">${num(e.temp)}</td><td class="n">${num(e.hum, 0)}</td><td class="n">${num(e.viento, 0)}</td><td>${esc(e.estado)}</td><td class="n">${esc(fechaCorta(e.ultFecha))}</td></tr>`).join('');
+<td class="n"><b>${num(e.lluviaHoy)}</b></td><td class="n">${num(e.lluvia7)}</td><td class="n">${num(e.lluvia30)}</td><td class="n">${num(e.temp)}</td><td class="n">${num(e.frio?.tmax7 ?? null)}</td><td class="n">${celdaTmin(e.frio?.tmin7 ?? null)}</td><td class="n">${celdaFrio(e.frio, inicioTemporada)}</td><td class="n">${num(e.hum, 0)}</td><td class="n">${num(e.viento, 0)}</td><td>${esc(e.estado)}</td><td class="n">${esc(fechaCorta(e.ultFecha))}</td></tr>`).join('');
   return `<section class="bloque"><h2>Estaciones observadas <small>JCAS/UACJ · ${d.estacionesObs.length} en la cuenca${max && d.estacionesObs.length > max ? `, se muestran ${max}` : ''}</small></h2>
-<table class="cifras"><thead><tr><th>Estación</th><th class="n">Lluvia 7 d (mm)</th><th class="n">Lluvia 30 d (mm)</th><th class="n">Temp. 7 d (°C)</th><th class="n">Hum. 7 d (%)</th><th class="n">Viento 7 d (km/h)</th><th>Estado</th><th class="n">Último día</th></tr></thead><tbody>${filas}</tbody></table>
-<p class="leyenda">Una estación por ciudad pesa una vez en los planos. Sin pluviómetro, la lluvia es S/D (el 0.0 del portal no significa «no llovió»).</p></section>`;
+<table class="cifras"><thead><tr><th>Estación</th><th class="n">Lluvia hoy (parcial, mm)</th><th class="n">Lluvia 7 d (mm)</th><th class="n">Lluvia 30 d (mm)</th><th class="n">Temp. 7 d (°C)</th><th class="n">T máx 7 d (°C)</th><th class="n">T mín 7 d (°C)</th><th class="n">Horas frío (temporada)</th><th class="n">Hum. 7 d (%)</th><th class="n">Viento 7 d (km/h)</th><th>Estado</th><th class="n">Último día</th></tr></thead><tbody>${filas}</tbody></table>
+<p class="leyenda">«Último día» es la fecha de la última lectura con dato (incluye la parcial de hoy); una fecha anterior significa que la estación aún no reporta hoy. «Horas frío» = horas con temperatura ≤ 7.2 °C acumuladas desde el 1.º de noviembre hasta ayer (hora local); T mín en azul = helada (≤ 0 °C). Se calculan solo con series horarias (estaciones propias y JCAS horario); sin serie, o con menos del 80 % de las horas o de los días, queda S/D, y en JCAS el conteo empieza el día que se activó la serie horaria («desde …»). «Hoy» es parcial a la hora de la última sincronización. Una estación por ciudad pesa una vez en los planos. Sin pluviómetro, la lluvia es S/D (el 0.0 del portal no significa «no llovió»).</p></section>`;
 }
 
 function tablaPron(d: DatosInformeClima, max?: number): string {
   if (!d.config.pronostico) return '';
   const filas = (max ? d.estacionesPron.slice(0, max) : d.estacionesPron).map((e) => `<tr><th scope="row">${esc(e.nombre)}${e.propia ? ' <small>(propia)</small>' : ''}</th>
-<td class="n">${num(e.lluvia)}</td><td class="n">${e.min == null || e.max == null ? SD : `${numTxt(e.min, 0)}–${numTxt(e.max, 0)}`}</td><td class="n">${e.diasLluvia == null ? SD : `${e.diasLluvia} de ${d.config.diasPron}`}</td><td class="n">${num(e.temp)}</td><td class="n">${num(e.viento, 0)}</td></tr>`).join('');
+<td class="n">${num(e.lluvia)}</td><td class="n">${e.min == null || e.max == null ? SD : `${numTxt(e.min, 0)}–${numTxt(e.max, 0)}`}</td><td class="n">${e.diasLluvia == null ? SD : `${e.diasLluvia} de ${d.config.diasPron}`}</td><td class="n">${num(e.temp)}</td><td class="n">${num(e.tMax ?? null)}</td><td class="n">${celdaTmin(e.tMin ?? null)}</td><td class="n">${num(e.viento, 0)}</td></tr>`).join('');
   return `<section class="bloque"><h2>Pronóstico por estación <small>${d.config.diasPron} días · ${d.corridaEn ? `corrida del ${esc(fechaHoraLegible(new Date(d.corridaEn)))}` : 'sin corrida (S/D)'}</small></h2>
-<table class="cifras"><thead><tr><th>Estación</th><th class="n">Lluvia (mm)</th><th class="n">Entre modelos (mm)</th><th class="n">Días con lluvia</th><th class="n">Temp. (°C)</th><th class="n">Viento (km/h)</th></tr></thead><tbody>${filas}</tbody></table>
-<p class="leyenda">Un «día con lluvia» es aquel en que al menos 2 de los 3 modelos dan 1 mm o más. Los modelos pueden discrepar mucho en tormentas.</p></section>`;
+<table class="cifras"><thead><tr><th>Estación</th><th class="n">Lluvia (mm)</th><th class="n">Entre modelos (mm)</th><th class="n">Días con lluvia</th><th class="n">Temp. media (°C)</th><th class="n">T máx (°C)</th><th class="n">T mín (°C)</th><th class="n">Viento (km/h)</th></tr></thead><tbody>${filas}</tbody></table>
+<p class="leyenda">T máx y T mín del periodo: la mayor máxima y la menor mínima diarias (mediana de los 3 modelos); S/D si falta más del 20 % de los días. Un «día con lluvia» es aquel en que al menos 2 de los 3 modelos dan 1 mm o más. Los modelos pueden discrepar mucho en tormentas.</p></section>`;
 }
 
 const esInfografia = (d: DatosInformeClima): boolean => d.config.contenido === 'infografia';

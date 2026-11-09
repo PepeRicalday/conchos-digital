@@ -16,7 +16,7 @@ import { acumularHorasFrio, extremosVentana, temporadaFrio } from './horasFrio';
  * Día de una estación de fn_cuenca_horas_frio: horas ≤ 7.2 °C y ≤ 0 °C (null = menos de 20/24 horas con dato) y los extremos del día.
  * `fuente` no se mezcla: 'propia' (WeatherLink ≈ 15 min) o 'jcas' (portal, serie horaria; solo existe desde que se activó el sync horario).
  */
-export interface FilaHorasFrio { fuente: 'propia' | 'jcas'; estacion_id: string; fecha: string; horas_frio: number | null; horas_helada: number | null; horas_con_dato: number; tmax: number | null; tmin: number | null }
+export interface FilaHorasFrio { fuente: 'propia' | 'jcas'; estacion_id: string; fecha: string; horas_frio: number | null; horas_helada: number | null; horas_con_dato: number; tmax: number | null; tmin: number | null; /** true = horas estimadas por interpolación lineal entre lecturas (propias, cada 2 h); false = serie horaria medida (JCAS). */ interpolada?: boolean }
 /** Extremos y horas frío de una estación. Todo null = S/D (sin serie horaria o cobertura < 80 %). */
 export interface FrioEstacion {
     /** Extremos del día en curso (parcial) y de los últimos 7 días completos. */
@@ -25,8 +25,10 @@ export interface FrioEstacion {
     tmin1: number | null; tmin30: number | null;
     /** Horas frío y de helada acumuladas en la temporada (1-nov → ayer), desde `desde` (el primer día con serie horaria si es posterior al 1-nov). */
     horasFrio: number | null; horasHelada: number | null; desde: string | null; diasConDato: number; diasTotal: number;
+    /** Las horas son una ESTIMACIÓN (interpolación entre lecturas cada 2 h), no una serie horaria medida. */
+    estimada: boolean;
 }
-export const FRIO_VACIO: FrioEstacion = { tmaxHoy: null, tminHoy: null, tmax7: null, tmin7: null, tmin1: null, tmin30: null, horasFrio: null, horasHelada: null, desde: null, diasConDato: 0, diasTotal: 0 };
+export const FRIO_VACIO: FrioEstacion = { tmaxHoy: null, tminHoy: null, tmax7: null, tmin7: null, tmin1: null, tmin30: null, horasFrio: null, horasHelada: null, desde: null, diasConDato: 0, diasTotal: 0, estimada: false };
 
 /** Extremos y horas frío de UNA estación a partir de sus filas diarias. `hoy` = día en curso, `fin` = ayer. */
 export function frioDeEstacion(filas: FilaHorasFrio[], hoy: string, fin: string): FrioEstacion {
@@ -41,7 +43,7 @@ export function frioDeEstacion(filas: FilaHorasFrio[], hoy: string, fin: string)
     const ac = acumularHorasFrio(comp.map((f) => ({ fecha: f.fecha, horas: f.horas_frio, helada: f.horas_helada })), desde, hasta);
     const tmin1 = extremosVentana(comp.map((f) => ({ fecha: f.fecha, tmax: f.tmax, tmin: f.tmin })), fin, 1).tmin;
     const tmin30 = extremosVentana(comp.map((f) => ({ fecha: f.fecha, tmax: f.tmax, tmin: f.tmin })), fin, 30).tmin;
-    return { tmaxHoy: h?.tmax ?? null, tminHoy: h?.tmin ?? null, tmax7: ext.tmax, tmin7: ext.tmin, tmin1, tmin30, horasFrio: ac.horas, horasHelada: ac.helada, desde: ac.horas == null ? null : desde, diasConDato: ac.diasConDato, diasTotal: ac.diasTotal };
+    return { tmaxHoy: h?.tmax ?? null, tminHoy: h?.tmin ?? null, tmax7: ext.tmax, tmin7: ext.tmin, tmin1, tmin30, horasFrio: ac.horas, horasHelada: ac.helada, desde: ac.horas == null ? null : desde, diasConDato: ac.diasConDato, diasTotal: ac.diasTotal, estimada: filas.some((f) => f.interpolada === true) };
 }
 
 export interface FilaEstacionJcas {

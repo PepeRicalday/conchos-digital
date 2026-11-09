@@ -20,7 +20,7 @@ export interface PlanoInforme { variable: VariablePlano; tipo: 'obs' | 'pron'; d
 export interface FilaEstacionObs { nombre: string; zona: string; lluviaHoy?: number | null; lluvia7: number | null; lluvia30: number | null; temp: number | null; hum: number | null; viento: number | null; estado: string; ultFecha: string | null; excluida: boolean; sinPluviometro: boolean; motivo: string | null; frio?: FrioFila }
 export interface FilaEstacionPron { nombre: string; propia: boolean; lluvia: number | null; min: number | null; max: number | null; diasLluvia: number | null; temp: number | null; viento: number | null; tMax?: number | null; tMin?: number | null }
 /** Extremos y horas frío de una estación observada (S/D = null). `frioDesde` ≠ inicio de temporada cuando la serie horaria empezó después. */
-export interface FrioFila { tmax7: number | null; tmin7: number | null; horasFrio: number | null; horasHelada: number | null; frioDesde: string | null }
+export interface FrioFila { tmax7: number | null; tmin7: number | null; horasFrio: number | null; horasHelada: number | null; frioDesde: string | null; estimada: boolean }
 
 export interface DatosInformeClima {
   config: ConfigInformeClima;
@@ -80,7 +80,7 @@ export function construirDistrito(red: ModeloRedJcas | null, ventana: VentanaObs
   return { ventana, contorno, plano, filas, etiquetaMes };
 }
 
-const frioFila = (f?: FrioEstacion): FrioFila => ({ tmax7: f?.tmax7 ?? null, tmin7: f?.tmin7 ?? null, horasFrio: f?.horasFrio ?? null, horasHelada: f?.horasHelada ?? null, frioDesde: f?.desde ?? null });
+const frioFila = (f?: FrioEstacion): FrioFila => ({ tmax7: f?.tmax7 ?? null, tmin7: f?.tmin7 ?? null, horasFrio: f?.horasFrio ?? null, horasHelada: f?.horasHelada ?? null, frioDesde: f?.desde ?? null, estimada: f?.estimada ?? false });
 
 const ESTADO: Record<string, string> = { vigente: 'Al día', atrasada: 'Atrasada', 'sin-datos': 'Sin datos' };
 

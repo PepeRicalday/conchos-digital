@@ -97,6 +97,12 @@ describe('extremos y horas frío por estación', () => {
         expect(f.tmax7).toBe(18);
         expect(f.tmin7).toBe(3);
     });
+    it('propias: horas estimadas por interpolación se marcan; JCAS medido no', async () => {
+        const { frioDeEstacion } = await import('./jcasModelo');
+        const propia = dias('p', 'propia', 1, 7, 6).map((f) => ({ ...f, interpolada: true }));
+        expect(frioDeEstacion(propia, HOY, '2026-11-07').estimada).toBe(true);
+        expect(frioDeEstacion(dias('5', 'jcas', 1, 7, 6), HOY, '2026-11-07').estimada).toBe(false);
+    });
     it('JCAS horario: el conteo empieza el primer día con serie y no se rellena hacia atrás', async () => {
         const { frioDeEstacion } = await import('./jcasModelo');
         const f = frioDeEstacion(dias('5', 'jcas', 5, 7, 4), HOY, '2026-11-07');

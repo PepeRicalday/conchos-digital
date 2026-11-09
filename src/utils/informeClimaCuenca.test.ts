@@ -227,7 +227,7 @@ describe('capas y distrito', () => {
   });
   it('temperatura: T máx / T mín y horas frío en estaciones observadas; T máx / T mín en el pronóstico; S/D sin serie horaria', () => {
     const h = htmlInformeClimaCuenca(datos(), OPC('carta'));
-    expect(h).toMatch(/Horas ≤ 7\.2 °C \(desde 1-nov\)/);
+    expect(h).toMatch(/Horas ≤ 7\.2 °C<\/th>/);
     expect(h).toMatch(/T máx 7 d \(°C\)/);
     expect(h).toMatch(/T mín 7 d \(°C\)/);
     expect(h).toMatch(/≤ 7\.2 °C/);

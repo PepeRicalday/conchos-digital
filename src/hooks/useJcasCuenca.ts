@@ -81,7 +81,7 @@ export async function cargarDatosJcas(diasLecturas?: number): Promise<DatosJcas>
         const num = (x: unknown) => (x == null || !Number.isFinite(Number(x)) ? null : Number(x));
         for (const r of (rFrio.data ?? []) as Record<string, unknown>[]) {
             if (r.fuente !== 'propia' && r.fuente !== 'jcas') continue;
-            frio.push({ fuente: r.fuente, estacion_id: String(r.estacion_id), fecha: String(r.fecha), horas_frio: num(r.horas_frio), horas_helada: num(r.horas_helada), horas_con_dato: Number(r.horas_con_dato) || 0, tmax: num(r.tmax), tmin: num(r.tmin) });
+            frio.push({ fuente: r.fuente, estacion_id: String(r.estacion_id), fecha: String(r.fecha), horas_frio: num(r.horas_frio), horas_helada: num(r.horas_helada), horas_con_dato: Number(r.horas_con_dato) || 0, tmax: num(r.tmax), tmin: num(r.tmin), interpolada: r.interpolada === true });
         }
     }
     const syncs = (rEst.data ?? []).map((r) => r.ult_sync_en as string | null).filter((x): x is string => !!x).sort();

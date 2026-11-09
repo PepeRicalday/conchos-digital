@@ -73,7 +73,10 @@ export async function cargarDatosJcas(diasLecturas?: number): Promise<DatosJcas>
     // Extremos y horas frío (fn_cuenca_horas_frio): desde el inicio de la temporada (1-nov) o los últimos 8 días, lo que sea más antiguo. Opcional: sin la función quedan S/D.
     const frio: FilaHorasFrio[] = [];
     const desdeFrio = [temporadaFrio(hoy).inicio, ISO(Date.parse(`${hoy}T00:00:00Z`) - 8 * 86_400_000)].sort()[0];
-    const rFrio = await supabase.rpc('fn_cuenca_horas_frio', { p_desde: desdeFrio });
+    // Umbral de hora frío editable (clima_umbrales.horas_frio.aviso); sin él, 7.2 °C (el default de la función).
+    const rUmb = await supabase.from('clima_umbrales').select('aviso').eq('clave', 'horas_frio').eq('activo', true).maybeSingle();
+    const umbralFrio = rUmb.data?.aviso != null && Number.isFinite(Number(rUmb.data.aviso)) ? Number(rUmb.data.aviso) : null;
+    const rFrio = await supabase.rpc('fn_cuenca_horas_frio', umbralFrio == null ? { p_desde: desdeFrio } : { p_desde: desdeFrio, p_umbral: umbralFrio });
     if (!rFrio.error) {
         const num = (x: unknown) => (x == null || !Number.isFinite(Number(x)) ? null : Number(x));
         for (const r of (rFrio.data ?? []) as Record<string, unknown>[]) {

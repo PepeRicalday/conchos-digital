@@ -34,7 +34,7 @@ verifica(/en construcción/i.test(t), 'filtros: avisa que la confiabilidad del p
 await page.screenshot({ path: OUT + 'filtros.png' });
 
 // Quitar todas las variables bloquea; solo lluvia + observado → 1 plano
-for (const n of [/Lluvia \(isoyetas\)/, /Temperatura/, /Viento/, /Humedad/]) await dlg.getByLabel(n).uncheck();
+for (const n of [/Lluvia \(isoyetas\)/, /^Temperatura$/, /Viento/, /Humedad/]) await dlg.getByLabel(n).uncheck();
 verifica(await dlg.getByRole('button', { name: /Vista previa/ }).isDisabled(), 'sin variables la vista previa queda bloqueada');
 await dlg.getByLabel(/Lluvia \(isoyetas\)/).check();
 await dlg.getByLabel(/Pronóstico \(3 modelos\)/).uncheck();
@@ -42,7 +42,7 @@ t = await dlg.innerText();
 verifica(/1 plano/.test(t), 'una variable y solo observado: 1 plano');
 verifica(await dlg.getByRole('button', { name: /Vista previa/ }).isEnabled(), 'con una variable la vista previa se habilita');
 await dlg.getByLabel(/Pronóstico \(3 modelos\)/).check();
-for (const n of [/Temperatura/, /Viento/, /Humedad/]) await dlg.getByLabel(n).check();
+for (const n of [/^Temperatura$/, /Viento/, /Humedad/]) await dlg.getByLabel(n).check();
 await dlg.getByRole('radio', { name: 'Últimos 7 días' }).click();
 verifica(/obs 7 d \+ pron 7 d/.test(await dlg.innerText()), 'el periodo observado cambia a 7 días');
 await dlg.getByRole('radio', { name: 'Últimos 30 días' }).click();
@@ -70,7 +70,7 @@ const encDistrito = await marco.locator('section.bloque:has(h2:has-text("Distrit
 verifica(encDistrito.length === 5 && /Hoy/i.test(encDistrito[1]) && /Ayer/i.test(encDistrito[2]) && /7 d/i.test(encDistrito[3]) && /Mes actual \(1–\d+ [a-z]{3}/i.test(encDistrito[4]) && !encDistrito.some((x) => /^30 d/i.test(x)), `distrito: columnas Hoy, Ayer, 7 d y Mes actual (${encDistrito.map((x) => x.replace(/\s+/g, ' ')).join(' | ')})`);
 const encObs = await marco.locator('section.bloque:has(h2:has-text("Estaciones observadas")) table.cifras thead th').allInnerTexts();
 verifica(encObs.some((x) => /Lluvia hoy/i.test(x)), 'estaciones observadas: trae la columna «Lluvia hoy (parcial)»');
-verifica(['T máx 7 d', 'T mín 7 d', 'Horas frío'].every((c) => encObs.some((x) => x.toLowerCase().includes(c.toLowerCase()))), 'estaciones observadas: columnas T máx, T mín y Horas frío (S/D mientras no haya serie horaria)');
+verifica(['T máx 7 d', 'T mín 7 d', 'Horas ≤ 7.2'].every((c) => encObs.some((x) => x.toLowerCase().includes(c.toLowerCase()))), 'estaciones observadas: columnas T máx, T mín y Horas ≤ 7.2 °C (S/D mientras no haya serie horaria)');
 const encPron = await marco.locator('section.bloque:has(h2:has-text("Pronóstico por estación")) table.cifras thead th').allInnerTexts();
 verifica(encPron.some((x) => /^T máx/i.test(x)) && encPron.some((x) => /^T mín/i.test(x)), 'pronóstico por estación: columnas T máx y T mín');
 const idxUlt = encObs.findIndex((x) => /Último día/i.test(x));

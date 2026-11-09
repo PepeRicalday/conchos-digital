@@ -55,6 +55,8 @@ export interface EntradaPlano {
 }
 
 export function tituloPlano(variable: VariablePlano, periodo: PeriodoPlano): string {
+    if (variable === 'horasFrio') return 'Horas frío acumuladas · temporada (desde el 1-nov)';
+    if (variable === 'tmin') return `Temperatura mínima ${periodo.tipo === 'obs' ? 'observada' : 'pronosticada'} · ${periodo.tipo === 'obs' ? cuandoVentana(periodo.dias) : `próximos ${periodo.dias} días`}`;
     const que = variable === 'lluvia' ? 'Isoyetas' : VARIABLES_PLANO[variable].titulo;
     const cuando = periodo.tipo === 'obs' ? cuandoVentana(periodo.dias) : `próximos ${periodo.dias} días`;
     return `${que} ${periodo.tipo === 'obs' ? 'observadas' : 'pronosticadas'} · ${cuando}`.replace(/^(Temperatura media|Viento medio|Humedad relativa) (observadas|pronosticadas)/, (_, a, b) => `${a} ${b.replace('adas', a === 'Viento medio' ? 'ado' : 'ada')}`);

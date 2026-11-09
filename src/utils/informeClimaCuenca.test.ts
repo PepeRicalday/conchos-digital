@@ -214,9 +214,20 @@ describe('capas y distrito', () => {
     expect(h).toMatch(/Lluvia hoy \(parcial, mm\)/);
     expect(h).toMatch(/«Último día» es la fecha de la última lectura/);
   });
+  it('con T mínima y horas frío activadas: planos extra (horas frío solo observado), S/D explícito sin serie y sin basura', () => {
+    const c = { ...configClimaPorDefecto(), variables: ['lluvia', 'temperatura', 'viento', 'humedad', 'tmin', 'horasFrio'] as ReturnType<typeof configClimaPorDefecto>['variables'] };
+    const d = datos(c);
+    expect(d.planos.filter((p) => p.variable === 'horasFrio').map((p) => p.tipo)).toEqual(['obs']);
+    expect(d.planos.filter((p) => p.variable === 'tmin').map((p) => p.tipo)).toEqual(['obs', 'pron']);
+    const h = htmlInformeClimaCuenca(d, OPC('carta'));
+    expect(h).toMatch(/Horas frío acumuladas · temporada/);
+    expect(h).toMatch(/Temperatura mínima observada/);
+    expect(h).toMatch(/Temperatura mínima pronosticada/);
+    expect(h.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, ' ')).not.toMatch(/\b(NaN|undefined|Infinity|null)\b/);
+  });
   it('temperatura: T máx / T mín y horas frío en estaciones observadas; T máx / T mín en el pronóstico; S/D sin serie horaria', () => {
     const h = htmlInformeClimaCuenca(datos(), OPC('carta'));
-    expect(h).toMatch(/Horas frío \(temporada\)/);
+    expect(h).toMatch(/Horas ≤ 7\.2 °C \(desde 1-nov\)/);
     expect(h).toMatch(/T máx 7 d \(°C\)/);
     expect(h).toMatch(/T mín 7 d \(°C\)/);
     expect(h).toMatch(/≤ 7\.2 °C/);

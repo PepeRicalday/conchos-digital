@@ -6,7 +6,7 @@ import type { ContornoCuenca } from './geoCuenca';
 import type { DemGrid } from './camposCuenca';
 import { consensoPorPunto, extremosPronosticoPeriodo, resumenConfiabilidad, valorPronosticoPeriodo, type Confiabilidad } from './cuencaPronostico';
 import type { ConfigInformeClima } from './informeClimaCuencaConfig';
-import { ORDEN_VARIABLES, etiquetaAlcanceClima } from './informeClimaCuencaConfig';
+import { ORDEN_VARIABLES, SOLO_OBSERVADAS, etiquetaAlcanceClima } from './informeClimaCuencaConfig';
 import { arealDe, type FrioEstacion, type ModeloRedJcas, type PuntoPropio, type PuntoRedJcas, type VentanaObs } from './jcasModelo';
 import type { DatosCapas } from './capasCuenca';
 import { MODULOS_SRL } from './geoDistrito';
@@ -95,7 +95,7 @@ export function construirDatosClima(
       const puntos = e.red ? puntosObservados(e.red, v, config.diasObs) : [];
       planos.push({ variable: v, tipo: 'obs', dias: config.diasObs, modelo: construirPlano({ variable: v, periodo: { tipo: 'obs', dias: config.diasObs }, puntos, contorno: e.contorno, dem: e.dem, areal: v === 'lluvia' && e.red ? arealDe(e.red, config.diasObs) : null }) });
     }
-    if (config.pronostico) {
+    if (config.pronostico && !SOLO_OBSERVADAS.includes(v)) {
       const puntos = e.pron ? puntosPronostico(e.pron.puntos, e.pron.filas, v, config.diasPron, e.hoy) : [];
       planos.push({ variable: v, tipo: 'pron', dias: config.diasPron, modelo: construirPlano({ variable: v, periodo: { tipo: 'pron', dias: config.diasPron }, puntos, contorno: e.contorno, dem: e.dem }) });
     }

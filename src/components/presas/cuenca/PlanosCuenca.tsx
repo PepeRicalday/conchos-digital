@@ -17,7 +17,7 @@ import { fmtLluvia } from '../../../utils/fmtLluvia';
 import { hoyLocalISO } from '../../../utils/hoyLocal';
 
 type Modo = 'obs' | 'pron';
-const VARIABLES: { v: VariablePlano; t: string }[] = [{ v: 'lluvia', t: 'Lluvia' }, { v: 'temperatura', t: 'Temperatura' }, { v: 'viento', t: 'Viento' }, { v: 'humedad', t: 'Humedad' }];
+const VARIABLES: { v: VariablePlano; t: string }[] = [{ v: 'lluvia', t: 'Lluvia' }, { v: 'temperatura', t: 'Temperatura' }, { v: 'viento', t: 'Viento' }, { v: 'humedad', t: 'Humedad' }, { v: 'tmin', t: 'T mínima' }, { v: 'horasFrio', t: 'Horas frío' }];
 const fmt = (v: number | null, d = 1) => (v == null ? 'S/D' : formatearNumero(v, d));
 
 function Segmentado<T extends string | number>({ etiqueta, valor, opciones, onChange }: { etiqueta: string; valor: T; opciones: { v: T; t: string }[]; onChange: (v: T) => void }) {
@@ -45,8 +45,10 @@ const hace = (iso: string | null) => {
  * CONTEXTO provisional de fuente tercera. El dibujo es el mismo SVG que usa el informe (utils/planosCuenca): una sola definición.
  */
 export default function PlanosCuenca({ jcas, capas, diasObs: diasProp, onDias }: { jcas: { red: RedJcas | null; loading: boolean; error: string | null }; capas?: CapasCuenca; diasObs?: VentanaObs; onDias?: (v: VentanaObs) => void }) {
-    const [variable, setVariable] = useState<VariablePlano>('lluvia');
+    const [variable, setVariableBase] = useState<VariablePlano>('lluvia');
     const [modo, setModo] = useState<Modo>('obs');
+    // Las horas frío no se pronostican: al elegirlas se vuelve a lo observado.
+    const setVariable = (v: VariablePlano) => { setVariableBase(v); if (v === 'horasFrio') setModo('obs'); };
     const [diasLocal, setDiasLocal] = useState<VentanaObs>(30);
     const diasObs = diasProp ?? diasLocal;
     const setDiasObs = onDias ?? setDiasLocal;
@@ -91,7 +93,7 @@ export default function PlanosCuenca({ jcas, capas, diasObs: diasProp, onDias }:
     const ranking = useMemo(() => rankingDePuntos(plano?.puntos ?? []), [plano]);
     // El resumen del plano ya viene del areal en lluvia observada: sin respaldo con otra cifra (si es S/D, se dice S/D).
     const mediaKpi = plano?.resumen.media ?? null;
-    const fmtVal = (v: number) => (variable === 'lluvia' ? fmtLluvia(v) : formatearNumero(v, variable === 'temperatura' ? 1 : 0));
+    const fmtVal = (v: number) => (variable === 'lluvia' ? fmtLluvia(v) : formatearNumero(v, variable === 'temperatura' || variable === 'tmin' ? 1 : 0));
     const maxRank = ranking.filas.length ? Math.max(...ranking.filas.map((f) => Math.abs(f.valor)), 0.0001) : 1;
     const cargando = jcas.loading || (modo === 'pron' && pron.loading);
     const falla = modo === 'obs' ? jcas.error : pron.error;
@@ -112,7 +114,7 @@ export default function PlanosCuenca({ jcas, capas, diasObs: diasProp, onDias }:
                     <div className="cu-pl-ctl">
                         <div className="cu-controles" role="group" aria-label="Variable y periodo del plano">
                             <Segmentado<VariablePlano> etiqueta="Variable" valor={variable} onChange={setVariable} opciones={VARIABLES} />
-                            <Segmentado<Modo> etiqueta="Datos" valor={modo} onChange={setModo} opciones={[{ v: 'obs', t: 'Observado' }, { v: 'pron', t: 'Pronóstico' }]} />
+                            <Segmentado<Modo> etiqueta="Datos" valor={modo} onChange={setModo} opciones={variable === 'horasFrio' ? [{ v: 'obs', t: 'Observado' }] : [{ v: 'obs', t: 'Observado' }, { v: 'pron', t: 'Pronóstico' }]} />
                             {modo === 'obs'
                                 ? <Segmentado<VentanaObs> etiqueta="Periodo" valor={diasObs} onChange={setDiasObs} opciones={VENTANAS_OBS} />
                                 : <Segmentado<3 | 7> etiqueta="Periodo" valor={diasPron} onChange={setDiasPron} opciones={[{ v: 3, t: '3 días' }, { v: 7, t: '7 días' }]} />}

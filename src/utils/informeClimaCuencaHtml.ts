@@ -47,7 +47,7 @@ function figura(pl: PlanoInforme, d: DatosInformeClima, id: string, anchoPx: num
   const svg = planoSvg(pl.modelo, d.contorno, { tema: 'papel', idPrefijo: id, textoPx, capas: d.config.capas.length ? { ids: d.config.capas, datos: d.capasDatos } : undefined });
   const aj = pl.modelo.ajuste.aplicado ? ` Corregido por altitud ${esc(pl.modelo.ajuste.motivo.replace(/^ajustado por altitud /, ''))}.` : '';
   const ex = pl.modelo.excluidos.length ? ` Excluida: ${esc(pl.modelo.excluidos.map((p) => p.nombre).join(', '))} (pluviómetro sospechoso).` : '';
-  return `<figure class="plano"${protagonista ? ' data-protagonista="1"' : ''}><figcaption><b>${esc(pl.modelo.titulo)}</b><span>${textoPlano(pl)}</span></figcaption>${svg}<p class="fuente">${pl.tipo === 'obs' ? 'Observado: estaciones JCAS/UACJ.' : `Pronóstico: mediana de 3 modelos (ECMWF, GFS, ICON); el rango entre ellos está en la tabla.`}${aj}${ex}</p></figure>`;
+  return `<figure class="plano"${protagonista ? ' data-protagonista="1"' : ''}><figcaption><b>${esc(pl.modelo.titulo)}</b><span>${textoPlano(pl)}</span></figcaption>${svg}<p class="fuente">${pl.tipo === 'obs' ? (pl.variable === 'horasFrio' || pl.variable === 'tmin' ? 'Observado: series horarias de estaciones propias y JCAS/UACJ; sin serie horaria la estación es S/D.' : 'Observado: estaciones JCAS/UACJ.') : `Pronóstico: mediana de 3 modelos (ECMWF, GFS, ICON); el rango entre ellos está en la tabla.`}${aj}${ex}</p></figure>`;
 }
 
 /** Apartado del distrito: lluvia sobre los 6 módulos SRL con las estaciones propias (y JCAS cercanas) y la tabla de las propias. Solo PDF carta. */
@@ -86,7 +86,7 @@ function titular(d: DatosInformeClima, conTitulo = true): string {
 }
 
 /** T mín: una mínima ≤ 0 °C (helada) se marca en azul y en negrita; S/D en gris (num lo rotula). */
-const celdaTmin = (v: number | null): string => (v != null && v <= 0 ? `<b style="color:#1d4ed8">${num(v)}</b>` : num(v));
+const celdaTmin = (v: number | null): string => (v != null && v <= 0 ? `<b class="helada">*${num(v)}</b>` : num(v));
 /** Horas frío de la temporada; si la serie horaria empezó después del 1-nov se declara «desde dd/mm» (no se rellena hacia atrás). */
 function celdaFrio(f: FrioFila | undefined, inicioTemporada: string): string {
   if (!f || f.horasFrio == null) return num(null);
@@ -99,8 +99,8 @@ function tablaObs(d: DatosInformeClima, max?: number): string {
   const filas = (max ? d.estacionesObs.slice(0, max) : d.estacionesObs).map((e) => `<tr><th scope="row">${esc(e.nombre)}${e.zona === 'Salida' ? ' <small>(salida)</small>' : ''}${e.motivo ? `<br><small>${esc(e.motivo)}</small>` : ''}</th>
 <td class="n"><b>${num(e.lluviaHoy)}</b></td><td class="n">${num(e.lluvia7)}</td><td class="n">${num(e.lluvia30)}</td><td class="n">${num(e.temp)}</td><td class="n">${num(e.frio?.tmax7 ?? null)}</td><td class="n">${celdaTmin(e.frio?.tmin7 ?? null)}</td><td class="n">${celdaFrio(e.frio, inicioTemporada)}</td><td class="n">${num(e.hum, 0)}</td><td class="n">${num(e.viento, 0)}</td><td>${esc(e.estado)}</td><td class="n">${esc(fechaCorta(e.ultFecha))}</td></tr>`).join('');
   return `<section class="bloque"><h2>Estaciones observadas <small>JCAS/UACJ · ${d.estacionesObs.length} en la cuenca${max && d.estacionesObs.length > max ? `, se muestran ${max}` : ''}</small></h2>
-<table class="cifras"><thead><tr><th>Estación</th><th class="n">Lluvia hoy (parcial, mm)</th><th class="n">Lluvia 7 d (mm)</th><th class="n">Lluvia 30 d (mm)</th><th class="n">Temp. 7 d (°C)</th><th class="n">T máx 7 d (°C)</th><th class="n">T mín 7 d (°C)</th><th class="n">Horas frío (temporada)</th><th class="n">Hum. 7 d (%)</th><th class="n">Viento 7 d (km/h)</th><th>Estado</th><th class="n">Último día</th></tr></thead><tbody>${filas}</tbody></table>
-<p class="leyenda">«Último día» es la fecha de la última lectura con dato (incluye la parcial de hoy); una fecha anterior significa que la estación aún no reporta hoy. «Horas frío» = horas con temperatura ≤ 7.2 °C acumuladas desde el 1.º de noviembre hasta ayer (hora local); T mín en azul = helada (≤ 0 °C). Se calculan solo con series horarias (estaciones propias y JCAS horario); sin serie, o con menos del 80 % de las horas o de los días, queda S/D, y en JCAS el conteo empieza el día que se activó la serie horaria («desde …»). «Hoy» es parcial a la hora de la última sincronización. Una estación por ciudad pesa una vez en los planos. Sin pluviómetro, la lluvia es S/D (el 0.0 del portal no significa «no llovió»).</p></section>`;
+<table class="cifras"><thead><tr><th>Estación</th><th class="n">Lluvia hoy (parcial, mm)</th><th class="n">Lluvia 7 d (mm)</th><th class="n">Lluvia 30 d (mm)</th><th class="n">Temp. 7 d (°C)</th><th class="n">T máx 7 d (°C)</th><th class="n">T mín 7 d (°C)</th><th class="n">Horas ≤ 7.2 °C (desde 1-nov)</th><th class="n">Hum. 7 d (%)</th><th class="n">Viento 7 d (km/h)</th><th>Estado</th><th class="n">Último día</th></tr></thead><tbody>${filas}</tbody></table>
+<p class="leyenda">«Último día» es la fecha de la última lectura con dato (incluye la parcial de hoy); una fecha anterior significa que la estación aún no reporta hoy. Horas ≤ 7.2 °C: índice de frío invernal (método simple, incluye las horas bajo 0 °C), acumulado desde el 1.º de noviembre hasta ayer; no es el requerimiento de ningún cultivo. Es un mínimo observado: solo cuenta horas con lectura. Sin serie horaria, o con menos del 80 % de las horas o de los días, queda S/D; en JCAS el conteo empieza el día que se activó la serie horaria («desde …»). * = helada (T mín ≤ 0 °C, medida en el aire; a ras de suelo puede ser menor). «Hoy» es parcial a la hora de la última sincronización. Una estación por ciudad pesa una vez en los planos. Sin pluviómetro, la lluvia es S/D (el 0.0 del portal no significa «no llovió»).</p></section>`;
 }
 
 function tablaPron(d: DatosInformeClima, max?: number): string {
@@ -255,9 +255,13 @@ ${CSS_PLANOS}
 .rk{font-size:8pt}
 .inst{font-size:7pt}
 .plano figcaption span{font-size:7.6pt}
-table.cifras{font-size:7.6pt}
-table.cifras th{font-size:6.8pt;padding:4px 4px}
-table.cifras td,table.cifras tbody th{padding:3px 4px}
+table.cifras{font-size:8.25pt}
+table.cifras th{font-size:8pt;padding:4px 4px;line-height:1.15}
+table.cifras td small,.leyenda{font-size:8.25pt}
+.leyenda{color:#3d4650;line-height:1.35}
+table.cifras .sd{font-style:normal;font-weight:400}
+.helada{color:#0B3170;background:#DCE8FA;border-radius:3px;padding:0 3px;font-weight:700}
+table.cifras td,table.cifras tbody th{padding:1.5px 4px}
 .distrito-grid{display:grid;grid-template-columns:minmax(0,52%) minmax(0,1fr);gap:14px;align-items:start}
 .distrito-grid .plano{width:100%}
 `;

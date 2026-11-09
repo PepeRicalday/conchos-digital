@@ -14,8 +14,14 @@ export const VARIABLES_INFORME: { id: VariablePlano; etiqueta: string; ayuda: st
   { id: 'temperatura', etiqueta: 'Temperatura', ayuda: 'Temperatura media, con corrección por altitud cuando es estadísticamente sólida' },
   { id: 'viento', etiqueta: 'Viento', ayuda: 'Velocidad media en km/h (JCAS no entrega dirección)' },
   { id: 'humedad', etiqueta: 'Humedad', ayuda: 'Humedad relativa media en %' },
+  { id: 'tmin', etiqueta: 'Temperatura mínima', ayuda: 'Mínima del periodo (hoy, ayer, 7 o 30 días); 0 °C o menos es helada. S/D donde no hay serie horaria' },
+  { id: 'horasFrio', etiqueta: 'Horas frío (≤ 7.2 °C)', ayuda: 'Acumuladas desde el 1-nov; solo observado (no se pronostican). S/D donde no hay serie horaria' },
 ];
 export const ORDEN_VARIABLES: VariablePlano[] = VARIABLES_INFORME.map((v) => v.id);
+/** Variables que NO se pronostican: en el informe solo llevan plano observado. */
+export const SOLO_OBSERVADAS: VariablePlano[] = ['horasFrio'];
+/** Variables activas por defecto: las cuatro clásicas; la mínima y las horas frío se activan a voluntad (el informe por defecto no cambia de tamaño). */
+export const VARIABLES_POR_DEFECTO: VariablePlano[] = ['lluvia', 'temperatura', 'viento', 'humedad'];
 
 export interface ConfigInformeClima {
   variables: VariablePlano[];
@@ -37,7 +43,7 @@ export interface ConfigInformeClima {
 }
 
 export function configClimaPorDefecto(): ConfigInformeClima {
-  return { variables: [...ORDEN_VARIABLES], observado: true, pronostico: true, diasObs: 30, diasPron: 7, estaciones: true, capas: [...CAPAS_INFORME], distrito: true, contenido: 'completo' };
+  return { variables: [...VARIABLES_POR_DEFECTO], observado: true, pronostico: true, diasObs: 30, diasPron: 7, estaciones: true, capas: [...CAPAS_INFORME], distrito: true, contenido: 'completo' };
 }
 
 /** Errores que BLOQUEAN la generación. */
@@ -61,7 +67,7 @@ export function avisosConfigClima(c: ConfigInformeClima, o: { hayPronostico: boo
 
 /** Cuántos planos generará la configuración (una pareja observado/pronóstico por variable). */
 export function cuentaPlanos(c: ConfigInformeClima): number {
-  return c.variables.length * ((c.observado ? 1 : 0) + (c.pronostico ? 1 : 0));
+  return c.variables.reduce((n, v) => n + (c.observado ? 1 : 0) + (c.pronostico && !SOLO_OBSERVADAS.includes(v) ? 1 : 0), 0);
 }
 
 /** Texto corto del alcance para folio, nombre de archivo y membrete: "4 variables · obs 30 d + pron 7 d". */

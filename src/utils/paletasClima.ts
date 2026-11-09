@@ -6,7 +6,7 @@
 // comparan a ojo (un rango dinámico haría que el mismo color significara cosas distintas).
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type VariablePlano = 'lluvia' | 'temperatura' | 'viento' | 'humedad';
+export type VariablePlano = 'lluvia' | 'temperatura' | 'viento' | 'humedad' | 'tmin' | 'horasFrio';
 
 export interface ConfigVariable {
     clave: VariablePlano;
@@ -29,6 +29,11 @@ export const VARIABLES_PLANO: Record<VariablePlano, ConfigVariable> = {
         rampa: ['#f5f0fa', '#ddc9ee', '#c19ee0', '#a06fcf', '#8247bd', '#652da0', '#481d78', '#2c0f4d'] },
     humedad: { clave: 'humedad', titulo: 'Humedad relativa', unidad: '%', decimales: 0, piso: 0, techo: 100,
         rampa: ['#f0f7f4', '#d3ebe3', '#a9d9cc', '#7cc5b4', '#4aa99a', '#2b8a7e', '#17675f', '#0b443f'] },
+    // Mínima: el FRÍO es lo intenso, así que la rampa va de azul oscuro (valores bajos) a claro (valores altos).
+    tmin: { clave: 'tmin', titulo: 'Temperatura mínima', unidad: '°C', decimales: 0, piso: null, techo: null,
+        rampa: ['#06233a', '#0b4a6e', '#0f7399', '#2f9bbd', '#6bbfd6', '#a9dbe8', '#d6eef4', '#eef8fa'] },
+    horasFrio: { clave: 'horasFrio', titulo: 'Horas frío', unidad: 'h', decimales: 0, piso: 0, techo: null,
+        rampa: ['#faf3fb', '#efd6f2', '#dcaee6', '#c485d6', '#a95bc0', '#843a9f', '#5d2478', '#3a1350'] },
 };
 
 import { escalaDe } from './escalasCuenca';

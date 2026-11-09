@@ -19,7 +19,7 @@
 export type FamiliaLluvia = 'dia' | 'sem' | 'mes' | 'largo';
 /** Familias con cuantiles medidos (las ventanas de hasta 30 días). La familia 'largo' no tiene base multianual. */
 export type FamiliaMedida = 'dia' | 'sem' | 'mes';
-export type VariableEscala = 'lluvia' | 'temperatura' | 'viento' | 'humedad';
+export type VariableEscala = 'lluvia' | 'temperatura' | 'viento' | 'humedad' | 'tmin' | 'horasFrio';
 
 export interface EscalaDatos {
     niveles: number[];
@@ -75,6 +75,11 @@ const ESCALAS_FIJAS: Record<Exclude<VariableEscala, 'lluvia'>, EscalaDatos> = {
     temperatura: { niveles: NIVELES_TEMPERATURA, base: 'temperatura media: n = 713 medias (521 diarias y 192 mensuales de JCAS), nov-2025 a nov-2026; rango registrado 0.3 a 33 °C' },
     viento: { niveles: [1, 2, 3, 4, 5, 6, 8, 10, 12, 14], base: 'viento medio: n = 713 medias de JCAS, nov-2025 a nov-2026; 50 % de los días ≤ 3 km/h y máximo registrado 14 km/h' },
     humedad: { niveles: [20, 30, 40, 50, 60, 70, 80, 90], base: 'humedad relativa media: n = 713 medias de JCAS, nov-2025 a nov-2026; 90 % de los valores entre 18 y 90 %' },
+    // Mínima: lo registrado (570 mínimas diarias de estaciones propias, jul–nov 2026) va de 8.7 a 29.3 °C y NO incluye invierno; los cortes bajo 8 °C son de
+    // referencia (heladas, 0 °C y el umbral de hora frío 7.2 °C ≈ 7 °C) para que el plano de invierno use la misma escala que el de hoy.
+    tmin: { niveles: [-8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20], base: 'temperatura mínima: n = 570 mínimas diarias de estaciones propias, jul–nov 2026; rango registrado 8.7 a 29.3 °C (aún sin invierno: los cortes bajo 8 °C son de referencia, con 0 °C = helada)' },
+    // Horas frío acumuladas en la temporada: la serie horaria empezó en nov-2026, no hay base registrada; cortes fijos de referencia.
+    horasFrio: { niveles: [50, 100, 200, 300, 400, 600, 800, 1000, 1200, 1500], base: 'horas con T ≤ 7.2 °C desde el 1-nov: sin base registrada (la serie horaria empezó en nov-2026); cortes fijos de referencia, no una climatología' },
 };
 
 /** Familia de la escala de lluvia según los días que acumula el plano (hoy y ayer = 1). */

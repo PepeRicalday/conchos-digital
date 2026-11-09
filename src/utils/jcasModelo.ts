@@ -21,10 +21,12 @@ export interface FilaHorasFrio { fuente: 'propia' | 'jcas'; estacion_id: string;
 export interface FrioEstacion {
     /** Extremos del día en curso (parcial) y de los últimos 7 días completos. */
     tmaxHoy: number | null; tminHoy: number | null; tmax7: number | null; tmin7: number | null;
+    /** Mínima del último día completo y de los últimos 30 días completos (≥ 80 % de días con dato). */
+    tmin1: number | null; tmin30: number | null;
     /** Horas frío y de helada acumuladas en la temporada (1-nov → ayer), desde `desde` (el primer día con serie horaria si es posterior al 1-nov). */
     horasFrio: number | null; horasHelada: number | null; desde: string | null; diasConDato: number; diasTotal: number;
 }
-export const FRIO_VACIO: FrioEstacion = { tmaxHoy: null, tminHoy: null, tmax7: null, tmin7: null, horasFrio: null, horasHelada: null, desde: null, diasConDato: 0, diasTotal: 0 };
+export const FRIO_VACIO: FrioEstacion = { tmaxHoy: null, tminHoy: null, tmax7: null, tmin7: null, tmin1: null, tmin30: null, horasFrio: null, horasHelada: null, desde: null, diasConDato: 0, diasTotal: 0 };
 
 /** Extremos y horas frío de UNA estación a partir de sus filas diarias. `hoy` = día en curso, `fin` = ayer. */
 export function frioDeEstacion(filas: FilaHorasFrio[], hoy: string, fin: string): FrioEstacion {
@@ -37,7 +39,9 @@ export function frioDeEstacion(filas: FilaHorasFrio[], hoy: string, fin: string)
     const desde = primero > temp.inicio ? primero : temp.inicio;
     const hasta = fin < temp.fin ? fin : temp.fin;
     const ac = acumularHorasFrio(comp.map((f) => ({ fecha: f.fecha, horas: f.horas_frio, helada: f.horas_helada })), desde, hasta);
-    return { tmaxHoy: h?.tmax ?? null, tminHoy: h?.tmin ?? null, tmax7: ext.tmax, tmin7: ext.tmin, horasFrio: ac.horas, horasHelada: ac.helada, desde: ac.horas == null ? null : desde, diasConDato: ac.diasConDato, diasTotal: ac.diasTotal };
+    const tmin1 = extremosVentana(comp.map((f) => ({ fecha: f.fecha, tmax: f.tmax, tmin: f.tmin })), fin, 1).tmin;
+    const tmin30 = extremosVentana(comp.map((f) => ({ fecha: f.fecha, tmax: f.tmax, tmin: f.tmin })), fin, 30).tmin;
+    return { tmaxHoy: h?.tmax ?? null, tminHoy: h?.tmin ?? null, tmax7: ext.tmax, tmin7: ext.tmin, tmin1, tmin30, horasFrio: ac.horas, horasHelada: ac.helada, desde: ac.horas == null ? null : desde, diasConDato: ac.diasConDato, diasTotal: ac.diasTotal };
 }
 
 export interface FilaEstacionJcas {
@@ -67,7 +71,8 @@ export interface PuntoPropio {
     frio?: FrioEstacion;
 }
 /** Lo mínimo que `valorObs` necesita de un punto (JCAS o propio). */
-export type PuntoConValores = Pick<PuntoRedJcas, 'hoy' | 'ayer' | 'medias' | 'mm7' | 'mm30' | 'largas'>;
+export type PuntoConValores = Pick<PuntoRedJcas, 'hoy' | 'ayer' | 'medias' | 'mm7' | 'mm30' | 'largas' | 'frio'>;
+export type VariableObs = 'lluvia' | 'temperatura' | 'viento' | 'humedad' | 'tmin' | 'horasFrio';
 
 /**
  * Ventana de lo observado: el día en curso (parcial), el último día completo (ayer), los últimos 7 / 30 / 60 / 90 días completos o el ciclo agrícola en
@@ -163,7 +168,10 @@ export function mediaVentana(ls: FilaLecturaJcas[], campo: 'temp_c' | 'hum_pct' 
 }
 
 /** Valor de un punto en una ventana: una sola definición para la tabla, el mapa, los planos y el informe. */
-export function valorObs(p: PuntoConValores, variable: 'lluvia' | 'temperatura' | 'viento' | 'humedad', v: VentanaObs): number | null {
+export function valorObs(p: PuntoConValores, variable: VariableObs, v: VentanaObs): number | null {
+    // Extremos y horas frío salen de la serie horaria (fn_cuenca_horas_frio), no de las medias diarias: solo hay hoy, ayer, 7 y 30 días; en otra ventana S/D.
+    if (variable === 'horasFrio') return p.frio?.horasFrio ?? null; // acumulado de la temporada: no depende de la ventana
+    if (variable === 'tmin') return v === 'hoy' ? (p.frio?.tminHoy ?? null) : v === 1 ? (p.frio?.tmin1 ?? null) : v === 7 ? (p.frio?.tmin7 ?? null) : v === 30 ? (p.frio?.tmin30 ?? null) : null;
     if (v === 'hoy' || v === 1) {
         const d = v === 'hoy' ? p.hoy : p.ayer;
         if (!d) return null;

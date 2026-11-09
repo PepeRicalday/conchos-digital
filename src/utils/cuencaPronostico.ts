@@ -77,7 +77,7 @@ export function consensoPorPunto(filas: FilaPronostico[], puntoId: string, desde
     });
 }
 
-export type VariableValor = 'lluvia' | 'temperatura' | 'viento' | 'humedad';
+export type VariableValor = 'lluvia' | 'temperatura' | 'viento' | 'humedad' | 'tmin' | 'horasFrio';
 
 /**
  * Valor de un periodo de `n` días que empieza en `desde`: lluvia = suma de la mediana diaria (exige los n días); temperatura, viento y humedad =
@@ -86,6 +86,9 @@ export type VariableValor = 'lluvia' | 'temperatura' | 'viento' | 'humedad';
 export function valorPronosticoPeriodo(dias: DiaConsenso[], variable: VariableValor, desde: string, n: number): { valor: number | null; min: number | null; max: number | null } {
     const fin = new Date(Date.parse(`${desde}T00:00:00Z`) + (n - 1) * 86_400_000).toISOString().slice(0, 10);
     const sel = dias.filter((d) => d.fecha >= desde && d.fecha <= fin);
+    // Horas frío no se pronostican (no hay serie horaria de pronóstico): S/D. La mínima del periodo es la menor de las mínimas diarias.
+    if (variable === 'horasFrio') return { valor: null, min: null, max: null };
+    if (variable === 'tmin') return { valor: extremosPronosticoPeriodo(dias, desde, n).tMin, min: null, max: null };
     const get = (d: DiaConsenso) => (variable === 'lluvia' ? d.mm : variable === 'temperatura' ? d.temp : variable === 'viento' ? d.viento : d.hum);
     const vals = validos(sel.map(get));
     if (variable === 'lluvia') {

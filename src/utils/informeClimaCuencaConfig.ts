@@ -29,10 +29,15 @@ export interface ConfigInformeClima {
   capas: CapaId[];
   /** Apartado del distrito (módulos SRL con las estaciones propias) en el PDF carta. */
   distrito: boolean;
+  /**
+   * 'completo': informe con tablas, «Cómo se lee», trazabilidad y firmas. 'infografia': solo lo gráfico (planos, KPIs y barras por estación) con el
+   * mínimo institucional (logos, corte, fuente, «provisional», atribución del contorno y folio); sin notas metodológicas, trazabilidad ni firmas.
+   */
+  contenido: 'completo' | 'infografia';
 }
 
 export function configClimaPorDefecto(): ConfigInformeClima {
-  return { variables: [...ORDEN_VARIABLES], observado: true, pronostico: true, diasObs: 30, diasPron: 7, estaciones: true, capas: [...CAPAS_INFORME], distrito: true };
+  return { variables: [...ORDEN_VARIABLES], observado: true, pronostico: true, diasObs: 30, diasPron: 7, estaciones: true, capas: [...CAPAS_INFORME], distrito: true, contenido: 'completo' };
 }
 
 /** Errores que BLOQUEAN la generación. */
@@ -62,5 +67,5 @@ export function cuentaPlanos(c: ConfigInformeClima): number {
 /** Texto corto del alcance para folio, nombre de archivo y membrete: "4 variables · obs 30 d + pron 7 d". */
 export function etiquetaAlcanceClima(c: ConfigInformeClima): string {
   const partes = [c.observado ? `obs ${etiquetaVentana(c.diasObs)}` : null, c.pronostico ? `pron ${c.diasPron} d` : null].filter(Boolean).join(' + ');
-  return `${c.variables.length} ${c.variables.length === 1 ? 'variable' : 'variables'} · ${partes || 'sin datos'}`;
+  return `${c.variables.length} ${c.variables.length === 1 ? 'variable' : 'variables'} · ${partes || 'sin datos'}${c.contenido === 'infografia' ? ' · infografía' : ''}`;
 }

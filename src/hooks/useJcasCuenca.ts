@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { cargarContornoCuenca, type ContornoCuenca, type ZonaCuenca } from '../utils/geoCuenca';
-import { construirRedJcas, type FilaEstacionJcas, type FilaHoyJcas, type FilaLecturaJcas, type FilaLluviaPropia, type ModeloRedJcas } from '../utils/jcasModelo';
+import { construirRedJcas, type FilaClimaPropio, type FilaEstacionJcas, type FilaHoyJcas, type FilaLecturaJcas, type FilaLluviaPropia, type ModeloRedJcas } from '../utils/jcasModelo';
 
 const PAGINA = 1000;
 const DIAS = 36; // 30 días de acumulado + margen para el corte (ayer) y estaciones atrasadas
@@ -13,7 +13,7 @@ export interface RedJcas {
     ultSyncEn: string | null;
 }
 
-export interface DatosJcas { est: FilaEstacionJcas[]; lec: FilaLecturaJcas[]; ultSyncEn: string | null; contorno: ContornoCuenca | null; hoy: FilaHoyJcas[]; propia: FilaLluviaPropia[] }
+export interface DatosJcas { est: FilaEstacionJcas[]; lec: FilaLecturaJcas[]; ultSyncEn: string | null; contorno: ContornoCuenca | null; hoy: FilaHoyJcas[]; propia: FilaLluviaPropia[]; clima: FilaClimaPropio[] }
 
 /** Carga las filas de la red JCAS (+ día en curso + estaciones propias). Lanza si falla el catálogo; lo opcional (hoy, propias) degrada a vacío. Lo usan el hook y el Informe Geoclimático. */
 export async function cargarDatosJcas(diasLecturas = DIAS): Promise<DatosJcas> {
@@ -58,8 +58,17 @@ export async function cargarDatosJcas(diasLecturas = DIAS): Promise<DatosJcas> {
             if (mm != null && Number.isFinite(mm) && Number.isFinite(la) && Number.isFinite(lo)) propia.push({ estacion_id: String(r.estacion_id), nombre: String(r.nombre), latitud: la, longitud: lo, fecha: String(r.fecha), lluvia_mm: mm, ult_lectura: String(r.ult_lectura) });
         }
     }
+    // Temperatura, humedad y viento de las propias (fn_cuenca_clima_propio). Opcional: si la función no existe o falla, esos sensores quedan S/D y la lluvia sigue.
+    const clima: FilaClimaPropio[] = [];
+    const rClima = await supabase.rpc('fn_cuenca_clima_propio', { p_desde: desde });
+    if (!rClima.error) {
+        const num = (x: unknown) => (x == null || !Number.isFinite(Number(x)) ? null : Number(x));
+        for (const r of (rClima.data ?? []) as Record<string, unknown>[]) {
+            clima.push({ estacion_id: String(r.estacion_id), fecha: String(r.fecha), temp_c: num(r.temp_c), hum_pct: num(r.hum_pct), viento_kmh: num(r.viento_kmh) });
+        }
+    }
     const syncs = (rEst.data ?? []).map((r) => r.ult_sync_en as string | null).filter((x): x is string => !!x).sort();
-    return { est, lec, ultSyncEn: syncs.length ? syncs[syncs.length - 1] : null, contorno, hoy: hoyFilas, propia };
+    return { est, lec, ultSyncEn: syncs.length ? syncs[syncs.length - 1] : null, contorno, hoy: hoyFilas, propia, clima };
 }
 
 /**
@@ -102,7 +111,7 @@ export function useJcasCuenca(refrescoMs = 30 * 60_000, opciones: { activo?: boo
         const hoy = ISO(Date.now() - 7 * 3_600_000);
         return {
             contorno: datos.contorno, ultSyncEn: datos.ultSyncEn,
-            modelo: datos.contorno ? construirRedJcas(datos.est, datos.lec, hoy, datos.contorno.poligonos, datos.hoy, datos.propia) : null,
+            modelo: datos.contorno ? construirRedJcas(datos.est, datos.lec, hoy, datos.contorno.poligonos, datos.hoy, datos.propia, datos.clima) : null,
         };
     }, [datos]);
 

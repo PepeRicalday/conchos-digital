@@ -11,11 +11,19 @@ const pr = (o: Partial<PuntoRedJcas>): PuntoRedJcas => ({
 const red = (ps: PuntoRedJcas[]) => ({ puntos: ps } as unknown as ModeloRedJcas);
 
 describe('puntosObservados con estaciones propias', () => {
-    const m = { puntos: [pr({})], propias: [{ id: 'wl:a', nombre: 'Módulo 3', lat: 28.2, lon: -105.38, mmHoy: 20, mm1: 8, mm7: 30, mm30: 60, ultFecha: '2026-11-08', hoyEn: null }] } as unknown as ModeloRedJcas;
-    it('la lluvia incluye las propias; la temperatura no', () => {
-        expect(puntosObservados(m, 'lluvia', 'hoy').map((x) => x.nombre)).toContain('Módulo 3');
-        expect(puntosObservados(m, 'lluvia', 'hoy').find((x) => x.nombre === 'Módulo 3')!.valor).toBe(20);
-        expect(puntosObservados(m, 'temperatura', 30).map((x) => x.nombre)).not.toContain('Módulo 3');
+    const vacio = { mm: null, temp: null, hum: null, viento: null };
+    const propia = (o: object) => ({ id: 'wl:a', nombre: 'Módulo 3', lat: 28.2, lon: -105.38, mmHoy: 20, mm1: 8, mm7: 30, mm30: 60, ultFecha: '2026-11-08', hoyEn: null, tempUltima: 15,
+        ayer: { mm: 8, temp: 15, hum: 60, viento: 5 }, hoy: { mm: 20, temp: 12, hum: 90, viento: 9 }, medias: { temp7: 16, temp30: 17, hum7: 55, hum30: 58, viento7: 6, viento30: 7 }, ...o });
+    const m = { puntos: [pr({})], propias: [propia({})] } as unknown as ModeloRedJcas;
+    it('las propias aportan lluvia, temperatura, humedad y viento con la misma definición que JCAS', () => {
+        const v = (variable: 'lluvia' | 'temperatura' | 'viento' | 'humedad', d: 'hoy' | 1 | 7 | 30) => puntosObservados(m, variable, d).find((x) => x.nombre === 'Módulo 3')!.valor;
+        expect(v('lluvia', 'hoy')).toBe(20);
+        expect(v('temperatura', 30)).toBe(17); expect(v('temperatura', 'hoy')).toBe(12); expect(v('humedad', 7)).toBe(55); expect(v('viento', 1)).toBe(5);
+    });
+    it('un sensor no confiable (Riego San Rafael) es S/D = null, nunca 0, y la lluvia sigue valiendo', () => {
+        const sr = { puntos: [], propias: [propia({ nombre: 'Riego San Rafael', tempUltima: null, ayer: { ...vacio, mm: 8 }, hoy: { mm: 20, temp: null, hum: null, viento: null }, medias: { temp7: null, temp30: null, hum7: null, hum30: null, viento7: null, viento30: null } })] } as unknown as ModeloRedJcas;
+        const v = (variable: 'lluvia' | 'temperatura' | 'viento' | 'humedad') => puntosObservados(sr, variable, 30).find((x) => x.nombre === 'Riego San Rafael')!.valor;
+        expect(v('temperatura')).toBeNull(); expect(v('humedad')).toBeNull(); expect(v('viento')).toBeNull(); expect(v('lluvia')).toBe(60);
     });
 });
 

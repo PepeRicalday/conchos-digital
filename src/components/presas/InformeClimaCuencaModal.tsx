@@ -28,7 +28,7 @@ interface Props { red: RedJcas | null; pron: PronosticoCuenca | null; dem: DemGr
 
 const alternar = <T,>(l: T[], x: T) => (l.includes(x) ? l.filter((y) => y !== x) : [...l, x]);
 const FORMATOS: { id: FormatoInformeClima; et: string; ayuda: string }[] = [
-    { id: 'carta', et: 'PDF carta', ayuda: 'Todos los planos, dos por hoja, con tablas de estaciones, trazabilidad y firmas' },
+    { id: 'carta', et: 'PDF carta', ayuda: 'Todos los planos, dos por hoja; en «Informe completo» con tablas de estaciones, trazabilidad y firmas' },
     { id: 'png', et: 'Infografía PNG', ayuda: `Imagen vertical de 1600 px para WhatsApp (hasta ${MAX_PLANOS_PNG} planos)` },
     { id: 'lamina', et: 'Lámina 17×11', ayuda: `Horizontal para imprimir en gran formato (los ${MAX_PLANOS_LAMINA} primeros planos)` },
 ];
@@ -149,6 +149,15 @@ export default function InformeClimaCuencaModal({ red, pron, dem, onCerrar }: Pr
                     </header>
                     <div className="ndvi-cfg-cuerpo">
                         <div className="ndvi-cfg-col">
+                            <section className="ndvi-cfg-bloque" aria-label="Contenido del informe">
+                                <span className="ndvi-cfg-etq">Contenido</span>
+                                <div className="ndvi-cfg-chips" role="radiogroup" aria-label="Contenido del informe">
+                                    <button type="button" role="radio" aria-checked={c.contenido === 'completo'} className="ndvi-cfg-chip" onClick={() => set({ contenido: 'completo' })}>Informe completo</button>
+                                    <button type="button" role="radio" aria-checked={c.contenido === 'infografia'} className="ndvi-cfg-chip" onClick={() => set({ contenido: 'infografia', estaciones: false })}
+                                        title="Solo planos, indicadores y barras por estación: sin «Cómo se lee», trazabilidad, firmas ni tablas">Solo infografía</button>
+                                </div>
+                                {c.contenido === 'infografia' && <p className="ndvi-cfg-resumen">Solo lo gráfico: planos, indicadores y barras por estación. Conserva logos, corte, fuente, «dato provisional» y la atribución del contorno; sin notas metodológicas, trazabilidad ni firmas.</p>}
+                            </section>
                             <section className="ndvi-cfg-bloque" aria-label="Variables">
                                 <span className="ndvi-cfg-etq">Variables <em>({c.variables.length} de {VARIABLES_INFORME.length})</em></span>
                                 <div className="ndvi-cfg-secs">
@@ -190,7 +199,7 @@ export default function InformeClimaCuencaModal({ red, pron, dem, onCerrar }: Pr
                                 <label className="ndvi-cfg-check" title="Plano de lluvia sobre los 6 módulos con las estaciones propias; solo en el PDF carta"><input type="checkbox" checked={c.distrito} onChange={() => set({ distrito: !c.distrito })} /><span className="ndvi-cfg-etq">Apartado del distrito (módulos SRL con sus estaciones propias)</span></label>
                             </section>
                             <section className="ndvi-cfg-bloque" aria-label="Tabla de estaciones">
-                                <label className="ndvi-cfg-check"><input type="checkbox" checked={c.estaciones} onChange={() => set({ estaciones: !c.estaciones })} /><span className="ndvi-cfg-etq">Tabla de estaciones</span></label>
+                                <label className="ndvi-cfg-check" title={c.contenido === 'infografia' ? 'En «Solo infografía» las estaciones se muestran como barras, no como tabla' : undefined}><input type="checkbox" checked={c.estaciones && c.contenido !== 'infografia'} disabled={c.contenido === 'infografia'} onChange={() => set({ estaciones: !c.estaciones })} /><span className="ndvi-cfg-etq">Tabla de estaciones</span></label>
                             </section>
                         </div>
                         <aside className="ndvi-cfg-col ndvi-cfg-viva" aria-label="Resumen del informe">

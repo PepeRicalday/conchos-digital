@@ -782,7 +782,7 @@ const Clima = () => {
                 try {
                     const d = await cargarDatosJcas();
                     contorno = d.contorno;
-                    red = d.contorno ? construirRedJcas(d.est, d.lec, new Date(Date.now() - 7 * 3_600_000).toISOString().slice(0, 10), d.contorno.poligonos, d.hoy, d.propia) : null;
+                    red = d.contorno ? construirRedJcas(d.est, d.lec, new Date(Date.now() - 7 * 3_600_000).toISOString().slice(0, 10), d.contorno.poligonos, d.hoy, d.propia, d.clima) : null;
                 } catch (e) {
                     console.warn('[Clima] red de la cuenca no disponible para el informe geoclimático:', e);
                 }

@@ -6,7 +6,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import type { PuntoCampo } from './camposCuenca';
 import { consensoPorPunto, direccionPronosticoPeriodo, valorPronosticoPeriodo, type FilaPronostico } from './cuencaPronostico';
-import { mmPropio, valorObs, type ModeloRedJcas, type VentanaObs } from './jcasModelo';
+import { valorObs, type ModeloRedJcas, type VentanaObs } from './jcasModelo';
 import type { VariablePlano } from './paletasClima';
 
 export interface PuntoCuenca { id: string; nombre: string; lat: number; lon: number; elevM: number | null; grupo: string | null; fuente: 'jcas' | 'weatherlink' }
@@ -17,8 +17,9 @@ export function puntosObservados(red: ModeloRedJcas, variable: VariablePlano, di
         // solo la lluvia excluye al pluviómetro sospechoso: su temperatura, humedad y viento siguen siendo válidos
         sospechosa: variable === 'lluvia' ? p.sospechosa : false,
     }));
-    // Las estaciones propias aportan SOLO lluvia (sus otros sensores no se mezclan con los de JCAS).
-    const propias = variable === 'lluvia' ? (red.propias ?? []).map((p) => ({ id: p.id, nombre: p.nombre, lat: p.lat, lon: p.lon, valor: mmPropio(p, dias), elevM: null, grupo: null, propia: true })) : [];
+    // Las estaciones propias (WeatherLink) aportan lluvia, temperatura, humedad y viento con la MISMA definición de valor que JCAS (valorObs).
+    // Un sensor no confiable (p. ej. Riego San Rafael) llega como null = S/D y no entra al plano. Sin elevación del DEM, no entran al ajuste por altitud.
+    const propias = (red.propias ?? []).map((p) => ({ id: p.id, nombre: p.nombre, lat: p.lat, lon: p.lon, valor: valorObs(p, variable, dias), elevM: null, grupo: null, propia: true }));
     return [...jcas, ...propias];
 }
 

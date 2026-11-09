@@ -23,8 +23,18 @@ export interface FilaHoyJcas { estacion_id: number; fecha: string; lluvia_mm: nu
 
 /** Lluvia diaria de una estación PROPIA (WeatherLink), de fn_cuenca_lluvia_propia: el valor del día es la última lectura del contador del día local. */
 export interface FilaLluviaPropia { estacion_id: string; nombre: string; latitud: number; longitud: number; fecha: string; lluvia_mm: number; ult_lectura: string }
-/** Estación propia con su lluvia por ventana. Solo lluvia: sus otros sensores no se mezclan con los planos de JCAS. */
-export interface PuntoPropio { id: string; nombre: string; lat: number; lon: number; mmHoy: number | null; mm1: number | null; mm7: number | null; mm30: number | null; ultFecha: string | null; hoyEn: string | null }
+/** Medias diarias de una estación PROPIA (fn_cuenca_clima_propio): temperatura, humedad y viento (km/h) del día local; null = S/D (sensor no confiable o sin lectura). */
+export interface FilaClimaPropio { estacion_id: string; fecha: string; temp_c: number | null; hum_pct: number | null; viento_kmh: number | null }
+/**
+ * Estación propia con sus valores por ventana: lluvia (contador diario) y, desde v2.93, temperatura, humedad y viento (medias de sus lecturas).
+ * Misma forma de valores que PuntoRedJcas (`ayer`, `hoy`, `medias`, `mm7`, `mm30`): `valorObs` sirve para ambas fuentes.
+ */
+export interface PuntoPropio {
+    id: string; nombre: string; lat: number; lon: number; mmHoy: number | null; mm1: number | null; mm7: number | null; mm30: number | null; ultFecha: string | null; hoyEn: string | null;
+    ayer: ValoresDia; hoy: ValoresDia | null; medias: PuntoRedJcas['medias']; tempUltima: number | null;
+}
+/** Lo mínimo que `valorObs` necesita de un punto (JCAS o propio). */
+export type PuntoConValores = Pick<PuntoRedJcas, 'hoy' | 'ayer' | 'medias' | 'mm7' | 'mm30'>;
 
 /** Ventana de lo observado: el día en curso (parcial), el último día completo (ayer) o los últimos 7 / 30 días completos. */
 export type VentanaObs = 'hoy' | 1 | 7 | 30;
@@ -85,7 +95,7 @@ export function mediaVentana(ls: FilaLecturaJcas[], campo: 'temp_c' | 'hum_pct' 
 }
 
 /** Valor de un punto en una ventana: una sola definición para la tabla, el mapa, los planos y el informe. */
-export function valorObs(p: PuntoRedJcas, variable: 'lluvia' | 'temperatura' | 'viento' | 'humedad', v: VentanaObs): number | null {
+export function valorObs(p: PuntoConValores, variable: 'lluvia' | 'temperatura' | 'viento' | 'humedad', v: VentanaObs): number | null {
     if (v === 'hoy' || v === 1) {
         const d = v === 'hoy' ? p.hoy : p.ayer;
         if (!d) return null;
@@ -105,6 +115,7 @@ export const DIAS_ATRASO = 3;
 
 export function construirRedJcas(
     estaciones: FilaEstacionJcas[], lecturas: FilaLecturaJcas[], hoyLocalISO: string, poligonos: PoligonoGeo[], lecturasHoy: FilaHoyJcas[] = [], lluviaPropia: FilaLluviaPropia[] = [],
+    climaPropio: FilaClimaPropio[] = [],
 ): ModeloRedJcas {
     const fin = ISO(Date.parse(`${hoyLocalISO}T00:00:00Z`) - 86_400_000);
     const porEst = new Map<number, FilaLecturaJcas[]>();
@@ -119,12 +130,30 @@ export function construirRedJcas(
     // Estaciones propias: una fila por (estación, día local). El día en curso (≥ hoy) es parcial y va aparte de los días completos.
     const porPropia = new Map<string, FilaLluviaPropia[]>();
     for (const r of lluviaPropia) porPropia.set(r.estacion_id, [...(porPropia.get(r.estacion_id) ?? []), r]);
+    const climaPorPropia = new Map<string, FilaLecturaJcas[]>();
+    const climaHoyPropia = new Map<string, FilaClimaPropio>();
+    for (const c of climaPropio) {
+        // Misma forma que la lectura diaria de JCAS para reutilizar mediaVentana (la lluvia propia va por su contador, no por aquí).
+        if (c.fecha <= fin) climaPorPropia.set(c.estacion_id, [...(climaPorPropia.get(c.estacion_id) ?? []), { estacion_id: 0, fecha: c.fecha, lluvia_mm: null, temp_c: c.temp_c, hum_pct: c.hum_pct, viento_kmh: c.viento_kmh }]);
+        else if (c.fecha >= hoyLocalISO) climaHoyPropia.set(c.estacion_id, c);
+    }
     const propias: PuntoPropio[] = [...porPropia.entries()].map(([id, rs]) => {
         const dias = rs.filter((r) => r.fecha <= fin).map((r) => ({ fecha: r.fecha, lluviaMm: r.lluvia_mm }));
         const h = rs.filter((r) => r.fecha >= hoyLocalISO).sort((a, b) => a.fecha.localeCompare(b.fecha)).pop();
         const ult = rs.map((r) => r.fecha).sort().pop() ?? null;
-        return { id: `wl:${id}`, nombre: rs[0].nombre, lat: rs[0].latitud, lon: rs[0].longitud, mmHoy: h ? h.lluvia_mm : null,
-            mm1: acumuladoLluvia(dias, fin, 1).mm, mm7: acumuladoLluvia(dias, fin, 7).mm, mm30: acumuladoLluvia(dias, fin, 30).mm, ultFecha: ult, hoyEn: h?.ult_lectura ?? null };
+        const cl = climaPorPropia.get(id) ?? [], ch = climaHoyPropia.get(id);
+        const mm1 = acumuladoLluvia(dias, fin, 1).mm, mm7 = acumuladoLluvia(dias, fin, 7).mm, mm30 = acumuladoLluvia(dias, fin, 30).mm;
+        const mmHoy = h ? h.lluvia_mm : null;
+        const ultTemp = [...cl].sort((x, y) => y.fecha.localeCompare(x.fecha)).find((l) => l.temp_c != null)?.temp_c ?? null;
+        return { id: `wl:${id}`, nombre: rs[0].nombre, lat: rs[0].latitud, lon: rs[0].longitud, mmHoy, mm1, mm7, mm30, ultFecha: ult, hoyEn: h?.ult_lectura ?? null,
+            ayer: { mm: mm1, temp: mediaVentana(cl, 'temp_c', fin, 1), hum: mediaVentana(cl, 'hum_pct', fin, 1), viento: mediaVentana(cl, 'viento_kmh', fin, 1) },
+            hoy: h || ch ? { mm: mmHoy, temp: ch?.temp_c ?? null, hum: ch?.hum_pct ?? null, viento: ch?.viento_kmh ?? null } : null,
+            medias: {
+                temp7: mediaVentana(cl, 'temp_c', fin, 7), temp30: mediaVentana(cl, 'temp_c', fin, 30),
+                hum7: mediaVentana(cl, 'hum_pct', fin, 7), hum30: mediaVentana(cl, 'hum_pct', fin, 30),
+                viento7: mediaVentana(cl, 'viento_kmh', fin, 7), viento30: mediaVentana(cl, 'viento_kmh', fin, 30),
+            },
+            tempUltima: ultTemp };
     }).filter((p) => poligonos.some((g) => dentroDelPoligono(g, p.lon, p.lat))).sort((a, b) => a.nombre.localeCompare(b.nombre));
 
     const base: (PuntoLluvia & { grupo: string | null })[] = [];

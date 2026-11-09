@@ -98,7 +98,12 @@ export function construirDatosClima(
   const estacionesObs: FilaEstacionObs[] = (e.red?.puntos ?? []).map((p: PuntoRedJcas) => ({
     nombre: p.nombre, zona: p.zona === 'salida' ? 'Salida' : 'Cuenca', lluvia7: p.mm7, lluvia30: p.mm30, temp: p.medias.temp7, hum: p.medias.hum7, viento: p.medias.viento7,
     estado: p.sospechosa ? 'Excluida (sospechosa)' : p.sinPluviometro ? 'Sin pluviómetro' : ESTADO[p.estado] ?? 'S/D', ultFecha: p.ultFecha, excluida: p.sospechosa, sinPluviometro: p.sinPluviometro, motivo: p.motivo,
-  })).sort((a, b) => (b.lluvia30 ?? -1) - (a.lluvia30 ?? -1) || a.nombre.localeCompare(b.nombre));
+  })).concat((e.red?.propias ?? []).map((p: PuntoPropio) => ({
+    // Propias (WeatherLink): lluvia, temperatura, humedad y viento con la misma definición que JCAS; un sensor no confiable queda S/D.
+    nombre: `${p.nombre} (propia)`, zona: 'Distrito', lluvia7: p.mm7, lluvia30: p.mm30, temp: p.medias.temp7, hum: p.medias.hum7, viento: p.medias.viento7,
+    estado: p.ultFecha && e.red && Date.parse(`${e.red.fin}T00:00:00Z`) - Date.parse(`${p.ultFecha}T00:00:00Z`) <= 86_400_000 ? 'Al día' : p.ultFecha ? 'Atrasada' : 'S/D',
+    ultFecha: p.ultFecha, excluida: false, sinPluviometro: false, motivo: null,
+  }))).sort((a, b) => (b.lluvia30 ?? -1) - (a.lluvia30 ?? -1) || a.nombre.localeCompare(b.nombre));
 
   const estacionesPron: FilaEstacionPron[] = (e.pron?.puntos ?? []).map((p: PuntoCuenca) => {
     const d = consensoPorPunto(e.pron!.filas, p.id, e.hoy);

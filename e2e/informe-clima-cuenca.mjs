@@ -106,6 +106,30 @@ const ruta = OUT + (dl.suggestedFilename() || 'informe.png');
 await dl.saveAs(ruta);
 verifica(fs.statSync(ruta).size > 30_000 && /\.png$/.test(ruta), `descarga PNG de la lámina (${fs.statSync(ruta).size} bytes)`);
 
+// Modo «Solo infografía»: sin «Cómo se lee», trazabilidad, firmas ni tablas; con el mínimo institucional
+await page.getByRole('button', { name: /Volver a filtros/ }).click();
+await dlg.waitFor({ timeout: 15000 });
+await dlg.getByRole('radio', { name: 'Solo infografía' }).click();
+verifica(/infografía/.test(await dlg.innerText()), 'filtros: el modo «Solo infografía» se refleja en el alcance');
+await dlg.getByRole('button', { name: /Vista previa/ }).click();
+await previa.waitFor({ timeout: 20000 });
+await previa.getByRole('radio', { name: 'PDF carta' }).click();
+await marco.locator('.pagina').first().waitFor({ timeout: 30000 });
+const txtInfo = await marco.locator('body').innerText();
+verifica(!/Cómo se lee|Trazabilidad|Elaboró|Huella de la configuración/.test(txtInfo) && (await marco.locator('.firma').count()) === 0, 'infografía carta: sin «Cómo se lee», trazabilidad ni firmas');
+verifica(/dato provisional/i.test(txtInfo) && /JCAS/.test(txtInfo) && /INEGI-CONAGUA/.test(txtInfo) && /Folio/.test(txtInfo) && /n = \d+ estaciones/.test(txtInfo), 'infografía carta: conserva provisional, fuente, atribución del contorno, folio y n de estaciones');
+verifica(!SIN_BASURA.test(txtInfo), 'infografía carta: sin NaN/undefined/null/Aquarius');
+const altosInfo = await marco.locator('.pagina').evaluateAll((els) => els.map((e) => e.scrollHeight));
+verifica(altosInfo.every((h) => h <= 1060), `infografía carta: cada hoja cabe en una Carta (${altosInfo.join(', ')})`);
+verifica(await marco.locator('.rk li').count() > 0, 'infografía carta: barras de lluvia por estación');
+for (let i = 0; i < altosInfo.length; i++) { try { await marco.locator('.pagina').nth(i).screenshot({ path: `${OUT}info-carta-${i + 1}.png` }); } catch { /* opcional */ } }
+await previa.getByRole('radio', { name: 'Infografía PNG' }).click();
+await marco.locator('.hoja').waitFor({ timeout: 20000 });
+await page.waitForTimeout(600);
+const dimsInfo = await marco.locator('body').evaluate((b) => ({ w: b.scrollWidth, h: document.documentElement.scrollHeight }));
+verifica(dimsInfo.w <= 1601 && !/Cómo se lee|Trazabilidad/.test(await marco.locator('body').innerText()), `infografía png: sin desborde (${dimsInfo.w}×${dimsInfo.h}) y sin notas ni trazabilidad`);
+await marco.locator('.hoja').screenshot({ path: OUT + 'info-png.png' });
+
 verifica(errores.length === 0, `sin errores de consola (${errores.slice(0, 3).join(' | ')})`);
 await navegador.close();
 if (fallos.length) { console.log(`\n${fallos.length} FALLOS`); process.exit(1); }

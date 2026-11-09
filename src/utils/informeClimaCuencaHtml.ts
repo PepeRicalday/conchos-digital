@@ -61,13 +61,13 @@ function bloqueDistrito(d: DatosInformeClima): string {
   return `<section class="bloque"><h2>Distrito de Riego 005 · SRL Conchos <small>${esc(cuandoVentana(x.ventana))}</small></h2>
 <div class="distrito-grid"><figure class="plano distrito"><figcaption><b>${esc(x.plano.titulo)} · distrito</b><span>${resumen}</span></figcaption>${svg}<p class="fuente">Contorno: los 6 módulos de la SRL. Las estaciones propias (WeatherLink) se marcan con cuadrado; las JCAS cercanas, con círculo.</p></figure>
 <div><table class="cifras"><thead><tr><th>Estación propia</th><th class="n">Hoy (parcial, mm)</th><th class="n">Ayer (mm)</th><th class="n">7 d (mm)</th><th class="n">30 d (mm)</th></tr></thead><tbody>${filas || `<tr><td colspan="5">${SD}</td></tr>`}</tbody></table>
-<p class="leyenda">El valor del día es la última lectura del contador de lluvia de cada estación (día local). Una estación sin lectura es S/D, nunca 0. Solo se muestra la lluvia: la temperatura y el viento propios no se mezclan con los de JCAS.</p></div></div></section>`;
+<p class="leyenda">El valor del día es la última lectura del contador de lluvia de cada estación (día local). Una estación sin lectura es S/D, nunca 0. Esta tabla muestra la lluvia; la temperatura, la humedad y el viento de las propias entran a los planos y a la tabla de estaciones (un sensor no confiable es S/D).</p></div></div></section>`;
 }
 
 function kpis(d: DatosInformeClima): string {
   const o = d.lluviaObs, p = d.lluviaPron, c = d.confiabilidad;
   const tarjeta = (et: string, v: string, s: string) => `<div class="kpi"><div class="et">${esc(et)}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
-  return `<div class="kpis">${[
+  return `<div class="kpis${esInfografia(d) ? ' hero' : ''}">${[
     tarjeta(`Lluvia observada · ${etiquetaVentana(o?.dias ?? d.config.diasObs)}`, o ? `${num(o.media, (o.media ?? 99) < 10 ? 1 : 0)}<small> mm</small>` : SD, o ? (o.motivoSD ? esc(o.motivoSD) : `promedio de la cuenca · n = ${o.n} estaciones · cobertura ${numTxt(o.cobertura, 0)} %`) : 'no incluida en este informe'),
     tarjeta(`Lluvia pronosticada · ${p?.dias ?? d.config.diasPron} d`, p ? `${num(p.media, (p.media ?? 99) < 10 ? 1 : 0)}<small> mm</small>` : SD, p ? (p.motivoSD ? esc(p.motivoSD) : `entre ${numTxt(p.min, 0)} y ${numTxt(p.max, 0)} mm según la estación · n = ${p.n}`) : 'no incluido en este informe'),
     tarjeta('Estaciones JCAS al día', `${d.vigentes}<small> de ${d.totalEstaciones}</small>`, `dato de los últimos 3 días · corte ${esc(fechaCorta(d.corte))}`),
@@ -99,6 +99,26 @@ function tablaPron(d: DatosInformeClima, max?: number): string {
   return `<section class="bloque"><h2>Pronóstico por estación <small>${d.config.diasPron} días · ${d.corridaEn ? `corrida del ${esc(fechaHoraLegible(new Date(d.corridaEn)))}` : 'sin corrida (S/D)'}</small></h2>
 <table class="cifras"><thead><tr><th>Estación</th><th class="n">Lluvia (mm)</th><th class="n">Entre modelos (mm)</th><th class="n">Días con lluvia</th><th class="n">Temp. (°C)</th><th class="n">Viento (km/h)</th></tr></thead><tbody>${filas}</tbody></table>
 <p class="leyenda">Un «día con lluvia» es aquel en que al menos 2 de los 3 modelos dan 1 mm o más. Los modelos pueden discrepar mucho en tormentas.</p></section>`;
+}
+
+const esInfografia = (d: DatosInformeClima): boolean => d.config.contenido === 'infografia';
+
+/**
+ * Barras de lluvia por estación (30 d) en lugar de la tabla: lectura de un vistazo. La barra es proporcional al máximo; S/D, sin pluviómetro y
+ * excluidas NO llevan barra (nunca 0) y se rotulan. Cada fila lleva el valor en texto: el color no es el único canal.
+ */
+function ranking(d: DatosInformeClima, max = 12): string {
+  const util = d.estacionesObs.filter((e) => !e.excluida && !e.sinPluviometro && e.lluvia30 != null) as (typeof d.estacionesObs[number] & { lluvia30: number })[];
+  const tope = Math.max(0.0001, ...util.map((e) => e.lluvia30));
+  const filas = util.slice(0, max).map((e) => `<li><span class="rk-n">${esc(e.nombre)}</span><span class="rk-b"><i style="width:${Math.max(2, Math.round((e.lluvia30 / tope) * 100))}%"></i></span><b class="rk-v">${numTxt(e.lluvia30, e.lluvia30 < 10 ? 1 : 0)} mm</b></li>`).join('');
+  const sinBarra = d.estacionesObs.filter((e) => e.excluida || e.sinPluviometro || e.lluvia30 == null);
+  const pie = [util.length > max ? `${util.length - max} estaciones más en el PDF carta` : '', sinBarra.length ? `${sinBarra.length} sin barra (S/D, sin pluviómetro o excluida): ${sinBarra.map((e) => e.nombre).slice(0, 6).join(', ')}${sinBarra.length > 6 ? '…' : ''}` : ''].filter(Boolean).join(' · ');
+  return `<section class="bloque ranking"><h2>Lluvia por estación <small>últimos 30 días · JCAS/UACJ y estaciones propias · provisional</small></h2><ol class="rk">${filas || `<li>${SD}</li>`}</ol>${pie ? `<p class="leyenda">${esc(pie)}</p>` : ''}</section>`;
+}
+
+/** Mínimo institucional del modo infografía (sustituye a «Cómo se lee» y la trazabilidad): fuente, provisional, no sustituye, atribución del contorno. */
+function lineaInstitucional(d: DatosInformeClima): string {
+  return `<p class="inst">Dato provisional de contexto · fuente: JCAS/UACJ, Open-Meteo y estaciones propias · corte ${esc(fechaLarga(d.corte))} · ${d.vigentes} de ${d.totalEstaciones} estaciones JCAS al día · no sustituye a las estaciones propias ni a los aforos · contorno INEGI-CONAGUA vía CONABIO (CC BY-NC 2.5 MX).</p>`;
 }
 
 function notas(d: DatosInformeClima): string {
@@ -148,6 +168,18 @@ const CSS_PLANOS = `
 .plano svg{display:block;width:100%;height:auto;border:1px solid #D8E2EC;border-radius:6px;background:#fff}
 .plano .fuente{margin:3px 0 0}
 .planos.chico .plano{width:88%;margin-inline:auto}
+.kpis.hero{grid-template-columns:1.5fr 1.5fr 1fr 1fr}
+.kpis.hero .kpi:nth-child(-n+2){border-top-width:7px;padding:12px 16px}
+.kpis.hero .kpi:nth-child(-n+2) .v{font-size:2.9em}
+.kpis.hero .kpi:nth-child(-n+2) .et{font-size:.82em;color:#3d4650}
+.ranking{margin:0 0 14px}
+.rk{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(var(--rkcols,2),minmax(0,1fr));gap:5px 26px}
+.rk li{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) auto;align-items:center;gap:10px}
+.rk-n{font-weight:600;color:#1B2733;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rk-b{height:13px;background:#E6EEF6;border-radius:7px;overflow:hidden}
+.rk-b i{display:block;height:100%;background:linear-gradient(90deg,#0A7FDB,#0B3170);border-radius:7px}
+.rk-v{font:700 .95em ${FUENTE_MARCA};color:#0B3170;min-width:4.6em;text-align:right}
+.inst{margin:8px 0 0;font-size:.82em;line-height:1.35;color:#3d4650;border-top:1px solid #D8E2EC;padding-top:6px}
 `;
 const CSS_INFOGRAFIA = (ancho: number, alto: number | null) => `
 *{box-sizing:border-box}
@@ -183,6 +215,11 @@ ${CSS_PLANOS}
 .kpi .v{font-size:15pt}
 .kpi .s{font-size:7.2pt}
 .planos{--cols:2}
+.kpis.hero .kpi:nth-child(-n+2){padding:8px 12px}
+.kpis.hero .kpi:nth-child(-n+2) .v{font-size:21pt}
+.kpis.hero ~ .planos.chico .plano{width:80%}
+.rk{font-size:8pt}
+.inst{font-size:7pt}
 .plano figcaption span{font-size:7.6pt}
 table.cifras{font-size:7.6pt}
 table.cifras th{font-size:6.8pt;padding:4px 4px}
@@ -205,9 +242,12 @@ function infografia(d: DatosInformeClima, o: OpcionesHtmlClima): string {
   const wCol = Math.floor(((lam ? ancho - 64 : ancho - 88) - (cols - 1) * (lam ? 16 : 18)) / cols);
   const planos = `<div class="planos" style="--cols:${cols}">${lista.map((p, i) => figura(p, d, `p${i}`, lam ? Math.min(wCol, 470) : wCol, lam ? 11 : 15)).join('')}</div>`;
   const aviso = omitidos > 0 && !lam ? `<p class="aviso">Este formato muestra ${lista.length} de ${d.planos.length} planos; el PDF carta los incluye todos.</p>` : '';
+  const info = esInfografia(d);
   const cuerpo = lam
-    ? `${kpis(d)}${planos}${aviso}`
-    : `${kpis(d)}${planos}${aviso}${d.config.estaciones ? tablaObs(d, 10) : ''}${notas(d)}`;
+    ? `${kpis(d)}${planos}${aviso}${info ? lineaInstitucional(d) : ''}`
+    : info
+      ? `${kpis(d)}${planos}${aviso}${d.config.observado ? ranking(d, 12) : ''}${lineaInstitucional(d)}`
+      : `${kpis(d)}${planos}${aviso}${d.config.estaciones ? tablaObs(d, 10) : ''}${notas(d)}`;
   return `<div class="hoja${lam ? ' lam' : ''}">${cabecera}${titular(d)}${cuerpo}${pie}</div>`;
 }
 
@@ -216,19 +256,27 @@ function carta(d: DatosInformeClima, o: OpcionesHtmlClima): string {
   const porHoja = 2;
   const grupos: PlanoInforme[][] = [];
   for (let i = 0; i < d.planos.length; i += porHoja) grupos.push(d.planos.slice(i, i + porHoja));
-  const conTablas = d.config.estaciones;
+  const info = esInfografia(d);
+  const conTablas = d.config.estaciones && !info;
   const paginasTabla = conTablas ? (d.config.observado ? 1 : 0) + (d.config.pronostico ? 1 : 0) : 0;
   const conDistrito = !!d.distrito;
-  const total = grupos.length + (conDistrito ? 1 : 0) + paginasTabla + 1;
+  const conRanking = info && d.config.observado;
+  // Modo infografía: sin tablas ni anexo metodológico/trazabilidad/firmas; el mínimo institucional va al pie de la última hoja.
+  const total = grupos.length + (conDistrito ? 1 : 0) + paginasTabla + (conRanking ? 1 : 0) + (info ? 0 : 1);
   let n = 0;
   const hoja = (cuerpo: string, cabecera: string) => `<section class="pagina">${cabecera}<div class="cuerpo">${cuerpo}</div>${pieInforme(`Folio ${folioClima(d, o.emitido)}`, ++n, total)}</section>`;
   grupos.forEach((g, k) => {
     const planos = `<div class="planos${k === 0 ? ' chico' : ''}" style="--cols:${g.length}">${g.map((p, i) => figura(p, d, `c${k}${i}`, 340, 10)).join('')}</div>`;
-    hojas.push(hoja(k === 0 ? `${titular(d, false)}${kpis(d)}${planos}` : planos, membrete(o, d)));
+    const ultima = k === grupos.length - 1 && !conDistrito && !conRanking;
+    hojas.push(hoja(`${k === 0 ? `${titular(d, false)}${kpis(d)}${planos}` : planos}${info && ultima ? lineaInstitucional(d) : ''}`, membrete(o, d)));
   });
-  if (conDistrito) hojas.push(hoja(bloqueDistrito(d), membrete(o, d)));
+  if (conDistrito) hojas.push(hoja(`${bloqueDistrito(d)}${info && !conRanking ? lineaInstitucional(d) : ''}`, membrete(o, d)));
   if (conTablas && d.config.observado) hojas.push(hoja(tablaObs(d), membrete(o, d)));
   if (conTablas && d.config.pronostico) hojas.push(hoja(tablaPron(d), membrete(o, d)));
+  if (info) {
+    if (conRanking) hojas.push(hoja(`<div style="--rkcols:1">${ranking(d, 24)}</div>${lineaInstitucional(d)}`, membrete(o, d)));
+    return hojas.join('\n');
+  }
   hojas.push(hoja([notas(d), `<section class="bloque"><h2>Trazabilidad</h2>${tablaTrazabilidad(filasTrazabilidad(d, o.emitido))}</section>`, `<section class="bloque"><h2>Firmas</h2>${bloqueFirmas()}</section>`].join(''), membrete(o, d)));
   return hojas.join('\n');
 }

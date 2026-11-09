@@ -147,6 +147,25 @@ describe('ventanas «hoy» (parcial) y «ayer»', () => {
         expect(c1.propias[0].mm7).toBeNull(); // 2 días de 7: menos del 80 % → S/D, nunca 0
         expect(c1.arealHoy.nEstaciones).toBe(m.arealHoy.nEstaciones + 1);
     });
+    it('las propias traen temperatura/humedad/viento con la regla del 80 % y los sensores sin lectura quedan S/D', () => {
+        const ll = (id: string, d: [string, number][]) => d.map(([fecha, lluvia_mm]) => ({ estacion_id: id, nombre: id, latitud: 27.97, longitud: -105.28, fecha, lluvia_mm, ult_lectura: '2026-11-08T19:45:00Z' }));
+        const dias = ['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07'];
+        const propias = [...ll('Módulo 1', dias.map((d) => [d, 1] as [string, number])), ...ll('Riego San Rafael', dias.map((d) => [d, 1] as [string, number]))];
+        const clima = [
+            ...dias.map((fecha, i) => ({ estacion_id: 'Módulo 1', fecha, temp_c: 14 + i, hum_pct: 60, viento_kmh: 5 })),
+            { estacion_id: 'Módulo 1', fecha: '2026-11-08', temp_c: 12, hum_pct: 90, viento_kmh: 9 },
+            ...dias.map((fecha) => ({ estacion_id: 'Riego San Rafael', fecha, temp_c: null, hum_pct: null, viento_kmh: null })),
+        ];
+        const r = construirRedJcas(red, lecturas, HOY, c.poligonos, filasHoy, propias, clima);
+        const m1 = r.propias.find((p) => p.nombre === 'Módulo 1')!, sr = r.propias.find((p) => p.nombre === 'Riego San Rafael')!;
+        expect(m1.medias.temp7).toBe(17); // media de 14..20
+        expect(m1.medias.temp30).toBeNull(); // 7 de 30 días: menos del 80 % → S/D
+        expect(m1.ayer.temp).toBe(20);
+        expect(m1.hoy).toMatchObject({ temp: 12, hum: 90, viento: 9 });
+        expect(m1.tempUltima).toBe(20);
+        expect(sr.medias.temp7).toBeNull(); expect(sr.ayer.hum).toBeNull(); expect(sr.tempUltima).toBeNull();
+        expect(sr.mm7).toBe(7); // su lluvia sigue valiendo
+    });
     it('areal de hoy con cobertura suficiente y rótulos de ventana', () => {
         expect(m.arealHoy.mm).not.toBeNull();
         expect(arealDe(m, 'hoy')).toBe(m.arealHoy);

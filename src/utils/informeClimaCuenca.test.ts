@@ -124,6 +124,39 @@ describe('HTML del informe', () => {
     expect(h).toMatch(/Trazabilidad/);
     expect(h).toMatch(/Firmas|Elaboró/);
   });
+  describe('modo «Solo infografía»', () => {
+    const cfg = { ...configClimaPorDefecto(), contenido: 'infografia' as const, estaciones: false };
+    for (const f of ['png', 'lamina', 'carta'] as const) {
+      it(`${f}: sin «Cómo se lee», trazabilidad, firmas ni tablas; con el mínimo institucional`, () => {
+        const h = htmlInformeClimaCuenca(datos(cfg), OPC(f));
+        const visible = h.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, ' ');
+        expect(visible).not.toMatch(/Cómo se lee|Trazabilidad|Firmas|Elaboró|Huella de la configuración/);
+        expect(h).not.toMatch(/class="firma|<table class="cifras"><thead><tr><th>Estación<\/th><th class="n">Lluvia 7 d/);
+        expect(visible).not.toMatch(/\b(NaN|undefined|Infinity|null)\b/);
+        expect(h).toMatch(/provisional/i);
+        expect(h).toMatch(/JCAS/);
+        expect(h).toMatch(/Folio/);
+        expect(h).toMatch(/n = \d+ estaciones/);
+        expect(h).toMatch(/INEGI-CONAGUA/); // atribución del contorno (pasó de las notas al pie)
+        expect(h).toMatch(/no sustituye a las estaciones propias ni a los aforos/);
+        expect(h).toContain('data:image/png;base64,AAAA');
+      });
+    }
+    it('carta: solo hojas de planos, distrito y barras por estación (sin hoja de anexo)', () => {
+      const h = htmlInformeClimaCuenca(datos(cfg), OPC('carta'));
+      expect((h.match(/<section class="pagina"/g) ?? []).length).toBe(4 + 1 + 1); // 4 de planos, distrito y barras
+      expect(h).toMatch(/class="rk"/);
+    });
+    it('las barras de lluvia no dibujan barra para S/D, sin pluviómetro ni excluidas', () => {
+      const h = htmlInformeClimaCuenca(datos(cfg, red({ sospechosa: true, motivo: 'sospechosa' })), OPC('png'));
+      expect(h).toMatch(/sin barra \(S\/D, sin pluviómetro o excluida\)/);
+    });
+    it('el modo completo no cambia y el alcance lo distingue', () => {
+      expect(etiquetaAlcanceClima(cfg)).toMatch(/infografía$/);
+      expect(huellaClima(datos(cfg))).not.toBe(huellaClima(datos()));
+      expect(htmlInformeClimaCuenca(datos(), OPC('png'))).toMatch(/Cómo se lee/);
+    });
+  });
   it('la confiabilidad se declara en construcción y no se afirma acierto', () => {
     const h = htmlInformeClimaCuenca(datos(), OPC('carta'));
     expect(h).toMatch(/En construcción/);
@@ -158,7 +191,8 @@ describe('capas y distrito', () => {
     const h = htmlInformeClimaCuenca(d, OPC('carta'));
     expect(h).toMatch(/Distrito de Riego 005 · SRL Conchos/);
     expect(h).toMatch(/Estación propia/);
-    expect(h).toMatch(/Solo se muestra la lluvia/);
+    expect(h).toMatch(/Esta tabla muestra la lluvia/); // la temperatura, humedad y viento de las propias entran a los planos y a la tabla de estaciones
+    expect(h).not.toMatch(/no se mezclan con los de JCAS/);
   });
   it('con capas el SVG de los planos lleva su leyenda; sin capas (config vacía) no', () => {
     expect(htmlInformeClimaCuenca(datos(), OPC('carta'))).toMatch(/límite municipal/);

@@ -148,9 +148,9 @@ export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<
                         })}
                         {m.propias.map((p) => (
                             <tr key={p.id}>
-                                <th scope="row"><div className="cu-presa"><span className="cu-nombre">{p.nombre}</span><span className="cu-tag">Propia</span><span className="cu-nota-fila">Estación WeatherLink del distrito: solo aporta lluvia</span></div></th>
+                                <th scope="row"><div className="cu-presa"><span className="cu-nombre">{p.nombre}</span><span className="cu-tag">Propia</span><span className="cu-nota-fila">{p.tempUltima == null && p.medias.temp30 == null ? 'Estación WeatherLink del distrito: solo lluvia (sin sensor de temperatura confiable)' : 'Estación WeatherLink del distrito'}</span></div></th>
                                 <td className="cu-num">{fmtMm(p.mmHoy)}</td><td className="cu-num">{fmtMm(p.mm1)}</td><td className="cu-num">{fmtMm(p.mm7)}</td><td className="cu-num cu-barra" style={barra(p.mm30)}>{fmtMm(p.mm30)}</td>
-                                <td className="cu-num">S/D</td>
+                                <td className="cu-num">{p.tempUltima == null ? 'S/D' : `${formatearNumero(p.tempUltima, 1)} °C`}</td>
                                 <td>{(() => {
                                     const e = estadoPropia(p.ultFecha, m.fin);
                                     return <span className={`cu-estado cu-estado--${e.clase}`}><span aria-hidden="true">{e.glifo}</span> {e.texto}</span>;
@@ -169,7 +169,7 @@ export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<
                     <li><b>Contorno:</b> cuencas J–N de la región hidrológica RH24 (INEGI-CONAGUA, 28 subcuencas, {red.contorno.areaKm2 != null ? `≈ ${formatearNumero(red.contorno.areaKm2, 0)} km²` : 'área S/D'}). Ojinaga queda en el borde de salida.</li>
                     <li><b>Días completos y hoy:</b> los acumulados de ayer, 7 y 30 días usan solo días cerrados del reloj de cada estación. «Hoy» es el día en curso y es PARCIAL: lluvia acumulada y medias hasta la última lectura (cada 2 h aprox.); no se mezcla con los días completos ni con la verificación del pronóstico. Un acumulado con menos del 80 % de los días con dato es S/D.</li>
                     <li><b>Promedio areal:</b> interpolación por inverso de la distancia al cuadrado sobre una malla de 0.1°, limitada a 90 km de cada estación; con menos de 5 estaciones útiles o menos del 50 % del área cubierta, el resultado es S/D (nunca 0 mm).</li>
-                    <li><b>Estaciones propias:</b> las {m.propias.length} estaciones WeatherLink dentro de la cuenca suman a la lluvia observada (el valor del día es la última lectura de su contador diario). Solo aportan lluvia; temperatura, viento y humedad siguen viniendo de JCAS.</li>
+                    <li><b>Estaciones propias:</b> las {m.propias.length} estaciones WeatherLink dentro de la cuenca suman a la lluvia observada (el valor del día es la última lectura de su contador diario). Aportan también temperatura, humedad y viento (media de sus lecturas del día local, cada ~2 h) con las mismas reglas que JCAS: un sensor declarado no confiable (hoy, los de Riego San Rafael salvo la lluvia) es S/D y no entra a los planos.</li>
                     <li><b>Pluviómetros sospechosos:</b> 0 mm en 30 días mientras al menos dos vecinas a ≤ 90 km registran 20 mm o más. Se excluyen del promedio y se avisa.</li>
                     <li>Sin pluviómetro, el 0.0 que muestra el portal no significa «no llovió»: se trata como S/D. La serie JCAS es corta, así que no se dice qué es lo normal ni se calculan anomalías.</li>
                 </ul>

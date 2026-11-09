@@ -4,7 +4,7 @@ import { formatearNumero } from '../../../utils/historicoPresas';
 import { fmtLluvia } from '../../../utils/fmtLluvia';
 import { fechaCorta } from '../../../utils/analiticaPresas';
 import type { LluviaAreal } from '../../../utils/jcasCuenca';
-import { arealDe, etiquetaVentana, valorObs, VENTANAS_OBS, type PuntoRedJcas, type VentanaObs } from '../../../utils/jcasModelo';
+import { arealDe, esVentanaLarga, etiquetaVentana, mmPropio, valorObs, VENTANAS_OBS, type PuntoRedJcas, type VentanaObs } from '../../../utils/jcasModelo';
 import MapaCuenca from './MapaCuenca';
 import type { CapasCuenca } from '../../../hooks/useCapasCuenca';
 
@@ -45,9 +45,12 @@ function KpiAreal({ etiqueta, a }: { etiqueta: string; a: LluviaAreal }) {
  * Red de estaciones JCAS/UACJ dentro de la cuenca del Conchos: mapa propio, lluvia areal (hoy, ayer, 7 y 30 días) y tabla por estación.
  * CONTEXTO de fuente TERCERA y provisional (portal público sin API): no sustituye las estaciones propias ni entra a KPIs del distrito.
  */
-export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<typeof useJcasCuenca>; capas?: CapasCuenca }) {
+export default function RedEstacionesCuenca({ jcas, capas, ventana: ventanaProp, onVentana }: { jcas: ReturnType<typeof useJcasCuenca>; capas?: CapasCuenca; ventana?: VentanaObs; onVentana?: (v: VentanaObs) => void }) {
     const { red, loading, error, recargar } = jcas;
-    const [ventana, setVentana] = useState<VentanaObs>(30);
+    // La ventana puede venir del panel (una sola para planos y red); sin él, es local.
+    const [ventanaLocal, setVentanaLocal] = useState<VentanaObs>(30);
+    const ventana = ventanaProp ?? ventanaLocal;
+    const setVentana = onVentana ?? setVentanaLocal;
     const [sel, setSel] = useState<number | null>(null);
 
     const filas = useMemo(() => {
@@ -71,6 +74,7 @@ export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<
     }
     const m = red.modelo;
     const areal = arealDe(m, ventana);
+    const larga = esVentanaLarga(ventana);
     const excluidas = m.puntos.filter((p) => p.sospechosa);
     const max30 = Math.max(0.0001, ...m.puntos.filter((p) => !p.sospechosa).map((p) => p.mm30 ?? 0), ...m.propias.map((p) => p.mm30 ?? 0));
     const barra = (v: number | null) => (v == null ? undefined : { ['--w' as string]: `${Math.max(0, Math.min(100, Math.round((v / max30) * 100)))}%` });
@@ -122,6 +126,7 @@ export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<
                             <th scope="col" className="cu-num">Lluvia ayer</th>
                             <th scope="col" className="cu-num">Lluvia 7 d</th>
                             <th scope="col" className="cu-num">Lluvia 30 d</th>
+                            {larga && <th scope="col" className="cu-num">Lluvia {etiquetaVentana(ventana)}</th>}
                             <th scope="col" className="cu-num">Temp. último día</th>
                             <th scope="col">Estado · último día</th>
                         </tr>
@@ -141,6 +146,7 @@ export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<
                                     <td className="cu-num">{fmtMm(p.ayer.mm)}</td>
                                     <td className="cu-num">{fmtMm(p.mm7)}</td>
                                     <td className="cu-num cu-barra" style={barra(p.sospechosa ? null : p.mm30)}>{fmtMm(p.mm30)}</td>
+                                    {larga && <td className="cu-num">{fmtMm(p.sospechosa || p.sinPluviometro ? null : valorObs(p, 'lluvia', ventana))}</td>}
                                     <td className="cu-num">{p.tempUltima == null ? 'S/D' : `${formatearNumero(p.tempUltima, 1)} °C`}</td>
                                     <td><span className={`cu-estado cu-estado--${e.clase}`}><span aria-hidden="true">{e.glifo}</span> {e.texto}</span><span className="cu-nota-fila cu-fecha">{p.ultFecha ? fechaCorta(p.ultFecha) : 'S/D'}</span></td>
                                 </tr>
@@ -149,7 +155,7 @@ export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<
                         {m.propias.map((p) => (
                             <tr key={p.id}>
                                 <th scope="row"><div className="cu-presa"><span className="cu-nombre">{p.nombre}</span><span className="cu-tag">Propia</span><span className="cu-nota-fila">{p.tempUltima == null && p.medias.temp30 == null ? 'Estación WeatherLink del distrito: solo lluvia (sin sensor de temperatura confiable)' : 'Estación WeatherLink del distrito'}</span></div></th>
-                                <td className="cu-num">{fmtMm(p.mmHoy)}</td><td className="cu-num">{fmtMm(p.mm1)}</td><td className="cu-num">{fmtMm(p.mm7)}</td><td className="cu-num cu-barra" style={barra(p.mm30)}>{fmtMm(p.mm30)}</td>
+                                <td className="cu-num">{fmtMm(p.mmHoy)}</td><td className="cu-num">{fmtMm(p.mm1)}</td><td className="cu-num">{fmtMm(p.mm7)}</td><td className="cu-num cu-barra" style={barra(p.mm30)}>{fmtMm(p.mm30)}</td>{larga && <td className="cu-num">{fmtMm(mmPropio(p, ventana))}</td>}
                                 <td className="cu-num">{p.tempUltima == null ? 'S/D' : `${formatearNumero(p.tempUltima, 1)} °C`}</td>
                                 <td>{(() => {
                                     const e = estadoPropia(p.ultFecha, m.fin);

@@ -144,8 +144,21 @@ describe('HTML del informe', () => {
     }
     it('carta: solo hojas de planos, distrito y barras por estación (sin hoja de anexo)', () => {
       const h = htmlInformeClimaCuenca(datos(cfg), OPC('carta'));
-      expect((h.match(/<section class="pagina"/g) ?? []).length).toBe(4 + 1 + 1); // 4 de planos, distrito y barras
+      expect((h.match(/<section class="pagina"/g) ?? []).length).toBe(1 + 4 + 1 + 1); // mapa protagonista, 7 planos de dos en dos, distrito y barras
+      expect(h).toMatch(/data-protagonista="1"/);
       expect(h).toMatch(/class="rk"/);
+    });
+    it('mapa protagonista: PNG (2×2 casillas), lámina (columna izquierda) y carta (hoja 1); el modo completo no lo usa', () => {
+      const png = htmlInformeClimaCuenca(datos(cfg), OPC('png'));
+      expect(png).toMatch(/class="planos protag"/);
+      expect((png.match(/data-protagonista="1"/g) ?? []).length).toBe(1);
+      expect((png.match(/<figure class="plano"/g) ?? []).length).toBe(MAX_PLANOS_PNG);
+      const lam = htmlInformeClimaCuenca(datos(cfg), OPC('lamina'));
+      expect(lam).toMatch(/class="lam-hero"/);
+      expect((lam.match(/<figure class="plano"/g) ?? []).length).toBe(MAX_PLANOS_LAMINA);
+      expect(lam).toMatch(/class="rk"/); // las barras ocupan el hueco de la derecha
+      expect(htmlInformeClimaCuenca(datos(), OPC('png'))).not.toMatch(/data-protagonista="1"|class="planos protag"/);
+      expect(htmlInformeClimaCuenca(datos(), OPC('lamina'))).not.toMatch(/lam-hero"/);
     });
     it('las barras de lluvia no dibujan barra para S/D, sin pluviómetro ni excluidas', () => {
       const h = htmlInformeClimaCuenca(datos(cfg, red({ sospechosa: true, motivo: 'sospechosa' })), OPC('png'));

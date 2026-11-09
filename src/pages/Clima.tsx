@@ -48,6 +48,7 @@ import ClimaCuencaResumen from '../components/clima/ClimaCuencaResumen';
 import { WindyMapModal } from '../components/WindyMapModal';
 import { CENTRO_DISTRITO } from '../utils/mapaSatelital';
 import { useRol } from '../lib/auth/roles';
+import { hoyJcasISO, hoyLocalISO } from '../utils/hoyLocal';
 
 // Types for display
 interface WeatherCondition {
@@ -782,14 +783,14 @@ const Clima = () => {
                 try {
                     const d = await cargarDatosJcas();
                     contorno = d.contorno;
-                    red = d.contorno ? construirRedJcas(d.est, d.lec, new Date(Date.now() - 7 * 3_600_000).toISOString().slice(0, 10), d.contorno.poligonos, d.hoy, d.propia, d.clima) : null;
+                    red = d.contorno ? construirRedJcas(d.est, d.lec, hoyJcasISO(), d.contorno.poligonos, d.hoy, d.propia, d.clima) : null;
                 } catch (e) {
                     console.warn('[Clima] red de la cuenca no disponible para el informe geoclimático:', e);
                 }
                 const dem = await cargarDemCuenca().catch(() => null);
                 const capasIds = opciones.capas ?? [];
                 const capasDatos = capasIds.length ? await (await import('../utils/capasCuenca')).cargarCapas(capasIds) : {};
-                cuencaHtml = seccionCuencaGeo({ red, contorno, dem, variables: opciones.variables, periodoDesde, periodoHasta, capas: capasIds.length ? { ids: capasIds, datos: capasDatos } : undefined, hoy: new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10) });
+                cuencaHtml = seccionCuencaGeo({ red, contorno, dem, variables: opciones.variables, periodoDesde, periodoHasta, capas: capasIds.length ? { ids: capasIds, datos: capasDatos } : undefined, hoy: hoyLocalISO() });
             }
             await exportClimaGeoInforme(estacionesInforme, {
                 ...opciones, cuencaHtml, periodoDesde, periodoHasta, serieMensual, tendencias, umbrales: umbralesClima,

@@ -5,6 +5,7 @@ import {
     diaDelAnio, normalizarClimatologia, normalizarClimatologiaHoy,
     type ClimatologiaHoy, type FilaClimatologia,
 } from '../utils/aqwpEstadistica';
+import { hoyLocalISO } from '../utils/hoyLocal';
 import {
     limpiarAlmacenamiento, normalizarEstado, resumenLluvia, restarDias, serieLlenado, ORDEN_PRESAS_CUENCA,
     type EstadoUbicacion, type FilaGrafica, type LecturaDiariaAqwp, type ResumenLluvia,
@@ -145,7 +146,7 @@ export function useAqwpCuenca({ conSerie = true, refrescoMs = 0 }: OpcionesCuenc
                 const ubicacionDeLluvia = new Map(dsLluvia.map(d => [d.id_number, d.ubicacion_id]));
                 const lecturasLluvia: LecturaDiariaAqwp[] = [];
                 if (dsLluvia.length) {
-                    const hoyISO = new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10); // UTC-6, como el portal
+                    const hoyISO = hoyLocalISO();
                     const idsLluvia = dsLluvia.map(d => d.id_number);
                     for (let from = 0; ; from += PAGINA) {
                         const { data, error: e } = await supabase.from('aqwp_lecturas_diarias')

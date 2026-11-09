@@ -16,7 +16,9 @@
 //   · Temperatura, viento y humedad: rango registrado de las medias diarias y mensuales de JCAS (p1–p99 y extremos), con cortes redondos.
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type FamiliaLluvia = 'dia' | 'sem' | 'mes';
+export type FamiliaLluvia = 'dia' | 'sem' | 'mes' | 'largo';
+/** Familias con cuantiles medidos (las ventanas de hasta 30 días). La familia 'largo' no tiene base multianual. */
+export type FamiliaMedida = 'dia' | 'sem' | 'mes';
 export type VariableEscala = 'lluvia' | 'temperatura' | 'viento' | 'humedad';
 
 export interface EscalaDatos {
@@ -48,14 +50,20 @@ export function nivelesDeCuantiles(cuantiles: number[], maximo: number): number[
 }
 
 /** Cuantiles (deciles y cuartiles de los valores ≥ 1 mm) y máximo medidos el 2026-11-08, de los que salen las escalas de lluvia. */
-export const CUANTILES_LLUVIA: Record<FamiliaLluvia, { q: number[]; max: number }> = {
+export const CUANTILES_LLUVIA: Record<FamiliaMedida, { q: number[]; max: number }> = {
     dia: { q: [1.33, 2.286, 4, 6.621, 10.16, 12.844, 22.672, 30.891, 57.8], max: 81.25 },
     sem: { q: [2, 4.745, 9, 13.8, 22.2, 31.6, 48.768, 63.323, 97.25], max: 134 },
     mes: { q: [4.75, 14.478, 26.75, 40.846, 65.69, 86.232, 107.239, 130.75, 171.75], max: 190.754 },
 };
 
 const BASE_LLUVIA = 'JCAS, estaciones propias y GOES, nov-2024 a nov-2026';
+/**
+ * Acumulados largos (60 d, 90 d, ciclo agrícola): SIN base multianual. Cortes fijos y redondos de referencia (hasta 500 mm), declarados como tales:
+ * sirven para comparar a ojo planos de acumulados largos entre sí, no son una climatología (nunca «normal», anomalía ni percentil).
+ */
+const NIVELES_LLUVIA_LARGA = [10, 25, 50, 75, 100, 150, 200, 300, 400, 500];
 const ESCALAS_LLUVIA: Record<FamiliaLluvia, EscalaDatos> = {
+    largo: { niveles: NIVELES_LLUVIA_LARGA, base: 'acumulado largo (60 d, 90 d o ciclo): escala fija de referencia, sin base multianual (la historia diaria de JCAS en SICA es corta)' },
     dia: { niveles: nivelesDeCuantiles(CUANTILES_LLUVIA.dia.q, CUANTILES_LLUVIA.dia.max), base: `lluvia de un día: n = 2,587 días-estación (374 con ≥ 1 mm), ${BASE_LLUVIA}; máximo registrado 81 mm` },
     sem: { niveles: nivelesDeCuantiles(CUANTILES_LLUVIA.sem.q, CUANTILES_LLUVIA.sem.max), base: `acumulado de 7 días: n = 2,457 ventanas, ${BASE_LLUVIA}; máximo registrado 134 mm` },
     mes: { niveles: nivelesDeCuantiles(CUANTILES_LLUVIA.mes.q, CUANTILES_LLUVIA.mes.max), base: `acumulado de 30 días: n = 2,048 ventanas, ${BASE_LLUVIA}; máximo registrado 191 mm` },
@@ -70,9 +78,9 @@ const ESCALAS_FIJAS: Record<Exclude<VariableEscala, 'lluvia'>, EscalaDatos> = {
 };
 
 /** Familia de la escala de lluvia según los días que acumula el plano (hoy y ayer = 1). */
-export const familiaLluvia = (dias: number): FamiliaLluvia => (dias <= 1 ? 'dia' : dias <= 10 ? 'sem' : 'mes');
+export const familiaLluvia = (dias: number | 'ciclo'): FamiliaLluvia => (dias === 'ciclo' || dias > 45 ? 'largo' : dias <= 1 ? 'dia' : dias <= 10 ? 'sem' : 'mes');
 
 /** Escala de una variable; para lluvia depende de los días acumulados del plano. */
-export function escalaDe(variable: VariableEscala, dias = 30): EscalaDatos {
+export function escalaDe(variable: VariableEscala, dias: number | 'ciclo' = 30): EscalaDatos {
     return variable === 'lluvia' ? ESCALAS_LLUVIA[familiaLluvia(dias)] : ESCALAS_FIJAS[variable];
 }

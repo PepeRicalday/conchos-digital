@@ -37,6 +37,16 @@ export const MIN_COBERTURA_DIAS = 0.8;
 export const DISTANCIA_MISMO_SITIO_KM = 3;
 const PRIORIDAD: Record<FuenteLluvia, number> = { weatherlink: 0, aqwp: 1, jcas: 2 };
 
+/**
+ * Pluviómetros excluidos de la lluvia por CRITERIO EXPLÍCITO de SICA (id_jcas → motivo), además de la heurística de `marcarSospechosos`.
+ * Parral (6): 0.0 mm continuo mientras estaciones vecinas registran 28–118 mm (nov-2026). La heurística lo detecta, pero depende de las vecinas y de
+ * la ventana: con 0.2 mm de un día o con pocas vecinas volvería a entrar. Es un criterio de SICA, no un dictamen; se revisa quitándolo de aquí.
+ * Solo afecta a la lluvia: su temperatura, humedad y viento siguen valiendo.
+ */
+export const PLUVIOMETROS_EXCLUIDOS: Record<number, string> = {
+    6: 'pluviómetro excluido por criterio de SICA: 0 mm continuo mientras las estaciones vecinas registran lluvia',
+};
+
 export interface DiaLluvia { fecha: string; lluviaMm: number | null }
 
 /** Acumulado de `dias` días que terminan en `hasta` (inclusive, YYYY-MM-DD). null si faltan datos (< 80 % de los días). */
@@ -55,7 +65,8 @@ export function acumuladoLluvia(lecturas: DiaLluvia[], hasta: string, dias: numb
     return { mm: Math.round(s * 10) / 10, diasConDato };
 }
 
-const mediana = (v: number[]): number => { const a = [...v].sort((x, y) => x - y); const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+/** Mediana de una lista no vacía (una sola definición para el modelo, el mapa y el ranking). */
+export const mediana = (v: number[]): number => { const a = [...v].sort((x, y) => x - y); const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
 
 /** Estaciones del mismo grupo (misma ciudad) → un punto con la mediana de su lluvia; las S/D no cuentan. */
 export function colapsarGrupos(puntos: (PuntoLluvia & { grupo?: string | null })[]): PuntoLluvia[] {

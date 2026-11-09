@@ -8,6 +8,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import type { ContornoCuenca } from './geoCuenca';
 import type { DemGrid } from './camposCuenca';
+import { anioInicioCiclo } from './analiticaPresas';
 import { arealDe, cuandoVentana, type ModeloRedJcas, type VentanaObs } from './jcasModelo';
 import { VARIABLES_PLANO, type VariablePlano } from './paletasClima';
 import { construirPlano, planoSvg } from './planosCuenca';
@@ -23,8 +24,8 @@ const ISO = (t: number) => new Date(t).toISOString().slice(0, 10);
 const diasEntre = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000) + 1;
 
 /**
- * Ventana de la cuenca para el periodo del informe. La red JCAS guarda 30 días, así que se elige la ventana disponible más cercana y se DECLARA:
- * sin periodo = hoy (parcial); un solo día = hoy o ayer; hasta 7 días = 7; más = 30. `exacta` = false cuando el periodo pedido no coincide.
+ * Ventana de la cuenca para el periodo del informe. Hay ventanas de hoy, ayer, 7, 30, 60 y 90 días y el ciclo agrícola en curso; se elige la que
+ * coincide con el periodo pedido y, si ninguna, la más cercana, y se DECLARA (`exacta` = false). Sin periodo = hoy (parcial).
  */
 export function ventanaParaPeriodo(desde: string | undefined, hasta: string | undefined, hoyLocal: string): { ventana: VentanaObs; exacta: boolean; motivo: string | null } {
     if (!desde || !hasta) return { ventana: 'hoy', exacta: true, motivo: null };
@@ -33,10 +34,11 @@ export function ventanaParaPeriodo(desde: string | undefined, hasta: string | un
     if (desde === hasta && hasta >= hoyLocal) return { ventana: 'hoy', exacta: true, motivo: null };
     if (desde === hasta && hasta === ayer) return { ventana: 1, exacta: true, motivo: null };
     const terminaAyerOHoy = hasta >= ayer;
-    if (n === 7 && terminaAyerOHoy) return { ventana: 7, exacta: true, motivo: null };
-    if (n === 30 && terminaAyerOHoy) return { ventana: 30, exacta: true, motivo: null };
-    const v: VentanaObs = n <= 7 ? 7 : 30;
-    return { ventana: v, exacta: false, motivo: `La red de la cuenca solo guarda los últimos 30 días completos: se usa la ventana más cercana a ${n} ${n === 1 ? 'día' : 'días'} (${cuandoVentana(v)}).` };
+    const iniCiclo = `${anioInicioCiclo(hoyLocal)}-10-01`;
+    if (terminaAyerOHoy && desde === iniCiclo && iniCiclo <= ayer) return { ventana: 'ciclo', exacta: true, motivo: null };
+    for (const w of [7, 30, 60, 90] as const) if (n === w && terminaAyerOHoy) return { ventana: w, exacta: true, motivo: null };
+    const v: VentanaObs = n <= 7 ? 7 : n <= 30 ? 30 : n <= 60 ? 60 : n <= 90 ? 90 : 'ciclo';
+    return { ventana: v, exacta: false, motivo: `La red de la cuenca tiene ventanas de 7, 30, 60 y 90 días y del ciclo agrícola: se usa la ventana más cercana a ${n} ${n === 1 ? 'día' : 'días'} (${cuandoVentana(v)}).` };
 }
 
 export interface EntradaGeoCuenca {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { arealDe } from '../../../utils/jcasModelo';
+import { arealDe, etiquetaVentana, type VentanaObs } from '../../../utils/jcasModelo';
 import { fmtLluvia } from '../../../utils/fmtLluvia';
 import { useAqwpCuenca } from '../../../hooks/useAqwpCuenca';
 import { formatearNumero } from '../../../utils/historicoPresas';
@@ -21,6 +21,7 @@ import SemaforoBadge from './SemaforoBadge';
 import { GLIFO_ESTADO } from './TanquePresa';
 import '../analitica/analitica.css';
 import './cuenca.css';
+import { hoyLocalISO } from '../../../utils/hoyLocal';
 
 const fmt = (v: number | null, d = 1) => (v == null ? 'S/D' : formatearNumero(v, d));
 const fmtFlujo = (v: number | null) => (v == null ? 'S/D' : formatearNumero(v, v !== 0 && Math.abs(v) < 1 ? 3 : 2));
@@ -128,6 +129,8 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
     const capas = useCapasCuenca(); // las mismas capas de referencia en los planos y en el mapa de la red
     const jcas = useJcasCuenca(); // una sola carga de la red JCAS para los planos y la tabla de estaciones
     const [vista, setVista] = useState<Vista>('tanques');
+    // Una sola ventana de lo observado para los planos y la red de estaciones (antes cada bloque tenía la suya y podían decir cosas distintas).
+    const [ventanaObs, setVentanaObs] = useState<VentanaObs>(30);
     const [orden, setOrden] = useState<OrdenCuenca>('cuenca');
     const [alcance, setAlcance] = useState<Alcance>('todas');
     const [meses, setMeses] = useState<3 | 12>(12);
@@ -135,7 +138,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
 
     const calc = useMemo(() => {
         if (!datos) return null;
-        const hoyISO = new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10); // UTC-6, como el portal
+        const hoyISO = hoyLocalISO();
         const modelos = construirModeloCuenca(datos, hoyISO);
         const filas = modelos.map((m) => m.fila);
         const fechas = filas.map((f) => f.fecha).filter((x): x is string => !!x).sort();
@@ -193,7 +196,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
     const actual = visibles.find((m) => m.fila.ubicacionId === sel) ?? visibles[0] ?? null;
     const seleccionId = actual?.fila.ubicacionId ?? null;
     const hayClim = datos.climatologia != null;
-    const areal30 = jcas.red?.modelo ? arealDe(jcas.red.modelo, 30) : null;
+    const areal30 = jcas.red?.modelo ? arealDe(jcas.red.modelo, ventanaObs) : null; // sigue la ventana elegida (la misma de planos y red)
 
     return (
         <div className="an-root cu-root pr-reveal">
@@ -236,14 +239,14 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                     <span className="an-kpi-sub">Aforo USIBWC 08373000{ojinaga?.fecha ? ` · ${fechaCorta(ojinaga.fecha)}` : ''}</span>
                 </div>
                 <div className="an-kpi" role="listitem">
-                    <span className="an-kpi-lbl">Lluvia de la cuenca · 30 días</span>
+                    <span className="an-kpi-lbl">Lluvia de la cuenca · {etiquetaVentana(ventanaObs)}</span>
                     <span className="an-kpi-val">{areal30?.mm == null ? 'S/D' : fmtLluvia(areal30.mm)}{areal30?.mm != null && <small> mm</small>}</span>
                     <span className="an-kpi-sub">{areal30?.mm == null
                         ? (jcas.loading ? 'Cargando estaciones…' : jcas.error ? 'No se pudieron cargar las estaciones JCAS' : areal30?.motivoSD ?? 'Sin estaciones JCAS por ahora')
                         : `n = ${areal30.nEstaciones} estaciones · cobertura ${areal30.coberturaPct.toFixed(0)} % · provisional`}</span>
                 </div>
                 <div className="an-kpi" role="listitem">
-                    <span className="an-kpi-lbl">Estaciones en el promedio · 30 días</span>
+                    <span className="an-kpi-lbl">Estaciones en el promedio · {etiquetaVentana(ventanaObs)}</span>
                     <span className="an-kpi-val">{areal30 ? areal30.nEstaciones : 'S/D'}{areal30 && <small> estaciones</small>}</span>
                     <span className="an-kpi-sub">{areal30 ? `${areal30.nExcluidas > 0 ? `${areal30.nExcluidas} excluida(s) por sospechosa(s) · ` : ''}JCAS/UACJ y propias · provisional` : 'JCAS/UACJ y propias del distrito'}</span>
                 </div>
@@ -312,9 +315,9 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                 </section>
             )}
 
-            <PlanosCuenca jcas={jcas} capas={capas} />
+            <PlanosCuenca jcas={jcas} capas={capas} diasObs={ventanaObs} onDias={setVentanaObs} />
 
-            <RedEstacionesCuenca jcas={jcas} capas={capas} />
+            <RedEstacionesCuenca jcas={jcas} capas={capas} ventana={ventanaObs} onVentana={setVentanaObs} />
 
             <TiraLluvia lluvia={datos.lluvia} serie={datos.lluviaSerie} />
 

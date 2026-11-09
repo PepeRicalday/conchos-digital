@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { cargarContornoCuenca, type ContornoCuenca, type ZonaCuenca } from '../utils/geoCuenca';
-import { construirRedJcas, type FilaClimaPropio, type FilaEstacionJcas, type FilaHoyJcas, type FilaLecturaJcas, type FilaLluviaPropia, type ModeloRedJcas } from '../utils/jcasModelo';
+import { construirRedJcas, diasDeCarga, type FilaClimaPropio, type FilaEstacionJcas, type FilaHoyJcas, type FilaLecturaJcas, type FilaLluviaPropia, type ModeloRedJcas } from '../utils/jcasModelo';
+import { hoyJcasISO } from '../utils/hoyLocal';
 
 const PAGINA = 1000;
-const DIAS = 36; // 30 días de acumulado + margen para el corte (ayer) y estaciones atrasadas
 const ISO = (t: number) => new Date(t).toISOString().slice(0, 10);
 
 export interface RedJcas {
@@ -16,8 +16,10 @@ export interface RedJcas {
 export interface DatosJcas { est: FilaEstacionJcas[]; lec: FilaLecturaJcas[]; ultSyncEn: string | null; contorno: ContornoCuenca | null; hoy: FilaHoyJcas[]; propia: FilaLluviaPropia[]; clima: FilaClimaPropio[] }
 
 /** Carga las filas de la red JCAS (+ día en curso + estaciones propias). Lanza si falla el catálogo; lo opcional (hoy, propias) degrada a vacío. Lo usan el hook y el Informe Geoclimático. */
-export async function cargarDatosJcas(diasLecturas = DIAS): Promise<DatosJcas> {
-    const hoy = ISO(Date.now() - 7 * 3_600_000); // día local conservador (UTC-7)
+/** Sin `diasLecturas` trae lo necesario para todas las ventanas (90 d y el ciclo en curso: diasDeCarga). */
+export async function cargarDatosJcas(diasLecturas?: number): Promise<DatosJcas> {
+    const hoy = hoyJcasISO(); // día local conservador (UTC-7)
+    diasLecturas = diasLecturas ?? diasDeCarga(hoy);
     const desde = ISO(Date.parse(`${hoy}T00:00:00Z`) - diasLecturas * 86_400_000);
     const [contorno, rEst] = await Promise.all([
         cargarContornoCuenca(),
@@ -76,7 +78,7 @@ export async function cargarDatosJcas(diasLecturas = DIAS): Promise<DatosJcas> {
  * Si falla la red o el contorno, devuelve error y la vista de la cuenca sigue funcionando sin esta sección.
  */
 export function useJcasCuenca(refrescoMs = 30 * 60_000, opciones: { activo?: boolean; dias?: number } = {}) {
-    const { activo = true, dias: diasLecturas = DIAS } = opciones;
+    const { activo = true, dias: diasLecturas } = opciones;
     const [datos, setDatos] = useState<DatosJcas | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -108,7 +110,7 @@ export function useJcasCuenca(refrescoMs = 30 * 60_000, opciones: { activo?: boo
 
     const red: RedJcas | null = useMemo(() => {
         if (!datos) return null;
-        const hoy = ISO(Date.now() - 7 * 3_600_000);
+        const hoy = hoyJcasISO();
         return {
             contorno: datos.contorno, ultSyncEn: datos.ultSyncEn,
             modelo: datos.contorno ? construirRedJcas(datos.est, datos.lec, hoy, datos.contorno.poligonos, datos.hoy, datos.propia, datos.clima) : null,

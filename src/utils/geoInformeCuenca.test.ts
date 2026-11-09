@@ -19,11 +19,17 @@ describe('ventanaParaPeriodo', () => {
         expect(ventanaParaPeriodo('2026-11-02', '2026-11-08', HOY)).toMatchObject({ ventana: 7, exacta: true });
         expect(ventanaParaPeriodo('2026-10-10', '2026-11-08', HOY)).toMatchObject({ ventana: 30, exacta: true });
     });
+    it('60 y 90 días y el ciclo agrícola (1-oct) terminando hoy o ayer son exactos', () => {
+        expect(ventanaParaPeriodo('2026-09-10', '2026-11-08', HOY)).toMatchObject({ ventana: 60, exacta: true });
+        expect(ventanaParaPeriodo('2026-08-11', '2026-11-08', HOY)).toMatchObject({ ventana: 90, exacta: true });
+        expect(ventanaParaPeriodo('2026-10-01', '2026-11-08', HOY)).toMatchObject({ ventana: 'ciclo', exacta: true });
+    });
     it('un periodo que no coincide usa la ventana más cercana y lo declara', () => {
         const r = ventanaParaPeriodo('2026-01-01', '2026-06-30', HOY);
-        expect(r.ventana).toBe(30);
+        expect(r.ventana).toBe('ciclo'); // 180 días: la más larga disponible
         expect(r.exacta).toBe(false);
-        expect(r.motivo).toMatch(/solo guarda los últimos 30 días/);
+        expect(r.motivo).toMatch(/ventanas de 7, 30, 60 y 90 días y del ciclo agrícola/);
+        expect(ventanaParaPeriodo('2026-09-01', '2026-11-08', HOY)).toMatchObject({ ventana: 90, exacta: false });
         expect(ventanaParaPeriodo('2026-11-04', '2026-11-06', HOY)).toMatchObject({ ventana: 7, exacta: false });
     });
 });

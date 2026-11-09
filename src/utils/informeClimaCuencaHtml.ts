@@ -41,12 +41,12 @@ function textoPlano(pl: PlanoInforme): string {
 }
 
 /** Un plano con su leyenda y cifras. `anchoPx` es el ancho en pantalla/papel donde se coloca: el texto del SVG se escala para quedar en `fPx`. */
-function figura(pl: PlanoInforme, d: DatosInformeClima, id: string, anchoPx: number, fPx: number): string {
+function figura(pl: PlanoInforme, d: DatosInformeClima, id: string, anchoPx: number, fPx: number, protagonista = false): string {
   const textoPx = Math.round(((fPx * 500) / anchoPx) * 10) / 10;
   const svg = planoSvg(pl.modelo, d.contorno, { tema: 'papel', idPrefijo: id, textoPx, capas: d.config.capas.length ? { ids: d.config.capas, datos: d.capasDatos } : undefined });
   const aj = pl.modelo.ajuste.aplicado ? ` Corregido por altitud ${esc(pl.modelo.ajuste.motivo.replace(/^ajustado por altitud /, ''))}.` : '';
   const ex = pl.modelo.excluidos.length ? ` Excluida: ${esc(pl.modelo.excluidos.map((p) => p.nombre).join(', '))} (pluviómetro sospechoso).` : '';
-  return `<figure class="plano"><figcaption><b>${esc(pl.modelo.titulo)}</b><span>${textoPlano(pl)}</span></figcaption>${svg}<p class="fuente">${pl.tipo === 'obs' ? 'Observado: estaciones JCAS/UACJ.' : `Pronóstico: mediana de 3 modelos (ECMWF, GFS, ICON); el rango entre ellos está en la tabla.`}${aj}${ex}</p></figure>`;
+  return `<figure class="plano"${protagonista ? ' data-protagonista="1"' : ''}><figcaption><b>${esc(pl.modelo.titulo)}</b><span>${textoPlano(pl)}</span></figcaption>${svg}<p class="fuente">${pl.tipo === 'obs' ? 'Observado: estaciones JCAS/UACJ.' : `Pronóstico: mediana de 3 modelos (ECMWF, GFS, ICON); el rango entre ellos está en la tabla.`}${aj}${ex}</p></figure>`;
 }
 
 /** Apartado del distrito: lluvia sobre los 6 módulos SRL con las estaciones propias (y JCAS cercanas) y la tabla de las propias. Solo PDF carta. */
@@ -172,6 +172,22 @@ const CSS_PLANOS = `
 .kpis.hero .kpi:nth-child(-n+2){border-top-width:7px;padding:12px 16px}
 .kpis.hero .kpi:nth-child(-n+2) .v{font-size:2.9em}
 .kpis.hero .kpi:nth-child(-n+2) .et{font-size:.82em;color:#3d4650}
+.planos.protag{grid-template-columns:repeat(3,minmax(0,1fr))}
+.planos.protag .plano[data-protagonista]{grid-column:span 2;grid-row:span 2}
+.planos.protag .plano[data-protagonista] figcaption b{font-size:1.5em}
+.planos.protag .plano[data-protagonista] figcaption span{font-size:.95em}
+.lam-hero{flex:1;min-height:0;margin-top:8px;display:grid;grid-template-columns:500px minmax(0,1fr);gap:18px;align-items:start}
+.lam-izq .plano{width:500px}
+.lam-izq .plano figcaption b{font-size:1.25em}
+.lam-der{display:flex;flex-direction:column;gap:10px;min-width:0}
+.lam-der .kpis{grid-template-columns:1fr 1fr;margin:0}
+.lam-der .kpis.hero .kpi:nth-child(-n+2) .v{font-size:2.3em}
+.lam-fila{display:grid;grid-template-columns:330px 330px minmax(0,1fr);gap:14px;align-items:start}
+.lam-fila .plano{width:330px;max-width:none;margin:0}
+.lam-fila .ranking{margin:0}
+.lam-fila .rk li{grid-template-columns:minmax(0,1fr) 54px auto;gap:6px}
+.lam-fila .ranking h2{font-size:1em}
+.lam-fila .ranking h2 small{display:block}
 .ranking{margin:0 0 14px}
 .rk{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(var(--rkcols,2),minmax(0,1fr));gap:5px 26px}
 .rk li{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) auto;align-items:center;gap:10px}
@@ -218,6 +234,13 @@ ${CSS_PLANOS}
 .kpis.hero .kpi:nth-child(-n+2){padding:8px 12px}
 .kpis.hero .kpi:nth-child(-n+2) .v{font-size:21pt}
 .kpis.hero ~ .planos.chico .plano{width:80%}
+.hero-fila{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;align-items:start;margin-top:4px}
+.hero-fila .kpis{grid-template-columns:1fr;margin:0;gap:8px}
+.hero-fila .kpis.hero .kpi:nth-child(-n+2) .v{font-size:24pt}
+.hero-fila .planos{margin:0}
+.planos.hero-carta .plano{width:100%}
+.planos.solo .plano{width:54%;margin-inline:auto}
+.planos.hero-carta .plano figcaption b{font-size:1.3em}
 .rk{font-size:8pt}
 .inst{font-size:7pt}
 .plano figcaption span{font-size:7.6pt}
@@ -240,11 +263,19 @@ function infografia(d: DatosInformeClima, o: OpcionesHtmlClima): string {
   const cols = lam ? Math.min(3, Math.max(1, lista.length)) : lista.length <= 1 ? 1 : lista.length <= 4 ? 2 : 3;
   // ancho en pantalla de cada plano: el texto del SVG se escala para quedar ≈ 15 px (PNG) / 11 px (lámina) en el documento final
   const wCol = Math.floor(((lam ? ancho - 64 : ancho - 88) - (cols - 1) * (lam ? 16 : 18)) / cols);
-  const planos = `<div class="planos" style="--cols:${cols}">${lista.map((p, i) => figura(p, d, `p${i}`, lam ? Math.min(wCol, 470) : wCol, lam ? 11 : 15)).join('')}</div>`;
-  const aviso = omitidos > 0 && !lam ? `<p class="aviso">Este formato muestra ${lista.length} de ${d.planos.length} planos; el PDF carta los incluye todos.</p>` : '';
   const info = esInfografia(d);
+  // Mapa protagonista (solo en «Solo infografía»): el primer plano ocupa 2×2 casillas (PNG) o toda la altura de la izquierda (lámina) y los demás
+  // son miniaturas con la misma escala de color. Con 4 planos queda la rejilla pareja (un protagonista de 4 deja casillas vacías).
+  const protagonistaPng = info && !lam && lista.length >= 3 && lista.length !== 4;
+  const protagonistaLam = info && lam && lista.length === 3;
+  const wHeroPng = 2 * wCol + 18;
+  const planos = `<div class="planos${protagonistaPng ? ' protag' : ''}" style="--cols:${cols}">${lista.map((p, i) => figura(p, d, `p${i}`, protagonistaPng && i === 0 ? wHeroPng : lam ? Math.min(wCol, 470) : wCol, lam ? 11 : 15, protagonistaPng && i === 0)).join('')}</div>`;
+  const aviso = omitidos > 0 && !lam ? `<p class="aviso">Este formato muestra ${lista.length} de ${d.planos.length} planos; el PDF carta los incluye todos.</p>` : '';
+  const lamHero = protagonistaLam
+    ? `<div class="lam-hero"><div class="lam-izq">${figura(lista[0], d, 'p0', 500, 12, true)}</div><div class="lam-der">${kpis(d)}<div class="lam-fila">${figura(lista[1], d, 'p1', 330, 10)}${figura(lista[2], d, 'p2', 330, 10)}${d.config.observado ? `<div style="--rkcols:1">${ranking(d, 10)}</div>` : ''}</div></div></div>`
+    : '';
   const cuerpo = lam
-    ? `${kpis(d)}${planos}${aviso}${info ? lineaInstitucional(d) : ''}`
+    ? (protagonistaLam ? `${lamHero}${lineaInstitucional(d)}` : `${kpis(d)}${planos}${aviso}${info ? lineaInstitucional(d) : ''}`)
     : info
       ? `${kpis(d)}${planos}${aviso}${d.config.observado ? ranking(d, 12) : ''}${lineaInstitucional(d)}`
       : `${kpis(d)}${planos}${aviso}${d.config.estaciones ? tablaObs(d, 10) : ''}${notas(d)}`;
@@ -255,8 +286,11 @@ function carta(d: DatosInformeClima, o: OpcionesHtmlClima): string {
   const hojas: string[] = [];
   const porHoja = 2;
   const grupos: PlanoInforme[][] = [];
-  for (let i = 0; i < d.planos.length; i += porHoja) grupos.push(d.planos.slice(i, i + porHoja));
   const info = esInfografia(d);
+  // En «Solo infografía» la primera hoja lleva UN mapa grande (protagonista) con los indicadores; el resto, de dos en dos.
+  const inicio = info && d.planos.length > 1 ? 1 : 0;
+  if (inicio) grupos.push(d.planos.slice(0, 1));
+  for (let i = inicio; i < d.planos.length; i += porHoja) grupos.push(d.planos.slice(i, i + porHoja));
   const conTablas = d.config.estaciones && !info;
   const paginasTabla = conTablas ? (d.config.observado ? 1 : 0) + (d.config.pronostico ? 1 : 0) : 0;
   const conDistrito = !!d.distrito;
@@ -266,9 +300,12 @@ function carta(d: DatosInformeClima, o: OpcionesHtmlClima): string {
   let n = 0;
   const hoja = (cuerpo: string, cabecera: string) => `<section class="pagina">${cabecera}<div class="cuerpo">${cuerpo}</div>${pieInforme(`Folio ${folioClima(d, o.emitido)}`, ++n, total)}</section>`;
   grupos.forEach((g, k) => {
-    const planos = `<div class="planos${k === 0 ? ' chico' : ''}" style="--cols:${g.length}">${g.map((p, i) => figura(p, d, `c${k}${i}`, 340, 10)).join('')}</div>`;
+    const hero = inicio === 1 && k === 0;
+    const planos = hero
+      ? `<div class="planos hero-carta" style="--cols:1">${figura(g[0], d, 'c00', 375, 10, true)}</div>`
+      : `<div class="planos${k === 0 ? ' chico' : ''}${g.length === 1 ? ' solo' : ''}" style="--cols:${g.length}">${g.map((p, i) => figura(p, d, `c${k}${i}`, 340, 10)).join('')}</div>`;
     const ultima = k === grupos.length - 1 && !conDistrito && !conRanking;
-    hojas.push(hoja(`${k === 0 ? `${titular(d, false)}${kpis(d)}${planos}` : planos}${info && ultima ? lineaInstitucional(d) : ''}`, membrete(o, d)));
+    hojas.push(hoja(`${k === 0 ? (hero ? `${titular(d, false)}<div class="hero-fila">${planos}${kpis(d)}</div>` : `${titular(d, false)}${kpis(d)}${planos}`) : planos}${info && ultima ? lineaInstitucional(d) : ''}`, membrete(o, d)));
   });
   if (conDistrito) hojas.push(hoja(`${bloqueDistrito(d)}${info && !conRanking ? lineaInstitucional(d) : ''}`, membrete(o, d)));
   if (conTablas && d.config.observado) hojas.push(hoja(tablaObs(d), membrete(o, d)));

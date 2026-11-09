@@ -129,6 +129,18 @@ await page.waitForTimeout(600);
 const dimsInfo = await marco.locator('body').evaluate((b) => ({ w: b.scrollWidth, h: document.documentElement.scrollHeight }));
 verifica(dimsInfo.w <= 1601 && !/Cómo se lee|Trazabilidad/.test(await marco.locator('body').innerText()), `infografía png: sin desborde (${dimsInfo.w}×${dimsInfo.h}) y sin notas ni trazabilidad`);
 await marco.locator('.hoja').screenshot({ path: OUT + 'info-png.png' });
+verifica(await marco.locator('figure.plano[data-protagonista]').count() === 1, 'infografía png: un mapa protagonista');
+await previa.getByRole('radio', { name: 'Lámina 17×11' }).click();
+await marco.locator('.hoja.lam').waitFor({ timeout: 20000 });
+await page.waitForTimeout(600);
+const lamInfo = await marco.locator('.hoja.lam').evaluate((h) => {
+  const r = h.getBoundingClientRect(); const pie = h.querySelector('.pie-inf').getBoundingClientRect();
+  const partes = [...h.querySelectorAll('.lam-hero, .lam-izq figure, .lam-der, .lam-fila figure, .lam-fila .ranking, .inst')];
+  const fuera = partes.filter((e) => { const b = e.getBoundingClientRect(); return b.bottom > pie.top + 1 || b.right > r.right + 1; }).map((e) => e.className || e.tagName);
+  return { alto: h.scrollHeight, caja: h.clientHeight, fuera, planos: h.querySelectorAll('figure.plano').length, hero: !!h.querySelector('.lam-hero'), rk: h.querySelectorAll('.rk li').length };
+});
+verifica(lamInfo.hero && lamInfo.planos === 3 && lamInfo.rk > 0 && lamInfo.fuera.length === 0 && lamInfo.alto <= lamInfo.caja + 1, `infografía lámina: mapa protagonista, 2 miniaturas y barras sin invadir el pie (${JSON.stringify(lamInfo)})`);
+await marco.locator('.hoja.lam').screenshot({ path: OUT + 'info-lamina.png' });
 
 verifica(errores.length === 0, `sin errores de consola (${errores.slice(0, 3).join(' | ')})`);
 await navegador.close();

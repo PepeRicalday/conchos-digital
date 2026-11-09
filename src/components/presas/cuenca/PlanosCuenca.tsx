@@ -9,11 +9,12 @@ import { formatearNumero } from '../../../utils/historicoPresas';
 import { fechaCorta } from '../../../utils/analiticaPresas';
 import { VARIABLES_PLANO, type VariablePlano } from '../../../utils/paletasClima';
 import { construirPlano, planoSvg, type PeriodoPlano } from '../../../utils/planosCuenca';
-import { puntosObservados, puntosPronostico } from '../../../utils/planosDatos';
+import { puntosObservados, puntosPronostico, rankingDePuntos } from '../../../utils/planosDatos';
 import type { CapasCuenca } from '../../../hooks/useCapasCuenca';
 import SelectorCapas from './SelectorCapas';
 import { arealDe, cuandoVentana, VENTANAS_OBS, type VentanaObs } from '../../../utils/jcasModelo';
 import { fmtLluvia } from '../../../utils/fmtLluvia';
+import { hoyLocalISO } from '../../../utils/hoyLocal';
 
 type Modo = 'obs' | 'pron';
 const VARIABLES: { v: VariablePlano; t: string }[] = [{ v: 'lluvia', t: 'Lluvia' }, { v: 'temperatura', t: 'Temperatura' }, { v: 'viento', t: 'Viento' }, { v: 'humedad', t: 'Humedad' }];
@@ -31,28 +32,7 @@ function Segmentado<T extends string | number>({ etiqueta, valor, opciones, onCh
     );
 }
 
-interface FilaRanking { clave: string; nombre: string; valor: number }
-const mediana = (v: number[]) => { const a = [...v].sort((x, y) => x - y); const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
-/** Una fila por ciudad (las estaciones de un mismo grupo pesan una vez, como en el promedio) y sin las excluidas por sospechosas; S/D no entra. */
-function rankingDe(puntos: PuntoCampo[]): { filas: FilaRanking[]; sinDato: number } {
-    const util = puntos.filter((p) => !p.sospechosa);
-    const grupos = new Map<string, PuntoCampo[]>();
-    const sueltos: FilaRanking[] = [];
-    let sinDato = 0;
-    for (const p of util) {
-        if (p.grupo) grupos.set(p.grupo, [...(grupos.get(p.grupo) ?? []), p]);
-        else if (p.valor == null) sinDato++;
-        else sueltos.push({ clave: p.id, nombre: p.nombre, valor: p.valor });
-    }
-    for (const [g, ps] of grupos) {
-        const v = ps.filter((x) => x.valor != null).map((x) => x.valor as number);
-        if (!v.length) { sinDato++; continue; }
-        sueltos.push({ clave: `g:${g}`, nombre: `${g.charAt(0).toUpperCase()}${g.slice(1)} (${ps.length} est.)`, valor: mediana(v) });
-    }
-    return { filas: sueltos.sort((a, b) => b.valor - a.valor), sinDato };
-}
-
-const hoyLocal = () => new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10);
+const hoyLocal = () => hoyLocalISO();
 const horaLectura = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('es-MX', { timeZone: 'America/Chihuahua', hour: '2-digit', minute: '2-digit', hour12: false }) : 'S/D');
 const hace = (iso: string | null) => {
     if (!iso) return 'sin corrida';
@@ -64,10 +44,12 @@ const hace = (iso: string | null) => {
  * Planos de la cuenca del Conchos: isoyetas y planos de temperatura, viento y humedad, observados (red JCAS) o pronosticados (3 modelos en 24 puntos).
  * CONTEXTO provisional de fuente tercera. El dibujo es el mismo SVG que usa el informe (utils/planosCuenca): una sola definición.
  */
-export default function PlanosCuenca({ jcas, capas }: { jcas: { red: RedJcas | null; loading: boolean; error: string | null }; capas?: CapasCuenca }) {
+export default function PlanosCuenca({ jcas, capas, diasObs: diasProp, onDias }: { jcas: { red: RedJcas | null; loading: boolean; error: string | null }; capas?: CapasCuenca; diasObs?: VentanaObs; onDias?: (v: VentanaObs) => void }) {
     const [variable, setVariable] = useState<VariablePlano>('lluvia');
     const [modo, setModo] = useState<Modo>('obs');
-    const [diasObs, setDiasObs] = useState<VentanaObs>(30);
+    const [diasLocal, setDiasLocal] = useState<VentanaObs>(30);
+    const diasObs = diasProp ?? diasLocal;
+    const setDiasObs = onDias ?? setDiasLocal;
     const [diasPron, setDiasPron] = useState<3 | 7>(7);
     const [dem, setDem] = useState<DemGrid | null>(null);
     const dev = useDevice();
@@ -105,7 +87,8 @@ export default function PlanosCuenca({ jcas, capas }: { jcas: { red: RedJcas | n
     }, [modo, pron.datos, hoy, diasPron]);
 
     const cfg = VARIABLES_PLANO[variable];
-    const ranking = useMemo(() => (puntos ? rankingDe(puntos) : { filas: [], sinDato: 0 }), [puntos]);
+    // El ranking sale de los puntos YA colapsados del plano (una estación por ciudad, sospechosas fuera): mismas filas y nombres que el mapa.
+    const ranking = useMemo(() => rankingDePuntos(plano?.puntos ?? []), [plano]);
     // El resumen del plano ya viene del areal en lluvia observada: sin respaldo con otra cifra (si es S/D, se dice S/D).
     const mediaKpi = plano?.resumen.media ?? null;
     const fmtVal = (v: number) => (variable === 'lluvia' ? fmtLluvia(v) : formatearNumero(v, variable === 'temperatura' ? 1 : 0));

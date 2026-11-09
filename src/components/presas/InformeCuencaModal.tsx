@@ -18,6 +18,7 @@ import { imprimirOPdf } from '../../utils/imprimirInforme';
 import { conMarcaInvitado } from '../../utils/marcaInvitado';
 import { nombreArchivoConPartes } from '../../utils/informeBase';
 import '../ndvi/informeNdviModal.css';
+import { hoyLocalISO } from '../../utils/hoyLocal';
 
 interface Props { datos: CuencaConchos; onCerrar: () => void }
 
@@ -29,7 +30,7 @@ const FORMATOS: { id: FormatoInformeCuenca; et: string; ayuda: string }[] = [
 ];
 const ANCHO_FORMATO: Record<FormatoInformeCuenca, number> = { carta: 816, png: ANCHO_PNG_CUENCA, lamina: LAMINA_PX.ancho };
 
-const hoyPortal = () => new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10); // UTC-6, como el portal
+const hoyPortal = () => hoyLocalISO();
 
 /** Ventana "Informe de la cuenca del Conchos": filtros (presas, tamaño, datos, orden, periodo) → vista previa → PNG / PDF / lámina. */
 export default function InformeCuencaModal({ datos, onCerrar }: Props) {

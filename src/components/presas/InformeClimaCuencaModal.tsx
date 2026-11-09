@@ -23,6 +23,7 @@ import { imprimirOPdf } from '../../utils/imprimirInforme';
 import { conMarcaInvitado } from '../../utils/marcaInvitado';
 import { nombreArchivoConPartes } from '../../utils/informeBase';
 import '../ndvi/informeNdviModal.css';
+import { hoyLocalISO } from '../../utils/hoyLocal';
 
 interface Props { red: RedJcas | null; pron: PronosticoCuenca | null; dem: DemGrid | null; onCerrar: () => void }
 
@@ -33,7 +34,7 @@ const FORMATOS: { id: FormatoInformeClima; et: string; ayuda: string }[] = [
     { id: 'lamina', et: 'Lámina 17×11', ayuda: `Horizontal para imprimir en gran formato (los ${MAX_PLANOS_LAMINA} primeros planos)` },
 ];
 const ANCHO_FORMATO: Record<FormatoInformeClima, number> = { carta: 816, png: ANCHO_PNG_CLIMA, lamina: LAMINA_CLIMA_PX.ancho };
-const hoyLocal = () => new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10);
+const hoyLocal = () => hoyLocalISO();
 
 /** Ventana "Informe de clima y pronóstico de la cuenca": filtros (variables, observado/pronóstico, periodos) → vista previa → PNG / PDF / lámina. */
 export default function InformeClimaCuencaModal({ red, pron, dem, onCerrar }: Props) {

@@ -8,7 +8,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import type { ContornoCuenca } from './geoCuenca';
 import type { DemGrid } from './camposCuenca';
-import { cuandoVentana, type ModeloRedJcas, type VentanaObs } from './jcasModelo';
+import { arealDe, cuandoVentana, type ModeloRedJcas, type VentanaObs } from './jcasModelo';
 import { VARIABLES_PLANO, type VariablePlano } from './paletasClima';
 import { construirPlano, planoSvg } from './planosCuenca';
 import { puntosObservados } from './planosDatos';
@@ -68,7 +68,7 @@ export function seccionCuencaGeo(e: EntradaGeoCuenca): string {
         if (!v) {
             return `<figure class="geoinf-cu-fig"><figcaption><b>Radiación solar</b></figcaption><p class="geoinf-cu-sd">S/D en la cuenca: JCAS no mide radiación solar y no se estima. Los módulos del distrito sí la muestran arriba.</p></figure>`;
         }
-        const plano = construirPlano({ variable: v, periodo: { tipo: 'obs', dias: ventana }, puntos: puntosObservados(red, v, ventana), contorno, dem: e.dem });
+        const plano = construirPlano({ variable: v, periodo: { tipo: 'obs', dias: ventana }, puntos: puntosObservados(red, v, ventana), contorno, dem: e.dem, areal: v === 'lluvia' ? arealDe(red, ventana) : null });
         const cfg = VARIABLES_PLANO[v];
         const dec = v === 'temperatura' || (plano.resumen.media != null && plano.resumen.media < 10) ? 1 : 0;
         const svg = planoSvg(plano, contorno, { tema: 'papel', idPrefijo: `gcu-${v}`, textoPx: 11, descripcion: plano.titulo, capas: e.capas && e.capas.ids.length ? e.capas : undefined });

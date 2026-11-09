@@ -11,9 +11,11 @@ for (const [n, w, h] of VP) {
   const ctx = await b.newContext({ viewport: { width: w, height: h }, hasTouch: w < 900, isMobile: w < 500 });
   const pg = await ctx.newPage(); const errs = [];
   pg.on('pageerror', (e) => errs.push(String(e))); pg.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
-  await pg.goto(`http://localhost:${PORT}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'networkidle' }).catch(() => {});
-  await pg.waitForSelector('.cu-root .an-kpis', { timeout: 45000 }).catch(() => {});
-  await pg.waitForSelector('.cu-plano-img', { timeout: 45000 }).catch(() => {});
+  const falla = (msg) => { fallos++; console.log(`  ✗ [${n}] ${msg}`); };
+  await pg.goto(`http://localhost:${PORT}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
+  // Sin .catch: si el panel no carga, el script debe fallar y no medir una página vacía.
+  await pg.waitForSelector('.cu-root .an-kpis', { timeout: 45000 });
+  await pg.waitForSelector('.cu-plano-img', { timeout: 45000 });
   await pg.waitForTimeout(2500);
   const r = await pg.evaluate(() => {
     const main = document.querySelector('.main-content'); const q = (s) => document.querySelector(s);
@@ -21,11 +23,36 @@ for (const [n, w, h] of VP) {
     const peq = [...document.querySelectorAll('.cu-root button, .cu-root .an-seg-btn')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.height < 44; }).length;
     return { scrollW: main ? main.scrollWidth - main.clientWidth : -1, altoTotal: main?.scrollHeight, kpis: document.querySelectorAll('.cu-root .an-kpi').length, kpiCols: getComputedStyle(q('.an-kpis--6') || document.body).gridTemplateColumns.split(' ').length,
       plano: box('.cu-plano'), pl: box('.cu-pl-res'), ctl: box('.cu-pl-ctl'), mapa: box('.cu-mapa-svg'), tabla: box('.cu-tabla-wrap--red'), presas: box('.cu-presas-grid'), nan: /NaN|undefined/.test(document.querySelector('.cu-root')?.innerText || ''), tactilesMenor44: peq,
-      anchos: [...document.querySelectorAll('.cu-root *')].filter((e) => e.getBoundingClientRect().right > innerWidth + 4 && e.getBoundingClientRect().width > 0).slice(0, 4).map((e) => e.className?.baseVal ?? e.className),
+      anchos: [...document.querySelectorAll('.cu-root *')].filter((e) => !e.closest('.cu-tabla-wrap, .cu-nav') && e.getBoundingClientRect().right > innerWidth + 4 && e.getBoundingClientRect().width > 0).slice(0, 4).map((e) => e.className?.baseVal ?? e.className),
       navSticky: getComputedStyle(q('.cu-nav') || document.body).position, rank: document.querySelectorAll('.cu-rank-fila').length };
   });
   console.log(n, JSON.stringify(r), errs.length ? 'ERRS:' + errs.slice(0, 3).join(' | ') : '');
-  if (r.scrollW > 2 || r.nan || (errs.length)) fallos++;
+  if (r.scrollW > 2) falla(`desborde horizontal ${r.scrollW}px`);
+  if (r.nan) falla('texto con NaN/undefined');
+  if (errs.length) falla(`errores de consola/página: ${errs.length}`);
+  if (r.kpis !== 6) falla(`KPIs de cabecera = ${r.kpis} (esperado 6)`);
+  if (r.navSticky !== 'sticky') falla(`la navegación no es sticky (${r.navSticky})`);
+  if (r.anchos.length) falla(`elementos fuera del viewport: ${r.anchos.join(', ')}`);
+  // Columnas por ancho del CONTENEDOR del panel (≥1360 → 6, ≥760 → 3, si no 2).
+  const colsEsp = { 1900: 6, 1440: 3, ipad: 3, ipadv: 2, iphone: 2 }[n]; // ipadv: el panel mide ~722 px (<760)
+  if (r.kpiCols !== colsEsp) falla(`columnas de KPI = ${r.kpiCols} (esperado ${colsEsp})`);
+  // Cada ancla de la navegación debe existir y quedar visible, sin quedar tapada por la barra superior móvil ni por la propia nav.
+  const anclas = await pg.evaluate(async () => {
+    const out = [];
+    const nav = document.querySelector('.cu-nav');
+    for (const btn of [...document.querySelectorAll('.cu-nav-btn')]) {
+      btn.click();
+      await new Promise((r) => setTimeout(r, 900));
+      const destino = document.getElementById(['cu-presas', 'cu-planos', 'cu-estaciones', 'cu-lluvia'][out.length]);
+      const top = destino ? Math.round(destino.getBoundingClientRect().top) : null;
+      const tapa = Math.max(nav ? nav.getBoundingClientRect().bottom : 0, document.querySelector('.mobile-topbar')?.getBoundingClientRect().bottom ?? 0);
+      out.push({ t: btn.textContent, existe: !!destino, top, tapa: Math.round(tapa) });
+    }
+    return out;
+  });
+  for (const a of anclas) if (!a.existe) falla(`ancla «${a.t}» no existe en el DOM`); else if (a.top < a.tapa - 4) falla(`ancla «${a.t}» queda tapada (top ${a.top} < ${a.tapa})`);
+  console.log('  anclas', JSON.stringify(anclas));
+  await pg.evaluate(() => document.querySelector('.main-content')?.scrollTo(0, 0));
   await pg.setViewportSize({ width: w, height: Math.min(9000, Math.max(h, (r.altoTotal || h) + 40)) });
   await pg.waitForTimeout(800);
   await pg.screenshot({ path: fileURLToPath(new URL(`${pref}-${n}.png`, OUT)), fullPage: false });

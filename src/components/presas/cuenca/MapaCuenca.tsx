@@ -3,6 +3,7 @@ import { anilloAPath, proyectorCuenca, SALIDA_CUENCA, type ContornoCuenca } from
 import { MODULOS_SRL, PRESAS } from '../../../utils/geoDistrito';
 import type { CapasCuenca } from '../../../hooks/useCapasCuenca';
 import { capasSvg } from '../../../utils/capasCuenca';
+import { fmtLluvia } from '../../../utils/fmtLluvia';
 import { cuandoVentana, mmPropio, valorObs, type PuntoPropio, type PuntoRedJcas, type VentanaObs } from '../../../utils/jcasModelo';
 
 interface Props {
@@ -104,7 +105,7 @@ export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, v
                         <g key={pp.id} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`} role="img" aria-label={etiqueta}>
                             <title>{etiqueta}</title>
                             <rect x={-6} y={-6} width={12} height={12} rx={2} className={`cu-prop-c${mm == null ? ' cu-prop-c--sd' : ''}`} style={{ fill: `rgba(94,196,138,${alfa})` }} />
-                            <text x={9} y={4} className="cu-mapa-txt cu-mapa-txt--mm cu-mapa-txt--prop">{mm == null ? 'S/D' : mm.toFixed(0)}</text>
+                            <text x={9} y={4} className="cu-mapa-txt cu-mapa-txt--mm cu-mapa-txt--prop">{fmtLluvia(mm)}</text>
                         </g>
                     );
                 })}
@@ -127,7 +128,7 @@ export default function MapaCuenca({ contorno, puntos, seleccionada, onSelect, v
                                 : <circle r={r} className={`cu-est-c${pt.estado !== 'vigente' ? ' cu-est-c--atras' : ''}${pt.sospechosa ? ' cu-est-c--sosp' : ''}`} style={{ fill: `rgba(63,178,243,${alfa})` }} />}
                             {pt.sospechosa && <path d="M-5,-5 L5,5 M5,-5 L-5,5" className="cu-est-x" />}
                             {rot.nombre && <text x={alinea ? -r - 4 : r + 4} y={-r + 2} textAnchor={alinea ? 'end' : 'start'} className="cu-mapa-txt">{pt.nombre}</text>}
-                            <text x={alinea ? -r - 4 : r + 4} y={-r + 16} textAnchor={alinea ? 'end' : 'start'} className="cu-mapa-txt cu-mapa-txt--mm">{mm == null ? 'S/D' : `${mm.toFixed(0)} mm`}</text>
+                            <text x={alinea ? -r - 4 : r + 4} y={-r + 16} textAnchor={alinea ? 'end' : 'start'} className="cu-mapa-txt cu-mapa-txt--mm">{mm == null ? 'S/D' : `${fmtLluvia(mm)} mm`}</text>
                         </g>
                     );
                 })}

@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { arealDe } from '../../../utils/jcasModelo';
+import { fmtLluvia } from '../../../utils/fmtLluvia';
 import { useAqwpCuenca } from '../../../hooks/useAqwpCuenca';
 import { formatearNumero } from '../../../utils/historicoPresas';
 import { calcularFrescura } from '../../../utils/presaMetrics';
@@ -53,11 +54,30 @@ function Segmentado<T extends string | number>({ etiqueta, valor, opciones, onCh
 const SECCIONES_NAV: { id: string; t: string }[] = [
     { id: 'cu-presas', t: 'Presas' }, { id: 'cu-planos', t: 'Clima y planos' }, { id: 'cu-estaciones', t: 'Estaciones' }, { id: 'cu-lluvia', t: 'Pluviómetros GOES' },
 ];
+/** Scroller vertical más cercano (en la app es .main-content; en el Monitor, el cuerpo del dock). */
+function scrollerDe(el: HTMLElement): HTMLElement | null {
+    for (let p = el.parentElement; p; p = p.parentElement) {
+        const oy = getComputedStyle(p).overflowY;
+        if ((oy === 'auto' || oy === 'scroll') && p.scrollHeight > p.clientHeight) return p;
+    }
+    return null;
+}
+/**
+ * Lleva la sección al borde de arriba SIN dejarla bajo la navegación fija ni bajo la barra superior móvil: la nav se ancla al borde del
+ * contenido del scroller (después de su padding), así que se resta ese padding y el alto de la nav. Solo se mueve el scroller de la pestaña.
+ */
 function irA(id: string) {
     const el = document.getElementById(id);
     if (!el) return;
     const reducido = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    el.scrollIntoView({ behavior: reducido ? 'auto' : 'smooth', block: 'start' });
+    const sc = scrollerDe(el);
+    if (!sc) { el.scrollIntoView({ behavior: reducido ? 'auto' : 'smooth', block: 'start' }); return; }
+    const nav = document.querySelector<HTMLElement>('.cu-nav');
+    const pad = parseFloat(getComputedStyle(sc).paddingTop) || 0;
+    const top = sc.scrollTop + (el.getBoundingClientRect().top - sc.getBoundingClientRect().top) - pad - (nav?.offsetHeight ?? 0) - 8;
+    sc.scrollTo({ top: Math.max(0, top), behavior: reducido ? 'auto' : 'smooth' });
+    el.setAttribute('tabindex', '-1');
+    el.focus({ preventScroll: true });
 }
 
 function FilaTabla({ m, difCila }: { m: PresaCuencaModelo; difCila: number | null | undefined }) {
@@ -137,8 +157,21 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
         return ordenarPresas(base.map((m) => ({ ...m, ubicacionId: m.fila.ubicacionId, pct: m.fila.pct, namoMm3: m.fila.namoMm3, atrasoDias: m.atrasoDias })), orden);
     }, [calc, alcance, orden]);
 
+    // Sección activa de la navegación (la que cruza el 30 % superior de la ventana).
+    const [activa, setActiva] = useState<string | null>(null);
+    useEffect(() => {
+        if (typeof IntersectionObserver === 'undefined') return;
+        const els = SECCIONES_NAV.map((x) => document.getElementById(x.id)).filter((e): e is HTMLElement => !!e);
+        if (!els.length) return;
+        const io = new IntersectionObserver((entradas) => {
+            for (const en of entradas) if (en.isIntersecting) setActiva(en.target.id);
+        }, { rootMargin: '-25% 0px -65% 0px' });
+        els.forEach((e) => io.observe(e));
+        return () => io.disconnect();
+    }, [calc, jcas.loading, jcas.red, vista]);
+
     if (loading) {
-        return <div className="an-root cu-root" aria-busy="true" aria-label="Cargando cuenca del Conchos"><div className="an-skeleton" /><div className="an-skeleton an-skeleton--alta" /></div>;
+        return <div className="an-root cu-root" role="status" aria-busy="true" aria-label="Cargando cuenca del Conchos"><div className="an-skeleton" /><div className="an-skeleton an-skeleton--alta" /></div>;
     }
     if (error) {
         return (
@@ -204,18 +237,20 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                 </div>
                 <div className="an-kpi" role="listitem">
                     <span className="an-kpi-lbl">Lluvia de la cuenca · 30 días</span>
-                    <span className="an-kpi-val">{areal30?.mm == null ? 'S/D' : formatearNumero(areal30.mm, 1)}{areal30?.mm != null && <small> mm</small>}</span>
-                    <span className="an-kpi-sub">{areal30?.mm == null ? (areal30?.motivoSD ?? 'Sin estaciones JCAS por ahora') : `n = ${areal30.nEstaciones} estaciones · cobertura ${areal30.coberturaPct.toFixed(0)} % · contexto provisional`}</span>
+                    <span className="an-kpi-val">{areal30?.mm == null ? 'S/D' : fmtLluvia(areal30.mm)}{areal30?.mm != null && <small> mm</small>}</span>
+                    <span className="an-kpi-sub">{areal30?.mm == null
+                        ? (jcas.loading ? 'Cargando estaciones…' : jcas.error ? 'No se pudieron cargar las estaciones JCAS' : areal30?.motivoSD ?? 'Sin estaciones JCAS por ahora')
+                        : `n = ${areal30.nEstaciones} estaciones · cobertura ${areal30.coberturaPct.toFixed(0)} % · provisional`}</span>
                 </div>
                 <div className="an-kpi" role="listitem">
-                    <span className="an-kpi-lbl">Estaciones con lluvia útil</span>
-                    <span className="an-kpi-val">{jcas.red?.modelo ? jcas.red.modelo.conLluvia : 'S/D'}{jcas.red?.modelo && <small> de {jcas.red.modelo.total}</small>}</span>
-                    <span className="an-kpi-sub">JCAS/UACJ y propias del distrito · una por ciudad en el promedio</span>
+                    <span className="an-kpi-lbl">Estaciones en el promedio · 30 días</span>
+                    <span className="an-kpi-val">{areal30 ? areal30.nEstaciones : 'S/D'}{areal30 && <small> estaciones</small>}</span>
+                    <span className="an-kpi-sub">{areal30 ? `${areal30.nExcluidas > 0 ? `${areal30.nExcluidas} excluida(s) por sospechosa(s) · ` : ''}JCAS/UACJ y propias · provisional` : 'JCAS/UACJ y propias del distrito'}</span>
                 </div>
             </div></div>
 
             <nav className="cu-nav" aria-label="Secciones de la cuenca">
-                {SECCIONES_NAV.map((x) => <button key={x.id} type="button" className="cu-nav-btn" onClick={() => irA(x.id)}>{x.t}</button>)}
+                {SECCIONES_NAV.map((x) => <button key={x.id} type="button" className="cu-nav-btn" aria-current={activa === x.id ? 'true' : undefined} onClick={() => irA(x.id)}>{x.t}</button>)}
             </nav>
 
             {sinActualizar.length > 0 && (

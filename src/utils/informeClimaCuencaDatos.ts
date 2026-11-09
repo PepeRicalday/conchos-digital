@@ -7,7 +7,7 @@ import type { DemGrid } from './camposCuenca';
 import { consensoPorPunto, resumenConfiabilidad, valorPronosticoPeriodo, type Confiabilidad } from './cuencaPronostico';
 import type { ConfigInformeClima } from './informeClimaCuencaConfig';
 import { ORDEN_VARIABLES, etiquetaAlcanceClima } from './informeClimaCuencaConfig';
-import { type ModeloRedJcas, type PuntoPropio, type PuntoRedJcas, type VentanaObs } from './jcasModelo';
+import { arealDe, type ModeloRedJcas, type PuntoPropio, type PuntoRedJcas, type VentanaObs } from './jcasModelo';
 import type { DatosCapas } from './capasCuenca';
 import { MODULOS_SRL } from './geoDistrito';
 import type { VariablePlano } from './paletasClima';
@@ -82,7 +82,7 @@ export function construirDatosClima(
   for (const v of variables) {
     if (config.observado) {
       const puntos = e.red ? puntosObservados(e.red, v, config.diasObs) : [];
-      planos.push({ variable: v, tipo: 'obs', dias: config.diasObs, modelo: construirPlano({ variable: v, periodo: { tipo: 'obs', dias: config.diasObs }, puntos, contorno: e.contorno, dem: e.dem }) });
+      planos.push({ variable: v, tipo: 'obs', dias: config.diasObs, modelo: construirPlano({ variable: v, periodo: { tipo: 'obs', dias: config.diasObs }, puntos, contorno: e.contorno, dem: e.dem, areal: v === 'lluvia' && e.red ? arealDe(e.red, config.diasObs) : null }) });
     }
     if (config.pronostico) {
       const puntos = e.pron ? puntosPronostico(e.pron.puntos, e.pron.filas, v, config.diasPron, e.hoy) : [];

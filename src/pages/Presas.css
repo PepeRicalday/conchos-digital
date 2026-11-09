@@ -1836,6 +1836,8 @@
     .scada-sala-body.is-goes-full { grid-template-columns: minmax(0, 1fr); }
     .scada-sala-body.is-goes-full .scada-zona-tomas { display: none; }
 }
+/* Fuera del media query: en tableta vertical y teléfono las obras de toma tampoco van bajo la cuenca. */
+.scada-sala-body.is-goes-full .scada-zona-tomas { display: none; }
 
 /* Zona 2 */
 .scada-zona-hidraulica { display: flex; flex-direction: column; gap: 10px; min-width: 0; }

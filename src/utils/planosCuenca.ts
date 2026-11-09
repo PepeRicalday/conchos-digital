@@ -10,6 +10,7 @@ import { colapsaGrupos, construirCampo, type CampoCuenca, type DemGrid, type Pun
 import { anilloAPath, proyectorCuenca, SALIDA_CUENCA, type ContornoCuenca, type ProyectorMapa } from './geoCuenca';
 import { anillosAPath, regionMayorQue, rotuloEnAnillos, simplificaAnillo, suavizaAnillo, type Anillo } from './isolineas';
 import { cuandoVentana, type VentanaObs } from './jcasModelo';
+import type { LluviaAreal } from './jcasCuenca';
 import { capasSvg, type CapaId, type DatosCapas } from './capasCuenca';
 import { escalaDe } from './escalasCuenca';
 import { colorBanda, fmtNivel, VARIABLES_PLANO, type VariablePlano } from './paletasClima';
@@ -46,6 +47,11 @@ export interface EntradaPlano {
     puntos: PuntoCampo[];
     contorno: ContornoCuenca;
     dem?: DemGrid | null;
+    /**
+     * Lluvia areal observada de la cuenca (`arealDe`). Si se da, el RESUMEN numérico (promedio, rango, n, cobertura) sale de ella y no del
+     * campo interpolado: pantalla, informes y KPI comparten una sola cifra. El dibujo sigue siendo el campo (solo visual). Solo aplica a lluvia observada.
+     */
+    areal?: LluviaAreal | null;
 }
 
 export function tituloPlano(variable: VariablePlano, periodo: PeriodoPlano): string {
@@ -68,9 +74,12 @@ export function construirPlano(e: EntradaPlano): PlanoModelo {
     const excluidos = puntos.filter((p) => p.sospechosa);
     const utiles = puntos.filter((p) => p.valor != null && !p.sospechosa);
     const mayor = utiles.length ? utiles.reduce((a, b) => ((b.valor as number) > (a.valor as number) ? b : a)) : null;
+    const ar = e.areal && Number.isFinite(e.areal.nEstaciones) && e.variable === 'lluvia' && e.periodo.tipo === 'obs' ? e.areal : null;
     const base = {
         variable: e.variable, periodo: e.periodo, titulo: tituloPlano(e.variable, e.periodo), unidad: cfg.unidad, puntos, excluidos, campo,
-        resumen: { media: campo.media, min: campo.min, max: campo.max, coberturaPct: campo.coberturaPct, n: campo.nEstaciones, nExcluidas: excluidos.length, maxEn: mayor ? { nombre: mayor.nombre, valor: mayor.valor as number } : null },
+        resumen: ar
+            ? { media: ar.mm, min: ar.min, max: ar.max, coberturaPct: ar.coberturaPct, n: ar.nEstaciones, nExcluidas: ar.nExcluidas, maxEn: mayor ? { nombre: mayor.nombre, valor: mayor.valor as number } : null }
+            : { media: campo.media, min: campo.min, max: campo.max, coberturaPct: campo.coberturaPct, n: campo.nEstaciones, nExcluidas: excluidos.length, maxEn: mayor ? { nombre: mayor.nombre, valor: mayor.valor as number } : null },
         ajuste: campo.ajuste, motivoSD: campo.motivoSD,
     };
     const diasEscala = e.periodo.dias === 'hoy' ? 1 : e.periodo.dias;

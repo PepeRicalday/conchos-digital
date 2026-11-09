@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { useJcasCuenca } from '../../../hooks/useJcasCuenca';
 import { formatearNumero } from '../../../utils/historicoPresas';
+import { fmtLluvia } from '../../../utils/fmtLluvia';
 import { fechaCorta } from '../../../utils/analiticaPresas';
 import type { LluviaAreal } from '../../../utils/jcasCuenca';
 import { arealDe, etiquetaVentana, valorObs, VENTANAS_OBS, type PuntoRedJcas, type VentanaObs } from '../../../utils/jcasModelo';
@@ -18,6 +19,14 @@ function estadoTexto(p: PuntoRedJcas): { glifo: string; texto: string; clase: st
     return { glifo: '●', texto: 'Al día', clase: 'ok' };
 }
 
+/** Estado de una estación propia según su última fecha con lectura frente al último día completo de la red (S/D si no hay fecha). */
+function estadoPropia(ultFecha: string | null, fin: string): { glifo: string; texto: string; clase: string } {
+    if (!ultFecha) return { glifo: '◇', texto: 'Sin datos', clase: 'sd' };
+    const dias = Math.round((Date.parse(`${fin}T00:00:00Z`) - Date.parse(`${ultFecha.slice(0, 10)}T00:00:00Z`)) / 86_400_000);
+    if (Number.isFinite(dias) && dias > 1) return { glifo: '▲', texto: `Atrasada ${dias} d`, clase: 'warn' };
+    return { glifo: '●', texto: 'Al día', clase: 'ok' };
+}
+
 function KpiAreal({ etiqueta, a }: { etiqueta: string; a: LluviaAreal }) {
     return (
         <div className="cu-red-kpi">
@@ -26,7 +35,7 @@ function KpiAreal({ etiqueta, a }: { etiqueta: string; a: LluviaAreal }) {
             <span className="an-kpi-sub">
                 {a.mm == null
                     ? a.motivoSD
-                    : `n = ${a.nEstaciones} estaciones · cobertura ${a.coberturaPct.toFixed(0)} % del área${a.min != null && a.max != null ? ` · rango ${formatearNumero(a.min, 0)}–${formatearNumero(a.max, 0)} mm` : ''}`}
+                    : `n = ${a.nEstaciones} estaciones · cobertura ${a.coberturaPct.toFixed(0)} % del área${a.min != null && a.max != null ? ` · rango ${fmtLluvia(a.min)}–${fmtLluvia(a.max)} mm` : ''} · provisional`}
             </span>
         </div>
     );
@@ -47,7 +56,7 @@ export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<
         return [...ps].sort((a, b) => (mm(b) ?? -1) - (mm(a) ?? -1) || a.nombre.localeCompare(b.nombre));
     }, [red, ventana]);
 
-    if (loading) return <section className="an-card" aria-busy="true" aria-label="Cargando red de estaciones"><div className="an-skeleton" /></section>;
+    if (loading) return <section className="an-card" id="cu-estaciones" role="status" aria-busy="true" aria-label="Cargando red de estaciones"><div className="an-skeleton an-skeleton--alta" /></section>;
     if (error || !red?.modelo || !red.contorno) {
         return (
             <section className="an-card" id="cu-estaciones" aria-label="Red de estaciones de la cuenca">
@@ -142,7 +151,10 @@ export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<
                                 <th scope="row"><div className="cu-presa"><span className="cu-nombre">{p.nombre}</span><span className="cu-tag">Propia</span><span className="cu-nota-fila">Estación WeatherLink del distrito: solo aporta lluvia</span></div></th>
                                 <td className="cu-num">{fmtMm(p.mmHoy)}</td><td className="cu-num">{fmtMm(p.mm1)}</td><td className="cu-num">{fmtMm(p.mm7)}</td><td className="cu-num cu-barra" style={barra(p.mm30)}>{fmtMm(p.mm30)}</td>
                                 <td className="cu-num">S/D</td>
-                                <td><span className="cu-estado cu-estado--ok"><span aria-hidden="true">●</span> Al día</span><span className="cu-nota-fila cu-fecha">{p.ultFecha ? fechaCorta(p.ultFecha) : 'S/D'}</span></td>
+                                <td>{(() => {
+                                    const e = estadoPropia(p.ultFecha, m.fin);
+                                    return <span className={`cu-estado cu-estado--${e.clase}`}><span aria-hidden="true">{e.glifo}</span> {e.texto}</span>;
+                                })()}<span className="cu-nota-fila cu-fecha">{p.ultFecha ? fechaCorta(p.ultFecha) : 'S/D'}</span></td>
                             </tr>
                         ))}
                     </tbody>
@@ -154,7 +166,7 @@ export default function RedEstacionesCuenca({ jcas, capas }: { jcas: ReturnType<
                 <summary className="cu-notas-sum">Cómo se calcula y qué límites tiene la red JCAS</summary>
                 <ul>
                     <li><b>Fuente:</b> JCAS (Junta Central de Agua y Saneamiento de Chihuahua) con la UACJ publica sus estaciones en un portal abierto sin API ni términos de uso publicados. SICA lee solo las páginas públicas de cada estación, con pausas, y lo copia a tablas propias (última sincronización: {red.ultSyncEn ? new Date(red.ultSyncEn).toLocaleString('es-MX', { timeZone: 'America/Chihuahua', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }) : 'nunca'}). Si el portal cambia de formato, la lectura se detiene y se muestra S/D.</li>
-                    <li><b>Contorno:</b> cuencas J–N de la región hidrológica RH24 (INEGI-CONAGUA, 28 subcuencas, ≈ {formatearNumero(red.contorno.areaKm2 ?? 0, 0)} km²). Ojinaga queda en el borde de salida.</li>
+                    <li><b>Contorno:</b> cuencas J–N de la región hidrológica RH24 (INEGI-CONAGUA, 28 subcuencas, {red.contorno.areaKm2 != null ? `≈ ${formatearNumero(red.contorno.areaKm2, 0)} km²` : 'área S/D'}). Ojinaga queda en el borde de salida.</li>
                     <li><b>Días completos y hoy:</b> los acumulados de ayer, 7 y 30 días usan solo días cerrados del reloj de cada estación. «Hoy» es el día en curso y es PARCIAL: lluvia acumulada y medias hasta la última lectura (cada 2 h aprox.); no se mezcla con los días completos ni con la verificación del pronóstico. Un acumulado con menos del 80 % de los días con dato es S/D.</li>
                     <li><b>Promedio areal:</b> interpolación por inverso de la distancia al cuadrado sobre una malla de 0.1°, limitada a 90 km de cada estación; con menos de 5 estaciones útiles o menos del 50 % del área cubierta, el resultado es S/D (nunca 0 mm).</li>
                     <li><b>Estaciones propias:</b> las {m.propias.length} estaciones WeatherLink dentro de la cuenca suman a la lluvia observada (el valor del día es la última lectura de su contador diario). Solo aportan lluvia; temperatura, viento y humedad siguen viniendo de JCAS.</li>

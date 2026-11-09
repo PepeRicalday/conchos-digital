@@ -223,21 +223,26 @@ html[data-device='phone'] .cu-capa-chip { min-height: 44px; font-size: 14px; pad
 .cu-cq { container: cu / inline-size; min-width: 0; }
 
 /* Navegación interna fija: la pestaña mide varias pantallas */
-.cu-nav { position: sticky; top: 0; z-index: 6; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; margin: -4px 0; background: linear-gradient(180deg, var(--pr-bg) 70%, transparent); }
-.cu-nav-btn { min-height: 36px; padding: 6px 16px; border: 1px solid var(--pr-line); border-radius: 999px; background: var(--pr-bg); color: var(--pr-t2); font: 600 13px var(--pr-body); cursor: pointer; }
+/* Medido en Chrome: un sticky se ancla al borde del CONTENIDO del scroller (después de su padding), así que top:0 ya queda bajo la barra
+   superior móvil (el padding de .main-content la incluye). Las anclas se alinean por JS (irA) restando ese padding y el alto de la nav. */
+.cu-root { --cu-top: 0px; --cu-nav-h: 52px; }
+.cu-nav { position: sticky; top: var(--cu-top); z-index: 6; display: flex; flex-wrap: nowrap; gap: 6px; padding: 8px 0; margin: -4px 0; overflow-x: auto; scrollbar-width: none; background: linear-gradient(180deg, var(--pm-panel-bg, var(--pr-bg)) 70%, transparent); }
+.cu-nav::-webkit-scrollbar { display: none; }
+.cu-nav-btn { flex: 0 0 auto; min-height: 36px; padding: 6px 16px; border: 1px solid var(--pr-line); border-radius: 999px; background: var(--pm-panel-bg, var(--pr-bg)); color: var(--pr-t2); font: 600 13px var(--pr-body); cursor: pointer; }
 .cu-nav-btn:hover { border-color: var(--pr-sky); color: var(--pr-t1); }
 .cu-nav-btn:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 2px; }
-#cu-presas, #cu-planos, #cu-estaciones, #cu-lluvia { scroll-margin-top: 56px; }
+#cu-presas:focus, #cu-planos:focus, #cu-estaciones:focus, #cu-lluvia:focus { outline: none; }
+.cu-nav-btn[aria-current='true'] { border-color: var(--pr-sky); color: var(--pr-t1); background: rgba(63, 178, 243, 0.16); }
 
-/* Cabecera: 6 indicadores */
-@container cu (min-width: 560px) { .an-kpis.an-kpis--6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@container cu (min-width: 880px) { .an-kpis.an-kpis--6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@container cu (min-width: 1360px) { .an-kpis.an-kpis--6 { grid-template-columns: repeat(6, minmax(0, 1fr)); } .an-kpis--6 .an-kpi-val { font-size: 30px; } }
+/* Cabecera: 6 indicadores. Base de 2 columnas (dock del Monitor, teléfono); .cu-cq gana en especificidad a las reglas por dispositivo de analitica.css. */
+.cu-cq .an-kpis.an-kpis--6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container cu (min-width: 760px) { .cu-cq .an-kpis.an-kpis--6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container cu (min-width: 1360px) { .cu-cq .an-kpis.an-kpis--6 { grid-template-columns: repeat(6, minmax(0, 1fr)); } .an-kpis--6 .an-kpi-val { font-size: 30px; } }
 
 /* Presas: tanques + detalle lado a lado; los 7 múltiplos ocupan todo el ancho */
 .cu-presas-grid { display: flex; flex-direction: column; gap: 14px; }
-@container cu (min-width: 1280px) {
-    .cu-presas-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: stretch; }
+@container cu (min-width: 1400px) {
+    .cu-presas-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); align-items: start; }
     .cu-presas-multiplos { grid-column: 1 / -1; }
     .cu-presas-grid .cu-datos { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 }
@@ -252,7 +257,7 @@ html[data-device='phone'] .cu-capa-chip { min-height: 44px; font-size: 14px; pad
 }
 @container cu (min-width: 1360px) {
     .cu-pl-grid { grid-template-columns: 250px minmax(0, 1.15fr) minmax(0, 1fr); }
-    .cu-pl-ctl { grid-column: auto; position: sticky; top: 64px; }
+    .cu-pl-ctl { grid-column: auto; position: sticky; top: calc(var(--cu-nav-h) + 12px); max-height: calc(100dvh - var(--cu-nav-h) - 100px); overflow-y: auto; }
     .cu-pl-estado { grid-column: 2 / -1; }
     .cu-pl-ctl .cu-controles { flex-direction: column; align-items: stretch; gap: 12px; }
     .cu-pl-ctl .an-seg { display: flex; flex-wrap: wrap; }
@@ -271,9 +276,9 @@ html[data-device='phone'] .cu-capa-chip { min-height: 44px; font-size: 14px; pad
 /* Red de estaciones: mapa fijo a la izquierda, tabla a la derecha */
 .cu-red-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
 .cu-red-cuerpo .cu-mapa { margin: 12px 0 0; }
-@container cu (min-width: 1100px) {
+@container cu (min-width: 960px) {
     .cu-red-cuerpo { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.25fr); }
-    .cu-red-cuerpo .cu-mapa { position: sticky; top: 64px; }
+    .cu-red-cuerpo .cu-mapa { position: sticky; top: calc(var(--cu-nav-h) + 12px); max-height: calc(100dvh - var(--cu-nav-h) - 100px); overflow-y: auto; }
     .cu-red-cuerpo .cu-mapa-svg { max-width: none; margin-inline: 0; }
 }
 .cu-tabla-wrap--red .cu-tabla th, .cu-tabla-wrap--red .cu-tabla td { padding: 8px 8px; }
@@ -282,5 +287,6 @@ html[data-device='phone'] .cu-capa-chip { min-height: 44px; font-size: 14px; pad
 
 /* Táctil: objetivos de 44 px */
 @media (pointer: coarse) {
-    .cu-nav-btn, .cu-capa-chip { min-height: 44px; }
+    .cu-nav-btn, .cu-capa-chip, .cu-notas-sum { min-height: 44px; }
+    .cu-root { --cu-nav-h: 60px; }
 }

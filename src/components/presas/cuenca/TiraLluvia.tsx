@@ -37,10 +37,10 @@ export default function TiraLluvia({ lluvia, serie }: Props) {
     }
 
     return (
-        <section className="an-card" aria-label="Lluvia en la cuenca">
+        <section className="an-card" id="cu-lluvia" aria-label="Lluvia en la cuenca">
             <h4 className="an-h">Lluvia en la cuenca · pluviómetros GOES</h4>
             <p className="an-nota">
-                Milímetros por día hasta el {fechaCorta(lluvia.hasta)}; los 30 días más recientes. Más intensidad = más lluvia; los días de {LLUVIA_FUERTE_MM} mm o más muestran su cifra.
+                Milímetros por día hasta el {fechaCorta(lluvia.hasta)}; los 30 días más recientes (dato provisional, pluviómetros GOES). Más intensidad = más lluvia; los días de {LLUVIA_FUERTE_MM} mm o más muestran su cifra.
                 «0» es un día seco medido; la trama es un día sin datos suficientes (S/D). El ciclo agrícola corre del 1-oct al 30-sep.
             </p>
             <div className="cu-tabla-wrap">
@@ -48,9 +48,9 @@ export default function TiraLluvia({ lluvia, serie }: Props) {
                     <thead>
                         <tr>
                             <th scope="col">Pluviómetro</th>
-                            <th scope="col">30 días</th>
-                            <th scope="col" className="cu-num">7 días</th>
-                            <th scope="col" className="cu-num">30 días</th>
+                            <th scope="col">Serie 30 d</th>
+                            <th scope="col" className="cu-num">Total 7 d</th>
+                            <th scope="col" className="cu-num">Total 30 d</th>
                             <th scope="col" className="cu-num">Ciclo {ciclo.anio}-{String(ciclo.anio + 1).slice(2)}</th>
                         </tr>
                     </thead>
@@ -62,13 +62,17 @@ export default function TiraLluvia({ lluvia, serie }: Props) {
                             const vs = lluviaVsCicloAnterior(act, ant);
                             const dias30 = lluvia.serie30.map((s) => ({ fecha: s.fecha, v: (s[String(f.ubicacionId)] as number | null | undefined) ?? null }));
                             const conLluvia = dias30.filter((d) => d.v != null && d.v >= 1).length;
+                            const conDato = dias30.filter((d) => d.v != null).length;
                             const maximo = Math.max(0, ...dias30.map((d) => d.v ?? 0));
+                            const resumenTira = conDato === 0
+                                ? `${f.nombre}: 30 días sin datos (S/D)`
+                                : `${f.nombre}: ${conDato} de 30 días con dato, ${conLluvia} con lluvia de 1 mm o más, máximo ${formatearNumero(maximo, 1)} mm`;
                             return (
                                 <tr key={f.ubicacionId}>
                                     <th scope="row"><div className="cu-presa"><span className="cu-nombre">{NOMBRE_LLUVIA[f.ubicacionId] ?? f.nombre}</span></div></th>
                                     <td className="cu-tira-td">
                                         <div className="cu-tira" role="img"
-                                            aria-label={`${f.nombre}: 30 días, ${conLluvia} con lluvia de 1 mm o más, máximo ${formatearNumero(maximo, 1)} mm`}>
+                                            aria-label={resumenTira}>
                                             {dias30.map((d) => {
                                                 const sd = d.v == null;
                                                 const alfa = sd ? 0 : d.v === 0 ? 0 : Math.max(0.28, Math.min(1, d.v! / 25));

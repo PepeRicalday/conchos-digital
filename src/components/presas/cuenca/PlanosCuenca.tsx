@@ -12,7 +12,8 @@ import { construirPlano, planoSvg, type PeriodoPlano } from '../../../utils/plan
 import { puntosObservados, puntosPronostico } from '../../../utils/planosDatos';
 import type { CapasCuenca } from '../../../hooks/useCapasCuenca';
 import SelectorCapas from './SelectorCapas';
-import { arealDe, VENTANAS_OBS, type VentanaObs } from '../../../utils/jcasModelo';
+import { arealDe, cuandoVentana, VENTANAS_OBS, type VentanaObs } from '../../../utils/jcasModelo';
+import { fmtLluvia } from '../../../utils/fmtLluvia';
 
 type Modo = 'obs' | 'pron';
 const VARIABLES: { v: VariablePlano; t: string }[] = [{ v: 'lluvia', t: 'Lluvia' }, { v: 'temperatura', t: 'Temperatura' }, { v: 'viento', t: 'Viento' }, { v: 'humedad', t: 'Humedad' }];
@@ -83,11 +84,14 @@ export default function PlanosCuenca({ jcas, capas }: { jcas: { red: RedJcas | n
         return pron.datos ? puntosPronostico(pron.datos.puntos, pron.datos.filas, variable, diasPron, hoy) : null;
     }, [modo, variable, diasObs, diasPron, jcas.red, pron.datos, hoy]);
 
-    const plano = useMemo(() => (contorno && puntos ? construirPlano({ variable, periodo, puntos, contorno, dem }) : null),
+    // Una sola verdad: la lluvia areal observada es la MISMA que muestran la cabecera, la red de estaciones y los informes (arealDe).
+    const arealUnico = useMemo(() => (variable === 'lluvia' && modo === 'obs' && jcas.red?.modelo ? arealDe(jcas.red.modelo, diasObs) : null), [variable, modo, jcas.red, diasObs]);
+    const periodoClave = modo === 'obs' ? `obs:${diasObs}` : `pron:${diasPron}`;
+    const plano = useMemo(() => (contorno && puntos ? construirPlano({ variable, periodo, puntos, contorno, dem, areal: arealUnico }) : null),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [contorno, puntos, variable, modo, diasObs, diasPron, dem]);
+        [contorno, puntos, variable, periodoClave, dem, arealUnico]);
 
-    const descripcion = plano ? `${plano.titulo}. ${plano.motivoSD ? `Sin dato: ${plano.motivoSD}` : `Promedio ${fmt(plano.resumen.media)} ${plano.unidad} con ${plano.resumen.n} estaciones`}` : '';
+    const descripcion = plano ? `${plano.titulo}. ${plano.motivoSD ? `Sin dato: ${plano.motivoSD}` : `Promedio ${plano.resumen.media == null ? 'S/D' : variable === 'lluvia' ? fmtLluvia(plano.resumen.media) : fmt(plano.resumen.media)} ${plano.unidad} con ${plano.resumen.n} estaciones`}` : '';
     // El SVG se muestra como imagen (data URL): no puede ejecutar nada aunque un nombre de estación trajera marcado.
     const svg = useMemo(() => (plano && contorno ? planoSvg(plano, contorno, { tema: 'pantalla', textoPx: dev.esPhone ? 17 : 12, idPrefijo: 'pnl', descripcion, capas: capas && capas.ids.length ? { ids: capas.ids, datos: capas.datos } : undefined }) : ''), [plano, contorno, dev.esPhone, descripcion, capas?.ids, capas?.datos]);
 
@@ -102,10 +106,9 @@ export default function PlanosCuenca({ jcas, capas }: { jcas: { red: RedJcas | n
 
     const cfg = VARIABLES_PLANO[variable];
     const ranking = useMemo(() => (puntos ? rankingDe(puntos) : { filas: [], sinDato: 0 }), [puntos]);
-    // Una sola verdad: la lluvia areal observada es la MISMA que muestran el resumen y la red de estaciones (arealDe), no un segundo cálculo.
-    const arealUnico = variable === 'lluvia' && modo === 'obs' && jcas.red?.modelo ? arealDe(jcas.red.modelo, diasObs) : null;
-    const mediaKpi = arealUnico && arealUnico.mm != null ? arealUnico.mm : plano?.resumen.media ?? null;
-    const decRank = variable === 'temperatura' ? 1 : 0;
+    // El resumen del plano ya viene del areal en lluvia observada: sin respaldo con otra cifra (si es S/D, se dice S/D).
+    const mediaKpi = plano?.resumen.media ?? null;
+    const fmtVal = (v: number) => (variable === 'lluvia' ? fmtLluvia(v) : formatearNumero(v, variable === 'temperatura' ? 1 : 0));
     const maxRank = ranking.filas.length ? Math.max(...ranking.filas.map((f) => Math.abs(f.valor)), 0.0001) : 1;
     const cargando = jcas.loading || (modo === 'pron' && pron.loading);
     const falla = modo === 'obs' ? jcas.error : pron.error;
@@ -148,12 +151,14 @@ export default function PlanosCuenca({ jcas, capas }: { jcas: { red: RedJcas | n
                             <div className="cu-pl-res">
                                 <div className="cu-red-kpi">
                                     <span className="an-kpi-lbl">{variable === 'lluvia' ? (modo === 'obs' ? 'Lluvia promedio de la cuenca' : 'Lluvia pronosticada promedio') : `${cfg.titulo} promedio`}</span>
-                                    <span className="an-kpi-val">{mediaKpi == null ? 'S/D' : formatearNumero(mediaKpi, variable === 'temperatura' || mediaKpi < 10 ? 1 : 0)}{mediaKpi != null && <small> {cfg.unidad}</small>}</span>
+                                    <span className="an-kpi-val">{mediaKpi == null ? 'S/D' : fmtVal(mediaKpi)}{mediaKpi != null && <small> {cfg.unidad}</small>}</span>
                                     <span className="an-kpi-sub">
-                                        {plano.motivoSD ? plano.motivoSD : `${plano.resumen.min != null && plano.resumen.max != null ? `rango ${formatearNumero(plano.resumen.min, 0)}–${formatearNumero(plano.resumen.max, 0)} ${cfg.unidad} · ` : ''}n = ${plano.resumen.n} estaciones · cobertura ${plano.resumen.coberturaPct.toFixed(0)} % del área`}
+                                        {mediaKpi == null && (arealUnico?.motivoSD ?? plano.motivoSD)
+                                            ? (arealUnico?.motivoSD ?? plano.motivoSD)
+                                            : `${plano.periodo.tipo === 'obs' ? `${cuandoVentana(plano.periodo.dias)} · ` : ''}${plano.resumen.min != null && plano.resumen.max != null ? `rango ${fmtVal(plano.resumen.min)}–${fmtVal(plano.resumen.max)} ${cfg.unidad} · ` : ''}n = ${plano.resumen.n} estaciones · cobertura ${plano.resumen.coberturaPct.toFixed(0)} % del área · provisional`}
                                     </span>
                                 </div>
-                                {plano.resumen.maxEn && <p className="cu-pl-dato"><b>Mayor valor:</b> {plano.resumen.maxEn.nombre}, {formatearNumero(plano.resumen.maxEn.valor, variable === 'temperatura' ? 1 : 0)} {cfg.unidad}</p>}
+                                {plano.resumen.maxEn && <p className="cu-pl-dato"><b>Mayor valor:</b> {plano.resumen.maxEn.nombre}, {fmtVal(plano.resumen.maxEn.valor)} {cfg.unidad}</p>}
                                 <p className="cu-pl-dato"><b>Altitud:</b> {plano.ajuste.motivo}.</p>
                                 {plano.excluidos.length > 0 && <p className="an-aviso" role="status"><b>Excluida del plano:</b> {plano.excluidos.map((p) => p.nombre).join(', ')} (pluviómetro sospechoso).</p>}
                                 {ranking.filas.length > 0 && (
@@ -163,7 +168,7 @@ export default function PlanosCuenca({ jcas, capas }: { jcas: { red: RedJcas | n
                                             {ranking.filas.slice(0, 8).map((f) => (
                                                 <li key={f.clave} className="cu-rank-fila" style={{ ['--w' as string]: `${Math.max(2, Math.round((Math.abs(f.valor) / maxRank) * 100))}%` }}>
                                                     <span className="cu-rank-nom">{f.nombre}</span>
-                                                    <span className="cu-rank-val">{formatearNumero(f.valor, decRank)}</span>
+                                                    <span className="cu-rank-val">{fmtVal(f.valor)}</span>
                                                 </li>
                                             ))}
                                         </ol>

@@ -43,7 +43,7 @@ for (const [n, w, h] of VP) {
     for (const btn of [...document.querySelectorAll('.cu-nav-btn')]) {
       btn.click();
       await new Promise((r) => setTimeout(r, 900));
-      const destino = document.getElementById(['cu-presas', 'cu-planos', 'cu-estaciones', 'cu-lluvia'][out.length]);
+      const destino = document.getElementById(['cu-presas', 'cu-planos', 'cu-estaciones', 'cu-mensual', 'cu-lluvia'][out.length]);
       const top = destino ? Math.round(destino.getBoundingClientRect().top) : null;
       const tapa = Math.max(nav ? nav.getBoundingClientRect().bottom : 0, document.querySelector('.mobile-topbar')?.getBoundingClientRect().bottom ?? 0);
       out.push({ t: btn.textContent, existe: !!destino, top, tapa: Math.round(tapa) });

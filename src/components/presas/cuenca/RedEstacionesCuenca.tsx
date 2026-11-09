@@ -4,7 +4,7 @@ import { formatearNumero } from '../../../utils/historicoPresas';
 import { fmtLluvia } from '../../../utils/fmtLluvia';
 import { fechaCorta } from '../../../utils/analiticaPresas';
 import type { LluviaAreal } from '../../../utils/jcasCuenca';
-import { arealDe, esVentanaLarga, etiquetaVentana, mmPropio, valorObs, VENTANAS_OBS, type PuntoRedJcas, type VentanaObs } from '../../../utils/jcasModelo';
+import { arealDe, diasCubiertos, esVentanaLarga, etiquetaVentana, mmPropio, valorObs, VENTANAS_OBS, type PuntoRedJcas, type VentanaObs } from '../../../utils/jcasModelo';
 import MapaCuenca from './MapaCuenca';
 import type { CapasCuenca } from '../../../hooks/useCapasCuenca';
 
@@ -27,7 +27,7 @@ function estadoPropia(ultFecha: string | null, fin: string): { glifo: string; te
     return { glifo: '●', texto: 'Al día', clase: 'ok' };
 }
 
-function KpiAreal({ etiqueta, a }: { etiqueta: string; a: LluviaAreal }) {
+function KpiAreal({ etiqueta, a, cobertura }: { etiqueta: string; a: LluviaAreal; cobertura?: { con: number; de: number } | null }) {
     return (
         <div className="cu-red-kpi">
             <span className="an-kpi-lbl">{etiqueta}</span>
@@ -36,6 +36,7 @@ function KpiAreal({ etiqueta, a }: { etiqueta: string; a: LluviaAreal }) {
                 {a.mm == null
                     ? a.motivoSD
                     : `n = ${a.nEstaciones} estaciones · cobertura ${a.coberturaPct.toFixed(0)} % del área${a.min != null && a.max != null ? ` · rango ${fmtLluvia(a.min)}–${fmtLluvia(a.max)} mm` : ''} · provisional`}
+                {cobertura && ` · historia diaria guardada: ${cobertura.con} de ${cobertura.de} días de la ventana`}
             </span>
         </div>
     );
@@ -100,7 +101,7 @@ export default function RedEstacionesCuenca({ jcas, capas, ventana: ventanaProp,
             </div>
 
             <div className="cu-red-kpis">
-                <KpiAreal etiqueta={`Lluvia areal de la cuenca · ${typeof ventana === 'number' && ventana > 1 ? `${ventana} días` : etiquetaVentana(ventana)}`} a={areal} />
+                <KpiAreal etiqueta={`Lluvia areal de la cuenca · ${typeof ventana === 'number' && ventana > 1 ? `${ventana} días` : etiquetaVentana(ventana)}`} a={areal} cobertura={diasCubiertos(m, ventana)} />
                 <div className="cu-red-kpi">
                     <span className="an-kpi-lbl">Estaciones con lluvia útil</span>
                     <span className="an-kpi-val">{m.conLluvia}<small> de {m.total}</small></span>

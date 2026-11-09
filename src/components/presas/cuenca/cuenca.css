@@ -290,3 +290,11 @@ html[data-device='phone'] .cu-capa-chip { min-height: 44px; font-size: 14px; pad
     .cu-nav-btn, .cu-capa-chip, .cu-notas-sum { min-height: 44px; }
     .cu-root { --cu-nav-h: 60px; }
 }
+
+/* Mes a mes */
+.cu-mes-svg { display: block; width: 100%; height: auto; max-height: 280px; margin: 10px 0 12px; color: var(--pr-t3); }
+.cu-mes-rejilla { stroke: var(--pr-line); stroke-width: 1; }
+.cu-mes-eje { fill: var(--pr-t3); font: 600 12px var(--pr-mono); }
+.cu-mes-val { fill: var(--pr-t1); font: 700 12.5px var(--pr-mono); }
+.cu-mes-barra { fill: var(--pr-sky); }
+.cu-mes-sd { stroke: var(--pr-line); stroke-width: 1; }

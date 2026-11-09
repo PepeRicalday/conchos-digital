@@ -146,6 +146,15 @@ export function valorObs(p: PuntoConValores, variable: 'lluvia' | 'temperatura' 
         : variable === 'viento' ? (v === 7 ? m.viento7 : m.viento30) : (v === 7 ? m.hum7 : m.hum30);
 }
 export const mmPropio = (p: PuntoPropio, v: VentanaObs): number | null => (v === 'hoy' ? p.mmHoy : v === 1 ? p.mm1 : v === 7 ? p.mm7 : esVentanaLarga(v) ? (p.largas?.[String(v)]?.mm ?? null) : p.mm30);
+/** Días de la ventana larga que la historia diaria guardada alcanza a cubrir: { con, de }. null si la ventana no es larga o no hay historia. */
+export function diasCubiertos(m: ModeloRedJcas, v: VentanaObs): { con: number; de: number } | null {
+    if (!esVentanaLarga(v) || !m.inicioHistoria) return null;
+    const de = diasDeVentana(v, m.fin);
+    if (de < 1) return null;
+    const ini = ISO(Date.parse(`${m.fin}T00:00:00Z`) - (de - 1) * 86_400_000);
+    const desde = m.inicioHistoria > ini ? m.inicioHistoria : ini;
+    return { con: Math.max(0, Math.min(de, diasEntre(desde, m.fin) + 1)), de };
+}
 const SIN_AREAL = (dias: number): LluviaAreal => ({ mm: null, motivoSD: 'sin historia diaria guardada para esta ventana', nEstaciones: 0, nExcluidas: 0, coberturaPct: 0, ventanaDias: dias, min: null, max: null });
 export const arealDe = (m: ModeloRedJcas, v: VentanaObs): LluviaAreal => (v === 'hoy' ? m.arealHoy : v === 1 ? m.areal1 : v === 7 ? m.areal7 : esVentanaLarga(v) ? (m.arealesLargas?.[String(v)] ?? SIN_AREAL(diasDeVentana(v, m.fin))) : m.areal30);
 /** Una estación con su último día completo a más de 3 días del corte se considera atrasada. */

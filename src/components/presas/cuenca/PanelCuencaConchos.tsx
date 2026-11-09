@@ -14,6 +14,7 @@ import DetallePresaCuenca from './DetallePresaCuenca';
 import PequenosMultiplos from './PequenosMultiplos';
 import TiraLluvia from './TiraLluvia';
 import RedEstacionesCuenca from './RedEstacionesCuenca';
+import MensualCuenca from './MensualCuenca';
 import PlanosCuenca from './PlanosCuenca';
 import { useJcasCuenca } from '../../../hooks/useJcasCuenca';
 import { useCapasCuenca } from '../../../hooks/useCapasCuenca';
@@ -53,7 +54,7 @@ function Segmentado<T extends string | number>({ etiqueta, valor, opciones, onCh
 }
 
 const SECCIONES_NAV: { id: string; t: string }[] = [
-    { id: 'cu-presas', t: 'Presas' }, { id: 'cu-planos', t: 'Clima y planos' }, { id: 'cu-estaciones', t: 'Estaciones' }, { id: 'cu-lluvia', t: 'Pluviómetros GOES' },
+    { id: 'cu-presas', t: 'Presas' }, { id: 'cu-planos', t: 'Clima y planos' }, { id: 'cu-estaciones', t: 'Estaciones' }, { id: 'cu-mensual', t: 'Mes a mes' }, { id: 'cu-lluvia', t: 'Pluviómetros GOES' },
 ];
 /** Scroller vertical más cercano (en la app es .main-content; en el Monitor, el cuerpo del dock). */
 function scrollerDe(el: HTMLElement): HTMLElement | null {
@@ -318,6 +319,8 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
             <PlanosCuenca jcas={jcas} capas={capas} diasObs={ventanaObs} onDias={setVentanaObs} />
 
             <RedEstacionesCuenca jcas={jcas} capas={capas} ventana={ventanaObs} onVentana={setVentanaObs} />
+
+            <MensualCuenca jcas={jcas} />
 
             <TiraLluvia lluvia={datos.lluvia} serie={datos.lluviaSerie} />
 

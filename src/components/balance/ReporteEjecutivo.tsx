@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Printer, TriangleAlert, FileText } from 'lucide-react';
 import { usePredictiveBalance } from '../../hooks/usePredictiveBalance';
 import { fmt } from '../../utils/formato';
+import { DataTable } from '../ui/base';
 
 /** Alertas predictivas y tramos con anomalía de balance, más impresión del reporte (la página completa se imprime sin controles). */
 export const ReporteEjecutivo = memo(function ReporteEjecutivo({ fecha }: { fecha: string }) {
@@ -32,22 +33,15 @@ export const ReporteEjecutivo = memo(function ReporteEjecutivo({ fecha }: { fech
                         ))}
                     </ul>
                     {anomalias.length > 0 && (
-                        <div className="sc-tabla-wrap">
-                            <table className="sc-tabla">
-                                <caption>Tramos con anomalía respecto de su línea base de 7 días</caption>
-                                <thead><tr><th scope="col">Tramo</th><th scope="col">Hoy</th><th scope="col">Base 7 d</th><th scope="col">Δ (pp)</th></tr></thead>
-                                <tbody>
-                                    {anomalias.slice(0, 6).map((t) => (
-                                        <tr key={t.label}>
-                                            <th scope="row">{t.label}</th>
-                                            <td>{t.eficiencia_hoy != null ? `${fmt(t.eficiencia_hoy)} %` : 'S/D'}</td>
-                                            <td>{t.eficiencia_baseline != null ? `${fmt(t.eficiencia_baseline)} %` : 'S/D'}</td>
-                                            <td>{fmt(t.delta_pp)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        <DataTable
+                            clave={(t) => t.label} filas={anomalias.slice(0, 6)} caption="Tramos con anomalía respecto de su línea base de 7 días"
+                            columnas={[
+                                { id: 'tramo', titulo: 'Tramo', encabezadoFila: true, render: (t) => t.label },
+                                { id: 'hoy', titulo: 'Hoy', numerica: true, render: (t) => t.eficiencia_hoy != null ? `${fmt(t.eficiencia_hoy)} %` : 'S/D' },
+                                { id: 'base', titulo: 'Base 7 d', numerica: true, render: (t) => t.eficiencia_baseline != null ? `${fmt(t.eficiencia_baseline)} %` : 'S/D' },
+                                { id: 'delta', titulo: 'Δ (pp)', numerica: true, render: (t) => fmt(t.delta_pp) },
+                            ]}
+                        />
                     )}
                 </>
             )}

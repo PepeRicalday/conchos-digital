@@ -1,9 +1,11 @@
 import { memo, useEffect, useRef } from 'react';
 import { ETIQUETA_CUMPLIMIENTO, type EstadoCumplimiento, type FilaSemana } from '../../utils/hidrometria';
 import { fmt, fmtPct } from '../../utils/formato';
+import { DataTable, Insignia, type Columna } from '../ui/base';
+import type { EstadoTipo } from '../../types/estado';
 
-const CLASE: Record<EstadoCumplimiento, string> = {
-    cumple: 'sc-estado-ok', bajo: 'sc-estado-crit', sobre: 'sc-estado-warn', sin_dato: 'sc-estado-sd', sin_solicitud: 'sc-estado-sd', futura: 'sc-estado-info',
+const TIPO: Record<EstadoCumplimiento, EstadoTipo> = {
+    cumple: 'ok', bajo: 'crit', sobre: 'warn', sin_dato: 'sd', sin_solicitud: 'sd', futura: 'info',
 };
 
 export interface FilaConCiclo extends FilaSemana { avanceCicloPct: number | null }
@@ -17,34 +19,21 @@ export const TablaCumplimiento = memo(function TablaCumplimiento({ filas, resalt
         <section className="sc-card" aria-labelledby="hid-tabla-t">
             <span className="sc-kicker">Cumplimiento por módulo</span>
             <h3 id="hid-tabla-t">Programado contra entregado</h3>
-            <div className="sc-tabla-wrap">
-                <table className="sc-tabla">
-                    <caption>Volumen semanal programado y entregado por módulo, en Mm³. S/D = sin solicitud o sin captura.</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col">Módulo</th>
-                            <th scope="col">Programado</th>
-                            <th scope="col">Entregado</th>
-                            <th scope="col">Cumpl.</th>
-                            <th scope="col">Ciclo</th>
-                            <th scope="col">Estado</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filas.map((f) => (
-                            <tr key={f.moduloId} ref={f.moduloId === resaltarId ? filaRef : undefined} aria-current={f.moduloId === resaltarId ? 'true' : undefined}
-                                style={f.moduloId === resaltarId ? { background: 'rgba(63, 178, 243, 0.14)', boxShadow: 'inset 3px 0 0 var(--sc-sky)' } : undefined}>
-                                <th scope="row">{f.nombre}</th>
-                                <td>{fmt(f.programadoMm3, 3)}</td>
-                                <td>{fmt(f.entregadoMm3, 3)}</td>
-                                <td>{fmtPct(f.cumplimientoPct)}</td>
-                                <td title="Volumen entregado del ciclo contra el autorizado">{fmtPct(f.avanceCicloPct)}</td>
-                                <td><span className={`sc-estado ${CLASE[f.estado]}`}>{ETIQUETA_CUMPLIMIENTO[f.estado]}</span></td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            <DataTable
+                clave={(f) => f.moduloId} filas={filas}
+                caption="Volumen semanal programado y entregado por módulo, en Mm³. S/D = sin solicitud o sin captura."
+                filaProps={(f) => f.moduloId === resaltarId
+                    ? { ref: filaRef, 'aria-current': 'true', style: { background: 'color-mix(in srgb, var(--st-info) 14%, transparent)', boxShadow: 'inset 3px 0 0 var(--st-info)' } }
+                    : undefined}
+                columnas={[
+                    { id: 'mod', titulo: 'Módulo', encabezadoFila: true, render: (f) => f.nombre },
+                    { id: 'prog', titulo: 'Programado', numerica: true, render: (f) => fmt(f.programadoMm3, 3) },
+                    { id: 'ent', titulo: 'Entregado', numerica: true, render: (f) => fmt(f.entregadoMm3, 3) },
+                    { id: 'cumpl', titulo: 'Cumpl.', numerica: true, render: (f) => fmtPct(f.cumplimientoPct) },
+                    { id: 'ciclo', titulo: 'Ciclo', numerica: true, ayuda: () => 'Volumen entregado del ciclo contra el autorizado', render: (f) => fmtPct(f.avanceCicloPct) },
+                    { id: 'estado', titulo: 'Estado', numerica: true, render: (f) => <Insignia tipo={TIPO[f.estado]} sinIcono>{ETIQUETA_CUMPLIMIENTO[f.estado]}</Insignia> },
+                ] satisfies Columna<FilaConCiclo>[]}
+            />
             <p className="sc-fresco">Cumpl. = entregado ÷ programado prorrateado a los días transcurridos de la semana. Ciclo = volumen entregado del ciclo ÷ autorizado.</p>
         </section>
     );

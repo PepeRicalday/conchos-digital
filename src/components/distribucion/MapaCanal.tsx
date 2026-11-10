@@ -3,6 +3,7 @@ import { Crosshair, Droplet, Zap, ArrowRight } from 'lucide-react';
 import { posicionKm } from '../../utils/distribucion';
 import { fmt, fmtEdadMin } from '../../utils/formato';
 import type { EscalaCanal } from '../../hooks/useEscalasCanal';
+import { DataTable, Insignia } from '../ui/base';
 
 export interface PuntoMapa { id: string; name: string; km: number; type: 'toma' | 'lateral' | 'carcamo'; flow: number; isOpen: boolean; wasActive?: boolean }
 export interface TramoModulo { id: string; nombre: string; rango: [number, number] | null; lps: number }
@@ -90,24 +91,19 @@ export const MapaCanal = memo(function MapaCanal({ kmIni, kmFin, escalas, modulo
                 <li><i style={{ background: '#fbbf24' }} />Toma abierta / con movimiento</li>
             </ul>
 
-            <div className="sc-tabla-wrap">
-                <table className="sc-tabla">
-                    <caption>Escalas del tramo con su última lectura</caption>
-                    <thead><tr><th scope="col">Escala</th><th scope="col">Km</th><th scope="col">Nivel</th><th scope="col">Gasto</th><th scope="col">Lectura</th></tr></thead>
-                    <tbody>
-                        {escalasVista.length === 0 && <tr><td colSpan={5}>Sin escalas en este tramo.</td></tr>}
-                        {escalasVista.map((e) => (
-                            <tr key={e.id}>
-                                <th scope="row">{e.nombre}{e.referencia && <span className="sc-fresco"> · referencia (solo nivel)</span>}</th>
-                                <td>{e.km.toFixed(1)}</td>
-                                <td>{e.nivelM != null ? `${e.nivelM.toFixed(2)} m` : 'S/D'}</td>
-                                <td>{e.referencia ? 'No aplica' : e.fresca && e.gasto != null ? `${e.gasto.toFixed(2)} m³/s` : 'S/D'}</td>
-                                <td><span className={`sc-estado ${e.fresca ? 'sc-estado-ok' : 'sc-estado-sd'}`}>{e.telemetriaMs ? fmtEdadMin((ahoraMs - e.telemetriaMs) / 60000) : 'sin lectura'}</span></td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            <DataTable
+                clave={(e) => e.id} filas={escalasVista} vacio="Sin escalas en este tramo." caption="Escalas del tramo con su última lectura"
+                columnas={[
+                    { id: 'esc', titulo: 'Escala', encabezadoFila: true, render: (e) => <>{e.nombre}{e.referencia && <span className="sc-fresco"> · referencia (solo nivel)</span>}</> },
+                    { id: 'km', titulo: 'Km', numerica: true, render: (e) => e.km.toFixed(1) },
+                    { id: 'niv', titulo: 'Nivel', numerica: true, render: (e) => e.nivelM != null ? `${e.nivelM.toFixed(2)} m` : 'S/D' },
+                    { id: 'q', titulo: 'Gasto', numerica: true, render: (e) => e.referencia ? 'No aplica' : e.fresca && e.gasto != null ? `${e.gasto.toFixed(2)} m³/s` : 'S/D' },
+                    {
+                        id: 'lec', titulo: 'Lectura', numerica: true,
+                        render: (e) => <Insignia tipo={e.fresca ? 'ok' : 'sd'} sinIcono>{e.telemetriaMs ? fmtEdadMin((ahoraMs - e.telemetriaMs) / 60000) : 'sin lectura'}</Insignia>,
+                    },
+                ]}
+            />
         </section>
     );
 });

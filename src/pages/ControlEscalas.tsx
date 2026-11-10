@@ -9,6 +9,7 @@ import { PerfilNiveles, Sparkline } from '../components/escalas/NivelesGraficos'
 import type { ChipEstado } from '../utils/alertasVivas';
 import { promedioONull, estadoCuentaEnPromedio, resumenCompuertas, porcentajeTubo, maxEjeTubo, type EstadoNivel } from '../utils/controlEscalas';
 import type { ScaleReading, Zone } from '../utils/controlEscalasZonas';
+import { DataTable, Insignia } from '../components/ui/base';
 import '../styles/sala-control.css';
 import './ControlEscalas.css';
 
@@ -147,29 +148,20 @@ const RadialModal = ({ scale, onClose }: { scale: ScaleReading; onClose: () => v
                 <div className="ce-modal-svg"><RadialSvg scale={scale} /></div>
 
                 <p className="ce-modal-sub">Desglose por compuerta <span>({anchoRadial} m × {altoRadial} m)</span></p>
-                <div className="sc-tabla-wrap">
-                    <table className="sc-tabla">
-                        <thead><tr><th scope="col">Radial</th><th scope="col">Apertura</th><th scope="col">Área expuesta</th><th scope="col">Estado</th></tr></thead>
-                        <tbody>
-                            {aperturas.map((ap, i) => {
-                                const area = ap != null ? Math.min(ap, altoRadial) * anchoRadial : null;
-                                const excede = ap != null && altoRadial > 0 && ap > altoRadial;
-                                return (
-                                    <tr key={i}>
-                                        <th scope="row">R{i + 1}</th>
-                                        <td>{ap != null ? `${ap.toFixed(2)} m` : 'S/D'}</td>
-                                        <td>{area != null ? `${area.toFixed(2)} m²` : 'S/D'}</td>
-                                        <td>
-                                            {ap == null ? <span className="sc-estado sc-estado-sd">S/D</span>
-                                                : ap > 0 ? <span className="sc-estado sc-estado-ok">Abierta{excede ? ' · apertura > alto: revisar' : ''}</span>
-                                                    : <span className="sc-estado sc-estado-sd">Cerrada</span>}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    clave={(f) => String(f.i)} filas={aperturas.map((ap, i) => ({ ap, i }))}
+                    columnas={[
+                        { id: 'rad', titulo: 'Radial', encabezadoFila: true, render: (f) => `R${f.i + 1}` },
+                        { id: 'ap', titulo: 'Apertura', numerica: true, render: (f) => f.ap != null ? `${f.ap.toFixed(2)} m` : 'S/D' },
+                        { id: 'area', titulo: 'Área expuesta', numerica: true, render: (f) => f.ap != null ? `${(Math.min(f.ap, altoRadial) * anchoRadial).toFixed(2)} m²` : 'S/D' },
+                        {
+                            id: 'est', titulo: 'Estado', numerica: true,
+                            render: (f) => f.ap == null ? <Insignia tipo="sd" sinIcono>S/D</Insignia>
+                                : f.ap > 0 ? <Insignia tipo="ok" sinIcono>{`Abierta${altoRadial > 0 && f.ap > altoRadial ? ' · apertura > alto: revisar' : ''}`}</Insignia>
+                                    : <Insignia tipo="sd" sinIcono>Cerrada</Insignia>,
+                        },
+                    ]}
+                />
                 {totalAperturaXAncho > 0 && (
                     <p className="sc-aviso" style={{ marginTop: 14 }}>
                         <Info size={16} aria-hidden="true" style={{ flexShrink: 0 }} />

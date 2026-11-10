@@ -3,6 +3,7 @@ import { Check, Copy } from 'lucide-react';
 import type { Tarjeta } from '../../hooks/useHydricChat';
 import { celda, tablaATsv } from '../../utils/consultoria';
 import { copiarTexto } from './copiar';
+import { DataTable, type Columna } from '../ui/base';
 
 /** Tablas estructuradas calculadas por el servidor (presas, escalas, balance…). Dato ausente = "S/D", nunca 0 ni vacío. */
 export const TarjetasDatos = memo(function TarjetasDatos({ tarjetas }: { tarjetas: Tarjeta[] }) {
@@ -24,29 +25,27 @@ export const TarjetasDatos = memo(function TarjetasDatos({ tarjetas }: { tarjeta
                             {copiada === i ? 'Copiada' : 'Copiar tabla'}
                         </button>
                     </div>
-                    <div className="sc-tabla-wrap" tabIndex={0} role="region" aria-label={`Tabla: ${t.titulo}`}>
-                        <table className="sc-tabla">
-                            <thead><tr>{t.columnas.map((c) => <th key={c} scope="col">{c}</th>)}</tr></thead>
-                            <tbody>
-                                {t.filas.map((fila, r) => (
-                                    <tr key={r}>
-                                        {fila.map((v, c) => {
-                                            const texto = celda(v);
-                                            const sd = texto === 'S/D';
-                                            return c === 0
-                                                ? <th key={c} scope="row">{texto}</th>
-                                                : <td key={c} className={sd ? 'ci-sd' : undefined}>
-                                                    {texto}
-                                                    {!sd && /%/.test(t.columnas[c] ?? '') && typeof v === 'number' && Number.isFinite(v) && (
-                                                        <span className="ci-barra" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, v))}%` }} /></span>
-                                                    )}
-                                                </td>;
-                                        })}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <DataTable
+                        regionAria={`Tabla: ${t.titulo}`}
+                        clave={(f) => String(t.filas.indexOf(f))} filas={t.filas}
+                        columnas={t.columnas.map((titulo, c): Columna<typeof t.filas[number]> => ({
+                            id: String(c), titulo, encabezadoFila: c === 0, numerica: c > 0,
+                            render: (fila) => {
+                                const v = fila[c];
+                                const texto = celda(v);
+                                const sd = texto === 'S/D';
+                                if (c === 0) return texto;
+                                return (
+                                    <span className={sd ? 'ci-sd' : undefined}>
+                                        {texto}
+                                        {!sd && /%/.test(titulo) && typeof v === 'number' && Number.isFinite(v) && (
+                                            <span className="ci-barra" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, v))}%` }} /></span>
+                                        )}
+                                    </span>
+                                );
+                            },
+                        }))}
+                    />
                     {t.nota && <p className="ci-tarjeta-nota">{t.nota}</p>}
                 </section>
             ))}

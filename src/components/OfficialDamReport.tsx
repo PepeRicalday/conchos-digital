@@ -49,7 +49,7 @@ const OfficialDamReport = () => {
             </div>
 
             {/* The Report (A4 Sheet Simulation) */}
-            <div className="report-paper bg-white max-w-5xl mx-auto shadow-2xl overflow-hidden print:shadow-none print:m-0 print:max-w-none">
+            <div className="report-paper tema-sol bg-white max-w-5xl mx-auto shadow-2xl overflow-hidden print:shadow-none print:m-0 print:max-w-none">
                 <div className="p-8 border-4 border-double border-slate-200 h-full flex flex-col">
 
                     {/* Header */}

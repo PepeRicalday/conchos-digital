@@ -29,3 +29,34 @@
   --fill-info: #0A5BB0;  /* 6.70:1 con blanco; #0A7FDB da 4.14 y no pasa */
   --fill-crit: #B42318;
 }
+
+/* ═══ Tema «Sol» (tanda 5): hoja clara para informes en pantalla y uso con luz solar ═══
+   Se aplica con la clase .tema-sol en el contenedor (no cambia el tema de toda la app). Redefine solo la capa 2 y las
+   escalas de Tailwind que dejaban grises de tema oscuro sobre blanco (slate-500 #7B93B8 daba 3.1:1).
+   Ratios sobre blanco: texto 1 15.88 · texto 2 9.21 · texto 3 5.10 · ok 5.46 · atención 6.33 · crítico 6.57 · info 6.70. */
+.tema-sol {
+  color-scheme: light;
+  --bg-app: #FFFFFF;
+  --surface-1: #FFFFFF;
+  --surface-2: #F2F7FC;
+  --text-1: #0B2147;
+  --text-2: #33486B;
+  --text-3: #5B6F8F;
+  --line-sutil: #D3DDEA;
+  --line-fuerte: #7B93B8;
+  --st-ok: #1E7A12;
+  --st-warn: #8A5300;
+  --st-crit: #B42318;
+  --st-info: #0A5BB0;
+  --st-sd: #5B6F8F;
+  /* Tailwind: grises de apoyo y acentos legibles sobre blanco */
+  --color-slate-300: #7B93B8;
+  --color-slate-400: #5B6F8F;
+  --color-slate-500: #5B6F8F;
+  --color-blue-400: #0A5BB0;
+  --color-blue-500: #0A5BB0;
+  --color-emerald-400: #1E7A12;
+  --color-emerald-500: #1E7A12;
+  --color-emerald-600: #1E7A12;
+  color: var(--text-1);
+}

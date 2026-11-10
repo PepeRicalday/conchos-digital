@@ -496,12 +496,7 @@ html[data-device="phone"] :is(.card, .glass-card) {
 :root:root [style*="font-size: 0.66rem"],
 :root:root [style*="font-size: 0.68rem"] { font-size: 11px !important; }
 
-/* 12) Hojas claras (informes en pantalla): los grises slate remapeados al tema oscuro no sirven sobre fondo blanco */
-:root:root .bg-white .text-slate-300,
-:root:root .bg-white .text-slate-400,
-:root:root .bg-white .text-slate-500,
-:root:root .bg-slate-50 .text-slate-400,
-:root:root .bg-slate-50 .text-slate-500 { color: #5B6F8F; }
+/* 12) Hojas claras (informes en pantalla): ahora las resuelve el tema «Sol» (.tema-sol en tokens.css) */
 
 /* 13) Clases que no declaraban text-transform pero usaban monoespaciada con tracking, y pestañas con texto escrito en mayúsculas en el JSX
    (el texto ya está en minúscula con inicial en el JSX: aquí solo se quita cualquier mayúscula heredada) */

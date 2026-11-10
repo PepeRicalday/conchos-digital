@@ -20,11 +20,11 @@
     width: 100%;
     max-width: 1100px;
     max-height: 90vh;
-    background: #0b1220;
+    background: var(--surface-1);
     border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--line-sutil);
     overflow: hidden;
-    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--bg-app) 55%, transparent);
 }
 
 .ndvi-detalle-scroll {

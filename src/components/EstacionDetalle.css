@@ -34,10 +34,10 @@
 .est-det-panel {
     width: 100%;
     max-width: 940px;
-    background: #0f172a;
-    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: var(--surface-1);
+    border: 1px solid var(--line-sutil);
     border-radius: 14px;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--bg-app) 55%, transparent);
     overflow: hidden;
 }
 

@@ -86,7 +86,7 @@ describe('componentes base de interfaz', () => {
             ],
         }));
         expect(s).toContain('<caption>Escalas</caption>');
-        expect(s).toContain('<th scope="row">K-0</th>');
+        expect(s).toContain('<th scope="row" data-label="Escala">K-0</th>');
         expect(s).toContain('ui-tabla__num');
         expect(s).toContain('>S/D<');
         expect(s.match(/S\/D/g)?.length).toBe(1);
@@ -96,5 +96,16 @@ describe('componentes base de interfaz', () => {
         const s = html(h(DataTable<{ a: string }>, { filas: [], clave: (f: { a: string }) => f.a, columnas: [], vacio: 'Sin datos del día.' }));
         expect(s).toContain('Sin datos del día.');
         expect(s).not.toContain('<table');
+    });
+
+    it('DataTable: apilar etiqueta cada celda y oculta el caption solo a la vista', () => {
+        type F = { n: string };
+        const s = html(h(DataTable<F>, {
+            filas: [{ n: 'K-0' }], clave: (f: F) => f.n, caption: 'Reglas', captionOculto: true, apilar: true,
+            columnas: [{ id: 'n', titulo: 'Regla', render: (f: F) => f.n }],
+        }));
+        expect(s).toContain('ui-tabla--apila');
+        expect(s).toContain('<caption class="ui-sr">Reglas</caption>');
+        expect(s).toContain('data-label="Regla"');
     });
 });

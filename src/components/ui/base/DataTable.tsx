@@ -20,11 +20,15 @@ export type PropsFila = ComponentPropsWithRef<'tr'>;
  * Tabla de datos base: <table> semántica (caption, th scope), cifras tabulares a la derecha, S/D explícito y contenedor
  * con desplazamiento horizontal propio. Las columnas se describen una vez; no hay HTML repetido por celda.
  */
-export function DataTable<T>({ columnas, filas, clave, caption, vacio, filaProps, className, regionAria }: {
+export function DataTable<T>({ columnas, filas, clave, caption, captionOculto, apilar, vacio, filaProps, className, regionAria }: {
     columnas: Columna<T>[];
-    filas: T[];
+    filas: readonly T[];
     clave: (fila: T) => string;
     caption?: string;
+    /** El caption existe para lectores de pantalla pero no se ve (el título ya está en la tarjeta). */
+    captionOculto?: boolean;
+    /** En pantallas angostas cada fila se apila como tarjeta con la etiqueta de cada columna (data-label). */
+    apilar?: boolean;
     /** Texto cuando no hay filas (la tabla no se dibuja). */
     vacio?: string;
     filaProps?: (fila: T) => PropsFila | undefined;
@@ -35,8 +39,8 @@ export function DataTable<T>({ columnas, filas, clave, caption, vacio, filaProps
     if (filas.length === 0 && vacio) return <p className="ui-tabla__vacio">{vacio}</p>;
     return (
         <div className="ui-tabla-wrap" {...(regionAria ? { tabIndex: 0, role: 'region', 'aria-label': regionAria } : {})}>
-            <table className={['ui-tabla', className].filter(Boolean).join(' ')}>
-                {caption && <caption>{caption}</caption>}
+            <table className={['ui-tabla', apilar && 'ui-tabla--apila', className].filter(Boolean).join(' ')}>
+                {caption && <caption className={captionOculto ? 'ui-sr' : undefined}>{caption}</caption>}
                 <thead>
                     <tr>{columnas.map((c) => <th key={c.id} scope="col" className={c.numerica ? 'ui-tabla__num' : undefined}>{c.titulo}</th>)}</tr>
                 </thead>
@@ -49,8 +53,8 @@ export function DataTable<T>({ columnas, filas, clave, caption, vacio, filaProps
                                 const contenido = sd ? <span className="ui-tabla__sd">S/D</span> : v;
                                 const cls = [c.numerica && 'ui-tabla__num', c.className].filter(Boolean).join(' ') || undefined;
                                 return c.encabezadoFila
-                                    ? <th key={c.id} scope="row" className={cls} title={c.ayuda?.(f)}>{contenido}</th>
-                                    : <td key={c.id} className={cls} title={c.ayuda?.(f)}>{contenido}</td>;
+                                    ? <th key={c.id} scope="row" className={cls} title={c.ayuda?.(f)} data-label={c.titulo}>{contenido}</th>
+                                    : <td key={c.id} className={cls} title={c.ayuda?.(f)} data-label={c.titulo}>{contenido}</td>;
                             })}
                         </tr>
                     ))}

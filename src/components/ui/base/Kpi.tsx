@@ -5,7 +5,7 @@ import { Insignia } from './Badge';
 import { EstadoChip } from '../EstadoChip';
 import type { EstadoTipo } from '../../../types/estado';
 
-export type KpiDensidad = 'compacta' | 'normal' | 'tablero';
+export type KpiDensidad = 'cabecera' | 'compacta' | 'normal' | 'tablero';
 
 export interface EstadoKpiProp { tipo: EstadoTipo; texto: string; /** Versión breve para pantallas angostas (solo tablero). */ corto?: string }
 
@@ -26,7 +26,7 @@ export interface KpiProps {
     /** Acento superior (variable CSS o color); por defecto solo los estados warn/crit lo muestran. */
     acento?: string;
     aria?: string;
-    /** compacta = etiqueta, cifra y nota; normal = tarjeta de página; tablero = celda del Dashboard (container queries). */
+    /** cabecera = lectura en línea de una barra (sin caja); compacta = etiqueta, cifra y nota; normal = tarjeta de página; tablero = celda del Dashboard (container queries). */
     densidad?: KpiDensidad;
     /** Cifra más pequeña para rangos («120 – 340») o textos largos. */
     rango?: boolean;

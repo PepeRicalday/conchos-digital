@@ -75,7 +75,7 @@
     background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1));
     border-radius: 1.25rem;
     border: 1px solid rgba(96, 165, 250, 0.3);
-    color: #60a5fa;
+    color: var(--st-info);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -150,7 +150,7 @@
 .ap-status-text {
     font-size: 12px;
     font-weight: 900;
-    color: #34d399;
+    color: var(--st-ok);
     text-transform: uppercase;
     letter-spacing: 0.15em;
 }
@@ -235,7 +235,7 @@
     font-size: 11px;
     font-weight: 900;
     font-family: var(--font-mono, monospace);
-    color: #8396ad;
+    color: var(--text-3);
     letter-spacing: 0.1em;
 }
 
@@ -243,19 +243,19 @@
     padding: 0.375rem;
     background: rgba(30, 41, 59, 0.4);
     border-radius: 0.5rem;
-    color: #8396ad;
+    color: var(--text-3);
     transition: all 0.3s;
 }
 
 .ap-point-card:hover .ap-pin-box {
     background: rgba(59, 130, 246, 0.2);
-    color: #60a5fa;
+    color: var(--st-info);
 }
 
 .ap-point-name {
     font-size: 14px;
     font-weight: 900;
-    color: #e2e8f0;
+    color: var(--text-1);
     text-transform: uppercase;
     letter-spacing: -0.01em;
     margin-bottom: 1.5rem;
@@ -297,7 +297,7 @@
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: #94a3b8;
+    color: var(--text-3);
 }
 
 .ap-arrival-time {

@@ -504,7 +504,7 @@ html[data-device='phone'] .cons-ubic-panel { padding-bottom: calc(14px + env(saf
 
 /* Listas desplegables nativas: sin esto el navegador las abre con fondo blanco y hereda el texto claro (ilegible). */
 .cons-pagina select { color-scheme: dark; }
-.cons-pagina select option, .cons-pagina select optgroup { background: #0f1a2b; color: #e8eef6; }
+.cons-pagina select option, .cons-pagina select optgroup { background: #0f1a2b; color: var(--text-1); }
 .cons-pagina select option:checked { background: #1d3a5c; color: #ffffff; }
 
 /* Auditoría de presentación: nada por debajo de 12 px y objetivos táctiles de 44 px en los enlaces de las tablas. */

@@ -28,7 +28,7 @@
 }
 
 .sync-icon {
-    color: #10b981;
+    color: var(--st-ok);
     animation: spin 3s linear infinite;
 }
 
@@ -134,11 +134,11 @@
 }
 
 .quick-stat.rising .stat-trend {
-    color: #10b981;
+    color: var(--st-ok);
 }
 
 .quick-stat.falling .stat-trend {
-    color: #ef4444;
+    color: var(--st-crit);
 }
 
 /* Grid Layout */
@@ -212,7 +212,7 @@
 
 .skill-panel-nota {
     font-size: 0.72rem;
-    color: #94a3b8;
+    color: var(--text-3);
     line-height: 1.45;
     margin: 0 0 var(--spacing-md);
     max-width: 68ch;
@@ -302,11 +302,11 @@
 }
 
 .value-cell.current {
-    color: #10b981;
+    color: var(--st-ok);
 }
 
 .value-cell.forecast {
-    color: #60a5fa;
+    color: var(--st-info);
 }
 
 .impact-cell {
@@ -344,7 +344,7 @@
     height: 40px;
     background-color: rgba(59, 130, 246, 0.1);
     border-radius: var(--radius-sm);
-    color: #60a5fa;
+    color: var(--st-info);
     flex-shrink: 0;
 }
 
@@ -458,7 +458,7 @@
     gap: var(--spacing-sm);
     font-size: 0.875rem;
     font-weight: 600;
-    color: #10b981;
+    color: var(--st-ok);
     margin-bottom: var(--spacing-sm);
 }
 
@@ -480,7 +480,7 @@
 }
 
 .kc-formula span:first-child {
-    color: #10b981;
+    color: var(--st-ok);
     font-weight: 600;
 }
 
@@ -537,7 +537,7 @@
 .precip-value {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #3b82f6;
+    color: var(--st-info);
 }
 
 .precip-comparison {
@@ -549,11 +549,11 @@
 }
 
 .precip-comparison.rising {
-    color: #10b981;
+    color: var(--st-ok);
 }
 
 .precip-comparison.falling {
-    color: #ef4444;
+    color: var(--st-crit);
 }
 
 .chart-container {
@@ -580,28 +580,28 @@
     display: flex; justify-content: space-between; align-items: center;
     margin-bottom: var(--spacing-sm); gap: 6px;
 }
-.estacion-title { display: flex; align-items: center; gap: 5px; font-weight: 700; color: #e2e8f0; font-size: 0.85rem; }
+.estacion-title { display: flex; align-items: center; gap: 5px; font-weight: 700; color: var(--text-1); font-size: 0.85rem; }
 .estacion-rol {
     font-style: normal; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em;
-    background: rgba(148,163,184,0.15); color: #94a3b8; padding: 1px 6px; border-radius: 999px;
+    background: rgba(148,163,184,0.15); color: var(--text-3); padding: 1px 6px; border-radius: 999px;
 }
 .estacion-status { font-size: 0.6875rem; font-family: monospace; white-space: nowrap; }
-.estacion-status.on { color: #22c55e; }
-.estacion-status.off { color: #94a3b8; }
+.estacion-status.on { color: var(--st-ok); }
+.estacion-status.off { color: var(--text-3); }
 .estacion-grid {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 6px;
 }
 .est-var {
     display: flex; flex-direction: column; align-items: center; gap: 1px;
     padding: 6px 2px; background: rgba(255,255,255,0.02); border-radius: 6px;
-    color: #cbd5e1;
+    color: var(--text-2);
 }
-.est-var b { font-size: 0.95rem; color: #f1f5f9; line-height: 1.1; }
-.est-var small { font-size: 0.6875rem; color: #94a3b8; }
+.est-var b { font-size: 0.95rem; color: var(--text-1); line-height: 1.1; }
+.est-var small { font-size: 0.6875rem; color: var(--text-3); }
 .est-var.accent { background: rgba(63, 178, 243,0.08); }
-.est-var.accent b { color: #3FB2F3; }
-.estacion-nodata { font-size: 0.72rem; color: #94a3b8; text-align: center; padding: 10px 0; }
-.estaciones-foot { font-size: 0.6875rem; color: #8396ad; margin-top: var(--spacing-sm); }
+.est-var.accent b { color: var(--st-info); }
+.estacion-nodata { font-size: 0.72rem; color: var(--text-3); text-align: center; padding: 10px 0; }
+.estaciones-foot { font-size: 0.6875rem; color: var(--text-3); margin-top: var(--spacing-sm); }
 .estaciones-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .estaciones-dl {
     display: inline-flex; align-items: center; gap: 5px;
@@ -613,7 +613,7 @@
 /* Infografía: misma jerarquía que "Informe" pero secundaria — el técnico manda. */
 .estaciones-info {
     display: inline-flex; align-items: center; gap: 5px;
-    background: transparent; color: #3FB2F3; border: 1px solid #3FB2F3; border-radius: 6px;
+    background: transparent; color: var(--st-info); border: 1px solid #3FB2F3; border-radius: 6px;
     padding: 6px 12px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
     transition: background 0.15s;
 }
@@ -622,11 +622,11 @@
    con el acento azul de esa acción ni con el marrón institucional de Informe. */
 .estaciones-pdf {
     display: inline-flex; align-items: center; gap: 5px;
-    background: transparent; color: #94a3b8; border: 1px solid #475569; border-radius: 6px;
+    background: transparent; color: var(--text-3); border: 1px solid #475569; border-radius: 6px;
     padding: 6px 12px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
     transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.estaciones-pdf:hover { background: rgba(148, 163, 184, 0.12); color: #e2e8f0; border-color: #94a3b8; }
+.estaciones-pdf:hover { background: rgba(148, 163, 184, 0.12); color: var(--text-1); border-color: #94a3b8; }
 /* Mapa animado: acción de consulta (no export), tono distinto de Infografía
    para no confundirse con esa acción pese a compartir jerarquía secundaria. */
 .estaciones-mapa-animado {
@@ -721,7 +721,7 @@
     position: absolute;
     right: 10px; bottom: 8px;
     font-size: 0.6875rem;
-    color: #7dd3fc;
+    color: var(--st-info);
     opacity: 0;
     transition: opacity 0.15s;
     pointer-events: none;
@@ -732,12 +732,12 @@
 .estaciones-hint {
     margin: 0.5rem 0 0;
     font-size: 0.6875rem;
-    color: #8396ad;
+    color: var(--text-3);
     text-align: center;
 }
 
 /* Subtítulo de gráficas */
-.chart-sub { font-size: 0.72rem; color: #8396ad; margin: -4px 0 8px; }
+.chart-sub { font-size: 0.72rem; color: var(--text-3); margin: -4px 0 8px; }
 
 /* Sección estaciones: encabezado con respiración */
 .estaciones-section h3, .conditions-section h3, .tech-section h3,
@@ -761,10 +761,10 @@
     width: 52px; flex: none;
 }
 .cielo-panel-txt h3 { margin: 2px 0 4px; font-size: 1.05rem; letter-spacing: -0.01em; }
-.cielo-panel-txt p { font-size: 0.72rem; color: #94a3b8; margin: 0; line-height: 1.45; max-width: 52ch; }
+.cielo-panel-txt p { font-size: 0.72rem; color: var(--text-3); margin: 0; line-height: 1.45; max-width: 52ch; }
 .cielo-panel-label {
     font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em;
-    color: #8396ad; font-weight: 700;
+    color: var(--text-3); font-weight: 700;
 }
 /* Precipitación: bloque propio, nunca fusionado con el estado del cielo */
 .cielo-panel-precip {
@@ -775,10 +775,10 @@
 }
 .precip-linea {
     display: flex; align-items: center; gap: 6px;
-    font-size: 0.74rem; color: #cbd5e1;
+    font-size: 0.74rem; color: var(--text-2);
 }
 .precip-linea b { color: #93c5fd; }
-.precip-linea em { color: #8396ad; font-style: italic; font-size: 0.7rem; }
+.precip-linea em { color: var(--text-3); font-style: italic; font-size: 0.7rem; }
 
 /* Tarjeta de estación: bloque de cielo y de lluvia prevista */
 .estacion-cielo {
@@ -790,12 +790,12 @@
 }
 .cielo-estado { display: flex; align-items: center; gap: 5px; font-size: 0.74rem; font-weight: 700; }
 .cielo-icono { font-size: 0.95rem; }
-.cielo-meta { display: flex; align-items: center; gap: 6px; font-size: 0.6875rem; color: #8396ad; }
+.cielo-meta { display: flex; align-items: center; gap: 6px; font-size: 0.6875rem; color: var(--text-3); }
 .estacion-precip {
     display: flex; align-items: center; gap: 5px;
     margin-top: var(--spacing-sm); padding-top: 7px;
     border-top: 1px dashed rgba(255,255,255,0.08);
-    font-size: 0.6875rem; color: #94a3b8;
+    font-size: 0.6875rem; color: var(--text-3);
 }
 .estacion-precip b { color: #93c5fd; }
 
@@ -821,7 +821,7 @@
 .estaciones-acciones { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .estaciones-refresh {
     display: inline-flex; align-items: center; gap: 5px;
-    background: transparent; color: #3FB2F3;
+    background: transparent; color: var(--st-info);
     border: 1px solid rgba(63, 178, 243,0.45); border-radius: 6px;
     padding: 6px 12px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
     transition: background 0.15s, border-color 0.15s, opacity 0.15s;
@@ -838,11 +838,11 @@
     display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
     margin-top: var(--spacing-sm); padding: 6px 10px;
     background: rgba(63, 178, 243,0.07); border-left: 2px solid #3FB2F3;
-    border-radius: 5px; font-size: 0.6875rem; color: #cbd5e1;
+    border-radius: 5px; font-size: 0.6875rem; color: var(--text-2);
 }
 .refresco-estado.con-error { background: rgba(245,158,11,0.08); border-left-color: #f59e0b; }
-.refresco-hora { color: #8396ad; font-family: monospace; }
-.refresco-err { color: #fbbf24; }
+.refresco-hora { color: var(--text-3); font-family: monospace; }
+.refresco-err { color: var(--st-warn); }
 
 /* ═══ TABLERO EJECUTIVO DEL DISTRITO ═══════════════════════════════════════
    Índices ICA-005/IDR/IRO/IHE en pantalla. Cada medidor lleva SIEMPRE su

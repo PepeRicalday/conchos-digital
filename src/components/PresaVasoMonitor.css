@@ -60,7 +60,7 @@
 .vaso-badge {
     display: inline-block;
     background: rgba(34, 211, 238, 0.1);
-    color: #22d3ee;
+    color: var(--st-info);
     font-size: 0.7rem;
     font-weight: 800;
     padding: 6px 14px;
@@ -81,7 +81,7 @@
 }
 
 .vaso-coords {
-    color: #94a3b8;
+    color: var(--text-3);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
     margin-top: 8px;
@@ -98,7 +98,7 @@
     align-self: center;
     background: rgba(34, 211, 238, 0.12);
     border: 1px solid rgba(34, 211, 238, 0.35);
-    color: #22d3ee;
+    color: var(--st-info);
     font-size: 0.8rem;
     font-weight: 700;
     padding: 10px 16px;
@@ -148,7 +148,7 @@
 .vaso-sim-header {
     font-size: 0.72rem;
     font-weight: 800;
-    color: #22d3ee;
+    color: var(--st-info);
     display: flex;
     align-items: center;
     gap: 9px;
@@ -173,7 +173,7 @@
     padding: 0.6rem 1rem;
     background: rgba(34, 211, 238, 0.15);
     border: 1px solid rgba(34, 211, 238, 0.4);
-    color: #22d3ee;
+    color: var(--st-info);
     border-radius: 8px;
     font-size: 0.6875rem;
     font-weight: 800;
@@ -210,7 +210,7 @@
 
 .vaso-stat-label {
     font-size: 0.8rem;
-    color: #94a3b8;
+    color: var(--text-3);
     font-weight: 700;
     display: flex;
     align-items: center;
@@ -277,14 +277,14 @@
     border-radius: 100px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #f59e0b;
+    color: var(--st-warn);
     background: rgba(245, 158, 11, 0.14);
     border: 1px solid rgba(245, 158, 11, 0.4);
 }
 
 .vaso3d-caption {
     font-size: 0.72rem;
-    color: #cbd5e1;
+    color: var(--text-2);
     font-weight: 600;
     text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
 }
@@ -292,7 +292,7 @@
 .vaso3d-empty {
     padding: 2rem;
     text-align: center;
-    color: #8396ad;
+    color: var(--text-3);
     font-size: 0.85rem;
 }
 
@@ -315,7 +315,7 @@
 
 .vaso3d-contexto-perdido span {
     max-width: 420px;
-    color: #cbd5e1;
+    color: var(--text-2);
     font-size: 0.85rem;
     line-height: 1.5;
 }
@@ -324,7 +324,7 @@
     padding: 8px 18px;
     background: rgba(34, 211, 238, 0.15);
     border: 1px solid rgba(34, 211, 238, 0.4);
-    color: #22d3ee;
+    color: var(--st-info);
     border-radius: 8px;
     font-size: 0.72rem;
     font-weight: 800;
@@ -341,7 +341,7 @@
     padding: 6px 12px;
     background: rgba(34, 211, 238, 0.12);
     border: 1px solid rgba(34, 211, 238, 0.35);
-    color: #22d3ee;
+    color: var(--st-info);
     border-radius: 8px;
     font-size: 0.6875rem;
     font-weight: 800;
@@ -376,7 +376,7 @@
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
     border-color: rgba(148, 163, 184, 0.3);
-    color: #e2e8f0;
+    color: var(--text-1);
 }
 
 .vaso3d-controles-flotantes .vaso3d-toggle-btn:hover {
@@ -392,7 +392,7 @@
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
     border: 1px solid rgba(148, 163, 184, 0.3);
-    color: #e2e8f0;
+    color: var(--text-1);
     border-radius: 8px;
     font-size: 0.6875rem;
     font-weight: 700;
@@ -468,7 +468,7 @@
 
 .vaso-galeria-fecha {
     font-size: 0.6875rem;
-    color: #94a3b8;
+    color: var(--text-3);
     text-transform: capitalize;
     margin-top: 0.5rem;
 }
@@ -477,7 +477,7 @@
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
     font-weight: 700;
-    color: #22d3ee;
+    color: var(--st-info);
     margin-top: 2px;
 }
 
@@ -490,7 +490,7 @@
     align-items: center;
     gap: 8px;
     font-size: 0.7rem;
-    color: #94a3b8;
+    color: var(--text-3);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     font-weight: 700;
@@ -499,7 +499,7 @@
 .vaso-mes-selector select {
     background: rgba(15, 23, 42, 0.8);
     border: 1px solid rgba(148, 163, 184, 0.25);
-    color: #e2e8f0;
+    color: var(--text-1);
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: none;
@@ -538,7 +538,7 @@
     flex-wrap: wrap;
     margin-top: 0.75rem;
     font-size: 0.7rem;
-    color: #94a3b8;
+    color: var(--text-3);
 }
 
 .leyenda-item {

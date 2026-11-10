@@ -29,7 +29,7 @@
 .presa-kpi-nombre {
     font-size: 11px;
     font-weight: 900;
-    color: #f1f5f9;
+    color: var(--text-1);
     text-transform: uppercase;
     letter-spacing: 0.12em;
 }
@@ -93,7 +93,7 @@
 .presa-kpi-mlabel {
     font-size: 11px;
     font-weight: 900;
-    color: #8396ad;
+    color: var(--text-3);
     text-transform: uppercase;
     letter-spacing: 0.1em;
 }
@@ -101,7 +101,7 @@
     font-size: 18px;
     font-weight: 900;
     font-family: 'JetBrains Mono', monospace;
-    color: #f1f5f9;
+    color: var(--text-1);
     line-height: 1;
 }
 .presa-kpi-mval--amort {
@@ -110,7 +110,7 @@
 .presa-kpi-munit {
     font-size: 11px;
     font-weight: 700;
-    color: #8396ad;
+    color: var(--text-3);
 }
 
 .presa-kpi-lastmov {
@@ -118,7 +118,7 @@
     align-items: center;
     gap: 5px;
     font-size: 11px;
-    color: #8396ad;
+    color: var(--text-3);
     font-weight: 700;
     border-top: 1px solid rgba(255,255,255,0.04);
     padding-top: 8px;
@@ -256,7 +256,7 @@
     border-radius: var(--radius-full);
     font-size: 0.6875rem;
     font-weight: 600;
-    color: #60a5fa;
+    color: var(--st-info);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -304,12 +304,12 @@
 }
 
 .params-table .name-row td {
-    color: #ef4444;
+    color: var(--st-crit);
     font-weight: 600;
 }
 
 .params-table .namo-row td {
-    color: #10b981;
+    color: var(--st-ok);
     font-weight: 600;
 }
 
@@ -356,11 +356,11 @@
 }
 
 .status-metric .metric-value.elevation {
-    color: #3b82f6;
+    color: var(--st-info);
 }
 
 .status-metric .metric-value.storage {
-    color: #10b981;
+    color: var(--st-ok);
 }
 
 .status-metric .metric-unit {
@@ -444,7 +444,7 @@
 .extraction-value {
     font-size: 2.5rem;
     font-weight: 700;
-    color: #10b981;
+    color: var(--st-ok);
     font-family: monospace;
 }
 
@@ -506,7 +506,7 @@
 .valve-percent {
     font-size: 0.75rem;
     font-weight: 600;
-    color: #f59e0b;
+    color: var(--st-warn);
     width: 35px;
     text-align: right;
 }
@@ -527,7 +527,7 @@
 
 .spillway-status.active {
     background-color: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
+    color: var(--st-crit);
     border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
@@ -555,11 +555,11 @@
 }
 
 .safety-indicator.normal {
-    color: #10b981;
+    color: var(--st-ok);
 }
 
 .safety-indicator.alert {
-    color: #ef4444;
+    color: var(--st-crit);
     background-color: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.3);
 }
@@ -586,7 +586,7 @@
 .presas-exec-kpi-title {
     font-size: 11px;
     font-weight: 700;
-    color: #e2e8f0;
+    color: var(--text-1);
     text-transform: uppercase;
     display: flex;
     align-items: center;
@@ -609,12 +609,12 @@
 .presas-exec-kpi-val span {
     font-size: 12px;
     font-weight: 600;
-    color: #cbd5e1;
+    color: var(--text-2);
 }
 
 .presas-exec-kpi-sub {
     font-size: 11px;
-    color: #94a3b8;
+    color: var(--text-3);
     margin-top: 4px;
 }
 
@@ -684,7 +684,7 @@
     gap: 8px;
     font-size: 11px;
     font-weight: 700;
-    color: #e2e8f0;
+    color: var(--text-1);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 16px;
@@ -707,7 +707,7 @@
 .presas-subsec-title {
     font-size: 13px;
     font-weight: 600;
-    color: #e2e8f0;
+    color: var(--text-1);
 }
 
 .presas-cylinder-section {
@@ -784,7 +784,7 @@
     gap: 6px;
     background: rgba(16, 185, 129, 0.1);
     border: 1px solid rgba(16, 185, 129, 0.3);
-    color: #10b981;
+    color: var(--st-ok);
     padding: 6px 12px;
     border-radius: 8px;
     font-size: 0.7rem;
@@ -822,7 +822,7 @@
     align-items: center;
     gap: 8px;
     background: rgba(255, 255, 255, 0.05);
-    color: #94a3b8;
+    color: var(--text-3);
     padding: 8px 16px;
     border-radius: 8px;
     font-size: 0.75rem;
@@ -859,13 +859,13 @@
     gap: 8px;
     border: 1px solid transparent;
     background: transparent;
-    color: #94a3b8;
+    color: var(--text-3);
     cursor: pointer;
 }
 
 .dam-selector-modern button.active {
     background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
+    color: var(--st-info);
     border-color: rgba(59, 130, 246, 0.3);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
@@ -954,7 +954,7 @@
 
 .mini-chart-label {
     font-size: 11px;
-    color: #8396ad;
+    color: var(--text-3);
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1015,13 +1015,13 @@
     gap: 10px;
     font-size: 20px;
     font-weight: 900;
-    color: #f1f5f9;
+    color: var(--text-1);
     letter-spacing: -0.03em;
     margin: 0;
 }
 .presas-v3-subtitle {
     font-size: 11px;
-    color: #8396ad;
+    color: var(--text-3);
     font-weight: 700;
     margin-top: 4px;
     letter-spacing: 0.05em;
@@ -1070,14 +1070,14 @@
 .presas-v3-estado-dam-name {
     font-size: 13px;
     font-weight: 900;
-    color: #f1f5f9;
+    color: var(--text-1);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     line-height: 1.2;
 }
 .presas-v3-estado-dam-sub {
     font-size: 11px;
-    color: #8396ad;
+    color: var(--text-3);
     font-weight: 700;
     margin-top: 2px;
     text-transform: uppercase;
@@ -1086,7 +1086,7 @@
 .presas-v3-estado-type {
     font-size: 11px;
     font-weight: 900;
-    color: #3FB2F3;
+    color: var(--st-info);
     background: rgba(63, 178, 243, 0.1);
     border: 1px solid rgba(63, 178, 243, 0.2);
     border-radius: 999px;
@@ -1134,7 +1134,7 @@
 .presas-v3-kpi-label {
     font-size: 11px;
     font-weight: 900;
-    color: #8396ad;
+    color: var(--text-3);
     text-transform: uppercase;
     letter-spacing: 0.15em;
 }
@@ -1142,14 +1142,14 @@
     font-size: 22px;
     font-weight: 900;
     font-family: 'JetBrains Mono', monospace;
-    color: #f1f5f9;
+    color: var(--text-1);
     line-height: 1;
     letter-spacing: -0.02em;
 }
 .presas-v3-kpi-unit {
     font-size: 11px;
     font-weight: 700;
-    color: #8396ad;
+    color: var(--text-3);
 }
 
 /* ── Rows ─────────────────────────────────────────────────── */
@@ -1198,7 +1198,7 @@
 .presas-v3-section-hdr span {
     font-size: 11px;
     font-weight: 900;
-    color: #8396ad;
+    color: var(--text-3);
     text-transform: uppercase;
     letter-spacing: 0.18em;
 }
@@ -1210,7 +1210,7 @@
 }
 .presas-v3-section-hdr--sub span {
     font-size: 11px;
-    color: #8396ad;
+    color: var(--text-3);
 }
 
 /* ── Delta badges ────────────────────────────────────────── */
@@ -1228,12 +1228,12 @@
     border: 1px solid;
 }
 .presas-v3-delta-badge--up {
-    color: #10b981;
+    color: var(--st-ok);
     border-color: rgba(16, 185, 129, 0.3);
     background: rgba(16, 185, 129, 0.08);
 }
 .presas-v3-delta-badge--down {
-    color: #ef4444;
+    color: var(--st-crit);
     border-color: rgba(239, 68, 68, 0.3);
     background: rgba(239, 68, 68, 0.08);
 }
@@ -1305,7 +1305,7 @@
 .presas-v3-design-kpi span:first-child {
     font-size: 11px;
     font-weight: 900;
-    color: #8396ad;
+    color: var(--text-3);
     text-transform: uppercase;
     letter-spacing: 0.1em;
 }
@@ -1313,7 +1313,7 @@
     font-size: 11px;
     font-weight: 900;
     font-family: 'JetBrains Mono', monospace;
-    color: #94a3b8;
+    color: var(--text-3);
 }
 
 /* ── EAC legend ─────────────────────────────────────────── */
@@ -1336,7 +1336,7 @@
 .presas-v3-eac-legend-item span {
     font-size: 11px;
     font-weight: 700;
-    color: #8396ad;
+    color: var(--text-3);
     text-transform: uppercase;
     letter-spacing: 0.1em;
 }
@@ -1360,7 +1360,7 @@
 .presas-v3-cap-metric-label {
     font-size: 11px;
     font-weight: 900;
-    color: #8396ad;
+    color: var(--text-3);
     text-transform: uppercase;
     letter-spacing: 0.1em;
     text-align: center;
@@ -1374,7 +1374,7 @@
 }
 .presas-v3-cap-metric-unit {
     font-size: 11px;
-    color: #8396ad;
+    color: var(--text-3);
     font-weight: 700;
 }
 
@@ -1399,7 +1399,7 @@
     font-size: 36px;
     font-weight: 900;
     font-family: 'JetBrains Mono', monospace;
-    color: #fbbf24;
+    color: var(--st-warn);
     line-height: 1;
     letter-spacing: -0.02em;
 }
@@ -1422,7 +1422,7 @@
 }
 .presas-v3-clima-empty {
     font-size: 11px;
-    color: #8396ad;
+    color: var(--text-3);
     font-style: italic;
     text-align: center;
     padding: 20px;
@@ -1468,17 +1468,17 @@
 .presas-v3-mov-fecha {
     font-size: 11px;
     font-family: 'JetBrains Mono', monospace;
-    color: #8396ad;
+    color: var(--text-3);
 }
 .presas-v3-mov-gasto {
     font-size: 11px;
     font-weight: 900;
     font-family: 'JetBrains Mono', monospace;
-    color: #10b981;
+    color: var(--st-ok);
 }
 .presas-v3-mov-gasto small {
     font-size: 11px;
-    color: #8396ad;
+    color: var(--text-3);
     font-weight: 700;
 }
 .presas-v3-mov-fuente {
@@ -1491,12 +1491,12 @@
     border: 1px solid;
 }
 .presas-v3-mov-fuente--admin {
-    color: #60a5fa;
+    color: var(--st-info);
     border-color: rgba(96, 165, 250, 0.3);
     background: rgba(96, 165, 250, 0.08);
 }
 .presas-v3-mov-fuente--campo {
-    color: #10b981;
+    color: var(--st-ok);
     border-color: rgba(16, 185, 129, 0.3);
     background: rgba(16, 185, 129, 0.08);
 }
@@ -1545,7 +1545,7 @@
     flex-direction: column;
     gap: 16px;
     font-family: sans-serif;
-    color: #f1f5f9;
+    color: var(--text-1);
 }
 
 .scada-climate-header {
@@ -1566,7 +1566,7 @@
     font-weight: 700;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: #e2e8f0;
+    color: var(--text-1);
     margin: 0;
 }
 
@@ -1591,7 +1591,7 @@
     gap: 8px;
     font-size: 11px;
     background-color: rgba(15, 23, 42, 0.8);
-    color: #cbd5e1;
+    color: var(--text-2);
 }
 
 .scada-climate-body {
@@ -1625,7 +1625,7 @@
 
 .scada-panel-title {
     font-size: 11px;
-    color: #cbd5e1;
+    color: var(--text-2);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -1711,7 +1711,7 @@
     align-items: center;
     justify-content: center;
     font-size: 11px;
-    color: #94a3b8;
+    color: var(--text-3);
     margin: 4px auto;
 }
 .scada-compass-wrap span { position: absolute; }
@@ -1738,8 +1738,8 @@
 .scada-chart-grid-left { border-right: 1px solid #334155; padding-right: 16px; display: flex; flex-direction: column; }
 .scada-chart-grid-right { display: flex; flex-direction: column; gap: 12px; }
 .scada-chart-flex { flex: 1; min-height: 0; position: relative; }
-.scada-chart-legend { display: flex; align-items: center; gap: 12px; font-size: 11px; color: #94a3b8; margin: 4px 0 8px; }
-.scada-chart-note { text-align: center; width: 100%; font-size: 11px; color: #8396ad; margin-top: 4px; }
+.scada-chart-legend { display: flex; align-items: center; gap: 12px; font-size: 11px; color: var(--text-3); margin: 4px 0 8px; }
+.scada-chart-note { text-align: center; width: 100%; font-size: 11px; color: var(--text-3); margin-top: 4px; }
 
 /* ==============================================================================
    SCADA SALA DE CONTROL — DISTRITO DE RIEGO 005 DELICIAS
@@ -1752,7 +1752,7 @@
     padding: 16px 20px 28px;
     background: #061532;
     min-height: 100vh;
-    color: #e2e8f0;
+    color: var(--text-1);
 }
 
 /* Header */
@@ -1769,11 +1769,11 @@
 }
 .scada-header-identity { display: flex; flex-direction: column; gap: 2px; }
 .scada-header-org {
-    font-size: 11px; font-weight: 900; color: #8396ad;
+    font-size: 11px; font-weight: 900; color: var(--text-3);
     text-transform: uppercase; letter-spacing: 0.22em;
 }
 .scada-header-title {
-    font-size: 14px; font-weight: 900; color: #f1f5f9;
+    font-size: 14px; font-weight: 900; color: var(--text-1);
     text-transform: uppercase; letter-spacing: 0.04em;
     margin: 0; font-family: 'JetBrains Mono', monospace;
 }
@@ -1782,24 +1782,24 @@
     display: flex; align-items: center; gap: 5px;
     padding: 5px 13px; border-radius: 6px;
     border: 1px solid rgba(255,255,255,0.07);
-    background: transparent; color: #8396ad;
+    background: transparent; color: var(--text-3);
     font-size: 11px; font-weight: 900; text-transform: uppercase;
     letter-spacing: 0.1em; cursor: pointer; transition: all 0.15s;
     font-family: 'JetBrains Mono', monospace;
 }
-.scada-dam-btn.active { background: rgba(63, 178, 243,0.1); border-color: rgba(63, 178, 243,0.4); color: #3FB2F3; }
-.scada-dam-btn:hover:not(.active) { border-color: rgba(255,255,255,0.14); color: #94a3b8; }
+.scada-dam-btn.active { background: rgba(63, 178, 243,0.1); border-color: rgba(63, 178, 243,0.4); color: var(--st-info); }
+.scada-dam-btn:hover:not(.active) { border-color: rgba(255,255,255,0.14); color: var(--text-3); }
 .scada-header-kpi-strip { display: flex; justify-content: center; gap: 32px; }
 .scada-header-kpi { display: flex; flex-direction: column; align-items: center; gap: 0; }
 .scada-header-kpi-label {
-    font-size: 11px; font-weight: 900; color: #8396ad;
+    font-size: 11px; font-weight: 900; color: var(--text-3);
     text-transform: uppercase; letter-spacing: 0.18em;
 }
 .scada-header-kpi-val {
-    font-size: 24px; font-weight: 900; color: #f1f5f9;
+    font-size: 24px; font-weight: 900; color: var(--text-1);
     line-height: 1; font-family: 'JetBrains Mono', monospace; letter-spacing: -0.02em;
 }
-.scada-header-kpi-unit { font-size: 11px; color: #8396ad; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.scada-header-kpi-unit { font-size: 11px; color: var(--text-3); font-weight: 700; font-family: 'JetBrains Mono', monospace; }
 .scada-header-right { display: flex; align-items: center; gap: 10px; }
 .scada-status-badge {
     padding: 5px 14px; border-radius: 6px; font-size: 11px; font-weight: 900;
@@ -1810,22 +1810,22 @@
 @keyframes scada-blink-anim { 50% { opacity: 0; } }
 .scada-clock {
     display: flex; flex-direction: column; align-items: flex-end; gap: 0;
-    font-size: 15px; font-weight: 900; color: #8396ad;
+    font-size: 15px; font-weight: 900; color: var(--text-3);
     font-family: 'JetBrains Mono', monospace; line-height: 1.2;
 }
-.scada-clock-date { font-size: 11px; color: #8396ad; font-weight: 700; }
-.scada-action-aviso { font-size: 11px; color: #f59e0b; max-width: 220px; line-height: 1.25; }
+.scada-clock-date { font-size: 11px; color: var(--text-3); font-weight: 700; }
+.scada-action-aviso { font-size: 11px; color: var(--st-warn); max-width: 220px; line-height: 1.25; }
 .scada-action-btn:disabled { opacity: 0.6; cursor: progress; }
 .scada-action-btn {
     display: flex; align-items: center; gap: 5px; padding: 6px 11px;
     border-radius: 6px; border: 1px solid rgba(255,255,255,0.07);
-    background: rgba(255,255,255,0.03); color: #8396ad;
+    background: rgba(255,255,255,0.03); color: var(--text-3);
     font-size: 11px; font-weight: 900; text-transform: uppercase;
     letter-spacing: 0.12em; cursor: pointer; text-decoration: none;
     transition: all 0.15s; font-family: 'JetBrains Mono', monospace;
 }
-.scada-action-btn--primary { border-color: rgba(16,185,129,0.35); color: #10b981; background: rgba(16,185,129,0.07); }
-.scada-action-btn:hover { border-color: rgba(255,255,255,0.14); color: #94a3b8; }
+.scada-action-btn--primary { border-color: rgba(16,185,129,0.35); color: var(--st-ok); background: rgba(16,185,129,0.07); }
+.scada-action-btn:hover { border-color: rgba(255,255,255,0.14); color: var(--text-3); }
 
 /* Body */
 .scada-sala-body { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 12px; align-items: start; }
@@ -1849,7 +1849,7 @@
 .scada-vaso-svg { width: 100%; height: auto; display: block; margin-top: 10px; max-height: 210px; }
 .scada-panel-hdr {
     display: flex; align-items: center; gap: 8px;
-    font-size: 11px; font-weight: 900; color: #8396ad;
+    font-size: 11px; font-weight: 900; color: var(--text-3);
     text-transform: uppercase; letter-spacing: 0.18em;
     font-family: 'JetBrains Mono', monospace;
     padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.04); margin-bottom: 6px;
@@ -1867,13 +1867,13 @@
     border: 1px solid rgba(255,255,255,0.04); border-radius: 8px;
 }
 .scada-design-kpi span:first-child {
-    font-size: 11px; font-weight: 900; color: #8396ad;
+    font-size: 11px; font-weight: 900; color: var(--text-3);
     text-transform: uppercase; letter-spacing: 0.1em;
 }
-.scada-design-kpi span:last-child { font-size: 14px; font-weight: 900; color: #8396ad; font-family: 'JetBrains Mono', monospace; }
-.scada-kpi-sky    { color: #3FB2F3 !important; }
+.scada-design-kpi span:last-child { font-size: 14px; font-weight: 900; color: var(--text-3); font-family: 'JetBrains Mono', monospace; }
+.scada-kpi-sky    { color: var(--st-info) !important; }
 .scada-kpi-violet { color: #a78bfa !important; }
-.scada-kpi-muted  { color: #8396ad !important; }
+.scada-kpi-muted  { color: var(--text-3) !important; }
 
 /* Zona 3: Tomas */
 .scada-zona-tomas {
@@ -1886,9 +1886,9 @@
     padding: 12px; background: rgba(0,0,0,0.2);
     border-radius: 10px; border: 1px solid rgba(255,255,255,0.04);
 }
-.scada-ext-label { font-size: 11px; font-weight: 900; color: #8396ad; text-transform: uppercase; letter-spacing: 0.18em; font-family: 'JetBrains Mono', monospace; }
+.scada-ext-label { font-size: 11px; font-weight: 900; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.18em; font-family: 'JetBrains Mono', monospace; }
 .scada-ext-val { font-size: 38px; font-weight: 900; font-family: 'JetBrains Mono', monospace; line-height: 1; letter-spacing: -0.03em; }
-.scada-ext-unit { font-size: 11px; color: #8396ad; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.scada-ext-unit { font-size: 11px; color: var(--text-3); font-weight: 700; font-family: 'JetBrains Mono', monospace; }
 .scada-ext-bar { width: 100%; height: 4px; border-radius: 999px; background: rgba(255,255,255,0.04); overflow: hidden; margin-top: 5px; }
 .scada-ext-bar > div { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
 .scada-ext-bar-fill--active   { background: #3FB2F3; }
@@ -1901,14 +1901,14 @@
 }
 .scada-toma-card--cfe { border-color: rgba(167,139,250,0.2); background: rgba(167,139,250,0.04); }
 .scada-toma-header { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
-.scada-toma-nombre { font-size: 11px; font-weight: 900; color: #8396ad; text-transform: uppercase; letter-spacing: 0.1em; font-family: 'JetBrains Mono', monospace; }
+.scada-toma-nombre { font-size: 11px; font-weight: 900; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; font-family: 'JetBrains Mono', monospace; }
 .scada-toma-estado-badge { font-size: 11px; font-weight: 900; padding: 1px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.12em; font-family: 'JetBrains Mono', monospace; }
 .scada-toma-gasto { font-size: 22px; font-weight: 900; font-family: 'JetBrains Mono', monospace; line-height: 1.1; letter-spacing: -0.02em; }
-.scada-toma-unit { font-size: 11px; color: #8396ad; font-weight: 700; margin-left: 3px; }
+.scada-toma-unit { font-size: 11px; color: var(--text-3); font-weight: 700; margin-left: 3px; }
 .scada-toma-contrib { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
 .scada-toma-contrib-bar { flex: 1; height: 3px; background: rgba(255,255,255,0.04); border-radius: 999px; overflow: hidden; }
 .scada-toma-contrib-bar > div { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
-.scada-toma-contrib-pct { font-size: 11px; font-weight: 900; color: #8396ad; font-family: 'JetBrains Mono', monospace; min-width: 24px; text-align: right; }
+.scada-toma-contrib-pct { font-size: 11px; font-weight: 900; color: var(--text-3); font-family: 'JetBrains Mono', monospace; min-width: 24px; text-align: right; }
 .scada-toma-tag-cfe { font-size: 11px; font-weight: 900; color: #a78bfa; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
 
 /* Footer */
@@ -1924,25 +1924,25 @@
     padding: 10px; background: rgba(0,0,0,0.2);
     border-radius: 8px; border: 1px solid rgba(255,255,255,0.04);
 }
-.scada-gestion-kpi span { font-size: 11px; font-weight: 900; color: #8396ad; text-transform: uppercase; letter-spacing: 0.12em; font-family: 'JetBrains Mono', monospace; }
-.scada-gestion-kpi strong { font-size: 15px; font-weight: 900; font-family: 'JetBrains Mono', monospace; color: #94a3b8; }
-.scada-gestion-kpi strong small { font-size: 11px; color: #8396ad; font-weight: 700; }
+.scada-gestion-kpi span { font-size: 11px; font-weight: 900; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.12em; font-family: 'JetBrains Mono', monospace; }
+.scada-gestion-kpi strong { font-size: 15px; font-weight: 900; font-family: 'JetBrains Mono', monospace; color: var(--text-3); }
+.scada-gestion-kpi strong small { font-size: 11px; color: var(--text-3); font-weight: 700; }
 .scada-risk-wrap { display: flex; flex-direction: column; gap: 4px; }
 .scada-risk-bar-track { position: relative; height: 6px; background: rgba(255,255,255,0.04); border-radius: 999px; overflow: visible; }
 .scada-risk-bar-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 999px; transition: width 0.6s ease; }
 .scada-risk-mark { position: absolute; top: -3px; bottom: -3px; width: 1px; background: rgba(255,255,255,0.18); }
 .scada-risk-labels { display: flex; gap: 10px; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; font-family: 'JetBrains Mono', monospace; }
-.scada-risk-ok   { color: #10b981; }
-.scada-risk-warn { color: #f59e0b; }
-.scada-risk-crit { color: #ef4444; }
+.scada-risk-ok   { color: var(--st-ok); }
+.scada-risk-warn { color: var(--st-warn); }
+.scada-risk-crit { color: var(--st-crit); }
 .scada-diagnostico {
     padding: 10px 12px; background: rgba(0,0,0,0.2);
     border-radius: 8px; border: 1px solid rgba(255,255,255,0.04);
     display: flex; flex-direction: column; gap: 4px;
 }
-.scada-diag-label { font-size: 11px; font-weight: 900; color: #8396ad; text-transform: uppercase; letter-spacing: 0.18em; font-family: 'JetBrains Mono', monospace; }
-.scada-diag-text { font-size: 11px; color: #cbd5e1; font-weight: 600; line-height: 1.5; margin: 0; font-family: 'Inter', 'Segoe UI', sans-serif; }
-.scada-diag-text--rec { color: #94a3b8; }
+.scada-diag-label { font-size: 11px; font-weight: 900; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.18em; font-family: 'JetBrains Mono', monospace; }
+.scada-diag-text { font-size: 11px; color: var(--text-2); font-weight: 600; line-height: 1.5; margin: 0; font-family: 'Inter', 'Segoe UI', sans-serif; }
+.scada-diag-text--rec { color: var(--text-3); }
 
 /* Alertas */
 .scada-alerta-count { margin-left: auto; font-size: 11px; font-weight: 900; background: #dc2626; color: #fff; border-radius: 999px; padding: 1px 7px; font-family: 'JetBrains Mono', monospace; }
@@ -1952,36 +1952,36 @@
 @keyframes scada-alert-pulse { 0%, 100% { background: rgba(0,0,0,0.2); } 50% { background: rgba(239,68,68,0.07); } }
 .scada-alerta-row { display: flex; align-items: center; justify-content: space-between; }
 .scada-alerta-nivel { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.15em; font-family: 'JetBrains Mono', monospace; }
-.scada-alerta-tiempo { font-size: 11px; color: #8396ad; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
-.scada-alerta-msg { font-size: 11px; color: #94a3b8; margin: 0; line-height: 1.4; font-family: 'Inter', 'Segoe UI', sans-serif; }
-.scada-alerta-empty { display: flex; align-items: center; gap: 8px; padding: 10px 12px; color: #10b981; font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.scada-alerta-tiempo { font-size: 11px; color: var(--text-3); font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.scada-alerta-msg { font-size: 11px; color: var(--text-3); margin: 0; line-height: 1.4; font-family: 'Inter', 'Segoe UI', sans-serif; }
+.scada-alerta-empty { display: flex; align-items: center; gap: 8px; padding: 10px 12px; color: var(--st-ok); font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
 .scada-aforo-row {
     display: flex; align-items: center; gap: 8px;
     padding: 8px 10px; background: rgba(16,185,129,0.05);
     border: 1px solid rgba(16,185,129,0.12); border-radius: 8px;
     font-size: 11px; font-weight: 900; font-family: 'JetBrains Mono', monospace;
 }
-.scada-aforo-label { color: #8396ad; text-transform: uppercase; letter-spacing: 0.1em; flex: 1; }
-.scada-aforo-val   { color: #94a3b8; }
-.scada-aforo-gasto { color: #10b981; }
+.scada-aforo-label { color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; flex: 1; }
+.scada-aforo-val   { color: var(--text-3); }
+.scada-aforo-gasto { color: var(--st-ok); }
 .scada-historial-list { display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto; }
 .scada-historial-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 4px 8px; background: rgba(0,0,0,0.15); border-radius: 6px; }
-.scada-hist-fecha { color: #8396ad; font-size: 11px; font-family: 'JetBrains Mono', monospace; font-weight: 700; }
-.scada-hist-gasto { color: #10b981; font-weight: 900; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
-.scada-hist-gasto small { color: #8396ad; font-size: 11px; }
+.scada-hist-fecha { color: var(--text-3); font-size: 11px; font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+.scada-hist-gasto { color: var(--st-ok); font-weight: 900; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+.scada-hist-gasto small { color: var(--text-3); font-size: 11px; }
 .scada-hist-fuente { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; font-family: 'JetBrains Mono', monospace; }
 .scada-hist-btn {
     display: flex; align-items: center; gap: 4px; margin-left: auto;
-    font-size: 11px; font-weight: 900; color: #10b981;
+    font-size: 11px; font-weight: 900; color: var(--st-ok);
     text-transform: uppercase; letter-spacing: 0.1em;
     background: rgba(16,185,129,0.07); border: 1px solid rgba(16,185,129,0.2);
     border-radius: 4px; padding: 2px 8px; cursor: pointer;
     font-family: 'JetBrains Mono', monospace;
 }
-.scada-no-data { font-size: 11px; color: #8396ad; text-align: center; padding: 8px; margin: 0; font-style: italic; }
+.scada-no-data { font-size: 11px; color: var(--text-3); text-align: center; padding: 8px; margin: 0; font-style: italic; }
 .scada-cuenca-list { display: flex; flex-direction: column; gap: 7px; }
 .scada-cuenca-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; }
-.scada-cuenca-nombre { font-size: 11px; font-weight: 900; color: #8396ad; font-family: 'JetBrains Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scada-cuenca-nombre { font-size: 11px; font-weight: 900; color: var(--text-3); font-family: 'JetBrains Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scada-cuenca-bar { width: 90px; height: 4px; background: rgba(255,255,255,0.04); border-radius: 999px; overflow: hidden; }
 .scada-cuenca-bar > div { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
 .scada-cuenca-pct { font-size: 11px; font-weight: 900; font-family: 'JetBrains Mono', monospace; min-width: 38px; text-align: right; }
@@ -2150,12 +2150,12 @@ html[data-device="phone"] .pr-sello { min-height: 32px; }
 .pr-hist-vol small { margin-left: 5px; font-family: var(--pr-body); font-size: 12px; font-weight: 600; color: var(--pr-t3); }
 .pr-hist-pct { grid-area: p; font-family: var(--pr-mono); font-size: 12px; color: var(--pr-t2); }
 .pr-hist-dif { grid-area: d; text-align: right; font-family: var(--pr-mono); font-size: 12px; font-weight: 700; color: var(--pr-t3); }
-.pr-hist-dif.is-up { color: #7dd3fc; } .pr-hist-dif.is-down { color: var(--pr-warn); }
+.pr-hist-dif.is-up { color: var(--st-info); } .pr-hist-dif.is-down { color: var(--pr-warn); }
 .pr-hist-nota { grid-area: n; font-size: 11px; color: var(--pr-t3); }
 
 /* Estado vacío de una línea (tendencia de extracción sin movimientos) */
 .scada-vacio-linea { margin: 8px 0 0; padding: 10px 12px; border: 1px dashed rgba(255, 255, 255, 0.08); border-radius: 10px;
-    font-size: 12px; color: #94a3b8; text-align: center; }
+    font-size: 12px; color: var(--text-3); text-align: center; }
 
 /* Identidad de la sala en una línea en iPad horizontal (antes "Sala de / control / hidráulico" en 3 líneas). */
 .scada-header-org, .scada-header-title { white-space: nowrap; }

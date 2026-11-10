@@ -76,7 +76,7 @@
 }
 
 .alert-empty {
-    color: #8396ad;
+    color: var(--text-3);
     font-size: 0.85rem;
     text-align: center;
     padding: 1.5rem 0;
@@ -119,7 +119,7 @@
 
 .alert-group-chevron {
     transition: transform 0.2s ease;
-    color: #8396ad;
+    color: var(--text-3);
     flex-shrink: 0;
 }
 
@@ -136,17 +136,17 @@
 
 .alert-group-critical .alert-group-head {
     background: rgba(239, 68, 68, 0.14);
-    color: #f87171;
+    color: var(--st-crit);
 }
 
 .alert-group-warning .alert-group-head {
     background: rgba(245, 158, 11, 0.12);
-    color: #fbbf24;
+    color: var(--st-warn);
 }
 
 .alert-group-info .alert-group-head {
     background: rgba(63, 178, 243, 0.08);
-    color: #94a3b8;
+    color: var(--text-3);
 }
 
 .alert-group-info .alert-group-head:hover,
@@ -207,7 +207,7 @@
 
 .alert-message {
     font-size: 0.85rem; /* Larger */
-    color: #cbd5e1;
+    color: var(--text-2);
     line-height: 1.5;
     margin-bottom: 6px;
     font-weight: 500;
@@ -215,7 +215,7 @@
 
 .alert-time {
     font-size: 0.7rem;
-    color: #94a3b8;
+    color: var(--text-3);
     font-family: var(--font-mono);
     font-weight: 700;
     text-transform: uppercase;
@@ -229,16 +229,16 @@
     border-left: 6px solid #f59e0b;
     background: linear-gradient(90deg, rgba(245, 158, 11, 0.1), transparent);
 }
-.alert-warning .alert-title { color: #fbbf24; }
-.alert-warning .alert-icon { color: #fbbf24; }
+.alert-warning .alert-title { color: var(--st-warn); }
+.alert-warning .alert-icon { color: var(--st-warn); }
 
 .alert-critical {
     border-left: 6px solid #ef4444;
     background: linear-gradient(90deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.02));
     animation: critical-flash 3s infinite;
 }
-.alert-critical .alert-title { color: #f87171; text-shadow: 0 0 10px rgba(248, 113, 113, 0.4); }
-.alert-critical .alert-icon { color: #f87171; }
+.alert-critical .alert-title { color: var(--st-crit); text-shadow: 0 0 10px rgba(248, 113, 113, 0.4); }
+.alert-critical .alert-icon { color: var(--st-crit); }
 
 @keyframes critical-flash {
     0%, 100% { background-color: rgba(239, 68, 68, 0.15); }
@@ -249,8 +249,8 @@
     border-left: 6px solid #3FB2F3;
     background: linear-gradient(90deg, rgba(63, 178, 243, 0.1), transparent);
 }
-.alert-info .alert-title { color: #3FB2F3; }
-.alert-info .alert-icon { color: #3FB2F3; }
+.alert-info .alert-title { color: var(--st-info); }
+.alert-info .alert-icon { color: var(--st-info); }
 
 /* Scrollbar styling */
 .alert-list-body::-webkit-scrollbar {

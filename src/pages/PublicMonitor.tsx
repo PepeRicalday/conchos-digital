@@ -2563,7 +2563,7 @@ const PublicMonitor: React.FC = () => {
                      activeEvent?.gasto_solicitado_m3s && activeEvent.gasto_solicitado_m3s > 0 && (
                         <div className="phb-efficiency">
                             <span className="phb-label">META:</span>
-                            <span className="phb-val" style={{ color: '#8396ad' }}>
+                            <span className="phb-val" style={{ color: 'var(--text-3)' }}>
                                 {activeEvent.gasto_solicitado_m3s.toFixed(1)} m³/s
                             </span>
                         </div>
@@ -2693,7 +2693,7 @@ const PublicMonitor: React.FC = () => {
                                     {flowAtZeroFresh ? flowAtZero.toFixed(2) : 'S/D'}
                                     {flowAtZeroFresh && <small>m³/s</small>}
                                 </div>
-                                <div className="tech-sub" style={{ color: '#22d3ee' }}>Radiales SICA</div>
+                                <div className="tech-sub" style={{ color: 'var(--st-info)' }}>Radiales SICA</div>
                             </div>
                         </div>
 
@@ -4250,7 +4250,7 @@ const PublicMonitor: React.FC = () => {
                             <button
                                 onClick={() => navigate('/geo-monitor')}
                                 title="Ver en Geo-Monitor (mapa)"
-                                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.3)', borderRadius: 6, color: '#22d3ee', fontSize: 11, fontWeight: 700, padding: '4px 10px', cursor: 'pointer' }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.3)', borderRadius: 6, color: 'var(--st-info)', fontSize: 11, fontWeight: 700, padding: '4px 10px', cursor: 'pointer' }}
                             >
                                 <MapIconLucide size={13} /> Ver en mapa
                             </button>

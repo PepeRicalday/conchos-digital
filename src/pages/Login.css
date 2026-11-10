@@ -114,7 +114,7 @@
 }
 
 .login-section-desc {
-    color: #94a3b8;
+    color: var(--text-3);
     font-size: 0.8125rem;
 }
 
@@ -127,7 +127,7 @@
     display: block;
     font-size: 0.6875rem;
     font-weight: 700;
-    color: #cbd5e1;
+    color: var(--text-2);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-bottom: 0.5rem;
@@ -144,7 +144,7 @@
     left: 1rem;
     top: 50%;
     transform: translateY(-50%);
-    color: #94a3b8;
+    color: var(--text-3);
 }
 
 .login-input {
@@ -224,7 +224,7 @@
 .error-message {
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.2);
-    color: #f87171;
+    color: var(--st-crit);
     font-size: 0.875rem;
     text-align: center;
     padding: 0.75rem;
@@ -243,7 +243,7 @@
 
 .footer-tagline {
     font-size: 0.6875rem;
-    color: #8396ad;
+    color: var(--text-3);
     text-transform: uppercase;
     letter-spacing: 0.125em;
     font-weight: 700;

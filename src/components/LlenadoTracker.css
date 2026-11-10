@@ -52,7 +52,7 @@
     background: rgba(34, 211, 238, 0.1);
     border: 1px solid rgba(34, 211, 238, 0.2);
     border-radius: 4px;
-    color: #22d3ee;
+    color: var(--st-info);
     font-size: 11px;
     font-weight: 900;
     text-transform: uppercase;
@@ -139,13 +139,13 @@
     font-weight: 800;
     line-height: 1;
     letter-spacing: 0.02em;
-    color: #3b82f6; /* Image match blue */
+    color: var(--st-info); /* Image match blue */
 }
 
 .arribo-text {
     font-size: 1.2rem;
     font-weight: 900;
-    color: #10b981;
+    color: var(--st-ok);
     text-transform: uppercase;
     display: flex;
     flex-direction: column;
@@ -171,7 +171,7 @@
 .tech-tag span:first-child {
     font-size: 0.6875rem;
     font-weight: 950;
-    color: #8396ad; /* Darker gray from image */
+    color: var(--text-3); /* Darker gray from image */
     text-transform: uppercase;
     letter-spacing: 0.1em;
 }
@@ -179,7 +179,7 @@
 .tech-tag span:last-child {
     font-size: 0.9rem;
     font-weight: 1000; /* Max bold */
-    color: #f8fafc;
+    color: var(--text-1);
 }
 
 /* Buttons */
@@ -189,7 +189,7 @@
     padding: 10px;
     background: transparent;
     border: 1px solid rgba(59, 130, 246, 0.4);
-    color: #3b82f6;
+    color: var(--st-info);
     border-radius: 8px;
     font-weight: 900;
     font-size: 0.6875rem;
@@ -216,7 +216,7 @@
     gap: 4px;
     font-size: 0.6875rem;
     font-weight: 1000;
-    color: #3b82f6; 
+    color: var(--st-info); 
     text-transform: uppercase;
     margin-top: 8px;
     letter-spacing: 0.02em;
@@ -225,7 +225,7 @@
 .eta-label {
     font-size: 0.6875rem;
     font-weight: 950;
-    color: #8396ad;
+    color: var(--text-3);
     margin-top: 6px;
     text-transform: uppercase;
     display: flex;
@@ -235,7 +235,7 @@
 }
 
 .eta-value {
-    color: #8396ad;
+    color: var(--text-3);
 }
 
 /* Panel de Telemetría Avanzada */
@@ -267,7 +267,7 @@
 }
 
 .telemetry-label {
-    color: #8396ad;
+    color: var(--text-3);
     font-size: 11px;
     font-weight: 900;
     text-transform: uppercase;
@@ -289,13 +289,13 @@
 }
 
 .telemetry-unit {
-    color: #8396ad;
+    color: var(--text-3);
     font-size: 11px;
     font-weight: 700;
 }
 
 .telemetry-accent {
-    color: #22d3ee;
+    color: var(--st-info);
     font-size: 11px;
     opacity: 0.7;
 }
@@ -314,13 +314,13 @@
 .progress-pct {
     font-size: 11px;
     font-weight: 900;
-    color: #22d3ee;
+    color: var(--st-info);
 }
 
 .progress-dist {
     font-size: 11px;
     font-weight: 600;
-    color: #8396ad;
+    color: var(--text-3);
 }
 
 .progress-track {

@@ -163,7 +163,7 @@ const ArrivalPredictor: React.FC = () => {
                                     {formatTime(p.seconds_remaining)}
                                 </span>
                                 <div className="ap-arrival-meta">
-                                    <Clock size={10} style={{ color: '#60a5fa' }} />
+                                    <Clock size={10} style={{ color: 'var(--st-info)' }} />
                                     <span className="ap-arrival-text">
                                         ETA: <span className="ap-arrival-time">{formatTimeTZ(p.hora_arribo_estimada)}</span>
                                     </span>

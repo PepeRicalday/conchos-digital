@@ -176,7 +176,7 @@
 
 .cl-rd-rango { display: grid; grid-template-columns: 28px minmax(0, 1fr) 28px; align-items: center; gap: 5px; }
 .cl-rd-num { font-size: 11px; color: var(--cl-t2); }
-.cl-rd-min { text-align: right; color: #7dd3fc; }
+.cl-rd-min { text-align: right; color: var(--st-info); }
 .cl-rd-max { color: #fdba74; }
 .cl-rd-pista { position: relative; height: 8px; border-radius: 999px; background: rgba(148, 163, 184, 0.12); }
 .cl-rd-barra { position: absolute; top: 0; bottom: 0; border-radius: 999px; min-width: 4px; background: linear-gradient(90deg, #3FB2F3, #f59e0b 70%, #f97316); }

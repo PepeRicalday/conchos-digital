@@ -22,7 +22,7 @@
     margin: 0;
     font-size: 1.05rem;
     font-weight: 700;
-    color: #f1f5f9;
+    color: var(--text-1);
 }
 
 .plano-general-controles {
@@ -67,7 +67,7 @@
     border-radius: 10px;
     border: 1px solid rgba(148, 163, 184, 0.45);
     background: rgba(11, 18, 32, 0.92);
-    color: #e2e8f0;
+    color: var(--text-1);
     font: 600 13px system-ui, sans-serif;
     cursor: pointer;
 }
@@ -97,7 +97,7 @@
 .plano-general-promedio-label {
     font-size: 0.85rem;
     font-weight: 700;
-    color: #cbd5e1;
+    color: var(--text-2);
 }
 
 .plano-general-promedio-valor {
@@ -112,12 +112,12 @@
 .plano-general-promedio-n {
     font-size: 0.95rem;
     font-weight: 700;
-    color: #e2e8f0;
+    color: var(--text-1);
 }
 
 .plano-general-promedio-sub {
     font-size: 12px;
-    color: #94a3b8;
+    color: var(--text-3);
     margin-top: 4px;
 }
 
@@ -148,7 +148,7 @@
 }
 
 .plano-general-fila-nombre {
-    color: #cbd5e1;
+    color: var(--text-2);
     flex: 1;
 }
 
@@ -165,11 +165,11 @@
     font: 700 12px 'JetBrains Mono', monospace;
     min-width: 8ch;
     text-align: right;
-    color: #cbd5e1;
+    color: var(--text-2);
 }
-.plano-general-fila-delta.sube { color: #3FB2F3; }
-.plano-general-fila-delta.baja { color: #fbbf24; }
-.plano-general-fila-delta.sd { color: #94a3b8; font-weight: 500; }
+.plano-general-fila-delta.sube { color: var(--st-info); }
+.plano-general-fila-delta.baja { color: var(--st-warn); }
+.plano-general-fila-delta.sd { color: var(--text-3); font-weight: 500; }
 
 .plano-general-tooltip {
     font-family: var(--geo-font-sans, sans-serif);

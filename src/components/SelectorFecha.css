@@ -32,7 +32,7 @@
 }
 
 .fecha-trigger.fecha-historica .fecha-display {
-    color: #f59e0b;
+    color: var(--st-warn);
 }
 
 .fecha-badge-hoy {
@@ -154,7 +154,7 @@
 
 .cal-dia.hoy {
     border: 1px solid rgba(16, 185, 129, 0.5);
-    color: #10b981;
+    color: var(--st-ok);
     font-weight: 700;
 }
 
@@ -184,7 +184,7 @@
     font-weight: 600;
     border-radius: var(--radius-md);
     background: rgba(16, 185, 129, 0.15);
-    color: #10b981;
+    color: var(--st-ok);
     border: 1px solid rgba(16, 185, 129, 0.3);
     cursor: pointer;
     transition: all 0.15s;

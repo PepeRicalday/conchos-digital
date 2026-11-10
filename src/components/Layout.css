@@ -314,7 +314,7 @@
 
 .logout-button:hover {
     background-color: rgba(239, 68, 68, 0.1) !important;
-    color: #f87171 !important;
+    color: var(--st-crit) !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

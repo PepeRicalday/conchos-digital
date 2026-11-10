@@ -69,12 +69,12 @@ const PageLoader = () => (
         fontWeight: 700,
         letterSpacing: '3px',
         textTransform: 'uppercase',
-        color: '#3FB2F3',
+        color: 'var(--st-info)',
         fontFamily: 'var(--font-mono)',
       }}>SICA 005</span>
       <span style={{
         fontSize: '0.7rem',
-        color: '#8FA7C8',
+        color: 'var(--text-3)',
         letterSpacing: '1px',
       }}>Cargando módulo…</span>
     </div>
@@ -108,17 +108,17 @@ const PageLoaderConRescate = () => {
       alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '2rem',
       textAlign: 'center',
     }}>
-      <span style={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#3FB2F3', fontFamily: 'var(--font-mono)' }}>
+      <span style={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: 'var(--st-info)', fontFamily: 'var(--font-mono)' }}>
         SICA 005
       </span>
-      <p style={{ color: '#94a3b8', fontSize: '0.85rem', maxWidth: '38ch', margin: 0 }}>
+      <p style={{ color: 'var(--text-3)', fontSize: '0.85rem', maxWidth: '38ch', margin: 0 }}>
         El módulo está tardando más de lo normal. Puede ser una descarga
         interrumpida.
       </p>
       <button
         onClick={() => window.location.reload()}
         style={{
-          background: 'rgba(63, 178, 243,0.12)', color: '#3FB2F3',
+          background: 'rgba(63, 178, 243,0.12)', color: 'var(--st-info)',
           border: '1px solid rgba(63, 178, 243,0.3)', borderRadius: '10px',
           padding: '0.6rem 1.4rem', fontSize: '0.8rem', fontWeight: 700,
           cursor: 'pointer', fontFamily: 'inherit',
@@ -126,7 +126,7 @@ const PageLoaderConRescate = () => {
       >
         Reintentar
       </button>
-      <a href="/nuke.html" style={{ color: '#64748b', fontSize: '0.7rem', textDecoration: 'underline' }}>
+      <a href="/nuke.html" style={{ color: 'var(--text-3)', fontSize: '0.7rem', textDecoration: 'underline' }}>
         Si persiste, limpiar caché
       </a>
     </div>
@@ -200,7 +200,7 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
           }}>SICA 005</span>
           <span style={{
             fontSize: '0.75rem',
-            color: '#475569',
+            color: 'var(--text-3)',
             letterSpacing: '2px',
             textTransform: 'uppercase',
           }}>Iniciando sistema de control…</span>

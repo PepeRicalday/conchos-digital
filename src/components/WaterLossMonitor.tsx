@@ -80,7 +80,7 @@ const WaterLossMonitor: React.FC = () => {
                             <div className="wlm-stats-grid">
                                 <div className="wlm-stat-item">
                                     <p className="wlm-stat-label">
-                                        <Zap size={10} style={{ color: '#60a5fa' }} /> Eficiencia
+                                        <Zap size={10} style={{ color: 'var(--st-info)' }} /> Eficiencia
                                     </p>
                                     <div className="wlm-stat-value" style={{ color: isCritical ? '#f87171' : isWarning ? '#fbbf24' : '#34d399' }}>
                                         {safetyPct != null ? <>{safetyPct}<span className="wlm-stat-unit">%</span></> : 'S/D'}
@@ -102,10 +102,10 @@ const WaterLossMonitor: React.FC = () => {
 
                                 <div className="wlm-stat-item">
                                     <p className="wlm-stat-label">
-                                        <Droplets size={10} style={{ color: '#60a5fa' }} /> Pérdida
+                                        <Droplets size={10} style={{ color: 'var(--st-info)' }} /> Pérdida
                                     </p>
                                     <div className="wlm-loss-value-group">
-                                        <span className="wlm-stat-value" style={{ color: '#f8fafc' }}>
+                                        <span className="wlm-stat-value" style={{ color: 'var(--text-1)' }}>
                                             {safetyQ != null ? (safetyQ * 1000).toFixed(0) : 'S/D'}
                                         </span>
                                         <span className="wlm-stat-unit">L/S</span>

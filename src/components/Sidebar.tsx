@@ -136,16 +136,16 @@ const Sidebar = () => {
                         animation: 'pulse-glow 2s infinite',
                     }} />
                     <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '0.6875rem', color: '#a3b3c7', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                        <div style={{ fontSize: '0.6875rem', color: 'var(--text-3)', letterSpacing: '1px', textTransform: 'uppercase' }}>
                             Caudal Total
                         </div>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#10b981', fontFamily: 'var(--font-mono)' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--st-ok)', fontFamily: 'var(--font-mono)' }}>
                             {liveStats.totalFlow.toFixed(2)} m³/s
                         </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '0.6875rem', color: '#94a3b8' }}>Tomas</div>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f8fafc', fontFamily: 'var(--font-mono)' }}>
+                        <div style={{ fontSize: '0.6875rem', color: 'var(--text-3)' }}>Tomas</div>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-1)', fontFamily: 'var(--font-mono)' }}>
                             {liveStats.activePoints}/{liveStats.totalPoints}
                         </div>
                     </div>
@@ -253,7 +253,7 @@ const Sidebar = () => {
                             padding: '2px 6px',
                             borderRadius: '9999px',
                             background: 'linear-gradient(135deg, rgba(63, 178, 243, 0.2), rgba(129, 140, 248, 0.2))',
-                            color: '#3FB2F3',
+                            color: 'var(--st-info)',
                             border: '1px solid rgba(63, 178, 243, 0.2)',
                             letterSpacing: '0.5px',
                         }}>IA</span>
@@ -276,7 +276,7 @@ const Sidebar = () => {
                     border: 'none',
                     width: 'calc(100% - 32px)',
                     cursor: 'pointer',
-                    color: '#f87171'
+                    color: 'var(--st-crit)'
                 }}>
                     <LogOut size={20} />
                     <span>Cerrar Sesión</span>

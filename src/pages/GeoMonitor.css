@@ -585,7 +585,7 @@
 
 .geo-baselayer-chip-alerta {
     background: rgba(220, 38, 38, 0.15);
-    color: #f87171;
+    color: var(--st-crit);
 }
 
 .geo-baselayer-fecha {
@@ -1367,9 +1367,9 @@
 .geo-indicator-amber { background: #f59e0b; }
 .geo-indicator-teal { background: #22d3ee; }
 
-.geo-icon-blue { color: #3b82f6; }
-.geo-icon-amber { color: #f59e0b; }
-.geo-icon-teal { color: #22d3ee; }
+.geo-icon-blue { color: var(--st-info); }
+.geo-icon-amber { color: var(--st-warn); }
+.geo-icon-teal { color: var(--st-info); }
 .geo-icon-white { color: white; }
 
 .geo-btn-import {
@@ -1427,8 +1427,8 @@
     font-weight: bold;
 }
 
-.geo-text-success { color: #10b981; }
-.geo-text-danger { color: #ef4444; }
+.geo-text-success { color: var(--st-ok); }
+.geo-text-danger { color: var(--st-crit); }
 
 .geo-apertura-badge {
     margin-top: 4px;
@@ -1842,8 +1842,8 @@
 
 /* ── Controles de mapa (zoom / escala / atribuciones) en el lenguaje oscuro del módulo ── */
 .geo-map-leaflet .leaflet-control-zoom { border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 10px; overflow: hidden; box-shadow: none; }
-.geo-map-leaflet .leaflet-control-zoom a { width: 44px; height: 44px; line-height: 44px; font-size: 20px; background: rgba(8, 16, 30, 0.92); color: #e8eef6; border-bottom: 1px solid rgba(148, 163, 184, 0.2); }
+.geo-map-leaflet .leaflet-control-zoom a { width: 44px; height: 44px; line-height: 44px; font-size: 20px; background: rgba(8, 16, 30, 0.92); color: var(--text-1); border-bottom: 1px solid rgba(148, 163, 184, 0.2); }
 .geo-map-leaflet .leaflet-control-zoom a:hover { background: rgba(63, 178, 243, 0.2); }
-.geo-map-leaflet .leaflet-control-scale-line { background: rgba(8, 16, 30, 0.8); color: #b4c2d4; border-color: #8396ad; font-size: 11px; }
-.geo-map-leaflet .leaflet-control-attribution { background: rgba(8, 16, 30, 0.75); color: #8396ad; font-size: 11px; }
+.geo-map-leaflet .leaflet-control-scale-line { background: rgba(8, 16, 30, 0.8); color: var(--text-2); border-color: #8396ad; font-size: 11px; }
+.geo-map-leaflet .leaflet-control-attribution { background: rgba(8, 16, 30, 0.75); color: var(--text-3); font-size: 11px; }
 .geo-map-leaflet .leaflet-control-attribution a { color: #8fc8ee; }

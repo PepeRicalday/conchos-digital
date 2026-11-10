@@ -110,7 +110,7 @@
 
 .bot .msg-bubble {
   background: rgba(30, 41, 59, 0.8);
-  color: #e2e8f0;
+  color: var(--text-1);
   border: 1px solid rgba(8, 145, 178, 0.2);
   border-top-left-radius: 4px;
 }
@@ -124,7 +124,7 @@
 
 .msg-time {
   font-size: 0.6875rem;
-  color: #8396ad;
+  color: var(--text-3);
   margin-top: 4px;
   padding: 0 4px;
 }

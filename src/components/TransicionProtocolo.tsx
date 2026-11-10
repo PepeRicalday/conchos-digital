@@ -144,7 +144,7 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
                 </div>
 
                 <span style={{
-                    color: '#8396ad', fontSize: '0.7rem', fontWeight: 700,
+                    color: 'var(--text-3)', fontSize: '0.7rem', fontWeight: 700,
                     padding: '4px 10px', background: 'rgba(30,41,59,0.5)', borderRadius: '6px'
                 }}>
                     📅 Día {dia_llenado} de Llenado
@@ -186,10 +186,10 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
             {/* Barra de progreso global */}
             <div style={{ marginBottom: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                    <span style={{ color: '#94a3b8', fontSize: '0.65rem', fontWeight: 700 }}>
+                    <span style={{ color: 'var(--text-3)', fontSize: '0.65rem', fontWeight: 700 }}>
                         Progreso de Llenado
                     </span>
-                    <span style={{ color: '#e2e8f0', fontSize: '0.65rem', fontWeight: 900 }}>
+                    <span style={{ color: 'var(--text-1)', fontSize: '0.65rem', fontWeight: 900 }}>
                         {progreso.toFixed(0)}%
                     </span>
                 </div>
@@ -213,25 +213,25 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
                     border: '1px solid rgba(16,185,129,0.15)'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                        <ArrowRight size={16} style={{ color: '#22d3ee' }} />
-                        <span style={{ color: '#f1f5f9', fontSize: '0.85rem', fontWeight: 800 }}>
+                        <ArrowRight size={16} style={{ color: 'var(--st-info)' }} />
+                        <span style={{ color: 'var(--text-1)', fontSize: '0.85rem', fontWeight: 800 }}>
                             Transición a Estabilización
                         </span>
                     </div>
 
-                    <p style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '12px', lineHeight: 1.5 }}>
+                    <p style={{ color: 'var(--text-3)', fontSize: '0.75rem', marginBottom: '12px', lineHeight: 1.5 }}>
                         El canal ha alcanzado cobertura suficiente. Al confirmar, el protocolo cambiará 
-                        a <strong style={{ color: '#10b981' }}>Estabilización</strong> y se activará el monitoreo 
+                        a <strong style={{ color: 'var(--st-ok)' }}>Estabilización</strong> y se activará el monitoreo 
                         de flujo permanente y distribución a tomas.
                     </p>
 
                     <div style={{ display: 'flex', gap: '8px', padding: '10px 12px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '10px', marginBottom: '12px' }}>
-                        <Shield size={14} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                        <Shield size={14} style={{ color: 'var(--st-crit)', flexShrink: 0, marginTop: '2px' }} />
                         <div>
                             <p style={{ color: '#fca5a5', fontSize: '0.65rem', fontWeight: 800, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                 Cambio de Mando (Gerencia SRL)
                             </p>
-                            <p style={{ color: '#94a3b8', fontSize: '0.6rem', margin: 0, lineHeight: 1.4 }}>
+                            <p style={{ color: 'var(--text-3)', fontSize: '0.6rem', margin: 0, lineHeight: 1.4 }}>
                                 La transición de protocolo quedará auditada permanentemente bajo su usuario como responsable operativo.
                             </p>
                         </div>
@@ -245,7 +245,7 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
                         style={{
                             display: 'block', width: '100%', marginBottom: '12px', padding: '10px',
                             background: '#1e293b', border: '1px solid #334155', borderRadius: '8px',
-                            color: '#f1f5f9', fontSize: '0.8rem', resize: 'none'
+                            color: 'var(--text-1)', fontSize: '0.8rem', resize: 'none'
                         }}
                     />
 
@@ -274,8 +274,8 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
                     padding: '10px 14px', borderRadius: '8px',
                     background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.1)'
                 }}>
-                    <AlertTriangle size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                    <span style={{ color: '#f59e0b', fontSize: '0.7rem', fontWeight: 600 }}>
+                    <AlertTriangle size={14} style={{ color: 'var(--st-warn)', flexShrink: 0 }} />
+                    <span style={{ color: 'var(--st-warn)', fontSize: '0.7rem', fontWeight: 600 }}>
                         Confirme al menos el 80% de los puntos de control para habilitar la transición a Estabilización.
                     </span>
                 </div>
@@ -301,7 +301,7 @@ const CriterioCard: React.FC<{
     }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
             <span style={{ color: cumplido ? '#10b981' : '#64748b' }}>{icon}</span>
-            <span style={{ color: '#94a3b8', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            <span style={{ color: 'var(--text-3)', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 {label}
             </span>
             <span style={{
@@ -310,7 +310,7 @@ const CriterioCard: React.FC<{
                 boxShadow: cumplido ? '0 0 6px #10b981' : 'none'
             }} />
         </div>
-        <div style={{ color: '#e2e8f0', fontSize: '0.9rem', fontWeight: 900 }}>{value}</div>
+        <div style={{ color: 'var(--text-1)', fontSize: '0.9rem', fontWeight: 900 }}>{value}</div>
         {progreso !== undefined && (
             <div style={{ marginTop: '6px', height: '3px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div style={{
@@ -321,7 +321,7 @@ const CriterioCard: React.FC<{
             </div>
         )}
         {detail && (
-            <div style={{ color: '#8396ad', fontSize: '0.55rem', fontWeight: 600, marginTop: '4px' }}>{detail}</div>
+            <div style={{ color: 'var(--text-3)', fontSize: '0.55rem', fontWeight: 600, marginTop: '4px' }}>{detail}</div>
         )}
     </div>
 );

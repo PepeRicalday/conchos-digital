@@ -558,7 +558,7 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
                                     </b></span>
                                     <span>Días comparados · <b>{calib.nDias}</b></span>
                                     {calib.alerta && (
-                                        <span style={{ color: '#f59e0b' }}>⚠ Sesgo &gt;15%: revisar orientación/limpieza del sensor</span>
+                                        <span style={{ color: 'var(--st-warn)' }}>⚠ Sesgo &gt;15%: revisar orientación/limpieza del sensor</span>
                                     )}
                                 </div>
                             ) : (

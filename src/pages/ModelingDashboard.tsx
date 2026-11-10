@@ -2177,7 +2177,7 @@ const ModelingDashboard: React.FC = () => {
         <div className="sim-kpi-row">
           <div className="sim-kpi">
             <div className="sim-kpi-label">Extracción Presa</div>
-            <div className="sim-kpi-val" style={{ color: '#3FB2F3' }}>{qDam.toFixed(1)}<span> m³/s</span></div>
+            <div className="sim-kpi-val" style={{ color: 'var(--st-info)' }}>{qDam.toFixed(1)}<span> m³/s</span></div>
           </div>
           <div className="sim-kpi">
             <div className="sim-kpi-label">Nivel K-0</div>
@@ -2195,13 +2195,13 @@ const ModelingDashboard: React.FC = () => {
                 {(globalEff ?? 0).toFixed(1)}<span>%</span>
               </div>
             ) : (
-              <div className="sim-kpi-val" style={{ color: '#8396ad' }}>S/D</div>
+              <div className="sim-kpi-val" style={{ color: 'var(--text-3)' }}>S/D</div>
             )}
           </div>
           {!iecSim && simResults.length > 0 && (
             <div className="sim-kpi" title={globalEffMedible ? 'IEC no calculable: eficiencia de conducción sin dato confiable (tomas sin reporte del día)' : 'IEC no calculable: sin gasto de entrada (presa cerrada o sin movimiento)'}>
               <div className="sim-kpi-label">IEC Canal</div>
-              <div className="sim-kpi-val" style={{ color: '#8396ad' }}>S/D</div>
+              <div className="sim-kpi-val" style={{ color: 'var(--text-3)' }}>S/D</div>
             </div>
           )}
           {iecSim && (
@@ -2222,7 +2222,7 @@ const ModelingDashboard: React.FC = () => {
           )}
           <div className="sim-kpi">
             <div className="sim-kpi-label">Arribo K-104</div>
-            <div className="sim-kpi-val" style={{ color: '#fbbf24' }}>{reglasRiegoSuspendidas ? 'S/D' : (lastCP?.arrival_time ?? '—')}</div>
+            <div className="sim-kpi-val" style={{ color: 'var(--st-warn)' }}>{reglasRiegoSuspendidas ? 'S/D' : (lastCP?.arrival_time ?? '—')}</div>
           </div>
           <button
             type="button"
@@ -2318,7 +2318,7 @@ const ModelingDashboard: React.FC = () => {
           </div>
           <div className="sim-flow-hints">
             <span>0</span>
-            <span style={{ color: '#8396ad' }}>
+            <span style={{ color: 'var(--text-3)' }}>
               Q diseño 80 m³/s&nbsp;·&nbsp;
               {dataStatus.damFuente === 'movimientos_presas'
                 ? `Fuente: mov. presa`
@@ -3059,7 +3059,7 @@ const ModelingDashboard: React.FC = () => {
                   onChange={e => { setTimeDelta(+e.target.value); setIsPlaying(false); }}
                   className="sim-time-slider" title="Control de tiempo" />
                 <span className="sim-time-lbl">
-                  t+{timeDelta}min <span style={{ color: '#fbbf24' }}>({(timeDelta / 60).toFixed(1)}h)</span>
+                  t+{timeDelta}min <span style={{ color: 'var(--st-warn)' }}>({(timeDelta / 60).toFixed(1)}h)</span>
                 </span>
               </div>
               <span className="sim-tl-label">Propagación de Onda · Arribo por Sección</span>
@@ -3153,7 +3153,7 @@ const ModelingDashboard: React.FC = () => {
                       {!simpleMode && isAforo && (
                         <div className="sim-gate-orif-row">
                           <span>Q orificio teórico</span>
-                          <span style={{ color: '#94a3b8' }}>{qOrificio.toFixed(2)} m³/s</span>
+                          <span style={{ color: 'var(--text-3)' }}>{qOrificio.toFixed(2)} m³/s</span>
                         </div>
                       )}
                       {!simpleMode && (
@@ -3165,9 +3165,9 @@ const ModelingDashboard: React.FC = () => {
                         </div>
                       )}
                       {!simpleMode && isOrificio && (
-                        <div className="sim-gate-orif-row" style={{ color: '#8396ad', fontSize: '8px' }}>
+                        <div className="sim-gate-orif-row" style={{ color: 'var(--text-3)', fontSize: '8px' }}>
                           <span>Cd·{activeCPResult.area_gate.toFixed(1)}m²·√(2g·{activeCPResult.y_base.toFixed(2)}m)</span>
-                          <span style={{ color: '#8396ad' }}>sin aforo</span>
+                          <span style={{ color: 'var(--text-3)' }}>sin aforo</span>
                         </div>
                       )}
                       {incoherente && (

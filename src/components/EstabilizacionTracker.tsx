@@ -96,7 +96,7 @@ const EstabilizacionTracker: React.FC = () => {
         : 'S/D';
 
     if (loading) {
-        return <div style={{ color: '#94a3b8', padding: '20px', textAlign: 'center' }}>Cargando telemetría de distribución...</div>;
+        return <div style={{ color: 'var(--text-3)', padding: '20px', textAlign: 'center' }}>Cargando telemetría de distribución...</div>;
     }
 
     return (
@@ -106,11 +106,11 @@ const EstabilizacionTracker: React.FC = () => {
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                         <div style={{ background: 'rgba(16,185,129,0.2)', padding: '6px', borderRadius: '8px' }}>
-                            <Droplets size={20} style={{ color: '#10b981' }} />
+                            <Droplets size={20} style={{ color: 'var(--st-ok)' }} />
                         </div>
-                        <h2 style={{ margin: 0, color: '#f8fafc', fontSize: '1.25rem', fontWeight: 900 }}>Monitor de Distribución</h2>
+                        <h2 style={{ margin: 0, color: 'var(--text-1)', fontSize: '1.25rem', fontWeight: 900 }}>Monitor de Distribución</h2>
                     </div>
-                    <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.8rem' }}>Control de eficiencia y flujo permanente</p>
+                    <p style={{ margin: 0, color: 'var(--text-3)', fontSize: '0.8rem' }}>Control de eficiencia y flujo permanente</p>
                 </div>
                 
                 {/* Global Metrics */}
@@ -125,8 +125,8 @@ const EstabilizacionTracker: React.FC = () => {
                 
                 {/* SECCIÓN A: SEGMENTOS DE CANAL */}
                 <div style={{ background: 'rgba(30,41,59,0.5)', borderRadius: '12px', padding: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <h3 style={{ margin: '0 0 16px', color: '#e2e8f0', fontSize: '0.95rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Waves size={18} style={{ color: '#3b82f6' }} /> Balance Hídrico por Tramo
+                    <h3 style={{ margin: '0 0 16px', color: 'var(--text-1)', fontSize: '0.95rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Waves size={18} style={{ color: 'var(--st-info)' }} /> Balance Hídrico por Tramo
                     </h3>
                     
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -146,7 +146,7 @@ const EstabilizacionTracker: React.FC = () => {
                                     <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: statusColor }} />
                                     
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', paddingLeft: '8px' }}>
-                                        <div style={{ color: '#f8fafc', fontSize: '0.85rem', fontWeight: 700 }}>
+                                        <div style={{ color: 'var(--text-1)', fontSize: '0.85rem', fontWeight: 700 }}>
                                             {tramo.escala_inicio_nombre} → {tramo.escala_fin_nombre}
                                         </div>
                                         <div style={{ color: statusColor, fontSize: '0.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -170,13 +170,13 @@ const EstabilizacionTracker: React.FC = () => {
                                 </div>
                             );
                         })}
-                        {tramos.length === 0 && <div style={{ color: '#8396ad', fontSize: '0.8rem' }}>No hay tramos configurados.</div>}
+                        {tramos.length === 0 && <div style={{ color: 'var(--text-3)', fontSize: '0.8rem' }}>No hay tramos configurados.</div>}
                     </div>
                 </div>
 
                 {/* SECCIÓN B: TOMAS ACTIVAS */}
                 <div style={{ background: 'rgba(30,41,59,0.5)', borderRadius: '12px', padding: '16px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column' }}>
-                    <h3 style={{ margin: '0 0 16px', color: '#e2e8f0', fontSize: '0.95rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ margin: '0 0 16px', color: 'var(--text-1)', fontSize: '0.95rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <LayoutDashboard size={18} style={{ color: '#8b5cf6' }} /> Tomas Activas ({tomasActivas.length})
                     </h3>
                     
@@ -189,17 +189,17 @@ const EstabilizacionTracker: React.FC = () => {
                                         borderRadius: '8px', padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                                     }}>
                                         <div>
-                                            <div style={{ color: '#f1f5f9', fontSize: '0.8rem', fontWeight: 700 }}>{toma.punto_nombre}</div>
-                                            <div style={{ color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase' }}>{toma.modulo_nombre}</div>
+                                            <div style={{ color: 'var(--text-1)', fontSize: '0.8rem', fontWeight: 700 }}>{toma.punto_nombre}</div>
+                                            <div style={{ color: 'var(--text-3)', fontSize: '0.7rem', textTransform: 'uppercase' }}>{toma.modulo_nombre}</div>
                                         </div>
-                                        <div style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa', padding: '4px 8px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900 }}>
-                                            {(toma.caudal_promedio_m3s ?? 0).toFixed(2)} <span style={{ fontSize: '0.65rem', color: '#8396ad' }}>m³/s</span>
+                                        <div style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--st-info)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900 }}>
+                                            {(toma.caudal_promedio_m3s ?? 0).toFixed(2)} <span style={{ fontSize: '0.65rem', color: 'var(--text-3)' }}>m³/s</span>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <div style={{ padding: '20px', textAlign: 'center', color: '#8396ad', fontSize: '0.8rem' }}>
+                            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-3)', fontSize: '0.8rem' }}>
                                 No hay entregas en curso registradas para hoy.
                             </div>
                         )}
@@ -215,16 +215,16 @@ const MetricBox: React.FC<{ title: string, value: string, icon: React.ReactNode,
     <div style={{ background: 'rgba(15,23,42,0.5)', border: `1px solid ${color}30`, borderRadius: '10px', padding: '10px 16px', minWidth: '120px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
             <div style={{ color }}>{icon}</div>
-            <span style={{ color: '#94a3b8', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</span>
+            <span style={{ color: 'var(--text-3)', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</span>
         </div>
-        <div style={{ color: '#f8fafc', fontSize: '1.1rem', fontWeight: 900 }}>{value}</div>
+        <div style={{ color: 'var(--text-1)', fontSize: '1.1rem', fontWeight: 900 }}>{value}</div>
     </div>
 );
 
 // Subcomponente de Mini-Estadística
 const MiniStat: React.FC<{ label: string, value: string, color: string }> = ({ label, value, color }) => (
     <div>
-        <div style={{ color: '#8396ad', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>{label}</div>
+        <div style={{ color: 'var(--text-3)', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>{label}</div>
         <div style={{ color, fontSize: '0.85rem', fontWeight: 800 }}>{value}</div>
     </div>
 );

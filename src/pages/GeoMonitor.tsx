@@ -2536,12 +2536,12 @@ const GeoMonitor = () => {
                                                 🌊 FRENTE DE AGUA<br />
                                                 Confirmado (campo): Km {(maxKmLlenado ?? 0).toFixed(1)}<br />
                                                 {predictedMaxKm > maxKmLlenado && (
-                                                    <span style={{ color: '#94a3b8', fontWeight: 'normal' }}>
+                                                    <span style={{ color: 'var(--text-3)', fontWeight: 'normal' }}>
                                                         Proyectado (visual): Km {predictedMaxKm.toFixed(1)}<br />
                                                     </span>
                                                 )}
                                                 {etaCalibrado && (
-                                                    <span style={{ color: '#34d399', fontWeight: 'normal' }}>
+                                                    <span style={{ color: 'var(--st-ok)', fontWeight: 'normal' }}>
                                                         Próx. escala calibrada: {etaCalibrado.nombre} (Km {etaCalibrado.km}) ·{' '}
                                                         {new Date(etaCalibrado.hora_arribo_estimada).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chihuahua' })}
                                                         {' '}· {etaCalibrado.v_onda_kmh.toFixed(1)} km/h

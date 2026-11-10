@@ -494,8 +494,8 @@ a.kp-tile:focus-visible, .kp-ver:focus-visible, .kp-sev-btn:focus-visible { outl
 .kp-rc-sw-helada { width: 10px; height: 10px; background: rgba(125, 211, 252, 0.35); }
 .kp-rc-sw-v { width: 14px; height: 8px; background: linear-gradient(90deg, var(--sc-ok) 0 33%, var(--sc-warn) 33% 66%, var(--sc-crit) 66%); }
 .kp-rc-sw-lluvia { width: 8px; height: 10px; background: var(--sc-sky); }
-.kp-rc-ley-helada { color: #7dd3fc; }
-.kp-dem-helada { color: #7dd3fc; font-weight: 600; }
+.kp-rc-ley-helada { color: var(--st-info); }
+.kp-dem-helada { color: var(--st-info); font-weight: 600; }
 /* Celdas compactas: sin leyendas (la tarjeta conserva su alto) */
 @container kp (min-width: 185px) and (max-height: 205px) { .kp-pc-ley, .kp-rc-ley, .kp-rc-pt { display: none; } }
 @container kp (max-height: 250px) { .kp-pc-ley { display: none; } }

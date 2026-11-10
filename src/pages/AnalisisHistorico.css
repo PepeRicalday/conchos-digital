@@ -103,7 +103,7 @@
 .ah-num { font-family: var(--ah-display); font-weight: 800; font-size: 42px; line-height: 0.95; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ah-num small { margin-left: 6px; font-family: var(--ah-body); font-size: 13px; font-weight: 600; color: var(--ah-t3); }
 .ah-num--txt { font-size: 28px; line-height: 1.05; white-space: normal; letter-spacing: 0.01em; }
-.ah-num.is-up { color: #7dd3fc; }
+.ah-num.is-up { color: var(--st-info); }
 .ah-num.is-down { color: var(--ah-warn); }
 .ah-num.is-sd { color: var(--ah-t3); }
 .ah-sub { font-size: 12px; line-height: 1.4; color: var(--ah-t3); }
@@ -224,7 +224,7 @@
    El modal se monta en <body> (portal): redefine los tokens fuera de .ah-root.
    ============================================================================== */
 .ah-hero-acc { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
-.ah-btn--pri { border-color: rgba(63, 178, 243, 0.55); background: rgba(63, 178, 243, 0.14); color: #7dd3fc; }
+.ah-btn--pri { border-color: rgba(63, 178, 243, 0.55); background: rgba(63, 178, 243, 0.14); color: var(--st-info); }
 .ah-btn--pri:hover:not(:disabled) { background: rgba(63, 178, 243, 0.24); }
 .ah-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .ah-btn:focus-visible, .ah-anio:focus-visible, .ah-seg button:focus-visible, .ah-inf-modal:focus-visible, .ah-inf-preset:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }

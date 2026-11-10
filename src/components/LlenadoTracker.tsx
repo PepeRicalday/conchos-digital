@@ -208,7 +208,7 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
 
     if (loading || puntos.length === 0) {
         return (
-            <div style={{ padding: '24px', textAlign: 'center', color: '#8396ad' }}>
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-3)' }}>
                 <Timer size={24} style={{ margin: '0 auto 8px', opacity: 0.5 }} />
                 <p style={{ fontSize: '0.8rem' }}>Inicializando puntos de control...</p>
             </div>
@@ -354,7 +354,7 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                         <div className="telemetry-item">
                             <span className="telemetry-label">Volumen Inyectado</span>
                             <div className="telemetry-value-group">
-                                <span className="telemetry-value" style={{ color: '#4ade80' }}>
+                                <span className="telemetry-value" style={{ color: 'var(--st-ok)' }}>
                                     {telemetria.volumen_estimado_inyectado_mm3 != null ? telemetria.volumen_estimado_inyectado_mm3.toFixed(4) : 'S/D'}
                                 </span>
                                 <span className="telemetry-unit">Mm³</span>
@@ -412,27 +412,27 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                         borderRadius: '16px', padding: '28px', width: '420px', maxWidth: '95vw',
                         boxShadow: '0 25px 50px rgba(0,0,0,0.5)'
                     }}>
-                        <h3 style={{ color: '#22d3ee', fontSize: '1.1rem', fontWeight: 900, marginBottom: '4px' }}>
+                        <h3 style={{ color: 'var(--st-info)', fontSize: '1.1rem', fontWeight: 900, marginBottom: '4px' }}>
                             📍 Confirmar Arribo
                         </h3>
-                        <p style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '16px' }}>
+                        <p style={{ color: 'var(--text-3)', fontSize: '0.75rem', marginBottom: '16px' }}>
                             {selectedPunto.punto_nombre} — KM {selectedPunto.km}
                         </p>
 
                         <div style={{ display: 'flex', gap: '8px', padding: '10px 12px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '10px', marginBottom: '20px' }}>
-                            <Shield size={14} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                            <Shield size={14} style={{ color: 'var(--st-crit)', flexShrink: 0, marginTop: '2px' }} />
                             <div>
                                 <p style={{ color: '#fca5a5', fontSize: '0.65rem', fontWeight: 800, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                     Acción Auditada (SRL)
                                 </p>
-                                <p style={{ color: '#94a3b8', fontSize: '0.6rem', margin: 0, lineHeight: 1.4 }}>
+                                <p style={{ color: 'var(--text-3)', fontSize: '0.6rem', margin: 0, lineHeight: 1.4 }}>
                                     Confirmar este arribo recalculará la cronometría de toda la cuenca aguas abajo.
                                 </p>
                             </div>
                         </div>
 
                         <div style={{ marginBottom: '12px' }}>
-                            <label style={{ color: '#e2e8f0', fontSize: '0.7rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                            <label style={{ color: 'var(--text-1)', fontSize: '0.7rem', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
                                 Fecha y Hora Real de Arribo
                             </label>
                             <input 
@@ -442,36 +442,36 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                                 style={{ 
                                     display: 'block', width: '100%', padding: '10px', 
                                     background: '#1e293b', border: '1px solid #334155', 
-                                    borderRadius: '8px', color: '#f1f5f9', fontSize: '0.9rem' 
+                                    borderRadius: '8px', color: 'var(--text-1)', fontSize: '0.9rem' 
                                 }} 
                             />
                         </div>
 
                         <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-                            <label style={{ flex: 1, color: '#e2e8f0', fontSize: '0.7rem', fontWeight: 700 }}>
+                            <label style={{ flex: 1, color: 'var(--text-1)', fontSize: '0.7rem', fontWeight: 700 }}>
                                 Nivel del agua (m)
                                 <input type="number" step="0.01" value={confirNivel} onChange={e => setConfirNivel(e.target.value)}
                                     placeholder="ej: 1.85"
-                                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '0.9rem' }} />
+                                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: 'var(--text-1)', fontSize: '0.9rem' }} />
                             </label>
-                            <label style={{ flex: 1, color: '#e2e8f0', fontSize: '0.7rem', fontWeight: 700 }}>
+                            <label style={{ flex: 1, color: 'var(--text-1)', fontSize: '0.7rem', fontWeight: 700 }}>
                                 Gasto medido (m³/s)
                                 <input type="number" step="0.001" value={confirGasto} onChange={e => setConfirGasto(e.target.value)}
                                     placeholder="ej: 55.3"
-                                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '0.9rem' }} />
+                                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: 'var(--text-1)', fontSize: '0.9rem' }} />
                             </label>
                         </div>
 
-                        <label style={{ color: '#e2e8f0', fontSize: '0.7rem', fontWeight: 700, display: 'block', marginBottom: '16px' }}>
+                        <label style={{ color: 'var(--text-1)', fontSize: '0.7rem', fontWeight: 700, display: 'block', marginBottom: '16px' }}>
                             Notas del operador
                             <textarea value={confirNotas} onChange={e => setConfirNotas(e.target.value)}
                                 rows={2} placeholder="Observaciones..."
-                                style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '0.8rem', resize: 'none' }} />
+                                style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: 'var(--text-1)', fontSize: '0.8rem', resize: 'none' }} />
                         </label>
 
                         <div style={{ display: 'flex', gap: '12px' }}>
                             <button onClick={() => setShowConfirmModal(false)}
-                                style={{ flex: 1, padding: '12px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}>
+                                style={{ flex: 1, padding: '12px', background: '#334155', color: 'var(--text-1)', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}>
                                 Cancelar
                             </button>
                             <button onClick={ejecutarConfirmacion}

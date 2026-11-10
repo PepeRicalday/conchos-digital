@@ -24,7 +24,7 @@
     background: rgba(59, 130, 246, 0.1);
     border: 2px solid rgba(59, 130, 246, 0.3);
     border-radius: 1.5rem;
-    color: #3b82f6;
+    color: var(--st-info);
     box-shadow: 0 0 30px rgba(59, 130, 246, 0.2);
 }
 
@@ -40,7 +40,7 @@
 .pg-title-group p {
     font-size: 11px;
     font-weight: 900;
-    color: #8396ad;
+    color: var(--text-3);
     text-transform: uppercase;
     letter-spacing: 0.2em;
     margin-top: 0.4rem;
@@ -90,13 +90,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #94a3b8;
+    color: var(--text-3);
     flex-shrink: 0;
     transition: all 0.4s;
 }
 
 .pg-step-item:hover .pg-step-icon-box {
-    color: #3b82f6;
+    color: var(--st-info);
     border-color: #3b82f6;
     box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
 }
@@ -108,7 +108,7 @@
 .pg-step-title {
     font-size: 1rem;
     font-weight: 900;
-    color: #f8fafc;
+    color: var(--text-1);
     margin-bottom: 0.5rem;
     display: flex;
     align-items: center;
@@ -117,7 +117,7 @@
 
 .pg-step-desc {
     font-size: 0.825rem;
-    color: #8396ad;
+    color: var(--text-3);
     line-height: 1.5;
     max-width: 500px;
 }
@@ -130,7 +130,7 @@
     padding: 0.25rem 0.625rem;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 2rem;
-    color: #8396ad;
+    color: var(--text-3);
 }
 
 @keyframes ap-fade-in {

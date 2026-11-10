@@ -10,7 +10,7 @@
 .clima-cuenca-val small { font-size: 14px; font-weight: 600; opacity: 0.75; }
 .clima-cuenca-sub, .clima-cuenca-nota { font-size: 12px; opacity: 0.85; margin: 0; }
 .clima-cuenca-nota { margin-top: 8px; }
-.clima-cuenca-nota a { color: #38bdf8; text-decoration: underline; }
+.clima-cuenca-nota a { color: var(--st-info); text-decoration: underline; }
 .clima-cuenca-top { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
 .clima-cuenca-top li { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid rgba(148, 163, 184, 0.18); }
 .clima-cuenca-top em { font-style: normal; opacity: 0.7; }

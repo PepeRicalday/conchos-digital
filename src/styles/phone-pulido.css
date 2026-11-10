@@ -75,7 +75,7 @@ html[data-device="phone"] .info-cards-dock .dock-tab {
     flex: 0 0 auto; min-width: 0; padding: 0 14px; height: 40px; min-height: 40px;
     font-size: 11px; color: var(--pl-muted); white-space: nowrap;
 }
-html[data-device="phone"] .info-cards-dock .dock-tab--active { color: #3FB2F3; }
+html[data-device="phone"] .info-cards-dock .dock-tab--active { color: var(--st-info); }
 /* Cerrar: dentro de la hoja, no cortado por su borde */
 html[data-device="phone"] .dock-close-btn { top: 8px; right: 10px; width: 36px; height: 36px; z-index: 5; }
 /* Contenido del tablero */
@@ -130,7 +130,7 @@ html[data-device="phone"] .estaciones-acciones { display: grid; grid-template-co
 html[data-device="phone"] .estaciones-acciones > * { width: 100%; justify-content: center; min-height: 44px; }
 html[data-device="phone"] .quick-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 html[data-device="phone"] .est-var small, html[data-device="phone"] .estacion-rol, html[data-device="phone"] .estacion-status { font-size: 11px; }
-html[data-device="phone"] .estacion-cielo, html[data-device="phone"] .cielo-estado { color: #cbd5e1; }
+html[data-device="phone"] .estacion-cielo, html[data-device="phone"] .cielo-estado { color: var(--text-2); }
 html[data-device="phone"] .idx-card { padding: 8px; }
 html[data-device="phone"] .idx-svg { width: 84px; height: 84px; }
 html[data-device="phone"] .sync-status { display: none; }
@@ -167,7 +167,7 @@ html[data-device="phone"] .ih-view-tools > * { flex: 0 0 auto; white-space: nowr
 
 /* ═══ INFRAESTRUCTURA: tabla de 177 filas → tarjetas de dos líneas + buscador ═ */
 html[data-device="phone"] .infra-search { position: sticky; top: 0; z-index: 5; margin-bottom: 8px; }
-html[data-device="phone"] .infra-search input { width: 100%; min-height: 44px; border-radius: 12px; padding: 0 14px; background: #0f172a; border: 1px solid rgba(255,255,255,0.12); color: #e2e8f0; }
+html[data-device="phone"] .infra-search input { width: 100%; min-height: 44px; border-radius: 12px; padding: 0 14px; background: #0f172a; border: 1px solid rgba(255,255,255,0.12); color: var(--text-1); }
 html[data-device="phone"] .infra-root table { display: block; overflow: visible; }
 html[data-device="phone"] .infra-root thead { display: none; }
 html[data-device="phone"] .infra-root tbody { display: block; }
@@ -208,7 +208,7 @@ html[data-device="phone"] .geo-sidebar-scroll::-webkit-scrollbar { display: none
 /* ═══ MENÚ LATERAL ══════════════════════════════════════════════════════════ */
 html[data-device="phone"] .sidebar-header { padding-top: 12px; padding-bottom: 12px; }
 html[data-device="phone"] .nav-item { min-height: 44px; padding: 8px 12px; }
-html[data-device="phone"] .nav-section-label { margin-top: 12px; color: #8396ad; font-size: 0.7rem; }
+html[data-device="phone"] .nav-section-label { margin-top: 12px; color: var(--text-3); font-size: 0.7rem; }
 
 /* ═══ LOGIN ═════════════════════════════════════════════════════════════════ */
 html[data-device="phone"] a[href*="nuke"], html[data-device="phone"] .login-clear-cache { color: #fb923c; }
@@ -232,7 +232,7 @@ html[data-device="phone"] .bt-alert-tramo { white-space: nowrap; }
 html[data-device="phone"] .bt-alert-q { grid-column: 1 / -1; font-size: 0.72rem; color: var(--pl-muted); }
 
 /* Indicador de eficiencia: título y aviso legibles (gris/rojo oscuro sobre fondo oscuro casi no se leían) */
-html[data-device="phone"] .gauge-title { color: #cbd5e1; font-size: 0.8rem; }
+html[data-device="phone"] .gauge-title { color: var(--text-2); font-size: 0.8rem; }
 html[data-device="phone"] .gauge-value-label { color: var(--pl-muted); }
 html[data-device="phone"] .gauge-status { color: #fecaca; background: rgba(239, 68, 68, 0.18); border-color: #f87171; }
 html[data-device="phone"] .gauge-status-badge.status-critico { color: #fecaca !important; background: rgba(239, 68, 68, 0.22) !important; border-color: #f87171 !important; }

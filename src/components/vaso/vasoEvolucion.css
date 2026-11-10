@@ -100,8 +100,8 @@
 .vaso-header--sc { align-items: flex-start; }
 .vaso-header--sc .vaso-title-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .vaso-cab-kicker { font: 600 12px 'JetBrains Mono', ui-monospace, monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #8fa3ba; }
-.vaso-header--sc .vaso-title-group h2 { margin: 0; font: 800 44px/1 'Big Shoulders Display', 'JetBrains Mono', sans-serif; letter-spacing: 0.01em; color: #e8eef6; text-transform: uppercase; }
-.vaso-cab-contexto { margin: 0; font: 400 13px 'IBM Plex Sans', system-ui, sans-serif; color: #b4c2d4; }
+.vaso-header--sc .vaso-title-group h2 { margin: 0; font: 800 44px/1 'Big Shoulders Display', 'JetBrains Mono', sans-serif; letter-spacing: 0.01em; color: var(--text-1); text-transform: uppercase; }
+.vaso-cab-contexto { margin: 0; font: 400 13px 'IBM Plex Sans', system-ui, sans-serif; color: var(--text-2); }
 .vaso-header--sc .vaso-close { min-width: 44px; min-height: 44px; }
 
 /* ── Carga con silueta del vaso (B1) ── */

@@ -243,7 +243,7 @@ const ModalTramo: React.FC<{ tramo: SerieTramo; color: string; t0: number; t1: n
               <Fila k="Bordo libre (diseño)" v={bordoLibre != null ? `${bordoLibre.toFixed(2)} m` : 's/dato'} />
               <Fila k="Ancho de corona (C)" v={anchoCorona != null ? `${anchoCorona.toFixed(2)} m` : 's/dato'} />
               <Fila k="Longitud del tramo" v={<><b>{longitudKm.toFixed(3)}</b> km</>} />
-              {nSecciones > 1 && <Fila k="Secciones-tipo que cruza" v={<span style={{ color: '#f59e0b' }}>≠ {nSecciones} · se muestra la dominante</span>} />}
+              {nSecciones > 1 && <Fila k="Secciones-tipo que cruza" v={<span style={{ color: 'var(--st-warn)' }}>≠ {nSecciones} · se muestra la dominante</span>} />}
             </section>
 
             {/* Estado hidráulico */}
@@ -695,7 +695,7 @@ const TendenciasPanel: React.FC<Props> = ({
                   ))}
                 </div>
                 <div className="tnd-secline tnd-secline-hint">
-                  Toca un tramo para aislarlo en el apilado · el color de cada sección = su banda · <span style={{ color: '#f59e0b' }}>◆</span> día estimado (tramo sin aforo, arrastra último dato)
+                  Toca un tramo para aislarlo en el apilado · el color de cada sección = su banda · <span style={{ color: 'var(--st-warn)' }}>◆</span> día estimado (tramo sin aforo, arrastra último dato)
                   {tramoSel != null && <button type="button" className="tnd-sec-clear" onClick={() => setTramoSel(null)}>ver todos</button>}
                 </div>
                 <div className="tnd-legend">
@@ -737,9 +737,9 @@ const TendenciasPanel: React.FC<Props> = ({
                 <tbody>
                   {compuertas.map(c => { const su = statsSerie(c.arriba), sd = statsSerie(c.abajo), sdif = statsSerie(c.diferencial); return (
                     <tr key={c.escala_id}>
-                      <td style={{ fontWeight: 700 }}>{c.nombre}{c.esReferencia && <span style={{ fontSize: '0.55rem', fontWeight: 600, color: '#94a3b8' }} title="Escala de referencia: sin compuertas de control"> (ref.)</span>}</td>
+                      <td style={{ fontWeight: 700 }}>{c.nombre}{c.esReferencia && <span style={{ fontSize: '0.55rem', fontWeight: 600, color: 'var(--text-3)' }} title="Escala de referencia: sin compuertas de control"> (ref.)</span>}</td>
                       <td>{n2(su.avg)}</td>
-                      <td>{c.esReferencia ? <span style={{ color: '#94a3b8' }}>s/control</span> : n2(sd.avg)}</td>
+                      <td>{c.esReferencia ? <span style={{ color: 'var(--text-3)' }}>s/control</span> : n2(sd.avg)}</td>
                       <td style={{ color: c.esReferencia ? '#94a3b8' : '#c98500', fontWeight: 700 }}>{c.esReferencia ? '—' : n2(sdif.avg)}</td>
                       <td>{c.esReferencia ? '—' : n2(c.aperturaUlt)}</td><td>{c.esReferencia ? '—' : (c.puertasAbiertas ?? '—')}</td>
                     </tr>

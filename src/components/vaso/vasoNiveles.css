@@ -11,7 +11,7 @@
 .vaso-kicker svg { flex: none; display: inline-block; }
 
 /* Botones */
-.vaso-btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--sc-line, rgba(148,163,184,.3)); background: rgba(15, 23, 42, 0.85); color: #e8eef6; font: 600 14px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer; }
+.vaso-btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--sc-line, rgba(148,163,184,.3)); background: rgba(15, 23, 42, 0.85); color: var(--text-1); font: 600 14px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer; }
 .vaso-btn:hover:not([disabled]) { border-color: rgba(63, 178, 243, 0.6); background: rgba(63, 178, 243, 0.1); }
 .vaso-btn:focus-visible, .vaso-sc input[type='range']:focus-visible, .vaso-sc summary:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
 .vaso-btn[disabled] { opacity: 0.5; cursor: not-allowed; }

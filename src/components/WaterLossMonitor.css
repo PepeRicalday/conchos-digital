@@ -61,7 +61,7 @@
     background: rgba(59, 130, 246, 0.2);
     border-radius: 1rem;
     border: 1px solid rgba(59, 130, 246, 0.3);
-    color: #60a5fa;
+    color: var(--st-info);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -115,7 +115,7 @@
 .wlm-status-badge span {
     font-size: 11px;
     font-weight: 900;
-    color: #94a3b8;
+    color: var(--text-3);
     text-transform: uppercase;
     letter-spacing: 0.1em;
 }
@@ -190,7 +190,7 @@
 .wlm-label {
     font-size: 11px;
     font-weight: 900;
-    color: #8396ad;
+    color: var(--text-3);
     text-transform: uppercase;
     letter-spacing: 0.2em;
     margin-bottom: 0.5rem;
@@ -244,19 +244,19 @@
 .wlm-status-tag.critical {
     background: rgba(239, 68, 68, 0.2);
     border-color: rgba(239, 68, 68, 0.3);
-    color: #f87171;
+    color: var(--st-crit);
 }
 
 .wlm-status-tag.warning {
     background: rgba(245, 158, 11, 0.2);
     border-color: rgba(245, 158, 11, 0.3);
-    color: #fbbf24;
+    color: var(--st-warn);
 }
 
 .wlm-status-tag.normal {
     background: rgba(16, 185, 129, 0.2);
     border-color: rgba(16, 185, 129, 0.3);
-    color: #34d399;
+    color: var(--st-ok);
 }
 
 .wlm-stats-grid {
@@ -276,7 +276,7 @@
 .wlm-stat-label {
     font-size: 11px;
     font-weight: 900;
-    color: #8396ad;
+    color: var(--text-3);
     text-transform: uppercase;
     letter-spacing: 0.1em;
     display: flex;
@@ -295,7 +295,7 @@
 .wlm-stat-unit {
     font-size: 12px;
     font-weight: 900;
-    color: #8396ad;
+    color: var(--text-3);
     margin-left: 0.25rem;
 }
 
@@ -327,7 +327,7 @@
     font-size: 11px;
     font-weight: 900;
     font-family: var(--font-mono, monospace);
-    color: #8396ad;
+    color: var(--text-3);
     text-transform: uppercase;
     margin-top: 0.25rem;
 }
@@ -363,7 +363,7 @@
     font-size: 11px;
     font-weight: 900;
     font-family: var(--font-mono, monospace);
-    color: #8396ad;
+    color: var(--text-3);
     text-transform: uppercase;
     letter-spacing: 0.2em;
 }
@@ -376,7 +376,7 @@
     background: rgba(59, 130, 246, 0.1);
     border: 1px solid rgba(59, 130, 246, 0.2);
     border-radius: 0.75rem;
-    color: #60a5fa;
+    color: var(--st-info);
     font-size: 11px;
     font-weight: 900;
     text-transform: uppercase;

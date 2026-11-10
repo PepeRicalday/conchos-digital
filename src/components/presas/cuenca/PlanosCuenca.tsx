@@ -1,3 +1,4 @@
+import { Kpi } from '../../ui/base';
 import { useEffect, useMemo, useState } from 'react';
 import type { RedJcas } from '../../../hooks/useJcasCuenca';
 import { useCuencaPronostico } from '../../../hooks/useCuencaPronostico';
@@ -134,15 +135,9 @@ export default function PlanosCuenca({ jcas, capas, diasObs: diasProp, onDias }:
                                 <figcaption className="cu-leyenda-viz">{plano.titulo} · {cfg.titulo} en {cfg.unidad}. Escala fija por datos registrados: dos planos de fechas distintas se comparan a ojo.</figcaption>
                             </figure>
                             <div className="cu-pl-res">
-                                <div className="cu-red-kpi">
-                                    <span className="an-kpi-lbl">{variable === 'lluvia' ? (modo === 'obs' ? 'Lluvia promedio de la cuenca' : 'Lluvia pronosticada promedio') : `${cfg.titulo} promedio`}</span>
-                                    <span className="an-kpi-val">{mediaKpi == null ? 'S/D' : fmtVal(mediaKpi)}{mediaKpi != null && <small> {cfg.unidad}</small>}</span>
-                                    <span className="an-kpi-sub">
-                                        {mediaKpi == null && (arealUnico?.motivoSD ?? plano.motivoSD)
+                                <Kpi densidad="compacta" etiqueta={`${variable === 'lluvia' ? (modo === 'obs' ? 'Lluvia promedio de la cuenca' : 'Lluvia pronosticada promedio') : `${cfg.titulo} promedio`}`} valor={mediaKpi == null ? 'S/D' : fmtVal(mediaKpi)} unidad={mediaKpi != null ? " {cfg.unidad}" : undefined} contexto={mediaKpi == null && (arealUnico?.motivoSD ?? plano.motivoSD)
                                             ? (arealUnico?.motivoSD ?? plano.motivoSD)
-                                            : `${plano.periodo.tipo === 'obs' ? `${cuandoVentana(plano.periodo.dias)} · ` : ''}${plano.resumen.min != null && plano.resumen.max != null ? `rango ${fmtVal(plano.resumen.min)}–${fmtVal(plano.resumen.max)} ${cfg.unidad} · ` : ''}n = ${plano.resumen.n} estaciones · cobertura ${plano.resumen.coberturaPct.toFixed(0)} % del área · provisional`}
-                                    </span>
-                                </div>
+                                            : `${plano.periodo.tipo === 'obs' ? `${cuandoVentana(plano.periodo.dias)} · ` : ''}${plano.resumen.min != null && plano.resumen.max != null ? `rango ${fmtVal(plano.resumen.min)}–${fmtVal(plano.resumen.max)} ${cfg.unidad} · ` : ''}n = ${plano.resumen.n} estaciones · cobertura ${plano.resumen.coberturaPct.toFixed(0)} % del área · provisional`} />
                                 {plano.resumen.maxEn && <p className="cu-pl-dato"><b>Mayor valor:</b> {plano.resumen.maxEn.nombre}, {fmtVal(plano.resumen.maxEn.valor)} {cfg.unidad}</p>}
                                 <p className="cu-pl-dato"><b>Altitud:</b> {plano.ajuste.motivo}.</p>
                                 {plano.excluidos.length > 0 && <p className="an-aviso" role="status"><b>Excluida del plano:</b> {plano.excluidos.map((p) => p.nombre).join(', ')} (pluviómetro sospechoso).</p>}
@@ -161,7 +156,7 @@ export default function PlanosCuenca({ jcas, capas, diasObs: diasProp, onDias }:
                                     </div>
                                 )}
                                 {modo === 'pron' && (
-                                    <div className="cu-red-kpi">
+                                                                        <div className="cu-red-kpi">
                                         <span className="an-kpi-lbl">Confiabilidad del pronóstico</span>
                                         <span className="an-kpi-sub">{confiab.texto}</span>
                                         <span className="an-kpi-sub">Corrida {hace(pron.datos?.corridaEn ?? null)} · rango entre modelos en la tabla</span>

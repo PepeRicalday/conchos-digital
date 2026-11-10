@@ -1,3 +1,4 @@
+import { Kpi } from '../../ui/base';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type { RedJcas } from '../../../hooks/useJcasCuenca';
@@ -92,16 +93,8 @@ export default function MensualCuenca({ jcas }: { jcas: { red: RedJcas | null; l
                 </div>
             </div>
             <div className="cu-red-kpis">
-                <div className="cu-red-kpi">
-                    <span className="an-kpi-lbl">{completo ? `Acumulado de ${meses.length} meses` : `Acumulado de ${conDato.length} de ${meses.length} meses con dato`}</span>
-                    <span className="an-kpi-val">{conDato.length ? fmtLluvia(total) : 'S/D'}{conDato.length > 0 && <small> mm</small>}</span>
-                    <span className="an-kpi-sub">{completo ? 'suma de los totales mensuales de la cuenca' : 'solo suma los meses con dato (no es el total del periodo): los S/D no se rellenan con 0'}</span>
-                </div>
-                <div className="cu-red-kpi">
-                    <span className="an-kpi-lbl">Mes más lluvioso</span>
-                    <span className="an-kpi-val">{mayor ? mayor.etiqueta : 'S/D'}</span>
-                    <span className="an-kpi-sub">{mayor ? `${fmtLluvia(mayor.lluvia.mm)} mm de lluvia areal · n = ${mayor.lluvia.nEstaciones} estaciones` : 'sin meses con dato'}</span>
-                </div>
+                <Kpi densidad="compacta" etiqueta={`${completo ? `Acumulado de ${meses.length} meses` : `Acumulado de ${conDato.length} de ${meses.length} meses con dato`}`} valor={conDato.length ? fmtLluvia(total) : 'S/D'} unidad={conDato.length > 0 ? " mm" : undefined} contexto={completo ? 'suma de los totales mensuales de la cuenca' : 'solo suma los meses con dato (no es el total del periodo): los S/D no se rellenan con 0'} />
+                <Kpi densidad="compacta" etiqueta="Mes más lluvioso" valor={mayor ? mayor.etiqueta : 'S/D'} contexto={mayor ? `${fmtLluvia(mayor.lluvia.mm)} mm de lluvia areal · n = ${mayor.lluvia.nEstaciones} estaciones` : 'sin meses con dato'} />
             </div>
             <Barras meses={meses} />
             <div className="cu-tabla-wrap" tabIndex={0} role="region" aria-label="Tabla mes a mes (desplazable)">

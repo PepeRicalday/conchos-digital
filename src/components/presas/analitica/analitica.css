@@ -12,12 +12,6 @@
 .an-chip--sd { color: var(--pr-t2); border-color: var(--pr-t3); background: var(--pr-surface-2); }
 
 .an-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.an-kpi { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border: 1px solid var(--pr-line); border-radius: 12px; background: var(--pr-surface); min-width: 0; }
-.an-kpi-lbl { font-size: 13px; font-weight: 600; color: var(--pr-t3); }
-.an-kpi-val { font-family: var(--pr-display); font-weight: 800; font-size: 34px; line-height: 1.05; color: var(--pr-t1); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.an-kpi-val--rango { font-size: 28px; }
-.an-kpi-val small { font-family: var(--pr-body); font-size: 13px; font-weight: 600; color: var(--pr-t3); }
-.an-kpi-sub { font-size: 12px; color: var(--pr-t2); line-height: 1.35; }
 
 .an-card { padding: 14px 16px 12px; border: 1px solid var(--pr-line); border-radius: 12px; background: var(--pr-surface); }
 .an-h { margin: 0; font-size: 16px; font-weight: 700; color: var(--pr-t1); }

@@ -1,3 +1,4 @@
+import { Kpi } from '../../ui/base';
 import { useMemo, useState } from 'react';
 import type { useJcasCuenca } from '../../../hooks/useJcasCuenca';
 import { formatearNumero } from '../../../utils/historicoPresas';
@@ -29,16 +30,10 @@ function estadoPropia(ultFecha: string | null, fin: string): { glifo: string; te
 
 function KpiAreal({ etiqueta, a, cobertura }: { etiqueta: string; a: LluviaAreal; cobertura?: { con: number; de: number } | null }) {
     return (
-        <div className="cu-red-kpi">
-            <span className="an-kpi-lbl">{etiqueta}</span>
-            <span className="an-kpi-val">{a.mm == null ? 'S/D' : formatearNumero(a.mm, 1)}{a.mm != null && <small> mm</small>}</span>
-            <span className="an-kpi-sub">
-                {a.mm == null
+        <Kpi densidad="compacta" etiqueta={`${etiqueta}`} valor={a.mm == null ? 'S/D' : formatearNumero(a.mm, 1)} unidad={a.mm != null ? " mm" : undefined} contexto={<>{a.mm == null
                     ? a.motivoSD
                     : `n = ${a.nEstaciones} estaciones · cobertura ${a.coberturaPct.toFixed(0)} % del área${a.min != null && a.max != null ? ` · rango ${fmtLluvia(a.min)}–${fmtLluvia(a.max)} mm` : ''} · provisional`}
-                {cobertura && ` · historia diaria guardada: ${cobertura.con} de ${cobertura.de} días de la ventana`}
-            </span>
-        </div>
+                {cobertura && ` · historia diaria guardada: ${cobertura.con} de ${cobertura.de} días de la ventana`}</>} />
     );
 }
 
@@ -102,11 +97,7 @@ export default function RedEstacionesCuenca({ jcas, capas, ventana: ventanaProp,
 
             <div className="cu-red-kpis">
                 <KpiAreal etiqueta={`Lluvia areal de la cuenca · ${typeof ventana === 'number' && ventana > 1 ? `${ventana} días` : etiquetaVentana(ventana)}`} a={areal} cobertura={diasCubiertos(m, ventana)} />
-                <div className="cu-red-kpi">
-                    <span className="an-kpi-lbl">Estaciones con lluvia útil</span>
-                    <span className="an-kpi-val">{m.conLluvia}<small> de {m.total}</small></span>
-                    <span className="an-kpi-sub">Incluye las estaciones propias del distrito. Las de una misma ciudad pesan una vez; las sin pluviómetro o excluidas no entran al promedio.</span>
-                </div>
+                <Kpi densidad="compacta" etiqueta="Estaciones con lluvia útil" valor={String(m.conLluvia)} unidad={` de ${m.total}`} contexto={<>Incluye las estaciones propias del distrito. Las de una misma ciudad pesan una vez; las sin pluviómetro o excluidas no entran al promedio.</>} />
             </div>
 
             {excluidas.length > 0 && (

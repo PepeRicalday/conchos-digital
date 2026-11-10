@@ -1,3 +1,4 @@
+import { Kpi } from '../../ui/base';
 import { useEffect, useMemo, useState } from 'react';
 import { arealDe, etiquetaVentana, type VentanaObs } from '../../../utils/jcasModelo';
 import { fmtLluvia } from '../../../utils/fmtLluvia';
@@ -215,42 +216,14 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
             </header>
 
             <div className="cu-cq"><div className="an-kpis an-kpis--6" role="list">
-                <div className="an-kpi" role="listitem">
-                    <span className="an-kpi-lbl">Almacenamiento de la cuenca</span>
-                    <span className="an-kpi-val">{fmt(cuenca.totalMm3, 1)}<small> Mm³</small></span>
-                    <span className="an-kpi-sub">
-                        {cuenca.porcentaje == null ? 'Sin lectura vigente' : `${formatearNumero(cuenca.porcentaje, 1)} % del NAMO`} · {cuenca.presasConDato} de {cuenca.presasTotal} presas con dato{cuenca.parcial ? ' (parcial)' : ''}
-                    </span>
-                </div>
-                <div className="an-kpi" role="listitem">
-                    <span className="an-kpi-lbl">Presas del distrito</span>
-                    <span className="an-kpi-val">{fmt(dist.totalMm3, 1)}<small> Mm³</small></span>
-                    <span className="an-kpi-sub">
-                        {dist.porcentaje == null ? 'Sin lectura vigente' : `${formatearNumero(dist.porcentaje, 1)} % del NAMO`} · Boquilla {boquilla?.pct == null ? 'S/D' : `${formatearNumero(boquilla.pct, 1)} %`} · Madero {madero?.pct == null ? 'S/D' : `${formatearNumero(madero.pct, 1)} %`}
-                    </span>
-                </div>
-                <div className="an-kpi" role="listitem">
-                    <span className="an-kpi-lbl">Aportaciones reportadas</span>
-                    <span className="an-kpi-val">{fmtFlujo(aport.total)}<small> m³/s</small></span>
-                    <span className="an-kpi-sub">Última lectura de cada presa · {aport.conDato} de {filas.length} con dato · puede repetir agua en cascada</span>
-                </div>
-                <div className="an-kpi" role="listitem">
-                    <span className="an-kpi-lbl">Salida de la cuenca · Ojinaga</span>
-                    <span className="an-kpi-val">{fmtFlujo(ojinaga?.gastoM3s ?? null)}<small> m³/s</small></span>
-                    <span className="an-kpi-sub">Aforo USIBWC 08373000{ojinaga?.fecha ? ` · ${fechaCorta(ojinaga.fecha)}` : ''}</span>
-                </div>
-                <div className="an-kpi" role="listitem">
-                    <span className="an-kpi-lbl">Lluvia de la cuenca · {etiquetaVentana(ventanaObs)}</span>
-                    <span className="an-kpi-val">{areal30?.mm == null ? 'S/D' : fmtLluvia(areal30.mm)}{areal30?.mm != null && <small> mm</small>}</span>
-                    <span className="an-kpi-sub">{areal30?.mm == null
+                <Kpi densidad="compacta" etiqueta="Almacenamiento de la cuenca" valor={fmt(cuenca.totalMm3, 1)} unidad=" Mm³" contexto={<>{cuenca.porcentaje == null ? 'Sin lectura vigente' : `${formatearNumero(cuenca.porcentaje, 1)} % del NAMO`} · {cuenca.presasConDato} de {cuenca.presasTotal} presas con dato{cuenca.parcial ? ' (parcial)' : ''}</>} />
+                <Kpi densidad="compacta" etiqueta="Presas del distrito" valor={fmt(dist.totalMm3, 1)} unidad=" Mm³" contexto={<>{dist.porcentaje == null ? 'Sin lectura vigente' : `${formatearNumero(dist.porcentaje, 1)} % del NAMO`} · Boquilla {boquilla?.pct == null ? 'S/D' : `${formatearNumero(boquilla.pct, 1)} %`} · Madero {madero?.pct == null ? 'S/D' : `${formatearNumero(madero.pct, 1)} %`}</>} />
+                <Kpi densidad="compacta" etiqueta="Aportaciones reportadas" valor={fmtFlujo(aport.total)} unidad=" m³/s" contexto={<>Última lectura de cada presa · {aport.conDato} de {filas.length} con dato · puede repetir agua en cascada</>} />
+                <Kpi densidad="compacta" etiqueta="Salida de la cuenca · Ojinaga" valor={fmtFlujo(ojinaga?.gastoM3s ?? null)} unidad=" m³/s" contexto={<>Aforo USIBWC 08373000{ojinaga?.fecha ? ` · ${fechaCorta(ojinaga.fecha)}` : ''}</>} />
+                <Kpi densidad="compacta" etiqueta={`Lluvia de la cuenca · ${etiquetaVentana(ventanaObs)}`} valor={areal30?.mm == null ? 'S/D' : fmtLluvia(areal30.mm)} unidad={areal30?.mm != null ? " mm" : undefined} contexto={areal30?.mm == null
                         ? (jcas.loading ? 'Cargando estaciones…' : jcas.error ? 'No se pudieron cargar las estaciones JCAS' : areal30?.motivoSD ?? 'Sin estaciones JCAS por ahora')
-                        : `n = ${areal30.nEstaciones} estaciones · cobertura ${areal30.coberturaPct.toFixed(0)} % · provisional`}</span>
-                </div>
-                <div className="an-kpi" role="listitem">
-                    <span className="an-kpi-lbl">Estaciones en el promedio · {etiquetaVentana(ventanaObs)}</span>
-                    <span className="an-kpi-val">{areal30 ? areal30.nEstaciones : 'S/D'}{areal30 && <small> estaciones</small>}</span>
-                    <span className="an-kpi-sub">{areal30 ? `${areal30.nExcluidas > 0 ? `${areal30.nExcluidas} excluida(s) por sospechosa(s) · ` : ''}JCAS/UACJ y propias · provisional` : 'JCAS/UACJ y propias del distrito'}</span>
-                </div>
+                        : `n = ${areal30.nEstaciones} estaciones · cobertura ${areal30.coberturaPct.toFixed(0)} % · provisional`} />
+                <Kpi densidad="compacta" etiqueta={`Estaciones en el promedio · ${etiquetaVentana(ventanaObs)}`} valor={areal30 ? String(areal30.nEstaciones) : 'S/D'} unidad={areal30 ? " estaciones" : undefined} contexto={areal30 ? `${areal30.nExcluidas > 0 ? `${areal30.nExcluidas} excluida(s) por sospechosa(s) · ` : ''}JCAS/UACJ y propias · provisional` : 'JCAS/UACJ y propias del distrito'} />
             </div></div>
 
             <nav className="cu-nav" aria-label="Secciones de la cuenca">

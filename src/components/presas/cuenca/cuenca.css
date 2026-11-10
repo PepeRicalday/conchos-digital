@@ -171,7 +171,9 @@ html[data-device='phone'] .cu-dia { height: 24px; }
 .cu-red-cab { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 18px; }
 .cu-red-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 12px 0; }
 .cu-red-kpi { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--pr-line); border-radius: 12px; background: var(--pr-surface); min-width: 0; }
-.cu-red-kpi .an-kpi-val { font-size: 34px; }
+.cu-red-kpis .ui-kpi--compacta .ui-kpi__num { font-size: 34px; }
+.cu-red-kpi .an-kpi-lbl { font-size: 13px; font-weight: 600; color: var(--text-3); }
+.cu-red-kpi .an-kpi-sub { font-size: 12px; color: var(--text-2); line-height: 1.35; }
 .cu-mapa { margin: 12px 0 0; }
 .cu-mapa-svg { display: block; width: 100%; height: auto; max-width: 620px; margin-inline: auto; border: 1px solid var(--pr-line); border-radius: 12px; background: rgba(255, 255, 255, 0.02); }
 .cu-mapa-cuenca { fill: rgba(63, 178, 243, 0.07); stroke: var(--pr-sky); stroke-width: 1.6; stroke-linejoin: round; }
@@ -196,7 +198,7 @@ html[data-device='phone'] .cu-dia { height: 24px; }
 .cu-fila--sel th, .cu-fila--sel td { background: var(--pr-surface-2); }
 .cu-leyenda-viz span { display: inline-flex; align-items: center; gap: 6px; margin-right: 14px; }
 .cu-leyenda-viz svg { flex: none; }
-html[data-device='phone'] .cu-red-kpi .an-kpi-val { font-size: 28px; }
+html[data-device='phone'] .cu-red-kpis .ui-kpi--compacta .ui-kpi__num { font-size: 28px; }
 html[data-device='phone'] .cu-mapa-txt { font-size: 13.5px; stroke-width: 3.5px; }
 
 /* ── Planos de la cuenca (isoyetas y planos climáticos) ───────────────────────── */
@@ -265,7 +267,7 @@ html[data-device='phone'] .cu-capa-chip { min-height: 44px; font-size: 14px; pad
 }
 .cu-plano .cu-plano-img { max-height: min(86vh, 960px); object-fit: contain; }
 .cu-pl-res { gap: 12px; }
-.cu-pl-res .cu-red-kpi .an-kpi-val { font-size: 44px; }
+.cu-pl-res .ui-kpi--compacta .ui-kpi__num { font-size: 44px; }
 .cu-rank { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--pr-line); border-radius: 12px; background: var(--pr-surface); }
 .cu-rank-lista { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
 .cu-rank-fila { position: relative; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 5px 8px; border-radius: 6px; font-size: 13.5px; background: linear-gradient(90deg, rgba(63, 178, 243, 0.26) var(--w), transparent 0); }

@@ -1,3 +1,4 @@
+import { Kpi } from '../../ui/base';
 import { useMemo, useState } from 'react';
 import { usePresasHistorico } from '../../../hooks/usePresasHistorico';
 import type { PresaData } from '../../../hooks/usePresas';
@@ -127,28 +128,12 @@ function AnaliticaCiclo({ presa, fechaISO }: Pick<Props, 'presa' | 'fechaISO'>) 
             </header>
 
             <div className="an-kpis" role="list">
-                <div className="an-kpi" role="listitem">
-                    <span className="an-kpi-lbl">Volumen hoy</span>
-                    <span className="an-kpi-val">{valorHoy == null ? 'S/D' : formatearNumero(valorHoy, 1)}<small> Mm³</small></span>
-                    <span className="an-kpi-sub">{pctHoy == null ? 'Sin lectura vigente' : `${formatearNumero(pctHoy, 1)} % de la capacidad`}</span>
-                </div>
-                <div className="an-kpi" role="listitem">
-                    <span className="an-kpi-lbl">Posición en el ciclo</span>
-                    <span className="an-kpi-val">{calc.posicion ? `${calc.posicion.posicion}.º` : 'S/D'}<small>{calc.posicion ? ` más bajo de ${calc.posicion.de}` : ''}</small></span>
-                    <span className="an-kpi-sub">Mismo día del ciclo en los ciclos pasados</span>
-                </div>
-                <div className="an-kpi" role="listitem">
-                    <span className="an-kpi-lbl">Ritmo reciente</span>
-                    <span className="an-kpi-val">{calc.ritmo ? signo(calc.ritmo.mm3PorDia) : 'S/D'}<small> Mm³/día</small></span>
-                    <span className="an-kpi-sub">{calc.ritmo
+                <Kpi densidad="compacta" etiqueta="Volumen hoy" valor={valorHoy == null ? 'S/D' : formatearNumero(valorHoy, 1)} unidad=" Mm³" contexto={pctHoy == null ? 'Sin lectura vigente' : `${formatearNumero(pctHoy, 1)} % de la capacidad`} />
+                <Kpi densidad="compacta" etiqueta="Posición en el ciclo" valor={calc.posicion ? `${calc.posicion.posicion}.º` : 'S/D'} unidad={calc.posicion ? ` más bajo de ${calc.posicion.de}` : ''} contexto={<>Mismo día del ciclo en los ciclos pasados</>} />
+                <Kpi densidad="compacta" etiqueta="Ritmo reciente" valor={calc.ritmo ? signo(calc.ritmo.mm3PorDia) : 'S/D'} unidad=" Mm³/día" contexto={calc.ritmo
                         ? `${calc.ritmo.dias} d · ${calc.ritmo.historicoMediana != null ? `mediana histórica ${signo(calc.ritmo.historicoMediana)}` : 'sin referencia histórica'}`
-                        : 'Se necesitan dos lecturas separadas 3 días o más'}</span>
-                </div>
-                <div className="an-kpi" role="listitem">
-                    <span className="an-kpi-lbl">Proyección {p ? `al ${fechaCorta(p.puntos[p.puntos.length - 1].fecha)}` : ''}</span>
-                    <span className="an-kpi-val an-kpi-val--rango">{ultimo?.min != null && ultimo.max != null ? `${formatearNumero(ultimo.min, 0)} – ${formatearNumero(ultimo.max, 0)}` : 'S/D'}<small> Mm³</small></span>
-                    <span className="an-kpi-sub">{ultimo?.mediana != null ? `${fragil ? 'Valor central' : 'Mediana'} ${formatearNumero(ultimo.mediana, 0)} Mm³ · n = ${p!.trayectorias.length} ciclos${fragil ? ' (orientativo)' : ''}` : 'Sin base suficiente'}</span>
-                </div>
+                        : 'Se necesitan dos lecturas separadas 3 días o más'} />
+                <Kpi densidad="compacta" etiqueta={`Proyección ${p ? `al ${fechaCorta(p.puntos[p.puntos.length - 1].fecha)}` : ''}`} valor={ultimo?.min != null && ultimo.max != null ? `${formatearNumero(ultimo.min, 0)} – ${formatearNumero(ultimo.max, 0)}` : 'S/D'} unidad=" Mm³" rango contexto={ultimo?.mediana != null ? `${fragil ? 'Valor central' : 'Mediana'} ${formatearNumero(ultimo.mediana, 0)} Mm³ · n = ${p!.trayectorias.length} ciclos${fragil ? ' (orientativo)' : ''}` : 'Sin base suficiente'} />
             </div>
 
             <section className="an-card" aria-label="Ciclo en curso frente a ciclos pasados">

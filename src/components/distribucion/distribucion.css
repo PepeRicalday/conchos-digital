@@ -19,7 +19,7 @@
 .dc-tramos { position: absolute; left: 0; right: 0; top: 0; height: 70px; }
 .dc-tramo { position: absolute; height: 18px; border-radius: 6px; background: color-mix(in srgb, var(--st-info) 22%, transparent); border: 1px solid color-mix(in srgb, var(--st-info) 50%, transparent); overflow: hidden; }
 .dc-tramo span { display: block; padding: 0 6px; font: 600 11px/16px var(--sc-mono); color: var(--sc-t1); white-space: nowrap; }
-.dc-linea { position: absolute; left: 0; right: 0; top: 96px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, color-mix(in srgb, var(--st-info) 55%, transparent), rgba(25,158,112,.55)); }
+.dc-linea { position: absolute; left: 0; right: 0; top: 96px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, color-mix(in srgb, var(--st-info) 55%, transparent), color-mix(in srgb, var(--sc-s3) 55%, transparent)); }
 .dc-escala { position: absolute; top: 80px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--sc-t3); }
 .dc-escala-viva { color: var(--sc-ok); }
 .dc-escala-km { margin-top: 28px; font: 600 11px var(--sc-mono); color: var(--sc-t2); }

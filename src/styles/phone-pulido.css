@@ -216,7 +216,7 @@ html[data-device="phone"] a[href*="nuke"], html[data-device="phone"] .login-clea
 /* ═══ MONITOR PÚBLICO: ajustes tras la 2.ª ronda visual ═════════════════════ */
 html[data-device="phone"] .phb-main { flex-wrap: nowrap; }
 /* el tablero es una hoja opaca: antes se transparentaba el HUD y el banner de atrás */
-html[data-device="phone"] .info-cards-dock { background: rgba(2, 6, 23, 0.98); }
+html[data-device="phone"] .info-cards-dock { background: color-mix(in srgb, var(--bg-app) 98%, transparent); }
 /* deja sitio al botón cerrar para que no tape la última pestaña */
 html[data-device="phone"] .info-cards-dock .dock-tabs { padding-right: 52px; }
 html[data-device="phone"] .dock-minimized { white-space: nowrap; padding: 10px 22px; font-size: 0.78rem; min-height: 44px; width: auto; }

@@ -79,7 +79,7 @@
 .ci-burbuja hr { border: 0; border-top: 1px solid var(--sc-line); margin: 0.9em 0; }
 .ci-tabla-wrap { margin: 0 0 0.8em; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--sc-line); border-radius: 10px; }
 .ci-tabla-wrap .sc-tabla th, .ci-tabla-wrap .sc-tabla td { white-space: nowrap; }
-.ci-tabla-wrap .sc-tabla thead th { position: sticky; top: 0; background: #0a1626; }
+.ci-tabla-wrap .sc-tabla thead th { position: sticky; top: 0; background: var(--surface-1); }
 .ci-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font: 400 12px var(--sc-mono); color: var(--sc-t3); }
 .ci-acciones { display: flex; flex-wrap: wrap; gap: 4px; }
 .ci-accion { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--sc-t3); font: 600 12px var(--sc-body); cursor: pointer; }

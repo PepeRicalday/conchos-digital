@@ -970,7 +970,7 @@
 
 .storage-comparison-viz {
     padding: 24px;
-    background: rgba(2, 6, 23, 0.4);
+    background: color-mix(in srgb, var(--bg-app) 40%, transparent);
     border-radius: 16px;
     border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
 }
@@ -1678,7 +1678,7 @@
 
 /* Range Slider */
 .scada-range-container {
-    background: linear-gradient(to right, #a855f7, var(--st-info), #f97316);
+    background: linear-gradient(to right, var(--sc-violet), var(--st-info), var(--sc-s2));
     height: 6px;
     border-radius: 999px;
     width: 100%;
@@ -1899,7 +1899,7 @@
     border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent); border-radius: 10px;
     display: flex; flex-direction: column; gap: 4px; transition: border-color 0.2s;
 }
-.scada-toma-card--cfe { border-color: rgba(167,139,250,0.2); background: rgba(167,139,250,0.04); }
+.scada-toma-card--cfe { border-color: color-mix(in srgb, var(--sc-violet) 20%, transparent); background: color-mix(in srgb, var(--sc-violet) 4%, transparent); }
 .scada-toma-header { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
 .scada-toma-nombre { font-size: 11px; font-weight: 900; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; font-family: 'JetBrains Mono', monospace; }
 .scada-toma-estado-badge { font-size: 11px; font-weight: 900; padding: 1px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.12em; font-family: 'JetBrains Mono', monospace; }

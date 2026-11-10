@@ -87,7 +87,7 @@ export const MapaCanal = memo(function MapaCanal({ kmIni, kmFin, escalas, modulo
                 <li><i style={{ background: 'color-mix(in srgb, var(--st-info) 50%, transparent)' }} />Tramo de módulo</li>
                 <li><i style={{ background: 'var(--st-ok)' }} />Escala con lectura vigente (≤ 4 h)</li>
                 <li><i style={{ background: 'var(--text-3)' }} />Escala sin lectura vigente</li>
-                <li><i style={{ background: '#a78bfa' }} />Escala de referencia (K-64, K-94+200): solo nivel, sin gasto</li>
+                <li><i style={{ background: 'var(--sc-violet)' }} />Escala de referencia (K-64, K-94+200): solo nivel, sin gasto</li>
                 <li><i style={{ background: 'var(--st-warn)' }} />Toma abierta / con movimiento</li>
             </ul>
 

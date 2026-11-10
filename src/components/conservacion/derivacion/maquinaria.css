@@ -60,7 +60,7 @@
 .mq-estmec { display: inline-block; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--sc-line); font: 600 12px var(--sc-body); color: var(--sc-t2); }
 .mq-estmec[data-e="bueno"] { color: var(--sc-ok); border-color: color-mix(in srgb, var(--st-ok) 40%, transparent); }
 .mq-estmec[data-e="regular"] { color: var(--sc-warn); border-color: color-mix(in srgb, var(--st-warn) 45%, transparent); }
-.mq-estmec[data-e="malo"] { color: #fb923c; border-color: rgba(251, 146, 60, 0.5); }
+.mq-estmec[data-e="malo"] { color: #fb923c; border-color: color-mix(in srgb, var(--sc-s2) 50%, transparent); }
 .mq-estmec[data-e="baja"] { color: var(--sc-crit); border-color: color-mix(in srgb, var(--st-crit) 50%, transparent); }
 
 .mq-leyenda { margin: 0; font-size: var(--sc-fs-2, 14px); color: var(--sc-t2); max-width: 90ch; }

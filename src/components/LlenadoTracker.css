@@ -66,7 +66,7 @@
     overflow: hidden;
     transition: all 0.4s ease;
     border: 1px solid color-mix(in srgb, var(--st-info) 10%, transparent);
-    background: #0d121b; /* Exact target Navy */
+    background: var(--surface-1); /* Exact target Navy */
     display: flex;
     flex-direction: column;
     min-height: 240px;
@@ -80,13 +80,13 @@
 
 .punto-card.confirmed {
     border-color: color-mix(in srgb, var(--st-ok) 50%, transparent);
-    background: linear-gradient(180deg, color-mix(in srgb, var(--st-ok) 5%, transparent) 0%, #0d121b 100%);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--st-ok) 5%, transparent) 0%, var(--surface-1) 100%);
     box-shadow: 0 0 20px color-mix(in srgb, var(--st-ok) 10%, transparent);
 }
 
 .punto-card.ancla {
     border-color: var(--st-info);
-    background: linear-gradient(180deg, color-mix(in srgb, var(--st-info) 5%, transparent) 0%, #0d121b 100%);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--st-info) 5%, transparent) 0%, var(--surface-1) 100%);
 }
 
 .punto-card.proximo {
@@ -334,7 +334,7 @@
 
 .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #2563eb, var(--st-info));
+    background: linear-gradient(90deg, var(--fill-info), var(--st-info));
     box-shadow: 0 0 12px color-mix(in srgb, var(--st-info) 40%, transparent);
     transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
 }

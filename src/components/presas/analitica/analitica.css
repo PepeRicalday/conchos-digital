@@ -25,7 +25,7 @@
 .an-leyenda { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--pr-t2); }
 .an-leyenda li { display: inline-flex; align-items: center; gap: 8px; }
 
-.an-tip { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--pr-line); border-radius: 10px; background: #0b1626; font-size: 12px; color: var(--pr-t2); }
+.an-tip { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--pr-line); border-radius: 10px; background: var(--surface-1); font-size: 12px; color: var(--pr-t2); }
 .an-tip b { color: var(--pr-t1); }
 
 .an-seg { display: inline-flex; border: 1px solid var(--pr-line); border-radius: 10px; overflow: hidden; }

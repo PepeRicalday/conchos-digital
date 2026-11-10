@@ -388,9 +388,9 @@
 }
 
 .sim-ctx-item.base {
-  background: rgba(30, 58, 95, 0.5);
+  background: color-mix(in srgb, var(--line-sutil) 50%, transparent);
   color: var(--text-3);
-  border: 1px solid #1e3a5f;
+  border: 1px solid var(--line-sutil);
 }
 
 .sim-ctx-item.current {
@@ -414,7 +414,7 @@
 .sim-ctx-item.sim.eq {
   background: color-mix(in srgb, var(--line-fuerte) 10%, transparent);
   color: var(--text-3);
-  border: 1px solid #1e3a5f;
+  border: 1px solid var(--line-sutil);
 }
 
 .sim-river-toggle {
@@ -482,7 +482,7 @@
 
 .sim-start-time-input {
   flex: 1;
-  background: rgba(30, 58, 95, 0.5);
+  background: color-mix(in srgb, var(--line-sutil) 50%, transparent);
   border: 1px solid color-mix(in srgb, var(--st-info) 30%, transparent);
   border-radius: 4px;
   color: var(--text-1);
@@ -672,7 +672,7 @@
   justify-content: space-between;
   font-size: 11px;
   padding: 3px 0;
-  border-bottom: 1px solid rgba(30,58,95,0.4);
+  border-bottom: 1px solid color-mix(in srgb, var(--line-sutil) 40%, transparent);
 }
 
 .sim-tech-row:last-child        { border-bottom: none; }
@@ -745,7 +745,7 @@
   font-weight: 600;
 }
 
-.tag-m1 { color: #f97316; border-color: rgba(249,115,22,0.3); background: rgba(249,115,22,0.07); }
+.tag-m1 { color: #f97316; border-color: color-mix(in srgb, var(--sc-s2) 30%, transparent); background: color-mix(in srgb, var(--sc-s2) 7%, transparent); }
 .tag-m2 { color: var(--st-info); border-color: color-mix(in srgb, var(--st-info) 30%, transparent); background: color-mix(in srgb, var(--st-info) 7%, transparent); }
 
 /* Alto propio y definido: el gráfico (absolute inset 0) nunca depende de un % sobre un padre sin alto,
@@ -791,7 +791,7 @@
 .sim-leg--muted      { color: var(--text-3); }
 .sim-leg-dot--amber  { background: var(--st-warn); border-radius: 50%; }
 .sim-leg-dot--cyan-line { background: var(--st-info); border-radius: 0; }
-.sim-leg-dot--teal   { background: #2dd4bf; border-radius: 50%; }
+.sim-leg-dot--teal   { background: var(--st-info); border-radius: 50%; }
 
 /* ── SECCIÓN TRANSVERSAL ────────────────────────────────────── */
 .sim-cross-card {
@@ -1020,7 +1020,7 @@
   justify-content: space-between;
   font-size: 11px;
   padding: 4px 0;
-  border-bottom: 1px solid rgba(30,58,95,0.3);
+  border-bottom: 1px solid color-mix(in srgb, var(--line-sutil) 30%, transparent);
 }
 
 .sim-balance-row:last-child        { border-bottom: none; }
@@ -1160,8 +1160,8 @@
 }
 /* ORIFICIO: violeta — valor calculado por fórmula (sin aforo) */
 .sim-gate-anchored-badge.sim-gate-anchored-orificio {
-  background: rgba(167, 139, 250, 0.12);
-  border: 1px solid rgba(167, 139, 250, 0.4);
+  background: color-mix(in srgb, var(--sc-violet) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sc-violet) 40%, transparent);
   color: #a78bfa;
 }
 
@@ -1401,7 +1401,7 @@
 .sim-compare-card {
   background: var(--sim-card);
   border: 1px solid #1a3a60;
-  border-left: 3px solid #a78bfa;
+  border-left: 3px solid var(--sc-violet);
   border-radius: 8px;
   flex-shrink: 0;
   overflow: hidden;
@@ -1413,7 +1413,7 @@
   justify-content: space-between;
   padding: 8px 14px;
   border-bottom: 1px solid var(--sim-border);
-  background: rgba(167, 139, 250, 0.06);
+  background: color-mix(in srgb, var(--sc-violet) 6%, transparent);
 }
 
 .sim-compare-title {
@@ -1528,14 +1528,14 @@
 .sim-compare-table td {
   padding: 4px 8px;
   text-align: right;
-  border-bottom: 1px solid rgba(30, 58, 95, 0.4);
+  border-bottom: 1px solid color-mix(in srgb, var(--line-sutil) 40%, transparent);
   font-family: var(--sim-mono);
 }
 
 .sim-compare-table td:first-child { text-align: left; }
 
 .sim-compare-table tbody tr:hover { background: color-mix(in srgb, var(--text-1) 2%, transparent); cursor: pointer; }
-.sim-compare-table tbody tr.active-row { background: rgba(167,139,250,0.06); }
+.sim-compare-table tbody tr.active-row { background: color-mix(in srgb, var(--sc-violet) 6%, transparent); }
 
 .sim-compare-name {
   color: var(--sim-text);
@@ -1561,7 +1561,7 @@
   display: flex;
   gap: 0;
   border-top: 1px solid var(--sim-border);
-  background: rgba(167,139,250,0.04);
+  background: color-mix(in srgb, var(--sc-violet) 4%, transparent);
 }
 
 .sim-compare-sum-item {
@@ -1619,7 +1619,7 @@
   white-space: nowrap;
 }
 .sim-preset-btn:hover { background: color-mix(in srgb, var(--text-1) 6%, transparent); color: var(--text-1); }
-.sim-preset-btn.active { background: rgba(167,139,250,0.15); border-color: #a78bfa; color: #a78bfa; }
+.sim-preset-btn.active { background: color-mix(in srgb, var(--sc-violet) 15%, transparent); border-color: var(--sc-violet); color: #a78bfa; }
 
 /* ── Barras de eficiencia comparativas ───────────────────────────── */
 .sim-eff-bars {
@@ -1712,8 +1712,8 @@
   border: 1px solid transparent;
 }
 .sim-mod-row.modified {
-  border-color: rgba(167,139,250,0.3);
-  background: rgba(167,139,250,0.04);
+  border-color: color-mix(in srgb, var(--sc-violet) 30%, transparent);
+  background: color-mix(in srgb, var(--sc-violet) 4%, transparent);
 }
 
 .sim-mod-km {
@@ -1743,7 +1743,7 @@
   font-family: monospace;
   text-align: right;
 }
-.sim-mod-input:focus { outline: none; border-color: #a78bfa; }
+.sim-mod-input:focus { outline: none; border-color: var(--sc-violet); }
 
 .sim-mod-unit {
   color: var(--sim-muted);
@@ -1768,8 +1768,8 @@
 .sim-mod-close-btn:hover { opacity: 0.8; }
 
 .sim-rpc-btn {
-  background: linear-gradient(135deg, rgba(167,139,250,0.15), rgba(99,102,241,0.1));
-  border: 1px solid rgba(167,139,250,0.4);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--sc-violet) 15%, transparent), color-mix(in srgb, var(--sc-violet) 10%, transparent));
+  border: 1px solid color-mix(in srgb, var(--sc-violet) 40%, transparent);
   border-radius: 5px;
   color: #a78bfa;
   cursor: pointer;
@@ -1780,7 +1780,7 @@
   text-align: center;
   transition: background 0.15s;
 }
-.sim-rpc-btn:hover:not(:disabled) { background: rgba(167,139,250,0.2); }
+.sim-rpc-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--sc-violet) 20%, transparent); }
 .sim-rpc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── Resultados RPC servidor ────────────────────────────────────── */
@@ -1864,7 +1864,7 @@
 /* ── Tarjeta de decisión individual ─────────────────────────────── */
 .sim-dec-card {
   padding: 8px 12px;
-  border-bottom: 1px solid rgba(30, 58, 95, 0.5);
+  border-bottom: 1px solid color-mix(in srgb, var(--line-sutil) 50%, transparent);
   transition: background 0.15s;
 }
 .sim-dec-card:last-child { border-bottom: none; }
@@ -1948,8 +1948,8 @@
   font-size: 11px;
   font-weight: 700;
   color: #2dd4bf;
-  background: rgba(45, 212, 191, 0.08);
-  border: 1px solid rgba(45, 212, 191, 0.2);
+  background: color-mix(in srgb, var(--st-info) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--st-info) 20%, transparent);
   border-radius: 999px;
   padding: 2px 8px;
   margin-top: 4px;
@@ -1959,7 +1959,7 @@
 /* ── PANEL CONDICIONANTES DE NIVEL · SIMULACIÓN TEMPORAL ──────────────── */
 .nivel-panel {
   background: #0c1523;
-  border-bottom: 1px solid #1e2d40;
+  border-bottom: 1px solid var(--line-sutil);
   padding: 5px 16px;
 }
 .nivel-panel.expanded { padding-bottom: 10px; }
@@ -2020,7 +2020,7 @@
   padding: 3px 4px;
   font-size: 11px;
   color: var(--text-3);
-  border-bottom: 1px solid #1e2d40;
+  border-bottom: 1px solid var(--line-sutil);
 }
 .nivel-panel-row {
   display: grid;
@@ -2054,7 +2054,7 @@
   padding: 3px 6px;
   font-size: 11px;
   background: #0f1f30;
-  border: 1px solid #1e2d40;
+  border: 1px solid var(--line-sutil);
   border-radius: 4px;
   color: var(--text-1);
 }

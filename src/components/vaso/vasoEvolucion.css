@@ -116,7 +116,7 @@
 
 /* ── Mapa comparativo (M3): proporción real, escala, norte y capas ── */
 .vaso-mapa { display: flex; flex-direction: column; gap: 10px; }
-.vaso-mapa svg { display: block; width: 100%; height: auto; max-height: min(56vh, 520px); border-radius: 10px; background: rgba(2, 6, 23, 0.55); border: 1px solid var(--sc-line); }
+.vaso-mapa svg { display: block; width: 100%; height: auto; max-height: min(56vh, 520px); border-radius: 10px; background: color-mix(in srgb, var(--bg-app) 55%, transparent); border: 1px solid var(--sc-line); }
 .vaso-mapa-escala text, .vaso-mapa-norte text { font: 600 12px var(--sc-mono); fill: #e8eef6; }
 .vaso-mapa-norte path { fill: #e8eef6; }
 .vaso-capas { display: flex; flex-wrap: wrap; gap: 8px; }

@@ -64,7 +64,7 @@
 .sc-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--sc-line); background: var(--sc-surface-2); color: var(--sc-t1); font: 600 14px var(--sc-body); cursor: pointer; transition: border-color 0.2s, background 0.2s; }
 .sc-btn:hover { border-color: color-mix(in srgb, var(--st-info) 50%, transparent); background: color-mix(in srgb, var(--st-info) 10%, transparent); }
 .sc-btn:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 2px; }
-.sc-btn-primario { background: linear-gradient(180deg, #0B68BF, #0A5BB0); border-color: transparent; color: #fff; }
+.sc-btn-primario { background: linear-gradient(180deg, #0B68BF, var(--fill-info)); border-color: transparent; color: #fff; }
 .sc-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
 .sc-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--sc-line); background: var(--sc-surface); font-family: var(--sc-mono); font-size: 12px; font-weight: 600; letter-spacing: 0.03em; color: var(--sc-t2); }
 .sc-chip-ok { color: var(--sc-ok); border-color: color-mix(in srgb, var(--st-ok) 40%, transparent); }

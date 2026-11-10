@@ -8,7 +8,7 @@
     /* Deja libre el menú lateral (mismo criterio que .vaso-screen-overlay): sin esto la ficha se empalmaba con él. */
     top: 0; right: 0; bottom: 0; left: var(--sidebar-w, 280px);
     z-index: 1500;
-    background: rgba(2, 6, 23, 0.85);
+    background: color-mix(in srgb, var(--bg-app) 85%, transparent);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
@@ -74,7 +74,7 @@
     justify-content: center;
     color: var(--text-3);
     font-size: 0.8rem;
-    background: rgba(2, 6, 23, 0.4);
+    background: color-mix(in srgb, var(--bg-app) 40%, transparent);
     pointer-events: none;
 }
 

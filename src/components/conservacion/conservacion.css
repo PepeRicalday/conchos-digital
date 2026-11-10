@@ -331,7 +331,7 @@ html[data-device='phone'] .pf-svg { touch-action: auto; }
 .cons-inv > summary:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 2px; border-radius: 8px; }
 .cons-inv-lista { display: flex; flex-direction: column; max-height: 360px; margin: 8px 0 12px; padding: 0; list-style: none; overflow-y: auto; }
 .cons-inv-lista li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto auto; align-items: center; gap: 4px 12px; padding: 6px 4px; border-top: 1px solid var(--sc-line); }
-.cons-inv-sel { background: rgba(167, 139, 250, 0.12); }
+.cons-inv-sel { background: color-mix(in srgb, var(--sc-violet) 12%, transparent); }
 .cons-inv-txt { display: flex; flex-direction: column; min-width: 0; }
 .cons-inv-txt b { font-size: 13px; font-weight: 600; color: var(--sc-t1); }
 .cons-inv-txt b em { font-weight: 400; font-style: normal; color: var(--sc-t2); }
@@ -393,7 +393,7 @@ html[data-device='phone'] .pf-svg { touch-action: auto; }
 .cons-ubic-avisos { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .cons-ubic-avisos li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; align-items: start; font-size: 13px; color: var(--sc-t1); }
 .cons-ubic-avisos small { display: block; font-size: 12px; color: var(--sc-t2); overflow-wrap: anywhere; }
-.cons-ubic-ficha { padding: 12px; border: 1px solid rgba(167, 139, 250, 0.45); border-radius: 12px; background: rgba(167, 139, 250, 0.07); }
+.cons-ubic-ficha { padding: 12px; border: 1px solid color-mix(in srgb, var(--sc-violet) 45%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--sc-violet) 7%, transparent); }
 .cons-ubic-ficha-cab { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .cons-ubic-ficha-cab small { display: block; font-size: 12px; color: var(--sc-t2); }
 .cons-ubic-fuera > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-size: 14px; font-weight: 600; }
@@ -405,7 +405,7 @@ html[data-device='phone'] .pf-svg { touch-action: auto; }
 .cons-mk { display: flex; align-items: center; justify-content: center; background: none; border: 0; }
 .cons-mk svg { display: block; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.75)); }
 .cons-mk:focus-visible { outline: 3px solid var(--sc-sky); outline-offset: -2px; border-radius: 8px; }
-.cons-mk-sel svg { outline: 3px solid #a78bfa; outline-offset: 3px; border-radius: 50%; }
+.cons-mk-sel svg { outline: 3px solid var(--sc-violet); outline-offset: 3px; border-radius: 50%; }
 .cons-mk-rotulo.leaflet-tooltip { padding: 3px 8px; border: 1px solid var(--sc-line); background: var(--surface-1); color: var(--sc-t1); font: 500 12px/1.3 var(--sc-body); white-space: nowrap; }
 .cons-mk-rotulo-est.leaflet-tooltip { border-style: dashed; border-color: var(--sc-t1); }
 @media (max-width: 900px) {
@@ -504,8 +504,8 @@ html[data-device='phone'] .cons-ubic-panel { padding-bottom: calc(14px + env(saf
 
 /* Listas desplegables nativas: sin esto el navegador las abre con fondo blanco y hereda el texto claro (ilegible). */
 .cons-pagina select { color-scheme: dark; }
-.cons-pagina select option, .cons-pagina select optgroup { background: #0f1a2b; color: var(--text-1); }
-.cons-pagina select option:checked { background: #1d3a5c; color: #ffffff; }
+.cons-pagina select option, .cons-pagina select optgroup { background: var(--surface-1); color: var(--text-1); }
+.cons-pagina select option:checked { background: var(--line-sutil); color: #ffffff; }
 
 /* Auditoría de presentación: nada por debajo de 12 px y objetivos táctiles de 44 px en los enlaces de las tablas. */
 .cons-pagina .sc-kicker, .cons-pagina .cons-filtros label, .cons-pagina .cons-etiqueta, .cons-pagina .cons-ins, .cons-pagina .cons-tabla small, .cons-pagina .cons-tabla th small,

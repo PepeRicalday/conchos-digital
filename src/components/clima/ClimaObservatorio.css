@@ -116,8 +116,8 @@
 .cl-col-barra small { font-size: 11px; color: var(--cl-t2); }
 .cl-barra-par { display: flex; flex-direction: column; gap: 3px; margin-bottom: 3px; }
 .cl-barra { display: block; height: 7px; border-radius: 0 3px 3px 0; min-width: 2px; }
-.cl-barra-dem { background: #3987e5; }
-.cl-barra-ent { background: #199e70; }
+.cl-barra-dem { background: var(--sc-s1); }
+.cl-barra-ent { background: var(--sc-s3); }
 .cl-bal-deficit { color: var(--cl-crit); border-color: color-mix(in srgb, var(--st-crit) 45%, transparent); }
 .cl-bal-equilibrado { color: var(--cl-ok); border-color: color-mix(in srgb, var(--st-ok) 40%, transparent); }
 .cl-bal-superavit { color: var(--cl-warn); border-color: color-mix(in srgb, var(--st-warn) 40%, transparent); }
@@ -179,7 +179,7 @@
 .cl-rd-min { text-align: right; color: var(--st-info); }
 .cl-rd-max { color: #fdba74; }
 .cl-rd-pista { position: relative; height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--text-3) 12%, transparent); }
-.cl-rd-barra { position: absolute; top: 0; bottom: 0; border-radius: 999px; min-width: 4px; background: linear-gradient(90deg, var(--st-info), var(--st-warn) 70%, #f97316); }
+.cl-rd-barra { position: absolute; top: 0; bottom: 0; border-radius: 999px; min-width: 4px; background: linear-gradient(90deg, var(--st-info), var(--st-warn) 70%, var(--sc-s2)); }
 .cl-rd-ahora { position: absolute; top: 50%; width: 10px; height: 10px; margin-left: -5px; transform: translateY(-50%); border-radius: 50%; background: var(--cl-t1); box-shadow: 0 0 0 2px var(--bg-app); }
 .cl-rd-top { color: var(--cl-warn) !important; font-weight: 700; }
 .cl-rd-lluvia { color: var(--cl-sky) !important; font-weight: 700; }

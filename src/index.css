@@ -446,8 +446,8 @@ html {
    :where() deja la especificidad en 0 para que un estilo local pueda sobrescribirlo a propósito. */
 :root { color-scheme: dark; }
 :where(select, input, textarea) { color-scheme: dark; }
-:where(select option, select optgroup) { background-color: #0f1a2b; color: var(--text-1); }
-:where(select option:checked) { background-color: #1d3a5c; color: #ffffff; }
+:where(select option, select optgroup) { background-color: var(--surface-1); color: var(--text-1); }
+:where(select option:checked) { background-color: var(--line-sutil); color: #ffffff; }
 :where(select option:disabled) { color: var(--text-3); }
 :where(input, textarea)::placeholder { color: var(--text-3); opacity: 1; }
 

@@ -55,7 +55,7 @@
 .goes-dcp { font-family: var(--pr-mono); font-size: 11px; color: var(--pr-t3); }
 .goes-origen { white-space: nowrap; padding: 1px 8px; border: 1px solid var(--pr-line); border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.5; color: var(--pr-t2); }
 .goes-origen--presa { border-color: color-mix(in srgb, var(--st-info) 40%, transparent); background: color-mix(in srgb, var(--st-info) 8%, transparent); color: var(--pr-sky); }
-.goes-origen--rio { border-color: rgba(167, 139, 250, 0.45); background: rgba(167, 139, 250, 0.09); color: var(--pr-violet); }
+.goes-origen--rio { border-color: color-mix(in srgb, var(--sc-violet) 45%, transparent); background: color-mix(in srgb, var(--sc-violet) 9%, transparent); color: var(--pr-violet); }
 
 .goes-sello { display: inline-flex; align-items: center; gap: 5px; flex: none; padding: 3px 9px; border: 1px solid var(--pr-line); border-radius: 999px; font-family: var(--pr-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; white-space: nowrap; color: var(--pr-t2); }
 .goes-sello--en_linea { color: var(--pr-ok); border-color: color-mix(in srgb, var(--st-ok) 45%, transparent); }
@@ -139,7 +139,7 @@
 .goes-lectura { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; min-height: 64px; padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--pr-line); border-radius: 10px; background: var(--pr-surface-2); font-size: 12px; color: var(--pr-t2); }
 .goes-lectura--ayuda { color: var(--pr-t3); }
 .goes-lectura-hora { flex-basis: 100%; }
-.goes-tip { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--pr-line); border-radius: 10px; background: #0b1626; font-size: 12px; color: var(--pr-t2); }
+.goes-tip { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--pr-line); border-radius: 10px; background: var(--surface-1); font-size: 12px; color: var(--pr-t2); }
 .goes-lectura b, .goes-tip b { color: var(--pr-t1); }
 .goes-tip-fila { display: flex; align-items: center; gap: 7px; }
 .goes-tip-fila i { width: 9px; height: 9px; border-radius: 3px; flex: none; }

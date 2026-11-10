@@ -605,7 +605,7 @@
 .estaciones-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .estaciones-dl {
     display: inline-flex; align-items: center; gap: 5px;
-    background: #0A5BB0; color: #fff; border: none; border-radius: 6px;
+    background: var(--fill-info); color: #fff; border: none; border-radius: 6px;
     padding: 6px 12px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
     transition: opacity 0.15s;
 }
@@ -656,8 +656,8 @@
     opacity: 0.7;
 }
 .station-icon {
-    background: linear-gradient(140deg, var(--st-info), #2563eb);
-    box-shadow: 0 6px 18px -6px rgba(37,99,235,0.6);
+    background: linear-gradient(140deg, var(--st-info), var(--fill-info));
+    box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--fill-info) 60%, transparent);
 }
 .station-details h3 { letter-spacing: -0.01em; }
 
@@ -805,8 +805,8 @@
 }
 .proc-observado { background: #16a34a; }
 .proc-estimado { background: var(--st-warn); }
-.proc-pronosticado { background: #2563eb; }
-.proc-satelite { background: #7c3aed; }
+.proc-pronosticado { background: var(--fill-info); }
+.proc-satelite { background: var(--sc-violet); }
 .proc-ninguna { background: var(--line-fuerte); }
 
 /* El estado de la estación ahora lo colorea la bandera QA (color inline), así

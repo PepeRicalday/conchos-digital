@@ -154,7 +154,7 @@
     position: relative;
     display: flex;
     align-items: center;
-    background: rgba(2, 6, 23, 0.6);
+    background: color-mix(in srgb, var(--bg-app) 60%, transparent);
     border: 1px solid color-mix(in srgb, var(--st-info) 20%, transparent);
     border-radius: 8px;
     padding: 0 0.75rem;
@@ -436,7 +436,7 @@
 .geo-sidebar-fade {
     height: 14px;
     margin-top: -14px;
-    background: linear-gradient(to bottom, transparent, rgba(5, 11, 22, 0.55));
+    background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--bg-app) 55%, transparent));
     pointer-events: none;
     flex-shrink: 0;
 }
@@ -647,8 +647,8 @@
     inset: 0;
     z-index: 150;
     pointer-events: none;
-    background: radial-gradient(ellipse at center, rgba(5, 11, 22, 0) 45%, rgba(5, 11, 22, 0.38) 100%),
-        linear-gradient(180deg, rgba(5, 11, 22, 0.32) 0%, rgba(5, 11, 22, 0) 18%, rgba(5, 11, 22, 0) 82%, rgba(5, 11, 22, 0.32) 100%);
+    background: radial-gradient(ellipse at center, color-mix(in srgb, var(--bg-app) 0%, transparent) 45%, color-mix(in srgb, var(--bg-app) 38%, transparent) 100%),
+        linear-gradient(180deg, color-mix(in srgb, var(--bg-app) 32%, transparent) 0%, color-mix(in srgb, var(--bg-app) 0%, transparent) 18%, color-mix(in srgb, var(--bg-app) 0%, transparent) 82%, color-mix(in srgb, var(--bg-app) 32%, transparent) 100%);
 }
 
 .geo-map-inner {
@@ -1360,8 +1360,8 @@
 }
 
 /* ── UTILITY CLASSES FOR REFACTORING INLINE STYLES ── */
-.geo-indicator-purple { background: #8b5cf6; }
-.geo-indicator-blue { background: #1d4ed8; }
+.geo-indicator-purple { background: var(--sc-violet); }
+.geo-indicator-blue { background: var(--fill-info); }
 .geo-indicator-cyan { background: var(--st-info); }
 .geo-indicator-amber { background: var(--st-warn); }
 .geo-indicator-teal { background: var(--st-info); }
@@ -1743,7 +1743,7 @@
 .geo-event-bg-llenado { background: rgba(77, 141, 255, 0.94); color: #051329; }
 .geo-event-bg-estabilizacion { background: color-mix(in srgb, var(--st-ok) 94%, transparent); }
 .geo-event-bg-contingencia { background: rgba(245, 166, 35, 0.94); color: #2b1904; }
-.geo-event-bg-anomalia { background: rgba(167, 139, 250, 0.94); color: #180b34; }
+.geo-event-bg-anomalia { background: color-mix(in srgb, var(--sc-violet) 94%, transparent); color: #180b34; }
 .geo-event-bg-alerta { background: rgba(239, 69, 101, 0.94); color: #2b0611; }
 
 /* ══════════════════════════════════════════════════════════════════════════

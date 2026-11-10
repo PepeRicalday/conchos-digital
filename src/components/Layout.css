@@ -10,7 +10,7 @@
     display: flex;
     height: 100vh;
     height: 100dvh;
-    background: radial-gradient(circle at 50% -20%, var(--surface-1) 0%, rgba(2, 6, 23, 1) 100%);
+    background: radial-gradient(circle at 50% -20%, var(--surface-1) 0%, var(--bg-app) 100%);
     color: var(--color-text-primary);
     position: relative;
     overflow: hidden;
@@ -89,7 +89,7 @@
     position: fixed;
     left: 0;
     top: 0;
-    background: linear-gradient(180deg, rgba(2, 6, 23, 0.9) 0%, rgba(2, 6, 23, 0.7) 100%);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg-app) 90%, transparent) 0%, color-mix(in srgb, var(--bg-app) 70%, transparent) 100%);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border-right: 1px solid var(--glass-border);
@@ -358,7 +358,7 @@ html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait
     box-sizing: border-box;
     height: calc(var(--topbar-h) + var(--sat));
     padding: var(--sat) calc(10px + var(--sar)) 0 calc(6px + var(--sal));
-    background: rgba(2, 6, 23, 0.92);
+    background: color-mix(in srgb, var(--bg-app) 92%, transparent);
     -webkit-backdrop-filter: blur(14px);
     backdrop-filter: blur(14px);
     border-bottom: 1px solid var(--glass-border);
@@ -415,7 +415,7 @@ html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait
     position: fixed;
     inset: 0;
     z-index: 1100;
-    background: rgba(2, 6, 23, 0.62);
+    background: color-mix(in srgb, var(--bg-app) 62%, transparent);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.25s ease;

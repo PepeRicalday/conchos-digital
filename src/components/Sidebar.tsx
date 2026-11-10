@@ -252,7 +252,7 @@ const Sidebar = () => {
                             fontWeight: 800,
                             padding: '2px 6px',
                             borderRadius: '9999px',
-                            background: 'linear-gradient(135deg, color-mix(in srgb, var(--st-info) 20%, transparent), rgba(129, 140, 248, 0.2))',
+                            background: 'linear-gradient(135deg, color-mix(in srgb, var(--st-info) 20%, transparent), color-mix(in srgb, var(--sc-violet) 20%, transparent))',
                             color: 'var(--st-info)',
                             border: '1px solid color-mix(in srgb, var(--st-info) 20%, transparent)',
                             letterSpacing: '0.5px',

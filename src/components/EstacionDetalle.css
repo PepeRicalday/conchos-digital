@@ -484,7 +484,7 @@
 
 .v-barra-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--st-info), #7dd3fc);
+    background: linear-gradient(90deg, var(--st-info), var(--st-info));
     border-radius: 3px;
 }
 

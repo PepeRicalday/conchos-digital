@@ -33,6 +33,18 @@ poner('--surface-2', ['#1e293b', '#10284f']);
 poner('--text-3', ['#94a3b8', '#8396ad', '#8fa7c8']);
 poner('--line-sutil', ['#334155', '#475569']);
 poner('--line-fuerte', ['#64748b']);
+poner('--st-info', ['#06b6d4', '#7dd3fc', '#2dd4bf']);
+poner('--fill-info', ['#2563eb', '#0a5bb0', '#1d4ed8']);
+poner('--sc-violet', ['#a78bfa', '#8b5cf6', '#7c3aed', '#a855f7', '#9333ea', '#6366f1', '#818cf8']);
+poner('--sc-s1', ['#3987e5']);
+poner('--sc-s2', ['#d95926', '#f97316', '#fb923c', '#ea580c']);
+poner('--sc-s3', ['#199e70']);
+poner('--bg-app', ['#020617', '#020617']);
+poner('--surface-1', ['#16233a', '#0f1a2b', '#0d1f38', '#0a1628']);
+poner('--surface-1', ['#0a1626', '#0b1626', '#0d121b']);
+poner('--line-sutil', ['#1e4a8c', '#1e3a5f', '#1e2d40', '#1d3a5c']);
+poner('--st-info', ['#0891b2']);
+poner('--bg-app', ['#050b16']);
 
 const HEX_SOLIDO = new Map([...RGB_A_TOKEN].map(([rgb, t]) => [rgb, t]));
 // #fff y #000 sólidos no se tocan (se usan para texto sobre relleno y marcas); solo sus versiones translúcidas.

@@ -580,7 +580,7 @@ const TendenciasPanel: React.FC<Props> = ({
               "salte" al ocultar/mostrar escalas. */}
           <div className="tnd-block">
             <div className="tnd-h">
-              <span className="tnd-n" style={{ background: '#3987e5' }}>1</span> Tendencia de niveles por escala
+              <span className="tnd-n" style={{ background: 'var(--sc-s1)' }}>1</span> Tendencia de niveles por escala
               <span className="tnd-filtro-info">{nVisibles === niveles.length ? `${niveles.length} puntos` : `${nVisibles} de ${niveles.length}`}</span>
             </div>
             <div className="tnd-filtro-bar">
@@ -666,7 +666,7 @@ const TendenciasPanel: React.FC<Props> = ({
               de secciones muestra el estado de llenado actual de cada tramo. */}
           <div className="tnd-block">
             <div className="tnd-h">
-              <span className="tnd-n" style={{ background: '#199e70' }}>2</span> Volumen por tramo
+              <span className="tnd-n" style={{ background: 'var(--sc-s3)' }}>2</span> Volumen por tramo
               <small className="tnd-calc">{volTramos.some(t => t.estado.esTrapezoidal) ? 'sección trapezoidal' : 'reconstruido de niveles'}</small>
             </div>
 
@@ -769,9 +769,9 @@ const TendenciasPanel: React.FC<Props> = ({
               t0={t0} t1={t1} yLabel="Gasto (m³/s)" height={200} zeroLine eventos={eventosGraf}
             />
             <div className="tnd-legend">
-              <span><i style={{ background: '#3987e5' }} />Q entrada (K-0)</span>
+              <span><i style={{ background: 'var(--sc-s1)' }} />Q entrada (K-0)</span>
               <span><i style={{ background: '#9085e9' }} />Σ entregas módulos</span>
-              <span><i style={{ background: '#199e70' }} />Q salida (K-104)</span>
+              <span><i style={{ background: 'var(--sc-s3)' }} />Q salida (K-104)</span>
               <span><i style={{ background: '#e66767' }} />Pérdidas</span>
             </div>
             <div className="dsk-table-wrap">

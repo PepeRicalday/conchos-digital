@@ -5,7 +5,7 @@
 .ndvi-ia-sd { color: var(--text-3); font-style: italic; }
 .ndvi-ia-lectura { margin: 12px 0 14px; padding: 10px 14px; border-left: 4px solid var(--line-fuerte); background: color-mix(in srgb, var(--text-3) 8%, transparent); font-size: 1rem; line-height: 1.45; color: var(--text-1); border-radius: 0 8px 8px 0; }
 .ndvi-ia-lectura.arriba { border-left-color: #2fbf9f; }
-.ndvi-ia-lectura.abajo { border-left-color: #f97316; }
+.ndvi-ia-lectura.abajo { border-left-color: var(--sc-s2); }
 
 /* Seis módulos en el mismo año: el "pulso" de cada uno sobre su banda típica */
 .ndvi-ia-minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 4px; }

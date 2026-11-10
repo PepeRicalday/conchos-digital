@@ -16,34 +16,8 @@
     padding: 2rem;
 }
 
-.ndvi-detalle-container {
-    width: 100%;
-    max-width: 1100px;
-    max-height: 90vh;
-    background: var(--surface-1);
-    border-radius: 20px;
-    border: 1px solid var(--line-sutil);
-    overflow: hidden;
-    box-shadow: 0 8px 24px color-mix(in srgb, var(--bg-app) 55%, transparent);
-}
 
-.ndvi-detalle-scroll {
-    height: 100%;
-    max-height: 90vh;
-    overflow-y: auto;
-}
 
-.ndvi-detalle-header {
-    padding: 1.5rem 2rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    background: #0b1220;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-}
 
 .ndvi-detalle-badge {
     display: inline-block;
@@ -55,13 +29,6 @@
     margin-bottom: 0.6rem;
 }
 
-.ndvi-detalle-title-group h2 {
-    font-size: 1.6rem;
-    font-weight: 900;
-    color: white;
-    margin: 0;
-    letter-spacing: -0.01em;
-}
 
 .ndvi-detalle-sub {
     color: var(--text-3);
@@ -70,26 +37,7 @@
     font-family: 'JetBrains Mono', monospace;
 }
 
-.ndvi-detalle-close {
-    background: rgba(30, 41, 59, 0.6);
-    border: 1px solid rgba(100, 116, 139, 0.3);
-    color: white;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    flex-shrink: 0;
-}
 
-.ndvi-detalle-close:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
-.ndvi-detalle-close:hover {
-    background: #ef4444;
-    border-color: #ef4444;
-}
 
 .ndvi-detalle-body {
     display: grid;
@@ -311,10 +259,6 @@
 .ndvi-detalle-vacio { padding: 2rem 0; text-align: center; color: var(--text-2); font-size: 0.9rem; }
 .ndvi-detalle-chart-card .ndvi-nota { max-width: none; margin-top: 8px; }
 @media (max-width: 600px) {
-    .ndvi-detalle-overlay { padding: 0; }
-    .ndvi-detalle-container { max-height: 100dvh; height: 100dvh; border-radius: 0; }
-    .ndvi-detalle-scroll { max-height: 100dvh; }
-    .ndvi-detalle-header { padding: 1rem; }
     .ndvi-detalle-body { padding: 1rem; }
     .ndvi-detalle-chart-card, .ndvi-detalle-indices-card { margin-left: 1rem; margin-right: 1rem; padding: 1rem; }
 }

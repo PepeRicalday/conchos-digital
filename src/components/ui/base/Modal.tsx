@@ -1,7 +1,7 @@
-import { useId, type ReactNode } from 'react';
+import { useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import { useModalA11y } from '../../../hooks/useModalA11y';
+import { useModalA11y } from '../../historico/useModalA11y';
 
 export type ModalTamano = 'sm' | 'md' | 'lg' | 'pantalla';
 
@@ -14,7 +14,9 @@ export function Modal({ abierto, onCerrar, titulo, kicker, icono, tamano = 'md',
     abierto: boolean; onCerrar: () => void; titulo: string; kicker?: string; /** Logo o icono a la izquierda del título. */ icono?: ReactNode; tamano?: ModalTamano;
     pie?: ReactNode; cubreSidebar?: boolean; children: ReactNode;
 }) {
-    const ref = useModalA11y<HTMLDivElement>(abierto, onCerrar);
+    // Pila de diálogos: con uno encima de otro (ficha sobre panel) Escape y Tab solo atienden al de arriba.
+    const ref = useRef<HTMLDivElement>(null);
+    useModalA11y(ref, abierto, onCerrar);
     const idTitulo = useId();
     if (!abierto) return null;
     return createPortal(

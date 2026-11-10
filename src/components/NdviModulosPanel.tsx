@@ -21,10 +21,10 @@ import { NdviModuloDetalle } from './NdviModuloDetalle';
 import { PlanoGeneralModulos } from './PlanoGeneralModulos';
 import { SelectorMes } from './ndvi/SelectorMes';
 import NdviGraficaPrincipal from './ndvi/NdviGraficaPrincipal';
-import { useModalA11y } from './historico/useModalA11y';
 import { SparklineNdvi } from './ndvi/SparklineNdvi';
 import ConfigInformeNdviModal from './ndvi/ConfigInformeNdviModal';
 import NdviInteranual from './ndvi/NdviInteranual';
+import { Modal } from './ui/base';
 
 // Mismo basemap CARTO oscuro y mismo criterio de fallback que GeoMonitor.tsx /
 // PlanoGeneralModulos.tsx — sin él, el WMS de NDVI (transparente) queda flotando
@@ -125,9 +125,7 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
 
     const [informeAbierto, setInformeAbierto] = useState(false);
     const { profile } = useAuth();
-    const dialogoRef = useRef<HTMLDivElement>(null);
     // Diálogo modal: foco inicial, Tab atrapado, Escape cierra y el foco vuelve a quien lo abrió (la ficha y el informe quedan encima).
-    useModalA11y(dialogoRef, true, onClose);
 
     const recargar = useCallback(async () => {
         // Serie v2 (mediana con máscara de nubes) vía la carga común; ndvi_medio de cada fila ES la mediana.
@@ -190,17 +188,12 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
     const abrirDetalle = (n: number) => setModuloDetalle(n);
 
     return (
-        <div className="vaso-screen-overlay">
-            <div className="vaso-container animate-in-zoom" ref={dialogoRef} role="dialog" aria-modal="true" aria-labelledby="ndvi-panel-titulo" tabIndex={-1}>
-                <div className="vaso-scroll-content">
-                    <header className="vaso-header ndvi-panel-header">
-                        <div className="vaso-title-group ndvi-panel-title-group">
-                            <h2 id="ndvi-panel-titulo">NDVI mensual por módulo</h2>
-                            <div className="vaso-coords" title="Vigor vegetativo agregado, calculado con el polígono exacto de cada módulo (Sentinel Hub, Statistical API)">
-                                Vigor vegetativo por módulo · polígono exacto · Sentinel Hub
-                            </div>
-                        </div>
-                        <div className="ndvi-panel-header-actions">
+        <>
+            <Modal
+                abierto onCerrar={onClose} tamano="pantalla" cubreSidebar={false}
+                titulo="NDVI mensual por módulo" kicker="Vigor vegetativo por módulo · polígono exacto · Sentinel Hub"
+            >
+                <div className="ndvi-panel-header-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                             <button
                                 type="button"
                                 className="vaso-header-3d-btn"
@@ -222,9 +215,7 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
                                     <RefreshCw size={14} className={sincronizando ? 'ndvi-spin' : ''} /> {sincronizando ? 'Actualizando…' : 'Actualizar ahora'}
                                 </button>
                             )}
-                            <button type="button" className="vaso-close" onClick={onClose} aria-label="Cerrar NDVI mensual por módulo">×</button>
                         </div>
-                    </header>
 
                     {resultadoSync && (
                         <div className="ndvi-sync-msg glass" role="status">{resultadoSync}</div>
@@ -322,8 +313,7 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
                             <NdviInteranual filas={filas} />
                         </>
                     )}
-                </div>
-            </div>
+            </Modal>
 
             <ConfigInformeNdviModal abierto={informeAbierto} onCerrar={() => setInformeAbierto(false)} filas={filas} emisor={profile?.nombre ?? null} />
 
@@ -335,7 +325,7 @@ export const NdviModulosPanel: React.FC<NdviModulosPanelProps> = ({ onClose }) =
                     onClose={() => setModuloDetalle(null)}
                 />
             )}
-        </div>
+        </>
     );
 };
 

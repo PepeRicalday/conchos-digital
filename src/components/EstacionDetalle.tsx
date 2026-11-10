@@ -10,8 +10,9 @@
  */
 
 import { useMemo, useState, useEffect } from 'react';
+import { Modal } from './ui/base';
 import {
-    X, Droplets, Wind, Thermometer, Activity, Zap, CloudRain,
+    Droplets, Wind, Thermometer, Activity, Zap, CloudRain,
     AlertTriangle, Loader, CalendarDays, MapPin, Gauge, Share2, Satellite,
 } from 'lucide-react';
 import {
@@ -189,19 +190,6 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
         }
     };
 
-    // Comportamiento de diálogo modal: se declara aria-modal, así que Escape debe
-    // cerrar y el fondo no debe desplazarse bajo el overlay.
-    useEffect(() => {
-        const alPulsar = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar(); };
-        document.addEventListener('keydown', alPulsar);
-        const overflowPrevio = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
-        return () => {
-            document.removeEventListener('keydown', alPulsar);
-            document.body.style.overflow = overflowPrevio;
-        };
-    }, [onCerrar]);
-
     const l = estacion.lectura;
     const q = estacion.calidad;
 
@@ -221,29 +209,13 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
     }, [detalle]);
 
     return (
-        <div className="est-det-overlay" onClick={onCerrar} role="presentation">
-            <div
-                className="est-det-panel"
-                onClick={(e) => e.stopPropagation()}
-                role="dialog"
-                aria-modal="true"
-                aria-label={`Detalle de la estación ${estacion.nombre}`}
-            >
-                {/* Cabecera */}
-                <header className="est-det-head">
-                    <div className="est-det-ident">
-                        <h3><MapPin size={16} /> {estacion.nombre}</h3>
-                        <div className="est-det-meta">
-                            <em className="est-det-rol">{rolLabel(estacion.rol)}</em>
-                            {estacion.ciudad && <span>{estacion.ciudad}</span>}
-                            <span>{Number(estacion.elevacion_msnm) || '—'} msnm</span>
-                            <span style={{ color: q.color }}>● {q.etiqueta} · {formateaEdad(q.edadMin)}</span>
-                        </div>
-                    </div>
-                    <button className="est-det-cerrar" onClick={onCerrar} aria-label="Cerrar detalle">
-                        <X size={18} />
-                    </button>
-                </header>
+        <Modal
+            abierto onCerrar={onCerrar} tamano="lg" cubreSidebar={false}
+            titulo={estacion.nombre}
+            kicker={[rolLabel(estacion.rol), estacion.ciudad, `${Number(estacion.elevacion_msnm) || '—'} msnm`].filter(Boolean).join(' · ')}
+            icono={<MapPin size={20} aria-hidden="true" />}
+        >
+            <p className="est-det-meta" style={{ color: q.color, margin: '0 0 10px' }}>● {q.etiqueta} · {formateaEdad(q.edadMin)}</p>
 
                 {/* Selector de ventana */}
                 <div className="est-det-ventana">
@@ -569,8 +541,7 @@ const EstacionDetalle = ({ estacion, onCerrar }: Props) => {
                         </section>
                     </div>
                 )}
-            </div>
-        </div>
+        </Modal>
     );
 };
 

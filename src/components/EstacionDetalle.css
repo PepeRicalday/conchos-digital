@@ -3,64 +3,16 @@
    Paleta y radios heredados de Clima.css para que no se lea como otra app.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.est-det-overlay {
-    position: fixed;
-    /* left: 280px (no 0) = ancho fijo de .sidebar (Layout.css) — con inset:0 el
-       overlay se centraba sobre el VIEWPORT completo (1400px en desktop), así
-       que el panel de 940px arrancaba en x≈230, invadiendo los primeros 50px
-       bajo el sidebar (0-280px) y superponiendo su cabecera/título con él.
-       Centrar solo sobre el área de contenido real (a la derecha del sidebar)
-       evita el empalme. En viewports angostos (<900px, ver media query abajo)
-       el sidebar deja de ser :fixed y este valor se anula a 0. */
-    top: 0; right: 0; bottom: 0; left: var(--sidebar-w, 280px);
-    background: rgba(2, 6, 23, 0.78);
-    /* Prefijo -webkit- requerido por Safari/iOS: el módulo se consulta en iPad. */
-    -webkit-backdrop-filter: blur(3px);
-    backdrop-filter: blur(3px);
-    z-index: 900;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding: 2rem 1rem;
-    overflow-y: auto;
-    animation: est-det-in 0.16s ease-out;
-}
 
 @keyframes est-det-in {
     from { opacity: 0; }
     to   { opacity: 1; }
 }
 
-.est-det-panel {
-    width: 100%;
-    max-width: 940px;
-    background: var(--surface-1);
-    border: 1px solid var(--line-sutil);
-    border-radius: 14px;
-    box-shadow: 0 8px 24px color-mix(in srgb, var(--bg-app) 55%, transparent);
-    overflow: hidden;
-}
 
 /* ── Cabecera ───────────────────────────────────────────────────────────── */
 
-.est-det-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem 1.15rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(180deg, rgba(63, 178, 243, 0.06), transparent);
-}
 
-.est-det-ident h3 {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin: 0 0 0.35rem;
-    font-size: 1.05rem;
-    color: var(--text-1);
-}
 
 .est-det-meta {
     display: flex;
@@ -82,21 +34,7 @@
     color: var(--text-2);
 }
 
-.est-det-cerrar {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    border-radius: 8px;
-    color: var(--text-2);
-    padding: 0.35rem;
-    cursor: pointer;
-    display: flex;
-    transition: background 0.15s, color 0.15s;
-}
 
-.est-det-cerrar:hover {
-    background: rgba(239, 68, 68, 0.18);
-    color: #fca5a5;
-}
 
 /* ── Selector de ventana ────────────────────────────────────────────────── */
 

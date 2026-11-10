@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { WMSParams } from 'leaflet';
-import { X, MapPin, Layers, Ruler, Activity, CalendarRange, TrendingUp, TrendingDown } from 'lucide-react';
+import { MapPin, Layers, Ruler, Activity, CalendarRange, TrendingUp, TrendingDown } from 'lucide-react';
 import { MapContainer, WMSTileLayer, GeoJSON } from 'react-leaflet';
-import { Kpi } from './ui/base';
+import { Kpi, Modal } from './ui/base';
 import ReactECharts from 'echarts-for-react';
 import 'leaflet/dist/leaflet.css';
 import './NdviModuloDetalle.css';
@@ -18,7 +18,6 @@ import { NDVI_RANGO, ROTULO_METODO_NDVI, cargarSerieNdviV2, filasDeSerie, type F
 import { MESES_CORTOS, MESES_LARGOS, ejeMeses, UMBRAL_COBERTURA_ACTIVA, aniosDeMeses, anioDe, bandaMensual12, serieAnio12, serieIndice12 } from '../utils/ndviGrafica';
 import { colorAnioPrevio } from '../utils/ndviInteranual';
 import { fmt } from '../utils/formato';
-import { useModalA11y } from './historico/useModalA11y';
 import { SelectorChips } from './ndvi/SelectorChips';
 
 interface NdviModuloDetalleProps {
@@ -37,9 +36,7 @@ const FONDO_TOOLTIP = { backgroundColor: '#0f172a', borderColor: '#334155', text
  *  vive solo del lado servidor) + capa WMS NDVI Agro de fondo + histórico
  *  propio del módulo leído de ndvi_modulo_mensual_v2 (mediana mensual con máscara de nubes). */
 export const NdviModuloDetalle: React.FC<NdviModuloDetalleProps> = ({ numeroModulo, instanceId, mes, onClose }) => {
-    const dialogoRef = useRef<HTMLDivElement>(null);
     // Diálogo modal: foco inicial, Tab atrapado, Escape cierra y el foco vuelve a la tarjeta que lo abrió.
-    useModalA11y(dialogoRef, true, onClose);
 
     const [contorno, setContorno] = useState<GeoJSON.Feature | null>(null);
     const [cargandoContorno, setCargandoContorno] = useState(true);
@@ -185,18 +182,12 @@ export const NdviModuloDetalle: React.FC<NdviModuloDetalleProps> = ({ numeroModu
     const mesLegible = mesFicha ? `${MESES_LARGOS[Number(mesFicha.slice(5, 7)) - 1]} ${mesFicha.slice(0, 4)}` : 'sin mes';
 
     return (
-        <div className="ndvi-detalle-overlay">
-            <div className="ndvi-detalle-container animate-in-zoom" ref={dialogoRef} role="dialog" aria-modal="true" aria-labelledby="ndvi-detalle-titulo" tabIndex={-1}>
-                <div className="ndvi-detalle-scroll">
-                    <header className="ndvi-detalle-header">
-                        <div className="ndvi-detalle-title-group">
-                            <div className="ndvi-detalle-badge" style={{ color, borderColor: `${color}99` }}>Ficha técnica del módulo de riego</div>
-                            <h2 id="ndvi-detalle-titulo">{nombreModulo}</h2>
-                            <div className="ndvi-detalle-sub">Contorno oficial del módulo y capa NDVI Agro de Sentinel Hub</div>
-                        </div>
-                        <button type="button" className="ndvi-detalle-close" onClick={onClose} aria-label={`Cerrar la ficha del ${nombreModulo}`}><X size={20} aria-hidden="true" /></button>
-                    </header>
-
+        <Modal
+            abierto onCerrar={onClose} tamano="pantalla" cubreSidebar={false}
+            titulo={nombreModulo} kicker="Ficha técnica del módulo de riego"
+            icono={<span className="ndvi-detalle-badge" style={{ color, borderColor: `${color}99`, padding: '2px 8px' }} aria-hidden="true">●</span>}
+        >
+            <div className="ndvi-detalle-sub" style={{ marginBottom: 10 }}>Contorno oficial del módulo y capa NDVI Agro de Sentinel Hub</div>
                     <div className="ndvi-detalle-body">
                         <div className="ndvi-detalle-map-card glass">
                             <MapContainer center={center} zoom={11} className="ndvi-detalle-map" attributionControl={false} scrollWheelZoom={false}>
@@ -310,9 +301,7 @@ export const NdviModuloDetalle: React.FC<NdviModuloDetalleProps> = ({ numeroModu
                             <p className="ndvi-nota">El IEHP no se grafica por mes: necesita volumen entregado mensual, que no está cargado; se muestra solo en las tarjetas del mes. Un IHR de 0 no es falta de dato: con NDVI bajo, la dispersión iguala o supera al NDVI medio y el índice llega a su piso.</p>
                         </div>
                     )}
-                </div>
-            </div>
-        </div>
+        </Modal>
     );
 };
 

@@ -1,4 +1,4 @@
-import { Kpi } from '../../ui/base';
+import { Kpi, DataTable } from '../../ui/base';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type { RedJcas } from '../../../hooks/useJcasCuenca';
@@ -97,23 +97,17 @@ export default function MensualCuenca({ jcas }: { jcas: { red: RedJcas | null; l
                 <Kpi densidad="compacta" etiqueta="Mes más lluvioso" valor={mayor ? mayor.etiqueta : 'S/D'} contexto={mayor ? `${fmtLluvia(mayor.lluvia.mm)} mm de lluvia areal · n = ${mayor.lluvia.nEstaciones} estaciones` : 'sin meses con dato'} />
             </div>
             <Barras meses={meses} />
-            <div className="cu-tabla-wrap" tabIndex={0} role="region" aria-label="Tabla mes a mes (desplazable)">
-                <table className="cu-tabla">
-                    <thead><tr><th scope="col">Mes</th><th scope="col" className="cu-num">Lluvia areal (mm)</th><th scope="col" className="cu-num">Estaciones</th><th scope="col" className="cu-num">Temp. media (°C)</th><th scope="col" className="cu-num">Humedad (%)</th><th scope="col" className="cu-num">Viento (km/h)</th></tr></thead>
-                    <tbody>
-                        {[...meses].reverse().map((m) => (
-                            <tr key={m.mes}>
-                                <th scope="row">{m.etiqueta}</th>
-                                <td className="cu-num">{m.lluvia.mm == null ? <span title={m.lluvia.motivoSD ?? undefined}>S/D</span> : fmtLluvia(m.lluvia.mm)}</td>
-                                <td className="cu-num">{m.lluvia.mm == null ? '—' : m.lluvia.nEstaciones}</td>
-                                <td className="cu-num">{m.temp == null ? 'S/D' : formatearNumero(m.temp, 1)}</td>
-                                <td className="cu-num">{m.hum == null ? 'S/D' : formatearNumero(m.hum, 0)}</td>
-                                <td className="cu-num">{m.viento == null ? 'S/D' : formatearNumero(m.viento, 1)}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            <DataTable
+                regionAria="Tabla mes a mes (desplazable)" clave={(m) => m.mes} filas={[...meses].reverse()}
+                columnas={[
+                    { id: 'mes', titulo: 'Mes', encabezadoFila: true, render: (m) => m.etiqueta },
+                    { id: 'lluvia', titulo: 'Lluvia areal (mm)', numerica: true, render: (m) => m.lluvia.mm == null ? <span title={m.lluvia.motivoSD ?? undefined}>S/D</span> : fmtLluvia(m.lluvia.mm) },
+                    { id: 'est', titulo: 'Estaciones', numerica: true, render: (m) => m.lluvia.mm == null ? '—' : String(m.lluvia.nEstaciones) },
+                    { id: 'temp', titulo: 'Temp. media (°C)', numerica: true, render: (m) => m.temp == null ? 'S/D' : formatearNumero(m.temp, 1) },
+                    { id: 'hum', titulo: 'Humedad (%)', numerica: true, render: (m) => m.hum == null ? 'S/D' : formatearNumero(m.hum, 0) },
+                    { id: 'vto', titulo: 'Viento (km/h)', numerica: true, render: (m) => m.viento == null ? 'S/D' : formatearNumero(m.viento, 1) },
+                ]}
+            />
         </section>
     );
 }

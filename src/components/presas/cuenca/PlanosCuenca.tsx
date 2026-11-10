@@ -1,4 +1,4 @@
-import { Kpi } from '../../ui/base';
+import { Kpi, DataTable } from '../../ui/base';
 import { useEffect, useMemo, useState } from 'react';
 import type { RedJcas } from '../../../hooks/useJcasCuenca';
 import { useCuencaPronostico } from '../../../hooks/useCuencaPronostico';
@@ -169,26 +169,20 @@ export default function PlanosCuenca({ jcas, capas, diasObs: diasProp, onDias }:
             </div>
 
             {modo === 'pron' && !cargando && filasPron.length > 0 && (
-                <div className="cu-tabla-wrap" tabIndex={0} role="region" aria-label="Pronóstico por estación (desplazable)">
-                    <table className="cu-tabla">
-                        <thead><tr>
-                            <th scope="col">Estación</th><th scope="col" className="cu-num">Lluvia {diasPron} d</th><th scope="col" className="cu-num">Entre modelos</th>
-                            <th scope="col" className="cu-num">Días con lluvia</th><th scope="col" className="cu-num">Temp. media</th><th scope="col" className="cu-num">Viento</th>
-                        </tr></thead>
-                        <tbody>
-                            {filasPron.map(({ p, lluvia, temp, viento, diasLluvia }) => (
-                                <tr key={p.id}>
-                                    <th scope="row"><div className="cu-presa"><span className="cu-nombre">{p.nombre}</span>{p.fuente === 'weatherlink' && <span className="cu-tag">Propia</span>}{p.grupo && <span className="cu-nota-fila">Misma ciudad que otras estaciones</span>}</div></th>
-                                    <td className="cu-num">{lluvia.valor == null ? 'S/D' : `${fmt(lluvia.valor)} mm`}</td>
-                                    <td className="cu-num">{lluvia.min == null || lluvia.max == null ? 'S/D' : `${fmt(lluvia.min, 0)}–${fmt(lluvia.max, 0)} mm`}</td>
-                                    <td className="cu-num">{diasLluvia == null ? 'S/D' : `${diasLluvia} de ${diasPron}`}</td>
-                                    <td className="cu-num">{temp == null ? 'S/D' : `${fmt(temp)} °C`}</td>
-                                    <td className="cu-num">{viento == null ? 'S/D' : `${fmt(viento, 0)} km/h`}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    regionAria="Pronóstico por estación (desplazable)" clave={(f) => f.p.id} filas={filasPron}
+                    columnas={[
+                        {
+                            id: 'est', titulo: 'Estación', encabezadoFila: true,
+                            render: ({ p }) => <div className="cu-presa"><span className="cu-nombre">{p.nombre}</span>{p.fuente === 'weatherlink' && <span className="cu-tag">Propia</span>}{p.grupo && <span className="cu-nota-fila">Misma ciudad que otras estaciones</span>}</div>,
+                        },
+                        { id: 'lluvia', titulo: `Lluvia ${diasPron} d`, numerica: true, render: ({ lluvia }) => lluvia.valor == null ? 'S/D' : `${fmt(lluvia.valor)} mm` },
+                        { id: 'mod', titulo: 'Entre modelos', numerica: true, render: ({ lluvia }) => lluvia.min == null || lluvia.max == null ? 'S/D' : `${fmt(lluvia.min, 0)}–${fmt(lluvia.max, 0)} mm` },
+                        { id: 'dias', titulo: 'Días con lluvia', numerica: true, render: ({ diasLluvia }) => diasLluvia == null ? 'S/D' : `${diasLluvia} de ${diasPron}` },
+                        { id: 'temp', titulo: 'Temp. media', numerica: true, render: ({ temp }) => temp == null ? 'S/D' : `${fmt(temp)} °C` },
+                        { id: 'vto', titulo: 'Viento', numerica: true, render: ({ viento }) => viento == null ? 'S/D' : `${fmt(viento, 0)} km/h` },
+                    ]}
+                />
             )}
 
             <details className="an-pie cu-notas">

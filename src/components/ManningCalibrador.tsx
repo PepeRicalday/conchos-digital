@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { FlaskConical, CheckCircle, AlertTriangle, XCircle, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { useManningCalibration, type ResultadoCalibPunto, type ConfianzaNivel } from '../hooks/useManningCalibration';
+import { Modal, Boton } from './ui/base';
 
 // ─── Constantes visuales ──────────────────────────────────────────────────────
 
@@ -156,16 +157,15 @@ const ConfirmModal = ({
     onCancel: () => void;
     saving: boolean;
 }) => (
-    <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-        <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in duration-200">
-            <div className="p-6 border-b border-white/5 bg-gradient-to-r from-amber-600/20 to-orange-600/20">
-                <h3 className="text-lg font-black text-white flex items-center gap-2 uppercase tracking-tighter">
-                    <FlaskConical className="text-amber-400" size={20} />
-                    Aplicar Calibración Manning
-                </h3>
-                <p className="text-[11px] text-slate-400 mt-1">{item.nombre_punto}</p>
-            </div>
-            <div className="p-6 space-y-4">
+    <Modal
+        abierto onCerrar={onCancel} tamano="sm" kicker={item.nombre_punto} titulo="Aplicar calibración Manning"
+        icono={<FlaskConical size={20} aria-hidden="true" />}
+        pie={<>
+            <Boton onClick={onCancel}>Cancelar</Boton>
+            <Boton variante="primario" onClick={onConfirm} cargando={saving}>{saving ? 'Aplicando…' : 'Confirmar'}</Boton>
+        </>}
+    >
+        <div className="space-y-4">
                 <div className="bg-slate-950/50 rounded-xl p-4 font-mono text-sm space-y-2">
                     <div className="flex justify-between">
                         <span className="text-slate-400">n actual (diseño):</span>
@@ -191,26 +191,8 @@ const ConfirmModal = ({
                     <code className="text-amber-400">perfil_hidraulico_canal</code> para el punto "{item.nombre_punto}".
                     El ModelingDashboard y los cálculos de Paso Estándar usarán el nuevo valor en su próxima ejecución.
                 </p>
-            </div>
-            <div className="px-6 pb-6 flex gap-3">
-                <button
-                    type="button"
-                    onClick={onCancel}
-                    className="flex-1 px-4 py-3 rounded-xl bg-white/5 text-xs font-black text-slate-400 uppercase tracking-widest hover:bg-white/10 transition-colors"
-                >
-                    Cancelar
-                </button>
-                <button
-                    type="button"
-                    onClick={onConfirm}
-                    disabled={saving}
-                    className="flex-1 px-4 py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-amber-900/40 transition-all active:scale-95 disabled:opacity-50"
-                >
-                    {saving ? 'Aplicando...' : 'Confirmar'}
-                </button>
-            </div>
         </div>
-    </div>
+    </Modal>
 );
 
 // ─── Componente principal ─────────────────────────────────────────────────────

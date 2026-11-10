@@ -7,7 +7,8 @@
  *      El GeoJSON resultante puede guardarse o usarse directamente en el mapa.
  */
 import { useState, useCallback } from 'react';
-import { Upload, FileJson, Check, AlertTriangle, Layers, X } from 'lucide-react';
+import { Upload, FileJson, Check, AlertTriangle, Layers } from 'lucide-react';
+import { Modal, Boton } from './ui/base';
 // @ts-expect-error
 import shp from 'shpjs';
 
@@ -97,25 +98,15 @@ export const ShapefileImporter = ({ onLayerImported, onClose }: ShapefileImporte
     };
 
     return (
-        <div className="fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4">
-            <div className="bg-[#0f172a] border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl">
-                {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-slate-800">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-cyan-500/10 rounded-xl">
-                            <Layers className="text-cyan-400" size={20} />
-                        </div>
-                        <div>
-                            <h2 className="text-white font-bold text-lg">Importar Capa Geográfica</h2>
-                            <p className="text-slate-400 text-xs">Shapefile (.zip) o GeoJSON (.geojson)</p>
-                        </div>
-                    </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-lg transition">
-                        <X className="text-slate-400" size={18} />
-                    </button>
-                </div>
-
-                <div className="p-4 space-y-4">
+        <Modal
+            abierto onCerrar={onClose} tamano="md" kicker="Shapefile (.zip) o GeoJSON (.geojson)" titulo="Importar capa geográfica"
+            icono={<Layers size={20} aria-hidden="true" />}
+            pie={<>
+                <Boton onClick={onClose}>Cancelar</Boton>
+                <Boton variante="primario" onClick={handleImport} disabled={!preview}>Importar al mapa</Boton>
+            </>}
+        >
+            <div className="space-y-4">
                     {/* Tipo de Capa */}
                     <div>
                         <label className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mb-2 block">
@@ -205,25 +196,7 @@ export const ShapefileImporter = ({ onLayerImported, onClose }: ShapefileImporte
                             </div>
                         </div>
                     )}
-
-                    {/* Action Buttons */}
-                    <div className="flex gap-3">
-                        <button
-                            onClick={onClose}
-                            className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-400 font-bold text-sm hover:bg-slate-700 transition"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            onClick={handleImport}
-                            disabled={!preview}
-                            className="flex-1 py-3 rounded-xl bg-cyan-600 text-white font-bold text-sm hover:bg-cyan-500 transition disabled:opacity-30 disabled:cursor-not-allowed shadow-lg shadow-cyan-900/30"
-                        >
-                            Importar al Mapa
-                        </button>
-                    </div>
-                </div>
             </div>
-        </div>
+        </Modal>
     );
 };

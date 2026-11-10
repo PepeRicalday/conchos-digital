@@ -1,5 +1,5 @@
-import { X } from 'lucide-react';
-import { useModalA11y } from '../../hooks/useModalA11y';
+import '../dashboard/DashboardTema.css';
+import { Modal } from '../ui/base';
 import { getLogoPath } from '../../utils/uiHelpers';
 import { volumenCiclo, caudalModulo } from '../../utils/distribucion';
 import { fmt, fmtMiles } from '../../utils/formato';
@@ -11,24 +11,14 @@ const TIPOS: { tipo: 'toma' | 'lateral' | 'carcamo'; nombre: string }[] = [
 
 /** Detalle de un módulo: cifras del ciclo y del día, entrega por tipo y las tomas con actividad. Diálogo accesible. */
 export function ModalModulo({ modulo, onCerrar }: { modulo: ModuleData; onCerrar: () => void }) {
-    const ref = useModalA11y<HTMLDivElement>(true, onCerrar);
     const v = volumenCiclo(modulo);
     const q = caudalModulo(modulo);
     const activos = modulo.delivery_points.filter((p) => p.is_open || p.current_q_lps > 0 || p.daily_vol > 0);
     return (
-        <div className="sc-modal-fondo" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
-            <div ref={ref} className="sc-modal" role="dialog" aria-modal="true" aria-labelledby="dc-modal-t" tabIndex={-1}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
-                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                        <img src={getLogoPath(modulo.name, modulo.short_code || '', modulo.logo_url)} alt="" width={52} height={52} className="dc-logo" />
-                        <div>
-                            <span className="sc-kicker">{modulo.short_code || modulo.id.slice(0, 6)}</span>
-                            <h2 id="dc-modal-t">{modulo.acu_name || modulo.name}</h2>
-                        </div>
-                    </div>
-                    <button type="button" className="sc-btn" onClick={onCerrar} aria-label="Cerrar detalle"><X size={18} aria-hidden="true" /></button>
-                </div>
-
+        <Modal
+            abierto onCerrar={onCerrar} tamano="lg" kicker={modulo.short_code || modulo.id.slice(0, 6)} titulo={modulo.acu_name || modulo.name}
+            icono={<img src={getLogoPath(modulo.name, modulo.short_code || '', modulo.logo_url)} alt="" width={52} height={52} className="dc-logo" />}
+        >
                 <div className="sc-grid-3" style={{ margin: '14px 0' }}>
                     <div className="sc-cifra"><span>Volumen del día</span><b>{fmt(modulo.daily_vol, 4)}<small>Mm³</small></b></div>
                     <div className="sc-cifra"><span>Caudal</span><b>{fmtMiles(q.lps, 0)}<small>L/s</small></b></div>
@@ -69,7 +59,6 @@ export function ModalModulo({ modulo, onCerrar }: { modulo: ModuleData; onCerrar
                         </tbody>
                     </table>
                 </div>
-            </div>
-        </div>
+        </Modal>
     );
 }

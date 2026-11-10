@@ -6,6 +6,7 @@ import { DespachoAlertas } from '../components/alertas/DespachoAlertas';
 import { CanalAlertas } from '../components/alertas/CanalAlertas';
 import { ActividadAlertas } from '../components/alertas/ActividadAlertas';
 import { Sparkline } from '../components/ui/Sparkline';
+import { Boton, Panel, Selector } from '../components/ui/base';
 import { PERIODOS, periodoInicioISO, useAlertasPantalla, type Periodo } from '../hooks/useAlertasPantalla';
 import {
     actividadPeriodo, contarPorTab, etiquetaCategoria, ultimasCerradas, lugarDeAlerta, ordenaDespacho, resumenPeriodo, tabDeAlerta, type TabAlerta,
@@ -84,13 +85,13 @@ const Alertas = () => {
                 titulo="Centro de alertas"
                 subtitulo="Lo vigente arriba; lo antiguo, separado para depurar."
                 chips={chips}
-                acciones={<button type="button" className="sc-btn" onClick={recargar}><RefreshCw size={16} aria-hidden="true" /> Actualizar</button>}
+                acciones={<Boton onClick={recargar} icono={<RefreshCw size={16} aria-hidden="true" />}>Actualizar</Boton>}
             />
 
             {error && (
                 <p className="sc-aviso sc-aviso-crit" role="alert">
                     No se pudo leer el registro de alertas ({error}). Lo que ves puede estar incompleto: esto NO significa que no haya alertas.
-                    <button type="button" className="sc-btn" onClick={recargar} style={{ marginLeft: 'auto' }}>Reintentar</button>
+                    <Boton onClick={recargar} style={{ marginLeft: 'auto' }}>Reintentar</Boton>
                 </p>
             )}
 
@@ -121,7 +122,7 @@ const Alertas = () => {
             </div>
 
             <div className="sc-grid-2">
-                <section className="sc-card" aria-labelledby="al-despacho-t">
+                <Panel aria-labelledby="al-despacho-t">
                     <span className="sc-kicker">Centro de despacho</span>
                     <h3 id="al-despacho-t">Alertas por atender</h3>
                     <div className="sc-barra-nav al-tabs" role="tablist" aria-label="Filtrar por estado">
@@ -135,27 +136,27 @@ const Alertas = () => {
                     {lugar && (
                         <p className="al-filtro">
                             Filtrando por <b>{lugar}</b> ({visibles.length})
-                            <button type="button" className="sc-btn" onClick={() => setLugar(null)}>Quitar filtro</button>
+                            <Boton onClick={() => setLugar(null)}>Quitar filtro</Boton>
                         </p>
                     )}
                     <DespachoAlertas alertas={visibles} ahoraMs={corteMs} onAtender={atender} vacioTexto={tab0.vacio} />
-                </section>
+                </Panel>
 
                 <div className="al-lateral">
-                    <section className="sc-card" aria-labelledby="al-canal-t">
+                    <Panel aria-labelledby="al-canal-t">
                         <span className="sc-kicker">Dónde</span>
                         <h3 id="al-canal-t">Canal Conchos · K0–K104</h3>
                         <CanalAlertas alertas={delTab} lugarActivo={lugar} onFiltrarLugar={setLugar} />
-                    </section>
+                    </Panel>
 
-                    <section className="sc-card" aria-labelledby="al-resumen-t">
+                    <Panel aria-labelledby="al-resumen-t">
                         <span className="sc-kicker">Resumen del periodo</span>
                         <h3 id="al-resumen-t">Alertas distintas</h3>
                         <label className="al-periodo">
                             <span className="sc-kicker">Periodo (solo este resumen)</span>
-                            <select className="al-select" value={periodo} onChange={(e) => setPeriodo(e.target.value as Periodo)}>
+                            <Selector className="al-select" value={periodo} onChange={(e) => setPeriodo(e.target.value as Periodo)}>
                                 {PERIODOS.map((p) => <option key={p} value={p}>{p}</option>)}
-                            </select>
+                            </Selector>
                         </label>
                         {periodoRes.aperturas === 0 ? (
                             <p className="al-nota">Sin alertas detectadas en el periodo.</p>
@@ -179,7 +180,7 @@ const Alertas = () => {
                                 </ul>
                             </>
                         )}
-                    </section>
+                    </Panel>
 
                     <ActividadAlertas cubetas={actividad.cubetas} granularidad={actividad.granularidad} cerradas={cerradas} ahoraMs={corteMs} periodo={periodo} />
                 </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Save, X, Loader } from 'lucide-react';
-import { useModalA11y } from '../../hooks/useModalA11y';
+import { Save } from 'lucide-react';
+import { Modal, Boton } from '../ui/base';
 import { caudalAMm3, parseCaudalCampo } from '../../utils/hidrometria';
 import { fmt } from '../../utils/formato';
 
@@ -23,20 +23,20 @@ const dmy = (s: string) => s.split('-').reverse().join('/');
 /** Captura semanal de solicitudes. Campo vacío = no se escribe nada (antes se guardaba 0 Mm³ por módulo). */
 export function ModalSolicitudes({ modulos, inicio, fin, iniciales, guardando, error, onGuardar, onCerrar }: Props) {
     const [valores, setValores] = useState<Record<string, string>>(iniciales);
-    const ref = useModalA11y<HTMLDivElement>(true, onCerrar);
     const capturados = modulos.filter((m) => parseCaudalCampo(valores[m.id] ?? '') != null).length;
 
     return (
-        <div className="sc-modal-fondo" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
-            <div ref={ref} className="sc-modal" role="dialog" aria-modal="true" aria-labelledby="hid-modal-t" tabIndex={-1}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                    <div>
-                        <span className="sc-kicker">Semana {dmy(inicio)} → {dmy(fin)}</span>
-                        <h2 id="hid-modal-t">Programación semanal de riego</h2>
-                        <p className="sc-hero-sub">Captura el caudal medio solicitado por módulo. Los campos vacíos no se guardan.</p>
-                    </div>
-                    <button type="button" className="sc-btn" onClick={onCerrar} aria-label="Cerrar sin guardar"><X size={18} aria-hidden="true" /></button>
-                </div>
+        <Modal
+            abierto onCerrar={onCerrar} tamano="lg" kicker={`Semana ${dmy(inicio)} → ${dmy(fin)}`} titulo="Programación semanal de riego"
+            pie={<>
+                <span className="sc-fresco" style={{ marginRight: 'auto' }}>{capturados} de {modulos.length} módulos con solicitud</span>
+                <Boton onClick={onCerrar}>Cancelar</Boton>
+                <Boton variante="primario" cargando={guardando} disabled={capturados === 0} onClick={() => onGuardar(valores)} icono={<Save size={16} aria-hidden="true" />}>
+                    Guardar programación
+                </Boton>
+            </>}
+        >
+            <p className="sc-hero-sub">Captura el caudal medio solicitado por módulo. Los campos vacíos no se guardan.</p>
 
                 <div className="sc-campos-grid">
                     {modulos.map((m) => {
@@ -57,16 +57,6 @@ export function ModalSolicitudes({ modulos, inicio, fin, iniciales, guardando, e
                 </div>
 
                 {error && <p className="sc-aviso sc-aviso-crit" role="alert">No se pudo guardar: {error}</p>}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
-                    <span className="sc-fresco">{capturados} de {modulos.length} módulos con solicitud</span>
-                    <div className="sc-acciones">
-                        <button type="button" className="sc-btn" onClick={onCerrar}>Cancelar</button>
-                        <button type="button" className="sc-btn sc-btn-primario" disabled={guardando || capturados === 0} onClick={() => onGuardar(valores)}>
-                            {guardando ? <Loader size={16} className="animate-spin" aria-hidden="true" /> : <Save size={16} aria-hidden="true" />} Guardar programación
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </Modal>
     );
 }

@@ -5,6 +5,7 @@ import { useLlenadoTracker } from '../hooks/useLlenadoTracker';
 import type { PuntoControl, LlenadoEstado } from '../hooks/useLlenadoTracker';
 import { WAVE_CELERITY_CONFIANZA } from '../utils/hydraulics';
 import TransicionProtocolo from './TransicionProtocolo';
+import { Modal, Boton } from './ui/base';
 import './LlenadoTracker.css';
 
 interface Props {
@@ -402,23 +403,14 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
 
             {/* Modal de confirmación de arribo */}
             {showConfirmModal && selectedPunto && (
-                <div style={{
-                    position: 'fixed', inset: 0, zIndex: 9999,
-                    background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }} onClick={() => setShowConfirmModal(false)}>
-                    <div onClick={e => e.stopPropagation()} style={{
-                        background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '16px', padding: '28px', width: '420px', maxWidth: '95vw',
-                        boxShadow: '0 25px 50px rgba(0,0,0,0.5)'
-                    }}>
-                        <h3 style={{ color: 'var(--st-info)', fontSize: '1.1rem', fontWeight: 900, marginBottom: '4px' }}>
-                            📍 Confirmar Arribo
-                        </h3>
-                        <p style={{ color: 'var(--text-3)', fontSize: '0.75rem', marginBottom: '16px' }}>
-                            {selectedPunto.punto_nombre} — KM {selectedPunto.km}
-                        </p>
-
+                <Modal
+                    abierto onCerrar={() => setShowConfirmModal(false)} tamano="sm"
+                    kicker={`${selectedPunto.punto_nombre} — KM ${selectedPunto.km}`} titulo="Confirmar arribo"
+                    pie={<>
+                        <Boton onClick={() => setShowConfirmModal(false)}>Cancelar</Boton>
+                        <Boton variante="primario" onClick={ejecutarConfirmacion}>Confirmar arribo</Boton>
+                    </>}
+                >
                         <div style={{ display: 'flex', gap: '8px', padding: '10px 12px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '10px', marginBottom: '20px' }}>
                             <Shield size={14} style={{ color: 'var(--st-crit)', flexShrink: 0, marginTop: '2px' }} />
                             <div>
@@ -468,19 +460,7 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                                 rows={2} placeholder="Observaciones..."
                                 style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: 'var(--text-1)', fontSize: '0.8rem', resize: 'none' }} />
                         </label>
-
-                        <div style={{ display: 'flex', gap: '12px' }}>
-                            <button onClick={() => setShowConfirmModal(false)}
-                                style={{ flex: 1, padding: '12px', background: '#334155', color: 'var(--text-1)', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}>
-                                Cancelar
-                            </button>
-                            <button onClick={ejecutarConfirmacion}
-                                style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 900, fontSize: '0.85rem', textTransform: 'uppercase' }}>
-                                ✅ Confirmar Arribo
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                </Modal>
             )}
         </div>
     );

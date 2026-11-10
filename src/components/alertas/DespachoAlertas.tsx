@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import type { AlertaActiva } from '../../hooks/useAlertasPantalla';
 import { etiquetaCategoria, haceTexto, lugarDeAlerta } from '../../utils/alertasPantalla';
 import { SEVERIDAD, sevDe } from './severidad';
+import { Boton, Insignia } from '../ui/base';
 
 const LIMITE_INICIAL = 12;
 
@@ -55,7 +56,7 @@ export const DespachoAlertas = memo(function DespachoAlertas({ alertas, ahoraMs,
                     const enConfirmacion = confirmando === a.id;
                     return (
                         <li key={a.id} className={`al-fila al-fila-${sev.cls}`}>
-                            <span className={`sc-estado sc-estado-${sev.cls} al-sev`}><sev.Icono size={12} aria-hidden="true" /> {sev.etiqueta}</span>
+                            <Insignia tipo={sev.cls} icono={<sev.Icono size={12} aria-hidden="true" />} className="al-sev">{sev.etiqueta}</Insignia>
                             <div className="al-fila-txt">
                                 <b>{a.titulo}</b>
                                 {a.mensaje && <p>{a.mensaje}</p>}
@@ -69,23 +70,23 @@ export const DespachoAlertas = memo(function DespachoAlertas({ alertas, ahoraMs,
                             </div>
                             <div className="al-fila-acciones">
                                 {a.origen_id && (
-                                    <button type="button" className="sc-btn al-btn-icono" onClick={() => void copiarId(a.origen_id!)}
+                                    <Boton className="al-btn-icono" onClick={() => void copiarId(a.origen_id!)}
                                         aria-label={`Copiar identificador técnico de: ${a.titulo}`} title={`ID: ${a.origen_id}`}>
                                         <Copy size={14} aria-hidden="true" />
-                                    </button>
+                                    </Boton>
                                 )}
                                 {enConfirmacion ? (
                                     <>
-                                        <button type="button" className="sc-btn sc-btn-primario" disabled={ocupada === a.id}
+                                        <Boton variante="primario" disabled={ocupada === a.id}
                                             onClick={() => void resolver(a)} aria-label={`Confirmar: marcar como atendida ${a.titulo}`}>
                                             {ocupada === a.id ? 'Guardando…' : 'Confirmar'}
-                                        </button>
-                                        <button type="button" className="sc-btn" disabled={ocupada === a.id} onClick={() => setConfirmando(null)}>Cancelar</button>
+                                        </Boton>
+                                        <Boton disabled={ocupada === a.id} onClick={() => setConfirmando(null)}>Cancelar</Boton>
                                     </>
                                 ) : (
-                                    <button type="button" className="sc-btn" onClick={() => setConfirmando(a.id)} aria-label={`Atender alerta: ${a.titulo}`}>
+                                    <Boton onClick={() => setConfirmando(a.id)} aria-label={`Atender alerta: ${a.titulo}`}>
                                         Atender
-                                    </button>
+                                    </Boton>
                                 )}
                             </div>
                         </li>
@@ -93,9 +94,9 @@ export const DespachoAlertas = memo(function DespachoAlertas({ alertas, ahoraMs,
                 })}
             </ul>
             {alertas.length > LIMITE_INICIAL && (
-                <button type="button" className="sc-btn al-ver-mas" onClick={() => setVerTodas((v) => !v)}>
+                <Boton className="al-ver-mas" onClick={() => setVerTodas((v) => !v)}>
                     {verTodas ? 'Ver menos' : `Ver todas (${alertas.length})`}
-                </button>
+                </Boton>
             )}
         </>
     );

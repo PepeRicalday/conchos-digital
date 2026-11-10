@@ -9,6 +9,7 @@ import {
 import { Link, useSearchParams } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Sankey } from 'recharts';
 import './Presas.css';
+import { Modal, Boton } from '../components/ui/base';
 import { useFecha } from '../context/FechaContext';
 import { usePresas, type PresaData, type MovimientoPresaData } from '../hooks/usePresas';
 import { getTodayString, addDays, getLocalDatetimeInput } from '../utils/dateHelpers';
@@ -186,21 +187,16 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
     const tipoMeta = TIPO_MOV_META[tipo];
 
     return (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="bg-[#040b16] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
-                {/* Header */}
-                <div className="px-6 py-5 border-b border-white/5 flex items-start justify-between"
-                    style={{ background: `linear-gradient(135deg, ${tipoMeta.color}18 0%, transparent 100%)` }}>
-                    <div>
-                        <h3 className="text-base font-black text-white uppercase tracking-tighter flex items-center gap-2">
-                            <span className="text-lg" style={{ color: tipoMeta.color }}>{tipoMeta.icon}</span>
-                            Orden de Operación — {presa.nombre_corto}
-                        </h3>
-                        <p className="text-[11px] text-slate-400 font-bold mt-0.5 uppercase tracking-widest">Movimientos Presa · Registro con Trazabilidad</p>
-                    </div>
-                </div>
-
-                <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <Modal
+            abierto onCerrar={onClose} tamano="md" kicker="Movimientos de presa · registro con trazabilidad"
+            titulo={`Orden de operación — ${presa.nombre_corto}`}
+            icono={<span aria-hidden="true" style={{ color: tipoMeta.color, fontSize: 20 }}>{tipoMeta.icon}</span>}
+            pie={<>
+                <Boton onClick={onClose}>Cancelar</Boton>
+                <Boton type="submit" form="rmm-form" variante="primario" cargando={isSaving}>{isSaving ? 'Registrando…' : `Confirmar ${tipo}`}</Boton>
+            </>}
+        >
+                <form id="rmm-form" onSubmit={handleSubmit} className="space-y-5">
 
                     {/* Tipo de movimiento */}
                     <div className="space-y-2">
@@ -286,22 +282,8 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
                             <AlertTriangle size={13} /> {validErr}
                         </div>
                     )}
-
-                    {/* Acciones */}
-                    <div className="flex gap-3 pt-2">
-                        <button type="button" onClick={onClose}
-                            className="flex-1 px-4 py-3 rounded-xl bg-white/5 text-xs font-black text-slate-400 uppercase tracking-widest hover:bg-white/10 transition-colors">
-                            Cancelar
-                        </button>
-                        <button type="submit" disabled={isSaving}
-                            className="flex-1 px-4 py-3 rounded-xl text-white text-xs font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 disabled:opacity-50"
-                            style={{ background: tipoMeta.color, boxShadow: `0 4px 20px ${tipoMeta.color}30` }}>
-                            {isSaving ? 'Registrando...' : `Confirmar ${tipo}`}
-                        </button>
-                    </div>
                 </form>
-            </div>
-        </div>
+        </Modal>
     );
 };
 

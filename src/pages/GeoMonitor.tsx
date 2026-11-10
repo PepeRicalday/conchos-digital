@@ -1,4 +1,4 @@
-import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, X, CloudRain, Satellite, PanelRight, CalendarRange, Box, Download } from 'lucide-react';
+import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, CloudRain, Satellite, PanelRight, CalendarRange, Box, Download } from 'lucide-react';
 import { conduccionTramo } from '../utils/conduccion';
 import { instanteDeLectura } from '../utils/perfilCanal';
 import { exportaMapaPng } from '../utils/exportMapaPng';
@@ -29,6 +29,7 @@ import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
 import { detectaSuperficieVaso, VASOS_CONOCIDOS } from '../utils/mapaSatelital';
 import { NdviModulosPanel } from '../components/NdviModulosPanel';
 import { WindyMapModal } from '../components/WindyMapModal';
+import { Modal } from '../components/ui/base';
 import { ensureMetadata } from '../store/useMetadataStore';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -3100,20 +3101,11 @@ const GeoMonitor = () => {
 
             {/* Modal de Historial Completo */}
             {showHistoryModal && selectedPoint && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in" onClick={() => setShowHistoryModal(false)}>
-                    <div className="glass-card shadow-2xl p-6 w-full max-w-4xl border-white/10" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/5">
-                            <div className="flex items-center gap-3">
-                                <Activity size={24} className="text-primary" />
-                                <div>
-                                    <h2 className="text-xl font-black text-white uppercase tracking-wider">{selectedPoint.data.nombre}</h2>
-                                    <p className="text-[11px] text-slate-400 font-bold uppercase tracking-[0.2em]">Historial Operativo (Últimos 14 Días)</p>
-                                </div>
-                            </div>
-                            <button className="p-2 bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors" onClick={() => setShowHistoryModal(false)}>
-                                <X size={18} className="text-slate-400" />
-                            </button>
-                        </div>
+                <Modal
+                    abierto onCerrar={() => setShowHistoryModal(false)} tamano="lg"
+                    kicker="Historial operativo (últimos 14 días)" titulo={selectedPoint.data.nombre}
+                    icono={<Activity size={24} aria-hidden="true" />}
+                >
                         <div className="h-[400px] w-full mt-4">
                             {historyLoading ? (
                                 <div className="h-full w-full flex items-center justify-center text-slate-400 text-sm">Cargando historial…</div>
@@ -3123,8 +3115,7 @@ const GeoMonitor = () => {
                                 <ReactECharts option={fullHistoryOptions} style={{ height: '100%', width: '100%' }} />
                             )}
                         </div>
-                    </div>
-                </div>
+                </Modal>
             )}
 
             <WindyMapModal

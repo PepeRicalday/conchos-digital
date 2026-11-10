@@ -1,5 +1,5 @@
 {
- "total": 3551,
+ "total": 3542,
  "archivos": {
   "src/App.tsx": 12,
   "src/components/AlertList.css": 43,
@@ -41,7 +41,7 @@
   "src/components/Layout.css": 23,
   "src/components/LimnimetroPresa.tsx": 13,
   "src/components/LlenadoTracker.css": 41,
-  "src/components/LlenadoTracker.tsx": 20,
+  "src/components/LlenadoTracker.tsx": 13,
   "src/components/ManningCalibrador.tsx": 8,
   "src/components/marca/logoSica.css": 2,
   "src/components/monitor/PanelEjecutivo.tsx": 6,
@@ -72,7 +72,7 @@
   "src/components/ProtocolGuide.tsx": 3,
   "src/components/RatingCurve.tsx": 17,
   "src/components/SelectorFecha.css": 18,
-  "src/components/ShapefileImporter.tsx": 6,
+  "src/components/ShapefileImporter.tsx": 5,
   "src/components/Sidebar.tsx": 12,
   "src/components/TendenciasCharts.tsx": 58,
   "src/components/TendenciasPanel.tsx": 54,
@@ -105,7 +105,7 @@
   "src/pages/ModelingDashboard.css": 173,
   "src/pages/ModelingDashboard.tsx": 232,
   "src/pages/Presas.css": 218,
-  "src/pages/Presas.tsx": 67,
+  "src/pages/Presas.tsx": 66,
   "src/pages/Protocolos.css": 3,
   "src/pages/Protocolos.tsx": 5,
   "src/pages/PublicMonitor.css": 535,

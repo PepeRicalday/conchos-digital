@@ -36,7 +36,7 @@ import { descargarInformeCiudadano, imprimirInformeCiudadano, imagenInformeCiuda
 import { useCanalExtremos } from '../hooks/useDashboardPulso';
 import { exportClimaInfografia, imagenClimaInfografia, agrupaPorDia, type DiaHistorico } from '../utils/exportClimaInfografia';
 import { supabase } from '../lib/supabase';
-import { formateaEdad, clasificaCielo, PROCEDENCIA_LABEL } from '../utils/cielo';
+import { formateaEdad, clasificaCielo, colorTextoCielo, PROCEDENCIA_LABEL } from '../utils/cielo';
 import { Download, Gauge, Image as ImageIcon, Satellite, CloudSun } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { calculaIndices, entradasDesdeEstaciones, etoTotalDelDiaRed, GDD_BASE_C, KP_TANQUE_EVAPORIMETRICO, type Indice } from '../utils/indicesAgro';
@@ -449,7 +449,7 @@ const EstacionCard = ({ est, onAbrir, horaCorte, sospechosa }: {
             {/* Condición del cielo: variable propia, separada de la lluvia.
                 Sin fuente de nubosidad se muestra "no determinado", sin icono solar. */}
             <div className="estacion-cielo" style={{ borderColor: c.color }}>
-                <span className="cielo-estado" style={{ color: c.color }}>
+                <span className="cielo-estado" style={{ color: colorTextoCielo(c.color) }}>
                     {c.icono && <span className="cielo-icono">{c.icono}</span>}
                     {c.etiqueta}
                     {c.coberturaPct != null && <b> · {c.coberturaPct}%</b>}

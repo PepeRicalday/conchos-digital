@@ -39,6 +39,10 @@ const CLASES: ClaseCielo[] = [
 ];
 
 /** Estado sin icono solar: se usa siempre que falte una fuente de nubosidad. */
+/** Color del texto del cielo para fondo OSCURO (pantalla): los grises de «nublado» y «cubierto» (#64748b, #475569) quedan
+ *  bajo AA sobre las tarjetas; los informes impresos siguen usando `color` tal cual (sobre blanco sí pasan). */
+export const colorTextoCielo = (color: string): string => (color === '#64748b' || color === '#475569' ? 'var(--text-3)' : color);
+
 export const CIELO_NO_DETERMINADO: ClaseCielo = {
     estado: 'no_determinado',
     etiqueta: 'Estado no determinado',

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { AlertTriangle, Thermometer, Wind, CloudRain, Activity, Snowflake } from 'lucide-react';
+import { colorTextoCielo } from '../../utils/cielo';
 
 interface Props {
     fecha: string;
@@ -32,7 +33,7 @@ export function HeroDistrito(p: Props) {
                     <h2 id="cl-hero-t">Inteligencia agroclimática</h2>
                     <p className="cl-hero-sub">
                         Distrito de Riego 005 · {p.vigentes} de {p.total} estaciones con dato vigente
-                        {p.cielo && <> · cielo <b style={{ color: p.cielo.color }}>{p.cielo.etiqueta.toLowerCase()}</b> ({p.cielo.cobertura.toFixed(0)} %)</>}
+                        {p.cielo && <> · cielo <b style={{ color: colorTextoCielo(p.cielo.color) }}>{p.cielo.etiqueta.toLowerCase()}</b> ({p.cielo.cobertura.toFixed(0)} %)</>}
                     </p>
                 </div>
                 {p.confianza && (

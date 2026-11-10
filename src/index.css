@@ -57,9 +57,9 @@
   --color-bg-hover: rgba(30, 74, 140, 0.4);
 
   --color-text-primary: #f8fafc;
-  --color-text-secondary: #9FB6D6;
-  --color-text-muted: #8FA7C8;   /* ≥ 4.5:1 sobre los fondos oscuros (antes #475569 ≈ 2.4:1); para bordes/rellenos decorativos usar --color-line-muted */
-  --color-line-muted: #2B4A7D;
+  --color-text-secondary: var(--text-2);
+  --color-text-muted: var(--text-3);   /* ≥ 4.5:1 sobre los fondos oscuros (antes #475569 ≈ 2.4:1); para bordes/rellenos decorativos usar --color-line-muted */
+  --color-line-muted: var(--line-sutil);
 
   /* Neon Technical Accents */
   --color-primary: var(--brand-agua-claro);
@@ -67,17 +67,17 @@
   --color-accent: var(--brand-agua-claro);
   /* Cyan 400 */
   --color-emerald-neon: var(--brand-hoja-claro);
-  --color-amber-neon: #fbbf24;
+  --color-amber-neon: var(--st-warn);
   --color-indigo-neon: #818cf8;
 
   /* Status semantics — reservados para estado (bueno/atención/crítico), nunca como serie categórica */
-  --status-critical: #ef4444;
+  --status-critical: var(--st-crit);
   --status-critical-bg: rgba(239, 68, 68, 0.08);
   --status-critical-border: rgba(239, 68, 68, 0.25);
   --status-critical-text: #fca5a5;
-  --status-warning: #f59e0b;
+  --status-warning: var(--st-warn);
   --status-warning-text: #fbbf24;
-  --status-good: #5DB22A;
+  --status-good: var(--st-ok);
   --status-good-text: var(--brand-hoja-claro);
 
   /* Alias de severidad — mismos valores que --status-*, nombre usado por
@@ -446,10 +446,10 @@ html {
    :where() deja la especificidad en 0 para que un estilo local pueda sobrescribirlo a propósito. */
 :root { color-scheme: dark; }
 :where(select, input, textarea) { color-scheme: dark; }
-:where(select option, select optgroup) { background-color: #0f1a2b; color: #e8eef6; }
+:where(select option, select optgroup) { background-color: #0f1a2b; color: var(--text-1); }
 :where(select option:checked) { background-color: #1d3a5c; color: #ffffff; }
-:where(select option:disabled) { color: #8396ad; }
-:where(input, textarea)::placeholder { color: #8396ad; opacity: 1; }
+:where(select option:disabled) { color: var(--text-3); }
+:where(input, textarea)::placeholder { color: var(--text-3); opacity: 1; }
 
 /* Foco visible con teclado (WCAG 2.4.7 · 3:1). Botones, enlaces, pestañas y elementos con tabindex: especificidad 0 (un diseño propio gana).
    Campos de formulario: se impone, porque Tailwind (focus:outline-none) los deja sin indicador. */

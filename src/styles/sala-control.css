@@ -2,17 +2,17 @@
    Balance): carta hidrográfica nocturna, mismo que Presas, Histórico, Clima y Geo-Monitor.
    Texto ≥ 12 px · el estado nunca depende solo del color · objetivos táctiles ≥ 44 px. */
 .sc-root {
-    --sc-bg: #061532;
+    --sc-bg: var(--bg-app);
     --sc-surface: rgba(255, 255, 255, 0.03);
     --sc-surface-2: rgba(255, 255, 255, 0.055);
     --sc-line: rgba(148, 163, 184, 0.17);
-    --sc-t1: #e8eef6;
-    --sc-t2: #b4c6dd;
-    --sc-t3: #8FA7C8;
-    --sc-sky: #3FB2F3;   /* agua clara del logo */
-    --sc-ok: #7CC520;   /* hoja clara del logo */
-    --sc-warn: #fbbf24;
-    --sc-crit: #f87171;
+    --sc-t1: var(--text-1);
+    --sc-t2: var(--text-2);
+    --sc-t3: var(--text-3);
+    --sc-sky: var(--st-info);   /* agua clara del logo */
+    --sc-ok: var(--st-ok);   /* hoja clara del logo */
+    --sc-warn: var(--st-warn);
+    --sc-crit: var(--st-crit);
     --sc-violet: #a78bfa;
     /* categóricos validados (validate_palette.js) para series */
     --sc-s1: #3987e5;

@@ -1,15 +1,13 @@
 import { memo, useId, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { AlertTriangle, ArrowDown, ArrowUp, Calculator, Clock, Droplets, Gauge, Info, Loader, Minus, RefreshCw, Settings, Waves, X } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, Calculator, Clock, Droplets, Gauge, Info, Loader, Minus, RefreshCw, Settings, Waves } from 'lucide-react';
 import { useControlEscalas } from '../hooks/useControlEscalas';
-import { useModalA11y } from '../hooks/useModalA11y';
 import { PaginaHero } from '../components/ui/PaginaHero';
 import { TileCifra } from '../components/ui/TileCifra';
 import { PerfilNiveles, Sparkline } from '../components/escalas/NivelesGraficos';
 import type { ChipEstado } from '../utils/alertasVivas';
 import { promedioONull, estadoCuentaEnPromedio, resumenCompuertas, porcentajeTubo, maxEjeTubo, type EstadoNivel } from '../utils/controlEscalas';
 import type { ScaleReading, Zone } from '../utils/controlEscalasZonas';
-import { DataTable, Insignia } from '../components/ui/base';
+import { DataTable, Insignia, Modal } from '../components/ui/base';
 import '../styles/sala-control.css';
 import './ControlEscalas.css';
 
@@ -117,21 +115,16 @@ const RadialSvg = ({ scale }: { scale: ScaleReading }) => {
 
 // ─── Modal de cálculo de radiales ───
 const RadialModal = ({ scale, onClose }: { scale: ScaleReading; onClose: () => void }) => {
-    const ref = useModalA11y<HTMLDivElement>(true, onClose);
-    const titleId = useId();
     const { anchoRadial, altoRadial, currentLevel, nivelAbajo, gasto, aperturas } = scale;
     const totalAperturaXAncho = aperturas.reduce<number>((acc, ap) => acc + (ap != null && ap > 0 ? Math.min(ap, altoRadial) * anchoRadial : 0), 0);
     const cargaH = currentLevel != null && currentLevel > 0 && nivelAbajo !== null ? Math.max(0, currentLevel - nivelAbajo) : null;
 
-    // Portal en <body>: el contenedor de página tiene animación (sc-entra) y ancla los `position: fixed` hijos a sí mismo.
-    // `sc-root` en el envoltorio conserva los tokens --sc-* fuera de la página.
-    return createPortal(
-        <div className="sc-root ce-portal"><div className="ce-modal-fondo" onClick={onClose}>
-            <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="ce-modal" onClick={e => e.stopPropagation()}>
-                <button type="button" onClick={onClose} aria-label="Cerrar" className="ce-modal-cerrar"><X size={20} /></button>
-                <span className="sc-kicker">{scale.name} · Km {scale.km}</span>
-                <h2 id={titleId}><Calculator size={22} aria-hidden="true" /> Cálculo hidráulico de represo</h2>
-
+    return (
+        <Modal
+            abierto onCerrar={onClose} tamano="md" cubreSidebar={false}
+            kicker={`${scale.name} · Km ${scale.km}`} titulo="Cálculo hidráulico de represo"
+            icono={<Calculator size={22} aria-hidden="true" />}
+        >
                 <div className="ce-modal-cifras">
                     <div className="ce-modal-caja">
                         <span className="sc-kicker">Carga hidrostática (H)</span>
@@ -168,9 +161,7 @@ const RadialModal = ({ scale, onClose }: { scale: ScaleReading; onClose: () => v
                         <span>Área total destapada: <b>{totalAperturaXAncho.toFixed(2)} m²</b>. El gasto depende de la carga hidrostática y del factor de calibración de la escala.</span>
                     </p>
                 )}
-            </div>
-        </div></div>,
-        document.body,
+        </Modal>
     );
 };
 

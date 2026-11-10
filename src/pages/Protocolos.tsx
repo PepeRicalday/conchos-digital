@@ -1,10 +1,9 @@
-import { useId, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock, Droplets, Loader2, Pencil, Shield, ShieldOff, Waves, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useHydricEvents, type HydraulicEvent, type SICAEventLog } from '../hooks/useHydricEvents';
-import { useModalA11y } from '../hooks/useModalA11y';
 import { PaginaHero } from '../components/ui/PaginaHero';
+import { Modal } from '../components/ui/base';
 import type { ChipEstado } from '../utils/alertasVivas';
 import { getLocalDatetimeInput, formatDate } from '../utils/dateHelpers';
 import LlenadoTracker from '../components/LlenadoTracker';
@@ -24,21 +23,12 @@ const PROTOCOLOS: Array<{ id: HydraulicEvent; icon: typeof Waves; label: string;
     { id: 'ANOMALIA_BAJA', icon: AlertTriangle, label: 'Anomalía: baja súbita', color: '#a78bfa', desc: 'Caída de nivel no programada. Posible robo o falla estructural (CONAGUA).' },
 ];
 
-// ─── Diálogo accesible (portal a <body>: el contenedor de página tiene animación y anclaría los `fixed`) ─────────────
+// ─── Diálogo: Modal base (portal, foco atrapado, Escape, scroll bloqueado y menú lateral libre) ─────────────
 function Dialogo({ titulo, onCerrar, children, ancho = 480 }: { titulo: string; onCerrar: () => void; children: React.ReactNode; ancho?: number }) {
-    const ref = useModalA11y<HTMLDivElement>(true, onCerrar);
-    const id = useId();
-    return createPortal(
-        <div className="sc-root pr-portal">
-            <div className="pr-fondo" onClick={onCerrar}>
-                <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={id} tabIndex={-1} className="pr-dialogo" style={{ maxWidth: ancho }} onClick={(e) => e.stopPropagation()}>
-                    <button type="button" className="pr-cerrar" onClick={onCerrar} aria-label="Cerrar"><X size={20} aria-hidden="true" /></button>
-                    <h2 id={id}>{titulo}</h2>
-                    {children}
-                </div>
-            </div>
-        </div>,
-        document.body,
+    return (
+        <Modal abierto onCerrar={onCerrar} titulo={titulo} tamano={ancho <= 440 ? 'sm' : 'md'} cubreSidebar={false}>
+            <div className="pr-cuerpo">{children}</div>
+        </Modal>
     );
 }
 

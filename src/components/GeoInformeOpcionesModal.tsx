@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import { X, MapPin, Thermometer, Wind, Sun, CloudRain, Check, Calendar, Users, FlaskConical, TrendingUp } from 'lucide-react';
+import { useState } from 'react';
+import { MapPin, Thermometer, Wind, Sun, CloudRain, Check, Calendar, Users, FlaskConical, TrendingUp } from 'lucide-react';
 import type { OpcionesGeoInforme } from '../utils/exportClimaGeoInforme';
 import { CAPAS_INFO, CAPAS_INFORME, type CapaId } from '../utils/capasCuenca';
 import { getTodayString, addDays } from '../utils/dateHelpers';
+import { Modal, Boton } from './ui/base';
 
 interface GeoInformeOpcionesModalProps {
     abierto: boolean;
@@ -71,18 +72,6 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
     // Cuesta una consulta de lecturas crudas, por eso solo se pide si se marca.
     const [incluirTendencias, setIncluirTendencias] = useState(false);
 
-    useEffect(() => {
-        if (!abierto) return;
-        const alPulsar = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar(); };
-        document.addEventListener('keydown', alPulsar);
-        const overflowPrevio = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
-        return () => {
-            document.removeEventListener('keydown', alPulsar);
-            document.body.style.overflow = overflowPrevio;
-        };
-    }, [abierto, onCerrar]);
-
     if (!abierto) return null;
 
     const alternarVariable = (clave: OpcionesGeoInforme['variables'][number]) => {
@@ -137,62 +126,15 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
     };
 
     return (
-        // left-[280px] (no inset-0): mismo fix que WindyMapModal.tsx / 280px
-        // es el ancho fijo del sidebar (Layout.css .sidebar). Con max-w-xl
-        // este diálogo no llegaba a invadir la franja del sidebar hoy, pero
-        // es el mismo bug de código — se corrige de raíz para no depender de
-        // que el ancho del diálogo se mantenga igual en el futuro.
-        <div
-            className="fixed top-0 right-0 bottom-0 left-[var(--sidebar-w,280px)] z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm"
-            style={{ padding: 16 }}
-            onClick={onCerrar}
-            role="presentation"
+        <Modal
+            abierto onCerrar={onCerrar} tamano="md" cubreSidebar={false}
+            titulo="Informe geoclimático" kicker="Elige qué incluir"
+            icono={<MapPin size={22} aria-hidden="true" />}
+            pie={<>
+                <Boton variante="fantasma" onClick={onCerrar}>Cancelar</Boton>
+                <Boton variante="primario" onClick={confirmar}>Generar informe</Boton>
+            </>}
         >
-            <div
-                className="glass-card shadow-2xl w-full max-w-xl border-white/10"
-                style={{ padding: 0, overflow: 'hidden' }}
-                onClick={(e) => e.stopPropagation()}
-                role="dialog"
-                aria-modal="true"
-                aria-label="Opciones del Informe Geoclimático"
-            >
-                {/* Línea de acento superior, mismo lenguaje que .station-card::before
-                    en Clima.css (halo + línea degradada) para emparentar visualmente
-                    el modal con el resto del módulo. */}
-                <div style={{ height: 3, background: 'linear-gradient(90deg, #38bdf8, #3b82f6 45%, transparent)' }} />
-
-                <div style={{ padding: '20px 28px 16px' }}>
-                    <div className="flex justify-between items-center" style={{ marginBottom: 18 }}>
-                        <div className="flex items-center" style={{ gap: 14 }}>
-                            <div
-                                className="flex items-center justify-center"
-                                style={{
-                                    width: 42, height: 42, borderRadius: 12, flex: 'none',
-                                    background: 'linear-gradient(140deg, #38bdf8, #2563eb)',
-                                    boxShadow: '0 6px 18px -6px rgba(37,99,235,0.6)',
-                                }}
-                            >
-                                <MapPin size={20} color="#fff" />
-                            </div>
-                            <div>
-                                <h2 className="font-black text-white uppercase" style={{ fontSize: 16, letterSpacing: '0.04em', margin: 0 }}>
-                                    Informe Geoclimático
-                                </h2>
-                                <p className="font-bold uppercase" style={{ fontSize: 11, letterSpacing: '0.18em', color: '#64748b', margin: '2px 0 0' }}>
-                                    Elige qué incluir
-                                </p>
-                            </div>
-                        </div>
-                        <button
-                            className="hover:bg-slate-800 transition-colors"
-                            style={{ padding: 8, background: 'rgba(15,23,42,0.9)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}
-                            onClick={onCerrar}
-                            title="Cerrar"
-                        >
-                            <X size={16} className="text-slate-400" />
-                        </button>
-                    </div>
-
                     <div style={{ marginBottom: 20 }} role="radiogroup" aria-label="Alcance del informe">
                         <p className="font-bold uppercase" style={{ fontSize: 11, letterSpacing: '0.08em', color: '#94a3b8', margin: '0 0 10px' }}>
                             Alcance
@@ -488,34 +430,6 @@ export function GeoInformeOpcionesModal({ abierto, onCerrar, onConfirmar }: GeoI
                                 : 'Todo el histórico: el informe mostrará el promedio (o acumulado, en precipitación) desde el primer dato de la red hasta hoy — no solo la lectura del día en que se genera.'}
                         </p>
                     </div>
-                </div>
-
-                <div
-                    className="flex justify-end"
-                    style={{ gap: 8, padding: '14px 28px', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.015)' }}
-                >
-                    <button
-                        type="button"
-                        onClick={onCerrar}
-                        className="font-semibold hover:text-slate-300 transition-colors"
-                        style={{ padding: '9px 16px', borderRadius: 10, fontSize: 12, color: '#94a3b8' }}
-                    >
-                        Cancelar
-                    </button>
-                    <button
-                        type="button"
-                        onClick={confirmar}
-                        className="font-bold transition-colors whitespace-nowrap"
-                        style={{
-                            padding: '9px 18px', borderRadius: 10, fontSize: 12, color: '#fff',
-                            background: 'linear-gradient(135deg, #38bdf8, #2563eb)',
-                            boxShadow: '0 6px 18px -6px rgba(37,99,235,0.55)',
-                        }}
-                    >
-                        Generar informe
-                    </button>
-                </div>
-            </div>
-        </div>
+        </Modal>
     );
 }

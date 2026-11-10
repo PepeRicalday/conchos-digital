@@ -8,6 +8,7 @@ import { statsSerie } from '../utils/tendencias';
 import InformeTendencias from './InformeTendencias';
 import { TRAMO_COLORS, MultiLine, StackedArea, MiniNivel, RutaCanal, niceTicks, type EventoMarca } from './TendenciasCharts';
 import { getTodayString, addDays } from '../utils/dateHelpers';
+import { Modal } from './ui/base';
 
 const n2 = (v: number | null | undefined) => v == null || !isFinite(v) ? '—' : v.toFixed(2);
 const n3 = (v: number | null | undefined) => v == null || !isFinite(v) ? '—' : v.toFixed(3);
@@ -177,13 +178,6 @@ const ModalTramo: React.FC<{ tramo: SerieTramo; color: string; t0: number; t1: n
   const st = statsSerie(tramo.puntos);
   const volActual = [...tramo.puntos].reverse().find(p => p.y != null)?.y ?? null;
 
-  // Cierra con Escape
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   // Geometría derivada al tirante actual (o de diseño si no hay lectura)
   const hRef = tiranteActual ?? tiranteDiseno ?? 0;
   const espejo = esTrapezoidal ? espejoM(b, z, hRef) : b;
@@ -198,17 +192,12 @@ const ModalTramo: React.FC<{ tramo: SerieTramo; color: string; t0: number; t1: n
   );
 
   return (
-    <div className="tnd-modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={`Detalle del tramo ${etiqueta}`}>
-      <div className="tnd-modal" onClick={e => e.stopPropagation()} style={{ '--tramo-col': color } as React.CSSProperties}>
-        <header className="tnd-modal-head">
-          <div>
-            <span className="tnd-modal-badge" style={{ background: color }} />
-            <b>{etiqueta}</b>
-            <span className="tnd-modal-km">K {km_up.toFixed(3)} → {km_down.toFixed(3)}</span>
-          </div>
-          <button type="button" className="tnd-modal-close" onClick={onClose} aria-label="Cerrar">✕</button>
-        </header>
-
+    <Modal
+      abierto onCerrar={onClose} tamano="lg" cubreSidebar={false}
+      titulo={etiqueta} kicker={`K ${km_up.toFixed(3)} → ${km_down.toFixed(3)}`}
+      icono={<span className="tnd-modal-badge" style={{ background: color }} aria-hidden="true" />}
+    >
+      <div style={{ '--tramo-col': color } as React.CSSProperties}>
         <div className="tnd-modal-body">
           {/* Bloque estado — chip grande */}
           <div className="tnd-modal-estado" style={{ borderColor: colEstado, background: `color-mix(in srgb, ${colEstado} 12%, transparent)` }}>
@@ -269,7 +258,7 @@ const ModalTramo: React.FC<{ tramo: SerieTramo; color: string; t0: number; t1: n
           </section>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 

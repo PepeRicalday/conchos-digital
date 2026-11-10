@@ -62,7 +62,7 @@ for (const [nombre, vista] of [['escritorio', { width: 1440, height: 900 }], ['i
 
   // El resto de pestañas sigue funcionando y el orden previo no cambió
   const nombres = await page.getByRole('tab').allInnerTexts();
-  verifica(nombres.map((x) => x.trim().split('\n')[0]).slice(-2).join('|').includes('TENDENCIAS') && /CUENCA/.test(nombres.at(-1)), `[${nombre}] CUENCA es la última pestaña (${nombres.map((x) => x.trim().split('\n')[0]).join(' · ')})`);
+  verifica(nombres.map((x) => x.trim().split('\n')[0]).slice(-2).join('|').toUpperCase().includes('TENDENCIAS') && /CUENCA/i.test(nombres.at(-1)), `[${nombre}] CUENCA es la última pestaña (${nombres.map((x) => x.trim().split('\n')[0]).join(' · ')})`);
   await page.getByRole('tab', { name: 'TENDENCIAS' }).click();
   verifica(await page.getByRole('tab', { name: 'TENDENCIAS' }).getAttribute('aria-selected') === 'true', `[${nombre}] se puede pasar a TENDENCIAS`);
   await page.getByRole('tab', { name: 'PANORAMA' }).click();

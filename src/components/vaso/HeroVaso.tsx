@@ -95,7 +95,7 @@ function HeroVaso(p: Props) {
                     <li className={`vaso-chip vaso-chip--${estado.clave}`}><EstadoIcono size={14} aria-hidden="true" />{estado.etiqueta}</li>
                     {frescura && <li className={`vaso-chip ${frescura.stale ? 'vaso-chip--warn' : 'vaso-chip--ok'}`}><Clock size={14} aria-hidden="true" />{frescura.texto}{frescura.stale ? ' · desactualizada' : ''}</li>}
                     {procedencia && <li className="vaso-chip"><Radio size={14} aria-hidden="true" />{ETIQUETA_PROCEDENCIA[procedencia]}</li>}
-                    {simulado && <li className="vaso-chip vaso-chip--info"><Info size={14} aria-hidden="true" />SIMULADO</li>}
+                    {simulado && <li className="vaso-chip vaso-chip--info"><Info size={14} aria-hidden="true" />Simulado</li>}
                 </ul>
                 <div className={`vaso-mensaje vaso-mensaje--${mensaje.severidad}`} role="status">
                     <Icono size={20} aria-hidden="true" />

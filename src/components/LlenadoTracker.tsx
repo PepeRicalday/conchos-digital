@@ -96,7 +96,7 @@ const PuntoCard: React.FC<{
                 {isPendiente ? (
                     <>
                         <div className="text-slate-800 font-mono text-3xl font-black tracking-tighter">--:--:--</div>
-                        <div className="text-slate-800 text-[11px] font-black uppercase tracking-wider mt-1">ESPERANDO APERTURA</div>
+                        <div className="text-slate-800 text-[11px] font-black uppercase tracking-wider mt-1">Esperando apertura</div>
                     </>
                 ) : isConfirmado ? (
                     <div className="arribo-text">

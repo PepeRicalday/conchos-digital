@@ -56,7 +56,7 @@ function SuperficieVaso({ fuentes, cargandoVisual, errorVisual, sinDeteccion, on
                                 <span className="d">{f.detalle}</span>
                             )}
                             {f.clave === 'curva'
-                                ? <span className="vaso-chip vaso-chip--ok" style={{ alignSelf: 'flex-start' }}><ShieldCheck size={14} aria-hidden="true" />REFERENCIA OFICIAL</span>
+                                ? <span className="vaso-chip vaso-chip--ok" style={{ alignSelf: 'flex-start' }}><ShieldCheck size={14} aria-hidden="true" />Referencia oficial</span>
                                 : <Diferencia f={f} />}
                         </li>
                     ))}

@@ -53,7 +53,7 @@ const Sidebar = () => {
             items: [
                 { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
                 { icon: IconoMonitoreo, label: 'Monitor Público', path: '/monitor-publico' },
-                { icon: Bell, label: 'Alertas', path: '/alertas', badge: criticalAlertsCount > 0 ? `${criticalAlertsCount}` : alertasAntiguas > 0 ? `${alertasAntiguas}` : undefined, badgeColor: criticalAlertsCount > 0 ? '#f43f5e' : alertasAntiguas > 0 ? '#94a3b8' : undefined,
+                { icon: Bell, label: 'Alertas', path: '/alertas', badge: criticalAlertsCount > 0 ? `${criticalAlertsCount}` : alertasAntiguas > 0 ? `${alertasAntiguas}` : undefined, badgeColor: criticalAlertsCount > 0 ? '#f87171' : alertasAntiguas > 0 ? '#94a3b8' : undefined,
                   badgeTitle: criticalAlertsCount > 0 ? `${criticalAlertsCount} alerta(s) vigente(s)${alertasAntiguas > 0 ? ` · ${alertasAntiguas} pendiente(s) antigua(s)` : ''}` : alertasAntiguas > 0 ? `${alertasAntiguas} pendiente(s) antigua(s) sin resolver (más de 14 días). Las alertas calculadas en vivo están en el Dashboard.` : undefined },
             ],
         },

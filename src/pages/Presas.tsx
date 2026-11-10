@@ -440,7 +440,7 @@ const TrazabilidadRedMayorPanel = ({ extraccionTotal, desglose }: {
             <div className="scada-panel-hdr mb-3">
                 <Activity size={12} className="text-sky-400" />
                 <span>Flujo por obra de toma hacia la red mayor</span>
-                <span className="text-[11px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded ml-2">DESGLOSE REPORTADO POR OBRA</span>
+                <span className="text-[11px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded ml-2">Desglose reportado por obra</span>
             </div>
             
             {motivoSinDiagrama ? (
@@ -666,8 +666,8 @@ const Presas = () => {
             <header className="scada-sala-header">
                 {/* Identity */}
                 <div className="scada-header-identity">
-                    <span className="scada-header-org">CONAGUA · DISTRITO DE RIEGO 005 DELICIAS</span>
-                    <h1 className="scada-header-title">SALA DE CONTROL HIDRÁULICO</h1>
+                    <span className="scada-header-org">CONAGUA · distrito de riego 005 Delicias</span>
+                    <h1 className="scada-header-title">Sala de control hidráulico</h1>
                 </div>
 
                 {/* Dam selector */}
@@ -732,13 +732,13 @@ const Presas = () => {
                             className={`flex-1 py-2 min-h-[44px] text-[12px] font-bold tracking-wider rounded transition-colors ${activeTab === 'operacion' ? 'bg-[#3FB2F3] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
                             onClick={() => setActiveTab('operacion')}
                         >
-                            VASO OPERATIVO
+                            Vaso operativo
                         </button>
                         <button role="tab" aria-selected={activeTab === 'analitica'}
                             className={`flex-1 py-2 min-h-[44px] text-[12px] font-bold tracking-wider rounded transition-colors ${activeTab === 'analitica' ? 'bg-[#3FB2F3] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
                             onClick={() => setActiveTab('analitica')}
                         >
-                            ANALÍTICA Y FORECASTING
+                            Analítica y forecasting
                         </button>
                     </div>
 
@@ -780,7 +780,7 @@ const Presas = () => {
                     </div>
 
                     <div className="scada-extraccion-total">
-                        <span className="scada-ext-label">CAUDAL TOTAL DE SALIDA</span>
+                        <span className="scada-ext-label">Caudal total de salida</span>
                         <span className={`scada-ext-val${extConocida && extraccionTotal > 0 ? ' scada-kpi-sky' : ' scada-kpi-muted'}`}>
                             {extTexto}
                         </span>
@@ -829,7 +829,7 @@ const Presas = () => {
 
                     <div className="scada-panel-hdr scada-panel-hdr--sub">
                         <Activity size={11} className="text-slate-400" />
-                        <span>TENDENCIA DE EXTRACCIÓN 48H</span>
+                        <span>Tendencia de extracción 48H</span>
                     </div>
                     <ExtractionStreamgraph movimientos={movimientosHistorial.filter(m => m.presa_id === currentDam.id)} />
 
@@ -838,7 +838,7 @@ const Presas = () => {
                         <>
                             <div className="scada-panel-hdr scada-panel-hdr--sub">
                                 <Waves size={11} className="text-slate-400" />
-                                <span>DATOS DE DISEÑO DEL VASO</span>
+                                <span>Datos de diseño del vaso</span>
                             </div>
                             <div className="scada-design-kpis">
                                 <div className="scada-design-kpi">
@@ -880,21 +880,21 @@ const Presas = () => {
                 <div className="scada-zona-gestion">
                     <div className="scada-panel-hdr">
                         <Shield size={12} className="text-sky-400" />
-                        <span>GESTIÓN Y BALANCE HIDRÁULICO</span>
+                        <span>Gestión y balance hidráulico</span>
                     </div>
 
                     <div className="scada-gestion-kpis">
                         {/* Extracción y amortiguamiento ya están en la franja de diseño del vaso: aquí no se repiten. */}
                         <div className="scada-gestion-kpi">
-                            <span>LLENADO</span>
+                            <span>Llenado</span>
                             <strong style={{ color: riskColor }}>{sinLlenado ? 'S/D' : <>{pctLlenado.toFixed(1)} <small>%</small></>}</strong>
                         </div>
                         <div className="scada-gestion-kpi">
-                            <span>NIVEL ACTUAL</span>
+                            <span>Nivel actual</span>
                             <strong>{elevTexto ? <>{elevTexto} <small>msnm{elevEstimada ? ' · estimada ±0.5 m' : ''}</small></> : 'S/D'}</strong>
                         </div>
                         <div className="scada-gestion-kpi">
-                            <span>RIESGO</span>
+                            <span>Riesgo</span>
                             <strong style={{ color: riskColor }}>{riskLabel}</strong>
                         </div>
                     </div>
@@ -913,11 +913,11 @@ const Presas = () => {
                     </div>
 
                     <div className="scada-diagnostico">
-                        <span className="scada-diag-label">DIAGNÓSTICO AUTOMÁTICO</span>
+                        <span className="scada-diag-label">Diagnóstico automático</span>
                         <p className="scada-diag-text">{diagnostico}</p>
                     </div>
                     <div className="scada-diagnostico">
-                        <span className="scada-diag-label">RECOMENDACIÓN OPERATIVA</span>
+                        <span className="scada-diag-label">Recomendación operativa</span>
                         <p className="scada-diag-text scada-diag-text--rec">{recomendacion}</p>
                     </div>
 
@@ -927,7 +927,7 @@ const Presas = () => {
                 <div className="scada-zona-alertas">
                     <div className="scada-panel-hdr">
                         <AlertTriangle size={12} className="text-amber-400" />
-                        <span>PANEL DE ALERTAS</span>
+                        <span>Panel de alertas</span>
                         {alertas.length > 0 && <span className="scada-alerta-count">{alertas.length}</span>}
                     </div>
                     <div className="scada-alertas-list">
@@ -962,7 +962,7 @@ const Presas = () => {
 
                     <div className="scada-panel-hdr scada-panel-hdr--sub">
                         <Clock size={11} className="text-slate-400" />
-                        <span>HISTORIAL DE OPERACIONES</span>
+                        <span>Historial de operaciones</span>
                         {puedeEscribir && (
                         <button type="button" onClick={() => setIsMoveModalOpen(true)} className="scada-hist-btn">
                             <PlusCircle size={9} />Registrar
@@ -988,7 +988,7 @@ const Presas = () => {
 
                     <div className="scada-panel-hdr scada-panel-hdr--sub">
                         <Activity size={11} className="text-slate-400" />
-                        <span>COMPARATIVA DE CUENCA</span>
+                        <span>Comparativa de cuenca</span>
                     </div>
                     <div className="scada-cuenca-list">
                         {presas.map(p => {

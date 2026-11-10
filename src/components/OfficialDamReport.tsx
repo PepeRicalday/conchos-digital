@@ -221,7 +221,7 @@ const OfficialDamReport = () => {
 
                     {/* Signatures */}
                     <div className="mt-auto pt-8 flex justify-between items-end">
-                        <div className="text-center w-64 border-t border-slate-800 pt-2 opacity-30 print:opacity-100">
+                        <div className="text-center w-64 border-t border-slate-800 pt-2">
                             <p className="font-bold text-[10px] uppercase">Control Escalas (Lecturísta)</p>
                             <p className="text-[9px] text-slate-500">Firma / Sello</p>
                         </div>

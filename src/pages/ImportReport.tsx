@@ -594,7 +594,7 @@ const ImportReport = () => {
                                 <h4 className="text-[11px] font-mono text-slate-400 uppercase tracking-[0.3em] mb-2 text-center">Referencia Técnica</h4>
                                 <div className="flex justify-around text-[11px] text-slate-400 font-mono">
                                     <div><span className="opacity-80">ÁREA:</span> <span className="text-blue-300 font-bold">{AREAS[activeTab]} ha</span></div>
-                                    <div><span className="opacity-50">CAPACIDAD NAMO:</span> <span className="text-blue-300 font-bold">{CAPACIDAD_TOTAL[activeTab]} Mm³</span></div>
+                                    <div><span className="text-slate-400">CAPACIDAD NAMO:</span> <span className="text-blue-300 font-bold">{CAPACIDAD_TOTAL[activeTab]} Mm³</span></div>
                                 </div>
                             </section>
                         )}

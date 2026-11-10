@@ -57,7 +57,7 @@ const Login: React.FC = () => {
 
                 <div className="login-header">
                     <h3 className="login-section-title">
-                        SISTEMA DE CONTROL
+                        Sistema de control
                     </h3>
                     <p className="login-section-desc">
                         Ingresa tus credenciales para acceder.
@@ -66,7 +66,7 @@ const Login: React.FC = () => {
 
                 <form onSubmit={handleLogin} style={{ width: '100%' }}>
                     <div className="form-group">
-                        <label className="form-label">CORREO ELECTRÓNICO</label>
+                        <label className="form-label">Correo electrónico</label>
                         <div className="input-wrapper">
                             <Mail className="input-icon" size={18} />
                             <input
@@ -81,7 +81,7 @@ const Login: React.FC = () => {
                     </div>
 
                     <div className="form-group">
-                        <label className="form-label">CONTRASEÑA</label>
+                        <label className="form-label">Contraseña</label>
                         <div className="input-wrapper">
                             <Lock className="input-icon" size={18} />
                             <input

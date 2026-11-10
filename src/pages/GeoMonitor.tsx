@@ -1604,7 +1604,7 @@ const GeoMonitor = () => {
                     <div style="min-width: 140px">
                         <div style="font-weight: 800; font-size: 14px; margin-bottom: 4px; color: #f4f8fc">${esc?.nombre} <small style="color: #7c8ba3">KM ${esc?.km}</small></div>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
-                            <span style="color: #7c8ba3; font-size: 10px; font-weight: 700">ESTADO</span>
+                            <span style="color: #7c8ba3; font-size: 10px; font-weight: 700">Estado</span>
                             <span style="color: ${statusColor}; font-size: 10px; font-weight: 900">${status}</span>
                         </div>
                         <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; display: flex; align-items: baseline; gap: 4px">
@@ -1680,7 +1680,7 @@ const GeoMonitor = () => {
                     </div>
                     <div>
                         <h1 className="geo-title">
-                            GEO-MONITOR <span className="font-light">CENTRO VISUAL</span>
+                            GEO-MONITOR <span className="font-light">Centro visual</span>
                         </h1>
                         <p className="geo-subtitle">
                             Canal Principal Conchos — DR-005

@@ -221,7 +221,7 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
 
                     <p style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '12px', lineHeight: 1.5 }}>
                         El canal ha alcanzado cobertura suficiente. Al confirmar, el protocolo cambiará 
-                        a <strong style={{ color: '#10b981' }}>ESTABILIZACIÓN</strong> y se activará el monitoreo 
+                        a <strong style={{ color: '#10b981' }}>Estabilización</strong> y se activará el monitoreo 
                         de flujo permanente y distribución a tomas.
                     </p>
 

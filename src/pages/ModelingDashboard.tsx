@@ -394,7 +394,7 @@ const CanalSection: React.FC<{
   const W = 240, H = 130;
   const CX = W / 2, BY = H - 18;
   const VPM = (H - 32) / freeboard;
-  const HPM = (W - 40) / (plantilla + 2 * talud * freeboard);
+  const HPM = (W - 96) / (plantilla + 2 * talud * freeboard);
 
   const bxL  = CX - (plantilla / 2) * HPM;
   const bxR  = CX + (plantilla / 2) * HPM;
@@ -457,24 +457,24 @@ const CanalSection: React.FC<{
       <line x1={fbxL} y1={fbY} x2={fbxR} y2={fbY}
         stroke="#ef4444" strokeWidth="1" strokeDasharray="6,4" opacity="0.5" />
       {/* Cota del agua */}
-      <text x={swxR + 4} y={swY + 4} fill={sc} fontSize="9.5" fontFamily="monospace" fontWeight="bold">
+      <text x={swxR + 4} y={swY + 4} fill={sc} fontSize="11" fontFamily="monospace" fontWeight="bold">
         {ySim.toFixed(2)}m
       </text>
       {Math.abs(sY - bY) > 0.02 && (
-        <text x={bwxR + 4} y={bwY + 4} fill="#3FB2F3" fontSize="8" fontFamily="monospace">
+        <text x={bwxR + 4} y={bwY + 4} fill="#3FB2F3" fontSize="11" fontFamily="monospace">
           {yBase.toFixed(2)}m
         </text>
       )}
       {/* Bordo libre (cota máxima del canal) */}
-      <text x={W - 6} y={fbY - 4} fill="#ef4444" fontSize="7.5" fontFamily="monospace" textAnchor="end">
+      <text x={W - 6} y={fbY - 4} fill="#f87171" fontSize="11" fontFamily="monospace" textAnchor="end">
         H={freeboard.toFixed(1)}m
       </text>
-      <text x={W - 6} y={fbY + 9} fill={sc} fontSize="8" fontFamily="monospace" fontWeight="bold" textAnchor="end">
+      <text x={W - 6} y={fbY + 13} fill={sc} fontSize="11" fontFamily="monospace" fontWeight="bold" textAnchor="end">
         ▲ {borda}m libre
       </text>
       {/* Info tramo */}
-      <text x={CX} y={H - 4} fill="#8396ad" fontSize="7.5" fontFamily="monospace" textAnchor="middle">
-        b={plantilla}m · z={talud}:1 · H={freeboard.toFixed(1)}m
+      <text x={CX} y={H - 4} fill="#8FA7C8" fontSize="11" fontFamily="monospace" textAnchor="middle">
+        b={plantilla}m · z={talud}:1
       </text>
       {/* Barra % bordo libre */}
       <rect x={bxL} y={BY + 3} width={bxR - bxL} height={3} fill="#0d1f38" rx="1" />
@@ -1461,8 +1461,8 @@ const ModelingDashboard: React.FC = () => {
       CONSISTENTE:           '#22c55e',   // verde
       DESBORDAMIENTO:        '#ef4444',   // rojo
       ALERTA_DESBORDAMIENTO: '#f59e0b',   // ámbar
-      SIN_LECTURA:           '#64748b',   // gris
-      SIN_DATOS:             '#64748b',
+      SIN_LECTURA:           '#8FA7C8',   // gris
+      SIN_DATOS:             '#8FA7C8',
     };
     // Mapa km_ref → { nivel_real_m, estado_lectura } del RPC
     const rpcByKm = new Map<number, { nivel: number; estado: string }>();
@@ -1550,7 +1550,7 @@ const ModelingDashboard: React.FC = () => {
           .filter(([k]) => Math.abs(k - r.km) < 2)
           .sort((a, b) => Math.abs(a[0] - r.km) - Math.abs(b[0] - r.km))[0]?.[1];
         const estadoLabel = rpcRow?.estado ?? '—';
-        const estadoClr   = estadoColorMap[estadoLabel] ?? '#64748b';
+        const estadoClr   = estadoColorMap[estadoLabel] ?? '#8FA7C8';
         return `<div style="font-family:monospace;font-size:11px;line-height:1.9;min-width:200px">
           <div style="color:#94a3b8;font-size:9px;border-bottom:1px solid #1e3a5f;padding-bottom:3px;margin-bottom:5px">${r.nombre} · KM ${r.km}</div>
           <div>Nivel real SQL&nbsp;&nbsp;<b style="color:#f59e0b">${rpcRow && Number.isFinite(rpcRow.nivel) ? rpcRow.nivel.toFixed(2)+' m' : '—'}</b>&nbsp;<span style="color:${estadoClr};font-size:9px">${estadoLabel}</span></div>
@@ -2169,7 +2169,7 @@ const ModelingDashboard: React.FC = () => {
         <div className="sim-brand">
           <div className="sim-brand-icon"><Waves size={18} /></div>
           <div>
-            <div className="sim-brand-title">SIMULADOR HIDRÁULICO</div>
+            <div className="sim-brand-title">Simulador hidráulico</div>
             <div className="sim-brand-sub">Canal Principal Conchos · DR-005 · SICA</div>
           </div>
         </div>
@@ -2265,7 +2265,7 @@ const ModelingDashboard: React.FC = () => {
       {/* ── BARRA DE CONTROL ───────────────────────────────────────── */}
       <div className="sim-ctrl-bar">
         <div className="sim-event-group">
-          <div className="sim-ctrl-label">TIPO DE MANIOBRA</div>
+          <div className="sim-ctrl-label">Tipo de maniobra</div>
           <div className="sim-event-btns">
             {([
               { key: 'INCREMENTO' as EventType, icon: <TrendingUp size={11} />,  label: '+ Incremento', color: '#10b981' },
@@ -2286,7 +2286,7 @@ const ModelingDashboard: React.FC = () => {
         </div>
 
         <div className="sim-flow-group">
-          <div className="sim-ctrl-label">GASTO SIMULADO · PRESA LA BOQUILLA</div>
+          <div className="sim-ctrl-label">Gasto simulado · presa la Boquilla</div>
           {/* Contexto: base (inicio del día) → actual → simulado */}
           <div className="sim-flow-context">
             <span className="sim-ctx-item base">
@@ -2342,7 +2342,7 @@ const ModelingDashboard: React.FC = () => {
         <div className="sim-start-time-row">
           <div className="sim-start-time-label">
             <Clock size={10} />
-            <span>HORA INICIO SIM.</span>
+            <span>Hora inicio sim.</span>
             {simStartOverride === null && (
               <span className="sim-start-time-auto">AUTO · {fmtTime(simBaseMin, 0)}</span>
             )}
@@ -2383,7 +2383,7 @@ const ModelingDashboard: React.FC = () => {
           <div className={`nivel-panel ${showNivelPanel ? 'expanded' : ''}`}>
             {/* Header colapsable */}
             <div className="nivel-panel-header" onClick={() => setShowNivelPanel(v => !v)}>
-              <span className="nivel-panel-title">CONDICIONANTES DE NIVEL · SIMULACIÓN</span>
+              <span className="nivel-panel-title">Condicionantes de nivel · simulación</span>
               {nMod > 0 && (
                 <span className="nivel-panel-badge">
                   {nMod} MODIFICADO{nMod > 1 ? 'S' : ''}
@@ -2414,7 +2414,7 @@ const ModelingDashboard: React.FC = () => {
                   <span>TRAMO</span>
                   <span>MÍN DESEABLE (m)</span>
                   <span>MÁX PERMITIDO (m)</span>
-                  <span>TIPO LÍMITE</span>
+                  <span>Tipo límite</span>
                   <span>TOLERANCIA (m)</span>
                   <span />
                 </div>
@@ -2505,7 +2505,7 @@ const ModelingDashboard: React.FC = () => {
       <div className="sim-datasource-strip">
         <div className={`sim-ds-pill ${dataStatus.dam ? 'live' : 'default'}`}>
           <span className="sim-ds-dot" />
-          <span className="sim-ds-label">PRESA · BOQUILLA</span>
+          <span className="sim-ds-label">Presa · Boquilla</span>
           <span className="sim-ds-val">
             {dataStatus.dam ? (
               dataStatus.damBaseValue === dataStatus.damCurrentValue
@@ -2516,14 +2516,14 @@ const ModelingDashboard: React.FC = () => {
         </div>
         <div className={`sim-ds-pill ${dataStatus.gates ? 'live' : 'default'}`}>
           <span className="sim-ds-dot" />
-          <span className="sim-ds-label">APERTURAS</span>
+          <span className="sim-ds-label">Aperturas</span>
           <span className="sim-ds-val">
             {dataStatus.gates ? 'SICA Capture' : 'Valores por defecto'}
           </span>
         </div>
         <div className={`sim-ds-pill ${dataStatus.levels ? 'live' : 'default'}`}>
           <span className="sim-ds-dot" />
-          <span className="sim-ds-label">ESCALAS</span>
+          <span className="sim-ds-label">Escalas</span>
           <span className="sim-ds-val">
             {dataStatus.levels
               ? `${Object.keys(baseReadings).length}/${controlPoints.length} puntos`
@@ -2532,7 +2532,7 @@ const ModelingDashboard: React.FC = () => {
         </div>
         <div className={`sim-ds-pill ${dataStatus.deliveries ? 'live' : 'default'}`}>
           <span className="sim-ds-dot" />
-          <span className="sim-ds-label">TOMAS · ENTREGA</span>
+          <span className="sim-ds-label">Tomas · entrega</span>
           <span className="sim-ds-val">
             {dataStatus.deliveries
               ? `${deliveryPoints.filter(d => d.is_active).length} activas · −${dataStatus.totalExtractionM3s.toFixed(2)} m³/s`
@@ -2541,7 +2541,7 @@ const ModelingDashboard: React.FC = () => {
         </div>
         <div className={`sim-ds-pill ${dataStatus.qRealK0 !== undefined ? 'live' : 'default'}`}>
           <span className="sim-ds-dot" />
-          <span className="sim-ds-label">Q ENTRADA CANAL</span>
+          <span className="sim-ds-label">Q entrada canal</span>
           <span className="sim-ds-val">
             {dataStatus.qRealK0 !== undefined
               ? `${dataStatus.qRealK0.toFixed(1)} m³/s · COMPUERTA K-0 (SICA Capture)`
@@ -2652,7 +2652,7 @@ const ModelingDashboard: React.FC = () => {
                                     {dy > 0.015 ? <ArrowUp size={20} /> : dy < -0.015 ? <ArrowDown size={20} /> : <span style={{ fontSize: 16 }}>—</span>}
                                   </div>
                                   <div>
-                                    <div className="sim-lvl-label">SIMULADO</div>
+                                    <div className="sim-lvl-label">Simulado</div>
                                     <div className="sim-lvl-val" style={{ color: sc }}>{niv(r?.y_sim)}<span>{sinLectura ? '' : 'm'}</span></div>
                                   </div>
                                 </>
@@ -2773,12 +2773,12 @@ const ModelingDashboard: React.FC = () => {
               <div className="sim-compare-ctrl">
                 <div className="sim-compare-scenarios">
                   <div className="sim-compare-scen scen-a">
-                    <span className="sim-compare-scen-lbl">A · ACTUAL</span>
+                    <span className="sim-compare-scen-lbl">A · actual</span>
                     <span className="sim-compare-scen-val">{qDam.toFixed(1)} m³/s</span>
                   </div>
                   <span className="sim-compare-vs">VS</span>
                   <div className="sim-compare-scen scen-b">
-                    <span className="sim-compare-scen-lbl">B · HIPOTÉTICO</span>
+                    <span className="sim-compare-scen-lbl">B · hipotético</span>
                     <div className="sim-compare-b-ctrl">
                       <span className="sim-compare-scen-val">{qDamB.toFixed(1)} m³/s</span>
                       <input type="range" min={0} max={120} step={0.5} value={qDamB}
@@ -2865,7 +2865,7 @@ const ModelingDashboard: React.FC = () => {
               {deliveryPoints.filter(d => d.is_active).length > 0 && (
                 <div className="sim-mods-section">
                   <div className="sim-mods-hdr">
-                    <span>MODIFICAR EXTRACCIONES · ESCENARIO B</span>
+                    <span>Modificar extracciones · escenario B</span>
                     {scenarioMods.length > 0 && (
                       <button type="button" className="sim-mods-clear"
                         onClick={() => { setScenarioMods([]); setScenarioRpcRows([]); }}>
@@ -3328,7 +3328,7 @@ const ModelingDashboard: React.FC = () => {
                       const tel = cpTelemetry[activeCP];
                       return [
                         ['Tirante base y₀',       `${(activeCPResult.y_base??0).toFixed(3)} m`,
-                          dataStatus.levels ? '#3FB2F3' : '#64748b'],
+                          dataStatus.levels ? '#3FB2F3' : '#8FA7C8'],
                         ['Apertura real radiales', gateBase[activeCP] != null
                           ? `${gateBase[activeCP].toFixed(3)} m  ×${activeCPData.pzas_radiales} pzas`
                           : 'Sin dato telemetría', gateBase[activeCP] != null ? '#3FB2F3' : '#6b7280'],
@@ -3343,7 +3343,7 @@ const ModelingDashboard: React.FC = () => {
                           tel?.delta_12h != null && Math.abs(tel.delta_12h) > 0.001
                           ? `${tel.delta_12h > 0 ? '+' : ''}${(tel.delta_12h * 100).toFixed(0)} cm`
                           : 'Estable (< 1 cm)', tel?.delta_12h && Math.abs(tel.delta_12h) > 0.001
-                            ? (tel.delta_12h > 0 ? '#fbbf24' : '#60a5fa') : '#64748b'],
+                            ? (tel.delta_12h > 0 ? '#fbbf24' : '#60a5fa') : '#8FA7C8'],
                       ] as [string, string, string][];
                     })().map(([k, v, c]) => (
                       <div key={k} className="sim-tech-row">
@@ -3358,14 +3358,14 @@ const ModelingDashboard: React.FC = () => {
                       ESCENARIO SIMULADO · ΔQ = {(qDam - qBase) >= 0 ? '+' : ''}{(qDam - qBase).toFixed(2)} m³/s
                     </div>
                     {[
-                      ['Motor hidráulico',    'Saint-Venant 1D + Orificio',  '#64748b'],
+                      ['Motor hidráulico',    'Saint-Venant 1D + Orificio',  '#8FA7C8'],
                       ['Fórmula',            'Δy = Q²/(Cd²·A²·2g) − Q₀²/(…)', '#8396ad'],
                       ['Q₀ (base presa)',    `${qBase.toFixed(3)} m³/s`,      '#3FB2F3'],
                       ['Q (simulado)',       `${(activeCPResult.q_sim??0).toFixed(3)} m³/s`, '#2dd4bf'],
                       ['Cd (descarga)',      `${activeCPResult.cd_used.toFixed(3)}${activeCPData.coeficiente_descarga ? ' (real BD)' : ' (global)'}`, '#94a3b8'],
                       ['Área compuerta A',   `${activeCPResult.area_gate.toFixed(3)} m²`,    '#94a3b8'],
                       ['Carga base H₀',      `${(activeCPResult.head_base??0).toFixed(4)} m`, '#8396ad'],
-                      ['Carga simulada H',   `${(activeCPResult.head_sim??0).toFixed(4)} m`,  '#64748b'],
+                      ['Carga simulada H',   `${(activeCPResult.head_sim??0).toFixed(4)} m`,  '#8FA7C8'],
                       ['ΔH (carga orificio)',`${(activeCPResult.head_delta??0) >= 0 ? '+' : ''}${(activeCPResult.head_delta??0).toFixed(4)} m`, '#fbbf24'],
                       ['── Lógica operativa ──', '────────────────', '#1e3a5f'],
                       ['Nivel objetivo (y_target)', (() => {
@@ -3376,7 +3376,7 @@ const ModelingDashboard: React.FC = () => {
                       })(), '#a78bfa'],
                       ['Apertura actual SICA', `${(activeCPResult.apertura_base??gateBase[activeCP]??activeCPResult.h_radial).toFixed(3)} m`, '#3FB2F3'],
                       ['Apertura requerida',  `${activeCPResult.apertura_requerida.toFixed(3)} m`, '#fbbf24'],
-                      ['Δ Apertura',          `${(activeCPResult.delta_apertura??0) >= 0 ? '+' : ''}${(activeCPResult.delta_apertura??0).toFixed(3)} m  ${(activeCPResult.delta_apertura??0) > 0.03 ? '▲ ABRIR' : (activeCPResult.delta_apertura??0) < -0.03 ? '▼ CERRAR' : 'Sin ajuste'}`, (activeCPResult.delta_apertura??0) > 0.03 ? '#f59e0b' : (activeCPResult.delta_apertura??0) < -0.03 ? '#3b82f6' : '#64748b'],
+                      ['Δ Apertura',          `${(activeCPResult.delta_apertura??0) >= 0 ? '+' : ''}${(activeCPResult.delta_apertura??0).toFixed(3)} m  ${(activeCPResult.delta_apertura??0) > 0.03 ? '▲ ABRIR' : (activeCPResult.delta_apertura??0) < -0.03 ? '▼ CERRAR' : 'Sin ajuste'}`, (activeCPResult.delta_apertura??0) > 0.03 ? '#f59e0b' : (activeCPResult.delta_apertura??0) < -0.03 ? '#3b82f6' : '#8FA7C8'],
                     ].map(([k, v, c]) => (
                       <div key={k as string} className="sim-tech-row">
                         <span>{k as string}</span><span style={{ color: c as string }}>{v as string}</span>
@@ -3386,7 +3386,7 @@ const ModelingDashboard: React.FC = () => {
 
                   {/* Bloque 3: Resultado Hidráulico */}
                   <div className="sim-hyd-block">
-                    <div className="sim-hyd-block-title">RESULTADO HIDRÁULICO</div>
+                    <div className="sim-hyd-block-title">Resultado hidráulico</div>
                     {(() => {
                       // Geometría real del tramo activo para cálculos en panel técnico
                       const tr = findTramo(activeCPResult.km, tramoGeom);
@@ -3421,7 +3421,7 @@ const ModelingDashboard: React.FC = () => {
                       ['Curva hidráulica',       activeCPResult.remanso_type === 'M1' ? 'M1 — Remanso positivo' : activeCPResult.remanso_type === 'M2' ? 'M2 — Descenso (drawdown)' : 'Normal (sin remanso)', '#a78bfa'],
                       ['Velocidad media V',      `${(activeCPResult.velocity_ms??0).toFixed(3)} m/s`, '#3FB2F3'],
                       ['Celeridad de onda c',    `${(activeCPResult.celerity_ms??0).toFixed(3)} m/s`, '#2dd4bf'],
-                      ['Número de Froude Fr',    `${(activeCPResult.froude_n??0).toFixed(4)}  ${(activeCPResult.froude_n??0) > 1 ? '⚠ Supercrítico' : 'Subcrítico'}`, (activeCPResult.froude_n??0) > 1 ? '#ef4444' : '#64748b'],
+                      ['Número de Froude Fr',    `${(activeCPResult.froude_n??0).toFixed(4)}  ${(activeCPResult.froude_n??0) > 1 ? '⚠ Supercrítico' : 'Subcrítico'}`, (activeCPResult.froude_n??0) > 1 ? '#ef4444' : '#8FA7C8'],
                       ['% Profundidad usada',     `${(activeCPResult.bordo_libre_pct??0).toFixed(1)}%`, statusColor(activeCPResult.status)],
                       ['Estado hidráulico',      activeCPResult.status, statusColor(activeCPResult.status)],
                       ['Arribo de onda',         `${activeCPResult.arrival_time}  (T+${Math.round(activeCPResult.cumulative_min??0)} min)`, '#c084fc'],
@@ -3477,7 +3477,7 @@ const ModelingDashboard: React.FC = () => {
                         <span>Eficiencia hasta K{activeCPResult.km}</span>
                         <span
                           title={ancladoSinTomas ? 'No medible: la caída de Q incluye extracciones sin reporte del día' : undefined}
-                          style={{ color: ancladoSinTomas ? '#64748b' : qEntrada > 0 ? (efic >= 90 ? '#10b981' : '#f59e0b') : '#64748b' }}
+                          style={{ color: ancladoSinTomas ? '#8FA7C8' : qEntrada > 0 ? (efic >= 90 ? '#10b981' : '#f59e0b') : '#8FA7C8' }}
                         >
                           {ancladoSinTomas ? 'S/D' : qEntrada > 0 ? `${efic.toFixed(1)}%` : '—'}
                         </span>
@@ -3499,7 +3499,7 @@ const ModelingDashboard: React.FC = () => {
             <div className={`sim-decision-panel ${decisionPanelPulse ? 'sim-decision-panel-pulse' : ''}`} ref={decisionPanelRef}>
               <div className="sim-decision-hdr">
                 <span className="sim-decision-title">
-                  <Zap size={11} /> MOTOR DE DECISIÓN
+                  <Zap size={11} /> Motor de decisión
                 </span>
                 <div className="sim-decision-badges">
                   {decisions.filter(d => d.prioridad === 'URGENTE').length > 0 && (

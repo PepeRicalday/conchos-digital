@@ -546,7 +546,7 @@ const CanalLongitudinalProfile = React.memo(({ escalas, coherencia, fgvProfile, 
       {pts.length >= 2 && (
         <g opacity="0.5">
           <text x={PAD_L} y={PAD_T - 6} fill="#8396ad" fontSize="6.5"
-            fontFamily="monospace" fontWeight="bold" letterSpacing="0.5">K-0 ENTRADA</text>
+            fontFamily="monospace" fontWeight="bold" letterSpacing="0.5">K-0 entrada</text>
           <text x={PAD_L + plotW} y={PAD_T - 6} fill="#8396ad" fontSize="6.5"
             textAnchor="end" fontFamily="monospace" fontWeight="bold" letterSpacing="0.5">K-104 SALIDA →</text>
         </g>
@@ -807,7 +807,7 @@ const EscalaMarker = React.memo(({ esc, displayMaxKm, isEstabilizacion, coherenc
                         <span className="scp-signal" data-tel={telEstado} title={telTxt} />
                     </div>
                     <div className="scp-section">
-                        <span className="scp-field-label">NIVEL DE AGUA</span>
+                        <span className="scp-field-label">Nivel de agua</span>
                         <div className="scp-bar-row">
                             <div className="scp-bar-track">
                                 <div className="scp-bar-fill" style={{ '--bar-w': nivelPct !== null ? `${nivelPct}%` : '0%', '--bar-color': barColor } as React.CSSProperties} />
@@ -820,14 +820,14 @@ const EscalaMarker = React.memo(({ esc, displayMaxKm, isEstabilizacion, coherenc
                         <div className="scp-metrics">
                             {gasto > 0 && (
                                 <div className="scp-metric">
-                                    <span className="scp-metric-label">FLUJO MEDIDO</span>
+                                    <span className="scp-metric-label">Flujo medido</span>
                                     <span className="scp-metric-val">{gasto.toFixed(2)}</span>
                                     <span className="scp-metric-unit">m³/s</span>
                                 </div>
                             )}
                             {apertura > 0 && (
                                 <div className="scp-metric">
-                                    <span className="scp-metric-label">APERTURA ACUM.</span>
+                                    <span className="scp-metric-label">Apertura acum.</span>
                                     <span className="scp-metric-val">{apertura.toFixed(2)}</span>
                                     <span className="scp-metric-unit">
                                         m{esc.puertas_abiertas != null && esc.pzas_radiales != null
@@ -1659,7 +1659,7 @@ const PublicMonitor: React.FC = () => {
         LLENADO:        { label: 'LLENADO EN TRÁNSITO',   color: '#06b6d4', kpi0Label: 'ENTREGA KM 0:' },
         ESTABILIZACION: { label: 'DISTRIBUCIÓN ACTIVA',   color: '#22c55e', kpi0Label: 'FLUJO K0+000:' },
         CONTINGENCIA:   { label: 'CONTINGENCIA — LLUVIA', color: '#f59e0b', kpi0Label: 'FLUJO K0+000:' },
-        VACIADO:        { label: 'VACIADO CONTROLADO',    color: '#a855f7', kpi0Label: 'FLUJO K0+000:' },
+        VACIADO:        { label: 'VACIADO CONTROLADO',    color: '#c084fc', kpi0Label: 'FLUJO K0+000:' },
         ANOMALIA:       { label: 'ANOMALÍA DETECTADA',    color: '#ef4444', kpi0Label: 'FLUJO K0+000:' },
         SIN_EVENTO:     { label: 'MONITOREO CONTINUO',    color: '#22c55e', kpi0Label: 'FLUJO K0+000:' },
     };
@@ -2528,13 +2528,13 @@ const PublicMonitor: React.FC = () => {
                             <div className="status-dot-inner-mini" style={{ background: statusColor }}></div>
                         </div>
                         <div className="phb-text">
-                            <span className="phb-label">ESTADO:</span>
+                            <span className="phb-label">Estado:</span>
                             <span className="phb-value" style={{ color: statusColor }}>{protocolLabel}</span>
                         </div>
                     </div>
 
                     <div className="phb-efficiency">
-                        <span className="phb-label">PRESA:</span>
+                        <span className="phb-label">Presa:</span>
                         <span className="phb-val" style={{ color: executiveMetrics.fresh ? undefined : '#8396ad' }}
                             title={!executiveMetrics.fresh ? 'Sin extracción vigente (ni movimiento de compuertas ni lectura <24 h)'
                                 : executiveMetrics.cerradaDesde ? `Presas cerradas desde ${formatFechaCorta(executiveMetrics.cerradaDesde)} (último movimiento de compuertas)` : undefined}>
@@ -2586,7 +2586,7 @@ const PublicMonitor: React.FC = () => {
             {activeEvent?.evento_tipo === 'LLENADO' && isPredictionVisible && (
                 <div className="prediction-badge managerial animate-in">
                     <div className="mgr-header">
-                        <span className="mgr-title">ANÁLISIS DE TRÁNSITO</span>
+                        <span className="mgr-title">Análisis de tránsito</span>
                         {isWaitingAtZero && <span className="wait-badge-pulse">WAITING</span>}
                         <button type="button" className="panel-toggle-mini" onClick={() => setIsPredictionVisible(false)} title="Cerrar panel">×</button>
                     </div>
@@ -2595,8 +2595,8 @@ const PublicMonitor: React.FC = () => {
                         <div className="wait-alert-box">
                             <Activity size={16} className="pulse-icon" />
                             <div className="wait-alert-text">
-                                <b>LLENADO DE RÍO: KM 0+000</b>
-                                <p>Nivel detectado. Esperando reporte de <b>APERTURA DE RADIALES</b> en SICA Capture para iniciar canal.</p>
+                                <b>Llenado de río: KM 0+000</b>
+                                <p>Nivel detectado. Esperando reporte de <b>Apertura de radiales</b> en SICA Capture para iniciar canal.</p>
                             </div>
                         </div>
                     )}
@@ -2605,7 +2605,7 @@ const PublicMonitor: React.FC = () => {
                         <div className="transit-row">
                             <div className="tr-label">
                                 <Clock size={12} />
-                                REPORTE DE CAMPO
+                                Reporte de campo
                             </div>
                             <div className="tr-value">
                                 {topAnchorKm !== undefined ? 
@@ -2617,7 +2617,7 @@ const PublicMonitor: React.FC = () => {
                         <div className="transit-row">
                             <div className="tr-label">
                                 <Timer size={12} />
-                                TIEMPO TRANSCURRIDO
+                                Tiempo transcurrido
                             </div>
                             <div className="tr-value">
                                 {nextTargetInfo.elapsed}
@@ -2627,7 +2627,7 @@ const PublicMonitor: React.FC = () => {
                         <div className="transit-row">
                             <div className="tr-label">
                                 <ArrowRightCircle size={12} />
-                                SIGUIENTE CONTROL
+                                Siguiente control
                             </div>
                             <div className="tr-value">{nextTargetInfo.name}</div>
                         </div>
@@ -2635,7 +2635,7 @@ const PublicMonitor: React.FC = () => {
                         <div className="transit-row">
                             <div className="tr-label">
                                 <MapPin size={12} />
-                                DISTANCIA RESTANTE
+                                Distancia restante
                             </div>
                             <div className="tr-value tr-value-accent">{nextTargetInfo.kmRemaining} KM</div>
                         </div>
@@ -2643,7 +2643,7 @@ const PublicMonitor: React.FC = () => {
                         <div className="transit-row">
                             <div className="tr-label">
                                 <Timer size={12} />
-                                LLEGADA ESTIMADA
+                                Llegada estimada
                             </div>
                             <div className="tr-value tr-value-accent">{nextTargetInfo.arrivalTime}</div>
                         </div>
@@ -2667,18 +2667,18 @@ const PublicMonitor: React.FC = () => {
                     <div className="balance-section technical">
                         <h4 className="balance-title technical-title">
                             <Activity size={14} />
-                            BALANCE HIDRÁULICO: FUENTE - KM 0+000
+                            Balance hidráulico: fuente - KM 0+000
                         </h4>
                         
                         <div className="technical-comparison-container">
                             {/* Source: Dam */}
                             <div className="tech-item source">
-                                <div className="tech-label">EXTRACCIÓN PRESA</div>
+                                <div className="tech-label">Extracción presa</div>
                                 <div className="tech-main-val" title={executiveMetrics.fresh ? undefined : 'Sin lectura/movimiento de presa en las últimas 24 h'}>
                                     {executiveMetrics.fresh ? executiveMetrics.totalReal.toFixed(2) : 'S/D'}
                                     {executiveMetrics.fresh && <small>m³/s</small>}
                                 </div>
-                                <div className="tech-sub">FUENTE: TOTAL PRESAS</div>
+                                <div className="tech-sub">Fuente: total presas</div>
                             </div>
 
                             <div className="tech-arrow">
@@ -2688,20 +2688,20 @@ const PublicMonitor: React.FC = () => {
 
                             {/* Delivery: KM 0 */}
                             <div className="tech-item delivery">
-                                <div className="tech-label">ENTREGA KM 0+000</div>
+                                <div className="tech-label">Entrega KM 0+000</div>
                                 <div className="tech-main-val" title={flowAtZeroFresh ? undefined : 'K-0 sin lectura de gasto fresca (<4 h)'}>
                                     {flowAtZeroFresh ? flowAtZero.toFixed(2) : 'S/D'}
                                     {flowAtZeroFresh && <small>m³/s</small>}
                                 </div>
-                                <div className="tech-sub" style={{ color: '#22d3ee' }}>RADIALES SICA</div>
+                                <div className="tech-sub" style={{ color: '#22d3ee' }}>Radiales SICA</div>
                             </div>
                         </div>
 
                         <div className="radial-behavior-box">
-                            <div className="rb-header">COMPORTAMIENTO DE RADIALES (K-0)</div>
+                            <div className="rb-header">Comportamiento de radiales (K-0)</div>
                             <div className="rb-grid">
                                 <div className="rb-stat">
-                                    <span className="rb-st-label">NIVEL (H)</span>
+                                    <span className="rb-st-label">Nivel (H)</span>
                                     <span className="rb-st-val">{parseFloat(sessionStorage.getItem('zero_nivel_arriba') || '0').toFixed(2)}m</span>
                                 </div>
                                 <div className="rb-stat">
@@ -2726,7 +2726,7 @@ const PublicMonitor: React.FC = () => {
                                 return (
                                 <>
                                 <div className="bst-item">
-                                    <span className="bst-label">PÉRDIDA EN TRÁNSITO</span>
+                                    <span className="bst-label">Pérdida en tránsito</span>
                                     <span
                                         className="bst-val"
                                         style={{ color: !ambosFrescos ? '#8396ad' : (executiveMetrics.totalReal - flowAtZero) > 5 ? '#ef4444' : '#22c55e' }}
@@ -2736,7 +2736,7 @@ const PublicMonitor: React.FC = () => {
                                     </span>
                                 </div>
                                 <div className="bst-item">
-                                    <span className="bst-label">EFICIENCIA GLOBAL</span>
+                                    <span className="bst-label">Eficiencia global</span>
                                     <span className="bst-val highlight" title={ambosFrescos ? undefined : motivo}>
                                         {executiveMetrics.totalReal > 0 && ambosFrescos
                                             ? ((flowAtZero / executiveMetrics.totalReal) * 100).toFixed(1)
@@ -2873,7 +2873,7 @@ const PublicMonitor: React.FC = () => {
                 <div className="map-legend" data-pm-overlay>
                     {isEstabilizacion ? (
                         <>
-                            <div className="ml-title">NIVEL DE AGUA</div>
+                            <div className="ml-title">Nivel de agua</div>
                             <div className="ml-item">
                                 <span className="ml-dot ml-dot--critico" />
                                 <span>Crítico ≥ {UMBRAL_CRITICO * 100}% máx.</span>
@@ -2901,7 +2901,7 @@ const PublicMonitor: React.FC = () => {
                         </>
                     ) : (
                         <>
-                            <div className="ml-title">FRENTE DE AVANCE</div>
+                            <div className="ml-title">Frente de avance</div>
                             <div className="ml-item">
                                 <span className="ml-line ml-line--activo" />
                                 <span>Hidratado</span>
@@ -2993,7 +2993,7 @@ const PublicMonitor: React.FC = () => {
                             aria-selected={dockTab === 'resumen'}
                             onClick={() => setDockTab('resumen')}
                         >
-                            PANORAMA
+                            Panorama
                         </button>
                         <button
                             type="button"
@@ -3011,7 +3011,7 @@ const PublicMonitor: React.FC = () => {
                             aria-selected={dockTab === 'alertas'}
                             onClick={() => setDockTab('alertas')}
                         >
-                            ALERTAS
+                            Alertas
                             {datosEjecutivos.alertas.crit + datosEjecutivos.alertas.avisos > 0 && (
                                 <span className={`dock-tab-badge${datosEjecutivos.alertas.crit === 0 ? ' dock-tab-badge--warn' : ''}`}
                                     title={`${datosEjecutivos.alertas.crit} críticas · ${datosEjecutivos.alertas.avisos} avisos vigentes${datosEjecutivos.alertas.antiguas ? ` · ${datosEjecutivos.alertas.antiguas} pendientes antiguas` : ''}`}>{datosEjecutivos.alertas.crit + datosEjecutivos.alertas.avisos}</span>
@@ -3025,7 +3025,7 @@ const PublicMonitor: React.FC = () => {
                             onClick={() => setDockTab('skill')}
                             title="Datos técnicos: balance, tramos, zonas, módulos y modelación"
                         >
-                            TÉCNICO
+                            Técnico
                         </button>
                         <button
                             type="button"
@@ -3035,7 +3035,7 @@ const PublicMonitor: React.FC = () => {
                             onClick={() => setDockTab('tendencias')}
                             title="Análisis histórico por periodo: escalas, tramos, compuertas, gasto"
                         >
-                            TENDENCIAS
+                            Tendencias
                         </button>
                         <button
                             type="button"
@@ -3045,7 +3045,7 @@ const PublicMonitor: React.FC = () => {
                             onClick={() => setDockTab('cuenca')}
                             title="Presas de la cuenca del Conchos y lluvia GOES (portal USIBWC, dato provisional)"
                         >
-                            CUENCA
+                            Cuenca
                         </button>
                     </div>
 
@@ -3057,7 +3057,7 @@ const PublicMonitor: React.FC = () => {
                             // ── Vista LLENADO ──
                             <>
                                 <div className="dock-panel-header">
-                                    <span className="card-label">BALANCE HÍDRICO</span>
+                                    <span className="card-label">Balance hídrico</span>
                                     <div className="health-badge-premium" style={{ borderColor: executiveMetrics.healthColor }}>
                                         <div className="health-dot" style={{ background: executiveMetrics.healthColor }}></div>
                                         {executiveMetrics.healthStatus}
@@ -3069,7 +3069,7 @@ const PublicMonitor: React.FC = () => {
                                         {executiveMetrics.fresh && <span className="gasto-unit">m³/s</span>}
                                     </span>
                                     <div className="summary-info-row">
-                                        <span className="summary-info-title">PROGRESO: <span className="summary-info-value" style={{ color: statusColor }}>{Math.max(0, Math.min(100, ((displayMaxKm + 36) / 140) * 100)).toFixed(1)}%</span></span>
+                                        <span className="summary-info-title">Progreso: <span className="summary-info-value" style={{ color: statusColor }}>{Math.max(0, Math.min(100, ((displayMaxKm + 36) / 140) * 100)).toFixed(1)}%</span></span>
                                     </div>
                                 </div>
                                 <PresasNivelStrip presas={presasData} />
@@ -3103,7 +3103,7 @@ const PublicMonitor: React.FC = () => {
                                 <PanelEjecutivo d={datosEjecutivos} onAlertas={() => setDockTab('alertas')} />
                                 {/* Header: título + badge + botón perfil */}
                                 <div className="dock-panel-header">
-                                    <span className="card-label">PANORAMA DEL CANAL</span>
+                                    <span className="card-label">Panorama del canal</span>
                                     {iecData && (
                                         <div
                                             className="health-badge-premium iec-badge"
@@ -3117,7 +3117,7 @@ const PublicMonitor: React.FC = () => {
                                     )}
                                     <button type="button" className="perfil-inline-btn" onClick={() => setDockTab('canal')} title="Ver perfil hidráulico en la pestaña CANAL">
                                         <Waves size={12} />
-                                        <span>PERFIL</span>
+                                        <span>Perfil</span>
                                         <span className="ptb-badge">●</span>
                                     </button>
                                 </div>
@@ -3130,7 +3130,7 @@ const PublicMonitor: React.FC = () => {
                                 {coherenciaCanal ? (
                                     <div className="coherencia-flow-chain">
                                         <div className="cfc-node">
-                                            <span className="cfc-label">BOQUILLA</span>
+                                            <span className="cfc-label">Boquilla</span>
                                             <span className="cfc-val">{coherenciaCanal.qPresaVigente ? coherenciaCanal.qPresa.toFixed(1) : 'S/D'}</span>
                                             <span className="cfc-unit">m³/s</span>
                                         </div>
@@ -3164,7 +3164,7 @@ const PublicMonitor: React.FC = () => {
                                 {iecData && (
                                     <div className="iec-breakdown" ref={iecBreakdownRef}>
                                         <div className="iec-breakdown-row">
-                                            <span className="iec-bd-title">ÍNDICE DE ESTADO DEL CANAL</span>
+                                            <span className="iec-bd-title">Índice de estado del canal</span>
                                             <span className="iec-bd-total" title={iecData.max_evaluado < 100 ? `Calculado sobre ${iecData.max_evaluado} puntos: faltan componentes sin medición (${iecData.sin_dato.join(', ')})` : undefined}>{iecData.iec}/100{iecData.max_evaluado < 100 && <small> · sobre {iecData.max_evaluado} pts</small>}</span>
                                         </div>
                                         <div className="iec-bd-bars">
@@ -3282,7 +3282,7 @@ const PublicMonitor: React.FC = () => {
                     {!isEstabilizacion ? (
                     <div className="dock-section checkpoints-section">
                         <div className="dock-section-header">
-                            <span className="card-label">RED DE PUNTOS DE CONTROL</span>
+                            <span className="card-label">Red de puntos de control</span>
                             {renderStateTag('MONITOREO ACTIVO')}
                         </div>
                         <CheckpointsGrid
@@ -3340,15 +3340,15 @@ const PublicMonitor: React.FC = () => {
                             {fgvData && fgvAplicable && (
                                 <div className="fgv-stat-grid">
                                     <div className="fgv-stat">
-                                        <span className="fgv-stat-label">Q ENTRADA</span>
+                                        <span className="fgv-stat-label">Q entrada</span>
                                         <span className="fgv-stat-val fgv-stat--cyan">{fgvData.q_entrada != null ? fgvData.q_entrada.toFixed(1) : '—'}<small>m³/s</small></span>
                                     </div>
                                     <div className="fgv-stat">
-                                        <span className="fgv-stat-label">Q SALIDA</span>
+                                        <span className="fgv-stat-label">Q salida</span>
                                         <span className="fgv-stat-val fgv-stat--blue">{fgvData.q_salida != null ? fgvData.q_salida.toFixed(1) : '—'}<small>m³/s</small></span>
                                     </div>
                                     <div className="fgv-stat">
-                                        <span className="fgv-stat-label">EF. CONDUCCIÓN</span>
+                                        <span className="fgv-stat-label">Ef. conducción</span>
                                         <span className={`fgv-stat-val ${fgvData.eficiencia_conduccion == null ? '' : fgvData.eficiencia_conduccion >= 95 ? 'fgv-stat--green' : fgvData.eficiencia_conduccion >= 90 ? 'fgv-stat--amber' : 'fgv-stat--red'}`}>
                                             {fgvData.eficiencia_conduccion != null ? fgvData.eficiencia_conduccion.toFixed(1) : '—'}<small>%</small>
                                         </span>
@@ -3359,7 +3359,7 @@ const PublicMonitor: React.FC = () => {
                                     </div>
                                     {fgvData.criticos?.length > 0 && (
                                         <div className="fgv-stat fgv-stat--critbox">
-                                            <span className="fgv-stat-label">PUNTOS CRÍTICOS</span>
+                                            <span className="fgv-stat-label">Puntos críticos</span>
                                             <span className="fgv-stat-val fgv-stat--red">⚠ {fgvData.criticos.length}</span>
                                         </div>
                                     )}
@@ -3369,7 +3369,7 @@ const PublicMonitor: React.FC = () => {
                             </div>
                         )}
                         <div className="dock-section-header">
-                            <span className="card-label">RED DE PUNTOS DE CONTROL</span>
+                            <span className="card-label">Red de puntos de control</span>
                             {renderStateTag('MONITOREO ACTIVO')}
                         </div>
                         <CheckpointsGrid
@@ -3387,7 +3387,7 @@ const PublicMonitor: React.FC = () => {
                     {dockTab === 'alertas' && (
                     <div className="dock-section dock-alertas-panel">
                         <div className="dock-section-header">
-                            <span className="card-label">ALERTAS ACTIVAS</span>
+                            <span className="card-label">Alertas activas</span>
                             {renderStateTag()}
                         </div>
                         {activeAlertas.length === 0 ? (
@@ -3509,7 +3509,7 @@ const PublicMonitor: React.FC = () => {
                             términos técnicos si el usuario fuerza traducción. */}
                         <div className="dsk-balance-row notranslate" translate="no">
                             <div className="dsk-bal-item">
-                                <span className="dsk-bal-label">K-0 ENTRADA</span>
+                                <span className="dsk-bal-label">K-0 entrada</span>
                                 {skillSnapshot.balance.Q0 !== null
                                     ? <span className="dsk-bal-val dsk-val--green">{skillSnapshot.balance.Q0.toFixed(3)}</span>
                                     : skillSnapshot.balance.Q0_hist !== null
@@ -3519,7 +3519,7 @@ const PublicMonitor: React.FC = () => {
                                 <span className="dsk-bal-unit">m³/s</span>
                             </div>
                             <div className="dsk-bal-item">
-                                <span className="dsk-bal-label">K-104 SALIDA</span>
+                                <span className="dsk-bal-label">K-104 salida</span>
                                 {skillSnapshot.balance.Q104 !== null
                                     ? <span className="dsk-bal-val dsk-val--blue">{skillSnapshot.balance.Q104.toFixed(3)}</span>
                                     : skillSnapshot.balance.Q104_hist !== null
@@ -3529,7 +3529,7 @@ const PublicMonitor: React.FC = () => {
                                 <span className="dsk-bal-unit">m³/s</span>
                             </div>
                             <div className="dsk-bal-item">
-                                <span className="dsk-bal-label">EFICIENCIA</span>
+                                <span className="dsk-bal-label">Eficiencia</span>
                                 {skillSnapshot.balance.eficiencia !== null
                                     ? <span className={`dsk-bal-val ${skillSnapshot.balance.eficiencia >= 95 ? 'dsk-val--green' : skillSnapshot.balance.eficiencia >= 90 ? 'dsk-val--amber' : 'dsk-val--red'}`} title={skillSnapshot.balance.balance_modo === 'parcial' ? 'Balance parcial: K-104 con último dato conocido (no en vivo)' : undefined}>{skillSnapshot.balance.eficiencia.toFixed(1)}%{skillSnapshot.balance.balance_modo === 'parcial' && <small className="dsk-bal-age"> ref</small>}</span>
                                     : <span className="dsk-bal-val dsk-val--red" title={`Balance no confiable — ${skillSnapshot.balance.Q0 === null ? 'K-0 sin dato' : skillSnapshot.balance.Q104 === null ? 'K-104 sin dato' : `solo ${skillSnapshot.Q_ZONAS_MEDIDAS}/4 zonas medidas`}`}>S/D</span>
@@ -3537,7 +3537,7 @@ const PublicMonitor: React.FC = () => {
                                 <span className="dsk-bal-unit"></span>
                             </div>
                             <div className="dsk-bal-item">
-                                <span className="dsk-bal-label">PÉRDIDAS</span>
+                                <span className="dsk-bal-label">Pérdidas</span>
                                 {skillSnapshot.balance.perdidas !== null
                                     ? <span className="dsk-bal-val dsk-val--amber" title={skillSnapshot.balance.balance_modo === 'parcial' ? 'Balance parcial: K-104 con último dato conocido (no en vivo)' : undefined}>{skillSnapshot.balance.perdidas.toFixed(3)}{skillSnapshot.balance.balance_modo === 'parcial' && <small className="dsk-bal-age"> ref</small>}</span>
                                     : <span className="dsk-bal-val dsk-val--red" title={`Balance no confiable — ${skillSnapshot.balance.Q0 === null ? 'K-0 sin dato' : skillSnapshot.balance.Q104 === null ? 'K-104 sin dato' : `solo ${skillSnapshot.Q_ZONAS_MEDIDAS}/4 zonas medidas`}`}>S/D</span>
@@ -3790,7 +3790,7 @@ const PublicMonitor: React.FC = () => {
                         {/* Almacenamiento por zona Z1–Z4 */}
                         {volZonas.length > 0 && (
                         <div className="dsk-section-block">
-                            <div className="dsk-sub-header">ALMACENAMIENTO POR ZONA</div>
+                            <div className="dsk-sub-header">Almacenamiento por zona</div>
                             {/* Alertas de zona — vaciándose (<40%) Y sobrellenado (≥90%).
                                 Una zona al 100% (riesgo de desbordamiento) es tan crítica como
                                 una al 20%; antes solo se alertaban las zonas bajas. */}
@@ -3859,7 +3859,7 @@ const PublicMonitor: React.FC = () => {
                                 <table className="dsk-table">
                                     <thead>
                                         <tr>
-                                            <th>MÓDULO</th>
+                                            <th>Módulo</th>
                                             <th>ZONA</th>
                                             <th>A ENTREGAR (Mm³)</th>
                                             <th>ENTREGADO (Mm³)</th>
@@ -3867,7 +3867,7 @@ const PublicMonitor: React.FC = () => {
                                             <th>TOTAL (Mm³)</th>
                                             <th>%</th>
                                             <th>SALDO (Mm³)</th>
-                                            <th>ESTADO</th>
+                                            <th>Estado</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -3928,19 +3928,19 @@ const PublicMonitor: React.FC = () => {
                                 <table className="dsk-table">
                                     <thead>
                                         <tr>
-                                            <th rowSpan={2}>MÓDULO</th>
+                                            <th rowSpan={2}>Módulo</th>
                                             <th rowSpan={2}>ZONA</th>
                                             <th colSpan={3} className="dsk-th-base">BASE</th>
-                                            <th colSpan={3} className="dsk-th-adic">ADICIONAL</th>
+                                            <th colSpan={3} className="dsk-th-adic">Adicional</th>
                                             <th rowSpan={2}>TOTAL m³</th>
                                         </tr>
                                         <tr>
                                             <th className="dsk-th-base-sub">m³</th>
                                             <th className="dsk-th-base-sub">L/s</th>
-                                            <th className="dsk-th-base-sub">HORARIO</th>
+                                            <th className="dsk-th-base-sub">Horario</th>
                                             <th className="dsk-th-adic-sub">m³</th>
                                             <th className="dsk-th-adic-sub">L/s</th>
-                                            <th className="dsk-th-adic-sub">MOTIVO</th>
+                                            <th className="dsk-th-adic-sub">Motivo</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -3979,7 +3979,7 @@ const PublicMonitor: React.FC = () => {
                                     </tbody>
                                     <tfoot>
                                         <tr>
-                                            <td colSpan={2} className="dsk-td--total-label">TOTAL DÍA</td>
+                                            <td colSpan={2} className="dsk-td--total-label">Total día</td>
                                             <td className="dsk-td-num dsk-td--q">
                                                 {Number(entregasHoy.filter((e: any) => e.tipo_entrega === 'base').reduce((s: number, e: any) => s + Number(e.volumen_m3), 0)).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </td>
@@ -4004,7 +4004,7 @@ const PublicMonitor: React.FC = () => {
                             <div className="dsk-table-wrap">
                                 <table className="dsk-table">
                                     <thead>
-                                        <tr><th>ESCALA</th><th>M1</th><th>FUENTE</th><th>ESTADO</th></tr>
+                                        <tr><th>Escala</th><th>M1</th><th>Fuente</th><th>Estado</th></tr>
                                     </thead>
                                     <tbody>
                                         {skillSnapshot.checkpoints.map(c => {
@@ -4128,7 +4128,7 @@ const PublicMonitor: React.FC = () => {
                                         <div className="dsk-informe-params">Cd=0.62 · g=9.81 m/s² · b=ancho por compuerta · M1=factor calibración por escala</div>
                                     </div>
                                     <div className="dsk-informe-section">
-                                        <div className="dsk-informe-title">MÓDULOS OPERATIVOS</div>
+                                        <div className="dsk-informe-title">Módulos operativos</div>
                                         <div className="dsk-modulos-grid">
                                             {/* Descripción de tramo por módulo (metadato estático);
                                                 la ZONA se toma de balance_volumen_modulo (BD) para que
@@ -4154,7 +4154,7 @@ const PublicMonitor: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="dsk-informe-section">
-                                        <div className="dsk-informe-title">INSTRUCCIONES CLAVE</div>
+                                        <div className="dsk-informe-title">Instrucciones clave</div>
                                         <ul className="dsk-informe-list">
                                             <li>BL &lt; 0 = CRÍTICO: reducir entradas de inmediato</li>
                                             <li>BL 0–10 cm = PRECAUCIÓN: monitoreo continuo</li>
@@ -4293,7 +4293,7 @@ const PublicMonitor: React.FC = () => {
             ) : (
                 <button type="button" className="dock-minimized animate-in" onClick={() => setIsDockVisible(true)}>
                     <Activity size={20} />
-                    <span>VER TABLERO TÉCNICO</span>
+                    <span>Ver tablero técnico</span>
                 </button>
             )}
 
@@ -4315,7 +4315,7 @@ const PublicMonitor: React.FC = () => {
                 <div className="floating-ui-controls-v2" data-pm-overlay>
                     <button type="button" className="control-btn-premium" onClick={() => setIsPredictionVisible(true)} title="Mostrar avance del frente">
                         <Timer size={18} />
-                        <span className="btn-label">TRAYECTO</span>
+                        <span className="btn-label">Trayecto</span>
                     </button>
                 </div>
             )}
@@ -4323,7 +4323,7 @@ const PublicMonitor: React.FC = () => {
                 <button type="button" className="pm-reabrir" onClick={() => setIsDockVisible(true)}
                     title="Mostrar tablero" aria-label="Mostrar tablero">
                     <Activity size={16} />
-                    <span>TABLERO</span>
+                    <span>Tablero</span>
                 </button>
             )}
         </div>

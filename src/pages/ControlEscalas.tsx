@@ -402,7 +402,7 @@ const ControlEscalas = () => {
 
             {vaciado && esHoy && (
                 <p className="sc-aviso" role="status"><Info size={16} aria-hidden="true" style={{ flexShrink: 0 }} />
-                    <span>Canal en <b>VACIADO</b>: el rango operativo de riego (mín–máx) no aplica y no se generan alertas por nivel bajo.</span></p>
+                    <span>Canal en <b>Vaciado</b>: el rango operativo de riego (mín–máx) no aplica y no se generan alertas por nivel bajo.</span></p>
             )}
             {(avisos.length > 0 || error) && (
                 <div className="sc-aviso sc-aviso-crit" role="alert">

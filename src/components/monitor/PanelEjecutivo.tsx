@@ -25,7 +25,7 @@ export const PanelEjecutivo = memo(function PanelEjecutivo({ d, onAlertas }: { d
     return (
         <section className="pm-ejec" aria-label="Indicadores ejecutivos">
             <article className="pm-ejec-tile" style={{ '--acc': '#3987e5' } as React.CSSProperties}>
-                <header><span>PRESAS</span><Droplets size={14} /></header>
+                <header><span>Presas</span><Droplets size={14} /></header>
                 <div className="pm-ejec-num">{presasPct ?? 'S/D'}{presasPct && <small>%</small>}</div>
                 <p>{fmt(d.presas.totalMm3, 1) ?? 'S/D'} Mm³ almacenados{d.presas.conDato < d.presas.total ? ` · ${d.presas.conDato}/${d.presas.total} con lectura` : ''}</p>
                 <p className="pm-ejec-sub">Extracción: {d.presas.extraccion}</p>
@@ -39,7 +39,7 @@ export const PanelEjecutivo = memo(function PanelEjecutivo({ d, onAlertas }: { d
             </article>
 
             <article className="pm-ejec-tile" style={{ '--acc': '#d95926' } as React.CSSProperties}>
-                <header><span title={d.entregas.ciclo ?? undefined}>ENTREGAS DEL CICLO</span><Sprout size={14} /></header>
+                <header><span title={d.entregas.ciclo ?? undefined}>Entregas del ciclo</span><Sprout size={14} /></header>
                 <div className="pm-ejec-num">{ent ?? 'S/D'}{ent && <small>Mm³</small>}</div>
                 <p>{d.entregas.pct != null ? `${d.entregas.pct.toFixed(1)}% de ${fmt(d.entregas.autorizadoMm3, 1)} Mm³ autorizados` : 'Sin volumen autorizado registrado'}</p>
                 {d.entregas.pct != null && (
@@ -54,7 +54,7 @@ export const PanelEjecutivo = memo(function PanelEjecutivo({ d, onAlertas }: { d
             <button type="button" className={`pm-ejec-tile pm-ejec-tile--btn${d.alertas.crit > 0 ? ' is-crit' : d.alertas.avisos > 0 ? ' is-warn' : ''}`}
                 style={{ '--acc': d.alertas.crit > 0 ? '#f87171' : d.alertas.avisos > 0 ? '#fbbf24' : '#34d399' } as React.CSSProperties}
                 onClick={onAlertas} title="Ver alertas activas">
-                <header><span>ALERTAS VIGENTES</span><AlertTriangle size={14} /></header>
+                <header><span>Alertas vigentes</span><AlertTriangle size={14} /></header>
                 <div className="pm-ejec-num">{totalAl}</div>
                 <p>
                     <span className="pm-sev pm-sev--crit">{d.alertas.crit} críticas</span>
@@ -90,7 +90,7 @@ export const VistaVaciado = memo(function VistaVaciado({ d }: { d: DatosVaciado 
     return (
         <section className="pm-vac" aria-label="Seguimiento del vaciado">
             <div className="pm-vac-cab">
-                <span className="pm-vac-kicker">SEGUIMIENTO DEL VACIADO</span>
+                <span className="pm-vac-kicker">Seguimiento del vaciado</span>
                 {d.cerradaDesde && <span className="pm-vac-cierre">Presa cerrada {d.cerradaDesde}{d.diasCierre != null ? ` · ${d.diasCierre} d` : ''}</span>}
             </div>
             <div className="pm-vac-kpis">

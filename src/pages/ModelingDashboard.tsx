@@ -17,6 +17,7 @@ import { runSimulation } from '../utils/modelacion/simulacion';
 import type { ModoOperativo, Decision, DecisionTipo } from '../utils/modelacion/decisiones';
 import { Q_MIN_ENTRADA_M3S, generateDecisions, decisionModoOperativo, edadLectura } from '../utils/modelacion/decisiones';
 import { CanalSection } from '../components/modelacion/CanalSection';
+import { Kpi } from '../components/ui/base';
 
 
 
@@ -1031,29 +1032,15 @@ const ModelingDashboard: React.FC = () => {
         </div>
 
         <div className="sim-kpi-row">
-          <div className="sim-kpi">
-            <div className="sim-kpi-label">Extracción Presa</div>
-            <div className="sim-kpi-val" style={{ color: 'var(--st-info)' }}>{qDam.toFixed(1)}<span> m³/s</span></div>
-          </div>
-          <div className="sim-kpi">
-            <div className="sim-kpi-label">Nivel K-0</div>
-            <div className="sim-kpi-val" style={{ color: '#2dd4bf' }}>{firstCP ? (firstCP.y_sim ?? 0).toFixed(2) : '—'}<span> m</span></div>
-          </div>
-          <div
-            className="sim-kpi"
-            title={globalEffConfiable ? undefined
+          <Kpi densidad="cabecera" etiqueta="Extracción Presa" valor={qDam.toFixed(1)} unidad=" m³/s" tonoValor="info" />
+          <Kpi densidad="cabecera" etiqueta="Nivel K-0" valor={firstCP ? (firstCP.y_sim ?? 0).toFixed(2) : '—'} unidad=" m" tonoValor="info" />
+          <Kpi
+            densidad="cabecera" etiqueta="Eficiencia Conducción"
+            valor={globalEffConfiable ? (globalEff ?? 0).toFixed(1) : null} unidad="%" tonoValor={globalEff >= 90 ? 'ok' : globalEff >= 85 ? 'warn' : 'crit'}
+            ayuda={globalEffConfiable ? undefined
               : !globalEffMedible ? 'Sin gasto de entrada (presa cerrada o sin movimiento): la eficiencia de conducción no aplica'
               : 'Tomas sin reporte del día con gasto anclado a aforos SICA: la caída de Q incluye extracciones no contabilizadas — la conducción no es medible'}
-          >
-            <div className="sim-kpi-label">Eficiencia Conducción</div>
-            {globalEffConfiable ? (
-              <div className="sim-kpi-val" style={{ color: globalEff >= 90 ? '#10b981' : globalEff >= 85 ? '#f59e0b' : '#ef4444' }}>
-                {(globalEff ?? 0).toFixed(1)}<span>%</span>
-              </div>
-            ) : (
-              <div className="sim-kpi-val" style={{ color: 'var(--text-3)' }}>S/D</div>
-            )}
-          </div>
+          />
           {!iecSim && simResults.length > 0 && (
             <div className="sim-kpi" title={globalEffMedible ? 'IEC no calculable: eficiencia de conducción sin dato confiable (tomas sin reporte del día)' : 'IEC no calculable: sin gasto de entrada (presa cerrada o sin movimiento)'}>
               <div className="sim-kpi-label">IEC Canal</div>
@@ -1076,10 +1063,7 @@ const ModelingDashboard: React.FC = () => {
               </div>
             </div>
           )}
-          <div className="sim-kpi">
-            <div className="sim-kpi-label">Arribo K-104</div>
-            <div className="sim-kpi-val" style={{ color: 'var(--st-warn)' }}>{reglasRiegoSuspendidas ? 'S/D' : (lastCP?.arrival_time ?? '—')}</div>
-          </div>
+          <Kpi densidad="cabecera" etiqueta="Arribo K-104" valor={reglasRiegoSuspendidas ? null : (lastCP?.arrival_time ?? '—')} tonoValor="warn" />
           <button
             type="button"
             className="sim-kpi-status"
@@ -1577,8 +1561,8 @@ const ModelingDashboard: React.FC = () => {
               </span>
               <div className="sim-profile-legend">
                 <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'var(--st-info)', borderRadius: 0 }} /> Tirante Actual</span>
-                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#2dd4bf' }} /> Tirante Simulado</span>
-                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#a78bfa', borderRadius: 0 }} /> Caudal Q</span>
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'var(--st-info)' }} /> Tirante Simulado</span>
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'var(--sc-violet)', borderRadius: 0 }} /> Caudal Q</span>
                 <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'var(--st-crit)', borderRadius: 0, opacity: 0.5 }} /> Bordo Libre</span>
                 <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'var(--st-warn)', borderRadius: '50%' }} /> Frente de Onda</span>
                 {simResults.some(r => r.remanso_type === 'M1') && <span className="sim-leg-tag tag-m1">▲ Incremento</span>}
@@ -1599,7 +1583,7 @@ const ModelingDashboard: React.FC = () => {
               </span>
               <div className="sim-profile-legend">
                 <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'var(--st-warn)', borderRadius: 2 }} /> Q Real SQL</span>
-                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#2dd4bf', borderRadius: 0 }} /> Q Simulado</span>
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'var(--st-info)', borderRadius: 0 }} /> Q Simulado</span>
                 <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'color-mix(in srgb, var(--st-warn) 55%, transparent)', borderRadius: 1 }} /> Extracciones</span>
                 {dataStatus.perfilFuente && (
                   <span className="sim-leg sim-leg-fuente">
@@ -1959,7 +1943,7 @@ const ModelingDashboard: React.FC = () => {
                   freeboard={activeCPResult.canal_depth_m || FREEBOARD}
                 />
                 <div className="sim-section-leg">
-                  <span><span style={{ display: 'inline-block', width: 10, height: 2, background: '#2dd4bf', verticalAlign: 'middle', marginRight: 4 }} />Simulado</span>
+                  <span><span style={{ display: 'inline-block', width: 10, height: 2, background: 'var(--st-info)', verticalAlign: 'middle', marginRight: 4 }} />Simulado</span>
                   <span><span style={{ display: 'inline-block', width: 10, height: 2, background: 'var(--st-info)', opacity: 0.6, verticalAlign: 'middle', marginRight: 4 }} />Actual</span>
                   <span><span style={{ display: 'inline-block', width: 10, height: 2, background: 'var(--st-crit)', opacity: 0.6, verticalAlign: 'middle', marginRight: 4 }} />Bordo L.</span>
                 </div>

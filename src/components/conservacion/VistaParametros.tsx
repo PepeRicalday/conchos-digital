@@ -1,4 +1,5 @@
 import type { ArchivoInforme } from '../../conservacion/informe/esquemaInforme';
+import { DataTable } from '../ui/base';
 
 const ORIGEN: Readonly<Record<string, string>> = {
     defecto_manual_2026: 'Defecto del Manual 2026', organizacion: 'Organización', distrito: 'Distrito', sesion: 'Sesión',
@@ -12,26 +13,18 @@ export function VistaParametros({ archivo }: { archivo: ArchivoInforme }) {
             <p className="sc-aviso" role="note">
                 <span>El Manual de Conservación 2026 prevalece sobre los Anexos. Los valores alternos son una <b>nota informativa</b>, nunca un error del PacOT; un valor distinto del Manual exige sustento de quien lo declara.</span>
             </p>
-            <div className="sc-tabla-wrap table-scroll">
-                <table className="sc-tabla cons-tabla cons-apila">
-                    <caption style={{ position: 'absolute', left: -9999 }}>Parámetros normativos usados en la comprobación</caption>
-                    <thead>
-                        <tr><th scope="col">ID</th><th scope="col">Parámetro</th><th scope="col">Valor usado</th><th scope="col">Fuente</th><th scope="col">Origen</th><th scope="col">Valores alternos</th></tr>
-                    </thead>
-                    <tbody>
-                        {ps.map((p) => (
-                            <tr key={p.id}>
-                                <td className="cons-id" data-label="ID">{p.id}</td>
-                                <td data-label="Parámetro">{p.nombre}</td>
-                                <td className="cons-id" data-label="Valor usado" style={{ whiteSpace: 'normal' }}>{p.valor}</td>
-                                <td data-label="Fuente">{p.fuente.documento} {p.fuente.seccion}</td>
-                                <td data-label="Origen">{ORIGEN[p.origen] ?? p.origen}{p.sustento ? <><br /><small>Sustento: {p.sustento}</small></> : null}</td>
-                                <td data-label="Valores alternos">{p.alternos.length > 0 ? <ul className="cons-pend">{p.alternos.map((a, i) => <li key={i}>{a}</li>)}</ul> : '—'}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            <DataTable
+                apilar captionOculto className="cons-tabla" caption="Parámetros normativos usados en la comprobación"
+                clave={(p) => p.id} filas={ps}
+                columnas={[
+                    { id: 'id', titulo: 'ID', className: 'cons-id', render: (p) => p.id },
+                    { id: 'nombre', titulo: 'Parámetro', render: (p) => p.nombre },
+                    { id: 'valor', titulo: 'Valor usado', className: 'cons-id', render: (p) => <span style={{ whiteSpace: 'normal' }}>{p.valor}</span> },
+                    { id: 'fuente', titulo: 'Fuente', render: (p) => `${p.fuente.documento} ${p.fuente.seccion}` },
+                    { id: 'origen', titulo: 'Origen', render: (p) => <>{ORIGEN[p.origen] ?? p.origen}{p.sustento ? <><br /><small>Sustento: {p.sustento}</small></> : null}</> },
+                    { id: 'alt', titulo: 'Valores alternos', render: (p) => p.alternos.length > 0 ? <ul className="cons-pend">{p.alternos.map((a, i) => <li key={i}>{a}</li>)}</ul> : '—' },
+                ]}
+            />
         </section>
     );
 }

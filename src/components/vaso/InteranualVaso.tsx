@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { CalendarRange } from 'lucide-react';
 import type { Interanual } from '../../utils/informeVasoInteranual';
 import './vasoNiveles.css';
+import { DataTable } from '../ui/base';
 
 interface Props { datos: Interanual | null; cargando: boolean }
 
@@ -20,15 +21,16 @@ function InteranualVaso({ datos, cargando }: Props) {
                         <p className="vaso-inter-pos">{datos.posicion
                             ? <>Con <b>{n(datos.volumenHoy)} Mm³</b> hoy ocupa el lugar <b>{datos.posicion.posicion} de {datos.posicion.de}</b> (1 = el más bajo) entre los años con dato.</>
                             : 'Sin volumen vigente para ubicar el año en curso.'}</p>
-                        <div className="vaso-inter-wrap">
-                            <table className="vaso-inter">
-                                <thead><tr><th>Año</th><th>Fecha usada</th><th>Volumen</th><th>Nivel</th><th>Hoy vs. ese año</th></tr></thead>
-                                <tbody>{datos.filas.map((f) => (
-                                    <tr key={f.anio}><td>{f.anio}</td><td>{f.fecha}{f.desfaseDias ? ` (${f.desfaseDias > 0 ? '+' : '−'}${Math.abs(f.desfaseDias)} d)` : ''}</td>
-                                        <td>{n(f.volumen)} Mm³</td><td>{n(f.elevacion, 2)} msnm</td><td>{cambio(f.difVolumen)}</td></tr>
-                                ))}</tbody>
-                            </table>
-                        </div>
+                        <DataTable
+                            clave={(f) => String(f.anio)} filas={datos.filas}
+                            columnas={[
+                                { id: 'anio', titulo: 'Año', encabezadoFila: true, render: (f) => f.anio },
+                                { id: 'fecha', titulo: 'Fecha usada', render: (f) => `${f.fecha}${f.desfaseDias ? ` (${f.desfaseDias > 0 ? '+' : '−'}${Math.abs(f.desfaseDias)} d)` : ''}` },
+                                { id: 'vol', titulo: 'Volumen', numerica: true, render: (f) => `${n(f.volumen)} Mm³` },
+                                { id: 'niv', titulo: 'Nivel', numerica: true, render: (f) => `${n(f.elevacion, 2)} msnm` },
+                                { id: 'dif', titulo: 'Hoy vs. ese año', numerica: true, render: (f) => cambio(f.difVolumen) },
+                            ]}
+                        />
                         <span className="vaso-kicker" style={{ textTransform: 'none', letterSpacing: 0, marginTop: 8 }}>Serie normalizada con la curva vigente: comparable entre años aunque la curva cambió.</span>
                     </>)}
         </section>

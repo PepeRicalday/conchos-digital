@@ -3,6 +3,7 @@ import { AlertTriangle, Layers, ListChecks, ShieldAlert } from 'lucide-react';
 import { TileCifra } from '../ui/TileCifra';
 import type { ArchivoInforme } from '../../conservacion/informe/esquemaInforme';
 import { contarPor, filasReglas, hallazgosPlanos, resumenReglas, TEXTO_ORIGEN, totalPendientes } from '../../conservacion/informe/vistas';
+import { DataTable } from '../ui/base';
 
 const fmt = (n: number) => n.toLocaleString('es-MX');
 
@@ -69,24 +70,21 @@ export function VistaResumen({ archivo, irAHallazgos }: Props) {
                 <section className="sc-card" aria-labelledby="cons-r-top">
                     <span className="sc-kicker">Para empezar</span>
                     <h3 id="cons-r-top">Reglas con más hallazgos</h3>
-                    <div className="sc-tabla-wrap">
-                        <table className="sc-tabla cons-tabla">
-                            <caption style={{ position: 'absolute', left: -9999 }}>Reglas con más hallazgos</caption>
-                            <thead><tr><th scope="col">Regla</th><th scope="col" className="cons-n">Hallazgos</th></tr></thead>
-                            <tbody>
-                                {topReglas.map((f) => (
-                                    <tr key={f.id}>
-                                        <td>
-                                            <button type="button" className="sc-btn" style={{ minHeight: 44, textAlign: 'left' }} onClick={() => irAHallazgos(f.id)}>
-                                                <span className="cons-id">{f.id}</span> {f.regla.length > 52 ? `${f.regla.slice(0, 52)}…` : f.regla}
-                                            </button>
-                                        </td>
-                                        <td className="cons-n">{fmt(f.nHallazgos)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <DataTable
+                        captionOculto className="cons-tabla" caption="Reglas con más hallazgos"
+                        clave={(f) => f.id} filas={topReglas}
+                        columnas={[
+                            {
+                                id: 'regla', titulo: 'Regla',
+                                render: (f) => (
+                                    <button type="button" className="sc-btn" style={{ minHeight: 44, textAlign: 'left' }} onClick={() => irAHallazgos(f.id)}>
+                                        <span className="cons-id">{f.id}</span> {f.regla.length > 52 ? `${f.regla.slice(0, 52)}…` : f.regla}
+                                    </button>
+                                ),
+                            },
+                            { id: 'n', titulo: 'Hallazgos', className: 'cons-n', render: (f) => fmt(f.nHallazgos) },
+                        ]}
+                    />
                 </section>
             </div>
 

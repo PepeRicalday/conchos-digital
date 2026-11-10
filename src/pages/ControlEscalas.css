@@ -9,9 +9,9 @@
 .ce-barra { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
 .ce-grupo { display: inline-flex; padding: 4px; gap: 4px; border: 1px solid var(--sc-line); border-radius: 12px; background: var(--sc-surface); }
 .ce-seg { min-height: 44px; padding: 0 14px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--sc-t2); font: 600 13px var(--sc-body); cursor: pointer; }
-.ce-seg:hover { background: rgba(63, 178, 243, 0.1); }
+.ce-seg:hover { background: color-mix(in srgb, var(--st-info) 10%, transparent); }
 .ce-seg:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 2px; }
-.ce-seg-on { color: var(--sc-t1); border-color: rgba(63, 178, 243, 0.5); background: rgba(63, 178, 243, 0.14); }
+.ce-seg-on { color: var(--sc-t1); border-color: color-mix(in srgb, var(--st-info) 50%, transparent); background: color-mix(in srgb, var(--st-info) 14%, transparent); }
 
 /* ── Zona (colapsable) ── */
 .ce-zona { --ce-acento: var(--sc-sky); border-left: 3px solid var(--ce-acento); padding: 0; }
@@ -30,7 +30,7 @@
 
 /* ── Tarjeta de escala ── */
 .ce-escala { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 14px 16px; border: 1px solid var(--sc-line); border-radius: 14px; background: var(--sc-surface-2); }
-.ce-escala-alerta { border-color: rgba(248, 113, 113, 0.55); background: rgba(248, 113, 113, 0.06); }
+.ce-escala-alerta { border-color: color-mix(in srgb, var(--st-crit) 55%, transparent); background: color-mix(in srgb, var(--st-crit) 6%, transparent); }
 .ce-escala-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .ce-escala-cab h4 { margin: 0; font-family: var(--sc-display); font-size: 24px; font-weight: 700; letter-spacing: 0.03em; line-height: 1; color: var(--sc-t1); }
 .ce-km { font-family: var(--sc-mono); font-size: 12px; color: var(--sc-t3); }
@@ -42,11 +42,11 @@
 .ce-detalle-alerta { color: var(--sc-crit); font-weight: 600; }
 
 /* Barra de nivel horizontal: banda operativa + relleno + marca */
-.ce-bullet { position: relative; height: 18px; border-radius: 9px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
-.ce-bullet.sc-sd { background: repeating-linear-gradient(135deg, rgba(148, 163, 184, 0.25) 0 6px, transparent 6px 12px); }
+.ce-bullet { position: relative; height: 18px; border-radius: 9px; background: color-mix(in srgb, var(--text-1) 7%, transparent); overflow: hidden; }
+.ce-bullet.sc-sd { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--text-3) 25%, transparent) 0 6px, transparent 6px 12px); }
 .ce-bullet i { position: absolute; top: 0; bottom: 0; display: block; }
-.ce-banda { background: rgba(52, 211, 153, 0.22); border-left: 2px solid var(--sc-ok); border-right: 2px solid var(--sc-ok); }
-.ce-banda-off { background: transparent; border-color: rgba(148, 163, 184, 0.45); border-style: dashed; }
+.ce-banda { background: color-mix(in srgb, var(--st-ok) 22%, transparent); border-left: 2px solid var(--sc-ok); border-right: 2px solid var(--sc-ok); }
+.ce-banda-off { background: transparent; border-color: color-mix(in srgb, var(--text-3) 45%, transparent); border-style: dashed; }
 .ce-relleno { left: 0; top: 5px; bottom: 5px; border-radius: 0 5px 5px 0; background: var(--sc-sky); opacity: 0.85; }
 .ce-relleno-alerta { background: var(--sc-crit); }
 .ce-relleno-tenue { opacity: 0.4; }
@@ -59,9 +59,9 @@
 .ce-comp-q b { color: var(--sc-t1); font-weight: 600; }
 .ce-celdas { display: flex; gap: 3px; margin: 0; padding: 0; list-style: none; }
 .ce-celda { flex: 1 1 0; min-width: 0; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 4px; font: 600 11px var(--sc-mono); }
-.ce-celda-abierta { background: rgba(251, 191, 36, 0.85); color: #1b1300; }
-.ce-celda-cerrada { background: rgba(148, 163, 184, 0.25); color: var(--sc-t2); }
-.ce-celda-sd { border: 1px dashed rgba(148, 163, 184, 0.55); color: var(--sc-t3); }
+.ce-celda-abierta { background: color-mix(in srgb, var(--st-warn) 85%, transparent); color: #1b1300; }
+.ce-celda-cerrada { background: color-mix(in srgb, var(--text-3) 25%, transparent); color: var(--sc-t2); }
+.ce-celda-sd { border: 1px dashed color-mix(in srgb, var(--text-3) 55%, transparent); color: var(--sc-t3); }
 
 /* Lecturas */
 .ce-lecturas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; margin: 0; padding-top: 8px; border-top: 1px solid var(--sc-line); }

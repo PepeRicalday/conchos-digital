@@ -28,7 +28,7 @@
 .goes-resumen .goes-resumen-alerta { color: var(--pr-crit); }
 .goes-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 18px; border: 1px solid var(--pr-sky); border-radius: 10px; background: transparent; color: var(--pr-sky); font: 700 14px var(--pr-body); cursor: pointer; }
 .goes-btn--sec { min-height: 40px; padding: 6px 14px; border-color: var(--pr-line); color: var(--pr-t2); font-weight: 600; font-size: 13px; }
-.goes-btn--sec:hover, .goes-btn:not(.goes-btn--sec):hover { border-color: var(--pr-sky); color: var(--pr-sky); background: rgba(63, 178, 243, 0.08); }
+.goes-btn--sec:hover, .goes-btn:not(.goes-btn--sec):hover { border-color: var(--pr-sky); color: var(--pr-sky); background: color-mix(in srgb, var(--st-info) 8%, transparent); }
 .goes-seg-btn:not([aria-pressed='true']):hover, .goes-chip:hover { background: var(--pr-surface-2); color: var(--pr-t1); }
 .goes-btn:focus-visible, .goes-seg-btn:focus-visible, .goes-chip:focus-visible, .goes-plegar:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 2px; }
 
@@ -39,7 +39,7 @@
 
 .goes-ficha { --acc: var(--pr-sky); display: flex; flex-direction: column; gap: 9px; min-width: 0; padding: 12px 14px 10px;
     border: 1px solid var(--pr-line); border-top: 2px solid var(--acc); border-radius: 12px; background: var(--pr-surface); }
-.goes-marca { display: inline-flex; align-items: center; gap: 5px; grid-column: 1 / -1; justify-self: start; white-space: normal; overflow-wrap: anywhere; padding: 2px 8px; border: 1px solid rgba(251, 191, 36, 0.5); border-radius: 6px; background: rgba(251, 191, 36, 0.08); font-size: 12px; font-weight: 600; line-height: 1.3; color: var(--pr-warn); }
+.goes-marca { display: inline-flex; align-items: center; gap: 5px; grid-column: 1 / -1; justify-self: start; white-space: normal; overflow-wrap: anywhere; padding: 2px 8px; border: 1px solid color-mix(in srgb, var(--st-warn) 50%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--st-warn) 8%, transparent); font-size: 12px; font-weight: 600; line-height: 1.3; color: var(--pr-warn); }
 .goes-nota-sd { padding: 6px 0 0; }
 /* Filas alineadas entre fichas (cifras, tablas y pie a la misma altura) con subgrid; sin subgrid, cada ficha apila sola. */
 @supports (grid-template-rows: subgrid) {
@@ -54,13 +54,13 @@
 .goes-ficha-cab h4 { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.25; color: var(--pr-t1); overflow-wrap: anywhere; }
 .goes-dcp { font-family: var(--pr-mono); font-size: 11px; color: var(--pr-t3); }
 .goes-origen { white-space: nowrap; padding: 1px 8px; border: 1px solid var(--pr-line); border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.5; color: var(--pr-t2); }
-.goes-origen--presa { border-color: rgba(63, 178, 243, 0.4); background: rgba(63, 178, 243, 0.08); color: var(--pr-sky); }
+.goes-origen--presa { border-color: color-mix(in srgb, var(--st-info) 40%, transparent); background: color-mix(in srgb, var(--st-info) 8%, transparent); color: var(--pr-sky); }
 .goes-origen--rio { border-color: rgba(167, 139, 250, 0.45); background: rgba(167, 139, 250, 0.09); color: var(--pr-violet); }
 
 .goes-sello { display: inline-flex; align-items: center; gap: 5px; flex: none; padding: 3px 9px; border: 1px solid var(--pr-line); border-radius: 999px; font-family: var(--pr-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; white-space: nowrap; color: var(--pr-t2); }
-.goes-sello--en_linea { color: var(--pr-ok); border-color: rgba(52, 211, 153, 0.45); }
-.goes-sello--retraso { color: var(--pr-warn); border-color: rgba(251, 191, 36, 0.5); }
-.goes-sello--sin_transmision { color: var(--pr-crit); border-color: rgba(248, 113, 113, 0.55); background: rgba(248, 113, 113, 0.08); }
+.goes-sello--en_linea { color: var(--pr-ok); border-color: color-mix(in srgb, var(--st-ok) 45%, transparent); }
+.goes-sello--retraso { color: var(--pr-warn); border-color: color-mix(in srgb, var(--st-warn) 50%, transparent); }
+.goes-sello--sin_transmision { color: var(--pr-crit); border-color: color-mix(in srgb, var(--st-crit) 55%, transparent); background: color-mix(in srgb, var(--st-crit) 8%, transparent); }
 .goes-sello--sd { color: var(--pr-t3); }
 
 .goes-medidas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -77,7 +77,7 @@
 .goes-spark--sd { border-radius: 4px; }
 .goes-spark-fin { position: absolute; width: 8px; height: 8px; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--pr-bg); }
 
-.goes-aviso { margin: 0; padding: 7px 10px; border-left: 3px solid var(--pr-warn); background: rgba(251, 191, 36, 0.07); font-size: 12px; line-height: 1.4; color: var(--pr-t2); }
+.goes-aviso { margin: 0; padding: 7px 10px; border-left: 3px solid var(--pr-warn); background: color-mix(in srgb, var(--st-warn) 7%, transparent); font-size: 12px; line-height: 1.4; color: var(--pr-t2); }
 .goes-extra { margin: 0; font-size: 13px; color: var(--pr-t2); }
 .goes-extra b { font-family: var(--pr-mono); color: var(--pr-t1); }
 .goes-extra--sd { font-size: 12px; color: var(--pr-t3); }
@@ -158,8 +158,8 @@
 .goes-tira { display: inline-flex; gap: 2px; }
 .goes-celda { display: inline-block; width: 6px; height: 16px; border-radius: 2px; flex: none; }
 .goes-celda--bueno { background: var(--pr-ok); }
-.goes-celda--falla { background: repeating-linear-gradient(45deg, var(--pr-crit) 0 3px, rgba(0,0,0,.4) 3px 5px); }
-.goes-celda--sin { background: repeating-linear-gradient(135deg, rgba(148, 163, 184, 0.45) 0 2px, transparent 2px 4px); outline: 1px solid rgba(148, 163, 184, 0.3); outline-offset: -1px; }
+.goes-celda--falla { background: repeating-linear-gradient(45deg, var(--pr-crit) 0 3px, color-mix(in srgb, var(--negro) 40%, transparent) 3px 5px); }
+.goes-celda--sin { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--text-3) 45%, transparent) 0 2px, transparent 2px 4px); outline: 1px solid color-mix(in srgb, var(--text-3) 30%, transparent); outline-offset: -1px; }
 .goes-leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--pr-t2); }
 .goes-leyenda li { display: inline-flex; align-items: center; gap: 7px; }
 

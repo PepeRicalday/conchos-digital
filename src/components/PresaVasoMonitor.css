@@ -13,7 +13,7 @@
     right: 0;
     bottom: 0;
     z-index: var(--z-modal, 1000);
-    background: #061532;
+    background: var(--bg-app);
     display: flex;
     flex-direction: column;
 }
@@ -21,7 +21,7 @@
 .vaso-container {
     width: 100%;
     height: 100%;
-    background: #061532;
+    background: var(--bg-app);
     position: relative;
     display: flex;
     flex-direction: column;
@@ -53,19 +53,19 @@
     position: sticky;
     top: 0;
     z-index: 10;
-    background: #061532;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    background: var(--bg-app);
+    border-bottom: 1px solid color-mix(in srgb, var(--text-3) 10%, transparent);
 }
 
 .vaso-badge {
     display: inline-block;
-    background: rgba(34, 211, 238, 0.1);
+    background: color-mix(in srgb, var(--st-info) 10%, transparent);
     color: var(--st-info);
     font-size: 0.7rem;
     font-weight: 800;
     padding: 6px 14px;
     border-radius: 100px;
-    border: 1px solid rgba(34, 211, 238, 0.3);
+    border: 1px solid color-mix(in srgb, var(--st-info) 30%, transparent);
     margin-bottom: 0.75rem;
     letter-spacing: 0.15em;
     text-transform: uppercase;
@@ -96,8 +96,8 @@
     align-items: center;
     gap: 6px;
     align-self: center;
-    background: rgba(34, 211, 238, 0.12);
-    border: 1px solid rgba(34, 211, 238, 0.35);
+    background: color-mix(in srgb, var(--st-info) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--st-info) 35%, transparent);
     color: var(--st-info);
     font-size: 0.8rem;
     font-weight: 700;
@@ -109,13 +109,13 @@
 }
 
 .vaso-header-3d-btn:hover {
-    background: rgba(34, 211, 238, 0.22);
-    border-color: rgba(34, 211, 238, 0.6);
+    background: color-mix(in srgb, var(--st-info) 22%, transparent);
+    border-color: color-mix(in srgb, var(--st-info) 60%, transparent);
 }
 
 .vaso-close {
-    background: rgba(30, 41, 59, 0.6);
-    border: 1px solid rgba(100, 116, 139, 0.3);
+    background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+    border: 1px solid color-mix(in srgb, var(--line-fuerte) 30%, transparent);
     color: white;
     width: 48px;
     height: 48px;
@@ -129,8 +129,8 @@
 }
 
 .vaso-close:hover {
-    background: #ef4444;
-    border-color: #ef4444;
+    background: var(--st-crit);
+    border-color: var(--st-crit);
     transform: scale(1.06);
 }
 
@@ -171,8 +171,8 @@
 .sim-reset-btn {
     flex: 0 0 auto;
     padding: 0.6rem 1rem;
-    background: rgba(34, 211, 238, 0.15);
-    border: 1px solid rgba(34, 211, 238, 0.4);
+    background: color-mix(in srgb, var(--st-info) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--st-info) 40%, transparent);
     color: var(--st-info);
     border-radius: 8px;
     font-size: 0.6875rem;
@@ -184,7 +184,7 @@
 }
 
 .sim-reset-btn:hover {
-    background: rgba(34, 211, 238, 0.3);
+    background: color-mix(in srgb, var(--st-info) 30%, transparent);
 }
 
 /* STATS GRID — auto-fit para que en pantalla completa las tarjetas se
@@ -204,8 +204,8 @@
 .vaso-stat-card {
     padding: 1.5rem;
     border-radius: 20px;
-    background: rgba(15, 23, 42, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, var(--surface-1) 60%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
 }
 
 .vaso-stat-label {
@@ -236,8 +236,8 @@
     height: 460px;
     border-radius: 14px;
     overflow: hidden;
-    background: radial-gradient(ellipse at center, #0f1b2e 0%, #061532 100%);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: radial-gradient(ellipse at center, #0f1b2e 0%, var(--bg-app) 100%);
+    border: 1px solid color-mix(in srgb, var(--text-1) 6%, transparent);
 }
 
 /* Captura para el Informe Institucional: el Canvas debe estar realmente
@@ -278,8 +278,8 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--st-warn);
-    background: rgba(245, 158, 11, 0.14);
-    border: 1px solid rgba(245, 158, 11, 0.4);
+    background: color-mix(in srgb, var(--st-warn) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--st-warn) 40%, transparent);
 }
 
 .vaso3d-caption {
@@ -322,8 +322,8 @@
 
 .vaso3d-contexto-perdido button {
     padding: 8px 18px;
-    background: rgba(34, 211, 238, 0.15);
-    border: 1px solid rgba(34, 211, 238, 0.4);
+    background: color-mix(in srgb, var(--st-info) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--st-info) 40%, transparent);
     color: var(--st-info);
     border-radius: 8px;
     font-size: 0.72rem;
@@ -334,13 +334,13 @@
 }
 
 .vaso3d-contexto-perdido button:hover {
-    background: rgba(34, 211, 238, 0.28);
+    background: color-mix(in srgb, var(--st-info) 28%, transparent);
 }
 
 .vaso3d-toggle-btn {
     padding: 6px 12px;
-    background: rgba(34, 211, 238, 0.12);
-    border: 1px solid rgba(34, 211, 238, 0.35);
+    background: color-mix(in srgb, var(--st-info) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--st-info) 35%, transparent);
     color: var(--st-info);
     border-radius: 8px;
     font-size: 0.6875rem;
@@ -354,7 +354,7 @@
 }
 
 .vaso3d-toggle-btn:hover {
-    background: rgba(34, 211, 238, 0.22);
+    background: color-mix(in srgb, var(--st-info) 22%, transparent);
 }
 
 /* Contenedor de los botones flotantes del visor 3D (pantalla completa +
@@ -372,26 +372,26 @@
 
 .vaso3d-controles-flotantes .vaso3d-toggle-btn {
     padding: 6px 12px;
-    background: rgba(15, 23, 42, 0.75);
+    background: color-mix(in srgb, var(--surface-1) 75%, transparent);
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
-    border-color: rgba(148, 163, 184, 0.3);
+    border-color: color-mix(in srgb, var(--text-3) 30%, transparent);
     color: var(--text-1);
 }
 
 .vaso3d-controles-flotantes .vaso3d-toggle-btn:hover {
-    background: rgba(30, 41, 59, 0.9);
-    border-color: rgba(34, 211, 238, 0.4);
+    background: color-mix(in srgb, var(--surface-2) 90%, transparent);
+    border-color: color-mix(in srgb, var(--st-info) 40%, transparent);
 }
 
 /* Botón "Encuadrar" del visor 3D: re-centra la cámara en un vaso grande
    donde es fácil perderse orbitando/haciendo zoom. */
 .vaso3d-encuadrar-btn {
     padding: 6px 12px;
-    background: rgba(15, 23, 42, 0.75);
+    background: color-mix(in srgb, var(--surface-1) 75%, transparent);
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
-    border: 1px solid rgba(148, 163, 184, 0.3);
+    border: 1px solid color-mix(in srgb, var(--text-3) 30%, transparent);
     color: var(--text-1);
     border-radius: 8px;
     font-size: 0.6875rem;
@@ -402,8 +402,8 @@
 }
 
 .vaso3d-encuadrar-btn:hover {
-    background: rgba(30, 41, 59, 0.9);
-    border-color: rgba(34, 211, 238, 0.4);
+    background: color-mix(in srgb, var(--surface-2) 90%, transparent);
+    border-color: color-mix(in srgb, var(--st-info) 40%, transparent);
 }
 
 /* Pantalla completa CSS-only (NO la Fullscreen API del navegador): Safari en
@@ -453,8 +453,8 @@
 .vaso-galeria-item {
     flex: 0 0 140px;
     scroll-snap-align: start;
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--negro) 25%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 6%, transparent);
     border-radius: 12px;
     padding: 0.6rem 0.6rem 0.5rem;
     text-align: center;
@@ -497,8 +497,8 @@
 }
 
 .vaso-mes-selector select {
-    background: rgba(15, 23, 42, 0.8);
-    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: color-mix(in srgb, var(--surface-1) 80%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-3) 25%, transparent);
     color: var(--text-1);
     font-size: 0.75rem;
     font-weight: 600;
@@ -510,7 +510,7 @@
 }
 
 .vaso-mes-selector select:focus {
-    outline: 2px solid rgba(34, 211, 238, 0.5);
+    outline: 2px solid color-mix(in srgb, var(--st-info) 50%, transparent);
     outline-offset: 1px;
 }
 
@@ -520,8 +520,8 @@
 /* Mini-mapa comparativo: contornos de los dos meses elegidos arriba
    superpuestos sobre un bbox común (ver anilloASvgPath/poligonoASvgPath). */
 .vaso-mapa-comparativo {
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--negro) 25%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 6%, transparent);
     border-radius: 14px;
     padding: 1rem 1rem 0.75rem;
     margin-bottom: 1.25rem;
@@ -556,12 +556,12 @@
 
 .leyenda-swatch.marzo {
     background: transparent;
-    border: 2px dashed #94a3b8;
+    border: 2px dashed var(--text-3);
 }
 
 .leyenda-swatch.reciente {
-    background: rgba(34, 211, 238, 0.25);
-    border: 2px solid #22d3ee;
+    background: color-mix(in srgb, var(--st-info) 25%, transparent);
+    border: 2px solid var(--st-info);
 }
 
 /* Manejo de Vaso — comparación NDWI vs. captura de campo */
@@ -593,17 +593,17 @@
 }
 
 .glass {
-    background: rgba(255, 255, 255, 0.03);
+    background: color-mix(in srgb, var(--text-1) 3%, transparent);
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid color-mix(in srgb, var(--text-1) 6%, transparent);
 }
 
 .pulse-dot {
     width: 8px;
     height: 8px;
-    background: #10b981;
+    background: var(--st-ok);
     border-radius: 50%;
-    box-shadow: 0 0 10px #10b981;
+    box-shadow: 0 0 10px var(--st-ok);
     animation: pulse 2s infinite;
 }
 

@@ -5,7 +5,7 @@
 .mq-kpi dt { font-family: var(--sc-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sc-t3); }
 .mq-kpi dd { margin: 0; font: 600 28px var(--sc-mono); font-variant-numeric: tabular-nums; color: var(--sc-t1); line-height: 1.15; }
 .mq-kpi small { font-size: var(--sc-fs-1, 12px); color: var(--sc-t3); }
-.mq-kpi[data-alerta] { border-color: rgba(251, 191, 36, 0.45); }
+.mq-kpi[data-alerta] { border-color: color-mix(in srgb, var(--st-warn) 45%, transparent); }
 .mq-kpi[data-alerta] dd { color: var(--sc-warn); }
 
 /* Los botones y selectores del apartado cumplen el objetivo táctil de 44 px. */
@@ -48,7 +48,7 @@
 .mq-fs svg { vertical-align: -2px; }
 .mq-cob { display: grid; grid-template-columns: minmax(48px, 1fr) auto; align-items: center; gap: 8px; min-width: 104px; }
 .mq-cob b { font: 600 12px var(--sc-mono); color: var(--sc-t2); }
-.mq-barra { position: relative; display: block; height: 8px; border-radius: 99px; background: rgba(148, 163, 184, 0.16); overflow: hidden; }
+.mq-barra { position: relative; display: block; height: 8px; border-radius: 99px; background: color-mix(in srgb, var(--text-3) 16%, transparent); overflow: hidden; }
 .mq-barra i { display: block; height: 100%; border-radius: 99px; background: var(--sc-t3); }
 /* Marca del 100 %: la barra mide hasta 150 %, así que el 100 % cae a dos tercios. */
 .mq-barra u { position: absolute; top: 0; bottom: 0; left: 66.66%; width: 2px; background: var(--sc-t1); opacity: 0.7; text-decoration: none; }
@@ -58,10 +58,10 @@
 .mq-detalle > td { padding: 0 12px 14px; background: var(--sc-surface-2); }
 
 .mq-estmec { display: inline-block; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--sc-line); font: 600 12px var(--sc-body); color: var(--sc-t2); }
-.mq-estmec[data-e="bueno"] { color: var(--sc-ok); border-color: rgba(52, 211, 153, 0.4); }
-.mq-estmec[data-e="regular"] { color: var(--sc-warn); border-color: rgba(251, 191, 36, 0.45); }
+.mq-estmec[data-e="bueno"] { color: var(--sc-ok); border-color: color-mix(in srgb, var(--st-ok) 40%, transparent); }
+.mq-estmec[data-e="regular"] { color: var(--sc-warn); border-color: color-mix(in srgb, var(--st-warn) 45%, transparent); }
 .mq-estmec[data-e="malo"] { color: #fb923c; border-color: rgba(251, 146, 60, 0.5); }
-.mq-estmec[data-e="baja"] { color: var(--sc-crit); border-color: rgba(248, 113, 113, 0.5); }
+.mq-estmec[data-e="baja"] { color: var(--sc-crit); border-color: color-mix(in srgb, var(--st-crit) 50%, transparent); }
 
 .mq-leyenda { margin: 0; font-size: var(--sc-fs-2, 14px); color: var(--sc-t2); max-width: 90ch; }
 .mq-leyenda b { color: var(--sc-t1); font-family: var(--sc-mono); font-weight: 600; }

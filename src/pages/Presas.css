@@ -18,7 +18,7 @@
     transition: box-shadow 0.2s;
 }
 .presa-kpi-card:hover {
-    box-shadow: 0 0 24px rgba(63, 178, 243,0.07);
+    box-shadow: 0 0 24px color-mix(in srgb, var(--st-info) 7%, transparent);
 }
 
 .presa-kpi-header {
@@ -64,7 +64,7 @@
 }
 .presa-kpi-namo-track {
     height: 4px;
-    background: rgba(255,255,255,0.06);
+    background: color-mix(in srgb, var(--text-1) 6%, transparent);
     border-radius: 999px;
     overflow: hidden;
 }
@@ -120,7 +120,7 @@
     font-size: 11px;
     color: var(--text-3);
     font-weight: 700;
-    border-top: 1px solid rgba(255,255,255,0.04);
+    border-top: 1px solid color-mix(in srgb, var(--text-1) 4%, transparent);
     padding-top: 8px;
 }
 
@@ -154,7 +154,7 @@
     gap: var(--spacing-xs);
     padding: var(--spacing-sm) var(--spacing-lg);
     background-color: var(--color-bg-card);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid color-mix(in srgb, var(--text-1) 10%, transparent);
     border-radius: var(--radius-full);
     color: var(--color-text-secondary);
     font-size: 0.875rem;
@@ -197,7 +197,7 @@
 .dam-card {
     background-color: var(--color-bg-card);
     border-radius: var(--radius-lg);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
     overflow: hidden;
 }
 
@@ -206,8 +206,8 @@
     justify-content: space-between;
     align-items: flex-start;
     padding: var(--spacing-lg);
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, transparent 100%);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--st-info) 10%, transparent) 0%, transparent 100%);
+    border-bottom: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
 }
 
 .dam-title {
@@ -234,7 +234,7 @@
     align-items: center;
     gap: 4px;
     padding: var(--spacing-xs) var(--spacing-sm);
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: color-mix(in srgb, var(--text-1) 5%, transparent);
     border-radius: var(--radius-sm);
     font-size: 0.75rem;
     color: var(--color-text-secondary);
@@ -251,8 +251,8 @@
     display: inline-block;
     margin: var(--spacing-md) var(--spacing-lg);
     padding: var(--spacing-xs) var(--spacing-md);
-    background-color: rgba(59, 130, 246, 0.15);
-    border: 1px solid rgba(59, 130, 246, 0.3);
+    background-color: color-mix(in srgb, var(--st-info) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--st-info) 30%, transparent);
     border-radius: var(--radius-full);
     font-size: 0.6875rem;
     font-weight: 600;
@@ -279,7 +279,7 @@
 /* Section: Parameters */
 .params-section {
     padding: var(--spacing-lg);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
 }
 
 .params-table {
@@ -293,14 +293,14 @@
     padding: var(--spacing-sm);
     color: var(--color-text-muted);
     font-weight: 500;
-    background-color: rgba(255, 255, 255, 0.02);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: color-mix(in srgb, var(--text-1) 2%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--text-1) 10%, transparent);
 }
 
 .params-table td {
     padding: var(--spacing-sm);
     color: var(--color-text-secondary);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid color-mix(in srgb, var(--text-1) 3%, transparent);
 }
 
 .params-table .name-row td {
@@ -316,7 +316,7 @@
 /* Section: Status */
 .status-section {
     padding: var(--spacing-lg);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
 }
 
 .reading-timestamp {
@@ -373,14 +373,14 @@
     position: relative;
     width: 100%;
     height: 24px;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: color-mix(in srgb, var(--text-1) 5%, transparent);
     border-radius: var(--radius-full);
     overflow: hidden;
 }
 
 .fill-bar {
     height: 100%;
-    background: linear-gradient(90deg, #3b82f6, #10b981);
+    background: linear-gradient(90deg, var(--st-info), var(--st-ok));
     border-radius: var(--radius-full);
     transition: width 0.5s ease;
 }
@@ -408,7 +408,7 @@
 /* Section: Extraction */
 .extraction-section {
     padding: var(--spacing-lg);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
 }
 
 .extraction-grid {
@@ -423,9 +423,9 @@
     align-items: center;
     justify-content: center;
     padding: var(--spacing-lg);
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, transparent 100%);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--st-ok) 10%, transparent) 0%, transparent 100%);
     border-radius: var(--radius-md);
-    border: 1px solid rgba(16, 185, 129, 0.2);
+    border: 1px solid color-mix(in srgb, var(--st-ok) 20%, transparent);
 }
 
 .extraction-label {
@@ -491,14 +491,14 @@
 .valve-bar-container {
     flex: 1;
     height: 8px;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: color-mix(in srgb, var(--text-1) 5%, transparent);
     border-radius: var(--radius-full);
     overflow: hidden;
 }
 
 .valve-bar {
     height: 100%;
-    background: linear-gradient(90deg, #f59e0b, #10b981);
+    background: linear-gradient(90deg, var(--st-warn), var(--st-ok));
     border-radius: var(--radius-full);
     transition: width 0.3s ease;
 }
@@ -519,22 +519,22 @@
     justify-content: center;
     gap: var(--spacing-sm);
     padding: var(--spacing-sm);
-    background-color: rgba(255, 255, 255, 0.02);
+    background-color: color-mix(in srgb, var(--text-1) 2%, transparent);
     border-radius: var(--radius-md);
     font-size: 0.75rem;
     color: var(--color-text-muted);
 }
 
 .spillway-status.active {
-    background-color: rgba(239, 68, 68, 0.1);
+    background-color: color-mix(in srgb, var(--st-crit) 10%, transparent);
     color: var(--st-crit);
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    border: 1px solid color-mix(in srgb, var(--st-crit) 30%, transparent);
 }
 
 /* Section: Safety */
 .safety-section {
     padding: var(--spacing-lg);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
 }
 
 .safety-grid {
@@ -560,8 +560,8 @@
 
 .safety-indicator.alert {
     color: var(--st-crit);
-    background-color: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background-color: color-mix(in srgb, var(--st-crit) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--st-crit) 30%, transparent);
 }
 
 /* ── P3: Ejecutivo KPI Grid (Top Section) ────────────────────────────────── */
@@ -579,8 +579,8 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    border: 1px solid rgba(255,255,255,0.05);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 4px 6px rgba(0,0,0,0.1);
+    border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-1) 5%, transparent), 0 4px 6px color-mix(in srgb, var(--negro) 10%, transparent);
 }
 
 .presas-exec-kpi-title {
@@ -626,7 +626,7 @@
     gap: var(--spacing-sm);
     padding: var(--spacing-xl);
     background-color: var(--color-bg-secondary);
-    border: 2px dashed rgba(255, 255, 255, 0.1);
+    border: 2px dashed color-mix(in srgb, var(--text-1) 10%, transparent);
     border-radius: var(--radius-md);
     color: var(--color-text-muted);
     font-size: 0.6875rem;
@@ -674,8 +674,8 @@
     background-color: #3f515e; /* Card background */
     border-radius: 8px;
     padding: 16px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    border: 1px solid rgba(255,255,255,0.05);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--negro) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
 }
 
 .presas-v3-section-hdr {
@@ -688,7 +688,7 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 16px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid color-mix(in srgb, var(--text-1) 10%, transparent);
     padding-bottom: 8px;
 }
 
@@ -726,7 +726,7 @@
 .chart-card {
     background-color: var(--color-bg-card);
     border-radius: var(--radius-lg);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
     padding: var(--spacing-lg);
 }
 
@@ -747,8 +747,8 @@
     gap: var(--spacing-sm);
     margin-top: var(--spacing-md);
     padding: var(--spacing-sm) var(--spacing-md);
-    background-color: rgba(59, 130, 246, 0.1);
-    border-left: 3px solid #3b82f6;
+    background-color: color-mix(in srgb, var(--st-info) 10%, transparent);
+    border-left: 3px solid var(--st-info);
     border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
     font-size: 0.75rem;
     color: var(--color-text-secondary);
@@ -757,7 +757,7 @@
 .marker-dot {
     width: 8px;
     height: 8px;
-    background-color: #3b82f6;
+    background-color: var(--st-info);
     border-radius: 50%;
     animation: pulse 2s ease-in-out infinite;
 }
@@ -782,8 +782,8 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    background: rgba(16, 185, 129, 0.1);
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    background: color-mix(in srgb, var(--st-ok) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--st-ok) 30%, transparent);
     color: var(--st-ok);
     padding: 6px 12px;
     border-radius: 8px;
@@ -799,7 +799,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    background: linear-gradient(135deg, #059669 0%, var(--st-ok) 100%);
     color: white !important;
     padding: 8px 16px;
     border-radius: 8px;
@@ -807,13 +807,13 @@
     font-weight: 600;
     text-decoration: none !important;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--st-ok) 30%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 10%, transparent);
 }
 
 .btn-premium-action:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    box-shadow: 0 6px 20px color-mix(in srgb, var(--st-ok) 40%, transparent);
     filter: brightness(1.1);
 }
 
@@ -821,7 +821,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    background: rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, var(--text-1) 5%, transparent);
     color: var(--text-3);
     padding: 8px 16px;
     border-radius: 8px;
@@ -829,21 +829,21 @@
     font-weight: 600;
     text-decoration: none !important;
     transition: all 0.2s;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
 }
 
 .btn-secondary-action:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: color-mix(in srgb, var(--text-1) 10%, transparent);
     color: white;
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: color-mix(in srgb, var(--text-1) 20%, transparent);
 }
 
 .dam-selector-modern {
     display: flex;
-    background: rgba(15, 23, 42, 0.6);
+    background: color-mix(in srgb, var(--surface-1) 60%, transparent);
     padding: 4px;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
 }
@@ -864,24 +864,24 @@
 }
 
 .dam-selector-modern button.active {
-    background: rgba(59, 130, 246, 0.15);
+    background: color-mix(in srgb, var(--st-info) 15%, transparent);
     color: var(--st-info);
-    border-color: rgba(59, 130, 246, 0.3);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border-color: color-mix(in srgb, var(--st-info) 30%, transparent);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--negro) 20%, transparent);
 }
 
 .delicias-summary-card {
-    background: linear-gradient(160deg, #1e293b 0%, #0f172a 100%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(160deg, var(--surface-2) 0%, var(--surface-1) 100%);
+    border: 1px solid color-mix(in srgb, var(--text-1) 10%, transparent);
     border-radius: 20px;
     overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 10px 30px color-mix(in srgb, var(--negro) 40%, transparent);
 }
 
 .clima-value-main {
     font-size: 2.2rem;
     font-weight: 800;
-    background: linear-gradient(to right, #fff, #94a3b8);
+    background: linear-gradient(to right, #fff, var(--text-3));
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -893,7 +893,7 @@
 
 .temp-range-container {
     height: 6px;
-    background: rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, var(--text-1) 5%, transparent);
     border-radius: 3px;
     position: relative;
     margin: 8px 0;
@@ -902,9 +902,9 @@
 .temp-range-bar {
     position: absolute;
     height: 100%;
-    background: linear-gradient(to right, #60a5fa, #fbbf24, #f87171);
+    background: linear-gradient(to right, var(--st-info), var(--st-warn), var(--st-crit));
     border-radius: 3px;
-    box-shadow: 0 0 8px rgba(251, 191, 36, 0.3);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--st-warn) 30%, transparent);
 }
 
 .temp-indicator {
@@ -913,13 +913,13 @@
     width: 2px;
     height: 14px;
     background: white;
-    box-shadow: 0 0 4px rgba(255, 255, 255, 0.8);
+    box-shadow: 0 0 4px color-mix(in srgb, var(--text-1) 80%, transparent);
 }
 
 .compass-container {
     width: 32px;
     height: 32px;
-    border: 2px solid rgba(255, 255, 255, 0.1);
+    border: 2px solid color-mix(in srgb, var(--text-1) 10%, transparent);
     border-radius: 50%;
     position: relative;
     display: flex;
@@ -930,7 +930,7 @@
 .compass-needle {
     width: 2px;
     height: 16px;
-    background: #f87171;
+    background: var(--st-crit);
     position: absolute;
     top: 50%;
     left: 50%;
@@ -939,16 +939,16 @@
 }
 
 .technical-card {
-    background: rgba(15, 23, 42, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, var(--surface-1) 40%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
     border-radius: 12px;
     padding: 12px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .technical-card:hover {
-    border-color: rgba(59, 130, 246, 0.3);
-    background: rgba(15, 23, 42, 0.6);
+    border-color: color-mix(in srgb, var(--st-info) 30%, transparent);
+    background: color-mix(in srgb, var(--surface-1) 60%, transparent);
     transform: translateY(-2px);
 }
 
@@ -972,13 +972,13 @@
     padding: 24px;
     background: rgba(2, 6, 23, 0.4);
     border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
 }
 
 
 .aforo-summary-box {
-    background: rgba(16, 185, 129, 0.05);
-    border: 1px solid rgba(16, 185, 129, 0.15);
+    background: color-mix(in srgb, var(--st-ok) 5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--st-ok) 15%, transparent);
     padding: 12px 16px;
     border-radius: 14px;
     margin: 0 16px 16px 16px;
@@ -1039,8 +1039,8 @@
     display: flex;
     align-items: center;
     gap: 0;
-    background: rgba(15, 23, 42, 0.85);
-    border: 1px solid rgba(63, 178, 243, 0.12);
+    background: color-mix(in srgb, var(--surface-1) 85%, transparent);
+    border: 1px solid color-mix(in srgb, var(--st-info) 12%, transparent);
     border-radius: 16px;
     padding: 0;
     overflow: hidden;
@@ -1053,7 +1053,7 @@
     gap: 12px;
     padding: 20px 24px;
     min-width: 220px;
-    background: rgba(63, 178, 243, 0.04);
+    background: color-mix(in srgb, var(--st-info) 4%, transparent);
 }
 .presas-v3-estado-dot {
     width: 10px;
@@ -1087,8 +1087,8 @@
     font-size: 11px;
     font-weight: 900;
     color: var(--st-info);
-    background: rgba(63, 178, 243, 0.1);
-    border: 1px solid rgba(63, 178, 243, 0.2);
+    background: color-mix(in srgb, var(--st-info) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--st-info) 20%, transparent);
     border-radius: 999px;
     padding: 3px 10px;
     text-transform: uppercase;
@@ -1099,7 +1099,7 @@
 .presas-v3-estado-divider {
     width: 1px;
     height: 48px;
-    background: rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--text-1) 6%, transparent);
     flex-shrink: 0;
 }
 .presas-v3-estado-kpi {
@@ -1121,7 +1121,7 @@
 .presas-v3-estado-bar-track {
     height: 6px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--text-1) 6%, transparent);
     overflow: hidden;
 }
 .presas-v3-estado-bar-fill {
@@ -1173,7 +1173,7 @@
 /* ── Cards ────────────────────────────────────────────────── */
 .presas-v3-card {
     background: rgba(10, 18, 35, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid color-mix(in srgb, var(--text-1) 6%, transparent);
     border-radius: 20px;
     padding: 24px;
     display: flex;
@@ -1184,7 +1184,7 @@
     transition: border-color 0.2s;
 }
 .presas-v3-card:hover {
-    border-color: rgba(63, 178, 243, 0.14);
+    border-color: color-mix(in srgb, var(--st-info) 14%, transparent);
 }
 
 /* ── Section header ──────────────────────────────────────── */
@@ -1193,7 +1193,7 @@
     align-items: center;
     gap: 8px;
     padding-bottom: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
 }
 .presas-v3-section-hdr span {
     font-size: 11px;
@@ -1205,7 +1205,7 @@
 .presas-v3-section-hdr--sub {
     padding-bottom: 8px;
     border-bottom: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    border-top: 1px solid color-mix(in srgb, var(--text-1) 4%, transparent);
     padding-top: 12px;
 }
 .presas-v3-section-hdr--sub span {
@@ -1229,13 +1229,13 @@
 }
 .presas-v3-delta-badge--up {
     color: var(--st-ok);
-    border-color: rgba(16, 185, 129, 0.3);
-    background: rgba(16, 185, 129, 0.08);
+    border-color: color-mix(in srgb, var(--st-ok) 30%, transparent);
+    background: color-mix(in srgb, var(--st-ok) 8%, transparent);
 }
 .presas-v3-delta-badge--down {
     color: var(--st-crit);
-    border-color: rgba(239, 68, 68, 0.3);
-    background: rgba(239, 68, 68, 0.08);
+    border-color: color-mix(in srgb, var(--st-crit) 30%, transparent);
+    background: color-mix(in srgb, var(--st-crit) 8%, transparent);
 }
 
 /* ── Risk panel ──────────────────────────────────────────── */
@@ -1244,15 +1244,15 @@
     flex-direction: column;
     gap: 6px;
     padding: 14px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.04);
+    background: color-mix(in srgb, var(--text-1) 2%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 4%, transparent);
     border-radius: 12px;
 }
 .presas-v3-risk-bar-track {
     position: relative;
     height: 8px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--text-1) 6%, transparent);
     overflow: hidden;
 }
 .presas-v3-risk-bar-fill {
@@ -1284,7 +1284,7 @@
     top: 0;
     bottom: 0;
     width: 1px;
-    background: rgba(255, 255, 255, 0.2);
+    background: color-mix(in srgb, var(--text-1) 20%, transparent);
 }
 
 /* ── Design KPIs (mini row) ──────────────────────────────── */
@@ -1298,8 +1298,8 @@
     flex-direction: column;
     gap: 3px;
     padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.04);
+    background: color-mix(in srgb, var(--text-1) 2%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 4%, transparent);
     border-radius: 10px;
 }
 .presas-v3-design-kpi span:first-child {
@@ -1353,8 +1353,8 @@
     align-items: center;
     gap: 2px;
     padding: 10px 8px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, var(--text-1) 2%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
     border-radius: 10px;
 }
 .presas-v3-cap-metric-label {
@@ -1384,15 +1384,15 @@
     grid-template-columns: 1fr 1fr;
     gap: 12px;
     padding: 16px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, var(--text-1) 2%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
     border-radius: 14px;
 }
 .presas-v3-clima-main {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    border-right: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
     padding-right: 12px;
 }
 .presas-v3-clima-temp {
@@ -1439,8 +1439,8 @@
     flex-direction: column;
     gap: 3px;
     padding: 12px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, var(--text-1) 2%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
     border-radius: 10px;
 }
 
@@ -1451,7 +1451,7 @@
     gap: 1px;
     border-radius: 10px;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
 }
 .presas-v3-mov-row {
     display: grid;
@@ -1459,12 +1459,12 @@
     gap: 12px;
     align-items: center;
     padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.01);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    background: color-mix(in srgb, var(--text-1) 1%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--text-1) 3%, transparent);
     transition: background 0.15s;
 }
 .presas-v3-mov-row:last-child { border-bottom: none; }
-.presas-v3-mov-row:hover { background: rgba(255, 255, 255, 0.03); }
+.presas-v3-mov-row:hover { background: color-mix(in srgb, var(--text-1) 3%, transparent); }
 .presas-v3-mov-fecha {
     font-size: 11px;
     font-family: 'JetBrains Mono', monospace;
@@ -1492,13 +1492,13 @@
 }
 .presas-v3-mov-fuente--admin {
     color: var(--st-info);
-    border-color: rgba(96, 165, 250, 0.3);
-    background: rgba(96, 165, 250, 0.08);
+    border-color: color-mix(in srgb, var(--st-info) 30%, transparent);
+    background: color-mix(in srgb, var(--st-info) 8%, transparent);
 }
 .presas-v3-mov-fuente--campo {
     color: var(--st-ok);
-    border-color: rgba(16, 185, 129, 0.3);
-    background: rgba(16, 185, 129, 0.08);
+    border-color: color-mix(in srgb, var(--st-ok) 30%, transparent);
+    background: color-mix(in srgb, var(--st-ok) 8%, transparent);
 }
 
 /* ── Cuenca compare ─────────────────────────────────────── */
@@ -1520,7 +1520,7 @@
     flex: 1;
     height: 6px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, var(--text-1) 5%, transparent);
     overflow: hidden;
 }
 .presas-v3-cuenca-bar-fill {
@@ -1540,7 +1540,7 @@
     border: 1px solid #2a3644;
     border-radius: 8px;
     padding: 16px;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 10px 25px -5px color-mix(in srgb, var(--negro) 50%, transparent);
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -1583,14 +1583,14 @@
 }
 
 .scada-btn-dark {
-    border: 1px solid #334155;
+    border: 1px solid var(--line-sutil);
     border-radius: 4px;
     padding: 4px 12px;
     display: flex;
     align-items: center;
     gap: 8px;
     font-size: 11px;
-    background-color: rgba(15, 23, 42, 0.8);
+    background-color: color-mix(in srgb, var(--surface-1) 80%, transparent);
     color: var(--text-2);
 }
 
@@ -1616,10 +1616,10 @@
     background-color: #242f3d;
     padding: 12px;
     border-radius: 4px;
-    border: 1px solid #334155;
+    border: 1px solid var(--line-sutil);
     display: flex;
     flex-direction: column;
-    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.2);
+    box-shadow: inset 0 2px 4px 0 color-mix(in srgb, var(--negro) 20%, transparent);
     position: relative;
 }
 
@@ -1648,9 +1648,9 @@
     width: 120px;
     height: 120px;
     border-radius: 50%;
-    border: 8px solid #334155;
-    border-top-color: #3FB2F3;
-    border-left-color: #3FB2F3;
+    border: 8px solid var(--line-sutil);
+    border-top-color: var(--st-info);
+    border-left-color: var(--st-info);
     transform: rotate(45deg);
     display: flex;
     align-items: center;
@@ -1678,7 +1678,7 @@
 
 /* Range Slider */
 .scada-range-container {
-    background: linear-gradient(to right, #a855f7, #3FB2F3, #f97316);
+    background: linear-gradient(to right, #a855f7, var(--st-info), #f97316);
     height: 6px;
     border-radius: 999px;
     width: 100%;
@@ -1693,11 +1693,11 @@
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    border: 2px solid #1e293b;
+    border: 2px solid var(--surface-2);
     display: flex;
     justify-content: center;
     background-color: #fff;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--negro) 50%, transparent);
 }
 
 /* Compass */
@@ -1705,7 +1705,7 @@
     position: relative;
     width: 50px;
     height: 50px;
-    border: 1px solid #475569;
+    border: 1px solid var(--line-sutil);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -1729,13 +1729,13 @@
     align-items: center;
     justify-content: center;
 }
-.scada-comp-half1 { width: 6px; height: 100%; background: linear-gradient(to bottom, #3FB2F3 50%, transparent 50%); clip-path: polygon(50% 0%, 100% 50%, 50% 50%, 0% 50%); }
-.scada-comp-half2 { position: absolute; width: 6px; height: 100%; background: linear-gradient(to top, #64748b 50%, transparent 50%); clip-path: polygon(50% 100%, 100% 50%, 50% 50%, 0% 50%); }
+.scada-comp-half1 { width: 6px; height: 100%; background: linear-gradient(to bottom, var(--st-info) 50%, transparent 50%); clip-path: polygon(50% 0%, 100% 50%, 50% 50%, 0% 50%); }
+.scada-comp-half2 { position: absolute; width: 6px; height: 100%; background: linear-gradient(to top, var(--line-fuerte) 50%, transparent 50%); clip-path: polygon(50% 100%, 100% 50%, 50% 50%, 0% 50%); }
 
 /* Chart Heights */
 .scada-chart-h90 { height: 90px; width: 100%; position: relative; }
 .scada-chart-h190 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; height: 190px; width: 100%; }
-.scada-chart-grid-left { border-right: 1px solid #334155; padding-right: 16px; display: flex; flex-direction: column; }
+.scada-chart-grid-left { border-right: 1px solid var(--line-sutil); padding-right: 16px; display: flex; flex-direction: column; }
 .scada-chart-grid-right { display: flex; flex-direction: column; gap: 12px; }
 .scada-chart-flex { flex: 1; min-height: 0; position: relative; }
 .scada-chart-legend { display: flex; align-items: center; gap: 12px; font-size: 11px; color: var(--text-3); margin: 4px 0 8px; }
@@ -1750,7 +1750,7 @@
     flex-direction: column;
     gap: 12px;
     padding: 16px 20px 28px;
-    background: #061532;
+    background: var(--bg-app);
     min-height: 100vh;
     color: var(--text-1);
 }
@@ -1762,9 +1762,9 @@
     align-items: center;
     gap: 20px;
     padding: 12px 18px;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-top: 2px solid #3FB2F3;
+    background: color-mix(in srgb, var(--text-1) 2%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 6%, transparent);
+    border-top: 2px solid var(--st-info);
     border-radius: 10px;
 }
 .scada-header-identity { display: flex; flex-direction: column; gap: 2px; }
@@ -1781,14 +1781,14 @@
 .scada-dam-btn {
     display: flex; align-items: center; gap: 5px;
     padding: 5px 13px; border-radius: 6px;
-    border: 1px solid rgba(255,255,255,0.07);
+    border: 1px solid color-mix(in srgb, var(--text-1) 7%, transparent);
     background: transparent; color: var(--text-3);
     font-size: 11px; font-weight: 900; text-transform: uppercase;
     letter-spacing: 0.1em; cursor: pointer; transition: all 0.15s;
     font-family: 'JetBrains Mono', monospace;
 }
-.scada-dam-btn.active { background: rgba(63, 178, 243,0.1); border-color: rgba(63, 178, 243,0.4); color: var(--st-info); }
-.scada-dam-btn:hover:not(.active) { border-color: rgba(255,255,255,0.14); color: var(--text-3); }
+.scada-dam-btn.active { background: color-mix(in srgb, var(--st-info) 10%, transparent); border-color: color-mix(in srgb, var(--st-info) 40%, transparent); color: var(--st-info); }
+.scada-dam-btn:hover:not(.active) { border-color: color-mix(in srgb, var(--text-1) 14%, transparent); color: var(--text-3); }
 .scada-header-kpi-strip { display: flex; justify-content: center; gap: 32px; }
 .scada-header-kpi { display: flex; flex-direction: column; align-items: center; gap: 0; }
 .scada-header-kpi-label {
@@ -1818,14 +1818,14 @@
 .scada-action-btn:disabled { opacity: 0.6; cursor: progress; }
 .scada-action-btn {
     display: flex; align-items: center; gap: 5px; padding: 6px 11px;
-    border-radius: 6px; border: 1px solid rgba(255,255,255,0.07);
-    background: rgba(255,255,255,0.03); color: var(--text-3);
+    border-radius: 6px; border: 1px solid color-mix(in srgb, var(--text-1) 7%, transparent);
+    background: color-mix(in srgb, var(--text-1) 3%, transparent); color: var(--text-3);
     font-size: 11px; font-weight: 900; text-transform: uppercase;
     letter-spacing: 0.12em; cursor: pointer; text-decoration: none;
     transition: all 0.15s; font-family: 'JetBrains Mono', monospace;
 }
-.scada-action-btn--primary { border-color: rgba(16,185,129,0.35); color: var(--st-ok); background: rgba(16,185,129,0.07); }
-.scada-action-btn:hover { border-color: rgba(255,255,255,0.14); color: var(--text-3); }
+.scada-action-btn--primary { border-color: color-mix(in srgb, var(--st-ok) 35%, transparent); color: var(--st-ok); background: color-mix(in srgb, var(--st-ok) 7%, transparent); }
+.scada-action-btn:hover { border-color: color-mix(in srgb, var(--text-1) 14%, transparent); color: var(--text-3); }
 
 /* Body */
 .scada-sala-body { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 12px; align-items: start; }
@@ -1843,7 +1843,7 @@
 .scada-zona-hidraulica { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .scada-sala-body.is-goes-full { grid-template-columns: minmax(0, 1fr); }
 .scada-vaso-panel {
-    background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.06);
+    background: color-mix(in srgb, var(--text-1) 1.5%, transparent); border: 1px solid color-mix(in srgb, var(--text-1) 6%, transparent);
     border-radius: 12px; padding: 14px;
 }
 .scada-vaso-svg { width: 100%; height: auto; display: block; margin-top: 10px; max-height: 210px; }
@@ -1852,19 +1852,19 @@
     font-size: 11px; font-weight: 900; color: var(--text-3);
     text-transform: uppercase; letter-spacing: 0.18em;
     font-family: 'JetBrains Mono', monospace;
-    padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.04); margin-bottom: 6px;
+    padding-bottom: 8px; border-bottom: 1px solid color-mix(in srgb, var(--text-1) 4%, transparent); margin-bottom: 6px;
 }
 .scada-panel-hdr--sub {
     padding-top: 4px; border-bottom: none;
-    border-top: 1px solid rgba(255,255,255,0.04); margin-top: 4px;
+    border-top: 1px solid color-mix(in srgb, var(--text-1) 4%, transparent); margin-top: 4px;
 }
 .scada-trend-arrow { font-size: 18px; font-weight: 900; margin-left: auto; line-height: 1; }
 .scada-delta-pill { font-size: 11px; font-weight: 900; padding: 2px 8px; border-radius: 999px; font-family: 'JetBrains Mono', monospace; }
 .scada-design-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .scada-design-kpi {
     display: flex; flex-direction: column; gap: 2px;
-    padding: 8px 10px; background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.04); border-radius: 8px;
+    padding: 8px 10px; background: color-mix(in srgb, var(--text-1) 2%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 4%, transparent); border-radius: 8px;
 }
 .scada-design-kpi span:first-child {
     font-size: 11px; font-weight: 900; color: var(--text-3);
@@ -1878,25 +1878,25 @@
 /* Zona 3: Tomas */
 .scada-zona-tomas {
     display: flex; flex-direction: column; gap: 10px;
-    background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.06);
+    background: color-mix(in srgb, var(--text-1) 1.5%, transparent); border: 1px solid color-mix(in srgb, var(--text-1) 6%, transparent);
     border-radius: 12px; padding: 14px;
 }
 .scada-extraccion-total {
     display: flex; flex-direction: column; align-items: center; gap: 3px;
-    padding: 12px; background: rgba(0,0,0,0.2);
-    border-radius: 10px; border: 1px solid rgba(255,255,255,0.04);
+    padding: 12px; background: color-mix(in srgb, var(--negro) 20%, transparent);
+    border-radius: 10px; border: 1px solid color-mix(in srgb, var(--text-1) 4%, transparent);
 }
 .scada-ext-label { font-size: 11px; font-weight: 900; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.18em; font-family: 'JetBrains Mono', monospace; }
 .scada-ext-val { font-size: 38px; font-weight: 900; font-family: 'JetBrains Mono', monospace; line-height: 1; letter-spacing: -0.03em; }
 .scada-ext-unit { font-size: 11px; color: var(--text-3); font-weight: 700; font-family: 'JetBrains Mono', monospace; }
-.scada-ext-bar { width: 100%; height: 4px; border-radius: 999px; background: rgba(255,255,255,0.04); overflow: hidden; margin-top: 5px; }
+.scada-ext-bar { width: 100%; height: 4px; border-radius: 999px; background: color-mix(in srgb, var(--text-1) 4%, transparent); overflow: hidden; margin-top: 5px; }
 .scada-ext-bar > div { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
-.scada-ext-bar-fill--active   { background: #3FB2F3; }
-.scada-ext-bar-fill--inactive { background: #1e293b; }
+.scada-ext-bar-fill--active   { background: var(--st-info); }
+.scada-ext-bar-fill--inactive { background: var(--surface-2); }
 .scada-tomas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .scada-toma-card {
-    padding: 10px 12px; background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.05); border-radius: 10px;
+    padding: 10px 12px; background: color-mix(in srgb, var(--text-1) 2%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent); border-radius: 10px;
     display: flex; flex-direction: column; gap: 4px; transition: border-color 0.2s;
 }
 .scada-toma-card--cfe { border-color: rgba(167,139,250,0.2); background: rgba(167,139,250,0.04); }
@@ -1906,7 +1906,7 @@
 .scada-toma-gasto { font-size: 22px; font-weight: 900; font-family: 'JetBrains Mono', monospace; line-height: 1.1; letter-spacing: -0.02em; }
 .scada-toma-unit { font-size: 11px; color: var(--text-3); font-weight: 700; margin-left: 3px; }
 .scada-toma-contrib { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
-.scada-toma-contrib-bar { flex: 1; height: 3px; background: rgba(255,255,255,0.04); border-radius: 999px; overflow: hidden; }
+.scada-toma-contrib-bar { flex: 1; height: 3px; background: color-mix(in srgb, var(--text-1) 4%, transparent); border-radius: 999px; overflow: hidden; }
 .scada-toma-contrib-bar > div { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
 .scada-toma-contrib-pct { font-size: 11px; font-weight: 900; color: var(--text-3); font-family: 'JetBrains Mono', monospace; min-width: 24px; text-align: right; }
 .scada-toma-tag-cfe { font-size: 11px; font-weight: 900; color: #a78bfa; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
@@ -1915,29 +1915,29 @@
 .scada-sala-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
 .scada-zona-gestion,
 .scada-zona-alertas {
-    background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.06);
+    background: color-mix(in srgb, var(--text-1) 1.5%, transparent); border: 1px solid color-mix(in srgb, var(--text-1) 6%, transparent);
     border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px;
 }
 .scada-gestion-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .scada-gestion-kpi {
     display: flex; flex-direction: column; gap: 2px;
-    padding: 10px; background: rgba(0,0,0,0.2);
-    border-radius: 8px; border: 1px solid rgba(255,255,255,0.04);
+    padding: 10px; background: color-mix(in srgb, var(--negro) 20%, transparent);
+    border-radius: 8px; border: 1px solid color-mix(in srgb, var(--text-1) 4%, transparent);
 }
 .scada-gestion-kpi span { font-size: 11px; font-weight: 900; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.12em; font-family: 'JetBrains Mono', monospace; }
 .scada-gestion-kpi strong { font-size: 15px; font-weight: 900; font-family: 'JetBrains Mono', monospace; color: var(--text-3); }
 .scada-gestion-kpi strong small { font-size: 11px; color: var(--text-3); font-weight: 700; }
 .scada-risk-wrap { display: flex; flex-direction: column; gap: 4px; }
-.scada-risk-bar-track { position: relative; height: 6px; background: rgba(255,255,255,0.04); border-radius: 999px; overflow: visible; }
+.scada-risk-bar-track { position: relative; height: 6px; background: color-mix(in srgb, var(--text-1) 4%, transparent); border-radius: 999px; overflow: visible; }
 .scada-risk-bar-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 999px; transition: width 0.6s ease; }
-.scada-risk-mark { position: absolute; top: -3px; bottom: -3px; width: 1px; background: rgba(255,255,255,0.18); }
+.scada-risk-mark { position: absolute; top: -3px; bottom: -3px; width: 1px; background: color-mix(in srgb, var(--text-1) 18%, transparent); }
 .scada-risk-labels { display: flex; gap: 10px; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; font-family: 'JetBrains Mono', monospace; }
 .scada-risk-ok   { color: var(--st-ok); }
 .scada-risk-warn { color: var(--st-warn); }
 .scada-risk-crit { color: var(--st-crit); }
 .scada-diagnostico {
-    padding: 10px 12px; background: rgba(0,0,0,0.2);
-    border-radius: 8px; border: 1px solid rgba(255,255,255,0.04);
+    padding: 10px 12px; background: color-mix(in srgb, var(--negro) 20%, transparent);
+    border-radius: 8px; border: 1px solid color-mix(in srgb, var(--text-1) 4%, transparent);
     display: flex; flex-direction: column; gap: 4px;
 }
 .scada-diag-label { font-size: 11px; font-weight: 900; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.18em; font-family: 'JetBrains Mono', monospace; }
@@ -1945,11 +1945,11 @@
 .scada-diag-text--rec { color: var(--text-3); }
 
 /* Alertas */
-.scada-alerta-count { margin-left: auto; font-size: 11px; font-weight: 900; background: #dc2626; color: #fff; border-radius: 999px; padding: 1px 7px; font-family: 'JetBrains Mono', monospace; }
+.scada-alerta-count { margin-left: auto; font-size: 11px; font-weight: 900; background: var(--fill-crit); color: #fff; border-radius: 999px; padding: 1px 7px; font-family: 'JetBrains Mono', monospace; }
 .scada-alertas-list { display: flex; flex-direction: column; gap: 5px; }
-.scada-alerta-item { padding: 7px 10px; border-left: 3px solid transparent; border-radius: 0 8px 8px 0; background: rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 2px; }
+.scada-alerta-item { padding: 7px 10px; border-left: 3px solid transparent; border-radius: 0 8px 8px 0; background: color-mix(in srgb, var(--negro) 20%, transparent); display: flex; flex-direction: column; gap: 2px; }
 .scada-alerta-item--critica { animation: scada-alert-pulse 2s ease-in-out infinite; }
-@keyframes scada-alert-pulse { 0%, 100% { background: rgba(0,0,0,0.2); } 50% { background: rgba(239,68,68,0.07); } }
+@keyframes scada-alert-pulse { 0%, 100% { background: color-mix(in srgb, var(--negro) 20%, transparent); } 50% { background: color-mix(in srgb, var(--st-crit) 7%, transparent); } }
 .scada-alerta-row { display: flex; align-items: center; justify-content: space-between; }
 .scada-alerta-nivel { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.15em; font-family: 'JetBrains Mono', monospace; }
 .scada-alerta-tiempo { font-size: 11px; color: var(--text-3); font-weight: 700; font-family: 'JetBrains Mono', monospace; }
@@ -1957,15 +1957,15 @@
 .scada-alerta-empty { display: flex; align-items: center; gap: 8px; padding: 10px 12px; color: var(--st-ok); font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
 .scada-aforo-row {
     display: flex; align-items: center; gap: 8px;
-    padding: 8px 10px; background: rgba(16,185,129,0.05);
-    border: 1px solid rgba(16,185,129,0.12); border-radius: 8px;
+    padding: 8px 10px; background: color-mix(in srgb, var(--st-ok) 5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--st-ok) 12%, transparent); border-radius: 8px;
     font-size: 11px; font-weight: 900; font-family: 'JetBrains Mono', monospace;
 }
 .scada-aforo-label { color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; flex: 1; }
 .scada-aforo-val   { color: var(--text-3); }
 .scada-aforo-gasto { color: var(--st-ok); }
 .scada-historial-list { display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto; }
-.scada-historial-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 4px 8px; background: rgba(0,0,0,0.15); border-radius: 6px; }
+.scada-historial-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 4px 8px; background: color-mix(in srgb, var(--negro) 15%, transparent); border-radius: 6px; }
 .scada-hist-fecha { color: var(--text-3); font-size: 11px; font-family: 'JetBrains Mono', monospace; font-weight: 700; }
 .scada-hist-gasto { color: var(--st-ok); font-weight: 900; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
 .scada-hist-gasto small { color: var(--text-3); font-size: 11px; }
@@ -1974,7 +1974,7 @@
     display: flex; align-items: center; gap: 4px; margin-left: auto;
     font-size: 11px; font-weight: 900; color: var(--st-ok);
     text-transform: uppercase; letter-spacing: 0.1em;
-    background: rgba(16,185,129,0.07); border: 1px solid rgba(16,185,129,0.2);
+    background: color-mix(in srgb, var(--st-ok) 7%, transparent); border: 1px solid color-mix(in srgb, var(--st-ok) 20%, transparent);
     border-radius: 4px; padding: 2px 8px; cursor: pointer;
     font-family: 'JetBrains Mono', monospace;
 }
@@ -1982,7 +1982,7 @@
 .scada-cuenca-list { display: flex; flex-direction: column; gap: 7px; }
 .scada-cuenca-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; }
 .scada-cuenca-nombre { font-size: 11px; font-weight: 900; color: var(--text-3); font-family: 'JetBrains Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.scada-cuenca-bar { width: 90px; height: 4px; background: rgba(255,255,255,0.04); border-radius: 999px; overflow: hidden; }
+.scada-cuenca-bar { width: 90px; height: 4px; background: color-mix(in srgb, var(--text-1) 4%, transparent); border-radius: 999px; overflow: hidden; }
 .scada-cuenca-bar > div { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
 .scada-cuenca-pct { font-size: 11px; font-weight: 900; font-family: 'JetBrains Mono', monospace; min-width: 38px; text-align: right; }
 
@@ -2051,9 +2051,8 @@
     border: 1px solid var(--pr-line);
     border-top: 2px solid var(--pr-sky);
     border-radius: 12px;
-    background:
-        linear-gradient(180deg, rgba(63, 178, 243, 0.07), transparent 46%),
-        repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.045) 0 1px, transparent 1px 30px),
+    background: linear-gradient(180deg, color-mix(in srgb, var(--st-info) 7%, transparent), transparent 46%),
+        repeating-linear-gradient(0deg, color-mix(in srgb, var(--text-3) 4.5%, transparent) 0 1px, transparent 1px 30px),
         var(--pr-surface);
 }
 .pr-banda-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
@@ -2062,7 +2061,7 @@
 .pr-banda-sellos { display: flex; gap: 8px; flex-wrap: wrap; }
 .pr-sello {
     display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px;
-    border: 1px solid currentColor; background: rgba(255, 255, 255, 0.04);
+    border: 1px solid currentColor; background: color-mix(in srgb, var(--text-1) 4%, transparent);
     font-family: var(--pr-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
 }
 .pr-sello i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
@@ -2095,10 +2094,10 @@
 .pr-chip.is-cila { color: var(--pr-sky); }
 .pr-chip.is-est {
     color: var(--pr-warn);
-    background: repeating-linear-gradient(135deg, rgba(251, 191, 36, 0.16) 0 4px, transparent 4px 8px);
+    background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--st-warn) 16%, transparent) 0 4px, transparent 4px 8px);
 }
 
-.pr-bar { position: relative; width: 100%; height: 8px; margin: 2px 0 1px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); }
+.pr-bar { position: relative; width: 100%; height: 8px; margin: 2px 0 1px; border-radius: 999px; background: color-mix(in srgb, var(--text-1) 8%, transparent); }
 .pr-bar-fill { height: 100%; border-radius: 999px; background: var(--pr-t3); transition: width 0.9s cubic-bezier(0.2, 0.7, 0.2, 1); }
 .pr-bar-fill--ok { background: var(--pr-ok); } .pr-bar-fill--warn { background: var(--pr-warn); } .pr-bar-fill--crit { background: var(--pr-crit); }
 .pr-bar-mark { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--pr-t3); opacity: 0.7; }
@@ -2154,7 +2153,7 @@ html[data-device="phone"] .pr-sello { min-height: 32px; }
 .pr-hist-nota { grid-area: n; font-size: 11px; color: var(--pr-t3); }
 
 /* Estado vacío de una línea (tendencia de extracción sin movimientos) */
-.scada-vacio-linea { margin: 8px 0 0; padding: 10px 12px; border: 1px dashed rgba(255, 255, 255, 0.08); border-radius: 10px;
+.scada-vacio-linea { margin: 8px 0 0; padding: 10px 12px; border: 1px dashed color-mix(in srgb, var(--text-1) 8%, transparent); border-radius: 10px;
     font-size: 12px; color: var(--text-3); text-align: center; }
 
 /* Identidad de la sala en una línea en iPad horizontal (antes "Sala de / control / hidráulico" en 3 líneas). */

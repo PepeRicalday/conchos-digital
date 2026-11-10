@@ -100,12 +100,12 @@ const EstabilizacionTracker: React.FC = () => {
     }
 
     return (
-        <div style={{ background: '#0f172a', borderRadius: '16px', border: '1px solid rgba(16,185,129,0.3)', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--surface-1)', borderRadius: '16px', border: '1px solid color-mix(in srgb, var(--st-ok) 30%, transparent)', overflow: 'hidden' }}>
             {/* Header del Tracker */}
-            <div style={{ padding: '20px', background: 'linear-gradient(90deg, rgba(16,185,129,0.1) 0%, rgba(15,23,42,0) 100%)', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: '20px', background: 'linear-gradient(90deg, color-mix(in srgb, var(--st-ok) 10%, transparent) 0%, color-mix(in srgb, var(--surface-1) 0%, transparent) 100%)', borderBottom: '1px solid color-mix(in srgb, var(--text-1) 5%, transparent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <div style={{ background: 'rgba(16,185,129,0.2)', padding: '6px', borderRadius: '8px' }}>
+                        <div style={{ background: 'color-mix(in srgb, var(--st-ok) 20%, transparent)', padding: '6px', borderRadius: '8px' }}>
                             <Droplets size={20} style={{ color: 'var(--st-ok)' }} />
                         </div>
                         <h2 style={{ margin: 0, color: 'var(--text-1)', fontSize: '1.25rem', fontWeight: 900 }}>Monitor de Distribución</h2>
@@ -124,7 +124,7 @@ const EstabilizacionTracker: React.FC = () => {
             <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '20px' }}>
                 
                 {/* SECCIÓN A: SEGMENTOS DE CANAL */}
-                <div style={{ background: 'rgba(30,41,59,0.5)', borderRadius: '12px', padding: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ background: 'color-mix(in srgb, var(--surface-2) 50%, transparent)', borderRadius: '12px', padding: '16px', border: '1px solid color-mix(in srgb, var(--text-1) 5%, transparent)' }}>
                     <h3 style={{ margin: '0 0 16px', color: 'var(--text-1)', fontSize: '0.95rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Waves size={18} style={{ color: 'var(--st-info)' }} /> Balance Hídrico por Tramo
                     </h3>
@@ -175,7 +175,7 @@ const EstabilizacionTracker: React.FC = () => {
                 </div>
 
                 {/* SECCIÓN B: TOMAS ACTIVAS */}
-                <div style={{ background: 'rgba(30,41,59,0.5)', borderRadius: '12px', padding: '16px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ background: 'color-mix(in srgb, var(--surface-2) 50%, transparent)', borderRadius: '12px', padding: '16px', border: '1px solid color-mix(in srgb, var(--text-1) 5%, transparent)', display: 'flex', flexDirection: 'column' }}>
                     <h3 style={{ margin: '0 0 16px', color: 'var(--text-1)', fontSize: '0.95rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <LayoutDashboard size={18} style={{ color: '#8b5cf6' }} /> Tomas Activas ({tomasActivas.length})
                     </h3>
@@ -185,14 +185,14 @@ const EstabilizacionTracker: React.FC = () => {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 {tomasActivas.map(toma => (
                                     <div key={toma.id} style={{
-                                        background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.05)',
+                                        background: 'color-mix(in srgb, var(--surface-1) 60%, transparent)', border: '1px solid color-mix(in srgb, var(--text-1) 5%, transparent)',
                                         borderRadius: '8px', padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                                     }}>
                                         <div>
                                             <div style={{ color: 'var(--text-1)', fontSize: '0.8rem', fontWeight: 700 }}>{toma.punto_nombre}</div>
                                             <div style={{ color: 'var(--text-3)', fontSize: '0.7rem', textTransform: 'uppercase' }}>{toma.modulo_nombre}</div>
                                         </div>
-                                        <div style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--st-info)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900 }}>
+                                        <div style={{ background: 'color-mix(in srgb, var(--st-info) 10%, transparent)', color: 'var(--st-info)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900 }}>
                                             {(toma.caudal_promedio_m3s ?? 0).toFixed(2)} <span style={{ fontSize: '0.65rem', color: 'var(--text-3)' }}>m³/s</span>
                                         </div>
                                     </div>

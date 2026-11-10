@@ -53,7 +53,7 @@ const PageLoader = () => (
     <div style={{
       width: '28px',
       height: '28px',
-      border: '3px solid rgba(63, 178, 243, 0.15)',
+      border: '3px solid color-mix(in srgb, var(--st-info) 15%, transparent)',
       borderTopColor: '#3FB2F3',
       borderRadius: '50%',
       animation: 'spin 0.8s linear infinite',
@@ -118,8 +118,8 @@ const PageLoaderConRescate = () => {
       <button
         onClick={() => window.location.reload()}
         style={{
-          background: 'rgba(63, 178, 243,0.12)', color: 'var(--st-info)',
-          border: '1px solid rgba(63, 178, 243,0.3)', borderRadius: '10px',
+          background: 'color-mix(in srgb, var(--st-info) 12%, transparent)', color: 'var(--st-info)',
+          border: '1px solid color-mix(in srgb, var(--st-info) 30%, transparent)', borderRadius: '10px',
           padding: '0.6rem 1.4rem', fontSize: '0.8rem', fontWeight: 700,
           cursor: 'pointer', fontFamily: 'inherit',
         }}
@@ -171,13 +171,13 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#061532',
+        background: 'var(--bg-app)',
         gap: '1.5rem',
       }}>
         <div style={{
           width: '64px',
           height: '64px',
-          border: '3px solid rgba(63, 178, 243, 0.1)',
+          border: '3px solid color-mix(in srgb, var(--st-info) 10%, transparent)',
           borderTopColor: '#3FB2F3',
           borderRadius: '50%',
           animation: 'spin 0.8s linear infinite',
@@ -193,7 +193,7 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
             fontWeight: 800,
             letterSpacing: '4px',
             textTransform: 'uppercase',
-            background: 'linear-gradient(to right, #3FB2F3, #22d3ee)',
+            background: 'linear-gradient(to right, var(--st-info), var(--st-info))',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             fontFamily: 'var(--font-mono)',
@@ -207,7 +207,7 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
           <div style={{
             width: '120px',
             height: '2px',
-            background: 'rgba(63, 178, 243, 0.1)',
+            background: 'color-mix(in srgb, var(--st-info) 10%, transparent)',
             borderRadius: '1px',
             overflow: 'hidden',
             marginTop: '0.5rem',
@@ -215,7 +215,7 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
             <div style={{
               width: '40%',
               height: '100%',
-              background: 'linear-gradient(to right, #3FB2F3, #22d3ee)',
+              background: 'linear-gradient(to right, var(--st-info), var(--st-info))',
               borderRadius: '1px',
               animation: 'loading-bar 1.5s ease-in-out infinite',
             }} />

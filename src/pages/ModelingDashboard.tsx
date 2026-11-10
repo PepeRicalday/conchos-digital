@@ -1576,11 +1576,11 @@ const ModelingDashboard: React.FC = () => {
                 {simpleMode ? 'Perfil Hidráulico · Tirante a lo Largo del Canal' : 'Perfil Longitudinal Hidráulico · Tirante y Caudal por KM'}
               </span>
               <div className="sim-profile-legend">
-                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#3FB2F3', borderRadius: 0 }} /> Tirante Actual</span>
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'var(--st-info)', borderRadius: 0 }} /> Tirante Actual</span>
                 <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#2dd4bf' }} /> Tirante Simulado</span>
                 <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#a78bfa', borderRadius: 0 }} /> Caudal Q</span>
-                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#ef4444', borderRadius: 0, opacity: 0.5 }} /> Bordo Libre</span>
-                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#fbbf24', borderRadius: '50%' }} /> Frente de Onda</span>
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'var(--st-crit)', borderRadius: 0, opacity: 0.5 }} /> Bordo Libre</span>
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'var(--st-warn)', borderRadius: '50%' }} /> Frente de Onda</span>
                 {simResults.some(r => r.remanso_type === 'M1') && <span className="sim-leg-tag tag-m1">▲ Incremento</span>}
                 {simResults.some(r => r.remanso_type === 'M2') && <span className="sim-leg-tag tag-m2">▼ Decremento</span>}
               </div>
@@ -1598,9 +1598,9 @@ const ModelingDashboard: React.FC = () => {
                 Hidrograma de Gasto · Q Real vs Q Simulado a lo Largo del Canal
               </span>
               <div className="sim-profile-legend">
-                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#f59e0b', borderRadius: 2 }} /> Q Real SQL</span>
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'var(--st-warn)', borderRadius: 2 }} /> Q Real SQL</span>
                 <span className="sim-leg"><span className="sim-leg-dot" style={{ background: '#2dd4bf', borderRadius: 0 }} /> Q Simulado</span>
-                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'rgba(251,191,36,0.55)', borderRadius: 1 }} /> Extracciones</span>
+                <span className="sim-leg"><span className="sim-leg-dot" style={{ background: 'color-mix(in srgb, var(--st-warn) 55%, transparent)', borderRadius: 1 }} /> Extracciones</span>
                 {dataStatus.perfilFuente && (
                   <span className="sim-leg sim-leg-fuente">
                     Fuente: {dataStatus.perfilFuente}
@@ -1960,8 +1960,8 @@ const ModelingDashboard: React.FC = () => {
                 />
                 <div className="sim-section-leg">
                   <span><span style={{ display: 'inline-block', width: 10, height: 2, background: '#2dd4bf', verticalAlign: 'middle', marginRight: 4 }} />Simulado</span>
-                  <span><span style={{ display: 'inline-block', width: 10, height: 2, background: '#3FB2F3', opacity: 0.6, verticalAlign: 'middle', marginRight: 4 }} />Actual</span>
-                  <span><span style={{ display: 'inline-block', width: 10, height: 2, background: '#ef4444', opacity: 0.6, verticalAlign: 'middle', marginRight: 4 }} />Bordo L.</span>
+                  <span><span style={{ display: 'inline-block', width: 10, height: 2, background: 'var(--st-info)', opacity: 0.6, verticalAlign: 'middle', marginRight: 4 }} />Actual</span>
+                  <span><span style={{ display: 'inline-block', width: 10, height: 2, background: 'var(--st-crit)', opacity: 0.6, verticalAlign: 'middle', marginRight: 4 }} />Bordo L.</span>
                 </div>
               </div>
 

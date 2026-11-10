@@ -28,7 +28,7 @@
 .geo-kpi-card:focus-visible { outline: 2px solid var(--geo-neon-cyan); outline-offset: 2px; }
 
 .geo-chart-card { border-radius: 14px; border-color: var(--geo-border); }
-.geo-chart-card:hover { border-color: rgba(63, 178, 243, 0.35); }
+.geo-chart-card:hover { border-color: color-mix(in srgb, var(--st-info) 35%, transparent); }
 
 /* Las cifras de los paneles de detalle usan los mismos numerales */
 .detail-stat strong, .geo-gate-stat-value .num { font-family: var(--geo-font-display); font-weight: 800; letter-spacing: 0.01em; }

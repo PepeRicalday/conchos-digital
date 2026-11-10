@@ -121,8 +121,8 @@ const Sidebar = () => {
                     marginBottom: 'var(--spacing-sm)',
                     padding: '8px 12px',
                     borderRadius: 'var(--radius-md)',
-                    background: 'rgba(16, 185, 129, 0.08)',
-                    border: '1px solid rgba(16, 185, 129, 0.15)',
+                    background: 'color-mix(in srgb, var(--st-ok) 8%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--st-ok) 15%, transparent)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
@@ -131,8 +131,8 @@ const Sidebar = () => {
                         width: '6px',
                         height: '6px',
                         borderRadius: '50%',
-                        background: '#10b981',
-                        boxShadow: '0 0 8px rgba(16, 185, 129, 0.6)',
+                        background: 'var(--st-ok)',
+                        boxShadow: '0 0 8px color-mix(in srgb, var(--st-ok) 60%, transparent)',
                         animation: 'pulse-glow 2s infinite',
                     }} />
                     <div style={{ flex: 1 }}>
@@ -252,9 +252,9 @@ const Sidebar = () => {
                             fontWeight: 800,
                             padding: '2px 6px',
                             borderRadius: '9999px',
-                            background: 'linear-gradient(135deg, rgba(63, 178, 243, 0.2), rgba(129, 140, 248, 0.2))',
+                            background: 'linear-gradient(135deg, color-mix(in srgb, var(--st-info) 20%, transparent), rgba(129, 140, 248, 0.2))',
                             color: 'var(--st-info)',
-                            border: '1px solid rgba(63, 178, 243, 0.2)',
+                            border: '1px solid color-mix(in srgb, var(--st-info) 20%, transparent)',
                             letterSpacing: '0.5px',
                         }}>IA</span>
                     </NavLink>

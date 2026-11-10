@@ -33,7 +33,7 @@
 .cr-dif { color: var(--sc-warn); }
 
 .cr-accion { display: flex; justify-content: flex-end; align-self: start; }
-.cr-abrir { min-height: 44px; min-width: 132px; justify-content: center; border-color: rgba(63, 178, 243, 0.5); }
+.cr-abrir { min-height: 44px; min-width: 132px; justify-content: center; border-color: color-mix(in srgb, var(--st-info) 50%, transparent); }
 .cr-sin { font-size: 13px; color: var(--sc-t3); text-align: right; }
 
 .cr-vacio { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 18px; border: 1px dashed var(--sc-line); border-radius: 12px; color: var(--sc-t2); }
@@ -53,8 +53,8 @@
 .cc-raiz { display: flex; flex-direction: column; gap: 16px; }
 .cc-barra {
   position: sticky; top: calc(4px - var(--spacing-lg, 24px)); z-index: 20; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 14px;
-  border: 1px solid var(--sc-line); border-radius: 12px; background: color-mix(in srgb, var(--sc-bg, #061532) 98%, #1e293b);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--sc-line); border-radius: 12px; background: color-mix(in srgb, var(--sc-bg, #061532) 98%, var(--surface-2));
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 6px 16px color-mix(in srgb, var(--negro) 35%, transparent);
 }
 html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait"]) .cc-barra { top: -12px; }
 .cc-ruta { display: flex; align-items: center; flex: 1 1 auto; min-width: 0; margin: 0; padding: 0; list-style: none; font-size: 14px; color: var(--sc-t2); white-space: nowrap; overflow: hidden; }
@@ -88,9 +88,9 @@ html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait
 .cc-tira-cab > .sc-btn, .cc-tira-cab > .cc-tira-clave { flex: none; }
 .cc-tira-cab p b { color: var(--sc-t1); font: 700 15px var(--sc-mono); font-variant-numeric: tabular-nums; }
 .cc-tira-barra { position: relative; height: 22px; border-radius: 6px; background: var(--sc-surface-2); overflow: hidden; }
-.cc-seg { position: absolute; top: 0; bottom: 0; background: rgba(52, 211, 153, 0.38); border-right: 1px solid var(--sc-bg, #061532); }
-.cc-seg[data-estado="atipico"] { background: repeating-linear-gradient(45deg, var(--sc-warn) 0 3px, rgba(251, 191, 36, 0.3) 3px 6px); }
-.cc-seg[data-estado="no_evaluable"] { background: rgba(148, 163, 184, 0.3); }
+.cc-seg { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--st-ok) 38%, transparent); border-right: 1px solid var(--sc-bg, #061532); }
+.cc-seg[data-estado="atipico"] { background: repeating-linear-gradient(45deg, var(--sc-warn) 0 3px, color-mix(in srgb, var(--st-warn) 30%, transparent) 3px 6px); }
+.cc-seg[data-estado="no_evaluable"] { background: color-mix(in srgb, var(--text-3) 30%, transparent); }
 .cc-seg[data-sel] { box-shadow: inset 0 0 0 2px var(--sc-t1); z-index: 1; }
 .cc-marca { position: absolute; top: -2px; bottom: -2px; width: 3px; margin-left: -1.5px; background: var(--sc-sky); z-index: 2; box-shadow: 0 0 0 1px var(--sc-bg, #061532); }
 .cc-tira-pie { display: flex; align-items: center; gap: 10px; font: 400 12px var(--sc-mono); color: var(--sc-t3); }
@@ -98,9 +98,9 @@ html:is([data-device="phone"], [data-device="tablet"][data-orientation="portrait
 .cc-tira-pie > span { flex: none; }
 .cc-tira-clave { display: inline-flex; align-items: center; gap: 4px 14px; flex-wrap: wrap; font: 400 12px var(--sc-body); color: var(--sc-t2); }
 .cc-tira-clave i { display: inline-block; width: 12px; height: 12px; margin-right: 5px; border-radius: 3px; vertical-align: -1px; }
-.cc-tira-clave .k-ok { background: rgba(52, 211, 153, 0.38); }
-.cc-tira-clave .k-at { background: repeating-linear-gradient(45deg, var(--sc-warn) 0 3px, rgba(251, 191, 36, 0.3) 3px 6px); }
-.cc-tira-clave .k-ne { background: rgba(148, 163, 184, 0.3); }
+.cc-tira-clave .k-ok { background: color-mix(in srgb, var(--st-ok) 38%, transparent); }
+.cc-tira-clave .k-at { background: repeating-linear-gradient(45deg, var(--sc-warn) 0 3px, color-mix(in srgb, var(--st-warn) 30%, transparent) 3px 6px); }
+.cc-tira-clave .k-ne { background: color-mix(in srgb, var(--text-3) 30%, transparent); }
 .cc-tira-clave .k-sel { box-shadow: inset 0 0 0 2px var(--sc-t1); }
 .cc-perfil-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
 .cc-perfil-cab b { font-size: 14px; color: var(--sc-t1); }

@@ -3,16 +3,16 @@
 .ndvi-ia-msg { text-align: center; color: var(--text-2); font-size: 0.9rem; }
 .ndvi-ia .ndvi-nota { color: var(--ia-suave); max-width: none; }
 .ndvi-ia-sd { color: var(--text-3); font-style: italic; }
-.ndvi-ia-lectura { margin: 12px 0 14px; padding: 10px 14px; border-left: 4px solid #64748b; background: rgba(148, 163, 184, 0.08); font-size: 1rem; line-height: 1.45; color: var(--text-1); border-radius: 0 8px 8px 0; }
+.ndvi-ia-lectura { margin: 12px 0 14px; padding: 10px 14px; border-left: 4px solid var(--line-fuerte); background: color-mix(in srgb, var(--text-3) 8%, transparent); font-size: 1rem; line-height: 1.45; color: var(--text-1); border-radius: 0 8px 8px 0; }
 .ndvi-ia-lectura.arriba { border-left-color: #2fbf9f; }
 .ndvi-ia-lectura.abajo { border-left-color: #f97316; }
 
 /* Seis módulos en el mismo año: el "pulso" de cada uno sobre su banda típica */
 .ndvi-ia-minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 4px; }
-.ndvi-ia-mini { display: block; width: 100%; padding: 6px 8px 4px; text-align: left; color: var(--ia-texto); background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(148, 163, 184, 0.22); border-top: 3px solid var(--c); border-radius: 8px; cursor: pointer; min-height: 44px; }
-.ndvi-ia-mini:hover { border-color: rgba(148, 163, 184, 0.5); border-top-color: var(--c); }
-.ndvi-ia-mini:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
-.ndvi-ia-mini.on { background: rgba(63, 178, 243, 0.12); border-color: #3FB2F3; border-top-color: var(--c); }
+.ndvi-ia-mini { display: block; width: 100%; padding: 6px 8px 4px; text-align: left; color: var(--ia-texto); background: color-mix(in srgb, var(--surface-1) 55%, transparent); border: 1px solid color-mix(in srgb, var(--text-3) 22%, transparent); border-top: 3px solid var(--c); border-radius: 8px; cursor: pointer; min-height: 44px; }
+.ndvi-ia-mini:hover { border-color: color-mix(in srgb, var(--text-3) 50%, transparent); border-top-color: var(--c); }
+.ndvi-ia-mini:focus-visible { outline: 2px solid var(--st-info); outline-offset: 2px; }
+.ndvi-ia-mini.on { background: color-mix(in srgb, var(--st-info) 12%, transparent); border-color: var(--st-info); border-top-color: var(--c); }
 .ndvi-ia-mini-cab { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.85rem; }
 .ndvi-ia-mini-an { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ia-suave); }
 .ndvi-ia-mini-an.sube { color: #5eead4; }
@@ -28,18 +28,18 @@
 .ndvi-ia-leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; list-style: none; margin: 6px 0 0; padding: 0; font-size: 0.8rem; color: var(--text-2); }
 .ndvi-ia-leyenda li { display: inline-flex; align-items: center; gap: 6px; }
 .ndvi-ia-leyenda i { display: inline-block; width: 20px; border-radius: 2px; }
-.ndvi-ia-leyenda i.dash { height: 0; border-top: 2px dashed #e2e8f0; background: none; }
-.ndvi-ia-leyenda i.band { height: 10px; background: rgba(148, 163, 184, 0.3); }
+.ndvi-ia-leyenda i.dash { height: 0; border-top: 2px dashed var(--text-1); background: none; }
+.ndvi-ia-leyenda i.band { height: 10px; background: color-mix(in srgb, var(--text-3) 30%, transparent); }
 
 .ndvi-ia-tabla-wrap { margin-top: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; max-width: 100%; }
-.ndvi-ia-tabla-wrap:focus-visible { outline: 2px solid #3FB2F3; outline-offset: 2px; }
+.ndvi-ia-tabla-wrap:focus-visible { outline: 2px solid var(--st-info); outline-offset: 2px; }
 .ndvi-ia-tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
 .ndvi-ia-tabla caption { text-align: left; font-weight: 600; color: var(--text-1); padding-bottom: 6px; }
-.ndvi-ia-tabla th, .ndvi-ia-tabla td { padding: 6px 10px; text-align: right; border-bottom: 1px solid rgba(148, 163, 184, 0.15); white-space: nowrap; }
+.ndvi-ia-tabla th, .ndvi-ia-tabla td { padding: 6px 10px; text-align: right; border-bottom: 1px solid color-mix(in srgb, var(--text-3) 15%, transparent); white-space: nowrap; }
 .ndvi-ia-tabla th:first-child, .ndvi-ia-tabla td:first-child { text-align: left; }
 .ndvi-ia-tabla thead th { color: var(--text-2); font-weight: 500; }
 .ndvi-ia-tabla tbody th { font-weight: 600; color: var(--text-1); }
-.ndvi-ia-tabla tr.foco { background: rgba(251, 191, 36, 0.09); }
+.ndvi-ia-tabla tr.foco { background: color-mix(in srgb, var(--st-warn) 9%, transparent); }
 .ndvi-ia-aviso { color: var(--st-warn); cursor: help; }
 
 @media (max-width: 600px) { .ndvi-ia-minis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ndvi-ia-lectura { font-size: 0.95rem; } }

@@ -61,29 +61,29 @@
 /* ── Red de estaciones ── */
 .cl-red-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
 .cl-est { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; min-height: 44px; border-radius: 12px; border: 1px solid var(--cl-line); background: var(--cl-surface); cursor: pointer; transition: border-color 0.2s, background 0.2s; }
-.cl-est:hover { background: var(--cl-surface-2); border-color: rgba(63, 178, 243, 0.45); }
+.cl-est:hover { background: var(--cl-surface-2); border-color: color-mix(in srgb, var(--st-info) 45%, transparent); }
 .cl-est:focus-visible { outline: 2px solid var(--cl-sky); outline-offset: 2px; }
 .cl-est-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .cl-est-nombre { display: block; font-weight: 600; font-size: 14px; color: var(--cl-t1); }
 .cl-est-rol { display: block; font-size: 11px; color: var(--cl-t3); }
-.cl-est-vigente .cl-chip { color: var(--cl-ok); border-color: rgba(52, 211, 153, 0.4); }
-.cl-est-retrasada .cl-chip { color: var(--cl-warn); border-color: rgba(251, 191, 36, 0.4); }
-.cl-est-sin_senal { border-color: rgba(248, 113, 113, 0.4); }
-.cl-est-sin_senal .cl-chip { color: var(--cl-crit); border-color: rgba(248, 113, 113, 0.45); }
+.cl-est-vigente .cl-chip { color: var(--cl-ok); border-color: color-mix(in srgb, var(--st-ok) 40%, transparent); }
+.cl-est-retrasada .cl-chip { color: var(--cl-warn); border-color: color-mix(in srgb, var(--st-warn) 40%, transparent); }
+.cl-est-sin_senal { border-color: color-mix(in srgb, var(--st-crit) 40%, transparent); }
+.cl-est-sin_senal .cl-chip { color: var(--cl-crit); border-color: color-mix(in srgb, var(--st-crit) 45%, transparent); }
 .cl-est-pie { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--cl-t3); }
 .cl-est-pie b { color: var(--cl-t1); font-family: var(--cl-mono); font-weight: 600; }
 
 .cl-tira { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; height: 16px; }
 .cl-tira span { border-radius: 2px; }
 .cl-tira-ok { background: var(--cl-ok); opacity: 0.85; }
-.cl-tira-hueco { background: transparent; border: 1px dashed rgba(248, 113, 113, 0.6); }
+.cl-tira-hueco { background: transparent; border: 1px dashed color-mix(in srgb, var(--st-crit) 60%, transparent); }
 
 /* ── Alertas ── */
 .cl-alertas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .cl-alerta { display: flex; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--cl-line); border-left-width: 4px; background: var(--cl-surface); }
 .cl-alerta-warn { border-left-color: var(--cl-warn); }
 .cl-alerta-warn > svg { color: var(--cl-warn); flex-shrink: 0; margin-top: 2px; }
-.cl-alerta-crit { border-left-color: var(--cl-crit); background: rgba(248, 113, 113, 0.07); }
+.cl-alerta-crit { border-left-color: var(--cl-crit); background: color-mix(in srgb, var(--st-crit) 7%, transparent); }
 .cl-alerta-crit > svg { color: var(--cl-crit); flex-shrink: 0; margin-top: 2px; }
 .cl-alerta p { margin: 0; }
 .cl-alerta-tit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
@@ -118,9 +118,9 @@
 .cl-barra { display: block; height: 7px; border-radius: 0 3px 3px 0; min-width: 2px; }
 .cl-barra-dem { background: #3987e5; }
 .cl-barra-ent { background: #199e70; }
-.cl-bal-deficit { color: var(--cl-crit); border-color: rgba(248, 113, 113, 0.45); }
-.cl-bal-equilibrado { color: var(--cl-ok); border-color: rgba(52, 211, 153, 0.4); }
-.cl-bal-superavit { color: var(--cl-warn); border-color: rgba(251, 191, 36, 0.4); }
+.cl-bal-deficit { color: var(--cl-crit); border-color: color-mix(in srgb, var(--st-crit) 45%, transparent); }
+.cl-bal-equilibrado { color: var(--cl-ok); border-color: color-mix(in srgb, var(--st-ok) 40%, transparent); }
+.cl-bal-superavit { color: var(--cl-warn); border-color: color-mix(in srgb, var(--st-warn) 40%, transparent); }
 .cl-bal-sd { color: var(--cl-t3); }
 
 /* Tablet / teléfono */
@@ -178,9 +178,9 @@
 .cl-rd-num { font-size: 11px; color: var(--cl-t2); }
 .cl-rd-min { text-align: right; color: var(--st-info); }
 .cl-rd-max { color: #fdba74; }
-.cl-rd-pista { position: relative; height: 8px; border-radius: 999px; background: rgba(148, 163, 184, 0.12); }
-.cl-rd-barra { position: absolute; top: 0; bottom: 0; border-radius: 999px; min-width: 4px; background: linear-gradient(90deg, #3FB2F3, #f59e0b 70%, #f97316); }
-.cl-rd-ahora { position: absolute; top: 50%; width: 10px; height: 10px; margin-left: -5px; transform: translateY(-50%); border-radius: 50%; background: var(--cl-t1); box-shadow: 0 0 0 2px #061532; }
+.cl-rd-pista { position: relative; height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--text-3) 12%, transparent); }
+.cl-rd-barra { position: absolute; top: 0; bottom: 0; border-radius: 999px; min-width: 4px; background: linear-gradient(90deg, var(--st-info), var(--st-warn) 70%, #f97316); }
+.cl-rd-ahora { position: absolute; top: 50%; width: 10px; height: 10px; margin-left: -5px; transform: translateY(-50%); border-radius: 50%; background: var(--cl-t1); box-shadow: 0 0 0 2px var(--bg-app); }
 .cl-rd-top { color: var(--cl-warn) !important; font-weight: 700; }
 .cl-rd-lluvia { color: var(--cl-sky) !important; font-weight: 700; }
 

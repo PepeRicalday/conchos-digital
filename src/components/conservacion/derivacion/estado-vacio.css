@@ -5,7 +5,7 @@
 .cons-vacio-accion-tit { margin: 0; font: 600 var(--sc-fs-3, 16px)/1.35 var(--sc-body); color: var(--sc-t1); }
 .cons-vacio-accion-txt { margin: 4px 0 0; max-width: 70ch; font-size: var(--sc-fs-2, 14px); line-height: 1.55; color: var(--sc-t2); }
 .cons-vacio-accion-btn { justify-content: center; }
-.cons-vacio-accion-error { border-style: solid; border-color: rgba(248, 113, 113, 0.5); background: rgba(248, 113, 113, 0.06); }
+.cons-vacio-accion-error { border-style: solid; border-color: color-mix(in srgb, var(--st-crit) 50%, transparent); background: color-mix(in srgb, var(--st-crit) 6%, transparent); }
 .cons-vacio-accion-error > svg { color: var(--sc-crit); }
 @media (max-width: 700px) {
   .cons-vacio-accion { grid-template-columns: auto minmax(0, 1fr); }

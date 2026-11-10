@@ -5,11 +5,11 @@
 .kc-hero > * { min-width: 0; min-height: 0; }
 
 .kc-ahora { --acc: var(--sc-sky); position: relative; display: flex; flex-direction: column; gap: 8px; overflow: hidden; padding: clamp(10px, 1.2vw, 16px) clamp(12px, 1.4vw, 18px);
-    border: 1px solid var(--sc-line); border-radius: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.065), rgba(255,255,255,0.018)); container-type: size; container-name: kc; }
+    border: 1px solid var(--sc-line); border-radius: 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--text-1) 6.5%, transparent), color-mix(in srgb, var(--text-1) 1.8%, transparent)); container-type: size; container-name: kc; }
 .kc-ahora::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; border-radius: 14px 14px 0 0; background: linear-gradient(90deg, var(--acc), transparent 85%); }
 .kc-ahora[data-estado='ok'] { --acc: var(--sc-ok); }
-.kc-ahora[data-estado='warn'] { --acc: var(--sc-warn); border-color: rgba(251, 191, 36, 0.45); }
-.kc-ahora[data-estado='crit'] { --acc: var(--sc-crit); border-color: rgba(248, 113, 113, 0.5); background: rgba(248, 113, 113, 0.07); }
+.kc-ahora[data-estado='warn'] { --acc: var(--sc-warn); border-color: color-mix(in srgb, var(--st-warn) 45%, transparent); }
+.kc-ahora[data-estado='crit'] { --acc: var(--sc-crit); border-color: color-mix(in srgb, var(--st-crit) 50%, transparent); background: color-mix(in srgb, var(--st-crit) 7%, transparent); }
 .kc-ahora[data-estado='sd'] { --acc: var(--sc-t3); }
 
 .kc-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
@@ -29,7 +29,7 @@
 
 /* Franja de 5 KPI */
 .kc-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
-.kc-kpi { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding: 6px 7px; border: 1px solid var(--sc-line); border-radius: 10px; background: rgba(255, 255, 255, 0.03); }
+.kc-kpi { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding: 6px 7px; border: 1px solid var(--sc-line); border-radius: 10px; background: color-mix(in srgb, var(--text-1) 3%, transparent); }
 .kc-kpi-et { display: flex; align-items: center; gap: 4px; font: 500 12px var(--sc-body); color: var(--sc-t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kc-kpi-et > span { display: inline-flex; flex: none; color: var(--sc-sky); }
 .kc-kpi-v { font-family: var(--sc-display); font-size: 24px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; color: var(--sc-t1); white-space: nowrap; }
@@ -40,8 +40,8 @@
 /* Pronóstico Hoy / Mañana */
 .kc-pron { display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1 1 auto; }
 .kc-dias { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-.kc-dia { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px; border: 1px solid var(--sc-line); border-radius: 10px; background: rgba(255, 255, 255, 0.03); }
-.kc-dia[data-cond='lluvia'] { border-color: rgba(63, 178, 243, 0.5); background: rgba(63, 178, 243, 0.08); }
+.kc-dia { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px; border: 1px solid var(--sc-line); border-radius: 10px; background: color-mix(in srgb, var(--text-1) 3%, transparent); }
+.kc-dia[data-cond='lluvia'] { border-color: color-mix(in srgb, var(--st-info) 50%, transparent); background: color-mix(in srgb, var(--st-info) 8%, transparent); }
 .kc-dia-ico { flex: none; display: inline-flex; color: var(--sc-warn); } .kc-dia[data-cond='lluvia'] .kc-dia-ico, .kc-dia[data-cond='posible'] .kc-dia-ico { color: var(--sc-sky); } .kc-dia[data-cond='sd'] .kc-dia-ico { color: var(--sc-t3); }
 .kc-dia-ico svg { width: 28px; height: 28px; stroke-width: 1.7; }
 .kc-dia-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }

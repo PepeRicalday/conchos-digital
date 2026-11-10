@@ -67,13 +67,13 @@
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #0ea5e9, #0369a1);
+  background: linear-gradient(135deg, var(--st-info), #0369a1);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   flex-shrink: 0;
-  box-shadow: 0 0 18px rgba(14,165,233,0.35);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--st-info) 35%, transparent);
 }
 
 .sim-brand-title {
@@ -176,10 +176,10 @@
 }
 
 @keyframes sim-decision-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(63, 178, 243, 0); }
-  25% { box-shadow: 0 0 0 4px rgba(63, 178, 243, 0.35); }
-  50% { box-shadow: 0 0 0 0 rgba(63, 178, 243, 0); }
-  75% { box-shadow: 0 0 0 4px rgba(63, 178, 243, 0.25); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--st-info) 0%, transparent); }
+  25% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--st-info) 35%, transparent); }
+  50% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--st-info) 0%, transparent); }
+  75% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--st-info) 25%, transparent); }
 }
 
 .sim-decision-panel-pulse {
@@ -220,7 +220,7 @@
 .sim-mode-btn.active {
   border-color: var(--sim-sky);
   color: var(--sim-sky);
-  background: rgba(63, 178, 243,0.08);
+  background: color-mix(in srgb, var(--st-info) 8%, transparent);
 }
 
 .sim-report-btn {
@@ -231,15 +231,15 @@
   border-radius: 6px;
   font-size: 11px;
   font-weight: 700;
-  border: 1px solid rgba(16,185,129,0.3);
+  border: 1px solid color-mix(in srgb, var(--st-ok) 30%, transparent);
   color: var(--sim-emerald);
-  background: rgba(16,185,129,0.08);
+  background: color-mix(in srgb, var(--st-ok) 8%, transparent);
   cursor: pointer;
   transition: all 0.15s;
   font-family: var(--sim-mono);
 }
 
-.sim-report-btn:hover  { background: rgba(16,185,129,0.18); }
+.sim-report-btn:hover  { background: color-mix(in srgb, var(--st-ok) 18%, transparent); }
 .sim-report-btn:disabled { opacity: 0.35; cursor: default; }
 
 /* ── BARRA DE CONTROL ───────────────────────────────────────────── */
@@ -344,7 +344,7 @@
   background: var(--sim-sky);
   cursor: pointer;
   border: 2px solid var(--sim-surface);
-  box-shadow: 0 0 8px rgba(63, 178, 243,0.5);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--st-info) 50%, transparent);
 }
 
 .sim-delta-chip {
@@ -360,9 +360,9 @@
   white-space: nowrap;
 }
 
-.sim-delta-chip.pos { background: rgba(16,185,129,0.12); color: var(--sim-emerald); border: 1px solid rgba(16,185,129,0.25); }
-.sim-delta-chip.neg { background: rgba(59,130,246,0.12);  color: var(--st-info);            border: 1px solid rgba(59,130,246,0.25); }
-.sim-delta-chip.neu { background: rgba(100,116,139,0.1);  color: var(--sim-muted);   border: 1px solid var(--sim-border); }
+.sim-delta-chip.pos { background: color-mix(in srgb, var(--st-ok) 12%, transparent); color: var(--sim-emerald); border: 1px solid color-mix(in srgb, var(--st-ok) 25%, transparent); }
+.sim-delta-chip.neg { background: color-mix(in srgb, var(--st-info) 12%, transparent);  color: var(--st-info);            border: 1px solid color-mix(in srgb, var(--st-info) 25%, transparent); }
+.sim-delta-chip.neu { background: color-mix(in srgb, var(--line-fuerte) 10%, transparent);  color: var(--sim-muted);   border: 1px solid var(--sim-border); }
 
 /* ── CONTEXTO BASE → ACTUAL → SIMULADO ──────────────────────────── */
 .sim-flow-context {
@@ -394,25 +394,25 @@
 }
 
 .sim-ctx-item.current {
-  background: rgba(63, 178, 243, 0.1);
+  background: color-mix(in srgb, var(--st-info) 10%, transparent);
   color: var(--st-info);
-  border: 1px solid rgba(63, 178, 243, 0.3);
+  border: 1px solid color-mix(in srgb, var(--st-info) 30%, transparent);
 }
 
 .sim-ctx-item.sim.up {
-  background: rgba(16, 185, 129, 0.1);
+  background: color-mix(in srgb, var(--st-ok) 10%, transparent);
   color: var(--st-ok);
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  border: 1px solid color-mix(in srgb, var(--st-ok) 30%, transparent);
 }
 
 .sim-ctx-item.sim.dn {
-  background: rgba(59, 130, 246, 0.1);
+  background: color-mix(in srgb, var(--st-info) 10%, transparent);
   color: var(--st-info);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  border: 1px solid color-mix(in srgb, var(--st-info) 30%, transparent);
 }
 
 .sim-ctx-item.sim.eq {
-  background: rgba(100, 116, 139, 0.1);
+  background: color-mix(in srgb, var(--line-fuerte) 10%, transparent);
   color: var(--text-3);
   border: 1px solid #1e3a5f;
 }
@@ -451,7 +451,7 @@
   gap: 5px;
   padding: 8px 10px;
   background: rgba(15, 30, 55, 0.6);
-  border: 1px solid rgba(51, 65, 85, 0.6);
+  border: 1px solid color-mix(in srgb, var(--line-sutil) 60%, transparent);
   border-radius: 6px;
 }
 
@@ -483,7 +483,7 @@
 .sim-start-time-input {
   flex: 1;
   background: rgba(30, 58, 95, 0.5);
-  border: 1px solid rgba(63, 178, 243, 0.3);
+  border: 1px solid color-mix(in srgb, var(--st-info) 30%, transparent);
   border-radius: 4px;
   color: var(--text-1);
   font-size: 13px;
@@ -497,12 +497,12 @@
 
 .sim-start-time-input:focus {
   border-color: var(--sim-sky);
-  box-shadow: 0 0 0 2px rgba(63, 178, 243, 0.15);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--st-info) 15%, transparent);
 }
 
 .sim-start-time-reset {
-  background: rgba(63, 178, 243, 0.12);
-  border: 1px solid rgba(63, 178, 243, 0.3);
+  background: color-mix(in srgb, var(--st-info) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--st-info) 30%, transparent);
   border-radius: 4px;
   color: var(--sim-sky);
   font-size: 11px;
@@ -515,7 +515,7 @@
 }
 
 .sim-start-time-reset:hover {
-  background: rgba(63, 178, 243, 0.22);
+  background: color-mix(in srgb, var(--st-info) 22%, transparent);
 }
 
 /* ── BODY ───────────────────────────────────────────────────────── */
@@ -746,7 +746,7 @@
 }
 
 .tag-m1 { color: #f97316; border-color: rgba(249,115,22,0.3); background: rgba(249,115,22,0.07); }
-.tag-m2 { color: var(--st-info); border-color: rgba(96,165,250,0.3); background: rgba(96,165,250,0.07); }
+.tag-m2 { color: var(--st-info); border-color: color-mix(in srgb, var(--st-info) 30%, transparent); background: color-mix(in srgb, var(--st-info) 7%, transparent); }
 
 /* Alto propio y definido: el gráfico (absolute inset 0) nunca depende de un % sobre un padre sin alto,
    que en Safari/iPad dejaba el perfil con ~50 px de alto o sin dibujarse (2026-11-02). */
@@ -757,7 +757,7 @@
   background: var(--sim-card);
   border-top: 1px solid var(--sim-border);
   border-bottom: 1px solid var(--sim-border);
-  border-left: 3px solid #f59e0b;
+  border-left: 3px solid var(--st-warn);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -789,8 +789,8 @@
 
 .sim-leg-fuente      { color: var(--st-warn); font-style: italic; }
 .sim-leg--muted      { color: var(--text-3); }
-.sim-leg-dot--amber  { background: #f59e0b; border-radius: 50%; }
-.sim-leg-dot--cyan-line { background: #3FB2F3; border-radius: 0; }
+.sim-leg-dot--amber  { background: var(--st-warn); border-radius: 50%; }
+.sim-leg-dot--cyan-line { background: var(--st-info); border-radius: 0; }
 .sim-leg-dot--teal   { background: #2dd4bf; border-radius: 50%; }
 
 /* ── SECCIÓN TRANSVERSAL ────────────────────────────────────── */
@@ -798,7 +798,7 @@
   background: var(--sim-card);
   border-top: 1px solid var(--sim-border);
   border-bottom: 1px solid var(--sim-border);
-  border-left: 3px solid #3FB2F3;
+  border-left: 3px solid var(--st-info);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -840,7 +840,7 @@
   height: 28px;
   border-radius: 50%;
   border: 1px solid var(--sim-border2);
-  background: rgba(63, 178, 243,0.1);
+  background: color-mix(in srgb, var(--st-info) 10%, transparent);
   color: var(--sim-sky);
   display: flex;
   align-items: center;
@@ -850,8 +850,8 @@
   transition: all 0.15s;
 }
 
-.sim-play-btn:hover { background: rgba(63, 178, 243,0.2); }
-.sim-play-btn.playing { background: rgba(251,191,36,0.12); color: var(--st-warn); border-color: #fbbf24; }
+.sim-play-btn:hover { background: color-mix(in srgb, var(--st-info) 20%, transparent); }
+.sim-play-btn.playing { background: color-mix(in srgb, var(--st-warn) 12%, transparent); color: var(--st-warn); border-color: var(--st-warn); }
 
 .sim-reset-btn {
   width: 24px;
@@ -1079,13 +1079,13 @@
 }
 
 .sim-ds-pill.live {
-  background: rgba(16, 185, 129, 0.08);
-  border-color: rgba(16, 185, 129, 0.25);
+  background: color-mix(in srgb, var(--st-ok) 8%, transparent);
+  border-color: color-mix(in srgb, var(--st-ok) 25%, transparent);
 }
 
 .sim-ds-pill.default {
-  background: rgba(100, 116, 139, 0.08);
-  border-color: rgba(100, 116, 139, 0.2);
+  background: color-mix(in srgb, var(--line-fuerte) 8%, transparent);
+  border-color: color-mix(in srgb, var(--line-fuerte) 20%, transparent);
 }
 
 .sim-ds-dot {
@@ -1096,8 +1096,8 @@
   flex-shrink: 0;
 }
 
-.sim-ds-pill.live .sim-ds-dot     { background: #10b981; box-shadow: 0 0 5px rgba(16,185,129,0.7); }
-.sim-ds-pill.default .sim-ds-dot  { background: #475569; }
+.sim-ds-pill.live .sim-ds-dot     { background: var(--st-ok); box-shadow: 0 0 5px color-mix(in srgb, var(--st-ok) 70%, transparent); }
+.sim-ds-pill.default .sim-ds-dot  { background: var(--line-sutil); }
 
 .sim-ds-label {
   color: var(--sim-muted);
@@ -1134,8 +1134,8 @@
   font-size: 11px;
   padding: 1px 6px;
   border-radius: 10px;
-  background: rgba(63, 178, 243, 0.1);
-  border: 1px solid rgba(63, 178, 243, 0.25);
+  background: color-mix(in srgb, var(--st-info) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--st-info) 25%, transparent);
   color: var(--st-info);
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -1154,8 +1154,8 @@
 }
 /* AFORO SICA: ámbar — valor medido directamente */
 .sim-gate-anchored-badge.sim-gate-anchored-aforo {
-  background: rgba(251, 191, 36, 0.12);
-  border: 1px solid rgba(251, 191, 36, 0.4);
+  background: color-mix(in srgb, var(--st-warn) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--st-warn) 40%, transparent);
   color: var(--st-warn);
 }
 /* ORIFICIO: violeta — valor calculado por fórmula (sin aforo) */
@@ -1189,8 +1189,8 @@
   margin-top: 6px;
   padding: 7px 9px;
   border-radius: 5px;
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid color-mix(in srgb, var(--st-crit) 40%, transparent);
+  background: color-mix(in srgb, var(--st-crit) 12%, transparent);
   color: #fca5a5;
   font-size: 11px;
   font-weight: 600;
@@ -1266,8 +1266,8 @@
 .sim-gate-required {
   margin-top: 8px;
   border-radius: 7px;
-  border: 1px solid rgba(251, 191, 36, 0.3);
-  background: rgba(251, 191, 36, 0.04);
+  border: 1px solid color-mix(in srgb, var(--st-warn) 30%, transparent);
+  background: color-mix(in srgb, var(--st-warn) 4%, transparent);
   overflow: hidden;
 }
 
@@ -1278,8 +1278,8 @@
   text-transform: uppercase;
   color: var(--st-warn);
   padding: 4px 10px;
-  background: rgba(251, 191, 36, 0.08);
-  border-bottom: 1px solid rgba(251, 191, 36, 0.2);
+  background: color-mix(in srgb, var(--st-warn) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--st-warn) 20%, transparent);
 }
 
 .sim-gate-req-row {
@@ -1334,8 +1334,8 @@
   font-size: 11px;
   font-weight: 700;
   color: var(--st-crit);
-  background: rgba(239, 68, 68, 0.08);
-  border-top: 1px solid rgba(239, 68, 68, 0.2);
+  background: color-mix(in srgb, var(--st-crit) 8%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--st-crit) 20%, transparent);
   padding: 4px 10px 5px;
 }
 
@@ -1343,20 +1343,20 @@
   font-size: 11px;
   color: var(--text-3);
   padding: 3px 10px 5px;
-  border-top: 1px solid rgba(251, 191, 36, 0.12);
+  border-top: 1px solid color-mix(in srgb, var(--st-warn) 12%, transparent);
   font-style: italic;
 }
 
 /* ── BLOQUE APERTURA OK — INCREMENTO SIN ACCIÓN REQUERIDA ─────────── */
 /* Variante verde del sim-gate-required cuando la compuerta ya es suficiente */
 .sim-gate-required.gate-ok {
-  border-color: rgba(16, 185, 129, 0.35);
-  background: rgba(16, 185, 129, 0.04);
+  border-color: color-mix(in srgb, var(--st-ok) 35%, transparent);
+  background: color-mix(in srgb, var(--st-ok) 4%, transparent);
 }
 
 .sim-gate-required.gate-ok .sim-gate-req-label {
   color: #6ee7b7;
-  border-bottom-color: rgba(16, 185, 129, 0.2);
+  border-bottom-color: color-mix(in srgb, var(--st-ok) 20%, transparent);
 }
 
 .sim-gate-ok-body {
@@ -1380,7 +1380,7 @@
 
 .sim-gate-ok-note {
   color: var(--st-ok);
-  border-top-color: rgba(16, 185, 129, 0.2);
+  border-top-color: color-mix(in srgb, var(--st-ok) 20%, transparent);
   font-style: normal;
   font-weight: 500;
 }
@@ -1507,7 +1507,7 @@
 }
 
 .sim-compare-table thead tr {
-  background: rgba(255,255,255,0.03);
+  background: color-mix(in srgb, var(--text-1) 3%, transparent);
   position: sticky;
   top: 0;
   z-index: 1;
@@ -1534,7 +1534,7 @@
 
 .sim-compare-table td:first-child { text-align: left; }
 
-.sim-compare-table tbody tr:hover { background: rgba(255,255,255,0.02); cursor: pointer; }
+.sim-compare-table tbody tr:hover { background: color-mix(in srgb, var(--text-1) 2%, transparent); cursor: pointer; }
 .sim-compare-table tbody tr.active-row { background: rgba(167,139,250,0.06); }
 
 .sim-compare-name {
@@ -1593,10 +1593,10 @@
   padding: 1px 5px;
   border-radius: 3px;
 }
-.sim-compare-sum-diff.better { color: var(--st-ok); background: rgba(16,185,129,0.1); }
-.sim-compare-sum-diff.worse  { color: var(--st-crit); background: rgba(239,68,68,0.1); }
-.sim-compare-sum-diff.faster { color: var(--st-ok); background: rgba(16,185,129,0.1); }
-.sim-compare-sum-diff.slower { color: var(--st-warn); background: rgba(245,158,11,0.1); }
+.sim-compare-sum-diff.better { color: var(--st-ok); background: color-mix(in srgb, var(--st-ok) 10%, transparent); }
+.sim-compare-sum-diff.worse  { color: var(--st-crit); background: color-mix(in srgb, var(--st-crit) 10%, transparent); }
+.sim-compare-sum-diff.faster { color: var(--st-ok); background: color-mix(in srgb, var(--st-ok) 10%, transparent); }
+.sim-compare-sum-diff.slower { color: var(--st-warn); background: color-mix(in srgb, var(--st-warn) 10%, transparent); }
 
 /* ── Preset buttons — slider de sensibilidad ─────────────────────── */
 .sim-preset-btns {
@@ -1618,7 +1618,7 @@
   transition: all 0.12s;
   white-space: nowrap;
 }
-.sim-preset-btn:hover { background: rgba(255,255,255,0.06); color: var(--text-1); }
+.sim-preset-btn:hover { background: color-mix(in srgb, var(--text-1) 6%, transparent); color: var(--text-1); }
 .sim-preset-btn.active { background: rgba(167,139,250,0.15); border-color: #a78bfa; color: #a78bfa; }
 
 /* ── Barras de eficiencia comparativas ───────────────────────────── */
@@ -1643,7 +1643,7 @@
 .sim-eff-bar-track {
   flex: 1;
   height: 6px;
-  background: rgba(255,255,255,0.06);
+  background: color-mix(in srgb, var(--text-1) 6%, transparent);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -1653,9 +1653,9 @@
   width: var(--bar-w, 0%);
   transition: width 0.4s ease;
 }
-.sim-eff-bar-fill.scen-a          { background: #3FB2F3; }
-.sim-eff-bar-fill.scen-b.better   { background: #10b981; }
-.sim-eff-bar-fill.scen-b.worse    { background: #ef4444; }
+.sim-eff-bar-fill.scen-a          { background: var(--st-info); }
+.sim-eff-bar-fill.scen-b.better   { background: var(--st-ok); }
+.sim-eff-bar-fill.scen-b.worse    { background: var(--st-crit); }
 .sim-eff-bar-val {
   font-size: 11px;
   font-weight: 700;
@@ -1708,7 +1708,7 @@
   font-size: 11px;
   padding: 3px 4px;
   border-radius: 4px;
-  background: rgba(255,255,255,0.02);
+  background: color-mix(in srgb, var(--text-1) 2%, transparent);
   border: 1px solid transparent;
 }
 .sim-mod-row.modified {
@@ -1753,7 +1753,7 @@
 
 .sim-mod-close-btn {
   background: none;
-  border: 1px solid rgba(239,68,68,0.3);
+  border: 1px solid color-mix(in srgb, var(--st-crit) 30%, transparent);
   border-radius: 3px;
   color: var(--st-crit);
   cursor: pointer;
@@ -1762,7 +1762,7 @@
   line-height: 1.4;
 }
 .sim-mod-close-btn.closed {
-  border-color: rgba(16,185,129,0.4);
+  border-color: color-mix(in srgb, var(--st-ok) 40%, transparent);
   color: var(--st-ok);
 }
 .sim-mod-close-btn:hover { opacity: 0.8; }
@@ -1817,7 +1817,7 @@
    ══════════════════════════════════════════════════════════════════ */
 
 .sim-decision-panel {
-  border-top: 2px solid rgba(239, 68, 68, 0.2);
+  border-top: 2px solid color-mix(in srgb, var(--st-crit) 20%, transparent);
   flex-shrink: 0;
 }
 
@@ -1826,7 +1826,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 7px 12px 6px;
-  background: rgba(239, 68, 68, 0.04);
+  background: color-mix(in srgb, var(--st-crit) 4%, transparent);
   border-bottom: 1px solid var(--sim-border);
 }
 
@@ -1852,8 +1852,8 @@
   padding: 1px 6px;
   border-radius: 3px;
 }
-.sim-dec-badge.urgente { background: rgba(239,68,68,0.15);  color: var(--st-crit); border: 1px solid rgba(239,68,68,0.3); }
-.sim-dec-badge.alerta  { background: rgba(245,158,11,0.15); color: var(--st-warn); border: 1px solid rgba(245,158,11,0.3); }
+.sim-dec-badge.urgente { background: color-mix(in srgb, var(--st-crit) 15%, transparent);  color: var(--st-crit); border: 1px solid color-mix(in srgb, var(--st-crit) 30%, transparent); }
+.sim-dec-badge.alerta  { background: color-mix(in srgb, var(--st-warn) 15%, transparent); color: var(--st-warn); border: 1px solid color-mix(in srgb, var(--st-warn) 30%, transparent); }
 
 .sim-decision-list {
   display: flex;
@@ -1868,11 +1868,11 @@
   transition: background 0.15s;
 }
 .sim-dec-card:last-child { border-bottom: none; }
-.sim-dec-card:hover      { background: rgba(255,255,255,0.02); }
+.sim-dec-card:hover      { background: color-mix(in srgb, var(--text-1) 2%, transparent); }
 
-.sim-dec-card.urgente { border-left: 3px solid #ef4444; }
-.sim-dec-card.alerta  { border-left: 3px solid #f59e0b; }
-.sim-dec-card.info    { border-left: 3px solid #10b981; }
+.sim-dec-card.urgente { border-left: 3px solid var(--st-crit); }
+.sim-dec-card.alerta  { border-left: 3px solid var(--st-warn); }
+.sim-dec-card.info    { border-left: 3px solid var(--st-ok); }
 
 .sim-dec-card-top {
   display: flex;
@@ -1926,7 +1926,7 @@
 
 .sim-dec-val-actual {
   color: var(--text-3);
-  background: rgba(255,255,255,0.04);
+  background: color-mix(in srgb, var(--text-1) 4%, transparent);
   padding: 1px 5px;
   border-radius: 3px;
 }
@@ -1935,7 +1935,7 @@
 
 .sim-dec-val-meta {
   font-weight: 700;
-  background: rgba(255,255,255,0.04);
+  background: color-mix(in srgb, var(--text-1) 4%, transparent);
   padding: 1px 5px;
   border-radius: 3px;
 }
@@ -1995,8 +1995,8 @@
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 4px;
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: var(--surface-2);
+  border: 1px solid var(--line-sutil);
   color: var(--text-3);
   cursor: pointer;
 }
@@ -2071,7 +2071,7 @@
   font-size: 11px;
   padding: 2px 6px;
   border-radius: 4px;
-  background: #1e293b;
+  background: var(--surface-2);
   border: 1px solid #f59e0b44;
   color: var(--st-warn);
   cursor: pointer;
@@ -2181,7 +2181,7 @@ html[data-device="tablet"][data-orientation="portrait"] .main-content:has(.sim-r
   font: inherit; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 5px; cursor: pointer;
   color: var(--text-3); background: transparent; border: 1px solid var(--sim-border2);
 }
-.sim-cp-sort button.on { color: var(--sim-sky); border-color: var(--sim-sky); background: rgba(63, 178, 243,0.12); }
+.sim-cp-sort button.on { color: var(--sim-sky); border-color: var(--sim-sky); background: color-mix(in srgb, var(--st-info) 12%, transparent); }
 .sim-cp-summary { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 12px; }
 .sim-cp-chip { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 10px; border: 1px solid; }
 .sim-cp-banner { margin: 6px 8px 0; padding: 4px 8px; font-size: 11px; color: var(--text-3); border: 1px dashed var(--sim-border2); border-radius: 6px; text-align: center; }

@@ -11,7 +11,7 @@
 
 .ci-ciclos { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .ci-ciclo { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--sc-line); background: var(--sc-surface); }
-.ci-ciclo-sel { border-color: rgba(63, 178, 243, 0.55); background: rgba(63, 178, 243, 0.08); }
+.ci-ciclo-sel { border-color: color-mix(in srgb, var(--st-info) 55%, transparent); background: color-mix(in srgb, var(--st-info) 8%, transparent); }
 .ci-ciclo-btn { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; min-height: 44px; cursor: pointer; }
 .ci-ciclo-btn:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 4px; border-radius: 8px; }
 .ci-ciclo-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
@@ -20,7 +20,7 @@
 .ci-ciclo-meta b { font-family: var(--sc-mono); color: var(--sc-t1); font-weight: 600; }
 .ci-editar { align-self: flex-start; }
 
-.ci-form { display: flex; flex-direction: column; gap: 12px; border-color: rgba(63, 178, 243, 0.35); }
+.ci-form { display: flex; flex-direction: column; gap: 12px; border-color: color-mix(in srgb, var(--st-info) 35%, transparent); }
 .ci-form h3 { margin-bottom: 2px; }
 .ci-fechas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .ci-select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--sc-line); background: var(--sc-surface-2); color: var(--sc-t1); font: 600 14px var(--sc-body); }

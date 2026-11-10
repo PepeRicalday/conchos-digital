@@ -11,7 +11,7 @@
 /* Pestañas con conteo */
 .al-tabs { display: flex; flex-wrap: wrap; margin: 6px 0 12px; }
 .al-tab { gap: 8px; }
-.al-tab-on { background: rgba(63, 178, 243, 0.14) !important; border-color: rgba(63, 178, 243, 0.5) !important; }
+.al-tab-on { background: color-mix(in srgb, var(--st-info) 14%, transparent) !important; border-color: color-mix(in srgb, var(--st-info) 50%, transparent) !important; }
 .al-tab-n { font-family: var(--sc-mono); font-size: 12px; color: var(--sc-t2); }
 .al-filtro { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 10px; font-size: 13px; color: var(--sc-t2); }
 
@@ -19,7 +19,7 @@
 .al-lista { list-style: none; margin: 0; padding: 0; }
 .al-fila { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 12px 12px;
     border-bottom: 1px solid var(--sc-line); border-left: 3px solid transparent; }
-.al-fila-crit { border-left-color: var(--sc-crit); background: rgba(248, 113, 113, 0.06); }
+.al-fila-crit { border-left-color: var(--sc-crit); background: color-mix(in srgb, var(--st-crit) 6%, transparent); }
 .al-fila-warn { border-left-color: var(--sc-warn); }
 .al-fila-info { border-left-color: var(--sc-sky); }
 .al-sev { margin-top: 2px; justify-self: start; }
@@ -33,19 +33,19 @@
 
 /* Canal */
 .al-canal-franja { position: relative; height: 84px; margin: 6px 14px 4px; }
-.al-canal-linea { position: absolute; left: 0; right: 0; top: 38px; height: 4px; border-radius: 4px; background: rgba(63, 178, 243, 0.45); }
+.al-canal-linea { position: absolute; left: 0; right: 0; top: 38px; height: 4px; border-radius: 4px; background: color-mix(in srgb, var(--st-info) 45%, transparent); }
 .al-canal-marca { position: absolute; top: 34px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.al-canal-marca i { width: 2px; height: 12px; background: rgba(63, 178, 243, 0.7); }
+.al-canal-marca i { width: 2px; height: 12px; background: color-mix(in srgb, var(--st-info) 70%, transparent); }
 .al-canal-marca small { font-family: var(--sc-mono); font-size: 11px; color: var(--sc-t3); }
 .al-canal-pin { position: absolute; top: 6px; transform: translateX(-50%); min-width: 24px; height: 24px; padding: 0 6px; display: grid; place-items: center;
-    border-radius: 999px; font: 700 12px var(--sc-mono); color: #04101c; border: 2px solid rgba(255, 255, 255, 0.85); }
+    border-radius: 999px; font: 700 12px var(--sc-mono); color: #04101c; border: 2px solid color-mix(in srgb, var(--text-1) 85%, transparent); }
 .al-pin-crit { background: var(--sc-crit); }
 .al-pin-warn { background: var(--sc-warn); }
 .al-pin-info { background: var(--sc-sky); }
 .al-canal-nota { margin: 0 0 6px; font-size: 12px; color: var(--sc-t3); }
 .al-sinkm { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--sc-line); }
 .al-chip-btn { min-height: 44px; cursor: pointer; background: var(--sc-surface); }
-.al-chip-btn[aria-pressed='true'] { background: rgba(63, 178, 243, 0.16); outline: 1px solid var(--sc-sky); }
+.al-chip-btn[aria-pressed='true'] { background: color-mix(in srgb, var(--st-info) 16%, transparent); outline: 1px solid var(--sc-sky); }
 .al-chip-btn:focus-visible { outline: 2px solid var(--sc-sky); outline-offset: 2px; }
 
 /* Resumen */
@@ -94,9 +94,9 @@
 .al-act-graf { display: flex; align-items: stretch; gap: 3px; height: 172px; }
 .al-act-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 3px; }
 .al-act-n { font-family: var(--sc-mono); font-size: 11px; line-height: 1; text-align: center; color: var(--sc-t2); min-height: 11px; }
-.al-act-pila { display: flex; flex-direction: column-reverse; min-height: 2px; border-radius: 4px 4px 1px 1px; overflow: hidden; background: rgba(148, 163, 184, 0.12); }
+.al-act-pila { display: flex; flex-direction: column-reverse; min-height: 2px; border-radius: 4px 4px 1px 1px; overflow: hidden; background: color-mix(in srgb, var(--text-3) 12%, transparent); }
 .al-act-pila > span { display: block; min-height: 3px; }
-.al-act-col:hover .al-act-pila { outline: 1px solid rgba(226, 232, 240, 0.5); }
+.al-act-col:hover .al-act-pila { outline: 1px solid color-mix(in srgb, var(--text-1) 50%, transparent); }
 .al-act-et small { display: block; font-size: 11px; color: var(--sc-t2); }
 .al-act-et { height: 28px; margin-top: 4px; font-family: var(--sc-mono); font-size: 11px; color: var(--sc-t3); text-align: center; white-space: nowrap; overflow: visible; }
 .al-act-sub { margin: 16px 0 6px; font-family: var(--sc-mono); font-size: 11px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sc-t3); }

@@ -249,9 +249,9 @@ html[data-device="phone"] .main-content .flex.justify-between { flex-wrap: wrap;
 /* Menú lateral SÓLIDO: el degradado translúcido de escritorio dejaba ver el contenido de atrás
    (texto superpuesto) y la barra superior al abrirlo en Safari/WebKit. */
 html[data-device="phone"] .sidebar {
-    background: #061532;
+    background: var(--bg-app);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-    box-shadow: 12px 0 40px rgba(0, 0, 0, 0.6);
+    box-shadow: 12px 0 40px color-mix(in srgb, var(--negro) 60%, transparent);
 }
 html[data-device="phone"] .layout-container.menu-abierto .mobile-topbar { visibility: hidden; }

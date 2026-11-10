@@ -11,8 +11,8 @@
     gap: 8px;
     padding: 8px 16px;
     min-height: 44px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: color-mix(in srgb, var(--text-1) 5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-1) 10%, transparent);
     border-radius: var(--radius-lg);
     color: var(--color-text-primary);
     cursor: pointer;
@@ -22,13 +22,13 @@
 }
 
 .fecha-trigger:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(59, 130, 246, 0.4);
+    background: color-mix(in srgb, var(--text-1) 10%, transparent);
+    border-color: color-mix(in srgb, var(--st-info) 40%, transparent);
 }
 
 .fecha-trigger.fecha-historica {
-    border-color: rgba(245, 158, 11, 0.5);
-    background: rgba(245, 158, 11, 0.1);
+    border-color: color-mix(in srgb, var(--st-warn) 50%, transparent);
+    background: color-mix(in srgb, var(--st-warn) 10%, transparent);
 }
 
 .fecha-trigger.fecha-historica .fecha-display {
@@ -51,9 +51,9 @@
     right: 0;
     width: 300px;
     background: var(--color-bg-card);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid color-mix(in srgb, var(--text-1) 10%, transparent);
     border-radius: var(--radius-lg);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 20px 60px color-mix(in srgb, var(--negro) 50%, transparent);
     padding: 16px;
     animation: fadeSlideDown 0.2s ease;
 }
@@ -92,14 +92,14 @@
     height: 28px;
     border-radius: var(--radius-md);
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid color-mix(in srgb, var(--text-1) 10%, transparent);
     color: var(--color-text-secondary);
     cursor: pointer;
     transition: all 0.15s;
 }
 
 .cal-nav:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: color-mix(in srgb, var(--text-1) 10%, transparent);
     color: var(--color-text-primary);
 }
 
@@ -148,12 +148,12 @@
 }
 
 .cal-dia:not(.vacio):hover {
-    background: rgba(59, 130, 246, 0.15);
+    background: color-mix(in srgb, var(--st-info) 15%, transparent);
     color: var(--color-text-primary);
 }
 
 .cal-dia.hoy {
-    border: 1px solid rgba(16, 185, 129, 0.5);
+    border: 1px solid color-mix(in srgb, var(--st-ok) 50%, transparent);
     color: var(--st-ok);
     font-weight: 700;
 }
@@ -162,7 +162,7 @@
     background: var(--color-primary);
     color: white;
     font-weight: 700;
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--st-info) 40%, transparent);
 }
 
 .cal-dia.seleccionado.hoy {
@@ -173,7 +173,7 @@
 .cal-acciones {
     margin-top: 12px;
     padding-top: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid color-mix(in srgb, var(--text-1) 5%, transparent);
     display: flex;
     justify-content: center;
 }
@@ -183,13 +183,13 @@
     font-size: 0.75rem;
     font-weight: 600;
     border-radius: var(--radius-md);
-    background: rgba(16, 185, 129, 0.15);
+    background: color-mix(in srgb, var(--st-ok) 15%, transparent);
     color: var(--st-ok);
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    border: 1px solid color-mix(in srgb, var(--st-ok) 30%, transparent);
     cursor: pointer;
     transition: all 0.15s;
 }
 
 .cal-btn-hoy:hover {
-    background: rgba(16, 185, 129, 0.25);
+    background: color-mix(in srgb, var(--st-ok) 25%, transparent);
 }

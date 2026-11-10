@@ -1836,7 +1836,7 @@ const GeoMonitor = () => {
                             servicio ya responde. Nunca cambia la capa por sí solo — cuida
                             la cuota, la reactivación es decisión del usuario. */}
                         {baseLayer !== 'sentinel' && sentinelHubStatus?.disponible && (
-                            <div className="geo-sentinel-date-badge" style={{ borderColor: 'rgba(16,185,129,0.5)' }}>
+                            <div className="geo-sentinel-date-badge" style={{ borderColor: 'color-mix(in srgb, var(--st-ok) 50%, transparent)' }}>
                                 <Satellite size={13} className="text-emerald-400" />
                                 <span>
                                     Sentinel Hub disponible de nuevo

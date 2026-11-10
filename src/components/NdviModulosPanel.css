@@ -80,7 +80,7 @@
 
 .ndvi-modulo-card-clickable:hover {
     transform: translateY(-2px);
-    border-color: rgba(255, 255, 255, 0.15);
+    border-color: color-mix(in srgb, var(--text-1) 15%, transparent);
 }
 
 .ndvi-minimap {
@@ -89,7 +89,7 @@
     border-radius: 12px;
     overflow: hidden;
     margin-bottom: 0.75rem;
-    background: #0f172a;
+    background: var(--surface-1);
     /* El mini-mapa tiene drag/scroll deshabilitados (ver MiniMapaNdviAgro) —
        pointer-events:none deja que el clic pase a la tarjeta contenedora
        (abre la ficha técnica) en vez de quedar atrapado por los controles

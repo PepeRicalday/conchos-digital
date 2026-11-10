@@ -25,15 +25,14 @@
     position: relative; overflow: hidden;
     margin-bottom: 18px; padding: 22px 24px 18px;
     border: 1px solid var(--cl-line); border-radius: 16px;
-    background:
-        radial-gradient(900px 260px at 100% -20%, rgba(63, 178, 243, 0.14), transparent 60%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+    background: radial-gradient(900px 260px at 100% -20%, color-mix(in srgb, var(--st-info) 14%, transparent), transparent 60%),
+        linear-gradient(180deg, color-mix(in srgb, var(--text-1) 4%, transparent), color-mix(in srgb, var(--text-1) 1.5%, transparent));
     animation: cl-entra 0.45s ease both;
 }
 /* Líneas de nivel muy sutiles: guiño a la carta hidrográfica */
 .cl-hero::before {
     content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
-    background: repeating-linear-gradient(172deg, transparent 0 22px, rgba(63, 178, 243, 0.05) 22px 23px);
+    background: repeating-linear-gradient(172deg, transparent 0 22px, color-mix(in srgb, var(--st-info) 5%, transparent) 22px 23px);
     -webkit-mask-image: linear-gradient(90deg, transparent 35%, #000 100%);
     mask-image: linear-gradient(90deg, transparent 35%, #000 100%);
 }
@@ -87,7 +86,7 @@
 .estacion-status { font-family: var(--cl-mono); font-size: 11px; }
 .est-var b { font-family: var(--cl-display); font-size: 24px; font-weight: 700; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
 .est-var small { color: var(--cl-t3); }
-.estacion-sospechosa { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 6px 8px; border-radius: 8px; border: 1px dashed rgba(251, 191, 36, 0.55); color: var(--cl-warn); font-size: 12px; }
+.estacion-sospechosa { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 6px 8px; border-radius: 8px; border: 1px dashed color-mix(in srgb, var(--st-warn) 55%, transparent); color: var(--cl-warn); font-size: 12px; }
 .estaciones-dl, .estaciones-info, .estaciones-pdf, .estaciones-refresh, .estaciones-mapa-animado { min-height: 44px; }
 
 /* ── Tablas (condiciones y precisión del pronóstico) ── */

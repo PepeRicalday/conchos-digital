@@ -23,13 +23,13 @@
 .login-card {
     width: 100%;
     max-width: 420px;
-    background: rgba(11, 33, 71, 0.82);
+    background: color-mix(in srgb, var(--surface-1) 82%, transparent);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid #1E4A8C;
     border-radius: 1.375rem;
     padding: 2.5rem 2rem;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 25px 50px -12px color-mix(in srgb, var(--negro) 50%, transparent);
     z-index: 10;
     display: flex;
     flex-direction: column;
@@ -100,7 +100,7 @@
 .divider {
     width: 100%;
     height: 1px;
-    background: rgba(51, 65, 85, 0.5);
+    background: color-mix(in srgb, var(--line-sutil) 50%, transparent);
     margin: 1.5rem 0;
 }
 
@@ -149,7 +149,7 @@
 
 .login-input {
     width: 100%;
-    background: #10284F;
+    background: var(--surface-2);
     border: 1px solid #1E4A8C;
     color: white;
     border-radius: 0.875rem;
@@ -161,7 +161,7 @@
 .login-input:focus {
     outline: none;
     border-color: var(--brand-agua-claro);
-    box-shadow: 0 0 0 2px rgba(63, 178, 243, 0.45);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--st-info) 45%, transparent);
 }
 
 .login-button {
@@ -205,7 +205,7 @@
 .loading-spinner {
     width: 1.25rem;
     height: 1.25rem;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    border: 2px solid color-mix(in srgb, var(--text-1) 30%, transparent);
     border-top: 2px solid white;
     border-radius: 50%;
     animation: spin 1s linear infinite;
@@ -222,8 +222,8 @@
 }
 
 .error-message {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.2);
+    background: color-mix(in srgb, var(--st-crit) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--st-crit) 20%, transparent);
     color: var(--st-crit);
     font-size: 0.875rem;
     text-align: center;
@@ -286,10 +286,10 @@
     font-size: 0.6875rem;
     color: rgba(255, 255, 255, 0.4);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    background: rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, var(--text-1) 5%, transparent);
     padding: 0.25rem 0.75rem;
     border-radius: 9999px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid color-mix(in srgb, var(--text-1) 8%, transparent);
 }
 
 .nuke-button {

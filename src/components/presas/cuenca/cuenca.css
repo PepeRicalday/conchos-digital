@@ -51,12 +51,12 @@
 .cu-mv-nombre { font-size: 15px; font-weight: 700; color: var(--pr-t1); }
 .cu-mv-pct { margin-left: auto; font-family: var(--pr-display); font-weight: 800; font-size: 28px; line-height: 1; color: var(--pr-t1); font-variant-numeric: tabular-nums; }
 .cu-mv-pct small { font-family: var(--pr-body); font-size: 13px; font-weight: 600; color: var(--pr-t3); }
-.cu-mv-carril { position: relative; display: block; height: 12px; max-width: 100%; border: 1px solid rgba(148, 163, 184, 0.45); border-radius: 6px; overflow: hidden; background: var(--pr-surface); }
+.cu-mv-carril { position: relative; display: block; height: 12px; max-width: 100%; border: 1px solid color-mix(in srgb, var(--text-3) 45%, transparent); border-radius: 6px; overflow: hidden; background: var(--pr-surface); }
 .cu-mv-relleno { position: absolute; inset: 0 auto 0 0; display: block; border-radius: 5px 0 0 5px; }
 .cu-mv-relleno--ok { background: var(--pr-ok); } .cu-mv-relleno--warn { background: var(--pr-warn); }
 .cu-mv-relleno--crit { background: var(--pr-crit); } .cu-mv-relleno--sd { background: var(--pr-t3); }
-.cu-mv-relleno--trama { background-image: repeating-linear-gradient(45deg, rgba(6, 21, 50, 0.55) 0 3px, transparent 3px 7px); }
-.cu-mv-marca { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed rgba(232, 238, 246, 0.7); }
+.cu-mv-relleno--trama { background-image: repeating-linear-gradient(45deg, color-mix(in srgb, var(--bg-app) 55%, transparent) 0 3px, transparent 3px 7px); }
+.cu-mv-marca { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed color-mix(in srgb, var(--text-1) 70%, transparent); }
 .cu-mv-pie { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; font-family: var(--pr-mono); font-size: 12px; color: var(--pr-t2); font-variant-numeric: tabular-nums; }
 
 /* ── Pequeños múltiplos ────────────────────────────────────────────────────── */
@@ -140,7 +140,7 @@
     border: 1px solid transparent;
 }
 .cu-dia--seco { border-color: var(--pr-line); }
-.cu-dia--sd { border-color: transparent; background-image: repeating-linear-gradient(-45deg, rgba(131, 150, 173, 0.45) 0 2px, transparent 2px 5px); }
+.cu-dia--sd { border-color: transparent; background-image: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--text-3) 45%, transparent) 0 2px, transparent 2px 5px); }
 .cu-dia-num { font-family: var(--pr-mono); font-size: 12px; font-weight: 800; color: var(--pr-t1); text-shadow: 0 0 3px #061532, 0 0 3px #061532; line-height: 1; pointer-events: none; }
 @container (max-width: 440px) { .cu-dia-num { display: none; } }
 
@@ -175,7 +175,7 @@ html[data-device='phone'] .cu-dia { height: 24px; }
 .cu-red-kpi .an-kpi-lbl { font-size: 13px; font-weight: 600; color: var(--text-3); }
 .cu-red-kpi .an-kpi-sub { font-size: 12px; color: var(--text-2); line-height: 1.35; }
 .cu-mapa { margin: 12px 0 0; }
-.cu-mapa-svg { display: block; width: 100%; height: auto; max-width: 620px; margin-inline: auto; border: 1px solid var(--pr-line); border-radius: 12px; background: rgba(255, 255, 255, 0.02); }
+.cu-mapa-svg { display: block; width: 100%; height: auto; max-width: 620px; margin-inline: auto; border: 1px solid var(--pr-line); border-radius: 12px; background: color-mix(in srgb, var(--text-1) 2%, transparent); }
 .cu-mapa-cuenca { fill: rgba(63, 178, 243, 0.07); stroke: var(--pr-sky); stroke-width: 1.6; stroke-linejoin: round; }
 .cu-mapa-modulo { fill: rgba(52, 211, 153, 0.22); stroke: var(--pr-ok); stroke-width: 1; }
 .cu-mapa-presa { fill: var(--pr-t1); stroke: var(--pr-bg); stroke-width: 1.2; }
@@ -203,7 +203,7 @@ html[data-device='phone'] .cu-mapa-txt { font-size: 13.5px; stroke-width: 3.5px;
 
 /* ── Planos de la cuenca (isoyetas y planos climáticos) ───────────────────────── */
 .cu-pl-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 12px; align-items: start; }
-.cu-plano { margin: 0; min-width: 0; padding: 8px; border: 1px solid var(--pr-line); border-radius: 12px; background: rgba(255, 255, 255, 0.02); }
+.cu-plano { margin: 0; min-width: 0; padding: 8px; border: 1px solid var(--pr-line); border-radius: 12px; background: color-mix(in srgb, var(--text-1) 2%, transparent); }
 .cu-plano-img { display: block; width: 100%; height: auto; border-radius: 10px; }
 .cu-pl-res { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .cu-pl-dato { margin: 0; font-size: 14px; line-height: 1.45; color: var(--pr-t2); }
@@ -213,7 +213,7 @@ html[data-device='phone'] .cu-mapa-txt { font-size: 13.5px; stroke-width: 3.5px;
 .cu-capas { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 4px; }
 .cu-capas-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .cu-capa-chip { min-height: 32px; padding: 0 12px; border: 1px solid var(--pr-line); border-radius: 999px; background: transparent; color: var(--pr-t2); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
-.cu-capa-chip[aria-pressed='true'] { background: rgba(63, 178, 243, 0.16); border-color: var(--pr-sky); color: var(--pr-t1); }
+.cu-capa-chip[aria-pressed='true'] { background: color-mix(in srgb, var(--st-info) 16%, transparent); border-color: var(--pr-sky); color: var(--pr-t1); }
 .cu-capa-chip--accion { border-style: dashed; }
 .cu-capa-chip:focus-visible, .cu-capas-sum:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 2px; }
 .cu-capas-sum { min-height: 44px; display: flex; align-items: center; font-size: 13px; font-weight: 700; cursor: pointer; color: var(--pr-t1); }
@@ -234,7 +234,7 @@ html[data-device='phone'] .cu-capa-chip { min-height: 44px; font-size: 14px; pad
 .cu-nav-btn:hover { border-color: var(--pr-sky); color: var(--pr-t1); }
 .cu-nav-btn:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 2px; }
 #cu-presas:focus, #cu-planos:focus, #cu-estaciones:focus, #cu-lluvia:focus { outline: none; }
-.cu-nav-btn[aria-current='true'] { border-color: var(--pr-sky); color: var(--pr-t1); background: rgba(63, 178, 243, 0.16); }
+.cu-nav-btn[aria-current='true'] { border-color: var(--pr-sky); color: var(--pr-t1); background: color-mix(in srgb, var(--st-info) 16%, transparent); }
 
 /* Cabecera: 6 indicadores. Base de 2 columnas (dock del Monitor, teléfono); .cu-cq gana en especificidad a las reglas por dispositivo de analitica.css. */
 .cu-cq .an-kpis.an-kpis--6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -270,7 +270,7 @@ html[data-device='phone'] .cu-capa-chip { min-height: 44px; font-size: 14px; pad
 .cu-pl-res .ui-kpi--compacta .ui-kpi__num { font-size: 44px; }
 .cu-rank { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--pr-line); border-radius: 12px; background: var(--pr-surface); }
 .cu-rank-lista { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
-.cu-rank-fila { position: relative; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 5px 8px; border-radius: 6px; font-size: 13.5px; background: linear-gradient(90deg, rgba(63, 178, 243, 0.26) var(--w), transparent 0); }
+.cu-rank-fila { position: relative; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 5px 8px; border-radius: 6px; font-size: 13.5px; background: linear-gradient(90deg, color-mix(in srgb, var(--st-info) 26%, transparent) var(--w), transparent 0); }
 .cu-rank-nom { color: var(--pr-t1); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .cu-rank-val { font-family: var(--pr-mono); font-weight: 700; color: var(--pr-t1); font-variant-numeric: tabular-nums; }
 .cu-rank-pie { font-size: 12px; color: var(--pr-t3); }
@@ -284,7 +284,7 @@ html[data-device='phone'] .cu-capa-chip { min-height: 44px; font-size: 14px; pad
     .cu-red-cuerpo .cu-mapa-svg { max-width: none; margin-inline: 0; }
 }
 .cu-tabla-wrap--red .cu-tabla th, .cu-tabla-wrap--red .cu-tabla td { padding: 8px 8px; }
-.cu-barra { background-image: linear-gradient(90deg, rgba(63, 178, 243, 0.24) var(--w, 0%), transparent 0); background-repeat: no-repeat; }
+.cu-barra { background-image: linear-gradient(90deg, color-mix(in srgb, var(--st-info) 24%, transparent) var(--w, 0%), transparent 0); background-repeat: no-repeat; }
 .cu-tabla .cu-nota-fila.cu-fecha { display: block; margin-top: 2px; font-family: var(--pr-mono); }
 
 /* Táctil: objetivos de 44 px */

@@ -145,7 +145,7 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
 
                 <span style={{
                     color: 'var(--text-3)', fontSize: '0.7rem', fontWeight: 700,
-                    padding: '4px 10px', background: 'rgba(30,41,59,0.5)', borderRadius: '6px'
+                    padding: '4px 10px', background: 'color-mix(in srgb, var(--surface-2) 50%, transparent)', borderRadius: '6px'
                 }}>
                     📅 Día {dia_llenado} de Llenado
                 </span>
@@ -193,7 +193,7 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
                         {progreso.toFixed(0)}%
                     </span>
                 </div>
-                <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', overflow: 'hidden' }}>
+                <div style={{ height: '6px', background: 'color-mix(in srgb, var(--text-1) 5%, transparent)', borderRadius: '10px', overflow: 'hidden' }}>
                     <div style={{
                         height: '100%', borderRadius: '10px',
                         background: readyForTransition
@@ -209,8 +209,8 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
             {readyForTransition && (
                 <div style={{
                     padding: '16px', borderRadius: '12px',
-                    background: 'rgba(16,185,129,0.05)',
-                    border: '1px solid rgba(16,185,129,0.15)'
+                    background: 'color-mix(in srgb, var(--st-ok) 5%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--st-ok) 15%, transparent)'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                         <ArrowRight size={16} style={{ color: 'var(--st-info)' }} />
@@ -225,7 +225,7 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
                         de flujo permanente y distribución a tomas.
                     </p>
 
-                    <div style={{ display: 'flex', gap: '8px', padding: '10px 12px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '10px', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', gap: '8px', padding: '10px 12px', background: 'color-mix(in srgb, var(--st-crit) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--st-crit) 15%, transparent)', borderRadius: '10px', marginBottom: '12px' }}>
                         <Shield size={14} style={{ color: 'var(--st-crit)', flexShrink: 0, marginTop: '2px' }} />
                         <div>
                             <p style={{ color: '#fca5a5', fontSize: '0.65rem', fontWeight: 800, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -244,7 +244,7 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
                         rows={2}
                         style={{
                             display: 'block', width: '100%', marginBottom: '12px', padding: '10px',
-                            background: '#1e293b', border: '1px solid #334155', borderRadius: '8px',
+                            background: 'var(--surface-2)', border: '1px solid var(--line-sutil)', borderRadius: '8px',
                             color: 'var(--text-1)', fontSize: '0.8rem', resize: 'none'
                         }}
                     />
@@ -254,12 +254,12 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
                         disabled={transitioning}
                         style={{
                             width: '100%', padding: '14px', border: 'none', borderRadius: '12px',
-                            background: 'linear-gradient(135deg, #10b981, #059669)',
+                            background: 'linear-gradient(135deg, var(--st-ok), #059669)',
                             color: 'white', fontWeight: 900, fontSize: '0.85rem', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                             textTransform: 'uppercase', letterSpacing: '0.06em',
                             opacity: transitioning ? 0.6 : 1,
-                            boxShadow: '0 4px 15px rgba(16,185,129,0.3)'
+                            boxShadow: '0 4px 15px color-mix(in srgb, var(--st-ok) 30%, transparent)'
                         }}
                     >
                         <Droplets size={18} />
@@ -272,7 +272,7 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
                 <div style={{
                     display: 'flex', alignItems: 'center', gap: '8px',
                     padding: '10px 14px', borderRadius: '8px',
-                    background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.1)'
+                    background: 'color-mix(in srgb, var(--st-warn) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--st-warn) 10%, transparent)'
                 }}>
                     <AlertTriangle size={14} style={{ color: 'var(--st-warn)', flexShrink: 0 }} />
                     <span style={{ color: 'var(--st-warn)', fontSize: '0.7rem', fontWeight: 600 }}>
@@ -312,7 +312,7 @@ const CriterioCard: React.FC<{
         </div>
         <div style={{ color: 'var(--text-1)', fontSize: '0.9rem', fontWeight: 900 }}>{value}</div>
         {progreso !== undefined && (
-            <div style={{ marginTop: '6px', height: '3px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ marginTop: '6px', height: '3px', background: 'color-mix(in srgb, var(--text-1) 5%, transparent)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div style={{
                     height: '100%', borderRadius: '4px',
                     background: cumplido ? '#10b981' : '#3b82f6',

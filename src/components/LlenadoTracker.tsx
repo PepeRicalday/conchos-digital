@@ -411,7 +411,7 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                         <Boton variante="primario" onClick={ejecutarConfirmacion}>Confirmar arribo</Boton>
                     </>}
                 >
-                        <div style={{ display: 'flex', gap: '8px', padding: '10px 12px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '10px', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', gap: '8px', padding: '10px 12px', background: 'color-mix(in srgb, var(--st-crit) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--st-crit) 15%, transparent)', borderRadius: '10px', marginBottom: '20px' }}>
                             <Shield size={14} style={{ color: 'var(--st-crit)', flexShrink: 0, marginTop: '2px' }} />
                             <div>
                                 <p style={{ color: '#fca5a5', fontSize: '0.65rem', fontWeight: 800, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -433,7 +433,7 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                                 onChange={e => setConfirDatetime(e.target.value)}
                                 style={{ 
                                     display: 'block', width: '100%', padding: '10px', 
-                                    background: '#1e293b', border: '1px solid #334155', 
+                                    background: 'var(--surface-2)', border: '1px solid var(--line-sutil)', 
                                     borderRadius: '8px', color: 'var(--text-1)', fontSize: '0.9rem' 
                                 }} 
                             />
@@ -444,13 +444,13 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                                 Nivel del agua (m)
                                 <input type="number" step="0.01" value={confirNivel} onChange={e => setConfirNivel(e.target.value)}
                                     placeholder="ej: 1.85"
-                                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: 'var(--text-1)', fontSize: '0.9rem' }} />
+                                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px', background: 'var(--surface-2)', border: '1px solid var(--line-sutil)', borderRadius: '8px', color: 'var(--text-1)', fontSize: '0.9rem' }} />
                             </label>
                             <label style={{ flex: 1, color: 'var(--text-1)', fontSize: '0.7rem', fontWeight: 700 }}>
                                 Gasto medido (m³/s)
                                 <input type="number" step="0.001" value={confirGasto} onChange={e => setConfirGasto(e.target.value)}
                                     placeholder="ej: 55.3"
-                                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: 'var(--text-1)', fontSize: '0.9rem' }} />
+                                    style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px', background: 'var(--surface-2)', border: '1px solid var(--line-sutil)', borderRadius: '8px', color: 'var(--text-1)', fontSize: '0.9rem' }} />
                             </label>
                         </div>
 
@@ -458,7 +458,7 @@ const LlenadoTracker: React.FC<Props> = ({ eventoId, qSolicitado, horaApertura, 
                             Notas del operador
                             <textarea value={confirNotas} onChange={e => setConfirNotas(e.target.value)}
                                 rows={2} placeholder="Observaciones..."
-                                style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: 'var(--text-1)', fontSize: '0.8rem', resize: 'none' }} />
+                                style={{ display: 'block', width: '100%', marginTop: '4px', padding: '10px', background: 'var(--surface-2)', border: '1px solid var(--line-sutil)', borderRadius: '8px', color: 'var(--text-1)', fontSize: '0.8rem', resize: 'none' }} />
                         </label>
                 </Modal>
             )}

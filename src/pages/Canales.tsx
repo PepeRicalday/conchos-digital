@@ -131,7 +131,7 @@ const Canales = () => {
                 <MapaCanal kmIni={kmIni} kmFin={kmFin} escalas={escalas} modulos={tramos} titulo={titulo} ahoraMs={ahora}
                     puntos={visibles} activoId={puntoSel} onPunto={(id) => setPuntoSel((p) => (p === id ? null : id))} mensajeVacio={mensajeMapaVacio(resumen, esHoy)} />
                 {activo && (
-                    <div className="sc-card" role="status" style={{ position: 'absolute', right: 16, bottom: 16, width: 'min(320px, calc(100% - 32px))', background: '#07121f' }}>
+                    <div className="sc-card" role="status" style={{ position: 'absolute', right: 16, bottom: 16, width: 'min(320px, calc(100% - 32px))', background: 'var(--surface-1)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                             <div><span className="sc-kicker">{activo.type} · km {activo.km}</span><b style={{ fontSize: 17 }}>{activo.name}</b><div className="sc-fresco">{activo.moduleName}</div></div>
                             <button type="button" className="sc-btn" onClick={() => setPuntoSel(null)} aria-label="Cerrar detalle de la toma"><X size={16} aria-hidden="true" /></button>

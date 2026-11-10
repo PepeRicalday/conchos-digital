@@ -9,7 +9,7 @@
 
 /* Posición estimada: anillo punteado hueco alrededor del símbolo (el símbolo ya va con trazo punteado). */
 .cons-mk-est svg { position: relative; z-index: 1; }
-.cons-mk-est::before { content: ''; position: absolute; width: 38px; height: 38px; border: 2px dashed #ffffff; border-radius: 50%; background: rgba(11, 22, 36, 0.35); pointer-events: none; }
+.cons-mk-est::before { content: ''; position: absolute; width: 38px; height: 38px; border: 2px dashed #ffffff; border-radius: 50%; background: color-mix(in srgb, var(--surface-1) 35%, transparent); pointer-events: none; }
 
 .cons-aparte { margin: 6px 0; font-size: 13px; color: var(--sc-t2); }
 .cons-aparte > summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; color: var(--sc-t1); font-weight: 600; }
@@ -25,5 +25,5 @@
 .cons-ubic-aviso { bottom: 12px; font-size: var(--sc-fs-1, 12px); }
 @media (max-width: 900px) { .cons-ubic-mapawrap { min-height: 56dvh; } .cons-ubic-calidad { padding: 4px 14px; } }
 /* El aviso de «sin imagen satelital» va en el flujo, entre el mapa y el pie: encima del mapa tapaba la atribución y el pie en teléfono. */
-.cons-ubic-mapawrap .cons-ubic-aviso { position: static; z-index: auto; left: auto; right: auto; bottom: auto; border-radius: 0; border-width: 1px 0 0; background: rgba(11, 22, 36, 0.92); }
+.cons-ubic-mapawrap .cons-ubic-aviso { position: static; z-index: auto; left: auto; right: auto; bottom: auto; border-radius: 0; border-width: 1px 0 0; background: color-mix(in srgb, var(--surface-1) 92%, transparent); }
 @media (max-width: 900px) { .cons-ubic .cons-ubic-mapawrap { height: auto; min-height: 56dvh; } .cons-ubic .cons-ubic-mapa { min-height: 46dvh; } }

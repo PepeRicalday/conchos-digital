@@ -688,10 +688,10 @@ const TendenciasPanel: React.FC<Props> = ({
                   {tramoSel != null && <button type="button" className="tnd-sec-clear" onClick={() => setTramoSel(null)}>ver todos</button>}
                 </div>
                 <div className="tnd-legend">
-                  <span><i style={{ background: '#22c55e' }} />óptimo 85–105%</span>
-                  <span><i style={{ background: '#3FB2F3' }} />normal 60–85%</span>
-                  <span><i style={{ background: '#f59e0b' }} />bajo &lt;60%</span>
-                  <span><i style={{ background: '#ef4444' }} />alto &gt;105% (a bordo)</span>
+                  <span><i style={{ background: 'var(--st-ok)' }} />óptimo 85–105%</span>
+                  <span><i style={{ background: 'var(--st-info)' }} />normal 60–85%</span>
+                  <span><i style={{ background: 'var(--st-warn)' }} />bajo &lt;60%</span>
+                  <span><i style={{ background: 'var(--st-crit)' }} />alto &gt;105% (a bordo)</span>
                 </div>
               </>
             )}

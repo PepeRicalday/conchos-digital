@@ -89,7 +89,7 @@ export default function AdminInvitados() {
             </header>
 
             {credencial && (
-                <div className="sc-card" role="status" style={{ border: '1px solid rgba(16,185,129,.4)' }}>
+                <div className="sc-card" role="status" style={{ border: '1px solid color-mix(in srgb, var(--st-ok) 40%, transparent)' }}>
                     <strong>Credenciales (se muestran solo ahora)</strong>
                     <p className="text-sm mt-1">Correo: <code>{credencial.email}</code></p>
                     <p className="text-sm">Contraseña temporal: <code>{credencial.password}</code></p>

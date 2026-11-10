@@ -30,6 +30,9 @@ poner('--negro', ['#000000']);
 poner('--bg-app', ['#061532', '#040e22', '#020a14', '#02060d']);
 poner('--surface-1', ['#0a1220', '#0b1624', '#07121f', '#0f172a', '#081f47', '#0b2147', '#0f1a33', '#0d1b38']);
 poner('--surface-2', ['#1e293b', '#10284f']);
+poner('--text-3', ['#94a3b8', '#8396ad', '#8fa7c8']);
+poner('--line-sutil', ['#334155', '#475569']);
+poner('--line-fuerte', ['#64748b']);
 
 const HEX_SOLIDO = new Map([...RGB_A_TOKEN].map(([rgb, t]) => [rgb, t]));
 // #fff y #000 sólidos no se tocan (se usan para texto sobre relleno y marcas); solo sus versiones translúcidas.

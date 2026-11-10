@@ -504,7 +504,7 @@ html[data-device="phone"] :is(.card, .glass-card) {
 :root:root .bg-slate-50 .text-slate-500 { color: #5B6F8F; }
 
 /* 13) Clases que no declaraban text-transform pero usaban monoespaciada con tracking, y pestañas con texto escrito en mayúsculas en el JSX
-   (se llevan a minúscula con inicial mayúscula: «PANORAMA» → «Panorama») */
+   (el texto ya está en minúscula con inicial en el JSX: aquí solo se quita cualquier mayúscula heredada) */
 :root:root .pm-vac-kicker,
 :root:root .sim-brand-title,
 :root:root .sim-decision-title,
@@ -518,10 +518,8 @@ html[data-device="phone"] :is(.card, .glass-card) {
   font-family: var(--font-sans);
   font-weight: 600;
   letter-spacing: 0.01em;
-  text-transform: lowercase;
+  text-transform: none;
 }
-:root:root .dock-tab::first-letter,
-:root:root [role="tab"]::first-letter { text-transform: uppercase; }
 
 /* 14) Clima: unidades y leyendas de gráfica que quedaban entre 4.2 y 4.4:1 */
 :root:root .clima-container small { color: var(--color-text-secondary); }
@@ -534,3 +532,9 @@ html[data-device="phone"] :is(.card, .glass-card) {
   :root:root .phb-efficiency { min-width: 0; }
   :root:root .sim-tl-label { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 }
+
+/* 16) Modelación: con las etiquetas a 11 px la cabecera dejaba de caber en una fila a 1440 px y el botón «Reporte PDF» quedaba cortado */
+:root:root .sim-header { flex-wrap: wrap; height: auto; padding-block: 6px; row-gap: 6px; }
+:root:root .sim-kpi-row { min-width: 0; flex-wrap: wrap; }
+:root:root .sim-ctrl-bar { flex-wrap: wrap; }
+:root:root .sim-start-time-row { max-width: 100%; }

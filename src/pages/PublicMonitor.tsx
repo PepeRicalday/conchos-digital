@@ -2212,7 +2212,7 @@ const PublicMonitor: React.FC = () => {
                             aria-selected={dockTab === 'canal'}
                             onClick={() => setDockTab('canal')}
                         >
-                            CANAL
+                            Canal
                         </button>
                         <button
                             type="button"

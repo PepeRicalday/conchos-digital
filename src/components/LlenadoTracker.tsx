@@ -74,7 +74,7 @@ const PuntoCard: React.FC<{
                     </span>
                     {isAncla && (
                         <span className="punto-tag-ancla">
-                            ANCLA
+                            Ancla
                         </span>
                     )}
                 </div>

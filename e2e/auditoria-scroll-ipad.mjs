@@ -38,9 +38,11 @@ const medir = () => {
     const r = e.getBoundingClientRect();
     return (r.width < 40 || r.height < 40) && r.top < innerHeight && r.bottom > 0 && r.left < innerWidth;
   }).slice(0, 6).map(e => { const r = e.getBoundingClientRect(); return `${(e.innerText || e.getAttribute('aria-label') || e.tagName).trim().slice(0, 20)} ${Math.round(r.width)}x${Math.round(r.height)}`; });
+  // Un elemento dentro de un contenedor con desplazamiento horizontal propio (tabla ancha) no está «fuera de pantalla».
+  const enScroller = (e) => { for (let a = e.parentElement; a && a !== document.body; a = a.parentElement) { const o = getComputedStyle(a).overflowX; if ((o === 'auto' || o === 'scroll') && a.scrollWidth > a.clientWidth) return true; } return false; };
   const fuera = [...document.querySelectorAll('body *')].filter(e => {
     if (!vis(e) || e.closest('svg')) return false;
-    const r = e.getBoundingClientRect(); return r.right > innerWidth + 4 && r.width < innerWidth && !e.closest('[style*="overflow"]') && getComputedStyle(e).position !== 'fixed';
+    const r = e.getBoundingClientRect(); return r.right > innerWidth + 4 && r.width < innerWidth && !enScroller(e) && getComputedStyle(e).position !== 'fixed';
   }).slice(0, 4).map(e => `${e.tagName.toLowerCase()}.${String(e.className).slice(0, 30)} r=${Math.round(e.getBoundingClientRect().right)}`);
   return {
     device: document.documentElement.dataset.device, orient: document.documentElement.dataset.orientation,

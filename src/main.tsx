@@ -150,6 +150,7 @@ import '@fontsource/ibm-plex-sans/latin-500'
 import '@fontsource/ibm-plex-sans/latin-600'
 import './styles/tokens.css'
 import './index.css'
+import './styles/ui-base.css'
 import './styles/tanda1-superficies.css'
 import './styles/tailwind-espaciado.css'   // puente de espaciado (Infraestructura, Importar, Bitácora)
 import './styles/phone.css'   // adaptaciones de página para teléfono (html[data-device="phone"])

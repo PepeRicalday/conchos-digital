@@ -8,7 +8,8 @@
 import { getEfficiencyStatus } from './hydraulics';
 import type { ConduccionTramo } from './conduccion';
 
-export type EstadoVisual = 'ok' | 'warn' | 'crit' | 'sd' | 'info';
+import type { EstadoTipo } from '../types/estado';
+export type EstadoVisual = EstadoTipo;
 export type NivelConduccion = 'optimo' | 'atencion' | 'alerta' | 'critico' | 'sd' | 'inconsistente';
 
 export interface ClasificacionConduccion {

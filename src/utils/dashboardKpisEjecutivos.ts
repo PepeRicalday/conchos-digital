@@ -5,7 +5,8 @@
  */
 import { estadoEmbalse } from './presaNiveles';
 
-export type TipoEstado = 'ok' | 'warn' | 'crit' | 'info' | 'sd';
+import type { EstadoTipo } from '../types/estado';
+export type TipoEstado = EstadoTipo;
 export interface EstadoKpi { tipo: TipoEstado; texto: string; /** Versión breve para pantallas angostas. */ corto?: string }
 
 const fin = (v: number | null | undefined): v is number => v != null && Number.isFinite(v);

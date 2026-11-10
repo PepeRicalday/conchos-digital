@@ -1,7 +1,7 @@
 /* sala-control.css — lenguaje visual compartido por las páginas operativas (Dashboard, Hidrometría, Distribución,
    Balance): carta hidrográfica nocturna, mismo que Presas, Histórico, Clima y Geo-Monitor.
    Texto ≥ 12 px · el estado nunca depende solo del color · objetivos táctiles ≥ 44 px. */
-.sc-root {
+:root, .sc-root {
     --sc-bg: var(--bg-app);
     --sc-surface: rgba(255, 255, 255, 0.03);
     --sc-surface-2: rgba(255, 255, 255, 0.055);
@@ -31,6 +31,8 @@
     --sc-fs-3: 16px;
     --sc-fs-4: 20px;
     --sc-fs-5: 28px;
+}
+.sc-root {
     font-family: var(--sc-body);
     color: var(--sc-t1);
     max-width: var(--content-max, none);

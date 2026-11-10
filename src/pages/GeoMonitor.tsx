@@ -1,11 +1,11 @@
-import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, ShieldCheck, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, CloudRain, Satellite, PanelRight, CalendarRange, Box, Download } from 'lucide-react';
+import { Map as MapIcon, Activity, Crosshair, Layers, Wifi, TrendingUp, Droplets, Gauge, TriangleAlert, Maximize, Minimize, Upload, AlertTriangle, CloudRain, Satellite, PanelRight, CalendarRange, Box, Download } from 'lucide-react';
 import { conduccionTramo } from '../utils/conduccion';
 import { instanteDeLectura } from '../utils/perfilCanal';
 import { exportaMapaPng } from '../utils/exportMapaPng';
 import { GeoLeyenda, type CapaLeyenda } from '../components/geo/GeoLeyenda';
 import { extraccionPresa, presaBaja, valorGrafica, escapaHtml as esc } from '../utils/geoKpis';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline, useMapEvents, useMap, ZoomControl, ScaleControl, AttributionControl } from 'react-leaflet';
+import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline, ZoomControl, ScaleControl, AttributionControl } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
 import 'leaflet/dist/leaflet.css';
@@ -22,7 +22,6 @@ import { useAuth } from '../context/AuthContext';
 import { useHydricEvents } from '../hooks/useHydricEvents';
 import { useClimaEstaciones } from '../hooks/useClimaEstaciones';
 import { esModuloSRL, moduloSRLde } from '../utils/modulosSRL';
-import { MODULOS_BBOX } from '../utils/modulosBbox';
 import { sentinelWmsUrl } from '../utils/sentinelWms';
 import { WAVE_CELERITY_MS, WAVE_CELERITY_CONFIANZA, calcRadialFlow } from '../utils/hydraulics';
 import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
@@ -32,6 +31,11 @@ import { WindyMapModal } from '../components/WindyMapModal';
 import { Modal } from '../components/ui/base';
 import { ensureMetadata } from '../store/useMetadataStore';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import type { EscalaData, PresaData, AforoData, TomaData, SeccionData, OperStats } from '../components/geo/geoMapaDatos';
+import type { ViewportBounds } from '../components/geo/geoConfig';
+import { LOTES_MIN_ZOOM, LOTES_MODULO_BBOX, bboxIntersecta, BASE_LAYER_LABEL, SIDEBAR_GROUPS, SIDEBAR_ICON_SIZE, CARTO_TILE_URL, SENTINEL_TILEERROR_UMBRAL } from '../components/geo/geoConfig';
+import { MapViewportWatcher, MapFullscreenInvalidator } from '../components/geo/geoMapaAuxiliares';
+import { haversineDist, aforoIcon, presaIcon } from '../components/geo/geoMapaDatos';
 
 // Fix for Leaflet icons in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -41,245 +45,47 @@ L.Icon.Default.mergeOptions({
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-// Removed unused createIcon function
 
-// CARTO exige api key en sus mosaicos (sin ella pinta "API KEY REQUIRED" encima del mapa). Mismo patrón y misma clave
-// pública que NdviModulosPanel y PlanoGeneralModulos; sin clave se cae al mosaico legado (con marca de agua).
-const CARTO_ACCESS_TOKEN = import.meta.env.VITE_CARTO_ACCESS_TOKEN as string | undefined;
-const CARTO_TILE_URL = CARTO_ACCESS_TOKEN
-    ? `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=${CARTO_ACCESS_TOKEN}`
-    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
-const BASE_LAYER_LABEL: Record<'standard' | 'satellite' | 'eos' | 'sentinel', string> = {
-    standard: 'Mapa Oscuro',
-    satellite: 'Satélite ArcGIS',
-    eos: 'EOS LandViewer',
-    sentinel: 'Sentinel Hub',
-};
 
-// Tiles fallidos consecutivos (dentro de la misma carga, ver
-// sentinelTileErrorCount) antes de asumir que el WMS de Sentinel Hub está
-// caído y caer a satélite ArcGIS. Un mosaico real con zoom/pan pide varias
-// decenas de tiles por carga, y es normal que unos pocos fallen por timeout
-// de red o por caer en el borde de la escena disponible sin que la cuenta
-// esté realmente caída — con el umbral en 4 eso bastaba para expulsar al
-// usuario de Sentinel Hub segundos después de activarlo (reportado ago-2026:
-// "aparece unos segundos y se cierra"). 14 tolera ese ruido y sigue
-// detectando una cuenta vencida/instance ID inválido, que falla TODOS los
-// tiles casi de inmediato.
-const SENTINEL_TILEERROR_UMBRAL = 14;
 
-type LayerKey = 'canal' | 'escalas' | 'tomas' | 'estaciones' | 'modulos' | 'presasShape'
-    | 'rioShape' | 'alertas' | 'mostrarAforosQ' | 'mostrarAperturas' | 'lotes';
 
-interface SidebarButtonConfig {
-    key: LayerKey;
-    icon: React.ComponentType<{ size?: number; className?: string }>;
-    title: string;
-    iconClassName?: string;
-    indicatorClass?: string;
-    /** 'alertas' usa una clase de estado propia ('shield') en vez de 'active'. */
-    activeClass?: string;
-}
 
-interface SidebarGroupConfig {
-    id: string;
-    label: string;
-    buttons: SidebarButtonConfig[];
-}
 
-// Los 10 toggles de contenido, agrupados por función real (no por orden de
-// aparición histórico): topología de red activa, overlays geoespaciales
-// estáticos, monitoreo de clima/riesgo, e indicadores de operación puntual.
-const SIDEBAR_GROUPS: SidebarGroupConfig[] = [
-    {
-        id: 'red-hidraulica',
-        label: 'Red hidráulica',
-        buttons: [
-            { key: 'canal', icon: Layers, title: 'Trazado del Canal por Secciones' },
-            { key: 'escalas', icon: Crosshair, title: 'Escalas y Puntos de Aforo' },
-            { key: 'tomas', icon: Droplets, title: 'Presas y Tomas Activas' },
-            { key: 'rioShape', icon: Activity, title: 'Trazado del Río Conchos', iconClassName: 'geo-icon-blue', indicatorClass: 'geo-indicator-blue' },
-        ],
-    },
-    {
-        id: 'capas-geoespaciales',
-        label: 'Polígonos',
-        buttons: [
-            { key: 'modulos', icon: MapIcon, title: 'Polígonos de Módulos de Riego', indicatorClass: 'geo-indicator-purple' },
-            { key: 'presasShape', icon: Droplets, title: 'Polígonos de Vasos de Presas', indicatorClass: 'geo-indicator-blue' },
-            { key: 'lotes', icon: Crosshair, title: 'Lotes de Productores (catastro) — visible desde zoom 13', indicatorClass: 'geo-indicator-amber' },
-        ],
-    },
-    {
-        id: 'clima-alertas',
-        label: 'Monitoreo',
-        buttons: [
-            { key: 'estaciones', icon: CloudRain, title: 'Estaciones climáticas (WeatherLink)' },
-            { key: 'alertas', icon: ShieldCheck, title: 'Alertas y Anomalías', activeClass: 'shield' },
-        ],
-    },
-    {
-        id: 'indicadores',
-        label: 'Indicadores',
-        buttons: [
-            { key: 'mostrarAforosQ', icon: TrendingUp, title: 'Ver Gastos de Aforos de Control', iconClassName: 'geo-icon-amber', indicatorClass: 'geo-indicator-amber' },
-            { key: 'mostrarAperturas', icon: Gauge, title: 'Ver Apertura de Compuertas', iconClassName: 'geo-icon-teal', indicatorClass: 'geo-indicator-teal' },
-        ],
-    },
-];
 
-const SIDEBAR_ICON_SIZE = 19;
 
-// Zoom mínimo para cargar/mostrar la capa de lotes: a niveles más alejados
-// ~5,200 polígonos no se distinguen unos de otros y solo saturan el mapa.
-const LOTES_MIN_ZOOM = 13;
 
-// Bbox real de cada archivo lotes_modulo_N.geojson (calculado de la geometría
-// convertida) — permite cargar solo los módulos que intersectan el viewport
-// visible en vez de los 6 archivos (3.3 MB) de golpe al activar la capa.
-// Fuente única de verdad: src/utils/modulosBbox.ts (también usada por el NDVI
-// de Clima.tsx, que cobra por área consultada a Sentinel Hub).
-const LOTES_MODULO_BBOX = MODULOS_BBOX;
 
-interface ViewportBounds { minLon: number; minLat: number; maxLon: number; maxLat: number }
 
-function bboxIntersecta(a: ViewportBounds, b: { minLon: number; minLat: number; maxLon: number; maxLat: number }): boolean {
-    return a.minLon <= b.maxLon && a.maxLon >= b.minLon && a.minLat <= b.maxLat && a.maxLat >= b.minLat;
-}
 
-/** Reporta zoom + bounds del mapa Leaflet al estado de React — usado para
- *  decidir qué módulos de lotes cargar bajo demanda sin montar un mapa nuevo. */
-function MapViewportWatcher({ onChange }: { onChange: (zoom: number, bounds: ViewportBounds) => void }) {
-    const map = useMapEvents({
-        zoomend: () => {
-            const b = map.getBounds();
-            onChange(map.getZoom(), { minLon: b.getWest(), minLat: b.getSouth(), maxLon: b.getEast(), maxLat: b.getNorth() });
-        },
-        moveend: () => {
-            const b = map.getBounds();
-            onChange(map.getZoom(), { minLon: b.getWest(), minLat: b.getSouth(), maxLon: b.getEast(), maxLat: b.getNorth() });
-        },
-    });
-    // moveend/zoomend no disparan al montar — se reporta el viewport inicial
-    // una vez para que la capa de lotes funcione sin que el usuario mueva el mapa antes.
-    useEffect(() => {
-        const b = map.getBounds();
-        onChange(map.getZoom(), { minLon: b.getWest(), minLat: b.getSouth(), maxLon: b.getEast(), maxLat: b.getNorth() });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-    return null;
-}
 
-/** Leaflet cachea el tamaño de su contenedor al montar y NO lo recalcula solo
- *  — al entrar/salir de pantalla completa (CSS-only: position:fixed;inset:0)
- *  el mapa sigue creyendo que mide lo de antes: tiles grises en la franja
- *  nueva, bounds reportados incorrectos a MapViewportWatcher (contamina qué
- *  lotes se cargan), y clics que caen desplazados del punto visible. Solo
- *  invalidateSize() fuerza el recálculo real (bug confirmado, auditoría
- *  GEO-MONITOR sep-2026). El pequeño delay espera a que la transición CSS del
- *  contenedor termine antes de medir. */
-function MapFullscreenInvalidator({ isFullscreen }: { isFullscreen: boolean }) {
-    const map = useMap();
-    useEffect(() => {
-        const t = setTimeout(() => map.invalidateSize(), 150);
-        return () => clearTimeout(t);
-    }, [map, isFullscreen]);
-    return null;
-}
 
-const presaIcon = L.divIcon({
-    className: 'geo-custom-marker',
-    html: `<div style="
-        width:28px;height:28px;border-radius:6px;
-        background:linear-gradient(135deg,#3b82f6,#1d4ed8);
-        border:2px solid rgba(255,255,255,0.9);
-        box-shadow:0 0 12px #3b82f6aa;
-        display:flex;align-items:center;justify-content:center;
-        font-size:14px;
-    ">💧</div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-});
 
-const aforoIcon = L.divIcon({
-    className: 'geo-custom-marker',
-    html: `<div style="
-        width:22px;height:22px;border-radius:50%;
-        background:linear-gradient(135deg,#f59e0b,#d97706);
-        border:2px solid rgba(255,255,255,0.9);
-        box-shadow:0 0 12px #f59e0baa;
-        display:flex;align-items:center;justify-content:center;
-        font-size:11px;
-    ">🌊</div>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
-});
 
-// Tipos
-interface EscalaData {
-    id: string; nombre: string; km: number;
-    latitud: number; longitud: number;
-    nivel_min_operativo: number; nivel_max_operativo: number;
-    capacidad_max: number; seccion_id: string;
-    ancho: number; alto: number; pzas_radiales: number;
-    nivel_actual?: number; delta_12h?: number; estado?: string;
-    apertura_radiales_m?: number | null;
-    // Fuente única de gasto (mismo criterio que PublicMonitor.tsx): gasto_actual
-    // viene de lecturas_escalas (curva nivel-gasto capturada en campo, o
-    // calcRadialFlow con aperturas reales), NUNCA de una fórmula Cd·H^n
-    // recalculada aquí con coeficientes genéricos. ultima_telemetria habilita
-    // el mismo criterio de frescura (STALE_MIN) para no mostrar un número
-    // viejo como si fuera dato en vivo.
-    gasto_actual?: number | null;
-    ultima_telemetria?: number | null;
-}
-interface PresaData {
-    presa_id: string; nombre: string; latitud: number; longitud: number;
-    // null = sin dato (S/D). Nunca se sustituye por 0: un 0 % falso dispararía alertas de presa baja.
-    almacenamiento_mm3: number | null; porcentaje_llenado: number | null;
-    extraccion_total_m3s: number | null; extraccion_fuente?: 'MEDIDO' | 'SOLICITADO' | null; fecha: string;
-    // Fase 1: nivel real del vaso (msnm) y metadatos de capacidad — antes
-    // GeoMonitor los hardcodeaba por presa_id en vez de leerlos de la BD.
-    escala_msnm: number | null;
-    /** lecturas_presas.notas: procedencia del nivel (CILA / campo / estimada). */
-    notas?: string | null;
-    capacidad_max: number | null;
-    elevacion_corona_msnm: number | null;
-    curvas_capacidad: { elevacion_msnm: number; volumen_mm3: number; area_ha: number | null }[];
-}
-interface AforoData {
-    id: string; nombre_punto: string; latitud: number; longitud: number;
-}
-interface TomaData {
-    id: string;
-    nombre: string;
-    latitud: number;
-    longitud: number;
-    estado: string;
-    caudal?: number;
-    km?: number;
-    modulo?: string;
-    volumen_acumulado?: number;
-}
-interface SeccionData {
-    id: string; nombre: string; km_inicio: number; km_fin: number; color: string;
-}
-interface OperStats {
-    tomas_abiertas: number; tomas_cerradas: number; gasto_distribuido_m3s: number;
-}
 
-// Distancia en KM entre dos puntos (Haversine)
-function haversineDist(lon1: number, lat1: number, lon2: number, lat2: number) {
-    const R = 6371; // Radio de la tierra en km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const GeoMonitor = () => {
     const { profile } = useAuth();

@@ -99,3 +99,38 @@ html[data-device="phone"] .ui-modal-fondo--sin-menu { left: 0; }
 .pron-opcion__tit { font: 600 14px/1.25 var(--font-sans); }
 .pron-opcion__desc { font: 400 12px/1.35 var(--font-sans); color: var(--text-3); }
 .pron-nota { margin: 10px 0 0; font: 400 12px/1.5 var(--font-sans); color: var(--text-3); }
+
+/* ═══ KPI (densidades compacta y normal; «tablero» conserva los kp-* de KpiPanel.css) ═══ */
+.ui-kpi { --acc: var(--line-sutil); display: flex; flex-direction: column; gap: 6px; min-width: 0; border: 1px solid var(--line-sutil); border-top: 2px solid var(--acc); border-radius: 12px; background: var(--surface-1); color: var(--text-1); }
+.ui-kpi__cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--text-3); }
+.ui-kpi__etq { font: 600 12px/1.3 var(--font-sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ui-kpi__num { font-family: var(--sc-display, var(--brand-display, var(--font-sans))); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums slashed-zero; color: var(--text-1); overflow-wrap: anywhere; }
+.ui-kpi__num small { margin-left: 6px; font: 500 14px/1 var(--font-sans); color: var(--text-3); }
+.ui-kpi__num--sd { color: var(--text-3); }
+.ui-kpi__nota { font: 400 12px/1.4 var(--font-sans); color: var(--text-2); }
+.ui-kpi__lineas { display: flex; flex-direction: column; gap: 3px; margin: 2px 0 0; padding: 0; list-style: none; font: 400 13px/1.4 var(--font-sans); color: var(--text-2); }
+.ui-kpi__lineas b { color: var(--text-1); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ui-kpi__fresco { margin-top: auto; padding-top: 6px; font: 400 12px/1.3 var(--font-sans); color: var(--text-3); }
+.ui-kpi__fresco--viejo { color: var(--st-warn); }
+.ui-kpi .ui-badge { align-self: flex-start; }
+.ui-kpi--normal { padding: 14px 16px 12px; }
+.ui-kpi--normal .ui-kpi__num { font-size: clamp(44px, 4.6vw, 64px); }
+.ui-kpi--normal .ui-kpi__num--sd { font-size: clamp(34px, 3.2vw, 42px); }
+.ui-kpi--compacta { gap: 3px; padding: 12px 14px; }
+.ui-kpi--compacta .ui-kpi__etq { font-size: 13px; letter-spacing: 0; text-transform: none; font-weight: 600; white-space: normal; }
+.ui-kpi--compacta .ui-kpi__num { font-size: 34px; line-height: 1.05; }
+.ui-kpi--compacta .ui-kpi__num--rango { font-size: 28px; }
+.ui-kpi--compacta .ui-kpi__num--sd { font-size: 34px; }
+@media (max-width: 560px) { .ui-kpi--normal .ui-kpi__num { font-size: 44px; } }
+
+/* ═══ DataTable ═══ */
+.ui-tabla-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.ui-tabla { width: 100%; border-collapse: collapse; font: 400 13px/1.4 var(--font-sans); color: var(--text-1); }
+.ui-tabla caption { text-align: left; padding: 0 0 8px; font-size: 12px; color: var(--text-3); }
+.ui-tabla th, .ui-tabla td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--line-sutil); white-space: nowrap; font-weight: 400; vertical-align: middle; }
+.ui-tabla thead th { font: 600 12px/1.3 var(--font-sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.ui-tabla th[scope='row'] { font-weight: 600; color: var(--text-1); }
+.ui-tabla .ui-tabla__num { text-align: right; font-variant-numeric: tabular-nums slashed-zero; }
+.ui-tabla__sd { color: var(--text-3); font-weight: 600; }
+.ui-tabla__vacio { margin: 8px 0; padding: 14px; border: 1px dashed var(--line-sutil); border-radius: 10px; color: var(--text-3); font: 400 14px/1.4 var(--font-sans); }
+.ui-tabla tbody tr:hover { background: var(--surface-2); }

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { WMSParams } from 'leaflet';
 import { X, MapPin, Layers, Ruler, Activity, CalendarRange, TrendingUp, TrendingDown } from 'lucide-react';
 import { MapContainer, WMSTileLayer, GeoJSON } from 'react-leaflet';
+import { Kpi } from './ui/base';
 import ReactECharts from 'echarts-for-react';
 import 'leaflet/dist/leaflet.css';
 import './NdviModuloDetalle.css';
@@ -231,51 +232,19 @@ export const NdviModuloDetalle: React.FC<NdviModuloDetalleProps> = ({ numeroModu
 
                         <div className="ndvi-detalle-stats">
                             <div className="ndvi-detalle-stats-grid">
-                                <div className="ndvi-detalle-stat">
-                                    <span className="ndvi-detalle-stat-label"><Layers size={13} aria-hidden="true" /> NDVI (mediana)</span>
-                                    <span className="ndvi-detalle-stat-value">{ultimo ? ultimo.ndvi_medio.toFixed(3) : 'S/D'}</span>
-                                </div>
-                                <div className="ndvi-detalle-stat">
-                                    <span className="ndvi-detalle-stat-label"><Activity size={13} aria-hidden="true" /> Rango (mín–máx)</span>
-                                    <span className="ndvi-detalle-stat-value">
-                                        {ultimo && ultimo.ndvi_min != null && ultimo.ndvi_max != null
-                                            ? `${ultimo.ndvi_min.toFixed(2)} – ${ultimo.ndvi_max.toFixed(2)}`
-                                            : 'S/D'}
-                                    </span>
-                                </div>
-                                <div className="ndvi-detalle-stat">
-                                    <span className="ndvi-detalle-stat-label"><Ruler size={13} aria-hidden="true" /> Superficie</span>
-                                    <span className="ndvi-detalle-stat-value">
-                                        {ultimo?.superficie_ha != null ? `${ultimo.superficie_ha.toLocaleString()} ha` : 'S/D'}
-                                    </span>
-                                </div>
-                                <div className="ndvi-detalle-stat">
-                                    <span className="ndvi-detalle-stat-label"><MapPin size={13} aria-hidden="true" /> Desviación estándar</span>
-                                    <span className="ndvi-detalle-stat-value">{ultimo?.ndvi_desv != null ? ultimo.ndvi_desv.toFixed(3) : 'S/D'}</span>
-                                </div>
-                                <div className="ndvi-detalle-stat">
-                                    <span className="ndvi-detalle-stat-label"><CalendarRange size={13} aria-hidden="true" /> Ventana analizada</span>
-                                    <span className="ndvi-detalle-stat-value ndvi-detalle-stat-value-sm">
-                                        {ultimo?.ventana_desde && ultimo.ventana_hasta ? `${ultimo.ventana_desde.slice(0, 10)} → ${ultimo.ventana_hasta.slice(0, 10)}` : 'S/D'}
-                                    </span>
-                                </div>
-                                <div className="ndvi-detalle-stat">
-                                    <span className="ndvi-detalle-stat-label"><Activity size={13} aria-hidden="true" /> Muestras válidas</span>
-                                    <span className="ndvi-detalle-stat-value">{ultimo?.muestras_validas?.toLocaleString() ?? 'S/D'}</span>
-                                </div>
-                                <div className="ndvi-detalle-stat">
-                                    <span className="ndvi-detalle-stat-label"><Layers size={13} aria-hidden="true" /> Kc estimado (NDVI→Kc)</span>
-                                    <span className="ndvi-detalle-stat-value">{ultimo?.kc_estimado != null ? ultimo.kc_estimado.toFixed(2) : 'S/D'}</span>
-                                </div>
-                                <div className="ndvi-detalle-stat">
-                                    <span className="ndvi-detalle-stat-label"><Activity size={13} aria-hidden="true" /> Cambio contra el mes anterior</span>
-                                    {ultimo?.delta_ndvi != null ? (
-                                        <span className={`ndvi-detalle-stat-value ndvi-delta ${ultimo.delta_ndvi >= 0 ? 'ndvi-delta-sube' : 'ndvi-delta-baja'}`}>
-                                            {ultimo.delta_ndvi >= 0 ? <TrendingUp size={16} aria-hidden="true" /> : <TrendingDown size={16} aria-hidden="true" />}
-                                            {ultimo.delta_ndvi >= 0 ? '+' : '−'}{fmt(Math.abs(ultimo.delta_ndvi), 3)}
-                                        </span>
-                                    ) : <span className="ndvi-detalle-stat-value">S/D</span>}
-                                </div>
+                                <Kpi densidad="compacta" etiqueta="NDVI (mediana)" icono={<Layers size={13} aria-hidden="true" />} valor={ultimo ? ultimo.ndvi_medio.toFixed(3) : null} />
+                                <Kpi densidad="compacta" etiqueta="Rango (mín–máx)" icono={<Activity size={13} aria-hidden="true" />} rango
+                                    valor={ultimo && ultimo.ndvi_min != null && ultimo.ndvi_max != null ? `${ultimo.ndvi_min.toFixed(2)} – ${ultimo.ndvi_max.toFixed(2)}` : null} />
+                                <Kpi densidad="compacta" etiqueta="Superficie" icono={<Ruler size={13} aria-hidden="true" />} valor={ultimo?.superficie_ha != null ? `${ultimo.superficie_ha.toLocaleString()} ha` : null} />
+                                <Kpi densidad="compacta" etiqueta="Desviación estándar" icono={<MapPin size={13} aria-hidden="true" />} valor={ultimo?.ndvi_desv != null ? ultimo.ndvi_desv.toFixed(3) : null} />
+                                <Kpi densidad="compacta" etiqueta="Ventana analizada" icono={<CalendarRange size={13} aria-hidden="true" />} rango
+                                    valor={ultimo?.ventana_desde && ultimo.ventana_hasta ? `${ultimo.ventana_desde.slice(0, 10)} → ${ultimo.ventana_hasta.slice(0, 10)}` : null} />
+                                <Kpi densidad="compacta" etiqueta="Muestras válidas" icono={<Activity size={13} aria-hidden="true" />} valor={ultimo?.muestras_validas != null ? ultimo.muestras_validas.toLocaleString() : null} />
+                                <Kpi densidad="compacta" etiqueta="Kc estimado (NDVI→Kc)" icono={<Layers size={13} aria-hidden="true" />} valor={ultimo?.kc_estimado != null ? ultimo.kc_estimado.toFixed(2) : null} />
+                                <Kpi densidad="compacta" etiqueta="Cambio contra el mes anterior"
+                                    icono={ultimo?.delta_ndvi != null ? (ultimo.delta_ndvi >= 0 ? <TrendingUp size={14} aria-hidden="true" /> : <TrendingDown size={14} aria-hidden="true" />) : <Activity size={13} aria-hidden="true" />}
+                                    tonoValor={ultimo?.delta_ndvi != null ? (ultimo.delta_ndvi >= 0 ? 'info' : 'warn') : undefined}
+                                    valor={ultimo?.delta_ndvi != null ? `${ultimo.delta_ndvi >= 0 ? '+' : '−'}${fmt(Math.abs(ultimo.delta_ndvi), 3)}` : null} />
                             </div>
                             <div className="ndvi-detalle-nota">
                                 {mesFicha ? `Mes mostrado: ${mesFicha}. ` : ''}{ROTULO_METODO_NDVI}. Nubosidad máxima admitida: {ultimo?.nubosidad_max_pct ?? 40} %. Estadísticas

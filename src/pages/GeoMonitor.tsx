@@ -28,7 +28,7 @@ import { PresaVasoMonitor } from '../components/PresaVasoMonitor';
 import { detectaSuperficieVaso, VASOS_CONOCIDOS } from '../utils/mapaSatelital';
 import { NdviModulosPanel } from '../components/NdviModulosPanel';
 import { WindyMapModal } from '../components/WindyMapModal';
-import { Modal } from '../components/ui/base';
+import { Modal, Kpi } from '../components/ui/base';
 import { ensureMetadata } from '../store/useMetadataStore';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { EscalaData, PresaData, AforoData, TomaData, SeccionData, OperStats } from '../components/geo/geoMapaDatos';
@@ -2723,44 +2723,28 @@ const GeoMonitor = () => {
 
                     {/* KPI Cards vinculados a SICA */}
                     <div className="geo-kpi-grid">
-                        <div className="geo-kpi-card" role="button" tabIndex={0} aria-label="Ver detalle de la escala de entrada (K-0+000)"
-                            onClick={() => escalaEntrada && handleSelect('escala', escalaEntrada)}
-                            onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && escalaEntrada) { e.preventDefault(); handleSelect('escala', escalaEntrada); } }}>
-                            <div className="geo-kpi-label">
-                                <Gauge size={12} /> Nivel Entrada ({escalaEntrada?.nombre || 'K-0+000'})
-                            </div>
-                            <div className="geo-kpi-value cyan">
-                                {nivelEntrada !== undefined ? (entradaFresca ? nivelEntrada.toFixed(2) : 'S/D') : '—'} <small>m</small>
-                            </div>
-                            {gastoEntrada !== undefined && <div className="geo-kpi-sub">Q: {gastoEntrada.toFixed(2)} m³/s</div>}
-                        </div>
-                        <div className="geo-kpi-card" role="button" tabIndex={0} aria-label="Ver detalle de la escala de salida (K-104)"
-                            onClick={() => escalaSalida && handleSelect('escala', escalaSalida)}
-                            onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && escalaSalida) { e.preventDefault(); handleSelect('escala', escalaSalida); } }}>
-                            <div className="geo-kpi-label">
-                                <Gauge size={12} /> Nivel Salida ({escalaSalida?.nombre || 'K-104'})
-                            </div>
-                            <div className="geo-kpi-value">
-                                {nivelSalida !== undefined ? (salidaFresca ? nivelSalida.toFixed(2) : 'S/D') : '—'} <small>m</small>
-                            </div>
-                            {gastoSalida !== undefined && <div className="geo-kpi-sub">Q: {gastoSalida.toFixed(2)} m³/s</div>}
-                        </div>
-                        <div className="geo-kpi-card">
-                            <div className="geo-kpi-label">
-                                <TrendingUp size={12} /> Eficiencia
-                            </div>
-                            <div className={clsx('geo-kpi-value', eficienciaTxt && parseFloat(eficienciaTxt) >= 90 ? 'green' : eficienciaTxt ? 'red' : '')} title={!tramoCompleto ? 'Balance no confiable — requiere K-0+000 y K-104 con lectura fresca (<4h)' : undefined}>
-                                {eficienciaTxt ?? 'S/D'}<small>%</small>
-                            </div>
-                        </div>
-                        <div className="geo-kpi-card">
-                            <div className="geo-kpi-label">
-                                <TriangleAlert size={12} /> Pérdida
-                            </div>
-                            <div className={clsx('geo-kpi-value', perdidaPct && parseFloat(perdidaPct) > 10 ? 'red' : 'green')} title={!tramoCompleto ? 'Balance no confiable — requiere K-0+000 y K-104 con lectura fresca (<4h)' : undefined}>
-                                {perdidaPct ?? 'S/D'}<small>%</small>
-                            </div>
-                        </div>
+                        <Kpi
+                            densidad="compacta" etiqueta={`Nivel entrada (${escalaEntrada?.nombre || 'K-0+000'})`} icono={<Gauge size={12} aria-hidden="true" />}
+                            aria="Ver detalle de la escala de entrada (K-0+000)" onActivar={() => { if (escalaEntrada) handleSelect('escala', escalaEntrada); }}
+                            valor={nivelEntrada !== undefined ? (entradaFresca ? nivelEntrada.toFixed(2) : null) : '—'} unidad=" m" tonoValor="info"
+                            contexto={gastoEntrada !== undefined ? `Q: ${gastoEntrada.toFixed(2)} m³/s` : undefined}
+                        />
+                        <Kpi
+                            densidad="compacta" etiqueta={`Nivel salida (${escalaSalida?.nombre || 'K-104'})`} icono={<Gauge size={12} aria-hidden="true" />}
+                            aria="Ver detalle de la escala de salida (K-104)" onActivar={() => { if (escalaSalida) handleSelect('escala', escalaSalida); }}
+                            valor={nivelSalida !== undefined ? (salidaFresca ? nivelSalida.toFixed(2) : null) : '—'} unidad=" m"
+                            contexto={gastoSalida !== undefined ? `Q: ${gastoSalida.toFixed(2)} m³/s` : undefined}
+                        />
+                        <Kpi
+                            densidad="compacta" etiqueta="Eficiencia" icono={<TrendingUp size={12} aria-hidden="true" />}
+                            valor={eficienciaTxt ?? null} unidad=" %" tonoValor={eficienciaTxt ? (parseFloat(eficienciaTxt) >= 90 ? 'ok' : 'crit') : undefined}
+                            ayuda={!tramoCompleto ? 'Balance no confiable — requiere K-0+000 y K-104 con lectura fresca (<4h)' : undefined}
+                        />
+                        <Kpi
+                            densidad="compacta" etiqueta="Pérdida" icono={<TriangleAlert size={12} aria-hidden="true" />}
+                            valor={perdidaPct ?? null} unidad=" %" tonoValor={perdidaPct ? (parseFloat(perdidaPct) > 10 ? 'crit' : 'ok') : undefined}
+                            ayuda={!tramoCompleto ? 'Balance no confiable — requiere K-0+000 y K-104 con lectura fresca (<4h)' : undefined}
+                        />
                     </div>
 
                     {/* Tomas Status Mini (Prioridad 3.1) con Filtros */}

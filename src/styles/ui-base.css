@@ -134,3 +134,12 @@ html[data-device="phone"] .ui-modal-fondo--sin-menu { left: 0; }
 .ui-tabla__sd { color: var(--text-3); font-weight: 600; }
 .ui-tabla__vacio { margin: 8px 0; padding: 14px; border: 1px dashed var(--line-sutil); border-radius: 10px; color: var(--text-3); font: 400 14px/1.4 var(--font-sans); }
 .ui-tabla tbody tr:hover { background: var(--surface-2); }
+
+.ui-kpi__num[data-tono='ok'] { color: var(--st-ok); }
+.ui-kpi__num[data-tono='warn'] { color: var(--st-warn); }
+.ui-kpi__num[data-tono='crit'] { color: var(--st-crit); }
+.ui-kpi__num[data-tono='info'] { color: var(--st-info); }
+.ui-kpi--accion { cursor: pointer; min-height: 44px; }
+.ui-kpi--accion:hover { border-color: var(--line-fuerte); background: var(--surface-2); }
+.ui-kpi--accion:focus-visible { outline: 2px solid var(--st-info); outline-offset: 2px; }
+.ui-kpi--compacta .ui-kpi__cab { justify-content: flex-start; gap: 6px; }

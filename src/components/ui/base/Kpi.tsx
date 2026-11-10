@@ -28,8 +28,14 @@ export interface KpiProps {
     aria?: string;
     /** compacta = etiqueta, cifra y nota; normal = tarjeta de página; tablero = celda del Dashboard (container queries). */
     densidad?: KpiDensidad;
-    /** Cifra más pequeña para rangos («120 – 340»). */
+    /** Cifra más pequeña para rangos («120 – 340») o textos largos. */
     rango?: boolean;
+    /** Tono semántico de la cifra (p. ej. eficiencia ≥ 90 % en verde). El color no es el único canal: úselo con `estado` o texto. */
+    tonoValor?: EstadoTipo;
+    /** Hace la tarjeta accionable (botón con teclado: Enter y espacio). */
+    onActivar?: () => void;
+    /** Ayuda al pasar el cursor. */
+    ayuda?: string;
 
     // ── solo densidad «tablero» ──
     id?: string;
@@ -62,13 +68,17 @@ export const Kpi = memo(function Kpi(p: KpiProps) {
     const estilo = acento ? ({ '--acc': acento } as CSSProperties) : undefined;
     const sinDato = p.valor == null || p.valor === 'S/D';
     const cifra = sinDato
-        ? <span className="ui-kpi__num ui-kpi__num--sd" aria-label="Sin dato">S/D</span>
-        : <span className={`ui-kpi__num${p.rango ? ' ui-kpi__num--rango' : ''}`}>{p.valor}{p.unidad && <small>{p.unidad}</small>}</span>;
+        ? <span className="ui-kpi__num ui-kpi__num--sd" aria-label="Sin dato" title={p.ayuda}>S/D</span>
+        : <span className={`ui-kpi__num${p.rango ? ' ui-kpi__num--rango' : ''}`} data-tono={p.tonoValor} title={p.ayuda}>{p.valor}{p.unidad && <small>{p.unidad}</small>}</span>;
     const notas = p.lineas && p.lineas.length > 0
         ? <ul className="ui-kpi__lineas">{p.lineas.map((l, i) => <li key={i}>{l}</li>)}</ul>
         : p.contexto ? <span className="ui-kpi__nota">{p.contexto}</span> : null;
     return (
-        <article className={`ui-kpi ui-kpi--${densidad}`} style={estilo} data-estado={p.estado?.tipo ?? 'sd'} aria-label={p.aria ?? p.etiqueta} role={densidad === 'compacta' ? 'listitem' : undefined}>
+        <article
+            className={`ui-kpi ui-kpi--${densidad}${p.onActivar ? ' ui-kpi--accion' : ''}`} style={estilo} data-estado={p.estado?.tipo ?? 'sd'} aria-label={p.aria ?? p.etiqueta}
+            role={p.onActivar ? 'button' : densidad === 'compacta' ? 'listitem' : undefined} tabIndex={p.onActivar ? 0 : undefined}
+            onClick={p.onActivar} onKeyDown={p.onActivar ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); p.onActivar?.(); } } : undefined}
+        >
             <div className="ui-kpi__cab"><span className="ui-kpi__etq">{p.etiqueta}</span>{p.icono}</div>
             {cifra}
             {p.estado && <Insignia tipo={p.estado.tipo}>{p.estado.texto}</Insignia>}

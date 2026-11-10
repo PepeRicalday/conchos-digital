@@ -1,0 +1,536 @@
+/* Tanda 1 de la auditoría de diseño (2026-11-10): superficies sólidas, sin vidrio ni resplandor,
+   y tipografía de etiquetas sin monoespaciada ni mayúsculas en títulos y chips.
+   Solo capas de presentación: no cambia datos, layout ni tamaños mínimos. Se carga al final de index.css. */
+
+/* 1) Tarjetas base: sólidas (nivel 1), borde de 1 px, sin blur ni sombra de 40 px */
+:root:root .card,
+:root:root .glass-card {
+  background: #081F47; /* equivale al compuesto anterior (translúcido sobre #061532) pero opaco: no cambia ningún ratio de contraste */
+  border: 1px solid var(--line-card, #1E3E70);
+  border-radius: 14px;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+html[data-device="phone"] :is(.card, .glass-card) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root:root .btn-tech {
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+:root:root .btn-tech:hover { transform: none; }
+
+:root:root .btn-tech.active { box-shadow: none; }
+
+
+/* 2) Sala de control (Dashboard, Hidrometría, Distribución, Balance, Presas…): superficies sólidas */
+:root:root .sc-root .sc-card,
+:root:root .sc-root .kp-tile {
+  background: var(--surface-panel);
+}
+
+:root:root .sc-root .kp-tile::before { height: 2px; background: var(--acc); opacity: .9; }
+
+/* El acento superior solo comunica estado: ok/info/sd quedan neutros; warn y crit conservan su color */
+:root:root .sc-root .kp-tile[data-estado='ok']::before,
+:root:root .sc-root .kp-tile[data-estado='info']::before,
+:root:root .sc-root .kp-tile[data-estado='sd']::before { background: var(--sc-line); }
+
+/* Sin resplandor en warn/crit; se conserva el anillo interior de 1 px */
+:root:root .sc-root .kp-tile[data-estado='warn'],
+:root:root .sc-root .kp-tile[data-estado='crit'] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 35%, transparent); }
+
+
+/* 3) Tipografía de etiquetas: Inter 600 en lugar de monoespaciada; chips en minúscula; títulos sin mayúsculas */
+:root:root .sc-kicker,
+:root:root .kp-titulo,
+:root:root .kc-titulo,
+:root:root .sc-cifra span,
+:root:root .kp-drawer-grupo,
+:root:root .sc-campo label,
+:root:root .sc-tabla thead th,
+:root:root .sc-barra-nav .sc-rango small {
+  font-family: var(--sc-body);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+:root:root .sc-chip,
+:root:root .sc-estado,
+:root:root .kp-estado {
+  font-family: var(--sc-body);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+:root:root .sc-card h3,
+:root:root .sc-hero h2,
+:root:root .sc-root h1.sc-titulo,
+:root:root .sc-modal h2,
+:root:root .kp-bc-titulo,
+:root:root .kp-drawer-cab h2 {
+  text-transform: none;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+
+/* 4) Menú lateral: ítems con la capitalización del código («Monitor Público»); las secciones quedan como únicas etiquetas en mayúsculas */
+:root:root .nav-item {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+:root:root .nav-item.active { font-weight: 600; }
+:root:root .nav-section-label {
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+/* 5) Presas, Clima y Modelación: mismas reglas que la sala de control.
+   Etiquetas cortas (kickers) quedan en mayúsculas pero en Inter 600 con tracking moderado;
+   nombres, botones, chips e insignias van en minúscula con inicial mayúscula. */
+:root:root .presa-kpi-mlabel,
+:root:root .dam-type-badge,
+:root:root .status-metric .metric-label,
+:root:root .extraction-label,
+:root:root .valves-title,
+:root:root .presas-exec-kpi-title,
+:root:root .presas-v3-section-hdr,
+:root:root .presas-v3-section-hdr span,
+:root:root .mini-chart-label,
+:root:root .presas-v3-subtitle,
+:root:root .presas-v3-estado-dam-sub,
+:root:root .presas-v3-kpi-label,
+:root:root .presas-v3-risk-labels,
+:root:root .presas-v3-design-kpi span:first-child,
+:root:root .presas-v3-eac-legend-item span,
+:root:root .presas-v3-cap-metric-label,
+:root:root .presas-v3-mov-fuente,
+:root:root .scada-panel-title,
+:root:root .scada-header-org,
+:root:root .scada-header-kpi-label,
+:root:root .scada-design-kpi span:first-child,
+:root:root .scada-ext-label,
+:root:root .scada-gestion-kpi span,
+:root:root .scada-risk-labels,
+:root:root .scada-diag-label,
+:root:root .scada-aforo-label,
+:root:root .scada-hist-fuente,
+:root:root .scada-panel-hdr,
+:root:root .pr-eyebrow,
+:root:root .pr-k,
+:root:root .pr-lim-rot,
+:root:root .quick-stat .stat-label,
+:root:root .precip-label,
+:root:root .cielo-panel-label {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+:root:root .presa-kpi-nombre,
+:root:root .presa-kpi-badge,
+:root:root .conagua-badge,
+:root:root .presas-v3-estado-dam-name,
+:root:root .presas-v3-estado-type,
+:root:root .presas-v3-risk-badge,
+:root:root .scada-climate-title,
+:root:root .scada-header-title,
+:root:root .scada-dam-btn,
+:root:root .scada-status-badge,
+:root:root .scada-action-btn,
+:root:root .scada-toma-nombre,
+:root:root .scada-toma-estado-badge,
+:root:root .scada-toma-tag-cfe,
+:root:root .scada-alerta-nivel,
+:root:root .scada-hist-btn,
+:root:root .pr-nombre,
+:root:root .pr-sello,
+:root:root .pr-chip,
+:root:root .pr-hist-head h3,
+:root:root .tech-name,
+:root:root .estacion-rol,
+:root:root .conf-chip,
+:root:root .photo-placeholder {
+  font-family: var(--font-sans);
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+
+:root:root .pr-nombre,
+:root:root .pr-hist-head h3,
+:root:root .scada-header-title {
+  font-family: var(--brand-display, var(--font-sans));
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+:root:root .presas-v3-card,
+:root:root .dam-selector-modern,
+:root:root .quick-stat {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root:root .sim-kpi-label,
+:root:root .sim-ctrl-label,
+:root:root .sim-start-time-label,
+:root:root .sim-panel-title,
+:root:root .sim-lvl-label,
+:root:root .sim-tl-label,
+:root:root .sim-section-lbl,
+:root:root .sim-ds-label,
+:root:root .sim-hyd-block-title,
+:root:root .sim-gate-req-label,
+:root:root .sim-gate-req-key {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+
+/* 6) Observatorio de Clima: kickers y cabeceras en Inter 600; títulos y chips sin mayúsculas */
+:root:root .cl-kicker,
+:root:root .cl-umbrales summary,
+:root:root .cl-umbrales thead th,
+:root:root .cl-franja figcaption,
+:root:root .cl-tabla thead th,
+:root:root .cl-rd-ext-et,
+:root:root .cl-rd-tabla thead th,
+:root:root .cl-hero-conf,
+:root:root .cl-kpi dt,
+:root:root .conditions-table th,
+:root:root .skill-table th {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+:root:root .cl-chip {
+  font-family: var(--font-sans);
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+:root:root .cl-seccion h3,
+:root:root .cl-hero h2,
+:root:root .clima-container .card h3 {
+  text-transform: none;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* 7) GEO-MONITOR, Monitor Público, Control de Niveles, Alertas y Conservación: misma regla de etiquetas */
+:root:root .geo-subtitle,
+:root:root .geo-date,
+:root:root .geo-group-label,
+:root:root .detail-stat label,
+:root:root .geo-gate-stat-label,
+:root:root .geo-detail-chart label,
+:root:root .geo-kpi-label,
+:root:root .geo-stat-title,
+:root:root .geo-stat-caption,
+:root:root .geo-tomas-label,
+:root:root .geo-registry-title,
+:root:root .geo-event-banner-label,
+:root:root .geo-ndvi-legend-label,
+:root:root .geo-ndvi-modulo-header,
+:root:root .geo-eto-title,
+:root:root .card-label,
+:root:root .iec-bd-title,
+:root:root .ml-title,
+:root:root .tr-label,
+:root:root .balance-title,
+:root:root .balance-row.header,
+:root:root .bs-label,
+:root:root .cfc-label,
+:root:root .cfc-dist,
+:root:root .dpf-label,
+:root:root .scp-km,
+:root:root .scp-field-label,
+:root:root .scp-metric-label,
+:root:root .fgv-stat-label,
+:root:root .dsk-bal-label,
+:root:root .dsk-table thead th,
+:root:root .dsk-sub-header,
+:root:root .dsk-model-res-label,
+:root:root .tnd-dates label,
+:root:root .tnd-calc,
+:root:root .tnd-filtro-lbl,
+:root:root .tnd-modal-grid section h5,
+:root:root .tnd-modal-chart h5,
+:root:root .tnd-kpi span,
+:root:root .tnd-ruta-t,
+:root:root .al-act-sub,
+:root:root .alert-group-head-label,
+:root:root .cons-filtros label,
+:root:root .cons-etiqueta,
+:root:root .cons-cmp dt,
+:root:root .cons-apila td[data-label]::before,
+:root:root .cf-lectura h6,
+:root:root .mq-kpi dt,
+:root:root .mq-grupo h4 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+:root:root .geo-badge,
+:root:root .geo-event-type,
+:root:root .geo-sentinel-date-modo,
+:root:root .geo-baselayer-config,
+:root:root .cp-title,
+:root:root .cp-status-tag,
+:root:root .fuente-status,
+:root:root .telemetry-floating-title,
+:root:root .technical-title,
+:root:root .control-btn-premium .btn-label,
+:root:root .coherencia-resumen,
+:root:root .perfil-inline-btn,
+:root:root .scp-badge,
+:root:root .perfil-modal-title,
+:root:root .perfil-toggle-btn,
+:root:root .dsk-btn,
+:root:root .tnd-solo-btn,
+:root:root .pm-aviso-texto b,
+:root:root .cpl-item,
+:root:root .scp-footer-signal,
+:root:root .tooltip-footer,
+:root:root .dsk-informe-title,
+:root:root .cons-marca-texto b {
+  font-family: var(--font-sans);
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+
+:root:root .ce-zona-nombre,
+:root:root .ce-modal h2,
+:root:root .alert-list-header h3,
+:root:root .cons-zona h2,
+:root:root .cons-previa-barra h2 {
+  text-transform: none;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+
+/* 8) Resto de hojas CSS (barrido completo): mismo criterio. Se excluyen SimulationReport.css y CanalReport.css (informes impresos). */
+:root:root .profile-role,
+:root:root .recal-indicator,
+:root:root .eta-label,
+:root:root .telemetry-label,
+:root:root .vaso-sim-header,
+:root:root .vaso-stat-label,
+:root:root .vaso-mes-selector,
+:root:root .cal-dia-label,
+:root:root .wlm-label,
+:root:root .wlm-stat-label,
+:root:root .wlm-stat-desc,
+:root:root .wlm-version,
+:root:root .ci-grupo,
+:root:root .goes-k,
+:root:root .goes-tabla thead th,
+:root:root .goes-meteo-datos dt,
+:root:root .vaso-cab-kicker,
+:root:root .vaso-kicker,
+:root:root .vaso-datos dt,
+:root:root .vaso-sup-item .et,
+:root:root .vaso-inter th,
+:root:root .ah-kicker,
+:root:root .ah-k,
+:root:root .ah-mapa-mes,
+:root:root .ah-inf-kicker,
+:root:root .form-label,
+:root:root .pr-datos dt,
+:root:root .tooltip-km {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+:root:root .alert-time,
+:root:root .ap-model-text,
+:root:root .ap-status-text,
+:root:root .ap-point-name,
+:root:root .ap-arrival-text,
+:root:root .est-det-rol,
+:root:root .punto-tag-ancla,
+:root:root .tech-tag span:first-child,
+:root:root .btn-confirmar-arribo,
+:root:root .vaso-badge,
+:root:root .sim-reset-btn,
+:root:root .vaso3d-badge,
+:root:root .vaso3d-contexto-perdido button,
+:root:root .vaso3d-toggle-btn,
+:root:root .vaso3d-encuadrar-btn,
+:root:root .pg-step-badge,
+:root:root .wlm-status-badge span,
+:root:root .wlm-status-tag,
+:root:root .wlm-report-btn,
+:root:root .kc-dia-txt b,
+:root:root .geo-ley-estado,
+:root:root .cu-ctl-etq,
+:root:root .hvb-text b,
+:root:root .ah-etq,
+:root:root .ah-anio small,
+:root:root .ah-extremos b,
+:root:root .ah-chip,
+:root:root .geo-ndvi-modulo-value small,
+:root:root .geo-eto-balance-value small,
+:root:root .footer-tagline,
+:root:root .nuke-button,
+:root:root .gasto-unit,
+:root:root .pm-vac-fila--cab,
+:root:root .dap-grupo-cab {
+  font-family: var(--font-sans);
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+
+:root:root .ap-header-info h3,
+:root:root .est-det-sec h4,
+:root:root .bal-titulo,
+:root:root .v-titulo,
+:root:root .arribo-text,
+:root:root .pg-title-group h2,
+:root:root .pg-title-group p,
+:root:root .wlm-title-group h3,
+:root:root .wlm-subtitle p,
+:root:root .bal-seccion-externa h3,
+:root:root .ci-hist-cab h3,
+:root:root .ci-chat-cab h2,
+:root:root .ci-burbuja h1,
+:root:root .ci-burbuja h2,
+:root:root .ci-burbuja h3,
+:root:root .ci-burbuja h4,
+:root:root .ci-bienvenida h2,
+:root:root .dc-titulo-seccion,
+:root:root .geo-title,
+:root:root .vaso-evo-sub > h3,
+:root:root .vaso-header--sc .vaso-title-group h2,
+:root:root .ah-title,
+:root:root .ah-panel-nombre,
+:root:root .ah-sub-titulo h3,
+:root:root .ah-estado h3,
+:root:root .ah-tabla caption,
+:root:root .ah-inf-titulo,
+:root:root .ah-inf-modal strong,
+:root:root .ah-inf-bar-t,
+:root:root .ah-inf-estado h3,
+:root:root .login-subtitle,
+:root:root .login-section-title,
+:root:root .pr-vigente-titulo,
+:root:root .pr-dialogo h2 {
+  text-transform: none;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+
+/* 9) Utilidades Tailwind y estilos inline: mismas reglas que las hojas CSS.
+   Etiquetas cortas siguen en mayúsculas (Inter 600, tracking moderado); títulos grandes, botones y enlaces van en minúscula;
+   pesos 800/900 bajan a 700 (política tipográfica: 400/500/600/700). */
+:root:root .uppercase { font-family: var(--font-sans); }
+:root:root .font-black,
+:root:root .font-extrabold,
+:root:root [class~="font-[1000]"] { font-weight: 700; }
+:root:root .tracking-widest { letter-spacing: 0.06em; }
+:root:root .tracking-wider { letter-spacing: 0.05em; }
+:root:root .tracking-wide { letter-spacing: 0.03em; }
+:root:root .uppercase.text-lg,
+:root:root .uppercase.text-xl,
+:root:root .uppercase.text-2xl,
+:root:root .uppercase.text-3xl,
+:root:root .uppercase.text-4xl,
+:root:root button.uppercase,
+:root:root a.uppercase { text-transform: none; }
+:root:root .uppercase.font-mono { font-family: var(--font-sans); }
+:root:root .font-mono.uppercase { font-weight: 600; }
+
+:root:root [style*="text-transform: uppercase"] {
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+}
+:root:root :is(button, a, h1, h2, h3, h4)[style*="text-transform: uppercase"] {
+  text-transform: none !important;
+  letter-spacing: 0.01em !important;
+}
+:root:root [style*="font-weight: 900"], :root [style*="font-weight: 800"] { font-weight: 700 !important; }
+
+/* 10) Correcciones de contraste y foco medidas con e2e/contraste.mjs */
+:root:root .ah-tabla td.is-sd { opacity: 1; }
+:root:root .cons-zona:focus-visible { box-shadow: 0 0 0 2px var(--sc-sky); }
+
+/* 11) Piso tipográfico del proyecto (11 px) para Tailwind arbitrario e inline que quedaban por debajo */
+:root:root [class~="text-[7px]"],
+:root:root [class~="text-[7.5px]"],
+:root:root [class~="text-[8px]"],
+:root:root [class~="text-[8.5px]"],
+:root:root [class~="text-[9px]"],
+:root:root [class~="text-[9.5px]"],
+:root:root [class~="text-[10px]"],
+:root:root [class~="text-[10.5px]"],
+:root:root [style*="font-size: 7px"],
+:root:root [style*="font-size: 7.5px"],
+:root:root [style*="font-size: 8px"],
+:root:root [style*="font-size: 8.5px"],
+:root:root [style*="font-size: 9px"],
+:root:root [style*="font-size: 9.5px"],
+:root:root [style*="font-size: 10px"],
+:root:root [style*="font-size: 10.5px"],
+:root:root [style*="font-size: 0.5rem"],
+:root:root [style*="font-size: 0.55rem"],
+:root:root [style*="font-size: 0.6rem"],
+:root:root [style*="font-size: 0.62rem"],
+:root:root [style*="font-size: 0.65rem"],
+:root:root [style*="font-size: 0.66rem"],
+:root:root [style*="font-size: 0.68rem"] { font-size: 11px !important; }
+
+/* 12) Hojas claras (informes en pantalla): los grises slate remapeados al tema oscuro no sirven sobre fondo blanco */
+:root:root .bg-white .text-slate-300,
+:root:root .bg-white .text-slate-400,
+:root:root .bg-white .text-slate-500,
+:root:root .bg-slate-50 .text-slate-400,
+:root:root .bg-slate-50 .text-slate-500 { color: #5B6F8F; }
+
+/* 13) Clases que no declaraban text-transform pero usaban monoespaciada con tracking, y pestañas con texto escrito en mayúsculas en el JSX
+   (se llevan a minúscula con inicial mayúscula: «PANORAMA» → «Panorama») */
+:root:root .pm-vac-kicker,
+:root:root .sim-brand-title,
+:root:root .sim-decision-title,
+:root:root .nivel-panel-title {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+:root:root .dock-tab,
+:root:root [role="tab"] {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: lowercase;
+}
+:root:root .dock-tab::first-letter,
+:root:root [role="tab"]::first-letter { text-transform: uppercase; }
+
+/* 14) Clima: unidades y leyendas de gráfica que quedaban entre 4.2 y 4.4:1 */
+:root:root .clima-container small { color: var(--color-text-secondary); }
+:root:root .recharts-legend-item-text { color: #cbd5e1 !important; }
+
+/* 15) Teléfono: controles que, con el texto en Inter y el piso de 11 px, ya no caben en una fila */
+@media (max-width: 480px) {
+  :root:root .clima-cuenca-seg { max-width: 100%; overflow-x: auto; }
+  :root:root .phb-main { flex-wrap: wrap; row-gap: 4px; }
+  :root:root .phb-efficiency { min-width: 0; }
+  :root:root .sim-tl-label { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+}

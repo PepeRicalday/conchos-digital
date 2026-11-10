@@ -294,7 +294,7 @@ a.kp-tile:focus-visible, .kp-ver:focus-visible, .kp-sev-btn:focus-visible { outl
 .kp-sevbar i { min-width: 6px; } .kp-s-crit { background: var(--sc-crit); } .kp-s-warn { background: var(--sc-warn); } .kp-s-info { background: var(--sc-sky); }
 .kp-sevbar-0 { background: repeating-linear-gradient(135deg, rgba(52,211,153,0.3) 0 6px, transparent 6px 12px); }
 .kp-sev-btn { flex: 1 1 0; justify-content: center; }
-.kp-sev-btn.kp-crit.kp-cero, .kp-sev-btn.kp-warn.kp-cero, .kp-sev-btn.kp-info.kp-cero { color: var(--sc-t3); border-color: var(--sc-line); opacity: 0.7; }
+.kp-sev-btn.kp-crit.kp-cero, .kp-sev-btn.kp-warn.kp-cero, .kp-sev-btn.kp-info.kp-cero { color: var(--sc-t3); border-color: var(--sc-line); opacity: 1; }
 .kp-top { display: flex; flex-direction: column; gap: 3px; margin: 0; padding: 0; list-style: none; font-size: 13px; min-height: 0; }
 .kp-top li { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .kp-top li svg { flex: none; } .kp-top b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
@@ -339,7 +339,7 @@ a.kp-tile:focus-visible, .kp-ver:focus-visible, .kp-sev-btn:focus-visible { outl
 /* Dato viejo (sin señal / con retraso): se conserva el último valor conocido pero atenuado y subrayado, con su sello de hora. */
 .kp-est-i[data-vigencia="viejo"] { background: rgba(248, 113, 113, 0.05); border-color: color-mix(in srgb, var(--sc-crit) 45%, var(--sc-line)); }
 .kp-est-i.kp-t-warn[data-vigencia="viejo"] { background: rgba(251, 191, 36, 0.05); border-color: color-mix(in srgb, var(--sc-warn) 45%, var(--sc-line)); }
-.kp-est-i[data-vigencia="viejo"] .kp-est-dato { opacity: 0.62; }
+.kp-est-i[data-vigencia="viejo"] .kp-est-dato { opacity: 0.85; }
 .kp-est-i[data-vigencia="viejo"] .kp-est-num { text-decoration: underline dotted var(--sc-crit); text-underline-offset: 3px; }
 .kp-est-i[data-vigencia="viejo"] .kp-est-spark { opacity: 0.4; }
 

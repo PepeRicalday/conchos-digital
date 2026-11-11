@@ -385,3 +385,4 @@ html[data-device='phone'] .cu-capa-chip { min-height: 44px; font-size: 14px; pad
 .cu-red-t3 { fill: var(--pr-t3); font: 500 12px var(--pr-body); }
 .cu-red-arco { fill: none; stroke: var(--pr-t3); stroke-width: 1.6; }
 .cu-red-flecha { fill: var(--pr-t3); }
+.cu-vs-aviso { color: var(--pr-warn); font: 600 12px var(--pr-body); text-align: right; }

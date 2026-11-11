@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   aniosDisponibles, anillosDeGeojson, celdaCierre, construirRed, coberturaDeCuerpo, csvCierres, etiquetaMes, indexarCierres, longitudEscala,
-  mesesDe, normalizarCierre, normalizarCuerpo, ordenarCuerpos, proyeccionPara, resumenResiduo, rutaDeAnillos, serieBalance, ultimoCierreConDato, variacionEnCiclo,
+  mesesDe, normalizarCierre, normalizarCuerpo, ordenarCuerpos, proyeccionPara, resumenResiduo, rutaDeAnillos, serieBalance, separacionDebil, ultimoCierreConDato, variacionEnCiclo,
   type BalanceMensual, type CierreMensual, type CuerpoAgua, type Par,
 } from './cuerposAgua';
 
@@ -190,5 +190,16 @@ describe('variacionEnCiclo', () => {
     const v = variacionEnCiclo(cs, cie, 2026);
     expect(v[1]).toMatchObject({ actual: null, deltaPct: null, deltaMm3: null });
     expect(v[2]).toMatchObject({ inicio: null, actual: null, deltaPct: null });
+  });
+});
+
+describe('separacionDebil', () => {
+  it('marca separación débil con eta < 0.8 o umbral fijo; con buena separación o sin dato no afirma nada', () => {
+    expect(separacionDebil({ umbrales: { eta_ndwi: 0.702, eta_mndwi: 0.626, fijo: false } })).toBe(true);
+    expect(separacionDebil({ umbrales: { eta_ndwi: 0.9, eta_mndwi: 0.75 } })).toBe(true);
+    expect(separacionDebil({ umbrales: { eta_ndwi: 0.86, eta_mndwi: 0.882, fijo: false } })).toBe(false);
+    expect(separacionDebil({ umbrales: { fijo: true } })).toBe(true);
+    expect(separacionDebil(null)).toBe(false);
+    expect(separacionDebil({})).toBe(false);
   });
 });

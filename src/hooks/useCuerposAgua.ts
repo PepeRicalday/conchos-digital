@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import {
-  anillosDeGeojson, normalizarBalance, normalizarCierre, normalizarCuerpo, ordenarCuerpos,
+  anillosDeGeojson, normalizarBalance, normalizarCierre, normalizarCuerpo, ordenarCuerpos, separacionDebil,
   type BalanceMensual, type CierreMensual, type CuerpoAgua, type Par,
 } from '../utils/cuerposAgua';
 
@@ -17,6 +17,8 @@ export interface EscenaSatelital {
   /** ±1 píxel de borde: perímetro × resolución. null si falta alguno de los dos (S/D). */
   incertidumbreKm2: number | null;
   nubesVasoPct: number | null;
+  /** true si el NDWI no separó bien agua y tierra en esa escena (separación Otsu < 0.8 o umbral fijo): la cifra es poco confiable. */
+  separacionDebil: boolean;
   contorno: Par[][];
 }
 
@@ -31,6 +33,7 @@ export interface DatosCuerposAgua {
 
 const PAGINA = 1000; // PostgREST corta en 1000 filas por petición
 const num = (v: unknown): number | null => (v == null || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+
 
 async function paginar<T>(consulta: (desde: number, hasta: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
   const out: T[] = [];
@@ -81,7 +84,7 @@ export function useCuerposAgua() {
         try {
           const claves = new Set(cuerpos.map((c) => c.idSerie));
           const filas = await paginar<Record<string, unknown>>((a, b) => supabase.from('vaso_geometria_historico')
-            .select('presa_id, fecha_escena, area_km2, perimetro_km, resolucion_m, cobertura_nubes_vaso_pct')
+            .select('presa_id, fecha_escena, area_km2, perimetro_km, resolucion_m, cobertura_nubes_vaso_pct, parametros_metodo')
             .eq('vigente', true).eq('es_referencia_historica', false).order('fecha_escena', { ascending: true }).range(a, b));
           for (const r of filas) {
             const id = String(r.presa_id);
@@ -89,7 +92,7 @@ export function useCuerposAgua() {
             const per = num(r.perimetro_km), res = num(r.resolucion_m) ?? 10;
             const e: EscenaSatelital = {
               idSerie: id, fecha: String(r.fecha_escena), areaKm2: num(r.area_km2), perimetroKm: per,
-              incertidumbreKm2: per == null ? null : Math.round(per * res) / 1000, nubesVasoPct: num(r.cobertura_nubes_vaso_pct), contorno: [],
+              incertidumbreKm2: per == null ? null : Math.round(per * res) / 1000, nubesVasoPct: num(r.cobertura_nubes_vaso_pct), separacionDebil: separacionDebil(r.parametros_metodo), contorno: [],
             };
             escenas.set(id, [...(escenas.get(id) ?? []), e]);
           }

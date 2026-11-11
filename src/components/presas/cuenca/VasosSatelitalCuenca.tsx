@@ -83,6 +83,7 @@ export default function VasosSatelitalCuenca({ datos, aviso }: { datos: DatosCue
                 {pctHuella != null && <div><dt>De la huella máxima</dt><dd>{f1(pctHuella, 0)} %</dd></div>}
                 {delta != null && <div><dt>Cambio vs. escena anterior</dt><dd>{delta > 0 ? '+' : delta < 0 ? '−' : ''}{f1(Math.abs(delta))} km²</dd></div>}
                 {ult?.nubesVasoPct != null && <div><dt>Nubes sobre el vaso</dt><dd>{f1(ult.nubesVasoPct, 1)} %</dd></div>}
+                {ult?.separacionDebil && <div><dt>Calidad de la medición</dt><dd><span className="cu-vs-aviso">◐ Agua y tierra poco separables: cifra poco confiable</span></dd></div>}
                 <div><dt>Volumen satelital</dt><dd><span className="cu-vs-sd">S/D</span><small> · sin curva elevación–área–capacidad</small></dd></div>
               </dl>
               <SerieArea escenas={serie} />

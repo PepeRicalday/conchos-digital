@@ -316,3 +316,11 @@ export function variacionEnCiclo(cuerpos: CuerpoAgua[], cierres: CierreMensual[]
     };
   });
 }
+
+/** Umbrales del NDWI de la escena (parametros_metodo.umbrales): separación débil si eta < 0.8 en cualquiera de los dos índices o si se usó umbral fijo. */
+export function separacionDebil(parametros: unknown): boolean {
+  const u = (parametros as { umbrales?: { eta_ndwi?: unknown; eta_mndwi?: unknown; fijo?: unknown } } | null)?.umbrales;
+  if (!u) return false; // sin dato de calidad no se afirma nada
+  const a = num(u.eta_ndwi), b = num(u.eta_mndwi);
+  return u.fijo === true || (a != null && a < 0.8) || (b != null && b < 0.8);
+}

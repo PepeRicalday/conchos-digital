@@ -464,10 +464,37 @@ interface Analisis {
   pixelesInvalidosRellenados: number; huellaExcedida: boolean;
 }
 
-/** Del raster de un día al polígono del vaso. */
+/** Píxel de arranque de la mayor mancha 8-conexa de una máscara (o -1 si está vacía). `pila` es un buffer Int32Array(N) reutilizable. */
+function mayorComponente(mascara: Uint8Array, W: number, H: number, pila: Int32Array): number {
+  const N = W * H, vis = new Uint8Array(N);
+  let mejorInicio = -1, mejorTam = 0;
+  for (let p0 = 0; p0 < N; p0++) {
+    if (!mascara[p0] || vis[p0]) continue;
+    let k = 0, tam = 0;
+    pila[k++] = p0; vis[p0] = 1;
+    while (k) {
+      const p = pila[--k], x = p % W, y = (p / W) | 0;
+      tam++;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+        const q = yy * W + xx;
+        if (mascara[q] && !vis[q]) { vis[q] = 1; pila[k++] = q; }
+      }
+    }
+    if (tam > mejorTam) { mejorTam = tam; mejorInicio = p0; }
+  }
+  return mejorInicio;
+}
+
+/**
+ * Del raster de un día al polígono del vaso.
+ * `semillaMayor` (cuerpos del catálogo con huella KMZ): la mancha de agua es la MAYOR dentro de la huella, no la más cercana
+ * al ancla. Así un ancla mal puesta (p. ej. el centro de un vaso irregular que cae en tierra) no hace perder el vaso.
+ */
 function analiza(
   ndwi: Uint16Array, mndwi: Uint16Array, W: number, H: number, bbox: [number, number, number, number],
-  anclaLonLat: { lon: number; lat: number }, huella: Uint8Array | null, indice: Indice, aperturaPx = APERTURA_PX, dilatacionM = DILATACION_HUELLA_M,
+  anclaLonLat: { lon: number; lat: number }, huella: Uint8Array | null, indice: Indice, aperturaPx = APERTURA_PX, dilatacionM = DILATACION_HUELLA_M, semillaMayor = false,
 ): Analisis | { error: string } {
   const [minLon, minLat, maxLon, maxLat] = bbox;
   const N = W * H;
@@ -518,7 +545,12 @@ function analiza(
   const ax = Math.round(((anclaLonLat.lon - minLon) / (maxLon - minLon)) * W - 0.5);
   const ay = Math.round(((maxLat - anclaLonLat.lat) / (maxLat - minLat)) * H - 0.5);
   let semilla = -1, mejor = Infinity;
-  for (let r = 0; r <= 300 && semilla < 0; r += 5) {
+  if (semillaMayor) {
+    const cand = new Uint8Array(N);
+    for (let p = 0; p < N; p++) cand[p] = campo[p] > UMB && permitido(p) ? 1 : 0;
+    semilla = mayorComponente(cand, W, H, pila);
+  }
+  for (let r = 0; r <= 300 && semilla < 0 && !semillaMayor; r += 5) {
     for (let y = Math.max(0, ay - r); y <= Math.min(H - 1, ay + r); y++) for (let x = Math.max(0, ax - r); x <= Math.min(W - 1, ax + r); x++) {
       const p = y * W + x;
       if (campo[p] > UMB) { const d = (x - ax) ** 2 + (y - ay) ** 2; if (d < mejor) { mejor = d; semilla = p; } }
@@ -552,10 +584,11 @@ function analiza(
     const abierta = new Uint8Array(N);
     for (let p = 0; p < N; p++) abierta[p] = mancha[p] && dEros[p] <= aperturaPx ? 1 : 0;
     let s0 = semilla;
-    if (!abierta[s0]) { let best = Infinity; for (let p = 0; p < N; p++) if (abierta[p]) { const d = ((p % W) - ax) ** 2 + (((p / W) | 0) - ay) ** 2; if (d < best) { best = d; s0 = p; } } }
+    if (semillaMayor) s0 = mayorComponente(abierta, W, H, pila);
+    else if (!abierta[s0]) { let best = Infinity; for (let p = 0; p < N; p++) if (abierta[p]) { const d = ((p % W) - ax) ** 2 + (((p / W) | 0) - ay) ** 2; if (d < best) { best = d; s0 = p; } } }
     mancha.fill(0);
     pixAgua = 0;
-    if (abierta[s0]) {
+    if (s0 >= 0 && abierta[s0]) {
       k = 0; pila[k++] = s0; mancha[s0] = 1;
       while (k) {
         const p = pila[--k], x = p % W, y = (p / W) | 0;
@@ -762,7 +795,7 @@ Deno.serve(async (req) => {
     const nubesVasoPct = huella && totH ? (100 * invH) / totH : elegido.invalido;
 
     const aperturaPx = dryRun && Number.isInteger(body?.apertura_px) && body.apertura_px >= 0 && body.apertura_px <= 6 ? body.apertura_px : APERTURA_PX;
-    const res = analiza(ndwi, mndwi, W, H, bbox, config.ancla, huella, indice, aperturaPx, dilatacionM);
+    const res = analiza(ndwi, mndwi, W, H, bbox, config.ancla, huella, indice, aperturaPx, dilatacionM, !!config.huellaKmz);
     if ("error" in res) {
       await registra("error_analisis", res.error);
       return json({ ok: true, insertado: false, presa_id: presaId, fecha: elegido.dia, mensaje: res.error, sondas }, 200);

@@ -300,3 +300,88 @@ html[data-device='phone'] .cu-capa-chip { min-height: 44px; font-size: 14px; pad
 .cu-mes-val { fill: var(--pr-t1); font: 700 12.5px var(--pr-mono); }
 .cu-mes-barra { fill: var(--pr-sky); }
 .cu-mes-sd { stroke: var(--pr-line); stroke-width: 1; }
+
+/* ── Cuerpos de agua: cierres mensuales, balance, vasos por satélite y red (macromedición, etapa 1) ───────────────────── */
+.cu-seg-envuelve { flex-wrap: wrap; }
+
+/* Matriz presa × mes: la columna del cuerpo queda fija al desplazar. El estado va en borde + glifo + texto (nunca solo color). */
+.cu-cm-wrap { margin-top: 12px; overflow-x: auto; border: 1px solid var(--pr-line); border-radius: 10px; }
+.cu-cm-wrap:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 2px; }
+.cu-cm { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+.cu-cm th, .cu-cm td { padding: 0; border-bottom: 1px solid var(--pr-line); }
+.cu-cm tbody tr:last-child th, .cu-cm tbody tr:last-child td { border-bottom: 0; }
+.cu-cm-esq { position: sticky; left: 0; z-index: 1; min-width: 132px; max-width: 160px; padding: 8px 10px; background: var(--pr-bg); border-right: 1px solid var(--pr-line); text-align: left; font: 700 13px var(--pr-body); color: var(--pr-t1); }
+.cu-cm-mes { min-width: 60px; padding: 8px 4px; text-align: center; font: 700 12px var(--pr-mono); color: var(--pr-t3); text-transform: uppercase; white-space: nowrap; }
+.cu-cm-celda {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; width: 100%; min-width: 60px; min-height: 46px; padding: 3px 4px;
+    border: 0; border-left: 3px solid transparent; background: transparent; color: var(--pr-t1); font-family: var(--pr-mono); cursor: pointer;
+}
+.cu-cm-celda:hover { background: var(--pr-surface-2); }
+.cu-cm-celda:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: -2px; }
+.cu-cm-celda[aria-pressed='true'] { background: color-mix(in srgb, var(--pr-sky) 16%, transparent); box-shadow: inset 0 0 0 2px var(--pr-sky); }
+.cu-cm-val { font-size: 13px; font-weight: 700; line-height: 1.1; }
+.cu-cm-meta { font-size: 12px; font-weight: 700; color: var(--pr-t3); line-height: 1; }
+.cu-cm--DESFASADO { border-left-color: var(--pr-t3); }
+.cu-cm--REPETIDO { border-left-color: var(--pr-violet); }
+.cu-cm--DIFIERE { border-left-color: var(--pr-warn); background: color-mix(in srgb, var(--pr-warn) 9%, transparent); }
+.cu-cm--SD { color: var(--pr-t3); background: repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--pr-t3) 24%, transparent) 5px 6px); }
+.cu-cm-leyenda { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 6px 18px; margin: 12px 0 0; padding: 0; list-style: none; font-size: 12px; line-height: 1.4; color: var(--pr-t3); }
+.cu-cm-leyenda b { color: var(--pr-t2); }
+.cu-cm-chip { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 18px; border-radius: 4px; border: 1px solid var(--pr-line); border-left-width: 3px; font: 700 12px var(--pr-mono); color: var(--pr-t2); vertical-align: middle; }
+.cu-cm-chip.cu-cm--OK { border-left-color: var(--pr-ok); }
+.cu-cm-det { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--pr-sky); border-radius: 12px; background: color-mix(in srgb, var(--pr-sky) 6%, transparent); }
+.cu-cm-det-t { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: var(--pr-t1); }
+.cu-cm-cal { margin: 0 0 6px; font-size: 13px; line-height: 1.4; color: var(--pr-t2); }
+.cu-cm-cal--DIFIERE { color: var(--pr-warn); } .cu-cm-cal--REPETIDO { color: var(--pr-violet); }
+.cu-cm-res { margin: 6px 0; font-size: 13px; line-height: 1.4; color: var(--pr-t2); }
+.cu-cm-res b { color: var(--pr-t1); }
+.cu-cm-fuentes td, .cu-cm-fuentes th { font-size: 13px; }
+.cu-cm-sub { margin-top: 18px; }
+
+/* Balance por vaso */
+.cu-bal-svg { display: block; width: 100%; height: auto; max-height: 300px; margin: 10px 0 6px; color: var(--pr-t3); }
+.cu-bal-cero { stroke: var(--pr-t3); stroke-width: 1.2; }
+.cu-bal-ent { fill: var(--pr-sky); }
+.cu-bal-sal { fill: var(--pr-warn); }
+.cu-bal-ds { fill: var(--pr-t1); stroke: var(--pr-bg); stroke-width: 1; }
+.cu-bal-leyenda { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 8px; padding: 0; list-style: none; font-size: 12px; color: var(--pr-t2); }
+.cu-bal-leyenda li { display: inline-flex; align-items: center; gap: 6px; }
+.cu-bal-sw { display: inline-block; width: 14px; height: 10px; border-radius: 2px; }
+.cu-bal-sw--ent { background: var(--pr-sky); } .cu-bal-sw--sal { background: var(--pr-warn); }
+.cu-bal-sw--ds { background: var(--pr-t1); transform: rotate(45deg) scale(0.8); width: 10px; }
+.cu-bal-sw--sd { background: repeating-linear-gradient(135deg, transparent 0 3px, var(--pr-t3) 3px 4px); border: 1px solid var(--pr-line); }
+.cu-bal-cal--PARCIAL { color: var(--pr-warn); } .cu-bal-cal--SD { color: var(--pr-t3); }
+.cu-bal-pie { margin-top: 10px; }
+
+/* Vasos por satélite */
+.cu-vs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+.cu-vs-card { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 12px; border: 1px solid var(--pr-line); border-radius: 12px; background: var(--pr-surface); min-width: 0; }
+.cu-vs-nombre { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0; font-size: 15px; font-weight: 700; color: var(--pr-t1); }
+.cu-vs-plano { display: block; width: 100%; height: auto; aspect-ratio: 250 / 170; border-radius: 8px; background: color-mix(in srgb, var(--pr-bg) 70%, black); }
+.cu-vs-plano--sd { display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--pr-t3); border: 1px dashed var(--pr-line); }
+.cu-vs-huella { fill: color-mix(in srgb, var(--pr-t3) 14%, transparent); stroke: var(--pr-t2); stroke-width: 1.3; stroke-dasharray: 5 3; stroke-linejoin: round; }
+.cu-vs-espejo { fill: color-mix(in srgb, var(--pr-sky) 62%, transparent); stroke: var(--pr-sky); stroke-width: 1.2; stroke-linejoin: round; }
+.cu-vs-escala { stroke: var(--pr-t2); stroke-width: 1.4; }
+.cu-vs-txt { fill: var(--pr-t2); font: 600 12px var(--pr-mono); }
+.cu-vs-datos { display: grid; gap: 4px; margin: 0; }
+.cu-vs-datos > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; }
+.cu-vs-datos dt { font-size: 12px; color: var(--pr-t3); }
+.cu-vs-datos dd { margin: 0; font: 700 13px var(--pr-mono); color: var(--pr-t1); text-align: right; }
+.cu-vs-datos dd small { font: 400 12px var(--pr-body); color: var(--pr-t3); }
+.cu-vs-sd { color: var(--pr-t3); font-weight: 600; }
+.cu-vs-serie { width: 120px; height: 30px; }
+.cu-vs-linea { stroke: var(--pr-sky); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.cu-vs-pie { margin: 0; font-size: 12px; color: var(--pr-t3); }
+
+/* Red río–presa */
+.cu-red-esq-wrap { margin-top: 10px; overflow-x: auto; }
+.cu-red-esq { display: block; width: 100%; height: auto; max-height: 520px; }
+.cu-red-n { fill: var(--pr-surface-2); stroke: var(--pr-line); stroke-width: 1.5; }
+.cu-red-n--ok { stroke: var(--pr-ok); } .cu-red-n--warn { stroke: var(--pr-warn); } .cu-red-n--crit { stroke: var(--pr-crit); }
+.cu-red-n--sd { stroke: var(--pr-t3); stroke-dasharray: 5 3; }
+.cu-red-n--salida { stroke: var(--pr-sky); fill: color-mix(in srgb, var(--pr-sky) 10%, transparent); }
+.cu-red-t1 { fill: var(--pr-t1); font: 700 14px var(--pr-body); }
+.cu-red-t2 { fill: var(--pr-t1); font: 700 13px var(--pr-mono); }
+.cu-red-t3 { fill: var(--pr-t3); font: 500 12px var(--pr-body); }
+.cu-red-arco { fill: none; stroke: var(--pr-t3); stroke-width: 1.6; }
+.cu-red-flecha { fill: var(--pr-t3); }

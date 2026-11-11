@@ -5,6 +5,7 @@ import { exportaMapaPng } from '../utils/exportMapaPng';
 import { GeoLeyenda, type CapaLeyenda } from '../components/geo/GeoLeyenda';
 import { extraccionPresa, presaBaja, valorGrafica, escapaHtml as esc } from '../utils/geoKpis';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import CapaVasosCuenca from '../components/geo/CapaVasosCuenca';
 import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, CircleMarker, Tooltip, GeoJSON, Polyline, ZoomControl, ScaleControl, AttributionControl } from 'react-leaflet';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
@@ -354,6 +355,8 @@ const GeoMonitor = () => {
         alertas: true,
         modulos: true,
         presasShape: true,
+        // Apagada por defecto: al activarla carga el catálogo de cuerpos de agua y encuadra el mapa a toda la cuenca.
+        vasosCuenca: false,
         rioShape: true,
         mostrarAforosQ: true,
         mostrarAperturas: true,
@@ -1267,6 +1270,7 @@ const GeoMonitor = () => {
         { key: 'rioShape', etiqueta: 'Río Conchos', detalle: 'Trazado del cauce', simbolo: 'linea', color: '#60a5fa', conteo: null },
         { key: 'modulos', etiqueta: 'Módulos de riego', detalle: 'Polígonos por módulo SRL', simbolo: 'poligono', color: '#a78bfa', conteo: geoModulos?.features?.length ?? null },
         { key: 'presasShape', etiqueta: 'Vasos de presa', detalle: 'Contorno del espejo de agua', simbolo: 'poligono', color: '#3FB2F3', conteo: geoPresas?.features?.length ?? null },
+        { key: 'vasosCuenca', etiqueta: 'Vasos de la cuenca', detalle: 'Huella KMZ (punteada) y espejo por satélite', simbolo: 'poligono', color: 'var(--text-2)', conteo: null, nota: layers.vasosCuenca ? 'Encuadra el mapa a la cuenca; la huella es el nivel de diseño, no el de hoy' : undefined },
         { key: 'lotes', etiqueta: 'Lotes de productores', detalle: 'Catastro; se carga desde zoom ' + LOTES_MIN_ZOOM, simbolo: 'poligono', color: '#fbbf24',
           conteo: lotesCargados || null, nota: layers.lotes && mapZoom < LOTES_MIN_ZOOM ? 'Acerca el mapa (zoom ' + LOTES_MIN_ZOOM + ') para verlos' : undefined },
         { key: 'estaciones', etiqueta: 'Estaciones climáticas', detalle: 'WeatherLink / Davis', simbolo: 'rombo', color: '#34d399', conteo: estacionesClima.length || null },
@@ -2207,6 +2211,8 @@ const GeoMonitor = () => {
                                         }}
                                     />
                                 )}
+
+                                {layers.vasosCuenca && <CapaVasosCuenca />}
 
                                 {/* GeoJSON: Lotes de productores (catastro) — cargado bajo demanda por
                                     módulo visible, solo desde LOTES_MIN_ZOOM. El nombre del productor

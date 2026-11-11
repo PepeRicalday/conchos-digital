@@ -35,9 +35,25 @@ describe('archivos de capas generados', () => {
         expect(f.properties.fuente).toBe('sentinel2_ndwi');
         expect(f.properties.area_km2).toBeGreaterThan(50);
     });
+    it('trae la huella máxima (KMZ) de los 9 cuerpos de agua de la cuenca, sin islas mal formadas', () => {
+        const h = datos.vasos!.features.filter((f) => f.properties.fuente === 'kmz_huella_maxima');
+        expect(h).toHaveLength(9);
+        for (const f of h) {
+            expect(f.properties.area_km2).toBeGreaterThan(0.5);
+            const anillos = f.geometry.coordinates as number[][][];
+            for (const a of anillos) { expect(a.length).toBeGreaterThanOrEqual(4); expect(a[0]).toEqual(a[a.length - 1]); }
+        }
+    });
 });
 
 describe('capasSvg', () => {
+    it('la huella KMZ se dibuja punteada y rotulada como huella; el espejo NDWI sigue como vaso observado', () => {
+        const r = capasSvg(datos, ['presas'], p, op);
+        expect(r.bajo).toMatch(/huella máxima del vaso \(KMZ\), no el nivel de hoy/);
+        expect(r.bajo).toMatch(/vaso observado \(Sentinel-2\)/);
+        expect(r.bajo).toMatch(/stroke-dasharray/);
+        expect(r.leyenda.map((l) => l.texto)).toContain('huella máxima del vaso');
+    });
     it('sin ids no dibuja nada', () => {
         const r = capasSvg(datos, [], p, op);
         expect(r.bajo + r.alto).toBe('');

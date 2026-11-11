@@ -32,7 +32,7 @@ export const BASE_LAYER_LABEL: Record<'standard' | 'satellite' | 'eos' | 'sentin
 export const SENTINEL_TILEERROR_UMBRAL = 14;
 
 type LayerKey = 'canal' | 'escalas' | 'tomas' | 'estaciones' | 'modulos' | 'presasShape'
-    | 'rioShape' | 'alertas' | 'mostrarAforosQ' | 'mostrarAperturas' | 'lotes';
+    | 'rioShape' | 'alertas' | 'mostrarAforosQ' | 'mostrarAperturas' | 'lotes' | 'vasosCuenca';
 
 interface SidebarButtonConfig {
     key: LayerKey;
@@ -70,6 +70,7 @@ export const SIDEBAR_GROUPS: SidebarGroupConfig[] = [
         buttons: [
             { key: 'modulos', icon: MapIcon, title: 'Polígonos de Módulos de Riego', indicatorClass: 'geo-indicator-purple' },
             { key: 'presasShape', icon: Droplets, title: 'Polígonos de Vasos de Presas', indicatorClass: 'geo-indicator-blue' },
+            { key: 'vasosCuenca', icon: Layers, title: 'Vasos de toda la cuenca del Conchos (huella KMZ y espejo satelital)', indicatorClass: 'geo-indicator-blue' },
             { key: 'lotes', icon: Crosshair, title: 'Lotes de Productores (catastro) — visible desde zoom 13', indicatorClass: 'geo-indicator-amber' },
         ],
     },

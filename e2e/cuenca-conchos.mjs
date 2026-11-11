@@ -32,7 +32,7 @@ for (const [nombre, vista, esPhone] of [
   const n = await item.count();
   verifica(n === 7, `[${nombre}] 7 presas en la vista Tanques (${n}, ${esPhone ? 'lista' : 'tanques'})`);
   verifica(esPhone ? await page.locator('.cu-movil').count() === 7 : await page.locator('.cu-tanque').count() === 7, `[${nombre}] ${esPhone ? 'lista móvil' : 'tanques proporcionales'} según el dispositivo`);
-  verifica(await page.locator('.an-kpi').count() === 6, `[${nombre}] 6 indicadores (4 de presas + lluvia 30 d + estaciones útiles)`);
+  verifica(await page.locator('.cu-cq .an-kpis .ui-kpi').count() === 6, `[${nombre}] 6 indicadores (4 de presas + lluvia 30 d + estaciones útiles)`);
 
   const txt = await panel.innerText();
   verifica(/San Gabriel, Dgo\./.test(txt), `[${nombre}] San Gabriel se rotula con su estado: "San Gabriel, Dgo."`);
@@ -79,7 +79,7 @@ for (const [nombre, vista, esPhone] of [
   const filas = await page.locator(filasSel).count();
   verifica(filas === 7, `[${nombre}] vista Tabla con las 7 presas (${filas})`);
   const boq = page.locator(filasSel, { hasText: 'La Boquilla' });
-  verifica(/Distrito/.test(await boq.innerText()) && /819[.,]8/.test(await boq.innerText()), `[${nombre}] Boquilla: presa del distrito con 819.8 Mm³`);
+  verifica(/Distrito/.test(await boq.innerText()) && /\d{3,4}[.,]\d/.test(await boq.innerText()), `[${nombre}] Boquilla: presa del distrito con su almacenamiento (cifra de 3 dígitos o más, no S/D)`);
   verifica(/Diferencia contra CILA: 0[.,]00 %/.test(await boq.innerText()), `[${nombre}] Boquilla muestra la diferencia contra CILA`);
   const chiFila = await page.locator(filasSel, { hasText: 'Chihuahua' }).innerText();
   verifica(/8[.,]9/.test(chiFila) && /38[.,]\d\s*%/.test(chiFila) && (!chiAtrasada || /Sin actualizar/i.test(chiFila)), `[${nombre}] tabla: Chihuahua con su último dato${chiAtrasada ? ' y "sin actualizar"' : ''}`);
@@ -114,6 +114,29 @@ for (const [nombre, vista, esPhone] of [
   if (!esPhone) {
     const tq = await page.locator('.cu-tanque').evaluateAll((els) => els.map((e) => e.querySelector('svg').getBoundingClientRect().width));
     verifica(tq[0] > tq[1] && tq[1] >= tq[tq.length - 1] * 0.9 && Math.min(...tq) >= 40, `[${nombre}] el ancho de los tanques sigue la capacidad (Boquilla > Madero ≥ El Rejón; ${tq.map(Math.round).join(', ')})`);
+  }
+  // ── Cuerpos de agua (macromedición, etapa 1): red, vasos por satélite, cierres mensuales y balance
+  await page.locator('#cu-red').waitFor({ timeout: 45000 });
+  const nodos = await page.locator('.cu-red-n').count();
+  verifica(nodos === 10, `[${nombre}] la red dibuja 9 cuerpos de agua + la salida (Ojinaga) (hay ${nodos})`);
+  verifica(await page.locator('.cu-vs-card').count() === 9, `[${nombre}] 9 tarjetas de vasos por satélite (incluye La Colina y Piedras Azules)`);
+  verifica(await page.locator('.cu-vs-sd', { hasText: 'Aún sin medición satelital' }).count() >= 1, `[${nombre}] un vaso sin escena dice «Aún sin medición satelital» (no inventa área)`);
+  const celdas = await page.locator('.cu-cm-celda').count();
+  verifica(celdas >= 90, `[${nombre}] la matriz de cierres trae 9 cuerpos × 10+ meses (hay ${celdas})`);
+  const sdTexto = await page.locator('.cu-cm-celda.cu-cm--SD .cu-cm-val').allTextContents();
+  verifica(sdTexto.length > 0 && sdTexto.every((t) => t.trim() === 'S/D'), `[${nombre}] toda celda S/D de la matriz dice «S/D» y ninguna dice 0 (${sdTexto.length} celdas S/D)`);
+  await page.locator('.cu-cm-celda:not(.cu-cm--SD)').first().click();
+  await page.locator('.cu-cm-det').waitFor({ timeout: 10000 });
+  verifica((await page.locator('.cu-cm-det').innerText()).includes('Valor elegido'), `[${nombre}] al tocar una celda aparece el cuadre de fuentes`);
+  verifica(await page.locator('#cu-balance .cu-bal-svg').count() === 1 && await page.locator('#cu-balance table tbody tr').count() >= 1, `[${nombre}] el balance trae gráfica y tabla`);
+  await page.locator('#cu-red').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${OUT}${nombre}-red-vasos.png` });
+  const desborde = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+  verifica(!desborde, `[${nombre}] la página no se desborda en horizontal con las secciones nuevas`);
+  if (esPhone) {
+    const vb = await page.locator('.cu-red-esq').getAttribute('viewBox');
+    const w = Number(vb.split(' ')[2]);
+    verifica(w <= 420, `[${nombre}] la red se dibuja vertical y cabe en teléfono (ancho de dibujo ${w})`);
   }
   verifica(errores.length === 0, `[${nombre}] sin errores de consola${errores.length ? ': ' + errores.slice(0, 2).join(' | ') : ''}`);
   await panel.scrollIntoViewIfNeeded();

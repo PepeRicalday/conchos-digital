@@ -168,7 +168,16 @@ export function capasSvg(datos: DatosCapas, ids: CapaId[], p: ProyectorMapa, op:
         leyenda.push({ glifo: `<rect x="2" y="1" width="14" height="8" rx="1.5" fill="${E.srlRelleno}" stroke="${E.srl}" stroke-width="1.4"/>`, texto: 'módulos SRL' });
     }
     if (quiere('presas') && datos.vasos) {
-        for (const f of datos.vasos.features) {
+        // Huella máxima (polígono KMZ del inventario de presas: nivel de diseño) = contorno punteado y relleno tenue, debajo;
+        // espejo observado (NDWI Sentinel-2) = relleno de la presa, encima. Nunca se rotula la huella como «vaso observado».
+        const huellas = datos.vasos.features.filter((f) => f.properties.fuente === 'kmz_huella_maxima');
+        const observados = datos.vasos.features.filter((f) => f.properties.fuente !== 'kmz_huella_maxima');
+        for (const f of huellas) {
+            const d = anillos(f.geometry).map((r) => `${anilloAPath(r, p)}`).join(' ');
+            bajo.push(`<path d="${d}" fill="${E.presa}" fill-opacity="0.35" fill-rule="evenodd" stroke="${E.presaBorde}" stroke-width="${n1(0.9 * s)}" stroke-dasharray="${n1(3 * s)} ${n1(2 * s)}" stroke-linejoin="round"><title>${esc(f.properties.nombre)}: huella máxima del vaso (KMZ), no el nivel de hoy</title></path>`);
+        }
+        if (huellas.length) leyenda.push({ glifo: `<rect x="2" y="1.5" width="14" height="7" rx="2" fill="${E.presa}" fill-opacity="0.35" stroke="${E.presaBorde}" stroke-width="1" stroke-dasharray="3 2"/>`, texto: 'huella máxima del vaso' });
+        for (const f of observados) {
             const d = anillos(f.geometry).map((r) => `${anilloAPath(r, p)}`).join(' ');
             bajo.push(`<path d="${d}" fill="${E.presa}" stroke="${E.presaBorde}" stroke-width="${n1(1 * s)}" stroke-linejoin="round"><title>${esc(f.properties.nombre)}: vaso observado (Sentinel-2)</title></path>`);
         }

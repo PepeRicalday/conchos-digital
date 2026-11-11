@@ -21,6 +21,12 @@ import { useJcasCuenca } from '../../../hooks/useJcasCuenca';
 import { useCapasCuenca } from '../../../hooks/useCapasCuenca';
 import SemaforoBadge from './SemaforoBadge';
 import { GLIFO_ESTADO } from './TanquePresa';
+import { useCuerposAgua } from '../../../hooks/useCuerposAgua';
+import { etiquetaMes, ultimoCierreConDato } from '../../../utils/cuerposAgua';
+import EsquemaRedCuenca from './EsquemaRedCuenca';
+import VasosSatelitalCuenca from './VasosSatelitalCuenca';
+import CierresMensualesCuenca from './CierresMensualesCuenca';
+import BalanceVaso from './BalanceVaso';
 import '../analitica/analitica.css';
 import './cuenca.css';
 import { hoyLocalISO } from '../../../utils/hoyLocal';
@@ -56,7 +62,8 @@ function Segmentado<T extends string | number>({ etiqueta, valor, opciones, onCh
 }
 
 const SECCIONES_NAV: { id: string; t: string }[] = [
-    { id: 'cu-presas', t: 'Presas' }, { id: 'cu-planos', t: 'Clima y planos' }, { id: 'cu-estaciones', t: 'Estaciones' }, { id: 'cu-mensual', t: 'Mes a mes' }, { id: 'cu-lluvia', t: 'Pluviómetros GOES' },
+    { id: 'cu-presas', t: 'Presas' }, { id: 'cu-red', t: 'Red' }, { id: 'cu-vasos', t: 'Vasos por satélite' }, { id: 'cu-cierres', t: 'Cierres mensuales' }, { id: 'cu-balance', t: 'Balance' },
+    { id: 'cu-planos', t: 'Clima y planos' }, { id: 'cu-estaciones', t: 'Estaciones' }, { id: 'cu-mensual', t: 'Mes a mes' }, { id: 'cu-lluvia', t: 'Pluviómetros GOES' },
 ];
 /** Scroller vertical más cercano (en la app es .main-content; en el Monitor, el cuerpo del dock). */
 function scrollerDe(el: HTMLElement): HTMLElement | null {
@@ -140,6 +147,8 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
     const { datos, loading, error, recargar } = useAqwpCuenca();
     const capas = useCapasCuenca(); // las mismas capas de referencia en los planos y en el mapa de la red
     const jcas = useJcasCuenca(); // una sola carga de la red JCAS para los planos y la tabla de estaciones
+    // Catálogo de cuerpos de agua + cierres mensuales + balance + vasos: carga aparte, un fallo aquí no tira el resto de la vista.
+    const cuerpos = useCuerposAgua();
     const [vista, setVista] = useState<Vista>('tanques');
     // Una sola ventana de lo observado para los planos y la red de estaciones (antes cada bloque tenía la suya y podían decir cosas distintas).
     const [ventanaObs, setVentanaObs] = useState<VentanaObs>(30);
@@ -183,7 +192,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
         }, { rootMargin: '-25% 0px -65% 0px' });
         els.forEach((e) => io.observe(e));
         return () => io.disconnect();
-    }, [calc, jcas.loading, jcas.red, vista]);
+    }, [calc, jcas.loading, jcas.red, vista, cuerpos.datos]);
 
     if (loading) {
         return <div className="an-root cu-root" role="status" aria-busy="true" aria-label="Cargando cuenca del Conchos"><div className="an-skeleton" /><div className="an-skeleton an-skeleton--alta" /></div>;
@@ -281,6 +290,40 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                         columnas={columnasPresas(calc.cila)}
                     />
                 </section>
+            )}
+
+            {cuerpos.datos && (() => {
+                const sinTelemetria = cuerpos.datos.cuerpos.filter((c) => c.aqwpUbicacionId == null);
+                return sinTelemetria.length > 0 && (
+                    <p className="an-aviso" role="status">
+                        <b>{sinTelemetria.length === 1 ? 'Cuerpo de agua sin telemetría vigente' : 'Cuerpos de agua sin telemetría vigente'}:</b>{' '}
+                        {sinTelemetria.map((c) => {
+                            const u = ultimoCierreConDato(cuerpos.datos!.cierres.filter((x) => x.cuerpoId === c.id));
+                            return u && u.almMm3 != null
+                                ? `${c.etiqueta} (último dato SINA: ${etiquetaMes(u.mes, true)}, ${formatearNumero(u.almMm3, 1)} Mm³; después S/D)`
+                                : `${c.etiqueta} (${c.rol === 'reguladora' ? 'reguladora; ' : ''}no está en SINA ni en AQUARIUS: almacenamiento S/D, solo se mide el espejo por satélite)`;
+                        }).join('; ')}.
+                    </p>
+                );
+            })()}
+
+            {cuerpos.loading && !cuerpos.datos && <section className="an-card" id="cu-red" role="status" aria-busy="true" aria-label="Cargando cuerpos de agua"><div className="an-skeleton" /></section>}
+            {cuerpos.error && (
+                <section className="an-card" id="cu-red" aria-label="Cuerpos de agua de la cuenca">
+                    <div className="an-vacio" role="alert">
+                        <strong>No se pudo cargar el catálogo de cuerpos de agua.</strong>
+                        <span>{cuerpos.error}</span>
+                        <button type="button" className="an-btn" onClick={cuerpos.recargar}>Reintentar</button>
+                    </div>
+                </section>
+            )}
+            {cuerpos.datos && (
+                <>
+                    <EsquemaRedCuenca cuerpos={cuerpos.datos.cuerpos} cierres={cuerpos.datos.cierres} ojinagaM3s={ojinaga?.gastoM3s ?? null} ojinagaFecha={ojinaga?.fecha ?? null} />
+                    <VasosSatelitalCuenca datos={cuerpos.datos} aviso={cuerpos.avisoSatelite} />
+                    <CierresMensualesCuenca datos={cuerpos.datos} />
+                    <BalanceVaso datos={cuerpos.datos} />
+                </>
             )}
 
             <PlanosCuenca jcas={jcas} capas={capas} diasObs={ventanaObs} onDias={setVentanaObs} />

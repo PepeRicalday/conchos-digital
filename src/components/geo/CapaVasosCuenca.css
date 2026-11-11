@@ -1,0 +1,10 @@
+/* Capa «Vasos de la cuenca» del GEO-MONITOR. Leaflet no resuelve var() en los atributos del trazo: el color va por clase (CSS sí). */
+path.geo-vc-huella { stroke: var(--text-2); stroke-width: 1.6px; stroke-dasharray: 6 5; fill: var(--st-info); fill-opacity: 0.12; }
+path.geo-vc-espejo { stroke: var(--st-info); stroke-width: 2px; fill: var(--st-info); fill-opacity: 0.55; }
+.geo-vc-pop { font-family: var(--geo-font-sans); min-width: 200px; }
+.geo-vc-pop strong { font-size: 14px; font-weight: 800; color: var(--st-info); }
+.geo-vc-rol { font-size: 12px; color: var(--text-3); }
+.geo-vc-fila { margin-top: 2px; font-size: 12px; color: var(--text-3); }
+.geo-vc-fila b { color: var(--text-1); font-family: var(--geo-font-mono); }
+.geo-vc-aviso { margin-top: 6px; font-size: 11px; color: var(--st-warn); text-transform: uppercase; letter-spacing: 0.04em; }
+.geo-vc-enlace { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--st-info); }

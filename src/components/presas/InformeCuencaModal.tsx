@@ -19,6 +19,8 @@ import { conMarcaInvitado } from '../../utils/marcaInvitado';
 import { nombreArchivoConPartes } from '../../utils/informeBase';
 import '../ndvi/informeNdviModal.css';
 import { hoyLocalISO } from '../../utils/hoyLocal';
+import { useCuerposAgua } from '../../hooks/useCuerposAgua';
+import type { DatosCuerposInforme } from '../../utils/informeCuerposAgua';
 
 interface Props { datos: CuencaConchos; onCerrar: () => void }
 
@@ -65,8 +67,18 @@ export default function InformeCuencaModal({ datos, onCerrar }: Props) {
     const avisos = useMemo(() => avisosConfigCuenca(c, { totalPresas: presas.length, hayClimatologia: datos.climatologia != null, incluidas }),
         [c, presas.length, datos.climatologia, incluidas]);
 
+    // Cuerpos de agua (cierres mensuales y vasos): la hoja extra del PDF carta. Si no cargan, el informe sale como siempre, sin esa hoja.
+    const cuerposAgua = useCuerposAgua();
+    const cuerpos: DatosCuerposInforme | undefined = useMemo(() => {
+        const d = cuerposAgua.datos;
+        if (!d) return undefined;
+        const escenas = new Map<string, DatosCuerposInforme['escenas'] extends Map<string, infer E> ? E : never>();
+        for (const [id, serie] of d.escenas) { const u = serie[serie.length - 1]; if (u) escenas.set(id, { fecha: u.fecha, areaKm2: u.areaKm2, incertidumbreKm2: u.incertidumbreKm2, contorno: u.contorno }); }
+        return { cuerpos: d.cuerpos, cierres: d.cierres, huellas: d.huellas, escenas };
+    }, [cuerposAgua.datos]);
+
     const informe = useMemo(() => (emitido ? construirDatosCuenca(datos, c, hoyISO) : null), [datos, c, hoyISO, emitido]);
-    const html = useMemo(() => (informe && emitido && logos ? htmlInformeCuenca(informe, { formato, logoSrl: logos.srl, logoSica: logos.sica, emitido }) : null), [informe, emitido, logos, formato]);
+    const html = useMemo(() => (informe && emitido && logos ? htmlInformeCuenca(informe, { formato, logoSrl: logos.srl, logoSica: logos.sica, emitido, cuerpos }) : null), [informe, emitido, logos, formato, cuerpos]);
 
     // Vista previa: el documento (1600 / 1632 px) se reduce con zoom al ancho del marco para verlo entero sin desplazamiento lateral.
     const htmlPrevia = useMemo(() => {

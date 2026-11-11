@@ -27,7 +27,9 @@
 // (las filas v1 se conservan para comparar/revertir).
 //
 // Invocación: POST {
-//   presa_id: "PRE-001",
+//   presa_id: "PRE-001"        o cualquier id_serie del catálogo cuerpos_agua con satelite_activo
+//                              (CA-LLNCH, CA-PAZCH…). La configuración (recuadro, ancla, huella KMZ) sale de la BD;
+//                              La Boquilla conserva su configuración fija (modo escena_max).
 //   mes?: "2026-03"            ventana = ese mes (backfill/reproceso)
 //   fecha?: "2026-03-25"       un día exacto (reproceso puntual)
 //   fecha_referencia?: "2017-09-01"  ±45 d, es_referencia_historica=true
@@ -75,6 +77,10 @@ interface ConfigPresa {
   bbox: [number, number, number, number]; // [minLon, minLat, maxLon, maxLat]
   ancla: { lon: number; lat: number };     // punto dentro del vaso (cerca de la cortina)
   bboxHistorico?: [number, number, number, number];
+  /** Cuerpos del catálogo: dilatación de la huella (m), anillo exterior del KMZ y resolución de la sonda. */
+  dilatacionM?: number;
+  huellaKmz?: Pt[][];
+  resSondaM?: number;
 }
 const BBOXES_PRESA: Record<string, ConfigPresa> = {
   "PRE-001": {
@@ -84,6 +90,30 @@ const BBOXES_PRESA: Record<string, ConfigPresa> = {
     bboxHistorico: [-105.8471, 27.4436, -105.2234, 27.6096],
   },
 };
+
+// Cuerpos de agua del catálogo (cuerpos_agua): recuadro y ancla del NDWI + huella máxima KMZ como límite de la mancha.
+// Las presas de la tabla fija de arriba (La Boquilla) no pasan por aquí: su comportamiento no cambia.
+// deno-lint-ignore no-explicit-any
+async function resolverConfig(supabase: any, presaId: string): Promise<ConfigPresa | null> {
+  const fija = BBOXES_PRESA[presaId];
+  if (fija) return fija;
+  const { data: c } = await supabase.from("cuerpos_agua")
+    .select("id, nombre, activo, satelite_activo, ndwi_bbox, ndwi_ancla_lon, ndwi_ancla_lat, huella_modo, dilatacion_huella_m")
+    .eq("id_serie", presaId).maybeSingle();
+  if (!c || !c.activo || !c.satelite_activo || !Array.isArray(c.ndwi_bbox) || c.ndwi_bbox.length !== 4 || c.ndwi_ancla_lon == null || c.ndwi_ancla_lat == null) return null;
+  const { data: g } = await supabase.from("cuerpos_agua_geometria").select("geojson, area_km2")
+    .eq("cuerpo_id", c.id).eq("tipo", "huella_maxima").eq("vigente", true).maybeSingle();
+  const exterior = g?.geojson?.coordinates?.[0] as Pt[] | undefined;
+  return {
+    nombre: c.nombre,
+    bbox: c.ndwi_bbox.map(Number) as [number, number, number, number],
+    ancla: { lon: Number(c.ndwi_ancla_lon), lat: Number(c.ndwi_ancla_lat) },
+    dilatacionM: Number(c.dilatacion_huella_m ?? 150),
+    huellaKmz: c.huella_modo === "kmz" && exterior && exterior.length >= 4 ? [exterior] : undefined,
+    // Vasos de menos de 5 km² (El Rejón ≈ 0.85 km² son ~236 celdas a 60 m): la sonda va a 20 m.
+    resSondaM: Number(g?.area_km2 ?? 99) < 5 ? 20 : RES_SONDA_M,
+  };
+}
 
 const METODO = "v2";
 const RESOLUCION_M = 10;
@@ -437,7 +467,7 @@ interface Analisis {
 /** Del raster de un día al polígono del vaso. */
 function analiza(
   ndwi: Uint16Array, mndwi: Uint16Array, W: number, H: number, bbox: [number, number, number, number],
-  anclaLonLat: { lon: number; lat: number }, huella: Uint8Array | null, indice: Indice, aperturaPx = APERTURA_PX,
+  anclaLonLat: { lon: number; lat: number }, huella: Uint8Array | null, indice: Indice, aperturaPx = APERTURA_PX, dilatacionM = DILATACION_HUELLA_M,
 ): Analisis | { error: string } {
   const [minLon, minLat, maxLon, maxLat] = bbox;
   const N = W * H;
@@ -483,7 +513,7 @@ function analiza(
   for (let p = 0; p < N; p++) if (!campo[p] && !fuera[p]) { campo[p] = UMB + 300; rellenados++; }
 
   // Mancha anclada, conectividad 8, limitada a la huella dilatada.
-  const limHuella = DILATACION_HUELLA_M / RESOLUCION_M;
+  const limHuella = dilatacionM / RESOLUCION_M;
   const permitido = (p: number) => !dHuella || dHuella[p] <= limHuella;
   const ax = Math.round(((anclaLonLat.lon - minLon) / (maxLon - minLon)) * W - 0.5);
   const ay = Math.round(((maxLat - anclaLonLat.lat) / (maxLat - minLat)) * H - 0.5);
@@ -583,6 +613,10 @@ function analiza(
 }
 
 Deno.serve(async (req) => {
+  // Contexto para la bitácora si la función falla a medias (el catch no ve las variables del try): evita que la cola
+  // de backfill reintente el mismo par cada 3 min gastando cuota; fn_vaso_backfill_siguiente espera 1 h tras cualquier registro.
+  // deno-lint-ignore no-explicit-any
+  let ctxLog: { supabase: any; presaId: string; mes: string; dryRun: boolean; pu: () => number } | null = null;
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Usa POST" }, 405);
 
@@ -617,8 +651,8 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const presaId: string = body?.presa_id || "PRE-001";
-    const config = BBOXES_PRESA[presaId];
-    if (!config) return json({ error: `Presa no configurada: ${presaId}. Disponibles: ${Object.keys(BBOXES_PRESA).join(", ")}` }, 400);
+    const config = await resolverConfig(supabase, presaId);
+    if (!config) return json({ error: `Presa no configurada: ${presaId}. Debe ser La Boquilla (PRE-001) o un cuerpo de agua del catálogo con satelite_activo, recuadro y ancla.` }, 400);
     const dryRun = body?.dry_run === true;
     // Parámetros de diagnóstico SOLO en dry_run: lo que se guarda usa siempre el método canónico (la función es
     // invocable con la clave anon — el cron la usa —, así que nadie puede persistir una variante del método).
@@ -648,7 +682,15 @@ Deno.serve(async (req) => {
     const anchoM = (maxLon - minLon) * 111_320 * Math.cos(latMedia * Math.PI / 180);
     const altoM = (maxLat - minLat) * M_POR_GRADO_LAT;
     const W = Math.round(anchoM / RESOLUCION_M), H = Math.round(altoM / RESOLUCION_M);
-    const Ws = Math.round(anchoM / RES_SONDA_M), Hs = Math.round(altoM / RES_SONDA_M);
+    const resSonda = config.resSondaM ?? RES_SONDA_M;
+    const Ws = Math.round(anchoM / resSonda), Hs = Math.round(altoM / resSonda);
+    const mesLog = mesParam ?? inicio.toISOString().slice(0, 7);
+    let pu = 0; // unidades de procesamiento estimadas: píxeles / 512² × 4/3 por petición del Process API
+    ctxLog = { supabase, presaId, mes: mesLog, dryRun, pu: () => pu };
+    const registra = async (resultado: string, mensaje: string | null) => {
+      if (dryRun) return;
+      await supabase.from("vaso_sync_log").insert({ cuerpo_id: presaId, mes: mesLog, resultado, mensaje, pu_estimadas: Number(pu.toFixed(2)) });
+    };
 
     const token = await obtenerAccessToken(provider, CID, CSEC);
 
@@ -676,15 +718,21 @@ Deno.serve(async (req) => {
       : candidatas.sort((a, b) => b.dia.localeCompare(a.dia));
     if (body?.debug_catalogo === true) return json({ ok: true, debug: true, ventana: { desde: inicio.toISOString(), hasta: fin.toISOString() }, candidatas }, 200);
     if (!candidatas.length) {
+      await registra("sin_escena", "Sin escena Sentinel-2 en la ventana");
       return json({ ok: true, insertado: false, presa_id: presaId, mensaje: `Sin escena Sentinel-2 en la ventana ${inicio.toISOString().slice(0, 10)}..${fin.toISOString().slice(0, 10)}.` }, 200);
     }
 
     // Huella del vaso: la escena vigente de mayor área (cualquier método).
-    const { data: refHuella } = await supabase
-      .from("vaso_geometria_historico").select("contorno_geojson, area_km2")
-      .eq("presa_id", presaId).eq("vigente", true).eq("es_referencia_historica", esReferenciaHistorica)
-      .order("area_km2", { ascending: false }).limit(1).maybeSingle();
-    const anillosHuella: Pt[][] | null = refHuella?.contorno_geojson?.coordinates ? [refHuella.contorno_geojson.coordinates[0]] : null;
+    // Cuerpos del catálogo en modo kmz: el polígono KMZ (nivel de diseño) es el tope. La Boquilla: escena vigente de mayor área.
+    let anillosHuella: Pt[][] | null = config.huellaKmz ?? null;
+    if (!anillosHuella) {
+      const { data: refHuella } = await supabase
+        .from("vaso_geometria_historico").select("contorno_geojson, area_km2")
+        .eq("presa_id", presaId).eq("vigente", true).eq("es_referencia_historica", esReferenciaHistorica)
+        .order("area_km2", { ascending: false }).limit(1).maybeSingle();
+      anillosHuella = refHuella?.contorno_geojson?.coordinates ? [refHuella.contorno_geojson.coordinates[0]] : null;
+    }
+    const dilatacionM = config.dilatacionM ?? DILATACION_HUELLA_M;
 
     // Sonda a 60 m: % de la huella sin dato válido, por día candidato.
     const huellaSonda = anillosHuella ? rasterizaPoligonos(anillosHuella, bbox, Ws, Hs) : new Uint8Array(Ws * Hs).fill(1);
@@ -693,6 +741,7 @@ Deno.serve(async (req) => {
     let elegido: { dia: string; datetime: string; nubes: number; invalido: number } | null = null;
     for (const c of candidatas.slice(0, MAX_SONDAS)) {
       const s = await pideRaster(provider, token, bbox, Ws, Hs, c.dia);
+      pu += (Ws * Hs) / 262144 * (4 / 3);
       let inv = 0;
       for (let p = 0; p < Ws * Hs; p++) if (huellaSonda[p] && !s.ndwi[p]) inv++;
       const pct = (100 * inv) / totHuella;
@@ -700,21 +749,27 @@ Deno.serve(async (req) => {
       if (pct <= UMBRAL_NUBES_VASO_PCT) { elegido = { ...c, invalido: pct }; break; }
     }
     if (!elegido) {
+      await registra("sin_escena_limpia", `Ningún día con ≤${UMBRAL_NUBES_VASO_PCT} % de nubes sobre la huella`);
       return json({ ok: true, insertado: false, presa_id: presaId, mensaje: `Ningún día con ≤${UMBRAL_NUBES_VASO_PCT} % de la huella del vaso cubierta por nubes/sin dato.`, sondas }, 200);
     }
 
     // Raster de 10 m del día elegido.
     const { ndwi, mndwi } = await pideRaster(provider, token, bbox, W, H, elegido.dia);
+    pu += (W * H) / 262144 * (4 / 3);
     const huella = anillosHuella ? rasterizaPoligonos(anillosHuella, bbox, W, H) : null;
     let invH = 0, totH = 0;
     if (huella) for (let p = 0; p < W * H; p++) if (huella[p]) { totH++; if (!ndwi[p]) invH++; }
     const nubesVasoPct = huella && totH ? (100 * invH) / totH : elegido.invalido;
 
     const aperturaPx = dryRun && Number.isInteger(body?.apertura_px) && body.apertura_px >= 0 && body.apertura_px <= 6 ? body.apertura_px : APERTURA_PX;
-    const res = analiza(ndwi, mndwi, W, H, bbox, config.ancla, huella, indice, aperturaPx);
-    if ("error" in res) return json({ ok: true, insertado: false, presa_id: presaId, fecha: elegido.dia, mensaje: res.error, sondas }, 200);
+    const res = analiza(ndwi, mndwi, W, H, bbox, config.ancla, huella, indice, aperturaPx, dilatacionM);
+    if ("error" in res) {
+      await registra("error_analisis", res.error);
+      return json({ ok: true, insertado: false, presa_id: presaId, fecha: elegido.dia, mensaje: res.error, sondas }, 200);
+    }
     if (res.tocaBorde) {
-      return json({ ok: true, insertado: false, presa_id: presaId, fecha: elegido.dia, mensaje: "El vaso toca el borde del encuadre — el polígono quedaría truncado. Ampliar BBOXES_PRESA.", area_km2: res.areaKm2, sondas }, 200);
+      await registra("toca_borde", "El vaso toca el borde del encuadre");
+      return json({ ok: true, insertado: false, presa_id: presaId, fecha: elegido.dia, mensaje: "El vaso toca el borde del encuadre — el polígono quedaría truncado. Ampliar el recuadro (ndwi_bbox en cuerpos_agua o BBOXES_PRESA).", area_km2: res.areaKm2, sondas }, 200);
     }
 
     const areaKm2 = Number(res.areaKm2.toFixed(3));
@@ -763,7 +818,8 @@ Deno.serve(async (req) => {
       metodo: METODO,
       parametros_metodo: {
         indice, umbrales: res.umbrales, apertura_px: aperturaPx, tolerancia_dp_px: TOLERANCIA_DP_PX, min_px_isla: MIN_PX_ISLA,
-        dilatacion_huella_m: DILATACION_HUELLA_M, huella_excedida: res.huellaExcedida,
+        dilatacion_huella_m: dilatacionM, huella: config.huellaKmz ? "kmz" : "escena_max", resolucion_sonda_m: resSonda,
+        incertidumbre_km2: Number(((perimetroKm * RESOLUCION_M) / 1000).toFixed(3)), huella_excedida: res.huellaExcedida,
         area_pixeles_km2: Number(res.areaPixelesKm2.toFixed(3)), pixeles_nube_rellenados: res.pixelesInvalidosRellenados,
         vertices: res.vertices, raster: [W, H], sondas, provider,
       },
@@ -771,12 +827,18 @@ Deno.serve(async (req) => {
 
     if (!dryRun) {
       const { error } = await supabase.rpc("fn_vaso_geometria_guardar", { p_fila: fila });
-      if (error) return json({ error: `Guardado falló: ${error.message}` }, 500);
+      if (error) { await registra("error_guardado", error.message); return json({ error: `Guardado falló: ${error.message}` }, 500); }
+      await registra("guardada", `${elegido.dia} · ${areaKm2} km²`);
     }
 
     const { contorno_geojson: _c, ...resumen } = fila;
     return json({ ok: true, insertado: !dryRun, dry_run: dryRun, nombre_presa: config.nombre, ...resumen, ...(body?.con_geojson ? { contorno_geojson: res.contorno } : {}) }, 200);
   } catch (err) {
+    try {
+      if (ctxLog && !ctxLog.dryRun) {
+        await ctxLog.supabase.from("vaso_sync_log").insert({ cuerpo_id: ctxLog.presaId, mes: ctxLog.mes, resultado: "error_funcion", mensaje: String(err).slice(0, 300), pu_estimadas: Number(ctxLog.pu().toFixed(2)) });
+      }
+    } catch { /* la bitácora nunca debe ocultar el error original */ }
     return json({ error: String(err) }, 500);
   }
 });

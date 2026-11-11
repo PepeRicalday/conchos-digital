@@ -20,6 +20,7 @@ import {
 import { COLOR_PAPEL, colorEstado, miniSerieSvg, tanqueSvg, tiraLluviaSvg } from './informeCuencaSvg';
 import type { DatosInformeCuenca, PresaInforme } from './informeCuencaDatos';
 import { DATOS_INFORME } from './informeCuencaConfig';
+import { CSS_CUERPOS_AGUA, hojaCuerposAgua, type DatosCuerposInforme } from './informeCuerposAgua';
 
 export type FormatoInformeCuenca = 'png' | 'lamina' | 'carta';
 export const ANCHO_PNG_CUENCA = 1600;
@@ -30,6 +31,8 @@ export interface OpcionesHtmlCuenca {
   logoSrl: string;
   logoSica: string;
   emitido: Date;
+  /** Cuerpos de agua de la cuenca (catálogo, cierres mensuales y vasos). Si falta, la carta queda como antes (sin la hoja). */
+  cuerpos?: DatosCuerposInforme;
 }
 
 // ── Formato de cifras ─────────────────────────────────────────────────────────
@@ -370,7 +373,8 @@ function carta(d: DatosInformeCuenca, o: OpcionesHtmlCuenca): string {
   const hojas: string[] = [];
   const conFicha = incluye(d, 'ficha');
   const conEvolucion = incluye(d, 'serie') || incluye(d, 'lluvia');
-  const total = 1 + (conEvolucion ? 1 : 0) + (conFicha ? d.presas.length : 0) + 1;
+  const conCuerpos = !!o.cuerpos && o.cuerpos.cuerpos.length > 0;
+  const total = 1 + (conEvolucion ? 1 : 0) + (conCuerpos ? 1 : 0) + (conFicha ? d.presas.length : 0) + 1;
   let n = 0;
   const hoja = (cuerpo: string, cabecera: string) => `<section class="pagina">${cabecera}<div class="cuerpo">${cuerpo}</div>${pieInforme(`Folio ${folioCuenca(d, o.emitido)}`, ++n, total)}</section>`;
 
@@ -384,6 +388,7 @@ function carta(d: DatosInformeCuenca, o: OpcionesHtmlCuenca): string {
       incluye(d, 'lluvia') ? lluvia(d, 260) : '',
     ].join(''), membrete(o, d)));
   }
+  if (conCuerpos) hojas.push(hoja(hojaCuerposAgua(o.cuerpos!), membrete(o, d)));
   if (conFicha) for (const p of d.presas) hojas.push(hoja(ficha(d, p), membrete(o, d)));
   hojas.push(hoja([
     notas(d),
@@ -397,7 +402,7 @@ function carta(d: DatosInformeCuenca, o: OpcionesHtmlCuenca): string {
 export function htmlInformeCuenca(d: DatosInformeCuenca, o: OpcionesHtmlCuenca): string {
   const titulo = `Cuenca del Conchos · ${d.alcance}`;
   if (o.formato === 'carta') {
-    return documentoHtml({ titulo, css: `${cssInforme({ formato: 'letter' })}${CSS_CARTA}`, cuerpo: carta(d, o), metas: { 'sica:folio': folioCuenca(d, o.emitido) } });
+    return documentoHtml({ titulo, css: `${cssInforme({ formato: 'letter' })}${CSS_CARTA}${CSS_CUERPOS_AGUA}`, cuerpo: carta(d, o), metas: { 'sica:folio': folioCuenca(d, o.emitido) } });
   }
   const lam = o.formato === 'lamina';
   const ancho = lam ? LAMINA_PX.ancho : ANCHO_PNG_CUENCA;

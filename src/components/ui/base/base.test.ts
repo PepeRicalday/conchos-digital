@@ -108,4 +108,17 @@ describe('componentes base de interfaz', () => {
         expect(s).toContain('<caption class="ui-sr">Reglas</caption>');
         expect(s).toContain('data-label="Regla"');
     });
+
+    it('DataTable: propia deja el aspecto a la página, el contenedor admite clase y la cabecera puede ser contenido', () => {
+        type F = { n: string };
+        const s = html(h(DataTable<F>, {
+            filas: [{ n: 'K-0' }], clave: (f: F) => f.n, propia: true, className: 'cu-tabla', claseContenedor: 'cu-tabla-wrap',
+            columnas: [{ id: 'n', titulo: h('abbr', { title: 'Ráfaga' }, 'Ráf.'), render: (f: F) => f.n }],
+        }));
+        expect(s).toContain('<table class="cu-tabla">');
+        expect(s).not.toMatch(/<table class="[^"]*ui-tabla/);
+        expect(s).toContain('ui-tabla-wrap cu-tabla-wrap');
+        expect(s).toContain('<abbr title="Ráfaga">Ráf.</abbr>');
+        expect(s).not.toContain('data-label');
+    });
 });

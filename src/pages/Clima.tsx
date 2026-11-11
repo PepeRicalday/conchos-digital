@@ -49,6 +49,7 @@ import { WindyMapModal } from '../components/WindyMapModal';
 import { CENTRO_DISTRITO } from '../utils/mapaSatelital';
 import { useRol } from '../lib/auth/roles';
 import { hoyJcasISO, hoyLocalISO } from '../utils/hoyLocal';
+import { DataTable } from '../components/ui/base';
 
 // Types for display
 interface WeatherCondition {
@@ -310,23 +311,6 @@ function buildConditions(climaRecords: ClimaPresaData[], umbrales: UmbralClima[]
 }
 
 // Component: Condition Row
-const ConditionRow = ({ condition }: { condition: WeatherCondition }) => (
-    <tr className={`condition-row ${condition.status}`}>
-        <td className="var-cell">
-            <div className="var-icon">{condition.icon}</div>
-            <span>{condition.variable}</span>
-        </td>
-        <td className="value-cell current">
-            {condition.current}
-            {/* Procedencia junto al valor: un agregado de red sin decir de qué
-                estación sale no es verificable en campo. */}
-            {condition.detalle && <span className="value-detalle">{condition.detalle}</span>}
-        </td>
-        <td className="value-cell forecast">{condition.forecast}</td>
-        <td className="impact-cell">{condition.impact}</td>
-    </tr>
-);
-
 // Component: Technical Variable Card
 const TechVarCard = ({ variable }: { variable: TechnicalVariable }) => (
     <div className="tech-var-card">
@@ -1142,34 +1126,17 @@ const Clima = () => {
                         Error absoluto medio (MAE) de nubosidad de Open-Meteo contra la lectura real de cada estación.
                         Sesgo positivo = el modelo sobreestima nubosidad; negativo = la subestima.
                     </p>
-                    <div className="table-scroll">
-                        <table className="skill-table">
-                            <thead>
-                                <tr>
-                                    <th>Estación</th>
-                                    <th>Horizonte</th>
-                                    <th>Muestras</th>
-                                    <th>MAE nubosidad</th>
-                                    <th>Sesgo</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {skillResumen.map((r, i) => (
-                                    <tr key={i}>
-                                        <td>{r.estacion_nombre}</td>
-                                        <td>{r.horizonte_bucket}</td>
-                                        <td>{r.n_muestras}</td>
-                                        <td>{r.mae_nubosidad_pct != null ? `${r.mae_nubosidad_pct.toFixed(0)} pts` : 's/d'}</td>
-                                        <td>
-                                            {r.sesgo_nubosidad_pct != null
-                                                ? `${r.sesgo_nubosidad_pct > 0 ? '+' : ''}${r.sesgo_nubosidad_pct.toFixed(0)} pts`
-                                                : 's/d'}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <DataTable
+                        propia className="skill-table" claseContenedor="table-scroll" captionOculto caption="Precisión del pronóstico de nubosidad por estación y horizonte"
+                        clave={(r) => `${r.estacion_nombre}|${r.horizonte_bucket}`} filas={skillResumen}
+                        columnas={[
+                            { id: 'est', titulo: 'Estación', render: (r) => r.estacion_nombre },
+                            { id: 'hor', titulo: 'Horizonte', render: (r) => r.horizonte_bucket },
+                            { id: 'n', titulo: 'Muestras', render: (r) => r.n_muestras },
+                            { id: 'mae', titulo: 'MAE nubosidad', render: (r) => r.mae_nubosidad_pct != null ? `${r.mae_nubosidad_pct.toFixed(0)} pts` : 's/d' },
+                            { id: 'sesgo', titulo: 'Sesgo', render: (r) => r.sesgo_nubosidad_pct != null ? `${r.sesgo_nubosidad_pct > 0 ? '+' : ''}${r.sesgo_nubosidad_pct.toFixed(0)} pts` : 's/d' },
+                        ]}
+                    />
                 </section>
             )}
 
@@ -1296,25 +1263,20 @@ const Clima = () => {
                             Agregado de la red WeatherLink ({estValidas.filter(e => e.lectura).length} estación(es){nombresExcluidos.length > 0 && `, sin ${nombresExcluidos.join(', ')}`});
                             pronóstico del modelo horario a 24 h.
                         </p>
-                        <table className="conditions-table">
-                            <thead>
-                                <tr>
-                                    <th>Variable</th>
-                                    {/* "Registrado al corte" evita leer el contraste con el
-                                        pronóstico como contradicción: a primera hora la máxima
-                                        registrada (24.6 °C) es muy inferior al pico previsto
-                                        del día (35 °C), y ambas cifras son correctas. */}
-                                    <th>Registrado al corte</th>
-                                    <th>Previsto 24 h</th>
-                                    <th>Impacto Operativo</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {conditions.map((c, i) => (
-                                    <ConditionRow key={i} condition={c} />
-                                ))}
-                            </tbody>
-                        </table>
+                        <DataTable
+                            propia className="conditions-table" captionOculto caption="Condiciones del día: registrado al corte, previsto a 24 h e impacto operativo"
+                            clave={(c) => c.variable} filas={conditions}
+                            filaProps={(c) => ({ className: `condition-row ${c.status}` })}
+                            columnas={[
+                                { id: 'var', titulo: 'Variable', className: 'var-cell', render: (c) => <><div className="var-icon">{c.icon}</div><span>{c.variable}</span></> },
+                                // "Registrado al corte" evita leer el contraste con el pronóstico como contradicción: a primera hora la máxima
+                                // registrada (24.6 °C) es muy inferior al pico previsto del día (35 °C), y ambas cifras son correctas.
+                                // La procedencia va junto al valor: un agregado de red sin decir de qué estación sale no es verificable en campo.
+                                { id: 'act', titulo: 'Registrado al corte', className: 'value-cell current', render: (c) => <>{c.current}{c.detalle && <span className="value-detalle">{c.detalle}</span>}</> },
+                                { id: 'prev', titulo: 'Previsto 24 h', className: 'value-cell forecast', render: (c) => c.forecast },
+                                { id: 'imp', titulo: 'Impacto Operativo', className: 'impact-cell', render: (c) => c.impact },
+                            ]}
+                        />
                     </section>
                 )}
 

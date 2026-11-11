@@ -3,6 +3,7 @@ import type { ReactElement, Dispatch, SetStateAction } from 'react';
 import { totalesVolumenCiclo, type VolumenCicloModulo } from '../../utils/volumenCiclo';
 import type { HydraulicEvent } from '../../hooks/useHydricEvents';
 import { LAMBDA_REF, ESC_SIN_CONTROL, fmtAge, type TelemetriaEstado } from './canalHelpers';
+import { DataTable } from '../ui/base';
 
 type ModoVisualizacion = 'LLENADO' | 'ESTABILIZACION' | 'CONTINGENCIA' | 'VACIADO' | 'ANOMALIA' | 'SIN_EVENTO';
 
@@ -127,53 +128,32 @@ export function PestanaSkill({ balanceModulos, balanceTramos, entregasHoy, model
                         )}
 
                         {/* Tabla de checkpoints */}
-                        <div className="dsk-table-wrap">
-                            <table className="dsk-table">
-                                <thead>
-                                    <tr>
-                                        <th>PUNTO</th>
-                                        <th>KM</th>
-                                        <th>H↑ (m)</th>
-                                        <th>H↓ (m)</th>
-                                        <th>Q (m³/s)</th>
-                                        <th>M1</th>
-                                        <th>AP (m)</th>
-                                        <th>BL</th>
-                                        <th>TEL</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {skillSnapshot.checkpoints.map(c => {
-                                        const tsMin = c.ts_min;
-                                        const telCls = tsMin === null ? 'dsk-tel--offline'
-                                            : tsMin < 60  ? 'dsk-tel--ok'
-                                            : tsMin < 120 ? 'dsk-tel--warn'
-                                            : 'dsk-tel--critico';
-                                        const telLabel = tsMin === null ? '—'
-                                            : tsMin < 60  ? `${tsMin}m`
-                                            : tsMin < 120 ? `${tsMin}m`
-                                            : `${Math.round(tsMin / 60)}h`;
-                                        return (
-                                            <tr key={c.nombre} className={c.alerta === 'NIVEL_CRITICO' ? 'dsk-tr--critico' : c.alerta === 'PRECAUCION' ? 'dsk-tr--warn' : ''}>
-                                                <td className="dsk-td-nombre">{c.nombre}</td>
-                                                <td className="dsk-td-num">{c.km}</td>
-                                                <td className="dsk-td-num">{c.hA != null ? c.hA.toFixed(3) : 'S/D'}</td>
-                                                <td className="dsk-td-num">{c.hB !== null && c.hB !== undefined ? c.hB.toFixed(3) : '—'}</td>
-                                                <td className={`dsk-td-num ${c.q != null && c.q > 0 ? 'dsk-td--q' : 'dsk-td--zero'}`}
-                                                    title={c.q != null ? (c.q === 0 ? 'Gasto medido: 0 (compuertas cerradas)' : undefined) : (c.ts_min === null ? 'Sin telemetría' : 'Nivel reportado, sin medición de gasto')}>
-                                                    {c.q != null ? c.q.toFixed(3) : 'S/D'}</td>
-                                                <td className="dsk-td-num dsk-td--m1">{c.m1.toFixed(4)}</td>
-                                                <td className="dsk-td-num">{c.apertura != null ? c.apertura.toFixed(3) : 'S/D'}</td>
-                                                <td className={`dsk-td-num ${c.bl !== null && c.bl < 0 ? 'dsk-td--red' : c.bl !== null && c.bl < 0.10 ? 'dsk-td--amber' : ''}`}>
-                                                    {c.bl !== null ? c.bl.toFixed(3) : '—'}
-                                                </td>
-                                                <td className={`dsk-td-num ${telCls}`}>{telLabel}</td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                        <DataTable
+                            propia
+                            className="dsk-table" claseContenedor="dsk-table-wrap" captionOculto caption="Escalas del canal: niveles, gasto, calibración y telemetría"
+                            clave={(c) => c.nombre} filas={skillSnapshot.checkpoints}
+                            filaProps={(c) => ({ className: c.alerta === 'NIVEL_CRITICO' ? 'dsk-tr--critico' : c.alerta === 'PRECAUCION' ? 'dsk-tr--warn' : '' })}
+                            columnas={[
+                                { id: 'punto', titulo: 'PUNTO', className: 'dsk-td-nombre', render: (c) => c.nombre },
+                                { id: 'km', titulo: 'KM', className: 'dsk-td-num', render: (c) => c.km },
+                                { id: 'ha', titulo: 'H↑ (m)', className: 'dsk-td-num', render: (c) => c.hA != null ? c.hA.toFixed(3) : 'S/D' },
+                                { id: 'hb', titulo: 'H↓ (m)', className: 'dsk-td-num', render: (c) => c.hB !== null && c.hB !== undefined ? c.hB.toFixed(3) : '—' },
+                                {
+                                    id: 'q', titulo: 'Q (m³/s)', className: 'dsk-td-num',
+                                    claseFila: (c) => c.q != null && c.q > 0 ? 'dsk-td--q' : 'dsk-td--zero',
+                                    ayuda: (c) => c.q != null ? (c.q === 0 ? 'Gasto medido: 0 (compuertas cerradas)' : undefined) : (c.ts_min === null ? 'Sin telemetría' : 'Nivel reportado, sin medición de gasto'),
+                                    render: (c) => c.q != null ? c.q.toFixed(3) : 'S/D',
+                                },
+                                { id: 'm1', titulo: 'M1', className: 'dsk-td-num dsk-td--m1', render: (c) => c.m1.toFixed(4) },
+                                { id: 'ap', titulo: 'AP (m)', className: 'dsk-td-num', render: (c) => c.apertura != null ? c.apertura.toFixed(3) : 'S/D' },
+                                { id: 'bl', titulo: 'BL', className: 'dsk-td-num', claseFila: (c) => c.bl !== null && c.bl < 0 ? 'dsk-td--red' : c.bl !== null && c.bl < 0.10 ? 'dsk-td--amber' : undefined, render: (c) => c.bl !== null ? c.bl.toFixed(3) : '—' },
+                                {
+                                    id: 'tel', titulo: 'TEL', className: 'dsk-td-num',
+                                    claseFila: (c) => c.ts_min === null ? 'dsk-tel--offline' : c.ts_min < 60 ? 'dsk-tel--ok' : c.ts_min < 120 ? 'dsk-tel--warn' : 'dsk-tel--critico',
+                                    render: (c) => c.ts_min === null ? '—' : c.ts_min < 120 ? `${c.ts_min}m` : `${Math.round(c.ts_min / 60)}h`,
+                                },
+                            ]}
+                        />
 
                         {/* Volumen por tramo interescala */}
                         {volInterescalas.length > 0 && (
@@ -259,92 +239,79 @@ export function PestanaSkill({ balanceModulos, balanceTramos, entregasHoy, model
                                 );
                             })()}
 
-                            <div className="dsk-table-wrap">
-                                <table className="dsk-table">
-                                    <thead>
-                                        <tr>
-                                            <th>TRAMO</th>
-                                            <th>L (km)</th>
-                                            <th title="H↑ escala entrada — nivel aguas arriba de compuerta">H↑ ent (m)</th>
-                                            <th title="H↓ escala entrada — nivel real inicio de tramo, aguas abajo de compuerta">H↓ ent (m)</th>
-                                            <th title="H↑ escala salida — nivel real fin de tramo, aguas arriba de siguiente compuerta">H↑ sal (m)</th>
-                                            <th>Vol (m³)</th>
-                                            <th>Mm³</th>
-                                            <th>Q↑ (m³/s)</th>
-                                            <th>Q↓ (m³/s)</th>
-                                            <th>Fuga (m³/s)</th>
-                                            <th>Balance</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {(() => {
-                                            const ESC_SIN_CONTROL_TB = new Set(['K-64', 'K-94+200']);
-                                            // Antigüedad (min) por escala — para indicar CUÁL falta y desde cuándo,
-                                            // en vez de un "S/D" genérico que no dice qué hay que medir.
-                                            const edadMap = new Map<string, number | null>(
-                                                skillSnapshot.checkpoints.map(c => [c.nombre, c.ts_min])
-                                            );
-                                            const edadTxt = (n: string) => {
-                                                const m = edadMap.get(n);
-                                                if (m == null) return 'sin lectura';
-                                                return m < 60 ? `${m} min` : `${(m / 60).toFixed(1)} h`;
-                                            };
-                                            const esVencida = (n: string) => {
-                                                const m = edadMap.get(n);
-                                                return m == null || m > 240;
-                                            };
-                                            return volInterescalas.map((v: any) => {
-                                            const bt = balanceTramos.find(b => Math.abs(Number(b.km_inicio) - Number(v.km_up)) < 0.1);
-                                            const esSinControl = ESC_SIN_CONTROL_TB.has(v.esc_up) || ESC_SIN_CONTROL_TB.has(v.esc_down);
-                                            // ¿Qué escala(s) frontera están vencidas? — para el detalle del motivo
-                                            const upVenc = esVencida(v.esc_up);
-                                            const dnVenc = esVencida(v.esc_down);
-                                            const esStale = upVenc || dnVenc;
-                                            const sinDato = esSinControl || esStale;
-                                            // Motivo legible de por qué el balance no es confiable
-                                            const motivo = esSinControl
-                                                ? 'Escala de referencia sin control de gasto'
-                                                : upVenc && dnVenc
-                                                ? `Ambas escalas vencidas (${v.esc_up} ${edadTxt(v.esc_up)}, ${v.esc_down} ${edadTxt(v.esc_down)})`
-                                                : upVenc
-                                                ? `Entrada ${v.esc_up} sin lectura fresca (${edadTxt(v.esc_up)})`
-                                                : dnVenc
-                                                ? `Salida ${v.esc_down} sin lectura fresca (${edadTxt(v.esc_down)})`
-                                                : '';
-                                            const estadoClass = sinDato ? 'bt-estado--stale'
-                                                : bt?.estado_balance === 'FUGA_ALTA' ? 'bt-estado--alta'
-                                                : bt?.estado_balance === 'FUGA_MEDIA' ? 'bt-estado--media'
-                                                : bt?.estado_balance === 'INCONSISTENCIA' ? 'bt-estado--inconsistencia'
-                                                : bt ? 'bt-estado--ok' : '';
-                                            const rowClass = sinDato ? 'bt-row--stale'
-                                                : bt?.estado_balance === 'FUGA_ALTA' ? 'bt-row--alta' : '';
-                                            return (
-                                            <tr key={v.km_up} className={rowClass} title={motivo || undefined}>
-                                                <td className="dsk-td-tramo">{v.esc_up} → {v.esc_down}</td>
-                                                <td className="dsk-td-num">{Number(v.longitud_km).toFixed(3)}</td>
-                                                {/* Niveles y volumen SIEMPRE se muestran: dependen del tirante
-                                                    medido, no del gasto fresco. Aunque el balance de fuga no
-                                                    sea confiable, el almacenamiento del tramo sí es útil. */}
-                                                <td className="dsk-td-num dsk-td--ref" title="H↑ escala entrada (remanso aguas arriba de compuerta)">{v.nivel_up_m != null ? Number(v.nivel_up_m).toFixed(3) : '—'}</td>
-                                                <td className="dsk-td-num" title="H↓ escala entrada — inicio real del tramo">{v.nivel_ini_m != null ? Number(v.nivel_ini_m).toFixed(3) : '—'}</td>
-                                                <td className="dsk-td-num" title="H↑ escala salida — fin real del tramo">{v.nivel_fin_m != null ? Number(v.nivel_fin_m).toFixed(3) : '—'}</td>
-                                                <td className="dsk-td-num dsk-td--q">{v.vol_m3 != null ? Number(v.vol_m3).toLocaleString('es-MX') : '—'}</td>
-                                                <td className="dsk-td-num">{v.vol_mm3 != null ? Number(v.vol_mm3).toFixed(4) : '—'}</td>
-                                                {/* Q y fuga: ocultos solo si NO son confiables (gasto viejo daría
-                                                    fugas imposibles de ±37 m³/s). El ⊘ lleva tooltip con el motivo. */}
-                                                <td className="dsk-td-num" title={sinDato ? motivo : undefined}>{sinDato ? '⊘' : bt ? Number(bt.q_entrada_m3s).toFixed(3) : '—'}</td>
-                                                <td className="dsk-td-num" title={sinDato ? motivo : undefined}>{sinDato ? '⊘' : bt ? Number(bt.q_salida_m3s).toFixed(3) : '—'}</td>
-                                                <td className="dsk-td-num" title={sinDato ? motivo : undefined}>{sinDato ? '⊘' : bt ? Number(bt.q_fuga_detectada).toFixed(3) : '—'}</td>
-                                                <td className={`dsk-td-num bt-estado ${estadoClass}`} title={motivo || undefined}>
-                                                    {sinDato ? (esSinControl ? 'REF' : esStale ? '⏳ STALE' : 'S/D') : (bt?.estado_balance ?? '—')}
-                                                </td>
-                                            </tr>
-                                            );
-                                        });
-                                        })()}
-                                    </tbody>
-                                </table>
-                            </div>
+                            {(() => {
+                                const ESC_SIN_CONTROL_TB = new Set(['K-64', 'K-94+200']);
+                                // Antigüedad (min) por escala: indica CUÁL falta y desde cuándo, en vez de un "S/D" genérico.
+                                const edadMap = new Map<string, number | null>(
+                                    skillSnapshot.checkpoints.map(c => [c.nombre, c.ts_min])
+                                );
+                                const edadTxt = (n: string) => {
+                                    const m = edadMap.get(n);
+                                    if (m == null) return 'sin lectura';
+                                    return m < 60 ? `${m} min` : `${(m / 60).toFixed(1)} h`;
+                                };
+                                const esVencida = (n: string) => {
+                                    const m = edadMap.get(n);
+                                    return m == null || m > 240;
+                                };
+                                const info = (v: any) => {
+                                    const bt = balanceTramos.find(b => Math.abs(Number(b.km_inicio) - Number(v.km_up)) < 0.1);
+                                    const esSinControl = ESC_SIN_CONTROL_TB.has(v.esc_up) || ESC_SIN_CONTROL_TB.has(v.esc_down);
+                                    // ¿Qué escala(s) frontera están vencidas? Para el detalle del motivo.
+                                    const upVenc = esVencida(v.esc_up);
+                                    const dnVenc = esVencida(v.esc_down);
+                                    const esStale = upVenc || dnVenc;
+                                    const sinDato = esSinControl || esStale;
+                                    // Motivo legible de por qué el balance no es confiable
+                                    const motivo = esSinControl
+                                        ? 'Escala de referencia sin control de gasto'
+                                        : upVenc && dnVenc
+                                        ? `Ambas escalas vencidas (${v.esc_up} ${edadTxt(v.esc_up)}, ${v.esc_down} ${edadTxt(v.esc_down)})`
+                                        : upVenc
+                                        ? `Entrada ${v.esc_up} sin lectura fresca (${edadTxt(v.esc_up)})`
+                                        : dnVenc
+                                        ? `Salida ${v.esc_down} sin lectura fresca (${edadTxt(v.esc_down)})`
+                                        : '';
+                                    const estadoClass = sinDato ? 'bt-estado--stale'
+                                        : bt?.estado_balance === 'FUGA_ALTA' ? 'bt-estado--alta'
+                                        : bt?.estado_balance === 'FUGA_MEDIA' ? 'bt-estado--media'
+                                        : bt?.estado_balance === 'INCONSISTENCIA' ? 'bt-estado--inconsistencia'
+                                        : bt ? 'bt-estado--ok' : '';
+                                    const rowClass = sinDato ? 'bt-row--stale'
+                                        : bt?.estado_balance === 'FUGA_ALTA' ? 'bt-row--alta' : '';
+                                    return { bt, esSinControl, esStale, sinDato, motivo, estadoClass, rowClass };
+                                };
+                                // Niveles y volumen SIEMPRE se muestran: dependen del tirante medido, no del gasto fresco.
+                                // Q y fuga: ocultos solo si NO son confiables (gasto viejo daría fugas imposibles de ±37 m³/s);
+                                // el ⊘ lleva tooltip con el motivo.
+                                const q = (campo: 'q_entrada_m3s' | 'q_salida_m3s' | 'q_fuga_detectada') => (v: any) => { const x = info(v); return x.sinDato ? '⊘' : x.bt ? Number(x.bt[campo]).toFixed(3) : '—'; };
+                                const ayudaQ = (v: any) => { const x = info(v); return x.sinDato ? x.motivo : undefined; };
+                                return (
+                                    <DataTable
+                                        propia
+                                        className="dsk-table" claseContenedor="dsk-table-wrap" captionOculto caption="Volumen y balance por tramo entre escalas"
+                                        clave={(v: any) => String(v.km_up)} filas={volInterescalas as any[]}
+                                        filaProps={(v: any) => { const x = info(v); return { className: x.rowClass, title: x.motivo || undefined }; }}
+                                        columnas={[
+                                            { id: 'tramo', titulo: 'TRAMO', className: 'dsk-td-tramo', render: (v: any) => `${v.esc_up} → ${v.esc_down}` },
+                                            { id: 'l', titulo: 'L (km)', className: 'dsk-td-num', render: (v: any) => Number(v.longitud_km).toFixed(3) },
+                                            { id: 'hup', titulo: <span title="H↑ escala entrada — nivel aguas arriba de compuerta">H↑ ent (m)</span>, className: 'dsk-td-num dsk-td--ref', ayuda: () => 'H↑ escala entrada (remanso aguas arriba de compuerta)', render: (v: any) => v.nivel_up_m != null ? Number(v.nivel_up_m).toFixed(3) : '—' },
+                                            { id: 'hini', titulo: <span title="H↓ escala entrada — nivel real inicio de tramo, aguas abajo de compuerta">H↓ ent (m)</span>, className: 'dsk-td-num', ayuda: () => 'H↓ escala entrada — inicio real del tramo', render: (v: any) => v.nivel_ini_m != null ? Number(v.nivel_ini_m).toFixed(3) : '—' },
+                                            { id: 'hfin', titulo: <span title="H↑ escala salida — nivel real fin de tramo, aguas arriba de siguiente compuerta">H↑ sal (m)</span>, className: 'dsk-td-num', ayuda: () => 'H↑ escala salida — fin real del tramo', render: (v: any) => v.nivel_fin_m != null ? Number(v.nivel_fin_m).toFixed(3) : '—' },
+                                            { id: 'vol', titulo: 'Vol (m³)', className: 'dsk-td-num dsk-td--q', render: (v: any) => v.vol_m3 != null ? Number(v.vol_m3).toLocaleString('es-MX') : '—' },
+                                            { id: 'mm3', titulo: 'Mm³', className: 'dsk-td-num', render: (v: any) => v.vol_mm3 != null ? Number(v.vol_mm3).toFixed(4) : '—' },
+                                            { id: 'qe', titulo: 'Q↑ (m³/s)', className: 'dsk-td-num', ayuda: ayudaQ, render: q('q_entrada_m3s') },
+                                            { id: 'qs', titulo: 'Q↓ (m³/s)', className: 'dsk-td-num', ayuda: ayudaQ, render: q('q_salida_m3s') },
+                                            { id: 'qf', titulo: 'Fuga (m³/s)', className: 'dsk-td-num', ayuda: ayudaQ, render: q('q_fuga_detectada') },
+                                            {
+                                                id: 'bal', titulo: 'Balance', className: 'dsk-td-num bt-estado',
+                                                claseFila: (v: any) => info(v).estadoClass, ayuda: (v: any) => info(v).motivo || undefined,
+                                                render: (v: any) => { const x = info(v); return x.sinDato ? (x.esSinControl ? 'REF' : x.esStale ? '⏳ STALE' : 'S/D') : (x.bt?.estado_balance ?? '—'); },
+                                            },
+                                        ]}
+                                    />
+                                );
+                            })()}
                         </div>
                         )}
 
@@ -416,60 +383,39 @@ export function PestanaSkill({ balanceModulos, balanceTramos, entregasHoy, model
                             return (
                         <div className="dsk-section-block">
                             <div className="dsk-sub-header">VOLUMEN A ENTREGAR vs ENTREGADO — {ciclo?.cicloNombre?.toUpperCase() ?? 'CICLO'}</div>
-                            <div className="dsk-table-wrap">
-                                <table className="dsk-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Módulo</th>
-                                            <th>ZONA</th>
-                                            <th>A ENTREGAR (Mm³)</th>
-                                            <th>ENTREGADO (Mm³)</th>
-                                            <th>REMANENTE (Mm³)</th>
-                                            <th>TOTAL (Mm³)</th>
-                                            <th>%</th>
-                                            <th>SALDO (Mm³)</th>
-                                            <th>Estado</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {modulosResumen.map((b: any) => {
+                            <DataTable
+                                propia
+                                className="dsk-table" claseContenedor="dsk-table-wrap" captionOculto caption="Volumen a entregar contra entregado en el ciclo, por módulo"
+                                clave={(r) => r.b ? String(r.b.modulo_id) : 'total'}
+                                filas={[...modulosResumen.map((b: any) => ({ b })), { b: null }] as { b: any | null }[]}
+                                filaProps={({ b }) => b ? { className: b.estado_volumen === 'agotado' ? 'dsk-tr--critico' : b.estado_volumen === 'alerta' ? 'dsk-tr--warn' : '' } : undefined}
+                                columnas={[
+                                    { id: 'mod', titulo: 'Módulo', className: 'dsk-td-nombre', render: ({ b }) => b ? (b.codigo_corto || b.modulo_nombre) : <strong>TOTAL</strong> },
+                                    { id: 'zona', titulo: 'ZONA', className: 'dsk-td-num', render: ({ b }) => b ? (b.zona_codigo || '—') : '—' },
+                                    { id: 'aut', titulo: 'A ENTREGAR (Mm³)', className: 'dsk-td-num', render: ({ b }) => b ? fmt(b.autorizado_mm3) : <strong>{fmt(tot.autorizadoMm3)}</strong> },
+                                    { id: 'hoja', titulo: 'ENTREGADO (Mm³)', className: 'dsk-td-num', render: ({ b }) => b ? fmt(b.hoja_mm3) : <strong>{fmt(tot.hojaMm3)}</strong> },
+                                    { id: 'rem', titulo: 'REMANENTE (Mm³)', className: 'dsk-td-num', render: ({ b }) => b ? (b.remanente_mm3 > 0 ? fmt(b.remanente_mm3) : '—') : <strong>{tot.remanenteMm3 > 0 ? fmt(tot.remanenteMm3) : '—'}</strong> },
+                                    { id: 'tot', titulo: 'TOTAL (Mm³)', className: 'dsk-td-num dsk-td--q', render: ({ b }) => b ? fmt(b.entregado_mm3) : <strong>{fmt(tot.entregadoMm3)}</strong> },
+                                    {
+                                        id: 'pct', titulo: '%', className: 'dsk-td-num', estilo: () => ({ minWidth: 92 }),
+                                        render: ({ b }) => {
+                                            if (!b) return <strong>{tot.pctEntregado != null ? `${tot.pctEntregado.toFixed(1)}%` : 'S/D'}</strong>;
                                             const estado = b.estado_volumen as string;
-                                            const rowCls = estado === 'agotado' ? 'dsk-tr--critico' : estado === 'alerta' ? 'dsk-tr--warn' : '';
-                                            const estadoLabel = estado === 'agotado' ? '🔴 Agotado' : estado === 'alerta' ? '⚠ Alta' : '✓ Normal';
                                             const pct = b.pct_entregado ?? 0;
                                             return (
-                                                <tr key={b.modulo_id} className={rowCls}>
-                                                    <td className="dsk-td-nombre">{b.codigo_corto || b.modulo_nombre}</td>
-                                                    <td className="dsk-td-num">{b.zona_codigo || '—'}</td>
-                                                    <td className="dsk-td-num">{fmt(b.autorizado_mm3)}</td>
-                                                    <td className="dsk-td-num">{fmt(b.hoja_mm3)}</td>
-                                                    <td className="dsk-td-num">{b.remanente_mm3 > 0 ? fmt(b.remanente_mm3) : '—'}</td>
-                                                    <td className="dsk-td-num dsk-td--q">{fmt(b.entregado_mm3)}</td>
-                                                    <td className="dsk-td-num" style={{ minWidth: 92 }}>
-                                                        <div className="dsk-zona-bar-bg" style={{ marginBottom: 2 }}>
-                                                            <div className="dsk-zona-bar-fill" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: estado === 'agotado' ? '#ef4444' : estado === 'alerta' ? '#f59e0b' : '#3FB2F3' }} />
-                                                        </div>
-                                                        {b.pct_entregado != null ? `${pct.toFixed(1)}%` : 'S/D'}
-                                                    </td>
-                                                    <td className={`dsk-td-num ${b.saldo_mm3 < 0 ? 'dsk-td--red' : ''}`}>{fmt(b.saldo_mm3)}</td>
-                                                    <td className="dsk-td-nombre">{estadoLabel}</td>
-                                                </tr>
+                                                <>
+                                                    <div className="dsk-zona-bar-bg" style={{ marginBottom: 2 }}>
+                                                        <div className="dsk-zona-bar-fill" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: estado === 'agotado' ? 'var(--st-crit)' : estado === 'alerta' ? 'var(--st-warn)' : 'var(--st-info)' }} />
+                                                    </div>
+                                                    {b.pct_entregado != null ? `${pct.toFixed(1)}%` : 'S/D'}
+                                                </>
                                             );
-                                        })}
-                                        <tr>
-                                            <td className="dsk-td-nombre"><strong>TOTAL</strong></td>
-                                            <td className="dsk-td-num">—</td>
-                                            <td className="dsk-td-num"><strong>{fmt(tot.autorizadoMm3)}</strong></td>
-                                            <td className="dsk-td-num"><strong>{fmt(tot.hojaMm3)}</strong></td>
-                                            <td className="dsk-td-num"><strong>{tot.remanenteMm3 > 0 ? fmt(tot.remanenteMm3) : '—'}</strong></td>
-                                            <td className="dsk-td-num dsk-td--q"><strong>{fmt(tot.entregadoMm3)}</strong></td>
-                                            <td className="dsk-td-num"><strong>{tot.pctEntregado != null ? `${tot.pctEntregado.toFixed(1)}%` : 'S/D'}</strong></td>
-                                            <td className="dsk-td-num"><strong>{fmt(tot.saldoMm3)}</strong></td>
-                                            <td className="dsk-td-nombre">—</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                                        },
+                                    },
+                                    { id: 'saldo', titulo: 'SALDO (Mm³)', className: 'dsk-td-num', claseFila: ({ b }) => b && b.saldo_mm3 < 0 ? 'dsk-td--red' : undefined, render: ({ b }) => b ? fmt(b.saldo_mm3) : <strong>{fmt(tot.saldoMm3)}</strong> },
+                                    { id: 'estado', titulo: 'Estado', className: 'dsk-td-nombre', render: ({ b }) => b ? (b.estado_volumen === 'agotado' ? '🔴 Agotado' : b.estado_volumen === 'alerta' ? '⚠ Alta' : '✓ Normal') : '—' },
+                                ]}
+                            />
                             <div className="dsk-zona-total" style={{ fontSize: '0.7rem', opacity: 0.8 }}>
                                 Fuente única: hoja institucional mensual ({ciclo?.ultimoMesHoja ? `hasta ${ciclo.ultimoMesHoja}` : 's/d'}{ciclo?.hojaMesParcial ? ', mes parcial ⚠' : ''})
                                 {tot.remanenteMm3 > 0 && <> + remanente de vaciado post-cierre ({remDesde} → {remHasta})</>}.
@@ -562,47 +508,44 @@ export function PestanaSkill({ balanceModulos, balanceTramos, entregasHoy, model
                         {/* Calibración M1 — estado actual */}
                         <div className="dsk-section-block">
                             <div className="dsk-sub-header">CALIBRACIÓN M1 — ESTADO ACTUAL (SKILL v3.7)</div>
-                            <div className="dsk-table-wrap">
-                                <table className="dsk-table">
-                                    <thead>
-                                        <tr><th>Escala</th><th>M1</th><th>Fuente</th><th>Estado</th></tr>
-                                    </thead>
-                                    <tbody>
-                                        {skillSnapshot.checkpoints.map(c => {
-                                            // Derivar fuente y estado desde el valor M1 y el nombre
-                                            // Fuente y estado se calculan desde los datos reales en hydraulics.ts
-                                            const m1src =
-                                                c.nombre === 'K-0+000'  ? 'Aforo molinete 01/06/2026' :
-                                                c.nombre === 'K-23'     ? 'Estimado estructural' :
-                                                c.nombre === 'K-54'     ? 'Aforo 27/04/2026' :
-                                                c.nombre === 'K-62'     ? 'Aforo 27/04/2026' :
-                                                c.nombre === 'K-104'    ? 'Ancla salida' :
-                                                c.nombre === 'K-64'     ? 'Escala referencia' :
-                                                c.nombre === 'K-94+200' ? 'Escala referencia' :
-                                                'Aforo anterior';
-                                            // Prioridad: estados nombrados explícitos (curados) ANTES que la
-                                            // heurística M1>1.5. Si no, una escala marcada VERIFICAR con M1>1.5
-                                            // se mostraría como PENDIENTE y nunca llegaría a VERIFICAR.
-                                            const est =
-                                                c.nombre === 'K-64' || c.nombre === 'K-94+200' ? 'REFERENCIA' :
-                                                c.nombre === 'K-0+000'  ? 'RECIENTE' :
-                                                c.nombre === 'K-29' || c.nombre === 'K-68' || c.nombre === 'K-87+549' ? 'VERIFICAR' :
-                                                c.m1 > 1.5              ? 'PENDIENTE' :
-                                                'OK';
-                                            return (
-                                                <tr key={c.nombre} className={est === 'PENDIENTE' ? 'dsk-tr--warn' : est === 'RECIENTE' ? 'dsk-tr--reciente' : est === 'REFERENCIA' ? 'bt-row--stale' : ''}>
-                                                    <td className="dsk-td-nombre">{c.nombre}</td>
-                                                    <td className="dsk-td-num dsk-td--m1">{c.m1.toFixed(4)}</td>
-                                                    <td className="dsk-td-src">{m1src}</td>
-                                                    <td className={`dsk-td-num ${est==='RECIENTE'?'dsk-val--green':est==='PENDIENTE'?'dsk-val--amber':est==='VERIFICAR'?'dsk-val--amber':est==='REFERENCIA'?'bt-estado--stale':''}`}>
-                                                        {est==='RECIENTE'?'✓ Reciente':est==='PENDIENTE'?'⚠ Pendiente':est==='VERIFICAR'?'? Verificar':est==='REFERENCIA'?'· Referencia':'✓ OK'}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
+                            {(() => {
+                                // Fuente y estado se calculan desde los datos reales en hydraulics.ts
+                                const fuente = (n: string) =>
+                                    n === 'K-0+000'  ? 'Aforo molinete 01/06/2026' :
+                                    n === 'K-23'     ? 'Estimado estructural' :
+                                    n === 'K-54'     ? 'Aforo 27/04/2026' :
+                                    n === 'K-62'     ? 'Aforo 27/04/2026' :
+                                    n === 'K-104'    ? 'Ancla salida' :
+                                    n === 'K-64'     ? 'Escala referencia' :
+                                    n === 'K-94+200' ? 'Escala referencia' :
+                                    'Aforo anterior';
+                                // Prioridad: estados nombrados explícitos (curados) ANTES que la heurística M1>1.5. Si no,
+                                // una escala marcada VERIFICAR con M1>1.5 se mostraría como PENDIENTE y nunca llegaría a VERIFICAR.
+                                const estadoM1 = (c: { nombre: string; m1: number }) =>
+                                    c.nombre === 'K-64' || c.nombre === 'K-94+200' ? 'REFERENCIA' :
+                                    c.nombre === 'K-0+000'  ? 'RECIENTE' :
+                                    c.nombre === 'K-29' || c.nombre === 'K-68' || c.nombre === 'K-87+549' ? 'VERIFICAR' :
+                                    c.m1 > 1.5              ? 'PENDIENTE' :
+                                    'OK';
+                                return (
+                                    <DataTable
+                                        propia
+                                        className="dsk-table" claseContenedor="dsk-table-wrap" captionOculto caption="Calibración M1 por escala"
+                                        clave={(c) => c.nombre} filas={skillSnapshot.checkpoints}
+                                        filaProps={(c) => { const est = estadoM1(c); return { className: est === 'PENDIENTE' ? 'dsk-tr--warn' : est === 'RECIENTE' ? 'dsk-tr--reciente' : est === 'REFERENCIA' ? 'bt-row--stale' : '' }; }}
+                                        columnas={[
+                                            { id: 'esc', titulo: 'Escala', className: 'dsk-td-nombre', render: (c) => c.nombre },
+                                            { id: 'm1', titulo: 'M1', className: 'dsk-td-num dsk-td--m1', render: (c) => c.m1.toFixed(4) },
+                                            { id: 'src', titulo: 'Fuente', className: 'dsk-td-src', render: (c) => fuente(c.nombre) },
+                                            {
+                                                id: 'est', titulo: 'Estado', className: 'dsk-td-num',
+                                                claseFila: (c) => { const est = estadoM1(c); return est === 'RECIENTE' ? 'dsk-val--green' : est === 'PENDIENTE' || est === 'VERIFICAR' ? 'dsk-val--amber' : est === 'REFERENCIA' ? 'bt-estado--stale' : undefined; },
+                                                render: (c) => { const est = estadoM1(c); return est === 'RECIENTE' ? '✓ Reciente' : est === 'PENDIENTE' ? '⚠ Pendiente' : est === 'VERIFICAR' ? '? Verificar' : est === 'REFERENCIA' ? '· Referencia' : '✓ OK'; },
+                                            },
+                                        ]}
+                                    />
+                                );
+                            })()}
                             <div className="dsk-nota">Cd=0.62 fijo · Cd_eff = Cd×M1 · PENDIENTE = sin aforo de campo · Recalibrar si SICA diverge &gt;5% vs aforo</div>
                         </div>
 

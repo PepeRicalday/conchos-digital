@@ -14,6 +14,7 @@ import { CULTIVO_OTROS, infoCultivo, fondoTramaCss } from '../../utils/cultivos'
 import { IconoCultivo, NombreCultivo, estiloCultivo } from './IconoCultivo';
 import { fetchVolumenCiclo } from '../../utils/volumenCiclo';
 import './VolumenCultivos.css';
+import { DataTable } from '../ui/base';
 
 export type VistaCultivo = 'lamina' | 'mezcla' | 'ciclo';
 const MODULOS = [1, 2, 3, 4, 5, 12];
@@ -190,34 +191,41 @@ const Lamina: React.FC<{ supVol: FilaSupVol[] }> = ({ supVol }) => {
                 </p>
             </section>
             <Detalle>
-                <div className="ndvi-ia-tabla-wrap" tabIndex={0} role="region" aria-label="Agua por hectárea, todos los cultivos y años">
-                    <table className="ndvi-ia-tabla vc-tabla">
-                        <caption>Agua entregada por hectárea (cm) = volumen ÷ superficie, {ambito(modulo)}</caption>
-                        <thead><tr><th scope="col">Cultivo</th>{colsTabla.map(a => <th key={a} scope="col">{a}</th>)}<th scope="col">Promedio</th></tr></thead>
-                        <tbody>
-                            {series.map(s => (
-                                <tr key={s.cultivo}>
-                                    <th scope="row"><NombreCultivo nombre={s.cultivo} compacto /></th>
-                                    {colsTabla.map(a => {
-                                        if (esAnioSinCiclo(a)) return <td key={a} className="vc-sc">Sin ciclo</td>;
-                                        const c = s.celdas.find(x => x.anio === a);
-                                        if (!c) return <td key={a}>{SD}</td>;
-                                        if (c.capturaCero) return <td key={a} className="vc-num vc-alerta"><span aria-label="volumen 0 en la fuente, por revisar">Revisar ⚠</span><small>{fmtMiles(c.superficieHa, 0)} ha</small></td>;
-                                        if (c.laminaCm == null) return <td key={a}>{SD}</td>;
-                                        const marcas = [c.laminaAtipica && 'cifra lejos de los demás años', c.muestraChica && `superficie menor a ${UMBRAL_HA_MUESTRA} ha`, c.atipicoFuente && 'captura atípica en el informe fuente'].filter(Boolean).join('; ');
-                                        return (
-                                            <td key={a} className={`vc-num${c.laminaAtipica || c.atipicoFuente ? ' vc-alerta' : ''}${c.muestraChica ? ' vc-chica' : ''}`} title={marcas || undefined}>
-                                                {fmt(c.laminaCm, 0)}{marcas && <span aria-label={marcas}> ⚠</span>}
-                                                <small>{fmtMiles(c.superficieHa, 0)} ha</small>
-                                            </td>
-                                        );
-                                    })}
-                                    <td className="vc-num">{s.mediaLaminaCm != null ? fmt(s.mediaLaminaCm, 0) : SD}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    propia
+                    className="ndvi-ia-tabla vc-tabla" claseContenedor="ndvi-ia-tabla-wrap" regionAria="Agua por hectárea, todos los cultivos y años"
+                    caption={`Agua entregada por hectárea (cm) = volumen ÷ superficie, ${ambito(modulo)}`}
+                    clave={(s) => s.cultivo} filas={series}
+                    columnas={[
+                        { id: 'cultivo', titulo: 'Cultivo', encabezadoFila: true, render: (s) => <NombreCultivo nombre={s.cultivo} compacto /> },
+                        ...colsTabla.map((a) => ({
+                            id: String(a), titulo: String(a),
+                            claseFila: (s: (typeof series)[number]) => {
+                                if (esAnioSinCiclo(a)) return 'vc-sc';
+                                const c = s.celdas.find(x => x.anio === a);
+                                if (!c) return undefined;
+                                if (c.capturaCero) return 'vc-num vc-alerta';
+                                if (c.laminaCm == null) return undefined;
+                                return `vc-num${c.laminaAtipica || c.atipicoFuente ? ' vc-alerta' : ''}${c.muestraChica ? ' vc-chica' : ''}`;
+                            },
+                            ayuda: (s: (typeof series)[number]) => {
+                                const c = s.celdas.find(x => x.anio === a);
+                                if (!c || c.capturaCero || c.laminaCm == null) return undefined;
+                                return [c.laminaAtipica && 'cifra lejos de los demás años', c.muestraChica && `superficie menor a ${UMBRAL_HA_MUESTRA} ha`, c.atipicoFuente && 'captura atípica en el informe fuente'].filter(Boolean).join('; ') || undefined;
+                            },
+                            render: (s: (typeof series)[number]) => {
+                                if (esAnioSinCiclo(a)) return 'Sin ciclo';
+                                const c = s.celdas.find(x => x.anio === a);
+                                if (!c) return SD;
+                                if (c.capturaCero) return <><span aria-label="volumen 0 en la fuente, por revisar">Revisar ⚠</span><small>{fmtMiles(c.superficieHa, 0)} ha</small></>;
+                                if (c.laminaCm == null) return SD;
+                                const marcas = [c.laminaAtipica && 'cifra lejos de los demás años', c.muestraChica && `superficie menor a ${UMBRAL_HA_MUESTRA} ha`, c.atipicoFuente && 'captura atípica en el informe fuente'].filter(Boolean).join('; ');
+                                return <>{fmt(c.laminaCm, 0)}{marcas && <span aria-label={marcas}> ⚠</span>}<small>{fmtMiles(c.superficieHa, 0)} ha</small></>;
+                            },
+                        })),
+                        { id: 'prom', titulo: 'Promedio', className: 'vc-num', render: (s) => s.mediaLaminaCm != null ? fmt(s.mediaLaminaCm, 0) : SD },
+                    ]}
+                />
                 <p className="ndvi-nota">⚠ = cifra por revisar: se aleja de los demás años del mismo cultivo, tiene menos de {UMBRAL_HA_MUESTRA} ha (poca superficie) o es una captura atípica del informe. El promedio solo usa años con superficie suficiente y sin captura atípica. 2025 no tiene cifras: {TEXTO_SIN_CICLO.toLowerCase()}</p>
             </Detalle>
             <p className="ndvi-nota">Describe, no explica: una cifra más alta o más baja no dice por qué. Es agua entregada, no consumo de la planta.</p>
@@ -424,41 +432,33 @@ const Mezcla: React.FC<{ supVol: FilaSupVol[]; moduloInicial?: number | null }> 
             </section>
             {!sinCiclo && (
                 <Detalle>
-                    <div className="ndvi-ia-tabla-wrap" tabIndex={0} role="region" aria-label="Peso de cada cultivo">
-                        <table className="ndvi-ia-tabla vc-tabla">
-                            <caption>Todos los cultivos, {anioSel}, {ambito(modulo)}</caption>
-                            <thead><tr><th scope="col">Cultivo</th><th scope="col">Superficie (ha)</th><th scope="col">% de la superficie</th><th scope="col">Agua (hm³)</th><th scope="col">% del agua</th></tr></thead>
-                            <tbody>
-                                {mezcla.length === 0 && <tr><td colSpan={5}>{SD} sin renglones para este año.</td></tr>}
-                                {mezcla.map(p => (
-                                    <tr key={p.cultivo}>
-                                        <th scope="row"><NombreCultivo nombre={p.cultivo} compacto /></th>
-                                        <td className="vc-num">{p.superficieHa != null ? fmtMiles(p.superficieHa, 0) : SD}</td>
-                                        <td className="vc-num">{p.pctSuperficie != null ? `${fmt(p.pctSuperficie, 1)} %` : SD}</td>
-                                        <td className="vc-num">{p.volumenHm3 != null ? fmt(p.volumenHm3, 1) : SD}</td>
-                                        <td className="vc-num">{p.pctVolumen != null ? `${fmt(p.pctVolumen, 1)} %` : SD}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <DataTable
+                        propia
+                        className="ndvi-ia-tabla vc-tabla" claseContenedor="ndvi-ia-tabla-wrap" regionAria="Peso de cada cultivo"
+                        caption={`Todos los cultivos, ${anioSel}, ${ambito(modulo)}`}
+                        vacio="S/D sin renglones para este año."
+                        clave={(p) => p.cultivo} filas={mezcla}
+                        columnas={[
+                            { id: 'cultivo', titulo: 'Cultivo', encabezadoFila: true, render: (p) => <NombreCultivo nombre={p.cultivo} compacto /> },
+                            { id: 'sup', titulo: 'Superficie (ha)', className: 'vc-num', render: (p) => p.superficieHa != null ? fmtMiles(p.superficieHa, 0) : SD },
+                            { id: 'psup', titulo: '% de la superficie', className: 'vc-num', render: (p) => p.pctSuperficie != null ? `${fmt(p.pctSuperficie, 1)} %` : SD },
+                            { id: 'vol', titulo: 'Agua (hm³)', className: 'vc-num', render: (p) => p.volumenHm3 != null ? fmt(p.volumenHm3, 1) : SD },
+                            { id: 'pvol', titulo: '% del agua', className: 'vc-num', render: (p) => p.pctVolumen != null ? `${fmt(p.pctVolumen, 1)} %` : SD },
+                        ]}
+                    />
                     {contraste && (
-                        <div className="ndvi-ia-tabla-wrap" tabIndex={0} role="region" aria-label="Años de más superficie contra años de menos superficie">
-                            <table className="ndvi-ia-tabla vc-tabla">
-                                <caption>Años de más superficie ({contraste.altos.join(', ')}) y de menos superficie ({contraste.bajos.join(', ')}): qué parte del agua recibió cada cultivo</caption>
-                                <thead><tr><th scope="col">Cultivo</th><th scope="col">% del agua, años de más superficie</th><th scope="col">% del agua, años de menos superficie</th><th scope="col">Diferencia (puntos de %)</th></tr></thead>
-                                <tbody>
-                                    {contraste.cultivos.slice(0, 8).map(c => (
-                                        <tr key={c.cultivo}>
-                                            <th scope="row"><NombreCultivo nombre={c.cultivo} compacto /></th>
-                                            <td className="vc-num">{c.pctVolAltos != null ? fmt(c.pctVolAltos, 1) : SD}</td>
-                                            <td className="vc-num">{c.pctVolBajos != null ? fmt(c.pctVolBajos, 1) : SD}</td>
-                                            <td className="vc-num">{c.deltaPp != null ? sg(c.deltaPp, 1) : SD}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        <DataTable
+                            propia
+                            className="ndvi-ia-tabla vc-tabla" claseContenedor="ndvi-ia-tabla-wrap" regionAria="Años de más superficie contra años de menos superficie"
+                            caption={`Años de más superficie (${contraste.altos.join(', ')}) y de menos superficie (${contraste.bajos.join(', ')}): qué parte del agua recibió cada cultivo`}
+                            clave={(c) => c.cultivo} filas={contraste.cultivos.slice(0, 8)}
+                            columnas={[
+                                { id: 'cultivo', titulo: 'Cultivo', encabezadoFila: true, render: (c) => <NombreCultivo nombre={c.cultivo} compacto /> },
+                                { id: 'alt', titulo: '% del agua, años de más superficie', className: 'vc-num', render: (c) => c.pctVolAltos != null ? fmt(c.pctVolAltos, 1) : SD },
+                                { id: 'baj', titulo: '% del agua, años de menos superficie', className: 'vc-num', render: (c) => c.pctVolBajos != null ? fmt(c.pctVolBajos, 1) : SD },
+                                { id: 'dif', titulo: 'Diferencia (puntos de %)', className: 'vc-num', render: (c) => c.deltaPp != null ? sg(c.deltaPp, 1) : SD },
+                            ]}
+                        />
                     )}
                     <p className="ndvi-nota">Los años de «más superficie» y de «menos superficie» se separan por la superficie total regada (punto medio entre el año con menos y el año con más).{contraste ? '' : ' En este ámbito no hay un contraste claro (se piden al menos 4 años y que el mayor tenga 1.5 veces la superficie del menor).'}</p>
                 </Detalle>
@@ -605,26 +605,22 @@ const Ciclo: React.FC<{ supVol: FilaSupVol[]; volumenActual: VolumenActual | nul
                 </ul>
             </section>
             <Detalle>
-                <div className="ndvi-ia-tabla-wrap" tabIndex={0} role="region" aria-label={`Ciclo actual contra el rango ${RANGO_INFORME}`}>
-                    <table className="ndvi-ia-tabla vc-tabla">
-                        <caption>Agua entregada por ciclo (hm³): ciclo {ultAnio} contra {RANGO_INFORME}, con la hoja SRL como contraste</caption>
-                        <thead><tr><th scope="col">Módulo</th><th scope="col">Mínimo</th><th scope="col">Año típico</th><th scope="col">Máximo</th><th scope="col">Ciclo {ultAnio}</th><th scope="col">Frente al año típico</th><th scope="col">Hoja SRL (mar–sep)</th><th scope="col">Lectura</th></tr></thead>
-                        <tbody>
-                            {refs.map(r => (
-                                <tr key={r.modulo}>
-                                    <th scope="row">{r.modulo}</th>
-                                    <td className="vc-num">{r.minHm3 != null ? fmt(r.minHm3, 1) : SD}</td>
-                                    <td className="vc-num">{r.medianaHm3 != null ? fmt(r.medianaHm3, 1) : SD}</td>
-                                    <td className="vc-num">{r.maxHm3 != null ? fmt(r.maxHm3, 1) : SD}</td>
-                                    <td className="vc-num">{r.actualHm3 != null ? <>{fmt(r.actualHm3, 1)}{r.fuenteActual === 'srl' && <span className="vv-prov"> provisional</span>}</> : SD}</td>
-                                    <td className="vc-num">{r.pctVsMediana != null ? `${sg(r.pctVsMediana, 0)} %` : SD}</td>
-                                    <td className="vc-num">{r.srlHm3 != null ? <>{fmt(r.srlHm3, 1)}{r.difSrlInformeHm3 != null && <span className="vv-prov"> ({difSrl(r.difSrlInformeHm3)})</span>}</> : SD}</td>
-                                    <td className="vv-lect">{POS[r.posicion].texto}{r.actualIncompleto && <span className="vv-warn"> ⚠ meses incompletos</span>}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    propia
+                    className="ndvi-ia-tabla vc-tabla" claseContenedor="ndvi-ia-tabla-wrap" regionAria={`Ciclo actual contra el rango ${RANGO_INFORME}`}
+                    caption={`Agua entregada por ciclo (hm³): ciclo ${ultAnio} contra ${RANGO_INFORME}, con la hoja SRL como contraste`}
+                    clave={(r) => String(r.modulo)} filas={refs}
+                    columnas={[
+                        { id: 'mod', titulo: 'Módulo', encabezadoFila: true, render: (r) => r.modulo },
+                        { id: 'min', titulo: 'Mínimo', className: 'vc-num', render: (r) => r.minHm3 != null ? fmt(r.minHm3, 1) : SD },
+                        { id: 'med', titulo: 'Año típico', className: 'vc-num', render: (r) => r.medianaHm3 != null ? fmt(r.medianaHm3, 1) : SD },
+                        { id: 'max', titulo: 'Máximo', className: 'vc-num', render: (r) => r.maxHm3 != null ? fmt(r.maxHm3, 1) : SD },
+                        { id: 'act', titulo: `Ciclo ${ultAnio}`, className: 'vc-num', render: (r) => r.actualHm3 != null ? <>{fmt(r.actualHm3, 1)}{r.fuenteActual === 'srl' && <span className="vv-prov"> provisional</span>}</> : SD },
+                        { id: 'vs', titulo: 'Frente al año típico', className: 'vc-num', render: (r) => r.pctVsMediana != null ? `${sg(r.pctVsMediana, 0)} %` : SD },
+                        { id: 'srl', titulo: 'Hoja SRL (mar–sep)', className: 'vc-num', render: (r) => r.srlHm3 != null ? <>{fmt(r.srlHm3, 1)}{r.difSrlInformeHm3 != null && <span className="vv-prov"> ({difSrl(r.difSrlInformeHm3)})</span>}</> : SD },
+                        { id: 'lect', titulo: 'Lectura', className: 'vv-lect', render: (r) => <>{POS[r.posicion].texto}{r.actualIncompleto && <span className="vv-warn"> ⚠ meses incompletos</span>}</> },
+                    ]}
+                />
             </Detalle>
             <p className="ndvi-nota">El ciclo {ultAnio} y {RANGO_INFORME} salen del mismo informe ACUM_INF (corte de septiembre), así que se comparan entre iguales; el desglose por cultivo está en «Mezcla de cultivos». La hoja SRL (mar–sep) se muestra aparte como contraste y no está conciliada con el informe: una diferencia entre ambas puede ser de método y no del agua entregada. Un año típico es el año del medio de {RANGO_INFORME}; 2025 no cuenta porque las presas estuvieron cerradas. Con 5 años el rango es una referencia, no una prueba. Menos o más agua que un año típico no dice si hubo ahorro, sequía ni otra causa.</p>
         </div>

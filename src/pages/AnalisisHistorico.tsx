@@ -10,6 +10,7 @@ import {
 } from '../utils/historicoPresas';
 import './AnalisisHistorico.css';
 import { LogoSica } from '../components/marca/LogoSica';
+import { DataTable } from '../components/ui/base';
 
 const PRESAS = ['PRE-001', 'PRE-002'] as const;
 const MAX_ANIOS = 3;
@@ -176,24 +177,24 @@ const AnalisisHistorico = () => {
                         </div>
                         <div className="ah-tablas">
                             {PRESAS.map(p => (
-                                <div key={p} className="ah-tabla-wrap">
-                                    <table className="ah-tabla">
-                                        <caption>{NOMBRE_PRESA[p]}</caption>
-                                        <thead><tr><th scope="col">Día</th>{seleccion.map(a => <th key={a} scope="col">{a}</th>)}</tr></thead>
-                                        <tbody>
-                                            {Array.from({ length: 31 }, (_, i) => {
-                                                const cols = seleccion.map(a => serieMes(indice[p], a, mes, metrica, serie)[i]);
-                                                if (i + 1 > Math.max(...seleccion.map(a => diasDelMes(a, mes)))) return null;
-                                                return (
-                                                    <tr key={i}>
-                                                        <th scope="row">{i + 1}</th>
-                                                        {cols.map((v, j) => <td key={j} className={v == null ? 'is-sd' : ''}>{formatearNumero(v, decimales)}</td>)}
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                (() => {
+                                    const series = seleccion.map(a => serieMes(indice[p], a, mes, metrica, serie));
+                                    const maxDias = Math.max(...seleccion.map(a => diasDelMes(a, mes)));
+                                    return (
+                                        <DataTable
+                                            key={p} propia className="ah-tabla" claseContenedor="ah-tabla-wrap" caption={NOMBRE_PRESA[p]}
+                                            clave={(d) => String(d)} filas={Array.from({ length: 31 }, (_, i) => i).filter(i => i + 1 <= maxDias)}
+                                            columnas={[
+                                                { id: 'dia', titulo: 'Día', encabezadoFila: true, render: (i) => i + 1 },
+                                                ...seleccion.map((a, j) => ({
+                                                    id: String(a), titulo: String(a),
+                                                    claseFila: (i: number) => series[j][i] == null ? 'is-sd' : undefined,
+                                                    render: (i: number) => formatearNumero(series[j][i], decimales),
+                                                })),
+                                            ]}
+                                        />
+                                    );
+                                })()
                             ))}
                         </div>
                     </details>

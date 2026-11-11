@@ -3,6 +3,7 @@ import { formatearNumero } from '../../../utils/historicoPresas';
 import { fechaCorta } from '../../../utils/analiticaPresas';
 import { LLUVIA_FUERTE_MM, NOMBRE_LLUVIA, type ResumenLluvia } from '../../../utils/aqwpCuenca';
 import { anioInicioCiclo, lluviaCiclo, lluviaVsCicloAnterior } from '../../../utils/aqwpEstadistica';
+import { DataTable } from '../../ui/base';
 
 interface Props {
     lluvia: ResumenLluvia;
@@ -43,23 +44,15 @@ export default function TiraLluvia({ lluvia, serie }: Props) {
                 Milímetros por día hasta el {fechaCorta(lluvia.hasta)}; los 30 días más recientes (dato provisional, pluviómetros GOES). Más intensidad = más lluvia; los días de {LLUVIA_FUERTE_MM} mm o más muestran su cifra.
                 «0» es un día seco medido; la trama es un día sin datos suficientes (S/D). El ciclo agrícola corre del 1-oct al 30-sep.
             </p>
-            <div className="cu-tabla-wrap">
-                <table className="cu-tabla cu-tabla--lluvia">
-                    <thead>
-                        <tr>
-                            <th scope="col">Pluviómetro</th>
-                            <th scope="col">Serie 30 d</th>
-                            <th scope="col" className="cu-num">Total 7 d</th>
-                            <th scope="col" className="cu-num">Total 30 d</th>
-                            <th scope="col" className="cu-num">Ciclo {ciclo.anio}-{String(ciclo.anio + 1).slice(2)}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {lluvia.filas.map((f) => {
-                            const mias = serie.filter((s) => s.ubicacionId === f.ubicacionId);
-                            const act = lluviaCiclo(mias, ciclo.anio, ciclo.k);
-                            const ant = lluviaCiclo(mias, ciclo.anio - 1, ciclo.k);
-                            const vs = lluviaVsCicloAnterior(act, ant);
+            <DataTable
+                propia
+                className="cu-tabla cu-tabla--lluvia" claseContenedor="cu-tabla-wrap" captionOculto caption="Lluvia diaria de los últimos 30 días por pluviómetro"
+                clave={(f) => String(f.ubicacionId)} filas={lluvia.filas}
+                columnas={[
+                    { id: 'pl', titulo: 'Pluviómetro', encabezadoFila: true, render: (f) => <div className="cu-presa"><span className="cu-nombre">{NOMBRE_LLUVIA[f.ubicacionId] ?? f.nombre}</span></div> },
+                    {
+                        id: 'serie', titulo: 'Serie 30 d', className: 'cu-tira-td',
+                        render: (f) => {
                             const dias30 = lluvia.serie30.map((s) => ({ fecha: s.fecha, v: (s[String(f.ubicacionId)] as number | null | undefined) ?? null }));
                             const conLluvia = dias30.filter((d) => d.v != null && d.v >= 1).length;
                             const conDato = dias30.filter((d) => d.v != null).length;
@@ -68,42 +61,48 @@ export default function TiraLluvia({ lluvia, serie }: Props) {
                                 ? `${f.nombre}: 30 días sin datos (S/D)`
                                 : `${f.nombre}: ${conDato} de 30 días con dato, ${conLluvia} con lluvia de 1 mm o más, máximo ${formatearNumero(maximo, 1)} mm`;
                             return (
-                                <tr key={f.ubicacionId}>
-                                    <th scope="row"><div className="cu-presa"><span className="cu-nombre">{NOMBRE_LLUVIA[f.ubicacionId] ?? f.nombre}</span></div></th>
-                                    <td className="cu-tira-td">
-                                        <div className="cu-tira" role="img"
-                                            aria-label={resumenTira}>
-                                            {dias30.map((d) => {
-                                                const sd = d.v == null;
-                                                const alfa = sd ? 0 : d.v === 0 ? 0 : Math.max(0.28, Math.min(1, d.v! / 25));
-                                                return (
-                                                    <span key={d.fecha} title={`${fechaCorta(d.fecha)}: ${fmtMm(d.v)}`}
-                                                        className={`cu-dia${sd ? ' cu-dia--sd' : d.v === 0 ? ' cu-dia--seco' : ''}${!sd && d.v! >= LLUVIA_FUERTE_MM ? ' cu-dia--fuerte' : ''}`}
-                                                        style={sd || d.v === 0 ? undefined : { backgroundColor: `rgba(63, 178, 243, ${alfa})` }}>
-                                                        {!sd && d.v! >= LLUVIA_FUERTE_MM && <span className="cu-dia-num">{formatearNumero(d.v!, 0)}</span>}
-                                                    </span>
-                                                );
-                                            })}
-                                        </div>
-                                    </td>
-                                    <td className="cu-num">{fmtMm(f.total7.mm)}{f.total7.mm != null && f.total7.conDato < f.total7.ventana && <span className="cu-nota-fila">{f.total7.conDato} de {f.total7.ventana} días con dato</span>}</td>
-                                    <td className="cu-num">{fmtMm(f.total30.mm)}{f.total30.mm != null && f.total30.conDato < f.total30.ventana && <span className="cu-nota-fila">{f.total30.conDato} de {f.total30.ventana} días con dato</span>}</td>
-                                    <td className="cu-num">
-                                        {fmtMm(act.mm)}
-                                        {act.mm != null && <span className="cu-nota-fila">{act.diasConLluvia} días con lluvia · máx. {fmtMm(act.maxDiaMm)}</span>}
-                                        <span className="cu-nota-fila">
-                                            {vs
-                                                ? `${vs.difMm > 0 ? '+' : vs.difMm < 0 ? '−' : ''}${formatearNumero(Math.abs(vs.difMm), 1)} mm frente al ciclo anterior (n = 1)`
-                                                : act.mm == null ? '' : 'sin comparación: cobertura insuficiente en alguno de los dos ciclos'}
-                                        </span>
-                                        {vs?.advertencia && <span className="cu-nota-fila cu-nota-fila--aviso">⚠ {vs.advertencia}</span>}
-                                    </td>
-                                </tr>
+                                <div className="cu-tira" role="img"
+                                    aria-label={resumenTira}>
+                                    {dias30.map((d) => {
+                                        const sd = d.v == null;
+                                        const alfa = sd ? 0 : d.v === 0 ? 0 : Math.max(0.28, Math.min(1, d.v! / 25));
+                                        return (
+                                            <span key={d.fecha} title={`${fechaCorta(d.fecha)}: ${fmtMm(d.v)}`}
+                                                className={`cu-dia${sd ? ' cu-dia--sd' : d.v === 0 ? ' cu-dia--seco' : ''}${!sd && d.v! >= LLUVIA_FUERTE_MM ? ' cu-dia--fuerte' : ''}`}
+                                                style={sd || d.v === 0 ? undefined : { backgroundColor: `rgba(63, 178, 243, ${alfa})` }}>
+                                                {!sd && d.v! >= LLUVIA_FUERTE_MM && <span className="cu-dia-num">{formatearNumero(d.v!, 0)}</span>}
+                                            </span>
+                                        );
+                                        })}
+                                    </div>
                             );
-                        })}
-                    </tbody>
-                </table>
-            </div>
+                        },
+                    },
+                    { id: 't7', titulo: 'Total 7 d', className: 'cu-num', render: (f) => <>{fmtMm(f.total7.mm)}{f.total7.mm != null && f.total7.conDato < f.total7.ventana && <span className="cu-nota-fila">{f.total7.conDato} de {f.total7.ventana} días con dato</span>}</> },
+                    { id: 't30', titulo: 'Total 30 d', className: 'cu-num', render: (f) => <>{fmtMm(f.total30.mm)}{f.total30.mm != null && f.total30.conDato < f.total30.ventana && <span className="cu-nota-fila">{f.total30.conDato} de {f.total30.ventana} días con dato</span>}</> },
+                    {
+                        id: 'ciclo', titulo: `Ciclo ${ciclo.anio}-${String(ciclo.anio + 1).slice(2)}`, className: 'cu-num',
+                        render: (f) => {
+                            const mias = serie.filter((s) => s.ubicacionId === f.ubicacionId);
+                            const act = lluviaCiclo(mias, ciclo.anio, ciclo.k);
+                            const ant = lluviaCiclo(mias, ciclo.anio - 1, ciclo.k);
+                            const vs = lluviaVsCicloAnterior(act, ant);
+                            return (
+                                <>
+                                    {fmtMm(act.mm)}
+                                    {act.mm != null && <span className="cu-nota-fila">{act.diasConLluvia} días con lluvia · máx. {fmtMm(act.maxDiaMm)}</span>}
+                                    <span className="cu-nota-fila">
+                                        {vs
+                                            ? `${vs.difMm > 0 ? '+' : vs.difMm < 0 ? '−' : ''}${formatearNumero(Math.abs(vs.difMm), 1)} mm frente al ciclo anterior (n = 1)`
+                                            : act.mm == null ? '' : 'sin comparación: cobertura insuficiente en alguno de los dos ciclos'}
+                                    </span>
+                                    {vs?.advertencia && <span className="cu-nota-fila cu-nota-fila--aviso">⚠ {vs.advertencia}</span>}
+                                </>
+                            );
+                        },
+                    },
+                ]}
+            />
         </section>
     );
 }

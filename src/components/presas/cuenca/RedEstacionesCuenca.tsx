@@ -8,6 +8,7 @@ import type { LluviaAreal } from '../../../utils/jcasCuenca';
 import { arealDe, diasCubiertos, esVentanaLarga, etiquetaVentana, mmPropio, valorObs, VENTANAS_OBS, type PuntoRedJcas, type VentanaObs } from '../../../utils/jcasModelo';
 import MapaCuenca from './MapaCuenca';
 import type { CapasCuenca } from '../../../hooks/useCapasCuenca';
+import { DataTable } from '../../ui/base';
 
 const horaLectura = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('es-MX', { timeZone: 'America/Chihuahua', hour: '2-digit', minute: '2-digit', hour12: false }) : 'S/D');
 const fmtMm = (v: number | null) => (v == null ? 'S/D' : `${formatearNumero(v, 1)} mm`);
@@ -71,6 +72,8 @@ export default function RedEstacionesCuenca({ jcas, capas, ventana: ventanaProp,
     const m = red.modelo;
     const areal = arealDe(m, ventana);
     const larga = esVentanaLarga(ventana);
+    type FilaRed = { j: (typeof filas)[number]; propia?: undefined } | { j?: undefined; propia: (typeof m.propias)[number] };
+    const filasTabla: FilaRed[] = [...filas.map((j): FilaRed => ({ j })), ...m.propias.map((propia): FilaRed => ({ propia }))];
     const excluidas = m.puntos.filter((p) => p.sospechosa);
     const max30 = Math.max(0.0001, ...m.puntos.filter((p) => !p.sospechosa).map((p) => p.mm30 ?? 0), ...m.propias.map((p) => p.mm30 ?? 0));
     const barra = (v: number | null) => (v == null ? undefined : { ['--w' as string]: `${Math.max(0, Math.min(100, Math.round((v / max30) * 100)))}%` });
@@ -109,55 +112,45 @@ export default function RedEstacionesCuenca({ jcas, capas, ventana: ventanaProp,
             <div className="cu-cq"><div className="cu-red-cuerpo">
             <MapaCuenca contorno={red.contorno} puntos={m.puntos} seleccionada={sel} onSelect={setSel} ventana={ventana} propias={m.propias} capas={capas} />
 
-            <div className="cu-tabla-wrap cu-tabla-wrap--red" tabIndex={0} role="region" aria-label="Tabla de estaciones JCAS (desplazable)">
-                <table className="cu-tabla">
-                    <thead>
-                        <tr>
-                            <th scope="col">Estación</th>
-                            <th scope="col" className="cu-num">Lluvia hoy (parcial)</th>
-                            <th scope="col" className="cu-num">Lluvia ayer</th>
-                            <th scope="col" className="cu-num">Lluvia 7 d</th>
-                            <th scope="col" className="cu-num">Lluvia 30 d</th>
-                            {larga && <th scope="col" className="cu-num">Lluvia {etiquetaVentana(ventana)}</th>}
-                            <th scope="col" className="cu-num">Temp. último día</th>
-                            <th scope="col">Estado · último día</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filas.map((p) => {
-                            const e = estadoTexto(p);
-                            return (
-                                <tr key={p.id} className={p.id === sel ? 'cu-fila--sel' : undefined} onClick={() => setSel(p.id)}>
-                                    <th scope="row"><div className="cu-presa">
-                                        <span className="cu-nombre">{p.nombre}</span>
-                                        {p.zona === 'salida' && <span className="cu-tag">Salida</span>}
-                                        {p.grupo && <span className="cu-nota-fila">Misma ciudad que otras estaciones: pesa una vez en el promedio</span>}
-                                        {p.sospechosa && p.motivo && <span className="cu-nota-fila">{p.motivo}</span>}
-                                    </div></th>
-                                    <td className="cu-num">{fmtMm(p.hoy?.mm ?? null)}</td>
-                                    <td className="cu-num">{fmtMm(p.ayer.mm)}</td>
-                                    <td className="cu-num">{fmtMm(p.mm7)}</td>
-                                    <td className="cu-num cu-barra" style={barra(p.sospechosa ? null : p.mm30)}>{fmtMm(p.mm30)}</td>
-                                    {larga && <td className="cu-num">{fmtMm(p.sospechosa || p.sinPluviometro ? null : valorObs(p, 'lluvia', ventana))}</td>}
-                                    <td className="cu-num">{p.tempUltima == null ? 'S/D' : `${formatearNumero(p.tempUltima, 1)} °C`}</td>
-                                    <td><span className={`cu-estado cu-estado--${e.clase}`}><span aria-hidden="true">{e.glifo}</span> {e.texto}</span><span className="cu-nota-fila cu-fecha">{p.ultFecha ? fechaCorta(p.ultFecha) : 'S/D'}</span></td>
-                                </tr>
-                            );
-                        })}
-                        {m.propias.map((p) => (
-                            <tr key={p.id}>
-                                <th scope="row"><div className="cu-presa"><span className="cu-nombre">{p.nombre}</span><span className="cu-tag">Propia</span><span className="cu-nota-fila">{p.tempUltima == null && p.medias.temp30 == null ? 'Estación WeatherLink del distrito: solo lluvia (sin sensor de temperatura confiable)' : 'Estación WeatherLink del distrito'}</span></div></th>
-                                <td className="cu-num">{fmtMm(p.mmHoy)}</td><td className="cu-num">{fmtMm(p.mm1)}</td><td className="cu-num">{fmtMm(p.mm7)}</td><td className="cu-num cu-barra" style={barra(p.mm30)}>{fmtMm(p.mm30)}</td>{larga && <td className="cu-num">{fmtMm(mmPropio(p, ventana))}</td>}
-                                <td className="cu-num">{p.tempUltima == null ? 'S/D' : `${formatearNumero(p.tempUltima, 1)} °C`}</td>
-                                <td>{(() => {
-                                    const e = estadoPropia(p.ultFecha, m.fin);
-                                    return <span className={`cu-estado cu-estado--${e.clase}`}><span aria-hidden="true">{e.glifo}</span> {e.texto}</span>;
-                                })()}<span className="cu-nota-fila cu-fecha">{p.ultFecha ? fechaCorta(p.ultFecha) : 'S/D'}</span></td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            <DataTable
+                propia
+                className="cu-tabla" claseContenedor="cu-tabla-wrap cu-tabla-wrap--red" regionAria="Tabla de estaciones JCAS (desplazable)" captionOculto caption="Lluvia y temperatura por estación de la red JCAS y estaciones propias"
+                clave={(r) => (r.propia ? 'p' : 'j') + (r.propia ?? r.j).id} filas={filasTabla}
+                filaProps={(r) => r.j ? { className: r.j.id === sel ? 'cu-fila--sel' : undefined, onClick: () => setSel(r.j.id) } : undefined}
+                columnas={[
+                    {
+                        id: 'est', titulo: 'Estación', encabezadoFila: true,
+                        render: (r) => r.j ? (
+                            <div className="cu-presa">
+                                <span className="cu-nombre">{r.j.nombre}</span>
+                                {r.j.zona === 'salida' && <span className="cu-tag">Salida</span>}
+                                {r.j.grupo && <span className="cu-nota-fila">Misma ciudad que otras estaciones: pesa una vez en el promedio</span>}
+                                {r.j.sospechosa && r.j.motivo && <span className="cu-nota-fila">{r.j.motivo}</span>}
+                            </div>
+                        ) : (
+                            <div className="cu-presa"><span className="cu-nombre">{r.propia.nombre}</span><span className="cu-tag">Propia</span><span className="cu-nota-fila">{r.propia.tempUltima == null && r.propia.medias.temp30 == null ? 'Estación WeatherLink del distrito: solo lluvia (sin sensor de temperatura confiable)' : 'Estación WeatherLink del distrito'}</span></div>
+                        ),
+                    },
+                    { id: 'hoy', titulo: 'Lluvia hoy (parcial)', className: 'cu-num', render: (r) => fmtMm(r.j ? r.j.hoy?.mm ?? null : r.propia.mmHoy) },
+                    { id: 'ayer', titulo: 'Lluvia ayer', className: 'cu-num', render: (r) => fmtMm(r.j ? r.j.ayer.mm : r.propia.mm1) },
+                    { id: 'd7', titulo: 'Lluvia 7 d', className: 'cu-num', render: (r) => fmtMm((r.j ?? r.propia).mm7) },
+                    {
+                        id: 'd30', titulo: 'Lluvia 30 d', className: 'cu-num cu-barra',
+                        estilo: (r) => barra(r.j ? (r.j.sospechosa ? null : r.j.mm30) : r.propia.mm30),
+                        render: (r) => fmtMm((r.j ?? r.propia).mm30),
+                    },
+                    ...(larga ? [{ id: 'larga', titulo: `Lluvia ${etiquetaVentana(ventana)}`, className: 'cu-num', render: (r: FilaRed) => fmtMm(r.j ? (r.j.sospechosa || r.j.sinPluviometro ? null : valorObs(r.j, 'lluvia', ventana)) : mmPropio(r.propia, ventana)) }] : []),
+                    { id: 'temp', titulo: 'Temp. último día', className: 'cu-num', render: (r) => { const t = (r.j ?? r.propia).tempUltima; return t == null ? 'S/D' : `${formatearNumero(t, 1)} °C`; } },
+                    {
+                        id: 'estado', titulo: 'Estado · último día',
+                        render: (r) => {
+                            const e = r.j ? estadoTexto(r.j) : estadoPropia(r.propia.ultFecha, m.fin);
+                            const uf = (r.j ?? r.propia).ultFecha;
+                            return <><span className={`cu-estado cu-estado--${e.clase}`}><span aria-hidden="true">{e.glifo}</span> {e.texto}</span><span className="cu-nota-fila cu-fecha">{uf ? fechaCorta(uf) : 'S/D'}</span></>;
+                        },
+                    },
+                ]}
+            />
             </div></div>
 
             <details className="an-pie cu-notas">

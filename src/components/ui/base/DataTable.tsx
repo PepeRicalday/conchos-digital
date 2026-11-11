@@ -2,7 +2,8 @@ import type { ComponentPropsWithRef, CSSProperties, ReactNode } from 'react';
 
 export interface Columna<T> {
     id: string;
-    titulo: string;
+    /** Texto de la cabecera; con contenido (ReactNode) la etiqueta móvil se omite. */
+    titulo: ReactNode;
     /** Contenido de la celda. En columnas numéricas, null/undefined/'' se muestra como «S/D» (nunca 0). */
     render: (fila: T) => ReactNode;
     /** Alineada a la derecha, cifras tabulares. */
@@ -25,7 +26,7 @@ export type PropsFila = ComponentPropsWithRef<'tr'>;
  * Tabla de datos base: <table> semántica (caption, th scope), cifras tabulares a la derecha, S/D explícito y contenedor
  * con desplazamiento horizontal propio. Las columnas se describen una vez; no hay HTML repetido por celda.
  */
-export function DataTable<T>({ columnas, filas, clave, caption, captionOculto, apilar, vacio, filaProps, className, regionAria, cabeceraFija }: {
+export function DataTable<T>({ columnas, filas, clave, caption, captionOculto, apilar, vacio, filaProps, className, claseContenedor, regionAria, cabeceraFija, propia }: {
     columnas: Columna<T>[];
     filas: readonly T[];
     clave: (fila: T) => string;
@@ -38,15 +39,19 @@ export function DataTable<T>({ columnas, filas, clave, caption, captionOculto, a
     vacio?: string;
     filaProps?: (fila: T) => PropsFila | undefined;
     className?: string;
+    /** Clase extra del contenedor (la regla de página que dependía de su wrapper). */
+    claseContenedor?: string;
     /** Hace el contenedor una región enfocable con ese nombre (tablas anchas que se desplazan con teclado). */
     regionAria?: string;
+    /** La página define el aspecto de la tabla con su propia clase: no se aplica el estilo base (solo la estructura, el desplazamiento y las etiquetas). */
+    propia?: boolean;
     /** La cabecera queda fija al desplazar el contenedor. */
     cabeceraFija?: boolean;
 }) {
     if (filas.length === 0 && vacio) return <p className="ui-tabla__vacio">{vacio}</p>;
     return (
-        <div className="ui-tabla-wrap" {...(regionAria ? { tabIndex: 0, role: 'region', 'aria-label': regionAria } : {})}>
-            <table className={['ui-tabla', apilar && 'ui-tabla--apila', cabeceraFija && 'ui-tabla--fija', className].filter(Boolean).join(' ')}>
+        <div className={['ui-tabla-wrap', claseContenedor].filter(Boolean).join(' ')} {...(regionAria ? { tabIndex: 0, role: 'region', 'aria-label': regionAria } : {})}>
+            <table className={[!propia && 'ui-tabla', apilar && 'ui-tabla--apila', cabeceraFija && 'ui-tabla--fija', className].filter(Boolean).join(' ')}>
                 {caption && <caption className={captionOculto ? 'ui-sr' : undefined}>{caption}</caption>}
                 <thead>
                     <tr>{columnas.map((c) => <th key={c.id} scope="col" className={[c.numerica && 'ui-tabla__num', c.claseTh].filter(Boolean).join(' ') || undefined}>{c.titulo}</th>)}</tr>
@@ -61,8 +66,8 @@ export function DataTable<T>({ columnas, filas, clave, caption, captionOculto, a
                                 const cls = [c.numerica && 'ui-tabla__num', c.className, c.claseFila?.(f)].filter(Boolean).join(' ') || undefined;
                                 const est = c.estilo?.(f);
                                 return c.encabezadoFila
-                                    ? <th key={c.id} scope="row" className={cls} style={est} title={c.ayuda?.(f)} data-label={c.titulo}>{contenido}</th>
-                                    : <td key={c.id} className={cls} style={est} title={c.ayuda?.(f)} data-label={c.titulo}>{contenido}</td>;
+                                    ? <th key={c.id} scope="row" className={cls} style={est} title={c.ayuda?.(f)} data-label={typeof c.titulo === 'string' ? c.titulo : undefined}>{contenido}</th>
+                                    : <td key={c.id} className={cls} style={est} title={c.ayuda?.(f)} data-label={typeof c.titulo === 'string' ? c.titulo : undefined}>{contenido}</td>;
                             })}
                         </tr>
                     ))}

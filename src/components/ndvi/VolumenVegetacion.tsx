@@ -10,6 +10,7 @@ import {
 import { RANGO_INFORME, TEXTO_SIN_CICLO } from '../../utils/estadoAnio';
 import { VolumenCultivos, type VistaCultivo } from './VolumenCultivos';
 import './VolumenVegetacion.css';
+import { DataTable } from '../ui/base';
 
 const MODULOS = [1, 2, 3, 4, 5, 12];
 const VISTAS: ['ndvi' | VistaCultivo, string][] = [['ndvi', 'Agua y NDVI'], ['lamina', 'Agua por hectárea'], ['mezcla', 'Mezcla de cultivos'], ['ciclo', 'Ciclo actual']];
@@ -295,32 +296,36 @@ export const VolumenVegetacion: React.FC<{
             </div>
             <p className="ndvi-nota">Todos los cuadros comparten la escala vertical de NDVI ({ejeY.ticks[0].toFixed(1)} a {ejeY.ticks[ejeY.ticks.length - 1].toFixed(1)}); el eje de volumen es propio de cada módulo porque sus rangos son muy distintos. Una recta se llama «firme» solo si supera el R² crítico al 5 % para el número de años; con 4 años eso exige R² ≥ 0.90.</p>
 
-            <div className="ndvi-ia-tabla-wrap" tabIndex={0} role="region" aria-label={`Superficie, volumen y vegetación por año, Módulo ${modulo}`}>
-                <table className="ndvi-ia-tabla vv-tabla">
-                    <caption>Módulo {modulo}, año por año</caption>
-                    <thead><tr><th scope="col">Año</th><th scope="col">Superficie (ha)</th><th scope="col">Volumen (hm³)</th><th scope="col">NDVI medio</th><th scope="col">Lectura</th></tr></thead>
-                    <tbody>
-                        {filas.map(({ anio, c, punto, lectura, atipico }) => {
+            <DataTable
+                propia
+                className="ndvi-ia-tabla vv-tabla" claseContenedor="ndvi-ia-tabla-wrap" regionAria={`Superficie, volumen y vegetación por año, Módulo ${modulo}`}
+                caption={`Módulo ${modulo}, año por año`}
+                clave={(f) => String(f.anio)} filas={filas}
+                columnas={[
+                    { id: 'anio', titulo: 'Año', encabezadoFila: true, render: ({ anio }) => anio },
+                    {
+                        id: 'sup', titulo: 'Superficie (ha)',
+                        render: ({ anio, c }) => { const prov = anio === ANIO_ACTUAL && !!relSel.actual?.provisional; return c.sinCiclo ? <span className="vc-sc" title={TEXTO_SIN_CICLO}>Sin ciclo</span> : c.superficieHa != null && !prov ? fmtMiles(c.superficieHa, 0) : <span className="ndvi-ia-sd">S/D</span>; },
+                    },
+                    {
+                        id: 'vol', titulo: 'Volumen (hm³)',
+                        render: ({ anio, c }) => {
                             const actual = anio === ANIO_ACTUAL;
                             const prov = actual && !!relSel.actual?.provisional;
                             const vol = actual ? relSel.actual?.volumenHm3 ?? null : c.volumenHm3;
-                            const ndviMedio = actual ? relSel.actual?.ndviMedio ?? c.mediaNdvi : punto?.ndviMedio ?? c.mediaNdvi;
-                            const sd = <span className="ndvi-ia-sd">S/D</span>;
-                            const sinCiclo = c.sinCiclo;
-                            const celdaSC = <span className="vc-sc" title={TEXTO_SIN_CICLO}>Sin ciclo</span>;
-                            return (
-                                <tr key={anio}>
-                                    <th scope="row">{anio}</th>
-                                    <td>{sinCiclo ? celdaSC : c.superficieHa != null && !prov ? fmtMiles(c.superficieHa, 0) : sd}</td>
-                                    <td>{sinCiclo ? celdaSC : vol != null ? <>{fmt(vol, 1)}{prov && <span className="vv-prov"> provisional</span>}</> : sd}</td>
-                                    <td>{ndviMedio != null ? <>{fmt(ndviMedio, 3)}{sinCiclo && <small className="vc-sc-nota"> sin riego de presa</small>}</> : sd}</td>
-                                    <td className="vv-lect">{lectura}{atipico && <span className="vv-warn"> ⚠ captura atípica en el informe fuente</span>}</td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
+                            return c.sinCiclo ? <span className="vc-sc" title={TEXTO_SIN_CICLO}>Sin ciclo</span> : vol != null ? <>{fmt(vol, 1)}{prov && <span className="vv-prov"> provisional</span>}</> : <span className="ndvi-ia-sd">S/D</span>;
+                        },
+                    },
+                    {
+                        id: 'ndvi', titulo: 'NDVI medio',
+                        render: ({ anio, c, punto }) => {
+                            const ndviMedio = anio === ANIO_ACTUAL ? relSel.actual?.ndviMedio ?? c.mediaNdvi : punto?.ndviMedio ?? c.mediaNdvi;
+                            return ndviMedio != null ? <>{fmt(ndviMedio, 3)}{c.sinCiclo && <small className="vc-sc-nota"> sin riego de presa</small>}</> : <span className="ndvi-ia-sd">S/D</span>;
+                        },
+                    },
+                    { id: 'lect', titulo: 'Lectura', className: 'vv-lect', render: ({ lectura, atipico }) => <>{lectura}{atipico && <span className="vv-warn"> ⚠ captura atípica en el informe fuente</span>}</> },
+                ]}
+            />
 
             <p className="ndvi-nota vv-comparabilidad">
                 <b>Cómo leerlo.</b> Es una comparación descriptiva entre años, no una relación de causa y efecto: la superficie sembrada va de la mano del volumen

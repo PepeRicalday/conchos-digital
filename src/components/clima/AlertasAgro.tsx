@@ -1,5 +1,6 @@
 import { AlertOctagon, AlertTriangle, ShieldCheck, Radio } from 'lucide-react';
 import type { AlertaClima, UmbralClima } from '../../hooks/useClimaOperativo';
+import { DataTable } from '../ui/base';
 
 const textoHace = (iso: string): string => {
     const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -73,19 +74,15 @@ export function AlertasAgro({ alertas, umbrales, cargado, error }: Props) {
             {umbrales.length > 0 && (
                 <details className="cl-umbrales">
                     <summary>Umbrales vigentes</summary>
-                    <table>
-                        <caption className="cl-sr">Umbrales de aviso y crítico por variable</caption>
-                        <thead><tr><th scope="col">Variable</th><th scope="col">Aviso</th><th scope="col">Crítico</th></tr></thead>
-                        <tbody>
-                            {umbrales.map((u) => (
-                                <tr key={u.clave}>
-                                    <th scope="row">{u.etiqueta}</th>
-                                    <td>{u.comparador === 'menor' ? '≤' : '≥'} {u.aviso} {u.unidad}</td>
-                                    <td>{u.comparador === 'menor' ? '≤' : '≥'} {u.critico} {u.unidad}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    <DataTable
+                        propia captionOculto caption="Umbrales de aviso y crítico por variable"
+                        clave={(u) => u.clave} filas={umbrales}
+                        columnas={[
+                            { id: 'var', titulo: 'Variable', encabezadoFila: true, render: (u) => u.etiqueta },
+                            { id: 'aviso', titulo: 'Aviso', render: (u) => `${u.comparador === 'menor' ? '≤' : '≥'} ${u.aviso} ${u.unidad}` },
+                            { id: 'crit', titulo: 'Crítico', render: (u) => `${u.comparador === 'menor' ? '≤' : '≥'} ${u.critico} ${u.unidad}` },
+                        ]}
+                    />
                     <p>Se evalúan cada 30 min con el mayor valor entre la última lectura plausible y el pronóstico a 48 h; el mensaje de cada alerta indica ambos ("ahora" y "pronóstico"). Los descensos y ascensos bruscos comparan cada hora con la misma hora de 24 h antes y solo alertan cuando al menos 2 estaciones coinciden; un descenso solo es crítico si es un frente (media de 24 h ≤ −6 °C o presión +5 hPa). La lluvia usa lo medido en 24 h y solo suma el pronóstico con probabilidad ≥ 60 %. Las presas tienen su propio umbral de viento. Editables en la tabla clima_umbrales.</p>
                 </details>
             )}

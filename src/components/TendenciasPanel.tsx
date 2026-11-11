@@ -9,6 +9,7 @@ import InformeTendencias from './InformeTendencias';
 import { TRAMO_COLORS, MultiLine, StackedArea, MiniNivel, RutaCanal, niceTicks, type EventoMarca } from './TendenciasCharts';
 import { getTodayString, addDays } from '../utils/dateHelpers';
 import { Modal } from './ui/base';
+import { DataTable } from './ui/base';
 
 const n2 = (v: number | null | undefined) => v == null || !isFinite(v) ? '—' : v.toFixed(2);
 const n3 = (v: number | null | undefined) => v == null || !isFinite(v) ? '—' : v.toFixed(3);
@@ -631,31 +632,25 @@ const TendenciasPanel: React.FC<Props> = ({
                 );
               })}
             </div>
-            <div className="dsk-table-wrap">
-              <table className="dsk-table tnd-table-int">
-                <thead><tr><th>Escala</th><th>Actual</th><th>Mín</th><th>Máx</th><th>Prom</th><th>Δ periodo</th><th>Lect.</th><th aria-label="Aislar" /></tr></thead>
-                <tbody>
-                  {nivelesOrd.map(s => { const st = statsSerie(s.puntos); const on = esVisible(s.escala_id); const actual = [...s.puntos].reverse().find(p => p.y != null)?.y ?? null; return (
-                    <tr key={s.escala_id} className={`tnd-row${on ? '' : ' off'}`}
-                        onClick={() => toggleNivel(s.escala_id)}
-                        title={on ? `Ocultar ${s.nombre}` : `Mostrar ${s.nombre}`}>
-                      <td style={{ fontWeight: 700 }}>
-                        <span className="tnd-swatch" style={{ background: colorEsc(s.escala_id), opacity: on ? 1 : 0.3 }} />{s.nombre}
-                      </td>
-                      <td style={{ fontWeight: 700, color: s.nivelMax != null && actual != null && actual > s.nivelMax ? '#f87171' : undefined }}>{n2(actual)}</td>
-                      <td>{n2(st.min)}</td><td>{n2(st.max)}</td><td>{n2(st.avg)}</td>
-                      <td style={{ color: st.delta! > 0 ? '#ef4444' : st.delta! < 0 ? '#22c55e' : '#64748b' }}>{st.delta == null ? '—' : (st.delta > 0 ? '▲' : st.delta < 0 ? '▼' : '—') + ' ' + n2(Math.abs(st.delta))}</td>
-                      <td>{st.n}</td>
-                      <td className="tnd-solo-cell">
-                        <button type="button" className="tnd-solo-btn"
-                          onClick={e => { e.stopPropagation(); soloNivel(s.escala_id); }}
-                          title={`Ver solo K-${s.km}`}>solo</button>
-                      </td>
-                    </tr>
-                  ); })}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              propia
+              className="dsk-table tnd-table-int" claseContenedor="dsk-table-wrap" captionOculto caption="Niveles por escala en el periodo: actual, mínimo, máximo, promedio y variación"
+              clave={(r) => r.s.escala_id} filas={nivelesOrd.map(s => { const st = statsSerie(s.puntos); return { s, st, on: esVisible(s.escala_id), actual: [...s.puntos].reverse().find(p => p.y != null)?.y ?? null }; })}
+              filaProps={({ s, on }) => ({ className: `tnd-row${on ? '' : ' off'}`, onClick: () => toggleNivel(s.escala_id), title: on ? `Ocultar ${s.nombre}` : `Mostrar ${s.nombre}` })}
+              columnas={[
+                { id: 'esc', titulo: 'Escala', estilo: () => ({ fontWeight: 700 }), render: ({ s, on }) => <><span className="tnd-swatch" style={{ background: colorEsc(s.escala_id), opacity: on ? 1 : 0.3 }} />{s.nombre}</> },
+                { id: 'act', titulo: 'Actual', estilo: ({ s, actual }) => ({ fontWeight: 700, color: s.nivelMax != null && actual != null && actual > s.nivelMax ? 'var(--st-crit)' : undefined }), render: ({ actual }) => n2(actual) },
+                { id: 'min', titulo: 'Mín', render: ({ st }) => n2(st.min) },
+                { id: 'max', titulo: 'Máx', render: ({ st }) => n2(st.max) },
+                { id: 'avg', titulo: 'Prom', render: ({ st }) => n2(st.avg) },
+                { id: 'delta', titulo: 'Δ periodo', estilo: ({ st }) => ({ color: st.delta! > 0 ? 'var(--st-crit)' : st.delta! < 0 ? 'var(--st-ok)' : 'var(--text-3)' }), render: ({ st }) => st.delta == null ? '—' : (st.delta > 0 ? '▲' : st.delta < 0 ? '▼' : '—') + ' ' + n2(Math.abs(st.delta)) },
+                { id: 'n', titulo: 'Lect.', render: ({ st }) => st.n },
+                {
+                  id: 'solo', titulo: <span className="ui-sr">Aislar</span>, className: 'tnd-solo-cell',
+                  render: ({ s }) => <button type="button" className="tnd-solo-btn" onClick={e => { e.stopPropagation(); soloNivel(s.escala_id); }} title={`Ver solo K-${s.km}`}>solo</button>,
+                },
+              ]}
+            />
             {nVisibles === 0 && <div className="tnd-empty">Ningún punto de control seleccionado — activa alguno en la tabla o pulsa «Todas».</div>}
           </div>
 
@@ -698,20 +693,19 @@ const TendenciasPanel: React.FC<Props> = ({
 
             <StackedArea series={volTramos} t0={t0} t1={t1} height={220}
               selKey={tramoSel} onSelBand={toggleTramo} eventos={eventosGraf} />
-            <div className="dsk-table-wrap">
-              <table className="dsk-table">
-                <thead><tr><th>Tramo</th><th>Vol mín</th><th>Vol máx</th><th>Δ Mm³</th><th>Tirante act.</th><th>% diseño</th></tr></thead>
-                <tbody>
-                  {volTramos.map(tr => { const st = statsSerie(tr.puntos); const { color, label } = estadoLlenado(tr.estado.pctDiseno, enVaciado); return (
-                    <tr key={tr.key}><td style={{ fontSize: '0.7rem', fontWeight: 700 }}><span className="tnd-swatch" style={{ background: colorTramo(tr.key) }} />{tr.etiqueta}</td><td>{n3(st.min)}</td><td>{n3(st.max)}</td>
-                      <td style={{ color: st.delta! > 0 ? '#3FB2F3' : '#f59e0b' }}>{n3(st.delta)}</td>
-                      <td>{tr.estado.tiranteActual != null ? tr.estado.tiranteActual.toFixed(2) : '—'}</td>
-                      <td style={{ color, fontWeight: 700 }}>{tr.estado.pctDiseno != null ? `${Math.round(tr.estado.pctDiseno)}% ${label}` : '—'}</td>
-                    </tr>
-                  ); })}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              propia
+              className="dsk-table" claseContenedor="dsk-table-wrap" captionOculto caption="Volumen y llenado por tramo"
+              clave={(t) => t.tr.key} filas={volTramos.map(tr => ({ tr, st: statsSerie(tr.puntos), ...estadoLlenado(tr.estado.pctDiseno, enVaciado) }))}
+              columnas={[
+                { id: 'tramo', titulo: 'Tramo', estilo: () => ({ fontSize: '0.7rem', fontWeight: 700 }), render: ({ tr }) => <><span className="tnd-swatch" style={{ background: colorTramo(tr.key) }} />{tr.etiqueta}</> },
+                { id: 'vmin', titulo: 'Vol mín', render: ({ st }) => n3(st.min) },
+                { id: 'vmax', titulo: 'Vol máx', render: ({ st }) => n3(st.max) },
+                { id: 'dv', titulo: 'Δ Mm³', estilo: ({ st }) => ({ color: st.delta! > 0 ? 'var(--st-info)' : 'var(--st-warn)' }), render: ({ st }) => n3(st.delta) },
+                { id: 'tir', titulo: 'Tirante act.', render: ({ tr }) => tr.estado.tiranteActual != null ? tr.estado.tiranteActual.toFixed(2) : '—' },
+                { id: 'pct', titulo: '% diseño', estilo: ({ color }) => ({ color, fontWeight: 700 }), render: ({ tr, label }) => tr.estado.pctDiseno != null ? `${Math.round(tr.estado.pctDiseno)}% ${label}` : '—' },
+              ]}
+            />
             {!volTramos.some(t => t.estado.esTrapezoidal) && volTramos.length > 0 && (
               <div className="tnd-note">Geometría trapezoidal no disponible para estos tramos en <code>perfil_hidraulico_canal</code> — el volumen usa el prisma rectangular calibrado. El % de diseño aparece solo donde hay <code>tirante_diseno_m</code>.</div>
             )}
@@ -720,22 +714,19 @@ const TendenciasPanel: React.FC<Props> = ({
           {/* ── Bloque 3: arriba/abajo por compuerta ── */}
           <div className="tnd-block">
             <div className="tnd-h"><span className="tnd-n" style={{ background: 'var(--st-warn)' }}>3</span> Niveles arriba / abajo por compuerta</div>
-            <div className="dsk-table-wrap">
-              <table className="dsk-table">
-                <thead><tr><th>Compuerta</th><th>H↑ prom</th><th>H↓ prom</th><th>Dif. prom</th><th>Apert. últ (m)</th><th>Abiertas</th></tr></thead>
-                <tbody>
-                  {compuertas.map(c => { const su = statsSerie(c.arriba), sd = statsSerie(c.abajo), sdif = statsSerie(c.diferencial); return (
-                    <tr key={c.escala_id}>
-                      <td style={{ fontWeight: 700 }}>{c.nombre}{c.esReferencia && <span style={{ fontSize: '0.55rem', fontWeight: 600, color: 'var(--text-3)' }} title="Escala de referencia: sin compuertas de control"> (ref.)</span>}</td>
-                      <td>{n2(su.avg)}</td>
-                      <td>{c.esReferencia ? <span style={{ color: 'var(--text-3)' }}>s/control</span> : n2(sd.avg)}</td>
-                      <td style={{ color: c.esReferencia ? '#94a3b8' : '#c98500', fontWeight: 700 }}>{c.esReferencia ? '—' : n2(sdif.avg)}</td>
-                      <td>{c.esReferencia ? '—' : n2(c.aperturaUlt)}</td><td>{c.esReferencia ? '—' : (c.puertasAbiertas ?? '—')}</td>
-                    </tr>
-                  ); })}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              propia
+              className="dsk-table" claseContenedor="dsk-table-wrap" captionOculto caption="Niveles arriba y abajo por compuerta"
+              clave={(c) => c.c.escala_id} filas={compuertas.map(c => ({ c, su: statsSerie(c.arriba), sd: statsSerie(c.abajo), sdif: statsSerie(c.diferencial) }))}
+              columnas={[
+                { id: 'comp', titulo: 'Compuerta', estilo: () => ({ fontWeight: 700 }), render: ({ c }) => <>{c.nombre}{c.esReferencia && <span style={{ fontSize: '0.55rem', fontWeight: 600, color: 'var(--text-3)' }} title="Escala de referencia: sin compuertas de control"> (ref.)</span>}</> },
+                { id: 'hu', titulo: 'H↑ prom', render: ({ su }) => n2(su.avg) },
+                { id: 'hd', titulo: 'H↓ prom', render: ({ c, sd }) => c.esReferencia ? <span style={{ color: 'var(--text-3)' }}>s/control</span> : n2(sd.avg) },
+                { id: 'dif', titulo: 'Dif. prom', estilo: ({ c }) => ({ color: c.esReferencia ? 'var(--text-3)' : 'var(--st-warn)', fontWeight: 700 }), render: ({ c, sdif }) => c.esReferencia ? '—' : n2(sdif.avg) },
+                { id: 'ap', titulo: 'Apert. últ (m)', render: ({ c }) => c.esReferencia ? '—' : n2(c.aperturaUlt) },
+                { id: 'ab', titulo: 'Abiertas', render: ({ c }) => c.esReferencia ? '—' : (c.puertasAbiertas ?? '—') },
+              ]}
+            />
             {compGraf && (
               <>
                 <div className="tnd-filtro-bar">
@@ -774,18 +765,19 @@ const TendenciasPanel: React.FC<Props> = ({
               <span><i style={{ background: 'var(--sc-s3)' }} />Q salida (K-104)</span>
               <span><i style={{ background: 'var(--st-crit)' }} />Pérdidas</span>
             </div>
-            <div className="dsk-table-wrap">
-              <table className="dsk-table">
-                <thead><tr><th>Serie</th><th>Mín</th><th>Máx</th><th>Prom</th><th>Δ</th></tr></thead>
-                <tbody>
-                  {([['Q entrada K-0', gasto.entrada], ['Σ entregas', gasto.entregas], ['Q salida K-104', gasto.salida], ['Pérdidas', gasto.perdidas]] as [string, SeriePunto[]][]).map(([nom, ser]) => {
-                    const st = statsSerie(ser); return (
-                      <tr key={nom}><td style={{ fontSize: '0.62rem' }}>{nom}</td><td>{n2(st.min)}</td><td>{n2(st.max)}</td><td style={{ fontWeight: 700 }}>{n2(st.avg)}</td><td>{n2(st.delta)}</td></tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              propia
+              className="dsk-table" claseContenedor="dsk-table-wrap" captionOculto caption="Gasto de entrada, entregas, salida y pérdidas en el periodo"
+              clave={(r) => r.nom}
+              filas={([['Q entrada K-0', gasto.entrada], ['Σ entregas', gasto.entregas], ['Q salida K-104', gasto.salida], ['Pérdidas', gasto.perdidas]] as [string, SeriePunto[]][]).map(([nom, ser]) => ({ nom, st: statsSerie(ser) }))}
+              columnas={[
+                { id: 'serie', titulo: 'Serie', estilo: () => ({ fontSize: '0.62rem' }), render: ({ nom }) => nom },
+                { id: 'min', titulo: 'Mín', render: ({ st }) => n2(st.min) },
+                { id: 'max', titulo: 'Máx', render: ({ st }) => n2(st.max) },
+                { id: 'avg', titulo: 'Prom', estilo: () => ({ fontWeight: 700 }), render: ({ st }) => n2(st.avg) },
+                { id: 'delta', titulo: 'Δ', render: ({ st }) => n2(st.delta) },
+              ]}
+            />
             {gasto.entregas.every(p => p.y == null) && (
               <div className="tnd-note tnd-warn">⚠ Sin registros de entregas en el rango seleccionado — la serie de entregas y las pérdidas quedan vacías. Los datos de <code>entregas_modulo</code> pueden no cubrir fechas recientes; prueba un rango anterior (p.ej. mayo–junio).</div>
             )}

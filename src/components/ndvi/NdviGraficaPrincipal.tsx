@@ -10,6 +10,7 @@ import {
 import { SelectorChips } from './SelectorChips';
 import { LeyendaNdvi } from './LeyendaNdvi';
 import './NdviGrafica.css';
+import { DataTable } from '../ui/base';
 
 interface Props {
     filas: FilaNdviSerie[];
@@ -95,24 +96,23 @@ export default function NdviGraficaPrincipal({ filas, meses, mesReferencia }: Pr
 
             <details className="ndvi-gr-tabla">
                 <summary>Ver los valores como tabla</summary>
-                <div className="ndvi-gr-tabla-wrap" tabIndex={0} role="region" aria-label="Valores de NDVI por mes">
-                    <table>
-                        <caption>NDVI por mes — {vista === 'anio' ? anio : `${modulo === 0 ? 'promedio SRL' : `Módulo ${modulo}`}, por año`}</caption>
-                        <thead><tr><th scope="col">Mes</th>{tabla.map((s) => <th scope="col" key={s.nombre}>{s.nombre}</th>)}</tr></thead>
-                        <tbody>
-                            {MESES_CORTOS.map((mes, i) => (
-                                <tr key={mes}>
-                                    <th scope="row">{mes}</th>
-                                    {tabla.map((s) => {
-                                        const v = s.valores[i];
-                                        const futuro = vista === 'anio' && i > hasta;
-                                        return <td key={s.nombre}>{v != null ? fmt(v, 3) : futuro ? <span className="ndvi-gr-sd">sin medir</span> : <span className="ndvi-gr-sd">S/D</span>}</td>;
-                                    })}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    propia
+                    claseContenedor="ndvi-gr-tabla-wrap" regionAria="Valores de NDVI por mes"
+                    caption={`NDVI por mes — ${vista === 'anio' ? anio : `${modulo === 0 ? 'promedio SRL' : `Módulo ${modulo}`}, por año`}`}
+                    clave={(m) => m.mes} filas={MESES_CORTOS.map((mes, i) => ({ mes, i }))}
+                    columnas={[
+                        { id: 'mes', titulo: 'Mes', encabezadoFila: true, render: ({ mes }) => mes },
+                        ...tabla.map((s) => ({
+                            id: s.nombre, titulo: s.nombre,
+                            render: ({ i }: { mes: string; i: number }) => {
+                                const v = s.valores[i];
+                                const futuro = vista === 'anio' && i > hasta;
+                                return v != null ? fmt(v, 3) : futuro ? <span className="ndvi-gr-sd">sin medir</span> : <span className="ndvi-gr-sd">S/D</span>;
+                            },
+                        })),
+                    ]}
+                />
             </details>
         </section>
     );

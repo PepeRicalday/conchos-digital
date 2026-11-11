@@ -15,6 +15,7 @@ import { cargarVolumenActual, type VolumenActual } from '../../utils/ndviVolumen
 import { SelectorChips } from './SelectorChips';
 import { VolumenVegetacion } from './VolumenVegetacion';
 import './NdviInteranual.css';
+import { DataTable } from '../ui/base';
 
 const MODULOS_SRL = [1, 2, 3, 4, 5, 12];
 const NDVI_MAX = NDVI_RANGO[1];
@@ -191,24 +192,21 @@ export const NdviInteranual: React.FC<{ filas?: FilaNdviInforme[] }> = ({ filas 
                 </ul>
             </div>
 
-            <div className="ndvi-ia-tabla-wrap" tabIndex={0} role="region" aria-label={`Resumen por año, Módulo ${modulo}`}>
-                <table className="ndvi-ia-tabla">
-                    <caption>Resumen por año — Módulo {modulo}</caption>
-                    <thead><tr><th scope="col">Año</th><th scope="col">Pico NDVI</th><th scope="col">Mes pico</th><th scope="col">Media mar–sep</th><th scope="col">Meses con dato</th><th scope="col">Pico vs otros años</th></tr></thead>
-                    <tbody>
-                        {filasResumen.map(({ r, an }) => (
-                            <tr key={r.anio} className={r.anio === anioFoco ? 'foco' : ''}>
-                                <th scope="row">{r.anio}{r.pocoConfiables.length > 0 && <span className="ndvi-ia-aviso" title={`Pocas observaciones limpias en: ${r.pocoConfiables.join(', ')}`}> ⚠</span>}</th>
-                                <td>{celda(fmt(r.pico, 3))}</td>
-                                <td>{r.mesPico ?? <Sd />}</td>
-                                <td>{celda(fmt(r.media, 3))}</td>
-                                <td>{r.mesesConDato}/{MESES_TEMPORADA.length}</td>
-                                <td>{an ? `${an.abs >= 0 ? '+' : '−'}${fmt(Math.abs(an.abs), 3)}${an.pct != null ? ` (${an.pct >= 0 ? '+' : '−'}${fmt(Math.abs(an.pct), 0)} %)` : ''}` : <Sd />}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            <DataTable
+                propia
+                className="ndvi-ia-tabla" claseContenedor="ndvi-ia-tabla-wrap" regionAria={`Resumen por año, Módulo ${modulo}`}
+                caption={`Resumen por año — Módulo ${modulo}`}
+                clave={({ r }) => String(r.anio)} filas={filasResumen}
+                filaProps={({ r }) => ({ className: r.anio === anioFoco ? 'foco' : '' })}
+                columnas={[
+                    { id: 'anio', titulo: 'Año', encabezadoFila: true, render: ({ r }) => <>{r.anio}{r.pocoConfiables.length > 0 && <span className="ndvi-ia-aviso" title={`Pocas observaciones limpias en: ${r.pocoConfiables.join(', ')}`}> ⚠</span>}</> },
+                    { id: 'pico', titulo: 'Pico NDVI', render: ({ r }) => celda(fmt(r.pico, 3)) },
+                    { id: 'mes', titulo: 'Mes pico', render: ({ r }) => r.mesPico ?? <Sd /> },
+                    { id: 'media', titulo: 'Media mar–sep', render: ({ r }) => celda(fmt(r.media, 3)) },
+                    { id: 'meses', titulo: 'Meses con dato', render: ({ r }) => `${r.mesesConDato}/${MESES_TEMPORADA.length}` },
+                    { id: 'vs', titulo: 'Pico vs otros años', render: ({ an }) => an ? `${an.abs >= 0 ? '+' : '−'}${fmt(Math.abs(an.abs), 3)}${an.pct != null ? ` (${an.pct >= 0 ? '+' : '−'}${fmt(Math.abs(an.pct), 0)} %)` : ''}` : <Sd /> },
+                ]}
+            />
             <p className="ndvi-nota">
                 {tend
                     ? `Tendencia del pico anual: ${tend.pendiente >= 0 ? '+' : '−'}${fmt(Math.abs(tend.pendiente), 4)} por año (R² ${fmt(tend.r2, 2)}, ${tend.n} años)${tend.r2 < 0.5 ? ' — sin tendencia clara' : ''}.`

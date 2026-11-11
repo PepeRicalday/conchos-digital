@@ -1,6 +1,7 @@
 import { memo, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import type { CanalKpiModelo, EscalaCanalKpi } from '../../utils/perfilCanal';
 import { textoEdad } from '../../utils/hidroEstaciones';
+import { DataTable } from './base';
 
 interface Geo { W: number; H: number; x0: number; xw: number; top: number; base: number; r: number; flechas: boolean }
 const GEO = {
@@ -133,19 +134,19 @@ export const PerfilCanalMini = memo(function PerfilCanalMini({ modelo }: { model
                 <span><i className="kp-pc-sw kp-pc-sw-max" />100 % máx. operativo</span>
                 <span className="kp-pc-ley-delta"><i className="kp-pc-sw kp-pc-sw-delta" />vs lectura previa</span>
             </div>
-            <div className="kp-sr-tabla"><table>
-                <caption>Escalas del canal: nivel de la última medición de campo</caption>
-                <thead><tr><th scope="col">Escala</th><th scope="col">Km</th><th scope="col">Estado</th><th scope="col">Nivel</th><th scope="col">% del máx.</th><th scope="col">Δ vs lectura previa</th><th scope="col">Edad</th></tr></thead>
-                <tbody>
-                    {modelo.escalas.map((e) => (
-                        <tr key={e.id}><th scope="row">{e.nombre}</th><td>{e.km}</td><td>{e.origen === 'sin_dato' ? 'sin dato' : e.origen === 'arrastre' ? 'solo arrastre' : e.vigente ? 'vigente' : 'vieja'}{e.referencia ? ' (referencia)' : ''}</td>
-                            <td>{e.nivelM != null ? `${e.nivelM.toFixed(2)} m` : 'S/D'}</td>
-                            <td>{e.pctMax != null ? `${Math.round(e.pctMax * 100)} %` : 'S/D'}</td>
-                            <td>{e.deltaCm != null ? `${e.deltaCm > 0 ? '+' : ''}${e.deltaCm} cm (${e.deltaHoras} h)` : 'S/D'}</td>
-                            <td>{e.edadMin != null ? textoEdad(e.edadMin) : 'S/D'}</td></tr>
-                    ))}
-                </tbody>
-            </table></div>
+            <DataTable
+                propia claseContenedor="kp-sr-tabla" caption="Escalas del canal: nivel de la última medición de campo"
+                clave={(e) => String(e.id)} filas={modelo.escalas}
+                columnas={[
+                    { id: 'esc', titulo: 'Escala', encabezadoFila: true, render: (e) => e.nombre },
+                    { id: 'km', titulo: 'Km', render: (e) => e.km },
+                    { id: 'estado', titulo: 'Estado', render: (e) => `${e.origen === 'sin_dato' ? 'sin dato' : e.origen === 'arrastre' ? 'solo arrastre' : e.vigente ? 'vigente' : 'vieja'}${e.referencia ? ' (referencia)' : ''}` },
+                    { id: 'nivel', titulo: 'Nivel', render: (e) => e.nivelM != null ? `${e.nivelM.toFixed(2)} m` : 'S/D' },
+                    { id: 'pct', titulo: '% del máx.', render: (e) => e.pctMax != null ? `${Math.round(e.pctMax * 100)} %` : 'S/D' },
+                    { id: 'delta', titulo: 'Δ vs lectura previa', render: (e) => e.deltaCm != null ? `${e.deltaCm > 0 ? '+' : ''}${e.deltaCm} cm (${e.deltaHoras} h)` : 'S/D' },
+                    { id: 'edad', titulo: 'Edad', render: (e) => e.edadMin != null ? textoEdad(e.edadMin) : 'S/D' },
+                ]}
+            />
         </div>
     );
 });

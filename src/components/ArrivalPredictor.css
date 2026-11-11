@@ -28,7 +28,7 @@
     right: -6rem;
     width: 16rem;
     height: 16rem;
-    background: rgba(79, 70, 229, 0.1);
+    background: color-mix(in srgb, var(--st-info) 10%, transparent);
     filter: blur(100px);
     border-radius: 50%;
     pointer-events: none;

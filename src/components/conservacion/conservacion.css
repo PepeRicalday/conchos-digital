@@ -3,7 +3,7 @@
 
 /* ── Barra de marca institucional ─────────────────────────── */
 .cons-marca { display: flex; align-items: center; gap: 18px; padding: 14px 20px; border: 1px solid var(--sc-line); border-left: 4px solid var(--cons-marca); border-radius: 16px;
-    background: linear-gradient(100deg, rgba(107, 45, 45, 0.22), rgba(28, 94, 149, 0.10) 60%, color-mix(in srgb, var(--text-1) 2%, transparent)); }
+    background: linear-gradient(100deg, rgba(107, 45, 45, 0.22), color-mix(in srgb, var(--st-info) 10%, transparent) 60%, color-mix(in srgb, var(--text-1) 2%, transparent)); }
 .cons-marca-logos { display: flex; align-items: center; gap: 14px; flex: none; }
 .cons-marca-logos img { display: block; height: 56px; width: auto; object-fit: contain; }
 .cons-marca-sep { width: 1px; align-self: stretch; background: var(--sc-line); }
@@ -462,13 +462,13 @@ html[data-device='phone'] .cons-ubic-panel { padding-bottom: calc(14px + env(saf
 .cons-leyenda { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.4; color: var(--sc-t1); }
 .cons-leyenda li { display: flex; gap: 10px; align-items: flex-start; }
 .cons-leyenda i { flex: none; width: 18px; height: 12px; margin-top: 2px; border-radius: 3px; display: inline-block; }
-.cons-ley-hierba { background: repeating-linear-gradient(45deg, #7cb342 0 3px, #33691e 3px 5px); }
+.cons-ley-hierba { background: repeating-linear-gradient(45deg, var(--st-ok) 0 3px, var(--st-ok) 3px 5px); }
 .cons-ley-talud, .cons-ley-plantilla { background: #aab8c8; height: 5px !important; margin-top: 6px !important; }
 .cons-ley-hombro { width: 0 !important; height: 14px !important; border-left: 2px dashed var(--sc-crit); border-radius: 0 !important; margin-left: 8px; }
-.cons-ley-azolve { background: #8d6e3f; }
-.cons-ley-plantas { background: #43a047; height: 6px !important; margin-top: 5px !important; border-radius: 3px; }
-.cons-ley-descopete { background: #ef9a3c; clip-path: polygon(0 100%, 50% 0, 100% 100%); }
-.cons-ley-losa { background: repeating-linear-gradient(90deg, #ef9a3c 0 6px, transparent 6px 9px); height: 5px !important; margin-top: 6px !important; }
+.cons-ley-azolve { background: var(--st-warn); }
+.cons-ley-plantas { background: var(--st-ok); height: 6px !important; margin-top: 5px !important; border-radius: 3px; }
+.cons-ley-descopete { background: var(--st-warn); clip-path: polygon(0 100%, 50% 0, 100% 100%); }
+.cons-ley-losa { background: repeating-linear-gradient(90deg, var(--st-warn) 0 6px, transparent 6px 9px); height: 5px !important; margin-top: 6px !important; }
 .cons-leyenda .cons-ley-nota { color: var(--sc-t2); font-size: 12px; }
 .cons-comp-datos { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .cons-dg { border-left: 3px solid var(--o); padding: 2px 0 2px 12px; }
@@ -528,14 +528,14 @@ html[data-device='phone'] .cons-ubic-panel { padding-bottom: calc(14px + env(saf
 .cons-pagina .cons-der-base, .cons-pagina .cons-tabla th, .cons-pagina small, .cons-pagina .sc-chip { font-size: 12px; }
 
 /* Caminos */
-.cons-ley-calzada { background: #b08d57; }
-.cons-ley-carpeta { background: repeating-linear-gradient(45deg, #9aa5b1 0 3px, #5f6b78 3px 5px); height: 6px !important; margin-top: 5px !important; }
+.cons-ley-calzada { background: var(--st-warn); }
+.cons-ley-carpeta { background: repeating-linear-gradient(45deg, #9aa5b1 0 3px, var(--line-fuerte) 3px 5px); height: 6px !important; margin-top: 5px !important; }
 .cons-ley-cuneta { background: color-mix(in srgb, var(--o-pac) 38%, transparent); border: 2px solid var(--o-pac); height: 8px !important; margin-top: 4px !important; }
 .cons-seccion-largo { margin-top: 10px; }
 .cf-lectura { margin: 12px 0 0; padding: 10px 14px; border-left: 4px solid var(--sc-line); background: color-mix(in srgb, var(--sc-t1) 4%, transparent); border-radius: 0 10px 10px 0; }
 .cf-lectura h6 { margin: 0 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--sc-t2); }
 .cf-lectura ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.5; color: var(--sc-t1); }
-.cons-ley-ilustrativo { background: transparent; border: 1.5px dashed #8b7d63; height: 8px !important; margin-top: 4px !important; }
+.cons-ley-ilustrativo { background: transparent; border: 1.5px dashed var(--line-fuerte); height: 8px !important; margin-top: 4px !important; }
 .cons-motivo { margin: 0; }
 
 /* ── Tanda 3 · una sola animación (la de «Abrir tramo», en derivacion/ficha.css) ──

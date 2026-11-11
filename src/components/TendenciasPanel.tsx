@@ -719,7 +719,7 @@ const TendenciasPanel: React.FC<Props> = ({
 
           {/* ── Bloque 3: arriba/abajo por compuerta ── */}
           <div className="tnd-block">
-            <div className="tnd-h"><span className="tnd-n" style={{ background: '#c98500' }}>3</span> Niveles arriba / abajo por compuerta</div>
+            <div className="tnd-h"><span className="tnd-n" style={{ background: 'var(--st-warn)' }}>3</span> Niveles arriba / abajo por compuerta</div>
             <div className="dsk-table-wrap">
               <table className="dsk-table">
                 <thead><tr><th>Compuerta</th><th>H↑ prom</th><th>H↓ prom</th><th>Dif. prom</th><th>Apert. últ (m)</th><th>Abiertas</th></tr></thead>
@@ -758,7 +758,7 @@ const TendenciasPanel: React.FC<Props> = ({
 
           {/* ── Bloque 4: gasto K-0 → entregas → K-104 ── */}
           <div className="tnd-block">
-            <div className="tnd-h"><span className="tnd-n" style={{ background: '#9085e9' }}>4</span> Gasto: K-0+000 → entregas a módulos → K-104</div>
+            <div className="tnd-h"><span className="tnd-n" style={{ background: 'var(--st-info)' }}>4</span> Gasto: K-0+000 → entregas a módulos → K-104</div>
             <MultiLine
               series={[
                 { nombre: 'Q entrada K-0', puntos: gasto.entrada, color: '#3987e5' },
@@ -770,9 +770,9 @@ const TendenciasPanel: React.FC<Props> = ({
             />
             <div className="tnd-legend">
               <span><i style={{ background: 'var(--sc-s1)' }} />Q entrada (K-0)</span>
-              <span><i style={{ background: '#9085e9' }} />Σ entregas módulos</span>
+              <span><i style={{ background: 'var(--st-info)' }} />Σ entregas módulos</span>
               <span><i style={{ background: 'var(--sc-s3)' }} />Q salida (K-104)</span>
-              <span><i style={{ background: '#e66767' }} />Pérdidas</span>
+              <span><i style={{ background: 'var(--st-crit)' }} />Pérdidas</span>
             </div>
             <div className="dsk-table-wrap">
               <table className="dsk-table">

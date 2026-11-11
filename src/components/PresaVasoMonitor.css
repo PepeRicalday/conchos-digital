@@ -236,7 +236,7 @@
     height: 460px;
     border-radius: 14px;
     overflow: hidden;
-    background: radial-gradient(ellipse at center, #0f1b2e 0%, var(--bg-app) 100%);
+    background: radial-gradient(ellipse at center, var(--surface-1) 0%, var(--bg-app) 100%);
     border: 1px solid color-mix(in srgb, var(--text-1) 6%, transparent);
 }
 

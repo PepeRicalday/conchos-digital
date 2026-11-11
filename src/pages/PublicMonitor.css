@@ -47,7 +47,7 @@
 }
 
 .phb-main {
-    background: rgba(8, 26, 58, 0.88);
+    background: color-mix(in srgb, var(--surface-1) 88%, transparent);
     -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
     border: 1px solid color-mix(in srgb, var(--text-1) 10%, transparent);
@@ -877,7 +877,7 @@
     bottom: 80px;         /* sobre el ZoomControl */
     left: 12px;
     z-index: 800;
-    background: rgba(7, 14, 28, 0.82);
+    background: color-mix(in srgb, var(--bg-app) 82%, transparent);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     border: 1px solid color-mix(in srgb, var(--text-1) 7%, transparent);
@@ -1844,7 +1844,7 @@
         width: 100% !important;
         left: 0 !important;
         position: fixed !important;
-        background: rgba(10, 15, 30, 0.97);
+        background: color-mix(in srgb, var(--bg-app) 97%, transparent);
         transform: none !important;
     }
 
@@ -2189,7 +2189,7 @@
 
 /* ── POPUP PUNTO DE CONTROL — sica-cp-popup ──────────────────────── */
 .sica-cp-popup .leaflet-popup-content-wrapper {
-    background: #0c1524;
+    background: var(--bg-app);
     border: 1px solid color-mix(in srgb, var(--text-1) 8%, transparent);
     border-radius: 12px;
     box-shadow: 0 8px 32px color-mix(in srgb, var(--negro) 60%, transparent);
@@ -2548,7 +2548,7 @@
 }
 
 .perfil-modal {
-    background: rgba(7, 14, 28, 0.98);
+    background: color-mix(in srgb, var(--bg-app) 98%, transparent);
     border: 1px solid color-mix(in srgb, var(--st-info) 12%, transparent);
     border-radius: 18px 18px 0 0;
     width: 100%;
@@ -2725,7 +2725,7 @@
 
 /* ── Mini-badge de nivel permanente en marcadores de escala ─────────── */
 .esc-level-badge {
-    background: rgba(7, 14, 28, 0.82) !important;
+    background: color-mix(in srgb, var(--bg-app) 82%, transparent) !important;
     border: 1px solid color-mix(in srgb, var(--text-1) 10%, transparent) !important;
     border-radius: 4px !important;
     padding: 1px 4px !important;
@@ -2787,7 +2787,7 @@
     transform: translateX(-50%);
     z-index: 900;
     width: min(680px, 92vw);
-    background: rgba(7, 14, 28, 0.84);
+    background: color-mix(in srgb, var(--bg-app) 84%, transparent);
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     border: 1px solid color-mix(in srgb, var(--text-1) 8%, transparent);
@@ -2818,7 +2818,7 @@
     top: 0;
     height: 100%;
     width: var(--fill-pct, 0%);
-    background: linear-gradient(90deg, #0e4a6e 0%, var(--st-info) 100%);
+    background: linear-gradient(90deg, var(--fill-info) 0%, var(--st-info) 100%);
     border-radius: 3px;
     box-shadow: 0 0 8px color-mix(in srgb, var(--st-info) 40%, transparent);
     transition: width 1.5s ease;
@@ -3399,7 +3399,7 @@
 .dsk-table thead th {
     position: sticky;
     top: 0;
-    background: #0f1e35;
+    background: var(--surface-1);
     color: var(--text-3);
     font-size: 0.6875rem;
     font-weight: 700;
@@ -3499,7 +3499,7 @@
 
 /* ── Tabla de entregas hoy — cabeceras de grupo ─────────────────── */
 .dsk-th-base {
-    border-bottom: 1px solid #1e40af;
+    border-bottom: 1px solid var(--fill-info);
     color: var(--st-info);
 }
 .dsk-th-adic {
@@ -3786,7 +3786,7 @@
 .tnd-h { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; font-weight: 700; color: var(--text-1); }
 .tnd-n { width: 20px; height: 20px; border-radius: 6px; display: inline-flex; align-items: center;
   justify-content: center; font-size: 0.72rem; font-weight: 800; color: #fff; font-family: var(--font-mono, monospace); }
-.tnd-calc { font-size: 0.6875rem; font-weight: 600; color: #c98500; background: rgba(201,133,0,0.14);
+.tnd-calc { font-size: 0.6875rem; font-weight: 600; color: #c98500; background: color-mix(in srgb, var(--st-warn) 14%, transparent);
   padding: 1px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
 .tnd-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.6875rem; color: #a8b8cc; }
 .tnd-legend span { display: flex; align-items: center; gap: 4px; }
@@ -3855,14 +3855,14 @@
 /* ── Modal de detalle de tramo ─────────────────────────────────────────── */
 .tnd-modal-overlay {
   position: fixed; inset: 0; z-index: 9000;
-  background: rgba(4, 10, 20, 0.72); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  background: color-mix(in srgb, var(--bg-app) 72%, transparent); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
   display: flex; align-items: center; justify-content: center; padding: 16px;
   animation: tndFade .16s ease;
 }
 @keyframes tndFade { from { opacity: 0; } to { opacity: 1; } }
 .tnd-modal {
   width: min(560px, 100%); max-height: 88vh; overflow-y: auto;
-  background: #0c1626; border: 1px solid var(--tramo-col, #3FB2F3);
+  background: var(--bg-app); border: 1px solid var(--tramo-col, #3FB2F3);
   border-radius: 14px; box-shadow: 0 24px 70px color-mix(in srgb, var(--negro) 60%, transparent), 0 0 0 1px color-mix(in srgb, var(--text-1) 3%, transparent);
   animation: tndPop .18s cubic-bezier(.2,.9,.3,1.2);
   overscroll-behavior: contain;
@@ -3871,7 +3871,7 @@
 .tnd-modal-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 16px; border-bottom: 1px solid color-mix(in srgb, var(--text-3) 14%, transparent);
-  position: sticky; top: 0; background: #0c1626; border-radius: 14px 14px 0 0; z-index: 2;
+  position: sticky; top: 0; background: var(--bg-app); border-radius: 14px 14px 0 0; z-index: 2;
 }
 .tnd-modal-head > div { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .tnd-modal-badge { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; }
@@ -4027,7 +4027,7 @@
    Dirección: tablero técnico de sala de control. Un color por tramo (el mismo en cinta, bandas, secciones,
    mini-gráficas, tabla y líneas) y superficies con profundidad sutil, sin ruido decorativo. */
 .tnd-ruta-wrap { margin: 0 0 12px; padding: 10px 12px 8px; border-radius: 12px;
-  background: linear-gradient(180deg, rgba(15,28,48,0.9), color-mix(in srgb, var(--surface-1) 90%, transparent));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-1) 90%, transparent), color-mix(in srgb, var(--surface-1) 90%, transparent));
   border: 1px solid var(--surface-1); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-1) 4%, transparent); }
 .tnd-ruta-t { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px;
   font: 700 0.68rem/1.2 var(--font-mono, monospace); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
@@ -4054,11 +4054,11 @@
 @media (prefers-reduced-motion: reduce) { .tnd-ruta-seg { animation: none; } }
 
 /* Acabado de bloques y tarjetas de resumen */
-.tnd-block { background: linear-gradient(180deg, rgba(15,28,48,0.55), color-mix(in srgb, var(--surface-1) 55%, transparent)); border-radius: 12px;
+.tnd-block { background: linear-gradient(180deg, color-mix(in srgb, var(--surface-1) 55%, transparent), color-mix(in srgb, var(--surface-1) 55%, transparent)); border-radius: 12px;
   border: 1px solid var(--surface-1); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-1) 3.5%, transparent); padding: 12px 12px 14px; }
 .tnd-kpi { position: relative; overflow: hidden; padding-left: 12px; }
 .tnd-kpi::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--st-info); opacity: 0.85; }
-.tnd-kpi:nth-child(2)::before { background: #5aa9ff; }
+.tnd-kpi:nth-child(2)::before { background: var(--st-info); }
 .tnd-kpi:nth-child(3)::before { background: var(--st-warn); }
 .tnd-kpi:nth-child(4)::before { background: var(--text-3); }
 .tnd-legend-int .tnd-chip { border-radius: 14px; padding: 3px 10px 3px 8px; font-size: 0.6875rem; }
@@ -4175,7 +4175,7 @@
     font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; letter-spacing: 0.18em;
 }
 .pm-reabrir span { writing-mode: vertical-rl; transform: rotate(180deg); }
-.pm-reabrir:hover { background: #0f1b31; border-color: var(--st-info); }
+.pm-reabrir:hover { background: var(--surface-1); border-color: var(--st-info); }
 .pm-reabrir:focus-visible { outline: 2px solid var(--st-info); outline-offset: 2px; }
 
 /* Controles del modo LLENADO: dentro del área del mapa, no fijos a la ventana */
@@ -4196,7 +4196,7 @@ html:not([data-device="phone"]) .public-monitor-container.pm-inferior .info-card
     position: absolute; top: 16px; right: 16px; z-index: 900;
     display: inline-flex; align-items: center; gap: 6px;
     min-height: 36px; padding: 0 12px;
-    background: rgba(10, 18, 34, 0.88);
+    background: color-mix(in srgb, var(--bg-app) 88%, transparent);
     border: 1px solid color-mix(in srgb, var(--text-3) 22%, transparent); border-radius: 10px;
     color: var(--text-2); cursor: pointer; pointer-events: auto;
     font-family: 'IBM Plex Sans', 'Inter', system-ui, sans-serif; font-size: 12px; font-weight: 600;
@@ -4215,7 +4215,7 @@ html[data-device="phone"] .pm-recentrar { top: auto; bottom: 16px; right: 56px; 
     border-radius: 10px;
     border: 1px solid color-mix(in srgb, var(--modo-color, #a855f7) 45%, transparent);
     border-left: 3px solid var(--modo-color, #a855f7);
-    background: color-mix(in srgb, var(--modo-color, #a855f7) 9%, #0b1426);
+    background: color-mix(in srgb, var(--modo-color, #a855f7) 9%, var(--bg-app));
 }
 .pm-aviso-icono { flex-shrink: 0; margin-top: 2px; color: var(--modo-color, #a855f7); }
 .pm-aviso-texto b {
@@ -4284,7 +4284,7 @@ html:not([data-device="phone"]) .public-monitor-container.pm-inferior .public-ma
 }
 .info-cards-dock .card-label { font-family: var(--sc-mono); font-size: 12px; letter-spacing: 0.12em; color: var(--sc-t2); }
 .info-cards-dock .dock-tab { font-size: 12px; min-height: 36px; }
-.dock-tab-badge--warn { background: #b45309 !important; }
+.dock-tab-badge--warn { background: var(--st-warn) !important; }
 
 /* Franja ejecutiva */
 .pm-ejec { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 2px 0 12px; }

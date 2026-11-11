@@ -28,6 +28,7 @@
   --fill-ok: #2E9A1E;
   --fill-info: #0A5BB0;  /* 6.70:1 con blanco; #0A7FDB da 4.14 y no pasa */
   --fill-crit: #B42318;
+  --fill-warn: #8A5300;   /* 6.33:1 con blanco */
 
   /* Negro puro: base de sombras translúcidas (color-mix) */
   --negro: #000000;

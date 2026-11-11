@@ -5,12 +5,12 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--st-info) 0%, #0e7490 100%);
+  background: linear-gradient(135deg, var(--st-info) 0%, var(--st-info) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  border: 1px solid rgba(13, 148, 136, 0.5);
+  border: 1px solid color-mix(in srgb, var(--st-info) 50%, transparent);
   cursor: pointer;
   box-shadow: 0 10px 25px color-mix(in srgb, var(--negro) 50%, transparent), 0 0 20px color-mix(in srgb, var(--st-info) 40%, transparent);
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -116,7 +116,7 @@
 }
 
 .user .msg-bubble {
-  background: linear-gradient(135deg, var(--st-info) 0%, #0c4a6e 100%);
+  background: linear-gradient(135deg, var(--st-info) 0%, var(--fill-info) 100%);
   color: white;
   border-top-right-radius: 4px;
   box-shadow: 0 4px 15px color-mix(in srgb, var(--st-info) 20%, transparent);

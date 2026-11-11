@@ -63,6 +63,30 @@ function enVar(valor) {
   while ((m = re.exec(valor))) { let d = 1, i = re.lastIndex; while (i < valor.length && d > 0) { if (valor[i] === '(') d++; else if (valor[i] === ')') d--; i++; } r.push([m.index, i]); }
   return r;
 }
+// Clasificador de respaldo para tonos sueltos: oscuros neutros/navy → superficies; saturados → token por matiz.
+// Los rellenos oscuros saturados (texto blanco encima) usan --fill-*; los claros, el token de estado. Se salta el papel (claros desaturados)
+// y el marrón de la marca SRL (#6B2D2D y sus derivados).
+const MARCA_SRL = new Set(['107,45,45', '125,53,53']);
+function clasificar(rgbTxt) {
+  if (MARCA_SRL.has(rgbTxt)) return null;
+  const [r, g, b] = rgbTxt.split(',').map(Number);
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  const sat = mx === 0 ? 0 : d / mx;
+  let h = 0;
+  if (d) { if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h = (h * 60 + 360) % 360; }
+  if (lum > 0.62 && sat < 0.2) return null; // papel / blancos
+  if (mx < 90) return lum < 0.095 ? '--bg-app' : lum < 0.125 ? '--surface-1' : lum < 0.2 ? '--surface-2' : '--line-sutil';
+  if (mx < 140 && sat < 0.3) return '--line-fuerte';
+  if (sat < 0.25) return null;
+  const oscuro = lum < 0.3;
+  if (h >= 345 || h < 15) return oscuro ? '--fill-crit' : '--st-crit';
+  if (h < 65) return oscuro ? '--fill-warn' : '--st-warn';
+  if (h < 170) return oscuro ? '--fill-ok' : '--st-ok';
+  if (h < 250) return oscuro ? '--fill-info' : '--st-info';
+  if (h < 300) return '--sc-violet';
+  return null;
+}
 function convertirColores(valor, ctx) {
   const prot = enVar(valor);
   const dentro = (i) => prot.some(([a, b]) => i >= a && i < b);
@@ -71,7 +95,8 @@ function convertirColores(valor, ctx) {
     let rgb, alfa = 1;
     if (c.startsWith('#')) { rgb = hexRgb(c.toLowerCase()); if (NO_SOLIDO.has(rgb)) { return c; } }
     else { rgb = `${r},${g},${b}`; alfa = a === undefined ? 1 : parseFloat(a); }
-    const token = (c.startsWith('#') ? HEX_SOLIDO : RGB_A_TOKEN).get(rgb);
+    let token = (c.startsWith('#') ? HEX_SOLIDO : RGB_A_TOKEN).get(rgb);
+    if (!token && ctx.aproximar) token = clasificar(rgb);
     if (!token) { cuenta(resumen.sinRegla, c.toLowerCase().replace(/\s+/g, '')); filas.push(['sin-regla', ctx.arch, ctx.ln, c, '']); return c; }
     let nuevo;
     if (c.startsWith('#') || alfa >= 0.995) nuevo = `var(${token})`;
@@ -106,7 +131,7 @@ for (const f of recorrer(SRC)) {
       const nuevo = decl.replace(/(^|;|\s)([a-z-]+)\s*:\s*([^;]+?)(\s*!important)?(\s*;|\s*$)/g, (m, pre, prop, val, imp, fin, pos) => {
         if (!PROP_CSS.test(prop)) return m;
         if (!/#[0-9a-fA-F]{3,6}\b|rgba?\(/.test(val)) return m;
-        const ctx = { arch: r, ln: linea(base, off + sel.length + 1 + pos) };
+        const ctx = { arch: r, ln: linea(base, off + sel.length + 1 + pos), aproximar: true };
         return `${pre}${prop}: ${convertirColores(val, ctx)}${imp || ''}${fin}`;
       });
       return sel + '{' + nuevo + '}';
@@ -116,7 +141,7 @@ for (const f of recorrer(SRC)) {
     txt = base.replace(/style=\{\{([^{}]*)\}\}/g, (bloque, interior, off) => {
       const nuevo = interior.replace(/(background|backgroundColor|border|borderTop|borderRight|borderBottom|borderLeft|borderColor|boxShadow)\s*:\s*'([^']*)'/g, (m, prop, val, pos) => {
         if (!/#[0-9a-fA-F]{3,6}\b|rgba?\(/.test(val)) return m;
-        const ctx = { arch: r, ln: linea(base, off + 8 + pos) };
+        const ctx = { arch: r, ln: linea(base, off + 8 + pos), aproximar: true };
         return `${prop}: '${convertirColores(val, ctx)}'`;
       });
       return `style={{${nuevo}}}`;

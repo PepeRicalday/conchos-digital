@@ -10,7 +10,7 @@
 
 /* ── Vacíos y tooltip ── */
 .sc-vacio { padding: 2.2rem 0; text-align: center; font-size: 14px; color: var(--sc-t2); }
-.sc-tip { padding: 8px 10px; border-radius: 8px; background: #0f1c30; border: 1px solid var(--sc-line); font-size: 12px; }
+.sc-tip { padding: 8px 10px; border-radius: 8px; background: var(--surface-1); border: 1px solid var(--sc-line); font-size: 12px; }
 .sc-tip b { font-family: var(--sc-mono); }
 
 /* ── Alertas (cajón del Dashboard) ── */

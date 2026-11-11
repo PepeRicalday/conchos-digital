@@ -236,14 +236,14 @@
     --ah-body: 'IBM Plex Sans', 'Inter', system-ui, sans-serif;
     --ah-mono: 'JetBrains Mono', ui-monospace, monospace;
     position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center;
-    padding: 20px; background: rgba(2, 8, 16, 0.78); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); font-family: var(--ah-body); color: var(--ah-t1);
+    padding: 20px; background: color-mix(in srgb, var(--bg-app) 78%, transparent); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); font-family: var(--ah-body); color: var(--ah-t1);
 }
 .ah-inf-overlay[hidden] { display: none; }
 .ah-inf-overlay--previa { z-index: 10001; padding: 14px; }
 .ah-inf-dialog {
     display: flex; flex-direction: column; width: min(860px, 100%); max-height: 100%; min-height: 0;
     border: 1px solid var(--ah-line); border-top: 2px solid var(--ah-sky); border-radius: 14px; outline: none;
-    background: linear-gradient(180deg, color-mix(in srgb, var(--st-info) 6%, transparent), transparent 160px), repeating-linear-gradient(0deg, color-mix(in srgb, var(--text-3) 4%, transparent) 0 1px, transparent 1px 30px), #06111f;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--st-info) 6%, transparent), transparent 160px), repeating-linear-gradient(0deg, color-mix(in srgb, var(--text-3) 4%, transparent) 0 1px, transparent 1px 30px), var(--bg-app);
     box-shadow: 0 8px 24px color-mix(in srgb, var(--bg-app) 55%, transparent); animation: ah-inf-in 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 .ah-inf-dialog--previa { width: min(1200px, 100%); height: 100%; }

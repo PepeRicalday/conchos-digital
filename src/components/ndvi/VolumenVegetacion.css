@@ -16,7 +16,7 @@
     margin-top: 26px;
 }
 .vv-titulo { margin: 0 0 8px; font-size: 1.25rem; letter-spacing: 0.005em; color: var(--text-1); }
-.vv-lectura { margin: 0 0 12px; padding: 12px 16px; border-left: 4px solid var(--vv-firme); background: rgba(94, 234, 212, 0.07); border-radius: 0 10px 10px 0; font-size: 1.05rem; line-height: 1.5; color: var(--text-1); max-width: 75ch; }
+.vv-lectura { margin: 0 0 12px; padding: 12px 16px; border-left: 4px solid var(--vv-firme); background: color-mix(in srgb, var(--st-info) 7%, transparent); border-radius: 0 10px 10px 0; font-size: 1.05rem; line-height: 1.5; color: var(--text-1); max-width: 75ch; }
 .vv-error { margin: 0 0 10px; padding: 8px 12px; border-left: 4px solid var(--vv-brecha); background: color-mix(in srgb, var(--sc-s2) 10%, transparent); border-radius: 0 8px 8px 0; font-size: 0.9rem; line-height: 1.45; color: #fed7aa; }
 
 .vv-clave { display: flex; flex-wrap: wrap; gap: 6px 20px; list-style: none; margin: 0 0 12px; padding: 0; font-size: 0.82rem; color: var(--vv-suave); }
@@ -27,7 +27,7 @@
 .vv-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 12px; }
 .vv-cuadro { margin: 0; padding: 8px 12px 10px; background: var(--vv-fondo); border: 1px solid var(--vv-borde); border-radius: 12px; min-width: 0; }
 .vv-cuadro.on { border-color: var(--st-info); box-shadow: 0 0 0 1px var(--st-info) inset; background: color-mix(in srgb, var(--st-info) 9%, transparent); }
-.vv-cuadro.est-firme { border-color: rgba(94, 234, 212, 0.55); }
+.vv-cuadro.est-firme { border-color: color-mix(in srgb, var(--st-info) 55%, transparent); }
 .vv-cuadro.est-firme.on { border-color: var(--st-info); }
 
 .vv-cab { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 4px 2px; background: none; border: 0; color: var(--vv-texto); font: inherit; font-size: 0.95rem; text-align: left; cursor: pointer; border-radius: 8px; }
@@ -62,7 +62,7 @@
 .vv-pto:focus-visible .vv-hit, .vv-pto.on .vv-hit { fill: rgba(63, 178, 243, 0.16); stroke: #3FB2F3; stroke-width: 2; }
 .vv-pto.on .vv-forma { stroke: #f8fafc; }
 
-.vv-tip { position: absolute; transform: translate(-50%, calc(-100% - 16px)); z-index: 2; display: grid; gap: 2px; padding: 7px 10px; min-width: 150px; white-space: nowrap; background: #0b1220; border: 1px solid var(--line-sutil); border-radius: 8px; font-size: 0.8rem; line-height: 1.35; color: var(--text-1); pointer-events: none; box-shadow: 0 6px 18px color-mix(in srgb, var(--negro) 45%, transparent); }
+.vv-tip { position: absolute; transform: translate(-50%, calc(-100% - 16px)); z-index: 2; display: grid; gap: 2px; padding: 7px 10px; min-width: 150px; white-space: nowrap; background: var(--bg-app); border: 1px solid var(--line-sutil); border-radius: 8px; font-size: 0.8rem; line-height: 1.35; color: var(--text-1); pointer-events: none; box-shadow: 0 6px 18px color-mix(in srgb, var(--negro) 45%, transparent); }
 .vv-tip b { font-size: 0.9rem; }
 .vv-tip .aviso { color: #fcd34d; }
 .vv-vacio { margin: 20px 0; color: var(--vv-suave); font-style: italic; font-size: 0.9rem; }

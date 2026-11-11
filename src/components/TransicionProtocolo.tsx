@@ -254,7 +254,7 @@ const TransicionProtocolo: React.FC<Props> = ({ eventoId, onTransicionCompletada
                         disabled={transitioning}
                         style={{
                             width: '100%', padding: '14px', border: 'none', borderRadius: '12px',
-                            background: 'linear-gradient(135deg, var(--st-ok), #059669)',
+                            background: 'linear-gradient(135deg, var(--st-ok), var(--st-ok))',
                             color: 'white', fontWeight: 900, fontSize: '0.85rem', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                             textTransform: 'uppercase', letterSpacing: '0.06em',

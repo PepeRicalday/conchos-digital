@@ -623,7 +623,7 @@
 
 .geo-control-btn.active {
     color: var(--geo-text-0);
-    background: linear-gradient(135deg, rgba(14, 116, 144, 0.28), var(--geo-surface));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--st-info) 28%, transparent), var(--geo-surface));
     border-color: var(--geo-neon-cyan);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--st-info) 15%, transparent) inset;
 }
@@ -846,7 +846,7 @@
 
 .geo-gate-curtain {
     width: 100%;
-    background: linear-gradient(to bottom, var(--geo-text-2), #2a3854);
+    background: linear-gradient(to bottom, var(--geo-text-2), var(--line-sutil));
     position: absolute;
     top: 0;
     border-bottom: 3px solid var(--geo-text-1);
@@ -1515,7 +1515,7 @@
     background: var(--geo-bg-shell);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(245, 166, 35, 0.3);
+    border: 1px solid color-mix(in srgb, var(--st-warn) 30%, transparent);
     font-size: var(--geo-fs-1);
     color: var(--geo-text-1);
     box-shadow: var(--geo-shadow-card);
@@ -1553,7 +1553,7 @@
 .geo-ndvi-legend-bar {
     height: 6px;
     border-radius: 999px;
-    background: linear-gradient(90deg, #b91c1c, var(--st-warn), #facc15, var(--st-ok), #15803d);
+    background: linear-gradient(90deg, var(--fill-crit), var(--st-warn), var(--st-warn), var(--st-ok), var(--st-ok));
 }
 
 .geo-ndvi-legend-scale {
@@ -1581,7 +1581,7 @@
     background: var(--geo-bg-shell);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(77, 141, 255, 0.35);
+    border: 1px solid color-mix(in srgb, var(--st-info) 35%, transparent);
     color: var(--geo-blue);
     font-size: var(--geo-fs-1);
     font-weight: 600;
@@ -1589,7 +1589,7 @@
 }
 
 .geo-lluvia-badge.alta {
-    border-color: rgba(245, 166, 35, 0.4);
+    border-color: color-mix(in srgb, var(--st-warn) 40%, transparent);
     color: var(--geo-amber);
 }
 
@@ -1740,11 +1740,11 @@
 }
 
 .geo-event-bg-pendiente { background: color-mix(in srgb, var(--text-3) 94%, transparent); color: #0f172a; }
-.geo-event-bg-llenado { background: rgba(77, 141, 255, 0.94); color: #051329; }
+.geo-event-bg-llenado { background: color-mix(in srgb, var(--st-info) 94%, transparent); color: #051329; }
 .geo-event-bg-estabilizacion { background: color-mix(in srgb, var(--st-ok) 94%, transparent); }
-.geo-event-bg-contingencia { background: rgba(245, 166, 35, 0.94); color: #2b1904; }
+.geo-event-bg-contingencia { background: color-mix(in srgb, var(--st-warn) 94%, transparent); color: #2b1904; }
 .geo-event-bg-anomalia { background: color-mix(in srgb, var(--sc-violet) 94%, transparent); color: #180b34; }
-.geo-event-bg-alerta { background: rgba(239, 69, 101, 0.94); color: #2b0611; }
+.geo-event-bg-alerta { background: color-mix(in srgb, var(--st-crit) 94%, transparent); color: #2b0611; }
 
 /* ══════════════════════════════════════════════════════════════════════════
    RESPONSIVE — TABLET (≤1024px) Y TABLET ANGOSTA/LANDSCAPE CHICA (≤768px)
@@ -1841,8 +1841,8 @@
 
 /* ── Controles de mapa (zoom / escala / atribuciones) en el lenguaje oscuro del módulo ── */
 .geo-map-leaflet .leaflet-control-zoom { border: 1px solid color-mix(in srgb, var(--text-3) 25%, transparent); border-radius: 10px; overflow: hidden; box-shadow: none; }
-.geo-map-leaflet .leaflet-control-zoom a { width: 44px; height: 44px; line-height: 44px; font-size: 20px; background: rgba(8, 16, 30, 0.92); color: var(--text-1); border-bottom: 1px solid color-mix(in srgb, var(--text-3) 20%, transparent); }
+.geo-map-leaflet .leaflet-control-zoom a { width: 44px; height: 44px; line-height: 44px; font-size: 20px; background: color-mix(in srgb, var(--bg-app) 92%, transparent); color: var(--text-1); border-bottom: 1px solid color-mix(in srgb, var(--text-3) 20%, transparent); }
 .geo-map-leaflet .leaflet-control-zoom a:hover { background: color-mix(in srgb, var(--st-info) 20%, transparent); }
-.geo-map-leaflet .leaflet-control-scale-line { background: rgba(8, 16, 30, 0.8); color: var(--text-2); border-color: var(--text-3); font-size: 11px; }
-.geo-map-leaflet .leaflet-control-attribution { background: rgba(8, 16, 30, 0.75); color: var(--text-3); font-size: 11px; }
+.geo-map-leaflet .leaflet-control-scale-line { background: color-mix(in srgb, var(--bg-app) 80%, transparent); color: var(--text-2); border-color: var(--text-3); font-size: 11px; }
+.geo-map-leaflet .leaflet-control-attribution { background: color-mix(in srgb, var(--bg-app) 75%, transparent); color: var(--text-3); font-size: 11px; }
 .geo-map-leaflet .leaflet-control-attribution a { color: #8fc8ee; }

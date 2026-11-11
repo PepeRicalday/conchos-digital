@@ -15,7 +15,7 @@
 .vaso-btn:hover:not([disabled]) { border-color: color-mix(in srgb, var(--st-info) 60%, transparent); background: color-mix(in srgb, var(--st-info) 10%, transparent); }
 .vaso-btn:focus-visible, .vaso-sc input[type='range']:focus-visible, .vaso-sc summary:focus-visible { outline: 2px solid var(--st-info); outline-offset: 2px; }
 .vaso-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
-.vaso-btn--pri { background: linear-gradient(180deg, #2b8fd6, #1d6fb0); border-color: transparent; }
+.vaso-btn--pri { background: linear-gradient(180deg, var(--st-info), var(--st-info)); border-color: transparent; }
 .vaso-btn--icono { min-width: 44px; padding: 0; }
 .vaso-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
 

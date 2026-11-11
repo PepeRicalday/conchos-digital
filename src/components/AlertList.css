@@ -1,6 +1,6 @@
 /* AlertList.css - Hydro-Synchrony Premium 2.1 (Sunlight Optimized) */
 .alert-list-container {
-    background: linear-gradient(145deg, rgba(8, 14, 26, 0.95), color-mix(in srgb, var(--negro) 98%, transparent));
+    background: linear-gradient(145deg, color-mix(in srgb, var(--bg-app) 95%, transparent), color-mix(in srgb, var(--negro) 98%, transparent));
     backdrop-filter: blur(28px);
     -webkit-backdrop-filter: blur(28px);
     border-radius: var(--radius-xl);

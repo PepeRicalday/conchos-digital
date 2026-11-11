@@ -163,7 +163,7 @@
 .vv-vistas { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .vv-vistas button { min-height: 36px; padding: 0 12px; font-size: 13px; border-radius: 18px; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; opacity: .8; }
 .vv-vistas button:focus-visible { outline: 2px solid var(--st-info); outline-offset: 2px; }
-.vv-vistas button[aria-pressed="true"] { opacity: 1; font-weight: 700; background: rgba(120, 160, 200, .22); }
+.vv-vistas button[aria-pressed="true"] { opacity: 1; font-weight: 700; background: color-mix(in srgb, var(--st-info) 22%, transparent); }
 
 @media (max-width: 520px) {
     .vc-kpis { grid-template-columns: 1fr; }

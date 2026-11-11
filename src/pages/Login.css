@@ -16,7 +16,7 @@
 .login-bg-glow {
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at 50% 0%, rgba(11, 49, 112, 0.65) 0%, transparent 62%);
+    background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--fill-info) 65%, transparent) 0%, transparent 62%);
     pointer-events: none;
 }
 
@@ -180,7 +180,7 @@
     cursor: pointer;
     transition: all 0.2s ease;
     margin-top: 1rem;
-    box-shadow: 0 10px 15px -3px rgba(6, 32, 77, 0.5);
+    box-shadow: 0 10px 15px -3px color-mix(in srgb, var(--surface-1) 50%, transparent);
     font-size: 1rem;
 }
 

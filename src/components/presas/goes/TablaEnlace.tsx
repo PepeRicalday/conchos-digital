@@ -3,6 +3,7 @@ import {
     type EstacionHidro, type MensajeHidro,
 } from '../../../utils/hidroEstaciones';
 import { GLIFO_ENLACE, instanteEnlace } from './enlaceGoes';
+import { DataTable } from '../../ui/base';
 
 interface Props { estaciones: EstacionHidro[]; mensajes: MensajeHidro[]; ahora: number }
 
@@ -11,43 +12,34 @@ const ROTULO = { bueno: 'mensaje bueno', falla: 'mensaje con falla', sin: 'sin m
 /** Salud del enlace satelital: mensajes buenos vs con falla en 24 h, señal y una celda por hora. */
 export default function TablaEnlace({ estaciones, mensajes, ahora }: Props) {
     return (
-        <div className="goes-tabla-wrap">
-            <table className="goes-tabla goes-tabla--enlace tap-compact">
-                <caption>Cada estación transmite un mensaje por hora. Código G = mensaje bueno.</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Estación</th><th scope="col">Estado</th><th scope="col">Buenos / falla</th>
-                        <th scope="col">Señal</th><th scope="col">Último dato bueno</th><th scope="col">Últimas 24 h</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {estaciones.map(e => {
-                        const ub = instanteEnlace(e, mensajes);
-                        const enl = estadoEnlace(ub, ahora, e.id);
-                        const s = saludEnlace(mensajes, e.id, ahora - 24 * 3600000);
+        <DataTable
+            captionOculto={false} className="goes-tabla goes-tabla--enlace tap-compact" apilar
+            caption="Cada estación transmite un mensaje por hora. Código G = mensaje bueno."
+            clave={(e) => String(e.id)} filas={estaciones}
+            columnas={[
+                { id: 'est', titulo: 'Estación', encabezadoFila: true, render: (e) => <><i className="goes-sw" style={{ background: colorEstacion(e.id) }} aria-hidden="true" />{e.nombre}</> },
+                {
+                    id: 'estado', titulo: 'Estado',
+                    render: (e) => { const enl = estadoEnlace(instanteEnlace(e, mensajes), ahora, e.id); return <span className={`goes-sello goes-sello--${enl.clave}`}><span aria-hidden="true">{GLIFO_ENLACE[enl.clave]}</span> {enl.etiqueta}</span>; },
+                },
+                { id: 'bf', titulo: 'Buenos / falla', render: (e) => { const s = saludEnlace(mensajes, e.id, ahora - 24 * 3600000); return s.total ? `${s.buenos} / ${s.conFalla}` : 'S/D'; } },
+                { id: 'senal', titulo: 'Señal', render: (e) => { const s = saludEnlace(mensajes, e.id, ahora - 24 * 3600000); return s.senalDbm == null ? 'S/D' : `${fmt(s.senalDbm, 0)} dBm`; } },
+                {
+                    id: 'ub', titulo: 'Último dato bueno',
+                    render: (e) => { const ub = instanteEnlace(e, mensajes); const enl = estadoEnlace(ub, ahora, e.id); return ub ? <>{fechaHoraLocal(ub)}<small>{textoEdad(enl.edadMin)}</small></> : 'S/D'; },
+                },
+                {
+                    id: 'tira', titulo: 'Últimas 24 h',
+                    render: (e) => {
                         const tira = tiraEnlace(mensajes, e.id, ahora, 24);
                         return (
-                            <tr key={e.id}>
-                                <th scope="row"><i className="goes-sw" style={{ background: colorEstacion(e.id) }} aria-hidden="true" />{e.nombre}</th>
-                                <td data-label="Estado"><span className={`goes-sello goes-sello--${enl.clave}`}><span aria-hidden="true">{GLIFO_ENLACE[enl.clave]}</span> {enl.etiqueta}</span></td>
-                                <td data-label="Buenos / con falla (24 h)">{s.total ? `${s.buenos} / ${s.conFalla}` : 'S/D'}</td>
-                                <td data-label="Señal">{s.senalDbm == null ? 'S/D' : `${fmt(s.senalDbm, 0)} dBm`}</td>
-                                <td data-label="Último dato bueno">{ub ? <>{fechaHoraLocal(ub)}<small>{textoEdad(enl.edadMin)}</small></> : 'S/D'}</td>
-                                <td data-label="Últimas 24 h">
-                                    <span className="goes-tira" role="img" aria-label={`Mensajes por hora de ${e.nombre}: ${tira.filter(c => c === 'bueno').length} buenos, ${tira.filter(c => c === 'falla').length} con falla, ${tira.filter(c => c === 'sin').length} horas sin mensaje`}>
-                                        {tira.map((c, i) => <i key={i} className={`goes-celda goes-celda--${c}`} title={`${ROTULO[c]}`} />)}
-                                    </span>
-                                </td>
-                            </tr>
+                            <span className="goes-tira" role="img" aria-label={`Mensajes por hora de ${e.nombre}: ${tira.filter(c => c === 'bueno').length} buenos, ${tira.filter(c => c === 'falla').length} con falla, ${tira.filter(c => c === 'sin').length} horas sin mensaje`}>
+                                {tira.map((c, i) => <i key={i} className={`goes-celda goes-celda--${c}`} title={`${ROTULO[c]}`} />)}
+                            </span>
                         );
-                    })}
-                </tbody>
-            </table>
-            <ul className="goes-leyenda" aria-label="Leyenda de la tira">
-                <li><i className="goes-celda goes-celda--bueno" /> Mensaje bueno</li>
-                <li><i className="goes-celda goes-celda--falla" /> Con falla</li>
-                <li><i className="goes-celda goes-celda--sin" /> Sin mensaje</li>
-            </ul>
-        </div>
+                    },
+                },
+            ]}
+        />
     );
 }

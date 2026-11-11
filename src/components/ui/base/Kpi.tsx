@@ -36,6 +36,8 @@ export interface KpiProps {
     onActivar?: () => void;
     /** Ayuda al pasar el cursor. */
     ayuda?: string;
+    /** Contenido adicional bajo la cifra (p. ej. barras de desglose). */
+    extra?: ReactNode;
 
     // ── solo densidad «tablero» ──
     id?: string;
@@ -82,6 +84,7 @@ export const Kpi = memo(function Kpi(p: KpiProps) {
             <div className="ui-kpi__cab"><span className="ui-kpi__etq">{p.etiqueta}</span>{p.icono}</div>
             {cifra}
             {p.estado && <Insignia tipo={p.estado.tipo}>{p.estado.texto}</Insignia>}
+            {p.extra}
             {notas}
             {p.fresco && <span className={`ui-kpi__fresco${p.viejo ? ' ui-kpi__fresco--viejo' : ''}`}>{p.fresco}</span>}
         </article>

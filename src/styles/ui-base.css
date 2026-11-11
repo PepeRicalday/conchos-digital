@@ -160,3 +160,11 @@ html[data-device="phone"] .ui-modal-fondo--sin-menu { left: 0; }
     .ui-tabla--apila td, .ui-tabla--apila th[scope='row'] { padding: 4px 0; border: 0; text-align: left !important; white-space: normal; }
     .ui-tabla--apila [data-label]::before { content: attr(data-label); display: block; margin-bottom: 1px; font: 600 11px/1.3 var(--font-sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
 }
+
+/* Barras de desglose bajo la cifra (IEC: eficiencia, coherencia, fugas, nivel) */
+.ui-kpi__barras { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 0 4px; margin-top: 4px; }
+.ui-kpi__barras i { display: block; height: 3px; border-radius: 2px; background: var(--tono, var(--st-sd)); opacity: 0.75; transition: width 0.4s ease; }
+.ui-kpi[data-tono-barras='ok'] { --tono: var(--st-ok); } .ui-kpi[data-tono-barras='warn'] { --tono: var(--st-warn); } .ui-kpi[data-tono-barras='crit'] { --tono: var(--st-crit); }
+@media (prefers-reduced-motion: reduce) { .ui-kpi__barras i { transition: none; } }
+
+.ui-tabla--fija thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-1); }

@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { useRol } from '../lib/auth/roles';
 import { formatDate } from '../utils/dateHelpers';
 import SimulationReport from '../components/SimulationReport';
-import { calcIEC, iecColor } from '../utils/canalIndex';
+import { calcIEC } from '../utils/canalIndex';
 import { useModelingTelemetry } from '../hooks/useModelingTelemetry';
 import { useHydricEvents } from '../hooks/useHydricEvents';
 import { PLANTILLA, FREEBOARD, CD_GATE, safeFloat } from '../utils/modelingTypes';
@@ -17,7 +17,7 @@ import { runSimulation } from '../utils/modelacion/simulacion';
 import type { ModoOperativo, Decision, DecisionTipo } from '../utils/modelacion/decisiones';
 import { Q_MIN_ENTRADA_M3S, generateDecisions, decisionModoOperativo, edadLectura } from '../utils/modelacion/decisiones';
 import { CanalSection } from '../components/modelacion/CanalSection';
-import { Kpi } from '../components/ui/base';
+import { Kpi, DataTable } from '../components/ui/base';
 
 
 
@@ -960,17 +960,6 @@ const ModelingDashboard: React.FC = () => {
     return () => { window.clearTimeout(t1); window.clearTimeout(t2); ro?.disconnect(); window.removeEventListener('orientationchange', redibujar); };
   }, [opsChartOption]);
 
-  const iecSimRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = iecSimRef.current;
-    if (!el || !iecSim) return;
-    el.style.setProperty('--iec-color',  iecColor(iecSim.semaforo));
-    el.style.setProperty('--iec-pef',    `${(iecSim.p_eficiencia / 30) * 100}%`);
-    el.style.setProperty('--iec-pcoh',   `${(iecSim.p_coherencia / 25) * 100}%`);
-    el.style.setProperty('--iec-pfug',   `${(iecSim.p_fugas      / 25) * 100}%`);
-    el.style.setProperty('--iec-pcrit',  `${(iecSim.p_criticos   / 20) * 100}%`);
-  }, [iecSim]);
-
   const systemStatus: CPStatus = simResults.some(r => r.status === 'CRITICO')
     ? 'CRITICO' : simResults.some(r => r.status === 'ALERTA') ? 'ALERTA' : 'ESTABLE';
   // En modo VACIADO/SIN ENTRADA el chip no alarma por niveles bajos esperados: se muestra el modo en tono neutro.
@@ -1042,26 +1031,27 @@ const ModelingDashboard: React.FC = () => {
               : 'Tomas sin reporte del día con gasto anclado a aforos SICA: la caída de Q incluye extracciones no contabilizadas — la conducción no es medible'}
           />
           {!iecSim && simResults.length > 0 && (
-            <div className="sim-kpi" title={globalEffMedible ? 'IEC no calculable: eficiencia de conducción sin dato confiable (tomas sin reporte del día)' : 'IEC no calculable: sin gasto de entrada (presa cerrada o sin movimiento)'}>
-              <div className="sim-kpi-label">IEC Canal</div>
-              <div className="sim-kpi-val" style={{ color: 'var(--text-3)' }}>S/D</div>
-            </div>
+            <Kpi densidad="cabecera" etiqueta="IEC Canal" valor={null}
+              ayuda={globalEffMedible ? 'IEC no calculable: eficiencia de conducción sin dato confiable (tomas sin reporte del día)' : 'IEC no calculable: sin gasto de entrada (presa cerrada o sin movimiento)'} />
           )}
           {iecSim && (
-            <div
-              className="sim-kpi sim-kpi-iec"
-              ref={iecSimRef}
-              title={`${iecSim.texto}\nEficiencia: ${iecSim.p_eficiencia}/30\nCoherencia: ${iecSim.p_coherencia}/25\nFugas: ${iecSim.p_fugas}/25\nNivel canal: ${iecSim.p_criticos}/20`}
-            >
-              <div className="sim-kpi-label">IEC Canal</div>
-              <div className="sim-kpi-val sim-kpi-iec-val">{iecSim.iec}<span>/100</span></div>
-              <div className="sim-kpi-iec-bars">
-                <div className="sim-kpi-iec-bar iec-fill-ef" />
-                <div className="sim-kpi-iec-bar iec-fill-coh" />
-                <div className="sim-kpi-iec-bar iec-fill-fug" />
-                <div className="sim-kpi-iec-bar iec-fill-crit" />
-              </div>
-            </div>
+            <Kpi
+              densidad="cabecera" etiqueta="IEC Canal" valor={String(iecSim.iec)} unidad="/100"
+              tonoValor={iecSim.semaforo === 'VERDE' ? 'ok' : iecSim.semaforo === 'AMARILLO' ? 'warn' : 'crit'}
+              ayuda={`${iecSim.texto}
+Eficiencia: ${iecSim.p_eficiencia}/30
+Coherencia: ${iecSim.p_coherencia}/25
+Fugas: ${iecSim.p_fugas}/25
+Nivel canal: ${iecSim.p_criticos}/20`}
+              extra={(
+                <div className="ui-kpi__barras" data-tono-barras={iecSim.semaforo === 'VERDE' ? 'ok' : iecSim.semaforo === 'AMARILLO' ? 'warn' : 'crit'} aria-hidden="true">
+                  <i style={{ width: `${(iecSim.p_eficiencia / 30) * 100}%` }} />
+                  <i style={{ width: `${(iecSim.p_coherencia / 25) * 100}%` }} />
+                  <i style={{ width: `${(iecSim.p_fugas / 25) * 100}%` }} />
+                  <i style={{ width: `${(iecSim.p_criticos / 20) * 100}%` }} />
+                </div>
+              )}
+            />
           )}
           <Kpi densidad="cabecera" etiqueta="Arribo K-104" valor={reglasRiegoSuspendidas ? null : (lastCP?.arrival_time ?? '—')} tonoValor="warn" />
           <button
@@ -1650,56 +1640,41 @@ const ModelingDashboard: React.FC = () => {
               </div>
 
               {/* Tabla de comparación por punto de control */}
-              <div className="sim-compare-table-wrap">
-                <table className="sim-compare-table">
-                  <thead>
-                    <tr>
-                      <th>Sección</th>
-                      <th className="scen-a-col">Q · Esc A</th>
-                      <th className="scen-b-col">Q · Esc B</th>
-                      <th className="scen-a-col">Escala A</th>
-                      <th className="scen-b-col">Escala B</th>
-                      <th>Δ Escala</th>
-                      <th className="scen-a-col">Arribo A</th>
-                      <th className="scen-b-col">Arribo B</th>
-                      <th>Estado A/B</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {simResults.map((rA, i) => {
-                      const rB = simResultsB[i];
-                      const dy  = rB ? rB.y_sim - rA.y_sim : 0;
-                      const dq  = rB ? rB.q_sim - rA.q_sim : 0;
-                      const scA = statusColor(rA.status);
-                      const scB = rB ? statusColor(rB.status) : '#94a3b8';
-                      const dyColor = Math.abs(dy) < 0.005 ? '#94a3b8' : dy > 0 ? '#fbbf24' : '#60a5fa';
-                      return (
-                        <tr key={rA.id} className={activeCP === rA.id ? 'active-row' : ''} onClick={() => setActiveCP(rA.id)}>
-                          <td className="sim-compare-name">{rA.nombre.replace(/^(K-\d+)\s+/, '$1 ')}</td>
-                          <td className="scen-a-col">{rA.q_sim.toFixed(1)}</td>
-                          <td className="scen-b-col">{rB ? rB.q_sim.toFixed(1) : '—'}
-                            {rB && Math.abs(dq) > 0.1 && (
-                              <span className={`sim-compare-diff ${dq > 0 ? 'pos' : 'neg'}`}> {dq > 0 ? '+' : ''}{dq.toFixed(1)}</span>
-                            )}
-                          </td>
-                          <td className="scen-a-col" style={{ color: scA }}>{rA.y_sim.toFixed(2)}m</td>
-                          <td className="scen-b-col" style={{ color: scB }}>{rB ? `${rB.y_sim.toFixed(2)}m` : '—'}</td>
-                          <td style={{ color: dyColor, fontWeight: 600 }}>
-                            {rB ? `${dy >= 0 ? '+' : ''}${Math.round(dy * 100)} cm` : '—'}
-                          </td>
-                          <td className="scen-a-col">{rA.arrival_time}</td>
-                          <td className="scen-b-col">{rB?.arrival_time ?? '—'}</td>
-                          <td>
-                            <span className="sim-compare-status" style={{ color: scA }}>{rA.status[0]}</span>
-                            {rB && <span className="sim-compare-status-sep">/</span>}
-                            {rB && <span className="sim-compare-status" style={{ color: scB }}>{rB.status[0]}</span>}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                className="sim-compare-table"
+                clave={(f) => f.rA.id} filas={simResults.map((rA, i) => ({ rA, rB: simResultsB[i] }))}
+                filaProps={({ rA }) => ({ className: activeCP === rA.id ? 'active-row' : '', onClick: () => setActiveCP(rA.id) })}
+                columnas={[
+                    { id: 'sec', titulo: 'Sección', className: 'sim-compare-name', render: ({ rA }) => rA.nombre.replace(/^(K-\d+)\s+/, '$1 ') },
+                    { id: 'qa', titulo: 'Q · Esc A', className: 'scen-a-col', claseTh: 'scen-a-col', render: ({ rA }) => rA.q_sim.toFixed(1) },
+                    {
+                        id: 'qb', titulo: 'Q · Esc B', className: 'scen-b-col', claseTh: 'scen-b-col',
+                        render: ({ rA, rB }) => {
+                            const dq = rB ? rB.q_sim - rA.q_sim : 0;
+                            return <>{rB ? rB.q_sim.toFixed(1) : '—'}{rB && Math.abs(dq) > 0.1 && <span className={`sim-compare-diff ${dq > 0 ? 'pos' : 'neg'}`}> {dq > 0 ? '+' : ''}{dq.toFixed(1)}</span>}</>;
+                        },
+                    },
+                    { id: 'ya', titulo: 'Escala A', className: 'scen-a-col', claseTh: 'scen-a-col', estilo: ({ rA }) => ({ color: statusColor(rA.status) }), render: ({ rA }) => `${rA.y_sim.toFixed(2)}m` },
+                    { id: 'yb', titulo: 'Escala B', className: 'scen-b-col', claseTh: 'scen-b-col', estilo: ({ rB }) => ({ color: rB ? statusColor(rB.status) : 'var(--text-3)' }), render: ({ rB }) => rB ? `${rB.y_sim.toFixed(2)}m` : '—' },
+                    {
+                        id: 'dy', titulo: 'Δ Escala',
+                        estilo: ({ rA, rB }) => { const dy = rB ? rB.y_sim - rA.y_sim : 0; return { color: Math.abs(dy) < 0.005 ? 'var(--text-3)' : dy > 0 ? 'var(--st-warn)' : 'var(--st-info)', fontWeight: 600 }; },
+                        render: ({ rA, rB }) => { const dy = rB ? rB.y_sim - rA.y_sim : 0; return rB ? `${dy >= 0 ? '+' : ''}${Math.round(dy * 100)} cm` : '—'; },
+                    },
+                    { id: 'aa', titulo: 'Arribo A', className: 'scen-a-col', claseTh: 'scen-a-col', render: ({ rA }) => rA.arrival_time },
+                    { id: 'ab', titulo: 'Arribo B', className: 'scen-b-col', claseTh: 'scen-b-col', render: ({ rB }) => rB?.arrival_time ?? '—' },
+                    {
+                        id: 'est', titulo: 'Estado A/B',
+                        render: ({ rA, rB }) => (
+                            <>
+                                <span className="sim-compare-status" style={{ color: statusColor(rA.status) }}>{rA.status[0]}</span>
+                                {rB && <span className="sim-compare-status-sep">/</span>}
+                                {rB && <span className="sim-compare-status" style={{ color: statusColor(rB.status) }}>{rB.status[0]}</span>}
+                            </>
+                        ),
+                    },
+                ]}
+              />
 
               {/* ── Modificar tomas para el escenario ── */}
               {deliveryPoints.filter(d => d.is_active).length > 0 && (
@@ -1778,42 +1753,27 @@ const ModelingDashboard: React.FC = () => {
                     <span>RESULTADO SERVIDOR · {scenarioRpcRows.length} TRAMOS</span>
                     <button type="button" className="sim-mods-clear" onClick={() => setScenarioRpcRows([])}>✕</button>
                   </div>
-                  <div className="sim-compare-table-wrap">
-                    <table className="sim-compare-table">
-                      <thead>
-                        <tr>
-                          <th className="sim-rpc-th-left">Tramo</th>
-                          <th>Q sal.</th>
-                          <th>Tirante</th>
-                          <th>Δ cm</th>
-                          <th>Arribo</th>
-                          <th>Fr</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {scenarioRpcRows.map((row: any, i: number) => {
-                          const dy = row.delta_y_cm ?? 0;
-                          const fr = row.froude ?? 0;
-                          return (
-                            <tr key={i} className={row.tipo_punto === 'k104' ? 'active-row' : ''}>
-                              <td className="sim-rpc-tramo-name">
-                                {(row.nombre_tramo ?? '').split(' (')[0]}
-                              </td>
-                              <td className="sim-rpc-q">{(row.q_salida_m3s ?? 0).toFixed(1)}</td>
-                              <td>{(row.y_normal_m ?? 0).toFixed(2)}m</td>
-                              <td className={`sim-rpc-dy ${dy > 5 ? 'up' : dy < -5 ? 'dn' : ''}`}>
-                                {dy >= 0 ? '+' : ''}{row.delta_y_cm ?? '—'}
-                              </td>
-                              <td className="sim-rpc-arribo">{row.hora_arribo ?? '—'}</td>
-                              <td className={`sim-rpc-fr ${fr > 0.8 ? 'crit' : fr > 0.5 ? 'warn' : 'ok'}`}>
-                                {fr.toFixed(2)}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <DataTable
+                    className="sim-compare-table"
+                    clave={(r) => String(r.i)} filas={scenarioRpcRows.map((row: any, i: number) => ({ row, i }))}
+                    filaProps={({ row }) => ({ className: row.tipo_punto === 'k104' ? 'active-row' : '' })}
+                    columnas={[
+                        { id: 'tramo', titulo: 'Tramo', className: 'sim-rpc-tramo-name', claseTh: 'sim-rpc-th-left', render: ({ row }) => (row.nombre_tramo ?? '').split(' (')[0] },
+                        { id: 'q', titulo: 'Q sal.', className: 'sim-rpc-q', render: ({ row }) => (row.q_salida_m3s ?? 0).toFixed(1) },
+                        { id: 'y', titulo: 'Tirante', render: ({ row }) => `${(row.y_normal_m ?? 0).toFixed(2)}m` },
+                        {
+                            id: 'dy', titulo: 'Δ cm',
+                            claseFila: ({ row }) => { const dy = row.delta_y_cm ?? 0; return `sim-rpc-dy ${dy > 5 ? 'up' : dy < -5 ? 'dn' : ''}`; },
+                            render: ({ row }) => `${(row.delta_y_cm ?? 0) >= 0 ? '+' : ''}${row.delta_y_cm ?? '—'}`,
+                        },
+                        { id: 'arr', titulo: 'Arribo', className: 'sim-rpc-arribo', render: ({ row }) => row.hora_arribo ?? '—' },
+                        {
+                            id: 'fr', titulo: 'Fr',
+                            claseFila: ({ row }) => { const fr = row.froude ?? 0; return `sim-rpc-fr ${fr > 0.8 ? 'crit' : fr > 0.5 ? 'warn' : 'ok'}`; },
+                            render: ({ row }) => (row.froude ?? 0).toFixed(2),
+                        },
+                    ]}
+                  />
                 </div>
               )}
 

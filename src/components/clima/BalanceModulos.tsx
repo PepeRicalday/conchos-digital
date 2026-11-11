@@ -1,6 +1,7 @@
 import { balanceModulo, type EstadoBalance } from '../../utils/balanceModulo';
 import { superficieRiegoHa } from '../../utils/modulosSRL';
 import { EFICIENCIA_RODADO, KC_REFERENCIA } from '../../utils/agronomia';
+import { DataTable } from '../ui/base';
 
 const ETIQUETA: Record<EstadoBalance, string> = { DEFICIT: 'Déficit', EQUILIBRADO: 'Equilibrado', SUPERAVIT: 'Superávit', SD: 'S/D' };
 const nf = (v: number | null, d = 0) => (v == null ? 'S/D' : v.toLocaleString('es-MX', { maximumFractionDigits: d, minimumFractionDigits: d }));
@@ -38,40 +39,30 @@ export function BalanceModulos({ modulos, etoMm, lluviaMm, entregas, fecha }: Pr
             {etoMm == null ? (
                 <p className="cl-vacio">Sin ETₒ del día no se puede estimar la demanda de riego.</p>
             ) : (
-                <div className="table-scroll">
-                    <table className="cl-tabla">
-                        <caption className="cl-sr">Demanda de riego y volumen entregado por módulo</caption>
-                        <thead>
-                            <tr>
-                                <th scope="col">Módulo</th>
-                                <th scope="col">Superficie (ha)</th>
-                                <th scope="col">Demanda (m³)</th>
-                                <th scope="col">Entregado (m³)</th>
-                                <th scope="col" className="cl-col-barra">Cobertura</th>
-                                <th scope="col">Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filas.map(({ modulo, nombre, b }) => (
-                                <tr key={modulo}>
-                                    <th scope="row">{nombre}</th>
-                                    <td>{nf(superficieRiegoHa(modulo))}</td>
-                                    <td>{nf(b.demandaM3)}</td>
-                                    <td>{nf(b.entregadoM3)}</td>
-                                    <td className="cl-col-barra">
-                                        <div className="cl-barra-par" role="img"
-                                            aria-label={`Demanda ${nf(b.demandaM3)} metros cúbicos, entregado ${nf(b.entregadoM3)} metros cúbicos`}>
-                                            <span className="cl-barra cl-barra-dem" style={{ width: `${((b.demandaM3 ?? 0) / maxM3) * 100}%` }} />
-                                            <span className="cl-barra cl-barra-ent" style={{ width: `${((b.entregadoM3 ?? 0) / maxM3) * 100}%` }} />
-                                        </div>
-                                        <small>{b.coberturaPct != null ? `${b.coberturaPct.toFixed(0)} %` : 'S/D'}</small>
-                                    </td>
-                                    <td><span className={`cl-chip cl-bal-${b.estado.toLowerCase()}`}>{ETIQUETA[b.estado]}</span></td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    className="cl-tabla" captionOculto caption="Demanda de riego y volumen entregado por módulo"
+                    clave={(f) => String(f.modulo)} filas={filas}
+                    columnas={[
+                        { id: 'mod', titulo: 'Módulo', encabezadoFila: true, render: ({ nombre }) => nombre },
+                        { id: 'sup', titulo: 'Superficie (ha)', render: ({ modulo }) => nf(superficieRiegoHa(modulo)) },
+                        { id: 'dem', titulo: 'Demanda (m³)', render: ({ b }) => nf(b.demandaM3) },
+                        { id: 'ent', titulo: 'Entregado (m³)', render: ({ b }) => nf(b.entregadoM3) },
+                        {
+                            id: 'cob', titulo: 'Cobertura', className: 'cl-col-barra', claseTh: 'cl-col-barra',
+                            render: ({ b }) => (
+                                <>
+                                    <div className="cl-barra-par" role="img"
+                                        aria-label={`Demanda ${nf(b.demandaM3)} metros cúbicos, entregado ${nf(b.entregadoM3)} metros cúbicos`}>
+                                        <span className="cl-barra cl-barra-dem" style={{ width: `${((b.demandaM3 ?? 0) / maxM3) * 100}%` }} />
+                                        <span className="cl-barra cl-barra-ent" style={{ width: `${((b.entregadoM3 ?? 0) / maxM3) * 100}%` }} />
+                                    </div>
+                                    <small>{b.coberturaPct != null ? `${b.coberturaPct.toFixed(0)} %` : 'S/D'}</small>
+                                </>
+                            ),
+                        },
+                        { id: 'est', titulo: 'Estado', render: ({ b }) => <span className={`cl-chip cl-bal-${b.estado.toLowerCase()}`}>{ETIQUETA[b.estado]}</span> },
+                    ]}
+                />
             )}
             <p className="cl-pie">
                 Demanda = ETₒ × Kc {KC_REFERENCIA} ÷ eficiencia {Math.round(EFICIENCIA_RODADO * 100)} % × superficie de riego

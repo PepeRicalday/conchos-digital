@@ -67,7 +67,7 @@
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--st-info), #0369a1);
+  background: linear-gradient(135deg, var(--st-info), var(--st-info));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -98,57 +98,14 @@
   justify-content: center;
 }
 
-.sim-kpi {
-  text-align: center;
-  min-width: 80px;
-}
 
-.sim-kpi-label {
-  font-size: 11px;
-  color: var(--sim-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  margin-bottom: 1px;
-}
 
-.sim-kpi-val {
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1.1;
-  font-family: var(--sim-mono);
-}
 
-.sim-kpi-val span {
-  font-size: 11px;
-  margin-left: 1px;
-  opacity: 0.9;
-}
 
-/* IEC KPI card dentro de sim-kpi-row */
-.sim-kpi-iec { min-width: 72px; }
 
-.sim-kpi-iec-val { color: var(--iec-color, #22c55e) !important; }
 
-.sim-kpi-iec-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 4px;
-  padding: 0 4px;
-}
 
-.sim-kpi-iec-bar {
-  height: 3px;
-  border-radius: 2px;
-  background: var(--iec-color, #22c55e);
-  opacity: 0.75;
-  transition: width 0.4s ease;
-}
 
-.iec-fill-ef   { width: var(--iec-pef,   0%); }
-.iec-fill-coh  { width: var(--iec-pcoh,  0%); }
-.iec-fill-fug  { width: var(--iec-pfug,  0%); }
-.iec-fill-crit { width: var(--iec-pcrit, 0%); }
 
 .sim-kpi-status {
   display: flex;
@@ -450,7 +407,7 @@
   flex-direction: column;
   gap: 5px;
   padding: 8px 10px;
-  background: rgba(15, 30, 55, 0.6);
+  background: color-mix(in srgb, var(--surface-1) 60%, transparent);
   border: 1px solid color-mix(in srgb, var(--line-sutil) 60%, transparent);
   border-radius: 6px;
 }
@@ -576,7 +533,7 @@
 }
 
 .sim-cp-card:hover  { border-color: var(--sim-border2); }
-.sim-cp-card.active { background: rgba(14,32,64,0.9); }
+.sim-cp-card.active { background: color-mix(in srgb, var(--surface-1) 90%, transparent); }
 
 .sim-cp-card-top {
   display: flex;
@@ -1060,7 +1017,7 @@
   align-items: center;
   gap: 8px;
   padding: 4px 18px;
-  background: rgba(4, 10, 22, 0.85);
+  background: color-mix(in srgb, var(--bg-app) 85%, transparent);
   border-bottom: 1px solid var(--sim-border);
   flex-shrink: 0;
   flex-wrap: wrap;
@@ -1170,7 +1127,7 @@
   margin-top: 6px;
   border-radius: 6px;
   border: 1px solid var(--sim-border);
-  background: rgba(10, 22, 42, 0.6);
+  background: color-mix(in srgb, var(--bg-app) 60%, transparent);
   padding: 6px 10px;
   font-size: 11px;
   display: flex;
@@ -1227,7 +1184,7 @@
 .sim-hydraulic-analysis::-webkit-scrollbar-thumb { background: var(--sim-border2); border-radius: 2px; }
 
 .sim-hyd-block {
-  background: rgba(10, 22, 42, 0.7);
+  background: color-mix(in srgb, var(--bg-app) 70%, transparent);
   border: 1px solid var(--sim-border);
   border-radius: 7px;
   overflow: hidden;
@@ -1240,7 +1197,7 @@
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-3);
-  background: rgba(15, 30, 55, 0.8);
+  background: color-mix(in srgb, var(--surface-1) 80%, transparent);
   border-bottom: 1px solid var(--sim-border);
   display: flex;
   align-items: center;
@@ -1251,7 +1208,7 @@
 
 .sim-hyd-block .sim-tech-row {
   padding: 4px 10px;
-  border-bottom: 1px solid rgba(21, 42, 71, 0.5);
+  border-bottom: 1px solid color-mix(in srgb, var(--surface-2) 50%, transparent);
   font-size: 11px;
 }
 
@@ -1400,7 +1357,7 @@
 
 .sim-compare-card {
   background: var(--sim-card);
-  border: 1px solid #1a3a60;
+  border: 1px solid var(--fill-info);
   border-left: 3px solid var(--sc-violet);
   border-radius: 8px;
   flex-shrink: 0;
@@ -1958,7 +1915,7 @@
 
 /* ── PANEL CONDICIONANTES DE NIVEL · SIMULACIÓN TEMPORAL ──────────────── */
 .nivel-panel {
-  background: #0c1523;
+  background: var(--bg-app);
   border-bottom: 1px solid var(--line-sutil);
   padding: 5px 16px;
 }
@@ -2053,7 +2010,7 @@
   width: 100%;
   padding: 3px 6px;
   font-size: 11px;
-  background: #0f1f30;
+  background: var(--surface-1);
   border: 1px solid var(--line-sutil);
   border-radius: 4px;
   color: var(--text-1);
@@ -2065,7 +2022,7 @@
 .nivel-input.blando { color: var(--st-warn); }
 .nivel-select.duro  { color: var(--st-crit); }
 .nivel-select.blando { color: var(--st-warn); }
-.nivel-input.disabled { background: #090f18; opacity: 0.4; }
+.nivel-input.disabled { background: var(--bg-app); opacity: 0.4; }
 
 .nivel-row-reset {
   font-size: 11px;
@@ -2112,8 +2069,6 @@ html:not([data-device="phone"]) .main-content:has(.sim-root) {
   overflow: hidden;
 }
 
-.sim-kpi-label { font-size: 11px; }
-.sim-kpi { min-width: 68px; }
 .sim-kpi-row { gap: 10px 16px; }
 .sim-ctrl-bar { gap: 10px 16px; min-height: 0; }
 .sim-ctrl-label { font-size: 11px; }

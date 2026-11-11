@@ -6,6 +6,7 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@0.135.0';
 import { ejecutaHerramienta, HERRAMIENTAS, volcadoCompleto, type Tarjeta } from './herramientas.ts';
 import type { Snapshot } from './contexto.ts';
+import type { Externas, FuenteDoc } from './biblioteca.ts';
 import { normalizaHistorial, type MensajeHistorial } from './validacion.ts';
 
 export type { MensajeHistorial };
@@ -16,6 +17,8 @@ export interface EntradaLlm {
     historial: MensajeHistorial[];
     snapshot: Snapshot;
     signal: AbortSignal;
+    /** Herramientas asíncronas con parámetros (biblioteca y wiki). Solo Claude las usa; el respaldo Groq no tiene tool use. */
+    externas?: Externas;
 }
 
 export interface UsoLlm { entrada: number; salida: number; cache_lectura: number; cache_escritura: number }
@@ -25,6 +28,7 @@ export type EventoLlm =
     | { tipo: 'pensando'; texto: string }
     | { tipo: 'estado'; texto: string }
     | { tipo: 'tarjetas'; tarjetas: Tarjeta[] }
+    | { tipo: 'fuentes'; fuentes: FuenteDoc[] }
     | { tipo: 'fin'; razon: string; proveedor: 'claude' | 'groq'; modelo: string; truncada: boolean; rechazada: boolean; uso?: UsoLlm };
 
 /** Error del proveedor con un código estable para que el cliente decida qué mostrar (sin filtrar detalles internos). */
@@ -46,16 +50,39 @@ export function proveedorActivo(): 'claude' | 'groq' {
 }
 
 export async function* conversar(e: EntradaLlm): AsyncGenerator<EventoLlm> {
-    if (proveedorActivo() === 'claude') yield* conversarClaude(e);
-    else yield* conversarGroq(e);
+    if (proveedorActivo() !== 'claude') { yield* conversarGroq(e); return; }
+    let emitio = false;
+    try {
+        for await (const ev of conversarClaude(e)) { emitio = true; yield ev; }
+    } catch (err) {
+        // Si Claude falla ANTES de emitir nada (clave sin saldo, parámetro rechazado, cuota), responde Groq: el chat
+        // nunca queda mudo. Una cancelación del usuario no se reintenta.
+        const recuperable = err instanceof ErrorProveedor && err.codigo !== 'timeout';
+        if (!emitio && recuperable && !e.signal.aborted && Deno.env.get('GROQ_API_KEY')) {
+            console.warn(`hydric-chat: Claude falló (${(err as ErrorProveedor).codigo}); responde Groq de respaldo.`);
+            yield* conversarGroq(e);
+            return;
+        }
+        throw err;
+    }
 }
 
 // ─── Claude ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
+/** Detalle del error del API para el LOG del servidor (nunca se envía al cliente). */
+function detalleAnthropic(err: unknown): string {
+    if (!(err instanceof Anthropic.APIError)) return String(err);
+    // deno-lint-ignore no-explicit-any
+    const cuerpo = (err as any).error?.error;
+    return `status=${err.status} tipo=${cuerpo?.type ?? 's/d'} mensaje=${String(cuerpo?.message ?? err.message).slice(0, 400)}`;
+}
+
 function mapeaErrorAnthropic(err: unknown): ErrorProveedor {
     if (err instanceof Anthropic.APIUserAbortError) return new ErrorProveedor('timeout', 'La consulta fue cancelada.');
+    console.error('Anthropic:', detalleAnthropic(err));
     if (err instanceof Anthropic.RateLimitError) return new ErrorProveedor('cuota', 'El motor de IA alcanzó su límite de uso. Espera unos minutos e intenta de nuevo.');
     if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) return new ErrorProveedor('config', 'El motor de IA no está configurado correctamente (clave o permisos). Avisa al administrador.');
+    if (err instanceof Anthropic.BadRequestError && /credit balance/i.test(detalleAnthropic(err))) return new ErrorProveedor('config', 'El motor de IA no tiene saldo disponible. Avisa al administrador.');
     if (err instanceof Anthropic.BadRequestError) return new ErrorProveedor('entrada', 'El motor de IA rechazó la consulta. Reformula la pregunta o inicia una conversación nueva.');
     if (err instanceof Anthropic.APIConnectionError) return new ErrorProveedor('timeout', 'No se pudo contactar al motor de IA. Intenta de nuevo.');
     if (err instanceof Anthropic.APIError && (err.status === 529 || (err.status ?? 0) >= 500)) return new ErrorProveedor('sobrecarga', 'El motor de IA está saturado. Intenta de nuevo en un momento.');
@@ -66,10 +93,15 @@ async function* conversarClaude(e: EntradaLlm): AsyncGenerator<EventoLlm> {
     const client = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY'), maxRetries: 1, timeout: 120_000 });
     const modelo = MODELO_CLAUDE();
 
-    const tools = HERRAMIENTAS.map((h) => ({
-        name: h.name, description: h.description, strict: true,
-        input_schema: { type: 'object', properties: {}, additionalProperties: false, required: [] as string[] },
-    }));
+    const externas = e.externas?.definiciones ?? [];
+    const tools = [
+        ...HERRAMIENTAS.map((h) => ({
+            name: h.name, description: h.description, strict: true,
+            input_schema: { type: 'object', properties: {}, additionalProperties: false, required: [] as string[] },
+        })),
+        // Con parámetros: sin `strict` (esquema libre con opcionales y enum).
+        ...externas.map((h) => ({ name: h.name, description: h.description, input_schema: { ...h.esquema, additionalProperties: false } })),
+    ];
     const system = [
         // Parte estática (reglas, fórmulas) primero y con punto de caché: se reutiliza entre consultas.
         { type: 'text', text: e.estatico, cache_control: { type: 'ephemeral' } },
@@ -98,7 +130,7 @@ async function* conversarClaude(e: EntradaLlm): AsyncGenerator<EventoLlm> {
             const stream = (client.beta.messages as any).stream(params, { signal: e.signal });
             for await (const ev of stream) {
                 if (ev.type === 'content_block_start' && ev.content_block?.type === 'tool_use') {
-                    const h = HERRAMIENTAS.find((x) => x.name === ev.content_block.name);
+                    const h = HERRAMIENTAS.find((x) => x.name === ev.content_block.name) ?? externas.find((x) => x.name === ev.content_block.name);
                     yield { tipo: 'estado', texto: h?.estado ?? 'Consultando datos…' };
                     emitioAlgo = true;
                 } else if (ev.type === 'content_block_delta') {
@@ -132,7 +164,10 @@ async function* conversarClaude(e: EntradaLlm): AsyncGenerator<EventoLlm> {
             for (const b of final.content) {
                 if (b.type !== 'tool_use') continue;
                 try {
-                    const r = ejecutaHerramienta(b.name, e.snapshot);
+                    const esExterna = e.externas && externas.some((x) => x.name === b.name);
+                    const r = esExterna ? await e.externas!.ejecuta(b.name, b.input, e.signal) : ejecutaHerramienta(b.name, e.snapshot);
+                    const fu = (r as { fuentes?: FuenteDoc[] }).fuentes;
+                    if (fu?.length) yield { tipo: 'fuentes', fuentes: fu };
                     if (r.tarjetas.length) yield { tipo: 'tarjetas', tarjetas: r.tarjetas };
                     resultados.push({ type: 'tool_result', tool_use_id: b.id, content: JSON.stringify(r.contenido), ...(r.error ? { is_error: true } : {}) });
                 } catch (err) {
@@ -156,6 +191,27 @@ async function* conversarClaude(e: EntradaLlm): AsyncGenerator<EventoLlm> {
 
 // ─── Groq (respaldo sin herramientas) ───────────────────────────────────────────────────────────────────────────
 
+/** Orden de preferencia para el respaldo; se toma el primero que la cuenta tenga activo. */
+const PREFERENCIA_GROQ = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'moonshotai/kimi-k2-instruct', 'qwen/qwen3-32b', 'meta-llama/llama-4-maverick-17b-128e-instruct'];
+let modeloGroqResuelto: string | null = null;
+
+/** Consulta los modelos vigentes de la cuenta Groq y devuelve el mejor modelo de chat distinto del que falló. */
+async function resuelveModeloGroq(key: string, descartado: string): Promise<string | null> {
+    try {
+        const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${key}` } });
+        if (!r.ok) { console.error('Groq: no se pudo listar modelos', r.status); return null; }
+        const j = await r.json();
+        const ids: string[] = (j.data ?? []).filter((m: { active?: boolean }) => m.active !== false).map((m: { id: string }) => m.id).filter((id: string) => id !== descartado);
+        console.log('Groq: modelos disponibles:', ids.join(', ').slice(0, 600));
+        return PREFERENCIA_GROQ.find((p) => ids.includes(p))
+            ?? ids.find((id) => !/whisper|guard|tts|orpheus|playai|compound|distil|prompt/i.test(id))
+            ?? null;
+    } catch (err) {
+        console.error('Groq: error al listar modelos', err);
+        return null;
+    }
+}
+
 async function* conversarGroq(e: EntradaLlm): AsyncGenerator<EventoLlm> {
     const key = Deno.env.get('GROQ_API_KEY');
     if (!key) throw new ErrorProveedor('config', 'El motor de IA no está configurado (falta ANTHROPIC_API_KEY o GROQ_API_KEY).');
@@ -164,14 +220,27 @@ async function* conversarGroq(e: EntradaLlm): AsyncGenerator<EventoLlm> {
     const system = `${e.estatico}\n\n${nota}\n\n${e.dinamico}\n\n${volcadoCompleto(e.snapshot)}`;
     const messages = [{ role: 'system', content: system }, ...normalizaHistorial(e.historial)];
 
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const pide = (modelo: string) => fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: MODELO_GROQ, messages, temperature: 0.1, max_tokens: 2500, stream: true }),
+        body: JSON.stringify({ model: modelo, messages, temperature: 0.1, max_tokens: 2500, stream: true }),
         signal: e.signal,
     });
+    let modeloGroq = Deno.env.get('GROQ_MODEL') || modeloGroqResuelto || MODELO_GROQ;
+    let res = await pide(modeloGroq);
+    if (res.status === 404) {
+        // Groq retira modelos con frecuencia: se elige uno vigente de su lista y se reintenta UNA vez.
+        console.error('Groq: modelo no disponible', modeloGroq, (await res.text()).slice(0, 200));
+        const alterno = await resuelveModeloGroq(key, modeloGroq);
+        if (alterno) {
+            modeloGroqResuelto = alterno;
+            modeloGroq = alterno;
+            console.warn(`Groq: se usa el modelo ${alterno} (configura el secreto GROQ_MODEL para fijarlo).`);
+            res = await pide(modeloGroq);
+        }
+    }
     if (!res.ok || !res.body) {
-        console.error('Groq error', res.status, (await res.text()).slice(0, 300));
+        console.error('Groq error', res.status, modeloGroq, (await res.text()).slice(0, 300));
         if (res.status === 429) throw new ErrorProveedor('cuota', 'El motor de IA alcanzó su límite de uso. Espera unos minutos e intenta de nuevo.');
         if (res.status === 401 || res.status === 403) throw new ErrorProveedor('config', 'El motor de IA no está configurado correctamente (clave o permisos). Avisa al administrador.');
         throw new ErrorProveedor('proveedor', 'Error del motor de IA.');
@@ -209,7 +278,7 @@ async function* conversarGroq(e: EntradaLlm): AsyncGenerator<EventoLlm> {
     if (ilegibles > 0) console.warn(`Groq: ${ilegibles} fotograma(s) SSE ilegibles`);
     // Conexión cortada sin cierre explícito: la respuesta puede estar incompleta y así se marca.
     yield {
-        tipo: 'fin', razon: razon ?? (terminoLimpio ? 'stop' : 'stream_incompleto'), proveedor: 'groq', modelo: MODELO_GROQ,
+        tipo: 'fin', razon: razon ?? (terminoLimpio ? 'stop' : 'stream_incompleto'), proveedor: 'groq', modelo: modeloGroq,
         truncada: razon === 'length' || !terminoLimpio, rechazada: false,
     };
 }

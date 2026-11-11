@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { armaSnapshot, hoyLocal, promptDinamico, PROMPT_ESTATICO, type DatosCrudos } from "./contexto.ts";
 import { bloqueDocumentos, esRespuestaParcial, motivoLimite, tituloDe, validaPeticion, type ChunkRag, type FuenteRag, type MensajeHistorial } from "./validacion.ts";
 import { conversar, ErrorProveedor, proveedorActivo, type UsoLlm } from "./llm.ts";
+import { externasBiblioteca, type FuenteDoc } from "./biblioteca.ts";
 import type { Tarjeta } from "./herramientas.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -195,7 +196,8 @@ Deno.serve(async (req: Request) => {
         // 7) Datos del sistema + RAG en paralelo, e historial
         const [datos, rag0, hist] = await Promise.all([
             cargaDatos(admin, ahora),
-            buscaDocumentos(admin, message),
+            // Con Claude, SICA decide cuándo buscar (herramienta buscar_documentos); el RAG automático queda solo para el respaldo Groq.
+            proveedorActivo() === "claude" ? Promise.resolve({ chunks: [] as ChunkRag[], ok: true }) : buscaDocumentos(admin, message),
             userDb.from("chat_messages").select("role, content, metadata").eq("conversation_id", convId).order("created_at", { ascending: false }).limit(8),
         ]);
         if (!rag0.ok) datos.fallos.push("busqueda_documental");
@@ -223,6 +225,7 @@ Deno.serve(async (req: Request) => {
                 };
                 let texto = "";
                 const tarjetas: Tarjeta[] = [];
+                const fuentesDocs: FuenteDoc[] = [];
                 let fin: { razon: string; proveedor: string; modelo: string; truncada: boolean; rechazada: boolean; uso?: UsoLlm } | null = null;
                 let abortada = false;
                 let errorEnviado = false;
@@ -231,12 +234,15 @@ Deno.serve(async (req: Request) => {
                     enviar({ type: "inicio", conversation_id: convId, proveedor: proveedorActivo() });
                     for await (const ev of conversar({
                         estatico: PROMPT_ESTATICO, dinamico: promptDinamico(snapshot, contexto, rag.texto),
-                        historial, snapshot, signal: abort.signal,
+                        historial, snapshot, signal: abort.signal, externas: externasBiblioteca(admin),
                     })) {
                         if (ev.tipo === "texto") { texto += ev.texto; enviar({ delta: ev.texto, conversation_id: convId }); }
                         else if (ev.tipo === "pensando") enviar({ type: "pensando", texto: ev.texto });
                         else if (ev.tipo === "estado") enviar({ type: "estado", texto: ev.texto });
                         else if (ev.tipo === "tarjetas") { tarjetas.push(...ev.tarjetas); enviar({ type: "tarjetas", tarjetas: ev.tarjetas }); }
+                        else if (ev.tipo === "fuentes") {
+                            for (const f of ev.fuentes) if (!fuentesDocs.some((x) => x.documento === f.documento && x.pagina === f.pagina)) fuentesDocs.push(f);
+                        }
                         else if (ev.tipo === "fin") fin = ev;
                     }
                 } catch (err) {
@@ -268,7 +274,7 @@ Deno.serve(async (req: Request) => {
                         metadata: {
                             proveedor: fin?.proveedor ?? proveedorActivo(), modelo: fin?.modelo ?? null, razon: fin?.razon ?? (abortada ? "abortada" : "error"),
                             truncada: fin?.truncada ?? false, abortada, uso: fin?.uso ?? null,
-                            tarjetas: tarjetas.length ? tarjetas : undefined, fuentes: rag.fuentes.length ? rag.fuentes : undefined,
+                            tarjetas: tarjetas.length ? tarjetas : undefined, fuentes: (rag.fuentes.length || fuentesDocs.length) ? [...rag.fuentes, ...fuentesDocs] : undefined,
                         },
                     };
                     let r = await userDb.from("chat_messages").insert(fila);
@@ -285,7 +291,7 @@ Deno.serve(async (req: Request) => {
                 if (fin && !errorEnviado) {
                     enviar({
                         type: "done", done: true, conversation_id: convId, proveedor: fin.proveedor, modelo: fin.modelo,
-                        truncada: fin.truncada, rechazada: fin.rechazada, fuentes: rag.fuentes as FuenteRag[],
+                        truncada: fin.truncada, rechazada: fin.rechazada, fuentes: [...(rag.fuentes as FuenteRag[]), ...fuentesDocs],
                         persistido, datos_incompletos: datos.fallos,
                     });
                 }

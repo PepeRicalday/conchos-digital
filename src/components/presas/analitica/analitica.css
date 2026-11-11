@@ -71,3 +71,18 @@ html[data-device='phone'] .an-vista-btn { min-height: 44px; }
 
 /* Táctil: objetivos de 44 px en selectores segmentados y sub-vistas (antes 36 y 40) */
 @media (pointer: coarse) { .an-seg-btn, .an-vista-btn { min-height: 44px; } }
+
+/* La cuenca en este ciclo (tira de variación por cuerpo de agua) */
+.an-tira-wrap { margin-top: 10px; overflow-x: auto; }
+.an-tira-wrap:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 2px; }
+.an-tira { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.an-tira th, .an-tira td { padding: 9px 10px; border-bottom: 1px solid var(--pr-line); text-align: left; vertical-align: baseline; }
+.an-tira thead th { font-size: 12px; font-weight: 700; color: var(--pr-t3); white-space: nowrap; }
+.an-tira tbody th { font-weight: 600; color: var(--pr-t1); }
+.an-tira .an-n { text-align: right; font-family: var(--pr-mono); white-space: nowrap; }
+.an-tira small { margin-left: 4px; font: 400 12px var(--pr-body); color: var(--pr-t3); }
+.an-tira tbody tr:last-child th, .an-tira tbody tr:last-child td { border-bottom: 0; }
+.an-tira-d--sube { color: var(--pr-ok); } .an-tira-d--baja { color: var(--pr-warn); } .an-tira-d--igual { color: var(--pr-t2); }
+.an-btn--chico { min-height: 36px; padding: 4px 14px; font-size: 13px; }
+html[data-device='phone'] .an-btn--chico { min-height: 44px; }
+.an-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

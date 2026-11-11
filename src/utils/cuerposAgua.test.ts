@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   aniosDisponibles, anillosDeGeojson, celdaCierre, construirRed, coberturaDeCuerpo, csvCierres, etiquetaMes, indexarCierres, longitudEscala,
-  mesesDe, normalizarCierre, normalizarCuerpo, ordenarCuerpos, proyeccionPara, resumenResiduo, rutaDeAnillos, serieBalance, ultimoCierreConDato,
+  mesesDe, normalizarCierre, normalizarCuerpo, ordenarCuerpos, proyeccionPara, resumenResiduo, rutaDeAnillos, serieBalance, ultimoCierreConDato, variacionEnCiclo,
   type BalanceMensual, type CierreMensual, type CuerpoAgua, type Par,
 } from './cuerposAgua';
 
@@ -170,5 +170,25 @@ describe('balance', () => {
     const r = resumenResiduo([b('A', '2025-01-01', { residuo: 10, entradas: 100 }), b('A', '2025-02-01', { residuo: 20, entradas: 100 }), b('A', '2025-03-01', { calidad: 'PARCIAL', residuo: 999 }), b('A', '2025-04-01', { calidad: 'SD', residuo: null })]);
     expect(r).toEqual({ nMeses: 2, mediaMm3: 15, pctEntradas: 15 });
     expect(resumenResiduo([b('A', '2025-04-01', { calidad: 'SD', residuo: null })])).toBeNull();
+  });
+});
+
+describe('variacionEnCiclo', () => {
+  const cs = [cuerpo('A', { orden_red: 10 }), cuerpo('B', { orden_red: 20 }), cuerpo('C', { orden_red: 30 })];
+  const cie = [
+    cierre('A', '2026-09-01', { almacenamiento_mm3: 100, pct_namo: 40 }), cierre('A', '2026-10-01', { almacenamiento_mm3: 120, pct_namo: 48 }),
+    cierre('B', '2026-09-01', { almacenamiento_mm3: 50, pct_namo: 60 }), // ciclo recién iniciado: sin cierre posterior
+    cierre('C', '2025-03-01', { almacenamiento_mm3: 6, pct_namo: 70 }), // dato vencido: no cuenta como posterior al inicio
+  ];
+  it('calcula el cambio desde el 30-sep hasta el último cierre con dato', () => {
+    const v = variacionEnCiclo(cs, cie, 2026);
+    expect(v[0]).toMatchObject({ deltaPct: 8, deltaMm3: 20 });
+    expect(v[0].inicio?.mes).toBe('2026-09-01');
+    expect(v[0].actual?.mes).toBe('2026-10-01');
+  });
+  it('sin cierre posterior o sin dato de inicio el cambio es S/D (null), nunca 0', () => {
+    const v = variacionEnCiclo(cs, cie, 2026);
+    expect(v[1]).toMatchObject({ actual: null, deltaPct: null, deltaMm3: null });
+    expect(v[2]).toMatchObject({ inicio: null, actual: null, deltaPct: null });
   });
 });

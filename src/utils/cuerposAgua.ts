@@ -287,3 +287,32 @@ export function resumenResiduo(serie: BalanceMensual[]): { nMeses: number; media
   const ent = ok.reduce((t, b) => t + (b.entradas ?? 0), 0);
   return { nMeses: ok.length, mediaMm3: suma / ok.length, pctEntradas: ent > 0 ? (suma / ent) * 100 : null };
 }
+
+// ── Variación en el ciclo agrícola ──────────────────────────────────────────────────────────────────────────────────
+export interface VariacionCiclo {
+  cuerpo: CuerpoAgua;
+  /** Cierre del 30 de septiembre (inicio del ciclo agrícola). */
+  inicio: CierreMensual | null;
+  /** Último cierre con dato posterior al inicio; null si el ciclo acaba de empezar o el cuerpo no tiene dato nuevo (S/D). */
+  actual: CierreMensual | null;
+  /** Cambio en puntos porcentuales del NAMO declarado; null si falta alguno de los dos extremos. */
+  deltaPct: number | null;
+  deltaMm3: number | null;
+}
+
+/** Cambio de cada cuerpo de agua desde el inicio del ciclo (1-oct del año `anioCiclo`) hasta su último cierre con dato. */
+export function variacionEnCiclo(cuerpos: CuerpoAgua[], cierres: CierreMensual[], anioCiclo: number): VariacionCiclo[] {
+  const mesInicio = `${anioCiclo}-09-01`;
+  return ordenarCuerpos(cuerpos).map((cuerpo) => {
+    const propios = cierres.filter((c) => c.cuerpoId === cuerpo.id);
+    const ini = propios.find((c) => c.mes === mesInicio && c.almMm3 != null) ?? null;
+    const ult = ultimoCierreConDato(propios);
+    const actual = ult && ult.mes > mesInicio ? ult : null;
+    const ok = ini != null && actual != null;
+    return {
+      cuerpo, inicio: ini, actual,
+      deltaPct: ok && ini.pctNamo != null && actual.pctNamo != null ? actual.pctNamo - ini.pctNamo : null,
+      deltaMm3: ok && ini.almMm3 != null && actual.almMm3 != null ? actual.almMm3 - ini.almMm3 : null,
+    };
+  });
+}

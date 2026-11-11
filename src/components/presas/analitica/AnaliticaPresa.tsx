@@ -12,6 +12,7 @@ import GraficaCiclo from './GraficaCiclo';
 import GraficaProyeccion from './GraficaProyeccion';
 import EstacionesGoes from '../goes/EstacionesGoes';
 import PanelCuencaConchos from '../cuenca/PanelCuencaConchos';
+import TiraCuencaCiclo from './TiraCuencaCiclo';
 import './analitica.css';
 
 type Horizonte = 90 | 'ciclo';
@@ -45,7 +46,7 @@ export default function AnaliticaPresa(props: Props) {
                 <button type="button" className="an-vista-btn" aria-pressed={vista === 'goes'} onClick={() => setVista('goes')}>Estaciones GOES</button>
                 <button type="button" className="an-vista-btn" aria-pressed={vista === 'cuenca'} onClick={() => setVista('cuenca')}>Cuenca del Conchos</button>
             </div>
-            {vista === 'ciclo' ? <AnaliticaCiclo presa={props.presa} fechaISO={props.fechaISO} />
+            {vista === 'ciclo' ? <AnaliticaCiclo presa={props.presa} fechaISO={props.fechaISO} onVerCuenca={() => setVista('cuenca')} />
                 : vista === 'goes' ? <EstacionesGoes presaId={props.presa.id} />
                 : <PanelCuencaConchos conInforme />}
         </div>
@@ -56,7 +57,7 @@ export default function AnaliticaPresa(props: Props) {
  * Vista "Ciclo y proyección": ciclo agrícola en curso (1-oct → 30-sep) frente a los ciclos pasados reales y
  * proyección por trayectorias análogas. Sin datos inventados: lo que no se puede calcular se muestra como S/D.
  */
-function AnaliticaCiclo({ presa, fechaISO }: Pick<Props, 'presa' | 'fechaISO'>) {
+function AnaliticaCiclo({ presa, fechaISO, onVerCuenca }: Pick<Props, 'presa' | 'fechaISO'> & { onVerCuenca: () => void }) {
     const { indice, loading, error, recargar } = usePresasHistorico();
     const [horizonte, setHorizonte] = useState<Horizonte>(90);
 
@@ -166,6 +167,8 @@ function AnaliticaCiclo({ presa, fechaISO }: Pick<Props, 'presa' | 'fechaISO'>) 
                     <div className="an-vacio" role="status"><strong>Proyección S/D</strong><span>{valorHoy == null ? 'No hay lectura vigente de volumen.' : 'No hay trayectorias comparables suficientes para este día del ciclo.'}</span></div>
                 )}
             </section>
+
+            <TiraCuencaCiclo anioCiclo={anioCiclo} onVerCuenca={onVerCuenca} />
 
             <footer className="an-pie">
                 <h4 className="an-h an-h--pie">Cómo se calcula y qué falta</h4>

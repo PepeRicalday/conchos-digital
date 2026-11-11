@@ -70,12 +70,12 @@ const ICONOS: Record<string, string> = {
     trigo: '<path d="M12 22V8"/><path d="M12 8c-1.300-1.600-1.300-4 0-5.600 1.300 1.600 1.300 4 0 5.600z"/><path d="M12 12.500c-2.800.4-4.600-1.200-4.800-3.400 2.600-.2 4.400 1.200 4.800 3.400zM12 12.500c2.800.4 4.600-1.200 4.800-3.400-2.600-.2-4.400 1.200-4.800 3.400z"/><path d="M12 17.500c-2.800.4-4.600-1.200-4.800-3.400 2.600-.2 4.400 1.200 4.800 3.400zM12 17.500c2.800.4 4.600-1.200 4.800-3.400-2.600-.2-4.400 1.200-4.800 3.400z"/>',
     // bulbo con capas y raicilla
     cebolla: '<path d="M12 2.800c.5 3.200 6.500 5 6.500 10.700 0 4.200-3 7.200-6.500 7.200s-6.500-3-6.500-7.200C5.500 7.800 11.500 6 12 2.800z"/><path d="M12 6.500c-2.600 3.500-3 9.500 0 14.200M12 6.500c2.600 3.500 3 9.500 0 14.200"/><path d="M10.500 22.200h3"/>',
-    // cápsula de algodón abierta: tres lóbulos de fibra (rellenos) sobre tres brácteas puntiagudas
-    algodon: '<circle cx="12" cy="7" r="3.200" fill="currentColor"/><circle cx="7.200" cy="11.500" r="3" fill="currentColor"/><circle cx="16.800" cy="11.500" r="3" fill="currentColor"/><path d="M5.500 15.500L4 21l5-2.800 3 3.300 3-3.300 5 2.800-1.500-5.500"/>',
+    // rama de algodón con tres capullos abiertos (bolas esponjosas) sobre su cápsula de brácteas
+    algodon: '<path d="M9 7.8a2.3 2.3 0 0 1-.6-4.300a2.900 2.900 0 0 1 3.600-3.100a2.900 2.900 0 0 1 3.600 3.100a2.300 2.300 0 0 1-.6 4.300zM1.6 15.6a2.3 2.3 0 0 1-.6-4.300a2.900 2.900 0 0 1 3.600-3.100a2.900 2.900 0 0 1 3.600 3.100a2.300 2.300 0 0 1-.6 4.300zM16.4 15.6a2.3 2.3 0 0 1-.6-4.300a2.900 2.900 0 0 1 3.600-3.100a2.900 2.900 0 0 1 3.600 3.100a2.300 2.300 0 0 1-.6 4.300z" fill="currentColor" stroke-width="0"/><path d="M8.8 8.6l1.400 3l1.800-1.500l1.800 1.500l1.400-3M1.4 16.4l1.400 3l1.800-1.500l1.800 1.500l1.400-3M16.2 16.4l1.400 3l1.800-1.500l1.800 1.500l1.400-3"/><path d="M12 22V11.500M12 20Q6.500 20 4.600 18.500M12 20Q17.500 20 19.400 18.500"/>',
     // rebanada de sandía con semillas
     sandia: '<path d="M3 9h18a9 9 0 0 1-18 0z"/><path d="M6 9a6 6 0 0 0 12 0"/><path d="M9.500 12.500h.01M12 14.500h.01M14.500 12.500h.01"/>',
-    // espiga de sorgo: panoja densa con granos
-    sorgo: '<ellipse cx="12" cy="8" rx="4" ry="5.500"/><path d="M12 13.500V22M12 18.500c3-.8 5.200-2.600 6.200-5"/><path d="M10 5.500h.01M14 5.500h.01M12 8h.01M10 10.500h.01M14 10.500h.01"/>',
+    // sorgo: panoja densa y redondeada (tinte parejo = masa compacta de granos) en la punta del tallo, con hoja larga
+    sorgo: '<ellipse cx="12" cy="7.500" rx="4.300" ry="6.200" fill="currentColor" fill-opacity=".35"/><path d="M10.200 4.500h.01M13.800 4.500h.01M12 7h.01M10 9.500h.01M14 9.500h.01M12 12h.01"/><path d="M12 13.700V22M12 21.800C12 16.500 16 13.500 21.500 12.500c.3 5-3.500 9.300-9.500 9.300z"/>',
     // tubérculo alargado con raicillas
     camote: '<path d="M4.500 17.500C4 12 9 7.500 14.500 6.200c3.500-.8 5.500 1.400 4.500 4.500-1.500 4.600-7 9.800-11.500 9C6 19.500 4.700 18.800 4.500 17.500z"/><path d="M3 20.500l1.800-2.400M10 12q1 2 0 4M14.500 10q.5 2-1 4"/>',
     // panoja de avena con espiguillas colgantes

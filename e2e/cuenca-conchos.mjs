@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
+import { irA } from './_cuenca.mjs';
 const BASE = `http://localhost:${process.env.PORT || 5173}`;
 const OUT = fileURLToPath(new URL('./out/cuenca-conchos/', import.meta.url));
 fs.mkdirSync(OUT, { recursive: true });
@@ -23,6 +24,7 @@ for (const [nombre, vista, esPhone] of [
   await page.goto(`${BASE}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
   const panel = page.locator('.cu-root', { has: page.getByRole('heading', { name: 'Cuenca del Conchos' }) }).first();
   await panel.waitFor({ timeout: 45000 });
+  await irA(page, 'Presas');
   verifica(await page.getByRole('button', { name: 'Cuenca del Conchos' }).getAttribute('aria-pressed') === 'true', `[${nombre}] enlace profundo abre la vista Cuenca del Conchos`);
 
   // ── Vista Tanques (predeterminada): tanques en pantallas anchas, lista en iPhone y contenedores estrechos
@@ -89,6 +91,7 @@ for (const [nombre, vista, esPhone] of [
   if (chiAtrasada) verifica(/Lecturas? sin actualizar/i.test(await panel.innerText()), `[${nombre}] aviso de lecturas sin actualizar visible`);
   await page.getByRole('button', { name: 'Tanques', exact: true }).click();
 
+  await irA(page, 'Clima y lluvia');
   // ── Lluvia: 3 pluviómetros, tira de 30 días, ciclo agrícola
   const lluvia = page.locator('section[aria-label="Lluvia en la cuenca"]');
   await lluvia.waitFor({ timeout: 15000 });
@@ -106,6 +109,7 @@ for (const [nombre, vista, esPhone] of [
   for (let i = 0; i < 3; i++) await notas.nth(i).locator('summary').click();
   verifica(/Nivel GOES de Luis L\. Le[oó]n/.test((await notas.allInnerTexts()).join(' ')) && /San Gabriel, Dgo\./.test((await notas.allInnerTexts()).join(' ')), `[${nombre}] al abrir las notas se explican el nivel GOES y San Gabriel, Dgo.`);
 
+  await irA(page, 'Presas');
   // ── Layout
   const ancho = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
   verifica(ancho.sw <= ancho.cw + 1, `[${nombre}] sin scroll horizontal de página (${ancho.sw} ≤ ${ancho.cw})`);
@@ -115,12 +119,16 @@ for (const [nombre, vista, esPhone] of [
     const tq = await page.locator('.cu-tanque').evaluateAll((els) => els.map((e) => e.querySelector('svg').getBoundingClientRect().width));
     verifica(tq[0] > tq[1] && tq[1] >= tq[tq.length - 1] * 0.9 && Math.min(...tq) >= 40, `[${nombre}] el ancho de los tanques sigue la capacidad (Boquilla > Madero ≥ El Rejón; ${tq.map(Math.round).join(', ')})`);
   }
+  await irA(page, 'Red y estaciones');
   // ── Cuerpos de agua (macromedición, etapa 1): red, vasos por satélite, cierres mensuales y balance
   await page.locator('#cu-red').waitFor({ timeout: 45000 });
   const nodos = await page.locator('.cu-red-n').count();
   verifica(nodos === 10, `[${nombre}] la red dibuja 9 cuerpos de agua + la salida (Ojinaga) (hay ${nodos})`);
+  await irA(page, 'Vasos por satélite');
   verifica(await page.locator('.cu-vs-card').count() === 9, `[${nombre}] 9 tarjetas de vasos por satélite (incluye La Colina y Piedras Azules)`);
-  verifica(await page.locator('.cu-vs-sd', { hasText: 'Aún sin medición satelital' }).count() >= 1, `[${nombre}] un vaso sin escena dice «Aún sin medición satelital» (no inventa área)`);
+  const cifrasVaso = await page.locator('.cu-vs-num').allTextContents();
+  verifica(cifrasVaso.length === 9 && cifrasVaso.every((t) => /^S\/D$/.test(t.trim()) || /\d.*km²/.test(t)), `[${nombre}] cada vaso trae su área o dice S/D (no inventa área ni pone 0)`);
+  await irA(page, 'Cierres y balance');
   const celdas = await page.locator('.cu-cm-celda').count();
   verifica(celdas >= 90, `[${nombre}] la matriz de cierres trae 9 cuerpos × 10+ meses (hay ${celdas})`);
   const sdTexto = await page.locator('.cu-cm-celda.cu-cm--SD .cu-cm-val').allTextContents();
@@ -129,6 +137,7 @@ for (const [nombre, vista, esPhone] of [
   await page.locator('.cu-cm-det').waitFor({ timeout: 10000 });
   verifica((await page.locator('.cu-cm-det').innerText()).includes('Valor elegido'), `[${nombre}] al tocar una celda aparece el cuadre de fuentes`);
   verifica(await page.locator('#cu-balance .cu-bal-svg').count() === 1 && await page.locator('#cu-balance table tbody tr').count() >= 1, `[${nombre}] el balance trae gráfica y tabla`);
+  await irA(page, 'Red y estaciones');
   await page.locator('#cu-red').scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${OUT}${nombre}-red-vasos.png` });
   const desborde = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);

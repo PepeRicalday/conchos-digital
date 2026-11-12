@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
+import { irA } from './_cuenca.mjs';
 const BASE = `http://localhost:${process.env.PORT || 5173}`;
 const OUT = fileURLToPath(new URL('./out/monitor-cuenca/', import.meta.url));
 fs.mkdirSync(OUT, { recursive: true });
@@ -25,6 +26,7 @@ for (const [nombre, vista] of [['escritorio', { width: 1440, height: 900 }], ['i
 
   const panel = page.locator('.cu-root', { has: page.getByRole('heading', { name: 'Cuenca del Conchos' }) }).first();
   await panel.waitFor({ timeout: 45000 });
+  await irA(page, 'Presas');
   // El dock del Monitor es angosto: la vista Tanques cae a la lista móvil (<560 px) o muestra tanques si el panel es ancho.
   await page.locator('.cu-tanque, .cu-movil').first().waitFor({ timeout: 45000 });
   const filas = await page.locator('.cu-tanque, .cu-movil').count();

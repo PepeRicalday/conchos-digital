@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
+import { irA } from './_cuenca.mjs';
 const BASE = `http://localhost:${process.env.PORT || 5173}`;
 const OUT = fileURLToPath(new URL('./out/informe-cuenca/', import.meta.url));
 fs.mkdirSync(OUT, { recursive: true });
@@ -18,6 +19,7 @@ page.on('pageerror', (e) => errores.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/favicon|Failed to load resource/i.test(m.text())) errores.push(m.text()); });
 
 await page.goto(`${BASE}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
+await irA(page, 'Presas');
 await page.locator('.cu-tanque').first().waitFor({ timeout: 45000 });
 
 const boton = page.getByRole('button', { name: /Informe de la cuenca/ });

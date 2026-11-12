@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
+import { irA } from './_cuenca.mjs';
 const BASE = `http://localhost:${process.env.PORT || 5173}`;
 const OUT = fileURLToPath(new URL('./out/cuenca-planos/', import.meta.url));
 fs.mkdirSync(OUT, { recursive: true });
@@ -19,6 +20,7 @@ for (const [nombre, vista] of [['escritorio', { width: 1440, height: 900 }], ['i
   page.on('console', (m) => { if (m.type() === 'error' && !/favicon|Failed to load resource/i.test(m.text())) errores.push(m.text()); });
 
   await page.goto(`${BASE}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
+  await irA(page, 'Clima y lluvia');
   const sec = page.locator('section[aria-label="Planos de la cuenca"]');
   await sec.waitFor({ timeout: 45000 });
   const img = sec.locator('img.cu-plano-img');
@@ -33,7 +35,7 @@ for (const [nombre, vista] of [['escritorio', { width: 1440, height: 900 }], ['i
   verifica(/Altitud:/.test(txt), `[${nombre}] declara si se ajustó por altitud`);
   verifica(/provisional/i.test(txt) && /JCAS/.test(txt), `[${nombre}] rotulado como provisional y fuente JCAS`);
   verifica(!/Aquarius/i.test(txt) && !/(^|[\s>(])(NaN|undefined|Infinity|null)([\s<).,]|$)/.test(txt), `[${nombre}] sin Aquarius ni NaN/undefined/null`);
-  verifica(await page.locator('.an-kpi').count() === 6, `[${nombre}] los 4 indicadores de presas siguen intactos + 2 de lluvia`);
+  verifica(await page.locator('.cu-cq .an-kpis .ui-kpi').count() === 6, `[${nombre}] los 4 indicadores de presas siguen intactos + 2 de lluvia`);
 
   // Variables observadas
   for (const [boton, titulo] of [['Temperatura', 'Temperatura media'], ['Viento', 'Viento medio'], ['Humedad', 'Humedad relativa'], ['Lluvia', 'Isoyetas']]) {
@@ -53,7 +55,7 @@ for (const [nombre, vista] of [['escritorio', { width: 1440, height: 900 }], ['i
   const pt = await sec.innerText();
   verifica(/próximos 7 días/.test(await img.getAttribute('alt')) && await cargada(), `[${nombre}] pronóstico de 7 días: plano cargado`);
   verifica(/Confiabilidad del pronóstico/.test(pt) && /En construcción|Medida con/.test(pt), `[${nombre}] muestra la confiabilidad (en construcción mientras no haya días comparados)`);
-  verifica(/Entre modelos/.test(pt) && /Días con lluvia/.test(pt) && /Corrida/.test(pt), `[${nombre}] muestra el rango entre modelos y la antigüedad de la corrida`);
+  verifica(/Entre modelos/i.test(pt) && /Días con lluvia/i.test(pt) && /Corrida/.test(pt), `[${nombre}] muestra el rango entre modelos y la antigüedad de la corrida`);
   const filas = await sec.locator('tbody tr').count();
   verifica(filas === 24, `[${nombre}] tabla de pronóstico con los 24 puntos (${filas})`);
   verifica(!/(^|[\s>(])(NaN|undefined|Infinity|null)([\s<).,]|$)/.test(pt), `[${nombre}] pronóstico sin NaN/undefined/null`);
@@ -75,6 +77,7 @@ for (const [nombre, vista] of [['escritorio', { width: 1440, height: 900 }], ['i
 {
   const pg = await (await navegador.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
   await pg.goto(`${BASE}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
+  await irA(pg, 'Clima y lluvia');
   const sc = pg.locator('section[aria-label="Planos de la cuenca"]');
   await sc.locator('img.cu-plano-img').waitFor({ timeout: 45000 });
   await sc.getByRole('button', { name: 'Viento' }).click();
@@ -94,6 +97,7 @@ for (const [nombre, vista, esPhone] of [['escritorio', { width: 1440, height: 90
   const errc = [];
   pgc.on('pageerror', (e) => errc.push(e.message));
   await pgc.goto(`${BASE}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
+  await irA(pgc, 'Clima y lluvia');
   const sc = pgc.locator('section[aria-label="Planos de la cuenca"]');
   await sc.locator('img.cu-plano-img').waitFor({ timeout: 45000 });
   const svgTxt = async () => decodeURIComponent(await sc.locator('img.cu-plano-img').getAttribute('src'));

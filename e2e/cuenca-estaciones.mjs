@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
+import { irA } from './_cuenca.mjs';
 const BASE = `http://localhost:${process.env.PORT || 5173}`;
 const OUT = fileURLToPath(new URL('./out/cuenca-estaciones/', import.meta.url));
 fs.mkdirSync(OUT, { recursive: true });
@@ -21,6 +22,7 @@ for (const [nombre, vista] of [
   page.on('console', (m) => { if (m.type() === 'error' && !/favicon|Failed to load resource/i.test(m.text())) errores.push(m.text()); });
 
   await page.goto(`${BASE}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
+  await irA(page, 'Clima y lluvia');
   const sec = page.locator('section[aria-label="Red de estaciones de la cuenca"]');
   await sec.waitFor({ timeout: 45000 });
   await sec.locator('.cu-est').first().waitFor({ timeout: 45000 });
@@ -31,7 +33,7 @@ for (const [nombre, vista] of [
   verifica(await sec.locator('svg.cu-mapa-svg .cu-prop-c').count() === 6, `[${nombre}] el mapa dibuja las 6 estaciones propias como cuadrados (forma distinta, no solo color)`);
   verifica(await sec.locator('svg g[aria-label*="estación propia"]').count() === 6, `[${nombre}] cada estación propia tiene su etiqueta accesible con la lluvia`);
   verifica(await sec.locator('tbody tr').count() >= 18, `[${nombre}] la tabla lista las 18 estaciones JCAS más las propias`);
-  verifica(await page.locator('.an-kpi').count() === 6, `[${nombre}] los 4 indicadores de presas siguen intactos + 2 de lluvia`);
+  verifica(await page.locator('.cu-cq .an-kpis .ui-kpi').count() === 6, `[${nombre}] los 4 indicadores de presas siguen intactos + 2 de lluvia`);
 
   const txt = await sec.innerText();
   verifica(/Lluvia areal de la cuenca · 30 días/.test(txt), `[${nombre}] lluvia areal de 30 días rotulada`);

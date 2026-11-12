@@ -3,6 +3,7 @@
 import { chromium } from 'playwright';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { irA } from './_cuenca.mjs';
 const BASE = `http://localhost:${process.env.PORT || 5173}`;
 const OUT = fileURLToPath(new URL('./out/cuenca-mensual/', import.meta.url)); fs.mkdirSync(OUT, { recursive: true });
 const fallos = [];
@@ -14,6 +15,7 @@ for (const [n, w, h] of [['desktop', 1600, 1000], ['iphone', 430, 932]]) {
   pg.on('pageerror', (e) => errs.push(e.message));
   pg.on('console', (m) => { if (m.type() === 'error' && !/favicon|Failed to load resource/i.test(m.text())) errs.push(m.text()); });
   await pg.goto(`${BASE}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
+  await irA(pg, 'Clima y lluvia');
   const sec = pg.locator('#cu-mensual');
   await sec.locator('svg.cu-mes-svg').waitFor({ timeout: 45000 });
   const txt = await sec.innerText();

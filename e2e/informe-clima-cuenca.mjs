@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
+import { irA } from './_cuenca.mjs';
 const BASE = `http://localhost:${process.env.PORT || 5173}`;
 const OUT = fileURLToPath(new URL('./out/informe-clima-cuenca/', import.meta.url));
 fs.mkdirSync(OUT, { recursive: true });
@@ -19,6 +20,7 @@ page.on('pageerror', (e) => errores.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/favicon|Failed to load resource/i.test(m.text())) errores.push(m.text()); });
 
 await page.goto(`${BASE}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
+await irA(page, 'Clima y lluvia');
 const sec = page.locator('section[aria-label="Planos de la cuenca"]');
 await sec.locator('img.cu-plano-img').waitFor({ timeout: 45000 });
 await page.waitForTimeout(1500);

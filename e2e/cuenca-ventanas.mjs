@@ -1,6 +1,7 @@
 // Ventanas largas de la Cuenca (60 d, 90 d, ciclo agrícola): una sola ventana para cabecera, planos y red; S/D con motivo y nunca 0/NaN.
 //   PORT=5173 node e2e/cuenca-ventanas.mjs      (requiere dev server; bypass de login en localhost)
 import { chromium } from 'playwright';
+import { irA } from './_cuenca.mjs';
 const BASE = `http://localhost:${process.env.PORT || 5173}`;
 const fallos = [];
 const verifica = (ok, msg) => { console.log(`${ok ? 'OK  ' : 'FAIL'} ${msg}`); if (!ok) fallos.push(msg); };
@@ -10,6 +11,7 @@ const errs = [];
 pg.on('pageerror', (e) => errs.push(e.message));
 pg.on('console', (m) => { if (m.type() === 'error' && !/favicon|Failed to load resource/i.test(m.text())) errs.push(m.text()); });
 await pg.goto(`${BASE}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
+await irA(pg, 'Clima y lluvia');
 const planos = pg.locator('section[aria-label="Planos de la cuenca"]');
 const red = pg.locator('section[aria-label="Red de estaciones de la cuenca"]');
 await planos.locator('img.cu-plano-img').waitFor({ timeout: 45000 });
@@ -25,7 +27,7 @@ for (const [nombre, etq] of [['60 días', /· 60 d/], ['90 días', /· 90 d/], [
   verifica(await planos.getByRole('button', { name: nombre, pressed: true }).count() === 1, `[${nombre}] los planos quedan en la misma ventana (una sola)`);
   const txtRed = await red.innerText(), txtPl = await planos.innerText();
   verifica(!SIN.test(t + txtRed + txtPl), `[${nombre}] sin NaN/undefined/null`);
-  const kpiArea = (await red.locator('.cu-red-kpi').first().innerText()).replace(/\s+/g, ' ');
+  const kpiArea = (await red.locator('.ui-kpi').first().innerText()).replace(/\s+/g, ' ');
   if (nombre !== 'Ciclo agrícola') verifica(/S\/D/.test(kpiArea) && /historia diaria guardada empieza el/.test(kpiArea), `[${nombre}] sin historia suficiente: S/D con el motivo y la fecha de inicio, no 0 (${kpiArea.slice(0, 120)})`);
   else verifica(/\d/.test(kpiArea) && !/NaN/.test(kpiArea), `[${nombre}] el ciclo en curso tiene cifra o S/D explicado (${kpiArea.slice(0, 120)})`);
   verifica(await red.locator('thead th', { hasText: /^Lluvia (60|90) d$|^Lluvia ciclo$/ }).count() === 1, `[${nombre}] la tabla añade su columna de lluvia`);

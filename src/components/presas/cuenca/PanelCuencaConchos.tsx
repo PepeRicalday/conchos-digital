@@ -1,11 +1,11 @@
 import { Kpi } from '../../ui/base';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { arealDe, etiquetaVentana, type VentanaObs } from '../../../utils/jcasModelo';
 import { fmtLluvia } from '../../../utils/fmtLluvia';
 import { useAqwpCuenca } from '../../../hooks/useAqwpCuenca';
 import { formatearNumero } from '../../../utils/historicoPresas';
 import { calcularFrescura } from '../../../utils/presaMetrics';
-import { agregadoCuenca, aportacionTotal, UBICACION_OJINAGA } from '../../../utils/aqwpCuenca';
+import { agregadoCuenca, aportacionTotal, restarDias, ORDEN_PRESAS_CUENCA, UBICACION_OJINAGA } from '../../../utils/aqwpCuenca';
 import { construirModeloCuenca, type PresaCuencaModelo } from '../../../utils/cuencaModelo';
 import { ordenarPresas, type OrdenCuenca } from '../../../utils/cuencaViz';
 import { fechaCorta } from '../../../utils/analiticaPresas';
@@ -27,6 +27,14 @@ import EsquemaRedCuenca from './EsquemaRedCuenca';
 import VasosSatelitalCuenca from './VasosSatelitalCuenca';
 import CierresMensualesCuenca from './CierresMensualesCuenca';
 import BalanceVaso from './BalanceVaso';
+import BalanceCuenca from './BalanceCuenca';
+import HidrometriaCuenca from './HidrometriaCuenca';
+import LecturaCuenca from './LecturaCuenca';
+import { useSalidaCuenca } from '../../../hooks/useSalidaCuenca';
+import { gastoMedio, useHidrometriaCuenca } from '../../../hooks/useHidrometriaCuenca';
+import { VENTANAS, ID_OJINAGA_IBWC, ID_OJINAGA_SUTRON, type VentanaHidro } from '../../../utils/hidroEstaciones';
+import { cambioEn, lecturasPresas, lecturasRed, lecturasVasos, salidaCuenca, serieAlmacenamiento, lecturasCierres, type Lectura } from '../../../utils/cuencaAnalisis';
+import type { EstacionEsquema, VasoHoy } from './EsquemaRedCuenca';
 import '../analitica/analitica.css';
 import './cuenca.css';
 import { hoyLocalISO } from '../../../utils/hoyLocal';
@@ -61,34 +69,19 @@ function Segmentado<T extends string | number>({ etiqueta, valor, opciones, onCh
     );
 }
 
-const SECCIONES_NAV: { id: string; t: string }[] = [
-    { id: 'cu-presas', t: 'Presas' }, { id: 'cu-red', t: 'Red' }, { id: 'cu-vasos', t: 'Vasos por satélite' }, { id: 'cu-cierres', t: 'Cierres mensuales' }, { id: 'cu-balance', t: 'Balance' },
-    { id: 'cu-planos', t: 'Clima y planos' }, { id: 'cu-estaciones', t: 'Estaciones' }, { id: 'cu-mensual', t: 'Mes a mes' }, { id: 'cu-lluvia', t: 'Pluviómetros GOES' },
+type Pestana = 'resumen' | 'presas' | 'red' | 'vasos' | 'historico' | 'clima';
+const PESTANAS: { id: Pestana; t: string; ayuda: string }[] = [
+    { id: 'resumen', t: 'Resumen', ayuda: 'Lo más importante y el balance de la cuenca' },
+    { id: 'presas', t: 'Presas', ayuda: 'Nivel, estado y tendencia de cada presa' },
+    { id: 'red', t: 'Red y estaciones', ayuda: 'Cómo se conectan las presas y qué mide el río entre ellas' },
+    { id: 'vasos', t: 'Vasos por satélite', ayuda: 'Espejo de agua de cada vaso' },
+    { id: 'historico', t: 'Cierres y balance', ayuda: 'Cierres mensuales desde 2021 y balance por periodo' },
+    { id: 'clima', t: 'Clima y lluvia', ayuda: 'Planos, estaciones y lluvia de la cuenca' },
 ];
-/** Scroller vertical más cercano (en la app es .main-content; en el Monitor, el cuerpo del dock). */
-function scrollerDe(el: HTMLElement): HTMLElement | null {
-    for (let p = el.parentElement; p; p = p.parentElement) {
-        const oy = getComputedStyle(p).overflowY;
-        if ((oy === 'auto' || oy === 'scroll') && p.scrollHeight > p.clientHeight) return p;
-    }
-    return null;
-}
-/**
- * Lleva la sección al borde de arriba SIN dejarla bajo la navegación fija ni bajo la barra superior móvil: la nav se ancla al borde del
- * contenido del scroller (después de su padding), así que se resta ese padding y el alto de la nav. Solo se mueve el scroller de la pestaña.
- */
-function irA(id: string) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const reducido = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const sc = scrollerDe(el);
-    if (!sc) { el.scrollIntoView({ behavior: reducido ? 'auto' : 'smooth', block: 'start' }); return; }
-    const nav = document.querySelector<HTMLElement>('.cu-nav');
-    const pad = parseFloat(getComputedStyle(sc).paddingTop) || 0;
-    const top = sc.scrollTop + (el.getBoundingClientRect().top - sc.getBoundingClientRect().top) - pad - (nav?.offsetHeight ?? 0) - 8;
-    sc.scrollTo({ top: Math.max(0, top), behavior: reducido ? 'auto' : 'smooth' });
-    el.setAttribute('tabindex', '-1');
-    el.focus({ preventScroll: true });
+const CLAVE_PESTANA = 'sica.cuenca.pestana';
+function pestanaInicial(): Pestana {
+    try { const v = localStorage.getItem(CLAVE_PESTANA) as Pestana | null; if (v && PESTANAS.some((p) => p.id === v)) return v; } catch { /* sin almacenamiento */ }
+    return 'resumen';
 }
 
 function columnasPresas(cila: Map<string, number | null | undefined>): Columna<PresaCuencaModelo>[] {
@@ -156,6 +149,11 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
     const [alcance, setAlcance] = useState<Alcance>('todas');
     const [meses, setMeses] = useState<3 | 12>(12);
     const [sel, setSel] = useState<number | null>(null);
+    const [pestana, setPestanaEstado] = useState<Pestana>(pestanaInicial);
+    const setPestana = (p: Pestana) => { setPestanaEstado(p); try { localStorage.setItem(CLAVE_PESTANA, p); } catch { /* sin almacenamiento */ } window.scrollTo?.({ top: 0 }); };
+    const [ventHidro, setVentHidro] = useState<VentanaHidro>('7d');
+    const salida = useSalidaCuenca();
+    const hidro = useHidrometriaCuenca(ventHidro, pestana === 'red');
 
     const calc = useMemo(() => {
         if (!datos) return null;
@@ -181,18 +179,23 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
         return ordenarPresas(base.map((m) => ({ ...m, ubicacionId: m.fila.ubicacionId, pct: m.fila.pct, namoMm3: m.fila.namoMm3, atrasoDias: m.atrasoDias })), orden);
     }, [calc, alcance, orden]);
 
-    // Sección activa de la navegación (la que cruza el 30 % superior de la ventana).
-    const [activa, setActiva] = useState<string | null>(null);
-    useEffect(() => {
-        if (typeof IntersectionObserver === 'undefined') return;
-        const els = SECCIONES_NAV.map((x) => document.getElementById(x.id)).filter((e): e is HTMLElement => !!e);
-        if (!els.length) return;
-        const io = new IntersectionObserver((entradas) => {
-            for (const en of entradas) if (en.isIntersecting) setActiva(en.target.id);
-        }, { rootMargin: '-25% 0px -65% 0px' });
-        els.forEach((e) => io.observe(e));
-        return () => io.disconnect();
-    }, [calc, jcas.loading, jcas.red, vista, cuerpos.datos]);
+    // Almacenamiento total de la cuenca y su cambio (cuando todas las presas tienen dato propio o arrastrado ≤ 16 días).
+    const serieTotal = useMemo(() => {
+        if (!datos) return [];
+        const namo = new Map(datos.estados.map((e) => [e.ubicacionId, e.namoMm3]));
+        return serieAlmacenamiento(datos.serie, namo, ORDEN_PRESAS_CUENCA);
+    }, [datos]);
+
+    // Lectura del día de cada vaso (telemetría diaria): la dibuja el esquema y la tarjeta satelital.
+    const hoyVasos = useMemo(() => {
+        const m = new Map<string, VasoHoy>();
+        if (!calc || !cuerpos.datos) return m;
+        for (const c of cuerpos.datos.cuerpos) {
+            const f = c.aqwpUbicacionId == null ? null : calc.filas.find((x) => x.ubicacionId === c.aqwpUbicacionId);
+            if (f) m.set(c.id, { almMm3: f.almacenamientoValido, pct: f.pct, fecha: f.fecha });
+        }
+        return m;
+    }, [calc, cuerpos.datos]);
 
     if (loading) {
         return <div className="an-root cu-root" role="status" aria-busy="true" aria-label="Cargando cuenca del Conchos"><div className="an-skeleton" /><div className="an-skeleton an-skeleton--alta" /></div>;
@@ -218,6 +221,76 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
     const seleccionId = actual?.fila.ubicacionId ?? null;
     const hayClim = datos.climatologia != null;
     const areal30 = jcas.red?.modelo ? arealDe(jcas.red.modelo, ventanaObs) : null; // sigue la ventana elegida (la misma de planos y red)
+    const hoyISO = hoyLocalISO();
+    const cambio30 = cambioEn(serieTotal, 30);
+    const sal30 = salida.lecturas ? salidaCuenca(salida.lecturas, restarDias(hoyISO, 29), hoyISO, hoyISO) : null;
+    const signo = (v: number, d = 1) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatearNumero(Math.abs(v), d)}`;
+
+    // Lecturas por pestaña (hallazgos en una frase).
+    const lecPresas = lecturasPresas(calc.modelos.map((m) => ({ etiqueta: m.fila.etiqueta, pct: m.fila.pct, cambio30Puntos: m.cambio30Puntos, percentil: m.posicion?.percentil ?? null, sinActualizar: m.fila.sinActualizar, atrasoDias: m.atrasoDias })));
+    const itemsVasos = cuerpos.datos ? cuerpos.datos.cuerpos.map((c) => {
+        const ser = (cuerpos.datos as NonNullable<typeof cuerpos.datos>).escenas.get(c.idSerie) ?? [];
+        const conArea = ser.filter((e) => e.areaKm2 != null);
+        return { etiqueta: c.etiqueta, ultima: ser[ser.length - 1], anterior: conArea.length > 1 ? conArea[conArea.length - 2] : undefined, huellaKm2: cuerpos.datos?.huellas.get(c.id)?.areaKm2 ?? null };
+    }) : [];
+    const lecVasos = cuerpos.datos ? lecturasVasos(itemsVasos, hoyISO) : [];
+    const lecResumen: (Lectura & { ir?: string; irTxt?: string })[] = [
+        ...lecPresas.slice(0, 3).map((l, i) => (i === 0 ? { ...l, ir: 'presas', irTxt: 'Ver las presas' } : l)),
+        ...lecVasos.slice(0, 1).map((l) => ({ ...l, ir: 'vasos', irTxt: 'Ver los vasos' })),
+    ];
+
+    // Red: estaciones hidrométricas en el esquema y coherencia contra la aportación publicada.
+    const estEsquema: EstacionEsquema[] = hidro.estaciones.flatMap((e) => {
+        if (e.sitio.rol === 'salida' || !e.sitio.presaId) return [];
+        const cuerpo = cuerpos.datos?.cuerpos.find((c) => c.presaId === e.sitio.presaId);
+        const q = gastoMedio(e.stat);
+        return cuerpo ? [{ id: e.est.id, nombre: e.sitio.corto, cuerpoId: cuerpo.id, lado: e.sitio.rol === 'entrada' ? 'entrada' as const : 'abajo' as const, texto: q == null ? 'S/D' : `${formatearNumero(q, q < 10 ? 2 : 1)} m³/s`, enLinea: e.enlace.clave === 'en_linea' || e.enlace.clave === 'retraso' }] : [];
+    });
+    const porId = new Map(hidro.estaciones.map((e) => [e.est.id, e]));
+    const ibwc = gastoMedio(porId.get(ID_OJINAGA_IBWC)?.stat ?? null), sutron = gastoMedio(porId.get(ID_OJINAGA_SUTRON)?.stat ?? null);
+    const cruces = [{ id: 'C63009B2', presa: 'La Boquilla', fila: boquilla }, { id: 'C6301AC4', presa: 'F. I. Madero', fila: madero }].flatMap((c) => {
+        const e = porId.get(c.id);
+        return e && c.fila ? [{ estacion: e.sitio.corto, presa: c.presa, medidoM3s: gastoMedio(e.stat), reportadoM3s: c.fila.aportacionM3s, fechaReportado: c.fila.fecha ? fechaCorta(c.fila.fecha) : null }] : [];
+    });
+    const lecRed = hidro.estaciones.length ? lecturasRed(
+        hidro.estaciones.map((e) => ({ nombre: e.sitio.corto, rol: e.sitio.rol, destino: e.sitio.haciaTxt, gastoMedio: gastoMedio(e.stat), volumenMm3: e.stat?.volumen?.mm3 ?? null, enLinea: e.enlace.clave === 'en_linea' || e.enlace.clave === 'retraso', reserva: e.sitio.reserva })),
+        VENTANAS[ventHidro].etiqueta.toLowerCase(), cruces, { ibwc, sutron },
+    ) : [];
+    const lecCierres = cuerpos.datos ? lecturasCierres(cuerpos.datos.cuerpos, cuerpos.datos.cierres) : [];
+
+    const avisoSinActualizar = sinActualizar.length > 0 && (
+        <p className="an-aviso" role="status">
+            <b>{sinActualizar.length === 1 ? 'Lectura sin actualizar' : 'Lecturas sin actualizar'}:</b> {sinActualizar.map((f) => `${f.etiqueta}${f.diasIgual ? ` (${f.diasIgual} días igual)` : ''}`).join(', ')}. La fuente repite el último dato obtenido aunque hay aportación o extracción; se sigue mostrando ese último dato (y entra en los totales) hasta que vuelva a cambiar.
+        </p>
+    );
+    const avisoSinTelemetria = cuerpos.datos && (() => {
+        const sinTelemetria = cuerpos.datos.cuerpos.filter((c) => c.aqwpUbicacionId == null);
+        return sinTelemetria.length > 0 && (
+            <p className="an-aviso" role="status">
+                <b>{sinTelemetria.length === 1 ? 'Cuerpo de agua sin telemetría vigente' : 'Cuerpos de agua sin telemetría vigente'}:</b>{' '}
+                {sinTelemetria.map((c) => {
+                    const u = ultimoCierreConDato(cuerpos.datos!.cierres.filter((x) => x.cuerpoId === c.id));
+                    return u && u.almMm3 != null
+                        ? `${c.etiqueta} (último dato SINA: ${etiquetaMes(u.mes, true)}, ${formatearNumero(u.almMm3, 1)} Mm³; después S/D)`
+                        : `${c.etiqueta} (${c.rol === 'reguladora' ? 'reguladora; ' : ''}no está en SINA ni en AQUARIUS: almacenamiento S/D, solo se mide el espejo por satélite)`;
+                }).join('; ')}.
+            </p>
+        );
+    })();
+    const estadoCuerpos = (
+        <>
+            {cuerpos.loading && !cuerpos.datos && <section className="an-card" role="status" aria-busy="true" aria-label="Cargando cuerpos de agua"><div className="an-skeleton" /></section>}
+            {cuerpos.error && (
+                <section className="an-card" aria-label="Cuerpos de agua de la cuenca">
+                    <div className="an-vacio" role="alert">
+                        <strong>No se pudo cargar el catálogo de cuerpos de agua.</strong>
+                        <span>{cuerpos.error}</span>
+                        <button type="button" className="an-btn" onClick={cuerpos.recargar}>Reintentar</button>
+                    </div>
+                </section>
+            )}
+        </>
+    );
 
     return (
         <div className="an-root cu-root pr-reveal">
@@ -235,10 +308,13 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
             </header>
 
             <div className="cu-cq"><div className="an-kpis an-kpis--6" role="list">
-                <Kpi densidad="compacta" etiqueta="Almacenamiento de la cuenca" valor={fmt(cuenca.totalMm3, 1)} unidad=" Mm³" contexto={<>{cuenca.porcentaje == null ? 'Sin lectura vigente' : `${formatearNumero(cuenca.porcentaje, 1)} % del NAMO`} · {cuenca.presasConDato} de {cuenca.presasTotal} presas con dato{cuenca.parcial ? ' (parcial)' : ''}</>} />
+                <Kpi densidad="compacta" etiqueta="Almacenamiento de la cuenca" valor={fmt(cuenca.totalMm3, 1)} unidad=" Mm³"
+                    estado={cambio30 ? { tipo: Math.abs(cambio30.delta) < 1 ? 'sd' : cambio30.delta > 0 ? 'ok' : 'warn', texto: `${signo(cambio30.delta)} Mm³ en 30 d` } : null}
+                    contexto={<>{cuenca.porcentaje == null ? 'Sin lectura vigente' : `${formatearNumero(cuenca.porcentaje, 1)} % del NAMO`} · {cuenca.presasConDato} de {cuenca.presasTotal} presas con dato{cuenca.parcial ? ' (parcial)' : ''}</>} />
                 <Kpi densidad="compacta" etiqueta="Presas del distrito" valor={fmt(dist.totalMm3, 1)} unidad=" Mm³" contexto={<>{dist.porcentaje == null ? 'Sin lectura vigente' : `${formatearNumero(dist.porcentaje, 1)} % del NAMO`} · Boquilla {boquilla?.pct == null ? 'S/D' : `${formatearNumero(boquilla.pct, 1)} %`} · Madero {madero?.pct == null ? 'S/D' : `${formatearNumero(madero.pct, 1)} %`}</>} />
                 <Kpi densidad="compacta" etiqueta="Aportaciones reportadas" valor={fmtFlujo(aport.total)} unidad=" m³/s" contexto={<>Última lectura de cada presa · {aport.conDato} de {filas.length} con dato · puede repetir agua en cascada</>} />
-                <Kpi densidad="compacta" etiqueta="Salida de la cuenca · Ojinaga" valor={fmtFlujo(ojinaga?.gastoM3s ?? null)} unidad=" m³/s" contexto={<>Aforo USIBWC 08373000{ojinaga?.fecha ? ` · ${fechaCorta(ojinaga.fecha)}` : ''}</>} />
+                <Kpi densidad="compacta" etiqueta="Salida de la cuenca · Ojinaga" valor={fmtFlujo(ojinaga?.gastoM3s ?? null)} unidad=" m³/s"
+                    contexto={<>Aforo USIBWC 08373000{ojinaga?.fecha ? ` · ${fechaCorta(ojinaga.fecha)}` : ''}{sal30?.gastoMedio != null ? ` · media 30 d: ${formatearNumero(sal30.gastoMedio, 2)} m³/s` : ''}</>} />
                 <Kpi densidad="compacta" etiqueta={`Lluvia de la cuenca · ${etiquetaVentana(ventanaObs)}`} valor={areal30?.mm == null ? 'S/D' : fmtLluvia(areal30.mm)} unidad={areal30?.mm != null ? " mm" : undefined} contexto={areal30?.mm == null
                         ? (jcas.loading ? 'Cargando estaciones…' : jcas.error ? 'No se pudieron cargar las estaciones JCAS' : areal30?.motivoSD ?? 'Sin estaciones JCAS por ahora')
                         : `n = ${areal30.nEstaciones} estaciones · cobertura ${areal30.coberturaPct.toFixed(0)} % · provisional`} />
@@ -246,93 +322,102 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
             </div></div>
 
             <nav className="cu-nav" aria-label="Secciones de la cuenca">
-                {SECCIONES_NAV.map((x) => <button key={x.id} type="button" className="cu-nav-btn" aria-current={activa === x.id ? 'true' : undefined} onClick={() => irA(x.id)}>{x.t}</button>)}
+                {PESTANAS.map((x) => <button key={x.id} type="button" className="cu-nav-btn" title={x.ayuda} aria-current={pestana === x.id ? 'page' : undefined} onClick={() => setPestana(x.id)}>{x.t}</button>)}
             </nav>
 
-            {sinActualizar.length > 0 && (
-                <p className="an-aviso" role="status">
-                    <b>{sinActualizar.length === 1 ? 'Lectura sin actualizar' : 'Lecturas sin actualizar'}:</b> {sinActualizar.map((f) => `${f.etiqueta}${f.diasIgual ? ` (${f.diasIgual} días igual)` : ''}`).join(', ')}. La fuente repite el último dato obtenido aunque hay aportación o extracción; se sigue mostrando ese último dato (y entra en los totales) hasta que vuelva a cambiar.
-                </p>
-            )}
-
-            <div className="cu-controles" role="group" aria-label="Vista y filtros de la cuenca">
-                <Segmentado<Vista> etiqueta="Vista" valor={vista} onChange={setVista}
-                    opciones={[{ v: 'tanques', t: 'Tanques' }, { v: 'tabla', t: 'Tabla' }]} />
-                <Segmentado<OrdenCuenca> etiqueta="Orden" valor={orden} onChange={setOrden}
-                    opciones={[{ v: 'cuenca', t: 'Cuenca' }, { v: 'llenado', t: '% llenado' }, { v: 'volumen', t: 'Tamaño' }, { v: 'frescura', t: 'Frescura' }]} />
-                <Segmentado<Alcance> etiqueta="Presas" valor={alcance} onChange={setAlcance}
-                    opciones={[{ v: 'todas', t: 'Todas' }, { v: 'distrito', t: 'Solo distrito' }]} />
-                {vista === 'tanques' && (
-                    <Segmentado<3 | 12> etiqueta="Serie" valor={meses} onChange={setMeses} opciones={[{ v: 3, t: '3 meses' }, { v: 12, t: '12 meses' }]} />
-                )}
-            </div>
-
-            {vista === 'tanques' ? (
-                <div className="cu-cq" id="cu-presas">
-                  <div className="cu-presas-grid">
-                    <section className="an-card" aria-label="Tanques de las presas de la cuenca">
-                        <h4 className="an-h">Presas de la cuenca</h4>
-                        <p className="an-nota">Toque una presa para ver su detalle. El tamaño de cada tanque es su capacidad real; el estado usa los umbrales de referencia de SICA (20 % y 40 % del NAMO de CONAGUA).</p>
-                        <FilaTanques modelos={visibles} seleccionada={seleccionId} onSelect={setSel} />
-                    </section>
-                    {actual && <DetallePresaCuenca m={actual} difCila={actual.fila.presaId ? calc.cila.get(actual.fila.presaId) : undefined} />}
-                    <div className="cu-presas-multiplos"><PequenosMultiplos modelos={visibles} meses={meses} seleccionada={seleccionId} onSelect={setSel} /></div>
-                  </div>
-                </div>
-            ) : (
-                <section className="an-card" id="cu-presas" aria-label="Estado de las presas de la cuenca">
-                    <h4 className="an-h">Presas de la cuenca</h4>
-                    <p className="an-nota">Porcentaje sobre el NAMO que publica CONAGUA; los umbrales de estado son referencia interna de SICA. El % útil descuenta el volumen muerto y la posición compara con el mismo día de 2017 a {new Date().getFullYear() - 1}. Caudales del día en m³/s.</p>
-                    <DataTable
-                        propia
-                        className="cu-tabla" claseContenedor="cu-tabla-wrap" regionAria="Tabla de presas (desplazable)" captionOculto caption="Presas de la cuenca del Conchos"
-                        clave={(m) => String(m.fila.ubicacionId)} filas={visibles}
-                        columnas={columnasPresas(calc.cila)}
-                    />
-                </section>
-            )}
-
-            {cuerpos.datos && (() => {
-                const sinTelemetria = cuerpos.datos.cuerpos.filter((c) => c.aqwpUbicacionId == null);
-                return sinTelemetria.length > 0 && (
-                    <p className="an-aviso" role="status">
-                        <b>{sinTelemetria.length === 1 ? 'Cuerpo de agua sin telemetría vigente' : 'Cuerpos de agua sin telemetría vigente'}:</b>{' '}
-                        {sinTelemetria.map((c) => {
-                            const u = ultimoCierreConDato(cuerpos.datos!.cierres.filter((x) => x.cuerpoId === c.id));
-                            return u && u.almMm3 != null
-                                ? `${c.etiqueta} (último dato SINA: ${etiquetaMes(u.mes, true)}, ${formatearNumero(u.almMm3, 1)} Mm³; después S/D)`
-                                : `${c.etiqueta} (${c.rol === 'reguladora' ? 'reguladora; ' : ''}no está en SINA ni en AQUARIUS: almacenamiento S/D, solo se mide el espejo por satélite)`;
-                        }).join('; ')}.
-                    </p>
-                );
-            })()}
-
-            {cuerpos.loading && !cuerpos.datos && <section className="an-card" id="cu-red" role="status" aria-busy="true" aria-label="Cargando cuerpos de agua"><div className="an-skeleton" /></section>}
-            {cuerpos.error && (
-                <section className="an-card" id="cu-red" aria-label="Cuerpos de agua de la cuenca">
-                    <div className="an-vacio" role="alert">
-                        <strong>No se pudo cargar el catálogo de cuerpos de agua.</strong>
-                        <span>{cuerpos.error}</span>
-                        <button type="button" className="an-btn" onClick={cuerpos.recargar}>Reintentar</button>
-                    </div>
-                </section>
-            )}
-            {cuerpos.datos && (
+            {pestana === 'resumen' && (
                 <>
-                    <EsquemaRedCuenca cuerpos={cuerpos.datos.cuerpos} cierres={cuerpos.datos.cierres} ojinagaM3s={ojinaga?.gastoM3s ?? null} ojinagaFecha={ojinaga?.fecha ?? null} />
-                    <VasosSatelitalCuenca datos={cuerpos.datos} aviso={cuerpos.avisoSatelite} />
-                    <CierresMensualesCuenca datos={cuerpos.datos} />
-                    <BalanceVaso datos={cuerpos.datos} />
+                    {avisoSinActualizar}
+                    <LecturaCuenca titulo="Lo más importante hoy" lecturas={lecResumen} onIr={(p) => setPestana(p as Pestana)} />
+                    {cuerpos.datos && <BalanceCuenca compacto datos={cuerpos.datos} salida={salida.lecturas} hoyISO={hoyISO} onIr={() => setPestana('historico')} />}
+                    {estadoCuerpos}
+                    {cuerpos.datos && <EsquemaRedCuenca cuerpos={cuerpos.datos.cuerpos} cierres={cuerpos.datos.cierres} ojinagaM3s={ojinaga?.gastoM3s ?? null} ojinagaFecha={ojinaga?.fecha ?? null} hoy={hoyVasos} />}
                 </>
             )}
 
-            <PlanosCuenca jcas={jcas} capas={capas} diasObs={ventanaObs} onDias={setVentanaObs} />
+            {pestana === 'presas' && (
+                <>
+                    {avisoSinActualizar}
+                    <LecturaCuenca titulo="Qué mirar en las presas" lecturas={lecPresas} />
+                    <div className="cu-controles" role="group" aria-label="Vista y filtros de la cuenca">
+                        <Segmentado<Vista> etiqueta="Vista" valor={vista} onChange={setVista}
+                            opciones={[{ v: 'tanques', t: 'Tanques' }, { v: 'tabla', t: 'Tabla' }]} />
+                        <Segmentado<OrdenCuenca> etiqueta="Orden" valor={orden} onChange={setOrden}
+                            opciones={[{ v: 'cuenca', t: 'Cuenca' }, { v: 'llenado', t: '% llenado' }, { v: 'volumen', t: 'Tamaño' }, { v: 'frescura', t: 'Frescura' }]} />
+                        <Segmentado<Alcance> etiqueta="Presas" valor={alcance} onChange={setAlcance}
+                            opciones={[{ v: 'todas', t: 'Todas' }, { v: 'distrito', t: 'Solo distrito' }]} />
+                        {vista === 'tanques' && (
+                            <Segmentado<3 | 12> etiqueta="Serie" valor={meses} onChange={setMeses} opciones={[{ v: 3, t: '3 meses' }, { v: 12, t: '12 meses' }]} />
+                        )}
+                    </div>
 
-            <RedEstacionesCuenca jcas={jcas} capas={capas} ventana={ventanaObs} onVentana={setVentanaObs} />
+                    {vista === 'tanques' ? (
+                        <div className="cu-cq" id="cu-presas">
+                          <div className="cu-presas-grid">
+                            <section className="an-card" aria-label="Tanques de las presas de la cuenca">
+                                <h4 className="an-h">Presas de la cuenca</h4>
+                                <p className="an-nota">Toque una presa para ver su detalle. El tamaño de cada tanque es su capacidad real; el estado usa los umbrales de referencia de SICA (20 % y 40 % del NAMO de CONAGUA).</p>
+                                <FilaTanques modelos={visibles} seleccionada={seleccionId} onSelect={setSel} />
+                            </section>
+                            {actual && <DetallePresaCuenca m={actual} difCila={actual.fila.presaId ? calc.cila.get(actual.fila.presaId) : undefined} />}
+                            <div className="cu-presas-multiplos"><PequenosMultiplos modelos={visibles} meses={meses} seleccionada={seleccionId} onSelect={setSel} /></div>
+                          </div>
+                        </div>
+                    ) : (
+                        <section className="an-card" id="cu-presas" aria-label="Estado de las presas de la cuenca">
+                            <h4 className="an-h">Presas de la cuenca</h4>
+                            <p className="an-nota">Porcentaje sobre el NAMO que publica CONAGUA; los umbrales de estado son referencia interna de SICA. El % útil descuenta el volumen muerto y la posición compara con el mismo día de 2017 a {new Date().getFullYear() - 1}. Caudales del día en m³/s.</p>
+                            <DataTable
+                                propia
+                                className="cu-tabla" claseContenedor="cu-tabla-wrap" regionAria="Tabla de presas (desplazable)" captionOculto caption="Presas de la cuenca del Conchos"
+                                clave={(m) => String(m.fila.ubicacionId)} filas={visibles}
+                                columnas={columnasPresas(calc.cila)}
+                            />
+                        </section>
+                    )}
+                    {avisoSinTelemetria}
+                </>
+            )}
 
-            <MensualCuenca jcas={jcas} />
+            {pestana === 'red' && (
+                <>
+                    {estadoCuerpos}
+                    <LecturaCuenca titulo="Qué mirar en la red" lecturas={lecRed} />
+                    {cuerpos.datos && <EsquemaRedCuenca cuerpos={cuerpos.datos.cuerpos} cierres={cuerpos.datos.cierres} ojinagaM3s={ojinaga?.gastoM3s ?? null} ojinagaFecha={ojinaga?.fecha ?? null} hoy={hoyVasos} estaciones={estEsquema} />}
+                    <HidrometriaCuenca estaciones={hidro.estaciones} ventana={ventHidro} onVentana={setVentHidro} cargando={hidro.cargando} error={hidro.error} />
+                    {avisoSinTelemetria}
+                </>
+            )}
 
-            <TiraLluvia lluvia={datos.lluvia} serie={datos.lluviaSerie} />
+            {pestana === 'vasos' && (
+                <>
+                    {estadoCuerpos}
+                    {cuerpos.datos && <VasosSatelitalCuenca datos={cuerpos.datos} aviso={cuerpos.avisoSatelite} hoyISO={hoyISO} hoy={hoyVasos} />}
+                </>
+            )}
+
+            {pestana === 'historico' && (
+                <>
+                    {estadoCuerpos}
+                    {cuerpos.datos && (
+                        <>
+                            <BalanceCuenca datos={cuerpos.datos} salida={salida.lecturas} hoyISO={hoyISO} />
+                            <LecturaCuenca titulo="Qué mirar en los cierres" lecturas={lecCierres} />
+                            <CierresMensualesCuenca datos={cuerpos.datos} />
+                            <BalanceVaso datos={cuerpos.datos} />
+                        </>
+                    )}
+                </>
+            )}
+
+            {pestana === 'clima' && (
+                <>
+                    <PlanosCuenca jcas={jcas} capas={capas} diasObs={ventanaObs} onDias={setVentanaObs} />
+                    <RedEstacionesCuenca jcas={jcas} capas={capas} ventana={ventanaObs} onVentana={setVentanaObs} />
+                    <MensualCuenca jcas={jcas} />
+                    <TiraLluvia lluvia={datos.lluvia} serie={datos.lluviaSerie} />
+                </>
+            )}
 
             <details className="an-pie cu-notas">
                 <summary className="cu-notas-sum">Cómo se lee y qué límites tiene</summary>

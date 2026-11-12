@@ -1,0 +1,19 @@
+/* Captura de «Seguimiento de presas»: tabla de confirmación y pestañas del modal Registrar. */
+.seg-tabs { display: inline-flex; margin-bottom: 16px; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 10px; overflow: hidden; }
+.seg-tab { min-height: 40px; padding: 8px 16px; border: 0; background: transparent; color: #b4c2d4; font: 700 13px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer; }
+.seg-tab[aria-pressed='true'] { background: #3FB2F3; color: #04111f; }
+.seg-tab:focus-visible { outline: 2px solid #3FB2F3; outline-offset: -2px; }
+@media (pointer: coarse) { .seg-tab { min-height: 44px; } }
+
+.seg-tabla { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 13px; color: #e8eef6; }
+.seg-tabla th, .seg-tabla td { padding: 8px 12px; vertical-align: top; }
+.seg-tabla thead th { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #8396ad; white-space: nowrap; text-align: left; }
+.seg-tabla tbody tr { border-top: 1px solid rgba(148, 163, 184, 0.14); }
+.seg-tabla tbody th { text-align: left; font-weight: 700; color: #fff; min-width: 190px; }
+.seg-tabla .seg-num { text-align: right; font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.seg-tabla thead .seg-num { font-family: inherit; }
+.seg-tag { margin-left: 6px; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: #7cc7f5; }
+.seg-aviso { display: block; margin-top: 2px; font-weight: 400; font-size: 12px; line-height: 1.35; }
+.seg-aviso--aviso { color: #fbbf24; } .seg-aviso--error { color: #fca5a5; }
+.seg-res { font-weight: 700; white-space: nowrap; }
+.seg-res--ok { color: #6ee7b7; } .seg-res--aviso { color: #fbbf24; } .seg-res--error { color: #fca5a5; }

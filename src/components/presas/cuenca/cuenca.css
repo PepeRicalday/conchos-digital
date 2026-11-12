@@ -386,3 +386,67 @@ html[data-device='phone'] .cu-capa-chip { min-height: 44px; font-size: 14px; pad
 .cu-red-arco { fill: none; stroke: var(--pr-t3); stroke-width: 1.6; }
 .cu-red-flecha { fill: var(--pr-t3); }
 .cu-vs-aviso { color: var(--pr-warn); font: 600 12px var(--pr-body); text-align: right; }
+
+/* ── Lecturas («qué mirar aquí») ──────────────────────────────────────────── */
+.cu-lec { padding: 12px 14px; border: 1px solid var(--pr-line); border-left: 3px solid var(--pr-sky); border-radius: 12px; background: var(--pr-surface); }
+.cu-lec-t { margin: 0 0 8px; font-size: 12px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--pr-t3); }
+.cu-lec-lista { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.cu-lec-item { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; font-size: 14px; line-height: 1.45; color: var(--pr-t2); }
+.cu-lec-glifo { font-size: 13px; line-height: 1.6; text-align: center; }
+.cu-lec-item--ok .cu-lec-glifo { color: var(--pr-ok); } .cu-lec-item--warn .cu-lec-glifo { color: var(--pr-warn); }
+.cu-lec-item--crit .cu-lec-glifo { color: var(--pr-crit); } .cu-lec-item--info .cu-lec-glifo { color: var(--pr-sky); }
+.cu-lec-cuerpo { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.cu-lec-tit { font-weight: 700; color: var(--pr-t1); }
+.cu-lec-ir { align-self: flex-start; min-height: 32px; padding: 2px 0; border: 0; background: none; color: var(--pr-sky); font: 700 13px var(--pr-body); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+@media (pointer: coarse) { .cu-lec-ir { min-height: 44px; } }
+
+/* ── Indicadores por sección ──────────────────────────────────────────────── */
+.cu-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin: 12px 0; }
+.cu-kpis--4 .ui-kpi--compacta .ui-kpi__num { font-size: 30px; }
+html[data-device='phone'] .cu-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* ── Balance de la cuenca: barras divergentes del cambio de almacenamiento ── */
+.cu-bc-barras { display: grid; gap: 6px; margin: 8px 0 14px; padding: 0; list-style: none; }
+.cu-bc-fila { display: grid; grid-template-columns: minmax(96px, 150px) minmax(0, 1fr) minmax(120px, auto); align-items: center; gap: 10px; font-size: 13px; }
+.cu-bc-nombre { font-weight: 700; color: var(--pr-t1); }
+.cu-bc-pista { position: relative; height: 16px; border-radius: 4px; background: var(--pr-surface); border-left: 0; background-image: linear-gradient(var(--pr-t3), var(--pr-t3)); background-size: 1px 100%; background-position: 50% 0; background-repeat: no-repeat; }
+.cu-bc-barra { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; }
+.cu-bc-barra--sube { background: var(--pr-ok); } .cu-bc-barra--baja { background: var(--pr-warn); }
+.cu-bc-sd { position: absolute; inset: 2px 20%; border-radius: 3px; background: repeating-linear-gradient(135deg, transparent 0 3px, var(--pr-t3) 3px 4px); opacity: 0.6; }
+.cu-bc-val { font: 700 13px var(--pr-mono); color: var(--pr-t1); text-align: right; font-variant-numeric: tabular-nums; }
+.cu-bc-val small { font: 400 12px var(--pr-body); color: var(--pr-t3); }
+html[data-device='phone'] .cu-bc-fila { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+html[data-device='phone'] .cu-bc-pista { grid-column: 1 / -1; grid-row: 2; }
+
+/* ── Esquema de la red: estaciones hidrométricas ──────────────────────────── */
+.cu-red-est { fill: color-mix(in srgb, var(--pr-sky) 14%, transparent); stroke: var(--pr-sky); stroke-width: 1.2; }
+.cu-red-est--off { stroke: var(--pr-warn); stroke-dasharray: 4 3; fill: transparent; }
+.cu-red-est-t { fill: var(--pr-t1); font: 700 10.5px var(--pr-mono); }
+.cu-red-est-tallo { stroke: var(--pr-sky); stroke-width: 1.2; }
+.cu-hid-enlace--en_linea { color: var(--pr-ok); } .cu-hid-enlace--retraso { color: var(--pr-warn); }
+.cu-hid-enlace--sin_transmision { color: var(--pr-crit); } .cu-hid-enlace--sd { color: var(--pr-t3); }
+.cu-nota-fila--aviso { color: var(--pr-warn); }
+
+/* ── Vasos por satélite: cabecera, cifra grande y serie ───────────────────── */
+.cu-vs-cab { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; }
+.cu-vs-edad { font-size: 12px; font-weight: 700; white-space: nowrap; }
+.cu-vs-edad--ok { color: var(--pr-ok); } .cu-vs-edad--warn { color: var(--pr-warn); } .cu-vs-edad--sd { color: var(--pr-t3); }
+.cu-vs-cifra { display: flex; flex-direction: column; gap: 2px; }
+.cu-vs-num { font: 800 28px/1 var(--pr-display); color: var(--pr-t1); font-variant-numeric: tabular-nums; }
+.cu-vs-num small { font: 600 13px var(--pr-body); color: var(--pr-t3); }
+.cu-vs-sub { font-size: 12px; color: var(--pr-t3); }
+.cu-vs-aviso { margin: 0; font-size: 12px; color: var(--pr-warn); }
+.cu-vs-fig { margin: 0; }
+.cu-vs-fig .cu-vs-serie { width: 100%; height: 62px; }
+.cu-vs-ejes { display: flex; justify-content: space-between; gap: 6px; font: 400 12px var(--pr-mono); color: var(--pr-t3); }
+.cu-vs-pto { fill: var(--pr-sky); } .cu-vs-pto--ult { stroke: var(--pr-t1); stroke-width: 1.5; }
+.cu-vs-pto--debil { fill: var(--pr-bg); stroke: var(--pr-warn); stroke-width: 1.5; }
+
+/* Tabla de estaciones: el nombre, su etiqueta y el tramo van en líneas separadas. */
+#cu-hidro .cu-nota-fila { display: block; margin-top: 2px; }
+#cu-hidro .cu-tag { display: inline-block; margin: 0 0 2px 8px; }
+#cu-hidro .cu-tabla tbody th { min-width: 220px; }
+
+/* Controles segmentados largos (periodos, años): en teléfono pasan a varias filas en vez de desbordar. */
+html[data-device='phone'] .cu-ctl .an-seg { flex-wrap: wrap; max-width: 100%; }
+html[data-device='phone'] .cu-ctl .an-seg-btn { flex: 1 1 auto; padding-inline: 10px; }

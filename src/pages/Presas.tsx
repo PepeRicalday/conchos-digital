@@ -14,6 +14,8 @@ import { useFecha } from '../context/FechaContext';
 import { usePresas, type PresaData, type MovimientoPresaData } from '../hooks/usePresas';
 import { getTodayString, addDays, getLocalDatetimeInput } from '../utils/dateHelpers';
 import PresaLecturaBand from '../components/PresaLecturaBand';
+import CapturaSeguimientoPresas from '../components/presas/CapturaSeguimientoPresas';
+import '../components/presas/CapturaSeguimientoPresas.css';
 import LimnimetroPresa from '../components/LimnimetroPresa';
 import PresaHistoricoContexto from '../components/PresaHistoricoContexto';
 import BotonInfografiaPresas from '../components/BotonInfografiaPresas';
@@ -129,12 +131,19 @@ const TIPO_MOV_META: Record<TipoMovimiento, { color: string; icon: string; desc:
     AJUSTE:     { color: '#a78bfa', icon: '≈', desc: 'Ajuste operativo menor'    },
 };
 
-const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
+type ModoRegistro = 'texto' | 'movimiento';
+
+const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate, modoInicial = 'texto' }: {
     isOpen: boolean,
     onClose: () => void,
     presa: PresaData,
-    onSourceUpdate: () => void
+    onSourceUpdate: () => void,
+    modoInicial?: ModoRegistro
 }) => {
+    const [modo, setModo]           = useState<ModoRegistro>(modoInicial);
+    // La pantalla se recarga al cerrar (no al guardar) para que el aviso de «guardado» alcance a leerse.
+    const [textoGuardado, setTextoGuardado] = useState(false);
+    useEffect(() => { if (isOpen) { setModo(modoInicial); setTextoGuardado(false); } }, [isOpen, modoInicial]);
     const [gasto, setGasto]         = useState('');
     const [tipo, setTipo]           = useState<TipoMovimiento>('AJUSTE');
     const [responsable, setResp]    = useState('');
@@ -188,15 +197,21 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
 
     return (
         <Modal
-            abierto onCerrar={onClose} tamano="md" kicker="Movimientos de presa · registro con trazabilidad"
-            titulo={`Orden de operación — ${presa.nombre_corto}`}
-            icono={<span aria-hidden="true" style={{ color: tipoMeta.color, fontSize: 20 }}>{tipoMeta.icon}</span>}
-            pie={<>
+            abierto onCerrar={onClose} tamano={modo === 'texto' ? 'lg' : 'md'}
+            kicker={modo === 'texto' ? 'Captura manual · prioridad sobre CILA' : 'Movimientos de presa · registro con trazabilidad'}
+            titulo={modo === 'texto' ? 'Seguimiento de presas (texto plano)' : `Orden de operación — ${presa.nombre_corto}`}
+            icono={<span aria-hidden="true" style={{ color: modo === 'texto' ? '#3FB2F3' : tipoMeta.color, fontSize: 20 }}>{modo === 'texto' ? '≋' : tipoMeta.icon}</span>}
+            pie={modo === 'movimiento' ? <>
                 <Boton onClick={onClose}>Cancelar</Boton>
                 <Boton type="submit" form="rmm-form" variante="primario" cargando={isSaving}>{isSaving ? 'Registrando…' : `Confirmar ${tipo}`}</Boton>
-            </>}
+            </> : undefined}
         >
-                <form id="rmm-form" onSubmit={handleSubmit} className="space-y-5">
+                <div className="seg-tabs" role="group" aria-label="Qué registrar">
+                    <button type="button" className="seg-tab" aria-pressed={modo === 'texto'} onClick={() => setModo('texto')}>Seguimiento de presas</button>
+                    <button type="button" className="seg-tab" aria-pressed={modo === 'movimiento'} onClick={() => setModo('movimiento')}>Orden de operación</button>
+                </div>
+                {modo === 'texto' && <CapturaSeguimientoPresas onCerrar={() => { onClose(); if (textoGuardado) onSourceUpdate(); }} onGuardado={() => setTextoGuardado(true)} />}
+                {modo === 'movimiento' && <form id="rmm-form" onSubmit={handleSubmit} className="space-y-5">
 
                     {/* Tipo de movimiento */}
                     <div className="space-y-2">
@@ -282,7 +297,7 @@ const RegisterMovementModal = ({ isOpen, onClose, presa, onSourceUpdate }: {
                             <AlertTriangle size={13} /> {validErr}
                         </div>
                     )}
-                </form>
+                </form>}
         </Modal>
     );
 };
@@ -482,6 +497,7 @@ const Presas = () => {
     const { presas, aforos, movimientos, movimientosHistorial, loading, error } = usePresas(fechaSeleccionada);
     const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
     const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+    const [modoRegistro, setModoRegistro] = useState<ModoRegistro>('texto');
     // Enlaces profundos del Dashboard: ?tab=analitica&vista=goes|ciclo (valores inválidos se ignoran).
     const [params] = useSearchParams();
     const [activeTab, setActiveTab] = useState<'operacion' | 'analitica'>(() => (params.get('tab') === 'analitica' ? 'analitica' : 'operacion'));
@@ -673,7 +689,7 @@ const Presas = () => {
                         <span className="scada-clock-date">{horaActual.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                     </div>
                     {puedeEscribir && (
-                    <button type="button" onClick={() => setIsMoveModalOpen(true)} className="scada-action-btn scada-action-btn--primary">
+                    <button type="button" onClick={() => { setModoRegistro('texto'); setIsMoveModalOpen(true); }} className="scada-action-btn scada-action-btn--primary">
                         <PlusCircle size={11} />Registrar
                     </button>
                     )}
@@ -946,7 +962,7 @@ const Presas = () => {
                         <Clock size={11} className="text-slate-400" />
                         <span>Historial de operaciones</span>
                         {puedeEscribir && (
-                        <button type="button" onClick={() => setIsMoveModalOpen(true)} className="scada-hist-btn">
+                        <button type="button" onClick={() => { setModoRegistro('movimiento'); setIsMoveModalOpen(true); }} className="scada-hist-btn">
                             <PlusCircle size={9} />Registrar
                         </button>
                         )}
@@ -997,6 +1013,7 @@ const Presas = () => {
             {/* Modal */}
             <RegisterMovementModal
                 isOpen={isMoveModalOpen}
+                modoInicial={modoRegistro}
                 onClose={() => setIsMoveModalOpen(false)}
                 presa={currentDam}
                 onSourceUpdate={() => window.location.reload()}

@@ -6,6 +6,7 @@ import {
     type ClimatologiaHoy, type FilaClimatologia,
 } from '../utils/aqwpEstadistica';
 import { hoyLocalISO } from '../utils/hoyLocal';
+import { aplicarSeguimiento } from '../utils/seguimientoPresas';
 import {
     limpiarAlmacenamiento, normalizarEstado, resumenLluvia, restarDias, serieLlenado, ORDEN_PRESAS_CUENCA,
     type EstadoUbicacion, type FilaGrafica, type LecturaDiariaAqwp, type ResumenLluvia,
@@ -115,7 +116,20 @@ export function useAqwpCuenca({ conSerie = true, refrescoMs = 0 }: OpcionesCuenc
                 const fallo = estRes.error ?? cilaRes.error ?? dsRes.error ?? syncRes.error ?? lluviaDsRes.error;
                 if (fallo) throw new Error(fallo.message);
 
-                const estados = (estRes.data ?? []).map(normalizarEstado);
+                // La captura manual («Seguimiento de presas») es prioritaria sobre AQUARIUS: si es igual o más reciente, lo sustituye.
+                // Si la consulta falla se queda AQUARIUS tal cual (la vista no depende de la captura).
+                let estados = (estRes.data ?? []).map(normalizarEstado);
+                try {
+                    const seg = await (supabase as unknown as { from: (t: string) => { select: (c: string) => { not: (c: string, o: string, v: null) => { gte: (c: string, v: string) => PromiseLike<{ data: Record<string, unknown>[] | null; error: unknown }> } } } })
+                        .from('seguimiento_presas').select('aqwp_ubicacion_id, fecha, almacenamiento_mm3, ingreso_m3s, extraccion_m3s')
+                        .not('aqwp_ubicacion_id', 'is', null).gte('fecha', restarDias(hoyLocalISO(), 10));
+                    if (!seg.error && seg.data?.length) {
+                        estados = aplicarSeguimiento(estados, seg.data.map((r) => ({
+                            aqwpUbicacionId: Number(r.aqwp_ubicacion_id), fecha: String(r.fecha), almacenamientoMm3: Number(r.almacenamiento_mm3),
+                            ingresoM3s: num(r.ingreso_m3s), extraccionM3s: num(r.extraccion_m3s),
+                        }))).estados;
+                    }
+                } catch { /* sin captura: AQUARIUS tal cual */ }
                 const datasets = (dsRes.data ?? []) as { id_number: number; ubicacion_id: number }[];
                 const idsPresas = new Set<number>(ORDEN_PRESAS_CUENCA);
                 const delPresas = datasets.filter(d => idsPresas.has(d.ubicacion_id));

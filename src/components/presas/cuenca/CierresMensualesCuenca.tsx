@@ -120,7 +120,7 @@ export default function CierresMensualesCuenca({ datos }: { datos: DatosCuerposA
       <div className="cu-controles" role="group" aria-label="Año y magnitud de los cierres">
         <div className="cu-ctl">
           <span className="cu-ctl-etq" id="cu-cm-anio">Año</span>
-          <div className="an-seg" role="group" aria-labelledby="cu-cm-anio">
+          <div className="an-seg cu-seg-envuelve" role="group" aria-labelledby="cu-cm-anio">
             {[...anios].reverse().map((a) => <button key={a} type="button" className="an-seg-btn" aria-pressed={anio === a} onClick={() => setAnio(a)}>{a}</button>)}
             <button type="button" className="an-seg-btn" aria-pressed={anio === 'todo'} onClick={() => setAnio('todo')}>Todo</button>
           </div>

@@ -100,3 +100,15 @@ describe('prioridad sobre AQUARIUS', () => {
     expect(r.sustituidas.size).toBe(0);
   });
 });
+
+import { resolverNivel } from '../../supabase/functions/presas-cila-sync/resolver';
+describe('la captura de seguimiento prevalece sobre CILA', () => {
+  it('con la lectura del día guardada por el seguimiento, CILA responde «campo_prevalece» y no la toca', () => {
+    const r = analizarSeguimiento(TEXTO, '2026-11-11');
+    const fila = filaLecturaPresas(r.lecturas[0], 2846.782, 'Gerencia');
+    const existente = { almacenamiento_mm3: fila!.almacenamiento_mm3, escala_msnm: fila!.escala_msnm, porcentaje_llenado: fila!.porcentaje_llenado, notas: fila!.notas };
+    // CILA publica un valor distinto (827.528) y el almacenamiento previo de CILA era otro: no debe sobrescribir.
+    expect(resolverNivel(existente, 827.528, 2846.782, [], 819.803).accion).toBe('campo_prevalece');
+    expect(resolverNivel(existente, 827.53, 2846.782, [], 827.53).accion).toBe('campo_prevalece');
+  });
+});

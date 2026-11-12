@@ -7,9 +7,9 @@ import { ID_OJINAGA_IBWC, ID_OJINAGA_SUTRON, estadoEnlace, type EstacionHidro, t
 export interface SitioRed {
   corto: string;
   tramo: string;
-  /** entrada = mide lo que llega a un vaso · rio = cauce entre dos vasos · salida = aforo de salida de la cuenca. */
+  /** entrada = mide lo que llega a un vaso · rio = el Conchos entre el distrito y el vaso de cierre · salida = aforo de salida de la cuenca. */
   rol: 'entrada' | 'rio' | 'salida';
-  /** presa_id del vaso junto al que se dibuja (entrada: arriba de él; rio: abajo de él). null = en la salida de la cuenca. */
+  /** presa_id del vaso al que entra lo que mide (solo estaciones de entrada). null = sobre el río, sin vaso propio. */
   presaId: string | null;
   /** Cuerpo de agua al que llega el agua que mide. */
   haciaTxt: string;
@@ -19,7 +19,8 @@ export interface SitioRed {
 export const SITIOS_RED: Record<string, SitioRed> = {
   C63009B2: { corto: 'Boca del Río', tramo: 'Río Conchos, antes de La Boquilla', rol: 'entrada', presaId: 'PRE-001', haciaTxt: 'La Boquilla', reserva: null },
   C6301AC4: { corto: 'Vírgenes', tramo: 'Río San Pedro, antes de F. I. Madero', rol: 'entrada', presaId: 'PRE-002', haciaTxt: 'F. I. Madero', reserva: null },
-  C6301416: { corto: 'Babisas', tramo: 'Río San Pedro, entre F. I. Madero y Luis L. León', rol: 'rio', presaId: 'PRE-002', haciaTxt: 'Luis L. León', reserva: 'El sensor no reporta gastos menores a 15 m³/s: bajo ese umbral el gasto es un rango, no una cifra.' },
+  // Plano digital de ríos: Babisas (28.559, −105.423) queda sobre el Conchos, aguas abajo de las confluencias del San Pedro y del Chuvíscar.
+  C6301416: { corto: 'Babisas', tramo: 'Río Conchos a la salida del distrito, después de las confluencias del San Pedro y el Chuvíscar', rol: 'rio', presaId: null, haciaTxt: 'Luis L. León', reserva: 'El sensor no reporta gastos menores a 15 m³/s: bajo ese umbral el gasto es un rango, no una cifra.' },
   [ID_OJINAGA_IBWC]: { corto: 'Ojinaga (USIBWC)', tramo: 'Río Conchos, salida de la cuenca', rol: 'salida', presaId: null, haciaTxt: 'Río Bravo', reserva: null },
   [ID_OJINAGA_SUTRON]: { corto: 'Ojinaga (Sutron)', tramo: 'Río Conchos, salida de la cuenca · mismo sitio', rol: 'salida', presaId: null, haciaTxt: 'Río Bravo', reserva: 'Su gasto no coincide con el aforo oficial USIBWC del mismo sitio: no se usa para la salida de la cuenca.' },
 };

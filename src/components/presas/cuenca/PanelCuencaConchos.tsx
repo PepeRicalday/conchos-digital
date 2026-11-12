@@ -24,6 +24,7 @@ import { GLIFO_ESTADO } from './TanquePresa';
 import { useCuerposAgua } from '../../../hooks/useCuerposAgua';
 import { etiquetaMes, ultimoCierreConDato } from '../../../utils/cuerposAgua';
 import EsquemaRedCuenca from './EsquemaRedCuenca';
+import SistemaCuenca from './SistemaCuenca';
 import VasosSatelitalCuenca from './VasosSatelitalCuenca';
 import CierresMensualesCuenca from './CierresMensualesCuenca';
 import BalanceVaso from './BalanceVaso';
@@ -34,7 +35,7 @@ import { useSalidaCuenca } from '../../../hooks/useSalidaCuenca';
 import { gastoMedio, useHidrometriaCuenca } from '../../../hooks/useHidrometriaCuenca';
 import { VENTANAS, ID_OJINAGA_IBWC, ID_OJINAGA_SUTRON, type VentanaHidro } from '../../../utils/hidroEstaciones';
 import { cambioEn, lecturasPresas, lecturasRed, lecturasVasos, salidaCuenca, serieAlmacenamiento, lecturasCierres, type Lectura } from '../../../utils/cuencaAnalisis';
-import type { EstacionEsquema, VasoHoy } from './EsquemaRedCuenca';
+import type { VasoHoy } from './EsquemaRedCuenca';
 import '../analitica/analitica.css';
 import './cuenca.css';
 import { hoyLocalISO } from '../../../utils/hoyLocal';
@@ -73,7 +74,7 @@ type Pestana = 'resumen' | 'presas' | 'red' | 'vasos' | 'historico' | 'clima';
 const PESTANAS: { id: Pestana; t: string; ayuda: string }[] = [
     { id: 'resumen', t: 'Resumen', ayuda: 'Lo más importante y el balance de la cuenca' },
     { id: 'presas', t: 'Presas', ayuda: 'Nivel, estado y tendencia de cada presa' },
-    { id: 'red', t: 'Red y estaciones', ayuda: 'Cómo se conectan las presas y qué mide el río entre ellas' },
+    { id: 'red', t: 'Red y estaciones', ayuda: 'El recorrido del agua: lluvia, ríos, estaciones, vasos, distrito y salida' },
     { id: 'vasos', t: 'Vasos por satélite', ayuda: 'Espejo de agua de cada vaso' },
     { id: 'historico', t: 'Cierres y balance', ayuda: 'Cierres mensuales desde 2021 y balance por periodo' },
     { id: 'clima', t: 'Clima y lluvia', ayuda: 'Planos, estaciones y lluvia de la cuenca' },
@@ -239,13 +240,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
         ...lecVasos.slice(0, 1).map((l) => ({ ...l, ir: 'vasos', irTxt: 'Ver los vasos' })),
     ];
 
-    // Red: estaciones hidrométricas en el esquema y coherencia contra la aportación publicada.
-    const estEsquema: EstacionEsquema[] = hidro.estaciones.flatMap((e) => {
-        if (e.sitio.rol === 'salida' || !e.sitio.presaId) return [];
-        const cuerpo = cuerpos.datos?.cuerpos.find((c) => c.presaId === e.sitio.presaId);
-        const q = gastoMedio(e.stat);
-        return cuerpo ? [{ id: e.est.id, nombre: e.sitio.corto, cuerpoId: cuerpo.id, lado: e.sitio.rol === 'entrada' ? 'entrada' as const : 'abajo' as const, texto: q == null ? 'S/D' : `${formatearNumero(q, q < 10 ? 2 : 1)} m³/s`, enLinea: e.enlace.clave === 'en_linea' || e.enlace.clave === 'retraso' }] : [];
-    });
+    // Red: coherencia de las estaciones hidrométricas contra la aportación publicada.
     const porId = new Map(hidro.estaciones.map((e) => [e.est.id, e]));
     const ibwc = gastoMedio(porId.get(ID_OJINAGA_IBWC)?.stat ?? null), sutron = gastoMedio(porId.get(ID_OJINAGA_SUTRON)?.stat ?? null);
     const cruces = [{ id: 'C63009B2', presa: 'La Boquilla', fila: boquilla }, { id: 'C6301AC4', presa: 'F. I. Madero', fila: madero }].flatMap((c) => {
@@ -383,7 +378,12 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                 <>
                     {estadoCuerpos}
                     <LecturaCuenca titulo="Qué mirar en la red" lecturas={lecRed} />
-                    {cuerpos.datos && <EsquemaRedCuenca cuerpos={cuerpos.datos.cuerpos} cierres={cuerpos.datos.cierres} ojinagaM3s={ojinaga?.gastoM3s ?? null} ojinagaFecha={ojinaga?.fecha ?? null} hoy={hoyVasos} estaciones={estEsquema} />}
+                    {cuerpos.datos && (
+                        <SistemaCuenca cuerpos={cuerpos.datos} modelos={calc.modelos} estaciones={hidro.estaciones} ventHidro={ventHidro} onVentHidro={setVentHidro}
+                            lluvia={jcas.red?.modelo ?? null} lluviaEstado={jcas.red?.modelo ? 'lista' : jcas.loading ? 'cargando' : 'error'} ventanaObs={ventanaObs} onVentanaObs={setVentanaObs}
+                            ojinaga={ojinaga} salidaMedia30={sal30?.gastoMedio ?? null}
+                            onIr={(p, ubicacionId) => { if (ubicacionId != null) { setSel(ubicacionId); setVista('tanques'); } setPestana(p); }} />
+                    )}
                     <HidrometriaCuenca estaciones={hidro.estaciones} ventana={ventHidro} onVentana={setVentHidro} cargando={hidro.cargando} error={hidro.error} />
                     {avisoSinTelemetria}
                 </>

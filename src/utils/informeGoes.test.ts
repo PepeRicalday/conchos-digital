@@ -204,7 +204,7 @@ describe('datos', () => {
     it('agrupación: Babisas es río (San Pedro) y Boca del Río / Madero–Vírgenes son entradas', () => {
         const d = prepararInformeGoes(entrada());
         const g = (id: string) => d.estaciones.find((e) => e.id === id)!;
-        expect(g('C6301416').grupoTitulo).toBe('Río San Pedro');
+        expect(g('C6301416').grupoTitulo).toBe('Río Conchos · salida del distrito');
         expect(g('C63009B2').entrada).toBe(true);
         expect(g('C6301AC4').entrada).toBe(true);
         expect(g('C6300760').entrada).toBe(false);

@@ -43,16 +43,16 @@ function entrada(over: { ultimoMs?: number; ultimoMsBoca?: number } = {}) {
 }
 
 describe('construirDatosInfografiaGoes', () => {
-    it('agrupa y rotula: entradas a presa, Babisas río San Pedro, Ojinaga río', () => {
+    it('agrupa y rotula: entradas a presa, Babisas en el Conchos a la salida del distrito, Ojinaga río', () => {
         const d = construirDatosInfografiaGoes(entrada());
         const g = (id: string) => d.estaciones.find((e) => e.id === id)!;
         expect(g('C63009B2').rolTexto).toMatch(/Entrada a la presa La Boquilla/);
         expect(g('C6301AC4').rolTexto).toMatch(/Entrada a la presa Fco\. I\. Madero \(Las Vírgenes\)/);
-        expect(g('C6301416').grupoTitulo).toBe('Río San Pedro');
+        expect(g('C6301416').grupoTitulo).toBe('Río Conchos · salida del distrito');
         expect(g('C6301416').rolTexto).toMatch(/Estación de río/);
         expect(g('C6300760').entrada).toBe(false);
         expect(d.estaciones.map((e) => e.id)).toEqual(['C63009B2', 'C6301AC4', 'C6301416', 'C6300760']); // Boca del Río, Madero–Vírgenes, Babisas, Ojinaga
-        expect(rolTexto(EST[2])).toMatch(/San Pedro/);
+        expect(rolTexto(EST[2])).toMatch(/Río Conchos, salida del distrito/);
     });
     it('Babisas: último gasto censurado («< 15»), media como rango, spark de nivel y variación de gasto S/D', () => {
         const b = construirDatosInfografiaGoes(entrada()).estaciones.find((e) => e.id === 'C6301416')!;
@@ -105,7 +105,7 @@ describe('htmlInfografiaGoes', () => {
             for (const n of ['Ojinaga', 'Boca del Río', 'Babisas', 'Madero']) expect(h).toContain(n);
         }
         expect(html()).toMatch(/Entrada a la presa La Boquilla/);
-        expect(html()).toMatch(/Estación de río · Río San Pedro/);
+        expect(html()).toMatch(/Estación de río · Río Conchos, salida del distrito/);
     });
     it('Babisas: «< 15» y rango, nunca 0.00 como caudal; lleva la nota de umbral', () => {
         const h = html();

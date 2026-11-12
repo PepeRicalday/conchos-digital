@@ -200,6 +200,18 @@ export function diasCubiertos(m: ModeloRedJcas, v: VentanaObs): { con: number; d
 }
 const SIN_AREAL = (dias: number): LluviaAreal => ({ mm: null, motivoSD: 'sin historia diaria guardada para esta ventana', nEstaciones: 0, nExcluidas: 0, coberturaPct: 0, ventanaDias: dias, min: null, max: null });
 export const arealDe = (m: ModeloRedJcas, v: VentanaObs): LluviaAreal => (v === 'hoy' ? m.arealHoy : v === 1 ? m.areal1 : v === 7 ? m.areal7 : esVentanaLarga(v) ? (m.arealesLargas?.[String(v)] ?? SIN_AREAL(diasDeVentana(v, m.fin))) : m.areal30);
+/**
+ * Puntos de lluvia de una ventana, listos para un promedio areal: JCAS (sin los sospechosos ni los que no tienen pluviómetro) + propias,
+ * con las ciudades colapsadas y los sitios duplicados unidos. Es la MISMA lista que usa el promedio de la cuenca: quien calcule la lluvia
+ * de una parte de la cuenca (p. ej. por subcuenca) parte de aquí para no divergir.
+ */
+export function puntosLluviaDe(puntos: PuntoRedJcas[], propias: PuntoPropio[], ventana: VentanaObs): PuntoLluvia[] {
+    return deduplicarSitios(colapsarGrupos(puntos.map((p): PuntoLluvia & { grupo: string | null } => ({
+        id: String(p.id), fuente: 'jcas', nombre: p.nombre, lat: p.lat, lon: p.lon,
+        mm: p.sospechosa || p.sinPluviometro ? null : valorObs(p, 'lluvia', ventana), grupo: p.grupo,
+    })).concat(propias.map((p) => ({ id: p.id, fuente: 'weatherlink' as const, nombre: p.nombre, lat: p.lat, lon: p.lon, mm: mmPropio(p, ventana), grupo: null })))));
+}
+
 /** Una estación con su último día completo a más de 3 días del corte se considera atrasada. */
 export const DIAS_ATRASO = 3;
 
@@ -304,10 +316,7 @@ export function construirRedJcas(
     const arma = (ventana: VentanaObs): LluviaAreal => {
         const nDias = diasDeVentana(ventana, fin);
         if (nDias < 1) return { mm: null, motivoSD: 'el ciclo agrícola apenas comienza: aún no hay días completos', nEstaciones: 0, nExcluidas: 0, coberturaPct: 0, ventanaDias: 0, min: null, max: null };
-        const pts = deduplicarSitios(colapsarGrupos(puntos.map((p): PuntoLluvia & { grupo: string | null } => ({
-            id: String(p.id), fuente: 'jcas', nombre: p.nombre, lat: p.lat, lon: p.lon,
-            mm: p.sospechosa || p.sinPluviometro ? null : valorObs(p, 'lluvia', ventana), grupo: p.grupo,
-        })).concat(propias.map((p) => ({ id: p.id, fuente: 'weatherlink' as const, nombre: p.nombre, lat: p.lat, lon: p.lon, mm: mmPropio(p, ventana), grupo: null })))));
+        const pts = puntosLluviaDe(puntos, propias, ventana);
         // El promedio se calcula DENTRO del polígono de la cuenca; Ojinaga (a la salida) aporta como vecina en el borde.
         const a = lluviaAreal(poligonos, pts, nDias);
         // En ventanas largas, un S/D casi siempre es historia corta: se dice con la fecha de inicio de lo guardado.

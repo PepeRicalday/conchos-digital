@@ -101,7 +101,7 @@ const var1 = (t: { dir: 'sube' | 'baja' | 'estable'; delta: number } | null | un
 
 export function rolTexto(e: Pick<EstacionHidro, 'rol' | 'presa_id'>): string {
     if (esEntradaPresa(e)) return `Entrada a la presa ${e.presa_id === 'PRE-001' ? 'La Boquilla' : 'Fco. I. Madero (Las Vírgenes)'}`;
-    return e.rol === 'rio_san_pedro' ? 'Estación de río · Río San Pedro' : 'Estación de río · Río Conchos';
+    return e.rol === 'rio_san_pedro' ? 'Estación de río · Río Conchos, salida del distrito' : 'Estación de río · Río Conchos';
 }
 
 const resumirSpark = (puntos: { t: number; v: number }[], desde: number, hasta: number): { t: number; v: number }[] => {

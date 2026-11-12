@@ -3,7 +3,7 @@ import { VENTANAS, fechaHoraLocal, fmt, textoEdad, type VentanaHidro } from '../
 import { textoGasto, type EstacionRed } from '../../../hooks/useHidrometriaCuenca';
 
 const GLIFO_ENLACE = { en_linea: '●', retraso: '◐', sin_transmision: '■', sd: '◇' } as const;
-const ROL_TXT = { entrada: 'Entrada a vaso', rio: 'Cauce entre vasos', salida: 'Salida de la cuenca' } as const;
+const ROL_TXT = { entrada: 'Entrada a vaso', rio: 'Río, salida del distrito', salida: 'Salida de la cuenca' } as const;
 
 function volumenTxt(e: EstacionRed): string {
   const s = e.stat;

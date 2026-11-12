@@ -359,7 +359,8 @@ export type GrupoHidro = 'PRE-001' | 'PRE-002' | 'san_pedro' | 'rio';
 
 /**
  * Agrupación para las tarjetas. Boca del Río (PRE-001) y Madero–Vírgenes (PRE-002) son ENTRADAS a su presa; Babisas
- * (rol 'rio_san_pedro') es estación de RÍO sobre el cauce del San Pedro hacia la presa El Granero; Ojinaga es río.
+ * (rol 'rio_san_pedro', nombre histórico de la clave) es estación de RÍO sobre el CONCHOS a la salida del distrito: el plano digital de ríos
+ * la ubica aguas abajo de las confluencias del San Pedro y del Chuvíscar, antes de la presa Luis L. León (El Granero). Ojinaga es río.
  */
 export function grupoDeEstacion(e: Pick<EstacionHidro, 'presa_id'> & { rol?: string | null }): GrupoHidro {
     if (e.rol === 'rio_san_pedro') return 'san_pedro';
@@ -369,7 +370,7 @@ export function grupoDeEstacion(e: Pick<EstacionHidro, 'presa_id'> & { rol?: str
 export const TITULO_GRUPO: Record<GrupoHidro, string> = {
     'PRE-001': 'La Boquilla',
     'PRE-002': 'Francisco I. Madero',
-    san_pedro: 'Río San Pedro',
+    san_pedro: 'Río Conchos · salida del distrito',
     rio: 'Río Conchos',
 };
 

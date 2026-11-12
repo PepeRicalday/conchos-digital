@@ -47,6 +47,12 @@ describe('formato', () => {
 });
 
 describe('origen de la lectura', () => {
+    it('si una presa va con captura y otra con CILA (regla de respaldo), la fuente es mixta y lo dice', () => {
+        const d = construirDatosInfografia([{ ...boquilla(), fuenteDato: 'captura' }, { ...madero(), fuenteDato: 'cila' }], 'captura');
+        expect(d.origen).toBe('mixta');
+        expect(d.fuente).toMatch(/donde no hubo captura del día se publica el dato CILA/);
+        expect(construirDatosInfografia([{ ...boquilla(), fuenteDato: 'cila' }, { ...madero(), fuenteDato: 'cila' }], 'captura').origen).toBe('cila');
+    });
     it('la fuente impresa depende del origen: captura de la Gerencia o reporte CILA/IBWC', () => {
         expect(construirDatosInfografia([boquilla(), madero()], 'captura').fuente).toMatch(/Seguimiento de presas/);
         expect(construirDatosInfografia([boquilla(), madero()]).fuente).toBe(FUENTE_INFOGRAFIA);

@@ -36,6 +36,8 @@ export interface EntradaPresaInfografia {
     salida: { valor: number | null; conocida: boolean };
     /** Contraste captura ↔ CILA del mismo día (se imprime en la tarjeta). */
     confirmacion?: Confirmacion | null;
+    /** De dónde salió la lectura de ESTA presa. Si no se indica, la del origen general. */
+    fuenteDato?: OrigenInfografia;
 }
 
 export interface DatosPresaInfografia {
@@ -60,7 +62,8 @@ export interface DatosPresaInfografia {
 }
 
 export interface DatosInfografia {
-    origen: OrigenInfografia;
+    /** 'mixta' = alguna presa se publica con captura y otra con CILA (regla: sin captura del día manda CILA). */
+    origen: OrigenInfografia | 'mixta';
     presas: DatosPresaInfografia[];
     conjunto: { totalMm3: number | null; presasConDato: number; presasTotal: number; parcial: boolean };
     corte: { fechaDato: string | null; instante: string | null; texto: string | null };
@@ -71,6 +74,7 @@ export interface DatosInfografia {
 
 export const FUENTE_INFOGRAFIA = 'Fuente: International Boundary & Water Commission (IBWC), United States and Mexico.';
 export const FUENTE_CAPTURA = 'Fuente: Seguimiento de presas de SRL Unidad Conchos (captura de la Gerencia), contrastado con el reporte CILA/IBWC.';
+export const FUENTE_MIXTA = 'Fuente: Seguimiento de presas de SRL Unidad Conchos y reporte CILA/IBWC (donde no hubo captura del día se publica el dato CILA).';
 export const LIMITACION_INFOGRAFIA = 'El almacenamiento reportado no equivale a volumen autorizado para riego.';
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -160,6 +164,8 @@ function datosPresa(e: EntradaPresaInfografia): DatosPresaInfografia {
 
 export function construirDatosInfografia(entradas: EntradaPresaInfografia[], origen: OrigenInfografia = 'cila'): DatosInfografia {
     const presas = entradas.map(datosPresa);
+    const fuentes = new Set(entradas.map((e) => e.fuenteDato ?? origen));
+    const origenFinal: OrigenInfografia | 'mixta' = fuentes.size > 1 ? 'mixta' : [...fuentes][0] ?? origen;
 
     const agregado = agregarAlmacenamiento(entradas.map(e => ({
         capacidad_max_mm3: e.actual?.cap_conservacion_mm3 ?? 0,
@@ -185,8 +191,8 @@ export function construirDatosInfografia(entradas: EntradaPresaInfografia[], ori
         conjunto: { totalMm3: agregado.totalMm3, presasConDato: agregado.presasConDato, presasTotal: agregado.presasTotal, parcial: agregado.parcial },
         corte: { fechaDato, instante, texto },
         vigencia,
-        origen,
-        fuente: origen === 'captura' ? FUENTE_CAPTURA : FUENTE_INFOGRAFIA,
+        origen: origenFinal,
+        fuente: origenFinal === 'mixta' ? FUENTE_MIXTA : origenFinal === 'captura' ? FUENTE_CAPTURA : FUENTE_INFOGRAFIA,
         limitacion: LIMITACION_INFOGRAFIA,
     };
 }

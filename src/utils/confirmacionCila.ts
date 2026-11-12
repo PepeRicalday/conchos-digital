@@ -22,7 +22,7 @@ const f = (v: number, d = 3) => v.toLocaleString('es-MX', { minimumFractionDigit
 const sg = (v: number, d = 3) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${f(Math.abs(v), d)}`;
 
 export function confirmarConCila(capturaMm3: number | null, cilaMm3: number | null, capacidadMm3: number | null): Confirmacion {
-  if (capturaMm3 == null) return { estado: 'sin_captura', difMm3: null, difPuntos: null, texto: 'Sin captura de seguimiento para este día' };
+  if (capturaMm3 == null) return { estado: 'sin_captura', difMm3: null, difPuntos: null, texto: 'Sin captura del día: se publica el dato de CILA' };
   if (cilaMm3 == null) return { estado: 'pendiente', difMm3: null, difPuntos: null, texto: 'Pendiente de confirmar: CILA aún no publica el dato del día' };
   const dif = capturaMm3 - cilaMm3;
   const puntos = capacidadMm3 != null && capacidadMm3 > 0 ? (dif / capacidadMm3) * 100 : null;
@@ -36,3 +36,13 @@ export function confirmarConCila(capturaMm3: number | null, cilaMm3: number | nu
 }
 
 export const GLIFO_CONFIRMACION: Record<EstadoConfirmacion, string> = { confirmada: '✓', difiere: '▲', pendiente: '◇', sin_captura: '◇' };
+
+/**
+ * REGLA DE RESPALDO: la captura manual se publica solo si es del día más reciente (igual o posterior al último CILA).
+ * Si no hay captura vigente (falta la de hoy, o lleva una semana sin capturarse) manda el dato CILA: jamás una captura vieja
+ * se presenta como si fuera de hoy. Sin ningún CILA, cualquier captura es la única lectura y se usa.
+ */
+export function capturaEsVigente(fechaCaptura: string | null, fechaUltimaCila: string | null): boolean {
+  if (fechaCaptura == null) return false;
+  return fechaUltimaCila == null || fechaCaptura >= fechaUltimaCila;
+}

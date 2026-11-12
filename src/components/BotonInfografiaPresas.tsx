@@ -11,7 +11,7 @@ import { rasterizaHtml } from '../utils/rasterizaHtml';
 import { cargarLogoSicaInforme, cargarLogoSrlInforme } from '../utils/logosInforme';
 import { guardaOComparte } from '../utils/descargaArchivo';
 import { Boton, Modal } from './ui/base';
-import { confirmarConCila, GLIFO_CONFIRMACION, type Confirmacion } from '../utils/confirmacionCila';
+import { capturaEsVigente, confirmarConCila, GLIFO_CONFIRMACION, type Confirmacion } from '../utils/confirmacionCila';
 import { CAPACIDAD_FIJA_MM3 } from '../utils/seguimientoPresas';
 
 const PRESAS_INFOGRAFIA: PresaId[] = ['PRE-001', 'PRE-002'];
@@ -100,11 +100,17 @@ export default function BotonInfografiaPresas({ presas }: { presas: PresaData[] 
                 const lect = presa?.lectura ?? null;
                 const res = ins.resumen.find((r) => r.id === id)!;
                 const propiasCila = ins.cila.filter((f) => f.presa_id === id); // de la más reciente a la más antigua
-                if (origen === 'cila') {
+                const sg = ins.seg.find((x) => x.clave === CLAVE_SEGUIMIENTO[id]);
+                const vol = num(sg?.almacenamiento_mm3);
+                // REGLA: la captura se usa solo si es del día más reciente (igual o posterior al último CILA). Si no hay captura
+                // vigente (hoy o hace una semana), se publica el dato CILA de esa presa: nunca una captura vieja como si fuera de hoy.
+                const capturaVigente = vol != null && capturaEsVigente(sg?.fecha ?? null, propiasCila[0]?.fecha ?? null);
+
+                if (origen === 'cila' || !capturaVigente) {
                     const hayNivel = lect?.escala_msnm != null;
-                    // Contraste informativo: la captura del mismo día (si la hay) frente a lo que publica CILA.
-                    const conf = res.captura && propiasCila[0] && res.captura.fecha === propiasCila[0].fecha ? res.confirmacion
-                        : res.captura ? confirmarConCila(res.captura.mm3, null, null) : confirmarConCila(null, null, null);
+                    const conf: Confirmacion = origen === 'cila'
+                        ? (res.captura && propiasCila[0] && res.captura.fecha === propiasCila[0].fecha ? res.confirmacion : confirmarConCila(null, null, null))
+                        : confirmarConCila(null, null, null); // respaldo: «Sin captura del día: se publica el dato de CILA»
                     return {
                         id, nombre: NOMBRE_ENCABEZADO[id],
                         actual: propiasCila[0] ? aLectura(propiasCila[0]) : null,
@@ -113,22 +119,22 @@ export default function BotonInfografiaPresas({ presas }: { presas: PresaData[] 
                         elevacion: { valor: lect?.escala_msnm ?? null, procedencia: procedenciaNivel(lect?.notas, hayNivel) },
                         salida: { valor: lect?.extraccion_conocida ? lect.extraccion_total_m3s : null, conocida: !!lect?.extraccion_conocida },
                         confirmacion: conf,
+                        fuenteDato: 'cila' as const,
                     };
                 }
-                // Origen = captura (Registrar): lectura de las 07:00 h del seguimiento; elevación y salida son las capturadas.
-                const sg = ins.seg.find((x) => x.clave === CLAVE_SEGUIMIENTO[id]);
+                // Captura vigente (Registrar): lectura de las 07:00 h del seguimiento; elevación y salida son las capturadas.
                 const cap = CAPACIDAD_FIJA_MM3[id] ?? num(propiasCila[0]?.cap_conservacion_mm3) ?? num(sg?.namo_mm3);
-                const vol = num(sg?.almacenamiento_mm3);
-                const previaL = sg ? ins.lect.find((x) => x.presa_id === id && x.fecha < sg.fecha) : undefined; // día anterior de cualquier fuente
+                const previaL = ins.lect.find((x) => x.presa_id === id && x.fecha < sg!.fecha); // lectura previa de CUALQUIER fuente (captura o CILA)
                 const pv = num(previaL?.almacenamiento_mm3);
                 return {
                     id, nombre: NOMBRE_ENCABEZADO[id],
-                    actual: sg && vol != null ? { fecha: sg.fecha, almacenamiento_mm3: vol, pct_conservacion: cap ? (vol / cap) * 100 : null, cap_conservacion_mm3: cap, archivo_last_modified: sg.hora ? `${sg.fecha}T${sg.hora.slice(0, 5)}:00-06:00` : null } : null,
+                    actual: { fecha: sg!.fecha, almacenamiento_mm3: vol, pct_conservacion: cap && vol != null ? (vol / cap) * 100 : null, cap_conservacion_mm3: cap, archivo_last_modified: sg!.hora ? `${sg!.fecha}T${sg!.hora.slice(0, 5)}:00-06:00` : null },
                     previa: previaL && pv != null ? { fecha: previaL.fecha, almacenamiento_mm3: pv, pct_conservacion: cap ? (pv / cap) * 100 : null } : null,
                     historico: indice[id],
                     elevacion: { valor: num(sg?.elevacion_msnm), procedencia: num(sg?.elevacion_msnm) != null ? 'CAMPO' as const : null },
                     salida: { valor: num(sg?.extraccion_m3s), conocida: num(sg?.extraccion_m3s) != null },
                     confirmacion: res.confirmacion,
+                    fuenteDato: 'captura' as const,
                 };
             });
 
@@ -163,7 +169,7 @@ export default function BotonInfografiaPresas({ presas }: { presas: PresaData[] 
                 <Modal abierto onCerrar={() => { if (!generando) setAbierto(false); }} tamano="md" kicker="Infografía · estado actual de las presas" titulo="¿Qué lectura se publica?"
                     pie={<Boton onClick={() => setAbierto(false)} disabled={!!generando}>Cancelar</Boton>}>
                     <p className="text-[13px] text-slate-300" style={{ marginBottom: 12 }}>
-                        Elija la fuente de las cifras de la imagen. La captura de Registrar (07:00 h) es la prioritaria; CILA la confirma cuando publica su reporte.
+                        Elija la fuente de las cifras de la imagen. La captura de Registrar (07:00 h) es la prioritaria y CILA la confirma. Regla: si una presa no tiene captura del día más reciente, se publica su dato CILA.
                     </p>
                     {cargando && <p role="status" className="text-[13px] text-slate-300"><Loader2 size={13} style={{ display: 'inline', animation: 'spin 1s linear infinite' }} /> Leyendo lecturas…</p>}
                     {ins && (

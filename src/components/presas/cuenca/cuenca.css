@@ -629,3 +629,4 @@ html[data-device='phone'] .cu-sis-paso::before { display: none; }
 @keyframes cu-sis-onda { 0% { opacity: 0.5; transform: scale(1); } 100% { opacity: 0; transform: scale(2.6); } }
 @keyframes cu-sis-resp { 50% { opacity: 0.78; } }
 @keyframes cu-sis-llovizna { 0% { opacity: 0.25; } 50% { opacity: 1; } 100% { opacity: 0.25; } }
+html[data-device='tablet'] #cu-red .cu-capa-chip, html[data-device='tablet'] #cu-red .an-seg-btn, html[data-device='tablet'] #cu-red select { min-height: 44px; }

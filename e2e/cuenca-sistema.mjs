@@ -22,6 +22,8 @@ for (const [n, w, h] of VP) {
   const sis = pg.locator('#cu-red');
   await sis.screenshot({ path: fileURLToPath(new URL(`${pref}-${n}.png`, OUT)) });
 
+  // Playwright no emula `pointer: coarse`: en el iPad se fija el atributo que useDevice pondría en un iPad real, justo antes de medir.
+  if (n === 'ipad') { await pg.evaluate(() => document.documentElement.setAttribute('data-device', 'tablet')); await pg.waitForTimeout(400); }
   const r = await pg.evaluate(() => {
     const main = document.querySelector('.main-content'), svg = document.querySelector('.cu-sis-svg');
     const caja = (e) => e.getBoundingClientRect();
@@ -54,7 +56,7 @@ for (const [n, w, h] of VP) {
   const o = r.orden, sec = [o.colina, o.florido, o.sanPedro, o.chuviscar, o.babisas, o.cierre, o.salida];
   if (sec.some((x) => x == null)) falla(`falta un elemento del tronco: ${JSON.stringify(o)}`);
   else if (sec.some((x, i) => i > 0 && x <= sec[i - 1])) falla(`orden del tronco incorrecto (Babisas debe ir tras las confluencias): ${JSON.stringify(o)}`);
-  if (w < 500 && r.tactilesMenor44) falla(`${r.tactilesMenor44} controles táctiles menores a 44 px`);
+  if (w < 1300 && r.tactilesMenor44) falla(`${r.tactilesMenor44} controles táctiles menores a 44 px`);
 
   // Ventanas: cada tipo de elemento abre la suya, resalta su recorrido y se cierra con Escape.
   for (const [tipo, texto] of [['presa', 'La Boquilla'], ['lluvia', 'Lluvia ·'], ['estacion', 'Babisas'], ['confluencia', 'Confluencia ·'], ['distrito', 'Distrito de Riego 005'], ['salida', 'Ojinaga']]) {

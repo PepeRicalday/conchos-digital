@@ -23,7 +23,6 @@ import SemaforoBadge from './SemaforoBadge';
 import { GLIFO_ESTADO } from './TanquePresa';
 import { useCuerposAgua } from '../../../hooks/useCuerposAgua';
 import { etiquetaMes, ultimoCierreConDato } from '../../../utils/cuerposAgua';
-import EsquemaRedCuenca from './EsquemaRedCuenca';
 import SistemaCuenca from './SistemaCuenca';
 import VasosSatelitalCuenca from './VasosSatelitalCuenca';
 import CierresMensualesCuenca from './CierresMensualesCuenca';
@@ -154,7 +153,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
     const setPestana = (p: Pestana) => { setPestanaEstado(p); try { localStorage.setItem(CLAVE_PESTANA, p); } catch { /* sin almacenamiento */ } window.scrollTo?.({ top: 0 }); };
     const [ventHidro, setVentHidro] = useState<VentanaHidro>('7d');
     const salida = useSalidaCuenca();
-    const hidro = useHidrometriaCuenca(ventHidro, pestana === 'red');
+    const hidro = useHidrometriaCuenca(ventHidro, pestana === 'red' || pestana === 'resumen');
 
     const calc = useMemo(() => {
         if (!datos) return null;
@@ -287,6 +286,14 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
         </>
     );
 
+    // Sinóptico «El agua en la cuenca»: se muestra igual en Resumen y en Red y estaciones.
+    const sistema = cuerpos.datos ? (
+        <SistemaCuenca cuerpos={cuerpos.datos} modelos={calc.modelos} estaciones={hidro.estaciones} ventHidro={ventHidro} onVentHidro={setVentHidro}
+            lluvia={jcas.red?.modelo ?? null} lluviaEstado={jcas.red?.modelo ? 'lista' : jcas.loading ? 'cargando' : 'error'} ventanaObs={ventanaObs} onVentanaObs={setVentanaObs}
+            ojinaga={ojinaga} salidaMedia30={sal30?.gastoMedio ?? null}
+            onIr={(p, ubicacionId) => { if (ubicacionId != null) { setSel(ubicacionId); setVista('tanques'); } setPestana(p); }} />
+    ) : null;
+
     return (
         <div className="an-root cu-root pr-reveal">
             <header className="an-head">
@@ -326,7 +333,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                     <LecturaCuenca titulo="Lo más importante hoy" lecturas={lecResumen} onIr={(p) => setPestana(p as Pestana)} />
                     {cuerpos.datos && <BalanceCuenca compacto datos={cuerpos.datos} salida={salida.lecturas} hoyISO={hoyISO} onIr={() => setPestana('historico')} />}
                     {estadoCuerpos}
-                    {cuerpos.datos && <EsquemaRedCuenca cuerpos={cuerpos.datos.cuerpos} cierres={cuerpos.datos.cierres} ojinagaM3s={ojinaga?.gastoM3s ?? null} ojinagaFecha={ojinaga?.fecha ?? null} hoy={hoyVasos} />}
+                    {sistema}
                 </>
             )}
 
@@ -378,12 +385,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                 <>
                     {estadoCuerpos}
                     <LecturaCuenca titulo="Qué mirar en la red" lecturas={lecRed} />
-                    {cuerpos.datos && (
-                        <SistemaCuenca cuerpos={cuerpos.datos} modelos={calc.modelos} estaciones={hidro.estaciones} ventHidro={ventHidro} onVentHidro={setVentHidro}
-                            lluvia={jcas.red?.modelo ?? null} lluviaEstado={jcas.red?.modelo ? 'lista' : jcas.loading ? 'cargando' : 'error'} ventanaObs={ventanaObs} onVentanaObs={setVentanaObs}
-                            ojinaga={ojinaga} salidaMedia30={sal30?.gastoMedio ?? null}
-                            onIr={(p, ubicacionId) => { if (ubicacionId != null) { setSel(ubicacionId); setVista('tanques'); } setPestana(p); }} />
-                    )}
+                    {sistema}
                     <HidrometriaCuenca estaciones={hidro.estaciones} ventana={ventHidro} onVentana={setVentHidro} cargando={hidro.cargando} error={hidro.error} />
                     {avisoSinTelemetria}
                 </>

@@ -211,7 +211,8 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
         {!l.sd && <rect width={n.w} height={n.h} rx="10" className={`cu-sis-pulso cu-sis-pulso--${est.clave}`} aria-hidden="true" />}
         <rect width={n.w} height={n.h} rx="10" className={`cu-sis-caja cu-sis-caja--${l.sd ? 'sd' : est.clave}`} />
         <rect x="5" y="7" width="4" height={n.h - 14} rx="2" className="cu-sis-nivel-pista" />
-        {lleno > 0 && <rect x="5" y={7 + (n.h - 14) * (1 - lleno)} width="4" height={(n.h - 14) * lleno} rx="2" className={`cu-sis-nivel cu-sis-nivel--${est.clave}`} />}
+        {lleno > 0 && <rect x="5" y="7" width="4" height={n.h - 14} rx="2" className={`cu-sis-nivel cu-sis-nivel--${est.clave}`} style={{ transform: `scaleY(${lleno})` }} />}
+        <path d={`M${n.w - 22},8 h12 l-1.5,9 h-9 z M${n.w - 22},20 q3,-3 6,0 t6,0`} className={`cu-sis-ico cu-sis-ico--${l.sd ? 'sd' : est.clave}`} aria-hidden="true" />
         <text x="16" y="19" className="cu-sis-t1">{c.etiqueta}</text>
         <text x="16" y="37" className="cu-sis-t2">
           {l.alm == null ? 'S/D' : <><tspan aria-hidden="true">{GLIFO_ESTADO[est.clave]} </tspan>{l.pct == null ? 'S/D' : `${f(l.pct, 1)} %`}{` · ${f(l.alm, l.alm >= 100 ? 0 : 1)} Mm³`}</>}
@@ -225,7 +226,7 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
     const r = lluviaReg.get(n.region as string), reg = regiones.find((x) => x.clave === n.region) as RegionLluvia;
     const mm = r?.areal.mm ?? null;
     const tinte = mm == null ? 0 : 0.08 + 0.3 * Math.min(1, mm / mmMax);
-    const pie = lluviaEstado === 'cargando' ? 'cargando…' : lluviaEstado === 'error' ? 'red de lluvia sin cargar' : `${r?.dentro.length ?? 0} est. dentro · ${etiquetaVentana(ventanaObs)}`;
+    const pie = lluviaEstado === 'cargando' ? 'cargando…' : lluviaEstado === 'error' ? 'red de lluvia sin cargar' : `${r?.dentro.length ?? 0} est. · ${etiquetaVentana(ventanaObs).replace(' (parcial)', '*')}`;
     return (
       <g key={n.id} {...propsNodo(n, `Lluvia en ${reg.nombre}: ${mm == null ? 'sin dato' : `${fmtLluvia(mm)} milímetros`}, ${cuandoVentana(ventanaObs)}`, mm == null)}>
         <rect width={n.w} height={n.h} rx="14" className={`cu-sis-caja cu-sis-caja--lluvia${mm == null ? ' cu-sis-caja--sd' : ''}`} style={{ fillOpacity: tinte }} />
@@ -245,7 +246,7 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
       <g key={n.id} {...propsNodo(n, `Estación hidrométrica ${e.sitio.corto}, ${e.sitio.tramo}: ${q === 'S/D' ? 'sin dato' : `${q} metros cúbicos por segundo`}, ${e.enlace.etiqueta}`, !enLinea || q === 'S/D')}>
         {enLinea && q !== 'S/D' && <rect width={n.w} height={n.h} rx={n.h / 2} className="cu-sis-pulso cu-sis-pulso--est" aria-hidden="true" />}
         <rect width={n.w} height={n.h} rx={n.h / 2} className={`cu-sis-caja cu-sis-caja--est${enLinea ? '' : ' cu-sis-caja--est-off'}`} />
-        <text x={n.w / 2} y="15" textAnchor="middle" className="cu-sis-e1"><tspan aria-hidden="true">{GLIFO_ENLACE[e.enlace.clave]} </tspan>{e.sitio.corto}</text>
+        <text x={n.w / 2} y="15" textAnchor="middle" className="cu-sis-e1"><tspan aria-hidden="true" className={`cu-sis-enl cu-sis-enl--${e.enlace.clave}`}>{GLIFO_ENLACE[e.enlace.clave]} </tspan>{e.sitio.corto}</text>
         <text x={n.w / 2} y="29" textAnchor="middle" className="cu-sis-e2">{q === 'S/D' ? 'S/D' : `${q} m³/s`}</text>
       </g>
     );
@@ -267,8 +268,10 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
 
   const dibujaConfluencia = (n: NodoSis) => {
     const k = n.confluencia!;
+    const entra = dis.arcos.some((a) => a.a === n.id && a.tipo !== 'lluvia' && gastoArco(a) != null);
     return (
       <g key={n.id} {...propsNodo(n, `Confluencia del ${k.afluente} con el río Conchos, ${k.cerca}`)}>
+        {entra && <circle cx={n.w / 2} cy={n.h / 2} r="9" className="cu-sis-halo" aria-hidden="true" />}
         <circle cx={n.w / 2} cy={n.h / 2} r="16" className="cu-sis-conf-zona" />
         <circle cx={n.w / 2} cy={n.h / 2} r="7" className="cu-sis-caja cu-sis-caja--conf" />
       </g>
@@ -279,6 +282,7 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
     <g key={n.id} {...propsNodo(n, `Salida de la cuenca en Ojinaga: ${qSalida == null ? 'sin dato' : `${q2(qSalida)} metros cúbicos por segundo`}`, qSalida == null)}>
       {qSalida != null && <rect width={n.w} height={n.h} rx="10" className="cu-sis-pulso cu-sis-pulso--est" aria-hidden="true" />}
       <rect width={n.w} height={n.h} rx="10" className="cu-sis-caja cu-sis-caja--salida" />
+      <path d={`M${n.w - 30},13 q3.5,-4 7,0 t7,0 t7,0 M${n.w - 30},19 q3.5,-4 7,0 t7,0 t7,0`} className="cu-sis-ico cu-sis-ico--ola" aria-hidden="true" />
       <text x="11" y="19" className="cu-sis-t1">Ojinaga · salida</text>
       <text x="11" y="38" className="cu-sis-t2 cu-sis-t2--g">{qSalida == null ? 'S/D' : `${q2(qSalida)} m³/s`}</text>
       <text x="11" y="52" className="cu-sis-t3">aforo USIBWC{ojinaga?.fecha ? ` · ${diaCorto(ojinaga.fecha)}` : ''}</text>
@@ -288,6 +292,7 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
   const dibujaBravo = (n: NodoSis) => (
     <g key={n.id} {...propsNodo(n, 'Río Bravo, frente a Ojinaga: el Conchos le entrega su agua')}>
       <rect width={n.w} height={n.h} rx="10" className="cu-sis-caja cu-sis-caja--bravo" />
+      <path d={`M${n.w - 30},13 q3.5,-4 7,0 t7,0 t7,0 M${n.w - 30},19 q3.5,-4 7,0 t7,0 t7,0`} className="cu-sis-ico cu-sis-ico--ola" aria-hidden="true" />
       <text x="11" y="19" className="cu-sis-t1">Río Bravo (Grande)</text>
       <text x="11" y="38" className="cu-sis-t2">recibe al Conchos</text>
       <text x="11" y="52" className="cu-sis-t3">Ojinaga · Presidio</text>
@@ -509,10 +514,10 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
     return { ...lado, top: `clamp(8px, calc(${((n.y + n.h / 2) / dis.alto) * 100}% - 210px), calc(100% - 428px))` };
   })();
 
-  const pasos: { t: string; v: string; u: string; n: string }[] = [
+  const pasos: { t: string; v: string; u: string; n: string; pct?: number | null }[] = [
     { t: 'Llueve', v: arealCuenca?.mm == null ? 'S/D' : fmtLluvia(arealCuenca.mm), u: 'mm', n: arealCuenca?.mm == null ? (lluviaEstado === 'cargando' ? 'cargando estaciones' : 'sin promedio areal') : `promedio de la cuenca · ${etiquetaVentana(ventanaObs)}` },
     { t: 'Llega a los vasos', v: q2(aport.total), u: 'm³/s', n: `aportaciones · ${aport.conDato} de ${filas.length} presas` },
-    { t: 'Se almacena', v: agregado.totalMm3 == null ? 'S/D' : f(agregado.totalMm3, 0), u: 'Mm³', n: agregado.porcentaje == null ? 'sin lectura vigente' : `${f(agregado.porcentaje, 1)} % del NAMO` },
+    { t: 'Se almacena', pct: agregado.porcentaje, v: agregado.totalMm3 == null ? 'S/D' : f(agregado.totalMm3, 0), u: 'Mm³', n: agregado.porcentaje == null ? 'sin lectura vigente' : `${f(agregado.porcentaje, 1)} % del NAMO` },
     { t: 'Sale de los vasos', v: q2(extr.total), u: 'm³/s', n: `extracciones · ${extr.conDato} de ${filas.length} presas` },
     { t: 'Entra al distrito', v: q2(k0.gasto), u: 'm³/s', n: k0.gasto == null ? (k0.ultimoAforoM3s != null ? `K-0 sin medición vigente · último ${q2(k0.ultimoAforoM3s)}` : 'K-0 sin medición vigente') : 'Canal Conchos en K-0' },
     { t: 'Sale de la cuenca', v: q2(qSalida), u: 'm³/s', n: `Ojinaga, aforo USIBWC${ojinaga?.fecha ? ` · ${diaCorto(ojinaga.fecha)}` : ''}` },
@@ -549,6 +554,7 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
             <span className="cu-sis-paso-t"><span className="cu-sis-paso-i" aria-hidden="true">{i + 1}</span>{p.t}</span>
             <span className="cu-sis-paso-v">{p.v}{p.v !== 'S/D' && <small> {p.u}</small>}</span>
             <span className="cu-sis-paso-n">{p.n}</span>
+            {p.pct != null && <Barra pct={p.pct} clase="cu-sis-barra-v--ok" marcas={[20, 40]} />}
           </li>
         ))}
       </ol>
@@ -584,7 +590,7 @@ export default function SistemaCuenca({ cuerpos, modelos, estaciones, ventHidro,
               const sd = a.tipo !== 'lluvia' && q == null;
               const flecha = a.tipo === 'lluvia' || nodoPor.get(a.a)?.tipo === 'confluencia' && a.tipo !== 'rio' ? undefined : `url(#${uid}-${a.tipo === 'canal' ? 'c' : 'f'})`;
               return (
-                <g key={a.id} className={`cu-sis-arco cu-sis-arco--${a.tipo}${sd ? ' cu-sis-arco--sd' : ''}${fuera ? ' cu-sis-atenuado' : ''}`}>
+                <g key={a.id} className={`cu-sis-arco cu-sis-arco--${a.tipo}${sd ? ' cu-sis-arco--sd' : ''}${fuera ? ' cu-sis-atenuado' : ''}${rec != null && selVisible != null && !fuera ? ' cu-sis-arco--rec' : ''}`}>
                   <title>{a.tipo === 'lluvia' ? `La ${nombreNodo(a.de)} escurre hacia ${nombreNodo(a.a)} (escurrimiento no cuantificado)` : `${nombreNodo(a.de)} → ${nombreNodo(a.a)}: ${q == null ? 'sin medición (S/D)' : `${q2(q)} m³/s`}`}</title>
                   <path d={a.d} className="cu-sis-trazo" style={a.tipo === 'lluvia' ? undefined : { strokeWidth: w }} markerEnd={flecha} />
                   {con('gastos') && q != null && q > 0 && a.tipo !== 'lluvia' && <path d={a.d} className="cu-sis-flujo" style={{ strokeWidth: Math.max(1.2, w * 0.45), animationDuration: `${(2.8 - 2 * Math.min(1, q / qMax)).toFixed(2)}s` }} />}

@@ -547,7 +547,7 @@ html[data-device='phone'] .cu-sis-paso::before { display: none; }
 .cu-sis-nodo--apagado .cu-sis-gotas { opacity: 0.45; }
 
 /* Ventana de detalle: flota junto al elemento elegido (en teléfono va debajo del esquema). */
-.cu-sis-ventana { background-image: linear-gradient(180deg, color-mix(in srgb, var(--pr-sky) 8%, transparent), transparent 70px); position: absolute; z-index: 4; width: 330px; max-width: calc(100% - 16px); max-height: 420px; overflow-y: auto; padding: 12px 14px 14px; border: 1px solid var(--pr-sky); border-radius: 12px; background: #0a1a36; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55); display: flex; flex-direction: column; gap: 8px; }
+.cu-sis-ventana { animation: cu-sis-abre 0.22s cubic-bezier(.2,.8,.2,1) backwards; background-image: linear-gradient(180deg, color-mix(in srgb, var(--pr-sky) 8%, transparent), transparent 70px); position: absolute; z-index: 4; width: 330px; max-width: calc(100% - 16px); max-height: 420px; overflow-y: auto; padding: 12px 14px 14px; border: 1px solid var(--pr-sky); border-radius: 12px; background: #0a1a36; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55); display: flex; flex-direction: column; gap: 8px; }
 .cu-sis-ventana:focus { outline: none; }
 .cu-sis-ventana--fija { position: static; width: auto; max-width: none; max-height: none; box-shadow: none; scroll-margin-top: calc(var(--cu-nav-h) + 12px); }
 .cu-sis-ventana-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
@@ -562,7 +562,7 @@ html[data-device='phone'] .cu-sis-paso::before { display: none; }
 .cu-sis-cifra-u { font-size: 13px; color: var(--pr-t2); }
 .cu-sis-cifra .cu-estado, .cu-sis-cifra .cu-hid-enlace { margin-left: auto; font-size: 12px; font-weight: 800; }
 .cu-sis-barra { position: relative; flex: 0 0 auto; height: 8px; border-radius: 4px; background: rgba(148, 163, 184, 0.18); overflow: hidden; }
-.cu-sis-barra-v { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--pr-sky); }
+.cu-sis-barra-v { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--pr-sky); transition: width 0.7s cubic-bezier(.2,.8,.2,1); }
 .cu-sis-barra-v--ok { background: var(--pr-ok); } .cu-sis-barra-v--warn { background: var(--pr-warn); } .cu-sis-barra-v--crit { background: var(--pr-crit); }
 .cu-sis-barra-m { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--pr-t1); opacity: 0.7; }
 .cu-sis-dl { display: grid; gap: 0; margin: 0; }
@@ -602,3 +602,30 @@ html[data-device='phone'] .cu-sis-paso::before { display: none; }
 @media (pointer: coarse) {
   #cu-red .cu-capa-chip, #cu-red .an-seg-btn, #cu-red select { min-height: 44px; }
 }
+
+/* ── Ronda 2: iconos, nivel animado, confluencias vivas, recorrido resaltado ─────────────────────────────────── */
+.cu-sis-nivel { transform-box: fill-box; transform-origin: 50% 100%; transition: transform 0.8s cubic-bezier(.2,.8,.2,1); }
+.cu-sis-ico { fill: none; stroke: var(--pr-t3); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.cu-sis-ico--ok { stroke: var(--pr-ok); } .cu-sis-ico--warn { stroke: var(--pr-warn); } .cu-sis-ico--crit { stroke: var(--pr-crit); }
+.cu-sis-ico--ola { stroke: var(--pr-sky); stroke-width: 1.6; }
+.cu-sis-enl--en_linea { fill: var(--pr-ok); } .cu-sis-enl--retraso { fill: var(--pr-warn); } .cu-sis-enl--sin_transmision { fill: var(--pr-crit); } .cu-sis-enl--sd { fill: var(--pr-t3); }
+.cu-sis-halo { fill: color-mix(in srgb, var(--pr-sky) 35%, transparent); stroke: var(--pr-sky); stroke-width: 1.2; opacity: 0.35; transform-box: fill-box; transform-origin: center; pointer-events: none; }
+.cu-sis-arco--rec .cu-sis-trazo { stroke: #7dd3fc; opacity: 1; }
+.cu-sis-arco--rec.cu-sis-arco--canal .cu-sis-trazo { stroke: #86efac; }
+.cu-sis-arco--rec .cu-sis-flujo { opacity: 1; stroke: #fff; }
+.cu-sis-nodo--sel .cu-sis-caja { stroke: #7dd3fc; }
+.cu-sis-paso .cu-sis-barra { margin-top: 6px; }
+.cu-sis-paso-v { transition: color 0.3s; }
+.cu-sis-nodo--lluvia .cu-sis-caja--lluvia { transition: fill-opacity 0.6s; }
+@media (prefers-reduced-motion: no-preference) {
+    .cu-sis-nodo, .cu-sis-arco { animation: cu-sis-entra 0.4s ease-out backwards; }
+    .cu-sis-halo { animation: cu-sis-onda 2.6s ease-out infinite; }
+    .cu-sis-nivel { animation: cu-sis-resp 4.5s ease-in-out infinite; }
+    .cu-sis-nodo--lluvia .cu-sis-gotas { animation: cu-sis-llovizna 1.8s ease-in infinite; }
+    .cu-sis-arco--rec .cu-sis-flujo { animation-duration: 0.9s !important; }
+}
+@keyframes cu-sis-entra { from { opacity: 0; } }
+@keyframes cu-sis-abre { from { opacity: 0; } }
+@keyframes cu-sis-onda { 0% { opacity: 0.5; transform: scale(1); } 100% { opacity: 0; transform: scale(2.6); } }
+@keyframes cu-sis-resp { 50% { opacity: 0.78; } }
+@keyframes cu-sis-llovizna { 0% { opacity: 0.25; } 50% { opacity: 1; } 100% { opacity: 0.25; } }

@@ -74,6 +74,16 @@ for (const [n, w, h] of VP) {
     await pg.waitForTimeout(150);
     if (await pg.locator('.cu-sis-ventana').count()) falla(`la ventana de ${tipo} no cierra`);
   }
+  // Ventana de lluvia «Hoy»: el pie de las cajas de lluvia debe seguir dentro de su caja.
+  const sel = pg.locator('#cu-red select').first();
+  const opHoy = await sel.locator('option', { hasText: 'Hoy' }).count();
+  if (opHoy) {
+    await sel.selectOption({ label: (await sel.locator('option', { hasText: 'Hoy' }).first().innerText()).trim() });
+    await pg.waitForTimeout(600);
+    const fuera = await pg.evaluate(() => [...document.querySelectorAll('.cu-sis-nodo--lluvia')].filter((g) => { const c = g.querySelector('.cu-sis-caja').getBoundingClientRect(); return [...g.querySelectorAll('text')].some((t) => { const q = t.getBoundingClientRect(); return q.right > c.right + 1 || q.left < c.left - 1; }); }).length);
+    if (fuera) falla(`con la ventana «Hoy», ${fuera} caja(s) de lluvia con el texto fuera`);
+    await sel.selectOption({ index: 0 }).catch(() => {});
+  }
   // Capas: apagar la lluvia quita sus nodos; volver a encenderla los devuelve.
   const chip = pg.locator('.cu-sis-capas .cu-capa-chip', { hasText: 'Lluvia' });
   await chip.click(); await pg.waitForTimeout(200);

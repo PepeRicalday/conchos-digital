@@ -48,7 +48,7 @@ function DetalleCierre({ cuerpo, c }: { cuerpo: CuerpoAgua; c: CierreMensual | u
           ] as Columna<{ clave: 'srl' | 'sina' | 'aqwp'; fuente: FuenteAlm }>[]}
         />
       )}
-      {c.areaSatKm2 != null && <p className="cu-cm-res">Espejo satelital de ese mes: {formatearNumero(c.areaSatKm2, 1)} km².</p>}
+      {c.areaSatKm2 != null && <p className="cu-cm-res">Espejo satelital de ese mes: {formatearNumero(c.areaSatKm2, c.areaSatKm2 < 0.1 ? 3 : 1)} km²{c.almMm3 == null && c.areaSatKm2 < 0.1 ? ' (espejo mínimo: el satélite no ve el vaso lleno; no es un volumen medido)' : ''}.</p>}
     </div>
   );
 }

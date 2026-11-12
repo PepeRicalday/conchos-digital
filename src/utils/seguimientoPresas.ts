@@ -19,12 +19,14 @@ export interface PresaCatalogo {
   aqwpUbicacionId: number | null;
   /** NAMO de referencia de SICA (Mm³) para contrastar el que trae el texto. */
   namoRefMm3: number | null;
+  /** Capacidad que se usa SIEMPRE para esta presa, sin importar el NAMO que traiga el texto (Madero: 333.32 Mm³). */
+  namoFijoMm3?: number;
   alias: string[];
 }
 
 export const PRESAS_SEGUIMIENTO: PresaCatalogo[] = [
   { clave: 'boquilla', nombre: 'La Boquilla', presaId: 'PRE-001', cuerpoId: 'CA-LBQCH', aqwpUbicacionId: 536, namoRefMm3: 2846.782, alias: ['boquilla', 'la boquilla'] },
-  { clave: 'madero', nombre: 'F. I. Madero (Las Vírgenes)', presaId: 'PRE-002', cuerpoId: 'CA-FIMCH', aqwpUbicacionId: 537, namoRefMm3: 333.32, alias: ['las virgenes', 'virgenes', 'madero', 'francisco i madero', 'f i madero'] },
+  { clave: 'madero', nombre: 'F. I. Madero (Las Vírgenes)', presaId: 'PRE-002', cuerpoId: 'CA-FIMCH', aqwpUbicacionId: 537, namoRefMm3: 333.32, namoFijoMm3: 333.32, alias: ['las virgenes', 'virgenes', 'madero', 'francisco i madero', 'f i madero'] },
   { clave: 'granero', nombre: 'Luis L. León (El Granero)', presaId: null, cuerpoId: 'CA-LLNCH', aqwpUbicacionId: 526, namoRefMm3: 284.382, alias: ['el granero', 'granero', 'luis l leon', 'luis leon'] },
   { clave: 'gonzalez', nombre: 'A. González', presaId: null, cuerpoId: null, aqwpUbicacionId: null, namoRefMm3: 79.354, alias: ['a gonzalez', 'abraham gonzalez'] },
   { clave: 'lajas', nombre: 'Las Lajas', presaId: null, cuerpoId: null, aqwpUbicacionId: null, namoRefMm3: 83.266, alias: ['las lajas', 'lajas'] },
@@ -34,6 +36,9 @@ export const PRESAS_SEGUIMIENTO: PresaCatalogo[] = [
   { clave: 'san_gabriel', nombre: 'San Gabriel', presaId: null, cuerpoId: 'CA-SGBDR', aqwpUbicacionId: 541, namoRefMm3: 245.431, alias: ['san gabriel', 'federalismo mexicano'] },
   { clave: 'pico_aguila', nombre: 'Pico del Águila', presaId: null, cuerpoId: 'CA-PAGCH', aqwpUbicacionId: 540, namoRefMm3: 48.276, alias: ['pico de aguila', 'pico del aguila'] },
 ];
+
+/** Capacidad fija por presa del distrito (Mm³): la usan la captura, el % de llenado y la infografía. Madero SIEMPRE 333.32. */
+export const CAPACIDAD_FIJA_MM3: Record<string, number> = { 'PRE-002': 333.32 };
 
 export type SeveridadAviso = 'error' | 'aviso';
 export interface AvisoSeguimiento { severidad: SeveridadAviso; texto: string }
@@ -137,24 +142,34 @@ export function analizarParrafo(parrafo: string): LecturaSeguimiento {
   else if (extraccionM3s < 0 || extraccionM3s > 400) err(`Extracción fuera de rango (${extraccionM3s} m³/s).`);
   if (ingresoM3s != null && (ingresoM3s < 0 || ingresoM3s > 2000)) err(`Ingreso fuera de rango (${ingresoM3s} m³/s).`);
 
-  // Coherencias internas del propio texto: delatan un número mal tecleado o un NAMO de otra época.
-  if (almacenamientoMm3 != null && namoMm3 != null && difNamoMm3 != null) {
-    const esperada = namoMm3 - almacenamientoMm3;
-    if (Math.abs(esperada - difNamoMm3) > Math.max(0.05, Math.abs(difNamoMm3) * 0.002)) {
-      av(`«${difAbs} ${difNamoMm3 < 0 ? 'arriba' : 'abajo'} del NAMO» no cuadra con NAMO − almacenamiento (${esperada.toFixed(3)}): revisar las cifras.`);
+  // Capacidad fija (Madero 333.32): el NAMO del texto se ignora y todo se calcula con la capacidad fija.
+  let namoFinal = namoMm3, difFinal = difNamoMm3;
+  const fija = catalogo?.namoFijoMm3;
+  if (fija != null) {
+    if (namoMm3 != null && Math.abs(namoMm3 - fija) / fija > 0.005) av(`Se usa siempre ${fija} Mm³ de capacidad; el NAMO del texto (${namoMm3} Mm³) se ignora.`);
+    namoFinal = fija;
+    difFinal = almacenamientoMm3 != null ? Math.round((fija - almacenamientoMm3) * 1000) / 1000 : null;
+    if (pct != null && almacenamientoMm3 != null && Math.abs((almacenamientoMm3 / fija) * 100 - pct) > 0.5) av(`El % (${pct}) no corresponde a ${fija} Mm³ de capacidad (${((almacenamientoMm3 / fija) * 100).toFixed(2)} %): revisar la cifra.`);
+  } else {
+    // Coherencias internas del propio texto: delatan un número mal tecleado o un NAMO de otra época.
+    if (almacenamientoMm3 != null && namoMm3 != null && difNamoMm3 != null) {
+      const esperada = namoMm3 - almacenamientoMm3;
+      if (Math.abs(esperada - difNamoMm3) > Math.max(0.05, Math.abs(difNamoMm3) * 0.002)) {
+        av(`«${difAbs} ${difNamoMm3 < 0 ? 'arriba' : 'abajo'} del NAMO» no cuadra con NAMO − almacenamiento (${esperada.toFixed(3)}): revisar las cifras.`);
+      }
     }
-  }
-  if (almacenamientoMm3 != null && namoMm3 != null && pct != null && namoMm3 > 0) {
-    const calc = (almacenamientoMm3 / namoMm3) * 100;
-    if (Math.abs(calc - pct) > 0.5) av(`El % (${pct}) no es almacenamiento ÷ NAMO del texto (${calc.toFixed(2)} %): el texto usa otra capacidad para el porcentaje.`);
-  }
-  if (catalogo?.namoRefMm3 != null && namoMm3 != null && Math.abs(namoMm3 - catalogo.namoRefMm3) / catalogo.namoRefMm3 > 0.01) {
-    av(`El NAMO del texto (${namoMm3} Mm³) difiere del de SICA (${catalogo.namoRefMm3} Mm³). El % se calcula con el de SICA.`);
+    if (almacenamientoMm3 != null && namoMm3 != null && pct != null && namoMm3 > 0) {
+      const calc = (almacenamientoMm3 / namoMm3) * 100;
+      if (Math.abs(calc - pct) > 0.5) av(`El % (${pct}) no es almacenamiento ÷ NAMO del texto (${calc.toFixed(2)} %): el texto usa otra capacidad para el porcentaje.`);
+    }
+    if (catalogo?.namoRefMm3 != null && namoMm3 != null && Math.abs(namoMm3 - catalogo.namoRefMm3) / catalogo.namoRefMm3 > 0.01) {
+      av(`El NAMO del texto (${namoMm3} Mm³) difiere del de SICA (${catalogo.namoRefMm3} Mm³). El % se calcula con el de SICA.`);
+    }
   }
 
   return {
     clave: catalogo?.clave ?? `desconocida:${normalizarNombre(nombreReportado)}`, nombreReportado, catalogo, fecha, hora, pct, elevacionMsnm, almacenamientoMm3,
-    difNamoMm3, namoMsnm, namoMm3, extraccionM3s, ingresoM3s, avisos, valida: !avisos.some((a) => a.severidad === 'error'), parrafo,
+    difNamoMm3: difFinal, namoMsnm, namoMm3: namoFinal, extraccionM3s, ingresoM3s, avisos, valida: !avisos.some((a) => a.severidad === 'error'), parrafo,
   };
 }
 

@@ -31,11 +31,13 @@ describe('seguimiento de presas: texto plano', () => {
     expect(b).toMatchObject({ clave: 'boquilla', fecha: '2026-11-11', hora: '07:00', pct: 29.07, elevacionMsnm: 1299.02, almacenamientoMm3: 827.53, difNamoMm3: 2019.252, namoMsnm: 1317, namoMm3: 2846.782, extraccionM3s: 0, ingresoM3s: 22.581 });
     expect(b.avisos).toEqual([]);
   });
-  it('«Las Vírgenes» es Madero y avisa que su NAMO del texto no es el de SICA', () => {
+  it('«Las Vírgenes» es Madero: usa SIEMPRE 333.32 y avisa que ignora el NAMO del texto', () => {
     const m = r.lecturas[1];
     expect(m.catalogo?.presaId).toBe('PRE-002');
-    expect(m.avisos.some((a) => /NAMO del texto \(354\.547/.test(a.texto))).toBe(true);
-    expect(m.avisos.some((a) => /no es almacenamiento ÷ NAMO/.test(a.texto))).toBe(true);
+    expect(m.namoMm3).toBe(333.32);
+    expect(m.difNamoMm3).toBeCloseTo(150.65, 3);
+    expect(m.avisos).toHaveLength(1);
+    expect(m.avisos[0].texto).toMatch(/Se usa siempre 333\.32 Mm³.*354\.547/);
     expect(m.valida).toBe(true);
   });
   it('El Granero = Luis L. León; Pico de Águila resuelve; extracción 0.00 es dato, no S/D', () => {

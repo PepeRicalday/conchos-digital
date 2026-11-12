@@ -8,6 +8,11 @@
 import { agregarAlmacenamiento, calcularFrescura, type ProcedenciaNivel } from './presaMetrics';
 import { mismaFecha, type MapaPresa, type PresaId } from './historicoPresas';
 import { semaforo, type EstadoSemaforo } from './estadisticaHistorica';
+import { CAPACIDAD_FIJA_MM3 } from './seguimientoPresas';
+import type { Confirmacion } from './confirmacionCila';
+
+/** De dónde sale la lectura que se publica: la captura manual (Registrar) o el reporte oficial CILA/IBWC. */
+export type OrigenInfografia = 'captura' | 'cila';
 
 export interface LecturaCilaInf {
     fecha: string; // YYYY-MM-DD (día del dato)
@@ -29,6 +34,8 @@ export interface EntradaPresaInfografia {
     elevacion: { valor: number | null; procedencia: ProcedenciaNivel | null };
     /** Gasto de salida de SICA; `conocida=false` ⇒ S/D (el 0 de arranque no es medición). */
     salida: { valor: number | null; conocida: boolean };
+    /** Contraste captura ↔ CILA del mismo día (se imprime en la tarjeta). */
+    confirmacion?: Confirmacion | null;
 }
 
 export interface DatosPresaInfografia {
@@ -49,9 +56,11 @@ export interface DatosPresaInfografia {
     elevacion: number | null;
     procedencia: ProcedenciaNivel | null;
     salida: number | null;
+    confirmacion: Confirmacion | null;
 }
 
 export interface DatosInfografia {
+    origen: OrigenInfografia;
     presas: DatosPresaInfografia[];
     conjunto: { totalMm3: number | null; presasConDato: number; presasTotal: number; parcial: boolean };
     corte: { fechaDato: string | null; instante: string | null; texto: string | null };
@@ -61,6 +70,7 @@ export interface DatosInfografia {
 }
 
 export const FUENTE_INFOGRAFIA = 'Fuente: International Boundary & Water Commission (IBWC), United States and Mexico.';
+export const FUENTE_CAPTURA = 'Fuente: Seguimiento de presas de SRL Unidad Conchos (captura de la Gerencia), contrastado con el reporte CILA/IBWC.';
 export const LIMITACION_INFOGRAFIA = 'El almacenamiento reportado no equivale a volumen autorizado para riego.';
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -104,7 +114,10 @@ function etiquetaPosicion(pos: { posicion: number; de: number; desdeAnio: number
 function datosPresa(e: EntradaPresaInfografia): DatosPresaInfografia {
     const a = e.actual;
     const volumen = a?.almacenamiento_mm3 ?? null;
-    const pct = a?.pct_conservacion ?? null;
+    // Capacidad fija por presa (Madero SIEMPRE 333.32): manda sobre la que traiga la fuente y el % se recalcula con ella.
+    const capFija = CAPACIDAD_FIJA_MM3[e.id] ?? null;
+    const capacidad = capFija ?? a?.cap_conservacion_mm3 ?? null;
+    const pct = capFija != null && volumen != null ? (volumen / capFija) * 100 : (a?.pct_conservacion ?? null);
     const fechaDato = a?.fecha ?? null;
 
     let delta: DatosPresaInfografia['delta'] = null;
@@ -134,17 +147,18 @@ function datosPresa(e: EntradaPresaInfografia): DatosPresaInfografia {
     }
 
     return {
-        id: e.id, nombre: e.nombre, volumen, pct, capacidad: a?.cap_conservacion_mm3 ?? null, fechaDato,
+        id: e.id, nombre: e.nombre, volumen, pct, capacidad, fechaDato,
         delta, anioPrevio, posicion,
         posicionTexto: posicion ? etiquetaPosicion(posicion) : null,
         semaforo: semaforo(posicion),
         elevacion: e.elevacion.valor,
         procedencia: e.elevacion.valor != null ? e.elevacion.procedencia : null,
         salida: e.salida.conocida ? e.salida.valor : null,
+        confirmacion: e.confirmacion ?? null,
     };
 }
 
-export function construirDatosInfografia(entradas: EntradaPresaInfografia[]): DatosInfografia {
+export function construirDatosInfografia(entradas: EntradaPresaInfografia[], origen: OrigenInfografia = 'cila'): DatosInfografia {
     const presas = entradas.map(datosPresa);
 
     const agregado = agregarAlmacenamiento(entradas.map(e => ({
@@ -171,7 +185,8 @@ export function construirDatosInfografia(entradas: EntradaPresaInfografia[]): Da
         conjunto: { totalMm3: agregado.totalMm3, presasConDato: agregado.presasConDato, presasTotal: agregado.presasTotal, parcial: agregado.parcial },
         corte: { fechaDato, instante, texto },
         vigencia,
-        fuente: FUENTE_INFOGRAFIA,
+        origen,
+        fuente: origen === 'captura' ? FUENTE_CAPTURA : FUENTE_INFOGRAFIA,
         limitacion: LIMITACION_INFOGRAFIA,
     };
 }

@@ -8,6 +8,7 @@
 import { CSS_MEMBRETE, membreteDual, altoMembretePorAncho } from './membreteDual';
 import { fmtConSigno, fmtHm3, type DatosInfografia, type DatosPresaInfografia } from './infografiaPresas';
 import type { EstadoSemaforo } from './estadisticaHistorica';
+import { GLIFO_CONFIRMACION } from './confirmacionCila';
 
 export const ANCHO_INFOGRAFIA = 1600;
 
@@ -91,6 +92,7 @@ function tarjeta(p: DatosPresaInfografia): string {
     ${filaComparativo(p)}
     <div class="chica"><span>Elevación: <b>${esc(elev)}</b>${proc && num(p.elevacion) ? ` <i>${esc(proc)}</i>` : ''}</span><span>Salida: <b>${esc(sal)}</b></span></div>
     <div class="cap">Capacidad de referencia: <b>${esc(fmtHm3(p.capacidad))} hm³</b></div>
+    ${p.confirmacion ? `<div class="conf conf-${p.confirmacion.estado}"><span class="cg">${GLIFO_CONFIRMACION[p.confirmacion.estado]}</span> ${esc(p.confirmacion.texto)}</div>` : ''}
   </div>
 </section>`;
 }
@@ -150,6 +152,11 @@ h1{font-size:68px;line-height:1.05;font-weight:800;color:#0B3170;text-align:cent
 .chica b{font-weight:800;color:#1B2733}.chica i{font-style:normal;font-size:20px;font-weight:700;color:#0B3170;border:1px solid #0B3170;border-radius:6px;padding:0 6px;margin-left:4px}
 .cap{font-size:22px;font-weight:500;color:#3A4856;padding-top:4px;text-align:center}
 .cap b{font-weight:800;color:#1B2733}
+.conf{margin-top:8px;padding:6px 12px;border-radius:10px;border:2px solid;font-size:21px;font-weight:700;text-align:center}
+.conf .cg{font-weight:900}
+.conf-confirmada{background:#DDF3E6;color:#0B5A3A;border-color:#1B8A5A}
+.conf-difiere{background:#FCEBC4;color:#7A4A00;border-color:#D9920B}
+.conf-pendiente,.conf-sin_captura{background:#E6E9EC;color:#3F4852;border-color:#7A8591}
 .conj{margin-top:18px;background:#0B3170;color:#fff;border-radius:14px;padding:16px 28px;text-align:center;font-size:44px;font-weight:800;letter-spacing:.02em}
 .conj .parcial{display:block;font-size:22px;font-weight:600;color:#CBEAF9;letter-spacing:0;margin-top:2px}
 .nota{margin-top:14px;background:#fff;border:2px solid #3FB2F3;border-radius:12px;padding:10px 22px;font-size:21px;line-height:1.35;color:#1B2733}

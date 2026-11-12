@@ -6,7 +6,7 @@ import { Boton } from '../ui/base';
 import { hoyLocalISO } from '../../utils/hoyLocal';
 import './CapturaSeguimientoPresas.css';
 import {
-  analizarSeguimiento, filaLecturaPresas, filaSeguimiento, MARCA_SEGUIMIENTO, type LecturaSeguimiento,
+  analizarSeguimiento, CAPACIDAD_FIJA_MM3, filaLecturaPresas, filaSeguimiento, MARCA_SEGUIMIENTO, type LecturaSeguimiento,
 } from '../../utils/seguimientoPresas';
 
 // Las tablas seguimiento_presas aún no están en los tipos generados de Supabase.
@@ -84,7 +84,8 @@ export default function CapturaSeguimientoPresas({ onGuardado, onCerrar }: { onG
       if (e1) throw new Error(e1.message);
       // Distrito: lecturas_presas (única tabla que leen el informe, la sala y el monitor). Sin la marca de CILA → prevalece.
       const distrito = validas.map((l) => {
-        const cap = l.catalogo?.presaId ? previo?.capacidad.get(l.catalogo.presaId) ?? l.catalogo.namoRefMm3 ?? 0 : 0;
+        const pid = l.catalogo?.presaId ?? '';
+        const cap = pid ? CAPACIDAD_FIJA_MM3[pid] ?? previo?.capacidad.get(pid) ?? l.catalogo?.namoRefMm3 ?? 0 : 0;
         return filaLecturaPresas(l, cap, quien);
       }).filter((x): x is NonNullable<typeof x> => x != null);
       if (distrito.length) {

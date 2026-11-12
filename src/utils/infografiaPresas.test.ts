@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { indexarSerie, type FilaSerie } from './historicoPresas';
-import { construirDatosInfografia, fechaLarga, fmtConSigno, fmtHm3, horaChihuahua, type EntradaPresaInfografia } from './infografiaPresas';
+import { construirDatosInfografia, FUENTE_INFOGRAFIA, fechaLarga, fmtConSigno, fmtHm3, horaChihuahua, type EntradaPresaInfografia } from './infografiaPresas';
 
 const fila = (fecha: string, alm: number | null): FilaSerie => ({
     presa_id: 'PRE-001', fecha, escala_msnm: null, almacenamiento_mm3: alm, pct: null, fuente: 'HISTORICO', calidad: alm == null ? 'SIN_DATO' : 'OK',
@@ -46,6 +46,14 @@ describe('formato', () => {
     });
 });
 
+describe('origen de la lectura', () => {
+    it('la fuente impresa depende del origen: captura de la Gerencia o reporte CILA/IBWC', () => {
+        expect(construirDatosInfografia([boquilla(), madero()], 'captura').fuente).toMatch(/Seguimiento de presas/);
+        expect(construirDatosInfografia([boquilla(), madero()]).fuente).toBe(FUENTE_INFOGRAFIA);
+        expect(construirDatosInfografia([boquilla(), madero()], 'captura').origen).toBe('captura');
+    });
+});
+
 describe('construirDatosInfografia', () => {
     beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-06T16:00:00Z')); });
     afterEach(() => vi.useRealTimers());
@@ -53,7 +61,9 @@ describe('construirDatosInfografia', () => {
     it('cifras CILA tal cual, conjunto y corte', () => {
         const d = construirDatosInfografia([boquilla(), madero()]);
         expect(d.presas[0]).toMatchObject({ volumen: 704.246, pct: 24.738336, capacidad: 2846.78 });
-        expect(d.presas[1]).toMatchObject({ volumen: 164.083, pct: 49.227164, capacidad: 333.318 });
+        // Madero SIEMPRE con 333.32 Mm³ de capacidad (aunque CILA publique 333.318): el % se recalcula con ella.
+        expect(d.presas[1]).toMatchObject({ volumen: 164.083, capacidad: 333.32 });
+        expect(d.presas[1].pct).toBeCloseTo((164.083 / 333.32) * 100, 6);
         expect(d.conjunto.totalMm3).toBeCloseTo(868.329, 3);
         expect(d.conjunto.parcial).toBe(false);
         expect(d.corte.texto).toBe('Corte: 06 de octubre de 2026 · 09:40 h');

@@ -28,6 +28,8 @@ import VasosSatelitalCuenca from './VasosSatelitalCuenca';
 import CierresMensualesCuenca from './CierresMensualesCuenca';
 import BalanceVaso from './BalanceVaso';
 import BalanceCuenca from './BalanceCuenca';
+import BalanceTramosRio from './BalanceTramosRio';
+import { useDerivacionK0 } from '../../../hooks/useDerivacionK0';
 import HidrometriaCuenca from './HidrometriaCuenca';
 import LecturaCuenca from './LecturaCuenca';
 import { useSalidaCuenca } from '../../../hooks/useSalidaCuenca';
@@ -153,6 +155,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
     const setPestana = (p: Pestana) => { setPestanaEstado(p); try { localStorage.setItem(CLAVE_PESTANA, p); } catch { /* sin almacenamiento */ } window.scrollTo?.({ top: 0 }); };
     const [ventHidro, setVentHidro] = useState<VentanaHidro>('7d');
     const salida = useSalidaCuenca();
+    const derivacionK0 = useDerivacionK0(pestana === 'historico'); // la toma K-0 solo se pide al abrir «Cierres y balance»
     const hidro = useHidrometriaCuenca(ventHidro, pestana === 'red' || pestana === 'resumen');
 
     const calc = useMemo(() => {
@@ -404,6 +407,7 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                     {cuerpos.datos && (
                         <>
                             <BalanceCuenca datos={cuerpos.datos} salida={salida.lecturas} hoyISO={hoyISO} />
+                            <BalanceTramosRio datos={cuerpos.datos} ojinaga={salida.lecturas} k0={derivacionK0.lecturas} hoyISO={hoyISO} />
                             <LecturaCuenca titulo="Qué mirar en los cierres" lecturas={lecCierres} />
                             <CierresMensualesCuenca datos={cuerpos.datos} />
                             <BalanceVaso datos={cuerpos.datos} />

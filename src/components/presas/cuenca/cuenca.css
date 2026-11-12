@@ -630,3 +630,6 @@ html[data-device='phone'] .cu-sis-paso::before { display: none; }
 @keyframes cu-sis-resp { 50% { opacity: 0.78; } }
 @keyframes cu-sis-llovizna { 0% { opacity: 0.25; } 50% { opacity: 1; } 100% { opacity: 0.25; } }
 html[data-device='tablet'] #cu-red .cu-capa-chip, html[data-device='tablet'] #cu-red .an-seg-btn, html[data-device='tablet'] #cu-red select { min-height: 44px; }
+/* Salud de las fuentes: la frase del resumen es larga y debe envolver (el chip base es nowrap y desbordaba en iPhone). */
+.cu-salud .cu-notas-sum { min-width: 0; }
+.cu-salud .an-chip { white-space: normal; max-width: 100%; align-items: flex-start; border-radius: 14px; line-height: 1.35; letter-spacing: 0.02em; }

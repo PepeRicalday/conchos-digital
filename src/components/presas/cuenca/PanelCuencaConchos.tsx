@@ -29,6 +29,7 @@ import CierresMensualesCuenca from './CierresMensualesCuenca';
 import BalanceVaso from './BalanceVaso';
 import BalanceCuenca from './BalanceCuenca';
 import BalanceTramosRio from './BalanceTramosRio';
+import SaludFuentesCuenca from './SaludFuentesCuenca';
 import { useDerivacionK0 } from '../../../hooks/useDerivacionK0';
 import HidrometriaCuenca from './HidrometriaCuenca';
 import LecturaCuenca from './LecturaCuenca';
@@ -311,6 +312,8 @@ export default function PanelCuencaConchos({ conInforme = false }: { conInforme?
                     {conInforme && <BotonInformeCuenca datos={datos} />}
                 </div>
             </header>
+
+            <SaludFuentesCuenca />
 
             <div className="cu-cq"><div className="an-kpis an-kpis--6" role="list">
                 <Kpi densidad="compacta" etiqueta="Almacenamiento de la cuenca" valor={fmt(cuenca.totalMm3, 1)} unidad=" Mm³"

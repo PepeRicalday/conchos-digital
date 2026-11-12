@@ -6,7 +6,7 @@ import { Boton } from '../ui/base';
 import { hoyLocalISO } from '../../utils/hoyLocal';
 import './CapturaSeguimientoPresas.css';
 import {
-  analizarSeguimiento, CAPACIDAD_FIJA_MM3, filaLecturaPresas, filaSeguimiento, MARCA_SEGUIMIENTO, type LecturaSeguimiento,
+  analizarSeguimiento, CAPACIDAD_FIJA_MM3, estadoUltimaCaptura, filaLecturaPresas, filaSeguimiento, MARCA_SEGUIMIENTO, type LecturaSeguimiento,
 } from '../../utils/seguimientoPresas';
 
 // Las tablas seguimiento_presas aún no están en los tipos generados de Supabase.
@@ -14,6 +14,8 @@ interface RespuestaLibre<T> extends PromiseLike<{ data: T | null; error: { messa
   select: (c: string) => RespuestaLibre<T>;
   in: (c: string, v: string[]) => RespuestaLibre<T>;
   upsert: (v: unknown, o: { onConflict: string }) => RespuestaLibre<T>;
+  order: (c: string, o: { ascending: boolean }) => RespuestaLibre<T>;
+  limit: (n: number) => RespuestaLibre<T>;
 }
 const sb = () => supabase as unknown as { from: (t: string) => RespuestaLibre<Record<string, unknown>[]> };
 
@@ -34,8 +36,17 @@ export default function CapturaSeguimientoPresas({ onGuardado, onCerrar }: { onG
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hecho, setHecho] = useState<string | null>(null);
+  const [ultimaCaptura, setUltimaCaptura] = useState<string | null | undefined>(undefined); // undefined = leyendo
 
   const hoy = hoyLocalISO();
+  // Cuántos días lleva sin capturarse: si hay hueco, el informe y la infografía publican CILA (regla de respaldo).
+  useEffect(() => {
+    let vivo = true;
+    sb().from('seguimiento_presas').select('fecha').order('fecha', { ascending: false }).limit(1)
+      .then((r) => { if (vivo) setUltimaCaptura(r.error ? null : ((r.data?.[0]?.fecha as string | undefined) ?? null)); }, () => { if (vivo) setUltimaCaptura(null); });
+    return () => { vivo = false; };
+  }, []);
+  const estadoCap = ultimaCaptura === undefined ? null : estadoUltimaCaptura(ultimaCaptura, hoy);
   const res = useMemo(() => analizarSeguimiento(texto, hoy), [texto, hoy]);
   const validas = res.lecturas.filter((l) => l.valida && l.catalogo);
   const claveFechas = useMemo(() => [...new Set(validas.map((l) => l.fecha as string))].sort().join(','), [validas]);
@@ -109,6 +120,7 @@ export default function CapturaSeguimientoPresas({ onGuardado, onCerrar }: { onG
   const errores = res.lecturas.filter((l) => !l.valida).length;
   return (
     <div className="space-y-4">
+      {estadoCap && <p role="status" className={`seg-estado seg-estado--${estadoCap.tono}`}><span aria-hidden="true">{estadoCap.tono === 'ok' ? '●' : estadoCap.tono === 'aviso' ? '▲' : '◇'}</span> {estadoCap.texto}</p>}
       <div className="space-y-2">
         <label htmlFor="seg-texto" className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><ClipboardPaste size={12} aria-hidden="true" /> Texto del seguimiento de presas</label>
         <textarea id="seg-texto" rows={res.lecturas.length ? 5 : 9} value={texto} onChange={(e) => { setTexto(e.target.value); setError(null); }}

@@ -254,3 +254,17 @@ export function aplicarSeguimiento<E extends { ubicacionId: number; fecha: strin
   });
   return { estados: out, sustituidas };
 }
+
+/** Estado de la última captura frente a hoy, para el aviso de Registrar. `dias` = días completos sin capturar (0 = hay captura de hoy). */
+export interface EstadoCaptura { dias: number | null; ultima: string | null; tono: 'ok' | 'aviso' | 'sd'; texto: string }
+
+export function estadoUltimaCaptura(ultimaFecha: string | null, hoyISO: string): EstadoCaptura {
+  if (!ultimaFecha) return { dias: null, ultima: null, tono: 'sd', texto: 'Aún no hay capturas de seguimiento: mientras tanto el informe y la infografía usan el dato de CILA.' };
+  const dias = Math.max(0, Math.round((Date.parse(`${hoyISO}T12:00:00Z`) - Date.parse(`${ultimaFecha}T12:00:00Z`)) / 86_400_000));
+  const fecha = new Date(`${ultimaFecha}T12:00:00`).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' });
+  if (dias === 0) return { dias, ultima: ultimaFecha, tono: 'ok', texto: `Ya hay captura de hoy (${fecha}). Si vuelve a pegar el texto, se actualiza.` };
+  return {
+    dias, ultima: ultimaFecha, tono: 'aviso',
+    texto: `Última captura: ${fecha} (hace ${dias} día${dias === 1 ? '' : 's'}). Mientras no se capture, el informe y la infografía publican el dato de CILA.`,
+  };
+}

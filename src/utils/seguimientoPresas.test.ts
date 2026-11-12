@@ -114,3 +114,17 @@ describe('la captura de seguimiento prevalece sobre CILA', () => {
     expect(resolverNivel(existente, 827.53, 2846.782, [], 827.53).accion).toBe('campo_prevalece');
   });
 });
+
+import { estadoUltimaCaptura } from './seguimientoPresas';
+describe('aviso de días sin captura', () => {
+  it('captura de hoy → ok; de hace 1 y de hace 7 días → aviso que dice que manda CILA', () => {
+    expect(estadoUltimaCaptura('2026-11-12', '2026-11-12')).toMatchObject({ dias: 0, tono: 'ok' });
+    const a = estadoUltimaCaptura('2026-11-11', '2026-11-12');
+    expect(a).toMatchObject({ dias: 1, tono: 'aviso' }); expect(a.texto).toMatch(/hace 1 día\)/); expect(a.texto).toMatch(/dato de CILA/);
+    expect(estadoUltimaCaptura('2026-11-05', '2026-11-12')).toMatchObject({ dias: 7 });
+  });
+  it('sin ninguna captura → S/D con la regla; nunca días negativos', () => {
+    expect(estadoUltimaCaptura(null, '2026-11-12')).toMatchObject({ dias: null, tono: 'sd' });
+    expect(estadoUltimaCaptura('2026-11-13', '2026-11-12').dias).toBe(0);
+  });
+});

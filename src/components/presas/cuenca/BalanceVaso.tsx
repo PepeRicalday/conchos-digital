@@ -1,7 +1,7 @@
 import { useId, useMemo, useState } from 'react';
 import { DataTable, Kpi, type Columna } from '../../ui/base';
 import { formatearNumero } from '../../../utils/historicoPresas';
-import { etiquetaMes, resumenResiduo, serieBalance, type BalanceMensual } from '../../../utils/cuerposAgua';
+import { etiquetaMes, evaporacionMes, resumenResiduo, serieBalance, type BalanceMensual } from '../../../utils/cuerposAgua';
 import type { DatosCuerposAgua } from '../../../hooks/useCuerposAgua';
 
 const MESES_GRAFICA = 24;
@@ -63,6 +63,14 @@ const COLUMNAS: Columna<BalanceMensual>[] = [
   { id: 'ent', titulo: 'Entradas', numerica: true, render: (b) => f1(b.entradas) },
   { id: 'sal', titulo: 'Salida total', numerica: true, render: (b) => <>{f1(b.salidaTotal)}{b.vertido != null && b.vertido > 0.05 && <span className="cu-nota-fila">de ella vertido {f1(b.vertido)}</span>}</> },
   { id: 'res', titulo: 'Residuo', numerica: true, ayuda: () => 'Entradas − salida − cambio de almacenamiento: incluye evaporación, filtraciones y error', render: (b) => con(b.residuo) },
+  {
+    id: 'evap', titulo: 'Evaporación (Mm³)', numerica: true,
+    ayuda: () => 'Evaporación de agua libre (Penman con la estación de la presa) por la superficie del vaso. Es informativa: no se resta del residuo. Entre paréntesis, el rango (de la ETo de la estación a Penman + 15 %).',
+    render: (b) => {
+      const e = evaporacionMes(b);
+      return e ? <>{f1(e.mm3)}<span className="cu-nota-fila">rango {f1(e.bajo)}–{f1(e.alto)} · {e.dias} d</span></> : 'S/D';
+    },
+  },
   { id: 'cob', titulo: 'Cobertura', numerica: true, render: (b) => (b.coberturaPct == null ? 'S/D' : `${formatearNumero(b.coberturaPct, 0)} %`) },
   { id: 'cal', titulo: 'Calidad', render: (b) => <span className={`cu-bal-cal cu-bal-cal--${b.calidad}`}><span aria-hidden="true">{b.calidad === 'OK' ? '●' : b.calidad === 'PARCIAL' ? '◐' : '◇'}</span> {b.calidad === 'SD' ? 'S/D' : b.calidad === 'OK' ? 'Completo' : 'Parcial'}</span> },
 ];
@@ -94,7 +102,7 @@ export default function BalanceVaso({ datos }: { datos: DatosCuerposAgua }) {
       <h4 className="an-h">Balance mensual por vaso</h4>
       <p className="an-nota">
         Entradas, salida total y cambio de almacenamiento de cada mes, en Mm³. Los flujos son los diarios de CONAGUA (AQUARIUS) promediados sobre los días con dato; el cambio sale de los cierres mensuales.
-        La salida total ya incluye el vertido. Evaporación y error de cierre: S/D por ahora.
+        La salida total ya incluye el vertido. La evaporación solo existe donde hay estación en la presa (Boquilla y Las Vírgenes); en los demás vasos es S/D. El error de cierre sigue S/D.
       </p>
       <div className="cu-controles" role="group" aria-label="Vaso del balance">
         <div className="cu-ctl">
@@ -125,6 +133,7 @@ export default function BalanceVaso({ datos }: { datos: DatosCuerposAgua }) {
       <DataTable propia className="cu-tabla" claseContenedor="cu-tabla-wrap" regionAria="Balance mensual (desplazable)" captionOculto caption={`Balance mensual de ${cuerpo.etiqueta}`} clave={(b) => b.mes} filas={[...serie].reverse().slice(0, 12)} columnas={COLUMNAS} />
       <p className="an-nota cu-bal-pie">
         <b>Cómo leer el residuo:</b> entradas − salida − ΔS. Positivo = agua que no aparece (evaporación, filtraciones y error). La aportación publicada por CONAGUA suele deducirse de la propia operación del vaso, así que el residuo mide consistencia entre series, no un error independiente.
+        {' '}<b>Evaporación:</b> Penman de agua libre con la temperatura, humedad, radiación y viento de la estación de la presa, por la superficie de la curva a la cota del día; no incluye el calor almacenado del vaso y toma la temperatura del aire como la del agua. Se muestra aparte y no se resta del residuo porque la aportación de CONAGUA ya la lleva implícita. Un mes con menos de la mitad de los días con dato queda S/D.
         {sinBalance.length > 0 && <> Sin balance (no hay flujos en AQUARIUS): {sinBalance.map((c) => c.etiqueta).join(', ')}.</>}
       </p>
     </section>

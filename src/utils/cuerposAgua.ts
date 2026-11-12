@@ -73,7 +73,14 @@ export interface BalanceMensual {
   diasAportacion: number;
   diasSalida: number;
   coberturaPct: number | null;
+  /** Evaporación de agua libre (Penman) × superficie, Mm³. INFORMATIVA: no cierra el balance. null (S/D) sin estación o con < 50 % de días. */
   evap: number | null;
+  /** Cota inferior (ETo de la estación, coeficiente 1.0) y superior (Penman + 15 %) de la evaporación, Mm³. */
+  evapBajo: number | null;
+  evapAlto: number | null;
+  /** Días del mes con evaporación calculada y lámina mensual equivalente (mm). */
+  evapDias: number | null;
+  evapLaminaMm: number | null;
   residuo: number | null;
   errorCierre: number | null;
   calidad: 'OK' | 'PARCIAL' | 'SD';
@@ -118,7 +125,8 @@ export function normalizarBalance(r: Record<string, unknown>): BalanceMensual {
     cuerpoId: String(r.cuerpo_id), mes: String(r.mes), sIni: num(r.s_ini_mm3), sFin: num(r.s_fin_mm3), deltaS: num(r.delta_s_mm3),
     entradas: num(r.entradas_mm3), salidaTotal: num(r.salida_total_mm3), extraccion: num(r.extraccion_mm3), vertido: num(r.vertido_mm3),
     diasMes: num(r.dias_mes) ?? 0, diasAportacion: num(r.dias_aportacion) ?? 0, diasSalida: num(r.dias_salida) ?? 0,
-    coberturaPct: num(r.cobertura_pct), evap: num(r.evap_mm3), residuo: num(r.residuo_mm3), errorCierre: num(r.error_cierre_mm3),
+    coberturaPct: num(r.cobertura_pct), evap: num(r.evap_mm3),
+    evapBajo: num(r.evap_bajo_mm3), evapAlto: num(r.evap_alto_mm3), evapDias: num(r.evap_dias), evapLaminaMm: num(r.evap_lamina_mm), residuo: num(r.residuo_mm3), errorCierre: num(r.error_cierre_mm3),
     calidad: (txt(r.calidad) as BalanceMensual['calidad']) ?? 'SD',
   };
 }
@@ -277,6 +285,15 @@ export function longitudEscala(mPorPx: number, pxObjetivo = 70): { metros: numbe
 /** Últimos `n` meses del balance de un cuerpo, en orden cronológico. */
 export function serieBalance(balances: BalanceMensual[], cuerpoId: string, n: number): BalanceMensual[] {
   return balances.filter((b) => b.cuerpoId === cuerpoId).sort((a, b) => a.mes.localeCompare(b.mes)).slice(-n);
+}
+
+/**
+ * Evaporación del mes lista para mostrar: central y rango (Mm³). null = S/D (sin estación o menos de la mitad de los días).
+ * Es INFORMATIVA: la aportación de CONAGUA ya la lleva implícita, así que no se resta del residuo.
+ */
+export function evaporacionMes(b: BalanceMensual): { mm3: number; bajo: number; alto: number; dias: number; laminaMm: number | null } | null {
+  if (b.evap == null || b.evapBajo == null || b.evapAlto == null) return null;
+  return { mm3: b.evap, bajo: b.evapBajo, alto: b.evapAlto, dias: b.evapDias ?? 0, laminaMm: b.evapLaminaMm };
 }
 
 /** Resumen del residuo de una serie: media sobre meses OK y % de las entradas. null si no hay meses OK. */

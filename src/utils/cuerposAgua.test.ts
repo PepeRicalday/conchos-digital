@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  aniosDisponibles, anillosDeGeojson, celdaCierre, construirRed, coberturaDeCuerpo, csvCierres, etiquetaMes, indexarCierres, longitudEscala,
-  mesesDe, normalizarCierre, normalizarCuerpo, ordenarCuerpos, proyeccionPara, resumenResiduo, rutaDeAnillos, serieBalance, separacionDebil, ultimoCierreConDato, variacionEnCiclo,
+  aniosDisponibles, anillosDeGeojson, celdaCierre, construirRed, coberturaDeCuerpo, csvCierres, etiquetaMes, evaporacionMes, indexarCierres, longitudEscala,
+  mesesDe, normalizarBalance, normalizarCierre, normalizarCuerpo, ordenarCuerpos, proyeccionPara, resumenResiduo, rutaDeAnillos, serieBalance, separacionDebil, ultimoCierreConDato, variacionEnCiclo,
   type BalanceMensual, type CierreMensual, type CuerpoAgua, type Par,
 } from './cuerposAgua';
 
@@ -157,10 +157,35 @@ describe('geometría para dibujar', () => {
   });
 });
 
+describe('evaporación de agua libre · informativa, S/D nunca es 0', () => {
+  const fila = (extra: Record<string, unknown> = {}) => normalizarBalance({
+    cuerpo_id: 'CA-LBQCH', mes: '2026-08-01', dias_mes: 31, calidad: 'OK', evap_mm3: '13.86', evap_bajo_mm3: '10.16', evap_alto_mm3: '15.94', evap_dias: 29, evap_lamina_mm: '268.9', ...extra,
+  });
+  it('normaliza central, rango, días y lámina desde strings de PostgREST', () => {
+    const e = evaporacionMes(fila());
+    expect(e).toEqual({ mm3: 13.86, bajo: 10.16, alto: 15.94, dias: 29, laminaMm: 268.9 });
+    expect(e!.bajo).toBeLessThanOrEqual(e!.mm3);
+    expect(e!.alto).toBeGreaterThanOrEqual(e!.mm3);
+  });
+  it('sin estación o con menos de la mitad de los días llega null y se queda S/D (no 0)', () => {
+    const sd = fila({ evap_mm3: null, evap_bajo_mm3: null, evap_alto_mm3: null, evap_dias: null, evap_lamina_mm: null });
+    expect(sd.evap).toBeNull();
+    expect(evaporacionMes(sd)).toBeNull();
+  });
+  it('un rango incompleto no se presenta como cifra', () => {
+    expect(evaporacionMes(fila({ evap_alto_mm3: null }))).toBeNull();
+  });
+  it('no toca el residuo ni el error de cierre: la evaporación es informativa', () => {
+    const b = fila({ residuo_mm3: '10.9', error_cierre_mm3: null });
+    expect(b.residuo).toBe(10.9);
+    expect(b.errorCierre).toBeNull();
+  });
+});
+
 describe('balance', () => {
   const b = (cuerpoId: string, mes: string, extra: Partial<BalanceMensual> = {}): BalanceMensual => ({
     cuerpoId, mes, sIni: 1, sFin: 2, deltaS: 1, entradas: 65, salidaTotal: 2.4, extraccion: 2.4, vertido: 0, diasMes: 31, diasAportacion: 30, diasSalida: 30,
-    coberturaPct: 96.8, evap: null, residuo: 13, errorCierre: null, calidad: 'OK', ...extra,
+    coberturaPct: 96.8, evap: null, evapBajo: null, evapAlto: null, evapDias: null, evapLaminaMm: null, residuo: 13, errorCierre: null, calidad: 'OK', ...extra,
   });
   it('devuelve los últimos n meses del cuerpo en orden cronológico', () => {
     const s = serieBalance([b('A', '2025-12-01'), b('A', '2025-10-01'), b('B', '2025-11-01'), b('A', '2025-11-01')], 'A', 2);

@@ -255,6 +255,27 @@ export function aplicarSeguimiento<E extends { ubicacionId: number; fecha: strin
   return { estados: out, sustituidas };
 }
 
+/** Fila mínima de lecturas_presas (captura de Registrar, seguimiento por texto o reporte de CILA). */
+export interface LecturaPresaOficial { presa_id: string; fecha: string; almacenamiento_mm3: number | string | null; extraccion_total_m3s: number | string | null }
+
+/**
+ * UNA SOLA VERDAD por presa: lo que SICA ya reconoce como oficial en `lecturas_presas` (la captura de campo o, si no hay, el reporte de CILA,
+ * que el resolutor vuelca ahí) alimenta también el estado de la cuenca. Se traduce al formato de superposición sobre AQUARIUS: solo las presas
+ * con `presa_id` (las del distrito); el resto de la cuenca sigue con AQUARIUS o con la captura de seguimiento. Sin almacenamiento no hay lectura.
+ * La extracción llega NULL en las filas de CILA: no se inventa (queda la de AQUARIUS).
+ */
+export function seguimientoDeLecturasPresas(filas: LecturaPresaOficial[], estados: { ubicacionId: number; presaId: string | null }[]): SeguimientoReciente[] {
+  const ubicacion = new Map(estados.filter((e) => e.presaId != null).map((e) => [e.presaId as string, e.ubicacionId]));
+  const n = (v: number | string | null): number | null => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+  const out: SeguimientoReciente[] = [];
+  for (const f of filas) {
+    const u = ubicacion.get(f.presa_id), alm = n(f.almacenamiento_mm3);
+    if (u == null || alm == null) continue;
+    out.push({ aqwpUbicacionId: u, fecha: f.fecha, almacenamientoMm3: alm, ingresoM3s: null, extraccionM3s: n(f.extraccion_total_m3s) });
+  }
+  return out;
+}
+
 /** Estado de la última captura frente a hoy, para el aviso de Registrar. `dias` = días completos sin capturar (0 = hay captura de hoy). */
 export interface EstadoCaptura { dias: number | null; ultima: string | null; tono: 'ok' | 'aviso' | 'sd'; texto: string }
 

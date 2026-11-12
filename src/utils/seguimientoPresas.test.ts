@@ -128,3 +128,29 @@ describe('aviso de días sin captura', () => {
     expect(estadoUltimaCaptura('2026-11-13', '2026-11-12').dias).toBe(0);
   });
 });
+
+import { seguimientoDeLecturasPresas } from './seguimientoPresas';
+describe('una sola verdad: lecturas_presas (campo o CILA) alimenta la cuenca', () => {
+  const est = (id: number, presaId: string | null) => ({ ubicacionId: id, presaId });
+  const aq = { ubicacionId: 536, fecha: '2026-11-11', almacenamientoMm3: 827.528, pctNamo: 29.07, namoMm3: 2846.78, aportacionM3s: 23.1, extraccionTotalM3s: 0, estancado: false, diasIgual: 1, igualDesde: '2026-11-11' };
+  it('traduce solo las presas con presa_id y con almacenamiento', () => {
+    const r = seguimientoDeLecturasPresas([
+      { presa_id: 'PRE-001', fecha: '2026-11-12', almacenamiento_mm3: '831.458', extraccion_total_m3s: null },
+      { presa_id: 'PRE-009', fecha: '2026-11-12', almacenamiento_mm3: 1, extraccion_total_m3s: null },
+      { presa_id: 'PRE-002', fecha: '2026-11-12', almacenamiento_mm3: null, extraccion_total_m3s: null },
+    ], [est(536, 'PRE-001'), est(537, 'PRE-002'), est(540, null)]);
+    expect(r).toEqual([{ aqwpUbicacionId: 536, fecha: '2026-11-12', almacenamientoMm3: 831.458, ingresoM3s: null, extraccionM3s: null }]);
+  });
+  it('el reporte de CILA del día sustituye al dato de ayer de AQUARIUS y conserva aportación y extracción (CILA no las trae)', () => {
+    const lect = seguimientoDeLecturasPresas([{ presa_id: 'PRE-001', fecha: '2026-11-12', almacenamiento_mm3: 831.458, extraccion_total_m3s: null }], [est(536, 'PRE-001')]);
+    const { estados } = aplicarSeguimiento([aq], lect);
+    expect(estados[0]).toMatchObject({ fecha: '2026-11-12', almacenamientoMm3: 831.458, aportacionM3s: 23.1, extraccionTotalM3s: 0, estancado: false });
+    expect(estados[0].pctNamo).toBeCloseTo(29.21, 2);
+  });
+  it('una lectura oficial más vieja que la de AQUARIUS no la pisa; y una extracción de campo sí sustituye', () => {
+    const vieja = seguimientoDeLecturasPresas([{ presa_id: 'PRE-001', fecha: '2026-11-10', almacenamiento_mm3: 825, extraccion_total_m3s: 5 }], [est(536, 'PRE-001')]);
+    expect(aplicarSeguimiento([aq], vieja).estados[0].almacenamientoMm3).toBe(827.528);
+    const campo = seguimientoDeLecturasPresas([{ presa_id: 'PRE-001', fecha: '2026-11-11', almacenamiento_mm3: 827.53, extraccion_total_m3s: 3.2 }], [est(536, 'PRE-001')]);
+    expect(aplicarSeguimiento([aq], campo).estados[0].extraccionTotalM3s).toBe(3.2);
+  });
+});

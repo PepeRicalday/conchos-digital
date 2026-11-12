@@ -6,7 +6,7 @@ import {
     type ClimatologiaHoy, type FilaClimatologia,
 } from '../utils/aqwpEstadistica';
 import { hoyLocalISO } from '../utils/hoyLocal';
-import { aplicarSeguimiento } from '../utils/seguimientoPresas';
+import { aplicarSeguimiento, seguimientoDeLecturasPresas } from '../utils/seguimientoPresas';
 import {
     limpiarAlmacenamiento, normalizarEstado, resumenLluvia, restarDias, serieLlenado, ORDEN_PRESAS_CUENCA,
     type EstadoUbicacion, type FilaGrafica, type LecturaDiariaAqwp, type ResumenLluvia,
@@ -119,6 +119,13 @@ export function useAqwpCuenca({ conSerie = true, refrescoMs = 0 }: OpcionesCuenc
                 // La captura manual («Seguimiento de presas») es prioritaria sobre AQUARIUS: si es igual o más reciente, lo sustituye.
                 // Si la consulta falla se queda AQUARIUS tal cual (la vista no depende de la captura).
                 let estados = (estRes.data ?? []).map(normalizarEstado);
+                // UNA SOLA VERDAD: la lectura oficial de SICA (captura de campo o reporte de CILA, en lecturas_presas) alimenta también la cuenca
+                // cuando es igual o más reciente que la de AQUARIUS. Va ANTES de la captura de seguimiento, que conserva su prioridad.
+                try {
+                    const oficial = await supabase.from('lecturas_presas').select('presa_id, fecha, almacenamiento_mm3, extraccion_total_m3s')
+                        .gte('fecha', restarDias(hoyLocalISO(), 10)).order('fecha', { ascending: false });
+                    if (!oficial.error && oficial.data?.length) estados = aplicarSeguimiento(estados, seguimientoDeLecturasPresas(oficial.data, estados)).estados;
+                } catch { /* sin lecturas oficiales: AQUARIUS tal cual */ }
                 try {
                     const seg = await (supabase as unknown as { from: (t: string) => { select: (c: string) => { not: (c: string, o: string, v: null) => { gte: (c: string, v: string) => PromiseLike<{ data: Record<string, unknown>[] | null; error: unknown }> } } } })
                         .from('seguimiento_presas').select('aqwp_ubicacion_id, fecha, almacenamiento_mm3, ingreso_m3s, extraccion_m3s')

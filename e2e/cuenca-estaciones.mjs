@@ -33,7 +33,7 @@ for (const [nombre, vista] of [
   verifica(await sec.locator('svg.cu-mapa-svg .cu-prop-c').count() === 6, `[${nombre}] el mapa dibuja las 6 estaciones propias como cuadrados (forma distinta, no solo color)`);
   verifica(await sec.locator('svg g[aria-label*="estación propia"]').count() === 6, `[${nombre}] cada estación propia tiene su etiqueta accesible con la lluvia`);
   verifica(await sec.locator('tbody tr').count() >= 18, `[${nombre}] la tabla lista las 18 estaciones JCAS más las propias`);
-  verifica(await page.locator('.cu-cq .an-kpis .ui-kpi').count() === 6, `[${nombre}] los 4 indicadores de presas siguen intactos + 2 de lluvia`);
+  verifica(await page.locator('.cu-cq .an-kpis .ui-kpi').count() === 5, `[${nombre}] los 5 indicadores de la cabecera siguen intactos`);
 
   const txt = await sec.innerText();
   verifica(/Lluvia areal de la cuenca · 30 días/.test(txt), `[${nombre}] lluvia areal de 30 días rotulada`);

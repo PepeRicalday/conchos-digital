@@ -224,6 +224,11 @@ export function csvCierres(cuerpos: CuerpoAgua[], cierres: CierreMensual[]): str
   return `${BOM}${cab.join(',')}\n${filas.join('\n')}\n`;
 }
 
+/** CSV genérico (con BOM para Excel). Una celda null queda vacía: S/D nunca se escribe como 0. */
+export function csvTabla(cab: string[], filas: (string | number | null)[][]): string {
+  return `${BOM}${cab.join(',')}\n${filas.map((f) => f.map(csvCelda).join(',')).join('\n')}\n`;
+}
+
 // ── Red río–presa ───────────────────────────────────────────────────────────────────────────────────────────────────
 export interface NodoRed { cuerpo: CuerpoAgua; /** 0 = descarga a la salida de la cuenca; crece hacia aguas arriba. */ nivel: number; hijos: string[] }
 

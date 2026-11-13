@@ -1,8 +1,9 @@
-// Balance por tramo de río (Cuenca → Cierres y balance), solo lectura.
+// Balance por tramo de río (Cuenca → Balance → «Balance por tramo de río»), solo lectura.
 //   PORT=5173 node e2e/cuenca-tramos.mjs [prefijo]
 import { chromium } from 'playwright';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { irA } from './_cuenca.mjs';
 const PORT = process.env.PORT || 5173, pref = process.argv[2] || 'tramos';
 const OUT = new URL('./out/cuenca-auditoria/', import.meta.url); fs.mkdirSync(OUT, { recursive: true });
 const VP = [['1440', 1440, 900], ['ipad', 1180, 820], ['iphone', 430, 932]];
@@ -10,11 +11,11 @@ const b = await chromium.launch(); let fallos = 0;
 for (const [n, w, h] of VP) {
   const ctx = await b.newContext({ viewport: { width: w, height: h }, hasTouch: w < 900, isMobile: w < 500, serviceWorkers: 'block' });
   const pg = await ctx.newPage(); const errs = [];
-  pg.on('pageerror', (e) => errs.push(String(e))); pg.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
+  pg.on('pageerror', (e) => errs.push(String(e))); pg.on('console', (m) => { if (m.type() === 'error' && !/status of 404/.test(m.text())) errs.push(m.text()); }); // 404: la tabla de anotaciones aún no existe en la base (migración sin aplicar)
   const falla = (msg) => { fallos++; console.log(`  ✗ [${n}] ${msg}`); };
   await pg.goto(`http://localhost:${PORT}/presas?tab=analitica&vista=cuenca`, { waitUntil: 'domcontentloaded' });
   await pg.waitForSelector('.cu-root .an-kpis', { timeout: 45000 });
-  await pg.click('.cu-nav-btn:text-is("Cierres y balance")');
+  await irA(pg, 'Balance');
   await pg.waitForSelector('#cu-balance-tramos', { timeout: 45000 });
   await pg.waitForTimeout(2500); // la toma K-0 llega aparte
   const r = await pg.evaluate(() => {

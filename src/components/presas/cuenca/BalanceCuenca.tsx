@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { DataTable, Kpi, type Columna } from '../../ui/base';
 import { formatearNumero } from '../../../utils/historicoPresas';
-import { etiquetaMes } from '../../../utils/cuerposAgua';
+import { csvTabla, etiquetaMes } from '../../../utils/cuerposAgua';
+import BotonCsv from './BotonCsv';
 import {
   balanceCuenca, finDeMes, lecturasBalance, periodoInicial, rangosPeriodo, salidaCuenca,
   type BalanceVasoPeriodo, type LecturaGasto, type PeriodoCuenca,
@@ -62,6 +63,11 @@ export default function BalanceCuenca({ datos, salida, hoyISO, compacto = false,
   const frase = rango.clave === 'todo' ? 'el periodo desde 2021' : rango.clave === '12m' || rango.clave === '24m' ? `los últimos ${rango.etiqueta}` : `el ${rango.etiqueta.toLowerCase()}`;
   const lecturas = useMemo(() => lecturasBalance(bal, frase, sal), [bal, frase, sal]);
 
+  const csv = () => {
+    const cab = ['periodo', 'vaso', 'cabecera', 'inicio_mm3', 'final_mm3', 'cambio_mm3', 'mes_inicio', 'mes_final', 'entradas_mm3', 'salida_mm3', 'residuo_mm3', 'meses_completos', 'meses_periodo'];
+    const filas = bal.vasos.map((v) => [rango.etiqueta, v.cuerpo.etiqueta, v.cabecera ? 'si' : 'no', v.sIni, v.sFin, v.deltaS, v.mesIni?.slice(0, 7) ?? null, v.mesFin?.slice(0, 7) ?? null, v.entradas, v.salida, v.residuo, v.mesesOk, v.mesesPeriodo]);
+    return csvTabla(cab, filas);
+  };
   const filtro = (
     <div className="cu-controles" role="group" aria-label="Periodo del balance de la cuenca">
       <div className="cu-ctl">
@@ -112,7 +118,10 @@ export default function BalanceCuenca({ datos, salida, hoyISO, compacto = false,
       {filtro}
       {kpis}
       <LecturaCuenca lecturas={lecturas} />
-      <h5 className="an-h an-h--pie cu-cm-sub">Cambio de almacenamiento por vaso</h5>
+      <div className="cu-red-cab">
+        <h5 className="an-h an-h--pie cu-cm-sub">Cambio de almacenamiento por vaso</h5>
+        <BotonCsv nombre={`balance-cuenca-conchos-${rango.clave}.csv`} generar={csv} />
+      </div>
       <BarrasDelta vasos={bal.vasos} />
       <DataTable propia className="cu-tabla" claseContenedor="cu-tabla-wrap" regionAria="Balance por vaso en el periodo (desplazable)" captionOculto caption={`Balance por vaso, ${rango.etiqueta}`} clave={(v) => v.cuerpo.id} filas={bal.vasos} columnas={COLUMNAS} />
       <p className="an-nota cu-bal-pie">

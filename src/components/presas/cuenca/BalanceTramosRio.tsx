@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { DataTable, type Columna } from '../../ui/base';
 import { formatearNumero } from '../../../utils/historicoPresas';
-import { etiquetaMes } from '../../../utils/cuerposAgua';
+import { csvTabla, etiquetaMes } from '../../../utils/cuerposAgua';
+import BotonCsv from './BotonCsv';
 import { rangosPeriodo, type LecturaGasto, type PeriodoCuenca } from '../../../utils/cuencaAnalisis';
 import { balanceTramos, definirTramos, fuentesDeGastos, lecturasTramos, type ResultadoTramo } from '../../../utils/balanceTramosRio';
 import type { DatosCuerposAgua } from '../../../hooks/useCuerposAgua';
@@ -75,6 +76,11 @@ export default function BalanceTramosRio({ datos, ojinaga, k0, hoyISO }: {
   const frase = rango.clave === 'todo' ? 'el periodo desde 2021' : rango.clave === '12m' || rango.clave === '24m' ? `los últimos ${rango.etiqueta}` : `el ${rango.etiqueta.toLowerCase()}`;
   const lecturas = useMemo(() => lecturasTramos(tramos, frase), [tramos, frase]);
   if (!defs.length) return null;
+  const csv = () => {
+    const cab = ['periodo', 'tramo', 'sale_de_arriba_mm3', 'derivado_k0_mm3', 'llega_mm3', 'no_medido_mm3', 'no_medido_pct', 'meses_completos', 'meses_periodo', 'descartes'];
+    const filas = tramos.map((t) => [rango.etiqueta, t.def.nombre, t.liberado, t.def.derivaK0 ? t.derivado : null, t.llega, t.noMedido, t.noMedidoPct, t.mesesCompletos, t.mesesPeriodo, t.descartes.map((d) => `${d.motivo} (${d.meses})`).join('; ')]);
+    return csvTabla(cab, filas);
+  };
 
   return (
     <section className="an-card" id="cu-balance-tramos" aria-label="Balance por tramo de río">
@@ -92,7 +98,10 @@ export default function BalanceTramosRio({ datos, ojinaga, k0, hoyISO }: {
         </div>
       </div>
       <LecturaCuenca titulo="Qué mirar en los tramos" lecturas={lecturas} />
-      <h5 className="an-h an-h--pie cu-cm-sub">Agua no medida por tramo</h5>
+      <div className="cu-red-cab">
+        <h5 className="an-h an-h--pie cu-cm-sub">Agua no medida por tramo</h5>
+        <BotonCsv nombre={`balance-tramos-conchos-${rango.clave}.csv`} generar={csv} />
+      </div>
       <BarrasNoMedido tramos={tramos} />
       <DataTable propia className="cu-tabla" claseContenedor="cu-tabla-wrap" regionAria="Balance por tramo de río (desplazable)" captionOculto caption={`Balance por tramo, ${rango.etiqueta}`} clave={(t) => t.def.id} filas={tramos} columnas={COLUMNAS} />
       <p className="an-nota cu-bal-pie">

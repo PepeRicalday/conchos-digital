@@ -154,3 +154,10 @@ describe('una sola verdad: lecturas_presas (campo o CILA) alimenta la cuenca', (
     expect(aplicarSeguimiento([aq], campo).estados[0].extraccionTotalM3s).toBe(3.2);
   });
 });
+
+describe('formato de WhatsApp en el nombre', () => {
+  it('«*Boquilla, Chih.*» con asteriscos se reconoce (antes se descartaba por el sufijo de estado)', () => {
+    for (const n of ['*Boquilla, Chih.*', '*La Boquilla*', '_Boquilla, Chih._', '*Las Vírgenes*']) expect(buscarPresa(n)).not.toBeNull();
+    expect(buscarPresa('*Boquilla, Chih.*')?.clave).toBe('boquilla');
+  });
+});

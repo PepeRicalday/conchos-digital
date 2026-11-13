@@ -336,7 +336,10 @@ export function usePresas(fecha: string) {
                     // Construimos el objeto lectura garantizando que el gasto aparezca aunque no haya reporte diario
                     // (Útil para fines de ciclo o días feriados donde no se captura escala pero sí hay gasto)
                     const readingObject = (lect || latestMov || nivelPrevio) ? {
-                        fecha: lect?.fecha || latestMov?.fecha_hora?.split('T')[0] || fecha,
+                        // La fecha rotula la LECTURA DE NIVEL, no el último movimiento de compuertas:
+                        // sin lectura del día se usa la fecha de la última lectura real (nivelPrevio),
+                        // no la del movimiento (un cierre del 29-sep aparecía como fecha de la lectura).
+                        fecha: lect?.fecha || nivelPrevio?.fecha || fecha,
                         // "S/D nunca cero": se preserva null cuando ni hoy ni una lectura
                         // anterior traen el dato. `Number(null) || 0` daba 0 y volvía
                         // indistinguible un embalse vacío de uno sin lectura capturada.

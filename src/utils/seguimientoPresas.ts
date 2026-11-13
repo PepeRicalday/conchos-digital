@@ -80,7 +80,9 @@ export const normalizarNombre = (s: string): string =>
   sinAcentos(s).toLowerCase().replace(/,\s*[a-z.]{2,8}\.?\s*$/i, '').replace(/^presa\s+/, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
 export function buscarPresa(nombre: string): PresaCatalogo | null {
-  const n = normalizarNombre(nombre.replace(/,\s*(chih|dgo|chih\.|dgo\.)\.?\s*$/i, ''));
+  // Quita el formato de WhatsApp (*negritas*, _cursiva_) ANTES del sufijo de estado: «*Boquilla, Chih.*» no empataba y se descartaba.
+  const limpio = nombre.replace(/[*_~]/g, '').trim();
+  const n = normalizarNombre(limpio.replace(/,\s*(chih|dgo|chih\.|dgo\.)\.?\s*$/i, ''));
   return PRESAS_SEGUIMIENTO.find((p) => p.alias.includes(n)) ?? null;
 }
 

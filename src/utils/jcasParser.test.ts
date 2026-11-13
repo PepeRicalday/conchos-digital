@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  parseEstaciones, parseSerie, depuraPunto, diasCompletos, hoyConservador, puntoParcial, puntosHorarios, FormatoJcasError, LIMITES_MES, type PuntoSerie,
+  parseEstaciones, parseSerie, depuraPunto, diasCompletos, hoyConservador, puntoParcial, horasDelPortal, HUSO_PORTAL_H, FormatoJcasError, LIMITES_MES, type PuntoSerie,
 } from '../../supabase/functions/jcas-sync/parser';
 
 const fx = (n: string) => readFileSync(`supabase/functions/jcas-sync/fixtures/${n}`, 'utf8');
@@ -90,25 +90,48 @@ describe('JCAS · serie anual (mensual) y horaria', () => {
     expect(r.puntos).toHaveLength(24);
     expect(r.puntos[0].clave).toBe('10:00');
   });
-  it('horaria → instantes UTC: la última hora (09:00 local) es la hora de consulta y las demás retroceden hora por hora', () => {
+  it('horaria → instantes UTC: etiquetas en UTC-7; la última es la última hora COMPLETA y las demás retroceden hora por hora', () => {
     const r = parseSerie(fx('ojinaga_dia.js.html'), REF);
-    const h = puntosHorarios(r.puntos, new Date('2026-11-08T15:20:00Z')); // 09:20 hora local (UTC-6)
-    expect(h).toHaveLength(24);
-    expect(h[23].ts).toBe('2026-11-08T15:00:00.000Z');
-    expect(h[0].ts).toBe('2026-11-07T16:00:00.000Z'); // 10:00 local del día anterior
-    expect(h[0].temp_c).toBe(16.24);
-    expect(new Set(h.map((x) => x.ts)).size).toBe(24);
+    const { horas } = horasDelPortal(r.puntos, new Date('2026-11-08T17:20:00Z'), true); // 10:20 en el reloj del portal → última completa = etiqueta 09:00
+    expect(horas).toHaveLength(24);
+    expect(horas[23].ts).toBe('2026-11-08T16:00:00.000Z'); // 09:00 UTC-7 = 16:00 UTC
+    expect(horas[0].ts).toBe('2026-11-07T17:00:00.000Z'); // 10:00 UTC-7 del día anterior
+    expect(horas[0].temp_c).toBe(16.24);
+    expect(new Set(horas.map((x) => x.ts)).size).toBe(24);
+    expect(HUSO_PORTAL_H).toBe(7);
   });
-  it('horaria: si la última etiqueta no coincide con la hora local de consulta (huso distinto) no guarda nada', () => {
+  it('horaria: trae todas las variables y la lluvia de una estación sin pluviómetro es null (el 0.0 del portal no es medición)', () => {
     const r = parseSerie(fx('ojinaga_dia.js.html'), REF);
-    expect(() => puntosHorarios(r.puntos, new Date('2026-11-08T22:00:00Z'))).toThrow(FormatoJcasError);
+    const con = horasDelPortal(r.puntos, new Date('2026-11-08T17:20:00Z'), true).horas[10];
+    expect(Object.keys(con).sort()).toEqual(['hum_pct', 'lluvia_mm', 'presion_hpa', 'rocio_c', 'temp_c', 'ts', 'viento_kmh']);
+    const sin = horasDelPortal(r.puntos, new Date('2026-11-08T17:20:00Z'), false).horas;
+    expect(sin.every((h) => h.lluvia_mm === null)).toBe(true);
+    expect(sin.some((h) => h.temp_c != null)).toBe(true);
   });
-  it('horaria: horas no consecutivas o temperatura fuera de rango (S/D, no se corrige)', () => {
+  it('horaria: la hora en curso (si el portal la trajera) se descarta por incompleta', () => {
     const r = parseSerie(fx('ojinaga_dia.js.html'), REF);
+    const { horas } = horasDelPortal(r.puntos, new Date('2026-11-08T16:20:00Z'), true); // 09:20 portal: la etiqueta 09:00 está en curso
+    expect(horas).toHaveLength(23);
+    expect(horas[22].ts).toBe('2026-11-08T15:00:00.000Z');
+  });
+  it('horaria: si la última etiqueta se desfasa > 3 h de la hora del portal (estación detenida o huso distinto) no guarda nada', () => {
+    const r = parseSerie(fx('ojinaga_dia.js.html'), REF);
+    expect(() => horasDelPortal(r.puntos, new Date('2026-11-08T22:00:00Z'), true)).toThrow(FormatoJcasError);
+  });
+  it('horaria: horas no consecutivas o variable fuera de rango (S/D, no se corrige)', () => {
+    const r = parseSerie(fx('ojinaga_dia.js.html'), REF);
+    const ref = new Date('2026-11-08T17:20:00Z');
     const roto = r.puntos.map((p, i) => (i === 5 ? { ...p, clave: '20:00' } : p));
-    expect(() => puntosHorarios(roto, new Date('2026-11-08T15:20:00Z'))).toThrow(/consecutivas/);
-    const raro = r.puntos.map((p, i) => (i === 3 ? { ...p, temp_c: 80 } : p));
-    expect(puntosHorarios(raro, new Date('2026-11-08T15:20:00Z'))[3].temp_c).toBeNull();
+    expect(() => horasDelPortal(roto, ref, true)).toThrow(/consecutivas/);
+    const raro = r.puntos.map((p, i) => (i === 3 ? { ...p, temp_c: 80, hum_pct: 140 } : p));
+    const { horas, descartes } = horasDelPortal(raro, ref, true);
+    expect(horas[3].temp_c).toBeNull();
+    expect(horas[3].hum_pct).toBeNull();
+    expect(descartes).toBeGreaterThanOrEqual(2);
+  });
+  it('etiqueta "NA" (estación con la serie rota) → error explícito, no se inventa la hora', () => {
+    const r = parseSerie(fx('ojinaga_dia.js.html'), REF);
+    expect(() => horasDelPortal(r.puntos.map((p, i) => (i === 7 ? { ...p, clave: 'NA' } : p)), new Date('2026-11-08T17:20:00Z'), true)).toThrow(/ilegible/);
   });
 });
 
@@ -164,5 +187,38 @@ describe('JCAS · depuración', () => {
   it('hoyConservador usa UTC-7', () => {
     expect(hoyConservador(new Date('2026-11-08T05:00:00Z'))).toBe('2026-11-07');
     expect(hoyConservador(new Date('2026-11-08T07:00:00Z'))).toBe('2026-11-08');
+  });
+});
+
+describe('JCAS · huso del portal con datos REALES (2026-11-13 08:24 UTC)', () => {
+  const REF13 = new Date('2026-11-13T08:24:25Z');
+  const horas = (dia: string, pluv = true) => horasDelPortal(parseSerie(fx(dia), REF13).puntos, REF13, pluv).horas;
+  const hoyUtc = (mes: string) => parseSerie(fx(mes), REF13).puntos.find((p) => p.clave === '2026-11-13')!;
+  const sumaLluviaDesdeUtc = (hs: { ts: string; lluvia_mm: number | null }[]) => Math.round(hs.filter((h) => h.ts >= '2026-11-13T00:00:00.000Z').reduce((a, h) => a + (h.lluvia_mm ?? 0), 0) * 10) / 10;
+
+  it('a las 08:24 UTC la última hora completa es la etiqueta 00:00 (UTC-7) = 07:00 UTC', () => {
+    const h = horas('borja_dia_20261113.html');
+    expect(h).toHaveLength(24);
+    expect(h[23].ts).toBe('2026-11-13T07:00:00.000Z');
+  });
+  it('el «día» del portal es UTC: la lluvia horaria desde 00:00 UTC reproduce exactamente el total diario del 13 (Borja 7.8 mm, Balleza 1.2 mm)', () => {
+    expect(sumaLluviaDesdeUtc(horas('borja_dia_20261113.html'))).toBe(7.8);
+    expect(hoyUtc('borja_mes_20261113.html').lluvia_mm).toBe(7.8);
+    expect(sumaLluviaDesdeUtc(horas('balleza_dia_20261113.html'))).toBe(1.2);
+    expect(hoyUtc('balleza_mes_20261113.html').lluvia_mm).toBe(1.2);
+  });
+  it('las lluvias de las 17:00 y 18:00 locales de Chihuahua del día 12 caen en el «día» 13 del portal (por eso hay que reconstruir días locales)', () => {
+    const h = horas('borja_dia_20261113.html');
+    const tarde = h.filter((x) => x.lluvia_mm != null && x.lluvia_mm > 0);
+    expect(tarde.map((x) => x.lluvia_mm)).toEqual([5.6, 2.2]);
+    // 5.6 mm a las 00:00 UTC del 13 = 18:00 del 12 en Chihuahua (UTC-6)
+    expect(tarde[0].ts).toBe('2026-11-13T00:00:00.000Z');
+    const localChihuahua = new Date(Date.parse(tarde[0].ts) - 6 * 3_600_000).toISOString().slice(0, 13);
+    expect(localChihuahua).toBe('2026-11-12T18');
+  });
+  it('San Antonio (sin pluviómetro): trae temperatura, humedad y viento por hora; la lluvia es S/D', () => {
+    const h = horas('sanantonio_dia_20261113.html', false);
+    expect(h.every((x) => x.lluvia_mm === null)).toBe(true);
+    expect(h.filter((x) => x.temp_c != null && x.hum_pct != null && x.viento_kmh != null).length).toBeGreaterThanOrEqual(22);
   });
 });

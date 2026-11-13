@@ -164,26 +164,48 @@ export function puntoParcial(puntos: PuntoSerie[], ref: Date, tienePluviometro: 
 }
 
 /**
- * Serie HORARIA (?mode=day): 24 puntos "HH:00" de las últimas 24 h, el último es la hora más reciente (no trae fecha). Se asignan fechas retrocediendo
- * desde `ref` con la hora local de Chihuahua (UTC-6, sin horario de verano). Estricto como el resto del parser: si las horas no son consecutivas o la
- * última etiqueta no coincide (≤ 3 h de rezago) con la hora local de `ref`, el huso del portal no es el supuesto y NO se guarda nada (FormatoJcasError).
- * Devuelve el inicio de cada hora en UTC y su temperatura depurada (fuera de rango = null).
+ * HUSO DEL PORTAL (verificado el 2026-11-13 con datos reales, ver fixtures *_20261113):
+ *  · las ETIQUETAS HORARIAS ("HH:00", inicio de hora) van en UTC-7 fijo: a las 08:24 UTC la última etiqueta era "00:00";
+ *  · los totales DIARIOS de la serie mensual son días UTC (00:00 UTC = etiqueta 17:00 = 18:00 de Chihuahua): la lluvia horaria de las etiquetas
+ *    17:00 y 18:00 (5.6 + 2.2 mm en San Fco. de Borja) suma exactamente el «día» 13 del portal (7.8 mm).
+ * Por eso el día del portal NO es el día local de Chihuahua (UTC-6): los días locales se reconstruyen desde la serie horaria.
  */
-export function puntosHorarios(puntos: PuntoSerie[], ref: Date): { ts: string; temp_c: number | null }[] {
+export const HUSO_PORTAL_H = 7;
+
+export interface HoraJcas {
+  /** Inicio de la hora, en UTC (ISO). */
+  ts: string;
+  temp_c: number | null; hum_pct: number | null; viento_kmh: number | null; presion_hpa: number | null; rocio_c: number | null; lluvia_mm: number | null;
+}
+
+/**
+ * Serie HORARIA (?mode=day): 24 puntos "HH:00" de las últimas 24 h, el último es la última hora COMPLETA (no trae fecha). Se asignan fechas retrocediendo
+ * desde `ref` con el huso del portal (UTC-7). Estricto: si las horas no son consecutivas o la última etiqueta se desfasa más de 3 h de la última hora
+ * completa (estación detenida o huso distinto) NO se guarda nada (FormatoJcasError). La hora en curso, si viniera, se descarta (incompleta).
+ * Devuelve TODAS las variables por hora; lo fuera de rango es null (no se corrige) y la lluvia de una estación sin pluviómetro es null (el 0.0 del portal no es medición).
+ */
+export function horasDelPortal(puntos: PuntoSerie[], ref: Date, tienePluviometro: boolean): { horas: HoraJcas[]; descartes: number } {
   if (puntos.length < 2) throw new FormatoJcasError("serie horaria vacía");
-  const horas = puntos.map((p) => { const m = /^(\d{2}):00$/.exec(p.clave); if (!m || +m[1] > 23) throw new FormatoJcasError(`etiqueta horaria ilegible "${p.clave}"`); return +m[1]; });
-  for (let i = 1; i < horas.length; i++) if (horas[i] !== (horas[i - 1] + 1) % 24) throw new FormatoJcasError("horas no consecutivas en la serie horaria");
-  const LOC = 6 * 3_600_000, H = 3_600_000;
-  const refLocal = ref.getTime() - LOC; // «reloj local» expresado como UTC
-  const inicioHoraRef = Math.floor(refLocal / H) * H;
-  const hUltima = horas[horas.length - 1];
-  let fin = Math.floor(inicioHoraRef / 86_400_000) * 86_400_000 + hUltima * H;
-  if (fin > inicioHoraRef) fin -= 86_400_000;
-  if (inicioHoraRef - fin > 3 * H) throw new FormatoJcasError(`la última hora de la serie (${puntos[puntos.length - 1].clave}) no coincide con la hora local de consulta`);
-  return puntos.map((p, i) => ({
-    ts: new Date(fin - (puntos.length - 1 - i) * H + LOC).toISOString(),
-    temp_c: p.temp_c != null && p.temp_c >= LIMITES.temp_c[0] && p.temp_c <= LIMITES.temp_c[1] ? p.temp_c : null,
-  }));
+  const etq = puntos.map((p) => { const m = /^(\d{2}):00$/.exec(p.clave); if (!m || +m[1] > 23) throw new FormatoJcasError(`etiqueta horaria ilegible "${p.clave}"`); return +m[1]; });
+  for (let i = 1; i < etq.length; i++) if (etq[i] !== (etq[i - 1] + 1) % 24) throw new FormatoJcasError("horas no consecutivas en la serie horaria");
+  const H = 3_600_000, D = 86_400_000, OFF = HUSO_PORTAL_H * H;
+  const refPortal = ref.getTime() - OFF; // reloj del portal expresado como UTC
+  const inicioHoraRef = Math.floor(refPortal / H) * H;
+  const hUltima = etq[etq.length - 1];
+  let fin = Math.floor(inicioHoraRef / D) * D + hUltima * H; // inicio (reloj del portal) de la última etiqueta
+  if (fin > inicioHoraRef) fin -= D;
+  const rezago = (inicioHoraRef - H) - fin; // 0 = última hora completa; -1 h = trae la hora en curso
+  if (rezago < -H || rezago > 3 * H) throw new FormatoJcasError(`la última hora de la serie (${puntos[puntos.length - 1].clave}) no coincide con la hora del portal (UTC-${HUSO_PORTAL_H}) de consulta`);
+  const horas: HoraJcas[] = [];
+  let descartes = 0;
+  puntos.forEach((p, i) => {
+    const inicioUtc = fin - (puntos.length - 1 - i) * H + OFF;
+    if (inicioUtc + H > ref.getTime()) return; // hora incompleta
+    const { punto, descartados } = depuraPunto(p, tienePluviometro);
+    descartes += descartados.length;
+    horas.push({ ts: new Date(inicioUtc).toISOString(), temp_c: punto.temp_c, hum_pct: punto.hum_pct, viento_kmh: punto.viento_kmh, presion_hpa: punto.presion_hpa, rocio_c: punto.rocio_c, lluvia_mm: punto.lluvia_mm });
+  });
+  return { horas, descartes };
 }
 
 /** Días completos de una serie mensual, listos para guardar. */

@@ -38,7 +38,8 @@ export async function cargarDatosJcas(diasLecturas?: number): Promise<DatosJcas>
     const ids = est.map((e) => e.id_jcas);
     const lec: FilaLecturaJcas[] = [];
     for (let from = 0; ids.length; from += PAGINA) {
-        const { data, error: e2 } = await supabase.from('jcas_lecturas_diarias')
+        // v_jcas_lecturas_diarias: día LOCAL de Chihuahua reconstruido desde la serie horaria cuando existe; si no, el día UTC del portal (historia).
+        const { data, error: e2 } = await supabase.from('v_jcas_lecturas_diarias')
             .select('estacion_id, fecha, lluvia_mm, temp_c, hum_pct, viento_kmh').in('estacion_id', ids).gte('fecha', desde)
             .order('estacion_id').order('fecha').range(from, from + PAGINA - 1);
         if (e2) throw new Error(e2.message);

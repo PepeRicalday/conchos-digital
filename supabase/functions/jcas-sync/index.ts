@@ -6,9 +6,11 @@
 // Cortesía: User-Agent identificable, una petición a la vez con pausa de 1 s, ≤ 20 estaciones, cron 2 veces al día + 1 semanal.
 // Nada de esto toca clima_estaciones / clima_estacion_lecturas (WeatherLink) ni los KPIs del distrito.
 // Modos (body.modo): "diario" (default) catálogo + últimos ~30 días · "anio" meses completos de los últimos 12 (reanudable, body.forzar=true recarga todo) ·
-//                    "catalogo" solo la lista de estaciones · "hoy" solo la lectura PARCIAL del día en curso (tabla jcas_lecturas_hoy, cron cada 2 h) ·
-//                    "horario" temperatura de las últimas 24 h (?mode=day → jcas_lecturas_horarias; base de las horas frío; cron cada 4 h, SIN activar).
-//                    Opcional body.estaciones = [ids]. El día en curso nunca entra a jcas_lecturas_diarias (solo días completos).
+//                    "catalogo" solo la lista de estaciones · "horario" (alias "hoy": el cron cada 2 h lo sigue llamando así) las últimas 24 h de TODAS las variables
+//                    (?mode=day → jcas_lecturas_horarias, con el huso del portal UTC-7) y, con eso, reconstruye los DÍAS LOCALES de Chihuahua (fn_jcas_dias_locales →
+//                    jcas_lecturas_diarias_local) y la lectura parcial de hoy (fn_jcas_hoy_local → jcas_lecturas_hoy).
+//                    HUSO: el «día» de la serie mensual del portal es UTC (18:00 a 18:00 de Chihuahua): jcas_lecturas_diarias guarda ESOS días (historia) y la vista
+//                    v_jcas_lecturas_diarias prefiere el día local reconstruido cuando existe. Opcional body.estaciones = [ids].
 // Estricto: si el HTML cambia (FormatoJcasError) no se guarda nada de esa estación y se levanta la alerta JCAS-FORMATO.
 // S/D = NULL, nunca 0. Datos provisionales.
 // Auth: x-cron-secret (cron_secretos 'jcas_sync') o JWT de usuario SRL.
@@ -16,7 +18,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { exigirRol } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { BASE_JCAS, depuraPunto, diasCompletos, FormatoJcasError, hoyConservador, LIMITES_MES, parseEstaciones, parseSerie, puntoParcial, puntosHorarios } from "./parser.ts";
+import { BASE_JCAS, depuraPunto, diasCompletos, FormatoJcasError, hoyConservador, LIMITES_MES, parseEstaciones, parseSerie, horasDelPortal } from "./parser.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -73,7 +75,7 @@ async function sincronizaCatalogo(sb: Sb) {
   return { estaciones: est.length, nuevas };
 }
 
-async function modoSerie(sb: Sb, modo: "diario" | "anio" | "hoy" | "horario", ids: number[] | undefined, t0: number, forzar: boolean) {
+async function modoSerie(sb: Sb, modo: "diario" | "anio" | "horario", ids: number[] | undefined, t0: number, forzar: boolean) {
   let q = sb.from("jcas_estaciones").select("id_jcas, nombre, tiene_pluviometro").eq("sincronizar", true).order("id_jcas");
   if (ids?.length) q = q.in("id_jcas", ids);
   const { data: lista, error } = await q.limit(MAX_ESTACIONES);
@@ -92,17 +94,20 @@ async function modoSerie(sb: Sb, modo: "diario" | "anio" | "hoy" | "horario", id
     if (modo === "anio" && Date.now() - t0 > PRESUPUESTO_MS) { r.pendientes++; continue; }
     try {
       if (modo === "horario") {
-        // Serie horaria de las últimas 24 h (temperatura): base de las horas frío. Tabla aparte; nunca toca las lecturas diarias.
+        // Serie horaria de las últimas 24 h con TODAS las variables (etiquetas en UTC-7). Es la base de los días LOCALES, de «hoy» y de las horas frío.
         const htmlH = await (await pedir(`/estacion/view/${e.id_jcas}?mode=day`)).text();
         const serieH = parseSerie(htmlH, ref);
         if (serieH.modo !== "dia") throw new FormatoJcasError(`modo inesperado "${serieH.modo}"`);
-        const horas = puntosHorarios(serieH.puntos, ref).filter((h) => h.temp_c != null)
-          .map((h) => ({ estacion_id: e.id_jcas, ts: h.ts, temp_c: h.temp_c }));
-        if (horas.length) {
-          const { error: eHr } = await sb.from("jcas_lecturas_horarias").upsert(horas, { onConflict: "estacion_id,ts" });
+        const { horas, descartes } = horasDelPortal(serieH.puntos, ref, e.tiene_pluviometro);
+        r.descartes += descartes;
+        const filas = horas
+          .filter((h) => [h.temp_c, h.hum_pct, h.viento_kmh, h.presion_hpa, h.lluvia_mm].some((v) => v != null))
+          .map((h) => ({ estacion_id: e.id_jcas, ...h, ts_v2: true }));
+        if (filas.length) {
+          const { error: eHr } = await sb.from("jcas_lecturas_horarias").upsert(filas, { onConflict: "estacion_id,ts" });
           if (eHr) throw new Error(`horario: ${eHr.message}`);
         }
-        r.estaciones++; r.filas += horas.length;
+        r.estaciones++; r.filas += filas.length;
         await pausa();
         continue;
       }
@@ -110,20 +115,8 @@ async function modoSerie(sb: Sb, modo: "diario" | "anio" | "hoy" | "horario", id
       const serie = parseSerie(html, ref);
       if (serie.modo !== (modo === "anio" ? "anio" : "mes")) throw new FormatoJcasError(`modo inesperado "${serie.modo}"`);
       let registros: Record<string, unknown>[];
-      if (modo === "hoy" || modo === "diario") {
-        // Día en curso (parcial): tabla aparte, una fila por estación. Nunca entra a las lecturas diarias completas.
-        const parcial = puntoParcial(serie.puntos, ref, e.tiene_pluviometro);
-        if (parcial) {
-          const { error: eH } = await sb.from("jcas_lecturas_hoy").upsert({
-            estacion_id: e.id_jcas, fecha: parcial.fecha, temp_c: parcial.punto.temp_c, hum_pct: parcial.punto.hum_pct,
-            viento_kmh: parcial.punto.viento_kmh, lluvia_mm: parcial.punto.lluvia_mm, actualizado_en: ref.toISOString(),
-          }, { onConflict: "estacion_id" });
-          if (eH) throw new Error(`hoy: ${eH.message}`);
-        }
-      }
-      if (modo === "hoy") {
-        registros = [];
-      } else if (modo === "diario") {
+      // El parcial del día en curso del portal es un día UTC (arranca a las 18:00 de Chihuahua): ya NO se guarda como «hoy». «Hoy» sale de la serie horaria (huso local).
+      if (modo === "diario") {
         const dias = diasCompletos(serie.puntos, ref, e.tiene_pluviometro);
         registros = dias.map(({ fecha, punto: p }) => ({
           estacion_id: e.id_jcas, fecha, temp_c: p.temp_c, hum_pct: p.hum_pct, viento_kmh: p.viento_kmh,
@@ -164,12 +157,12 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const sb: Sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const t0 = Date.now();
-  let modo: "diario" | "anio" | "catalogo" | "hoy" | "horario" = "diario";
+  let modo: "diario" | "anio" | "catalogo" | "horario" = "diario";
   try {
     const auth = await exigirRol(req, ["SRL"], { nombreSecreto: "jcas_sync" }, sb);
     if (!auth.ok) return json({ ok: false, error: auth.error }, auth.status);
     const body = await req.json().catch(() => ({}));
-    modo = body?.modo === "anio" ? "anio" : body?.modo === "catalogo" ? "catalogo" : body?.modo === "hoy" ? "hoy" : body?.modo === "horario" ? "horario" : "diario";
+    modo = body?.modo === "anio" ? "anio" : body?.modo === "catalogo" ? "catalogo" : (body?.modo === "hoy" || body?.modo === "horario") ? "horario" : "diario"; // «hoy» = alias de horario
     const ids = Array.isArray(body?.estaciones) ? body.estaciones.map(Number).filter(Number.isInteger) : undefined;
 
     let cat: { estaciones: number; nuevas: number } | null = null;
@@ -184,6 +177,14 @@ Deno.serve(async (req) => {
       throw e;
     }
     const s = modo === "catalogo" ? { estaciones: 0, filas: 0, descartes: 0, errores: [] as string[], formato: 0, pendientes: 0 } : await modoSerie(sb, modo, ids, t0, body?.forzar === true);
+
+    // Días locales de Chihuahua y «hoy» parcial, reconstruidos desde las horas (se auto-corrigen en la siguiente corrida si faltó la última hora).
+    if (modo === "horario" && s.filas > 0) {
+      const a = await sb.rpc("fn_jcas_dias_locales");
+      if (a.error) s.errores.push(`días locales: ${a.error.message}`);
+      const b = await sb.rpc("fn_jcas_hoy_local");
+      if (b.error) s.errores.push(`hoy local: ${b.error.message}`);
+    }
 
     if (modo !== "catalogo") {
       await gestionarAlerta(sb, "JCAS-FORMATO", s.formato > 0 && s.formato >= Math.max(1, Math.ceil((s.estaciones + s.errores.length) / 2)),

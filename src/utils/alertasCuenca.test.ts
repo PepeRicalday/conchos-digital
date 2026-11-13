@@ -39,6 +39,23 @@ describe('construyeAlertasCuenca', () => {
     expect(construyeAlertasCuenca({ presas: [], fuentes: evaluarFuentes([fuente('x', null, 60)], AHORA) })).toEqual([]);
   });
   it('fuentes null (aún no se sabe) no afirma nada', () => { expect(construyeAlertasCuenca({ presas: [], fuentes: null })).toEqual([]); });
+  it('cierres que difieren: solo los de los 2 últimos meses, el más reciente primero', () => {
+    const a = construyeAlertasCuenca({
+      presas: [], fuentes: null, ahoraMs: Date.parse('2026-11-13T20:00:00Z'),
+      cierresDifieren: [{ cuerpo: 'Chihuahua', mes: '2025-02-01', difMm3: 2.1 }, { cuerpo: 'La Boquilla', mes: '2026-10-01', difMm3: 5.64 }, { cuerpo: 'Madero', mes: '2026-09-01', difMm3: 1 }, { cuerpo: 'Viejo', mes: '2026-08-01', difMm3: 9 }],
+    });
+    expect(a).toHaveLength(1);
+    expect(a[0].id).toBe('cuenca-cierres-difieren');
+    expect(a[0].message).toContain('La Boquilla (2026-10, 5.6 Mm³), Madero (2026-09, 1.0 Mm³)');
+    expect(a[0].message).not.toContain('Viejo');
+    expect(a[0].message).not.toContain('Chihuahua');
+  });
+  it('sin cierres recientes que difieran, o sin saberlo, no hay alerta', () => {
+    const h = Date.parse('2026-11-13T20:00:00Z');
+    expect(construyeAlertasCuenca({ presas: [], fuentes: null, ahoraMs: h, cierresDifieren: [{ cuerpo: 'X', mes: '2025-02-01', difMm3: 3 }] })).toEqual([]);
+    expect(construyeAlertasCuenca({ presas: [], fuentes: null, ahoraMs: h, cierresDifieren: null })).toEqual([]);
+    expect(construyeAlertasCuenca({ presas: [], fuentes: null, cierresDifieren: [{ cuerpo: 'X', mes: '2026-10-01', difMm3: 3 }] })).toEqual([]);
+  });
   it('lista larga se resume', () => {
     const ps = ['A', 'B', 'C', 'D', 'E'].map((n) => presa({ etiqueta: n, pct: 5 }));
     expect(construyeAlertasCuenca({ presas: ps, fuentes: null })[0].message).toContain('A 5.0 %, B 5.0 %, C 5.0 % y 2 más');

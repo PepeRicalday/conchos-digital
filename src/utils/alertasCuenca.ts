@@ -19,10 +19,17 @@ export interface PresaCuencaAlerta {
   fecha: string | null;
 }
 
+/** Cierre mensual cuyas fuentes discrepan (calidad DIFIERE): vaso, mes (AAAA-MM-01) y la mayor diferencia en Mm³. */
+export interface CierreDifiere { cuerpo: string; mes: string; difMm3: number | null }
+
 export interface EntradaAlertasCuenca {
   presas: PresaCuencaAlerta[];
   /** Fuentes ya evaluadas (saludFuentes.evaluarFuentes). null = aún no se sabe: no se afirma nada. */
   fuentes: FuenteEvaluada[] | null;
+  /** Cierres con fuentes discrepantes. null = aún no se sabe. Solo los de los 2 últimos meses cuentan como accionables. */
+  cierresDifieren?: CierreDifiere[] | null;
+  /** Reloj (el módulo es puro). Obligatorio para evaluar `cierresDifieren`. */
+  ahoraMs?: number;
 }
 
 const lista = (xs: string[]) => (xs.length <= 3 ? xs.join(', ') : `${xs.slice(0, 3).join(', ')} y ${xs.length - 3} más`);
@@ -58,6 +65,19 @@ export function construyeAlertasCuenca(e: EntradaAlertasCuenca): AlertaSistema[]
       message: `${caidas.map((f) => `${f.nombre} (${edad(f.edadMin)})`).join('; ')}. Lleva más de 3 veces su cadencia normal sin dato nuevo.`,
       timestamp: 'Ahora', fuente: 'vivo', categoria: 'cuenca',
     });
+  }
+  // Cierres recientes cuyas fuentes no coinciden: hay que cuadrar antes de usar la cifra en el balance.
+  if (e.cierresDifieren && e.ahoraMs != null) {
+    const d = new Date(e.ahoraMs);
+    const limite = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 2, 1)).toISOString().slice(0, 10);
+    const rec = e.cierresDifieren.filter((c) => c.mes >= limite).sort((a, b) => b.mes.localeCompare(a.mes) || (b.difMm3 ?? 0) - (a.difMm3 ?? 0));
+    if (rec.length) {
+      out.push({
+        id: 'cuenca-cierres-difieren', type: 'info', title: 'Cierres de la cuenca con fuentes que difieren',
+        message: `${lista(rec.map((c) => `${c.cuerpo} (${c.mes.slice(0, 7)}${c.difMm3 != null ? `, ${c.difMm3.toFixed(1)} Mm³` : ''})`))}: dos fuentes discrepan más de 0.5 Mm³ o 0.5 %. Revise el cuadre en Cuenca → Balance → Cierres mensuales.`,
+        timestamp: rec[0].mes.slice(0, 7), fuente: 'vivo', categoria: 'cuenca',
+      });
+    }
   }
   return out;
 }

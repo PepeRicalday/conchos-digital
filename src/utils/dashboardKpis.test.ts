@@ -111,4 +111,12 @@ describe('alertas: una sola fuente', () => {
     it('severidad desconocida cae a informativa', () => {
         expect(alertaDesdeRegistro(fila({ tipo_riesgo: 'rara' }), ahora).type).toBe('info');
     });
+    it('una alerta de la cuenca guardada y su versión viva son UNA sola (mismo id): gana la viva', () => {
+        const guardada = alertaDesdeRegistro(fila({ id: 'u-9', origen_id: 'CUENCA:presa-critica', categoria: 'nivel_critico', fecha_deteccion: '2026-10-05T10:00:00Z' }), ahora);
+        expect(guardada.id).toBe('cuenca-presa-critica');
+        const todas = fusionaAlertas([viva('cuenca-presa-critica', 'warning')], [guardada, alertaDesdeRegistro(fila({ id: 'u-10' }), ahora)]);
+        expect(todas.filter((x) => x.id === 'cuenca-presa-critica')).toHaveLength(1);
+        expect(todas).toHaveLength(2);
+        expect(alertaDesdeRegistro(fila({ id: 'u-11', origen_id: 'PE-5' }), ahora).id).toBe('reg-u-11');
+    });
 });

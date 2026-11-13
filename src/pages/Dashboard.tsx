@@ -21,6 +21,7 @@ import { construyeAlertasVivas, diasDesde } from '../utils/alertasVivas';
 import { useDashboardExtra } from '../hooks/useDashboardExtra';
 import { useAqwpCuenca } from '../hooks/useAqwpCuenca';
 import { useSaludFuentes } from '../hooks/useSaludFuentes';
+import { useCierresDifieren } from '../hooks/useCierresDifieren';
 import { construyeAlertasCuenca } from '../utils/alertasCuenca';
 import { evaluarFuentes } from '../utils/saludFuentes';
 import { cuencaCompacta, filasPresas } from '../utils/aqwpCuenca';
@@ -166,10 +167,12 @@ const Dashboard = () => {
     }), [tomasVaradas, segments, modules, presas, activeEvent, predictivas, ahoraAlertas, goesResumen]);
     // Alertas de la cuenca (presas fuera del distrito, lectura repetida, fuentes sin actualizar). Las GOES ya salen arriba.
     const saludFuentes = useSaludFuentes();
+    const cierresDifieren = useCierresDifieren();
     const alertasCuenca = useMemo(() => construyeAlertasCuenca({
         presas: (cuenca.datos ? filasPresas(cuenca.datos.estados) : []).map((f) => ({ etiqueta: f.etiqueta, delDistrito: f.delDistrito, pct: f.pct, sinActualizar: f.sinActualizar, diasIgual: f.diasIgual ?? null, fecha: f.fecha ?? null })),
         fuentes: saludFuentes.filas ? evaluarFuentes(saludFuentes.filas, ahoraAlertas) : null,
-    }), [cuenca.datos, saludFuentes.filas, ahoraAlertas]);
+        cierresDifieren, ahoraMs: ahoraAlertas,
+    }), [cuenca.datos, saludFuentes.filas, cierresDifieren, ahoraAlertas]);
     const alertas = useMemo(() => fusionaAlertas([...vivas, ...alertasCuenca], alertasRegistro), [vivas, alertasCuenca, alertasRegistro]);
     const resumen = useMemo(() => resumenAlertas(alertas), [alertas]);
 

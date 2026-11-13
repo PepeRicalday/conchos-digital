@@ -170,7 +170,9 @@ export function alertaDesdeRegistro(f: AlertaRegistroFila, ahoraMs: number, acci
     const edadDias = f.fecha_deteccion ? (ahoraMs - new Date(f.fecha_deteccion).getTime()) / 86_400_000 : Infinity;
     const clave = (f.origen_id ?? '').split('-')[0]?.toLowerCase() === 'clima' ? (f.origen_id ?? '').split('-')[1]?.toLowerCase() ?? '' : '';
     return {
-        id: `reg-${f.id}`,
+        // Las alertas de la cuenca guardadas por fn_cuenca_vigilar (origen_id «CUENCA:<clave>») comparten id con su versión viva
+        // («cuenca-<clave>»): fusionaAlertas las junta en una sola y el Dashboard no las muestra duplicadas.
+        id: (f.origen_id ?? '').startsWith('CUENCA:') ? `cuenca-${(f.origen_id as string).slice(7)}` : `reg-${f.id}`,
         type,
         title: f.titulo,
         message: f.mensaje ?? '',

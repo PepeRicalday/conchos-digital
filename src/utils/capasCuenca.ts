@@ -83,14 +83,27 @@ export async function cargarCapas(ids: CapaId[]): Promise<DatosCapas> {
 interface EstiloCapas {
     muni: string; muniTxt: string; rio: string; rioTxt: string; carr: string; sub: string; srl: string; srlRelleno: string;
     presa: string; presaBorde: string; punto: string; txt: string; halo: string;
+    /**
+     * Solo el tema «campo» (mapa interactivo con isoyetas encendidas): cada línea lleva CASING (trazo oscuro más ancho debajo del claro) para que su
+     * contraste no dependa del color del relleno, y un estilo de línea DISTINTO por capa (el color ya no es el único canal). Ausente = sin casing (pantalla y papel).
+     */
+    casing?: string; casingExtra?: number; wk?: number;
+    dashMuni?: number[]; dashSub?: number[]; dashCarr?: number[];
+    rioBase?: number; rioPaso?: number; srlW?: number; triangulo?: string; huellaBorde?: string; huellaRelleno?: string; puntoR?: number; puntoAnillo?: number;
 }
-const ESTILO: Record<'pantalla' | 'papel', EstiloCapas> = {
+const ESTILO: Record<'pantalla' | 'papel' | 'campo', EstiloCapas> = {
     pantalla: { muni: 'rgba(180,194,212,0.38)', muniTxt: '#b4c2d4', rio: '#6bbcf0', rioTxt: '#9bd3f7', carr: 'rgba(232,205,130,0.6)', sub: 'rgba(150,170,200,0.55)', srl: '#7dd3a8', srlRelleno: 'rgba(125,211,168,0.12)', presa: 'rgba(63,178,243,0.5)', presaBorde: '#e8eef6', punto: '#e8eef6', txt: '#e8eef6', halo: '#061532' },
+    campo: {
+        muni: 'rgba(232,238,246,0.78)', muniTxt: '#e8eef6', rio: '#8fe3ff', rioTxt: '#c8f1ff', carr: '#f4e8a8', sub: '#cbd5e1', srl: '#ffffff', srlRelleno: 'none',
+        presa: 'rgba(232,238,246,0.85)', presaBorde: '#04122b', punto: '#ffffff', txt: '#ffffff', halo: '#04122b',
+        casing: '#04122b', casingExtra: 1.8, wk: 1.25, dashMuni: [6, 3, 1.5, 3], dashSub: [0.1, 4], dashCarr: [7, 3], rioBase: 0.9, rioPaso: 0.5, srlW: 2.2,
+        triangulo: '#ffffff', huellaBorde: '#e8eef6', huellaRelleno: 'none', puntoR: 3.5, puntoAnillo: 1.8,
+    },
     papel: { muni: 'rgba(110,120,135,0.5)', muniTxt: '#4a5565', rio: '#2f6fb0', rioTxt: '#1d4f86', carr: 'rgba(146,112,30,0.75)', sub: 'rgba(90,105,125,0.65)', srl: '#1f7a52', srlRelleno: 'rgba(31,122,82,0.10)', presa: 'rgba(11,49,112,0.55)', presaBorde: '#0B3170', punto: '#0E1B2C', txt: '#0E1B2C', halo: '#ffffff' },
 };
 
 export interface OpcionesCapasSvg {
-    px: number; tema: 'pantalla' | 'papel'; ancho: number; alto: number;
+    px: number; tema: 'pantalla' | 'papel' | 'campo'; ancho: number; alto: number;
     /** Cajas [x, y de la línea base, ancho, alto] ya ocupadas (cifras de las estaciones): los rótulos de las capas las esquivan. */
     reservados?: [number, number, number, number][];
 }
@@ -132,7 +145,13 @@ function registroColision(ancho: number, alto: number, previas: [number, number,
 export function capasSvg(datos: DatosCapas, ids: CapaId[], p: ProyectorMapa, op: OpcionesCapasSvg): CapasSvg {
     const E = ESTILO[op.tema], px = op.px, s = px / 12;
     // en pantalla los rótulos de las capas miden lo mismo que el resto del texto (≥ 12 px reales); en papel son algo menores para no recargar
-    const kt = op.tema === 'pantalla' ? 1 : 0.8;
+    const kt = op.tema === 'papel' ? 0.8 : 1;
+    const wk = E.wk ?? 1;
+    const dashDe = (d: number[]) => d.map((x) => n1(x * s)).join(' ');
+    // casing oscuro bajo una línea (solo tema «campo»): mismo trazado y mismo dash, más ancho
+    const cas = (d: string, w: number, dash?: string) => (E.casing
+        ? `<path d="${d}" fill="none" stroke="${E.casing}" stroke-opacity="0.75" stroke-width="${n1((w + (E.casingExtra ?? 1.8)) * s)}"${dash ? ` stroke-dasharray="${dash}"` : ''} stroke-linejoin="round" stroke-linecap="round"/>`
+        : '');
     const quiere = (c: CapaId) => ids.includes(c);
     const bajo: string[] = [], alto: string[] = [], leyenda: CapasSvg['leyenda'] = [];
     const libre = registroColision(op.ancho, op.alto, op.reservados);
@@ -140,31 +159,39 @@ export function capasSvg(datos: DatosCapas, ids: CapaId[], p: ProyectorMapa, op:
 
     if (quiere('subcuencas') && datos.subcuencas) {
         const d = datos.subcuencas.features.flatMap((f) => anillos(f.geometry)).map((r) => `${trazo(r, p)}Z`).join('');
-        bajo.push(`<path d="${d}" fill="none" stroke="${E.sub}" stroke-width="${n1(0.9 * s)}" stroke-dasharray="${n1(2 * s)} ${n1(3 * s)}" stroke-linejoin="round"/>`);
+        const dashSub = E.dashSub ? dashDe(E.dashSub) : `${n1(2 * s)} ${n1(3 * s)}`;
+        bajo.push(`${cas(d, 0.9 * wk, dashSub)}<path d="${d}" fill="none" stroke="${E.sub}" stroke-width="${n1(0.9 * wk * s)}" stroke-dasharray="${dashSub}" stroke-linejoin="round"${E.casing ? ' stroke-linecap="round"' : ''}/>`);
         leyenda.push({ glifo: glifoLinea(E.sub, 1.2, '2 3'), texto: 'subcuencas' });
     }
     if (quiere('municipios') && datos.municipios) {
         const d = datos.municipios.features.flatMap((f) => anillos(f.geometry)).map((r) => `${trazo(r, p)}Z`).join('');
-        bajo.push(`<path d="${d}" fill="none" stroke="${E.muni}" stroke-width="${n1(0.8 * s)}" stroke-linejoin="round"/>`);
+        const dashMuni = E.dashMuni ? dashDe(E.dashMuni) : '';
+        bajo.push(`${cas(d, 0.8 * wk, dashMuni)}<path d="${d}" fill="none" stroke="${E.muni}" stroke-width="${n1(0.8 * wk * s)}"${dashMuni ? ` stroke-dasharray="${dashMuni}"` : ''} stroke-linejoin="round"/>`);
         leyenda.push({ glifo: glifoLinea(E.muni, 1.2), texto: 'límite municipal' });
     }
     if (quiere('carreteras') && datos.carreteras) {
         const d = datos.carreteras.features.flatMap((f) => lineas(f.geometry)).map((l) => trazo(l, p)).join('');
-        bajo.push(`<path d="${d}" fill="none" stroke="${E.carr}" stroke-width="${n1(1.1 * s)}" stroke-dasharray="${n1(5 * s)} ${n1(2.5 * s)}" stroke-linecap="round"/>`);
+        const dashCarr = E.dashCarr ? dashDe(E.dashCarr) : `${n1(5 * s)} ${n1(2.5 * s)}`;
+        bajo.push(`${cas(d, 1.1 * wk, dashCarr)}<path d="${d}" fill="none" stroke="${E.carr}" stroke-width="${n1(1.1 * wk * s)}" stroke-dasharray="${dashCarr}" stroke-linecap="round"/>`);
         leyenda.push({ glifo: glifoLinea(E.carr, 1.4, '4 2'), texto: 'carretera' });
     }
     if (quiere('rios') && datos.rios) {
         // un trazo por orden de Strahler: el grosor jerarquiza el cauce principal sobre sus afluentes
         const porOrden = new Map<number, string[]>();
         for (const f of datos.rios.features) { const o = Math.min(7, f.properties.o); porOrden.set(o, [...(porOrden.get(o) ?? []), ...lineas(f.geometry).map((l) => trazo(l, p))]); }
-        for (const [o, ds] of [...porOrden.entries()].sort((a, b) => a[0] - b[0])) {
-            bajo.push(`<path d="${ds.join('')}" fill="none" stroke="${E.rio}" stroke-width="${n1((0.5 + (o - 4) * 0.55) * s)}" stroke-opacity="0.9" stroke-linecap="round" stroke-linejoin="round"/>`);
+        const ordenados = [...porOrden.entries()].sort((a, b) => a[0] - b[0]);
+        const wRio = (o: number) => (E.rioBase ?? 0.5) + (o - 4) * (E.rioPaso ?? 0.55);
+        // con casing: primero TODOS los casings y luego los trazos claros, para que el borde oscuro de un afluente no corte al cauce principal
+        if (E.casing) for (const [o, ds] of ordenados) bajo.push(cas(ds.join(''), wRio(o)));
+        for (const [o, ds] of ordenados) {
+            bajo.push(`<path d="${ds.join('')}" fill="none" stroke="${E.rio}" stroke-width="${n1(wRio(o) * s)}" stroke-opacity="${E.casing ? 1 : 0.9}" stroke-linecap="round" stroke-linejoin="round"/>`);
         }
         leyenda.push({ glifo: glifoLinea(E.rio, 2), texto: 'río' });
     }
     if (quiere('srl')) {
         const d = Object.values(MODULOS_SRL).map((r) => `${anilloAPath(r as Par[], p)}`).join(' ');
-        bajo.push(`<path d="${d}" fill="${E.srlRelleno}" stroke="${E.srl}" stroke-width="${n1(1.3 * s)}" stroke-linejoin="round"/>`);
+        const wSrl = E.srlW ?? 1.3;
+        bajo.push(`${cas(d, wSrl)}<path d="${d}" fill="${E.srlRelleno}" stroke="${E.srl}" stroke-width="${n1(wSrl * s)}" stroke-linejoin="round"/>`);
         leyenda.push({ glifo: `<rect x="2" y="1" width="14" height="8" rx="1.5" fill="${E.srlRelleno}" stroke="${E.srl}" stroke-width="1.4"/>`, texto: 'módulos SRL' });
     }
     if (quiere('presas') && datos.vasos) {
@@ -174,12 +201,12 @@ export function capasSvg(datos: DatosCapas, ids: CapaId[], p: ProyectorMapa, op:
         const observados = datos.vasos.features.filter((f) => f.properties.fuente !== 'kmz_huella_maxima');
         for (const f of huellas) {
             const d = anillos(f.geometry).map((r) => `${anilloAPath(r, p)}`).join(' ');
-            bajo.push(`<path d="${d}" fill="${E.presa}" fill-opacity="0.35" fill-rule="evenodd" stroke="${E.presaBorde}" stroke-width="${n1(0.9 * s)}" stroke-dasharray="${n1(3 * s)} ${n1(2 * s)}" stroke-linejoin="round"><title>${esc(f.properties.nombre)}: huella máxima del vaso (KMZ), no el nivel de hoy</title></path>`);
+            bajo.push(`<path d="${d}" fill="${E.huellaRelleno ?? E.presa}" fill-opacity="0.35" fill-rule="evenodd" stroke="${E.huellaBorde ?? E.presaBorde}" stroke-width="${n1((E.casing ? 1.2 : 0.9) * s)}" stroke-dasharray="${n1(3 * s)} ${n1(2 * s)}" stroke-linejoin="round"><title>${esc(f.properties.nombre)}: huella máxima del vaso (KMZ), no el nivel de hoy</title></path>`);
         }
         if (huellas.length) leyenda.push({ glifo: `<rect x="2" y="1.5" width="14" height="7" rx="2" fill="${E.presa}" fill-opacity="0.35" stroke="${E.presaBorde}" stroke-width="1" stroke-dasharray="3 2"/>`, texto: 'huella máxima del vaso' });
         for (const f of observados) {
             const d = anillos(f.geometry).map((r) => `${anilloAPath(r, p)}`).join(' ');
-            bajo.push(`<path d="${d}" fill="${E.presa}" stroke="${E.presaBorde}" stroke-width="${n1(1 * s)}" stroke-linejoin="round"><title>${esc(f.properties.nombre)}: vaso observado (Sentinel-2)</title></path>`);
+            bajo.push(`<path d="${d}" fill="${E.presa}" stroke="${E.presaBorde}" stroke-width="${n1((E.casing ? 1.6 : 1) * s)}" stroke-linejoin="round"><title>${esc(f.properties.nombre)}: vaso observado (Sentinel-2)</title></path>`);
         }
     }
 
@@ -194,7 +221,7 @@ export function capasSvg(datos: DatosCapas, ids: CapaId[], p: ProyectorMapa, op:
         for (const m of pts) {
             const x = p.x(m.coordenadas!.lon), y = p.y(m.coordenadas!.lat);
             const r = 5 * s;
-            alto.push(`<path d="M${n1(x)},${n1(y - r)}L${n1(x + r)},${n1(y + r * 0.8)}L${n1(x - r)},${n1(y + r * 0.8)}Z" fill="${E.presaBorde}" stroke="${E.halo}" stroke-width="${n1(1.2 * s)}"><title>${esc(m.etiqueta)}</title></path>`);
+            alto.push(`<path d="M${n1(x)},${n1(y - r)}L${n1(x + r)},${n1(y + r * 0.8)}L${n1(x - r)},${n1(y + r * 0.8)}Z" fill="${E.triangulo ?? E.presaBorde}" stroke="${E.halo}" stroke-width="${n1((E.casing ? 1.8 : 1.2) * s)}"><title>${esc(m.etiqueta)}</title></path>`);
             const t = m.nombre, w = ancho(t, px * (kt + 0.05));
             if (libre(x + r + 2, y + 3 * s, w, px)) alto.push(tx(x + r + 2, y + 3 * s, t, { size: px * (kt + 0.05), fill: E.txt, peso: 700 }));
             hay = true;
@@ -211,7 +238,7 @@ export function capasSvg(datos: DatosCapas, ids: CapaId[], p: ProyectorMapa, op:
         for (const f of datos.poblaciones.features) {
             const [lon, lat] = f.geometry.coordinates as Par;
             const x = p.x(lon), y = p.y(lat), t = f.properties.n, w = ancho(t, px * kt);
-            alto.push(`<circle cx="${n1(x)}" cy="${n1(y)}" r="${n1(2 * s)}" fill="${E.punto}" stroke="${E.halo}" stroke-width="${n1(0.8 * s)}"><title>${esc(t)}</title></circle>`);
+            alto.push(`<circle cx="${n1(x)}" cy="${n1(y)}" r="${n1((E.puntoR ?? 2) * s)}" fill="${E.punto}" stroke="${E.halo}" stroke-width="${n1((E.puntoAnillo ?? 0.8) * s)}"><title>${esc(t)}</title></circle>`);
             if (libre(x + 4 * s, y + 3 * s, w, px * 0.9)) alto.push(tx(x + 4 * s, y + 3 * s, t, { size: px * kt, fill: E.txt }));
         }
         leyenda.push({ glifo: `<circle cx="9" cy="5" r="2.4" fill="${E.punto}" stroke="${E.halo}" stroke-width="0.8"/>`, texto: 'cabecera municipal' });

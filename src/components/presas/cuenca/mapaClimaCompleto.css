@@ -73,3 +73,41 @@ html[data-device='phone'] .mc { border-radius: 0; border: 0; }
     .mc-sub { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .mc * { transition: none !important; animation: none !important; } }
+
+/* ── Isoyetas / campo interpolado (revisión de diseño 2026-11-13) ─────────────────────────────────────────────────────────── */
+/* Estado activo con un canal que NO es el color: marca ✓ delante del texto */
+.mc-chip[aria-pressed='true']::before, .mc-chip[aria-checked='true']::before { content: '✓'; content: '✓' / ''; /* texto alternativo vacío: decorativo, el lector ya oye aria-pressed/checked */ font-weight: 800; color: var(--pr-sky); }
+/* Las capas de referencia ya compensan el zoom por sí mismas (px/k): con non-scaling-stroke además se compensaba DOS veces y los trazos quedaban de 0.1-0.6 px */
+.mc-base .mc-capas, .mc-base .mc-capas * { vector-effect: none; }
+/* Cifras y niveles sobre el campo: píldora oscura, legibles sobre cualquier color de relleno */
+.mc-pildora { fill: rgba(4, 18, 43, 0.84); }
+.mc-nivel { font: 700 12px var(--pr-mono); fill: #ffffff; pointer-events: none; }
+.mc-nivel-g { pointer-events: none; }
+/* Borde de la cuenca con casing oscuro y trazo claro: no se pierde sobre lluvia ni temperatura mínima */
+.mc-cuenca-casing { fill: none; stroke: #04122b; stroke-opacity: 0.8; stroke-width: 4; stroke-linejoin: round; pointer-events: none; }
+.mc-cuenca-borde { fill: none; stroke: #7fd2ff; stroke-width: 1.8; stroke-linejoin: round; pointer-events: none; }
+/* Módulos SRL con el campo encendido: sin relleno propio (no tiñe las isoyetas), contorno blanco con casing */
+.mc-srl-casing { fill: none; stroke: #04122b; stroke-opacity: 0.8; stroke-width: 4.2; stroke-linejoin: round; pointer-events: none; }
+.mc-srl-trazo { fill: none; stroke: #ffffff; stroke-width: 2.2; stroke-linejoin: round; pointer-events: none; }
+.mc-consulta-cruz { pointer-events: none; }
+/* Consulta de un punto */
+.mc-consulta { position: absolute; left: 12px; bottom: 34px; display: flex; flex-direction: column; gap: 2px; max-width: min(380px, calc(100% - 92px)); padding: 10px 40px 10px 12px;
+    border: 1px solid var(--pr-line); border-radius: 10px; background: rgba(4, 18, 43, 0.95); color: var(--pr-t2); font-size: 12.5px; line-height: 1.4; }
+.mc-consulta b { font: 700 22px var(--pr-display); color: var(--pr-t1); }
+.mc-consulta-aviso { color: var(--pr-warn); }
+.mc-consulta-x { position: absolute; top: 4px; right: 4px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: transparent; color: var(--pr-t2); cursor: pointer; }
+.mc-consulta-x:hover { background: var(--pr-surface-2); color: var(--pr-t1); }
+.mc-consulta-x:focus-visible { outline: 2px solid var(--pr-sky); outline-offset: 1px; }
+/* Leyenda de la rampa real de la variable */
+.mc-leyenda-campo { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.mc-leyenda-t { font-size: 12px; color: var(--pr-t1); }
+.mc-clase { display: inline-flex; align-items: center; gap: 5px; font: 600 12px var(--pr-mono); color: var(--pr-t1); white-space: nowrap; }
+.mc-clase i { display: inline-block; width: 22px; height: 12px; border-radius: 2px; border: 1px solid rgba(232, 238, 246, 0.55); }
+.mc-clase-trama { background: repeating-linear-gradient(45deg, rgba(232, 238, 246, 0.55) 0 2px, #061532 2px 5px); }
+.mc-leyenda-nota { font-size: 12px; color: var(--pr-t3); }
+.mc-rango { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12.5px; color: var(--pr-t2); }
+.mc-rango input { flex: 1; min-width: 80px; accent-color: var(--pr-sky); }
+.mc-rango span { font: 600 12px var(--pr-mono); color: var(--pr-t1); min-width: 36px; text-align: right; }
+.mc-sub { font-size: 12px; }
+.mc-zoom .an-btn { width: 44px; height: 44px; }
+@media (pointer: coarse) { .mc-chip { min-height: 44px; } .mc-check { min-height: 32px; } }

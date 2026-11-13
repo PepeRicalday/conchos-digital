@@ -128,12 +128,106 @@ for (const [nombre, vista] of [
   await dlg.getByRole('radio', { name: 'Lluvia' }).click();
   await dlg.getByRole('radio', { name: /^7 días$/ }).click();
 
+  // ── Isoyetas / campo interpolado ─────────────────────────────────────────────
+  await dlg.getByRole('radio', { name: 'Lluvia', exact: true }).click();
+  await dlg.getByRole('radio', { name: /^30 días$/ }).click();
+  await page.waitForTimeout(1500);
+  verifica(await dlg.locator('[data-capa="campo"]').count() === 1 && await dlg.locator('[data-capa="contornos"]').count() === 1, `[${nombre}] isoyetas: relleno y contornos del campo encendidos por defecto`);
+  verifica(await dlg.locator('.mc-clase').count() >= 6, `[${nombre}] isoyetas: la leyenda trae las clases reales de la rampa`);
+  const resumenTxt = await dlg.locator('.mc-resumen').innerText();
+  const nArealMapa = Number((resumenTxt.match(/n = (\d+) estaciones/) ?? [])[1]);
+  verifica(/lluvia areal de la cuenca/.test(resumenTxt) && nArealMapa > 0 && nArealMapa <= 24 && /Unifrut no entra/.test(resumenTxt), `[${nombre}] isoyetas: el resumen es la lluvia areal de la cuenca y Unifrut no entra (n = ${nArealMapa})`);
+  verifica(/Unifrut \(fuera de la cuenca\) no entra/.test(await dlg.locator('.mc-leyenda').innerText()), `[${nombre}] isoyetas: la leyenda declara que Unifrut no entra al campo`);
+  // el campo es independiente de los chips de fuente: apagar JCAS no cambia el campo
+  const rellenoAntes = await dlg.locator('[data-capa="campo"]').evaluate((e) => e.innerHTML.length);
+  await dlg.getByRole('button', { name: /^JCAS \(/ }).click();
+  await page.waitForTimeout(400);
+  const rellenoDespues = await dlg.locator('[data-capa="campo"]').evaluate((e) => e.innerHTML.length);
+  verifica(rellenoAntes === rellenoDespues, `[${nombre}] isoyetas: apagar JCAS en los filtros NO cambia el campo (los números son del motor)`);
+  await dlg.getByRole('button', { name: /^JCAS \(/ }).click();
+  verifica(await dlg.locator('.mc-pildora').count() > 0, `[${nombre}] isoyetas: las cifras de las estaciones van sobre píldora oscura`);
+  // en iPhone el mapa es tan chico que los rótulos de nivel chocarían con las cifras y se omiten (aparecen al acercar)
+  if (nombre !== 'iphone') {
+    verifica(await dlg.locator('.mc-nivel').count() > 0, `[${nombre}] isoyetas: rótulos de nivel sobre píldora oscura`);
+    const fsNivel = await dlg.locator('.mc-nivel').first().evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
+    verifica(fsNivel >= 12, `[${nombre}] isoyetas: rótulos de nivel de al menos 12 px (${fsNivel})`);
+  }
+  // marcadores sobre el campo: sólidos, con anillo blanco y halo oscuro
+  verifica(await dlg.locator('.mc-est [stroke="#ffffff"]').count() > 0 && await dlg.locator('.mc-est [stroke="#04122b"]').count() > 0, `[${nombre}] isoyetas: marcadores con anillo blanco y halo oscuro (se leen sobre cualquier color)`);
+
+  // Capas de referencia con contraste: casing oscuro bajo cada línea con el campo encendido; sin campo, el dibujo de siempre
+  verifica(await dlg.locator('.mc-capas path[stroke="#04122b"]').count() > 0, `[${nombre}] capas: con el campo encendido las líneas llevan casing oscuro`);
+  const orden = await dlg.locator('.mc-base > [data-capa]').evaluateAll((els) => els.map((e) => e.getAttribute('data-capa')));
+  verifica(orden.join('>') === 'campo>lineas>contornos>rotulos', `[${nombre}] capas: orden de apilado campo > líneas > contornos > rótulos (${orden.join('>')})`);
+  await dlg.getByRole('button', { name: 'Municipios' }).click();
+  await dlg.getByRole('button', { name: 'Carreteras' }).click();
+  await page.waitForTimeout(500);
+  const estilos = await dlg.locator('.mc-capas path[fill="none"][stroke-dasharray]').evaluateAll((els) => new Set(els.map((e) => e.getAttribute('stroke-dasharray'))).size);
+  verifica(estilos >= 3, `[${nombre}] capas: estilo de línea distinto por capa (${estilos} patrones de guiones: municipios, carreteras y presas), no solo color`);
+  verifica(await dlg.locator('.mc-capas path[stroke="#e8eef6"], .mc-capas path[stroke="rgba(232,238,246,0.78)"]').count() > 0 || await dlg.locator('.mc-capas path[stroke="#f4e8a8"]').count() > 0, `[${nombre}] capas: al agregar municipios y carreteras se dibujan con trazo claro y casing`);
+  await dlg.getByRole('button', { name: 'Municipios' }).click();
+  await dlg.getByRole('button', { name: 'Carreteras' }).click();
+
+  // Opacidad del relleno
+  await dlg.locator('.mc-rango input').evaluate((e) => { const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(e, '40'); e.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.waitForTimeout(300);
+  verifica(/opacity="0\.4"/.test(await dlg.locator('[data-capa="campo"]').evaluate((e) => e.innerHTML.slice(0, 40))), `[${nombre}] isoyetas: el control de opacidad cambia el relleno`);
+  await dlg.locator('.mc-rango input').evaluate((e) => { const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(e, '62'); e.dispatchEvent(new Event('input', { bubbles: true })); });
+
+  // Consulta del valor en un punto (clic sobre el campo)
+  // en iPhone el mapa es chico y denso: se acerca antes de consultar (así lo haría una persona)
+  if (nombre === 'iphone') { await dlg.getByRole('button', { name: 'Acercar', exact: true }).click(); await dlg.getByRole('button', { name: 'Acercar', exact: true }).click(); await page.waitForTimeout(400); }
+  // un punto del campo libre de marcadores y rótulos (elementFromPoint respeta el recorte a la cuenca)
+  const libre = await page.evaluate(() => {
+    const r = document.querySelector('.mc-svg').getBoundingClientRect();
+    for (let y = r.top + r.height * 0.3; y < r.bottom; y += 22) for (let x = r.left + r.width * 0.25; x < r.right; x += 22) {
+      const el = document.elementFromPoint(x, y);
+      if (el && el.closest('[data-capa="campo"]') && !el.closest('.mc-est')) return { x, y };
+    }
+    return null;
+  });
+  verifica(!!libre, `[${nombre}] consulta: hay puntos libres del campo para consultar`);
+  if (libre) {
+    await page.mouse.click(libre.x, libre.y);
+    await page.waitForTimeout(400);
+    const cons = dlg.locator('.mc-consulta');
+    verifica(await cons.count() === 1, `[${nombre}] consulta: el clic en el campo abre la consulta del punto`);
+    const ct = await cons.innerText().catch(() => '');
+    verifica(/≈ [\d.]+ mm/.test(ct) && /estimación, no una medición/.test(ct) && /estación más cercana/.test(ct), `[${nombre}] consulta: valor interpolado rotulado como estimación con la estación más cercana: «${ct.replace(/\s+/g, ' ').slice(0, 110)}»`);
+    if (await cons.count() === 1) await cons.getByRole('button', { name: /Cerrar la consulta/ }).click();
+  }
+  if (nombre === 'iphone') await dlg.getByRole('button', { name: 'Ver toda la cuenca' }).click();
+
+  // Atajo C apaga y enciende el campo; marca ✓ en estados activos; aria-live en el subtítulo
+  await dlg.locator('.mc-lienzo').focus();
+  await page.keyboard.press('c');
+  await page.waitForTimeout(300);
+  verifica(await dlg.locator('[data-capa="campo"]').count() === 0 && await dlg.locator('.mc-capas path[stroke="#04122b"]').count() === 0, `[${nombre}] atajo C: apaga el campo y las capas vuelven a su dibujo normal (sin casing)`);
+  await page.keyboard.press('c');
+  await page.waitForTimeout(800);
+  verifica(await dlg.locator('[data-capa="campo"]').count() === 1, `[${nombre}] atajo C: vuelve a encender el campo`);
+  const check = await dlg.getByRole('radio', { name: 'Lluvia', exact: true }).evaluate((e) => getComputedStyle(e, '::before').content);
+  verifica(/✓/.test(check), `[${nombre}] estado activo con marca ✓ (no solo color)`);
+  verifica((await dlg.locator('.mc-sub').getAttribute('aria-live')) === 'polite', `[${nombre}] el subtítulo anuncia los cambios (aria-live)`);
+  // T mínima con pocas estaciones: el campo es S/D y lo dice (no inventa)
+  await dlg.getByRole('radio', { name: 'T mínima', exact: true }).click();
+  await page.waitForTimeout(1200);
+  const tTxt = await dlg.locator('.mc-leyenda').innerText();
+  verifica(/Campo S\/D|Calculando/.test(tTxt) || (await dlg.locator('.mc-clase').count()) >= 5, `[${nombre}] T mínima: campo con leyenda o S/D rotulado`);
+  await dlg.getByRole('radio', { name: 'Lluvia', exact: true }).click();
+  await page.waitForTimeout(800);
+
   // Zoom
   const k0 = await dlg.locator('.mc-k').innerText();
   await dlg.getByRole('button', { name: 'Acercar' }).click();
   await page.waitForTimeout(250);
   const k1 = await dlg.locator('.mc-k').innerText();
   verifica(k0 !== k1 && parseFloat(k1.slice(1)) > parseFloat(k0.slice(1)), `[${nombre}] pantalla completa: acercar sube el zoom (${k0} → ${k1})`);
+  // Trazos de las capas a ×k: su ancho en pantalla (ancho × k) no se adelgaza (corrige la doble compensación)
+  const kAhora = parseFloat((await dlg.locator('.mc-k').innerText()).slice(1));
+  const anchosRio = await dlg.locator('.mc-capas path[stroke="#8fe3ff"]').evaluateAll((els) => els.map((e) => parseFloat(e.getAttribute('stroke-width') ?? '0')));
+  const maxRio = Math.max(0, ...anchosRio) * kAhora;
+  verifica(anchosRio.length === 0 || (maxRio >= 1.2 && maxRio <= 8), `[${nombre}] capas: el río principal mide ${maxRio.toFixed(1)} px en pantalla a ×${kAhora} (ni se adelgaza ni se engorda)`);
   await dlg.getByRole('button', { name: 'Ver toda la cuenca' }).click();
   verifica((await dlg.locator('.mc-k').innerText()) === '×1.0', `[${nombre}] pantalla completa: restablecer vuelve a ×1.0`);
 

@@ -54,8 +54,8 @@ export const TarjetaPresas = memo(function TarjetaPresas({ m }: { m: ModeloKpis 
     if (vista === 'cuenca') {
         const estado = estadoPresas(r?.pct);
         return (
-            <KpiTile id="kp-presas" to="/presas" enlaceTexto="Abrir Presas" titulo="Cuenca" icono={<Layers size={18} />} valor={f(r?.pct)} unidad="%" estado={estado}
-                aria={`Presas de la cuenca del Conchos: almacenamiento ${f(r?.pct) ?? 'sin dato'} por ciento, ${estado.texto}. Abrir Presas`}
+            <KpiTile id="kp-presas" to="/presas?tab=analitica&vista=cuenca" enlaceTexto="Abrir Cuenca" titulo="Cuenca" icono={<Layers size={18} />} valor={f(r?.pct)} unidad="%" estado={estado}
+                aria={`Presas de la cuenca del Conchos: almacenamiento ${f(r?.pct) ?? 'sin dato'} por ciento, ${estado.texto}. Abrir Cuenca en Presas, Analítica y forecasting`}
                 acciones={selector}
                 viz={<div className="kp-presas-viz kp-presas-viz-cuenca">
                     {r ? <ColumnasEmbalse items={itemsCuenca} /> : <div className="kp-banda kp-banda-sd" role="status">{cuenca?.cargado === false ? 'Cargando cuenca…' : 'Cuenca sin lectura'}</div>}

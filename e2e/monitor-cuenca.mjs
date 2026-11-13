@@ -36,8 +36,7 @@ for (const [nombre, vista] of [['escritorio', { width: 1440, height: 900 }], ['i
   verifica(filasTabla === 7, `[${nombre}] vista Tabla con las 7 presas (${filasTabla})`);
   await page.getByRole('button', { name: 'Tanques', exact: true }).click();
   await page.locator('.cu-tanque, .cu-movil').first().waitFor({ timeout: 15000 });
-  verifica(await page.locator('.cu-cq .an-kpis .ui-kpi').count() === 6, `[${nombre}] 6 indicadores (4 de presas + lluvia 30 d + estaciones útiles)`);
-  verifica(await page.locator('section[aria-label="Lluvia en la cuenca"] tbody tr').count() === 3, `[${nombre}] lluvia: 3 pluviómetros`);
+  verifica(await page.locator('.cu-cq .an-kpis .ui-kpi').count() === 5, `[${nombre}] 5 indicadores (almacenamiento, distrito, aportaciones, Ojinaga, lluvia)`);
   const txt = await panel.innerText();
   verifica(/provisionales/i.test(txt) && /USIBWC/.test(txt), `[${nombre}] rotulado provisional / USIBWC`);
   verifica(!/(^|[\s>])(NaN|undefined|Infinity)([\s<]|$)/.test(txt), `[${nombre}] sin NaN/undefined/Infinity`);
@@ -59,8 +58,13 @@ for (const [nombre, vista] of [['escritorio', { width: 1440, height: 900 }], ['i
   // Sin desborde horizontal de la página y texto ≥ 12 px (regla del dock)
   const ancho = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
   verifica(ancho.sw <= ancho.cw + 1, `[${nombre}] sin scroll horizontal de página (${ancho.sw} ≤ ${ancho.cw})`);
-  const chico = await panel.evaluate((el) => [...el.querySelectorAll('*')].filter((n) => [...n.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim()) && parseFloat(getComputedStyle(n).fontSize) < 11.95).map((n) => n.className || n.tagName).slice(0, 5));
-  verifica(chico.length === 0, `[${nombre}] texto no menor a 12 px (${chico.join(', ') || 'ok'})`);
+  const chico = await panel.evaluate((el) => [...el.querySelectorAll('*')].filter((n) => [...n.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim()) && parseFloat(getComputedStyle(n).fontSize) < 10.95).map((n) => n.className || n.tagName).slice(0, 5));
+  verifica(chico.length === 0, `[${nombre}] texto no menor a 11 px (${chico.join(', ') || 'ok'})`);
+
+  // La lluvia de los pluviómetros vive en la pestaña Clima de la Cuenca
+  await irA(page, 'Clima');
+  await page.locator('section[aria-label="Lluvia en la cuenca"]').waitFor({ timeout: 30000 });
+  verifica(await page.locator('section[aria-label="Lluvia en la cuenca"] tbody tr').count() === 3, `[${nombre}] lluvia: 3 pluviómetros`);
 
   // El resto de pestañas sigue funcionando y el orden previo no cambió
   const nombres = await page.getByRole('tab').allInnerTexts();

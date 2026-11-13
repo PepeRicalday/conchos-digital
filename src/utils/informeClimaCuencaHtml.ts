@@ -112,11 +112,11 @@ function celdaFrio(f: FrioFila | undefined, inicioTemporada: string): string {
   return `<b>${num(f.horasFrio, 0)}</b>${desde}${est}`;
 }
 
-function tablaObs(d: DatosInformeClima, max?: number): string {
+function tablaObs(d: DatosInformeClima, max?: number, tramo?: { desde: number; hasta: number }): string {
   const inicioTemporada = temporadaFrio(d.hoy).inicio;
-  const filas = (max ? d.estacionesObs.slice(0, max) : d.estacionesObs).map((e) => `<tr><th scope="row">${esc(e.nombre)}${e.zona === 'Salida' ? ' <small>(salida)</small>' : ''}${e.motivo ? `<br><small>${esc(e.motivo)}</small>` : ''}</th>
+  const filas = (tramo ? d.estacionesObs.slice(tramo.desde, tramo.hasta) : max ? d.estacionesObs.slice(0, max) : d.estacionesObs).map((e) => `<tr><th scope="row">${esc(e.nombre)}${e.zona === 'Salida' ? ' <small>(salida)</small>' : ''}${e.motivo ? `<br><small>${esc(e.motivo)}</small>` : ''}</th>
 <td class="n"><b>${num(e.lluviaHoy)}</b></td><td class="n">${num(e.lluvia7)}</td><td class="n">${num(e.lluvia30)}</td><td class="n">${num(e.temp)}</td><td class="n">${num(e.frio?.tmax7 ?? null)}</td><td class="n">${celdaTmin(e.frio?.tmin7 ?? null)}</td><td class="n">${celdaFrio(e.frio, inicioTemporada)}</td><td class="n">${num(e.hum, 0)}</td><td class="n">${num(e.viento, 0)}</td><td>${esc(e.estado)}</td><td class="n">${esc(fechaCorta(e.ultFecha))}</td></tr>`).join('');
-  return `<section class="bloque"><h2>Estaciones observadas <small>JCAS/UACJ · ${d.estacionesObs.length} en la cuenca${max && d.estacionesObs.length > max ? `, se muestran ${max}` : ''}</small></h2>
+  return `<section class="bloque"><h2>Estaciones observadas <small>JCAS/UACJ · ${d.estacionesObs.length} en la cuenca${max && d.estacionesObs.length > max ? `, se muestran ${max}` : ''}${tramo && d.estacionesObs.length > FILAS_OBS_HOJA ? ` · ${tramo.desde + 1}–${Math.min(tramo.hasta, d.estacionesObs.length)}` : ''}</small></h2>
 <table class="cifras"><thead><tr><th>Estación</th><th class="n">Lluvia hoy (parcial, mm)</th><th class="n">Lluvia 7 d (mm)</th><th class="n">Lluvia 30 d (mm)</th><th class="n">Temp. 7 d (°C)</th><th class="n">T máx 7 d (°C)</th><th class="n">T mín 7 d (°C)</th><th class="n">Horas ≤ 7.2 °C</th><th class="n">Hum. 7 d (%)</th><th class="n">Viento 7 d (km/h)</th><th>Estado</th><th class="n">Último día</th></tr></thead><tbody>${filas}</tbody></table>
 <p class="leyenda">«Último día» es la fecha de la última lectura con dato (incluye la parcial de hoy); una fecha anterior significa que la estación aún no reporta hoy. Horas ≤ 7.2 °C: índice de frío invernal (método simple, incluye las horas bajo 0 °C), acumulado desde el 1.º de noviembre hasta ayer; no es el requerimiento de ningún cultivo. Es un mínimo observado: solo cuenta horas con lectura. En las estaciones propias (lecturas cada 2 h) las horas son una estimación por interpolación lineal entre lecturas (marcadas «est.»; huecos de más de 3 h no se rellenan); T máx y T mín son siempre lecturas reales. Sin serie horaria, o con menos del 80 % de las horas o de los días, queda S/D; en JCAS el conteo empieza el día que se activó la serie horaria («desde …»). * = helada (T mín ≤ 0 °C, medida en el aire; a ras de suelo puede ser menor). «Hoy» es parcial a la hora de la última sincronización. Una estación por ciudad pesa una vez en los planos. Sin pluviómetro, la lluvia es S/D (el 0.0 del portal no significa «no llovió»).</p></section>`;
 }
@@ -254,16 +254,22 @@ body{width:${ancho}px;${alto ? `height:${alto}px;overflow:hidden;` : ''}font:17p
 ${CSS_COMUN}
 ${CSS_PLANOS}
 `;
+/** Estaciones por hoja Carta: con más no caben (cada fila puede traer una segunda línea con el motivo de exclusión). */
+const FILAS_OBS_HOJA = 16;
+const hojasObs = (d: DatosInformeClima) => Math.max(1, Math.ceil(d.estacionesObs.length / FILAS_OBS_HOJA));
+
 const CSS_CARTA = `
 ${CSS_COMUN}
 ${CSS_PLANOS}
 .pagina{font-size:9.5pt}
+.pagina .notas{font-size:.74em}
 .kpi .v{font-size:15pt}
 .kpi .s{font-size:7.2pt}
 .planos{--cols:2}
 .kpis.hero .kpi:nth-child(-n+2){padding:8px 12px}
 .kpis.hero .kpi:nth-child(-n+2) .v{font-size:21pt}
-.kpis.hero ~ .planos.chico .plano{width:80%}
+.kpis.hero ~ .planos.chico .plano{width:68%}
+.planos.chico .plano{width:68%;margin-inline:auto}
 .hero-fila{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;align-items:start;margin-top:4px}
 .hero-fila .kpis{grid-template-columns:1fr;margin:0;gap:8px}
 .hero-fila .kpis.hero .kpi:nth-child(-n+2) .v{font-size:24pt}
@@ -326,7 +332,7 @@ function carta(d: DatosInformeClima, o: OpcionesHtmlClima): string {
   if (inicio) grupos.push(d.planos.slice(0, 1));
   for (let i = inicio; i < d.planos.length; i += porHoja) grupos.push(d.planos.slice(i, i + porHoja));
   const conTablas = d.config.estaciones && !info;
-  const paginasTabla = conTablas ? (d.config.observado ? 1 : 0) + (d.config.pronostico ? 1 : 0) : 0;
+  const paginasTabla = conTablas ? (d.config.observado ? hojasObs(d) : 0) + (d.config.pronostico ? 1 : 0) : 0;
   const conDistrito = !!d.distrito;
   const conRegional = !!d.regional && !info;
   const conRanking = info && d.config.observado;
@@ -343,7 +349,9 @@ function carta(d: DatosInformeClima, o: OpcionesHtmlClima): string {
     hojas.push(hoja(`${k === 0 ? (hero ? `${titular(d, false)}<div class="hero-fila">${planos}${kpis(d)}</div>` : `${titular(d, false)}${kpis(d)}${planos}`) : planos}${info && ultima ? lineaInstitucional(d) : ''}`, membrete(o, d)));
   });
   if (conDistrito) hojas.push(hoja(`${bloqueDistrito(d)}${info && !conRanking ? lineaInstitucional(d) : ''}`, membrete(o, d)));
-  if (conTablas && d.config.observado) hojas.push(hoja(tablaObs(d), membrete(o, d)));
+  if (conTablas && d.config.observado) {
+    for (let k = 0; k < hojasObs(d); k++) hojas.push(hoja(tablaObs(d, undefined, { desde: k * FILAS_OBS_HOJA, hasta: (k + 1) * FILAS_OBS_HOJA }), membrete(o, d)));
+  }
   if (conRegional) hojas.push(hoja(bloqueRegional(d), membrete(o, d)));
   if (conTablas && d.config.pronostico) hojas.push(hoja(tablaPron(d), membrete(o, d)));
   if (info) {

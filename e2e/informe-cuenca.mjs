@@ -59,16 +59,19 @@ const previa = page.getByRole('dialog', { name: /Vista previa del informe/ });
 await previa.waitFor({ timeout: 20000 });
 const marco = page.frameLocator('iframe[title^="Vista previa del informe de la cuenca"]');
 await marco.locator('.pagina').first().waitFor({ timeout: 20000 });
-verifica(await marco.locator('.pagina').count() === 10, `carta: 10 hojas (resumen + evolución + 7 presas + anexo) (${await marco.locator('.pagina').count()})`);
+verifica(await marco.locator('.pagina').count() === 12, `carta: 12 hojas (resumen + evolución + cuerpos de agua + vasos + 7 presas + anexo) (${await marco.locator('.pagina').count()})`);
 const txtCarta = await marco.locator('body').innerText();
 verifica(/San Gabriel, Dgo\./.test(txtCarta) && /dato provisional/i.test(txtCarta) && /CONAGUA vía USIBWC|CONAGUA, vía portal público USIBWC/.test(txtCarta), 'carta: San Gabriel, Dgo., dato provisional y fuente');
-verifica(!/\b(NaN|undefined|null)\b|aquarius/i.test(txtCarta), 'carta: sin NaN/undefined/null/Aquarius');
+// AQUARIUS se nombra a propósito solo en las notas de la hoja de cuerpos de agua (precedencia de fuentes); en las demás hojas no.
+const hojasTxt = await marco.locator('.pagina').evaluateAll((els) => els.map((e) => e.innerText));
+verifica(!/\b(NaN|undefined|null)\b/i.test(txtCarta), 'carta: sin NaN/undefined/null');
+verifica(hojasTxt.every((t, i) => i === 2 || !/aquarius/i.test(t)), 'carta: AQUARIUS solo aparece en las notas de la hoja de cuerpos de agua');
 verifica(/Trazabilidad/.test(txtCarta) && (await marco.locator('.firma').count()) === 3, 'carta: anexo de trazabilidad y 3 firmas');
 // Cada hoja debe caber en una hoja Carta (11 in = 1056 px): si excede, al imprimir se parte y se rompe "Pág. N de 9".
 const altos = await marco.locator('.pagina').evaluateAll((els) => els.map((e) => e.scrollHeight));
 verifica(altos.every((h) => h <= 1060), `carta: cada hoja cabe en una Carta (alturas ${altos.join(', ')})`);
 await page.screenshot({ path: OUT + 'previa-carta.png' });
-for (let i = 0; i < 10; i++) { try { await marco.locator(".pagina").nth(i).screenshot({ path: `${OUT}carta-${i + 1}.png` }); } catch { /* captura opcional: el iframe puede refrescarse */ } }
+for (let i = 0; i < 12; i++) { try { await marco.locator(".pagina").nth(i).screenshot({ path: `${OUT}carta-${i + 1}.png` }); } catch { /* captura opcional: el iframe puede refrescarse */ } }
 
 // Infografía PNG: sin desbordes horizontales, 7 tanques, tabla
 await previa.getByRole('radio', { name: 'Infografía PNG' }).click();
@@ -107,7 +110,7 @@ await previa.getByRole('radio', { name: 'Infografía PNG' }).click();
 await marco.locator('.hoja').waitFor();
 const t2 = await marco.locator('body').innerText();
 verifica(/2 de 7 presas/.test(t2) && /de las 2 presas seleccionadas/i.test(t2) && /no a toda la cuenca/.test(t2), 'solo distrito: "2 de 7 presas", totales rotulados y nota de alcance');
-await marco.locator('.hoja').screenshot({ path: OUT + 'infografia-2presas.png' });
+await marco.locator('.hoja').screenshot({ path: OUT + 'infografia-2presas.png' }).catch(() => { /* captura opcional: el iframe puede refrescarse */ });
 
 verifica(errores.length === 0, `sin errores de consola (${errores.slice(0, 3).join(' | ')})`);
 await navegador.close();

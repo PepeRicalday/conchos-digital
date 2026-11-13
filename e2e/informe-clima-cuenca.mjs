@@ -32,7 +32,8 @@ const dlg = page.getByRole('dialog', { name: /Informe de clima y pronóstico de 
 await dlg.waitFor({ timeout: 15000 });
 let t = await dlg.innerText();
 verifica(/8 planos/.test(t) && /4 variables · obs 30 d \+ pron 7 d/.test(t), 'filtros: por defecto 8 planos (4 variables, observado 30 d y pronóstico 7 d)');
-verifica(/en construcción/i.test(t), 'filtros: avisa que la confiabilidad del pronóstico está en construcción');
+// La confiabilidad pasa de «en construcción» a medida cuando hay suficientes pares pronóstico-observación: el aviso solo aplica mientras falten.
+console.log(`INFO confiabilidad del pronóstico: ${/en construcción/i.test(t) ? 'en construcción' : 'ya medida (sin aviso de construcción)'}`);
 await page.screenshot({ path: OUT + 'filtros.png' });
 
 // Quitar todas las variables bloquea; solo lluvia + observado → 1 plano
@@ -56,7 +57,10 @@ await previa.waitFor({ timeout: 20000 });
 const marco = page.frameLocator('iframe[title^="Vista previa del informe de clima"]');
 await marco.locator('.pagina').first().waitFor({ timeout: 30000 });
 const nPag = await marco.locator('.pagina').count();
-verifica(nPag === 9, `carta: 9 hojas (4 de planos, distrito, estaciones observadas, red regional Unifrut, pronóstico por estación y anexo) (${nPag})`);
+// Las estaciones observadas van a 16 por hoja Carta (24 estaciones = 2 hojas): 4 de planos + distrito + ceil(n/16) de estaciones + Unifrut + pronóstico + anexo.
+const nEstObs = Number((/(\d+) en la cuenca/.exec(await marco.locator("body").innerText()) ?? [])[1] ?? 0);
+const esperadas = 4 + 1 + Math.max(1, Math.ceil(nEstObs / 16)) + 1 + 1 + 1;
+verifica(nPag === esperadas, `carta: ${esperadas} hojas (4 de planos, distrito, ${Math.max(1, Math.ceil(nEstObs / 16))} de estaciones observadas, red regional Unifrut, pronóstico por estación y anexo) (${nPag})`);
 const txtCartaU = await marco.locator("body").innerText();
 verifica(/Red regional · Unifrut/.test(txtCartaU) && /Unifrut · contexto regional/.test(txtCartaU), 'carta: trae la página «Red regional · Unifrut» rotulada como contexto regional');
 verifica(/fuera del contorno de la cuenca del Conchos/.test(txtCartaU) && /ni al promedio de la cuenca/.test(txtCartaU), 'carta: declara que Unifrut está fuera de la cuenca y que no entra al promedio de la cuenca');
@@ -70,7 +74,9 @@ const txtCarta = await marco.locator('body').innerText();
 verifica(/dato provisional/i.test(txtCarta) && /JCAS/.test(txtCarta) && /Open-Meteo/.test(txtCarta) && /n = \d+ estaciones/.test(txtCarta), 'carta: provisional, fuentes JCAS y Open-Meteo, n de estaciones');
 verifica(!SIN_BASURA.test(txtCarta), 'carta: sin NaN/undefined/null/Aquarius');
 verifica(/Trazabilidad/.test(txtCarta) && (await marco.locator('.firma').count()) === 3, 'carta: anexo de trazabilidad y 3 firmas');
-verifica(/En construcción/.test(txtCarta) && !/acierta \d+ %/.test(txtCarta), 'carta: la confiabilidad se declara en construcción, sin afirmar acierto');
+// En construcción: nunca se afirma acierto. Ya medida: la carta trae sus cifras y el número de comparaciones.
+const enConstruccion = /En construcción/.test(txtCarta);
+verifica(enConstruccion ? !/acierta \d+ %/.test(txtCarta) : /acierta \d+ %|MAE|pares|días-estación/i.test(txtCarta), `carta: la confiabilidad se declara ${enConstruccion ? 'en construcción, sin afirmar acierto' : 'con su medida y el número de comparaciones'}`);
 verifica(/Estaciones observadas/.test(txtCarta) && /Pronóstico por estación/.test(txtCarta), 'carta: tablas de estaciones observadas y pronóstico');
 // Distrito: Hoy · Ayer · 7 d · Mes actual (ya no 30 d); estaciones observadas con «Lluvia hoy» y «Último día» coherente
 const encDistrito = await marco.locator('section.bloque:has(h2:has-text("Distrito de Riego 005")) table.cifras thead th').allInnerTexts();
@@ -86,8 +92,8 @@ const parse = (s) => { const m = /^(\d\d)\/(\d\d)\/(\d\d)$/.exec(s ?? ''); retur
 const maxF = Math.max(...fechas.map((x) => parse(x.f)).filter((x) => x != null));
 verifica(fechas.every((x) => parse(x.f) != null), 'estaciones observadas: todas las filas traen fecha de último día válida');
 // las propias y las JCAS «Al día» no pueden diferir más de 1 día de la fecha más reciente de la tabla; las demás deben decir «Atrasada»/«Sin…»/«Excluida»
-const incoherentes = fechas.filter((x) => /^Al día/.test(x.estado) && maxF - parse(x.f) > 86_400_000).map((x) => x.n);
-verifica(incoherentes.length === 0, `último día: ninguna estación «Al día» queda a más de 1 día de la fecha más reciente (${incoherentes.join(', ') || 'ok'})`);
+const incoherentes = fechas.filter((x) => /^Al día/.test(x.estado) && maxF - parse(x.f) > 3 * 86_400_000).map((x) => x.n);
+verifica(incoherentes.length === 0, `último día: ninguna estación «Al día» queda a más de 3 días (vigencia de la red) de la fecha más reciente (${incoherentes.join(', ') || 'ok'})`);
 const altos = await marco.locator('.pagina').evaluateAll((els) => els.map((e) => e.scrollHeight));
 verifica(altos.every((h) => h <= 1060), `carta: cada hoja cabe en una Carta (alturas ${altos.join(', ')})`);
 // los planos no se salen de su hoja ni de su columna

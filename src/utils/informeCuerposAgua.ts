@@ -90,6 +90,20 @@ export const CSS_CUERPOS_AGUA = `
 .vaso small{display:block;font-size:.72em;color:#57606a;margin-top:2px}
 `;
 
+/**
+ * Las dos hojas del informe: cierres mensuales con sus notas, y los planos de los vasos. Juntas no caben en una Carta
+ * (la tabla de 9 cuerpos + 9 planos + 4 notas pasan de 1,300 px contra 1,020 de la hoja), por eso van separadas.
+ */
+export function hojasCuerposAgua(d: DatosCuerposInforme): [string, string] {
+  return [
+    [
+      `<section class="bloque" aria-label="Cuerpos de agua de la cuenca"><h2>Cuerpos de agua de la cuenca <small>cierres mensuales 2021 → hoy</small></h2>${tablaCuerposAgua(d)}</section>`,
+      `<section class="notas" aria-label="Notas de la hoja"><h3>Cómo se lee</h3><ul>${notasCuerposAgua(d).map((t) => `<li>${esc(t)}</li>`).join('')}</ul></section>`,
+    ].join(''),
+    `<section class="bloque" aria-label="Vasos por satélite"><h2>Vasos por satélite <small>huella máxima (punteada) y espejo observado (azul), cada plano a su escala</small></h2>${planosVasosHtml(d)}</section>`,
+  ];
+}
+
 /** Hoja completa (cuerpo HTML sin cabecera ni pie). */
 export function hojaCuerposAgua(d: DatosCuerposInforme): string {
   return [

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { htmlInformeCuenca } from './informeCuencaHtml';
 import { construirDatosCuenca } from './informeCuencaDatos';
 import { configCuencaPorDefecto } from './informeCuencaConfig';
-import { hojaCuerposAgua, notasCuerposAgua, planoVasoSvg, tablaCuerposAgua, type DatosCuerposInforme } from './informeCuerposAgua';
+import { hojaCuerposAgua, hojasCuerposAgua, notasCuerposAgua, planoVasoSvg, tablaCuerposAgua, type DatosCuerposInforme } from './informeCuerposAgua';
 import { normalizarCierre, normalizarCuerpo, type Par } from './cuerposAgua';
 import { ORDEN_PRESAS_CUENCA, type EstadoUbicacion } from './aqwpCuenca';
 
@@ -79,13 +79,13 @@ describe('informeCuerposAgua', () => {
     expect(t).toMatch(/1 de 3 vasos/);
   });
 
-  it('la carta suma UNA hoja con los cuerpos de agua y renumera las páginas; sin ellos queda como antes', () => {
+  it('la carta suma DOS hojas con los cuerpos de agua (cierres y vasos) y renumera las páginas; sin ellos queda como antes', () => {
     const d = informe();
     const base = { formato: 'carta' as const, logoSrl: '', logoSica: '', emitido: new Date(2026, 10, 8, 9, 30) };
     const sin = htmlInformeCuenca(d, base);
     const con = htmlInformeCuenca(d, { ...base, cuerpos: DATOS });
     const n = (h: string) => (h.match(/class="pagina"/g) ?? []).length;
-    expect(n(con)).toBe(n(sin) + 1);
+    expect(n(con)).toBe(n(sin) + 2);
     expect(con).toMatch(new RegExp(`Pág\\. ${n(con)} de ${n(con)}`));
     expect(con).toMatch(/Cuerpos de agua de la cuenca/);
     expect(sin).not.toMatch(/Cuerpos de agua de la cuenca/);
@@ -97,5 +97,17 @@ describe('informeCuerposAgua', () => {
     const h = hojaCuerposAgua(malo);
     expect(h).not.toMatch(/<img src=x/);
     expect(h).toMatch(/&lt;img/);
+  });
+});
+
+describe('hojasCuerposAgua', () => {
+  it('separa en dos hojas: cierres con notas, y planos de los vasos (juntas no caben en una Carta)', () => {
+    const [a, b] = hojasCuerposAgua(DATOS);
+    expect(a).toContain('Cuerpos de agua de la cuenca');
+    expect(a).toContain('Cómo se lee');
+    expect(a).not.toContain('class="vasos"');
+    expect(b).toContain('Vasos por satélite');
+    expect(b).toContain('class="vasos"');
+    expect(b).not.toContain('Cómo se lee');
   });
 });

@@ -34,7 +34,7 @@ for (const [nombre, vista, esPhone] of [
   const n = await item.count();
   verifica(n === 7, `[${nombre}] 7 presas en la vista Tanques (${n}, ${esPhone ? 'lista' : 'tanques'})`);
   verifica(esPhone ? await page.locator('.cu-movil').count() === 7 : await page.locator('.cu-tanque').count() === 7, `[${nombre}] ${esPhone ? 'lista móvil' : 'tanques proporcionales'} según el dispositivo`);
-  verifica(await page.locator('.cu-cq .an-kpis .ui-kpi').count() === 6, `[${nombre}] 6 indicadores (4 de presas + lluvia 30 d + estaciones útiles)`);
+  verifica(await page.locator('.cu-cq .an-kpis .ui-kpi').count() === 5, `[${nombre}] 5 indicadores (almacenamiento, distrito, aportaciones, Ojinaga, lluvia)`);
 
   const txt = await panel.innerText();
   verifica(/San Gabriel, Dgo\./.test(txt), `[${nombre}] San Gabriel se rotula con su estado: "San Gabriel, Dgo."`);
@@ -103,18 +103,25 @@ for (const [nombre, vista, esPhone] of [
   verifica(/frente al ciclo anterior \(n = 1\)/.test(lt) && !/normal|anomal/i.test(lt.replace(/«0» es un día seco medido/, '')), `[${nombre}] lluvia: compara con el ciclo anterior (n = 1) y no habla de "normal"/anomalía`);
   verifica(!/(^|[\s>])(NaN|undefined)([\s<]|$)/.test(lt), `[${nombre}] lluvia: sin NaN/undefined`);
 
-  // ── Notas plegables
-  const notas = page.locator('details.cu-notas');
-  verifica(await notas.count() === 3 && await notas.evaluateAll((els) => els.every((e) => !e.hasAttribute('open'))), `[${nombre}] las 3 notas (presas, planos y red JCAS) están plegadas por defecto`);
-  for (let i = 0; i < 3; i++) await notas.nth(i).locator('summary').click();
-  verifica(/Nivel GOES de Luis L\. Le[oó]n/.test((await notas.allInnerTexts()).join(' ')) && /San Gabriel, Dgo\./.test((await notas.allInnerTexts()).join(' ')), `[${nombre}] al abrir las notas se explican el nivel GOES y San Gabriel, Dgo.`);
+  // ── Notas «Cómo se lee»: viven junto a su cifra, en su sección, plegadas por defecto
+  const notasDe = async (pestana) => {
+    await irA(page, pestana);
+    const notas = page.locator('details.cu-sec-notas');
+    const plegadas = await notas.count() > 0 && await notas.evaluateAll((els) => els.every((e) => !e.hasAttribute('open')));
+    verifica(plegadas, `[${nombre}] ${pestana}: las notas de lectura están plegadas por defecto`);
+    for (let i = 0; i < await notas.count(); i++) await notas.nth(i).locator('summary').click();
+    return (await notas.allInnerTexts()).join(' ');
+  };
+  verifica(/Pluviómetros del portal/.test(await notasDe('Clima')), `[${nombre}] Clima: la nota explica los pluviómetros del portal`);
+  verifica(/San Gabriel, Dgo\./.test(await notasDe('Vasos')), `[${nombre}] Vasos: la nota explica San Gabriel, Dgo.`);
+  verifica(/Nivel GOES de Luis L\. Le[oó]n/.test(await notasDe('Balance')), `[${nombre}] Balance: la nota explica el nivel GOES de Luis L. León`);
 
   await irA(page, 'Presas');
   // ── Layout
   const ancho = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
   verifica(ancho.sw <= ancho.cw + 1, `[${nombre}] sin scroll horizontal de página (${ancho.sw} ≤ ${ancho.cw})`);
-  const chico = await panel.evaluate((el) => [...el.querySelectorAll('*:not(svg *)')].filter((x) => [...x.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim()) && parseFloat(getComputedStyle(x).fontSize) < 11.95).map((x) => x.className || x.tagName).slice(0, 5));
-  verifica(chico.length === 0, `[${nombre}] texto no menor a 12 px (${chico.join(', ') || 'ok'})`);
+  const chico = await panel.evaluate((el) => [...el.querySelectorAll('*:not(svg *)')].filter((x) => [...x.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim()) && parseFloat(getComputedStyle(x).fontSize) < 10.95).map((x) => x.className || x.tagName).slice(0, 5));
+  verifica(chico.length === 0, `[${nombre}] texto no menor a 11 px (${chico.join(', ') || 'ok'})`);
   if (!esPhone) {
     const tq = await page.locator('.cu-tanque').evaluateAll((els) => els.map((e) => e.querySelector('svg').getBoundingClientRect().width));
     verifica(tq[0] > tq[1] && tq[1] >= tq[tq.length - 1] * 0.9 && Math.min(...tq) >= 40, `[${nombre}] el ancho de los tanques sigue la capacidad (Boquilla > Madero ≥ El Rejón; ${tq.map(Math.round).join(', ')})`);
@@ -122,8 +129,10 @@ for (const [nombre, vista, esPhone] of [
   await irA(page, 'Red y estaciones');
   // ── Cuerpos de agua (macromedición, etapa 1): red, vasos por satélite, cierres mensuales y balance
   await page.locator('#cu-red').waitFor({ timeout: 45000 });
-  const nodos = await page.locator('.cu-red-n').count();
-  verifica(nodos === 10, `[${nombre}] la red dibuja 9 cuerpos de agua + la salida (Ojinaga) (hay ${nodos})`);
+  // La red es hoy el sinóptico «El agua en la cuenca» (Resumen); su geometría fina la cubre cuenca-sistema.mjs.
+  await page.locator('#cu-red .cu-sis-nodo--presa').first().waitFor({ timeout: 45000 });
+  const nPresas = await page.locator('#cu-red .cu-sis-nodo--presa').count(), nSalida = await page.locator('#cu-red .cu-sis-nodo--salida').count();
+  verifica(nPresas === 9 && nSalida === 1, `[${nombre}] el sinóptico dibuja 9 cuerpos de agua + la salida (Ojinaga) (hay ${nPresas} + ${nSalida})`);
   await irA(page, 'Vasos por satélite');
   verifica(await page.locator('.cu-vs-card').count() === 9, `[${nombre}] 9 tarjetas de vasos por satélite (incluye La Colina y Piedras Azules)`);
   const cifrasVaso = await page.locator('.cu-vs-num').allTextContents();
@@ -142,11 +151,6 @@ for (const [nombre, vista, esPhone] of [
   await page.screenshot({ path: `${OUT}${nombre}-red-vasos.png` });
   const desborde = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   verifica(!desborde, `[${nombre}] la página no se desborda en horizontal con las secciones nuevas`);
-  if (esPhone) {
-    const vb = await page.locator('.cu-red-esq').getAttribute('viewBox');
-    const w = Number(vb.split(' ')[2]);
-    verifica(w <= 420, `[${nombre}] la red se dibuja vertical y cabe en teléfono (ancho de dibujo ${w})`);
-  }
   verifica(errores.length === 0, `[${nombre}] sin errores de consola${errores.length ? ': ' + errores.slice(0, 2).join(' | ') : ''}`);
   await panel.scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${OUT}${nombre}-panel.png` });

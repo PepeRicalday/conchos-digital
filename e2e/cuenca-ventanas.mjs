@@ -37,7 +37,9 @@ for (const [nombre, etq] of [['60 días', /· 60 d/], ['90 días', /· 90 d/], [
 await red.getByRole('button', { name: '30 días' }).click();
 verifica(/criterio de SICA/.test(await red.innerText()), 'Parral aparece excluida por criterio explícito de SICA');
 // propias con temperatura
-verifica(/Boquilla[\s\S]{0,200}°C/.test(await red.locator('tbody').innerText()), 'las estaciones propias muestran temperatura');
+await red.getByRole('button', { name: 'Temperatura', exact: true }).click();
+await pg.waitForTimeout(700);
+verifica(/Propia[\s\S]{0,300}°C/.test(await red.locator('tbody').innerText()), 'las estaciones propias muestran temperatura (variable Temperatura)');
 verifica(errs.length === 0, `sin errores de consola (${errs.slice(0, 3).join(' | ')})`);
 await b.close();
 if (fallos.length) { console.log(`\n${fallos.length} FALLOS`); process.exit(1); }

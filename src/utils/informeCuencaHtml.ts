@@ -20,7 +20,7 @@ import {
 import { COLOR_PAPEL, colorEstado, miniSerieSvg, tanqueSvg, tiraLluviaSvg } from './informeCuencaSvg';
 import type { DatosInformeCuenca, PresaInforme } from './informeCuencaDatos';
 import { DATOS_INFORME } from './informeCuencaConfig';
-import { CSS_CUERPOS_AGUA, hojaCuerposAgua, type DatosCuerposInforme } from './informeCuerposAgua';
+import { CSS_CUERPOS_AGUA, hojasCuerposAgua, type DatosCuerposInforme } from './informeCuerposAgua';
 
 export type FormatoInformeCuenca = 'png' | 'lamina' | 'carta';
 export const ANCHO_PNG_CUENCA = 1600;
@@ -207,7 +207,7 @@ function ficha(d: DatosInformeCuenca, p: PresaInforme): string {
   ${incluye(d, 'historico') ? `<h3>Posición frente a su historia</h3><p class="frase">${hist
     ? `${hist.percentil != null ? `Percentil <b>${hist.percentil}</b>` : 'Percentil S/D'}; mediana ${numTxt(hist.mediana, 1)} Mm³, rango histórico ${numTxt(hist.minimo, 1)}–${numTxt(hist.maximo, 1)} Mm³${hist.anomaliaMm3 != null ? `; hoy ${hist.anomaliaMm3 > 0 ? '+' : hist.anomaliaMm3 < 0 ? '−' : ''}${numTxt(Math.abs(hist.anomaliaMm3), 1)} Mm³ frente a la mediana` : ''}. <i>${esc(hist.nota)}</i>`
     : 'Sin climatología para esta presa (S/D).'}</p>` : ''}
-  ${incluye(d, 'serie') ? `<h3>Llenado de los últimos ${d.config.meses} meses</h3>${miniSerieSvg(p.serie, p.banda, 640, 120)}` : ''}
+  ${incluye(d, 'serie') ? `<h3>Llenado de los últimos ${d.config.meses} meses</h3>${miniSerieSvg(p.serie, p.banda, 640, 104)}` : ''}
   <h3>Por qué este semáforo</h3><ul class="motivos">${p.semaforo.motivos.length ? p.semaforo.motivos.map((t) => `<li>${esc(t)}.</li>`).join('') : '<li>Sin elementos suficientes para calificar (S/D).</li>'}</ul>
   ${p.descartes.length ? `<p class="aviso">Lecturas atípicas excluidas: ${p.descartes.map((x) => `${esc(fechaCorta(x.fecha))} (${numTxt(x.valor, 1)} Mm³)`).join(', ')}.</p>` : ''}
   ${m?.fuente ? `<p class="fuente">Ficha: ${esc(m.fuente)}${m.verificado ? '' : ' (sin verificar)'}</p>` : '<p class="fuente">Ficha de la presa sin verificar: río, municipio y distrito en S/D.</p>'}
@@ -301,11 +301,11 @@ ${CSS_COMUN}
 .ficha-presa h1{margin:0}
 .ficha-presa .sub{color:#57606a;margin:0 0 4px}
 .ficha-presa .gran{font-size:13pt;margin:2px 0 6px}.ficha-presa .gran b{font:800 20pt ${FUENTE_MARCA}}
-.ficha-presa .datos{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 14px;margin:8px 0}
+.ficha-presa .datos{display:grid;grid-template-columns:repeat(2,1fr);gap:5px 14px;margin:6px 0}
 .ficha-presa .dato{border-top:3px solid #0A7FDB;padding-top:3px}
 .ficha-presa .dato b{display:block;font-size:7.5pt;color:#57606a;font-weight:600}
 .ficha-presa .dato span{font:600 9.5pt "Segoe UI",Arial,sans-serif}
-.ficha-presa h3{margin:12px 0 4px}
+.ficha-presa h3{margin:9px 0 3px}
 .ficha-presa .motivos{margin:0;padding-left:18px}
 .ficha-presa svg.ms{width:100%;height:auto}
 table.cifras{font-size:7.6pt}
@@ -374,7 +374,7 @@ function carta(d: DatosInformeCuenca, o: OpcionesHtmlCuenca): string {
   const conFicha = incluye(d, 'ficha');
   const conEvolucion = incluye(d, 'serie') || incluye(d, 'lluvia');
   const conCuerpos = !!o.cuerpos && o.cuerpos.cuerpos.length > 0;
-  const total = 1 + (conEvolucion ? 1 : 0) + (conCuerpos ? 1 : 0) + (conFicha ? d.presas.length : 0) + 1;
+  const total = 1 + (conEvolucion ? 1 : 0) + (conCuerpos ? 2 : 0) + (conFicha ? d.presas.length : 0) + 1;
   let n = 0;
   const hoja = (cuerpo: string, cabecera: string) => `<section class="pagina">${cabecera}<div class="cuerpo">${cuerpo}</div>${pieInforme(`Folio ${folioCuenca(d, o.emitido)}`, ++n, total)}</section>`;
 
@@ -388,7 +388,7 @@ function carta(d: DatosInformeCuenca, o: OpcionesHtmlCuenca): string {
       incluye(d, 'lluvia') ? lluvia(d, 260) : '',
     ].join(''), membrete(o, d)));
   }
-  if (conCuerpos) hojas.push(hoja(hojaCuerposAgua(o.cuerpos!), membrete(o, d)));
+  if (conCuerpos) for (const h of hojasCuerposAgua(o.cuerpos!)) hojas.push(hoja(h, membrete(o, d)));
   if (conFicha) for (const p of d.presas) hojas.push(hoja(ficha(d, p), membrete(o, d)));
   hojas.push(hoja([
     notas(d),

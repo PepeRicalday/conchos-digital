@@ -306,7 +306,8 @@ async function buildHTML(
     const gddProm = gdds.length ? gdds.reduce((a, b) => a + b, 0) / gdds.length : null;
     // PROMEDIO entre estaciones con lectura, no suma: sumar mm entre pluviómetros
     // distintos no tiene lectura hidrológica y crece con cada estación conectada.
-    const lluvias = conLectura.map(e => e.lectura!.lluvia_dia_mm ?? 0);
+    // Una estación sin dato de lluvia (null) no cuenta como 0 mm: no baja el promedio de las que sí midieron.
+    const lluvias = conLectura.flatMap(e => (e.lectura!.lluvia_dia_mm != null ? [e.lectura!.lluvia_dia_mm as number] : []));
     const lluviaObs = lluvias.length ? lluvias.reduce((a, b) => a + b, 0) / lluvias.length : 0;
 
     // ETₒ TOTAL prevista para hoy: es la magnitud que dimensiona la lámina de

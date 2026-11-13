@@ -309,7 +309,7 @@ export function demanda24h(filas: FilaPronostico[], ahoraMs: number, excluidasId
         netaMm: viejo ? null : agrega(netas),
         rangoMm: !viejo && netas.length ? { min: Math.min(...netas), max: Math.max(...netas) } : null,
         eto24Mm: viejo ? null : agrega(validas.map((e) => e.eto24Mm as number)),
-        lluviaEfectivaMm: viejo ? null : agrega(validas.map((e) => e.lluviaEfectivaMm ?? 0)),
+        lluviaEfectivaMm: viejo ? null : agrega(validas.map((e) => e.lluviaEfectivaMm).filter(fin)), // sin dato (null) no entra como 0 mm
         lluvia24Mm: agrega(validas.map((e) => e.lluvia24Mm).filter(fin)),
         probMaxPct: validas.length ? Math.max(0, ...validas.map((e) => e.probMaxPct ?? 0)) : null,
         estacionesUsadas: validas.length, estacionesTotal: porEst.size,

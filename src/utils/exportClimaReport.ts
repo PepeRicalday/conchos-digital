@@ -555,9 +555,10 @@ async function buildHTML(ests: EstacionConLectura[], umbrales?: UmbralClima[]): 
     const gddProm = gdds.length ? gdds.reduce((a, b) => a + b, 0) / gdds.length : null;
     // PROMEDIO entre estaciones con lectura, no suma: sumar mm entre pluviómetros
     // distintos no tiene lectura hidrológica y crece con cada estación conectada.
-    const conLecturaLluvia = ests.filter(e => e.lectura);
+    // Solo cuentan las estaciones que midieron lluvia (null = S/D, no 0 mm).
+    const conLecturaLluvia = ests.filter(e => e.lectura && e.lectura.lluvia_dia_mm != null);
     const lluviaTotal = conLecturaLluvia.length
-        ? conLecturaLluvia.reduce((a, e) => a + (e.lectura!.lluvia_dia_mm ?? 0), 0) / conLecturaLluvia.length
+        ? conLecturaLluvia.reduce((a, e) => a + (e.lectura!.lluvia_dia_mm as number), 0) / conLecturaLluvia.length
         : 0;
     // ETₒ TOTAL prevista para hoy (24 h del modelo). Es la magnitud con la que se
     // dimensiona la lámina de riego; `etoProm` es solo el acumulado hasta el corte.

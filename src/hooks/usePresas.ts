@@ -16,7 +16,7 @@ export interface PresaData {
     tipo_cortina: string;
     latitud: number;
     longitud: number;
-    elevacion_corona_msnm: number;
+    elevacion_corona_msnm: number | null;
     capacidad_max_mm3: number;
     // Lectura del día (o más reciente disponible)
     lectura: LecturaPresaData | null;
@@ -396,7 +396,7 @@ export function usePresas(fecha: string) {
                         tipo_cortina: p.tipo_cortina || '',
                         latitud: Number(p.latitud) || 0,
                         longitud: Number(p.longitud) || 0,
-                        elevacion_corona_msnm: Number(p.elevacion_corona_msnm) || 0,
+                        elevacion_corona_msnm: p.elevacion_corona_msnm == null || p.elevacion_corona_msnm === '' || !Number.isFinite(Number(p.elevacion_corona_msnm)) || Number(p.elevacion_corona_msnm) <= 0 ? null : Number(p.elevacion_corona_msnm), // sin cota = S/D, no 0 msnm
                         capacidad_max_mm3: Number(p.capacidad_max),
                         lectura: readingObject,
                         curva_capacidad: curva,

@@ -248,7 +248,7 @@ const Dashboard = () => {
         goes: { cargado: extra.goes.cargado, error: extra.goes.error, estaciones: (extra.goes.datos ?? []).map((g) => ({ id: g.id, nombre: g.nombre, clave: g.enlace.clave, edadMin: g.enlace.edadMin, serieGasto: g.serieGasto, ultimoDato: g.ultimoDato, estadia: g.estadia })) },
         ndvi: { cargado: extra.ndvi.cargado, error: extra.ndvi.error, r: extra.ndvi.datos },
         cuenca: { cargado: !cuenca.loading, error: cuenca.error, r: cuencaR },
-    }), [cuencaR, cuenca.loading, cuenca.error, hoyISO, cicloAct, extra.goes, extra.ndvi, extra.cultivos, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, suficiencia, extra.historico.cargado, extra.historico.error, extra.pronostico.demanda, extra.pronostico.cargado, extra.pronostico.error, avanceDist, avance, canal.modelo, canal.cargado, volumenCanal, vaciadoDesde, etoReciente, umbralesClima, clima, extra.pronostico.horas, modules, confianza, resumen, topAlertas, abrirDrawer]);
+    }), [presas, cuencaR, cuenca.loading, cuenca.error, hoyISO, cicloAct, extra.goes, extra.ndvi, extra.cultivos, esHoy, almacenamiento, totalAlmacenamiento, serieAlm, frescuraLectura, suficiencia, extra.historico.cargado, extra.historico.error, extra.pronostico.demanda, extra.pronostico.cargado, extra.pronostico.error, avanceDist, avance, canal.modelo, canal.cargado, volumenCanal, vaciadoDesde, etoReciente, umbralesClima, clima, extra.pronostico.horas, modules, confianza, resumen, topAlertas, abrirDrawer]);
 
     // Estados derivados: una sola vez por cambio del modelo (los comparten la barra de pulso y las tarjetas).
     const derivados = useMemo(() => derivaEstados(modeloKpis), [modeloKpis]);

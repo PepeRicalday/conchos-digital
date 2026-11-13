@@ -174,8 +174,9 @@ function buildConditionsRed(
     // Promedio, no suma: la lámina de lluvia no se acumula entre pluviómetros
     // distintos — sumar infla el indicador en proporción al número de estaciones
     // conectadas, no a la lluvia real caída en el distrito.
-    const lluvias = conLect.map(e => ({ n: e.nombre, v: e.lectura!.lluvia_dia_mm ?? 0 }));
-    const promLluvia = lluvias.length ? lluvias.reduce((a, x) => a + x.v, 0) / lluvias.length : 0;
+    // Una estación sin lectura de lluvia (null) es S/D: no cuenta como 0 mm ni baja el promedio. Sin ninguna, el indicador dice S/D.
+    const lluvias = conLect.flatMap(e => (e.lectura!.lluvia_dia_mm != null ? [{ n: e.nombre, v: e.lectura!.lluvia_dia_mm as number }] : []));
+    const promLluvia: number | null = lluvias.length ? lluvias.reduce((a, x) => a + x.v, 0) / lluvias.length : null;
     const conLluvia = lluvias.filter(x => x.v > 0);
     const mmPrev = ests.map(e => e.pronosticoSerie
         .filter(p => p.fecha_local === hoyLocal && p.precip_mm != null)
@@ -183,16 +184,16 @@ function buildConditionsRed(
     const probs = num(serie.map(p => p.precip_prob_pct));
     out.push({
         variable: 'Precipitación',
-        current: `${promLluvia.toFixed(1)} mm`,
+        current: promLluvia == null ? 'S/D' : `${promLluvia.toFixed(1)} mm`,
         forecast: probs.length
             ? `${Math.max(...probs)} %${mmPrev.length ? ` · ${(mmPrev.reduce((a, b) => a + b, 0) / mmPrev.length).toFixed(1)} mm` : ''}`
             : '—',
-        impact: promLluvia >= uLluvia.aviso ? 'Posible suspensión de riegos' : 'Sin impacto en operación',
+        impact: promLluvia == null ? 'Sin dato de pluviómetros' : promLluvia >= uLluvia.aviso ? 'Posible suspensión de riegos' : 'Sin impacto en operación',
         icon: <Droplets size={18} />,
-        status: promLluvia >= uLluvia.critico ? 'alert' : promLluvia >= uLluvia.aviso ? 'warning' : 'normal',
+        status: promLluvia != null && promLluvia >= uLluvia.critico ? 'alert' : promLluvia != null && promLluvia >= uLluvia.aviso ? 'warning' : 'normal',
         detalle: conLluvia.length
             ? `Observada en ${conLluvia.map(x => `${x.n} ${x.v.toFixed(1)} mm`).join(', ')}`
-            : `Sin registro en ${conLect.length} estación(es)`,
+            : lluvias.length ? `Sin lluvia en ${lluvias.length} estación(es) con pluviómetro` : `Sin dato de lluvia en ${conLect.length} estación(es) (S/D)`,
     });
 
     // ── Humedad relativa: media de la red ───────────────────────────────────

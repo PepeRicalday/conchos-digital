@@ -35,11 +35,11 @@ const FUENTE_COLOR: Record<string, string> = {
     DEFAULT:        '#6366f1',
 };
 
-const ExtractionStreamgraph = ({ movimientos }: { movimientos: MovimientoPresaData[] }) => {
+const ExtractionStreamgraph = ({ movimientos, ahoraMs }: { movimientos: MovimientoPresaData[]; ahoraMs: number }) => {
     // Build 48-hour step chart at 2-hour resolution (24 points)
     // movimientos represent state changes — carry forward last known gasto
     const data = useMemo(() => {
-        const now = Date.now();
+        const now = Math.floor(ahoraMs / 60_000) * 60_000; // el reloj entra por prop (render puro); se redondea al minuto
         const SLOTS = 24;
         const INTERVAL_MS = 2 * 3600000;
 
@@ -62,7 +62,7 @@ const ExtractionStreamgraph = ({ movimientos }: { movimientos: MovimientoPresaDa
                 fuente: last?.fuente_dato ?? 'DEFAULT',
             };
         });
-    }, [movimientos]);
+    }, [movimientos, ahoraMs]);
 
     // Un CORTE medido (0 m³/s) es información operativa: solo la ausencia de dato (S/D) vacía el panel.
     const hasDatos = data.some(d => d.gasto != null);
@@ -837,7 +837,7 @@ const Presas = () => {
                         <Activity size={11} className="text-slate-400" />
                         <span>Tendencia de extracción 48H</span>
                     </div>
-                    <ExtractionStreamgraph movimientos={movimientosHistorial.filter(m => m.presa_id === currentDam.id)} />
+                    <ExtractionStreamgraph movimientos={movimientosHistorial.filter(m => m.presa_id === currentDam.id)} ahoraMs={horaActual.getTime()} />
 
                     {/* Datos de diseño del vaso: en esta columna equilibran la altura con el vaso y dejan la extracción junto a las tomas. */}
                     {activeTab === 'operacion' && (
@@ -849,7 +849,7 @@ const Presas = () => {
                             <div className="scada-design-kpis">
                                 <div className="scada-design-kpi">
                                     <span>Corona</span>
-                                    <span>{currentDam.elevacion_corona_msnm.toFixed(2)} msnm</span>
+                                    <span>{currentDam.elevacion_corona_msnm == null ? 'S/D' : `${currentDam.elevacion_corona_msnm.toFixed(2)} msnm`}</span>
                                 </div>
                                 <div className="scada-design-kpi">
                                     <span>Cap. al NAMO</span>

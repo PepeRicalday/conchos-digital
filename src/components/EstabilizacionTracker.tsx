@@ -22,7 +22,8 @@ interface TomaActiva {
     id: string;
     punto_nombre: string;
     modulo_nombre: string;
-    caudal_promedio_m3s: number;
+    /** null = la toma no trae caudal promedio (S/D); nunca se rellena con 0. */
+    caudal_promedio_m3s: number | null;
 }
 
 const EstabilizacionTracker: React.FC = () => {
@@ -62,7 +63,7 @@ const EstabilizacionTracker: React.FC = () => {
                 id: r.punto_id,
                 punto_nombre: r.puntos_entrega?.nombre || r.punto_id,
                 modulo_nombre: 'MOD-' + (r.puntos_entrega?.modulo_id || 'GENERAL'),
-                caudal_promedio_m3s: parseFloat(r.caudal_promedio || 0)
+                caudal_promedio_m3s: r.caudal_promedio == null || !Number.isFinite(parseFloat(r.caudal_promedio)) ? null : parseFloat(r.caudal_promedio)
             }));
             
             tomasActivasList.sort((a, b) => a.modulo_nombre.localeCompare(b.modulo_nombre));
@@ -82,7 +83,9 @@ const EstabilizacionTracker: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
-    const totalDistribuido = tomasActivas.reduce((acc, t) => acc + (t.caudal_promedio_m3s || 0), 0);
+    // Solo suma las tomas con caudal conocido; si ninguna lo trae, el total es S/D (no 0).
+    const tomasConCaudal = tomasActivas.filter((t) => t.caudal_promedio_m3s != null);
+    const totalDistribuido: number | null = tomasConCaudal.length ? tomasConCaudal.reduce((acc, t) => acc + (t.caudal_promedio_m3s as number), 0) : null;
     const totalConducido = tramos.length > 0 ? tramos[0].q_entrada_m3s : null; // Gasto en inicio del canal principal
     // Solo tramos con balance válido (entra agua y eficiencia 0–100 %); sin ninguno, la pérdida total es S/D, no 0.
     const tramosValidos = tramos.filter(t => (t.q_entrada_m3s ?? 0) > 0 && t.q_perdida_m3s != null && t.eficiencia_pct != null && t.eficiencia_pct > 0 && t.eficiencia_pct <= 100);
@@ -116,7 +119,7 @@ const EstabilizacionTracker: React.FC = () => {
                 {/* Global Metrics */}
                 <div style={{ display: 'flex', gap: '16px' }}>
                     <MetricBox title="Eficiencia Global" value={eficienciaGlobal} icon={<Activity size={16} />} color="#10b981" />
-                    <MetricBox title="Gasto Derivado" value={`${(totalDistribuido ?? 0).toFixed(2)} m³/s`} icon={<LayoutDashboard size={16} />} color="#3b82f6" />
+                    <MetricBox title="Gasto Derivado" value={totalDistribuido == null ? 'S/D' : `${totalDistribuido.toFixed(2)} m³/s`} icon={<LayoutDashboard size={16} />} color="#3b82f6" />
                     <MetricBox title="Pérdidas Totales" value={totalPerdidas == null ? 'S/D' : `${totalPerdidas.toFixed(2)} m³/s`} icon={<AlertTriangle size={16} />} color="#ef4444" />
                 </div>
             </div>
@@ -193,7 +196,7 @@ const EstabilizacionTracker: React.FC = () => {
                                             <div style={{ color: 'var(--text-3)', fontSize: '0.7rem', textTransform: 'uppercase' }}>{toma.modulo_nombre}</div>
                                         </div>
                                         <div style={{ background: 'color-mix(in srgb, var(--st-info) 10%, transparent)', color: 'var(--st-info)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 900 }}>
-                                            {(toma.caudal_promedio_m3s ?? 0).toFixed(2)} <span style={{ fontSize: '0.65rem', color: 'var(--text-3)' }}>m³/s</span>
+                                            {toma.caudal_promedio_m3s == null ? 'S/D' : toma.caudal_promedio_m3s.toFixed(2)} <span style={{ fontSize: '0.65rem', color: 'var(--text-3)' }}>m³/s</span>
                                         </div>
                                     </div>
                                 ))}
